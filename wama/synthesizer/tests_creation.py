@@ -84,3 +84,53 @@ class OneCreationPathTest(TestCase):
                                     {'server_path': foreign})
         self.assertEqual(403, response.status_code)
         self.assertFalse(VoiceSynthesis.objects.filter(user=self.user).exists())
+
+
+class PanelSettingsFollowTheSchemaTest(TestCase):
+    """Les réglages du VOLET circulent par le SCHÉMA, plus par des listes de clés (2026-10-18).
+
+    Relevé par la session assistant en ajoutant deux réglages au schéma : ils s'affichaient sans
+    être postés à la création, enregistrés sur une card inspectée, ni appliqués par « Démarrer
+    tout ». Ce qui est tenu ici, côté serveur : « Démarrer tout » passe par LA fonction de réglage
+    d'une synthèse (`_apply_synthesis_settings`), et la création mémorise le volet par l'écrivain
+    commun (`save_panel_settings`). Côté front : `tests.FrontReadsThePanelBySchemaTest`."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('synth_panel_schema', password='x')
+        _grant(self.user)
+        self.client.force_login(self.user)
+
+    def _typed(self, **settings):
+        response = self.client.post(reverse('synthesizer:upload_text'),
+                                    {'text_content': 'Bonjour le volet', **settings})
+        self.assertEqual(200, response.status_code, response.content[:200])
+        return VoiceSynthesis.objects.get(pk=response.json()['id'])
+
+    def test_start_all_applies_every_posted_schema_setting(self):
+        """`start_all` relisait cinq champs à la main : le format de sortie et le curseur
+        rapide/qualité, que le volet poste pourtant, n'atteignaient pas les synthèses relancées."""
+        from unittest import mock
+        first, second = self._typed(), self._typed()
+        task = mock.MagicMock()
+        task.delay.return_value.id = 'task-x'
+        with mock.patch('wama.synthesizer.views._ensure_workers_imported'),                 mock.patch('wama.synthesizer.views.synthesize_voice', task, create=True):
+            response = self.client.post(reverse('synthesizer:start_all'),
+                                        {'output_format': 'mp3', 'quality_intent': '80', 'speed': '1.3'})
+        self.assertEqual(200, response.status_code, response.content[:200])
+        for synthesis in (first, second):
+            synthesis.refresh_from_db()
+            self.assertEqual(('mp3', 80, 1.3),
+                             (synthesis.output_format, int(synthesis.quality_intent), synthesis.speed))
+        self.assertEqual(2, task.delay.call_count)
+
+    def test_the_panel_choices_are_remembered_by_the_common_writer(self):
+        from wama.common.models import UserAppSetting
+        from wama.synthesizer.views import synthesis_panel_values
+        self._typed(language='en', tts_model='synthesizer:kokoro')
+        values = synthesis_panel_values(self.user)
+        self.assertEqual(('en', 'synthesizer:kokoro'), (values['language'], values['tts_model']))
+        # Une valeur ÉGALE au défaut n'est pas figée : la préférence est retirée (règle commune).
+        self._typed(language='fr', tts_model='synthesizer:kokoro')
+        self.assertFalse(UserAppSetting.objects.filter(
+            user=self.user, app='synthesizer', name='preferred_language').exists())
+        self.assertEqual('fr', synthesis_panel_values(self.user)['language'])

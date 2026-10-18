@@ -263,14 +263,14 @@ def upload_text(request):
                                      params=request.POST.dict())
     except (SynthesisRefused, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
-    # Re-persiste les choix du volet comme défauts du prochain chargement (brique COMMUNE).
+    # Re-persiste les choix du volet comme défauts du prochain chargement — l'écrivain COMMUN
+    # des réglages du volet, symétrique de `synthesis_panel_values` (même déclaration :
+    # `_panel_pref_key` dit ce qui se mémorise et sous quelle clé historique). Les trois clés
+    # étaient écrites ici à la main, depuis l'élément créé (2026-10-18).
     try:
-        from wama.common.utils.user_settings import save_user_app_settings
-        save_user_app_settings(user, 'synthesizer', {
-            'preferred_language': synthesis.language,
-            'preferred_tts_model': synthesis.tts_model,
-            'preferred_voice_preset': synthesis.voice_preset,
-        })
+        from wama.common.utils.user_settings import save_panel_settings
+        save_panel_settings(user, 'synthesizer', _SYNTH_PARAMS_JSON, request.POST.dict(),
+                            key=_panel_pref_key)
     except Exception:
         pass
     return _card_created_response(synthesis, success=True)
@@ -513,23 +513,21 @@ def start_all(request):
         return JsonResponse({'error': f'TTS worker functions not available: {str(e)}'}, status=500)
 
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Récupérer les nouvelles options depuis le formulaire
-    try:
-        tts_model = tts_catalog_key(request.POST.get('tts_model'))
-        language = request.POST.get('language')
-        voice_preset = request.POST.get('voice_preset')
-        speed = request.POST.get('speed')
-        pitch = request.POST.get('pitch')
-        # Voix de référence téléversée ou DÉSIGNÉE (médiathèque, arbre) : une désignation est
-        # POINTÉE par toutes les synthèses, au lieu d'une copie par ligne.
-        voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
-        voice_reference = voice_received[0].value if voice_received else None
-        multi_speaker_raw = request.POST.get('multi_speaker')
-        scene_description_raw = request.POST.get('scene_description')
-    except Exception as e:
-        return JsonResponse({
-            'error': f'Erreur lors de la récupération des options: {str(e)}'
-        }, status=400)
+    # « Démarrer tout » vaut « appliquer à tout » : les réglages postés (le volet, lu par le
+    # lecteur dérivé du schéma) passent par LA fonction de réglage d'une synthèse — celle de la
+    # route d'élément et des lots (2026-10-18). Jusque-là cette vue relisait cinq champs à la
+    # main : un réglage ajouté au schéma (et le format de sortie, la qualité, le curseur
+    # rapide/qualité, déjà postés) n'atteignait pas les synthèses relancées.
+    from wama.common.utils.batch_views import read_settings_payload
+    names = [p['name'] for p in _SYNTH_PARAMS_JSON]
+    data = read_settings_payload(request, _SYNTH_PARAMS_JSON, names)
+    for extra in ('multi_speaker', 'scene_description'):   # hors schéma, même payload
+        if extra in request.POST:
+            data[extra] = request.POST[extra]
+    # Voix de référence téléversée ou DÉSIGNÉE (médiathèque, arbre) : une désignation est
+    # POINTÉE par toutes les synthèses, au lieu d'une copie par ligne.
+    voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
+    voice_reference = voice_received[0].value if voice_received else None
     if not voice_received and voice_received.refusal:
         return JsonResponse({'error': voice_received.refusal}, status=400)
 
@@ -538,36 +536,18 @@ def start_all(request):
     started = []
     updated_options = []
 
+    watched = names + ['multi_speaker', 'scene_description']
     for synthesis in qs:
-        # Mettre à jour les options si fournies
-        options_changed = False
-        if tts_model and synthesis.tts_model != tts_model:
-            synthesis.tts_model = tts_model
-            options_changed = True
-        if language and synthesis.language != language:
-            synthesis.language = language
-            options_changed = True
-        if voice_preset and synthesis.voice_preset != voice_preset:
-            synthesis.voice_preset = voice_preset
-            options_changed = True
-        if speed and float(speed) != synthesis.speed:
-            synthesis.speed = float(speed)
-            options_changed = True
-        if pitch and float(pitch) != synthesis.pitch:
-            synthesis.pitch = float(pitch)
-            options_changed = True
+        before = [getattr(synthesis, n, None) for n in watched]
+        try:
+            _apply_synthesis_settings(synthesis, data)
+        except ValueError as refusal:
+            return JsonResponse({'error': str(refusal)}, status=400)
+        options_changed = before != [getattr(synthesis, n, None) for n in watched]
         if voice_reference:
             # Supprimer l'ancienne référence si elle existe
             release_card_file(synthesis, 'voice_reference')
             synthesis.voice_reference = voice_reference
-            options_changed = True
-        if multi_speaker_raw is not None:
-            new_ms = multi_speaker_raw == '1'
-            if synthesis.multi_speaker != new_ms:
-                synthesis.multi_speaker = new_ms
-                options_changed = True
-        if scene_description_raw is not None and synthesis.scene_description != scene_description_raw:
-            synthesis.scene_description = scene_description_raw
             options_changed = True
 
         if options_changed:

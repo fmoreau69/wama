@@ -91,19 +91,25 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Les réglages du VOLET, tels que la synthèse les reçoit — UNE lecture pour le bouton
-    // « Ajouter », l'aperçu et l'import (2026-09-28 : trois copies de la même liste). Lecteur
-    // gardé : un champ absent donne son défaut, jamais une exception dans un `async`.
+    // Les réglages du VOLET, tels que la synthèse les reçoit — UNE lecture pour toute création
+    // (dépôt, texte, aperçu, lot, import du gestionnaire) et pour « Démarrer tout ». Le lecteur
+    // est celui que l'inspecteur DÉRIVE du schéma (`WamaInspector.initFromSchema` → `read`,
+    // monté par le gabarit), repli `WamaParams.read` sur l'hôte du volet : un réglage ajouté au
+    // schéma en contexte `panel` est posté sans toucher ce code. Jusqu'au 2026-10-18, huit
+    // champs étaient relus ici par leur id — et le lot et l'import en relisaient six, à part.
+    // Une valeur vide n'est pas postée : le serveur applique alors le défaut du schéma.
+    function panelValues() {
+        if (window._synthInspector && window._synthInspector.read) return window._synthInspector.read();
+        const host = document.getElementById('synthPanelParams');
+        return (host && window.WamaParams) ? WamaParams.read(host) : {};
+    }
+
     function appendPanelSettings(fd) {
-        const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
-        fd.append('tts_model', v('tts_model', ''));   // vide → défaut du serveur (DEFAULT_TTS_MODEL)
-        fd.append('quality_intent', v('quality_intent', '50'));
-        fd.append('language', v('language', 'fr'));
-        fd.append('voice_preset', v('voice_preset', 'default'));
-        fd.append('speed', v('speed', '1.0'));
-        fd.append('pitch', v('pitch', '1.0'));
-        fd.append('output_format', v('output_format', '') || 'original');
-        fd.append('output_quality', v('output_quality', '') || 'balanced');
+        const values = panelValues();
+        Object.keys(values).forEach(function (name) {
+            const value = values[name];
+            if (value !== '' && value !== null && value !== undefined) fd.append(name, value);
+        });
         appendHiggsFields(fd);
     }
 
@@ -227,21 +233,54 @@ document.addEventListener('DOMContentLoaded', function() {
     // `WamaParams.settingsModal` (openSettingsModal ci-dessus).
     WamaQueueActions.onSettings(function (id, settingsBtn) { openSettingsModal(id, settingsBtn); });
 
+    // ⚙ de LOT — le MÊME cycle commun (2026-10-18), pré-rempli par les valeurs que les filles
+    // PARTAGENT (`WamaInspector.sharedGearValues`, sur les data-* que `card_gear` dérive du
+    // schéma), comme les apps générées. Jusque-là : une modale écrite dans le gabarit, ouverte
+    // sur les SIX réglages de la 1ʳᵉ fille relus à la main (avec leurs défauts en dur), et un
+    // second résolveur d'options recopié de `_panelOptionsResolver`.
+    function openBatchSettingsModal(id) {
+        const schema = window.SYNTH_PARAMS_SCHEMA || [];
+        const group = document.querySelector('.batch-group[data-batch-id="' + id + '"]');
+        const values = (group && WamaInspector.sharedGearValues)
+            ? WamaInspector.sharedGearValues(group, schema.map(function (p) { return p.name; })) : {};
+        return WamaParams.settingsModal({
+            id: 'Batch' + id,
+            title: 'Paramètres — Batch #' + id,
+            titleIcon: 'fa-layer-group',
+            schema: schema,
+            context: 'batch',
+            values: values,
+            footerTplId: 'synthBatchFooterTpl',
+            saveUrl: URLS.batchSettings + id + '/update/',
+            csrf: csrfToken,
+            optionsResolver: _panelOptionsResolver,
+            decorate: function (host) {
+                const note = document.createElement('div');
+                note.className = 'alert alert-secondary py-2 small mb-3';
+                note.innerHTML = '<i class="fas fa-info-circle"></i> '
+                    + "S'applique à tous les éléments non-en-cours du batch.";
+                host.prepend(note);
+            },
+            onSaved: async function (sid, restart) {
+                if (restart) {
+                    try {
+                        await fetch(URLS.batchStart + id + '/start/',
+                                    { method: 'POST', headers: { 'X-CSRFToken': csrfToken } });
+                    } catch (error) { WamaApp.toast('Erreur: ' + error.message, 'error'); }
+                }
+                location.reload();
+            },
+        });
+    }
+    WamaQueueActions.onBatchSettings(function (id) { openBatchSettingsModal(id); });
+
     // Bulk actions — ▶ Démarrer tout et 🗑 Tout effacer : brique `queue-actions.js` (2026-10-17,
     // URLs passées au partial). « Démarrer tout » vaut ici « appliquer à tout » : le CORPS porte
     // les options du volet (la vue `start_all` lit `request.POST`, et la voix de référence est un
     // fichier — d'où un FormData, que la brique envoie tel quel en multipart).
     WamaQueueActions.onQueueStartBody(function () {
         const formData = new FormData();
-        formData.append('tts_model', document.getElementById('tts_model').value);
-        formData.append('quality_intent', (document.getElementById('quality_intent') || { value: '50' }).value);
-        formData.append('language', document.getElementById('language').value);
-        formData.append('voice_preset', document.getElementById('voice_preset').value);
-        formData.append('speed', document.getElementById('speed').value);
-        formData.append('pitch', document.getElementById('pitch').value);
-        formData.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-        formData.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-        appendHiggsFields(formData);
+        appendPanelSettings(formData);
         return formData;
     });
 
@@ -431,15 +470,7 @@ document.addEventListener('DOMContentLoaded', function() {
         batchPreviewUrl: URLS.batchPreview,
         batchCreateUrl: URLS.batchCreate,
         csrfToken: csrfToken,
-        formDataBuilder: function (fd) {
-            const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
-            fd.append('tts_model', v('tts_model', ''));   // vide → défaut du serveur (DEFAULT_TTS_MODEL)
-            fd.append('quality_intent', v('quality_intent', '50'));
-            fd.append('language', v('language', 'fr'));
-            fd.append('voice_preset', v('voice_preset', 'default'));
-            fd.append('speed', v('speed', '1.0'));
-            fd.append('pitch', v('pitch', '1.0'));
-        },
+        formDataBuilder: appendPanelSettings,
         afterCreate: function (data, autoStart) {
             if (autoStart && data && data.batch_id) {
                 fetch(URLS.batchStart + data.batch_id + '/start/', { method: 'POST', headers: { 'X-CSRFToken': csrfToken } })
@@ -491,13 +522,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (!confirm('Fichier batch détecté (' + n + ' synthèses). Créer le batch avec les réglages du volet ?')) return;
         const fd = new FormData();
         fd.append('server_path', result.server_path || '');
-        const v = (id, dft) => { const el = document.getElementById(id); return el ? el.value : dft; };
-        fd.append('tts_model', v('tts_model', ''));   // vide → défaut du serveur (DEFAULT_TTS_MODEL)
-        fd.append('quality_intent', v('quality_intent', '50'));
-        fd.append('language', v('language', 'fr'));
-        fd.append('voice_preset', v('voice_preset', 'default'));
-        fd.append('speed', v('speed', '1.0'));
-        fd.append('pitch', v('pitch', '1.0'));
+        appendPanelSettings(fd);
         try {
             const r = await fetch(URLS.batchCreate, { method: 'POST', headers: { 'X-CSRFToken': csrfToken }, body: fd });
             const d = await r.json();

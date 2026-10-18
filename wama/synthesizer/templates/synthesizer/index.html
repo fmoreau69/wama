@@ -147,38 +147,13 @@ greffe, avec les classes qu'il délègue (`save-settings-btn` / `save-and-restar
     {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Sauvegarder' save_start_class='save-and-restart-btn' save_start_label='Sauvegarder et démarrer' %}
 </template>
 
-<!-- Batch Settings Modal -->
-<div class="modal fade" id="batchSettingsModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">
-                    <i class="fas fa-layer-group" style="color:#a78bfa;"></i>
-                    Paramètres — Batch <span id="batchSettingsBatchLabel"></span>
-                </h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <div class="alert alert-secondary py-2 small mb-3">
-                    <i class="fas fa-info-circle"></i>
-                    S'applique à tous les éléments non-en-cours du batch.
-                </div>
-                <input type="hidden" id="batchSettingsBatchId">
-
-                {% comment %}Corps GÉNÉRÉ du schéma (WamaParams context 'batch', contrat reader) —
-                remplace les 5 champs hand-built (17/08). Les ids legacy batchSettings* viennent des
-                dom_id.batch de params.py → le JS d'ouverture/sauvegarde est inchangé. Les options de
-                voix sont CLONÉES du select canonique du volet à l'ouverture (`optionsResolver`, plus
-                bas) : la modale d'un lot ne refait pas l'inventaire, elle recopie celui qui est à
-                l'écran. ⚠ Ce bloc citait `cloneVoiceOptions`, le miroir de la card d'entrée, retiré
-                le 2026-09-27 avec les contrôles qu'il servait.{% endcomment %}
-                <div id="synthBatchParams"></div>
-            </div>
-            {# Pied de modale COMMUN — ids conservés pour le script batch #}
-            {% include 'common/_settings_modal_footer.html' with save_id='saveBatchSettingsBtn' save_label='Sauvegarder' save_start_id='saveBatchSettingsAndStartBtn' save_start_label='Sauvegarder et relancer' save_start_icon='fa-rotate-right' %}
-        </div>
-    </div>
-</div>
+{% comment %}Modale ⚙ de LOT : générée par le MÊME cycle commun (`WamaParams.settingsModal`,
+index.js — 2026-10-18), pré-remplie par les valeurs que les filles partagent. Ne reste ici que
+son pied, avec le libellé de relance qu'elle portait. La modale écrite dans ce gabarit (corps
+`#synthBatchParams`, ids `batchSettings*`, script d'ouverture et d'enregistrement) est retirée.{% endcomment %}
+<template id="synthBatchFooterTpl">
+    {% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_label='Sauvegarder' save_start_class='save-and-restart-btn' save_start_label='Sauvegarder et relancer' save_start_icon='fa-rotate-right' %}
+</template>
 
 <!-- Audio Preview Modal -->
 <div class="modal fade" id="previewModal" tabindex="-1">
@@ -299,18 +274,14 @@ document.addEventListener('DOMContentLoaded', function () {
     var schema = window.SYNTH_PARAMS_SCHEMA;
     var cfg = window.WAMA_CONFIG || {};
     var U = cfg.urls || {}, csrf = cfg.csrfToken || '';
-    // Params per-item (incl. format/qualité = early-binding : réglés avant génération, sauvegardés).
-    var keys = ['tts_model', 'quality_intent', 'language', 'voice_preset', 'speed', 'pitch', 'output_format', 'output_quality'];
+    // Les réglages de l'élément inspecté : le lecteur que l'inspecteur DÉRIVE du schéma
+    // (`read`, contexte `panel` — il connaît les deux identités d'un champ, `id`/`name=` et
+    // `data-param=`). La liste des huit clés écrite ici est retirée le 2026-10-18 : un réglage
+    // ajouté au schéma s'affichait sur la card inspectée sans jamais être enregistré.
     function saveItemReq(id) {
         var fd = new FormData();
-        // Les DEUX formes d'identité d'un champ de volet : `name=` (markup écrit à la main) et
-        // `data-param=` (champ GÉNÉRÉ — WamaParams n'émet pas de `name` hors modale, il n'y a
-        // pas de POST de formulaire). Même sélecteur que l'inspecteur commun ; sans la seconde
-        // forme, la voix du volet cesserait SILENCIEUSEMENT d'être enregistrée.
-        keys.forEach(function (k) {
-            var el = ph.querySelector('[name="' + k + '"],[data-param="' + k + '"]');
-            if (el) fd.append(k, el.value);
-        });
+        var values = window._synthInspector ? window._synthInspector.read() : {};
+        Object.keys(values).forEach(function (k) { fd.append(k, values[k]); });
         return fetch(U.updateSettings.replace('/0/', '/' + id + '/'),
             { method: 'POST', headers: { 'X-CSRFToken': csrf }, body: fd });
     }
@@ -343,11 +314,9 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 <script>
-// Batch group actions: delete, settings modal
+// Capacités des modèles, appariement entrée ↔ modèle, repli des lots (les actions de lot sont aux
+// briques communes, le ⚙ de lot à index.js).
 document.addEventListener('DOMContentLoaded', function () {
-    const URLS = window.WAMA_CONFIG.urls;
-    const csrf = window.WAMA_CONFIG.csrfToken;
-
     // Filtrage dynamique voix/langues selon les capacités du modèle TTS (AIModel.capabilities).
     // Voix de clonage (« Mes voix » ua_/cv_) masquées si le modèle ne clone pas ; langues
     // restreintes à celles du modèle. Dégradation douce si le catalogue est indisponible.
@@ -443,76 +412,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // faisaient confirm + POST + rechargement — exactement ce que fait la brique. La seule
     // spécificité était la CONFIRMATION de la duplication (seule app des 8 à la demander) :
     // elle est préservée, déclarée par `confirm_duplicate` sur le partial.
-    // Batch settings modal
-    const batchSettingsModalEl = document.getElementById('batchSettingsModal');
-    const batchSettingsModal = batchSettingsModalEl ? new bootstrap.Modal(batchSettingsModalEl) : null;
-
-    // Le clic du ~ de lot appartient a la brique commune ; l app ne declare que son OUVREUR.
-    WamaQueueActions.onBatchSettings(function (id, btn) {
-        if (!batchSettingsModal) return;
-        document.getElementById('batchSettingsBatchLabel').textContent = '#' + id;
-        document.getElementById('batchSettingsBatchId').value = id;
-        // Défauts lus sur la 1re card FILLE (la card mère commune ne porte que data-batch-id).
-        const firstChild = document.querySelector('#batchItems' + id + ' .settings-btn');
-        const fd = firstChild ? firstChild.dataset : {};
-        // Corps GÉNÉRÉ depuis le schéma déclaratif (params.py, contexte batch — contrat de la
-        // modale item) : ids legacy batchSettings* via dom_id.batch → saveBatchSettings inchangé.
-        // Options des selects : clonées du volet compose (source serveur unique, optgroups
-        // aplatis avec préfixe de groupe — les voix dynamiques ne sont jamais perdues).
-        const host = document.getElementById('synthBatchParams');
-        if (window.WamaParams && window.SYNTH_PARAMS_SCHEMA && host) {
-            WamaParams.render(host, window.SYNTH_PARAMS_SCHEMA, {
-                context: 'batch',
-                values: {
-                    // Clé catalogue entière (route F4b ②) — même vocabulaire que le select.
-                    tts_model: fd.ttsModel || 'synthesizer:coqui-xtts', language: fd.language || 'fr',
-                    quality_intent: fd.qualityIntent || '50',
-                    voice_preset: fd.voicePreset || 'default',
-                    speed: fd.speed || '1.0', pitch: fd.pitch || '1.0',
-                },
-                optionsResolver: function (param) {
-                    const src = document.getElementById((param.dom_id && param.dom_id.panel) || param.name);
-                    if (!src || src.tagName !== 'SELECT') return null;
-                    return Array.from(src.options).map(function (o) {
-                        const grp = o.parentElement && o.parentElement.tagName === 'OPTGROUP'
-                            ? o.parentElement.label + ' — ' : '';
-                        return { value: o.value, label: grp + o.textContent.trim() };
-                    });
-                },
-            });
-        }
-        batchSettingsModal.show();
-    });
-
-    async function saveBatchSettings(andStart) {
-        const batchId = document.getElementById('batchSettingsBatchId').value;
-        // Lecture GÉNÉRIQUE des champs générés (WamaParams.read — route unique, cf. composer) :
-        // un param ajouté au schéma en contexte batch est posté sans toucher ce code
-        // (la fabrique de lots coerce selon le schéma et appelle la fonction de la route d'élément).
-        const host = document.getElementById('synthBatchParams');
-        const payload = (window.WamaParams && host) ? WamaParams.read(host) : {};
-        try {
-            const r = await fetch(URLS.batchSettings + batchId + '/update/', {
-                method: 'POST',
-                headers: { 'X-CSRFToken': csrf, 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
-            });
-            const data = await r.json();
-            if (!r.ok || !data.success) { WamaApp.toast(data.error || 'Erreur sauvegarde', 'error'); return; }
-            if (andStart) {
-                await fetch(URLS.batchStart + batchId + '/start/', {
-                    method: 'POST',
-                    headers: { 'X-CSRFToken': csrf },
-                });
-            }
-            location.reload();
-        } catch { WamaApp.toast('Erreur réseau', 'error'); }
-    }
-
-    const saveBtn = document.getElementById('saveBatchSettingsBtn');
-    if (saveBtn) saveBtn.addEventListener('click', () => saveBatchSettings(false));
-    const saveStartBtn = document.getElementById('saveBatchSettingsAndStartBtn');
-    if (saveStartBtn) saveStartBtn.addEventListener('click', () => saveBatchSettings(true));
+    // ⚙ de LOT : ouvreur déclaré dans index.js (`openBatchSettingsModal`, cycle commun
+    // `WamaParams.settingsModal`, 2026-10-18) — la modale, son ouverture et son enregistrement
+    // écrits ici sont retirés.
 
     // Duplication d'item : brique commune queue-actions.js (chargée globalement) —
     // les handlers locaux (ici + index.js) provoquaient un DOUBLE-FIRE (2 doublons/clic).

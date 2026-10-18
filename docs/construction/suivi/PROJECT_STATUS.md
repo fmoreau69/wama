@@ -24661,3 +24661,40 @@ branchement du tour du canal, tour en flux, tâches de développement), toutes r
 🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : faire trancher par Fabien les zones de dépôt de
 l'accueil simplifié et « Ouama », puis porter les pauses au synthesizer (`tts_text.pause_segments`,
 contrat `options` des backends).
+
+## §PALIER 2026-10-18 — le front du synthesizer lit ses réglages par le SCHÉMA (R147) — non poussé — 🔴 relancer gunicorn (vues + gabarit + JS servi)
+
+Transmis par la session assistant (décision de Fabien : le portage est le domaine de cette
+session), qui ajoute `sentence_pause` / `clause_pause` au schéma : tant que le front lisait des
+listes de clés, elle ne pouvait les ouvrir qu'au contexte `item`. Ses cinq points, vérifiés au
+code et portés :
+1. **card inspectée** : l'enregistrement lisait huit clés (`var keys`) → le lecteur que l'inspecteur
+   DÉRIVE du schéma (`_synthInspector.read()`) ;
+2. **modale de lot** : écrite dans le gabarit, pré-remplie des six réglages de la 1ʳᵉ fille (défauts
+   en dur) → le cycle commun `WamaParams.settingsModal` (`context: 'batch'`), pré-rempli par ce que
+   les filles PARTAGENT (`sharedGearValues`), dans `index.js` à côté de la modale d'élément et avec le
+   MÊME résolveur d'options (le gabarit en portait une copie) ; la note « s'applique aux éléments
+   non-en-cours » et « Sauvegarder et relancer » gardés (`decorate`, pied déclaré) ;
+3. **créations** (dépôt, texte, aperçu, lot, import du gestionnaire, « Démarrer tout ») → UN lecteur,
+   `appendPanelSettings`, sur le lecteur dérivé — le lot et l'import ne postaient ni le format de
+   sortie ni les champs Higgs ;
+4. **`upload_text`** → `save_panel_settings` (même déclaration `_panel_pref_key` que la lecture ; une
+   valeur égale au défaut n'est plus figée en préférence) ;
+5. **`start_all`** → `_apply_synthesis_settings`, LA fonction de réglage de la route d'élément et des
+   lots ; il ignorait le format de sortie, la qualité et le curseur rapide/qualité déjà postés.
+
+**Gardes** : `tests_creation.PanelSettingsFollowTheSchemaTest` (« Démarrer tout » applique tout
+réglage posté ; la mémorisation passe par l'écrivain commun), `tests.FrontReadsThePanelBySchemaTest`
+(aucun réglage lu par une liste de noms ; le lot sur le cycle commun), test de la lecture des champs
+générés réécrit sur le lecteur commun. Contre-épreuves ROUGES (setter neutralisé, ancien écrivain,
+sources front de HEAD). 47 tests du synthesizer verts ; contrats de pages verts ; grille 105/105.
+
+**Pour la session assistant** : ouvrir `sentence_pause` / `clause_pause` au contexte `panel` suffit
+désormais (création, card inspectée, « Démarrer tout ») ; au contexte **`batch`**, attendre le trou
+COMMUN consigné en `MODES_QUEUE_UX §5ter` — la modale de lot reposte toutes ses valeurs, un réglage où
+les filles divergent y est écrasé par son défaut (« — inchangé — » n'existe que pour le format du
+converter).
+
+🔚 **Restes** : la jumelle `synthesizer_01` (non versionnée) est une COPIE du gabarit d'avant — elle
+se solde à la régénération des jumelles ; geste navigateur à rejouer après relance : ⚙ de lot du
+synthesizer (pré-remplissage, Sauvegarder et relancer).

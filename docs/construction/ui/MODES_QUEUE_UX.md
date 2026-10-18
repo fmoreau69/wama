@@ -239,6 +239,15 @@ l'avatarizer) — toujours pas un domaine ni un mode.
 
 - **Existant (rappel)** : les paramètres de la card mère s'appliquent à toutes les filles, SAUF si
   un paramètre a été modifié individuellement sur une fille (l'override la détache).
+  ⚠ **Trou MESURÉ le 2026-10-18 (portage du front du synthesizer)** : la modale de lot COMMUNE
+  (`WamaParams.settingsModal`, `context: 'batch'`) reposte TOUTES ses valeurs. Elle se pré-remplit
+  de ce que les filles PARTAGENT (`WamaInspector.sharedGearValues`) ; un réglage où elles
+  DIVERGENT s'y affiche donc à son défaut — et l'enregistrement l'écrase sur toutes. « — inchangé
+  — », que la docstring de `sharedGearValues` annonce, n'existe que pour le format de sortie du
+  converter (son résolveur d'options, `wama-params.js:934-953`). ⏳ Chantier commun : rendre
+  « inchangé » tout réglage absent de l'intersection, et ne pas le poster — vaut pour toutes les
+  apps et le générateur ; c'est ce qui permettra d'ouvrir au contexte `batch` un réglage qui
+  diverge souvent (les pauses `sentence_pause` / `clause_pause` du synthesizer).
 - **À ajouter — deux gestes symétriques** :
   - **↑ promouvoir** : depuis une card fille, faire remonter SES réglages à la mère, qui les
     applique à tout le batch ;

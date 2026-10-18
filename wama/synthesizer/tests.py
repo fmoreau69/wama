@@ -310,7 +310,16 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
                          'le JS d\'app lit le select par cet id — il ne doit pas bouger')
 
     def test_the_panel_saver_reads_generated_fields_too(self):
-        self.assertIn('data-param="\' + k + \'"', self._template_source())
+        """Le champ GÉNÉRÉ (`data-param=`, la voix) doit être lu par l'enregistrement d'une card
+        inspectée. Depuis le 2026-10-18 cet enregistrement passe par le lecteur que l'inspecteur
+        DÉRIVE du schéma : c'est lui qui doit connaître les deux identités d'un champ."""
+        from pathlib import Path
+        from django.conf import settings
+        self.assertIn('_synthInspector.read()', self._template_source())
+        inspector = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'js'
+                     / 'wama-inspector.js').read_text(encoding='utf-8')
+        self.assertIn('[data-param="\' + key + \'"]', inspector)
+
 
     def test_the_voice_group_is_found_by_its_key_in_the_common_brick(self):
         """Une voix ajoutée depuis la médiathèque rejoint son groupe PAR SA CLÉ — et depuis le
@@ -348,6 +357,38 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
         blocks = re.findall(r'<script>(.*?)</script>', self._page(), re.S)
         self.assertTrue(any('renderPanel' in b and 'voiceGroups' in b for b in blocks),
                         'le rendu du volet (voix comprise) n\'est plus dans un script en ligne')
+
+
+class FrontReadsThePanelBySchemaTest(TestCase):
+    """Le FRONT du synthesizer lit ses réglages par le SCHÉMA (2026-10-18), plus par des listes de
+    clés écrites à la main : l'inspecteur enregistrait huit clés, la modale de lot se pré-remplissait
+    de six (sur la 1ʳᵉ fille, défauts en dur), et chaque création (dépôt, texte, lot, import,
+    « Démarrer tout ») relisait le volet champ par champ. Un réglage ajouté au schéma (ex.
+    `sentence_pause`) n'y circulait pas. Côté serveur : `tests_creation.PanelSettingsFollowTheSchemaTest`."""
+
+    def _sources(self):
+        from pathlib import Path
+        from django.conf import settings
+        base = Path(settings.BASE_DIR) / 'wama' / 'synthesizer'
+        return ((base / 'templates' / 'synthesizer' / 'index.html').read_text(encoding='utf-8'),
+                (base / 'static' / 'synthesizer' / 'js' / 'index.js').read_text(encoding='utf-8'))
+
+    def test_no_setting_is_read_by_a_hand_written_list_of_names(self):
+        import re
+        template, js = self._sources()
+        names = r'(?:tts_model|quality_intent|language|voice_preset|speed|pitch|output_format|output_quality)'
+        self.assertNotRegex(template, r'var keys\s*=\s*\[')
+        self.assertEqual([], re.findall(r"\.append\(\s*'" + names + "'", js + template),
+                         'un réglage du schéma posté champ par champ')
+        self.assertEqual([], re.findall(r"getElementById\('" + names + r"'\)\.value", js),
+                         'un réglage du volet relu par son id')
+
+    def test_the_lot_settings_use_the_common_cycle_on_what_the_children_share(self):
+        template, js = self._sources()
+        self.assertNotIn('id="batchSettingsModal"', template, 'modale de lot écrite dans le gabarit')
+        self.assertIn('WamaInspector.sharedGearValues(', js)
+        self.assertIn("context: 'batch'", js)
+        self.assertIn('WamaQueueActions.onBatchSettings(', js)
 
 
 class VoicePreviewSharesTheSynthesisChainTest(TestCase):
@@ -473,6 +514,43 @@ class SynthesisIsHeardWhileItGrowsTest(TestCase):
         seen = []
         self._render('Bonjour.', lambda *args: seen.append(args))
         self.assertEqual([], seen)
+
+    def test_the_pauses_reach_the_service_and_set_the_gap_between_segments(self):
+        """Les PAUSES (2026-10-18) partent au service dans `options` — le contrat commun des
+        moteurs les pose — et la pause de fin de phrase devient le silence entre deux segments
+        (la découpe par longueur coupe aux fins de phrase)."""
+        from unittest import mock
+        from pydub import AudioSegment
+        from wama.synthesizer.utils import speech_render
+        sent = []
+
+        def service(*args, **kwargs):
+            sent.append(kwargs['options'])
+            return self._wav(8000)
+
+        out = tempfile.mkdtemp()
+        with mock.patch.object(speech_render, 'tts_via_service', side_effect=service):
+            final = speech_render.render_speech(
+                'Une phrase assez longue pour remplir. ' * 30, os.path.join(out, 'final.wav'),
+                model='synthesizer:kokoro', language='fr', voice_preset='default',
+                sentence_pause=0.5, clause_pause=0.1)
+        self.assertEqual({'sentence_pause': 0.5, 'clause_pause': 0.1}, sent[0])
+        self.assertEqual(len(sent) * 1500, len(AudioSegment.from_wav(final)))
+
+    def test_the_pauses_are_declared_once_and_opened_to_the_item_modal_only(self):
+        """Libellé, bornes et aide de la déclaration COMMUNE (celle de l'assistant) ; contexte
+        `item` seul tant que le front du synthesizer lit ses réglages par des listes de clés —
+        le volet les afficherait sans les poster (reste transmis au portage, 2026-10-18)."""
+        from wama.assistant.params import PARAMS_JSON as ASSISTANT
+        from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
+        from wama.synthesizer.params import PARAMS_JSON
+        mine = {p['name']: p for p in PARAMS_JSON}
+        theirs = {p['name']: p for p in ASSISTANT}
+        for name in ('sentence_pause', 'clause_pause'):
+            self.assertEqual(['item'], list(mine[name]['contexts']))
+            self.assertEqual(VOICE_PAUSE_SETTINGS[name]['label'], mine[name]['label'])
+            self.assertEqual(mine[name]['label'], theirs['voice_' + name]['label'])
+            self.assertEqual(0.0, mine[name]['default'], '0 = la voix du moteur, le rendu d’avant')
 
     def test_the_worker_publishes_the_during_face_then_clears_it(self):
         from types import SimpleNamespace
