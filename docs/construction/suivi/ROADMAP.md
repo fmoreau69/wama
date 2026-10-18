@@ -4167,6 +4167,24 @@ racontée, sur aucune surface. Deux défauts, deux gestes :
    déjà racontée. Gardes : `tests_job_follow_ups_web` (+4), `gateway.tests.JobFollowUpTests` (+1) —
    sept contre-épreuves par mutation, rouges.
 
+🔄 **Le cas Discord MESURÉ le même jour** (demande de Fabien). Il reste une fenêtre de double récit
+sur un CANAL : la fin du tour raconte par `tell` (verrou, « déjà racontée ? », enregistrement,
+puis publication), mais la relève du canal (`gateway.core._follow_up`) vérifie « déjà racontée ? »
+SANS verrou, publie, et n'enregistre qu'APRÈS (`record_follow_up`). Une relève qui tombe entre
+l'enregistrement du tour et celui de son récit raconte donc la fin une seconde fois.
+- **Reproduit** de façon déterministe (sonde jetable, relève forcée au milieu de `tell`) : 1 récit
+  par la réponse du tour + 1 par la relève.
+- **Chiffré** sur la base vivante, en lecture seule : les étapes de la fenêtre durent ~20 ms en
+  médiane (sonde 1 ms, fil d'origine 5 à 9 ms, statut 6 ms) ; le seul récit de fin de tour réel
+  mesuré est arrivé **60 ms** après son tour. La relève passe toutes les 15 s, et il faut en plus
+  que la tâche ait fini moins de 15 s avant la fin du tour (sinon une relève l'a déjà consommée
+  sans fil) : **≈ 0,4 %** de ces tâches rapides. Le web n'est pas concerné (sa cloche passe par
+  `web_follow_ups` → `tell`, sous verrou).
+- ⏳ **Correction alignée, non faite (décision)** : la relève emprunte le même geste, `tell`
+  (enregistrer sous verrou AVANT de publier) — un seul chemin, double impossible. Coût : une
+  publication qui échoue reste enregistrée au fil sans avoir été postée, soit la règle « au plus
+  une fois » que le curseur du canal applique déjà.
+
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) ⏳
 
 - **wama-dev-ai** n'a **aucune API** (CLI pur : `run_audit.py`, `run_codegen.py`). Wrapper

@@ -24698,3 +24698,29 @@ converter).
 🔚 **Restes** : la jumelle `synthesizer_01` (non versionnée) est une COPIE du gabarit d'avant — elle
 se solde à la régénération des jumelles ; geste navigateur à rejouer après relance : ⚙ de lot du
 synthesizer (pré-remplissage, Sauvegarder et relancer).
+
+## §PALIER — 2026-10-18, « ASSISTANT, SUITE : PAUSES AU SYNTHESIZER, GLISSER AU NOCTURNE, CAS DISCORD MESURÉ » — ✅
+
+Suite de §CLÔTURE 2026-10-18 « ASSISTANT : … », à la demande de Fabien (« on aligne, on ne
+réinvente pas »). Non poussés.
+- `b3cbfa08` — les PAUSES pour tous les moteurs (`tts_base.TTSBackend.synthesize`, la boucle a
+  quitté `kokoro_onnx`) et dans le synthesizer (champs `sentence_pause` / `clause_pause`, migration
+  `0030` appliquée, volet + modale d'élément, PAS le lot — `MODES_QUEUE_UX §5ter`) ; réglages
+  déclarés une fois (`common/tts/constants.VOICE_PAUSE_SETTINGS`). Le filtrage du texte n'avait
+  rien à porter (`text_for_speech` depuis le 26/09). Domicile : `WAMA_LLM §1bis`.
+- Reste de portage MESURÉ et TRANSMIS à « Portage apps media » : le front du synthesizer lisait ses
+  réglages par listes de clés — porté par elle le jour même (`188f732b`, qui a emporté deux de mes
+  tests dans `synthesizer/tests.py`, sans dommage).
+- `e3f00642` — geste nocturne `common.assistant.chat_drop` (poste, arbre, envoi ; accueil et volet),
+  6 gestes conformes, contre-épreuve rouge ; catalogue `WAMA_VERIFICATION` geste 14 bis.
+- Cas Discord : MESURÉ (≈ 0,4 % des tâches rapides, fenêtre ~20-60 ms), reproduit ; la ligne
+  « non mesurée, jugée négligeable » du bloc de clôture est périmée — `ROADMAP §19.2`.
+
+**Décision ouverte (Fabien)** : la relève du canal emprunte `tell` (enregistrer avant de publier,
+double impossible, une publication échouée reste au fil sans être postée).
+**Pendings système** : relancer le SERVICE TTS (contrat `tts_base`, `kokoro_onnx`), les WORKERS
+(`speech_render`, worker du synthesizer) et gunicorn (schéma, vues). Le compte d'« arguments
+documentés » de la ROUTE (fait `outils`, 314 → 329) mêle d'autres travaux en cours : non commité.
+
+🔚 **POINT D'ENTRÉE** : trancher la relève Discord par `tell`, puis porter la modale de lot
+« — inchangé — » commune (`MODES_QUEUE_UX §5ter`) pour ouvrir les pauses au lot.
