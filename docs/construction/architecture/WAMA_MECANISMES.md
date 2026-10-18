@@ -417,7 +417,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 </details>
 
-<details><summary>⚠ <b>121 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
+<details><summary>⚠ <b>120 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
 
 
 `wama/common/services/` (1) — `ui_smoke_contrast.py`
