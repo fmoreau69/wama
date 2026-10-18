@@ -509,6 +509,7 @@ try:
                                                register_send_to_scenarios,
                                                register_settings_scenarios,
                                                register_tree_drop_scenarios,
+                                               register_chat_drop_scenarios,
                                                register_ui_scenarios,
                                                register_url_import_scenarios,
                                                register_volet_scenarios,
@@ -695,6 +696,9 @@ try:
     # ne voyait (lot importé comme fichier de travail, port sans contrôle d'`accept`, tuile
     # masquée d'un onglet inactif prise pour une card repliée).
     register_tree_drop_scenarios()
+    # 2026-10-18 — le glisser-déposer sur le CHAT de l'assistant (poste, arbre, envoi) : le fichier
+    # de l'arbre n'arrivait pas en mode normal, et aucun geste ne le mesurait (D36).
+    register_chat_drop_scenarios()
 except Exception as _e:                                   # pragma: no cover
     logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")
 

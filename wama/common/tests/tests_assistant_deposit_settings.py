@@ -205,6 +205,18 @@ class ChatDepositAndGearTest(SimpleTestCase):
         self.assertLess(stop.index("new CustomEvent('filemanager:designate'"),
                         stop.index('getAppFromDropZone(currentDropZone)'))
 
+    def test_the_chat_drop_gesture_is_measured_every_night(self):
+        """Le geste nocturne `common.assistant.chat_drop` (poste, arbre, envoi) est AU REGISTRE : son
+        bloc d'enregistrement avale les exceptions, un scénario cassé à l'import disparaîtrait sans
+        un mot — et le défaut du mode normal (D36) redeviendrait invisible."""
+        try:
+            import playwright  # noqa: F401
+        except ImportError:
+            self.skipTest('Playwright absent de ce venv : les scénarios UI ne s’enregistrent pas')
+        from wama.common.services.nightly_tests import REGISTRY
+        (scenario,) = [s for s in REGISTRY if s.id == 'common.assistant.chat_drop']
+        self.assertEqual(('common', 'ui'), (scenario.app, scenario.stage))
+
     def test_the_gear_opens_the_common_modal_on_the_item_context(self):
         ctx = self._ctx()
         ctx.eval("chat.openSettings();")

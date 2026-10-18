@@ -1087,6 +1087,19 @@ le modèle principal, et les éléments de la card audio de l'enhancer lui écha
 EST un lot d'un prompt. Deux défauts préexistants trouvés ainsi (`MEDIA_STORAGE_TIERING §8.6`
 D32, D33).
 
+### Geste 14 bis (« glisser sur le CHAT de l'assistant ») — `common.assistant.chat_drop`, 2026-10-18
+
+Le chat de l'assistant reçoit des fichiers comme Discord (pastille, puis envoi). Fabien a trouvé
+le jour de sa livraison ce qu'aucun geste ne voyait : en mode NORMAL, un fichier glissé depuis
+l'ARBRE n'arrivait pas (`MEDIA_STORAGE_TIERING §8` D36). Le scénario joue, sur l'accueil (chat
+central) et sur une page d'app (chat du volet, la même brique), mode normal forcé : le fichier du
+POSTE (drop natif — il doit arriver en pastille, déposé dans l'espace temporaire du compte de
+test) ; le fichier de l'ARBRE, rejoué par les événements jstree comme le geste 14 (il doit arriver
+en pastille SOUS SON CHEMIN, sans nouveau dépôt) ; puis l'ENVOI, dont la requête est interceptée
+avant tout tour d'assistant (elle doit porter le chemin) — aucun modèle n'est appelé, les dépôts
+du geste sont retirés en sortie. Mesuré : 6 gestes conformes ; contre-épreuve : le chat qui ne se
+déclare plus cible de l'arbre (copie servie mutée) → échec.
+
 ### Geste de SUPPRESSION depuis le gestionnaire (2026-09-26) — le premier geste dont le succès est un REFUS
 
 Posé par la décision D20 de Fabien (`MEDIA_STORAGE_TIERING §8.6`) : *supprimer un fichier qu'une

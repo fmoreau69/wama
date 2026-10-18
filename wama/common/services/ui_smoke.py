@@ -1825,6 +1825,157 @@ def register_tree_drop_scenarios():
         )
 
 
+# ── Le glisser-déposer sur le CHAT de l'assistant (2026-10-18) ─────────────────────────
+#
+# POURQUOI CE GESTE. Le dépôt sur le chat (geste de Discord : pastille, puis envoi) a été livré le
+# 18/10 et Fabien a trouvé le jour même ce qu'aucun test ne voyait : en mode NORMAL, un fichier
+# glissé depuis l'ARBRE n'arrivait pas — le chat n'était pas une cible de `findDropZoneAt`
+# (`MEDIA_STORAGE_TIERING §8` D36). Trois gestes, sur l'accueil (chat central) et sur une page
+# d'app (chat du volet — la même brique) : le fichier du POSTE (drop natif, déposé dans l'espace
+# du compte), le fichier de l'ARBRE (rejoué par `_TREE_DROP`, les écouteurs du gestionnaire
+# décident : il doit être DÉSIGNÉ, jamais re-téléversé), puis l'ENVOI, intercepté avant tout tour
+# d'assistant — le message doit porter le chemin. Aucun modèle n'est appelé.
+
+_CHAT_TARGET = """() => {
+  document.body.classList.remove('wama-simple');            // le mode NORMAL : l'arbre est là
+  const chat = [...document.querySelectorAll('[data-wama-chat]')].find(c => c.getBoundingClientRect().width);
+  if (!chat) return '';
+  chat.setAttribute('data-smoke-chat', '');
+  return chat.hasAttribute('data-fm-designate') ? 'ok' : 'undeclared';
+}"""
+
+_CHAT_DESKTOP_DROP = """async () => {
+  const chat = document.querySelector('[data-smoke-chat]');
+  const dt = new DataTransfer();
+  dt.items.add(new File(['chat drop'], 'chat_drop_poste.txt', {type: 'text/plain'}));
+  const o = {bubbles: true, cancelable: true, dataTransfer: dt};
+  chat.dispatchEvent(new DragEvent('dragover', o));
+  chat.dispatchEvent(new DragEvent('drop', o));
+  await new Promise(r => setTimeout(r, 3000));
+}"""
+
+_CHAT_CHIPS = """() => [...document.querySelectorAll('[data-smoke-chat] .wama-assistant-deposit')].map(c => c.title)"""
+
+_CHAT_CLEAR_CHIPS = """() => document.querySelectorAll('[data-smoke-chat] .wama-assistant-deposit .btn-close').forEach(b => b.click())"""
+
+
+def check_chat_drop(url_paths):
+    """Glisser un fichier sur le chat de l'assistant : du poste, de l'arbre, puis l'envoyer.
+
+    Rend (ok, detail). Par page : le chat se DÉCLARE cible de l'arbre ; un fichier du poste arrive
+    en pastille, déposé dans l'espace temporaire du compte ; un fichier de l'arbre arrive en
+    pastille SOUS SON CHEMIN, sans nouveau dépôt ; l'envoi porte le chemin. Le tour d'assistant est
+    intercepté : aucun modèle n'est appelé. Les dépôts du geste sont retirés en sortie."""
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.filemanager.models import UserFile
+    from playwright.sync_api import sync_playwright
+
+    session_key = _test_session_key(None)
+    uid = _test_account_id(None)
+    if not session_key or not uid:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+
+    def deposited_ids():
+        return _in_plain_thread(lambda: set(UserFile.objects.filter(user_id=uid)
+                                            .values_list('id', flat=True)), timeout=20)
+
+    before = deposited_ids()
+    witness_rel = f'users/{uid}/temp/chat_drop_arbre.txt'
+    witness = Path(settings.MEDIA_ROOT) / witness_rel
+    witness.parent.mkdir(parents=True, exist_ok=True)
+    witness.write_text('chat drop', encoding='utf-8')
+    tree_file = {'path': witness_rel, 'name': witness.name, 'mime': 'text/plain'}
+    passed, failed = [], []
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1600, 'height': 1000})
+                context.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': session_key,
+                                      'domain': '127.0.0.1', 'path': '/'}])
+                page = context.new_page()
+                js_errors, sent = [], []
+                page.on('pageerror', lambda e: js_errors.append(str(e)))
+
+                def turn(route):
+                    request = route.request
+                    if request.method == 'POST' and not any(
+                            part in request.url for part in ('follow-ups', 'settings', 'thread', 'clear')):
+                        sent.append(request.post_data or '')
+                        return route.abort()
+                    return route.continue_()
+
+                page.route('**/api/ai-chat/**', turn)
+                for url_path in url_paths:
+                    resp = page.goto(f"{BASE_URL.rstrip('/')}{url_path}", wait_until='networkidle',
+                                     timeout=45000)
+                    wrong_page = _exiger_la_page(page, resp, url_path)
+                    if wrong_page:
+                        failed.append(f"{url_path} : {wrong_page[1]}")
+                        continue
+                    target = page.evaluate(_CHAT_TARGET)
+                    if target != 'ok':
+                        failed.append(f"{url_path} : " + ("aucun chat visible" if not target else
+                                      "le chat ne se déclare pas cible de l'arbre (data-fm-designate)"))
+                        continue
+                    page.evaluate(_CHAT_DESKTOP_DROP)
+                    chips = page.evaluate(_CHAT_CHIPS)
+                    if any(c.startswith(f'users/{uid}/temp/chat_drop_poste') for c in chips):
+                        passed.append(f"{url_path} · poste → pastille")
+                    else:
+                        failed.append(f"{url_path} · poste : pastilles {chips}")
+                    page.evaluate(_CHAT_CLEAR_CHIPS)
+                    deposits = deposited_ids()
+                    problem = page.evaluate(_TREE_DROP, {'sel': '[data-smoke-chat]', 'files': [tree_file]})
+                    page.wait_for_timeout(1500)
+                    chips = page.evaluate(_CHAT_CHIPS)
+                    if problem or chips != [witness_rel]:
+                        failed.append(f"{url_path} · arbre : {problem or chips}")
+                    elif deposited_ids() != deposits:
+                        failed.append(f"{url_path} · arbre : le fichier a été re-téléversé")
+                    else:
+                        passed.append(f"{url_path} · arbre → pastille, désigné")
+                    sent.clear()
+                    page.click('[data-smoke-chat] [data-assistant-send]')
+                    page.wait_for_timeout(1500)
+                    if sent and witness_rel in sent[0]:
+                        passed.append(f"{url_path} · envoi porte le chemin")
+                    else:
+                        failed.append(f"{url_path} · envoi : {sent[:1] or 'aucun tour posté'}")
+                if js_errors:
+                    failed.append(f"erreur(s) JS : {js_errors[:2]}")
+            finally:
+                browser.close()
+    finally:
+        def _cleanup():
+            for user_file in UserFile.objects.filter(user_id=uid).exclude(id__in=before):
+                user_file.file.delete(save=False)
+                user_file.delete()
+        _in_plain_thread(_cleanup, timeout=30)
+        witness.unlink(missing_ok=True)
+    if failed:
+        return False, ' ; '.join(failed) + (f" (réussis : {len(passed)})" if passed else '')
+    return True, f"{len(passed)} geste(s) de dépôt sur le chat conformes — " + ' ; '.join(passed)
+
+
+def register_chat_drop_scenarios():
+    """Enregistre `common.assistant.chat_drop` — l'accueil et le volet d'une page d'app."""
+    from django.urls import NoReverseMatch, reverse
+
+    from wama.common.services.nightly_tests import register
+    try:
+        paths = [reverse('home'), reverse('transcriber:index')]
+    except NoReverseMatch:                                    # pragma: no cover
+        return
+    register(
+        id="common.assistant.chat_drop", app="common", stage="ui",
+        description="Chat de l'assistant (accueil et volet) : un fichier du poste ou de l'arbre "
+                    "arrive en pastille — l'arbre DÉSIGNE, sans re-téléverser — et part avec le message",
+        run=(lambda ps=paths: (lambda ctx: check_chat_drop(ps)))(),
+        timeout_s=240, vram_gb=0.0,
+    )
+
+
 # ── Geste 14, part « URL » : coller un lien au lieu de déposer un fichier ──────────────
 #
 # ⚠ CE GESTE FAIT SORTIR LE SERVEUR, ET LA SORTIE EST GARDÉE. `common/utils/url_guard.py`
