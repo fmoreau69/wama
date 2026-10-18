@@ -42,10 +42,10 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
     </div>
     {# ── Panneau CALIBRATION (replié par défaut) — tout ce qui définit la géométrie ── #}
     <div id="calibPanel" class="d-none w-100 p-2 rounded"
-         style="background:rgba(255,255,255,.03); border:1px solid #495057;">
+         style="background:rgba(var(--wama-overlay-rgb), .03); border:1px solid var(--wama-border-strong);">
         <div class="d-flex flex-wrap gap-2 align-items-center">
             <span class="d-inline-flex align-items-center gap-1 px-2 py-1 rounded"
-                  style="background:rgba(255,193,7,.12);border:1px solid rgba(255,193,7,.3);"
+                  style="background:rgba(var(--bs-warning-rgb), .12);border:1px solid rgba(var(--bs-warning-rgb), .3);"
                   title="Recalage synchro GPS↔vidéo (secondes) : glisse jusqu'à ce que la navette colle à la vidéo, puis 💾">
                 <span class="small fw-semibold text-warning"><i class="fas fa-sync-alt me-1"></i>Synchro GPS Δ</span>
                 <input type="range" id="gpsOffsetSlider" min="-30" max="30" step="0.05" value="0" style="width:110px;">
@@ -162,12 +162,12 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
 </div>
 {# ── Panneau ⚑ COMPARER (dé-floté 2026-08-06) — auto-généré par scope, cf. renderFeatPanel ── #}
 <div id="featModesPanel" class="d-none mb-1 p-2 rounded"
-     style="background:rgba(255,255,255,.03); border:1px solid #495057; max-width:340px;"></div>
+     style="background:rgba(var(--wama-overlay-rgb), .03); border:1px solid var(--wama-border-strong); max-width:340px;"></div>
 <div id="camAnalyzerMapWrap" class="position-relative">
     <div id="camAnalyzerMiniMap"
-         style="height: 320px; width: 100%; border-radius: 6px; border: 1px solid #495057; background: #1a1d20;"></div>
+         style="height: 320px; width: 100%; border-radius: 6px; border: 1px solid var(--wama-border-strong); background: var(--wama-surface-modal);"></div>
     <div id="topDownStatus" class="position-absolute small"
-         style="top:6px; left:6px; z-index:1000; background:rgba(26,29,32,.8); color:#adb5bd; padding:2px 8px; border-radius:4px; font-size:0.7rem; pointer-events:none;"></div>
+         style="top:6px; left:6px; z-index:1000; background:rgba(var(--wama-surface-modal-rgb), .8); color:var(--wama-text-secondary); padding:2px 8px; border-radius:4px; font-size:0.7rem; pointer-events:none;"></div>
     {# featModesPanel dé-floté sous la barre d'outils (2026-08-06) — voir après #camAnalyzerMapToolbar #}
 </div>
 <div class="small text-secondary mt-1" style="font-size: 0.7rem;">
@@ -175,7 +175,7 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
 </div>
 <style>
     #camAnalyzerMapWrap:fullscreen,
-    #camAnalyzerMapWrap:-webkit-full-screen { background: #1a1d20; padding: 0; }
+    #camAnalyzerMapWrap:-webkit-full-screen { background: var(--wama-surface-modal); padding: 0; }
     #camAnalyzerMapWrap:fullscreen #camAnalyzerMiniMap,
     #camAnalyzerMapWrap:-webkit-full-screen #camAnalyzerMiniMap {
         height: 100vh !important; border: none; border-radius: 0;
@@ -187,8 +187,8 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
        est un bloc encadré avec son label, qui s'enroule comme une unité. */
     #camAnalyzerMapToolbar .td-group {
         display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap;
-        padding: 2px 6px 2px 4px; border: 1px solid rgba(255,255,255,.10);
-        border-radius: 7px; background: rgba(255,255,255,.03);
+        padding: 2px 6px 2px 4px; border: 1px solid rgba(var(--wama-overlay-rgb), .10);
+        border-radius: 7px; background: rgba(var(--wama-overlay-rgb), .03);
     }
     /* Réglages (Conf/Voie) : forcés sur leur propre ligne sous les boutons de la
        section Vue (sinon ils débordent à droite du panneau inspecteur étroit). */
@@ -198,12 +198,12 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
     }
     #camAnalyzerMapToolbar .td-group-label {
         font-size: .62rem; font-weight: 700; letter-spacing: .04em;
-        text-transform: uppercase; color: #8b98a5; padding: 0 3px;
-        border-right: 1px solid rgba(255,255,255,.10); margin-right: 2px;
+        text-transform: uppercase; color: var(--wama-cam-group-label); padding: 0 3px;
+        border-right: 1px solid rgba(var(--wama-overlay-rgb), .10); margin-right: 2px;
     }
 </style>
 
-<div id="camAnalyzerPassInfo" class="mt-3 p-2 rounded" style="background: #1a1d20; border: 1px solid #343a40; display: none;">
+<div id="camAnalyzerPassInfo" class="mt-3 p-2 rounded" style="background: var(--wama-surface-modal); border: 1px solid var(--wama-border-row); display: none;">
     <div class="small fw-semibold text-warning mb-1">
         <i class="fas fa-traffic-light me-1"></i><span id="passInfoTitle">Passage —</span>
     </div>
@@ -281,7 +281,7 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
                     <div class="card-body py-2 px-3">
                         <div class="text-info fw-bold small mb-1"><span class="badge bg-info text-dark me-1">2</span> Détection</div>
                         <p class="small mb-0 text-light">YOLO tracking (BotSORT/ByteTrack) — véhicules, piétons, cyclistes.<br>
-                        <span style="color:#c07aff;">SAM3</span> text-prompt (optionnel) — lignes de stop, passages piétons dans les fenêtres d'intersection.</p>
+                        <span style="color:var(--wama-cam-lab-feature);">SAM3</span> text-prompt (optionnel) — lignes de stop, passages piétons dans les fenêtres d'intersection.</p>
                     </div>
                 </div>
             </div>
@@ -290,7 +290,7 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
                     <div class="card-body py-2 px-3">
                         <div class="text-success fw-bold small mb-1"><span class="badge bg-success me-1">3</span> Analyse</div>
                         <p class="small mb-0 text-light">Fenêtres GPS, phases d'arrêt / insertion, ego-motion, D0 relatif, densité trafic.<br>
-                        <span style="color:#c07aff;">SAM3</span> : flags <code>stop_line_detected</code> / <code>crossing_detected</code> dans les métadonnées de chaque segment.</p>
+                        <span style="color:var(--wama-cam-lab-feature);">SAM3</span> : flags <code>stop_line_detected</code> / <code>crossing_detected</code> dans les métadonnées de chaque segment.</p>
                     </div>
                 </div>
             </div>
@@ -358,9 +358,9 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
                     <li>Densité trafic par fenêtre d'intersection</li>
                     <li>Compensation ego-motion (vitesse navette)</li>
                     <li>Mini-carte Leaflet pour saisie des intersections GPS</li>
-                    <li style="color:#c07aff;">SAM3 : détection marquages (stop / crossing) — <em>Phase Avancée</em></li>
-                    <li style="color:#c07aff;">SAM3 fallback segmentation routière (sans modèle BDD100K)</li>
-                    <li style="color:#c07aff;">Flags <code>stop_line_detected</code> / <code>crossing_detected</code> dans segments</li>
+                    <li style="color:var(--wama-cam-lab-feature);">SAM3 : détection marquages (stop / crossing) — <em>Phase Avancée</em></li>
+                    <li style="color:var(--wama-cam-lab-feature);">SAM3 fallback segmentation routière (sans modèle BDD100K)</li>
+                    <li style="color:var(--wama-cam-lab-feature);">Flags <code>stop_line_detected</code> / <code>crossing_detected</code> dans segments</li>
                     <li>Barre de progression par session et par extraction RTMaps</li>
                     <li>Console temps réel</li>
                     <li>Annulation en cours d'analyse</li>
@@ -469,13 +469,13 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
                     <tr><td class="text-info">Modèle segmentation routière</td><td>Optionnel — YOLO seg entraîné sur BDD100K (<code>drivable area</code>). Améliore la détection d'insertion en voie. Sans ce modèle, la détection se base sur la position horizontale du véhicule dans l'image.</td></tr>
                     <tr><td class="text-info">Intersections GPS</td><td>Liste de points GPS <em>(lat, lon)</em> + rayon de déclenchement (m). Utiliser la mini-carte pour placer les points.</td></tr>
                     <tr>
-                        <td style="color:#c07aff;">Marquages SAM3 <span class="badge ms-1" style="background:#6f42c1;font-size:0.6rem;">Phase Avancée</span></td>
+                        <td style="color:var(--wama-cam-lab-feature);">Marquages SAM3 <span class="badge ms-1" style="background:var(--bs-purple);font-size:0.6rem;">Phase Avancée</span></td>
                         <td>Active la détection de marquages au sol (lignes de stop, passages piétons) via SAM3 text-prompt, uniquement dans les fenêtres d'intersection GPS.
                             Les prompts sont configurables ; laissez la liste vide pour utiliser les défauts (<em>stop line</em> + <em>pedestrian crossing</em>).
                             Résultats dans les métadonnées des segments : <code>stop_line_detected</code> / <code>crossing_detected</code>.</td>
                     </tr>
                     <tr>
-                        <td style="color:#c07aff;">Fallback routier SAM3</td>
+                        <td style="color:var(--wama-cam-lab-feature);">Fallback routier SAM3</td>
                         <td>Si aucun modèle BDD100K n'est configuré, SAM3 peut générer lui-même les masques de chaussée (prompt <em>drivable road surface area</em>), utilisés ensuite pour la détection d'insertion en voie. Plus lent mais évite l'heuristique de position.</td>
                     </tr>
                 </tbody>
@@ -610,7 +610,7 @@ Upload vidéos / .rec + CSV
                         <td><code>AnalysisProfile</code></td>
                         <td>Configuration réutilisable</td>
                         <td><code>model_path</code>, <code>task_type</code>, <code>report_type</code>, <code>intersections</code> (JSON), <code>road_model_path</code>,
-                            <span style="color:#c07aff;"><code>sam3_markings_enabled</code>, <code>sam3_markings_prompts</code> (JSON), <code>sam3_as_road_fallback</code></span></td>
+                            <span style="color:var(--wama-cam-lab-feature);"><code>sam3_markings_enabled</code>, <code>sam3_markings_prompts</code> (JSON), <code>sam3_as_road_fallback</code></span></td>
                     </tr>
                     <tr>
                         <td><code>AnalysisSession</code></td>
@@ -672,7 +672,7 @@ Upload vidéos / .rec + CSV
             </div>
             <div class="col-md-4">
                 <div class="card bg-dark border-secondary h-100">
-                    <div class="card-header small py-1" style="color:#c07aff;">Marquage SAM3 (Phase Avancée)</div>
+                    <div class="card-header small py-1" style="color:var(--wama-cam-lab-feature);">Marquage SAM3 (Phase Avancée)</div>
                     <div class="card-body py-2">
 <pre class="text-light mb-0 small" style="font-size:0.75rem;">{
   "type":       "sam3_marking",
@@ -792,7 +792,7 @@ Upload vidéos / .rec + CSV
 
     <!-- ── SAM3RoadAnalyzer ── -->
     <div class="mb-4">
-        <h5 style="color:#c07aff;"><i class="fas fa-magic me-2"></i>SAM3RoadAnalyzer <span class="badge ms-1" style="background:#6f42c1;font-size:0.65rem;">Phase Avancée</span></h5>
+        <h5 style="color:var(--wama-cam-lab-feature);"><i class="fas fa-magic me-2"></i>SAM3RoadAnalyzer <span class="badge ms-1" style="background:var(--bs-purple);font-size:0.65rem;">Phase Avancée</span></h5>
         <p class="text-light small">
             Module optionnel (<code>utils/sam3_road_analyzer.py</code>) activé si
             <code>AnalysisProfile.sam3_markings_enabled</code> est coché et que le rapport est <em>intersection_insertion</em>.
@@ -893,7 +893,7 @@ Upload vidéos / .rec + CSV
                 </tbody>
             </table>
         </div>
-        <p class="text-secondary small mb-1 mt-3"><code>sam3_road_analyzer.py</code> <span class="badge ms-1" style="background:#6f42c1;font-size:0.6rem;">Phase Avancée</span></p>
+        <p class="text-secondary small mb-1 mt-3"><code>sam3_road_analyzer.py</code> <span class="badge ms-1" style="background:var(--bs-purple);font-size:0.6rem;">Phase Avancée</span></p>
         <div class="table-responsive">
             <table class="table table-dark table-sm small">
                 <thead><tr><th>Constante</th><th>Valeur</th><th>Rôle</th></tr></thead>

@@ -7,7 +7,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #1a1a1a;
+            background: var(--wama-pres1-bg);
             overflow: hidden;
         }
 
@@ -22,8 +22,8 @@
             height: 100%;
             display: none;
             padding: 60px 80px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: linear-gradient(135deg, var(--wama-indigo) 0%, var(--wama-violet) 100%);
+            color: var(--wama-text-on-accent);
             flex-direction: column;
             justify-content: center;
         }
@@ -35,20 +35,20 @@
         h1 {
             font-size: 3.5em;
             margin-bottom: 30px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            text-shadow: 2px 2px 4px rgba(var(--wama-shadow-rgb), 0.3);
         }
 
         h2 {
             font-size: 2.5em;
             margin-bottom: 40px;
-            border-bottom: 3px solid rgba(255,255,255,0.3);
+            border-bottom: 3px solid rgba(var(--wama-overlay-rgb), 0.3);
             padding-bottom: 20px;
         }
 
         h3 {
             font-size: 1.8em;
             margin: 30px 0 20px 0;
-            color: #ffd700;
+            color: var(--wama-pres1-gold);
         }
 
         .subtitle {
@@ -70,17 +70,17 @@
         }
 
         .card {
-            background: rgba(255,255,255,0.1);
+            background: rgba(var(--wama-overlay-rgb), 0.1);
             padding: 25px;
             border-radius: 15px;
             backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(var(--wama-overlay-rgb), 0.2);
         }
 
         .card h4 {
             font-size: 1.5em;
             margin-bottom: 15px;
-            color: #ffd700;
+            color: var(--wama-pres1-gold);
         }
 
         .card p {
@@ -104,7 +104,7 @@
             content: "→";
             position: absolute;
             left: 0;
-            color: #ffd700;
+            color: var(--wama-pres1-gold);
             font-weight: bold;
             font-size: 1.3em;
         }
@@ -119,9 +119,9 @@
         }
 
         button {
-            background: rgba(255,255,255,0.2);
-            border: 2px solid white;
-            color: white;
+            background: rgba(var(--wama-overlay-rgb), 0.2);
+            border: 2px solid var(--wama-text-on-accent);
+            color: var(--wama-text-on-accent);
             padding: 15px 30px;
             font-size: 1.1em;
             border-radius: 50px;
@@ -131,7 +131,7 @@
         }
 
         button:hover {
-            background: rgba(255,255,255,0.4);
+            background: rgba(var(--wama-overlay-rgb), 0.4);
             transform: scale(1.05);
         }
 
@@ -140,14 +140,14 @@
             bottom: 30px;
             left: 30px;
             font-size: 1.2em;
-            color: white;
-            background: rgba(0,0,0,0.3);
+            color: var(--wama-text-on-accent);
+            background: rgba(var(--wama-shadow-rgb), 0.3);
             padding: 10px 20px;
             border-radius: 25px;
         }
 
         .highlight {
-            background: rgba(255,215,0,0.3);
+            background: rgba(var(--wama-pres1-gold-rgb), 0.3);
             padding: 5px 10px;
             border-radius: 5px;
             font-weight: bold;
@@ -167,7 +167,7 @@
             left: 0;
             right: 0;
             height: 3px;
-            background: rgba(255,255,255,0.3);
+            background: rgba(var(--wama-overlay-rgb), 0.3);
         }
 
         .timeline-item {
@@ -177,8 +177,8 @@
         }
 
         .timeline-year {
-            background: rgba(255,215,0,0.9);
-            color: #333;
+            background: rgba(var(--wama-pres1-gold-rgb), 0.9);
+            color: var(--wama-pres1-year-text);
             padding: 10px 20px;
             border-radius: 25px;
             font-weight: bold;

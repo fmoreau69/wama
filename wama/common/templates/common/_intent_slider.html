@@ -30,14 +30,14 @@ Variables :
       <input type="range" class="form-range wama-intent-slider {{ extra_class|default:'' }}"
              min="0" max="100" step="{{ step|default:1 }}"
              id="{{ dom_id }}" name="{{ name }}" value="{{ value|default:50 }}"
-             style="accent-color:{% if value < 34 %}#28a745{% elif value < 67 %}#fd7e14{% else %}#dc3545{% endif %}"
+             style="accent-color:{% if value < 34 %}var(--wama-state-success-edge){% elif value < 67 %}var(--bs-orange){% else %}var(--bs-danger){% endif %}"
              aria-label="Rapide ou qualité">
       <div class="d-flex justify-content-between small text-muted" style="margin-top:-4px;opacity:.7">
         <span>Rapide</span><span>Équilibré</span><span>Qualité</span>
       </div>
     </div>
     <span class="wama-intent-val small fw-bold text-nowrap"
-          style="line-height:1.5rem;color:{% if value < 34 %}#28a745{% elif value < 67 %}#fd7e14{% else %}#dc3545{% endif %} !important">
+          style="line-height:1.5rem;color:{% if value < 34 %}var(--wama-state-success-edge){% elif value < 67 %}var(--bs-orange){% else %}var(--bs-danger){% endif %} !important">
       {{ value|default:50 }} · {% if value < 34 %}Rapide{% elif value < 67 %}Équilibré{% else %}Qualité{% endif %}</span>
   </div>
 </div>

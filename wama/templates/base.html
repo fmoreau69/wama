@@ -29,7 +29,7 @@
          un sous-menu en CASCADE (14/09), donc sa longueur n'allonge pas ce menu. */
       .wama-apps-menu { max-height: calc(100vh - 70px); overflow-y: auto; overscroll-behavior: contain; }
       .wama-apps-menu::-webkit-scrollbar { width: 8px; }
-      .wama-apps-menu::-webkit-scrollbar-thumb { background: rgba(255,255,255,.25); border-radius: 4px; }
+      .wama-apps-menu::-webkit-scrollbar-thumb { background: rgba(var(--wama-overlay-rgb), .25); border-radius: 4px; }
       /* Sous-menu en cascade : posé sous <body> par le script de `includes/header.html`, en
          `fixed` — c'est ce qui le soustrait au rognage du menu qui défile. */
       .dropdown-menu.wama-nav-sous-menu { position: fixed; margin: 0; z-index: 1085;

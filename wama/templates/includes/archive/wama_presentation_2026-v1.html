@@ -1,9 +1,11 @@
-<!DOCTYPE html>
+{% load wama_static %}<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Présentation WAMA</title>
+    {# Tokens de thème d'abord : les styles de la page lisent leurs couleurs dans wama-theme.css (ROADMAP §28). #}
+    <link rel="stylesheet" href="{% static_v 'common/css/wama-theme.css' %}">
     {% include 'includes/_presentation_style.html' %}
 </head>
 <body>
@@ -204,7 +206,7 @@
                             <span style="opacity: 0.7;">rPPG-Toolbox • CHROM/POS</span>
                         </p>
                         <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
-                            📄 <a href="https://arxiv.org/abs/2210.00716" target="_blank" style="color: #ffd700;">NeurIPS 2023</a>
+                            📄 <a href="https://arxiv.org/abs/2210.00716" target="_blank" style="color: var(--wama-pres1-gold);">NeurIPS 2023</a>
                         </div>
                     </div>
                     <div class="card" style="padding: 15px;">
@@ -214,7 +216,7 @@
                             <span style="opacity: 0.7;">FER (rapide) / DeepFace (complet)</span>
                         </p>
                         <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
-                            📄 <a href="https://ieeexplore.ieee.org/document/9259802" target="_blank" style="color: #ffd700;">IEEE 2020</a>
+                            📄 <a href="https://ieeexplore.ieee.org/document/9259802" target="_blank" style="color: var(--wama-pres1-gold);">IEEE 2020</a>
                         </div>
                     </div>
                     <div class="card" style="padding: 15px;">
@@ -224,7 +226,7 @@
                             <span style="opacity: 0.7;">MediaPipe Face Mesh</span>
                         </p>
                         <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
-                            📄 <a href="https://arxiv.org/abs/1906.06440" target="_blank" style="color: #ffd700;">CVPR 2019</a>
+                            📄 <a href="https://arxiv.org/abs/1906.06440" target="_blank" style="color: var(--wama-pres1-gold);">CVPR 2019</a>
                         </div>
                     </div>
                     <div class="card" style="padding: 15px;">
@@ -241,7 +243,7 @@
                             <span style="opacity: 0.7;">DeepFace uniquement</span>
                         </p>
                         <div style="font-size: 0.75em; margin-top: 10px; opacity: 0.8;">
-                            🔗 <a href="https://github.com/serengil/deepface" target="_blank" style="color: #ffd700;">GitHub</a>
+                            🔗 <a href="https://github.com/serengil/deepface" target="_blank" style="color: var(--wama-pres1-gold);">GitHub</a>
                         </div>
                     </div>
                     <div class="card" style="padding: 15px;">
@@ -254,10 +256,10 @@
                 </div>
                 <p style="text-align: center; margin-top: 25px; font-size: 1em; opacity: 0.9;">
                     🔗 Repos :
-                    <a href="https://github.com/ubicomplab/rPPG-Toolbox" target="_blank" style="color: #ffd700;">rPPG-Toolbox</a> •
-                    <a href="https://github.com/google/mediapipe" target="_blank" style="color: #ffd700;">MediaPipe</a> •
-                    <a href="https://github.com/justinshenk/fer" target="_blank" style="color: #ffd700;">FER</a> •
-                    <a href="https://github.com/serengil/deepface" target="_blank" style="color: #ffd700;">DeepFace</a>
+                    <a href="https://github.com/ubicomplab/rPPG-Toolbox" target="_blank" style="color: var(--wama-pres1-gold);">rPPG-Toolbox</a> •
+                    <a href="https://github.com/google/mediapipe" target="_blank" style="color: var(--wama-pres1-gold);">MediaPipe</a> •
+                    <a href="https://github.com/justinshenk/fer" target="_blank" style="color: var(--wama-pres1-gold);">FER</a> •
+                    <a href="https://github.com/serengil/deepface" target="_blank" style="color: var(--wama-pres1-gold);">DeepFace</a>
                 </p>
             </div>
         </div>
@@ -297,25 +299,25 @@
         <div class="slide">
             <h2>🗺️ Feuille de route</h2>
             <div class="content">
-                <div class="card" style="margin-bottom: 15px; background: rgba(255,215,0,0.2);">
+                <div class="card" style="margin-bottom: 15px; background: rgba(var(--wama-pres1-gold-rgb), 0.2);">
                     <h4>Phase 1 · Mise en production 🔄</h4>
                     <p>HTTPS, gestion utilisateurs, stockage externe, documentation</p>
                 </div>
 
-                <div class="card" style="margin-bottom: 15px; background: rgba(100,149,237,0.2);">
+                <div class="card" style="margin-bottom: 15px; background: rgba(var(--wama-pres1-cornflower-rgb), 0.2);">
                     <h4>Phase 2 · Industrialisation 🔄</h4>
                     <p>Tests fonctionnels nocturnes (charpente en place), API, et mises à jour des modèles
                        automatisées (détection + proposition d'installation)</p>
                 </div>
 
-                <div class="card" style="margin-bottom: 15px; background: rgba(144,238,144,0.2);">
+                <div class="card" style="margin-bottom: 15px; background: rgba(var(--wama-pres1-mint-rgb), 0.2);">
                     <h4>Phase 3 · Architecture unifiée 🔄</h4>
                     <p>Toutes les apps construites sur des briques communes, pilotées par
                        <strong>description et méta-informations</strong> : l'interface, l'inspecteur et les
                        tests se génèrent à partir de ce que chaque app et chaque modèle déclarent</p>
                 </div>
 
-                <div class="card" style="background: rgba(255,182,193,0.2);">
+                <div class="card" style="background: rgba(var(--wama-pres1-pink-rgb), 0.2);">
                     <h4>Phase 4 · Intelligence ⏳</h4>
                     <p>Assistant IA déjà présent (pilote les apps en langage naturel) ; à venir :
                        <strong>RAG</strong> — une mémoire documentaire à plusieurs niveaux (université, labo,
@@ -338,11 +340,11 @@
                     <p>🧪 Prêt pour la recherche au Lescot</p>
                 </div>
 
-                <p style="font-size: 2em; margin-top: 60px; color: #ffd700;">
+                <p style="font-size: 2em; margin-top: 60px; color: var(--wama-pres1-gold);">
                     Place à la démonstration ! 🚀
                 </p>
                 <p style="margin-top: 30px;">
-                    <a href="{% url 'architecture' %}" style="color:#fff; text-decoration: underline; font-size: 1.1em;">
+                    <a href="{% url 'architecture' %}" style="color:var(--wama-text-on-accent); text-decoration: underline; font-size: 1.1em;">
                         🧩 Voir comment c'est construit (architecture) →
                     </a>
                 </p>

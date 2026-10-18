@@ -18,18 +18,18 @@
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
   /* Squelette = brique COMMUNE `wama-catalog.css` — restent les spécificités. */
-  .ub-key     { background: #263238; color: #b0bec5; font-family: monospace; }
-  .ub-edit    { background: #1b5e20; color: #c8e6c9; }
-  .ub-show    { background: #0d47a1; color: #bbdefb; }
+  .ub-key     { background: var(--wama-tone-slate); color: var(--wama-cat-path); font-family: monospace; }
+  .ub-edit    { background: var(--wama-tone-green); color: var(--wama-tone-green-text); }
+  .ub-show    { background: var(--wama-tone-blue); color: var(--wama-tone-blue-text); }
   .ub-chip    { display: inline-block; margin: 2px 4px 2px 0; padding: 1px 8px; border-radius: 10px;
-                background: rgba(255,255,255,.07); font-size: .78rem; }
-  .ub-chip small { color: #90a4ae; margin-left: .3rem; }
-  .ub-emit    { background: rgba(102,187,106,.16); color: #c8e6c9; }
-  .ub-surface { background: rgba(13,202,240,.12); color: #b2ebf2; }
-  .ub-row     { font-size: .8rem; color: #b0bec5; margin-top: .35rem; }
-  .ub-row > b { color: #cfd8dc; font-weight: 600; margin-right: .3rem; }
-  .ub-none    { color: #ffcc80; font-size: .78rem; }
-  .ub-path    { font-size: .74rem; color: #90a4ae; word-break: break-all; }
+                background: rgba(var(--wama-overlay-rgb), .07); font-size: .78rem; }
+  .ub-chip small { color: var(--wama-cat-quiet); margin-left: .3rem; }
+  .ub-emit    { background: rgba(var(--wama-tone-green-rgb), .16); color: var(--wama-tone-green-text); }
+  .ub-surface { background: rgba(var(--wama-accent-rgb), .12); color: var(--wama-cat-surface-text); }
+  .ub-row     { font-size: .8rem; color: var(--wama-cat-path); margin-top: .35rem; }
+  .ub-row > b { color: var(--wama-tone-grey-text); font-weight: 600; margin-right: .3rem; }
+  .ub-none    { color: var(--wama-cat-missing); font-size: .78rem; }
+  .ub-path    { font-size: .74rem; color: var(--wama-cat-quiet); word-break: break-all; }
   /* Les ajouts du 2026-10-18 lisent les tokens du thème (`wama-theme.css`, ROADMAP §28). */
   .ub-family  { background: var(--wama-border); color: var(--wama-text-strong); }
   .ub-system  { background: var(--wama-surface-inset); color: var(--wama-text-info); }

@@ -19,41 +19,41 @@
 {% block extra_css %}
 <style>
   /* Squelette = brique COMMUNE `wama-catalog.css` (2026-09-01) — restent les spécificités. */
-  .wama-cat-card h4 code { color: #ffd54f; font-size: .95rem; }
-  .sk-resume { font-size: .8rem; color: #c3ccd6; line-height: 1.4; }
+  .wama-cat-card h4 code { color: var(--wama-cat-gold-strong); font-size: .95rem; }
+  .sk-resume { font-size: .8rem; color: var(--wama-cat-hero-text); line-height: 1.4; }
 
-  .sk-enrichissement { background: #0d47a1; color: #bbdefb; }
-  .sk-role           { background: #4a148c; color: #e1bee7; }
-  .sk-repli          { background: #37474f; color: #cfd8dc; }
+  .sk-enrichissement { background: var(--wama-tone-blue); color: var(--wama-tone-blue-text); }
+  .sk-role           { background: var(--wama-tone-purple); color: var(--wama-tone-purple-text); }
+  .sk-repli          { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
 
-  .sk-conso { font-size: .74rem; color: #a7c7e7; margin-top: auto; padding-top: 6px;
-              border-top: 1px solid rgba(255,255,255,.07); }
+  .sk-conso { font-size: .74rem; color: var(--wama-cat-consumer); margin-top: auto; padding-top: 6px;
+              border-top: 1px solid rgba(var(--wama-overlay-rgb), .07); }
   .sk-conso ul { margin: 4px 0 0; padding-left: 18px; }
-  .sk-conso code { color: #c8d6e5; }
-  .sk-orphelin { color: #ffcc80; }
+  .sk-conso code { color: var(--wama-cat-code); }
+  .sk-orphelin { color: var(--wama-cat-missing); }
 
   .sk-texte { margin-top: 4px; }
-  .sk-texte summary { cursor: pointer; font-size: .74rem; color: #90a4ae; }
-  .sk-texte pre { white-space: pre-wrap; font-size: .74rem; color: #cfd8dc; margin: 6px 0 0;
-                  background: rgba(0,0,0,.25); border-radius: 6px; padding: 8px 10px;
+  .sk-texte summary { cursor: pointer; font-size: .74rem; color: var(--wama-cat-quiet); }
+  .sk-texte pre { white-space: pre-wrap; font-size: .74rem; color: var(--wama-tone-grey-text); margin: 6px 0 0;
+                  background: rgba(var(--wama-shadow-rgb), .25); border-radius: 6px; padding: 8px 10px;
                   max-height: 320px; overflow: auto; }
 
-  .sk-manque { background: rgba(255,179,0,.08); border: 1px solid rgba(255,179,0,.25);
+  .sk-manque { background: rgba(var(--wama-cat-accent-rgb), .08); border: 1px solid rgba(var(--wama-cat-accent-rgb), .25);
                border-radius: 10px; padding: 10px 14px; margin-bottom: 16px; font-size: .8rem;
-               color: #ffe0b2; }
+               color: var(--wama-tone-brown-text); }
   .sk-manque ul { margin: 6px 0 0; padding-left: 18px; }
   /* Mécanisme de sélection + nature de gabarit — ajoutés le 2026-09-09 avec les 2 familles. */
-  .sk-selection { font-size: .68rem; color: #8fa3b8; border: 1px solid #2d4055;
+  .sk-selection { font-size: .68rem; color: var(--wama-night-scope); border: 1px solid var(--wama-night-scope-border);
                   border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
-  .sk-gabarit { font-size: .68rem; color: #e7d16e; border: 1px solid #6b5a1c;
+  .sk-gabarit { font-size: .68rem; color: var(--wama-kind-episodic); border: 1px solid var(--wama-kind-episodic-border);
                 border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
-  .sk-paire { font-size: .68rem; color: #6ee7a8; border: 1px solid #1c6b45;
+  .sk-paire { font-size: .68rem; color: var(--wama-kind-procedural); border: 1px solid var(--wama-kind-procedural-border);
               border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
-  .sk-decl { background: rgba(110,200,231,.06); border: 1px solid rgba(110,200,231,.22);
+  .sk-decl { background: rgba(var(--wama-kind-semantic-rgb), .06); border: 1px solid rgba(var(--wama-kind-semantic-rgb), .22);
              border-radius: .5rem; padding: .8rem 1rem; margin: 1rem 0; }
-  .sk-decl h4 { font-size: .9rem; color: #6ec8e7; margin-bottom: .5rem; }
-  .sk-decl ul { margin: 0; padding-left: 18px; font-size: .82rem; color: #c3ccd6; }
-  .sk-decl em { color: #8fa3b8; }
+  .sk-decl h4 { font-size: .9rem; color: var(--wama-kind-semantic); margin-bottom: .5rem; }
+  .sk-decl ul { margin: 0; padding-left: 18px; font-size: .82rem; color: var(--wama-cat-hero-text); }
+  .sk-decl em { color: var(--wama-night-scope); }
 </style>
 {% endblock %}
 

@@ -46,7 +46,7 @@
         <i class="fas fa-cloud-upload-alt"></i>
         <p>Glissez fichiers ou dossiers<br><small>Clic = fichiers | Shift+Clic = dossier</small></p>
     </div>
-    <div class="px-2 pb-1" style="border-bottom:1px solid #2a2d30;">
+    <div class="px-2 pb-1" style="border-bottom:1px solid var(--wama-border);">
         <button id="btnAddMount"
                 class="btn btn-link btn-sm text-muted w-100 text-start px-1"
                 style="font-size:0.75rem; text-decoration:none;"
@@ -63,7 +63,7 @@
     {% endif %}
 
 <style>
-#mountCredFields input::placeholder { color: #6c7a8a; }
+#mountCredFields input::placeholder { color: var(--wama-text-label); }
 </style>
 
 <!-- Modal — Connecter un dossier (connecteur, pas d'import) -->
@@ -91,7 +91,7 @@
                 </div>
                 <!-- Identifiants du dossier distant (partage réseau, nuage, Google Drive…) -->
                 <div id="mountSmbSection" class="mb-2 p-2 rounded border border-secondary" style="display:none; font-size:0.8rem;">
-                    <div class="mb-2" style="color:#4dd0e1;">
+                    <div class="mb-2" style="color:var(--wama-cat-active);">
                         <i id="mountCredIcon" class="fas fa-network-wired me-1"></i>
                         <span id="mountCredTitle"></span>
                     </div>
@@ -167,7 +167,7 @@
         <div class="modal-content bg-dark text-light border-secondary">
             <div class="modal-header border-secondary py-2">
                 <h6 class="modal-title">
-                    <i class="fas fa-exchange-alt me-1" style="color:#20c997;"></i>
+                    <i class="fas fa-exchange-alt me-1" style="color:var(--bs-teal);"></i>
                     Convertir
                 </h6>
                 <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
@@ -196,9 +196,9 @@
                         <span id="converterQuickProgressLabel">Conversion…</span>
                         <span id="converterQuickProgressPct">0%</span>
                     </div>
-                    <div class="progress" style="height:6px; background:#2d3440;">
+                    <div class="progress" style="height:6px; background:var(--wama-converter-track);">
                         <div id="converterQuickProgressBar" class="progress-bar"
-                             role="progressbar" style="width:0%; background:#20c997;"></div>
+                             role="progressbar" style="width:0%; background:var(--bs-teal);"></div>
                     </div>
                 </div>
                 <div id="converterQuickError" class="text-danger small mt-2" style="display:none;"></div>
@@ -206,7 +206,7 @@
             <div class="modal-footer border-secondary py-2">
                 <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
                 <button type="button" class="btn btn-sm" id="converterQuickConfirmBtn"
-                        style="background:#20c997; color:#000;">
+                        style="background:var(--bs-teal); color:var(--wama-text-on-bright);">
                     <i class="fas fa-exchange-alt"></i> Convertir
                 </button>
             </div>

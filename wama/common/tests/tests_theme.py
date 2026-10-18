@@ -27,6 +27,13 @@ NOT_COLOUR_HTML = re.compile(r'&#\w+;|href="#[^"]*"')
 #: Une valeur CITÉE dans un commentaire ne peint rien (affûté le 2026-10-18).
 COMMENT_CSS = re.compile(r'/\*.*?\*/', re.S)
 COMMENT_HTML = re.compile(r'<!--.*?-->|\{#.*?#\}|\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S)
+COMMENT_JS = re.compile(r'/\*.*?\*/|(?<![:\'"\\])//[^\n]*', re.S)
+#: Dans un gabarit, chaque commentaire se retire DANS SON LANGAGE : un `accept="video/*"` n'ouvre
+#: pas un commentaire CSS. Affûté le 2026-10-18 — retiré sur tout le fichier, ce `/*` avalait tout
+#: jusqu'au `*/` suivant, et 76 couleurs n'étaient pas comptées (47 dans une seule page).
+CODE_ZONE = re.compile(r'<style\b[^>]*>(?P<css>.*?)</style>'
+                       r'|\{%\s*block\s+app_styles\s*%\}(?P<blk>.*?)\{%\s*endblock'
+                       r'|<script\b[^>]*>(?P<js>.*?)</script>', re.S)
 TWIN = re.compile(r'^wama/[a-z_]+_\d\d/')
 
 #: Hors du budget, chacun avec sa raison.
@@ -42,8 +49,9 @@ OUTSIDE_FAMILIES = (
 )
 
 #: Couleurs écrites en dur, par nature de fichier — la mesure du jour, qui ne peut que descendre.
-#: Le JS n'y est pas : ses couleurs sont surtout des palettes de DESSIN (canvas, graphes), que le
-#: scénario de contraste mesure au rendu.
+#: Les fichiers `.js` n'y sont pas : leurs couleurs sont surtout des palettes de DESSIN (canvas,
+#: graphes), que le scénario de contraste mesure au rendu. Celles des `<script>` d'un gabarit, si :
+#: elles se lisent par `WamaApp.themeColor('--bs-danger')` (wama-app-base.js).
 #: Mesuré le 2026-10-17, card commune portée : 862 dans les feuilles, 883 dans les gabarits
 #: (`app_modern.css` en tête, 163) ; 854 le même jour, les huit textes d'alerte fixes retirés
 #: (étape 2, `ROADMAP §28`). Le 2026-10-18 : `app_modern.css` porté (155 → 0) et l'instrument
@@ -53,8 +61,9 @@ OUTSIDE_FAMILIES = (
 #: feuilles d'apps (arbre de fichiers, Studio, Cam Analyzer, catalogue, accueil) portées et deux
 #: feuilles que plus aucune page ne chargeait retirées (R145, R146) — 54 ; puis la présentation,
 #: une fois ses gabarits servis avec les tokens — 0 : AUCUNE feuille de WAMA n'écrit plus de
-#: couleur. Ce qui reste est dans les `<style>` des gabarits.
-BUDGET = {'.css': 0, '.html': 795}
+#: couleur. Puis les gabarits : l'instrument affûté (commentaires retirés par langage, 795 → 871)
+#: et, dans le même geste, leurs `<style>`, attributs `style=` et dessins de `<script>` portés — 0.
+BUDGET = {'.css': 0, '.html': 0}
 
 #: Fichiers PORTÉS sur les tokens : ils restent à zéro.
 TOKENISED = tuple(f'wama/common/static/common/css/{name}.css' for name in (
@@ -81,9 +90,22 @@ def _sources(suffixes):
                 yield rel, path.read_text(encoding='utf-8', errors='replace')
 
 
+def _without_template_comments(text):
+    """Le gabarit sans ses commentaires, chacun retiré dans son langage."""
+    text = COMMENT_HTML.sub('', text)
+
+    def zone(m):
+        for name, comment in (('css', COMMENT_CSS), ('blk', COMMENT_CSS), ('js', COMMENT_JS)):
+            if m.group(name) is not None:
+                start, end = m.start(name) - m.start(), m.end(name) - m.start()
+                return m.group(0)[:start] + comment.sub('', m.group(name)) + m.group(0)[end:]
+        return m.group(0)
+    return CODE_ZONE.sub(zone, text)
+
+
 def colour_count(rel, text):
     if rel.endswith('.html'):
-        text = NOT_COLOUR_HTML.sub('', COMMENT_HTML.sub('', COMMENT_CSS.sub('', text)))
+        text = NOT_COLOUR_HTML.sub('', _without_template_comments(text))
     else:
         text = COMMENT_CSS.sub('', text)
     return len(COLOUR.findall(text))
@@ -106,6 +128,8 @@ def unknown_tokens(sources):
         defined.update(re.findall(r'setProperty\(\s*[\'"](--wama-[a-z0-9-]+)', text))
         for name in re.findall(r'var\(\s*(--wama-[a-z0-9-]+)\s*\)', text):
             read.setdefault(name, rel)
+        for name in re.findall(r'themeColor\(\s*[\'"](--wama-[a-z0-9-]+)', text):
+            read.setdefault(name, rel)
     return {name: rel for name, rel in read.items() if name not in defined}
 
 
@@ -121,19 +145,37 @@ def sheets_reading_tokens():
             if 'vendors' not in path.parts and 'var(--wama-' in path.read_text(encoding='utf-8', errors='replace')}
 
 
-def standalone_pages_missing_tokens(sources, reads=None):
+INCLUDE = re.compile(r"""\{%\s*include\s+['"]([^'"]+)['"]""")
+TOKEN_READ = re.compile(r'var\(\s*--wama-|themeColor\(')
+
+
+def _template_text(name):
+    """Le texte d'un gabarit nommé dans un `{% include %}` (dossiers `templates/` de WAMA), ou ''."""
+    for base in ('wama', 'wama_lab', 'wama_data'):
+        for folder in (ROOT / base).rglob('templates'):
+            path = folder / name
+            if path.is_file():
+                return path.read_text(encoding='utf-8', errors='replace')
+    return ''
+
+
+def standalone_pages_missing_tokens(sources, reads=None, included=None):
     """Les gabarits AUTONOMES (un document `<html>` qui n'étend rien — un fragment inclus vit dans
-    la page qui l'inclut) qui chargent une feuille lisant un token sans avoir chargé
-    `common/css/wama-theme.css` avant elle."""
+    la page qui l'inclut) qui lisent un token — par une feuille qu'ils chargent, par leurs propres
+    styles ou scripts, ou par un gabarit qu'ils incluent — sans avoir chargé
+    `common/css/wama-theme.css` AVANT la première lecture."""
     reads = sheets_reading_tokens() if reads is None else reads
+    included = _template_text if included is None else included
     missing = []
     for rel, text in sources:
         if re.search(r'\{%\s*extends\b', text) or not re.search(r'<html\b', text):
             continue
-        linked = SHEET_LINK.findall(COMMENT_HTML.sub('', text))
-        readers = [i for i, sheet in enumerate(linked) if sheet in reads]
-        theme = linked.index('common/css/wama-theme.css') if 'common/css/wama-theme.css' in linked else None
-        if readers and (theme is None or theme > readers[0]):
+        text = COMMENT_HTML.sub('', text)
+        firsts = [m.start() for m in SHEET_LINK.finditer(text) if m.group(1) in reads]
+        firsts += [m.start() for m in TOKEN_READ.finditer(text)]
+        firsts += [m.start() for m in INCLUDE.finditer(text) if TOKEN_READ.search(included(m.group(1)))]
+        theme = next((m.start() for m in SHEET_LINK.finditer(text) if m.group(1) == 'common/css/wama-theme.css'), None)
+        if firsts and (theme is None or theme > min(firsts)):
             missing.append(rel)
     return missing
 
@@ -202,6 +244,17 @@ class ThemeDeclarationTest(SimpleTestCase):
         child = "{% extends 'base.html' %}<link href=\"{% static_v 'presentation/scene.css' %}\">"
         fragment = "<link href=\"{% static_v 'presentation/scene.css' %}\"><div></div>"
         self.assertEqual([], standalone_pages_missing_tokens([('c.html', child), ('f.html', fragment)], reads))
+
+    def test_the_standalone_guard_sees_inline_and_included_reads(self):
+        """Contre-épreuve : un style de la page, ou un gabarit inclus, qui lit un token compte aussi."""
+        styles = {'_style.html': '<style>.slide { background: var(--wama-violet); }</style>'}
+        inline = '<html><style>body { color: var(--wama-text); }</style></html>'
+        include = "<html><head>{% include '_style.html' %}</head></html>"
+        late = "<html>{% include '_style.html' %}<link href=\"{% static_v 'common/css/wama-theme.css' %}\"></html>"
+        ok = "<html><link href=\"{% static_v 'common/css/wama-theme.css' %}\">{% include '_style.html' %}</html>"
+        pages = [('inline.html', inline), ('include.html', include), ('late.html', late), ('ok.html', ok)]
+        self.assertEqual(['inline.html', 'include.html', 'late.html'],
+                         standalone_pages_missing_tokens(pages, set(), lambda name: styles.get(name, '')))
 
     def test_the_registry_lists_the_declared_themes(self):
         from wama.common import registries
@@ -279,6 +332,37 @@ class ModeFollowingComponentsTest(SimpleTestCase):
         self.assertFalse(self.ALERT_FIXED.search('.alert, .alert * { color: var(--bs-alert-color) !important; }'))
 
 
+class ThemeColorForDrawingTest(SimpleTestCase):
+    """`WamaApp.themeColor` (wama-app-base.js) : un canvas ou un graphe ne lit pas `var(--…)`, la
+    brique lui rend la VALEUR du token du thème actif. Exécutée seule dans V8 (patron de
+    `tests_toast`) ; ⚠ `py_mini_racer` n'est que dans venv_win : skippe sous venv_linux."""
+
+    FAKE = """var document = { documentElement: {} };
+    var tokens = { '--bs-danger': ' #dc3545', '--bs-danger-rgb': '220, 53, 69' };
+    function getComputedStyle(el) { return { getPropertyValue: function (t) { return tokens[t] || ''; } }; }
+    """
+
+    def setUp(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        src = (ROOT / 'wama/common/static/common/js/wama-app-base.js').read_text(encoding='utf-8')
+        body = re.search(r'\n  function themeColor\(.*?\n  }\n', src, re.S)
+        self.assertIsNotNone(body, '`themeColor` a disparu ou changé de forme')
+        self.assertIn('themeColor: themeColor', src, 'la brique est exposée sur WamaApp')
+        self.ctx = MiniRacer()
+        self.ctx.eval(self.FAKE + body.group(0))
+
+    def test_a_token_gives_its_value_and_a_channel_token_composes_a_veil(self):
+        self.assertEqual('#dc3545', self.ctx.eval("themeColor('--bs-danger')"))
+        self.assertEqual('rgba(220, 53, 69, 0.1)', self.ctx.eval("themeColor('--bs-danger-rgb', 0.1)"))
+
+    def test_the_served_copy_is_the_source(self):
+        self.assertEqual((ROOT / 'wama/common/static/common/js/wama-app-base.js').read_bytes(),
+                         (ROOT / 'staticfiles/common/js/wama-app-base.js').read_bytes())
+
+
 class HardCodedColourBudgetTest(SimpleTestCase):
 
     def test_the_budget_equals_the_measure(self):
@@ -302,3 +386,11 @@ class HardCodedColourBudgetTest(SimpleTestCase):
         self.assertEqual(1, colour_count('a.html', '<a href="#top">&#8594;</a><i style="color:#abc">'))
         self.assertEqual(0, colour_count('a.css', '/* était #6c757d */ a{box-shadow:0 0 0 1px rgba(var(--bs-primary-rgb), .25)}'))
         self.assertEqual(1, colour_count('a.html', '{# #fff #}<!-- #000 --><b style="color:rgb(1,2,3)">'))
+
+    def test_a_comment_is_removed_in_its_own_language_only(self):
+        """Vécu : `accept="video/*"` ouvrait un « commentaire » CSS qui avalait la page jusqu'au
+        `*/` suivant — 47 couleurs d'une page n'étaient pas comptées."""
+        page = ('<input accept="video/*"><style>a { color: #fff; } /* #000 */</style>'
+                '<script>ctx.fillStyle = "#dc3545"; // #111\n</script>')
+        self.assertEqual(2, colour_count('a.html', page))
+        self.assertEqual(1, colour_count('a.html', '{% block app_styles %}b{color:#abc}/* #def */{% endblock %}'))

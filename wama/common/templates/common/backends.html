@@ -16,17 +16,17 @@
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
   /* Squelette = brique COMMUNE `wama-catalog.css` — restent les spécificités. */
-  .bk-app      { background: #0d47a1; color: #bbdefb; }
-  .bk-route    { background: #1b5e20; color: #c8e6c9; }
-  .bk-classe   { background: #4a148c; color: #e1bee7; }
-  .bk-jumelle  { background: #37474f; color: #cfd8dc; }
-  .bk-isole    { background: #4a3b5c; color: #e1bee7; }
-  .bk-sig      { font-size: .78rem; color: #90caf9; }
-  .bk-path     { font-size: .74rem; color: #b0bec5; word-break: break-all; }
-  .bk-modeles  { font-size: .76rem; color: #ffe082; }
-  .bk-lien-app { color: #90a4ae; font-style: italic; }
-  .bk-manque   { font-size: .74rem; color: #ffcc80; }
-  .bk-illisible{ font-size: .74rem; color: #ef9a9a; }
+  .bk-app      { background: var(--wama-tone-blue); color: var(--wama-tone-blue-text); }
+  .bk-route    { background: var(--wama-tone-green); color: var(--wama-tone-green-text); }
+  .bk-classe   { background: var(--wama-tone-purple); color: var(--wama-tone-purple-text); }
+  .bk-jumelle  { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
+  .bk-isole    { background: var(--wama-tone-purple-muted); color: var(--wama-tone-purple-text); }
+  .bk-sig      { font-size: .78rem; color: var(--wama-cat-open); }
+  .bk-path     { font-size: .74rem; color: var(--wama-cat-path); word-break: break-all; }
+  .bk-modeles  { font-size: .76rem; color: var(--wama-cat-gold); }
+  .bk-lien-app { color: var(--wama-cat-quiet); font-style: italic; }
+  .bk-manque   { font-size: .74rem; color: var(--wama-cat-missing); }
+  .bk-illisible{ font-size: .74rem; color: var(--wama-cat-error); }
 </style>
 {% endblock %}
 

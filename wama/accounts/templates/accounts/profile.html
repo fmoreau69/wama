@@ -5,12 +5,12 @@
 
 {% block extra_css %}
 <style>
-    .card.bg-dark .label-col { color: #9ca3af; }
-    .card.bg-dark .value-col { color: #e5e7eb; }
+    .card.bg-dark .label-col { color: var(--wama-text-muted); }
+    .card.bg-dark .value-col { color: var(--wama-text-body); }
     #tokenInput { font-family: monospace; letter-spacing: 0.05em; }
-    .profile-keys h6 { color: #e5e7eb; font-size: .85rem; font-weight: 600; margin: 1rem 0 .4rem; }
+    .profile-keys h6 { color: var(--wama-text-body); font-size: .85rem; font-weight: 600; margin: 1rem 0 .4rem; }
     .profile-keys h6:first-child { margin-top: 0; }
-    .profile-keys .key-row { border-bottom: 1px solid #2d2d4e; padding: .5rem 0; }
+    .profile-keys .key-row { border-bottom: 1px solid var(--wama-night-border); padding: .5rem 0; }
 </style>
 {% endblock %}
 
@@ -442,7 +442,7 @@
                     <p class="text-muted small mb-2">
                         Les fichiers du dossier temporaire qu'une card utilise sont toujours gardés.
                     </p>
-                    <p class="small mb-3" style="color:#c4b5fd;">
+                    <p class="small mb-3" style="color:var(--wama-collab-link);">
                         <i class="fas fa-photo-film me-1"></i>
                         La médiathèque n'est jamais purgée : y ranger un fichier, c'est le garder.
                     </p>

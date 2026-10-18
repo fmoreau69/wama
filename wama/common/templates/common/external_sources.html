@@ -19,21 +19,21 @@ smoke.{% endcomment %}
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
   /* Squelette = brique COMMUNE `wama-catalog.css` (2026-09-01) — restent les spécificités. */
-  .xs-url { font-size: .76rem; color: #90caf9; word-break: break-all; }
+  .xs-url { font-size: .76rem; color: var(--wama-cat-open); word-break: break-all; }
 
-  .xs-type     { background: #4a148c; color: #e1bee7; }
-  .xs-locale   { background: #1b5e20; color: #c8e6c9; }
-  .xs-sortante { background: #0d47a1; color: #bbdefb; }
-  .xs-cle-ok   { background: #33691e; color: #dcedc8; }
-  .xs-cle-ko   { background: #b71c1c; color: #ffcdd2; }
+  .xs-type     { background: var(--wama-tone-purple); color: var(--wama-tone-purple-text); }
+  .xs-locale   { background: var(--wama-tone-green); color: var(--wama-tone-green-text); }
+  .xs-sortante { background: var(--wama-tone-blue); color: var(--wama-tone-blue-text); }
+  .xs-cle-ok   { background: var(--wama-tone-lime); color: var(--wama-tone-lime-text); }
+  .xs-cle-ko   { background: var(--wama-tone-red); color: var(--wama-tone-red-text-soft); }
 
-  .xs-sonde { margin-top: auto; padding-top: 6px; border-top: 1px solid rgba(255,255,255,.07);
+  .xs-sonde { margin-top: auto; padding-top: 6px; border-top: 1px solid rgba(var(--wama-overlay-rgb), .07);
               font-size: .76rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .xs-ok  { color: #a5d6a7; }
-  .xs-ko  { color: #ef9a9a; }
-  .xs-muet { color: #90a4ae; }
-  .xs-err { font-size: .72rem; color: #ffcc80; word-break: break-all; }
-  .xs-attrib { font-size: .72rem; color: #ce93d8; }
+  .xs-ok  { color: var(--wama-cat-ok-soft); }
+  .xs-ko  { color: var(--wama-cat-error); }
+  .xs-muet { color: var(--wama-cat-quiet); }
+  .xs-err { font-size: .72rem; color: var(--wama-cat-missing); word-break: break-all; }
+  .xs-attrib { font-size: .72rem; color: var(--wama-cat-orchid); }
 </style>
 {% endblock %}
 

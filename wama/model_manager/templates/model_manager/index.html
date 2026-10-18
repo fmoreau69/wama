@@ -10,41 +10,41 @@
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .model-card {
-        background: #2b3035;
-        border: 1px solid #495057;
+        background: var(--wama-surface-raised);
+        border: 1px solid var(--wama-border-strong);
         border-radius: 8px;
         padding: 15px;
         margin-bottom: 15px;
         transition: all 0.3s ease;
     }
     .model-card:hover {
-        border-color: #0dcaf0;
-        box-shadow: 0 0 10px rgba(13, 202, 240, 0.2);
+        border-color: var(--wama-accent);
+        box-shadow: 0 0 10px rgba(var(--wama-accent-rgb), 0.2);
     }
     .model-card.loaded {
-        border-left: 4px solid #28a745;
+        border-left: 4px solid var(--wama-state-success-edge);
     }
     .model-card.downloaded {
-        border-left: 4px solid #0dcaf0;
+        border-left: 4px solid var(--wama-accent);
     }
     .model-card.not-downloaded {
-        border-left: 4px solid #6c757d;
+        border-left: 4px solid var(--bs-secondary);
         opacity: 0.7;
     }
     /* Modèle DISTANT (execution = cloud) : rien à télécharger — ni grisé, ni « non téléchargé ». */
     .model-card.remote {
-        border-left: 4px solid #6f8fd6;
+        border-left: 4px solid var(--wama-mm-remote);
     }
     .memory-card {
-        background: linear-gradient(135deg, #1a1a2e 0%, #2b3035 100%);
-        border: 1px solid #495057;
+        background: linear-gradient(135deg, var(--wama-night-surface) 0%, var(--wama-surface-raised) 100%);
+        border: 1px solid var(--wama-border-strong);
         border-radius: 12px;
         padding: 20px;
     }
     .memory-bar {
         height: 24px;
         border-radius: 6px;
-        background: #1a1d20;
+        background: var(--wama-surface-modal);
         overflow: hidden;
     }
     .memory-bar-fill {
@@ -64,21 +64,21 @@
         font-weight: bold;
     }
     .memory-bar-fill.cpu {
-        background: linear-gradient(90deg, #0dcaf0, #0d6efd);
+        background: linear-gradient(90deg, var(--wama-accent), var(--bs-primary));
     }
     .memory-bar-fill.gpu {
-        background: linear-gradient(90deg, #28a745, #ffc107);
+        background: linear-gradient(90deg, var(--wama-state-success-edge), var(--bs-warning));
     }
     .memory-bar-fill.ram {
-        background: linear-gradient(90deg, #198754, #0dcaf0);
+        background: linear-gradient(90deg, var(--bs-success), var(--wama-accent));
     }
     /* Le disque avait été peint avec .ram : classe propre pour qu'un changement
        de teinte de la RAM ne le déplace plus au passage. */
     .memory-bar-fill.disk {
-        background: linear-gradient(90deg, #0dcaf0, #6f42c1);
+        background: linear-gradient(90deg, var(--wama-accent), var(--bs-purple));
     }
     .memory-bar-fill.high {
-        background: linear-gradient(90deg, #ffc107, #dc3545);
+        background: linear-gradient(90deg, var(--bs-warning), var(--bs-danger));
     }
     .type-badge {
         font-size: 0.7rem;
@@ -87,39 +87,39 @@
         text-transform: uppercase;
         font-weight: 600;
     }
-    .type-vision { background: #6f42c1; color: white; }
-    .type-diffusion { background: #fd7e14; color: white; }
-    .type-speech { background: #20c997; color: white; }
-    .type-vlm { background: #0dcaf0; color: #000; }
-    .type-llm { background: #6610f2; color: white; }
-    .type-summarization { background: #17a2b8; color: white; }
-    .type-upscaling { background: #e83e8c; color: white; }
+    .type-vision { background: var(--bs-purple); color: var(--wama-text-on-accent); }
+    .type-diffusion { background: var(--bs-orange); color: var(--wama-text-on-accent); }
+    .type-speech { background: var(--bs-teal); color: var(--wama-text-on-accent); }
+    .type-vlm { background: var(--wama-accent); color: var(--wama-text-on-bright); }
+    .type-llm { background: var(--bs-indigo); color: var(--wama-text-on-accent); }
+    .type-summarization { background: var(--wama-mm-type-summarization); color: var(--wama-text-on-accent); }
+    .type-upscaling { background: var(--wama-mm-type-upscaling); color: var(--wama-text-on-accent); }
     .source-badge {
         font-size: 0.65rem;
         padding: 2px 6px;
         border-radius: 3px;
-        background: #495057;
-        color: #adb5bd;
+        background: var(--wama-mm-badge);
+        color: var(--wama-text-secondary);
     }
     .filter-tabs {
-        border-bottom: 1px solid #495057;
+        border-bottom: 1px solid var(--wama-border-strong);
         margin-bottom: 20px;
     }
     .filter-tabs .nav-link {
-        color: #adb5bd;
+        color: var(--wama-text-secondary);
         border: none;
         padding: 10px 16px;
         border-radius: 0;
         transition: all 0.2s ease;
     }
     .filter-tabs .nav-link:hover {
-        color: #fff;
-        background: rgba(255,255,255,0.05);
+        color: var(--wama-text-bright);
+        background: rgba(var(--wama-overlay-rgb), 0.05);
     }
     .filter-tabs .nav-link.active {
-        color: #0dcaf0;
+        color: var(--wama-accent);
         background: transparent;
-        border-bottom: 2px solid #0dcaf0;
+        border-bottom: 2px solid var(--wama-accent);
     }
     .stats-badge {
         font-size: 2rem;
@@ -131,23 +131,23 @@
     }
     .model-name {
         font-weight: 600;
-        color: #e9ecef;
+        color: var(--wama-text-strong);
     }
     .model-desc {
         font-size: 0.85rem;
-        color: #adb5bd;
+        color: var(--wama-text-secondary);
     }
     .model-meta {
         font-size: 0.75rem;
-        color: #9ca3af;
+        color: var(--wama-text-muted);
     }
     /* Override text-muted for dark background */
     .memory-card .text-muted,
     .model-card .text-muted {
-        color: #9ca3af !important;
+        color: var(--wama-text-muted) !important;
     }
     .memory-card small.text-muted {
-        color: #b0b7bf !important;
+        color: var(--wama-mm-memory-muted) !important;
     }
     .loading-overlay {
         position: fixed;
@@ -155,7 +155,7 @@
         left: 0;
         right: 0;
         bottom: 0;
-        background: rgba(0,0,0,0.7);
+        background: rgba(var(--wama-shadow-rgb), 0.7);
         display: none;
         align-items: center;
         justify-content: center;
@@ -176,12 +176,12 @@
         margin-right: 6px;
     }
     .cleaner-status .status-running {
-        background: #28a745;
-        box-shadow: 0 0 6px #28a745;
+        background: var(--wama-state-success-edge);
+        box-shadow: 0 0 6px var(--wama-state-success-edge);
         animation: pulse 2s infinite;
     }
     .cleaner-status .status-stopped {
-        background: #dc3545;
+        background: var(--bs-danger);
     }
     @keyframes pulse {
         0% { opacity: 1; }
@@ -189,13 +189,13 @@
         100% { opacity: 1; }
     }
     .idle-model-item {
-        background: #3a3f44;
+        background: var(--wama-mm-idle);
         border-radius: 6px;
         padding: 10px;
         margin-bottom: 8px;
     }
     .idle-model-item:hover {
-        background: #4a4f54;
+        background: var(--wama-mm-idle-hover);
     }
     .memory-action-btn {
         min-width: 120px;
@@ -207,8 +207,8 @@
     .cleanup-history-item {
         font-size: 0.8rem;
         padding: 6px 10px;
-        border-left: 3px solid #28a745;
-        background: #2d3238;
+        border-left: 3px solid var(--wama-state-success-edge);
+        background: var(--wama-mm-cleanup);
         margin-bottom: 4px;
     }
     /* Multi-select styles */
@@ -218,8 +218,8 @@
         cursor: pointer;
     }
     .model-card.selected {
-        border: 2px solid #0dcaf0;
-        box-shadow: 0 0 15px rgba(13, 202, 240, 0.3);
+        border: 2px solid var(--wama-accent);
+        box-shadow: 0 0 15px rgba(var(--wama-accent-rgb), 0.3);
     }
     /* Format badges */
     .format-badge {
@@ -229,11 +229,11 @@
         font-weight: 600;
         text-transform: uppercase;
     }
-    .format-safetensors { background: #28a745; color: white; }
-    .format-onnx { background: #fd7e14; color: white; }
-    .format-pt { background: #6c757d; color: white; }
-    .format-bin { background: #495057; color: white; }
-    .format-unknown { background: #343a40; color: #adb5bd; }
+    .format-safetensors { background: var(--wama-state-success-edge); color: var(--wama-text-on-accent); }
+    .format-onnx { background: var(--bs-orange); color: var(--wama-text-on-accent); }
+    .format-pt { background: var(--bs-secondary); color: var(--wama-text-on-accent); }
+    .format-bin { background: var(--wama-mm-badge); color: var(--wama-text-on-accent); }
+    .format-unknown { background: var(--wama-mm-format-unknown); color: var(--wama-text-secondary); }
     /* Filter bar — l'APPARENCE vit désormais dans `common/css/wama-filter-bar.css` (chargée
        globalement), et cette page utilise la classe commune `.wama-filter-bar`.
        Pourquoi ce sens de reprise : c'est CETTE barre que Fabien a retenue comme référence
@@ -243,8 +243,8 @@
        pas dupliquées. */
     /* Selection toolbar */
     .selection-toolbar {
-        background: linear-gradient(135deg, #1a1a2e 0%, #0d6efd22 100%);
-        border: 1px solid #0d6efd;
+        background: linear-gradient(135deg, var(--wama-night-surface) 0%, var(--wama-mm-selection-tint) 100%);
+        border: 1px solid var(--bs-primary);
         border-radius: 8px;
         padding: 12px 15px;
         margin-bottom: 15px;
@@ -255,8 +255,8 @@
     }
     /* Conversion panel */
     .conversion-panel {
-        background: #1a1d20;
-        border: 1px solid #495057;
+        background: var(--wama-surface-modal);
+        border: 1px solid var(--wama-border-strong);
         border-radius: 8px;
         padding: 15px;
         margin-top: 10px;
@@ -266,10 +266,10 @@
         font-size: 0.8rem;
     }
     .backup-status.available {
-        color: #28a745;
+        color: var(--wama-state-success-edge);
     }
     .backup-status.unavailable {
-        color: #dc3545;
+        color: var(--bs-danger);
     }
     /* Badge de benchmark : BORNÉ à la card (Fabien, 02/09 : « bench 1069.516569087065
        arena_elo_text_to_image » débordait). Le détail complet vit à l'inspecteur ; le badge
@@ -753,7 +753,7 @@
 <!-- Inspecteur : highlight de la carte sélectionnée (contenu rendu via wama-inspector-autofill.css) -->
 <style>
     .model-item.mm-active .model-card {
-        border-color: #0dcaf0 !important; box-shadow: 0 0 0 1px #0dcaf0;
+        border-color: var(--wama-accent) !important; box-shadow: 0 0 0 1px var(--wama-accent);
     }
     /* Monitoring déplacé dans le volet droit étroit → empiler verticalement
        UNIQUEMENT les cartes de 1er niveau (enfants directs de la rangée), pas
@@ -836,9 +836,9 @@ qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renom
     </ul>
 </div>
 {# Prospection (proposés par IA) — visible quand aucune card n'est sélectionnée. #}
-<div id="mmProspectBar" class="mt-3 p-2 rounded" style="background:rgba(111,66,193,0.12);border:1px solid rgba(111,66,193,0.4);">
+<div id="mmProspectBar" class="mt-3 p-2 rounded" style="background:rgba(var(--wama-purple-rgb), 0.12);border:1px solid rgba(var(--wama-purple-rgb), 0.4);">
     <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap">
-        <span class="small text-light fw-semibold"><i class="fas fa-wand-magic-sparkles me-1" style="color:#b388ff"></i>Prospection de modèles</span>
+        <span class="small text-light fw-semibold"><i class="fas fa-wand-magic-sparkles me-1" style="color:var(--wama-mm-prospect)"></i>Prospection de modèles</span>
         <span class="d-flex gap-1 flex-wrap">
             <button type="button" id="mmProspectBtn" class="btn btn-sm btn-outline-light py-0">
                 <i class="fas fa-rotate me-1"></i>Prospecter (Ollama + HuggingFace)
@@ -881,16 +881,16 @@ qu'attendent WamaInspector (inspectorActions) et le JS de la page : ne pas renom
 moteur, capacités) attend ici la décision humaine — le cycle sandbox → vérifié → promu de
 WAMA_MANIFEST_ARCHITECTURE §4, qui n'avait jusqu'ici aucun geste hors terminal. Masqué s'il n'y
 a rien en attente. {% endcomment %}
-<div id="mmProposals" class="mt-3 p-2 rounded d-none" style="background:rgba(25,135,84,0.10);border:1px solid rgba(25,135,84,0.45);">
+<div id="mmProposals" class="mt-3 p-2 rounded d-none" style="background:rgba(var(--bs-success-rgb), 0.10);border:1px solid rgba(var(--bs-success-rgb), 0.45);">
     <div class="small text-light fw-semibold mb-1">
-        <i class="fas fa-clipboard-check me-1" style="color:#75b798"></i>Propositions à valider
+        <i class="fas fa-clipboard-check me-1" style="color:var(--bs-success-text-emphasis)"></i>Propositions à valider
         <span id="mmProposalsCount" class="badge bg-success ms-1">0</span>
     </div>
     <div id="mmProposalsList"></div>
 </div>
 {# mmSystemRow (cleaner + idle models) déplacé ici par JS ; masqué quand une card est sélectionnée. #}
 <div id="mmSystemTitle" class="small text-light fw-semibold mt-3 mb-1">
-    <i class="fas fa-memory me-1" style="color:#8ecae6"></i>Mémoire &amp; modèles chargés
+    <i class="fas fa-memory me-1" style="color:var(--wama-mm-memory-icon)"></i>Mémoire &amp; modèles chargés
 </div>
 <div id="mmSystemSlot"></div>
     {% endif %}
@@ -1167,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <span class="source-badge">${model.source}</span>
                         </div>
                         ${model.is_proposed ?
-                            `<span class="badge" style="background:#6f42c1"><i class="fas fa-wand-magic-sparkles fa-xs me-1"></i>${model.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau'}</span>` :
+                            `<span class="badge" style="background:var(--bs-purple)"><i class="fas fa-wand-magic-sparkles fa-xs me-1"></i>${model.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau'}</span>` :
                             (model.is_loaded ?
                             '<span class="badge bg-success"><i class="fas fa-circle fa-xs me-1"></i>Loaded</span>' :
                             (model.execution === 'cloud' ?
@@ -1505,7 +1505,7 @@ document.addEventListener('DOMContentLoaded', function() {
         { badges: function (m) {
             if (m.is_proposed) {
                 return [
-                    '<span class="badge" style="background:#6f42c1">✨ ' + (m.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau / concurrent') + '</span>',
+                    '<span class="badge" style="background:var(--bs-purple)">✨ ' + (m.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau / concurrent') + '</span>',
                     m.confidence != null ? '<span class="badge bg-success-subtle text-success border border-success">' + Math.round(m.confidence * 100) + '% confiance</span>' : '',
                 ].filter(Boolean);
             }

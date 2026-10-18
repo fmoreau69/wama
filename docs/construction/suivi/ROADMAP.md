@@ -5876,8 +5876,32 @@ listes déroulantes.
    n'y a pas accès), feuilles permutées dans le même chargement — 2 003 éléments, **0 écart** ;
    contre-épreuve, sans `wama-theme.css` presque tous changent. **Budget CSS 0** : plus aucune
    feuille de WAMA n'écrit de couleur.
-   ⏳ *Reste de l'étape* : les `<style>` des pages (795 couleurs dans les gabarits ; les derniers
-   textes faibles de `WAMA_VERIFICATION §10` y vivent : `#6c757d` écrit dans la page).
+   ✅ *Les styles des PAGES* (2026-10-18, GO de Fabien) — blocs `<style>`, bloc `app_styles`,
+   attributs `style=` et couleurs de DESSIN des `<script>`, dans 66 gabarits. L'instrument d'abord
+   affûté : dans un gabarit, un commentaire se retire dans son langage (un `accept="video/*"`
+   ouvrait un « commentaire » CSS qui avalait la page) — **871** couleurs, et non 795. Tokens par
+   FAMILLE plutôt que par page : la palette « nuit » des pages du compte et d'Apps
+   (`--wama-night-*`), les TONS des pastilles des pages catalogue (`--wama-tone-*`, `--wama-cat-*`),
+   les natures de souvenir partagées avec les skills (`--wama-kind-*`), le lecteur de doc, la
+   médiathèque, le model manager, l'éditeur du transcriber (qui retombe sur `--wama-edit-*`), la
+   coquille des apps, la présentation v1 archivée. Un canvas ou un graphe Chart.js ne lit pas
+   `var(--…)` : brique commune **`WamaApp.themeColor(token[, alpha])`** (`wama-app-base.js`), qui
+   rend la valeur du thème actif (Face Analyzer). Remontés à `--wama-text-label` dans le même
+   geste : les gris écrits dans les pages (`#6c757d`, `#555`, `#666`, `#6b7c89`, `#6c7a8a`), soit
+   les derniers faibles de `WAMA_VERIFICATION §10` — de 57 à 4, ceux qui restent sont des
+   composants Bootstrap et une couleur de donnée. Les pages autonomes qui lisent désormais les
+   tokens (démo des modes, présentation et architecture v1) chargent `wama-theme.css` ; la garde
+   des pages autonomes suit aussi leurs styles propres et leurs `{% include %}` (contre-épreuve :
+   les deux archives v1 de HEAD relevées). *Preuve* : statique à chaque remplacement (même outil,
+   étendu aux gabarits) ; au navigateur, chaque page RENDUE deux fois, par le code de HEAD (worktree
+   jetable) et par l'arbre, puis comparée JS coupé (même DOM) — 39 pages, ~47 000 éléments, seuls
+   écarts les remontées ; Apps, dont une section dépend de l'ordre des rendus, rejouée en premier
+   rendu de deux processus. JS actif : aucune erreur de console, `themeColor` juste sur chaque page.
+   Non couverts au navigateur (vérification statique seule) : l'éditeur du transcriber (aucune
+   transcription au compte de test), Users et la matrice d'accès (refusées). **Budget gabarits
+   0** : plus aucune couleur écrite dans WAMA, hors documents exportés et maquettes de la doc.
+   ⏳ *Reste* (`WAMA_VERIFICATION §10`) : les boutons Bootstrap « outline » sur fond sombre
+   (Apps, Profil) — une règle commune, décision de charte ; la couleur d'un événement du calendrier.
 4. ⏳ **Un second thème** (clair, ou UGE) = un bloc de `wama-theme.css` + une ligne de `THEMES` ;
    la garde de code de `tests_contrast` passe à sa forme symétrique (un ton de texte fixe exige un
    fond fixe, dans les deux sens).

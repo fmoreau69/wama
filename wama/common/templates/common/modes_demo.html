@@ -7,12 +7,14 @@
     <title>WamaModes — prévisualisation domaines→modes</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    {# Tokens de thème d'abord : les styles de la page lisent leurs couleurs dans wama-theme.css (ROADMAP §28). #}
+    <link href="{% static_v 'common/css/wama-theme.css' %}" rel="stylesheet">
     <style>
-        body { background:#1a1d20; color:#e9ecef; padding:2rem; }
-        .panel { max-width:680px; margin:0 auto; background:#212529; border:1px solid #495057; border-radius:8px; padding:1.5rem; }
-        .wm-settings { border-top:1px dashed #495057; margin-top:.75rem; padding-top:.75rem; color:#adb5bd; font-size:.85rem; }
-        pre { background:#16181b; color:#7fd8c0; padding:.75rem; border-radius:6px; font-size:.8rem; }
-        label.form-label { color:#ced4da; }
+        body { background:var(--wama-surface-modal); color:var(--wama-text-strong); padding:2rem; }
+        .panel { max-width:680px; margin:0 auto; background:var(--wama-surface); border:1px solid var(--wama-border-strong); border-radius:8px; padding:1.5rem; }
+        .wm-settings { border-top:1px dashed var(--wama-border-strong); margin-top:.75rem; padding-top:.75rem; color:var(--wama-text-secondary); font-size:.85rem; }
+        pre { background:var(--wama-demo-code-bg); color:var(--wama-autofill-code); padding:.75rem; border-radius:6px; font-size:.8rem; }
+        label.form-label { color:var(--wama-text-desc); }
     </style>
 </head>
 <body>

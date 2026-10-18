@@ -7,12 +7,12 @@
 {% block extra_css %}
 <style>
   /* Squelette = brique COMMUNE `wama-catalog.css` (2026-09-01) — restent les spécificités. */
-  .lc-ok    { background: #1b5e20; color: #c8facc; }
-  .lc-warn  { background: #7f5200; color: #ffe0a3; }
-  .lc-off   { background: #37474f; color: #cfd8dc; }
-  .lc-drift { background: rgba(244,67,54,.18); color: #ff8a80; }
-  .lc-meta { font-size: .74rem; color: #8fa3b3; font-family: monospace; }
-  .wama-cat-card a { color: #79c9f2; text-decoration: none; }
+  .lc-ok    { background: var(--wama-tone-green); color: var(--wama-tone-green-text-bright); }
+  .lc-warn  { background: var(--wama-tone-ochre-warm); color: var(--wama-tone-ochre-text); }
+  .lc-off   { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
+  .lc-drift { background: rgba(var(--wama-cat-alert-rgb), .18); color: var(--wama-cat-alert); }
+  .lc-meta { font-size: .74rem; color: var(--wama-cat-meta); font-family: monospace; }
+  .wama-cat-card a { color: var(--wama-cat-link); text-decoration: none; }
 </style>
 {% endblock %}
 

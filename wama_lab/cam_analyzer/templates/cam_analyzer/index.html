@@ -135,7 +135,7 @@
     <!-- RTMaps Upload Panel (visible only for intersection_insertion sessions) -->
     <div id="rtmapsPanel" class="mt-3" style="display:none;">
         <div class="card bg-dark border-warning">
-            <div class="card-header border-warning d-flex align-items-center gap-2 py-2" style="background:rgba(255,193,7,0.1);">
+            <div class="card-header border-warning d-flex align-items-center gap-2 py-2" style="background:rgba(var(--bs-warning-rgb), 0.1);">
                 <i class="fas fa-file-import text-warning"></i>
                 <span class="fw-semibold text-warning">Source quadrature Navya</span>
                 <!-- Mode toggle -->
@@ -227,8 +227,8 @@
                 transition: left var(--wama-panel-anim, 0s), right var(--wama-panel-anim, 0s);
                 bottom: var(--fm-footer-height, 40px);
                 z-index: 1020;
-                background: #1a1d20; border-top: 1px solid #343a40;
-                padding: 10px 20px 8px 20px; box-shadow: 0 -4px 12px rgba(0,0,0,0.4);
+                background: var(--wama-surface-modal); border-top: 1px solid var(--wama-border-row);
+                padding: 10px 20px 8px 20px; box-shadow: 0 -4px 12px rgba(var(--wama-shadow-rgb), 0.4);
                 display: none;">
         <!-- Synchronized Playback Controls -->
         <div class="playback-controls" id="playbackControls" style="display:none">
@@ -546,7 +546,7 @@ window.CAM_ANALYZER = {
                         <div class="input-group input-group-sm">
                             <input type="text" class="form-control bg-dark text-light border-secondary"
                                    id="roadModelPath"
-                                   style="color: #f8f9fa !important; background-color: #212529 !important;"
+                                   style="color: var(--wama-text-card) !important; background-color: var(--wama-surface) !important;"
                                    placeholder="AI-models/models/vision/yolo/segment/yolov8m-bdd100k-seg.pt">
                             <button type="button" class="btn btn-outline-info" id="downloadRoadModelBtn"
                                     title="Télécharger yolopv2.pt depuis github.com/CAIC-AD/YOLOPv2 (release V0.0.1)">
@@ -564,8 +564,8 @@ window.CAM_ANALYZER = {
                     <div class="d-flex align-items-center gap-2 mb-2">
                         <div class="form-check form-switch mb-0">
                             <input class="form-check-input" type="checkbox" id="sam3MarkingsEnabled">
-                            <label class="form-check-label fw-semibold" for="sam3MarkingsEnabled" style="color:#c07aff;">
-                                <i class="fas fa-magic me-1"></i> Marquages SAM3 <span class="badge bg-purple ms-1" style="background:#6f42c1!important; font-size:0.65rem;">Phase Avancée</span>
+                            <label class="form-check-label fw-semibold" for="sam3MarkingsEnabled" style="color:var(--wama-cam-lab-feature);">
+                                <i class="fas fa-magic me-1"></i> Marquages SAM3 <span class="badge bg-purple ms-1" style="background:var(--bs-purple)!important; font-size:0.65rem;">Phase Avancée</span>
                             </label>
                         </div>
                     </div>
@@ -691,13 +691,13 @@ window.CAM_ANALYZER = {
                             </button>
                         </div>
                         <div class="position-relative">
-                            <div id="intersectionMap" style="height:220px; border-radius:6px; border:1px solid #495057; cursor:crosshair;"></div>
+                            <div id="intersectionMap" style="height:220px; border-radius:6px; border:1px solid var(--wama-border-strong); cursor:crosshair;"></div>
                             <div class="position-absolute bottom-0 start-0 m-1 px-2 py-1 rounded small text-secondary"
-                                 style="background:rgba(0,0,0,.55); pointer-events:none; font-size:0.7rem;">
+                                 style="background:rgba(var(--wama-shadow-rgb), .55); pointer-events:none; font-size:0.7rem;">
                                 <i class="fas fa-mouse-pointer me-1"></i>Cliquer sur la carte pour placer l'intersection
                             </div>
                             <div id="mapSearchError" class="position-absolute top-0 start-50 translate-middle-x mt-1 px-2 py-1 rounded small text-warning"
-                                 style="background:rgba(0,0,0,.7); display:none; font-size:0.75rem; white-space:nowrap;">
+                                 style="background:rgba(var(--wama-shadow-rgb), .7); display:none; font-size:0.75rem; white-space:nowrap;">
                                 <i class="fas fa-exclamation-triangle me-1"></i><span id="mapSearchErrorMsg"></span>
                             </div>
                         </div>

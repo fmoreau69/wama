@@ -1968,6 +1968,14 @@ DANS leur page ; ils se porteront sur les tokens avec elle (`ROADMAP §28`).
 désactivé s'estompe par sa couleur, plus par l'opacité. Mesuré sur le serveur éphémère :
 `common.contrast` vert, plus aucun `wcv3-*` faible ; `transcriber.preview` et `anonymizer.preview`
 verts sans aucun faible dans la file, le volet ni la visionneuse.
+✅ **2026-10-18 — les styles des PAGES sont portés sur les tokens** (`ROADMAP §28`, étape 3) : les
+gris écrits dans la page passent à `--wama-text-label`. Mesuré sur le serveur éphémère :
+`common.contrast` vert, et les faibles tombent de 57 à **4** — plus aucun `span` de Mes souvenirs,
+`ext-type-label`, `conformity-label` ni `p.hint`. Restent, et ce ne sont plus des couleurs écrites
+dans WAMA : deux `btn-outline-secondary` d'Apps (3,6:1) et un `btn-outline-primary` du Profil
+(`#0d6efd` sur `#212529`, 3,4:1) — composants Bootstrap, à remonter par une règle commune des
+boutons « outline » sur fond sombre (décision de charte) ; l'heure d'un événement du calendrier,
+blanc sur la couleur de l'événement (`#bf70e1`, 3,2:1), couleur portée par la DONNÉE.
 
 ⏳ **Quand WAMA aura plusieurs THÈMES** (sombre / clair / UGE… — intention `ROADMAP` « Voies
 alignées » : `data-bs-theme` de Bootstrap 5.3 + tokens CSS dans `common/`, `CARD_DESIGN §9.3`) :

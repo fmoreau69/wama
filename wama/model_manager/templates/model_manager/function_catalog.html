@@ -9,16 +9,16 @@
   /* Squelette = brique COMMUNE `wama-catalog.css` (2026-09-01) — restent les spécificités
      (fc-bar comprise : mécanisme de filtrage PROPRE à cette page, cf. le commentaire plus bas). */
   .fc-bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 14px; }
-  .fc-bar input, .fc-bar select { background: #1a1d20; color: #e6e6e6;
-             border: 1px solid rgba(255,255,255,.12); border-radius: 6px; padding: 5px 9px; font-size: .85rem; }
-  .fc-pure { background: #1b5e20; color: #c8facc; }
-  .fc-app  { background: #37474f; color: #cfd8dc; }
-  .fc-cat  { background: rgba(255,179,0,.15); color: #ffcf66; }
-  .fc-io { font-size: .74rem; color: #8fa3b3; font-family: monospace; }
-  .fc-io .arrow { color: #ffb300; }
+  .fc-bar input, .fc-bar select { background: var(--wama-surface-modal); color: var(--wama-cat-field-text);
+             border: 1px solid rgba(var(--wama-overlay-rgb), .12); border-radius: 6px; padding: 5px 9px; font-size: .85rem; }
+  .fc-pure { background: var(--wama-tone-green); color: var(--wama-tone-green-text-bright); }
+  .fc-app  { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
+  .fc-cat  { background: rgba(var(--wama-cat-accent-rgb), .15); color: var(--wama-cat-amber); }
+  .fc-io { font-size: .74rem; color: var(--wama-cat-meta); font-family: monospace; }
+  .fc-io .arrow { color: var(--wama-cat-accent); }
   .fc-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
-  .fc-proj { background: rgba(3,169,244,.15); color: #79c9f2; }
-  .fc-vis-private { background: rgba(244,67,54,.18); color: #ff8a80; }
+  .fc-proj { background: rgba(var(--wama-cat-link-rgb), .15); color: var(--wama-cat-link); }
+  .fc-vis-private { background: rgba(var(--wama-cat-alert-rgb), .18); color: var(--wama-cat-alert); }
 </style>
 {% endblock %}
 

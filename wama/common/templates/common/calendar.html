@@ -17,54 +17,54 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
 {% block extra_css %}
 <style>
     .calendar-page { padding: 2rem 0; }
-    .calendar-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: .25rem; }
-    .calendar-page .subtitle { color: #adb5bd; font-size: .9rem; margin-bottom: 1rem; }
+    .calendar-page h1 { font-size: 1.6rem; font-weight: 600; color: var(--wama-text-strong); margin-bottom: .25rem; }
+    .calendar-page .subtitle { color: var(--wama-text-secondary); font-size: .9rem; margin-bottom: 1rem; }
     .calendar-tools { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: center;
-                      margin-bottom: 1rem; color: #ced4da; font-size: .85rem; }
+                      margin-bottom: 1rem; color: var(--wama-text-desc); font-size: .85rem; }
     .calendar-legend { display: flex; flex-wrap: wrap; gap: .35rem .9rem; align-items: center; }
     .calendar-legend .swatch { display: inline-block; width: .8rem; height: .8rem;
                                border-radius: 3px; margin-right: .35rem; vertical-align: -1px; }
     .calendar-legend .reserved-swatch {
-        background: repeating-linear-gradient(135deg, #6c757d 0 4px, #343a40 4px 8px);
+        background: repeating-linear-gradient(135deg, var(--bs-secondary) 0 4px, var(--wama-border-row) 4px 8px);
     }
     .calendar-tools .ms-auto { margin-left: auto; }
 
     /* FullCalendar injecte sa feuille : on ne règle que ses VARIABLES, au thème sombre. */
     #wama-calendar {
-        --fc-page-bg-color: #12121f;
-        --fc-neutral-bg-color: #1a1a2e;
-        --fc-border-color: #2d2d4e;
-        --fc-today-bg-color: rgba(13, 110, 253, .12);
-        --fc-list-event-hover-bg-color: #16213e;
-        --fc-button-bg-color: #1a1a2e;
-        --fc-button-border-color: #2d2d4e;
-        --fc-button-hover-bg-color: #16213e;
-        --fc-button-hover-border-color: #4a4a7a;
-        --fc-button-active-bg-color: #0d6efd;
-        --fc-button-active-border-color: #0d6efd;
-        --fc-event-text-color: #fff;
-        color: #e9ecef;
-        background: #12121f;
+        --fc-page-bg-color: var(--wama-night-calendar);
+        --fc-neutral-bg-color: var(--wama-night-surface);
+        --fc-border-color: var(--wama-night-border);
+        --fc-today-bg-color: rgba(var(--bs-primary-rgb), .12);
+        --fc-list-event-hover-bg-color: var(--wama-night-surface-deep);
+        --fc-button-bg-color: var(--wama-night-surface);
+        --fc-button-border-color: var(--wama-night-border);
+        --fc-button-hover-bg-color: var(--wama-night-surface-deep);
+        --fc-button-hover-border-color: var(--wama-night-border-hover);
+        --fc-button-active-bg-color: var(--bs-primary);
+        --fc-button-active-border-color: var(--bs-primary);
+        --fc-event-text-color: var(--wama-text-on-accent);
+        color: var(--wama-text-strong);
+        background: var(--wama-night-calendar);
         border-radius: .5rem;
         padding: .75rem;
     }
     #wama-calendar a { color: inherit; text-decoration: none; }
     #wama-calendar .fc-col-header-cell-cushion,
-    #wama-calendar .fc-daygrid-day-number { color: #ced4da; }
+    #wama-calendar .fc-daygrid-day-number { color: var(--wama-text-desc); }
     #wama-calendar .fc-event { cursor: pointer; }
     #wama-calendar .fc-event.wama-cal-scope-instance { cursor: default; opacity: .85; }
     /* Fenêtre RÉSERVÉE (tests nocturnes) : hachurée — rien ne doit s'y placer. */
     #wama-calendar .fc-event.wama-cal-reserved {
-        background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.14) 0 6px,
+        background-image: repeating-linear-gradient(135deg, rgba(var(--wama-overlay-rgb), .14) 0 6px,
                                                     transparent 6px 12px) !important;
     }
     /* L'état se lit au LISERÉ gauche, pas au fond (identité ≠ état). */
     #wama-calendar .fc-timegrid-event.wama-cal-status-failure,
-    #wama-calendar .fc-daygrid-event.wama-cal-status-failure { box-shadow: inset 4px 0 0 #dc3545; }
+    #wama-calendar .fc-daygrid-event.wama-cal-status-failure { box-shadow: inset 4px 0 0 var(--bs-danger); }
     #wama-calendar .fc-timegrid-event.wama-cal-status-running,
-    #wama-calendar .fc-daygrid-event.wama-cal-status-running { box-shadow: inset 4px 0 0 #0dcaf0; }
+    #wama-calendar .fc-daygrid-event.wama-cal-status-running { box-shadow: inset 4px 0 0 var(--wama-accent); }
     #wama-calendar .fc-timegrid-event.wama-cal-status-stale,
-    #wama-calendar .fc-daygrid-event.wama-cal-status-stale { box-shadow: inset 4px 0 0 #ffc107; }
+    #wama-calendar .fc-daygrid-event.wama-cal-status-stale { box-shadow: inset 4px 0 0 var(--bs-warning); }
     /* PRÉVU (fin d'un traitement en cours, passage de la purge) : liseré pointillé — on distingue
        ce qui a eu lieu de ce qui est annoncé, sans toucher à la couleur d'identité. */
     #wama-calendar .fc-event.wama-cal-predicted.wama-cal-scope-user {
@@ -72,9 +72,9 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
     }
     /* PROGRAMMÉ (`ScheduledAction`) : liseré pointillé ambre — une intention, pas une exécution. */
     #wama-calendar .fc-event.wama-cal-declared {
-        border: 2px dotted #ffc107 !important;
+        border: 2px dotted var(--bs-warning) !important;
     }
-    .calendar-empty { color: #adb5bd; font-size: .85rem; }
+    .calendar-empty { color: var(--wama-text-secondary); font-size: .85rem; }
 </style>
 {% endblock %}
 

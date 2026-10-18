@@ -19,7 +19,7 @@
                 </div>
                 <div class="card-body p-0 position-relative">
                     <!-- Video Element -->
-                    <video id="webcamVideo" class="w-100" autoplay playsinline muted style="background: #000;"></video>
+                    <video id="webcamVideo" class="w-100" autoplay playsinline muted style="background: var(--wama-video-bg);"></video>
                     <!-- Canvas Overlay -->
                     <canvas id="overlayCanvas" class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none;"></canvas>
                     <!-- Hidden canvas for frame capture -->
@@ -291,12 +291,12 @@ const fpsCounter = document.getElementById('fpsCounter');
 // Charts
 let charts = {};
 const chartColors = {
-    hr: 'rgb(220, 53, 69)',
-    hrv: 'rgb(255, 193, 7)',
-    emotions: 'rgb(255, 193, 7)',
-    gaze: 'rgb(13, 202, 240)',
-    pupil: 'rgb(13, 110, 253)',
-    respiration: 'rgb(25, 135, 84)'
+    hr: WamaApp.themeColor('--bs-danger'),
+    hrv: WamaApp.themeColor('--bs-warning'),
+    emotions: WamaApp.themeColor('--bs-warning'),
+    gaze: WamaApp.themeColor('--bs-info'),
+    pupil: WamaApp.themeColor('--bs-primary'),
+    respiration: WamaApp.themeColor('--bs-success')
 };
 
 // Initialize
@@ -392,7 +392,7 @@ function initializeCharts() {
                 label: 'BPM',
                 data: [],
                 borderColor: chartColors.hr,
-                backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                backgroundColor: WamaApp.themeColor('--bs-danger-rgb', 0.1),
                 fill: true,
                 tension: 0.4,
                 pointRadius: 0
@@ -410,7 +410,7 @@ function initializeCharts() {
                 label: 'RMSSD (ms)',
                 data: [],
                 borderColor: chartColors.hrv,
-                backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                backgroundColor: WamaApp.themeColor('--bs-warning-rgb', 0.1),
                 fill: true,
                 tension: 0.4,
                 pointRadius: 0
@@ -428,13 +428,13 @@ function initializeCharts() {
                 label: 'Intensité',
                 data: [0, 0, 0, 0, 0, 0, 0],
                 backgroundColor: [
-                    'rgba(108, 117, 125, 0.7)',
-                    'rgba(255, 193, 7, 0.7)',
-                    'rgba(13, 110, 253, 0.7)',
-                    'rgba(220, 53, 69, 0.7)',
-                    'rgba(13, 202, 240, 0.7)',
-                    'rgba(111, 66, 193, 0.7)',
-                    'rgba(25, 135, 84, 0.7)'
+                    WamaApp.themeColor('--bs-secondary-rgb', 0.7),
+                    WamaApp.themeColor('--bs-warning-rgb', 0.7),
+                    WamaApp.themeColor('--bs-primary-rgb', 0.7),
+                    WamaApp.themeColor('--bs-danger-rgb', 0.7),
+                    WamaApp.themeColor('--bs-info-rgb', 0.7),
+                    WamaApp.themeColor('--wama-purple-rgb', 0.7),
+                    WamaApp.themeColor('--bs-success-rgb', 0.7)
                 ],
                 borderWidth: 0
             }]
@@ -447,12 +447,12 @@ function initializeCharts() {
                 y: {
                     beginAtZero: true,
                     max: 1,
-                    grid: { color: 'rgba(255,255,255,0.1)' },
-                    ticks: { color: '#aaa' }
+                    grid: { color: WamaApp.themeColor('--wama-overlay-rgb', 0.1) },
+                    ticks: { color: WamaApp.themeColor('--wama-chart-text') }
                 },
                 x: {
                     grid: { display: false },
-                    ticks: { color: '#aaa', font: { size: 10 } }
+                    ticks: { color: WamaApp.themeColor('--wama-chart-text'), font: { size: 10 } }
                 }
             }
         }
@@ -476,15 +476,15 @@ function initializeCharts() {
             scales: {
                 x: {
                     min: -1, max: 1,
-                    title: { display: true, text: 'Horizontal', color: '#aaa' },
-                    grid: { color: 'rgba(255,255,255,0.1)' },
-                    ticks: { color: '#aaa' }
+                    title: { display: true, text: 'Horizontal', color: WamaApp.themeColor('--wama-chart-text') },
+                    grid: { color: WamaApp.themeColor('--wama-overlay-rgb', 0.1) },
+                    ticks: { color: WamaApp.themeColor('--wama-chart-text') }
                 },
                 y: {
                     min: -1, max: 1,
-                    title: { display: true, text: 'Vertical', color: '#aaa' },
-                    grid: { color: 'rgba(255,255,255,0.1)' },
-                    ticks: { color: '#aaa' }
+                    title: { display: true, text: 'Vertical', color: WamaApp.themeColor('--wama-chart-text') },
+                    grid: { color: WamaApp.themeColor('--wama-overlay-rgb', 0.1) },
+                    ticks: { color: WamaApp.themeColor('--wama-chart-text') }
                 }
             }
         }
@@ -499,14 +499,14 @@ function initializeCharts() {
                 {
                     label: 'Gauche',
                     data: [],
-                    borderColor: 'rgb(13, 110, 253)',
+                    borderColor: WamaApp.themeColor('--bs-primary'),
                     tension: 0.4,
                     pointRadius: 0
                 },
                 {
                     label: 'Droite',
                     data: [],
-                    borderColor: 'rgb(13, 202, 240)',
+                    borderColor: WamaApp.themeColor('--bs-info'),
                     tension: 0.4,
                     pointRadius: 0
                 }
@@ -524,7 +524,7 @@ function initializeCharts() {
                 label: 'Resp/min',
                 data: [],
                 borderColor: chartColors.respiration,
-                backgroundColor: 'rgba(25, 135, 84, 0.1)',
+                backgroundColor: WamaApp.themeColor('--bs-success-rgb', 0.1),
                 fill: true,
                 tension: 0.4,
                 pointRadius: 0
@@ -549,9 +549,9 @@ function getChartOptions(unit, min, max) {
             y: {
                 min: min,
                 max: max,
-                grid: { color: 'rgba(255,255,255,0.1)' },
+                grid: { color: WamaApp.themeColor('--wama-overlay-rgb', 0.1) },
                 ticks: {
-                    color: '#aaa',
+                    color: WamaApp.themeColor('--wama-chart-text'),
                     callback: v => v + ' ' + unit
                 }
             }
@@ -762,7 +762,7 @@ function drawOverlay(data) {
 
     if (!data.face_detected) {
         // Draw "No face" message
-        overlayCtx.fillStyle = 'rgba(220, 53, 69, 0.8)';
+        overlayCtx.fillStyle = WamaApp.themeColor('--bs-danger-rgb', 0.8);
         overlayCtx.font = '24px Arial';
         overlayCtx.textAlign = 'center';
         overlayCtx.fillText('Aucun visage détecté', overlayCanvas.width / 2, 50);
@@ -772,7 +772,7 @@ function drawOverlay(data) {
     // Draw face bounding box
     if (data.face_bbox) {
         const [x, y, w, h] = data.face_bbox;
-        overlayCtx.strokeStyle = '#0dcaf0';
+        overlayCtx.strokeStyle = WamaApp.themeColor('--bs-info');
         overlayCtx.lineWidth = 2;
         overlayCtx.strokeRect(x, y, w, h);
     }
@@ -784,7 +784,7 @@ function drawOverlay(data) {
             const { left, right } = data.eye_tracking.eye_centers;
             const gaze = data.eye_tracking.gaze;
 
-            overlayCtx.strokeStyle = '#0dcaf0';
+            overlayCtx.strokeStyle = WamaApp.themeColor('--bs-info');
             overlayCtx.lineWidth = 2;
 
             // Left eye gaze
@@ -807,7 +807,7 @@ function drawOverlay(data) {
 
     // Draw dominant emotion
     if (data.emotions && data.emotions.dominant) {
-        overlayCtx.fillStyle = '#ffc107';
+        overlayCtx.fillStyle = WamaApp.themeColor('--bs-warning');
         overlayCtx.font = 'bold 18px Arial';
         overlayCtx.textAlign = 'left';
         overlayCtx.fillText(
@@ -819,7 +819,7 @@ function drawOverlay(data) {
 
     // Draw heart rate on face
     if (data.rppg?.heart_rate) {
-        overlayCtx.fillStyle = '#dc3545';
+        overlayCtx.fillStyle = WamaApp.themeColor('--bs-danger');
         overlayCtx.font = 'bold 24px Arial';
         overlayCtx.textAlign = 'right';
         overlayCtx.fillText(
@@ -859,12 +859,12 @@ function exportData() {
 }
 
 .card {
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 6px rgba(var(--wama-shadow-rgb), 0.3);
 }
 
 .form-check-input:checked {
-    background-color: #0d6efd;
-    border-color: #0d6efd;
+    background-color: var(--bs-primary);
+    border-color: var(--bs-primary);
 }
 </style>
 {% endblock %}

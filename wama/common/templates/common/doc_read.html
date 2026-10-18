@@ -13,34 +13,34 @@
 
 {% block extra_css %}
 <style>
-  .wama-doc-body { max-width: 980px; color: #e0e6ea; line-height: 1.6; font-size: .95rem; }
+  .wama-doc-body { max-width: 980px; color: var(--wama-doc-text); line-height: 1.6; font-size: .95rem; }
   .wama-doc-body h1, .wama-doc-body h2, .wama-doc-body h3,
   .wama-doc-body h4, .wama-doc-body h5, .wama-doc-body h6 {
-    color: #e3f2fd; margin: 1.6em 0 .6em; scroll-margin-top: 80px; }
-  .wama-doc-body h1 { font-size: 1.7rem; border-bottom: 1px solid #37474f; padding-bottom: .3em; }
-  .wama-doc-body h2 { font-size: 1.4rem; border-bottom: 1px solid #2c3a41; padding-bottom: .25em; }
-  .wama-doc-body h3 { font-size: 1.15rem; color: #bbdefb; }
-  .wama-doc-body a  { color: #90caf9; }
-  .wama-doc-body code { background: #1e2a30; color: #ffe082; padding: .1em .35em; border-radius: 4px;
+    color: var(--wama-doc-heading); margin: 1.6em 0 .6em; scroll-margin-top: 80px; }
+  .wama-doc-body h1 { font-size: 1.7rem; border-bottom: 1px solid var(--wama-doc-rule); padding-bottom: .3em; }
+  .wama-doc-body h2 { font-size: 1.4rem; border-bottom: 1px solid var(--wama-doc-rule-soft); padding-bottom: .25em; }
+  .wama-doc-body h3 { font-size: 1.15rem; color: var(--wama-doc-subheading); }
+  .wama-doc-body a  { color: var(--wama-cat-open); }
+  .wama-doc-body code { background: var(--wama-doc-code-bg); color: var(--wama-cat-gold); padding: .1em .35em; border-radius: 4px;
                         font-size: .85em; }
-  .wama-doc-body pre { background: #1a2328; border: 1px solid #2c3a41; border-radius: 6px;
+  .wama-doc-body pre { background: var(--wama-doc-pre-bg); border: 1px solid var(--wama-doc-rule-soft); border-radius: 6px;
                        padding: .8em 1em; overflow-x: auto; }
-  .wama-doc-body pre code { background: none; color: #cfd8dc; padding: 0; }
-  .wama-doc-body blockquote { border-left: 4px solid #546e7a; margin: 1em 0; padding: .3em 1em;
-                              color: #cfd8dc; background: rgba(84, 110, 122, .12); }
+  .wama-doc-body pre code { background: none; color: var(--wama-doc-quote); padding: 0; }
+  .wama-doc-body blockquote { border-left: 4px solid var(--wama-doc-quote-border); margin: 1em 0; padding: .3em 1em;
+                              color: var(--wama-doc-quote); background: rgba(var(--wama-doc-quote-border-rgb), .12); }
   .wama-doc-body table { display: block; overflow-x: auto; border-collapse: collapse;
                          margin: 1em 0; font-size: .88rem; }
-  .wama-doc-body th, .wama-doc-body td { border: 1px solid #37474f; padding: .35em .6em;
+  .wama-doc-body th, .wama-doc-body td { border: 1px solid var(--wama-doc-rule); padding: .35em .6em;
                                          vertical-align: top; }
-  .wama-doc-body th { background: #263238; color: #eceff1; }
-  .wama-doc-body hr { border-color: #37474f; }
-  .wama-doc-horslien { border-bottom: 1px dotted #90a4ae; cursor: help; }
-  .wama-doc-meta { font-size: .8rem; color: #b0bec5; }
+  .wama-doc-body th { background: var(--wama-doc-th-bg); color: var(--wama-tone-grey-text-bright); }
+  .wama-doc-body hr { border-color: var(--wama-doc-rule); }
+  .wama-doc-horslien { border-bottom: 1px dotted var(--wama-cat-quiet); cursor: help; }
+  .wama-doc-meta { font-size: .8rem; color: var(--wama-cat-path); }
   .wama-doc-toc { max-height: 70vh; overflow-y: auto; font-size: .82rem; }
-  .wama-doc-toc a { display: block; color: #cfd8dc; text-decoration: none; padding: .12em 0; }
-  .wama-doc-toc a:hover { color: #90caf9; }
+  .wama-doc-toc a { display: block; color: var(--wama-doc-quote); text-decoration: none; padding: .12em 0; }
+  .wama-doc-toc a:hover { color: var(--wama-cat-open); }
   .wama-doc-toc .niv2 { padding-left: .9em; }
-  .wama-doc-toc .niv3 { padding-left: 1.8em; color: #b0bec5; }
+  .wama-doc-toc .niv3 { padding-left: 1.8em; color: var(--wama-cat-path); }
 </style>
 {% endblock %}
 

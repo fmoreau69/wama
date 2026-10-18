@@ -46,7 +46,7 @@
   (mesuré le 22/09). ⚠ `{% templatetag openblock %} comment {% templatetag closeblock %}` et non `{ #…# }`, MONO-LIGNE en
   Django : une version précédente s'affichait dans le volet (piège déjà répertorié).{% endcomment %}
   <div id="assistant-body" {% if assistant_avatar.collapsed %}hidden{% endif %}>
-    <div id="assistant-avatar" style="width:100%;height:200px;border-radius:8px;overflow:hidden;background:#15181c;"></div>
+    <div id="assistant-avatar" style="width:100%;height:200px;border-radius:8px;overflow:hidden;background:var(--wama-avatar-bg);"></div>
     <div id="avatar-status" class="small text-muted mt-1"></div>
     {% if assistant_avatar.compact_chat %}
     <div id="assistant-chat" data-wama-chat data-density="compact"

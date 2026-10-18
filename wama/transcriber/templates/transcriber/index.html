@@ -17,7 +17,7 @@
 {% block app_right_panel_settings %}
 <style>
   .synthesis-card.inspector-selected,
-  .batch-group.inspector-selected { outline: 2px solid #0dcaf0; outline-offset: 1px; }
+  .batch-group.inspector-selected { outline: 2px solid var(--wama-accent); outline-offset: 1px; }
   {% comment %}Aucune règle #inspectorBanner ici : le transcriber n'a PAS de bandeau (voir plus
   bas). La règle d'encadré vit dans common/css/wama-inspector.css pour les pages qui en ont
   un.{% endcomment %}
@@ -290,12 +290,12 @@ appliqués à tous les items non-RUNNING (batch_update_settings). {% endcomment 
 <!-- Info Prétraitement Modal -->
 <div class="modal fade" id="preprocessingModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content" style="background-color: #ffffff !important; color: #000000 !important;">
-            <div class="modal-header" style="background-color: #f8f9fa; border-bottom: 1px solid #dee2e6;">
-                <h5 class="modal-title" style="color: #000000;">Prétraitement audio</h5>
+        <div class="modal-content" style="background-color: var(--wama-paper) !important; color: var(--wama-paper-text) !important;">
+            <div class="modal-header" style="background-color: var(--wama-paper-band); border-bottom: 1px solid var(--wama-paper-rule);">
+                <h5 class="modal-title" style="color: var(--wama-paper-text);">Prétraitement audio</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" style="color: #000000;">
+            <div class="modal-body" style="color: var(--wama-paper-text);">
                 <h6>Qu'est-ce que le prétraitement audio ?</h6>
                 <p>Le prétraitement nettoie vos enregistrements avant la transcription, dans cet ordre :</p>
                 <ul>
@@ -312,7 +312,7 @@ appliqués à tous les items non-RUNNING (batch_update_settings). {% endcomment 
                     <strong>nivellement de la parole</strong> seul. Réservez le débruitage aux fonds très bruyants.
                 </div>
             </div>
-            <div class="modal-footer" style="background-color: #f8f9fa; border-top: 1px solid #dee2e6;">
+            <div class="modal-footer" style="background-color: var(--wama-paper-band); border-top: 1px solid var(--wama-paper-rule);">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fermer</button>
             </div>
         </div>

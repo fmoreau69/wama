@@ -15,38 +15,38 @@
 {% block extra_css %}
 <style>
   /* Squelette = brique COMMUNE `wama-catalog.css` (2026-09-01) — restent les spécificités. */
-  .wama-cat-stat.alert { border-color: rgba(244,67,54,.45); }
-  .wama-cat-stat.alert b { color: #ff8a80; }
+  .wama-cat-stat.alert { border-color: rgba(var(--wama-cat-alert-rgb), .45); }
+  .wama-cat-stat.alert b { color: var(--wama-cat-alert); }
 
   .li-section { margin-top: 22px; }
   .li-section h3 { font-size: 1rem; margin-bottom: 4px; }
-  .li-section > p { font-size: .8rem; color: #8fa3b3; margin-bottom: 10px; }
+  .li-section > p { font-size: .8rem; color: var(--wama-cat-meta); margin-bottom: 10px; }
 
-  .li-meta { font-size: .72rem; color: #8fa3b3; font-family: monospace; }
+  .li-meta { font-size: .72rem; color: var(--wama-cat-meta); font-family: monospace; }
 
-  .li-r0 { background: #1b5e20; color: #c8facc; }   /* permissive     */
-  .li-r1 { background: #33691e; color: #dcedc8; }   /* copyleft faible*/
-  .li-r2 { background: #6d4c00; color: #ffe0a3; }   /* copyleft fort  */
-  .li-r3 { background: #8c2f00; color: #ffccbc; }   /* non commerciale*/
-  .li-r4 { background: #4a148c; color: #e1bee7; }   /* à qualifier    */
-  .li-r5 { background: #37474f; color: #cfd8dc; }   /* inconnue       */
-  .li-r6 { background: #7f0000; color: #ffcdd2; }   /* interdite (UE) */
+  .li-r0 { background: var(--wama-tone-green); color: var(--wama-tone-green-text-bright); }   /* permissive     */
+  .li-r1 { background: var(--wama-tone-lime); color: var(--wama-tone-lime-text); }   /* copyleft faible*/
+  .li-r2 { background: var(--wama-tone-ochre); color: var(--wama-tone-ochre-text); }   /* copyleft fort  */
+  .li-r3 { background: var(--wama-tone-rust); color: var(--wama-tone-rust-text); }   /* non commerciale*/
+  .li-r4 { background: var(--wama-tone-purple); color: var(--wama-tone-purple-text); }   /* à qualifier    */
+  .li-r5 { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }   /* inconnue       */
+  .li-r6 { background: var(--wama-tone-red-deep); color: var(--wama-tone-red-text-soft); }   /* interdite (UE) */
 
   .li-table { width: 100%; border-collapse: collapse; font-size: .8rem; }
-  .li-table th { text-align: left; padding: 6px 8px; color: #8fa3b3; font-weight: 600;
-                 border-bottom: 1px solid rgba(255,255,255,.10); position: sticky; top: 0;
-                 background: #1a1f24; }
-  .li-table td { padding: 5px 8px; border-bottom: 1px solid rgba(255,255,255,.05);
+  .li-table th { text-align: left; padding: 6px 8px; color: var(--wama-cat-meta); font-weight: 600;
+                 border-bottom: 1px solid rgba(var(--wama-overlay-rgb), .10); position: sticky; top: 0;
+                 background: var(--wama-cat-table-head); }
+  .li-table td { padding: 5px 8px; border-bottom: 1px solid rgba(var(--wama-overlay-rgb), .05);
                  vertical-align: top; }
-  .li-scroll { max-height: 560px; overflow: auto; border: 1px solid rgba(255,255,255,.08);
+  .li-scroll { max-height: 560px; overflow: auto; border: 1px solid rgba(var(--wama-overlay-rgb), .08);
                border-radius: 8px; }
-  .li-table a { color: #79c9f2; text-decoration: none; }
-  .li-muted { color: #6b7c89; font-style: italic; }
+  .li-table a { color: var(--wama-cat-link); text-decoration: none; }
+  .li-muted { color: var(--wama-text-label); font-style: italic; }
   .li-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
   .li-filters input, .li-filters select {
-      background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12);
-      color: #e6edf3; border-radius: 6px; padding: 4px 8px; font-size: .8rem; }
-  .li-empty { color: #8fa3b3; padding: 24px; text-align: center; }
+      background: rgba(var(--wama-overlay-rgb), .05); border: 1px solid rgba(var(--wama-overlay-rgb), .12);
+      color: var(--wama-cat-filter-text); border-radius: 6px; padding: 4px 8px; font-size: .8rem; }
+  .li-empty { color: var(--wama-cat-meta); padding: 24px; text-align: center; }
 </style>
 {% endblock %}
 
@@ -91,7 +91,7 @@
   </div>
 
   {% if audit.stats.attribution_sans_auteur %}
-  <div class="wama-cat-hero" style="border-left-color:#ff8a80;">
+  <div class="wama-cat-hero" style="border-left-color:var(--wama-cat-alert);">
     <h3>⚠ {{ audit.stats.attribution_sans_auteur }} élément(s) exigent une attribution sans auteur renseigné</h3>
     <p>
       Une licence à attribution impose de citer l'auteur : sans le nom, l'obligation ne peut pas

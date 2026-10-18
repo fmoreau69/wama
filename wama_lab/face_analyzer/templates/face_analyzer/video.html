@@ -30,7 +30,7 @@
 
                     <!-- Video Player (shown when video loaded) -->
                     <div id="playerZone" class="d-none">
-                        <video id="videoPlayer" class="w-100" style="max-height: 400px; background: #000;"></video>
+                        <video id="videoPlayer" class="w-100" style="max-height: 400px; background: var(--wama-video-bg);"></video>
                         <canvas id="videoOverlay" class="position-absolute top-0 start-0 w-100 h-100" style="pointer-events: none;"></canvas>
                     </div>
                 </div>
@@ -924,7 +924,7 @@ const verticalLinePlugin = {
             ctx.moveTo(x, yScale.top);
             ctx.lineTo(x, yScale.bottom);
             ctx.lineWidth = 2;
-            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.strokeStyle = WamaApp.themeColor('--wama-overlay-rgb', 0.8);
             ctx.stroke();
 
             // Draw small triangle at top
@@ -933,7 +933,7 @@ const verticalLinePlugin = {
             ctx.lineTo(x + 5, yScale.top);
             ctx.lineTo(x, yScale.top + 8);
             ctx.closePath();
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillStyle = WamaApp.themeColor('--wama-overlay-rgb', 0.8);
             ctx.fill();
             ctx.restore();
         }
@@ -976,9 +976,9 @@ function initializeCharts() {
         scales: {
             x: {
                 display: true,
-                grid: { color: 'rgba(255,255,255,0.05)' },
+                grid: { color: WamaApp.themeColor('--wama-overlay-rgb', 0.05) },
                 ticks: {
-                    color: '#888',
+                    color: WamaApp.themeColor('--wama-chart-text-muted'),
                     maxTicksLimit: 10,
                     callback: function(value, index) {
                         // Show time label every few ticks
@@ -990,8 +990,8 @@ function initializeCharts() {
                 }
             },
             y: {
-                grid: { color: 'rgba(255,255,255,0.1)' },
-                ticks: { color: '#aaa' }
+                grid: { color: WamaApp.themeColor('--wama-overlay-rgb', 0.1) },
+                ticks: { color: WamaApp.themeColor('--wama-chart-text') }
             }
         },
         onClick: (e, elements, chart) => {
@@ -1013,8 +1013,8 @@ function initializeCharts() {
                 labels: [], 
                 datasets: [{ 
                     data: [], 
-                    borderColor: '#dc3545', 
-                    backgroundColor: 'rgba(220, 53, 69, 0.1)',
+                    borderColor: WamaApp.themeColor('--bs-danger'), 
+                    backgroundColor: WamaApp.themeColor('--bs-danger-rgb', 0.1),
                     tension: 0.4, 
                     pointRadius: 2,
                     pointHoverRadius: 4,
@@ -1024,8 +1024,8 @@ function initializeCharts() {
             options: {
                 ...chartOptions,
                 scales: {
-                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' }, ...chartOptions.scales.x },
-                    y: { ...chartOptions.scales.y, suggestedMin: 50, suggestedMax: 120, title: { display: true, text: 'BPM', color: '#aaa' } }
+                    x: { display: true, title: { display: true, text: 'Temps', color: WamaApp.themeColor('--wama-chart-text') }, ...chartOptions.scales.x },
+                    y: { ...chartOptions.scales.y, suggestedMin: 50, suggestedMax: 120, title: { display: true, text: 'BPM', color: WamaApp.themeColor('--wama-chart-text') } }
                 }
             }
         });
@@ -1040,8 +1040,8 @@ function initializeCharts() {
                 labels: [], 
                 datasets: [{ 
                     data: [], 
-                    borderColor: '#ffc107', 
-                    backgroundColor: 'rgba(255, 193, 7, 0.1)',
+                    borderColor: WamaApp.themeColor('--bs-warning'), 
+                    backgroundColor: WamaApp.themeColor('--bs-warning-rgb', 0.1),
                     tension: 0.4, 
                     pointRadius: 2,
                     pointHoverRadius: 4,
@@ -1051,8 +1051,8 @@ function initializeCharts() {
             options: {
                 ...chartOptions,
                 scales: {
-                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' }, ...chartOptions.scales.x },
-                    y: { ...chartOptions.scales.y, beginAtZero: true, suggestedMax: 150, title: { display: true, text: 'RMSSD (ms)', color: '#aaa' } }
+                    x: { display: true, title: { display: true, text: 'Temps', color: WamaApp.themeColor('--wama-chart-text') }, ...chartOptions.scales.x },
+                    y: { ...chartOptions.scales.y, beginAtZero: true, suggestedMax: 150, title: { display: true, text: 'RMSSD (ms)', color: WamaApp.themeColor('--wama-chart-text') } }
                 }
             }
         });
@@ -1066,14 +1066,14 @@ function initializeCharts() {
             data: {
                 labels: [],
                 datasets: [
-                    { label: 'Neutre', data: [], borderColor: '#6c757d', backgroundColor: 'rgba(108,117,125,0.3)', fill: true, tension: 0.4, pointRadius: 0 },
-                    { label: 'Joie', data: [], borderColor: '#ffc107', backgroundColor: 'rgba(255,193,7,0.3)', fill: true, tension: 0.4, pointRadius: 0 },
-                    { label: 'Tristesse', data: [], borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.3)', fill: true, tension: 0.4, pointRadius: 0 },
-                    { label: 'Colère', data: [], borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.3)', fill: true, tension: 0.4, pointRadius: 0 },
-                    { label: 'Surprise', data: [], borderColor: '#0dcaf0', backgroundColor: 'rgba(13,202,240,0.3)', fill: true, tension: 0.4, pointRadius: 0 }
+                    { label: 'Neutre', data: [], borderColor: WamaApp.themeColor('--bs-secondary'), backgroundColor: WamaApp.themeColor('--bs-secondary-rgb', 0.3), fill: true, tension: 0.4, pointRadius: 0 },
+                    { label: 'Joie', data: [], borderColor: WamaApp.themeColor('--bs-warning'), backgroundColor: WamaApp.themeColor('--bs-warning-rgb', 0.3), fill: true, tension: 0.4, pointRadius: 0 },
+                    { label: 'Tristesse', data: [], borderColor: WamaApp.themeColor('--bs-primary'), backgroundColor: WamaApp.themeColor('--bs-primary-rgb', 0.3), fill: true, tension: 0.4, pointRadius: 0 },
+                    { label: 'Colère', data: [], borderColor: WamaApp.themeColor('--bs-danger'), backgroundColor: WamaApp.themeColor('--bs-danger-rgb', 0.3), fill: true, tension: 0.4, pointRadius: 0 },
+                    { label: 'Surprise', data: [], borderColor: WamaApp.themeColor('--bs-info'), backgroundColor: WamaApp.themeColor('--bs-info-rgb', 0.3), fill: true, tension: 0.4, pointRadius: 0 }
                 ]
             },
-            options: { ...chartOptions, plugins: { legend: { display: true, labels: { color: '#aaa', boxWidth: 10 } } } }
+            options: { ...chartOptions, plugins: { legend: { display: true, labels: { color: WamaApp.themeColor('--wama-chart-text'), boxWidth: 10 } } } }
         });
     }
 
@@ -1088,20 +1088,20 @@ function initializeCharts() {
                     {
                         label: 'PERCLOS',
                         data: [],
-                        borderColor: '#0dcaf0',
+                        borderColor: WamaApp.themeColor('--bs-info'),
                         tension: 0.4,
                         pointRadius: 1,
                         pointHoverRadius: 3,
                         fill: true,
-                        backgroundColor: 'rgba(13,202,240,0.2)',
+                        backgroundColor: WamaApp.themeColor('--bs-info-rgb', 0.2),
                         order: 1
                     },
                     {
                         label: 'Clignements',
                         data: [],
                         type: 'scatter',
-                        borderColor: '#ffc107',
-                        backgroundColor: '#ffc107',
+                        borderColor: WamaApp.themeColor('--bs-warning'),
+                        backgroundColor: WamaApp.themeColor('--bs-warning'),
                         pointRadius: 6,
                         pointStyle: 'triangle',
                         showLine: false,
@@ -1116,9 +1116,9 @@ function initializeCharts() {
                     x: {
                         ...chartOptions.scales.x,
                         display: true,
-                        title: { display: true, text: 'Temps', color: '#aaa' }
+                        title: { display: true, text: 'Temps', color: WamaApp.themeColor('--wama-chart-text') }
                     },
-                    y: { ...chartOptions.scales.y, min: 0, max: 100, title: { display: true, text: '%', color: '#aaa' } }
+                    y: { ...chartOptions.scales.y, min: 0, max: 100, title: { display: true, text: '%', color: WamaApp.themeColor('--wama-chart-text') } }
                 },
                 plugins: {
                     ...chartOptions.plugins,
@@ -1126,7 +1126,7 @@ function initializeCharts() {
                         display: true,
                         position: 'top',
                         align: 'end',
-                        labels: { color: '#aaa', boxWidth: 12, padding: 8, font: { size: 10 } }
+                        labels: { color: WamaApp.themeColor('--wama-chart-text'), boxWidth: 12, padding: 8, font: { size: 10 } }
                     }
                 },
                 maintainAspectRatio: false
@@ -1139,16 +1139,16 @@ function initializeCharts() {
     if (blinkCanvas) {
         charts.blink = new Chart(blinkCanvas, {
             type: 'bar',
-            data: { labels: [], datasets: [{ label: 'Clignements/s', data: [], backgroundColor: '#0dcaf0' }] },
+            data: { labels: [], datasets: [{ label: 'Clignements/s', data: [], backgroundColor: WamaApp.themeColor('--bs-info') }] },
             options: {
                 ...chartOptions,
                 scales: {
                     x: {
                         ...chartOptions.scales.x,
                         display: true,
-                        title: { display: true, text: 'Temps', color: '#aaa' }
+                        title: { display: true, text: 'Temps', color: WamaApp.themeColor('--wama-chart-text') }
                     },
-                    y: { ...chartOptions.scales.y, beginAtZero: true, title: { display: true, text: 'Nb', color: '#aaa' } }
+                    y: { ...chartOptions.scales.y, beginAtZero: true, title: { display: true, text: 'Nb', color: WamaApp.themeColor('--wama-chart-text') } }
                 },
                 maintainAspectRatio: false
             }
@@ -1164,8 +1164,8 @@ function initializeCharts() {
                 labels: [], 
                 datasets: [{ 
                     data: [], 
-                    borderColor: '#198754', 
-                    backgroundColor: 'rgba(25,135,84,0.1)',
+                    borderColor: WamaApp.themeColor('--bs-success'), 
+                    backgroundColor: WamaApp.themeColor('--bs-success-rgb', 0.1),
                     tension: 0.4, 
                     pointRadius: 2,
                     pointHoverRadius: 4,
@@ -1176,8 +1176,8 @@ function initializeCharts() {
             options: {
                 ...chartOptions,
                 scales: {
-                    x: { display: true, title: { display: true, text: 'Temps', color: '#aaa' }, ...chartOptions.scales.x },
-                    y: { ...chartOptions.scales.y, suggestedMin: 10, suggestedMax: 20, title: { display: true, text: 'Resp/min', color: '#aaa' } }
+                    x: { display: true, title: { display: true, text: 'Temps', color: WamaApp.themeColor('--wama-chart-text') }, ...chartOptions.scales.x },
+                    y: { ...chartOptions.scales.y, suggestedMin: 10, suggestedMax: 20, title: { display: true, text: 'Resp/min', color: WamaApp.themeColor('--wama-chart-text') } }
                 }
             }
         });
@@ -1524,7 +1524,7 @@ function updateOverlayAtTime(time) {
     // Draw face bbox
     if (frame.face_bbox) {
         const [x, y, w, h] = frame.face_bbox;
-        overlayCtx.strokeStyle = '#0dcaf0';
+        overlayCtx.strokeStyle = WamaApp.themeColor('--bs-info');
         overlayCtx.lineWidth = 2;
         overlayCtx.strokeRect(x, y, w, h);
     }
@@ -1532,7 +1532,7 @@ function updateOverlayAtTime(time) {
     // Update HR badge and overlay
     const hrBadge = document.getElementById('currentHR');
     if (frame.rppg?.heart_rate) {
-        overlayCtx.fillStyle = '#dc3545';
+        overlayCtx.fillStyle = WamaApp.themeColor('--bs-danger');
         overlayCtx.font = 'bold 20px Arial';
         overlayCtx.textAlign = 'left';
         overlayCtx.fillText('❤ ' + frame.rppg.heart_rate.toFixed(0) + ' BPM', 10, 30);
@@ -1543,7 +1543,7 @@ function updateOverlayAtTime(time) {
 
     // Update SpO2 on overlay
     if (frame.rppg?.spo2 && frame.rppg.spo2 > 0) {
-        overlayCtx.fillStyle = '#0d6efd';
+        overlayCtx.fillStyle = WamaApp.themeColor('--bs-primary');
         overlayCtx.font = 'bold 16px Arial';
         overlayCtx.textAlign = 'left';
         overlayCtx.fillText('SpO2: ' + frame.rppg.spo2.toFixed(0) + '%', 10, 52);
@@ -1562,7 +1562,7 @@ function updateOverlayAtTime(time) {
     if (frame.emotions) {
         const emotion = frame.emotions.dominant_emotion || frame.emotions.dominant;
         if (emotion) {
-            overlayCtx.fillStyle = '#ffc107';
+            overlayCtx.fillStyle = WamaApp.themeColor('--bs-warning');
             overlayCtx.font = 'bold 16px Arial';
             overlayCtx.textAlign = 'left';
             overlayCtx.fillText(emotion.toUpperCase(), 10, videoOverlay.height - 10);
@@ -1571,7 +1571,7 @@ function updateOverlayAtTime(time) {
 
         // Age/Gender on overlay (top right)
         if (frame.emotions.age || frame.emotions.gender) {
-            overlayCtx.fillStyle = '#aaa';
+            overlayCtx.fillStyle = WamaApp.themeColor('--wama-chart-text');
             overlayCtx.font = '14px Arial';
             overlayCtx.textAlign = 'right';
             let infoText = '';
@@ -1687,8 +1687,8 @@ function formatFileSize(bytes) {
 }
 
 .upload-area:hover {
-    border-color: #198754 !important;
-    background-color: rgba(25, 135, 84, 0.1);
+    border-color: var(--bs-success) !important;
+    background-color: rgba(var(--bs-success-rgb), 0.1);
 }
 
 .border-dashed {
@@ -1706,7 +1706,7 @@ function formatFileSize(bytes) {
 /* Fullscreen styles */
 #videoContainer:fullscreen,
 #videoContainer:-webkit-full-screen {
-    background: #000;
+    background: var(--wama-video-bg);
     display: flex;
     align-items: center;
     justify-content: center;

@@ -13,40 +13,40 @@
 <style>
 /* ── Header ────────────────────────────────────────────────────── */
 .ml-header {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border-bottom: 1px solid #2a2a3e;
+    background: linear-gradient(135deg, var(--wama-page-bg-start) 0%, var(--wama-page-bg-end) 100%);
+    border-bottom: 1px solid var(--wama-ml-header-border);
     padding: 1.4rem 0 0;
 }
-.ml-header h1 { font-size: 1.5rem; font-weight: 600; color: #fff; }
+.ml-header h1 { font-size: 1.5rem; font-weight: 600; color: var(--wama-text-bright); }
 
 /* ── Onglets ────────────────────────────────────────────────────── */
 .ml-tabs .nav-link {
-    color: #999; border: none;
+    color: var(--wama-ml-tab); border: none;
     border-bottom: 3px solid transparent; border-radius: 0;
     padding: .55rem 1.1rem; font-size: .88rem;
     transition: color .15s, border-color .15s;
     white-space: nowrap;
 }
-.ml-tabs .nav-link:hover { color: #ddd; }
-.ml-tabs .nav-link.active { color: #fff; border-bottom-color: #0d6efd; background: transparent; }
+.ml-tabs .nav-link:hover { color: var(--wama-ml-text-strong); }
+.ml-tabs .nav-link.active { color: var(--wama-text-bright); border-bottom-color: var(--bs-primary); background: transparent; }
 .ml-tabs .nav-link i { margin-right: .35rem; }
 .ml-badge {
-    background: #333; color: #aaa;
+    background: var(--wama-ml-badge); color: var(--wama-ml-label);
     font-size: .65rem; padding: .1rem .4rem;
     border-radius: 10px; margin-left: .3rem;
     transition: background .3s, color .3s;
 }
-.ml-tabs .nav-link.active .ml-badge { background: #0d6efd22; color: #6ea8fe; }
+.ml-tabs .nav-link.active .ml-badge { background: var(--wama-ml-active-tint); color: var(--wama-link); }
 
 /* ── Recherche des fournisseurs (la grille, elle, a la barre commune) ── */
 .ml-search { flex: 1; min-width: 200px; max-width: 360px; }
-.ml-search .input-group-text { background: #1e1e2e; border-color: #444; color: #888; }
+.ml-search .input-group-text { background: var(--wama-ml-field); border-color: var(--wama-ml-field-border); color: var(--wama-ml-field-icon); }
 .ml-search input {
-    background: #1e1e2e; border-color: #444; color: #e0e0e0;
+    background: var(--wama-ml-field); border-color: var(--wama-ml-field-border); color: var(--wama-ml-field-text);
     border-left: none;
 }
-.ml-search input:focus { background: #1e1e2e; border-color: #555; color: #fff; box-shadow: none; }
-.ml-search input::placeholder { color: #555; }
+.ml-search input:focus { background: var(--wama-ml-field); border-color: var(--wama-ml-field-focus); color: var(--wama-text-bright); box-shadow: none; }
+.ml-search input::placeholder { color: var(--wama-text-label); }
 
 /* ── Grille ─────────────────────────────────────────────────────── */
 .asset-grid {
@@ -55,13 +55,13 @@
     gap: .85rem;
 }
 .asset-card {
-    background: #1a1a2e; border: 1px solid #2a2a4a;
+    background: var(--wama-night-surface); border: 1px solid var(--wama-ml-card-border);
     border-radius: 8px; overflow: hidden;
     transition: border-color .2s, box-shadow .2s;
     position: relative; cursor: default;
 }
-.asset-card:hover { border-color: #4a4a7a; box-shadow: 0 4px 16px #0006; }
-.asset-card.system-asset { background: #141e14; border-color: #1e3a1e; }
+.asset-card:hover { border-color: var(--wama-night-border-hover); box-shadow: 0 4px 16px var(--wama-ml-card-shadow); }
+.asset-card.system-asset { background: var(--wama-ml-system-bg); border-color: var(--wama-ml-system-border); }
 
 /* Overlay actions — apparaît au survol de la carte par la convention commune
    (`wama-reveal-host` / `wama-reveal`, wama-touch.css) : toujours visible au doigt. */
@@ -72,12 +72,12 @@
 }
 .asset-badge-system {
     position: absolute; top: .4rem; left: .4rem;
-    background: #1e3a1e; color: #6bcb6b;
+    background: var(--wama-ml-system-border); color: var(--wama-ml-system-text);
     font-size: .62rem; padding: .12rem .35rem;
     border-radius: 4px; pointer-events: none;
 }
 .asset-preview-wrap {
-    width: 100%; background: #0a0a18;
+    width: 100%; background: var(--wama-ml-thumb-bg);
     display: flex; align-items: center; justify-content: center;
     min-height: 70px;
 }
@@ -92,48 +92,48 @@
 /* pointer-events: none permet à l'overlay de recevoir les clics malgré la couche GPU vidéo */
 .asset-preview-video { pointer-events: none; }
 .asset-preview-icon {
-    font-size: 2.5rem; color: #444; padding: 1rem;
+    font-size: 2.5rem; color: var(--wama-ml-icon); padding: 1rem;
 }
 .asset-card-body { padding: .65rem .75rem .75rem; }
 .asset-name {
-    font-size: .83rem; font-weight: 600; color: #ddd;
+    font-size: .83rem; font-weight: 600; color: var(--wama-ml-text-strong);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     cursor: pointer;
 }
-.asset-name:hover { color: #fff; text-decoration: underline dotted #666; }
+.asset-name:hover { color: var(--wama-text-bright); text-decoration: underline dotted var(--wama-ml-underline); }
 /* `#666` sur le fond des cards faisait 2,98:1 (`common.contrast`, 2026-10-16) ; `#a0a8b0` : 7,1:1. */
-.asset-meta { font-size: .72rem; color: #a0a8b0; margin-top: .2rem; }
+.asset-meta { font-size: .72rem; color: var(--wama-ml-meta); margin-top: .2rem; }
 .asset-meta span { margin-right: .5rem; }
 /* Attributs DÉCLARÉS par la nature (langue, âge, genre…) — distincts des tags, qui sont
    libres et cliquables : ceux-ci sont du vocabulaire, on les lit, on ne filtre pas avec. */
 .asset-attrs { margin-top: .3rem; display: flex; flex-wrap: wrap; gap: .25rem; }
 .asset-attr {
-    display: inline-block; border: 1px solid #2f3a4f; color: #9fb3cc;
+    display: inline-block; border: 1px solid var(--wama-ml-attr-border); color: var(--wama-ml-attr-text);
     font-size: .66rem; padding: .05rem .35rem; border-radius: 10px;
 }
 .asset-tags { margin-top: .35rem; }
 .asset-tag {
-    display: inline-block; background: #1e2a3e; color: #7aa8d8;
+    display: inline-block; background: var(--wama-ml-tag); color: var(--wama-ml-tag-text);
     font-size: .65rem; padding: .1rem .35rem; border-radius: 3px;
     margin: .1rem .1rem 0 0; cursor: pointer;
 }
-.asset-tag:hover { background: #2a3a5e; }
+.asset-tag:hover { background: var(--wama-ml-tag-hover); }
 
 /* ── Onglet Rechercher ──────────────────────────────────────────── */
 #searchPanel { display: none; }
 .provider-btn {
-    background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 6px;
-    padding: .45rem .85rem; color: #bbb; font-size: .82rem; cursor: pointer;
+    background: var(--wama-night-surface); border: 1px solid var(--wama-ml-card-border); border-radius: 6px;
+    padding: .45rem .85rem; color: var(--wama-ml-provider-text); font-size: .82rem; cursor: pointer;
     transition: border-color .15s, color .15s;
     display: inline-flex; align-items: center; gap: .4rem;
 }
-.provider-btn:hover { border-color: #5a5a9a; color: #fff; }
-.provider-btn.active { border-color: #0d6efd; color: #6ea8fe; background: #0d6efd1a; }
+.provider-btn:hover { border-color: var(--wama-ml-provider-hover); color: var(--wama-text-bright); }
+.provider-btn.active { border-color: var(--bs-primary); color: var(--wama-link); background: var(--wama-ml-provider-tint); }
 .provider-btn .provider-dot {
-    width: 7px; height: 7px; border-radius: 50%; background: #555;
+    width: 7px; height: 7px; border-radius: 50%; background: var(--wama-ml-dot-idle);
     display: inline-block;
 }
-.provider-btn.ready .provider-dot { background: #28a745; }
+.provider-btn.ready .provider-dot { background: var(--wama-state-success-edge); }
 
 .search-result-grid {
     display: grid;
@@ -142,43 +142,43 @@
     margin-top: 1rem;
 }
 .sr-card {
-    background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 8px;
+    background: var(--wama-night-surface); border: 1px solid var(--wama-ml-card-border); border-radius: 8px;
     overflow: hidden; position: relative;
     transition: border-color .2s, box-shadow .2s;
 }
-.sr-card:hover { border-color: #4a4a7a; box-shadow: 0 4px 16px #0006; }
+.sr-card:hover { border-color: var(--wama-night-border-hover); box-shadow: 0 4px 16px var(--wama-ml-card-shadow); }
 .sr-thumb {
-    width: 100%; height: 120px; object-fit: cover; display: block; background: #0a0a18;
+    width: 100%; height: 120px; object-fit: cover; display: block; background: var(--wama-ml-thumb-bg);
 }
 .sr-thumb-audio {
-    width: 100%; height: 36px; padding: 0 .5rem; display: block; background: #0a0a18;
+    width: 100%; height: 36px; padding: 0 .5rem; display: block; background: var(--wama-ml-thumb-bg);
 }
 .sr-thumb-icon {
     width: 100%; height: 80px; display: flex; align-items: center; justify-content: center;
-    background: #0a0a18; font-size: 2rem; color: #444;
+    background: var(--wama-ml-thumb-bg); font-size: 2rem; color: var(--wama-ml-icon);
 }
 .sr-body { padding: .5rem .65rem .65rem; }
-.sr-title { font-size: .8rem; font-weight: 600; color: #ddd; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sr-meta  { font-size: .68rem; color: #666; margin-top: .15rem; }
+.sr-title { font-size: .8rem; font-weight: 600; color: var(--wama-ml-text-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sr-meta  { font-size: .68rem; color: var(--wama-text-label); margin-top: .15rem; }
 /* Révélé au survol du résultat (convention commune `wama-reveal`, wama-touch.css). */
 .sr-import-btn {
     position: absolute; bottom: .4rem; right: .4rem;
 }
-.sr-license { font-size: .65rem; padding: .1rem .3rem; border-radius: 3px; background: #1e3a1e; color: #6bcb6b; }
+.sr-license { font-size: .65rem; padding: .1rem .3rem; border-radius: 3px; background: var(--wama-ml-system-border); color: var(--wama-ml-system-text); }
 
 /* ── Load more ──────────────────────────────────────────────────── */
 #loadMoreBtn { display: none; }
 
 
 /* ── Modal édition ──────────────────────────────────────────────── */
-#editModal .modal-content { background: #161625; border: 1px solid #2a2a4a; }
-#editModal .modal-header { border-bottom: 1px solid #2a2a4a; }
-#editModal label { color: #aaa; font-size: .82rem; }
+#editModal .modal-content { background: var(--wama-ml-modal); border: 1px solid var(--wama-ml-card-border); }
+#editModal .modal-header { border-bottom: 1px solid var(--wama-ml-card-border); }
+#editModal label { color: var(--wama-ml-label); font-size: .82rem; }
 #editModal .form-control {
-    background: #1e1e2e; border-color: #3a3a5e;
-    color: #e0e0e0; font-size: .88rem;
+    background: var(--wama-ml-field); border-color: var(--wama-ml-modal-field-border);
+    color: var(--wama-ml-field-text); font-size: .88rem;
 }
-#editModal .form-control:focus { background: #1e1e2e; border-color: #556; box-shadow: none; color: #fff; }
+#editModal .form-control:focus { background: var(--wama-ml-field); border-color: var(--wama-ml-modal-field-focus); box-shadow: none; color: var(--wama-text-bright); }
 </style>
 {% endblock %}
 
@@ -187,7 +187,7 @@
 <div class="ml-header">
     <div class="container-fluid px-4">
         <div class="d-flex align-items-center mb-3">
-            <i class="fas fa-photo-film me-3" style="font-size:1.7rem;color:#6ea8fe;"></i>
+            <i class="fas fa-photo-film me-3" style="font-size:1.7rem;color:var(--wama-link);"></i>
             <div>
                 <h1 class="mb-0">Médiathèque</h1>
                 <small class="text-muted">Assets réutilisables dans toutes les applications</small>
@@ -232,7 +232,7 @@
 </div>
 
 <!-- ── Contenu principal ────────────────────────────────────────── -->
-<div class="container-fluid px-4 py-3" style="background:#0d0d1a; min-height: calc(100vh - 175px);">
+<div class="container-fluid px-4 py-3" style="background:var(--wama-ml-page); min-height: calc(100vh - 175px);">
 
     {% comment %}La BARRE COMMUNE (2026-10-01, demande de Fabien) — recherche, filtres, tri, compteur,
     en mode `remote` : la page charge sa grille elle-même (paginée), la barre dit QUOI charger
@@ -258,7 +258,7 @@
     <!-- ── Panneau Mots-clés de prompt (tronc commun + perso) ──── -->
     <div id="keywordsPanel" style="display:none;">
         <div class="d-flex align-items-center mb-2">
-            <i class="fas fa-tags me-2" style="color:#6ea8fe;"></i>
+            <i class="fas fa-tags me-2" style="color:var(--wama-link);"></i>
             <div>
                 <div class="fw-semibold">Bibliothèque de mots-clés</div>
                 <small class="text-muted">Tronc commun partagé + vos mots-clés perso. Réutilisés dans les
@@ -274,10 +274,10 @@
     ne part sans ce geste. Ce sont des FICHIERS, pas des assets : ils ne sont pas dans la grille.{% endcomment %}
     <div id="unusedPanel" style="display:none;" data-released-files-list>
         <div class="d-flex align-items-start mb-3 gap-2">
-            <i class="fas fa-file-circle-exclamation mt-1" style="color:#ffc107;"></i>
+            <i class="fas fa-file-circle-exclamation mt-1" style="color:var(--bs-warning);"></i>
             <div>
                 <div class="fw-semibold">Fichiers inutilisés</div>
-                <small style="color:#c8c8d8;">Plus aucune card ni la médiathèque ne les utilise. Ils occupent
+                <small style="color:var(--wama-ml-note);">Plus aucune card ni la médiathèque ne les utilise. Ils occupent
                     encore votre espace : supprimez ceux dont vous n'avez plus besoin.</small>
             </div>
         </div>
@@ -294,9 +294,9 @@
             <button type="button" class="btn btn-sm btn-outline-light" id="unusedRenewSelected" disabled hidden>
                 <i class="fas fa-clock-rotate-left me-1"></i>Garder la sélection
             </button>
-            <span class="ms-auto small" style="color:#c8c8d8;" id="unusedSummary"></span>
+            <span class="ms-auto small" style="color:var(--wama-ml-note);" id="unusedSummary"></span>
         </div>
-        <div id="unusedRetention" class="small mb-2" style="color:#ffd27a;" hidden></div>
+        <div id="unusedRetention" class="small mb-2" style="color:var(--wama-ml-retention);" hidden></div>
         <div id="unusedList"></div>
     </div>
 

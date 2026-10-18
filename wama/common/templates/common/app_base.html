@@ -57,7 +57,7 @@
         padding-bottom: 50px;
         /* Masquer la scrollbar tout en gardant la fonctionnalité */
         scrollbar-width: thin;
-        scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+        scrollbar-color: var(--wama-scrollbar-neutral) transparent;
     }
     .app-sidebar::-webkit-scrollbar {
         width: 6px;
@@ -66,7 +66,7 @@
         background: transparent;
     }
     .app-sidebar::-webkit-scrollbar-thumb {
-        background-color: rgba(155, 155, 155, 0.5);
+        background-color: var(--wama-scrollbar-neutral);
         border-radius: 3px;
     }
     .app-content {
@@ -77,7 +77,7 @@
         padding-bottom: 50px;
         /* Masquer la scrollbar tout en gardant la fonctionnalité */
         scrollbar-width: thin;
-        scrollbar-color: rgba(155, 155, 155, 0.5) transparent;
+        scrollbar-color: var(--wama-scrollbar-neutral) transparent;
     }
     .app-content::-webkit-scrollbar {
         width: 6px;
@@ -86,7 +86,7 @@
         background: transparent;
     }
     .app-content::-webkit-scrollbar-thumb {
-        background-color: rgba(155, 155, 155, 0.5);
+        background-color: var(--wama-scrollbar-neutral);
         border-radius: 3px;
     }
 </style>
@@ -123,7 +123,7 @@
                 <h3 class="panel-title mb-0">Console</h3>
                 <small id="{% block console_hint_id %}console-hint{% endblock %}">Live logs</small>
             </div>
-            <div class="panel-body" style="max-height: 320px; overflow-y: auto; background: #111; color: #e4e4e4; font-family: 'Courier New', monospace; font-size: 12px;">
+            <div class="panel-body" style="max-height: 320px; overflow-y: auto; background: var(--wama-console-bg); color: var(--wama-console-text); font-family: 'Courier New', monospace; font-size: 12px;">
                 <div id="{% block console_content_id %}console-content{% endblock %}"
                      data-console-url="{% block console_url %}{% endblock %}">
                     <p class="mb-0">Chargement des logs...</p>

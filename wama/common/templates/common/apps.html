@@ -15,14 +15,14 @@
        Elle est donc posée en surimpression, à la place EXACTE qu'elle occupe sur les cards d'app
        (coin haut-droit) — même geste, même endroit. */
     .app-abo-coin { position: absolute; top: 0.9rem; right: 1.1rem; z-index: 2; }
-    .app-item.app-active .app-card { border-color: #0d6efd !important; box-shadow: 0 0 0 1px #0d6efd; }
-    .apps-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: 0.25rem; }
-    .apps-page .subtitle { color: #6c757d; font-size: 0.9rem; margin-bottom: 2rem; }
+    .app-item.app-active .app-card { border-color: var(--bs-primary) !important; box-shadow: 0 0 0 1px var(--bs-primary); }
+    .apps-page h1 { font-size: 1.6rem; font-weight: 600; color: var(--wama-text-strong); margin-bottom: 0.25rem; }
+    .apps-page .subtitle { color: var(--wama-text-label); font-size: 0.9rem; margin-bottom: 2rem; }
 
     /* App card */
     .app-card {
-        background: #1a1a2e;
-        border: 1px solid #2d2d4e;
+        background: var(--wama-night-surface);
+        border: 1px solid var(--wama-night-border);
         border-radius: 10px;
         padding: 1.25rem;
         height: 100%;
@@ -30,53 +30,53 @@
         display: flex;
         flex-direction: column;
     }
-    .app-card:hover { border-color: #4a4a7a; transform: translateY(-2px); }
+    .app-card:hover { border-color: var(--wama-night-border-hover); transform: translateY(-2px); }
     .app-card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
     .app-icon {
         width: 36px; height: 36px; border-radius: 8px;
         display: flex; align-items: center; justify-content: center;
         font-size: 1rem; flex-shrink: 0;
     }
-    .app-card-header h3 { font-size: 1rem; font-weight: 600; color: #e9ecef; margin: 0; }
-    .app-description { font-size: 0.82rem; color: #9aa5b4; margin-bottom: 1rem; line-height: 1.45; flex-grow: 1; }
+    .app-card-header h3 { font-size: 1rem; font-weight: 600; color: var(--wama-text-strong); margin: 0; }
+    .app-description { font-size: 0.82rem; color: var(--wama-night-desc); margin-bottom: 1rem; line-height: 1.45; flex-grow: 1; }
 
     /* Extension display */
     .ext-section { margin-bottom: 0.75rem; }
-    .ext-type-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: #6c757d; margin-bottom: 0.3rem; }
+    .ext-type-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--wama-text-label); margin-bottom: 0.3rem; }
     .ext-badges { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.4rem; }
     .ext-badge {
         font-size: 0.68rem; padding: 0.15rem 0.45rem; border-radius: 4px;
         font-family: 'Courier New', monospace;
-        background: #2d2d4e; color: #adb5bd; border: 1px solid #3d3d6e;
+        background: var(--wama-night-border); color: var(--wama-text-secondary); border: 1px solid var(--wama-night-badge-border);
     }
 
     /* Feature badges */
     .feature-row {
         display: flex; flex-wrap: wrap; gap: 0.35rem;
-        margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid #2d2d4e;
+        margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--wama-night-border);
     }
     .feature-badge {
         font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 12px;
         display: inline-flex; align-items: center; gap: 0.25rem;
     }
-    .feature-yes { background: rgba(25, 135, 84, 0.15); color: #75b798; border: 1px solid rgba(25, 135, 84, 0.3); }
-    .feature-no  { background: rgba(108,117,125,0.08); color: #555; border: 1px solid rgba(108,117,125,0.15); opacity: 0.55; }
-    .feature-out { background: rgba(13,110,253,0.1); color: #6ea8fe; border: 1px solid rgba(13,110,253,0.25); }
+    .feature-yes { background: rgba(var(--bs-success-rgb), 0.15); color: var(--bs-success-text-emphasis); border: 1px solid rgba(var(--bs-success-rgb), 0.3); }
+    .feature-no  { background: rgba(var(--bs-secondary-rgb), 0.08); color: var(--wama-text-label); border: 1px solid rgba(var(--bs-secondary-rgb), 0.15); opacity: 0.55; }
+    .feature-out { background: rgba(var(--bs-primary-rgb), 0.1); color: var(--wama-link); border: 1px solid rgba(var(--bs-primary-rgb), 0.25); }
 
     /* Conformity */
-    .conformity-bar-wrap { margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid #2d2d4e; }
+    .conformity-bar-wrap { margin-top: 0.9rem; padding-top: 0.75rem; border-top: 1px solid var(--wama-night-border); }
     .conformity-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem; }
-    .conformity-label { font-size: 0.72rem; color: #6c757d; text-transform: uppercase; letter-spacing: 0.05em; }
+    .conformity-label { font-size: 0.72rem; color: var(--wama-text-label); text-transform: uppercase; letter-spacing: 0.05em; }
     .conformity-score { font-size: 0.8rem; font-weight: 600; }
-    .c-high   { color: #75b798; }
-    .c-medium { color: #ffc107; }
-    .c-low    { color: #dc3545; }
-    .conformity-bar { height: 5px; border-radius: 3px; background: #2d2d4e; overflow: hidden; }
+    .c-high   { color: var(--bs-success-text-emphasis); }
+    .c-medium { color: var(--bs-warning); }
+    .c-low    { color: var(--bs-danger); }
+    .conformity-bar { height: 5px; border-radius: 3px; background: var(--wama-night-border); overflow: hidden; }
     .conformity-bar-fill { height: 100%; border-radius: 3px; }
-    .c-fill-high   { background: #198754; }
-    .c-fill-medium { background: #ffc107; }
-    .c-fill-low    { background: #dc3545; }
-    .conformity-issues { margin-top: 0.4rem; font-size: 0.7rem; color: #dc3545; }
+    .c-fill-high   { background: var(--bs-success); }
+    .c-fill-medium { background: var(--bs-warning); }
+    .c-fill-low    { background: var(--bs-danger); }
+    .conformity-issues { margin-top: 0.4rem; font-size: 0.7rem; color: var(--bs-danger); }
 
     /* Open button */
     .app-open-btn {
@@ -88,12 +88,12 @@
     .app-open-btn:hover { opacity: 0.8; text-decoration: none; }
 
     /* Summary table */
-    .summary-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6c757d; }
+    .summary-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--wama-text-label); }
     .summary-table td { font-size: 0.82rem; vertical-align: middle; }
     .mini-badge { font-size: 0.65rem; padding: 0.15rem 0.4rem; border-radius: 3px; }
-    .check-ok   { color: #198754; }
-    .check-fail { color: #dc3545; }
-    .check-na   { color: #555; }
+    .check-ok   { color: var(--bs-success); }
+    .check-fail { color: var(--bs-danger); }
+    .check-na   { color: var(--wama-text-label); }
 </style>
 {% endblock %}
 
@@ -113,7 +113,7 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
     ⚠ Ces boutons ne peuvent RIEN OUVRIR (§8.1) : ils n'agissent que sur des apps déjà
     autorisées. « Sans accès » n'est pas une case décochée, c'est une card sans bascule.{% endcomment %}
     {% if user.is_authenticated and user.username != 'anonymous' %}
-    <div class="d-flex align-items-center flex-wrap gap-2 mb-3 p-2 rounded" style="background:#1a1a2e;border:1px solid #2d2d4e;">
+    <div class="d-flex align-items-center flex-wrap gap-2 mb-3 p-2 rounded" style="background:var(--wama-night-surface);border:1px solid var(--wama-night-border);">
         <span class="small text-white-50">
             <i class="fas fa-sliders me-1"></i>Mes applications&nbsp;:
             <strong class="text-light" data-abo-compte>{{ abo.abonnes }} sur {{ abo.total }}</strong>
@@ -322,7 +322,7 @@ n'écrit aucun JS, et un autre catalogue héritera du mécanisme avec les deux m
                 {% endif %}
             {% endif %}
             <a href="{{ link.url }}" class="app-card d-flex align-items-center gap-3 text-decoration-none">
-                <div class="app-icon" style="background:#6c757d22;color:#9aa5b4;"><i class="fas {{ link.icon }}"></i></div>
+                <div class="app-icon" style="background:var(--wama-night-icon-bg);color:var(--wama-night-desc);"><i class="fas {{ link.icon }}"></i></div>
                 <h3 class="mb-0">{{ link.label }}</h3>
             </a>
         </div>

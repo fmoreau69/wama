@@ -1241,7 +1241,17 @@
       .then(function () { box.disabled = false; });
   });
 
+  /** COULEUR D'UN TOKEN DE THÈME (chantier thèmes, `ROADMAP §28` — 2026-10-18), pour ce qui ne
+   *  lit pas le CSS : un canvas, un graphe Chart.js. `themeColor('--bs-danger')` rend la valeur du
+   *  thème actif ; `themeColor('--bs-danger-rgb', .1)` compose un voile à partir des canaux d'un
+   *  token `-rgb`. Lu au moment de l'appel : le dessin suit le thème posé sur <html>. */
+  function themeColor(token, alpha) {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(token).trim();
+    return alpha === undefined ? value : 'rgba(' + value + ', ' + alpha + ')';
+  }
+
   global.WamaApp = {
+    themeColor: themeColor,
     formatSize: formatSize,
     formatDuration: formatDuration,
     mediaDuration: mediaDuration,

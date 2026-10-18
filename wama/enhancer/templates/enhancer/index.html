@@ -129,7 +129,7 @@ modèle) et les encadrés d'information.{% endcomment %}
    lot garde sa base d'ids (`audioBatch`, `WamaBatchImport({idBase})` d'audio-enhancer.js) : la card
    rend la barre elle-même (`batch_bid`) — l'ancienne zone d'extension `_audio_batch_bar.html`, qui
    l'incluait, la DOUBLERAIT ; son accent vert passe par les variables CSS de la card (plus bas).{% endcomment %}
-<style>#audioNewCard { --batch-accent:#198754; --batch-text:#fff; --batch-bg:#1a1520; }</style>
+<style>#audioNewCard { --batch-accent:var(--bs-success); --batch-text:var(--wama-text-on-accent); --batch-bg:var(--wama-batch-bar-bg-alt); }</style>
 {% include 'common/_new_item_card_v4.html' with app_id='enhancer' card_domain='audio' card_id='audioNewCard' drop_zone_id='dropZoneAudio' file_input_id='audio-enhancer-file' folder_input_id='audioEnhFolderInput' formats_label='Audio — WAV, MP3, FLAC, M4A…' show_batch_bar=True batch_bid='audioBatch' batch_label='Batch audio' collapsible=True %}
 
 <div id="audioGlobalStatus" style="opacity:0; pointer-events:none;">

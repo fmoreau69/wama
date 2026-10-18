@@ -21,16 +21,16 @@
 <style>
   /* Squelette (wrap/stats/hero/grille/cards/badge/actions) = brique COMMUNE `wama-catalog.css`
      depuis le 2026-09-01 — ne restent ici que les variantes SÉMANTIQUES de cette page. */
-  .rg-scan     { background: #4a148c; color: #e1bee7; }
-  .rg-mesure   { background: #0d47a1; color: #bbdefb; }
-  .rg-redecl   { background: #1b5e20; color: #c8facc; }
-  .rg-derive   { background: #37474f; color: #cfd8dc; }
-  .rg-total    { background: rgba(255,179,0,.15); color: #ffb300; }
+  .rg-scan     { background: var(--wama-tone-purple); color: var(--wama-tone-purple-text); }
+  .rg-mesure   { background: var(--wama-tone-blue); color: var(--wama-tone-blue-text); }
+  .rg-redecl   { background: var(--wama-tone-green); color: var(--wama-tone-green-text-bright); }
+  .rg-derive   { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
+  .rg-total    { background: rgba(var(--wama-cat-accent-rgb), .15); color: var(--wama-cat-accent); }
 
-  .rg-etat { font-size: .74rem; color: #8fa3b3; flex: 1; }
-  .rg-etat.ok { color: #81c784; }
-  .rg-etat.ko { color: #ff8a80; }
-  .rg-auto { font-size: .7rem; color: #90a4ae; }
+  .rg-etat { font-size: .74rem; color: var(--wama-cat-meta); flex: 1; }
+  .rg-etat.ok { color: var(--wama-cat-ok); }
+  .rg-etat.ko { color: var(--wama-cat-alert); }
+  .rg-auto { font-size: .7rem; color: var(--wama-cat-quiet); }
 </style>
 {% endblock %}
 

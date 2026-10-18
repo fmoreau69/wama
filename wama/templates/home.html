@@ -37,12 +37,12 @@
 
   /* Drop zone cards */
   .simple-drop-zone {
-    border: 2px dashed #495057;
+    border: 2px dashed var(--wama-border-strong);
     border-radius: 12px;
     padding: 36px 16px;
     text-align: center;
     cursor: pointer;
-    background: #1a1d21;
+    background: var(--wama-chat-bg);
     min-height: 160px;
     display: flex;
     flex-direction: column;
@@ -52,13 +52,13 @@
   }
   .simple-drop-zone:hover,
   .simple-drop-zone.dragover {
-    border-color: #0d6efd;
-    background: #0d1117;
+    border-color: var(--bs-primary);
+    background: var(--wama-batch-bar-bg);
   }
   .simple-drop-zone .dz-icon { font-size: 2rem; margin-bottom: .5rem; }
   .simple-drop-zone .dz-label { font-weight: 600; margin-bottom: .25rem; }
-  .simple-drop-zone .dz-hint  { font-size: .8rem; color: #6c757d; }
-  .simple-drop-zone .dz-status { font-size: .8rem; margin-top: .5rem; color: #6fcf97; min-height: 1rem; }
+  .simple-drop-zone .dz-hint  { font-size: .8rem; color: var(--wama-text-label); }
+  .simple-drop-zone .dz-status { font-size: .8rem; margin-top: .5rem; color: var(--wama-chat-step-ok); min-height: 1rem; }
 </style>
 {% endblock %}
 
@@ -231,7 +231,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       var el = zone.querySelector('.dz-status');
       if (!el) return;
       el.textContent = msg;
-      el.style.color = isErr ? '#ff6b6b' : '#6fcf97';
+      el.style.color = isErr ? 'var(--wama-error-text)' : 'var(--wama-chat-step-ok)';
     }
 
     // Le dépôt PARTAGÉ (`WamaFM.upload`, 2026-10-18) — celui du glisser-déposer sur le chat.
@@ -351,7 +351,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
               Trois options étaient écrites en dur ici — elles ignoraient `preferred_language`
               et 13 des 16 voix de la table. La première est celle de la langue préférée.
             {% endcomment %}
-            <select id="ai-voice-select" class="form-select form-select-sm" style="background:#1a1d21;border:1px solid #495057;color:#fff;width:auto;">
+            <select id="ai-voice-select" class="form-select form-select-sm" style="background:var(--wama-chat-bg);border:1px solid var(--wama-border-strong);color:var(--wama-text-bright);width:auto;">
               {% for v in voix_assistant %}
               <option value="{{ v.valeur }}"{% if forloop.first %} selected{% endif %}>{{ v.libelle }}</option>
               {% endfor %}
@@ -372,7 +372,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
             </button>
           </div>
         </div>
-        <div class="card" style="background: #212529; border: 1px solid #495057;">
+        <div class="card" style="background: var(--wama-surface); border: 1px solid var(--wama-border-strong);">
           <div class="card-body">
             {% comment %}
               RÉGLAGES DE L'ASSISTANT — rendus par la brique COMMUNE `WamaParams` depuis le
@@ -462,14 +462,14 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
         <div class="row g-3">
           {% for a in group.apps %}
           <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+            <div class="card h-100" style="background: var(--wama-surface); border: 1px solid var(--wama-border-strong);">
               <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
                   <i class="{{ a.icon }}"{% if a.color %} style="color:{{ a.color }};"{% endif %}></i> {{ a.label }}
                 </h5>
                 <p class="card-text text-light flex-grow-1">{{ a.description }}</p>
                 <a href="{{ a.url }}" class="btn mt-auto"
-                   style="border:1px solid {{ a.color|default:'#6c757d' }}; color:{{ a.color|default:'#e6e9f0' }};">
+                   style="border:1px solid {{ a.color|default:'var(--bs-secondary)' }}; color:{{ a.color|default:'var(--wama-text-ui)' }};">
                   <i class="fas fa-arrow-right"></i> Ouvrir
                 </a>
               </div>
@@ -478,14 +478,14 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
           {% endfor %}
           {% for l in group.links %}
           <div class="col-md-6 col-lg-4">
-            <div class="card h-100" style="background: #212529; border: 1px solid #495057;">
+            <div class="card h-100" style="background: var(--wama-surface); border: 1px solid var(--wama-border-strong);">
               <div class="card-body d-flex flex-column">
                 <h5 class="card-title text-light">
                   <i class="fas {{ l.icon }}"{% if l.color %} style="color:{{ l.color }};"{% endif %}></i> {{ l.label }}
                 </h5>
                 <p class="card-text text-light flex-grow-1">{{ l.description }}</p>
                 <a href="{{ l.url }}" class="btn mt-auto"
-                   style="border:1px solid {{ l.color|default:'#6c757d' }}; color:{{ l.color|default:'#e6e9f0' }};">
+                   style="border:1px solid {{ l.color|default:'var(--bs-secondary)' }}; color:{{ l.color|default:'var(--wama-text-ui)' }};">
                   <i class="fas fa-arrow-right"></i> Ouvrir
                 </a>
               </div>
@@ -504,7 +504,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
     <div class="row mb-4">
       <div class="col-12">
         <h4 class="mb-3"><i class="fas fa-clock"></i> Upcoming Features</h4>
-        <div class="card" style="background: #212529; border: 1px solid #495057;">
+        <div class="card" style="background: var(--wama-surface); border: 1px solid var(--wama-border-strong);">
           <div class="card-body">
             <ul class="text-light mb-0">
               <li><strong>More features coming soon...</strong> Stay tuned!</li>
@@ -526,7 +526,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
     <!-- Login prompt -->
     <div class="row mb-4">
       <div class="col-12">
-        <div class="alert alert-info" style="background: #1a3a52; border: 1px solid #2980b9;">
+        <div class="alert alert-info" style="background: var(--wama-home-info-bg); border: 1px solid var(--wama-home-info-border);">
           <h5 class="alert-heading">
             <i class="fas fa-door-open"></i> Get Started
           </h5>
@@ -546,7 +546,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
     <!-- WAMA Presentation -->
     <div class="row mb-4">
       <div class="col-12">
-        <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+        <div class="card" style="background: linear-gradient(135deg, var(--wama-indigo) 0%, var(--wama-violet) 100%); border: none;">
           <div class="card-body text-center py-4">
             <h4 class="text-white mb-3">
               <i class="fas fa-presentation"></i> Découvrir WAMA

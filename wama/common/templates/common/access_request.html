@@ -12,17 +12,17 @@ suivent) — un élément qui porte une personne demande d'abord le consentement
 {% block extra_css %}
 <style>
     .access-page { padding: 2rem 0; max-width: 46rem; }
-    .access-page h1 { font-size: 1.5rem; font-weight: 600; color: #e9ecef; margin-bottom: 1rem; }
-    .access-card { background: #1a1a2e; border: 1px solid rgba(167, 139, 250, .45);
-                   border-radius: .5rem; padding: 1rem 1.15rem; color: #dee2e6; }
-    .access-card dt { color: #c4b5fd; font-weight: 500; }
-    .access-card dd { color: #f1f3f5; margin-bottom: .5rem; }
+    .access-page h1 { font-size: 1.5rem; font-weight: 600; color: var(--wama-text-strong); margin-bottom: 1rem; }
+    .access-card { background: var(--wama-night-surface); border: 1px solid rgba(var(--wama-collab-rgb), .45);
+                   border-radius: .5rem; padding: 1rem 1.15rem; color: var(--wama-text); }
+    .access-card dt { color: var(--wama-collab-link); font-weight: 500; }
+    .access-card dd { color: var(--wama-collab-value); margin-bottom: .5rem; }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="container access-page">
-  <h1><i class="fas fa-hand me-2" style="color:#c4b5fd;"></i>Demande d'accès</h1>
+  <h1><i class="fas fa-hand me-2" style="color:var(--wama-collab-link);"></i>Demande d'accès</h1>
   <div class="access-card">
     <dl class="mb-3">
       <dt>Demandé par</dt><dd>{{ grant.beneficiary.get_full_name|default:grant.beneficiary.username }}</dd>

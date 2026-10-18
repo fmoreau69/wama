@@ -16,12 +16,12 @@
 
     /* Onglets personnalisés */
     .nav-tabs {
-        border-bottom: 2px solid #495057;
+        border-bottom: 2px solid var(--wama-border-strong);
         margin-bottom: 15px;
     }
 
     .nav-tabs .nav-link {
-        color: #adb5bd;
+        color: var(--wama-text-secondary);
         border: none;
         border-bottom: 3px solid transparent;
         background: transparent;
@@ -30,21 +30,21 @@
     }
 
     .nav-tabs .nav-link:hover {
-        color: #ffffff;
-        border-bottom-color: #6c757d;
+        color: var(--wama-text-bright);
+        border-bottom-color: var(--bs-secondary);
     }
 
     .nav-tabs .nav-link.active {
-        color: #ffffff;
+        color: var(--wama-text-bright);
         background: transparent;
-        border-bottom-color: #0dcaf0;
+        border-bottom-color: var(--wama-accent);
         font-weight: 600;
     }
 
     /* Console style terminal */
     .console-container {
-        background: #1a1d20;
-        border: 1px solid #495057;
+        background: var(--wama-surface-modal);
+        border: 1px solid var(--wama-border-strong);
         border-radius: 8px;
         padding: 20px;
         max-height: 500px;
@@ -56,28 +56,28 @@
 
     /* About/Help content */
     .info-card {
-        background: #2b3035;
-        border: 1px solid #495057;
+        background: var(--wama-surface-raised);
+        border: 1px solid var(--wama-border-strong);
         border-radius: 8px;
         padding: 20px;
         margin-bottom: 0;
     }
 
     .info-card h3 {
-        color: #0dcaf0;
+        color: var(--wama-accent);
         margin-bottom: 16px;
     }
 
     .info-card h5,
     .info-card h6 {
-        color: #e5e7eb;
+        color: var(--wama-text-body);
     }
 
     .info-card p,
     .info-card li,
     .info-card .small,
     .info-card small {
-        color: #d1d5db;
+        color: var(--wama-text-small);
     }
 
     /* App blocks spécifiques */
@@ -154,12 +154,12 @@
         <!-- Onglet Console -->
         <div class="tab-pane fade" id="console-pane" role="tabpanel">
             {% if is_dev or is_admin %}
-            <div class="console-toolbar d-flex align-items-center gap-3 mb-2 p-2 bg-dark rounded" style="border: 1px solid #495057;">
+            <div class="console-toolbar d-flex align-items-center gap-3 mb-2 p-2 bg-dark rounded" style="border: 1px solid var(--wama-border-strong);">
                 <div class="d-flex align-items-center gap-2">
                     <span class="text-muted small me-1">Niveaux :</span>
                     <div class="form-check form-check-inline mb-0">
                         <input class="form-check-input console-level-filter" type="checkbox" id="filter-info" value="info" checked>
-                        <label class="form-check-label small" style="color: #8ec8e8;" for="filter-info">Info</label>
+                        <label class="form-check-label small" style="color: var(--wama-console-option);" for="filter-info">Info</label>
                     </div>
                     <div class="form-check form-check-inline mb-0">
                         <input class="form-check-input console-level-filter" type="checkbox" id="filter-warning" value="warning" checked>

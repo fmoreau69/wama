@@ -320,4 +320,186 @@
   --wama-pres-ok-rgb: 52, 211, 153;
   --wama-pres-todo: #94a3b8;           /* à faire */
   --wama-pres-todo-rgb: 148, 163, 184;
+
+  /* ── Pages du compte et Apps (palette « nuit ») ── */
+  --wama-surface-modal-rgb: 26, 29, 32; /* canaux de la surface des modales */
+  --wama-purple-rgb: 111, 66, 193;     /* canaux du violet Bootstrap */
+  --wama-night-surface: #1a1a2e;       /* carte, champ, filtre */
+  --wama-night-surface-deep: #16213e;  /* encart, élément non lu, filtre actif */
+  --wama-night-border: #2d2d4e;
+  --wama-night-border-hover: #4a4a7a;
+  --wama-night-badge-border: #3d3d6e;  /* badge d'extension (Apps) */
+  --wama-night-calendar: #12121f;      /* fond du calendrier */
+  --wama-night-app-tag: #8ab4f8;       /* nom d'app dans le journal */
+  --wama-night-review-border: #4a3a1a; /* encart « à revoir » */
+  --wama-night-scope: #8fa3b8;         /* portée, retour d'un geste */
+  --wama-night-scope-border: #2d4055;
+  --wama-night-desc: #9aa5b4;          /* description d'une app */
+  --wama-night-icon-bg: #6c757d22;     /* pastille d'icône d'app */
+  --wama-collab-value: #f1f3f5;        /* valeur d'une demande d'accès */
+  --wama-kind-semantic: #6ec8e7;       /* souvenir sémantique, déclaration */
+  --wama-kind-semantic-rgb: 110, 200, 231;
+  --wama-kind-semantic-border: #1c4f6b;
+  --wama-kind-episodic: #e7d16e;       /* souvenir épisodique, gabarit */
+  --wama-kind-episodic-border: #6b5a1c;
+  --wama-kind-procedural: #6ee7a8;     /* souvenir procédural, paire, niveau « unité » */
+  --wama-kind-procedural-border: #1c6b45;
+
+  /* ── Médiathèque ── */
+  --wama-ml-header-border: #2a2a3e;
+  --wama-ml-tab: #999;                 /* onglet */
+  --wama-ml-text-strong: #ddd;         /* onglet survolé, nom d'un élément */
+  --wama-ml-badge: #333;               /* compte d'un onglet */
+  --wama-ml-label: #aaa;               /* compte, libellé de champ */
+  --wama-ml-active-tint: #0d6efd22;    /* compte de l'onglet actif */
+  --wama-ml-provider-tint: #0d6efd1a;  /* fournisseur choisi */
+  --wama-ml-field: #1e1e2e;            /* champ de recherche, de modale */
+  --wama-ml-field-border: #444;
+  --wama-ml-icon: #444;                /* icône d'aperçu absent */
+  --wama-ml-field-icon: #888;
+  --wama-ml-field-text: #e0e0e0;
+  --wama-ml-field-focus: #555;
+  --wama-ml-dot-idle: #555;            /* fournisseur non prêt */
+  --wama-ml-card-border: #2a2a4a;
+  --wama-ml-card-shadow: #0006;
+  --wama-ml-system-bg: #141e14;        /* élément « Système » */
+  --wama-ml-system-border: #1e3a1e;
+  --wama-ml-system-text: #6bcb6b;
+  --wama-ml-thumb-bg: #0a0a18;         /* fond d'une vignette */
+  --wama-ml-underline: #666;           /* soulignement du nom survolé */
+  --wama-ml-meta: #a0a8b0;
+  --wama-ml-attr-border: #2f3a4f;      /* attribut */
+  --wama-ml-attr-text: #9fb3cc;
+  --wama-ml-tag: #1e2a3e;              /* étiquette */
+  --wama-ml-tag-hover: #2a3a5e;
+  --wama-ml-tag-text: #7aa8d8;
+  --wama-ml-provider-text: #bbb;
+  --wama-ml-provider-hover: #5a5a9a;
+  --wama-ml-modal: #161625;            /* modale d'édition */
+  --wama-ml-modal-field-border: #3a3a5e;
+  --wama-ml-modal-field-focus: #556;
+  --wama-ml-page: #0d0d1a;             /* fond de la page */
+  --wama-ml-note: #c8c8d8;
+  --wama-ml-retention: #ffd27a;        /* avertissement de rétention */
+
+  /* ── Model manager ── */
+  --wama-mm-remote: #6f8fd6;           /* liseré d'un modèle distant */
+  --wama-mm-type-summarization: #17a2b8; /* type de modèle */
+  --wama-mm-type-upscaling: #e83e8c;
+  --wama-mm-badge: #495057;            /* badge de source, format .bin */
+  --wama-mm-format-unknown: #343a40;
+  --wama-mm-memory-muted: #b0b7bf;
+  --wama-mm-idle: #3a3f44;             /* modèle inactif */
+  --wama-mm-idle-hover: #4a4f54;
+  --wama-mm-cleanup: #2d3238;          /* historique de nettoyage */
+  --wama-mm-selection-tint: #0d6efd22; /* barre de sélection */
+  --wama-mm-prospect: #b388ff;         /* prospection */
+  --wama-mm-memory-icon: #8ecae6;
+
+  /* ── Éditeur du transcriber ── */
+  --wama-tx-bar: #0b0b0d;              /* barre d'outils, barre audio */
+  --wama-tx-wave: #0d1117;             /* onde, segment en saisie */
+  --wama-tx-handle: #5a5f68;           /* poignée de glisser */
+  --wama-tx-review-idle: #3a3f48;      /* coche « relu » vide */
+  --wama-tx-kbd-rule: #1f1f26;
+  --wama-tx-reviewed: #22c55e;         /* segment relu */
+  --wama-tx-warning-point: #ef4444;    /* point de vigilance */
+  --wama-tx-attention: #f59e0b;
+  --wama-tx-warning-point-rgb: 239, 68, 68;
+
+  /* ── Lab : Cam Analyzer, Face Analyzer ── */
+  --wama-cam-lab-feature: #c07aff;     /* fonction expérimentale du Lab */
+  --wama-cam-group-label: #8b98a5;     /* groupe de la barre de carte */
+
+  /* ── Pages catalogue : tons des pastilles ── */
+  --wama-tone-blue: #0d47a1;           /* pastille bleue : fond */
+  --wama-tone-blue-text: #bbdefb;
+  --wama-tone-green: #1b5e20;          /* pastille verte */
+  --wama-tone-green-text: #c8e6c9;
+  --wama-tone-green-text-bright: #c8facc;
+  --wama-tone-lime: #33691e;
+  --wama-tone-lime-text: #dcedc8;
+  --wama-tone-purple: #4a148c;
+  --wama-tone-purple-muted: #4a3b5c;
+  --wama-tone-purple-text: #e1bee7;
+  --wama-tone-grey: #37474f;
+  --wama-tone-slate: #263238;
+  --wama-tone-grey-text: #cfd8dc;
+  --wama-tone-grey-text-bright: #eceff1;
+  --wama-tone-brown: #4e342e;
+  --wama-tone-brown-text: #ffe0b2;
+  --wama-tone-red: #b71c1c;
+  --wama-tone-red-deep: #7f0000;
+  --wama-tone-red-text: #ffebee;
+  --wama-tone-red-text-soft: #ffcdd2;
+  --wama-tone-ochre: #6d4c00;
+  --wama-tone-ochre-warm: #7f5200;
+  --wama-tone-ochre-text: #ffe0a3;
+  --wama-tone-rust: #8c2f00;
+  --wama-tone-rust-text: #ffccbc;
+  --wama-cat-path: #b0bec5;            /* chemin, méta discrète */
+  --wama-cat-quiet: #90a4ae;           /* mention discrète, lien absent */
+  --wama-cat-missing: #ffcc80;         /* manque, erreur de sonde */
+  --wama-cat-error: #ef9a9a;
+  --wama-cat-alert: #ff8a80;           /* alerte, dérive, état KO */
+  --wama-cat-ok: #81c784;
+  --wama-cat-ok-soft: #a5d6a7;
+  --wama-cat-gold: #ffe082;            /* modèles, code */
+  --wama-cat-gold-strong: #ffd54f;     /* nom d'un skill */
+  --wama-cat-amber: #ffcf66;           /* catégorie de fonction */
+  --wama-cat-orchid: #ce93d8;          /* attribution */
+  --wama-cat-surface-text: #b2ebf2;    /* surface d'une brique */
+  --wama-cat-title: #e3f2fd;           /* titre d'un document */
+  --wama-cat-link: #79c9f2;            /* lien d'une table, projection */
+  --wama-cat-consumer: #a7c7e7;        /* consommateurs d'un skill */
+  --wama-cat-field-text: #e6e6e6;
+  --wama-cat-filter-text: #e6edf3;     /* filtre des licences */
+  --wama-cat-table-head: #1a1f24;      /* en-tête collant d'une table */
+  --wama-cat-accent-rgb: 255, 179, 0;
+  --wama-cat-alert-rgb: 244, 67, 54;   /* voile d'alerte, privé */
+  --wama-cat-link-rgb: 3, 169, 244;    /* voile de projection */
+  --wama-tone-green-rgb: 102, 187, 106; /* voile « émet » */
+  --wama-doc-text: #e0e6ea;            /* lecteur de documentation : corps */
+  --wama-doc-heading: #e3f2fd;
+  --wama-doc-subheading: #bbdefb;
+  --wama-doc-quote: #cfd8dc;           /* citation, bloc de code, sommaire */
+  --wama-doc-rule: #37474f;
+  --wama-doc-rule-soft: #2c3a41;
+  --wama-doc-code-bg: #1e2a30;
+  --wama-doc-pre-bg: #1a2328;
+  --wama-doc-quote-border: #546e7a;
+  --wama-doc-quote-border-rgb: 84, 110, 122;
+  --wama-doc-th-bg: #263238;
+
+  /* ── Coquille des apps, accueil, lots ── */
+  --wama-console-option: #8ec8e8;      /* option de la console */
+  --wama-console-bg: #111;             /* console d'une app (gabarit ancien) */
+  --wama-console-text: #e4e4e4;
+  --wama-scrollbar-neutral: rgba(155, 155, 155, .5); /* barre de défilement d'une app (gabarit ancien) */
+  --wama-home-info-bg: #1a3a52;        /* encart d'information de l'accueil */
+  --wama-home-info-border: #2980b9;
+  --wama-violet: #764ba2;              /* fin du dégradé indigo → violet */
+  --wama-batch-bar-bg: #0d1117;        /* barre de détection d'un lot */
+  --wama-batch-bar-bg-alt: #1a1520;    /* barre de lot : describer, reader, enhancer */
+  --wama-converter-track: #2d3440;     /* piste, bord d'un travail de conversion */
+  --wama-converter-job: #1e2329;       /* travail de conversion */
+  --wama-avatar-bg: #15181c;           /* fond de l'avatar de l'assistant */
+  --wama-demo-code-bg: #16181b;        /* page de démonstration des modes */
+  --wama-paper-text: #000;             /* encre d'une modale « papier » */
+  --wama-paper-band: #f8f9fa;          /* en-tête et pied d'une modale « papier » */
+  --wama-paper-rule: #dee2e6;
+  --wama-batch-icon-alt: #a78bfa;      /* icône de lot : composer, synthesizer */
+
+  /* ── Présentation v1 et architecture v1 (archives) ── */
+  --wama-pres1-bg: #1a1a1a;            /* fond hors diapositive */
+  --wama-pres1-gold: #ffd700;          /* titre, puce, lien */
+  --wama-pres1-gold-rgb: 255, 215, 0;
+  --wama-pres1-year-text: #333;        /* année de la frise, sur l'or */
+  --wama-pres1-cornflower-rgb: 100, 149, 237; /* carte bleue */
+  --wama-pres1-mint-rgb: 144, 238, 144; /* carte verte */
+  --wama-pres1-pink-rgb: 255, 182, 193; /* carte rose */
+
+  /* ── Graphes et dessins (canvas) ── */
+  --wama-chart-text: #aaa;             /* texte des axes et légendes d'un graphe */
+  --wama-chart-text-muted: #888;       /* titre d'axe discret */
 }

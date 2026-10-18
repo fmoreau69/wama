@@ -304,19 +304,19 @@ function _mpInjectImage(file, inputId, previewId) {
         transition: all 0.3s ease;
     }
     .drop-zone.dragover {
-        background-color: rgba(13, 110, 253, 0.2) !important;
-        border-color: #0d6efd !important;
+        background-color: rgba(var(--bs-primary-rgb), 0.2) !important;
+        border-color: var(--bs-primary) !important;
     }
     .drop-zone:hover {
-        background-color: rgba(255, 255, 255, 0.1) !important;
+        background-color: rgba(var(--wama-overlay-rgb), 0.1) !important;
     }
     .border-dashed {
         border-style: dashed !important;
     }
     /* Mode button group responsive */
     .btn-group.flex-wrap > .btn-check:checked + .btn {
-        background-color: #0d6efd;
-        color: white;
+        background-color: var(--bs-primary);
+        color: var(--wama-text-on-accent);
     }
     /* Video preview container hover effect */
     .video-preview-container:hover .btn-light {

@@ -101,7 +101,7 @@ rangée) se rend en card SEULE : la branche « lot » lui dessinait un en-tête 
     {% include 'common/_batch_card.html' %}
     <div class="collapse" id="{{ collapse_prefix|default:'batchItems' }}{{ batch_info.obj.id }}"
          data-wama-batch-key="{{ batch_key|default:app }}_{{ batch_info.obj.id }}"
-         style="border-left:2px solid #0dcaf0; margin-left:0.75rem;">
+         style="border-left:2px solid var(--wama-accent); margin-left:0.75rem;">
       {% for item in batch_info.items %}{% if item.elem %}
         {% with elem=item.elem card_label=item.output_filename in_batch=True %}
           {% include card_template %}

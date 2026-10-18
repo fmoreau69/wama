@@ -1,9 +1,11 @@
-<!DOCTYPE html>
+{% load wama_static %}<!DOCTYPE html>
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WAMA — Architecture & fonctionnement</title>
+    {# Tokens de thème d'abord : les styles de la page lisent leurs couleurs dans wama-theme.css (ROADMAP §28). #}
+    <link rel="stylesheet" href="{% static_v 'common/css/wama-theme.css' %}">
     {% include 'includes/_presentation_style.html' %}
 </head>
 <body>
@@ -17,7 +19,7 @@
                 Comment c'est construit — expliqué simplement
             </div>
             <p style="margin-top: 40px;">
-                <a href="{% url 'presentation' %}" style="color: #fff; opacity: 0.85; text-decoration: underline;">
+                <a href="{% url 'presentation' %}" style="color: var(--wama-text-on-accent); opacity: 0.85; text-decoration: underline;">
                     ← Présentation générale
                 </a>
             </p>
@@ -246,7 +248,7 @@
                     <div class="card"><h4>Auto-testé</h4><p>scénarios nocturnes</p></div>
                 </div>
                 <p style="margin-top: 28px; text-align:center;">
-                    <a href="{% url 'presentation' %}" style="color:#fff; text-decoration: underline;">
+                    <a href="{% url 'presentation' %}" style="color:var(--wama-text-on-accent); text-decoration: underline;">
                         ← Revenir à la présentation générale
                     </a>
                 </p>

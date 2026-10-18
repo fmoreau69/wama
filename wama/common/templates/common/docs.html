@@ -19,14 +19,14 @@
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
   /* Squelette = brique COMMUNE `wama-catalog.css` — restent les spécificités. */
-  .doc-titre     { color: #e3f2fd; text-decoration: none; }
-  .doc-titre:hover { color: #90caf9; text-decoration: underline; }
-  .doc-famille   { background: #0d47a1; color: #bbdefb; }
-  .doc-audience  { background: #37474f; color: #eceff1; }
-  .doc-generee   { background: #1b5e20; color: #c8e6c9; }
-  .doc-journal   { background: #4e342e; color: #ffe0b2; }
-  .doc-absent    { background: #b71c1c; color: #ffebee; }
-  .doc-chemin    { font-size: .74rem; color: #b0bec5; word-break: break-all; }
+  .doc-titre     { color: var(--wama-cat-title); text-decoration: none; }
+  .doc-titre:hover { color: var(--wama-cat-open); text-decoration: underline; }
+  .doc-famille   { background: var(--wama-tone-blue); color: var(--wama-tone-blue-text); }
+  .doc-audience  { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text-bright); }
+  .doc-generee   { background: var(--wama-tone-green); color: var(--wama-tone-green-text); }
+  .doc-journal   { background: var(--wama-tone-brown); color: var(--wama-tone-brown-text); }
+  .doc-absent    { background: var(--wama-tone-red); color: var(--wama-tone-red-text); }
+  .doc-chemin    { font-size: .74rem; color: var(--wama-cat-path); word-break: break-all; }
 </style>
 {% endblock %}
 

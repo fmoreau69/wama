@@ -19,36 +19,36 @@ les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas 
 <link rel="stylesheet" href="{% static_v 'common/css/wama-inspector-autofill.css' %}">
 <style>
     .journal-page { padding: 2rem 0; }
-    .journal-page h1 { font-size: 1.6rem; font-weight: 600; color: #e9ecef; margin-bottom: .25rem; }
-    .journal-page .subtitle { color: #6c757d; font-size: .9rem; margin-bottom: 1.5rem; }
+    .journal-page h1 { font-size: 1.6rem; font-weight: 600; color: var(--wama-text-strong); margin-bottom: .25rem; }
+    .journal-page .subtitle { color: var(--wama-text-label); font-size: .9rem; margin-bottom: 1.5rem; }
     .journal-barre { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap;
                      margin-bottom: .75rem; }
     .journal-barre .form-control, .journal-barre .form-select {
-        background: #1a1a2e; border-color: #2d2d4e; color: #e9ecef; width: auto;
+        background: var(--wama-night-surface); border-color: var(--wama-night-border); color: var(--wama-text-strong); width: auto;
     }
     .journal-barre .journal-q { min-width: 260px; flex: 1 1 260px; }
     .journal-filtres { display: flex; flex-wrap: wrap; gap: .4rem; margin-bottom: 1.25rem; }
     .journal-filtre {
-        background: #1a1a2e; border: 1px solid #2d2d4e; border-radius: 999px;
-        padding: .25rem .75rem; color: #adb5bd; font-size: .85rem; text-decoration: none;
+        background: var(--wama-night-surface); border: 1px solid var(--wama-night-border); border-radius: 999px;
+        padding: .25rem .75rem; color: var(--wama-text-secondary); font-size: .85rem; text-decoration: none;
     }
-    .journal-filtre:hover { border-color: #4a4a7a; color: #e9ecef; }
-    .journal-filtre.actif { border-color: #0d6efd; color: #e9ecef; background: #16213e; }
-    .journal-filtre .n { color: #6c757d; margin-left: .35rem; }
+    .journal-filtre:hover { border-color: var(--wama-night-border-hover); color: var(--wama-text-strong); }
+    .journal-filtre.actif { border-color: var(--bs-primary); color: var(--wama-text-strong); background: var(--wama-night-surface-deep); }
+    .journal-filtre .n { color: var(--wama-text-label); margin-left: .35rem; }
     .journal-card { cursor: pointer; }
     /* Survol : la règle COMMUNE des cards (wama-inspector.css, 2026-10-16). */
     .journal-app {
-        background: #16213e; color: #8ab4f8; border: 1px solid #2d2d4e;
+        background: var(--wama-night-surface-deep); color: var(--wama-night-app-tag); border: 1px solid var(--wama-night-border);
         font-weight: 500; font-size: .72rem; text-transform: lowercase;
     }
     .journal-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .journal-gestes { font-size: .78rem; color: #adb5bd; display: flex; gap: .4rem;
+    .journal-gestes { font-size: .78rem; color: var(--wama-text-secondary); display: flex; gap: .4rem;
                       flex-wrap: wrap; align-items: center; }
-    .journal-geste::after { content: '·'; margin-left: .4rem; color: #495057; }
+    .journal-geste::after { content: '·'; margin-left: .4rem; color: var(--wama-border-strong); }
     .journal-geste:last-child::after { content: ''; }
-    .journal-mois { color: #6c757d; font-size: .8rem; text-transform: uppercase;
+    .journal-mois { color: var(--wama-text-label); font-size: .8rem; text-transform: uppercase;
                     letter-spacing: .06em; margin: 1.5rem 0 .5rem; }
-    .journal-vide { color: #6c757d; text-align: center; padding: 3rem 0; }
+    .journal-vide { color: var(--wama-text-label); text-align: center; padding: 3rem 0; }
 </style>
 {% endblock %}
 

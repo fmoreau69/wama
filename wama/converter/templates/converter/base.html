@@ -1,14 +1,14 @@
 {% extends 'common/app_modern_base.html' %}
 {% load static %}
 
-{% block app_icon %}<i class="fas fa-exchange-alt" style="color:#20c997;"></i>{% endblock %}
+{% block app_icon %}<i class="fas fa-exchange-alt" style="color:var(--bs-teal);"></i>{% endblock %}
 {% block app_title %}Converter{% endblock %}
 {% block app_description %}Convertissez vos médias : images, vidéos, audios en quelques clics{% endblock %}
 
 {% block footer_text %}Converter - Media Format Conversion | WAMA{% endblock %}
 
 {% block app_styles %}
-#converterDropZone { --drop-border: #20c997; }
+#converterDropZone { --drop-border: var(--bs-teal); }
 {% endblock %}
 
 {% block console_app_name %}converter{% endblock %}
@@ -20,7 +20,7 @@
 
 {% block about_content %}
 <div class="info-card">
-    <h3><i class="fas fa-exchange-alt me-2" style="color:#20c997;"></i>À propos de Converter</h3>
+    <h3><i class="fas fa-exchange-alt me-2" style="color:var(--bs-teal);"></i>À propos de Converter</h3>
     <div class="mb-4">
         <h5>Qu'est-ce que Converter ?</h5>
         <p class="text-light">
@@ -70,7 +70,7 @@
 
 {% block help_content %}
 <div class="info-card">
-    <h3><i class="fas fa-circle-question me-2" style="color:#20c997;"></i>Aide — Converter</h3>
+    <h3><i class="fas fa-circle-question me-2" style="color:var(--bs-teal);"></i>Aide — Converter</h3>
 
     <div class="mb-4">
         <h5>Convertir un fichier</h5>
