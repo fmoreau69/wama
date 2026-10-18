@@ -238,4 +238,86 @@
   --wama-notif-danger-text: #fecaca;
   --wama-notif-danger-bg: #dc2626;
   --wama-notif-consent-text: #fef3c7;
+
+  /* ── Gestionnaire de fichiers et volets latéraux ── */
+  --wama-indigo: #667eea;              /* indigo de WAMA : glisser, dépôt, focus de l'arbre de fichiers */
+  --wama-fm-border: #2d3748;           /* bord des volets, filets d'en-tête */
+  --wama-fm-field: #2d3748;            /* champ de recherche */
+  --wama-fm-field-focus: #374151;      /* champ de recherche, focus */
+  --wama-fm-field-border: #4a5568;
+  --wama-fm-rule: #374151;             /* filet entre deux lignes d'infos */
+  --wama-fm-text: #e2e8f0;             /* titre, nœud, valeur */
+  --wama-fm-label: #a0aec0;            /* libellé, titre de section */
+  --wama-fm-scroll-thumb: #4a5568;
+  --wama-fm-drop-icon: #4a5568;        /* icône de la zone de dépôt */
+  --wama-fm-preview-bg: #0d1117;       /* aperçu d'un fichier */
+  --wama-fm-lab: #7dd3fc;              /* section WAMA Lab de l'arbre */
+  --wama-fm-lab-rgb: 125, 211, 252;
+
+  /* ── Studio (graphe) ── */
+  --wama-studio-canvas: #0d0d1a;       /* fond du canevas et des ports */
+  --wama-studio-canvas-rgb: 13, 13, 26;
+  --wama-studio-node: #161826;         /* fond d'un nœud */
+  --wama-studio-node-title: #f1f3f8;
+  --wama-studio-note: #8b93a7;         /* aide, groupe de la palette, type d'un port */
+  --wama-studio-port-text: #c8cedb;    /* nom d'un port */
+  --wama-studio-port-types: #aeb6c6;
+  --wama-studio-wire: #6ea8fe;         /* port de sortie, lien, sélection, couleur d'app par défaut */
+  --wama-studio-wire-rgb: 110, 168, 254;
+  --wama-studio-work: #6ee7a8;         /* port « travail », port compatible */
+  --wama-studio-work-rgb: 110, 231, 168;
+  --wama-studio-prompt: #c4a7fb;       /* port « prompt » */
+  --wama-studio-reference: #fbbf24;    /* port « référence » */
+  --wama-studio-app-tag: #c9b5e8;      /* étiquette d'app dans la palette */
+  --wama-studio-app-tag-rgb: 201, 181, 232;
+  --wama-studio-filter-bg: #1f2430;    /* filtre de la palette */
+  --wama-studio-stale: #a78bfa;        /* nœud périmé */
+  --wama-studio-stale-rgb: 167, 139, 250;
+  --wama-state-awaiting-rgb: 253, 126, 20;
+
+  /* ── Cam Analyzer (Lab) ── */
+  --wama-video-bg: #000;               /* fond d'une vidéo, plein écran */
+  --wama-cam-cursor: #fff;             /* curseur de la frise */
+  --wama-cam-progress-track: #2c3034;
+  --wama-cam-segment-border: #333;     /* contour d'un segment */
+  --wama-map-control-text: #333;       /* commande de carte (Leaflet), sur fond clair */
+  --wama-map-control-bg: #fff;
+
+  /* ── Pages catalogue ── */
+  --wama-cat-accent: #ffb300;          /* liseré de l'encart, chiffre d'une statistique */
+  --wama-cat-active: #4dd0e1;          /* carte sélectionnée */
+  --wama-cat-active-rgb: 77, 208, 225;
+  --wama-cat-meta: #8fa3b3;            /* méta, liste vide */
+  --wama-cat-hero-text: #c3ccd6;
+  --wama-cat-desc: #b0bac4;
+  --wama-cat-code: #c8d6e5;
+  --wama-cat-chip: #9fb0bd;
+  --wama-cat-open: #90caf9;            /* lien « ouvrir » */
+  --wama-cat-open-rgb: 144, 202, 249;
+  --wama-cat-open-hover: #bbdefb;
+
+  /* ── Présentation (scène autonome) ── */
+  --wama-pres-bg-0: #03050b;           /* fond de la scène */
+  --wama-pres-bg-1: #070b17;
+  --wama-pres-ink: #e8ecf6;            /* texte */
+  --wama-pres-ink-soft: #a9b3cc;
+  --wama-pres-ink-mute: #6b7693;
+  --wama-pres-line-rgb: 160, 180, 255; /* filets, liaisons, points du HUD */
+  --wama-pres-glass-rgb: 14, 20, 40;   /* verre des cadres */
+  --wama-pres-frame-start-rgb: 20, 28, 56; /* dégradé d'un cadre */
+  --wama-pres-frame-end-rgb: 8, 12, 26;
+  --wama-pres-video-bg: #0b1220;
+  --wama-pres-chip-on-text: #0b1020;   /* texte d'une puce active */
+  --wama-pres-media: #38e1ff;          /* monde Médias */
+  --wama-pres-media-rgb: 56, 225, 255;
+  --wama-pres-data: #fbbf24;           /* monde Data */
+  --wama-pres-data-rgb: 251, 191, 36;
+  --wama-pres-lab: #f472b6;            /* monde Lab */
+  --wama-pres-lab-rgb: 244, 114, 182;
+  --wama-pres-trans: #8b7bff;          /* monde Transversal */
+  --wama-pres-trans-rgb: 139, 123, 255;
+  --wama-pres-ok: #34d399;             /* fait */
+  --wama-pres-ok-rgb: 52, 211, 153;
+  --wama-pres-todo: #94a3b8;           /* à faire */
+  --wama-pres-todo-rgb: 148, 163, 184;
 }

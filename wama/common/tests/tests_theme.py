@@ -49,15 +49,22 @@ OUTSIDE_FAMILIES = (
 #: (étape 2, `ROADMAP §28`). Le 2026-10-18 : `app_modern.css` porté (155 → 0) et l'instrument
 #: AFFÛTÉ dans le même geste (une valeur citée en commentaire, une couleur aux canaux lus d'une
 #: variable ne comptent plus) — 688 et 795 ; puis les quinze autres feuilles communes portées
-#: (sauf `wama-catalog.css`, en cours ailleurs) — 284 : ce qui reste est aux APPS.
-BUDGET = {'.css': 284, '.html': 795}
+#: (sauf `wama-catalog.css`, en cours ailleurs) — 284 : ce qui reste est aux APPS. Puis les
+#: feuilles d'apps (arbre de fichiers, Studio, Cam Analyzer, catalogue, accueil) portées et deux
+#: feuilles que plus aucune page ne chargeait retirées (R145, R146) — 54 : la présentation, dont
+#: les gabarits chargent déjà les tokens et dont la feuille suit à la relance des workers.
+BUDGET = {'.css': 54, '.html': 795}
 
 #: Fichiers PORTÉS sur les tokens : ils restent à zéro.
 TOKENISED = tuple(f'wama/common/static/common/css/{name}.css' for name in (
     'wama-card-v3', 'app_modern', 'media-preview', 'wama-assistant-panel', 'wama-card-menu',
     'wama-filter-bar', 'wama-input-slots', 'wama-inspector-autofill', 'wama-inspector',
     'wama-notifications', 'wama-panel-toggle', 'wama-params', 'wama-prompt-chips',
-    'wama-queue-dnd', 'wama-share', 'wama-surface', 'wama-touch'))
+    'wama-queue-dnd', 'wama-share', 'wama-surface', 'wama-touch', 'wama-catalog')) + (
+    'wama/filemanager/static/filemanager/css/filemanager.css',
+    'wama/studio/static/studio/css/wama-studio.css',
+    'wama_lab/cam_analyzer/static/cam_analyzer/css/cam_analyzer.css',
+    'wama/static/css/general_index.css')
 
 
 def _outside(rel):
@@ -98,6 +105,35 @@ def unknown_tokens(sources):
         for name in re.findall(r'var\(\s*(--wama-[a-z0-9-]+)\s*\)', text):
             read.setdefault(name, rel)
     return {name: rel for name, rel in read.items() if name not in defined}
+
+
+SHEET_LINK = re.compile(r"""\{%\s*static(?:_v)?\s+['"]([^'"]+\.css)['"]\s*%\}""")
+
+
+def sheets_reading_tokens():
+    """Les chemins PUBLIÉS des feuilles qui lisent un token de thème."""
+    return {path.relative_to(static).as_posix()
+            for base in ('wama', 'wama_lab', 'wama_data')
+            for static in (ROOT / base).rglob('static') if static.is_dir()
+            for path in static.rglob('*.css')
+            if 'vendors' not in path.parts and 'var(--wama-' in path.read_text(encoding='utf-8', errors='replace')}
+
+
+def standalone_pages_missing_tokens(sources, reads=None):
+    """Les gabarits AUTONOMES (un document `<html>` qui n'étend rien — un fragment inclus vit dans
+    la page qui l'inclut) qui chargent une feuille lisant un token sans avoir chargé
+    `common/css/wama-theme.css` avant elle."""
+    reads = sheets_reading_tokens() if reads is None else reads
+    missing = []
+    for rel, text in sources:
+        if re.search(r'\{%\s*extends\b', text) or not re.search(r'<html\b', text):
+            continue
+        linked = SHEET_LINK.findall(COMMENT_HTML.sub('', text))
+        readers = [i for i, sheet in enumerate(linked) if sheet in reads]
+        theme = linked.index('common/css/wama-theme.css') if 'common/css/wama-theme.css' in linked else None
+        if readers and (theme is None or theme > readers[0]):
+            missing.append(rel)
+    return missing
 
 
 def theme_blocks(css=None):
@@ -147,6 +183,23 @@ class ThemeDeclarationTest(SimpleTestCase):
         sheets = re.findall(r"static_v '((?:common|css)/[^']+\.css)'", html)
         self.assertEqual('common/css/wama-theme.css', sheets[0],
                          'the tokens are defined before any sheet that reads them')
+
+    def test_a_standalone_page_loads_the_tokens_before_a_sheet_that_reads_them(self):
+        """Une page qui n'étend pas `base.html` (la présentation, l'architecture) ne reçoit pas
+        `wama-theme.css` : une feuille qui y lit `var(--wama-…)` y perdrait toutes ses couleurs."""
+        self.assertEqual([], standalone_pages_missing_tokens(_sources(('.html',))))
+
+    def test_the_standalone_guard_sees_a_page_without_the_tokens(self):
+        """Contre-épreuve sur des sources écrites pour elle."""
+        reads = {'presentation/scene.css'}
+        page = "<html><link href=\"{% static_v 'presentation/scene.css' %}\"></html>"
+        self.assertEqual(['p.html'], standalone_pages_missing_tokens([('p.html', page)], reads))
+        fixed = ("<html><link href=\"{% static_v 'common/css/wama-theme.css' %}\">"
+                 "<link href=\"{% static_v 'presentation/scene.css' %}\"></html>")
+        self.assertEqual([], standalone_pages_missing_tokens([('p.html', fixed)], reads))
+        child = "{% extends 'base.html' %}<link href=\"{% static_v 'presentation/scene.css' %}\">"
+        fragment = "<link href=\"{% static_v 'presentation/scene.css' %}\"><div></div>"
+        self.assertEqual([], standalone_pages_missing_tokens([('c.html', child), ('f.html', fragment)], reads))
 
     def test_the_registry_lists_the_declared_themes(self):
         from wama.common import registries

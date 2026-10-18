@@ -20,7 +20,7 @@
     max-height: var(--fm-header-height) !important;
     padding: 0 !important;
     margin: 0 !important;
-    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%) !important;
+    background: linear-gradient(180deg, var(--wama-page-bg-start) 0%, var(--wama-page-bg-end) 100%) !important;
     display: flex !important;
     align-items: center !important;
     overflow: visible !important; /* Allow dropdown to overflow */
@@ -224,19 +224,19 @@ body.wama-sans-volet > .container-fluid {
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    color: #9ca3af !important;
+    color: var(--wama-text-muted) !important;
     padding-top: 6px;
     padding-bottom: 4px;
     margin-top: 2px;
 }
 #filemanager-tree li#section_user > .jstree-anchor:hover,
 #filemanager-tree li#section_apps > .jstree-anchor:hover {
-    color: #d1d5db !important;
+    color: var(--wama-text-small) !important;
     background: transparent !important;
 }
 /* Separator line above Applications section */
 #filemanager-tree li#section_apps {
-    border-top: 1px solid #2a2d30;
+    border-top: 1px solid var(--wama-border);
     margin-top: 4px;
     padding-top: 2px;
 }
@@ -248,12 +248,12 @@ body.wama-sans-volet > .container-fluid {
     left: 0;
     height: calc(100vh - var(--fm-footer-height));
     width: var(--fm-sidebar-width);
-    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-    border-right: 1px solid #2d3748;
+    background: linear-gradient(180deg, var(--wama-page-bg-start) 0%, var(--wama-page-bg-end) 100%);
+    border-right: 1px solid var(--wama-fm-border);
     z-index: 1025; /* Sous le header */
     display: flex;
     flex-direction: column;
-    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3);
+    box-shadow: 2px 0 10px rgba(var(--wama-shadow-rgb), 0.3);
 }
 
 /* === RIGHT PANEL (SETTINGS & PREVIEW) === */
@@ -263,12 +263,12 @@ body.wama-sans-volet > .container-fluid {
     right: 0;
     height: calc(100vh - var(--fm-footer-height));
     width: var(--fm-right-panel-width);
-    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 100%);
-    border-left: 1px solid #2d3748;
+    background: linear-gradient(180deg, var(--wama-page-bg-start) 0%, var(--wama-page-bg-end) 100%);
+    border-left: 1px solid var(--wama-fm-border);
     z-index: 1025;
     display: flex;
     flex-direction: column;
-    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.3);
+    box-shadow: -2px 0 10px rgba(var(--wama-shadow-rgb), 0.3);
 }
 
 /* right-panel-header styles are now unified with filemanager-header above */
@@ -286,17 +286,17 @@ body.wama-sans-volet > .container-fluid {
 .right-panel-section-title {
     font-size: 0.85rem;
     font-weight: 600;
-    color: #a0aec0;
+    color: var(--wama-fm-label);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     margin-bottom: 10px;
     padding-bottom: 5px;
-    border-bottom: 1px solid #374151;
+    border-bottom: 1px solid var(--wama-fm-rule);
 }
 
 /* Preview container in right panel */
 .right-panel-preview {
-    background: #0d1117;
+    background: var(--wama-fm-preview-bg);
     border-radius: 8px;
     padding: 10px;
     margin-bottom: 15px;
@@ -311,7 +311,7 @@ body.wama-sans-volet > .container-fluid {
 .right-panel-preview-placeholder {
     text-align: center;
     padding: 40px 20px;
-    color: #718096;
+    color: var(--wama-text-label);
 }
 
 .right-panel-preview-placeholder i {
@@ -325,8 +325,8 @@ body.wama-sans-volet > .container-fluid {
 .filemanager-header,
 .right-panel-header {
     padding: 0 15px;
-    background: rgba(0, 0, 0, 0.2);
-    border-bottom: 1px solid #2d3748;
+    background: rgba(var(--wama-shadow-rgb), 0.2);
+    border-bottom: 1px solid var(--wama-fm-border);
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -340,14 +340,14 @@ body.wama-sans-volet > .container-fluid {
     margin: 0;
     font-size: 0.95rem;
     font-weight: 700;
-    color: #e2e8f0;
+    color: var(--wama-fm-text);
     letter-spacing: 0.3px;
 }
 
 .filemanager-header .btn-close-sidebar {
     background: transparent;
     border: none;
-    color: #a0aec0;
+    color: var(--wama-fm-label);
     font-size: 1.2rem;
     cursor: pointer;
     padding: 5px;
@@ -355,14 +355,14 @@ body.wama-sans-volet > .container-fluid {
 }
 
 .filemanager-header .btn-close-sidebar:hover {
-    color: #fff;
+    color: var(--wama-text-bright);
 }
 
 /* === TOOLBAR === */
 .filemanager-toolbar {
     padding: 10px 15px;
-    background: rgba(0, 0, 0, 0.1);
-    border-bottom: 1px solid #2d3748;
+    background: rgba(var(--wama-shadow-rgb), 0.1);
+    border-bottom: 1px solid var(--wama-fm-border);
     display: flex;
     gap: 8px;
     flex-shrink: 0;
@@ -376,26 +376,26 @@ body.wama-sans-volet > .container-fluid {
 /* === SEARCH === */
 .filemanager-search {
     padding: 10px 15px;
-    border-bottom: 1px solid #2d3748;
+    border-bottom: 1px solid var(--wama-fm-border);
     flex-shrink: 0;
 }
 
 .filemanager-search .form-control {
-    background: #2d3748;
-    border: 1px solid #4a5568;
-    color: #e2e8f0;
+    background: var(--wama-fm-field);
+    border: 1px solid var(--wama-fm-field-border);
+    color: var(--wama-fm-text);
     font-size: 0.85rem;
     padding: 8px 12px;
 }
 
 .filemanager-search .form-control::placeholder {
-    color: #718096;
+    color: var(--wama-text-label);
 }
 
 .filemanager-search .form-control:focus {
-    background: #374151;
-    border-color: #667eea;
-    box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.25);
+    background: var(--wama-fm-field-focus);
+    border-color: var(--wama-indigo);
+    box-shadow: 0 0 0 2px rgba(var(--wama-indigo-rgb), 0.25);
 }
 
 /* === TREE CONTAINER === */
@@ -412,16 +412,16 @@ body.wama-sans-volet > .container-fluid {
 }
 
 .filemanager-tree::-webkit-scrollbar-track {
-    background: #1a1a2e;
+    background: var(--wama-page-bg-start);
 }
 
 .filemanager-tree::-webkit-scrollbar-thumb {
-    background: #4a5568;
+    background: var(--wama-fm-scroll-thumb);
     border-radius: 4px;
 }
 
 .filemanager-tree::-webkit-scrollbar-thumb:hover {
-    background: #667eea;
+    background: var(--wama-indigo);
 }
 
 /* === JSTREE DARK THEME === */
@@ -435,7 +435,7 @@ body.wama-sans-volet > .container-fluid {
 }
 
 .jstree-default-dark .jstree-anchor {
-    color: #e2e8f0;
+    color: var(--wama-fm-text);
     padding: 4px 8px;
     border-radius: 4px;
     transition: background 0.15s, color 0.15s;
@@ -445,17 +445,17 @@ body.wama-sans-volet > .container-fluid {
 }
 
 .jstree-default-dark .jstree-anchor:hover {
-    background: rgba(102, 126, 234, 0.15);
-    color: #fff;
+    background: rgba(var(--wama-indigo-rgb), 0.15);
+    color: var(--wama-text-bright);
 }
 
 .jstree-default-dark .jstree-clicked {
-    background: rgba(102, 126, 234, 0.3) !important;
-    color: #fff !important;
+    background: rgba(var(--wama-indigo-rgb), 0.3) !important;
+    color: var(--wama-text-bright) !important;
 }
 
 .jstree-default-dark .jstree-hovered {
-    background: rgba(102, 126, 234, 0.2);
+    background: rgba(var(--wama-indigo-rgb), 0.2);
 }
 
 /* Tree icons */
@@ -466,7 +466,7 @@ body.wama-sans-volet > .container-fluid {
 }
 
 .jstree-default-dark .jstree-icon.jstree-ocl {
-    color: #718096;
+    color: var(--wama-text-label);
 }
 
 /* Nœud d'APP : son icône prend la couleur d'IDENTITÉ de l'app (CARD_DESIGN §9), la même que
@@ -484,11 +484,11 @@ body.wama-sans-volet > .container-fluid {
 }
 
 .jstree-default-dark .jstree-closed > .jstree-ocl {
-    color: #a0aec0;
+    color: var(--wama-fm-label);
 }
 
 .jstree-default-dark .jstree-open > .jstree-ocl {
-    color: #667eea;
+    color: var(--wama-indigo);
 }
 
 /* Connecting lines */
@@ -497,11 +497,11 @@ body.wama-sans-volet > .container-fluid {
 }
 
 .jstree-default-dark .jstree-wholerow-hovered {
-    background: rgba(102, 126, 234, 0.1);
+    background: rgba(var(--wama-indigo-rgb), 0.1);
 }
 
 .jstree-default-dark .jstree-wholerow-clicked {
-    background: rgba(102, 126, 234, 0.2);
+    background: rgba(var(--wama-indigo-rgb), 0.2);
 }
 
 /* === CONTEXT MENU ===
@@ -511,7 +511,7 @@ body.wama-sans-volet > .container-fluid {
 
 /* === DROP ZONE === */
 .filemanager-dropzone {
-    border: 2px dashed #4a5568;
+    border: 2px dashed var(--wama-fm-field-border);
     border-radius: 8px;
     padding: 20px;
     text-align: center;
@@ -521,19 +521,19 @@ body.wama-sans-volet > .container-fluid {
 }
 
 .filemanager-dropzone.drag-over {
-    border-color: #667eea;
-    background: rgba(102, 126, 234, 0.1);
+    border-color: var(--wama-indigo);
+    background: rgba(var(--wama-indigo-rgb), 0.1);
 }
 
 .filemanager-dropzone p {
     margin: 0;
-    color: #718096;
+    color: var(--wama-text-label);
     font-size: 0.85rem;
 }
 
 .filemanager-dropzone i {
     font-size: 2rem;
-    color: #4a5568;
+    color: var(--wama-fm-drop-icon);
     margin-bottom: 10px;
 }
 
@@ -586,11 +586,11 @@ body > footer {
 /* === FILE INFO === */
 .file-info-table {
     width: 100%;
-    color: #e2e8f0;
+    color: var(--wama-fm-text);
 }
 
 .file-info-table tr {
-    border-bottom: 1px solid #374151;
+    border-bottom: 1px solid var(--wama-fm-rule);
 }
 
 .file-info-table td {
@@ -598,7 +598,7 @@ body > footer {
 }
 
 .file-info-table td:first-child {
-    color: #a0aec0;
+    color: var(--wama-fm-label);
     font-weight: 500;
     width: 100px;
 }
@@ -636,7 +636,7 @@ body > footer {
     align-items: center;
     justify-content: center;
     padding: 40px;
-    color: #718096;
+    color: var(--wama-text-label);
 }
 
 .filemanager-loading .spinner-border {
@@ -656,12 +656,12 @@ body > footer {
 
 /* Drag helper */
 .filemanager-drag-helper {
-    background: #667eea;
-    color: white;
+    background: var(--wama-indigo);
+    color: var(--wama-text-on-accent);
     padding: 8px 12px;
     border-radius: 6px;
     font-size: 0.85rem;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 4px 10px rgba(var(--wama-shadow-rgb), 0.3);
     z-index: 9999;
 }
 
@@ -669,9 +669,9 @@ body > footer {
 /* Highlight app dropzones when dragging from FileManager */
 .drag-over,
 .filemanager-drag-target {
-    border-color: #667eea !important;
-    background: rgba(102, 126, 234, 0.15) !important;
-    box-shadow: 0 0 15px rgba(102, 126, 234, 0.3);
+    border-color: var(--wama-indigo) !important;
+    background: rgba(var(--wama-indigo-rgb), 0.15) !important;
+    box-shadow: 0 0 15px rgba(var(--wama-indigo-rgb), 0.3);
 }
 
 /* Visual feedback for drop zones */
@@ -691,8 +691,8 @@ body > footer {
     bottom: 10px;
     left: 50%;
     transform: translateX(-50%);
-    background: #667eea;
-    color: white;
+    background: var(--wama-indigo);
+    color: var(--wama-text-on-accent);
     padding: 5px 15px;
     border-radius: 4px;
     font-size: 0.85rem;
@@ -707,7 +707,7 @@ body > footer {
 /* === WAMA LAB CATEGORY === */
 /* Subtle visual distinction for experimental WAMA Lab apps */
 .jstree-default-dark #wama_lab > .jstree-anchor {
-    color: #7dd3fc;
+    color: var(--wama-fm-lab);
     font-style: italic;
     font-size: 0.85rem;
     opacity: 0.85;
@@ -719,7 +719,7 @@ body > footer {
 
 /* Indent WAMA Lab children slightly */
 .jstree-default-dark #wama_lab > .jstree-children {
-    border-left: 1px dashed rgba(125, 211, 252, 0.3);
+    border-left: 1px dashed rgba(var(--wama-fm-lab-rgb), 0.3);
     margin-left: 8px;
     padding-left: 8px;
 }

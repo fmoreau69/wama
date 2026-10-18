@@ -5818,7 +5818,26 @@ listes déroulantes.
    *Garde* : les seize feuilles inscrites à zéro couleur (`tests_theme.TOKENISED`), chaque token
    de canaux vaut trois entiers ; l'instrument a été affûté dans le même geste (une valeur citée
    en commentaire, une couleur aux canaux lus d'une variable ne comptent plus).
-   ⏳ *Reste de l'étape* : les feuilles d'APPS et `wama-catalog.css`, puis les `<style>` des pages
+   ✅ *Feuilles d'APPS* (2026-10-18, GO de Fabien) : arbre de fichiers et volets
+   (`filemanager.css`), Studio, Cam Analyzer, `wama-catalog.css`, accueil — 186 couleurs, mêmes
+   règles et même double preuve ; sections neuves de `wama-theme.css` par app (`--wama-fm-*`,
+   `--wama-studio-*`, `--wama-cam-*`, `--wama-cat-*`), un `--wama-indigo` partagé (arbre et
+   canevas). Remontés à `--wama-text-label` dans le même geste : `#718096` de l'arbre (aide,
+   chargement, substitut ; 4,2 et 4,0:1), `#6f7890` des sous-groupes de la palette du Studio
+   (3,8:1) et `#6c757d` de la zone de dépôt et du libellé de navette du Cam Analyzer. Preuve
+   navigateur rejouée DANS LE MÊME CHARGEMENT (feuilles permutées en place, serveur éphémère : la
+   prod était arrêtée) sur 178 états — les 30 pages, le Studio, le Cam Analyzer, menus et modales :
+   seuls écarts, ces remontées. **Deux feuilles MORTES supprimées au lieu d'être portées** (`REMOVAL_LEDGER` R145, R146) :
+   `enhancer/css/style.css`, plus chargée depuis le 2025-12-13, et `composer/css/index.css`, jamais
+   chargée. Budget CSS 284 → **54**.
+   ⚠ *La présentation* (`wama-presentation.css`, 54) est une page AUTONOME : elle n'étend pas
+   `base.html`, donc ne recevait pas `wama-theme.css`. Ses trois gabarits (présentation,
+   architecture, archive v2) le chargent désormais avant sa feuille — garde
+   `tests_theme…test_a_standalone_page_loads_the_tokens_before_a_sheet_that_reads_them`, contre-épreuve
+   sur HEAD : les trois relevés. Sa feuille portée (tokens `--wama-pres-*`, déjà déclarés) suit
+   APRÈS la relance des workers : un gabarit est mis en cache par worker, et une feuille portée
+   servie avec l'ancien gabarit rendrait la scène sans couleurs.
+   ⏳ *Reste de l'étape* : la feuille de la présentation (ci-dessus), puis les `<style>` des pages
    (795 couleurs dans les gabarits ; les derniers textes faibles de `WAMA_VERIFICATION §10` y
    vivent : `#6c757d` écrit dans la page).
 4. ⏳ **Un second thème** (clair, ou UGE) = un bloc de `wama-theme.css` + une ligne de `THEMES` ;

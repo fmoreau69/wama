@@ -11,8 +11,8 @@
 .studio-palette {
     flex: 0 0 200px;
     overflow-y: auto;
-    background: rgba(255, 255, 255, .03);
-    border: 1px solid rgba(255, 255, 255, .12);
+    background: rgba(var(--wama-overlay-rgb), .03);
+    border: 1px solid rgba(var(--wama-overlay-rgb), .12);
     border-radius: .6rem;
     padding: .5rem;
 }
@@ -20,7 +20,7 @@
     font-size: .7rem;
     text-transform: uppercase;
     letter-spacing: .04em;
-    color: #e6e9f0;
+    color: var(--wama-text-ui);
     margin-bottom: .4rem;
 }
 .studio-palette-list { display: flex; flex-direction: column; gap: .3rem; }
@@ -28,7 +28,7 @@
     font-size: .64rem;
     text-transform: uppercase;
     letter-spacing: .05em;
-    color: #8b93a7;
+    color: var(--wama-studio-note);
     margin: .5rem 0 .1rem;
 }
 .studio-pal-group:first-child { margin-top: 0; }
@@ -38,16 +38,16 @@
     gap: .5rem;
     padding: .3rem .5rem;
     border-radius: .5rem;
-    border: 1px solid rgba(255, 255, 255, .12);
-    border-left: 3px solid var(--app-c, #6ea8fe);
-    color: #e6e9f0;
+    border: 1px solid rgba(var(--wama-overlay-rgb), .12);
+    border-left: 3px solid var(--app-c, var(--wama-studio-wire));
+    color: var(--wama-text-ui);
     font-size: .8rem;
     cursor: pointer;
-    background: rgba(255, 255, 255, .02);
+    background: rgba(var(--wama-overlay-rgb), .02);
     transition: background .12s ease;
 }
-.studio-pal-item:hover { background: rgba(255, 255, 255, .08); }
-.studio-pal-item i { color: var(--app-c, #6ea8fe); width: 1.1rem; text-align: center; }
+.studio-pal-item:hover { background: rgba(var(--wama-overlay-rgb), .08); }
+.studio-pal-item i { color: var(--app-c, var(--wama-studio-wire)); width: 1.1rem; text-align: center; }
 .studio-pal-item[draggable="true"] { cursor: grab; }
 /* Sections REPLIABLES du catalogue (ROUTE §10.6 5.4, 2026-10-03) : un <details> par section,
    le titre garde le style des anciens groupes ; un chevron dit l'état. */
@@ -57,17 +57,17 @@
 .studio-pal-section > summary::before { content: '\25B8'; display: inline-block; width: .9rem; transition: transform .12s ease; }
 .studio-pal-section[open] > summary::before { transform: rotate(90deg); }
 .studio-pal-section:first-child > summary { margin-top: 0; }
-.studio-pal-subgroup { font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; color: #6f7890; margin: .3rem 0 0 .9rem; }
-.studio-pal-empty { font-size: .72rem; color: #8b93a7; margin-left: .9rem; }
+.studio-pal-subgroup { font-size: .6rem; text-transform: uppercase; letter-spacing: .05em; color: var(--wama-text-label); margin: .3rem 0 0 .9rem; }
+.studio-pal-empty { font-size: .72rem; color: var(--wama-studio-note); margin-left: .9rem; }
 /* Process RATTACHÉ à une app : son app en étiquette, et un filtre par app en tête des fonctions
    (position commune du 2026-10-05, ROUTE §10.6 — la catégorie reste l'axe). */
-.studio-pal-app { margin-left: auto; font-size: .62rem; color: #c9b5e8; border: 1px solid rgba(201, 181, 232, .35); border-radius: .4rem; padding: 0 .3rem; white-space: nowrap; }
-.studio-pal-filter { font-size: .72rem; margin: .1rem 0 .2rem .9rem; width: auto; max-width: calc(100% - .9rem); background-color: #1f2430; color: #e6e9f0; border-color: rgba(255, 255, 255, .15); }
+.studio-pal-app { margin-left: auto; font-size: .62rem; color: var(--wama-studio-app-tag); border: 1px solid rgba(var(--wama-studio-app-tag-rgb), .35); border-radius: .4rem; padding: 0 .3rem; white-space: nowrap; }
+.studio-pal-filter { font-size: .72rem; margin: .1rem 0 .2rem .9rem; width: auto; max-width: calc(100% - .9rem); background-color: var(--wama-studio-filter-bg); color: var(--wama-text-ui); border-color: rgba(var(--wama-overlay-rgb), .15); }
 
 /* Inspecteur : déplacé dans le VOLET DROIT global (base.html) — styles hérités de l'inspecteur commun.
    Voir studio/index.html (blocks right_panel_*) + wama-inspector-autofill.css. */
 /* Nœud sélectionné : halo. */
-.studio-node.is-selected { outline: 2px solid #6ea8fe; outline-offset: 1px; }
+.studio-node.is-selected { outline: 2px solid var(--wama-studio-wire); outline-offset: 1px; }
 
 /* ── Canvas ──────────────────────────────────────────────────────────── */
 .studio-canvas {
@@ -75,15 +75,15 @@
     flex: 1 1 auto;
     overflow: hidden;
     background:
-        radial-gradient(rgba(255, 255, 255, .06) 1px, transparent 1px) 0 0 / 22px 22px,
-        #0d0d1a;
-    border: 1px solid rgba(255, 255, 255, .12);
+        radial-gradient(rgba(var(--wama-overlay-rgb), .06) 1px, transparent 1px) 0 0 / 22px 22px,
+        var(--wama-studio-canvas);
+    border: 1px solid rgba(var(--wama-overlay-rgb), .12);
     border-radius: .6rem;
 }
 .studio-canvas.is-panning { cursor: grabbing; }
 /* Un nœud du catalogue survole le canvas : même teinte que les zones de dépôt WAMA, mais pas la
    classe `.drag-over` globale, qui est celle des FICHIERS (fond forcé + « Déposez le fichier »). */
-.studio-canvas.is-drop-target { border-color: #667eea; box-shadow: inset 0 0 0 1px #667eea, 0 0 15px rgba(102, 126, 234, .3); }
+.studio-canvas.is-drop-target { border-color: var(--wama-indigo); box-shadow: inset 0 0 0 1px var(--wama-indigo), 0 0 15px rgba(var(--wama-indigo-rgb), .3); }
 /* Le MONDE : porte nœuds et liens en coordonnées du graphe ; défilement et zoom = sa transformation.
    Taille nulle : un clic hors nœud tombe sur le canvas (le fond). Le calque SVG déborde
    (overflow visible) pour couvrir un graphe de taille quelconque, coordonnées négatives comprises. */
@@ -94,12 +94,12 @@
    le 2026-10-12) renvoie les boutons à la ligne au lieu d'en cacher un sous le bord gauche. */
 .studio-zoom { position: absolute; right: .6rem; top: .6rem; z-index: 5;
                max-width: calc(100% - 1.2rem); flex-wrap: wrap; justify-content: flex-end; }
-.studio-zoom .btn { background: rgba(13, 13, 26, .85); }
+.studio-zoom .btn { background: rgba(var(--wama-studio-canvas-rgb), .85); }
 .studio-zoom .studio-zoom-label { min-width: 3.6rem; font-variant-numeric: tabular-nums; }
 .studio-hint {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
-    color: #8b93a7; font-size: .85rem; pointer-events: none;
+    color: var(--wama-studio-note); font-size: .85rem; pointer-events: none;
 }
 
 /* ── Nœud-app ────────────────────────────────────────────────────────── */
@@ -107,24 +107,24 @@
     position: absolute;
     z-index: 2;
     width: 180px;
-    background: #161826;
-    border: 1px solid rgba(255, 255, 255, .15);
-    border-top: 3px solid var(--app-c, #6ea8fe);
+    background: var(--wama-studio-node);
+    border: 1px solid rgba(var(--wama-overlay-rgb), .15);
+    border-top: 3px solid var(--app-c, var(--wama-studio-wire));
     border-radius: .5rem;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, .4);
+    box-shadow: 0 4px 14px rgba(var(--wama-shadow-rgb), .4);
     user-select: none;
 }
 .studio-node-head {
     display: flex; align-items: center; gap: .4rem;
     padding: .35rem .5rem;
-    color: #f1f3f8; font-size: .82rem; font-weight: 600;
+    color: var(--wama-studio-node-title); font-size: .82rem; font-weight: 600;
     cursor: grab;
 }
-.studio-node-head i.app-ico { color: var(--app-c, #6ea8fe); }
+.studio-node-head i.app-ico { color: var(--app-c, var(--wama-studio-wire)); }
 .studio-node-head .studio-node-del {
-    margin-left: auto; color: #8b93a7; cursor: pointer; font-weight: 700;
+    margin-left: auto; color: var(--wama-studio-note); cursor: pointer; font-weight: 700;
 }
-.studio-node-head .studio-node-del:hover { color: #ff6b6b; }
+.studio-node-head .studio-node-del:hover { color: var(--wama-error-text); }
 
 .studio-ports { display: flex; justify-content: space-between; padding: .15rem .25rem .4rem; }
 .studio-port-col { display: flex; flex-direction: column; gap: .25rem; }
@@ -132,23 +132,23 @@
 
 .studio-port {
     display: flex; align-items: center; gap: .3rem;
-    font-size: .68rem; color: #c8cedb;
+    font-size: .68rem; color: var(--wama-studio-port-text);
 }
 .studio-port.out { flex-direction: row-reverse; }
 .studio-port .dot {
     width: 11px; height: 11px; border-radius: 50%;
-    border: 2px solid #6ea8fe; background: #0d0d1a;
+    border: 2px solid var(--wama-studio-wire); background: var(--wama-studio-canvas);
     cursor: crosshair;
 }
 /* Couleur de port par GROUPE (travail/prompt/référence) + sortie. */
-.studio-port.out .dot                 { border-color: #6ea8fe; }   /* sortie = bleu */
-.dot[data-group="travail"]            { border-color: #6ee7a8; }   /* travail = vert */
-.dot[data-group="prompt"]             { border-color: #c4a7fb; }   /* prompt = violet */
-.dot[data-group="reference"]          { border-color: #fbbf24; }   /* référence = ambre */
-.studio-port .types { color: #aeb6c6; }
+.studio-port.out .dot                 { border-color: var(--wama-studio-wire); }   /* sortie = bleu */
+.dot[data-group="travail"]            { border-color: var(--wama-studio-work); }   /* travail = vert */
+.dot[data-group="prompt"]             { border-color: var(--wama-studio-prompt); }   /* prompt = violet */
+.dot[data-group="reference"]          { border-color: var(--wama-studio-reference); }   /* référence = ambre */
+.studio-port .types { color: var(--wama-studio-port-types); }
 .studio-port .dot:hover { transform: scale(1.25); }
-.studio-port .dot.is-armed { box-shadow: 0 0 0 3px rgba(110, 168, 254, .4); }
-.studio-port .dot.compatible { border-color: #6ee7a8; box-shadow: 0 0 0 3px rgba(110, 231, 168, .35); }
+.studio-port .dot.is-armed { box-shadow: 0 0 0 3px rgba(var(--wama-studio-wire-rgb), .4); }
+.studio-port .dot.compatible { border-color: var(--wama-studio-work); box-shadow: 0 0 0 3px rgba(var(--wama-studio-work-rgb), .35); }
 .studio-port .dot.incompatible { opacity: .35; cursor: not-allowed; }
 /* Au doigt : relier deux ports se fait au toucher (toucher la sortie, puis l'entrée) — le port
    atteint le plancher tactile commun (wama-touch.css), et la croix de retrait du nœud aussi. */
@@ -159,31 +159,31 @@
         display: inline-flex; align-items: center; justify-content: center;
     }
 }
-.studio-port .types { color: #8b93a7; }
+.studio-port .types { color: var(--wama-studio-note); }
 
 /* Lien SVG */
-.studio-link { stroke: #6ea8fe; stroke-width: 2; fill: none; pointer-events: stroke; cursor: pointer; }
-.studio-link:hover { stroke: #ff6b6b; }
+.studio-link { stroke: var(--wama-studio-wire); stroke-width: 2; fill: none; pointer-events: stroke; cursor: pointer; }
+.studio-link:hover { stroke: var(--wama-error-text); }
 .studio-link.pending { stroke-dasharray: 5 4; opacity: .8; }
 
 /* ── États d'exécution des nœuds (StudioRun, 2026-07-11) ─────────────────── */
-.studio-node.run-running { box-shadow: 0 0 0 2px #ffc107, 0 4px 14px rgba(255, 193, 7, .25); }
-.studio-node.run-success { box-shadow: 0 0 0 2px #198754, 0 4px 14px rgba(25, 135, 84, .25); }
-.studio-node.run-failure { box-shadow: 0 0 0 2px #dc3545, 0 4px 14px rgba(220, 53, 69, .3); }
+.studio-node.run-running { box-shadow: 0 0 0 2px var(--wama-state-running), 0 4px 14px rgba(var(--bs-warning-rgb), .25); }
+.studio-node.run-success { box-shadow: 0 0 0 2px var(--wama-state-success), 0 4px 14px rgba(var(--bs-success-rgb), .25); }
+.studio-node.run-failure { box-shadow: 0 0 0 2px var(--wama-state-failure), 0 4px 14px rgba(var(--bs-danger-rgb), .3); }
 /* Les trois autres états COMMUNS (ROUTE §10.6 point 4) — mêmes teintes que le point d'état des
    cards : attente de ressources orange, périmé violet, en attente gris. */
-.studio-node.run-pending { box-shadow: 0 0 0 2px #6c757d; }
-.studio-node.run-awaiting_resources { box-shadow: 0 0 0 2px #fd7e14, 0 4px 14px rgba(253, 126, 20, .25); }
-.studio-node.run-stale { box-shadow: 0 0 0 2px #a78bfa, 0 4px 14px rgba(167, 139, 250, .3); }
+.studio-node.run-pending { box-shadow: 0 0 0 2px var(--bs-secondary); }
+.studio-node.run-awaiting_resources { box-shadow: 0 0 0 2px var(--wama-state-awaiting), 0 4px 14px rgba(var(--wama-state-awaiting-rgb), .25); }
+.studio-node.run-stale { box-shadow: 0 0 0 2px var(--wama-studio-stale), 0 4px 14px rgba(var(--wama-studio-stale-rgb), .3); }
 
 /* ── Flux de données sur les câbles pendant l'exécution (2026-07-17) ───────── */
 .studio-link.flowing {
-    stroke: #0dcaf0;
+    stroke: var(--wama-accent);
     stroke-width: 2.5;
-    filter: drop-shadow(0 0 3px rgba(13, 202, 240, .6));
+    filter: drop-shadow(0 0 3px rgba(var(--wama-accent-rgb), .6));
 }
 .studio-flow-dot {
-    fill: #0dcaf0;
-    filter: drop-shadow(0 0 5px #0dcaf0);
+    fill: var(--wama-accent);
+    filter: drop-shadow(0 0 5px var(--wama-accent));
     pointer-events: none;
 }

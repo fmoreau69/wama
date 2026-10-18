@@ -21,15 +21,15 @@
 .wama-cat-wrap { padding: 16px 20px; }
 
 .wama-cat-stats { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-.wama-cat-stat { background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.08);
+.wama-cat-stat { background: rgba(var(--wama-overlay-rgb), .04); border: 1px solid rgba(var(--wama-overlay-rgb), .08);
                  border-radius: 8px; padding: 6px 12px; font-size: .85rem; }
-.wama-cat-stat b { color: #ffb300; }
+.wama-cat-stat b { color: var(--wama-cat-accent); }
 
-.wama-cat-hero { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
-                 border-left: 3px solid #ffb300; border-radius: 10px; padding: 12px 16px;
+.wama-cat-hero { background: rgba(var(--wama-overlay-rgb), .03); border: 1px solid rgba(var(--wama-overlay-rgb), .10);
+                 border-left: 3px solid var(--wama-cat-accent); border-radius: 10px; padding: 12px 16px;
                  margin-bottom: 16px; }
 .wama-cat-hero h3 { font-size: 1rem; margin: 0 0 4px; }
-.wama-cat-hero p { margin: 0 0 6px; font-size: .82rem; color: #c3ccd6; line-height: 1.45; }
+.wama-cat-hero p { margin: 0 0 6px; font-size: .82rem; color: var(--wama-cat-hero-text); line-height: 1.45; }
 .wama-cat-hero p:last-child { margin-bottom: 0; }
 
 .wama-cat-grid { display: grid; gap: 12px;
@@ -37,10 +37,10 @@
 /* Carte SÉLECTIONNÉE (inspecteur au clic, 2026-09-02) : `highlightClass` passée à
    `WamaInspector.init` par les pages catalogue qui inspectent. Même liseré cyan que
    `.inspector-selected` des files, adapté au fond des cartes de catalogue. */
-.wama-cat-card.wama-cat-active { border-color: #4dd0e1; box-shadow: 0 0 0 1px #4dd0e1 inset;
-                                 background: rgba(77,208,225,.06); }
+.wama-cat-card.wama-cat-active { border-color: var(--wama-cat-active); box-shadow: 0 0 0 1px var(--wama-cat-active) inset;
+                                 background: rgba(var(--wama-cat-active-rgb), .06); }
 .wama-cat-card[data-id] { cursor: pointer; }
-.wama-cat-card { background: rgba(255,255,255,.03); border: 1px solid rgba(255,255,255,.10);
+.wama-cat-card { background: rgba(var(--wama-overlay-rgb), .03); border: 1px solid rgba(var(--wama-overlay-rgb), .10);
                  border-radius: 10px; padding: 12px 14px;
                  display: flex; flex-direction: column; gap: 8px; }
 .wama-cat-card > h3, .wama-cat-card > h4 { font-size: .95rem; margin: 0; display: flex;
@@ -58,19 +58,19 @@
                            height: 60px; font-size: .74rem; color: var(--wama-text-label);
                            cursor: default; }
 
-.wama-cat-desc { font-size: .8rem; color: #b0bac4; line-height: 1.4; }
-.wama-cat-meta { font-size: .74rem; color: #8fa3b3; }
-.wama-cat-meta code { color: #c8d6e5; }
+.wama-cat-desc { font-size: .8rem; color: var(--wama-cat-desc); line-height: 1.4; }
+.wama-cat-meta { font-size: .74rem; color: var(--wama-cat-meta); }
+.wama-cat-meta code { color: var(--wama-cat-code); }
 
 .wama-cat-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
 .wama-cat-chip { font-size: .68rem; padding: 1px 7px; border-radius: 10px;
-                 background: rgba(255,255,255,.06); color: #9fb0bd; }
+                 background: rgba(var(--wama-overlay-rgb), .06); color: var(--wama-cat-chip); }
 
-.wama-cat-empty { color: #8fa3b3; padding: 30px; text-align: center; }
+.wama-cat-empty { color: var(--wama-cat-meta); padding: 30px; text-align: center; }
 
 .wama-cat-actions { display: flex; align-items: center; gap: 8px; margin-top: auto;
                     padding-top: 6px; }
-.wama-cat-open { font-size: .78rem; color: #90caf9; text-decoration: none;
-                 border: 1px solid rgba(144,202,249,.35); border-radius: 6px;
+.wama-cat-open { font-size: .78rem; color: var(--wama-cat-open); text-decoration: none;
+                 border: 1px solid rgba(var(--wama-cat-open-rgb), .35); border-radius: 6px;
                  padding: 3px 10px; white-space: nowrap; }
-.wama-cat-open:hover { color: #bbdefb; border-color: rgba(144,202,249,.7); }
+.wama-cat-open:hover { color: var(--wama-cat-open-hover); border-color: rgba(var(--wama-cat-open-rgb), .7); }

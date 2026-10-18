@@ -598,14 +598,14 @@ class BoutonDedieRetireTest(TestCase):
     def test_le_js_la_css_et_la_config_ne_le_connaissent_plus(self):
         self.assertNotIn('export-btn', self._code('wama', 'composer', 'static', 'composer', 'js', 'index.js'))
         self.assertNotIn('exportUrlTemplate', self._code('wama', 'composer', 'static', 'composer', 'js', 'index.js'))
-        self.assertNotIn('.export-btn', self._code('wama', 'composer', 'static', 'composer', 'css', 'index.css'))
+        # La feuille `composer/css/index.css` est retirée (R146, 2026-10-18) : aucune page ne la chargeait.
         self.assertNotIn('exportUrlTemplate', self._code('wama', 'composer', 'templates', 'composer', 'index.html'))
 
     def test_la_copie_SERVIE_est_la_source(self):
         from pathlib import Path
         import wama
         racine = Path(wama.__file__).parent.parent
-        for rel in ('js/index.js', 'css/index.css'):
+        for rel in ('js/index.js',):
             with self.subTest(rel=rel):
                 self.assertEqual((racine / 'wama/composer/static/composer' / rel).read_bytes(),
                                  (racine / 'staticfiles/composer' / rel).read_bytes())

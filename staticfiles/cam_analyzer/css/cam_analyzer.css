@@ -54,31 +54,31 @@
 .camera-drop-zone {
     position: relative;
     aspect-ratio: 16 / 9;
-    border: 2px dashed #495057;
+    border: 2px dashed var(--wama-border-strong);
     border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: all 0.3s ease;
     overflow: hidden;
-    background: #1a1d20;
+    background: var(--wama-surface-modal);
 }
 
 .camera-drop-zone.drag-over {
-    border-color: #ffc107;
-    background: rgba(255, 193, 7, 0.1);
-    box-shadow: 0 0 20px rgba(255, 193, 7, 0.2);
+    border-color: var(--bs-warning);
+    background: rgba(var(--bs-warning-rgb), 0.1);
+    box-shadow: 0 0 20px rgba(var(--bs-warning-rgb), 0.2);
 }
 
 .camera-drop-zone.has-video {
-    border-color: #495057;
+    border-color: var(--wama-border-strong);
     border-style: solid;
 }
 
 /* Drop placeholder */
 .drop-placeholder {
     text-align: center;
-    color: #6c757d;
+    color: var(--wama-text-label);
     pointer-events: none;
 }
 
@@ -87,7 +87,7 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
-    background: #000;
+    background: var(--wama-video-bg);
 }
 
 /* Fullscreen mode: drop-zone fills viewport so the video + detection canvas
@@ -99,7 +99,7 @@
     height: 100vh !important;
     border: none !important;
     border-radius: 0 !important;
-    background: #000 !important;
+    background: var(--wama-video-bg) !important;
     cursor: zoom-out;
 }
 .camera-drop-zone:fullscreen .camera-video,
@@ -118,7 +118,7 @@
     right: 0;
     bottom: 0;
     padding: 10px 16px;
-    background: rgba(0, 0, 0, 0.7);
+    background: rgba(var(--wama-shadow-rgb), 0.7);
     backdrop-filter: blur(6px);
     z-index: 10;
 }
@@ -150,12 +150,12 @@
     width: 80px;
     height: auto;
     opacity: 0.7;
-    filter: drop-shadow(0 0 8px rgba(255, 193, 7, 0.3));
+    filter: drop-shadow(0 0 8px rgba(var(--bs-warning-rgb), 0.3));
 }
 
 .shuttle-label {
     font-size: 0.75em;
-    color: #6c757d;
+    color: var(--wama-text-label);
     margin-top: 4px;
 }
 
@@ -164,8 +164,8 @@
    ============================================================================= */
 
 .playback-controls {
-    background: #1a1d20;
-    border: 1px solid #495057;
+    background: var(--wama-surface-modal);
+    border: 1px solid var(--wama-border-strong);
     border-radius: 8px;
     padding: 10px 15px;
 }
@@ -187,10 +187,10 @@
     height: 20px;
     border-radius: 4px;
     background: linear-gradient(to right,
-        #198754 0%, #198754 40%,
-        #ffc107 40%, #ffc107 70%,
-        #fd7e14 70%, #fd7e14 85%,
-        #dc3545 85%, #dc3545 100%
+        var(--bs-success) 0%, var(--bs-success) 40%,
+        var(--bs-warning) 40%, var(--bs-warning) 70%,
+        var(--bs-orange) 70%, var(--bs-orange) 85%,
+        var(--bs-danger) 85%, var(--bs-danger) 100%
     );
     opacity: 0.3;
 }
@@ -200,7 +200,7 @@
     top: -2px;
     bottom: -2px;
     width: 3px;
-    background: #fff;
+    background: var(--wama-cam-cursor);
     border-radius: 2px;
     left: 0%;
     transition: left 0.1s;
@@ -225,14 +225,14 @@
    ============================================================================= */
 
 .analysis-progress {
-    background: #1a1d20;
-    border: 1px solid #495057;
+    background: var(--wama-surface-modal);
+    border: 1px solid var(--wama-border-strong);
     border-radius: 8px;
     padding: 10px 15px;
 }
 
 .analysis-progress .progress {
-    background: #2c3034;
+    background: var(--wama-cam-progress-track);
     border-radius: 3px;
 }
 
@@ -272,8 +272,8 @@
 
 /* Segments list */
 .segment-item {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid #333;
+    background: rgba(var(--wama-overlay-rgb), 0.05);
+    border: 1px solid var(--wama-cam-segment-border);
     border-radius: 6px;
     padding: 8px 12px;
     margin-bottom: 6px;
@@ -282,7 +282,7 @@
 }
 
 .segment-item:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(var(--wama-overlay-rgb), 0.1);
 }
 
 .segment-badge {
@@ -294,23 +294,23 @@
 }
 
 .segment-badge.close_following {
-    background: #dc3545;
-    color: white;
+    background: var(--bs-danger);
+    color: var(--wama-text-on-accent);
 }
 
 .segment-badge.overtaking {
-    background: #fd7e14;
-    color: white;
+    background: var(--bs-orange);
+    color: var(--wama-text-on-accent);
 }
 
 .segment-badge.crossing {
-    background: #ffc107;
-    color: #000;
+    background: var(--bs-warning);
+    color: var(--wama-text-on-bright);
 }
 
 .segment-badge.custom {
-    background: #6c757d;
-    color: white;
+    background: var(--bs-secondary);
+    color: var(--wama-text-on-accent);
 }
 
 /* =============================================================================
@@ -349,6 +349,6 @@
 .leaflet-control-zoom a:hover,
 .leaflet-bar a,
 .leaflet-bar a:hover {
-    color: #333 !important;
-    background-color: #fff !important;
+    color: var(--wama-map-control-text) !important;
+    background-color: var(--wama-map-control-bg) !important;
 }
