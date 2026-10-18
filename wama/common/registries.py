@@ -254,10 +254,19 @@ def get(key: str) -> Registry:
             f"registre '{key}' inconnu (enregistrés : {', '.join(sorted(REGISTRIES)) or '—'})")
 
 
-def for_access_kind(kind: str) -> Optional[Registry]:
-    """Le registre qui liste les éléments de la famille d'accès `kind`, ou None — un par
-    famille, ce que `tests_registry_provenance` tient."""
-    return next((r for r in REGISTRIES.values() if r.access_kind == kind), None)
+def carried_rows(element_id, *, access_kind: str = '', manifest_kind: str = ''):
+    """Les lignes qui portent la provenance de l'élément `element_id` — `owner_model` filtré par
+    `owner_key` —, trouvées par le registre de sa famille d'accès (`accounts.permissions.
+    accessible`) ou de son kind de manifeste (`manifests.ownership.promote_row`). None quand aucun
+    registre porté ne nomme sa ligne : l'appelant dit ce que cela vaut pour lui."""
+    from django.apps import apps
+    registry = next((r for r in REGISTRIES.values()
+                     if r.provenance in CARRIED and r.owner_key
+                     and ((access_kind and r.access_kind == access_kind)
+                          or (manifest_kind and r.manifest_kind == manifest_kind))), None)
+    if registry is None:
+        return None
+    return apps.get_model(registry.owner_model).objects.filter(**{registry.owner_key: element_id})
 
 
 def is_authorized(r: Registry, user) -> bool:

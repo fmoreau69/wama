@@ -362,6 +362,16 @@ def user_tier(user):
     return getattr(prof, 'account_tier', 'utilisateur') or 'utilisateur'
 
 
+def is_admin_tier(user):
+    """Le compte est-il au niveau ADMINISTRATEUR de son profil (superutilisateur compris) ?
+
+    UN lieu pour la question des décisions du chantier PROVENANCE (`ROADMAP §29`) — l'admin voit
+    tout le catalogue (c), il installe pour le système. ⚠ C'est l'une des trois définitions
+    d'« administrateur » qui coexistent (`PROJECT_STATUS`, clôture du 2026-10-16 : décision de
+    Fabien en attente) ; la trancher se fera ici, pas chez les appelants."""
+    return user_tier(user) == 'admin'
+
+
 def user_roles(user):
     """Ensemble des clés de rôles métier d'un user (depuis ses Groups 'role:*')."""
     if not user or not getattr(user, 'is_authenticated', False):
@@ -435,18 +445,15 @@ def _provenance_accessible(user, kind, element_id):
 
     Un élément SANS ligne n'est à personne : rien ne le restreint. Un élément privé a toujours la
     sienne, puisque c'est elle qui porte son auteur."""
-    from django.apps import apps
     from wama.common.models import catalogue_visible_q
-    from wama.common.registries import for_access_kind
-    registry = for_access_kind(kind)
-    if registry is None or not registry.owner_model or not registry.owner_key:
+    from wama.common.registries import carried_rows
+    rows = carried_rows(element_id, access_kind=kind)
+    if rows is None:
         raise ValueError(f"accessible() : la famille « {kind} » se décide par la provenance, "
                          f"mais aucun registre ne nomme la ligne qui la porte")
-    model = apps.get_model(registry.owner_model)
-    rows = model.objects.filter(**{registry.owner_key: element_id})
     if not rows.exists():
         return True
-    return rows.filter(catalogue_visible_q(user, model=model)).exists()
+    return rows.filter(catalogue_visible_q(user, model=rows.model)).exists()
 
 
 def _app_accessible(user, app_id, policies=None, owners=None):

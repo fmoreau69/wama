@@ -47,19 +47,13 @@ def promote_row(manifest_kind: str, key: str) -> int:
     `owner_key` nomme son champ d'identifiant. Un kind sans registre porté, ou dont le registre ne
     déclare pas `owner_key`, n'a rien à promouvoir ici : c'est le cas d'une fonction
     d'utilisateur, dont la promotion la fait entrer au catalogue CODE (`ROADMAP §29` étape 4)."""
-    from django.apps import apps
-
     from wama.common.models import ScopedVisibility
-    from wama.common.registries import CARRIED, REGISTRIES
-    registry = next((r for r in REGISTRIES.values()
-                     if r.manifest_kind == manifest_kind and r.provenance in CARRIED
-                     and r.owner_key), None)
-    if registry is None:
+    from wama.common.registries import carried_rows
+    rows = carried_rows(key, manifest_kind=manifest_kind)
+    if rows is None:
         return 0
-    model = apps.get_model(registry.owner_model)
-    return model.objects.filter(**{registry.owner_key: key}).update(
-        owner=None, visibility=ScopedVisibility.VIS_PUBLIC, scope_org_unit=None,
-        scope_project=None)
+    return rows.update(owner=None, visibility=ScopedVisibility.VIS_PUBLIC, scope_org_unit=None,
+                       scope_project=None)
 
 
 def row_fields(manifest: dict) -> dict:

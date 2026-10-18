@@ -6082,10 +6082,14 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
    - **Un filtre des catalogues, un seul** : `catalogue_visible_q` (`common/models.py`). Le
      système et le public sont vus de tous, ses propres modèles et sa portée de chacun, tout de
      l'administrateur (décision c, et c'est le seul lieu où elle s'ajustera). Sans compte, seul le
-     système passe.
+     système passe. « Administrateur » veut dire ici le niveau `admin` du profil, nommé une seule
+     fois (`permissions.is_admin_tier`). C'est l'une des trois définitions qui coexistent
+     (`PROJECT_STATUS`, clôture du 2026-10-16), et la décision de Fabien à leur sujet se
+     reportera à cet endroit.
    - **La décision unique** : `KIND_DECISION['model'] = 'provenance'`. `accessible(user, 'model',
-     clé)` lit la ligne que le registre déclare (`owner_model`, et le champ neuf `owner_key`). Le
-     registre `models` passe `mixed` et sort du budget `TO_CARRY`.
+     clé)` lit la ligne que le registre déclare (`owner_model`, et le champ neuf `owner_key`), par
+     `registries.carried_rows`, la même lecture que la promotion. Le registre `models` passe `mixed`
+     et sort du budget `TO_CARRY`.
    - **Les lecteurs qui listent ou tirent pour un compte filtrent par lui** :
      - `select_model(user=…)`, `get_registry_models(user=…)` et `list_models(user=…)` ;
      - le tirage « auto » des apps, qui passe le compte de l'élément (`resolve_model_choice`) ;
@@ -6103,7 +6107,7 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      système (`ownership.promote_row`, trouvée par le registre du kind, pas codée par kind).
    - **Gardes** : `model_manager/tests/tests_model_provenance` (quatre comptes face à chaque
      lecteur, naissance de l'auteur, manifeste, corpus, promotion), et deux cas de plus dans
-     `tests_registry_provenance`. **Treize contre-épreuves, toutes rouges** (six brèches en
+     `tests_registry_provenance`. **Quinze contre-épreuves, toutes rouges** (huit brèches en
      mémoire, sept mutations par édition).
    - **Ce que l'étape ne fait PAS** :
      - Les lectures PAR CLÉ restent ouvertes : faits d'un modèle déjà choisi, chargement par un

@@ -626,8 +626,8 @@ def catalogue_visible_q(user, owner_field='owner', model=None):
     Sans compte (`user=None` : une tâche de fond, un tirage sans appelant), seul le public passe :
     un élément privé n'est jamais choisi pour quelqu'un qu'on ne connaît pas."""
     from django.db.models import Q
-    from wama.accounts.permissions import user_tier
-    if user_tier(user) == 'admin':
+    from wama.accounts.permissions import is_admin_tier
+    if is_admin_tier(user):
         return Q()
     return scoped_visible_q(user, owner_field=owner_field, model=model)
 

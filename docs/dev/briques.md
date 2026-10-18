@@ -2567,7 +2567,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (17) :
+- **API publique** (18) :
   - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
@@ -2580,6 +2580,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
   - `all_gated_apps()` — Ensemble des app_ids soumis au contrôle d'accès (pour calculer accessible_apps).
   - `tier_rank(tier)`
   - `user_tier(user)`
+  - `is_admin_tier(user)` — Le compte est-il au niveau ADMINISTRATEUR de son profil (superutilisateur compris) ?
   - `user_roles(user)` — Ensemble des clés de rôles métier d'un user (depuis ses Groups 'role:*').
   - `accessible(user, kind, element_id)` — Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
   - `accessible_apps(user, app_ids)` — Sous-ensemble d'app_ids accessibles à user (préserve l'ordre).
@@ -2638,7 +2639,7 @@ REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et 
   - `execution_of(r: Registry) -> str`
   - `register(r: Registry) -> Registry`
   - `get(key: str) -> Registry`
-  - `for_access_kind(kind: str) -> Optional[Registry]` — Le registre qui liste les éléments de la famille d'accès `kind`, ou None — un par
+  - `carried_rows(element_id, *, access_kind: str='', manifest_kind: str='')` — Les lignes qui portent la provenance de l'élément `element_id` — `owner_model` filtré par
   - `is_authorized(r: Registry, user) -> bool` — Ce compte peut-il ACTUALISER ce registre ? Le lire relève de l'accès à l'outil « Registres »
   - `refusal(r: Registry) -> str` — Le motif d'un refus d'actualisation, lisible tel quel (les vues y lisent « réservé »).
   - `mark_refreshed(key: str) -> None` — Signale aux AUTRES processus qu'ils sont périmés.

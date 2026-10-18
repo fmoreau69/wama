@@ -1891,9 +1891,9 @@ def install_owner(user_id):
     if not user_id:
         return None
     from django.contrib.auth import get_user_model
-    from wama.accounts.permissions import user_tier
+    from wama.accounts.permissions import is_admin_tier
     user = get_user_model().objects.filter(pk=user_id).first()
-    if user is None or user_tier(user) == 'admin':
+    if user is None or is_admin_tier(user):
         return None
     return user
 
