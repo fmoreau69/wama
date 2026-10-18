@@ -24574,3 +24574,36 @@ Cache-busting) — laissées hors de mon commit, comme `docs/dev/registres.md`.
 règle de nom lisible (autre ordre, repli `#id` pour la console) — antérieur ; l'unifier ferait
 dépendre le squelette de tâche des vues de lot : à porter vers un domicile neutre si un troisième
 lecteur apparaît.
+
+## §PALIER — 2026-10-18, « RÉGLAGES TOUS MONDES, marche R2 : un nœud se règle au Studio de bout en bout » — ✅ LIVRÉ (`d3602860` code, `5a59210a` doc, `226cfcf5` + `a6591314` docs dérivées ; non poussés) — 🔴 relancer gunicorn + workers (exécuteur du Studio, outils de création), Ctrl+F5 (Studio)
+
+- **Demande de Fabien** (*« ce qu'on veut c'est pouvoir régler les nœuds dans le studio, ce qui n'est
+  pas le cas actuellement »*) ; D1, D2, point 5 et périmètre validés, après confrontation avec la
+  session Studio (`-4d`). Bilan règle par règle : `ROUTE §10.6 3.3bis` (« ✅ R2 LIVRÉE »).
+- **Mesuré avant** (live et base) : réglages arrivés 10-15 s après le catalogue, rien dit d'ici là ;
+  11 réglages affichés perdus par 3 créateurs ; durée du composer réduite à 30 s ; un geste
+  enregistrait l'instantané de tous les champs.
+- **Livré** : créateurs enhancer/reader/avatarizer sur `schema_model_kwargs` ; `clamp_duration` ;
+  un geste = la clé touchée ; schémas servis avec le catalogue (R143) et état toujours dit ;
+  `load_all` mémorisé (9,6 s → 0,09 s) ; jumelles non exécutables hors palette ; D1 (`process` à
+  côté de `params`, corpus régénéré) ; D2 (étape Médias = étape de sa card, écrite par
+  `batch_views.write_element_settings` puis lancée par `start_<app>(id, process=…)`) ; registre
+  `pipeline.BuiltinNode` / `pipeline_nodes` inscrit par le Studio et `wama_data` (R144) ; geste
+  nocturne `studio.node_settings`.
+- **Revérification** (`/reverif`) : quatre écarts ramenés — écriture d'une étape par `setattr`
+  (→ l'écrivain de la ⚙), catégories média recopiées (→ `MEDIA_CATEGORIES`), forme des ports, deux
+  modules hors carte des mécanismes.
+- **Contrôles** : suite WSL 7 613 tests — rouges restants hors R2 (assistant ×8, cloud_failover,
+  check_templates `profile.html`, test_layout `accounts`, settings_surfaces, process_watched
+  `media_type` du converter, codegen converter `enhance`, `composer.parts`, iou, AddItemToMediaLibrary,
+  budgets de noms de tests 133/1293 d'autres sessions) ; mes deux causes soldées (budget de code,
+  un nom de test). Suite Windows 7 627 tests : aucun rouge dans les domaines de R2 (rouges :
+  montages rclone/SMB, passerelle, MIDI, MuseTalk, pont wama-dev-ai, métriques de texte).
+  `check_docs` 0/2917. Contre-épreuves rouges sur toutes les gardes neuves ; geste nocturne vert
+  sur serveur de dev au code neuf, rouge avec le script d'avant.
+- 🔚 **Restes** : **décision de Fabien** — le Converter ne montre au Studio que 2 réglages sur 20
+  (les autres dépendent de `media_type`, inconnu du nœud) : déduire la nature de l'entrée branchée,
+  ou la faire choisir au nœud ; jumelles exécutables = l'outil `add_to_<jumelle>` du générateur ;
+  `composer.parts` sans manifeste `function` (commit `4172550d`, autre session). Puis R4 (⚙ des
+  process de la card Data, avec le `label` court de `ParamSpec`), R3 (Lab), Data Analyzer.
+  Pousser (décision de Fabien).
