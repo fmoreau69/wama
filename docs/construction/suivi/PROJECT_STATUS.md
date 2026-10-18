@@ -24724,6 +24724,42 @@ documentés » de la ROUTE (fait `outils`, 314 → 329) mêle d'autres travaux e
 
 🔚 **POINT D'ENTRÉE** : trancher la relève Discord par `tell`, puis porter la modale de lot
 « — inchangé — » commune (`MODES_QUEUE_UX §5ter`) pour ouvrir les pauses au lot.
+→ **tranché le jour même**, voir la clôture ci-dessous.
+
+## §CLÔTURE — 2026-10-18 (suite), « ASSISTANT : PAUSES, GLISSER AU NOCTURNE, RELÈVE DISCORD PAR `tell` ET RENVOI AU RETOUR » — ✅ LIVRÉ (non poussé) — 🔴 relancer la passerelle Discord, le service TTS, les workers, gunicorn
+
+Clôt le §PALIER ci-dessus. Décision de Fabien : *« on aligne la relève sur tell, mais trouve une
+solution pour détecter une panne de Discord et renvoyer le message au retour »* ; *« on aligne, on
+réutilise, on ne réinvente rien »*.
+
+**Livré** (en plus de `b3cbfa08` `e3f00642` `14441e73`, listés au palier) :
+- `f02d67a0` — revérification des pauses : le contrat lit ses segments par le décodeur commun
+  (`audio_decode.decode_audio`), la découpe du synthesizer coupe par `pause_segments`.
+- `c67d0315` — la relève d'un canal raconte par `job_follow_ups.tell` (verrou, « déjà racontée ? »,
+  enregistrement, PUIS publication) : le double récit mesuré (≈ 0,4 %) devient impossible,
+  `record_follow_up` retiré (R150). Renvoi au retour SANS table ni file : le fil dit ce qui a été
+  raconté, l'historique du salon ce qui a été montré, `health['undelivered_since']` marque la
+  fenêtre (envoi échoué, réponse de tour non publiée, démarrage) ; l'écart seul est publié, dans la
+  borne du rattrapage (1 h). `ROADMAP §19.2`.
+- Revérification (ce commit) : la lecture des fins racontées vivait dans la passerelle et relisait
+  elle-même la graphie du fil → `job_follow_ups.told_since`, à côté de `record` et
+  d'`already_told` ; `core.told_follow_ups` n'y ajoute que la forme du canal.
+
+**Contrôles mesurés** : 168 tests du périmètre verts (gateway, fins de tâche web, dépôt et réglages
+de l'assistant, pauses TTS, Kokoro, synthesizer) ; contre-épreuves : 7 sur la relève, 2 sur
+`told_since` (borne `since` retirée, texte du récit remplacé), toutes rouges ; `check_docs` 0/2917 ;
+`check_redundancy` : rien dans mes fichiers ; `doc_facts` régénéré (seule ma part commitée).
+⚠ Rouges qui ne sont pas à moi : budgets de langue des noms de tests (classes 134 > 132, méthodes
+1292 > 1291 — aucun nom de mes fichiers, vérifié par `check_identifier_language --test-names`).
+⚠ Incident réparé : un `TransactionTestCase` a pollué la base de test PARTAGÉE (compte, liaison,
+curseur) ; lignes du run retirées, leçon dans `/cloture §2a`.
+
+**Non vérifié en réel** : une vraie panne de Discord (le renvoi est tenu par les tests seuls).
+
+🔚 **Restes** : modale de lot « — inchangé — » commune (`MODES_QUEUE_UX §5ter`) avant d'ouvrir les
+pauses au lot · zones de dépôt de l'accueil simplifié et « Ouama » (décisions de Fabien) · recopies
+de regex de phrase du describer · découpe par longueur hors contrat (avatarizer) · compte
+d'« arguments documentés » de la ROUTE (314 → 329) laissé non commité, il mêle d'autres travaux.
 
 ## §CLÔTURE — 2026-10-16→18, « MESURES · BARRE DE FILE ▶ ⬇ 🗑 · ZIP DE FILE ET DE LOT · FRONT DU SYNTHESIZER PAR LE SCHÉMA » — ✅ LIVRÉ (non poussé) — 🔴 relancer gunicorn
 

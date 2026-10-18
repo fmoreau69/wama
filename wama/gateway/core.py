@@ -579,29 +579,16 @@ def _channel_follow_up(note, channel, conversation, text, step, external_id, tol
 
 
 def told_follow_ups(channel: str, since) -> list:
-    """Les fins RACONTÉES sur ce canal depuis `since`, reconstruites depuis le FIL (le store de
-    conversation, où `tell` les enregistre) — ce que le salon doit montrer. L'adaptateur les
-    confronte à l'historique du salon et re-publie celles qui manquent : une panne du canal, un
+    """Les fins RACONTÉES sur ce canal depuis `since` (`job_follow_ups.told_since`, la lecture du
+    fil tel que `tell` l'écrit), dans la forme du canal — ce que le salon doit montrer. L'adaptateur
+    les confronte à l'historique du salon et re-publie celles qui manquent : une panne du canal, un
     envoi refusé, un arrêt entre l'enregistrement et la publication (2026-10-18)."""
-    from wama.common.models import ConversationTurn, Notification
-    from wama.common.services.job_follow_ups import JOB_NOTICE_KINDS, NOTICE_PREFIX
+    from wama.common.services import job_follow_ups
 
     follow_ups = []
-    asked = (ConversationTurn.objects
-             .filter(conversation__surface=channel, role='user',
-                     content__startswith=NOTICE_PREFIX, created_at__gte=since)
-             .select_related('conversation', 'conversation__user').order_by('created_at', 'pk'))
-    for turn in asked:
-        conversation = turn.conversation
-        told = conversation.turns.filter(role='assistant', pk__gt=turn.pk).order_by('pk').first()
+    for conversation, note, text, step, told_at in job_follow_ups.told_since(channel, since):
         external_id = linked_identity(conversation.user, channel)
-        if told is None or not external_id:
-            continue
-        note = (Notification.objects
-                .filter(recipient=conversation.user, kind__in=JOB_NOTICE_KINDS,
-                        title=turn.content[len(NOTICE_PREFIX):], created_at__lte=turn.created_at)
-                .order_by('-pk').first())
-        follow_ups.append(_channel_follow_up(note, channel, conversation, told.content,
-                                             (told.tool_steps or [{}])[0], external_id,
-                                             told_at=told.created_at))
+        if external_id:
+            follow_ups.append(_channel_follow_up(note, channel, conversation, text, step,
+                                                 external_id, told_at=told_at))
     return follow_ups

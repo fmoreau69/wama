@@ -146,6 +146,32 @@ def record(conversation, note, response: str, step: dict) -> None:
         {'response': response, 'tool_steps': [step], 'model': 'notification WAMA'})
 
 
+def told_since(surface: str, since) -> list:
+    """Les fins RACONTÉES sur cette surface depuis `since`, relues du fil tel que `record` l'écrit :
+    `[(conversation, note, response, step, told_at)]`, dans l'ordre du récit — `note` vaut None si
+    la notification a été supprimée depuis. Le pendant d'`already_told` : ce que la surface doit
+    MONTRER, pour celle qui peut perdre un envoi (un canal en panne, 2026-10-18)."""
+    from wama.common.models import ConversationTurn, Notification
+
+    told = []
+    asked = (ConversationTurn.objects
+             .filter(conversation__surface=surface, role='user',
+                     content__startswith=NOTICE_PREFIX, created_at__gte=since)
+             .select_related('conversation', 'conversation__user').order_by('created_at', 'pk'))
+    for turn in asked:
+        conversation = turn.conversation
+        reply = conversation.turns.filter(role='assistant', pk__gt=turn.pk).order_by('pk').first()
+        if reply is None:
+            continue
+        note = (Notification.objects
+                .filter(recipient=conversation.user, kind__in=JOB_NOTICE_KINDS,
+                        title=turn.content[len(NOTICE_PREFIX):], created_at__lte=turn.created_at)
+                .order_by('-pk').first())
+        told.append((conversation, note, reply.content, (reply.tool_steps or [{}])[0],
+                     reply.created_at))
+    return told
+
+
 def turn_designations(steps) -> tuple:
     """Ce qu'un tour a désigné : `({(famille, id)}, {job_id})` — les éléments d'app lus par
     `tool_api.items_of_step` (le contrat méta-app, celui d'`origin_conversation`) et les tâches de

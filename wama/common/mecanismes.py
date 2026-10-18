@@ -1140,7 +1140,7 @@ MECHANISMS = (
               "RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois, sous verrou, "
               "AVANT publication (`tell`). Commun aux surfaces : la passerelle la relève par un "
               "curseur de canal, joint les fichiers, et republie au retour du canal ce que le fil a "
-              "raconté et que le salon ne montre pas (`told_follow_ups`) ; le "
+              "raconté (`told_since`) et que le salon ne montre pas ; le "
               "fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT. Une fin "
               "arrivée PENDANT le tour qui l'a lancée part avec sa réponse (`notices_of_turn`, "
               "joint par `conversation_turn` ; `tell` raconte une seule fois)",

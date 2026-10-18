@@ -4186,9 +4186,11 @@ l'enregistrement du tour et celui de son récit raconte donc la fin une seconde 
   pour détecter une panne de Discord et renvoyer le message au retour »* — et *« on réutilise, on
   ne réinvente rien »*. La relève raconte par `tell` (verrou, « déjà racontée ? », enregistrement,
   PUIS publication) ; `record_follow_up` est retiré (`REMOVAL_LEDGER` R150). Le renvoi n'ajoute
-  ni table ni file d'envoi : le FIL sait ce qui a été raconté (`core.told_follow_ups`, reconstruit
-  du store de conversation), l'HISTORIQUE du salon ce qui a été montré — la lecture même du
-  rattrapage des messages manqués (`_catch_up`). Un envoi qui échoue (5xx, coupure, client non
+  ni table ni file d'envoi : le FIL sait ce qui a été raconté (`job_follow_ups.told_since`, la
+  lecture du fil posée à côté de son écriture `record` — revérification du 18/10 : elle vivait
+  d'abord dans la passerelle, qui n'y ajoute que la forme du canal, `core.told_follow_ups`),
+  l'HISTORIQUE du salon ce qui a été montré — lu comme le rattrapage des messages manqués lit le
+  sien (`channel.history`, `_catch_up`). Un envoi qui échoue (5xx, coupure, client non
   prêt) se DIT (`_deliver_follow_up` rend False ; un fil supprimé n'est pas « à reprendre ») et
   marque l'état de santé de la passerelle (`health['undelivered_since']`, à côté de
   `disconnected_since`) ; une réponse de tour non publiée aussi (elle portait peut-être des fins
