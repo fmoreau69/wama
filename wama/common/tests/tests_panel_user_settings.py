@@ -15,10 +15,11 @@ from django.test import SimpleTestCase, TestCase
 #: Apps whose user settings are still a hand-written list in their views (measured 2026-09-26 —
 #: the `wama:redondance-ok` lines of `get_user_app_settings` calls). Porting one = declaring
 #: `USER_SETTINGS_DEFAULTS` in its params.py, as imager and transcriber do.
-#: describer, reader, composer, avatarizer, synthesizer and enhancer left it on 2026-10-18, with
-#: their elements born by the common cascade (`tests_birth_settings`) — the enhancer's own table
-#: had been gone since 2026-09-29, the list stayed (`ROADMAP §23.3bis`).
-NOT_YET_DERIVED = {'converter'}
+#: describer, reader, composer, avatarizer, synthesizer, enhancer and converter left it on
+#: 2026-10-18, with their elements born by the common cascade (`tests_birth_settings`) — the
+#: enhancer's own table had been gone since 2026-09-29, the list stayed (`ROADMAP §23.3bis`).
+#: Empty: the ten apps derive their user settings from their schema.
+NOT_YET_DERIVED = set()
 
 
 def _apps():

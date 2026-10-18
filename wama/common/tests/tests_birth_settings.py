@@ -153,6 +153,6 @@ class BirthSettingsCriterionTest(SimpleTestCase):
         """What IS, measured — each port moves one app to True, and this line with it."""
         states = {a: checker._birth_settings_common(checker._AppFiles(a))[0] for a in REAL_APPS}
         self.assertEqual({'anonymizer': True, 'avatarizer': True, 'composer': True,
-                          'converter': False, 'describer': True, 'enhancer': True,
+                          'converter': True, 'describer': True, 'enhancer': True,
                           'imager': True, 'reader': True, 'synthesizer': True,
                           'transcriber': True}, states)

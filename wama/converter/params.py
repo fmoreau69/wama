@@ -217,10 +217,23 @@ PARAMS += _cross_app_params()
 _ENHANCE_PARAMS = {o['id'] for opts in CROSS_APP_OPTIONS.values() for o in opts}
 for _p in PARAMS:
     if _p.type == 'hidden':
-        continue                       # le porteur de nature ne se règle pas
+        # Le porteur de NATURE ne se règle pas, mais il change : l'arrivée du fichier d'une URL
+        # la pose (`tasks._derive_media_type`), et une conversion faite pour une autre nature ne
+        # vaut plus. Déclaré (2026-10-18) au lieu d'être sauté — `tests_process_watched` refuse
+        # un réglage d'élément qui ne dit pas ce qu'il périme.
+        _p.stales = ('convert',)
+        continue
     _p.stales = (('enhance',) if _p.name in _ENHANCE_PARAMS
                  else ('convert', 'enhance') if _p.name == 'quality_intent'
                  else ('convert',))
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
 GROUPS_JSON = groups_to_dicts(GROUPS)
+
+# ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──
+# Ce que le volet retient se déclare par la clé du VOLET (`dom_id` du contexte panel, la règle par
+# défaut de la brique `user_settings`) : le curseur seul. Le FORMAT de sortie se retient à part,
+# PAR NATURE (`format_router.output_format_for`), et la nature est détectée, jamais retenue.
+from wama.common.utils.param_schema import panel_defaults  # noqa: E402
+
+USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS)

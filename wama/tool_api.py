@@ -1041,16 +1041,14 @@ def convert_file(
             output_format=out_fmt,
             quality_preset=preset,
             status='RUNNING',
-            # `media_type` est DÉTECTÉ depuis le fichier : on ne laisse pas un appelant
-            # l'écraser, même s'il est déclaré au schéma pour l'UI.
-            **{k: v for k, v in schema_model_kwargs('converter', params).items()
-               if k != 'media_type'},
         )
         received.record(job, 'input_file')
-        # Réglages (resize/rotation/fps/bitrate…) : un réglage = une COLONNE depuis le
-        # 2026-09-01 — écrits par le point d'entrée unique du modèle, qui coerce selon le
-        # type déclaré au schéma. (Avant : un blob `options=` passé à `create()`.)
-        _champs = job.poser_reglages(schema_extra_params('converter', params) or {})
+        # Réglages (resize/rotation/fps/bitrate…) : la naissance de TOUTES les voies du converter
+        # (`apply_birth_settings` : la cascade commune — défauts du schéma pour la nature ←
+        # réglages retenus de l'auteur ← les paramètres de l'appel ; 2026-10-18). `media_type` est
+        # DÉTECTÉ depuis le fichier : la cascade ne l'écrase jamais, ni le format choisi ci-dessus.
+        from wama.converter.views import apply_birth_settings
+        _champs = apply_birth_settings(job, media_type, params)
         if _champs:
             job.save(update_fields=_champs)
         task = convert_media_task.delay(job.id)

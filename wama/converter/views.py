@@ -34,7 +34,6 @@ from .utils.format_router import (SUPPORTED_CONVERSIONS, detect_media_type, get_
                                   output_format_for, remember_output_format)
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.queue_duplication import release_card_files, duplicate_instance
-from ..common.utils.param_schema import schema_extra_params, schema_model_kwargs
 # Le chemin d'un fichier d'app se COMPOSE (`get_relative_media_path`), il ne
 # s'écrit pas — préalable au domicile unique par utilisateur (2026-09-11).
 from wama.common.utils.media_paths import get_relative_media_path
@@ -228,12 +227,22 @@ def apply_birth_settings(job, media_type, options=None) -> list:
     fraîche sont donc pleines (demande du 31/08) ET le preset reste opérant : il n'arbitre
     plus au lancement, il ÉCRIT au clic (§23.2quater — l'ancienne règle « ne stocker que
     l'explicite » du §23.2bis est REMPLACÉE par ce modèle).
-    Posé sans sauver ; rend les champs touchés. Le dépôt de la card et l'import du
-    gestionnaire de fichiers passent ici."""
-    from wama.common.utils.param_schema import applicable_defaults
+
+    La cascade est la cascade COMMUNE (`user_settings.new_element_settings`, 2026-10-18) :
+    défauts du schéma applicables à la nature ← réglages retenus de l'auteur (ceux que le
+    schéma déclare au volet) ← `options`, ce que le dépôt poste, coercé par le schéma. La
+    nature (détectée) et le format (retenu PAR NATURE, `format_router.output_format_for`)
+    n'en sortent jamais : l'appelant les pose. Écrit par l'écrivain de l'app
+    (`poser_reglages` : types des colonnes). Posé sans sauver ; rend les champs touchés.
+    Toutes les voies de création passent ici — le dépôt, le lot, la conversion rapide, l'outil
+    de l'assistant et l'import du gestionnaire de fichiers ; une jumelle de bac à sable aussi
+    (l'app et le modèle sont ceux du job)."""
+    from wama.common.utils.user_settings import new_element_settings
     from wama.converter.params import PARAMS_JSON as _SCH
-    birth = applicable_defaults(_SCH, {'media_type': media_type})
-    birth.update(options or {})
+    birth = new_element_settings(job.user, job._meta.app_label, _SCH, type(job), post=options,
+                                 context={'media_type': media_type})
+    for name in ('media_type', 'output_format'):
+        birth.pop(name, None)
     return job.poser_reglages(birth)
 
 
@@ -271,18 +280,13 @@ def upload(request):
     except ValueError as refusal:
         return JsonResponse({'error': str(refusal)}, status=400)
 
-    # Options : la LISTE et le TYPAGE viennent du schéma (`converter/params.py`), pas d'une
-    # liste recopiée ici. Même source que la modale, l'inspecteur et `tool_api.convert_file`.
-    # L'ancienne version castait `'1'` en booléen True pour TOUTES les clés : `channels=1`
-    # (mono) partait en `-ac True` vers ffmpeg. Le schéma sait que `channels` est un select,
-    # `flip_h` un toggle et `resize_w` un nombre borné.
-    # ⚠ `schema_model_kwargs` ET `schema_extra_params` (2026-09-01) : depuis que les réglages
-    # sont des COLONNES, ils sortent du second (qui ne rend QUE le hors-colonne) et entrent
-    # dans le premier. Prendre les deux rend le geste indifférent à cette frontière — c'est
-    # elle qui vient de bouger, et elle rebougera au portage des autres apps.
-    options = {k: v for k, v in {**schema_model_kwargs('converter', request.POST),
-                                 **schema_extra_params('converter', request.POST)}.items()
-               if v not in (None, '') and k != 'media_type'}
+    # Options : la LISTE et le TYPAGE viennent du schéma (`converter/params.py`), lus par la
+    # cascade commune (`apply_birth_settings`) — `channels=1` (mono) n'est pas un booléen,
+    # `flip_h` est un interrupteur, `resize_w` un nombre borné. Ce que le dépôt poste devient
+    # la mémoire du volet (le geste du transcriber).
+    from wama.common.utils.user_settings import save_panel_settings
+    from wama.converter.params import PARAMS_JSON as _SCH
+    save_panel_settings(user, 'converter', _SCH, request.POST)
 
     job = ConversionJob.objects.create(
         user=user,
@@ -293,7 +297,7 @@ def upload(request):
         status='PENDING',
     )
     file_obj.record(job, 'input_file')
-    touched = apply_birth_settings(job, media_type, options)
+    touched = apply_birth_settings(job, media_type, request.POST)
     if touched:
         job.save(update_fields=touched)
 
@@ -730,6 +734,12 @@ def batch_create(request):
                     source_url=src, status='PENDING',
                     output_format=output_format_for(user, media_type) if media_type else '',
                 )
+                # Né complet par la cascade commune, comme un fichier déposé (2026-10-18 : les
+                # filles de lot naissaient sans réglages). Nature encore inconnue : seuls les
+                # réglages qui n'en dépendent pas s'appliquent ; la tâche lit les autres.
+                touched = apply_birth_settings(job, media_type or '', request.POST)
+                if touched:
+                    job.save(update_fields=touched)
                 job_ids.append(job.id)
                 continue
 
@@ -756,7 +766,7 @@ def batch_create(request):
                 output_format=output_format_for(user, media_type), status='PENDING',
             )
             job.input_file.name = rel
-            job.save(update_fields=['input_file'])
+            job.save(update_fields=['input_file', *apply_birth_settings(job, media_type, request.POST)])
             job_ids.append(job.id)
             # Provenance : la copie se souvient de sa ligne de lot (brique commune).
             from wama.common.utils.provenance import record_origin
@@ -1020,15 +1030,17 @@ def quick_convert(request):
         quality_preset=preset,
         status='RUNNING',
     )
-    # MODÈLE ÉVÉNEMENTIEL (02/09) : la tâche lit les COLONNES — le preset du menu
-    # contextuel Filemanager s'ÉTALE donc à la création (sinon il serait une trace inerte) ;
-    # et il pose la position du curseur commun (trace, chantier C).
+    # MODÈLE ÉVÉNEMENTIEL (02/09) : la tâche lit les COLONNES — le job naît complet par la
+    # cascade commune (2026-10-18), puis le preset du menu contextuel Filemanager s'ÉTALE
+    # par-dessus (sinon il serait une trace inerte) ; et il pose la position du curseur commun
+    # (trace, chantier C).
+    champs = apply_birth_settings(job, media_type)
     if preset:
         from .utils.quality_presets import preset_values
-        champs = job.poser_reglages(preset_values(media_type, preset))
-        champs += _apply_quality_gesture(job, {'quality_preset': preset})
-        if champs:
-            job.save(update_fields=champs)
+        champs += [f for f in job.poser_reglages(preset_values(media_type, preset)) if f not in champs]
+        champs += [f for f in _apply_quality_gesture(job, {'quality_preset': preset}) if f not in champs]
+    if champs:
+        job.save(update_fields=champs)
     task = convert_media_task.delay(job.id)
     job.task_id = task.id
     job.save(update_fields=['task_id'])
