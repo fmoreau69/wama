@@ -19,12 +19,18 @@ pas. Un seul domaine, deux usages : ce que le select PROPOSE et ce que « auto �
 menu, selon son niveau cloud — jamais ceux d'un autre, jamais sans autorisation.
 """
 from wama.common.utils.auto_model import AUTO, intent_param
-from wama.common.utils.param_schema import Param, schema_to_dicts
+from wama.common.utils.param_schema import Param, ParamGroup, groups_to_dicts, schema_to_dicts
+
+#: Deux SURFACES pour un schéma, comme les apps (2026-10-18, décision de Fabien) : la section
+#: « Paramètres » du VOLET droit de l'accueil (`panel`) et la modale ⚙ du chat (`item`), chemin du
+#: mode simplifié — volets masqués — et du mini-chat des autres pages. Un identifiant par contexte :
+#: les deux peuvent être rendus sur la même page.
+SURFACES = ('panel', 'item')
 
 PARAMS = [
     Param(
         name='model', type='select', label='Modèle', icon='fa-microchip',
-        default=AUTO, dom_id='ai-model', contexts=('panel',),
+        default=AUTO, dom_id={'panel': 'ai-model', 'item': 'ai-model-modal'}, contexts=SURFACES,
         options_source='catalog',
         options_query={'model_type': 'llm'},
         options_auto=True, options_cloud=True, options_abilities=True,
@@ -39,7 +45,8 @@ PARAMS = [
     ),
     # Le curseur de l'assistant vaut AUSSI pour les tâches qu'il lance (Fabien, 22/09) : dit ici,
     # dit dans la réponse de l'assistant (`quality_level` du résultat d'outil) — explicite partout.
-    Param(name='quality_intent', dom_id='ai-quality', contexts=('panel',), **intent_param(
+    Param(name='quality_intent', dom_id={'panel': 'ai-quality', 'item': 'ai-quality-modal'},
+          contexts=SURFACES, **intent_param(
         help="Guide le choix automatique du modèle de l'assistant — et s'applique aux tâches que "
              "vous lui demandez de lancer (les apps dont le curseur s'appelle « qualité » "
              "le reçoivent ; l'assistant vous le confirme à chaque lancement).")),
@@ -62,16 +69,23 @@ PARAMS = [
     # d'incise y arrivent réécrits en virgules (`tts_text.say_incises`). Le moteur les lit dans
     # `options` (`kokoro_onnx_backend.process`) ; la vue de vocalisation les lui passe.
     # Défauts plus longs que ceux du moteur (0,25 / 0,1 s) : c'est l'objet de la demande.
+    # Rangées dans le groupe « Voix », REPLIÉ : réglées une fois, elles ne chargent pas la surface.
     Param(name='voice_sentence_pause', type='range', label="Pause en fin de phrase",
-          icon='fa-pause', default=0.4, min=0, max=1.5, step=0.05, contexts=('panel',),
+          icon='fa-pause', default=0.4, min=0, max=1.5, step=0.05, contexts=SURFACES,
+          group='voice',
           help="Silence, en secondes, après un point, un point d'exclamation ou d'interrogation."),
     Param(name='voice_clause_pause', type='range', label="Pause sur virgule, parenthèse, tiret",
-          icon='fa-pause', default=0.15, min=0, max=1, step=0.05, contexts=('panel',),
+          icon='fa-pause', default=0.15, min=0, max=1, step=0.05, contexts=SURFACES,
+          group='voice',
           help="Silence, en secondes, après une virgule, un point-virgule, deux-points, une "
                "parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle."),
 ]
+
+#: Groupes d'affichage (`ParamGroup`, la brique des apps — anonymizer) : la voix, repliée.
+GROUPS = [ParamGroup(key='voice', title='Voix', icon='fa-volume-up', collapsed=True)]
 
 #: Défauts des réglages utilisateur — DÉRIVÉS du schéma (patron imager) : aucune seconde liste.
 USER_SETTINGS_DEFAULTS = {p.name: p.default for p in PARAMS}
 
 PARAMS_JSON = schema_to_dicts(PARAMS)
+GROUPS_JSON = groups_to_dicts(GROUPS)

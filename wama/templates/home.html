@@ -118,10 +118,24 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       function lireReglages() {
         return window.WamaParams.read(settingsBox);
       }
+      // ⚙ de l'en-tête : la modale COMMUNE, ouverte par la brique du chat (même geste que la ⚙
+      // du mini-chat des autres pages).
+      document.getElementById('ai-settings-open').addEventListener('click', function () {
+        var chat = window.WamaAssistantChat && WamaAssistantChat.first();
+        if (chat) chat.openSettings();
+      });
       if (settingsBox && window.WamaParams) {
         const schema = JSON.parse(document.getElementById('ai-chat-params').textContent);
+        const groups = JSON.parse(document.getElementById('ai-chat-groups').textContent);
         const valeurs = JSON.parse(document.getElementById('ai-chat-values').textContent);
-        window.WamaParams.render(settingsBox, schema, { context: 'panel', values: valeurs });
+        window.WamaParams.render(settingsBox, schema, { context: 'panel', values: valeurs, groups: groups });
+        // Enregistré depuis la modale : le volet se recale sur la valeur durable.
+        document.addEventListener('wama:assistant-settings', function () {
+          fetch("{% url 'ai_chat_settings' %}", { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (d) { window.WamaParams.apply(settingsBox, d.values || {}); })
+            .catch(function () {});
+        });
         settingsBox.addEventListener('change', function () {
           fetch("{% url 'ai_chat_settings' %}", {
             method: 'POST',
@@ -220,17 +234,11 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       el.style.color = isErr ? '#ff6b6b' : '#6fcf97';
     }
 
+    // Le dépôt PARTAGÉ (`WamaFM.upload`, 2026-10-18) — celui du glisser-déposer sur le chat.
     async function _uploadToFileManager(files, zone) {
       _dzStatus(zone, 'Envoi en cours…');
-      var fd = new FormData();
-      files.forEach(function(f) { fd.append('files', f); });
       try {
-        var r = await fetch('/filemanager/api/upload/', {
-          method: 'POST',
-          headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-          body: fd
-        });
-        var d = await r.json();
+        var d = await window.WamaFM.upload(files, '{{ csrf_token }}');
         if (d.uploaded && d.uploaded.length) {
           _dzStatus(zone, d.uploaded.length + ' fichier(s) ajouté(s) au FileManager');
         } else {
@@ -312,6 +320,9 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
 </script>
 {% endblock %}
 
+{% block right_panel_settings_title %}<i class="fas fa-robot me-1"></i> Paramètres de l'assistant{% endblock %}
+{% block right_panel_settings %}<div id="ai-settings"></div>{% endblock %}
+
 {% block content %}
 <div class="home-wrapper">
   <div class="container-fluid py-4" style="max-width: 1200px;">
@@ -352,6 +363,10 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
             <button id="ai-avatar-toggle" class="btn btn-outline-secondary btn-sm" title="Afficher l'avatar parlant">
               <i class="fas fa-user-astronaut"></i>
             </button>
+            {# Réglages : la modale ⚙ commune — seul chemin en mode simplifié (volets masqués). #}
+            <button id="ai-settings-open" class="btn btn-outline-secondary btn-sm" title="Réglages de l'assistant (modèle, qualité, voix)">
+              <i class="fas fa-gear"></i>
+            </button>
             <button id="ai-chat-clear" class="btn btn-outline-secondary btn-sm" title="Effacer la conversation">
               <i class="fas fa-trash-alt me-1"></i> Effacer
             </button>
@@ -368,10 +383,11 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
               ici : le fournisseur se DÉRIVE du modèle choisi, et le choix est mémorisé pour
               toutes les surfaces (web, API, Discord).
             {% endcomment %}
-            <div class="row mb-3">
-              <div class="col-12" id="ai-settings"></div>
-            </div>
+            {% comment %}Les réglages ont quitté cette carte le 2026-10-18 : section « Paramètres »
+            du VOLET droit (bloc `right_panel_settings`), et ⚙ de l'en-tête (modale commune) pour le
+            mode simplifié, où le volet est masqué.{% endcomment %}
             {{ chat_params|json_script:"ai-chat-params" }}
+            {{ chat_groups|json_script:"ai-chat-groups" }}
             {{ chat_values|json_script:"ai-chat-values" }}
             {{ chat_thread|json_script:"ai-chat-thread" }}
             {% comment %}
@@ -391,6 +407,8 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
                  data-stt-url="{% url 'speech_to_text' %}"
                  data-clear-url="{% url 'ai_chat_clear' %}"
                  data-follow-ups-url="{% url 'ai_chat_follow_ups' %}"
+                 data-settings-url="{% url 'ai_chat_settings' %}"
+                 data-params-script="{% static_v 'common/js/wama-params.js' %}"
                  data-thread-el="ai-chat-thread"
                  data-waiting="{{ accueil_assistant.attente }}"
                  data-waiting-after-ms="{{ accueil_assistant.attente_apres_ms }}">

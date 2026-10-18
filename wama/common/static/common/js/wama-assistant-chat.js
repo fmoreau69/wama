@@ -88,6 +88,8 @@
       threadEl: root.dataset.threadEl || '',
       clearUrl: root.dataset.clearUrl || '',
       followUpsUrl: root.dataset.followUpsUrl || '',
+      settingsUrl: root.dataset.settingsUrl || '',
+      paramsScript: root.dataset.paramsScript || '',
       greeting: root.dataset.greeting || '',
       greetingHtml: root.dataset.greetingHtml || '',
       waiting: root.dataset.waiting || '',
@@ -99,6 +101,7 @@
     this.sendBtn = root.querySelector('[data-assistant-send]');
     this.statusEl = root.querySelector('[data-assistant-status]');
     this.waitTimer = null;
+    this.deposits = [];               // fichiers GLISSÉS sur le chat, en attente d'envoi
     this.bind();
     this.loadThread();
   }
@@ -116,7 +119,116 @@
     if (global.WamaAssistantVoice) {
       global.WamaAssistantVoice.bindButton(this.root.querySelector('[data-assistant-voice]'));
     }
+    var gear = this.root.querySelector('[data-assistant-settings]');
+    if (gear) gear.addEventListener('click', function () { self.openSettings(); });
+    this.bindDeposit();
     this.autoGrow();
+  };
+
+  // ── Réglages : la modale ⚙ COMMUNE des apps (2026-10-18) ──────────────────────
+  // Le même schéma que la section « Paramètres » du volet de l'accueil (`assistant/params.py`,
+  // contexte `item` pour la modale), lu par la route de réglages (GET : schéma, groupes,
+  // valeurs) et enregistré par elle (POST du formulaire de `WamaParams.settingsModal`). C'est le
+  // chemin du mode simplifié — volets masqués — et du mini-chat des autres pages, qui n'avait
+  // aucun accès aux réglages. `wama-params.js` n'est pas global (chaque surface qui rend un
+  // schéma le charge) : chargé ici à la première ouverture.
+  function loadScript(src) {
+    return new Promise(function (resolve, reject) {
+      var tag = document.createElement('script');
+      tag.src = src;
+      tag.onload = resolve;
+      tag.onerror = function () { reject(new Error('script ' + src)); };
+      document.head.appendChild(tag);
+    });
+  }
+
+  Chat.prototype.openSettings = function () {
+    var url = this.cfg.settingsUrl;
+    if (!url) return Promise.resolve(null);
+    var ready = global.WamaParams ? Promise.resolve()
+      : (this.cfg.paramsScript ? loadScript(this.cfg.paramsScript) : Promise.reject(new Error('WamaParams')));
+    return ready.then(function () {
+      return fetch(url, { headers: { 'Accept': 'application/json' } });
+    }).then(function (r) { return r.json(); }).then(function (d) {
+      return global.WamaParams.settingsModal({
+        id: 'Assistant', title: "Réglages de l'assistant", titleIcon: 'fa-gear',
+        schema: d.schema, groups: d.groups, values: d.values, context: 'item',
+        saveUrl: url, csrf: csrfToken(),
+        // Le volet de l'accueil, s'il est rendu, se recale sur ce qui vient d'être enregistré.
+        onSaved: function () {
+          if (document.dispatchEvent && global.CustomEvent) {
+            document.dispatchEvent(new CustomEvent('wama:assistant-settings'));
+          }
+        },
+      });
+    }).catch(function () {
+      if (global.WamaApp && global.WamaApp.toast) global.WamaApp.toast('Réglages indisponibles', 'error');
+    });
+  };
+
+  // ── Fichiers GLISSÉS sur le chat (2026-10-18, le geste de Discord) ───────────────────
+  // Déposés dans l'espace de l'utilisateur par le geste PARTAGÉ (`WamaFM.upload` →
+  // `/filemanager/api/upload/` → `enregistrer_fichier_utilisateur`, celui de Discord et de l'API),
+  // montrés en pastilles sous la saisie, puis envoyés AVEC le message (ou seuls : le serveur fait
+  // demander « Que puis-je en faire ? », `assistant_engine.message_with_deposits`). L'assistant
+  // inspecte et propose : fichier de travail, de référence, lot, RAG…
+  Chat.prototype.bindDeposit = function () {
+    var self = this;
+    var root = this.root;
+    root.addEventListener('dragover', function (e) {
+      if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') === -1) return;
+      e.preventDefault();
+      root.classList.add('wama-assistant-dragover');
+    });
+    root.addEventListener('dragleave', function (e) {
+      if (!root.contains(e.relatedTarget)) root.classList.remove('wama-assistant-dragover');
+    });
+    root.addEventListener('drop', function (e) {
+      if (!e.dataTransfer || !e.dataTransfer.files || !e.dataTransfer.files.length) return;
+      e.preventDefault();
+      root.classList.remove('wama-assistant-dragover');
+      self.deposit(Array.prototype.slice.call(e.dataTransfer.files));
+    });
+  };
+
+  Chat.prototype.deposit = function (files) {
+    var self = this;
+    if (!files.length || !global.WamaFM || !global.WamaFM.upload) return Promise.resolve([]);
+    this.setStatus('Dépôt de ' + files.length + ' fichier(s)…');
+    return global.WamaFM.upload(files, csrfToken()).then(function (d) {
+      var uploaded = (d && d.uploaded) || [];
+      uploaded.forEach(function (u) { self.deposits.push({ path: u.path, name: u.name }); });
+      self.renderDeposits();
+      self.setStatus(uploaded.length ? '' : ('Dépôt impossible : ' + ((d && d.error) || 'erreur')));
+      self.input.focus();
+      return uploaded;
+    }).catch(function () { self.setStatus('Dépôt impossible : erreur réseau'); return []; });
+  };
+
+  Chat.prototype.renderDeposits = function () {
+    var self = this;
+    if (!this.depositsEl) {
+      this.depositsEl = document.createElement('div');
+      this.depositsEl.className = 'wama-assistant-deposits';
+      var row = this.input.parentNode;
+      row.parentNode.insertBefore(this.depositsEl, row);
+    }
+    this.depositsEl.innerHTML = '';
+    this.deposits.forEach(function (d, i) {
+      var chip = document.createElement('span');
+      chip.className = 'badge bg-secondary me-1 mb-1 wama-assistant-deposit';
+      chip.title = d.path;
+      chip.textContent = '📎 ' + d.name + ' ';
+      var x = document.createElement('button');
+      x.type = 'button';
+      x.className = 'btn-close btn-close-white ms-1';
+      x.style.fontSize = '.6em';
+      x.title = 'Ne pas joindre';
+      x.addEventListener('click', function () { self.deposits.splice(i, 1); self.renderDeposits(); });
+      chip.appendChild(x);
+      self.depositsEl.appendChild(chip);
+    });
+    this.depositsEl.hidden = !this.deposits.length;
   };
 
   Chat.prototype.autoGrow = function () {
@@ -171,6 +283,7 @@
   Chat.prototype.errorBubble = function (result, message) {
     var line = this.bubble((result && result.error) || 'Erreur', 'error');
     var relay = result && result.fallback;
+    var files = this.lastFiles || [];        // le relais renvoie aussi les fichiers déposés
     if (relay && relay.model_key && message) {
       var self = this;
       var btn = document.createElement('button');
@@ -179,7 +292,7 @@
       btn.textContent = 'Répondre avec ' + (relay.label || relay.model_key);
       btn.addEventListener('click', function () {
         btn.disabled = true;
-        self.send({ message: message, model: relay.model_key });
+        self.send({ message: message, model: relay.model_key, files: files });
       });
       line.appendChild(btn);
     }
@@ -337,13 +450,22 @@
   // saisie en cours n'est pas touchée.
   Chat.prototype.send = function (relay) {
     var message = relay ? relay.message : (this.input.value || '').trim();
-    if (!message || this.input.disabled) return Promise.resolve(false);
+    // Les fichiers déposés partent avec CE message (un relais garde ceux du message relayé).
+    var files = relay ? (relay.files || []) : this.deposits.map(function (d) { return d.path; });
+    if ((!message && !files.length) || this.input.disabled) return Promise.resolve(false);
     this.dropGreeting();
-    this.feed.appendChild(this.bubble(message, 'user'));
+    var names = relay ? files.map(function (p) { return p.split('/').pop(); })
+      : this.deposits.map(function (d) { return d.name; });
+    var shown = names.length ? names.map(function (n) { return '📎 ' + n; }).join('\n') +
+      (message ? '\n' + message : '') : message;
+    this.feed.appendChild(this.bubble(shown, 'user'));
     if (!relay) {
       this.input.value = '';
+      this.deposits = [];
+      this.renderDeposits();
       this.autoGrow();
     }
+    this.lastFiles = files;
     this.busy(true);
     this.startWaiting();
     if (global.WamaAssistantVoice) global.WamaAssistantVoice.stop();
@@ -413,9 +535,13 @@
     });
   };
 
-  /** Corps d'un tour : le message, et le modèle imposé pour lui seul s'il y en a un. */
-  function turnBody(message, model) {
-    return JSON.stringify(model ? { message: message, model: model } : { message: message });
+  /** Corps d'un tour : le message, le modèle imposé pour lui seul s'il y en a un, et les
+   *  fichiers déposés (chemins de l'espace de l'utilisateur, `message_with_deposits`). */
+  function turnBody(message, model, files) {
+    var body = { message: message };
+    if (model) body.model = model;
+    if (files && files.length) body.files = files;
+    return JSON.stringify(body);
   }
 
   Chat.prototype.sendBlocking = function (message, model) {
@@ -423,7 +549,7 @@
     return fetch(this.cfg.chatUrl, {
       method: 'POST', signal: this.signal(),
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
-      body: turnBody(message, model),
+      body: turnBody(message, model, this.lastFiles),
     }).then(function (r) {
       // ⚠ Brique commune : un 502/504 rend du HTML, et `response.json()` seul faisait lire
       // « Unexpected token '<' » à l'utilisateur au lieu de la raison (mesuré le 23/09).
@@ -476,7 +602,7 @@
     return fetch(this.cfg.streamUrl, {
       method: 'POST', signal: this.signal(),
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
-      body: turnBody(message, model),
+      body: turnBody(message, model, this.lastFiles),
     }).then(function (resp) {
       var type = resp.headers.get('Content-Type') || '';
       // Le serveur n'a pas ouvert de flux (garde GPU, erreur, route absente) : on retombe sur

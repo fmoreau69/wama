@@ -1267,6 +1267,25 @@ def _sanitize_history(history, limit: int = 20) -> list:
     return clean
 
 
+#: Ce que l'utilisateur DIT quand il dépose des fichiers sans rien écrire — le moteur l'outille
+#: (`tool_api.inspect_user_file` : « ASK the user, offering the returned targets »).
+DEPOSIT_QUESTION = 'Que puis-je en faire ?'
+
+
+def message_with_deposits(text: str, paths) -> str:
+    """Le message d'un tour qui DÉPOSE des fichiers dans l'espace de l'utilisateur — UNE graphie
+    pour toute surface (2026-10-18 : écrite par la passerelle depuis le 21/08, le glisser-déposer
+    du chat web la reprend). L'en-tête nomme chaque fichier par son `path` (la clé que les outils
+    consomment) ; sans texte, l'utilisateur demande ce qu'il peut en faire, et l'assistant
+    inspecte puis propose : fichier de travail ou de référence d'une app, lot, RAG…"""
+    paths = [p for p in (paths or []) if p]
+    text = (text or '').strip()
+    if not paths:
+        return text
+    header = f"[Fichiers déposés dans mon espace WAMA : {', '.join(f'`{p}`' for p in paths)}]"
+    return f"{header}\n{text or DEPOSIT_QUESTION}"
+
+
 def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: str = '',
                          provider: str = None, model: str = None,
                          domain: str = None, on_event=None) -> dict:

@@ -15,6 +15,12 @@
  *                          et « Tout effacer » de file — les dix apps y passent depuis le
  *                          2026-10-17, leurs `deleted()` locaux sont retirés avec leurs handlers)
  *   WamaFM.refresh()     → forcer un rafraîchissement
+ *   WamaFM.upload(files, csrf) → DÉPOSE des fichiers dans l'espace de l'utilisateur (2026-10-18) :
+ *                          `/filemanager/api/upload/`, le geste partagé avec Discord et l'API
+ *                          (`enregistrer_fichier_utilisateur`), puis `uploaded()`. Rend la réponse
+ *                          (`{uploaded: [{id, name, path, size}]}`). Le glisser-déposer sur le chat
+ *                          de l'assistant et la zone « Mes Fichiers » de l'accueil simplifié y
+ *                          passent — la seconde l'écrivait à la main.
  * Aucune app n'appelle plus ces helpers elle-même : un nouvel appel dans une app signale un
  * geste écrit à côté d'une brique commune.
  *
@@ -26,10 +32,33 @@
     function emit(name) {
         try { document.dispatchEvent(new CustomEvent(name)); } catch (e) { /* noop */ }
     }
+    var UPLOAD_URL = '/filemanager/api/upload/';
+
+    function csrfToken() {
+        if (window.WamaApp && window.WamaApp.csrfToken) return window.WamaApp.csrfToken();
+        var m = document.cookie.match(/csrftoken=([^;]+)/);
+        return m ? m[1] : '';
+    }
+
+    function upload(files, csrf) {
+        var fd = new FormData();
+        (files || []).forEach(function (f) { fd.append('files', f); });
+        return fetch(UPLOAD_URL, { method: 'POST', headers: { 'X-CSRFToken': csrf || csrfToken() },
+                                   body: fd })
+            .then(function (r) {
+                return r.json().catch(function () { return { error: 'HTTP ' + r.status }; });
+            })
+            .then(function (d) {
+                if (d && d.uploaded && d.uploaded.length) emit('media:uploaded');
+                return d || {};
+            });
+    }
+
     window.WamaFM = {
         uploaded:  function () { emit('media:uploaded'); },
         processed: function () { emit('media:processed'); },
         deleted:   function () { emit('media:deleted'); },
         refresh:   function () { emit('filemanager:refresh'); },
+        upload:    upload,
     };
 })();

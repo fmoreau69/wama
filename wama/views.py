@@ -94,6 +94,7 @@ def home(request):
     # `model` (source `catalog`, « auto » + modèles distants ouverts par les clés) et le curseur
     # Rapide ↔ Qualité ; les valeurs viennent du réglage DURABLE de l'utilisateur. Plus aucune
     # liste de fournisseurs ni de rôles dans le gabarit : le fournisseur se dérive du modèle.
+    from wama.assistant.params import GROUPS_JSON as CHAT_GROUPS
     from wama.assistant.params import PARAMS_JSON as CHAT_PARAMS
     from wama.common.services.assistant_engine import assistant_settings
     context = {
@@ -103,6 +104,7 @@ def home(request):
         # qui voit la surface chat.
         # Schéma + valeurs du sélecteur, rendus par la brique commune `WamaParams` (json_script).
         'chat_params': CHAT_PARAMS,
+        'chat_groups': CHAT_GROUPS,
         'chat_values': assistant_settings(request.user),
         # Fil `web` de l'utilisateur, relu du store SERVEUR (plus du localStorage) : la même
         # conversation se retrouve sur tout appareil.
@@ -112,7 +114,10 @@ def home(request):
         # sections restaient rendues SOUS lui — « Sélectionnez un fichier pour l'aperçu » sur
         # l'accueil — parce que `base.html` les servait à toute page (WAMA_VOLETS §5).
         # `tete=True` garde le volet ouvert pour l'avatar sans rien d'autre.
-        'volet': volet(tete=True, medias=False, parametres=False, actions=False),
+        # + 2026-10-18 (décision de Fabien) : la section « Paramètres » porte les RÉGLAGES de
+        # l'assistant, comme le volet d'une app — ils encombraient la carte du chat. En mode
+        # simplifié (volets masqués), la ⚙ du chat ouvre la modale commune.
+        'volet': volet(tete=True, medias=False, parametres=True, actions=False),
         # Menu « Présentations & annexes » : les archives se listent depuis leur déclaration.
         'archived_presentations': [{'slug': k, 'label': v['label']}
                                    for k, v in ARCHIVED_PRESENTATIONS.items()],
@@ -274,6 +279,18 @@ _RELEASE_WAIT_MESSAGE = ("Un traitement lourd libère la carte graphique en ce m
                          "une minute.")
 
 
+def _turn_message(user, data) -> str:
+    """Le message d'un tour web : le texte, et les fichiers GLISSÉS sur le chat (2026-10-18) — la
+    graphie de la passerelle (`assistant_engine.message_with_deposits`). Seuls les fichiers que
+    l'utilisateur peut LIRE entrent (`filemanager.services.resoudre_chemin_lisible`, la garde du
+    gestionnaire de fichiers) : un chemin posté n'est pas un chemin à soi."""
+    from wama.common.services.assistant_engine import message_with_deposits
+    from wama.filemanager.services import resoudre_chemin_lisible
+    paths = [p for p in (data.get('files') or [])[:20]
+             if isinstance(p, str) and resoudre_chemin_lisible(user, p)[0] is not None]
+    return message_with_deposits(str(data.get('message') or ''), paths)
+
+
 @require_http_methods(["POST"])
 @csrf_protect
 def ai_chat(request):
@@ -286,7 +303,7 @@ def ai_chat(request):
         return JsonResponse({'error': 'Authentification requise'}, status=401)
     try:
         data = json.loads(request.body)
-        message = data.get('message', '').strip()
+        message = _turn_message(request.user, data)
         # Rien d'imposé par la surface : le fournisseur et le modèle se résolvent par le réglage
         # durable de l'utilisateur, puis par le tirage « auto » commun (`resolve_turn_model`).
         provider = data.get('provider') or None
@@ -353,23 +370,36 @@ def ai_chat_follow_ups(request):
                                                       absolute=request.build_absolute_uri)})
 
 
-@require_http_methods(["POST"])
+@require_http_methods(["GET", "POST"])
 @csrf_protect
 def ai_chat_settings(request):
-    """Réglages de l'assistant (modèle, curseur) — enregistrés par la brique commune.
+    """Réglages de l'assistant (modèle, curseur, voix) — enregistrés par la brique commune.
 
     Même chemin que les apps : les valeurs sont bornées par le SCHÉMA (`coerce_params`) et
     persistées par `user_settings` (app `assistant`). Elles valent alors pour TOUTES les
     surfaces, la passerelle comprise.
+
+    GET (2026-10-18) : `{schema, groups, values}` — ce que la modale ⚙ commune
+    (`WamaParams.settingsModal`) rend depuis le chat de n'importe quelle page, volets masqués
+    (mode simplifié) compris. POST : du JSON (le volet de l'accueil) ou le FORMULAIRE que poste
+    la modale commune — une route, deux transports.
     """
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'Authentification requise'}, status=401)
-    try:
-        data = json.loads(request.body or '{}')
-    except json.JSONDecodeError:
-        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    from wama.assistant.params import GROUPS_JSON, PARAMS_JSON, USER_SETTINGS_DEFAULTS
+    if request.method == 'GET':
+        from wama.common.services.assistant_engine import assistant_settings
+        return JsonResponse({'schema': PARAMS_JSON, 'groups': GROUPS_JSON,
+                             'values': assistant_settings(request.user)})
+    if 'json' in (request.content_type or ''):
+        try:
+            data = json.loads(request.body or '{}')
+        except json.JSONDecodeError:
+            return JsonResponse({'error': 'JSON invalide'}, status=400)
+    else:
+        data = request.POST.dict()
+        data.pop('csrfmiddlewaretoken', None)
 
-    from wama.assistant.params import PARAMS_JSON, USER_SETTINGS_DEFAULTS
     from wama.common.utils.auto_model import is_auto, read_quality_intent
     from wama.common.utils.param_schema import coerce_params
     from wama.common.utils.user_settings import save_user_app_settings
@@ -444,7 +474,7 @@ def ai_chat_stream(request):
         data = json.loads(request.body or '{}')
     except json.JSONDecodeError:
         return JsonResponse({'error': 'Invalid JSON'}, status=400)
-    message = (data.get('message') or '').strip()
+    message = _turn_message(request.user, data)
     if not message:
         return JsonResponse({'error': 'Message is required'}, status=400)
 

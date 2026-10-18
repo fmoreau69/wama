@@ -286,6 +286,16 @@ Reste (§9 ①) : un seul chat — l'accueil devrait devenir la même brique en 
 sous lui.~~ ✅ **Corrigé le 22/08** : l'accueil déclare `tete=True` + les trois sections à
 `False` — le volet reste ouvert pour le seul avatar. C'est le cas d'usage qui a rendu la clé
 `tete` nécessaire (un gabarit ne peut pas dire si son bloc libre est vide).
+✅ **2026-10-18 (décision de Fabien) — les RÉGLAGES de l'assistant passent au volet, comme ceux
+d'une app.** Ils encombraient la carte du chat de l'accueil (modèle, curseur, puis les deux pauses
+de la voix). L'accueil déclare `parametres=True` : la section « Paramètres de l'assistant » rend
+le schéma `assistant/params.py` (contexte `panel`, pauses repliées dans le groupe « Voix »,
+`ParamGroup`). Et le mode SIMPLIFIÉ, où le volet est masqué, garde son chemin comme dans toute
+app : la ⚙ du chat ouvre la modale COMMUNE (`WamaParams.settingsModal`, contexte `item`), servie
+par la route de réglages (GET : schéma, groupes, valeurs ; POST : formulaire). La même ⚙ est sur
+le mini-chat du volet, qui n'avait AUCUN accès aux réglages — la phrase « aucun réglage dans le
+volet » ci-dessus disait vrai jusqu'à ce jour. Un identifiant par contexte : volet et modale
+peuvent être rendus ensemble. Gardes : `tests_assistant_deposit_settings`, `tests_volet`.
 
 **`filemanager`** — n'a **aucune** page étendant `base.html` ; il fournit la sidebar gauche
 et, par accident d'histoire, le CSS du volet droit. Son « aperçu global » annoncé en

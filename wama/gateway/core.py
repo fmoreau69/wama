@@ -216,13 +216,10 @@ def _handle(msg: IncomingMessage) -> Reply:
         return Reply(text=HELP_TEXT)
 
     # ── Le tour d'assistant : MÊME moteur ET MÊME store que la page web ─────────
-    from wama.common.services.assistant_engine import conversation_turn
+    from wama.common.services.assistant_engine import conversation_turn, message_with_deposits
 
-    invite = texte
-    if deposes:
-        liste = ', '.join(f"`{d['path']}`" for d in deposes)
-        entete = f"[Fichiers déposés dans mon espace WAMA : {liste}]"
-        invite = f"{entete}\n{texte}" if texte else f"{entete}\nQue puis-je en faire ?"
+    # Le message d'un dépôt : UNE graphie, partagée avec le glisser-déposer du chat web.
+    invite = message_with_deposits(texte, [d['path'] for d in deposes])
 
     # L'historique est résolu et persisté SERVEUR (plus de dict en mémoire du process) :
     # la passerelle n'a qu'à nommer son fil.

@@ -54,6 +54,8 @@
          data-stream-url="{% url 'ai_chat_stream' %}"
          data-thread-url="{% url 'ai_chat_thread' %}"
          data-follow-ups-url="{% url 'ai_chat_follow_ups' %}"
+         data-settings-url="{% url 'ai_chat_settings' %}"
+         data-params-script="{% static 'common/js/wama-params.js' %}"
          data-stt-url="{% url 'speech_to_text' %}"
          data-greeting="Posez une question ou demandez une tâche — même fil que l'accueil.">
       <div class="wama-assistant-feed" data-assistant-feed></div>
@@ -66,13 +68,16 @@
         <textarea rows="1" placeholder="Votre message…" aria-label="Message à l'assistant"></textarea>
         <button type="button" class="btn btn-outline-info btn-sm" data-assistant-voice
                 title="Couper la voix (muet)"><i class="fas fa-volume-up"></i></button>
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-assistant-settings
+                title="Réglages de l'assistant (modèle, qualité, voix)"><i class="fas fa-gear"></i></button>
         <button type="button" class="btn btn-primary btn-sm" data-assistant-send
                 title="Envoyer"><i class="fas fa-paper-plane"></i></button>
       </div>
-      {% comment %}Rappel en LECTURE SEULE du dernier tour (modèle · niveau) : les réglages se
-      font sur l'accueil et valent partout (durables).{% endcomment %}
+      {% comment %}Rappel du dernier tour (modèle · niveau). Les réglages, durables et valables
+      partout, s'ouvrent par la ⚙ (modale commune, 2026-10-18) ; un fichier GLISSÉ sur le chat
+      se dépose dans votre espace et part avec le message.{% endcomment %}
       <div class="wama-assistant-status" data-assistant-status
-           title="Réglages (modèle, qualité, voix) : page d'accueil"></div>
+           title="Réglages : ⚙ — glissez un fichier sur le chat pour le joindre"></div>
     </div>
     {% endif %}
   </div>

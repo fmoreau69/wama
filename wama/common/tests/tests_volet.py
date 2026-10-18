@@ -257,8 +257,13 @@ class PagesDeclarantesTest(TestCase):
         html = self.client.get(reverse('home')).content.decode('utf-8', 'replace')
         self.assertIn(ASIDE, html, "l'accueil garde son volet : l'avatar y vit (right_panel_top)")
         self.assertNotIn(SANS_VOLET, html)
-        for cle, marqueur in MARQUEURS.items():
-            self.assertNotIn(marqueur, html,
+        # 2026-10-18 (décision de Fabien) : la section « Paramètres » porte les RÉGLAGES de
+        # l'assistant, comme le volet d'une app — ils encombraient la carte du chat. Les autres
+        # cadres restent retirés.
+        self.assertIn(MARQUEURS['parametres'], html)
+        self.assertIn('id="ai-settings"', html)
+        for cle in ('medias', 'actions'):
+            self.assertNotIn(MARQUEURS[cle], html,
                              f"accueil : cadre '{cle}' sous l'avatar — c'est ce que la "
                              "déclaration `tete=True` doit retirer (WAMA_VOLETS §5)")
 

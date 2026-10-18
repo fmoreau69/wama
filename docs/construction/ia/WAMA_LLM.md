@@ -773,6 +773,23 @@ l'intuition :
   `tests_assistant_surfaces.VoicePausesTest`, `tests_assistant_voice_js` (code en ligne envoyé,
   bloc jamais coupé, lèvres sur `spoken`) — cinq contre-épreuves par mutation, toutes rouges.
 
+✅ **On GLISSE un fichier sur le chat, comme dans Discord (2026-10-18, demande de Fabien : « on
+glisse un fichier sans forcément préciser ce qu'on veut en faire, puis on le précise »).** Sur le
+chat de l'accueil et le mini-chat du volet (toute page) : le fichier est déposé dans l'espace de
+l'utilisateur par le geste partagé (`WamaFM.upload` → `/filemanager/api/upload/` →
+`enregistrer_fichier_utilisateur`, celui de la passerelle et de l'API), montré en pastille sous la
+saisie, puis envoyé AVEC le message — ou seul. Le message prend la graphie de Discord, sortie de la
+passerelle dans `assistant_engine.message_with_deposits` (« [Fichiers déposés dans mon espace
+WAMA : …] », puis le texte ou « Que puis-je en faire ? ») ; l'assistant inspecte
+(`inspect_user_file`) et propose : fichier de travail ou de référence d'une app, lot, RAG
+(`add_file_to_rag`)… Seuls les chemins LISIBLES par l'utilisateur entrent (`resoudre_chemin_lisible`) :
+un chemin posté n'est pas un chemin à soi. Décision de Fabien : pastille puis envoi (pas d'envoi
+au dépôt). Le dépôt « Mes Fichiers » de l'accueil simplifié passe par le même `WamaFM.upload`.
+Gardes : `tests_assistant_deposit_settings` (message partagé, filtre, tour sans texte ; V8 : dépôt,
+chemins envoyés puis effacés, ⚙ sur la modale commune) — cinq contre-épreuves par mutation, rouges.
+⏳ Les trois zones de dépôt de l'accueil simplifié (Fichiers, Médiathèque, Reader) restent :
+le chat en fait la généralisation ; les fondre ou non est une décision.
+
 #### 1ter. L'assistant agit sur le CODE — pour les développeurs et administrateurs (22/09)
 
 Demande de Fabien : *« utiliser un modèle local ou cloud souverain, performant en code, pour

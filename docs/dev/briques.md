@@ -2457,7 +2457,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 ### Signalement au gestionnaire de fichiers
 
-Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event
+Noms d'événements centralisés (media:uploaded/processed/deleted) — l'arborescence du filemanager se rafraîchit sans que chaque app invente son event. Et `WamaFM.upload` (2026-10-18) : le DÉPÔT dans l'espace de l'utilisateur, geste partagé avec Discord et l'API (`enregistrer_fichier_utilisateur`) — le glisser-déposer sur le chat de l'assistant et la zone « Mes Fichiers » de l'accueil
 
 - **Domicile** : `wama/common/static/common/js/wama-fm-notify.js`
 
