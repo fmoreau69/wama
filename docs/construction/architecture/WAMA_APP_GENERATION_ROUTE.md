@@ -4162,6 +4162,70 @@ aligné sur le fonctionnement de WAMA, universel, commun et portable à tous les
   s'écrit avec R3. Les libellés des nœuds intégrés vivent encore à deux endroits (palette JS,
   `node_params`) : R2.
 
+✅ **R2 LIVRÉE le 2026-10-18** — arbitrages (a) et (b) actés par Fabien le 2026-10-14, ordre R2 → R4
+→ R3 ; puis D1, D2, le point 5 et le périmètre élargi le 2026-10-18 (*« ce qu'on veut, c'est pouvoir
+régler les nœuds dans le Studio, ce qui n'est pas le cas actuellement »*), après confrontation avec
+la session Studio. Mesuré le jour même, sur le serveur vivant et en base : un nœud sélectionné dans
+les 10 à 15 premières secondes ne montrait AUCUN réglage, sans rien dire ; un réglage montré
+n'atteignait pas toujours l'élément ; un geste enregistrait l'instantané de tous les champs.
+- **Règle 6 — un nœud intégré, une déclaration.** `manifests/builtin/pipeline.BuiltinNode` +
+  `register_builtin_node` (registre `pipeline_nodes` de `registries.py`) : rôle, libellé, icône,
+  ports, réglages `Param`, exécuteur. Le Studio inscrit texte, médiathèque, jeu de données et sortie
+  (`studio/services/builtin_nodes.py`), le monde Data sa base connectée et son export
+  (`wama_data/functions/io/nodes.py`) — le substrat du Studio n'importe plus `wama_data`. La palette
+  (le catalogue `/studio/api/nodes/` les sert), `node_kind`, l'inspecteur, le lancement (libellés du
+  refus compris) et l'exécuteur les lisent. Retirés : `SOURCE_NODES`/`SINK_NODES`, `BUILTINS` du JS
+  (avec « Batch de prompts », que rien n'exécutait), `SOURCE_HANDLERS` et les branches par nom de
+  nœud, la liste de libellés du refus (`REMOVAL_LEDGER R144`). Les types qu'accepte la sortie et
+  que produit l'import de médias dérivent de `app_registry.MEDIA_CATEGORIES` (la palette JS en
+  recopiait une partie, sans `archive` ni `score`) ; les ports ont la forme de `studio_node_ports`.
+- **D1 — la déclaration d'un process hors des valeurs.** Un nœud de pipeline porte `params` (les
+  VALEURS décidées) et `process` (la DÉCLARATION exportée par un registre : degré, surveillés,
+  sorties, GPU, part, étage…). `AppPipeline.graph`, `pass_tracking.pipeline_graph`, l'aller-retour
+  canvas ↔ manifeste, le générateur (`pipeline_decl.process_specs`), le canvas JS et le corpus
+  (13 pipelines + le brouillon Writer) suivent ; le point 3.2 le prévoyait.
+- **D2 — un process Médias est l'étape de sa card.** Le nœud `function:<app>.<process>` montre les
+  réglages de la ⚙ de cette étape (`watched_of`, lus au schéma de l'app —
+  `process_pipeline.process_of_function`) ; l'exécuteur les écrit sur l'élément désigné puis lance
+  l'étape par `start_<app>(id, process=…)`, comme le ▶ de l'étape (`tasks._run_app_process`). Avant :
+  l'identifiant que réclame la tâche, en champ texte, et la tâche ENTIÈRE de l'app. L'écriture
+  passe par l'ÉCRIVAIN de réglages de l'app, celui que sa route d'élément et son lot partagent,
+  inscrit par sa fabrique de lot et lu hors requête (`batch_views.write_element_settings`) —
+  ramené à la revérification : un premier jet posait les valeurs par `setattr`, sans les règles
+  propres aux apps. Contrat générique : il écrit ce que la route ⚙ écrit, pour chaque app
+  (`tests_item_settings_contract`).
+- **Ce qui est affiché arrive.** Trois outils de création sans `**params` (enhancer, reader,
+  avatarizer) perdaient en silence 11 réglages que l'inspecteur montrait : portés sur la forme des
+  sept autres (`schema_model_kwargs`). Le composer réduisait toute durée à 30 s (`min(30.0, …)`) :
+  plafond désormais celui du modèle (`clamp_duration`).
+- **Seul le réglage décidé s'enregistre** (point 5) : un geste écrit LA clé touchée (la ligne
+  `data-param-row` la nomme, curseur composé compris), jamais l'instantané qui figeait les défauts
+  de l'app ; le reste suit la cascade, comme la ⚙ d'une card. L'exécution type les valeurs par la
+  porte commune.
+- **Les réglages arrivent avec le catalogue** (points 1 et 4) : `api_nodes` les sert, sous son
+  filtre d'accès (`api_run_options` l'ignorait, `REMOVAL_LEDGER R143`) ; l'inspecteur dit toujours
+  « chargement », « catalogue indisponible » ou « aucun réglage ». Les 9,6 s venaient de
+  `function_catalog.load_all`, appelé 142 fois et qui recherchait chaque fois les modules déclarants
+  absents (9 697 `stat` sur `/mnt/d`) : balayage mémorisé (0,58 s puis 0,09 s), `rescan=True` pour
+  l'actualisation du registre `functions`.
+- **Les jumelles** (point 2) : une jumelle sans outil de création n'est plus offerte à la palette
+  (la règle du lancement, `runners.runner_for`) — elle y figurait sans réglages et le lancement la
+  refusait. ⏳ Les rendre exécutables est un manque du GÉNÉRATEUR (l'outil `add_to_<jumelle>`).
+- **Gardes** (`studio.tests_node_settings`, toutes à contre-épreuve rouge sur HEAD) : chaque réglage
+  affiché d'un nœud d'app arrive sur l'élément créé par le runner (création réelle, valeurs
+  DÉCIDÉES ≠ défaut) ; durée du composer ; réglages de chaque étape = ceux qu'elle surveille (50
+  étapes) ; étape lancée comme le ▶, élément d'un autre compte refusé ; registre lu par la palette,
+  chaque monde inscrit les siens, aucun nœud écrit en JS, aucun import de `wama_data` dans le
+  Studio ; un seul réglage enregistré par geste ; `process` gardé par le canvas.
+  `tests_function_catalog_scan` (balayage mémorisé). Geste nocturne **`studio.node_settings`** —
+  déposer le Converter, le régler au clavier, enregistrer, recharger, lancer : l'élément porte la
+  valeur. Vert sur un serveur de dev au code neuf, rouge avec le script d'avant.
+- ⏳ **Reste, nommé** : le Converter, au Studio, ne montre que 2 de ses 20 réglages — les 18 autres
+  dépendent de la nature du média (`media_type`, champ caché que la card connaît, que le nœud
+  ignore tant que son entrée n'est pas lue) : décision à prendre (déduire la nature de l'entrée
+  branchée, ou la faire choisir au nœud). Le libellé court de `ParamSpec` (arbitrage (a)) n'est pas
+  encore posé : il vient avec R4, son premier consommateur.
+
 **3.4 Étages = sous-pipelines.** Le champ `stage` de cam_analyzer (`analyse` / `calcul`,
 `cam_analyzer.json` lignes 105 et 195) devient une STRUCTURE : deux pipelines (« analyse d'image »,
 « calculs ») chaînés et enregistrés comme un pipeline complet. Lancer un étage = lancer un

@@ -44,6 +44,16 @@ Kinds prévus : **`app`** (§3), **`function`** (= `FunctionSpec`, déjà fait, 
 > `source | sink | app | function` (`function` codé le 2026-09-09) et gagnera un TYPE DE NŒUD `pipeline`
 > (un pipeline enregistré réutilisé comme nœud) — pas de nouveau kind. Une card porte une instance de
 > pipeline dans tous les mondes.
+> ✅ **2026-10-18 (ROUTE §10.6 3.3bis, R2 — décision D1)** : un nœud porte DEUX champs de nature
+> différente. **`params`** = les VALEURS de réglage que l'utilisateur décide (l'inspecteur du Studio
+> n'écrit que là, et seulement la clé touchée) ; **`process`** (facultatif, dict) = la DÉCLARATION du
+> process qu'un registre de code exporte — `degree`, `watched`, `gpu`, `outputs`, `share`, `label`,
+> `eta`, `toggle`, `card_model`, `result`, `result_format` (pipelines d'app), `stage`, `per_camera`,
+> `task` (passes du Lab) —, lue par les générateurs (`codegen/pipeline_decl.process_specs`), gardée
+> telle quelle par le canvas. Les deux vivaient dans `params` : un geste pouvait effacer la
+> déclaration. Les nœuds `source`/`sink` sont ceux du registre des nœuds intégrés
+> (`builtin/pipeline.BuiltinNode`, inscrits par leur monde) — plus les ensembles
+> `SOURCE_NODES`/`SINK_NODES`.
 
 > **Distinction EXTRAIT vs AUTORÉ** (dégagée en construisant `dataset`) : deux familles de kinds.
 > - **Extraits** (`app`, `model`, `pipeline` — ce dernier depuis le canvas en DB OU un registre de code) : l'objet existe DÉJÀ dans le code/DB → le kind fournit
