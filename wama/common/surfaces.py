@@ -175,8 +175,8 @@ class Surface:
     #: (2026-10-18, décision de Fabien : vignettes du catalogue des briques UI) — `{champ: valeur}`,
     #: une DONNÉE, donc aussi écrite au manifeste d'une app générée. Le sens d'une valeur se
     #: DÉDUIT du type du champ, comme `text_value` : pour un champ FICHIER elle nomme un CONTENU,
-    #: dans les vocabulaires existants — une extension dont `app_registry.category_of_path` connaît
-    #: la nature (`.png`, `.md`, `.html`, `.abc`, `.wav`), ou un type de `catalog.data_types`
+    #: dans les vocabulaires existants — une extension que `app_registry.media_extensions` range
+    #: sous une nature (`.png`, `.md`, `.html`, `.abc`, `.wav`), ou un type de `catalog.data_types`
     #: (`detections`) ; pour un autre champ, c'est la valeur littérale (`media_type: image`). Le
     #: contenu se fabrique au harnais (`ui_smoke.witness_sample`). Vide : aucun témoin, aucune
     #: capture — la page le dit.

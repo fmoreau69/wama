@@ -9,7 +9,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from wama.common import registries
-from wama.common.app_registry import measured_adoption
+from wama.common.app_registry import app_identity, measured_adoption
 from wama.common.mecanismes import MECHANISMS, UI_DOMAIN
 from wama.common.surfaces import (BRICK_FAMILIES, BRICKS, SURFACES, THUMBNAILS_DIR, load_all,
                                   thumbnail_path)
@@ -38,11 +38,13 @@ class UIBricksPageTest(TestCase):
                 self.assertIn(brick.name, page)
 
     def test_a_brick_names_the_surfaces_that_compose_it(self):
+        """An app is named by its declared identity (`app_identity`), never by its key."""
         page = self._page()
         self.assertTrue(SURFACES, 'at least one surface is declared')
         for surface in SURFACES.values():
             with self.subTest(surface=surface.id):
-                self.assertIn(f'{surface.app} · {surface.label}', page)
+                self.assertIn(f'{app_identity(surface.app)["label"]} · {surface.label}', page)
+                self.assertNotIn(f'>{surface.app} · ', page)
 
     def test_what_a_brick_reads_is_said_in_its_vocabulary(self):
         """`consumes` holds media natures or data types — the page says which, never a third word."""
@@ -95,21 +97,23 @@ class SystemComponentsTest(TestCase):
         checked, unchecked = SYSTEM[0], SYSTEM[1]
         report = {'generated_at': '2026-10-18T00:00:00+00:00',
                   'criteria': {'c_one': {'mechanism': checked}, 'c_two': {'mechanism': checked}},
-                  'apps': {'app_all': {'conv': {'c_one': True, 'c_two': True}},
-                           'app_part': {'conv': {'c_one': True, 'c_two': False}},
-                           'app_none': {'conv': {'c_one': False, 'c_two': False}},
-                           'app_na': {'conv': {}}}}
+                  'apps': {'anonymizer': {'conv': {'c_one': True, 'c_two': True}},
+                           'composer': {'conv': {'c_one': True, 'c_two': False}},
+                           'imager': {'conv': {'c_one': False, 'c_two': False}},
+                           'describer': {'conv': {}}}}
         with mock.patch('wama.common.app_registry._conformity_report', return_value=report):
             adoption = measured_adoption(checked)
             self.assertEqual(['c_one', 'c_two'], adoption['criteria'])
-            self.assertEqual({'app_all': True, 'app_part': 'partial', 'app_none': False},
+            self.assertEqual({'anonymizer': True, 'composer': 'partial', 'imager': False},
                              adoption['apps'])
             self.assertEqual([], measured_adoption(unchecked)['criteria'])
         page = self._page(report)
         card = page.split(f'data-id="{checked}"', 1)[1].split('wama-cat-card', 1)[0]
-        self.assertIn('app_all', card)
-        self.assertIn('app_part<small>partiel</small>', card)
-        self.assertNotIn('app_none', card)
+        label = lambda app: app_identity(app)['label']
+        self.assertIn(f'>{label("anonymizer")}</span>', card)
+        self.assertIn(f'>{label("composer")}<small>partiel</small>', card)
+        self.assertNotIn(f'>{label("imager")}', card)
+        self.assertNotIn('>anonymizer</span>', card, 'a chip names the app, not its key')
         other = page.split(f'data-id="{unchecked}"', 1)[1].split('wama-cat-card', 1)[0]
         self.assertIn('aucun critère de la grille ne le vérifie', other)
 

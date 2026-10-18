@@ -605,7 +605,7 @@ def ui_bricks_view(request):
     La page DÉRIVE du code à chaque affichage : elle ne peut pas être périmée, donc aucun bouton
     d'actualisation (`refresh_button` le décide seul de la nature déclarée).
     """
-    from .app_registry import MEDIA_CATEGORIES, measured_adoption
+    from .app_registry import MEDIA_CATEGORIES, app_identity, measured_adoption
     from .catalog.data_types import known_types
     from .mecanismes import MECHANISMS, UI_DOMAIN
     from .surfaces import BRICK_FAMILIES, BRICKS, SURFACES, WORLDS, load_all, thumbnail
@@ -618,10 +618,12 @@ def ui_bricks_view(request):
             return 'nature de média'
         return 'type de données' if value in data_types else ''
 
+    # Une app se NOMME par son identité déclarée (`app_identity`), jamais par sa clé.
     used_by = {}
     for surface in SURFACES.values():
         for key in dict.fromkeys(slot.brick for slot in surface.slots):
-            used_by.setdefault(key, []).append({'app': surface.app, 'label': surface.label})
+            used_by.setdefault(key, []).append({'app': surface.app, 'label': surface.label,
+                                                'app_label': app_identity(surface.app)['label']})
 
     bricks = []
     for brick in sorted(BRICKS.values(), key=lambda b: b.name.lower()):
@@ -645,8 +647,8 @@ def ui_bricks_view(request):
             'key': mechanism.key, 'name': mechanism.name, 'description': mechanism.role,
             'home': mechanism.home, 'doc': mechanism.doc,
             'criteria': adoption['criteria'],
-            'apps': [{'app': app, 'state': state} for app, state in adoption['apps'].items()
-                     if state],
+            'apps': [{'app': app, 'label': app_identity(app)['label'], 'state': state}
+                     for app, state in adoption['apps'].items() if state],
             'family': BRICK_FAMILIES['system'],
         })
 

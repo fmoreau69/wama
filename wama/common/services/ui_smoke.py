@@ -454,12 +454,16 @@ def _wav_silence(secondes: float = 0.2, taux: int = 8000) -> bytes:
     « l'app ne groupe pas » sur des apps AUDIO qui groupent très bien. Un instrument qui
     dépose un faux fichier ne mesure pas l'app, il mesure son propre témoin.
     """
+    return _pcm_wav(b'\x00\x00' * int(taux * secondes), taux)     # silence 16 bits mono
+
+
+def _pcm_wav(data: bytes, rate: int) -> bytes:
+    """Un WAV PCM mono 16 bits autour d'échantillons déjà écrits — l'en-tête en UN endroit, pour
+    le silence des témoins d'import comme pour la mélodie du témoin des surfaces."""
     import struct
-    n = int(taux * secondes)
-    donnees = b'\x00\x00' * n                       # silence 16 bits mono
-    return (b'RIFF' + struct.pack('<I', 36 + len(donnees)) + b'WAVE'
-            + b'fmt ' + struct.pack('<IHHIIHH', 16, 1, 1, taux, taux * 2, 2, 16)
-            + b'data' + struct.pack('<I', len(donnees)) + donnees)
+    return (b'RIFF' + struct.pack('<I', 36 + len(data)) + b'WAVE'
+            + b'fmt ' + struct.pack('<IHHIIHH', 16, 1, 1, rate, rate * 2, 2, 16)
+            + b'data' + struct.pack('<I', len(data)) + data)
 
 
 def _png_1x1() -> bytes:
@@ -612,21 +616,18 @@ def _witness_image(ext: str) -> bytes:
 
 
 def _witness_tones(notes=(261.63, 329.63, 392.0, 523.25), seconds: float = 0.5,
-                   taux: int = 16000) -> bytes:
+                   rate: int = 16000) -> bytes:
     """Un WAV PCM VALIDE qui SONNE (quatre notes), pour qu'une onde se voie — le silence de
     `_wav_silence` donne une ligne plate."""
     import math
     import struct
-    n = int(taux * seconds)
+    n = int(rate * seconds)
     samples = bytearray()
     for freq in notes:
         for i in range(n):
             fade = min(1.0, i / 400, (n - i) / 400)
-            samples += struct.pack('<h', int(9000 * fade * math.sin(2 * math.pi * freq * i / taux)))
-    data = bytes(samples)
-    return (b'RIFF' + struct.pack('<I', 36 + len(data)) + b'WAVE'
-            + b'fmt ' + struct.pack('<IHHIIHH', 16, 1, 1, taux, taux * 2, 2, 16)
-            + b'data' + struct.pack('<I', len(data)) + data)
+            samples += struct.pack('<h', int(9000 * fade * math.sin(2 * math.pi * freq * i / rate)))
+    return _pcm_wav(bytes(samples), rate)
 
 
 def _witness_detections() -> bytes:

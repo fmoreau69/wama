@@ -473,7 +473,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       ⏳ Vignettes des composants SYSTÈME (décision : listés sans vignette d'abord — il faudra
       déclarer où les cadrer) ; « Versions » capturée vide (le témoin n'a pas de révision gardée) ;
       le domaine « Qualité & auto-amélioration » porte encore des fonctionnalités qui n'en sont pas
-      (mémoire, MCP, modèles distants, calendrier, partage…), rangement non fait. ;
+      (mémoire, MCP, modèles distants, calendrier, partage…), rangement non fait ;
       la disposition côté serveur (aujourd'hui stockage local du navigateur) ; la
       vidéo (axe commun) ; l'évaluation dans l'anonymizer (corrections = vérité terrain, WIDER
       FACE val, `WAMA_APPRENTISSAGE §8bis`) ; porter vers ces briques les pilotes en attente

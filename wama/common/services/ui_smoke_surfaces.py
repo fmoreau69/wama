@@ -77,8 +77,7 @@ def mount_witness(surface, user_id: int):
     return item.pk
 
 
-def _capture_surface(context, token, surface, pk, captured, opened, faults, reverse,
-                     thumbnail_path):
+def _capture_surface(context, token, surface, pk, captured, opened, faults, reverse):
     """Ouvre UNE surface sur son témoin et capture celles de ses briques pas encore capturées.
 
     ⚠ Pas de `networkidle` : une surface temporelle interroge le serveur EN CONTINU (suivi du
@@ -151,7 +150,7 @@ def capture_brick_thumbnails():
                     context = browser.new_context(viewport={'width': 1500, 'height': 1000})
                     try:
                         _capture_surface(context, token, surface, pk, captured, opened, faults,
-                                         reverse, thumbnail_path)
+                                         reverse)
                     except Exception as error:           # une surface en échec n'arrête pas les autres
                         faults.append(f"{surface.id} : {type(error).__name__} — {str(error)[:200]}")
                     finally:

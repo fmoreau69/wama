@@ -86,7 +86,7 @@
        data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for b in bricks %}
     <div class="wama-cat-card" data-id="{{ b.key }}" data-f-famille="{{ b.family }}" data-f-usage="{{ b.usage }}"
-         data-f-text="{{ b.key }} {{ b.name }}{% for r in b.reads %} {{ r.value }}{% endfor %}{% for e in b.emits %} {{ e }}{% endfor %}{% for s in b.surfaces %} {{ s.app }} {{ s.label }}{% endfor %}">
+         data-f-text="{{ b.key }} {{ b.name }}{% for r in b.reads %} {{ r.value }}{% endfor %}{% for e in b.emits %} {{ e }}{% endfor %}{% for s in b.surfaces %} {{ s.app }} {{ s.app_label }} {{ s.label }}{% endfor %}">
       <h4>{{ b.name }}
         <span class="wama-cat-badge ub-family">{{ b.family }}</span>
         <span class="wama-cat-badge ub-key">{{ b.key }}</span>
@@ -111,7 +111,7 @@
       </div>
       {% endif %}
       <div class="ub-row"><b>Utilisée par</b>
-        {% for s in b.surfaces %}<span class="ub-chip ub-surface">{{ s.app }} · {{ s.label }}</span>{% empty %}<span class="ub-none">aucune surface pour l'instant</span>{% endfor %}
+        {% for s in b.surfaces %}<span class="ub-chip ub-surface">{{ s.app_label }} · {{ s.label }}</span>{% empty %}<span class="ub-none">aucune surface pour l'instant</span>{% endfor %}
       </div>
 
       <div class="wama-cat-meta">
@@ -127,7 +127,7 @@
     `data-id` = la clé du mécanisme ; « Utilisé par » = l'adoption mesurée par la grille.{% endcomment %}
     {% for s in system %}
     <div class="wama-cat-card" data-id="{{ s.key }}" data-f-famille="{{ s.family }}"
-         data-f-text="{{ s.key }} {{ s.name }}{% for a in s.apps %} {{ a.app }}{% endfor %}">
+         data-f-text="{{ s.key }} {{ s.name }}{% for a in s.apps %} {{ a.app }} {{ a.label }}{% endfor %}">
       <h4>{{ s.name }}
         <span class="wama-cat-badge ub-system">{{ s.family }}</span>
         <span class="wama-cat-badge ub-key">{{ s.key }}</span>
@@ -135,7 +135,7 @@
       <div class="wama-cat-desc">{{ s.description }}</div>
       <div class="ub-row"><b>Utilisé par</b>
         {% if not s.criteria %}<span class="ub-none">aucun critère de la grille ne le vérifie</span>
-        {% else %}{% for a in s.apps %}<span class="ub-chip {% if a.state == 'partial' %}ub-partial{% else %}ub-app{% endif %}">{{ a.app }}{% if a.state == 'partial' %}<small>partiel</small>{% endif %}</span>{% empty %}<span class="ub-none">aucune app, d'après la grille</span>{% endfor %}{% endif %}
+        {% else %}{% for a in s.apps %}<span class="ub-chip {% if a.state == 'partial' %}ub-partial{% else %}ub-app{% endif %}">{{ a.label }}{% if a.state == 'partial' %}<small>partiel</small>{% endif %}</span>{% empty %}<span class="ub-none">aucune app, d'après la grille</span>{% endfor %}{% endif %}
       </div>
       <div class="wama-cat-meta">
         domicile <code class="ub-path">{{ s.home }}</code>{% if s.doc %} · doc <code class="ub-path">{{ s.doc }}</code>{% endif %}{% if s.criteria %} · critère{{ s.criteria|length|pluralize }} {{ s.criteria|join:", " }}{% endif %}
