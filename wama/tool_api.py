@@ -1687,7 +1687,8 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
     """
     from wama.model_manager.models import AIModel
 
-    qs = AIModel.objects.all().order_by('source', 'model_key')
+    # Les modèles que CE compte voit (ROADMAP §29) : système, publics, les siens, sa portée.
+    qs = AIModel.objects.catalogue_visible_to(user).order_by('source', 'model_key')
     if not include_proposed:
         qs = qs.filter(is_proposed=False)
     if app:
@@ -1761,7 +1762,8 @@ def get_ai_model(user, model_key: str) -> dict:
     """
     from wama.model_manager.models import AIModel
 
-    m = AIModel.objects.filter(model_key=model_key).first()
+    # Un modèle privé d'autrui est « introuvable » : le dire existant en dirait l'auteur.
+    m = AIModel.objects.catalogue_visible_to(user).filter(model_key=model_key).first()
     if m is None:
         return {'error': f"Modèle '{model_key}' introuvable au catalogue "
                          f"(les clés se découvrent via list_ai_models)."}
@@ -1849,13 +1851,13 @@ def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> di
         # Le Hub refuse (429, panne) : le CATALOGUE, lui, répond encore (fil n° 40 — deux
         # recherches perdues sur une limite de débit, alors que les clés étaient en base).
         return {'error': res.get('error', 'recherche HuggingFace indisponible'),
-                'catalog': _catalog_matches(q, [])}
+                'catalog': _catalog_matches(q, [], user=user)}
     out = {k: v for k, v in res.items() if k != 'ok'}
-    out['catalog'] = _catalog_matches(q, res.get('refs') or [])
+    out['catalog'] = _catalog_matches(q, res.get('refs') or [], user=user)
     return out
 
 
-def _catalog_matches(query: str, refs: list, limit: int = 15) -> list:
+def _catalog_matches(query: str, refs: list, limit: int = 15, user=None) -> list:
     """Les lignes du catalogue qui répondent à une recherche : les dépôts qu'elle vient d'écrire
     ET celles dont le dépôt ou le nom contient chaque mot de la requête.
 
@@ -1878,11 +1880,12 @@ def _catalog_matches(query: str, refs: list, limit: int = 15) -> list:
             by_words &= has(w)
         # Un mot que le catalogue ne porte pas (« PaddleOCR-VL-1.6 Ollama », fil n° 40) ne doit
         # pas tout éteindre : rien pour TOUS les mots → le plus long, le plus spécifique.
-        if not AIModel.objects.filter(by_words).exists():
+        if not AIModel.objects.catalogue_visible_to(user).filter(by_words).exists():
             by_words = has(max(words, key=len))
     # Ce qui s'INSTALLE d'abord (les propositions), puis l'installé ; une ligne retirée en dernier —
     # en tête, Albert l'a prise pour un modèle à installer (fil n° 41).
-    rows = AIModel.objects.filter(written | by_words).order_by(
+    # Les lignes que ce compte voit (ROADMAP §29) : un modèle privé d'autrui ne se trouve pas.
+    rows = AIModel.objects.catalogue_visible_to(user).filter(written | by_words).order_by(
         '-is_proposed', '-is_downloaded', 'model_key')
     return [{'key': m.model_key, 'name': m.name, 'task': (m.capabilities or {}).get('task'),
              'proposed': m.is_proposed, 'downloaded': m.is_downloaded}

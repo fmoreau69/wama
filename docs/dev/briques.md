@@ -546,7 +546,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (49) :
+- **API publique** (50) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -579,15 +579,16 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `variant_owner_keys(repo: str) -> list[str]` — Les propositions dont `repo` est une VARIANTE quantisée (`prospect.quant_variants`) — la clé
   - `request_install(model_key: str, *, force: bool=False, variant_ref: str='', variant_file: str='', user=None, via: str='') -> dict` — DEMANDE d'installation par CLÉ — corps unique du geste « Installer » : choix de variante,
   - `dispatch_install(task, row, *, user_id=None, via='')` — SEUL point de dispatch des deux tâches d'installation : ouvre l'événement DATÉ du journal,
-  - `install_candidate(cand, progress=None, token=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
+  - `install_candidate(cand, progress=None, token=None, owner=None) -> dict` — Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
   - `weights_dir_of(model, index: dict | None=None) -> Path | None` — Dossier des POIDS d'une ligne de catalogue installée, ou None s'il ne se désigne pas.
   - `rows_depending_on(model, target: Path, index: dict | None=None) -> tuple[list, list]` — Les AUTRES lignes installées que retirer `target` toucherait — `(sharing, dependents)`.
   - `uninstall_model(model_key: str, include_shared: bool=False, via: str='') -> dict` — DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
   - `forget_in_corpus(model_keys) -> None` — Le corpus de manifestes SUIT la désinstallation, comme il suit l'installation
   - `spec_for_catalog_row(model) -> dict | None` — Spec d'installation DÉRIVÉ d'une ligne de catalogue non téléchargée — le geste « Installer »
   - `patterns_from_composition(composition) -> list | None` — `allow_patterns` DÉRIVÉS d'une `composition` déclarée (manifeste `model`,
-  - `install_from_spec(spec: dict, token=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
-  - `record_provenance(spec: dict, res: dict) -> dict` — Après un téléchargement réussi : sync du catalogue, puis provenance des lignes apparues.
+  - `install_owner(user_id)` — À qui revient un modèle que l'installation fait NAÎTRE (`ROADMAP §29` étape 3, décision de
+  - `install_from_spec(spec: dict, token=None, owner=None) -> dict` — Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
+  - `record_provenance(spec: dict, res: dict, owner=None) -> dict` — Après un téléchargement réussi : sync du catalogue, puis provenance des lignes apparues.
   - `queue_benchmarks(res: dict, appeared_keys) -> None` — Met en file le BANC TIERS des modèles qu'on vient d'installer (2026-10-10).
   - `pip_spec_error(spec: str)` — Motif de refus d'un spécificateur pip, ou None s'il passe les verrous syntaxiques.
   - `pip_constraint_errors(constraints) -> list` — Motifs de refus des contraintes pip — mêmes verrous qu'un spécificateur.
@@ -698,7 +699,7 @@ Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la
   - `cloud_identity(item: dict) -> Optional[dict]` — Identité d'un modèle DISTANT : le dépôt HuggingFace que le fournisseur sert, quand il le
   - `identity_for_spec(spec: dict) -> Optional[dict]` — Identité déductible du descripteur d'installation (`install_from_spec`).
   - `set_identity(model_key: str, identity: dict, *, capabilities: dict=None, engine: str=None, composition: dict=None, apply: bool=True, export: bool=True) -> dict` — Pose l'identité — et les capacités DÉCLARÉES — sur un modèle DU CATALOGUE, en passant
-  - `record_after_install(spec: dict, appeared_keys) -> dict` — Après installation + sync : pose l'identité sur les modèles qui viennent d'APPARAÎTRE.
+  - `record_after_install(spec: dict, appeared_keys, owner=None) -> dict` — Après installation + sync : pose l'identité sur les modèles qui viennent d'APPARAÎTRE.
 
 ### Sonde vision
 
@@ -730,7 +731,7 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
 
 ### Sélection de modèle
 
-Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité
+Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité — parmi ceux que le compte voit (`user=`, `ROADMAP §29` : sans compte, le système seul)
 
 - **Domicile** : `wama/model_manager/services/model_selector.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Sélection intelligente de modèles — centralisée pour toutes les apps WAMA.
@@ -741,7 +742,7 @@ Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité
   - `domain_q(domain: dict)` — Le filtre (`Q`) d'un DOMAINE déclaré au schéma d'une app (`options_query` : `task`, une ou
   - `intent_choice(candidates, quality: dict, cost: dict, quality_intent, key=id)` — Le candidat que le CURSEUR rapide/qualité désigne — la règle de TOUTES les apps :
   - `select_model(source: Optional[str]=None, *, model_type: Optional[str]=None, requires: Optional[List[str]]=None, classes: Optional[List[str]]=None, prefer_loade…` — Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
-  - `list_models(source: str, downloaded_only: bool=True) -> List[dict]` — Liste des modèles d'une source (dicts to_dict — description courte/longue + vram).
+  - `list_models(source: str, downloaded_only: bool=True, user=None) -> List[dict]` — Liste des modèles d'une source (dicts to_dict — description courte/longue + vram), ceux
   - `matches_inputs(model, available_inputs=None, task: Optional[str]=None, consumes=None) -> bool` — Ce modèle est-il utilisable avec les entrées dont on dispose ? (appariement entrée↔modèle)
   - `full_gpu_budget_gb(headroom_gb: float=4.0) -> Optional[float]` — Budget VRAM au-delà duquel un modèle imposerait de l'offload CPU.
   - `select_model_id(source: Optional[str]=None, requires=None, requested: Optional[str]=None, fallback: Optional[str]=None, avoid_offload: bool=True, modality: Opt…` — Tirage d'un modèle pour une app, rendu comme un `model_id` nu (sans le préfixe "source:").
@@ -2077,7 +2078,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (40) :
+- **API publique** (41) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2095,6 +2096,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
   - `scoped_visible_q(user, owner_field='user', model=None)` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
+  - `catalogue_visible_q(user, owner_field='owner', model=None)` — `Q` des éléments d'un CATALOGUE (modèles, puis librairies, fonctions…) que `user` voit
   - `class ShareConsent(models.Model)` — Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
   - `class ReceivedEntry(models.Model)` — Le RANGEMENT, chez le destinataire, d'une entrée de file qu'on lui a partagée (2026-10-02).
   - `class ObjectGrant(models.Model)` — Un DROIT sur une instance — et la DEMANDE de ce droit : la même ligne (2026-10-03).
@@ -2630,12 +2632,13 @@ REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et 
 
 - **Domicile** : `wama/common/registries.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Registre des REGISTRES — l'actualisation devient un mécanisme, pas une page.
-- **API publique** (14) :
+- **API publique** (15) :
   - `class RefreshResult` — Compte-rendu UNIFORME d'une actualisation, quelle que soit sa nature.
   - `class Registry` — Ce qu'une page catalogue déclare pour hériter de l'actualisation.
   - `execution_of(r: Registry) -> str`
   - `register(r: Registry) -> Registry`
   - `get(key: str) -> Registry`
+  - `for_access_kind(kind: str) -> Optional[Registry]` — Le registre qui liste les éléments de la famille d'accès `kind`, ou None — un par
   - `is_authorized(r: Registry, user) -> bool` — Ce compte peut-il ACTUALISER ce registre ? Le lire relève de l'accès à l'outil « Registres »
   - `refusal(r: Registry) -> str` — Le motif d'un refus d'actualisation, lisible tel quel (les vues y lisent « réservé »).
   - `mark_refreshed(key: str) -> None` — Signale aux AUTRES processus qu'ils sont périmés.
@@ -3220,11 +3223,11 @@ Une VUE déclare ce qu'on regarde — flux, fenêtre, résolution, colonnes dér
 
 ### Visibilité et portée
 
-Privé / unité / public : filtrage des lectures, mutations inchangées
+Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis le 2026-10-18 (`ROADMAP §29` étape 3), les éléments d'un CATALOGUE aussi : `catalogue_visible_q` (système et publics pour tous, les siens, sa portée ; tout pour l'admin), dont le premier porteur est `AIModel` — la provenance naît au geste d'installation, et `accessible(user, 'model', clé)` la lit sur la ligne
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (40) :
+- **API publique** (41) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -3242,6 +3245,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
   - `class ScopedVisibility(models.Model)` — Mixin ABSTRAIT : visibilité par scope (privé / PROJET / unité org / public).
   - `scoped_visible_q(user, owner_field='user', model=None)` — `Q` filtrant les objets ScopedVisibility visibles pour `user` : les siens + les
+  - `catalogue_visible_q(user, owner_field='owner', model=None)` — `Q` des éléments d'un CATALOGUE (modèles, puis librairies, fonctions…) que `user` voit
   - `class ShareConsent(models.Model)` — Le CONSENTEMENT donné en partageant un élément qui porte une PERSONNE — et son retrait.
   - `class ReceivedEntry(models.Model)` — Le RANGEMENT, chez le destinataire, d'une entrée de file qu'on lui a partagée (2026-10-02).
   - `class ObjectGrant(models.Model)` — Un DROIT sur une instance — et la DEMANDE de ce droit : la même ligne (2026-10-03).

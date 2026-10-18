@@ -334,7 +334,8 @@ MECHANISMS = (
 
     *_domain('Modèles', (
     Mechanism('model_selector', 'Sélection de modèle',
-              "Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité",
+              "Choisit UN modèle : capacités, entrées, priorités, budget VRAM, qualité — parmi "
+              "ceux que le compte voit (`user=`, `ROADMAP §29` : sans compte, le système seul)",
               'wama/model_manager/services/model_selector.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md'),
     Mechanism('auto_model', 'Auto-sélection (« auto » au select)',
               "Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le "
@@ -2503,9 +2504,14 @@ MECHANISMS = (
               'wama/common/utils/media_paths.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md'),
     Mechanism('scoped_visibility', 'Visibilité et portée',
-              "Privé / unité / public : filtrage des lectures, mutations inchangées",
+              "Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis le "
+              "2026-10-18 (`ROADMAP §29` étape 3), les éléments d'un CATALOGUE aussi : "
+              "`catalogue_visible_q` (système et publics pour tous, les siens, sa portée ; tout "
+              "pour l'admin), dont le premier porteur est `AIModel` — la provenance naît au geste "
+              "d'installation, et `accessible(user, 'model', clé)` la lit sur la ligne",
               'wama/common/models.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
-              symbol='ScopedVisibility'),
+              symbol='ScopedVisibility',
+              annexes=('wama/model_manager/tests/tests_model_provenance.py',)),
     Mechanism('org_sync', "Arbre organisationnel depuis l'annuaire",
               "ou=structures (SUPANN) → OrgUnit + parents ; peuple ce dont dépend le partage "
               "par unité (RAG labo, médiathèque). Lecture seule côté LDAP, idempotente",

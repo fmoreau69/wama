@@ -62,7 +62,9 @@ def input_match_meta(source: Optional[str] = None,
             cibles = AIModel.objects.filter(model_key__in=[c[0] for c in _choices])
         else:
             from wama.common.sandbox import declaring_app   # une jumelle : modèles de sa source
-            cibles = AIModel.objects.filter(source=declaring_app(source), is_proposed=False)
+            # Même lot que `get_registry_models` sans compte : système et publics (ROADMAP §29).
+            cibles = AIModel.objects.catalogue_visible_to(None).filter(
+                source=declaring_app(source), is_proposed=False)
         for m in cibles:
             caps = m.capabilities or {}
             entry: Dict[str, Any] = {

@@ -519,6 +519,7 @@ def select_model(
     specialization: Optional[str] = None,
     quality_intent=None,
     cloud_keys=None,
+    user=None,
 ):
     """
     Choisit le meilleur `AIModel` pour `source` (valeur ModelSource), ou None.
@@ -564,6 +565,10 @@ def select_model(
                          n'entre au tirage, qui est donc IDENTIQUE à celui d'avant le verrou
                          levé — sinon les scores de banc des grands modèles distants
                          gagneraient tout, en silence.
+        user:            le compte POUR QUI on tire (`ROADMAP §29` étape 3) : seuls les modèles
+                         qu'il voit entrent au lot (`catalogue_visible_q` — système, publics,
+                         les siens, sa portée ; tout pour l'admin). Sans compte, le système et le
+                         public seuls : un modèle privé n'est jamais tiré pour un inconnu.
 
     Returns:
         AIModel | None.
@@ -582,7 +587,7 @@ def select_model(
         raise ValueError(
             "select_model : préciser `source` (une app) ou `model_type` (une catégorie). "
             "Une sélection sans borne piocherait dans tout le catalogue.")
-    qs = AIModel.objects.filter(is_available=True)
+    qs = AIModel.objects.catalogue_visible_to(user).filter(is_available=True)
     # Distant : seulement ce que l'appelant autorise (cf. `cloud_keys`). Un modèle distant n'a
     # pas de poids ici : « téléchargé » ne le concerne pas, l'autorisation en tient lieu.
     if cloud_keys:
@@ -683,11 +688,13 @@ def select_model(
     return choice
 
 
-def list_models(source: str, downloaded_only: bool = True) -> List[dict]:
-    """Liste des modèles d'une source (dicts to_dict — description courte/longue + vram)."""
+def list_models(source: str, downloaded_only: bool = True, user=None) -> List[dict]:
+    """Liste des modèles d'une source (dicts to_dict — description courte/longue + vram), ceux
+    que `user` voit (cf. `select_model`)."""
     from ..models import AIModel
     from wama.common.sandbox import declaring_app
-    qs = AIModel.objects.filter(source=declaring_app(source), is_available=True)
+    qs = AIModel.objects.catalogue_visible_to(user).filter(source=declaring_app(source),
+                                                           is_available=True)
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
     return [m.to_dict() for m in qs]
@@ -801,7 +808,7 @@ def select_model_id(source: Optional[str] = None, requires=None,
                 source, modality=modality, task=task,
                 available_inputs=available_inputs, consumes=consumes,
                 model_type=kwargs.get('model_type'),
-                cloud_keys=kwargs.get('cloud_keys'))[1]]
+                cloud_keys=kwargs.get('cloud_keys'), user=kwargs.get('user'))[1]]
             cand = [i for i in cand if i in ids] if cand else ids
             # ⚠ AUCUN candidat après filtrage = AUCUN modèle ne convient → le REPLI (2026-09-30).
             # Passée telle quelle, la liste vide valait « aucune restriction » pour
@@ -852,12 +859,14 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
                         downloaded_only: bool = False,
                         requires=None, modality: Optional[str] = None,
                         task: Optional[str] = None, available_inputs=None, consumes=None,
-                        model_type: Optional[str] = None, cloud_keys=None):
+                        model_type: Optional[str] = None, cloud_keys=None, user=None):
     """
     (choices, info) pour le <select> d'une app, PILOTÉ par le registre AIModel (verrou n°1).
 
     `cloud_keys` : modèles DISTANTS autorisés (même contrat que `select_model`) — sans elle,
     aucun modèle distant n'est listé, comme avant le verrou levé.
+    `user` : le compte qui regarde — seuls les modèles qu'il voit sont listés (même contrat que
+    `select_model`, `ROADMAP §29` étape 3).
 
     - choices : [(model_id, nom)]  — model_id = model_key sans le préfixe "source:"
     - info    : [{id, name, description, vram, capabilities, downloaded}]
@@ -897,7 +906,7 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
     # Une seule tâche garde EXACTEMENT le chemin d'avant (inférence de catégorie, filtre de
     # `matches_inputs`) ; plusieurs se filtrent ci-dessous, chacune gardant son ancrage.
     task = tasks[0] if len(tasks) == 1 else None
-    qs = AIModel.objects.filter(is_available=True)
+    qs = AIModel.objects.catalogue_visible_to(user).filter(is_available=True)
     from django.db.models import Q
     from ..models import EXECUTION_CLOUD, EXECUTION_LOCAL
     if cloud_keys:

@@ -199,6 +199,11 @@ modèle privé d'un utilisateur serait tombé dans la file de l'admin. Désormai
 La traduction propriétaire/portée entre enveloppe et ligne de registre vit dans
 `common/manifests/ownership.py` (`envelope_of`, `row_fields`, `is_system`) — tirée du kind
 `function`, le seul qui la faisait, pour les kinds qui suivront (modèle, librairie, pipeline).
+✅ **Le kind `model` l'emprunte depuis le 2026-10-18** (étape 3) : `extract` lit la provenance sur
+la ligne `AIModel`, où elle naît au geste d'installation ; un modèle système garde l'enveloppe
+d'avant (public, sans propriétaire), et le corpus ne bouge pas. `write_back` ne la projette pas
+(sens SORTANT : un manifeste en retard ne change jamais un modèle de main). Promouvoir le
+manifeste promeut aussi la ligne (`ownership.promote_row`, qui la trouve par le registre du kind).
 
 ---
 

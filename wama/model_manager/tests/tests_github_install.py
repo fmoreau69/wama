@@ -198,7 +198,7 @@ class TheSingleEntryDispatchesGithubTest(SimpleTestCase):
 
     def test_install_from_spec_calls_the_driver_then_records_provenance(self):
         with patch.object(mi, 'pull_github_asset', return_value={'ok': True}) as pull, \
-                patch.object(mi, 'record_provenance', side_effect=lambda s, r: r) as rec:
+                patch.object(mi, 'record_provenance', side_effect=lambda s, r, **kw: r) as rec:
             res = mi.install_from_spec(SPAN)
         self.assertTrue(res['ok'])
         pull.assert_called_once_with(SPAN)
@@ -794,7 +794,7 @@ class DeclaredFilesTest(TestCase):
     def test_install_from_spec_dispatches_the_files_driver(self):
         with patch.object(mi, 'pull_declared_files', return_value={'ok': True}) as files, \
                 patch.object(mi, 'pull_github_asset') as single, \
-                patch.object(mi, 'record_provenance', side_effect=lambda s, r: r):
+                patch.object(mi, 'record_provenance', side_effect=lambda s, r, **kw: r):
             mi.install_from_spec(self._spec())
         files.assert_called_once()
         single.assert_not_called()

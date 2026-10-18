@@ -380,7 +380,9 @@ def app_model_capabilities(app_id) -> list:
     try:
         from wama.model_manager.models import AIModel
         from wama.common.sandbox import declaring_app   # une jumelle : modèles de sa source
-        rows = list(AIModel.objects.filter(source=declaring_app(app_id))
+        # Les ports d'une app valent pour TOUS ses comptes : ils se dérivent des modèles que tout
+        # compte voit — système et publics —, jamais d'un modèle privé (`ROADMAP §29` étape 3).
+        rows = list(AIModel.objects.catalogue_visible_to(None).filter(source=declaring_app(app_id))
                     .values_list('capabilities', flat=True))
     except Exception:
         return []

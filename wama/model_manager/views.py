@@ -1177,13 +1177,15 @@ def api_models_db(request):
     # Inclure les candidats de prospection (is_proposed) bien qu'ils ne soient
     # pas "available" — ils s'affichent comme cards sous le filtre « Proposés par IA ».
     from django.db.models import Q
-    queryset = AIModel.objects.filter(Q(is_available=True) | Q(is_proposed=True))
+    # Ceux que ce compte VOIT (`ROADMAP §29` étape 3) : système, publics, les siens, sa portée.
+    queryset = AIModel.objects.catalogue_visible_to(request.user).filter(
+        Q(is_available=True) | Q(is_proposed=True))
 
     if task:
         # On réutilise la MÊME résolution de domaine que l'endpoint d'options, plutôt que de
         # réécrire un filtre par capacités : deux domaines calculés séparément divergent.
         from .services import get_registry_models
-        _choices, _info = get_registry_models(None, task=task)
+        _choices, _info = get_registry_models(None, task=task, user=request.user)
         queryset = queryset.filter(model_key__in=[c[0] for c in _choices])
     if source:
         queryset = queryset.filter(source=source)
@@ -1359,7 +1361,7 @@ def api_model_options(request):
     try:
         choices, info = get_registry_models(
             source, task=task, model_type=model_type, modality=modality, cloud_keys=cloud_keys,
-            **mode_filter)
+            user=request.user, **mode_filter)
     except Exception as e:
         logger.warning("api_model_options: %s", e, exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
@@ -1486,6 +1488,7 @@ def api_model_options(request):
             preview = predict_model_choice(
                 {'task': task, 'model_type': model_type,
                  'modality': modality, 'source': source, **refine,
+                 'user': request.user,       # le lot de CE compte (ROADMAP §29)
                  **({'cloud_keys': list(auto_cloud)} if auto_cloud else {}),
                  **({'quality_intent': quality_intent} if quality_intent else {})})
         except Exception as e:                      # la prévision ne casse jamais la liste

@@ -38,9 +38,10 @@ register(Registry(
     refresh=_refresh_models, count=_count_models,
     url_name='model_manager:index', manifest_kind='model',
     periodic='model-manager-reconcile',
-    # `AIModel` n'a aucun propriétaire : la ligne naît du disque, l'installation ne sait pas qui
-    # l'a lancée (ROADMAP §29, étape 3).
-    provenance=TO_CARRY, access_kind='model',
+    # Système (déclarés par les apps, installés par un admin) ET modèles d'auteurs : la provenance
+    # naît au geste d'installation et vit sur la ligne `AIModel` (ROADMAP §29, étape 3).
+    provenance=MIXED, owner_model='model_manager.AIModel', owner_key='model_key',
+    access_kind='model',
     description="Réconcilie le catalogue avec ce qui est réellement présent sur le disque. "
                 "Une entrée dont les fichiers ont disparu est supprimée — d'où la réserve staff.",
 ))

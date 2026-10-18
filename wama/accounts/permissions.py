@@ -134,7 +134,10 @@ DEFAULT_APP_ACCESS = {
 # la panne muette que le dépôt traque (cf. feedback « ce qui ne plante pas ne se signale pas »).
 KIND_DECISION = {
     'app':       'ici',                # DEFAULT_APP_ACCESS / AppAccessPolicy — `_app_accessible()`
-    'model':     'S3',                 # criticité DÉRIVÉE (vram_gb, licence) + AccessGrant (§8.3)
+    # À QUI c'est : la ligne de son registre (`ROADMAP §29` étape 3, `_provenance_accessible`).
+    # « Qui a le DROIT » (criticité dérivée — vram_gb, licence — + AccessGrant, §8.3) viendra
+    # s'y AJOUTER avec S3, sans remplacer la provenance.
+    'model':     'provenance',
     'library':   'S3',
     'function':  'S3',
     'skill':     'S3',
@@ -406,8 +409,9 @@ def accessible(user, kind, element_id):
     """
     Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
 
-    `kind` ∈ `KIND_DECISION` (app | model | library | function | skill | rag_scope). Seule la
-    famille `app` est gardée ici aujourd'hui ; les autres déclarent leur mécanisme et renvoient
+    `kind` ∈ `KIND_DECISION` (app | model | library | function | skill | rag_scope). La famille
+    `app` se décide ici par sa politique ; une famille « provenance » (`model`) par la portée de
+    l'élément sur la ligne de son registre ; les autres déclarent leur mécanisme et renvoient
     True. Un `kind` inconnu LÈVE — cf. le commentaire de `KIND_DECISION`.
     """
     decideur = KIND_DECISION.get(kind)
@@ -417,9 +421,32 @@ def accessible(user, kind, element_id):
             f"Familles déclarées : {', '.join(sorted(KIND_DECISION))}. "
             f"(Signature depuis S2 : accessible(user, kind, element_id).)"
         )
+    if decideur == 'provenance':
+        return _provenance_accessible(user, kind, element_id)
     if decideur != 'ici':
         return True
     return _app_accessible(user, element_id)
+
+
+def _provenance_accessible(user, kind, element_id):
+    """L'élément est-il VISIBLE de `user` ? Lu sur la ligne qui le porte, celle que son registre
+    déclare (`owner_model`, nommée par `owner_key`), avec le filtre commun des catalogues
+    (`catalogue_visible_q` : système, publics, les siens, sa portée ; tout pour l'admin).
+
+    Un élément SANS ligne n'est à personne : rien ne le restreint. Un élément privé a toujours la
+    sienne, puisque c'est elle qui porte son auteur."""
+    from django.apps import apps
+    from wama.common.models import catalogue_visible_q
+    from wama.common.registries import for_access_kind
+    registry = for_access_kind(kind)
+    if registry is None or not registry.owner_model or not registry.owner_key:
+        raise ValueError(f"accessible() : la famille « {kind} » se décide par la provenance, "
+                         f"mais aucun registre ne nomme la ligne qui la porte")
+    model = apps.get_model(registry.owner_model)
+    rows = model.objects.filter(**{registry.owner_key: element_id})
+    if not rows.exists():
+        return True
+    return rows.filter(catalogue_visible_q(user, model=model)).exists()
 
 
 def _app_accessible(user, app_id, policies=None, owners=None):

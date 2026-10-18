@@ -293,7 +293,7 @@ def install_proposed_task(self, model_key: str, user_id=None):
     from wama.common.utils.task_progress import publier_progression
 
     from .models import AIModel
-    from .services.model_installer import install_candidate
+    from .services.model_installer import install_candidate, install_owner
 
     cache_key = INSTALL_CACHE_PREFIX + model_key
 
@@ -313,9 +313,10 @@ def install_proposed_task(self, model_key: str, user_id=None):
 
         publier('RUNNING', {'status': 'démarrage…', 'name': cand.name})
         try:
+            # `owner` : le modèle qui naît revient à qui l'installe, sauf un admin (ROADMAP §29).
             res = install_candidate(
                 cand, progress=lambda s: publier('RUNNING', {'status': s, 'name': cand.name}),
-                token=_download_token(user_id))
+                token=_download_token(user_id), owner=install_owner(user_id))
         except Exception as exc:
             logger.exception("[install_proposed] échec inattendu pour %s", model_key)
             publier('FAILURE', {'error': f"{type(exc).__name__}: {exc}", 'name': cand.name})
@@ -363,6 +364,7 @@ def install_catalog_task(self, model_key: str, user_id=None):
 
         publier('RUNNING', {'status': f"téléchargement {spec['ref']}…", 'name': model.name})
         try:
+            # Sans `owner` : un modèle DÉCLARÉ par une app est système, qui que soit l'installeur.
             res = install_from_spec(spec, token=_download_token(user_id))
         except Exception as exc:
             logger.exception("[install_catalog] échec inattendu pour %s", model_key)

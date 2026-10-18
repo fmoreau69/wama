@@ -188,7 +188,7 @@ Ce que WAMA retient : faits, événements, procédures. Lu en base à chaque aff
 
 - **Clé** : `models` — Scan d'une source externe vers un registre persistant
 - **Source** : Fichiers de `AI-models/` + déclarations `model_config` des apps
-- **Provenance des éléments** : À porter — éléments d'utilisateurs prévus, porteur à construire (ROADMAP §29) ; famille d'accès `model`
+- **Provenance des éléments** : Système et auteurs — des éléments système et des éléments d'utilisateurs — portée par `model_manager.AIModel` ; famille d'accès `model`
 - **Page dans WAMA** : `/model-manager/`
 - **Kind de manifeste** : `model`
 

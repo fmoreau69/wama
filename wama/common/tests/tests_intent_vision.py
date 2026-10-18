@@ -76,6 +76,7 @@ class CoverageDerivesItsPreferencesTest(SimpleTestCase):
             qs.filter.return_value = qs
             qs.__iter__.return_value = iter(models)
             am.objects.filter.return_value = qs
+            am.objects.catalogue_visible_to.return_value = qs     # le lot du compte (§29)
             return cov.couvrir_classes(['face'], taches_admises=('detect', 'segment'), **kw)
 
     def test_a_low_intent_prefers_the_small_model_and_a_high_one_segmentation(self):

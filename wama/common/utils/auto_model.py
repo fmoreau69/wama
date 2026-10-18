@@ -309,11 +309,15 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
             overrides.setdefault(key, value)
     # Distants DÉCLARÉS au schéma et autorisés par le profil (`declared_cloud_keys`) ; un
     # appelant qui passe lui-même `cloud_keys` (l'assistant) garde la main.
+    owner = user if user is not None else getattr(item, 'user', None)
     if 'cloud_keys' not in overrides and spec is None:
-        cloud = declared_cloud_keys(app_id, user if user is not None
-                                    else getattr(item, 'user', None))
+        cloud = declared_cloud_keys(app_id, owner)
         if cloud:
             overrides['cloud_keys'] = cloud
+    # Le tirage se fait POUR ce compte : ses modèles privés y entrent, ceux d'autrui jamais
+    # (`ROADMAP §29` étape 3). Sans compte, le système seul.
+    if owner is not None:
+        overrides.setdefault('user', owner)
     domain.update(overrides)
     # Besoins de l'élément (`needs`) : le lot se restreint aux modèles qui y répondent, AVANT le
     # classement — le même geste au lancement et pour la prévision.

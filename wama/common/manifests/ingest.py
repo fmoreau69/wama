@@ -136,6 +136,9 @@ def promote(obj, *, by=None):
     obj.source = source
     obj.save(update_fields=['owner', 'visibility', 'scope_project', 'scope_org_unit',
                             'promotion_requested_at', 'source', 'updated_at'])
+    # Le MÊME geste pour la ligne du registre (étape 3) : un modèle promu n'est plus à son auteur.
+    from .ownership import promote_row
+    promote_row(obj.manifest_kind, obj.key)
     return obj
 
 

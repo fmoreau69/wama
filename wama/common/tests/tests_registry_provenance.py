@@ -23,7 +23,8 @@ from wama.common.registries import (CARRIED, DERIVED, PROVENANCES, REGISTRIES, T
 #: Les registres dont les éléments d'utilisateurs n'ont pas encore de porteur, mesuré le
 #: 2026-10-18. Ne peut que DESCENDRE : y ajouter une clé, c'est faire entrer une capacité sans
 #: dire à qui sont ses éléments ; en garder une qui ne l'est plus, c'est laisser une marge.
-TO_CARRY_BUDGET = {'models', 'apps', 'libraries', 'skills', 'ui_bricks'}
+#: `models` en est sorti à l'étape 3 (même jour) : `AIModel` porte propriétaire et portée.
+TO_CARRY_BUDGET = {'apps', 'libraries', 'skills', 'ui_bricks'}
 
 
 def _real_registries():
@@ -82,12 +83,31 @@ class ProvenanceMeetsTheAccessDecisionTest(SimpleTestCase):
         for kind in decided:
             self.assertIn(by_kind[kind].provenance, CARRIED, kind)
 
+    def test_a_family_decided_by_its_provenance_names_the_row_and_its_key(self):
+        # `accessible()` lit l'élément sur la ligne que son registre déclare : sans elle, la
+        # décision ne saurait où chercher (`permissions._provenance_accessible`).
+        by_kind = {r.access_kind: r for r in _real_registries().values() if r.access_kind}
+        decided = [k for k, d in KIND_DECISION.items() if d == 'provenance']
+        self.assertTrue(decided, "aucune famille décidée par la provenance : rien à mesurer")
+        for kind in decided:
+            r = by_kind[kind]
+            self.assertIn(r.provenance, CARRIED, kind)
+            model = apps.get_model(r.owner_model)
+            self.assertTrue(issubclass(model, ScopedVisibility), kind)
+            model._meta.get_field(r.owner_key)      # lève si le champ n'existe pas
+            model._meta.get_field('owner')          # le filtre des catalogues lit `owner`
+
 
 class RegisterRefusesAnIncoherentProvenanceTest(SimpleTestCase):
 
     def tearDown(self):
-        for key in ('_t_prov_unknown', '_t_prov_no_row', '_t_prov_stray_row'):
+        for key in ('_t_prov_unknown', '_t_prov_no_row', '_t_prov_stray_row', '_t_prov_stray_key'):
             REGISTRIES.pop(key, None)
+
+    def test_a_key_field_without_its_row_is_refused(self):
+        with self.assertRaises(ValueError):
+            register(Registry(key='_t_prov_stray_key', label='x', nature=DERIVED, source='s',
+                              provenance='system', owner_key='model_key'))
 
     def test_an_unknown_provenance_is_refused(self):
         with self.assertRaises(ValueError):

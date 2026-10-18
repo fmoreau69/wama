@@ -191,6 +191,10 @@ class Registry:
     provenance: str = ''
     #: `app_label.Model` de la ligne qui porte propriétaire et portée — exigé pour OWNED / MIXED.
     owner_model: str = ''
+    #: Le champ de cette ligne qui NOMME un élément — l'`element_id` que reçoit
+    #: `accessible(user, access_kind, element_id)` quand la famille se décide par la provenance
+    #: (`KIND_DECISION` = 'provenance' : `model_key` pour les modèles).
+    owner_key: str = ''
     #: La famille d'`accounts.permissions.KIND_DECISION` dont ce registre liste les éléments : le
     #: lien entre « à qui c'est » (ici) et « qui a le droit » (là-bas), une famille par registre.
     access_kind: str = ''
@@ -236,6 +240,8 @@ def register(r: Registry) -> Registry:
         raise ValueError(
             f"'{r.key}' : `owner_model` se déclare avec la provenance {' ou '.join(CARRIED)}, et "
             f"seulement avec elle — c'est la ligne qui porte propriétaire et portée")
+    if r.owner_key and not r.owner_model:
+        raise ValueError(f"'{r.key}' : `owner_key` nomme un champ de `owner_model`, absent ici")
     REGISTRIES[r.key] = r
     return r
 
@@ -246,6 +252,12 @@ def get(key: str) -> Registry:
     except KeyError:
         raise KeyError(
             f"registre '{key}' inconnu (enregistrés : {', '.join(sorted(REGISTRIES)) or '—'})")
+
+
+def for_access_kind(kind: str) -> Optional[Registry]:
+    """Le registre qui liste les éléments de la famille d'accès `kind`, ou None — un par
+    famille, ce que `tests_registry_provenance` tient."""
+    return next((r for r in REGISTRIES.values() if r.access_kind == kind), None)
 
 
 def is_authorized(r: Registry, user) -> bool:

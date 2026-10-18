@@ -162,7 +162,8 @@ class FamillesDElementsTests(TestCase):
     def test_une_famille_non_encore_gardee_le_DECLARE(self):
         # Elle renvoie True — mais parce que c'est écrit dans KIND_DECISION, pas par omission.
         u = User.objects.create_user('kind_test2', password='x')
-        non_gardees = [k for k, d in KIND_DECISION.items() if d != 'ici']
+        # « provenance » est gardée ailleurs qu'ici, par la ligne de l'élément (ROADMAP §29).
+        non_gardees = [k for k, d in KIND_DECISION.items() if d not in ('ici', 'provenance')]
         self.assertTrue(non_gardees, "aucune famille non gardée : le test ne mesurerait rien")
         for kind in non_gardees:
             self.assertTrue(accessible(u, kind, 'peu-importe'),

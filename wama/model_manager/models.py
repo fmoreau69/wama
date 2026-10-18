@@ -8,6 +8,8 @@ Provides instant loading instead of dynamic filesystem scanning.
 from django.db import models
 from django.contrib.auth import get_user_model
 
+from wama.common.models import ScopedManager, ScopedVisibility
+
 User = get_user_model()
 
 
@@ -506,11 +508,29 @@ from wama.common.external_sources import COST_TIERS as _COST_TIERS  # noqa: E402
 COST_TIER_CHOICES = list(_COST_TIERS)
 
 
-class AIModel(models.Model):
+class AIModel(ScopedVisibility):
     """
     Unified AI Model catalog entry.
     Stores both downloaded and available (not yet downloaded) models.
+
+    PROVENANCE (2026-10-18, `ROADMAP §29` étape 3) : un modèle est SYSTÈME (`owner` vide, public,
+    tenu par WAMA) ou à un AUTEUR, avec une portée (`ScopedVisibility`). La provenance naît au
+    geste d'installation (`model_installer.install_owner`) : un modèle déclaré par une app ou
+    installé par un administrateur est système ; celui qu'un développeur fait naître est à lui,
+    privé, jusqu'à sa promotion. Le catalogue se LIT par `AIModel.objects.catalogue_visible_to(user)`
+    — sélection automatique, selects des apps, page du catalogue, assistant.
     """
+    owner = models.ForeignKey(User, null=True, blank=True, on_delete=models.SET_NULL,
+                              related_name='owned_models',
+                              help_text="Vide = modèle système (déclaré ou installé par un admin).")
+    # Le défaut de la portée est PUBLIC ici, pas privé comme pour une instance : une ligne naît du
+    # disque, sans auteur, donc système. `db_default` : le code en service avant sa relance insère
+    # sans cette colonne (synchro périodique).
+    visibility = models.CharField(max_length=12, choices=ScopedVisibility.VIS_CHOICES,
+                                  default=ScopedVisibility.VIS_PUBLIC,
+                                  db_default=ScopedVisibility.VIS_PUBLIC, db_index=True)
+
+    objects = ScopedManager()
 
     # Primary identifier (unique per source)
     # Format: "{source}:{model_id}" e.g., "imager:wan-ti2v-5b", "ollama:llama3.2"
@@ -733,6 +753,11 @@ class AIModel(models.Model):
         if ':' in self.model_key:
             return self.model_key.split(':', 1)[1]
         return self.model_key
+
+    @property
+    def is_system(self) -> bool:
+        """Sans auteur : tenu par WAMA (`ROADMAP §29`, décision a — système ≠ public partagé)."""
+        return self.owner_id is None
 
     # Licence du modele. Portee par le manifeste (kind `model`, identity.license) et projetee ici :
     # manifeste = source, registre = projection. Necessaire a l'audit de licences WAMA (2026-08),

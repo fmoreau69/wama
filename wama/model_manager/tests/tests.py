@@ -1736,7 +1736,7 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
         self.assertTrue(res['ok'])
         prov.assert_called_once_with({'kind': 'ollama', 'ref': 'nouveau:latest',
                                       'task': 'text-generation'},
-                                     ['ollama:nouveau:latest'])
+                                     ['ollama:nouveau:latest'], owner=None)
         self.assertFalse(AIModel.objects.filter(pk=cand.pk).exists(), "candidat retiré")
 
     def test_install_from_spec_passe_par_le_meme_corps(self):
@@ -1751,7 +1751,7 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
         self.assertTrue(res['ok'])
         self.assertEqual(res['provenance'], {'identity': {'hf_id': 'Org/X'}})
         prov.assert_called_once_with({'kind': 'hf', 'ref': 'Org/X', 'category': 'vision',
-                                      'task': 'detect'}, ['huggingface:Org/X'])
+                                      'task': 'detect'}, ['huggingface:Org/X'], owner=None)
 
     def test_une_provenance_manquee_ne_fait_pas_echouer_l_installation(self):
         from ..services import model_installer as mi

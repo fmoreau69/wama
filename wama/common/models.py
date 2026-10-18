@@ -614,6 +614,24 @@ def scoped_visible_q(user, owner_field='user', model=None):
     return q
 
 
+def catalogue_visible_q(user, owner_field='owner', model=None):
+    """`Q` des éléments d'un CATALOGUE (modèles, puis librairies, fonctions…) que `user` voit
+    (`ROADMAP §29`, étape 3).
+
+    Même filtre que les instances (`scoped_visible_q`), avec deux différences voulues :
+    - le propriétaire s'appelle `owner` : un élément SYSTÈME n'en a pas, et il est public — il
+      passe donc par la branche publique, pour tout compte et sans compte ;
+    - **l'administrateur voit tout** (décision c du 2026-10-18 : « pour le moment »), éléments
+      privés d'autrui compris. C'est ici, et seulement ici, que cette décision s'ajuste.
+    Sans compte (`user=None` : une tâche de fond, un tirage sans appelant), seul le public passe :
+    un élément privé n'est jamais choisi pour quelqu'un qu'on ne connaît pas."""
+    from django.db.models import Q
+    from wama.accounts.permissions import user_tier
+    if user_tier(user) == 'admin':
+        return Q()
+    return scoped_visible_q(user, owner_field=owner_field, model=model)
+
+
 def _scope_lookup(model, field, ids, codes_of):
     """La condition d'une portée : `<champ>_id__in` sur une clé étrangère, `<champ>__in` sur
     les codes quand le modèle porte la portée en clair (`Manifest`)."""
@@ -848,6 +866,11 @@ class ScopedQuerySet(models.QuerySet):
         """Objets que `user` a le droit de VOIR : les siens + publics + unité + projet + ceux
         qu'on lui a partagés en personne (`ObjectGrant`)."""
         return self.filter(scoped_visible_q(user, owner_field=owner_field, model=self.model))
+
+    def catalogue_visible_to(self, user, owner_field='owner'):
+        """Éléments d'un CATALOGUE que `user` voit : système, publics, les siens, sa portée ;
+        tout pour l'administrateur (`catalogue_visible_q`)."""
+        return self.filter(catalogue_visible_q(user, owner_field=owner_field, model=self.model))
 
     def owned_by(self, user, owner_field='user'):
         """Objets que `user` a le droit de MODIFIER — aujourd'hui : les siens, point.

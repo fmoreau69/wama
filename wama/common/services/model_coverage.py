@@ -216,9 +216,12 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
                     strategie: str = 'couverture',
                     max_modeles: int = 4,
                     models_per_class: int = 1,
-                    min_relative_recall: float | None = None) -> dict:
+                    min_relative_recall: float | None = None, user=None) -> dict:
     """
     Ensemble MINIMAL de modèles couvrant `classes`, par recouvrement glouton.
+
+    `user` (2026-10-18, `ROADMAP §29` étape 3) : le compte pour qui l'on couvre — seuls les
+    modèles qu'il voit entrent au lot (`catalogue_visible_q`) ; sans compte, le système seul.
 
     `models_per_class` (2026-10-10) : au-delà de la couverture, AJOUTER des modèles jusqu'à ce
     que chaque classe couverte le soit par ce nombre de modèles (dans la limite `max_modeles`) —
@@ -271,7 +274,7 @@ def couvrir_classes(classes, *, source: str = '', model_type: str = 'vision',
     if not voulues:
         return {'modeles': [], 'classes_non_couvertes': [], 'couverture': 0.0}
 
-    qs = AIModel.objects.filter(is_downloaded=True, is_available=True)
+    qs = AIModel.objects.catalogue_visible_to(user).filter(is_downloaded=True, is_available=True)
     if model_type:
         qs = qs.filter(model_type=model_type)
     if source:

@@ -120,13 +120,15 @@ def dev_cloud_keys(user) -> set:
     return keys
 
 
-def _graded_candidates(cloud: set, grade) -> list:
+def _graded_candidates(cloud: set, grade, user=None) -> list:
     """`model_key` des modèles de conversation lançables (locaux installés, distants de `cloud`)
-    qui passent `grade(model)`. Le lot est commun aux deux planchers — seul le prédicat change."""
+    qui passent `grade(model)`. Le lot est commun aux deux planchers — seul le prédicat change.
+    `user` : seuls les modèles qu'il voit (`ROADMAP §29` étape 3)."""
     from django.db.models import Q
     from wama.model_manager.models import AIModel, EXECUTION_LOCAL
 
-    qs = AIModel.objects.filter(is_available=True, is_proposed=False, model_type='llm')
+    qs = AIModel.objects.catalogue_visible_to(user).filter(is_available=True, is_proposed=False,
+                                                           model_type='llm')
     qs = qs.filter(Q(execution=EXECUTION_LOCAL, is_downloaded=True) | Q(model_key__in=list(cloud)))
     # `is_cloud` plutôt que la comparaison de champ : depuis le 2026-09-26 le sélecteur pose la
     # MÊME question (l'axe VRAM ne s'applique pas à un distant), et deux comparaisons de champ
@@ -142,7 +144,7 @@ def development_candidates(user, source: str = '') -> list:
     fournisseur (`ollama`, `albert`…) — quand la demande le nomme (« fais-le avec Albert »)."""
     from wama.common.utils.model_keys import split_key
 
-    candidates = _graded_candidates(dev_cloud_keys(user), is_development_grade)
+    candidates = _graded_candidates(dev_cloud_keys(user), is_development_grade, user=user)
     if source:
         candidates = [k for k in candidates if split_key(k)[0] == source]
     return candidates
@@ -170,7 +172,7 @@ def development_model(user, requested: str = None, source: str = '') -> str | No
         chosen = select_model(None, model_type='llm', requires=['completion'],
                               candidates=candidates, quality_intent=DEV_QUALITY_INTENT,
                               benchmark_family='coding', prefer_loaded=False,
-                              cloud_keys=dev_cloud_keys(user) or None)
+                              cloud_keys=dev_cloud_keys(user) or None, user=user)
         if chosen is not None:
             return chosen.model_key
     except Exception:
@@ -231,7 +233,7 @@ def agent_candidates(user, cloud_keys=None) -> list:
     if cloud_keys is None:
         from wama.model_manager.services.cloud_models import allowed_cloud_keys
         cloud_keys = allowed_cloud_keys(user)
-    return _graded_candidates(set(cloud_keys or ()), is_agent_grade)
+    return _graded_candidates(set(cloud_keys or ()), is_agent_grade, user=user)
 
 
 def escalation_model(user, current_key: str = None) -> str | None:
@@ -255,7 +257,7 @@ def escalation_model(user, current_key: str = None) -> str | None:
         from wama.model_manager.services.model_selector import select_model
         chosen = select_model(None, model_type='llm', requires=['completion'], candidates=lot,
                               quality_intent=DEV_QUALITY_INTENT, benchmark_family='coding',
-                              prefer_loaded=False, cloud_keys=cloud or None)
+                              prefer_loaded=False, cloud_keys=cloud or None, user=user)
         if chosen is not None:
             return chosen.model_key
     except Exception:

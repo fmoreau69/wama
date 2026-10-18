@@ -110,9 +110,14 @@ def _model_keys() -> list:
     l'un d'eux qui, le 2026-09-18, a ÉCRASÉ un manifeste valide : sous Windows son nom de
     fichier ne différait que par la casse. *Exporter une ligne morte ne crée pas un fichier de
     plus, il peut en détruire un vivant.*
+
+    Les modèles SYSTÈME seuls (2026-10-18, `ROADMAP §29` étape 3) : un modèle à son auteur n'est
+    pas une cible du corpus, il n'est donc ni exporté ni compté « refusé » — sans quoi
+    `--check` déclarerait le corpus périmé dès qu'un développeur installe un modèle privé. À la
+    clé explicite, le refus reste dit (garde du `handle`).
     """
     from wama.model_manager.models import AIModel, uninstalled_q
-    return sorted(AIModel.objects.filter(is_proposed=False, is_available=True)
+    return sorted(AIModel.objects.filter(is_proposed=False, is_available=True, owner__isnull=True)
                   .exclude(uninstalled_q()).values_list('model_key', flat=True))
 
 

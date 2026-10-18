@@ -891,7 +891,10 @@ def _class_coverage_meta():
         # (taille et segmentation sont des préférences de départage, jamais des filtres) : ce que
         # « auto » peut couvrir = l'union des modèles de détection installés.
         auto_covered = set()
-        for m in AIModel.objects.filter(source='anonymizer', is_proposed=False):
+        # Système et publics seuls, comme le tirage de l'anonymizer (`couvrir_classes` sans
+        # compte) : la clé d'un modèle privé d'autrui ne sort pas dans la page (ROADMAP §29).
+        for m in AIModel.objects.catalogue_visible_to(None).filter(source='anonymizer',
+                                                                   is_proposed=False):
             if (m.capabilities or {}).get('classes'):
                 covered = classes_couvertes(m, voulues)
                 meta[m.model_key] = {'covered_classes': sorted(covered)}

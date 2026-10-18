@@ -6067,9 +6067,55 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      CODE : étape 4). ⚠ **À trancher** : le geste « Valider » reste ouvert aux comptes
      admin **et dev** (décision du 2026-09-29), là où la décision b dit « admin seul » — à régler
      avec les quatre prédicats « gérer » à unifier (`PROFILES_PERMISSIONS`).
-3. `AIModel` et TOUS ses lecteurs, `select_model(user=…)` compris ; la provenance naît au geste
-   d'installation (`install_from_spec` reçoit le compte). C'est la famille la plus exposée à une
-   fuite.
+3. ✅ **`AIModel` et ses lecteurs (2026-10-18).** C'était la famille la plus exposée à une
+   fuite. Ce qui a été posé :
+   - **La ligne porte la provenance.** `AIModel` hérite de `ScopedVisibility` et gagne `owner`
+     (vide = système). Sa portée vaut `public` par défaut, en base aussi (`db_default`) : une ligne
+     naît du disque, sans auteur. La migration `model_manager/0025` est APPLIQUÉE à la base, et
+     les 794 modèles sont système.
+   - **La provenance naît au geste d'installation** (décision de Fabien, même jour) : un
+     administrateur installe pour le système, puisqu'il est celui qui promeut ; un développeur
+     garde le modèle qu'il fait naître, privé (`model_installer.install_owner`). Seule une ligne
+     APPARUE prend un auteur : un modèle déclaré par une app, ou un système réinstallé, ne change
+     jamais de main (`provenance.record_after_install`). L'auteur est posé AVANT l'identité,
+     donc avant le réexport au corpus.
+   - **Un filtre des catalogues, un seul** : `catalogue_visible_q` (`common/models.py`). Le
+     système et le public sont vus de tous, ses propres modèles et sa portée de chacun, tout de
+     l'administrateur (décision c, et c'est le seul lieu où elle s'ajustera). Sans compte, seul le
+     système passe.
+   - **La décision unique** : `KIND_DECISION['model'] = 'provenance'`. `accessible(user, 'model',
+     clé)` lit la ligne que le registre déclare (`owner_model`, et le champ neuf `owner_key`). Le
+     registre `models` passe `mixed` et sort du budget `TO_CARRY`.
+   - **Les lecteurs qui listent ou tirent pour un compte filtrent par lui** :
+     - `select_model(user=…)`, `get_registry_models(user=…)` et `list_models(user=…)` ;
+     - le tirage « auto » des apps, qui passe le compte de l'élément (`resolve_model_choice`) ;
+     - la page du catalogue, l'API des selects et sa prévision ;
+     - l'assistant (`list_ai_models`, `get_ai_model`, la recherche) ;
+     - le tirage de développement et celui de l'assistant outillé ;
+     - la couverture de classes (`couvrir_classes(user=…)`).
+   - **Les dérivations au niveau de l'app s'en tiennent au système** : ports d'entrée, méta
+     d'appariement, options côté serveur et couverture affichée par l'anonymizer. Un fait d'app
+     vaut pour tous ses comptes.
+   - **Manifeste** : `extract` lit la provenance sur la ligne (`ownership.envelope_of`), et un
+     modèle système garde exactement l'enveloppe d'avant, donc le corpus ne bouge pas.
+     `write_back` ne la projette pas (sens SORTANT). Un modèle privé n'est pas une cible du
+     corpus (`manifest_export._model_keys`). **Promouvoir** le manifeste rend aussi la ligne au
+     système (`ownership.promote_row`, trouvée par le registre du kind, pas codée par kind).
+   - **Gardes** : `model_manager/tests/tests_model_provenance` (quatre comptes face à chaque
+     lecteur, naissance de l'auteur, manifeste, corpus, promotion), et deux cas de plus dans
+     `tests_registry_provenance`. **Treize contre-épreuves, toutes rouges** (six brèches en
+     mémoire, sept mutations par édition).
+   - **Ce que l'étape ne fait PAS** :
+     - Les lectures PAR CLÉ restent ouvertes : faits d'un modèle déjà choisi, chargement par un
+       backend, gestes de gestion du model manager (admin et dev). Une clé privée TAPÉE à la main
+       au lancement n'est pas refusée ; `accessible(user, 'model', clé)` est prêt, sans appelant.
+     - Les tirages sans compte (alignement du transcriber, extracteur de partition du composer,
+       ensemble de l'anonymizer, repli de contexte de l'assistant) ne voient que le système : un
+       auteur n'y retrouve pas son modèle privé.
+     - Aucun geste « Demander la promotion » à l'écran : le service existe (`proposals.propose`),
+       le bouton ira avec la pastille (étape 6).
+     - Aucun critère de conformité ne mesure encore les lecteurs (le `scoped_reads` des
+       catalogues).
 4. Les fonctions (`FunctionSpec` filtré ; `UserFunction` l'est déjà), les pipelines du Studio, les
    skills.
 5. Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par

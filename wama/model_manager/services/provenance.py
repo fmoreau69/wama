@@ -302,7 +302,18 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
             'projected': plan, 'corpus': corpus}
 
 
-def record_after_install(spec: dict, appeared_keys) -> dict:
+def _give_to_author(keys, owner) -> list:
+    """Les lignes `keys` encore SYSTÈME passent à `owner`, privées (`ROADMAP §29` étape 3).
+    Une ligne qui a déjà un auteur ne change pas de main. Rend les clés données."""
+    from wama.common.models import ScopedVisibility
+    from wama.model_manager.models import AIModel
+    rows = AIModel.objects.filter(model_key__in=list(keys), owner__isnull=True)
+    given = sorted(rows.values_list('model_key', flat=True))
+    rows.update(owner=owner, visibility=ScopedVisibility.VIS_PRIVATE)
+    return given
+
+
+def record_after_install(spec: dict, appeared_keys, owner=None) -> dict:
     """
     Après installation + sync : pose l'identité sur les modèles qui viennent d'APPARAÎTRE.
 
@@ -313,12 +324,19 @@ def record_after_install(spec: dict, appeared_keys) -> dict:
 
     Repli quand rien n'apparaît (réinstallation, ou modèle déjà catalogué) : on vise la ligne
     qui porte déjà cette identité de plateforme, pour que relancer l'installation reste utile.
+
+    `owner` (2026-10-18, `ROADMAP §29` étape 3) : l'auteur des lignes APPARUES — jamais d'une ligne
+    du repli, qui existait avant ce geste (un système réinstallé reste système). Posé AVANT
+    l'identité : `set_identity` réexporte au corpus versionné, qui n'admet que le système
+    (`manifest_export`) ; un modèle privé n'y entre donc pas, même un instant.
     """
     from wama.model_manager.models import AIModel
 
+    appeared = sorted(appeared_keys or ())
     identity = identity_for_spec(spec)
     if not identity:
-        return {'identity': None, 'models': [],
+        given = _give_to_author(appeared, owner) if owner is not None else []
+        return {'identity': None, 'models': [], **({'owner': given} if given else {}),
                 'note': f"aucune identité déductible pour kind={spec.get('kind')!r}"}
 
     targets = sorted(appeared_keys or ())
@@ -348,6 +366,11 @@ def record_after_install(spec: dict, appeared_keys) -> dict:
                         "concurrente probable) : %s", len(discarded), discarded)
             targets = [c for c in targets if c not in discarded]
 
+    # L'AUTEUR, après la garde de concordance (une ligne d'une installation concurrente ne lui
+    # revient pas) et avant l'identité, donc avant l'export au corpus.
+    given = (_give_to_author([c for c in targets if c in appeared], owner)
+             if owner is not None else [])
+
     # La TÂCHE du candidat (2026-09-02). Le balayage générique d'un snapshot HF catalogue un
     # modèle sans savoir ce qu'il FAIT : `table-transformer-detection` est arrivé installé
     # avec `task=None` alors que son candidat portait `detect` — donc hors de toute sélection
@@ -375,4 +398,5 @@ def record_after_install(spec: dict, appeared_keys) -> dict:
                           engine=(judged.get('runtime') or {}).get('engine') or card.get('engine'),
                           composition=judged)
              for c in targets]
-    return {'identity': identity, 'models': posed, **({'task': task} if task else {})}
+    return {'identity': identity, 'models': posed, **({'task': task} if task else {}),
+            **({'owner': given} if given else {})}

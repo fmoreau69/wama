@@ -325,7 +325,7 @@ def resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple:
             cle = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
                                        quality_intent=reglages.get('quality_intent'),
                                        benchmark_family=family,
-                                       cloud_keys=cloud, **floor) or ''
+                                       cloud_keys=cloud, user=user, **floor) or ''
         except Exception:
             logger.debug('[ai_chat] tirage automatique indisponible', exc_info=True)
             cle = ''

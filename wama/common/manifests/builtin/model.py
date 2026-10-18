@@ -18,6 +18,7 @@ import logging
 from typing import Optional
 
 from ..kinds import ManifestKind, register_kind
+from ..ownership import envelope_of
 
 logger = logging.getLogger(__name__)
 
@@ -249,6 +250,10 @@ def extract_model(key: str) -> Optional[dict]:
         'extra_info': {k: v for k, v in (m.extra_info or {}).items() if k != _PUBLICATIONS_KEY},
     }
 
+    # Provenance LUE sur la ligne (`ROADMAP §29` étape 3) — elle y naît, au geste d'installation.
+    # Un modèle système garde exactement l'enveloppe d'avant (public, sans propriétaire ni portée) :
+    # les champs vides ne s'écrivent pas, le corpus ne bouge pas.
+    envelope = envelope_of(m)
     return {
         'manifest_kind': 'model',
         'key': m.model_key,
@@ -256,7 +261,8 @@ def extract_model(key: str) -> Optional[dict]:
         'name': m.name,
         'description': m.description or '',
         'world': 'transverse',          # les modèles sont des assets transverses
-        'visibility': 'public',
+        'visibility': envelope.pop('visibility'),
+        **{k: v for k, v in envelope.items() if v},
         'projects': [],
         'source': {'type': 'extract', 'ref': f'AIModel:{m.model_key}'},
         # Composition (SPEC §7.3) : la LIBRAIRIE que le moteur de ce modèle exige — la
@@ -405,6 +411,11 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     (`merged_capabilities`). Le releve d'origine (2026-08-05) ne projetait que `license`
     et `platform_ref` : 0/129 modeles portaient une licence, et le lien plateforme etait
     conditionne a `hf_id`, absent sur les 70 modeles decouverts par scan disque.
+
+    La PROVENANCE (propriétaire, portée) n'est pas projetée : pour un modèle elle naît sur la
+    ligne, au geste d'installation, et le manifeste la lit (sens SORTANT, `ROADMAP §29` étape 3).
+    Un manifeste en retard ne rend donc jamais un modèle privé à quelqu'un, ni ne publie un modèle
+    privé. Elle ne change que par la promotion (`ownership.promote_row`).
     """
     from django.db import transaction
 

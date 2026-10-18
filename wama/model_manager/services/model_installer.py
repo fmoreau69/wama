@@ -1462,7 +1462,7 @@ def dispatch_install(task, row, *, user_id=None, via=''):
     return task.delay(row.model_key, user_id=user_id)
 
 
-def install_candidate(cand, progress=None, token=None) -> dict:
+def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
     """
     Séquence d'installation d'un CANDIDAT de prospection Ollama — corps unique, appelé par
     la tâche Celery (`install_proposed_task`, chemin normal depuis le 2026-08-18) et
@@ -1472,6 +1472,7 @@ def install_candidate(cand, progress=None, token=None) -> dict:
 
     Retourne {'ok': True, 'installed': nom} ou {'ok': False, 'error': …[, 'restored',
     'replaced']}. `progress(status:str)` : avancement du pull (avec pourcentage).
+    `owner` : l'auteur du modèle qui naît (`install_owner`), `None` = système.
     """
     from ..models import AIModel
 
@@ -1485,7 +1486,7 @@ def install_candidate(cand, progress=None, token=None) -> dict:
             origin = {'github': 'GitHub', 'yolo': 'GitHub',
                       'files': 'sources déclarées'}.get(spec['kind'], 'HuggingFace')
             progress(f"téléchargement {spec.get('ref')} ({origin})…")
-        res = install_from_spec(spec, token=token)
+        res = install_from_spec(spec, token=token, owner=owner)
         if not res.get('ok'):
             return {'ok': False, 'error': res.get('error', 'installation échouée')}
         installed_name = cand.name
@@ -1542,7 +1543,8 @@ def install_candidate(cand, progress=None, token=None) -> dict:
     record_provenance({'kind': 'ollama', 'ref': pull_name,
                        **({'base_hf_id': base_hf_id} if base_hf_id else {}),
                        'task': ((spec or {}).get('task')
-                                or (cand.capabilities or {}).get('task') or '')}, {})
+                                or (cand.capabilities or {}).get('task') or '')}, {},
+                      owner=owner)
 
     # RÉCONCILIER LE REMPLACÉ. `register_after_install()` → `full_sync()` n'enlève rien :
     # c'est voulu (une indisponibilité passagère ne doit pas purger le catalogue), mais ici
@@ -1876,7 +1878,27 @@ def patterns_from_composition(composition) -> list | None:
     return patterns + _PATTERNS_DE_BORD if patterns else None
 
 
-def install_from_spec(spec: dict, token=None) -> dict:
+def install_owner(user_id):
+    """À qui revient un modèle que l'installation fait NAÎTRE (`ROADMAP §29` étape 3, décision de
+    Fabien du 2026-10-18) — `None` = système.
+
+    Un administrateur qui installe fait déjà le geste de promotion (c'est lui qui valide) : son
+    modèle est système, comme celui d'une installation sans compte (ligne de commande, prérequis
+    d'une app). Un autre compte — un développeur, seul autre profil autorisé à installer
+    (`can_manage_registries`) — garde le modèle qu'il fait naître : privé, jusqu'à sa promotion.
+    ⚠ Une ligne qui existait déjà (modèle déclaré par une app, réinstallation) ne change jamais
+    de main : seule une ligne APPARUE prend un auteur (`provenance.record_after_install`)."""
+    if not user_id:
+        return None
+    from django.contrib.auth import get_user_model
+    from wama.accounts.permissions import user_tier
+    user = get_user_model().objects.filter(pk=user_id).first()
+    if user is None or user_tier(user) == 'admin':
+        return None
+    return user
+
+
+def install_from_spec(spec: dict, token=None, owner=None) -> dict:
     """
     Point d'entrée UNIQUE d'installation — DESCRIPTEUR déclaratif au lieu de mécanismes
     hardcodés par type. Le spec peut être construit par l'UI, par la prospection, ou par
@@ -1904,6 +1926,8 @@ def install_from_spec(spec: dict, token=None) -> dict:
     Retourne {'ok': bool, …} (mêmes clés que les drivers, + 'pip' si dépendances).
     `token` : jeton du téléchargement HF (`accounts.api_keys.download_token`), hors du spec À
     DESSEIN — un spec est déclaratif et circule (prospection, assistant) ; un secret, jamais.
+    `owner` : l'auteur des lignes que l'installation fait naître (`install_owner`), hors du spec
+    pour la même raison — `None` = système.
     """
     spec = spec or {}
     kind = spec.get('kind')
@@ -1945,11 +1969,11 @@ def install_from_spec(spec: dict, token=None) -> dict:
             res['ok'] = False
             res['error'] = "modèle téléchargé mais dépendances pip en échec (voir 'pip')"
     if res.get('ok'):
-        record_provenance(spec, res)
+        record_provenance(spec, res, owner=owner)
     return res
 
 
-def record_provenance(spec: dict, res: dict) -> dict:
+def record_provenance(spec: dict, res: dict, owner=None) -> dict:
     """Après un téléchargement réussi : sync du catalogue, puis provenance des lignes apparues.
 
     Le sync ne pose QUE les faits de découverte (chemin, format, classes, taille) : il ne sait
@@ -1961,7 +1985,7 @@ def record_provenance(spec: dict, res: dict) -> dict:
     Corps UNIQUE des deux chemins d'installation (`install_from_spec` et la branche Ollama de
     `install_candidate`, 2026-09-18). Best-effort des deux côtés : une provenance manquée
     (réseau, dépôt privé) ne doit jamais faire échouer une installation qui, elle, a réussi.
-    Écrit `res['provenance']` et le rend.
+    Écrit `res['provenance']` et le rend. `owner` : l'auteur des lignes apparues (`install_owner`).
     """
     sync = None
     try:
@@ -1973,7 +1997,8 @@ def record_provenance(spec: dict, res: dict) -> dict:
         return res
     try:
         from .provenance import record_after_install
-        res['provenance'] = record_after_install(spec, getattr(sync, 'added_keys', None) or [])
+        res['provenance'] = record_after_install(spec, getattr(sync, 'added_keys', None) or [],
+                                                 owner=owner)
     except Exception as e:
         logger.warning("provenance non enregistrée après installation : %s", e, exc_info=True)
         res['provenance'] = {'erreur': f"{type(e).__name__}: {e}"}
