@@ -172,9 +172,16 @@
   // montrés en pastilles sous la saisie, puis envoyés AVEC le message (ou seuls : le serveur fait
   // demander « Que puis-je en faire ? », `assistant_engine.message_with_deposits`). L'assistant
   // inspecte et propose : fichier de travail, de référence, lot, RAG…
+  // Un fichier glissé depuis l'ARBRE de fichiers (volet gauche, mode normal) est déjà dans cet
+  // espace : le chat se déclare cible de l'arbre (`data-fm-designate`) et reçoit son CHEMIN
+  // (`filemanager:designate`) — rien n'est re-téléversé.
   Chat.prototype.bindDeposit = function () {
     var self = this;
     var root = this.root;
+    root.setAttribute('data-fm-designate', '');
+    root.addEventListener('filemanager:designate', function (e) {
+      self.designate((e.detail && e.detail.files) || []);
+    });
     root.addEventListener('dragover', function (e) {
       if (!e.dataTransfer || Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') === -1) return;
       e.preventDefault();
@@ -203,6 +210,18 @@
       self.input.focus();
       return uploaded;
     }).catch(function () { self.setStatus('Dépôt impossible : erreur réseau'); return []; });
+  };
+
+  /** Fichiers DÉSIGNÉS par leur chemin (`[{path, name?}]`, glissés depuis l'arbre). */
+  Chat.prototype.designate = function (files) {
+    var self = this;
+    files.forEach(function (f) {
+      if (!f || !f.path) return;
+      if (self.deposits.some(function (d) { return d.path === f.path; })) return;
+      self.deposits.push({ path: f.path, name: f.name || String(f.path).split('/').pop() });
+    });
+    this.renderDeposits();
+    this.input.focus();
   };
 
   Chat.prototype.renderDeposits = function () {

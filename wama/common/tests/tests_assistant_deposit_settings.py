@@ -174,6 +174,37 @@ class ChatDepositAndGearTest(SimpleTestCase):
         ctx.eval("chat.input.value = 'Bonjour'; chat.send();")
         self.assertEqual({'message': 'Bonjour'}, self._read(ctx, 'posted')[0]['body'])
 
+    def test_a_file_dragged_from_the_tree_is_designated_by_its_path_without_upload(self):
+        """Mode normal : l'arbre du volet gauche glisse un CHEMIN — rien n'est re-téléversé."""
+        ctx = self._ctx()
+        ctx.eval("""
+            var attrs = {}, listeners = {}, uploads = 0;
+            window.WamaFM.upload = function () { uploads++; return Promise.resolve({}); };
+            chat.root = { setAttribute: function (k, v) { attrs[k] = v; },
+                          addEventListener: function (t, f) { listeners[t] = f; },
+                          classList: { add: function () {}, remove: function () {} } };
+            chat.bindDeposit();
+            listeners['filemanager:designate']({ detail: { files: [
+              { path: 'users/1/input/a.wav', name: 'a.wav' }, { path: 'users/1/input/a.wav' },
+              { path: 'users/1/input/b.pdf' }] } });
+        """)
+        self.assertIn('data-fm-designate', self._read(ctx, 'attrs'), "le chat ne se déclare pas cible de l'arbre")
+        self.assertEqual([{'path': 'users/1/input/a.wav', 'name': 'a.wav'},
+                          {'path': 'users/1/input/b.pdf', 'name': 'b.pdf'}], self._read(ctx, 'chat.deposits'))
+        self.assertEqual(0, self._read(ctx, 'uploads'))
+        ctx.eval("chat.input.value = 'Transcris'; chat.send();")
+        self.assertEqual({'message': 'Transcris', 'files': ['users/1/input/a.wav', 'users/1/input/b.pdf']},
+                         self._read(ctx, 'posted')[0]['body'])
+
+    def test_the_tree_hands_declared_targets_their_paths_before_resolving_an_app(self):
+        """L'accueil ne déclare aucune app : résoudre l'app d'abord y rendait « dépôt impossible »."""
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'filemanager' / 'js'
+                  / 'filemanager.js').read_text(encoding='utf-8')
+        self.assertIn("document.querySelectorAll('.drop-zone, [data-fm-designate]')", source)
+        stop = source[source.index("$(document).on('dnd_stop.vakata', function(e, data) {\n            const dragData"):]
+        self.assertLess(stop.index("new CustomEvent('filemanager:designate'"),
+                        stop.index('getAppFromDropZone(currentDropZone)'))
+
     def test_the_gear_opens_the_common_modal_on_the_item_context(self):
         ctx = self._ctx()
         ctx.eval("chat.openSettings();")

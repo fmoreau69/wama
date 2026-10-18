@@ -1814,8 +1814,10 @@
         // pointeur — déposer sur la tuile Lot visible partait vers la tuile de travail cachée.
         // Donc : d'abord les zones VISIBLES ; le repli sur une zone masquée ne vaut que si sa card
         // est réellement repliée (et c'est alors la 1ʳᵉ zone, celle du 1ᵉʳ onglet).
+        // ⚠ Une cible peut aussi se DÉCLARER hors des cards : `data-fm-designate` (2026-10-18, le
+        // chat de l'assistant) — elle reçoit les CHEMINS glissés, sans import ni app (cf. dnd_stop).
         function findDropZoneAt(x, y) {
-            const dropZones = document.querySelectorAll('.drop-zone');
+            const dropZones = document.querySelectorAll('.drop-zone, [data-fm-designate]');
             const inside = function (rect) {
                 return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom;
             };
@@ -1910,6 +1912,20 @@
             // Remove highlight from drop zone
             if (currentDropZone) {
                 currentDropZone.classList.remove('dragover', 'drag-over');
+            }
+
+            // Cible DÉCLARÉE hors card (`data-fm-designate`, le chat de l'assistant) : elle reçoit
+            // les fichiers par leur CHEMIN dans l'espace de l'utilisateur (pointés, jamais
+            // recopiés) et décide seule de leur sort. Avant la résolution d'app : l'accueil n'en
+            // déclare aucune, et le dépôt y finissait en « cette page ne déclare pas d'application ».
+            if (dragData && currentDropZone && currentDropZone.hasAttribute('data-fm-designate')) {
+                const designated = (dragData.files && dragData.files.length) ? dragData.files
+                    : (dragData.path ? [{ path: dragData.path, name: dragData.name, mime: dragData.mime }] : []);
+                currentDropZone.dispatchEvent(new CustomEvent('filemanager:designate', {
+                    detail: { files: designated }, bubbles: false,
+                }));
+                currentDropZone = null;
+                return;
             }
 
             // Check if we dropped on a valid drop zone

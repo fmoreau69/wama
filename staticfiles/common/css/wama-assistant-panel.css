@@ -86,7 +86,8 @@ body.wama-simple [data-wama-chat][data-density="full"] .wama-assistant-feed { ma
 
 /* Fichiers GLISSÉS sur le chat (2026-10-18) — le chat signale qu'il reçoit, les fichiers
    déposés attendent en pastilles sous la saisie et partent avec le message. */
-[data-wama-chat].wama-assistant-dragover {
+[data-wama-chat].wama-assistant-dragover,
+[data-wama-chat].drag-over {           /* survol par l'arbre de fichiers (filemanager.js) */
   outline: 2px dashed var(--wama-accent);
   outline-offset: 2px;
   border-radius: 6px;

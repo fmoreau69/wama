@@ -787,6 +787,14 @@ un chemin posté n'est pas un chemin à soi. Décision de Fabien : pastille puis
 au dépôt). Le dépôt « Mes Fichiers » de l'accueil simplifié passe par le même `WamaFM.upload`.
 Gardes : `tests_assistant_deposit_settings` (message partagé, filtre, tour sans texte ; V8 : dépôt,
 chemins envoyés puis effacés, ⚙ sur la modale commune) — cinq contre-épreuves par mutation, rouges.
+⚠ **Le même jour, Fabien : « en mode normal, je ne peux pas faire glisser un fichier sur
+l'assistant ».** Le fichier du BUREAU passait (smoke Playwright) ; celui de l'ARBRE du volet gauche,
+visible seulement en mode normal, non : le glisser de l'arbre est un glisser jstree (souris, aucun
+`drop` natif), et `filemanager.js` ne cherchait que des `.drop-zone` de card. Le chat se DÉCLARE
+désormais cible de l'arbre (`data-fm-designate`) ; l'arbre lui remet les CHEMINS
+(`filemanager:designate`) avant toute résolution d'app — l'accueil n'en déclare aucune — et le
+fichier est désigné, jamais re-téléversé. Smoke : accueil et mini-chat du transcriber, chemin envoyé
+avec le message ; gardes dans le même fichier, quatre mutations rouges.
 ⏳ Les trois zones de dépôt de l'accueil simplifié (Fichiers, Médiathèque, Reader) restent :
 le chat en fait la généralisation ; les fondre ou non est une décision.
 
