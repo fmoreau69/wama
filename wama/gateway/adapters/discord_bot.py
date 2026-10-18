@@ -41,7 +41,7 @@ from pathlib import Path
 from django.conf import settings
 
 from ..core import (FOLLOW_UP_INTERVAL_S, Attachment, IncomingMessage, collect_job_follow_ups,
-                    handle_message, record_follow_up)
+                    handle_message, told_follow_ups)
 
 logger = logging.getLogger(__name__)
 
@@ -92,7 +92,10 @@ def build_client():
     #: Dernier message TRAITÉ par salon (id Discord) — le point de reprise du rattrapage.
     last_seen: dict = {}
 
-    health = {'tick': time.monotonic(), 'disconnected_since': None}
+    # `undelivered_since` (2026-10-18) : depuis quand une fin RACONTÉE au fil peut manquer au salon
+    # (envoi échoué, ou démarrage — un arrêt a pu tomber entre l'enregistrement et la publication).
+    # La relève confronte alors le fil à l'historique des salons et publie l'écart, au retour.
+    health = {'tick': time.monotonic(), 'disconnected_since': None, 'undelivered_since': None}
 
     @client.event
     async def on_ready():
@@ -101,7 +104,8 @@ def build_client():
         health['disconnected_since'] = None
         # ⚠ `on_ready` revient à CHAQUE reconnexion : une seule relève, jamais deux en parallèle.
         if not relays:
-            relays.append(asyncio.create_task(_relay_job_follow_ups(client)))
+            _mark_undelivered(health, _startup_window_start())
+            relays.append(asyncio.create_task(_relay_job_follow_ups(client, health)))
             relays.append(asyncio.create_task(_loop_heartbeat(health)))
             _start_watchdog(health)
         elif last_seen:
@@ -178,7 +182,13 @@ def build_client():
             # les utilisateurs pendant qu'une seule personne attend son résultat.
             reponse = await asyncio.to_thread(handle_message, entrant)
 
-        await _reply_to_message(message, reponse)
+        try:
+            await _reply_to_message(message, reponse)
+        except Exception:
+            # La réponse a pu porter des fins de tâche RACONTÉES pendant le tour (`tell`, déjà au
+            # fil) : la relève les publiera au retour du canal, après lecture de l'historique.
+            _mark_undelivered(health, None)
+            raise
 
     return client
 
@@ -302,24 +312,59 @@ async def _recuperer_pieces_jointes(message) -> list:
     return pieces
 
 
-async def _relay_job_follow_ups(client):
+#: Marge (s) sous l'heure d'un récit pour le chercher dans l'historique du salon : les horloges
+#: de WAMA et de Discord ne sont pas la même.
+SHOWN_MARGIN_S = 60
+#: Messages lus, au plus, après un récit pour savoir s'il a été montré.
+SHOWN_SCAN_MESSAGES = 50
+
+
+def _startup_window_start():
+    """Au démarrage, la fenêtre à vérifier : celle du rattrapage des messages (`CATCH_UP_MAX_AGE_S`)
+    — au-delà, publier une fin de tâche surprendrait plus qu'elle n'aiderait."""
+    from datetime import datetime, timedelta, timezone
+    return datetime.now(timezone.utc) - timedelta(seconds=CATCH_UP_MAX_AGE_S)
+
+
+def _mark_undelivered(health, since):
+    """Une fin RACONTÉE au fil peut manquer au salon depuis `since` (None = maintenant, moins la
+    marge) : la relève confrontera le fil à l'historique du salon au prochain passage."""
+    from datetime import datetime, timedelta, timezone
+    since = since or datetime.now(timezone.utc) - timedelta(seconds=SHOWN_MARGIN_S)
+    current = health.get('undelivered_since')
+    health['undelivered_since'] = since if current is None else min(current, since)
+
+
+async def _relay_job_follow_ups(client, health=None):
     """La relève des fins de tâche (`core.collect_job_follow_ups`) : toutes les
     `FOLLOW_UP_INTERVAL_S` secondes, poster dans leur fil d'origine celles que le cœur a retenues.
     Le cœur décide QUOI et OÙ ; l'adaptateur ne fait que publier. Une relève qui échoue est
-    journalisée et la suivante repart — un bot ne s'arrête pas sur une notification."""
+    journalisée et la suivante repart — un bot ne s'arrête pas sur une notification.
+
+    Un envoi qui échoue (Discord en panne, refus ponctuel) marque `health['undelivered_since']` ;
+    dès que le client est de nouveau prêt, la relève publie ce que le fil a raconté et que le salon
+    ne montre pas (`_redeliver_follow_ups`) — puis efface la marque."""
+    health = health if health is not None else {}
     while not client.is_closed():
         try:
+            since = health.get('undelivered_since')
+            if since is not None and getattr(client, 'is_ready', lambda: True)():
+                if await _redeliver_follow_ups(client, since):
+                    health['undelivered_since'] = None
             # ORM + outil de statut : dans un thread, comme un tour d'assistant (cf. on_message).
             follow_ups = await asyncio.to_thread(collect_job_follow_ups, CANAL)
             for follow_up in follow_ups:
-                await _deliver_follow_up(client, follow_up)
+                if not await _deliver_follow_up(client, follow_up):
+                    _mark_undelivered(health, follow_up.told_at)
         except Exception:
             logger.exception("[gateway/discord] relève des fins de tâche en échec")
         await asyncio.sleep(FOLLOW_UP_INTERVAL_S)
 
 
-async def _deliver_follow_up(client, follow_up):
-    """Poste UNE fin de tâche dans son fil, puis l'enregistre au fil de conversation."""
+async def _deliver_follow_up(client, follow_up) -> bool:
+    """Poste UNE fin de tâche dans son fil — déjà enregistrée au fil (`tell`). Rend False si
+    l'envoi a échoué et doit être repris au retour du canal ; True s'il a eu lieu, ou si le fil est
+    définitivement injoignable (supprimé, accès retiré : le reprendre ne servirait à rien)."""
     import dataclasses
 
     import discord
@@ -327,17 +372,73 @@ async def _deliver_follow_up(client, follow_up):
     try:
         channel = client.get_channel(int(follow_up.thread)) or \
             await client.fetch_channel(int(follow_up.thread))
-    except (ValueError, discord.DiscordException):
+    except (ValueError, discord.NotFound, discord.Forbidden):
         logger.warning("[gateway/discord] fil %s injoignable — fin de tâche non postée",
                        follow_up.thread)
-        return
+        return True
+    except Exception:
+        logger.warning("[gateway/discord] fil %s non joint — fin de tâche reprise au retour",
+                       follow_up.thread, exc_info=True)
+        return False
     reply = follow_up.reply
     if not isinstance(channel, discord.DMChannel):
         # Dans un salon partagé, un message du bot ne prévient personne : on MENTIONNE la
         # personne qui a demandé la tâche (en DM, la notification de Discord suffit).
         reply = dataclasses.replace(reply, text=f"<@{follow_up.external_id}> {reply.text}")
-    await _publish_to(channel, reply)
-    await asyncio.to_thread(record_follow_up, follow_up)
+    try:
+        await _publish_to(channel, reply)
+    except Exception:
+        logger.warning("[gateway/discord] fin de tâche non publiée (fil %s) — reprise au retour "
+                       "du canal", follow_up.thread, exc_info=True)
+        return False
+    return True
+
+
+async def _redeliver_follow_ups(client, since) -> bool:
+    """Publie les fins RACONTÉES au fil depuis `since` que le salon ne montre pas (2026-10-18).
+
+    Rien de neuf n'est tenu : le FIL dit ce qui a été raconté (`core.told_follow_ups`), l'HISTORIQUE
+    du salon ce qui a été montré — la lecture même du rattrapage des messages (`_catch_up`). Une fin
+    montrée n'est jamais republiée. Bornée par `CATCH_UP_MAX_AGE_S`. Rend True quand plus rien ne
+    manque."""
+    follow_ups = await asyncio.to_thread(told_follow_ups, CANAL, max(since, _startup_window_start()))
+    complete, published = True, 0
+    for follow_up in follow_ups:
+        try:
+            if await _shown_in_channel(client, follow_up):
+                continue
+        except Exception:
+            logger.warning("[gateway/discord] historique du fil %s illisible — vérifié au prochain "
+                           "passage", follow_up.thread, exc_info=True)
+            complete = False
+            continue
+        if await _deliver_follow_up(client, follow_up):
+            published += 1
+        else:
+            complete = False
+    if published:
+        logger.warning("[gateway/discord] %d fin(s) de tâche republiée(s) au retour du canal", published)
+    return complete
+
+
+async def _shown_in_channel(client, follow_up) -> bool:
+    """Le salon montre-t-il ce récit ? Un message du bot, après son heure, qui en porte la 1ʳᵉ ligne
+    (la mention et les morceaux d'un long message n'y changent rien)."""
+    from datetime import timedelta
+
+    try:
+        thread = int(follow_up.thread)
+    except (TypeError, ValueError):
+        return True                         # fil sans identifiant de salon : rien à vérifier
+    first_line = (follow_up.reply.text or '').strip().splitlines()[0] if follow_up.reply.text else ''
+    if not first_line or follow_up.told_at is None:
+        return True
+    channel = client.get_channel(thread) or await client.fetch_channel(thread)
+    async for message in channel.history(after=follow_up.told_at - timedelta(seconds=SHOWN_MARGIN_S),
+                                         limit=SHOWN_SCAN_MESSAGES):
+        if message.author.id == client.user.id and first_line in (message.content or ''):
+            return True
+    return False
 
 
 async def _reply_to_message(message, reply):

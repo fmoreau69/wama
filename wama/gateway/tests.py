@@ -741,6 +741,28 @@ class JobFollowUpTests(TestCase):
         from wama.common.utils.notifications import notify_job_end
         notify_job_end(self.card, 'describer', 'Describer', 'témoin', success, detail=detail)
 
+    def test_the_relay_tells_through_the_common_locked_gesture(self):
+        """La relève raconte par `tell` (2026-10-18, décision de Fabien) : verrou du fil,
+        « déjà racontée ? », ENREGISTREMENT, puis publication. C'est ce verrou, pris des deux
+        côtés, qui ferme la course mesurée (`ROADMAP §19.2`) : une relève tombée pendant le récit
+        d'une fin de tour attend, puis lit « déjà racontée »."""
+        from wama.common.services import job_follow_ups
+        self._created_here()
+        self._end()
+        with patch.object(job_follow_ups, 'tell', wraps=job_follow_ups.tell) as told:
+            (follow_up,) = core.collect_job_follow_ups(CANAL)
+        self.assertEqual(CANAL, told.call_args.args[1])
+        self.assertIsNotNone(follow_up.told_at, 'enregistrée AVANT d’être rendue à l’adaptateur')
+
+    def test_whichever_comes_first_the_end_is_told_once(self):
+        """La relève d'abord, la réponse du tour ensuite : la seconde lit « déjà racontée »."""
+        from wama.common.models import Notification
+        self._created_here()
+        self._end()
+        note = Notification.objects.filter(recipient=self.user).latest('pk')
+        self.assertEqual(1, len(core.collect_job_follow_ups(CANAL)))
+        self.assertEqual(([], []), core._turn_follow_ups({'job_notices': [note.pk]}, CANAL))
+
     def test_a_task_asked_from_a_thread_ends_in_that_thread(self):
         self._created_here('salon-1')
         # Contre-épreuve : un fil PLUS RÉCENT, mais pour un autre élément, n'est pas l'origine.
@@ -887,19 +909,40 @@ class JobFollowUpTests(TestCase):
         declared.assert_not_called()
         self.assertEqual([], follow_up.reply.files)
 
-    def test_the_posted_end_is_recorded_with_its_real_tool_step(self):
+    def test_the_end_is_recorded_with_its_real_tool_step_before_it_is_posted(self):
         """L'historique resservi au modèle garde un « terminé » APPUYÉ sur un outil — un
-        « terminé » sans outil est l'exemple qui lui faisait inventer (`WAMA_LLM.md` §2026-10-05)."""
+        « terminé » sans outil est l'exemple qui lui faisait inventer (`WAMA_LLM.md` §2026-10-05).
+        Depuis le 2026-10-18 il est enregistré par la RELÈVE elle-même (`tell`), AVANT publication :
+        l'adaptateur n'enregistre plus rien."""
         from wama.common.services.assistant_engine import _sanitize_history
         conversation = self._created_here()
         self._end()
-        (follow_up,) = core.collect_job_follow_ups(CANAL)
-        core.record_follow_up(follow_up)
+        core.collect_job_follow_ups(CANAL)
         last = conversation.turns.filter(role='assistant').order_by('-created_at', '-pk').first()
         self.assertEqual('get_describer_status', last.tool_steps[0]['tool'])
         served = [m['content'] for m in _sanitize_history(self.store.history(conversation))]
         self.assertIn('{"tool": "get_describer_status", "args": {}}', served)
         self.assertIn('[Notification WAMA] Describer — « témoin » terminé', served)
+
+    def test_the_thread_knows_what_was_told_to_publish_it_again(self):
+        """Ce que le salon doit montrer se RECONSTRUIT du fil (`told_follow_ups`) : une fin
+        racontée — par la relève ou par la réponse d'un tour — redevient publiable au retour du
+        canal, avec son fil, sa personne et son heure. Contre-épreuves : avant `since`, rien ;
+        compte délié, rien (on ne publie pas pour quelqu'un qui n'est plus relié)."""
+        from django.utils import timezone
+
+        from wama.gateway.services import unlink
+        since = timezone.now()
+        self._created_here('salon-1')
+        self._end()
+        core.collect_job_follow_ups(CANAL)
+        (told,) = core.told_follow_ups(CANAL, since)
+        self.assertEqual(('salon-1', EXT_ID), (told.thread, told.external_id))
+        self.assertTrue(told.reply.text.startswith('✅ Describer — « témoin » terminé'))
+        self.assertGreaterEqual(told.told_at, since)
+        self.assertEqual([], core.told_follow_ups(CANAL, timezone.now()))
+        unlink(self.user, CANAL, EXT_ID)
+        self.assertEqual([], core.told_follow_ups(CANAL, since))
 
 
 class DiscordFollowUpDeliveryTests(TestCase):
@@ -916,9 +959,7 @@ class DiscordFollowUpDeliveryTests(TestCase):
         from wama.gateway.adapters import discord_bot
 
         client = type('Client', (), {'get_channel': lambda self, i: channel})()
-        with patch.object(discord_bot, 'record_follow_up') as recorded:
-            asyncio.run(discord_bot._deliver_follow_up(client, self._follow_up()))
-        return recorded
+        return asyncio.run(discord_bot._deliver_follow_up(client, self._follow_up()))
 
     def _channel(self, spec=None):
         from unittest.mock import AsyncMock, MagicMock
@@ -926,11 +967,104 @@ class DiscordFollowUpDeliveryTests(TestCase):
         channel.send = AsyncMock()
         return channel
 
-    def test_in_a_shared_channel_the_person_is_mentioned_and_the_end_recorded(self):
+    def test_in_a_shared_channel_the_person_is_mentioned(self):
         channel = self._channel()
-        recorded = self._deliver(channel)
+        self.assertTrue(self._deliver(channel))
         self.assertTrue(channel.send.await_args.args[0].startswith(f'<@{EXT_ID}> ✅'))
-        recorded.assert_called_once()
+
+    def test_a_refused_send_is_reported_to_be_taken_up_again(self):
+        """Discord en panne (5xx, coupure) : la livraison le DIT, la relève la reprendra au retour.
+        Contre-épreuve : un fil supprimé n'est pas « à reprendre » — y revenir ne servirait à rien."""
+        from unittest.mock import AsyncMock, MagicMock
+
+        import discord
+        channel = self._channel()
+        channel.send = AsyncMock(side_effect=discord.HTTPException(MagicMock(status=503), 'down'))
+        self.assertFalse(self._deliver(channel))
+        gone = type('Client', (), {'get_channel': lambda self, i: None,
+                                   'fetch_channel': AsyncMock(side_effect=discord.NotFound(
+                                       MagicMock(status=404), 'gone'))})()
+        import asyncio
+        from wama.gateway.adapters import discord_bot
+        self.assertTrue(asyncio.run(discord_bot._deliver_follow_up(gone, self._follow_up())))
+
+    def _told(self, thread='42', text='✅ Describer — « témoin » terminé'):
+        from django.utils import timezone
+        return core.FollowUp(channel=CANAL, thread=thread, external_id=EXT_ID,
+                             reply=core.Reply(text=text), conversation_id=0, notice='n', step={},
+                             told_at=timezone.now())
+
+    def _history_client(self, shown_texts, bot_id=7):
+        """Un faux client dont le salon montre `shown_texts` (messages du bot)."""
+        from types import SimpleNamespace
+        from unittest.mock import AsyncMock, MagicMock
+        messages = [SimpleNamespace(author=SimpleNamespace(id=bot_id), content=t) for t in shown_texts]
+
+        async def history(**kwargs):
+            for message in messages:
+                yield message
+        channel = MagicMock()
+        channel.history = history
+        channel.send = AsyncMock()
+        client = SimpleNamespace(get_channel=lambda i: channel, user=SimpleNamespace(id=bot_id))
+        return client, channel
+
+    def test_back_online_only_what_the_channel_does_not_show_is_published(self):
+        """Au retour du canal : le FIL dit ce qui a été raconté, l'HISTORIQUE du salon ce qui a été
+        montré — seul l'écart est publié, jamais deux fois."""
+        import asyncio
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from wama.gateway.adapters import discord_bot
+        shown = self._told(text='✅ Describer — « montré » terminé')
+        missing = self._told(text='✅ Describer — « perdu » terminé')
+        client, channel = self._history_client([f'<@{EXT_ID}> ✅ Describer — « montré » terminé'])
+        with patch.object(discord_bot, 'told_follow_ups', return_value=[shown, missing]) as told:
+            self.assertTrue(asyncio.run(discord_bot._redeliver_follow_ups(
+                client, timezone.now() - timedelta(minutes=5))))
+        self.assertEqual(1, channel.send.await_count)
+        self.assertIn('« perdu »', channel.send.await_args.args[0])
+        self.assertEqual(CANAL, told.call_args.args[0])
+
+    def test_back_online_a_window_older_than_the_catch_up_is_not_replayed(self):
+        """Borne : la fenêtre du rattrapage des messages (`CATCH_UP_MAX_AGE_S`)."""
+        import asyncio
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from wama.gateway.adapters import discord_bot
+        client, _channel = self._history_client([])
+        with patch.object(discord_bot, 'told_follow_ups', return_value=[]) as told:
+            asyncio.run(discord_bot._redeliver_follow_ups(client, timezone.now() - timedelta(days=2)))
+        floor = timezone.now() - timedelta(seconds=discord_bot.CATCH_UP_MAX_AGE_S + 60)
+        self.assertGreater(told.call_args.args[1], floor)
+
+    def test_a_failed_delivery_is_taken_up_by_the_next_round_once_the_client_is_back(self):
+        """La relève MARQUE l'échec, puis republie l'écart au tour suivant — et efface la marque."""
+        import asyncio
+        from unittest.mock import AsyncMock
+
+        from wama.gateway.adapters import discord_bot
+        failed = self._told()
+        rounds = [[failed], []]
+        client = type('Client', (), {'is_closed': lambda self: not rounds,
+                                     'is_ready': lambda self: True})()
+        health = {}
+
+        def collect(channel):
+            return rounds.pop(0)
+        with patch.object(discord_bot, 'collect_job_follow_ups', side_effect=collect), \
+                patch.object(discord_bot, '_deliver_follow_up', new=AsyncMock(return_value=False)), \
+                patch.object(discord_bot, '_redeliver_follow_ups',
+                             new=AsyncMock(return_value=True)) as redeliver, \
+                patch.object(discord_bot.asyncio, 'sleep', new=AsyncMock()):
+            asyncio.run(discord_bot._relay_job_follow_ups(client, health))
+        self.assertEqual(1, redeliver.await_count, 'repris au tour suivant')
+        self.assertLessEqual(redeliver.await_args.args[1], failed.told_at)
+        self.assertIsNone(health['undelivered_since'], 'plus rien ne manque : la marque est effacée')
 
     def _relay(self, rounds):
         """Joue la boucle de relève sur des TOURS donnés : chaque tour rend des fins de tâche, ou

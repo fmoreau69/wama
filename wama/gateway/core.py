@@ -480,8 +480,9 @@ _MAX_NOTICES_PER_ROUND = 50
 
 @dataclass
 class FollowUp:
-    """Une fin de tâche à poster : où (`thread`), à qui (`external_id`), quoi (`reply`), et ce qui
-    s'enregistre au fil une fois posté (`notice`, l'étape d'outil RÉELLEMENT jouée)."""
+    """Une fin de tâche à poster : où (`thread`), à qui (`external_id`), quoi (`reply`) — déjà
+    ENREGISTRÉE au fil (`job_follow_ups.tell`, avec l'étape d'outil RÉELLEMENT jouée) avant
+    d'être publiée (2026-10-18)."""
     channel: str
     thread: str
     external_id: str
@@ -489,14 +490,19 @@ class FollowUp:
     conversation_id: int
     notice: str
     step: dict
+    #: Quand la fin a été RACONTÉE au fil — le repère de l'historique du salon où la chercher.
+    told_at: object = None
 
 
 def collect_job_follow_ups(channel: str) -> list:
     """Les fins de tâche à poster sur ce canal depuis la dernière relève.
 
-    Le curseur avance AVANT l'envoi : au plus une fois — un arrêt entre la relève et l'envoi perd
-    un message de fil (la cloche de WAMA le garde), il n'en double jamais. À sa création, il se
-    pose sur la dernière notification existante : rien d'ancien n'est rejoué.
+    Le curseur avance AVANT l'envoi, et chaque fin est enregistrée au fil avant d'être publiée
+    (`tell`) : jamais deux fois. Un envoi qui échoue — canal en panne, arrêt de la passerelle entre
+    l'enregistrement et la publication — n'est pas perdu : l'adaptateur confronte au retour du
+    canal ce que le fil a raconté (`told_follow_ups`) à ce que le salon montre, et publie l'écart.
+    À sa création, le curseur se pose sur la dernière notification existante : rien d'ancien
+    n'est rejoué.
     """
     from django.db import transaction
     from django.db.models import Max
@@ -534,48 +540,68 @@ def collect_job_follow_ups(channel: str) -> list:
 
 
 def _follow_up(note, channel: str):
-    """La fin de tâche d'UNE notification, ou None : personne reliée sur ce canal, ou tâche qui
-    n'a pas été demandée depuis l'un de ses fils."""
-    from wama.common.services import job_follow_ups
-    from wama.common.utils.notifications import DEV_JOB_APP
+    """La fin de tâche d'UNE notification, ou None : personne reliée sur ce canal, tâche qui
+    n'a pas été demandée depuis l'un de ses fils, ou fin déjà racontée.
 
-    user = note.recipient
-    external_id = linked_identity(user, channel)
+    Racontée par le geste COMMUN (`job_follow_ups.tell`, 2026-10-18, décision de Fabien) : le fil
+    est verrouillé, la fin ENREGISTRÉE au fil, puis seulement publiée par l'adaptateur. La relève
+    publiait d'abord et enregistrait après : une relève tombée entre l'enregistrement d'un tour et
+    le récit de sa fin racontait deux fois (mesuré, ≈ 0,4 % des tâches rapides, `ROADMAP §19.2`).
+    Une publication qui échoue n'est pas perdue pour autant : le fil sait ce qui a été raconté,
+    l'historique du salon ce qui a été montré — l'adaptateur re-publie l'écart au retour du canal
+    (`told_follow_ups`)."""
+    from wama.common.services import job_follow_ups
+
+    external_id = linked_identity(note.recipient, channel)
     if not external_id:
         return None
     # Le fil d'origine (tâche d'app, ou tâche de DÉVELOPPEMENT — 2026-10-12, fil #43 : l'assistant
     # suivait la tâche dans son tour et ne répondait plus à rien pendant six minutes).
-    conversation = job_follow_ups.origin_of(note, channel)
-    if conversation is None:
+    outcome = job_follow_ups.tell(note, channel, job_follow_ups.notice_text)
+    if outcome is None:
         return None
-    # Déjà racontée avec la réponse du tour qui l'a lancée (`_turn_follow_ups`) : pas deux fois.
-    if job_follow_ups.already_told(conversation, note):
-        return None
-    step = job_follow_ups.status_step(note, user)
-    text = job_follow_ups.notice_text(note)
-    # Les fichiers d'une tâche d'app : ses sorties DÉCLARÉES, joints au message du canal.
-    urls = [] if note.app == DEV_JOB_APP else job_follow_ups.declared_output_urls(note)
+    conversation, text, step = outcome
+    from django.utils import timezone
+    # Racontée à l'instant (`tell` vient d'enregistrer) : le repère où la chercher dans le salon.
+    return _channel_follow_up(note, channel, conversation, text, step, external_id,
+                              told_at=timezone.now())
+
+
+def _channel_follow_up(note, channel, conversation, text, step, external_id, told_at=None):
+    """Une fin RACONTÉE, dans la forme d'un canal : le texte et les sorties DÉCLARÉES de
+    l'élément en pièces jointes (une tâche de développement n'en déclare pas : liste vide)."""
+    from wama.common.services import job_follow_ups
+    urls = job_follow_ups.declared_output_urls(note) if note is not None else []
     reply = _reply_with_outputs(text, [{'result': {'output_urls': urls}}] if urls else [])
     return FollowUp(channel=channel, thread=conversation.thread_key, external_id=external_id,
-                    reply=reply, conversation_id=conversation.pk, notice=note.title, step=step)
+                    reply=reply, conversation_id=conversation.pk,
+                    notice=note.title if note is not None else '', step=step, told_at=told_at)
 
 
-def record_follow_up(follow_up: FollowUp) -> None:
-    """Enregistre au fil la fin de tâche POSTÉE — après l'envoi, par l'adaptateur.
+def told_follow_ups(channel: str, since) -> list:
+    """Les fins RACONTÉES sur ce canal depuis `since`, reconstruites depuis le FIL (le store de
+    conversation, où `tell` les enregistre) — ce que le salon doit montrer. L'adaptateur les
+    confronte à l'historique du salon et re-publie celles qui manquent : une panne du canal, un
+    envoi refusé, un arrêt entre l'enregistrement et la publication (2026-10-18)."""
+    from wama.common.models import ConversationTurn, Notification
+    from wama.common.services.job_follow_ups import JOB_NOTICE_KINDS, NOTICE_PREFIX
 
-    Un échange comme un autre (`conversation_store.record_exchange`) : la notification côté
-    utilisateur, la réponse avec l'étape d'outil RÉELLEMENT jouée côté assistant. L'historique
-    resservi au modèle garde ainsi un « terminé » APPUYÉ sur un outil — un « terminé » sans outil
-    est précisément l'exemple qui lui faisait inventer des résultats (`WAMA_LLM.md` §2026-10-05).
-    """
-    from wama.common.models import Conversation
-    from wama.common.services import conversation_store
-    from wama.common.services.job_follow_ups import NOTICE_PREFIX
-
-    conversation = Conversation.objects.filter(pk=follow_up.conversation_id).first()
-    if conversation is None:
-        return
-    conversation_store.record_exchange(
-        conversation, NOTICE_PREFIX + follow_up.notice,
-        {'response': follow_up.reply.text, 'tool_steps': [follow_up.step],
-         'model': 'notification WAMA'})
+    follow_ups = []
+    asked = (ConversationTurn.objects
+             .filter(conversation__surface=channel, role='user',
+                     content__startswith=NOTICE_PREFIX, created_at__gte=since)
+             .select_related('conversation', 'conversation__user').order_by('created_at', 'pk'))
+    for turn in asked:
+        conversation = turn.conversation
+        told = conversation.turns.filter(role='assistant', pk__gt=turn.pk).order_by('pk').first()
+        external_id = linked_identity(conversation.user, channel)
+        if told is None or not external_id:
+            continue
+        note = (Notification.objects
+                .filter(recipient=conversation.user, kind__in=JOB_NOTICE_KINDS,
+                        title=turn.content[len(NOTICE_PREFIX):], created_at__lte=turn.created_at)
+                .order_by('-pk').first())
+        follow_ups.append(_channel_follow_up(note, channel, conversation, told.content,
+                                             (told.tool_steps or [{}])[0], external_id,
+                                             told_at=told.created_at))
+    return follow_ups

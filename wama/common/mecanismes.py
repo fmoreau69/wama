@@ -1137,8 +1137,10 @@ MECHANISMS = (
               "La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'élément) "
               "racontée dans le fil de l'assistant d'où la tâche a été demandée : origine LUE dans "
               "les étapes d'outils persistées (`tool_api.items_of_step`), geste « statut » "
-              "RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois. Commun aux "
-              "surfaces : la passerelle la relève par un curseur de canal et joint les fichiers ; le "
+              "RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois, sous verrou, "
+              "AVANT publication (`tell`). Commun aux surfaces : la passerelle la relève par un "
+              "curseur de canal, joint les fichiers, et republie au retour du canal ce que le fil a "
+              "raconté et que le salon ne montre pas (`told_follow_ups`) ; le "
               "fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT. Une fin "
               "arrivée PENDANT le tour qui l'a lancée part avec sa réponse (`notices_of_turn`, "
               "joint par `conversation_turn` ; `tell` raconte une seule fois)",

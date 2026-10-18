@@ -4169,7 +4169,7 @@ racontée, sur aucune surface. Deux défauts, deux gestes :
    déjà racontée. Gardes : `tests_job_follow_ups_web` (+4), `gateway.tests.JobFollowUpTests` (+1) —
    sept contre-épreuves par mutation, rouges.
 
-🔄 **Le cas Discord MESURÉ le même jour** (demande de Fabien). Il reste une fenêtre de double récit
+✅ **Le cas Discord MESURÉ le même jour** (demande de Fabien). Il restait une fenêtre de double récit
 sur un CANAL : la fin du tour raconte par `tell` (verrou, « déjà racontée ? », enregistrement,
 puis publication), mais la relève du canal (`gateway.core._follow_up`) vérifie « déjà racontée ? »
 SANS verrou, publie, et n'enregistre qu'APRÈS (`record_follow_up`). Une relève qui tombe entre
@@ -4182,10 +4182,24 @@ l'enregistrement du tour et celui de son récit raconte donc la fin une seconde 
   que la tâche ait fini moins de 15 s avant la fin du tour (sinon une relève l'a déjà consommée
   sans fil) : **≈ 0,4 %** de ces tâches rapides. Le web n'est pas concerné (sa cloche passe par
   `web_follow_ups` → `tell`, sous verrou).
-- ⏳ **Correction alignée, non faite (décision)** : la relève emprunte le même geste, `tell`
-  (enregistrer sous verrou AVANT de publier) — un seul chemin, double impossible. Coût : une
-  publication qui échoue reste enregistrée au fil sans avoir été postée, soit la règle « au plus
-  une fois » que le curseur du canal applique déjà.
+- ✅ **Corrigé, décision de Fabien** : *« on aligne la relève sur tell, mais trouve une solution
+  pour détecter une panne de Discord et renvoyer le message au retour »* — et *« on réutilise, on
+  ne réinvente rien »*. La relève raconte par `tell` (verrou, « déjà racontée ? », enregistrement,
+  PUIS publication) ; `record_follow_up` est retiré (`REMOVAL_LEDGER` R150). Le renvoi n'ajoute
+  ni table ni file d'envoi : le FIL sait ce qui a été raconté (`core.told_follow_ups`, reconstruit
+  du store de conversation), l'HISTORIQUE du salon ce qui a été montré — la lecture même du
+  rattrapage des messages manqués (`_catch_up`). Un envoi qui échoue (5xx, coupure, client non
+  prêt) se DIT (`_deliver_follow_up` rend False ; un fil supprimé n'est pas « à reprendre ») et
+  marque l'état de santé de la passerelle (`health['undelivered_since']`, à côté de
+  `disconnected_since`) ; une réponse de tour non publiée aussi (elle portait peut-être des fins
+  racontées) ; le démarrage marque sa fenêtre (un arrêt a pu tomber entre l'enregistrement et la
+  publication). Dès que le client est prêt, la relève publie ce que le fil a raconté et que le
+  salon ne montre pas (`_redeliver_follow_ups`), jamais ce qu'il montre, dans la borne du
+  rattrapage (`CATCH_UP_MAX_AGE_S`, 1 h), puis efface la marque. Gardes : `gateway.tests` (+7 :
+  relève par `tell`, ordre inverse, reconstruction du fil, envoi refusé dit, écart seul publié,
+  borne, reprise au tour suivant) — sept mutations rouges. ⚠ La course elle-même (deux connexions)
+  n'est pas rejouée en test : un `TransactionTestCase` viderait la base de test PARTAGÉE en
+  cascade ; elle est tenue par le verrou de ligne de Postgres, pris des deux côtés par `tell`.
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) ⏳
 

@@ -104,6 +104,16 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > normalement en fin de run. *Une base de test ne se partage pas entre instances — c'est le
 > même principe que le worktree par instance.*
 >
+> 🔴 **Jamais de `TransactionTestCase` sur la base partagée** (vécu le 2026-10-18). Il COMMITE
+> sa mise en place, puis vide TOUTES les tables à la fin : le vidage a échoué (« cannot truncate a
+> table referenced in a foreign key constraint ») et a laissé un compte, une liaison Discord et un
+> curseur dans `test_wama_db` — onze tests d'appariement d'une autre classe sont passés au rouge
+> (« identité déjà reliée »). Et s'il réussissait, ce serait pire : `available_apps` autorise un
+> TRUNCATE EN CASCADE sur la base où d'autres instances tournent. ✅ Une course entre deux
+> connexions se garde par ce qui la ferme (le geste verrouillé est-il emprunté des deux côtés ?
+> les deux ordres d'arrivée ?), pas en la rejouant ; et si une trace a fui : la relever par une
+> requête datée, ne retirer que SES lignes (heure de création = heure du run), relancer.
+>
 > 🔴 **Un rouge ne se clôt PAS en silence.** Deux issues, jamais une troisième : il est **corrigé**,
 > ou il est **DÉCLARÉ dans le handoff par son NOM**, avec ce qu'on en sait et à qui il appartient.
 > Une clôture qui reporte « N tests OK » en ayant écarté les rouges du décompte est pire qu'une
