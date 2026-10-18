@@ -578,6 +578,7 @@
       self.stopWaiting();
       if (data.success === false || (!data.success && data.error)) {
         self.feed.appendChild(self.errorBubble(data, message));
+        self.tellTurnFollowUps(data.follow_ups);    // déjà racontées au fil : les montrer aussi
         return;
       }
       if (data.tool_steps && data.tool_steps.length) {
@@ -649,7 +650,11 @@
         } else if (evt.type === 'done') {
           var r = evt.result || {};
           self.stopWaiting();
-          if (r.error) { self.feed.appendChild(self.errorBubble(r, message)); return; }
+          if (r.error) {
+            self.feed.appendChild(self.errorBubble(r, message));
+            self.tellTurnFollowUps(r.follow_ups);   // déjà racontées au fil : les montrer aussi
+            return;
+          }
           if (!recu) {                                       // cloud : aucun fragment, tout arrive ici
             self.feed.appendChild(self.bubble(r.response, 'assistant', r.model));
             if (voix) voix.push(r.response || '');

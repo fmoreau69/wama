@@ -110,6 +110,16 @@ class WebThreadTellsTheEndOfItsTasksTest(TestCase):
         self.assertNotIn('job_notices', r.json())
         self.assertEqual([], self._relay(bell['note'].pk), 'racontée une fois')
 
+    def test_the_api_contract_does_not_carry_the_internal_notice_ids(self):
+        """L'API v1 rend le dict du tour : la clé interne `job_notices` n'y sort pas."""
+        from unittest import mock
+        with mock.patch('wama.common.services.assistant_engine.conversation_turn',
+                        return_value={'response': 'Lancé.', 'job_notices': [1]}):
+            r = self.client.post('/api/v1/assistant/chat/', data=json.dumps({'message': 'x'}),
+                                 content_type='application/json')
+        self.assertEqual(200, r.status_code, r.content)
+        self.assertEqual({'response': 'Lancé.'}, r.json())
+
     def test_a_turn_only_carries_the_ends_of_what_it_designated(self):
         """Contre-épreuve : une fin d'un autre élément, ou d'avant le tour, n'est pas la sienne."""
         from django.utils import timezone
@@ -232,6 +242,23 @@ class ChatListensToTheBellTest(SimpleTestCase):
         self.assertEqual([['tour', '✅ fini', False]], self._read(ctx, 'told'))
         self.assertEqual(['✅ fini'], self._read(ctx, 'said'))
         self.assertEqual([], json.loads(ctx.eval('JSON.stringify(chat.tellTurnFollowUps(undefined))')))
+
+    def test_a_turn_in_error_still_shows_the_ends_already_told(self):
+        """Racontées au fil par la vue avant son test d'erreur : la bulle d'erreur ne les cache pas."""
+        ctx = self._ctx()
+        ctx.eval("""
+            fetch = function () { return Promise.resolve({ json: function () {
+              return Promise.resolve({ error: 'délai dépassé', follow_ups: [{ response: '✅ fini' }] });
+            } }); };
+            var chat = Object.create(WamaAssistantChat._Chat.prototype);
+            chat.cfg = { chatUrl: '/api/ai-chat/' }; chat.lastFiles = [];
+            chat.signal = function () {}; chat.stopWaiting = function () {};
+            chat.feed = { appendChild: function () {} };
+            chat.errorBubble = function () { return {}; };
+            chat.tellFollowUp = function (f, speak) { told.push(['erreur', f.response, speak]); };
+            chat.sendBlocking('x', null);
+        """)
+        self.assertEqual([['erreur', '✅ fini', False]], self._read(ctx, 'told'))
 
     def test_a_relay_without_any_end_of_task_asks_nothing(self):
         """Contre-épreuve : un partage, une alerte — rien à demander au serveur."""

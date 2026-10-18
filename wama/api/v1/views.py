@@ -132,6 +132,9 @@ class AssistantChatView(APIView):
             result = conversation_turn(request.user, message, surface='api',
                                        thread_key=str(request.data.get("thread_key") or ''),
                                        **common)
+        # Les fins de tâche arrivées pendant le tour sont racontées par les surfaces qui ont un
+        # fil à relever (web, canaux) ; un client de l'API suit ses éléments par leur statut.
+        result.pop("job_notices", None)
 
         if "error" in result:
             return Response(result, status=result.pop("status", 500))

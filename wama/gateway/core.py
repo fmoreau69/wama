@@ -247,7 +247,6 @@ def _turn_follow_ups(resultat: dict, channel: str) -> tuple:
     les sorties DÉCLARÉES partent en pièces jointes, comme pour une fin postée par la relève."""
     from wama.common.models import Notification
     from wama.common.services import job_follow_ups
-    from wama.common.utils.notifications import DEV_JOB_APP
 
     texts, steps = [], []
     for note in (Notification.objects.filter(pk__in=resultat.get('job_notices') or [])
@@ -261,7 +260,8 @@ def _turn_follow_ups(resultat: dict, channel: str) -> tuple:
         if outcome is None:
             continue
         texts.append(outcome[1])
-        urls = [] if note.app == DEV_JOB_APP else job_follow_ups.declared_output_urls(note)
+        # Une tâche de développement n'a pas de sorties DÉCLARÉES (aucune spec de détail) : vide.
+        urls = job_follow_ups.declared_output_urls(note)
         if urls:
             steps.append({'result': {'output_urls': urls}})
     return texts, steps
