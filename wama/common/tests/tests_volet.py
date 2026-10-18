@@ -251,7 +251,7 @@ class PagesDeclarantesTest(TestCase):
             self.assertNotIn(marqueur, html, f"connexion : cadre '{cle}' toujours rendu")
         self.assertIn(SANS_VOLET, html)
 
-    def test_accueil_garde_son_volet_pour_le_seul_avatar(self):
+    def test_home_keeps_its_panel_for_the_avatar_and_the_assistant_settings(self):
         from django.urls import reverse
 
         html = self.client.get(reverse('home')).content.decode('utf-8', 'replace')

@@ -24607,3 +24607,57 @@ lecteur apparaît.
   `composer.parts` sans manifeste `function` (commit `4172550d`, autre session). Puis R4 (⚙ des
   process de la card Data, avec le `label` court de `ParamSpec`), R3 (Lab), Data Analyzer.
   Pousser (décision de Fabien).
+
+## §CLÔTURE — 2026-10-18, « ASSISTANT : VOIX, FIN DE TÂCHE DANS LE FIL, RÉGLAGES AU VOLET/⚙, GLISSER-DÉPOSER » — ✅ LIVRÉ, éprouvé en réel
+
+Session ouverte le 17/10 sur le Translator (clos `3fcd2f8c`, §PASSATION 2026-10-17), poursuivie
+sur l'assistant à la demande de Fabien. Commits du 18/10, tous NON POUSSÉS :
+
+| sha | quoi | domicile |
+|---|---|---|
+| `d33aac6f` | la voix dit ce qui est écrit (incises, emphase courte, lexique `SPOKEN_FORMS`, PAUSES réglables découpées par WAMA — le modèle ONNX ne rend pas ses durées) | `WAMA_LLM §1bis` |
+| `3f817b0e` `7f4bb700` | la fin d'une tâche lancée du fil WEB y est racontée et DITE — brique commune `job_follow_ups` (sortie de la passerelle) | `ROADMAP §19.2` |
+| `892ecd2c` | réglages au VOLET de l'accueil + modale ⚙ commune (mode simplifié, mini-chat) ; glisser un fichier sur le chat comme dans Discord (pastille, puis envoi) | `WAMA_LLM §1bis`, `WAMA_VOLETS` |
+| `a87fb679` | mode normal : un fichier glissé depuis l'ARBRE arrive sur le chat (`data-fm-designate`, chemin désigné) | `MEDIA_STORAGE_TIERING §8` D36 |
+| `a8d47ebf` | une tâche PLUS RAPIDE que la réponse qui l'a lancée est racontée : borne de temps retirée, `conversation_turn` joint les fins arrivées pendant le tour (`notices_of_turn`, `tell`) — web et passerelle | `ROADMAP §19.2` |
+| `81a47b86` | revérification : API v1 sans la clé interne, tour en erreur montre ses fins, D36 consigné | — |
+
+**Éprouvé en réel** (compte de test, navigateur sans tête — le MCP playwright était déconnecté) :
+glisser du poste et de l'arbre sur l'accueil et sur le volet d'une app ; flou lancé par l'assistant,
+fin à 12:06:38, tour enregistré à 12:07:24 — racontée avec la réponse, enregistrée UNE fois, la
+cloche après coup ne la redit pas. Témoins, card 1437 et sorties retirés du compte de test.
+
+**Limites de ce que la session a construit (à elle) :**
+- le glisser de l'arbre vers le chat n'a pas de GESTE nocturne (`<app>.tree_drop` ne vise que les
+  cards) — gardé par V8 et par l'ordre des branches de `dnd_stop.vakata`, pas par un navigateur ;
+- passerelle : fenêtre de quelques millisecondes où la relève du canal et la fin du tour peuvent
+  raconter la même fin (la relève lit `already_told` sans verrou, la fin du tour l'enregistre sous
+  verrou) — non mesurée, jugée négligeable ;
+- voix : à juger À L'OREILLE ; « WAMA » prononcé « Ouama » choisi sans décision (une ligne de
+  `SPOKEN_FORMS`) ; pauses non réglées au synthesizer ; nombres et dates non normalisés.
+
+**Décisions ouvertes (Fabien) :**
+- les trois zones de dépôt de l'accueil simplifié (Fichiers, Médiathèque, Reader) — le chat en fait
+  la généralisation : les garder ou les fondre ;
+- confirmer « Ouama ».
+
+**Hérités / d'autres chantiers :** forme d'entrée MIXTE du Translator TRANSMISE à « Portage apps
+media » (§PASSATION 2026-10-17) ; budgets de langue des identifiants ROUGES par d'autrui (classes
+133 > 132, méthodes 1292 > 1291 — aucun nom relevé dans les fichiers de test de la session ;
+le budget des méthodes est descendu de 1 par le renommage d'un test de la session) ;
+`WAMA_MECANISMES.md` périmé par le travail en cours d'une autre instance dans `mecanismes.py`
+(le bloc `job_follow_ups` de HEAD est à jour).
+
+**Pendings système :** gunicorn rechargé après `81a47b86` ; passerelle Discord relancée à 14:00
+(porte `a8d47ebf`, le correctif de `81a47b86` y est un retrait de code équivalent) ; 80 commits
+de `dev` non poussés au moment de la clôture.
+
+**Contrôles attendus au prochain /reprise** (mesurés ce jour) : périmètre de la session 286 tests,
+seuls rouges les 4 des budgets de langue (d'autrui) ; `check_docs` 0 cassée / 0 périmée sur
+2911 ; `check_redundancy` : aucune trouvaille dans les fichiers de la session ; seize
+contre-épreuves par mutation sur les gardes depuis `a87fb679` (4 + 7 + 2 + 3 à la clôture :
+branchement du tour du canal, tour en flux, tâches de développement), toutes rouges.
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : faire trancher par Fabien les zones de dépôt de
+l'accueil simplifié et « Ouama », puis porter les pauses au synthesizer (`tts_text.pause_segments`,
+contrat `options` des backends).

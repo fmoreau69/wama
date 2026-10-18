@@ -772,6 +772,20 @@ class JobFollowUpTests(TestCase):
         self.assertEqual(([], []), core._turn_follow_ups({'job_notices': [note.pk]}, CANAL))
         self.assertIsNone(core._follow_up(note, CANAL), 'déjà racontée avec la réponse du tour')
 
+    def test_the_reply_of_the_turn_carries_the_end_that_arrived_during_it(self):
+        """Le branchement dans le tour du canal (`_handle`) : la tâche finit PENDANT le tour, la
+        réponse publiée la raconte à sa suite."""
+        def turn(user, message, **kwargs):
+            self._end()
+            return {'response': 'Lancé.', 'tool_steps': [{'tool': 'add_to_describer', 'args': {},
+                                                          'result': {'item_id': self.card.pk}}]}
+
+        with patch('wama.common.services.assistant_engine.run_assistant_turn', side_effect=turn):
+            reply = core.handle_message(core.IncomingMessage(
+                channel=CANAL, external_id=EXT_ID, text='décris ce fichier', thread='salon-1'))
+        self.assertTrue(reply.text.startswith('Lancé.\n\n✅ Describer — « témoin » terminé'),
+                        reply.text)
+
     def test_the_first_relay_replays_nothing_from_before(self):
         """Au premier démarrage, le curseur se pose sur la dernière notification : un historique
         de fins de tâche ne se déverse pas dans les fils le jour où la passerelle est relancée."""

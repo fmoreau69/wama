@@ -110,6 +110,56 @@ class WebThreadTellsTheEndOfItsTasksTest(TestCase):
         self.assertNotIn('job_notices', r.json())
         self.assertEqual([], self._relay(bell['note'].pk), 'racontée une fois')
 
+    def test_the_streamed_turn_carries_the_ends_that_arrived_during_it(self):
+        """Le tour EN FLUX (le chemin du chat de l'accueil) : l'événement `done` les porte. Le fil
+        d'exécution du moteur tourne ici sur place — un autre fil ne verrait pas la transaction
+        du test."""
+        from unittest import mock
+
+        class InPlace:
+            def __init__(self, target=None, **kwargs):
+                self.target = target
+
+            def start(self):
+                self.target()
+
+        def turn(user, message, **kwargs):
+            self._end()
+            return {'response': 'Lancé.', 'tool_steps': [{'tool': 'add_to_describer', 'args': {},
+                                                          'result': {'item_id': self.card.pk}}]}
+
+        with mock.patch('wama.common.services.resource_governor.release_in_progress',
+                        return_value=False), \
+                mock.patch('wama.common.services.assistant_engine.run_assistant_turn',
+                           side_effect=turn), \
+                mock.patch('threading.Thread', InPlace), \
+                mock.patch('django.db.close_old_connections'):
+            r = self.client.post(reverse('ai_chat_stream'), data=json.dumps({'message': 'décris'}),
+                                 content_type='application/json')
+            body = b''.join(r.streaming_content).decode('utf-8')
+        done = next(json.loads(line[5:]) for line in body.split('\n')
+                    if line.startswith('data:') and '"done"' in line)
+        (told,) = done['result']['follow_ups']
+        self.assertTrue(told['response'].startswith('✅ Describer — « témoin » terminé'))
+        self.assertNotIn('job_notices', done['result'])
+
+    def test_a_development_task_that_ends_during_its_turn_is_one_of_its_ends(self):
+        """L'autre famille de `notices_of_turn` : la tâche de DÉVELOPPEMENT, désignée par le
+        `job_id` que rend un outil `dev_*`."""
+        from django.utils import timezone
+
+        from wama.common.models import Notification
+        from wama.common.services.job_follow_ups import notices_of_turn
+        from wama.common.utils.notifications import DEV_JOB_APP
+        since = timezone.now()
+        note = Notification.objects.create(recipient=self.user, kind='job_done', app=DEV_JOB_APP,
+                                           object_type='DevJob', object_id='20261018-1',
+                                           title='Tâche de développement « role:task » terminée')
+        launched = [{'tool': 'dev_run_role', 'args': {}, 'result': {'job_id': '20261018-1'}}]
+        self.assertEqual([note.pk], notices_of_turn(self.user, launched, since))
+        other = [{'tool': 'dev_run_role', 'args': {}, 'result': {'job_id': '20261018-2'}}]
+        self.assertEqual([], notices_of_turn(self.user, other, since))
+
     def test_the_api_contract_does_not_carry_the_internal_notice_ids(self):
         """L'API v1 rend le dict du tour : la clé interne `job_notices` n'y sort pas."""
         from unittest import mock
