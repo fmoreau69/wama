@@ -1126,7 +1126,9 @@ MECHANISMS = (
               "les étapes d'outils persistées (`tool_api.items_of_step`), geste « statut » "
               "RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois. Commun aux "
               "surfaces : la passerelle la relève par un curseur de canal et joint les fichiers ; le "
-              "fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT",
+              "fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT. Une fin "
+              "arrivée PENDANT le tour qui l'a lancée part avec sa réponse (`notices_of_turn`, "
+              "joint par `conversation_turn` ; `tell` raconte une seule fois)",
               'wama/common/services/job_follow_ups.py', 'docs/construction/suivi/ROADMAP.md §19.2',
               annexes=('wama/gateway/core.py', 'wama/common/static/common/js/wama-assistant-chat.js',
                        'wama/common/tests/tests_job_follow_ups_web.py'),

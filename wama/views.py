@@ -334,6 +334,7 @@ def ai_chat(request):
         from wama.common.services.assistant_engine import conversation_turn
         result = conversation_turn(request.user, message, surface='web', provider=provider,
                                    model=model, domain=domain)
+        _turn_follow_ups(request, result)
 
         # Check for errors
         if 'error' in result:
@@ -347,6 +348,18 @@ def ai_chat(request):
     except Exception as e:
         logger.error(f"AI Chat error: {str(e)}")
         return JsonResponse({'error': str(e)}, status=500)
+
+
+def _turn_follow_ups(request, result) -> None:
+    """Les fins de tâche ARRIVÉES pendant ce tour (`job_notices`, `conversation_turn`) racontées
+    comme une relève de la cloche (`web_follow_ups`) et rendues avec la réponse (`follow_ups`) : la
+    cloche a pu passer avant que le tour soit au fil — une tâche plus rapide que la réponse qui
+    l'a lancée n'était alors jamais racontée (2026-10-18)."""
+    notices = result.pop('job_notices', None)
+    if notices:
+        from wama.common.services.job_follow_ups import web_follow_ups
+        result['follow_ups'] = web_follow_ups(request.user, notices,
+                                              absolute=request.build_absolute_uri)
 
 
 @require_http_methods(["POST"])
@@ -495,6 +508,7 @@ def ai_chat_stream(request):
         try:
             result = conversation_turn(user, message, surface='web', domain=domain,
                                        model=model, on_event=events.put)
+            _turn_follow_ups(request, result)
             events.put({'type': 'done', 'result': result})
         except Exception as e:                      # jamais de trace nue vers le navigateur
             logger.exception('ai_chat_stream')

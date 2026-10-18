@@ -39,10 +39,14 @@ def notice_text(note) -> str:
 
 
 def _assistant_turns(note, surface: str):
+    """Les tours de l'assistant où chercher l'origine — SANS borne de temps sur la notification
+    (2026-10-18). Un tour s'enregistre à la FIN de sa réponse : une tâche plus rapide que la réponse
+    qui l'a lancée (un flou d'image, 5 s) finit AVANT son tour, et la borne `created_at <= fin`
+    l'écartait — mesuré sur l'élément anonymizer 1436, notification à 10:49:18, tour à 10:49:19."""
     from wama.common.models import ConversationTurn
     return (ConversationTurn.objects
             .filter(conversation__user_id=note.recipient_id, conversation__surface=surface,
-                    role='assistant', created_at__lte=note.created_at)
+                    role='assistant')
             .exclude(tool_steps=[])
             .select_related('conversation')
             .order_by('-created_at', '-pk')[:ORIGIN_SCAN_TURNS])
@@ -56,7 +60,6 @@ def origin_conversation(note, surface: str):
     sont deux modèles d'une même app) et son id ; la famille doit bien porter le modèle nommé par
     la notification — sinon deux éléments de même numéro dans deux modèles se confondraient."""
     from wama.common.utils.detail_registry import DetailRegistry
-    from wama.tool_api import items_of_step
 
     entry = DetailRegistry.get(note.app)
     if entry is None or entry['model'].__name__ != note.object_type:
@@ -65,26 +68,15 @@ def origin_conversation(note, surface: str):
         wanted = (note.app, int(note.object_id))
     except (TypeError, ValueError):
         return None
-    for turn in _assistant_turns(note, surface):
-        for step in turn.tool_steps or []:
-            if not isinstance(step, dict):
-                continue
-            if wanted in items_of_step(str(step.get('tool') or ''), step.get('args'),
-                                       step.get('result')):
-                return turn.conversation
-    return None
+    return next((turn.conversation for turn in _assistant_turns(note, surface)
+                 if wanted in turn_designations(turn.tool_steps)[0]), None)
 
 
 def dev_origin_conversation(note, surface: str):
     """Le fil de CETTE surface dont une étape `dev_*` a rendu le `job_id` de la notification — la
     fin d'une tâche de DÉVELOPPEMENT (rôle wama-dev-ai, jumelle, Claude Code ; 2026-10-12)."""
-    from wama.common.services import mcp_client
-    return next(
-        (turn.conversation for turn in _assistant_turns(note, surface)
-         for step in (turn.tool_steps or [])
-         if isinstance(step, dict) and mcp_client.is_dev_tool(str(step.get('tool') or ''))
-         and isinstance(step.get('result'), dict)
-         and step['result'].get('job_id') == note.object_id), None)
+    return next((turn.conversation for turn in _assistant_turns(note, surface)
+                 if str(note.object_id) in turn_designations(turn.tool_steps)[1]), None)
 
 
 def status_step(note, user) -> dict:
@@ -154,17 +146,95 @@ def record(conversation, note, response: str, step: dict) -> None:
         {'response': response, 'tool_steps': [step], 'model': 'notification WAMA'})
 
 
+def turn_designations(steps) -> tuple:
+    """Ce qu'un tour a désigné : `({(famille, id)}, {job_id})` — les éléments d'app lus par
+    `tool_api.items_of_step` (le contrat méta-app, celui d'`origin_conversation`) et les tâches de
+    développement lancées par un outil `dev_*` (celui de `dev_origin_conversation`)."""
+    from wama.common.services import mcp_client
+    from wama.tool_api import items_of_step
+
+    items, jobs = set(), set()
+    for step in steps or []:
+        if not isinstance(step, dict):
+            continue
+        tool = str(step.get('tool') or '')
+        items.update(items_of_step(tool, step.get('args'), step.get('result')))
+        result = step.get('result')
+        if mcp_client.is_dev_tool(tool) and isinstance(result, dict) and result.get('job_id'):
+            jobs.add(str(result['job_id']))
+    return items, jobs
+
+
+def notices_of_turn(user, steps, since) -> list:
+    """Les fins de tâche ARRIVÉES PENDANT un tour, pour ce qu'il a désigné — ids de notification.
+
+    Le moment déterministe d'une tâche plus rapide que la réponse qui l'a lancée (2026-10-18) : la
+    relève de la surface (cloche du web, curseur d'un canal) a pu passer AVANT l'enregistrement du
+    tour, ne pas lui trouver de fil, et ne plus jamais la revoir. `conversation_turn` les lit donc
+    une fois le tour enregistré ; chaque surface les raconte comme une relève (`tell`)."""
+    from wama.common.models import Notification
+    from wama.common.utils.notifications import DEV_JOB_APP
+
+    items, jobs = turn_designations(steps)
+    if not items and not jobs:
+        return []
+    ids = []
+    for note in (Notification.objects
+                 .filter(recipient=user, kind__in=JOB_NOTICE_KINDS, created_at__gte=since)
+                 .exclude(object_id='').order_by('pk')):
+        if note.app == DEV_JOB_APP:
+            hit = note.object_id in jobs
+        else:
+            try:
+                hit = (note.app, int(note.object_id)) in items
+            except (TypeError, ValueError):
+                hit = False
+        if hit:
+            ids.append(note.pk)
+    return ids
+
+
+def tell(note, surface: str, compose):
+    """Raconte UNE fin de tâche dans son fil d'origine sur cette surface, une seule fois :
+    `(conversation, response, step)`, ou None (pas lancée d'un fil, ou déjà racontée).
+
+    Le fil est VERROUILLÉ le temps de vérifier et d'enregistrer — deux relèves de la même
+    notification (deux onglets, ou la fin du tour et la relève d'un canal) : la première raconte,
+    l'autre lit. `compose(note)` écrit la réponse dans la forme de la surface (liens du web, texte
+    d'un canal dont les fichiers partent en pièces jointes)."""
+    from django.db import transaction
+
+    from wama.common.models import Conversation
+
+    conversation = origin_of(note, surface)
+    if conversation is None:
+        return None
+    with transaction.atomic():
+        Conversation.objects.select_for_update().filter(pk=conversation.pk).first()
+        if already_told(conversation, note):
+            return None
+        step = status_step(note, note.recipient)
+        response = compose(note)
+        record(conversation, note, response, step)
+    return conversation, response, step
+
+
 def web_follow_ups(user, notification_ids, absolute=lambda url: url) -> list:
     """Les fins de tâche à raconter dans le fil WEB de `user`, pour les notifications que sa cloche
-    vient de relever — chacune enregistrée au fil (une seule fois) et rendue sous la forme d'un tour
-    de l'assistant : `[{notification_id, response, tool_steps, model}]`.
+    vient de relever ou que son tour vient de voir finir (`notices_of_turn`) — chacune enregistrée
+    au fil (une seule fois) et rendue sous la forme d'un tour de l'assistant :
+    `[{notification_id, response, tool_steps, model}]`.
 
     Une tâche qui n'a pas été lancée par l'assistant n'a pas de fil d'origine : rien (la cloche la
     signale déjà). `absolute` rend une URL cliquable (la vue passe `request.build_absolute_uri`) :
     le chat ne fait des liens que des adresses http(s)."""
-    from django.db import transaction
+    from wama.common.models import Notification
 
-    from wama.common.models import Conversation, Notification
+    def compose(note):
+        lines = [notice_text(note)]
+        for url in declared_output_urls(note):
+            lines.append(f"[{url.rsplit('/', 1)[-1]}]({absolute(url)})")
+        return '\n'.join(lines)
 
     ids = [int(i) for i in (notification_ids or []) if str(i).isdigit()][:50]
     notes = (Notification.objects
@@ -173,20 +243,10 @@ def web_follow_ups(user, notification_ids, absolute=lambda url: url) -> list:
     told = []
     for note in notes:
         try:
-            conversation = origin_of(note, 'web')
-            if conversation is None:
+            outcome = tell(note, 'web', compose)
+            if outcome is None:
                 continue
-            with transaction.atomic():
-                # Deux onglets relèvent la même notification : le premier raconte, l'autre lit.
-                Conversation.objects.select_for_update().filter(pk=conversation.pk).first()
-                if already_told(conversation, note):
-                    continue
-                step = status_step(note, user)
-                lines = [notice_text(note)]
-                for url in declared_output_urls(note):
-                    lines.append(f"[{url.rsplit('/', 1)[-1]}]({absolute(url)})")
-                response = '\n'.join(lines)
-                record(conversation, note, response, step)
+            conversation, response, step = outcome
             # Le chat montre LE fil web (clé vide, `views._chat_thread`). Une tâche lancée d'un
             # AUTRE fil web (fil de vérification ouvert par l'API) y est racontée — elle n'apparaît
             # pas dans une conversation où elle n'a jamais été demandée.

@@ -230,11 +230,41 @@ def _handle(msg: IncomingMessage) -> Reply:
     if 'error' in resultat:
         return Reply(text=f"⚠ {resultat['error']}{footer}")
 
+    # Les fins de tâche ARRIVÉES pendant le tour (2026-10-18) partent avec sa réponse — la relève
+    # du canal a pu passer avant que le tour soit au fil, et ne les reverra plus.
+    told, told_steps = _turn_follow_ups(resultat, msg.channel)
+
     # Les fichiers PRODUITS pendant le tour repartent avec la réponse : sans ça, le code
     # d'envoi des adaptateurs est mort et l'utilisateur reçoit un lien `/media/…` protégé
     # par session, inutilisable hors WAMA (défaut mesuré 2026-08-29, WAMA_LLM §Vérification).
-    return _reply_with_outputs((resultat.get('response') or '(réponse vide)') + footer,
-                               resultat.get('tool_steps'))
+    body = (resultat.get('response') or '(réponse vide)') + ''.join('\n\n' + t for t in told)
+    return _reply_with_outputs(body + footer, (resultat.get('tool_steps') or []) + told_steps)
+
+
+def _turn_follow_ups(resultat: dict, channel: str) -> tuple:
+    """Les fins de tâche du tour (`job_notices`, `conversation_turn`) racontées au fil par le geste
+    commun (`job_follow_ups.tell`, une seule fois) : `([texte], [étapes portant leurs sorties])` —
+    les sorties DÉCLARÉES partent en pièces jointes, comme pour une fin postée par la relève."""
+    from wama.common.models import Notification
+    from wama.common.services import job_follow_ups
+    from wama.common.utils.notifications import DEV_JOB_APP
+
+    texts, steps = [], []
+    for note in (Notification.objects.filter(pk__in=resultat.get('job_notices') or [])
+                 .select_related('recipient').order_by('pk')):
+        try:
+            outcome = job_follow_ups.tell(note, channel, job_follow_ups.notice_text)
+        except Exception:
+            logger.exception("[gateway] fin de tâche du tour non racontée (notification #%s)",
+                             note.pk)
+            continue
+        if outcome is None:
+            continue
+        texts.append(outcome[1])
+        urls = [] if note.app == DEV_JOB_APP else job_follow_ups.declared_output_urls(note)
+        if urls:
+            steps.append({'result': {'output_urls': urls}})
+    return texts, steps
 
 
 def _duration(seconds: float) -> str:
@@ -517,6 +547,9 @@ def _follow_up(note, channel: str):
     # suivait la tâche dans son tour et ne répondait plus à rien pendant six minutes).
     conversation = job_follow_ups.origin_of(note, channel)
     if conversation is None:
+        return None
+    # Déjà racontée avec la réponse du tour qui l'a lancée (`_turn_follow_ups`) : pas deux fois.
+    if job_follow_ups.already_told(conversation, note):
         return None
     step = job_follow_ups.status_step(note, user)
     text = job_follow_ups.notice_text(note)

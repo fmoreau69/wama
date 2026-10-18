@@ -586,7 +586,8 @@
       }
       self.feed.appendChild(self.bubble(data.response, 'assistant', data.model));
       if (data.model) self.setStatus(data.model);
-      var spoken = global.WamaAssistantVoice ? global.WamaAssistantVoice.speak(data.response) : null;
+      var said = [data.response].concat(self.tellTurnFollowUps(data.follow_ups));
+      var spoken = global.WamaAssistantVoice ? global.WamaAssistantVoice.speak(said.join('\n\n')) : null;
       self.followPendingPage(spoken);
     });
   };
@@ -663,6 +664,9 @@
             }
           }
           if (r.model) self.setStatus(r.model);
+          self.tellTurnFollowUps(r.follow_ups).forEach(function (text) {
+            if (voix) voix.push('\n\n' + text);
+          });
         } else if (evt.type === 'error') {
           self.stopWaiting();
           self.feed.appendChild(self.bubble(evt.error || 'Erreur', 'error'));
@@ -696,6 +700,17 @@
     this.scrollToEnd();
     var voice = global.WamaAssistantVoice;
     if (speak && voice && !this.isBusy() && !voice.isSpeaking()) voice.speak(followUp.response);
+  };
+
+  /** Les fins de tâche ARRIVÉES pendant le tour, rendues avec sa réponse (`follow_ups`, la vue
+   *  les a racontées au fil) : écrites à sa suite ; leurs textes sont rendus pour que la voix les
+   *  dise APRÈS la réponse, dans la même lecture. */
+  Chat.prototype.tellTurnFollowUps = function (followUps) {
+    var self = this;
+    return (followUps || []).map(function (followUp) {
+      self.tellFollowUp(followUp, false);
+      return followUp.response || '';
+    });
   };
 
   // ── Fins de tâche : la cloche les relève, le fil les raconte (2026-10-18) ───────────────

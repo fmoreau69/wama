@@ -1335,7 +1335,10 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
     # ⚠ Sans écouteur, rien n'est branché : brancher un écouteur demanderait le flux au
     # modèle pour une surface qui ne l'affiche pas.
     import time
+
+    from django.utils import timezone
     started = time.monotonic()
+    started_at = timezone.now()       # les fins de tâche ARRIVÉES pendant ce tour (fin de fonction)
     watch = {'model_key': '', 'first_text': None}
     listener = on_event
     if on_event is not None:
@@ -1378,6 +1381,18 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
             resultat['conversation_id'] = fil.pk
         except Exception:
             logger.exception("[ai_chat] échange non enregistré (fil %s)", fil.pk)
+
+    # Une tâche lancée par ce tour a pu FINIR avant lui (2026-10-18, flou d'image en 5 s) : la
+    # relève de la surface est alors passée quand le tour n'était pas encore au fil, et ne la
+    # reverra plus. Le tour enregistré, la surface la raconte (`job_follow_ups.notices_of_turn`).
+    if fil is not None and resultat.get('tool_steps'):
+        try:
+            from wama.common.services.job_follow_ups import notices_of_turn
+            notices = notices_of_turn(user, resultat['tool_steps'], started_at)
+            if notices:
+                resultat['job_notices'] = notices
+        except Exception:
+            logger.exception("[ai_chat] fins de tâche du tour non relevées (fil %s)", fil.pk)
 
     return resultat
 

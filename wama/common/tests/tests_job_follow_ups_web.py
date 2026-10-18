@@ -76,6 +76,55 @@ class WebThreadTellsTheEndOfItsTasksTest(TestCase):
         self.assertEqual(1, len(self._relay(note.pk)))
         self.assertEqual([], self._relay(note.pk), 'un second onglet ne la raconte pas deux fois')
 
+    def test_a_task_that_ended_before_its_turn_was_recorded_is_still_told(self):
+        """2026-10-18, mesuré (anonymizer 1436) : fin à 10:49:18, tour enregistré à 10:49:19 — un
+        tour s'enregistre à la FIN de sa réponse, et la borne « tours antérieurs » l'écartait."""
+        note = self._end()
+        self._launched_from('web')
+        self.assertEqual(1, len(self._relay(note.pk)))
+
+    def test_the_turn_tells_the_ends_that_arrived_during_it(self):
+        """La cloche relève PENDANT le tour (rien au fil, rien à raconter) et ne reverra plus cette
+        notification : c'est la réponse du tour qui la porte, enregistrée une fois."""
+        from unittest import mock
+
+        from wama.common.services.job_follow_ups import web_follow_ups
+        bell = {}
+
+        def turn(user, message, **kwargs):
+            bell['note'] = self._end()
+            bell['during'] = web_follow_ups(user, [bell['note'].pk])
+            return {'response': 'Lancé.', 'tool_steps': [{'tool': 'add_to_describer', 'args': {},
+                                                          'result': {'item_id': self.card.pk}}]}
+
+        with mock.patch('wama.common.services.resource_governor.release_in_progress',
+                        return_value=False), \
+                mock.patch('wama.common.services.assistant_engine.run_assistant_turn',
+                           side_effect=turn):
+            r = self.client.post(reverse('ai_chat'), data=json.dumps({'message': 'décris'}),
+                                 content_type='application/json')
+        self.assertEqual(200, r.status_code, r.content)
+        self.assertEqual([], bell['during'])
+        (told,) = r.json()['follow_ups']
+        self.assertTrue(told['response'].startswith('✅ Describer — « témoin » terminé'))
+        self.assertNotIn('job_notices', r.json())
+        self.assertEqual([], self._relay(bell['note'].pk), 'racontée une fois')
+
+    def test_a_turn_only_carries_the_ends_of_what_it_designated(self):
+        """Contre-épreuve : une fin d'un autre élément, ou d'avant le tour, n'est pas la sienne."""
+        from django.utils import timezone
+
+        from wama.common.services.job_follow_ups import notices_of_turn
+        before = self._end()
+        since = timezone.now()
+        steps = [{'tool': 'add_to_describer', 'args': {}, 'result': {'item_id': self.card.pk}}]
+        self.assertEqual([], notices_of_turn(self.user, steps, since))
+        during = self._end()
+        self.assertEqual([during.pk], notices_of_turn(self.user, steps, since))
+        other = [{'tool': 'add_to_describer', 'args': {}, 'result': {'item_id': self.card.pk + 999}}]
+        self.assertEqual([], notices_of_turn(self.user, other, since))
+        self.assertNotEqual(before.pk, during.pk)
+
     def test_a_task_not_launched_by_the_assistant_is_left_to_the_bell(self):
         """Contre-épreuve : une card lancée depuis sa page n'a pas de fil d'origine."""
         note = self._end()
@@ -170,6 +219,19 @@ class ChatListensToTheBellTest(SimpleTestCase):
                          self._read(ctx, 'posted'))
         self.assertEqual([['accueil', '✅ fini', True], ['volet', '✅ fini', False]],
                          self._read(ctx, 'told'))
+
+    def test_the_ends_carried_by_a_reply_are_written_after_it_and_said_with_it(self):
+        """Fin de tâche rendue avec la réponse du tour : écrite à sa suite, sans voix propre (elle
+        couperait la réponse), et son texte rendu pour être dit APRÈS la réponse."""
+        ctx = self._ctx()
+        ctx.eval("""
+            var chat = Object.create(WamaAssistantChat._Chat.prototype);
+            chat.tellFollowUp = function (f, speak) { told.push(['tour', f.response, speak]); };
+            var said = chat.tellTurnFollowUps([{ response: '✅ fini' }]);
+        """)
+        self.assertEqual([['tour', '✅ fini', False]], self._read(ctx, 'told'))
+        self.assertEqual(['✅ fini'], self._read(ctx, 'said'))
+        self.assertEqual([], json.loads(ctx.eval('JSON.stringify(chat.tellTurnFollowUps(undefined))')))
 
     def test_a_relay_without_any_end_of_task_asks_nothing(self):
         """Contre-épreuve : un partage, une alerte — rien à demander au serveur."""

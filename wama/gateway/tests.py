@@ -757,6 +757,21 @@ class JobFollowUpTests(TestCase):
         self.assertEqual(1, len(core.collect_job_follow_ups(CANAL)))
         self.assertEqual([], core.collect_job_follow_ups(CANAL), 'le curseur a avancé')
 
+    def test_a_task_that_ends_before_its_turn_is_recorded_leaves_with_the_reply(self):
+        """2026-10-18 : une tâche plus rapide que la réponse qui l'a lancée. La relève passe avant
+        l'enregistrement du tour (aucun fil), le curseur avance ; c'est la réponse du tour qui la
+        raconte — une fois, la relève suivante ne la reposte pas."""
+        from wama.common.models import Notification
+        self._end()
+        note = Notification.objects.filter(recipient=self.user).latest('pk')
+        self.assertEqual([], core.collect_job_follow_ups(CANAL), 'le tour n’est pas encore au fil')
+        self._created_here()
+        texts, _steps = core._turn_follow_ups({'job_notices': [note.pk]}, CANAL)
+        self.assertEqual(1, len(texts))
+        self.assertTrue(texts[0].startswith('✅ Describer — « témoin » terminé'))
+        self.assertEqual(([], []), core._turn_follow_ups({'job_notices': [note.pk]}, CANAL))
+        self.assertIsNone(core._follow_up(note, CANAL), 'déjà racontée avec la réponse du tour')
+
     def test_the_first_relay_replays_nothing_from_before(self):
         """Au premier démarrage, le curseur se pose sur la dernière notification : un historique
         de fins de tâche ne se déverse pas dans les fils le jour où la passerelle est relancée."""

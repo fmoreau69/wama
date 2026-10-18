@@ -4150,6 +4150,23 @@ La sortie part en lien absolu (le chat ne fait des liens que des adresses http(s
 une fois, contre-épreuves : tâche lancée depuis sa page, depuis un canal, notification d'un autre ;
 V8 : une demande par relève, un seul chat parle) — cinq contre-épreuves par mutation, rouges.
 
+✅ **Le même jour, le récit manquait encore** — Fabien : *« j'ai eu une notification de fin de
+tâche, mais l'assistant n'a pas réagi »*. Mesuré en base (flou de l'élément anonymizer 1436, lancé
+du fil web) : fin à **10:49:18**, tour enregistré à **10:49:19** — un tour s'enregistre à la FIN de
+sa réponse, et la recherche d'origine, héritée de la passerelle (06/10), ne lisait que les tours
+ANTÉRIEURS à la notification. Une tâche plus rapide que la réponse qui la lance n'était jamais
+racontée, sur aucune surface. Deux défauts, deux gestes :
+1. la borne est retirée (`_assistant_turns`) ;
+2. la fenêtre qui restait — une relève passée PENDANT le tour ne trouve aucun fil et ne revoit plus
+   la notification — se ferme au moment déterministe : `conversation_turn`, point commun des
+   surfaces, joint au tour enregistré les fins arrivées pendant lui pour ce qu'il a désigné
+   (`job_follow_ups.notices_of_turn`) ; le web les raconte par `web_follow_ups` et les rend avec la
+   réponse (le chat les écrit à sa suite et les dit après elle), la passerelle les ajoute à sa
+   réponse avec leurs fichiers. Le geste « trouver le fil, verrouiller, une seule fois, enregistrer »
+   est sorti en `job_follow_ups.tell`, lu par les deux ; la relève d'un canal ne reposte pas une fin
+   déjà racontée. Gardes : `tests_job_follow_ups_web` (+4), `gateway.tests.JobFollowUpTests` (+1) —
+   sept contre-épreuves par mutation, rouges.
+
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) ⏳
 
 - **wama-dev-ai** n'a **aucune API** (CLI pur : `run_audit.py`, `run_codegen.py`). Wrapper
