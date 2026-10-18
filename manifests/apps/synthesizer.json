@@ -289,6 +289,44 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "0.0",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0.0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Pause en fin de phrase, en secondes (0 = celle du moteur)'",
+                  "imports": []
+                }
+              },
+              "name": "sentence_pause"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "0.0",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "0.0",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Pause sur virgule, parenthèse, tiret, en secondes (0 = celle du moteur)'",
+                  "imports": []
+                }
+              },
+              "name": "clause_pause"
+            },
+            {
+              "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
                 "default": {
@@ -1160,6 +1198,108 @@
             "cap_from": null,
             "chip": false,
             "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "panel"
+            ],
+            "default": 0.0,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "item": "settingsSentencePause",
+              "panel": "sentence_pause"
+            },
+            "group": "",
+            "help": "Silence, en secondes, après un point, un point d'exclamation ou d'interrogation.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-pause",
+            "inline": false,
+            "label": "Pause en fin de phrase",
+            "max": 1.5,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "sentence_pause",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "generate"
+            ],
+            "step": 0.05,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "panel"
+            ],
+            "default": 0.0,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "item": "settingsClausePause",
+              "panel": "clause_pause"
+            },
+            "group": "",
+            "help": "Silence, en secondes, après une virgule, un point-virgule, deux-points, une parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-pause",
+            "inline": false,
+            "label": "Pause sur virgule, parenthèse, tiret",
+            "max": 1,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "clause_pause",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "generate"
+            ],
+            "step": 0.05,
+            "type": "range",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
             "choices": [
               [
                 "original",
@@ -1509,6 +1649,8 @@
             "voice_preset",
             "speed",
             "pitch",
+            "sentence_pause",
+            "clause_pause",
             "output_format",
             "output_quality"
           ],
@@ -1548,6 +1690,7 @@
       "descriptions": {
         "add_to_synthesizer": {
           "args": {
+            "clause_pause": "range — Silence, en secondes, après une virgule, un point-virgule, deux-points, une parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle. [0–1] (défaut : 0.0)",
             "emotion_intensity": "float (défaut : 1.0)",
             "language": "select — Langue de synthèse (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus) (défaut : 'original')",
@@ -1555,6 +1698,7 @@
             "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "reference_voice": "str",
+            "sentence_pause": "range — Silence, en secondes, après un point, un point d'exclamation ou d'interrogation. [0–1.5] (défaut : 0.0)",
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
             "text": "str",
             "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",

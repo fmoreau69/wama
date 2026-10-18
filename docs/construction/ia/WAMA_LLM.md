@@ -761,8 +761,24 @@ l'intuition :
   durable. L'accueil enregistre désormais TOUT son schéma (`WamaParams.read`) — il ne relisait que
   deux champs nommés à la main.
 - Mesuré après : emphase et code dits mot pour mot, « Il dort — vraiment — » 1,83 s → 2,95 s.
-- ⏳ Les autres moteurs (synthesizer) ne lisent pas encore `pause_segments` ; le repli en-process
-  (Kokoro .pt, service indisponible) parle sans les pauses réglées. ⏳ Un modèle ONNX qui rendrait
+- ✅ **Le même jour, pour TOUS les moteurs et dans le synthesizer** (demande de Fabien : « on aligne,
+  on ne réinvente pas »). La boucle segment → silence a quitté `kokoro_onnx_backend.process` pour
+  le CONTRAT des moteurs, `tts_base.TTSBackend.synthesize` — la porte qu'emprunte le service pour
+  XTTS, Higgs, Bark, Qwen3-TTS comme pour kokoro (un segment sans rien à dire donne son silence
+  sans appel ; le multi-voix de Higgs n'est jamais découpé ; la scène n'ouvre que le 1ᵉʳ segment ;
+  borne `MAX_PAUSE_S`). Les deux réglages sont DÉCLARÉS une fois (`common/tts/constants.
+  VOICE_PAUSE_SETTINGS` : libellé, bornes, aide), lus par le schéma de l'assistant et par celui du
+  synthesizer — champs `VoiceSynthesis.sentence_pause` / `clause_pause` (défaut 0 = la voix du
+  moteur, le rendu d'avant ; `db_default`, migration `0030` appliquée), passés par `render_speech`
+  dans `options` (synthèse ET aperçu — le silence entre deux segments longs devient la pause de fin
+  de phrase). Volet et modale d'élément, PAS le lot : la modale de lot commune reposterait le défaut
+  sur des filles aux pauses différentes (`MODES_QUEUE_UX §5ter`). Le volet a pu les recevoir parce
+  que la session de portage a porté le front du synthesizer sur le schéma le même jour
+  (`188f732b` : il construisait ses envois par listes de clés — reste transmis, mesuré à l'occasion).
+  Le filtrage du texte (incises, emphase, lexique) n'avait rien à porter : le synthesizer passe par
+  `text_for_speech` depuis le 2026-09-26. Gardes : `tests_tts_backend_pauses`, `synthesizer.tests`
+  (+3), `synthesizer.tests_task` (+1), `tests_kokoro_onnx_phonemes` (+1) — neuf mutations rouges.
+- ⏳ Le repli en-process (Kokoro .pt, service indisponible) parle sans les pauses réglées. ⏳ Un modèle ONNX qui rendrait
   les durées (export de `kokoro_onnx`) donnerait les pauses DANS le moteur et des horaires de mots
   MESURÉS pour les lèvres — piste, pas décidée. ⏳ Les nombres, dates et monnaies ne sont pas
   normalisés (espeak les lit lui-même) ; recettes publiques relevées : NVIDIA NeMo-text-processing

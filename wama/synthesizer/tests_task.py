@@ -97,6 +97,15 @@ class SynthesisTaskOnSkeletonTest(TestCase):
         self.assertEqual(first, item.audio_output.name,
                          'the previous audio is replaced, not left next to a renamed one')
 
+    def test_the_pauses_set_on_the_card_reach_the_render_and_replay_the_voice(self):
+        """Les PAUSES (2026-10-18) : lues sur la card, passées au rendu — et les changer périme la
+        synthèse (`stales=generate`, comme tout réglage de voix)."""
+        self._run(self._spoken)
+        self._run(self._spoken, sentence_pause=0.6, clause_pause=0.2)
+        self.assertEqual(1, self.rendered.call_count, 'a new pause synthesizes the voice again')
+        kwargs = self.rendered.call_args.kwargs
+        self.assertEqual((0.6, 0.2), (kwargs['sentence_pause'], kwargs['clause_pause']))
+
     def test_auto_stays_auto_and_the_line_names_the_drawn_model(self):
         with mock.patch.object(workers, 'resolve_tts_model', return_value=MODEL):
             item = self._run(self._spoken, tts_model='auto')

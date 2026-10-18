@@ -252,6 +252,7 @@ def _synthesize(synthesis, ctx):
             multi_speaker=getattr(synthesis, 'multi_speaker', False),
             scene_description=getattr(synthesis, 'scene_description', ''),
             speed=synthesis.speed, pitch=synthesis.pitch,
+            sentence_pause=synthesis.sentence_pause, clause_pause=synthesis.clause_pause,
             on_segment=lambda i, n: ctx.progress(40 + int(i / n * 35)),
             on_partial=_during_preview(synthesis),
             console=lambda m: _console(synthesis.user_id, m),

@@ -28,6 +28,8 @@
             "voice_preset",
             "speed",
             "pitch",
+            "sentence_pause",
+            "clause_pause",
             "text_file",
             "voice_reference",
             "multi_speaker",

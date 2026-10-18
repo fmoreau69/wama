@@ -86,17 +86,6 @@ def phonemes_without_language_flags(tokenizer, text: str, lang: str) -> str:
     return ''.join(p for p in phonemes if p in tokenizer.vocab).strip()
 
 
-#: Pause la plus longue qu'un réglage peut demander (s) — borne de SÛRETÉ du moteur, au-delà de
-#: celle du schéma : le service reçoit aussi des appels qui ne passent pas par lui.
-MAX_PAUSE_S = 2.0
-
-
-def _bounded_pause(value) -> float:
-    try:
-        return min(MAX_PAUSE_S, max(0.0, float(value or 0)))
-    except (TypeError, ValueError):
-        return 0.0
-
 
 def _declared_patterns() -> dict:
     """Motifs de composants DÉCLARÉS (AIModel.composition, projetée du manifeste) —
@@ -231,37 +220,23 @@ class KokoroOnnxBackend(TTSBackend):
         return cible
 
     def process(self, text: str = "", language: str = "fr",
-                voice_preset: str = "default", options=None, **_ignored) -> str:
-        """`options` (contrat uniforme) : `sentence_pause` / `clause_pause`, en secondes — le
-        RÉGLAGE des pauses de la voix (`assistant/params.py`, 2026-10-18). Absents = le texte
-        d'un seul tenant, comme avant.
-
-        ⚠ Pourquoi la pause est posée ICI et pas par `Kokoro.create(sentence_pause=…)` : le
-        moteur ne l'insère DANS un morceau qu'avec un modèle qui rend la durée de ses phonèmes,
-        et le nôtre ne la rend pas (`has_timings` faux ; mesuré : 3,58 s de son quelles que
-        soient les valeurs passées). Le texte est donc découpé là où il respire
-        (`tts_text.pause_segments`), chaque segment synthétisé, et le silence posé entre eux."""
+                voice_preset: str = "default", **_ignored) -> str:
+        """Dit `text` d'un trait. Les PAUSES réglées (`options`) sont posées par le contrat
+        commun (`TTSBackend.synthesize`, 2026-10-18), qui appelle ce moteur segment par segment :
+        `Kokoro.create(sentence_pause=…)` ne les insère DANS un morceau qu'avec un modèle qui rend
+        la durée de ses phonèmes, et le nôtre ne la rend pas (`has_timings` faux ; mesuré :
+        3,58 s de son quelles que soient les valeurs passées). La boucle qui le faisait ICI est
+        montée au contrat, pour tous les moteurs."""
         # Même brique de résolution langue→voix que le jumeau .pt (zéro duplication) :
         # les noms de voix du dépôt ONNX sont IDENTIQUES à ceux du dépôt .pt.
         from wama.common.tts.voices import voix_pour
-        from wama.common.utils.tts_text import pause_segments
         if self._kokoro is None:
             self.load()
         voice = voix_pour(language, voice_preset in ('male_1', 'male_2'))
         lang = ESPEAK_LANG.get(language) or ESPEAK_FALLBACK.get(language) or 'en-us'
-        options = options or {}
-        parts, sr = [], None
-        for segment, pause in pause_segments(text, _bounded_pause(options.get('sentence_pause')),
-                                             _bounded_pause(options.get('clause_pause'))):
-            phonemes = phonemes_without_language_flags(self._kokoro.tokenizer, segment, lang)
-            if not phonemes:
-                continue
-            samples, sr = self._kokoro.create(phonemes, voice=voice, speed=1.0, lang=lang,
-                                              is_phonemes=True)
-            if samples is not None and len(samples):
-                parts.append(np.asarray(samples, dtype=np.float32))
-                if pause:
-                    parts.append(np.zeros(int(pause * sr), dtype=np.float32))
-        if not parts:
+        phonemes = phonemes_without_language_flags(self._kokoro.tokenizer, text, lang)
+        samples, sr = (self._kokoro.create(phonemes, voice=voice, speed=1.0, lang=lang,
+                                           is_phonemes=True) if phonemes else (None, None))
+        if samples is None or not len(samples):
             raise RuntimeError("Kokoro-ONNX : aucun audio généré")
-        return write_wav_int16(np.concatenate(parts), sr)
+        return write_wav_int16(np.asarray(samples, dtype=np.float32), sr)

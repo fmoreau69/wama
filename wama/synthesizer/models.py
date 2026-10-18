@@ -143,6 +143,18 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         help_text="Intensité émotionnelle (0.0 = neutre, 2.0 = très expressif)"
     )
 
+    # PAUSES de la voix (2026-10-18), en secondes — passées aux moteurs dans `options`, posées par
+    # leur contrat commun (`tts_base.TTSBackend.synthesize`). 0 = les pauses du moteur, le rendu
+    # d'avant. `db_default` : le code encore en service, qui ignore ces colonnes, crée des lignes.
+    sentence_pause = models.FloatField(
+        default=0.0, db_default=0.0,
+        help_text="Pause en fin de phrase, en secondes (0 = celle du moteur)"
+    )
+    clause_pause = models.FloatField(
+        default=0.0, db_default=0.0,
+        help_text="Pause sur virgule, parenthèse, tiret, en secondes (0 = celle du moteur)"
+    )
+
     # Higgs Audio specific options
     multi_speaker = models.BooleanField(
         default=False,

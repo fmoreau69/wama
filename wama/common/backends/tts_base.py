@@ -93,6 +93,27 @@ def write_wav_int16(audio: np.ndarray, sample_rate: int, normalize: bool = True)
     return tmp.name
 
 
+#: Plafond d'une PAUSE demandée (s) — une valeur aberrante postée ne fige pas la voix.
+MAX_PAUSE_S = 2.0
+
+
+def bounded_pause(value) -> float:
+    """Une pause demandée, en secondes, ramenée dans [0, MAX_PAUSE_S] (illisible = 0)."""
+    try:
+        return min(MAX_PAUSE_S, max(0.0, float(value or 0)))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _read_wav_float(path: str):
+    """(fréquence, échantillons float32) d'un WAV écrit par un moteur — int16 ramené à ±1."""
+    from scipy.io.wavfile import read as read_wav
+    rate, data = read_wav(path)
+    if np.issubdtype(data.dtype, np.integer):
+        data = data.astype(np.float32) / float(np.iinfo(data.dtype).max + 1)
+    return rate, np.asarray(data, dtype=np.float32)
+
+
 class TTSBackend(BaseModelBackend):
     """Classe intermédiaire des moteurs TTS (le verbe métier est `synthesize`).
 
@@ -124,5 +145,52 @@ class TTSBackend(BaseModelBackend):
         self.loaded_model: Optional[str] = None     # nom UI ('coqui-xtts'…) — /health
 
     def synthesize(self, **kwargs) -> str:
-        """Alias métier : rend le CHEMIN d'un WAV temporaire généré."""
-        return self.process(**kwargs)
+        """Le verbe métier — rend le CHEMIN d'un WAV temporaire généré, avec les PAUSES demandées.
+
+        `options` (contrat uniforme) peut porter `sentence_pause` / `clause_pause`, en secondes
+        (2026-10-18 : réglages de l'assistant et du synthesizer). Un moteur ne sait pas, seul,
+        allonger une pause À L'INTÉRIEUR d'un texte qu'il dit d'un trait — mesuré sur kokoro-onnx,
+        dont le modèle ne rend pas ses durées (`has_timings` faux : 3,58 s de son quelles que soient
+        les pauses passées). Le texte est donc découpé là où il respire
+        (`tts_text.pause_segments`), chaque segment dit par le moteur, et le silence posé entre
+        eux — ICI, pour tous les moteurs ; la boucle vivait dans le seul `kokoro_onnx_backend`.
+        Sans pause demandée, un seul appel : le rendu d'avant.
+
+        ⚠ Le mode MULTI-VOIX (Higgs) n'est pas découpé : ses balises de locuteur (`[S1]`)
+        valent pour la suite du texte, un segment les perdrait. La description de scène ouvre le
+        dialogue : premier segment seulement (la règle de `speech_render`)."""
+        from wama.common.utils.tts_text import pause_segments
+        options = kwargs.get('options') or {}
+        segments = [] if kwargs.get('multi_speaker') else pause_segments(
+            kwargs.get('text') or '', bounded_pause(options.get('sentence_pause')),
+            bounded_pause(options.get('clause_pause')))
+        if len(segments) <= 1:
+            return self.process(**kwargs)
+        import os
+        parts, rate = [], None
+        for segment, pause in segments:
+            if not any(c.isalnum() for c in segment):
+                # Rien à DIRE (« … » seul entre deux phrases) : son silence, pas d'appel — un
+                # moteur sans phonème lèverait « aucun audio » pour tout le texte.
+                if parts and pause:
+                    parts.append(np.zeros((int(pause * rate),) + parts[0].shape[1:],
+                                          dtype=np.float32))
+                continue
+            path = self.process(**{**kwargs, 'text': segment,
+                                   'scene_description': '' if parts
+                                   else kwargs.get('scene_description', '')})
+            try:
+                segment_rate, audio = _read_wav_float(path)
+            finally:
+                os.remove(path)
+            if rate is not None and segment_rate != rate:
+                raise RuntimeError(f"{self.engine} : fréquence d'échantillonnage variable entre "
+                                   f"segments ({rate} puis {segment_rate} Hz)")
+            rate = segment_rate
+            parts.append(audio)
+            if pause:
+                parts.append(np.zeros((int(pause * rate),) + audio.shape[1:], dtype=np.float32))
+        if not parts:
+            return self.process(**kwargs)      # rien de dicible : le moteur en décide, comme avant
+        # Chaque segment est déjà au niveau du moteur : l'assemblage ne renormalise pas.
+        return write_wav_int16(np.concatenate(parts), rate, normalize=False)

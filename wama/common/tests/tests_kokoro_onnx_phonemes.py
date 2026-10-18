@@ -62,9 +62,10 @@ class LanguageSwitchFlagsTest(SimpleTestCase):
 class VoicePausesAreSilencesBetweenSegmentsTest(SimpleTestCase):
     """Le RÉGLAGE des pauses (2026-10-18). Notre modèle ne rend pas la durée de ses phonèmes
     (`has_timings` faux) : `Kokoro.create(sentence_pause=…)` n'allonge AUCUNE pause à l'intérieur
-    d'une réplique (mesuré : 3,58 s de son pour 0, 0,25 et 0,8 s). Le moteur synthétise donc
-    chaque segment et pose le silence demandé. Aucun poids : le modèle est un double qui rend
-    une seconde de « son » par appel."""
+    d'une réplique (mesuré : 3,58 s de son pour 0, 0,25 et 0,8 s). Chaque segment est donc dit
+    et le silence demandé posé entre eux — par le contrat COMMUN des moteurs depuis le 18/10
+    (`TTSBackend.synthesize`, la porte qu'emprunte le service). Aucun poids : le modèle est un
+    double qui rend une seconde de « son » par appel."""
 
     TEXT = 'Le chat dort, puis il mange. Ensuite il joue.'
     RATE = 24000
@@ -79,7 +80,7 @@ class VoicePausesAreSilencesBetweenSegmentsTest(SimpleTestCase):
         fake.tokenizer = Tokenizer()
         fake.create.side_effect = lambda *a, **k: (np.ones(self.RATE, dtype=np.float32), self.RATE)
         backend._kokoro = fake
-        path = backend.process(self.TEXT, language='fr', options=options)
+        path = backend.synthesize(text=self.TEXT, language='fr', options=options)
         audio, _ = soundfile.read(path)
         import os
         os.unlink(path)
@@ -97,3 +98,16 @@ class VoicePausesAreSilencesBetweenSegmentsTest(SimpleTestCase):
     def test_an_absurd_pause_is_bounded_by_the_engine(self):
         _, seconds = self._render({'sentence_pause': 60, 'clause_pause': 0})
         self.assertAlmostEqual(2 + 2.0, seconds, places=2)  # MAX_PAUSE_S, une seule pause
+
+    def test_the_engine_itself_no_longer_cuts(self):
+        """Contre-épreuve : appelé DIRECTEMENT, le moteur dit le texte d'un trait — la découpe
+        vit au contrat, une seule fois pour tous les moteurs."""
+        import numpy as np
+        from unittest import mock
+        from wama.common.backends.kokoro_onnx_backend import KokoroOnnxBackend
+        backend = KokoroOnnxBackend()
+        backend._kokoro = mock.Mock(tokenizer=Tokenizer())
+        backend._kokoro.create.side_effect = lambda *a, **k: (np.ones(self.RATE, np.float32), self.RATE)
+        import os
+        os.unlink(backend.process(self.TEXT, language='fr', options={'sentence_pause': 0.5}))
+        self.assertEqual(1, backend._kokoro.create.call_count)

@@ -455,6 +455,15 @@ class VoicePreviewSharesTheSynthesisChainTest(TestCase):
         self.assertTrue(self.calls[0]['multi_speaker'])
         self.assertEqual('[S1] une femme', self.calls[0]['scene_description'])
 
+    def test_the_pauses_of_the_panel_are_heard_in_the_preview(self):
+        """L'aperçu fait entendre les PAUSES réglées (2026-10-18) : lues par le lecteur dérivé du
+        schéma, comme à la création ; sans réglage, la voix du moteur."""
+        self._post(sentence_pause='0.5', clause_pause='0.1')
+        self.assertEqual({'sentence_pause': 0.5, 'clause_pause': 0.1}, self.calls[0]['options'])
+        self.calls.clear()
+        self._post()
+        self.assertEqual({'sentence_pause': 0.0, 'clause_pause': 0.0}, self.calls[0]['options'])
+
     def test_worker_and_preview_share_one_render_function(self):
         from wama.synthesizer import workers
         from wama.synthesizer.utils import speech_render
@@ -537,17 +546,17 @@ class SynthesisIsHeardWhileItGrowsTest(TestCase):
         self.assertEqual({'sentence_pause': 0.5, 'clause_pause': 0.1}, sent[0])
         self.assertEqual(len(sent) * 1500, len(AudioSegment.from_wav(final)))
 
-    def test_the_pauses_are_declared_once_and_opened_to_the_item_modal_only(self):
-        """Libellé, bornes et aide de la déclaration COMMUNE (celle de l'assistant) ; contexte
-        `item` seul tant que le front du synthesizer lit ses réglages par des listes de clés —
-        le volet les afficherait sans les poster (reste transmis au portage, 2026-10-18)."""
+    def test_the_pauses_are_declared_once_and_kept_out_of_the_batch_modal(self):
+        """Libellé, bornes et aide de la déclaration COMMUNE (celle de l'assistant) ; volet et
+        modale d'élément, PAS le lot : la modale de lot commune reposterait leur défaut sur des
+        filles aux pauses différentes (`MODES_QUEUE_UX §5ter`)."""
         from wama.assistant.params import PARAMS_JSON as ASSISTANT
         from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
         from wama.synthesizer.params import PARAMS_JSON
         mine = {p['name']: p for p in PARAMS_JSON}
         theirs = {p['name']: p for p in ASSISTANT}
         for name in ('sentence_pause', 'clause_pause'):
-            self.assertEqual(['item'], list(mine[name]['contexts']))
+            self.assertEqual(['item', 'panel'], list(mine[name]['contexts']))
             self.assertEqual(VOICE_PAUSE_SETTINGS[name]['label'], mine[name]['label'])
             self.assertEqual(mine[name]['label'], theirs['voice_' + name]['label'])
             self.assertEqual(0.0, mine[name]['default'], '0 = la voix du moteur, le rendu d’avant')

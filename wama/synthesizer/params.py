@@ -17,6 +17,7 @@ d'identité (`name=` écrit à la main, `data-param=` généré).
 `dom_id` par contexte = ponts vers les IDs existants de chaque surface (panel=compose, item=settings*,
 batch=batchSettings*) → JS de voix/clone/submit inchangé. Gabarit : reader/describer params.py.
 """
+from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
 from wama.common.utils.output_formats import output_format_params_for_app
@@ -24,7 +25,8 @@ from wama.synthesizer.models import VoiceSynthesis
 
 PARAMS = derive_from_model(
     VoiceSynthesis,
-    include=["tts_model", "quality_intent", "language", "voice_preset", "speed", "pitch"],
+    include=["tts_model", "quality_intent", "language", "voice_preset", "speed", "pitch",
+             "sentence_pause", "clause_pause"],
     overrides={
         "tts_model": dict(
             type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
@@ -85,6 +87,17 @@ PARAMS = derive_from_model(
             type="range", label="Hauteur", icon="fa-music", min=0.5, max=2.0, step=0.1, default=1.0,
             dom_id={"panel": "pitch", "item": "settingsPitch", "batch": "batchSettingsPitch"},
         ),
+        # Les PAUSES (2026-10-18) — libellé, bornes et aide de la déclaration COMMUNE, celle de
+        # l'assistant. Volet et modale d'élément : le front lit ses réglages par le schéma depuis
+        # `188f732b` (création, inspecteur). ⚠ PAS `batch` : la modale de lot commune reposte toutes
+        # ses valeurs, et des filles aux pauses différentes recevraient le défaut
+        # (`MODES_QUEUE_UX §5ter`, chantier commun ouvert) — l'ajouter ici le jour où il est fait.
+        "sentence_pause": dict(contexts=("item", "panel"),
+                               dom_id={"panel": "sentence_pause", "item": "settingsSentencePause"},
+                               **VOICE_PAUSE_SETTINGS["sentence_pause"]),
+        "clause_pause": dict(contexts=("item", "panel"),
+                             dom_id={"panel": "clause_pause", "item": "settingsClausePause"},
+                             **VOICE_PAUSE_SETTINGS["clause_pause"]),
     },
 )
 

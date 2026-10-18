@@ -93,6 +93,7 @@ def preview_text(text):
 
 def render_speech(text, output_path, *, model, language, voice_preset, speaker_wav=None,
                   multi_speaker=False, scene_description='', speed=1.0, pitch=1.0,
+                  sentence_pause=0.0, clause_pause=0.0,
                   on_segment=None, on_partial=None, console=None, read_timeout=None):
     """Rend `text` en WAV : segments par moteur → service TTS → assemblage → vitesse/hauteur.
 
@@ -109,6 +110,11 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     son résultat. L'assemblage est désormais fait AU FIL des segments — le fichier final est
     le même qu'avant (chaque segment suivi de `CHUNK_GAP_MS` de silence). Un rappel qui échoue
     n'arrête jamais le rendu.
+
+    `sentence_pause` / `clause_pause` (s, 2026-10-18) : les PAUSES réglées, passées au service
+    dans `options` — le contrat commun des moteurs les pose (`TTSBackend.synthesize`), comme pour
+    la voix de l'assistant. La découpe par LONGUEUR ci-dessous coupe aux fins de phrase : le
+    silence entre deux segments est alors la pause de fin de phrase, quand elle est réglée.
     """
     from pydub import AudioSegment
 
@@ -124,6 +130,10 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     say(f'Génération audio: {len(chunks)} segment(s) via service TTS...')
 
     extra = {} if read_timeout is None else {'read_timeout': read_timeout}
+    from wama.common.backends.tts_base import bounded_pause
+    sentence_pause, clause_pause = bounded_pause(sentence_pause), bounded_pause(clause_pause)
+    options = {'sentence_pause': sentence_pause, 'clause_pause': clause_pause}
+    gap_ms = int(sentence_pause * 1000) if sentence_pause else CHUNK_GAP_MS
     total = len(chunks)
     combined = AudioSegment.empty()
     chunk_files = []
@@ -137,10 +147,10 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
                 speaker_wav=speaker_wav, multi_speaker=multi_speaker,
                 # La description de scène (Higgs) ouvre le dialogue : premier segment seulement.
                 scene_description=scene_description if i == 0 else '',
-                **extra))
+                options=options, **extra))
             if total > 1:
                 combined += AudioSegment.from_wav(chunk_files[-1])
-                combined += AudioSegment.silent(duration=CHUNK_GAP_MS)
+                combined += AudioSegment.silent(duration=gap_ms)
                 if on_partial and i < total - 1:
                     try:
                         on_partial(combined, i + 1, total)

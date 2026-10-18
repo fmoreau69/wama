@@ -2441,11 +2441,15 @@ MECHANISMS = (
               "2026-10-18 (défauts entendus, mesurés par aller-retour voix → transcription) : "
               "parenthèses dites en incises (`say_incises`), emphase courte en majuscules et "
               "LEXIQUE de prononciation (`say_emphasis`, `SPOKEN_FORMS`), code en ligne dit, et "
-              "`pause_segments` — où la voix respire, et combien : le réglage des pauses de "
-              "l'assistant, appliqué par Kokoro-ONNX. Le second nettoyage du navigateur est RETIRÉ",
+              "`pause_segments` — où la voix respire, et combien : les réglages de pauses "
+              "(déclarés une fois, `common/tts/constants.VOICE_PAUSE_SETTINGS`) de l'assistant et "
+              "du synthesizer, posés pour TOUT moteur par leur contrat commun "
+              "(`tts_base.TTSBackend.synthesize`). Le second nettoyage du navigateur est RETIRÉ",
               'wama/common/utils/tts_text.py', 'docs/construction/ia/WAMA_LLM.md §1bis',
               annexes=('wama/common/tests/tests_tts_text.py',
-                       'wama/synthesizer/utils/text_extractor.py'),
+                       'wama/synthesizer/utils/text_extractor.py',
+                       'wama/common/backends/tts_base.py',
+                       'wama/common/tests/tests_tts_backend_pauses.py'),
               symbol='text_for_speech'),
     Mechanism('test_media_isolation', 'Médias de test isolés',
               "Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossier "

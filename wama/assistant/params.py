@@ -18,6 +18,7 @@ pas. Un seul domaine, deux usages : ce que le select PROPOSE et ce que « auto �
 `options_cloud` : les modèles DISTANTS que les clés d'API de l'utilisateur ouvrent entrent au
 menu, selon son niveau cloud — jamais ceux d'un autre, jamais sans autorisation.
 """
+from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
 from wama.common.utils.auto_model import AUTO, intent_param
 from wama.common.utils.param_schema import Param, ParamGroup, groups_to_dicts, schema_to_dicts
 
@@ -66,19 +67,15 @@ PARAMS = [
     # Les PAUSES de la voix (2026-10-18, demande de Fabien : « la voix pourrait prendre un peu
     # plus son temps sur les ponctuations »). Deux réglages parce que le moteur connaît DEUX
     # marques : fin de phrase (`. ! ? …`) et fin de proposition (`, ; :`) — parenthèses et tirets
-    # d'incise y arrivent réécrits en virgules (`tts_text.say_incises`). Le moteur les lit dans
-    # `options` (`kokoro_onnx_backend.process`) ; la vue de vocalisation les lui passe.
-    # Défauts plus longs que ceux du moteur (0,25 / 0,1 s) : c'est l'objet de la demande.
+    # d'incise y arrivent réécrits en virgules (`tts_text.say_incises`). Le contrat commun des
+    # moteurs les pose (`tts_base.TTSBackend.synthesize`) ; la vue de vocalisation les lui passe.
+    # Libellé, bornes et aide : la déclaration COMMUNE (`VOICE_PAUSE_SETTINGS`), lue aussi par le
+    # synthesizer. Défauts plus longs que ceux du moteur : c'est l'objet de la demande.
     # Rangées dans le groupe « Voix », REPLIÉ : réglées une fois, elles ne chargent pas la surface.
-    Param(name='voice_sentence_pause', type='range', label="Pause en fin de phrase",
-          icon='fa-pause', default=0.4, min=0, max=1.5, step=0.05, contexts=SURFACES,
-          group='voice',
-          help="Silence, en secondes, après un point, un point d'exclamation ou d'interrogation."),
-    Param(name='voice_clause_pause', type='range', label="Pause sur virgule, parenthèse, tiret",
-          icon='fa-pause', default=0.15, min=0, max=1, step=0.05, contexts=SURFACES,
-          group='voice',
-          help="Silence, en secondes, après une virgule, un point-virgule, deux-points, une "
-               "parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle."),
+    Param(name='voice_sentence_pause', default=0.4, contexts=SURFACES, group='voice',
+          **VOICE_PAUSE_SETTINGS['sentence_pause']),
+    Param(name='voice_clause_pause', default=0.15, contexts=SURFACES, group='voice',
+          **VOICE_PAUSE_SETTINGS['clause_pause']),
 ]
 
 #: Groupes d'affichage (`ParamGroup`, la brique des apps — anonymizer) : la voix, repliée.

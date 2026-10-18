@@ -1061,12 +1061,18 @@ def voice_preview(request):
         speaker_wav = speaker_wav_for(model, voice_preset, user, language=language)
         folder = Path(get_app_media_path('synthesizer', user.id, 'output')) / 'partials'
         folder.mkdir(parents=True, exist_ok=True)
+        # Les PAUSES du volet (2026-10-18), lues par le lecteur DÉRIVÉ du schéma — celui de la
+        # création : l'aperçu fait entendre ce que la synthèse rendra.
+        from .services import synthesis_settings
+        chosen = synthesis_settings(request.POST.dict())
         final = render_speech(
             text, str(folder / 'voice_preview.wav'),
             model=model, language=language, voice_preset=voice_preset, speaker_wav=speaker_wav,
             multi_speaker=request.POST.get('multi_speaker') == '1',
             scene_description=request.POST.get('scene_description', ''),
-            speed=speed, pitch=pitch, read_timeout=60)
+            speed=speed, pitch=pitch, read_timeout=60,
+            sentence_pause=chosen.get('sentence_pause', 0.0),
+            clause_pause=chosen.get('clause_pause', 0.0))
     except TTSServiceLoadingError:
         return JsonResponse({'error': 'Le service de synthèse vocale démarre : réessayez dans '
                                       'quelques secondes.', 'busy': True}, status=503)
