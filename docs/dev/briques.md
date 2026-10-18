@@ -2428,7 +2428,7 @@ Sous la consigne de la card d'entrée, ce que l'app rendrait — PENDANT la frap
 
 ### Schéma de paramètres
 
-Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends. Depuis le 12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont `param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, l'exécution d'une fonction et le moteur de vue Data
+Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends. Depuis le 12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont `param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, l'exécution d'une fonction et le moteur de vue Data. Depuis le 18/10 un PORTEUR peut valoir une LISTE, lue « l'une de » par les deux juges de `show_if` (la nature encore inconnue de ce que reçoit un nœud du Studio : les réglages de chaque nature possible se montrent)
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
@@ -3341,8 +3341,9 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 
 - **Domicile** : `wama/studio/services/generic_runner.py` · **doc** : [docs/construction/mondes/STUDIO_VISION.md](../construction/mondes/STUDIO_VISION.md)
 - **Module** : Studio — runner GÉNÉRIQUE piloté par le CONTRAT d'app (STUDIO_VISION « principe directeur », 2026-07-12). Zéro logique par app : tout vient des sources uniques.
-- **API publique** (5) :
+- **API publique** (6) :
   - `primary_ports(app_id) -> set` — Les ports par lesquels arrive l'ENTRÉE PRINCIPALE du nœud (transmise par `create`).
+  - `port_argument_name(app_id, port_id, accepted=None)` — L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, pour le
   - `unwired_ports(app_id) -> list` — Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste.
   - `unwired_ports_report(measure=None)` — (ok, détail) — la liste MESURÉE des ports non lus confrontée au budget, dans les deux
   - `port_arguments(app_id, inputs) -> dict` — Les liens reçus sur les ports NON principaux, en arguments nommés de l'outil.
@@ -3367,7 +3368,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_describer(user, file_path: str, output_style: str='detailed', output_language: str='fr', max_length: int=500, **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.
   - `add_to_transcriber(user, file_path: str, backend: str='auto', preprocess_audio: bool=False, hotwords: str='', enable_diarization: bool=True, **params) -> dict` — Copy a file into the transcriber queue and create a Transcript DB entry.
   - `add_to_reader(user, file_path: str, backend: str='auto', mode: str='auto', output_format: str='txt', language: str='', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
-  - `convert_file(user, file_path: str, output_format: str, quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
+  - `convert_file(user, file_path: str, output_format: str='', quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `switch_ui_mode(user, mode: str='simple') -> dict` — Switch the WAMA interface mode for the current user.
   - `open_page(user, page: str) -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la

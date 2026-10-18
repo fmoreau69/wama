@@ -129,6 +129,61 @@ def get_output_formats(media_type: str) -> list[str]:
     return SUPPORTED_CONVERSIONS.get(media_type, {}).get('output', [])
 
 
+# ---------------------------------------------------------------------------
+# Le format de sortie AUTOMATIQUE — une règle, lue par toutes les voies (2026-10-18)
+# ---------------------------------------------------------------------------
+# Décision de Fabien : « ça doit être automatique, ça dépend simplement de l'entrée ». Le
+# converter le faisait déjà, mais de QUATRE façons selon la voie : le dépôt prenait le premier
+# format de la liste (JS), le repli du serveur le dernier format employé, « Envoyer vers » le
+# dernier ou RIEN (card à régler), l'outil de l'assistant — donc le Studio — refusait un format
+# absent, et l'import par lot créait des jobs sans format. La cascade est celle de tout réglage
+# (`param_schema.applicable_defaults`) : défaut de la nature ← dernier format employé par
+# l'utilisateur pour CETTE nature ← choix explicite.
+
+def default_output_format(media_type: str) -> str:
+    """Le défaut d'une nature : le premier format de sa liste (l'ordre de `SUPPORTED_CONVERSIONS`
+    est la déclaration — jpg, mp4, mp3, pdf, zip), '' pour une nature inconnue."""
+    formats = get_output_formats(media_type)
+    return formats[0] if formats else ''
+
+
+def _format_key(media_type: str) -> str:
+    return f'last_format_{media_type}'
+
+
+def last_output_format(user, media_type: str, app: str = 'converter') -> str:
+    """Le DERNIER format de sortie employé par `user` pour cette nature (brique user_settings), ''
+    s'il n'y en a pas ou s'il n'est plus offert pour elle. `app` : une jumelle passe le sien."""
+    if user is None or not getattr(user, 'pk', None):
+        return ''
+    from wama.common.utils.user_settings import get_user_app_settings
+    key = _format_key(media_type)
+    value = (get_user_app_settings(user, app, {key: ''}).get(key) or '').lower()
+    return value if value in get_output_formats(media_type) else ''
+
+
+def output_format_for(user, media_type: str, requested: str = '', app: str = 'converter') -> str:
+    """Le format de sortie d'un élément de cette nature : le choix EXPLICITE s'il est offert pour
+    elle, sinon le dernier format employé, sinon le défaut de la nature. Lève `ValueError` sur un
+    choix explicite qui n'est pas offert (jamais remplacé en silence par un autre)."""
+    fmt = (requested or '').strip().lower()
+    if fmt:
+        if fmt not in get_output_formats(media_type):
+            raise ValueError(f"Format de sortie '{fmt}' invalide pour {media_type or 'cette nature'}. "
+                             f"Formats : {', '.join(get_output_formats(media_type)) or '—'}")
+        return fmt
+    return last_output_format(user, media_type, app) or default_output_format(media_type)
+
+
+def remember_output_format(user, media_type: str, fmt: str, app: str = 'converter') -> None:
+    """Retient un format CHOISI (jamais un format résolu automatiquement) comme le dernier employé
+    pour cette nature — au dépôt d'une card comme sur un nœud du Studio (décision de Fabien)."""
+    if not (user is not None and getattr(user, 'pk', None) and media_type and fmt):
+        return
+    from wama.common.utils.user_settings import save_user_app_settings
+    save_user_app_settings(user, app, {_format_key(media_type): fmt})
+
+
 def get_cross_app_options(media_type: str) -> list[dict]:
     """Retourne les options cross-apps disponibles pour un type de média."""
     return CROSS_APP_OPTIONS.get(media_type, [])

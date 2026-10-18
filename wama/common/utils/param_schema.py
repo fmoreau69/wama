@@ -340,12 +340,18 @@ def _pget(p, key, default=None):
 def _show_if_met(cond, values) -> bool:
     """Le `show_if` d'un param est-il satisfait par `values` ? MÊME vocabulaire que le moteur
     JS (wama-params.js::met) : {field, equals:…} | {field, not_equals:…} | {field, in:[…]} |
-    champ seul → truthy."""
+    champ seul → truthy.
+
+    Une valeur en LISTE veut dire « l'une de » (2026-10-18) : un porteur dont la valeur n'est pas
+    encore connue — la nature de ce que recevra un nœud du Studio, image OU vidéo — satisfait la
+    condition de chacune (`studio/services/graph_flow`, « inconnu n'est pas vide »)."""
     if not cond:
         return True
     if isinstance(cond, str):
         cond = {'field': cond}
     cur = values.get(cond.get('field'))
+    if isinstance(cur, (list, tuple, set)):
+        return any(_show_if_met(cond, {cond.get('field'): one}) for one in cur)
     if cond.get('in'):
         return str(cur) in [str(x) for x in cond['in']]
     if 'equals' in cond:

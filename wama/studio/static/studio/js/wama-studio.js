@@ -574,6 +574,46 @@
     var nodeSchemas = {};   // nœud -> {params, groups}
     var settingsState = 'loading';   // 'loading' | 'ready' | 'error'
 
+    // L'échappement COMMUN (`wama-app-base.js`, monté sur toutes les pages) — jamais un de plus.
+    function esc(s) { return global.WamaApp.escapeHtml(s == null ? '' : String(s)); }
+    function nodeTitle(id) {
+        var n = nodes.find(function (x) { return x.id === id; });
+        return n ? (metaOf(n).label || n.app) : id;
+    }
+    function typesText(types) {
+        return (types || []).length ? types.join(' ou ') : 'inconnue';
+    }
+    // Les réglages du nœud rendus SOUS ce qu'il reçoit : `context.values` (nature, texte, valeurs
+    // de l'élément) prime sur `node.params` — un champ fourni par un lien ne se saisit pas, le lien
+    // gagne au lancement (`generic_runner.create`). Rien de `context` n'entre dans `node.params` :
+    // seul un GESTE l'écrit (`sync`), et un champ fourni est désactivé.
+    function renderNodeSettings(host, received, schema, node, context) {
+        var ctx = context || {};
+        WamaParams.render(host, schema.params, {
+            context: 'item', groups: schema.groups || [],
+            values: Object.assign({}, node.params || {}, ctx.values || {}) });
+        var lines = [];
+        var ports = metaOf(node).inputs || [];
+        Object.keys(ctx.inputs || {}).forEach(function (port) {
+            var i = ctx.inputs[port];
+            var p = ports.find(function (x) { return x.id === port; });
+            lines.push('<i class="fas fa-right-to-bracket me-1"></i>' + esc((p && p.label) || port)
+                + ' : ' + esc(typesText(i.types)) + ' — de « ' + esc(nodeTitle(i.from)) + ' »');
+        });
+        received.innerHTML = lines.join('<br>');
+        Object.keys(ctx.provided || {}).forEach(function (field) {
+            var how = ctx.provided[field];
+            var row = host.querySelector('[data-param-row="' + field + '"]');
+            if (!row) return;   // porteur caché (nature) : dit plus haut, dans les entrées reçues
+            row.querySelectorAll('input, select, textarea, button').forEach(function (c) { c.disabled = true; });
+            var said = how.element != null
+                ? 'Porté par l’élément n° ' + how.element
+                : (how.at_run ? 'Fourni à l’exécution par « ' : 'Fourni par « ') + nodeTitle(how.node) + ' »';
+            row.appendChild(el('div', 'studio-provided small text-body-secondary mt-1',
+                '<i class="fas fa-link me-1"></i>' + esc(said)));
+        });
+    }
+
     function mountNodeSettings(body, node) {
         var schema = nodeSchemas[node.app];
         var wrap = el('div', 'studio-node-params mt-2 pt-2 border-top border-secondary');
@@ -596,12 +636,27 @@
             body.appendChild(wrap);
             return;
         }
+        var received = el('div', 'studio-node-received small text-body-secondary mb-1');
+        wrap.appendChild(received);
         var host = el('div', 'wama-params');
         wrap.appendChild(host);
         // Dans le DOM AVANT le rendu : les sources d'options retrouvent leur select par id.
         body.appendChild(wrap);
-        WamaParams.render(host, schema.params, {
-            context: 'item', values: node.params || {}, groups: schema.groups || [] });
+        renderNodeSettings(host, received, schema, node, null);
+        // Ce que REÇOIT le nœud — le graphe porteur de valeurs (2026-10-18, ROUTE §10.6 3.3bis
+        // règle 5) : la nature de ce qui lui est branché, le texte d'une saisie, ce que porte
+        // l'élément d'une étape. Calculé par le SERVEUR (`graph_flow.node_context`, le parcours du
+        // graphe que lit aussi le diagnostic des liens) — jamais recopié ici. Une réponse arrivée
+        // après qu'on a changé de nœud est ignorée.
+        api('/studio/api/node-context/', {
+            method: 'POST', body: JSON.stringify({ graph: serializeGraph(), node: node.id }),
+        }).then(function (context) {
+            if (selected !== node.id || !host.isConnected) return;
+            renderNodeSettings(host, received, schema, node, context);
+        }).catch(function (err) {
+            received.innerHTML = '<span class="text-danger">Entrées du nœud indisponibles : '
+                + esc(err && err.message ? err.message : String(err)) + '</span>';
+        });
         // Le graphe n'enregistre que les DÉCISIONS de l'utilisateur (`isGesture`) : la recharge
         // des options d'un select émet aussi un `change`, qui n'est pas un réglage — l'enregistrer
         // remplirait l'historique d'annulation de crans vides à chaque ouverture de l'inspecteur.

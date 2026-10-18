@@ -46,6 +46,29 @@ def node_label(app: str) -> str:
     return builtin.label if builtin else app
 
 
+def _pilots(cond, out):
+    """Les champs que lit une condition d'affichage (`show_if`) — forme texte ou dict."""
+    if isinstance(cond, str) and cond:
+        out.add(cond)
+    elif isinstance(cond, dict) and cond.get('field'):
+        out.add(cond['field'])
+
+
+def step_carriers(pipeline, process, app_schema=None) -> list:
+    """Les PORTEURS cachés (`type='hidden'`) du schéma de l'app que lisent les conditions des
+    réglages de l'étape `process` — ce que l'élément porte et que la ⚙ de l'étape ne règle pas
+    (le `media_type` du converter). Lu par le schéma du nœud et par son contexte (`graph_flow`)."""
+    from wama.common.utils.param_schema import schema_for_app
+    app_schema = app_schema if app_schema is not None else schema_for_app(pipeline.app)
+    names = set(pipeline.watched_of(process))
+    pilots = set()
+    for p in app_schema:
+        if p.get('name') in names:
+            _pilots(p.get('show_if'), pilots)
+    return [p['name'] for p in app_schema
+            if p.get('type') == 'hidden' and p.get('name') in pilots]
+
+
 def _function_schema(spec) -> list:
     """Schéma d'un nœud FONCTION, en dicts : arguments obligatoires de sa tâche (fonction rattachée
     à une app), puis — pour une ÉTAPE de card (process d'un pipeline d'app) — les réglages de la ⚙
@@ -74,7 +97,22 @@ def _function_schema(spec) -> list:
                        for n in required]
             from wama.common.utils.param_schema import schema_for_app
             names = set(pipeline.watched_of(process))
-            watched = [p for p in schema_for_app(pipeline.app) if p.get('name') in names]
+            app_schema = schema_for_app(pipeline.app)
+            watched = [p for p in app_schema if p.get('name') in names]
+            # Les PILOTES des conditions de ces réglages, qui ne sont pas des réglages de l'étape
+            # (2026-10-18) — sans eux, une condition n'est jamais satisfaite et le réglage reste
+            # masqué pour toujours (`summary_type` sous `transcriber.summarize`, `media_type` sous
+            # `converter.convert` : 2 réglages visibles sur 17) :
+            #   • l'INTERRUPTEUR de l'étape (`ProcessSpec.toggle`) : vrai par construction, lancer
+            #     l'étape c'est l'activer ;
+            #   • les PORTEURS cachés de l'app (`media_type`) : l'élément désigné les porte, le
+            #     contexte du nœud les lit sur lui (`graph_flow._step_carriers`).
+            carriers = step_carriers(pipeline, process, app_schema)
+            hidden = [p for p in app_schema if p.get('name') in carriers]
+            if process.toggle and process.toggle not in names:
+                hidden.append(schema_to_dicts([Param(name=process.toggle, type='hidden',
+                                                     default=True)])[0])
+            watched = hidden + watched
         else:
             params += [Param(name=n, type='text', label=n, help=f'Requis par la tâche {task}.')
                        for n in required]

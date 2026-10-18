@@ -655,6 +655,7 @@
           "avatar_upload",
           "audio_input"
         ],
+        "source_text": "text_content",
         "source_type": {
           "const": "video"
         }

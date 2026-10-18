@@ -41,10 +41,38 @@ def _source_text(user, params):
     return 'prompt', text
 
 
-def _source_media(user, params):
+def _media_nature(params, rel) -> str:
+    """La nature d'un média désigné : celle que dit le réglage, sinon celle de son chemin — UNE
+    règle, lue au lancement (`_source_media`) et avant (`_emits_media`)."""
     from wama.common.app_registry import category_of_path
+    return params.get('asset_category') or category_of_path(rel)
+
+
+def _source_media(user, params):
     rel = _media_rel(params, 'asset_path', 'Médias importés')
-    return (params.get('asset_category') or category_of_path(rel)), rel
+    return _media_nature(params, rel), rel
+
+
+def _emits_text(params):
+    """Ce que fournira « Texte » : un prompt, et son texte s'il est saisi."""
+    return {'types': ['prompt'], 'text': (params.get('text') or '').strip() or None}
+
+
+def _emits_media(params):
+    """Ce que fournira « Médias importés » : la nature du média choisi ; rien de décidé tant
+    qu'aucun média ne l'est (le fichier n'est pas exigé ici : on ne lance rien)."""
+    rel = (params.get('asset_path') or '').strip()
+    return {'types': [_media_nature(params, rel)]} if rel else None
+
+
+def _dataset_type(params) -> str:
+    """Le type de donnée DIT au nœud « Jeu de données » — lu au lancement et avant."""
+    from wama.common.catalog.data_types import DataType, normalize_type
+    return normalize_type((params.get('data_type') or DataType.TABLE).strip())
+
+
+def _emits_dataset(params):
+    return {'types': [_dataset_type(params)]}
 
 
 def _source_dataset(user, params):
@@ -54,9 +82,9 @@ def _source_dataset(user, params):
     est DIT par l'utilisateur, jamais deviné d'une extension."""
     import os
     from django.conf import settings
-    from wama.common.catalog.data_types import DataType, TypedFrame, known_types, normalize_type
+    from wama.common.catalog.data_types import TypedFrame, known_types
     rel = _media_rel(params, 'asset_path', 'Jeu de données')
-    dtype = normalize_type((params.get('data_type') or DataType.TABLE).strip())
+    dtype = _dataset_type(params)
     if dtype not in known_types():
         raise ValueError(f"Nœud « Jeu de données » : type '{dtype}' inconnu de la taxonomie.")
     import pandas as pd
@@ -102,15 +130,37 @@ def _unique_asset_name(user, base, asset_type):
     return name
 
 
+def _asset_type_for(params, filename) -> str:
+    """Le type d'asset d'un fichier rangé par le nœud Sortie — AUTOMATIQUE selon ce qu'il reçoit
+    (2026-10-18, décision de Fabien : « ça dépend simplement de l'entrée »).
+
+    La CATÉGORIE se lit sur le fichier (`category_of_path`) ; l'USAGE dans cette catégorie (avatar,
+    fond, voix…) ne se devine pas (`media_library` : « la nature n'est jamais devinée ») : vide, il
+    prend le défaut DÉCLARÉ de la catégorie (`natures.CATEGORY_DEFAULT`). Un usage choisi d'une
+    AUTRE catégorie est refusé en le disant — le défaut fixe `video` rangeait une image comme une
+    vidéo (`resolve_asset_type('video', 'x.png')` rend `video`)."""
+    from wama.common.app_registry import category_of_path
+    from wama.media_library.natures import ASSET_NATURES, CATEGORY_DEFAULT, resolve_asset_type
+    category = category_of_path(filename)
+    chosen = (params.get('asset_type') or '').strip()
+    if not chosen:
+        if category not in CATEGORY_DEFAULT:
+            raise ValueError(f"Nœud « Sortie » : la médiathèque ne range pas un fichier de nature "
+                             f"« {category} » ({filename}).")
+        return resolve_asset_type(category, filename)
+    asset_type = resolve_asset_type(chosen, filename)
+    if category in CATEGORY_DEFAULT and ASSET_NATURES[asset_type].category != category:
+        raise ValueError(f"Nœud « Sortie » : le type « {ASSET_NATURES[asset_type].label} » ne "
+                         f"convient pas à ce fichier ({category}) — laissez « Automatique ».")
+    return asset_type
+
+
 def _sink_text_to_media_library(user, text, params, run_id):
     """Variante TEXTE du nœud Sortie : écrit un .txt et le range en médiathèque (document)."""
     from django.core.files.base import ContentFile
     from wama.media_library.models import UserAsset
-    # Une CATÉGORIE (`'audio'`) devient sa nature par défaut ; un alias n'entre plus en base
-    # (A′, `natures.resolve_asset_type` — le puits écrivait la valeur telle quelle jusqu'au 13/09).
-    from wama.media_library.natures import resolve_asset_type
     base = (params.get('asset_name') or '').strip() or f"studio-run-{run_id}"
-    asset_type = resolve_asset_type(params.get('asset_type') or 'document', f"{base}.txt")
+    asset_type = _asset_type_for(params, f"{base}.txt")
     name = _unique_asset_name(user, base, asset_type)
     asset = UserAsset(user=user, name=name, asset_type=asset_type, mime_type='text/plain')
     asset.file.save(f"{base}.txt", ContentFile(text.encode('utf-8')), save=False)
@@ -127,9 +177,8 @@ def _sink_frame_to_media_library(user, frame, params, run_id):
     en CSV et rangé en médiathèque (`document`) — la même porte que le texte."""
     from django.core.files.base import ContentFile
     from wama.media_library.models import UserAsset
-    from wama.media_library.natures import resolve_asset_type
     base = (params.get('asset_name') or '').strip() or f"studio-run-{run_id}-{frame.data_type}"
-    asset_type = resolve_asset_type(params.get('asset_type') or 'document', f"{base}.csv")
+    asset_type = _asset_type_for(params, f"{base}.csv")
     name = _unique_asset_name(user, base, asset_type)
     asset = UserAsset(user=user, name=name, asset_type=asset_type, mime_type='text/csv')
     asset.file.save(f"{base}.csv", ContentFile(frame.df.to_csv(index=False).encode('utf-8')),
@@ -153,9 +202,7 @@ def _sink_file_to_media_library(user, value, params):
     src_abs = os.path.join(settings.MEDIA_ROOT, value)
     if not os.path.exists(src_abs):
         raise ValueError(f"Nœud « Sortie » : fichier à ranger introuvable ({value}).")
-    # Catégorie → nature (A′) ; l'extension du fichier rangé départage dans la catégorie.
-    from wama.media_library.natures import resolve_asset_type
-    asset_type = resolve_asset_type(params.get('asset_type') or 'video', os.path.basename(value))
+    asset_type = _asset_type_for(params, os.path.basename(value))
     base = (params.get('asset_name') or '').strip() or os.path.splitext(os.path.basename(value))[0]
     name = _unique_asset_name(user, base, asset_type)
     asset = UserAsset(user=user, name=name, asset_type=asset_type,
@@ -187,21 +234,36 @@ def _sink_media_library(user, incoming, params, run_id):
 
 
 def _output_params():
-    from wama.media_library.models import ASSET_TYPES
+    from wama.common.app_registry import MEDIA_CATEGORY_LABELS
+    from wama.media_library.natures import ASSET_NATURES
+    # Les NATURES déclarées une fois (`media_library.natures`, A′), jamais une liste ici : celle
+    # qui vivait à cette place n'en offrait que six sur dix (2026-10-13). Groupées par CATÉGORIE,
+    # derrière « Automatique » (2026-10-18) : le défaut fixe `video` faisait CLASSER à la main ce
+    # que le fichier reçu dit déjà (`_asset_type_for`).
+    auto = ('', 'Automatique (selon le fichier reçu)')
+    groups = {}
+    for key, nature in ASSET_NATURES.items():
+        groups.setdefault(nature.category, []).append((key, nature.label))
     return [
         Param(name='asset_name', type='text', label='Nom dans la médiathèque', stales=NO_STALE,
               help='Vide : le nom du fichier produit.'),
-        # Les NATURES déclarées une fois (`media_library.natures`, A′), jamais une liste ici :
-        # celle qui vivait à cette place n'en offrait que six sur dix (2026-10-13).
+        # `option_groups` pour le RENDU (il prime au select), `choices` à plat pour la PORTE
+        # (`choice_values` ne lit qu'eux) : les mêmes valeurs, deux lectures.
         Param(name='asset_type', type='select', label="Type d'asset", stales=NO_STALE,
-              choices=list(ASSET_TYPES), default='video'),
+              choices=[auto] + [(k, n.label) for k, n in ASSET_NATURES.items()],
+              option_groups=[('', [auto])]
+              + [(MEDIA_CATEGORY_LABELS.get(category, category), options)
+                 for category, options in groups.items()],
+              default='',
+              help='Automatique : la catégorie du fichier reçu (image, vidéo, audio…) et son '
+                   'usage par défaut. Un usage choisi doit être de la même catégorie.'),
     ]
 
 
 register_builtin_node(BuiltinNode(
     key='text_input', role='source', label='Texte', icon='fas fa-keyboard', color='#f7c46c',
     description='Source : un texte / prompt saisi dans les paramètres du nœud (inspecteur).',
-    run=_source_text, port_label='Texte', port_types=lambda: ['prompt'],
+    run=_source_text, port_label='Texte', port_types=lambda: ['prompt'], emits=_emits_text,
     params=lambda: [Param(name='text', type='textarea', label='Texte', stales=NO_STALE,
                           help='Texte ou prompt envoyé au nœud aval.')]))
 
@@ -210,7 +272,7 @@ register_builtin_node(BuiltinNode(
     color='#6ee7a8',
     description='Source : vos médias existants (image, vidéo, audio, document…) injectés dans le '
                 'pipeline.',
-    run=_source_media, port_label='Médias', port_types=_media_categories,
+    run=_source_media, port_label='Médias', port_types=_media_categories, emits=_emits_media,
     params=lambda: [Param(name='asset_path', type='media_picker', label='Média (médiathèque)',
                           stales=NO_STALE)]))
 
@@ -219,7 +281,8 @@ register_builtin_node(BuiltinNode(
     color='#9ad0ec',
     description="Source : un fichier tabulaire (CSV) de la médiathèque lu comme donnée TYPÉE "
                 "(type choisi dans l'inspecteur) → entrée d'un nœud fonction.",
-    run=_source_dataset, port_label='Données', port_types=_known_types, params=_dataset_params))
+    run=_source_dataset, port_label='Données', port_types=_known_types, params=_dataset_params,
+    emits=_emits_dataset))
 
 register_builtin_node(BuiltinNode(
     key='studio_output', role='sink', label='Sortie', icon='fas fa-flag-checkered',

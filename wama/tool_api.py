@@ -977,7 +977,7 @@ def add_to_reader(
 def convert_file(
     user,
     file_path: str,
-    output_format: str,
+    output_format: str = '',
     quality_preset: str = 'balanced',
     **params,
 ) -> dict:
@@ -987,7 +987,8 @@ def convert_file(
     Args:
         user:           Django User instance
         file_path:      Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (image/video/audio/document/archive)
-        output_format:  Target format key (e.g. 'mp4', 'webp', 'pdf', 'mp3', 'zip')
+        output_format:  Target format key (e.g. 'mp4', 'webp', 'pdf', 'mp3', 'zip'). Empty =
+                        automatic: the user's last format for this nature, else its default
         quality_preset: 'web' | 'balanced' | 'max'  (default 'balanced')
 
     Returns:
@@ -997,7 +998,8 @@ def convert_file(
     from pathlib import Path
     from wama.converter.models import ConversionJob
     from wama.converter.tasks import convert_media_task
-    from wama.converter.utils.format_router import detect_media_type, get_output_formats
+    from wama.converter.utils.format_router import (detect_media_type, output_format_for,
+                                                    remember_output_format)
     from wama.converter.utils.quality_presets import PRESET_CHOICES, DEFAULT_PRESET
 
     # Désigné, pointé, provenance posée (2026-09-28) — cf. `add_to_enhancer`. Le chemin était
@@ -1014,11 +1016,17 @@ def convert_file(
     if media_type is None:
         return {'error': f'Type de fichier non supporté par le Converter : {Path(received.name).suffix}'}
 
-    out_fmt = (output_format or '').strip().lower()
-    allowed = get_output_formats(media_type)
-    if out_fmt not in allowed:
-        return {'error': f"Format de sortie '{out_fmt}' invalide pour {media_type}. "
-                         f"Formats : {', '.join(allowed)}"}
+    # La règle de toutes les voies (2026-10-18) : le format demandé, refusé s'il n'est pas offert
+    # pour cette nature ; absent, le format AUTOMATIQUE (dernier employé, sinon défaut de la
+    # nature). Un nœud Converter du Studio passe ici : le format n'est plus obligatoire, et un
+    # format CHOISI sur le nœud devient le dernier employé, comme au dépôt d'une card.
+    chosen = (output_format or '').strip().lower()
+    try:
+        out_fmt = output_format_for(user, media_type, chosen)
+    except ValueError as refusal:
+        return {'error': str(refusal)}
+    if chosen:
+        remember_output_format(user, media_type, out_fmt)
 
     preset = (quality_preset or '').strip().lower()
     if preset not in PRESET_CHOICES:

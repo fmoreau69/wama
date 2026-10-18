@@ -30,7 +30,8 @@ from django.core.cache import cache
 from django.db import transaction
 
 from .models import ConversionJob, ConversionProfile, ConversionBatch
-from .utils.format_router import detect_media_type, get_output_formats, SUPPORTED_CONVERSIONS
+from .utils.format_router import (SUPPORTED_CONVERSIONS, detect_media_type, get_output_formats,
+                                  output_format_for, remember_output_format)
 from ..accounts.views import get_or_create_anonymous_user
 from ..common.utils.queue_duplication import release_card_files, duplicate_instance
 from ..common.utils.param_schema import schema_extra_params, schema_model_kwargs
@@ -216,13 +217,8 @@ def _visitor_trial(request):
             'max_items': visitors.max_items()}
 
 
-def last_output_format(user, media_type, app='converter') -> str:
-    """Le DERNIER format de sortie employé pour ce type de média (brique user_settings), ''
-    s'il n'y en a pas. Le dépôt de la card et l'import du gestionnaire de fichiers (« Envoyer
-    vers ») le lisent ; `app` : une jumelle de bac à sable passe le sien."""
-    from wama.common.utils.user_settings import get_user_app_settings
-    key = f'last_format_{media_type}'
-    return get_user_app_settings(user, app, {key: ''}).get(key) or ''
+# `last_output_format` vivait ici jusqu'au 2026-10-18 : il a rejoint la table des formats
+# (`format_router`), dans la cascade `output_format_for` que lisent toutes les voies de création.
 
 
 def apply_birth_settings(job, media_type, options=None) -> list:
@@ -266,17 +262,14 @@ def upload(request):
     if media_type is None:
         return JsonResponse({'error': f"Format d'entrée non supporté : {file_obj.name}"}, status=400)
 
-    # Réglages persistés (brique user_settings) : le POST prime, sinon dernier
-    # format utilisé pour ce type de média.
-    from wama.common.utils.user_settings import save_user_app_settings
-    if not output_fmt:
-        output_fmt = last_output_format(user, media_type)
-    if not output_fmt:
-        return JsonResponse({'error': 'Format de sortie manquant'}, status=400)
-
-    allowed_formats = get_output_formats(media_type)
-    if output_fmt not in allowed_formats:
-        return JsonResponse({'error': f"Format de sortie non supporté pour {media_type} : {output_fmt}"}, status=400)
+    # Le format AUTOMATIQUE selon la nature (`format_router.output_format_for`, la règle de toutes
+    # les voies) : le choix posté, sinon le dernier format employé pour cette nature, sinon le
+    # défaut de la nature. Un choix posté qui n'est pas offert est refusé, jamais remplacé.
+    chosen = output_fmt
+    try:
+        output_fmt = output_format_for(user, media_type, chosen)
+    except ValueError as refusal:
+        return JsonResponse({'error': str(refusal)}, status=400)
 
     # Options : la LISTE et le TYPAGE viennent du schéma (`converter/params.py`), pas d'une
     # liste recopiée ici. Même source que la modale, l'inspecteur et `tool_api.convert_file`.
@@ -304,8 +297,10 @@ def upload(request):
     if touched:
         job.save(update_fields=touched)
 
-    # Re-persiste le choix comme défaut du prochain dépôt de ce type de média.
-    save_user_app_settings(user, 'converter', {f'last_format_{media_type}': output_fmt})
+    # Un format CHOISI devient le défaut du prochain élément de cette nature ; un format résolu
+    # automatiquement ne se retient pas (il en découle déjà).
+    if chosen:
+        remember_output_format(user, media_type, output_fmt)
 
     # Clé `id` — contrat COMMUN des vues d'upload (trou #24 de la route). Le converter était la
     # graphie divergente (`job_id`) : régénérer l'app aurait fait renvoyer `id` à une vue dont le
@@ -434,7 +429,10 @@ def update_settings(request, pk):
     # jamais écrit (contrat générique `tests_item_settings_contract`, 2026-09-26).
     from wama.common.utils.batch_views import read_settings_payload
     from wama.converter.params import PARAMS_JSON as _SCH
-    data = read_settings_payload(request, _SCH, [p['name'] for p in _SCH])
+    # `output_format` VIDE est une valeur sur la route d'un élément : « Automatique » (le format
+    # selon la nature) — la modale de LOT, elle, garde « vide = ne pas toucher » (sa fabrique).
+    data = read_settings_payload(request, _SCH, [p['name'] for p in _SCH],
+                                 empty_is_value=('output_format',))
     try:
         touched = _apply_job_settings(job, data)
     except ValueError as refusal:
@@ -461,10 +459,10 @@ def _apply_job_settings(job, data) -> list:
     import json as _json
     touched = []
     output_fmt = str(data.get('output_format') or '').strip().lower()
-    if output_fmt:
-        if output_fmt not in get_output_formats(job.media_type):
-            raise ValueError(f"Format de sortie non supporté : {output_fmt}")
-        job.output_format = output_fmt
+    if output_fmt or 'output_format' in data:
+        # Présent et vide = « Automatique » : la cascade de toutes les voies
+        # (`format_router.output_format_for`) ; un format qui n'est pas offert lève.
+        job.output_format = output_format_for(job.user, job.media_type, output_fmt)
         touched.append('output_format')
 
     new_opts = data.get('options_json')
@@ -692,7 +690,8 @@ def batch_create(request):
     requête, par le récepteur commun (`source_ingest`, 2026-10-13 — le converter était la seule
     app à télécharger dans la requête : un lot d'URL tenait la requête ouverte, et une vidéo
     longue dépassait la coupure de 120 s) ; chemin local (sous MEDIA_ROOT) → pointé ou copié.
-    Chaque source → un ConversionJob PENDING (format réglé ensuite via les réglages du batch).
+    Chaque source → un ConversionJob PENDING, au format AUTOMATIQUE de sa nature
+    (`format_router.output_format_for`) — il naissait sans format, à régler ensuite par lot.
     Consolidation par nature. Les lignes en échec sont ignorées et reportées dans `warnings`.
     """
     from wama.common.utils.batch_parsers import parse_batch_file_from_request
@@ -724,9 +723,12 @@ def batch_create(request):
                     warnings.append(f'Type non supporté : {src}')
                     continue
                 media_type = detect_media_type((item.get('filename') or '').strip()) or nature
+                # Le format suit la nature dès qu'elle est connue ; sinon, c'est le `derive`
+                # de l'arrivée du fichier qui le pose avec elle (`tasks._derive_media_type`).
                 job = ConversionJob.objects.create(
                     user=user, input_filename='', media_type=media_type or '',
-                    source_url=src, output_format='', status='PENDING',
+                    source_url=src, status='PENDING',
+                    output_format=output_format_for(user, media_type) if media_type else '',
                 )
                 job_ids.append(job.id)
                 continue
@@ -751,7 +753,7 @@ def batch_create(request):
 
             job = ConversionJob.objects.create(
                 user=user, input_filename=fname, media_type=media_type,
-                output_format='', status='PENDING',
+                output_format=output_format_for(user, media_type), status='PENDING',
             )
             job.input_file.name = rel
             job.save(update_fields=['input_file'])
@@ -947,7 +949,8 @@ def quick_convert(request):
     "Conversion rapide" (on-the-fly) : crée un job ÉPHÉMÈRE, écrit le résultat
     À CÔTÉ de la source (in-place), démarre tout de suite, n'apparaît JAMAIS
     dans la file, et la ligne est supprimée (dismiss) après livraison — le
-    fichier reste. output_format requis ; quality_preset (web/balanced/max).
+    fichier reste. output_format : absent = automatique selon la nature ;
+    quality_preset (web/balanced/max).
 
     NB : "Envoyer vers Converter" (mode file d'attente) passe désormais par le
     flux d'import STANDARD (filemanager api_import_to_app → import_to_converter),
@@ -955,7 +958,7 @@ def quick_convert(request):
 
     POST params:
         file_path      : chemin absolu ou relatif à MEDIA_ROOT du fichier source
-        output_format  : format cible (requis)
+        output_format  : format cible (absent : automatique selon la nature)
         quality_preset : 'web' | 'balanced' | 'max' (défaut 'balanced')
     """
     from .tasks import convert_media_task
@@ -969,8 +972,6 @@ def quick_convert(request):
 
     if not file_path_str:
         return JsonResponse({'error': 'Chemin de fichier manquant'}, status=400)
-    if not output_fmt:
-        return JsonResponse({'error': 'Format de sortie manquant'}, status=400)
 
     from django.conf import settings
     media_root = Path(settings.MEDIA_ROOT).resolve()
@@ -996,8 +997,15 @@ def quick_convert(request):
     if media_type is None:
         return JsonResponse({'error': f"Type de fichier non supporté : {abs_path.suffix}"}, status=400)
 
-    if output_fmt not in get_output_formats(media_type):
-        return JsonResponse({'error': f"Format de sortie non supporté : {output_fmt}"}, status=400)
+    # La règle de toutes les voies : le format demandé (refusé s'il n'est pas offert), sinon
+    # le format automatique de la nature (`format_router.output_format_for`).
+    chosen = output_fmt
+    try:
+        output_fmt = output_format_for(request.user, media_type, chosen)
+    except ValueError as refusal:
+        return JsonResponse({'error': str(refusal)}, status=400)
+    if chosen:
+        remember_output_format(request.user, media_type, output_fmt)
 
     # ── Quick convert : ephemeral + in-place + preset ─────────────────────────
     dest_dir = str(rel_path.parent).replace('\\', '/')  # source folder, relative to MEDIA_ROOT

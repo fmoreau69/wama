@@ -197,6 +197,20 @@ def api_declared_pipeline_detail(request, key):
 
 
 @login_required
+def api_node_context(request):
+    """POST `{graph, node}` : ce que REÇOIT le nœud — la nature de ce qui lui est branché, le texte
+    d'une saisie, les valeurs que porte l'élément d'une étape (`services/graph_flow.node_context`,
+    ROUTE §10.6 3.3bis règle 5 — 2026-10-18). L'inspecteur les pose SOUS les réglages du nœud :
+    conditions d'affichage, listes d'options et champs fournis par un lien s'en déduisent, comme
+    sur une card. Rien n'est enregistré."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    from .services.graph_flow import node_context
+    data = _json_body(request)
+    return JsonResponse(node_context(data.get('graph') or {}, data.get('node'), request.user))
+
+
+@login_required
 def api_run(request):
     """POST : lance l'exécution du graphe (Celery). Validation + dispatch = brique PARTAGÉE
     `services.launch.launch_graph` (même contrat que l'outil assistant `run_studio_pipeline`)."""

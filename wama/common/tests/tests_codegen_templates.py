@@ -229,7 +229,9 @@ class SourcesDOptionsTest(SimpleTestCase):
         # d'app n'en émet donc plus AUCUN — en émettre un recréerait, dans chaque app
         # générée, le chemin parallèle que le converter portait TROIS fois.
         params = _lire(_JS + 'wama-params.js')
-        self.assertIn('|| function (p) { return resolvePageOptions(p, values); }', params,
+        # `ctx` depuis le 2026-10-18 : la surface du rendu (une modale de LOT lit « vide » comme
+        # « ne pas toucher », le reste comme « Automatique »).
+        self.assertIn('|| function (p) { return resolvePageOptions(p, values, ctx); }', params,
                       'le moteur n’installe plus de resolver par défaut : les selects à '
                       'options_source redeviendraient vides sans resolver d’app')
         manifest = _manifeste(SOURCE)

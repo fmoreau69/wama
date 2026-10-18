@@ -36,9 +36,13 @@ class AvatarizerConfig(AppConfig):
         # (MuseTalk), pas le TTS : `engine=tts_model` affichait un modèle de VOIX pour un job
         # d'ANIMATION (incohérence relevée 2026-08-28) ; le TTS d'un job pipeline apparaît par
         # les réglages du schéma (chip « Modèle TTS »). La sortie est toujours une vidéo parlante.
+        # `source_text` (2026-10-18) : le texte à dire est l'entrée-texte de l'élément, comme celle du
+        # synthesizer — aperçu de la face Entrée, et champ que remplit le lien « Texte » d'un nœud
+        # du Studio (`studio/services/graph_flow`, `generic_runner.port_argument_name`).
         register_app_detail_spec('avatarizer', AvatarJob, {
             'source_file': ['avatar_upload', 'audio_input'],
             'source_type': {'const': 'video'},
+            'source_text': 'text_content',
             'engine': {'const': 'musetalk'},
             'result_file': 'output_video',
             'result_role': {'const': 'video'},

@@ -1712,7 +1712,8 @@ def import_to_converter(source_path, user, app_label='converter'):
     """
     from django.apps import apps as django_apps
     from wama.converter.utils.format_router import detect_media_type
-    from wama.converter.views import apply_birth_settings, last_output_format
+    from wama.converter.utils.format_router import output_format_for
+    from wama.converter.views import apply_birth_settings
     from wama.common.utils.media_paths import reference_or_copy
 
     ConversionJob = django_apps.get_model(app_label, 'ConversionJob')
@@ -1727,7 +1728,9 @@ def import_to_converter(source_path, user, app_label='converter'):
         user=user,
         input_filename=dest_path.name,
         media_type=media_type,
-        output_format=last_output_format(user, media_type, app=app_label),
+        # Le format AUTOMATIQUE de la nature (la règle de toutes les voies) — il restait VIDE
+        # quand l'utilisateur n'avait encore rien converti de cette nature.
+        output_format=output_format_for(user, media_type, app=app_label),
         status='PENDING',
     )
     job.input_file.name = relative_path

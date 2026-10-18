@@ -38,12 +38,18 @@ def convert_media_task(self, job_id: int, process: str = None):
 
 
 def _derive_media_type(inst, path, fname):
-    """Hook `derive` de l'ingest URL (WAMA_INGEST) : renseigne media_type au téléchargement."""
-    if inst.media_type:
-        return []
-    from .utils.format_router import detect_media_type
-    inst.media_type = detect_media_type(fname) or ''
-    return ['media_type']
+    """Hook `derive` de l'ingest URL (WAMA_INGEST) : renseigne media_type au téléchargement — et,
+    la nature connue, le format AUTOMATIQUE qui en découle s'il n'y en a pas encore (la règle de
+    toutes les voies, `format_router.output_format_for`)."""
+    from .utils.format_router import detect_media_type, output_format_for
+    touched = []
+    if not inst.media_type:
+        inst.media_type = detect_media_type(fname) or ''
+        touched.append('media_type')
+    if inst.media_type and not inst.output_format:
+        inst.output_format = output_format_for(inst.user, inst.media_type)
+        touched.append('output_format')
+    return touched
 
 
 def _final_place(job):

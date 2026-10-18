@@ -7,6 +7,8 @@ app_name = 'studio'
 urlpatterns = [
     path('', views.index, name='index'),
     path('api/nodes/', views.api_nodes, name='api_nodes'),
+    # Ce que reçoit un nœud — le graphe porteur de valeurs (2026-10-18)
+    path('api/node-context/', views.api_node_context, name='api_node_context'),
     # Persistance + exécution (2026-07-11)
     path('api/pipelines/', views.api_pipelines, name='api_pipelines'),
     path('api/pipelines/<int:pk>/', views.api_pipeline_detail, name='api_pipeline_detail'),

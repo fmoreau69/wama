@@ -1689,7 +1689,10 @@ MECHANISMS = (
               "tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la "
               "PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre "
               "illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, "
-              "l'exécution d'une fonction et le moteur de vue Data",
+              "l'exécution d'une fonction et le moteur de vue Data. Depuis le 18/10 un PORTEUR "
+              "peut valoir une LISTE, lue « l'une de » par les deux juges de `show_if` (la nature "
+              "encore inconnue de ce que reçoit un nœud du Studio : les réglages de chaque nature "
+              "possible se montrent)",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),
@@ -2671,7 +2674,11 @@ MECHANISMS = (
                        # Les réglages d'un nœud sous la forme commune (R1) et les nœuds INTÉGRÉS
                        # que le Studio inscrit au registre commun (R2, ROUTE §10.6 3.3bis).
                        'wama/studio/services/node_params.py',
-                       'wama/studio/services/builtin_nodes.py')),
+                       'wama/studio/services/builtin_nodes.py',
+                       # Le GRAPHE porteur de valeurs (2026-10-18, ROUTE §10.6 3.3bis règle 5) :
+                       # ce que fournit chaque nœud, ce que reçoit un nœud — LE parcours que lit
+                       # aussi le diagnostic des liens.
+                       'wama/studio/services/graph_flow.py')),
     Mechanism('tool_api', "Surface d'outils",
               "Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas",
               'wama/tool_api.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md'),

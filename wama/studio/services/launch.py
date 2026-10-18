@@ -35,8 +35,9 @@ def diagnostiquer_chainage(graph) -> list:
     dire « jamais mesuré », jamais « libre ».
     """
     from wama.common.catalog import function_catalog as fc
-    from wama.common.catalog.function_catalog import can_connect, champs_apres
+    from wama.common.catalog.function_catalog import can_connect
     from wama.common.manifests.builtin.pipeline import node_kind, function_key
+    from wama.studio.services.graph_flow import node_flows
     from wama.studio.tasks import topo_order
 
     graph = graph or {}
@@ -52,7 +53,9 @@ def diagnostiquer_chainage(graph) -> list:
 
     constats = []
     #: `champs[nid]` : jeu de champs disponible EN SORTIE du nœud. `None` = inconnu (non mesurable).
-    champs: dict = {}
+    #: Calculé par LE parcours du graphe (`graph_flow.node_flows`, 2026-10-18) — il vivait ici,
+    #: seul ; il porte désormais aussi les types et le texte que lit l'inspecteur du Studio.
+    champs = {nid: flow['fields'] for nid, flow in node_flows(graph).items()}
     # ⚠ `topo_order` rend les NŒUDS (dicts) en ordre topologique, pas leurs identifiants
     # (`return [nodes[nid] for nid in order]`) — vérifié, pas supposé.
     for noeud in topo_order(graph):
@@ -104,23 +107,9 @@ def diagnostiquer_chainage(graph) -> list:
                                          available_fields=champs.get(l.get('from')))
                 if not ok:
                     constats.append({'lien': l, 'verdict': 'refus', 'raison': raison})
-
-        # Champs en sortie : accumulés si l'amont était connu, inconnus sinon — l'inconnu se
-        # PROPAGE, il ne se convertit pas en ensemble vide (ce qui refuserait la suite à tort).
-        # ⚠ Seule une fonction PURE rend une donnée typée : l'exécuteur range la sortie d'un
-        # app-bound en TEXTE. Ses champs sont donc inconnus, pas vides.
-        if not pure or not spec.outputs:
-            champs[nid] = None
-            continue
-        amonts = [champs.get(l.get('from')) for l in entrants]
-        avant = set()
-        for a in amonts:
-            if a is None:
-                avant = None
-                break
-            avant |= a
-        champs[nid] = None if (entrants and avant is None) else champs_apres(
-            spec.outputs[0], spec.key, avant or set())
+        # Les champs en sortie de chaque nœud — accumulés si l'amont est connu, INCONNUS sinon
+        # (l'inconnu se propage, il ne devient jamais un ensemble vide) — sont ceux du parcours
+        # commun, calculés plus haut par la même règle.
     return constats
 
 

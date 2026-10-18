@@ -148,15 +148,11 @@
             values: Object.assign({ media_type: mt }, opts || {}),
             groups: CONVERTER_APP.groups,
         });
-        // Fidélité au comportement d'avant : un type détecté propose d'emblée un format (le
-        // dropdown d'origine sélectionnait le premier de la liste). Sans cela, déposer
-        // exigerait un clic de plus — et le repli serveur (« dernier format utilisé pour ce
-        // type ») ne serait jamais atteint, puisque l'envoi est refusé côté client.
-        const sel = host.querySelector('[data-param="output_format"], #wp-panel-output_format');
-        if (sel && !sel.value) {
-            const premier = Array.from(sel.options).find(function (o) { return o.value; });
-            if (premier) sel.value = premier.value;
-        }
+        // Plus de « premier format de la liste » posé ici (2026-10-18) : le format laissé VIDE
+        // est « Automatique (selon l'entrée) », résolu par le serveur selon la nature de CHAQUE
+        // fichier — dernier format employé, sinon défaut de la nature (`format_router.
+        // output_format_for`, la règle de toutes les voies). Le pré-remplissage forçait le
+        // premier format, et le repli « dernier format employé » n'était jamais atteint.
         window.CONVERTER_DEFAUTS = readMainPanelOptions();
     }
 
@@ -177,9 +173,10 @@
     // séquentiel, consolidation `job_ids`, reload, câblage clic / survol / drop récursif /
     // sélecteur de dossier — est le contrat de la brique. L'app ne DÉCLARE que ce qui est à elle :
     //   • `beforeFile`  : le REFUS AVANT ENVOI que l'ancien `uploadFile` faisait (format non
-    //                     supporté → toast, aucun format de sortie → toast), et la détection de
-    //                     TYPE qui pilote le volet (`setMediaType` re-rend le schéma : show_if +
-    //                     liste des formats, premier format proposé d'emblée). Posée quand le
+    //                     supporté → toast ; un format de sortie absent n'est plus refusé depuis
+    //                     le 2026-10-18 : il est AUTOMATIQUE), et la détection de TYPE qui pilote
+    //                     le volet (`setMediaType` re-rend le schéma : show_if + liste des
+    //                     formats de la nature). Posée quand le
     //                     type CHANGE : un dépôt du même type que le volet ne re-rend pas — les
     //                     « défauts des prochains dépôts » que l'utilisateur vient de régler
     //                     restent en place (l'ancienne boucle re-rendait à CHAQUE dépôt, depuis
@@ -198,10 +195,7 @@
         const type = detectMediaType(file.name);
         if (!type) { WamaApp.toast(`Format non supporté : ${file.name}`, 'warning'); return false; }
         if (type !== currentMediaType) setMediaType(type);
-        if (!panelOutputFormat()) {
-            WamaApp.toast('Choisissez un format de sortie avant d\'envoyer un fichier.', 'error');
-            return false;
-        }
+        // Sans format choisi, le serveur pose le format AUTOMATIQUE de la nature : plus de refus.
         return true;
     }
 

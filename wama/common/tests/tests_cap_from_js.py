@@ -180,6 +180,51 @@ class CapFromTest(SimpleTestCase):
                 }})()""")
                 self.assertEqual(_show_if_met(cond, {'engine': value}), shown)
 
+    def test_a_carrier_holding_a_list_means_one_of_on_both_sides(self):
+        """A carrier whose value is not known yet — the nature a Studio node will receive, image OR
+        video — is a LIST (2026-10-18, `studio/services/graph_flow`): a condition holds if ONE of
+        the values satisfies it, on screen (`data-any-of` hidden field) as on the server."""
+        import json
+        from wama.common.utils.param_schema import _show_if_met
+        many = ['image', 'video']
+        cases = [({'field': 'media_type', 'equals': 'image'}, True),
+                 ({'field': 'media_type', 'equals': 'audio'}, False),
+                 ({'field': 'media_type', 'in': ['audio', 'video']}, True),
+                 ({'field': 'media_type', 'in': ['audio', 'document']}, False),
+                 ({'field': 'media_type', 'not_equals': 'image'}, True),
+                 ('media_type', True)]
+        for cond, expected in cases:
+            with self.subTest(cond=cond):
+                shown = self.v8.eval(f"""(function () {{
+                    var field = {{type: 'hidden', value: {json.dumps('|'.join(many))},
+                                  getAttribute: function (n) {{
+                                      return n === 'name' ? 'media_type' : (n === 'data-any-of' ? '1' : null); }}}};
+                    var raw = {json.dumps(cond if isinstance(cond, str) else json.dumps(cond))};
+                    var row = {{style: {{}}, getAttribute: function () {{ return raw; }}}};
+                    var box = {{addEventListener: function () {{}}, querySelectorAll: function (sel) {{
+                        return sel === '[data-show-if]' ? [row] : [field]; }}}};
+                    window.WamaParams.bindConditional(box);
+                    return row.style.display !== 'none';
+                }})()""")
+                self.assertEqual(expected, shown)
+                self.assertEqual(expected, _show_if_met(cond, {'media_type': many}))
+
+    def test_the_formats_of_an_unknown_nature_are_those_of_each_possible_one(self):
+        """The output formats of a converter node whose input may be an image OR a video: both
+        families, behind « Automatique » — « — inchangé — » only in a BATCH modal, where empty
+        means « do not touch » (`read_settings_payload`)."""
+        out = self.v8.eval("""(function () {
+            window.WAMA_OUTPUT_FORMATS = {image: ['jpg', 'png'], video: ['mp4', 'png']};
+            var p = {name: 'output_format', options_source: 'formats'};
+            var item = window.WamaParams.resolvePageOptions(p, {media_type: ['image', 'video']}, 'item');
+            var batch = window.WamaParams.resolvePageOptions(p, {media_type: 'image'}, 'batch');
+            return {values: item.map(function (o) { return o.value; }), auto: item[0].label,
+                    batchEmpty: batch[0].label};
+        })()""")
+        self.assertEqual(['', 'jpg', 'png', 'mp4'], list(out['values']))
+        self.assertIn('Automatique', out['auto'])
+        self.assertEqual('— inchangé —', out['batchEmpty'])
+
     def test_nothing_known_greys_nothing(self):
         """« auto » (no caps) or an undeclared capability: never grey on an absence of fact —
         FrWhisper's catalogue row does not carry its engine's flag yet."""

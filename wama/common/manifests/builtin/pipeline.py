@@ -72,7 +72,13 @@ class BuiltinNode:
                   sorties des nœuds amont (`{'type', 'value', 'is_text'|'is_frame'|'is_lots'}`) ;
       params      `() -> [Param]` — calculé à l'appel (une taxonomie, des formats d'export) ;
       port_label  le libellé du port : la sortie d'une source, l'entrée d'une sortie ;
-      port_types  `() -> [types]` — ce que produit une source, ce qu'accepte une sortie.
+      port_types  `() -> [types]` — ce que produit une source, ce qu'accepte une sortie ;
+      emits       source seulement, optionnel : `emits(réglages) -> {'types': [...], 'text'?}` —
+                  ce que la source FOURNIRA, lu dans ses réglages SANS la lancer (le média
+                  choisi est une image ; le texte saisi est tel texte). C'est ce que le Studio
+                  sait d'un lien avant le lancement (`studio/services/graph_flow.py`, 2026-10-18).
+                  Absent, ou rien de décidé : les `port_types` — tout ce que la source PEUT
+                  produire, donc une nature inconnue.
     """
     key: str
     role: str
@@ -84,6 +90,7 @@ class BuiltinNode:
     params: Callable = field(default=lambda: [])
     port_label: str = ''
     port_types: Callable = field(default=lambda: [])
+    emits: Optional[Callable] = None
 
     def ports(self) -> dict:
         """Les ports du nœud, sous la MÊME forme que `app_registry.studio_node_ports` et

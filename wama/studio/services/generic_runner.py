@@ -226,13 +226,32 @@ def primary_ports(app_id) -> set:
             if p.get('group') == 'travail' and kinds & set(p.get('types') or [])}
 
 
+def port_argument_name(app_id, port_id, accepted=None):
+    """L'argument de l'outil où ARRIVE le port `port_id` : celui du MÊME NOM ; à défaut, pour le
+    port de SAISIE (`prompt`, jeton de rôle), le champ que l'app DÉCLARE porter son texte source
+    (`source_text` de sa spec de détail — le texte à dire de l'avatarizer, `text_content`), la
+    déclaration que lit aussi le contexte du nœud (`graph_flow`, 2026-10-18). `None` : l'outil ne
+    le lit pas."""
+    if accepted is None:
+        from wama.tool_api import tool_arg_names
+        accepted = tool_arg_names(f'add_to_{app_id}')
+    if port_id in accepted:
+        return port_id
+    if port_id == 'prompt':
+        from wama.common.utils.detail_registry import DetailRegistry
+        field = ((DetailRegistry.get(app_id) or {}).get('spec') or {}).get('source_text')
+        if isinstance(field, str) and field in accepted:
+            return field
+    return None
+
+
 def unwired_ports(app_id) -> list:
     """Les ports du nœud que l'outil de l'app ne LIT pas encore — le portage qui reste."""
     from wama.tool_api import tool_arg_names
     accepted = tool_arg_names(f'add_to_{app_id}')
     primary = primary_ports(app_id)
     return sorted(p['id'] for p in _node_ports(app_id)
-                  if p['id'] not in primary and p['id'] not in accepted)
+                  if p['id'] not in primary and port_argument_name(app_id, p['id'], accepted) is None)
 
 
 #: Ports AFFICHÉS au nœud que l'outil de l'app ne lit pas encore — le portage qui reste, MESURÉ
@@ -246,7 +265,9 @@ UNWIRED_PORTS_BUDGET = {
     'imager': ['work_image'],
     'transcriber': ['reference_result', 'work_result'],
     'enhancer': ['work_audio'],
-    'avatarizer': ['prompt', 'work_image', 'work_object3d'],
+    # avatarizer `prompt` soldé le 2026-10-18 : le texte à dire arrive dans `text_content`, le champ
+    # que l'app déclare porter son texte source (`port_argument_name`).
+    'avatarizer': ['work_image', 'work_object3d'],
     'anonymizer': ['prompt'],
 }
 
@@ -283,7 +304,7 @@ def port_arguments(app_id, inputs) -> dict:
         if pid in unwired:
             raise ValueError(f"Nœud {app_id} : le port « {port.get('label') or pid} » est branché, "
                              f"mais l'app ne le lit pas encore (portage en cours) — débranchez-le.")
-        args[pid] = inputs[pid]
+        args[port_argument_name(app_id, pid)] = inputs[pid]
     return args
 
 
@@ -311,7 +332,10 @@ def build_generic_runner(app_id):
                                  f"ou renseignez le paramètre).")
         else:
             primary = next((inputs[k] for k in conf['input_kinds'] if inputs.get(k)), '')
-            if not primary:
+            # « L'un OU l'autre », comme pour le prompt ci-dessus : un autre port branché peut
+            # apporter l'entrée (avatarizer : l'audio OU le texte à dire — l'outil DÉRIVE son mode
+            # des entrées, et dit lui-même ce qui manque).
+            if not primary and not extra:
                 raise ValueError(f"Nœud {app_id} : aucune entrée "
                                  f"({' / '.join(conf['input_kinds'])}).")
         # Params du nœud : on écarte ceux qui ont SERVI à construire l'entrée principale, et

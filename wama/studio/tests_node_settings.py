@@ -255,7 +255,9 @@ class AProcessNodeIsTheStepOfItsCardTest(TestCase):
 
     def test_every_step_node_shows_the_settings_of_its_card_step(self):
         """Générique, aucune app nommée : pour CHAQUE process de CHAQUE pipeline d'app, les
-        réglages d'app du nœud sont exactement ceux que l'étape surveille (`watched_of`)."""
+        réglages d'app MONTRÉS par le nœud sont exactement ceux que l'étape surveille
+        (`watched_of`). Les porteurs cachés (interrupteur de l'étape, nature de l'élément) ne
+        sont pas des réglages : ils pilotent les conditions (garde ci-dessous, 2026-10-18)."""
         from wama.common.services.process_pipeline import APP_PIPELINES, _load_declarations
         from wama.common.utils.param_schema import schema_for_app
         from wama.studio.services.node_params import node_schema
@@ -267,7 +269,7 @@ class AProcessNodeIsTheStepOfItsCardTest(TestCase):
                 schema = node_schema(f'function:{pipeline.function_key(process)}')
                 if schema is None:
                     continue          # étape hors catalogue (le process « Sortie » commun)
-                shown = {p['name'] for p in schema['params']} & app_names
+                shown = {p['name'] for p in schema['params'] if p.get('type') != 'hidden'} & app_names
                 with self.subTest(step=f'{app}.{process.key}'):
                     self.assertEqual(set(pipeline.watched_of(process)) & app_names, shown)
                 measured += 1
@@ -419,7 +421,12 @@ class BuiltinNodeGateTest(SimpleTestCase):
         from wama.media_library.natures import ASSET_NATURES
         from wama.studio.services.node_params import node_schema
         field = next(p for p in node_schema('studio_output')['params'] if p['name'] == 'asset_type')
-        self.assertEqual(list(ASSET_NATURES), [c[0] for c in field['choices']])
+        # « Automatique » en tête (2026-10-18), puis les natures déclarées, chacune une fois.
+        self.assertEqual('', field['choices'][0][0])
+        self.assertEqual(list(ASSET_NATURES), [c[0] for c in field['choices'][1:]])
+        grouped = [v for _label, options in field['option_groups'] for v, _l in options]
+        self.assertCountEqual([c[0] for c in field['choices']], grouped,
+                              'le rendu (groupes) et la porte (choices) ne disent plus les mêmes valeurs')
 
     def test_every_output_type_a_studio_scenario_writes_passes_the_node_gate(self):
         """The nightly pipeline wrote the CATEGORY `audio`: refused by the common gate of node

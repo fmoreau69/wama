@@ -2362,7 +2362,7 @@
             "gif_width": "number — Sortie GIF uniquement — hauteur calculée pour garder les proportions. [64–1920] (défaut : 480)",
             "media_type": "hidden",
             "normalize": "toggle — Normaliser le volume",
-            "output_format": "select — Format de sortie (requis)",
+            "output_format": "select — Format de sortie",
             "quality": "range — Qualité d'encodage de l'image (1–100) — posée par le curseur, retouchable ici. [1–100] (défaut : 85)",
             "quality_intent": "intent — Guide les réglages d'encodage : à gauche léger et rapide (web), à droite la meilleure qualité. Les réglages fins restent modifiables. [0–100] (défaut : 50)",
             "quality_preset": "str (défaut : 'balanced')",

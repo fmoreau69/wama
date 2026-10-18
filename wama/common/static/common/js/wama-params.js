@@ -172,10 +172,16 @@
 
   // Champ porteur (ex. media_type d'un job) : invisible, mais lisible par read() et par les
   // conditions show_if {field: '<ce nom>'}. Rendu sans wrapper visible (cf. render()).
+  // Une valeur en LISTE (2026-10-18) veut dire « l'une de » : la nature encore inconnue de ce que
+  // recevra un nœud du Studio (image OU vidéo). Elle s'écrit jointe par « | », marquée
+  // `data-any-of` : les conditions la relisent en liste (`met`), le jumeau serveur aussi
+  // (`param_schema._show_if_met`).
   registerRenderer('hidden', function (p, api) {
     const v = api.value;
+    const many = Array.isArray(v);
     return '<input type="hidden" id="' + api.id + '" ' + api.idAttr +
-      ' value="' + esc(v != null ? v : '') + '">';
+      (many ? ' data-any-of="1"' : '') +
+      ' value="' + esc(many ? v.join('|') : (v != null ? v : '')) + '">';
   }, { standalone: true, noRow: true });
 
   registerRenderer('toggle', function (p, api) {
@@ -574,7 +580,7 @@
     // pour une source qui lui est PROPRE. `resolvePageOptions` rend null hors de sa famille,
     // et `optionsFor`/`selectInnerHtml` continuent alors la chaîne (option_groups, choices).
     const resolver = opts.optionsResolver
-      || function (p) { return resolvePageOptions(p, values); };
+      || function (p) { return resolvePageOptions(p, values, ctx); };
 
     const params = (schema || []).filter(function (p) {
       return !p.contexts || p.contexts.indexOf(ctx) !== -1;
@@ -931,12 +937,22 @@
   var PAGE_OPTION_SOURCES = {
     // `formats` : formats de sortie du converter par type de média — la table de conversion de
     // la plateforme (`CONVERTER_OUTPUT_FORMATS`), pas une donnée d'app. Même rendu que le
-    // resolver historique du converter (`converter.js`) : « — inchangé — » puis « .PNG ».
-    formats: function (values) {
+    // resolver historique du converter (`converter.js`) : l'option vide puis « .PNG ».
+    // L'option VIDE (2026-10-18) : « Automatique (selon l'entrée) » — le format de la nature,
+    // résolu par le serveur (`format_router.output_format_for`) au dépôt, sur un nœud du Studio,
+    // à l'« Envoyer vers » ; dans une modale de LOT elle reste « — inchangé — » (vide = ne pas
+    // toucher, la règle de `read_settings_payload`).
+    formats: function (values, p, ctx) {
       var table = global.WAMA_OUTPUT_FORMATS || {};
       var mt = (values || {}).media_type;
-      var liste = table[mt] || [];
-      if (!mt) {
+      // Une nature encore inconnue parmi plusieurs (liste, nœud du Studio) : leurs formats réunis.
+      var natures = Array.isArray(mt) ? mt : null;
+      var liste = natures ? [] : (table[mt] || []);
+      if (natures) {
+        natures.forEach(function (k) {
+          (table[k] || []).forEach(function (f) { if (liste.indexOf(f) === -1) liste.push(f); });
+        });
+      } else if (!mt) {
         // Sans media_type connu (hôte du volet rendu au CHARGEMENT, avant toute sélection) :
         // UNION des familles — même choix que le panel historique du converter (le media_type
         // varie par card inspectée, le select doit pouvoir AFFICHER la valeur de chacune ;
@@ -950,20 +966,23 @@
           });
         });
       }
-      return [{ value: '', label: '— inchangé —' }].concat(liste.map(function (f) {
+      var empty = ctx === 'batch' ? '— inchangé —' : 'Automatique (selon l’entrée)';
+      return [{ value: '', label: empty }].concat(liste.map(function (f) {
         return { value: f, label: '.' + String(f).toUpperCase() };
       }));
     },
   };
 
-  // (param, valeurs) -> options plates, ou null si la clé n'appartient pas à cette famille.
-  // Renvoyer null (et non []) est ce qui laisse l'appelant distinguer « pas ma famille » de
-  // « ma famille, mais rien à proposer » — la distinction que le select vide effaçait.
-  function resolvePageOptions(p, values) {
+  // (param, valeurs, contexte) -> options plates, ou null si la clé n'appartient pas à cette
+  // famille. Renvoyer null (et non []) est ce qui laisse l'appelant distinguer « pas ma famille »
+  // de « ma famille, mais rien à proposer » — la distinction que le select vide effaçait.
+  // `ctx` (2026-10-18) : la surface du rendu — la même valeur ne veut pas dire la même chose
+  // partout (une modale de LOT lit « vide » comme « ne pas toucher »).
+  function resolvePageOptions(p, values, ctx) {
     if (!p || !p.options_source) return null;
     var reg = global.WAMA_PAGE_OPTION_SOURCES || PAGE_OPTION_SOURCES;
     var f = reg[p.options_source];
-    return f ? f(values || {}, p) : null;
+    return f ? f(values || {}, p, ctx) : null;
   }
 
   // ── Réglages BORNÉS PAR LA CAPACITÉ DU MODÈLE choisi (`cap_from`, 2026-09-23) ─────────────
@@ -1231,6 +1250,7 @@
         if (n !== name) return;
         if (el.type === 'checkbox') val = el.checked;
         else if (el.type === 'radio') { if (el.checked) val = el.value; }
+        else if (el.getAttribute('data-any-of')) val = el.value.split('|').filter(Boolean);
         else val = el.value;
       });
       return val;
@@ -1242,8 +1262,10 @@
       try { const o = JSON.parse(raw); if (o && typeof o === 'object') return o; } catch (e) {}
       return { field: raw };   // legacy : nom de champ, condition = truthy
     }
-    function met(cond) {
-      const cur = valByName(cond.field);
+    function met(cond, value) {
+      const cur = arguments.length > 1 ? value : valByName(cond.field);
+      // Une LISTE = « l'une de » : la condition vaut si l'une des valeurs la satisfait.
+      if (Array.isArray(cur)) return cur.some(function (one) { return met(cond, one); });
       if (cond.in) return cond.in.map(String).indexOf(String(cur)) !== -1;
       if ('equals' in cond) return String(cur) === String(cond.equals);
       if ('not_equals' in cond) return String(cur) !== String(cond.not_equals);

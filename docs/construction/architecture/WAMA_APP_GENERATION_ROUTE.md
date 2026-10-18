@@ -4229,11 +4229,72 @@ n'atteignait pas toujours l'élément ; un geste enregistrait l'instantané de t
   `tests_function_catalog_scan` (balayage mémorisé). Geste nocturne **`studio.node_settings`** —
   déposer le Converter, le régler au clavier, enregistrer, recharger, lancer : l'élément porte la
   valeur. Vert sur un serveur de dev au code neuf, rouge avec le script d'avant.
-- ⏳ **Reste, nommé** : le Converter, au Studio, ne montre que 2 de ses 20 réglages — les 18 autres
-  dépendent de la nature du média (`media_type`, champ caché que la card connaît, que le nœud
-  ignore tant que son entrée n'est pas lue) : décision à prendre (déduire la nature de l'entrée
-  branchée, ou la faire choisir au nœud). Le libellé court de `ParamSpec` (arbitrage (a)) n'est pas
-  encore posé : il vient avec R4, son premier consommateur.
+- ~~⏳ **Reste, nommé** : le Converter, au Studio, ne montre que 2 de ses 20 réglages […] décision à
+  prendre (déduire la nature de l'entrée branchée, ou la faire choisir au nœud).~~ ✅ Soldé le même
+  jour par **R2bis** ci-dessous (le graphe porteur des valeurs) — « la faire choisir au nœud » était
+  exclu par `MODES_QUEUE_UX §2bis` (la machine classe, pas l'utilisateur). Le libellé court de
+  `ParamSpec` (arbitrage (a)) n'est pas encore posé : il vient avec R4, son premier consommateur.
+
+✅ **R2bis LIVRÉE le 2026-10-18 — le GRAPHE porteur des valeurs (règle 5)**. Demande de Fabien : *« ça
+doit être universel, applicable partout et parfaitement aligné sur le fonctionnement de WAMA ; ça
+m'étonne que seul le converter soit concerné »*. Diagnostic revérifié : un problème de TYPAGE DES
+ENTRÉES, commun à toutes les apps — un nœud connaissait les types que son port ACCEPTE, jamais ceux
+de ce qui lui est BRANCHÉ. Mesuré avant : Converter 1 réglage visible sur 19 ; Avatarizer 4 sur 9 (la
+voix jamais, et un lien « Texte » refusait le lancement) ; les étapes `summarize` / `diarize` /
+`coherence` cachaient leurs réglages pour toujours (leur interrupteur absent du nœud).
+- **Aucune déclaration neuve** : ce que reçoit un nœud se range dans les champs que l'app déclare
+  DÉJÀ — `source_type` / `source_text` de sa spec de détail (`detail_registry`), `ProcessSpec.toggle`
+  pour une étape, les porteurs cachés (`type='hidden'`) que lisent les conditions de sa ⚙. Seul ajout :
+  `source_text: 'text_content'` à la spec de l'avatarizer, dans la forme existante. Un `from_input`
+  envisagé d'abord aurait été un second langage pour la même donnée.
+- **Un parcours, pas deux** : `studio/services/graph_flow.node_flows` est le parcours topologique que
+  faisait seul `launch.diagnostiquer_chainage` (champs des fonctions pures, `champs_apres` : « c'est
+  CE parcours qu'on étend ») ; il porte aussi les TYPES de chaque sortie et le TEXTE d'une saisie, et
+  le diagnostic lit ses champs ici. Une source dit ce qu'elle fournira d'après ses seuls réglages
+  (`BuiltinNode.emits` : la nature du média choisi par la même règle que son exécuteur, le texte
+  saisi). `node_context` (route `studio:api_node_context`) rend ce que reçoit un nœud ; l'inspecteur
+  le pose SOUS ses réglages — conditions et listes d'options s'en déduisent, un champ fourni par un
+  lien est désactivé et dit d'où il vient ; rien ne s'enregistre (l'élément déduit les siennes à sa
+  création, comme sur une card).
+- **« Inconnu n'est pas vide »** (`launch.diagnostiquer_chainage`) : une nature pas encore connue —
+  aucun média choisi, aucun lien, un amont image OU vidéo, une étape sans élément — se porte en
+  LISTE, lue « l'une de » par les deux juges de `show_if` (`param_schema._show_if_met` et
+  `wama-params.js::met`, champ caché `data-any-of`) et par la source `formats` (formats réunis) :
+  le nœud montre les réglages de CHAQUE nature possible, chaque élément appliquera les siens.
+- **Une étape de card** : son interrupteur (`ProcessSpec.toggle`) est un porteur caché VRAI (lancer
+  l'étape, c'est l'activer) ; l'élément désigné porte ses valeurs (`graph_flow._step_carriers`,
+  l'élément d'un autre compte n'est jamais lu).
+- **Le port de saisie** arrive dans le champ que l'app déclare porter son texte source
+  (`generic_runner.port_argument_name` : le port du même nom, sinon `source_text`) — l'avatarizer
+  parle depuis un nœud « Texte » (budget `UNWIRED_PORTS_BUDGET` descendu d'un port) ; un nœud
+  « l'un OU l'autre » ne réclame plus son entrée principale quand un autre port l'apporte.
+- **Le format de sortie du converter est AUTOMATIQUE selon la nature** (décision de Fabien : *« ça
+  dépend simplement de l'entrée, il faut reproduire le fonctionnement des applications »*). Six
+  voies le décidaient de quatre façons — premier format de la liste (JS du dépôt), dernier employé
+  (repli serveur), dernier ou rien (« Envoyer vers »), refus d'un format absent (outil de
+  l'assistant, donc le Studio ; conversion rapide), aucun (import par lot). Une règle :
+  `format_router.output_format_for` — choix explicite (refusé s'il n'est pas offert) ← dernier format
+  employé pour la nature ← défaut de la nature (premier déclaré). Seul un format CHOISI se retient
+  (au dépôt comme sur un nœud). L'option vide se lit « Automatique (selon l'entrée) », « — inchangé
+  — » en modale de lot seulement (vide = ne pas toucher) ; sur la route d'un élément elle recalcule
+  le format (`read_settings_payload(empty_is_value=…)`). Des résultats de natures différentes n'ont
+  pas de format commun : le ZIP commun (`batch_views.zip_elements`) range chaque fichier dans le
+  sien — le ZIP d'un run du Studio est la passe suivante, acceptée par Fabien.
+- **Le nœud Sortie** ne fait plus CLASSER à la main : « Automatique » prend la catégorie du fichier
+  reçu et son usage par défaut (`natures.CATEGORY_DEFAULT`) ; un usage d'une autre catégorie est
+  refusé en le disant (le défaut fixe `video` rangeait une image comme une vidéo).
+- **Mesuré après** (mêmes règles que l'écran) : Converter non branché 19/19 réglages, branché sur une
+  image ou une vidéo 10/19 (ceux de sa nature) ; Avatarizer relié à « Texte » 8/9 ; les étapes
+  `transcriber.summarize` / `diarize`, `describer.summarize` montrent tous leurs réglages.
+- **Gardes** : `studio.tests_graph_flow`, `converter.tests_output_format`,
+  `tests_cap_from_js` (liste « l'une de » des deux côtés, formats d'une nature inconnue) — chacune à
+  contre-épreuve rouge, brique neutralisée en mémoire ou JS de HEAD rejoué.
+- ⏳ **Reste** : la nature qui SUIT l'amont (anonymizer, enhancer : la sortie a la nature de l'entrée ;
+  converter : celle de son format) — un amont ambigu se porte en liste d'ici là ; les deux tables
+  d'extensions recopiées (`converter/format_router.detect_media_type`, `describer/views.
+  detect_type_from_extension`) à ramener à `category_of_path` ; le grisage des modèles par les entrées
+  branchées (`WamaInputMatch`) et les colonnes d'une table branchée pour un réglage `column` (Data,
+  R4) — le parcours `node_flows` porte déjà ces champs.
 
 **3.4 Étages = sous-pipelines.** Le champ `stage` de cam_analyzer (`analyse` / `calcul`,
 `cam_analyzer.json` lignes 105 et 195) devient une STRUCTURE : deux pipelines (« analyse d'image »,

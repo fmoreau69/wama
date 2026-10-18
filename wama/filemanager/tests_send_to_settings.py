@@ -178,8 +178,11 @@ class SentConversionTest(SendToTestBase):
         return {f: getattr(job, f) for f in job.CHAMPS_OPTIONS}
 
     def _format(self):
-        from wama.converter.utils.format_router import get_output_formats
-        return next(f for f in get_output_formats('image') if f != 'png')
+        """Un format CHOISI qui n'est ni celui de la source ni le défaut de la nature : sans quoi
+        « repris du dernier dépôt » et « défaut automatique » ne se distingueraient pas."""
+        from wama.converter.utils.format_router import default_output_format, get_output_formats
+        return next(f for f in get_output_formats('image')
+                    if f not in ('png', default_output_format('image')))
 
     def test_a_file_sent_to_the_converter_gets_the_last_format_and_is_born_complete(self):
         target = self._format()
@@ -191,11 +194,16 @@ class SentConversionTest(SendToTestBase):
         self.assertEqual(self._columns(deposited), self._columns(sent))
         self.assertTrue(any(v not in (None, '') for v in self._columns(sent).values()))
 
-    def test_without_a_last_format_the_choice_is_left_but_the_job_is_still_complete(self):
+    def test_without_a_last_format_the_job_gets_the_default_of_its_nature_and_is_complete(self):
+        """Il naissait SANS format (une card à régler avant de lancer) : il reçoit désormais le
+        format AUTOMATIQUE de sa nature — jamais celui d'un autre auteur (2026-10-18)."""
+        from wama.converter.utils.format_router import default_output_format
         deposited = self._job(self.deposit('converter', 'deposited.png', _png(),
                                            {'output_format': self._format()})['id'])
         sent = self._job(self.send_to('converter', self.other, 'sent.png', _png())['id'])
-        self.assertEqual('', sent.output_format, "le format d'un autre auteur n'est pas repris")
+        self.assertEqual(default_output_format('image'), sent.output_format)
+        self.assertNotEqual(deposited.output_format, sent.output_format,
+                            "le format d'un autre auteur n'est pas repris")
         self.assertEqual(self._columns(deposited), self._columns(sent))
 
 
