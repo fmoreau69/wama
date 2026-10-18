@@ -64,7 +64,8 @@
         "function": "transcriber.transcribe",
         "id": "transcribe",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "card_model": true,
           "degree": "required",
           "eta": "transcriber.workers:transcribe_eta",
@@ -87,7 +88,8 @@
         "function": "transcriber.import",
         "id": "import",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "gpu": false,
           "label": "Import",
@@ -102,7 +104,8 @@
         "function": "transcriber.align",
         "id": "align",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "optional",
           "eta": "transcriber.workers:align_eta",
           "gpu": true,
@@ -116,7 +119,8 @@
         "function": "transcriber.diarize",
         "id": "diarize",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "optional",
           "eta": "transcriber.workers:diarize_eta",
           "gpu": true,
@@ -134,7 +138,8 @@
         "function": "transcriber.summarize",
         "id": "summarize",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "optional",
           "eta": "transcriber.workers:summarize_eta",
           "gpu": true,
@@ -152,7 +157,8 @@
         "function": "transcriber.coherence",
         "id": "coherence",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "optional",
           "eta": "transcriber.workers:coherence_eta",
           "gpu": true,

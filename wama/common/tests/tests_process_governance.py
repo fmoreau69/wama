@@ -316,8 +316,8 @@ class TheDrawDecidesWhoHoldsTheCardTest(_Base):
         specs = {s['key']: s for s in process_specs(PIPELINE.manifest())}
         self.assertTrue(specs['transcribe']['card_model'])
         self.assertFalse(specs['summarize']['card_model'])
-        params = {n['id']: n['params'] for n in PIPELINE.graph()['nodes']}
-        self.assertNotIn('card_model', params['summarize'])
+        declared = {n['id']: n['process'] for n in PIPELINE.graph()['nodes']}
+        self.assertNotIn('card_model', declared['summarize'])
 
     def test_the_generator_writes_it_back(self):
         """On the generator's own case (the Writer draft), its first process declared on the
@@ -329,7 +329,7 @@ class TheDrawDecidesWhoHoldsTheCardTest(_Base):
         from wama.common.tests.tests_codegen_from_scratch import DRAFT, _calls
         pipeline, functions = declared_pipeline('writer')
         pipeline = copy.deepcopy(pipeline)
-        pipeline['body']['nodes'][0]['params']['card_model'] = True
+        pipeline['body']['nodes'][0]['process']['card_model'] = True
         with mock.patch.object(function_specs_gen, 'declared_pipeline',
                                return_value=(pipeline, functions)):
             src, reason = function_specs_gen.render_function_specs(

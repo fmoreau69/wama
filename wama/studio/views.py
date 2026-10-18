@@ -27,16 +27,34 @@ def api_nodes(request):
     accès. ⚠ (précisé le 2026-09-15 → WAMA_APP_GENERATION_ROUTE.md §10.6 5.4) : les pipelines
     SAUVEGARDÉS n'y figurent pas (ils passent par `api_pipelines`) ; cible = un « Catalogue » en
     sections qui les inclut.
+
+    RÉGLAGES servis avec le catalogue (`schemas`, ROUTE §10.6 3.3bis, R2 — 2026-10-18) : le schéma
+    `Param` de chaque nœud servi ici (`node_params.node_schema`), sous le MÊME filtre d'accès. Ils
+    vivaient sur une route à part (`api_run_options`, REMOVAL_LEDGER R143), arrivée 10 à 15 s
+    après le catalogue : tant qu'elle n'était pas là, un nœud sélectionné ne montrait AUCUN
+    réglage, sans rien dire — et elle servait les nœuds de toutes les apps, accès ou non.
+
+    Seul un nœud d'app EXÉCUTABLE est offert (`runners.runner_for`, la règle du lancement) : une
+    jumelle sans outil de création (`generic_runner._twin_can_create`) apparaissait à la palette,
+    sans réglages, et le lancement la refusait dès qu'on la reliait.
     """
     from wama.common.app_registry import APP_CATALOG, studio_node_ports
+    from wama.common.manifests.builtin.pipeline import builtin_nodes
+    from .services.node_params import node_schema
+    from .services.runners import runner_for
     try:
         from wama.accounts.permissions import accessible
     except Exception:
         accessible = None
-    nodes = {}
+    # Les nœuds INTÉGRÉS — cards d'entrée et de sortie — que les mondes déclarent au registre
+    # commun (R2, 2026-10-18), sous la même forme qu'un nœud d'app. La palette les écrivait en
+    # JavaScript (`BUILTINS`, avec un « Batch de prompts » que rien n'exécutait).
+    nodes = {key: {'label': b.label, 'icon': b.icon, 'color': b.color,
+                   'description': b.description, **b.ports(), 'kind': b.role}
+             for key, b in builtin_nodes().items()}
     for app_id, meta in APP_CATALOG.items():
         ports = studio_node_ports(app_id)
-        if not ports:
+        if not ports or runner_for(app_id) is None:
             continue
         if accessible and not accessible(request.user, 'app', app_id):
             continue
@@ -78,7 +96,8 @@ def api_nodes(request):
             'app': spec.app,
             'category': spec.category,
         }
-    return JsonResponse({'nodes': nodes, 'data_types': sorted(known_types())})
+    schemas = {node: schema for node in nodes if (schema := node_schema(node)) is not None}
+    return JsonResponse({'nodes': nodes, 'schemas': schemas, 'data_types': sorted(known_types())})
 
 
 _FUNCTION_ICONS = {
@@ -175,21 +194,6 @@ def api_declared_pipeline_detail(request, key):
     return JsonResponse({'key': key, 'name': m.get('name') or key, 'declared': True,
                          'description': m.get('description', ''),
                          'graph': body_to_graph(m.get('body') or {})})
-
-
-@login_required
-def api_run_options(request):
-    """Réglages de chaque nœud exécutable, sous la forme commune : `{'schemas': {nœud: {params,
-    groups}}}` — des `Param` que l'inspecteur rend par `WamaParams`, comme la modale ⚙ d'une card
-    (`services/node_params.py`, ROUTE §10.6 point 3.3bis, marche R1).
-
-    Rien n'est résolu ici : un select tiré du catalogue, des voix ou des avatars se remplit SEUL,
-    par l'endpoint commun de sa source (`OPTION_SOURCES` de `wama-params.js`), à chaque ouverture
-    — un modèle installé y entre sans redémarrage. Ce qui vivait ici le recopiait : les options du
-    catalogue résolues à chaque requête, et la galerie d'avatars (désormais
-    `avatarizer:api_avatar_gallery`, la liste même que résout `designate_named_avatar`)."""
-    from .services.node_params import offered_node_schemas
-    return JsonResponse({'schemas': offered_node_schemas()})
 
 
 @login_required

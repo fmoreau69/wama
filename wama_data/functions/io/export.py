@@ -30,7 +30,8 @@ Trois options, et pourquoi celle-ci :
 ~~Conséquence assumée : l'Exporter n'est pas chaînable dans le canvas tant que D13 n'est pas tranchée.~~
 ✅ 2026-10-11 — D13 est tranchée (un seul kind `pipeline`, `§9undecies.2`) et la forme de l'export
 précisée par Fabien (`§11.8 ⑨`) : l'Exporter est un NŒUD DE SORTIE du kind `pipeline`
-(`data_export`, `manifests/builtin/pipeline.SINK_NODES`) qui porte ses `Declaration`s. Le
+(`data_export`, inscrit au registre des nœuds intégrés par `io/nodes.py` — R2 du 2026-10-18,
+qui remplace l'ensemble `SINK_NODES`) qui porte ses `Declaration`s. Le
 raisonnement ci-dessus RESTE VRAI : ce n'est toujours pas une `FunctionSpec` (aucune catégorie
 honnête pour un puits), et la garde `PasDeDeclarationAuCatalogueTest` le tient toujours. Ce qui a
 changé, c'est qu'il a désormais un lieu : `export_lots()` ci-dessous est ce que le nœud appelle.

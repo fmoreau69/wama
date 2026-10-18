@@ -19,6 +19,9 @@ pas un type de donnée pour faire entrer un fichier média dans un port (cf. `da
 """
 from wama.common.catalog.function_catalog import (Binding, FunctionCategory as FC, FunctionSpec,
                                                   ParamSpec, PortSpec, register)
+#: Les nœuds INTÉGRÉS du Studio (texte, médiathèque, jeu de données, sortie) s'inscrivent au
+#: registre commun des nœuds à l'import de ce module déclarant (ROUTE §10.6 3.3bis, R2).
+from wama.studio.services import builtin_nodes  # noqa: E402,F401
 
 register(FunctionSpec(
     key='studio.image_to_3d',

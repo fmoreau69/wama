@@ -243,12 +243,14 @@ class PipelineManifesteTest(unittest.TestCase):
 
     def test_la_forme_canvas_du_registre_se_charge_dans_le_studio(self):
         """« UNE représentation, DEUX éditeurs » : le graphe est exactement celui que
-        `wama-studio.js` sérialise (nodes id/app/params + links from/to/to_port)."""
+        `wama-studio.js` sérialise (nodes id/app/params/process + links from/to/to_port). La
+        DÉCLARATION de la passe vit sous `process`, jamais dans `params` (D1, 2026-10-18)."""
         g = pt.pipeline_graph()
         self.assertEqual(set(g), {'nodes', 'links'})
         for n in g['nodes']:
             self.assertTrue(n['app'].startswith('function:cam_analyzer.'))
-            self.assertEqual(set(n['params']), {'stage', 'per_camera', 'gpu', 'watched', 'task'})
+            self.assertEqual(set(n['process']), {'stage', 'per_camera', 'gpu', 'watched', 'task'})
+            self.assertEqual({}, n['params'])
 
 
 class DispatchTest(unittest.TestCase):

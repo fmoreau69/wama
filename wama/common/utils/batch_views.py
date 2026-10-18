@@ -128,6 +128,33 @@ def apply_item_settings(item, data, *, params_fields=(), options_field=None, ext
 #: entrées, formats rendus — et deux s'y trompaient (l'imager oubliait ses vidéos).
 _ZIP_DECLARATIONS = {}
 
+#: L'ÉCRIVAIN DES RÉGLAGES d'un élément, par modèle d'élément — la fonction que la ⚙ de lot et la
+#: route d'élément de l'app partagent (`apply_settings`, sinon le chemin déclaratif
+#: `apply_item_settings`, plus `after_update`), inscrit par la fabrique de lot de l'APP comme le
+#: nommage des ZIP. Lu hors requête par `write_element_settings` : le Studio y écrit les réglages
+#: d'une ÉTAPE de card avant de la lancer (ROUTE §10.6 3.3bis, D2 — 2026-10-18), là où il les
+#: posait par `setattr`, sans les règles propres à l'app (facteur de l'enhancer, mode dérivé de
+#: l'avatarizer).
+_SETTINGS_WRITERS = {}
+
+
+def write_element_settings(item, data) -> list:
+    """Pose `data` sur l'élément `item` par l'écrivain de réglages DÉCLARÉ de son app — celui de sa
+    ⚙ — puis le sauve. Les valeurs sont coercées par le schéma (une chaîne de formulaire comme une
+    valeur typée) ; un champ du schéma laissé VIDE veut dire « ne pas toucher ». Rend les champs
+    écrits (`None` : l'élément entier, l'écrivain de l'app ne les nomme pas). Lève `ValueError`
+    sur un refus de l'app (rien n'est sauvé), `LookupError` si aucune fabrique n'a inscrit
+    d'écrivain pour ce modèle."""
+    writer = _SETTINGS_WRITERS.get(type(item))
+    if writer is None:
+        raise LookupError(f"aucun écrivain de réglages déclaré pour {type(item).__name__}")
+    touched = writer(item, dict(data or {}))
+    if touched is None:
+        item.save()
+    elif touched:
+        item.save(update_fields=list(touched))
+    return touched
+
 
 def _surface_of(work_model):
     """La surface du registre de détail qui DÉCLARE ce modèle — son accesseur (`surface_of`)."""
@@ -473,6 +500,40 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
                       if isinstance(p, dict) and p.get('name'))
         return read_settings_payload(request, item_schema, names, empty_is_value)
 
+    def _write_one(item, data):
+        """Pose `data` sur UN élément, sans sauver — LA règle de réglage de l'app : sa fonction
+        (`apply_settings`), sinon le chemin déclaratif, puis ses champs dérivés (`after_update`).
+        Rend les champs touchés (`None` : tous). Une `ValueError` = réglage refusé."""
+        if apply_settings is not None:
+            touched = apply_settings(item, dict(data))
+            if touched is None:
+                if after_update is not None:
+                    after_update(item)
+                return None
+            touched = list(touched)
+        else:
+            touched = apply_item_settings(item, data, params_fields=params_fields,
+                                          options_field=options_field, extra_names=extra_names)
+        if touched and after_update is not None:
+            touched = list(touched) + [f for f in (after_update(item) or ()) if f not in touched]
+        return touched
+
+    def _write_outside_request(item, data):
+        """L'écrivain inscrit pour `write_element_settings` : des valeurs venues d'ailleurs qu'un
+        formulaire (les `params` d'un nœud du Studio) passent par la MÊME lecture que la requête —
+        coercées par le schéma de l'élément, un champ du schéma laissé vide = « ne pas toucher »
+        (sauf `empty_is_value`) —, puis par `_write_one`."""
+        from wama.common.utils.param_schema import coerce_schema_values
+        item_schema = schema(item) if callable(schema) else schema
+        names = {p.get('name') for p in (item_schema or []) if isinstance(p, dict)}
+        names -= set(empty_is_value or ())
+        if item_schema:
+            data = {**data, **coerce_schema_values(item_schema, data)}
+        return _write_one(item, {k: v for k, v in data.items() if not (v == '' and k in names)})
+
+    if (caller == owner or caller.startswith(owner + '.')) and '.tests' not in caller:
+        _SETTINGS_WRITERS[work_model] = _write_outside_request
+
     def _apply_to_elements(request, b, data_for, *, skip=()):
         """Pose `data_for(élément)` sur chaque élément du lot qui ne tourne pas (hors `skip`),
         en DEUX TEMPS — poser sur tous, PUIS sauver : un réglage refusé pour un élément n'en
@@ -483,25 +544,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         for item in _members(request, b):
             if item.pk in skip or getattr(item, 'status', '') == 'RUNNING':
                 continue
-            data = data_for(item)
-            if apply_settings is not None:
-                try:
-                    touched = apply_settings(item, dict(data))
-                except ValueError as refusal:
-                    return None, JsonResponse({'error': str(refusal)}, status=400)
-                if touched is None:
-                    if after_update is not None:
-                        after_update(item)
-                    pending.append((item, None))
-                    continue
-                touched = list(touched)
-            else:
-                touched = apply_item_settings(item, data, params_fields=params_fields,
-                                              options_field=options_field,
-                                              extra_names=extra_names)
-            if touched and after_update is not None:
-                touched = list(touched) + [f for f in (after_update(item) or ()) if f not in touched]
-            if touched:
+            try:
+                touched = _write_one(item, data_for(item))
+            except ValueError as refusal:
+                return None, JsonResponse({'error': str(refusal)}, status=400)
+            if touched is None or touched:
                 pending.append((item, touched))
         for item, touched in pending:
             if touched is None:

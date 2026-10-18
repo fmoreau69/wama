@@ -14,7 +14,8 @@
         "function": "synthesizer.generate",
         "id": "generate",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "synthesizer.workers:synthesizer_eta_key_size",
           "gpu": true,
@@ -39,7 +40,8 @@
         "function": "synthesizer.output",
         "id": "output",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "gpu": false,
           "label": "Sortie",

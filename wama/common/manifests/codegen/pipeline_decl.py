@@ -74,29 +74,30 @@ def process_specs(pipeline: dict) -> list:
     """Les process du manifeste dans l'ORDRE du registre, à la forme des champs de
     `process_pipeline.ProcessSpec` : {key, function, label, depends_on, watched, degree, gpu,
     card_model, share, outputs, toggle, eta, result}. Les dépendances sont les LIENS (`from` →
-    `to`), comme à l'export."""
+    `to`), comme à l'export. La déclaration se lit dans le `process` du nœud, jamais dans ses
+    `params` — les valeurs de réglage, que l'inspecteur du Studio écrit (D1, 2026-10-18)."""
     body = (pipeline or {}).get('body') or {}
     links = body.get('links') or []
     out = []
     for node in body.get('nodes') or []:
         if node_kind(node) != 'function' or not node.get('id'):
             continue
-        params = node.get('params') or {}
+        declared = node.get('process') or {}
         out.append({
             'key': node['id'],
             'function': function_key(node),
-            'label': params.get('label', ''),
+            'label': declared.get('label', ''),
             'depends_on': [l['from'] for l in links if l.get('to') == node['id'] and l.get('from')],
-            'watched': list(params.get('watched') or []),
-            'degree': params.get('degree', 'required'),
-            'gpu': bool(params.get('gpu')),
-            'card_model': bool(params.get('card_model')),
-            'share': int(params.get('share') or 1),
-            'outputs': list(params.get('outputs') or []),
-            'toggle': params.get('toggle', ''),
-            'eta': params.get('eta', ''),
-            'result': params.get('result', ''),
-            'result_format': params.get('result_format', ''),
+            'watched': list(declared.get('watched') or []),
+            'degree': declared.get('degree', 'required'),
+            'gpu': bool(declared.get('gpu')),
+            'card_model': bool(declared.get('card_model')),
+            'share': int(declared.get('share') or 1),
+            'outputs': list(declared.get('outputs') or []),
+            'toggle': declared.get('toggle', ''),
+            'eta': declared.get('eta', ''),
+            'result': declared.get('result', ''),
+            'result_format': declared.get('result_format', ''),
         })
     return out
 

@@ -14,7 +14,8 @@
         "function": "writer.write",
         "id": "write",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "gpu": true,
           "label": "Rédaction",
@@ -32,7 +33,8 @@
         "function": "writer.layout",
         "id": "layout",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "gpu": true,
           "label": "Mise en forme",

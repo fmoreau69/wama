@@ -22,58 +22,12 @@
     var apps = {};
     var savedPipelines = [], declaredPipelines = [];   // la section « Pipelines » du catalogue
 
-    // Nœuds-SOURCE intégrés (pas des apps) : produisent une sortie typée, sans entrée.
-    // 1er maillon de la chaîne vidéo : un batch de prompts → port prompt de l'Imager.
-    var BUILTINS = {
-        text_input: {
-            label: 'Texte', icon: 'fas fa-keyboard', color: '#f7c46c',
-            description: "Source : un texte / prompt saisi dans les paramètres du nœud (inspecteur).",
-            inputs: [], output: { label: 'Texte', types: ['prompt'] }, builtin: true,
-        },
-        prompt_batch: {
-            label: 'Batch de prompts', icon: 'fas fa-list-ul', color: '#c4a7fb',
-            description: "Source : une liste de prompts à envoyer à une app génératrice (ex. Imager vidéo).",
-            inputs: [], output: { label: 'Prompts', types: ['prompt'] }, builtin: true,
-        },
-        media_import: {
-            label: 'Médias importés', icon: 'fas fa-photo-film', color: '#6ee7a8',
-            description: "Source : vos médias existants (image/vidéo/audio) injectés dans le pipeline.",
-            inputs: [], output: { label: 'Médias', types: ['image', 'video', 'audio'] }, builtin: true,
-        },
-        studio_output: {
-            label: 'Sortie', icon: 'fas fa-flag-checkered', color: '#e78fb3',
-            description: "Range le résultat final dans la MÉDIATHÈQUE (nom + type configurables dans l'inspecteur).",
-            inputs: [{ label: 'Média final', types: ['image', 'video', 'audio', 'document', 'dataset', '3d'], group: 'travail' }],
-            output: false, builtin: true,
-        },
-        // Monde Data (2026-10-11) : le CONNECTOR branche une base déjà constituée (.wdat, .trip…)
-        // sans la copier ; l'EXPORTER est un nœud de sortie qui porte ses déclarations. Un
-        // pipeline qui ne contient qu'eux est valide (export sans traitement).
-        data_connector: {
-            label: 'Base connectée', icon: 'fas fa-database', color: '#9ad0ec',
-            description: "Source : une base déjà constituée (.wdat, .trip…) ou un dossier de bases, branché SANS copie.",
-            inputs: [], output: { label: 'Bases', types: ['dataset'] }, builtin: true,
-        },
-        data_export: {
-            label: 'Export de données', icon: 'fas fa-file-export', color: '#e78fb3',
-            description: "Écrit les tables déclarées (colonnes ordonnées, identité, format) dans le dossier choisi, ou à côté des données.",
-            inputs: [{ label: 'Bases', types: ['dataset'], group: 'travail' }],
-            output: false, builtin: true,
-        },
-    };
-    // Nœud-source « Jeu de données » (D13) : ses types de sortie sont LA taxonomie Data servie
-    // par /studio/api/nodes/ (`data_types`) — jamais recopiée ici. Posé à la réception.
-    function installDatasetSource(dataTypes) {
-        if (!dataTypes || !dataTypes.length) return;
-        BUILTINS.dataset_input = {
-            label: 'Jeu de données', icon: 'fas fa-table', color: '#9ad0ec',
-            description: "Source : un fichier tabulaire (CSV) de la médiathèque lu comme donnée TYPÉE (type choisi dans l'inspecteur) → entrée d'un nœud fonction.",
-            inputs: [], output: { label: 'Données', types: dataTypes }, builtin: true,
-        };
-        // La Sortie accepte aussi une donnée typée (écrite en CSV, rangée en document).
-        var sink = BUILTINS.studio_output.inputs[0];
-        dataTypes.forEach(function (t) { if (sink.types.indexOf(t) === -1) sink.types.push(t); });
-    }
+    // Les nœuds INTÉGRÉS (cards d'entrée et de sortie) arrivent avec le catalogue
+    // (`/studio/api/nodes/`, `kind` = 'source' | 'sink'), déclarés par leur monde au registre
+    // commun (ROUTE §10.6 3.3bis, R2 — 2026-10-18). Ce fichier les écrivait (`BUILTINS`), avec
+    // un « Batch de prompts » que le serveur ne savait pas exécuter, et recopiait la taxonomie
+    // des types de donnée dans le jeu de données et la sortie.
+    function isBuiltin(a) { return a && (a.kind === 'source' || a.kind === 'sink'); }
 
     // (Les apps de montage / mixage-mastering restent en ROADMAP — voir STUDIO_VISION.md — et ne sont
     //  PAS exposées ici tant qu'elles ne sont pas réellement développées.)
@@ -229,17 +183,19 @@
     function renderPalette() {
         if (!paletteList) return;
         paletteList.innerHTML = '';
-        var sources = Object.keys(BUILTINS).filter(function (id) { return BUILTINS[id].output !== false; });
-        var sinks = Object.keys(BUILTINS).filter(function (id) { return BUILTINS[id].output === false; });
-        var appIds = Object.keys(apps).filter(function (id) { return apps[id].kind !== 'function'; });
+        var sources = Object.keys(apps).filter(function (id) { return apps[id].kind === 'source'; });
+        var sinks = Object.keys(apps).filter(function (id) { return apps[id].kind === 'sink'; });
+        var appIds = Object.keys(apps).filter(function (id) {
+            return apps[id].kind !== 'function' && !isBuiltin(apps[id]);
+        });
         var fnIds = Object.keys(apps).filter(function (id) { return apps[id].kind === 'function'; });
 
         var inputs = paletteSection('inputs', 'Entrées');
-        sources.forEach(function (id) { inputs.appendChild(paletteItem(id, BUILTINS[id])); });
+        sources.forEach(function (id) { inputs.appendChild(paletteItem(id, apps[id])); });
         paletteList.appendChild(inputs);
 
         var outputs = paletteSection('outputs', 'Sorties');
-        sinks.forEach(function (id) { outputs.appendChild(paletteItem(id, BUILTINS[id])); });
+        sinks.forEach(function (id) { outputs.appendChild(paletteItem(id, apps[id])); });
         paletteList.appendChild(outputs);
 
         var pipes = savedPipelines.map(function (p) {
@@ -339,7 +295,7 @@
     // ── Nœud ─────────────────────────────────────────────────────────────
     function addNode(appId, opts) {
         opts = opts || {};
-        var a = apps[appId] || BUILTINS[appId];
+        var a = apps[appId];
         if (!a) return null;
         if (hint) hint.style.display = 'none';
         var id = opts.id || ('n' + (++seq));
@@ -351,6 +307,9 @@
         var node = { id: id, app: appId, params: opts.params || {},
                      x: (opts.x != null) ? opts.x : (40 - view.x) / view.k + stack,
                      y: (opts.y != null) ? opts.y : (40 - view.y) / view.k + stack };
+        // La DÉCLARATION du process d'un pipeline déclaré (`process`, ROUTE §10.6 3.2) voyage avec
+        // le nœud, à part de ses réglages : le canvas la garde telle quelle, ne l'édite jamais.
+        if (opts.process) node.process = opts.process;
 
         var box = el('div', 'studio-node' + (a.planned ? ' is-planned' : ''));
         box.style.left = node.x + 'px';
@@ -519,13 +478,14 @@
     }
 
     // ── Inspecteur (volet droit, généré par WamaDetails) ──────────────────
-    function metaOf(node) { return apps[node.app] || BUILTINS[node.app] || {}; }
+    function metaOf(node) { return apps[node.app] || {}; }
     function countLinks(nodeId, side) {
         return links.filter(function (l) { return nodeOf(l[side].dot) === nodeId; }).length;
     }
     function typeBadge(a) {
         if (a.planned) return '<span class="badge bg-warning text-dark">à venir</span>';
-        if (a.builtin) return '<span class="badge bg-success">source</span>';
+        if (a.kind === 'source') return '<span class="badge bg-success">entrée</span>';
+        if (a.kind === 'sink') return '<span class="badge bg-success">sortie</span>';
         if (a.kind === 'function') return '<span class="badge bg-info text-dark">fonction · ' + (a.binding || 'pure') + '</span>';
         return '<span class="badge bg-primary">app</span>';
     }
@@ -607,14 +567,28 @@
     // 10-12), qui faisait d'un curseur un champ texte et d'un interrupteur un select Oui/Non, et
     // perdait conditions, groupes, aides et bornes — retiré. Contexte `item` : un nœud est un
     // élément, comme celui que règle la modale ⚙.
-    var nodeSchemas = {};   // nœud -> {params, groups}, servi par /studio/api/run-options/
+    // Les schémas arrivent AVEC le catalogue (`/studio/api/nodes/`, clé `schemas` — R2,
+    // 2026-10-18) : une route à part arrivait 10 à 15 s plus tard, et d'ici là l'inspecteur ne
+    // montrait rien, sans dire pourquoi. Il dit désormais toujours où il en est
+    // (`settingsState`) : en chargement, catalogue indisponible, ou nœud sans réglage.
+    var nodeSchemas = {};   // nœud -> {params, groups}
+    var settingsState = 'loading';   // 'loading' | 'ready' | 'error'
 
     function mountNodeSettings(body, node) {
         var schema = nodeSchemas[node.app];
-        if (!schema || !schema.params || !schema.params.length) return;
         var wrap = el('div', 'studio-node-params mt-2 pt-2 border-top border-secondary');
         wrap.appendChild(el('div', 'small text-white-50 mb-1',
             '<i class="fas fa-sliders-h me-1"></i>Paramètres d’exécution'));
+        if (!schema || !schema.params || !schema.params.length) {
+            var said = settingsState === 'loading'
+                ? '<span class="text-white-50 small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement des réglages…</span>'
+                : settingsState === 'error'
+                    ? '<span class="text-danger small">Réglages indisponibles : le catalogue des nœuds n’a pas pu être chargé.</span>'
+                    : '<span class="text-white-50 small">Ce nœud n’a pas de réglage.</span>';
+            wrap.appendChild(el('div', 'studio-node-params-state', said));
+            body.appendChild(wrap);
+            return;
+        }
         if (!global.WamaParams) {
             // JAMAIS muet : un inspecteur sans réglages ne dirait pas pourquoi.
             wrap.appendChild(el('div', 'text-danger small',
@@ -631,14 +605,29 @@
         // Le graphe n'enregistre que les DÉCISIONS de l'utilisateur (`isGesture`) : la recharge
         // des options d'un select émet aussi un `change`, qui n'est pas un réglage — l'enregistrer
         // remplirait l'historique d'annulation de crans vides à chaque ouverture de l'inspecteur.
-        // Les valeurs lues COMPLÈTENT les `params` du nœud, elles ne les remplacent pas : un nœud
-        // d'un pipeline déclaré y porte aussi la déclaration de son process (`degree`, `watched`,
-        // `label`, `outputs`… — `process_pipeline.AppPipeline.graph`, lue par les générateurs), et
-        // un réglage que ce contexte ne rend pas garde sa valeur. Le rendu d'avant R1 écrivait clé
-        // par clé ; R1 remplaçait le tout et effaçait les deux au premier geste (relevé le 2026-10-13).
+        // Le nœud n'enregistre que les réglages DÉCIDÉS — celui que le geste vient de toucher —,
+        // jamais l'instantané de tous les champs rendus (ROUTE §10.6 3.3bis, R2, 2026-10-18) :
+        // un instantané figeait les DÉFAUTS de l'app au premier geste (un modèle par défaut, un
+        // « auto » qui changent ensuite ne s'appliquaient plus jamais à ce nœud). Ce qui n'est pas
+        // décidé reste à la cascade de l'app, comme dans la modale ⚙ d'une card. Les autres clés
+        // des `params` sont gardées : un réglage déjà décidé, et — jusqu'à ce que la déclaration du
+        // process ait sa propre clé — celle d'un pipeline déclaré (`degree`, `watched`…, relevé le
+        // 2026-10-13). La ligne du réglage (`data-param-row`) nomme ce qui a été touché, y compris
+        // pour un champ composé (le curseur d'intention écrit un champ caché du même nom).
+        function decidedName(e) {
+            var target = e.target;
+            var row = target && target.closest ? target.closest('[data-param-row]') : null;
+            if (row) return row.getAttribute('data-param-row');
+            return target && target.getAttribute
+                ? (target.getAttribute('name') || target.getAttribute('data-param')) : null;
+        }
         function sync(e) {
             if (!WamaParams.isGesture(e)) return;
-            node.params = Object.assign({}, node.params || {}, WamaParams.read(host));
+            var name = decidedName(e);
+            var values = WamaParams.read(host);
+            if (!name || !(name in values)) return;
+            node.params = Object.assign({}, node.params || {});
+            node.params[name] = values[name];
             // `true` = saisie : la rafale coalesce, sinon « bonjour » coûterait 7 crans.
             persistDraft(e.type === 'input');
         }
@@ -650,7 +639,9 @@
     function serializeGraph() {
         return {
             nodes: nodes.map(function (n) {
-                return { id: n.id, app: n.app, x: n.x, y: n.y, params: n.params || {} };
+                var out = { id: n.id, app: n.app, x: n.x, y: n.y, params: n.params || {} };
+                if (n.process) out.process = n.process;
+                return out;
             }),
             links: links.map(function (l) {
                 return { from: nodeOf(l.from.dot), to: nodeOf(l.to.dot),
@@ -1115,20 +1106,28 @@
         updateInspector();
 
         fetch('/studio/api/nodes/')
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
             .then(function (d) {
                 apps = d.nodes || {};
-                installDatasetSource(d.data_types);
+                // Les réglages AVANT la palette et le brouillon : un nœud restauré et sélectionné
+                // doit trouver son schéma.
+                nodeSchemas = d.schemas || {};
+                settingsState = 'ready';
                 renderPalette();
                 restoreDraft();   // le graphe en cours survit à la navigation (2026-07-15)
+                if (selected) updateInspector();   // un nœud ouvert avant l'arrivée du catalogue
             })
-            .catch(function () { paletteList.innerHTML = '<span class="text-danger">Catalogue indisponible.</span>'; });
+            .catch(function (err) {
+                settingsState = 'error';
+                paletteList.innerHTML = '<span class="text-danger">Catalogue indisponible.</span>';
+                if (selected) updateInspector();
+                if (global.console && console.error) console.error('[WamaStudio] catalogue', err);
+            });
 
         // Persistance + exécution (2026-07-11)
-        api('/studio/api/run-options/').then(function (d) {
-            nodeSchemas = d.schemas || {};
-            if (selected) updateInspector();   // un nœud ouvert avant l'arrivée des schémas
-        })['catch'](function () {});
         refreshPipelineList();
         var saveBtn = document.getElementById('studioSaveBtn');
         if (saveBtn) saveBtn.addEventListener('click', savePipeline);

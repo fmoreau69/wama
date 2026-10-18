@@ -163,10 +163,25 @@ class CatalogueSelectsReachTheNodeTest(TestCase):
         self.assertEqual('auto', values[0])
         self.assertTrue({'enhancer:BSRGANx4', self.SWIN2SR} <= set(values), values)
 
-    def test_the_run_options_view_serves_the_schemas(self):
+    def test_the_catalogue_serves_the_schemas_of_the_nodes_it_offers(self):
+        """The settings travel WITH the catalogue (R2, 2026-10-18): one request, the same access
+        filter — every offered node that has settings carries its schema, and nothing else does."""
         from django.urls import reverse
         self.client.force_login(self._user())
-        schemas = self.client.get(reverse('studio:api_run_options')).json()['schemas']
+        data = self.client.get(reverse('studio:api_nodes')).json()
+        schemas = data['schemas']
         entry = next(p for p in schemas['enhancer']['params'] if p['name'] == 'ai_model')
         self.assertEqual('catalog', entry['options_source'])
         self.assertTrue(schemas['anonymizer']['groups'], "the app's groups travel with its schema")
+        from wama.studio.services.node_params import builtin_node_ids
+        self.assertEqual([], sorted(set(schemas) - set(data['nodes']) - set(builtin_node_ids())),
+                         'schemas served for nodes the catalogue does not offer')
+        self.assertEqual([], sorted(n for n in data['nodes'] if not n.startswith('function:')
+                                    and n not in schemas),
+                         'app nodes offered without settings')
+
+    def test_the_separate_settings_route_is_gone(self):
+        """REMOVAL_LEDGER R143: it arrived 10 to 15 s after the catalogue and ignored access."""
+        from django.urls import NoReverseMatch, reverse
+        with self.assertRaises(NoReverseMatch):
+            reverse('studio:api_run_options')

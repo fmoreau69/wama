@@ -130,7 +130,7 @@ def launch_graph(user, graph, *, pipeline_id=None):
     Validation AVANT dispatch (contrat historique d'`api_run`, aligné sur le code le 2026-09-15) :
       - graphe non vide et ACYCLIQUE (`topo_order`) ;
       - tout nœud CONNECTÉ doit être exécutable (app du runner générique, fonction du
-        catalogue, source Texte/Médiathèque/Jeu de données, ou sortie `studio_output`) ;
+        catalogue, ou nœud intégré — card d'entrée ou de sortie — du registre commun) ;
       - au moins un nœud app OU fonction exécutable dans le graphe — OU une entrée reliée à une
         sortie : ✅ depuis le 2026-10-11, un pipeline SANS process (entrée → sortie, export seul)
         est accepté, comme le modèle du 2026-09-15 le veut (WAMA_APP_GENERATION_ROUTE.md §10.6
@@ -140,8 +140,8 @@ def launch_graph(user, graph, *, pipeline_id=None):
     from wama.studio.models import StudioRun
     from wama.studio.services.runners import runner_for
     from wama.studio.services.generic_runner import GENERIC_APPS
-    from wama.studio.tasks import run_pipeline_task, topo_order, SOURCE_HANDLERS
-    from wama.common.manifests.builtin.pipeline import node_kind, function_key
+    from wama.studio.tasks import run_pipeline_task, topo_order
+    from wama.common.manifests.builtin.pipeline import builtin_nodes, function_key, node_kind
     from wama.common.catalog import function_catalog as fc
 
     graph = graph or {}
@@ -159,12 +159,18 @@ def launch_graph(user, graph, *, pipeline_id=None):
         # D13 : un nœud fonction est exécutable ssi sa clé est au catalogue.
         return node_kind(n) == 'function' and fc.get(function_key(n)) is not None
 
+    # Les nœuds INTÉGRÉS (cards d'entrée et de sortie) sont ceux que les mondes déclarent au
+    # registre commun (R2, 2026-10-18) : exécutabilité ET libellés du refus s'y lisent — la
+    # liste « Texte/Médiathèque/… » était recopiée ici.
+    builtins = builtin_nodes()
+    sources = {key for key, b in builtins.items() if b.role == 'source'}
+
     def _executable(n):
         app = n['app']
-        return (runner_for(app) is not None or app in SOURCE_HANDLERS
-                or node_kind(n) == 'sink' or _is_function(n))
+        return runner_for(app) is not None or app in builtins or _is_function(n)
 
     runnable = ', '.join(sorted(GENERIC_APPS.keys()))
+    builtin_labels = '/'.join(b.label for b in builtins.values())
     for n in nodes:
         # Un nœud non exécutable ne peut être CONNECTÉ ni en amont ni en aval : il ne
         # produira aucune sortie et ne peut rien consommer (validation AVANT dispatch).
@@ -172,14 +178,13 @@ def launch_graph(user, graph, *, pipeline_id=None):
                 l['to'] == n['id'] or l['from'] == n['id'] for l in links):
             return None, (f"Nœud « {n['app']} » : non exécutable dans un pipeline "
                           f"(apps : {runnable} + fonctions du catalogue + nœuds "
-                          f"Texte/Médiathèque/Jeu de données/Base connectée/Sortie/"
-                          f"Export de données).")
+                          f"{builtin_labels}).")
     # Un pipeline SANS process est valide s'il relie une ENTRÉE à une SORTIE — l'export sans
     # traitement (« je connecte une base et j'en extrais les tables », ROUTE §10.6 3.6, §11 #35 ;
     # forme précisée par Fabien le 2026-09-15). Ce qui reste refusé : un graphe qui ne ferait RIEN.
     by_id = {n['id']: n for n in nodes}
     feeds_a_sink = any(node_kind(by_id.get(l['to'], {})) == 'sink'
-                       and by_id.get(l['from'], {}).get('app') in SOURCE_HANDLERS for l in links)
+                       and by_id.get(l['from'], {}).get('app') in sources for l in links)
     if not (any(runner_for(n['app']) or _is_function(n) for n in nodes) or feeds_a_sink):
         return None, (f'Rien à exécuter : aucun nœud-app ni nœud fonction, et aucune entrée '
                       f'reliée à une sortie (apps : {runnable}).')

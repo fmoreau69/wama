@@ -29,7 +29,8 @@
         "function": "composer.extract_score",
         "id": "extract_score",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "composer.tasks:extract_score_eta",
           "gpu": true,
@@ -48,7 +49,8 @@
         "function": "composer.plan",
         "id": "plan",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "composer.tasks:plan_eta",
           "gpu": true,
@@ -71,7 +73,8 @@
         "function": "composer.render",
         "id": "render",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "composer.tasks:render_eta",
           "gpu": true,
@@ -99,7 +102,8 @@
         "function": "composer.output",
         "id": "output",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "gpu": false,
           "label": "Sortie",
@@ -115,7 +119,8 @@
         "function": "composer.parts",
         "id": "parts",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "optional",
           "eta": "composer.tasks:parts_eta",
           "gpu": true,

@@ -459,9 +459,19 @@ def champs_apres(sortie: PortSpec, cle_fonction: str, champs_avant=()) -> set:
 #: Modules qu'une app peut exposer pour déclarer ses fonctions. Convention, pas configuration.
 MODULES_DECLARANTS = ('functions', 'function_specs')
 
+#: Les apps installées déjà balayées par `load_all` — le balayage n'est refait que si elles
+#: changent. Mesuré le 2026-10-18 : appelé une fois par nœud fonction (142 fois pour servir les
+#: réglages du Studio), il relançait à chaque appel la RECHERCHE des modules déclarants absents
+#: — le cas normal, qu'`import_module` ne met pas en cache — : 9 697 `stat` sur `/mnt/d`, 7,9 s
+#: sur les 8,6 s de la route. Un module trouvé, lui, était déjà servi par `sys.modules`.
+_SCANNED_APPS = None
 
-def load_all():
+
+def load_all(rescan: bool = False):
     """Force l'import des fonctions du catalogue (idempotent) — utile hors cycle Django ready().
+
+    `rescan=True` refait le balayage même pour les mêmes apps : l'actualisation du registre
+    `functions` en a besoin pour trouver un module déclarant CRÉÉ pendant que le serveur tourne.
 
     ⚠ Le registre ne connaît PAS ses producteurs. Il citait auparavant `wama.common.data` et
     `wama_lab.cam_analyzer` **en dur** : le substrat nommait deux mondes, donc ajouter un monde
@@ -470,8 +480,11 @@ def load_all():
     la même leçon de registre keyé qu'ailleurs dans WAMA.
 
     En cycle Django normal, chaque app le fait déjà dans son `ready()` ; cette fonction sert aux
-    scripts et aux commandes qui lisent le catalogue hors de ce cycle. Les imports sont idempotents.
+    scripts et aux commandes qui lisent le catalogue hors de ce cycle. Les imports sont idempotents ;
+    le BALAYAGE l'est aussi depuis le 2026-10-18 (`_SCANNED_APPS`) : il n'est refait que si les
+    apps installées changent.
     """
+    global _SCANNED_APPS
     import importlib
     try:
         from django.apps import apps as django_apps
@@ -483,6 +496,8 @@ def load_all():
         logging.getLogger(__name__).debug(
             'registre Django indisponible — catalogue rendu en l’état')
         return FUNCTION_CATALOG
+    if _SCANNED_APPS == tuple(noms) and not rescan:
+        return FUNCTION_CATALOG
     for nom in noms:
         for module in MODULES_DECLARANTS:
             try:
@@ -493,4 +508,5 @@ def load_all():
                 import logging
                 logging.getLogger(__name__).warning(
                     'fonctions de %s.%s non enregistrées', nom, module, exc_info=True)
+    _SCANNED_APPS = tuple(noms)
     return FUNCTION_CATALOG

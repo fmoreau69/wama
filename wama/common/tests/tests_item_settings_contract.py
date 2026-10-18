@@ -286,3 +286,39 @@ class BatchSettingsFollowTheItemRouteTest(TestCase):
                 view = resolve(reverse(route, args=[1])).func
                 self.assertEqual('wama.common.utils.batch_views', view.__module__,
                                  f'{app}: `{view.__name__}` is written in the app')
+
+
+# ── Hors requête : l'écrivain de la ⚙, lu par le Studio (2026-10-18) ─────────────────────────
+
+class OutsideTheRequestTheSettingsFollowTheItemRouteTest(TestCase):
+    """`batch_views.write_element_settings` pose des réglages sur un élément HORS requête — le Studio
+    y écrit ceux d'une ÉTAPE de card avant de la lancer (ROUTE §10.6 3.3bis, D2). Il doit écrire
+    ce que la route d'élément écrit, pour chaque app, aucune nommée : c'est le même écrivain, celui
+    que la fabrique de lot a reçu de l'app."""
+
+    _login_for = ItemSettingsRouteContractTest._login_for
+
+    def test_every_measured_app_has_a_declared_writer(self):
+        from wama.common.utils.batch_views import _SETTINGS_WRITERS
+        missing = sorted(app for app, model, _s in _surfaces() if model not in _SETTINGS_WRITERS)
+        self.assertEqual([], missing, 'apps dont la fabrique n’a inscrit aucun écrivain')
+
+    def test_the_writer_writes_what_the_item_route_writes(self):
+        from wama.common.utils.batch_views import write_element_settings
+        measured = []
+        for app, model, schema in _surfaces():
+            for name, values in _writable_fields(model, schema) + _numeric_fields(model, schema):
+                user = self._login_for(app)
+                by_route, by_writer = _instance(model, user), _instance(model, user)
+                value = next((v for v in values if v != model._meta.get_field(name).get_default()),
+                             None)
+                if value is None:
+                    continue
+                self.client.post(reverse(f'{app}:update_settings', args=[by_route.pk]),
+                                 {name: _posted(value)})
+                write_element_settings(by_writer, {name: _posted(value)})   # une CHAÎNE, comme un nœud
+                with self.subTest(app=app, setting=name):
+                    self.assertEqual(_settings_of(by_route, model, schema),
+                                     _settings_of(by_writer, model, schema))
+                measured.append(app)
+        self.assertGreaterEqual(len(set(measured)), 8, sorted(set(measured)))

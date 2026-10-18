@@ -94,8 +94,11 @@ class WritingAPipelineDownTest(SimpleTestCase):
         self.assertEqual(['function:demo_pipeline.plan', 'function:demo_pipeline.render'],
                          [node['app'] for node in graph['nodes']])
         self.assertEqual([{'from': 'plan', 'to': 'render', 'to_port': None}], graph['links'])
-        self.assertEqual(['prompt', 'duration'], graph['nodes'][1]['params']['watched'])
+        # The DECLARATION travels under `process`; `params` (the user's values) stays empty (D1).
+        self.assertEqual(['prompt', 'duration'], graph['nodes'][1]['process']['watched'])
+        self.assertEqual({}, graph['nodes'][1]['params'])
         body = graph_to_body(graph)
+        self.assertEqual(graph['nodes'][1]['process'], body['nodes'][1]['process'])
         self.assertEqual([], validate_pipeline_body(body))
         self.assertEqual(['demo_pipeline.plan', 'demo_pipeline.render'],
                          [node['function'] for node in body['nodes']])
@@ -926,8 +929,8 @@ class InputsThePipelineBringsTest(SimpleTestCase):
         self.assertEqual({'work_audio'}, pipeline.covering_inputs('work_audio'))
 
     def test_availability_never_reaches_the_manifest(self):
-        params = [node['params'] for node in self._pipeline().graph()['nodes']]
-        self.assertTrue(all('available' not in p for p in params), params)
+        declared = [node['process'] for node in self._pipeline().graph()['nodes']]
+        self.assertTrue(all('available' not in p for p in declared), declared)
 
 
 class EveryAppPipelineTest(SimpleTestCase):

@@ -157,7 +157,9 @@ def _refresh_functions() -> RefreshResult:
                     disparus += 1
                     continue
                 importlib.reload(mod)
-        load_all()
+        # `rescan` : le balayage est mémorisé depuis le 2026-10-18 ; sans lui, un module
+        # déclarant créé à chaud ne serait plus cherché.
+        load_all(rescan=True)
     except Exception:
         FUNCTION_CATALOG.clear()
         FUNCTION_CATALOG.update(avant)
@@ -196,6 +198,62 @@ register(Registry(
     doc='docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md',
     description="Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les "
                 "fonctions ajoutées pendant que le serveur tourne, sans redémarrage.",
+))
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# NŒUDS INTÉGRÉS DU PIPELINE — cards d'entrée et de sortie, déclarées par leur monde (R2)
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+
+def _refresh_pipeline_nodes() -> RefreshResult:
+    """Re-déclare les nœuds intégrés en RECHARGEANT les modules qui les ont inscrits (lus sur le
+    registre lui-même : le module de l'exécuteur de chaque nœud), puis en rebalayant les modules
+    déclarants — un monde qui inscrit un nœud depuis un module créé à chaud est ainsi trouvé.
+    Même séquence que les fonctions : instantané, purge, rechargement, restauration sur échec."""
+    import importlib
+    import sys
+    from .catalog.function_catalog import load_all
+    from .manifests.builtin.pipeline import BUILTIN_NODES
+    importlib.invalidate_caches()
+    before = dict(BUILTIN_NODES)
+    modules = sorted({node.run.__module__ for node in before.values()})
+    BUILTIN_NODES.clear()
+    try:
+        for name in modules:
+            if name in sys.modules:
+                importlib.reload(sys.modules[name])
+        load_all(rescan=True)
+    except Exception:
+        BUILTIN_NODES.clear()
+        BUILTIN_NODES.update(before)
+        raise
+    after = dict(BUILTIN_NODES)
+    return RefreshResult(ok=True, added=len(set(after) - set(before)),
+                         removed=len(set(before) - set(after)),
+                         updated=len(set(after) & set(before)), total=len(after),
+                         messages=(f"{len(modules)} module(s) déclarant(s) rechargé(s)",))
+
+
+def _entries_pipeline_nodes() -> dict:
+    from .manifests.builtin.pipeline import builtin_nodes
+    return builtin_nodes()
+
+
+register(Registry(
+    key='pipeline_nodes', label='Nœuds intégrés du pipeline', nature=REDECLARATION,
+    source="le module déclarant de chaque monde — le Studio (texte, médiathèque, jeu de données, "
+           "sortie), `wama_data` (base connectée, export)…",
+    refresh=_refresh_pipeline_nodes, count=lambda: len(_entries_pipeline_nodes()),
+    # Pas de page catalogue à soi (`url_name`) : la palette du Studio les montre.
+    entries=_entries_pipeline_nodes, manifest_kind='pipeline',
+    # Déclarés par le code des mondes : système (ROADMAP §29). Un nœud créé par un utilisateur
+    # serait `to_carry`, au budget du test de provenance.
+    provenance=SYSTEM,
+    doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
+    description="Les cards d'ENTRÉE et de SORTIE d'un pipeline (ni l'une ni l'autre n'est un "
+                "process), chacune déclarée UNE fois par son monde : rôle, libellé, ports, réglages "
+                "`Param` et exécuteur. La palette du Studio, son inspecteur, la validation au "
+                "lancement et l'exécuteur les lisent ici (ROUTE §10.6 3.3bis, R2).",
 ))
 
 

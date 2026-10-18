@@ -357,6 +357,7 @@ def add_to_enhancer(
     ai_model: str = 'RealESR_Gx4',
     denoise: bool = False,
     blend_factor: float = 0.0,
+    **params,
 ) -> dict:
     """
     Register a file for enhancement and create the Enhancement DB entry.
@@ -367,6 +368,11 @@ def add_to_enhancer(
         ai_model:     Upscaling model (default: 'RealESR_Gx4')
         denoise:      Apply denoising before upscaling (default: False)
         blend_factor: 0.0 = full AI, 1.0 = original (default: 0.0)
+        **params:     Tout autre réglage DÉCLARÉ au schéma (`enhancer/params.py`) et porté par le
+                      modèle — `upscale_factor`, `quality_intent`, `output_format`… Appliqués via
+                      `schema_model_kwargs()`, comme les sept autres créateurs : un nœud du Studio
+                      les affichait et ils n'atteignaient pas l'élément (mesuré le 2026-10-18).
+                      `media_type` reste DÉTECTÉ du fichier.
 
     Returns:
         {"enhancement_id": int, "name": str, "media_type": str, "status": "pending"}
@@ -405,6 +411,8 @@ def add_to_enhancer(
             denoise=bool(denoise),
             blend_factor=blend_factor,
             status='PENDING',
+            **{k: v for k, v in schema_model_kwargs('enhancer', params).items()
+               if k != 'media_type'},
         )
         received.record(enhancement, 'input_file')
 
@@ -614,7 +622,8 @@ def compose_music(
                   ('composer:musicgen-small', 'huggingface:m-a-p/YuE2-3B'…), a bare
                   composer id ('musicgen-small'), or a group auto
                   ('auto:text-to-music', 'auto:text-to-audio')
-        duration: Duration in seconds (1–30, default 10)
+        duration: Duration in seconds (default 10) — bounded by the app schema and capped by
+                  what the chosen model declares it can produce (MusicGen: 30 s)
         work_score: Path (from find_user_files) of the SCORE of a song to cover — ABC, MIDI
                   or MusicXML (port `work_score`); only for a model that declares it (YuE2)
         work_audio: Path (from find_user_files) of the AUDIO of a song to cover — its melody
@@ -658,7 +667,11 @@ def compose_music(
             return {'error': str(e)}
 
     model = normalize(model)
-    duration = max(1.0, min(30.0, float(duration)))
+    # Bornée par le SCHÉMA et plafonnée par la capacité DÉCLARÉE du modèle (`clamp_duration`, la
+    # règle du curseur et de la tâche). Un `min(30.0, …)` écrit ici réduisait à 30 s toute durée
+    # demandée par l'assistant ou un nœud du Studio, quel que soit le modèle (mesuré le 2026-10-18).
+    from wama.composer.utils.model_config import clamp_duration
+    duration = float(clamp_duration(duration, model))
     generation_type = _type_of(model)
 
     from wama.composer.models import ComposerGeneration
@@ -881,6 +894,7 @@ def add_to_reader(
     mode: str = 'auto',
     output_format: str = 'txt',
     language: str = '',
+    **params,
 ) -> dict:
     """
     Copy a file into the reader queue and create a ReadingItem DB entry.
@@ -893,6 +907,9 @@ def add_to_reader(
         mode:          'auto' | 'printed' | 'handwritten'
         output_format: 'txt' | 'markdown'
         language:      Language code (fr, en…) or empty for auto-detection
+        **params:      Tout autre réglage DÉCLARÉ au schéma (`reader/params.py`) et porté par le
+                       modèle — `llm_model`, `format_markdown`, `generate_analysis`… Appliqués via
+                       `schema_model_kwargs()`, comme les autres créateurs (2026-10-18).
 
     Returns:
         {"item_id": int, "filename": str, "page_count": int, "status": "PENDING"}
@@ -922,6 +939,7 @@ def add_to_reader(
             output_format=output_format,
             language=language or '',
             status='PENDING',
+            **schema_model_kwargs('reader', params),
         )
         received.record(item, 'input_file')
 
@@ -1388,6 +1406,10 @@ def read_web_page(user, url: str, max_chars: int = 8000) -> dict:
 # Avatarizer tools
 # ===========================================================================
 
+#: Ce que `add_to_avatarizer` DÉRIVE des entrées : un réglage du schéma du même nom ne l'écrase pas.
+_AVATAR_DERIVED = ('mode', 'avatar_source')
+
+
 def add_to_avatarizer(
     user,
     mode: str = 'pipeline',
@@ -1402,6 +1424,7 @@ def add_to_avatarizer(
     quality_mode: str = 'fast',
     use_enhancer: bool = False,
     bbox_shift: int = 0,
+    **params,
 ) -> dict:
     """
     Crée un job de génération d'avatar parlant (vidéo) en attente.
@@ -1422,6 +1445,10 @@ def add_to_avatarizer(
         quality_mode:        'fast' (MuseTalk seul) | 'quality' (MuseTalk + CodeFormer)
         use_enhancer:        Appliquer l'enhancer facial (défaut: False)
         bbox_shift:          Décalage de la bbox -10..10 (défaut: 0)
+        **params:            Tout autre réglage DÉCLARÉ au schéma (`avatarizer/params.py`) et porté
+                             par le modèle — `quality_intent`, `animation_model`… Appliqués via
+                             `schema_model_kwargs()`, comme les autres créateurs (2026-10-18).
+                             `mode` et la source de l'avatar restent DÉRIVÉS des entrées.
 
     Returns:
         {"job_id": int, "mode": str, "status": "pending"}
@@ -1485,6 +1512,9 @@ def add_to_avatarizer(
         job.bbox_shift = max(-10, min(10, int(bbox_shift)))
     except (ValueError, TypeError):
         job.bbox_shift = 0
+    for name, value in schema_model_kwargs('avatarizer', params).items():
+        if name not in _AVATAR_DERIVED:
+            setattr(job, name, value)
 
     try:
         job.save()

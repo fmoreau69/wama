@@ -19,7 +19,8 @@
         "function": "avatarizer.speak",
         "id": "speak",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "avatarizer.workers:speak_eta_key_size",
           "gpu": true,
@@ -41,7 +42,8 @@
         "function": "avatarizer.animate",
         "id": "animate",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "avatarizer.workers:avatarizer_eta_key_size",
           "gpu": true,
@@ -65,7 +67,8 @@
         "function": "avatarizer.enhance",
         "id": "enhance",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "avatarizer.workers:enhance_eta_key_size",
           "gpu": true,

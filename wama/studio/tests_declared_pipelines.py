@@ -15,7 +15,7 @@ from wama.common.manifests.builtin.pipeline import body_to_graph, graph_to_body,
 class BodyToGraphTest(SimpleTestCase):
     BODY = {
         'nodes': [{'id': 'a', 'kind': 'function', 'app': None, 'function': 'cam_analyzer.extraction',
-                   'params': {'stage': 'analyse'}},
+                   'params': {'sigma': 2}, 'process': {'stage': 'analyse'}},
                   {'id': 'b', 'kind': 'app', 'app': 'transcriber', 'params': {}},
                   {'id': 'c', 'kind': 'sink', 'app': 'studio_output', 'params': {}}],
         'links': [{'from': 'a', 'to': 'b', 'to_port': 'travail'},
@@ -26,6 +26,9 @@ class BodyToGraphTest(SimpleTestCase):
     def test_the_canvas_form_translates_back_to_the_same_manifest(self):
         g = body_to_graph(self.BODY)
         self.assertEqual(g['nodes'][0]['app'], 'function:cam_analyzer.extraction')
+        self.assertEqual(({'sigma': 2}, {'stage': 'analyse'}),
+                         (g['nodes'][0]['params'], g['nodes'][0]['process']))   # deux champs (D1)
+        self.assertNotIn('process', g['nodes'][1])        # un nœud sans déclaration n'en reçoit pas
         back = graph_to_body(g)
         self.assertEqual(back['nodes'], self.BODY['nodes'])
         self.assertEqual(back['links'], self.BODY['links'])

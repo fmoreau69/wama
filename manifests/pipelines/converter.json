@@ -14,7 +14,8 @@
         "function": "converter.convert",
         "id": "convert",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "converter.tasks:convert_eta",
           "gpu": false,
@@ -51,7 +52,8 @@
         "function": "converter.enhance",
         "id": "enhance",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "converter.tasks:enhance_eta",
           "gpu": true,

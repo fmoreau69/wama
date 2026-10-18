@@ -412,14 +412,18 @@ class AppPipeline:
     def graph(self) -> dict:
         """Le registre sous la forme CANVAS du studio (`{nodes, links}`) — même forme que
         `pass_tracking.pipeline_graph` : un process = un nœud `function`, une dépendance = un
-        lien. Les `params` portent ce qui est propre au process et absent du `FunctionSpec`."""
+        lien. Le `process` du nœud porte ce qui est propre au process et absent du `FunctionSpec`
+        — sa DÉCLARATION ; ses `params` restent ses VALEURS de réglage (vides ici : un registre
+        ne décide rien pour l'utilisateur). Séparés le 2026-10-18 (ROUTE §10.6 3.2, D1) : la
+        déclaration vivait dans `params`, que l'inspecteur du Studio écrit."""
         from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
         # `label`, `outputs`, `share` exportés depuis le 2026-10-05 (session Writer) : le
         # GÉNÉRATEUR relit ce manifeste pour écrire `function_specs.py`, les colonnes de sortie et
         # la remise à zéro d'un ▶ borné — sans eux, un pipeline exporté puis régénéré perdait
         # ce que `reset_outputs` remplace. Ajout pur : un champ vide n'est pas écrit.
         nodes = [{'id': spec.key, 'app': f'{FUNCTION_NODE_PREFIX}{self.function_key(spec)}',
-                  'params': {'degree': spec.degree, 'gpu': spec.gpu,
+                  'params': {},
+                  'process': {'degree': spec.degree, 'gpu': spec.gpu,
                              'watched': list(self.watched_of(spec)),
                              **({'toggle': spec.toggle} if spec.toggle else {}),
                              # 2026-10-14 (ROADMAP §8d étape 4) : écrit seulement quand il est
@@ -780,6 +784,23 @@ def _load_declarations() -> None:
         import logging
         logging.getLogger(__name__).warning(
             "[process_pipeline] déclarations des apps non chargées", exc_info=True)
+
+
+def process_of_function(function_key: str):
+    """`(pipeline, ProcessSpec)` de l'ÉTAPE de card qu'est la fonction `function_key` — le process
+    d'un pipeline d'app que le catalogue expose comme nœud `function:<clé>` —, ou `(None, None)`
+    (fonction pure, passe du Lab, fonction d'une app à un seul process).
+
+    Une lecture, deux usages au Studio (ROUTE §10.6 3.3bis, D2, 2026-10-18) : le nœud montre les
+    réglages de la ⚙ de CETTE étape (`watched_of`), et l'exécuteur la lance comme le ▶ de l'étape
+    sur la card. Avant, le nœud montrait l'identifiant que réclame la tâche et lançait la tâche
+    ENTIÈRE de l'app."""
+    _load_declarations()
+    for pipeline in APP_PIPELINES.values():
+        for spec in pipeline.specs:
+            if pipeline.function_key(spec) == function_key:
+                return pipeline, spec
+    return None, None
 
 
 def pipeline_of(item) -> AppPipeline | None:

@@ -4,10 +4,11 @@ Studio — orchestration d'un pipeline (tâche Celery).
 Exécution : ordre TOPOLOGIQUE d'un graphe acyclique (corrigé le 2026-09-15). Chaque nœud
 `app` est traité par son runner — `studio/services/runners.py` n'est plus qu'une façade de
 `generic_runner.py` (`GENERIC_APPS`) : create → start → poll (le traitement lui-même tourne
-dans le Celery de l'app cible). Les nœuds-SOURCE `text_input`, `media_import` et
-`dataset_input` SONT exécutés, par `SOURCE_HANDLERS` (ci-dessous) ; le nœud-sortie
-`studio_output` range le résultat. (L'ancienne mention « nœuds-source non exécutables en V1 »
-et le nœud `prompt_batch`, qui n'existe pas, étaient périmés.)
+dans le Celery de l'app cible). Les nœuds INTÉGRÉS — cards d'entrée et de sortie — sont
+exécutés par ce que leur monde déclare au registre commun (`builtin_node(app).run`, R2 du
+2026-10-18 ; ils vivaient ici sous `SOURCE_HANDLERS` et des branches par nom de nœud).
+(L'ancienne mention « nœuds-source non exécutables en V1 » était périmée ; le nœud
+`prompt_batch` n'existait que dans la palette, il en est retiré avec R2.)
 
 D13 — nœud `function` (2026-09-09, `WAMA_DATA_WORLD §9undecies.2`) : le dispatch se fait
 ICI, sur le kind du nœud (`manifests.builtin.pipeline.node_kind`), jamais dans le schéma :
@@ -66,113 +67,11 @@ def _console(user_id, message, level='info'):
 from wama.common.manifests.builtin.pipeline import topo_order  # noqa: E402,F401
 
 
-# ── Nœuds SOURCE (cards d'entrée) : produisent une valeur depuis leurs params ──
-def _source_text(user, params):
-    text = (params.get('text') or '').strip()
-    if not text:
-        raise ValueError("Nœud « Texte » : renseignez le texte dans les paramètres du nœud.")
-    return 'prompt', text
-
-
-def _source_media(user, params):
-    import os
-    from django.conf import settings
-    rel = (params.get('asset_path') or '').strip().lstrip('/')
-    if rel.startswith('media/'):
-        rel = rel[len('media/'):]
-    if not rel:
-        raise ValueError("Nœud « Médiathèque » : choisissez un média dans les paramètres du nœud.")
-    if not os.path.exists(os.path.join(settings.MEDIA_ROOT, rel)):
-        raise ValueError(f"Nœud « Médiathèque » : fichier introuvable ({rel}).")
-    from wama.common.app_registry import category_of_path
-    return (params.get('asset_category') or category_of_path(rel)), rel
-
-
-def _sink_text_to_media_library(user, text, params, run_id):
-    """Variante TEXTE du nœud Sortie : écrit un .txt et le range en médiathèque (document)."""
-    import io
-    from django.core.files.base import ContentFile
-    from wama.media_library.models import UserAsset
-    base = (params.get('asset_name') or '').strip() or f"studio-run-{run_id}"
-    # Une CATÉGORIE (`'audio'`) devient sa nature par défaut ; un alias n'entre plus en base
-    # (A′, `natures.resolve_asset_type` — le puits écrivait la valeur telle quelle jusqu'au 13/09).
-    from wama.media_library.natures import resolve_asset_type
-    asset_type = resolve_asset_type(params.get('asset_type') or 'document', f"{base}.txt")
-    name, k = base, 2
-    while UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():
-        name = f"{base} ({k})"
-        k += 1
-    asset = UserAsset(user=user, name=name, asset_type=asset_type, mime_type='text/plain')
-    asset.file.save(f"{base}.txt", ContentFile(text.encode('utf-8')), save=False)
-    try:
-        asset.file_size = asset.file.size
-    except Exception:
-        pass
-    asset.save()
-    return f"médiathèque : « {name} » (texte, {len(text)} car.)"
-
-
-def _source_dataset(user, params):
-    """Nœud « Jeu de données » : un fichier tabulaire (CSV) de la médiathèque → `TypedFrame`
-    du `data_type` choisi. C'est la CARD D'ENTRÉE de `WAMA_DATA_FUNCTION_CARDS §5` (source +
-    type déclaré → port typé), pas un contournement du pivot taxonomique (marche B) : le type
-    est DIT par l'utilisateur, jamais deviné d'une extension."""
-    import os
-    from django.conf import settings
-    from wama.common.catalog.data_types import DataType, TypedFrame, normalize_type
-    rel = (params.get('asset_path') or '').strip().lstrip('/')
-    if rel.startswith('media/'):
-        rel = rel[len('media/'):]
-    if not rel:
-        raise ValueError("Nœud « Jeu de données » : choisissez un fichier dans les paramètres du nœud.")
-    path = os.path.join(settings.MEDIA_ROOT, rel)
-    if not os.path.exists(path):
-        raise ValueError(f"Nœud « Jeu de données » : fichier introuvable ({rel}).")
-    dtype = normalize_type((params.get('data_type') or DataType.TABLE).strip())
-    from wama.common.catalog.data_types import known_types      # accesseur unique (2026-09-16)
-    connus = known_types()
-    if dtype not in connus:
-        raise ValueError(f"Nœud « Jeu de données » : type '{dtype}' inconnu de la taxonomie.")
-    import pandas as pd
-    try:
-        df = pd.read_csv(path, sep=None, engine='python')
-    except Exception as exc:
-        raise ValueError(f"Nœud « Jeu de données » : lecture impossible ({exc}).")
-    return dtype, TypedFrame(df, dtype, meta={'source': rel})
-
-
-def _readable_path(user, params, key, label):
-    """Un chemin du gestionnaire de fichiers (relatif à MEDIA_ROOT, ou `mounts/<id>/…` pour un
-    dossier connecté), LISIBLE par cet utilisateur — par la garde commune, jamais une seconde."""
-    from wama.filemanager.services import resoudre_chemin_lisible
-    raw = (params.get(key) or '').strip()
-    if not raw:
-        raise ValueError(f"Nœud « {label} » : renseignez le chemin dans les paramètres du nœud.")
-    path, error = resoudre_chemin_lisible(user, raw)
-    if error:
-        raise ValueError(f"Nœud « {label} » : {error[0]} ({raw}).")
-    return path
-
-
-def _source_connector(user, params):
-    """Nœud « Base connectée » (Connector, `WAMA_DATA_WORLD §11.5`) : une base déjà constituée
-    (`.wdat`, `.trip`…) ou un dossier de bases, branché SANS copie. Rend des LOTS
-    (`wama_data/functions/io/connector.ConnectedLot`) dont rien n'est encore lu : c'est le
-    consommateur qui demande ses flux."""
-    from wama_data.functions.io.connector import connect
-    path = _readable_path(user, params, 'path', 'Base connectée')
-    try:
-        return 'dataset', connect(path)
-    except ValueError as exc:
-        raise ValueError(f"Nœud « Base connectée » : {exc}")
-
-
-SOURCE_HANDLERS = {
-    'text_input': _source_text,
-    'media_import': _source_media,
-    'dataset_input': _source_dataset,
-    'data_connector': _source_connector,
-}
+# Les nœuds INTÉGRÉS (cards d'entrée et de sortie) et leurs exécuteurs sont déclarés par
+# leur monde au registre commun (`manifests/builtin/pipeline.builtin_nodes`, ROUTE §10.6
+# 3.3bis, R2 — 2026-10-18) : `studio/services/builtin_nodes.py` pour le texte, la
+# médiathèque, le jeu de données et la sortie, `wama_data/functions/io/nodes.py` pour la
+# base connectée et l'export. Ils vivaient ici (`SOURCE_HANDLERS`, branches par nom).
 
 
 def _is_lot_list(value) -> bool:
@@ -184,38 +83,6 @@ def _is_lot_list(value) -> bool:
 def _lots_summary(lots) -> str:
     return f"{len(lots)} base(s) connectée(s) : " + ', '.join(lot.summary() for lot in lots[:5]) \
         + (' …' if len(lots) > 5 else '')
-
-
-def _sink_data_export(user, lots, params):
-    """Nœud « Export de données » (Exporter en NŒUD DE SORTIE, `WAMA_DATA_WORLD §11.8 ⑨`) : ses
-    `Declaration`s appliquées aux bases reçues. Destination : le dossier CHOISI, sinon celui d'où
-    viennent les données (règle de Fabien, §11.1) — jamais le dépôt."""
-    import json
-    from pathlib import Path
-    from wama_data.functions.io.export import export_lots, grouping_from_dict
-    label = 'Export de données'
-    raw = params.get('declarations') or []
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw) if raw.strip() else []
-        except ValueError as exc:
-            raise ValueError(f"Nœud « {label} » : déclarations illisibles (JSON attendu) — {exc}")
-    if isinstance(raw, dict):
-        raw = [raw]
-    if params.get('destination'):
-        folder = _readable_path(user, params, 'destination', label)
-        if not Path(folder).is_dir():
-            raise ValueError(f"Nœud « {label} » : la destination doit être un dossier ({folder}).")
-    else:
-        folder = lots[0].home
-    grouping = grouping_from_dict({'lots': params.get('concat_lots'),
-                                   'declarations': params.get('concat_declarations')})
-    try:
-        written = export_lots(raw, lots, folder, grouping=grouping,
-                              overwrite=str(params.get('overwrite') or '') in ('1', 'true', 'True'))
-    except (ValueError, FileExistsError) as exc:
-        raise ValueError(f"Nœud « {label} » : {exc}")
-    return f"{len(written)} fichier(s) dans « {folder} » : " + ', '.join(p.name for p in written)
 
 
 # ── Nœud FONCTION (D13) ──────────────────────────────────────────────────────
@@ -342,59 +209,76 @@ def _run_app_function(spec, params: dict, save_state, deadline_s: float, inputs:
     return async_result.result
 
 
-# ── Nœud de SORTIE (card de sortie) : range le résultat final ──
-def _sink_frame_to_media_library(user, frame, params, run_id):
-    """Variante DONNÉES du nœud Sortie : un `TypedFrame` (sortie d'un nœud fonction) écrit
-    en CSV et rangé en médiathèque (`document`) — la même porte que le texte."""
-    from django.core.files.base import ContentFile
-    from wama.media_library.models import UserAsset
-    base = (params.get('asset_name') or '').strip() or f"studio-run-{run_id}-{frame.data_type}"
-    from wama.media_library.natures import resolve_asset_type
-    asset_type = resolve_asset_type(params.get('asset_type') or 'document', f"{base}.csv")
-    name, k = base, 2
-    while UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():
-        name = f"{base} ({k})"
-        k += 1
-    asset = UserAsset(user=user, name=name, asset_type=asset_type, mime_type='text/csv')
-    csv = frame.df.to_csv(index=False)
-    asset.file.save(f"{base}.csv", ContentFile(csv.encode('utf-8')), save=False)
-    try:
-        asset.file_size = asset.file.size
-    except Exception:
-        pass
-    asset.save()
-    return f"médiathèque : « {name} » ({frame.data_type}, {len(frame.df)} ligne(s))"
+def _run_app_process(pipeline, process, spec, params: dict, user, save_state, deadline_s: float):
+    """Une ÉTAPE de card lancée depuis le Studio, comme le ▶ de l'étape sur la card (D2,
+    2026-10-18) : l'élément désigné reçoit d'abord les réglages DÉCIDÉS au nœud — ceux de la ⚙ de
+    l'étape (`watched_of`), posés par l'écrivain de réglages de l'app, celui de sa ⚙ —, puis l'étape part
+    par `start_<app>(id, process=…)` (`process_views.start_one_process` : l'étape, précédée des
+    seuls amonts périmés) ; on attend sa tâche, puis la sortie de l'élément se lit comme celle
+    d'un nœud d'app (`runner['poll']`).
 
-
-def _sink_media_library(user, value, params):
-    """Copie la sortie dans la MÉDIATHÈQUE (UserAsset) — fichier DUPLIQUÉ (la sortie
-    d'app reste dans sa file ; l'asset est autonome, supprimable indépendamment)."""
-    import os
-    from django.conf import settings
-    from django.core.files import File
-    from wama.common.utils.mime_utils import guess_mime_type
-    from wama.media_library.models import UserAsset
-    src_abs = os.path.join(settings.MEDIA_ROOT, value)
-    if not os.path.exists(src_abs):
-        raise ValueError(f"Nœud « Sortie » : fichier à ranger introuvable ({value}).")
-    # Catégorie → nature (A′) ; l'extension du fichier rangé départage dans la catégorie.
-    from wama.media_library.natures import resolve_asset_type
-    asset_type = resolve_asset_type(params.get('asset_type') or 'video', os.path.basename(value))
-    base = (params.get('asset_name') or '').strip() or os.path.splitext(os.path.basename(value))[0]
-    name, k = base, 2
-    while UserAsset.objects.filter(user=user, name=name, asset_type=asset_type).exists():
-        name = f"{base} ({k})"
-        k += 1
-    asset = UserAsset(user=user, name=name, asset_type=asset_type,
-                      mime_type=guess_mime_type(value) or '')
-    with open(src_abs, 'rb') as fh:
-        asset.file.save(os.path.basename(value), File(fh), save=False)
+    Avant, le nœud lançait la tâche ENTIÈRE de l'app et ne savait rien des réglages de l'étape.
+    Rend `{'output', 'is_text', 'type'}`."""
+    from celery.result import AsyncResult
+    from django.http import Http404
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.scoping import editable_or_404
+    from wama.studio.services.runners import runner_for
+    from wama.tool_api import execute_tool, primary_arg_name
+    app = pipeline.app
+    step = process.label or process.key
+    required = app_function_job_kwargs(spec.impl)
+    if len(required) != 1:
+        raise ValueError(f"{spec.key} : la tâche `{spec.impl}` n'est pas désignée par UN élément "
+                         f"({', '.join(required) or 'aucun argument requis'}) — l'étape « {step} » "
+                         f"ne se lance pas seule.")
     try:
-        asset.file_size = asset.file.size
-    except Exception:
-        pass
-    asset.save()
-    return f"médiathèque : « {name} » ({asset_type})"
+        item_id = int(str(params.get(required[0]) or '').strip())
+    except ValueError:
+        raise ValueError(f"{spec.key} : indiquer l'élément (numéro de card) dont lancer l'étape "
+                         f"« {step} ».")
+    model = DetailRegistry.get(app)['model']
+    try:
+        item = editable_or_404(model, user, pk=item_id)
+    except Http404:
+        raise ValueError(f"{spec.key} : élément n° {item_id} introuvable, ou non modifiable par ce "
+                         f"compte.")
+    if getattr(item, 'status', '') == 'RUNNING':
+        raise ValueError(f"{spec.key} : l'élément n° {item_id} est déjà en cours.")
+    # Les réglages de la ⚙ de l'étape passent par l'ÉCRIVAIN de réglages de l'app — celui que sa
+    # route d'élément et son lot partagent (`batch_views.write_element_settings`), avec ses règles
+    # propres et ses refus : un `setattr` les contournerait.
+    from wama.common.utils.batch_views import write_element_settings
+    names = set(pipeline.watched_of(process))
+    decided = {k: v for k, v in params.items() if k in names and v not in (None, '')}
+    if decided:
+        try:
+            write_element_settings(item, decided)
+        except (LookupError, ValueError) as exc:
+            raise ValueError(f"{spec.key} : réglages refusés — {exc}")
+    tool = f'start_{app}'
+    started = execute_tool(tool, {primary_arg_name(tool): item_id, 'process': process.key}, user)
+    if not isinstance(started, dict) or started.get('error'):
+        detail = (started or {}).get('detail') or (started or {}).get('error')
+        raise ValueError(f"{spec.key} : {detail}")
+    save_state(item_id=item_id)
+    async_result = AsyncResult(started['task_id'])
+    deadline = time.time() + deadline_s
+    while not async_result.ready():
+        if time.time() > deadline:
+            raise ValueError(f"{spec.key} : délai dépassé ({int(deadline_s) // 60} min).")
+        time.sleep(POLL_INTERVAL_S)
+    if async_result.failed():
+        raise ValueError(f"{spec.key} : échec — {async_result.result}")
+    runner = runner_for(app)
+    if runner is None:
+        return {'output': str(async_result.result or ''), 'is_text': True, 'type': 'document'}
+    st = runner['poll'](user, item_id)
+    otype = runner.get('output_type')
+    if otype in (None, 'auto'):
+        from wama.common.app_registry import category_of_path
+        otype = 'document' if st.get('is_text') else category_of_path(st.get('output') or '')
+    return {'output': st.get('output') or '', 'is_text': bool(st.get('is_text')), 'type': otype}
 
 
 @shared_task(bind=True)
@@ -452,7 +336,8 @@ def run_pipeline_task(self, run_id):
         _write_line(node_id, kw)
 
     try:
-        from wama.common.manifests.builtin.pipeline import node_kind, function_key
+        from wama.common.manifests.builtin.pipeline import (builtin_node, function_key,
+                                                            node_kind)
         order = topo_order(run.graph)
         links = run.graph.get('links', [])
         outputs = {}   # node_id -> {'type': 'audio'|..., 'value': chemin MEDIA relatif | TypedFrame}
@@ -461,10 +346,12 @@ def run_pipeline_task(self, run_id):
             nid, app = node['id'], node['app']
             current['node'] = nid
 
-            # Nœud SOURCE (card d'entrée) : produit sa valeur depuis ses params.
-            if app in SOURCE_HANDLERS:
+            # Nœud INTÉGRÉ (card d'entrée ou de sortie) : son monde l'a déclaré au registre
+            # commun, avec son exécuteur (`builtin_node(app).run`, R2 du 2026-10-18).
+            builtin = builtin_node(app)
+            if builtin is not None and builtin.role == 'source':
                 _save_state(nid, status=JOB_RUNNING)
-                out_type, value = SOURCE_HANDLERS[app](user, builtin_node_values(node))
+                out_type, value = builtin.run(user, builtin_node_values(node))
                 is_frame = hasattr(value, 'df') and hasattr(value, 'data_type')
                 is_lots = _is_lot_list(value)
                 outputs[nid] = {'type': out_type, 'value': value, 'is_frame': is_frame,
@@ -473,42 +360,14 @@ def run_pipeline_task(self, run_id):
                             output=(_frame_summary(value) if is_frame
                                     else _lots_summary(value) if is_lots else value))
                 continue
-
-            # Nœud de SORTIE DATA (Exporter) : ses déclarations appliquées aux bases reçues.
-            if app == 'data_export':
+            if builtin is not None:
+                # Une card de SORTIE range ce qu'elle reçoit de l'amont (médiathèque, export…).
                 _save_state(nid, status=JOB_RUNNING)
                 incoming = [outputs[l['from']] for l in links
                             if l['to'] == nid and l['from'] in outputs]
-                lots = [lot for up in incoming if up.get('is_lots') for lot in up['value']]
-                if not lots:
-                    raise ValueError("Nœud « Export de données » : aucune base reçue (connectez "
-                                     "un nœud « Base connectée »).")
-                note = _sink_data_export(user, lots, builtin_node_values(node))
+                note = builtin.run(user, incoming, builtin_node_values(node), run.pk)
                 _save_state(nid, status=JOB_SUCCESS, output=note)
-                _console(user.id, f"Studio run #{run.pk} : export écrit — {note}")
-                continue
-
-            # Nœud de SORTIE (card de sortie) : range la valeur reçue de l'amont.
-            if app == 'studio_output':
-                _save_state(nid, status=JOB_RUNNING)
-                incoming = [outputs[l['from']] for l in links
-                            if l['to'] == nid and l['from'] in outputs]
-                if not incoming:
-                    raise ValueError("Nœud « Sortie » : aucune entrée reçue (connectez un nœud amont).")
-                if incoming[0].get('is_lots'):
-                    raise ValueError("Nœud « Sortie » : une base connectée ne se range pas en "
-                                     "médiathèque — passez par un nœud « Export de données ».")
-                sink_params = builtin_node_values(node)
-                if incoming[0].get('is_frame'):
-                    note = _sink_frame_to_media_library(user, incoming[0]['value'],
-                                                        sink_params, run.pk)
-                elif incoming[0].get('is_text'):
-                    note = _sink_text_to_media_library(user, incoming[0]['value'],
-                                                       sink_params, run.pk)
-                else:
-                    note = _sink_media_library(user, incoming[0]['value'], sink_params)
-                _save_state(nid, status=JOB_SUCCESS, output=note)
-                _console(user.id, f"Studio run #{run.pk} : sortie rangée — {note}")
+                _console(user.id, f"Studio run #{run.pk} : « {builtin.label} » — {note}")
                 continue
 
             # Nœud FONCTION (D13) : dispatch sur le kind, ICI et nulle part ailleurs.
@@ -585,6 +444,20 @@ def run_pipeline_task(self, run_id):
                             port = ports_connus[0] if ports_connus else None
                         if port:
                             fichiers[port] = up['value']
+                    # Une ÉTAPE de card (process d'un pipeline d'app) se lance comme le ▶ de
+                    # l'étape sur la card, réglages de sa ⚙ écrits d'abord (D2, 2026-10-18).
+                    from wama.common.services.process_pipeline import process_of_function
+                    pipeline, process = process_of_function(key)
+                    if process is not None:
+                        done = _run_app_process(pipeline, process, spec,
+                                                dict(node.get('params') or {}), user,
+                                                lambda **kw: _save_state(nid, **kw), NODE_TIMEOUT_S)
+                        outputs[nid] = {'type': done['type'], 'value': done['output'],
+                                        'is_text': done['is_text']}
+                        _save_state(nid, status=JOB_SUCCESS, progress=100,
+                                    output=str(done['output'])[:2000])
+                        _console(user.id, f"Studio run #{run.pk} : étape {key} ✔")
+                        continue
                     # Les réglages DÉCLARÉS de la fonction passent par sa porte (types, bornes,
                     # refus nommés) ; les autres — arguments de la tâche, comme `session_id` —
                     # restent tels quels : c'est la signature de la tâche qui les juge.

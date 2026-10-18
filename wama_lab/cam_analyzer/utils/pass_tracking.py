@@ -179,16 +179,18 @@ def pipeline_graph(stage: str = None) -> dict:
     """Le registre sous la forme CANVAS du Studio (`{nodes, links}`) : une passe = un nœud
     `function` (clé du catalogue), une dépendance = un lien. C'est la forme que `graph_to_body`
     traduit en manifeste et que le Studio sait charger (« UNE représentation, DEUX éditeurs »,
-    `WAMA_DATA_WORLD §9undecies`). Les `params` d'un nœud portent ce qui est propre à la passe
+    `WAMA_DATA_WORLD §9undecies`). Le `process` d'un nœud porte ce qui est propre à la passe
     et n'existe pas dans le `FunctionSpec` : étage, par-caméra, GPU, paramètres surveillés.
     `stage` restreint à un ÉTAGE (sous-pipeline, ROUTE §10.6 3.4) : ses passes et ses seuls
     liens internes — les amonts de l'autre étage sont ses ENTRÉES, pas des nœuds."""
     from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
     kept = [p for p in PASSES if stage is None or p.stage == stage]
     keys = {p.key for p in kept}
-    nodes = [{'id': p.key, 'app': f'{FUNCTION_NODE_PREFIX}{p.function_key}',
-              'params': {'stage': p.stage, 'per_camera': p.per_camera, 'gpu': p.gpu,
-                         'watched': list(p.watched), 'task': p.task}}
+    # La DÉCLARATION de la passe sous `process`, ses valeurs de réglage sous `params` (vides : un
+    # registre ne décide rien) — séparées le 2026-10-18 (ROUTE §10.6 3.2), comme les process d'app.
+    nodes = [{'id': p.key, 'app': f'{FUNCTION_NODE_PREFIX}{p.function_key}', 'params': {},
+              'process': {'stage': p.stage, 'per_camera': p.per_camera, 'gpu': p.gpu,
+                          'watched': list(p.watched), 'task': p.task}}
              for p in kept]
     links = [{'from': d, 'to': p.key, 'to_port': None}
              for p in kept for d in p.depends_on if d in keys]

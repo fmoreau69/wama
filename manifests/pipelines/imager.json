@@ -14,7 +14,8 @@
         "function": "imager.generate",
         "id": "generate",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "imager.tasks:generate_eta",
           "gpu": true,
@@ -46,7 +47,8 @@
         "function": "imager.output",
         "id": "output",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "gpu": false,
           "label": "Sortie",

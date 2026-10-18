@@ -13,7 +13,6 @@ urlpatterns = [
     path('api/declared-pipelines/', views.api_declared_pipelines, name='api_declared_pipelines'),
     path('api/declared-pipelines/<str:key>/', views.api_declared_pipeline_detail,
          name='api_declared_pipeline_detail'),
-    path('api/run-options/', views.api_run_options, name='api_run_options'),
     path('api/run/', views.api_run, name='api_run'),
     path('api/run/<int:pk>/', views.api_run_status, name='api_run_status'),
 ]

@@ -24,7 +24,8 @@
         "function": "reader.read",
         "id": "read",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "reader.tasks:read_eta",
           "gpu": true,
@@ -44,7 +45,8 @@
         "function": "reader.format",
         "id": "format",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "optional",
           "eta": "reader.tasks:format_eta",
           "gpu": true,
@@ -62,7 +64,8 @@
         "function": "reader.analyze",
         "id": "analyze",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "optional",
           "eta": "reader.tasks:analyze_eta",
           "gpu": true,

@@ -144,7 +144,8 @@
         "function": "cam_analyzer.extraction",
         "id": "extraction",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "analyse",
@@ -157,7 +158,8 @@
         "function": "cam_analyzer.intersection_windows",
         "id": "intersection_windows",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "analyse",
@@ -172,7 +174,8 @@
         "function": "cam_analyzer.yolo_detect",
         "id": "yolo_detect",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": true,
           "per_camera": true,
           "stage": "analyse",
@@ -189,7 +192,8 @@
         "function": "cam_analyzer.yolopv2_lanes",
         "id": "yolopv2_lanes",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": true,
           "per_camera": true,
           "stage": "analyse",
@@ -204,7 +208,8 @@
         "function": "cam_analyzer.sam3_markings",
         "id": "sam3_markings",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": true,
           "per_camera": true,
           "stage": "analyse",
@@ -221,7 +226,8 @@
         "function": "cam_analyzer.depth_analysis",
         "id": "depth",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": true,
           "per_camera": false,
           "stage": "analyse",
@@ -234,7 +240,8 @@
         "function": "cam_analyzer.ortho_recalage",
         "id": "ortho_recalage",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": true,
           "per_camera": false,
           "stage": "analyse",
@@ -247,7 +254,8 @@
         "function": "cam_analyzer.anonymize_detect",
         "id": "anonymize_detect",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": true,
           "per_camera": true,
           "stage": "analyse",
@@ -263,7 +271,8 @@
         "function": "cam_analyzer.anonymize_blur",
         "id": "anonymize_blur",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": true,
           "stage": "analyse",
@@ -276,7 +285,8 @@
         "function": "cam_analyzer.lane_events",
         "id": "lane_events",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -289,7 +299,8 @@
         "function": "cam_analyzer.temporal_segments",
         "id": "temporal_segments",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -305,7 +316,8 @@
         "function": "cam_analyzer.distance",
         "id": "distance",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -318,7 +330,8 @@
         "function": "cam_analyzer.depth_calc",
         "id": "depth_calc",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -331,7 +344,8 @@
         "function": "cam_analyzer.lane_map_recalage",
         "id": "lane_map_recalage",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -344,7 +358,8 @@
         "function": "cam_analyzer.camera_intrinsics",
         "id": "camera_intrinsics",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -357,7 +372,8 @@
         "function": "cam_analyzer.visual_yaw",
         "id": "visual_yaw",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -370,7 +386,8 @@
         "function": "cam_analyzer.ortho_correction",
         "id": "ortho_correction",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -383,7 +400,8 @@
         "function": "cam_analyzer.global_tracking",
         "id": "global_tracking",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -398,7 +416,8 @@
         "function": "cam_analyzer.indicators",
         "id": "indicators",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",
@@ -411,7 +430,8 @@
         "function": "cam_analyzer.conflicts",
         "id": "conflicts",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "gpu": false,
           "per_camera": false,
           "stage": "calcul",

@@ -106,7 +106,170 @@ def _run_pipeline_end_to_end(ctx):
         run.delete()
 
 
+#: Ce que le geste lit dans la page : les champs RENDUS de l'inspecteur, l'état dit quand il n'y en
+#: a pas, et les `params` du nœud au brouillon (`wama_studio_draft`, ce que l'enregistrement poste).
+_FIELDS_JS = """() => { const h = document.querySelector('#studioInspectorBody .studio-node-params');
+  if (!h) return {n: 0, state: null};
+  const f = [...h.querySelectorAll('input, select, textarea')].filter(e => e.type !== 'hidden');
+  const s = h.querySelector('.studio-node-params-state');
+  return {n: f.length, state: s ? s.textContent.trim() : null}; }"""
+_DRAFT_JS = """(id) => { try { const g = JSON.parse(localStorage.getItem('wama_studio_draft')).graph;
+  return (g.nodes.find(n => n.id === id) || {}).params || null; } catch (e) { return null; } }"""
+
+
+def _node_settings_gesture(ctx):
+    """Régler un nœud du Studio, de BOUT EN BOUT (ROUTE §10.6 3.3bis, R2 — 2026-10-18).
+
+    Constat live du jour même : un nœud sélectionné dans les 10 à 15 premières secondes ne montrait
+    AUCUN réglage, sans rien dire ; et un réglage montré n'atteignait pas toujours l'élément. Le
+    geste, à la souris et au clavier, sur le serveur vivant :
+      1. déposer le nœud Converter depuis le catalogue, le sélectionner — ses réglages sont LÀ ;
+      2. choisir un format de sortie au clavier (geste de confiance) — le brouillon ne garde QUE ce
+         réglage décidé, jamais l'instantané des champs rendus ;
+      3. enregistrer (requête interceptée : rien n'est écrit) — le corps posté porte la même valeur ;
+      4. recharger — le nœud la montre encore ;
+      5. lancer ce nœud dans un pipeline réel (wav témoin → Converter → médiathèque) — l'ÉLÉMENT
+         créé porte le format choisi.
+    L'ORM n'est touché qu'après la fermeture du navigateur (règle des gestes Playwright)."""
+    import json
+    from django.conf import settings
+    from django.contrib.auth import get_user_model
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.services.ui_smoke import (BASE_URL, _drop_new_sessions, _session_keys,
+                                               _test_account_id, _test_session_key)
+    from wama.common.services.ui_smoke_matching import _cookie
+    from wama.converter.utils.format_router import get_output_formats
+
+    token, uid = _test_session_key('studio'), _test_account_id('studio')
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    if not _worker_default_present():
+        raise SkipScenario('aucun worker sur la file default (converter) — pile arrêtée ?')
+    audio_formats = set(get_output_formats('audio'))
+    base, steps, faults = BASE_URL.rstrip('/'), [], []
+    before = _session_keys()
+    chosen, node_id = None, None
+    try:
+        from playwright.sync_api import sync_playwright
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            context = browser.new_context(viewport={'width': 1440, 'height': 900})
+            context.add_cookies(_cookie(token))
+            posted = []
+            context.route('**/studio/api/pipelines/', lambda r: (
+                posted.append(r.request.post_data),
+                r.fulfill(status=200, content_type='application/json',
+                          body='{"id": 0, "name": "wama-node-settings", "created": true}'))
+                if r.request.method == 'POST' else r.continue_())
+            page = context.new_page()
+            errors = []
+            page.on('pageerror', lambda e: errors.append(str(e)[:160]))
+            page.goto(base + '/studio/', wait_until='domcontentloaded')
+            page.evaluate("() => localStorage.removeItem('wama_studio_draft')")
+            page.reload(wait_until='domcontentloaded')
+            page.wait_for_selector('.studio-pal-item[draggable="true"]', timeout=60000)
+            # Une palette SANS AUCUNE app est une panne (catalogue mal lu) : jamais un saut, qui la
+            # masquerait. Seul un compte à qui le Converter n'est pas ouvert saute le geste.
+            if not page.locator('[data-section="apps"] .studio-pal-item').count():
+                browser.close()
+                return False, '1. aucune app au catalogue du Studio (palette mal lue)'
+            item = page.locator('[data-section="apps"] .studio-pal-item:has-text("Converter")').first
+            if not item.count():
+                raise SkipScenario('le Converter n’est pas offert au catalogue de ce compte')
+            item.scroll_into_view_if_needed()
+            item.drag_to(page.locator('#studioCanvas'), target_position={'x': 220, 'y': 160})
+            page.wait_for_selector('.studio-node', timeout=10000)
+            node_id = page.locator('.studio-node').first.get_attribute('data-node')
+            page.locator(f'.studio-node[data-node="{node_id}"] .studio-node-head').click(
+                position={'x': 30, 'y': 10})
+            page.wait_for_timeout(400)
+            shown = page.evaluate(_FIELDS_JS)
+            (steps if shown['n'] else faults).append(f"1. réglages à la sélection : {shown}")
+            select = page.locator('#studioInspectorBody .studio-node-params select[name="output_format"]')
+            if not select.count():
+                faults.append('2. aucun champ « format de sortie » au nœud Converter')
+            else:
+                select.focus()
+                for _ in range(40):                  # au CLAVIER : un geste, pas un remplissage
+                    if select.input_value() in audio_formats:
+                        break
+                    page.keyboard.press('ArrowDown')
+                    page.wait_for_timeout(60)
+                chosen = select.input_value()
+                page.keyboard.press('Tab')
+                page.wait_for_timeout(400)
+                draft = page.evaluate(_DRAFT_JS, node_id)
+                (steps if draft == {'output_format': chosen} else faults).append(
+                    f"2. brouillon après le geste : {draft} (choisi : {chosen!r})")
+                page.fill('#studioPipelineName', 'wama-node-settings')
+                page.click('#studioSaveBtn')
+                page.wait_for_timeout(800)
+                sent = json.loads(posted[0]) if posted else {}
+                sent_params = next((n.get('params') for n in (sent.get('graph') or {}).get('nodes', [])
+                                    if n.get('id') == node_id), None)
+                (steps if sent_params == {'output_format': chosen} else faults).append(
+                    f"3. enregistré : {sent_params}")
+                page.reload(wait_until='domcontentloaded')
+                page.wait_for_selector(f'.studio-node[data-node="{node_id}"]', timeout=60000)
+                page.locator(f'.studio-node[data-node="{node_id}"] .studio-node-head').click(
+                    position={'x': 30, 'y': 10})
+                seen = None
+                for _ in range(40):
+                    seen = page.evaluate(
+                        "() => { const e = document.querySelector('#studioInspectorBody "
+                        "select[name=\"output_format\"]'); return e ? e.value : null; }")
+                    if seen:
+                        break
+                    page.wait_for_timeout(250)
+                (steps if seen == chosen else faults).append(f"4. après rechargement : {seen!r}")
+            page.evaluate("() => localStorage.removeItem('wama_studio_draft')")
+            if errors:
+                faults.append(f'erreurs JS : {errors[:3]}')
+            browser.close()
+    finally:
+        _drop_new_sessions(before)
+    if faults or not chosen:
+        return False, ' | '.join(faults + steps)
+    # 5. Le même réglage, LANCÉ : l'élément créé par le nœud le porte.
+    from wama.converter.models import ConversionJob
+    from wama.studio.models import StudioRun
+    from wama.studio.tasks import run_pipeline_task
+    user = get_user_model().objects.get(pk=uid)
+    rel = _entree(settings.MEDIA_ROOT, user)
+    # L'entrée prend un identifiant que le canvas ne donne jamais (`n<k>`) : le nœud déposé est `n1`.
+    graph = {'nodes': [{'id': 'witness_input', 'app': 'media_import',
+                        'params': {'asset_path': rel, 'asset_category': 'audio'}},
+                       {'id': node_id, 'app': 'converter', 'params': {'output_format': chosen}}],
+             'links': [{'from': 'witness_input', 'to': node_id}]}
+    run = StudioRun.objects.create(user=user, graph=graph)
+    job = None
+    try:
+        run_pipeline_task(run.pk)
+        run.refresh_from_db()
+        job_id = ((run.node_states or {}).get(node_id) or {}).get('item_id')
+        job = ConversionJob.objects.filter(pk=job_id, user=user).first() if job_id else None
+        if job is None or job.output_format != chosen:
+            return False, (f"5. élément : {getattr(job, 'output_format', None)!r} au lieu de "
+                           f"{chosen!r} (run #{run.pk} {run.status} — "
+                           f"{(run.error_message or '')[:240]}) | " + ' | '.join(steps))
+        steps.append(f"5. élément n° {job.pk} : format {job.output_format!r}")
+        return True, ' | '.join(steps)
+    finally:
+        if job is not None:
+            try:
+                job.output_file and job.output_file.delete(save=False)
+            except Exception:
+                pass
+            job.delete()
+        run.delete()
+
+
 def register_scenarios():
+    register(id='studio.node_settings', app='studio', stage='ui',
+             description='Régler un nœud du Studio de bout en bout : réglages présents à la '
+                         'sélection, seul le réglage décidé enregistré, gardé au rechargement, '
+                         'porté par l’élément créé (Converter, CPU)',
+             run=_node_settings_gesture, timeout_s=300, vram_gb=0.0)
     register(id='studio.pipeline.converter', app='studio', stage='output',
              description='Pipeline réel media_import → converter → médiathèque '
                          '(orchestration file studio, tâche app file default)',

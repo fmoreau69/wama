@@ -2630,7 +2630,11 @@ MECHANISMS = (
               "Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app",
               'wama/studio/services/generic_runner.py', 'docs/construction/mondes/STUDIO_VISION.md',
               annexes=('wama/studio/services/launch.py',
-                       'wama/studio/services/runners.py')),
+                       'wama/studio/services/runners.py',
+                       # Les réglages d'un nœud sous la forme commune (R1) et les nœuds INTÉGRÉS
+                       # que le Studio inscrit au registre commun (R2, ROUTE §10.6 3.3bis).
+                       'wama/studio/services/node_params.py',
+                       'wama/studio/services/builtin_nodes.py')),
     Mechanism('tool_api', "Surface d'outils",
               "Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas",
               'wama/tool_api.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md'),

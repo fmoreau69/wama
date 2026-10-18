@@ -14,7 +14,8 @@
         "function": "enhancer.generate",
         "id": "generate",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "eta": "enhancer.tasks:generate_eta_key_size",
           "gpu": true,
@@ -41,7 +42,8 @@
         "function": "enhancer.output",
         "id": "output",
         "kind": "function",
-        "params": {
+        "params": {},
+        "process": {
           "degree": "required",
           "gpu": false,
           "label": "Sortie",

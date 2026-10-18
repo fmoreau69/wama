@@ -3,12 +3,20 @@ Kind `pipeline` — EXTRAIT de `StudioPipeline.graph` (graphe nommé du canvas s
 
 Kind EXTRAIT (l'objet existe en DB) → `extract(key)` + round-trip. `key` = pk du StudioPipeline (str).
 
-Le graphe brut = {"nodes":[{id,app,x,y,params}], "links":[{from,to,to_port}]}. Discipline DÉCLARATIVE
+Le graphe brut = {"nodes":[{id,app,x,y,params,process?}], "links":[{from,to,to_port}]}. Discipline DÉCLARATIVE
 (comme `model`) : on sépare le FONCTIONNEL (nodes id/kind/app/params + links) de la PRÉSENTATION (x/y du
 canvas) rangée sous `layout` — cosmétique, préservée pour régénérer le canvas mais hors du cœur du graphe.
 
-Un nœud dont `app` ∈ `SOURCE_NODES` ∪ `SINK_NODES` (ci-dessous) n'est pas une app
-mais une SOURCE/SINK (cf. studio_node_ports / GENERIC_APPS) → classé `kind` = source|sink|app|function
+DEUX champs, deux natures (2026-10-18, ROUTE §10.6 3.2 — décision D1) : `params` = les VALEURS de
+réglage du nœud, celles que l'utilisateur DÉCIDE (l'inspecteur du Studio n'écrit que là) ; `process`
+= la DÉCLARATION du process qu'un registre de code exporte (degré, réglages surveillés, sorties,
+GPU, part, étage…), relue par les générateurs (`codegen/pipeline_decl.process_specs`). Elles vivaient
+toutes deux dans `params` : un geste de l'inspecteur pouvait donc effacer la déclaration (relevé le
+2026-10-13). `process` est facultatif — un nœud posé au canvas n'en a pas.
+
+Un nœud dont `app` est un nœud INTÉGRÉ du registre `BUILTIN_NODES` (ci-dessous, R2 du
+2026-10-18 — il remplace les ensembles `SOURCE_NODES`/`SINK_NODES`) n'est pas une app mais une
+SOURCE/SINK (cf. studio_node_ports / GENERIC_APPS) → classé `kind` = source|sink|app|function
 (corrigé le 2026-09-15 : `function` existe depuis le 2026-09-09, cf. D13 ci-dessous).
 
 D13 (`WAMA_DATA_WORLD §9undecies.2`, tranchée le 2026-08-24, CODÉE le 2026-09-09) : UN seul kind
@@ -24,32 +32,106 @@ de palette) ; `node_kind()` / `function_key()` sont les DEUX seuls lecteurs de c
 
 from __future__ import annotations
 
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Callable, Optional
 
 from ..kinds import ManifestKind, register_kind
 
-#: `data_connector` / `data_export` (2026-10-11) : l'ENTRÉE Connector et la SORTIE Exporter du monde
-#: Data (`WAMA_DATA_WORLD §11.8 ⑨`, `WAMA_APP_GENERATION_ROUTE §10.6` 3.6) — une base déjà
-#: constituée (`.wdat`, `.trip`…) branchée sans copie, et un nœud de sortie qui porte ses
-#: `Declaration`s d'export. Ni l'un ni l'autre n'est un process : un pipeline qui ne contient
-#: qu'eux (« je connecte une base et j'en extrais les tables ») est valide.
-SOURCE_NODES = {'text_input', 'media_import', 'dataset_input', 'data_connector'}
-SINK_NODES = {'studio_output', 'data_export'}
 # ⏳ Type de nœud `pipeline` (un pipeline enregistré réutilisé comme nœud, sous-graphe) décidé le
 # 2026-09-15, NON implémenté — WAMA_APP_GENERATION_ROUTE.md §10.6 3.1.
 NODE_KINDS = ('source', 'sink', 'app', 'function')
 #: Préfixe d'identifiant de palette d'un nœud fonction (`app` du graphe canvas).
 FUNCTION_NODE_PREFIX = 'function:'
+#: Les deux rôles d'un nœud INTÉGRÉ : une card d'ENTRÉE (produit une valeur depuis ses réglages)
+#: ou une card de SORTIE (range ce qu'elle reçoit). Ni l'une ni l'autre n'est un process.
+BUILTIN_ROLES = ('source', 'sink')
+
+
+@dataclass(frozen=True)
+class BuiltinNode:
+    """Un nœud INTÉGRÉ du pipeline — card d'entrée ou de sortie —, déclaré UNE fois par son monde.
+
+    ROUTE §10.6 point 3.3bis, marche R2 (2026-10-18). Avant, un nœud intégré se déclarait à SIX
+    endroits qui divergeaient : la palette JS (`BUILTINS`, avec un « Batch de prompts » que le
+    serveur ne savait pas exécuter), les ensembles `SOURCE_NODES`/`SINK_NODES` d'ici, ses réglages
+    (`studio/services/node_params`), son exécuteur (`studio/tasks.SOURCE_HANDLERS` et des branches
+    par nom de nœud), et une liste de libellés recopiée dans le message de refus du lancement.
+    Désormais la palette, l'inspecteur, le lancement et l'exécuteur lisent CE registre.
+
+    Le registre ne connaît pas ses producteurs : chaque monde inscrit ses nœuds depuis son module
+    déclarant (`functions` / `function_specs`, chargé par `function_catalog.load_all`), comme ses
+    fonctions — le Studio ses entrées et sa sortie médiathèque, le monde Data sa base connectée et
+    son export.
+
+      key         identifiant de palette (`app` du graphe canvas) — une DONNÉE persistée dans les
+                  graphes enregistrés : il ne se renomme pas ;
+      role        'source' | 'sink' ;
+      label, icon, color, description   ce que lit l'utilisateur (palette, inspecteur, refus) ;
+      run         source : `run(user, réglages) -> (type, valeur)` ;
+                  sink   : `run(user, entrées, réglages, run_id) -> note` — `entrées` = les
+                  sorties des nœuds amont (`{'type', 'value', 'is_text'|'is_frame'|'is_lots'}`) ;
+      params      `() -> [Param]` — calculé à l'appel (une taxonomie, des formats d'export) ;
+      port_label  le libellé du port : la sortie d'une source, l'entrée d'une sortie ;
+      port_types  `() -> [types]` — ce que produit une source, ce qu'accepte une sortie.
+    """
+    key: str
+    role: str
+    label: str
+    icon: str
+    color: str
+    description: str
+    run: Callable
+    params: Callable = field(default=lambda: [])
+    port_label: str = ''
+    port_types: Callable = field(default=lambda: [])
+
+    def ports(self) -> dict:
+        """Les ports du nœud, sous la MÊME forme que `app_registry.studio_node_ports` et
+        `function_catalog.function_node_ports` : `{'inputs': [{id, label, group, types, multi}],
+        'output': {id, label, types} | False}` (une sortie n'a pas de port de sortie)."""
+        types = list(self.port_types() or [])
+        if self.role == 'source':
+            return {'inputs': [], 'output': {'id': 'output', 'label': self.port_label,
+                                             'types': types}}
+        return {'inputs': [{'id': 'travail', 'label': self.port_label, 'group': 'travail',
+                            'types': types, 'multi': False}],
+                'output': False}
+
+
+#: clé → `BuiltinNode`, rempli par les mondes (`register_builtin_node`).
+BUILTIN_NODES: dict = {}
+
+
+def register_builtin_node(node: BuiltinNode) -> BuiltinNode:
+    """Inscrit un nœud intégré (idempotent : une seconde inscription remplace la première)."""
+    if node.role not in BUILTIN_ROLES:
+        raise ValueError(f"nœud intégré « {node.key} » : rôle '{node.role}' invalide "
+                         f"({'|'.join(BUILTIN_ROLES)})")
+    if node.key.startswith(FUNCTION_NODE_PREFIX):
+        raise ValueError(f"nœud intégré « {node.key} » : le préfixe '{FUNCTION_NODE_PREFIX}' "
+                         f"désigne un nœud fonction")
+    BUILTIN_NODES[node.key] = node
+    return node
+
+
+def builtin_nodes() -> dict:
+    """Les nœuds intégrés de TOUS les mondes, dans l'ordre d'inscription. Charge les modules
+    déclarants s'ils ne l'ont pas encore été (`load_all`, mémorisé : coût nul ensuite)."""
+    from wama.common.catalog.function_catalog import load_all
+    load_all()
+    return BUILTIN_NODES
+
+
+def builtin_node(key: str) -> Optional[BuiltinNode]:
+    """Le nœud intégré `key`, ou None."""
+    return builtin_nodes().get(key or '')
 
 
 def _node_kind(app: str) -> str:
-    if app in SOURCE_NODES:
-        return 'source'
-    if app in SINK_NODES:
-        return 'sink'
     if (app or '').startswith(FUNCTION_NODE_PREFIX):
         return 'function'
-    return 'app'
+    builtin = builtin_node(app)
+    return builtin.role if builtin else 'app'
 
 
 def node_kind(node: dict) -> str:
@@ -96,6 +178,9 @@ def validate_pipeline_body(body: dict) -> list[str]:
             if kind == 'function' and not function_key(n):
                 errs.append(f"nodes[{nid or i}] : 'function' (clé du catalogue) manquante "
                             f"pour un nœud fonction")
+            if 'process' in n and not isinstance(n['process'], dict):
+                errs.append(f"nodes[{nid or i}] : 'process' (déclaration du process) doit être "
+                            f"un dict")
 
     links = body.get('links', [])
     if not isinstance(links, list):
@@ -130,6 +215,8 @@ def graph_to_body(graph: dict) -> dict:
                 'params': n.get('params', {}) or {}}
         if kind == 'function':
             node['function'] = function_key(n)
+        if n.get('process'):
+            node['process'] = n['process']
         nodes.append(node)
         if nid is not None and ('x' in n or 'y' in n):
             layout[str(nid)] = {'x': n.get('x'), 'y': n.get('y')}
@@ -249,8 +336,11 @@ def body_to_graph(body: dict) -> dict:
             r = rows.get(d, 0)
             rows[d] = r + 1
             pos = {'x': AUTO_LAYOUT_X0 + d * AUTO_LAYOUT_DX, 'y': AUTO_LAYOUT_Y0 + r * AUTO_LAYOUT_DY}
-        nodes.append({'id': nid, 'app': app, 'x': pos['x'], 'y': pos['y'],
-                      'params': n.get('params', {}) or {}})
+        node = {'id': nid, 'app': app, 'x': pos['x'], 'y': pos['y'],
+                'params': n.get('params', {}) or {}}
+        if n.get('process'):
+            node['process'] = n['process']
+        nodes.append(node)
     links = []
     for l in raw_links:
         to_port = l.get('to_port')
