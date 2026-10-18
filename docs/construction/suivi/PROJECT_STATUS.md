@@ -24846,3 +24846,22 @@ fichiers ; ledger sans doublon de numéro (`tests_removal_ledger`) ; suite élar
 rouge neuf de cette session (les rouges hérités — MuseTalk, MIDI, `tests_dev_ai_bridge`,
 `tests_codegen_from_scratch`, `accounts` ×12 fichiers de test, `profile.html` multi-ligne… — sont à
 d'autres chantiers).
+
+## §PALIER — 2026-10-18 (soir), « R2bis : LE GRAPHE PORTEUR DES VALEURS + FORMAT DU CONVERTER AUTOMATIQUE » — ✅ commité, non poussé — 🔴 RELANCER gunicorn + workers, Ctrl+F5 au Studio — 🔚 ZIP d'un run du Studio (passe suivante, acceptée par Fabien)
+
+Décisions de Fabien du jour : *« universel, applicable partout, parfaitement aligné sur le
+fonctionnement de WAMA »* ; *« le format doit être automatique, il dépend simplement de l'entrée —
+reproduire le fonctionnement des applications »* ; un format choisi sur un nœud devient le dernier
+employé ; le ZIP d'un run multi-fichiers, dans une passe à part.
+
+Détail, mesures et gardes : `WAMA_APP_GENERATION_ROUTE.md §10.6 3.3bis`, bloc **R2bis** (domicile
+unique — rien n'est recopié ici).
+
+**Partition** : la session « Portage apps media » (naissance des éléments sur
+`user_settings.new_element_settings`) attendait ce commit pour toucher `converter/views.py`,
+`filemanager/views.py` et `tool_api.py` ; elle lira `format_router.output_format_for` (le format
+par nature reste une règle de l'app, à côté de la cascade commune).
+
+**Restes nommés** (dans R2bis) : nature qui suit l'amont (anonymizer, enhancer, converter) ; deux
+tables d'extensions recopiées à ramener à `category_of_path` ; `WamaInputMatch` au Studio ; colonnes
+d'une table branchée pour un réglage `column` (R4) ; ZIP d'un run du Studio.
