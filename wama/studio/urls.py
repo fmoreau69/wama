@@ -7,6 +7,8 @@ app_name = 'studio'
 urlpatterns = [
     path('', views.index, name='index'),
     path('api/nodes/', views.api_nodes, name='api_nodes'),
+    # Pourquoi un nœud d'un graphe ouvert n'est pas dans la palette du compte (2026-10-19)
+    path('api/nodes/unavailable/', views.api_unavailable_nodes, name='api_unavailable_nodes'),
     # Ce que reçoit un nœud — le graphe porteur de valeurs (2026-10-18)
     path('api/node-context/', views.api_node_context, name='api_node_context'),
     # Persistance + exécution (2026-07-11)

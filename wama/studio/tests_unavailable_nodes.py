@@ -7,6 +7,9 @@ and saving the pipeline under the same name erased it in the database. Two halve
 - the launch refuses it, wired or not, by the SAME rule as the palette (`services/palette.py`):
   an app closed to the account was only refused in the middle of the run (`execute_tool`), an
   unwired unknown function made the run fail (`tasks.py`, « absent du catalogue »).
+- the node itself says WHY (Fabien's decision, same day): the server gives the reason by the
+  launch's rule (`palette.unavailable_reason`, route `api/nodes/unavailable/`), the canvas sets it
+  on the node, and keeps it for the page (undo / redo rebuilds the node with it).
 """
 import importlib.util
 import re
@@ -77,6 +80,38 @@ class PaletteIsTheLaunchRuleTest(TestCase):
         self.assertIsNone(err)
         delay.assert_called_once()
 
+    def test_the_reason_route_says_why_by_the_launch_rule(self):
+        from wama.accounts import permissions
+        app = self._offered_app()
+        real = permissions.accessible
+
+        def closed(user, kind, key, *a, **kw):
+            return False if (kind, key) == ('app', app) else real(user, kind, key, *a, **kw)
+        self.client.force_login(self.user)
+        gone = 'function:gone.from_the_catalogue'
+        with mock.patch.object(permissions, 'accessible', side_effect=closed):
+            reasons = self.client.get(reverse('studio:api_unavailable_nodes'),
+                                      {'key': [app, gone, 'dataset_input']}).json()['reasons']
+            _, closed_err, _ = _launch(self.user, {'nodes': [{'id': 'n1', 'app': app}], 'links': []})
+        _, gone_err, _ = _launch(self.user, {'nodes': [{'id': 'n1', 'app': gone}], 'links': []})
+        self.assertEqual({app, gone}, set(reasons), 'an offered node has no reason')
+        self.assertEqual(('inaccessible', 'non accessible à ce compte'),
+                         (reasons[app]['code'], reasons[app]['label']))
+        self.assertEqual(('unknown', 'inconnu de WAMA'),
+                         (reasons[gone]['code'], reasons[gone]['label']))
+        self.assertEqual(closed_err, reasons[app]['message'], 'the node says what the launch says')
+        self.assertEqual(gone_err, reasons[gone]['message'])
+
+    def test_an_app_that_cannot_run_in_a_pipeline_is_named_as_such(self):
+        from wama.common.app_registry import APP_CATALOG
+        from wama.studio.services.palette import executable, palette_nodes, unavailable_reason
+        offered = palette_nodes(self.user)
+        idle = [k for k in APP_CATALOG if k not in offered and not executable({'app': k})]
+        self.assertTrue(idle, 'precondition: an app of the catalogue has no pipeline runner')
+        reason = unavailable_reason(self.user, {'app': idle[0]}, offered)
+        self.assertEqual('not_executable', reason['code'])
+        self.assertIn(idle[0], reason['message'])
+
 
 class CanvasKeepsTheUnavailableNodeTest(SimpleTestCase):
     def setUp(self):
@@ -90,15 +125,25 @@ class CanvasKeepsTheUnavailableNodeTest(SimpleTestCase):
         self.assertEqual(2, self.js.count('warnUnavailable(missing);'))
         self.assertIn('return apps[node.app] || unavailable[node.app] || {};', self.js,
                       'the inspector reads the description of a kept node')
+        # The node itself says why: a line under its head, filled when the server answers.
+        self.assertIn("box.appendChild(el('div', 'studio-node-reason', esc(unavailableLabel(a))));",
+                      self.js)
+        self.assertIn("api('/studio/api/nodes/unavailable/?' + query)", self.js)
+
+    def _block(self):
+        """The kept-node block of the canvas — from its state to `explainUnavailable` —, run
+        under V8 with a palette, an empty canvas and nothing else."""
+        from py_mini_racer import MiniRacer
+        body = re.search(r'    var unavailable = \{\};.*?\n    function explainUnavailable\(reasons\) \{'
+                         r'.*?\n    \}\n', self.js, re.S)
+        self.assertIsNotNone(body, 'the kept-node block was not found')
+        ctx = MiniRacer()
+        ctx.eval("var apps = {dataset_input: {label: 'Jeu'}}; var nodes = [];" + body.group(0))
+        return ctx
 
     @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
     def test_the_description_is_read_from_the_graph_alone(self):
-        from py_mini_racer import MiniRacer
-        body = re.search(r'    function describeUnavailable\(graph\) \{.*?\n    \}\n', self.js, re.S)
-        self.assertIsNotNone(body, 'describeUnavailable not found')
-        ctx = MiniRacer()
-        ctx.eval("var apps = {dataset_input: {label: 'Jeu'}}; var unavailable = {};"
-                 "var UNAVAILABLE_TEXT = 'x';" + body.group(0))
+        ctx = self._block()
         graph = {'nodes': [{'id': 'n1', 'app': 'dataset_input'},
                            {'id': 'n2', 'app': 'function:gone', 'params': {'k': 1}},
                            {'id': 'n3', 'app': 'function:gone'},
@@ -118,3 +163,28 @@ class CanvasKeepsTheUnavailableNodeTest(SimpleTestCase):
                          'a link that names no port enters the first port, as on loading')
         self.assertIs(False, closed['output'], 'it feeds nothing: no output port')
         self.assertIsNone(json.loads(ctx.eval("JSON.stringify(unavailable['dataset_input'] || null)")))
+
+    @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+    def test_the_reason_lands_on_the_node_and_survives_a_rebuild(self):
+        import json
+        ctx = self._block()
+        graph = {'nodes': [{'id': 'n1', 'app': 'closed_app'}], 'links': []}
+        ctx.eval(f'describeUnavailable({json.dumps(graph)})')
+        self.assertEqual('indisponible pour ce compte',
+                         ctx.eval("unavailableLabel(unavailable['closed_app'])"),
+                         'before the answer, the node says it is unavailable')
+        # A canvas node: its reason line and its badge, as `addNode` builds them.
+        ctx.eval("var line = {textContent: 'indisponible pour ce compte'}, badge = {title: ''};"
+                 "nodes.push({app: 'closed_app', el: {querySelector: function (s) {"
+                 "  return s === '.studio-node-reason' ? line"
+                 "       : s === '.studio-node-badge' ? badge : null; }}});")
+        reason = {'code': 'inaccessible', 'label': 'non accessible à ce compte',
+                  'message': 'Nœud « closed_app » : non accessible à ce compte.'}
+        ctx.eval(f'explainUnavailable({json.dumps({"closed_app": reason})})')
+        self.assertEqual(reason['label'], ctx.eval('line.textContent'), 'the line under the head')
+        self.assertTrue(ctx.eval('badge.title').startswith(reason['message']), 'the badge tooltip')
+        self.assertTrue(ctx.eval("unavailable['closed_app'].description").startswith(reason['message']),
+                        'the inspector description')
+        # Undo / redo rebuilds the graph: the reason is not asked again, it is kept for the page.
+        ctx.eval(f'describeUnavailable({json.dumps(graph)})')
+        self.assertEqual(reason['label'], ctx.eval("unavailableLabel(unavailable['closed_app'])"))

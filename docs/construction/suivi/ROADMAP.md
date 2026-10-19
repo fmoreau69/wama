@@ -3393,23 +3393,30 @@ lignes WAMA sont, elles, lues dans le code. **Rien n'est décidé ; rien n'est i
      (constat du matin) : `addNode` rendait `null`, `loadGraph` sautait le nœud et ses liens. La
      palette filtre par accès à l'app et exécutabilité, une fonction suivant l'app qui la porte :
      ouvrir le sien après une perte d'accès — ou, demain, un pipeline partagé — l'amputait sans le
-     dire, et l'enregistrer sous le même nom (`views.py:80`, mise à jour par nom) effaçait le nœud
+     dire, et l'enregistrer sous le même nom (`views.py:96`, mise à jour par nom) effaçait le nœud
      en base. (Un pipeline DÉCLARÉ dont un nœud est fermé au compte n'est, lui, plus proposé du
      tout depuis l'étape 4 : `_declared_pipelines`.)
      ✅ **Corrigé le 2026-10-19 (GO Fabien, après le commit de l'étape 4)** :
      - le canvas GARDE le nœud, marqué « indisponible pour ce compte », réglages et liens intacts
        — sa description se lit du graphe seul, ses liens disent ses ports
-       (`wama-studio.js:737`, `describeUnavailable` ; `addNode`, `:300`) — et l'ouverture le dit
-       (`warnUnavailable`, `:789` : pipeline ouvert ET brouillon restauré) ;
+       (`wama-studio.js:749`, `describeUnavailable` ; `addNode`, `:300`) — et l'ouverture le dit
+       (`warnUnavailable`, `:822` : pipeline ouvert ET brouillon restauré) ;
      - le lancement le refuse d'avance, relié ou non, par la MÊME règle que la palette : la
-       construction de la palette est sortie d'`api_nodes` (`studio/services/palette.py:20`,
-       `palette_nodes`) et `launch_graph` la lit (`launch.py:183`) — non accessible à ce compte,
+       construction de la palette est sortie d'`api_nodes` (`studio/services/palette.py:24`,
+       `palette_nodes`) et `launch_graph` la lit (`launch.py:179`) — non accessible à ce compte,
        app non exécutable, ou inconnu de WAMA. Avant : une app fermée n'était refusée qu'au milieu
        du run (`execute_tool`), une fonction inconnue non reliée faisait échouer la tâche ;
      - garde : `studio/tests_unavailable_nodes.py` (6 tests, dont la description exécutée sous
        V8) ; cinq contre-épreuves, rouges.
-     ⏳ Reste : dire POURQUOI au nœud lui-même (la raison n'est connue qu'au lancement) —
-     décision de Fabien, question ouverte.
+     ✅ **La raison s'affiche SUR le nœud (décision de Fabien, 2026-10-19)** — elle n'était connue
+     qu'au lancement. Une seule règle, lue des deux côtés : `palette.unavailable_reason`
+     (`studio/services/palette.py:110`) rend `{code, label, message}` — le `message` est la phrase
+     du refus au lancement, qui la lit désormais (`launch.py:179`) ; le canvas la demande à
+     l'ouverture (`api/nodes/unavailable/`, `views.py:53`) et la pose sous l'en-tête du nœud, dans
+     l'infobulle de son badge et dans l'inspecteur (`explainUnavailable`, `wama-studio.js:803`).
+     Elle se garde pour la page : annuler / rétablir reconstruit le nœud sans la redemander.
+     Garde : 3 tests de plus (9) ; quatre contre-épreuves, rouges (raison aveuglée, ligne non
+     posée, raison oubliée à la reconstruction, `addNode` sans ligne).
 5. **Mode réseau déclaré** (public / privé / hors-ligne) et relais pour Hugging Face et GitHub
    (`HF_ENDPOINT`, `GITHUB_ENDPOINT`) — utile derrière un proxy ou sans Internet ; aucune
    occurrence dans `wama/settings.py`. Secondaire.

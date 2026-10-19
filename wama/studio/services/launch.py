@@ -122,7 +122,7 @@ def launch_graph(user, graph, *, pipeline_id=None):
         catalogue, ou nœud intégré — card d'entrée ou de sortie — du registre commun) ;
       - tout nœud, relié ou non, doit figurer dans la PALETTE du compte (`palette.palette_nodes`,
         2026-10-19) : sinon il est refusé en le nommant — non accessible, app non exécutable, ou
-        inconnu de WAMA ;
+        inconnu de WAMA (`palette.unavailable_reason`, la raison que le canvas affiche sur le nœud) ;
       - au moins un nœud app OU fonction exécutable dans le graphe — OU une entrée reliée à une
         sortie : ✅ depuis le 2026-10-11, un pipeline SANS process (entrée → sortie, export seul)
         est accepté, comme le modèle du 2026-09-15 le veut (WAMA_APP_GENERATION_ROUTE.md §10.6
@@ -133,7 +133,7 @@ def launch_graph(user, graph, *, pipeline_id=None):
     from wama.studio.services.runners import runner_for
     from wama.studio.services.generic_runner import GENERIC_APPS
     from wama.studio.tasks import run_pipeline_task, topo_order
-    from wama.common.manifests.builtin.pipeline import builtin_nodes, function_key, node_kind
+    from wama.common.manifests.builtin.pipeline import builtin_nodes, node_kind
     from wama.common.catalog import function_catalog as fc
 
     graph = graph or {}
@@ -147,19 +147,16 @@ def launch_graph(user, graph, *, pipeline_id=None):
     links = graph.get('links', [])
     fc.load_all()
 
-    def _is_function(n):
-        # D13 : un nœud fonction est exécutable ssi sa clé est au catalogue.
-        return node_kind(n) == 'function' and fc.get(function_key(n)) is not None
+    # D13 : un nœud fonction est exécutable ssi sa clé est au catalogue — et l'exécutabilité d'un
+    # nœud se lit avec la palette (`palette.executable`), la règle de sa raison quand il manque.
+    from wama.studio.services.palette import executable as _executable
+    from wama.studio.services.palette import is_function_node as _is_function
 
     # Les nœuds INTÉGRÉS (cards d'entrée et de sortie) sont ceux que les mondes déclarent au
     # registre commun (R2, 2026-10-18) : exécutabilité ET libellés du refus s'y lisent — la
     # liste « Texte/Médiathèque/… » était recopiée ici.
     builtins = builtin_nodes()
     sources = {key for key, b in builtins.items() if b.role == 'source'}
-
-    def _executable(n):
-        app = n['app']
-        return runner_for(app) is not None or app in builtins or _is_function(n)
 
     runnable = ', '.join(sorted(GENERIC_APPS.keys()))
     builtin_labels = '/'.join(b.label for b in builtins.values())
@@ -177,21 +174,13 @@ def launch_graph(user, graph, *, pipeline_id=None):
     # §29` étape 4) ; une APP fermée au compte n'était refusée qu'au run, par `execute_tool`, au
     # milieu de l'exécution. Le canvas GARDE désormais à l'ouverture le nœud qu'il ne connaît pas
     # (réglages et liens intacts, marqué indisponible) : c'est ici qu'il est refusé, en le nommant,
-    # relié ou non.
-    from wama.common.app_registry import APP_CATALOG
-    from wama.studio.services.palette import palette_nodes
+    # relié ou non. La raison est celle que le canvas affiche SUR le nœud (`unavailable_reason`).
+    from wama.studio.services.palette import palette_nodes, unavailable_reason
     offered = palette_nodes(user)
     for n in nodes:
-        if n['app'] in offered:
-            continue
-        if _executable(n):
-            what = f"fonction « {function_key(n)} »" if _is_function(n) else f"« {n['app']} »"
-            return None, f"Nœud {what} : non accessible à ce compte."
-        if node_kind(n) == 'app' and n['app'] in APP_CATALOG:
-            return None, (f"Nœud « {n['app']} » : app non exécutable dans un pipeline — "
-                          f"retirez-la du graphe pour lancer.")
-        return None, (f"Nœud « {function_key(n) or n['app']} » : inconnu de WAMA (absent du "
-                      f"catalogue) — retirez-le du graphe pour lancer.")
+        reason = unavailable_reason(user, n, offered)
+        if reason:
+            return None, reason['message']
     # Le pipeline ENREGISTRÉ dont on lance le graphe doit être visible du compte : le run le
     # nomme (`StudioRun.__str__`), au journal et au calendrier.
     if pipeline_id:

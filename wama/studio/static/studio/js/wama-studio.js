@@ -321,11 +321,14 @@
         box.dataset.node = id;
 
         var badge = a.planned ? '<span class="studio-node-badge" title="App planifiée — specs à venir">à venir</span>'
-            : a.unavailable ? '<span class="studio-node-badge" title="' + esc(UNAVAILABLE_TEXT) + '">indisponible</span>' : '';
+            : a.unavailable ? '<span class="studio-node-badge" title="' + esc(a.description) + '">indisponible</span>' : '';
         var head = el('div', 'studio-node-head',
             '<i class="app-ico ' + (a.icon || 'fas fa-cube') + '"></i><span>' + esc(a.label) + '</span>' + badge
             + '<span class="studio-node-del" title="Supprimer">&times;</span>');
         box.appendChild(head);
+        // La RAISON, sur le nœud lui-même (décision du 2026-10-19) — lue du serveur par
+        // `warnUnavailable`, qui remplace ce texte d'attente dès qu'elle arrive.
+        if (a.unavailable) box.appendChild(el('div', 'studio-node-reason', esc(unavailableLabel(a))));
 
         var ports = el('div', 'studio-ports');
         var inCol = el('div', 'studio-port-col in');
@@ -488,7 +491,7 @@
     }
     function typeBadge(a) {
         if (a.planned) return '<span class="badge bg-warning text-dark">à venir</span>';
-        if (a.unavailable) return '<span class="badge bg-secondary">indisponible pour ce compte</span>';
+        if (a.unavailable) return '<span class="badge bg-secondary">' + esc(unavailableLabel(a)) + '</span>';
         if (a.kind === 'source') return '<span class="badge bg-success">entrée</span>';
         if (a.kind === 'sink') return '<span class="badge bg-success">sortie</span>';
         if (a.kind === 'function') return '<span class="badge bg-info text-dark">fonction · ' + (a.binding || 'pure') + '</span>';
@@ -730,10 +733,19 @@
     // disparaissait en silence avec ses liens, et enregistrer le pipeline sous le même nom
     // l'effaçait en base. Sa description se lit du GRAPHE seul (ses liens disent ses ports) ; il
     // n'est ni réglable ni lançable (le lancement le refuse en le nommant, `launch.launch_graph`).
+    //
+    // Sa RAISON — non accessible à ce compte, app non exécutable, inconnu de WAMA — s'affiche SUR
+    // le nœud (décision de Fabien, 2026-10-19) : le serveur la donne par la règle du lancement
+    // (`palette.unavailable_reason`, route `api/nodes/unavailable/`). Elle se garde par clé pour la
+    // page : annuler / rétablir reconstruit le nœud sans la redemander.
     var unavailable = {};   // identifiant de palette -> description, posée par `loadGraph`
+    var unavailableReasons = {};   // identifiant de palette -> {code, label, message} du serveur
     var UNAVAILABLE_TEXT = 'Ce nœud n’est pas disponible pour ce compte : inconnu de WAMA, ou app '
-        + 'non ouverte à ce compte. Il est gardé tel quel (réglages et liens) ; le lancement le '
-        + 'refuse tant qu’il est dans le graphe.';
+        + 'non ouverte à ce compte.';
+    var KEPT_TEXT = 'Il est gardé tel quel (réglages et liens) ; le lancement le refuse tant qu’il '
+        + 'est dans le graphe.';
+    function unavailableText(reason) { return (reason ? reason.message : UNAVAILABLE_TEXT) + ' ' + KEPT_TEXT; }
+    function unavailableLabel(a) { return a.reason ? a.reason.label : 'indisponible pour ce compte'; }
     function describeUnavailable(graph) {
         unavailable = {};
         var missing = [];
@@ -741,8 +753,9 @@
             if (!sn || !sn.app || apps[sn.app]) return;
             var a = unavailable[sn.app];
             if (!a) {
+                var reason = unavailableReasons[sn.app] || null;
                 a = unavailable[sn.app] = { label: sn.app, icon: 'fas fa-ban', unavailable: true,
-                    description: UNAVAILABLE_TEXT, inputs: [], output: false };
+                    reason: reason, description: unavailableText(reason), inputs: [], output: false };
                 missing.push(sn.app);
             }
             (graph.links || []).forEach(function (sl) {
@@ -786,11 +799,41 @@
         updateLinks();
         return missing;
     }
+    // Pose les raisons reçues sur la description des nœuds gardés ET sur ceux du canevas.
+    function explainUnavailable(reasons) {
+        Object.keys(reasons || {}).forEach(function (key) {
+            var reason = reasons[key];
+            unavailableReasons[key] = reason;
+            var a = unavailable[key];
+            if (!a) return;
+            a.reason = reason;
+            a.description = unavailableText(reason);
+            nodes.forEach(function (n) {
+                if (n.app !== key || !n.el) return;
+                var line = n.el.querySelector('.studio-node-reason');
+                if (line) line.textContent = reason.label;
+                var badge = n.el.querySelector('.studio-node-badge');
+                if (badge) badge.title = a.description;
+            });
+        });
+    }
+    // Demande au serveur POURQUOI les nœuds gardés manquent, la pose sur eux, puis le dit. Sans
+    // réponse, le nœud garde « indisponible pour ce compte » : le message part quand même.
     function warnUnavailable(missing) {
         if (!missing || !missing.length) return;
-        toast((missing.length > 1 ? missing.length + ' nœuds indisponibles' : 'Un nœud indisponible')
-            + ' pour ce compte, gardés tels quels : « ' + missing.join(' », « ') + ' ». '
-            + 'Le lancement les refuse tant qu’ils sont dans le graphe.', 'warning');
+        var asked = unavailable;
+        var query = missing.map(function (k) { return 'key=' + encodeURIComponent(k); }).join('&');
+        api('/studio/api/nodes/unavailable/?' + query).then(function (d) {
+            if (asked !== unavailable) return;   // un autre graphe s'est ouvert entre-temps
+            explainUnavailable(d.reasons);
+            updateInspector();
+        })['catch'](function () { /* raison non lue : le texte d'attente reste */ }).then(function () {
+            toast((missing.length > 1 ? missing.length + ' nœuds indisponibles' : 'Un nœud indisponible')
+                + ' pour ce compte, gardés tels quels : ' + missing.map(function (k) {
+                    var a = asked[k];
+                    return '« ' + k + ' »' + (a && a.reason ? ' (' + a.reason.label + ')' : '');
+                }).join(', ') + '. Le lancement les refuse tant qu’ils sont dans le graphe.', 'warning');
+        });
     }
 
     // ── Historique annuler / rétablir — brique COMMUNE (common/js/wama-history.js) ──────

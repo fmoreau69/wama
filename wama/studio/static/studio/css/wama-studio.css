@@ -133,6 +133,8 @@
     font-size: .62rem; font-weight: 600; padding: 0 .3rem; border-radius: .25rem;
     border: 1px solid var(--wama-studio-note); color: var(--wama-studio-note);
 }
+/* La raison d'un nœud indisponible, sur le nœud (2026-10-19). */
+.studio-node-reason { font-size: .68rem; padding: .1rem .45rem 0; color: var(--wama-studio-note); }
 
 .studio-ports { display: flex; justify-content: space-between; padding: .15rem .25rem .4rem; }
 .studio-port-col { display: flex; flex-direction: column; gap: .25rem; }

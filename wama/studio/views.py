@@ -49,6 +49,22 @@ def api_nodes(request):
     return JsonResponse({'nodes': nodes, 'schemas': schemas, 'data_types': sorted(known_types())})
 
 
+@login_required
+def api_unavailable_nodes(request):
+    """POURQUOI des nœuds d'un graphe ouvert ne sont pas dans la palette du compte (2026-10-19,
+    décision de Fabien : la raison s'affiche SUR le nœud gardé, pas seulement au lancement).
+
+    GET `?key=<identifiant de palette>` répété → `{reasons: {clé: {code, label, message}}}` ; une
+    clé que la palette offre n'y figure pas. La raison est celle du refus au lancement
+    (`palette.unavailable_reason`) — une seule règle, lue des deux côtés."""
+    from .services.palette import palette_nodes, unavailable_reason
+    keys = [k for k in dict.fromkeys(request.GET.getlist('key')) if k][:200]
+    offered = palette_nodes(request.user)
+    reasons = {key: reason for key in keys
+               if (reason := unavailable_reason(request.user, {'app': key}, offered))}
+    return JsonResponse({'reasons': reasons})
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Persistance + exécution (2026-07-11 — PROJECT_STATUS §15 : les 2 ⏳ du studio)
 # ─────────────────────────────────────────────────────────────────────────────

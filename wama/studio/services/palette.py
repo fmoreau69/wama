@@ -7,6 +7,10 @@ dans la palette » (accès à l'app, nœud d'app exécutable, fonction de l'app 
 dans la vue seule. Un nœud gardé à l'ouverture d'un pipeline sans figurer dans la palette — app
 fermée au compte, fonction disparue du catalogue — ne s'exécute pas ; le lancement le refuse en
 le nommant, par CETTE règle, au lieu d'échouer au milieu d'un run.
+
+La RAISON d'un nœud absent (`unavailable_reason`) se lit ici aussi, une fois : le lancement la
+rend en refusant, et le canvas l'affiche SUR le nœud gardé dès l'ouverture (décision de Fabien,
+2026-10-19) — sans attendre qu'on lance pour l'apprendre.
 """
 
 
@@ -75,3 +79,57 @@ def palette_nodes(user) -> dict:
             'category': spec.category,
         }
     return nodes
+
+
+#: Pourquoi un nœud n'est pas dans la palette d'un compte — la raison COURTE que le canvas pose sur
+#: le nœud ; la phrase entière (`message`) est celle que le lancement rend en le refusant.
+REASONS = {
+    'inaccessible': 'non accessible à ce compte',
+    'not_executable': 'app non exécutable dans un pipeline',
+    'unknown': 'inconnu de WAMA',
+}
+
+
+def is_function_node(node: dict) -> bool:
+    """Un nœud fonction s'exécute ssi sa clé est au catalogue de fonctions (D13)."""
+    from wama.common.catalog import function_catalog as fc
+    from wama.common.manifests.builtin.pipeline import function_key, node_kind
+    fc.load_all()
+    return node_kind(node) == 'function' and fc.get(function_key(node)) is not None
+
+
+def executable(node: dict) -> bool:
+    """Le nœud sait-il s'exécuter, quel que soit le compte : app du runner, nœud intégré (card
+    d'entrée ou de sortie du registre commun), ou fonction du catalogue."""
+    from wama.common.manifests.builtin.pipeline import builtin_nodes
+    from .runners import runner_for
+    app = node.get('app') or ''
+    return runner_for(app) is not None or app in builtin_nodes() or is_function_node(node)
+
+
+def unavailable_reason(user, node: dict, offered=None):
+    """`None` si la palette de `user` offre le nœud ; sinon `{code, label, message}` — `code` une
+    clé de `REASONS`, `label` sa forme courte, `message` la phrase du refus au lancement.
+
+    `offered` : la palette déjà construite (`palette_nodes(user)`), pour ne pas la refaire à
+    chaque nœud d'un graphe."""
+    from wama.common.app_registry import APP_CATALOG
+    from wama.common.manifests.builtin.pipeline import function_key, node_kind
+    if offered is None:
+        offered = palette_nodes(user)
+    app = node.get('app') or ''
+    if app in offered:
+        return None
+    if executable(node):
+        code = 'inaccessible'
+        what = f"fonction « {function_key(node)} »" if is_function_node(node) else f"« {app} »"
+        message = f"Nœud {what} : non accessible à ce compte."
+    elif node_kind(node) == 'app' and app in APP_CATALOG:
+        code = 'not_executable'
+        message = (f"Nœud « {app} » : app non exécutable dans un pipeline — "
+                   f"retirez-la du graphe pour lancer.")
+    else:
+        code = 'unknown'
+        message = (f"Nœud « {function_key(node) or app} » : inconnu de WAMA (absent du "
+                   f"catalogue) — retirez-le du graphe pour lancer.")
+    return {'code': code, 'label': REASONS[code], 'message': message}
