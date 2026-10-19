@@ -160,8 +160,14 @@ def consumers(mechanism, sources: dict[str, str]) -> list[str]:
     for path in own - shared:
         if path.endswith('.py'):
             dotted = path[:-3].replace('/', '.')       # wama/common/x.py → wama.common.x
-            parent, leaf = dotted.rsplit('.', 1)       # → wama.common, x
+            parent, _, leaf = dotted.rpartition('.')   # → wama.common, x
             own_py.add(path)
+            # Un module de PREMIER NIVEAU (2026-10-19 : `vector_service.py`, le service uvicorn à
+            # la racine) n'a pas de paquet : seul son nom l'importe.
+            if not parent:
+                patterns.append((leaf, re.compile(
+                    rf'(?:from\s+{re.escape(leaf)}\s+import|import\s+{re.escape(leaf)}\b)')))
+                continue
             # ABSOLU seulement : le module nommé en entier, ou `from <paquet> import <feuille>`.
             # ⚠ Jusqu'au 2026-10-17, une 3ᵉ alternative `from [.\w]*\.?<feuille> import` acceptait
             # N'IMPORTE QUEL paquet devant la feuille : `wama/gateway/services.py` était
@@ -199,13 +205,45 @@ def _owners() -> dict:
     return owners
 
 
-def owners_of_static(path: str) -> list:
-    """Les mécanismes qui tiennent un fichier STATIQUE, nommé comme `{% static %}` le nomme
-    (`common/js/<fichier>.js`) — le registre, lui, le nomme depuis la base
-    (`wama/common/static/common/js/<fichier>.js`). Pure lecture du registre, aucun accès disque :
-    c'est ce qui permet à une brique UI de dire de quels mécanismes elle est composée."""
-    suffix = '/static/' + path
-    return sorted({key for owned, keys in _owners().items() if owned.endswith(suffix)
+#: Les commentaires d'un script ou d'une feuille de style — un `/*` collé à un mot ou à un
+#: guillemet n'en ouvre pas un (`accept="image/*"`), ni un `//` après `:` ou un guillemet (une URL).
+_JS_COMMENT = re.compile(r'(?<![\w\'"*/])/\*.*?\*/|(?<![:\'"\\/])//[^\n]*', re.S)
+#: Les commentaires d'un gabarit : HTML, Django court et bloc.
+_TEMPLATE_COMMENT = re.compile(
+    r'<!--.*?-->|\{#.*?#\}|\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S)
+
+
+def code_only(rel: str, src: str) -> str:
+    """Le source SANS sa prose (2026-10-19) : ce qu'il fait, pas ce qu'il raconte. Un commentaire
+    qui cite une autre brique (« la visionneuse est aussi appelée par le sélecteur de médias »)
+    n'en fait pas une pièce — mesuré sur la visionneuse : 4 « pièces » sur 8 n'étaient que des
+    renvois en commentaire. Lu par la COMPOSITION d'une brique UI (`UIBrick.mechanisms`) ; le
+    balayage d'adoption compte encore la prose (en changer déplacerait tous les comptes de la
+    carte : une décision à part)."""
+    if rel.endswith(('.js', '.css')):
+        return _JS_COMMENT.sub(' ', src)
+    if rel.endswith('.html'):
+        return _TEMPLATE_COMMENT.sub(' ', src)
+    if rel.endswith('.py'):
+        import io
+        import tokenize
+        try:
+            tokens = tokenize.generate_tokens(io.StringIO(src).readline)
+            return tokenize.untokenize((t.type, t.string) for t in tokens
+                                       if t.type != tokenize.COMMENT)
+        except (tokenize.TokenError, SyntaxError, IndentationError):
+            return src
+    return src
+
+
+def owners_of_path(path: str) -> list:
+    """Les mécanismes qui tiennent un fichier nommé comme une PAGE le nomme — un statique comme
+    `{% static %}` (`common/js/<fichier>.js`), un gabarit comme `{% include %}`
+    (`common/<gabarit>.html`, 2026-10-19 : les briques de page) ; le registre, lui, le nomme depuis
+    la base (`wama/common/static/common/js/<fichier>.js`). Pure lecture du registre, aucun accès
+    disque : c'est ce qui permet à une brique UI de dire de quels mécanismes elle est composée."""
+    suffixes = ('/static/' + path, '/templates/' + path)
+    return sorted({key for owned, keys in _owners().items() if owned.endswith(suffixes)
                    for key in keys})
 
 

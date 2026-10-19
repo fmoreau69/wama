@@ -1925,9 +1925,17 @@ def measured_adoption(mechanism: str) -> dict:
         states = [conv[key] for key in criteria if conv.get(key) is not None]
         if not states:
             continue
-        apps[app] = (True if all(s is True for s in states)
-                     else 'partial' if any(s in (True, 'partial') for s in states) else False)
+        apps[app] = combined_state(states)
     return {'criteria': criteria, 'apps': apps, 'measured_at': data.get('generated_at')}
+
+
+def combined_state(states) -> object:
+    """Plusieurs états mesurés en un : True s'ils sont tous verts, 'partial' si une partie l'est,
+    False sinon — la règle de `measured_adoption`, reprise par une brique de page que plusieurs
+    mécanismes montent (`UIBrick.adoption`)."""
+    states = list(states)
+    return (True if all(s is True for s in states)
+            else 'partial' if any(s in (True, 'partial') for s in states) else False)
 
 
 def _measured_conformity(app_name: str) -> tuple[dict, str | None]:

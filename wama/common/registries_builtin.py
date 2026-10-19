@@ -446,7 +446,8 @@ def _ui_bricks():
 register(Registry(
     key='ui_bricks', label='Briques UI', nature=DERIVED,
     source="`common/surfaces.py` — briques déclarées (ce qu'elles consomment, émettent, leur "
-           "script) ; les surfaces des apps les composent",
+           "script) ; les surfaces des apps les composent, ou une page d'app les monte (card "
+           "d'entrée, inspecteur, visionneuse)",
     count=lambda: len(_ui_bricks()),
     entries=lambda: {key: brick.to_dict() for key, brick in _ui_bricks().items()},
     url_name='common:ui_bricks_catalog',
@@ -454,9 +455,9 @@ register(Registry(
     # encore aucun lieu (§29, étape 5).
     provenance=TO_CARRY,
     doc='docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
-    description="Les briques dont une page d'édition se COMPOSE — déplaçables, redimensionnables, "
-                "communes à tous les mondes. Déclarées par le code : la liste ne peut pas être "
-                "périmée, il n'y a rien à actualiser.",
+    description="Les briques dont une page se COMPOSE — une surface d'édition (déplaçables, "
+                "redimensionnables) ou la page d'une app —, communes à tous les mondes. Déclarées "
+                "par le code : la liste ne peut pas être périmée, il n'y a rien à actualiser.",
 ))
 
 

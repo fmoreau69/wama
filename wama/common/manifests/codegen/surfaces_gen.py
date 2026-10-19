@@ -13,7 +13,8 @@ position et taille par défaut), rôles lus, champ écrit, process rejoué, et l
 vignettes du catalogue des briques (`witness`, 2026-10-18).
 
 Ce qui est REFUSÉ, en le disant (rien n'est deviné) :
-  • une brique absente du registre (`surfaces.BRICKS`) ;
+  • une brique absente du registre (`surfaces.BRICKS`), ou une brique de PAGE (2026-10-19 :
+    card d'entrée, inspecteur, visionneuse — une page d'app les monte) ;
   • un emplacement hors de la grille ;
   • un champ écrit qui n'est pas un FICHIER produit par un process déclaré : seul un texte se
     valide sans code (`surfaces.validate_text`). Une couche de données (les corrections de
@@ -52,6 +53,9 @@ def _check(surface: dict, outputs: dict, processes: set) -> str:
         if slot.get('brick') not in BRICKS:
             return (f"surface {key} : brique inconnue {slot.get('brick')!r} "
                     f"(connues : {', '.join(sorted(BRICKS))})")
+        if BRICKS[slot['brick']].is_page:
+            return (f"surface {key} : {slot['brick']!r} est une brique de PAGE — une page d'app la "
+                    "monte, une surface ne la pose pas")
         x, w = int(slot.get('x', 0)), int(slot.get('w', 0))
         if not slot.get('id') or w <= 0 or int(slot.get('h', 0)) <= 0 or x < 0 or x + w > GRID_COLUMNS:
             return f"surface {key} : emplacement {slot.get('id')!r} hors de la grille ({GRID_COLUMNS} colonnes)"

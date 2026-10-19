@@ -722,10 +722,11 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
 
 - **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
-- **API publique** (11) :
+- **API publique** (12) :
   - `thumbnail_path(key: str)` — Le fichier de la vignette d'une brique (qu'il existe ou non).
   - `thumbnail(key: str) -> Optional[dict]` — La vignette d'une brique — `{'url', 'taken_at'}`, ou None tant qu'aucune capture n'existe
   - `validate_text(value) -> str` — Le texte d'un champ fichier édité, assaini : une chaîne, fins de ligne `\n`, plafonnée.
+  - `source_file(path: str) -> Optional[str]` — Le fichier SOURCE d'un chemin nommé comme une page le nomme — un gabarit comme
   - `class UIBrick`
   - `class BrickSlot` — Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
   - `class Surface`
@@ -1648,12 +1649,13 @@ Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jo
 
 - **Domicile** : `wama/common/services/mecanismes_scan.py` · **doc** : [docs/construction/architecture/WAMA_MECANISMES.md](../construction/architecture/WAMA_MECANISMES.md)
 - **Module** : Balayage d'ADOPTION des mécanismes : qui consomme quoi, et à quel niveau.
-- **API publique** (9) :
+- **API publique** (10) :
   - `python_modules(base: Path)` — Chemins .py de notre code (relatifs à base), vendored et artefacts élagués.
   - `front_sources(base: Path)` — Chemins .html/.js de notre front (templates + static d'app), relatifs à base.
   - `load_sources(base: Path | None=None) -> dict[str, str]` — {chemin relatif: contenu} pour tout le corpus balayé. Coûteux : à charger UNE fois.
   - `consumers(mechanism, sources: dict[str, str]) -> list[str]` — Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même.
-  - `owners_of_static(path: str) -> list` — Les mécanismes qui tiennent un fichier STATIQUE, nommé comme `{% static %}` le nomme
+  - `code_only(rel: str, src: str) -> str` — Le source SANS sa prose (2026-10-19) : ce qu'il fait, pas ce qu'il raconte. Un commentaire
+  - `owners_of_path(path: str) -> list` — Les mécanismes qui tiennent un fichier nommé comme une PAGE le nomme — un statique comme
   - `consuming_apps(mechanism, sources: dict[str, str], found=None) -> list[str]` — Apps du catalogue dont au moins un fichier NON-HARNAIS consomme le mécanisme.
   - `adoption_matrix(sources: dict[str, str] | None=None) -> dict` — Mesure complète, UNE passe : {key: {'consommateurs': [...], 'apps': [...], 'niveau_app': bool}}.
   - `mechanisms_without_criterion(sources: dict[str, str] | None=None) -> list[tuple]` — LE contrôle de jonction : mécanismes de NIVEAU APP qu'AUCUN critère de grille ne vérifie.
@@ -2849,7 +2851,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (42) :
+- **API publique** (43) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2889,6 +2891,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
   - `measured_adoption(mechanism: str) -> dict` — Ce que la grille MESURÉE dit d'un mécanisme : les critères qui le vérifient
+  - `combined_state(states) -> object` — Plusieurs états mesurés en un : True s'ils sont tous verts, 'partial' si une partie l'est,
   - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
   - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
   - `get_conformity_summary() -> dict` — Returns per-app conformity score:
@@ -3166,7 +3169,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (42) :
+- **API publique** (43) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3206,6 +3209,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `get_app_extensions_for_filemanager() -> dict` — Returns a dict suitable for FileManager JS APP_EXTENSIONS:
   - `world_color(world: str) -> str` — Couleur de RÉFÉRENCE d'un monde — celle d'une surface hors catalogue sans couleur
   - `measured_adoption(mechanism: str) -> dict` — Ce que la grille MESURÉE dit d'un mécanisme : les critères qui le vérifient
+  - `combined_state(states) -> object` — Plusieurs états mesurés en un : True s'ils sont tous verts, 'partial' si une partie l'est,
   - `sandbox_conformity(report: dict) -> dict` — Mesure des jumelles bac à sable, chacune avec l'écart à SA source (`report['apps']`).
   - `measure_and_write_conformity() -> dict` — Mesure les 10 apps (conformity_checker.run_checks) et ÉCRIT le rapport JSON.
   - `get_conformity_summary() -> dict` — Returns per-app conformity score:

@@ -13,7 +13,7 @@ L'import relatif est désormais RÉSOLU depuis le dossier du fichier qui importe
 from django.test import SimpleTestCase
 
 from wama.common.mecanismes import Mechanism
-from wama.common.services.mecanismes_scan import consumers
+from wama.common.services.mecanismes_scan import code_only, consumers
 
 GATEWAY = Mechanism('fake_gateway', 'Passerelle', 'rôle', 'wama/gateway/services.py')
 PATHS = Mechanism('fake_paths', 'Chemins', 'rôle', 'wama/common/utils/media_paths.py')
@@ -64,6 +64,38 @@ class PythonSymbolIsNotReadInScriptsTest(SimpleTestCase):
                          consumers(self.VISITORS, sources))
 
 
+class CodeOnlyTest(SimpleTestCase):
+    """A source WITHOUT its prose (`code_only`, 2026-10-19) : what a UI brick is composed of is
+    read from what its code does, not from what its comments tell."""
+
+    PICKER = Mechanism('fake_picker', 'Sélecteur', 'rôle', 'wama/common/static/common/js/picker.js')
+
+    def test_a_file_named_in_a_comment_is_not_a_consumer_once_the_prose_is_gone(self):
+        sources = {
+            'wama/common/static/common/js/a.js': '/* called by picker.js */\nrun();\n// picker.js too\n',
+            'wama/common/templates/common/b.html': '{# picker.js #}<!-- picker.js -->'
+                                                   '{% comment %}picker.js{% endcomment %}',
+            'wama/common/static/common/js/c.js': "load('/static/common/js/picker.js');",
+        }
+        self.assertEqual(sorted(sources), consumers(self.PICKER, sources), 'the scan reads prose')
+        stripped = {rel: code_only(rel, src) for rel, src in sources.items()}
+        self.assertEqual(['wama/common/static/common/js/c.js'], consumers(self.PICKER, stripped))
+
+    def test_what_looks_like_a_comment_inside_code_is_kept(self):
+        """An `accept="image/*"` opens no comment, a URL's `//` closes no line."""
+        src = 'el.accept = "image/*"; load("picker.js"); /* end */ go("http://x/y");\n'
+        kept = code_only('wama/common/static/common/js/d.js', src)
+        for code in ('"image/*"', 'load("picker.js")', 'go("http://x/y")'):
+            with self.subTest(code=code):
+                self.assertIn(code, kept)
+        self.assertNotIn('end', kept)
+
+    def test_a_python_comment_goes_a_docstring_stays(self):
+        kept = code_only('wama/x.py', '"""doc"""\nx = 1  # picker.js\n')
+        self.assertIn('"""doc"""', kept)
+        self.assertNotIn('picker.js', kept)
+
+
 class ScanResolvesImportsTest(SimpleTestCase):
 
     def test_a_same_named_module_of_another_package_is_not_a_consumer(self):
@@ -83,6 +115,16 @@ class ScanResolvesImportsTest(SimpleTestCase):
             'wama/accounts/admin.py': 'from wama.gateway import (\n    core,\n    services,\n)\n',
         }
         self.assertEqual(sorted(sources), consumers(GATEWAY, sources))
+
+    def test_a_top_level_module_is_read_by_its_name_alone(self):
+        """A module at the root (a service run by uvicorn) has no package : the scan used to
+        crash on it, and with it every reader of the map."""
+        service = Mechanism('fake_service', 'Service', 'rôle', 'wama/common/x/client.py',
+                            annexes=('fake_root_service.py',))
+        sources = {'wama/a.py': 'import fake_root_service\n',
+                   'wama/b.py': 'from fake_root_service import app\n',
+                   'wama/c.py': 'from wama.fake_root_service_two import app\n'}  # contre-épreuve
+        self.assertEqual(['wama/a.py', 'wama/b.py'], consumers(service, sources))
 
     def test_an_imported_name_that_is_itself_a_module_resolves(self):
         sources = {

@@ -599,7 +599,9 @@ def ui_bricks_view(request):
     brique est un TOUT, un mécanisme une PIÈCE. Chaque brique dit de quels mécanismes elle est
     COMPOSÉE (`UIBrick.mechanisms`, lu de son code) ; les mécanismes eux-mêmes restent sur leur
     carte (`WAMA_MECANISMES.md`). La famille « Système » du 18/10, qui les rangeait à côté des
-    briques, est retirée.
+    briques, est retirée. Une brique de PAGE (card d'entrée, inspecteur, visionneuse) dit le
+    gabarit qui la monte, ce qu'elle lit des déclarations de l'app, et les apps qui la montent —
+    l'adoption mesurée (`UIBrick.adoption`).
 
     La page DÉRIVE du code à chaque affichage : elle ne peut pas être périmée, donc aucun bouton
     d'actualisation (`refresh_button` le décide seul de la nature déclarée).
@@ -624,17 +626,33 @@ def ui_bricks_view(request):
             used_by.setdefault(key, []).append({'app': surface.app, 'label': surface.label,
                                                 'app_label': app_identity(surface.app)['label']})
 
+    # Une brique de PAGE lit une déclaration de l'app qui la monte : une facette de son manifeste
+    # (`app.<facette>`) ou le manifeste d'un autre kind (`pipeline`).
+    def declared_reading(value):
+        kind, _, facet = value.partition('.')
+        return {'value': facet or kind,
+                'vocabulary': "facette de l'app" if facet else "manifeste de l'app"}
+
     mechanism_names = {m.key: m.name for m in MECHANISMS}
     bricks = []
     for brick in sorted(BRICKS.values(), key=lambda b: b.name.lower()):
+        adoption = brick.adoption()
         bricks.append({
             'key': brick.key, 'name': brick.name, 'description': brick.description,
-            'reads': [{'value': v, 'vocabulary': vocabulary(v)} for v in brick.consumes],
+            'reads': ([declared_reading(v) for v in brick.declarations] if brick.is_page
+                      else [{'value': v, 'vocabulary': vocabulary(v)} for v in brick.consumes]),
             'emits': list(brick.emits),
             'usage': 'Édite' if brick.emits else 'Montre',
+            'mounted': 'Page' if brick.is_page else 'Surface',
+            'page': brick.is_page, 'mount': brick.mount,
             'worlds': list(brick.worlds), 'all_worlds': set(brick.worlds) == set(WORLDS),
             'script': brick.script, 'requires': list(brick.requires),
             'surfaces': used_by.get(brick.key, []),
+            # Les apps qui montent une brique de page : l'adoption MESURÉE, rouges écartés.
+            'apps': [{'app': app, 'app_label': app_identity(app)['label'],
+                      'partial': state == 'partial'}
+                     for app, state in adoption['apps'].items() if state],
+            'criteria': adoption['criteria'], 'measured_at': adoption['measured_at'],
             'mechanisms': sorted(({'key': key, 'name': mechanism_names[key]}
                                   for key in brick.mechanisms()), key=lambda m: m['name'].lower()),
             'thumbnail': thumbnail(brick.key),
@@ -643,10 +661,13 @@ def ui_bricks_view(request):
     return render(request, 'common/ui_bricks.html', {
         'bricks': bricks,
         'surfaces_count': len(SURFACES),
-        'unused_count': sum(1 for b in bricks if not b['surfaces']),
+        'page_count': sum(1 for b in bricks if b['page']),
+        'unused_count': sum(1 for b in bricks if not b['page'] and not b['surfaces']),
         # La clé d'une facette nomme aussi sa ligne dans le volet (`_libelleDeCle`).
         'facets': [{'cle': 'usage', 'label': 'Usage', 'tous': 'Tous les usages',
-                    'options': {u: u for u in sorted({b['usage'] for b in bricks})}}],
+                    'options': {u: u for u in sorted({b['usage'] for b in bricks})}},
+                   {'cle': 'montage', 'label': 'Montée par', 'tous': 'Surfaces et pages',
+                    'options': {m: m for m in sorted({b['mounted'] for b in bricks})}}],
         # Détail au clic dans le volet (l'inspecteur de registre) ; rien à prévisualiser.
         'volet': volet(medias=False, actions=False),
     })

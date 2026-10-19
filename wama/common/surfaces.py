@@ -28,6 +28,10 @@ adressée par le développeur et mesurée par son adoption (les boutons d'action
 est un tout, posé par l'utilisateur ou le Studio, qui lit une donnée déclarée et a ses options —
 elle est COMPOSÉE de mécanismes, lus du code (`UIBrick.mechanisms`), jamais redéclarés ; une PAGE
 compose des briques (une surface, la page d'une app). Le catalogue ne montre donc que des briques.
+Deux façons de monter une brique : sur la grille d'une SURFACE (son script), ou par une PAGE
+d'app (`mount`, le gabarit qui la monte — card d'entrée, inspecteur, visionneuse) ; celle-ci lit
+ce que l'app DÉCLARE (`declarations`), et les apps qui la montent se lisent de l'adoption mesurée
+du mécanisme qui tient ce gabarit (`UIBrick.adoption`).
 
 CE QU'UNE SURFACE DÉCLARE : ses emplacements (brique, position et taille par défaut sur la
 grille), les champs de l'élément qu'elle LIT par rôle, le champ qu'elle ÉCRIT et sa validation,
@@ -104,49 +108,104 @@ def validate_text(value) -> str:
     return value.replace('\r\n', '\n').replace('\r', '\n')
 
 
+def source_file(path: str) -> Optional[str]:
+    """Le fichier SOURCE d'un chemin nommé comme une page le nomme — un gabarit comme
+    `{% include %}`, un statique comme `{% static %}` —, None s'il est introuvable."""
+    if path.endswith('.html'):
+        from django.template import TemplateDoesNotExist
+        from django.template.loader import get_template
+        try:
+            return get_template(path).origin.name
+        except TemplateDoesNotExist:
+            return None
+    from django.contrib.staticfiles import finders
+    return finders.find(path)
+
+
 @dataclass(frozen=True)
 class UIBrick:
     key: str
     name: str
     description: str
-    script: str
+    #: Le module JS de la brique. Une brique de SURFACE s'y enregistre
+    #: (`WamaSurface.registerBrick`) ; une brique de PAGE peut n'en avoir aucun à elle.
+    script: str = ''
     consumes: tuple = ()
     emits: tuple = ()
     worlds: tuple = WORLDS
     #: Modules JS communs dont la brique a besoin, chargés AVANT son script (ordre gardé).
     requires: tuple = ()
+    #: Brique de PAGE (2026-10-19, décision de Fabien, `ROUTE §F3b`) : le fichier par lequel une
+    #: page la monte — le gabarit qu'elle inclut, ou le script que la page de base charge pour
+    #: toutes quand la brique n'a pas de gabarit à elle. Vide : une brique de SURFACE, posée sur
+    #: la grille d'une surface.
+    mount: str = ''
+    #: Ce que LIT une brique de page : rien ne circule jusqu'à elle (`consumes` reste vide), elle
+    #: lit ce que DÉCLARE l'app qui la monte — `'app.<facette>'` (`builtin.app.APP_FACETS`) ou le
+    #: manifeste d'un autre kind de l'app (`'pipeline'`). Décision du 19/10 : pas de type
+    #: « élément » dans `catalog.data_types`, qui nomme ce qui circule par les ports.
+    declarations: tuple = ()
+
+    @property
+    def is_page(self) -> bool:
+        return bool(self.mount)
 
     def scripts(self) -> list:
-        return [*self.requires, self.script]
+        return [*self.requires, *([self.script] if self.script else [])]
 
     def mechanisms(self) -> list:
         """Les mécanismes dont la brique est COMPOSÉE (2026-10-19, « trois niveaux » — une brique
         est un tout, un mécanisme une pièce) : ceux qui tiennent ce qu'elle charge (`requires`) et
-        ceux que SON script consomme, par la détection même du balayage d'adoption
-        (`mecanismes_scan.consumers`, symbole ou nom de fichier) appliquée à ce seul script — un
-        global de `base.html` (le lecteur audio commun) compte comme un module chargé. Rien ne se
-        redéclare ici : la composition se lit du code, elle ne peut pas diverger de lui."""
+        le fichier qui la monte (`mount`), et ceux que son script et ce fichier consomment, par la
+        détection même du balayage d'adoption (`mecanismes_scan.consumers`, symbole ou nom de
+        fichier) — un global de `base.html` (le lecteur audio commun) compte comme un module
+        chargé. Rien ne se redéclare ici : la composition se lit du code, elle ne peut pas
+        diverger de lui."""
         import os
 
         from django.conf import settings
-        from django.contrib.staticfiles import finders
 
         from wama.common.mecanismes import MECHANISMS
-        from wama.common.services.mecanismes_scan import consumers, owners_of_static
-        keys = {key for path in self.requires for key in owners_of_static(path)}
-        found = finders.find(self.script)
-        if found:
-            rel = os.path.relpath(found, settings.BASE_DIR).replace(os.sep, '/')
-            with open(found, encoding='utf-8', errors='ignore') as handle:
-                sources = {rel: handle.read()}
+        from wama.common.services.mecanismes_scan import code_only, consumers, owners_of_path
+        keys = {key for path in (*self.requires, self.mount) if path
+                for key in owners_of_path(path)}
+        sources = {}
+        for path in dict.fromkeys(p for p in (self.script, self.mount) if p):
+            found = source_file(path)
+            if found:
+                rel = os.path.relpath(found, settings.BASE_DIR).replace(os.sep, '/')
+                with open(found, encoding='utf-8', errors='ignore') as handle:
+                    sources[rel] = code_only(rel, handle.read())
+        if sources:
             keys |= {m.key for m in MECHANISMS if consumers(m, sources)}
         return sorted(keys)
+
+    def adoption(self) -> dict:
+        """Les apps qui montent une brique de PAGE : l'adoption MESURÉE du (des) mécanisme(s) qui
+        tient son fichier de montage (`app_registry.measured_adoption`, le rapport de `/apps/`) —
+        `{'apps': {app: True | 'partial' | False}, 'criteria': [...], 'measured_at'}`. Vide pour
+        une brique de surface : ce sont ses surfaces qui la montent."""
+        from wama.common.app_registry import combined_state, measured_adoption
+        from wama.common.services.mecanismes_scan import owners_of_path
+        merged = {'apps': {}, 'criteria': [], 'measured_at': None}
+        if not self.mount:
+            return merged
+        states = {}
+        for key in owners_of_path(self.mount):
+            measure = measured_adoption(key)
+            merged['criteria'] += measure['criteria']
+            merged['measured_at'] = merged['measured_at'] or measure['measured_at']
+            for app, state in measure['apps'].items():
+                states.setdefault(app, []).append(state)
+        merged['apps'] = {app: combined_state(found) for app, found in sorted(states.items())}
+        return merged
 
     def to_dict(self) -> dict:
         return {'key': self.key, 'name': self.name, 'description': self.description,
                 'script': self.script, 'requires': list(self.requires),
                 'consumes': list(self.consumes),
-                'emits': list(self.emits), 'worlds': list(self.worlds)}
+                'emits': list(self.emits), 'worlds': list(self.worlds),
+                'mount': self.mount, 'declarations': list(self.declarations)}
 
 
 @dataclass(frozen=True)
@@ -330,6 +389,10 @@ def register_surface(surface: Surface) -> Surface:
     unknown = [s.brick for s in surface.slots if s.brick not in BRICKS]
     if unknown:
         raise ValueError(f"surface {surface.id} : brique(s) inconnue(s) {unknown}")
+    page = [s.brick for s in surface.slots if BRICKS[s.brick].is_page]
+    if page:
+        raise ValueError(f"surface {surface.id} : {page} se monte(nt) par une page, pas sur une "
+                         "surface")
     SURFACES[surface.id] = surface
     return surface
 
@@ -460,3 +523,37 @@ register_brick(UIBrick(
     description="Annuler / rétablir (historique commun), enregistrer, appliquer — rejouer le "
                 "process que la modification a périmé.",
     script='common/js/surfaces/brick-surface-actions.js'))
+
+
+# ── Briques de PAGE (2026-10-19, `ROUTE §F3b`, étape 3) ──────────────────────────────────────
+# Une page d'app les monte par un gabarit (ou par la page de base, pour toutes) : elles ne se
+# posent pas sur une surface. Elles lisent ce que l'app qui les monte DÉCLARE. La FILE viendra
+# quand elle sera une pièce unique (un gabarit commun aux dix apps et au générateur).
+
+register_brick(UIBrick(
+    key='entry_card', name="Card d'entrée",
+    description="La card « Nouvel élément » en tête de file : un onglet par PORT d'entrée que "
+                "l'app déclare (travail, prompt, référence, en direct), et dans sa zone d'aperçu "
+                "les modalités du port actif — importer, URL, médiathèque —, qui bascule sur les "
+                "fichiers attachés.",
+    mount='common/_new_item_card_v4.html',
+    declarations=('app.ports', 'app.modes', 'app.capabilities')))
+
+register_brick(UIBrick(
+    key='inspector_panel', name='Inspecteur',
+    description="Le volet droit d'une page : au clic sur une card, son aperçu, les champs de "
+                "détail que l'app déclare, ses réglages rendus du schéma de ses paramètres et les "
+                "actions de l'élément ou du lot. Une page d'app le monte par ses actions ; le "
+                "volet lui-même est l'ossature de la page de base.",
+    script='common/js/wama-inspector.js',
+    mount='common/_inspector_actions.html',
+    declarations=('app.inspector', 'app.params')))
+
+register_brick(UIBrick(
+    key='media_viewer', name='Visionneuse',
+    description="L'élément en grand : ses faces — Entrée, une par process du pipeline de la "
+                "card, Sortie —, la comparaison et les surcouches de détection ; aussi la galerie "
+                "sans élément (les vignettes de ce catalogue). La page de base la charge pour "
+                "toutes les pages.",
+    mount='common/js/media-preview.js',
+    declarations=('app.inspector', 'pipeline')))

@@ -46,6 +46,7 @@
   <div class="wama-cat-stats">
     <span class="wama-cat-stat"><b>{{ bricks|length }}</b> brique{{ bricks|length|pluralize }}</span>
     <span class="wama-cat-stat"><b>{{ surfaces_count }}</b> surface{{ surfaces_count|pluralize }} qui les compose{{ surfaces_count|pluralize:"nt" }}</span>
+    {% if page_count %}<span class="wama-cat-stat"><b>{{ page_count }}</b> montée{{ page_count|pluralize }} par les pages d'app</span>{% endif %}
     {% if unused_count %}
       <span class="wama-cat-stat ub-none"><b>{{ unused_count }}</b> brique{{ unused_count|pluralize }} qu'aucune surface ne monte</span>
     {% endif %}
@@ -67,6 +68,10 @@
        communes que le développeur assemble (axe de temps, historique, lecteur audio…). Chaque
        tuile dit lesquels, lus de son code. Les mécanismes eux-mêmes ne sont pas des
        briques&nbsp;: leur carte est celle des mécanismes.</p>
+    <p>Certaines briques se montent par la <b>page d'une app</b> plutôt que sur une surface&nbsp;:
+       la card d'entrée, l'inspecteur, la visionneuse. Rien ne circule jusqu'à elles&nbsp;: elles
+       lisent ce que <b>l'app déclare</b> (ses ports, sa fiche de détail, son pipeline), et les apps
+       qui les montent sont celles que la grille de conformité mesure.</p>
   </div>
 
   {% include 'common/_filter_bar.html' with facettes=facets cible='.wama-cat-card' mode='client' placeholder='Filtrer (brique, nature lue, app, mécanisme…)' %}
@@ -77,8 +82,8 @@
   <div class="wama-cat-grid" id="uiBricksGrid" style="--cat-card-min: 340px;"
        data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for b in bricks %}
-    <div class="wama-cat-card" data-id="{{ b.key }}" data-f-usage="{{ b.usage }}"
-         data-f-text="{{ b.key }} {{ b.name }}{% for r in b.reads %} {{ r.value }}{% endfor %}{% for e in b.emits %} {{ e }}{% endfor %}{% for s in b.surfaces %} {{ s.app }} {{ s.app_label }} {{ s.label }}{% endfor %}{% for m in b.mechanisms %} {{ m.key }} {{ m.name }}{% endfor %}">
+    <div class="wama-cat-card" data-id="{{ b.key }}" data-f-usage="{{ b.usage }}" data-f-montage="{{ b.mounted }}"
+         data-f-text="{{ b.key }} {{ b.name }}{% for r in b.reads %} {{ r.value }}{% endfor %}{% for e in b.emits %} {{ e }}{% endfor %}{% for s in b.surfaces %} {{ s.app }} {{ s.app_label }} {{ s.label }}{% endfor %}{% for a in b.apps %} {{ a.app }} {{ a.app_label }}{% endfor %}{% for m in b.mechanisms %} {{ m.key }} {{ m.name }}{% endfor %}">
       <h4>{{ b.name }}
         <span class="wama-cat-badge ub-key">{{ b.key }}</span>
         <span class="wama-cat-badge {% if b.emits %}ub-edit{% else %}ub-show{% endif %}">{{ b.usage }}</span>
@@ -101,8 +106,14 @@
         {% for e in b.emits %}<span class="ub-chip ub-emit">{{ e }}</span>{% endfor %}
       </div>
       {% endif %}
+      {% comment %}Brique de PAGE : les apps qui la montent = l'adoption MESURÉE du mécanisme qui
+      tient son gabarit (`UIBrick.adoption`) ; le titre dit les critères et la date du relevé.{% endcomment %}
       <div class="ub-row"><b>Utilisée par</b>
-        {% for s in b.surfaces %}<span class="ub-chip ub-surface">{{ s.app_label }} · {{ s.label }}</span>{% empty %}<span class="ub-none">aucune surface pour l'instant</span>{% endfor %}
+        {% if b.page %}
+          {% for a in b.apps %}<span class="ub-chip ub-surface" title="Mesuré par la grille : {{ b.criteria|join:', ' }}{% if b.measured_at %} — {{ b.measured_at|slice:':10' }}{% endif %}">{{ a.app_label }}{% if a.partial %}<small>en partie</small>{% endif %}</span>{% empty %}<span class="ub-none">aucune app mesurée</span>{% endfor %}
+        {% else %}
+          {% for s in b.surfaces %}<span class="ub-chip ub-surface">{{ s.app_label }} · {{ s.label }}</span>{% empty %}<span class="ub-none">aucune surface pour l'instant</span>{% endfor %}
+        {% endif %}
       </div>
       {% comment %}Les PIÈCES de la brique (`UIBrick.mechanisms`, lues de son code). Le titre de la
       puce porte la clé : c'est elle que nomme la carte des mécanismes.{% endcomment %}
@@ -112,7 +123,7 @@
 
       <div class="wama-cat-meta">
         {% if b.all_worlds %}Tous les mondes{% else %}Mondes : {{ b.worlds|join:", " }}{% endif %}
-        · script <code class="ub-path">{{ b.script }}</code>{% if b.requires %} · dépend de <code class="ub-path">{{ b.requires|join:", " }}</code>{% endif %}
+        {% if b.mount %} · montée par <code class="ub-path">{{ b.mount }}</code>{% endif %}{% if b.script and b.script != b.mount %} · script <code class="ub-path">{{ b.script }}</code>{% endif %}{% if b.requires %} · dépend de <code class="ub-path">{{ b.requires|join:", " }}</code>{% endif %}
       </div>
     </div>
     {% empty %}

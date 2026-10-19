@@ -510,14 +510,35 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       pièce unique — un gabarit commun (barre de file, conteneur, entrées, état vide) porté aux dix
       apps et au générateur, sans exception — avant d'être déclarée ; la card d'entrée, l'inspecteur
       et la visionneuse se déclarent tout de suite.
-      ⏳ **Ce que LISENT ces briques — revérifié le 19/10, à trancher** : un type `element` dans
-      `DataType` a été proposé puis écarté à la revérification. `DataType` nomme les DONNÉES qui
+      ✅ **Ce que LISENT ces briques — tranché le 19/10 (Fabien, sur revérification)** : pas de
+      type `element` dans `DataType`. `DataType` nomme les DONNÉES qui
       circulent par les ports du monde Data (`TypedFrame`, `is_compatible`) ; l'item B du plan de
       compatibilité est clos PAR LA NÉGATIVE (17/09, `§S2bis.6bis` : pas d'axe commun de
       vocabulaire) ; et un élément ne CIRCULE jamais — entre apps, c'est un FICHIER (`send_to` :
       `result_file`), et les ports du Studio parlent natures et jeton `prompt` (`studio_node_ports`). Ce qu'une brique de page lit
       est déjà déclaré par l'app qui la monte : ses ports d'entrée (card d'entrée), son pipeline
       (file), sa spec de détail (inspecteur), les natures de ses faces (visionneuse).
+      ✅ **Étape 3, livrée le 19→20/10 — trois briques de PAGE** (`surfaces.py`) : `entry_card`
+      (card d'entrée), `inspector_panel` (inspecteur), `media_viewer` (visionneuse). Deux champs de
+      `UIBrick` : `mount`, le fichier par lequel une page la monte — le gabarit inclus
+      (`_new_item_card_v4.html`, `_inspector_actions.html`), ou le script que la page de base charge
+      pour toutes quand la brique n'a pas de gabarit à elle (la visionneuse) — et `declarations`, ce
+      qu'elle lit dans le vocabulaire FERMÉ des manifestes : `app.<facette>` (`APP_FACETS`) ou un autre
+      kind de l'app (`pipeline`) ; `consumes` reste vide (rien ne circule jusqu'à elle). « Utilisée
+      par » = `UIBrick.adoption`, l'adoption mesurée du mécanisme qui tient le fichier de montage
+      (`measured_adoption`, que R153 avait gardé pour cela) — 10/10 pour les trois au relevé du
+      19/10. Une surface ne pose jamais une brique de page (`register_surface` et `surfaces_gen`
+      la refusent). Au passage : la composition se lit du CODE, sans sa prose
+      (`mecanismes_scan.code_only`) — la visionneuse comptait 4 « pièces » sur 8 tirées de
+      commentaires (le sélecteur de médias qui l'APPELLE, l'inspecteur dont elle a repris des
+      fonctions, les scripts de la file qu'un commentaire compare) ; en contrepartie « Texte en sections » et « Actions de la surface » ne montrent plus
+      l'historique, qu'elles atteignent par le contexte de la surface (`ctx.history`) et que seul
+      un commentaire leur rattachait. Le balayage d'adoption compte encore la prose (en changer
+      déplacerait tous les comptes de la carte : décision à part). Et le balayage lit désormais un
+      module de PREMIER NIVEAU (`vector_service.py`, déclaré le même soir) au lieu de planter.
+      Gardes : `tests_ui_bricks_page.PageBrickTest` (5), `tests_mecanismes_scan.CodeOnlyTest` (3)
+      et le module de premier niveau — contre-épreuves rouges.
+      ⏳ La FILE, quand elle sera une pièce unique (point (2) ci-dessus).
   - ✅ **2ᵉ SURFACE — 2026-10-13, la page d'édition du FOND du Writer** (décisions de Fabien le
     jour même ; `ROADMAP §21.5` étape 1) :
     - **un champ FICHIER s'édite comme TEXTE**, nature DÉDUITE du type du champ

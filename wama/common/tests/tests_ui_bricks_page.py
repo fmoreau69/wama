@@ -7,6 +7,7 @@ from unittest import mock
 from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
 from django.urls import reverse
+from django.utils.html import escape
 
 from wama.common import registries
 from wama.common.app_registry import app_identity, measured_adoption
@@ -32,7 +33,7 @@ class UIBricksPageTest(TestCase):
         for key, brick in BRICKS.items():
             with self.subTest(brick=key):
                 self.assertIn(f'data-id="{key}"', page)
-                self.assertIn(brick.name, page)
+                self.assertIn(escape(brick.name), page)
 
     def test_a_brick_names_the_surfaces_that_compose_it(self):
         """An app is named by its declared identity (`app_identity`), never by its key."""
@@ -107,6 +108,86 @@ class BrickCompositionTest(TestCase):
             self.assertEqual(['audio_player', 'shuttle'], brick.mechanisms())
         with mock.patch('django.contrib.staticfiles.finders.find', return_value=None):
             self.assertEqual(['shuttle'], brick.mechanisms(), 'a script not found reads nothing')
+
+
+class PageBrickTest(TestCase):
+    """Page bricks (2026-10-19, Fabien, step 3) : an app page mounts them by a template (or the
+    base page, for all), never a surface. Nothing flows to them : they read what the mounting app
+    DECLARES (a facet of its manifest, or its pipeline) ; the apps that mount them are the measured
+    adoption of the mechanism that holds that template."""
+
+    PAGE_BRICKS = ('entry_card', 'inspector_panel', 'media_viewer')
+
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_user('ui-page', password='x'))
+        load_all()
+
+    def test_a_page_brick_reads_only_what_the_mounting_app_states(self):
+        from wama.common.manifests.builtin.app import APP_FACETS
+        from wama.common.manifests.kinds import MANIFEST_KINDS
+        for key, brick in BRICKS.items():
+            with self.subTest(brick=key):
+                self.assertEqual(key in self.PAGE_BRICKS, brick.is_page)
+                if not brick.is_page:
+                    self.assertEqual((), brick.declarations, 'a surface brick reads what flows')
+                    continue
+                self.assertEqual((), brick.consumes, 'nothing flows to a page brick')
+                self.assertTrue(brick.declarations)
+                for value in brick.declarations:
+                    kind, _, facet = value.partition('.')
+                    self.assertIn(kind, MANIFEST_KINDS, value)
+                    if facet:
+                        self.assertEqual('app', kind, value)
+                        self.assertIn(facet, APP_FACETS, value)
+
+    def test_its_mount_is_a_file_a_page_names(self):
+        from wama.common.surfaces import source_file
+        for key in self.PAGE_BRICKS:
+            with self.subTest(brick=key):
+                self.assertTrue(source_file(BRICKS[key].mount), BRICKS[key].mount)
+
+    def test_the_apps_that_mount_it_are_the_measured_adoption_of_its_template(self):
+        report = {'generated_at': '2026-10-19T00:00:00+00:00',
+                  'criteria': {'c_card': {'mechanism': 'new_item_card'}},
+                  'apps': {'anonymizer': {'conv': {'c_card': True}},
+                           'composer': {'conv': {'c_card': 'partial'}},
+                           'imager': {'conv': {'c_card': False}}}}
+        with mock.patch('wama.common.app_registry._conformity_report', return_value=report):
+            adoption = BRICKS['entry_card'].adoption()
+            self.assertEqual({'anonymizer': True, 'composer': 'partial', 'imager': False},
+                             adoption['apps'])
+            self.assertEqual(['c_card'], adoption['criteria'])
+            self.assertEqual({'apps': {}, 'criteria': [], 'measured_at': None},
+                             BRICKS['image_boxes'].adoption(), 'a surface brick: its surfaces')
+            response = self.client.get(reverse('common:ui_bricks_catalog'))
+        card = response.content.decode('utf-8', 'replace').split(
+            'data-id="entry_card"', 1)[1].split('wama-cat-card', 1)[0]
+        self.assertIn(f'>{app_identity("anonymizer")["label"]}</span>', card)
+        self.assertIn(f'>{app_identity("composer")["label"]}<small>en partie</small>', card)
+        self.assertNotIn(app_identity('imager')['label'], card, 'a red app does not mount it')
+        self.assertIn('data-f-montage="Page"', card)
+        self.assertIn('ports<small>facette de l&#x27;app</small>', card)
+
+    def test_a_surface_never_places_a_page_brick(self):
+        from wama.common.manifests.codegen.surfaces_gen import _check
+        from wama.common.surfaces import BrickSlot, Surface, register_surface
+        slot = BrickSlot(id='card', brick='entry_card', x=0, y=0, w=4, h=4)
+        with self.assertRaises(ValueError):
+            register_surface(Surface(app='nowhere', key='edit', label='x', model='x.Y',
+                                     slots=(slot,), reads={}, edits='f'))
+        self.assertNotIn('nowhere.edit', SURFACES)
+        refused = _check({'key': 'edit', 'label': 'x', 'slots': [
+            {'id': 'card', 'brick': 'entry_card', 'x': 0, 'y': 0, 'w': 4, 'h': 4}]}, {}, set())
+        self.assertIn('brique de PAGE', refused)
+
+    def test_a_composition_is_read_from_the_code_not_from_its_comments(self):
+        """The viewer's script names, in comments only, the media picker that CALLS it and the
+        queue scripts it resembles : none is a piece of it ; the overlay class it sets is one."""
+        parts = BRICKS['media_viewer'].mechanisms()
+        self.assertIn('preview', parts)
+        for prose in ('media_picker', 'queue_front', 'queue_dnd', 'inspector'):
+            with self.subTest(prose=prose):
+                self.assertNotIn(prose, parts)
 
 
 class MeasuredAdoptionTest(TestCase):
