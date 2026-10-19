@@ -204,6 +204,14 @@ la ligne `AIModel`, où elle naît au geste d'installation ; un modèle système
 d'avant (public, sans propriétaire), et le corpus ne bouge pas. `write_back` ne la projette pas
 (sens SORTANT : un manifeste en retard ne change jamais un modèle de main). Promouvoir le
 manifeste promeut aussi la ligne (`ownership.promote_row`, qui la trouve par le registre du kind).
+✅ **Le kind `pipeline` aussi, le 2026-10-19** (étape 4) : le manifeste d'un pipeline du canvas lit
+propriétaire, portée et codes sur `StudioPipeline` (`envelope_of(…, owner_field='user')`) — sa
+portée était écrite `private` en dur. Il n'entre toujours pas au corpus. Le **kind `function`** perd
+deux clés de son `body` : `owner` et `visibility` d'une fonction du CODE, que rien ne remplissait
+(`REMOVAL_LEDGER R154`) ; son enveloppe portait déjà la provenance, et une fonction du code suit
+l'app qui la porte. Promouvoir le manifeste d'une fonction d'UTILISATEUR ne touche pas sa ligne :
+son propriétaire est obligatoire (`promote_row` le lit sur le champ), et sa promotion la fait
+entrer au catalogue code — un geste de développement.
 
 ---
 

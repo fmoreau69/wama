@@ -2195,16 +2195,19 @@ def api_model_task_limit(request):
 @login_required
 def function_catalog(request):
     """Catalogue des FONCTIONS de traitement WAMA Data (card-style, tri/filtre côté client).
-    Lit `FUNCTION_CATALOG` (fonctions pures + app-bound déclarées par capacités)."""
+    Lit `FUNCTION_CATALOG` (fonctions pures + app-bound déclarées par capacités).
+
+    Ce que le compte voit (`ROADMAP §29` étape 4) : une fonction du code suit l'accès de l'app qui
+    la porte (`accessible_specs`, la règle de la palette du Studio — la page listait les process
+    des jumelles à tous) ; une fonction d'utilisateur passe le filtre des catalogues."""
     import json as _json
-    from wama.common.catalog.function_catalog import load_all, catalog_dict
+    from wama.common.catalog.function_catalog import FUNCTION_CATALOG, accessible_specs, load_all
     load_all()
-    cat = catalog_dict()
-    funcs = list(cat.values())
-    # + fonctions UTILISATEUR (BDD) visibles pour cet utilisateur (privé/unité/public).
+    funcs = [spec.to_dict() for spec in accessible_specs(request.user, FUNCTION_CATALOG.values())]
+    # + fonctions UTILISATEUR (BDD) que ce compte voit : les siennes, sa portée, les publiques.
     try:
-        from wama.common.models import UserFunction, scoped_visible_q
-        for uf in UserFunction.objects.filter(scoped_visible_q(request.user, owner_field='owner')):
+        from wama.common.models import UserFunction
+        for uf in UserFunction.objects.catalogue_visible_to(request.user):
             funcs.append(uf.to_dict())
     except Exception:
         pass

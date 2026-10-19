@@ -47,15 +47,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
     ],
     "tags": [
       "vision"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Reflets de vitrage : bbox fixe pendant que la navette avance (cinématique) OU bbox géante + confiance basse (fantôme géant).",
   "key": "cam_analyzer.artifact_filter",

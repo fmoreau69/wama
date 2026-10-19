@@ -392,6 +392,8 @@ def extract_pipeline(key: str) -> Optional[dict]:
         factory = PIPELINE_SOURCES.get(str(key))
         return factory() if factory else None
 
+    from ..ownership import envelope_of
+
     graph = p.graph or {}
 
     body = graph_to_body(graph)
@@ -402,8 +404,9 @@ def extract_pipeline(key: str) -> Optional[dict]:
         'name': p.name,
         'description': '',
         'world': 'transverse',       # pipeline transverse
-        'owner': p.user.get_username() if p.user_id else None,
-        'visibility': 'private',     # un pipeline utilisateur est privé par défaut
+        # Propriétaire, portée et codes lus sur la LIGNE (`ROADMAP §29` étape 4) — la portée
+        # était écrite `private` en dur, quel que soit le partage.
+        **envelope_of(p, owner_field='user'),
         'projects': [],
         'source': {'type': 'extract', 'ref': f'StudioPipeline:{p.pk}'},
         'body': body,

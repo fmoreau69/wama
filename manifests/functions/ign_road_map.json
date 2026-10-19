@@ -29,7 +29,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -72,8 +71,7 @@
       "network",
       "france",
       "map-matching"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Réseau routier BD TOPO mis à la FORME du port `road_map` : géométries en (lat, lon) et TypedFrame typé, donc chaînable tel quel dans `driving.gps_map_match`. Seconde voie d'alimentation du port — le référentiel national autoritatif, à côté des tracés de sections fournis par un projet (`load_road_map_csv`), qu'elle ne remplace pas.",
   "key": "ign_road_map",

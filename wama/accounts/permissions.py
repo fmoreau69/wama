@@ -139,7 +139,8 @@ KIND_DECISION = {
     # s'y AJOUTER avec S3, sans remplacer la provenance.
     'model':     'provenance',
     'library':   'S3',
-    'function':  'S3',
+    # Étape 4 : la ligne d'une fonction d'UTILISATEUR, ou l'app qui porte une fonction du CODE.
+    'function':  'provenance',
     'skill':     'S3',
     'rag_scope': 'ScopedVisibility',   # gardé AILLEURS (portée héritée) — ne PAS dupliquer ici
 }
@@ -420,8 +421,9 @@ def accessible(user, kind, element_id):
     Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
 
     `kind` ∈ `KIND_DECISION` (app | model | library | function | skill | rag_scope). La famille
-    `app` se décide ici par sa politique ; une famille « provenance » (`model`) par la portée de
-    l'élément sur la ligne de son registre ; les autres déclarent leur mécanisme et renvoient
+    `app` se décide ici par sa politique ; une famille « provenance » (`model`, `function`) par la
+    portée de l'élément sur la ligne de son registre, ou par l'app qui déclare un élément du
+    code ; les autres déclarent leur mécanisme et renvoient
     True. Un `kind` inconnu LÈVE — cf. le commentaire de `KIND_DECISION`.
     """
     decideur = KIND_DECISION.get(kind)
@@ -443,17 +445,20 @@ def _provenance_accessible(user, kind, element_id):
     déclare (`owner_model`, nommée par `owner_key`), avec le filtre commun des catalogues
     (`catalogue_visible_q` : système, publics, les siens, sa portée ; tout pour l'admin).
 
-    Un élément SANS ligne n'est à personne : rien ne le restreint. Un élément privé a toujours la
-    sienne, puisque c'est elle qui porte son auteur."""
+    Un élément SANS ligne est du code : il n'a pas d'auteur à lui, il suit l'app qui le déclare
+    (`Registry.element_app` — système dans une app réelle, à son créateur dans une jumelle), et
+    rien ne le restreint quand le registre n'en nomme aucune. Un élément privé d'utilisateur a
+    toujours sa ligne, puisque c'est elle qui porte son auteur."""
     from wama.common.models import catalogue_visible_q
-    from wama.common.registries import carried_rows
+    from wama.common.registries import carried_rows, declaring_app
     rows = carried_rows(element_id, access_kind=kind)
     if rows is None:
         raise ValueError(f"accessible() : la famille « {kind} » se décide par la provenance, "
                          f"mais aucun registre ne nomme la ligne qui la porte")
-    if not rows.exists():
-        return True
-    return rows.filter(catalogue_visible_q(user, model=rows.model)).exists()
+    if rows.exists():
+        return rows.filter(catalogue_visible_q(user, model=rows.model)).exists()
+    app = declaring_app(element_id, access_kind=kind)
+    return not app or accessible(user, 'app', app)
 
 
 def _app_accessible(user, app_id, policies=None, owners=None):

@@ -47,7 +47,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -55,8 +54,7 @@
     "tags": [
       "vision",
       "geo"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Détecte les conflits (approche frontale, suivi rapproché, dépassement…) à partir des segments et des trajectoires.",
   "key": "cam_analyzer.conflicts",

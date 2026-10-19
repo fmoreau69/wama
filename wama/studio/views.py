@@ -69,20 +69,18 @@ def api_nodes(request):
     # D13 — nœuds FONCTION : le catalogue de fonctions par le MÊME accesseur de forme que les
     # apps (`function_node_ports` ≡ `studio_node_ports`). Le JS ne connaît qu'un identifiant
     # de palette : `function:<clé>` (lu par `pipeline.node_kind`/`function_key`, nulle part
-    # ailleurs). Fonctions `pure` ET `app`-bound ; une privée ne sort pas (visibilité).
+    # ailleurs). Fonctions `pure` ET `app`-bound.
     from wama.common.catalog import function_catalog as fc
     from wama.common.catalog.data_types import known_types      # accesseur unique (2026-09-16)
     from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
     fc.load_all()
-    for key, spec in sorted(fc.FUNCTION_CATALOG.items()):
-        if spec.visibility != 'public':
-            continue
-        # Un process RATTACHÉ suit l'accès de son app, comme le nœud de l'app ci-dessus
-        # (2026-10-05 : les process d'une jumelle dev-only et ceux d'une app non ouverte au
-        # compte s'affichaient à tous).
-        if (spec.binding == fc.Binding.APP and spec.app and accessible
-                and not accessible(request.user, 'app', spec.app)):
-            continue
+    # Une fonction suit l'accès de l'app qui la PORTE, comme le nœud de l'app ci-dessus
+    # (2026-10-05 : les process d'une jumelle dev-only et ceux d'une app non ouverte au compte
+    # s'affichaient à tous) — et c'est aussi sa provenance (`ROADMAP §29` étape 4) : la lecture
+    # de `spec.visibility` qui la précédait est retirée avec le champ.
+    for spec in sorted(fc.accessible_specs(request.user, fc.FUNCTION_CATALOG.values()),
+                       key=lambda s: s.key):
+        key = spec.key
         ports = fc.function_node_ports(key)
         nodes[f'{FUNCTION_NODE_PREFIX}{key}'] = {
             'label': spec.name or key,
@@ -121,8 +119,11 @@ def _json_body(request):
 
 @login_required
 def api_pipelines(request):
-    """GET : liste des pipelines sauvegardés. POST : sauvegarde (upsert par nom)."""
+    """GET : liste des pipelines sauvegardés — les siens et ceux qu'on lui partage (`listable_by`,
+    `ROADMAP §29` étape 4). POST : sauvegarde (upsert par nom) — toujours le SIEN : enregistrer
+    un pipeline partagé en fait sa copie (`WAMA_COLLABORATION §3.5`)."""
     from django.views.decorators.http import require_http_methods  # noqa: F401 (doc)
+    from wama.common.utils.scoping import listable_by
     from .models import StudioPipeline
     if request.method == 'POST':
         data = _json_body(request)
@@ -135,7 +136,7 @@ def api_pipelines(request):
         pipe, created = StudioPipeline.objects.update_or_create(
             user=request.user, name=name, defaults={'graph': graph})
         return JsonResponse({'id': pipe.pk, 'name': pipe.name, 'created': created})
-    pipes = StudioPipeline.objects.filter(user=request.user)
+    pipes = listable_by(StudioPipeline.objects.all(), request.user)
     return JsonResponse({'pipelines': [
         {'id': p.pk, 'name': p.name, 'updated_at': p.updated_at.strftime('%d/%m %H:%M'),
          'nodes': len(p.graph.get('nodes', []))}
@@ -145,15 +146,18 @@ def api_pipelines(request):
 
 @login_required
 def api_pipeline_detail(request, pk):
-    """GET : charge un pipeline (graphe). DELETE : le supprime."""
+    """GET : charge un pipeline qu'on voit (`visible_or_404`). DELETE : supprime le SIEN
+    (`owned_or_404`) — un pipeline partagé ne se supprime que chez son auteur."""
+    from django.http import Http404
+    from wama.common.utils.scoping import owned_or_404, visible_or_404
     from .models import StudioPipeline
     try:
-        pipe = StudioPipeline.objects.get(pk=pk, user=request.user)
-    except StudioPipeline.DoesNotExist:
+        if request.method == 'DELETE':
+            owned_or_404(StudioPipeline, request.user, pk=pk).delete()
+            return JsonResponse({'deleted': pk})
+        pipe = visible_or_404(StudioPipeline, request.user, pk=pk)
+    except Http404:
         return JsonResponse({'error': 'Pipeline introuvable'}, status=404)
-    if request.method == 'DELETE':
-        pipe.delete()
-        return JsonResponse({'deleted': pk})
     return JsonResponse({'id': pipe.pk, 'name': pipe.name, 'graph': pipe.graph})
 
 
@@ -163,12 +167,36 @@ def api_pipeline_detail(request, pk):
 # producteurs), rendus sous la forme canvas par `body_to_graph`. Lecture seule côté code : les
 # modifier au studio puis sauvegarder en fait un pipeline PERSONNEL (StudioPipeline).
 
-def _declared_pipeline(key):
-    from wama.common.manifests.builtin.pipeline import PIPELINE_SOURCES, registered_pipeline_keys
-    if key not in registered_pipeline_keys():
-        return None
-    m = PIPELINE_SOURCES[key]()
-    return m if m and m.get('visibility', 'public') == 'public' else None
+def _declared_pipelines(user, keys):
+    """Les pipelines déclarés que `user` peut ouvrir, `{clé: manifeste}`.
+
+    Un pipeline du code n'a pas d'auteur à lui : il suit ce qu'il fait tourner (`ROADMAP §29`
+    étape 4). Chacun de ses nœuds — fonction, ou app — doit être accessible au compte, par les
+    règles de la palette (`accessible_specs`, `accessible_apps`) : le pipeline d'une jumelle est
+    donc à son créateur, comme ses process. La lecture de `visibility` dans le manifeste, qui
+    disait « public » pour tous, est retirée."""
+    from wama.accounts.permissions import accessible_apps
+    from wama.common.catalog import function_catalog as fc
+    from wama.common.manifests.builtin.pipeline import (PIPELINE_SOURCES, function_key,
+                                                        node_kind, registered_pipeline_keys)
+    known = set(registered_pipeline_keys())
+    manifests = {key: m for key in keys if key in known and (m := PIPELINE_SOURCES[key]())}
+    nodes = [n for m in manifests.values() for n in (m.get('body') or {}).get('nodes') or []]
+    fc.load_all()
+    specs = [s for n in nodes if node_kind(n) == 'function' and (s := fc.get(function_key(n)))]
+    # Une fonction que le catalogue ne connaît pas n'a pas d'app : rien ne la restreint (la même
+    # règle que `accessible`) — c'est le lancement qui la refusera, en la nommant.
+    closed = {s.key for s in specs} - {s.key for s in fc.accessible_specs(user, specs)}
+    app_ids = sorted({n.get('app') for n in nodes if node_kind(n) == 'app' and n.get('app')})
+    closed_apps = set(app_ids) - set(accessible_apps(user, app_ids))
+
+    def opens(node):
+        kind = node_kind(node)
+        if kind == 'function':
+            return function_key(node) not in closed
+        return kind != 'app' or node.get('app') not in closed_apps
+    return {key: m for key, m in manifests.items()
+            if all(opens(n) for n in (m.get('body') or {}).get('nodes') or [])}
 
 
 @login_required
@@ -176,8 +204,7 @@ def api_declared_pipelines(request):
     """GET : les pipelines déclarés par les apps (clé, nom, monde, nombre de nœuds)."""
     from wama.common.manifests.builtin.pipeline import registered_pipeline_keys
     out = []
-    for key in registered_pipeline_keys():
-        m = _declared_pipeline(key)
+    for key, m in _declared_pipelines(request.user, registered_pipeline_keys()).items():
         if m:
             out.append({'key': key, 'name': m.get('name') or key, 'world': m.get('world'),
                         'nodes': len((m.get('body') or {}).get('nodes') or [])})
@@ -188,7 +215,7 @@ def api_declared_pipelines(request):
 def api_declared_pipeline_detail(request, key):
     """GET : le graphe CANVAS d'un pipeline déclaré (disposition automatique s'il n'en a pas)."""
     from wama.common.manifests.builtin.pipeline import body_to_graph
-    m = _declared_pipeline(key)
+    m = _declared_pipelines(request.user, [key]).get(key)
     if not m:
         return JsonResponse({'error': 'Pipeline déclaré introuvable'}, status=404)
     return JsonResponse({'key': key, 'name': m.get('name') or key, 'declared': True,

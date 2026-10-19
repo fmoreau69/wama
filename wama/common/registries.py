@@ -195,6 +195,10 @@ class Registry:
     #: `accessible(user, access_kind, element_id)` quand la famille se décide par la provenance
     #: (`KIND_DECISION` = 'provenance' : `model_key` pour les modèles).
     owner_key: str = ''
+    #: `clé → app` : l'app qui DÉCLARE un élément du CODE (`ROADMAP §29` étape 4). Un élément du
+    #: code n'a pas de ligne : il n'a pas d'auteur à lui, il suit l'app qui le porte — système
+    #: dans une app réelle, à son créateur dans une jumelle. '' : rien ne le restreint.
+    element_app: Optional[Callable[[str], str]] = None
     #: La famille d'`accounts.permissions.KIND_DECISION` dont ce registre liste les éléments : le
     #: lien entre « à qui c'est » (ici) et « qui a le droit » (là-bas), une famille par registre.
     access_kind: str = ''
@@ -242,6 +246,9 @@ def register(r: Registry) -> Registry:
             f"seulement avec elle — c'est la ligne qui porte propriétaire et portée")
     if r.owner_key and not r.owner_model:
         raise ValueError(f"'{r.key}' : `owner_key` nomme un champ de `owner_model`, absent ici")
+    if r.element_app and not r.owner_key:
+        raise ValueError(f"'{r.key}' : `element_app` complète la ligne nommée par `owner_key` "
+                         f"(un élément sans ligne est du code) ; sans elle, rien ne le lirait")
     REGISTRIES[r.key] = r
     return r
 
@@ -254,19 +261,33 @@ def get(key: str) -> Registry:
             f"registre '{key}' inconnu (enregistrés : {', '.join(sorted(REGISTRIES)) or '—'})")
 
 
+def _carrying_registry(access_kind: str = '', manifest_kind: str = ''):
+    """Le registre porté qui nomme la ligne d'une famille d'accès ou d'un kind de manifeste."""
+    return next((r for r in REGISTRIES.values()
+                 if r.provenance in CARRIED and r.owner_key
+                 and ((access_kind and r.access_kind == access_kind)
+                      or (manifest_kind and r.manifest_kind == manifest_kind))), None)
+
+
 def carried_rows(element_id, *, access_kind: str = '', manifest_kind: str = ''):
     """Les lignes qui portent la provenance de l'élément `element_id` — `owner_model` filtré par
     `owner_key` —, trouvées par le registre de sa famille d'accès (`accounts.permissions.
     accessible`) ou de son kind de manifeste (`manifests.ownership.promote_row`). None quand aucun
     registre porté ne nomme sa ligne : l'appelant dit ce que cela vaut pour lui."""
     from django.apps import apps
-    registry = next((r for r in REGISTRIES.values()
-                     if r.provenance in CARRIED and r.owner_key
-                     and ((access_kind and r.access_kind == access_kind)
-                          or (manifest_kind and r.manifest_kind == manifest_kind))), None)
+    registry = _carrying_registry(access_kind, manifest_kind)
     if registry is None:
         return None
     return apps.get_model(registry.owner_model).objects.filter(**{registry.owner_key: element_id})
+
+
+def declaring_app(element_id, *, access_kind: str) -> str:
+    """L'app qui déclare l'élément du CODE `element_id`, lue par le registre de sa famille
+    (`Registry.element_app`) — '' si le registre ne la déclare pas ou ne la trouve pas."""
+    registry = _carrying_registry(access_kind=access_kind)
+    if registry is None or registry.element_app is None:
+        return ''
+    return registry.element_app(element_id) or ''
 
 
 def is_authorized(r: Registry, user) -> bool:

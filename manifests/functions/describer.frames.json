@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "video",
       "vision",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Extrait les images-clés d'une vidéo (une toutes les 10 s, 18 au plus) et légende chacune avec le modèle de vision de la card (BLIP en automatique).",
   "key": "describer.frames",

@@ -45,12 +45,14 @@ def promote_row(manifest_kind: str, key: str) -> int:
 
     La ligne se trouve par le REGISTRE de ce kind (`manifest_kind`) : `owner_model` la nomme,
     `owner_key` nomme son champ d'identifiant. Un kind sans registre porté, ou dont le registre ne
-    déclare pas `owner_key`, n'a rien à promouvoir ici : c'est le cas d'une fonction
-    d'utilisateur, dont la promotion la fait entrer au catalogue CODE (`ROADMAP §29` étape 4)."""
+    déclare pas `owner_key`, n'a rien à promouvoir ici. Une ligne dont le propriétaire est
+    OBLIGATOIRE non plus : elle ne peut pas devenir système, c'est le cas d'une fonction
+    d'utilisateur (`UserFunction.owner`), dont la promotion la fait entrer au catalogue CODE —
+    un geste de développement (`ROADMAP §29` étapes 2 et 4)."""
     from wama.common.models import ScopedVisibility
     from wama.common.registries import carried_rows
     rows = carried_rows(key, manifest_kind=manifest_kind)
-    if rows is None:
+    if rows is None or not rows.model._meta.get_field('owner').null:
         return 0
     return rows.update(owner=None, visibility=ScopedVisibility.VIS_PUBLIC, scope_org_unit=None,
                        scope_project=None)

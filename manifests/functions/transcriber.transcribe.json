@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "audio",
       "speech",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Transcrit la parole d'un audio (ou de la piste son d'une vidéo) en texte horodaté, avec le modèle de la card ou le tirage automatique. Nivellement, débruitage, filtre de parole et choix de la langue en font partie.",
   "key": "transcriber.transcribe",

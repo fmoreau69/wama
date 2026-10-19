@@ -34,7 +34,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -42,8 +41,7 @@
     "tags": [
       "vision",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Segmentation zone roulable + lignes de voie.",
   "key": "cam_analyzer.yolopv2_lanes",

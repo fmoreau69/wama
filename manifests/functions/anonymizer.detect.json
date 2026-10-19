@@ -29,7 +29,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
@@ -37,8 +36,7 @@
       "video",
       "detection",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Détecte, dans une image ou une vidéo, les classes désignées (visages, plaques…) ou ce qu'une description nomme, avec le ou les modèles qui les couvrent : boîtes, contours (segmentation) et pistes, frame par frame.",
   "key": "anonymizer.detect",

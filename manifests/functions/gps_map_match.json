@@ -51,7 +51,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -104,8 +103,7 @@
       "geo",
       "timeseries",
       "requires-road-map"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Recale la trace GPS sur l'axe routier (plus-proche-segment) et attribue section, sens de circulation (±1) et cap de référence propre.",
   "key": "gps_map_match",

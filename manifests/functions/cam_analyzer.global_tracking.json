@@ -61,7 +61,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -70,8 +69,7 @@
       "vision",
       "geo",
       "per-vehicle"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Hand-off d'identité inter-caméras (gids), classes stables, stationnés+ancres, fantômes, lissage Kalman → world_en. Enchaîne branches et marquages monde.",
   "key": "cam_analyzer.global_tracking",

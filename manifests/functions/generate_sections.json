@@ -39,7 +39,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -68,8 +67,7 @@
     "tags": [
       "geo",
       "per-section"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Segmente la trace en sections routières propres depuis le map-matching (anti-rebond, hors-parcours ignoré, gardes aux frontières).",
   "key": "generate_sections",

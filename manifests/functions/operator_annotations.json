@@ -39,7 +39,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -78,8 +77,7 @@
     "tags": [
       "events",
       "annotations"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Consolide et enrichit les taps de l'opérateur : tag canonique, issue gérée (bien/mal), validité (annulation), tags de contexte voisins.",
   "key": "operator_annotations",

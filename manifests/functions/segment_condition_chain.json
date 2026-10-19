@@ -38,7 +38,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -96,8 +95,7 @@
       "temporel",
       "segmentation",
       "conditionnel"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Plages où PLUSIEURS conditions assemblées par ET / OU / XOR / NON sont satisfaites, avec hystérésis. Généralise « Segments par condition », qui n'en accepte qu'une seule et sur une colonne numérique. Les opérateurs de texte (contient, commence par…) y sont disponibles, et un opérateur inadapté à la sorte de la colonne est refusé AVANT exécution plutôt que de rendre un masque plausible et faux.",
   "key": "segment_condition_chain",

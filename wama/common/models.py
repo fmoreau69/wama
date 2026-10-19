@@ -897,8 +897,10 @@ class ScopedManager(models.Manager.from_queryset(ScopedQuerySet)):
 class UserFunction(ScopedVisibility):
     """Fonction de traitement CRÉÉE PAR UN UTILISATEUR (WAMA Data), stockée en BDD, avec
     confidentialité par scope (privée / partagée à une unité / publique). Distincte des
-    fonctions SYSTÈME code-déclarées (FUNCTION_CATALOG, toujours publiques). Décrite par
-    ses capacités E/S comme un FunctionSpec → fusionnée au catalogue selon la visibilité."""
+    fonctions du CODE (FUNCTION_CATALOG), qui n'ont pas d'auteur et suivent l'app qui les porte
+    (`function_catalog.spec_app`). Décrite par ses capacités E/S comme un FunctionSpec →
+    fusionnée au catalogue par le filtre des catalogues (`catalogue_visible_to`, `ROADMAP §29`
+    étape 4 : l'administrateur voit tout, décision c)."""
     key = models.CharField(max_length=128, unique=True, db_index=True)
     name = models.CharField(max_length=192)
     description = models.TextField(blank=True)
@@ -912,6 +914,8 @@ class UserFunction(ScopedVisibility):
     impl = models.TextField(blank=True)                     # référence/code (à venir)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ScopedManager()
 
     class Meta:
         ordering = ['name']

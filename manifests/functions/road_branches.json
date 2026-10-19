@@ -29,7 +29,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -91,8 +90,7 @@
       "reference",
       "network",
       "france"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Tronçons IGN proches d'un point, classés CROISANTS ou non par rapport à un axe de référence (comparaison d'azimut modulo 180°). Donne la géométrie et la largeur réelles d'une branche d'intersection, même sans trafic observé — remplace une bande perpendiculaire symétrique estimée.",
   "key": "road_branches",

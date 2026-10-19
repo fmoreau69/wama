@@ -5715,6 +5715,14 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   l'app nommée pour une fonction liée, l'app Django qui contient l'implémentation pour une
 >   fonction pure. Les fonctions du cam_analyzer passent de `data` à `lab`. Une fonction
 >   UTILISATEUR reste `data` (elle naît dans le Calculator).
+>   ✅ **Le 2026-10-19, la même lecture dit aussi son ACCÈS et sa PROVENANCE** (`ROADMAP §29`
+>   étape 4) : elle vit dans `function_catalog.spec_app`, que lisent le monde, l'export au corpus
+>   (une fonction de jumelle n'y entre pas), la palette du Studio, la page du catalogue de
+>   fonctions, le lancement d'un graphe et `accessible(user, 'function', clé)`. Une fonction du
+>   code n'a pas d'auteur à elle : système dans une app réelle, à son créateur dans une jumelle.
+>   Mesuré ce jour : 93 des 143 fonctions nomment leur app (35 dans des jumelles), les 50 autres
+>   sont pures et vivent dans `wama_data`. Les champs `FunctionSpec.visibility` / `owner`, que
+>   rien ne remplissait, sont retirés (`REMOVAL_LEDGER R154`).
 > - Gardes : `tests_catalogues.DeclaredWorldsTest` (six tests) ; mécanisme `app_worlds` au
 >   registre des mécanismes.
 > - ✅ **Complément du 2026-10-16 — l'IDENTITÉ a sa lecture, comme le monde** (Fabien : *« des

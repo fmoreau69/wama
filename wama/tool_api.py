@@ -1598,10 +1598,12 @@ def list_studio_pipelines(user) -> dict:
         {"pipelines": [{"id", "name", "nodes", "apps", "updated_at"}]}
         `apps` = the app of each executable node, in graph order (what the pipeline does).
     """
+    from wama.common.utils.scoping import listable_by
     from wama.studio.models import StudioPipeline
 
     out = []
-    for p in StudioPipeline.objects.filter(user=user).order_by('-updated_at'):
+    # Les siens et ceux qu'on lui partage — la liste du Studio (`ROADMAP §29` étape 4).
+    for p in listable_by(StudioPipeline.objects.all(), user).order_by('-updated_at'):
         nodes = p.graph.get('nodes', [])
         out.append({
             'id': p.pk,
@@ -1625,14 +1627,22 @@ def run_studio_pipeline(user, pipeline_id: int = None, pipeline_name: str = None
     Returns:
         {"run_id", "item_id", "status": "started", "pipeline": <name>} or {"error": ...}
     """
+    from django.db.models import Case, IntegerField, Value, When
+    from wama.common.utils.scoping import listable_by
     from wama.studio.models import StudioPipeline
     from wama.studio.services.launch import launch_graph
 
+    # Un pipeline qu'il voit (`ROADMAP §29` étape 4) ; par son nom, le SIEN d'abord — un nom
+    # n'est unique que chez un même auteur.
+    visible = listable_by(StudioPipeline.objects.all(), user)
     pipe = None
     if pipeline_id is not None:
-        pipe = StudioPipeline.objects.filter(pk=pipeline_id, user=user).first()
+        pipe = visible.filter(pk=pipeline_id).first()
     elif pipeline_name:
-        pipe = StudioPipeline.objects.filter(user=user, name=pipeline_name.strip()).first()
+        mine_first = Case(When(user=user, then=Value(0)), default=Value(1),
+                          output_field=IntegerField())
+        pipe = (visible.filter(name=pipeline_name.strip())
+                .order_by(mine_first, '-updated_at').first())
     if pipe is None:
         return {'error': "Pipeline introuvable — donner pipeline_id ou pipeline_name exact "
                          "(voir list_studio_pipelines)."}

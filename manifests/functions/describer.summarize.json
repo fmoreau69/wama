@@ -39,14 +39,12 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "text",
       "llm"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Résume la card (LLM), selon son type de résumé : un résumé structuré de la description, ou un compte-rendu de réunion de la parole entière (ou du texte du document).",
   "key": "describer.summarize",

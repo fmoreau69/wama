@@ -44,7 +44,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -53,8 +52,7 @@
       "video",
       "blur",
       "privacy"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Le process « Floutage » de l'Anonymizer : chaque vidéo réécrite depuis ses détections, image entière floutée hors des fenêtres anonymisées. Même cadence, même taille, même nombre d'images que l'originale — l'affichage peut la servir à sa place.",
   "key": "cam_analyzer.anonymize_blur",

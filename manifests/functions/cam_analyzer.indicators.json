@@ -45,7 +45,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -53,8 +52,7 @@
     "tags": [
       "geo",
       "per-vehicle"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "TTC/PET par prédiction de trajectoire (ré-annotation des détections, sans re-détection).",
   "key": "cam_analyzer.indicators",

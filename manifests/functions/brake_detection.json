@@ -40,7 +40,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -80,8 +79,7 @@
       "timeseries",
       "requires-accel",
       "needs-calibration"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Détecte les freinages brusques depuis l'accéléromètre longitudinal, gradués en 3 niveaux de sévérité (modéré→urgence). Seuils à recalibrer.",
   "key": "brake_detection",

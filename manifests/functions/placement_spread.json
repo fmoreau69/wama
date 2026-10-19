@@ -37,7 +37,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -56,8 +55,7 @@
       "placement-quality",
       "ab-metric",
       "no-ground-truth"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Mesure la cohérence d'un placement monde : dispersion RMS des positions des objets immobiles autour de leur barycentre (0 = idéal). Métrique A/B objective, sans vérité terrain — plus bas = meilleur.",
   "key": "placement_spread",

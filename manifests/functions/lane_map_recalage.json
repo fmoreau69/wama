@@ -79,7 +79,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -193,8 +192,7 @@
       "timeseries",
       "requires-road-map",
       "lanes"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Corrige la position LATÉRALE et le CAP d'une trace GPS de véhicule par la voie vue (lignes de voie projetées au sol) et l'axe routier de référence (largeur, nombre de voies, sens) : rattachement continu (Viterbi), centre attendu de la voie de droite, écart mesuré au centre de voie → ancres ; le BIAIS GPS (est, nord) en est estimé comme un état lent par Kalman + lisseur RTS (chaque ancre n'en observe que la composante latérale ; virages et giratoires rendent le longitudinal observable), et porté dans les zones sans ancre tant que son incertitude reste faible. N'APPLIQUE rien : la trace sort enrichie.",
   "key": "lane_map_recalage",

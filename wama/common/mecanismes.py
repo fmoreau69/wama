@@ -2565,10 +2565,15 @@ MECHANISMS = (
               "2026-10-18 (`ROADMAP §29` étape 3), les éléments d'un CATALOGUE aussi : "
               "`catalogue_visible_q` (système et publics pour tous, les siens, sa portée ; tout "
               "pour l'admin), dont le premier porteur est `AIModel` — la provenance naît au geste "
-              "d'installation, et `accessible(user, 'model', clé)` la lit sur la ligne",
+              "d'installation, et `accessible(user, 'model', clé)` la lit sur la ligne. Depuis le "
+              "2026-10-19 (étape 4) : `UserFunction` par le même filtre, une fonction du CODE par "
+              "l'app qui la porte (`Registry.element_app`, `function_catalog.accessible_specs`), "
+              "et `StudioPipeline` porté comme une card (`listable_by`, `owned_or_404`)",
               'wama/common/models.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
               symbol='ScopedVisibility',
-              annexes=('wama/model_manager/tests/tests_model_provenance.py',)),
+              annexes=('wama/model_manager/tests/tests_model_provenance.py',
+                       'wama/common/tests/tests_function_provenance.py',
+                       'wama/common/tests/tests_pipeline_provenance.py')),
     Mechanism('org_sync', "Arbre organisationnel depuis l'annuaire",
               "ou=structures (SUPANN) → OrgUnit + parents ; peuple ce dont dépend le partage "
               "par unité (RAG labo, médiathèque). Lecture seule côté LDAP, idempotente",

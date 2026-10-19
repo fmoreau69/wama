@@ -45,7 +45,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -86,8 +85,7 @@
       "depth",
       "monocular",
       "distance"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Profondeur métrique au point de contact-sol d'une bbox (médiane d'un patch au centre du bord bas) : 3ᵉ source de distance indépendante du pinhole et de l'homographie. Brique PURE réutilisable par tout cross-check de distance.",
   "key": "depth_contact_distance",

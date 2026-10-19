@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "audio",
       "music",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Écrit la partition COMPLÈTE du morceau rendu : une partie par instrument entendu (voix, piano, basse, batterie…), par un modèle de la tâche `audio-to-midi` (MuScriptor) mis en notation par la brique commune. Optionnelle ; montrée et lue sur la page d'édition, jamais donnée au rendu.",
   "key": "composer.parts",

@@ -38,7 +38,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -46,8 +45,7 @@
     "tags": [
       "geo",
       "per-section"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Découpe la trace en fenêtres temporelles autour des intersections déclarées (rayon d'ANALYSE) — ce que les passes aval regardent.",
   "key": "cam_analyzer.intersection_windows",

@@ -59,7 +59,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -68,8 +67,7 @@
       "vision",
       "geo",
       "needs-calibration"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Estime le pitch/hauteur caméra en minimisant l'étalement monde des stationnés (auto-calibration par ego-motion).",
   "key": "cam_analyzer.ground_calib",

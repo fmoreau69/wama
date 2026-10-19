@@ -36,7 +36,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -65,8 +64,7 @@
       "uncertainty",
       "ab-metric",
       "timeseries"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Combine N sorties qui estiment la MÊME grandeur (facette `estimates` de leur port) en une série pondérée par 1/σ², alignée sur le temps ; moyenne vectorielle pour un cap. REFUSE deux sources dérivées de la même donnée native (corrélées : elles se confrontent, ne se fusionnent pas) et ÉCARTE ce qui n'est pas chiffré.",
   "key": "fuse_estimates",

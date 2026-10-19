@@ -41,7 +41,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -91,8 +90,7 @@
       "lens",
       "no-ground-truth",
       "single-camera"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Mesure la distorsion radiale d'une caméra SANS MIRE : une arête droite du monde est droite dans une image sans distorsion. Les contours qu'une distorsion redresse, loin du centre, la désignent ; l'écart à la droite est pris dans l'image OBSERVÉE (sans biais d'échelle). Même modèle que la projection (radial inverse, k > 0 = barillet).",
   "key": "plumb_line_distortion",

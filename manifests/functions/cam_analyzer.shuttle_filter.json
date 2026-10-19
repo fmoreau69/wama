@@ -50,7 +50,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -60,8 +59,7 @@
       "gnss",
       "ego-motion",
       "ab-metric"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Lisse position et cap de la NAVETTE (brique pure driving.ego_track_filter), stocke la trace filtrée ; la bascule ⚑ shuttle_filter choisit à la lecture entre brut et filtré, au point d'ingestion unique (serveur + affichage). Rapport A/B : déplacement RMS, écart de cap médian, part de cap tenu.",
   "key": "cam_analyzer.shuttle_filter",

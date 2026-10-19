@@ -37,7 +37,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -45,8 +44,7 @@
     "tags": [
       "vision",
       "geo"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Détecte les segments temporels d'intérêt (approche, suivi, transverse) par objet.",
   "key": "cam_analyzer.temporal_segments",

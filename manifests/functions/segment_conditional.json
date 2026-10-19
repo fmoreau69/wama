@@ -38,7 +38,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -112,8 +111,7 @@
     "tags": [
       "temporel",
       "segmentation"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Plages où un signal satisfait (colonne, opérateur, seuil), avec HYSTÉRÉSIS. Sans durée minimale ni trou toléré, un seuil sur un signal réel produit des centaines de micro-segments dus au bruit.",
   "key": "segment_conditional",

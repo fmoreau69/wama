@@ -52,7 +52,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -70,8 +69,7 @@
       "temporel",
       "segmentation",
       "ensembliste"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Ne garde que les segments inclus dans l'un des segments de référence. Opération ENSEMBLISTE et non un mode de segmentation : elle sert aussi à l'export, où l'on restreint un tableau à un contexte d'analyse.",
   "key": "segment_within",

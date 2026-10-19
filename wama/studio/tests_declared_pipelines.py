@@ -52,7 +52,12 @@ class BodyToGraphTest(SimpleTestCase):
 class DeclaredPipelinesApiTest(SimpleTestCase):
     def _get(self, view, *args):
         req = RequestFactory().get('/studio/api/declared-pipelines/')
-        req.user = SimpleNamespace(is_authenticated=True, id=1)
+        # Un pipeline déclaré s'ouvre si ses nœuds sont accessibles au compte (`ROADMAP §29`
+        # étape 4) : la décision des apps lit le profil et les rôles. Un DÉVELOPPEUR ouvre ceux du
+        # cam_analyzer, réservé aux rôles recherche et ingénierie.
+        req.user = SimpleNamespace(is_authenticated=True, id=1, is_superuser=False, username='',
+                                   profile=SimpleNamespace(account_tier='developpeur'),
+                                   groups=SimpleNamespace(all=lambda: []))
         return view(req, *args)
 
     def test_the_studio_lists_the_cam_analyzer_pipelines(self):

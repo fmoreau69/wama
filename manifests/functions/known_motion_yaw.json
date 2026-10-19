@@ -56,7 +56,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -98,8 +97,7 @@
       "calibration",
       "ego-motion",
       "gnss"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Mesure le lacet de montage d'une caméra embarquée (et son tangage, sa distorsion radiale) : le mouvement du véhicule tiré de la trace impose à chaque point du décor suivi entre deux images une contrainte épipolaire, sans profondeur. Focale CONNUE requise — la méthode ne la mesure pas. Contrôle conseillé : une caméra d'orientation connue doit retrouver son lacet.",
   "key": "known_motion_yaw",

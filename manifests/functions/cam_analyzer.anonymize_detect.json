@@ -45,7 +45,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -65,8 +64,7 @@
       "vision",
       "gpu",
       "privacy"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Le process « Détection » de l'Anonymizer sur les FENÊTRES d'intersection de chaque caméra : les détecteurs que l'Anonymizer retient pour les classes et le cran du curseur du profil.",
   "key": "cam_analyzer.anonymize_detect",

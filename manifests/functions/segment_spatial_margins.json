@@ -48,7 +48,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -96,8 +95,7 @@
       "geo",
       "spatial",
       "segmentation"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Décale les bornes d'une DISTANCE PARCOURUE (« 50 m avant l'entrée de zone »), convertie en instants par l'abscisse curviligne de la trace. Les bornes rendues sont des échantillons EXISTANTS (aucune valeur inventée) : la marge rendue vaut AU MOINS la marge demandée, et s'arrête où la donnée s'arrête. Un trou GPS ne fabrique pas de distance ; une fin ouverte reste ouverte ; un segment qui s'inverse est écarté.",
   "key": "segment_spatial_margins",

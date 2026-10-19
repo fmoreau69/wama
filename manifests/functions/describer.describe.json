@@ -59,15 +59,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "text",
       "vision",
       "llm"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Rédige la description de l'entrée au style et dans la langue de la card : une image par le modèle de vision, un document, un audio ou une vidéo par le modèle de langage, à partir de ce que la transcription et les légendes ont rendu.",
   "key": "describer.describe",

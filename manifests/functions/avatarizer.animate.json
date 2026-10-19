@@ -49,15 +49,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "video",
       "lip-sync",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Anime l'avatar sur l'audio : synchronisation labiale d'une photo (MuseTalk) ou rendu d'un avatar 3D riggé (TalkingHead).",
   "key": "avatarizer.animate",

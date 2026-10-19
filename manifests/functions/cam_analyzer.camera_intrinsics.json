@@ -56,7 +56,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -65,8 +64,7 @@
       "vision",
       "calibration",
       "gnss"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "La PASSE `camera_intrinsics` (session-wide, CPU) : relit les vidéos avant/arrière aux virages francs de la trace, mesure la rotation vue dans l'image (`geometry.ego_rotation`, focale supposée) contre le cap GPS, en tire la focale réelle (`focal_scale_from_rotation`) et le champ de vue horizontal et vertical (pixels carrés). Puis l'ORIENTATION DE MONTAGE de toutes les caméras, virages et lignes droites, par le mouvement connu (`geometry.known_motion_yaw`, focale connue) ; la caméra avant en est le contrôle. Appliqués sous ⚑ measured_camera_fov et ⚑ measured_camera_yaw (latérales seules) par `camera_geometry`.",
   "key": "cam_analyzer.camera_intrinsics",

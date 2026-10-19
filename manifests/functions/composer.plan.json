@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "audio",
       "music",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Écrit la partition (ABC) d'une chanson depuis sa consigne : style en tête, paroles en sections. N'existe que pour un modèle qui planifie avant de jouer (YuE2). La partition est un résultat de la card : lisible, corrigeable, rejouable.",
   "key": "composer.plan",

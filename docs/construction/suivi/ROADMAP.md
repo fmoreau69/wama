@@ -6294,8 +6294,64 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
        le bouton ira avec la pastille (étape 6).
      - Aucun critère de conformité ne mesure encore les lecteurs (le `scoped_reads` des
        catalogues).
-4. Les fonctions (`FunctionSpec` filtré ; `UserFunction` l'est déjà), les pipelines du Studio, les
-   skills.
+4. ✅ **Les fonctions, les pipelines du Studio — les skills restent à porter (2026-10-19).**
+   Décisions de Fabien le même jour : une fonction du code dérive sa provenance de son app ; un
+   pipeline enregistré est un objet de TRAVAIL ; les skills restent « à porter ».
+   - **Une fonction du CODE n'a pas d'auteur à elle, elle a l'app qui la porte.** Mesuré : 93 des
+     143 fonctions nomment leur app, dont 35 dans des jumelles (le générateur n'émet que des
+     process `binding: app`, `function_specs_gen.py:119`). Les 50 autres sont pures et vivent dans
+     `wama_data`. Leur app se lit par `function_catalog.spec_app`, la lecture qui donnait déjà leur
+     monde (`ROUTE §10.6` point 6.1). La fonction est système dans une app réelle, et à son créateur
+     dans une jumelle, par la décision des apps (`_app_accessible`).
+   - **Une seule règle, partout.** `accessible_specs(user, specs)` sert les listes, et
+     `accessible(user, 'function', clé)` sert la décision : `KIND_DECISION['function'] =
+     'provenance'`.
+     - Le registre `functions` nomme la ligne d'une fonction d'utilisateur (`owner_key='key'`).
+     - Il nomme aussi, par le champ neuf `Registry.element_app`, l'app d'une fonction du code :
+       `registries.declaring_app`, lu par `_provenance_accessible` quand l'élément n'a pas de
+       ligne.
+     - Lecteurs : la palette du Studio, la page du catalogue de fonctions (elle listait à tous les
+       process des jumelles), le lancement d'un graphe (`launch_graph`, qui sert aussi l'assistant),
+       et l'export au corpus.
+   - **Retrait de la seconde provenance.** `FunctionSpec.visibility` et `owner` sont retirés : rien
+     ne les remplissait, et pourtant la palette les lisait. Les 112 manifestes du corpus perdent ces
+     deux clés de leur `body` (`REMOVAL_LEDGER R154`).
+   - **Une fonction d'UTILISATEUR** (`UserFunction`, gagne `ScopedManager`) passe le filtre des
+     catalogues : son auteur et l'admin la voient. Promouvoir son manifeste ne touche pas la ligne,
+     dont le propriétaire est obligatoire (`promote_row` le lit sur le champ) : sa promotion la fait
+     entrer au catalogue code, un geste de développement (écrit à l'étape 2).
+   - **Un pipeline ENREGISTRÉ est porté comme une card** (`WAMA_COLLABORATION §4.7`).
+     - Le modèle : `StudioPipeline(ScopedVisibility)`, migration `studio/0004` APPLIQUÉE (naît
+       privé ; défaut posé aussi en base, pour le code en service). Les 2 pipelines existants sont
+       privés à leur auteur.
+     - Les lectures : `listable_by` / `visible_or_404` pour la liste, le détail et l'assistant
+       (par son nom, le sien d'abord). La suppression par `owned_or_404`. Enregistrer sous le nom
+       d'un pipeline partagé en fait sa copie.
+     - Le lancement refuse un pipeline que le compte ne voit pas, et le manifeste lit la provenance
+       sur la ligne (`private` y était écrit en dur).
+     - L'administrateur n'y voit pas tout.
+   - **Un pipeline DÉCLARÉ en code** s'ouvre si chacun de ses nœuds est accessible
+     (`studio.views._declared_pipelines`). Les pipelines des jumelles se disaient système et
+     publics, donc listés à tous.
+   - **Skills : toujours `TO_CARRY`** (budget de `tests_registry_provenance` inchangé). Un skill
+     d'utilisateur est une intention (`WAMA_LLM §0bis`, « ❌ pas de skill par utilisateur ») sans
+     porteur décidé. Deux pistes lues, à trancher : le souvenir de type `procedural` (`WAMA_MEMORY
+     §11`, déjà propriétaire et portée), ou une ligne propre que le résolveur
+     (`prompt_skills.resolve_skill`) lirait avant les fichiers.
+   - **Constat corrigé** : la ligne « `FunctionSpec.visibility/owner` … jamais filtrés » du relevé
+     ci-dessus était FAUSSE dès son écriture. La palette lisait le champ depuis le 2026-09-09
+     (`061439cc`), et le commentaire du code le disait « sans lecteur » depuis le 21/09.
+   - **Gardes** : `common/tests/tests_function_provenance` (10), `common/tests/tests_pipeline_provenance`
+     (8), un cas de plus dans `tests_registry_provenance` ; le faux compte de
+     `studio/tests_declared_pipelines` porte désormais un profil (le point d'accès décide). **Quinze
+     contre-épreuves, toutes rouges** (neuf brèches en mémoire, six mutations par édition).
+   - **Ce que l'étape ne fait PAS** :
+     - Aucun geste « Partager » pour un pipeline : la nature n'est pas déclarée au geste commun
+       (`WAMA_COLLABORATION` marche 3).
+     - Un nœud que la palette ne connaît pas disparaît en silence à l'ouverture d'un pipeline
+       (relevé par une autre session, `ROADMAP §16.11` piste 4). L'étape le rend plus probable,
+       puisqu'un pipeline pourra être partagé : à corriger AVANT le geste « Partager ».
+     - Une fonction d'utilisateur se crée toujours dans l'admin seule.
 5. Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par
    déplacement vers `common/`.
 6. La pastille et la facette.

@@ -29,14 +29,12 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "text",
       "llm"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Résume le texte lu, en relève les points clés et les actions (LLM).",
   "key": "reader.analyze",

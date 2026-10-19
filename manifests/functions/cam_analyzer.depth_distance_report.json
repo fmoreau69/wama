@@ -38,7 +38,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -49,8 +48,7 @@
       "depth",
       "monocular",
       "ab-metric"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "ÉTAGE 2 (CALCUL, CPU) : LECTURE PURE des depth_distance_m déjà stockés par depth_analysis. MESURE-ET-RAPPORT (ne bascule AUCUNE source) : 3ᵉ source de distance indépendante (désaccord ↔pinhole / ↔homographie = usage 3 ; confirmation des reflets = usage 1). Chaque usage écrit sa ligne A/B console ; résumé dans results_summary['depth_report']. AUCUNE ré-inférence GPU.",
   "key": "cam_analyzer.depth_distance_report",

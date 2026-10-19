@@ -50,7 +50,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -127,8 +126,7 @@
     "tags": [
       "temporel",
       "segmentation"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Début pris dans un flux d'événements, fin dans un autre. L'appariement se fait par le TEMPS (première fin postérieure au début) et non par index : deux flux indépendants n'ont pas le même nombre d'occurrences. Un début sans fin donne un segment OUVERT plutôt qu'un segment perdu.",
   "key": "segment_join",

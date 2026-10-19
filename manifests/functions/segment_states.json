@@ -40,7 +40,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -78,8 +77,7 @@
       "temporel",
       "segmentation",
       "categoriel"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Découpe un signal catégoriel en plages de valeur constante. C'est la conversion entre les deux représentations d'un segment : implicite (une colonne échantillonnée) et explicite (des bornes) — sans elle, un état déclaré dans un signal reste inexploitable comme segment.",
   "key": "segment_states",

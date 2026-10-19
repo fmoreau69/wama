@@ -44,7 +44,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -63,8 +62,7 @@
       "placement-quality",
       "ab-metric",
       "no-ground-truth"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Contrôle, par caméra et sans vérité terrain, qu'un placement monde est cohérent avec ce que la caméra voit : part des objets placés DERRIÈRE leur caméra (impossible, 0 = idéal) et écart relatif entre la profondeur annoncée par la caméra et celle de la position le long de son axe.",
   "key": "camera_consistency",

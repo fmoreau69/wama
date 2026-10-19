@@ -46,7 +46,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -105,8 +104,7 @@
       "segmentation",
       "codage",
       "annotation"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Rejoue des gestes de codage contre un protocole et produit les états observés. Un comportement se bascule (ouvrir/fermer), l'exclusion mutuelle ferme le concurrent, et un état non refermé reste OUVERT plutôt que d'être perdu ou refermé d'office. Une fermeture de fin de session est tracée séparément : une durée refermée par la fin de l'enregistrement n'est pas une durée observée.",
   "key": "coding_segments",

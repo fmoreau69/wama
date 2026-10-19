@@ -50,7 +50,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -90,8 +89,7 @@
       "ego-motion",
       "gnss",
       "ab-metric"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Lisse la position et la vitesse du véhicule porteur par Kalman vitesse-constante + lisseur RTS (sans retard de phase), et dérive le cap de la vitesse lissée — tenu sous un seuil de vitesse. Colonnes ajoutées, brutes conservées : l'A/B se lit ligne à ligne. Premier levier de correction qui touche la pose ego, dont toute détection hérite.",
   "key": "ego_track_filter",

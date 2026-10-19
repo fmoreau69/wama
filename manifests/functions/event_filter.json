@@ -33,7 +33,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -62,8 +61,7 @@
       "conditionnel",
       "ensembliste",
       "evenement"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Ne garde que les OCCURRENCES satisfaisant la chaîne de conditions — la bascule [Data|Event] de l'écran d'origine (« les occurrences dont le commentaire contient FIN »). Même chaîne, mêmes opérateurs que « Segments par chaîne de conditions » : un filtre n'est pas un mode, c'est le même masque appliqué à des lignes qui existent déjà. Couvre en DÉCLARATIF l'essentiel du filtrage manuel de l'outil d'origine (§11.9 ④).",
   "key": "event_filter",

@@ -29,14 +29,12 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "text",
       "llm"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Note la cohérence de la description, relève ses anomalies et propose une version corrigée (LLM).",
   "key": "describer.coherence",

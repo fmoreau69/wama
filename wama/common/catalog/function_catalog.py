@@ -229,13 +229,12 @@ class FunctionSpec:
     params: list = field(default_factory=list)     # [ParamSpec]
     cost: dict = field(default_factory=dict)       # {vram_gb, cpu_bound, approx_s…}
     projects: list = field(default_factory=list)   # traçabilité : projets utilisant la fonction (ex. ["ENA"])
-    # Vocabulaire de `ScopedVisibility` (`common/models.py`), et lui seul : 'private' | 'unit' |
-    # 'project' | 'public'. ⚠ Ce champ annonçait `'shared'` jusqu'au 2026-09-21 — un mot qui
-    # n'existe nulle part ailleurs et qui ne dit rien de PARTAGÉ À QUI. Déclaré, jamais filtré à
-    # ce jour (aucun lecteur hors du `to_dict()` ci-dessous) : le jour où il le sera, ce sera par
-    # `scoped_visible_q`, jamais par un second chemin (`WAMA_COLLABORATION §8`, marche 2).
-    visibility: str = 'public'
-    owner: str = ''                                # propriétaire quand la visibilité n'est pas 'public' (à venir)
+    # PAS de propriétaire ni de portée sur une fonction du CODE (retirés le 2026-10-19, `ROADMAP
+    # §29` étape 4, `REMOVAL_LEDGER`) : elle n'a pas d'auteur à elle, elle a l'app qui la porte
+    # (`spec_app`). Système dans une app réelle, à son créateur dans une jumelle — et l'accès se
+    # lit sur cette app (`accessible_specs`). Une fonction d'UTILISATEUR porte les siens sur sa
+    # ligne (`UserFunction`). Aucune déclaration ne remplissait ces deux champs ; la palette du
+    # Studio les lisait pourtant, en seconde lecture de la provenance.
 
     def to_dict(self):
         """Représentation métadonnée-driven (card + ports + modale)."""
@@ -248,7 +247,6 @@ class FunctionSpec:
             'key': self.key, 'name': self.name, 'description': self.description,
             'category': self.category, 'binding': self.binding, 'app': self.app,
             'impl': self.impl, 'tags': self.tags, 'projects': self.projects,
-            'visibility': self.visibility, 'owner': self.owner,
             'inputs': [p.port_dict('input') for p in self.inputs],
             'outputs': [p.port_dict('output') for p in self.outputs],
             'params': [_param(p) for p in self.params],
@@ -287,6 +285,35 @@ def register(spec: FunctionSpec) -> FunctionSpec:
 
 def get(key) -> Optional[FunctionSpec]:
     return FUNCTION_CATALOG.get(key)
+
+
+def spec_app(spec: FunctionSpec) -> str:
+    """L'app qui PORTE la fonction (`ROUTE §10.6` point 6.1) : celle qu'elle nomme (`binding:
+    app`, un process d'app), sinon l'app Django qui contient son implémentation (une fonction pure
+    de `wama_data`). '' si aucune ne se trouve. Son monde (`manifests.builtin.function`), son
+    accès et sa provenance (`accessible_specs`) se lisent sur elle."""
+    if spec.app:
+        return spec.app
+    if spec.fn is None:
+        return ''
+    from django.apps import apps as django_apps
+    config = django_apps.get_containing_app_config(getattr(spec.fn, '__module__', '') or '')
+    return config.label if config else ''
+
+
+def accessible_specs(user, specs) -> list:
+    """Les fonctions du code que `user` voit et lance : chacune suit l'accès de l'app qui la
+    porte (`spec_app`), lu par `accounts.permissions.accessible_apps` — la décision des apps, une
+    lecture des politiques pour toute la liste.
+
+    C'est aussi leur PROVENANCE (`ROADMAP §29` étape 4) : une jumelle est à son créateur tant
+    qu'elle n'est pas promue (`_app_accessible`), ses process aussi. Même règle que
+    `accessible(user, 'function', clé)`, pour une liste (palette du Studio, page du catalogue)."""
+    from wama.accounts.permissions import accessible_apps
+    specs = list(specs)
+    homes = {spec.key: spec_app(spec) for spec in specs}
+    allowed = set(accessible_apps(user, sorted({app for app in homes.values() if app})))
+    return [spec for spec in specs if not homes[spec.key] or homes[spec.key] in allowed]
 
 
 def resolve_impl(impl: str):

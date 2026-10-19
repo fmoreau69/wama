@@ -29,7 +29,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
@@ -37,8 +36,7 @@
       "video",
       "audio",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Agrandit une image ou une vidéo avec le modèle désigné ou tiré (débruitage, mélange avec l'original, tuiles), ou restaure la parole d'un audio (débruitage, amélioration).",
   "key": "enhancer.generate",

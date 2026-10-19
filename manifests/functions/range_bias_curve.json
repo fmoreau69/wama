@@ -46,7 +46,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -65,8 +64,7 @@
       "placement-quality",
       "calibration",
       "no-ground-truth"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Mesure, sans vérité terrain, si une méthode de mesure de distance est juste LOIN comme PRÈS : un objet immobile ne bouge pas — sa position fixe est prise sur ses observations proches, et le rapport distance mesurée / distance vraie (caméra → ce point) est donné par tranche de distance. Universelle (toute caméra, toute méthode) ; la courbe sert aussi à CORRIGER la méthode (`correct_range`).",
   "key": "range_bias_curve",

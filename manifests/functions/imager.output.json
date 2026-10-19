@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "image",
       "video",
       "format"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Applique les réglages de sortie de la card à ce que le modèle a écrit : agrandissement (image), format et qualité. Garde le fichier d'origine tant que ces réglages le transforment, pour se rejouer sans regénérer.",
   "key": "imager.output",

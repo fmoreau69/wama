@@ -33,7 +33,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -103,8 +102,7 @@
       "temporel",
       "calcul",
       "lissage"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Statistique calculée sur une fenêtre glissante déclarée EN SECONDES — jamais en nombre d'échantillons : WAMA Data aligne des flux à cadences incommensurables, et « 50 points » n'y désigne pas la même durée d'un flux à l'autre. La fenêtre centrée lisse sans déphaser ; la fenêtre causale ne lit pas l'avenir, et c'est la seule licite si le résultat doit déclencher quelque chose.",
   "key": "calc_rolling",

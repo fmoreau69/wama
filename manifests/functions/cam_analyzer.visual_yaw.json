@@ -70,7 +70,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -78,8 +77,7 @@
     "tags": [
       "vision",
       "ego-motion"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "La PASSE `visual_yaw` (session-wide, CPU) : relit la vidéo avant et mesure, paire d'images par paire d'images, la rotation de la navette (`geometry.ego_rotation`, focale MESURÉE par `camera_intrinsics`) aux seuls instants où elle roule — arrêtée, un véhicule non holonome ne tourne pas et l'image ne montre que les autres usagers. Seconde source de cap, indépendante du GPS ; le filtre navette l'intègre là où il tenait le cap (⚑ visual_heading).",
   "key": "cam_analyzer.visual_yaw",

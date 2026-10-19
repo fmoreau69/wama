@@ -38,7 +38,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -75,8 +74,7 @@
     "tags": [
       "temporel",
       "segmentation"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Fenêtre [ancre+o₁, ancre+o₂] autour de chaque événement. Les DEUX offsets sont indépendants : une fenêtre peut commencer après l'ancre (« de +15 s à +45 s »), ce qu'une simple durée ne permet pas d'exprimer.",
   "key": "segment_around_events",

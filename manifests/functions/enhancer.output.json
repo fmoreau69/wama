@@ -29,7 +29,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
@@ -37,8 +36,7 @@
       "video",
       "audio",
       "format"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Applique le format et la qualité de sortie de la card au média amélioré. Garde le fichier d'origine tant que la sortie le transforme, pour se rejouer sans relancer l'amélioration.",
   "key": "enhancer.output",

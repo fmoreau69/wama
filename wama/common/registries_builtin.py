@@ -188,14 +188,24 @@ def _entries_functions() -> dict:
     return FUNCTION_CATALOG
 
 
+def _function_app(key: str) -> str:
+    """L'app qui porte la fonction du code `key` (`function_catalog.spec_app`), '' si inconnue."""
+    from .catalog.function_catalog import get, load_all, spec_app
+    load_all()
+    spec = get(key)
+    return spec_app(spec) if spec is not None else ''
+
+
 register(Registry(
     key='functions', label='Fonctions de traitement', nature=REDECLARATION,
     source="`apps.py:ready()` de chaque monde — `wama_data`, `wama_lab.cam_analyzer`…",
     refresh=_refresh_functions, count=_count_functions, entries=_entries_functions,
     url_name='model_manager:functions_catalog', manifest_kind='function',
-    # Les `FunctionSpec` du code sont système ; une fonction d'UTILISATEUR porte propriétaire et
-    # portée (lue par `scoped_visible_q`, `model_manager/views.py:2203-2204`).
-    provenance=MIXED, owner_model='common.UserFunction', access_kind='function',
+    # Une fonction d'UTILISATEUR porte propriétaire et portée sur sa ligne ; une fonction du CODE
+    # n'a pas d'auteur à elle, elle suit l'app qui la porte — système dans une app réelle, à son
+    # créateur dans une jumelle (`ROADMAP §29` étape 4).
+    provenance=MIXED, owner_model='common.UserFunction', owner_key='key',
+    element_app=_function_app, access_kind='function',
     doc='docs/construction/mondes/WAMA_DATA_FUNCTION_CARDS.md',
     description="Recharge les modules qui déclarent des `FunctionSpec`. Rend visibles les "
                 "fonctions ajoutées pendant que le serveur tourne, sans redémarrage.",

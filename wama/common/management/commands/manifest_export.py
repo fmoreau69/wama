@@ -74,8 +74,10 @@ def _pipeline_keys() -> list:
 def _is_twin_function(spec, twins: set) -> bool:
     """Une fonction d'une JUMELLE du bac à sable (2026-10-05 : `writer_01.write`, née de
     `function_specs.py` généré) — le corpus versionne les apps RÉELLES, jamais un bac à sable,
-    comme `non_sandbox_apps` le fait pour le kind `app`."""
-    return getattr(spec, 'app', '') in twins
+    comme `non_sandbox_apps` le fait pour le kind `app`. L'app se lit par `spec_app`, la même
+    lecture que le monde et l'accès de la fonction."""
+    from wama.common.catalog.function_catalog import spec_app
+    return spec_app(spec) in twins
 
 
 def _function_keys() -> list:

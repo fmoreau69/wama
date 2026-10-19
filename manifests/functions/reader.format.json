@@ -29,14 +29,12 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "text",
       "llm"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Remet le texte lu en Markdown (titres, listes, tableaux) sans rien en retrancher (LLM) ; le texte natif d'un PDF reste tel quel.",
   "key": "reader.format",

@@ -33,7 +33,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -50,8 +49,7 @@
     "tags": [
       "temporel",
       "calcul"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Taux de variation instantané (unité/seconde), par différence centrée à l'intérieur et décentrée aux bords. Rend « absent » là où le calcul n'a pas de sens — voisin manquant, ou deux échantillons au même instant : un signal à cadence irrégulière en contient, et les taire produirait des infinis qui contaminent toute statistique en aval.",
   "key": "calc_derivative",

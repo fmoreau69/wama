@@ -34,7 +34,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -62,8 +61,7 @@
       "geo",
       "reference",
       "requires-road-map"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Emprise de la CHAUSSÉE tirée des axes routiers de référence : chaque axe élargi de sa demi-largeur (largeur déclarée, sinon nombre de voies × 3 m), puis les emprises UNIES — le contour suit les bords de chaussée et s'ouvre aux carrefours. Sert l'affichage (bords de voie en vue de dessus) et le test « sur la chaussée ».",
   "key": "road_zones",

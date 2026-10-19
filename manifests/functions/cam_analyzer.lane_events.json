@@ -36,15 +36,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
     ],
     "tags": [
       "vision"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Franchissements/attributions de voie par objet.",
   "key": "cam_analyzer.lane_events",

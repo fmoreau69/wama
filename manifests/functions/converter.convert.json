@@ -105,14 +105,12 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "ffmpeg",
       "conversion"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Convertit le fichier au format demandé (vidéo, audio, image, document, archive), avec les réglages d'encodage de la card.",
   "key": "converter.convert",

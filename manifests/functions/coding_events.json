@@ -38,7 +38,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -86,8 +85,7 @@
       "temporel",
       "codage",
       "annotation"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Même exécution que `codage_segments`, sortie ÉVÉNEMENTS : les comportements déclarés PONCTUELS dans le protocole, qui n'ont pas de durée. Séparé parce qu'un port a un seul type — et que confondre un instant et un état ferait perdre la distinction que le protocole vient d'établir.",
   "key": "coding_events",

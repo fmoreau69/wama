@@ -34,7 +34,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -63,8 +62,7 @@
       "conditionnel",
       "ensembliste",
       "segmentation"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Ne garde que les situations satisfaisant la chaîne — DURÉE comprise : la colonne `duration` (end − start) est disponible à l'évaluation même si le cadre ne la porte pas, sans entrer dans la sortie. Un segment OUVERT a une durée ABSENTE : rejeté par toute condition numérique, sélectionnable par `empty`. « Vitesse moyenne > 30 » se COMPOSE : `calc_per_segment` adjoint l'indicateur, puis ce filtre s'applique — deux fonctions chaînées, zéro concept neuf.",
   "key": "segment_filter",

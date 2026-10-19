@@ -57,7 +57,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
@@ -66,8 +65,7 @@
       "calibration",
       "multi-camera",
       "no-ground-truth"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Mesure, sans vérité terrain, si les caméras d'une plateforme mobile placent un même objet IMMOBILE à la même distance latérale de sa trajectoire. Une caméra qui écarte davantage place trop loin : vue de dessus, les trajectoires droites s'incurvent autour de la plateforme. Universelle (toute caméra, toute plateforme qui avance).",
   "key": "static_offset_gaps",

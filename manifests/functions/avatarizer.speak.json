@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "audio",
       "speech",
       "tts"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Synthétise le texte de la card (service TTS, voix et langue de la card) : l'audio que l'avatar dira. Sans objet quand la card apporte son audio.",
   "key": "avatarizer.speak",

@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "audio",
       "music",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Extrait la partition (ABC, mélodie seule) de l'audio du morceau à reprendre, pour un modèle qui reprend un audio PAR SA PARTITION (YuE2). La partition est un résultat de la card : lisible, corrigeable, rejouable.",
   "key": "composer.extract_score",

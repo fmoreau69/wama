@@ -49,15 +49,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "audio",
       "music",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Génère l'audio depuis la consigne — en suivant une partition quand le modèle en prend une (celle que `composer.plan` a écrite, ou celle que l'utilisateur fournit).",
   "key": "composer.render",

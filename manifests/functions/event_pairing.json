@@ -51,7 +51,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -100,8 +99,7 @@
       "segmentation",
       "appariement",
       "consistance"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Apparie chaque événement de départ (apparition d'un piéton) avec AU PLUS UNE fin (sa détection), bornée par le start suivant et un délai optionnel — la durée produite est le TEMPS DE DÉTECTION. ⚠ Diffère de la jonction : une fin est CONSOMMÉE (un piéton non détecté ne vole pas la détection du suivant), et le défaut de consistance est RENDU au lieu d'être filtré à la main — lignes `matched=False` pour les départs sans fin (filtrables par conditions), fins orphelines dans les méta `pairing`. Les indicateurs s'ajoutent ensuite par « Indicateurs par segment » (freinage, volant…).",
   "key": "event_pairing",

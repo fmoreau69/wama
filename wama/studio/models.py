@@ -20,18 +20,31 @@ d'`AnalysisPass` de cam_analyzer), commune à tous les mondes.
 from django.contrib.auth import get_user_model
 from django.db import models
 
-from wama.common.models import ProcessingTimeMixin, JOB_STATUS_CHOICES
+from wama.common.models import (JOB_STATUS_CHOICES, ProcessingTimeMixin, ScopedManager,
+                                ScopedVisibility)
 
 User = get_user_model()
 
 
-class StudioPipeline(models.Model):
-    """Un pipeline sauvegardé (graphe nommé, rechargeable dans le canvas)."""
+class StudioPipeline(ScopedVisibility):
+    """Un pipeline sauvegardé (graphe nommé, rechargeable dans le canvas).
+
+    Un objet de TRAVAIL, comme une card (décision de Fabien, 2026-10-19, `ROADMAP §29` étape 4) :
+    il naît privé à son auteur et se partage par le mécanisme commun (`WAMA_COLLABORATION §4.7`) —
+    lu par `listable_by` / `visible_or_404`, supprimé par `owned_or_404`. L'administrateur n'y voit
+    pas tout. Un pipeline SYSTÈME est un pipeline déclaré en code (`register_pipeline_source`)."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='studio_pipelines')
     name = models.CharField(max_length=120)
     graph = models.JSONField(default=dict)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    # Le défaut du mixin (privé), posé AUSSI en base : le code en service avant sa relance
+    # enregistre un pipeline sans cette colonne.
+    visibility = models.CharField(max_length=12, choices=ScopedVisibility.VIS_CHOICES,
+                                  default=ScopedVisibility.VIS_PRIVATE,
+                                  db_default=ScopedVisibility.VIS_PRIVATE, db_index=True)
+
+    objects = ScopedManager()
 
     class Meta:
         ordering = ['-updated_at']

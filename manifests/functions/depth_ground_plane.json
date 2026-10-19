@@ -46,7 +46,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -97,8 +96,7 @@
       "depth",
       "monocular",
       "needs-calibration"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Estime le pitch/hauteur caméra en ajustant (RANSAC) un plan sur le nuage de points déprojeté depuis une carte de profondeur métrique restreinte à la zone roulable. Brique PURE : la géométrie ne connaît ni le rig ni la session ; les garde-fous physiques et le repli homographie restent à l'appelant.",
   "key": "depth_ground_plane",

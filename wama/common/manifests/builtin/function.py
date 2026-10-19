@@ -51,12 +51,9 @@ def _spec_world(spec) -> Optional[str]:
     il était écrit `'data'` en dur ici, donc faux pour les fonctions du Lab. None si l'app ne se
     trouve pas ou n'a rien déclaré : le manifeste est alors refusé, pas rangé par défaut.
     """
-    from django.apps import apps as django_apps
     from wama.common.app_registry import app_world
-    app = spec.app
-    if not app and spec.fn is not None:
-        config = django_apps.get_containing_app_config(getattr(spec.fn, '__module__', '') or '')
-        app = config.label if config else ''
+    from wama.common.catalog.function_catalog import spec_app
+    app = spec_app(spec)
     return app_world(app) if app else None
 
 

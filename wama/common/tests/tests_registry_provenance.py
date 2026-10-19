@@ -101,8 +101,17 @@ class ProvenanceMeetsTheAccessDecisionTest(SimpleTestCase):
 class RegisterRejectsAnIncoherentProvenanceTest(SimpleTestCase):
 
     def tearDown(self):
-        for key in ('_t_prov_unknown', '_t_prov_no_row', '_t_prov_stray_row', '_t_prov_stray_key'):
+        for key in ('_t_prov_unknown', '_t_prov_no_row', '_t_prov_stray_row', '_t_prov_stray_key',
+                    '_t_prov_stray_app'):
             REGISTRIES.pop(key, None)
+
+    def test_a_declaring_app_without_the_row_key_is_refused(self):
+        # `element_app` dit l'app d'un élément SANS ligne ; sans `owner_key`, rien ne
+        # chercherait la ligne d'abord (`registries.declaring_app`).
+        with self.assertRaises(ValueError):
+            register(Registry(key='_t_prov_stray_app', label='x', nature=DERIVED, source='s',
+                              provenance='mixed', owner_model='common.UserFunction',
+                              element_app=lambda key: ''))
 
     def test_a_key_field_without_its_row_is_refused(self):
         with self.assertRaises(ValueError):

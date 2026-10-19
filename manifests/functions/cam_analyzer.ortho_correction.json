@@ -39,7 +39,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -47,8 +46,7 @@
     "tags": [
       "geo",
       "gnss"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "CALCULE les ancres de correction tirées du recalage mesuré ; la bascule ⚑ ortho_correction choisit à la lecture de les appliquer (serveur : `ego_pose.effective_gps_track` ; affichage : même interpolation). Mesure PAR PASSAGE (2026-10-01) : à chaque traversée, écart LE LONG DE LA MARCHE entre le bord proche d'un passage piéton vu par la caméra avant et le même passage sur l'orthophoto. La médiane des passages (constante dans le repère véhicule) est le biais de PROJECTION caméra et n'est PAS appliquée ; le reste de chaque passage, rapporté à son cap, corrige le GPS — seulement si des passages de sens opposés le rendent séparable. Ancres datées en temps GPS, de portée limitée (±60 s), atténuées là où le ciel est dégagé (masquage satellite BD TOPO). Séparée de la mesure : recalibrer ne relance pas la segmentation SAM3 des tuiles ortho.",
   "key": "cam_analyzer.ortho_correction",

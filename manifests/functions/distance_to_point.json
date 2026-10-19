@@ -35,7 +35,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -93,8 +92,7 @@
       "geo",
       "spatial",
       "segmentation"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Adjoint à une trace la distance (mètres, haversine) de chaque position à un point géographique — carrefour, arrêt, borne. C'est la brique qui rend la segmentation SPATIALE exprimable : une fois la distance en colonne, « Segments par chaîne de conditions » la traite comme n'importe quel seuil, hystérésis comprise, ET peut la combiner à un prédicat temporel. Une position absente rend une distance absente, jamais une distance calculée sur zéro.",
   "key": "distance_to_point",

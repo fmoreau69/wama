@@ -47,7 +47,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -56,8 +55,7 @@
       "vision",
       "geo",
       "per-section"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "stop_line/crossing projetés au sol et agrégés multi-passages (bornes d'intersection).",
   "key": "cam_analyzer.world_markings",

@@ -56,7 +56,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -64,8 +63,7 @@
     "tags": [
       "vision",
       "geo"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Distance pinhole/homographie + vitesse et TTC filtrés par track.",
   "key": "cam_analyzer.distance",

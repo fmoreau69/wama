@@ -35,7 +35,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -75,8 +74,7 @@
       "3d",
       "reconstruction",
       "plausible"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Reconstruit un maillage 3D texturé (GLB, pivot de la médiathèque) depuis UNE image — de préférence détourée (sortie du detector / SAM3). Modèle TripoSR (MIT). ⚠ PLAUSIBLE, pas métrique : les faces occultées sont hallucinées ; un prop de simulation, jamais une mesure (§17ter).",
   "key": "studio.image_to_3d",

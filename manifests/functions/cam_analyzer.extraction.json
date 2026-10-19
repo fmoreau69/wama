@@ -59,7 +59,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -68,8 +67,7 @@
       "io",
       "rtmaps",
       "gnss"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Décode le `.rec`/quadrature RTMaps : vidéos par caméra, trace GPS annotée (cap/vitesse), synchro GPS↔vidéo (scale/offset), accéléromètre stocké.",
   "key": "cam_analyzer.extraction",

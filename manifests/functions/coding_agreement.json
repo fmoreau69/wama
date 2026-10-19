@@ -54,7 +54,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -72,8 +71,7 @@
       "temporel",
       "codage",
       "qualité"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Apparie deux codages du même média par code, sujet et proximité des débuts, dans une tolérance. Répond à la question posée quand on valide un codage assisté : « ce que la machine a proposé correspond-il à ce que l'humain a codé ». Les indicateurs d'accord plus fins relèvent du module de calcul.",
   "key": "coding_agreement",

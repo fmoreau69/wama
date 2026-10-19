@@ -40,7 +40,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -59,8 +58,7 @@
       "duplicates",
       "multi-camera",
       "fusion"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Trouve les identifiants de suivi qui décrivent le MÊME objet en mouvement : restés proches (médiane < 2 m) au moins 12 images, jamais vus ensemble comme deux boîtes d'une même image, et roulant dans le même sens. Jugée contre tout le groupe (aucun enchaînement). Le geste de la métrique « paires proches entre caméras » (doublons).",
   "key": "trajectory_twins",

@@ -47,7 +47,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -77,8 +76,7 @@
       "ego-motion",
       "ab-metric",
       "no-ground-truth"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Estime le lacet et le tangage de la caméra entre deux images à partir de correspondances de points du décor, en séparant la rotation (décalage uniforme) de la translation avant (expansion radiale). Source de cap INDÉPENDANTE du GPS : c'est le désaccord entre les deux qui se mesure. N'est pas un SLAM — ni position, ni échelle, ni carte.",
   "key": "ego_rotation",

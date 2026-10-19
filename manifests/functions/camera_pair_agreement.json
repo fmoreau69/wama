@@ -48,7 +48,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -68,8 +67,7 @@
       "calibration",
       "multi-camera",
       "no-ground-truth"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Mesure, sans vérité terrain, si deux caméras placent un même objet à la même distance : quand un objet est vu par deux caméras au même instant (recouvrement) ou à un relais bref, la position de l'une est confrontée à celle de l'autre. Rapport > 1 : la seconde caméra place plus LOIN. Universelle (toute paire de caméras d'un même repère) ; révèle une erreur d'échelle qu'une caméra ne peut pas voir seule.",
   "key": "camera_pair_agreement",

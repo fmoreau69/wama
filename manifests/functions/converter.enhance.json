@@ -67,15 +67,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "gpu",
       "upscale",
       "audio"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Applique à la conversion le post-traitement IA demandé : agrandissement ou débruitage d'une image, amélioration de l'audio (ou de la piste son d'une vidéo).",
   "key": "converter.enhance",

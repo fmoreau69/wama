@@ -56,7 +56,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -76,8 +75,7 @@
       "geo",
       "gnss",
       "timeseries"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Applique à une trace lat/lon des offsets mesurés en quelques repères : interpolation entre ancres pondérée par la fiabilité, sans extrapolation hors bornes. Conserve l'original (`lat_raw`/`lon_raw`) et trace la correction appliquée par point.",
   "key": "trajectory_offset",

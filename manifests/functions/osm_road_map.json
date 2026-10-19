@@ -28,7 +28,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -69,8 +68,7 @@
       "network",
       "map-matching",
       "worldwide"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Réseau carrossable OSM à la forme du port `road_map`, avec sens unique, nombre de voies et vitesse limite. Troisième voie d'alimentation du port, après le CSV de projet et la BD TOPO : la seule qui couvre l'étranger.",
   "key": "osm_road_map",

@@ -35,7 +35,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -54,8 +53,7 @@
     "tags": [
       "vision",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Marquages au sol (passages piétons, lignes d'arrêt) segmentés par SAM3.",
   "key": "cam_analyzer.sam3_markings",

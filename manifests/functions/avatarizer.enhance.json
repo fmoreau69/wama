@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "video",
       "face",
       "gpu"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Amélioration faciale (CodeFormer) de la vidéo animée d'une photo. La vidéo animée est gardée : retirer l'amélioration la rend telle quelle, sans réanimer.",
   "key": "avatarizer.enhance",

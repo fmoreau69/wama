@@ -2666,13 +2666,14 @@ REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et 
 
 - **Domicile** : `wama/common/registries.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Registre des REGISTRES — l'actualisation devient un mécanisme, pas une page.
-- **API publique** (15) :
+- **API publique** (16) :
   - `class RefreshResult` — Compte-rendu UNIFORME d'une actualisation, quelle que soit sa nature.
   - `class Registry` — Ce qu'une page catalogue déclare pour hériter de l'actualisation.
   - `execution_of(r: Registry) -> str`
   - `register(r: Registry) -> Registry`
   - `get(key: str) -> Registry`
   - `carried_rows(element_id, *, access_kind: str='', manifest_kind: str='')` — Les lignes qui portent la provenance de l'élément `element_id` — `owner_model` filtré par
+  - `declaring_app(element_id, *, access_kind: str) -> str` — L'app qui déclare l'élément du CODE `element_id`, lue par le registre de sa famille
   - `is_authorized(r: Registry, user) -> bool` — Ce compte peut-il ACTUALISER ce registre ? Le lire relève de l'accès à l'outil « Registres »
   - `refusal(r: Registry) -> str` — Le motif d'un refus d'actualisation, lisible tel quel (les vues y lisent « réservé »).
   - `mark_refreshed(key: str) -> None` — Signale aux AUTRES processus qu'ils sont périmés.
@@ -3257,7 +3258,7 @@ Une VUE déclare ce qu'on regarde — flux, fenêtre, résolution, colonnes dér
 
 ### Visibilité et portée
 
-Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis le 2026-10-18 (`ROADMAP §29` étape 3), les éléments d'un CATALOGUE aussi : `catalogue_visible_q` (système et publics pour tous, les siens, sa portée ; tout pour l'admin), dont le premier porteur est `AIModel` — la provenance naît au geste d'installation, et `accessible(user, 'model', clé)` la lit sur la ligne
+Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis le 2026-10-18 (`ROADMAP §29` étape 3), les éléments d'un CATALOGUE aussi : `catalogue_visible_q` (système et publics pour tous, les siens, sa portée ; tout pour l'admin), dont le premier porteur est `AIModel` — la provenance naît au geste d'installation, et `accessible(user, 'model', clé)` la lit sur la ligne. Depuis le 2026-10-19 (étape 4) : `UserFunction` par le même filtre, une fonction du CODE par l'app qui la porte (`Registry.element_app`, `function_catalog.accessible_specs`), et `StudioPipeline` porté comme une card (`listable_by`, `owned_or_404`)
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).

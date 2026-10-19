@@ -60,7 +60,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -70,8 +69,7 @@
       "geo",
       "depth",
       "monocular"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "La PASSE `depth_calc` du volet (session-wide, CPU) : relit les DepthFrame stockées et enchaîne les deux calculs catalogués à part — `depth_ground_plane` (plan de sol, store_ground_calib source='depth') puis `depth_distance_report` (cross-check). Déclarée comme passe pour que le pipeline soit exportable nœud par nœud (D13).",
   "key": "cam_analyzer.depth_calc",

@@ -53,7 +53,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -63,8 +62,7 @@
       "gnss",
       "lanes",
       "ign"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "La PASSE `lane_map_recalage` du volet (session-wide, CPU + réseau IGN) : projette au sol les lignes YOLOPv2 de la caméra avant (repère véhicule), collecte les tronçons BD TOPO le long du parcours, et appelle la brique pure `lane_map_recalage` (rattachement continu de `gps_map_match`). Écrit la correction latérale + cap de la navette ; appliquée sous ⚑ lane_map_recalage au point d'ingestion unique de la pose.",
   "key": "cam_analyzer.lane_map_recalage",

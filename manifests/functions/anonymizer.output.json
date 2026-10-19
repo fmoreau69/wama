@@ -29,15 +29,13 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "image",
       "video",
       "format"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Applique le format et la qualité de sortie de la card au média flouté. Garde le fichier d'origine tant que la sortie le transforme, pour se rejouer sans re-flouter.",
   "key": "anonymizer.output",

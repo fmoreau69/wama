@@ -40,7 +40,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -59,8 +58,7 @@
       "parked",
       "static",
       "fusion"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Réunit les fragments de suivi d'un même objet IMMOBILE (garé) : leurs positions coïncident à moins de 1,5 m, leur famille est la même, et aucune caméra ne les a vus ensemble comme deux objets. Chaque fragment est jugé contre le groupe entier — une file de garés ne s'enchaîne pas. La position et le cap d'un garé se prennent ensuite sur TOUTES ses observations.",
   "key": "long_exposure_groups",

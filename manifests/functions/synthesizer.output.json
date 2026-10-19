@@ -29,14 +29,12 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "audio",
       "format"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Applique le format et la qualité de sortie de la card au WAV synthétisé. Garde ce WAV tant que la sortie le transforme, pour se rejouer sans re-synthétiser.",
   "key": "synthesizer.output",

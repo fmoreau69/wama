@@ -29,14 +29,12 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [],
     "tags": [
       "text",
       "llm"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Note la cohérence de la transcription, relève ses anomalies, propose une version corrigée et signale les segments douteux (heatmap de l'éditeur).",
   "key": "transcriber.coherence",

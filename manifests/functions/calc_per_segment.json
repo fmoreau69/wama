@@ -50,7 +50,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -78,8 +77,7 @@
       "temporel",
       "calcul",
       "indicateurs"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Agrège un signal sur chaque segment et adjoint les indicateurs à celui-ci — une ligne par segment. Trois champs de service accompagnent toujours le résultat : `n` (échantillons présents), `duree` et `tronque`. Sans eux un indicateur absent serait indéchiffrable — aucune mesure dans la fenêtre, ou fenêtre jamais refermée ? Un segment OUVERT n'a d'ailleurs pas de durée observée (`duree` vaut « absent ») : une durée refermée par la fin de l'enregistrement n'est pas une durée mesurée, et les confondre fausse toute statistique de durée.",
   "key": "calc_per_segment",

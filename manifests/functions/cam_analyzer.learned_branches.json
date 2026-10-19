@@ -47,7 +47,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -55,8 +54,7 @@
     "tags": [
       "geo",
       "per-section"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Voies croisantes aux intersections apprises des trajectoires monde des véhicules.",
   "key": "cam_analyzer.learned_branches",

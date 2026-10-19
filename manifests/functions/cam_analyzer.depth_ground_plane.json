@@ -70,7 +70,6 @@
         }
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -81,8 +80,7 @@
       "depth",
       "monocular",
       "needs-calibration"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "ÉTAGE 2 (CALCUL, CPU) : relit les cartes stockées (DepthFrame, par depth_analysis), déprojette la zone roulable → RANSAC (brique pure geometry.depth_ground_plane) → plan de sol. Sous ⚑ depth_estimation, PERSISTE ground_calib avec source='depth' au lieu de la recherche homographique ; l'A/B se lit sur placement_spread. AUCUNE ré-inférence GPU. Signe du pitch validé (test CPU) ; gain à confirmer au 1er run GPU.",
   "key": "cam_analyzer.depth_ground_plane",

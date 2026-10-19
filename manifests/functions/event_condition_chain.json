@@ -38,7 +38,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -97,8 +96,7 @@
       "segmentation",
       "conditionnel",
       "evenement"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Instants où la chaîne change d'état, montantes et/ou descendantes. C'est le SECOND port de sortie du même masque : « que créer, un événement ou une situation ? » n'est pas un mode de segmentation mais un choix de sortie, donc deux fonctions chaînables plutôt qu'un bouton radio au milieu du geste. Une chaîne déjà vraie au premier échantillon ne produit pas de bascule montante — la transition n'a pas été observée.",
   "key": "event_condition_chain",

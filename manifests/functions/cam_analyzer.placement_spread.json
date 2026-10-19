@@ -37,7 +37,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [],
     "projects": [
       "ENA"
@@ -47,8 +46,7 @@
       "placement-quality",
       "ab-metric",
       "no-ground-truth"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Métrique A/B OBJECTIVE : dispersion RMS monde des véhicules stationnés autour de leur barycentre (0 = idéal, plus bas = meilleur). Calculée en fin de tracking 360° via la brique commune WAMA Data `geometry.placement_spread` (pure), sans vérité terrain. Sert à trancher la bascule ⚑ auto_ground_calib ON/OFF sur un chiffre plutôt qu'« à l'œil ».",
   "key": "cam_analyzer.placement_spread",

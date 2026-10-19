@@ -46,7 +46,6 @@
         "required_fields": []
       }
     ],
-    "owner": "",
     "params": [
       {
         "choices": null,
@@ -65,8 +64,7 @@
       "segmentation",
       "ensembliste",
       "evenement"
-    ],
-    "visibility": "public"
+    ]
   },
   "description": "Ne garde que les événements dont l'instant tombe dans l'un des segments de référence — la restriction « Situation : … » appliquée à une sortie ÉVÉNEMENTS. Opération ensembliste, comme « Restreindre des segments à un contexte » ; une fin OUVERTE de la référence contient tout instant postérieur à son début.",
   "key": "event_within",

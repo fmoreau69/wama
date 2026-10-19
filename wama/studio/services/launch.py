@@ -168,6 +168,21 @@ def launch_graph(user, graph, *, pipeline_id=None):
             return None, (f"Nœud « {n['app']} » : non exécutable dans un pipeline "
                           f"(apps : {runnable} + fonctions du catalogue + nœuds "
                           f"{builtin_labels}).")
+    # Une FONCTION suit l'accès de l'app qui la porte, et c'est aussi sa provenance (une jumelle
+    # est à son créateur) — `ROADMAP §29` étape 4 : la décision unique, la règle de la palette.
+    # Sans elle, un graphe posté à la main lançait le process d'une app fermée au compte (les
+    # nœuds d'app, eux, sont gardés au run par `execute_tool`).
+    from wama.accounts.permissions import accessible
+    for n in nodes:
+        if _is_function(n) and not accessible(user, 'function', function_key(n)):
+            return None, f"Nœud fonction « {function_key(n)} » : non accessible à ce compte."
+    # Le pipeline ENREGISTRÉ dont on lance le graphe doit être visible du compte : le run le
+    # nomme (`StudioRun.__str__`), au journal et au calendrier.
+    if pipeline_id:
+        from wama.common.utils.scoping import listable_by
+        from wama.studio.models import StudioPipeline
+        if not listable_by(StudioPipeline.objects.filter(pk=pipeline_id), user).exists():
+            return None, 'Pipeline introuvable'
     # Un pipeline SANS process est valide s'il relie une ENTRÉE à une SORTIE — l'export sans
     # traitement (« je connecte une base et j'en extrais les tables », ROUTE §10.6 3.6, §11 #35 ;
     # forme précisée par Fabien le 2026-09-15). Ce qui reste refusé : un graphe qui ne ferait RIEN.
