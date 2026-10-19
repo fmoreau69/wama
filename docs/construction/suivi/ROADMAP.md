@@ -6327,7 +6327,13 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
        ligne.
      - Lecteurs : la palette du Studio, la page du catalogue de fonctions (elle listait à tous les
        process des jumelles), le lancement d'un graphe (`launch_graph`, qui sert aussi l'assistant),
-       et l'export au corpus.
+       et l'export au corpus. Depuis `492f0df6` (même jour, `§16.11` piste 4), le lancement lit la
+       palette du compte (`studio/services/palette.palette_nodes`) au lieu de sa propre boucle :
+       même décision pour une fonction, et en plus l'app fermée et le nœud inconnu.
+     - Une fonction PURE suit l'app Django qui la contient : les 50 sont dans `wama_data`, app
+       commune et non publique. Revérifié le 2026-10-19 sur les politiques réelles : tout compte
+       connecté les voit (52 fonctions sans rôle, 143 pour un développeur), aucun anonyme. Avant
+       l'étape, aucun filtre ne s'appliquait à elles.
    - **Retrait de la seconde provenance.** `FunctionSpec.visibility` et `owner` sont retirés : rien
      ne les remplissait, et pourtant la palette les lisait. Les 112 manifestes du corpus perdent ces
      deux clés de leur `body` (`REMOVAL_LEDGER R154`).
@@ -6363,9 +6369,12 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
    - **Ce que l'étape ne fait PAS** :
      - Aucun geste « Partager » pour un pipeline : la nature n'est pas déclarée au geste commun
        (`WAMA_COLLABORATION` marche 3).
-     - Un nœud que la palette ne connaît pas disparaît en silence à l'ouverture d'un pipeline
+     - ~~Un nœud que la palette ne connaît pas disparaît en silence à l'ouverture d'un pipeline
        (relevé par une autre session, `ROADMAP §16.11` piste 4). L'étape le rend plus probable,
-       puisqu'un pipeline pourra être partagé : à corriger AVANT le geste « Partager ».
+       puisqu'un pipeline pourra être partagé : à corriger AVANT le geste « Partager ».~~
+       ✅ **Soldé le 2026-10-19 (`492f0df6`, autre session, GO de Fabien)** : le canvas garde le
+       nœud, marqué indisponible, avec ses réglages et ses liens, et le lancement le refuse en le
+       nommant (`§16.11` piste 4).
      - Une fonction d'utilisateur se crée toujours dans l'admin seule.
 5. Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par
    déplacement vers `common/`.
