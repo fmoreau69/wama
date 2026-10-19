@@ -2717,7 +2717,12 @@
             "ai_model": "select — Modèle AI (défaut : 'auto')",
             "blend_factor": "range — Blend [0–1] (défaut : 0.0)",
             "denoise": "toggle — Appliqué avant l’agrandissement (défaut : False)",
-            "file_path": "str (requis)"
+            "file_path": "str (requis)",
+            "output_format": "select — Doit correspondre au type du média (image ou vidéo). (défaut : 'original')",
+            "output_keep_size": "toggle — Améliore la qualité sans agrandir : la sortie est ramenée aux dimensions du fichier d'entrée. (défaut : False)",
+            "output_quality": "select — Qualité (choix : web | balanced | max) (défaut : 'balanced')",
+            "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
+            "upscale_factor": "select — Facteur d'agrandissement (choix : 2 | 4) (défaut : '4')"
           },
           "description": "Ajoute un élément à la file d'attente de Enhancer (Upscaling IA d'images/vidéos et amélioration audio (Resemble, DeepFilterNet)) et renvoie son item_id."
         },

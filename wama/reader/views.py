@@ -290,7 +290,7 @@ def new_reading_settings(user, model=None, app='reader', post=None) -> dict:
     from wama.common.utils.user_settings import new_element_settings
     from wama.reader.params import PARAMS_JSON, user_setting_key
     return new_element_settings(user, app, PARAMS_JSON, model or ReadingItem, post=post,
-                                key=user_setting_key)
+                                key=user_setting_key, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
 
 
 def _deposit_settings(user, post):

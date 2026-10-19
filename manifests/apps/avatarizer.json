@@ -1424,6 +1424,7 @@
       "descriptions": {
         "add_to_avatarizer": {
           "args": {
+            "animation_model": "select — Modèle d'animation (défaut : 'auto')",
             "audio_path": "str",
             "avatar_gallery_name": "str",
             "avatar_image_path": "str",
@@ -1431,6 +1432,7 @@
             "bbox_shift": "range — Décalage vertical de la zone bouche (px). 0 = auto. Photo animée seulement : sans effet sur un avatar 3D. [-10–10] (défaut : 0)",
             "language": "select — Langue (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
             "mode": "str (défaut : 'pipeline')",
+            "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "quality_mode": "str (défaut : 'fast')",
             "text_content": "textarea — La relance régénère la voix depuis ce texte.",
             "tts_model": "select — Modèle TTS (défaut : 'synthesizer:coqui-xtts')",

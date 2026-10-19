@@ -26,6 +26,7 @@
           ],
           "share": 3,
           "watched": [
+            "media_type",
             "output_format",
             "quality_intent",
             "quality",

@@ -228,7 +228,8 @@ def new_enhancement_settings(user, model=None, app='enhancer', post=None):
     volet donc sans POST) passent ici ; `model`/`app` : une jumelle de bac à sable passe les siens."""
     from wama.common.utils.user_settings import new_element_settings
     from wama.enhancer.params import MEDIA_PARAMS_JSON
-    values = new_element_settings(user, app, MEDIA_PARAMS_JSON, model or Enhancement, post=post)
+    values = new_element_settings(user, app, MEDIA_PARAMS_JSON, model or Enhancement, post=post,
+                                  empty_is_value=SETTINGS_EMPTY_IS_VALUE)
     if 'upscale_factor' in values:
         values['upscale_factor'] = _factor_posted(values, 4)
     return values

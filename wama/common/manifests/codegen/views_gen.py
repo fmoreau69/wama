@@ -650,8 +650,10 @@ def upload(request):
     if input_field:
         instant_settings = ''
         if _noms_schema:
+            # La cascade SANS mémoire : la frappe n'écrit rien en base, préférences comprises —
+            # c'est l'ajout à la file (le dépôt) qui les retient.
             instant_settings = ("\n    _posted = request.POST.copy()\n    _posted.pop('instant_text', None)"
-                                "\n    kwargs.update(_deposit_settings(user, '', _posted))")
+                                "\n    kwargs.update(_element_settings(user, '', _posted))")
         vues['instant'] = f'''@require_POST
 def instant(request):
     """Résultat INSTANTANÉ de la saisie (capacité `instant_preview`) : `tasks.instant_result`

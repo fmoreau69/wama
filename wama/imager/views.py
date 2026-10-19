@@ -1404,7 +1404,7 @@ def update_settings(request, pk):
         schema = _schema_for(generation)
         names = [p['name'] for p in schema]
         # Sur UN élément, une graine postée VIDE est une valeur (aléatoire).
-        data = read_settings_payload(request, schema, names, empty_is_value=('seed',))
+        data = read_settings_payload(request, schema, names, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
         try:
             _apply_generation_settings(generation, data)   # la même fonction que le lot
         except ValueError as refusal:

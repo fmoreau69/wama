@@ -1023,7 +1023,9 @@
             "radio_name": "",
             "section": "settings",
             "show_if": null,
-            "stales": null,
+            "stales": [
+              "convert"
+            ],
             "step": null,
             "type": "hidden",
             "unit": ""

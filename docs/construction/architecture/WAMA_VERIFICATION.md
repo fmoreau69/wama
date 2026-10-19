@@ -1874,7 +1874,7 @@ les classes propres à une app dans `tests_intent_vision` ; les 7 apps aux régl
 `user_settings.*_panel_*`, dont le contrat `PanelSettingsBrickTest` vaut pour toute app dérivée ;
 describer, reader, composer, avatarizer, synthesizer et enhancer le 2026-10-18, avec la NAISSANCE
 de leurs éléments par la cascade commune `new_element_settings` — critère `birth_settings_common`,
-garde `tests_birth_settings` ; reste le converter)
+garde `tests_birth_settings` ; le converter le 2026-10-19 — `NOT_YET_DERIVED` est vide)
 et les 9 écarts modale/volet (`DECLARED_GAPS`) — décisions et
 portages, pas des tests ; le `model_loaded` nocturne générique (décision de Fabien : quels modèles,
 quelle fréquence). Côté UI (consigne du même jour) : le moins de rechargement de page possible —
