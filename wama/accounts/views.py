@@ -15,7 +15,7 @@ from django.views.decorators.http import require_POST
 from functools import wraps
 
 from .models import LoginForm, UserRegistrationForm, UserProfile
-from ..common import external_sources
+from ..common import external_sources, themes
 from ..common.utils.secret_crypto import storage_available
 from ..common.utils.volet import VOLET_AUCUN, volet
 
@@ -229,6 +229,8 @@ def profile_view(request):
         'token': token_obj.key,
         'profile': profile,
         'languages': LANGUAGE_CHOICES,
+        # Le choix courant (`theme_choice`) vient du contexte de toute page.
+        'theme_choices': themes.choices(),
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
@@ -482,6 +484,24 @@ def units_update(request):
     profile.unit_system = system
     profile.save(update_fields=['unit_system'])
     return JsonResponse({'success': True, 'unit_system': system})
+
+
+@login_required
+@require_POST
+def theme_update(request):
+    """AJAX: enregistre le THÈME du compte — un thème déclaré (`common/themes.py`) ou
+    « Automatique », qui suit le mode du système. Réglage durable, lu sur toute page."""
+    from wama.common.themes import save_theme_choice
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    try:
+        choice = save_theme_choice(request.user, data.get('theme'))
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    return JsonResponse({'success': True, 'theme': choice})
 
 
 @login_required

@@ -2,8 +2,8 @@
 fonctionnera aussi quand on aura mis en place plusieurs thèmes/modes (sombre/clair/UGE/etc) »).
 
 Un thème, c'est :
-  • une clé et un libellé, déclarés ICI — la page, le scénario de contraste et (demain) la
-    préférence du compte les lisent ici, jamais dans une liste recopiée ;
+  • une clé et un libellé, déclarés ICI — la page, le scénario de contraste et le choix du
+    compte (carte « Apparence » du Profil) les lisent ici, jamais dans une liste recopiée ;
   • ses VALEURS, dans `common/css/wama-theme.css`, bloc `:root[data-wama-theme="<clé>"]` — un
     composant ne pose plus de couleur, il lit un token (`var(--wama-text-label)`) ;
   • le mode natif de Bootstrap 5.3 sur lequel il s'appuie (`data-bs-theme`).
@@ -104,8 +104,67 @@ def theme(key: str) -> Theme:
     return next((t for t in THEMES if t.key == key), None) or next(t for t in THEMES if t.key == DEFAULT)
 
 
+# ── Le CHOIX du compte (étape 5, 2026-10-19 — Fabien : « ok pour le Profil avec Auto ») ──────
+# Un réglage durable du compte (`user_settings`), comme l'avatar de l'assistant : une préférence
+# de plus, pas un mécanisme. Il se règle au Profil (carte « Apparence ») et vaut sur toute page.
+
+#: Le choix « Automatique » : le thème suit le mode clair ou sombre du système
+#: (`prefers-color-scheme`), lu par `common/js/wama-theme.js` — le serveur ne le connaît pas.
+AUTO = 'auto'
+AUTO_LABEL = 'Automatique (suit le système)'
+#: Le thème que prend « Automatique », par mode du système.
+AUTO_THEMES = {'dark': 'dark', 'light': 'light'}
+#: Le choix de qui n'a rien choisi, ou n'a pas de compte.
+DEFAULT_CHOICE = AUTO
+#: Où vit le choix : `user_settings`, app `common` (les réglages du compte, hors de toute app).
+SETTING_APP, SETTING_NAME = 'common', 'theme'
+
+
+def choices() -> list[tuple[str, str]]:
+    """Ce que propose le Profil : « Automatique », puis chaque thème déclaré."""
+    return [(AUTO, AUTO_LABEL)] + [(t.key, t.label) for t in THEMES]
+
+
+def _valid(value) -> bool:
+    return value == AUTO or any(t.key == value for t in THEMES)
+
+
+def theme_choice(user) -> str:
+    """Le choix du compte : une clé de thème, ou `AUTO`. `DEFAULT_CHOICE` sans compte, sans
+    choix posé, ou si le thème choisi n'est plus déclaré. Fail-safe : une panne du store rend le
+    défaut, jamais une page en erreur."""
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return DEFAULT_CHOICE
+    try:
+        from wama.common.utils.user_settings import get_user_app_setting
+        value = get_user_app_setting(user, SETTING_APP, SETTING_NAME, DEFAULT_CHOICE)
+    except Exception:
+        return DEFAULT_CHOICE
+    return value if _valid(value) else DEFAULT_CHOICE
+
+
+def save_theme_choice(user, value) -> str:
+    """Enregistre le choix du compte ; `ValueError` pour un choix qui n'est pas proposé."""
+    if not _valid(value):
+        raise ValueError(f"Thème inconnu : '{value}'")
+    from wama.common.utils.user_settings import save_user_app_settings
+    save_user_app_settings(user, SETTING_APP, {SETTING_NAME: value})
+    return value
+
+
+def resolve(choice: str) -> Theme:
+    """Le thème que le SERVEUR pose pour un choix. « Automatique » rend le défaut : le script de
+    `base.html` le corrige avant le premier rendu, selon le mode du système."""
+    return theme(DEFAULT if choice == AUTO else choice)
+
+
+def declared_for_pages(choice: str) -> dict:
+    """Ce que lit `wama-theme.js` : le choix, le mode de Bootstrap de chaque thème, et le thème que
+    prend « Automatique » par mode du système — lus ICI, jamais recopiés dans le script."""
+    return {'choice': choice, 'auto': AUTO, 'fallback': DEFAULT,
+            'modes': {t.key: t.bootstrap for t in THEMES}, 'system': dict(AUTO_THEMES)}
+
+
 def theme_for(request) -> Theme:
-    """Le thème d'une requête. Aucune préférence n'existe encore : c'est le défaut. ⏳ La
-    préférence du compte viendra des réglages durables (`user_settings`), comme celle de
-    l'avatar (`context_processors.assistant_avatar`) — une préférence de plus, pas un mécanisme."""
-    return theme(DEFAULT)
+    """Le thème que le serveur pose pour une requête (le choix du compte connecté)."""
+    return resolve(theme_choice(getattr(request, 'user', None)))

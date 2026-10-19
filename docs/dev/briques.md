@@ -2528,14 +2528,19 @@ Modale commune de choix d'un asset de la médiathèque (filtrée par type), rend
 
 ### Thèmes et tokens de couleur
 
-Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), passés à toute page par le contexte et posés par base.html sur `<html>` (`data-wama-theme`, `data-bs-theme`) ; leurs VALEURS dans `wama-theme.css`, un bloc par thème, chargé avant toute feuille. Un composant lit un token (`var(--wama-text-label)`), il n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). `common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre (`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que `themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot)
+Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), passés à toute page par le contexte et posés par base.html sur `<html>` (`data-wama-theme`, `data-bs-theme`) ; leurs VALEURS dans `wama-theme.css`, un bloc par thème, chargé avant toute feuille. Un composant lit un token (`var(--wama-text-label)`), il n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). `common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre (`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que `themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot). Le compte CHOISIT au Profil (2026-10-19) : « Automatique », le défaut, suit le mode du système (`wama-theme.js`, résolu avant le premier rendu), ou un thème déclaré (`theme_choice`, réglage durable `user_settings`)
 
 - **Domicile** : `wama/common/themes.py` · **doc** : [docs/construction/suivi/ROADMAP.md §28](../construction/suivi/ROADMAP.md)
 - **Module** : Thèmes de WAMA — LA déclaration (chantier ouvert le 2026-10-17, demande de Fabien : « ça fonctionnera aussi quand on aura mis en place plusieurs thèmes/modes (sombre/clair/UGE/etc) »).
-- **API publique** (3) :
+- **API publique** (8) :
   - `class Theme`
   - `theme(key: str) -> Theme` — Le thème déclaré sous `key`, sinon le thème par défaut (jamais une page sans thème).
-  - `theme_for(request) -> Theme` — Le thème d'une requête. Aucune préférence n'existe encore : c'est le défaut. ⏳ La
+  - `choices() -> list[tuple[str, str]]` — Ce que propose le Profil : « Automatique », puis chaque thème déclaré.
+  - `theme_choice(user) -> str` — Le choix du compte : une clé de thème, ou `AUTO`. `DEFAULT_CHOICE` sans compte, sans
+  - `save_theme_choice(user, value) -> str` — Enregistre le choix du compte ; `ValueError` pour un choix qui n'est pas proposé.
+  - `resolve(choice: str) -> Theme` — Le thème que le SERVEUR pose pour un choix. « Automatique » rend le défaut : le script de
+  - `declared_for_pages(choice: str) -> dict` — Ce que lit `wama-theme.js` : le choix, le mode de Bootstrap de chaque thème, et le thème que
+  - `theme_for(request) -> Theme` — Le thème que le serveur pose pour une requête (le choix du compte connecté).
 
 ### Vocabulaire des capacités
 

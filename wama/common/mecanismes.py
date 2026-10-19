@@ -2018,9 +2018,13 @@ MECHANISMS = (
               "définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut "
               "que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre "
               "(`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que "
-              "`themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot)",
+              "`themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot). "
+              "Le compte CHOISIT au Profil (2026-10-19) : « Automatique », le défaut, suit le mode "
+              "du système (`wama-theme.js`, résolu avant le premier rendu), ou un thème déclaré "
+              "(`theme_choice`, réglage durable `user_settings`)",
               'wama/common/themes.py', 'docs/construction/suivi/ROADMAP.md §28',
               annexes=('wama/common/static/common/css/wama-theme.css',
+                       'wama/common/static/common/js/wama-theme.js',
                        'wama/common/theme_mirror.py',
                        'wama/common/tests/tests_theme.py')),
 

@@ -32,9 +32,13 @@ def unread_notifications(request):
 
 def theme(request):
     """Le THÈME de la page (`common/themes.py`), posé par `base.html` sur `<html>` : ses tokens
-    (`wama-theme.css`) et le mode de Bootstrap en découlent. Lu sur toute page, sans compte aussi."""
-    from wama.common.themes import theme_for
-    return {'theme': theme_for(request)}
+    (`wama-theme.css`) et le mode de Bootstrap en découlent. Lu sur toute page, sans compte aussi.
+    `theme_choice` est le choix du compte (« Automatique » compris) ; `theme_declared`, ce que
+    `wama-theme.js` lit pour résoudre « Automatique » avant le premier rendu."""
+    from wama.common.themes import declared_for_pages, resolve, theme_choice
+    choice = theme_choice(getattr(request, 'user', None))
+    return {'theme': resolve(choice), 'theme_choice': choice,
+            'theme_declared': declared_for_pages(choice)}
 
 
 #: Ce que voit un visiteur sans compte : pas d'avatar (la vocalisation exige un compte).

@@ -8,6 +8,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{% block title %}WAMA{% endblock %}</title>
 
+    {# Le choix « Automatique » suit le mode du système : résolu ici, avant le premier rendu #}
+    {{ theme_declared|json_script:"wama-theme-declared" }}
+    <script src="{% static_v 'common/js/wama-theme.js' %}"></script>
+
     <!-- Bootstrap 5 CSS -->
     <link href="{% static_v 'vendors/bootstrap-5.3.0/css/bootstrap.min.css' %}" rel="stylesheet">
     {# Tokens du THÈME (common/themes.py) : chargés avant toute feuille qui les lit #}

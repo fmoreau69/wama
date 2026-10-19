@@ -346,6 +346,27 @@
                 </div>
             </div>
 
+            <!-- ── Apparence : le thème (common/themes.py) ─────────────── -->
+            <div class="card bg-body border-secondary mb-4">
+                <div class="card-header border-secondary">
+                    <h5 class="mb-0"><i class="fas fa-circle-half-stroke me-2"></i>Apparence</h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted small mb-3">
+                        « Automatique » suit le réglage clair ou sombre de votre ordinateur. Le thème
+                        change dès que vous le choisissez, sur toutes les pages.
+                    </p>
+                    <select id="themeSelect"
+                            class="form-select form-select-sm bg-body text-body-emphasis border-secondary"
+                            style="max-width: 260px;">
+                        {% for value, label in theme_choices %}
+                        <option value="{{ value }}" {% if value == theme_choice %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                    <div id="themeMsg" class="mt-2" style="display:none;"></div>
+                </div>
+            </div>
+
             <!-- ── Aperçu inspecteur ──────────────────────────────────── -->
             <div class="card bg-body border-secondary mb-4">
                 <div class="card-header border-secondary">
@@ -650,6 +671,8 @@
 <script>
 const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
 const UNITS_URL          = "{% url 'accounts:profile-units' %}";
+{# `as` : ne lève pas si la route n'est pas encore chargée (gabarit relu avant le code, en prod) #}
+{% url 'accounts:profile-theme' as theme_url %}const THEME_URL          = "{{ theme_url }}";
 const NOTIFICATIONS_URL  = "{% url 'accounts:profile-notifications' %}";
 const RETENTION_URL      = "{% url 'accounts:profile-retention' %}";
     const AUTOPLAY_URL       = "{% url 'accounts:profile-inspector-autoplay' %}";
@@ -770,6 +793,23 @@ document.getElementById('saveUnitSystemBtn').addEventListener('click', async () 
         showMsg(msg, 'Erreur réseau', true);
     }
 });
+
+// ── Apparence : le thème se pose sur la page dès le choix, puis s'enregistre ──
+const _themeSelect = document.getElementById('themeSelect');
+if (_themeSelect) {
+    _themeSelect.addEventListener('change', async () => {
+        const choice = _themeSelect.value;
+        const msg = document.getElementById('themeMsg');
+        if (window.WamaTheme) window.WamaTheme.apply(choice);
+        try {
+            const data = await postJson(THEME_URL, { theme: choice });
+            if (data.success) showMsg(msg, '✓ Thème enregistré');
+            else showMsg(msg, data.error || 'Erreur', true);
+        } catch (e) {
+            showMsg(msg, 'Erreur réseau', true);
+        }
+    });
+}
 
 // ── Aperçu inspecteur : lecture auto ──────────────────────────────────────────
 const _autoplayToggle = document.getElementById('inspectorAutoplay');

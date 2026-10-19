@@ -13,7 +13,7 @@ import re
 from pathlib import Path
 
 from django.conf import settings
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 
 ROOT = Path(settings.BASE_DIR)
 THEME_CSS = ROOT / 'wama' / 'common' / 'static' / 'common' / 'css' / 'wama-theme.css'
@@ -434,6 +434,127 @@ class ThemeColorForDrawingTest(SimpleTestCase):
     def test_the_served_copy_is_the_source(self):
         self.assertEqual((ROOT / 'wama/common/static/common/js/wama-app-base.js').read_bytes(),
                          (ROOT / 'staticfiles/common/js/wama-app-base.js').read_bytes())
+
+
+class ThemeChoiceTest(TestCase):
+    """Étape 5 (2026-10-19) : le compte CHOISIT son thème au Profil — « Automatique » (le défaut,
+    qui suit le système), ou un thème déclaré. Réglage durable (`user_settings`), lu sur toute page."""
+
+    def setUp(self):
+        from django.contrib.auth.models import User
+        self.user = User.objects.create_user('theme-choice-test', password='x')
+
+    def _request(self, user=None):
+        from django.contrib.auth.models import AnonymousUser
+        request = RequestFactory().get('/')
+        request.user = user or AnonymousUser()
+        return request
+
+    def test_nothing_chosen_means_automatic_and_the_server_paints_the_default(self):
+        from wama.common.context_processors import theme
+        from wama.common.themes import AUTO, DEFAULT, DEFAULT_CHOICE
+        self.assertEqual(AUTO, DEFAULT_CHOICE)
+        for user in (None, self.user):
+            with self.subTest(account=bool(user)):
+                ctx = theme(self._request(user))
+                self.assertEqual(AUTO, ctx['theme_choice'])
+                self.assertEqual(DEFAULT, ctx['theme'].key)
+
+    def test_a_chosen_theme_is_what_every_page_gets(self):
+        from wama.common.context_processors import theme
+        from wama.common.themes import save_theme_choice
+        save_theme_choice(self.user, 'light')
+        ctx = theme(self._request(self.user))
+        self.assertEqual(('light', 'light', 'light'),
+                         (ctx['theme_choice'], ctx['theme'].key, ctx['theme'].bootstrap))
+        self.assertEqual('light', ctx['theme_declared']['choice'])
+
+    def test_a_choice_that_is_not_offered_is_refused_and_a_stale_one_falls_back(self):
+        from wama.common.themes import DEFAULT_CHOICE, save_theme_choice, theme_choice
+        from wama.common.utils.user_settings import save_user_app_settings
+        with self.assertRaises(ValueError):
+            save_theme_choice(self.user, 'no-such-theme')
+        save_user_app_settings(self.user, 'common', {'theme': 'retired-theme'})
+        self.assertEqual(DEFAULT_CHOICE, theme_choice(self.user))
+
+    def test_the_profile_offers_every_choice_and_saves_it(self):
+        from django.urls import reverse
+        from wama.common.themes import THEMES, choices, theme_choice
+        self.assertEqual(['auto'] + [t.key for t in THEMES], [k for k, _ in choices()])
+        self.client.force_login(self.user)
+        url = reverse('accounts:profile-theme')
+        self.assertEqual(400, self.client.post(url, '{"theme": "nope"}', content_type='application/json').status_code)
+        response = self.client.post(url, '{"theme": "light"}', content_type='application/json')
+        self.assertEqual({'success': True, 'theme': 'light'}, response.json())
+        self.assertEqual('light', theme_choice(self.user))
+        html = self.client.get(reverse('accounts:profile')).content.decode()
+        self.assertIn('id="themeSelect"', html)
+        for key, label in choices():
+            self.assertIn(f'<option value="{key}"', html)
+        self.assertRegex(html, r'<option value="light" selected>')
+        self.assertRegex(html, r'<html[^>]*data-wama-theme="light"[^>]*data-bs-theme="light"')
+
+    def test_base_resolves_automatic_before_any_sheet(self):
+        html = BASE_HTML.read_text(encoding='utf-8')
+        declared = html.index('theme_declared|json_script:"wama-theme-declared"')
+        script = html.index("static_v 'common/js/wama-theme.js'")
+        first_sheet = html.index('rel="stylesheet"')
+        self.assertLess(declared, script)
+        self.assertLess(script, first_sheet, 'the theme is set before the first paint')
+
+
+class ThemeScriptTest(SimpleTestCase):
+    """`wama-theme.js` exécuté dans V8 avec un faux `document` : « Automatique » suit le mode du
+    système, et le suit encore quand il change ; un choix explicite ne le suit pas.
+    ⚠ `py_mini_racer` n'est que dans venv_win : skippe sous venv_linux."""
+
+    FAKE = """var attrs = {}, listeners = [], systemLight = %s;
+    var document = {
+      documentElement: { setAttribute: function (k, v) { attrs[k] = v; } },
+      getElementById: function () { return { textContent: %s }; } };
+    var window = { matchMedia: function () { return {
+      get matches() { return systemLight; },
+      addEventListener: function (e, f) { listeners.push(f); } }; } };
+    function flip() { systemLight = !systemLight; listeners.forEach(function (f) { f(); }); }
+    """
+
+    def _run(self, choice, system_light):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
+        import json
+        from wama.common.themes import declared_for_pages
+        ctx = MiniRacer()
+        payload = json.dumps(json.dumps(declared_for_pages(choice)))
+        ctx.eval(self.FAKE % ('true' if system_light else 'false', payload)
+                 + (ROOT / 'wama/common/static/common/js/wama-theme.js').read_text(encoding='utf-8'))
+        return ctx
+
+    def _theme(self, ctx):
+        return ctx.eval("attrs['data-wama-theme'] + '/' + attrs['data-bs-theme']")
+
+    def test_automatic_follows_the_system_and_its_changes(self):
+        ctx = self._run('auto', system_light=True)
+        self.assertEqual('light/light', self._theme(ctx))
+        ctx.eval('flip()')
+        self.assertEqual('dark/dark', self._theme(ctx))
+
+    def test_an_explicit_choice_ignores_the_system(self):
+        ctx = self._run('dark', system_light=True)
+        self.assertEqual('dark/dark', self._theme(ctx))
+        ctx.eval('flip()')
+        self.assertEqual('dark/dark', self._theme(ctx))
+
+    def test_the_profile_applies_a_choice_in_place(self):
+        ctx = self._run('dark', system_light=False)
+        self.assertEqual('light', ctx.eval("window.WamaTheme.apply('light')"))
+        self.assertEqual('light/light', self._theme(ctx))
+        self.assertEqual('dark', ctx.eval("window.WamaTheme.apply('auto')"))
+
+    def test_the_served_copy_is_the_source(self):
+        self.assertEqual((ROOT / 'wama/common/static/common/js/wama-theme.js').read_bytes(),
+                         (ROOT / 'staticfiles/common/js/wama-theme.js').read_bytes())
 
 
 class HardCodedColourBudgetTest(SimpleTestCase):

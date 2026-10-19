@@ -6017,11 +6017,29 @@ listes déroulantes.
    aux données qui suivent le code comparées par alignement des éléments) ; (2) `common.contrast`
    joue les DEUX thèmes, 60 pages : aucun texte illisible ; en clair, il est resté deux familles
    faibles, puis plus que les événements du calendrier (couleur de donnée, déjà faibles en sombre).
-   ⏳ *Reste* : choisir son thème (étape 5) ; les boutons « outline » faibles et la couleur d'un
+   ⏳ *Reste* : ~~choisir son thème (étape 5)~~ (✅ 2026-10-19) ; les boutons « outline » faibles et la couleur d'un
    événement (charte) ; le thème UGE, qui partira de la charte (`claude/Charte_Gustave_Eiffel/`).
-5. ⏳ **Le choix de l'utilisateur** : une préférence des réglages durables (`user_settings`), lue
-   par `theme_for` comme l'est celle de l'avatar ; un sélecteur dans le menu du compte. Sans second
-   thème, il n'y a rien à choisir : cette étape vient après la 4.
+5. ✅ **Le choix de l'utilisateur (2026-10-19)** — *« ok pour le Profil avec Auto »* (Fabien).
+   *Où* : la page **Profil**, carte « Apparence », à côté de la langue et des unités — une
+   préférence qu'on règle une fois ; la barre du haut reste aux gestes fréquents (mode simplifié,
+   cloche). Le « menu du compte » prévu ici n'a pas été retenu.
+   *Quoi* : **Automatique (suit le système)**, le défaut de tout compte et du visiteur sans compte,
+   puis chaque thème déclaré (`themes.choices()` : la liste s'allonge seule avec UGE).
+   *Comment* : un réglage durable `user_settings` (app `common`, nom `theme` — pas de migration),
+   lu par `theme_choice(user)` ; un choix qui n'est plus déclaré retombe sur Automatique. Le serveur
+   pose le thème d'un choix explicite ; « Automatique » ne se résout que dans le navigateur
+   (`prefers-color-scheme`) : `common/js/wama-theme.js`, chargé SYNCHRONE dans le `<head>` avant
+   toute feuille (pas d'éclair), lit `themes.declared_for_pages()` (`#wama-theme-declared`) et
+   suit le système s'il change page ouverte. Au Profil, le choix se pose sur place
+   (`WamaTheme.apply`) puis s'enregistre (`accounts:profile-theme`).
+   *Gardes* : `tests_theme.ThemeChoiceTest` (défaut, choix lu par toute page, refus, choix périmé,
+   route et carte du Profil, ordre dans `base.html`) et `ThemeScriptTest` (le script dans V8 :
+   Automatique suit le système et ses changements, un choix explicite non ; contre-épreuves —
+   écoute retirée, résolution retirée — rouges). Smoke navigateur sur le serveur éphémère : les
+   deux modes du système, le changement page ouverte, le choix enregistré, aucune erreur JS.
+   ⚠ *Conséquence* : Playwright émule un système CLAIR par défaut — les captures nocturnes
+   (vignettes des briques UI, vidéo des gestes) passent en clair pour le compte de test tant
+   qu'elles ne fixent pas `color_scheme` ou un choix explicite.
 
 ## 29. PROVENANCE de tout ce qui entre dans WAMA — privé à son auteur, « Système » une fois promu (ouvert le 2026-10-18, demande de Fabien)
 
