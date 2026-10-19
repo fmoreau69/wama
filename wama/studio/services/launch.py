@@ -120,6 +120,9 @@ def launch_graph(user, graph, *, pipeline_id=None):
       - graphe non vide et ACYCLIQUE (`topo_order`) ;
       - tout nœud CONNECTÉ doit être exécutable (app du runner générique, fonction du
         catalogue, ou nœud intégré — card d'entrée ou de sortie — du registre commun) ;
+      - tout nœud, relié ou non, doit figurer dans la PALETTE du compte (`palette.palette_nodes`,
+        2026-10-19) : sinon il est refusé en le nommant — non accessible, app non exécutable, ou
+        inconnu de WAMA ;
       - au moins un nœud app OU fonction exécutable dans le graphe — OU une entrée reliée à une
         sortie : ✅ depuis le 2026-10-11, un pipeline SANS process (entrée → sortie, export seul)
         est accepté, comme le modèle du 2026-09-15 le veut (WAMA_APP_GENERATION_ROUTE.md §10.6
@@ -168,14 +171,27 @@ def launch_graph(user, graph, *, pipeline_id=None):
             return None, (f"Nœud « {n['app']} » : non exécutable dans un pipeline "
                           f"(apps : {runnable} + fonctions du catalogue + nœuds "
                           f"{builtin_labels}).")
-    # Une FONCTION suit l'accès de l'app qui la porte, et c'est aussi sa provenance (une jumelle
-    # est à son créateur) — `ROADMAP §29` étape 4 : la décision unique, la règle de la palette.
-    # Sans elle, un graphe posté à la main lançait le process d'une app fermée au compte (les
-    # nœuds d'app, eux, sont gardés au run par `execute_tool`).
-    from wama.accounts.permissions import accessible
+    # Ce que la PALETTE du compte n'offre pas ne se lance pas (`palette.palette_nodes`, la règle de
+    # ce qu'il peut poser — 2026-10-19, `ROADMAP §16.11` piste 4). Une FONCTION y suit l'accès de
+    # l'app qui la porte, et c'est aussi sa provenance (une jumelle est à son créateur — `ROADMAP
+    # §29` étape 4) ; une APP fermée au compte n'était refusée qu'au run, par `execute_tool`, au
+    # milieu de l'exécution. Le canvas GARDE désormais à l'ouverture le nœud qu'il ne connaît pas
+    # (réglages et liens intacts, marqué indisponible) : c'est ici qu'il est refusé, en le nommant,
+    # relié ou non.
+    from wama.common.app_registry import APP_CATALOG
+    from wama.studio.services.palette import palette_nodes
+    offered = palette_nodes(user)
     for n in nodes:
-        if _is_function(n) and not accessible(user, 'function', function_key(n)):
-            return None, f"Nœud fonction « {function_key(n)} » : non accessible à ce compte."
+        if n['app'] in offered:
+            continue
+        if _executable(n):
+            what = f"fonction « {function_key(n)} »" if _is_function(n) else f"« {n['app']} »"
+            return None, f"Nœud {what} : non accessible à ce compte."
+        if node_kind(n) == 'app' and n['app'] in APP_CATALOG:
+            return None, (f"Nœud « {n['app']} » : app non exécutable dans un pipeline — "
+                          f"retirez-la du graphe pour lancer.")
+        return None, (f"Nœud « {function_key(n) or n['app']} » : inconnu de WAMA (absent du "
+                      f"catalogue) — retirez-le du graphe pour lancer.")
     # Le pipeline ENREGISTRÉ dont on lance le graphe doit être visible du compte : le run le
     # nomme (`StudioRun.__str__`), au journal et au calendrier.
     if pipeline_id:

@@ -22,7 +22,8 @@ def api_nodes(request):
     """
     Catalogue des nœuds du studio (métadonnée-driven) : label/icône/couleur + description + PORTS
     typés (entrée travail/prompt/référence, sortie) — nœuds APP dérivés d'APP_CATALOG + app_modes,
-    et nœuds FONCTION du catalogue de fonctions (depuis le 2026-09-09, bloc D13 ci-dessous).
+    et nœuds FONCTION du catalogue de fonctions (depuis le 2026-09-09, bloc D13 de
+    `services/palette.py`, où la construction vit depuis le 2026-10-19).
     Vocabulaire unifié en catégories média → « typage par connexion » cohérent côté JS. Filtré par
     accès. ⚠ (précisé le 2026-09-15 → WAMA_APP_GENERATION_ROUTE.md §10.6 5.4) : les pipelines
     SAUVEGARDÉS n'y figurent pas (ils passent par `api_pipelines`) ; cible = un « Catalogue » en
@@ -38,71 +39,14 @@ def api_nodes(request):
     jumelle sans outil de création (`generic_runner._twin_can_create`) apparaissait à la palette,
     sans réglages, et le lancement la refusait dès qu'on la reliait.
     """
-    from wama.common.app_registry import APP_CATALOG, studio_node_ports
-    from wama.common.manifests.builtin.pipeline import builtin_nodes
-    from .services.node_params import node_schema
-    from .services.runners import runner_for
-    try:
-        from wama.accounts.permissions import accessible
-    except Exception:
-        accessible = None
-    # Les nœuds INTÉGRÉS — cards d'entrée et de sortie — que les mondes déclarent au registre
-    # commun (R2, 2026-10-18), sous la même forme qu'un nœud d'app. La palette les écrivait en
-    # JavaScript (`BUILTINS`, avec un « Batch de prompts » que rien n'exécutait).
-    nodes = {key: {'label': b.label, 'icon': b.icon, 'color': b.color,
-                   'description': b.description, **b.ports(), 'kind': b.role}
-             for key, b in builtin_nodes().items()}
-    for app_id, meta in APP_CATALOG.items():
-        ports = studio_node_ports(app_id)
-        if not ports or runner_for(app_id) is None:
-            continue
-        if accessible and not accessible(request.user, 'app', app_id):
-            continue
-        nodes[app_id] = {
-            'label': meta.get('label', app_id),
-            'icon':  meta.get('icon', 'fas fa-cube'),
-            'color': meta.get('color', '#6ea8fe'),
-            'description': meta.get('description', '') or meta.get('description_long', ''),
-            'inputs': ports['inputs'],
-            'output': ports['output'],
-        }
-    # D13 — nœuds FONCTION : le catalogue de fonctions par le MÊME accesseur de forme que les
-    # apps (`function_node_ports` ≡ `studio_node_ports`). Le JS ne connaît qu'un identifiant
-    # de palette : `function:<clé>` (lu par `pipeline.node_kind`/`function_key`, nulle part
-    # ailleurs). Fonctions `pure` ET `app`-bound.
-    from wama.common.catalog import function_catalog as fc
     from wama.common.catalog.data_types import known_types      # accesseur unique (2026-09-16)
-    from wama.common.manifests.builtin.pipeline import FUNCTION_NODE_PREFIX
-    fc.load_all()
-    # Une fonction suit l'accès de l'app qui la PORTE, comme le nœud de l'app ci-dessus
-    # (2026-10-05 : les process d'une jumelle dev-only et ceux d'une app non ouverte au compte
-    # s'affichaient à tous) — et c'est aussi sa provenance (`ROADMAP §29` étape 4) : la lecture
-    # de `spec.visibility` qui la précédait est retirée avec le champ.
-    for spec in sorted(fc.accessible_specs(request.user, fc.FUNCTION_CATALOG.values()),
-                       key=lambda s: s.key):
-        key = spec.key
-        ports = fc.function_node_ports(key)
-        nodes[f'{FUNCTION_NODE_PREFIX}{key}'] = {
-            'label': spec.name or key,
-            'icon': _FUNCTION_ICONS.get(spec.category, 'fas fa-square-root-variable'),
-            'color': '#9ad0ec' if spec.binding == fc.Binding.PURE else '#c9b5e8',
-            'description': spec.description,
-            'inputs': ports['inputs'],
-            'output': ports['output'],
-            'kind': 'function',
-            'binding': spec.binding,
-            'app': spec.app,
-            'category': spec.category,
-        }
+    from .services.node_params import node_schema
+    from .services.palette import palette_nodes
+    # La palette du compte — la MÊME règle que le lancement (`services/palette.py`, 2026-10-19) :
+    # ce qu'on ne peut pas poser ne se lance pas.
+    nodes = palette_nodes(request.user)
     schemas = {node: schema for node in nodes if (schema := node_schema(node)) is not None}
     return JsonResponse({'nodes': nodes, 'schemas': schemas, 'data_types': sorted(known_types())})
-
-
-_FUNCTION_ICONS = {
-    'transform': 'fas fa-wand-magic-sparkles', 'enricher': 'fas fa-layer-group',
-    'detector': 'fas fa-bolt', 'indicator': 'fas fa-gauge', 'resampler': 'fas fa-wave-square',
-    'join': 'fas fa-code-merge', 'aggregate': 'fas fa-chart-column',
-}
 
 
 # ─────────────────────────────────────────────────────────────────────────────

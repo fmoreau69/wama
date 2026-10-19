@@ -3384,17 +3384,32 @@ lignes WAMA sont, elles, lues dans le code. **Rien n'est décidé ; rien n'est i
 4. **Dire ce qui manque à l'OUVERTURE d'un pipeline** (le gestionnaire liste les nœuds absents à
    l'import d'un workflow). Vérifié au studio le 2026-10-19 :
    - il n'existe **aucun import de pipeline venu d'ailleurs** : pas de route d'import
-     (`studio/urls.py`), `StudioPipeline` propre à son auteur et sans partage (`studio/models.py:28-33` ;
-     déjà au plan de `WAMA_COLLABORATION.md`, marche 4), `manifests/pipelines/` = corpus EXPORTÉ
-     du code, systèmes seuls (`manifest_export.py:42-47`, `:65-67`) ;
-   - ⚠ **mais un nœud que la palette ne connaît pas disparaît EN SILENCE à l'ouverture** :
-     `addNode` rend `null` (`wama-studio.js:298-299`), `loadGraph` saute le nœud et ses liens
-     (`:719-724`). La palette filtre par accès à l'app, exécutabilité et visibilité
-     (`studio/views.py:57-59`, `:78-85`) : ouvrir un pipeline déclaré, ou le sien après une perte
-     d'accès, l'ampute sans le dire — et l'enregistrer sous le même nom (`views.py:135`, mise à jour
-     par nom) efface le nœud en base. Le lancement, lui, refuse en nommant le nœud
-     (`launch.py:163-170`), mais il ne voit que le graphe déjà amputé. Reste du studio, à porter
-     avant le partage des pipelines.
+     (`studio/urls.py`), `manifests/pipelines/` = corpus EXPORTÉ du code, systèmes seuls
+     (`manifest_export.py:42-47`, `:65-67`). ⚠ Mais le PARTAGE arrive : depuis l'étape 4 de
+     `§29` (même jour, `f2060880`), `StudioPipeline` hérite de `ScopedVisibility`
+     (`studio/models.py:29`) — le geste « Partager » d'un pipeline reste à poser
+     (`WAMA_COLLABORATION.md`, marche 4) ;
+   - ⚠ **et un nœud que la palette ne connaissait pas disparaissait EN SILENCE à l'ouverture**
+     (constat du matin) : `addNode` rendait `null`, `loadGraph` sautait le nœud et ses liens. La
+     palette filtre par accès à l'app et exécutabilité, une fonction suivant l'app qui la porte :
+     ouvrir le sien après une perte d'accès — ou, demain, un pipeline partagé — l'amputait sans le
+     dire, et l'enregistrer sous le même nom (`views.py:80`, mise à jour par nom) effaçait le nœud
+     en base. (Un pipeline DÉCLARÉ dont un nœud est fermé au compte n'est, lui, plus proposé du
+     tout depuis l'étape 4 : `_declared_pipelines`.)
+     ✅ **Corrigé le 2026-10-19 (GO Fabien, après le commit de l'étape 4)** :
+     - le canvas GARDE le nœud, marqué « indisponible pour ce compte », réglages et liens intacts
+       — sa description se lit du graphe seul, ses liens disent ses ports
+       (`wama-studio.js:737`, `describeUnavailable` ; `addNode`, `:300`) — et l'ouverture le dit
+       (`warnUnavailable`, `:789` : pipeline ouvert ET brouillon restauré) ;
+     - le lancement le refuse d'avance, relié ou non, par la MÊME règle que la palette : la
+       construction de la palette est sortie d'`api_nodes` (`studio/services/palette.py:20`,
+       `palette_nodes`) et `launch_graph` la lit (`launch.py:183`) — non accessible à ce compte,
+       app non exécutable, ou inconnu de WAMA. Avant : une app fermée n'était refusée qu'au milieu
+       du run (`execute_tool`), une fonction inconnue non reliée faisait échouer la tâche ;
+     - garde : `studio/tests_unavailable_nodes.py` (6 tests, dont la description exécutée sous
+       V8) ; cinq contre-épreuves, rouges.
+     ⏳ Reste : dire POURQUOI au nœud lui-même (la raison n'est connue qu'au lancement) —
+     décision de Fabien, question ouverte.
 5. **Mode réseau déclaré** (public / privé / hors-ligne) et relais pour Hugging Face et GitHub
    (`HF_ENDPOINT`, `GITHUB_ENDPOINT`) — utile derrière un proxy ou sans Internet ; aucune
    occurrence dans `wama/settings.py`. Secondaire.

@@ -125,6 +125,14 @@
     margin-left: auto; color: var(--wama-studio-note); cursor: pointer; font-weight: 700;
 }
 .studio-node-head .studio-node-del:hover { color: var(--wama-error-text); }
+/* Nœud INDISPONIBLE pour ce compte (2026-10-19) : gardé tel quel à l'ouverture d'un pipeline —
+   réglages et liens intacts —, mais ni réglable ni lançable. */
+.studio-node.is-unavailable { border-style: dashed; border-top-color: var(--wama-studio-note); opacity: .75; }
+.studio-node.is-unavailable .studio-node-head i.app-ico { color: var(--wama-studio-note); }
+.studio-node-badge {
+    font-size: .62rem; font-weight: 600; padding: 0 .3rem; border-radius: .25rem;
+    border: 1px solid var(--wama-studio-note); color: var(--wama-studio-note);
+}
 
 .studio-ports { display: flex; justify-content: space-between; padding: .15rem .25rem .4rem; }
 .studio-port-col { display: flex; flex-direction: column; gap: .25rem; }

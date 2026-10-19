@@ -295,7 +295,9 @@
     // ── Nœud ─────────────────────────────────────────────────────────────
     function addNode(appId, opts) {
         opts = opts || {};
-        var a = apps[appId];
+        // Un nœud que la palette n'offre pas n'existe que s'il vient d'un graphe ouvert (`loadGraph`
+        // a posé sa description dans `unavailable`) : on ne le pose jamais depuis la palette.
+        var a = apps[appId] || unavailable[appId];
         if (!a) return null;
         if (hint) hint.style.display = 'none';
         var id = opts.id || ('n' + (++seq));
@@ -311,15 +313,17 @@
         // le nœud, à part de ses réglages : le canvas la garde telle quelle, ne l'édite jamais.
         if (opts.process) node.process = opts.process;
 
-        var box = el('div', 'studio-node' + (a.planned ? ' is-planned' : ''));
+        var box = el('div', 'studio-node' + (a.planned ? ' is-planned' : '')
+            + (a.unavailable ? ' is-unavailable' : ''));
         box.style.left = node.x + 'px';
         box.style.top = node.y + 'px';
         box.style.setProperty('--app-c', a.color || '#6ea8fe');
         box.dataset.node = id;
 
-        var badge = a.planned ? '<span class="studio-node-badge" title="App planifiée — specs à venir">à venir</span>' : '';
+        var badge = a.planned ? '<span class="studio-node-badge" title="App planifiée — specs à venir">à venir</span>'
+            : a.unavailable ? '<span class="studio-node-badge" title="' + esc(UNAVAILABLE_TEXT) + '">indisponible</span>' : '';
         var head = el('div', 'studio-node-head',
-            '<i class="app-ico ' + (a.icon || 'fas fa-cube') + '"></i><span>' + a.label + '</span>' + badge
+            '<i class="app-ico ' + (a.icon || 'fas fa-cube') + '"></i><span>' + esc(a.label) + '</span>' + badge
             + '<span class="studio-node-del" title="Supprimer">&times;</span>');
         box.appendChild(head);
 
@@ -364,7 +368,7 @@
         dot.dataset.types = (types || []).join(',');
         var txt = label ? label : ((types && types.length) ? types.join(' · ') : '—');
         p.appendChild(dot);
-        p.appendChild(el('span', 'types', txt));
+        p.appendChild(el('span', 'types', esc(txt)));   // un port peut venir d'un graphe partagé
         // Infobulle : la DESCRIPTION déclarée du port quand il y en a une (fonctions), sinon le
         // libellé. Elle dit ce que le créneau attend — le nom du port et son type ne le disent
         // pas (« track · geo_track » ne prévient pas qu'il faut lat/lon).
@@ -478,12 +482,13 @@
     }
 
     // ── Inspecteur (volet droit, généré par WamaDetails) ──────────────────
-    function metaOf(node) { return apps[node.app] || {}; }
+    function metaOf(node) { return apps[node.app] || unavailable[node.app] || {}; }
     function countLinks(nodeId, side) {
         return links.filter(function (l) { return nodeOf(l[side].dot) === nodeId; }).length;
     }
     function typeBadge(a) {
         if (a.planned) return '<span class="badge bg-warning text-dark">à venir</span>';
+        if (a.unavailable) return '<span class="badge bg-secondary">indisponible pour ce compte</span>';
         if (a.kind === 'source') return '<span class="badge bg-success">entrée</span>';
         if (a.kind === 'sink') return '<span class="badge bg-success">sortie</span>';
         if (a.kind === 'function') return '<span class="badge bg-info text-dark">fonction · ' + (a.binding || 'pure') + '</span>';
@@ -621,6 +626,14 @@
         var wrap = el('div', 'studio-node-params mt-2 pt-2 border-top border-secondary');
         wrap.appendChild(el('div', 'small text-body-secondary mb-1',
             '<i class="fas fa-sliders-h me-1"></i>Paramètres d’exécution'));
+        if (metaOf(node).unavailable) {
+            // Ni schéma ni contexte pour un nœud indisponible : ses réglages sont GARDÉS tels quels
+            // dans le graphe, sans être affichés — « pas de réglage » serait faux.
+            wrap.appendChild(el('div', 'studio-node-params-state text-body-secondary small',
+                'Réglages non affichés : nœud indisponible pour ce compte. Ils sont gardés tels quels.'));
+            body.appendChild(wrap);
+            return;
+        }
         if (!schema || !schema.params || !schema.params.length) {
             var said = settingsState === 'loading'
                 ? '<span class="text-body-secondary small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement des réglages…</span>'
@@ -712,8 +725,43 @@
         nodes.slice().forEach(function (n) { removeNode(n.id); });
     }
 
+    // Un nœud que la palette du compte n'offre pas — app fermée, fonction disparue du catalogue,
+    // jumelle d'autrui — est GARDÉ à l'ouverture (2026-10-19, `ROADMAP §16.11` piste 4) : il
+    // disparaissait en silence avec ses liens, et enregistrer le pipeline sous le même nom
+    // l'effaçait en base. Sa description se lit du GRAPHE seul (ses liens disent ses ports) ; il
+    // n'est ni réglable ni lançable (le lancement le refuse en le nommant, `launch.launch_graph`).
+    var unavailable = {};   // identifiant de palette -> description, posée par `loadGraph`
+    var UNAVAILABLE_TEXT = 'Ce nœud n’est pas disponible pour ce compte : inconnu de WAMA, ou app '
+        + 'non ouverte à ce compte. Il est gardé tel quel (réglages et liens) ; le lancement le '
+        + 'refuse tant qu’il est dans le graphe.';
+    function describeUnavailable(graph) {
+        unavailable = {};
+        var missing = [];
+        (graph.nodes || []).forEach(function (sn) {
+            if (!sn || !sn.app || apps[sn.app]) return;
+            var a = unavailable[sn.app];
+            if (!a) {
+                a = unavailable[sn.app] = { label: sn.app, icon: 'fas fa-ban', unavailable: true,
+                    description: UNAVAILABLE_TEXT, inputs: [], output: false };
+                missing.push(sn.app);
+            }
+            (graph.links || []).forEach(function (sl) {
+                if (sl.to === sn.id) {
+                    var port = sl.to_port || 'travail';
+                    if (!a.inputs.some(function (p) { return p.id === port; })) {
+                        a.inputs.push({ id: port, group: port, label: port, types: [] });
+                    }
+                }
+                if (sl.from === sn.id) a.output = { label: 'Sortie', types: [] };
+            });
+        });
+        return missing;
+    }
+
+    // Rend la liste des nœuds INDISPONIBLES gardés (identifiants de palette) : l'appelant le dit.
     function loadGraph(graph) {
         clearCanvas();
+        var missing = describeUnavailable(graph || {});
         var byId = {};
         (graph.nodes || []).forEach(function (sn) {
             var n = addNode(sn.app, sn);
@@ -725,14 +773,24 @@
             var outDot = from.el.querySelector('.studio-port-col.out .dot');
             // Par ID de port d'abord ; par rôle ensuite (graphes sauvés avant le 2026-09-09,
             // où `to_port` portait le rôle) ; premier port sinon.
-            var inDot = sl.to_port
-                ? (to.el.querySelector('.studio-port-col.in .dot[data-port="' + sl.to_port + '"]')
-                   || to.el.querySelector('.studio-port-col.in .dot[data-group="' + sl.to_port + '"]'))
+            // `CSS.escape` : le nom du port vient du graphe (partagé, peut-être) — un guillemet
+            // y rendait le sélecteur invalide, et l'ouverture entière échouait.
+            var port = sl.to_port ? CSS.escape(String(sl.to_port)) : '';
+            var inDot = port
+                ? (to.el.querySelector('.studio-port-col.in .dot[data-port="' + port + '"]')
+                   || to.el.querySelector('.studio-port-col.in .dot[data-group="' + port + '"]'))
                 : null;
             if (!inDot) inDot = to.el.querySelector('.studio-port-col.in .dot');
             if (outDot && inDot) createLink(outDot, inDot);
         });
         updateLinks();
+        return missing;
+    }
+    function warnUnavailable(missing) {
+        if (!missing || !missing.length) return;
+        toast((missing.length > 1 ? missing.length + ' nœuds indisponibles' : 'Un nœud indisponible')
+            + ' pour ce compte, gardés tels quels : « ' + missing.join(' », « ') + ' ». '
+            + 'Le lancement les refuse tant qu’ils sont dans le graphe.', 'warning');
     }
 
     // ── Historique annuler / rétablir — brique COMMUNE (common/js/wama-history.js) ──────
@@ -780,8 +838,10 @@
                 // Chargement programmatique : on arrive sur la page, il n'y a rien à annuler
                 // AVANT. Sans `silence`, la restauration remplirait l'historique de son
                 // propre travail (un cran par noeud construit).
-                if (history) history.silence(function () { loadGraph(d.graph); });
-                else loadGraph(d.graph);
+                var missing = [];
+                if (history) history.silence(function () { missing = loadGraph(d.graph); });
+                else missing = loadGraph(d.graph);
+                warnUnavailable(missing);
                 var nameEl = document.getElementById('studioPipelineName');
                 if (nameEl && d.name) nameEl.value = d.name;
                 // On retrouve la vue laissée ; à défaut (1re visite), tout le graphe.
@@ -886,14 +946,16 @@
         api(url).then(function (d) {
             // Ouvrir un pipeline, c'est changer de DOCUMENT : on ne doit pas pouvoir
             // « annuler » jusqu'au graphe precedent, qui n'a plus rien a voir.
-            if (history) { history.silence(function () { loadGraph(d.graph); }); history.reset(); }
-            else loadGraph(d.graph);
+            var missing = [];
+            if (history) { history.silence(function () { missing = loadGraph(d.graph); }); history.reset(); }
+            else missing = loadGraph(d.graph);
             fitView();   // un autre document : on le montre en entier
             var nameEl = document.getElementById('studioPipelineName');
             if (nameEl) nameEl.value = d.name;
             toast(d.declared
                 ? 'Pipeline « ' + d.name + ' » ouvert (déclaré par l\'app) — le sauvegarder en fait une copie personnelle.'
                 : 'Pipeline « ' + d.name + ' » chargé.', 'success');
+            warnUnavailable(missing);
         })['catch'](function (e) { toast(e.message, 'error'); });
     }
 
