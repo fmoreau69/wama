@@ -60,6 +60,12 @@ def _as_single_process(*apps):
                              else declared(app_id))
 
 
+def _function_source(src, name):
+    """La source de la fonction `name` du module rendu — pas le reste du fichier."""
+    node = next(n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == name)
+    return ast.get_source_segment(src, node)
+
+
 def _types_entree(src):
     """La valeur ÉVALUÉE de `_TYPES_ENTREE` — pas une sous-chaîne de la source."""
     for noeud in ast.parse(src).body:
@@ -249,7 +255,10 @@ class CheminDeLotTest(SimpleTestCase):
         self.assertIsNotNone(src, f'génération impossible : {raison}')
         ast.parse(src)
         self.assertIn('CORPS COMPOSÉ', src)
-        self.assertNotIn('NotImplementedError', src,
+        # Le corps du PROCESS : le fichier porte aussi les trous des fonctions que d'autres
+        # déclarations nomment par chaîne (`derive` de l'ingest, 2026-10-19), qui restent de la glu.
+        body = _function_source(src, '_process_convert_media_task')
+        self.assertNotIn('NotImplementedError', body,
                          'le converter route : le stub doit avoir cédé la place')
         # Depuis le 2026-10-05 la résolution passe par la porte COMMUNE, toujours RELATIVE AU
         # PAQUET de la tâche générée (`__package__`) — c'est l'intention, pas la graphie.
@@ -272,7 +281,7 @@ class CheminDeLotTest(SimpleTestCase):
         with _as_single_process('converter'):
             src, raison = render_tasks(m)
         self.assertIsNotNone(src, f'génération impossible : {raison}')
-        self.assertIn('NotImplementedError', src)
+        self.assertIn('NotImplementedError', _function_source(src, '_process_convert_media_task'))
         self.assertNotIn('CORPS COMPOSÉ', src)
 
     def test_la_cascade_COERCE_selon_le_schema_avant_de_poser(self):

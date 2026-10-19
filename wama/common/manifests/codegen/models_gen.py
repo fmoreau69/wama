@@ -239,13 +239,19 @@ def render_models(manifest: dict) -> tuple:
     body = manifest.get('body') or {}
     data = body.get('data') or {}
     proc = body.get('processing') or {}
+    # Le `derive` de l'ingest suit le `tasks.py` GÉNÉRÉ quand il vivait dans un module de tâches
+    # que celui-ci remplace (`workers`) : sinon la déclaration pointe un module retiré.
+    from .tasks_gen import generated_task_path
+    ingest = dict(proc.get('ingest') or {})
+    if ingest.get('derive'):
+        ingest['derive'] = generated_task_path(manifest, ingest['derive'])
     if data.get('models'):
         # Le chemin INTROSPECTÉ reçoit désormais l'ingest et le nom du modèle d'item : sans
         # eux il rendait une app au schéma parfait mais SANS sa déclaration d'ingest, quand
         # le chemin frère (squelette) la posait — deux rendus, deux comportements.
         return _render_from_data(
             app_id, data,
-            ingest=proc.get('ingest') or {},
+            ingest=ingest,
             item_name=((proc.get('model_spec') or {}).get('item') or {}).get('name') or '',
         ), None
     spec = proc.get('model_spec') or {}
@@ -263,7 +269,6 @@ def render_models(manifest: dict) -> tuple:
         return None, f"params_fields sans entrée de schéma : {', '.join(manquants)}"
 
     mark = _GEN_MARK.format(app_id=app_id)
-    ingest = proc.get('ingest') or {}
     input_field = item.get('input_field') or ingest.get('target') or 'input_file'
     name_field = ingest.get('name_field')
     source_field = ingest.get('source')

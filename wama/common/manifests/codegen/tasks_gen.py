@@ -126,6 +126,116 @@ def _instant_hole(manifest: dict, mark: str) -> list:
     ]
 
 
+#: Les fonctions qu'une AUTRE déclaration désigne PAR CHAÎNE dans le module de tâches de l'app —
+#: (rôle, d'où elle vient, signature, contrat). Elles ne sont pas des tâches : rien ne les importe,
+#: un chemin pointé les résout à l'exécution (`source_ingest._declared_derive`,
+#: `function_catalog.resolve_impl`). Un `tasks.py` généré qui ne les porte pas laisse ces
+#: déclarations pointer dans le vide (vécu le 2026-10-18 sur `converter_01`, `tests_source_ingest`).
+_DECLARED_GLUE = {
+    'derive': ('inst, path, fname',
+               "Hook `derive` de l'ingest URL (`WAMA_INGEST`) : pose sur `inst` les champs propres à",
+               "l'app tirés du fichier téléchargé `path` (nom `fname`), AVANT son enregistrement, et",
+               "rend la liste des champs posés. Une exception fait échouer le téléchargement."),
+    'eta': ('item',
+            "ETA du process (`ProcessSpec.eta`) : rend `(clé, taille, unité[, modèle chargé[,",
+            "a priori]])` — la clé et la taille que sa glu apprend. Une exception est dite au",
+            "journal, l'estimation retombe sur la dernière durée du process."),
+    'result': ('item',
+               "Résultat LISIBLE du process (`ProcessSpec.result`) : le texte que l'aperçu montre en",
+               "face du process, ou None. Une exception est dite au journal, rien n'est montré."),
+}
+
+
+def superseded_task_files(manifest: dict, fname: str = 'tasks.py') -> list:
+    """Les modules de tâches COPIÉS que le `tasks.py` GÉNÉRÉ remplace, dans l'ordre du manifeste.
+
+    Le manifeste déclare où vit chaque tâche de l'app (`processing.tasks[].file`) : quatre apps
+    la logent dans `workers.py`, et `wama/celery.py` autodécouvre LES DEUX noms (`tasks` et
+    `workers`). Une jumelle qui garde sa copie de `workers.py` à côté du `tasks.py` généré
+    enregistre donc la MÊME tâche deux fois — et sa copie importe des symboles des vues
+    COPIÉES (`detect_type_from_extension`) que les vues GÉNÉRÉES n'exposent pas. Mesuré le
+    2026-09-22 sur `describer_01` : la substitution de `views` était refusée pour un import
+    d'un module que plus rien n'appelait. Porter, c'est REMPLACER : le généré retire la copie
+    (`app_sandbox substitute`), et les déclarations générées qui le désignaient le suivent
+    (`generated_task_path`)."""
+    proc = (manifest.get('body') or {}).get('processing') or {}
+    seen, out = set(), []
+    for t in (proc.get('tasks') or []):
+        f = str((t or {}).get('file') or '').strip()
+        if f and f != fname and f.endswith('.py') and f not in seen:
+            seen.add(f)
+            out.append(f)
+    return out
+
+
+def _task_modules(manifest: dict) -> set:
+    """Les modules de tâches de l'app, au nom de module : `tasks` et ceux qu'il remplace."""
+    return {'tasks'} | {f[:-3] for f in superseded_task_files(manifest)}
+
+
+def _split_declared(path: str) -> tuple:
+    """`(module sans « wama. », nom, séparateur)` d'une déclaration par chaîne — chemin pointé
+    (`wama.<app>.tasks._fn`, `WAMA_INGEST`) ou `module:attribut` (`<app>.tasks:fn`,
+    `ProcessSpec.eta`)."""
+    path = str(path or '').strip()
+    sep = ':' if ':' in path else '.'
+    module, _, name = path.rpartition(sep)
+    return (module[len('wama.'):] if module.startswith('wama.') else module), name, sep
+
+
+def generated_task_path(manifest: dict, path):
+    """`path` re-ciblé sur le `tasks.py` GÉNÉRÉ quand il désigne un module de tâches que le
+    généré remplace (`<app>.workers:fn` → `<app>.tasks:fn`), tel quel sinon. La règle de
+    `sandbox._retarget`, pour les déclarations que les GÉNÉRATEURS écrivent (`function_specs`,
+    `models`) : un générateur n'émet jamais de `workers.py`."""
+    if not isinstance(path, str):
+        return path
+    app_id = manifest.get('key') or ''
+    module, name, sep = _split_declared(path)
+    old = {f'{app_id}.{m}' for m in _task_modules(manifest) - {'tasks'}}
+    if module not in old:
+        return path
+    prefix = 'wama.' if path.strip().startswith('wama.') else ''
+    return f'{prefix}{app_id}.tasks{sep}{name}'
+
+
+def declared_glue(manifest: dict, steps: list) -> list:
+    """`[(nom, rôle)]` des fonctions que le manifeste et le pipeline déclarent dans le module de
+    tâches de l'app : le `derive` de l'ingest, l'`eta` et le `result` de chaque process."""
+    app_id = manifest.get('key') or ''
+    proc = (manifest.get('body') or {}).get('processing') or {}
+    modules = {f'{app_id}.{m}' for m in _task_modules(manifest)}
+    declared = [((proc.get('ingest') or {}).get('derive'), 'derive')]
+    declared += [(s.get(role), role) for s in steps for role in ('eta', 'result')]
+    out = []
+    for path, role in declared:
+        module, name, _ = _split_declared(path)
+        if module in modules and name.isidentifier() and name not in {n for n, _ in out}:
+            out.append((name, role))
+    return out
+
+
+def _declared_glue_holes(manifest: dict, steps: list, mark: str, emitted: set) -> list:
+    """Le TROU DE GLU de chaque fonction déclarée par chaîne (`declared_glue`) que le fichier
+    n'émet pas déjà — même marque que les autres trous : le geste `app_sandbox glue` le remplit."""
+    lines = []
+    for name, role in declared_glue(manifest, steps):
+        if name in emitted:
+            continue
+        params, *contract = _DECLARED_GLUE[role]
+        lines += [
+            '',
+            '',
+            f'def {name}({params}):',
+            f'    """TROU DE GLU {mark} — fonction DÉCLARÉE par chaîne (`{role}`), marche B.',
+            '',
+            *[f'    {line}' for line in contract[:-1]],
+            f'    {contract[-1]}"""',
+            f"    raise NotImplementedError('{mark} {role} `{name}` non généré (marche B)')",
+        ]
+    return lines
+
+
 def render_tasks(manifest: dict) -> tuple:
     """(source, raison) — fichier mince complet, ou (None, raison) si la facette ne porte pas
     de quoi le rendre (tasks lifecycle + item_model). Jamais de fichier partiel."""
@@ -244,6 +354,8 @@ def render_tasks(manifest: dict) -> tuple:
                 '    une exception = FAILURE de la card."""',
                 f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
             ]
+        emitted = {fn} | {f'_process_{fn}_{s["key"]}' for s in _steps}
+        lignes.extend(_declared_glue_holes(manifest, _steps, mark, emitted))
         lignes.extend(_instant_hole(manifest, mark))
         lignes.append('')
         return '\n'.join(lignes), None
@@ -399,6 +511,8 @@ def render_tasks(manifest: dict) -> tuple:
                 '    c\'est exactement ce que cette brique vient de résorber (ROADMAP §23.2bis)."""',
                 f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
             ]
+    emitted = {n for t in taches for n in (t['function'], f"_process_{t['function']}")}
+    lignes.extend(_declared_glue_holes(manifest, _steps, mark, emitted))
     lignes.extend(_instant_hole(manifest, mark))
     lignes.append('')
     return '\n'.join(lignes), None

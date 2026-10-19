@@ -455,6 +455,13 @@ class JudgesAreSilentOnSoundPackagesTest(SimpleTestCase):
             with self.subTest(app=app):
                 self.assertEqual(cmd_sandbox._imports_intra_paquet_non_resolus(app), [])
 
+    def test_the_declared_path_judge_finds_nothing_in_a_real_app(self):
+        # Mesuré à son écriture : deux NOMS de tâche Celery (synthesizer, transcriber) étaient pris
+        # pour des chemins.
+        for app in self.APPS:
+            with self.subTest(app=app):
+                self.assertEqual(cmd_sandbox._declared_paths_unresolved(app), [])
+
 
 class CoupleViewsTemplatesTest(SimpleTestCase):
     """Défaut n°2 : substituer les templates SANS les views produit une paire incohérente —
@@ -602,6 +609,135 @@ class NewFileSubstitutionTest(SimpleTestCase):
                 cmd._substitute('jumelle_00', 'tasks')
             self.assertTrue((Path(d) / 'jumelle_00' / 'tasks.py').exists())
         self.assertEqual(saved[-1]['substituted']['tasks']['verdict'], 'ok')
+
+
+class DeclaredPathsJudgeTest(SimpleTestCase):
+    """A function DECLARED by string (`WAMA_INGEST['derive']`, `ProcessSpec.eta`,
+    `FunctionSpec.impl`) must resolve in the twin — nothing imports it, it only raises at first
+    use. Lived on `converter_01` (2026-10-18): generated `tasks` held while the `derive` its model
+    declares was gone; only the full suite saw it."""
+
+    MODELS = ("class Item:\n"
+              "    WAMA_INGEST = {'source': 'source_url', 'target': 'input_file',\n"
+              "                   'derive': 'wama.jumelle_00.tasks._derive'}\n")
+
+    def _package(self, root, tasks_src, extra=''):
+        p = Path(root) / 'jumelle_00'
+        p.mkdir()
+        (p / '__init__.py').write_text('', encoding='utf-8')
+        (p / 'models.py').write_text(self.MODELS + extra, encoding='utf-8')
+        (p / 'tasks.py').write_text(tasks_src, encoding='utf-8')
+        return p
+
+    def test_a_declared_function_absent_from_its_module_is_named_with_its_line(self):
+        with TemporaryDirectory() as d:
+            self._package(d, 'def other():\n    pass\n')
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                found = cmd_sandbox._declared_paths_unresolved('jumelle_00')
+        self.assertEqual(["models.py:3 'wama.jumelle_00.tasks._derive'"], found)
+
+    def test_both_path_forms_resolve_when_the_function_is_there(self):
+        with TemporaryDirectory() as d:
+            self._package(d, 'def _derive(inst, path, fname):\n    return []\n'
+                             'def run_eta(item):\n    return None\n',
+                          "ETA = 'jumelle_00.tasks:run_eta'\n")
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                self.assertEqual([], cmd_sandbox._declared_paths_unresolved('jumelle_00'))
+                # Counter-check: the `module:attribute` form is judged too.
+                (Path(d) / 'jumelle_00' / 'tasks.py').write_text(
+                    'def _derive(inst, path, fname):\n    return []\n', encoding='utf-8')
+                self.assertEqual(["models.py:4 'jumelle_00.tasks:run_eta'"],
+                                 cmd_sandbox._declared_paths_unresolved('jumelle_00'))
+
+    def test_what_only_looks_like_a_path_is_not_reproached(self):
+        with TemporaryDirectory() as d:
+            self._package(
+                d, "from celery import shared_task\n"
+                   "def _derive(inst, path, fname):\n    return []\n"
+                   "@shared_task(name='wama.jumelle_00.refresh_refs')\n"
+                   "def refresh():\n    pass\n",
+                # A catalogue key, a sentence citing a path, a task NAME cited elsewhere.
+                "KEY = 'jumelle_00.convert'\n"
+                "HELP = 'voir wama.jumelle_00.tasks.absent'\n"
+                "SENT = 'wama.jumelle_00.refresh_refs'\n")
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)):
+                self.assertEqual([], cmd_sandbox._declared_paths_unresolved('jumelle_00'))
+
+    def test_a_substitution_that_loses_a_declared_function_goes_back_to_the_witness(self):
+        import io
+        import subprocess
+        saved = []
+        ok = subprocess.CompletedProcess([], 0, 'No changes detected', '')
+        copied = 'def _derive(inst, path, fname):\n    return []\n'
+        with TemporaryDirectory() as d:
+            p = self._package(d, copied)
+            (p / 'migrations').mkdir()
+            entry = {'label': 'jumelle_00', 'generated_from': 'appfictive', 'substituted': {},
+                     'stage': 'S1'}
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)), \
+                 patch.object(cmd_sandbox, 'load_registry', return_value=[entry]), \
+                 patch.object(cmd_sandbox, '_save_entry', side_effect=saved.append), \
+                 patch.object(cmd_sandbox, '_manage', return_value=ok), \
+                 patch.object(cmd_sandbox, '_smoke_page', return_value=ok), \
+                 patch.dict(cmd_sandbox._SUBSTITUTABLE,
+                            {'tasks': ('tasks.py', __name__, '_render_stub_tasks')}), \
+                 patch('wama.common.manifests.ingest.extract',
+                       return_value={'key': 'appfictive', 'body': {}}):
+                cmd = cmd_sandbox.Command()
+                cmd.stdout = cmd.stderr = io.StringIO()
+                cmd._substitute('jumelle_00', 'tasks')
+            self.assertEqual(copied, (p / 'tasks.py').read_text(encoding='utf-8'))
+        verdict = saved[-1]['substituted']['tasks']
+        self.assertEqual('revert', verdict['verdict'])
+        self.assertTrue(any('_derive' in line for line in verdict['details']), verdict['details'])
+
+
+class DeclaredGlueHolesTest(SimpleTestCase):
+    """The generated `tasks.py` carries a marked GLUE HOLE for every function another declaration
+    names by string in the app's task module — the ingest `derive`, each process `eta` and
+    `result` — and the declarations the generators write follow it when the source kept its tasks
+    in `workers.py`, which the generated file replaces."""
+
+    @staticmethod
+    def _functions(src):
+        return {n.name: ast.get_source_segment(src, n) for n in ast.parse(src).body
+                if isinstance(n, ast.FunctionDef)}
+
+    def test_each_declared_function_is_a_marked_hole(self):
+        from wama.common.manifests.ingest import extract
+        src, reason = render_tasks(extract('app', 'converter'))
+        self.assertIsNotNone(src, reason)
+        functions = self._functions(src)
+        for name in ('_derive_media_type', 'convert_eta', 'enhance_eta'):
+            with self.subTest(name=name):
+                self.assertIn(name, functions)
+                self.assertIn('TROU DE GLU', functions[name])
+                self.assertIn('NotImplementedError', functions[name])
+        self.assertIn('(inst, path, fname)', functions['_derive_media_type'])
+        # The hole is the one the `glue` gesture fills, by name.
+        filled = cmd_sandbox.replace_glue_hole(
+            src, '_derive_media_type', 'def _derive_media_type(inst, path, fname):\n    return []\n')
+        self.assertNotIn('TROU DE GLU', self._functions(filled)['_derive_media_type'])
+
+    def test_a_manifest_declaring_nothing_gets_no_extra_function(self):
+        src, _ = render_tasks(_manifeste())
+        self.assertEqual({'traiter_item', '_process_traiter_item'}, set(self._functions(src)))
+
+    def test_a_declaration_into_workers_follows_the_generated_tasks(self):
+        from wama.common.manifests.codegen.function_specs_gen import render_function_specs
+        from wama.common.manifests.codegen.models_gen import render_models
+        from wama.common.manifests.ingest import extract
+        manifest = extract('app', 'describer')
+        self.assertIn('_derive_detected_type', self._functions(render_tasks(manifest)[0]))
+        models, _ = render_models(manifest)
+        self.assertIn("'wama.describer.tasks._derive_detected_type'", models)
+        specs, _ = render_function_specs(manifest)
+        self.assertIn("eta='describer.tasks:transcribe_eta'", specs)
+        self.assertNotIn('describer.workers', models + specs)
+        # Counter-check: a declaration into another module is left as it is.
+        from wama.common.manifests.codegen.tasks_gen import generated_task_path
+        self.assertEqual('describer.function_specs:transcript_text',
+                         generated_task_path(manifest, 'describer.function_specs:transcript_text'))
 
 
 class TwinGridReadsWhatIsInjectedTest(SimpleTestCase):

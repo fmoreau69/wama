@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from wama.common.manifests.codegen.pipeline_decl import (OUTPUT_PROCESS_KEY, declared_pipeline,
                                                          process_specs, schema_stales)
+from wama.common.manifests.codegen.tasks_gen import generated_task_path
 
 def _category_names() -> set:
     """Les catégories du catalogue, DÉRIVÉES de `FunctionCategory` (une liste recopiée ici les
@@ -165,10 +166,12 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"outputs={tuple(s['outputs'])!r}")
         if s['toggle']:
             args.append(f"toggle={s['toggle']!r}")
+        # Une ETA ou un résultat logés dans un module de tâches que le `tasks.py` GÉNÉRÉ remplace
+        # (`workers`) le suivent : sinon la déclaration pointe un module retiré.
         if s.get('eta'):
-            args.append(f"eta={s['eta']!r}")
+            args.append(f"eta={generated_task_path(manifest, s['eta'])!r}")
         if s.get('result'):
-            args.append(f"result={s['result']!r}")
+            args.append(f"result={generated_task_path(manifest, s['result'])!r}")
         if s.get('result_format'):
             args.append(f"result_format={s['result_format']!r}")
         lines.append(f"    ProcessSpec({', '.join(args)}),")

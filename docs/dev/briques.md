@@ -1700,7 +1700,7 @@ Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (ro
   - `twin_source(label: str) -> str` — App SOURCE d'une jumelle ('' si ce label n'en est pas une).
   - `declaring_app(app: str) -> str` — L'app dont la DÉCLARATION fait foi pour `app` : elle-même, ou sa SOURCE si c'est une
   - `exposed_names(tree) -> set` — Les noms qu'un module EXPOSE (arbre AST) : définis, affectés ou importés au niveau du
-  - `resolves(dotted: str) -> bool` — Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
+  - `resolves(dotted: str, root: Path=None) -> bool` — Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
   - `inject_sandbox_registry(registry: dict, *, runnable=None) -> None` — Entrées d'un registre INDEXÉ PAR APP pour les jumelles : la déclaration de la source,
   - `born_declaration(label: str, facet: str)` — Facette DÉCLARÉE d'une app créée DE ZÉRO (`app_sandbox create --from-manifest`), telle que
   - `save_registry(entries: list) -> None`

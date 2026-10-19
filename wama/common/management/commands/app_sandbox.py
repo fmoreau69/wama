@@ -315,6 +315,52 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
     return manquants
 
 
+def _declared_paths_unresolved(label: str) -> list:
+    """Juge GÉNÉRIQUE : une DÉCLARATION par chaîne vers le paquet jumeau doit résoudre
+    (2026-10-19).
+
+    Le juge des imports ne voit que les `import` ; une déclaration nomme sa fonction par CHAÎNE —
+    `WAMA_INGEST['derive']` (`wama.<jumelle>.tasks._fn`), `ProcessSpec.eta` / `result` et
+    `FunctionSpec.impl` (`<jumelle>.tasks:fn`) — et se résout seulement à l'exécution. Vécu le
+    2026-10-18 sur `converter_01` : `tasks` généré « tenait » (check, smokes verts) pendant que le
+    `derive` déclaré par son modèle pointait une fonction absente ; seul `tests_source_ingest`, dans
+    la suite complète, l'a vu. Une chaîne est lue comme déclaration si elle n'est QUE le chemin
+    (une phrase qui en cite un ne compte pas), sous l'une des deux formes de chemin : préfixée
+    `wama.`, ou `module:attribut` — une clé de catalogue (`<app>.convert`) a l'allure d'un chemin
+    sans en être un. Résolution SANS RIEN IMPORTER (`sandbox.resolves`)."""
+    import ast
+    from wama.common.sandbox import resolves
+    base = WAMA_DIR / label
+    app = re.escape(label)
+    shape = re.compile(rf'wama\.{app}(?:\.\w+)+(?::\w+)?|(?:wama\.)?{app}(?:\.\w+)+:\w+')
+    trees = {}
+    for p in sorted(base.rglob('*.py')):
+        rel = p.relative_to(base)
+        if 'migrations' in rel.parts or is_test_module(rel.parts):
+            continue
+        try:
+            trees[rel] = ast.parse(p.read_text(encoding='utf-8'))
+        except SyntaxError:
+            continue                                  # un fichier insyntaxique : autre juge
+    # Le NOM qu'une tâche Celery se donne (`@shared_task(name='wama.<app>.<geste>')`) a l'allure
+    # d'un chemin sans en être un (mesuré sur synthesizer et transcriber) : ni lui, ni ce qui le cite.
+    task_names = {kw.value.value for tree in trees.values() for n in ast.walk(tree)
+                  if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+                  for d in n.decorator_list if isinstance(d, ast.Call) for kw in d.keywords
+                  if kw.arg == 'name' and isinstance(kw.value, ast.Constant)
+                  and isinstance(kw.value.value, str)}
+    found = []
+    for rel, tree in trees.items():
+        for n in ast.walk(tree):
+            if not (isinstance(n, ast.Constant) and isinstance(n.value, str)
+                    and shape.fullmatch(n.value)) or n.value in task_names:
+                continue
+            dotted = n.value[len('wama.'):] if n.value.startswith('wama.') else n.value
+            if not resolves(dotted.replace(':', '.'), root=WAMA_DIR):
+                found.append(f'{rel.as_posix()}:{n.lineno} {n.value!r}')
+    return found
+
+
 def _class_members(class_node) -> set:
     """Noms qu'une classe de modèle DÉFINIT dans son corps : méthodes, properties, attributs
     de classe et champs. `Meta` et les dunders n'en sont pas (aucun lecteur ne les cite)."""
@@ -441,24 +487,10 @@ def _lost_model_members_read(label: str) -> list:
 
 
 def _superseded_task_modules(manifest: dict, fname: str = 'tasks.py') -> list:
-    """Modules de tâches COPIÉS que le `tasks.py` GÉNÉRÉ remplace.
-
-    Le manifeste déclare où vit chaque tâche de l'app (`processing.tasks[].file`) : quatre apps
-    la logent dans `workers.py`, et `wama/celery.py` autodécouvre LES DEUX noms (`tasks` et
-    `workers`). Une jumelle qui garde sa copie de `workers.py` à côté du `tasks.py` généré
-    enregistre donc la MÊME tâche deux fois — et sa copie importe des symboles des vues
-    COPIÉES (`detect_type_from_extension`) que les vues GÉNÉRÉES n'exposent pas. Mesuré le
-    2026-09-22 sur `describer_01` : la substitution de `views` était refusée pour un import
-    d'un module que plus rien n'appelait. Porter, c'est REMPLACER : le généré retire la copie.
-    """
-    proc = (manifest.get('body') or {}).get('processing') or {}
-    seen, out = set(), []
-    for t in (proc.get('tasks') or []):
-        f = str((t or {}).get('file') or '').strip()
-        if f and f != fname and f.endswith('.py') and f not in seen:
-            seen.add(f)
-            out.append(f)
-    return out
+    """Modules de tâches COPIÉS que le `tasks.py` GÉNÉRÉ remplace — la lecture du générateur de
+    `tasks.py` (`tasks_gen.superseded_task_files`), qui en re-cible aussi les déclarations."""
+    from wama.common.manifests.codegen.tasks_gen import superseded_task_files
+    return superseded_task_files(manifest, fname)
 
 
 def new_app_key_error(key: str) -> str:
@@ -1141,6 +1173,13 @@ class Command(BaseCommand):
             verdict = 'revert'
             details.append('symboles intra-paquet NON RÉSOLUS : '
                            + ' ; '.join(_non_resolus[:4]))
+        # Même juge pour ce qu'une DÉCLARATION nomme par chaîne (`derive`, `eta`, `impl`) : rien ne
+        # l'importe, il ne lève qu'au premier usage.
+        _unresolved_paths = _declared_paths_unresolved(label)
+        if _unresolved_paths:
+            verdict = 'revert'
+            details.append('déclarations par chaîne NON RÉSOLUES : '
+                           + ' ; '.join(_unresolved_paths[:4]))
         # Même juge pour la glu d'un modèle : un membre perdu par le `models` généré et encore
         # LU ailleurs — AttributeError au premier lancement, sinon. Posé sur la substitution
         # qui PERD le membre : il juge tout le paquet tel qu'il restera.

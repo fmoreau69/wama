@@ -147,17 +147,20 @@ def exposed_names(tree) -> set:
     return names
 
 
-def resolves(dotted: str) -> bool:
+def resolves(dotted: str, root: Path = None) -> bool:
     """Le chemin pointé `wama.<…>` désigne-t-il un module, ou un nom DÉFINI au niveau d'un module,
     lu sur le disque SANS RIEN IMPORTER (le module reste pur : il est lu par settings) ?
 
     Ce qu'une jumelle peut réellement faire tourner (2026-10-12) : la triade de l'assistant
     nomme les fonctions de lancement des VUES de l'app (`_task_for`, la remise à zéro du ▶) ;
     une jumelle aux vues RÉGÉNÉRÉES peut ne pas les avoir — l'injecter quand même ferait un outil
-    qui lève au premier appel, et une grille qui le compte vert."""
+    qui lève au premier appel, et une grille qui le compte vert.
+
+    `root` : le dossier qui contient le premier segment du chemin (défaut : celui de `wama/`) —
+    le juge de substitution y passe le dossier des apps, et lit `<jumelle>.<…>`."""
     import ast
     parts = dotted.split('.')
-    root = Path(__file__).resolve().parent.parent.parent      # le dossier qui contient wama/
+    root = root or Path(__file__).resolve().parent.parent.parent      # le dossier qui contient wama/
     for cut in range(len(parts), 0, -1):
         base = root.joinpath(*parts[:cut])
         module = base / '__init__.py' if (base / '__init__.py').is_file() else base.with_suffix('.py')

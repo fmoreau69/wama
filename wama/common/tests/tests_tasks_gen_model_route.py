@@ -143,7 +143,10 @@ class TheComposedBodyRunsTest(TestCase):
                                           language='fr', input_file='reader/x/input/scan.png')
 
     def test_the_lifecycle_task_is_composed_not_a_hole(self):
-        body = self.source.split('def _process_read_document_task', 1)[1]
+        # The PROCESS body only: the file also carries the holes of the functions other
+        # declarations name by string (each process `eta`, 2026-10-19) — glue, not this body.
+        from wama.common.tests.tests_codegen_lot import _function_source
+        body = _function_source(self.source, '_process_read_document_task')
         self.assertIn('backend_instance_for_key', body)
         self.assertNotIn('NotImplementedError', body)
 
@@ -192,6 +195,10 @@ class TheNatureFlavourIsUntouchedTest(TestCase):
 
     def test_the_converter_body_still_routes_by_nature(self):
         from wama.common.manifests.ingest import extract
-        source, _ = render_tasks(extract('app', 'converter'))
+        from wama.common.tests.tests_codegen_lot import _as_single_process
+        # Since 2026-10-13 the converter carries a pipeline, whose glues are not composed: the B1
+        # body is held on its former single-process form, as `tests_codegen_lot` does.
+        with _as_single_process('converter'):
+            source, _ = render_tasks(extract('app', 'converter'))
         self.assertIn('route_for_nature', source)
         self.assertNotIn('backend_instance_for_key', source)
