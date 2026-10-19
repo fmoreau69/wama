@@ -52,8 +52,11 @@ from pathlib import Path
 #: Le jeton relève de la MÊME règle que le cache : un seul domicile, `.env` → `settings.py`, posé
 #: une fois au démarrage. Un second exemplaire finit toujours par diverger de l'autre.
 #: *Une garde se pose avec ses jumeaux : toutes les variables qui aiguillent le même sous-système.*
+#: ⚠ `XDG_CACHE_HOME` AJOUTÉ LE 2026-10-19 : la racine GÉNÉRIQUE des caches (HF quand `HF_HOME`
+#: manque, torch.hub, toute librairie qui suit XDG). `bark_backend.load` la posait pour UN moteur,
+#: pour tout le processus du service de voix — même défaut que le cache HF, une variable plus haut.
 VARS_HF = {'HF_HUB_CACHE', 'HUGGINGFACE_HUB_CACHE', 'HF_HOME',
-           'HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HUGGINGFACE_TOKEN'}
+           'HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HUGGINGFACE_TOKEN', 'XDG_CACHE_HOME'}
 
 #: Sites de mutation MESURÉS le 2026-09-03, après les retraits de `table_transformer` (1er),
 #: puis du goulot `model_config.setup_hf_cache_for_model` et des replis de `wan_video_backend`

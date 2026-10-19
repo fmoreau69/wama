@@ -657,14 +657,70 @@ class TheEntryCardKeepsOneHomePerSettingTest(TestCase):
 class BarkIsInstalledByTheRouteTest(TestCase):
     """2026-10-18 : Bark's three weights were pulled by the library at first load
     (`preload_models()`), beside the catalogue. They are DECLARED (`BARK_FILES`) where the library
-    reads them, installed and removed by the `files` driver."""
+    reads them, installed and removed by the `files` driver. 2026-10-19 : its audio codec too
+    (EnCodec, pulled by torch.hub), and `load` no longer sets `XDG_CACHE_HOME` for the whole
+    process — it tells the library where the route installed them."""
 
     def test_the_declared_files_pass_the_lock_of_the_files_driver(self):
         from wama.common.backends.bark_backend import BARK_FILES, bark_weights_dir
         from wama.model_manager.services.model_installer import declared_files_error
         self.assertIsNone(declared_files_error(
             {'kind': 'files', 'files': BARK_FILES, 'target_dir': str(bark_weights_dir())}))
-        self.assertEqual({'text_2.pt', 'coarse_2.pt', 'fine_2.pt'}, {f['path'] for f in BARK_FILES})
+        self.assertEqual({'suno/bark_v0/text_2.pt', 'suno/bark_v0/coarse_2.pt',
+                          'suno/bark_v0/fine_2.pt',
+                          'torch/hub/checkpoints/encodec_24khz-d7cc33bc.th'},
+                         {f['path'] for f in BARK_FILES})
+
+    def test_the_declared_names_are_the_ones_the_libraries_read(self):
+        """Read from the INSTALLED libraries, not copied : a renamed checkpoint upstream turns the
+        declaration into files nobody loads."""
+        from pathlib import Path
+        from unittest import mock
+        try:
+            from bark import generation
+            from encodec import EncodecModel
+        except ImportError as exc:                      # venv without the TTS stack
+            self.skipTest(f'bark/encodec absents : {exc}')
+        from wama.common.backends import bark_backend
+        names = {generation.REMOTE_MODEL_PATHS[t]['file_name'] for t in ('text', 'coarse', 'fine')}
+        self.assertEqual({f"{bark_backend.BARK_CHECKPOINTS}/{n}" for n in names},
+                         {f['path'] for f in bark_backend.BARK_FILES[:3]})
+
+        class Read(Exception):
+            pass
+        with mock.patch.object(EncodecModel, '_get_pretrained', side_effect=Read) as read,                 self.assertRaises(Read):
+            EncodecModel.encodec_model_24khz(repository=Path('/declared'))
+        self.assertEqual(bark_backend.ENCODEC_CHECKPOINT, read.call_args.args[0])
+
+    def test_load_points_the_library_at_the_declared_files_without_touching_the_environment(self):
+        import os
+        import sys
+        import types
+        from pathlib import Path
+        from unittest import mock
+        from wama.common.backends import bark_backend
+        root = Path('/models/speech/bark')
+        generation = types.SimpleNamespace(CACHE_DIR='~/.cache/suno/bark_v0', USE_SMALL_MODELS=True,
+                                           models={})
+        seen = {}
+
+        def preload_models():
+            seen.update(cache_dir=generation.CACHE_DIR, small=generation.USE_SMALL_MODELS,
+                        codec=generation.models.get('codec'))
+        codec = mock.MagicMock()
+        encodec = types.SimpleNamespace(EncodecModel=mock.MagicMock())
+        encodec.EncodecModel.encodec_model_24khz.return_value = codec
+        bark = types.SimpleNamespace(SAMPLE_RATE=24000, generate_audio=mock.MagicMock(),
+                                     preload_models=preload_models, generation=generation)
+        before = dict(os.environ)
+        with mock.patch.dict(sys.modules, {'bark': bark, 'bark.generation': generation,
+                                           'encodec': encodec}),                 mock.patch.object(bark_backend, 'bark_weights_dir', return_value=root):
+            self.assertTrue(bark_backend.BarkBackend().load())
+        self.assertEqual(before, dict(os.environ), 'load changed the environment of the process')
+        self.assertEqual({'cache_dir': str(root / 'suno/bark_v0'), 'small': False, 'codec': codec},
+                         seen)
+        self.assertEqual(root / 'torch/hub/checkpoints',
+                         encodec.EncodecModel.encodec_model_24khz.call_args.kwargs['repository'])
 
     def test_the_catalogue_row_carries_them_and_one_file_is_not_enough(self):
         from pathlib import Path
@@ -672,7 +728,8 @@ class BarkIsInstalledByTheRouteTest(TestCase):
         from wama.common.backends import bark_backend
         from wama.model_manager.services.model_registry import ModelRegistry
         with tempfile.TemporaryDirectory() as tmp:
-            (Path(tmp) / 'fine_2.pt').write_bytes(b'0')
+            (Path(tmp) / 'suno' / 'bark_v0').mkdir(parents=True)
+            (Path(tmp) / 'suno' / 'bark_v0' / 'fine_2.pt').write_bytes(b'0')
             with mock.patch.object(bark_backend, 'bark_weights_dir', return_value=Path(tmp)):
                 registry = ModelRegistry()
                 registry._models = {}

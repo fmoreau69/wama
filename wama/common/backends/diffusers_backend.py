@@ -553,7 +553,9 @@ class DiffusersBackend(ImageGenerationBackend):
         if lora_repo:
             logger.info(f"[Diffusers] Loading SDXL LoRA from: {lora_repo}")
             try:
-                pipe.load_lora_weights(lora_repo)
+                # Le dossier où la route installe une LoRA logo (`get_model_info` : logo), comme
+                # la LoRA FLUX ci-dessus — sans `cache_dir=`, elle se lisait au cache partagé.
+                pipe.load_lora_weights(lora_repo, cache_dir=_LOGO_CACHE_DIR)
                 logger.info(f"[Diffusers] SDXL LoRA loaded, fusing with scale {lora_scale}")
                 pipe.fuse_lora(lora_scale=lora_scale)
                 logger.info("[Diffusers] SDXL LoRA fused successfully")

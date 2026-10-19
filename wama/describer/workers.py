@@ -155,8 +155,7 @@ def _frames_step(item, ctx):
     from .backends.video_backend import caption_frames
     opts = _options(item)
     chosen = vision_for(opts)
-    if chosen:                                  # désigné (« auto » : la cascade du backend)
-        ctx.ensure_model(catalog_key_of(chosen))
+    ctx.ensure_model(catalog_key_of(chosen or BLIP))   # « auto » : BLIP (`caption_frames`)
     captions = caption_frames(item.input_file.path, opts, progress_callback=ctx.progress,
                               console=ctx.console)
     return {'fields': {'frame_captions': captions}, 'label': f'{len(captions)} images',
@@ -189,7 +188,14 @@ def _describe_step(item, ctx):
         opts['frame_captions'] = list(item.frame_captions or [])
     from wama.common.utils.auto_model import is_auto
     designated = opts.get('vision_model' if nature == 'image' else 'llm_model')
-    if not is_auto(designated):
+    if nature == 'image':
+        # La cascade entière, son repli compris (« auto » : Ollama vision installé puis BLIP) —
+        # absent : la route l'installe, la tâche attend.
+        from .backends.image_backend import vision_candidates
+        from .backends.model_choice import catalog_key_of
+        for name in vision_candidates(opts):
+            ctx.ensure_model(catalog_key_of(name))
+    elif not is_auto(designated):
         ctx.ensure_model(designated)            # absent : la route l'installe, la tâche attend
 
     result = backend(

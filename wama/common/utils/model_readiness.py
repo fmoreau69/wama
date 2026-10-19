@@ -12,7 +12,8 @@ l'installation soit complètement faite, proprement et alignée sur la route. »
     revient d'elle-même, la card dit qu'elle attend). Une installation refusée (disque plein…) ou
     échouée fait échouer la tâche EN LE DISANT — jamais un téléchargement « au chargement » à côté.
     Une glu l'appelle par `ctx.ensure_model(clé)` (`task_skeleton.TaskContext`), une tâche hors
-    squelette par `redeliver_later` ;
+    squelette par `redeliver_later`. Un ADAPTATEUR (LoRA) amène sa dorsale, demandée d'abord
+    (2026-10-19, `_with_backbone`) ;
   • `install_and_wait` — le même geste pour un appelant SYNCHRONE (une commande : le banc) ;
   • `warn_if_weights_missing` — l'ancienne annonce, gardée pour la seule ligne que la route ne
     sait pas installer (aucun emplacement déclaré) : son backend télécharge au chargement, par un
@@ -166,9 +167,25 @@ def _announce(row, console) -> None:
         pass
 
 
+def _with_backbone(model_key: str) -> list:
+    """La clé, précédée de sa DORSALE quand c'est un adaptateur (2026-10-19) : une LoRA installée
+    sur une dorsale absente ne charge pas, et le backend tirait la dorsale au chargement. Même
+    résolution que l'empreinte et la désinstallation (`memory_manager.backbone_row`)."""
+    try:
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.memory_manager import backbone_row
+        row = AIModel.objects.filter(model_key=model_key, is_proposed=False).first()
+        base = backbone_row(row) if row is not None else None
+    except Exception as e:
+        logger.debug('[readiness] dorsale de %s non résolue : %s', model_key, e)
+        return [model_key]
+    return [base.model_key, model_key] if base is not None else [model_key]
+
+
 def ensure_installed(model_key: str, *, user=None, console=None, redelivered: bool = False,
                      via: str = 'task') -> bool:
     """Pour une TÂCHE : rend True quand le modèle est prêt à servir (ou que rien ne le concerne).
+    Un adaptateur demande aussi sa dorsale (`_with_backbone`), elle d'abord.
 
     Lève `task_skeleton.ServiceNotReady` tant que la route installe (la tâche rend son worker et
     revient) ; `ModelInstallRefused` si la route refuse ou si l'installation que la tâche attendait
@@ -176,14 +193,20 @@ def ensure_installed(model_key: str, *, user=None, console=None, redelivered: bo
     alors au lieu d'être relancée en boucle ; un nouveau lancement, lui, la retente."""
     if not model_key:
         return True
+    for key in _with_backbone(model_key):
+        _ensure_one(key, user=user, console=console, redelivered=redelivered, via=via)
+    return True
+
+
+def _ensure_one(model_key: str, *, user, console, redelivered: bool, via: str) -> None:
     row, spec = _route_row(model_key)
     if row is None:
-        return True
+        return
     if spec is None:
         # Aucun emplacement déclaré : le backend tirera ses poids au chargement (levier de
         # `hf_weights`) — l'annonce d'origine le dit.
         warn_if_weights_missing(model_key, console=console)
-        return True
+        return
     from wama.common.utils.task_skeleton import ServiceNotReady
     last = _last_install(model_key)
     if redelivered and last.get('state') == 'FAILURE':
@@ -206,7 +229,15 @@ def install_and_wait(model_key: str, *, user=None, console=None, via: str = 'com
                      poll_s: float = 5, timeout_s: float = None) -> bool:
     """Le même geste pour un appelant SYNCHRONE (une commande, jamais un worker) : installe par la
     route et ATTEND la fin. Rend True quand le modèle est installé, lève `ModelInstallRefused` si
-    la route refuse, échoue ou ne finit pas à temps ; False si la route ne sait pas l'installer."""
+    la route refuse, échoue ou ne finit pas à temps ; False si la route ne sait pas l'installer.
+    Un adaptateur attend aussi sa dorsale, elle d'abord (`_with_backbone`)."""
+    return all(_install_one_and_wait(key, user=user, console=console, via=via, poll_s=poll_s,
+                                     timeout_s=timeout_s)
+               for key in _with_backbone(model_key))
+
+
+def _install_one_and_wait(model_key: str, *, user, console, via: str, poll_s: float,
+                          timeout_s) -> bool:
     import time
     row, spec = _route_row(model_key)
     if row is None:

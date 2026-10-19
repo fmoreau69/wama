@@ -175,6 +175,20 @@ def _vision_prompt(output_style: str, output_language: str, model: Optional[str]
     return spec[lang]
 
 
+def vision_candidates(options: dict) -> list:
+    """Les modèles de vision qu'une image PEUT charger, dans l'ordre où `describe_image` les
+    essaie : le modèle désigné seul ; sous « auto », le meilleur modèle Ollama vision installé
+    puis BLIP, son repli (BLIP seul sous la garde GPU). La glu les demande à la route AVANT le
+    chargement (2026-10-19) — le repli compris : sans cela, BLIP absent se serait téléchargé au
+    chargement, à côté du catalogue."""
+    from .model_choice import BLIP, vision_for
+    chosen = vision_for(options or {})
+    if chosen:
+        return [chosen]
+    best = None if _gpu_safe_mode() else _best_ollama_vision_model()
+    return [best, BLIP] if best else [BLIP]
+
+
 def describe_image(input_path: str, options: dict = None,
                    progress_callback=None, partial_callback=None, console=None) -> str:
     """Décrit une image — contrat commun « texte » (voir tête de module)."""
@@ -210,14 +224,10 @@ def describe_image(input_path: str, options: dict = None,
         chosen = vision_for(options)
         if chosen == BLIP:
             console("Modèle de vision désigné : BLIP.")
-            ollama_model = None
-        elif chosen:
-            ollama_model = chosen
-        elif _gpu_safe_mode():
+        elif not chosen and _gpu_safe_mode():
             console("Garde GPU active (WAMA_GPU_SAFE_MODE) : cascade Ollama vision sautée — BLIP local.")
-            ollama_model = None
-        else:
-            ollama_model = _best_ollama_vision_model()
+        first = vision_candidates(options)[0]
+        ollama_model = None if first == BLIP else first
         moondream_prompt = _vision_prompt(output_style, output_language, ollama_model)
         caption = None
         if ollama_model:

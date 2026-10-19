@@ -185,6 +185,75 @@ class EnsureInstalledTest(TestCase):
             self.assertTrue(install_and_wait(self.KEY, poll_s=0))
 
 
+class AnAdapterBringsItsBackboneTest(TestCase):
+    """2026-10-19 : a LoRA does not run alone — the logo LoRA loads FLUX.1-dev under it. Asking the
+    route for the adapter asks for its BACKBONE too (`memory_manager.backbone_row`, the resolution
+    the footprint and the uninstall already use), the backbone first ; before, an absent backbone
+    was pulled by the backend at load, beside the catalogue."""
+
+    def setUp(self):
+        from unittest import mock
+        from wama.model_manager.models import AIModel
+        self.base = AIModel.objects.create(model_key='imager:test-base', name='Base', hf_id='Org/Base',
+                                           model_type='image', source='imager', is_downloaded=False)
+        self.lora = AIModel.objects.create(
+            model_key='imager:test-lora', name='Lora', hf_id='Org/Lora', model_type='image',
+            source='imager', is_downloaded=True,
+            extra_info={'base_model': 'Org/Base', 'model_type': 'lora'})
+        for target, value in (('wama.model_manager.services.model_installer.spec_for_catalog_row',
+                               {'kind': 'hf'}),
+                              ('wama.common.utils.model_readiness._last_install', {})):
+            patcher = mock.patch(target, return_value=value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _ensure(self, key):
+        from unittest import mock
+        from wama.common.utils.model_readiness import ensure_installed
+        from wama.common.utils.task_skeleton import ServiceNotReady
+        with mock.patch('wama.model_manager.services.model_installer.request_install',
+                        return_value={'ok': True, 'started': True}) as install:
+            try:
+                ensure_installed(key)
+                waited = False
+            except ServiceNotReady:
+                waited = True
+        return waited, [c.args[0] for c in install.call_args_list]
+
+    def test_an_installed_adapter_on_an_absent_backbone_waits_for_the_backbone(self):
+        self.assertEqual((True, ['imager:test-base']), self._ensure('imager:test-lora'))
+
+    def test_both_absent_the_backbone_is_asked_first(self):
+        type(self.lora).objects.filter(pk=self.lora.pk).update(is_downloaded=False)
+        self.assertEqual((True, ['imager:test-base']), self._ensure('imager:test-lora'))
+
+    def test_the_backbone_installed_only_the_adapter_is_asked(self):
+        type(self.base).objects.filter(pk=self.base.pk).update(is_downloaded=True)
+        type(self.lora).objects.filter(pk=self.lora.pk).update(is_downloaded=False)
+        self.assertEqual((True, ['imager:test-lora']), self._ensure('imager:test-lora'))
+
+    def test_a_base_model_does_not_ask_for_itself(self):
+        """`flux-1-dev` declares `base_model` = its OWN hf_id : not an adapter."""
+        type(self.base).objects.filter(pk=self.base.pk).update(
+            is_downloaded=True, extra_info={'base_model': 'Org/Base', 'model_type': 'base'})
+        self.assertEqual((False, []), self._ensure('imager:test-base'))
+
+    def test_a_synchronous_caller_waits_for_both(self):
+        from unittest import mock
+        from wama.common.utils.model_readiness import install_and_wait
+        type(self.lora).objects.filter(pk=self.lora.pk).update(is_downloaded=False)
+        installed = []
+
+        def install(key, **_kw):
+            installed.append(key)
+            type(self.base).objects.filter(model_key=key).update(is_downloaded=True)
+            return {'ok': True, 'started': True}
+        with mock.patch('wama.model_manager.services.model_installer.request_install',
+                        side_effect=install), mock.patch('time.sleep'):
+            self.assertTrue(install_and_wait('imager:test-lora', poll_s=0))
+        self.assertEqual(['imager:test-base', 'imager:test-lora'], installed)
+
+
 class TheSkeletonInstallsTheCardModelTest(TestCase):
     """The skeleton calls the brick INSIDE its main `try` : a wait re-delivers the task, a refusal
     fails the card with its reason (seen through the composer, a skeleton app)."""

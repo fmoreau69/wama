@@ -87,6 +87,44 @@ class GlueInstallsItsModelTest(SimpleTestCase):
         self.assertEqual(['describer:blip'], asked)
         route.return_value.assert_not_called()
 
+    def _auto_image(self, ctx, best):
+        from wama.describer import workers
+        from wama.describer.backends import image_backend
+        with mock.patch.object(workers, '_options',
+                               return_value={'vision_model': 'auto', 'llm_model': 'auto'}), \
+                mock.patch('wama.describer.function_specs.nature_of', return_value='image'), \
+                mock.patch.object(image_backend, '_best_ollama_vision_model', return_value=best), \
+                mock.patch.object(image_backend, '_gpu_safe_mode', return_value=False), \
+                mock.patch('wama.common.backends.manager.route_for_nature') as route, \
+                self.assertRaises(ServiceNotReady):
+            workers._describe_step(mock.MagicMock(), ctx)
+        route.return_value.assert_not_called()
+
+    def test_describer_auto_vision_asks_the_whole_cascade_its_fallback_included(self):
+        """2026-10-19 : under « auto » the backend picked its model at load — the best Ollama
+        vision model installed, BLIP if it does not answer. BLIP absent was pulled at load."""
+        from wama.describer.backends.model_choice import BLIP_KEY, catalog_key_of
+        ctx, asked = _waiting_context(stop_at=BLIP_KEY)
+        self._auto_image(ctx, 'gemma4:12b')
+        self.assertEqual([catalog_key_of('gemma4:12b'), BLIP_KEY], asked)
+
+    def test_describer_auto_vision_without_ollama_asks_blip(self):
+        from wama.describer.backends.model_choice import BLIP_KEY
+        ctx, asked = _waiting_context()
+        self._auto_image(ctx, None)
+        self.assertEqual([BLIP_KEY], asked)
+
+    def test_describer_auto_key_frames_ask_blip(self):
+        from wama.describer import workers
+        from wama.describer.backends.model_choice import BLIP_KEY
+        ctx, asked = _waiting_context()
+        with mock.patch.object(workers, '_options', return_value={'vision_model': 'auto'}), \
+                mock.patch('wama.describer.backends.video_backend.caption_frames') as frames, \
+                self.assertRaises(ServiceNotReady):
+            workers._frames_step(mock.MagicMock(), ctx)
+        self.assertEqual([BLIP_KEY], asked)
+        frames.assert_not_called()
+
     def test_anonymizer_every_detector_it_will_run(self):
         from wama.anonymizer import tasks
         ctx, asked = _waiting_context(stop_at='anonymizer:sam3')

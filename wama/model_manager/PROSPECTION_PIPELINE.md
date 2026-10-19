@@ -3136,7 +3136,48 @@ Fabien : *« /reverif puis aligne »* — les apps qui ne déclaraient pas leur 
 - ⚠ **Reste, consigné** : `bark_backend.load` pose `os.environ["XDG_CACHE_HOME"]` — une variable
   GÉNÉRIQUE (toute librairie qui suit XDG la lit), mutée dans un backend, contre la règle
   d'`AGENTS.md` (variable propre à une lib, posée UNE fois dans `settings.py`). Antérieur ;
-  le corriger touche au service TTS (processus à part) : à décider.
+  le corriger touche au service TTS (processus à part) : à décider. *(Soldé le 2026-10-19,
+  section suivante.)*
 - ⚠ **Reste, consigné** : sous « auto », la vision du describer est une cascade du backend (BLIP
   en dernier repli) et la LoRA logo de l'imager s'appuie sur sa dorsale FLUX.1-dev (un `hf_id`,
-  pas une clé) : ni l'une ni l'autre ne se demande à la route avant le chargement.
+  pas une clé) : ni l'une ni l'autre ne se demande à la route avant le chargement. *(Soldé le
+  2026-10-19, section suivante.)*
+
+### Les trois restes portés sur la route (2026-10-19)
+
+Fabien : *« Oui, porte aussi ces trois restes sur la route. Et ajoutes bien les tests
+nécessaires. »*
+
+- **Bark, plus aucune variable d'environnement** : `bark_backend.load` dit à la librairie où la
+  route a installé ses poids par SES attributs (`bark.generation.CACHE_DIR`, `USE_SMALL_MODELS`),
+  et charge le codec EnCodec depuis son fichier déclaré (`EncodecModel.encodec_model_24khz(
+  repository=…)`, posé dans `generation.models['codec']` : `preload_models` ne le tire plus par
+  torch.hub). Le codec devient le 4ᵉ fichier de `BARK_FILES` (93 Mo, empreinte mesurée sur le
+  fichier présent, préfixe `d7cc33bc` = celui du nom), origine `external_sources['encodec']` — le
+  serveur de ses auteurs ; la version du Hub (`facebook/encodec_24khz`) est au format
+  transformers, pas celui que la librairie lit. Les chemins restent ceux d'avant
+  (`suno/bark_v0/…`, `torch/hub/checkpoints/…` sous le dossier du moteur) : le codec déjà sur
+  disque compte. Garde : `XDG_CACHE_HOME` entre dans les variables de `tests_hf_cache_routing`
+  (budget 0, par AST).
+- **Describer, la cascade de vision demandée entière** : `image_backend.vision_candidates`
+  rend les modèles qu'une image PEUT charger, dans l'ordre où `describe_image` les essaie (le
+  backend la lit aussi : un seul chemin) ; la glu les demande tous à la route — sous « auto »,
+  le meilleur Ollama vision installé PUIS BLIP, son repli. Les images-clés sous « auto » sont
+  BLIP : la glu le demande. Coût assumé : BLIP absent s'installe même si Ollama répondra — c'est
+  le repli que « auto » promet.
+- **Adaptateur → dorsale** : `model_readiness.ensure_installed` (et `install_and_wait`) demande
+  la DORSALE d'un adaptateur avant lui, par `memory_manager.backbone_row` — la résolution que
+  l'empreinte et la désinstallation emploient déjà. Vaut pour tout adaptateur, pas seulement la
+  LoRA logo.
+- ⚠ **Écart trouvé en le faisant, de ma main (`9684934e`)** : la LoRA logo déclarait
+  `install_dir` = `diffusion/flux` (le dossier de sa dorsale, `get_model_info`), alors que le
+  backend la lit sous `diffusion/logo` (`_apply_flux_lora`). Le test d'hier comparait le
+  catalogue au `model_config`, jamais au backend. Corrigé (`get_model_info` : une LoRA logo vit
+  sous `logo`), et le test lit désormais le `cache_dir=` que le backend passe. La LoRA SDXL se
+  lit au même dossier (elle n'avait pas de `cache_dir=`). Deux copies identiques de la LoRA sont
+  sur disque (37 Mo chacune, `flux/` du 2026-02-03, `logo/` du 2026-03-08) : celle de `flux/`
+  n'est plus lue par personne — à retirer, décision de Fabien.
+- Tests : `tests_model_readiness.AnAdapterBringsItsBackboneTest` (5),
+  `tests_glue_installs_its_model` (+3), `describer.tests_pipeline` (+2), `synthesizer.tests`
+  (+2, dont les noms de fichiers lus dans les librairies INSTALLÉES), `imager.tests` (+1).
+  Contre-épreuves : 9 mutations, 9 rouges.

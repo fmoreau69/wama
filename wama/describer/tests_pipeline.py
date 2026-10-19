@@ -283,6 +283,23 @@ class ModelChoiceTest(SimpleTestCase):
         self.assertEqual(BLIP, vision_for({'vision_model': 'describer:blip'}))
         self.assertEqual('gemma4:e4b', vision_for({'vision_model': 'ollama:gemma4:e4b'}))
 
+    def test_the_vision_candidates_are_the_cascade_describe_image_tries(self):
+        """What the glue asks the route for (2026-10-19) : the designated model alone ; under
+        « auto » the best Ollama vision model then BLIP, its fallback ; BLIP alone under the GPU
+        guard or without any Ollama vision model."""
+        from wama.describer.backends import image_backend
+        from wama.describer.backends.model_choice import BLIP
+        for best, guard, options, expected in (
+                ('gemma4:12b', False, {'vision_model': 'auto'}, ['gemma4:12b', BLIP]),
+                ('gemma4:12b', False, {'vision_model': 'ollama:gemma4:e4b'}, ['gemma4:e4b']),
+                ('gemma4:12b', False, {'vision_model': 'describer:blip'}, [BLIP]),
+                ('gemma4:12b', True, {}, [BLIP]),
+                (None, False, {}, [BLIP])):
+            with self.subTest(best=best, guard=guard, options=options), \
+                    mock.patch.object(image_backend, '_best_ollama_vision_model', return_value=best), \
+                    mock.patch.object(image_backend, '_gpu_safe_mode', return_value=guard):
+                self.assertEqual(expected, image_backend.vision_candidates(options))
+
 
 class DesignatedVisionModelTest(TestCase):
 
@@ -323,6 +340,19 @@ class DesignatedVisionModelTest(TestCase):
             text = image_backend.describe_image(self.path, options={'output_language': 'en'})
         self.assertEqual('gemma4:12b', ollama.call_args[0][0])
         self.assertEqual('A red square.', text)
+
+    def test_under_the_gpu_guard_auto_goes_to_blip_without_asking_ollama(self):
+        from wama.describer.backends import image_backend
+        fake = mock.MagicMock()
+        fake.process.return_value = 'a red square'
+        with mock.patch.object(image_backend, '_gpu_safe_mode', return_value=True), \
+                mock.patch.object(image_backend, '_best_ollama_vision_model') as best, \
+                mock.patch.object(image_backend, '_describe_with_ollama_vision') as ollama, \
+                mock.patch('wama.describer.backends.get_blip', return_value=fake):
+            text = image_backend.describe_image(self.path, options={'output_language': 'en'})
+        best.assert_not_called()
+        ollama.assert_not_called()
+        self.assertIn('red square', text.lower())
 
 
 class StandaloneContractTest(SimpleTestCase):

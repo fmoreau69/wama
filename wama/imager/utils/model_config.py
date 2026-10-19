@@ -819,7 +819,11 @@ def get_model_info(model_name: str) -> dict:
     elif model_name in FLUX2_KLEIN_MODELS:
         info['cache_dir'] = str(FLUX2_KLEIN_DIR)
     elif model_name in LOGO_MODELS:
-        info['cache_dir'] = str(FLUX_DIR) if info.get('pipeline') == 'flux' else str(LOGO_DIR)
+        # Le dossier de l'ADAPTATEUR lui-même, celui que le backend lit
+        # (`diffusers_backend._apply_flux_lora`, `cache_dir=` logo) — pas celui de sa dorsale, qui a
+        # sa propre ligne (`flux-1-dev`). Jusqu'au 2026-10-19 la LoRA FLUX rendait le dossier FLUX :
+        # le catalogue la détectait et la route l'aurait installée là, le backend la lisant ailleurs.
+        info['cache_dir'] = str(LOGO_DIR)
     else:
         info['cache_dir'] = str(STABLE_DIFFUSION_DIR)
 

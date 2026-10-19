@@ -741,6 +741,14 @@ SOURCES: tuple[ExternalSource, ...] = (
         "aucun dépôt officiel sur HuggingFace (2026-10-16)",
         kind='poids'),
     ExternalSource(
+        'encodec', 'EnCodec (Meta, serveur de ses auteurs)',
+        'https://dl.fbaipublicfiles.com/encodec/v0',
+        "Points de contrôle publiés par les auteurs du codec audio EnCodec — "
+        "`encodec_24khz-d7cc33bc.th`, que Bark charge pour rendre le son ; la version du Hub "
+        "(`facebook/encodec_24khz`) est au format transformers, pas celui que lit la librairie "
+        "(2026-10-19)",
+        kind='poids'),
+    ExternalSource(
         'osv', 'OSV (Open Source Vulnerabilities)', 'https://api.osv.dev/v1',
         "Audit de vulnérabilités des dépendances (contrôle nocturne)",
         kind='audit', doc='docs/construction/suivi/PROJECT_STATUS.md'),

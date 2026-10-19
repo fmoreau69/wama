@@ -361,6 +361,24 @@ class DeclaredCompositionTest(TestCase):
                 self.assertEqual(Path(get_model_info(key.split(':', 1)[1])['cache_dir']).resolve(),
                                  Path(target).resolve())
 
+    def test_an_adapter_is_installed_where_the_backend_reads_it_not_beside_its_backbone(self):
+        """2026-10-19 : the logo LoRA declared the FLUX folder — its BACKBONE's. The catalogue
+        detected it there and the route would have installed it there, while the backend reads it
+        under `logo` (and pulled it at load). The backbone has its own row, asked for by
+        `model_readiness` (`AnAdapterBringsItsBackboneTest`)."""
+        from pathlib import Path
+        from unittest import mock
+        from wama.common.backends.diffusers_backend import DiffusersBackend
+        from wama.imager.utils.model_config import IMAGER_MODELS, get_model_info
+        adapters = [n for n, c in IMAGER_MODELS.items() if c.get('model_type') == 'lora']
+        self.assertTrue(adapters, 'no adapter left : the case proves nothing')
+        for name in adapters:
+            with self.subTest(name=name):
+                pipe = mock.MagicMock()
+                DiffusersBackend._apply_flux_lora(None, pipe, IMAGER_MODELS[name]['hf_id'], 0.8)
+                self.assertEqual(Path(get_model_info(name)['cache_dir']).resolve(),
+                                 Path(pipe.load_lora_weights.call_args.kwargs['cache_dir']).resolve())
+
     def test_an_adapter_declares_nothing_rather_than_a_misleading_weight(self):
         """La LoRA logo ne pèse que 0,04 Go de fichier, mais son empreinte est celle de sa
         dorsale FLUX.1-dev. Declarer sa composition ferait répondre « 0,04 Go » — exact sur les
