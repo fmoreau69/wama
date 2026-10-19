@@ -45,6 +45,50 @@
       }
     },
     "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "text_2.pt",
+            "repo": "suno/bark",
+            "revision": "70a8a7d34168586dc5d028fa9666aceade177992",
+            "source": "huggingface"
+          },
+          "path": "suno/bark_v0/text_2.pt",
+          "sha256": "ccdedd35373bc3a16845f1f1452c5c96926f5cbccab01e824f7f15add2c16a35",
+          "size": 5353258741
+        },
+        {
+          "origin": {
+            "file": "coarse_2.pt",
+            "repo": "suno/bark",
+            "revision": "70a8a7d34168586dc5d028fa9666aceade177992",
+            "source": "huggingface"
+          },
+          "path": "suno/bark_v0/coarse_2.pt",
+          "sha256": "286abc253d4d7f4d148325df07585f7ca4fca36ce40577a1ddd744a8b35e4388",
+          "size": 3934534533
+        },
+        {
+          "origin": {
+            "file": "fine_2.pt",
+            "repo": "suno/bark",
+            "revision": "70a8a7d34168586dc5d028fa9666aceade177992",
+            "source": "huggingface"
+          },
+          "path": "suno/bark_v0/fine_2.pt",
+          "sha256": "799c87afab4b01537094c63ea231f2c42c9c07aeb16773690540ad251a6d8fab",
+          "size": 3741740229
+        },
+        {
+          "origin": {
+            "file": "encodec_24khz-d7cc33bc.th",
+            "source": "encodec"
+          },
+          "path": "torch/hub/checkpoints/encodec_24khz-d7cc33bc.th",
+          "sha256": "d7cc33bcf1aad7f2dad9836f36431530744abeace3ca033005e3290ed4fa47bf",
+          "size": 93171529
+        }
+      ],
       "vram_provenance": "declared"
     },
     "formats": {
@@ -75,7 +119,7 @@
       "update_complexity": null
     },
     "resources": {
-      "disk_gb": 0.0,
+      "disk_gb": 12.221471436321735,
       "ram_gb": 8.0,
       "vram_gb": 4.0
     }

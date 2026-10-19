@@ -3176,7 +3176,17 @@ nécessaires. »*
   sous `logo`), et le test lit désormais le `cache_dir=` que le backend passe. La LoRA SDXL se
   lit au même dossier (elle n'avait pas de `cache_dir=`). Deux copies identiques de la LoRA sont
   sur disque (37 Mo chacune, `flux/` du 2026-02-03, `logo/` du 2026-03-08) : celle de `flux/`
-  n'est plus lue par personne — à retirer, décision de Fabien.
+  n'est plus lue par personne — ✅ **retirée le 2026-10-19** (décision de Fabien, après
+  vérification : même commit `3c09a22c` et même sha256 des deux côtés ; aucun lecteur — le repli
+  `_LOGO_CACHE_DIR or _FLUX_CACHE_DIR` ne joue que si `MODEL_PATHS['diffusion']['logo']` manque,
+  il est déclaré ; aucun fichier ouvert ; une seule ligne de catalogue, sans fantôme ;
+  `check_model_layout` ne la citait pas). `diffusion/logo` est le domicile voulu : un dossier = son
+  modèle (règle de `check_model_layout`), l'adaptateur a sa ligne, sa dorsale la sienne sous
+  `flux/`. ⚠ Tant que les services tournent sur le code d'avant `44653045`, leur synchro réécrit
+  `install_dir` = `flux` et marque la LoRA « non installée » — une tâche logo lancée d'ici là la
+  ferait réinstaller sous `flux/` (copie orpheline revenue, sans autre dégât : le backend lit
+  `logo/`). La relance puis `sync_models` le ramènent (vérifié sur le code de l'arbre : détectée
+  sous `logo`, absente de `flux`).
 - Tests : `tests_model_readiness.AnAdapterBringsItsBackboneTest` (5),
   `tests_glue_installs_its_model` (+3), `describer.tests_pipeline` (+2), `synthesizer.tests`
   (+2, dont les noms de fichiers lus dans les librairies INSTALLÉES), `imager.tests` (+1).

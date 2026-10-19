@@ -24888,3 +24888,55 @@ mon journal le fait déjà ».
   intacts.
 - 🔚 **Reste** : ↑/↓ au clavier sur deux numéros identiques (journal, calendrier) peut repartir du
   premier — limite écrite à `WAMA_MEMORY §9bis.1`.
+
+## §CLÔTURE — 2026-10-15→19, « PARTITION DU COMPOSER · PARTITION COMPLÈTE (MuScriptor) · UN MODÈLE ABSENT S'INSTALLE PAR LA ROUTE AU MOMENT DE LA TÂCHE » — ✅ LIVRÉ (non poussé) — 🔴 relancer gunicorn + workers + beat + SERVICE TTS, puis `sync_models`
+
+Session qui n'avait encore écrit aucun bloc ici : son détail vit à ses domiciles — `ROUTE §F3b`
+(3ᵉ surface, partition), `PROSPECTION_PIPELINE.md` (veille partition complète, MuScriptor par la
+route, « Revérification du 2026-10-18 », « Les trois restes portés sur la route (2026-10-19) »),
+règle `AGENTS.md` « librairies et modèles par la route, aucune dérive ».
+
+**Livré** :
+- 15→16/10 `edfb261b` `0c30a3da` — surface « Éditer la partition » (abcjs, axe de temps commun
+  `wama-axis.js`, `/media/` par morceaux `ranged_response`), le temps de la partition calé sur les
+  temps joués.
+- 16/10 `78344fba` `6d2b4e76` (veille, décisions de Fabien) · `de429f1b` (muscriptor, beat-this,
+  rotary-embedding-torch par la route `library`) · `4172550d` (partition COMPLÈTE, process
+  optionnel `parts`) · `f57e78b9` (`requires` modèle → librairie) · `6c5e8cfb` (lecture MIDI
+  commune `midi_score.read_midi`) · `872ce984` (MuScriptor DÉCLARÉ, pilote `files` + jeton Hub) ·
+  `066d2f70` (skill `/cloture §2b`).
+- 18/10 `de1d41ff` — un modèle ABSENT s'installe par la route au moment de la tâche
+  (`model_readiness.ensure_installed`, utilisateur prévenu, la tâche attend) ; `DRIFT_BUDGET` de
+  `tests_install_route` à 0 (R148/R149). `9684934e` — revérification : `ctx.ensure_model(clé)` dans
+  TOUTE glu, `redeliver_later` (studio, cam_analyzer).
+- 19/10 `44653045` — les trois restes : Bark sans `XDG_CACHE_HOME` (codec EnCodec déclaré,
+  `external_sources['encodec']`), cascade de vision du describer demandée entière
+  (`vision_candidates`), un adaptateur amène sa DORSALE ; écart de ma main ramené (LoRA logo
+  `install_dir` = `logo`) ; manifeste `function` de `composer.parts` (rouge de
+  `tests_codegen_from_scratch` signalé ici par deux autres sessions — soldé).
+- Ce commit : copie orpheline de la LoRA logo retirée de `diffusion/flux` (37 Mo ; décision de
+  Fabien, vérifications au `PROSPECTION_PIPELINE`) ; manifeste `synthesizer:bark` réexporté (ses
+  quatre fichiers déclarés).
+
+**Contrôles mesurés le 2026-10-19** : 713 tests du périmètre verts (1 sauté, hors de mes
+modules — `imager.tests` et `BarkIsInstalledByTheRouteTest` rejoués en -v 2 : aucun saut) + 61
+(corpus de manifestes, registres) après l'export ; contre-épreuves de `44653045` : 9 mutations,
+9 rouges ; `check_docs` 0/2953 ; `doc_facts --check` à jour ; `check_redundancy` 114, aucune dans
+mes fichiers ; `check_skills` 0 défaut ; `check_model_layout` : rien sous `diffusion/` (2
+snapshots étrangers dans `speech/qwen_asr`, pas de cette session).
+⚠ Corpus des modèles : 345 manifestes périmés (`manifest_export --check`) — dont les `requires`
+→ librairie de `f57e78b9`, laissés non régénérés le 16/10 parce que la régénération figerait le
+travail d'autres sessions ; à régénérer d'un bloc, sur décision.
+
+**Pendings système** : les services tournent depuis 10 h 59 le 19/10, AVANT `44653045` — leur
+synchro réécrit les lignes Bark et LoRA logo à l'ancienne disposition (`install_dir` = `flux`,
+LoRA marquée non installée ; une tâche logo d'ici la relance la réinstallerait sous `flux/`).
+Relancer gunicorn + workers + beat + service TTS, puis `sync_models`. Rien n'est poussé.
+
+🔚 **Restes** (limites de ce que la session a construit, domicile `ROUTE §F3b`) : choix MANUEL du
+modèle du process `parts` · rendus à tempo variable sans temps forts · nom/description écrasés par
+le balayage des snapshots · paroles (`lyrics`) sur la surface · écoute sans rendu (police de sons)
+· clic sur une note → sélection du texte source · facette `surfaces` au manifeste du composer et
+de `composer_01` · smoke du lecteur 4 caméras après adoption de `ranged_response` · Leaflet hors
+de `update_vendors.sh` · calage de la partition à juger à l'oreille (Fabien). Bark n'a JAMAIS été
+téléchargé : la route l'installera à la première tâche (12 Go).
