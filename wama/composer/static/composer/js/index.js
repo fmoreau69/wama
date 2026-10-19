@@ -266,16 +266,10 @@
             // WamaInputMatch garantit qu'un modèle incompatible n'est pas sélectionnable.
             ports:     'card',
             portOptions: { melodyInput: { urlField: 'source_url', urlInputId: 'melodyUrlInput' } },
-            extraFields: function (fd) {
-                fd.append('model', modelSelect?.value || 'auto:text-to-music');
-                fd.append('duration', getSelectedDuration());
-                // Voix du volet (2026-10-04) : auto / instrumental / chanson.
-                fd.append('vocals', (document.getElementById('vocalsSelect') || {}).value || 'auto');
-                // Curseur rapide/qualité du volet (chantier C) — lu au lancement si le modèle est auto-*.
-                fd.append('quality_intent', document.getElementById('qualityIntent')?.value || '');
-                fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-                fd.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-            },
+            // Les réglages du VOLET : tout son hôte, lu du schéma (`WamaParams.read`) — une valeur
+            // vide n'est pas postée, la cascade du serveur met le défaut. Une liste écrite ici
+            // oubliait la case « Partition complète » (2026-10-19) : la card naissait sans elle.
+            paramsHostId: 'composerPanelHost',
             // La mélodie et la partition RESTENT : plusieurs variations sur une même référence
             // s'enchaînent ; seule la consigne se vide.
             reset:   false,

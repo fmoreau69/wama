@@ -94,33 +94,37 @@ class ItemSettingsRouteContractTest(TestCase):
         self.assertEqual([], unmeasured, 'apps whose settings route this contract cannot write')
 
     def test_form_data_and_json_both_write_only_what_they_post(self):
+        """EVERY writable setting of every app — not only the first one (2026-10-19): measured on
+        `fields[0]` alone, the contract left the composer's « Partition complète » toggle
+        unwritten by its route for three days (the ⚙ modal showed it back off)."""
         for app, model, schema in _surfaces():
             fields = _writable_fields(model, schema)
-            if not fields:
-                continue
-            with self.subTest(app=app):
-                user = self._login_for(app)
-                item = _instance(model, user)
-                url = reverse(f'{app}:update_settings', args=[item.pk])
-                name, values = fields[0]
-                other = fields[1] if len(fields) > 1 else None
-                other_before = getattr(item, other[0]) if other else None
+            for index, (name, values) in enumerate(fields):
+                other = fields[index - 1] if len(fields) > 1 else None
+                with self.subTest(app=app, setting=name):
+                    self._check_written(app, model, name, values, other)
 
-                target = next(v for v in values if v != getattr(item, name))
-                r = self.client.post(url, {name: _posted(target)})         # the ⚙ modal
-                self.assertEqual(200, r.status_code, r.content[:300])
-                item.refresh_from_db()
-                self.assertEqual(getattr(item, name), target, 'FormData not written')
+    def _check_written(self, app, model, name, values, other):
+        user = self._login_for(app)
+        item = _instance(model, user)
+        url = reverse(f'{app}:update_settings', args=[item.pk])
+        other_before = getattr(item, other[0]) if other else None
 
-                target = next(v for v in values if v != getattr(item, name))
-                r = self.client.post(url, json.dumps({name: target}),     # the inspector
-                                     content_type='application/json')
-                self.assertEqual(200, r.status_code, r.content[:300])
-                item.refresh_from_db()
-                self.assertEqual(getattr(item, name), target, 'JSON not written')
-                if other:
-                    self.assertEqual(getattr(item, other[0]), other_before,
-                                     f'`{other[0]}` changed although it was not posted')
+        target = next(v for v in values if v != getattr(item, name))
+        r = self.client.post(url, {name: _posted(target)})         # the ⚙ modal
+        self.assertEqual(200, r.status_code, r.content[:300])
+        item.refresh_from_db()
+        self.assertEqual(getattr(item, name), target, 'FormData not written')
+
+        target = next(v for v in values if v != getattr(item, name))
+        r = self.client.post(url, json.dumps({name: target}),     # the inspector
+                             content_type='application/json')
+        self.assertEqual(200, r.status_code, r.content[:300])
+        item.refresh_from_db()
+        self.assertEqual(getattr(item, name), target, 'JSON not written')
+        if other:
+            self.assertEqual(getattr(item, other[0]), other_before,
+                             f'`{other[0]}` changed although it was not posted')
 
     def test_a_value_outside_the_choices_is_ignored(self):
         for app, model, schema in _surfaces():

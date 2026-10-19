@@ -3051,6 +3051,17 @@ Suite de la veille ci-dessus, décisions (a)(b)(d) appliquées ; licence accept�
 - **mesures (#754, 210 s, RTX 4090)** : chargement 28 s, transcription 99-151 s, pic 9,77 Go ;
   6 parties (voix, piano, basse électrique, batterie, nappe de synthé, flûtes).
 - ⏳ **reste** : choix manuel du modèle du process.
+- ⚠ **La case n'atteignait pas la card (relevé par Fabien sur #849, 2026-10-19)** : cochée, la
+  partition complète ne s'affichait pas et la case revenait à « non ». Deux trous, aucun dans le
+  process : (1) le dépôt du volet postait une liste de réglages ÉCRITE dans `index.js`, sans
+  `extract_parts` — il poste désormais tout l'hôte du volet (`WamaApp.addToQueue`
+  `paramsHostId`, lu du schéma) ; (2) la route ⚙ / l'inspecteur (`_apply_generation_settings`)
+  écrivait chaque réglage à la main et ignorait la case — les colonnes du schéma sans règle
+  propre passent désormais par `batch_views.apply_item_settings`. Le contrat commun
+  `tests_item_settings_contract` ne mesurait que le PREMIER réglage inscriptible de chaque app :
+  il les mesure tous (aucun autre oubli dans le parc). Gardes : `composer.tests_parts`
+  (création, volet, case cochée après coup = seule la partition complète rejouée) ;
+  contre-épreuves : 5 mutations, 5 rouges.
 - ⚠ **Correction du soir (relevée par Fabien : « un fichier venu d'ailleurs doit passer par les
   mécanismes en place »)** — la première forme livrée faisait tirer le point de contrôle de Beat
   This! par le BACKEND au premier usage, et la revérification avait écrit ici qu'un « composant

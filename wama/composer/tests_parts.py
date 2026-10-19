@@ -74,9 +74,10 @@ class FullScoreTest(TestCase):
         _Transcriber.built, _Transcriber.unloaded, _Transcriber.calls, _Transcriber.error = 0, 0, [], None
         self.installed = True
 
-    def _run(self, **fields):
-        gen = ComposerGeneration.objects.create(user=self.user, prompt='pop song', model=PLAIN_MODEL,
-                                                status='RUNNING', **fields)
+    def _run(self, gen=None, **fields):
+        if gen is None:
+            gen = ComposerGeneration.objects.create(user=self.user, prompt='pop song',
+                                                    model=PLAIN_MODEL, status='RUNNING', **fields)
         engines = {**ENGINES, TRANSCRIBER: _Transcriber}
         with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
                 mock.patch('wama.common.backends.manager.backend_for_key',
@@ -130,6 +131,17 @@ class FullScoreTest(TestCase):
         self.assertNotIn('parts', self._states(gen))
         self.assertEqual([], _Transcriber.calls)
 
+    def test_turned_on_after_the_song_only_the_full_score_is_played(self):
+        """The gesture of #849 (2026-10-19): a song rendered without the toggle, the toggle turned
+        on, the card relaunched — the full score is written, the song is not rendered again."""
+        gen = self._run()
+        self.assertNotIn('parts', self._states(gen))
+        ComposerGeneration.objects.filter(pk=gen.pk).update(extract_parts=True, status='RUNNING')
+        gen = self._run(ComposerGeneration.objects.get(pk=gen.pk))
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['parts'], gen.error_message)
+        self.assertTrue(gen.parts_score)
+        self.assertEqual(1, len(_PlainEngine.renders), 'the song is not rendered again')
+
     def test_a_failed_transcription_fails_its_line_and_releases_the_model(self):
         _Transcriber.error = RuntimeError('no beat decoded')
         gen = self._run(extract_parts=True)
@@ -137,3 +149,43 @@ class FullScoreTest(TestCase):
         self.assertEqual(JOB_SUCCESS, self._states(gen)['output'], 'the song itself is kept')
         self.assertEqual(1, _Transcriber.unloaded)
         self.assertFalse(gen.parts_score)
+
+
+class TheToggleReachesTheCardTest(TestCase):
+    """« Partition complète » set on, the card must carry it (2026-10-19, #849: set on, then seen
+    back off — the panel's add-to-queue posted a hand list without it, and the ⚙ route dropped
+    it). The ⚙ modal and the inspector are held by the common contract
+    (`tests_item_settings_contract`, every writable setting); here the creation and the panel."""
+
+    def setUp(self):
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import DEFAULT_APP_ACCESS, GROUP_PREFIX
+        self.user = get_user_model().objects.create_user('composer_parts_toggle', password='x')
+        for role in (DEFAULT_APP_ACCESS.get('composer') or {}).get('roles', []):
+            self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}{role}')[0])
+        self.client.force_login(self.user)
+
+    def test_the_toggle_posted_at_creation_is_on_the_new_card(self):
+        from django.urls import reverse
+        for posted, expected in (('true', True), ('false', False)):
+            with self.subTest(posted=posted):
+                response = self.client.post(reverse('composer:generate'),
+                                            {'prompt': 'a song', 'model': 'musicgen-small',
+                                             'duration': '5', 'extract_parts': posted})
+                self.assertEqual(200, response.status_code, response.content[:300])
+                gen = ComposerGeneration.objects.get(pk=response.json()['id'])
+                self.assertIs(expected, gen.extract_parts)
+
+    def test_the_panel_posts_its_whole_host_not_a_hand_list(self):
+        """Every panel setting travels with the deposit because the add-to-queue reads the panel
+        HOST (`WamaApp.addToQueue` `paramsHostId`), which the template renders from the schema."""
+        from django.conf import settings
+        from wama.composer.params import PARAMS
+        root = Path(settings.BASE_DIR) / 'wama' / 'composer'
+        script = (root / 'static' / 'composer' / 'js' / 'index.js').read_text(encoding='utf-8')
+        template = (root / 'templates' / 'composer' / 'index.html').read_text(encoding='utf-8')
+        self.assertIn("paramsHostId: 'composerPanelHost'", script)
+        self.assertIn('id="composerPanelHost"', template)
+        self.assertNotIn('extraFields', script, 'a hand list of panel settings forgets the next one')
+        panel = {p.name for p in PARAMS if 'panel' in (p.contexts or ())}
+        self.assertIn('extract_parts', panel)

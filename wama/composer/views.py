@@ -624,7 +624,26 @@ def _apply_generation_settings(gen, data):
         gen.output_format = data['output_format']
     if data.get('output_quality'):
         gen.output_quality = data['output_quality']
+    # Les AUTRES réglages du schéma, colonnes sans règle propre (la case « Partition complète »…),
+    # par la brique commune — valeur hors choix ignorée. Écrits champ par champ, ils étaient tous à
+    # recopier ici : `extract_parts` (2026-10-16) ne l'avait pas été, la case cochée dans la modale
+    # ⚙ revenait à « non » et le process `parts` ne jouait pas (vécu sur #849, 2026-10-19).
+    from wama.common.utils.batch_views import apply_item_settings
+    apply_item_settings(gen, data, params_fields=_plain_settings())
     return None
+
+
+#: Les réglages que `_apply_generation_settings` écrit avec une règle PROPRE (validation du modèle,
+#: durée bornée, curseur, voix, paroles vidables, prompt à deux états, sortie non vide).
+_SETTINGS_WITH_RULES = frozenset({'model', 'duration', 'quality_intent', 'vocals', 'lyrics',
+                                  'prompt', 'output_format', 'output_quality'})
+
+
+def _plain_settings():
+    """Les réglages du schéma qui sont des colonnes de la génération sans règle propre."""
+    columns = {f.name for f in ComposerGeneration._meta.concrete_fields}
+    return [p['name'] for p in _SETTINGS_SCHEMA
+            if p['name'] in columns and p['name'] not in _SETTINGS_WITH_RULES]
 
 
 @require_POST
