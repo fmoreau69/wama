@@ -16,6 +16,12 @@
     <link href="{% static_v 'vendors/bootstrap-5.3.0/css/bootstrap.min.css' %}" rel="stylesheet">
     {# Tokens du THÈME (common/themes.py) : chargés avant toute feuille qui les lit #}
     <link href="{% static_v 'common/css/wama-theme.css' %}" rel="stylesheet">
+    {# Polices servies par les chartes des thèmes (`themes.font_stylesheets`) #}
+    {% for sheet in theme_font_sheets %}<link href="{% static_v sheet %}" rel="stylesheet">{% endfor %}
+    {% comment %}Thème PERSONNALISÉ : son bloc est généré pour le compte (`themes.generated_css`) —
+       `safe` : des couleurs `#rrggbb` validées et une clé déclarée, rien de saisi tel quel ; le
+       Profil remplace ce bloc sur place quand la couleur change.{% endcomment %}
+    <style id="wama-theme-generated">{{ theme_generated_css|safe }}</style>
 
     <!-- Font Awesome -->
     <link rel="stylesheet" href="{% static_v 'vendors/font-awesome-6.4.0/css/all.min.css' %}">

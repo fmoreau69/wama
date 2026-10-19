@@ -2047,14 +2047,21 @@ MECHANISMS = (
               "(`CHARTERS`) ; La Suite se décline aussi en sombre, dérivé du sombre. Un thème "
               "peut porter le logo de sa charte (`Theme.logo`, UGE) : la barre du haut les pose "
               "tous, la feuille ne montre que celui du thème actif ; une police sous licence "
-              "commerciale est NOMMÉE, jamais servie (`LICENSED_FONTS`, TT Norms). "
+              "commerciale est NOMMÉE, jamais servie (`LICENSED_FONTS`, TT Norms) ; une police "
+              "libre est SERVIE, vendorisée par `update_vendors.sh` et déclarée par sa charte "
+              "(`CHARTERS[…]['font']`, Roboto Flex pour La Suite, 2026-10-20). "
               "Le compte CHOISIT au Profil (2026-10-19) un thème déclaré — le SOMBRE par défaut — "
               "ou « Automatique », qui suit le mode du système (`wama-theme.js`, résolu avant le "
-              "premier rendu) ; `theme_choice`, réglage durable `user_settings`",
+              "premier rendu) ; `theme_choice`, réglage durable `user_settings`. Un thème "
+              "PERSONNALISÉ (2026-10-20, `Theme.generated` : clair ou sombre) naît d'une couleur "
+              "d'accent cliquée au Profil (`PALETTES`, ou le sélecteur) : `theme_generator` en "
+              "GÉNÈRE le bloc d'identité, chaque texte ajusté à 4,5:1 sur les fonds de sa base, "
+              "posé par base.html dans `#wama-theme-generated`",
               'wama/common/themes.py', 'docs/construction/suivi/ROADMAP.md §28',
               annexes=('wama/common/static/common/css/wama-theme.css',
                        'wama/common/static/common/js/wama-theme.js',
                        'wama/common/theme_mirror.py',
+                       'wama/common/theme_generator.py',
                        'wama/common/tests/tests_theme.py')),
 
     Mechanism('filter_bar', 'Barre de filtrage',

@@ -126,6 +126,16 @@ _APPLY_THEME = """([key, bootstrap]) => {
 }"""
 
 
+def apply_theme(page, theme):
+    """Pose `theme` sur la page mesurée comme `base.html` le pose. Un thème GÉNÉRÉ reçoit en plus
+    le bloc qu'un compte a pour la couleur par défaut ; le générateur tient le contraste de TOUTE
+    graine (`tests_theme.GeneratedThemeTest`)."""
+    from wama.common.themes import DEFAULT_ACCENT, generated_css
+    page.evaluate(_APPLY_THEME, [theme.key, theme.bootstrap])
+    if theme.generated:
+        page.add_style_tag(content=generated_css(theme.key, DEFAULT_ACCENT))
+
+
 def check_contrast():
     """Chaque page mesurée, dans CHAQUE thème déclaré (`common/themes.py`) : aucun texte
     illisible. (ok, détail)."""
@@ -155,7 +165,7 @@ def check_contrast():
                         continue
                     if not response or response.status != 200:
                         continue        # page refusée au compte de test : son droit, pas un défaut
-                    page.evaluate(_APPLY_THEME, [theme.key, theme.bootstrap])
+                    apply_theme(page, theme)
                     page.wait_for_timeout(600)
                     page_faults, page_weak = contrast_verdict(measure_contrast(page), where)
                     faults += page_faults

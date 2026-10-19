@@ -36,6 +36,12 @@ def luminance(rgb) -> float:
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
+def contrast_ratio(a, b) -> float:
+    """Rapport de contraste WCAG de deux triplets 0-255 (1 à 21)."""
+    ya, yb = luminance(a), luminance(b)
+    return (max(ya, yb) + 0.05) / (min(ya, yb) + 0.05)
+
+
 def mirrored_luminance(y: float) -> float:
     return 0.0525 / (y + 0.05) - 0.05
 

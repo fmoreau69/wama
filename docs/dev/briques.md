@@ -2550,12 +2550,16 @@ Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), pas
 
 - **Domicile** : `wama/common/themes.py` · **doc** : [docs/construction/suivi/ROADMAP.md §28](../construction/suivi/ROADMAP.md)
 - **Module** : Thèmes de WAMA — LA déclaration (chantier ouvert le 2026-10-17, demande de Fabien : « ça fonctionnera aussi quand on aura mis en place plusieurs thèmes/modes (sombre/clair/UGE/etc) »).
-- **API publique** (8) :
+- **API publique** (12) :
   - `class Theme`
+  - `font_stylesheets() -> list[str]` — Les feuilles des polices que WAMA SERT (`CHARTERS[…]['font']['stylesheet']`), une fois
   - `theme(key: str) -> Theme` — Le thème déclaré sous `key`, sinon le thème par défaut (jamais une page sans thème).
   - `choices() -> list[tuple[str, str]]` — Ce que propose le Profil : « Automatique », puis chaque thème déclaré.
   - `theme_choice(user) -> str` — Le choix du compte : une clé de thème, ou `AUTO`. `DEFAULT_CHOICE` sans compte, sans
-  - `save_theme_choice(user, value) -> str` — Enregistre le choix du compte ; `ValueError` pour un choix qui n'est pas proposé.
+  - `save_theme_choice(user, value, accent=None) -> str` — Enregistre le choix du compte, et la couleur d'accent si elle est donnée ; `ValueError`
+  - `theme_accent(user) -> str` — La couleur d'accent du thème personnalisé du compte ; `DEFAULT_ACCENT` sans compte, sans
+  - `generated_css(choice: str, accent: str) -> str` — La règle que `base.html` pose pour un choix de thème GÉNÉRÉ ; '' pour tout autre choix.
+  - `palette_previews() -> list[dict]` — Ce que montre le Profil pour chaque couleur proposée : la graine, et l'accent qu'elle
   - `resolve(choice: str) -> Theme` — Le thème que le SERVEUR pose pour un choix. « Automatique » rend le défaut : le script de
   - `declared_for_pages(choice: str) -> dict` — Ce que lit `wama-theme.js` : le choix, le mode de Bootstrap de chaque thème, et le thème que
   - `theme_for(request) -> Theme` — Le thème que le serveur pose pour une requête (le choix du compte connecté).

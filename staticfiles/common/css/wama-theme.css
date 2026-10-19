@@ -23,7 +23,8 @@
 
 :root,
 [data-wama-theme="dark"],
-[data-wama-theme="lasuite-dark"] {
+[data-wama-theme="lasuite-dark"],
+[data-wama-theme="custom-dark"] {
   /* ── Page ── */
   --wama-page-bg-start: #1a1a2e;            /* dégradé du fond de page */
   --wama-page-bg-end: #16213e;
@@ -549,12 +550,15 @@
    Un thème DÉRIVÉ du clair (`Theme.base == 'light'` dans `themes.py` — UGE, La Suite) figure dans
    la liste de sélecteurs de ce bloc : il en reçoit toutes les valeurs, puis son propre bloc, plus
    bas, ne redéfinit que ce que sa charte change. Un dérivé du SOMBRE (La Suite sombre) figure de
-   même dans la liste du bloc sombre, en tête de ce fichier.
+   même dans la liste du bloc sombre, en tête de ce fichier. Les thèmes PERSONNALISÉS
+   (`custom-light`, `custom-dark`) n'ont pas de bloc ici : le leur est GÉNÉRÉ pour chaque compte
+   (`theme_generator.py`) et posé par `base.html` dans `#wama-theme-generated`.
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
 [data-wama-theme="light"],
 [data-wama-theme="uge"],
-[data-wama-theme="lasuite"] {
+[data-wama-theme="lasuite"],
+[data-wama-theme="custom-light"] {
   /* ── Page ── */
   --wama-page-bg-start: #f4f6fa;            /* dégradé du fond de page */
   --wama-page-bg-end: #eef1f6;
@@ -1123,8 +1127,9 @@
    Cunningham lui donne : fond de marque brand-550 (boutons, accent), texte de marque brand-700,
    lien brand-600, marque secondaire brand-350 / brand-100, surface tertiaire gray-025 (la page).
    `themes.CHARTERS['lasuite']` les déclare. Ni la Marianne ni le logo de l'État : réservés aux
-   services de l'État, et rien ici n'en a besoin. Sa police (Roboto Flex, libre) n'est pas
-   embarquée — elle passerait par `tools/update_vendors.sh`.
+   services de l'État, et rien ici n'en a besoin. Sa police, Roboto Flex (SIL OFL 1.1), est
+   servie : `tools/update_vendors.sh` la vendorise, `themes.CHARTERS['lasuite']['font']` la
+   déclare, `base.html` en charge la feuille (2026-10-20).
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
 [data-wama-theme="lasuite"] {
@@ -1155,6 +1160,9 @@
   --bs-primary-text-emphasis: #20467f;      /* brand-700 */
   --bs-primary-bg-subtle: #d5e4f7;          /* brand-100 */
   --bs-primary-border-subtle: #80aee8;      /* brand-300 */
+
+  /* ── Typographie de la charte ── */
+  --bs-body-font-family: "Roboto Flex Variable", var(--bs-font-sans-serif);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════
@@ -1196,4 +1204,7 @@
   --bs-primary-text-emphasis: #80aee8;      /* brand-300 */
   --bs-primary-bg-subtle: #1a2638;          /* brand-850 */
   --bs-primary-border-subtle: #20467f;      /* brand-700 */
+
+  /* ── Typographie de la charte ── */
+  --bs-body-font-family: "Roboto Flex Variable", var(--bs-font-sans-serif);
 }

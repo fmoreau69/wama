@@ -231,6 +231,11 @@ def profile_view(request):
         'languages': LANGUAGE_CHOICES,
         # Le choix courant (`theme_choice`) vient du contexte de toute page.
         'theme_choices': themes.choices(),
+        # `getattr` : un worker peut lire cette vue neuve avec un `themes` importé d'avant l'étape 7
+        # (vécu le 2026-10-19 avec `Theme.logo` : des pages en 500 jusqu'au rechargement).
+        'theme_generated_keys': [t.key for t in themes.THEMES if getattr(t, 'generated', False)],
+        'theme_palettes': getattr(themes, 'palette_previews', list)(),
+        'theme_accent': getattr(themes, 'theme_accent', lambda user: '')(request.user),
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
@@ -490,7 +495,10 @@ def units_update(request):
 @require_POST
 def theme_update(request):
     """AJAX: enregistre le THÈME du compte — un thème déclaré (`common/themes.py`) ou
-    « Automatique », qui suit le mode du système. Réglage durable, lu sur toute page."""
+    « Automatique », qui suit le mode du système — et, pour un thème personnalisé, sa couleur
+    d'accent (`accent`). Réglage durable, lu sur toute page. Rend le bloc GÉNÉRÉ (`css`, '' pour
+    un autre thème) : le Profil le pose sur place."""
+    from wama.common import themes as declared
     from wama.common.themes import save_theme_choice
 
     try:
@@ -498,10 +506,14 @@ def theme_update(request):
     except json.JSONDecodeError:
         return JsonResponse({'error': 'JSON invalide'}, status=400)
     try:
-        choice = save_theme_choice(request.user, data.get('theme'))
+        accent = data.get('accent')
+        choice = save_theme_choice(request.user, data.get('theme'), *(() if accent is None else (accent,)))
     except ValueError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
-    return JsonResponse({'success': True, 'theme': choice})
+    # `getattr` : même raison que dans `profile` (un `themes` d'avant l'étape 7 en mémoire).
+    accent = getattr(declared, 'theme_accent', lambda user: '')(request.user)
+    css = getattr(declared, 'generated_css', lambda choice, accent: '')(choice, accent)
+    return JsonResponse({'success': True, 'theme': choice, 'accent': accent, 'css': css})
 
 
 @login_required

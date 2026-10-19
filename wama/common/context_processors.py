@@ -36,14 +36,22 @@ def theme(request):
     `theme_choice` est le choix du compte (« Automatique » compris) ; `theme_declared`, ce que
     `wama-theme.js` lit pour résoudre « Automatique » avant le premier rendu. `theme_logos` : les
     thèmes qui ont un logo, tous posés dans la barre du haut — la feuille ne montre que celui du
-    thème actif, qui peut changer sans recharger (Profil, « Automatique »)."""
+    thème actif, qui peut changer sans recharger (Profil, « Automatique »). `theme_font_sheets` :
+    les feuilles des polices que les chartes font servir (`themes.font_stylesheets`).
+    `theme_generated_css` : le bloc GÉNÉRÉ d'un thème personnalisé choisi (`themes.generated_css`)."""
+    from wama.common import themes as declared
     from wama.common.themes import THEMES, declared_for_pages, resolve, theme_choice
-    choice = theme_choice(getattr(request, 'user', None))
+    user = getattr(request, 'user', None)
+    choice = theme_choice(user)
+    generated = getattr(declared, 'generated_css', None)
+    accent = getattr(declared, 'theme_accent', None)
     return {'theme': resolve(choice), 'theme_choice': choice,
             'theme_declared': declared_for_pages(choice),
             # `getattr` : un worker recyclé peut lire ce module neuf avec un `themes` déjà importé
             # d'avant `Theme.logo` (vécu le 2026-10-19 : toutes les pages en 500 jusqu'au rechargement)
-            'theme_logos': [t for t in THEMES if getattr(t, 'logo', '')]}
+            'theme_logos': [t for t in THEMES if getattr(t, 'logo', '')],
+            'theme_font_sheets': getattr(declared, 'font_stylesheets', list)(),
+            'theme_generated_css': generated(choice, accent(user)) if generated and accent else ''}
 
 
 #: Ce que voit un visiteur sans compte : pas d'avatar (la vocalisation exige un compte).

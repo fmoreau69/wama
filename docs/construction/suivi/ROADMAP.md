@@ -6091,7 +6091,7 @@ listes déroulantes.
    (fond de marque brand-550 #1167d4, texte de marque brand-700, lien brand-600, page gray-025).
    Les couleurs de SENS (succès, échec…) restent celles du clair. Polices non embarquées : TT Norms
    (UGE) est sous licence commerciale (nommée depuis, 6bis) ; Roboto Flex (La Suite) est libre, elle passerait par
-   `tools/update_vendors.sh`. Ni Marianne ni logo de l'État (réservés aux services de l'État).
+   `tools/update_vendors.sh` (servie depuis, 6ter). Ni Marianne ni logo de l'État (réservés aux services de l'État).
    *Bootstrap* : 5.3.0 écrit #0d6efd EN DUR dans `.btn-primary`, `.btn-outline-primary`,
    `.nav-pills`, `.pagination` — `app_modern.css` les fait lire `--bs-primary`, teintes de
    survol/appui calculées comme Bootstrap (`color-mix` avec `--bs-black`, 15/20/25 %) : même rendu
@@ -6138,16 +6138,62 @@ listes déroulantes.
    le context processor l'a lu neuf avec l'ancien `themes` : toutes ses pages en 500 (96 erreurs
    journalisées de 23 h 02 à 23 h 05, rechargement de gunicorn à 23 h 18 sur accord de Fabien). Lu
    désormais par `getattr`.
-7. ⏳ **Personnaliser son thème** (question de Fabien, 2026-10-19 : charte complète ? palettes à
-   cliquer ? une image dont un LLM tire le thème ?) — *proposition, rien de construit* : toutes les
-   voies produisent la MÊME chose, quelques couleurs-graines (base claire ou sombre, primaire,
-   secondaire, teinte de page), et UN générateur en dérive le bloc avec les gardes ci-dessus
-   (contraste ajusté jusqu'à 4,5:1) — jamais 421 tokens édités à la main. Ordre proposé :
-   (1) palettes et couleur d'accent à cliquer au Profil ; (2) import d'une CHARTE (PDF) pour un
-   labo, une équipe, un établissement — le LLM lit les valeurs dans le texte (comme la p. 7 de la
-   charte UGE), un humain valide, le thème est partagé selon la portée (même héritage que la
-   visibilité, `§29`) ; (3) une image : la palette s'en extrait sans LLM (regroupement des
-   couleurs en OKLab), le LLM ne sert au plus qu'à choisir les rôles.
+6ter. ✅ **La police de La Suite, Roboto Flex** (2026-10-20 — Fabien : *« ok pour Roboto Flex par
+   update_vendors. On laisse TT Norms uniquement si le poste en dispose »*). Paquet Fontsource
+   `@fontsource-variable/roboto-flex` **5.3.0** (publié le 2026-07-19, **SIL OFL 1.1**), celui que
+   Cunningham importe : `index.css` (axe de graisse, famille « Roboto Flex Variable ») et ses six
+   sous-ensembles `.woff2` (~110 Ko en tout ; le navigateur ne tire que celui qu'il affiche, le latin).
+   *Route* : section `roboto-flex` de `tools/update_vendors.sh`, qui accepte désormais des noms de
+   section en arguments (`bash tools/update_vendors.sh roboto-flex` ne retélécharge que celle-là),
+   puis `collectstatic` — essayé à blanc d'abord : ses deux autres copies étaient identiques à
+   l'octet. *Déclaration* : `CHARTERS[…]['font']` (`family`, `stylesheet` ; UGE : `TT Norms Pro`,
+   sans feuille) ; `themes.font_stylesheets()` → contexte `theme_font_sheets` → `base.html` charge
+   chaque feuille sur toute page (une `@font-face` ne télécharge rien tant qu'aucun thème ne
+   l'emploie, et le Profil change de thème sans recharger) ; les deux blocs La Suite posent
+   `--bs-body-font-family: "Roboto Flex Variable", …`. *Garde* : `ThemeIdentityTest` — la famille
+   de la charte est la première de chaque thème qui en vient, une police servie est tirée par la
+   route, copiée à l'identique dans `staticfiles/`, déclare sa famille et des fontes présentes ; une
+   police sous licence n'a jamais de feuille. Contre-épreuves rouges : police retirée du bloc
+   sombre, copie servie absente, une fonte absente. *Mesuré* (serveur éphémère) : sous La Suite
+   claire et sombre, la fonte latine est chargée (200) et appliquée ; sous Sombre et UGE, aucune
+   requête de police. TT Norms reste nommée, servie seulement par un poste qui l'a (Fabien se
+   renseigne sur une licence web).
+7. 🔄 **Personnaliser son thème** (question de Fabien, 2026-10-19 : charte complète ? palettes à
+   cliquer ? une image dont un LLM tire le thème ?) : toutes les voies produisent la MÊME chose,
+   quelques couleurs-graines, et UN générateur en dérive le bloc avec les gardes ci-dessus
+   (contraste ajusté jusqu'à 4,5:1) — jamais 421 tokens édités à la main. Ordre retenu :
+   (1) ✅ palettes et couleur d'accent à cliquer au Profil (2026-10-20, ci-dessous) ; (2) ⏳ import
+   d'une CHARTE (PDF) pour un labo, une équipe, un établissement — le LLM lit les valeurs dans le
+   texte (comme la p. 7 de la charte UGE), un humain valide, le thème est partagé selon la portée
+   (même héritage que la visibilité, `§29`) ; (3) ⏳ une image : la palette s'en extrait sans LLM
+   (regroupement des couleurs en OKLab), le LLM ne sert au plus qu'à choisir les rôles. Les deux
+   dernières voies ne produiront que de nouvelles GRAINES pour le même générateur.
+   **Voie (1), livrée le 2026-10-20** (Fabien : *« puis la personnalisation des thèmes »*).
+   *Déclaration* : deux thèmes `custom-light` et `custom-dark` (`Theme.generated`), « Personnalisé
+   (clair) / (sombre) » au Profil, dans la liste de sélecteurs de leur base comme un dérivé — mais
+   sans bloc dans `wama-theme.css` : le leur est GÉNÉRÉ. `themes.PALETTES` : onze couleurs d'accent
+   à cliquer (la première, bleu, est celle d'un compte qui n'a rien choisi), toute autre au
+   sélecteur de couleur. Réglage durable `user_settings` `common/theme_accent` à côté de
+   `common/theme`. *Générateur* : `wama/common/theme_generator.py` — base + accent → les ~20
+   propriétés d'un bloc de charte (accent, liens, primaire de Bootstrap et ses teintes, page teintée
+   de 5-6 %) ; chaque couleur lue comme texte est assombrie (clair) ou éclaircie (sombre) jusqu'à
+   4,5:1 sur chaque fond de la base et sur la page, la primaire jusqu'à 4,5:1 sous son texte blanc
+   — un jaune devient ocre sur le clair, d'où la pastille qui montre la couleur OBTENUE. Les fonds
+   sont lus dans `wama-theme.css`, jamais recopiés. *Service* : `themes.generated_css` → contexte
+   `theme_generated_css` → `<style id="wama-theme-generated">` dans `base.html`, après les tokens ;
+   au Profil, l'enregistrement (`accounts:profile-theme`, champ `accent`) rend le bloc, posé sur
+   place. Une graine qui n'est pas `#rrggbb` est refusée (400) : rien de saisi n'entre tel quel
+   dans la feuille. *Gardes* : `tests_theme.GeneratedThemeTest` — 366 graines (tout le cercle des
+   teintes, clartés et saturations, noir, blanc, jaune pur) dans les deux bases, aucun texte sous
+   4,5:1 ; le bloc ne pose que des tokens de sa base ; graine refusée ; servi sur toute page et
+   seulement sous un thème généré ; ordre dans `base.html` ; le scénario de contraste pose le bloc
+   (`ui_smoke_contrast.apply_theme`, exécuté sur une fausse page). Contre-épreuves rouges : lien
+   non ajusté, graine non validée, thème retiré de la liste de sa base, scénario sans le bloc,
+   `base.html` sans le bloc, contexte qui ne le sert pas. *Mesuré* : `common.contrast` sur les
+   deux thèmes personnels, 60 pages, aucun texte illisible — mêmes points faibles que le Clair et le
+   Sombre (événements du calendrier, boutons « outline ») ; smoke au Profil (serveur éphémère) :
+   choix, pastille, sélecteur, autre page, retour à UGE, aucune erreur JS — réglages du compte de
+   test restaurés à l'identique (il reste sans choix : captures sombres).
 
 ## 29. PROVENANCE de tout ce qui entre dans WAMA — privé à son auteur, « Système » une fois promu (ouvert le 2026-10-18, demande de Fabien)
 

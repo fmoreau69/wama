@@ -266,6 +266,7 @@ class ThemeDeclarationTest(SimpleTestCase):
     def test_the_contrast_scenario_plays_every_declared_theme(self):
         source = (ROOT / 'wama' / 'common' / 'services' / 'ui_smoke_contrast.py').read_text(encoding='utf-8')
         self.assertIn('for theme in THEMES:', source)
+        self.assertIn('apply_theme(page, theme)', source)
         self.assertIn("page.evaluate(_APPLY_THEME, [theme.key, theme.bootstrap])", source)
 
 
@@ -365,11 +366,10 @@ class LightThemeIsTheMirrorTest(SimpleTestCase):
     def test_the_mirror_keeps_every_contrast_ratio(self):
         """Contre-épreuve de la règle elle-même : le rapport d'un texte à son fond est conservé,
         inversé ; le noir et le blanc s'échangent ; un gris reste un gris."""
-        from wama.common.theme_mirror import luminance, mirror, parse
+        from wama.common.theme_mirror import contrast_ratio, mirror, parse
 
         def ratio(a, b):
-            ya, yb = (luminance(parse(v)[1]) for v in (a, b))
-            return (max(ya, yb) + 0.05) / (min(ya, yb) + 0.05)
+            return contrast_ratio(parse(a)[1], parse(b)[1])
         for text, ground in (('#9aa3ab', '#212529'), ('#ffc107', '#1a1a2e'), ('#dee2e6', '#2b3035')):
             with self.subTest(pair=(text, ground)):
                 self.assertAlmostEqual(ratio(text, ground), ratio(mirror(text), mirror(ground)), delta=0.15)
@@ -450,7 +450,7 @@ class DerivedThemeTest(SimpleTestCase):
         from wama.common.themes import CHARTERS, THEMES
         own = own_blocks()
         for t in THEMES:
-            if t.base:
+            if t.base and not t.generated:
                 with self.subTest(theme=t.key):
                     self.assertIn(t.charter, CHARTERS, 'a derived theme names its charter')
                     self.assertIn(t.key, own, 'and redefines something')
@@ -481,18 +481,17 @@ class DerivedThemeTest(SimpleTestCase):
         du sombre en sombre — et sur son fond de page ; la primaire, fond d'un bouton plein, passe
         4,5:1 sous son texte blanc. En sombre, la primaire n'est pas lue comme texte : aucune
         couleur ne passe 4,5:1 à la fois sous un texte blanc et sur un fond sombre."""
-        from wama.common.theme_mirror import luminance, parse
+        from wama.common.theme_mirror import contrast_ratio, parse
         from wama.common.themes import THEMES
 
         def ratio(a, b):
-            ya, yb = (luminance(parse(v)[1]) for v in (a, b))
-            return (max(ya, yb) + 0.05) / (min(ya, yb) + 0.05)
+            return contrast_ratio(parse(a)[1], parse(b)[1])
         own, blocks = own_blocks(), theme_blocks()
         texts = ('--wama-accent-text', '--wama-link', '--wama-link-soft', '--wama-accent-soft-text',
                  '--bs-primary-text-emphasis')
         for t in THEMES:
-            if not t.base:
-                continue
+            if not t.base or t.generated:
+                continue        # un thème généré : `GeneratedThemeTest`, pour toute graine
             block, base = own[t.key], blocks[t.base]
             if t.bootstrap == 'light':
                 grounds, read = ('#ffffff',), texts + ('--bs-primary',)
@@ -550,6 +549,48 @@ class ThemeIdentityTest(SimpleTestCase):
         self.assertTrue(paths, 'the walk sees the font files that are served (Font Awesome…)')
         self.assertEqual([], served_licensed_fonts(paths, _sources(('.css', '.html')), LICENSED_FONTS))
         self.assertIn('"TT Norms Pro"', THEME_CSS.read_text(encoding='utf-8'), 'named, for a workstation that has it')
+
+    def test_a_charter_font_is_the_family_of_its_themes_and_free_ones_are_served(self):
+        """La police de la charte (`CHARTERS[…]['font']`, 2026-10-20) est la première famille de
+        chaque thème qui en vient ; une police SERVIE l'est par la route des vendors front
+        (`tools/update_vendors.sh`), copie servie comprise, et sa feuille déclare la famille et
+        des fontes présentes. Une police sous licence n'a jamais de feuille."""
+        from django.contrib.staticfiles import finders
+
+        from wama.common.context_processors import theme
+        from wama.common.themes import CHARTERS, LICENSED_FONTS, THEMES, font_stylesheets
+        own = own_blocks()
+        for t in THEMES:
+            font = CHARTERS.get(t.charter, {}).get('font')
+            if not font:
+                continue
+            with self.subTest(theme=t.key):
+                stack = own[t.key]['--bs-body-font-family']
+                self.assertEqual(font['family'], stack.split(',')[0].strip().strip('"\''))
+        sheets = font_stylesheets()
+        self.assertIn('vendors/roboto-flex-5.3.0/index.css', sheets)
+        self.assertEqual(sheets, theme(RequestFactory().get('/'))['theme_font_sheets'])
+        self.assertIn('{% for sheet in theme_font_sheets %}', BASE_HTML.read_text(encoding='utf-8'))
+        route = (ROOT / 'tools' / 'update_vendors.sh').read_text(encoding='utf-8')
+        for charter in CHARTERS.values():
+            font = charter.get('font') or {}
+            if any(n.lower() in font.get('family', '').lower() for n in LICENSED_FONTS):
+                self.assertEqual('', font['stylesheet'], 'a licensed font is named, never served')
+        for sheet in sheets:
+            with self.subTest(sheet=sheet):
+                source = Path(finders.find(sheet))
+                self.assertEqual(source.read_bytes(), (ROOT / 'staticfiles' / sheet).read_bytes())
+                self.assertIn(sheet.split('/')[1].rsplit('-', 1)[0], route, 'vendored by the route')
+                text = source.read_text(encoding='utf-8')
+                families = {c['font']['family'] for c in CHARTERS.values()
+                            if c.get('font', {}).get('stylesheet') == sheet}
+                for family in families:
+                    self.assertIn(f"font-family: '{family}'", text)
+                urls = re.findall(r'url\(\s*["\']?([^)"\']+)', text)
+                self.assertTrue(urls)
+                for url in urls:
+                    self.assertTrue((source.parent / url).is_file(), url)
+                    self.assertTrue((ROOT / 'staticfiles' / Path(sheet).parent / url).is_file(), url)
 
     def test_the_font_guard_sees_a_served_file_and_a_font_face(self):
         """Contre-épreuve sur des sources écrites pour elle."""
@@ -662,7 +703,8 @@ class ThemeChoiceTest(TestCase):
         url = reverse('accounts:profile-theme')
         self.assertEqual(400, self.client.post(url, '{"theme": "nope"}', content_type='application/json').status_code)
         response = self.client.post(url, '{"theme": "light"}', content_type='application/json')
-        self.assertEqual({'success': True, 'theme': 'light'}, response.json())
+        self.assertEqual({'success': True, 'theme': 'light', 'css': ''},
+                         {k: response.json()[k] for k in ('success', 'theme', 'css')})
         self.assertEqual('light', theme_choice(self.user))
         html = self.client.get(reverse('accounts:profile')).content.decode()
         self.assertIn('id="themeSelect"', html)
@@ -678,6 +720,140 @@ class ThemeChoiceTest(TestCase):
         first_sheet = html.index('rel="stylesheet"')
         self.assertLess(declared, script)
         self.assertLess(script, first_sheet, 'the theme is set before the first paint')
+
+
+def seed_sweep():
+    """Des graines de tout le cercle des teintes, de toute clarté et saturation, et les extrêmes."""
+    import colorsys
+    seeds = ['#000000', '#ffffff', '#ffff00', '#00ffff', '#808080', '#0d6efd']
+    for h in range(0, 360, 15):
+        for light in (0.15, 0.35, 0.5, 0.65, 0.85):
+            for sat in (0.3, 0.7, 1.0):
+                rgb = colorsys.hls_to_rgb(h / 360, light, sat)
+                seeds.append('#' + ''.join(f'{round(c * 255):02x}' for c in rgb))
+    return seeds
+
+
+def generated_text_faults(base, block):
+    """Les textes d'un bloc généré qui ne passent pas 4,5:1 sur un fond de leur base ou sur leur
+    page, et la primaire qui ne le passe pas sous son texte blanc — les règles d'un thème dérivé."""
+    from wama.common.theme_generator import grounds
+    from wama.common.theme_mirror import contrast_ratio as ratio
+    from wama.common.theme_mirror import parse
+
+    def rgb(name):
+        return parse(block[name])[1]
+    texts = ['--wama-accent-text', '--wama-link', '--wama-link-soft', '--wama-accent-soft-text',
+             '--bs-primary-text-emphasis'] + (['--bs-primary'] if base == 'light' else [])
+    read_on = grounds(base, rgb('--wama-page-bg-start')) + (rgb('--wama-page-bg-end'),)
+    faults = [(name, ground) for name in texts for ground in read_on if ratio(rgb(name), ground) < 4.5]
+    on_fill = parse(theme_blocks()[base]['--wama-text-on-accent'])[1]
+    if ratio(rgb('--bs-primary'), on_fill) < 4.5:
+        faults.append(('--bs-primary', on_fill))
+    return faults
+
+
+class GeneratedThemeTest(TestCase):
+    """Étape 7 (2026-10-20) : le thème PERSONNALISÉ — une base et une couleur d'accent choisies au
+    Profil, le bloc d'identité GÉNÉRÉ (`theme_generator`), jamais édité à la main."""
+
+    def test_every_seed_gives_legible_texts_in_both_bases(self):
+        from wama.common.theme_generator import generate
+        from wama.common.themes import THEMES
+        generated = [t for t in THEMES if t.generated]
+        self.assertEqual({'light', 'dark'}, {t.base for t in generated})
+        seeds = seed_sweep()
+        self.assertGreater(len(seeds), 300)
+        for t in generated:
+            for seed in seeds:
+                with self.subTest(theme=t.key, seed=seed):
+                    self.assertEqual([], generated_text_faults(t.base, generate(t.base, seed)))
+
+    def test_the_legibility_guard_sees_a_dark_link_and_a_pale_primary(self):
+        """Contre-épreuve : un lien trop sombre sur le sombre, une primaire trop pâle sous le blanc."""
+        from wama.common.theme_generator import generate
+        block = dict(generate('dark', '#0d6efd'), **{'--wama-link': '#1a2638'})
+        self.assertEqual(['--wama-link'], sorted({n for n, _ in generated_text_faults('dark', block)}))
+        block = dict(generate('light', '#0d6efd'), **{'--bs-primary': '#96bcec'})
+        self.assertIn('--bs-primary', {n for n, _ in generated_text_faults('light', block)})
+
+    def test_a_generated_block_only_sets_tokens_its_base_has(self):
+        from wama.common.theme_generator import generate
+        for base in ('light', 'dark'):
+            names = set(generate(base, '#16a34a'))
+            wama = {n for n in names if n.startswith('--wama-')}
+            self.assertEqual(set(), wama - set(theme_blocks()[base]))
+            self.assertEqual(set(), names - wama - {n for b in own_blocks().values() for n in b},
+                             'a Bootstrap property that a charter theme also sets')
+
+    def test_a_seed_that_is_not_a_colour_is_refused(self):
+        from django.contrib.auth.models import User
+
+        from wama.common.theme_generator import generate
+        from wama.common.themes import save_theme_choice
+        user = User.objects.create_user('theme-generated-test', password='x')
+        for bad in ('red', '#fff', 'url(x)', '#0d6efd;}', None):
+            with self.subTest(seed=bad), self.assertRaises(ValueError):
+                generate('dark', bad)
+        with self.assertRaises(ValueError):
+            save_theme_choice(user, 'custom-dark', '#0d6efd;} body{display:none')
+
+    def test_a_chosen_accent_is_served_on_every_page_and_only_under_a_generated_theme(self):
+        from django.contrib.auth.models import User
+        from django.urls import reverse
+
+        from wama.common.context_processors import theme
+        from wama.common.theme_generator import css_block
+        from wama.common.themes import DEFAULT_ACCENT, save_theme_choice
+        user = User.objects.create_user('theme-generated-page', password='x')
+        request = RequestFactory().get('/')
+        request.user = user
+        save_theme_choice(user, 'custom-dark')
+        self.assertEqual(css_block('custom-dark', 'dark', DEFAULT_ACCENT), theme(request)['theme_generated_css'])
+        save_theme_choice(user, 'custom-light', '#16A34A')
+        self.assertEqual(css_block('custom-light', 'light', '#16a34a'), theme(request)['theme_generated_css'])
+        save_theme_choice(user, 'uge')
+        self.assertEqual('', theme(request)['theme_generated_css'], 'the accent stays, unused')
+        self.client.force_login(user)
+        url = reverse('accounts:profile-theme')
+        self.assertEqual(400, self.client.post(url, '{"theme": "custom-dark", "accent": "blue"}',
+                                               content_type='application/json').status_code)
+        data = self.client.post(url, '{"theme": "custom-dark", "accent": "#dc2626"}',
+                                content_type='application/json').json()
+        self.assertEqual(css_block('custom-dark', 'dark', '#dc2626'), data['css'])
+        html = self.client.get(reverse('accounts:profile')).content.decode()
+        self.assertIn('<style id="wama-theme-generated">[data-wama-theme="custom-dark"] {', html)
+        self.assertIn('data-accent="#dc2626"', html)
+        self.assertIn('id="themeAccentInput"', html)
+
+    def test_base_sets_the_generated_block_after_the_tokens(self):
+        html = BASE_HTML.read_text(encoding='utf-8')
+        self.assertLess(html.index("static_v 'common/css/wama-theme.css'"),
+                        html.index('<style id="wama-theme-generated">{{ theme_generated_css|safe }}</style>'))
+
+    def test_the_contrast_scenario_measures_the_generated_block(self):
+        """`apply_theme` sur une fausse page : un thème généré reçoit son bloc, un autre rien."""
+        from wama.common.services.ui_smoke_contrast import apply_theme
+        from wama.common.theme_generator import css_block
+        from wama.common.themes import DEFAULT_ACCENT, THEMES
+
+        class Page:
+            def __init__(self):
+                self.calls = []
+
+            def evaluate(self, script, args):
+                self.calls.append(('theme', tuple(args)))
+
+            def add_style_tag(self, content):
+                self.calls.append(('style', content))
+        for t in THEMES:
+            with self.subTest(theme=t.key):
+                page = Page()
+                apply_theme(page, t)
+                expected = [('theme', (t.key, t.bootstrap))]
+                if t.generated:
+                    expected.append(('style', css_block(t.key, t.base, DEFAULT_ACCENT)))
+                self.assertEqual(expected, page.calls)
 
 
 class ThemeScriptTest(SimpleTestCase):

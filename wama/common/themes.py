@@ -36,6 +36,10 @@ class Theme:
     #: Le logo que la barre du haut montre sous ce thème (chemin de fichier statique), tel que sa
     #: charte le fournit ; '' = aucun.
     logo: str = ''
+    #: Son bloc d'identité est GÉNÉRÉ, pour chaque compte, des graines qu'il a choisies
+    #: (`theme_generator`, servi dans `#wama-theme-generated`) : pas de bloc ni de charte dans
+    #: `wama-theme.css`, où il ne figure que dans la liste de sélecteurs de sa base.
+    generated: bool = False
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -58,7 +62,22 @@ THEMES = (
     # jour, Fabien : « La Suite en sombre, mais la suite de base en version claire »).
     Theme('lasuite-dark', 'La Suite numérique (sombre)', bootstrap='dark', base='dark',
           charter='lasuite'),
+    # Le thème de CHACUN : une base et une couleur d'accent choisies au Profil, le bloc généré
+    # (2026-10-20, `ROADMAP §28` étape 7, 1ʳᵉ voie — « cliquer sur des thèmes de couleurs »).
+    Theme('custom-light', 'Personnalisé (clair)', bootstrap='light', base='light', generated=True),
+    Theme('custom-dark', 'Personnalisé (sombre)', bootstrap='dark', base='dark', generated=True),
 )
+
+#: Les couleurs d'accent que le Profil propose d'un clic pour un thème personnalisé (la première
+#: est celle d'un compte qui n'en a pas choisi) ; toute autre se choisit au sélecteur de couleur.
+#: Ce sont des GRAINES : le générateur les ajuste au contraste de la base (un jaune devient ocre
+#: sur le clair), d'où l'aperçu de la couleur obtenue à côté de chacune.
+PALETTES = (
+    ('Bleu', '#0d6efd'), ('Indigo', '#4f46e5'), ('Violet', '#7c3aed'), ('Rose', '#db2777'),
+    ('Rouge', '#dc2626'), ('Orange', '#ea580c'), ('Ambre', '#d97706'), ('Vert', '#16a34a'),
+    ('Sarcelle', '#0d9488'), ('Cyan', '#0891b2'), ('Ardoise', '#64748b'),
+)
+DEFAULT_ACCENT = PALETTES[0][1]
 
 #: Les CHARTES graphiques dont un thème dérivé tire ses couleurs — chaque couleur écrite dans son
 #: bloc en vient (`tests_theme` le vérifie) : une couleur de la charte, ou une teinte que Bootstrap
@@ -73,6 +92,8 @@ CHARTERS = {
             'orange': '#ef7d00', 'violet': '#8b4a97',
             'fond de page (relevé sur ses pages)': '#f1f2f2',
         },
+        # p. 8 : TT Norms, sous licence commerciale — nommée, jamais servie (`LICENSED_FONTS`).
+        'font': {'family': 'TT Norms Pro', 'stylesheet': ''},
         'derived': {
             '#131135': ('#2f2a85', '#000000', 0.40),   # `--bs-primary-text-emphasis`
             '#d5d4e7': ('#2f2a85', '#ffffff', 0.20),   # `--bs-primary-bg-subtle`
@@ -91,6 +112,10 @@ CHARTERS = {
             'purple-550': '#8b43da', 'gray-025': '#f7f8f8', 'gray-900': '#1b1c1d',
         },
         'derived': {},
+        # Roboto Flex (SIL OFL 1.1), le paquet Fontsource que Cunningham importe, vendorisé par
+        # `tools/update_vendors.sh` (section `roboto-flex`) — 2026-10-20, Fabien : « ok pour
+        # Roboto Flex par update_vendors ».
+        'font': {'family': 'Roboto Flex Variable', 'stylesheet': 'vendors/roboto-flex-5.3.0/index.css'},
     },
 }
 
@@ -100,6 +125,19 @@ CHARTERS = {
 #: navigateur ne l'emploie que si elle est installée sur le poste ; sinon, le repli de sa charte.
 #: `tests_theme` refuse un fichier de ces polices dans les dossiers statiques.
 LICENSED_FONTS = ('TT Norms',)
+
+
+def font_stylesheets() -> list[str]:
+    """Les feuilles des polices que WAMA SERT (`CHARTERS[…]['font']['stylesheet']`), une fois
+    chacune, pour les chartes d'un thème déclaré. `base.html` les charge sur toute page : une
+    `@font-face` ne télécharge sa fonte que si un thème l'emploie, et le Profil change de thème
+    sans recharger."""
+    sheets = []
+    for t in THEMES:
+        sheet = CHARTERS.get(t.charter, {}).get('font', {}).get('stylesheet', '')
+        if sheet and sheet not in sheets:
+            sheets.append(sheet)
+    return sheets
 
 #: Le thème de qui n'a rien choisi — aussi celui que `wama-theme.css` pose sur `:root` seul.
 DEFAULT = 'dark'
@@ -182,6 +220,8 @@ AUTO_THEMES = {'dark': 'dark', 'light': 'light'}
 DEFAULT_CHOICE = DEFAULT
 #: Où vit le choix : `user_settings`, app `common` (les réglages du compte, hors de toute app).
 SETTING_APP, SETTING_NAME = 'common', 'theme'
+#: … et la couleur d'accent d'un thème personnalisé, à côté.
+SETTING_ACCENT = 'theme_accent'
 
 
 def choices() -> list[tuple[str, str]]:
@@ -207,13 +247,52 @@ def theme_choice(user) -> str:
     return value if _valid(value) else DEFAULT_CHOICE
 
 
-def save_theme_choice(user, value) -> str:
-    """Enregistre le choix du compte ; `ValueError` pour un choix qui n'est pas proposé."""
+def save_theme_choice(user, value, accent=None) -> str:
+    """Enregistre le choix du compte, et la couleur d'accent si elle est donnée ; `ValueError`
+    pour un choix qui n'est pas proposé ou une couleur qui n'en est pas une."""
+    from wama.common.theme_generator import valid_seed
     if not _valid(value):
         raise ValueError(f"Thème inconnu : '{value}'")
+    if accent is not None and not valid_seed(accent):
+        raise ValueError(f"Couleur invalide : '{accent}' (attendu : #rrggbb)")
     from wama.common.utils.user_settings import save_user_app_settings
-    save_user_app_settings(user, SETTING_APP, {SETTING_NAME: value})
+    values = {SETTING_NAME: value}
+    if accent is not None:
+        values[SETTING_ACCENT] = accent.lower()
+    save_user_app_settings(user, SETTING_APP, values)
     return value
+
+
+def theme_accent(user) -> str:
+    """La couleur d'accent du thème personnalisé du compte ; `DEFAULT_ACCENT` sans compte, sans
+    couleur posée ou si elle n'est pas valide. Fail-safe comme `theme_choice`."""
+    from wama.common.theme_generator import valid_seed
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return DEFAULT_ACCENT
+    try:
+        from wama.common.utils.user_settings import get_user_app_setting
+        value = get_user_app_setting(user, SETTING_APP, SETTING_ACCENT, DEFAULT_ACCENT)
+    except Exception:
+        return DEFAULT_ACCENT
+    return value if valid_seed(value) else DEFAULT_ACCENT
+
+
+def generated_css(choice: str, accent: str) -> str:
+    """La règle que `base.html` pose pour un choix de thème GÉNÉRÉ ; '' pour tout autre choix."""
+    t = next((t for t in THEMES if t.key == choice), None)
+    if t is None or not t.generated:
+        return ''
+    from wama.common.theme_generator import css_block
+    return css_block(t.key, t.base, accent)
+
+
+def palette_previews() -> list[dict]:
+    """Ce que montre le Profil pour chaque couleur proposée : la graine, et l'accent qu'elle
+    donne réellement dans chaque base (le générateur l'ajuste au contraste)."""
+    from wama.common.theme_generator import generate
+    return [{'label': label, 'seed': seed,
+             'obtained': {t.key: generate(t.base, seed)['--wama-accent-text'] for t in THEMES if t.generated}}
+            for label, seed in PALETTES]
 
 
 def resolve(choice: str) -> Theme:
