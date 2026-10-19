@@ -249,6 +249,25 @@ def parse_test_run(output: str) -> dict:
     return out
 
 
+def _package_trees(label: str) -> dict:
+    """`{chemin relatif au paquet : arbre AST}` de chaque `.py` de la jumelle hors migrations, dans
+    l'ordre des chemins — la lecture commune des juges de substitution, qui en retirent chacun ce
+    qui n'est pas leur lecteur (tests copiés, le `models.py` jugé). Un fichier insyntaxique est
+    sauté : c'est le problème d'un AUTRE juge (compile)."""
+    import ast
+    base = WAMA_DIR / label
+    trees = {}
+    for p in sorted(base.rglob('*.py')):
+        rel = p.relative_to(base)
+        if 'migrations' in rel.parts:
+            continue
+        try:
+            trees[rel] = ast.parse(p.read_text(encoding='utf-8'))
+        except SyntaxError:
+            continue
+    return trees
+
+
 def _imports_intra_paquet_non_resolus(label: str) -> list:
     """Juge GÉNÉRIQUE de cohérence du paquet jumeau (2026-09-03, demande Fabien : « qu'une
     nouvelle génération ne redécouvre pas les mêmes problèmes »).
@@ -261,33 +280,24 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
     l'aurait jamais levé). Rend la liste des `from .x import Y` sans `Y` chez la cible.
     """
     import ast
-    base = WAMA_DIR / label
     prefixe = f'wama.{label}'
 
-    exposes = {}
-    arbres = {}
-    for p in base.rglob('*.py'):
-        if 'migrations' in p.parts:
-            continue
-        try:
-            arbre = ast.parse(p.read_text(encoding='utf-8'))
-        except SyntaxError:
-            continue    # un fichier insyntaxique est le problème d'un AUTRE juge (compile)
-        arbres[p] = arbre
-        mod = '.'.join(p.relative_to(base).with_suffix('').parts)
-        exposes[mod] = exposed_names(arbre)       # la lecture commune (`sandbox.exposed_names`)
+    arbres = _package_trees(label)
+    # la lecture commune (`sandbox.exposed_names`)
+    exposes = {'.'.join(rel.with_suffix('').parts): exposed_names(arbre)
+               for rel, arbre in arbres.items()}
 
     manquants = []
-    for p, arbre in arbres.items():
+    for rel, arbre in arbres.items():
         # Les tests COPIÉS de l'original ne sont pas du code d'exécution : ils visent la glu par
         # ses noms privés, et ils mesurent la convergence (`converge`), pas une substitution.
-        if is_test_module(p.relative_to(base).parts):
+        if is_test_module(rel.parts):
             continue
         for n in ast.walk(arbre):
             if not isinstance(n, ast.ImportFrom):
                 continue
             if n.level:                                   # from .params / from ..utils
-                pkg = list(p.relative_to(base).parent.parts)
+                pkg = list(rel.parent.parts)
                 pkg = pkg[:len(pkg) - (n.level - 1)] if n.level > 1 else pkg
                 if len(pkg) < 0:
                     continue
@@ -310,7 +320,7 @@ def _imports_intra_paquet_non_resolus(label: str) -> list:
                     continue
                 if a.name != '*' and a.name not in exposes[cle]:
                     manquants.append(
-                        f"{p.relative_to(base).as_posix()} : "
+                        f"{rel.as_posix()} : "
                         f"from {'.' * n.level}{n.module or ''} import {a.name} — absent de {cle}")
     return manquants
 
@@ -329,19 +339,12 @@ def _declared_paths_unresolved(label: str) -> list:
     `wama.`, ou `module:attribut` — une clé de catalogue (`<app>.convert`) a l'allure d'un chemin
     sans en être un. Résolution SANS RIEN IMPORTER (`sandbox.resolves`)."""
     import ast
+    from wama.common.manifests.codegen.tasks_gen import split_declared_path
     from wama.common.sandbox import resolves
-    base = WAMA_DIR / label
     app = re.escape(label)
     shape = re.compile(rf'wama\.{app}(?:\.\w+)+(?::\w+)?|(?:wama\.)?{app}(?:\.\w+)+:\w+')
-    trees = {}
-    for p in sorted(base.rglob('*.py')):
-        rel = p.relative_to(base)
-        if 'migrations' in rel.parts or is_test_module(rel.parts):
-            continue
-        try:
-            trees[rel] = ast.parse(p.read_text(encoding='utf-8'))
-        except SyntaxError:
-            continue                                  # un fichier insyntaxique : autre juge
+    trees = {rel: tree for rel, tree in _package_trees(label).items()
+             if not is_test_module(rel.parts)}
     # Le NOM qu'une tâche Celery se donne (`@shared_task(name='wama.<app>.<geste>')`) a l'allure
     # d'un chemin sans en être un (mesuré sur synthesizer et transcriber) : ni lui, ni ce qui le cite.
     task_names = {kw.value.value for tree in trees.values() for n in ast.walk(tree)
@@ -355,8 +358,8 @@ def _declared_paths_unresolved(label: str) -> list:
             if not (isinstance(n, ast.Constant) and isinstance(n.value, str)
                     and shape.fullmatch(n.value)) or n.value in task_names:
                 continue
-            dotted = n.value[len('wama.'):] if n.value.startswith('wama.') else n.value
-            if not resolves(dotted.replace(':', '.'), root=WAMA_DIR):
+            module, name, _ = split_declared_path(n.value)
+            if not resolves(f'{module}.{name}', root=WAMA_DIR):
                 found.append(f'{rel.as_posix()}:{n.lineno} {n.value!r}')
     return found
 
@@ -442,15 +445,8 @@ def _lost_model_members_read(label: str) -> list:
     if not lost:
         return []
 
-    readers = [p for p in base.rglob('*.py')
-               if 'migrations' not in p.parts and p.name != 'models.py'
-               and not is_test_module(p.relative_to(base).parts)]   # cf. `converge`
-    trees = {}
-    for p in readers:
-        try:
-            trees[p] = ast.parse(p.read_text(encoding='utf-8'))
-        except SyntaxError:
-            continue
+    trees = {rel: tree for rel, tree in _package_trees(label).items()
+             if rel.name != 'models.py' and not is_test_module(rel.parts)}   # cf. `converge`
     # Attributs posés PAR LEUR NOM sur l'élément (vues générées : `_set_unless_property`).
     for tree in trees.values():
         for n in ast.walk(tree):
@@ -463,10 +459,10 @@ def _lost_model_members_read(label: str) -> list:
         return []
 
     found = []
-    for p, tree in trees.items():
+    for rel, tree in trees.items():
         for n in ast.walk(tree):
             if isinstance(n, ast.Attribute) and n.attr in lost:
-                found.append(f'{p.relative_to(base).as_posix()}:{n.lineno} .{n.attr}')
+                found.append(f'{rel.as_posix()}:{n.lineno} .{n.attr}')
     tag = re.compile(r'\{\{(.*?)\}\}|\{%(.*?)%\}', re.S)
     attr = re.compile(r'\.(' + '|'.join(sorted(map(re.escape, lost))) + r')\b')
     templates = (sorted((base / 'templates').rglob('*.html'))
@@ -474,7 +470,7 @@ def _lost_model_members_read(label: str) -> list:
     # Un gabarit COPIÉ que plus rien ne rend (vues et index générés en citent d'autres) n'est
     # pas un lecteur : on ne lit que ceux qu'un fichier VIVANT cite par `<label>/<nom>`.
     living = '\n'.join(p.read_text(encoding='utf-8', errors='replace')
-                       for p in list(trees) + templates)
+                       for p in [base / rel for rel in trees] + templates)
     for p in templates:
         if f'{label}/{p.name}' not in living:
             continue
@@ -484,13 +480,6 @@ def _lost_model_members_read(label: str) -> list:
                 line = text.count('\n', 0, m.start()) + 1
                 found.append(f'{p.relative_to(base).as_posix()}:{line} .{a.group(1)}')
     return sorted(set(found))
-
-
-def _superseded_task_modules(manifest: dict, fname: str = 'tasks.py') -> list:
-    """Modules de tâches COPIÉS que le `tasks.py` GÉNÉRÉ remplace — la lecture du générateur de
-    `tasks.py` (`tasks_gen.superseded_task_files`), qui en re-cible aussi les déclarations."""
-    from wama.common.manifests.codegen.tasks_gen import superseded_task_files
-    return superseded_task_files(manifest, fname)
 
 
 def new_app_key_error(key: str) -> str:
@@ -1160,8 +1149,10 @@ class Command(BaseCommand):
         verdict, details = 'ok', []
         # `tasks` généré REMPLACE le module de tâches copié que le manifeste déclare sous un
         # autre nom (`workers.py`) — sinon deux enregistrements Celery de la même tâche, et un
-        # import mort vers les vues copiées (cf. `_superseded_task_modules`). Restauré au revert.
-        withdrawn = (_withdraw_modules(label, _superseded_task_modules(
+        # import mort vers les vues copiées (cf. `tasks_gen.superseded_task_files`). Restauré au
+        # revert.
+        from wama.common.manifests.codegen.tasks_gen import superseded_task_files
+        withdrawn = (_withdraw_modules(label, superseded_task_files(
                          manifest, _SUBSTITUTABLE['tasks'][0]))
                      if 'tasks' in targets else [])
         if withdrawn:

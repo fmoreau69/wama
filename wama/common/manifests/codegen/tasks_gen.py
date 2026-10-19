@@ -127,22 +127,17 @@ def _instant_hole(manifest: dict, mark: str) -> list:
 
 
 #: Les fonctions qu'une AUTRE déclaration désigne PAR CHAÎNE dans le module de tâches de l'app —
-#: (rôle, d'où elle vient, signature, contrat). Elles ne sont pas des tâches : rien ne les importe,
-#: un chemin pointé les résout à l'exécution (`source_ingest._declared_derive`,
-#: `function_catalog.resolve_impl`). Un `tasks.py` généré qui ne les porte pas laisse ces
-#: déclarations pointer dans le vide (vécu le 2026-10-18 sur `converter_01`, `tests_source_ingest`).
+#: rôle → (signature, la déclaration qui la nomme, l'appelant dont la docstring FAIT le contrat).
+#: Elles ne sont pas des tâches : rien ne les importe, un chemin pointé les résout à l'exécution.
+#: Un `tasks.py` généré qui ne les porte pas laisse ces déclarations pointer dans le vide (vécu le
+#: 2026-10-18 sur `converter_01`, `tests_source_ingest`). Le contrat n'est pas recopié ici : il vit
+#: chez son appelant, et une copie dériverait de lui.
 _DECLARED_GLUE = {
-    'derive': ('inst, path, fname',
-               "Hook `derive` de l'ingest URL (`WAMA_INGEST`) : pose sur `inst` les champs propres à",
-               "l'app tirés du fichier téléchargé `path` (nom `fname`), AVANT son enregistrement, et",
-               "rend la liste des champs posés. Une exception fait échouer le téléchargement."),
-    'eta': ('item',
-            "ETA du process (`ProcessSpec.eta`) : rend `(clé, taille, unité[, modèle chargé[,",
-            "a priori]])` — la clé et la taille que sa glu apprend. Une exception est dite au",
-            "journal, l'estimation retombe sur la dernière durée du process."),
-    'result': ('item',
-               "Résultat LISIBLE du process (`ProcessSpec.result`) : le texte que l'aperçu montre en",
-               "face du process, ou None. Une exception est dite au journal, rien n'est montré."),
+    'derive': ('inst, path, fname', "`WAMA_INGEST['derive']`",
+               'wama.common.utils.source_ingest.ensure_local_input'),
+    'eta': ('item', '`ProcessSpec.eta`', 'wama.common.services.process_runs.process_eta'),
+    'result': ('item', '`ProcessSpec.result`',
+               'wama.common.services.process_pipeline.AppPipeline.declared_result'),
 }
 
 
@@ -173,10 +168,11 @@ def _task_modules(manifest: dict) -> set:
     return {'tasks'} | {f[:-3] for f in superseded_task_files(manifest)}
 
 
-def _split_declared(path: str) -> tuple:
+def split_declared_path(path: str) -> tuple:
     """`(module sans « wama. », nom, séparateur)` d'une déclaration par chaîne — chemin pointé
     (`wama.<app>.tasks._fn`, `WAMA_INGEST`) ou `module:attribut` (`<app>.tasks:fn`,
-    `ProcessSpec.eta`)."""
+    `ProcessSpec.eta`). La seule lecture de ces deux formes côté génération : les générateurs
+    et le juge de substitution d'`app_sandbox` la partagent."""
     path = str(path or '').strip()
     sep = ':' if ':' in path else '.'
     module, _, name = path.rpartition(sep)
@@ -191,7 +187,7 @@ def generated_task_path(manifest: dict, path):
     if not isinstance(path, str):
         return path
     app_id = manifest.get('key') or ''
-    module, name, sep = _split_declared(path)
+    module, name, sep = split_declared_path(path)
     old = {f'{app_id}.{m}' for m in _task_modules(manifest) - {'tasks'}}
     if module not in old:
         return path
@@ -209,7 +205,7 @@ def declared_glue(manifest: dict, steps: list) -> list:
     declared += [(s.get(role), role) for s in steps for role in ('eta', 'result')]
     out = []
     for path, role in declared:
-        module, name, _ = _split_declared(path)
+        module, name, _ = split_declared_path(path)
         if module in modules and name.isidentifier() and name not in {n for n, _ in out}:
             out.append((name, role))
     return out
@@ -222,15 +218,14 @@ def _declared_glue_holes(manifest: dict, steps: list, mark: str, emitted: set) -
     for name, role in declared_glue(manifest, steps):
         if name in emitted:
             continue
-        params, *contract = _DECLARED_GLUE[role]
+        params, declaration, caller = _DECLARED_GLUE[role]
         lines += [
             '',
             '',
             f'def {name}({params}):',
-            f'    """TROU DE GLU {mark} — fonction DÉCLARÉE par chaîne (`{role}`), marche B.',
+            f'    """TROU DE GLU {mark} — fonction DÉCLARÉE par chaîne ({declaration}), marche B.',
             '',
-            *[f'    {line}' for line in contract[:-1]],
-            f'    {contract[-1]}"""',
+            f'    Contrat : la docstring de son appelant, `{caller}`."""',
             f"    raise NotImplementedError('{mark} {role} `{name}` non généré (marche B)')",
         ]
     return lines

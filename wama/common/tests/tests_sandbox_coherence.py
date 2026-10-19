@@ -556,8 +556,9 @@ class SupersededTaskModuleTest(SimpleTestCase):
             {'file': 'workers.py', 'function': 'other'},
             {'file': 'tasks.py', 'function': 'kept'},
         ]}}}
-        self.assertEqual(cmd_sandbox._superseded_task_modules(manifest, 'tasks.py'), ['workers.py'])
-        self.assertEqual(cmd_sandbox._superseded_task_modules({'body': {}}, 'tasks.py'), [])
+        from wama.common.manifests.codegen.tasks_gen import superseded_task_files
+        self.assertEqual(superseded_task_files(manifest, 'tasks.py'), ['workers.py'])
+        self.assertEqual(superseded_task_files({'body': {}}, 'tasks.py'), [])
 
     def test_retiring_keeps_a_witness_and_restoring_brings_the_copy_back(self):
         with TemporaryDirectory() as d:
@@ -718,6 +719,21 @@ class DeclaredGlueHolesTest(SimpleTestCase):
         filled = cmd_sandbox.replace_glue_hole(
             src, '_derive_media_type', 'def _derive_media_type(inst, path, fname):\n    return []\n')
         self.assertNotIn('TROU DE GLU', self._functions(filled)['_derive_media_type'])
+
+    def test_each_hole_points_to_the_caller_whose_docstring_is_its_contract(self):
+        # The contract is not copied into the hole: it lives with its caller. A pointer that no
+        # longer resolves would send the glue writer nowhere.
+        from pydoc import locate         # a dotted path down to a method, unlike import_string
+        from wama.common.manifests.codegen.tasks_gen import _DECLARED_GLUE
+        from wama.common.manifests.ingest import extract
+        src, _ = render_tasks(extract('app', 'converter'))
+        functions = self._functions(src)
+        for role, (_, _, caller) in _DECLARED_GLUE.items():
+            with self.subTest(role=role):
+                self.assertTrue(callable(locate(caller)), caller)
+                self.assertTrue((locate(caller).__doc__ or '').strip())
+        self.assertIn('source_ingest.ensure_local_input', functions['_derive_media_type'])
+        self.assertIn('process_runs.process_eta', functions['convert_eta'])
 
     def test_a_manifest_declaring_nothing_gets_no_extra_function(self):
         src, _ = render_tasks(_manifeste())
