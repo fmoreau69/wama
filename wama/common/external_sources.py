@@ -430,6 +430,11 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Vocalisation hors du process web (évite de charger un modèle dans gunicorn)",
         kind='service', scope=LOCAL, setting='TTS_SERVICE_URL', env='TTS_SERVICE_URL'),
     ExternalSource(
+        'vector_service', 'Service de vectorisation WAMA', 'http://127.0.0.1:8002',
+        "Embeddings texte et médias hors des process web et workers (RAG, recherche par contenu)",
+        kind='service', scope=LOCAL, setting='VECTOR_SERVICE_URL', env='VECTOR_SERVICE_URL',
+        doc='docs/construction/ia/WAMA_MEMORY.md'),
+    ExternalSource(
         'wama_self', 'WAMA (cette instance)', 'http://127.0.0.1:8000',
         "WAMA s'interroge lui-même : smoke navigateur, matrice de droits",
         kind='service', scope=LOCAL, env='WAMA_UI_SMOKE_BASE'),

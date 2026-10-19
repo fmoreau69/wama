@@ -29,6 +29,7 @@ if pkill -f "uvicorn tts_service" 2>/dev/null; then
     sleep 3
     pkill -9 -f "uvicorn tts_service" 2>/dev/null || true
 fi
+pkill -f "uvicorn vector_service" || true
 # Passerelle de canaux : on l'arrête ICI comme les autres, pour deux raisons —
 #   • elle doit repartir sur le code du run courant (elle a l'ORM et les settings) ;
 #   • la rotation des journaux plus bas exige les services ARRÊTÉS (renommer un fichier
@@ -318,6 +319,28 @@ if ! pgrep -f "uvicorn tts_service" > /dev/null; then
     fi
 else
     echo "TTS Service is already running."
+fi
+
+# ------------------------------------------------------
+# SERVICE DE VECTORISATION (FastAPI) — WAMA_MEMORY.md §7sexies
+# ------------------------------------------------------
+# Les embeddings (RAG, recherche des médias par contenu) hors des process web et workers.
+# Rien à précharger : les modèles vivent dans Ollama, qui les charge à l'appel ; /health
+# répond aussitôt. Boucle locale SEULE (127.0.0.1) : le service n'a pas d'authentification.
+# Éteint, rien ne casse — le client exécute le même moteur dans son propre process.
+if ! pgrep -f "uvicorn vector_service" > /dev/null; then
+    echo "=== Starting Vector Service (port 8002) ==="
+    nohup python -m uvicorn vector_service:app \
+        --host 127.0.0.1 \
+        --port 8002 \
+        --workers 1 \
+        --log-level warning \
+        >> $LOG_DIR/vector-service.log 2>&1 &
+    VECTOR_PID=$!
+    disown $VECTOR_PID
+    echo "Vector Service started (PID $VECTOR_PID)"
+else
+    echo "Vector Service is already running."
 fi
 
 # ------------------------------------------------------

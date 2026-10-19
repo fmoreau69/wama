@@ -250,6 +250,7 @@ def _fait_mecanismes():
                         'wama/common/backends/',
                         'wama/common/memory/',
                         'wama/common/tts/',
+                        'wama/common/vectors/',
                         'wama/common/manifests/',
                         'wama/common/templatetags/',
                         'wama/common/static/common/js/',

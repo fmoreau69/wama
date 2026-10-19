@@ -89,6 +89,11 @@
    **Ce qui reste vraiment** : ~~la bascule d'embedder vers `qwen3-embedding:4b` et le réindex~~
    ✅ **faites le 2026-10-19** (bge-m3 → qwen3-embedding:4b, 10 779 vecteurs refaits, seuil
    re-mesuré — `WAMA_MEMORY §7`) ; jalon 12 (outillage assistant list/detail).
+   **Suite (2026-10-19, demande de Fabien) : un service de VECTORISATION commun, un espace par
+   nature de média** (`WAMA_MEMORY §7sexies`) — ✅ espaces `text` (qwen3-embedding) et `media`
+   (EmbeddingGemma-2, installé par la route, image éprouvée), moteur, service `:8002`, client, RAG
+   rallié ; ⏳ indexation de la file par contenu (tâche différée, basse priorité), vidéo, audio,
+   médiathèque distante, banc texte → image.
    **La hiérarchie université → labo → équipe**, qui devait « attendre la preuve d'usage »,
    n'est pas perdue : elle est HÉRITÉE d'`OrgUnit` + `ScopedVisibility` (`WAMA_MEMORY.md`, qui
    déplace la prudence sur l'USAGE — et y suit l'état de l'arbre `OrgUnit`). *(Phrase retirée

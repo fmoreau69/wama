@@ -31,10 +31,19 @@ Deux conséquences, portées par le code et pas par la vigilance :
      (défaut Ollama), ce qui évite qu'une série d'écritures ne laisse la VRAM occupée entre-temps.
   2. L'appelant peut TOUJOURS écrire sans embarquer (`remember(..., embed=False)`) puis rattraper
      par `store.reindex()`. Aucun chemin d'écriture n'oblige à toucher le GPU.
+
+DEPUIS LE 2026-10-19 (`WAMA_MEMORY.md §7sexies`) : ce module ne parle plus à Ollama lui-même. Le
+modèle, ses dimensions, sa fenêtre et l'instruction de requête sont DÉCLARÉS par l'espace `text`
+(`common/vectors/spaces.py`), l'appel passe par le service de vectorisation commun
+(`common/vectors/service_client.py`), et la gouvernance VRAM aussi. Il garde ce qui est propre à la
+mémoire : la règle de dégradation, la résidence courte du rappel, `vectorized_q`.
 """
 from __future__ import annotations
 
 import logging
+
+from ..vectors import service_client as vectors
+from ..vectors.spaces import TEXT
 
 logger = logging.getLogger(__name__)
 
@@ -42,23 +51,21 @@ logger = logging.getLogger(__name__)
 #: une bascule devient un réindex explicite, au lieu de mélanger deux espaces vectoriels dans la
 #: même colonne — ce qui transformerait les distances en bruit SANS erreur visible. Et une ligne
 #: d'un autre modèle n'est jamais comparée à une requête de celui-ci (`vectorized_q`).
-EMBEDDING_MODEL = 'qwen3-embedding:4b'
+EMBEDDING_MODEL = TEXT.model
 
-#: Doit correspondre à `common.models.EMBEDDING_DIMS`. Un écart est une erreur de programmation,
-#: pas un cas d'usage : on refuse le vecteur plutôt que d'écrire une ligne que pgvector rejettera
-#: de toute façon, mais avec un message incompréhensible. DEMANDÉE à Ollama (`dimensions`) : le
-#: modèle en rend 2560, tronquées à la source (cf. en-tête).
-EXPECTED_DIMS = 1024
+#: Doit correspondre à `common.models.EMBEDDING_DIMS`. DEMANDÉE à Ollama (`dimensions`) : le
+#: modèle en rend 2560, tronquées à la source (cf. en-tête). Le moteur refuse un lot d'une autre
+#: dimension plutôt que d'écrire une ligne que pgvector rejetterait avec un message obscur.
+EXPECTED_DIMS = TEXT.dims
 
 #: Fenêtre de contexte demandée à Ollama — ce qui borne la VRAM (cf. en-tête : 3,8 Go mesurés au
 #: lieu de 9,3). À relever si l'on vectorise un jour des textes plus longs que ~1 500 caractères.
-NUM_CTX = 2048
+NUM_CTX = TEXT.num_ctx
 
 #: Instruction des REQUÊTES (rappel), jamais des documents — forme prescrite par Qwen3-Embedding
 #: (`Instruct: <tâche>\nQuery: <requête>`), en anglais comme le recommande le modèle même pour une
-#: requête en français.
-QUERY_INSTRUCTION = ('Instruct: Given a question or keywords, retrieve the passages and memories '
-                     'that answer it\nQuery: ')
+#: requête en français. Posée par le moteur (`query=True`).
+QUERY_INSTRUCTION = TEXT.query_prefix
 
 
 def vectorized_q():
@@ -71,15 +78,11 @@ def vectorized_q():
 
 #: Court volontairement. Un embedding est sur le chemin d'une écriture ou d'un rappel interactif :
 #: mieux vaut dégrader en quelques secondes que faire attendre. Le réindex, lui, n'est pas pressé.
-TIMEOUT_S = 20.0
+TIMEOUT_S = vectors.TIMEOUT_S
 
-#: Résidence VRAM du modèle APRÈS la réponse. '0' = déchargement immédiat, à l'inverse du défaut
-#: Ollama (5 min). Même précaution que `llm_utils.ollama_chat` pour les passes courtes qui
-#: précèdent un gros chargement GPU : sans ça, une série d'écritures mémoire laisserait
-#: l'embedder squatter la VRAM entre deux appels, en concurrence avec un traitement utilisateur.
-#: Le surcoût est un rechargement par appel — c'est le prix de l'innocuité. Le réindex par LOT
-#: (`store.reindex`) amortit ça en un seul appel.
-KEEP_ALIVE = '0'
+# La résidence APRÈS la réponse est celle du moteur (`vectors.engine.KEEP_ALIVE`, '0' :
+# déchargement immédiat) — le surcoût d'un rechargement par appel est le prix de l'innocuité ; le
+# réindex par LOT (`store.reindex`) l'amortit en demandant une résidence courte au gouverneur.
 
 
 #: Résidence demandée pour un rappel — courte. Le gouverneur peut refuser, auquel cas chaque
@@ -92,7 +95,8 @@ RESIDENCE_RAPPEL = '5m'
 RESIDENCE_RAPPEL_S = 300
 
 
-def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S, resident: bool = False):
+def embed_text(text: str, *, timeout: float = TIMEOUT_S, resident: bool = False,
+               query: bool = False):
     """
     Rend le vecteur de `text`, ou `None` si l'embedder est indisponible.
 
@@ -103,33 +107,36 @@ def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S, reside
     2026-08-21 : 5,3 s par appel, y compris le second enchaîné. C'est ce qui rendait
     l'arbitrage « hybride pour `memory_recall` » creux : la qualité y gagnait, la latence non.
     Le gouverneur reste seul juge — refus ⇒ déchargement immédiat, comme avant.
+
+    `query=True` : le texte est une REQUÊTE (`embed_query`).
     """
     keep_alive = None
     if resident:
-        autorisee, _ = residency_allowed()
-        if autorisee:
+        allowed, _ = residency_allowed()
+        if allowed:
             reserve(expires_in_s=RESIDENCE_RAPPEL_S)
             keep_alive = RESIDENCE_RAPPEL
-    vectors = embed_batch([text], model=model, timeout=timeout, keep_alive=keep_alive)
-    return vectors[0] if vectors else None
+    vecs = embed_batch([text], timeout=timeout, keep_alive=keep_alive, query=query)
+    return vecs[0] if vecs else None
 
 
 def embed_query(text: str, *, resident: bool = False):
-    """Le vecteur d'une REQUÊTE de rappel : le texte précédé de `QUERY_INSTRUCTION` (les
+    """Le vecteur d'une REQUÊTE de rappel : le moteur la précède de `QUERY_INSTRUCTION` (les
     documents, eux, se vectorisent nus — `embed_text`, `embed_batch`). `None` si indisponible."""
     if not (text or '').strip():
         return None
-    return embed_text(QUERY_INSTRUCTION + text, resident=resident)
+    return embed_text(text, resident=resident, query=True)
 
 
-def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S, keep_alive: str = None):
+def embed_batch(texts, *, timeout: float = TIMEOUT_S, keep_alive: str = None,
+                query: bool = False):
     """
     Rend la liste des vecteurs (même ordre que `texts`), ou `[]` si l'embedder est indisponible.
 
-    Le lot est traité en UN appel : Ollama recharge sinon le modèle à chaque requête, ce qui
-    dominerait le coût d'une indexation de médiathèque.
+    Le lot est traité en UN appel (service de vectorisation, espace `text`) : Ollama recharge
+    sinon le modèle à chaque requête, ce qui dominerait le coût d'une indexation de médiathèque.
 
-    `keep_alive` : résidence VRAM APRÈS la réponse. `None` = `KEEP_ALIVE` ('0', déchargement
+    `keep_alive` : résidence VRAM APRÈS la réponse. `None` = celle du moteur ('0', déchargement
     immédiat), le bon défaut pour une écriture interactive isolée.
 
     ⚠ MAIS PAS POUR UN RÉINDEX. Sur 940 éléments en lots de 64, décharger entre chaque lot
@@ -138,159 +145,70 @@ def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S, keep_aliv
     courte et décharge UNE fois à la fin : 1 cycle au lieu de 15. Moins de cycles, pas plus de
     résidence — les deux vont dans le même sens ici.
     """
-    textes = [t for t in (texts or []) if t and t.strip()]
-    if not textes:
+    kept = [t for t in (texts or []) if t and t.strip()]
+    if not kept:
         return []
-
-    import httpx
-
-    from ..utils.ollama_host import ollama_base
-
-    model = model or EMBEDDING_MODEL
-    # `trust_env=False` : même précaution que `llm_utils.ollama_chat` — le proxy UGE est configuré
-    # au niveau système et intercepterait un appel qui doit rester local.
     try:
-        with httpx.Client(timeout=timeout, trust_env=False) as client:
-            resp = client.post(f"{ollama_base()}/api/embed",
-                               json={"model": model, "input": textes,
-                                     "dimensions": EXPECTED_DIMS,
-                                     "options": {"num_ctx": NUM_CTX},
-                                     "keep_alive": KEEP_ALIVE if keep_alive is None
-                                     else keep_alive})
-        if resp.status_code != 200:
-            logger.warning("[memory.embed] Ollama HTTP %s (%s) — écriture sans vecteur",
-                           resp.status_code, resp.text[:160])
-            return []
-        vecteurs = resp.json().get('embeddings') or []
+        vecs = vectors.embed(TEXT.key, kept, query=query, timeout=timeout,
+                                 keep_alive=keep_alive)
     except Exception:
-        logger.warning("[memory.embed] embedder injoignable — écriture sans vecteur", exc_info=True)
+        logger.warning("[memory.embed] vectorisation impossible — écriture sans vecteur",
+                       exc_info=True)
         return []
-
-    if len(vecteurs) != len(textes):
-        logger.warning("[memory.embed] %s vecteurs pour %s textes — lot ignoré",
-                       len(vecteurs), len(textes))
-        return []
-    for v in vecteurs:
-        if len(v) != EXPECTED_DIMS:
-            logger.error("[memory.embed] dimension %s ≠ %s attendue pour %s — lot ignoré. "
-                         "Un changement d'embedder impose une MIGRATION de la colonne pgvector.",
-                         len(v), EXPECTED_DIMS, model)
-            return []
-    return vecteurs
+    if not vecs:
+        logger.warning("[memory.embed] embedder indisponible — écriture sans vecteur")
+    return vecs
 
 
-#: Empreinte VRAM de l'embedder — MESURÉE le 2026-10-19 par Ollama (`/api/ps`, `size_vram`) à
-#: `num_ctx=2048` : 3,79 Go (bge-m3 : 1,0 Go, mesuré le 2026-08-21). Pas estimée d'après la taille
-#: du fichier : la fenêtre de contexte en fait varier le triple.
-VRAM_GB = 3.8
+#: Empreinte VRAM de l'embedder — celle de l'espace (`spaces.TEXT.vram_gb`, mesurée le
+#: 2026-10-19 par Ollama à `num_ctx=2048` : 3,79 Go ; bge-m3 : 1,0 Go le 2026-08-21). Pas estimée
+#: d'après la taille du fichier : la fenêtre de contexte en fait varier le triple.
+VRAM_GB = TEXT.vram_gb
 
-#: Détenteur déclaré au gouverneur. Convention `<qui>#<clé catalogue>` (`OWNER_MODEL_SEP`) :
-#: c'est ce qui permet à `resident_models()` de rattacher la réservation au modèle du catalogue.
-OWNER = 'memory-embed#ollama:qwen3-embedding:4b'
+#: Détenteur déclaré au gouverneur — celui de l'espace (`vectors.owner`).
+OWNER = vectors.owner(TEXT)
 
 
-def residency_allowed(gb: float = VRAM_GB) -> tuple[bool, str]:
+def residency_allowed() -> tuple[bool, str]:
     """
-    Demande au GOUVERNEUR s'il y a de la place pour garder l'embedder résident.
-
-    Rend `(autorisée, raison)`. C'est LUI qui arbitre, pas ce module : `effective_free_gb()`
-    déduit ce que les AUTRES process ont réservé sans l'avoir encore alloué — donc un job imager
-    qui s'apprête à prendre 16 Go est vu AVANT qu'il n'alloue. Une résidence écrite en dur
-    (`keep_alive='5m'`) ignorerait cela et garderait `bge-m3` en VRAM pendant ce chargement,
+    Demande au GOUVERNEUR s'il y a de la place pour garder l'embedder résident
+    (`vectors.residency_allowed`). Une résidence écrite en dur (`keep_alive='5m'`) ignorerait les
+    réservations des autres process et garderait l'embedder en VRAM pendant leur chargement —
     exactement le motif d'enchaînement qui a précédé le crash du 2026-08-20.
-
-    Best-effort : gouverneur indisponible ⇒ (False, …). On dégrade vers le déchargement immédiat,
-    jamais vers une résidence non arbitrée — l'incertitude ne doit pas se résoudre en occupant.
     """
-    try:
-        from ..services.resource_governor import effective_free_gb
-
-        libre = effective_free_gb(exclude=OWNER)
-    except Exception:
-        return False, 'gouverneur indisponible'
-    if libre <= 0:
-        return False, 'VRAM libre inconnue ou nulle'
-    # Marge : on ne prend pas la dernière once. Rester résident ne doit jamais être la raison
-    # pour laquelle un traitement utilisateur échoue à charger.
-    if libre < gb * 3:
-        return False, f'{libre:.1f} Go libres — insuffisant pour {gb:.1f} Go avec marge'
-    return True, f'{libre:.1f} Go libres'
+    return vectors.residency_allowed(TEXT.key)
 
 
-def reserve(gb: float = VRAM_GB, *, expires_in_s: float = None) -> bool:
-    """Déclare la résidence au gouverneur, pour que les AUTRES process la voient.
-
-    `expires_in_s` : la ligne expire avec la résidence qu'elle déclare (rappel : 5 min, sans
-    libération explicite). Le réindex, lui, la libère en fin d'opération (`release`)."""
-    try:
-        from ..services.resource_governor import mark_used, reserve_vram
-
-        ok = reserve_vram(OWNER, gb, expires_in_s=expires_in_s)
-        mark_used(OWNER)          # horodate : `idle_models()` peut réclamer la place plus tard
-        return ok
-    except Exception:
-        return False
+def reserve(*, expires_in_s: float = None) -> bool:
+    """Déclare la résidence au gouverneur. `expires_in_s` : la ligne expire avec la résidence
+    qu'elle déclare (rappel : 5 min, sans libération explicite). Le réindex, lui, la libère en fin
+    d'opération (`release`)."""
+    return vectors.reserve(TEXT.key, expires_in_s=expires_in_s)
 
 
 def release() -> bool:
-    """
-    Libère la réservation. ⚠ COMPTABILITÉ SEULEMENT — le déchargement réel, c'est `unload()`.
-
-    Les deux vont toujours ensemble : libérer sans décharger laisserait le modèle en VRAM sans
-    que personne ne le sache, ce qui est pire qu'une résidence déclarée.
-    """
-    try:
-        from ..services.resource_governor import release_reservation
-
-        return release_reservation(OWNER)
-    except Exception:
-        return False
+    """Libère la réservation. ⚠ COMPTABILITÉ SEULEMENT — le déchargement réel, c'est `unload()` ;
+    les deux vont toujours ensemble."""
+    return vectors.release(TEXT.key)
 
 
-def unload(model: str = '') -> bool:
+def unload() -> bool:
     """
     Décharge le modèle d'embedding de la VRAM, tout de suite. Rend True si la demande a abouti.
 
-    Un appel d'embedding vide avec `keep_alive='0'` est la façon documentée de demander à Ollama
-    de libérer un modèle. Sert de POINT FINAL au réindex : la résidence tenue pendant l'opération
-    ne doit pas lui survivre, sinon on aurait juste déplacé le problème d'un enchaînement de
-    cycles vers un squat de VRAM.
+    Sert de POINT FINAL au réindex : la résidence tenue pendant l'opération ne doit pas lui
+    survivre, sinon on aurait juste déplacé le problème d'un enchaînement de cycles vers un squat
+    de VRAM.
     """
-    import httpx
-
-    from ..utils.ollama_host import ollama_base
-
-    model = model or EMBEDDING_MODEL
-    try:
-        with httpx.Client(timeout=10.0, trust_env=False) as client:
-            r = client.post(f"{ollama_base()}/api/embed",
-                            json={"model": model, "input": [], "keep_alive": "0"})
-        return r.status_code == 200
-    except Exception:
-        logger.debug('[memory.embed] déchargement impossible', exc_info=True)
-        return False
+    return vectors.unload(TEXT.key)
 
 
-def embedder_available(model: str = '') -> bool:
+def embedder_available() -> bool:
     """
     Dit si le modèle d'embedding est tiré côté Ollama — SANS le charger.
 
     Utilisé par les diagnostics et le réindex pour distinguer « pas encore tiré » (action :
-    `ollama pull bge-m3`) de « serveur éteint » (action : démarrer Ollama). Les deux se
-    présentent autrement comme le même `None`.
+    `manage.py pull_model ollama:qwen3-embedding:4b`) de « serveur éteint » (action : démarrer
+    Ollama). Les deux se présentent autrement comme le même `None`.
     """
-    import httpx
-
-    from ..utils.ollama_host import ollama_base
-
-    model = model or EMBEDDING_MODEL
-    try:
-        with httpx.Client(timeout=5.0, trust_env=False) as client:
-            resp = client.get(f"{ollama_base()}/api/tags")
-        if resp.status_code != 200:
-            return False
-        noms = [m.get('name', '') for m in (resp.json().get('models') or [])]
-    except Exception:
-        return False
-    # Ollama nomme `bge-m3:latest` ce qu'on demande sous `bge-m3` — comparer sur le préfixe.
-    return any(n == model or n.startswith(model + ':') for n in noms)
+    return vectors.available(TEXT.key)

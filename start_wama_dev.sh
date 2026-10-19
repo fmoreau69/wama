@@ -10,6 +10,7 @@ pkill -f "manage.py runserver" || true
 pkill -f "scripts/[w]orker_watchdog.sh" || true
 pkill -f "celery" || true
 pkill -f "uvicorn tts_service" || true
+pkill -f "uvicorn vector_service" || true
 pkill -f "redis-server" || true
 
 sleep 2
@@ -145,6 +146,14 @@ else
     echo "TTS Service is already running."
 fi
 
+# Service de vectorisation (WAMA_MEMORY.md §7sexies) — boucle locale seule, rien à précharger.
+if ! pgrep -f "uvicorn vector_service" > /dev/null; then
+    echo "=== Starting Vector Service (port 8002) ==="
+    python -m uvicorn vector_service:app --host 127.0.0.1 --port 8002 --workers 1 --log-level info &
+else
+    echo "Vector Service is already running."
+fi
+
 # ------------------------------------------------------
 # CELERY WORKERS (2 workers: gpu + default)
 # ------------------------------------------------------
@@ -182,4 +191,5 @@ echo ""
 echo "=== Shutting down... ==="
 pkill -f "celery" || true
 pkill -f "uvicorn tts_service" || true
+pkill -f "uvicorn vector_service" || true
 echo "=== WAMA development stack stopped ==="

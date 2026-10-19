@@ -582,7 +582,26 @@ MECHANISMS = (
               # Le domicile reste `store.py`, point d'entrée des 5 opérations.
               annexes=('wama/common/memory/embed.py',
                        'wama/common/memory/index.py',
-                       'wama/common/memory/dev_ai.py')),
+                       'wama/common/memory/dev_ai.py'),
+              depends_on=('vector_service',)),
+    Mechanism('vector_service', 'Service de vectorisation',
+              "Un ESPACE de vecteurs par nature de média — `text` (qwen3-embedding, celui du RAG) "
+              "et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une "
+              "image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, "
+              "contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 "
+              "(`vector_service.py`, à la racine comme `tts_service.py`) et son client ; "
+              "service éteint, le même moteur tourne dans le process appelant. Deux "
+              "espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le "
+              "MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la "
+              "VRAM se demande au gouverneur par espace (2026-10-19)",
+              'wama/common/vectors/service_client.py',
+              'docs/construction/ia/WAMA_MEMORY.md §7sexies',
+              # `vector_service.py` n'est pas une annexe : le relevé des consommateurs lit un
+              # chemin de PAQUET (`mecanismes_scan.consumers`), un module de la racine le fait
+              # échouer — même place que `tts_service.py`, nommé dans le rôle.
+              annexes=('wama/common/vectors/spaces.py',
+                       'wama/common/vectors/engine.py'),
+              depends_on=('resource_governor', 'external_sources')),
     Mechanism('memory_project', 'Projection des faits en souvenirs',
               "RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente)",
               'wama/common/memory/project.py', 'docs/construction/ia/WAMA_MEMORY.md §7'),

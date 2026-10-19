@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**209 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**210 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1308,6 +1308,22 @@ Un seul contrat d'outils pour TOUS les cerveaux (Ollama, Claude Code, Albert, un
   - `serve_stdio(user, surface: str=SURFACE_WAMA) -> None` — Transport stdio : un process par client, compte fixé au lancement.
   - `http_address(host: str='', port: int=0, surface: str=SURFACE_WAMA) -> tuple` — (hôte, port) d'écoute — le registre des sources externes par défaut.
   - `build_http_app(host: str, port: int, surface: str=SURFACE_WAMA)` — Application ASGI : HTTP streamable, authentifiée par jeton, protégée du DNS rebinding.
+
+### Service de vectorisation
+
+Un ESPACE de vecteurs par nature de média — `text` (qwen3-embedding, celui du RAG) et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 (`vector_service.py`, à la racine comme `tts_service.py`) et son client ; service éteint, le même moteur tourne dans le process appelant. Deux espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la VRAM se demande au gouverneur par espace (2026-10-19)
+
+- **Domicile** : `wama/common/vectors/service_client.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7sexies](../construction/ia/WAMA_MEMORY.md)
+- **Module** : Client COMMUN du service de vectorisation (`vector_service.py`, FastAPI, uvicorn 127.0.0.1:8002). Doc : `WAMA_MEMORY.md §7sexies`. Même patron que `common/tts/service_client.py` : tout le monde vectorise par ici — le RAG (`memory/embed.py`), l'indexation des médias, le Describer.
+- **API publique** (8) :
+  - `service_url() -> str`
+  - `embed(space_key: str, items, *, query: bool=False, timeout: float=TIMEOUT_S, keep_alive: str | None=None) -> list` — Les vecteurs de `items` dans l'espace `space_key` (même ordre), ou `[]` si indisponible.
+  - `owner(space: VectorSpace) -> str` — Détenteur déclaré au gouverneur. Convention `<qui>#<clé catalogue>` (`OWNER_MODEL_SEP`) :
+  - `residency_allowed(space_key: str) -> tuple[bool, str]` — Demande au GOUVERNEUR s'il y a de la place pour garder le modèle de l'espace chargé.
+  - `reserve(space_key: str, *, expires_in_s: float=None) -> bool` — Déclare la résidence au gouverneur, pour que les AUTRES process la voient. `expires_in_s` :
+  - `release(space_key: str) -> bool` — Retire la réservation. ⚠ COMPTABILITÉ SEULEMENT — toujours avec `unload` : libérer sans
+  - `unload(space_key: str) -> bool` — Décharge le modèle de l'espace tout de suite (`engine.unload`).
+  - `available(space_key: str) -> bool` — Le modèle de l'espace est-il installé chez un fournisseur — sans le charger.
 
 ### Signaux d'exécution
 

@@ -492,7 +492,7 @@ def model_keys_of(owner: str) -> list[str]:
     nom ne se résout pas.
 
     Deux formes de suffixe :
-    - une clé catalogue (`ollama-host#ollama:gemma3:4b`, `memory-embed#ollama:qwen3-embedding:4b`) ;
+    - une clé catalogue (`ollama-host#ollama:gemma3:4b`, `vectors-text#ollama:qwen3-embedding:4b`) ;
     - `@<nom local>`, publié par le contrat de backend : le process qui charge (service TTS
       compris, SANS ORM) ne sait que sa classe et le nom qu'il sert ; la clé se résout ici, dans
       un process Django (`backends.manager.catalog_keys_for_owner`). Jusqu'au 2026-09-14 la

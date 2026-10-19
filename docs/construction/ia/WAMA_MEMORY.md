@@ -272,6 +272,82 @@ une corruption silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000
   « anonymisation des données personnelles », les docs de l'anonymisation remontent là où bge-m3
   rendait des traces génériques de l'anonymizer.
 
+## 7sexies. Le service de VECTORISATION commun — un espace par nature de média (2026-10-19)
+
+> Demande de Fabien, 2026-10-19 : *« utiliser le modèle d'embedding qui va bien en fonction du
+> type de média […] un service de vectorisation/indexation général à wama utilisé par le
+> Describer et les usages comme le cas de figure actuel […] réutilisable pour vectoriser des
+> médias d'une médiathèque distante […] le distant va très bien pour éviter de charger wama,
+> avec fallback local en installant le modèle qui va bien »* — *« de la même manière qu'on a un
+> service TTS »*. Point de départ : la recherche par CONTENU des éléments de la file (« voiture »
+> retrouve l'image d'une voiture sans que son nom le dise), en tâche différée de basse priorité.
+
+**Ce qui a été vérifié avant de concevoir (2026-10-19)**
+- `qwen3-embedding:4b` (l'embedder du RAG) ne lit **que du texte** : Ollama le déclare
+  `['embedding', 'tools']`, architecture `qwen3`, aucun projecteur.
+- Les deux modèles multimodaux déjà consignés : **Qwen3-VL-Embedding** (2B/8B ; texte, image,
+  vidéo ; servi en 8B par Albert, `ROADMAP §8`) et **EmbeddingGemma-2** (Google, 06/10/2026,
+  740 M, texte/image/vidéo/audio en 768 dimensions ; question de Fabien du 15/10).
+- **Albert ne sert pas l'image** (mesuré avec la clé de l'instance) : `/v1/embeddings` refuse un
+  bloc image (422) ; une image glissée en data URL est vectorisée comme une CHAÎNE (carré rouge
+  vs bleu : cosinus 0,98) ; `dimensions` refusé — 4096 dimensions fixes, au-delà du plafond
+  d'index HNSW de pgvector (2000 en `vector`, 4000 en `halfvec`). Le « distant d'abord » ne
+  couvre donc aujourd'hui **aucun** des deux espaces.
+- **EmbeddingGemma-2 installé PAR LA ROUTE** (`pull_model proposed:ollama:embeddinggemma-2:latest`,
+  82 s, ligne `ollama:embeddinggemma-2:latest`) et **éprouvé sur l'image** (Ollama 0.40.6) :
+  - la forme qui marche, non documentée sur la page Ollama et trouvée en sondant :
+    `/api/embed` avec `"input": [{"image": "<base64>"}]` ; le texte en chaîne ou `{"text": …}`
+    (cosinus 1,000 entre les deux) ; un champ `images` voisin, l'ancienne `/api/embeddings` ou
+    `{"type": "image"}` rendent un vecteur vide ou un 400 ;
+  - rouge vs bleu : cosinus **0,885** (une vraie distinction, contre 0,98 chez Albert) ;
+  - texte → image sur 9 médias réels de WAMA, préfixe de requête `task: search result | query: `
+    (il creuse les écarts) : « voiture » → la photo d'une Peugeot 307 en tête (0,707) ;
+    « personne » → la navette avec un homme devant (0,667) ; « a cat » → les deux chats ;
+    « logo » → les deux logos. **Le classement est juste, les scores sont SERRÉS** (0,57 à 0,75 ;
+    0,03 à 0,06 d'écart) : un seuil fixe ne tiendra pas — classer, ou fusionner (RRF). Point
+    faible : « des visages » met un chat avant la photo de groupe ;
+  - coût : 16 images en 0,86 s, 16 textes en 0,10 s ; **2,3 Go de VRAM mesurés par
+    `nvidia-smi`** (Δ avant/après, `num_ctx` 2048) — ⚠ `/api/ps` n'annonce que **0,49 Go** : il
+    ne compte pas les projecteurs vision/audio. *Une empreinte de modèle multimodal se mesure
+    à la carte, pas à `/api/ps`.*
+
+**La conception — trois pièces, le patron du service TTS**
+
+| pièce | où | rôle |
+|---|---|---|
+| les ESPACES déclarés | `wama/common/vectors/spaces.py` | un espace = (modèle, dimensions, fenêtre, préfixe de requête, VRAM, fournisseurs). `text` = `qwen3-embedding:4b` en 1024 (le RAG) ; `media` = `embeddinggemma-2` en 768 (texte + image). La nature de média CHOISIT l'espace (`space_for`) |
+| le MOTEUR | `wama/common/vectors/engine.py` | sans Django : prépare les entrées (image → JPEG ≤ 768 px en base64), appelle le fournisseur (`/api/embed`), contrôle nombre et dimensions — **une seule** écriture de l'appel |
+| le SERVICE | `vector_service.py` (uvicorn, **127.0.0.1:8002**, lancé par `start_wama_prod.sh`) + client `wama/common/vectors/service_client.py` | tout le monde l'appelle par le client ; service éteint ⇒ le client exécute le MÊME moteur dans son process (rien ne casse avant une relance) |
+
+- **Deux espaces ne se comparent jamais** — la règle du §7 généralisée. Une recherche qui porte
+  sur plusieurs natures vectorise la REQUÊTE dans chaque espace concerné, puis fusionne les
+  classements par rang (RRF, comme `store.recall`). Le Describer peut en plus DÉCRIRE le média en
+  texte : la phrase dit pourquoi l'élément est sorti.
+- **« Distant d'abord » = un fournisseur qui sert LE MÊME espace** (même modèle, mêmes
+  dimensions), déclaré en tête de `providers` ; sinon le local. Un autre modèle distant n'est
+  pas un repli : c'est un autre espace. Aujourd'hui : `('ollama',)` pour les deux.
+- **Le local manquant s'installe par la route** : chaque espace porte la clé du catalogue de son
+  modèle (`model_key`), qu'une tâche passe à `model_readiness.ensure_installed`. Un appel
+  interactif (le rappel du RAG) garde la règle du §7 : **dégrader, jamais échouer**.
+- **La VRAM reste au gouverneur** : le service ne tient aucun poids (Ollama les tient). Résidence,
+  réservation et déchargement passent par le client, par espace (détenteur
+  `vectors-<espace>#<clé catalogue>`) — `memory/embed.py` s'y appuie désormais.
+- **Le service écoute la boucle locale seule** : il n'a pas d'authentification. Une médiathèque
+  distante passe par WAMA (son connecteur lit les médias, la tâche d'indexation appelle le client),
+  jamais par le port du service.
+
+**Ce que ce palier livre / ce qui suit**
+- ✅ espaces, moteur, service, client ; le RAG (`memory/embed.py`) passe par le client (espace `text`).
+- ⏳ **indexation de la file** : une table de vecteurs `media` par élément, remplie par une tâche
+  différée de basse priorité (`ensure_installed` du modèle de l'espace), et la recherche de la file
+  qui fusionne nom + texte + contenu ;
+- ⏳ **vidéo** : quelques images par plan, vectorisées dans l'espace `media` ;
+- ⏳ **audio** : sa transcription, dans l'espace `text` (EmbeddingGemma-2 annonce l'audio, Ollama
+  ne le déclare pas en entrée) ;
+- ⏳ **médiathèque distante** : même tâche, sur les médias qu'un connecteur expose ;
+- ⏳ un **banc** texte → image (9 images ne sont qu'une sonde), puis Qwen3-VL-Embedding-2B en
+  comparaison si EmbeddingGemma-2 déçoit.
+
 ## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
 
 La projection (jalon 4) fonctionne et est validée — mais **elle n'a presque rien à projeter**.

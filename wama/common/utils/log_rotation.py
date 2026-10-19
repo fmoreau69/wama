@@ -63,7 +63,8 @@ RUNTIME_LOGS = (
     "mcp-dev.log",        # serveur MCP des outils de dév. (start_wama_prod.sh, §8d)
     "model-sync.log",
     "tts-service.log",
-    "wama.log",           # journal applicatif global (loggers `wama.*`, common/apps.py)
+    "vector-service.log",  # service de vectorisation (start_wama_prod.sh, WAMA_MEMORY §7sexies)
+    "wama.log",          # journal applicatif global (loggers `wama.*`, common/apps.py)
 )
 
 # PAS dans la liste : `wama-console.log` tourne DÉJÀ tout seul, par taille

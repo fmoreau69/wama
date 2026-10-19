@@ -149,12 +149,18 @@ class EmbedderSwitchTest(TestCase):
         self.assertEqual((row['fragments'], row['vectorises']), (2, 1))
 
     def test_a_query_carries_its_instruction_and_a_document_does_not(self):
+        """L'instruction est posée par le moteur commun (`query=True`), dans l'espace `text`
+        (`WAMA_MEMORY §7sexies`) ; ce que le modèle reçoit est vérifié par `tests_vector_service`."""
         from wama.common.memory import embed
-        with mock.patch.object(embed, 'embed_batch', return_value=[[0.0] * EMBEDDING_DIMS]) as run:
+        with mock.patch('wama.common.vectors.service_client.embed',
+                        return_value=[[0.0] * EMBEDDING_DIMS]) as run:
             embed.embed_query('anonymisation')
             embed.embed_text('un fragment de document')
-        self.assertEqual(run.call_args_list[0].args[0], [embed.QUERY_INSTRUCTION + 'anonymisation'])
-        self.assertEqual(run.call_args_list[1].args[0], ['un fragment de document'])
+        self.assertEqual((run.call_args_list[0].args, run.call_args_list[0].kwargs['query']),
+                         (('text', ['anonymisation']), True))
+        self.assertEqual((run.call_args_list[1].args, run.call_args_list[1].kwargs['query']),
+                         (('text', ['un fragment de document']), False))
+        self.assertEqual(embed.QUERY_INSTRUCTION, embed.TEXT.query_prefix)
         with mock.patch('wama.common.memory.embed.embed_query', return_value=None) as query:
             from wama.common.memory.store import recall
             recall('anonymisation', user=self.me)
@@ -165,13 +171,18 @@ class EmbedderSwitchTest(TestCase):
         bornée — sans elle, 9,3 Go de VRAM mesurés au lieu de 3,8."""
         from wama.common.memory import embed
         from wama.common.memory.index import CHUNK_SIZE
-        client = mock.MagicMock()
-        client.__enter__.return_value.post.return_value = mock.Mock(
-            status_code=200, json=lambda: {'embeddings': [[0.0] * EMBEDDING_DIMS]})
-        with mock.patch('httpx.Client', return_value=client):
+        from wama.common.vectors import engine
+        import requests
+        ok = mock.Mock(status_code=200, json=lambda: {'embeddings': [[0.0] * EMBEDDING_DIMS]})
+        # Le service de vectorisation éteint, le moteur s'exécute dans ce process : le second
+        # appel est celui que reçoit Ollama.
+        with mock.patch('requests.post',
+                        side_effect=[requests.ConnectionError('service éteint'), ok]) as post:
             embed.embed_batch(['texte'])
-        sent = client.__enter__.return_value.post.call_args.kwargs['json']
+        sent = post.call_args.kwargs['json']
+        self.assertTrue(post.call_args.args[0].endswith('/api/embed'))
         self.assertEqual((sent['model'], sent['dimensions']), (embed.EMBEDDING_MODEL, EMBEDDING_DIMS))
+        self.assertEqual(sent['keep_alive'], engine.KEEP_ALIVE)
         self.assertEqual(sent['options']['num_ctx'], embed.NUM_CTX)
         self.assertGreater(embed.NUM_CTX, CHUNK_SIZE, 'un fragment entier tient dans la fenêtre')
         self.assertTrue(embed.OWNER.endswith('#ollama:' + embed.EMBEDDING_MODEL),
