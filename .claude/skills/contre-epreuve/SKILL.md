@@ -61,6 +61,10 @@ print('COUNTERPROOF <nom>: failures =', failures,
 - Le script vit dans le **scratchpad de session**, se lance depuis la racine, et se **supprime
   après** (il ne se commite jamais — et on ne l'écrit pas par son chemin dans une doc, cf. le
   piège `check_docs` du `/cloture §3`).
+- ⚠ **« Depuis la racine » ne suffit pas** (vécu le 2026-10-19) : Python met en tête de
+  `sys.path` le dossier du SCRIPT, pas le dossier courant — un script du scratchpad lancé par
+  `python <scratchpad>/x.py` sort en `ModuleNotFoundError: No module named 'wama'`. Le lancer
+  avec `PYTHONPATH=.` (depuis la racine), ou par `manage.py shell -c "exec(open(...).read())"`.
 - `--keepdb` : la base de test est partagée entre instances, on ne la recrée pas.
 - ⚠ **Patcher l'ATTRIBUT DE MODULE, pas l'appelant** : les vues du dépôt importent leurs briques
   DANS la fonction (`from … import usage`), donc la résolution se fait à l'appel — c'est
