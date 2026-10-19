@@ -490,11 +490,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       |---|---|---|---|
       | **mécanisme** — une pièce | le développeur | s'importe et s'appelle ; n'a pas de sens seul pour l'utilisateur | l'ADOPTION (grille) |
       | **brique** — un tout | l'utilisateur, le Studio | se pose sur une page, lit une donnée déclarée, a ses options, vaut dans tous les mondes | la COMPATIBILITÉ (ce qu'elle lit, ce qu'elle produit) |
-      | **page** — une composition | déclarée | un assemblage de briques : les archétypes de `§13` (page d'app = card d'entrée + file + volet ; surface d'édition) | — |
+      | **page** — une composition | déclarée (⏳ une page d'app s'écrit encore par gabarit) | un assemblage de briques — ce que `§13` appelait archétypes, non figés depuis le 10/10 (page d'app = card d'entrée + file + volet ; surface d'édition) | — |
 
       Une brique est COMPOSÉE de mécanismes, et cela ne se redéclare pas : ce sont ceux qui tiennent
-      les scripts qu'elle charge (`script` + `requires`), un fichier appartenant à UN mécanisme
-      (règle du 2026-09-15, `mecanismes_scan`). Conséquences : le catalogue des briques ne montre
+      ce qu'elle charge (`requires`) et ceux que son script consomme, par la détection même du
+      balayage d'adoption (`mecanismes_scan.consumers`) — un fichier appartenant à UN mécanisme
+      (règle du 2026-09-15). Conséquences : le catalogue des briques ne montre
       que des briques, chacune avec ce qui la compose ; les mécanismes restent sur leur carte
       (`WAMA_MECANISMES.md`) ; un mécanisme n'a pas de vignette — il se voit dans sa brique ; un
       SOCLE de mécanismes présents partout (thèmes, poignées des volets, gestes tactiles, toasts)
@@ -502,9 +503,21 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       file, la card d'entrée, l'inspecteur, la visionneuse. ⚠ **La FILE n'est pas encore un tout
       dans le code** : chaque app écrit la même composition à la main (barre de file, conteneur,
       boucle `_queue_entry`, état vide — `converter/index.html:385-424`) ; la card d'entrée, le
-      volet et la visionneuse sont, eux, déjà des pièces uniques. ⏳ **Ce que LIT la file** — des
-      cards d'un pipeline — n'est dans aucun des deux vocabulaires (natures de média, types de
-      données) : à nommer.
+      volet et la visionneuse sont, eux, déjà des pièces uniques.
+      ✅ **Décidé le même jour (Fabien)** : (1) une brique de PAGE déclare le GABARIT qui la monte
+      dans une page, à la place d'un script de surface — le catalogue dit où elle se monte, et
+      « utilisée par » vient de l'adoption mesurée de ce gabarit ; (2) la FILE devient d'abord une
+      pièce unique — un gabarit commun (barre de file, conteneur, entrées, état vide) porté aux dix
+      apps et au générateur, sans exception — avant d'être déclarée ; la card d'entrée, l'inspecteur
+      et la visionneuse se déclarent tout de suite.
+      ⏳ **Ce que LISENT ces briques — revérifié le 19/10, à trancher** : un type `element` dans
+      `DataType` a été proposé puis écarté à la revérification. `DataType` nomme les DONNÉES qui
+      circulent par les ports du monde Data (`TypedFrame`, `is_compatible`) ; l'item B du plan de
+      compatibilité est clos PAR LA NÉGATIVE (17/09, `§S2bis.6bis` : pas d'axe commun de
+      vocabulaire) ; et un élément ne CIRCULE jamais — entre apps, c'est un FICHIER (`send_to` :
+      `result_file`), et les ports du Studio parlent natures et jeton `prompt` (`studio_node_ports`). Ce qu'une brique de page lit
+      est déjà déclaré par l'app qui la monte : ses ports d'entrée (card d'entrée), son pipeline
+      (file), sa spec de détail (inspecteur), les natures de ses faces (visionneuse).
   - ✅ **2ᵉ SURFACE — 2026-10-13, la page d'édition du FOND du Writer** (décisions de Fabien le
     jour même ; `ROADMAP §21.5` étape 1) :
     - **un champ FICHIER s'édite comme TEXTE**, nature DÉDUITE du type du champ
