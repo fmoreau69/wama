@@ -627,6 +627,44 @@ tr[data-status="failed"] .status {
     margin: 0;
 }
 
+/* La couleur PRIMAIRE suit le thème (2026-10-19, thème UGE) : Bootstrap 5.3.0 écrit le bleu
+   #0d6efd EN DUR dans ces composants au lieu de lire `--bs-primary` — un thème qui redéfinit sa
+   primaire (l'indigo de la charte UGE) n'y changeait rien. Teintes de survol et d'appui calculées
+   comme Bootstrap les calcule (assombrir de 15 / 20 / 25 %) : même rendu en sombre et en clair. */
+.btn-primary {
+    --bs-btn-bg: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: color-mix(in srgb, var(--bs-primary) 85%, var(--bs-black));
+    --bs-btn-hover-border-color: color-mix(in srgb, var(--bs-primary) 80%, var(--bs-black));
+    --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+    --bs-btn-active-bg: color-mix(in srgb, var(--bs-primary) 80%, var(--bs-black));
+    --bs-btn-active-border-color: color-mix(in srgb, var(--bs-primary) 75%, var(--bs-black));
+    --bs-btn-disabled-bg: var(--bs-primary);
+    --bs-btn-disabled-border-color: var(--bs-primary);
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--bs-primary);
+    --bs-btn-border-color: var(--bs-primary);
+    --bs-btn-hover-bg: var(--bs-primary);
+    --bs-btn-hover-border-color: var(--bs-primary);
+    --bs-btn-focus-shadow-rgb: var(--bs-primary-rgb);
+    --bs-btn-active-bg: var(--bs-primary);
+    --bs-btn-active-border-color: var(--bs-primary);
+    --bs-btn-disabled-color: var(--bs-primary);
+    --bs-btn-disabled-border-color: var(--bs-primary);
+}
+
+.nav-pills {
+    --bs-nav-pills-link-active-bg: var(--bs-primary);
+}
+
+.pagination {
+    --bs-pagination-active-bg: var(--bs-primary);
+    --bs-pagination-active-border-color: var(--bs-primary);
+    --bs-pagination-focus-box-shadow: 0 0 0 0.25rem rgba(var(--bs-primary-rgb), 0.25);
+}
+
 .btn-group .btn:hover {
     transform: none;
 }

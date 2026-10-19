@@ -383,9 +383,117 @@ class LightThemeIsTheMirrorTest(SimpleTestCase):
         `:root`) — l'encart au dégradé de l'accueil reste sombre en thème clair."""
         css = THEME_CSS.read_text(encoding='utf-8')
         self.assertIn(':root,\n[data-wama-theme="dark"] {', css)
-        self.assertIn('\n[data-wama-theme="light"] {', css)
+        self.assertIn('\n[data-wama-theme="light"],\n', css)
         home = (ROOT / 'wama' / 'templates' / 'home.html').read_text(encoding='utf-8')
         self.assertIn('data-wama-theme="dark" data-bs-theme="dark"', home)
+
+
+COLOUR_LITERAL = re.compile(r'#[0-9a-fA-F]{3,8}\b|rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})'
+                            r'|^\s*(\d{1,3}),\s*(\d{1,3}),\s*(\d{1,3})\s*$')
+
+
+def own_blocks(css=None):
+    """{clé de thème: {propriété: valeur}} des blocs qui ne nomment QU'UN thème — ce qu'un thème
+    dérivé redéfinit lui-même, `--bs-*` compris (`theme_blocks` y mêle les valeurs reçues)."""
+    css = re.sub(r'/\*.*?\*/', '', css if css is not None else THEME_CSS.read_text(encoding='utf-8'),
+                 flags=re.S)
+    blocks = {}
+    for selector, body in re.findall(r'([^{}]+)\{([^{}]*)\}', css):
+        m = re.fullmatch(r'\s*\[data-wama-theme="([a-z0-9_-]+)"\]\s*', selector)
+        if m:
+            blocks.setdefault(m.group(1), {}).update(re.findall(r'(--[a-z0-9-]+)\s*:\s*([^;]+);', body))
+    return blocks
+
+
+def colours_outside_charter(block, charter):
+    """Les couleurs écrites dans `block` qui ne sont ni une couleur de `charter`, ni l'une de ses
+    teintes déclarées (`derived`) — en hexadécimal, en `rgba(r, g, b, a)` ou en canaux « r, g, b »."""
+    allowed = {c.lower() for c in charter['colors'].values()} | {c.lower() for c in charter['derived']}
+    found = {}
+    for name, value in block.items():
+        for m in COLOUR_LITERAL.finditer(value):
+            channels = [g for g in m.groups() if g is not None]
+            if channels:
+                colour = '#%02x%02x%02x' % tuple(int(c) for c in channels)
+            else:
+                colour = m.group(0).lower()
+                if len(colour) == 4:
+                    colour = '#' + ''.join(c * 2 for c in colour[1:])
+            if colour not in allowed:
+                found[name] = colour
+    return found
+
+
+class DerivedThemeTest(SimpleTestCase):
+    """Les thèmes UGE et La Suite numérique (2026-10-19) DÉRIVENT du clair : ils en reçoivent
+    chaque valeur par la liste de sélecteurs du bloc clair, et leur bloc ne redéfinit que
+    l'identité, chaque couleur venant de leur charte (`themes.CHARTERS`)."""
+
+    def test_a_derived_theme_is_in_the_selector_list_of_its_base(self):
+        from wama.common.themes import THEMES
+        css = re.sub(r'/\*.*?\*/', '', THEME_CSS.read_text(encoding='utf-8'), flags=re.S)
+        lists = [re.findall(r'\[data-wama-theme="([a-z0-9_-]+)"\]', sel)
+                 for sel, _ in re.findall(r'([^{}]+)\{([^{}]*)\}', css)]
+        keys = {t.key for t in THEMES}
+        for t in THEMES:
+            if not t.base:
+                continue
+            with self.subTest(theme=t.key):
+                self.assertIn(t.base, keys)
+                self.assertFalse(next(b for b in THEMES if b.key == t.base).base, 'one level of derivation')
+                self.assertTrue(any(t.base in keys_ and t.key in keys_ for keys_ in lists),
+                                'the derived theme receives every value of its base')
+                self.assertEqual(theme_blocks()[t.base].keys(), theme_blocks()[t.key].keys())
+
+    def test_every_colour_of_a_derived_theme_comes_from_its_charter(self):
+        from wama.common.themes import CHARTERS, THEMES
+        own = own_blocks()
+        for t in THEMES:
+            if t.base:
+                with self.subTest(theme=t.key):
+                    self.assertIn(t.key, CHARTERS, 'a derived theme names its charter')
+                    self.assertIn(t.key, own, 'and redefines something')
+                    self.assertEqual({}, colours_outside_charter(own[t.key], CHARTERS[t.key]))
+
+    def test_a_derived_shade_is_the_stated_mix(self):
+        from wama.common.themes import CHARTERS
+        for key, charter in CHARTERS.items():
+            colours = {c.lower() for c in charter['colors'].values()}
+            for shade, (colour, mix, part) in charter['derived'].items():
+                with self.subTest(charter=key, shade=shade):
+                    self.assertIn(colour.lower(), colours)
+                    a, b = (tuple(int(c[i:i + 2], 16) for i in (1, 3, 5)) for c in (colour, mix))
+                    expected = '#%02x%02x%02x' % tuple(round(part * x + (1 - part) * y) for x, y in zip(a, b))
+                    self.assertEqual(expected, shade.lower())
+
+    def test_the_charter_guard_sees_a_foreign_colour(self):
+        """Contre-épreuve sur un bloc écrit pour elle : hexadécimal court, `rgba` et canaux."""
+        charter = {'colors': {'principale': '#2f2a85'}, 'derived': {}}
+        block = {'--a': '#2f2a85', '--b': 'rgba(47, 42, 133, .5)', '--c': '47, 42, 133',
+                 '--d': '#fff', '--e': 'rgba(13, 110, 253, .5)', '--f': '1, 2, 3'}
+        self.assertEqual({'--d': '#ffffff', '--e': '#0d6efd', '--f': '#010203'},
+                         colours_outside_charter(block, charter))
+
+    def test_the_text_colours_of_the_charter_read_on_its_page_and_on_white(self):
+        """Ce que le bloc d'un thème dérivé pose comme TEXTE (liens, accent lu, primaire de
+        Bootstrap en texte et en fond de bouton sous un texte blanc) passe 4,5:1 sur le blanc et
+        sur son fond de page."""
+        from wama.common.theme_mirror import luminance, parse
+        from wama.common.themes import THEMES
+
+        def ratio(a, b):
+            ya, yb = (luminance(parse(v)[1]) for v in (a, b))
+            return (max(ya, yb) + 0.05) / (min(ya, yb) + 0.05)
+        own = own_blocks()
+        for t in THEMES:
+            if not t.base:
+                continue
+            block = own[t.key]
+            for name in ('--wama-accent-text', '--wama-link', '--wama-link-soft', '--wama-accent-soft-text',
+                         '--bs-primary', '--bs-primary-text-emphasis'):
+                for ground in ('#ffffff', block['--wama-page-bg-start']):
+                    with self.subTest(theme=t.key, token=name, ground=ground):
+                        self.assertGreaterEqual(ratio(block[name], ground), 4.5)
 
 
 class ModeFollowingComponentsTest(SimpleTestCase):

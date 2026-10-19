@@ -31,6 +31,10 @@ body.wama-simple [data-wama-chat][data-density="full"] .wama-assistant-feed { ma
 [data-wama-chat] .wama-assistant-msg-error     { background: var(--bs-danger); }
 [data-wama-chat] .wama-assistant-msg-user,
 [data-wama-chat] .wama-assistant-msg-error     { white-space: pre-wrap; }
+/* Bulle PLEINE (primaire, danger) : le texte d'un aplat de couleur, pas le texte du thème — en
+   clair, le noir y tombait à 1,8:1 sur l'indigo de la charte UGE (2026-10-19). */
+[data-wama-chat] .wama-assistant-msg-user,
+[data-wama-chat] .wama-assistant-msg-error     { color: var(--wama-text-on-accent); }
 [data-wama-chat] .wama-assistant-msg a         { color: var(--wama-chat-link); }
 [data-wama-chat] .wama-assistant-model         { font-size: .75em; opacity: .75; margin-top: .25rem; }
 [data-wama-chat] .wama-assistant-waiting .wama-assistant-wait-word {

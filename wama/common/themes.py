@@ -28,6 +28,9 @@ class Theme:
     label: str
     #: Le mode natif de Bootstrap 5.3 sous ce thème : 'light' ou 'dark'.
     bootstrap: str
+    #: Le thème dont il reçoit toutes les valeurs (liste de sélecteurs du bloc de ce thème dans
+    #: `wama-theme.css`) ; son propre bloc ne redéfinit que ce que sa charte change. '' = complet.
+    base: str = ''
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -38,7 +41,45 @@ THEMES = (
     # Le miroir de luminance du sombre (contrastes conservés), sur le mode clair natif de
     # Bootstrap — étape 4, 2026-10-18 ; la règle et ses exceptions : en-tête de son bloc.
     Theme('light', 'Clair', bootstrap='light'),
+    # La charte de l'université, claire : le clair, dont l'identité devient la sienne (2026-10-19,
+    # Fabien : « on passe au thème UGE ») — `CHARTERS['uge']`.
+    Theme('uge', 'Université Gustave Eiffel', bootstrap='light', base='light'),
+    # Le design system de La Suite numérique (Cunningham, MIT), en clair (2026-10-19, Fabien :
+    # « j'aimerais aussi un thème la suite numérique ») — `CHARTERS['lasuite']`.
+    Theme('lasuite', 'La Suite numérique', bootstrap='light', base='light'),
 )
+
+#: Les CHARTES graphiques dont un thème dérivé tire ses couleurs — chaque couleur écrite dans son
+#: bloc en vient (`tests_theme` le vérifie) : une couleur de la charte, ou une teinte que Bootstrap
+#: en calcule (`derived` : nom → (couleur de la charte, mélange, part de la couleur)).
+CHARTERS = {
+    'uge': {
+        'source': 'claude/Charte_Gustave_Eiffel/Charte_Gustave_Eiffel_V2-4.pdf',
+        'colors': {
+            'principale (Pantone 2746C)': '#2f2a85',
+            'bleu nuit': '#0f273b', 'rose': '#e83583', 'rouge': '#d2213c', 'vert': '#00936e',
+            'vert clair': '#92c56e', 'cyan': '#1eafd0', 'bleu': '#0097d7', 'jaune': '#fbba00',
+            'orange': '#ef7d00', 'violet': '#8b4a97',
+            'fond de page (relevé sur ses pages)': '#f1f2f2',
+        },
+        'derived': {
+            '#131135': ('#2f2a85', '#000000', 0.40),   # `--bs-primary-text-emphasis`
+            '#d5d4e7': ('#2f2a85', '#ffffff', 0.20),   # `--bs-primary-bg-subtle`
+            '#acaace': ('#2f2a85', '#ffffff', 0.40),   # `--bs-primary-border-subtle`
+        },
+    },
+    # Les valeurs de sa palette globale ; le RÔLE de chacune est celui que Cunningham lui donne
+    # (ses tokens « contextuels » : fond de marque = brand-550, texte de marque = brand-700…).
+    'lasuite': {
+        'source': 'github.com/suitenumerique/cunningham (MIT) — packages/react/src/cunningham-tokens.css',
+        'colors': {
+            'brand-100': '#d5e4f7', 'brand-300': '#80aee8', 'brand-350': '#6ca0e4',
+            'brand-550': '#1167d4', 'brand-600': '#0659c5', 'brand-700': '#20467f',
+            'purple-550': '#8b43da', 'gray-025': '#f7f8f8',
+        },
+        'derived': {},
+    },
+}
 
 #: Le thème de qui n'a rien choisi — aussi celui que `wama-theme.css` pose sur `:root` seul.
 DEFAULT = 'dark'

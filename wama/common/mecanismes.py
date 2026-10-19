@@ -2019,6 +2019,10 @@ MECHANISMS = (
               "que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre "
               "(`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que "
               "`themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot). "
+              "Un thème DÉRIVÉ (`Theme.base`, 2026-10-19 : Université Gustave Eiffel, La Suite "
+              "numérique) reçoit toutes les valeurs de sa base par la liste de sélecteurs de son "
+              "bloc et ne redéfinit que son identité, chaque couleur venant de sa charte "
+              "(`CHARTERS`). "
               "Le compte CHOISIT au Profil (2026-10-19) un thème déclaré — le SOMBRE par défaut — "
               "ou « Automatique », qui suit le mode du système (`wama-theme.js`, résolu avant le "
               "premier rendu) ; `theme_choice`, réglage durable `user_settings`",

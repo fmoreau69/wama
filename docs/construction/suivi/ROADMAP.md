@@ -6018,7 +6018,8 @@ listes déroulantes.
    joue les DEUX thèmes, 60 pages : aucun texte illisible ; en clair, il est resté deux familles
    faibles, puis plus que les événements du calendrier (couleur de donnée, déjà faibles en sombre).
    ⏳ *Reste* : ~~choisir son thème (étape 5)~~ (✅ 2026-10-19) ; les boutons « outline » faibles et la couleur d'un
-   événement (charte) ; le thème UGE, qui partira de la charte (`claude/Charte_Gustave_Eiffel/`).
+   événement (charte) ; ~~le thème UGE, qui partira de la charte (`claude/Charte_Gustave_Eiffel/`)~~
+   (✅ 2026-10-19, étape 6).
 5. ✅ **Le choix de l'utilisateur (2026-10-19)** — *« ok pour le Profil avec Auto »* (Fabien).
    *Où* : la page **Profil**, carte « Apparence », à côté de la langue et des unités — une
    préférence qu'on règle une fois ; la barre du haut reste aux gestes fréquents (mode simplifié,
@@ -6045,6 +6046,42 @@ listes déroulantes.
    **soldé par le défaut sombre** (Fabien : *« garde le sombre pour les captures nocturnes »*) :
    le compte de test ne choisit rien, il reçoit le sombre quel que soit le système que Playwright
    annonce. Garde : `test_nothing_chosen_means_dark_whatever_the_system`.
+6. ✅ **Thèmes DÉRIVÉS d'une charte : Université Gustave Eiffel et La Suite numérique**
+   (2026-10-19 — Fabien : *« on passe au thème UGE ? J'aimerais aussi un thème la suite
+   numérique »*). Un thème dérivé déclare sa base (`Theme.base = 'light'`) : il figure dans la
+   LISTE DE SÉLECTEURS du bloc clair de `wama-theme.css`, en reçoit les 421 valeurs, et son propre
+   bloc ne redéfinit que l'identité (~20 propriétés : accent, liens, indigo/violet, page, défilement,
+   et la primaire de Bootstrap `--bs-primary*`). Quand le clair se régénère, les dérivés suivent.
+   *Chartes* : `themes.CHARTERS` — UGE depuis `claude/Charte_Gustave_Eiffel/…V2-4.pdf` p. 7
+   (principale indigo #2f2a85 Pantone 2746C, dix secondaires, gris de page #f1f2f2 relevé sur ses
+   pages) ; La Suite depuis **Cunningham**, son design system (github.com/suitenumerique/cunningham,
+   **MIT**, un mode clair et un sombre), chaque couleur dans le rôle que Cunningham lui donne
+   (fond de marque brand-550 #1167d4, texte de marque brand-700, lien brand-600, page gray-025).
+   Les couleurs de SENS (succès, échec…) restent celles du clair. Polices non embarquées : TT Norms
+   (UGE) est sous licence commerciale ; Roboto Flex (La Suite) est libre, elle passerait par
+   `tools/update_vendors.sh`. Ni Marianne ni logo de l'État (réservés aux services de l'État).
+   *Bootstrap* : 5.3.0 écrit #0d6efd EN DUR dans `.btn-primary`, `.btn-outline-primary`,
+   `.nav-pills`, `.pagination` — `app_modern.css` les fait lire `--bs-primary`, teintes de
+   survol/appui calculées comme Bootstrap (`color-mix` avec `--bs-black`, 15/20/25 %) : même rendu
+   en sombre et en clair, seul écart l'anneau de focus du bouton plein (13,110,253 au lieu de
+   49,132,253). Les autres composants (champs, cases, barres, menus) lisaient déjà `--bs-primary`.
+   *Gardes* : `tests_theme.DerivedThemeTest` — le dérivé est dans la liste de sa base (un seul
+   niveau), reçoit chaque token, chaque couleur de son bloc vient de sa charte (hex, `rgba`,
+   canaux), une teinte déclarée est le mélange qu'elle dit, ses textes passent 4,5:1 sur le blanc
+   et sur sa page ; contre-épreuves : une couleur étrangère relevée, le dérivé retiré de la liste
+   ne reçoit plus que 16 tokens sur 421. `common.contrast` joue chaque thème déclaré.
+   ⏳ *Reste* : une variante SOMBRE de La Suite (Cunningham en a une : `base='dark'`) ; le logo
+   de l'université dans la barre du haut (décision) ; boutons « outline » et calendrier (charte).
+7. ⏳ **Personnaliser son thème** (question de Fabien, 2026-10-19 : charte complète ? palettes à
+   cliquer ? une image dont un LLM tire le thème ?) — *proposition, rien de construit* : toutes les
+   voies produisent la MÊME chose, quelques couleurs-graines (base claire ou sombre, primaire,
+   secondaire, teinte de page), et UN générateur en dérive le bloc avec les gardes ci-dessus
+   (contraste ajusté jusqu'à 4,5:1) — jamais 421 tokens édités à la main. Ordre proposé :
+   (1) palettes et couleur d'accent à cliquer au Profil ; (2) import d'une CHARTE (PDF) pour un
+   labo, une équipe, un établissement — le LLM lit les valeurs dans le texte (comme la p. 7 de la
+   charte UGE), un humain valide, le thème est partagé selon la portée (même héritage que la
+   visibilité, `§29`) ; (3) une image : la palette s'en extrait sans LLM (regroupement des
+   couleurs en OKLab), le LLM ne sert au plus qu'à choisir les rôles.
 
 ## 29. PROVENANCE de tout ce qui entre dans WAMA — privé à son auteur, « Système » une fois promu (ouvert le 2026-10-18, demande de Fabien)
 
