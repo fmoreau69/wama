@@ -1185,6 +1185,8 @@
           "id": "prompt",
           "label": "Prompt",
           "multi": false,
+          "one_of": [],
+          "required": false,
           "types": [
             "prompt"
           ]
@@ -1195,6 +1197,8 @@
           "id": "work_audio",
           "label": "Audio de travail",
           "multi": true,
+          "one_of": [],
+          "required": true,
           "types": [
             "audio"
           ]
@@ -1205,6 +1209,10 @@
           "id": "work_image",
           "label": "Image de travail",
           "multi": true,
+          "one_of": [
+            "work_object3d"
+          ],
+          "required": false,
           "types": [
             "image"
           ]
@@ -1215,6 +1223,10 @@
           "id": "work_object3d",
           "label": "Objet 3D de travail",
           "multi": true,
+          "one_of": [
+            "work_image"
+          ],
+          "required": false,
           "types": [
             "3d"
           ]

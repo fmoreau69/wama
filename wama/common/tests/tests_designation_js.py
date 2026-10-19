@@ -120,6 +120,28 @@ class DesignationJsTest(SimpleTestCase):
         self.assertEqual([], json.loads(ctx.eval('JSON.stringify(posted)')),
                          'en mode attache, rien ne part avant la création')
 
+    def _on_a_card(self, depot):
+        """`attach: 'card'` (2026-10-19) sur une card dont la forme d'entrée est `depot` : une
+        désignation audio, et ce qui en sort — `[ports qui l'ont reçue, requêtes envoyées]`."""
+        ctx = self._import(", attach: 'card'")
+        ctx.eval("var pane = {getAttribute: function (k) { return k === 'data-port-input' ? 'port' : null; }};"
+                 "var card = {getAttribute: function (k) { return k === 'data-wama-depot' ? '"
+                 + depot + "' : null; }, querySelectorAll: function () { return [pane]; }};"
+                 "elements.dz.closest = function () { return card; };"
+                 "api.handleDesignations([{path: 'users/3/temp/melody.wav', type: 'audio/wav'}]);")
+        return json.loads(ctx.eval('JSON.stringify([attached, posted.length])'))
+
+    def test_on_an_attach_card_the_file_joins_the_port_the_card_declares(self):
+        attached, posted = self._on_a_card('attache')
+        self.assertEqual([['port', 'users/3/temp/melody.wav']], attached)
+        self.assertEqual(0, posted, 'rien ne part avant « Ajouter »')
+
+    def test_on_a_card_whose_drop_creates_the_same_import_sends_it(self):
+        """Contre-épreuve : la même instance, sur une card « cree », envoie à la vue d'upload."""
+        attached, posted = self._on_a_card('cree')
+        self.assertEqual([], attached)
+        self.assertEqual(1, posted)
+
     def test_a_card_finds_its_import_route_by_either_id(self):
         ctx = self._import()
         self.assertTrue(ctx.eval("WamaImport.forElement('dz') === api && WamaImport.forElement('fi') === api"))

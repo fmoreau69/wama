@@ -1974,8 +1974,9 @@ MECHANISMS = (
               "Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du volet + "
               "fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément "
               "la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté "
-              "serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur "
-              "(`views_gen.prompt_entry` : consigne sans port de travail). Adoptée le jour même "
+              "serveur : `received_inputs`. Forme d'entrée DÉDUITE de l'obligation des ports "
+              "(`app_registry.entry_form`, 2026-10-19 — dépôt / attache / mixte), lue par la card v4, "
+              "le générateur (`views_gen.card_entry`) et `WamaImport({attach: 'card'})`. Adoptée le jour même "
               "par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré). "
               "`ports: 'card'` (05/10) : les ports relus sur la card v4 à chaque envoi, chacun "
               "posté sous son nom — le relevé que le composer et le générateur écrivaient chacun",

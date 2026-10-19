@@ -32,6 +32,7 @@
  *     multiple:       false,                        // true : N fichiers en UNE requête (champ `files`)
  *     fieldName:      'file',                       // nom du champ POST (défaut : file / files)
  *     attach:         ['melodyInput'],               // optionnel : ATTACHE au 1er input dont l'accept admet le fichier
+ *                                                    //   — ou 'card' : les ports de la card, si un dépôt y JOINT
  *     afterAttach:    function (input, file) {…},   // optionnel : l'app pose son état après l'attache
  *     beforeFile:     function (file) { … },        // optionnel : rendre false = fichier écarté
  *     extraFields:    function (fd, file) { … },    // optionnel : champs POST supplémentaires
@@ -136,6 +137,24 @@
       });
     }
 
+
+    /**
+     * Les ports d'ATTACHE de l'instance. `attach: 'card'` (2026-10-19) : les ports FICHIER lus sur
+     * la card d'entrée v4 de la zone de dépôt (`[data-port-pane][data-port-kind="file"]`), relus à
+     * chaque dépôt — et AUCUN quand la card dit qu'un dépôt CRÉE (`data-wama-depot`, forme d'entrée
+     * déduite de l'obligation des ports, `app_registry.entry_form`) : le fichier part alors vers
+     * `uploadUrl`. Jumelle de `WamaApp.addToQueue({ports: 'card'})` ; le composer et le générateur
+     * d'apps écrivaient chacun ce relevé. Une LISTE d'ids reste lue telle quelle.
+     */
+    function attachInputs() {
+      if (cfg.attach !== 'card') return cfg.attach || [];
+      var zone = el(cfg.dropZoneId) || el(cfg.fileInputId);
+      var card = zone && zone.closest('[data-wama-ports]');
+      if (!card || card.getAttribute('data-wama-depot') !== 'attache') return [];
+      return Array.prototype.map.call(
+        card.querySelectorAll('[data-port-pane][data-port-kind="file"]'),
+        function (pane) { return pane.getAttribute('data-port-input'); }).filter(Boolean);
+    }
 
     /** L'input porte-t-il déjà CE fichier (même nom, taille, date) ? */
     function holds(input, file) {
@@ -325,18 +344,19 @@
       // écoute l'input (`WamaInputMatch` pose sa chip). Une app SANS `uploadUrl` (composer :
       // prompt + lot + référence, rien à téléverser tel quel) REFUSE ce qui n'est ni lot ni
       // attachable — avant, un tel fichier était AVALÉ SANS TRACE (`batch-import.js:256`).
-      if (cfg.attach && cfg.attach.length) {
+      var attach = attachInputs();
+      if (attach.length) {
         var restes = [];
         // L'input de la zone, quand il est LUI-MÊME un port : un fichier choisi par son
         // sélecteur et routé vers un AUTRE port doit le quitter (2026-09-29, avatarizer : une
         // image choisie depuis la zone audio restait aussi dans `audio_input`, et serait partie
         // comme audio).
-        var zoneInput = cfg.attach.indexOf(cfg.fileInputId) >= 0 ? el(cfg.fileInputId) : null;
+        var zoneInput = attach.indexOf(cfg.fileInputId) >= 0 ? el(cfg.fileInputId) : null;
         var moved = [];
         files.forEach(function (f) {
           var cible = null;
-          for (var a = 0; a < cfg.attach.length; a++) {
-            var inp = el(cfg.attach[a]);
+          for (var a = 0; a < attach.length; a++) {
+            var inp = el(attach[a]);
             if (inp && accepts(inp, f)) { cible = inp; break; }
           }
           if (!cible) { restes.push(f); return; }
@@ -498,7 +518,7 @@
             handleFiles(this.files);
             // Re-déposer le MÊME fichier doit re-déclencher → on vide l'input… SAUF s'il est
             // lui-même un port d'attache (`attach` le cite) : le fichier doit y RESTER.
-            if ((cfg.attach || []).indexOf(this.id) < 0) this.value = '';
+            if (attachInputs().indexOf(this.id) < 0) this.value = '';
           }
         });
       }

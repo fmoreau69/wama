@@ -270,25 +270,39 @@ def studio_node_ports(app_id):
     output = {'id': 'out', 'label': 'Sortie', 'types': out_cats}
     depuis_modeles = app_input_ports(app_id)
     if depuis_modeles:
-        # `required` / `one_of` : l'OBLIGATION d'une card d'app — un nœud du studio n'en porte pas.
+        # `required` / `one_of` : l'OBLIGATION de chaque port VOYAGE avec lui (2026-10-19, décision
+        # de Fabien « par port ») — la card, le Studio et la facette `ports` du manifeste lisent
+        # alors la MÊME forme d'entrée (`entry_form`). Elle en était retirée depuis le 30/09 (« un
+        # nœud du studio n'en porte pas ») : le Studio la relisait à part, et la variante manifeste
+        # (`projection.derive_io_from_ports`), qui ne lit que la facette, ne pouvait pas l'appliquer.
         # Les ports que l'APP consomme elle-même (`app_own_input_ports`) en sont, comme à la card :
         # UN inventaire, deux surfaces (2026-09-30).
         own = [p for p in app_own_input_ports(app_id)
                if p['id'] not in {m['id'] for m in depuis_modeles}]
-        inputs = [{k: v for k, v in p.items() if k not in ('required', 'one_of')}
-                  for p in own + depuis_modeles]
+        inputs = own + depuis_modeles
         return {'inputs': inputs + _app_result_port_shapes(app_id, inputs), 'output': output}
 
+    # Repli (aucun modèle déclarant : converter, app née d'un manifeste). Un port que l'APP consomme
+    # elle-même couvre ses natures : le port générique `work` ne garde que les AUTRES — la règle
+    # « un port générique cède au spécifique » de `ports_for_domain`. Sans elle, une app née d'un
+    # manifeste qui déclare `has_text_file_input` (le Translator) recevait deux ports « document ».
+    own = app_own_input_ports(app_id)
+    covered = {t for p in own for t in p.get('types') or []}
+    rest = [c for c in media_in if c not in covered]
     inputs = []
-    if media_in:
+    if rest:
         inputs.append({'id': 'work', 'label': 'Entrée', 'group': 'travail',
-                       'types': media_in, 'multi': True})
+                       'types': rest, 'multi': True})
     if 'prompt' in in_cats:
-        inputs.append({'id': 'prompt', 'label': 'Prompt', 'group': 'prompt',
+        # L'ordre d'`input_types` EST la priorité d'entrée (imager : `('prompt', 'image')`) : sans
+        # modèle qui déclare d'obligation, c'est lui que suit la forme d'entrée (`entry_form`).
+        first = not rest or in_cats.index('prompt') < min(in_cats.index(c) for c in rest)
+        inputs.insert(0 if first else len(inputs),
+                      {'id': 'prompt', 'label': 'Prompt', 'group': 'prompt',
                        'types': ['prompt'], 'multi': False})
-    for p in app_own_input_ports(app_id):              # même règle que la branche des modèles
+    for p in own:                                      # même règle que la branche des modèles
         if p['id'] not in {i['id'] for i in inputs}:
-            inputs.append({k: v for k, v in p.items() if k not in ('required', 'one_of')})
+            inputs.append(p)
 
     # Ports de référence déclarés dans le schéma modes (si l'app y figure) — portés par un
     # MODE, ou par le DOMAINE lui-même quand il n'a pas de switch (`inputs` de domaine).
@@ -326,11 +340,11 @@ def studio_node_ports(app_id):
 
 
 def _app_result_port_shapes(app_id, present):
-    """Ports d'`app_result_ports` à la forme de `studio_node_ports` (sans `required`), moins ceux
-    déjà présents — les deux chemins (modèles déclarants, repli) les reçoivent pareil."""
+    """Ports d'`app_result_ports` à la forme de `studio_node_ports` (obligation comprise — jamais
+    requis), moins ceux déjà présents — les deux chemins (modèles déclarants, repli) les reçoivent
+    pareil."""
     ids = {p.get('id') for p in present}
-    return [{k: v for k, v in p.items() if k != 'required'}
-            for p in app_result_ports(app_id) if p['id'] not in ids]
+    return [p for p in app_result_ports(app_id) if p['id'] not in ids]
 
 
 def _domaine_dune_tache(task):
@@ -659,6 +673,83 @@ def app_ports_carried_elsewhere(app_id) -> dict:
     Le port reste au STUDIO dans les deux cas.
     """
     return dict((APP_CATALOG.get(app_id) or {}).get('ports_carried_elsewhere') or {})
+
+
+def entry_form(ports) -> dict:
+    """La FORME D'ENTRÉE d'une card, DÉDUITE de l'obligation que chaque port porte (2026-10-19).
+
+    Décision de Fabien (« par port », 2026-10-18) : ce qu'une card fait d'une entrée ne se déclare
+    pas à part — ni capacité d'app, ni littéral de page (`depot_cree`, `show_prompt`). Chaque port
+    dit déjà ce qu'il exige (`required`) et avec quels autres il s'échange (`one_of`, « l'un OU
+    l'autre ») : `app_input_ports` (l'union des MODÈLES), plus les ports que l'app consomme elle-même.
+    Un port SUFFIT À CRÉER un élément quand il remplit seul toute l'obligation. D'où :
+      • `drop_creates` — le port de travail PRINCIPAL (le premier) suffit : un dépôt CRÉE l'élément
+        (anonymizer, converter…) ; sinon le fichier se JOINT et « Ajouter » crée (imager, composer,
+        avatarizer) ;
+      • `prompt` — l'id du port de consigne si la card le porte : quand il suffit (synthesizer,
+        Translator : l'un OU l'autre, la forme MIXTE) ou quand le dépôt ne crée pas. Une consigne
+        qui ne suffit pas, sur une card dont le dépôt crée, ne peut pas accompagner la création :
+        c'est un RÉGLAGE (anonymizer : `sam3_prompt`, au volet) — '' ;
+      • `creating` — les ports qui suffisent, pour qui doit en retenir un (l'entrée principale
+        d'un nœud du Studio) ; `work` — l'id du port de travail principal ('' sans port de travail).
+    Mesuré sur les dix apps le 2026-10-19 (catalogue réel) : la forme déduite est celle que leurs
+    pages écrivaient à la main.
+
+    Un port de RÉFÉRENCE ne crée jamais : il guide, il n'est pas la base (`INPUT_TYPES`).
+    Aucune obligation déclarée (app sans modèle déclarant : converter ; app née d'un manifeste qui
+    n'en dit rien ; base sans catalogue) : l'entrée principale est exigée — la première entrée,
+    travail ou consigne, dans l'ordre des ports, qui suit la priorité d'`input_types` (l'imager
+    déclare la consigne d'abord). C'est la règle qu'appliquaient la card (`required = group ==
+    'travail'`) et le générateur (« attache = une consigne sans port de travail »).
+
+    `ports` : la forme de `studio_node_ports()['inputs']` — celle de la facette `ports` du
+    manifeste —, restreinte par l'appelant à ce que la card montre (domaine, ports portés ailleurs).
+    Fonction PURE : la card (`input_slots`), le générateur (`views_gen`, `templates_gen`) et le
+    Studio (`generic_runner`, `projection`) la partagent."""
+    by_id = {p['id']: p for p in ports or [] if isinstance(p, dict) and p.get('id')}
+    work = next((i for i, p in by_id.items() if p.get('group') == 'travail'), '')
+    prompt = next((i for i, p in by_id.items() if p.get('group') == 'prompt'), '')
+    if any('required' in p or p.get('one_of') for p in by_id.values()):
+        required = [i for i, p in by_id.items() if p.get('required')]
+    else:
+        required = [i for i, p in by_id.items() if p.get('group') in ('travail', 'prompt')][:1]
+
+    def exchangeable(port_id):
+        """Le port et ceux avec qui il s'échange — dans les deux sens : le fichier de travail du
+        synthesizer se déclare `one_of: ['prompt']`, la consigne ne le nomme pas."""
+        group = {port_id, *(by_id[port_id].get('one_of') or [])}
+        group |= {i for i, p in by_id.items() if port_id in (p.get('one_of') or [])}
+        return group & set(by_id)
+
+    needs = [exchangeable(i) for i in required]
+    needs += [exchangeable(i) for i, p in by_id.items() if p.get('one_of')]
+    creating = [i for i, p in by_id.items() if p.get('group') in ('travail', 'prompt')
+                and all(i in need for need in needs)]
+    drop_creates = bool(work) and work in creating
+    return {'creating': creating, 'drop_creates': drop_creates, 'work': work,
+            'prompt': prompt if prompt and (prompt in creating or not drop_creates) else ''}
+
+
+def principal_entry(ports) -> dict:
+    """L'ENTRÉE PRINCIPALE d'un nœud du Studio, tirée de la forme d'entrée (`entry_form`) :
+    `{'primary_input': 'prompt'}` quand la consigne suffit seule à créer l'élément, sinon
+    `{'input_kinds': (natures du port de travail principal)}` — `{}` si rien ne s'en tire.
+
+    Les deux lecteurs la partagent (2026-10-19) : `generic_runner._derive_io_from_ports` (ordre des
+    natures PRÉSERVÉ — c'est la priorité de résolution de l'entrée) et la variante manifeste
+    `projection.derive_io_from_ports` (qui trie, pour une comparaison insensible à l'ordre). Le
+    Studio appliquait deux règles à la main — un port « l'un OU l'autre » avec la consigne n'est
+    pas l'entrée principale (synthesizer, 30/09) ; un port de travail qu'aucun modèle n'exige, à
+    côté d'une consigne que tous exigent, non plus (composer, 03/10) — : ce sont les deux cas où
+    la consigne SUFFIT. La variante manifeste ne pouvait pas les appliquer, faute d'obligation à la
+    facette `ports`, et classait ces deux nœuds en `drift` (`INPUT_MODEL_MATCHING §6.10`)."""
+    form = entry_form(ports)
+    by_id = {p['id']: p for p in ports or [] if isinstance(p, dict) and p.get('id')}
+    prompt = next((i for i, p in by_id.items() if p.get('group') == 'prompt'), '')
+    if form['work'] and prompt not in form['creating']:
+        kinds = tuple(t for t in by_id[form['work']].get('types') or [] if t and t != 'prompt')
+        return {'input_kinds': kinds} if kinds else {}
+    return {'primary_input': 'prompt'} if prompt else {}
 
 
 def app_result_ports(app_id):

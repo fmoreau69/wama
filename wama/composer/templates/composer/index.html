@@ -44,7 +44,8 @@ Un vrai MODE reviendra par APP_MODES si le comportement diverge un jour (cf. mel
     <span class="text-info small" id="estimateDisplay">~20s</span>
 </div>
 
-{% comment %}Prompt DÉPLACÉ dans la card d'entrée commune (_new_item_card show_prompt) : le prompt
+{% comment %}Prompt DÉPLACÉ dans la card d'entrée commune (rendu parce que ses ports l'exigent —
+`app_registry.entry_form`, plus de littéral `show_prompt` depuis le 2026-10-19) : le prompt
 est une ENTRÉE (formalisation Fabien 2026-07-03), pas un réglage — le volet garde la config, la
 modale garde l'édition du prompt d'un item existant. Id promptInput conservé (JS inchangé).{% endcomment %}
 
@@ -78,7 +79,7 @@ ATTACHE : sa tuile Importer est la voie d'import COMMUNE `WamaImport` en mode at
 comme l'imager et l'avatarizer — le drapeau `primary_import_self` du 03/10 est retiré le
 2026-10-05 (une voie de plus pour le même geste).{% endcomment %}
 {% url 'composer:batch_template' as composer_batch_template_url %}
-{% include 'common/_new_item_card_v4.html' with app_id='composer' card_id='composerNewCard' depot_cree=False batch_format='sortie|prompt|modèle|durée' batch_hint='En-têtes de colonnes ou balises -p/-o/--option acceptés (détection auto)' batch_template_url=composer_batch_template_url show_batch_bar=True file_input_id='melodyInput' drop_zone_id='melodySlot' url_input_id='melodyUrlInput' url_placeholder='https://… (audio du morceau à reprendre)' url_hint='téléchargée au lancement — un fichier joint prime' match_status_id='inputMatchStatus' show_prompt=True prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' collapsible=True %}
+{% include 'common/_new_item_card_v4.html' with app_id='composer' card_id='composerNewCard' batch_format='sortie|prompt|modèle|durée' batch_hint='En-têtes de colonnes ou balises -p/-o/--option acceptés (détection auto)' batch_template_url=composer_batch_template_url show_batch_bar=True file_input_id='melodyInput' drop_zone_id='melodySlot' url_input_id='melodyUrlInput' url_placeholder='https://… (audio du morceau à reprendre)' url_hint='téléchargée au lancement — un fichier joint prime' match_status_id='inputMatchStatus' prompt_input_id='promptInput' prompt_rows=3 prompt_placeholder='Ex : upbeat jazz piano with soft drums… — VIDE = génération aléatoire (le modèle improvise)' prompt_hint='Anglais recommandé (traduction automatique sinon)' primary_btn_id='generateBtn' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' collapsible=True %}
 
 {# ── Barre de progression globale : brique COMMUNE (_global_progress + wama-global-progress.js #}
 {# + endpoint composer:global_progress au contrat {total,done,running,failed,overall_progress}). #}
@@ -207,8 +208,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // l'avatarizer : un fichier déposé ou choisi va au port dont l'`accept` l'admet (un `.abc`
     // déposé sur l'audio rejoint la partition), un fichier de lot à la brique de lot, le reste
     // est REFUSÉ à l'écran. Pas d'`uploadUrl` : rien n'est créé au dépôt, c'est « Ajouter à la
-    // file » qui crée. Les ports sont lus de la card, jamais écrits ici (même lecture que
-    // `WamaInputMatch` plus bas) ; leur `change` réveille l'appariement.
+    // file » qui crée. Les ports sont lus de la card par la brique (`attach: 'card'`, 2026-10-19 —
+    // le relevé vivait ici) ; leur `change` réveille l'appariement.
     if (typeof WamaImport === 'function') {
         window._import = WamaImport({
             csrfToken:   '{{ csrf_token }}',
@@ -216,10 +217,7 @@ document.addEventListener('DOMContentLoaded', function () {
             fileInputId: 'melodyInput',
             batch:       window._batchImport,
             batchScope:  'each',
-            attach:      Array.from(document.querySelectorAll(
-                             '#composerNewCard [data-port-pane][data-port-kind="file"]'))
-                             .map(function (p) { return p.dataset.portInput; })
-                             .filter(Boolean),
+            attach:      'card',
         });
     }
 });

@@ -66,12 +66,14 @@ def render_index(manifest: dict) -> tuple:
         exts = retenues or exts
     accept = ','.join(exts) or '*/*'
     mark = _GEN_MARK.format(app_id=app)
-    # Mode ATTACHE (port `prompt`) — la MÊME dérivation que la vue d'ajout (`views_gen`).
-    from wama.common.manifests.codegen.views_gen import prompt_entry
+    # FORME D'ENTRÉE — la MÊME lecture que la vue d'ajout (`views_gen.card_entry`, obligation des
+    # ports). La card la rend elle-même (`input_slots`) : le gabarit n'émet que les ids et le câblage.
+    from wama.common.manifests.codegen.views_gen import card_entry
     _item = (((body.get('processing') or {}).get('model_spec') or {}).get('item') or {}).get('name')
     _cols = {f['name'] for m in ((body.get('data') or {}).get('models') or [])
              if m.get('name') == _item for f in m.get('fields') or []} or None
-    prompt_first, prompt_field = prompt_entry(body, _cols)
+    entry = card_entry(body, _cols)
+    adds, prompt_field = entry['adds'], entry['prompt_field']
 
     # Import par URL — DÉRIVÉ des capacités du manifeste (2026-08-19). La jumelle converter_01
     # n'offrait pas le champ URL alors que l'app source l'a : ce n'était PAS un trou de glu
@@ -451,29 +453,36 @@ def render_index(manifest: dict) -> tuple:
                     f" reference_input_id='{app}RefInput' reference_chip_id='{app}RefChip'"
                     f" reference_accept='{ref_accept}'"
                     f" reference_label='{ref.get('label') or 'Référence'}'")
-        # En mode ATTACHE, les références secondaires sont câblées (`addToQueue`, plus bas) : la
-        # card v4 les rend. Hors attache, le dépôt crée l'élément et rien ne les joint : trou nommé.
-        surplus = '' if prompt_first else ''.join(
+        # Avec le bouton « Ajouter » (formes attache et mixte), les références secondaires sont
+        # câblées (`addToQueue`, plus bas) : la card v4 les rend. Sans lui, le dépôt crée l'élément
+        # et rien ne les joint : trou nommé.
+        surplus = '' if adds else ''.join(
             f"\n    // TROU DE GLU {mark} — port de référence supplémentaire NON rendu : `{p.get('id')}`."
             for p in refs[1:])
         ref_js = f'''
     // TROU DE GLU {mark} — slot de référence RENDU (port `{ref.get('id')}`), câblage d'ATTACHE
-    // non généré : joindre le fichier du slot au POST de création est un geste d'app
-    // (`depot_cree=False`/FormData) que la marche B remplit. Le slot est visible et nommé
+    // non généré : joindre le fichier du slot au dépôt qui CRÉE l'élément (forme d'entrée sans
+    // bouton « Ajouter », `card_entry`) est un geste d'app que la marche B remplit. Le slot est visible et nommé
     // plutôt qu'absent — l'écart avec l'app en place EST la mesure.{surplus}
-''' if not prompt_first else surplus.lstrip('\n') + ('\n' if surplus else '')
+''' if not adds else surplus.lstrip('\n') + ('\n' if surplus else '')
 
-    # MODE ATTACHE — dérivé des ports (`views_gen.prompt_entry`, la vue et le gabarit lisent la
-    # MÊME dérivation). La card porte la consigne et un bouton « Ajouter à la file » ; le fichier
-    # du slot y est JOINT, jamais un élément créé au dépôt. Le geste est la brique commune
-    # `WamaApp.addToQueue` (wama-app-base.js) — celui que quatre apps écrivaient à la main.
+    # AJOUT À LA FILE — formes ATTACHE et MIXTE (`views_gen.card_entry`, la vue et le gabarit lisent
+    # la MÊME forme). La card porte un bouton « Ajouter à la file » et, si ses ports la portent, la
+    # consigne — la card les rend d'elle-même (`input_slots`), le gabarit n'émet que leurs ids. Le
+    # geste est la brique commune `WamaApp.addToQueue` (wama-app-base.js) — celui que quatre apps
+    # écrivaient à la main. Le dépôt joint (attache) ou crée (mixte) : `WamaImport({attach: 'card'})`
+    # lit la card, plus bas.
     attach_bits = attach_js = ''
-    if prompt_first:
+    if adds:
         p_param = next((f for s in ((body.get('params') or {}).get('schemas') or {}).values()
                         for f in s or [] if f.get('name') == prompt_field), {})
         placeholder = (p_param.get('help') or 'Décrivez ce que vous voulez obtenir…').replace("'", '’')
-        attach_bits = (f" depot_cree=False show_prompt=True prompt_input_id='{app}Prompt'"
-                       f" prompt_placeholder='{placeholder}' prompt_rows=3"
+        # Le résultat INSTANTANÉ de la saisie poste les réglages du volet (`data-instant-params`,
+        # `wama-instant.js`) : sans l'hôte nommé, la frappe ne voyait que les réglages enregistrés.
+        instant_bits = (f" instant_params_id='{app}PanelParams'"
+                        if (body.get('capabilities') or {}).get('instant_preview') else '')
+        attach_bits = (f" prompt_input_id='{app}Prompt'"
+                       f" prompt_placeholder='{placeholder}' prompt_rows=3{instant_bits}"
                        f" primary_btn_id='{app}AddBtn' primary_btn_label='Ajouter à la file d’attente'"
                        " primary_btn_icon='fa-plus'")
         # L'URL d'un port n'est postée que si l'élément a de quoi la garder (`source_url`,
@@ -486,8 +495,8 @@ def render_index(manifest: dict) -> tuple:
                      if refs and 'source_url' in (_cols or ()) else '')
         ports_js = "'card'" + url_field
         attach_js = f'''
-    // AJOUT À LA FILE (mode attache) — brique commune : consigne + réglages du volet + fichier
-    // joint ou désigné ; rien n'est lancé — on ajoute, on règle, puis ▶.
+    // AJOUT À LA FILE — brique commune : consigne + réglages du volet + fichier joint ou
+    // désigné ; rien n'est lancé — on ajoute, on règle, puis ▶.
     WamaApp.addToQueue({{
         url:          "{{% url '{app}:{route_upload}' %}}",
         csrfToken:    CSRF,
@@ -497,6 +506,52 @@ def render_index(manifest: dict) -> tuple:
         ports:        {ports_js},
     }});
 '''
+
+    # Voie d'IMPORT — la brique `WamaImport`, selon ce que fait un dépôt (`card_entry`) :
+    #   • il CRÉE (formes dépôt et mixte) : envoi à la vue d'ajout, dossier compris ;
+    #   • il JOINT (forme attache) : `attach: 'card'` — le fichier entre dans le port de la card dont
+    #     l'`accept` l'admet, ce qui n'est ni lot ni joignable est REFUSÉ ; pas d'URL d'envoi, pas de
+    #     dossier (un dossier de N fichiers n'a pas d'objet sur un port qui se joint). C'est la forme
+    #     des pages de l'imager, du composer et de l'avatarizer. Jusqu'au 2026-10-19, une jumelle
+    #     « attache » émettait la voie qui CRÉE : un fichier déposé y naissait élément, à côté du
+    #     bouton « Ajouter » de la même card.
+    if entry['drop_creates']:
+        import_js = f'''    // Fichier ORDINAIRE (dépôt, clic, médiathèque) : le maillon qu'aucune brique ne portait.
+    window._import = WamaImport({{
+        uploadUrl:      "{{% url '{app}:{route_upload}' %}}",
+        consolidateUrl: "{{% url '{app}:{route_consolidate}' %}}",
+        csrfToken:      CSRF,
+        dropZoneId:     '{app}DropZone',
+        fileInputId:    '{app}FileInput',
+        folderInputId:  '{app}FolderInput',   // dossier = le même geste (brique, 05/09)
+        batch:          window._batchImport,
+        // Défauts de FILE postés avec chaque dépôt (hook extraFields de la brique — il
+        // existait, personne ne le passait) : la cascade serveur fait alors POST > défauts,
+        // exactement le geste de l'app réelle (readMainPanelOptions posté par converter.js).
+        extraFields:    function (fd) {{
+            var host = document.getElementById('{app}PanelParams');
+            if (!host || !window.WamaParams) return;
+            var v = WamaParams.read(host);
+            Object.keys(v).forEach(function (k) {{
+                if (v[k] !== '' && v[k] != null) fd.append(k, v[k]);
+            }});
+        }},
+    }});
+
+    // Import de DOSSIER : porté par la brique (`folderInputId` + traversée du drop) depuis le
+    // 05/09 — le câblage qui vivait ICI n'existait pour aucune app hors générateur.'''
+        folder_bit = f" folder_input_id='{app}FolderInput'"
+    else:
+        import_js = f'''    // Fichier déposé, choisi ou désigné : JOINT au port de la card qui l'accepte (`attach:
+    // 'card'`) — « Ajouter à la file » crée l'élément. Un fichier de lot va à la brique de lot.
+    window._import = WamaImport({{
+        csrfToken:      CSRF,
+        dropZoneId:     '{app}DropZone',
+        fileInputId:    '{app}FileInput',
+        batch:          window._batchImport,
+        attach:         'card',
+    }});'''
+        folder_bit = ''
 
     src = f'''{{% extends '{app}/base.html' %}}
 {{% load static %}}
@@ -550,7 +605,7 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
     celle-ci ne se rebranche qu'en passant les 8 gestes de `converter_01`. `app_id` remplace
     les littéraux de modalité ; `file_accept`/`show_media_library`/`reference_*` restent
     émis parce que la v3 les lit (les 10 apps) et que la v4 honore les ids `reference_*`.{{% endcomment %}}
-    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput' folder_input_id='{app}FolderInput' file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits}{attach_bits} %}}
+    {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput'{folder_bit} file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits}{attach_bits} %}}
     <hr class="border-secondary">
 
 {urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}
@@ -621,30 +676,7 @@ document.addEventListener('DOMContentLoaded', function () {{
         afterCreate:     function () {{ location.reload(); }},
     }});
 
-    // Fichier ORDINAIRE (dépôt, clic, médiathèque) : le maillon qu'aucune brique ne portait.
-    window._import = WamaImport({{
-        uploadUrl:      "{{% url '{app}:{route_upload}' %}}",
-        consolidateUrl: "{{% url '{app}:{route_consolidate}' %}}",
-        csrfToken:      CSRF,
-        dropZoneId:     '{app}DropZone',
-        fileInputId:    '{app}FileInput',
-        folderInputId:  '{app}FolderInput',   // dossier = le même geste (brique, 05/09)
-        batch:          window._batchImport,
-        // Défauts de FILE postés avec chaque dépôt (hook extraFields de la brique — il
-        // existait, personne ne le passait) : la cascade serveur fait alors POST > défauts,
-        // exactement le geste de l'app réelle (readMainPanelOptions posté par converter.js).
-        extraFields:    function (fd) {{
-            var host = document.getElementById('{app}PanelParams');
-            if (!host || !window.WamaParams) return;
-            var v = WamaParams.read(host);
-            Object.keys(v).forEach(function (k) {{
-                if (v[k] !== '' && v[k] != null) fd.append(k, v[k]);
-            }});
-        }},
-    }});
-
-    // Import de DOSSIER : porté par la brique (`folderInputId` + traversée du drop) depuis le
-    // 05/09 — le câblage qui vivait ICI n'existait pour aucune app hors générateur.
+{import_js}
 {url_js}{ref_js}{attach_js}{insp_js}{params_js}{batch_js}{poll_js}}});
 </script>
 {{% endblock %}}

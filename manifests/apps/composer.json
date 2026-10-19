@@ -1378,6 +1378,8 @@
           "id": "prompt",
           "label": "Prompt",
           "multi": false,
+          "one_of": [],
+          "required": true,
           "types": [
             "prompt"
           ]
@@ -1388,6 +1390,8 @@
           "id": "work_audio",
           "label": "Audio de travail",
           "multi": true,
+          "one_of": [],
+          "required": false,
           "types": [
             "audio"
           ]
@@ -1398,6 +1402,8 @@
           "id": "work_score",
           "label": "Partition de travail",
           "multi": false,
+          "one_of": [],
+          "required": false,
           "types": [
             "score"
           ]

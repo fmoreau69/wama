@@ -13,6 +13,7 @@
       "batch_type": "pipe",
       "during_preview": true,
       "has_batch": true,
+      "has_text_file_input": true,
       "has_url_import": false,
       "has_youtube": false,
       "inspector": true,
@@ -1461,6 +1462,10 @@
           "id": "work_file",
           "label": "Fichier de travail",
           "multi": true,
+          "one_of": [
+            "prompt"
+          ],
+          "required": false,
           "types": [
             "document"
           ]
@@ -1471,6 +1476,8 @@
           "id": "prompt",
           "label": "Prompt",
           "multi": false,
+          "one_of": [],
+          "required": true,
           "types": [
             "prompt"
           ]
@@ -1481,6 +1488,8 @@
           "id": "reference_voice",
           "label": "Voix de référence",
           "multi": false,
+          "one_of": [],
+          "required": false,
           "types": [
             "audio"
           ]

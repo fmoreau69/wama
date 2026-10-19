@@ -1986,6 +1986,116 @@ class InputCardSaysWhereSettingsLiveTest(TestCase):
         self.assertEqual([], offenders, 'the sentence belongs to common/_settings_hint.html only')
 
 
+class EntryFormComesFromThePortsTest(TestCase):
+    """La FORME D'ENTRÉE d'une card se DÉDUIT de l'obligation de ses ports (2026-10-19, décision de
+    Fabien « par port ») — `app_registry.entry_form`, rendue par `input_slots` et lue par la card v4
+    au lieu des littéraux de page `depot_cree` / `show_prompt`.
+
+    Les ports ci-dessous sont ceux que l'inventaire rendait le 2026-10-19 sur le catalogue RÉEL
+    (relevé `app_input_ports` + `app_own_input_ports` des dix apps) ; la forme attendue est celle que
+    leurs pages écrivaient à la main ce jour-là."""
+
+    @staticmethod
+    def _port(port_id, group, required=None, one_of=None):
+        port = {'id': port_id, 'label': port_id, 'group': group,
+                'types': ['prompt'] if group == 'prompt' else ['image'], 'multi': False}
+        if required is not None:
+            port.update(required=required, one_of=one_of or [])
+        return port
+
+    def _form(self, *ports):
+        from wama.common.app_registry import entry_form
+        e = entry_form(list(ports))
+        return ('mixed' if e['drop_creates'] and e['prompt'] else 'drop' if e['drop_creates']
+                else 'attach'), e
+
+    def test_the_ten_apps_get_the_form_their_pages_wrote_by_hand(self):
+        p = self._port
+        cases = {
+            # anonymizer : la consigne (concept SAM3) est facultative — un RÉGLAGE du volet
+            'anonymizer': ('drop', [p('prompt', 'prompt', False), p('work_file', 'travail', True)]),
+            'converter': ('drop', [p('work', 'travail')]),                 # aucun modèle déclarant
+            'describer': ('drop', [p('work_file', 'travail', True)]),
+            'reader': ('drop', [p('work_file', 'travail', True)]),
+            'enhancer': ('drop', [p('work_audio', 'travail', False, ['work_file']),
+                                  p('work_file', 'travail', False, ['work_audio'])]),
+            'transcriber': ('drop', [p('work_audio', 'travail', True),
+                                     p('work_result', 'travail', False)]),
+            'imager': ('attach', [p('prompt', 'prompt', True), p('work_image', 'travail', False)]),
+            'avatarizer': ('attach', [p('prompt', 'prompt', False), p('work_audio', 'travail', True),
+                                      p('work_image', 'travail', False, ['work_object3d']),
+                                      p('work_object3d', 'travail', False, ['work_image'])]),
+            'composer': ('attach', [p('prompt', 'prompt', True), p('work_audio', 'travail', False),
+                                    p('work_score', 'travail', False)]),
+            'synthesizer': ('mixed', [p('work_file', 'travail', False, ['prompt']),
+                                      p('prompt', 'prompt', True),
+                                      p('reference_voice', 'reference', False)]),
+        }
+        for app, (expected, ports) in cases.items():
+            with self.subTest(app=app):
+                self.assertEqual(expected, self._form(*ports)[0])
+
+    def test_a_prompt_that_does_not_suffice_on_a_dropping_card_is_not_on_the_card(self):
+        form, entry = self._form(self._port('prompt', 'prompt', False),
+                                 self._port('work_file', 'travail', True))
+        self.assertEqual(('drop', ''), (form, entry['prompt']))
+
+    def test_a_reference_never_creates_an_element(self):
+        _form, entry = self._form(self._port('prompt', 'prompt'),
+                                  self._port('reference_document', 'reference'))
+        self.assertEqual(['prompt'], entry['creating'])
+
+    def test_without_any_declared_obligation_the_first_entry_is_required(self):
+        """Repli (converter, app née d'un manifeste, base sans catalogue) : l'ordre des ports suit
+        la priorité d'`input_types` — l'imager déclare la consigne d'abord."""
+        self.assertEqual('attach', self._form(self._port('prompt', 'prompt'),
+                                              self._port('work', 'travail'))[0])
+        self.assertEqual('drop', self._form(self._port('work', 'travail'),
+                                            self._port('prompt', 'prompt'))[0])
+
+    def test_the_v4_card_renders_the_form_of_its_ports(self):
+        """Bout en bout, sur la card commune : modèles simulés comme au catalogue (composer : la
+        consigne exigée par tous, le morceau à reprendre par un seul)."""
+        from django.template.loader import render_to_string
+        from wama.model_manager.models import AIModel
+        for key, inputs in (('melody', {'inputs_required': ['prompt'],
+                                        'inputs_optional': ['work_audio']}),
+                            ('text', {'inputs_required': ['prompt']})):
+            AIModel.objects.create(model_key=f'composer:{key}', name=key, model_type='music',
+                                   source='composer', is_available=True, is_downloaded=True,
+                                   capabilities={'task': 'text-to-audio', **inputs})
+        html = render_to_string('common/_new_item_card_v4.html', {
+            'app_id': 'composer', 'drop_zone_id': 'z', 'file_input_id': 'f',
+            'prompt_input_id': 'composerPrompt'})
+        self.assertIn('data-wama-depot="attache"', html)
+        self.assertIn('id="composerPrompt"', html, 'la consigne suffit : la card la porte')
+        describer = render_to_string('common/_new_item_card_v4.html', {
+            'app_id': 'describer', 'drop_zone_id': 'z', 'file_input_id': 'f',
+            'prompt_input_id': 'describerPrompt'})
+        self.assertIn('data-wama-depot="cree"', describer, 'contre-épreuve : le dépôt crée')
+        self.assertNotIn('id="describerPrompt"', describer)
+
+    def test_no_page_writes_the_entry_form_by_hand(self):
+        """Les littéraux `depot_cree` / `show_prompt` ne sont plus lus par la card v4 : une page qui
+        les passerait encore ferait croire qu'elle décide (jumelles exclues : régénérées)."""
+        import re
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.app_registry import APP_CATALOG
+        base = Path(settings.BASE_DIR)
+        offenders = []
+        for app, spec in APP_CATALOG.items():
+            if spec.get('generated_from') or spec.get('sandbox'):
+                continue
+            for root in ('wama', 'wama_lab', 'wama_data'):
+                for page in (base / root / app / 'templates').rglob('*.html'):
+                    for line in page.read_text(encoding='utf-8', errors='replace').splitlines():
+                        if ("_new_item_card_v4.html' with" in line
+                                and re.search(r'\b(depot_cree|show_prompt)\s*=', line)):
+                            offenders.append(str(page.relative_to(base)))
+        self.assertEqual([], offenders)
+
+
 class PipelineStageOpensNoPortTest(TestCase):
     """Une ÉTAPE INTERNE de la chaîne d'une app n'ouvre pas de port d'entrée (2026-09-29).
 
@@ -2065,14 +2175,18 @@ class AlternativeRequirementsTest(TestCase):
         self.assertTrue(slots['work_image']['one_of_first'])
         self.assertFalse(slots['work_object3d']['one_of_first'], 'un seul port du groupe est rempli')
 
-    def test_the_studio_node_carries_no_card_obligation(self):
+    def test_the_studio_node_carries_the_obligation_of_each_port(self):
+        """INVERSÉ le 2026-10-19 (décision de Fabien « par port ») — ce test exigeait depuis le
+        30/09 que le nœud du Studio n'en porte RIEN. L'obligation voyage avec chaque port dans
+        l'inventaire commun, donc dans la facette `ports` du manifeste : la card, le Studio et le
+        générateur en déduisent la même forme d'entrée (`app_registry.entry_form`)."""
         from wama.common.app_registry import studio_node_ports
         self._model('photo', ['work_image', 'work_audio'])
         self._model('three_d', ['work_object3d', 'work_audio'])
-        for port in studio_node_ports('avatarizer')['inputs']:
-            with self.subTest(port=port.get('id')):
-                self.assertNotIn('one_of', port)
-                self.assertNotIn('required', port)
+        node = {p['id']: p for p in studio_node_ports('avatarizer')['inputs']}
+        self.assertTrue(node['work_audio']['required'])
+        self.assertEqual(['work_object3d'], node['work_image']['one_of'])
+        self.assertEqual(['work_image'], node['work_object3d']['one_of'])
 
 
 class ObligationDesSlotsVientDesModelesTest(TestCase):
@@ -2146,7 +2260,7 @@ class LaCardDIT_A_QuoiSertChaqueEntreeTest(TestCase):
     def _rendu(self, app):
         from django.template.loader import render_to_string
         return render_to_string('common/_new_item_card_v4.html', {
-            'app_id': app, 'collapsible': True, 'show_prompt': True,
+            'app_id': app, 'collapsible': True,
             'prompt_input_id': 'p', 'file_input_id': 'f', 'drop_zone_id': 'z',
             'formats_label': 'LITTERAL_DE_REPLI', 'reference_input_id': 'r',
         })

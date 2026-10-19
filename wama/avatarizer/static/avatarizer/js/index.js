@@ -284,19 +284,21 @@
     }) : null;
 
     // ── Voie d'import : brique commune WamaImport, mode ATTACHE (portage 2026-09-08) ──
-    // La card déclare `depot_cree=False` et `file_accept='.wav,.mp3,.ogg,.flac'` : un audio
-    // déposé RESTE dans `audio_input` (le port), un fichier de lot part à la brique batch,
-    // tout autre fichier est REFUSÉ à l'écran (avant : accepté comme audio sans regarder).
-    // Le filemanager injecte dans le même input (`WamaApp.injectFiles`) → même chemin.
+    // La card est en mode ATTACHE (forme d'entrée déduite de ses ports : il faut une voix ET un
+    // avatar, aucun ne suffit seul) : un audio déposé RESTE dans `audio_input` (le port), un
+    // fichier de lot part à la brique batch, tout autre fichier est REFUSÉ à l'écran (avant :
+    // accepté comme audio sans regarder). Le filemanager injecte dans le même input
+    // (`WamaApp.injectFiles`) → même chemin.
     if (typeof window.WamaImport === 'function' && audioDropzone && audioInput) {
         WamaImport({
             csrfToken:   csrf,
             dropZoneId:  'audio-dropzone',
             fileInputId: 'audio_input',
             batch:       batchImport,
-            // Les DEUX ports : une image déposée sur la zone audio rejoint l'avatar (le
-            // premier input dont l'`accept` l'admet), une désignation aussi.
-            attach:      ['audio_input'].concat(avatarInputs.map(i => i.id)),
+            // Tous les ports FICHIER de la card, lus par la brique (`attach: 'card'`, 2026-10-19 —
+            // la liste audio + avatars vivait ici) : une image déposée sur la zone audio rejoint
+            // l'avatar (le premier input dont l'`accept` l'admet), une désignation aussi.
+            attach:      'card',
             afterAttach: function () { updateGenerateButton(); },
         });
     }

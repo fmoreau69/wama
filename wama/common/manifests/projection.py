@@ -91,26 +91,20 @@ def _classify_gap(facet, val, present, backend, projected):
 # ── Round-trip réel : redondance APP_CATALOG ⟷ GENERIC_APPS ─────────────────────
 def derive_io_from_ports(manifest: dict) -> dict:
     """Reconstruit les E/S studio à partir de la SEULE facette `ports` (issue d'app_registry).
-    C'est l'inverse de studio_node_ports : si ça reproduit GENERIC_APPS, les 2 sources concordent."""
+    C'est l'inverse de studio_node_ports : si ça reproduit GENERIC_APPS, les 2 sources concordent.
+
+    L'entrée principale est celle du Studio (`app_registry.principal_entry`, 2026-10-19) : la
+    facette porte l'obligation de chaque port, la règle est la même. Elle unissait jusque-là les
+    natures de TOUS les ports de travail et ignorait l'obligation — composer et synthesizer
+    sortaient en `drift` (`INPUT_MODEL_MATCHING §6.10`, « limite connue, non tranchée »)."""
+    from wama.common.app_registry import principal_entry
     ports = (manifest.get('body', {}) or {}).get('ports', {}) or {}
     inputs = ports.get('inputs', []) or []
     outputs = ports.get('outputs', []) or []
 
-    travail_types, has_prompt = set(), False
-    for p in inputs:
-        grp = p.get('group')
-        if grp == 'prompt':
-            has_prompt = True
-        elif grp == 'travail':
-            for t in (p.get('types') or []):
-                if t and t != 'prompt':
-                    travail_types.add(t)
-
-    io = {}
-    if travail_types:
-        io['input_kinds'] = sorted(travail_types)
-    elif has_prompt:
-        io['primary_input'] = 'prompt'
+    io = dict(principal_entry(inputs))
+    if 'input_kinds' in io:
+        io['input_kinds'] = sorted(io['input_kinds'])
 
     out_types = sorted({t for p in outputs for t in (p.get('types') or []) if t})
     if len(out_types) == 1:

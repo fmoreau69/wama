@@ -130,34 +130,15 @@ def _derive_io_from_ports(app_id):
     trier — la variante manifeste (`projection.derive_io_from_ports`) trie, elle, parce
     qu'elle ne sert qu'à une comparaison insensible à l'ordre.
     """
-    from wama.common.app_registry import app_input_ports, app_own_input_ports, studio_node_ports
+    from wama.common.app_registry import principal_entry, studio_node_ports
     ports = studio_node_ports(app_id) or {}
-    # Un port déclaré « l'un OU l'autre » avec le prompt (`one_of`, ex. le fichier de travail du
-    # synthesizer) n'est PAS l'entrée principale : c'est le prompt qui l'est, et ce port arrive en
-    # argument nommé (`port_arguments`). Sans cette lecture, ajouter le fichier de travail au nœud
-    # aurait fait du synthesizer un nœud à DOCUMENT obligatoire (mesuré le 2026-09-30).
-    known = app_own_input_ports(app_id) + app_input_ports(app_id)
-    alternatives = {p['id'] for p in known if 'prompt' in (p.get('one_of') or [])}
-    # Même règle pour un port de travail que AUCUN modèle n'exige, à côté d'un prompt que TOUS
-    # exigent (2026-10-03) : l'entrée principale est ce que les modèles EXIGENT. Cas réel : le
-    # morceau à reprendre du composer (`work_audio` de MusicGen Melody, `work_score` de YuE2),
-    # devenu port de TRAVAIL — sans cette lecture, le nœud composer exigeait un audio et une
+    # L'entrée principale est celle qui SUFFIT à créer l'élément (`principal_entry`, lue sur la
+    # forme d'entrée que la card applique aussi). Les deux règles écrites ici le 30/09 et le 03/10
+    # en sont deux cas : le fichier de travail du synthesizer (« l'un OU l'autre » avec la consigne)
+    # arrive en argument nommé (`port_arguments`), comme le morceau à reprendre du composer (un port
+    # de travail qu'aucun modèle n'exige, à côté d'une consigne que tous exigent) — sans quoi une
     # chaîne « Texte → Composer » échouait (mesuré sur le catalogue réel).
-    required = {p['id']: bool(p.get('required')) for p in known}
-    prompt_required = required.get('prompt', False)
-    io = {}
-    for p in ports.get('inputs', []):
-        grp = p.get('group')
-        if p.get('id') in alternatives:
-            continue
-        if grp == 'travail' and prompt_required and not required.get(p.get('id')):
-            continue
-        if grp == 'travail' and 'input_kinds' not in io:
-            kinds = tuple(t for t in (p.get('types') or []) if t and t != 'prompt')
-            if kinds:
-                io['input_kinds'] = kinds
-        elif grp == 'prompt':
-            io['primary_input'] = 'prompt'
+    io = dict(principal_entry(ports.get('inputs', [])))
     out_types = [t for t in ((ports.get('output') or {}).get('types') or []) if t]
     io['output_type'] = out_types[0] if len(out_types) == 1 else ('auto' if out_types else None)
     return io

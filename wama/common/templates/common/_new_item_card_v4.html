@@ -21,10 +21,15 @@ et `folder_input_id` + son lien `#<id>Btn`, `#batchTemplateLink`, `url_input_id`
 
 Variables — celles de la v3, plus :
   app_id       — (REQUIS) nom de l'app : c'est LUI qui donne les ports.
+  instant_params_id — l'hôte des réglages du volet que le résultat INSTANTANÉ poste avec la saisie
+                 (`data-instant-params`, lu par `wama-instant.js`) ; sans lui, la cascade de l'ajout.
   (le PORT « En direct » vient de la capacité d'app `has_live_input` — lue par `input_slots`
    depuis le 2026-09-28 ; l'ancien littéral `show_live` est retiré)
 Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url`,
 `show_media_library`, `media_library_type`, `show_reference`, `reference_accept`, `reference_label`.
+Et la FORME D'ENTRÉE (2026-10-19, décision « par port ») : `depot_cree` et `show_prompt` ne sont plus
+lus — un dépôt CRÉE ou JOINT, la consigne est rendue ou non, selon l'obligation que portent les
+ports (`ports.entry`, `app_registry.entry_form`).
 {% endcomment %}
 {% load wama_actions wama_static %}
 {% if collapsible %}<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>{% endif %}
@@ -36,19 +41,19 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
 {% input_slots app_id card_domain as ports %}
 {% lot_slot app_id as lot %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"
-     data-wama-depot="{% if depot_cree is False %}attache{% else %}cree{% endif %}"
+     data-wama-depot="{% if ports.entry.drop_creates %}cree{% else %}attache{% endif %}"
      data-wama-ports="{{ ports|length }}"
-     {% if collapsible %}data-wama-nic{% if show_prompt %} data-nic-primary="{{ prompt_input_id }}"{% endif %}{% endif %}>
+     {% if collapsible %}data-wama-nic{% if ports.entry.prompt %} data-nic-primary="{{ prompt_input_id|default:'promptInput' }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
 
         <div class="d-flex align-items-center gap-2 mb-2 small text-body-secondary"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
-            <span class="text-muted">{% if show_prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% endif %}</span>
+            <span class="text-muted">{% if ports.entry.prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% endif %}</span>
             {% include 'common/_settings_hint.html' %}
             {% if collapsible %}<i class="fas fa-chevron-down ms-auto wama-nic-chevron"></i>{% endif %}
         </div>
 
-        {% if show_prompt %}
+        {% if ports.entry.prompt %}
         {% comment %}Le PROMPT est un port lui aussi (`group='prompt'`) — NON-FICHIER : il reste
         au-dessus de la zone de preview, et c'est le SEUL élément autorisé à grandir (§11.9 C).{% endcomment %}
         <div class="mb-2"{% if prompt_zone_id %} id="{{ prompt_zone_id }}"{% endif %}>
@@ -63,7 +68,8 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
             {% instant_result_url app_id as instant_url %}
             {% if instant_url %}
             <div class="wama-instant mt-1" data-wama-instant data-instant-url="{{ instant_url }}"
-                 data-instant-input="{{ prompt_input_id|default:'promptInput' }}">
+                 data-instant-input="{{ prompt_input_id|default:'promptInput' }}"{% if instant_params_id %}
+                 data-instant-params="{{ instant_params_id }}"{% endif %}>
                 <div class="wama-instant-text" data-instant-text aria-live="polite"></div>
                 <small class="text-muted" data-instant-state></small>
             </div>

@@ -1600,15 +1600,20 @@ def _recursive_import(f: _AppFiles):
     scénario compte des ÉLÉMENTS créés (`crees == len(temoins)`) : sur une telle card il ne
     peut pas passer. Le partiel poussait vers un vert qui ne se joue pas — l'inverse de ce que
     ce critère avait corrigé le 08/09. Une card en mode attache est donc NON APPLICABLE ici,
-    par sa DÉCLARATION (`depot_cree=False`), comme le composer l'est par ses `input_types`.
+    par sa forme d'entrée, comme le composer l'est par ses `input_types`. ⚠ Cette forme se lisait
+    au littéral `depot_cree=False` des gabarits ; depuis le 2026-10-19 elle se DÉDUIT de
+    l'obligation des ports (`app_registry.entry_form`, rendue par `input_slots`) — le critère la
+    lit là, comme la card.
     """
     clic = f.find(TEMPLATES + JS, r'webkitdirectory|folder_input_id|folderInputId')
     if clic:
         return True, clic
-    attache = f.find(TEMPLATES, r'depot_cree\s*=\s*False')
-    if attache:
-        return None, (f"card en mode ATTACHE ({attache}) : un dossier n'a pas d'objet sur un port "
-                      f"mono-fichier — le geste `{f.app}.folder_import` ne peut pas s'y jouer")
+    if f.find_code(TEMPLATES, r'common/_new_item_card_v4\.html'):
+        from wama.common.templatetags.wama_actions import input_slots
+        if not input_slots(f.app).entry['drop_creates']:
+            return None, ("card en mode ATTACHE (forme d'entrée déduite des ports) : un dossier n'a "
+                          f"pas d'objet sur un port qui se joint — le geste `{f.app}.folder_import` "
+                          "ne peut pas s'y jouer")
     drop = f.find_code(JS + TEMPLATES, r'WamaFolderImport|WamaImport\s*\(')
     from wama.common.app_registry import APP_CATALOG
     kinds = set((APP_CATALOG.get(f.app) or {}).get('input_types') or ())

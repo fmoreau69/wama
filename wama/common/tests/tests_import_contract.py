@@ -56,12 +56,15 @@ _WITNESSES = {'image': ('.png', _png_1x1), 'audio': ('.wav', lambda: _wav_silenc
 def _portees():
     """(app, rôles, champ, ext, contenu, POST) de chaque app dont le dépôt CRÉE un élément par la
     brique — DÉRIVÉ (2026-09-26 ; la liste était écrite à la main, 7 apps) : sur la brique
-    (critère de grille `import_front`), hors mode ATTACHE (`depot_cree=False` : le dépôt joint
-    le fichier à la card neuve, il ne crée rien), rôles lus dans la politique d'accès, témoin
-    fabriqué pour la première NATURE déclarée (`input_types`) dont l'extension est acceptée."""
+    (critère de grille `import_front`), hors mode ATTACHE (le dépôt joint le fichier à la card
+    neuve, il ne crée rien — forme d'entrée DÉDUITE des ports depuis le 2026-10-19, celle que la
+    card rend : `input_slots(app).entry`, plus le littéral `depot_cree=False`), rôles lus dans la
+    politique d'accès, témoin fabriqué pour la première NATURE déclarée (`input_types`) dont
+    l'extension est acceptée."""
     from wama.accounts.permissions import DEFAULT_APP_ACCESS
     from wama.common.app_registry import APP_CATALOG
     from wama.common.services import conformity_checker as cc
+    from wama.common.templatetags.wama_actions import input_slots
     out = []
     for app, spec in APP_CATALOG.items():
         if (spec or {}).get('sandbox'):
@@ -69,7 +72,7 @@ def _portees():
         files = cc._AppFiles(app)
         if cc._import_front(files)[0] is not True:
             continue
-        if files.find(cc.TEMPLATES, r'depot_cree\s*=\s*False'):
+        if not input_slots(app).entry['drop_creates']:
             continue
         declared = {e.lower() for e in spec.get('input_extensions', ())}
         witness = next((_WITNESSES[n] for n in spec.get('input_types', ())

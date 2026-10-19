@@ -1135,6 +1135,8 @@
           "id": "work_file",
           "label": "Fichier de travail",
           "multi": true,
+          "one_of": [],
+          "required": true,
           "types": [
             "document",
             "image"

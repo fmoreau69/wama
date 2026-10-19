@@ -1810,6 +1810,8 @@
           "id": "work_audio",
           "label": "Audio de travail",
           "multi": true,
+          "one_of": [],
+          "required": true,
           "types": [
             "audio",
             "video"
@@ -1821,6 +1823,8 @@
           "id": "work_result",
           "label": "Résultat existant",
           "multi": false,
+          "one_of": [],
+          "required": false,
           "types": [
             "document"
           ]
@@ -1831,6 +1835,7 @@
           "id": "reference_result",
           "label": "Résultat de référence",
           "multi": false,
+          "required": false,
           "types": [
             "document"
           ]

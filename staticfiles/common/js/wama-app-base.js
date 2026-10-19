@@ -876,7 +876,8 @@
     });
   }
 
-  /** AJOUT À LA FILE depuis la card d'entrée — le geste du mode ATTACHE (`depot_cree=False`).
+  /** AJOUT À LA FILE depuis la card d'entrée — le geste des formes ATTACHE et MIXTE (forme
+   *  d'entrée déduite de l'obligation des ports, `app_registry.entry_form`, 2026-10-19).
    *
    *  POURQUOI une brique (2026-10-01, demande de Fabien) : imager, avatarizer, composer et
    *  synthesizer écrivaient chacun le même formulaire — consigne, réglages, fichier joint par

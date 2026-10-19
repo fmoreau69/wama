@@ -37,6 +37,7 @@
       "batch_type": "pipe",
       "during_preview": true,
       "has_batch": true,
+      "has_text_file_input": true,
       "instant_preview": true,
       "has_url_import": false,
       "has_youtube": false,
@@ -59,11 +60,15 @@
           ]
         },
         {
-          "description": "Un fichier texte ou document (TXT, MD, DOCX, PDF) à traduire en tâche, avec aperçu au fil des morceaux.",
+          "description": "Un fichier texte (TXT, MD, PDF, DOCX…) lu en entier — ou le texte saisi ci-dessus : l'un ou l'autre.",
           "group": "travail",
-          "id": "source_document",
-          "label": "Document source",
-          "multi": false,
+          "id": "work_file",
+          "label": "Fichier de travail",
+          "multi": true,
+          "one_of": [
+            "prompt"
+          ],
+          "required": false,
           "types": [
             "document"
           ]
@@ -100,7 +105,7 @@
           "icon": "fa-file-lines",
           "id": "document",
           "inputs": [
-            "source_document"
+            "work_file"
           ],
           "label": "Document",
           "modes": []

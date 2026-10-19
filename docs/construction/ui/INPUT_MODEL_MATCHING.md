@@ -376,7 +376,9 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   exactement UN jeton de plus que le tronc commun et que ces jetons diffèrent, ils forment un
   groupe « l'un OU l'autre ». Hors de cette forme, rien n'est dit (pas de demi-vérité). Card v4 :
   « requis · ou … » sur l'onglet, `is-required-one-of` / `is-one-of-first` ; le geste nocturne
-  remplit le premier port du groupe ; la forme du studio n'en porte rien. Garde
+  remplit le premier port du groupe ; ~~la forme du studio n'en porte rien~~ — ⚠ **elle la porte
+  depuis le 2026-10-19** (décision de Fabien « par port », §6.10 ci-dessous) : l'obligation voyage
+  avec chaque port dans `studio_node_ports`, donc dans la facette `ports` du manifeste. Garde
   `tests_catalogues.AlternativeRequirementsTest` (contre-épreuve faite).
 - ✅ **Le modèle d'animation se TIRE** (même jour, remarque de Fabien : « il y a déjà plusieurs
   modèles ») : le fichier fourni se traduit en jeton (`input_match.work_token_for`, lu dans
@@ -493,11 +495,20 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   **un port de travail qu'AUCUN modèle n'exige, à côté d'un prompt que TOUS exigent, n'est pas
   l'entrée principale.** Mesuré sur les 10 nœuds : seul le composer change (retour au prompt) ;
   l'imager déclare déjà son prompt. Gardes : `studio/tests_node_ports` (règle + contre-épreuve).
-- ⏳ **Limite connue, non tranchée** : la variante MANIFESTE de cette dérivation
+- ~~⏳ **Limite connue, non tranchée** : la variante MANIFESTE de cette dérivation
   (`projection.derive_io_from_ports`, lue par `manifest_roundtrip`) ne lit que la facette `ports`,
   qui ne porte pas l'obligation (exclue à dessein : « un nœud du studio n'en porte pas »). Elle
   classe donc le composer en `drift`, comme le synthesizer l'était déjà. Résorber = décider si la
-  facette `ports` porte l'obligation d'une entrée — décision de conception, hors de ce chantier.
+  facette `ports` porte l'obligation d'une entrée — décision de conception, hors de ce chantier.~~
+  ✅ **TRANCHÉ le 2026-10-18 par Fabien (« par port »), câblé le 2026-10-19** : la facette `ports`
+  porte l'obligation de chaque port (`required`, `one_of`), et une seule fonction en déduit ce
+  que fait la card — `app_registry.entry_form` (le dépôt crée ou se joint, la consigne est sur la
+  card ou non). Ses lecteurs : la card v4 (`input_slots`, plus de littéraux `depot_cree` /
+  `show_prompt` dans les pages), le générateur (`views_gen.card_entry`) et l'entrée principale d'un
+  nœud (`app_registry.principal_entry`, lue par `generic_runner` ET par `projection`) — les deux
+  règles de cette section en sont deux cas (la consigne SUFFIT). Mesuré : composer et synthesizer
+  passent de `drift` à `derived`. Domicile de la règle : `CARD_DESIGN §11.11` (« La forme
+  d'entrée se déduit des ports »).
 - 🔧 **Défaut corrigé en chemin** : `consumes_melody` répondait NON pour un « auto » — un audio joint
   avec « auto » était ignoré à la création, alors que le tirage savait retenir MusicGen Melody. Il
   suit désormais la règle de la partition (`consumes_input` : oui si un modèle de la tâche le déclare).

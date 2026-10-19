@@ -2071,6 +2071,8 @@
           "id": "prompt",
           "label": "Prompt",
           "multi": false,
+          "one_of": [],
+          "required": false,
           "types": [
             "prompt"
           ]
@@ -2081,6 +2083,8 @@
           "id": "work_file",
           "label": "Fichier de travail",
           "multi": true,
+          "one_of": [],
+          "required": true,
           "types": [
             "image",
             "video"

@@ -332,7 +332,10 @@ Writer (alors « Editor ») rédige le fond PUIS le met en forme.
 - ses **entrées** par les jetons d'`app_modes.INPUT_TYPES`, dans `modes.domains[].inputs`
   (`['prompt', 'reference_document', 'reference_layout']`) — les ports de la card v4 en DÉRIVENT
   (`app_registry.studio_node_ports`) ; la facette `ports` ne déclare que les NATURES (jetons pour
-  ids, comme le composer) ;
+  ids, comme le composer) — et, depuis le 2026-10-19, l'OBLIGATION de chaque port (`required`,
+  `one_of`), d'où le générateur déduit la forme d'entrée de la card (`app_registry.entry_form`,
+  `CARD_DESIGN §11.11`). Une app qui lit son texte d'un fichier comme d'une saisie le DÉCLARE
+  par la capacité `has_text_file_input` (le Translator, comme le synthesizer) ;
 - sa **consigne** par une cible de `PROMPT_TARGETS` (facette `prompts`) : `kind: 'intent'` et
   `reference_field` — le pipeline de prompts comprend le document de référence ;
 - ~~son **traitement** en **un seul process** (`§10.6` 11) : une glu qui rédige puis met en

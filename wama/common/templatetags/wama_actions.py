@@ -225,6 +225,14 @@ def instant_result_url(app):
         return ''
 
 
+class CardSlots(list):
+    """Les slot-rows d'une card d'entrée, plus sa FORME D'ENTRÉE (`entry`, `app_registry.entry_form`)
+    — calculée sur les MÊMES ports et la MÊME obligation que les onglets, en une lecture : le gabarit
+    lit `ports.entry.drop_creates` et `ports.entry.prompt` au lieu des littéraux de page
+    `depot_cree` / `show_prompt` (2026-10-19)."""
+    entry = {'creating': [], 'drop_creates': True, 'prompt': ''}
+
+
 @register.simple_tag
 def input_slots(app, domain=None):
     """Les SLOT-ROWS de la card d'entrée v4 — une par PORT déclaré, avec ses modalités.
@@ -247,7 +255,8 @@ def input_slots(app, domain=None):
                     passé par la page.
 
     Le port `prompt` est EXCLU : ce n'est pas un slot de la zone de preview, c'est la cellule
-    primaire au-dessus (§11.9 C — le seul élément autorisé à grandir).
+    primaire au-dessus (§11.9 C — le seul élément autorisé à grandir). Qu'elle soit rendue, et
+    qu'un dépôt crée ou joigne, c'est la forme d'entrée de la liste rendue (`CardSlots.entry`).
     """
     from wama.common.app_registry import (app_own_input_ports, app_ports_carried_elsewhere,
                                           studio_node_ports)
@@ -295,9 +304,15 @@ def input_slots(app, domain=None):
     # ceux qu'elle déclare savoir lire (`reference_extensions`), pas `input_extensions`.
     result_ids = {p['id'] for p in result_ports}
 
-    from wama.common.app_registry import port_accept
+    from wama.common.app_registry import entry_form, port_accept
     from wama.common.utils.app_modes import library_nature_for
-    slots = []
+    slots = CardSlots()
+    # La forme d'entrée se lit sur les ports de CETTE card, avec l'obligation de son domaine — celle
+    # que les onglets affichent ; un port que l'union du domaine ne nomme pas garde la sienne.
+    slots.entry = entry_form([
+        dict(p, required=oblig.get(p.get('id'), p.get('required')),
+             one_of=alternatives.get(p.get('id'), p.get('one_of')))
+        if p.get('id') in oblig else p for p in ports])
     primary_seen = reference_seen = False
     for port in ports:
         if port.get('group') == 'prompt':

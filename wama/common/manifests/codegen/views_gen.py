@@ -45,26 +45,31 @@ from wama.common.app_registry import MEDIA_CATEGORIES
 from wama.common.manifests.codegen.urls_gen import ROUTE_ALIASES, alias_fits, route_variants
 
 
-def prompt_entry(body: dict, fields=None) -> tuple:
-    """(mode attache ?, champ de la consigne) — dérivés des déclarations du manifeste, partagés
-    par la vue (`upload`) et le gabarit (`templates_gen`) pour qu'ils ne divergent jamais.
+def card_entry(body: dict, fields=None) -> dict:
+    """La FORME D'ENTRÉE de la card d'une app générée — `app_registry.entry_form` lu sur la facette
+    `ports` du manifeste, où l'obligation de chaque port voyage avec lui (2026-10-19, décision de
+    Fabien « par port »). Partagée par la vue (`upload`) et le gabarit (`templates_gen`) pour
+    qu'ils ne divergent jamais ; égale à celle que la card rend à l'exécution (`input_slots`), qui
+    applique la même fonction aux mêmes ports.
 
-    Mode attache = un port `prompt` déclaré et AUCUN port de travail : la consigne est l'entrée
-    principale, rien ne peut naître d'un dépôt. Le champ = celui de sa cible de prompt
-    (`prompts.targets[].field`), sinon `prompt`. `fields` : les colonnes de l'élément, pour ne
-    rendre qu'un champ qui existe (None = ne pas vérifier).
+    {'drop_creates' : un dépôt sur le port de travail principal CRÉE l'élément ;
+     'adds'         : la card a son bouton « Ajouter à la file » — consigne et/ou fichiers JOINTS
+                      (forme ATTACHE : imager, composer, avatarizer ; forme MIXTE : synthesizer,
+                      Translator, où la consigne seule et le fichier seul suffisent chacun) ;
+     'prompt_field' : le champ où la consigne se pose — sa cible de prompt, sinon son port
+                      (`prompt_port_field`) ; '' si la card ne la porte pas}.
+    `fields` : les colonnes de l'élément, pour ne rendre qu'un champ qui existe (None = ne pas
+    vérifier).
 
-    ⚠ MESURÉ sur les 10 apps le 2026-10-01 (« port prompt ⇒ attache » était FAUX deux fois) :
-    l'anonymizer a un port prompt (le concept SAM3, facultatif) et CRÉE au dépôt de sa vidéo ;
-    le synthesizer a les deux gestes (texte + bouton, fichier de travail déposé = élément).
-    Le vrai critère est « la consigne est-elle REQUISE pour créer ? » — les ports déclarés au
-    manifeste ne portent pas `required` aujourd'hui. Avec « sans port de travail » : 0 faux
-    positif (Writer, composer) ; imager et avatarizer (travail + consigne, attache déclarée à la
-    main) restent hors de la dérivation — un manque nommé, pas une erreur."""
-    groups = {p.get('group') for p in ((body.get('ports') or {}).get('inputs') or [])}
-    if 'prompt' not in groups or 'travail' in groups:
-        return False, ''
-    return True, prompt_port_field(body, fields)
+    ⚠ Remplace `prompt_entry` (2026-10-01 → 10-19), qui décidait « attache = une consigne et AUCUN
+    port de travail » faute d'obligation au manifeste : imager et avatarizer restaient hors de la
+    dérivation, et la forme MIXTE n'existait pas (la page du Translator n'avait NI saisie NI zone
+    instantanée — `ROADMAP §10.B`)."""
+    from wama.common.app_registry import entry_form
+    form = entry_form((body.get('ports') or {}).get('inputs') or [])
+    return {'drop_creates': form['drop_creates'],
+            'adds': bool(form['prompt']) or (bool(form['work']) and not form['drop_creates']),
+            'prompt_field': prompt_port_field(body, fields) if form['prompt'] else ''}
 
 
 def prompt_port_field(body: dict, fields=None) -> str:
@@ -75,7 +80,7 @@ def prompt_port_field(body: dict, fields=None) -> str:
     texte à traduire en port `text` du groupe prompt, SANS cible de prompt — à juste titre, le
     pipeline de prompts traduirait ou enrichirait le texte avant la traduction. Faute de cible et de
     colonne `prompt`, le champ restait vide : rien de ce qu'on tapait n'était gardé. Partagé par
-    l'ajout en mode attache (`prompt_entry`) et le résultat instantané (`instant`)."""
+    l'ajout à la file (`card_entry`) et le résultat instantané (`instant`)."""
     exists = (lambda n: True) if fields is None else (lambda n: n in fields)
     targets = (body.get('prompts') or {}).get('targets') or []
     ports = [p['id'] for p in ((body.get('ports') or {}).get('inputs') or [])
@@ -142,14 +147,13 @@ def _donnees(manifest: dict) -> dict:
 
     champs = {f['name']: f for f in data_models[item].get('fields') or []}
     d['champ_noms'] = set(champs)
-    # FORME D'ENTRÉE — dérivée des PORTS déclarés (2026-10-01, règle exacte : `prompt_entry`).
-    # Une consigne sans port de travail : l'élément ne peut pas naître d'un dépôt, il naît du
-    # bouton « Ajouter à la file » (mode ATTACHE, `depot_cree=False` — imager, avatarizer,
-    # composer, synthesizer le déclarent à la main). Le générateur ne connaissait que la forme
-    # « le dépôt crée » : la 1ʳᵉ app consigne-d'abord née de zéro (le Writer) n'avait aucun
-    # moyen d'ajouter un élément (relevé par Fabien). Le champ de la consigne est celui de sa
-    # cible de prompt (`PROMPT_TARGETS`), sinon la colonne `prompt`.
-    d['prompt_first'], d['prompt_field'] = prompt_entry(body, champs)
+    # FORME D'ENTRÉE — déduite de l'obligation des PORTS déclarés (`card_entry`, 2026-10-19 ; la
+    # règle du 2026-10-01 ne voyait qu'« une consigne sans port de travail »). Quand la card a son
+    # bouton « Ajouter à la file » (formes ATTACHE et MIXTE), l'ajout reçoit consigne et fichiers
+    # par la vue ci-dessous ; sinon le dépôt crée. Le générateur ne connaissait d'abord que la forme
+    # « le dépôt crée » : la 1ʳᵉ app consigne-d'abord née de zéro (le Writer) n'avait aucun moyen
+    # d'ajouter un élément (relevé par Fabien).
+    d['entry'] = card_entry(body, champs)
     # Ports FICHIER SECONDAIRES (2026-10-05, le Writer : `reference_layout` à côté de
     # `reference_document`) — chacun posté sous le nom de son PORT, comme au composer
     # (`addToQueue(ports: 'card')`). Le port principal se reçoit sous le sien, `file` en repli
@@ -574,12 +578,13 @@ def upload(request):
     {up_nature}{up_reglages}
     item = {item}.objects.create(**kwargs){up_wrap}
     return JsonResponse({{'id': item.id, 'status': item.status, 'warning': _avert}})'''
-    if d['prompt_first']:
-        # Mode ATTACHE : la consigne et les réglages arrivent par la cascade (POST > défauts),
-        # le fichier est FACULTATIF et peut être DÉSIGNÉ (médiathèque) — brique `received_inputs`,
-        # celle des vues de création du composer et de l'avatarizer. Rien n'est lancé : on
-        # ajoute, on règle, puis ▶ (CARD_DESIGN §11.11, règle des deux temps).
-        p_field = d['prompt_field']
+    if d['entry']['adds']:
+        # Formes ATTACHE et MIXTE : la consigne et les réglages arrivent par la cascade (POST >
+        # défauts), le fichier est FACULTATIF et peut être DÉSIGNÉ (médiathèque) — brique
+        # `received_inputs`, celle des vues de création du composer et de l'avatarizer. La même vue
+        # reçoit le DÉPÔT d'une card mixte (le fichier seul, posté sous `file`). Rien n'est lancé :
+        # on ajoute, on règle, puis ▶ (CARD_DESIGN §11.11, règle des deux temps).
+        p_field = d['entry']['prompt_field']
         vide = (f"not str(kwargs.get('{p_field}') or '').strip()" if p_field else 'True')
         # URL d'un port (`WamaApp.addToQueue` la poste sous `source_url` quand l'élément peut la
         # garder — même condition qu'au gabarit) : téléchargée dès la création (`source_ingest`).
@@ -619,7 +624,7 @@ def upload(request):
         vues['upload'] = f'''@require_POST
 def upload(request):
     """Ajout à la file depuis la card d'entrée : consigne + fichier facultatif (téléversé ou
-    désigné). Mode ATTACHE dérivé du port `prompt` du manifeste."""
+    désigné). Forme d'entrée déduite de l'obligation des ports du manifeste (`card_entry`)."""
     from wama.common.utils.media_paths import received_inputs
     user = _user(request)
     # Chaque port est posté sous SON nom (`addToQueue(ports: 'card')`) ; `file` reste le nom

@@ -3945,7 +3945,11 @@ l'exécuteur du studio ne figurent pas non plus au registre des mécanismes.
    Ce n'était pas un trou de glu (le gabarit le marquait comme tel). La forme se DÉRIVE désormais des
    ports du manifeste — une consigne et AUCUN port de travail (`views_gen.prompt_entry`, lu par la
    vue ET le gabarit ; « port prompt ⇒ attache » mesuré FAUX sur l'anonymizer et le synthesizer,
-   imager et avatarizer restent déclarés à la main faute de `required` aux ports) : la card porte
+   imager et avatarizer restent déclarés à la main faute de `required` aux ports — ⚠ **dépassé le
+   2026-10-19** : la facette `ports` porte l'obligation de chaque port et la forme se DÉDUIT,
+   dépôt / attache / mixte, par `app_registry.entry_form`, lue par la card v4, le générateur
+   (`views_gen.card_entry`, ex-`prompt_entry`) et le Studio — décision de Fabien « par port »,
+   domicile `CARD_DESIGN §11.11`) : la card porte
    la consigne et le bouton, la vue d'ajout passe par `received_inputs` et ne lance rien. La
    consigne ne traverse pas la cascade des réglages : vide, elle aurait repris la dernière
    enregistrée. Le geste est une BRIQUE commune, `WamaApp.addToQueue` (mécanisme `add_to_queue`) :

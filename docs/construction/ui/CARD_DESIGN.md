@@ -1408,8 +1408,10 @@ dérivent la vue (`views_gen` — la glu joue sur un élément NON enregistré, 
 de l'ajout, saisie postée sous `instant_text`), sa route (`urls_gen`) et le trou de glu
 `instant_result(item)` (`tasks_gen`). Brique : `wama-instant.js` (délai de saisie, seule la
 DERNIÈRE réponse s'affiche, saisie vide = zone vide). Gardes : `tests_instant_result`.
-⏳ Les réglages du volet ne sont postés que si la card nomme leur hôte (`data-instant-params`) ;
-sinon la cascade lit les réglages enregistrés.
+Les réglages du volet ne sont postés que si la card nomme leur hôte (`data-instant-params`) ;
+sinon la cascade lit les réglages enregistrés. ✅ 2026-10-19 : la card v4 le pose quand la page lui
+passe `instant_params_id`, et le générateur le passe pour une app `instant_preview` (son hôte
+`<app>PanelParams`).
 
 **E. Preview ou liste — la règle qui tranche.** La preview d'un *média* n'a de sens qu'à **un
 seul fichier** (miniature / onde / extrait, + `↻` qui **remplace** — exigence 7, jusqu'ici
@@ -1802,6 +1804,46 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
 - ⏳ **Question ouverte (lots)** : les colonnes du lot nomment des RÔLES (`-i`, `-r`), pas des
   ports — l'avatar de l'avatarizer est `-r` au lot et `work_image` à la card. À terme : des
   colonnes au nom du port, `-i`/`-r` en alias.
+
+#### ✅ La FORME D'ENTRÉE se déduit des ports (décision de Fabien « par port », 2026-10-18 ; câblé le 2026-10-19)
+
+> Le trou transmis par la session Translator (`PROJECT_STATUS §PASSATION 2026-10-17`) : la page de
+> `translator_01` n'avait NI saisie NI zone instantanée, parce que le générateur ne connaissait que
+> deux formes (« attache = une consigne sans port de travail », sinon dépôt) et que les dix pages
+> réelles écrivaient la leur à la main (`depot_cree=False`, `show_prompt=True`). Trois déclarations
+> étaient soumises à Fabien ; il a retenu la première : **par port**.
+
+**Ce que « par port » veut dire, sans rien inventer.** Chaque port porte DÉJÀ son obligation :
+`required` (exigé par tous les modèles retenus) et `one_of` (« l'un OU l'autre »), calculés par
+`app_input_ports` (l'union des modèles) et par les ports que l'app consomme elle-même
+(`has_text_file_input`) — ce que l'onglet affiche « requis · ou … » depuis le 30/09. Un port
+**SUFFIT À CRÉER** un élément quand il remplit seul toute l'obligation ; un port de référence ne
+crée jamais (il guide). La forme s'en déduit, par UNE fonction, `app_registry.entry_form` :
+
+| forme | règle | apps (mesuré sur le catalogue réel, 12 cards) |
+|---|---|---|
+| **dépôt** | le port de travail principal suffit ; la consigne non → c'est un RÉGLAGE (volet) | anonymizer, converter, describer, enhancer ×2, reader, transcriber |
+| **attache** | le port de travail ne suffit pas : le fichier se JOINT, « Ajouter à la file » crée | imager ×2, composer (la consigne suffit), avatarizer (il faut une voix ET un avatar) |
+| **mixte** | la consigne et le fichier de travail suffisent chacun | synthesizer, Translator |
+
+Sans obligation déclarée (converter, base sans catalogue, app née d'un manifeste qui n'en dit
+rien) : la première entrée est exigée, dans l'ordre des ports, qui suit la priorité
+d'`input_types` (l'imager déclare la consigne d'abord).
+
+**Lecteurs — une seule règle.** La card v4 (`input_slots` rend la forme avec ses onglets :
+`data-wama-depot` et la consigne en dérivent ; les cinq littéraux des pages sont retirés, un test
+refuse leur retour) ; le générateur (`views_gen.card_entry`, sur la facette `ports` du manifeste,
+où l'obligation voyage désormais avec chaque port) ; l'entrée principale d'un nœud du Studio
+(`app_registry.principal_entry`, lue par `generic_runner` et par `projection` — composer et
+synthesizer sortent de `drift`, `INPUT_MODEL_MATCHING §6.10`) ; la grille (`recursive_import`) et
+`tests_import_contract`, qui lisaient le littéral. La voie d'import d'une card qui joint lit la
+card elle-même : `WamaImport({attach: 'card'})`, jumelle d'`addToQueue({ports: 'card'})` —
+adoptée par le composer et l'avatarizer (leur relevé écrit à la main) et par le générateur, dont
+une jumelle « attache » émettait jusque-là la voie qui CRÉE.
+Gardes : `tests_catalogues.EntryFormComesFromThePortsTest`, `AlternativeRequirementsTest` (le nœud
+porte l'obligation — garde du 30/09 INVERSÉE), `tests_codegen_templates.GeneratedEntryFormTest`
+(et le test du cover, sorti d'`expectedFailure`), `tests_designation_js` (V8 : `attach: 'card'`
+joint sur une card attache, envoie sur une card qui crée).
 
 > **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
 > chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`

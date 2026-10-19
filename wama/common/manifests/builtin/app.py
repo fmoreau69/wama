@@ -357,8 +357,10 @@ def _librairies(app_id: str, body: dict | None = None) -> list:
 
 # ── Helpers d'extraction (best-effort, jamais bloquants) ────────────────────────
 def _ports(raw) -> dict:
-    """studio_node_ports() renvoie déjà des ports {id,label,group,types,multi}. On les répartit
-    entrées/sorties et on NE régresse PAS la preview (group=travail|prompt = entrée de travail)."""
+    """studio_node_ports() renvoie déjà des ports {id,label,group,types,multi} — plus, depuis le
+    2026-10-19, l'obligation de chacun (`required`, `one_of`), d'où la facette tire la forme
+    d'entrée de la card (`app_registry.entry_form`). On les répartit entrées/sorties et on NE
+    régresse PAS la preview (group=travail|prompt = entrée de travail)."""
     if isinstance(raw, dict) and ('inputs' in raw or 'outputs' in raw or 'output' in raw):
         # `studio_node_ports()` nomme la sortie `output` (SINGULIER, un dict) — la lecture de
         # `outputs` seule rendait une liste VIDE pour les 10 apps : la facette perdait le type
@@ -899,7 +901,7 @@ CATALOG_FIELD_ORDER = ('label', 'category', 'world', 'icon', 'url_name', 'descri
                        'input_extensions', 'input_types', 'batch_type', 'has_batch',
                        'has_url_import', 'has_youtube', 'has_result_import',
                        'has_reference_result', 'has_live_input', 'instant_preview',
-                       'output_types')
+                       'has_text_file_input', 'output_types')
 IDENTITY_FIELDS = ('label', 'category', 'world', 'icon', 'url_name', 'description',
                    'input_extensions')
 PORTS_FIELDS = ('input_types', 'output_types')
@@ -911,7 +913,12 @@ RESULT_CAPABILITY_FIELDS = ('has_result_import', 'has_reference_result')
 #: Et le résultat INSTANTANÉ de la saisie (`instant_preview`, 2026-10-16 — le Translator « à la
 #: DeepL ») : la card montre, pendant la frappe, ce que la fonction de l'app rend sur un élément NON
 #: enregistré (route `instant`, `CARD_DESIGN §11.11 D bis`).
-DECLARED_ONLY_CAPABILITY_FIELDS = RESULT_CAPABILITY_FIELDS + ('has_live_input', 'instant_preview')
+#: Et le FICHIER DE TRAVAIL que l'app lit comme un texte saisi (`has_text_file_input`, 2026-09-30 —
+#: synthesizer ; `app_own_input_ports`, « l'un OU l'autre » avec la consigne) : projeté depuis le
+#: 2026-10-19 — sans lui, une jumelle ou une app née d'un manifeste perdait ce port, donc la forme
+#: d'entrée MIXTE (`app_registry.entry_form`).
+DECLARED_ONLY_CAPABILITY_FIELDS = RESULT_CAPABILITY_FIELDS + ('has_live_input', 'instant_preview',
+                                                              'has_text_file_input')
 CAPABILITY_FIELDS = ('has_batch', 'batch_type', 'has_url_import', 'has_youtube') + DECLARED_ONLY_CAPABILITY_FIELDS
 _GEN_MARK = '[manifest-gen app:{app_id}]'
 

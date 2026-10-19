@@ -1094,12 +1094,12 @@ class GeneratedModelBasesTest(SimpleTestCase):
 
 class AttachUploadWithoutPromptFieldTest(SimpleTestCase):
     """Une app en mode ATTACHE sans champ de consigne — un port `prompt` déclaré, aucune cible de
-    prompt ni colonne `prompt` (`prompt_entry` → `(True, '')`). Vécu le 2026-10-16 sur
+    prompt ni colonne `prompt` (`card_entry` → `prompt_field == ''`). Vécu le 2026-10-16 sur
     `translate_01`, née de zéro : la vue `upload` générée lisait `_poste` sans l'avoir défini
     (`NameError`, un 500 à chaque ajout) — la substitution vers `_poste` était faite pour toute
     app, sa définition seulement quand il y a une consigne à retirer."""
 
-    def _upload(self, prompt_entry):
+    def _upload(self, prompt_field):
         from unittest import mock
         from wama.common.manifests.codegen import views_gen
         from wama.common.manifests.ingest import extract
@@ -1110,7 +1110,8 @@ class AttachUploadWithoutPromptFieldTest(SimpleTestCase):
         endpoints = manifest['body']['processing'].setdefault('endpoints', [])
         if 'upload' not in endpoints:
             endpoints.append('upload')
-        with mock.patch.object(views_gen, 'prompt_entry', return_value=prompt_entry):
+        entry = {'drop_creates': False, 'adds': True, 'prompt_field': prompt_field}
+        with mock.patch.object(views_gen, 'card_entry', return_value=entry):
             src, raison = render_views(manifest)
         self.assertIsNotNone(src, raison)
         upload = _fonction(src, 'upload')
@@ -1126,22 +1127,22 @@ class AttachUploadWithoutPromptFieldTest(SimpleTestCase):
         return read and not assigned
 
     def test_without_a_prompt_field_the_upload_never_reads_an_undefined_poste(self):
-        self.assertFalse(self._poste_read_but_never_assigned(self._upload((True, ''))))
+        self.assertFalse(self._poste_read_but_never_assigned(self._upload('')))
 
     def test_with_a_prompt_field_the_prompt_still_leaves_the_cascade(self):
         """Contre-épreuve : la consigne sort toujours du POST donné à la cascade."""
-        upload = self._upload((True, 'prompt'))
+        upload = self._upload('prompt')
         self.assertIn("_poste.pop('prompt', None)", upload)
         self.assertFalse(self._poste_read_but_never_assigned(upload))
 
     def test_the_prompt_port_names_its_field_when_no_prompt_target_does(self):
         """translate_01 : port `text` du groupe prompt, aucune cible de prompt (le pipeline de
         prompts traduirait le texte avant la traduction) — le champ est celui du port."""
-        from wama.common.manifests.codegen.views_gen import prompt_entry
+        from wama.common.manifests.codegen.views_gen import card_entry
         body = {'ports': {'inputs': [{'id': 'text', 'group': 'prompt'}]}}
-        self.assertEqual((True, 'text'), prompt_entry(body, fields={'text', 'target_lang'}))
+        self.assertEqual('text', card_entry(body, fields={'text', 'target_lang'})['prompt_field'])
         # Contre-épreuves : une cible déclarée prime ; un port sans colonne ne s'invente pas.
         body['prompts'] = {'targets': [{'field': 'consigne'}]}
-        self.assertEqual((True, 'consigne'), prompt_entry(body, fields={'text', 'consigne'}))
-        self.assertEqual((True, ''), prompt_entry({'ports': {'inputs': [
-            {'id': 'text', 'group': 'prompt'}]}}, fields={'other'}))
+        self.assertEqual('consigne', card_entry(body, fields={'text', 'consigne'})['prompt_field'])
+        self.assertEqual('', card_entry({'ports': {'inputs': [
+            {'id': 'text', 'group': 'prompt'}]}}, fields={'other'})['prompt_field'])

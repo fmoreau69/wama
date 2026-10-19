@@ -24961,3 +24961,64 @@ du 2026-10-16`.
   DÉCLARE son rôle depuis `1ec0fd79` (2026-10-02) — le contrat de la médiathèque
   (`wama/media_library/tests/tests_export_service.py`, composer « musique ou bruitage ») dit l'inverse.
 - 🔴 relancer gunicorn + workers, puis Ctrl+F5 sur le composer.
+
+## §PALIER 2026-10-19 (nuit), « Portage apps : FORME D'ENTRÉE de la card déduite des ports » — étape 2 du plan du 19/10 — non poussé — 🔴 relancer gunicorn (gabarits, JS servis, vues générées, `translator_01` re-née)
+
+**Décision de Fabien (2026-10-18, en réponse au `/reprise`)** : la forme d'entrée se déclare **par
+port** (option 1 des trois soumises par la session Translator, `§PASSATION 2026-10-17`). Mesuré
+avant d'écrire : chaque port porte DÉJÀ son obligation — `required` et `one_of` (« l'un OU
+l'autre »), `app_input_ports` + `app_own_input_ports`, affichés « requis · ou … » sur l'onglet
+depuis le 30/09 —, seul le manifeste ne la portait pas (« un nœud du studio n'en porte pas »,
+garde du 30/09). « Par port » s'est donc écrit SANS drapeau neuf : un port suffit à créer quand il
+remplit seul l'obligation, et la forme s'en déduit.
+
+**Livré** :
+- `app_registry.entry_form(ports)` — dépôt / attache / mixte ; `principal_entry(ports)` pour le
+  Studio ; l'obligation voyage dans `studio_node_ports` (donc la facette `ports`) ; repli sans
+  obligation : la première entrée, dans l'ordre d'`input_types` (le port `prompt` passe en tête quand
+  l'app le déclare d'abord — imager) ; un port propre à l'app couvre ses natures (pas de second port
+  « document » pour une app née d'un manifeste) ;
+- card v4 : `input_slots` rend la forme (`CardSlots.entry`) ; `data-wama-depot` et la consigne en
+  dérivent ; les littéraux `depot_cree` / `show_prompt` sont RETIRÉS des pages (imager ×2,
+  composer, avatarizer, synthesizer) ; `instant_params_id` → `data-instant-params` ;
+- `WamaImport({attach: 'card'})` (jumelle d'`addToQueue({ports: 'card'})`) — composer et avatarizer
+  y passent (leur relevé à la main retiré) ;
+- générateur : `views_gen.card_entry` remplace `prompt_entry` ; une card attache émet
+  `attach: 'card'` sans URL d'envoi ni dossier (elle CRÉAIT au dépôt), une card mixte a les deux
+  voies ; `has_text_file_input` projeté au manifeste (capacité déclarée-seulement) ;
+- Studio : `generic_runner._derive_io_from_ports` et `projection.derive_io_from_ports` lisent
+  `principal_entry` — composer et synthesizer passent de `drift` à `derived` ;
+- grille (`recursive_import`) et `tests_import_contract` lisent la forme déduite, plus le littéral ;
+- brouillon du Translator : `has_text_file_input` (le synthesizer a la même entrée) → card MIXTE ;
+  `translator_01` re-née, glu du superviseur remise depuis la sauvegarde.
+
+**Mesures** : 12 cards des 10 apps, forme déduite = forme écrite à la main (catalogue réel) ;
+`studio_redundancy` : 9 `derived`, enhancer `narrowed_by_declaration` (inchangé). Pages SERVIES
+(client connecté, compte de test dev) : `/translator_01/` `data-wama-depot="cree"`, consigne +
+zone instantanée (`data-instant-params="translatorPanelParams"`, hôte présent), onglet « Fichier de
+travail · requis · ou le texte saisi » ; contre-épreuves `/composer/` attache + `attach: 'card'`,
+`/describer/` dépôt sans consigne, `/synthesizer/` mixte. Re-naissance : 0 ligne en base perdue
+(mesuré avant), mêmes trous qu'avant hors `tasks.py` (models 1, views 3), glu remise par
+`replace_glue_hole`.
+
+**Tests** : 898 ciblés OK sous WSL (catalogues, codegen ×4, import_contract, instant_result,
+lot_tab, score_input, studio node_ports/graph_flow, sandbox ×2, conformity_backends, import_wired,
+process_pipeline, composer, avatarizer, synthesizer, imager) ; 62 sous Windows (V8 :
+`tests_designation_js`, `tests_codegen_templates`). Contre-épreuves ROUGES : `entry_form` sans
+obligation (7 échecs : 3 apps attache, card de bout en bout, repli, générateur), obligation retirée
+du nœud (1), littéral remis dans une page (1), `attach: 'card'` neutralisé (1). `check_docs` 0/2961 ;
+`doc_facts --check` à jour ; budget des noms de test 1292 > 1291, inchangé (`tests_theme.py`,
+session des thèmes).
+
+🔚 **Restes nommés** :
+- **étape 3, les jumelles** (prochain palier) — et un trou de projection vu en chemin :
+  `ports_carried_elsewhere` n'est pas projeté au manifeste, donc une jumelle montrera l'onglet de la
+  voix de référence (synthesizer) et ceux du résultat (transcriber). Même famille que
+  `has_text_file_input`, soldé ce jour ;
+- **avatarizer** : le texte remplace l'audio (« un audio fourni prime sur le texte »), mais rien ne le
+  déclare (`prompt` sans `one_of: ['work_audio']`) — l'onglet audio dit « requis » à tort ; la forme
+  (attache) n'en dépend pas. Vérité de déclaration à porter avec l'app ;
+- l'imager garde sa résolution d'attache propre (`input_card.js`, un port choisi selon ce que sa
+  card offre) — candidat à `attach: 'card'`, non porté ;
+- `tests_import_contract.PORTEES` se calcule à l'import (catalogue réel, avant la base de test) — comme
+  avant, mais par la forme déduite au lieu d'un motif de fichier.

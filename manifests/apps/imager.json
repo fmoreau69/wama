@@ -2336,6 +2336,8 @@
           "id": "prompt",
           "label": "Prompt",
           "multi": false,
+          "one_of": [],
+          "required": true,
           "types": [
             "prompt"
           ]
@@ -2346,6 +2348,8 @@
           "id": "work_image",
           "label": "Image de travail",
           "multi": true,
+          "one_of": [],
+          "required": false,
           "types": [
             "image"
           ]

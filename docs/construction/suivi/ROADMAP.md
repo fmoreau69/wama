@@ -2563,6 +2563,11 @@ Deux voies, complémentaires :
   le vocabulaire des slots, pas celui des ports (pansement). **Transmis le 2026-10-17 à la session
   « Portage apps media »** (décision de Fabien : c'est du portage) — la déclaration (par port « suffit
   à créer », `required`, ou capacité d'app) reste à soumettre à Fabien.
+  ✅ **Tranché le 2026-10-18 (« par port »), câblé le 2026-10-19** : l'obligation déjà déclarée par
+  port (`required`, `one_of`) voyage dans la facette `ports`, et la forme se déduit
+  (`app_registry.entry_form`, domicile `CARD_DESIGN §11.11`). Le brouillon du Translator déclare la
+  capacité du synthesizer, `has_text_file_input` (le texte saisi OU un fichier texte — projetée au
+  manifeste le même jour) : sa card est MIXTE.
 - ⏳ Reste : juger l'app à l'usage ; vérifier « Envoyer vers » le Writer sur un vrai document
   (voie 1 ci-dessus).
 

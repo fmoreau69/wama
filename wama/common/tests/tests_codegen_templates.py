@@ -13,7 +13,6 @@ du câblage passait des variables de template au partial sans les définir, ce q
 exactement la même barre inerte — avec la sous-chaîne présente.
 """
 import re
-import unittest
 
 from django.template.loader import render_to_string
 from django.test import SimpleTestCase
@@ -431,29 +430,29 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         inc = self._include_card(self._rendu(_manifeste(SOURCE)))
         self.assertNotIn('show_reference', inc)
 
-    @unittest.expectedFailure
     def test_a_prompt_first_app_with_optional_cover_ports_stays_in_attach_mode(self):
-        """TROU NOMMÉ (2026-10-03, décision B de Fabien) — remplace le test « la chaîne complète
-        sur le composer », dont le prémisse est devenu faux : la mélodie n'est plus une RÉFÉRENCE
-        déclarée par `APP_MODES['composer']`, mais le morceau à reprendre (cover), un port de
-        TRAVAIL facultatif déclaré par les MODÈLES (`work_audio`, `work_score`).
-
-        Ce qui DEVRAIT tenir : une app à consigne d'abord (prompt exigé par tous ses modèles) reste
-        en mode ATTACHE même avec des ports de travail FACULTATIFS. Ce qui échoue aujourd'hui :
-        `views_gen.prompt_entry` décide « attache = aucun port de travail », faute de connaître
-        l'obligation — la facette `ports` du manifeste ne porte pas `required` (son docstring le
-        nomme déjà). La jumelle générée du composer CRÉERAIT un élément au dépôt d'un fichier.
-        Même lacune que `projection.derive_io_from_ports` (`INPUT_MODEL_MATCHING §6.10`). Le jour
-        où la facette porte l'obligation, ce test passe : retirer alors `expectedFailure`."""
+        """Trou nommé le 2026-10-03 (décision B de Fabien), FERMÉ le 2026-10-19 : la mélodie du
+        composer n'est plus une RÉFÉRENCE mais le morceau à reprendre (cover), un port de TRAVAIL
+        facultatif déclaré par les MODÈLES (`work_audio`, `work_score`). Une app à consigne d'abord
+        (prompt exigé par tous ses modèles) reste en mode ATTACHE avec des ports de travail
+        FACULTATIFS : la facette `ports` porte désormais l'obligation de chaque port, et la forme
+        d'entrée s'en déduit (`views_gen.card_entry` → `app_registry.entry_form`). Jusque-là
+        `prompt_entry` décidait « attache = aucun port de travail » et la jumelle du composer
+        aurait CRÉÉ un élément au dépôt d'un fichier (test en `expectedFailure` du 03/10)."""
         from copy import deepcopy
         manifest = deepcopy(_manifeste('composer'))
-        inputs = (manifest['body'].setdefault('ports', {})).setdefault('inputs', [])
-        inputs += [{'id': 'work_audio', 'label': 'Audio de travail', 'group': 'travail',
-                    'types': ['audio'], 'multi': True},
-                   {'id': 'work_score', 'label': 'Partition de travail', 'group': 'travail',
-                    'types': ['score'], 'multi': False}]
-        inc = self._include_card(self._rendu(manifest))
-        self.assertIn('depot_cree=False', inc)
+        manifest['body'].setdefault('ports', {})['inputs'] = [
+            {'id': 'prompt', 'label': 'Prompt', 'group': 'prompt', 'types': ['prompt'],
+             'multi': False, 'required': True, 'one_of': []},
+            {'id': 'work_audio', 'label': 'Audio de travail', 'group': 'travail',
+             'types': ['audio'], 'multi': True, 'required': False, 'one_of': []},
+            {'id': 'work_score', 'label': 'Partition de travail', 'group': 'travail',
+             'types': ['score'], 'multi': False, 'required': False, 'one_of': []}]
+        src = self._rendu(manifest)
+        self.assertIn("primary_btn_id='composerAddBtn'", self._include_card(src))
+        call = GeneratedEntryFormTest.import_call(src)
+        self.assertIn("attach:         'card'", call, 'le dépôt JOINT le fichier au port')
+        self.assertNotIn('uploadUrl', call, 'un dépôt ne crée rien sur une card attache')
 
     def test_le_slot_travail_est_retreci_aux_categories_du_port(self):
         """Moitié TRAVAIL de §S2bis.6 (b), débloquée par le retrait de l'homonyme `text`.
@@ -500,6 +499,64 @@ class SlotDeReferenceGenereTest(SimpleTestCase):
         inc = self._include_card(src)
         self.assertEqual({'image'}, self._reference_natures(inc), 'le PREMIER port déclaré se rend')
         self.assertIn('port de référence supplémentaire NON rendu : `reference_voice`', src)
+
+
+class GeneratedEntryFormTest(SimpleTestCase):
+    """La FORME D'ENTRÉE de la card générée, déduite de l'obligation des ports du manifeste
+    (2026-10-19, décision de Fabien « par port » — `views_gen.card_entry`, `app_registry.entry_form`).
+
+    Trois formes, celles des dix pages réelles : DÉPÔT (le fichier suffit, il crée l'élément),
+    ATTACHE (rien ne suffit seul, ou seule la consigne : le fichier se joint, « Ajouter » crée) et
+    MIXTE (la consigne et le fichier suffisent chacun — synthesizer, Translator). Le gabarit n'émet
+    plus `depot_cree` ni `show_prompt` : la card déduit la sienne des mêmes ports (`input_slots`).
+    Manifestes MUTÉS : seule l'obligation change d'un test à l'autre — c'est elle qui décide."""
+
+    @staticmethod
+    def import_call(src):
+        """L'appel `WamaImport({...})` du gabarit généré."""
+        start = src.index('window._import = WamaImport(')
+        return src[start:src.index('});', start)]
+
+    def _rendered(self, prompt, work):
+        from copy import deepcopy
+        manifest = deepcopy(_manifeste('composer'))
+        manifest['body'].setdefault('ports', {})['inputs'] = [
+            dict({'id': 'prompt', 'label': 'Prompt', 'group': 'prompt', 'types': ['prompt'],
+                  'multi': False}, **prompt),
+            dict({'id': 'work_file', 'label': 'Fichier de travail', 'group': 'travail',
+                  'types': ['document'], 'multi': True}, **work)]
+        src, raison = render_index(manifest)
+        src = src.get('index.html') if isinstance(src, dict) else src
+        if not src:
+            self.skipTest(f'index non généré : {raison}')
+        include = next(line for line in src.splitlines()
+                       if "{% include 'common/_new_item_card" in line)
+        return src, include
+
+    def test_a_work_file_that_suffices_alone_makes_the_drop_create(self):
+        src, include = self._rendered({'required': False, 'one_of': []},
+                                      {'required': True, 'one_of': []})
+        self.assertIn('uploadUrl', self.import_call(src))
+        self.assertNotIn('AddBtn', include, 'sans consigne à joindre, pas de bouton « Ajouter »')
+        self.assertIn("folder_input_id='composerFolderInput'", include)
+
+    def test_a_prompt_or_a_work_file_makes_the_mixed_form(self):
+        """Le synthesizer et le Translator : la consigne seule OU le fichier seul crée l'élément."""
+        src, include = self._rendered({'required': True, 'one_of': []},
+                                      {'required': False, 'one_of': ['prompt']})
+        self.assertIn('uploadUrl', self.import_call(src), 'le dépôt crée')
+        self.assertIn("primary_btn_id='composerAddBtn'", include, 'la consigne crée aussi')
+        self.assertIn('WamaApp.addToQueue', src)
+
+    def test_the_card_include_never_writes_the_entry_form_by_hand(self):
+        """Contre-épreuve de forme : quelle que soit l'obligation, l'inclusion ne fixe ni
+        `depot_cree` ni `show_prompt` — la card les déduit des mêmes ports."""
+        for prompt, work in (({'required': True}, {'required': False}),
+                             ({'required': False}, {'required': True})):
+            with self.subTest(prompt=prompt, work=work):
+                _src, include = self._rendered(prompt, work)
+                self.assertNotIn('depot_cree', include)
+                self.assertNotIn('show_prompt', include)
 
 
 class VoletParametresGenereTest(SimpleTestCase):
