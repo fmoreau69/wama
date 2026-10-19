@@ -17,8 +17,8 @@ la garde de montage commune (`_garde_de_montage` : ce que le passage a créé, f
 jamais un objet préexistant). Les vignettes, elles, RESTENT : c'est leur raison d'être
 (`surfaces.thumbnail_path`, sous `STATIC_ROOT`, non versionnées). Aucune tâche n'est lancée.
 
-Les briques constitutives seules (décision du même jour) : les composants SYSTÈME de la page
-attendent qu'on déclare où les cadrer.
+Des BRIQUES seules (2026-10-19, « trois niveaux », `ROUTE §F3b`) : un mécanisme n'a pas de
+vignette, il se voit dans la brique qu'il compose.
 """
 from __future__ import annotations
 

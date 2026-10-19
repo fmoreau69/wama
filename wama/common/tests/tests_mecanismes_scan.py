@@ -48,6 +48,22 @@ class OneFileOneOwnerTest(SimpleTestCase):
         self.assertEqual(['wama/fake/static/fake/x.js'], consumers(add, sources))
 
 
+class PythonSymbolIsNotReadInScriptsTest(SimpleTestCase):
+    """A Python home counted by its symbol (2026-10-19) : a browser script never imports it — the
+    same word there is only a word (the visitor identity, counted by a common verb, was « adopted »
+    by 17 scripts through a same-named method). A template can still consume it : a tag is one."""
+
+    VISITORS = Mechanism('fake_visitors', 'Visiteurs', 'rôle', 'wama/accounts/visitors.py',
+                         symbol='enlist')
+
+    def test_a_script_using_the_same_word_is_not_a_consumer(self):
+        sources = {'wama/common/static/common/js/x.js': 'axis.enlist(el, {});',
+                   'wama/accounts/views.py': 'from .visitors import enlist\nenlist(request)\n',
+                   'wama/fake/templates/fake/index.html': '{% enlist %}'}
+        self.assertEqual(['wama/accounts/views.py', 'wama/fake/templates/fake/index.html'],
+                         consumers(self.VISITORS, sources))
+
+
 class ScanResolvesImportsTest(SimpleTestCase):
 
     def test_a_same_named_module_of_another_package_is_not_a_consumer(self):

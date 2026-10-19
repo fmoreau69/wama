@@ -10,12 +10,9 @@ from django.urls import reverse
 
 from wama.common import registries
 from wama.common.app_registry import app_identity, measured_adoption
-from wama.common.mecanismes import MECHANISMS, UI_DOMAIN
-from wama.common.surfaces import (BRICK_FAMILIES, BRICKS, SURFACES, THUMBNAILS_DIR, load_all,
+from wama.common.mecanismes import MECHANISMS
+from wama.common.surfaces import (BRICKS, SURFACES, THUMBNAILS_DIR, UIBrick, load_all,
                                   thumbnail_path)
-
-#: The components of the interface, sorted — the « Système » family reads them, nothing else.
-SYSTEM = sorted(m.key for m in MECHANISMS if m.domain == UI_DOMAIN)
 
 
 class UIBricksPageTest(TestCase):
@@ -66,65 +63,76 @@ class UIBricksPageTest(TestCase):
         self.assertIn('toujours à jour', page)
 
 
-class SystemComponentsTest(TestCase):
-    """The « Système » family (2026-10-18, Fabien) : the shared components of the interface, read
-    from the `UI_DOMAIN` of the mechanisms registry — and « used by » is the adoption MEASURED by
-    the conformity grid, the report `/apps/` reads, never a scan of the repository."""
+class BrickCompositionTest(TestCase):
+    """Three levels (2026-10-19, Fabien) : a mechanism is a PIECE, a brick a WHOLE made of them.
+    The page shows bricks only ; each says which mechanisms compose it, READ from its code — the
+    owners of what it loads (`requires`) and what its own script consumes, by the very detection
+    of the adoption scan (`mecanismes_scan.consumers`)."""
 
     def setUp(self):
-        self.client.force_login(get_user_model().objects.create_user('ui-system', password='x'))
+        self.client.force_login(get_user_model().objects.create_user('ui-parts', password='x'))
         load_all()
 
-    def _page(self, report=None):
-        with mock.patch('wama.common.app_registry._conformity_report', return_value=report):
-            response = self.client.get(reverse('common:ui_bricks_catalog'))
+    def _page(self):
+        response = self.client.get(reverse('common:ui_bricks_catalog'))
         self.assertEqual(200, response.status_code)
         return response.content.decode('utf-8', 'replace')
 
-    def test_every_component_of_the_interface_domain_has_its_card_and_no_other(self):
+    def test_only_bricks_have_a_card(self):
         page = self._page()
-        self.assertTrue(SYSTEM, 'the instrument sees the domain')
-        self.assertIn(f'data-f-famille="{BRICK_FAMILIES["system"]}"', page)
-        for key in SYSTEM:
-            with self.subTest(component=key):
-                self.assertIn(f'data-id="{key}"', page)
+        self.assertNotIn('data-f-famille', page, 'no « Système » family beside the bricks')
         for mechanism in MECHANISMS:
-            if mechanism.domain != UI_DOMAIN and mechanism.key not in BRICKS:
-                with self.subTest(outside=mechanism.key):
+            if mechanism.key not in BRICKS:
+                with self.subTest(mechanism=mechanism.key):
                     self.assertNotIn(f'data-id="{mechanism.key}"', page)
 
-    def test_used_by_is_the_adoption_the_grid_measured(self):
-        checked, unchecked = SYSTEM[0], SYSTEM[1]
-        report = {'generated_at': '2026-10-18T00:00:00+00:00',
-                  'criteria': {'c_one': {'mechanism': checked}, 'c_two': {'mechanism': checked}},
-                  'apps': {'anonymizer': {'conv': {'c_one': True, 'c_two': True}},
-                           'composer': {'conv': {'c_one': True, 'c_two': False}},
-                           'imager': {'conv': {'c_one': False, 'c_two': False}},
-                           'describer': {'conv': {}}}}
-        with mock.patch('wama.common.app_registry._conformity_report', return_value=report):
-            adoption = measured_adoption(checked)
+    def test_a_brick_is_composed_of_what_it_loads_and_what_its_script_uses(self):
+        """The media transport loads the axis and the shuttle, and mounts the shared audio player
+        through its `base.html` global — never the visitor identity for an `axis.attach(…)`."""
+        parts = BRICKS['media_transport'].mechanisms()
+        self.assertTrue({'media_axis', 'shuttle', 'audio_player'} <= set(parts), parts)
+        self.assertNotIn('visitor_identity', parts)
+        names = {m.key: m.name for m in MECHANISMS}
+        card = self._page().split('data-id="media_transport"', 1)[1].split('wama-cat-card', 1)[0]
+        for key in ('media_axis', 'shuttle', 'audio_player'):
+            with self.subTest(part=key):
+                self.assertIn(f'title="{key}">{names[key]}</span>', card)
+
+    def test_a_composition_is_read_from_the_script_never_declared(self):
+        with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as js:
+            js.write('WamaAudioPlayer.mount(el); axis.attach(el);')
+        brick = UIBrick(key='fake', name='Fausse', description='', script='fake/brick.js',
+                        requires=('common/js/wama-shuttle.js',))
+        with mock.patch('django.contrib.staticfiles.finders.find', return_value=js.name):
+            self.assertEqual(['audio_player', 'shuttle'], brick.mechanisms())
+        with mock.patch('django.contrib.staticfiles.finders.find', return_value=None):
+            self.assertEqual(['shuttle'], brick.mechanisms(), 'a script not found reads nothing')
+
+
+class MeasuredAdoptionTest(TestCase):
+    """What the MEASURED grid says of a mechanism (`app_registry.measured_adoption`) : the
+    criteria that check it and, per app, all green / partial / none — read from the report
+    `/apps/` reads, never a scan of the repository ; without a report, nothing is invented."""
+
+    REPORT = {'generated_at': '2026-10-18T00:00:00+00:00',
+              'criteria': {'c_one': {'mechanism': 'checked'}, 'c_two': {'mechanism': 'checked'}},
+              'apps': {'anonymizer': {'conv': {'c_one': True, 'c_two': True}},
+                       'composer': {'conv': {'c_one': True, 'c_two': False}},
+                       'imager': {'conv': {'c_one': False, 'c_two': False}},
+                       'describer': {'conv': {}}}}
+
+    def test_the_state_per_app_is_read_from_the_report(self):
+        with mock.patch('wama.common.app_registry._conformity_report', return_value=self.REPORT):
+            adoption = measured_adoption('checked')
             self.assertEqual(['c_one', 'c_two'], adoption['criteria'])
             self.assertEqual({'anonymizer': True, 'composer': 'partial', 'imager': False},
                              adoption['apps'])
-            self.assertEqual([], measured_adoption(unchecked)['criteria'])
-        page = self._page(report)
-        card = page.split(f'data-id="{checked}"', 1)[1].split('wama-cat-card', 1)[0]
-        label = lambda app: app_identity(app)['label']
-        self.assertIn(f'>{label("anonymizer")}</span>', card)
-        self.assertIn(f'>{label("composer")}<small>partiel</small>', card)
-        self.assertNotIn(f'>{label("imager")}', card)
-        self.assertNotIn('>anonymizer</span>', card, 'a chip names the app, not its key')
-        other = page.split(f'data-id="{unchecked}"', 1)[1].split('wama-cat-card', 1)[0]
-        self.assertIn('aucun critère de la grille ne le vérifie', other)
+            self.assertEqual([], measured_adoption('unchecked')['criteria'])
 
     def test_without_a_measured_report_nothing_is_invented(self):
-        self.assertEqual({'criteria': [], 'apps': {}, 'measured_at': None},
-                         self._adoption_without_report())
-        self.assertIn('aucun critère de la grille ne le vérifie', self._page(None))
-
-    def _adoption_without_report(self):
         with mock.patch('wama.common.app_registry._conformity_report', return_value=None):
-            return measured_adoption(SYSTEM[0])
+            self.assertEqual({'criteria': [], 'apps': {}, 'measured_at': None},
+                             measured_adoption('checked'))
 
 
 class BrickThumbnailTest(TestCase):

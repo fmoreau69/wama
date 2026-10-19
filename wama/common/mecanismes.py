@@ -95,6 +95,13 @@ class Mechanism:
     #     avec la taxonomie de types (`common/catalog/data_types.py`) et `FUNCTION_CATALOG`.
     #
     # Un plugin pourra RÉUTILISER des mécanismes ; il n'en est pas une espèce.
+    #
+    # ⭐ 2026-10-19 (décision de Fabien, `ROUTE §F3b` « trois niveaux ») : la BRIQUE UI
+    # (`common/surfaces.py`) est l'héritière de ce plugin — un TOUT, posé par l'utilisateur ou le
+    # Studio, mesuré par sa compatibilité. Elle est COMPOSÉE de mécanismes (ceux qui tiennent les
+    # scripts qu'elle charge), elle n'en est pas un ; une page COMPOSE des briques. La page des
+    # briques UI l'avait oublié le 18/10, en rangeant les mécanismes d'interface comme une famille
+    # de briques (« Système ») — c'est la confusion que ce paragraphe interdisait déjà.
 
 
 def _domain(name: str, mechanisms: tuple) -> tuple:
@@ -103,11 +110,12 @@ def _domain(name: str, mechanisms: tuple) -> tuple:
     return tuple(replace(m, domain=name) for m in mechanisms)
 
 
-#: Le domaine des COMPOSANTS COMMUNS DE L'INTERFACE — ce que l'on voit et manipule, partagé par
-#: toutes les pages. La page des briques UI en fait sa famille « Système » (2026-10-18, décision
-#: de Fabien) : une lecture de ce domaine, jamais une seconde liste. D'où le rangement du même
-#: jour — les composants d'interface égarés y sont entrés, les pièces sans rien de visible
-#: (réponses par morceaux, cache-busting, grille des temps, notation MIDI) en sont sorties.
+#: Le domaine des MÉCANISMES DE L'INTERFACE — les pièces que l'on voit et manipule, partagées par
+#: toutes les pages. Rangé le 2026-10-18 : les mécanismes d'interface égarés y sont entrés, les
+#: pièces sans rien de visible (réponses par morceaux, cache-busting, grille des temps, notation
+#: MIDI) en sont sorties. ⚠ La page des briques UI en avait fait une famille de briques
+#: (« Système ») ; retiré le 2026-10-19 — un mécanisme est une PIÈCE, la page montre les briques
+#: et, pour chacune, les mécanismes qui la composent (`ROUTE §F3b`, « trois niveaux »).
 UI_DOMAIN = 'UI générée'
 
 

@@ -1632,11 +1632,12 @@ Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jo
 
 - **Domicile** : `wama/common/services/mecanismes_scan.py` · **doc** : [docs/construction/architecture/WAMA_MECANISMES.md](../construction/architecture/WAMA_MECANISMES.md)
 - **Module** : Balayage d'ADOPTION des mécanismes : qui consomme quoi, et à quel niveau.
-- **API publique** (8) :
+- **API publique** (9) :
   - `python_modules(base: Path)` — Chemins .py de notre code (relatifs à base), vendored et artefacts élagués.
   - `front_sources(base: Path)` — Chemins .html/.js de notre front (templates + static d'app), relatifs à base.
   - `load_sources(base: Path | None=None) -> dict[str, str]` — {chemin relatif: contenu} pour tout le corpus balayé. Coûteux : à charger UNE fois.
   - `consumers(mechanism, sources: dict[str, str]) -> list[str]` — Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même.
+  - `owners_of_static(path: str) -> list` — Les mécanismes qui tiennent un fichier STATIQUE, nommé comme `{% static %}` le nomme
   - `consuming_apps(mechanism, sources: dict[str, str], found=None) -> list[str]` — Apps du catalogue dont au moins un fichier NON-HARNAIS consomme le mécanisme.
   - `adoption_matrix(sources: dict[str, str] | None=None) -> dict` — Mesure complète, UNE passe : {key: {'consommateurs': [...], 'apps': [...], 'niveau_app': bool}}.
   - `mechanisms_without_criterion(sources: dict[str, str] | None=None) -> list[tuple]` — LE contrôle de jonction : mécanismes de NIVEAU APP qu'AUCUN critère de grille ne vérifie.

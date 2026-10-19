@@ -9,8 +9,8 @@
   Page du registre `ui_bricks` (2026-10-16, demande de Fabien). Charte commune des catalogues
   (`wama-catalog.css` : bandeau de stats, encart d'intention, cartes filtrables), détail au clic
   dans le volet (inspecteur de registre : titre, description, `data-f-*`, ligne méta). Tout vient
-  de la vue, qui lit à chaque affichage `common/surfaces.py` (briques constitutives) et le
-  domaine `UI_DOMAIN` de `common/mecanismes.py` (composants système, 2026-10-18) : registre
+  de la vue, qui lit à chaque affichage `common/surfaces.py` — des BRIQUES seules, chacune avec
+  les mécanismes qui la composent (2026-10-19, « trois niveaux », `ROUTE §F3b`) : registre
   DÉRIVÉ, donc aucun bouton d'actualisation — `refresh_button` le décide seul de la nature.
 {% endcomment %}
 
@@ -30,11 +30,8 @@
   .ub-row > b { color: var(--wama-tone-grey-text); font-weight: 600; margin-right: .3rem; }
   .ub-none    { color: var(--wama-cat-missing); font-size: .78rem; }
   .ub-path    { font-size: .74rem; color: var(--wama-cat-quiet); word-break: break-all; }
-  /* Les ajouts du 2026-10-18 lisent les tokens du thème (`wama-theme.css`, ROADMAP §28). */
-  .ub-family  { background: var(--wama-border); color: var(--wama-text-strong); }
-  .ub-system  { background: var(--wama-surface-inset); color: var(--wama-text-info); }
-  .ub-app     { background: var(--wama-border-subtle); }
-  .ub-partial { background: var(--wama-border-faint); border: 1px dashed var(--wama-border-dashed); }
+  /* Un mécanisme est une PIÈCE de la brique : puce discrète (tokens du thème, ROADMAP §28). */
+  .ub-part    { background: var(--wama-border-subtle); }
 </style>
 {% endblock %}
 
@@ -47,14 +44,10 @@
   {% include 'common/_catalog_header.html' with registre='ui_bricks' %}
 
   <div class="wama-cat-stats">
-    <span class="wama-cat-stat"><b>{{ bricks|length }}</b> brique{{ bricks|length|pluralize }} constitutive{{ bricks|length|pluralize }}</span>
+    <span class="wama-cat-stat"><b>{{ bricks|length }}</b> brique{{ bricks|length|pluralize }}</span>
     <span class="wama-cat-stat"><b>{{ surfaces_count }}</b> surface{{ surfaces_count|pluralize }} qui les compose{{ surfaces_count|pluralize:"nt" }}</span>
     {% if unused_count %}
       <span class="wama-cat-stat ub-none"><b>{{ unused_count }}</b> brique{{ unused_count|pluralize }} qu'aucune surface ne monte</span>
-    {% endif %}
-    <span class="wama-cat-stat"><b>{{ system|length }}</b> composant{{ system|length|pluralize }} système</span>
-    {% if unmeasured_count %}
-      <span class="wama-cat-stat ub-none"><b>{{ unmeasured_count }}</b> qu'aucun critère de la grille ne vérifie</span>
     {% endif %}
   </div>
 
@@ -70,25 +63,23 @@
     <p>La liste <b>dérive du code</b> (<code>common/surfaces.py</code>) à chaque affichage&nbsp;: elle
        ne peut pas être périmée. C'est aussi celle que lira la palette du <b>Studio</b> pour
        composer une surface en diagramme — il n'y en aura jamais une seconde.</p>
-    <p>Les composants <b>système</b> sont le commun de l'interface, présent sur toutes les
-       pages&nbsp;: inspecteur, file d'attente, aperçu, barre de filtres… Ils sont lus du
-       registre des mécanismes (domaine «&nbsp;UI générée&nbsp;»). Les apps qui les utilisent
-       viennent de la <b>grille de conformité</b> mesurée&nbsp;; un composant qu'aucun critère ne
-       vérifie le dit.</p>
+    <p>Une brique est un <b>tout</b>&nbsp;; elle est <b>composée de mécanismes</b>, les pièces
+       communes que le développeur assemble (axe de temps, historique, lecteur audio…). Chaque
+       tuile dit lesquels, lus de son code. Les mécanismes eux-mêmes ne sont pas des
+       briques&nbsp;: leur carte est celle des mécanismes.</p>
   </div>
 
-  {% include 'common/_filter_bar.html' with facettes=facets cible='.wama-cat-card' mode='client' placeholder='Filtrer (brique, nature lue, app…)' %}
+  {% include 'common/_filter_bar.html' with facettes=facets cible='.wama-cat-card' mode='client' placeholder='Filtrer (brique, nature lue, app, mécanisme…)' %}
 
   {% comment %}`data-id` = la clé de la brique, lue par l'inspecteur au clic ; `data-f-usage` = la
   facette déclarée par la vue, AUSSI visible en badge ; `data-f-text` = l'index de recherche
-  (clé, nom, ce qu'elle lit et produit, les apps qui la montent).{% endcomment %}
+  (clé, nom, ce qu'elle lit et produit, les apps qui la montent, ses mécanismes).{% endcomment %}
   <div class="wama-cat-grid" id="uiBricksGrid" style="--cat-card-min: 340px;"
        data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for b in bricks %}
-    <div class="wama-cat-card" data-id="{{ b.key }}" data-f-famille="{{ b.family }}" data-f-usage="{{ b.usage }}"
-         data-f-text="{{ b.key }} {{ b.name }}{% for r in b.reads %} {{ r.value }}{% endfor %}{% for e in b.emits %} {{ e }}{% endfor %}{% for s in b.surfaces %} {{ s.app }} {{ s.app_label }} {{ s.label }}{% endfor %}">
+    <div class="wama-cat-card" data-id="{{ b.key }}" data-f-usage="{{ b.usage }}"
+         data-f-text="{{ b.key }} {{ b.name }}{% for r in b.reads %} {{ r.value }}{% endfor %}{% for e in b.emits %} {{ e }}{% endfor %}{% for s in b.surfaces %} {{ s.app }} {{ s.app_label }} {{ s.label }}{% endfor %}{% for m in b.mechanisms %} {{ m.key }} {{ m.name }}{% endfor %}">
       <h4>{{ b.name }}
-        <span class="wama-cat-badge ub-family">{{ b.family }}</span>
         <span class="wama-cat-badge ub-key">{{ b.key }}</span>
         <span class="wama-cat-badge {% if b.emits %}ub-edit{% else %}ub-show{% endif %}">{{ b.usage }}</span>
       </h4>
@@ -113,6 +104,11 @@
       <div class="ub-row"><b>Utilisée par</b>
         {% for s in b.surfaces %}<span class="ub-chip ub-surface">{{ s.app_label }} · {{ s.label }}</span>{% empty %}<span class="ub-none">aucune surface pour l'instant</span>{% endfor %}
       </div>
+      {% comment %}Les PIÈCES de la brique (`UIBrick.mechanisms`, lues de son code). Le titre de la
+      puce porte la clé : c'est elle que nomme la carte des mécanismes.{% endcomment %}
+      <div class="ub-row"><b>Composée de</b>
+        {% for m in b.mechanisms %}<span class="ub-chip ub-part" title="{{ m.key }}">{{ m.name }}</span>{% empty %}<span class="ub-chip">aucun mécanisme commun — son script seul</span>{% endfor %}
+      </div>
 
       <div class="wama-cat-meta">
         {% if b.all_worlds %}Tous les mondes{% else %}Mondes : {{ b.worlds|join:", " }}{% endif %}
@@ -121,26 +117,6 @@
     </div>
     {% empty %}
     <p class="text-body-secondary">Aucune brique déclarée.</p>
-    {% endfor %}
-
-    {% comment %}Composants SYSTÈME : mêmes tuiles, donc même détail au clic dans le volet.
-    `data-id` = la clé du mécanisme ; « Utilisé par » = l'adoption mesurée par la grille.{% endcomment %}
-    {% for s in system %}
-    <div class="wama-cat-card" data-id="{{ s.key }}" data-f-famille="{{ s.family }}"
-         data-f-text="{{ s.key }} {{ s.name }}{% for a in s.apps %} {{ a.app }} {{ a.label }}{% endfor %}">
-      <h4>{{ s.name }}
-        <span class="wama-cat-badge ub-system">{{ s.family }}</span>
-        <span class="wama-cat-badge ub-key">{{ s.key }}</span>
-      </h4>
-      <div class="wama-cat-desc">{{ s.description }}</div>
-      <div class="ub-row"><b>Utilisé par</b>
-        {% if not s.criteria %}<span class="ub-none">aucun critère de la grille ne le vérifie</span>
-        {% else %}{% for a in s.apps %}<span class="ub-chip {% if a.state == 'partial' %}ub-partial{% else %}ub-app{% endif %}">{{ a.label }}{% if a.state == 'partial' %}<small>partiel</small>{% endif %}</span>{% empty %}<span class="ub-none">aucune app, d'après la grille</span>{% endfor %}{% endif %}
-      </div>
-      <div class="wama-cat-meta">
-        domicile <code class="ub-path">{{ s.home }}</code>{% if s.doc %} · doc <code class="ub-path">{{ s.doc }}</code>{% endif %}{% if s.criteria %} · critère{{ s.criteria|length|pluralize }} {{ s.criteria|join:", " }}{% endif %}
-      </div>
-    </div>
     {% endfor %}
   </div>
 

@@ -458,7 +458,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     - ⏳ **Restes** : l'éditeur de diagramme du Studio (palette `ui_bricks`) ; ~~la page catalogue
       des briques~~ ✅ 2026-10-16 (`/common/ui-bricks/`, `ui_bricks_view` : ce que chaque brique
       lit et produit, les surfaces qui la composent, lu de `surfaces.py` à chaque affichage ;
-      menu du compte + carte du registre) — ✅ **2026-10-18, décisions de Fabien** : DEUX familles,
+      menu du compte + carte du registre) — ✅ **2026-10-18, décisions de Fabien** (⚠ les deux
+      familles sont revues le 2026-10-19 : TROIS NIVEAUX, ci-dessous) : DEUX familles,
       les briques CONSTITUTIVES et les composants SYSTÈME (le commun de l'interface), ceux-ci LUS du
       domaine « UI générée » du registre des mécanismes (`mecanismes.UI_DOMAIN`, jamais une seconde
       liste), « utilisé par » = l'adoption MESURÉE par la grille (`app_registry.measured_adoption`,
@@ -471,14 +472,39 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       élément TÉMOIN que chaque surface DÉCLARE (`Surface.witness`, une donnée : au manifeste pour
       une app générée, `WAMA_MANIFEST_SPEC`), contenus par `ui_smoke.witness_sample` ; vignettes
       sous `staticfiles/ui_bricks/`, non versionnées. Mesuré : 3 surfaces ouvertes, 8/8 briques.
-      ⏳ Vignettes des composants SYSTÈME (décision : listés sans vignette d'abord — il faudra
-      déclarer où les cadrer) ; « Versions » capturée vide (le témoin n'a pas de révision gardée) ;
+      ~~Vignettes des composants SYSTÈME~~ (caduc le 2026-10-19 : un mécanisme n'a pas de vignette,
+      ci-dessous) ; « Versions » capturée vide (le témoin n'a pas de révision gardée) ;
       le domaine « Qualité & auto-amélioration » porte encore des fonctionnalités qui n'en sont pas
       (mémoire, MCP, modèles distants, calendrier, partage…), rangement non fait ;
       la disposition côté serveur (aujourd'hui stockage local du navigateur) ; la
       vidéo (axe commun) ; l'évaluation dans l'anonymizer (corrections = vérité terrain, WIDER
       FACE val, `WAMA_APPRENTISSAGE §8bis`) ; porter vers ces briques les pilotes en attente
       (YuE2, retouche Imager).
+    - ✅ **TROIS NIVEAUX — 2026-10-19, décision de Fabien** (*« un mécanisme comme les boutons
+      d'actions n'est pas un tout, mais la partie d'un tout, et le tout qui serait une brique UI
+      réutilisable ajustable serait la file d'attente »*). La famille « Système » du 18/10 mettait
+      au même rang des PIÈCES et des TOUTS — contre l'arbitrage du 2026-08-19 (`mecanismes.py`, en
+      tête du registre : *« un plugin pourra réutiliser des mécanismes ; il n'en est pas une
+      espèce »*) ; `WAMA_DATA_WORLD.md §4.6` écrivait même « widgets = briques UI = mécanismes ».
+      | niveau | qui le manipule | ce qui le distingue | sa mesure |
+      |---|---|---|---|
+      | **mécanisme** — une pièce | le développeur | s'importe et s'appelle ; n'a pas de sens seul pour l'utilisateur | l'ADOPTION (grille) |
+      | **brique** — un tout | l'utilisateur, le Studio | se pose sur une page, lit une donnée déclarée, a ses options, vaut dans tous les mondes | la COMPATIBILITÉ (ce qu'elle lit, ce qu'elle produit) |
+      | **page** — une composition | déclarée | un assemblage de briques : les archétypes de `§13` (page d'app = card d'entrée + file + volet ; surface d'édition) | — |
+
+      Une brique est COMPOSÉE de mécanismes, et cela ne se redéclare pas : ce sont ceux qui tiennent
+      les scripts qu'elle charge (`script` + `requires`), un fichier appartenant à UN mécanisme
+      (règle du 2026-09-15, `mecanismes_scan`). Conséquences : le catalogue des briques ne montre
+      que des briques, chacune avec ce qui la compose ; les mécanismes restent sur leur carte
+      (`WAMA_MECANISMES.md`) ; un mécanisme n'a pas de vignette — il se voit dans sa brique ; un
+      SOCLE de mécanismes présents partout (thèmes, poignées des volets, gestes tactiles, toasts)
+      n'appartient à aucune brique et ne prétend pas en être une. Premiers touts à déclarer : la
+      file, la card d'entrée, l'inspecteur, la visionneuse. ⚠ **La FILE n'est pas encore un tout
+      dans le code** : chaque app écrit la même composition à la main (barre de file, conteneur,
+      boucle `_queue_entry`, état vide — `converter/index.html:385-424`) ; la card d'entrée, le
+      volet et la visionneuse sont, eux, déjà des pièces uniques. ⏳ **Ce que LIT la file** — des
+      cards d'un pipeline — n'est dans aucun des deux vocabulaires (natures de média, types de
+      données) : à nommer.
   - ✅ **2ᵉ SURFACE — 2026-10-13, la page d'édition du FOND du Writer** (décisions de Fabien le
     jour même ; `ROADMAP §21.5` étape 1) :
     - **un champ FICHIER s'édite comme TEXTE**, nature DÉDUITE du type du champ

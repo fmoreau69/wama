@@ -595,20 +595,19 @@ def ui_bricks_view(request):
       • les SURFACES des apps qui la composent : une brique qu'aucune surface ne monte se voit.
     C'est la liste que la palette du Studio lira — jamais une seconde liste.
 
-    DEUX FAMILLES (2026-10-18, décision de Fabien) : les briques CONSTITUTIVES des pages
-    d'édition (ci-dessus) et les composants SYSTÈME — le commun de l'interface (inspecteur, file,
-    aperçu, barre de filtres…), lus du domaine `UI_DOMAIN` du registre des mécanismes. Pour
-    ceux-là, « utilisé par » est l'adoption MESURÉE par la grille de conformité
-    (`measured_adoption`, le rapport que lit `/apps/`) : jamais le balayage du dépôt, trop
-    coûteux pour une page, et un composant qu'aucun critère ne vérifie le dit.
+    DES BRIQUES SEULES (2026-10-19, décision de Fabien, « trois niveaux » — `ROUTE §F3b`) : une
+    brique est un TOUT, un mécanisme une PIÈCE. Chaque brique dit de quels mécanismes elle est
+    COMPOSÉE (`UIBrick.mechanisms`, lu de son code) ; les mécanismes eux-mêmes restent sur leur
+    carte (`WAMA_MECANISMES.md`). La famille « Système » du 18/10, qui les rangeait à côté des
+    briques, est retirée.
 
     La page DÉRIVE du code à chaque affichage : elle ne peut pas être périmée, donc aucun bouton
     d'actualisation (`refresh_button` le décide seul de la nature déclarée).
     """
-    from .app_registry import MEDIA_CATEGORIES, app_identity, measured_adoption
+    from .app_registry import MEDIA_CATEGORIES, app_identity
     from .catalog.data_types import known_types
-    from .mecanismes import MECHANISMS, UI_DOMAIN
-    from .surfaces import BRICK_FAMILIES, BRICKS, SURFACES, WORLDS, load_all, thumbnail
+    from .mecanismes import MECHANISMS
+    from .surfaces import BRICKS, SURFACES, WORLDS, load_all, thumbnail
 
     load_all()
     data_types = known_types()
@@ -625,6 +624,7 @@ def ui_bricks_view(request):
             used_by.setdefault(key, []).append({'app': surface.app, 'label': surface.label,
                                                 'app_label': app_identity(surface.app)['label']})
 
+    mechanism_names = {m.key: m.name for m in MECHANISMS}
     bricks = []
     for brick in sorted(BRICKS.values(), key=lambda b: b.name.lower()):
         bricks.append({
@@ -635,33 +635,17 @@ def ui_bricks_view(request):
             'worlds': list(brick.worlds), 'all_worlds': set(brick.worlds) == set(WORLDS),
             'script': brick.script, 'requires': list(brick.requires),
             'surfaces': used_by.get(brick.key, []),
-            'family': BRICK_FAMILIES['constitutive'],
+            'mechanisms': sorted(({'key': key, 'name': mechanism_names[key]}
+                                  for key in brick.mechanisms()), key=lambda m: m['name'].lower()),
             'thumbnail': thumbnail(brick.key),
-        })
-
-    system = []
-    for mechanism in sorted((m for m in MECHANISMS if m.domain == UI_DOMAIN),
-                            key=lambda m: m.name.lower()):
-        adoption = measured_adoption(mechanism.key)
-        system.append({
-            'key': mechanism.key, 'name': mechanism.name, 'description': mechanism.role,
-            'home': mechanism.home, 'doc': mechanism.doc,
-            'criteria': adoption['criteria'],
-            'apps': [{'app': app, 'label': app_identity(app)['label'], 'state': state}
-                     for app, state in adoption['apps'].items() if state],
-            'family': BRICK_FAMILIES['system'],
         })
 
     return render(request, 'common/ui_bricks.html', {
         'bricks': bricks,
-        'system': system,
         'surfaces_count': len(SURFACES),
         'unused_count': sum(1 for b in bricks if not b['surfaces']),
-        'unmeasured_count': sum(1 for s in system if not s['criteria']),
         # La clé d'une facette nomme aussi sa ligne dans le volet (`_libelleDeCle`).
-        'facets': [{'cle': 'famille', 'label': 'Famille', 'tous': 'Toutes les familles',
-                    'options': {f: f for f in BRICK_FAMILIES.values()}},
-                   {'cle': 'usage', 'label': 'Usage', 'tous': 'Tous les usages',
+        'facets': [{'cle': 'usage', 'label': 'Usage', 'tous': 'Tous les usages',
                     'options': {u: u for u in sorted({b['usage'] for b in bricks})}}],
         # Détail au clic dans le volet (l'inspecteur de registre) ; rien à prévisualiser.
         'volet': volet(medias=False, actions=False),

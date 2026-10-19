@@ -138,8 +138,13 @@ def consumers(mechanism, sources: dict[str, str]) -> list[str]:
                      if rel not in own and mechanism.symbol in src and pattern.search(src)}
         # Module PYTHON partagé : le symbole REMPLACE l'import du module (la raison d'être
         # du champ — `ScopedVisibility` dans `common/models.py`, 2026-08-13).
+        # ⚠ Jamais dans un script `.js` (2026-10-19) : un navigateur n'importe pas un symbole
+        # Python, il n'y a là qu'un MOT. L'identité du visiteur, comptée par un verbe courant,
+        # était « adoptée » par 17 scripts, dont le transport média des surfaces (une méthode
+        # homonyme de l'axe). Un gabarit, lui, en reste un consommateur possible : une balise de
+        # gabarit est un symbole Python.
         if mechanism.home.endswith('.py'):
-            return sorted(by_symbol)
+            return sorted(rel for rel in by_symbol if not rel.endswith('.js'))
         # Brique FRONT (2026-09-06) : le symbole S'AJOUTE au nom. Une brique chargée par
         # `base.html` s'adopte par son GLOBAL (`WamaFolderImport.collect` — jamais par son
         # fichier, que seul base.html cite : 2 consommateurs comptés pour 9 apps), mais aussi
@@ -192,6 +197,16 @@ def _owners() -> dict:
         for path in (m.home, *m.annexes):
             owners.setdefault(path, set()).add(m.key)
     return owners
+
+
+def owners_of_static(path: str) -> list:
+    """Les mécanismes qui tiennent un fichier STATIQUE, nommé comme `{% static %}` le nomme
+    (`common/js/<fichier>.js`) — le registre, lui, le nomme depuis la base
+    (`wama/common/static/common/js/<fichier>.js`). Pure lecture du registre, aucun accès disque :
+    c'est ce qui permet à une brique UI de dire de quels mécanismes elle est composée."""
+    suffix = '/static/' + path
+    return sorted({key for owned, keys in _owners().items() if owned.endswith(suffix)
+                   for key in keys})
 
 
 def _shared_with_others(mechanism) -> set:

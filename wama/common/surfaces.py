@@ -23,6 +23,12 @@ CE QU'UNE BRIQUE DÉCLARE — c'est ce qui la rend composable sans code d'app :
   `emits`    : ce qu'elle produit (une donnée éditée, un geste) ;
   `script`   : le module JS qui la monte (`WamaSurface.registerBrick(clé, …)`).
 
+TROIS NIVEAUX (2026-10-19, décision de Fabien — `ROUTE §F3b`) : un MÉCANISME est une pièce,
+adressée par le développeur et mesurée par son adoption (les boutons d'action, l'ETA) ; une BRIQUE
+est un tout, posé par l'utilisateur ou le Studio, qui lit une donnée déclarée et a ses options —
+elle est COMPOSÉE de mécanismes, lus du code (`UIBrick.mechanisms`), jamais redéclarés ; une PAGE
+compose des briques (une surface, la page d'une app). Le catalogue ne montre donc que des briques.
+
 CE QU'UNE SURFACE DÉCLARE : ses emplacements (brique, position et taille par défaut sur la
 grille), les champs de l'élément qu'elle LIT par rôle, le champ qu'elle ÉCRIT et sa validation,
 le process que l'écriture périme. Les vues communes (`surface_views`) la servent sans une ligne
@@ -55,10 +61,6 @@ from typing import Callable, Optional
 
 #: Mondes où une brique se monte — par défaut TOUS : une brique est universelle (décision 10/10).
 WORLDS = ('media', 'data', 'lab', 'studio')
-#: Les deux familles du catalogue des briques UI (2026-10-18, décision de Fabien) : les briques
-#: CONSTITUTIVES des pages d'édition, déclarées ici, et les composants SYSTÈME — le commun de
-#: l'interface, lus du domaine `mecanismes.UI_DOMAIN` (jamais une seconde liste).
-BRICK_FAMILIES = {'constitutive': 'Constitutive', 'system': 'Système'}
 #: Colonnes de la grille de mise en page (gridstack, défaut 12).
 GRID_COLUMNS = 12
 #: Plafond d'un texte édité sur une surface : un document qu'on relit et corrige, pas un flux.
@@ -116,6 +118,29 @@ class UIBrick:
 
     def scripts(self) -> list:
         return [*self.requires, self.script]
+
+    def mechanisms(self) -> list:
+        """Les mécanismes dont la brique est COMPOSÉE (2026-10-19, « trois niveaux » — une brique
+        est un tout, un mécanisme une pièce) : ceux qui tiennent ce qu'elle charge (`requires`) et
+        ceux que SON script consomme, par la détection même du balayage d'adoption
+        (`mecanismes_scan.consumers`, symbole ou nom de fichier) appliquée à ce seul script — un
+        global de `base.html` (le lecteur audio commun) compte comme un module chargé. Rien ne se
+        redéclare ici : la composition se lit du code, elle ne peut pas diverger de lui."""
+        import os
+
+        from django.conf import settings
+        from django.contrib.staticfiles import finders
+
+        from wama.common.mecanismes import MECHANISMS
+        from wama.common.services.mecanismes_scan import consumers, owners_of_static
+        keys = {key for path in self.requires for key in owners_of_static(path)}
+        found = finders.find(self.script)
+        if found:
+            rel = os.path.relpath(found, settings.BASE_DIR).replace(os.sep, '/')
+            with open(found, encoding='utf-8', errors='ignore') as handle:
+                sources = {rel: handle.read()}
+            keys |= {m.key for m in MECHANISMS if consumers(m, sources)}
+        return sorted(keys)
 
     def to_dict(self) -> dict:
         return {'key': self.key, 'name': self.name, 'description': self.description,

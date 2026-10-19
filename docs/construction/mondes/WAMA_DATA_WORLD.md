@@ -361,7 +361,7 @@ détaillé ci-dessus).
 | `configurators` | schéma `Param` + `WamaParams` (registry de renderers depuis le 19/08) | ✅ existe |
 | `loading` | `data_types.py` + `FUNCTION_CATALOG` (compatibilité de types) | 🔄 domicile décidé |
 | `plugins` | registre de rendus (cascade mime → registre) | ⏳ palier annoncé (`mecanismes.py:329`) |
-| `widgets` | briques UI = mécanismes | ✅ existe |
+| `widgets` | mécanismes d'interface : des PIÈCES réutilisées par les briques (`media_picker`, `filter_bar`…) — ⚠ pas des briques UI, corrigé le 2026-10-19 (trois niveaux, `ROUTE §F3b`) | ✅ existe |
 | noyau de plugins (cycle de vie, pairs, axe) | — | ❌ **le trou** |
 
 ---
