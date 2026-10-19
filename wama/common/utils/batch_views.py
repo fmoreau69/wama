@@ -43,7 +43,7 @@ from django.http import FileResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.http import require_GET, require_POST
 
-from wama.common.services import batch_settings
+from wama.common.services import batch_identity, batch_settings
 from wama.common.utils.batch_common import attach_to_batch, batch_elements
 from wama.common.utils.process_control import begin_processing
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
@@ -634,6 +634,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
     def batch_delete(request, pk):
         b = _batch(request, pk)
         batch_settings.forget(b)                  # la référence part avec le lot
+        batch_identity.forget(b)                  # son nom aussi
         for item in batch_elements(b, work_model):
             _revoke_quietly(item)
             if on_delete is not None:
@@ -665,6 +666,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         reference = batch_settings.stored(src)
         if reference is not None:                 # la copie hérite de la référence du lot
             batch_settings.remember(new_b, reference)
+        name = batch_identity.label_of(src)
+        if name:                                  # et de son nom, marqué comme copie
+            batch_identity.rename(new_b, f'{name} (copie)')
         return JsonResponse({'success': True, 'id': new_b.id, 'batch_id': new_b.id})
 
     @require_GET

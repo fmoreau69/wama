@@ -454,7 +454,6 @@
             panelContainer: ph,
             schema:         window.WAMA_READER_SCHEMA || [],
             itemLabel:  (id) => "l'élément #" + id,
-            batchLabel: (id) => "le batch #" + id + " (tous les éléments)",
             saveItem: async (id) => {
                 const r = await csrfFetch(urlFor('updateSettings', id), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },

@@ -337,7 +337,15 @@
     const hideOnInspect = cfg.hideOnInspect || [];
     const showOnInspect = cfg.showOnInspect || [];   // masqués tant que RIEN n'est sélectionné
     const itemLabel  = cfg.itemLabel  || function (id) { return "l'élément #" + id; };
-    const batchLabel = cfg.batchLabel || function (id) { return 'le batch #' + id; };
+    // Le lot se dit par son TITRE (identité posée par le serveur sur sa card mère,
+    // `data-batch-title`, 2026-10-19), sinon par son numéro. Huit apps et le générateur
+    // recopiaient « le batch #N (tous les éléments) » dans leur configuration : la phrase vit ici.
+    const batchLabel = cfg.batchLabel || function (id) {
+      const g = qc && qc.querySelector(BATCH_SEL + '[data-batch-id="' + id + '"]');
+      const h = g && g.querySelector('.batch-group-header');
+      const title = (h && h.dataset.batchTitle) || '';
+      return (title ? 'le lot « ' + title + ' »' : 'le batch #' + id) + ' (tous les éléments)';
+    };
     const panel = cfg.panel || {};
 
     let itemId = null, batchId = null, defaults = null;
@@ -683,7 +691,13 @@
       setMediaSection(false);
       if (!infoHost) return;
       var c = _batchCounts(group);
-      infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-body-emphasis">Batch #' + escapeHtml(bid) + '</strong>'
+      // Le TITRE du lot (identité posée par le serveur sur sa card mère, `data-batch-title`,
+      // 2026-10-19) ; sans titre, le numéro seul, comme avant.
+      var header = group && group.querySelector ? group.querySelector('.batch-group-header') : null;
+      var title = (header && header.dataset.batchTitle) || '';
+      infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-body-emphasis text-truncate"'
+        + (title ? ' title="' + escapeHtml(title) + '">' + escapeHtml(title) + ' <small class="text-body-secondary fw-normal">#' + escapeHtml(bid) + '</small>'
+                 : '>Batch #' + escapeHtml(bid)) + '</strong>'
         + '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button></div>'
         + _renderAggInfo('<i class="fas fa-layer-group text-info"></i> ' + c.total + ' élément' + (c.total > 1 ? 's' : ''), c);
       if (infoSection) infoSection.style.display = '';

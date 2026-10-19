@@ -142,6 +142,9 @@ urlpatterns = [
     # …et pour un LOT (card mère) : les sorties de tous ses éléments, même envoi (2026-10-14).
     path('api/envoyer-vers/<str:surface>/lot/<int:pk>/', views.api_send_batch_to,
          name='api_send_batch_to'),
+    # NOM d'un lot (card mère, 2026-10-19) : le donner, l'effacer — même adressage, une route pour
+    # toutes les surfaces (`common/services/batch_identity.py`).
+    path('api/batch/<str:surface>/<int:pk>/label/', views.api_batch_label, name='api_batch_label'),
     # RÉSULTAT DE RÉFÉRENCE (port `reference_result`) — même forme que le partage : un élément
     # ou un lot, une route pour toutes les surfaces qui DÉCLARENT leur évaluation.
     path('api/result-reference/<str:surface>/<str:nature>/<int:pk>/',

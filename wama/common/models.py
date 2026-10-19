@@ -1407,6 +1407,35 @@ class BatchSettings(models.Model):
         return f"{self.app}:{self.batch_type}#{self.batch_id} · {len(self.settings or {})} réglage(s)"
 
 
+class BatchLabel(models.Model):
+    """Le NOM qu'un utilisateur donne à un lot (2026-10-19, demande de Fabien) — il prime sur le
+    titre que WAMA en dérive (entrée commune, origine, ce qui varie :
+    `common/services/batch_identity.py`). UNE ligne par lot, supprimée quand le nom est effacé.
+
+    Même adressage que `BatchSettings` (`app` = label Django du modèle de LOT, `batch_id` en
+    texte) : une table commune plutôt qu'une colonne sur les dix modèles de lot. Table SŒUR et
+    non colonne de `BatchSettings` : une ligne de celle-ci veut dire « le lot a une référence »
+    (`references_for`, le bouton ↓) — un lot nommé n'en a pas pour autant.
+    """
+
+    app = models.CharField(max_length=32, db_index=True)
+    batch_type = models.CharField(max_length=64)
+    batch_id = models.CharField(max_length=64)
+    label = models.CharField(max_length=120)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Nom de lot'
+        verbose_name_plural = 'Noms de lot'
+        constraints = [
+            models.UniqueConstraint(fields=['app', 'batch_type', 'batch_id'],
+                                    name='batch_label_unique_lot'),
+        ]
+
+    def __str__(self):
+        return f"{self.app}:{self.batch_type}#{self.batch_id} · {self.label}"
+
+
 class ResultEvaluation(models.Model):
     """
     La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière

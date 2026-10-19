@@ -449,7 +449,28 @@ def build_batches_list(user, *, batch_model, work_attr, items_related='items',
             row.update(extra(batch, items, works) or {})
         row.update(arrangement)
         result.append(row)
-    return result
+    return attach_identities(result)
+
+
+def attach_identities(rows):
+    """Pose `identity` sur chaque ligne de file d'un lot de PLUSIEURS cards (2026-10-19) : son
+    titre — nom donné, entrée commune, origine — et ce qui varie d'une card à l'autre, lus en DEUX
+    requêtes pour toute la page (`common/services/batch_identity.py`). Un lot d'une card s'affiche
+    en card seule : pas d'en-tête, pas d'identité. Les éléments d'une ligne sont `item.elem` (forme
+    à liaison, alias posé par `build_batches_list`) ou la ligne elle-même (forme à FK directe : le
+    converter, l'index généré). Appelée par TOUS les constructeurs de file ; rend `rows`."""
+    shown = [r for r in rows if r.get('obj') is not None and getattr(r['obj'], 'total', None) != 1]
+    if not shown:
+        return rows
+    from wama.common.services.batch_identity import identify
+    try:
+        pairs = [(r['obj'], [e for e in (getattr(it, 'elem', it) for it in r['items']) if e])
+                 for r in shown]
+        for r, ident in zip(shown, identify(pairs)):
+            r['identity'] = ident
+    except Exception:
+        logger.warning('[batch] identité des lots impossible', exc_info=True)
+    return rows
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -735,3 +756,14 @@ def batch_model_for_app(app_name):
     """
     from wama.common.utils.preview_registry import PreviewRegistry
     return batch_model_for(PreviewRegistry.get_model(app_name))
+
+
+def surface_for_batch_model(batch_model):
+    """Le sens inverse de `batch_model_for_app` : la SURFACE dont ce modèle est le lot, ou None.
+    Pour qui ne tient que le LOT (calendrier, page des partages) et doit lire ses éléments
+    (`batch_elements` exige leur modèle). Même annuaire, parcouru dans l'ordre des surfaces."""
+    from wama.common.utils.preview_registry import PreviewRegistry
+    for surface in sorted(PreviewRegistry.list_registered()):
+        if batch_model_for(PreviewRegistry.get_model(surface)) is batch_model:
+            return surface
+    return None

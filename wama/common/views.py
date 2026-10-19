@@ -2294,6 +2294,30 @@ def api_envoyer_vers(request, surface: str, pk: int):
 
 
 @login_required
+@require_POST
+def api_batch_label(request, surface: str, pk: int):
+    """NOMMER UN LOT — POST `label` (vide = effacer le nom, le lot reprend son titre dérivé).
+
+    Même adressage que « Envoyer le lot vers… » (`batch_model_for_app`), mais une ÉCRITURE : le
+    lot du compte ou celui sur lequel il COLLABORE (`editable_or_404`, le geste tracé comme une
+    modification du lot), jamais un lot seulement reçu en lecture. Rend l'identité recalculée
+    (`batch_identity.identity_of`) : la card mère se met à jour sans rechargement de la page."""
+    from wama.common.services import batch_identity
+    from wama.common.utils.batch_common import batch_model_for_app
+    from wama.common.utils.batch_views import read_settings_payload
+    from wama.common.utils.scoping import editable_or_404
+
+    batch_model = batch_model_for_app(surface)
+    if batch_model is None:
+        return JsonResponse({'error': f"{surface} n'a pas de modèle de lot"}, status=404)
+    batch = editable_or_404(batch_model, request.user, trace='regle', pk=pk)
+    batch_identity.rename(batch, read_settings_payload(request).get('label', ''))
+    identity = batch_identity.identity_of(batch)
+    return JsonResponse({'ok': True, 'surface': surface, 'pk': pk, 'identity': identity,
+                         'title': batch_identity.display_title(identity)})
+
+
+@login_required
 def api_send_batch_to(request, surface: str, pk: int):
     """ENVOYER LE LOT VERS — le résolveur d'`api_envoyer_vers`, pour la card MÈRE (2026-10-14).
 

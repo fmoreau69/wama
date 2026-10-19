@@ -1199,7 +1199,14 @@ class BatchSendToMenuUnderV8Test(TestCase):
             self.skipTest('py_mini_racer absent de ce venv : pas de V8 pour exécuter la brique')
 
     def test_the_mother_card_offers_sending_the_batch_where_a_card_offers_sending_itself(self):
-        self.assertEqual(json_v8(self.ctx, MOTHER_LABELS), ['Partager le lot…', 'Envoyer le lot vers…'])
+        self.assertEqual(json_v8(self.ctx, MOTHER_LABELS),
+                         ['Partager le lot…', 'Renommer le lot…', 'Envoyer le lot vers…'])
+
+    def test_a_received_batch_is_not_offered_to_be_renamed(self):
+        """Nommer un lot est une écriture (`common:api_batch_label`, `editable_or_404`) : un lot
+        seulement REÇU ne l'offre pas (2026-10-19, identité du lot)."""
+        self.ctx.eval("__received = { classList: { contains: function () { return true; } } };")
+        self.assertNotIn('Renommer le lot…', json_v8(self.ctx, MOTHER_LABELS))
 
     def test_the_submenu_is_built_by_the_send_to_brick_for_this_card(self):
         self.ctx.eval("var __entry = WamaCardMenu.entreesCompletes(motherCard, [motherCard])"
@@ -1223,7 +1230,7 @@ class BatchSendToMenuUnderV8Test(TestCase):
 
     def test_without_the_batch_resolver_the_entry_disappears_without_breaking(self):
         self.ctx.eval('WamaSendTo.entriesForBatch = undefined')
-        self.assertEqual(json_v8(self.ctx, MOTHER_LABELS), ['Partager le lot…'])
+        self.assertEqual(json_v8(self.ctx, MOTHER_LABELS), ['Partager le lot…', 'Renommer le lot…'])
 
 
 class BatchSendToEntriesUnderV8Test(TestCase):

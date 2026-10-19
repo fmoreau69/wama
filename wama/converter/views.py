@@ -163,6 +163,9 @@ class IndexView(View):
                     items_sorted, _PARAMS_JSON,
                     values_of=lambda j: {**(j.options or {}), **(j.cross_app_options or {})}),
             })
+        # IDENTITÉ de chaque lot (titre, ce qui varie) — la pose commune à toutes les files.
+        from wama.common.utils.batch_common import attach_identities
+        attach_identities(batches_list)
         # Les PROCESS de chaque card (pipeline, 2026-10-13) — les lignes d'exécution de la page
         # lues en UNE requête (`decorate_cards`), après les chips posés ci-dessus.
         from wama.common.services.process_pipeline import decorate_cards

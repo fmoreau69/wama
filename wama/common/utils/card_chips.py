@@ -78,6 +78,17 @@ def _inventaire_catalogue(options_query: dict) -> list:
     return valeur
 
 
+def field_unit(field) -> str:
+    """L'UNITÉ d'un champ numérique : `unit` s'il est déclaré, sinon un `chip_label` COURT en
+    minuscules — c'est une déclaration d'unité (idiome imager : « s », « fps », « steps » ;
+    l'afficher en préfixe donnait « s 5 », mesuré absurde à l'audit 31/08)."""
+    unit = field.get('unit') or ''
+    cl = field.get('chip_label') or ''
+    if not unit and cl and len(cl) <= 5 and cl == cl.lower():
+        unit = cl
+    return unit
+
+
 def chips_for(instance, params_json, extra=None, values=None):
     """Construit la liste des chips d'une card depuis le schéma sérialisé (schema_to_dicts).
 
@@ -165,13 +176,7 @@ def chips_for(instance, params_json, extra=None, values=None):
                 if field.get('type') in ('number', 'range'):
                     # SEUL cas légitimement préfixé/suffixé : « 85 » nu ne dit rien (constat
                     # Fabien 31/08 — la card disait « 85 », l'inspecteur « Qualité 85 »).
-                    # `unit` prime (« 120 s ») ; un chip_label COURT en minuscules est une
-                    # déclaration d'UNITÉ (idiome imager : « s », « fps », « steps » —
-                    # l'afficher en préfixe donnait « s 5 », mesuré absurde à l'audit 31/08).
-                    unit = field.get('unit') or ''
-                    cl = field.get('chip_label') or ''
-                    if not unit and cl and len(cl) <= 5 and cl == cl.lower():
-                        unit = cl
+                    unit = field_unit(field)
                     display = f"{value} {unit}" if unit else f"{libelle} {value}"
                     # FORMAT DÉCLARÉ (`display_format`, 2026-10-04) : « 3:30 » plutôt que
                     # « 210 s » — le même formateur que le curseur (jumeau Python).
@@ -249,21 +254,80 @@ def common_chips_for_items(items, params_json, values_of=None):
     vide si rien n'est partagé. La divergence est OMISE (pas de « Mixte ») : une card
     mère liste ce qui est posé PARTOUT, le détail vit sur les filles.
     """
-    items = list(items or [])
-    if not items:
-        return {}
-    noms = [f.get('name') for f in (params_json or []) if f.get('chip') and f.get('name')]
     communs = {}
-    for n in noms:
-        vals = set()
-        for it in items:
-            src = values_of(it) if values_of else {}
-            vals.add(src[n] if n in src else getattr(it, n, None))
+    for n, vals in _chip_values(items, params_json, values_of).items():
         if len(vals) == 1:
-            v = vals.pop()
+            v = vals[0][0]
             if v not in (None, ''):
                 communs[n] = v
     return chips_by_section(None, params_json, values=communs) if communs else {}
+
+
+def varying_chips_for_items(items, params_json, values_of=None):
+    """Le PENDANT de `common_chips_for_items` : les réglages `chip=True` qui DIFFÈRENT d'une fille
+    à l'autre — ce qui distingue les cards d'un lot (2026-10-19, identité du lot :
+    `common/services/batch_identity.py`). La card mère ne les affiche pas en « Mixte » : elle dit
+    « varie : Modèle (whisper, voxtral) », le détail restant sur les filles.
+
+    Returns: [{'name', 'title', 'values': [libellés DISTINCTS, ordre des filles]}] — vide si tout
+    est commun. Un libellé est celui d'un chip (`chips_for` : option résolue, unité, case cochée
+    nommée) ; une valeur non posée se dit « — ». Chaque valeur se met en forme sur une fille qui
+    la porte (les voix d'un compte se résolvent par son propriétaire)."""
+    fields = {f.get('name'): f for f in (params_json or []) if f.get('chip') and f.get('name')}
+    out = []
+    for n, vals in _chip_values(items, params_json, values_of).items():
+        if len(vals) < 2:
+            continue
+        field = fields[n]
+        flags = all(_as_flag(v) is not None for v, _ in vals)
+        labels = []
+        for v, owner in vals:
+            if flags:
+                # Une case cochée sur certaines filles seulement : « oui, non » — son chip
+                # (le nom du réglage, ou rien) ne dirait pas laquelle.
+                label = 'oui' if _as_flag(v) else 'non'
+            else:
+                chip = chips_for(owner, [field], values={n: v})
+                # « Nom — description » (libellés du catalogue) : le nom suffit dans une liste.
+                label = chip[0]['label'].split(' — ')[0] if chip else '—'
+            if label not in labels:
+                labels.append(label)
+        if len(labels) > 1:
+            # Le libellé COURT du réglage (`chip_label`), sauf quand c'est une unité (« s »).
+            short = field.get('chip_label') if not field_unit(field) else ''
+            out.append({'name': n, 'title': short or field.get('label') or n, 'values': labels})
+    return out
+
+
+def _as_flag(value):
+    """True / False pour une valeur de case à cocher (booléen, 'true'/'false', non posée), None
+    pour toute autre valeur."""
+    if isinstance(value, bool) or value in (None, ''):
+        return bool(value)
+    if isinstance(value, str) and value.strip().lower() in ('true', 'false'):
+        return value.strip().lower() == 'true'
+    return None
+
+
+def _chip_values(items, params_json, values_of=None):
+    """{nom: [(valeur DISTINCTE, première fille qui la porte)]} des champs `chip=True`, dans
+    l'ordre des filles — la lecture commune aux réglages communs et à ce qui varie (une valeur
+    qui vit dans un conteneur JSON se lit par `values_of`). Une liste et non un ensemble : une
+    valeur JSON (liste, dict) n'est pas hachable."""
+    items = list(items or [])
+    out = {}
+    for f in params_json or []:
+        n = f.get('name')
+        if not (f.get('chip') and n) or not items:
+            continue
+        seen = []
+        for it in items:
+            src = values_of(it) if values_of else {}
+            v = src[n] if n in src else getattr(it, n, None)
+            if all(v != s for s, _ in seen):
+                seen.append((v, it))
+        out[n] = seen
+    return out
 
 
 def chips_by_section(instance, params_json, extra=None, values=None):

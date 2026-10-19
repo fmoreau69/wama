@@ -586,7 +586,6 @@ document.addEventListener('DOMContentLoaded', function () {
       saveGlobalUrl: config.saveUserSettingsUrl,
       autoSave: true,
       itemLabel: (id) => "l'élément #" + id,
-      batchLabel: (id) => "le batch #" + id + " (tous les éléments)",
     });
   }
 

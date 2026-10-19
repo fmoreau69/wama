@@ -300,6 +300,43 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   hérite des réglages du batch SAUF ceux modifiés au niveau item (y compris fichier de référence).
   Implémenté dans le Transcriber (`transcriber/views.py`) — **À CENTRALISER dans `common/`** (aujourd'hui per-app).
 
+## 3quater. Identité d'un lot : un TITRE, ce qui VARIE, un nom donné (✅ 2026-10-19)
+
+> Demande de Fabien : *« seul le numéro identifie un batch, pas son contenu »*. L'en-tête disait
+> « Batch #12 · 8 éléments ».
+
+- **Le titre se LIT, rien n'est déclaré** (`common/services/batch_identity.py`) : dans l'ordre, le
+  **nom donné** à la main ; l'**entrée commune** quand toutes les cards partagent la même (un fichier
+  traité par plusieurs modèles) ; le **fichier de lot** (`batch_file`) ; le **dossier d'origine** de
+  toutes les sources (provenance `InputProvenance.ref`, jamais une racine `users/<u>/temp` ou
+  `mounts/<id>`) ; sinon la **plage des entrées** — leur début commun (« interview_0… »), ou « a +
+  3 autres ». Le numéro reste affiché à côté, en petit.
+- **L'entrée d'une card** est celle de sa fiche Infos (spec `source_file` / `source_text` /
+  `source_type`, `INSPECTOR_DETAIL_FIELDS`) : son TEXTE s'il y en a un (prompt, texte à dire — ce que
+  l'utilisateur a écrit), sinon le nom de son fichier, le **vrai** nom par la provenance
+  (`original_name`) quand la copie de travail porte un suffixe.
+- **Ce qui varie**, sous le compte : les réglages `chip=True` qui diffèrent d'une card à l'autre
+  (« Modèle : whisper, voxtral », « Résumé : oui, non »), mis en forme comme les pastilles
+  (`card_chips.varying_chips_for_items`, pendant de `common_chips_for_items`) ; et les natures
+  quand le lot les mêle (« 8 audio · 4 vidéos »).
+- **Nom donné** : entrée « Renommer le lot… » du menu « … » de la card mère (invite, comme
+  « Renommer » du gestionnaire de fichiers) → `common:api_batch_label` (propriétaire ou
+  collaborateur, `editable_or_404`) ; vide = le lot reprend son titre dérivé. Table `BatchLabel`,
+  adressée comme `BatchSettings` ; le nom suit la duplication (« (copie) ») et part avec la
+  suppression.
+- **Une seule lecture, six surfaces** : en-tête de la card mère, volet (titre + bannière — la phrase
+  « le batch #N (tous les éléments) » que huit apps et le générateur recopiaient vit dans
+  `wama-inspector.js`), menu « Ajouter à un lot », calendrier, page des partages, notifications.
+  Posée par `batch_common.attach_identities` dans les trois constructeurs de file ; deux requêtes
+  par page.
+- **Limites connues** : un dossier déposé depuis le poste directement sur une app n'a pas de
+  provenance (le chemin relatif est ignoré par les apps, `wama-folder-import.js`), son nom n'est donc
+  pas connu — par le gestionnaire de fichiers, il l'est. Le converter tient une partie de ses
+  réglages hors du porteur que sa spec déclare (`cross_app_options`) : ceux-là n'entrent pas dans
+  « ce qui varie ».
+- ⏳ **Suite décidée** : l'indexation multimédia des éléments de file pour la recherche (« voiture »
+  retrouve une image qui en contient une), en tâche différée de basse priorité — `WAMA_MEMORY`.
+
 ## 3bis. Manipulation directe de la file : réorganiser, batcher, filtrer/trier
 
 > Expression la plus **intuitive du modèle batch unifié** (batch-of-1 ↔ batch-of-N) : glisser une card

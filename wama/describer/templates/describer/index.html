@@ -253,7 +253,6 @@ document.addEventListener('DOMContentLoaded', function () {
         panelContainer: ph,
         schema:         window.WAMA_DESCRIBER_SCHEMA || [],
         itemLabel:  function (id) { return "l'élément #" + id; },
-        batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
         saveItem: function (id) {
             var vals = readPanel();
             return post((U.updateSettings || '').replace('/0/', '/' + id + '/'), vals)

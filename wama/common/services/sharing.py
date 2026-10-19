@@ -85,8 +85,7 @@ def shares_overview(user, limit: int = 200) -> dict:
         is_lot = entry._meta.model is batch_model_for(element_model)
         row = {'app': entry._meta.app_label, 'surface': surface, 'pk': entry.pk,
                'nature': 'lot' if is_lot else 'element',
-               'label': (f"Lot #{entry.pk} · {getattr(entry, 'total', '?')} card(s)" if is_lot
-                         else _label(entry)),
+               'label': _label(entry),
                'scope': scope_label(entry), 'scope_since': scope_since(entry),
                'url': f'/{entry._meta.app_label}/'}
         if mine:

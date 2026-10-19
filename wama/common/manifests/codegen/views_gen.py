@@ -527,6 +527,9 @@ def _deposit_settings(user, nature, post):
                 'has_success': 'SUCCESS' in statuses,
                 'eta_ids': ','.join(str(j.id) for j in items),
             }})
+        # IDENTITÉ de chaque lot (titre, ce qui varie) — la pose commune à toutes les files.
+        from wama.common.utils.batch_common import attach_identities
+        attach_identities(batches_list)
         queue_count = len(jobs)
         batches_list, q_sort, q_filter = apply_queue_sort_filter(
             request, batches_list,

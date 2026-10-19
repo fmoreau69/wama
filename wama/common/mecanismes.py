@@ -1590,6 +1590,22 @@ MECHANISMS = (
               'wama/common/services/batch_settings.py', 'docs/construction/ui/MODES_QUEUE_UX.md §5ter',
               annexes=('wama/common/tests/tests_batch_views.py',),
               depends_on=('batch_views', 'item_revisions')),
+    # Ajouté le 2026-10-19 (demande de Fabien : « seul le numéro identifie un batch »).
+    Mechanism('batch_identity', "Identité d'un lot (titre, ce qui varie, nom donné)",
+              "Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, la page "
+              "des partages et les notifications DISENT d'un lot — tout LU, rien déclaré : l'ENTRÉE "
+              "de chaque élément (spec de la fiche Infos, son vrai nom par la provenance), "
+              "l'ORIGINE (fichier de lot, sinon dossier commun des sources), ce qui VARIE (réglages "
+              "`chip=True`, `card_chips.varying_chips_for_items`), et le NOM donné à la main "
+              "(`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, entrée "
+              "commune, fichier de lot, dossier, sinon plage des entrées. Deux requêtes par page, "
+              "posées par `batch_common.attach_identities` dans les TROIS constructeurs de file "
+              "(`build_batches_list`, le converter, l'index généré en FK directe). Geste « Renommer "
+              "le lot… » du menu de la card mère → `common:api_batch_label` (`editable_or_404`)",
+              'wama/common/services/batch_identity.py', 'docs/construction/ui/CARD_DESIGN.md §3quater',
+              annexes=('wama/common/tests/tests_batch_identity.py',
+                       'wama/common/templates/common/_batch_card.html'),
+              depends_on=('batch_settings', 'card_chips', 'detail_registry')),
     Mechanism('queue_order', 'Ordre MANUEL de la file',
               "Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin."
               "queue_index`, 13 modèles de batch) + 6ᵉ tri « Manuel » — le SEUL tri qui LIT une "
@@ -1778,7 +1794,8 @@ MECHANISMS = (
               "que card_gear), `extra` pour les chips d'app déjà formés. Porte aussi les "
               "réglages COMMUNS aux filles pour la card MÈRE (common_chips_for_items + "
               "partial _batch_meta_chips — slot meta_template, généralisation du pilote "
-              "transcriber, porté aux 10 apps le 31/08) et les propriétés d'ENTRÉE "
+              "transcriber, porté aux 10 apps le 31/08), leur pendant, ce qui VARIE d'une fille "
+              "à l'autre (varying_chips_for_items, identité du lot, 2026-10-19) et les propriétés d'ENTRÉE "
               "(input_props_for, extraite du pilote reader)",
               'wama/common/utils/card_chips.py', 'docs/construction/ui/CARD_DESIGN.md §10.3',
               annexes=('wama/common/templates/common/_card_chips.html',

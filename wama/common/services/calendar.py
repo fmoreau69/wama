@@ -384,27 +384,40 @@ def batch_events(user, start, end) -> list[CalendarEvent]:
     if not getattr(user, 'is_authenticated', False):
         return []
     from ..app_registry import app_identity
+    from ..utils.batch_common import batch_elements, surface_for_batch_model
+    from ..utils.preview_registry import PreviewRegistry
+    from .batch_identity import display_title, identify
     from .journal import app_queue_url, sources
 
     worlds = {src.app: src.monde for src in sources()}
-    events = []
+    shown = []
     for model in _batch_models(set(worlds)):
-        app = model._meta.app_label
-        color = app_identity(app)['color']
+        surface = surface_for_batch_model(model)
+        element_model = PreviewRegistry.get_model(surface) if surface else None
         qs = (model.objects.filter(user=user, created_at__gte=start, created_at__lt=end)
               .order_by('-created_at')[:MAX_ITEMS_PER_SOURCE])
         for batch in qs:
             total = getattr(batch, 'total', None)
             if total is not None and total <= 1:
                 continue
-            count = f'{total} éléments' if total is not None else 'lot'
-            events.append(CalendarEvent(
-                key=f'{app}:{model.__name__}:{batch.pk}', title=f'Lot #{batch.pk} · {count}',
-                start=batch.created_at, end=batch.created_at + timedelta(minutes=POINT_MINUTES),
-                nature=NATURE_OBSERVED, scope=SCOPE_USER, app=app, world=worlds[app],
-                color=color, url=app_queue_url(app), duration_source='declared',
-                extra={'batchId': batch.pk, 'kind': 'batch'},
-            ))
+            shown.append((batch, batch_elements(batch, element_model)))
+    # Le TITRE du lot (2026-10-19) : celui de sa card mère — nom donné, entrée commune, origine
+    # (`batch_identity`), lu en deux requêtes pour toute la plage.
+    events = []
+    for (batch, _), identity in zip(shown, identify(shown)):
+        model = type(batch)
+        app = model._meta.app_label
+        color = app_identity(app)['color']
+        total = getattr(batch, 'total', None)
+        count = f'{total} éléments' if total is not None else 'lot'
+        events.append(CalendarEvent(
+            key=f'{app}:{model.__name__}:{batch.pk}',
+            title=f'{display_title(identity)} · {count}',
+            start=batch.created_at, end=batch.created_at + timedelta(minutes=POINT_MINUTES),
+            nature=NATURE_OBSERVED, scope=SCOPE_USER, app=app, world=worlds[app],
+            color=color, url=app_queue_url(app), duration_source='declared',
+            extra={'batchId': batch.pk, 'kind': 'batch'},
+        ))
     return events
 
 

@@ -243,7 +243,14 @@ def _record_consents(user, subjects, recipient):
 
 
 def _label(obj) -> str:
-    return str(getattr(obj, 'name', '') or getattr(obj, 'filename', '') or
+    """Le nom d'une card dans une notification : son ENTRÉE déclarée — celle de sa fiche Infos
+    (`batch_identity.element_entry`, 2026-10-19) —, sinon un champ de nom, sinon son numéro."""
+    from wama.common.services.batch_identity import element_entry, entry_label
+    try:
+        declared = entry_label(element_entry(obj))
+    except Exception:
+        declared = ''
+    return str(declared or getattr(obj, 'name', '') or getattr(obj, 'filename', '') or
                getattr(obj, 'input_filename', '') or f'#{obj.pk}')
 
 

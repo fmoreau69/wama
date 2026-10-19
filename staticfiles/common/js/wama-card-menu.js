@@ -627,6 +627,46 @@
         };
     }
 
+    // RENOMMER LE LOT… (2026-10-19, `common/services/batch_identity.py`) : le nom donné prime sur
+    // le titre que WAMA dérive du contenu (entrée commune, origine, plage des entrées) ; vide = le
+    // lot reprend son titre dérivé. Le geste « Renommer » du gestionnaire de fichiers : une invite,
+    // un POST. Coordonnées du lot = celles du partage (`WamaShare.coordonneesDuLot`).
+    function renameBatchEntry(card, coords) {
+        return {
+            icone: 'fas fa-pen', libelle: 'Renommer le lot…',
+            agir: function () {
+                var current = card.dataset.batchLabel || card.dataset.batchTitle || '';
+                var label = prompt('Nom du lot (vide : le nom déduit de son contenu)', current);
+                if (label === null) return;
+                poster('/common/api/batch/' + encodeURIComponent(coords.surface) + '/'
+                       + encodeURIComponent(coords.pk) + '/label/', { label: label })
+                    .then(function (res) {
+                        if (!res || !res.ok) {
+                            dire('Renommage impossible — ' + ((res && (res.error || res.reason)) || 'refusé'), 'error');
+                            return;
+                        }
+                        showBatchIdentity(card, res.identity || {});
+                    });
+            },
+        };
+    }
+
+    // L'identité recalculée par le serveur, posée sur la card mère sans rechargement : titre,
+    // nom donné, ce qui varie (repères `data-batch-field` de `_batch_card.html`).
+    function showBatchIdentity(card, identity) {
+        var title = identity.title || '';
+        card.dataset.batchTitle = title;
+        card.dataset.batchLabel = identity.manual || '';
+        var span = card.querySelector('[data-batch-field="title"]');
+        if (span) { span.textContent = title || 'Batch'; span.title = title; }
+        var details = card.querySelector('[data-batch-field="details"]');
+        if (details) {
+            var text = (identity.details || []).join(' · ');
+            details.textContent = text;
+            details.title = text;
+        }
+    }
+
     function actionsTransverses(card, cibles) {
         var q = file(card);
         if (!q) return [];
@@ -752,6 +792,7 @@
                         agir: function () { WamaShare.transferLot(card, nom); },
                     });
                 }
+                entrees.push(renameBatchEntry(card, dispo));
             } else if (dispo) {
                 // L'entrée COMMUNE (celle de l'arbre aussi) : mêmes coordonnées, même modale.
                 entrees.push(entreePartager(dispo, nom));
@@ -858,11 +899,13 @@
                     // Sous-entrées : un lot d'accueil par entrée. C'est ce qui évite le
                     // déplacement à la souris que Fabien voulait contourner.
                     sous: lots.map(function (g) {
-                        var titre = (g.querySelector('.wama-card') || {}).textContent || '';
+                        // Le TITRE du lot (`data-batch-title`, identité posée par le serveur) —
+                        // jusqu'au 2026-10-19, tout le texte de sa card mère, tronqué.
+                        var titre = ((g.querySelector('.batch-group-header') || {}).dataset || {}).batchTitle || '';
                         return {
                             icone: 'fas fa-layer-group',
-                            libelle: 'Lot #' + g.dataset.batchId
-                                + (titre.trim() ? ' — ' + titre.trim().slice(0, 28) : ''),
+                            libelle: titre ? titre.slice(0, 40) + ' (#' + g.dataset.batchId + ')'
+                                : 'Lot #' + g.dataset.batchId,
                             agir: function () {
                                 cibles.reduce(function (p, c) {
                                     return p.then(function (motif) {

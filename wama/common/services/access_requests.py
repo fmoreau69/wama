@@ -271,11 +271,15 @@ def revoke(owner, grant: ObjectGrant, *, notify: bool = True) -> ObjectGrant:
 
 def _label(obj) -> str:
     """Le nom d'un élément dans une notification ou une page. Un LOT (la cible d'une collaboration)
-    se dit « lot #N (k cards) » — le libellé d'une card y donnait « #N », illisible."""
+    se dit par son TITRE — « lot « interview_03.wav » (3 cards) », le titre de sa card mère
+    (`batch_identity`, 2026-10-19) —, sinon « lot #N (k cards) » ; le libellé d'une card y
+    donnait « #N », illisible."""
     from wama.common.services.card_transfer import _label as transfer_label
     named = any(getattr(obj, n, None) for n in ('name', 'filename', 'input_filename'))
     if not named and hasattr(obj, 'total'):        # un lot : un total, pas de nom de fichier
+        from wama.common.services.batch_identity import identity_of
         total = getattr(obj, 'total', None)
-        return f"lot #{obj.pk}" + (f" ({total} card{'s' if total and total > 1 else ''})"
-                                   if total is not None else '')
+        title = identity_of(obj).get('title')
+        return ((f"lot « {title} »" if title else f"lot #{obj.pk}")
+                + (f" ({total} card{'s' if total and total > 1 else ''})" if total is not None else ''))
     return transfer_label(obj)

@@ -167,7 +167,6 @@ def render_index(manifest: dict) -> tuple:
             panelContainer: ph,
             hideOnInspect: ['{app}PanelDefaults'],
             itemLabel:  function (id) {{ return "l'élément #" + id; }},
-            batchLabel: function (id) {{ return "le batch #" + id; }},
             renderItemActions: function (host, card) {{
                 showPanelParams(true);
                 WamaInspector.cloneActions(host, card.querySelector('.btn-group-actions'),

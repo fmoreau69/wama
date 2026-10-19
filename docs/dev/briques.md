@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**208 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**209 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -2002,6 +2002,22 @@ duplicate_instance(), release_card_files() (retirer une card libère TOUT ce qu'
   - `duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_user=None)` — Create a new DB row that shares the same input file(s) as the original.
   - `copy_subfolder(rel: str, app: str) -> str` — Le sous-dossier d'app où COPIER `rel` chez un autre propriétaire : sa place relative dans le
 
+### Identité d'un lot (titre, ce qui varie, nom donné)
+
+Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, la page des partages et les notifications DISENT d'un lot — tout LU, rien déclaré : l'ENTRÉE de chaque élément (spec de la fiche Infos, son vrai nom par la provenance), l'ORIGINE (fichier de lot, sinon dossier commun des sources), ce qui VARIE (réglages `chip=True`, `card_chips.varying_chips_for_items`), et le NOM donné à la main (`BatchLabel`, adressé comme `BatchSettings`), qui prime. Titre : nom donné, entrée commune, fichier de lot, dossier, sinon plage des entrées. Deux requêtes par page, posées par `batch_common.attach_identities` dans les TROIS constructeurs de file (`build_batches_list`, le converter, l'index généré en FK directe). Geste « Renommer le lot… » du menu de la card mère → `common:api_batch_label` (`editable_or_404`)
+
+- **Domicile** : `wama/common/services/batch_identity.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3quater](../construction/ui/CARD_DESIGN.md)
+- **Module** : IDENTITÉ D'UN LOT — ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier et la page des partages disent d'un lot (2026-10-19, demande de Fabien : « seul le numéro identifie un batch, pas son contenu »).
+- **API publique** (8) :
+  - `element_entry(element, origins=None) -> dict` — L'entrée DÉCLARÉE d'un élément : `{'name', 'text', 'nature', 'origin'}` (`''` / None quand
+  - `entry_label(entry) -> str` — Ce qu'on DIT d'une entrée : son texte (le prompt, le texte à dire) s'il y en a un — c'est
+  - `identify(pairs) -> list` — L'identité de chaque lot de `pairs` — `[(lot, [éléments]), …]`, éléments dans l'ordre des
+  - `identity_of(batch) -> dict` — L'identité d'UN lot, ses éléments lus par `batch_elements` (pour qui ne tient que le lot).
+  - `display_title(identity) -> str` — Le titre à afficher : le titre de l'identité, sinon le numéro (« Lot #12 »).
+  - `label_of(batch) -> str` — Le nom donné à la main à ce lot, ou ''.
+  - `rename(batch, label: str) -> str` — Donne (ou efface, `label` vide) le nom d'un lot. Rend le nom retenu ('' = effacé).
+  - `forget(batch) -> int` — Le nom part avec le lot (appelé par la suppression du lot, comme `batch_settings.forget`).
+
 ### Import par lot
 
 Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot
@@ -2085,7 +2101,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (41) :
+- **API publique** (42) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2118,6 +2134,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class ItemRevision(models.Model)` — Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
   - `class ProcessRun(models.Model)` — La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
   - `class BatchSettings(models.Model)` — Les réglages de RÉFÉRENCE d'un lot — ce que la card mère tient (`MODES_QUEUE_UX §5ter`,
+  - `class BatchLabel(models.Model)` — Le NOM qu'un utilisateur donne à un lot (2026-10-19, demande de Fabien) — il prime sur le
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).
@@ -2228,14 +2245,16 @@ Card d'entrée dépliable commune — les 6 modalités du partial : dépôt, URL
 
 ### Chips méta des cards
 
-Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v3 (chips_by_section) ; `values` pour les réglages vivant en JSON (même assiette que card_gear), `extra` pour les chips d'app déjà formés. Porte aussi les réglages COMMUNS aux filles pour la card MÈRE (common_chips_for_items + partial _batch_meta_chips — slot meta_template, généralisation du pilote transcriber, porté aux 10 apps le 31/08) et les propriétés d'ENTRÉE (input_props_for, extraite du pilote reader)
+Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v3 (chips_by_section) ; `values` pour les réglages vivant en JSON (même assiette que card_gear), `extra` pour les chips d'app déjà formés. Porte aussi les réglages COMMUNS aux filles pour la card MÈRE (common_chips_for_items + partial _batch_meta_chips — slot meta_template, généralisation du pilote transcriber, porté aux 10 apps le 31/08), leur pendant, ce qui VARIE d'une fille à l'autre (varying_chips_for_items, identité du lot, 2026-10-19) et les propriétés d'ENTRÉE (input_props_for, extraite du pilote reader)
 
 - **Domicile** : `wama/common/utils/card_chips.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §10.3](../construction/ui/CARD_DESIGN.md)
 - **Module** : WAMA Common — CHIPS méta des cards (CARD_DESIGN §10.3, pilote Reader 2026-07-06).
-- **API publique** (4) :
+- **API publique** (6) :
+  - `field_unit(field) -> str` — L'UNITÉ d'un champ numérique : `unit` s'il est déclaré, sinon un `chip_label` COURT en
   - `chips_for(instance, params_json, extra=None, values=None)` — Construit la liste des chips d'une card depuis le schéma sérialisé (schema_to_dicts).
   - `input_props_for(instance, file_field='input_file', name='')` — Sous-ligne « propriétés RÉELLES du média » de la section ENTRÉE (CARD_DESIGN §11).
   - `common_chips_for_items(items, params_json, values_of=None)` — Chips des réglages COMMUNS aux filles d'un lot — pour la card MÈRE (slot
+  - `varying_chips_for_items(items, params_json, values_of=None)` — Le PENDANT de `common_chips_for_items` : les réglages `chip=True` qui DIFFÈRENT d'une fille
   - `chips_by_section(instance, params_json, extra=None, values=None)` — Mêmes chips que `chips_for`, mais GROUPÉS par section de card v3 (CARD_DESIGN §11).
 
 ### Console utilisateur
@@ -3017,7 +3036,7 @@ Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET d
   - `read_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
   - `save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict` — Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
   - `reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
-  - `new_element_settings(user, app, params, model, *, post=None, context=None, key=None, extra=None, clean=None) -> dict` — Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
+  - `new_element_settings(user, app, params, model, *, post=None, context=None, key=None, extra=None, clean=None, options_field=None, preset=None, empty_is_value=()…` — Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
   - `element_columns(values, model) -> dict` — `values` restreint aux colonnes concrètes de `model` — ce qu'un `objects.create(**…)`
   - `make_panel_settings_views(app, params, *, key=None, extra=None, clean=None)` — Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés
   - `save_user_app_settings(user, app, values, *, timeout=DEFAULT_TIMEOUT)` — Persiste chaque réglage fourni (en base, et en cache pour la lecture).
@@ -3236,7 +3255,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (41) :
+- **API publique** (42) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -3269,6 +3288,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
   - `class ItemRevision(models.Model)` — Une RÉVISION d'un élément : l'état que lui a donné un résultat produit — marche 8a de
   - `class ProcessRun(models.Model)` — La LIGNE D'EXÉCUTION d'un process : « tel process, pour telle card, dans tel état » —
   - `class BatchSettings(models.Model)` — Les réglages de RÉFÉRENCE d'un lot — ce que la card mère tient (`MODES_QUEUE_UX §5ter`,
+  - `class BatchLabel(models.Model)` — Le NOM qu'un utilisateur donne à un lot (2026-10-19, demande de Fabien) — il prime sur le
   - `class ResultEvaluation(models.Model)` — La MESURE d'un résultat contre sa référence — chaînon ⑥ de `WAMA_QUALITE.md §5`, et la matière
   - `class ScheduledAction(ScopedVisibility)` — Une action PROGRAMMÉE — le QUAND du calendrier, la seule table neuve de son plan
   - `class CalendarFeed(models.Model)` — Jeton d'ABONNEMENT au calendrier `.ics` d'un utilisateur (`WAMA_MEMORY §9bis.1`).

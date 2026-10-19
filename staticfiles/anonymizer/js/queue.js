@@ -235,7 +235,6 @@
       panelContainer: document.getElementById('global-settings-container'),
       schema: window.WAMA_ANONYMIZER_SCHEMA || [],
       itemLabel: id => "le média #" + id,
-      batchLabel: id => "le batch #" + id + " (tous les éléments)",
       saveItem: async (id) => {
         const vals = panelValues();
         const fd = new FormData();

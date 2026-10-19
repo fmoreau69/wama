@@ -329,7 +329,6 @@ document.addEventListener('DOMContentLoaded', function () {
         // l'avatar (masqué dès le chargement sans ce levier, mesuré le 2026-08-22). L'avatar est
         // devenu un port de la card v4 : la section redevient l'aperçu commun de l'élément.
         itemLabel: function (id) { return "l'élément #" + id; },
-        batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
         saveBatch: function (bid) { return postPanel('/avatarizer/batch/' + bid + '/update/').then(function () { window.location.reload(); }); },
         // cardSettings DÉFAUT (dérivé du schéma) : lit les data-* du gear `.settings-btn`
         // (graphie commune depuis le 23/08) — émis par la brique card_gear ; custom supprimé le 18/08.

@@ -77,7 +77,6 @@
                 panelContainer: ph,
                 schema: d.schema || [],
                 itemLabel: function (id) { return "la génération #" + id; },
-                batchLabel: function (id) { return "le batch #" + id + " (tous les éléments)"; },
                 // ── Volet ACTIONS (2026-08-26) ───────────────────────────────────────
                 // ⚠ L'imager ne déclarait AUCUN des deux callbacks : `fillActions` fait
                 // `if (renderFn)`, donc `#inspectorActions` restait VIDE — sans erreur, sans
