@@ -437,8 +437,9 @@ class ThemeColorForDrawingTest(SimpleTestCase):
 
 
 class ThemeChoiceTest(TestCase):
-    """Étape 5 (2026-10-19) : le compte CHOISIT son thème au Profil — « Automatique » (le défaut,
-    qui suit le système), ou un thème déclaré. Réglage durable (`user_settings`), lu sur toute page."""
+    """Étape 5 (2026-10-19) : le compte CHOISIT son thème au Profil — un thème déclaré (le sombre
+    par défaut), ou « Automatique », qui suit le système. Réglage durable (`user_settings`), lu sur
+    toute page."""
 
     def setUp(self):
         from django.contrib.auth.models import User
@@ -450,15 +451,18 @@ class ThemeChoiceTest(TestCase):
         request.user = user or AnonymousUser()
         return request
 
-    def test_nothing_chosen_means_automatic_and_the_server_paints_the_default(self):
+    def test_nothing_chosen_means_dark_whatever_the_system(self):
+        """Décision de Fabien (2026-10-19) : sombre par défaut, « Automatique » se choisit. Le
+        script ne doit donc rien corriger d'après le système — c'est ce qui garde les captures
+        nocturnes (Playwright = système clair, compte de test sans choix) en sombre."""
         from wama.common.context_processors import theme
-        from wama.common.themes import AUTO, DEFAULT, DEFAULT_CHOICE
-        self.assertEqual(AUTO, DEFAULT_CHOICE)
+        from wama.common.themes import DEFAULT_CHOICE
+        self.assertEqual('dark', DEFAULT_CHOICE)
         for user in (None, self.user):
             with self.subTest(account=bool(user)):
                 ctx = theme(self._request(user))
-                self.assertEqual(AUTO, ctx['theme_choice'])
-                self.assertEqual(DEFAULT, ctx['theme'].key)
+                self.assertEqual(('dark', 'dark', 'dark'),
+                                 (ctx['theme_choice'], ctx['theme'].key, ctx['theme_declared']['choice']))
 
     def test_a_chosen_theme_is_what_every_page_gets(self):
         from wama.common.context_processors import theme

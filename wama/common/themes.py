@@ -114,8 +114,11 @@ AUTO = 'auto'
 AUTO_LABEL = 'Automatique (suit le système)'
 #: Le thème que prend « Automatique », par mode du système.
 AUTO_THEMES = {'dark': 'dark', 'light': 'light'}
-#: Le choix de qui n'a rien choisi, ou n'a pas de compte.
-DEFAULT_CHOICE = AUTO
+#: Le choix de qui n'a rien choisi, ou n'a pas de compte : le SOMBRE, pas « Automatique »
+#: (Fabien, 2026-10-19 : « la plupart des gens ont leur système en clair, or le thème sombre est
+#: plus agréable actuellement »). C'est aussi ce qui garde les captures nocturnes en sombre :
+#: Playwright se présente comme un système clair, et le compte de test ne choisit rien.
+DEFAULT_CHOICE = DEFAULT
 #: Où vit le choix : `user_settings`, app `common` (les réglages du compte, hors de toute app).
 SETTING_APP, SETTING_NAME = 'common', 'theme'
 

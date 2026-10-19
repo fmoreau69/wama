@@ -6023,8 +6023,11 @@ listes déroulantes.
    *Où* : la page **Profil**, carte « Apparence », à côté de la langue et des unités — une
    préférence qu'on règle une fois ; la barre du haut reste aux gestes fréquents (mode simplifié,
    cloche). Le « menu du compte » prévu ici n'a pas été retenu.
-   *Quoi* : **Automatique (suit le système)**, le défaut de tout compte et du visiteur sans compte,
-   puis chaque thème déclaré (`themes.choices()` : la liste s'allonge seule avec UGE).
+   *Quoi* : **Automatique (suit le système)**, puis chaque thème déclaré (`themes.choices()` : la
+   liste s'allonge seule avec UGE). ~~Automatique, le défaut de tout compte~~ → **le SOMBRE est le
+   défaut** de tout compte et du visiteur sans compte (Fabien, 2026-10-19, le soir même : *« la
+   plupart des gens ont leur système en clair, or le thème sombre est plus agréable
+   actuellement »*) ; Automatique se choisit.
    *Comment* : un réglage durable `user_settings` (app `common`, nom `theme` — pas de migration),
    lu par `theme_choice(user)` ; un choix qui n'est plus déclaré retombe sur Automatique. Le serveur
    pose le thème d'un choix explicite ; « Automatique » ne se résout que dans le navigateur
@@ -6037,9 +6040,11 @@ listes déroulantes.
    Automatique suit le système et ses changements, un choix explicite non ; contre-épreuves —
    écoute retirée, résolution retirée — rouges). Smoke navigateur sur le serveur éphémère : les
    deux modes du système, le changement page ouverte, le choix enregistré, aucune erreur JS.
-   ⚠ *Conséquence* : Playwright émule un système CLAIR par défaut — les captures nocturnes
-   (vignettes des briques UI, vidéo des gestes) passent en clair pour le compte de test tant
-   qu'elles ne fixent pas `color_scheme` ou un choix explicite.
+   ~~⚠ *Conséquence* : Playwright émule un système CLAIR par défaut — les captures nocturnes
+   (vignettes des briques UI, vidéo des gestes) passent en clair pour le compte de test~~ —
+   **soldé par le défaut sombre** (Fabien : *« garde le sombre pour les captures nocturnes »*) :
+   le compte de test ne choisit rien, il reçoit le sombre quel que soit le système que Playwright
+   annonce. Garde : `test_nothing_chosen_means_dark_whatever_the_system`.
 
 ## 29. PROVENANCE de tout ce qui entre dans WAMA — privé à son auteur, « Système » une fois promu (ouvert le 2026-10-18, demande de Fabien)
 
