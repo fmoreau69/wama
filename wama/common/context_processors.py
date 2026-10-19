@@ -34,11 +34,16 @@ def theme(request):
     """Le THÈME de la page (`common/themes.py`), posé par `base.html` sur `<html>` : ses tokens
     (`wama-theme.css`) et le mode de Bootstrap en découlent. Lu sur toute page, sans compte aussi.
     `theme_choice` est le choix du compte (« Automatique » compris) ; `theme_declared`, ce que
-    `wama-theme.js` lit pour résoudre « Automatique » avant le premier rendu."""
-    from wama.common.themes import declared_for_pages, resolve, theme_choice
+    `wama-theme.js` lit pour résoudre « Automatique » avant le premier rendu. `theme_logos` : les
+    thèmes qui ont un logo, tous posés dans la barre du haut — la feuille ne montre que celui du
+    thème actif, qui peut changer sans recharger (Profil, « Automatique »)."""
+    from wama.common.themes import THEMES, declared_for_pages, resolve, theme_choice
     choice = theme_choice(getattr(request, 'user', None))
     return {'theme': resolve(choice), 'theme_choice': choice,
-            'theme_declared': declared_for_pages(choice)}
+            'theme_declared': declared_for_pages(choice),
+            # `getattr` : un worker recyclé peut lire ce module neuf avec un `themes` déjà importé
+            # d'avant `Theme.logo` (vécu le 2026-10-19 : toutes les pages en 500 jusqu'au rechargement)
+            'theme_logos': [t for t in THEMES if getattr(t, 'logo', '')]}
 
 
 #: Ce que voit un visiteur sans compte : pas d'avatar (la vocalisation exige un compte).

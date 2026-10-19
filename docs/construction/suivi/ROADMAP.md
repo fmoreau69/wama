@@ -6073,7 +6073,7 @@ listes déroulantes.
    **MIT**, un mode clair et un sombre), chaque couleur dans le rôle que Cunningham lui donne
    (fond de marque brand-550 #1167d4, texte de marque brand-700, lien brand-600, page gray-025).
    Les couleurs de SENS (succès, échec…) restent celles du clair. Polices non embarquées : TT Norms
-   (UGE) est sous licence commerciale ; Roboto Flex (La Suite) est libre, elle passerait par
+   (UGE) est sous licence commerciale (nommée depuis, 6bis) ; Roboto Flex (La Suite) est libre, elle passerait par
    `tools/update_vendors.sh`. Ni Marianne ni logo de l'État (réservés aux services de l'État).
    *Bootstrap* : 5.3.0 écrit #0d6efd EN DUR dans `.btn-primary`, `.btn-outline-primary`,
    `.nav-pills`, `.pagination` — `app_modern.css` les fait lire `--bs-primary`, teintes de
@@ -6085,8 +6085,42 @@ listes déroulantes.
    canaux), une teinte déclarée est le mélange qu'elle dit, ses textes passent 4,5:1 sur le blanc
    et sur sa page ; contre-épreuves : une couleur étrangère relevée, le dérivé retiré de la liste
    ne reçoit plus que 16 tokens sur 421. `common.contrast` joue chaque thème déclaré.
-   ⏳ *Reste* : une variante SOMBRE de La Suite (Cunningham en a une : `base='dark'`) ; le logo
-   de l'université dans la barre du haut (décision) ; boutons « outline » et calendrier (charte).
+   ⏳ *Reste* : ~~une variante SOMBRE de La Suite~~ ; ~~le logo de l'université dans la barre du
+   haut~~ (✅ 2026-10-19, 6bis) ; boutons « outline » et calendrier (charte).
+6bis. ✅ **La Suite en sombre, le logo et la police de l'UGE** (2026-10-19 — Fabien : *« oui pour
+   le logo UGE et La Suite en sombre, mais la suite de base en version claire »* ; *« TT Norms est
+   payé par l'UGE pour être utilisé »*).
+   *La Suite sombre* : `lasuite-dark`, `base='dark'` — dans la liste de sélecteurs du bloc SOMBRE,
+   avec les rôles du thème sombre de Cunningham (`.cunningham-theme--dark`) : page gray-900, fond de
+   marque brand-550 sous un texte blanc (5,1:1), textes de marque brand-100/250/300, palette
+   brand-350/450. `Theme.charter` nomme la charte d'un dérivé (les deux La Suite partagent la leur).
+   La garde de contraste lit désormais les fonds de la BASE : le blanc en clair, les surfaces du
+   sombre en sombre ; la primaire, fond d'un bouton plein, passe 4,5:1 sous son texte blanc — en
+   sombre elle n'est pas lue comme texte (aucune couleur ne passe 4,5:1 des deux côtés).
+   *Logo* : `Theme.logo` (le fichier fourni `WEB/logo_univ_gustave_eiffel_rvb.svg`, tel quel →
+   `common/images/themes/logo-uge.svg`) ; la barre du haut pose le logo de chaque thème qui en a un
+   (`theme_logos`, contexte), `filemanager.css` ne montre que celui du thème actif — le Profil
+   change le thème sans recharger. Charte p. 9-12 : à gauche, à l'écart du logo WAMA (interdit :
+   « un nouveau principe d'endossement »), couleurs d'origine (#171c8f dans le fichier — la p. 7
+   annonce #2f2a85 pour le même Pantone : le fichier n'est pas retouché, « interdit de modifier les
+   couleurs »), 26 px de haut = 126 px de large (minimum 25 mm ≈ 95 px) ; sous 780 px de barre, il
+   s'efface au lieu de rétrécir (mesuré : à 781 px, 12 px d'écart de chaque côté, aucun débordement).
+   *Police* : la licence fournie avec TT Norms est un contrat Monotype **poste unique** (§4 : pas
+   sur un serveur dont les postes ne sont pas tous licenciés ; §7 : pas de distribution ; §9 : pas
+   de conversion, donc pas de `.woff2`) et le dépôt est PUBLIC : la police est **nommée, jamais
+   servie** — `--bs-body-font-family: "TT Norms Pro", "TT Norms", Tahoma, …` ; un poste où
+   l'université l'a installée l'affiche, ailleurs Tahoma, le repli que donne la charte (p. 8).
+   `themes.LICENSED_FONTS` + garde : aucun fichier de ces polices dans les dossiers statiques, aucun
+   `@font-face` qui les déclare. ⏳ Si l'université détient une licence **web** (webfont), la
+   servir hors dépôt (dossier non versionné, comme `AI-models`) : décision de Fabien.
+   *Gardes* : `DerivedThemeTest` (dérivé du sombre compris), `ThemeIdentityTest` (logo servi et
+   copié dans `staticfiles/`, règle d'affichage par thème, police nommée et non servie) ;
+   contre-épreuves rouges : dérivé sombre retiré de la liste, lien trop sombre, couleur hors charte,
+   règle du logo retirée ; la garde de police sur des sources écrites pour elle.
+   ⚠ *Vécu* : `context_processors.theme` lisait `t.logo` — un worker qui n'avait pas encore importé
+   le context processor l'a lu neuf avec l'ancien `themes` : toutes ses pages en 500 (96 erreurs
+   journalisées de 23 h 02 à 23 h 05, rechargement de gunicorn à 23 h 18 sur accord de Fabien). Lu
+   désormais par `getattr`.
 7. ⏳ **Personnaliser son thème** (question de Fabien, 2026-10-19 : charte complète ? palettes à
    cliquer ? une image dont un LLM tire le thème ?) — *proposition, rien de construit* : toutes les
    voies produisent la MÊME chose, quelques couleurs-graines (base claire ou sombre, primaire,

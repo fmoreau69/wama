@@ -1,8 +1,13 @@
-<!-- Navigation WAMA - Alignée avec les panneaux latéraux -->
+{% load static %}<!-- Navigation WAMA - Alignée avec les panneaux latéraux -->
 <nav class="navbar border-bottom border-secondary wama-header">
     <div class="container-fluid px-3 wama-header-container">
         <!-- Menu déroulant Applications (gauche) -->
         <div class="wama-header-left">
+            {% comment %}Le logo d'un thème qui en déclare un (`themes.Theme.logo`, UGE) : tous posés,
+            seul celui du thème ACTIF se voit (filemanager.css) — le Profil change le thème sans
+            recharger. À l'écart du logo WAMA : la charte UGE interdit un « nouveau principe
+            d'endossement », c'est-à-dire de l'accoler à une autre marque.{% endcomment %}
+            {% for t in theme_logos %}<img class="wama-theme-logo" data-theme-logo="{{ t.key }}" src="{% static t.logo %}" alt="{{ t.label }}">{% endfor %}
             <div class="dropdown">
                 {% comment %}`wama-header-label` : les libellés de la barre. Quand la barre manque de
                 place (volets ouverts sur un écran moyen, tablette), ils s'effacent derrière leur

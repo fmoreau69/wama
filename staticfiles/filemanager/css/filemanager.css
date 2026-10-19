@@ -75,6 +75,24 @@
     height: 100% !important;
 }
 
+/* Logo d'un THÈME (`themes.Theme.logo`, UGE, 2026-10-19) : posé pour chaque thème qui en a un,
+   montré sous le sien seulement. Charte UGE (V2-4, p. 9-12) : jamais sous 25 mm de large (≈ 95 px
+   à l'écran — 26 px de haut en donnent 126), un dégagement autour, couleurs et proportions
+   intactes (le fichier fourni, tel quel). Quand la barre n'a plus la place, il s'efface en
+   premier plutôt que de rétrécir : tous les libellés tiennent dans 605 px (mesure du 12/10
+   ci-dessous), le logo en demande 142 de plus — seuil 780, mesuré sans chevauchement. */
+.wama-theme-logo {
+    display: none;
+    height: 26px;
+    width: auto;
+    margin-right: 16px;
+    flex-shrink: 0;
+}
+[data-wama-theme="uge"] .wama-theme-logo[data-theme-logo="uge"] { display: block; }
+@container wama-header (max-width: 780px) {
+    .wama-theme-logo { display: none !important; }
+}
+
 /* Center logo — colonne du milieu de la grille */
 .wama-header .wama-logo {
     justify-self: center;

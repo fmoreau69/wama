@@ -2024,7 +2024,10 @@ MECHANISMS = (
               "Un thème DÉRIVÉ (`Theme.base`, 2026-10-19 : Université Gustave Eiffel, La Suite "
               "numérique) reçoit toutes les valeurs de sa base par la liste de sélecteurs de son "
               "bloc et ne redéfinit que son identité, chaque couleur venant de sa charte "
-              "(`CHARTERS`). "
+              "(`CHARTERS`) ; La Suite se décline aussi en sombre, dérivé du sombre. Un thème "
+              "peut porter le logo de sa charte (`Theme.logo`, UGE) : la barre du haut les pose "
+              "tous, la feuille ne montre que celui du thème actif ; une police sous licence "
+              "commerciale est NOMMÉE, jamais servie (`LICENSED_FONTS`, TT Norms). "
               "Le compte CHOISIT au Profil (2026-10-19) un thème déclaré — le SOMBRE par défaut — "
               "ou « Automatique », qui suit le mode du système (`wama-theme.js`, résolu avant le "
               "premier rendu) ; `theme_choice`, réglage durable `user_settings`",

@@ -382,7 +382,7 @@ class LightThemeIsTheMirrorTest(SimpleTestCase):
         """Îlot : `data-wama-theme` sur un élément y redéfinit les tokens (sélecteur non limité à
         `:root`) — l'encart au dégradé de l'accueil reste sombre en thème clair."""
         css = THEME_CSS.read_text(encoding='utf-8')
-        self.assertIn(':root,\n[data-wama-theme="dark"] {', css)
+        self.assertIn(':root,\n[data-wama-theme="dark"]', css)
         self.assertIn('\n[data-wama-theme="light"],\n', css)
         home = (ROOT / 'wama' / 'templates' / 'home.html').read_text(encoding='utf-8')
         self.assertIn('data-wama-theme="dark" data-bs-theme="dark"', home)
@@ -425,9 +425,10 @@ def colours_outside_charter(block, charter):
 
 
 class DerivedThemeTest(SimpleTestCase):
-    """Les thèmes UGE et La Suite numérique (2026-10-19) DÉRIVENT du clair : ils en reçoivent
-    chaque valeur par la liste de sélecteurs du bloc clair, et leur bloc ne redéfinit que
-    l'identité, chaque couleur venant de leur charte (`themes.CHARTERS`)."""
+    """Les thèmes UGE et La Suite numérique (2026-10-19) DÉRIVENT du clair, La Suite sombre du
+    sombre : chacun reçoit chaque valeur de sa base par la liste de sélecteurs du bloc de celle-ci,
+    et son bloc ne redéfinit que l'identité, chaque couleur venant de sa charte
+    (`themes.CHARTERS`)."""
 
     def test_a_derived_theme_is_in_the_selector_list_of_its_base(self):
         from wama.common.themes import THEMES
@@ -451,9 +452,9 @@ class DerivedThemeTest(SimpleTestCase):
         for t in THEMES:
             if t.base:
                 with self.subTest(theme=t.key):
-                    self.assertIn(t.key, CHARTERS, 'a derived theme names its charter')
+                    self.assertIn(t.charter, CHARTERS, 'a derived theme names its charter')
                     self.assertIn(t.key, own, 'and redefines something')
-                    self.assertEqual({}, colours_outside_charter(own[t.key], CHARTERS[t.key]))
+                    self.assertEqual({}, colours_outside_charter(own[t.key], CHARTERS[t.charter]))
 
     def test_a_derived_shade_is_the_stated_mix(self):
         from wama.common.themes import CHARTERS
@@ -474,26 +475,90 @@ class DerivedThemeTest(SimpleTestCase):
         self.assertEqual({'--d': '#ffffff', '--e': '#0d6efd', '--f': '#010203'},
                          colours_outside_charter(block, charter))
 
-    def test_the_text_colours_of_the_charter_read_on_its_page_and_on_white(self):
+    def test_the_text_colours_of_the_charter_read_on_its_grounds(self):
         """Ce que le bloc d'un thème dérivé pose comme TEXTE (liens, accent lu, primaire de
-        Bootstrap en texte et en fond de bouton sous un texte blanc) passe 4,5:1 sur le blanc et
-        sur son fond de page."""
+        Bootstrap en texte) passe 4,5:1 sur les fonds de sa base — le blanc en clair, les surfaces
+        du sombre en sombre — et sur son fond de page ; la primaire, fond d'un bouton plein, passe
+        4,5:1 sous son texte blanc. En sombre, la primaire n'est pas lue comme texte : aucune
+        couleur ne passe 4,5:1 à la fois sous un texte blanc et sur un fond sombre."""
         from wama.common.theme_mirror import luminance, parse
         from wama.common.themes import THEMES
 
         def ratio(a, b):
             ya, yb = (luminance(parse(v)[1]) for v in (a, b))
             return (max(ya, yb) + 0.05) / (min(ya, yb) + 0.05)
-        own = own_blocks()
+        own, blocks = own_blocks(), theme_blocks()
+        texts = ('--wama-accent-text', '--wama-link', '--wama-link-soft', '--wama-accent-soft-text',
+                 '--bs-primary-text-emphasis')
         for t in THEMES:
             if not t.base:
                 continue
-            block = own[t.key]
-            for name in ('--wama-accent-text', '--wama-link', '--wama-link-soft', '--wama-accent-soft-text',
-                         '--bs-primary', '--bs-primary-text-emphasis'):
-                for ground in ('#ffffff', block['--wama-page-bg-start']):
+            block, base = own[t.key], blocks[t.base]
+            if t.bootstrap == 'light':
+                grounds, read = ('#ffffff',), texts + ('--bs-primary',)
+            else:
+                grounds, read = (base['--wama-surface'], base['--wama-surface-raised']), texts
+            for name in read:
+                for ground in grounds + (block['--wama-page-bg-start'],):
                     with self.subTest(theme=t.key, token=name, ground=ground):
                         self.assertGreaterEqual(ratio(block[name], ground), 4.5)
+            with self.subTest(theme=t.key, filled='--bs-primary'):
+                self.assertGreaterEqual(ratio(block['--bs-primary'], base['--wama-text-on-accent']), 4.5)
+
+
+def served_licensed_fonts(paths, sheets, names):
+    """Ce qui SERVIRAIT une police sous licence commerciale (`names`) : un fichier de police des
+    dossiers statiques qui la porte dans son nom, ou un `@font-face` qui la déclare."""
+    def key(text):
+        return re.sub(r'[\s_-]+', '', text).lower()
+    wanted = [key(n) for n in names]
+    found = [p for p in paths if p.lower().endswith(('.ttf', '.otf', '.woff', '.woff2', '.eot'))
+             and any(w in key(p) for w in wanted)]
+    for rel, text in sheets:
+        for face in re.findall(r'@font-face\s*\{[^}]*\}', text):
+            if any(w in key(face) for w in wanted):
+                found.append(rel)
+    return found
+
+
+class ThemeIdentityTest(SimpleTestCase):
+    """Le logo et la police d'une charte (2026-10-19, Fabien : « oui pour le logo UGE » ; « TT
+    Norms est payé par l'UGE pour être utilisé »)."""
+
+    def test_a_theme_logo_is_served_and_shown_under_its_theme_only(self):
+        from wama.common.context_processors import theme
+        from wama.common.themes import THEMES
+        logos = [t for t in THEMES if t.logo]
+        self.assertTrue(logos)
+        self.assertEqual(logos, theme(RequestFactory().get('/'))['theme_logos'])
+        header = (ROOT / 'wama' / 'templates' / 'includes' / 'header.html').read_text(encoding='utf-8')
+        self.assertIn('{% for t in theme_logos %}', header)
+        sheet = (ROOT / 'wama' / 'filemanager' / 'static' / 'filemanager' / 'css' / 'filemanager.css')
+        css = sheet.read_text(encoding='utf-8')
+        self.assertRegex(css, r'\.wama-theme-logo \{\s*display: none;', 'hidden unless its theme is active')
+        for t in logos:
+            with self.subTest(theme=t.key):
+                source = ROOT / 'wama' / 'common' / 'static' / t.logo
+                self.assertTrue(source.is_file())
+                self.assertEqual(source.read_bytes(), (ROOT / 'staticfiles' / t.logo).read_bytes())
+                self.assertIn(f'[data-wama-theme="{t.key}"] .wama-theme-logo[data-theme-logo="{t.key}"]', css)
+
+    def test_a_licensed_font_is_named_never_served(self):
+        from wama.common.themes import LICENSED_FONTS
+        paths = [p.relative_to(ROOT).as_posix() for top in ('wama', 'wama_lab', 'wama_data', 'staticfiles')
+                 for ext in ('ttf', 'otf', 'woff', 'woff2', 'eot') for p in (ROOT / top).rglob(f'*.{ext}')]
+        self.assertTrue(paths, 'the walk sees the font files that are served (Font Awesome…)')
+        self.assertEqual([], served_licensed_fonts(paths, _sources(('.css', '.html')), LICENSED_FONTS))
+        self.assertIn('"TT Norms Pro"', THEME_CSS.read_text(encoding='utf-8'), 'named, for a workstation that has it')
+
+    def test_the_font_guard_sees_a_served_file_and_a_font_face(self):
+        """Contre-épreuve sur des sources écrites pour elle."""
+        paths = ['wama/static/fonts/TT_Norms-Pro-Regular.woff2', 'wama/static/fonts/roboto.woff2',
+                 'wama/static/img/tt-norms.png']
+        sheets = [('a.css', '@font-face { font-family: "TT Norms Pro"; src: url(x.woff2); }'),
+                  ('b.css', 'body { font-family: "TT Norms Pro", Tahoma; }')]
+        self.assertEqual(['wama/static/fonts/TT_Norms-Pro-Regular.woff2', 'a.css'],
+                         served_licensed_fonts(paths, sheets, ('TT Norms',)))
 
 
 class ModeFollowingComponentsTest(SimpleTestCase):

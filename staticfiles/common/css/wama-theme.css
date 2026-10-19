@@ -22,7 +22,8 @@
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
 :root,
-[data-wama-theme="dark"] {
+[data-wama-theme="dark"],
+[data-wama-theme="lasuite-dark"] {
   /* ── Page ── */
   --wama-page-bg-start: #1a1a2e;            /* dégradé du fond de page */
   --wama-page-bg-end: #16213e;
@@ -545,9 +546,10 @@
      • les rares tokens qui ne sont pas des couleurs (`--wama-data-ink`).
    Une région peut fixer son thème (`data-wama-theme="dark" data-bs-theme="dark"`, l'encart au
    dégradé de l'accueil) : les tokens s'y redéfinissent comme sur la page.
-   Un thème DÉRIVÉ du clair (`Theme.base == 'light'` dans `themes.py` — UGE) figure dans la liste
-   de sélecteurs de ce bloc : il en reçoit toutes les valeurs, puis son propre bloc, plus bas,
-   ne redéfinit que ce que sa charte change.
+   Un thème DÉRIVÉ du clair (`Theme.base == 'light'` dans `themes.py` — UGE, La Suite) figure dans
+   la liste de sélecteurs de ce bloc : il en reçoit toutes les valeurs, puis son propre bloc, plus
+   bas, ne redéfinit que ce que sa charte change. Un dérivé du SOMBRE (La Suite sombre) figure de
+   même dans la liste du bloc sombre, en tête de ce fichier.
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
 [data-wama-theme="light"],
@@ -1072,7 +1074,10 @@
      • le gris de page #f1f2f2.
    Les couleurs de SENS (succès, échec, en cours…) restent celles du clair : la charte n'en
    donne pas, et ses vert, rouge et jaune n'atteignent pas 4,5:1 en texte sur le blanc.
-   La typographie de la charte (TT Norms) est sous licence commerciale : non embarquée.
+   La typographie de la charte, TT Norms, est NOMMÉE, jamais servie : sa licence (Monotype, poste
+   unique) interdit de la distribuer ou de la poser sur un serveur, et le dépôt est public. Un
+   poste où l'université l'a installée l'affiche ; ailleurs, Tahoma, le repli que donne la charte
+   (p. 8), puis la police du système (`themes.LICENSED_FONTS`).
    ═══════════════════════════════════════════════════════════════════════════════════════ */
 
 [data-wama-theme="uge"] {
@@ -1104,12 +1109,16 @@
   --bs-primary-text-emphasis: #131135;      /* assombrie de 60 % */
   --bs-primary-bg-subtle: #d5d4e7;          /* éclaircie de 80 % */
   --bs-primary-border-subtle: #acaace;      /* éclaircie de 60 % */
+
+  /* ── Typographie de la charte, si le poste l'a ; sinon son repli ── */
+  --bs-body-font-family: "TT Norms Pro", "TT Norms", Tahoma, var(--bs-font-sans-serif);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════════════════
    THÈME LA SUITE NUMÉRIQUE   (2026-10-19, `ROADMAP §28`)
 
-   Dérivé du CLAIR, comme UGE. Les couleurs sont celles de Cunningham, le design system de La
+   Dérivé du CLAIR, comme UGE — c'est La Suite « de base » ; sa variante sombre suit ce bloc. Les
+   couleurs sont celles de Cunningham, le design system de La
    Suite (github.com/suitenumerique/cunningham, licence MIT), et chacune tient le RÔLE que
    Cunningham lui donne : fond de marque brand-550 (boutons, accent), texte de marque brand-700,
    lien brand-600, marque secondaire brand-350 / brand-100, surface tertiaire gray-025 (la page).
@@ -1146,4 +1155,45 @@
   --bs-primary-text-emphasis: #20467f;      /* brand-700 */
   --bs-primary-bg-subtle: #d5e4f7;          /* brand-100 */
   --bs-primary-border-subtle: #80aee8;      /* brand-300 */
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════════════════
+   THÈME LA SUITE NUMÉRIQUE — SOMBRE   (2026-10-19, `ROADMAP §28`)
+
+   Dérivé du SOMBRE (liste de sélecteurs du bloc sombre, en tête de ce fichier), avec les couleurs
+   que Cunningham donne à son propre thème sombre (`.cunningham-theme--dark`) : page gray-900
+   (surface tertiaire), fond de marque brand-550 sous un texte blanc (5,1:1), texte de marque
+   brand-100 / brand-250, fond de palette brand-350 / brand-450. Lu comme TEXTE, un bleu de marque
+   est pris assez clair pour passer 4,5:1 sur chaque surface du sombre (`tests_theme`).
+   Même charte que La Suite claire (`themes.CHARTERS['lasuite']`).
+   ═══════════════════════════════════════════════════════════════════════════════════════ */
+
+[data-wama-theme="lasuite-dark"] {
+  --wama-page-bg-start: #1b1c1d;            /* gray-900 */
+  --wama-page-bg-end: #1b1c1d;
+
+  /* ── Marque : l'accent clair de la palette sombre, lu aussi comme texte ── */
+  --wama-accent: #6ca0e4;                   /* brand-350 */
+  --wama-accent-rgb: 108, 160, 228;
+  --wama-accent-text: #6ca0e4;
+  --wama-link: #80aee8;                     /* brand-300 */
+  --wama-link-rgb: 128, 174, 232;
+  --wama-link-soft: #d5e4f7;                /* brand-100 */
+  --wama-indigo: #4085dc;                   /* brand-450 */
+  --wama-indigo-rgb: 64, 133, 220;
+  --wama-scrollbar-thumb: rgba(108, 160, 228, .5);
+  --wama-scrollbar-thumb-hover: rgba(108, 160, 228, .8);
+
+  /* ── Marque secondaire ── */
+  --wama-accent-soft: #96bcec;              /* brand-250 */
+  --wama-accent-soft-text: #96bcec;
+  --wama-accent-batch: #4085dc;             /* brand-450 */
+  --wama-violet: #8b43da;                   /* purple-550 */
+
+  /* ── Palette de Bootstrap ── */
+  --bs-primary: #1167d4;                    /* brand-550 */
+  --bs-primary-rgb: 17, 103, 212;
+  --bs-primary-text-emphasis: #80aee8;      /* brand-300 */
+  --bs-primary-bg-subtle: #1a2638;          /* brand-850 */
+  --bs-primary-border-subtle: #20467f;      /* brand-700 */
 }

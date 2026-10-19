@@ -31,6 +31,11 @@ class Theme:
     #: Le thème dont il reçoit toutes les valeurs (liste de sélecteurs du bloc de ce thème dans
     #: `wama-theme.css`) ; son propre bloc ne redéfinit que ce que sa charte change. '' = complet.
     base: str = ''
+    #: La charte (`CHARTERS`) d'où vient chaque couleur de son bloc — exigée d'un thème dérivé.
+    charter: str = ''
+    #: Le logo que la barre du haut montre sous ce thème (chemin de fichier statique), tel que sa
+    #: charte le fournit ; '' = aucun.
+    logo: str = ''
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -42,11 +47,17 @@ THEMES = (
     # Bootstrap — étape 4, 2026-10-18 ; la règle et ses exceptions : en-tête de son bloc.
     Theme('light', 'Clair', bootstrap='light'),
     # La charte de l'université, claire : le clair, dont l'identité devient la sienne (2026-10-19,
-    # Fabien : « on passe au thème UGE ») — `CHARTERS['uge']`.
-    Theme('uge', 'Université Gustave Eiffel', bootstrap='light', base='light'),
+    # Fabien : « on passe au thème UGE ») ; son logo dans la barre du haut (même jour, « oui pour
+    # le logo UGE »).
+    Theme('uge', 'Université Gustave Eiffel', bootstrap='light', base='light', charter='uge',
+          logo='common/images/themes/logo-uge.svg'),
     # Le design system de La Suite numérique (Cunningham, MIT), en clair (2026-10-19, Fabien :
-    # « j'aimerais aussi un thème la suite numérique ») — `CHARTERS['lasuite']`.
-    Theme('lasuite', 'La Suite numérique', bootstrap='light', base='light'),
+    # « j'aimerais aussi un thème la suite numérique ») …
+    Theme('lasuite', 'La Suite numérique', bootstrap='light', base='light', charter='lasuite'),
+    # … et en sombre, que Cunningham décline aussi — le clair reste La Suite « de base » (même
+    # jour, Fabien : « La Suite en sombre, mais la suite de base en version claire »).
+    Theme('lasuite-dark', 'La Suite numérique (sombre)', bootstrap='dark', base='dark',
+          charter='lasuite'),
 )
 
 #: Les CHARTES graphiques dont un thème dérivé tire ses couleurs — chaque couleur écrite dans son
@@ -68,18 +79,27 @@ CHARTERS = {
             '#acaace': ('#2f2a85', '#ffffff', 0.40),   # `--bs-primary-border-subtle`
         },
     },
-    # Les valeurs de sa palette globale ; le RÔLE de chacune est celui que Cunningham lui donne
-    # (ses tokens « contextuels » : fond de marque = brand-550, texte de marque = brand-700…).
+    # Les valeurs de sa palette globale ; le RÔLE de chacune est celui que Cunningham lui donne,
+    # en clair et en sombre (ses tokens « contextuels » : fond de marque = brand-550, texte de
+    # marque = brand-700 en clair, brand-100 / brand-250 en sombre, page = gray-025 / gray-900…).
     'lasuite': {
         'source': 'github.com/suitenumerique/cunningham (MIT) — packages/react/src/cunningham-tokens.css',
         'colors': {
-            'brand-100': '#d5e4f7', 'brand-300': '#80aee8', 'brand-350': '#6ca0e4',
-            'brand-550': '#1167d4', 'brand-600': '#0659c5', 'brand-700': '#20467f',
-            'purple-550': '#8b43da', 'gray-025': '#f7f8f8',
+            'brand-100': '#d5e4f7', 'brand-250': '#96bcec', 'brand-300': '#80aee8',
+            'brand-350': '#6ca0e4', 'brand-450': '#4085dc', 'brand-550': '#1167d4',
+            'brand-600': '#0659c5', 'brand-700': '#20467f', 'brand-850': '#1a2638',
+            'purple-550': '#8b43da', 'gray-025': '#f7f8f8', 'gray-900': '#1b1c1d',
         },
         'derived': {},
     },
 }
+
+#: Les polices d'une charte sous licence COMMERCIALE ne sont jamais servies par WAMA (le dépôt est
+#: public, et la licence fournie avec TT Norms — Monotype, poste unique — interdit de la
+#: distribuer, de la poser sur un serveur ou de la convertir) : un thème la NOMME, et le
+#: navigateur ne l'emploie que si elle est installée sur le poste ; sinon, le repli de sa charte.
+#: `tests_theme` refuse un fichier de ces polices dans les dossiers statiques.
+LICENSED_FONTS = ('TT Norms',)
 
 #: Le thème de qui n'a rien choisi — aussi celui que `wama-theme.css` pose sur `:root` seul.
 DEFAULT = 'dark'
