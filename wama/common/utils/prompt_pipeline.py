@@ -43,8 +43,9 @@ def _rappel_rag(prompt, user, *, k=3, semantic=False):
     exactement la dérive que ce projet combat, et elle a été signalée par l'instance assistant.
 
     Le motif qui SUBSISTE est le seul vrai : la latence, **là où elle se voit**. Un rappel
-    sémantique embarque la requête, donc charge `bge-m3`. Ici, ce coût s'ajouterait à **chaque
-    génération**, en plein chemin navigateur — mesuré ~5 s sans résidence, ~300 ms avec. C'est
+    sémantique embarque la requête, donc charge l'embedder. Ici, ce coût s'ajouterait à **chaque
+    génération**, en plein chemin navigateur — mesuré ~5 s sans résidence, ~300 ms avec (bge-m3,
+    2026-08 ; l'embedder est plus lourd depuis la bascule vers qwen3-embedding:4b). C'est
     l'inverse de `tool_api.memory_recall`, passé en hybride le même jour : là-bas l'outil n'est
     appelé que si le LLM le décide et un tour LLM suit, donc l'attente s'y noie.
 

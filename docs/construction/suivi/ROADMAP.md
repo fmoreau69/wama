@@ -86,9 +86,9 @@
    (rectification Fabien, 2026-09-10) : `MemoryItem` = les **souvenirs** (faits, événements,
    procédures) ; `RagChunk` = les **fragments de documents**. Ils partagent le magasin, les
    mixins et `recall()` — ils ne se confondent pas pour autant.
-   **Ce qui reste vraiment** : la bascule d'embedder vers `qwen3-embedding:4b` et le réindex
-   (aujourd'hui **`bge-m3`**, `memory/embed.py:32` — choisi CONTRE `nomic`, anglo-centré, parce
-   que le corpus du Lescot est francophone) ; jalon 12 (outillage assistant list/detail).
+   **Ce qui reste vraiment** : ~~la bascule d'embedder vers `qwen3-embedding:4b` et le réindex~~
+   ✅ **faites le 2026-10-19** (bge-m3 → qwen3-embedding:4b, 10 779 vecteurs refaits, seuil
+   re-mesuré — `WAMA_MEMORY §7`) ; jalon 12 (outillage assistant list/detail).
    **La hiérarchie université → labo → équipe**, qui devait « attendre la preuve d'usage »,
    n'est pas perdue : elle est HÉRITÉE d'`OrgUnit` + `ScopedVisibility` (`WAMA_MEMORY.md`, qui
    déplace la prudence sur l'USAGE — et y suit l'état de l'arbre `OrgUnit`). *(Phrase retirée
@@ -1596,6 +1596,10 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      ⇒ la contrainte du réindex ne tient plus qu'au NOM stocké : un `bge-m3` distant sous le nom
      `bge-m3` rendrait le relais local ↔ distant possible sans réindex (à décider, pas à supposer :
      la mesure porte sur deux phrases).
+     ⚠ **2026-10-19 — l'embedder LOCAL a changé** (bascule vers `qwen3-embedding:4b`, `WAMA_MEMORY §7`) :
+     le `bge-m3` d'ILaaS partageait l'espace de l'ANCIEN local, plus celui de l'index. Un relais
+     distant sans réindex exigerait désormais un Qwen3-Embedding servi ailleurs, aux mêmes
+     1024 dimensions tronquées.
      **Suite** : ~~clé posée, `/v1/models` mesuré~~ (13/10) → décider si
      `ilaas_rag` devient un fournisseur `llm` comme Albert (ses modèles de chat entreraient alors au
      tirage, avec ceux de `llm.ilaas.fr`) → brancher ou non `embed.py` sur un modèle distant.

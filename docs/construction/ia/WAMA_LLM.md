@@ -323,7 +323,8 @@ message utilisateur (+ domaine transmis par la surface, sinon 'general')
        • charger_competence(domaine)  → l'ASSISTANT charge LUI-MÊME posture + contexte labo
          (jamais la surface : un adaptateur de canal ne devine pas le domaine)
        • memory_recall(query, niveaux=…) → recall() souvenirs + RAG, sélecteur de niveaux,
-         HYBRIDE — résidence bge-m3 arbitrée par le GOUVERNEUR (~5 s à froid, ~350 ms résident)
+         HYBRIDE — résidence de l'embedder (qwen3-embedding:4b depuis le 2026-10-19, WAMA_MEMORY §7)
+         arbitrée par le GOUVERNEUR (~5 s à froid, mesuré encore avec le nouveau modèle)
        • add_to_<app> / start_<app> → tâches d'app ⇒ la pipeline d'app s'applique (§2)
   [le message lui-même : kind='intent' via process_prompt_for('assistant','message') —
    routage langue seul, pas d'enrichissement]

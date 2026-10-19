@@ -249,7 +249,10 @@ def reindex_memory_task(user_id=None):
         user = get_user_model().objects.filter(pk=user_id).first() if user_id else None
         if user_id and user is None:
             return {'skipped': 'compte introuvable'}
-        summary = reindex(user=user)
+        # Un vecteur d'un AUTRE embedder est un vecteur manquant (`embed.vectorized_q`) : après une
+        # bascule de modèle (bge-m3 → qwen3-embedding, 2026-10-19), ce sont ces passes qui finissent
+        # le réindex, au lieu de laisser des lignes invisibles à la recherche vectorielle.
+        summary = reindex(user=user, modeles_obsoletes=True)
     finally:
         cache.delete(REINDEX_LOCK)
     if summary.get('traites') or summary.get('echecs'):

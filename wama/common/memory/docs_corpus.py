@@ -200,13 +200,14 @@ def index_docs(*, dry_run: bool = False) -> dict:
 
 def corpus_state() -> dict:
     """`{'fragments', 'vectorized', 'docs'}` — ce que le corpus contient, pour le dire."""
-    from django.db.models import Count, Q
+    from django.db.models import Count
 
     from ..models import RagChunk
+    from .embed import vectorized_q
     state = (RagChunk.objects.filter(user__isnull=True, source_kind='doc',
                                      source_id__startswith=SOURCE_PREFIX)
              .aggregate(fragments=Count('id'),
-                        vectorized=Count('id', filter=Q(embedding__isnull=False)),
+                        vectorized=Count('id', filter=vectorized_q()),
                         docs=Count('source_id', distinct=True)))
     return {k: state[k] or 0 for k in ('fragments', 'vectorized', 'docs')}
 

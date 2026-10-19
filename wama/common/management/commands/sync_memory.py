@@ -34,7 +34,8 @@ class Command(BaseCommand):
                             help="Projette la doc DÉCLARÉE de WAMA vers le corpus système "
                                  "(mécanique, sans modèle — WAMA_MEMORY §7quinquies).")
         parser.add_argument('--reindex', action='store_true',
-                            help='⚠ Calcule les vecteurs manquants — CHARGE bge-m3 sur Ollama.')
+                            help="⚠ Calcule les vecteurs manquants — CHARGE l'embedder "
+                                 "(`memory.embed.EMBEDDING_MODEL`) sur Ollama.")
         parser.add_argument('--modeles-obsoletes', action='store_true',
                             help='Avec --reindex : reprend aussi les lignes vectorisées par un '
                                  "autre modèle (bascule d'embedder).")
@@ -124,11 +125,14 @@ class Command(BaseCommand):
                 '(les souvenirs et fragments restent trouvables en lexical entre-temps).')
             return
 
-        self.stdout.write('\n── Réindexation vectorielle (CHARGE bge-m3) ──')
+        from wama.common.memory.embed import EMBEDDING_MODEL
+        self.stdout.write(f'\n── Réindexation vectorielle (CHARGE {EMBEDDING_MODEL}) ──')
         v = reindex(modeles_obsoletes=opts['modeles_obsoletes'], dry_run=opts['dry_run'])
         if not v['embedder_available']:
+            # Installer par la ROUTE (`pull_model`, le catalogue), jamais `ollama pull` à la main.
             self.stderr.write(self.style.ERROR(
-                "  embedder indisponible — Ollama démarré ? `ollama pull bge-m3` fait ?"))
+                f"  embedder indisponible — Ollama démarré ? modèle installé "
+                f"(`manage.py pull_model {EMBEDDING_MODEL}`) ?"))
             return
         self.stdout.write(f"  vectorisés : {v['traites']}   échecs : {v['echecs']}   "
                           f"restants : {v['restants']}")

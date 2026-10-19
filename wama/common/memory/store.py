@@ -42,11 +42,15 @@ SEUIL_LEXICAL = 1e-6
 
 #: Distance cosinus MAXIMALE pour qu'un voisin vectoriel compte. Sans elle, la recherche
 #: vectorielle rend TOUJOURS `k` résultats, si loin soient-ils — le mode d'échec classique du RAG :
-#: répondre du plausible plutôt que rien. Mesuré le 2026-08-21 sur « anonymisation des données
-#: personnelles » : les fragments PERTINENTS sont à 0.46–0.52, les souvenirs HORS SUJET à 0.69+.
-#: 0.60 sépare les deux populations avec de la marge des deux côtés.
+#: répondre du plausible plutôt que rien.
 #: ⚠ Valeur liée au COUPLE (modèle, corpus) : à re-mesurer si l'on change d'embedder.
-SEUIL_VECTORIEL = 0.60
+#: RE-MESURÉE le 2026-10-19 à la bascule vers qwen3-embedding:4b (requête avec son instruction),
+#: sur six requêtes, dix voisins chacune (corpus réel : 8 354 fragments, 2 425 souvenirs) : les
+#: voisins PERTINENTS vont de 0,24 à 0,46, le premier sans rapport apparaît à 0,495, et une
+#: requête HORS SUJET (« recette de la tarte aux pommes ») a son plus proche voisin à 0,653.
+#: 0,48 coupe dans l'écart, à 0,17 du hors sujet. Avec bge-m3, l'ancienne valeur (0,60, mesurée
+#: le 2026-08-21) laissait passer ce même hors sujet : son premier voisin était à 0,526.
+SEUIL_VECTORIEL = 0.48
 
 #: Poids de la saillance dans le score final. Une saillance de 1.0 majore le score de 25 % —
 #: assez pour départager deux résultats proches, trop peu pour faire remonter un hors-sujet.
@@ -199,7 +203,7 @@ def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
 
     Si l'embedder est indisponible, le rappel se poursuit en LEXICAL SEUL (dégradé, pas cassé).
     """
-    from .embed import embed_text
+    from .embed import embed_query
 
     if not (query or '').strip():
         return []
@@ -207,8 +211,9 @@ def recall(query, *, user, kinds=None, subject=None, k=8, include_rag=True,
     # `resident=True` : on DEMANDE au gouverneur de garder l'embedder chargé entre deux rappels.
     # Sans cela, chaque rappel sémantique repaie ~5 s de chargement — l'hybride devient alors
     # coûteux SANS être plus rapide au 2e appel, ce qui vide l'arbitrage de son sens. Le
-    # gouverneur reste seul juge, et refuse dès que la VRAM est demandée ailleurs.
-    vecteur = embed_text(query, resident=resident) if semantic else None
+    # gouverneur reste seul juge, et refuse dès que la VRAM est demandée ailleurs. Une REQUÊTE se
+    # vectorise avec son instruction (`embed_query`), un document nu.
+    vecteur = embed_query(query, resident=resident) if semantic else None
 
     # ⚠ UNE liste PAR RANKER, pas une par (ranker × source). RRF classe sur le RANG : fusionner
     # quatre listes séparées faisait qu'une PETITE liste hors-sujet pesait autant qu'une grande
@@ -315,7 +320,11 @@ def _by_vector(queryset, vecteur):
         return []
     try:
         from pgvector.django import CosineDistance
-        qs = (queryset.exclude(embedding__isnull=True)
+
+        from .embed import vectorized_q
+        # Les seules lignes de l'embedder COURANT : pendant une bascule, celles de l'ancien vivent
+        # dans un autre espace — leur distance à cette requête ne voudrait rien dire.
+        qs = (queryset.filter(vectorized_q())
                       .annotate(_dist=CosineDistance('embedding', vecteur))
                       .filter(_dist__lte=SEUIL_VECTORIEL)
                       .order_by('_dist')[:CANDIDATS_PAR_RANKER])
@@ -449,9 +458,9 @@ def reindex(*, lot=64, limite=None, modeles_obsoletes=False, dry_run=False, user
         reserve()
 
     from django.db.models import Q
-    manquant = Q(embedding__isnull=True)
-    if modeles_obsoletes:
-        manquant |= ~Q(embedding_model=EMBEDDING_MODEL)
+
+    from .embed import vectorized_q
+    manquant = ~vectorized_q() if modeles_obsoletes else Q(embedding__isnull=True)
 
     for modele in (MemoryItem, RagChunk):
         qs = modele.objects.filter(manquant)

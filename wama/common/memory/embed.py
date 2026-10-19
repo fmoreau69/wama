@@ -1,17 +1,29 @@
 """
-Embeddings de la mémoire — `bge-m3` via Ollama. Doc : `WAMA_MEMORY.md §7`.
+Embeddings de la mémoire — `qwen3-embedding:4b` via Ollama. Doc : `WAMA_MEMORY.md §7`.
 
-POURQUOI bge-m3 ET PAS nomic-embed-text. `nomic` est anglo-centré ; le corpus du Lescot est en
-français, et un embedder anglophone y dégrade le rappel sans jamais lever d'erreur — la panne est
-silencieuse et se mesure en pertinence, pas en logs. Le quick-win était déjà identifié
-(ROADMAP §16.1) ; la mémoire est son premier consommateur.
+POURQUOI qwen3-embedding:4b (bascule du 2026-10-19, décision de Fabien ; c'était `bge-m3`).
+Mesuré au banc `mteb_fr_retrieval` (2026-09, `PROJECT_STATUS`) : Qwen3-Embedding-4B 70,0 (1ᵉʳ sur
+116), bge-m3 61,5 (16ᵉ) — le corpus du Lescot est francophone, et un embedder faible y dégrade le rappel sans
+jamais lever d'erreur : la panne est silencieuse et se mesure en pertinence, pas en logs (c'est
+la même raison qui avait fait préférer bge-m3 à `nomic`, anglo-centré). Deux réglages le rendent
+compatible avec ce poste et avec la colonne existante :
+  • `dimensions=1024` : le modèle rend 2560 dimensions, entraîné pour être TRONQUÉ (Matryoshka) ;
+    Ollama tronque et renormalise (norme 1, mesuré). La colonne pgvector `vector(1024)` et son
+    index restent — une bascule à dimension égale est un réindex, pas une migration ;
+  • `num_ctx=2048` : sans lui, Ollama réserve le contexte complet du modèle — 9,3 Go de VRAM
+    MESURÉS, contre 3,8 Go à 2048 jetons. Les textes vectorisés font au plus ~1 000 caractères
+    (fragments du RAG : `index.CHUNK_SIZE` = 800 ; souvenirs : 1 042 au plus, mesuré) : 2048
+    jetons ne tronquent rien.
+Les REQUÊTES portent une instruction (`QUERY_INSTRUCTION`), les documents non : c'est l'usage
+prescrit par le modèle pour la recherche — une requête et le passage qui y répond ne se
+ressemblent pas, l'instruction dit au modèle ce qu'on cherche.
 
 RÈGLE D'INTÉGRATION — DÉGRADATION, JAMAIS ÉCHEC. Si Ollama est éteint, si le modèle n'est pas
 tiré, si la requête expire : on rend `None` et l'appelant écrit quand même, `embedding=NULL`.
 Une écriture perdue est irrécupérable (cf. `MemoryItem` : non re-dérivable) ; un vecteur manquant
 se rattrape par un réindex. On ne troque jamais la première contre le second.
 
-⚠ CE MODULE TOUCHE LE GPU DE L'HÔTE. Tout appel ici charge `bge-m3` côté Ollama. Sur ce poste,
+⚠ CE MODULE TOUCHE LE GPU DE L'HÔTE. Tout appel ici charge l'embedder côté Ollama. Sur ce poste,
 l'hôte Windows a crashé le 2026-08-20 pendant une série d'appels d'embedding, et la règle
 d'exploitation interdit les chargements Ollama enchaînés hors action explicite de l'utilisateur.
 Deux conséquences, portées par le code et pas par la vigilance :
@@ -28,13 +40,34 @@ logger = logging.getLogger(__name__)
 
 #: Modèle d'embedding de référence. Le nom est STOCKÉ par ligne (`Embedded.embedding_model`) :
 #: une bascule devient un réindex explicite, au lieu de mélanger deux espaces vectoriels dans la
-#: même colonne — ce qui transformerait les distances en bruit SANS erreur visible.
-EMBEDDING_MODEL = 'bge-m3'
+#: même colonne — ce qui transformerait les distances en bruit SANS erreur visible. Et une ligne
+#: d'un autre modèle n'est jamais comparée à une requête de celui-ci (`vectorized_q`).
+EMBEDDING_MODEL = 'qwen3-embedding:4b'
 
 #: Doit correspondre à `common.models.EMBEDDING_DIMS`. Un écart est une erreur de programmation,
 #: pas un cas d'usage : on refuse le vecteur plutôt que d'écrire une ligne que pgvector rejettera
-#: de toute façon, mais avec un message incompréhensible.
+#: de toute façon, mais avec un message incompréhensible. DEMANDÉE à Ollama (`dimensions`) : le
+#: modèle en rend 2560, tronquées à la source (cf. en-tête).
 EXPECTED_DIMS = 1024
+
+#: Fenêtre de contexte demandée à Ollama — ce qui borne la VRAM (cf. en-tête : 3,8 Go mesurés au
+#: lieu de 9,3). À relever si l'on vectorise un jour des textes plus longs que ~1 500 caractères.
+NUM_CTX = 2048
+
+#: Instruction des REQUÊTES (rappel), jamais des documents — forme prescrite par Qwen3-Embedding
+#: (`Instruct: <tâche>\nQuery: <requête>`), en anglais comme le recommande le modèle même pour une
+#: requête en français.
+QUERY_INSTRUCTION = ('Instruct: Given a question or keywords, retrieve the passages and memories '
+                     'that answer it\nQuery: ')
+
+
+def vectorized_q():
+    """Les lignes VECTORISÉES par l'embedder COURANT — la seule définition de « vectorisé » : la
+    recherche vectorielle (`store._by_vector`), le réindex (ce qui reste à faire) et les compteurs
+    (« Mon RAG », corpus des docs) la lisent. Un vecteur d'un autre modèle n'en est pas un : il
+    vit dans un autre espace, sa distance à une requête de celui-ci ne veut rien dire."""
+    from django.db.models import Q
+    return Q(embedding__isnull=False, embedding_model=EMBEDDING_MODEL)
 
 #: Court volontairement. Un embedding est sur le chemin d'une écriture ou d'un rappel interactif :
 #: mieux vaut dégrader en quelques secondes que faire attendre. Le réindex, lui, n'est pas pressé.
@@ -42,10 +75,10 @@ TIMEOUT_S = 20.0
 
 #: Résidence VRAM du modèle APRÈS la réponse. '0' = déchargement immédiat, à l'inverse du défaut
 #: Ollama (5 min). Même précaution que `llm_utils.ollama_chat` pour les passes courtes qui
-#: précèdent un gros chargement GPU : sans ça, une série d'écritures mémoire laisserait bge-m3
-#: squatter la VRAM entre deux appels, en concurrence avec un traitement utilisateur.
-#: Le surcoût est un rechargement par appel — négligeable pour 567 M, et c'est le prix de
-#: l'innocuité. Le réindex par LOT (`store.reindex`) amortit ça en un seul appel.
+#: précèdent un gros chargement GPU : sans ça, une série d'écritures mémoire laisserait
+#: l'embedder squatter la VRAM entre deux appels, en concurrence avec un traitement utilisateur.
+#: Le surcoût est un rechargement par appel — c'est le prix de l'innocuité. Le réindex par LOT
+#: (`store.reindex`) amortit ça en un seul appel.
 KEEP_ALIVE = '0'
 
 
@@ -81,6 +114,14 @@ def embed_text(text: str, *, model: str = '', timeout: float = TIMEOUT_S, reside
     return vectors[0] if vectors else None
 
 
+def embed_query(text: str, *, resident: bool = False):
+    """Le vecteur d'une REQUÊTE de rappel : le texte précédé de `QUERY_INSTRUCTION` (les
+    documents, eux, se vectorisent nus — `embed_text`, `embed_batch`). `None` si indisponible."""
+    if not (text or '').strip():
+        return None
+    return embed_text(QUERY_INSTRUCTION + text, resident=resident)
+
+
 def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S, keep_alive: str = None):
     """
     Rend la liste des vecteurs (même ordre que `texts`), ou `[]` si l'embedder est indisponible.
@@ -112,6 +153,8 @@ def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S, keep_aliv
         with httpx.Client(timeout=timeout, trust_env=False) as client:
             resp = client.post(f"{ollama_base()}/api/embed",
                                json={"model": model, "input": textes,
+                                     "dimensions": EXPECTED_DIMS,
+                                     "options": {"num_ctx": NUM_CTX},
                                      "keep_alive": KEEP_ALIVE if keep_alive is None
                                      else keep_alive})
         if resp.status_code != 200:
@@ -136,13 +179,14 @@ def embed_batch(texts, *, model: str = '', timeout: float = TIMEOUT_S, keep_aliv
     return vecteurs
 
 
-#: Empreinte VRAM de `bge-m3` — MESURÉE le 2026-08-21 (5926 Mo résident − 4903 après
-#: déchargement), pas estimée d'après la taille du fichier.
-VRAM_GB = 1.0
+#: Empreinte VRAM de l'embedder — MESURÉE le 2026-10-19 par Ollama (`/api/ps`, `size_vram`) à
+#: `num_ctx=2048` : 3,79 Go (bge-m3 : 1,0 Go, mesuré le 2026-08-21). Pas estimée d'après la taille
+#: du fichier : la fenêtre de contexte en fait varier le triple.
+VRAM_GB = 3.8
 
 #: Détenteur déclaré au gouverneur. Convention `<qui>#<clé catalogue>` (`OWNER_MODEL_SEP`) :
 #: c'est ce qui permet à `resident_models()` de rattacher la réservation au modèle du catalogue.
-OWNER = 'memory-embed#ollama:bge-m3:latest'
+OWNER = 'memory-embed#ollama:qwen3-embedding:4b'
 
 
 def residency_allowed(gb: float = VRAM_GB) -> tuple[bool, str]:

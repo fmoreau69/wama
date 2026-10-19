@@ -492,7 +492,7 @@ def model_keys_of(owner: str) -> list[str]:
     nom ne se résout pas.
 
     Deux formes de suffixe :
-    - une clé catalogue (`ollama-host#ollama:gemma3:4b`, `memory-embed#ollama:bge-m3:latest`) ;
+    - une clé catalogue (`ollama-host#ollama:gemma3:4b`, `memory-embed#ollama:qwen3-embedding:4b`) ;
     - `@<nom local>`, publié par le contrat de backend : le process qui charge (service TTS
       compris, SANS ORM) ne sait que sa classe et le nom qu'il sert ; la clé se résout ici, dans
       un process Django (`backends.manager.catalog_keys_for_owner`). Jusqu'au 2026-09-14 la
@@ -1390,7 +1390,7 @@ APP_TIERS = {
     # l'hôte (pattern « Ollama hôte enchaîné », instabilité sous l'OS).
     "_prospect_assess": "basse",
     # Pseudo-app : vectorisation du RAG et des souvenirs (`common.reindex_memory`, 2026-10-16) —
-    # embeddings `bge-m3` dans l'Ollama HÔTE, même profil que la passe ci-dessus : file gpu
+    # embeddings (`memory.embed.EMBEDDING_MODEL`) dans l'Ollama HÔTE, même profil que la passe ci-dessus : file gpu
     # --pool=solo, derrière tout traitement utilisateur (`WAMA_MEMORY §5bis`).
     "_memory_reindex": "basse",
 }

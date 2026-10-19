@@ -39,7 +39,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-#: Taille de découpe, en caractères. ~800 tient largement dans la fenêtre de `bge-m3` tout en
+#: Taille de découpe, en caractères. ~800 tient largement dans la fenêtre de l'embedder
+#: (`embed.NUM_CTX` = 2048 jetons, qui borne sa VRAM : la relever si l'on découpe plus grand) tout en
 #: gardant un fragment ASSEZ GRAND pour être compréhensible seul — un fragment trop court se
 #: retrouve bien mais ne veut plus rien dire une fois sorti de son contexte.
 CHUNK_SIZE = 800
@@ -325,16 +326,17 @@ def list_rag(user, level: str = '', query: str = ''):
     `level` (`user`, `unit`, `project`, `public` ; vide ou `all` = tous) et `query` (dans la
     référence de la source, casse ignorée) sont les deux filtres de la page.
     """
-    from django.db.models import Count, Min, Q
+    from django.db.models import Count, Min
 
     from ..models import RagChunk, ScopedVisibility
+    from .embed import vectorized_q
 
     niveau_de = {ScopedVisibility.VIS_PRIVATE: 'user', ScopedVisibility.VIS_UNIT: 'unit',
                  ScopedVisibility.VIS_PROJECT: 'project', ScopedVisibility.VIS_PUBLIC: 'public'}
     lignes = (RagChunk.objects.filter(user=user)
               .values('source_id', 'source_ref', 'visibility')
               .annotate(fragments=Count('id'),
-                        vectorises=Count('id', filter=Q(embedding__isnull=False)),
+                        vectorises=Count('id', filter=vectorized_q()),
                         ajoute_le=Min('created_at'))
               .order_by('-ajoute_le'))
     docs = [{'source_id': l['source_id'], 'source_ref': l['source_ref'],

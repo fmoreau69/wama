@@ -1602,7 +1602,7 @@ class CalendarFeed(models.Model):
 # tant que le Hook B de `prompt_pipeline` n'est pas branché (jalon 6).
 # ─────────────────────────────────────────────────────────────────────────────
 
-#: Dimension des vecteurs `bge-m3`. Figée ici parce qu'un changement impose une MIGRATION (la
+#: Dimension des vecteurs de l'embedder (`memory.embed`, tronqués à la source). Figée ici parce qu'un changement impose une MIGRATION (la
 #: colonne pgvector est typée `vector(N)`), pas un simple réindex — contrairement au changement
 #: de modèle à dimension égale, qui n'exige que de recalculer les embeddings.
 EMBEDDING_DIMS = 1024

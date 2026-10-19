@@ -3,7 +3,7 @@
 > **Statut : CONSTRUIT ET OUVERT AUX UTILISATEURS** (mis à jour 2026-08-22). Jalons 1-11 et
 > 13-14 livrés (le 12 — outillage assistant list/detail — reste dû, cf. tableau §10) —
 > brique `wama/common/memory/`, journal `/common/journal/`, `memory_recall` **hybride** (résidence
-> `bge-m3` arbitrée par le gouverneur), 25 souvenirs dev-ai en file de revue, **entrée au RAG
+> de l'embedder — `qwen3-embedding:4b` depuis le 2026-10-19, §7 — arbitrée par le gouverneur), 25 souvenirs dev-ai en file de revue, **entrée au RAG
 > par GESTE avec niveaux user/labo** (§7ter) et, depuis le 2026-08-22, **ses SURFACES** :
 > bouton « Ajouter au RAG » dans l'**inspecteur** (donc les 10 apps, sans une ligne par app) +
 > page **« Mon RAG »** `/common/rag/` (défauts de niveaux, liste, retrait, état des vecteurs).
@@ -81,7 +81,7 @@ class Embedded(models.Model):            # ABSTRAIT — le socle vectoriel commu
     content          = TextField()       # VERBATIM. Jamais résumé, jamais paraphrasé à l'écriture.
     content_hash     = CharField(64, db_index=True)      # dédup exacte, avant tout appel LLM
     embedding        = VectorField(dimensions=1024, null=True)   # pgvector
-    embedding_model  = CharField(64)     # 'bge-m3' — un changement de modèle = réindex, pas une
+    embedding_model  = CharField(64)     # 'qwen3-embedding:4b' — un changement de modèle = réindex, pas une
                                          # corruption silencieuse (espaces vectoriels différents)
     created_at, updated_at
     class Meta: abstract = True
@@ -171,7 +171,7 @@ plus tard et **par lot**. Trois points, portés par le code et non par la vigila
 
 S'y ajoute **`keep_alive='0'`** sur chaque appel d'embedding (`embed.py`) — le modèle est déchargé
 aussitôt au lieu de résider 5 minutes (défaut Ollama). Sans ça, une série d'écritures laisse
-`bge-m3` squatter la VRAM entre deux appels, en concurrence avec un traitement utilisateur. C'est
+l'embedder squatter la VRAM entre deux appels, en concurrence avec un traitement utilisateur. C'est
 le motif que `llm_utils.ollama_chat` documentait déjà ; il n'avait pas été repris.
 
 **`recall()` est hybride, fusionné par RRF** (Reciprocal Rank Fusion) : recherche vectorielle
@@ -211,7 +211,7 @@ il rattrape les identifiants exacts (`model_key`, nom de fichier, code projet) q
 PRODUCTEURS                       wama/common/memory/                CONSOMMATEURS
                                   │  (modèles dans common/models.py)
 wama-dev-ai        ─┐             ├─ store.py    les 5 opérations        ┌─ prompt_pipeline « Hook B »
- (procédural/       │             ├─ embed.py    bge-m3 via Ollama       │   (déjà présent, no-op)
+ (procédural/       │             ├─ embed.py    qwen3-emb. Ollama       │   (déjà présent, no-op)
   sémantique dev)   ├───────────► ├─ project.py  projections read-only  ─┤─ tool_api.py (assistant)
 assistant IA        │             └─ index.py    indexation RAG          │─ wama-dev-ai (remplace
  (épisodique)       │                                                    │   memory.json)
@@ -246,10 +246,31 @@ sur les `.md`.
 > périmètre `mirror_sync`/backup ; (c) contredit `ROADMAP §16.2`, qui avait **déjà adopté pgvector**
 > (« RAG dans Postgres existant »). C'est ROADMAP qui avait raison ; les trois autres n'ont pas suivi.
 
-**Embeddings : `bge-m3`** (1024 dims, multilingue) via Ollama — pas `nomic-embed-text`, anglo-centré
-(quick-win déjà identifié ROADMAP §16.1 ; le corpus Lescot est en français). `embedding_model` est
-stocké par ligne : une bascule de modèle devient un réindex explicite, jamais une corruption
-silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000 dims, 1024 passe).
+**Embeddings : `qwen3-embedding:4b`** via Ollama depuis le **2026-10-19** (décision de Fabien ;
+c'était `bge-m3` depuis le 2026-08-20 — pas `nomic-embed-text`, anglo-centré : le corpus Lescot est
+en français). Banc `mteb_fr_retrieval` : Qwen3-Embedding-4B 70,0 (1ᵉʳ/116), bge-m3 61,5 (16ᵉ).
+`embedding_model` est stocké par ligne : une bascule de modèle devient un réindex explicite, jamais
+une corruption silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000 dims, 1024 passe).
+
+✅ **La bascule du 2026-10-19, telle que faite** (`memory/embed.py` porte chaque raison) :
+- **1024 dimensions demandées** (`dimensions`) : le modèle en rend 2560, entraîné pour être tronqué
+  (Matryoshka) ; Ollama tronque et renormalise. La colonne `vector(1024)` et son index restent —
+  pas de migration.
+- **Fenêtre bornée** (`num_ctx` = 2048) : **9,3 Go** de VRAM mesurés sans elle, **3,8 Go** avec
+  (`VRAM_GB`, déclaré au gouverneur). Les textes font au plus ~1 000 caractères : rien n'est tronqué.
+- **Une instruction sur la REQUÊTE seule** (`embed_query`, `QUERY_INSTRUCTION`) — l'usage prescrit
+  par le modèle pour la recherche ; les documents se vectorisent nus.
+- **Deux espaces ne se comparent jamais** : « vectorisé » = par l'embedder COURANT
+  (`embed.vectorized_q`), lu par la recherche vectorielle, le réindex et les compteurs (« Mon RAG »,
+  corpus des docs). Le lot nocturne et « Vectoriser maintenant » traitent un vecteur d'un autre modèle
+  comme un vecteur manquant.
+- **Réindex** : 10 779 vecteurs (8 354 fragments, 2 425 souvenirs) en 367 s, 0 échec, résidence
+  accordée par le gouverneur puis déchargement.
+- **Seuil re-mesuré** (`store.SEUIL_VECTORIEL`, 0,60 → **0,48**) : sur six requêtes, voisins
+  pertinents de 0,24 à 0,46, premier voisin d'une requête hors sujet à 0,653. Avec bge-m3, ce même
+  hors sujet passait sous l'ancien seuil (0,526). La pertinence elle-même progresse : sur
+  « anonymisation des données personnelles », les docs de l'anonymisation remontent là où bge-m3
+  rendait des traces génériques de l'anonymizer.
 
 ## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
 
@@ -845,7 +866,7 @@ défaut) et **data-gated** — sans rappel, le prompt sort inchangé. Aucune app
 jour : le brancher ne change donc encore rien pour un utilisateur.
 
 `rag_semantic=False` par défaut, pour deux raisons cumulées : un rappel sémantique embarque la
-requête donc **charge `bge-m3` à chaque prompt**, sur le chemin interactif et sur un poste où une
+requête donc **charge l'embedder à chaque prompt**, sur le chemin interactif et sur un poste où une
 série d'embeddings a précédé un crash (§5bis) ; et les 939 fragments n'ont pas encore de vecteur,
 donc le sémantique ne rendrait rien de plus. À rebasculer après `--reindex`.
 

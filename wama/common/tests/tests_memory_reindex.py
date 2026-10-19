@@ -101,6 +101,82 @@ class ReindexTaskTest(TestCase):
         self.assertEqual('gpu', route['queue'])
         self.assertEqual('basse', tier_for('_memory_reindex'))
 
+    def test_the_task_takes_a_vector_of_another_model_as_missing(self):
+        """Après une bascule d'embedder, ce sont le lot nocturne et le bouton qui finissent le
+        réindex (2026-10-19, bge-m3 → qwen3-embedding)."""
+        from wama.common.tasks import reindex_memory_task
+        with mock.patch('wama.common.memory.store.reindex', return_value={}) as run:
+            reindex_memory_task()
+        self.assertTrue(run.call_args.kwargs['modeles_obsoletes'])
+
+
+class EmbedderSwitchTest(TestCase):
+    """La bascule bge-m3 → qwen3-embedding (2026-10-19) : deux espaces vectoriels ne se comparent
+    jamais, un vecteur d'un autre modèle est un vecteur manquant, la requête porte son instruction
+    et le modèle est appelé avec ce qui borne sa VRAM. Aucun modèle n'est chargé ici."""
+
+    def setUp(self):
+        from wama.common.memory.embed import EMBEDDING_MODEL
+        self.me = User.objects.create_user('vec_switch', password='x')
+        self.old = _chunk(self.me, 'vectorisé par l’ancien modèle', 0)
+        self.new = _chunk(self.me, 'vectorisé par le modèle courant', 1)
+        vec = [1.0] + [0.0] * (EMBEDDING_DIMS - 1)
+        RagChunk.objects.filter(pk=self.old.pk).update(embedding=vec, embedding_model='bge-m3')
+        RagChunk.objects.filter(pk=self.new.pk).update(embedding=vec, embedding_model=EMBEDDING_MODEL)
+        self.vec = vec
+
+    def test_vector_search_never_compares_two_spaces(self):
+        from wama.common.memory.store import _by_vector
+        found = [o.pk for _, o in _by_vector(RagChunk.objects.filter(user=self.me), self.vec)]
+        self.assertEqual(found, [self.new.pk], "une ligne de l'ancien modèle n'est pas comparable")
+
+    def test_a_vector_of_another_model_is_rebuilt_by_the_reindex(self):
+        from wama.common.memory.embed import EMBEDDING_MODEL
+        from wama.common.memory.store import reindex
+        with _fake_embedder() as fakes:
+            fakes['embedder_available'].return_value = True
+            fakes['residency_allowed'].return_value = (False, 'test')
+            fakes['embed_batch'].side_effect = lambda texts, **kw: [[0.0] * EMBEDDING_DIMS
+                                                                    for _ in texts]
+            summary = reindex(user=self.me, modeles_obsoletes=True)
+        self.assertEqual(summary['traites'], 1, 'seule la ligne obsolète est refaite')
+        self.old.refresh_from_db()
+        self.assertEqual(self.old.embedding_model, EMBEDDING_MODEL)
+
+    def test_the_counters_count_only_vectors_of_the_current_model(self):
+        from wama.common.memory.index import list_rag
+        row = next(d for d in list_rag(self.me) if d['source_id'] == 'file:users/x/fiche.docx')
+        self.assertEqual((row['fragments'], row['vectorises']), (2, 1))
+
+    def test_a_query_carries_its_instruction_and_a_document_does_not(self):
+        from wama.common.memory import embed
+        with mock.patch.object(embed, 'embed_batch', return_value=[[0.0] * EMBEDDING_DIMS]) as run:
+            embed.embed_query('anonymisation')
+            embed.embed_text('un fragment de document')
+        self.assertEqual(run.call_args_list[0].args[0], [embed.QUERY_INSTRUCTION + 'anonymisation'])
+        self.assertEqual(run.call_args_list[1].args[0], ['un fragment de document'])
+        with mock.patch('wama.common.memory.embed.embed_query', return_value=None) as query:
+            from wama.common.memory.store import recall
+            recall('anonymisation', user=self.me)
+        self.assertEqual(query.call_args.args[0], 'anonymisation', 'le rappel vectorise une REQUÊTE')
+
+    def test_the_model_is_asked_for_the_column_size_and_a_bounded_window(self):
+        """1024 dimensions demandées (la colonne `vector(1024)` reste) et une fenêtre de contexte
+        bornée — sans elle, 9,3 Go de VRAM mesurés au lieu de 3,8."""
+        from wama.common.memory import embed
+        from wama.common.memory.index import CHUNK_SIZE
+        client = mock.MagicMock()
+        client.__enter__.return_value.post.return_value = mock.Mock(
+            status_code=200, json=lambda: {'embeddings': [[0.0] * EMBEDDING_DIMS]})
+        with mock.patch('httpx.Client', return_value=client):
+            embed.embed_batch(['texte'])
+        sent = client.__enter__.return_value.post.call_args.kwargs['json']
+        self.assertEqual((sent['model'], sent['dimensions']), (embed.EMBEDDING_MODEL, EMBEDDING_DIMS))
+        self.assertEqual(sent['options']['num_ctx'], embed.NUM_CTX)
+        self.assertGreater(embed.NUM_CTX, CHUNK_SIZE, 'un fragment entier tient dans la fenêtre')
+        self.assertTrue(embed.OWNER.endswith('#ollama:' + embed.EMBEDDING_MODEL),
+                        'le gouverneur rattache la réservation à la ligne du catalogue')
+
 
 class ReindexButtonTest(TestCase):
 
