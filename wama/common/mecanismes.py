@@ -2741,7 +2741,10 @@ MECHANISMS = (
                        # Le GRAPHE porteur de valeurs (2026-10-18, ROUTE §10.6 3.3bis règle 5) :
                        # ce que fournit chaque nœud, ce que reçoit un nœud — LE parcours que lit
                        # aussi le diagnostic des liens.
-                       'wama/studio/services/graph_flow.py')),
+                       'wama/studio/services/graph_flow.py',
+                       # La PALETTE d'un compte, seule règle de ce qu'il peut poser et lancer, et
+                       # la raison d'un nœud qu'elle n'offre pas (2026-10-19, ROADMAP §16.11).
+                       'wama/studio/services/palette.py')),
     Mechanism('tool_api', "Surface d'outils",
               "Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas",
               'wama/tool_api.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md'),

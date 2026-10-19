@@ -5744,6 +5744,18 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   `navigable_pages`, explorateur) lisent `get_app_groups()`, et la projection JS
 >   `WAMA_APP_CATALOG` reste le contrat des apps de fichiers. Garde : `tests_catalogues.
 >   AppIdentityTest` (dont « rien ne lit une déclaration hors du registre »).
+>   ⏳ **Reste, consigné le 2026-10-20 (Fabien : « on verra ensuite pour le filtre, il y a
+>   peut-être des alignements »)** — le filtre « App » du model manager affiche
+>   `AIModel.source` BRUT (`model_manager/templates/model_manager/index.html:2237`, comme le
+>   badge de card `:1167` et la ligne « App / source » de l'inspecteur `:1659`). Cette clé a
+>   trois natures, et chacune a déjà sa lecture : une app (→ `app_identity`), un fournisseur
+>   distant (→ `external_sources.remote_origin_label` — l'abonnement Claude Code reste distinct
+>   de l'API Anthropic, précision voulue par Fabien), un modèle trouvé par balayage hors app
+>   (Hugging Face, Ollama, GitHub → le libellé du registre des sources). Alignements relevés au
+>   même moment : les libellés de `ModelSource` (`model_manager/models.py:481`) recopient des
+>   noms d'apps et de sources, `AIModel.platform_label` (`:897`) recopie des noms de
+>   plateformes, et la page d'admin des droits affiche la clé de l'app
+>   (`app_access_matrix.html:45`). Rien n'est décidé.
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**

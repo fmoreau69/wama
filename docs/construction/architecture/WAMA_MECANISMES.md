@@ -347,10 +347,10 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 | Mécanisme | Rôle | Domicile | Doc de référence | Consommateurs |
 |---|---|---|---|---|
 | **API REST v1** | Passerelle générique (token+session) sur TOOL_REGISTRY : lister/exécuter, gating F7 à l'annonce ET à l'exécution | `wama/api/v1/views.py` | — | 3 |
-| **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `docs/construction/mondes/STUDIO_VISION.md` | 21 |
+| **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `docs/construction/mondes/STUDIO_VISION.md` | 20 |
 | **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 58 |
 
-**Mécanismes déclarés : 210** · domiciles absents : 0 · sans consommateur : 0 (+ 1 autonomes DÉCLARÉS) · assumés locaux : 14 · modules balayés non rattachés : 73 · **de niveau app sans critère de grille : 55**
+**Mécanismes déclarés : 210** · domiciles absents : 0 · sans consommateur : 0 (+ 1 autonomes DÉCLARÉS) · assumés locaux : 14 · modules balayés non rattachés : 72 · **de niveau app sans critère de grille : 55**
 - ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : `wama/common/utils/voice_options.py`
 - ℹ️ **Sans consommateur, et c'est DÉCLARÉ** (point d'entrée de process, ou intention consignée — pas du code mort) :
   - `qc` — INTENTION CONSIGNÉE, pas une brique morte (ROADMAP §16.5) : le 3ᵉ étage de l'échelle des signaux — la MESURE INTERNE — est vide, et ce juge l'attend. Mesuré le 2026-09-19 : 0 consommateur, bench compris
@@ -417,7 +417,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 
 </details>
 
-<details><summary>⚠ <b>73 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
+<details><summary>⚠ <b>72 module(s) balayé(s) non rattachés au registre</b> — à déclarer dans <code>wama/common/mecanismes.py</code>, ou à assumer comme utilitaires locaux (tout n'est pas un mécanisme transversal)</summary>
 
 
 `wama/common/services/` (1) — `ui_smoke_contrast.py`
@@ -427,8 +427,6 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 `wama/common/backends/` (54) — `ai_upscaler.py` · `albert_asr_backend.py` · `audio8_backend.py` · `audio_enhancer.py` · `audiocpp_backend.py` · `audiocraft_backend.py` · `bark_backend.py` · `blip_backend.py` · `cogvideox_backend.py` · `coqui_backend.py` · `deepface_backend.py` · `depth_backend.py` · `depth_engine.py` · `diffusers_backend.py` · `doctr_backend.py` · `egoblur_backend.py` · `emotions.py` · `flux2_klein_backend.py` · `frwhisper_backend.py` · `glm_ocr_backend.py` · `hf_object_detection_backend.py` · `higgs_backend.py` · `hunyuan_video_backend.py` · `image_generation_base.py` · `image_to_3d_backend.py` · `imaginairy_backend.py` · `kokoro_backend.py` · `kokoro_onnx_backend.py` · `locate_anything_backend.py` · `ltx_video_backend.py` · `midi_extraction_base.py` · `mochi_backend.py` · `muscriptor_backend.py` · `musetalk_backend.py` · `music_generation_base.py` · `nemo_asr_backend.py` · `ocr_base.py` · `olmocr_backend.py` · `pyannote_diarizer.py` · `qwen3_tts_backend.py` · `qwen_asr_backend.py` · `qwen_image_backend.py` · `sam3_processor.py` · `score_extraction_base.py` · `sheetsage2_backend.py` · `speech_to_text_base.py` · `stt_1b_en_fr_trfs_backend.py` · `supra2_img_onnx_backend.py` · `table_transformer_backend.py` · `talkinghead_backend.py` · `vibevoice_backend.py` · `wan_video_backend.py` · `whisper_backend.py` · `yue2_3b_backend.py`
 
 `wama/common/static/common/js/` (11) — `library-add.js` · `brick-html-preview.js` · `brick-image-boxes.js` · `brick-media-transport.js` · `brick-object-list.js` · `brick-revision-history.js` · `brick-score-view.js` · `brick-surface-actions.js` · `brick-text-sections.js` · `wama-avatar-render.js` · `wama-input-slots.js`
-
-`wama/studio/services/` (1) — `palette.py`
 
 </details>
 
