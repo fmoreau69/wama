@@ -3281,7 +3281,7 @@ pillow 11.3.0 (36), aiohttp (48), cryptography, pyjwt, python-multipart, urllib3
 |---|---|---|---|
 | 0 | inventaire structurel, périmètre retenu/écarté | moi | ✅ 2026-10-06 |
 | 1 | noyau des modèles : détection (`model_detection`, `supported_models`), base (`model_base`), chargement single-file / quantifié, gestion VRAM (`model_management`, `model_patcher`) | moi (lecture déléguée, 5 points revérifiés à la ligne) | ✅ 2026-10-06 |
-| 2 | noyau d'extension : contrat des nœuds (`comfy_api` v3), nœuds tiers, exécution (`comfy_execution`) — sécurité comprise | moi | ⏳ |
+| 2 | noyau d'extension : contrat des nœuds (`comfy_api` v3), nœuds tiers, exécution (`comfy_execution`) — sécurité comprise | moi | 🔄 volet « gestionnaire des nœuds tiers » (ComfyUI-Manager) fait le 2026-10-19, ci-dessous ; contrat des nœuds et exécution ⏳ |
 | 3 | implémentations par famille (`comfy/ldm/<famille>`) recoupant le catalogue WAMA | wama-dev-ai (volume, lecture seule) | ⏳ — exige de la VRAM libre (WAMA arrêté : moment à choisir par Fabien) |
 | 4 | variantes / portages (nœuds `comfy_extras` par famille) | wama-dev-ai | ⏳ |
 | 5 | confrontation à WAMA (contrat de backend, routes d'intégration, gouverneur, marche B2) + plan ordonné, décisions Dn | moi | ⏳ |
@@ -3347,6 +3347,62 @@ lecture faite par un agent, **cinq points revérifiés à la ligne** (marqués �
 - « S'inspirer » se confirme comme la voie sans coût : la détection par les poids et les
   déclarations de `supported_models` sont exactement ce qu'un rôle `backend` (marche B2)
   gagnerait à lire comme voisins.
+
+**Passe 2, volet gestionnaire — ComfyUI-Manager confronté à WAMA (2026-10-19)** — question de
+Fabien : *« le model manager de ComfyUI a-t-il des choses intéressantes à s'inspirer par rapport à
+WAMA ? »*. ⚠ Source : le README officiel du gestionnaire (`github.com/comfy-org/ComfyUI-Manager`),
+sa page de configuration (`docs.comfy.org/manager/configuration`) et le wiki d'installation des
+nœuds — **pas son code** (dépôt distinct du cœur, hors du corpus `comfyui` de la passe 0). Les
+lignes WAMA sont, elles, lues dans le code. **Rien n'est décidé ; rien n'est implémenté.**
+
+*Ce que WAMA fait déjà, souvent plus strictement* :
+
+| gestionnaire ComfyUI | WAMA |
+|---|---|
+| installe depuis une adresse Git ou par pip libre, permis sur un accès local selon le niveau de sécurité | refusé par principe : PyPI par nom, version exacte, ni `git+`, ni adresse, ni option (`model_installer.py:2046`, `pip_spec_error` ; verrous `§16.7`) |
+| liste noire des rétrogradations, versions épinglées remises au démarrage (`pip_auto_fix`) | simulation `pip install --dry-run` AVANT, avec les mêmes contraintes, qui liste et refuse les rétrogradations (`model_installer.py:2198-2244`) |
+| statut « Try Install » (installation non garantie) | `AIModel.is_installable` (`model_manager/models.py:878`) |
+| « Fetch Updates » sans appliquer | prospection : « MAJ proposée », jugée puis validée par un humain |
+| ligne de commande `cm-cli` | `pull_model`, `install_library`, outils de l'assistant |
+| « installer les nœuds manquants » d'un workflow | au LANCEMENT, la route installe le modèle absent, prévient, la tâche attend (`studio/gpu_tasks.py:34-41` ; un nœud d'app passe par l'outil de l'app, `generic_runner.py:358`, `:376`, donc par son squelette — règle `AGENTS.md` « par la route ») |
+| un nœud recréé garde les liens dont le nom correspond | un graphe ancien relie par identifiant de port, puis par rôle, puis au premier port (`wama-studio.js:726-732`) |
+
+*Pistes à garder (hypothèses, chacune avec la ligne WAMA qui montre l'écart)* :
+1. **Niveau de risque par GESTE.** Le gestionnaire classe ses actions (élevé : un poids qui n'est
+   pas en `.safetensors` et hors de sa liste). WAMA décide par rôle du compte, et garde un `.pt`
+   sans jumeau `.safetensors` (`model_installer.py:180-199`) ; or un `.pt`/`.bin` est du pickle,
+   donc du code exécuté au chargement (`weights_metadata.py:110-120` ne le lit que sous
+   `AI_MODELS_DIR`). Piste : « format pickle hors catalogue = geste à risque », dit à l'installation.
+2. **Relevé de l'état pip avant chaque installation réelle**, pour annuler en un geste (le
+   gestionnaire photographie avant « Update All » et restaure au redémarrage). WAMA date ses
+   installations (`InstallEvent`, `model_manager/models.py:1143`) mais ne sait revenir en arrière
+   que pour un modèle Ollama remplacé (`model_installer.py:1496-1526`).
+3. **Vulnérabilités vérifiées AVANT d'installer**, pas seulement la nuit. `check_dep_vulns`
+   interroge OSV.dev sur les paquets DÉJÀ installés (`mecanismes.py:996-1001`), lancé par la
+   nocturne (`nightly_scenarios.py:192`) ; la simulation de la piste ci-dessus connaît les versions
+   à venir et pourrait poser la même question.
+4. **Dire ce qui manque à l'OUVERTURE d'un pipeline** (le gestionnaire liste les nœuds absents à
+   l'import d'un workflow). Vérifié au studio le 2026-10-19 :
+   - il n'existe **aucun import de pipeline venu d'ailleurs** : pas de route d'import
+     (`studio/urls.py`), `StudioPipeline` propre à son auteur et sans partage (`studio/models.py:28-33` ;
+     déjà au plan de `WAMA_COLLABORATION.md`, marche 4), `manifests/pipelines/` = corpus EXPORTÉ
+     du code, systèmes seuls (`manifest_export.py:42-47`, `:65-67`) ;
+   - ⚠ **mais un nœud que la palette ne connaît pas disparaît EN SILENCE à l'ouverture** :
+     `addNode` rend `null` (`wama-studio.js:298-299`), `loadGraph` saute le nœud et ses liens
+     (`:719-724`). La palette filtre par accès à l'app, exécutabilité et visibilité
+     (`studio/views.py:57-59`, `:78-85`) : ouvrir un pipeline déclaré, ou le sien après une perte
+     d'accès, l'ampute sans le dire — et l'enregistrer sous le même nom (`views.py:135`, mise à jour
+     par nom) efface le nœud en base. Le lancement, lui, refuse en nommant le nœud
+     (`launch.py:163-170`), mais il ne voit que le graphe déjà amputé. Reste du studio, à porter
+     avant le partage des pipelines.
+5. **Mode réseau déclaré** (public / privé / hors-ligne) et relais pour Hugging Face et GitHub
+   (`HF_ENDPOINT`, `GITHUB_ENDPOINT`) — utile derrière un proxy ou sans Internet ; aucune
+   occurrence dans `wama/settings.py`. Secondaire.
+
+*À ne PAS reprendre* : l'exécution automatique de l'`install.py` d'une extension (code arbitraire,
+sans relecture) ; l'installation par adresse Git, le pip libre, un registre communautaire ouvert
+(morts aux verrous `§16.7`) ; le niveau `weak`, que les guides font activer pour « débloquer » une
+installation et qui retire toutes les protections d'un coup.
 
 ---
 
