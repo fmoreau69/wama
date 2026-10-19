@@ -695,8 +695,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         tirait lui-même le point de contrôle de Beat This! — les trois fichiers sont désormais
         DÉCLARÉS et installés par le pilote `files` (`PROSPECTION_PIPELINE §Session du 2026-10-16`,
         règle « librairies et modèles par la route » d'`AGENTS.md`).
-      - ⏳ **Restes** : le choix MANUEL du modèle du process (auto + manuel, aujourd'hui tiré seul) ;
-        les rendus à tempo variable sont placés en 4/4 sur les temps joués, sans temps forts.
+      - ✅ **le choix MANUEL du modèle du process (2026-10-19)** : réglage `parts_model` (auto +
+        manuel), patron des modèles de rôle du describer — select du catalogue borné par la tâche,
+        montré quand la case l'active, tirage « auto » fait pour la card, modèle demandé à la route
+        par la glu (`PROSPECTION_PIPELINE §Session du 2026-10-16`).
+      - ⏳ **Reste** : les rendus à tempo variable sont placés en 4/4 sur les temps joués, sans
+        temps forts.
     - **versions** : le composer est la 2ᵉ app à GARDER ses sorties (`KeptOutputsMixin`, migration
       `0021` additive appliquée avant le modèle, `keep_outputs('composer', 20, fields=SCORE_FIELDS)`
       — la PARTITION seule : `keep_outputs` accepte désormais les champs gardés, sinon chaque

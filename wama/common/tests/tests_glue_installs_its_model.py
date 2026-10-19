@@ -161,6 +161,30 @@ class GlueInstallsItsModelTest(SimpleTestCase):
         self.assertEqual(['transcriber:wav2vec2-fr'], asked)
         load.assert_not_called()
 
+    def test_composer_score_extractor(self):
+        """2026-10-19 : the composer's secondary processes resolved their model and loaded it —
+        a model drawn among the installed ones never waited, a model CHOSEN on the card would
+        have been pulled at load."""
+        from wama.composer import tasks
+        ctx, asked = _waiting_context()
+        with mock.patch('wama.composer.utils.model_choice.score_extractor',
+                        return_value='composer:sheetsage2'), \
+                mock.patch('wama.common.backends.manager.backend_for_key') as load, \
+                self.assertRaises(ServiceNotReady):
+            tasks._extract_score(mock.MagicMock(), ctx)
+        self.assertEqual(['composer:sheetsage2'], asked)
+        load.assert_not_called()
+
+    def test_composer_full_score_model_set_on_the_card(self):
+        from wama.composer import tasks
+        ctx, asked = _waiting_context()
+        gen = mock.MagicMock(parts_model='huggingface:org/other-transcriber')
+        with mock.patch('wama.common.backends.manager.backend_for_key') as load, \
+                self.assertRaises(ServiceNotReady):
+            tasks._parts(gen, ctx)
+        self.assertEqual(['huggingface:org/other-transcriber'], asked)
+        load.assert_not_called()
+
     def test_the_generated_model_glue_asks_too(self):
         """The task generator's MODEL flavour (an app born from the chain) carries the gesture."""
         from wama.common.manifests.codegen import tasks_gen

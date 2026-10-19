@@ -131,7 +131,8 @@
           "share": 2,
           "toggle": "extract_parts",
           "watched": [
-            "extract_parts"
+            "extract_parts",
+            "parts_model"
           ]
         }
       }

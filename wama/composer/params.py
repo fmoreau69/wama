@@ -9,7 +9,7 @@ cardSettings générique lit les data-model/data-duration de la racine de card.
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.common.utils.output_formats import output_format_params_for_app
-from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, TASKS
+from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, PARTS_EXTRACTION_TASK, TASKS
 from wama.composer.utils.vocals import (AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES,
                                         SONG as VOCALS_SONG)
 
@@ -104,6 +104,26 @@ PARAMS = [
                "« Éditer la partition ». Une transcription automatique : à relire.",
           dom_id={"panel": "extractParts", "item": "settingsExtractParts",
                   "batch": "batchSettingsExtractParts"},
+          contexts=PANEL_ITEM_BATCH, stales=("parts",)),
+    # Le MODÈLE de la partition complète (2026-10-19) : plusieurs modèles peuvent écrire ce process
+    # — le patron des modèles de rôle du describer (`asr_model`, route F4b : options du CATALOGUE
+    # bornées par la TÂCHE, « auto » en tête et sa prévision), montré quand la case l'active, comme
+    # le modèle de diarisation du transcriber. ⚠ Après `model` : `auto_model.catalog_field` rend le
+    # PREMIER select de catalogue, celui du rendu.
+    # Pas de chip : la card ne liste pas un réglage inactif, et une chip ne lit pas le `show_if`
+    # (`card_chips.chips_for`) — la case qui l'active n'en a pas non plus.
+    Param(name="parts_model", type="select", label="Modèle de partition complète",
+          icon="fa-list-ol",
+          show_if="extract_parts",
+          options_source="catalog",
+          options_query={"task": PARTS_EXTRACTION_TASK},
+          options_auto=True,
+          help_source="composer",
+          help_fallback={"auto": "Choisi au lancement : le meilleur modèle de partition complète "
+                                 "installé tenant dans la mémoire GPU libre."},
+          default="auto",
+          dom_id={"panel": "partsModel", "item": "settingsPartsModel",
+                  "batch": "batchSettingsPartsModel"},
           contexts=PANEL_ITEM_BATCH, stales=("parts",)),
 ]
 

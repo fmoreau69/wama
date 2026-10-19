@@ -24940,3 +24940,24 @@ le balayage des snapshots · paroles (`lyrics`) sur la surface · écoute sans r
 de `composer_01` · smoke du lecteur 4 caméras après adoption de `ranged_response` · Leaflet hors
 de `update_vendors.sh` · calage de la partition à juger à l'oreille (Fabien). Bark n'a JAMAIS été
 téléchargé : la route l'installera à la première tâche (12 Go).
+
+## §PALIER 2026-10-19 — PARTITION (suite de la clôture) : LA CASE ATTEINT LA CARD, LE MODÈLE DE LA PARTITION COMPLÈTE SE CHOISIT
+
+Suite de `§CLÔTURE 2026-10-15→19` ; domicile `ROUTE §F3b`, détail `PROSPECTION_PIPELINE §Session
+du 2026-10-16`.
+- `1ee09530` (relevé par Fabien sur #849) : la case « Partition complète » n'atteignait pas la card
+  — dépôt du volet par une liste JS écrite à la main, route ⚙ qui l'ignorait ; le contrat commun
+  `tests_item_settings_contract` mesure désormais TOUS les réglages inscriptibles.
+- Ce commit : 🔚 « choix MANUEL du modèle du process `parts` » SOLDÉ — réglage `parts_model`
+  (patron des modèles de rôle du describer), migration composer `0023` APPLIQUÉE (`db_default`) ;
+  les glues `parts` ET `extract_score` demandent leur modèle à la route (`ctx.ensure_model`,
+  écart de `9684934e` ramené pour `extract_score`).
+- ⚠ À trancher (Fabien) : `available` du process reste « un modèle de la tâche est installé »
+  (`ROUTE §10.6`) — un modèle CHOISI alors qu'aucun de la tâche n'est installé ne fait pas jouer
+  le process ; sans effet aujourd'hui (MuScriptor, seul de la tâche, est installé).
+- Rouges hors de ce travail : `tests_settings_surfaces` (composer `lyrics`, transcriber
+  `quality_intent`, déjà le matin) ; `tests_tool_api_lectures.AddItemToMediaLibraryTest
+  .test_ne_DEVINE_pas_le_role_et_rend_les_candidats` attend des candidats du composer, qui
+  DÉCLARE son rôle depuis `1ec0fd79` (2026-10-02) — le contrat de la médiathèque
+  (`wama/media_library/tests/tests_export_service.py`, composer « musique ou bruitage ») dit l'inverse.
+- 🔴 relancer gunicorn + workers, puis Ctrl+F5 sur le composer.

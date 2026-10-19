@@ -118,12 +118,14 @@ SCORE_EXTRACTION_TASK = 'audio-to-score'
 PARTS_EXTRACTION_TASK = 'audio-to-midi'
 
 
-def model_for_task(task: str) -> str:
-    """Clé de catalogue du modèle d'un process qui n'emploie PAS le modèle de la card — tirée par
-    le sélecteur commun parmi les modèles INSTALLÉS de `task` (VRAM du moment comprise), '' s'il
-    n'y en a aucun. Jamais un nom de modèle ici."""
-    from wama.model_manager.services.model_selector import select_model_id
-    return select_model_id(source=None, task=task, fallback='') or ''
+def model_for_task(task: str, requested=None, item=None) -> str:
+    """Clé de catalogue du modèle d'un process qui n'emploie PAS le modèle de la card : celui que
+    la card DÉSIGNE pour ce process (`requested`, son réglage de modèle), sinon le tirage du
+    sélecteur commun parmi les modèles INSTALLÉS de `task` (VRAM du moment comprise) — '' s'il
+    n'y en a aucun. `item` : la card, dont le tirage lit le curseur et le compte, comme la
+    prévision de son select (`resolve_model_choice`). Jamais un nom de modèle ici."""
+    from wama.common.utils.auto_model import resolve_model_choice
+    return resolve_model_choice(requested, spec={'task': task}, fallback='', item=item) or ''
 
 
 def task_installed(task: str) -> bool:
@@ -147,9 +149,10 @@ def score_extraction_available() -> bool:
     return task_installed(SCORE_EXTRACTION_TASK)
 
 
-def parts_extractor() -> str:
-    """Le modèle qui écrit la partition complète (process `parts`)."""
-    return model_for_task(PARTS_EXTRACTION_TASK)
+def parts_extractor(gen) -> str:
+    """Le modèle qui écrit la partition complète de CETTE card (process `parts`) : son réglage
+    `parts_model`, ou le tirage « auto »."""
+    return model_for_task(PARTS_EXTRACTION_TASK, getattr(gen, 'parts_model', None), item=gen)
 
 
 def parts_extraction_available() -> bool:

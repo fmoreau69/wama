@@ -3050,7 +3050,21 @@ Suite de la veille ci-dessus, décisions (a)(b)(d) appliquées ; licence accept�
      se régénère à sa prochaine passe (`manifest_export`), pas dans ce commit.
 - **mesures (#754, 210 s, RTX 4090)** : chargement 28 s, transcription 99-151 s, pic 9,77 Go ;
   6 parties (voix, piano, basse électrique, batterie, nappe de synthé, flûtes).
-- ⏳ **reste** : choix manuel du modèle du process.
+- ✅ **choix manuel du modèle du process (2026-10-19)** — le patron des modèles de rôle du
+  describer (`asr_model`), rien de neuf : colonne `ComposerGeneration.parts_model` (« auto » par
+  défaut, `db_default`, migration `0023` appliquée), réglage `parts_model` du schéma (select du
+  CATALOGUE borné par la tâche `audio-to-midi`, « auto » et sa prévision, montré quand la case
+  l'active comme le modèle de diarisation du transcriber, ne périme que `parts`). Au lancement,
+  `model_choice.model_for_task(tâche, réglage, item=card)` passe par `resolve_model_choice` —
+  le réglage tel quel, sinon le tirage POUR la card (son compte, son curseur : ce que lit la
+  prévision du select), comme le modèle de rendu (`composer/utils/auto_model.py`). La glu demande
+  le modèle à la route (`ctx.ensure_model`) : un modèle choisi mais absent s'installe pendant que
+  la tâche attend. Même geste ramené dans `_extract_score`, qui ne le faisait pas (écart de
+  `9684934e` : « toute glu » n'avait pas couvert les process secondaires du composer).
+  ⚠ **Laissé tel quel, à trancher** : `available` du process reste « un modèle de la tâche est
+  INSTALLÉ » (`ProcessSpec.available`, ROUTE §10.6) — un modèle choisi alors qu'aucun de la tâche
+  n'est installé ne fait pas jouer le process (aujourd'hui sans effet : MuScriptor, seul modèle
+  de la tâche, est installé).
 - ⚠ **La case n'atteignait pas la card (relevé par Fabien sur #849, 2026-10-19)** : cochée, la
   partition complète ne s'affichait pas et la case revenait à « non ». Deux trous, aucun dans le
   process : (1) le dépôt du volet postait une liste de réglages ÉCRITE dans `index.js`, sans

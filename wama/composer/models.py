@@ -110,6 +110,11 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     # `db_default` : le code en service crée des générations sans connaître la colonne.
     extract_parts = models.BooleanField(default=False, db_default=False,
                                         help_text='Partition complète : une partie par instrument')
+    # Le MODÈLE du process `parts` (2026-10-19) : clé de catalogue d'un modèle de la tâche
+    # `audio-to-midi`, ou « auto » — le patron des modèles de rôle du describer (`asr_model`…).
+    # `db_default` : le code en service crée des générations sans connaître la colonne.
+    parts_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
+                                   help_text="Clé de catalogue du modèle de partition complète, ou « auto ».")
     parts_score = models.FileField(
         upload_to=upload_to_user_output('composer'),
         blank=True, null=True,

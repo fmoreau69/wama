@@ -5,7 +5,8 @@ part per instrument (task `audio-to-midi`, MuScriptor), written in ABC by the co
 What each test holds:
   * the process only runs when the card asks for it (`extract_parts`) AND a model of the task is
     installed ; it comes after the output, on the final song ;
-  * its model is not the card's: drawn by task, released at once, named on its execution line ;
+  * its model is not the card's: chosen on the card (`parts_model`, 2026-10-19) or drawn by task
+    under « auto », asked from the route, released at once, named on its execution line ;
   * the MIDI is written as a score output of the card, never handed to the render ;
   * a failed transcription fails the card's line and releases the model.
 
@@ -28,6 +29,8 @@ from wama.composer.tests_pipeline import ENGINES, PLAIN_MODEL, _PlainEngine
 from wama.composer.tests_task import _celery_task
 
 TRANSCRIBER = 'huggingface:MuScriptor/muscriptor-large'
+#: A second model of the task, CHOSEN on the card (`parts_model`) — the draw never returns it.
+OTHER_TRANSCRIBER = 'huggingface:org/other-transcriber'
 
 
 def _two_parts_midi() -> bytes:
@@ -73,17 +76,25 @@ class FullScoreTest(TestCase):
         _PlainEngine.renders = []
         _Transcriber.built, _Transcriber.unloaded, _Transcriber.calls, _Transcriber.error = 0, 0, [], None
         self.installed = True
+        self.draws, self.asked = [], []
+
+    def _draw(self, source=None, requested=None, fallback=None, task=None, **domain):
+        """The common selector's draw (`select_model_id`), stood in BELOW the composer's choice
+        (`model_choice.parts_extractor`), which these tests hold : the installed model of the task."""
+        self.draws.append({'task': task, **domain})
+        return TRANSCRIBER if (self.installed and task == 'audio-to-midi') else fallback
 
     def _run(self, gen=None, **fields):
         if gen is None:
             gen = ComposerGeneration.objects.create(user=self.user, prompt='pop song',
                                                     model=PLAIN_MODEL, status='RUNNING', **fields)
-        engines = {**ENGINES, TRANSCRIBER: _Transcriber}
+        engines = {**ENGINES, TRANSCRIBER: _Transcriber, OTHER_TRANSCRIBER: _Transcriber}
         with mock.patch('wama.common.utils.task_skeleton.close_old_connections'), \
                 mock.patch('wama.common.backends.manager.backend_for_key',
                            side_effect=lambda key: engines.get(key)), \
-                mock.patch('wama.composer.utils.model_choice.parts_extractor',
-                           side_effect=lambda: TRANSCRIBER if self.installed else ''), \
+                mock.patch('wama.model_manager.services.select_model_id', side_effect=self._draw), \
+                mock.patch('wama.common.utils.model_readiness.ensure_installed',
+                           side_effect=lambda key, **kw: self.asked.append(key) or True), \
                 mock.patch('wama.composer.utils.model_choice.parts_extraction_available',
                            side_effect=lambda: self.installed), \
                 mock.patch('wama.common.utils.audio_rhythm.beat_grid', return_value=None), \
@@ -117,6 +128,26 @@ class FullScoreTest(TestCase):
         line = process_runs.line(gen, 'parts')
         self.assertEqual((gen.parts_score.name, 'composer.parts', TRANSCRIBER),
                          (line.output_ref, line.process_key, line.model_key))
+
+    def test_the_model_chosen_on_the_card_writes_the_full_score(self):
+        """2026-10-19 : several models can write this process ; the card names one
+        (`parts_model`). It is not drawn, it is asked from the ROUTE (absent, installed while the
+        task waits), loaded and named on the line."""
+        gen = self._run(extract_parts=True, parts_model=OTHER_TRANSCRIBER)
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['parts'], gen.error_message)
+        self.assertEqual(OTHER_TRANSCRIBER, process_runs.line(gen, 'parts').model_key)
+        self.assertEqual('org/other-transcriber', _Transcriber.calls[0]['model_id'])
+        self.assertIn(OTHER_TRANSCRIBER, self.asked)
+        self.assertEqual([], [d for d in self.draws if d['task'] == 'audio-to-midi'])
+
+    def test_under_auto_the_draw_is_made_for_the_card(self):
+        """« auto » : the common selector draws among the task's models FOR this card — its
+        account and its quality cursor, the ones its select's forecast reads."""
+        gen = self._run(extract_parts=True, quality_intent=10)
+        self.assertEqual(TRANSCRIBER, process_runs.line(gen, 'parts').model_key)
+        (draw,) = [d for d in self.draws if d['task'] == 'audio-to-midi']
+        self.assertEqual((10, self.user.pk), (draw.get('quality_intent'), draw['user'].pk))
+        self.assertIn(TRANSCRIBER, self.asked)
 
     def test_without_the_toggle_nothing_is_transcribed(self):
         gen = self._run()
@@ -171,10 +202,27 @@ class TheToggleReachesTheCardTest(TestCase):
             with self.subTest(posted=posted):
                 response = self.client.post(reverse('composer:generate'),
                                             {'prompt': 'a song', 'model': 'musicgen-small',
-                                             'duration': '5', 'extract_parts': posted})
+                                             'duration': '5', 'extract_parts': posted,
+                                             'parts_model': OTHER_TRANSCRIBER})
                 self.assertEqual(200, response.status_code, response.content[:300])
                 gen = ComposerGeneration.objects.get(pk=response.json()['id'])
                 self.assertIs(expected, gen.extract_parts)
+                self.assertEqual(OTHER_TRANSCRIBER, gen.parts_model)
+
+    def test_the_model_setting_follows_its_process(self):
+        """Its select : the catalogue models of the task the glue draws in, « auto » first ;
+        shown when the toggle turns the process on ; it stales that process alone."""
+        from wama.composer.function_specs import PIPELINE
+        from wama.composer.params import PARAMS
+        from wama.composer.utils.model_choice import PARTS_EXTRACTION_TASK
+        (param,) = [p for p in PARAMS if p.name == 'parts_model']
+        self.assertEqual(('catalog', {'task': PARTS_EXTRACTION_TASK}, True, 'extract_parts'),
+                         (param.options_source, param.options_query, param.options_auto,
+                          param.show_if))
+        self.assertIn('parts_model', PIPELINE.watched_of(PIPELINE.spec('parts')))
+        others = [s.key for s in PIPELINE.specs if 'parts_model' in PIPELINE.watched_of(s)]
+        self.assertEqual(['parts'], others)
+        self.assertEqual('auto', ComposerGeneration().parts_model)
 
     def test_the_panel_posts_its_whole_host_not_a_hand_list(self):
         """Every panel setting travels with the deposit because the add-to-queue reads the panel

@@ -172,8 +172,9 @@ PIPELINE = register_app_pipeline(_APP, (
     # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.
     output_spec(depends_on=('render',)),
     # PARTITION COMPLÈTE (2026-10-16) : optionnelle (`extract_parts`), APRÈS la sortie — elle lit
-    # le morceau final. Son modèle n'est pas celui de la card : la tâche `audio-to-midi`, tirée par
-    # le sélecteur commun ; elle n'a lieu que si un tel modèle est installé (`available`).
+    # le morceau final. Son modèle n'est pas celui de la card : un modèle de la tâche `audio-to-midi`,
+    # choisi sur la card (`parts_model`, 2026-10-19) ou tiré par le sélecteur commun sous « auto » ;
+    # elle n'a lieu que si un modèle de la tâche est installé (`available`).
     ProcessSpec('parts', label='Partition complète', depends_on=('output',), degree=OPTIONAL,
                 toggle='extract_parts', gpu=True, share=2, available=_parts_available,
                 outputs=('parts_score',), eta='composer.tasks:parts_eta'),

@@ -304,6 +304,7 @@ def _extract_score(gen, ctx):
                            "(tâche « audio-to-score ») — l'audio du cover ne peut pas être repris.")
     if not gen.melody_reference:
         raise RuntimeError("Aucun audio à reprendre : le fichier du cover est absent.")
+    ctx.ensure_model(extractor_key)        # absent : la route l'installe, la tâche attend
     backend_class = backend_for_key(extractor_key)
     if backend_class is None:
         raise RuntimeError(f"« {extractor_key} » : aucun backend résolu depuis le catalogue.")
@@ -350,10 +351,11 @@ def _parts(gen, ctx):
     """GLU du process `parts` (2026-10-16) : le morceau RENDU → sa partition complète, une partie par
     instrument, rangée comme une sortie de la card (`parts_score`).
 
-    Le modèle est celui de la tâche `audio-to-midi`, tiré par le sélecteur commun et DÉCHARGÉ
-    aussitôt (la règle d'`extract_score`). Le moteur rend un MIDI ; la notation est la brique
-    commune `midi_score`, qui place les notes sur les temps JOUÉS du morceau (`audio_rhythm`) quand
-    le moteur n'a pas trouvé de tempo constant."""
+    Le modèle est celui que la card désigne (`parts_model`, 2026-10-19), ou sous « auto » celui de
+    la tâche `audio-to-midi` tiré par le sélecteur commun ; absent, la ROUTE l'installe et la tâche
+    attend (`ctx.ensure_model`) ; DÉCHARGÉ aussitôt (la règle d'`extract_score`). Le moteur rend un
+    MIDI ; la notation est la brique commune `midi_score`, qui place les notes sur les temps JOUÉS
+    du morceau (`audio_rhythm`) quand le moteur n'a pas trouvé de tempo constant."""
     from django.conf import settings
     from wama.common.backends.manager import backend_for_key
     from wama.common.utils.audio_rhythm import beat_grid
@@ -361,11 +363,12 @@ def _parts(gen, ctx):
     from wama.common.utils.model_keys import model_id
     from .utils.model_choice import parts_extractor
 
-    extractor_key = parts_extractor()
+    extractor_key = parts_extractor(gen)
     if not extractor_key:
         raise RuntimeError("Aucun modèle de partition complète n'est installé (tâche « audio-to-midi »).")
     if not gen.audio_output:
         raise RuntimeError("Aucun morceau rendu : la partition complète se lit sur le rendu.")
+    ctx.ensure_model(extractor_key)        # absent : la route l'installe, la tâche attend
     backend_class = backend_for_key(extractor_key)
     if backend_class is None:
         raise RuntimeError(f"« {extractor_key} » : aucun backend résolu depuis le catalogue.")
