@@ -21,8 +21,10 @@ class VectorSpace:
     modalities: tuple[str, ...]
     #: Nom du modèle chez le fournisseur (tag Ollama).
     model: str
-    #: Clé du catalogue — ce que la route installe (`model_readiness.ensure_installed`) et ce à
-    #: quoi le gouverneur rattache une réservation.
+    #: Clé du catalogue — ce que la route installe (`model_readiness.ensure_installed`), ce à
+    #: quoi le gouverneur rattache une réservation, et la ligne qui porte l'EMPREINTE VRAM : un
+    #: espace n'en déclare aucune (`service_client.need_gb` la lit au catalogue, où la mesure du
+    #: chargement la rend — `ModelRegistry.measure_ollama_load`, 2026-10-20).
     model_key: str
     dims: int
     #: Demander `dimensions` au fournisseur : le modèle rend plus de dimensions et a été entraîné
@@ -31,8 +33,6 @@ class VectorSpace:
     #: Fenêtre de contexte demandée — ce qui borne la VRAM (sans elle, Ollama réserve le contexte
     #: complet du modèle).
     num_ctx: int
-    #: Empreinte MESURÉE à `num_ctx`, déclarée au gouverneur.
-    vram_gb: float
     #: Préfixe des REQUÊTES (jamais des documents) — la forme de recherche prescrite par le modèle.
     query_prefix: str = ''
     #: Fournisseurs, dans l'ordre — des clés de `external_sources`. Un fournisseur DISTANT n'a sa
@@ -42,12 +42,12 @@ class VectorSpace:
 
 
 #: Le texte — l'espace du RAG (`memory/embed.py` : pourquoi ce modèle, ces 1024 dimensions et cette
-#: fenêtre). VRAM mesurée par `/api/ps` le 2026-10-19 (modèle texte seul, aucun projecteur).
+#: fenêtre).
 TEXT = VectorSpace(
     key='text', label='Texte',
     modalities=('text',),
     model='qwen3-embedding:4b', model_key='ollama:qwen3-embedding:4b',
-    dims=1024, truncate=True, num_ctx=2048, vram_gb=3.8,
+    dims=1024, truncate=True, num_ctx=2048,
     query_prefix=('Instruct: Given a question or keywords, retrieve the passages and memories '
                   'that answer it\nQuery: '),
 )
@@ -55,13 +55,12 @@ TEXT = VectorSpace(
 #: Les médias — texte ET image dans un même espace : une requête écrite retrouve une image.
 #: EmbeddingGemma-2, installé par la route et éprouvé le 2026-10-19 (`WAMA_MEMORY §7sexies`) :
 #: « voiture » met la photo d'une voiture en tête. 768 dimensions, sans troncature (le RAG n'y
-#: est pas : aucune colonne à épouser). VRAM mesurée par `nvidia-smi` (Δ avant/après) — `/api/ps`
-#: n'annonce que 0,49 Go, il ne compte pas les projecteurs vision et audio.
+#: est pas : aucune colonne à épouser).
 MEDIA = VectorSpace(
     key='media', label='Médias (texte et image)',
     modalities=('text', 'image'),
     model='embeddinggemma-2:latest', model_key='ollama:embeddinggemma-2:latest',
-    dims=768, truncate=False, num_ctx=2048, vram_gb=2.3,
+    dims=768, truncate=False, num_ctx=2048,
     query_prefix='task: search result | query: ',
 )
 

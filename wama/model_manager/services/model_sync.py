@@ -692,7 +692,9 @@ class ModelSyncService:
         mais ne servait qu'au registre à TTL du gouverneur, puis était jetée : `vram_gb` restait
         déclaré ou estimé, et `vram_estimated` ne se levait jamais. Le gouverneur recueille
         désormais chaque mesure (`record_measured_vram`) dans TOUS les process — service TTS
-        compris, qui n'a pas d'ORM — et ce geste la résout vers sa clé catalogue.
+        compris, qui n'a pas d'ORM — et ce geste la résout vers sa clé catalogue. Depuis le
+        2026-10-20, les modèles de l'Ollama hôte aussi (`ModelRegistry.measure_ollama_load`,
+        détenteur `ollama-host#ollama:<nom>`, dont le suffixe EST la clé).
 
         ⚠ `vram_gb` N'EST PAS TOUCHÉ : il reste la valeur déclarée/estimée que la découverte
         réécrit et que le tirage lit. La mesure vit à part, en clé collante

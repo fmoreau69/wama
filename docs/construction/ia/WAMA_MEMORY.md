@@ -315,7 +315,7 @@ une corruption silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000
 
 | pièce | où | rôle |
 |---|---|---|
-| les ESPACES déclarés | `wama/common/vectors/spaces.py` | un espace = (modèle, dimensions, fenêtre, préfixe de requête, VRAM, fournisseurs). `text` = `qwen3-embedding:4b` en 1024 (le RAG) ; `media` = `embeddinggemma-2` en 768 (texte + image). La nature de média CHOISIT l'espace (`space_for`) |
+| les ESPACES déclarés | `wama/common/vectors/spaces.py` | un espace = (modèle, dimensions, fenêtre, préfixe de requête, fournisseurs) ; sa VRAM est celle de la ligne de catalogue de son modèle (depuis le 2026-10-20, ci-dessous). `text` = `qwen3-embedding:4b` en 1024 (le RAG) ; `media` = `embeddinggemma-2` en 768 (texte + image). La nature de média CHOISIT l'espace (`space_for`) |
 | le MOTEUR | `wama/common/vectors/engine.py` | sans Django : prépare les entrées (image → JPEG ≤ 768 px en base64), appelle le fournisseur (`/api/embed`), contrôle nombre et dimensions — **une seule** écriture de l'appel |
 | le SERVICE | `vector_service.py` (uvicorn, **127.0.0.1:8002**, lancé par `start_wama_prod.sh`) + client `wama/common/vectors/service_client.py` | tout le monde l'appelle par le client ; service éteint ⇒ le client exécute le MÊME moteur dans son process (rien ne casse avant une relance) |
 
@@ -378,15 +378,53 @@ ligne).
   `file_cache.file_stamp`, forme écrite en base inchangée) ; l'énumération des fichiers d'une card
   (`card_transfer.files_of` lit `file_references.card_files`, comme `released_files.freed_by`).
   Chacune a sa contre-épreuve rouge.
-- ⏳ **la VRAM d'un modèle Ollama n'a pas de voie vers le catalogue.** `VectorSpace.vram_gb` déclare
-  la mesure (3,8 Go texte, 2,3 Go médias) À CÔTÉ du catalogue, qui garde l'heuristique de la
-  découverte (2,5 et 1,3 Go). La voie existe pour les backends du contrat
-  (`resource_governor.record_measured_vram` → `extra_info['vram_measured']`, lue par
-  `memory_manager.model_footprint_gb`), mais seul `_wrap_load` l'alimente, et la résidence
-  Ollama (`refresh_ollama_residency`) réserve ce qu'annonce `/api/ps` — qui sous-compte les
-  projecteurs d'un modèle multimodal. À faire : une mesure Ollama rendue par cette voie, puis
-  les espaces lisent `model_footprint_gb` au lieu de porter leur chiffre. Le doublon d'avant
-  (`VRAM_GB` de `memory/embed.py`) précédait ce palier ; le palier l'a étendu à l'espace `media`.
+- ~~⏳ **la VRAM d'un modèle Ollama n'a pas de voie vers le catalogue.**~~ ✅ **soldé le même jour**
+  (ci-dessous). Constat d'origine : `VectorSpace.vram_gb` déclarait la mesure (3,8 Go texte,
+  2,3 Go médias) À CÔTÉ du catalogue, qui gardait l'heuristique de la découverte (2,5 et 1,3 Go) ;
+  la voie mesurée (`resource_governor.record_measured_vram` → `extra_info['vram_measured']`, lue
+  par `memory_manager.model_footprint_gb`) n'était alimentée que par `_wrap_load`.
+
+**La VRAM d'un modèle Ollama, mesurée au chargement (2026-10-20).**
+
+Ce qui se mesure, et pourquoi c'est la seule mesure possible :
+- l'Ollama hôte charge dans un AUTRE processus, hors de portée de l'allocateur torch ;
+- la carte ne donne pas la mémoire par processus (WDDM : `[N/A]` depuis Windows comme depuis WSL) ;
+- `/api/ps` sous-compte. Relevé du jour à `num_ctx` 2048 :
+
+| modèle | `/api/ps` | carte (écart) | catalogue avant |
+|---|---|---|---|
+| qwen3-embedding:4b | 2,91 Go | 3,24 à 3,32 Go | 2,5 (taille du fichier) |
+| embeddinggemma-2 | 0,45 Go | 1,53 à 2,20 Go | 1,3 (taille du fichier) |
+
+Ce qui est livré :
+
+| pièce | où | ce qu'elle fait |
+|---|---|---|
+| la mesure | `ModelRegistry.measure_ollama_load(name, load)` | exécute l'appel qui charge et relève l'écart de la carte (`SystemMonitor.get_gpu_info`, sans contexte CUDA). Elle ne le retient que si l'observation est PROPRE : modèle absent avant ; entier sur la carte après (`size_vram` = `size`) ; autres modèles d'Ollama et registre du gouverneur inchangés ; deux relevés concordants ; écart au moins égal à l'annonce d'Ollama. Puis `record_measured_vram(ollama_host_owner(nom))` : la voie de `_wrap_load`, `persist_measured_vram` la rend au catalogue |
+| qui mesure | `vectors.service_client._measured` | tout appel des espaces qui GARDE le modèle après sa réponse (index des médias, réindex, rappel résident). À `keep_alive='0'`, Ollama l'a rendu avant qu'on relève : rien à observer, et pas même `/api/ps` à lire |
+| qui lit | `vectors.need_gb` → `auto_model.vram_needed_gb` | la cascade commune (mesurée → source → déclarée → preset) ; `residency_allowed` et `reserve` en dépendent. Empreinte inconnue ⇒ ni résidence ni réservation |
+| retirés | `VectorSpace.vram_gb`, `memory/embed.VRAM_GB` | le chiffre recopié |
+| un seul nom de tag | `ollama_host.full_tag` | `x` = `x:latest`, la règle qui vivait en quatre copies |
+
+Passe réelle du jour : les deux lignes portent `vram_measured`, provenance `measured` (3,29 et 1,53 Go).
+
+⚠ **Une mesure isolée porte le bruit de la carte, environ ±0,4 Go.** Mesuré : sur cinq chargements,
+la ligne de base dérive de −0,34 à +0,39 Go sans aucun modèle chargé — les autres programmes de
+l'hôte Windows. Le catalogue garde le MAXIMUM des relevés (`max_gb`) : il monte vers la borne haute
+au fil des passes, ce qui est le sens prudent. Le relevé consigné d'embeddinggemma-2 (1,53) est sous
+les quatre relevés de la sonde qui l'ont suivi (1,78 à 2,20) : la prochaine passe le relèvera.
+
+Ce qui reste, nommé :
+- ⏳ **un modèle tenu par un espace est compté DEUX fois au registre** pendant une passe :
+  `vectors-<espace>#…` (le besoin du catalogue) et `ollama-host#…` (ce qu'annonce `/api/ps`, posé
+  par `refresh_ollama_residency`). C'est un défaut d'avant ce palier, dans le sens prudent ; le
+  palier n'y touche pas ;
+- ⏳ **les modèles de CONVERSATION ne sont pas mesurés** : aucun point commun par lequel passent
+  leurs chargements (`llm_chat`, rôles wama-dev-ai, olmOCR). Leur empreinte dépend en plus de la
+  fenêtre de contexte demandée, que `vram_measured` ne distingue pas. `measure_ollama_load` est
+  prête à envelopper un tel appel ;
+- olmOCR lit `/api/ps` à sa main (`olmocr_backend.py:68`), à côté du lecteur commun
+  `ModelRegistry._ollama_ps` — antérieur, relevé ici, non ramené.
 
 ## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
 

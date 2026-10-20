@@ -159,10 +159,11 @@ def available(space_key: str) -> bool:
     import requests
 
     from wama.common.external_sources import proxies_for
+    from wama.common.utils.ollama_host import full_tag
     space = get(space_key)
     # Ollama nomme `x:latest` ce qu'on demande sous `x` ; un AUTRE tag de la même famille
     # (`x:270m`) n'est pas le modèle de l'espace.
-    wanted = {space.model} if ':' in space.model else {space.model, space.model + ':latest'}
+    wanted = {space.model, full_tag(space.model)}
     for provider in space.providers:
         try:
             resp = requests.get(_url(provider, '/api/tags'), proxies=proxies_for(provider),

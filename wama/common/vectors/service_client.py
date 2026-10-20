@@ -9,7 +9,8 @@ base64, la requête reçoit le préfixe de son espace), puis envoyées au servic
 seulement le déport. Délai dépassé ⇒ `[]` (dégrader, jamais échouer : `engine`).
 
 La VRAM se demande ICI, au gouverneur, par espace — le service ne tient aucun poids (Ollama les
-tient), il n'a donc rien à déclarer lui-même.
+tient), il n'a donc rien à déclarer lui-même. Le besoin se lit au CATALOGUE (`need_gb`), et c'est
+ici aussi qu'un chargement se MESURE pour l'y rendre (`_measured`) : le service n'a pas Django.
 
 Importable sans Django initialisé : l'adresse du service est résolue à l'appel.
 """
@@ -36,14 +37,36 @@ def embed(space_key: str, items, *, query: bool = False, timeout: float = TIMEOU
 
     Un item est un texte (`str`, `{'text': …}`) ou une image (`{'image': chemin | octets}`) ;
     `query=True` vectorise une REQUÊTE (préfixe de l'espace), sinon un document."""
-    import requests
-
-    from wama.common.external_sources import proxies_for
-
     space = get(space_key)
     inputs = engine.prepare(space, items, query=query)
     if not inputs:
         return []
+    return _measured(space, keep_alive,
+                     lambda: _embed_prepared(space, inputs, timeout=timeout, keep_alive=keep_alive))
+
+
+def _measured(space: VectorSpace, keep_alive, call):
+    """`call()`, sous la mesure du chargement d'Ollama (`ModelRegistry.measure_ollama_load`) —
+    c'est ainsi que l'empreinte d'un espace atteint le catalogue (`need_gb`).
+
+    Seulement quand l'appel GARDE le modèle après sa réponse (à `keep_alive='0'`, Ollama l'a rendu
+    avant qu'on relève : rien à observer, et on s'épargne la lecture de `/api/ps`) et quand le
+    premier fournisseur est l'Ollama de cette machine. Sans Django (catalogue absent), l'appel nu."""
+    kept = str(engine.KEEP_ALIVE if keep_alive is None else keep_alive).strip()
+    if kept in ('0', '0s') or space.providers[:1] != ('ollama',):
+        return call()
+    try:
+        from wama.model_manager.services.model_registry import ModelRegistry
+    except Exception:
+        return call()
+    return ModelRegistry.measure_ollama_load(space.model, call)
+
+
+def _embed_prepared(space: VectorSpace, inputs, *, timeout: float, keep_alive) -> list:
+    """L'appel au service, ou au même moteur dans ce process s'il ne répond pas."""
+    import requests
+
+    from wama.common.external_sources import proxies_for
     try:
         resp = requests.post(f'{service_url()}/embed',
                              json={'space': space.key, 'inputs': inputs,
@@ -72,13 +95,30 @@ def owner(space: VectorSpace) -> str:
     return f'vectors-{space.key}#{space.model_key}'
 
 
+def need_gb(space: VectorSpace) -> float | None:
+    """L'empreinte VRAM du modèle de l'espace, lue au CATALOGUE par la cascade commune
+    (`auto_model.vram_needed_gb` : mesurée → source → déclarée → preset), ou None si personne ne
+    sait. Un espace ne porte plus de chiffre : jusqu'au 2026-10-20 il déclarait sa mesure à côté
+    de l'heuristique du catalogue (3,8 et 2,3 Go contre 2,5 et 1,3) ; la mesure du chargement
+    (`_measured`) la rend désormais à la ligne de son modèle."""
+    try:
+        from wama.common.utils.auto_model import vram_needed_gb
+    except Exception:
+        return None
+    return vram_needed_gb(space.model_key)
+
+
 def residency_allowed(space_key: str) -> tuple[bool, str]:
     """Demande au GOUVERNEUR s'il y a de la place pour garder le modèle de l'espace chargé.
 
     C'est lui qui arbitre : `effective_free_gb()` déduit ce que les AUTRES process ont réservé
     sans l'avoir encore alloué — un job imager qui s'apprête à prendre 16 Go est vu AVANT qu'il
-    n'alloue. Gouverneur indisponible ⇒ refus : l'incertitude ne se résout jamais en occupant."""
+    n'alloue. Gouverneur indisponible, ou empreinte inconnue au catalogue ⇒ refus : l'incertitude
+    ne se résout jamais en occupant."""
     space = get(space_key)
+    need = need_gb(space)
+    if not need:
+        return False, f'empreinte de {space.model_key} inconnue au catalogue'
     try:
         from wama.common.services.resource_governor import effective_free_gb
 
@@ -89,19 +129,23 @@ def residency_allowed(space_key: str) -> tuple[bool, str]:
         return False, 'VRAM libre inconnue ou nulle'
     # Marge : rester résident ne doit jamais être la raison pour laquelle un traitement
     # utilisateur échoue à charger.
-    if free < space.vram_gb * 3:
-        return False, f'{free:.1f} Go libres — insuffisant pour {space.vram_gb:.1f} Go avec marge'
+    if free < need * 3:
+        return False, f'{free:.1f} Go libres — insuffisant pour {need:.1f} Go avec marge'
     return True, f'{free:.1f} Go libres'
 
 
 def reserve(space_key: str, *, expires_in_s: float = None) -> bool:
     """Déclare la résidence au gouverneur, pour que les AUTRES process la voient. `expires_in_s` :
-    la ligne expire avec la résidence qu'elle déclare, sans libération explicite."""
+    la ligne expire avec la résidence qu'elle déclare, sans libération explicite. Empreinte
+    inconnue au catalogue ⇒ rien de déclaré (False) : `residency_allowed` a déjà refusé."""
     space = get(space_key)
+    need = need_gb(space)
+    if not need:
+        return False
     try:
         from wama.common.services.resource_governor import mark_used, reserve_vram
 
-        ok = reserve_vram(owner(space), space.vram_gb, expires_in_s=expires_in_s)
+        ok = reserve_vram(owner(space), need, expires_in_s=expires_in_s)
         mark_used(owner(space))   # horodate : `idle_models()` peut réclamer la place plus tard
         return ok
     except Exception:

@@ -35,8 +35,8 @@ class SpacesTest(SimpleTestCase):
         from wama.common.memory import embed
         from wama.common.models import EMBEDDING_DIMS
         self.assertEqual(spaces.TEXT.dims, EMBEDDING_DIMS)
-        self.assertEqual((embed.EMBEDDING_MODEL, embed.NUM_CTX, embed.VRAM_GB),
-                         (spaces.TEXT.model, spaces.TEXT.num_ctx, spaces.TEXT.vram_gb))
+        self.assertEqual((embed.EMBEDDING_MODEL, embed.NUM_CTX),
+                         (spaces.TEXT.model, spaces.TEXT.num_ctx))
 
     def test_the_nature_of_a_media_picks_its_space(self):
         self.assertIs(spaces.space_for('text'), spaces.TEXT)
@@ -49,7 +49,14 @@ class SpacesTest(SimpleTestCase):
         for space in spaces.SPACES.values():
             with self.subTest(space=space.key):
                 self.assertEqual(space.model_key, 'ollama:' + space.model)
-                self.assertGreater(space.vram_gb, 0)
+
+    def test_a_space_carries_no_vram_figure_its_catalogue_row_does(self):
+        # Un chiffre d'espace doublait celui de la ligne (3,8 / 2,3 Go contre 2,5 / 1,3) : le besoin
+        # se lit au catalogue, où la mesure du chargement le rend (2026-10-20).
+        names = {field.name for field in dataclasses.fields(spaces.VectorSpace)}
+        self.assertFalse({n for n in names if 'vram' in n}, names)
+        from wama.common.memory import embed
+        self.assertFalse(hasattr(embed, 'VRAM_GB'))
 
     def test_an_unknown_space_is_refused(self):
         with self.assertRaises(ValueError):
@@ -157,13 +164,50 @@ class ClientTest(SimpleTestCase):
     def test_residency_is_asked_to_the_governor_per_space(self):
         self.assertEqual(service_client.owner(spaces.MEDIA),
                          'vectors-media#ollama:embeddinggemma-2:latest')
-        with mock.patch('wama.common.services.resource_governor.effective_free_gb',
-                        return_value=spaces.MEDIA.vram_gb * 2):
+        need = mock.patch.object(service_client, 'need_gb', return_value=2.14)
+        with need, mock.patch('wama.common.services.resource_governor.effective_free_gb',
+                              return_value=2.14 * 2):
             self.assertFalse(service_client.residency_allowed('media')[0], 'marge de 3×')
-        with mock.patch('wama.common.services.resource_governor.effective_free_gb',
-                        return_value=spaces.MEDIA.vram_gb * 4) as free:
+        with need, mock.patch('wama.common.services.resource_governor.effective_free_gb',
+                              return_value=2.14 * 4) as free:
             self.assertTrue(service_client.residency_allowed('media')[0])
         free.assert_called_once_with(exclude='vectors-media#ollama:embeddinggemma-2:latest')
+
+    def test_the_need_of_a_space_is_read_at_its_catalogue_row(self):
+        with mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=2.14) as need:
+            self.assertEqual(service_client.need_gb(spaces.MEDIA), 2.14)
+        need.assert_called_once_with('ollama:embeddinggemma-2:latest')
+        with mock.patch.object(service_client, 'need_gb', return_value=2.14), \
+                mock.patch('wama.common.services.resource_governor.reserve_vram',
+                           return_value=True) as reserve, \
+                mock.patch('wama.common.services.resource_governor.mark_used'):
+            self.assertTrue(service_client.reserve('media', expires_in_s=300))
+        reserve.assert_called_once_with('vectors-media#ollama:embeddinggemma-2:latest', 2.14,
+                                        expires_in_s=300)
+
+    def test_an_unknown_need_neither_keeps_nor_reserves(self):
+        # L'incertitude ne se résout jamais en occupant : pas de résidence, rien d'annoncé.
+        with mock.patch.object(service_client, 'need_gb', return_value=None), \
+                mock.patch('wama.common.services.resource_governor.reserve_vram') as reserve:
+            allowed, why = service_client.residency_allowed('media')
+            self.assertFalse(service_client.reserve('media'))
+        self.assertFalse(allowed)
+        self.assertIn('inconnue', why)
+        reserve.assert_not_called()
+
+    def test_a_call_that_keeps_the_model_goes_through_the_load_measure(self):
+        answer = mock.Mock(status_code=200, json=lambda: {'vectors': [[0.2] * 768]})
+        measure = 'wama.model_manager.services.model_registry.ModelRegistry.measure_ollama_load'
+        with mock.patch('requests.post', return_value=answer), \
+                mock.patch(measure, side_effect=lambda name, load: load()) as measured:
+            self.assertEqual(len(service_client.embed('media', ['x'], keep_alive='10m')), 1)
+            measured.assert_called_once()
+            self.assertEqual(measured.call_args.args[0], spaces.MEDIA.model)
+            measured.reset_mock()
+            # Déchargé sitôt la réponse rendue : rien à observer, pas même `/api/ps`.
+            service_client.embed('media', ['x'])
+            service_client.embed('media', ['x'], keep_alive='0')
+            measured.assert_not_called()
 
 
 class ServiceTest(SimpleTestCase):

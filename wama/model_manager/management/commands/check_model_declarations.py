@@ -52,8 +52,9 @@ _SCAN_EXCLUS = ('model_config', 'model_registry', 'ollama_registry', 'prospect',
 
 
 def _norm(tag: str) -> str:
-    """`bge-m3` et `bge-m3:latest` sont le même tag pour Ollama."""
-    return tag if ':' in tag else f'{tag}:latest'
+    """`bge-m3` et `bge-m3:latest` sont le même tag pour Ollama (`ollama_host.full_tag`)."""
+    from wama.common.utils.ollama_host import full_tag
+    return full_tag(tag)
 
 
 def _scan_litteraux() -> dict:

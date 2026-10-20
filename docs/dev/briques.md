@@ -150,7 +150,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
   - `ollama_host_owner(name: str) -> str` — Clé d'owner de la résidence du modèle Ollama `name`.
   - `unseen_reserved_gb(probe: str='driver', exclude: str | None=None) -> float` — VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
   - `mark_used(owner: str) -> bool` — Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
-  - `record_measured_vram(owner: str, gb: float) -> bool` — Consigne une empreinte MESURÉE par l'allocateur torch au chargement de `owner`.
+  - `record_measured_vram(owner: str, gb: float) -> bool` — Consigne une empreinte MESURÉE au chargement de `owner` — jamais une valeur déclarée.
   - `measured_vram() -> dict[str, tuple[float, float]]` — Mesures en attente de persistance : owner → (Go, horodatage). Lignes illisibles ignorées.
   - `forget_measured_vram(rendues: dict) -> int` — Oublie les mesures RENDUES au catalogue — `rendues` : owner → horodatage lu.
   - `idle_models(idle_threshold_s: int=300) -> list[dict]` — Modèles RÉSIDENTS inactifs depuis plus de `idle_threshold_s`, tous process confondus.
@@ -1327,14 +1327,15 @@ Un seul contrat d'outils pour TOUS les cerveaux (Ollama, Claude Code, Albert, un
 
 ### Service de vectorisation
 
-Un ESPACE de vecteurs par nature de média — `text` (qwen3-embedding, celui du RAG) et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 (`vector_service.py`, à la racine comme `tts_service.py`) et son client ; service éteint, le même moteur tourne dans le process appelant. Deux espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la VRAM se demande au gouverneur par espace (2026-10-19)
+Un ESPACE de vecteurs par nature de média — `text` (qwen3-embedding, celui du RAG) et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 (`vector_service.py`, à la racine comme `tts_service.py`) et son client ; service éteint, le même moteur tourne dans le process appelant. Deux espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la VRAM se demande au gouverneur par espace (2026-10-19), pour le besoin que porte la ligne de catalogue du modèle — un chargement observé se MESURE à la carte et y est rendu (`ModelRegistry.measure_ollama_load`, 2026-10-20)
 
 - **Domicile** : `wama/common/vectors/service_client.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7sexies](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Client COMMUN du service de vectorisation (`vector_service.py`, FastAPI, uvicorn 127.0.0.1:8002). Doc : `WAMA_MEMORY.md §7sexies`. Même patron que `common/tts/service_client.py` : tout le monde vectorise par ici — le RAG (`memory/embed.py`), l'indexation des médias, le Describer.
-- **API publique** (8) :
+- **API publique** (9) :
   - `service_url() -> str`
   - `embed(space_key: str, items, *, query: bool=False, timeout: float=TIMEOUT_S, keep_alive: str | None=None) -> list` — Les vecteurs de `items` dans l'espace `space_key` (même ordre), ou `[]` si indisponible.
   - `owner(space: VectorSpace) -> str` — Détenteur déclaré au gouverneur. Convention `<qui>#<clé catalogue>` (`OWNER_MODEL_SEP`) :
+  - `need_gb(space: VectorSpace) -> float | None` — L'empreinte VRAM du modèle de l'espace, lue au CATALOGUE par la cascade commune
   - `residency_allowed(space_key: str) -> tuple[bool, str]` — Demande au GOUVERNEUR s'il y a de la place pour garder le modèle de l'espace chargé.
   - `reserve(space_key: str, *, expires_in_s: float=None) -> bool` — Déclare la résidence au gouverneur, pour que les AUTRES process la voient. `expires_in_s` :
   - `release(space_key: str) -> bool` — Retire la réservation. ⚠ COMPTABILITÉ SEULEMENT — toujours avec `unload` : libérer sans

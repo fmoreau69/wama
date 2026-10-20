@@ -632,11 +632,14 @@ MEASURED_TTL_S = 24 * 3600
 
 
 def record_measured_vram(owner: str, gb: float) -> bool:
-    """Consigne une empreinte MESURÉE par l'allocateur torch au chargement de `owner`.
+    """Consigne une empreinte MESURÉE au chargement de `owner` — jamais une valeur déclarée.
 
-    Appelé par `_wrap_load` seulement pour une mesure FRAÎCHE et concluante — jamais pour une
-    valeur déclarée. La clé catalogue se résout plus tard, à la persistance (process Django) :
-    le service TTS, qui mesure aussi, n'a pas d'ORM.
+    Deux mesureurs, chacun pour une mesure FRAÎCHE et concluante :
+    - `_wrap_load` : l'allocateur torch du process qui charge ;
+    - `ModelRegistry.measure_ollama_load` (2026-10-20) : l'écart de la CARTE autour d'un
+      chargement de l'Ollama hôte, que l'allocateur ne voit pas — détenteur `ollama_host_owner`.
+    La clé catalogue se résout plus tard, à la persistance (process Django) : le service TTS,
+    qui mesure aussi, n'a pas d'ORM.
     """
     client = _redis()
     if client is None:

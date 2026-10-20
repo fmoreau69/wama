@@ -2509,16 +2509,123 @@ class ModelRegistry:
         Best-effort : Ollama injoignable → ensemble vide (aucun modèle privilégié), jamais
         d'exception, la découverte ne doit pas échouer pour ça.
         """
+        return {m.get('name', ''): round((m.get('size') or 0) / (1024 ** 3), 2)
+                for m in ModelRegistry._ollama_ps()}
+
+    @staticmethod
+    def _ollama_ps() -> list:
+        """Les lignes BRUTES de `/api/ps` (`name`, `size`, `size_vram`, `context_length`…) — le
+        seul lecteur de la résidence de l'Ollama hôte, `[]` s'il est injoignable. `_ollama_charges`
+        en dérive ; la mesure d'un chargement (`measure_ollama_load`) y lit aussi `size_vram`."""
         try:
             import requests
             from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
             r = requests.get(f"{ollama_base()}/api/ps", **ollama_kwargs(timeout=3))
             r.raise_for_status()
-            return {m.get('name', ''): round((m.get('size') or 0) / (1024 ** 3), 2)
-                    for m in r.json().get('models', [])}
+            return list(r.json().get('models') or [])
         except Exception as exc:
             logger.debug("[ModelRegistry] /api/ps indisponible : %s", exc)
-            return {}
+            return []
+
+    #: Écart toléré entre deux relevés de la carte pour la dire STABLE, et marge sous l'annonce
+    #: d'Ollama — en Mio. Un relevé nvidia-smi bouge de quelques Mio au repos (bureau Windows,
+    #: navigateur) ; un chargement concurrent, de centaines.
+    CARD_STABLE_MIB = 64
+    #: Délai entre les deux relevés de la carte qui suivent un chargement.
+    CARD_SETTLE_S = 0.25
+
+    @staticmethod
+    def measure_ollama_load(name: str, load):
+        """Exécute `load()` — l'appel qui CHARGE le modèle Ollama `name` — et rend son résultat ;
+        quand l'observation est PROPRE, consigne au gouverneur l'empreinte que la CARTE a prise
+        (`record_measured_vram`, détenteur `ollama_host_owner`). La voie de `_wrap_load` ensuite :
+        `persist_measured_vram` la rend au catalogue (`extra_info['vram_measured']`), où
+        `model_footprint_gb` la lit.
+
+        POURQUOI (2026-10-20, `WAMA_MEMORY §7sexies.1`) : un modèle Ollama se charge dans un AUTRE
+        processus (l'hôte Windows), hors de portée de l'allocateur torch qui mesure `_wrap_load` ;
+        la carte ne dit pas la mémoire par processus (WDDM : `[N/A]`, des deux côtés) ; et
+        `/api/ps` sous-compte — mesuré le jour même, à `num_ctx` 2048 : qwen3-embedding:4b annonce
+        2,91 Go pour 3,24 pris par la carte, embeddinggemma-2 0,45 Go pour 2,14 (ses projecteurs
+        vision et audio n'y sont pas). Le catalogue gardait donc l'heuristique de la découverte
+        (taille du fichier : 2,5 et 1,3 Go), et les espaces de vecteurs portaient leur chiffre à côté.
+
+        Ce qui se mesure est l'ÉCART de la carte (`SystemMonitor.get_gpu_info`, nvidia-smi, sans
+        ouvrir de contexte CUDA) autour de l'appel, retenu seulement si rien d'autre n'a pu y
+        entrer — sinon `load()` s'exécute pareil, sans mesure :
+          • le modèle n'était PAS résident avant (sinon rien ne se charge) ;
+          • il l'est après, et ENTIER sur la carte (`size_vram` = `size` : un modèle dont Ollama a
+            versé des couches en RAM prendrait moins que son besoin) ;
+          • les autres modèles d'Ollama et le registre du gouverneur sont inchangés, et deux
+            relevés de la carte après l'appel concordent (`CARD_STABLE_MIB`) ;
+          • l'écart vaut au moins ce qu'Ollama annonce (la carte tient au minimum cela ; moins, un
+            autre processus a libéré pendant l'appel).
+        La mesure comprend le contexte du runner et les tampons de calcul du lot servi : le coût
+        réel de ce modèle, à la fenêtre de contexte de l'appel. Un écart de bruit hors WAMA pèse
+        vers le haut — le sens prudent du maximum gardé au catalogue.
+
+        Seul un appel qui GARDE le modèle après sa réponse se mesure (`keep_alive` non nul) : à
+        `keep_alive='0'`, Ollama l'a déjà rendu quand on relève. Toute panne de la mesure est
+        avalée — elle ne fait jamais échouer l'appel.
+        """
+        import time
+
+        from wama.common.utils.ollama_host import full_tag
+        wanted = {name, full_tag(name)}
+
+        def resident():
+            return {m.get('name', ''): m for m in ModelRegistry._ollama_ps()}
+
+        def card_mib():
+            from wama.common.services.system_monitor import SystemMonitor
+            gpus = SystemMonitor.get_gpu_info() or []
+            return sum(int(g.get('memory_used') or 0) for g in gpus) if gpus else None
+
+        try:
+            from wama.common.services.resource_governor import reservations
+            before = resident()
+            ledger = reservations()
+            card_before = None if wanted & set(before) else card_mib()
+        except Exception:
+            logger.debug("[ModelRegistry] mesure de %s : relevé initial impossible", name,
+                         exc_info=True)
+            card_before = None
+        result = load()
+        if card_before is None:
+            return result
+        try:
+            after = resident()
+            card_first = card_mib()
+            time.sleep(ModelRegistry.CARD_SETTLE_S)
+            card_second = card_mib()
+            loaded = next((after[n] for n in wanted if n in after), None)
+            others_before = {n: m.get('size') for n, m in before.items()}
+            others_after = {n: m.get('size') for n, m in after.items() if n not in wanted}
+            size = int((loaded or {}).get('size') or 0)
+            why = (
+                'absent après l\'appel' if loaded is None else
+                'couches versées en RAM' if int(loaded.get('size_vram') or 0) < size else
+                'un autre modèle Ollama a bougé' if others_after != others_before else
+                'le registre du gouverneur a bougé' if reservations() != ledger else
+                'carte illisible' if card_first is None or card_second is None else
+                'carte instable' if abs(card_second - card_first) > ModelRegistry.CARD_STABLE_MIB
+                else None)
+            if why is None:
+                delta_mib = card_second - card_before
+                if delta_mib * 1024 ** 2 < size - ModelRegistry.CARD_STABLE_MIB * 1024 ** 2:
+                    why = 'écart sous l\'annonce d\'Ollama'
+            if why:
+                logger.info("[ModelRegistry] chargement de %s non mesuré : %s", name, why)
+                return result
+            from wama.common.services.resource_governor import (ollama_host_owner,
+                                                                record_measured_vram)
+            gb = delta_mib / 1024
+            record_measured_vram(ollama_host_owner(loaded.get('name') or name), gb)
+            logger.info("[ModelRegistry] %s : %.2f Go pris par la carte (Ollama en annonce %.2f)",
+                        name, gb, size / 1024 ** 3)
+        except Exception:
+            logger.debug("[ModelRegistry] mesure de %s abandonnée", name, exc_info=True)
+        return result
 
     @staticmethod
     def _ollama_capacites() -> dict:
@@ -2564,7 +2671,8 @@ class ModelRegistry:
         from wama.model_manager.models import AIModel
         # Le repli par répertoire nomme un tag `latest` SANS suffixe (`bge-m3`), la ligne s'appelle
         # `ollama:bge-m3:latest` : les deux formes désignent le même modèle.
-        keys = [f'ollama:{nom}'] + ([f'ollama:{nom}:latest'] if ':' not in nom else [])
+        from wama.common.utils.ollama_host import full_tag
+        keys = sorted({f'ollama:{nom}', f'ollama:{full_tag(nom)}'})
         for caps in AIModel.objects.filter(model_key__in=keys).values_list('capabilities',
                                                                           flat=True):
             if (caps or {}).get('abilities'):

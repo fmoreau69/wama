@@ -684,6 +684,9 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
     que la découverte réécrit et que le tirage lit. Chaîne : `_wrap_load` (mesure FRAÎCHE
     seulement) → `resource_governor.record_measured_vram` (survit au déchargement) → tâche
     `model_manager.persist_measured_vram` (10 min) → `ModelSyncService.persist_measured_vram`.
+    ⚠ Second mesureur depuis le 2026-10-20 : `ModelRegistry.measure_ollama_load` (l'écart de la
+    CARTE autour d'un chargement de l'Ollama hôte, que l'allocateur torch ne voit pas), branché sur
+    les espaces de vecteurs — `WAMA_MEMORY §7sexies.1`.
     Lecteurs : `check_model_completeness` (sort de `vram_never_measured`, axe `vram_under_declared`
     — les axes portaient des noms français jusqu'au 2026-09-20, traduits en BLOC sur décision de
     Fabien : « on n'introduit pas de français, on traduit l'ensemble »),
@@ -821,7 +824,7 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
    |---|---|---|
    | poids par composant, deux pics (somme / plus gros) | `model_installer.components_for_spec` → `extra_info['weights']` | ✅ 34 lignes mesurées |
    | précision par composant (params × octets du dtype) | `prospector.precision_of_files` (en-têtes safetensors) | ✅ livré 20/09 |
-   | empreinte MESURÉE au chargement | `base.py:_wrap_load` → registre + `extra_info['vram_measured']` | ✅ mais c'est une RÉSIDENCE (cf. c) |
+   | empreinte MESURÉE au chargement | `base.py:_wrap_load` → registre + `extra_info['vram_measured']` ; l'Ollama hôte par `ModelRegistry.measure_ollama_load` (2026-10-20, espaces de vecteurs seulement) | ✅ mais c'est une RÉSIDENCE (cf. c) |
    | capacité de la machine, VRAM libre réelle | `resource_governor` (`total_vram_gb`, `effective_free_gb`, registre partagé) | ✅ depuis le 29/07 |
    | réductions que le MOTEUR sait appliquer | à DÉCLARER au contrat de backend (cf. d) | ⏳ |
    | la décision | `resource_governor` | ⏳ **c'est le reste** |

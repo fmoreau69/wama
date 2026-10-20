@@ -75,6 +75,14 @@ def ollama_base() -> str:
     return base
 
 
+def full_tag(name: str) -> str:
+    """Le tag COMPLET d'un modèle Ollama : `bge-m3` et `bge-m3:latest` désignent le même modèle, et
+    Ollama rend toujours la seconde forme (`/api/tags`, `/api/ps`). La règle ne s'écrit qu'ici
+    (2026-10-20) : elle vivait en quatre copies — le contrôle des déclarations, le dernier relevé
+    des capacités, la présence d'un modèle de vecteurs, la mesure d'un chargement."""
+    return name if ':' in name else f'{name}:latest'
+
+
 def ollama_proxies() -> dict:
     """
     `proxies` à passer à `requests` pour NE PAS proxifier l'hôte Ollama.

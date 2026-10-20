@@ -160,10 +160,9 @@ def embed_batch(texts, *, timeout: float = TIMEOUT_S, keep_alive: str = None,
     return vecs
 
 
-#: Empreinte VRAM de l'embedder — celle de l'espace (`spaces.TEXT.vram_gb`, mesurée le
-#: 2026-10-19 par Ollama à `num_ctx=2048` : 3,79 Go ; bge-m3 : 1,0 Go le 2026-08-21). Pas estimée
-#: d'après la taille du fichier : la fenêtre de contexte en fait varier le triple.
-VRAM_GB = TEXT.vram_gb
+#: L'empreinte VRAM de l'embedder n'est plus déclarée ici (`VRAM_GB`, retiré le 2026-10-20) : elle
+#: se lit au catalogue, mesurée au chargement (`vectors.need_gb`). La fenêtre de contexte en fait
+#: varier le triple — d'où une mesure, jamais la taille du fichier.
 
 #: Détenteur déclaré au gouverneur — celui de l'espace (`vectors.owner`).
 OWNER = vectors.owner(TEXT)
