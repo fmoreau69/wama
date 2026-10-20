@@ -738,6 +738,24 @@ print('JUDGE-STAGE page', flush=True)
 r = Client().get(f'/{label}/', follow=True)
 print(r.status_code)
 if r.status_code != 200:
+    # La CAUSE en dernière ligne (c'est elle que le verdict cite) : où la page a fini, et ce
+    # qu'elle répond — un « 404 » seul ne dit ni la route ni la vue (avatarizer_01, 20/10).
+    import re as _re
+    html = _re.sub(r'(?is)<(style|script)\b.*?</\1>', ' ', r.content.decode('utf-8', 'replace'))
+    body = _re.sub(r'\s+', ' ', _re.sub(r'<[^>]+>', ' ', html)).strip()
+    # La page d'erreur de Django dit la cause après « Raised by » / « didn't match » : citer de là.
+    found = _re.search(r'(Raised by|didn.t match|Page not found|Exception Value)', body)
+    hops = ' -> '.join(u for u, _ in r.redirect_chain) or f'/{label}/'
+    cause = body[found.start() if found else 0:][:240]
+    if r.status_code == 404:
+        # Une jumelle dont le module d'URL LÈVE à l'import est écartée EN SILENCE par l'injection
+        # (`sandbox`) : la page n'existe pas, et `check` ne voit rien. Le dire (transcriber_01, 20/10).
+        try:
+            import importlib
+            importlib.import_module(f'wama.{label}.urls')
+        except Exception as exc:
+            cause = f'wama.{label}.urls lève à l\'import : {type(exc).__name__}: {exc}'[:300]
+    print(f'{r.status_code} sur {hops} : {cause}')
     raise SystemExit(1)
 if not item_model:
     raise SystemExit(0)
@@ -1107,17 +1125,30 @@ class Command(BaseCommand):
         verdicts = {}
 
         def play(group):
-            try:
-                if group == 'static':
-                    self._resync_static(label)
-                    return 'ok'
-                self._substitute(label, group)
-            except CommandError as exc:
-                self.stderr.write(f'{group} : {exc}')
-                return 'rien' if 'rien à générer' in str(exc) else 'refus'
-            entry = next((e for e in load_registry() if e['label'] == label), {})
-            first = group.split('+')[0]
-            return ((entry.get('substituted') or {}).get(first) or {}).get('verdict') or '?'
+            """Verdict d'un groupe. Une cible qui n'a RIEN à générer (`function_specs` d'une app
+            sans pipeline, `tasks` d'une app sans tâche déclarée) sort du groupe, et le reste se
+            joue : sans quoi elle en privait ses voisines (mesuré le 20/10 : le `tasks` de
+            l'enhancer et du reader n'était jamais tenté)."""
+            targets = group.split('+')
+            while targets:
+                joined = '+'.join(targets)
+                try:
+                    if joined == 'static':
+                        self._resync_static(label)
+                        return 'ok'
+                    self._substitute(label, joined)
+                except CommandError as exc:
+                    empty = re.search(r'Gabarit (\w+) : rien à générer', str(exc))
+                    if empty and empty.group(1) in targets and len(targets) > 1:
+                        self.stdout.write(f'{joined} : {empty.group(1)} n\'a rien à générer, '
+                                          f'le reste du groupe se joue')
+                        targets.remove(empty.group(1))
+                        continue
+                    self.stderr.write(f'{joined} : {exc}')
+                    return 'rien' if empty else 'refus'
+                entry = next((e for e in load_registry() if e['label'] == label), {})
+                return ((entry.get('substituted') or {}).get(targets[0]) or {}).get('verdict') or '?'
+            return 'rien'
 
         for group in groups:
             verdicts[group] = play(group)
@@ -1125,6 +1156,16 @@ class Command(BaseCommand):
             if verdicts[group] == 'revert' and any(verdicts[g] == 'ok' for g in groups[i + 1:]):
                 self.stdout.write(f'— seconde passe : {group}')
                 verdicts[group] = play(group)
+        # Troisième tentative : des fichiers COPIÉS qui se citent en boucle (anonymizer : les tâches
+        # copiées importent les vues, les vues copiées les tâches) ne tiennent qu'ENSEMBLE — aucune
+        # seconde passe ne les débloque, aucun des deux ne tenant seul. Les groupes de CODE encore
+        # revenus (hors `models`, qui juge la glu du modèle) se substituent alors en un seul.
+        stuck = [g for g in groups if verdicts[g] == 'revert' and g not in ('models', 'static')]
+        if len(stuck) > 1:
+            union = '+'.join(dict.fromkeys(t for g in stuck for t in g.split('+')))
+            self.stdout.write(f'— ensemble : {union}')
+            if play(union) == 'ok':
+                verdicts.update({g: 'ok' for g in stuck})
         self.stdout.write('Chaîne ' + label + ' : ' + ' · '.join(f'{g}={v}' for g, v in verdicts.items()))
 
     # ── substitute (étape S2) ────────────────────────────────────────────────
@@ -1146,6 +1187,13 @@ class Command(BaseCommand):
         if not targets or unknown:
             raise CommandError(f'Cible inconnue : {requested} (attendu {sorted(_SUBSTITUTABLE)}, '
                                'ou plusieurs jointes par « + »).')
+        # L'index généré étend `<label>/base.html`. `base` reste une cible FACULTATIVE pour une
+        # jumelle dont le `base.html` COPIÉ porte du propre à l'app ; quand la source n'en a pas
+        # (l'avatarizer étend directement la base commune), il n'y a rien à préserver : les
+        # gabarits l'emmènent. Sinon `TemplateDoesNotExist` à chaque rendu (avatarizer_01, 20/10).
+        if ('templates' in targets and 'base' not in targets
+                and not (WAMA_DIR / label / 'templates' / label / 'base.html').exists()):
+            targets.append('base')
         entries = load_registry()
         entry = next((e for e in entries if e['label'] == label), None)
         if not entry:

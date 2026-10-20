@@ -25149,3 +25149,51 @@ l'échange de l'assistant (accord de Fabien, après la flotte) ; `writer_01` (gl
   texte d'une card en cours dans le panneau Speak du transcriber, masqué hors micro — relu au code le
   soir même, il était compté à tort comme une recopie à porter) · recopies partielles (médiathèque,
   sélecteur, cam/face_analyzer).
+
+## §PALIER 2026-10-20 (soir), « Portage apps, étape 3 : les jumelles RÉGÉNÉRÉES — deux entièrement générées, les manques du générateur nommés » — non poussé — 🔴 relancer gunicorn ET workers (jumelles recréées, paquet `writer_01` régénéré)
+
+**Fait** : les dix jumelles à source recréées (`remove` + `create`, 0 donnée hors le compte de test
+nocturne, mesuré avant) puis passées par la chaîne en UNE commande ; `writer_01` (née d'un
+manifeste) régénérée par `substitute` — sa card (document 295), sa surface d'édition
+(`surfaces.py` identique, `GET /common/surface/writer_01/edit/295/` → 200) et la glu écrite à la main
+de ses deux fonctions de tâches (remise par `replace_glue_hole` depuis la sauvegarde) sont intactes ;
+`translator_01` l'avait été le 19/10. Durée : 39 min par jumelle au pilote, **6 à 9 min** avec la
+chaîne accélérée (`7a86d155`).
+
+**Verdicts** (`app_sandbox list` fait foi) :
+
+| jumelle | tient | revient au témoin — la cause NOMMÉE par le juge |
+|---|---|---|
+| **enhancer_01** | **tout, `models` compris** | — |
+| **avatarizer_01** | **tout, `models` compris** | — (après `base.html` emmené par les gabarits) |
+| converter_01 | tout sauf `models` | `utils/cross_app.py` copié lit `.cross_app_options` (glu du modèle) |
+| composer_01 | tout sauf `models` | `surfaces.py` lit `.SCORE_FIELDS` (glu du modèle) |
+| synthesizer_01 | apps, tasks+function_specs, params | les vues GÉNÉRÉES importent `download_voice_refs_task`, que le `tasks` généré n'émet pas (tâche propre à l'app) ; models : membres perdus |
+| reader_01 | apps, vues+gabarits, params | `function_specs` : rien à générer (« une tâche lifecycle attendue pour porter le pipeline ») — le copié importe `_extract_natural_text` des tâches copiées ; models : `.filename` |
+| transcriber_01 | apps, params | les vues GÉNÉRÉES importent `wama.transcriber_01.tasks`, module qui n'existe pas (tâches dans `workers.py`, `tasks` : rien à générer) — `views_gen` suppose le module au lieu de le lire ; models : membres perdus |
+| describer_01 | apps, params | le `function_specs` généré déclare des fonctions de process (`function_specs:transcript_text`…) qu'il n'émet pas — pas de TROU DE GLU pour elles, contrairement à `tasks_gen` ; vues : le `workers.py` copié importe `detect_type_from_extension` des vues |
+| anonymizer_01 | apps | boucle tâches ↔ vues copiées ; leur UNION atteint l'import des URL : `urls_gen` route vers `download_all_media`, que `views_gen` n'émet pas ; params : `PANEL_SETTINGS`, `GROUPS_JSON` (glu) |
+| imager_01 | apps | routes hors convention (`card_html(generation_id=…)`), aucune tâche lifecycle déclarée, glu de `params.py` — les chantiers de PORTAGE de l'imager (§ 22/09) |
+
+**Livré en plus, le même soir** (le juge et la chaîne se sont améliorés en mesurant) : une cible
+qui n'a RIEN à générer sort de son groupe et le reste se joue ; troisième tentative : l'UNION des
+groupes de code revenus ; `base.html` emmené par les gabarits quand la source n'en a pas ; le juge
+dit la CAUSE d'un 404 (redirection, texte de la page d'erreur, et l'exception d'import du module
+d'URL — une jumelle dont les URL lèvent est écartée EN SILENCE par l'injection) ; `params_gen`
+émet la clé de stockage commune (`user_setting_key`, `USER_SETTINGS_DEFAULTS`) — **le trou était de
+ma main**, la cascade de naissance (`af75e010`) l'ayant déclarée dans chaque `params.py` réel sans
+le gabarit ; quatre jumelles revenaient sur `params` à cause de lui. Gardes : `tests_boot_cost`
+(chaîne), `tests_sandbox_coherence` (`base`, clé de stockage) ; quatre contre-épreuves ROUGES ;
+214 tests ciblés OK sous WSL.
+
+🔚 **Restes nommés — des manques du GÉNÉRATEUR, chacun avec sa cause** (le tableau ci-dessus) :
+① `views_gen` doit importer les tâches du module DÉCLARÉ (`workers`), pas supposer `tasks` ;
+② `urls_gen` et `views_gen` doivent s'accorder sur les routes (une route sans sa vue) ;
+③ `function_specs_gen` : des trous de glu pour les fonctions de process qu'il déclare, et une
+forme pour une app sans tâche lifecycle (reader, enhancer) ; ④ `tasks_gen` : les tâches PROPRES
+à une app que les vues générées appellent (synthesizer) ; ⑤ la glu des MODÈLES (membres perdus :
+`.filename`, `.gear_data`…) — `ROUTE §11` ; ⑥ les deux règles de clé de stockage propres
+(transcriber : noms anciens en base ; avatarizer : réglage non retenu) restent de la glu — une
+jumelle générée stocke sous le nom du param ; ⑦ mesurer `enhancer_01` et `avatarizer_01` par
+`app_sandbox converge` (tests de l'original), non lancé ; ⑧ la batterie UI des jumelles
+(`run_nightly_tests --id <jumelle>.`), non lancée.

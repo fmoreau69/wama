@@ -85,6 +85,22 @@ def render_params_source(app_id: str, schemas: dict) -> str:
         if attr.endswith('_JSON'):
             lignes.append(f"{attr[:-5]} = {attr}  # alias compat (les briques acceptent les dicts)")
     lignes.append('')
+    # ── Clé de STOCKAGE des réglages du volet (cascade commune, 2026-10-18) ──
+    # Chaque `params.py` réel la déclare depuis le portage de la cascade de naissance
+    # (`user_settings.new_element_settings`) ; ce gabarit ne l'émettait pas, et des vues COPIÉES
+    # qui l'importent faisaient revenir `params` au témoin sur quatre jumelles (20/10). La forme
+    # COMMUNE, celle de cinq apps : la clé est le nom du param. Une règle propre (des noms anciens
+    # gardés en base, un réglage qu'on ne retient pas) est de la glu de l'app — une jumelle générée
+    # stocke alors sous le nom du param : un écart de convergence, pas une erreur.
+    if 'PARAMS_JSON' in schemas:
+        lignes += [
+            '# Clé de stockage des réglages du volet : la forme commune (le nom du param).',
+            'from wama.common.utils.param_schema import panel_defaults, panel_name_key  # noqa: E402',
+            '',
+            'user_setting_key = panel_name_key',
+            'USER_SETTINGS_DEFAULTS = panel_defaults(PARAMS, key=user_setting_key)',
+            '',
+        ]
     return '\n'.join(lignes)
 
 

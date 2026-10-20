@@ -250,7 +250,9 @@ class OneJudgeProcessPerSubstitutionTest(SimpleTestCase):
 class SubstitutionChainTest(SimpleTestCase):
     """One command plays a whole chain; a reverted group is replayed once if a LATER group held."""
 
-    def _chain(self, outcomes):
+    def _chain(self, outcomes, chain=None):
+        """Plays `chain` (default: the keys of `outcomes`); `outcomes[group]` lists the successive
+        results of each substitution actually played."""
         import io
         played = []
         registry = {'label': 'jumelle_00', 'substituted': {}}
@@ -260,6 +262,8 @@ class SubstitutionChainTest(SimpleTestCase):
             result = outcomes[group].pop(0)
             if result == 'rien':
                 raise CommandError(f'Gabarit {group} : rien à générer — test')
+            if result.startswith('rien_'):           # one target of the group has nothing
+                raise CommandError(f'Gabarit {result[5:]} : rien à générer — test')
             for target in group.split('+'):
                 registry['substituted'][target] = {'verdict': result}
 
@@ -267,8 +271,28 @@ class SubstitutionChainTest(SimpleTestCase):
         cmd.stdout = cmd.stderr = io.StringIO()
         with mock.patch.object(cmd, '_substitute', side_effect=substitute), \
              mock.patch.object(cmd_sandbox, 'load_registry', return_value=[registry]):
-            cmd._substitute_chain('jumelle_00', ','.join(outcomes))
+            cmd._substitute_chain('jumelle_00', chain or ','.join(outcomes))
         return played, cmd.stdout.getvalue()
+
+    def test_a_target_with_nothing_to_generate_leaves_its_group_and_the_rest_plays(self):
+        """Measured on 2026-10-20: `function_specs` of an app without a pipeline has nothing to
+        generate — the whole `tasks+function_specs` group was dropped, `tasks` never tried."""
+        played, out = self._chain({'tasks+function_specs': ['rien_function_specs'], 'tasks': ['ok']},
+                                  chain='tasks+function_specs')
+        self.assertEqual(['tasks+function_specs', 'tasks'], played)
+        self.assertIn('tasks+function_specs=ok', out)
+
+    def test_copied_files_citing_each_other_are_substituted_together(self):
+        """Copied tasks import the views, copied views import the tasks (anonymizer, 2026-10-20):
+        neither holds alone, no second pass unblocks them — their union is tried once."""
+        played, out = self._chain({'urls+views+templates': ['revert'],
+                                   'tasks+function_specs': ['revert'], 'models': ['revert'],
+                                   'urls+views+templates+tasks+function_specs': ['ok']},
+                                  chain='urls+views+templates,tasks+function_specs,models')
+        self.assertEqual('urls+views+templates+tasks+function_specs', played[-1])
+        self.assertIn('urls+views+templates=ok', out)
+        self.assertIn('tasks+function_specs=ok', out)
+        self.assertIn('models=revert', out, 'the model glue is never folded into the union')
 
     def test_a_group_unblocked_by_a_later_one_is_replayed(self):
         played, out = self._chain({'tasks': ['revert', 'ok'], 'surfaces': ['rien'],

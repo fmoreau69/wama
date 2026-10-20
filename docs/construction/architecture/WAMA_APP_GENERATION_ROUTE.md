@@ -2440,6 +2440,11 @@ outillé avant d'ouvrir cette marche.
   > apps,urls+views+templates,tasks+function_specs,params,surfaces,models` — dont chaque groupe
   > (séparé par une virgule) est une substitution, et **une seconde passe** qui rejoue une fois un
   > groupe revenu au témoin si un groupe placé APRÈS lui a tenu (`Command._substitute_chain`).
+  > Mesurés sur la flotte relancée, deux compléments le même jour : une cible qui n'a RIEN à
+  > générer sort de son groupe et le reste se joue (`function_specs` d'une app sans pipeline
+  > privait `tasks` de l'enhancer et du reader de toute tentative) ; et une **troisième
+  > tentative** substitue ENSEMBLE les groupes de code encore revenus (`models` excepté) — la
+  > boucle tâches ↔ vues de l'anonymizer, qu'aucune seconde passe ne débloque.
   > **Le coût de la chaîne, mesuré le même jour** (Fabien : *« je ne comprends pas que la
   > génération d'app soit si longue »*) : 39 min par jumelle, et presque rien dans la génération —
   > un démarrage de Django coûtait 58-63 s sous WSL et la chaîne en lançait une trentaine (trois

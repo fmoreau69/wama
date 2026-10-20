@@ -1542,7 +1542,7 @@ MECHANISMS = (
               "Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée "
               "(11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11. "
               "Depuis le 2026-10-20 : la chaîne en UNE commande (`substitute <label> "
-              "a,b+c,…`, seconde passe des groupes revenus), et UN sous-processus de juge par "
+              "a,b+c,…`, seconde passe des groupes revenus, puis leur union), et UN sous-processus de juge par "
               "substitution (`check`, page, file habitée) — un démarrage de Django coûte ≈ 60 s "
               "sous WSL",
               'wama/common/sandbox.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',

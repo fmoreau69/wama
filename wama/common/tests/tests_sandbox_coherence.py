@@ -100,6 +100,22 @@ class ParamsRenderedAsLiteralsTest(SimpleTestCase):
         with self.assertRaisesRegex(ValueError, 'non littérale'):
             render_params(_manifeste(schemas={'PARAMS_JSON': [{'name': 'a', 'default': object()}]}))
 
+    def test_the_generated_params_declare_the_common_storage_key_like_the_real_apps(self):
+        """Every real `params.py` declares its settings storage key since the birth cascade
+        (`user_setting_key`, 2026-10-18); the template did not, and COPIED views importing it sent
+        `params` back to the witness on four twins (2026-10-20). For an app on the common rule the
+        generated defaults equal the real ones."""
+        from wama.common.manifests.ingest import extract
+        from wama.describer import params as real
+        src, _ = render_params(extract('app', 'describer'))
+        space = {}
+        exec(compile(src, '<params_gen>', 'exec'), space)     # noqa: S102 — c'est le sujet
+        self.assertIn('user_setting_key', space)
+        self.assertEqual(real.USER_SETTINGS_DEFAULTS, space['USER_SETTINGS_DEFAULTS'])
+        # Counter-check: a schema without a main `PARAMS_JSON` declares no key of its own.
+        other, _ = render_params(_manifeste(schemas={'AUDIO_PARAMS_JSON': [{'name': 'a'}]}))
+        self.assertNotIn('user_setting_key', other)
+
 
 class CorpsComposeDesDeuxSaveursTest(SimpleTestCase):
     """Défaut n°3 : les deux saveurs (`RESULT.kind`) se composent, et compilent."""
@@ -610,6 +626,57 @@ class NewFileSubstitutionTest(SimpleTestCase):
                 cmd._substitute('jumelle_00', 'tasks')
             self.assertTrue((Path(d) / 'jumelle_00' / 'tasks.py').exists())
         self.assertEqual(saved[-1]['substituted']['tasks']['verdict'], 'ok')
+
+
+def _render_stub_index(manifest):
+    return {'index.html': "{% extends 'appfictive/base.html' %}\n"}, 'stub'
+
+
+def _render_stub_base(manifest):
+    return {'base.html': "{% extends 'common/app_modern_base.html' %}\n"}, 'stub'
+
+
+class TemplatesBringTheirBaseWhenTheSourceHasNoneTest(SimpleTestCase):
+    """The generated index extends `<label>/base.html`. A source without its own base (the
+    avatarizer extends the common one) left the twin with `TemplateDoesNotExist` on every render
+    (avatarizer_01, 2026-10-20): the templates then bring `base` along — never over a COPIED one."""
+
+    def _substitute(self, with_copied_base):
+        import io
+        import subprocess
+        saved = []
+        ok = subprocess.CompletedProcess([], 0, '200', '')
+        with TemporaryDirectory() as d:
+            tpl = Path(d) / 'jumelle_00' / 'templates' / 'jumelle_00'
+            tpl.mkdir(parents=True)
+            (Path(d) / 'jumelle_00' / 'migrations').mkdir()
+            if with_copied_base:
+                (tpl / 'base.html').write_text('COPIED', encoding='utf-8')
+            entry = {'label': 'jumelle_00', 'generated_from': 'appfictive', 'stage': 'S1',
+                     'substituted': {'views': {'verdict': 'ok'}}}
+            with patch.object(cmd_sandbox, 'WAMA_DIR', Path(d)), \
+                 patch.object(cmd_sandbox, 'load_registry', return_value=[entry]), \
+                 patch.object(cmd_sandbox, '_save_entry', side_effect=saved.append), \
+                 patch.object(cmd_sandbox, '_judge', return_value=ok), \
+                 patch.dict(cmd_sandbox._SUBSTITUTABLE,
+                            {'templates': ('templates/', __name__, '_render_stub_index'),
+                             'base': ('templates/', __name__, '_render_stub_base')}), \
+                 patch('wama.common.manifests.ingest.extract',
+                       return_value={'key': 'appfictive', 'body': {}}):
+                cmd = cmd_sandbox.Command()
+                cmd.stdout = cmd.stderr = io.StringIO()
+                cmd._substitute('jumelle_00', 'templates')
+            return (tpl / 'base.html').read_text(encoding='utf-8'), saved[-1]['substituted']
+
+    def test_a_source_without_base_gets_the_generated_one(self):
+        base, substituted = self._substitute(with_copied_base=False)
+        self.assertIn('app_modern_base', base)
+        self.assertEqual('ok', substituted['base']['verdict'])
+
+    def test_a_copied_base_is_never_replaced_unasked(self):
+        base, substituted = self._substitute(with_copied_base=True)
+        self.assertEqual('COPIED', base)
+        self.assertNotIn('base', substituted)
 
 
 class DeclaredPathsJudgeTest(SimpleTestCase):
