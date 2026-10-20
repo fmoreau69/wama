@@ -1045,12 +1045,6 @@ def app_access_matrix(request):
     # [(key, label, help)] pour les en-têtes de colonnes (tooltip).
     role_keys = [(k, label, ROLE_DESCRIPTIONS.get(k, '')) for k, label in ROLES.items()]
 
-    def _app_desc(app_id):
-        # La description DÉCLARÉE par l'app — sa card, sinon sa surface ou sa déclaration d'outil
-        # sans page (2026-10-13 : une table de secours la recopiait ici, et dérivait) : son
-        # identité commune (`app_registry.app_identity`, 2026-10-16).
-        return app_identity(app_id)['description']
-
     by_group = {}
     # Seuls les outils GARDÉS : une ligne restée en base pour un droit retiré (`model_manager`,
     # devenu une page des Registres le 2026-10-13) ne déciderait plus rien — l'afficher
@@ -1058,9 +1052,15 @@ def app_access_matrix(request):
     gated = all_gated_apps()
     for pol in AppAccessPolicy.objects.filter(app_id__in=gated).prefetch_related('roles').order_by('app_id'):
         active = {g.name[len(GROUP_PREFIX):] for g in pol.roles.all() if g.name.startswith(GROUP_PREFIX)}
+        # Le nom et la description DÉCLARÉS par l'app — sa card, sinon sa surface ou sa
+        # déclaration d'outil sans page (2026-10-13 : une table de secours recopiait la
+        # description ici, et dérivait) : son identité commune (`app_registry.app_identity`,
+        # 2026-10-16). Le nom depuis le 2026-10-20 : la ligne affichait la clé.
+        identity = app_identity(pol.app_id)
         by_group.setdefault(app_group(pol.app_id), []).append({
             'app_id': pol.app_id,
-            'description': _app_desc(pol.app_id),
+            'label': identity['label'],
+            'description': identity['description'],
             'public': pol.public,
             'min_tier': pol.min_tier,
             'cells': [{'role': k, 'active': (k in active)} for k, _ in ROLES.items()],

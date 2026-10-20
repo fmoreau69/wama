@@ -832,6 +832,19 @@ class AppIdentityTest(TestCase):
         self.assertEqual(('Cam Analyzer', app_identity('cam_analyzer')['icon']),
                          (destination['libelle'], destination['icone']))
 
+    def test_the_rights_matrix_names_an_app_by_its_identity(self):
+        """The admin matrix showed the KEY of each app (`face_analyzer`), 2026-10-20."""
+        from django.contrib.auth import get_user_model
+        from wama.accounts.models import AppAccessPolicy
+        from wama.common.app_registry import app_identity
+        AppAccessPolicy.objects.get_or_create(app_id='face_analyzer')
+        admin = get_user_model().objects.create_superuser('matrix_label_admin', password='x')
+        self.client.force_login(admin)
+        html = self.client.get(reverse('accounts:app-access-matrix')).content.decode()
+        label = app_identity('face_analyzer')['label']
+        self.assertNotEqual('face_analyzer', label)
+        self.assertIn(f'{label} <code class="small text-muted fw-normal">face_analyzer</code>', html)
+
     def test_my_rag_names_an_item_by_its_app_and_links_to_it(self):
         """« Mon RAG » read `spec.get('name')`: no catalogue entry has one, so the page showed
         `transcriber · #7`. Counter-check: a Lab item is named too, a file keeps its path."""

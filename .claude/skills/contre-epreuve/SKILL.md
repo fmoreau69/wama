@@ -69,6 +69,12 @@ print('COUNTERPROOF <nom>: failures =', failures,
 - ⚠ **Patcher l'ATTRIBUT DE MODULE, pas l'appelant** : les vues du dépôt importent leurs briques
   DANS la fonction (`from … import usage`), donc la résolution se fait à l'appel — c'est
   précisément ce qui rend `mock.patch('module.fonction')` efficace ici.
+- 🔴 **Et le TEST qui importe la brique en tête (`from m import f`) l'importe pendant le patch**
+  (vécu le 2026-10-20). `run_tests` charge le module de test DANS le `with mock.patch(...)` : il
+  lie la FAUSSE fonction, compare le faux au faux, et reste vert — puis la garde le reste dans
+  `sys.modules` et contamine la contre-épreuve suivante du même processus. ✅ Importer le module
+  de test AVANT le patch (`import wama.….tests_x as t ; assert t.f is m.f`), et une
+  contre-épreuve par processus. *Un vert après un patch accuse d'abord l'ordre des imports.*
 
 ## 3. Lire le résultat, et ce qu'il dit quand il est VERT
 

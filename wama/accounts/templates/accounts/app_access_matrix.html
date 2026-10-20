@@ -42,7 +42,7 @@
                 {% for row in group.rows %}
                 <tr>
                     <td class="fw-semibold ps-4" title="{{ row.description }}" style="cursor:help;">
-                        {{ row.app_id }}
+                        {{ row.label }} <code class="small text-muted fw-normal">{{ row.app_id }}</code>
                         {% if row.description %}<i class="fas fa-circle-info text-muted ms-1" style="font-size:.7rem;"></i>{% endif %}
                     </td>
                     {% for cell in row.cells %}

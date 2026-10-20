@@ -49,7 +49,8 @@ class Command(BaseCommand):
 
     def show_status(self, verbose=False):
         """Display current models status."""
-        from wama.model_manager.models import AIModel, ModelSyncLog, ModelSource, ModelType
+        from wama.model_manager.models import (AIModel, ModelSyncLog, ModelSource, ModelType,
+                                               source_identity)
 
         self.stdout.write(self.style.SUCCESS('\n' + '=' * 50))
         self.stdout.write(self.style.SUCCESS('  AI Models Catalog Status'))
@@ -69,9 +70,8 @@ class Command(BaseCommand):
         # By source
         self.stdout.write("\n" + "-" * 30)
         self.stdout.write("By Source:")
-        for source in ModelSource.choices:
-            source_value = source[0]
-            source_label = source[1]
+        for source_value in ModelSource.values:
+            source_label = source_identity(source_value)['label']
             count = AIModel.objects.filter(source=source_value, is_available=True).count()
             dl_count = AIModel.objects.filter(
                 source=source_value, is_available=True, is_downloaded=True

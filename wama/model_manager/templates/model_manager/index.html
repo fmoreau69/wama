@@ -576,9 +576,11 @@
                 </select>
             </div>
             <div class="col-auto">
-                <label class="text-muted small me-2">App:</label>
+                {% comment %} Source (2026-10-20) : le NOM de chaque source, groupé par nature — app,
+                fournisseur distant, plateforme (`models.source_identity`) ; il affichait la clé brute. {% endcomment %}
+                <label class="text-muted small me-2" for="filter-source">Source :</label>
                 <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-source">
-                    <option value="all">All Apps</option>
+                    <option value="all">Toutes</option>
                 </select>
             </div>
             <div class="col-auto">
@@ -906,6 +908,7 @@ a rien en attente. {% endcomment %}
 {% block javascript %}
 {{ block.super }}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
+{{ source_natures|json_script:"mm-source-natures" }}
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
@@ -1164,7 +1167,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <input type="checkbox" class="form-check-input model-checkbox me-2 model-select-cb"
                                    data-model-id="${model.id}" ${selectedModels.has(model.id) ? 'checked' : ''}>
                             <span class="type-badge type-${model.type} me-1">${model.type}</span>
-                            <span class="source-badge">${model.source}</span>
+                            <span class="source-badge">${WamaApp.escapeHtml(model.source_label || model.source)}</span>
                         </div>
                         ${model.is_proposed ?
                             `<span class="badge" style="background:var(--bs-purple)"><i class="fas fa-wand-magic-sparkles fa-xs me-1"></i>${model.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau'}</span>` :
@@ -1656,7 +1659,7 @@ document.addEventListener('DOMContentLoaded', function() {
         ] },
         { section: 'Identité', rows: [
             { k: 'Type', field: 'type' },
-            { k: 'App / source', field: 'source' },
+            { k: 'Source', get: function (m) { return m.source_label || m.source || ''; } },
             { k: 'Clé', get: function (m) { return m.model_key || m.id; }, code: true },
             { k: 'Backend', field: 'backend_ref' },
             { k: 'HF id', field: 'hf_id', code: true },
@@ -2233,11 +2236,22 @@ document.addEventListener('DOMContentLoaded', function() {
         typeSelect.innerHTML = '<option value="all">All Types</option>' +
             types.map(t => `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('');
 
-        // Build source options
-        const sources = [...new Set(models.map(m => m.source))].sort();
+        // Sources : leur NOM, un groupe par nature dans l'ordre déclaré (`SOURCE_NATURES`).
         const sourceSelect = document.getElementById('filter-source');
-        sourceSelect.innerHTML = '<option value="all">All Apps</option>' +
-            sources.map(s => `<option value="${s}">${s}</option>`).join('');
+        sourceSelect.innerHTML = '<option value="all">Toutes</option>' + sourceOptions(models);
+    }
+
+    function sourceOptions(models) {
+        const esc = WamaApp.escapeHtml;
+        const named = new Map();
+        models.forEach(m => named.set(m.source, {label: m.source_label || m.source,
+                                                  nature: m.source_nature || ''}));
+        return JSON.parse(document.getElementById('mm-source-natures').textContent).map(n => {
+            const options = [...named].filter(([, s]) => s.nature === n.key)
+                .sort((a, b) => a[1].label.localeCompare(b[1].label))
+                .map(([key, s]) => `<option value="${esc(key)}">${esc(s.label)}</option>`).join('');
+            return options ? `<optgroup label="${esc(n.label)}">${options}</optgroup>` : '';
+        }).join('');
     }
 
     function applyFilters() {

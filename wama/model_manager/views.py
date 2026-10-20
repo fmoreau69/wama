@@ -62,9 +62,13 @@ def index(request):
     origin_choices = [(xs.LOCAL_ORIGIN_KEY, xs.LOCAL_ORIGIN_LABEL)] + [
         (h, xs.CLOUD_ORIGIN_LABELS[h]) for h in xs.HOSTING_SCALE if h in xs.CLOUD_ORIGIN_LABELS]
 
+    from .models import SOURCE_NATURES
     context = {
         'can_manage': can_manage,
         'origin_choices': origin_choices,
+        # Groupes du filtre « Source » (2026-10-20) ; chaque modèle porte sa nature et son nom
+        # (`source_identity`, servis par `to_dict`).
+        'source_natures': [{'key': k, 'label': label} for k, label in SOURCE_NATURES],
         'cost_choices': list(xs.COST_TIERS),
         'model_types': [t.value for t in ModelType],
         'cpu_info': stats['cpu_info'],

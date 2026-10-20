@@ -515,6 +515,40 @@ class ModelSource(models.TextChoices):
     CUSTOM = 'custom', 'Custom'
 
 
+#: Les NATURES d'une source de modèle, dans l'ordre des groupes du filtre « Source » du model
+#: manager (2026-10-20). Une app WAMA, un fournisseur DISTANT (`external_sources`, famille `llm`)
+#: ou une plateforme d'où le modèle vient hors de toute app (Hugging Face, Ollama, GitHub…).
+SOURCE_NATURES = (('app', 'Apps WAMA'), ('remote', 'Fournisseurs distants'),
+                  ('platform', 'Plateformes'))
+
+
+def source_identity(source: str) -> dict:
+    """LE nom d'une source de modèle (`AIModel.source`) — `{'key', 'nature', 'label'}`.
+
+    La clé a trois natures, et chacune est déjà NOMMÉE ailleurs : rien n'est redit ici.
+    • une app → son identité commune (`app_registry.app_identity`) ;
+    • une source du registre (`external_sources`) → son nom déclaré : `remote` pour un
+      fournisseur LLM (l'abonnement Claude Code y reste distinct de l'API Anthropic), `platform`
+      pour le reste (Hugging Face Hub, Ollama, GitHub) ;
+    • sinon (`custom`) → le libellé de l'énumération, seule déclaration de cette clé.
+
+    Avant le 2026-10-20 la barre de filtres, le badge de card et l'inspecteur affichaient la clé
+    BRUTE (`openrouter`, `face_analyzer`), et les libellés de `ModelSource` recopiaient ces noms
+    — déjà divergents (« Claude Code (abonnement) », « HuggingFace »).
+    """
+    from wama.common import external_sources
+    from wama.common.app_registry import app_identity
+    app = app_identity(source)
+    if app['declared']:
+        return {'key': source, 'nature': 'app', 'label': app['label']}
+    declared = external_sources.by_key().get(source)
+    if declared is not None:
+        return {'key': source, 'nature': 'remote' if declared.kind == 'llm' else 'platform',
+                'label': declared.label}
+    return {'key': source, 'nature': 'platform',
+            'label': dict(ModelSource.choices).get(source) or source}
+
+
 EXECUTION_LOCAL = 'local'
 EXECUTION_CLOUD = 'cloud'
 EXECUTION_CHOICES = [(EXECUTION_LOCAL, 'Local'), (EXECUTION_CLOUD, 'Distant')]
@@ -991,7 +1025,10 @@ class AIModel(ScopedVisibility):
     def to_dict(self):
         """Convert to dictionary for API responses."""
         from wama.common.external_sources import model_origin
+        source = source_identity(self.source)
         return {
+            'source_label': source['label'],
+            'source_nature': source['nature'],
             'origin': self.origin_label,
             'hosting': self.hosting,
             # Rang sur l'échelle des hébergements (0 = local) : le tri « le plus proche d'abord ».

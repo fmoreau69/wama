@@ -1088,6 +1088,14 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   « origine, la plus proche d'abord » (`origin_rank`, le rang de `model_origin`) ; la recherche
   lit aussi l'origine (« souverain », « gratuit »). L'option « Distants (cloud) » du statut part :
   l'Origine la dit. Garde : `tests_cloud_models.FilterBarForMeTest`.
+  **Le filtre « Source » NOMME ses sources — 2026-10-20** : il affichait la clé brute
+  (`claude_code`, `face_analyzer`). Une lecture, `model_manager.models.source_identity` (une
+  app par son identité, un fournisseur ou une plateforme par son nom au registre des sources),
+  groupée par nature — Apps WAMA, Fournisseurs distants, Plateformes ; « Claude Code » et
+  « API Anthropic (Claude) » y restent deux entrées. Le badge de card, l'inspecteur et la liste
+  d'admin lisent le même nom. ⚠ Le filtre et le formulaire de l'admin lisent encore le libellé
+  de l'énumération `ModelSource` (« Claude Code (abonnement) ») : son sort est à décider
+  (`WAMA_APP_GENERATION_ROUTE §10.6 P1`). Garde : `tests_source_identity`.
 - **Clés d'INSTANCE posées depuis WAMA — 2026-10-07** (décision de Fabien : *« c'est la page
   Sources externes qui doit gérer les clés système »*). Un admin pose la clé d'une source dans
   l'inspecteur de `/common/sources/` (`accounts.InstanceApiKey`, chiffrée comme les clés

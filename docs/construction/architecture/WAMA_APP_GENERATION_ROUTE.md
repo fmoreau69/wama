@@ -5787,6 +5787,24 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   noms d'apps et de sources, `AIModel.platform_label` (`:897`) recopie des noms de
 >   plateformes, et la page d'admin des droits affiche la clé de l'app
 >   (`app_access_matrix.html:45`). Rien n'est décidé.
+>   ✅ **Livré le 2026-10-20 (Fabien : « on passe au filtre Source »)** — UNE lecture,
+>   `model_manager.models.source_identity(source)` → `{key, nature, label}` : une app par
+>   `app_identity`, une source du registre par son nom déclaré (`remote` pour un fournisseur
+>   `llm`, `platform` sinon), `custom` par le libellé de l'énumération, seule déclaration de
+>   cette clé. Mesuré : 19 sources au catalogue, toutes nommées (10 apps, 6 fournisseurs,
+>   Hugging Face Hub, Ollama, GitHub, `custom`). Servie par `AIModel.to_dict`
+>   (`source_label`, `source_nature`) ; lue par le filtre « Source », groupé par nature
+>   (`SOURCE_NATURES` : Apps WAMA, Fournisseurs distants, Plateformes), le badge de card,
+>   l'inspecteur, la liste d'admin, le résumé de `sync_models`. La page des droits affiche le
+>   nom de l'app, la clé en petit. Garde `tests_source_identity` (9 tests, dont le filtre sous
+>   V8) et `AppIdentityTest.test_the_rights_matrix_names_an_app_by_its_identity` ; quatre
+>   contre-épreuves rouges. ⏳ **Reste, à décider** : les libellés de `ModelSource` (le filtre
+>   et le formulaire de l'admin les lisent encore, ils divergent — « Claude Code
+>   (abonnement) », « HuggingFace ») ; les aligner est une migration sans SQL (choix seuls).
+>   `AIModel.platform_label` et `_URL_PAR_PLATEFORME` (`models.py`) redisent les noms et les
+>   adresses des plateformes que porte `external_sources`, mais la clé de plateforme
+>   `ollama` désigne `ollama_site` du registre, pas `ollama` : aligner demande que le
+>   registre déclare l'adresse d'une fiche de modèle.
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**

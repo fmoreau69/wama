@@ -4,13 +4,13 @@ WAMA Model Manager - Django Admin Configuration
 
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import AIModel, ModelSyncLog
+from .models import AIModel, ModelSyncLog, source_identity
 
 
 @admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
     list_display = [
-        'name', 'source', 'model_type', 'status_badge',
+        'name', 'source_name', 'model_type', 'status_badge',
         'format_badge', 'size_display', 'updated_at'
     ]
     list_filter = [
@@ -66,6 +66,11 @@ class AIModelAdmin(admin.ModelAdmin):
                 'border-radius: 4px; font-size: 11px;">Not Downloaded</span>'
             )
     status_badge.short_description = 'Status'
+
+    @admin.display(description='Source', ordering='source')
+    def source_name(self, obj):
+        # Le nom de la source, lu comme sur la page du model manager (`source_identity`).
+        return source_identity(obj.source)['label']
 
     def format_badge(self, obj):
         if not obj.format:

@@ -2705,7 +2705,8 @@ MECHANISMS = (
               "le journal, le calendrier) et `app_identity()` — libellé, couleur, icône complète, "
               "page, description, monde — pour tout ce qui NOMME une app (calendrier, journal, « Mon "
               "RAG », scène et page des droits, menu « Envoyer vers », phrases des outils de "
-              "l'assistant). Rien ne déduit un monde d'un libellé de navigation, et rien ne lit une "
+              "l'assistant, nom d'une source de modèle — `model_manager.models.source_identity`). "
+              "Rien ne déduit un monde d'un libellé de navigation, et rien ne lit une "
               "déclaration hors du registre (garde `AppIdentityTest`)",
               'wama/common/app_registry.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               # Domicile très partagé (APP_CATALOG) : compté par son symbole, cf. `media_taxonomy`.
