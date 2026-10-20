@@ -445,9 +445,9 @@
       // figé, INSPECTOR_DETAIL_FIELDS.md) : on les lit sur l'URL qu'on vient d'appeler, qui les
       // porte par construction (`/common/detail/<app>/<pk>/`). Les ajouter au schéma aurait
       // touché les 10 adapters pour une donnée que l'appelant connaît déjà.
-      var seg = durl.split('/detail/')[1] || '';
-      var parts = seg.split('/').filter(Boolean);
-      var ctx = parts.length >= 2 ? { app: parts[0], pk: parts[1] } : null;
+      // Lecture COMMUNE de l'adresse (`WamaMediaPreview.elementOf`, 2026-10-19).
+      var element = _P().elementOf ? _P().elementOf(purl) : null;
+      var ctx = element ? { app: element.surface, pk: String(element.pk) } : null;
       fetch(durl).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
         if (!d || d.error) { hideDetail(); return; }
         infoHost.innerHTML = renderDetailChips(d, ctx);

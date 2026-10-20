@@ -83,6 +83,9 @@ BEAT_WINDOWS = {
     # Vectorisation du RAG et des souvenirs (2026-10-16). Mesuré : 6 654 fragments de doc en 79 s ;
     # une nuit ordinaire n'en a que les nouveaux.
     'memory-reindex-nightly': {'label': 'Vectorisation du RAG et des souvenirs', 'minutes': 5},
+    # Indexation des images de la file par contenu (2026-10-19). Durée DÉCLARÉE : une nuit ordinaire
+    # n'a que les images du jour (16 images en 0,86 s mesurées, chargement à froid compris ~10 s).
+    'media-index-nightly': {'label': 'Indexation des images de la file', 'minutes': 10},
     'nightly-consistency': {'label': 'Tests nocturnes — cohérence', 'minutes': 15,
                             'measure': 'nightly:consistency', 'reserves': ('cpu',)},
     # Deux cadences (2026-10-13, `nightly_tests.scenario_cadence`). Durées DÉCLARÉES = la mesure

@@ -118,6 +118,16 @@
    `style`, donc rien à restaurer. */
 .wama-f-hors-filtre { display: none !important; }
 
+/* Card retrouvée par le CONTENU de ses images (2026-10-19, `WAMA_MEMORY §7sexies`) : un liseré
+   d'accent à gauche, pour qu'on voie POURQUOI elle sort alors que son nom ne contient pas le mot.
+   Le mot à côté du champ dit le reste (combien, et ce qui attend son indexation). */
+.wama-card.wama-content-hit { box-shadow: inset 3px 0 0 var(--wama-accent); }
+.wama-content-note {
+    color: var(--wama-text-secondary);
+    font-size: 0.78rem;
+    white-space: nowrap;
+}
+
 /* État vide DÛ AU FILTRE, distinct de « la page n'a rien à montrer » : le second est un fait,
    le premier est réversible et doit le dire. */
 .wama-filter-empty {

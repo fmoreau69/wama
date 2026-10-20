@@ -850,6 +850,9 @@ if ENABLE_CELERY:
         # Vectorisation du RAG et des souvenirs (2026-10-16) : embeddings dans l'Ollama hôte, même
         # carte — même règle que la passe ci-dessus, sérialisée derrière les traitements.
         'common.reindex_memory': {'queue': 'gpu', 'priority': _prio('_memory_reindex')},
+        # Indexation des médias de la file par contenu (2026-10-19, `WAMA_MEMORY §7sexies`) : même
+        # carte, même règle — sérialisée derrière les traitements, au palier le plus bas.
+        'common.index_media': {'queue': 'gpu', 'priority': _prio('_media_index')},
     }
     CELERY_TASK_DEFAULT_QUEUE = 'default'
 
@@ -962,6 +965,13 @@ if ENABLE_CELERY:
         'memory-reindex-nightly': {
             'task': 'common.reindex_memory',
             'schedule': crontab(hour=1, minute=45),
+        },
+        # …puis les images des éléments de file (2026-10-19, `WAMA_MEMORY §7sexies`) : ce qu'une
+        # recherche n'a pas déjà fait indexer, les fichiers changés, la purge des éléments
+        # retirés. 02:05 = après la passe du RAG, loin de la plage des tests (04:15). Route GPU.
+        'media-index-nightly': {
+            'task': 'common.index_media',
+            'schedule': crontab(hour=2, minute=5),
         },
         # Rétention : purge quotidienne des médias expirés (no-op si aucun user n'a de rétention).
         'purge-expired-media': {

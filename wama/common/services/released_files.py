@@ -161,17 +161,14 @@ def freed_by(instances) -> list:
     lot est libéré quand le lot part, alors que la question posée card par card dirait « partagé ».
     """
     from django.conf import settings
-    from django.db import models as dj_models
-    from wama.common.utils.file_references import listed_paths, referenced_outside
+    from wama.common.utils.file_references import card_files, referenced_outside
     from wama.common.utils.queue_duplication import owns_file
     inside, candidates = set(), set()
     for obj in instances:
         inside.add((obj._meta.label, obj.pk))
         # Ce que la card PORTE : ses champs fichier, et les entrées de ses listes de chemins
         # déclarées — la même lecture que le geste lui-même (`release_card_files`).
-        names = [getattr(getattr(obj, f.name, None), 'name', '') or ''
-                 for f in obj._meta.concrete_fields if isinstance(f, dj_models.FileField)]
-        names += [rel for _field, rel in listed_paths(obj)]
+        names = [rel for _field, rel in card_files(obj)]
         for name in map(_norm, names):
             if (name and owns_file(obj, name)
                     and os.path.isfile(os.path.join(settings.MEDIA_ROOT, name))):

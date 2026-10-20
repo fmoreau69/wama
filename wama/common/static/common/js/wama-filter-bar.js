@@ -31,6 +31,25 @@
 
     var DEBOUNCE_MS = 350;          // frappe au clavier — assez pour ne pas soumettre à chaque touche
 
+    // RECHERCHE PAR LE CONTENU (2026-10-19, `WAMA_MEMORY §7sexies`) : une requête vectorisée par
+    // le serveur coûte un appel au modèle — on attend la fin de la frappe, et deux lettres ne
+    // décrivent aucune image.
+    var CONTENT_DEBOUNCE_MS = 600;
+    var CONTENT_MIN_CHARS = 3;
+
+    /** La clé `surface:pk` de l'élément d'une card — l'adresse de son aperçu commun, lue par la
+     *  brique de la preview (`WamaMediaPreview.cardElement`) ; '' sans aperçu. */
+    function elementKey(card) {
+        var P = global.WamaMediaPreview;
+        var el = P && P.cardElement ? P.cardElement(card) : null;
+        return el ? el.surface + ':' + el.pk : '';
+    }
+
+    /** Les cards d'une entrée de file (card seule, ou card mère et ses filles). */
+    function cardsOf(el) {
+        return el.matches && el.matches('.wama-card') ? [el] : $$('.wama-card', el);
+    }
+
     function $(sel, racine) { return (racine || document).querySelector(sel); }
     function $$(sel, racine) { return Array.prototype.slice.call((racine || document).querySelectorAll(sel)); }
 
@@ -154,6 +173,15 @@
         // se DÉCLARENT (le DOM est vide au montage), comme en mode server.
         var liveTarget = bar.getAttribute('data-cible-vivante') === '1';
 
+        // RECHERCHE PAR LE CONTENU — barre de FILE seule (`data-content-search-url`, posé par
+        // l'enveloppe `file` de `_toolbar.html`). Le filtre texte reste instantané ; quand le
+        // serveur répond, une entrée dont une image correspond à la requête est AUSSI montrée
+        // (union), et ses cards sont marquées `wama-content-hit`. `content.q` = la requête à
+        // laquelle `content.keys` répond : une réponse à une frappe plus ancienne est ignorée.
+        var contentUrl = mode === 'client' ? bar.getAttribute('data-content-search-url') : null;
+        var content = { q: '', keys: null, timer: null, seq: 0 };
+        var note = null;
+
         // Mode client : les facettes se remplissent de ce qui est réellement affiché.
         if (mode === 'client') {
             selects.forEach(function (s) {
@@ -164,6 +192,87 @@
         function actif() {
             if (recherche && recherche.value.trim()) { return true; }
             return $$('[data-f-facette]', bar).some(function (s) { return s.value && s.value !== 'all'; });
+        }
+
+        function contentHas(card, q) {
+            return !!(content.keys && content.q === q && content.keys.has(elementKey(card)));
+        }
+
+        function contentMatches(el, q) {
+            return !!(content.keys && content.q === q) && cardsOf(el).some(function (c) {
+                return contentHas(c, q);
+            });
+        }
+
+        /** Le mot discret qui dit ce que la recherche par contenu a fait (à côté du champ). */
+        function showNote(text, title) {
+            if (!note && text && recherche) {
+                note = document.createElement('span');
+                note.className = 'wama-content-note';
+                var group = recherche.closest('.wama-filter-search') || recherche;
+                group.insertAdjacentElement('afterend', note);
+            }
+            if (note) {
+                note.textContent = text || '';
+                note.title = title || '';
+                note.hidden = !text;
+            }
+        }
+
+        /** Demande au serveur les entrées dont une image répond à `q` (`api_queue_content_search`).
+         *  Les cards nommées sont celles de CETTE file ; le serveur ne répond que pour celles que
+         *  le compte peut lister, et met en tâche l'indexation de celles qui ne le sont pas. */
+        function askContent(q) {
+            if (!contentUrl) { return; }
+            if (content.timer) { clearTimeout(content.timer); }
+            if (q.length < CONTENT_MIN_CHARS) {
+                content.seq++;
+                content.q = ''; content.keys = null;
+                showNote('');
+                return;
+            }
+            if (q === content.q) { return; }
+            content.timer = setTimeout(function () {
+                if (liveTarget && selCible) { elements = $$(selCible, racine || document); }
+                var seen = {}, cards = [];
+                elements.forEach(function (el) {
+                    cardsOf(el).forEach(function (c) {
+                        var key = elementKey(c);
+                        if (!key || seen[key]) { return; }
+                        seen[key] = true;
+                        var cut = key.lastIndexOf(':');
+                        cards.push({ surface: key.slice(0, cut), pk: Number(key.slice(cut + 1)) });
+                    });
+                });
+                if (!cards.length) { return; }
+                var seq = ++content.seq;
+                var app = global.WamaApp;
+                var opts = { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                             body: JSON.stringify({ q: q, cards: cards }) };
+                var call = app && app.csrfFetch
+                    ? app.csrfFetch(contentUrl, app.csrfToken ? app.csrfToken() : '', opts)
+                    : fetch(contentUrl, opts);
+                call.then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+                    if (!d || seq !== content.seq) { return; }   // une frappe plus récente l'emporte
+                    content.q = q;
+                    content.keys = new Set((d.hits || []).map(function (h) { return h.surface + ':' + h.pk; }));
+                    var parts = [], why = [];
+                    if (d.unavailable) {
+                        parts.push('contenu : indisponible');
+                        why.push("Le modèle qui lit les images ne répond pas : seuls les noms sont cherchés.");
+                    } else if (content.keys.size) {
+                        parts.push(content.keys.size + ' par l’image');
+                        why.push(content.keys.size + ' élément(s) retrouvé(s) par le contenu de leurs images.');
+                    }
+                    if (d.pending) {
+                        parts.push(d.pending + ' à indexer');
+                        why.push(d.pending + " élément(s) pas encore indexé(s) : leur indexation est en cours, "
+                                 + 'en tâche de fond — relancez la recherche dans un moment.');
+                    }
+                    showNote(parts.join(' · '), why.join(' '));
+                    appliquerClient();
+                }).catch(function () { /* la recherche par les noms reste entière */ });
+            }, CONTENT_DEBOUNCE_MS);
         }
 
         function appliquerClient() {
@@ -178,9 +287,14 @@
                         ok = false;
                     }
                 }
-                if (ok && q && texteDe(el).indexOf(q) === -1) { ok = false; }
+                if (ok && q && texteDe(el).indexOf(q) === -1 && !contentMatches(el, q)) { ok = false; }
                 montrer(el, ok);
                 if (ok) { visibles++; }
+                if (contentUrl) {
+                    cardsOf(el).forEach(function (c) {
+                        c.classList.toggle('wama-content-hit', !!(q && contentHas(c, q)));
+                    });
+                }
             });
             // GROUPES — un en-tête de section n'a pas de sens si sa section est vide. Sans ça,
             // filtrer une page groupée (catalogue d'apps par catégorie, frise par mois) laisse
@@ -238,7 +352,11 @@
         function surChangement(immediat) {
             if (effacer) { effacer.style.display = (recherche && recherche.value) ? '' : 'none'; }
             bar.classList.toggle('is-filtered', actif());
-            if (mode === 'client') { appliquerClient(); return; }
+            if (mode === 'client') {
+                appliquerClient();
+                askContent(recherche ? recherche.value.toLowerCase().trim() : '');
+                return;
+            }
             if (minuteur) { clearTimeout(minuteur); }
             minuteur = setTimeout(mode === 'remote' ? annoncer : soumettre, immediat ? 0 : DEBOUNCE_MS);
         }

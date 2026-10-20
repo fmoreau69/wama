@@ -1794,6 +1794,51 @@ class RagChunk(Embedded, ScopedVisibility):
         return f"{self.source_kind}:{self.source_id}#{self.ordinal}"
 
 
+#: Dimension de l'espace `media` (`common/vectors/spaces.py`, EmbeddingGemma-2 non tronqué). Comme
+#: `EMBEDDING_DIMS` : un changement impose une migration de la colonne, pas un simple réindex.
+MEDIA_EMBEDDING_DIMS = 768
+
+
+class MediaVector(models.Model):
+    """Le vecteur d'UNE image portée par un élément de file — la recherche de la file par CONTENU
+    (2026-10-19, demande de Fabien : « voiture » retrouve l'image d'une voiture sans que son nom
+    le dise). `WAMA_MEMORY.md §7sexies`, service `common/vectors/media_index.py`.
+
+    Adressage par la SURFACE de détail (`DetailRegistry` : `imager`, `audio_enhancer`…) et le pk
+    de l'élément — la même adresse que l'aperçu commun (`/common/preview/<surface>/<pk>/`), que la
+    card porte déjà. Une table commune plutôt qu'une colonne sur les dix modèles d'élément.
+
+    Ce n'est PAS un `Embedded` : aucun texte verbatim à garder, une autre dimension, et la ligne
+    se RE-DÉRIVE du fichier à tout moment (supprimée avec l'élément, recalculée si le fichier
+    change — `content_sig`).
+    """
+
+    surface = models.CharField(max_length=48)
+    object_id = models.PositiveIntegerField()
+    #: Le champ qui porte le fichier (champ fichier, ou liste de chemins déclarée).
+    field = models.CharField(max_length=64)
+    #: Chemin relatif à MEDIA_ROOT — la forme de `file_references`.
+    path = models.CharField(max_length=500)
+    #: Taille et date du fichier vectorisé : un résultat relancé au même chemin se revectorise.
+    content_sig = models.CharField(max_length=64)
+    space = models.CharField(max_length=16, default='media')
+    embedding_model = models.CharField(max_length=64)
+    embedding = VectorField(dimensions=MEDIA_EMBEDDING_DIMS)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Vecteur de média'
+        verbose_name_plural = 'Vecteurs de médias'
+        indexes = [models.Index(fields=['surface', 'object_id'], name='media_vector_element')]
+        constraints = [
+            models.UniqueConstraint(fields=['surface', 'object_id', 'path', 'space'],
+                                    name='media_vector_unique_file'),
+        ]
+
+    def __str__(self):
+        return f"{self.surface}#{self.object_id} · {self.path}"
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # CONVERSATION — le fil de dialogue avec l'assistant  (ROADMAP §19.5)
 # ─────────────────────────────────────────────────────────────────────────────

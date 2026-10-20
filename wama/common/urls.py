@@ -11,6 +11,7 @@ from .utils import preview_utils
 from .utils import detail_registry
 from . import surface_views
 from . import views
+from .vectors import views as vector_views
 
 app_name = 'common'
 
@@ -145,6 +146,10 @@ urlpatterns = [
     # NOM d'un lot (card mère, 2026-10-19) : le donner, l'effacer — même adressage, une route pour
     # toutes les surfaces (`common/services/batch_identity.py`).
     path('api/batch/<str:surface>/<int:pk>/label/', views.api_batch_label, name='api_batch_label'),
+    # RECHERCHE DE LA FILE PAR CONTENU (2026-10-19, `WAMA_MEMORY §7sexies`) : les cards d'une file,
+    # celles dont une image répond à la requête — la barre de file commune l'appelle.
+    path('api/queue/content-search/', vector_views.api_queue_content_search,
+         name='api_queue_content_search'),
     # RÉSULTAT DE RÉFÉRENCE (port `reference_result`) — même forme que le partage : un élément
     # ou un lot, une route pour toutes les surfaces qui DÉCLARENT leur évaluation.
     path('api/result-reference/<str:surface>/<str:nature>/<int:pk>/',

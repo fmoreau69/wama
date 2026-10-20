@@ -92,8 +92,10 @@
    **Suite (2026-10-19, demande de Fabien) : un service de VECTORISATION commun, un espace par
    nature de média** (`WAMA_MEMORY §7sexies`) — ✅ espaces `text` (qwen3-embedding) et `media`
    (EmbeddingGemma-2, installé par la route, image éprouvée), moteur, service `:8002`, client, RAG
-   rallié ; ⏳ indexation de la file par contenu (tâche différée, basse priorité), vidéo, audio,
-   médiathèque distante, banc texte → image.
+   rallié ; ✅ **recherche de la file par contenu** (`§7sexies.1` : table `MediaVector`, tâche
+   `common.index_media` au palier bas lancée par le geste de chercher et la nuit, barre de file
+   des douze apps ; 167 images réelles en 30 s) ; ⏳ précision par les descriptions du Describer,
+   vidéo, audio, médiathèque distante, banc texte → image.
    **La hiérarchie université → labo → équipe**, qui devait « attendre la preuve d'usage »,
    n'est pas perdue : elle est HÉRITÉE d'`OrgUnit` + `ScopedVisibility` (`WAMA_MEMORY.md`, qui
    déplace la prudence sur l'USAGE — et y suit l'état de l'arbre `OrgUnit`). *(Phrase retirée

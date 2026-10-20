@@ -95,6 +95,15 @@
         return parts[0] + (kept.length ? '?' + kept.join('&') : '');
     }
 
+    /** L'ÉLÉMENT qu'une adresse d'aperçu désigne : `{surface, pk}`, lu sur
+     *  `/common/preview/<surface>/<pk>/` (`common:unified_preview`) ; null sinon — pure.
+     *  La lecture qu'écrivaient à leur main l'inspecteur (son détail) et, depuis le 2026-10-19,
+     *  la recherche de la file par contenu (`wama-filter-bar.js`). */
+    function elementOf(endpoint) {
+        const m = /\/preview\/([^/?#]+)\/(\d+)(?:[/?#]|$)/.exec(String(endpoint || ''));
+        return m ? { surface: m[1], pk: Number(m[2]) } : null;
+    }
+
     /** La modale sait-elle montrer ce payload ? Un fichier (`url`) ou un TEXTE servi inline
      *  (`content`) — la clé que rend le serveur pour toute face texte (`preview_utils.file_face`,
      *  sortie `result_text`, entrée `source_text`) et que lit le volet. Pure (gardée en V8,
@@ -992,6 +1001,12 @@
             || card.querySelector('.preview-media-link[data-preview-url]')
             || (card.matches('[data-preview-url]') ? card : card.querySelector('[data-preview-url]'));
         return el ? el.getAttribute('data-preview-url') : null;
+    }
+
+    /** L'élément d'une card — `{surface, pk}` de son aperçu commun, null si elle n'en a pas. */
+    function cardElement(card) {
+        const url = card && _cardPreviewUrl(card);
+        return url ? elementOf(url) : null;
     }
 
     /** Les cards entre lesquelles navigue la visionneuse ouverte depuis `card` : celles de sa file,
@@ -1907,7 +1922,8 @@
     // `tests_preview_entry`, `tests_preview_navigation`).
     window.WamaMediaPreview = {
         // pures
-        itemAddress: _itemAddress, showable: showable, faceButtons: faceButtons, compareTitle: compareTitle,
+        itemAddress: _itemAddress, elementOf: elementOf, showable: showable, faceButtons: faceButtons,
+        compareTitle: compareTitle,
         wordsLabel: wordsLabel, coherenceHtml: coherenceHtml, segmentsHtml: segmentsHtml,
         downloadsHtml: downloadsHtml,
         stepTarget: stepTarget, duringUrl: duringUrl, faceUrl: faceUrl,
@@ -1917,7 +1933,7 @@
         sidesBar: sidesBar, viewerKind: viewerKind, compareFaces: compareFaces, compareView: compareView,
         variantToggle: variantToggle, followDuring: followDuring,
         takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
-        isRunningCard: isRunningCard, cardOfPreview: cardOfPreview,
+        isRunningCard: isRunningCard, cardOfPreview: cardOfPreview, cardElement: cardElement,
         // visionneuse et navigation
         show: showPreviewModal, showWithNav: showPreviewModalWithNav,
         openSequence: openSequence, openForCard: openForCard, cardSequence: cardSequence,

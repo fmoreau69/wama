@@ -1393,6 +1393,9 @@ APP_TIERS = {
     # embeddings (`memory.embed.EMBEDDING_MODEL`) dans l'Ollama HÔTE, même profil que la passe ci-dessus : file gpu
     # --pool=solo, derrière tout traitement utilisateur (`WAMA_MEMORY §5bis`).
     "_memory_reindex": "basse",
+    # Pseudo-app : indexation des images de la file dans l'espace `media` (`common.index_media`,
+    # 2026-10-19) — même profil que la passe ci-dessus (`WAMA_MEMORY §7sexies`).
+    "_media_index": "basse",
 }
 
 DEFAULT_TIER = "normale"

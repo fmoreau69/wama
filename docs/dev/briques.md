@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**210 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**211 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1235,11 +1235,12 @@ L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent �
 
 - **Domicile** : `wama/common/utils/file_references.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : QUI DÉSIGNE CE FICHIER ? — l'index des cards qui utilisent un chemin, et les deux gestes qui le tiennent à jour quand le fichier bouge ou disparaît.
-- **API publique** (12) :
+- **API publique** (13) :
   - `file_field_models()` — `[(modèle, [FileField…])]` pour tout le dépôt — UNE énumération, plusieurs lecteurs
   - `path_list_fields()` — (modèle, champ) portant une LISTE de chemins (JSON) hors `FileField` — lus dans la
   - `relative_to_media(path) -> str` — Chemin relatif à MEDIA_ROOT (la forme que `owns_file` compare) ; '' s'il est HORS de
   - `listed_paths(instance) -> list` — `[(champ, chemin relatif à MEDIA_ROOT)]` pour chaque entrée des listes de chemins DÉCLARÉES
+  - `card_files(instance) -> list` — `[(champ, chemin relatif à MEDIA_ROOT)]` de TOUT ce que la card porte : ses champs fichier
   - `relocated_list(value, mapping) -> list` — La liste `value` dont chaque entrée désignant un chemin de `mapping` (relatif → nouveau
   - `direct_references(path, *, folder=False) -> list` — Les cards dont un `FileField` — ou une entrée d'une liste de chemins déclarée — porte ce
   - `is_referenced_elsewhere(path, *, label='', pk=None, field='') -> bool` — Une AUTRE ligne, DE N'IMPORTE QUEL MODÈLE, désigne-t-elle ce fichier ?
@@ -1265,6 +1266,20 @@ UNE brique pour tout service externe qui limite son débit : la NOTE de saturati
   - `learn_from_refusal(source: str, scope: str, model: str='', *, retry_after_s: float=0.0, now: float=None) -> int` — Un refus de débit RÉEL : ce qui a été servi sur la fenêtre devient le plafond de cette
   - `exhausted(source: str, scope: str, model: str='', now: float=None) -> str` — '' si `source` peut encore servir `model` à cette clé ; sinon le motif — le plafond (déclaré
   - `unavailable_keys(keys, scope_of) -> dict` — {model_key: motif} des clés de catalogue `<source>:<modèle>` que le tirage automatique doit
+
+### Recherche de la file par contenu
+
+« voiture » retrouve l'élément dont l'IMAGE montre une voiture, sans que son nom le dise : les images de chaque élément de file (`file_references.card_files`, surfaces de `DetailRegistry`) vectorisées dans l'espace `media` (table `MediaVector`), par une tâche de la file GPU au palier bas (`common.index_media`) — lancée par le GESTE de chercher dans une file et par le lot de nuit, jamais par un battement. La barre de file commune demande au serveur les cards dont une image répond (écart à une requête neutre, mesuré), droits de lecture appliqués, et les montre en plus du filtre par le nom (2026-10-19)
+
+- **Domicile** : `wama/common/vectors/media_index.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7sexies](../construction/ia/WAMA_MEMORY.md)
+- **Module** : L'index des médias de la file par CONTENU — `WAMA_MEMORY.md §7sexies`.
+- **API publique** (6) :
+  - `surfaces() -> dict` — `{surface: modèle d'élément}` — les surfaces de détail déclarées (`DetailRegistry`).
+  - `element_images(instance, limit: int=MAX_IMAGES_PER_ELEMENT) -> list` — `[(champ, chemin relatif)]` des images que l'élément porte et qui existent sur le disque —
+  - `pending(addresses=None, limit: int=None) -> list` — Les images à (re)vectoriser : absentes de l'index, vectorisées par un autre modèle, ou
+  - `index(addresses=None, *, limit: int=512) -> dict` — Vectorise ce qui attend (`pending`), par lots. Rend un résumé.
+  - `purge() -> int` — Retire les vecteurs dont l'élément n'existe plus, ou dont le fichier a disparu. Rend le
+  - `search(user, query: str, addresses) -> dict` — Les éléments, parmi `addresses` (les cards que la page montre), dont une image répond à
 
 ### Révisions d'un élément (historique DANS la card)
 
@@ -2120,7 +2135,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (42) :
+- **API publique** (43) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2160,6 +2175,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class Embedded(models.Model)` — Socle vectoriel commun au souvenir et au fragment. ABSTRAIT — aucune table.
   - `class MemoryItem(Embedded, ScopedVisibility)` — LE SOUVENIR — un fait, un événement ou une procédure. NON re-dérivable.
   - `class RagChunk(Embedded, ScopedVisibility)` — LE FRAGMENT — un morceau d'un document source. RE-DÉRIVABLE : la source fait foi, donc une
+  - `class MediaVector(models.Model)` — Le vecteur d'UNE image portée par un élément de file — la recherche de la file par CONTENU
   - `class Conversation(models.Model)` — Un fil de dialogue avec l'assistant, quelle que soit la surface qui le porte.
   - `class ConversationTurn(models.Model)` — Un tour de conversation — ce que l'utilisateur a dit, ou ce que l'assistant a répondu.
   - `class InputProvenance(models.Model)` — D'OÙ vient le fichier d'entrée d'un élément — le LIEN qui manquait.
@@ -2217,7 +2233,7 @@ Le suivi d'UNE card (`progress`), la barre de FILE (`global_progress`) et le ZIP
 
 ### Ajout à la file (mode attache)
 
-Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du volet + fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté serveur : `received_inputs`. Mode DÉRIVÉ des ports par le générateur (`views_gen.prompt_entry` : consigne sans port de travail). Adoptée le jour même par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré). `ports: 'card'` (05/10) : les ports relus sur la card v4 à chaque envoi, chacun posté sous son nom — le relevé que le composer et le générateur écrivaient chacun
+Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du volet + fichier joint ou désigné par port (`appendInput`), URL postée seulement si l'élément la garde (sinon refusée, motif dit), rien n'est lancé (règle des deux temps). Côté serveur : `received_inputs`. Forme d'entrée DÉDUITE de l'obligation des ports (`app_registry.entry_form`, 2026-10-19 — dépôt / attache / mixte), lue par la card v4, le générateur (`views_gen.card_entry`) et `WamaImport({attach: 'card'})`. Adoptée le jour même par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré). `ports: 'card'` (05/10) : les ports relus sur la card v4 à chaque envoi, chacun posté sous son nom — le relevé que le composer et le générateur écrivaient chacun
 
 - **Domicile** : `wama/common/static/common/js/wama-app-base.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -2546,7 +2562,7 @@ Modale commune de choix d'un asset de la médiathèque (filtrée par type), rend
 
 ### Thèmes et tokens de couleur
 
-Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), passés à toute page par le contexte et posés par base.html sur `<html>` (`data-wama-theme`, `data-bs-theme`) ; leurs VALEURS dans `wama-theme.css`, un bloc par thème, chargé avant toute feuille. Un composant lit un token (`var(--wama-text-label)`), il n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). `common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre (`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que `themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot). Un thème DÉRIVÉ (`Theme.base`, 2026-10-19 : Université Gustave Eiffel, La Suite numérique) reçoit toutes les valeurs de sa base par la liste de sélecteurs de son bloc et ne redéfinit que son identité, chaque couleur venant de sa charte (`CHARTERS`) ; La Suite se décline aussi en sombre, dérivé du sombre. Un thème peut porter le logo de sa charte (`Theme.logo`, UGE) : la barre du haut les pose tous, la feuille ne montre que celui du thème actif ; une police sous licence commerciale est NOMMÉE, jamais servie (`LICENSED_FONTS`, TT Norms). Le compte CHOISIT au Profil (2026-10-19) un thème déclaré — le SOMBRE par défaut — ou « Automatique », qui suit le mode du système (`wama-theme.js`, résolu avant le premier rendu) ; `theme_choice`, réglage durable `user_settings`
+Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), passés à toute page par le contexte et posés par base.html sur `<html>` (`data-wama-theme`, `data-bs-theme`) ; leurs VALEURS dans `wama-theme.css`, un bloc par thème, chargé avant toute feuille. Un composant lit un token (`var(--wama-text-label)`), il n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). `common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre (`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que `themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot). Un thème DÉRIVÉ (`Theme.base`, 2026-10-19 : Université Gustave Eiffel, La Suite numérique) reçoit toutes les valeurs de sa base par la liste de sélecteurs de son bloc et ne redéfinit que son identité, chaque couleur venant de sa charte (`CHARTERS`) ; La Suite se décline aussi en sombre, dérivé du sombre. Un thème peut porter le logo de sa charte (`Theme.logo`, UGE) : la barre du haut les pose tous, la feuille ne montre que celui du thème actif ; une police sous licence commerciale est NOMMÉE, jamais servie (`LICENSED_FONTS`, TT Norms) ; une police libre est SERVIE, vendorisée par `update_vendors.sh` et déclarée par sa charte (`CHARTERS[…]['font']`, Roboto Flex pour La Suite, 2026-10-20). Le compte CHOISIT au Profil (2026-10-19) un thème déclaré — le SOMBRE par défaut — ou « Automatique », qui suit le mode du système (`wama-theme.js`, résolu avant le premier rendu) ; `theme_choice`, réglage durable `user_settings`. Un thème PERSONNALISÉ (2026-10-20, `Theme.generated` : clair ou sombre) naît d'une couleur d'accent cliquée au Profil (`PALETTES`, ou le sélecteur) : `theme_generator` en GÉNÈRE le bloc d'identité, chaque texte ajusté à 4,5:1 sur les fonds de sa base, posé par base.html dans `#wama-theme-generated`
 
 - **Domicile** : `wama/common/themes.py` · **doc** : [docs/construction/suivi/ROADMAP.md §28](../construction/suivi/ROADMAP.md)
 - **Module** : Thèmes de WAMA — LA déclaration (chantier ouvert le 2026-10-17, demande de Fabien : « ça fonctionnera aussi quand on aura mis en place plusieurs thèmes/modes (sombre/clair/UGE/etc) »).
@@ -2855,7 +2871,7 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (43) :
+- **API publique** (45) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -2871,6 +2887,8 @@ Chaque app DÉCLARE son monde (media | data | lab | transverse) et son identité
   - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
+  - `entry_form(ports) -> dict` — La FORME D'ENTRÉE d'une card, DÉDUITE de l'obligation que chaque port porte (2026-10-19).
+  - `principal_entry(ports) -> dict` — L'ENTRÉE PRINCIPALE d'un nœud du Studio, tirée de la forme d'entrée (`entry_form`) :
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
   - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
   - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
@@ -3173,7 +3191,7 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
 
 - **Domicile** : `wama/common/app_registry.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Application Registry
-- **API publique** (43) :
+- **API publique** (45) :
   - `register_category_extensions(category, extensions)` — Un MONDE déclare les extensions qu'il POSSÈDE pour une nature de `MEDIA_CATEGORIES`.
   - `media_extensions() -> dict` — Les extensions reconnues, PAR NATURE — `{nature: [ext…]}`, sans le point.
   - `category_of_path(path)` — Catégorie média ('image'|'video'|'audio'|'document'|'archive'|'dataset'|'3d'|'score') d'un chemin
@@ -3189,6 +3207,8 @@ Source UNIQUE des natures de média (image/video/audio/document/archive/dataset/
   - `app_own_input_ports(app_id)` — Ports d'entrée que l'APP consomme elle-même — aucun modèle ne les déclare (2026-09-30).
   - `ports_for_domain(app_id, domain, ports)` — Les ports d'une card, restreints à un DOMAINE de l'app (2026-09-30, card v4 multi-domaine).
   - `app_ports_carried_elsewhere(app_id) -> dict` — Ports que la card d'ENTRÉE de l'app ne montre pas, parce qu'un AUTRE geste les porte —
+  - `entry_form(ports) -> dict` — La FORME D'ENTRÉE d'une card, DÉDUITE de l'obligation que chaque port porte (2026-10-19).
+  - `principal_entry(ports) -> dict` — L'ENTRÉE PRINCIPALE d'un nœud du Studio, tirée de la forme d'entrée (`entry_form`) :
   - `app_result_ports(app_id)` — Entrées que l'APP consomme elle-même autour du résultat — jamais un modèle.
   - `world_label(world: str) -> str` — Libellé d'un monde ; le nom brut si le monde est inconnu (jamais une chaîne vide).
   - `register_app_world(app_id: str, world: str) -> None` — Déclare le monde d'une app hors catalogue. Refuse un monde hors vocabulaire, et refuse
@@ -3286,7 +3306,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (42) :
+- **API publique** (43) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -3326,6 +3346,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
   - `class Embedded(models.Model)` — Socle vectoriel commun au souvenir et au fragment. ABSTRAIT — aucune table.
   - `class MemoryItem(Embedded, ScopedVisibility)` — LE SOUVENIR — un fait, un événement ou une procédure. NON re-dérivable.
   - `class RagChunk(Embedded, ScopedVisibility)` — LE FRAGMENT — un morceau d'un document source. RE-DÉRIVABLE : la source fait foi, donc une
+  - `class MediaVector(models.Model)` — Le vecteur d'UNE image portée par un élément de file — la recherche de la file par CONTENU
   - `class Conversation(models.Model)` — Un fil de dialogue avec l'assistant, quelle que soit la surface qui le porte.
   - `class ConversationTurn(models.Model)` — Un tour de conversation — ce que l'utilisateur a dit, ou ce que l'assistant a répondu.
   - `class InputProvenance(models.Model)` — D'OÙ vient le fichier d'entrée d'un élément — le LIEN qui manquait.

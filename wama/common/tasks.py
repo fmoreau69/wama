@@ -260,6 +260,45 @@ def reindex_memory_task(user_id=None):
     return summary
 
 
+#: Verrou de l'indexation des médias : une passe à la fois (deux recherches qui se suivent, le lot
+#: de nuit pendant une recherche). Sa durée borne une passe interrompue sans le relâcher.
+MEDIA_INDEX_LOCK = 'common.index_media.lock'
+MEDIA_INDEX_LOCK_SECONDS = 3600
+
+
+@shared_task(name='common.index_media', bind=True)
+def index_media_task(self, addresses=None):
+    """Vectorise les images des éléments de file dans l'espace `media` (`WAMA_MEMORY §7sexies`,
+    `common/vectors/media_index.py`) : celles des éléments nommés (`addresses` = `[[surface, pk]…]`,
+    posées par une recherche dans une file), sinon tout ce qui attend (lot `media-index-nightly`).
+
+    File GPU, palier le plus bas (`_media_index`) ; le modèle de l'espace s'installe par la route
+    s'il manque (`ensure_installed` : la tâche rend son worker et revient). Une passe déjà en cours
+    ne s'en voit pas ajouter une seconde — les éléments restants seront pris au geste suivant."""
+    from django.core.cache import cache
+
+    from wama.common.utils.model_readiness import ensure_installed
+    from wama.common.utils.task_skeleton import ServiceNotReady, redeliver_later
+    from wama.common.vectors import media_index
+    from wama.common.vectors.spaces import MEDIA
+
+    try:
+        ensure_installed(MEDIA.model_key, redelivered=bool(self.request.retries))
+    except ServiceNotReady as wait:
+        redeliver_later(self, wait)
+    if not cache.add(MEDIA_INDEX_LOCK, 1, timeout=MEDIA_INDEX_LOCK_SECONDS):
+        logger.info("[media_index] indexation déjà en cours : rien de plus lancé")
+        return {'skipped': 'en cours'}
+    try:
+        summary = media_index.index(
+            None if addresses is None else [tuple(a) for a in addresses])
+    finally:
+        cache.delete(MEDIA_INDEX_LOCK)
+    if summary.get('indexed') or summary.get('failed') or summary.get('purged'):
+        logger.info("[media_index] %s", summary)
+    return summary
+
+
 @shared_task(name='common.purge_expired_media')
 def purge_expired_media_task(dry_run=False):
     """

@@ -338,15 +338,39 @@ une corruption silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000
 
 **Ce que ce palier livre / ce qui suit**
 - ✅ espaces, moteur, service, client ; le RAG (`memory/embed.py`) passe par le client (espace `text`).
-- ⏳ **indexation de la file** : une table de vecteurs `media` par élément, remplie par une tâche
-  différée de basse priorité (`ensure_installed` du modèle de l'espace), et la recherche de la file
-  qui fusionne nom + texte + contenu ;
+- ✅ **indexation de la file par contenu** (2026-10-19, `common/vectors/media_index.py`) — détail
+  ci-dessous ;
 - ⏳ **vidéo** : quelques images par plan, vectorisées dans l'espace `media` ;
 - ⏳ **audio** : sa transcription, dans l'espace `text` (EmbeddingGemma-2 annonce l'audio, Ollama
   ne le déclare pas en entrée) ;
 - ⏳ **médiathèque distante** : même tâche, sur les médias qu'un connecteur expose ;
 - ⏳ un **banc** texte → image (9 images ne sont qu'une sonde), puis Qwen3-VL-Embedding-2B en
   comparaison si EmbeddingGemma-2 déçoit.
+
+### 7sexies.1 La recherche de la file par contenu, telle que livrée (2026-10-19)
+
+| pièce | où | ce qu'elle fait |
+|---|---|---|
+| quoi indexer | `media_index.element_images` | les IMAGES qu'un élément porte et qui existent : `file_references.card_files` (champs fichier + listes de chemins déclarées — accesseur né ce jour-là, que `released_files.freed_by` écrivait à sa main), filtrées par `category_of_path`, entrée comme résultat, 8 au plus |
+| où | table `MediaVector` (`common/0032`) | une ligne par image : adresse de l'élément `(surface, pk)` — celle de l'aperçu commun —, chemin, signature taille+date, modèle, vecteur 768 |
+| quand | tâche `common.index_media` | file GPU, palier `_media_index` (basse) ; installe le modèle par la route (`ensure_installed`) ; résidence demandée au gouverneur, déchargement en fin de passe. Lancée par le GESTE de chercher (les cards de la file sans vecteur, une fois par 2 min) et par le lot `media-index-nightly` (02:05 : fichiers changés, purge des éléments retirés) — pas de battement fréquent (§5bis) |
+| chercher | `api_queue_content_search` + `wama-filter-bar.js` | la barre de file (les douze) envoie les adresses de SES cards (`WamaMediaPreview.cardElement`, lecture commune avec l'inspecteur) ; le serveur ne répond que pour celles que le compte peut lister (`listable_by`). Le filtre par le nom reste instantané ; les entrées dont une image répond s'y AJOUTENT, marquées d'un liseré d'accent ; un mot à côté du champ dit combien, et combien attendent leur indexation |
+
+**La règle de réponse — mesurée, pas choisie.** Le score brut ne sépare pas (0,57 à 0,75, niveau
+propre à chaque requête). L'ÉCART à la meilleure de trois requêtes neutres (« une image », « une
+photo », « image ») pour la même image le fait mieux ; seuil **+0,01** (`MIN_OFFSET`). Sur les 9
+médias de la sonde : voiture ✓✓, personne ✓✓✓, logo ✓✓, chien (rien) ✓ ; route : un faux positif
+(la photo de groupe) ; chat : un chat sur deux ; avion : la navette à tort.
+
+**Passe réelle (2026-10-19)** : 167 images de 7 apps indexées en 30 s (relevé du parc : 3,3 s),
+résidence accordée. Files du compte 1 : anonymizer « voiture » → les 4 photos de la Peugeot ;
+imager « logo » → les 3 logos ; imager « chat » → rien (le chat dessiné en style cartoon ne passe
+pas l'écart — la limite de la sonde, confirmée).
+
+⏳ **La précision passe par le Describer** : une DESCRIPTION en texte de chaque image (VLM), cherchée
+dans l'espace `text`, puis fusionnée par rang avec l'espace `media` — la phrase dit aussi pourquoi
+l'élément est sorti. La table `MediaVector` ne change pas pour cela (un autre espace, une autre
+ligne).
 
 ## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
 

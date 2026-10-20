@@ -73,11 +73,19 @@ le frère suivant de la barre).
 
 La recherche filtre les ENTRÉES de file en direct, côté client. Deux files sur une même page
 (imager image/vidéo, enhancer média/audio) restent indépendantes grâce à cette portée : sans
-elle, taper dans l'une filtrerait l'autre.{% endcomment %}
+elle, taper dans l'une filtrerait l'autre.
+
+`data-content-search-url` (2026-10-19, `WAMA_MEMORY §7sexies`) : la même recherche retrouve
+AUSSI une entrée par le CONTENU de ses images (« voiture » → la photo d'une voiture), demandé au
+serveur à la fin de la frappe. Posé ici, pour les douze files d'un coup. Forme `url … as` : une
+route absente (gunicorn pas encore relancé, gabarit relu à chaud) n'émet pas l'attribut au lieu
+de faire tomber les douze pages — la recherche par les noms reste.{% endcomment %}
+{% url 'common:api_queue_content_search' as tb_content_url %}
 <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap wama-queue-toolbar mb-2"
      data-wama-filter-bar data-mode="client"
      data-cible=".wama-queue-entry, .batch-group"
-     data-cible-dans="file-suivante">
+     data-cible-dans="file-suivante"{% if tb_content_url %}
+     data-content-search-url="{{ tb_content_url }}"{% endif %}>
     <div class="d-flex align-items-center gap-2 flex-wrap">
         {% comment %}Placeholder COURT : le champ est volontairement étroit (arbitrage Fabien —
         « 1 ou 2 mots tout au plus », le défilement natif fait le reste), et « Rechercher dans la

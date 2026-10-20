@@ -602,6 +602,20 @@ MECHANISMS = (
               annexes=('wama/common/vectors/spaces.py',
                        'wama/common/vectors/engine.py'),
               depends_on=('resource_governor', 'external_sources')),
+    Mechanism('media_index', 'Recherche de la file par contenu',
+              "« voiture » retrouve l'élément dont l'IMAGE montre une voiture, sans que son nom le "
+              "dise : les images de chaque élément de file (`file_references.card_files`, surfaces "
+              "de `DetailRegistry`) vectorisées dans l'espace `media` (table `MediaVector`), par "
+              "une tâche de la file GPU au palier bas (`common.index_media`) — lancée par le GESTE "
+              "de chercher dans une file et par le lot de nuit, jamais par un battement. La barre "
+              "de file commune demande au serveur les cards dont une image répond (écart à une "
+              "requête neutre, mesuré), droits de lecture appliqués, et les montre en plus du "
+              "filtre par le nom (2026-10-19)",
+              'wama/common/vectors/media_index.py',
+              'docs/construction/ia/WAMA_MEMORY.md §7sexies',
+              annexes=('wama/common/vectors/views.py',),
+              depends_on=('vector_service', 'detail_registry', 'file_references', 'filter_bar',
+                          'preview', 'resource_governor', 'model_readiness')),
     Mechanism('memory_project', 'Projection des faits en souvenirs',
               "RunOutcome → MemoryItem par OBJET (mécanique, sans modèle, idempotente)",
               'wama/common/memory/project.py', 'docs/construction/ia/WAMA_MEMORY.md §7'),
