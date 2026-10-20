@@ -1569,13 +1569,13 @@ L'historique de l'assistant côté SERVEUR — remplace le localStorage web et l
 
 ### Ingest de source
 
-Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. ⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — récepteur `post_save` sur tout modèle à WAMA_INGEST → tâche `common.ingest_source` (file default) ; le lancement rattrape un échec et attend un téléchargement en cours (verrou partagé). `derive` (chemin pointé) DÉCLARÉ dans la spec ; une page web gardée en `.html` ; nature d'une URL AVANT téléchargement : `url_ingest.url_nature` (même table que la décision page/média). Depuis le 2026-10-20 : `download_to_user`, l'URL d'une entrée qui n'est pas encore une card (card d'entrée du Studio) — mêmes primitives, déposée dans l'espace du compte comme un fichier du gestionnaire ; `ingest_mode_for`, le mode suit la nature du port qui la reçoit
+Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. ⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — récepteur `post_save` sur tout modèle à WAMA_INGEST → tâche `common.ingest_source` (file default) ; le lancement rattrape un échec et attend un téléchargement en cours (verrou partagé). `derive` (chemin pointé) DÉCLARÉ dans la spec ; une page web gardée en `.html` ; nature d'une URL AVANT téléchargement : `url_ingest.url_nature` (même table que la décision page/média). Depuis le 2026-10-20 : `download_to_user`, l'URL d'une entrée qui n'est pas encore une card (card d'entrée du Studio) — mêmes primitives, déposée dans l'espace du compte comme un fichier du gestionnaire ; `declared_mode`, le mode que l'app destinataire DÉCLARE dans son `WAMA_INGEST`
 
 - **Domicile** : `wama/common/utils/source_ingest.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : source_ingest — Ingest média DÉCLARATIF et COMMUN (hors common/manifests/**).
 - **API publique** (8) :
   - `is_remote(ref) -> bool` — Cette entrée est-elle une URL à télécharger (http, https) plutôt qu'un chemin ?
-  - `ingest_mode_for(types) -> str` — Le mode (`audio` | `smart` | `media`) d'une URL destinée à un port de ces natures : celui
+  - `declared_mode(model) -> str` — Le mode (`audio` | `smart` | `media`) qu'un modèle d'élément DÉCLARE pour son entrée
   - `download_to_user(user, url, mode='media') -> str` — Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
   - `ensure_local_input(instance, *, console=None, derive=None)` — Si `instance` déclare `WAMA_INGEST` et a une URL dans son champ source mais
   - `ingest_state(instance)` — Ce que l'Entrée d'une card peut dire de sa SOURCE distante tant que le fichier manque :
