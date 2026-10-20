@@ -437,12 +437,21 @@ que les autres processus savent d'un modèle de l'hôte — elle doit exister un
 | les modèles de CONVERSATION n'étaient pas mesurés | ils passent par `ollama_host.measured_load` aux deux points communs : `llm_utils.ollama_chat` (`llm_chat` local, rôles wama-dev-ai, GLM-OCR) et le tour de l'assistant (`assistant_engine._ollama_call`) ; plus la vision du describer, qui garde son client. Leur empreinte suit la fenêtre de contexte de l'appel qui charge : le catalogue garde le MAXIMUM des relevés, l'empreinte de la plus grande fenêtre vue |
 | olmOCR lisait `/api/ps` et déchargeait Ollama avec son propre client | `OlmOCRBackend._unload_ollama_models` : le lecteur commun (`ModelRegistry.ollama_ps`) et `MemoryManager.unload_model`, qui retire aussi la ligne |
 
+Ce qui restait — ✅ soldé à la revérification du même soir :
+- ~~le banc et la sonde de vision ne sont pas mesurés~~ : la chauffe du banc (l'appel qui charge,
+  `bench._bench_generation`) et l'appel de `vision_probe.describe_image_ollama` passent par
+  `measured_load` ;
+- ~~la vision du describer garde son client~~ : elle passe par `vision_probe.describe_image_ollama`,
+  le client de vision commun (`num_predict` neuf, ses 1 024 jetons gardés) ; son repli
+  `/api/generate`, mort, est retiré (`REMOVAL_LEDGER R157`) ;
+- la mesure ne relève rien HORS du côté autorisé (`runtime_side` : tests, processus Windows) — son
+  registre n'y est pas le vrai (courtier `memory://`), et un test qui simulait `ollama_chat`
+  interrogeait l'Ollama réel, Redis et nvidia-smi.
+
 Ce qui reste, nommé :
-- les appels à Ollama qui gardent leur propre client ne sont pas mesurés : le banc
-  (`model_manager/services/bench.py`, qui mesure la vitesse) et la sonde de vision
-  (`model_manager/services/vision_probe.py`) ;
-- la vision du describer garde son client (`/api/chat` puis `/api/generate` pour les anciens
-  modèles) au lieu de `ollama_chat` : la porter changerait sa température — décision à part.
+- `vision_probe` garde son client HTTP à côté de `ollama_chat` (même `/api/chat`, images en plus).
+  Le porter changerait sa température : `ollama_chat` impose 0,3, la sonde laisse celle du modèle
+  — une DÉCISION (la description en sortirait plus littérale), pas un reste de portage.
 
 ## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
 

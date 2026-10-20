@@ -689,7 +689,8 @@ Fabien avant d'activer `vram_needed` ; détail et mesures : `PROJECT_STATUS §PA
     ⚠ Second mesureur depuis le 2026-10-20 : `ModelRegistry.measure_ollama_load` (l'écart de la
     CARTE autour d'un chargement de l'Ollama hôte, que l'allocateur torch ne voit pas), branché sur
     les espaces de vecteurs, puis le soir même sur les conversations (`llm_utils.ollama_chat`, le
-    tour de l'assistant, la vision du describer) par `ollama_host.measured_load` —
+    tour de l'assistant, le client de vision `vision_probe` que le Describer emprunte, la chauffe
+    du banc) par `ollama_host.measured_load` —
     `WAMA_MEMORY §7sexies.1`.
     Lecteurs : `check_model_completeness` (sort de `vram_never_measured`, axe `vram_under_declared`
     — les axes portaient des noms français jusqu'au 2026-09-20, traduits en BLOC sur décision de

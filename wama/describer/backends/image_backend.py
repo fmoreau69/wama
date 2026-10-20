@@ -67,70 +67,23 @@ def _get_available_ollama_models() -> set:
     return set()
 
 
+#: Longueur maximale d'une description, en jetons.
+VISION_NUM_PREDICT = 1024
+
+
 def _describe_with_ollama_vision(model: str, image_path: str, prompt: str) -> Optional[str]:
-    """
-    Describe an image using any Ollama vision model.
-    Uses /api/generate with base64-encoded image.
-    Returns description string, or None if unavailable.
-    """
-    try:
-        import base64
-        import httpx
-        from wama.common.utils.ollama_host import measured_load, ollama_base
-        host = ollama_base()
-
-        with open(image_path, 'rb') as fh:
-            b64_image = base64.b64encode(fh.read()).decode('utf-8')
-
-        # qwen3-vl uses /api/chat with role:user + image content parts
-        # moondream uses /api/generate with top-level images[]
-        # We normalise by trying /api/chat first (works for both in recent Ollama),
-        # then fallback to /api/generate for older moondream tags.
-        payload_chat = {
-            "model": model,
-            "messages": [{
-                "role": "user",
-                "content": prompt,
-                "images": [b64_image],
-            }],
-            "stream": False,
-            "options": {"num_predict": 1024},
-        }
-
-        def chat():
-            with httpx.Client(timeout=180.0, trust_env=False) as client:
-                return client.post(f"{host}/api/chat", json=payload_chat)
-
-        # C'est cet appel qui CHARGE le modèle de vision (et le garde : défaut d'Ollama) : son
-        # empreinte se mesure à la carte — `/api/ps` en oublie les projecteurs (2026-10-20).
-        resp = measured_load(model, chat)
-
-        if resp.status_code == 200:
-            text = resp.json().get("message", {}).get("content", "").strip()
-            if text:
-                return text
-
-        # Fallback: /api/generate (older Ollama or moondream)
-        payload_gen = {
-            "model": model,
-            "prompt": prompt,
-            "images": [b64_image],
-            "stream": False,
-            "options": {"num_predict": 1024},
-        }
-        with httpx.Client(timeout=180.0, trust_env=False) as client:
-            resp2 = client.post(f"{host}/api/generate", json=payload_gen)
-
-        if resp2.status_code == 200:
-            text = resp2.json().get("response", "").strip()
-            return text or None
-
-        logger.debug(f"[image_backend] {model} HTTP {resp2.status_code}")
-        return None
-
-    except Exception as e:
-        logger.debug(f"[image_backend] {model} unavailable: {e}")
-        return None
+    """La description de l'image par le modèle de vision Ollama `model`, ou None s'il ne répond
+    pas. Par le client de vision COMMUN (`vision_probe.describe_image_ollama`, 2026-10-20) : ce
+    module tenait le sien, du même `/api/chat` à images, plus un repli sur `/api/generate` pour
+    les anciens Ollama et moondream — mort sur l'Ollama servi (0.40.6, où `/api/chat` porte les
+    images de tout modèle de vision) et pour les seuls modèles qu'il reçoit (catalogue, vision)."""
+    from wama.model_manager.services.vision_probe import describe_image_ollama
+    result = describe_image_ollama(image_path, model=model, prompt=prompt,
+                                   num_predict=VISION_NUM_PREDICT)
+    if result.get('ok') and result.get('description'):
+        return result['description']
+    logger.debug(f"[image_backend] {model} unavailable: {result.get('error') or 'réponse vide'}")
+    return None
 
 
 def _best_ollama_vision_model() -> Optional[str]:

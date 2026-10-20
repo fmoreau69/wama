@@ -29,7 +29,12 @@
                         <input class="btn btn-primary submit" type="submit" value="Connect"/>
                     </div>
                     <div class="login_error">
-                        {% if form.errors %}
+                        {% comment %}Un compte EN ATTENTE de modération (LDAP, première connexion)
+                        n'a fait aucune erreur : il lit pourquoi il attend, pas « mauvais
+                        identifiants » (`LoginForm.confirm_login_allowed`).{% endcomment %}
+                        {% if form.is_pending %}
+                            {% for error in form.non_field_errors %}<p class="login_pending">{{ error }}</p>{% endfor %}
+                        {% elif form.errors %}
                             <p>Wrong ID or password</p>
                         {% endif %}
                     </div>

@@ -706,8 +706,8 @@ def record_measured_vram(owner: str, gb: float) -> bool:
     - `_wrap_load` : l'allocateur torch du process qui charge ;
     - `ModelRegistry.measure_ollama_load` (2026-10-20) : l'écart de la CARTE autour d'un
       chargement de l'Ollama hôte, que l'allocateur ne voit pas — détenteur `ollama_host_owner` ;
-      appelé par les espaces de vecteurs, `llm_utils.ollama_chat`, le tour de l'assistant et la
-      vision du describer.
+      appelé par les espaces de vecteurs, `llm_utils.ollama_chat`, le tour de l'assistant, le
+      client de vision (`vision_probe`, le Describer compris) et la chauffe du banc.
     La clé catalogue se résout plus tard, à la persistance (process Django) : le service TTS,
     qui mesure aussi, n'a pas d'ORM.
     """

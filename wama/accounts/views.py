@@ -68,7 +68,7 @@ def login_view(request):
     if request.user.is_authenticated:
         return redirect('anonymizer:upload')
 
-    form = LoginForm(data=request.POST or None)
+    form = LoginForm(request, data=request.POST or None)
 
     if request.method == 'POST':
         if form.is_valid():
@@ -88,7 +88,8 @@ def login_view(request):
                                                    require_https=request.is_secure()):
                 next_url = ''
             return redirect(next_url or 'anonymizer:upload')
-        else:
+        elif not form.is_pending():
+            # Un compte EN ATTENTE n'a pas fait d'erreur : le formulaire lui dit qu'il attend.
             messages.error(request, "Invalid credentials.")
 
     # Pages de COMPTE : aucun média, aucun paramètre d'app, aucune action de file — le volet

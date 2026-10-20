@@ -554,7 +554,10 @@ MECHANISMS = (
               "`register_instance_layer`. Best-effort : n'échoue jamais une installation",
               'wama/model_manager/services/install_history.py', 'docs/construction/ia/WAMA_MEMORY.md'),
     Mechanism('vision_probe', 'Sonde vision',
-              "Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence)",
+              "Décrit une image via un modèle multimodal Ollama local — le SEUL client de vision "
+              "depuis le 2026-10-20 : le Describer (images, images-clés de vidéo) y passe, avec "
+              "le banc, le smoke UI, les fichiers de référence et les outils de l'assistant ; "
+              "son chargement se mesure à la carte (`ollama_host.measured_load`)",
               'wama/model_manager/services/vision_probe.py', ''),
     Mechanism('hf_cache', 'Cache HF scopé — dernier recours',
               "Bascule TEMPORAIRE du cache HuggingFace, restaurée en sortie : le levier D de "

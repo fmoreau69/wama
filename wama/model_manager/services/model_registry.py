@@ -2588,7 +2588,8 @@ class ModelRegistry:
         Seul un appel qui GARDE le modèle après sa réponse se mesure : `keep_alive` est celui que
         l'appel envoie (None = le défaut d'Ollama, 5 min) ; à '0', Ollama l'a déjà rendu quand on
         relève, et rien n'est lu. La règle vit ici, une fois, pour tous les appelants : les espaces
-        de vecteurs, `llm_utils.ollama_chat`, le tour de l'assistant, la vision du describer.
+        de vecteurs, `llm_utils.ollama_chat`, le tour de l'assistant, le client de vision
+        (`vision_probe`, le Describer compris), la chauffe du banc.
         Toute panne de la mesure est avalée — elle ne fait jamais échouer l'appel.
 
         Un modèle de CONVERSATION se mesure à la fenêtre de contexte de l'appel qui l'a chargé ; le
@@ -2597,8 +2598,16 @@ class ModelRegistry:
         """
         import time
 
+        from django.conf import settings
+
         from wama.common.utils.ollama_host import full_tag
         if str(keep_alive).strip() in ('0', '0s', '0m'):
+            return load()
+        # Hors du côté AUTORISÉ (`runtime_side` : tests, processus Windows), le registre du
+        # gouverneur n'est pas le vrai (courtier `memory://`) : une mesure n'aurait nulle part où
+        # aller, et la relever lirait quand même l'Ollama hôte et la carte — un test qui simule
+        # son appel interrogeait la machine réelle.
+        if not getattr(settings, 'WAMA_TASKS_DISPATCHED', True):
             return load()
         wanted = {name, full_tag(name)}
 

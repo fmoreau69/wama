@@ -3,8 +3,8 @@ Backend LDAP WAMA = django_auth_ldap + MODÉRATION à la première connexion.
 
 Le login passe par le LDAP de l'université → SANS gate, tout membre UGE obtiendrait
 un compte. Ici : un nouvel utilisateur LDAP est créé INACTIF (`is_active=False`), en
-attente de validation par un admin (notifié par email). Voir PROFILES_PERMISSIONS.md
-(modération à la première connexion).
+attente de validation par un admin (prévenu dans WAMA et par email, `moderation.request_moderation`).
+Voir `PROFILES_PERMISSIONS.md §1.8` (modération à la première connexion).
 """
 import logging
 

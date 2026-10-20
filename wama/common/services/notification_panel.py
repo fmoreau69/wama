@@ -18,6 +18,8 @@ STYLE_BY_KIND = {
     'worker_died': ('fa-server', 'warning'),
     'worker_tasks_interrupted': ('fa-exclamation-triangle', 'warning'),
     'access_request': ('fa-user-lock', 'info'),
+    # Un compte créé à la première connexion attend sa validation (`accounts.moderation`).
+    'account_pending': ('fa-user-clock', 'warning'),
     'access_granted': ('fa-user-check', 'success'),
     'access_request_refused': ('fa-user-times', 'danger'),
     'access_revoked': ('fa-user-slash', 'warning'),

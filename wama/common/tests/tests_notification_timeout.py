@@ -37,3 +37,12 @@ class NotificationTimeoutTest(SimpleTestCase):
             smtp.side_effect = OSError('refusé')
             notifications.notify_emails(['someone@test.local'], 'sujet', 'corps')
         self.assertEqual(notifications.SMTP_TIMEOUT_SECONDS, smtp.call_args.kwargs.get('timeout'))
+
+    @override_settings(EMAIL_BACKEND='django.core.mail.backends.smtp.EmailBackend',
+                       EMAIL_HOST='127.0.0.1', EMAIL_PORT=9, EMAIL_USE_SSL=False, EMAIL_USE_TLS=False)
+    def test_a_message_the_server_refused_is_not_reported_sent(self):
+        """`fail_silently` avale le refus du serveur : l'envoi rendait vrai quand même, et la
+        demande de modération perdue du 2026-10-20 se journalisait « envoyée »."""
+        with mock.patch('smtplib.SMTP', side_effect=OSError('refusé')), \
+                self.assertLogs('wama.common.utils.notifications', 'WARNING'):
+            self.assertFalse(notifications.notify_emails(['someone@test.local'], 'sujet', 'corps'))

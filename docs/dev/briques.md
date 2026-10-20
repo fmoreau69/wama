@@ -713,12 +713,12 @@ Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la
 
 ### Sonde vision
 
-Décrit une image via un modèle multimodal Ollama local (bench, smoke UI, fichiers de référence)
+Décrit une image via un modèle multimodal Ollama local — le SEUL client de vision depuis le 2026-10-20 : le Describer (images, images-clés de vidéo) y passe, avec le banc, le smoke UI, les fichiers de référence et les outils de l'assistant ; son chargement se mesure à la carte (`ollama_host.measured_load`)
 
 - **Domicile** : `wama/model_manager/services/vision_probe.py`
 - **Module** : Sonde vision via Ollama — décrire une image avec un modèle multimodal local (gemma4:12b, e4b…). Sert au bench (d) : comparer des modèles candidats sur de vraies images WAMA, en français.
 - **API publique** (1) :
-  - `describe_image_ollama(image_path: str, model: str='', prompt: str | None=None, timeout: int=180, keep_alive: str | None=None)` — Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
+  - `describe_image_ollama(image_path: str, model: str='', prompt: str | None=None, timeout: int=180, keep_alive: str | None=None, num_predict: int | None=None)` — Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
 
 ### Surfaces — pages d'édition composées de briques
 

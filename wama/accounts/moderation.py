@@ -1,7 +1,11 @@
 """
 Modération des nouveaux comptes + journal d'accès (point 1 MONDES/accès).
+Doc : `PROFILES_PERMISSIONS.md §Modération à la première connexion`.
 
-- Nouvel utilisateur LDAP → inactif (WamaLDAPBackend) → email aux modérateurs.
+- Nouvel utilisateur LDAP → inactif (WamaLDAPBackend) → demande de modération : email aux
+  modérateurs ET notification DANS WAMA aux administrateurs (`request_moderation`).
+- Le compte en attente qui se reconnecte apprend qu'il attend (formulaire de connexion), la
+  tentative est journalisée, et la demande est reposée si elle s'était perdue (`pending_login`).
 - Activation par un admin (is_active False→True) → email de bienvenue.
 - Journal des connexions/déconnexions (`AccessLog`).
 
@@ -35,19 +39,67 @@ def _moderator_emails():
 
 # ── Modération : nouvel utilisateur en attente ────────────────────────────────
 
+#: Type de la notification DANS WAMA d'un compte à valider (`common.Notification.kind`).
+ACCOUNT_PENDING_KIND = 'account_pending'
+
+#: Ce que lit le compte en attente qui se connecte : il n'a pas fait d'erreur.
+PENDING_MESSAGE = ("Votre compte WAMA est en attente de validation par un administrateur, qui en "
+                   "est prévenu. Vous pourrez vous connecter dès qu'il l'aura activé.")
+
+
+def account_moderators():
+    """Les comptes qui peuvent ACTIVER un compte — le prédicat de la vue qui le fait
+    (`views.user_toggle_active`, `@admin_required` → `views.is_admin`), pour que la demande
+    n'arrive qu'à ceux qui peuvent y répondre."""
+    from .views import is_admin
+    return [u for u in User.objects.filter(is_active=True) if is_admin(u)]
+
+
+def request_moderation(user) -> dict:
+    """Demande aux modérateurs de valider le compte `user` : notification DANS WAMA (cloche, page
+    des notifications) aux administrateurs, email aux adresses de modération. Rend
+    `{'in_app': n, 'email': bool}`.
+
+    Une fois par compte : une notification NON LUE existe déjà → rien de plus (le compte qui
+    retente sa connexion ne relance pas tout le monde). La voie DANS WAMA est celle qui ne se perd
+    pas — le 2026-10-20, deux comptes attendaient sans que personne le sache : l'email seul était
+    parti nulle part (compte d'envoi sans mot de passe, refus avalé par `fail_silently`)."""
+    from django.urls import reverse
+
+    from wama.common.models import Notification
+    from wama.common.utils.notifications import notify_in_app
+    if Notification.objects.filter(kind=ACCOUNT_PENDING_KIND, object_type='User',
+                                   object_id=str(user.pk), read_at__isnull=True).exists():
+        return {'in_app': 0, 'email': False}
+    name = user.get_full_name() or user.get_username()
+    url = reverse('accounts:user-management')
+    body = (f"Un nouvel utilisateur s'est connecté et attend votre validation.\n\n"
+            f"Identifiant : {user.get_username()}\n"
+            f"Nom : {name}\nEmail : {user.email or '—'}\n\n"
+            f"Activez le compte depuis la page Utilisateurs de WAMA ({url}).")
+    created = notify_in_app(account_moderators(), ACCOUNT_PENDING_KIND,
+                            f'Nouveau compte à valider : {name}', body=body, url=url,
+                            object_type='User', object_id=user.pk)
+    sent = notify_emails(_moderator_emails(), f'[WAMA] Nouveau compte à valider : {name}', body)
+    logger.info('modération de %s demandée : %s notification(s), email %s',
+                user.get_username(), created, 'parti' if sent else 'NON parti')
+    return {'in_app': created, 'email': sent}
+
+
 @receiver(post_save, sender=User)
 def _notify_new_pending(sender, instance, created, **kwargs):
     if created and getattr(instance, '_wama_new_pending', False):
         instance._wama_new_pending = False
-        name = instance.get_full_name() or instance.get_username()
-        notify_emails(
-            _moderator_emails(),
-            f'[WAMA] Nouveau compte à valider : {name}',
-            f"Un nouvel utilisateur s'est connecté et attend votre validation.\n\n"
-            f"Identifiant : {instance.get_username()}\n"
-            f"Nom : {name}\nEmail : {instance.email or '—'}\n\n"
-            f"Activez le compte depuis l'admin Django (Utilisateurs → cocher « Actif »).")
-        logger.info('modération : notification envoyée pour %s', instance.get_username())
+        request_moderation(instance)
+
+
+def pending_login(user, request=None) -> None:
+    """Un compte EN ATTENTE vient de prouver son identité (l'annuaire a accepté son mot de passe)
+    et ne peut pas entrer. La tentative est journalisée — Django n'émet pas `user_login_failed`
+    quand le moteur rend un compte inactif, elle n'apparaissait nulle part — et la demande de
+    modération est reposée si elle n'attend plus aucun administrateur."""
+    _log(user, 'login_denied', request, reason='inactive')
+    request_moderation(user)
 
 
 # ── Email de bienvenue à l'activation (is_active False → True) ─────────────────

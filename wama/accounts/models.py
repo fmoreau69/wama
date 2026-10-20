@@ -442,6 +442,22 @@ class LoginForm(AuthenticationForm):
                                           'autocomplete': 'current-password'})
     )
 
+    def confirm_login_allowed(self, user):
+        """Un compte INACTIF ici a prouvé son identité : seul le moteur LDAP rend un compte
+        inactif (`ModelBackend` le refuse avant, et l'utilisateur lit « mauvais identifiants »).
+        C'est le compte créé à la première connexion, en attente de modération : il l'apprend,
+        au lieu d'une erreur d'identifiants qui l'envoyait chercher une faute qu'il n'avait pas
+        faite (vécu le 2026-10-20) — et la demande est reposée si elle s'était perdue."""
+        if not user.is_active:
+            from .moderation import PENDING_MESSAGE, pending_login
+            pending_login(user, self.request)
+            raise forms.ValidationError(PENDING_MESSAGE, code='inactive')
+        super().confirm_login_allowed(user)
+
+    def is_pending(self) -> bool:
+        """Le formulaire a refusé un compte en attente de modération (et non des identifiants)."""
+        return any(e.code == 'inactive' for e in self.non_field_errors().as_data())
+
 
 class UserRegistrationForm(UserCreationForm):
     username = forms.CharField(

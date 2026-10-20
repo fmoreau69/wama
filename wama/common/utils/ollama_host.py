@@ -90,7 +90,8 @@ def measured_load(name: str, call, *, keep_alive=None):
     d'Ollama, le modèle reste) ; à '0' rien ne se mesure.
 
     Le point d'entrée des appelants du substrat (2026-10-20) : les espaces de vecteurs,
-    `llm_utils.ollama_chat`, le tour de l'assistant, la vision du describer. Hors Django (service
+    `llm_utils.ollama_chat`, le tour de l'assistant, le client de vision (`vision_probe`, que le
+    Describer emprunte) et la chauffe du banc. Hors Django (service
     de vectorisation, catalogue absent), l'appel nu — la mesure vit au model_manager."""
     try:
         from wama.model_manager.services.model_registry import ModelRegistry

@@ -23,7 +23,11 @@ def notify_emails(recipients, subject, body, html=None):
     """Envoie un email à une liste d'ADRESSES (pas forcément des Users) — ex. modérateurs.
     Fail-safe (jamais d'exception), transport piloté par settings. Point d'envoi commun.
     Répondre à un mail de WAMA écrit au support (`WAMA_SUPPORT_EMAIL`) : l'expéditeur est un
-    no-reply."""
+    no-reply.
+
+    Rend True seulement si le message est PARTI (2026-10-20). Il rendait True dès qu'il avait
+    essayé : `fail_silently` fait rendre 0 au transport quand le serveur refuse, et une demande de
+    modération perdue (compte d'envoi sans mot de passe) se journalisait « envoyée »."""
     try:
         recipients = list(dict.fromkeys(e for e in (recipients or []) if e))
         if not recipients:
@@ -38,8 +42,11 @@ def notify_emails(recipients, subject, body, html=None):
                                      connection=get_connection(fail_silently=True, timeout=timeout))
         if html:
             msg.attach_alternative(html, 'text/html')
-        msg.send(fail_silently=True)
-        return True
+        if msg.send(fail_silently=True):
+            return True
+        logger.warning("notify_emails : « %s » n'est pas parti (serveur d'envoi injoignable ou "
+                       "refus — réglages WAMA_EMAIL_*)", subject)
+        return False
     except Exception as e:  # pragma: no cover
         logger.warning("notify_emails a échoué : %s", e)
         return False

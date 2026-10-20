@@ -229,8 +229,9 @@ def _bench_generation(entry: AIModel, sample: str, *, runs: int = GENERATION_RUN
     Ce qu'il PERSISTE, et pourquoi c'est ici : chaque passe est une execution reelle
     → `eta_estimator.record_run(unit='token')`, bucketise par empreinte materielle. C'est la
     boucle d'ETA existante (les 8 apps media la nourrissent deja) ; les LLM y entrent par ce
-    banc parce qu'aucune app LLM ne l'appelle. Rien d'autre n'est ecrit : ni `vram_gb`, ni
-    un indice de qualite.
+    banc parce qu'aucune app LLM ne l'appelle. Rien d'autre n'est ecrit par le banc : ni
+    `vram_gb`, ni un indice de qualite. L'empreinte VRAM de la chauffe suit la voie commune de la
+    mesure au chargement (`ollama_host.measured_load` → `extra_info['vram_measured']`).
 
     ⚠ Ce protocole CHARGE un modele sur l'Ollama hote — la rampe VRAM qui a tue l'hote
     plusieurs fois (INFRA §crashs). Il respecte `WAMA_GPU_SAFE_MODE` comme ses jumeaux
@@ -247,7 +248,11 @@ def _bench_generation(entry: AIModel, sample: str, *, runs: int = GENERATION_RUN
     if not prompt:
         raise ValueError("prompt vide")
 
-    warmup = _ollama_generate(entry.name, 'Réponds simplement « ok ».', 8)
+    # La CHAUFFE est l'appel qui charge le modèle : son empreinte se mesure à la carte et rejoint
+    # le catalogue (`ollama_host.measured_load`, 2026-10-20) — le banc ne l'écrit pas lui-même.
+    from wama.common.utils.ollama_host import measured_load
+    warmup = measured_load(entry.name, lambda: _ollama_generate(
+        entry.name, 'Réponds simplement « ok ».', 8))
     load_s = _ns_to_s(warmup.get('load_duration'))
     cold = load_s >= COLD_LOAD_THRESHOLD_S
 

@@ -12,8 +12,12 @@ import os
 
 def describe_image_ollama(image_path: str, model: str = '',
                           prompt: str | None = None, timeout: int = 180,
-                          keep_alive: str | None = None):
+                          keep_alive: str | None = None, num_predict: int | None = None):
     """Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
+
+    Le seul client de vision de WAMA depuis le 2026-10-20 : le Describer y passe (images et
+    images-clés de vidéo), au lieu de son propre appel. `num_predict` borne la longueur (le
+    Describer : 1 024 jetons) ; None = le défaut d'Ollama.
 
     `model` vide → RÉSOLU par la route commune (`modele_par_tier('default',
     exige=['completion','vision'])`) — plus de nom en dur : l'ancien défaut `'gemma4:12b'`
@@ -45,7 +49,7 @@ def describe_image_ollama(image_path: str, model: str = '',
 
     # Résolution via la brique (réécriture passerelle sous WSL2) ; le contournement du proxy
     # reste assuré par le `trust_env = False` posé plus bas sur la session.
-    from wama.common.utils.ollama_host import ollama_base
+    from wama.common.utils.ollama_host import measured_load, ollama_base
     base = ollama_base()
     prompt = prompt or "Décris cette image en français, de façon précise et concise."
     try:
@@ -55,12 +59,19 @@ def describe_image_ollama(image_path: str, model: str = '',
         }
         if keep_alive is not None:
             payload['keep_alive'] = keep_alive
+        if num_predict is not None:
+            payload['options'] = {'num_predict': int(num_predict)}
         # `trust_env=False` : Ollama est LOCAL. Sans ça, requests honore HTTP(S)_PROXY et
         # envoie l'appel dans le proxy UGE, qui répond 504 (constaté 2026-07-31 depuis le
         # smoke UI). Même précaution que llm_utils.ollama_chat, qui pose déjà trust_env=False.
-        with requests.Session() as s:
-            s.trust_env = False
-            r = s.post(f"{base}/api/chat", json=payload, timeout=timeout)
+        def chat():
+            with requests.Session() as s:
+                s.trust_env = False
+                return s.post(f"{base}/api/chat", json=payload, timeout=timeout)
+
+        # L'appel qui CHARGE le modèle de vision : son empreinte se mesure à la carte, `/api/ps`
+        # en oublie les projecteurs (`ollama_host.measured_load`, 2026-10-20).
+        r = measured_load(model, chat, keep_alive=keep_alive)
         r.raise_for_status()
         msg = (r.json().get('message') or {})
         return {'ok': True, 'description': (msg.get('content') or '').strip()}

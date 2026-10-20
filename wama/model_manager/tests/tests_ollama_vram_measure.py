@@ -19,7 +19,7 @@ CE QUI EST PROTÉGÉ, sans GPU ni Ollama (tout est simulé) :
 """
 from unittest import mock
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from wama.common.services import resource_governor as gov
 from wama.common.tests import tests_vram_ledger as ledger_tests
@@ -42,7 +42,10 @@ def _card(*mib):
     return [None if value is None else [{'memory_used': value}] for value in mib]
 
 
+@override_settings(WAMA_TASKS_DISPATCHED=True)
 class OllamaLoadMeasureTest(SimpleTestCase):
+    """La mesure elle-même, comme sur le côté autorisé (`runtime_side`) : en test, elle ne
+    relève rien (`test_outside_the_authorised_side_nothing_is_read`)."""
 
     def _measure(self, *, before=(), after=(_ps(),), card=(7000, 9190, 9195), ledger=({}, {}),
                  name=NAME):
@@ -112,6 +115,17 @@ class OllamaLoadMeasureTest(SimpleTestCase):
                 self.assertEqual(ModelRegistry.measure_ollama_load(NAME, load, keep_alive=kept),
                                  'vecteurs')
         self.assertEqual(load.call_count, 3)
+        ps.assert_not_called()
+        monitor.assert_not_called()
+
+    @override_settings(WAMA_TASKS_DISPATCHED=False)
+    def test_outside_the_authorised_side_nothing_is_read(self):
+        """En test (courtier `memory://`) la mesure n'irait nulle part : un appel simulé de
+        `ollama_chat` interrogeait pourtant l'Ollama réel, Redis et nvidia-smi."""
+        load = mock.Mock(return_value='vecteurs')
+        with mock.patch(f'{REGISTRY}.ollama_ps') as ps, mock.patch(MONITOR) as monitor:
+            self.assertEqual(ModelRegistry.measure_ollama_load(NAME, load), 'vecteurs')
+        load.assert_called_once_with()
         ps.assert_not_called()
         monitor.assert_not_called()
 
@@ -212,13 +226,25 @@ class OllamaResidencyLineTest(ledger_tests._AvecRegistre):
 class OllamaCallersAreMeasuredTest(SimpleTestCase):
     """Les appels qui CHARGENT un modèle de l'Ollama hôte et le gardent passent par la mesure
     (`ollama_host.measured_load`) : les modèles de conversation n'en avaient aucune, faute d'un
-    point commun — il y en a deux (`llm_utils.ollama_chat`, le tour de l'assistant), plus la
-    vision du describer, qui tient son client. Et olmOCR décharge Ollama par les briques."""
+    point commun — il y en a deux (`llm_utils.ollama_chat`, le tour de l'assistant), plus les
+    trois qui tiennent leur client (vision du describer, sonde de vision, chauffe du banc). Et
+    olmOCR décharge Ollama par les briques."""
 
     MEASURE = f'{REGISTRY}.measure_ollama_load'
 
     def _measure(self):
         return mock.patch(self.MEASURE, side_effect=lambda name, load, keep_alive=None: load())
+
+    def test_without_the_model_manager_the_call_runs_bare(self):
+        """Hors Django (le service de vectorisation tourne sans ORM), la mesure ne s'importe pas :
+        l'appel s'exécute quand même, une fois, et rend son résultat."""
+        import sys
+
+        from wama.common.utils import ollama_host
+        call = mock.Mock(return_value='vecteurs')
+        with mock.patch.dict(sys.modules, {'wama.model_manager.services.model_registry': None}):
+            self.assertEqual('vecteurs', ollama_host.measured_load(NAME, call))
+        call.assert_called_once_with()
 
     def test_a_local_chat_goes_through_the_load_measure(self):
         from wama.common.utils import llm_utils
@@ -245,16 +271,52 @@ class OllamaCallersAreMeasuredTest(SimpleTestCase):
         import tempfile
 
         from wama.describer.backends import image_backend
-        reply = mock.Mock(status_code=200, json=lambda: {'message': {'content': 'une voiture'}})
-        client = mock.MagicMock()
-        client.__enter__.return_value.post.return_value = reply
+        session = mock.MagicMock()
+        post = session.__enter__.return_value.post
+        post.return_value = mock.Mock(raise_for_status=lambda: None,
+                                      json=lambda: {'message': {'content': 'une voiture'}})
         with tempfile.NamedTemporaryFile(suffix='.png') as image, \
-                mock.patch('httpx.Client', return_value=client), self._measure() as measured:
+                mock.patch('requests.Session', return_value=session), self._measure() as measured:
             image.write(b'png')
             image.flush()
             self.assertEqual(image_backend._describe_with_ollama_vision(
                 'gemma4:12b', image.name, 'Décris.'), 'une voiture')
         self.assertEqual(measured.call_args.args[0], 'gemma4:12b')
+        # Le client COMMUN de vision, à la longueur du Describer — plus son propre appel.
+        sent = post.call_args.kwargs['json']
+        self.assertEqual(({'num_predict': image_backend.VISION_NUM_PREDICT}, 'Décris.'),
+                         (sent['options'], sent['messages'][0]['content']))
+
+    def test_the_vision_probe_goes_through_the_load_measure(self):
+        import tempfile
+
+        from wama.model_manager.services import vision_probe
+        session = mock.MagicMock()
+        session.__enter__.return_value.post.return_value = mock.Mock(
+            raise_for_status=lambda: None, json=lambda: {'message': {'content': 'un chat'}})
+        with tempfile.NamedTemporaryFile(suffix='.png') as image, \
+                mock.patch('requests.Session', return_value=session), self._measure() as measured:
+            image.write(b'png')
+            image.flush()
+            self.assertEqual({'ok': True, 'description': 'un chat'}, vision_probe.describe_image_ollama(
+                image.name, model='gemma4:12b', keep_alive='120s'))
+        self.assertEqual(('gemma4:12b', '120s'),
+                         (measured.call_args.args[0], measured.call_args.kwargs['keep_alive']))
+
+    def test_the_generation_bench_measures_its_warm_up_load(self):
+        """La CHAUFFE charge le modèle ; les passes chronométrées le trouvent résident."""
+        from wama.model_manager.services import bench
+        entry = mock.Mock(source='ollama', model_key='ollama:qwen3.8:latest')
+        entry.name = 'qwen3.8:latest'
+        reply = {'eval_count': 10, 'eval_duration': 1e9, 'load_duration': 3e9}
+        with mock.patch.object(bench, '_ollama_generate', return_value=reply) as generate, \
+                mock.patch('wama.common.services.resource_governor.gpu_safe_mode',
+                           return_value=False), \
+                mock.patch('wama.model_manager.services.eta_estimator.record_run'), \
+                self._measure() as measured:
+            bench._bench_generation(entry, 'Dis bonjour.', runs=2)
+        self.assertEqual(['qwen3.8:latest'], [c.args[0] for c in measured.call_args_list])
+        self.assertEqual(3, generate.call_count, 'la chauffe et deux passes')
 
     def test_olmocr_unloads_ollama_through_the_common_gestures(self):
         from wama.common.backends.olmocr_backend import OlmOCRBackend
