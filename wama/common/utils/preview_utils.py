@@ -373,9 +373,10 @@ def publish_partial(app_name, pk, url_or_path, variant=None, label=None):
 
 
 class PartialFrames:
-    """L'aperçu « pendant » en IMAGES d'une vidéo en cours de traitement : une frame (ou
-    plusieurs variantes de la même frame) écrite en JPEG et publiée au plus toutes les `every`
-    secondes. Le traitement demande `due()` AVANT de calculer une vue coûteuse.
+    """L'aperçu « pendant » d'un traitement en cours, en FICHIERS : une frame (ou plusieurs
+    variantes de la même frame) écrite en JPEG, ou le SON déjà produit écrit en WAV avec ses pics
+    d'onde — publiés au plus toutes les `every` secondes. Le traitement demande `due()` AVANT de
+    calculer une vue coûteuse.
 
         frames = PartialFrames('anonymizer', media.pk, folder)
         if frames.due():
@@ -383,7 +384,9 @@ class PartialFrames:
         frames.close()          # fin du traitement : partiels retirés, la face SORTIE prend le relais
 
     Écrit pour l'anonymizer (2026-10-04) — il tenait seul, dans sa tâche, le chemin, l'URL et
-    la cadence d'une frame partielle."""
+    la cadence d'une frame partielle. Le SON y est entré le 2026-10-20 (`publish_audio`,
+    `audio_sink`), quand le composer a enfin montré sa musique pendant le calcul : le
+    synthesizer tenait de même, dans sa tâche, son fichier, son URL, ses pics et leur nettoyage."""
 
     def __init__(self, app_name, pk, folder, every: float = 2.0):
         self.app_name, self.pk, self.folder, self.every = app_name, pk, str(folder), every
@@ -394,14 +397,19 @@ class PartialFrames:
         import time
         return time.time() - self._last >= self.every
 
+    def _url(self, path, stamp) -> str:
+        """L'URL versionnée d'un fichier partiel écrit sous `folder` (retiré par `close`)."""
+        from django.conf import settings
+        self._written.add(path)
+        url = settings.MEDIA_URL + os.path.relpath(path, settings.MEDIA_ROOT).replace('\\', '/')
+        return f'{url}?v={stamp}'
+
     def publish(self, views: dict, index=None) -> None:
         """`views` : {variante: (libellé, image BGR)} ; `index` versionne l'URL (cache navigateur).
         Une image déjà ENCODÉE en JPEG (`bytes`) est écrite telle quelle — le rendu 3D de
         l'avatarizer (TalkingHead) produit ses images ainsi : les décoder pour les réencoder
         coûterait deux passes pour rien (2026-10-06)."""
         import time
-
-        from django.conf import settings
         self._last = time.time()
         os.makedirs(self.folder, exist_ok=True)
         stamp = index if index is not None else int(self._last * 1000)
@@ -416,9 +424,38 @@ class PartialFrames:
                     cv2.imwrite(path, image)
             except Exception:
                 continue
-            self._written.add(path)
-            url = settings.MEDIA_URL + os.path.relpath(path, settings.MEDIA_ROOT).replace('\\', '/')
-            publish_partial(self.app_name, self.pk, f'{url}?v={stamp}', variant=variant, label=label)
+            publish_partial(self.app_name, self.pk, self._url(path, stamp), variant=variant, label=label)
+
+    @property
+    def audio_path(self) -> str:
+        """Le WAV partiel, à nom fixe : un producteur qui l'écrit LUI-MÊME (le synthesizer applique
+        vitesse et hauteur) appelle ensuite `publish_audio_file()`."""
+        return os.path.join(self.folder, f'during_{self.pk}.wav')
+
+    def publish_audio(self, pcm, sr) -> None:
+        """Le SON déjà produit — tableau mono `(n,)` ou `(n, canaux)` à la fréquence `sr` — écrit
+        dans `audio_path` et publié avec ses pics. Ne lève jamais — et un échec compte comme un
+        tour : sans cela, un producteur qui demande `due()` décoderait à chaque pas."""
+        import time
+        self._last = time.time()
+        try:
+            import soundfile as sf
+            os.makedirs(self.folder, exist_ok=True)
+            sf.write(self.audio_path, pcm, int(sr), subtype='PCM_16')
+        except Exception as exc:
+            logger.debug(f"Aperçu audio {self.app_name}/{self.pk} non écrit : {exc}")
+            return
+        self._announce_audio(pcm, sr)
+
+    def publish_audio_file(self) -> None:
+        """Publie `audio_path`, déjà écrit par le producteur : son URL et ses pics."""
+        self._announce_audio(self.audio_path, None)
+
+    def _announce_audio(self, source, sr) -> None:
+        import time
+        self._last = time.time()
+        publish_partial(self.app_name, self.pk, self._url(self.audio_path, int(self._last * 1000)))
+        emit_streaming_peaks(self.app_name, self.pk, source, sr)
 
     def sink(self, variant: str, label: str):
         """Récepteur d'UNE vue pour un producteur qui ne connaît pas Django (un backend) :
@@ -435,91 +472,32 @@ class PartialFrames:
 
         return _Sink()
 
+    def audio_sink(self):
+        """Le même récepteur pour le SON : le rappel `on_audio(tableau, fréquence)` du contrat
+        musical (`MusicGenerationBackend.generate`), avec `due()` — un moteur qui sait produire
+        l'audio en cours le demande AVANT de le décoder (`audiocraft_backend._follow_tokens`)."""
+        frames = self
+
+        class _AudioSink:
+            def due(self):
+                return frames.due()
+
+            def __call__(self, pcm, sr):
+                if frames.due():
+                    frames.publish_audio(pcm, sr)
+
+        return _AudioSink()
+
     def close(self) -> None:
         clear_partial(self.app_name, self.pk)
-        for path in self._written:
+        # Le WAV a un nom FIXE : retiré même par une instance qui ne l'a pas écrit (le
+        # synthesizer nettoie depuis un autre point de son run que celui qui publie).
+        for path in self._written | {self.audio_path}:
             try:
                 os.remove(path)
             except OSError:
                 pass
         self._written.clear()
-
-
-class PartialAudio:
-    """L'aperçu « pendant » d'un SON en cours de calcul : l'audio déjà produit, écrit dans UN
-    fichier WAV à nom fixe, servi par `?side=during` avec `?v=` (cache du navigateur) et ses pics
-    d'onde (`waveform.compute_peaks`) pour que le lecteur commun dessine l'onde sans décoder. Le
-    pendant SONORE de `PartialFrames`, même cycle :
-
-        partial = PartialAudio('composer', gen.pk, folder)
-        backend.generate(..., on_audio=partial.sink())   # (tableau, fréquence), au fil du calcul
-        partial.close()          # fin : partiels retirés, la face SORTIE prend le relais
-
-    Un producteur qui écrit LUI-MÊME le fichier (le synthesizer applique vitesse et hauteur) y
-    écrit `partial.path` puis appelle `publish_file()`.
-
-    2026-10-20 (Fabien : « dans Composer, la preview est censée se charger au fur et à mesure »).
-    Le synthesizer tenait seul, dans sa tâche, le fichier, l'URL, les pics et leur nettoyage ; le
-    composer ne publiait que des pics, une fois, sur l'audio FINAL."""
-
-    def __init__(self, app_name, pk, folder, every: float = 3.0):
-        self.app_name, self.pk, self.every = app_name, pk, every
-        self.path = os.path.join(str(folder), f'during_{pk}.wav')
-        self._last = 0.0
-        self._count = 0
-
-    def due(self) -> bool:
-        import time
-        return time.time() - self._last >= self.every
-
-    def publish(self, pcm, sr) -> None:
-        """Écrit `pcm` (tableau mono `(n,)` ou `(n, canaux)`) et le publie. Ne lève jamais : un
-        aperçu raté n'arrête pas le calcul."""
-        try:
-            import soundfile as sf
-            os.makedirs(os.path.dirname(self.path), exist_ok=True)
-            sf.write(self.path, pcm, int(sr), subtype='PCM_16')
-        except Exception as exc:
-            logger.debug(f"Aperçu audio {self.app_name}/{self.pk} non écrit : {exc}")
-            return
-        self._announce(pcm, sr)
-
-    def publish_file(self) -> None:
-        """Publie le fichier `self.path`, déjà écrit : son URL et ses pics."""
-        self._announce(self.path, None)
-
-    def _announce(self, source, sr) -> None:
-        import time
-
-        from django.conf import settings
-        from .waveform import compute_peaks
-        self._last = time.time()
-        self._count += 1
-        try:
-            url = settings.MEDIA_URL + os.path.relpath(self.path, settings.MEDIA_ROOT).replace('\\', '/')
-            publish_partial(self.app_name, self.pk, f'{url}?v={self._count}')
-            peaks, duration = compute_peaks(source, buckets=800, sr=sr, dtype='uint8',
-                                            with_duration=True)
-            if peaks:
-                publish_partial_peaks(self.app_name, self.pk, peaks, duration=duration)
-        except Exception as exc:
-            logger.debug(f"Aperçu audio {self.app_name}/{self.pk} non publié : {exc}")
-
-    def sink(self):
-        """Le rappel `on_audio(tableau, fréquence)` du contrat de génération musicale
-        (`MusicGenerationBackend.generate`) : le backend appelle quand il veut, la cadence est
-        tenue ici (`due`) — l'audio FINAL d'un moteur qui ne sait rien montrer avant passe aussi."""
-        def _on_audio(pcm, sr):
-            if self.due():
-                self.publish(pcm, sr)
-        return _on_audio
-
-    def close(self) -> None:
-        clear_partial(self.app_name, self.pk)
-        try:
-            os.remove(self.path)
-        except OSError:
-            pass
 
 
 def publish_partial_peaks(app_name, pk, peaks, duration=None):

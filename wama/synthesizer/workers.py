@@ -73,23 +73,23 @@ def _console(user_id: int, message: str, level: str = None) -> None:
 def _during_preview(synthesis):
     """Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`, 2026-09-28) : l'audio
     déjà synthétisé, publié après chaque segment d'un texte long — on entend la synthèse
-    GRANDIR. Le fichier, son URL, ses pics et leur nettoyage sont ceux de la brique commune de
-    l'audio partiel (`preview_utils.PartialAudio`, 2026-10-20 — ils vivaient ici) ; reste propre
+    GRANDIR. Le fichier, son URL, ses pics et leur nettoyage sont ceux du publieur commun des
+    partiels (`preview_utils.PartialFrames`, 2026-10-20 — ils vivaient ici) ; reste propre
     au synthesizer ce qu'il fait au son : vitesse et hauteur sont appliquées au partiel, qui
     s'entend comme le résultat. Rend le `on_partial` de `render_speech`."""
     from .utils.audio_processor import process_audio_output
 
     partial = _partial_audio(synthesis)
-    raw = Path(partial.path).with_name(f'during_{synthesis.id}_raw.wav')
+    raw = Path(partial.audio_path).with_name(f'during_{synthesis.id}_raw.wav')
     raw.parent.mkdir(parents=True, exist_ok=True)
 
     def _publish(audio, done, total):
         audio.export(str(raw), format='wav')
         final = process_audio_output(str(raw), speed=synthesis.speed, pitch=synthesis.pitch,
-                                     output_path=partial.path)
-        if os.path.abspath(final) != os.path.abspath(partial.path):
-            os.replace(final, partial.path)        # ni vitesse ni hauteur : le brut EST le partiel
-        partial.publish_file()
+                                     output_path=partial.audio_path)
+        if os.path.abspath(final) != os.path.abspath(partial.audio_path):
+            os.replace(final, partial.audio_path)  # ni vitesse ni hauteur : le brut EST le partiel
+        partial.publish_audio_file()
         _console(synthesis.user_id, f"Aperçu : {done}/{total} segment(s) à l'écoute")
 
     return _publish
@@ -97,9 +97,9 @@ def _during_preview(synthesis):
 
 def _partial_audio(synthesis):
     from wama.common.utils.media_paths import get_app_media_path
-    from wama.common.utils.preview_utils import PartialAudio
+    from wama.common.utils.preview_utils import PartialFrames
     folder = Path(get_app_media_path('synthesizer', synthesis.user_id, 'output')) / 'partials'
-    return PartialAudio('synthesizer', synthesis.id, folder)
+    return PartialFrames('synthesizer', synthesis.id, folder)
 
 
 def _clear_during(synthesis):
@@ -107,7 +107,7 @@ def _clear_during(synthesis):
     partial = _partial_audio(synthesis)
     partial.close()
     try:
-        Path(partial.path).with_name(f'during_{synthesis.id}_raw.wav').unlink()
+        Path(partial.audio_path).with_name(f'during_{synthesis.id}_raw.wav').unlink()
     except OSError:
         pass
 

@@ -1482,7 +1482,8 @@ MECHANISMS = (
               annexes=('wama/common/utils/blur_utils.py',)),
     Mechanism('during_preview_variants', "Aperçu « pendant » à plusieurs vues",
               "Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, "
-              "publieur de frames limité dans le temps `PartialFrames`) ; la face PENDANT de "
+              "publieur de partiels limité dans le temps `PartialFrames` — frames JPEG, et le SON "
+              "déjà produit en WAV avec ses pics depuis le 2026-10-20) ; la face PENDANT de "
               "l'aperçu les liste et sert celle demandée (`?variant=`), le volet et la visionneuse "
               "affichent le bouton de bascule (`WamaMediaPreview.variantToggle`, brique d'aperçu "
               "`preview` — il vivait dans l'inspecteur jusqu'au 2026-10-13). Né le 2026-10-04 pour "

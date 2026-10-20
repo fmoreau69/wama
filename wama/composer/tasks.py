@@ -440,7 +440,7 @@ def _render(gen, ctx):
     from django.conf import settings
     from wama.common.utils.auto_model import is_auto
     from wama.common.utils.model_keys import model_id
-    from wama.common.utils.preview_utils import PartialAudio
+    from wama.common.utils.preview_utils import PartialFrames
     from .utils.model_config import clamp_duration
 
     catalog_key = _model_key(gen)
@@ -481,7 +481,8 @@ def _render(gen, ctx):
     melody_copy = _melody_copy(score_abs) if score and score == _name(gen.extracted_score) else None
     # Preview « pendant » (COMMUN) : l'audio déjà produit, à l'écoute et en onde, tant que le
     # moteur calcule — à la cadence de la brique, pas à celle du moteur.
-    partial = PartialAudio(ctx.app_id, gen.id, os.path.join(os.path.dirname(output_abs_path), 'partials'))
+    partial = PartialFrames(ctx.app_id, gen.id, os.path.join(os.path.dirname(output_abs_path), 'partials'),
+                            every=3.0)
 
     try:
         _backend(gen, catalog_key).generate(
@@ -492,7 +493,7 @@ def _render(gen, ctx):
             melody_path=melody_abs,
             score_path=melody_copy or score_abs,
             progress_callback=ctx.progress,
-            on_audio=partial.sink(),
+            on_audio=partial.audio_sink(),
         )
     except Exception:
         ctx.reset_progress()

@@ -1,5 +1,6 @@
-"""The « during » face of a SOUND being computed — `preview_utils.PartialAudio` and the composer's
-music engine (`audiocraft_backend._follow_tokens`), 2026-10-20.
+"""The « during » face of a SOUND being computed — the common partial publisher
+(`preview_utils.PartialFrames`, which publishes sound since 2026-10-20) and the composer's music
+engine (`audiocraft_backend._follow_tokens`).
 
 Fabien: « dans Composer, la preview est censée se charger au fur et à mesure de l'avancement de la
 génération. Ce qui a été fait, mais ne fonctionne pas concrètement. » Measured: the three music
@@ -23,7 +24,7 @@ except Exception:          # venv without audiocraft (Windows)
     HAS_AUDIOCRAFT = False
 
 
-class PartialAudioTest(SimpleTestCase):
+class PartialSoundTest(SimpleTestCase):
 
     def setUp(self):
         self.root = tempfile.mkdtemp()
@@ -31,37 +32,45 @@ class PartialAudioTest(SimpleTestCase):
 
     def test_publishing_serves_a_playable_file_with_its_wave_then_closing_clears_it(self):
         import numpy as np
-        from wama.common.utils.preview_utils import PartialAudio, _during_preview_data
+        from wama.common.utils.preview_utils import PartialFrames, _during_preview_data
         with override_settings(MEDIA_ROOT=self.root, MEDIA_URL='/media/'):
-            partial = PartialAudio('composer', 987650, os.path.join(self.root, 'u', 'partials'))
-            partial.publish(np.zeros((16000, 1), dtype='float32') + 0.1, 16000)
+            frames = PartialFrames('composer', 987650, os.path.join(self.root, 'u', 'partials'))
+            frames.publish_audio(np.zeros((16000, 1), dtype='float32') + 0.1, 16000)
             data = _during_preview_data('composer', SimpleNamespace(pk=987650), RequestFactory().get('/'))
             self.assertIsNotNone(data)
-            self.assertIn('/media/u/partials/during_987650.wav?v=1', data['url'])
+            self.assertIn('/media/u/partials/during_987650.wav?v=', data['url'])
             self.assertTrue(data['peaks'])
             self.assertAlmostEqual(1.0, float(data['duration']), places=1)
-            partial.close()
-            self.assertFalse(os.path.exists(partial.path))
+            frames.close()
+            self.assertFalse(os.path.exists(frames.audio_path))
             self.assertIsNone(_during_preview_data('composer', SimpleNamespace(pk=987650),
                                                    RequestFactory().get('/')))
 
-    def test_the_sink_keeps_the_cadence_of_the_brick(self):
-        from wama.common.utils.preview_utils import PartialAudio
-        partial = PartialAudio('composer', 987651, self.root, every=3600)
+    def test_the_sound_sink_keeps_the_cadence_of_the_brick(self):
+        from wama.common.utils.preview_utils import PartialFrames
+        frames = PartialFrames('composer', 987651, self.root, every=3600)
         import time
         published = []
 
-        def publish(pcm, sr):           # the real one stamps `_last` when it announces
+        def publish_audio(pcm, sr):     # the real one stamps `_last` first
+            frames._last = time.time()
             published.append(len(pcm))
-            partial._last = time.time()
-        partial.publish = publish
-        sink = partial.sink()
+        frames.publish_audio = publish_audio
+        sink = frames.audio_sink()
+        self.assertTrue(sink.due(), 'a producer asks BEFORE decoding')
         sink([0.0] * 10, 10)
+        self.assertFalse(sink.due())
         sink([0.0] * 20, 10)          # inside the cadence: skipped
-        self.assertEqual([10], published[:1])
-        partial._last = 0.0
-        sink([0.0] * 30, 10)
-        self.assertEqual([10, 30], published)
+        self.assertEqual([10], published)
+
+    def test_the_file_written_by_the_producer_is_cleared_by_another_instance(self):
+        """The synthesizer writes `audio_path` itself, then cleans up from another point of its run."""
+        from wama.common.utils.preview_utils import PartialFrames
+        os.makedirs(os.path.join(self.root, 'p'))
+        first = PartialFrames('synthesizer', 987652, os.path.join(self.root, 'p'))
+        open(first.audio_path, 'wb').close()
+        PartialFrames('synthesizer', 987652, os.path.join(self.root, 'p')).close()
+        self.assertFalse(os.path.exists(first.audio_path))
 
 
 @unittest.skipUnless(HAS_AUDIOCRAFT, 'audiocraft is only installed in venv_linux')
@@ -122,6 +131,31 @@ class MusicGenPartialsTest(SimpleTestCase):
         self.assertGreaterEqual(min(progress), 40)
         self.assertEqual(80, max(progress))
         self.assertGreater(len(set(progress)), 30, 'progress moves step by step, not 40 → 80')
+
+    def test_a_sink_with_a_cadence_is_asked_BEFORE_decoding(self):
+        """Like `ImageGenerationBackend.preview_step`: no decoding while the sink says not due."""
+        from wama.common.backends import audiocraft_backend as ab
+        model, decoded = self._model()
+        counter = iter(range(10_000))
+        model.lm._sample_next_token = lambda *a, **k: self._step(next(counter))
+        heard = []
+
+        class Sink:
+            ready = False
+
+            def due(self):
+                return self.ready
+
+            def __call__(self, pcm, sr):
+                heard.append(len(pcm))
+        sink = Sink()
+        ab._follow_tokens(model, None, sink)
+        for i in range(1, 301):
+            sink.ready = i == 150
+            model.lm._sample_next_token()
+            model._cb(i, 300)
+        self.assertEqual(1, len(decoded), 'one decode, when the sink asked for it')
+        self.assertEqual([150 - 3], heard)
 
     def test_beyond_one_window_only_progress_is_followed(self):
         from wama.common.backends import audiocraft_backend as ab

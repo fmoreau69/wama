@@ -1295,15 +1295,21 @@ def look_at_image(user, file_path: str, question: str = '') -> dict:
         if category_of_path(src.name) != 'image':
             return {'error': f"'{src.name}' n'est pas une image — pour un document ou une "
                              f"vidéo, passer par add_to_describer."}
-        from wama.model_manager.services.vision_probe import describe_image_ollama
-        keep_alive = '0' if getattr(settings, 'WAMA_GPU_SAFE_MODE', False) else None
-        rendu = describe_image_ollama(str(src), prompt=(question or '').strip() or None,
-                                      keep_alive=keep_alive)
-        if not rendu.get('ok'):
-            return {'error': f"Analyse impossible : {rendu.get('error', 'inconnue')}"}
-        return {'description': rendu.get('description', ''), 'model': rendu.get('model', '')}
+        return _vision_of(str(src), question)
     except Exception as e:
         return {'error': f"Analyse impossible : {e}"}
+
+
+def _vision_of(path: str, question: str = '') -> dict:
+    """UNE passe du modèle de vision sur une image du disque — celle de `look_at_image` et des
+    faces d'aperçu regardées (`get_item_preview(look=true)`). {"description","model"} ou {"error"}."""
+    from wama.model_manager.services.vision_probe import describe_image_ollama
+    keep_alive = '0' if getattr(settings, 'WAMA_GPU_SAFE_MODE', False) else None
+    answer = describe_image_ollama(path, prompt=(question or '').strip() or None,
+                                   keep_alive=keep_alive)
+    if not answer.get('ok'):
+        return {'error': f"Analyse impossible : {answer.get('error', 'inconnue')}"}
+    return {'description': answer.get('description', ''), 'model': answer.get('model', '')}
 
 
 def add_to_media_library(user, file_path: str, asset_type: str,
@@ -2701,19 +2707,24 @@ def get_item_preview(user, app: str, pk: int, side: str = 'input', variant: str 
         return _compare_preview(user, app, pk, look, question)
     face = _preview_face(user, app, pk, side, variant)
     if 'error' in face:
-        if side not in ('input', 'output', 'during') and face['error'] != 'forbidden':
-            face['error'] += (" Faces : input, output, during, compare, ou une clé de "
-                                "`sides.faces` / `sides.after`.")
+        from wama.common.utils.preview_utils import RESERVED_SIDES
+        if side not in RESERVED_SIDES and face['error'] != 'forbidden':
+            face['error'] += (f" Faces : {', '.join(RESERVED_SIDES)}, ou une clé de "
+                              "`sides.faces` / `sides.after`.")
         return face
     if face.get('side') != side:
         # Le serveur REPLIE sur une autre face quand celle demandée n'existe pas (l'entrée,
-        # le plus souvent) : le dire, plutôt que faire passer l'une pour l'autre.
+        # le plus souvent) : le dire, plutôt que faire passer l'une pour l'autre — avec les
+        # faces que `sides` annonce À CET INSTANT.
         s = face.get('sides') or {}
-        known = (['input', 'output', 'during']
-                 + [f.get('key') for f in (s.get('faces') or []) + (s.get('after') or [])]
-                 + (['compare'] if s.get('comparable') else []))
+        present = ((['input'] if s.get('has_input') else [])
+                   + [f.get('key') for f in s.get('faces') or []]
+                   + (['during'] if s.get('has_during') else [])
+                   + (['compare'] if s.get('comparable') and s.get('has_output') else [])
+                   + (['output'] if s.get('has_output') else [])
+                   + [f.get('key') for f in s.get('after') or []])
         return {'error': f"Pas de face « {side} » pour {app}#{pk} en ce moment "
-                         f"(faces : {', '.join(k for k in known if k)}).",
+                         f"(faces : {', '.join(k for k in present if k) or 'aucune'}).",
                 'sides': s, 'app': app, 'id': pk}
     if look:
         face['look'] = _look_at_face(face, question)
@@ -2783,8 +2794,8 @@ LOOK_MAX_IMAGES = 4
 
 
 def _look_at_face(face: dict, question: str = '') -> dict:
-    """Ce que montrent les IMAGES d'une face, par le modèle de vision de `look_at_image`
-    (`vision_probe.describe_image_ollama`). Le fichier est celui que l'aperçu commun vient de
+    """Ce que montrent les IMAGES d'une face, par la passe de vision de `look_at_image`
+    (`_vision_of`). Le fichier est celui que l'aperçu commun vient de
     servir — la permission est déjà passée par lui (`PreviewRegistry.check_permission`). Un texte
     se lit dans `content` ; un son ou une vidéo ne se regardent pas (le dire)."""
     from wama.common.utils.preview_utils import _local_media_path
@@ -2794,19 +2805,11 @@ def _look_at_face(face: dict, question: str = '') -> dict:
         mime = face.get('mime_type') or '?'
         return {'error': f"Rien à regarder : cette face est « {mime} » — un texte se lit dans "
                          f"`content`, un son ou une vidéo ne se regardent pas."}
-    from wama.model_manager.services.vision_probe import describe_image_ollama
-    keep_alive = '0' if getattr(settings, 'WAMA_GPU_SAFE_MODE', False) else None
     seen = []
     for f in images[:LOOK_MAX_IMAGES]:
         path = _local_media_path(f.get('url'))
-        if not path:
-            seen.append({'name': f.get('name', ''), 'error': 'fichier absent du disque'})
-            continue
-        answer = describe_image_ollama(path, prompt=(question or '').strip() or None,
-                                      keep_alive=keep_alive)
-        seen.append({'name': f.get('name', ''), **(
-            {'description': answer.get('description', ''), 'model': answer.get('model', '')}
-            if answer.get('ok') else {'error': answer.get('error', 'analyse impossible')})})
+        seen.append({'name': f.get('name', ''),
+                     **(_vision_of(path, question) if path else {'error': 'fichier absent du disque'})})
     if face.get('overlay'):
         seen[0]['overlay'] = (f"des {face['overlay'].get('kind', 'annotations')} sont dessinées "
                               f"par-dessus dans l'aperçu ; l'image regardée est celle du dessous")

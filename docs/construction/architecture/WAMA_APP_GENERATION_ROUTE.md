@@ -262,19 +262,25 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   la face Pendant existait quelques millisecondes ; elle ne portait d'ailleurs que des pics, aucun
   fichier jouable. Le critère `during_preview` et `tests_during_preview_declared` restaient VERTS :
   ils lisent que l'app APPELLE la brique, pas QUAND (*adoption ≠ fonctionnement*). Désormais :
-  (1) **`preview_utils.PartialAudio`**, le pendant sonore de `PartialFrames` — un WAV à nom fixe
-  servi avec `?v=`, ses pics, sa cadence (`due`, 3 s), son nettoyage (`close`), le rappel
-  `on_audio` du contrat musical (`sink`) ; le synthesizer, qui tenait tout cela dans sa tâche, y
-  passe (`workers._during_preview`, seuls vitesse et hauteur lui restent propres) ; (2) **MusicGen
+  (1) **le publieur commun des partiels publie aussi le SON** (`preview_utils.PartialFrames` :
+  `publish_audio`, `publish_audio_file`, `audio_sink`) — un WAV à nom fixe servi avec `?v=`, ses
+  pics par `emit_streaming_peaks`, la cadence (`due`), le nettoyage (`close`) et le récepteur
+  `sink.due()` / `sink(…)` déjà communs aux frames ; le synthesizer, qui tenait tout cela dans sa
+  tâche, y passe (`workers._during_preview`, seuls vitesse et hauteur lui restent propres).
+  ⚠ *Revérification du jour même (Fabien : « la brique commune existait déjà normalement »)* : le
+  premier jet (`d5292ea3`) en avait fait une SECONDE classe, `PartialAudio`, qui recopiait le
+  cycle de `PartialFrames` (mécanisme `during_preview_variants`) et le calcul des pics
+  d'`emit_streaming_peaks` — repliée dedans. (2) **MusicGen
   et AudioGen rendent l'audio PENDANT l'échantillonnage** (`audiocraft_backend._follow_tokens`) :
   AudioCraft ne donne que des COMPTES à son rappel, les jetons sont donc relevés à la sortie de
   `_sample_next_token` (enveloppé sur l'instance, rien de patché dans la librairie), replacés par le
-  motif du modèle (`revert_pattern_sequence`) et décodés par son codec, tous les 100 pas (~2 s de
-  son) ; la progression monte enfin pas à pas de 40 à 80 % (elle sautait d'un coup). Mesuré sur
+  motif du modèle (`revert_pattern_sequence`) et décodés par son codec quand le récepteur le
+  demande (`due()`, AVANT le décodage — le contrat de `ImageGenerationBackend.preview_step`), dès
+  100 pas (~2 s de son) ; la progression monte enfin pas à pas de 40 à 80 % (elle sautait d'un coup). Mesuré sur
   le GPU (MusicGen small, 8 s) : partiels de 1,9 / 3,9 / 5,9 / 7,9 s pendant le calcul, puis le
   final. (3) Le partiel suivant reprend la lecture où en était le précédent, au volet et dans la
-  visionneuse (`takeClock`/`giveClock` dans les deux `onFrame`) — chaque tour la faisait repartir
-  de 0. ⏳ **Limites dites** : MiniMax-Music3 (`audiocpp_cli`, un sous-processus qui n'écrit qu'à la
+  visionneuse — par le suiveur commun lui-même (`followDuring`, option `host`), pas par chacun
+  de ses deux consommateurs — chaque tour la faisait repartir de 0. ⏳ **Limites dites** : MiniMax-Music3 (`audiocpp_cli`, un sous-processus qui n'écrit qu'à la
   fin) et YuE2 (pipeline vendorisé, aucun rappel intermédiaire) ne montrent rien avant leur
   résultat ; au-delà d'une fenêtre d'AudioCraft (`max_duration`), la progression seule. Gardes :
   `tests_partial_audio` (ordre des jetons sur le VRAI motif à retard, cadence, fichier jouable +
@@ -286,7 +292,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   que l'aperçu commun annonce (`sides.faces`, `sides.after` — « Détection », « Résumé »,
   « Évaluation »…), la vue d'une face Pendant (`variant`), `compare` (la Sortie face à
   `sides.compare_base`, comme la visionneuse), et `look=true` passe les IMAGES de la face au
-  modèle de vision de `look_at_image` (`vision_probe.describe_image_ollama`, sur le fichier que
+  modèle de vision de `look_at_image` (la même passe, `_vision_of`, sur le fichier que
   l'aperçu vient de servir — permission comprise) : l'assistant regarde l'image qui se diffuse ou la
   frame en cours de floutage. Une face absente est DITE (le serveur repliait sur l'entrée, que
   l'outil faisait passer pour la face demandée). Rien de neuf côté serveur : `unified_preview` sert

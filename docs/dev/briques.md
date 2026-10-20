@@ -1678,7 +1678,7 @@ Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jo
 
 ### Aperçu « pendant » à plusieurs vues
 
-Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, publieur de frames limité dans le temps `PartialFrames`) ; la face PENDANT de l'aperçu les liste et sert celle demandée (`?variant=`), le volet et la visionneuse affichent le bouton de bascule (`WamaMediaPreview.variantToggle`, brique d'aperçu `preview` — il vivait dans l'inspecteur jusqu'au 2026-10-13). Né le 2026-10-04 pour basculer entre détection et floutage de l'anonymizer — toute app peut publier ses vues
+Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, publieur de partiels limité dans le temps `PartialFrames` — frames JPEG, et le SON déjà produit en WAV avec ses pics depuis le 2026-10-20) ; la face PENDANT de l'aperçu les liste et sert celle demandée (`?variant=`), le volet et la visionneuse affichent le bouton de bascule (`WamaMediaPreview.variantToggle`, brique d'aperçu `preview` — il vivait dans l'inspecteur jusqu'au 2026-10-13). Né le 2026-10-04 pour basculer entre détection et floutage de l'anonymizer — toute app peut publier ses vues
 
 - **Domicile** : `wama/common/utils/preview_utils.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common - Preview Utilities
@@ -1687,7 +1687,7 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
   - `file_face(url, path=None, name=None)` — Payload d'aperçu d'UN fichier : `{name, url, mime_type}`, plus `content` (le texte
   - `server_peaks(url: str)` — `{peaks, duration}` de l'audio servi à `url` quand il est trop lourd pour le navigateur —
   - `publish_partial(app_name, pk, url_or_path, variant=None, label=None)` — Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
-  - `class PartialFrames` — L'aperçu « pendant » en IMAGES d'une vidéo en cours de traitement : une frame (ou
+  - `class PartialFrames` — L'aperçu « pendant » d'un traitement en cours, en FICHIERS : une frame (ou plusieurs
   - `publish_partial_peaks(app_name, pk, peaks, duration=None)` — Worker : publie des PICS d'onde partiels (« waveform par parties », cf. `waveform.compute_peaks`)
   - `emit_streaming_peaks(app_name, pk, pcm, sr, buckets=800)` — Worker de streaming (COMMUN, toute app) : calcule les pics uint8 d'une fenêtre PCM courante
   - `publish_partial_text(app_name, pk, text)` — Worker : publie le TEXTE partiel courant (transcription/description qui se construit),

@@ -761,8 +761,11 @@
     // fin : élément plus en cours (`isRunning`), ou partiels retirés après en avoir montré. Une app
     // qui ne publie rien : arrêt, sans fin annoncée. La modale en avait sa copie (2026-10-05,
     // retirée le lendemain à la question de Fabien « rien réinventé ? »).
-    //   opts = { variant, isRunning(), onFrame(données), onEnd(données|null), every }
+    //   opts = { variant, isRunning(), onFrame(données), onEnd(données|null), every, host() }
     //   rend { stop(), choose(variante) }
+    // `host()` : l'élément où `onFrame` rend la face. Un son ou une vidéo qui GRANDIT y reprend, d'un
+    // partiel au suivant, la position et l'état de lecture du précédent (`takeClock`/`giveClock`,
+    // 2026-10-20) — chaque tour le faisait repartir de 0.
     function followDuring(baseUrl, opts) {
         opts = opts || {};
         const state = { variant: opts.variant || null, sig: '', stopped: false };
@@ -789,7 +792,10 @@
                                             d.variant || '', (d.variants || []).length]);
                 if (sig === state.sig) return;
                 state.sig = sig;
+                const host = opts.host ? opts.host() : null;
+                const clock = host ? takeClock(host, baseUrl, null) : null;
                 if (opts.onFrame) opts.onFrame(d);
+                if (clock) giveClock(host, clock, baseUrl);
             },
         });
         function stop() { state.stopped = true; poller.stop('during'); }
@@ -1272,13 +1278,11 @@
         _modalDuring = followDuring(base, {
             variant: data.variant || null,
             isRunning: card ? function () { return isRunningCard(card); } : null,
+            host: _modalContainer,
             onFrame: function (d) {
                 d._baseUrl = base;
                 d._duringTick = true;
-                // Le partiel suivant reprend où en était la lecture du précédent (2026-10-20).
-                const clock = takeClock(_modalContainer(), base, null);
                 _display(d);
-                giveClock(_modalContainer(), clock, base);
             },
             onEnd: function () {
                 _json(faceUrl(base, 'output'))

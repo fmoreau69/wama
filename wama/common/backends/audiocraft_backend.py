@@ -18,8 +18,9 @@ from wama.common.backends.music_generation_base import MusicGenerationBackend
 logger = logging.getLogger(__name__)
 
 #: Pas de calcul entre deux aperçus « pendant » : le modèle de langue d'AudioCraft en fait 50 par
-#: seconde de son (`frame_rate`) — un aperçu toutes les ~2 s d'audio produit. L'appelant tient
-#: sa propre cadence par-dessus (`PartialAudio.due`).
+#: seconde de son (`frame_rate`) — ~2 s d'audio produit. C'est le PREMIER aperçu, et la cadence
+#: d'un rappel qui n'en déclare pas ; un récepteur à cadence (`PartialFrames.audio_sink`) est
+#: interrogé (`due()`) AVANT le décodage, comme `ImageGenerationBackend.preview_step`.
 PARTIAL_EVERY_STEPS = 100
 
 
@@ -28,7 +29,8 @@ def _follow_tokens(model, progress_callback, on_audio) -> None:
     se charger au fur et à mesure de l'avancement de la génération ») :
       • la progression réelle, de 40 à 80 %, par le rappel qu'AudioCraft offre
         (`set_custom_progress_callback`) — elle sautait de 40 à 80 d'un coup ;
-      • l'audio déjà produit, rendu à `on_audio` tous les `PARTIAL_EVERY_STEPS` pas.
+      • l'audio déjà produit, rendu à `on_audio` quand son récepteur le demande (`due()`), sinon
+        tous les `PARTIAL_EVERY_STEPS` pas.
 
     AudioCraft ne rend que des COMPTES à son rappel : les jetons sont relevés à leur sortie de
     l'échantillonneur (`_sample_next_token`, enveloppé sur CETTE instance — rien n'est patché dans
@@ -40,6 +42,7 @@ def _follow_tokens(model, progress_callback, on_audio) -> None:
     lm = model.lm
     steps = []
     stream = bool(on_audio) and model.duration <= model.max_duration
+    due = getattr(on_audio, 'due', None)
     if stream:
         sample = lm._sample_next_token
 
@@ -52,7 +55,9 @@ def _follow_tokens(model, progress_callback, on_audio) -> None:
     def _progress(generated, total):
         if progress_callback and total:
             progress_callback(40 + int(40 * min(generated, total) / total))
-        if stream and generated % PARTIAL_EVERY_STEPS == 0:
+        if not stream or generated < PARTIAL_EVERY_STEPS:
+            return
+        if due() if due else generated % PARTIAL_EVERY_STEPS == 0:
             audio = _partial_audio(model, steps)
             if audio is not None:
                 try:
