@@ -271,7 +271,6 @@
                             <i class="fas fa-photo-video"></i>
                             <p>{% block right_panel_media_hint %}Sélectionnez un fichier<br>pour l'aperçu{% endblock %}</p>
                         </div>
-                        <div id="preview-media" style="display: none;"></div>
                     </div>
                     {% endblock %}
                 </div>
@@ -316,62 +315,6 @@
         </div>
     </aside>
     {% endif %}
-
-    <!-- Right Panel Script -->
-    <script>
-        window.WAMA_RIGHT_PANEL = {
-            showPreview: function(url, type) {
-                const placeholder = document.getElementById('preview-placeholder');
-                const mediaContainer = document.getElementById('preview-media');
-
-                if (!url) {
-                    placeholder.style.display = 'block';
-                    mediaContainer.style.display = 'none';
-                    mediaContainer.innerHTML = '';
-                    return;
-                }
-
-                placeholder.style.display = 'none';
-                mediaContainer.style.display = 'block';
-
-                if (type === 'video' || url.match(/\.(mp4|webm|ogg|mov|avi)$/i)) {
-                    mediaContainer.innerHTML = `
-                        <video controls autoplay muted style="width: 100%; border-radius: 4px;">
-                            <source src="${url}" type="video/mp4">
-                        </video>
-                    `;
-                } else if (type === 'image' || url.match(/\.(jpg|jpeg|png|gif|webp|bmp)$/i)) {
-                    mediaContainer.innerHTML = `
-                        <img src="${url}" alt="Preview" style="width: 100%; border-radius: 4px;">
-                    `;
-                } else if (type === 'audio' || url.match(/\.(mp3|wav|ogg|flac|m4a)$/i)) {
-                    mediaContainer.innerHTML = `
-                        <audio controls style="width: 100%;">
-                            <source src="${url}">
-                        </audio>
-                    `;
-                } else {
-                    mediaContainer.innerHTML = `
-                        <div class="text-center py-3">
-                            <i class="fas fa-file fa-2x mb-2"></i>
-                            <p class="small mb-0">Aperçu non disponible</p>
-                        </div>
-                    `;
-                }
-            },
-            clearPreview: function() {
-                this.showPreview(null);
-            },
-            updateSettings: function(html) {
-                const container = document.getElementById('global-settings-container');
-                if (container) container.innerHTML = html;
-            },
-            updateActions: function(html) {
-                const container = document.getElementById('global-actions-container');
-                if (container) container.innerHTML = html;
-            }
-        };
-    </script>
 
     {# Block pour les modals additionnels des apps - doit être au niveau du body #}
     {% block extra_modals %}

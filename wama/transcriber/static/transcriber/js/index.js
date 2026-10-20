@@ -210,9 +210,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Les PROCESS de la card (bande commune) suivent le traitement en place.
     if (window.WamaApp && WamaApp.updateProcessRows) WamaApp.updateProcessRows(card, data.processes);
 
-    // Update live transcription display
-    updateLiveTranscriptionFromQueue(id, status, data.partial_text);
-
     // Fin de process : agir UNIQUEMENT sur un statut terminal réel (pas sur
     // progress>=100 seul, qui peut précéder le passage en SUCCESS).
     if (status === 'SUCCESS') {
@@ -579,37 +576,11 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   // ======================================================================
-  // Live transcription
+  // Live transcription — le texte du micro (Speak), surligné au dernier mot.
+  // Le report du texte partiel d'une card EN COURS dans ce panneau est retiré (R158,
+  // 2026-10-20) : le panneau est masqué hors Speak depuis le 2026-06-30, et ce texte est servi
+  // par la face Pendant commune (`publish_partial_text` → `?side=during`).
   // ======================================================================
-  function updateLiveTranscriptionFromQueue(transcriptId, status, partialText) {
-    if (!liveOutput || !liveStatus) return;
-    if (speakButton && speakButton.classList.contains('active')) return;
-
-    const firstRunning = queueContainer ? queueContainer.querySelector('.synthesis-card[data-status="RUNNING"]') : null;
-
-    if (!firstRunning) {
-      if (liveOutput.textContent !== 'Appuyez sur Speak puis commencez à parler pour voir le texte apparaître ici en temps réel.') {
-        liveOutput.textContent = 'Aucune transcription en cours.';
-        liveStatus.textContent = 'En attente...';
-      }
-      return;
-    }
-
-    if (firstRunning.dataset.id !== String(transcriptId)) return;
-
-    if (status === 'RUNNING') {
-      liveStatus.textContent = `Transcription #${transcriptId} en cours...`;
-    } else if (status === 'SUCCESS') {
-      liveStatus.textContent = `Transcription #${transcriptId} terminée`;
-    } else if (status === 'FAILURE') {
-      liveStatus.textContent = `Transcription #${transcriptId} échouée`;
-    }
-
-    if (partialText && partialText.trim()) {
-      displayTextWithHighlight(partialText);
-    }
-  }
-
   function displayTextWithHighlight(text) {
     if (!liveOutput) return;
     const words = text.split(/(\s+)/);

@@ -327,7 +327,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   ③. ② le CHAT de l'assistant ne rend aucune face ; ③ code mort : le report du texte d'une card
   en cours dans le panneau Speak du transcriber (ci-dessus), `WAMA_RIGHT_PANEL.showPreview`
   (`wama/templates/base.html:321`,
-  copie dans `filemanager/right_panel.html`, que rien n'inclut), la modale `#previewModal` du
+  copie dans le gabarit right_panel du filemanager, que rien n'incluait), la modale `#previewModal` du
   synthesizer, `_mpInjectImage` de l'imager, les routes `anonymizer:preview_media`,
   `describer:preview`, `synthesizer:preview` (déclarées aux manifestes : retrait au
   `REMOVAL_LEDGER`) ; ④ recopies partielles : second lecteur nu de `transcriber/edit.html:238`,
@@ -336,6 +336,35 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   face_analyzer à la main, `brick-html-preview.js` (seconde iframe isolée). Ordre proposé à
   Fabien : ① → ② → ③ → ④. Et MiniMax-Music3 / YuE2 ne montrent rien avant la fin (limite des
   moteurs, dite plus haut).
+  ✅ **③ puis ① SOLDÉS le soir même** (Fabien : *« retire le code mort, puis la card qui suit
+  Pendant […] Attention au Transcriber : il ne faut rien perdre, ni rien casser »*). ③ — les
+  sept restes retirés (`REMOVAL_LEDGER` R31, R158-R161), chacun relu par symbole ET accesseur
+  juste avant : `DetailRegistry.preview_url` lit la route COMMUNE, pas celles des apps ; le
+  seul `preview_url` lu côté JS est celui de la recherche de la médiathèque ; Speak garde tout
+  ce qui est à lui (capture, texte reconnu surligné, card créée à l'arrêt). ① — la CARD suit la
+  face Pendant par la brique : `media-preview.js` `followCard` confie l'hôte de SORTIE d'une
+  card en cours, ou l'hôte d'ATTENTE `data-card-during` que chacune des 11 cards pose à
+  l'adresse de son élément (la route commune ; la card du générateur pose déjà un hôte
+  `data-card-preview` dans tous les états), au MÊME suiveur (`followDuring`) et au MÊME
+  `renderInline` que le volet. Il démarre au passage en cours (`data-status`, que toutes les
+  apps écrivent) ou à l'arrivée de l'hôte, s'arrête à la fin ou quand la card est re-rendue, et
+  rend sa sortie à une card relancée. SI la face existe, le serveur le dit
+  (`sides.during_capable`, lu de `during_preview`) : le gabarit ne recopie pas la déclaration.
+  ⚠ Aucune bibliothèque de tags neuve, délibérément : un worker de la prod lit une card sur le
+  disque à son premier rendu et ne connaîtrait pas un module importé après son démarrage
+  (500 jusqu'au rechargement) — écrite, puis retirée avant tout commit. Le chemin propre du
+  describer et la clé `partial_text` des progressions describer/transcriber, que plus rien ne
+  lisait, sont retirés (R162). Vérifié sur la page SERVIE : geste nocturne
+  `common.preview_during` (la card fictive en cours montre son partiel avant toute ouverture ;
+  contre-épreuve — la brique servie au navigateur avec `followCard` neutralisé — rouge sur
+  « la card en cours ne montre pas sa face Pendant ») ; les 24 pages d'apps du compte de test
+  en 200 après le rechargement, l'hôte rendu sur une card de l'imager, les trois routes
+  retirées en 404. Gardes : `tests_card_pending_face`, `tests_cap_from_js` (card en cours
+  suivie puis arrêtée, card relancée qui retrouve sa sortie, surface muette = une requête,
+  card hors cours ignorée), `tests_preview_dead_code`. Restent ② (le chat), le chantier
+  TRANSCRIBER — son transport sur le transport commun et sa page d'édition sur les briques UI,
+  sans aucune perte de fonction (passation : `PROJECT_STATUS §PALIER 2026-10-20 (nuit), « APERÇU :
+  le code mort retiré, la CARD suit la face Pendant »`) — puis ④.
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct —
   qui construit sa réponse par la MÊME fabrique de face fichier que les cards (`file_face`,
   2026-10-12 ; il en avait sa copie, seule à extraire le texte d'un .docx).

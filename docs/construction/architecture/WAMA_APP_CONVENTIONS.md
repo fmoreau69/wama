@@ -2600,8 +2600,8 @@ du formulaire de réglages. `WamaDetails` ne remplace jamais le formulaire édit
 
 - Créer un drawer/aside « inspecteur » propre à une app. Le volet droit existe déjà (`base.html`,
   sections `right_panel_media`/`right_panel_settings`/`right_panel_actions`) — passer par
-  **`WamaInspector`/`WamaDetails`**. ⚠ L'API `WAMA_RIGHT_PANEL` est **héritée et non câblée**
-  (0 appelant, mesuré — `WAMA_VOLETS §6` la classe code mort) : ne pas s'en servir.
+  **`WamaInspector`/`WamaDetails`**. (L'API héritée `WAMA_RIGHT_PANEL`, 0 appelant, est retirée
+  depuis le 2026-10-20 — `REMOVAL_LEDGER R31`.)
 - Écrire à la main le HTML détaillé de chaque champ (couplage, divergence entre apps).
 
 ### ✅ Pattern obligatoire

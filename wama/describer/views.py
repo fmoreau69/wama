@@ -524,14 +524,14 @@ def card_html(request, pk):
 
 
 def _progress_extra(description):
-    """Les clés PROPRES que le JS du describer lit : texte partiel, puis le résultat.
+    """Les clés PROPRES que le JS du describer lit : le résultat. Le texte qui se construit n'y
+    est plus (2026-10-20) : la card le lit à la face Pendant commune, comme le volet.
 
     Résumé et cohérence ne sont rendus que si leur process est ACTIVÉ : depuis le pipeline, le
     lancement ne les efface plus (`_reset_for_relaunch`), et un optionnel désactivé ne pèse plus
     sur la card (`ROUTE §10.6` règle 4.4) — l'onglet d'un résumé qu'on a décoché reste vide, comme
     quand la relance l'effaçait."""
-    from wama.common.utils.preview_utils import get_partial_text
-    data = {'partial_text': get_partial_text('describer', description.id)}
+    data = {}
     if description.status == 'SUCCESS':
         data['result_text'] = description.result_text
         if description.result_file:
@@ -675,27 +675,6 @@ def delete(request, pk):
 
 
 @require_GET
-def preview(request, pk):
-    """Get file preview."""
-    user = get_user(request)
-    from wama.common.utils.scoping import visible_or_404
-    description = visible_or_404(Description, user, pk=pk)
-
-    response = {
-        'id': description.id,
-        'filename': description.filename,
-        'detected_type': description.detected_type,
-    }
-
-    if description.input_file:
-        response['input_url'] = description.input_file.url
-
-    if description.result_text:
-        response['result_text'] = description.result_text[:2000]  # Limit preview
-
-    return JsonResponse(response)
-
-
 @require_POST
 @app_access('describer')
 def start_all(request):

@@ -21,9 +21,7 @@ from django.template import loader
 from django.template.loader import render_to_string
 from django.views import View
 from django.views.generic import TemplateView
-from django.urls import reverse
 from django.utils.decorators import method_decorator
-from django.utils.encoding import iri_to_uri
 
 from wama.accounts.permissions import app_access
 
@@ -205,7 +203,6 @@ def process_media(video_path, user, post=None):
             'id': media.id,
             'name': filename,
             'url': media.file.url,
-            'preview_url': reverse('anonymizer:preview_media', args=[media.id]),
             'file_ext': media.file_ext,
             'username': user.username,
             'fps': media.fps,
@@ -387,25 +384,6 @@ class ProcessView(View):
             console = pipe.stdout.read()
             return render(self.request, 'anonymizer/index.html', {'console': console})
         return None
-
-
-def preview_media(request, media_id):
-    """Return metadata + absolute URL to play a media file in-place.
-    Lecture → partage F7 (visible_or_404 : le sien, ou partagé unité/projet/public)."""
-    from wama.common.utils.scoping import visible_or_404
-    viewer = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    media = visible_or_404(Media, viewer, pk=media_id)
-
-    media_url = request.build_absolute_uri(iri_to_uri(media.file.url))
-    mime_type, _ = mimetypes.guess_type(media.file.path)
-
-    return JsonResponse({
-        "name": os.path.basename(media.file.name),
-        "url": media_url,
-        "mime_type": mime_type or "video/mp4",
-        "duration": media.duration_inMinSec,
-        "resolution": f"{media.width}x{media.height}" if media.width and media.height else "",
-    })
 
 
 def console_content(request):

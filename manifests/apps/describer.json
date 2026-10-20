@@ -1529,7 +1529,6 @@
         "index",
         "merge",
         "move_to_batch",
-        "preview",
         "progress",
         "remove_from_batch",
         "reorder",
@@ -1576,11 +1575,6 @@
           "name": "duplicate",
           "pattern": "duplicate/<int:pk>/",
           "view": "views.duplicate"
-        },
-        {
-          "name": "preview",
-          "pattern": "preview/<int:pk>/",
-          "view": "views.preview"
         },
         {
           "name": "batch_import",

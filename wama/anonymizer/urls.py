@@ -44,7 +44,6 @@ urlpatterns = [
     path('download/<int:pk>/', views.download, name='download'),
     path('download_media/', views.download_media, name='download_media'),
     path('stop_process/', views.stop_process_view, name='stop_process'),
-    path('preview/<int:media_id>/', views.preview_media, name='preview_media'),
 
     # Opérations groupées
     path("check_all_processed/", views.check_all_processed, name="check_all_processed"),

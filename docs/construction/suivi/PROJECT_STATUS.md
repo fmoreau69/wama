@@ -25230,3 +25230,61 @@ de barre ; les canaux (Discord) non plus. **D'autrui, relevés en passant, non t
 rouge (le composer DÉCLARE son rôle de médiathèque depuis `52fa7362`, le test attend des candidats) ;
 `check_docs` 2 références cassées vers `filemanager/right_panel.html`, que la session du volet droit
 vient de retirer (`ROUTE:330`, `WAMA_VOLETS:332`).
+
+## §PALIER 2026-10-20 (nuit), « APERÇU : le code mort retiré, la CARD suit la face Pendant » — non poussé — 🔴 relancer gunicorn si un worker n'a pas été recyclé depuis 19 h 30 (vues et routes de trois apps, gabarits des 11 cards ; la prod relancée vers 19 h 30 par quelqu'un d'autre les sert déjà)
+
+**Demande de Fabien** : *« retire le code mort, puis la card qui suit Pendant et le chat qui affiche
+la preview. Attention au Transcriber : il ne faut rien perdre, ni rien casser. […] On laisse le 4 pour
+après. »* Domicile : `ROUTE §F3b` (restes du chantier « une preview universelle »).
+
+**Livré** :
+- ③ code mort — sept restes retirés, chacun relu par symbole ET accesseur juste avant
+  (`REMOVAL_LEDGER` R31 soldée, R158-R161) : le report du texte d'une card en cours dans le panneau
+  de Speak du transcriber (Speak garde tout ce qui est à lui) ; `WAMA_RIGHT_PANEL` et son hôte
+  `#preview-media` ; le gabarit orphelin right_panel du filemanager ; la modale `#previewModal` du synthesizer ;
+  `_mpInjectImage` de l'imager ; les routes `anonymizer:preview_media`, `describer:preview`,
+  `synthesizer:preview` (manifestes des trois apps régénérés : ces seules entrées en sortent).
+- ① la CARD suit la face Pendant : `media-preview.js` `followCard` (même `followDuring`, même
+  `renderInline` que le volet) sur l'hôte de sortie d'une card en cours ou sur l'hôte d'attente
+  `data-card-during` posé par les 11 cards ; le chemin propre du describer et la clé `partial_text`
+  des progressions describer/transcriber retirés (R162). ⚠ Un tag de gabarit neuf avait été écrit :
+  retiré avant tout commit — la prod lit une card sur le disque au premier rendu d'un worker, une
+  bibliothèque importée après son démarrage y faisait un 500.
+
+**Preuves** : 270 tests verts sur l'état final (gardes neuves `tests_card_pending_face`,
+`tests_preview_dead_code`, `tests_cap_from_js` ×4, suites describer et transcriber) ; geste
+`common.preview_during` vert sur la prod, et rouge à la contre-épreuve (brique servie avec
+`followCard` neutralisé : « la card en cours ne montre pas sa face Pendant ») ; 24 pages d'apps du
+compte de test en 200, l'hôte rendu sur une card de l'imager, les trois routes retirées en 404.
+
+**Rouges hors de ce travail** : budgets de langue des identifiants (code 2653 > 2651, noms de tests
+1294 > 1291 — `ui_smoke.py`, `doc_facts.py`, `check_docs.py`, `tests_catalogues.py`,
+`model_manager/tests/tests.py`, aucun de mes fichiers) ; `composer.tests_parts.FullScoreTest` ×5 (le
+modèle tiré pour la partition, `tests_parts.py:31` — ni card ni aperçu ; fichiers du sélecteur en
+cours dans l'arbre d'une autre session).
+
+🔚 **Restes, dans l'ordre de Fabien** : ② le CHAT de l'assistant qui rend les faces (⚠ la session
+« Portage apps » travaille aussi sur l'assistant : `wama-assistant-chat.js`, `tool_api.py` portent son
+travail non commité — se partager le fichier avant d'écrire) ; puis le chantier TRANSCRIBER ci-dessous ;
+④ ensuite.
+
+### ➡ PASSATION — le chantier TRANSCRIBER, proposé à la session « Briques UI » (accord de Fabien)
+
+*« Il restera aussi à porter le transport du transcriber dans le transport commun (toutes les
+fonctionnalités doivent absolument être conservées, de même aucune perte ni régression possible) et
+porter la page d'édition sur les briques UI. »* — et : *« L'app est très avancée. Je ne veux aucune
+régression. »*
+
+- **Transport** → l'axe de temps partagé (`media_axis`, `wama-axis.js`) et la brique
+  `media_transport` (`ROUTE §F3b`, brief « preview globale + transport commun » ; matrice de parité
+  du transport, `9f9b1952`). État relu ce soir : `transcriber/static/transcriber/js/edit.js:322` lit
+  déjà l'axe commun (2026-10-20) ; `edit.js:874` dit ce qui y reste « tant que le transport commun
+  n'est pas conçu » ; `TRANSCRIBER_CORRECTION.md:336` aussi.
+- **Page d'édition** → les briques UI (`ui_bricks`, trois niveaux, `ROUTE §F3b`) ; le second lecteur
+  nu de `transcriber/edit.html:238` est l'un des restes ④ du chantier aperçu.
+- **Méthode exigée** : inventaire des fonctions de la page AVANT de toucher (chaque geste nommé et
+  testé, la matrice de parité comme liste de contrôle), portage, puis vérification geste par geste
+  sur la page SERVIE ; `TRANSCRIBER_CORRECTION.md` est le domicile de la page de correction.
+- Ce que cette session-ci a touché au transcriber ce soir, pour ne pas le redécouvrir :
+  `static/transcriber/js/index.js` (le report vers Speak retiré, R158), `views.py` (`_progress_extra`
+  sans `partial_text`), `_transcript_card.html` (l'hôte Pendant de la card). Rien dans `edit.*`.

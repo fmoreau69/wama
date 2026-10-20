@@ -1536,7 +1536,6 @@
         "index",
         "merge",
         "move_to_batch",
-        "preview",
         "progress",
         "remove_from_batch",
         "reorder",
@@ -1590,11 +1589,6 @@
           "name": "download",
           "pattern": "download/<int:pk>/",
           "view": "views.download"
-        },
-        {
-          "name": "preview",
-          "pattern": "preview/<int:pk>/",
-          "view": "views.preview"
         },
         {
           "name": "delete",

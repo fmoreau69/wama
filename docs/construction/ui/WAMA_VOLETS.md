@@ -328,8 +328,8 @@ commentaire (`base.html:156`) **n'est câblé nulle part** : il utilise sa propr
 
 | Élément | Chemin | Constat |
 |---|---|---|
-| `window.WAMA_RIGHT_PANEL` | `base.html:203-256` | API complète (`showPreview`/`updateSettings`/…) — **0 appelant** |
-| Copie de l'`<aside>` | `filemanager/templates/filemanager/right_panel.html` (118 l.) | **jamais incluse** |
+| ~~`window.WAMA_RIGHT_PANEL`~~ | `base.html:203-256` | API complète (`showPreview`/`updateSettings`/…) — **0 appelant** · ✅ **retirée le 2026-10-20** avec son hôte `#preview-media` (`REMOVAL_LEDGER R31`) |
+| ~~Copie de l'`<aside>`~~ | `filemanager/templates/filemanager/right_panel.html` (118 l.) | **jamais incluse** · ✅ **supprimée le 2026-10-20** (R31) |
 | Gabarits intermédiaires | `common/app_base.html`, `accounts/base_form.html` | **rien ne les étend** |
 
 ---

@@ -1018,11 +1018,10 @@ def card_html(request, pk: int):
 
 
 def _progress_extra(t):
-    """Les clés PROPRES que le JS du transcriber lit : texte partiel et action en cours pendant le
-    traitement, propriétés du fichier, puis le résultat et ses enrichissements."""
-    from wama.common.utils.preview_utils import get_partial_text
+    """Les clés PROPRES que le JS du transcriber lit : action en cours pendant le traitement,
+    propriétés du fichier, puis le résultat et ses enrichissements. Le texte qui se construit n'y
+    est plus (2026-10-20) : la card le lit à la face Pendant commune, comme le volet."""
     data = {
-        'partial_text': get_partial_text('transcriber', t.id),
         'status_message': cache.get(f"transcriber_status_msg_{t.id}", ''),
         'properties': t.properties,          # codec • kHz • canaux → MAJ de la ligne de card
         'duration_display': t.duration_display,

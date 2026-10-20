@@ -1840,7 +1840,12 @@ MECHANISMS = (
               "la référence, `result_evaluation`) vient APRÈS la Sortie (`sides.after`) ; la "
               "visionneuse offre les TÉLÉCHARGEMENTS que l'app déclare (`export_formats`) et "
               "compte les mots de toute face texte — ce que portaient les modales propres du "
-              "describer et du transcriber, retirées (R125, R126)",
+              "describer et du transcriber, retirées (R125, R126). Depuis le 2026-10-20, la CARD "
+              "suit la face PENDANT comme le volet et la visionneuse (`followCard`, par le même "
+              "suiveur et le même rendu en ligne) : son hôte de sortie, ou l'hôte d'attente "
+              "`data-card-during` que chaque card pose à l'adresse de son élément — le describer "
+              "y écrivait seul son texte partiel, le transcriber le recopiait dans le panneau de "
+              "Speak (R158, R162)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',

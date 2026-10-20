@@ -401,26 +401,6 @@ def download(request, pk: int):
     )
 
 
-def preview(request, pk: int):
-    """
-    Retourne l'URL de l'audio pour la prévisualisation.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import visible_or_404
-    synthesis = visible_or_404(VoiceSynthesis, user, pk=pk)
-
-    if not synthesis.audio_output:
-        return JsonResponse({
-            'error': 'Aucun audio disponible'
-        }, status=404)
-
-    return JsonResponse({
-        'audio_url': iri_to_uri(synthesis.audio_output.url),
-        'duration': synthesis.duration_display,
-        'properties': synthesis.properties,
-    })
-
-
 @require_POST
 def delete(request, pk: int):
     """

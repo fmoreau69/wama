@@ -2136,7 +2136,6 @@
         "index",
         "merge",
         "move_to_batch",
-        "preview_media",
         "process",
         "progress",
         "queue_count",
@@ -2236,11 +2235,6 @@
           "name": "stop_process",
           "pattern": "stop_process/",
           "view": "views.stop_process_view"
-        },
-        {
-          "name": "preview_media",
-          "pattern": "preview/<int:media_id>/",
-          "view": "views.preview_media"
         },
         {
           "name": "check_all_processed",

@@ -44,11 +44,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
             updateCardStatus(card, data.status, data.progress, data);
 
-            // Update partial result if available
-            if (data.partial_text) {
-                const preview = card.querySelector('.result-preview');
-                if (preview) preview.textContent = data.partial_text.substring(0, 150) + '...';
-            }
+            // (Le texte qui se construit : la card suit la face PENDANT commune — `followCard`
+            // de media-preview.js, 2026-10-20. Il était écrit ici, coupé à 150 caractères.)
 
             if (data.status === 'SUCCESS' || data.status === 'FAILURE') {
                 stopPolling(id);

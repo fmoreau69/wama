@@ -36,7 +36,6 @@ urlpatterns = [
     path('card/<int:pk>/html/', views.card_html, name='card_html'),
     path('global-progress/', views.global_progress, name='global_progress'),
     path('download/<int:pk>/', views.download, name='download'),
-    path('preview/<int:pk>/', views.preview, name='preview'),
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
     path('settings/<int:pk>/', views.update_settings, name='update_settings'),

@@ -975,8 +975,11 @@ JS_DURING_CARD = """(item) => {
     pane.id = 'wamaDuringProbe';
     // Au centre, au premier plan : les volets fixes de la page ne la recouvrent pas.
     pane.style.cssText = 'position:fixed;left:45%;top:45%;z-index:1040;background:#fff;padding:8px;';
+    // L'hôte d'attente que chaque card pose (`data-card-during`, 2026-10-20) : la CARD suit la
+    // face Pendant comme la visionneuse.
     pane.innerHTML = `<div class="wama-card" data-id="during1" data-status="RUNNING">`
-        + `<a href="#" class="preview-media-link" data-preview-url="${item}">en cours</a></div>`;
+        + `<a href="#" class="preview-media-link" data-preview-url="${item}">en cours</a>`
+        + `<div id="wamaDuringHost" data-card-during="${item}" data-preview-mode="excerpt"></div></div>`;
     document.body.prepend(pane);
 }"""
 
@@ -1009,7 +1012,8 @@ def _during_witnesses(folder: str):
 def check_preview_during():
     """La face PENDANT dans la visionneuse, de bout en bout dans le navigateur (2026-10-20 :
     « dans Composer, la preview est censée se charger au fur et à mesure »). Un élément fictif EN
-    COURS : ouvert, la visionneuse montre ce qui se construit (onglet Pendant) ; chaque nouveau
+    COURS : sa CARD montre déjà ce qui se construit, sans geste (l'hôte `data-card-during`, suivi
+    par `followCard` — 2026-10-20) ; ouvert, la visionneuse le montre (onglet Pendant) ; chaque nouveau
     partiel la met à jour sans geste ; l'élément terminé, elle passe d'elle-même à sa Sortie.
     Le suiveur commun (`followDuring`) et sa reprise de lecture sont tenus en V8
     (`tests_cap_from_js`) ; ce geste tient le câblage dans une vraie page. (ok, détail)."""
@@ -1045,6 +1049,20 @@ def check_preview_during():
                 page.goto(f"{BASE_URL.rstrip('/')}{apps[0][1]}", wait_until='networkidle',
                           timeout=PAGE_TIMEOUT_MS)
                 page.evaluate(JS_DURING_CARD, _DURING_ITEM)
+                # La CARD elle-même montre ce qui se construit, sans geste (suiveur de card).
+                card_js = """() => { const h = document.getElementById('wamaDuringHost');
+                    const img = h && h.querySelector('img');
+                    return {src: img ? img.src : '', card: !!(h && h.classList.contains('wama-card-preview'))}; }"""
+                try:
+                    page.wait_for_function(
+                        "() => { const h = document.getElementById('wamaDuringHost');"
+                        " const img = h && h.querySelector('img');"
+                        " return !!(img && img.src.indexOf('/smoke_preview_during/p') >= 0); }",
+                        timeout=8000)
+                    if not page.evaluate(card_js)['card']:
+                        faults.append("la card montre la face Pendant mais son hôte n'a pas le geste commun")
+                except Exception:
+                    faults.append(f"la card en cours ne montre pas sa face Pendant (vu {page.evaluate(card_js)})")
                 page.locator('#wamaDuringProbe .preview-media-link').first.click(timeout=4000)
                 state_js = """() => { const m = document.querySelector('#wamaMediaPreviewModal.show');
                     if (!m) return null; const a = m.querySelector('.wama-modal-sides .is-active');
@@ -1097,8 +1115,9 @@ def check_preview_during():
         shutil.rmtree(folder, ignore_errors=True)
     if faults:
         return False, ' ; '.join(faults)
-    return True, (f"face Pendant suivie en direct dans la visionneuse ({' → '.join(seen)}, "
-                  f"{state['turns']} tours servis), puis la Sortie d'elle-même à la fin")
+    return True, (f"face Pendant montrée par la CARD en cours, puis suivie en direct dans la "
+                  f"visionneuse ({' → '.join(seen)}, {state['turns']} tours servis), puis la Sortie "
+                  "d'elle-même à la fin")
 
 
 def register_preview_scenarios():

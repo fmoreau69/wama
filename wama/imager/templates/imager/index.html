@@ -244,21 +244,6 @@ media-picker.js est une brique GLOBALE montée par base.html (avant `app_scripts
 — une pageerror qui INTERROMPT l'évaluation du script. Détecté par la passe Playwright
 2026-07-30. Ne jamais ré-inclure une brique globale.
 {% endcomment %}
-<script>
-// Helper partagé par les trois boutons Médiathèque de l'Imager
-function _mpInjectImage(file, inputId, previewId) {
-    const input = document.getElementById(inputId);
-    const dt = new DataTransfer();
-    dt.items.add(file);
-    input.files = dt.files;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    const preview = document.getElementById(previewId);
-    if (preview) {
-        preview.src = URL.createObjectURL(file);
-        preview.classList.remove('d-none');
-    }
-}
-</script>
 <style>
     /* Drop zone styles */
     .drop-zone {

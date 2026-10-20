@@ -520,7 +520,8 @@
             const url = host.getAttribute('data-card-preview');
             _json(url)
                 .then(function (d) {
-                    if (!showable(d)) return;
+                    // La face Pendant est déjà montrée (card relancée) : l'ancienne sortie attend.
+                    if (!showable(d) || host._wamaDuringShown) return;
                     d._baseUrl = _itemAddress(url);
                     renderInline(host, d, false);
                 })
@@ -534,7 +535,59 @@
     // une page à fort brassage DOM et SANS card (filemanager et son arbre jstree, polling des
     // stats), chaque ajout de nœud déclenchait un `querySelectorAll` sur tout le document, pour
     // rien (2026-08-20, préalable au chargement global demandé par Fabien).
-    const PREVIEW_HOST = '[data-card-preview]';
+    // ── La CARD suit la face PENDANT (2026-10-20, demande de Fabien) ─────────────────────────────
+    // Une card EN COURS montre ce qui se construit, comme le volet et la visionneuse : son hôte
+    // d'aperçu — celui de la sortie (`data-card-preview`), ou, tant qu'il n'y a pas de sortie,
+    // celui que le gabarit pose à l'adresse de l'élément (`data-card-during`) — est confié au MÊME
+    // suiveur (`followDuring`) et rendu par le MÊME `renderInline`, à la densité de la card. Le
+    // suivi démarre quand la card passe en cours (`data-status`, que toutes les apps écrivent) ou
+    // quand l'hôte arrive dans la page ; il s'arrête quand la card n'est plus en cours ou que
+    // l'hôte quitte la page (une card re-rendue apporte le sien). SI la face existe, le serveur le
+    // dit (`sides.during_capable`, la capacité déclarée) : une surface qui ne publie rien coûte un
+    // tour, puis arrêt. Le describer écrivait seul son texte partiel dans sa card, coupé à 150
+    // caractères : c'était la seule card qui montrait son calcul.
+    const PREVIEW_HOST = '[data-card-preview], [data-card-during]';
+    function followCard(host) {
+        if (!host || host._wamaDuring || !window.WamaApp || !window.WamaApp.Poller) return;
+        const card = host.closest ? host.closest('[data-status]') : null;
+        if (!isRunningCard(card)) return;
+        const own = host.getAttribute('data-card-during');
+        const base = own || _itemAddress(host.getAttribute('data-card-preview'));
+        if (!base) return;
+        host._wamaDuring = followDuring(base, {
+            every: 2000,
+            isRunning: function () { return host.isConnected !== false && isRunningCard(card); },
+            host: function () { return host; },
+            onFrame: function (d) {
+                d._baseUrl = base;
+                if (own) {
+                    // L'hôte d'attente devient une zone d'aperçu de card : son style, et le geste
+                    // commun (double-clic → la visionneuse, qui suit elle aussi la face Pendant).
+                    host.classList.add('wcv3-preview');
+                    host.classList.add('wama-card-preview');
+                    host.classList.remove('wcv3-preview--blueprint');
+                    host.setAttribute('data-preview-url', duringUrl(base, null));
+                }
+                host._wamaDuringShown = true;
+                renderInline(host, d, false);
+            },
+            onEnd: function () {
+                host._wamaDuring = null;
+                host._wamaDuringShown = false;
+                // Card relancée qui avait déjà une sortie : sa sortie reprend la place.
+                if (host.isConnected !== false && host.hasAttribute('data-card-preview')) {
+                    host.removeAttribute('data-preview-hydrated');
+                    hydrateCardPreviews(host.parentNode || document);
+                }
+            },
+        });
+    }
+    function followRunningCards(root) {
+        const scope = root || document;
+        const self = scope.matches && scope.matches(PREVIEW_HOST) ? [scope] : [];
+        self.concat(Array.prototype.slice.call(scope.querySelectorAll(PREVIEW_HOST))).forEach(followCard);
+    }
+
     function _holdsHost(n) {
         if (!n || n.nodeType !== 1) return false;
         return (n.matches && n.matches(PREVIEW_HOST)) ||
@@ -542,15 +595,24 @@
     }
     function _watchCardPreviews() {
         hydrateCardPreviews(document);
+        followRunningCards(document);
         try {
             new MutationObserver(function (muts) {
+                let added = false;
                 for (let i = 0; i < muts.length; i++) {
-                    const added = muts[i].addedNodes;
-                    for (let j = 0; added && j < added.length; j++) {
-                        if (_holdsHost(added[j])) { hydrateCardPreviews(document); return; }
+                    const m = muts[i];
+                    // Une card qui PASSE en cours : ses hôtes suivent la face Pendant.
+                    if (m.type === 'attributes') {
+                        if (isRunningCard(m.target)) followRunningCards(m.target);
+                        continue;
+                    }
+                    for (let j = 0; !added && m.addedNodes && j < m.addedNodes.length; j++) {
+                        added = _holdsHost(m.addedNodes[j]);
                     }
                 }
-            }).observe(document.body, { childList: true, subtree: true });
+                if (added) { hydrateCardPreviews(document); followRunningCards(document); }
+            }).observe(document.body, { childList: true, subtree: true,
+                                        attributes: true, attributeFilter: ['data-status'] });
         } catch (e) { /* très vieux navigateur (ou banc V8) : hydratation au chargement seulement */ }
     }
 
@@ -1938,7 +2000,7 @@
         renderInline: renderInline, hydrateCardPreviews: hydrateCardPreviews,
         // faces
         sidesBar: sidesBar, viewerKind: viewerKind, compareFaces: compareFaces, compareView: compareView,
-        variantToggle: variantToggle, followDuring: followDuring,
+        variantToggle: variantToggle, followDuring: followDuring, followCard: followCard,
         takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
         isRunningCard: isRunningCard, cardOfPreview: cardOfPreview, cardElement: cardElement,
         // visionneuse et navigation

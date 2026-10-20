@@ -33,7 +33,6 @@ urlpatterns = [
     path('download/<int:pk>/', views.download, name='download'),
     path('delete/<int:pk>/', views.delete, name='delete'),
     path('duplicate/<int:pk>/', views.duplicate, name='duplicate'),
-    path('preview/<int:pk>/', views.preview, name='preview'),
 
     # Batch operations
     path('start-all/', views.start_all, name='start_all'),
