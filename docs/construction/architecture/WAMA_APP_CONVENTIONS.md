@@ -1387,8 +1387,9 @@ compose plus sa file, elle l'inclut — et le générateur écrit la même ligne
 ```
 
 Ce que la pièce DÉRIVE et qu'on ne passe plus : les URLs ▶ / 🗑 / ⬇ de la barre (orthographes
-admises de `urls_gen.ROUTE_ALIASES`, préfixe du domaine, `?domain=` quand deux domaines partagent
-leurs routes), l'URL du ZIP de chaque lot, les ids des trois boutons (`<queue_id>-start-all`,
+admises de `urls_gen.ROUTE_ALIASES`, résolues par `urls_gen.served_route`, préfixe du domaine,
+`?domain=` quand deux domaines partagent leurs routes), l'URL du ZIP de chaque lot (dérivée par
+la card mère avec ses autres URLs de lot), les ids des trois boutons (`<queue_id>-start-all`,
 `-clear-all`, `-download-all`), l'opt-in aux actions communes de lot, l'icône de l'état vide
 (celle du domaine, sinon celle de l'app). `domain` pour une file par domaine (imager, enhancer) ;
 le reste (`card_class`, `meta_template`, `collapse_prefix`, `batch_key`, `show_settings`,

@@ -2934,17 +2934,10 @@ def _refus_app(user, app: str):
 
 
 def _route_dispo(app: str, canonique: str, args):
-    """Nom de route RÉELLEMENT servi par l'app pour ce geste conventionnel, '' si aucun."""
-    from django.urls import NoReverseMatch, reverse
-
-    from wama.common.manifests.codegen.urls_gen import route_variants
-    for nom in route_variants(canonique):
-        try:
-            reverse(f'{app}:{nom}', args=args)
-            return nom
-        except NoReverseMatch:
-            continue
-    return ''
+    """Nom de route RÉELLEMENT servi par l'app pour ce geste conventionnel, '' si aucun — la
+    résolution commune (`urls_gen.served_route`, 2026-10-20)."""
+    from wama.common.manifests.codegen.urls_gen import served_route
+    return served_route(app, canonique, args)
 
 
 def _poster_vue(user, app: str, nom_route: str, args):

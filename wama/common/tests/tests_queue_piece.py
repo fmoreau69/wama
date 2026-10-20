@@ -9,11 +9,12 @@ page ni aucun script d'app ne recompose la file à côté d'elle.
 import re
 from pathlib import Path
 from types import SimpleNamespace
+from unittest import mock
 
 from django.conf import settings
 from django.template import Template
 from django.template.loader import render_to_string
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 from django.urls import reverse
 
 from wama.common import app_registry
@@ -68,6 +69,49 @@ class QueueContextTest(SimpleTestCase):
     def test_a_missing_route_gives_an_empty_url_never_a_guess(self):
         self.assertEqual({'start_url': '', 'clear_url': '', 'download_url': ''},
                          {k: v for k, v in queue_context('no_such_app').items() if k != 'empty_icon'})
+
+
+class ServedRouteTest(SimpleTestCase):
+    """ONE resolver of the route an app serves for a conventional gesture (`urls_gen.served_route`,
+    revérification du 2026-10-20) : the assistant's gestures, the queue's bar and its direct
+    manipulation each looped over `reverse` on their own."""
+
+    def test_it_reads_the_admitted_spelling_behind_the_domain_prefix(self):
+        from wama.common.manifests.codegen.urls_gen import served_route
+        self.assertEqual('clear_all_media', served_route('anonymizer', 'clear_all'))
+        self.assertEqual('audio_start_all', served_route('enhancer', 'start_all', prefix='audio_'))
+        self.assertEqual('', served_route('no_such_app', 'start_all'))
+
+    def test_the_three_callers_go_through_it(self):
+        from wama import tool_api
+        with mock.patch('wama.common.manifests.codegen.urls_gen.served_route',
+                        return_value='') as served:
+            self.assertEqual('', tool_api._route_dispo('anonymizer', 'clear_all', []))
+            self.assertEqual('', queue_context('anonymizer')['clear_url'])
+            from wama.common.templatetags.wama_actions import queue_dnd_attrs
+            self.assertNotIn('data-dnd-reorder-url', str(queue_dnd_attrs('reader')))
+        self.assertGreaterEqual(served.call_count, 3)
+
+
+class BoundedDownloadIsAcceptedTest(TestCase):
+    """The piece narrows a queue's ⬇ by `?domain=` when two domains share their routes (read in
+    `app_modes`) ; the view that serves it accepts only the domains given to `make_progress_views`
+    (400 otherwise). Two declarations of one fact : each bounded ⬇ is CALLED here."""
+
+    def test_every_bounded_download_is_served_not_refused(self):
+        from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest
+        from wama.common.utils.app_modes import get_domains
+        bounded = []
+        for app in REAL_APPS:
+            for domain in get_domains(app):
+                url = queue_context(app, domain['id'])['download_url']
+                if '?domain=' in url:
+                    bounded.append((app, url))
+        self.assertTrue(bounded, 'no bounded download left : the imager narrows its two queues')
+        for app, url in bounded:
+            self.client.force_login(EveryEndpointAnswersTest._account_for(self, app))
+            with self.subTest(url=url):
+                self.assertNotEqual(400, self.client.get(url).status_code)
 
 
 class QueuePieceRenderTest(SimpleTestCase):

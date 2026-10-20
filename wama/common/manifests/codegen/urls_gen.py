@@ -160,6 +160,22 @@ def resolve_route(canonique: str, declarees, patterns=None) -> str:
     return ''
 
 
+def served_route(app: str, canonical: str, args=None, prefix: str = '') -> str:
+    """Name of the route an INSTALLED app really serves for this conventional gesture (its
+    admitted spellings, behind the domain's `prefix` — `audio_` for the enhancer's audio),
+    '' if none — the runtime twin of `resolve_route`, which reads a manifest. ONE resolver
+    (2026-10-20) : the assistant's gestures (`tool_api`), the shared queue's bar and its direct
+    manipulation (`wama_actions`) each carried their own loop over `reverse`."""
+    from django.urls import NoReverseMatch, reverse
+    for name in route_variants(canonical):
+        try:
+            reverse(f'{app}:{prefix}{name}', args=args)
+            return f'{prefix}{name}'
+        except NoReverseMatch:
+            continue
+    return ''
+
+
 def urls_file_path(app_id: str) -> Path:
     import wama
     return Path(wama.__file__).parent / app_id / 'urls.py'

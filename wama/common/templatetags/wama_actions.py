@@ -136,18 +136,18 @@ def queue_dnd_attrs(app, domain=None):
     une classe de conteneur. Une file qui n'en veut pas (page de démo, file en lecture seule)
     n'a rien à désactiver.
     """
-    from django.urls import NoReverseMatch, reverse
+    from django.urls import reverse
     from django.utils.html import format_html_join
+    from wama.common.manifests.codegen.urls_gen import served_route
     from wama.common.utils.app_modes import route_prefix
 
     p = route_prefix(app, domain) if domain else ''
     pfx = f'{p}_' if p else ''
 
     def _url(nom, avec_pk=False):
-        try:
-            return reverse(f'{app}:{pfx}{nom}', args=[0] if avec_pk else None)
-        except NoReverseMatch:
-            return None
+        args = [0] if avec_pk else None
+        name = served_route(app, nom, args, prefix=pfx)
+        return reverse(f'{app}:{name}', args=args) if name else None
 
     paires = [
         ('data-dnd-reorder-url',      _url('reorder')),
@@ -214,21 +214,17 @@ def queue_context(app, domain=None):
     `progress_views.download_all`.
 
     L'icône est celle du domaine, sinon celle de l'app (`app_registry.app_identity`)."""
-    from django.urls import NoReverseMatch, reverse
+    from django.urls import reverse
     from wama.common.app_registry import app_identity
-    from wama.common.manifests.codegen.urls_gen import route_variants
+    from wama.common.manifests.codegen.urls_gen import served_route
     from wama.common.utils.app_modes import get_domain, get_domains, route_prefix
 
     p = route_prefix(app, domain) if domain else ''
     pfx = f'{p}_' if p else ''
 
     def _url(canonical):
-        for name in route_variants(canonical):
-            try:
-                return reverse(f'{app}:{pfx}{name}')
-            except NoReverseMatch:
-                continue
-        return ''
+        name = served_route(app, canonical, prefix=pfx)
+        return reverse(f'{app}:{name}') if name else ''
 
     download = _url('download_all')
     shared = sum(1 for d in get_domains(app) if not d.get('route_prefix')) > 1

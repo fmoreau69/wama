@@ -649,6 +649,17 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       nommé) et le registre d'outils (derrière la façade de barre, règle du 17/10) n'y figurent pas.
       Les jumelles gardent leur composition figée jusqu'à leur régénération. Gardes :
       `tests_queue_piece` (14) — contre-épreuves rouges.
+      Revérification du 20/10 (après relance : les dix pages servies rendent la pièce, la brique
+      « File » montée par elle et utilisée par les dix apps) — deux recopies ramenées. ① TROIS
+      résolveurs de « la route qu'une app sert pour un geste conventionnel » bouclaient chacun sur
+      `reverse` : `tool_api._route_dispo`, `queue_context` et `queue_dnd_attrs` ; il n'y en a plus
+      qu'un, `urls_gen.served_route` (pendant d'exécution de `resolve_route`, qui lit un
+      manifeste). ② La pièce calculait l'URL du ZIP de lot et la passait à la card mère, qui dérive
+      déjà toutes les autres URLs de lot : elle la dérive désormais aussi (`_batch_card.html`,
+      `download_url` passé reste prioritaire). Et une garde pour les deux déclarations d'un même
+      fait — le `?domain=` se lit dans `app_modes`, la vue ne l'accepte que pour les domaines
+      donnés à `make_progress_views` : chaque ⬇ borné est APPELÉ (`BoundedDownloadIsAcceptedTest`).
+      `tests_queue_piece` (17).
   - ✅ **2ᵉ SURFACE — 2026-10-13, la page d'édition du FOND du Writer** (décisions de Fabien le
     jour même ; `ROADMAP §21.5` étape 1) :
     - **un champ FICHIER s'édite comme TEXTE**, nature DÉDUITE du type du champ

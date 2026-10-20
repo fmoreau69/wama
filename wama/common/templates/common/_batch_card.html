@@ -14,7 +14,8 @@ Slots/options (tous optionnels) :
                            'generation-card') — garde le style existant de l'app.
   meta_template          : partial d'app pour la colonne « méta communes aux filles »
                            (reçoit batch_info ; ex. transcriber : modèle/langue/diarisation).
-  download_url           : URL du ZIP du lot (`<app>:batch_download`). Sa FORME — lien simple ou
+  download_url           : (option) URL du ZIP du lot — DÉRIVÉE sinon (`<app>:<préfixe>batch_download`,
+                           2026-10-20). Sa FORME — lien simple ou
                            menu des formats — se lit de la déclaration de l'app (`export_formats`),
                            par la brique du bouton ⬇ commun ; rien d'autre à passer.
   eta_ids                : SURCHARGE facultative. L'ETA agrégée lit `batch_info.eta_ids` (CSV des
@@ -61,6 +62,11 @@ ne pousse rien. Piège vérifié en rendant le partial, pas déduit.{% endcommen
 {% url app|add:':'|add:pfx|add:'batch_realign' batch_info.obj.id as u_batch_realign %}
 {% url app|add:':'|add:pfx|add:'batch_promote' batch_info.obj.id as u_batch_promote %}
 {% endif %}
+{% comment %}Le ZIP du lot se DÉRIVE ici avec les autres URLs de lot (2026-10-20, revérification de la
+FILE commune : la pièce le calculait à côté et le passait) ; un `download_url` passé reste prioritaire.{% endcomment %}
+{% domain_route_prefix app domain as zip_pfx %}
+{% url app|add:':'|add:zip_pfx|add:'batch_download' batch_info.obj.id as u_batch_download %}
+{% firstof download_url u_batch_download as zip_url %}
 {% comment %}`data-domain` — porte le DOMAINE au DOM pour que les briques s'y scopent sans
 connaître aucun sélecteur d'app (2026-08-23). Absent = app mono-domaine, rien à distinguer.
 {% endcomment %}
@@ -177,9 +183,9 @@ lot… » du menu de la card.{% endcomment %}
                 une query à elles (`?fmt=`). `ready` vaut toujours vrai ici : c'est l'enveloppe
                 `hidden` qui tient le bouton invisible tant qu'aucune sortie n'existe — désactivé,
                 il le resterait quand la brique JS le montre.{% endcomment %}
-                {% if download_url %}
+                {% if zip_url %}
                 <span data-batch-zip{% if not batch_info.has_success %} hidden{% endif %}>
-                {% download_button app download_url True css_class='btn-outline-info py-0 px-2' label='ZIP' split=False title='Télécharger toutes les sorties (ZIP)' %}
+                {% download_button app zip_url True css_class='btn-outline-info py-0 px-2' label='ZIP' split=False title='Télécharger toutes les sorties (ZIP)' %}
                 </span>
                 {% endif %}
                 <button class="btn btn-sm btn-outline-warning batch-duplicate-btn py-0 px-2"

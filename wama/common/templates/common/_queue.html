@@ -27,7 +27,7 @@ PARAMÈTRES
 
 CE QUI SE DÉRIVE, ET N'EST PLUS PASSÉ
   • les URLs ▶ / 🗑 / ⬇ de la barre (`queue_context`, orthographes de `urls_gen.route_variants`) ;
-  • l'URL du ZIP de chaque lot (`batch_download`, préfixée par le domaine) ;
+  • l'URL du ZIP de chaque lot — dérivée par la card mère, avec ses autres URLs de lot ;
   • les ids des trois boutons, tirés de `queue_id` (`<queue_id>-start-all`…) — le JS d'une barre
     de domaine les nomme à sa barre de progression ;
   • `actions_communes` : les dix apps l'avaient, et une route de lot absente n'émet rien.
@@ -43,12 +43,10 @@ source du markup), généralisé.
 {% load wama_actions %}
 {% queue_context app domain as q %}
 {% include 'common/_queue_toolbar.html' with start_id=queue_id|add:'-start-all' clear_id=queue_id|add:'-clear-all' download_id=queue_id|add:'-download-all' show_download=True start_url=q.start_url clear_url=q.clear_url download_url=q.download_url %}
-{% domain_route_prefix app domain as q_route_prefix %}
 <div id="{{ queue_id }}" class="wama-queue-{{ card_layout|default:'list' }}" data-wama-queue
      {% queue_dnd_attrs app domain %}>
   {% for batch_info in batches %}
-    {% url app|add:':'|add:q_route_prefix|add:'batch_download' batch_info.obj.id as batch_dl_url %}
-    {% include 'common/_queue_entry.html' with download_url=batch_dl_url actions_communes=True %}
+    {% include 'common/_queue_entry.html' with actions_communes=True %}
   {% endfor %}
   <div class="empty-queue text-center text-body-secondary py-5"{% if batches %} hidden{% endif %}>
     <i class="{{ empty_icon|default:q.empty_icon }} fa-3x mb-3 opacity-50"></i>
