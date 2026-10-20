@@ -79,13 +79,11 @@ def check_inputs(space: VectorSpace, inputs) -> None:
         raise ValueError(f"entrée non préparée pour l'espace {space.key!r}")
 
 
-def _provider_base(key: str) -> str:
-    """Adresse d'un fournisseur. Ollama passe par son résolveur (réécriture WSL2 → hôte Windows)."""
-    if key == 'ollama':
-        from wama.common.utils.ollama_host import ollama_base
-        return ollama_base()
-    from wama.common.external_sources import base_url
-    return base_url(key)
+def _url(key: str, path: str) -> str:
+    """Adresse d'un fournisseur (`external_sources.effective_url` : Ollama par son résolveur,
+    réécriture WSL2 → hôte Windows) suivie de `path`."""
+    from wama.common.external_sources import effective_url
+    return f'{effective_url(key).rstrip("/")}{path}'
 
 
 def _post(key: str, path: str, payload: dict, timeout: float):
@@ -94,8 +92,7 @@ def _post(key: str, path: str, payload: dict, timeout: float):
     from wama.common.external_sources import proxies_for
     # `proxies` dérivés de la PORTÉE déclarée de la source : neutralisés pour un service local
     # (le proxy UGE de `.env` répondrait sa page d'erreur), empruntés pour un distant.
-    return requests.post(f'{_provider_base(key).rstrip("/")}{path}', json=payload,
-                         proxies=proxies_for(key), timeout=timeout)
+    return requests.post(_url(key, path), json=payload, proxies=proxies_for(key), timeout=timeout)
 
 
 def embed_inputs(space: VectorSpace, inputs, *, timeout: float = TIMEOUT_S,
@@ -168,8 +165,8 @@ def available(space_key: str) -> bool:
     wanted = {space.model} if ':' in space.model else {space.model, space.model + ':latest'}
     for provider in space.providers:
         try:
-            resp = requests.get(f'{_provider_base(provider).rstrip("/")}/api/tags',
-                                proxies=proxies_for(provider), timeout=5.0)
+            resp = requests.get(_url(provider, '/api/tags'), proxies=proxies_for(provider),
+                                timeout=5.0)
             names = {m.get('name', '') for m in (resp.json().get('models') or [])}
         except Exception:
             continue

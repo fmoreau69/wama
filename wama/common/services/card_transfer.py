@@ -145,19 +145,18 @@ def _hand_over_files(objects, new_owner) -> dict:
     un fichier que deux cards du même lot portent est à l'ensemble, il est DÉPLACÉ une fois et ses
     deux liens suivent ; un fichier qu'une card RESTÉE chez l'ancien porte encore est COPIÉ."""
     from django.conf import settings
-    from django.db import models as dj_models
-    from wama.common.utils.file_references import listed_paths, referenced_outside, repoint
+    from wama.common.utils.file_references import (card_files, listed_paths, referenced_outside,
+                                                   repoint)
     from wama.common.utils.media_paths import copy_into_app_input
     from wama.common.utils.queue_duplication import copy_subfolder, owns_file
 
     def files_of(obj):
-        """(champ, chemin, listé ?) pour chaque fichier que la ligne porte et qui existe."""
-        found = [(f.name, getattr(getattr(obj, f.name, None), 'name', '') or '', False)
-                 for f in obj._meta.concrete_fields if isinstance(f, dj_models.FileField)]
-        found += [(field, rel, True) for field, rel in listed_paths(obj)]
-        for field, name, listed in found:
-            if name and os.path.isfile(os.path.join(settings.MEDIA_ROOT, name)):
-                yield field, name, listed
+        """(champ, chemin, listé ?) pour chaque fichier que la ligne porte et qui existe — lus
+        par l'énumération commune (`file_references.card_files`)."""
+        listed = set(listed_paths(obj))
+        for field, name in card_files(obj):
+            if os.path.isfile(os.path.join(settings.MEDIA_ROOT, name)):
+                yield field, name, (field, name) in listed
 
     inside = {(o._meta.label, o.pk) for o in objects}
     owned = {name for o in objects for _f, name, _l in files_of(o) if owns_file(o, name)}

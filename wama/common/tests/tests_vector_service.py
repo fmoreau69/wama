@@ -104,6 +104,15 @@ class EngineTest(SimpleTestCase):
             self.assertEqual(len(engine.embed_inputs(space, ['texte'])), 1)
         self.assertEqual(post.call_count, 2)
 
+    def test_the_provider_is_reached_at_its_effective_address(self):
+        # Depuis WSL2, `127.0.0.1:11434` n'est pas Ollama : l'adresse vient du résolveur commun
+        # (`external_sources.effective_url`), pas d'une lecture propre au moteur.
+        with mock.patch('wama.common.utils.ollama_host.ollama_base',
+                        return_value='http://passerelle:11434'), \
+                mock.patch('requests.post', return_value=_answer(1, 1024)) as post:
+            engine.embed('text', ['texte'])
+        self.assertEqual(post.call_args.args[0], 'http://passerelle:11434/api/embed')
+
     def test_prepared_inputs_are_checked(self):
         engine.check_inputs(spaces.MEDIA, ['texte', {'image': 'aGVsbG8='}])
         for bad in ({'image': '/etc/passwd', 'path': 'x'}, {'text': 'x'}, 3, ''):

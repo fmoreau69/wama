@@ -1082,10 +1082,13 @@ def attributions() -> tuple[str, ...]:
 PROBE_TIMEOUT_S = 5.0
 
 
-def _probe_url(key: str) -> str:
-    """Adresse EFFECTIVEMENT sondée. Pour Ollama, le résolveur spécialisé : sonder `127.0.0.1`
-    depuis WSL2 dirait « injoignable » d'un service qui tourne — le mensonge exact que la
-    réécriture vers la passerelle Windows existe pour empêcher."""
+def effective_url(key: str) -> str:
+    """Adresse EFFECTIVE d'une source — celle qu'on sonde et qu'on appelle. Pour Ollama, le
+    résolveur spécialisé : sonder `127.0.0.1` depuis WSL2 dirait « injoignable » d'un service qui
+    tourne — le mensonge exact que la réécriture vers la passerelle Windows existe pour empêcher.
+
+    Publique depuis le 2026-10-20 : le moteur de vectorisation (`common/vectors/engine.py`) en
+    écrivait une copie pour ses fournisseurs."""
     if key == 'ollama':
         from wama.common.utils.ollama_host import ollama_base
         return ollama_base()
@@ -1107,7 +1110,7 @@ def probe(key: str, timeout: float = PROBE_TIMEOUT_S) -> dict:
 
     import requests
 
-    out = {'key': key, 'url': _probe_url(key), 'configured': is_configured(key),
+    out = {'key': key, 'url': effective_url(key), 'configured': is_configured(key),
            'reachable': None, 'status': None, 'latency_ms': None, 'error': ''}
     if get(key).address_required and not address_origin(key):
         # Le défaut déclaré n'est qu'un exemple : le sonder dirait « en panne » une source

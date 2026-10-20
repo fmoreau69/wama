@@ -119,8 +119,9 @@ def card_files(instance) -> list:
     """`[(champ, chemin relatif à MEDIA_ROOT)]` de TOUT ce que la card porte : ses champs fichier
     renseignés, puis les entrées de ses listes de chemins déclarées (`listed_paths`).
 
-    Une seule énumération (2026-10-19) : l'aperçu d'un retrait (`released_files.freed_by`) et
-    l'index des médias (`common/vectors/media_index.py`) la lisaient chacun à leur main."""
+    Une seule énumération (2026-10-19) : l'aperçu d'un retrait (`released_files.freed_by`),
+    l'index des médias (`common/vectors/media_index.py`) et le transfert d'une card
+    (`card_transfer`, rallié le 2026-10-20) la lisaient chacun à leur main."""
     from django.db import models as dj_models
     out = []
     for f in instance._meta.concrete_fields:

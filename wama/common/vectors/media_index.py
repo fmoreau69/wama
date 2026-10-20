@@ -74,8 +74,11 @@ def _abs(rel: str) -> str:
 
 
 def _sig(path: str) -> str:
-    st = os.stat(path)
-    return f'{st.st_size}:{st.st_mtime_ns}'
+    """Signature `taille:date` du fichier — l'empreinte commune (`file_cache.file_stamp`), dans
+    la forme écrite en base depuis la première passe."""
+    from wama.common.file_cache import file_stamp
+    mtime_ns, size = file_stamp(path) or (0, 0)
+    return f'{size}:{mtime_ns}'
 
 
 def element_images(instance, limit: int = MAX_IMAGES_PER_ELEMENT) -> list:

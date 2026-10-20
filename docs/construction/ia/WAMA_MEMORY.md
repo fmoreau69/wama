@@ -372,6 +372,22 @@ dans l'espace `text`, puis fusionnée par rang avec l'espace `media` — la phra
 l'élément est sorti. La table `MediaVector` ne change pas pour cela (un autre espace, une autre
 ligne).
 
+**Revérification du 2026-10-20 — trois recopies ramenées, un chantier ouvert.**
+- ramenées : l'adresse d'un fournisseur (le moteur réécrivait `external_sources._probe_url`,
+  devenue publique : `effective_url`) ; la signature d'un fichier (`media_index._sig` lit
+  `file_cache.file_stamp`, forme écrite en base inchangée) ; l'énumération des fichiers d'une card
+  (`card_transfer.files_of` lit `file_references.card_files`, comme `released_files.freed_by`).
+  Chacune a sa contre-épreuve rouge.
+- ⏳ **la VRAM d'un modèle Ollama n'a pas de voie vers le catalogue.** `VectorSpace.vram_gb` déclare
+  la mesure (3,8 Go texte, 2,3 Go médias) À CÔTÉ du catalogue, qui garde l'heuristique de la
+  découverte (2,5 et 1,3 Go). La voie existe pour les backends du contrat
+  (`resource_governor.record_measured_vram` → `extra_info['vram_measured']`, lue par
+  `memory_manager.model_footprint_gb`), mais seul `_wrap_load` l'alimente, et la résidence
+  Ollama (`refresh_ollama_residency`) réserve ce qu'annonce `/api/ps` — qui sous-compte les
+  projecteurs d'un modèle multimodal. À faire : une mesure Ollama rendue par cette voie, puis
+  les espaces lisent `model_footprint_gb` au lieu de porter leur chiffre. Le doublon d'avant
+  (`VRAM_GB` de `memory/embed.py`) précédait ce palier ; le palier l'a étendu à l'espace `media`.
+
 ## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
 
 La projection (jalon 4) fonctionne et est validée — mais **elle n'a presque rien à projeter**.

@@ -197,7 +197,7 @@ class SondeTest(SimpleTestCase):
         # Sonder `127.0.0.1` depuis WSL2 accuserait de panne un service qui tourne sur l'hôte.
         with mock.patch('wama.common.utils.ollama_host.ollama_base',
                         return_value='http://passerelle:11434') as rb:
-            self.assertEqual(es._probe_url('ollama'), 'http://passerelle:11434')
+            self.assertEqual(es.effective_url('ollama'), 'http://passerelle:11434')
             rb.assert_called_once()
 
     def test_une_reponse_http_meme_en_erreur_prouve_la_joignabilite(self):
