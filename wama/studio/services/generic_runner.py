@@ -189,7 +189,7 @@ def _error_text(res):
 # convention, pas une table : **un port arrive dans l'argument DU MÊME NOM de l'outil**
 # (`add_to_<app>`). Une app qui lit un port de plus l'ajoute à sa signature — rien ici ne change.
 # Un port que l'outil ne lit pas encore est une ERREUR DITE au lancement ; la liste de ces ports
-# est tenue par un test qui ne peut que descendre (`studio/tests_node_ports.py`).
+# est tenue par un test qui ne peut que descendre (`studio/tests/tests_node_ports.py`).
 
 def _node_ports(app_id):
     from wama.common.app_registry import studio_node_ports

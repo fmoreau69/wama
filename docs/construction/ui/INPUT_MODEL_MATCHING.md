@@ -504,7 +504,7 @@ port de TRAVAIL (`INPUT_TYPES`). Correction, à périmètre de JETONS :
   échouait (mesuré sur la base réelle). Règle ajoutée, sœur de celle du synthesizer (`one_of`) :
   **un port de travail qu'AUCUN modèle n'exige, à côté d'un prompt que TOUS exigent, n'est pas
   l'entrée principale.** Mesuré sur les 10 nœuds : seul le composer change (retour au prompt) ;
-  l'imager déclare déjà son prompt. Gardes : `studio/tests_node_ports` (règle + contre-épreuve).
+  l'imager déclare déjà son prompt. Gardes : `studio/tests/tests_node_ports` (règle + contre-épreuve).
 - ~~⏳ **Limite connue, non tranchée** : la variante MANIFESTE de cette dérivation
   (`projection.derive_io_from_ports`, lue par `manifest_roundtrip`) ne lit que la facette `ports`,
   qui ne porte pas l'obligation (exclue à dessein : « un nœud du studio n'en porte pas »). Elle

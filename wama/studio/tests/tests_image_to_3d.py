@@ -99,7 +99,7 @@ class LExecuteurPasseLesFichiersDeLAmontTest(TestCase):
         from wama.studio.tasks import _run_app_function
         spec = FunctionSpec(key='t.fake', name='f', description='', category='transform',
                             binding=Binding.APP, app='studio',
-                            impl='studio.tests_image_to_3d:fake_impl',
+                            impl='studio.tests.tests_image_to_3d:fake_impl',
                             inputs=[PortSpec('image', 'image')])
         res = _run_app_function(spec, {'user_id': 7, 'resolution': '128'}, lambda **k: None, 10,
                                 inputs={'image': 'users/7/x.png', 'autre': 'ignoré'})
@@ -110,7 +110,7 @@ class LExecuteurPasseLesFichiersDeLAmontTest(TestCase):
         from wama.studio.tasks import _run_app_function
         spec = FunctionSpec(key='t.fake2', name='f', description='', category='transform',
                             binding=Binding.APP, app='studio',
-                            impl='studio.tests_image_to_3d:fake_impl',
+                            impl='studio.tests.tests_image_to_3d:fake_impl',
                             inputs=[PortSpec('image', 'image')])
         with self.assertRaisesRegex(ValueError, 'image'):
             _run_app_function(spec, {'user_id': 7}, lambda **k: None, 10, inputs={})
@@ -122,7 +122,7 @@ class LExecuteurPasseLesFichiersDeLAmontTest(TestCase):
         from wama.studio.tasks import _run_app_function
         spec = FunctionSpec(key='t.fake3', name='f', description='', category='transform',
                             binding=Binding.APP, app='studio',
-                            impl='studio.tests_image_to_3d:fake_impl',
+                            impl='studio.tests.tests_image_to_3d:fake_impl',
                             inputs=[PortSpec('image', 'image')])
         said = []
         _run_app_function(spec, {'user_id': 7}, lambda **k: None, 10,
@@ -137,7 +137,7 @@ class LExecuteurPasseLesFichiersDeLAmontTest(TestCase):
         from wama.studio.tasks import _run_app_function
         spec = FunctionSpec(key='t.fake4', name='f', description='', category='transform',
                             binding=Binding.APP, app='studio',
-                            impl='studio.tests_image_to_3d:fake_impl',
+                            impl='studio.tests.tests_image_to_3d:fake_impl',
                             inputs=[PortSpec('image', 'image')])
         said = []
         _run_app_function(spec, {'user_id': 7}, lambda **k: None, 10,

@@ -3431,7 +3431,7 @@ lignes WAMA sont, elles, lues dans le code. **Rien n'est décidé ; rien n'est i
        `palette_nodes`) et `launch_graph` la lit (`launch.py:179`) — non accessible à ce compte,
        app non exécutable, ou inconnu de WAMA. Avant : une app fermée n'était refusée qu'au milieu
        du run (`execute_tool`), une fonction inconnue non reliée faisait échouer la tâche ;
-     - garde : `studio/tests_unavailable_nodes.py` (6 tests, dont la description exécutée sous
+     - garde : `studio/tests/tests_unavailable_nodes.py` (6 tests, dont la description exécutée sous
        V8) ; cinq contre-épreuves, rouges.
      ✅ **La raison s'affiche SUR le nœud (décision de Fabien, 2026-10-19)** — elle n'était connue
      qu'au lancement. Une seule règle, lue des deux côtés : `palette.unavailable_reason`
@@ -6592,7 +6592,7 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      (`061439cc`), et le commentaire du code le disait « sans lecteur » depuis le 21/09.
    - **Gardes** : `common/tests/tests_function_provenance` (10), `common/tests/tests_pipeline_provenance`
      (8), un cas de plus dans `tests_registry_provenance` ; le faux compte de
-     `studio/tests_declared_pipelines` porte désormais un profil (le point d'accès décide). **Quinze
+     `studio/tests/tests_declared_pipelines` porte désormais un profil (le point d'accès décide). **Quinze
      contre-épreuves, toutes rouges** (neuf brèches en mémoire, six mutations par édition).
    - **Ce que l'étape ne fait PAS** :
      - Aucun geste « Partager » pour un pipeline : la nature n'est pas déclarée au geste commun

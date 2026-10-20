@@ -464,7 +464,7 @@ class BuiltinNodeGateTest(SimpleTestCase):
         import ast
         from pathlib import Path
         from wama.studio.tasks import builtin_node_values
-        source = Path(__file__).with_name('nightly_scenarios.py').read_text(encoding='utf-8')
+        source = Path(__file__).parent.parent.joinpath('nightly_scenarios.py').read_text(encoding='utf-8')
         written = [node.values[i].value for node in ast.walk(ast.parse(source))
                    if isinstance(node, ast.Dict)
                    for i, key in enumerate(node.keys)
