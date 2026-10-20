@@ -116,6 +116,48 @@ class RunZipTest(TestCase):
         process_runs.succeed(run, 'g', process_key='some.job', output_ref='')
         self.assertEqual([], run_results(run, self.user)[0])
 
+    def test_a_card_step_at_a_branch_end_gives_its_card(self):
+        """A step node (`function:<app>.<step>`) launched the step OF A CARD : its result is that
+        card, read by the step's app — not the label of the node."""
+        from wama.studio.services.run_results import run_results
+        from wama.transcriber.models import Transcript
+        item = Transcript.objects.create(user=self.user, status='SUCCESS', text='bonjour',
+                                         summary='un résumé')
+        run = self._run({'nodes': [{'id': 's', 'app': 'function:transcriber.summarize'}],
+                         'links': []},
+                        {'s': {'status': JOB_SUCCESS, 'item_id': item.pk, 'output': 'un résumé'}})
+        results, missing = run_results(run, self.user)
+        self.assertEqual([(Transcript, item.pk)], [(r['model'], r['item'].pk) for r in results])
+        self.assertEqual([], missing)
+
+    def test_the_requested_format_reaches_a_late_binding_app_as_in_the_queue(self):
+        from unittest import mock
+        from wama.common.utils import export_formats
+        from wama.describer.models import Description
+        item = Description.objects.create(user=self.user, filename='photo.jpg', status='SUCCESS',
+                                          result_text='une description')
+        run = self._run({'nodes': [{'id': 'd', 'app': 'describer'}], 'links': []},
+                        {'d': {'status': JOB_SUCCESS, 'item_id': item.pk}})
+        with mock.patch.object(export_formats, 'export_builder_for',
+                               lambda app: lambda element, fmt: (fmt, b'rendu')):
+            response = self.client.get(f'/studio/api/run/{run.pk}/download/', {'format': 'docx'})
+        self.assertEqual(['.docx'], [Path(n).suffix for n in _names(response)])
+
+    def test_a_failed_run_gives_its_successful_ends_and_a_running_one_nothing_yet(self):
+        from wama.describer.models import Description
+        from wama.studio.models import StudioRun
+        done = Description.objects.create(user=self.user, filename='a.jpg', status='SUCCESS',
+                                          result_text='a')
+        graph = {'nodes': [{'id': 'ok', 'app': 'describer'}, {'id': 'ko', 'app': 'describer'}],
+                 'links': []}
+        run = self._run(graph, {'ok': {'status': JOB_SUCCESS, 'item_id': done.pk},
+                                'ko': {'status': 'FAILURE', 'error': 'échec'}})
+        StudioRun.objects.filter(pk=run.pk).update(status='FAILURE')
+        self.assertEqual(1, self.client.get(f'/studio/api/run/{run.pk}/').json()['results']['count'])
+        StudioRun.objects.filter(pk=run.pk).update(status='RUNNING')
+        self.assertNotIn('results', self.client.get(f'/studio/api/run/{run.pk}/').json(),
+                         'the results are read while the run is still polling')
+
     def test_the_page_offers_the_queue_download_button_and_its_switch(self):
         page = self.client.get('/studio/').content.decode('utf-8', errors='replace')
         self.assertIn('id="studioRunDownload"', page)
