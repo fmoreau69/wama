@@ -91,6 +91,9 @@ CHARTERS = {
             'vert clair': '#92c56e', 'cyan': '#1eafd0', 'bleu': '#0097d7', 'jaune': '#fbba00',
             'orange': '#ef7d00', 'violet': '#8b4a97',
             'fond de page (relevé sur ses pages)': '#f1f2f2',
+            # Le texte posé sur ses bandes indigo et bleu nuit — relevé sur le site de l'université
+            # (2026-10-20), comme les bandes elles-mêmes (`wama-theme.css`, bloc `uge`).
+            'blanc (texte sur les bandes)': '#ffffff',
         },
         # p. 8 : TT Norms, sous licence commerciale — nommée, jamais servie (`LICENSED_FONTS`).
         'font': {'family': 'TT Norms Pro', 'stylesheet': ''},
@@ -165,6 +168,7 @@ _VIVID_FILL = "couleur vive lue seulement comme fond, trait ou anneau"
 _SHADOW = "une ombre est sombre dans tous les thèmes"
 _OBJECT = "un objet, pas l'interface : il garde ses couleurs"
 _ON_FILL = "texte posé sur un fond de palette, qui ne change pas : il le suit"
+_BAND = "bande de la page (en-tête de volet, bouton plein de la barre) : sombre sous ses deux bases"
 
 #: Même valeur que le sombre.
 LIGHT_FIXED = {
@@ -174,6 +178,8 @@ LIGHT_FIXED = {
                      '--wama-fade-end', '--wama-edit-paper-text', '--wama-edit-playing',
                      '--wama-video-bg', '--wama-map-control-text', '--wama-map-control-bg'), _OBJECT),
     **dict.fromkeys(('--wama-text-on-accent', '--wama-text-on-bright', '--wama-select-check'), _ON_FILL),
+    **dict.fromkeys(('--wama-panel-head-bg', '--wama-header-action-bg', '--wama-header-action-hover'), _BAND),
+    '--wama-tab-rule': "le trait de l'onglet actif suit l'accent de chaque thème (une charte peut en choisir un autre)",
     **dict.fromkeys(('--wama-state-running', '--wama-state-success', '--wama-state-success-edge',
                      '--wama-state-failure', '--wama-state-awaiting', '--wama-state-awaiting-rgb',
                      '--wama-state-stale', '--wama-accent', '--wama-accent-rgb', '--wama-accent-soft',

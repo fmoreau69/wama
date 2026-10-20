@@ -154,7 +154,7 @@
 
     {# Footer - au niveau du body pour pleine largeur #}
     {% block footer %}
-    <footer class="text-body-secondary py-2 border-top border-secondary">
+    <footer class="py-2 border-top border-secondary">
         {% comment %}Trois colonnes, comme la barre du haut (2026-10-12, ROADMAP §27 étape 2) : les
         ressources système étaient posées en ABSOLU par-dessus le titre centré, qu'elles
         recouvraient dès 834 px (tablette en portrait). En grille, le titre reste centré tant
@@ -162,11 +162,13 @@
         <div class="container-fluid px-3 wama-footer-row">
             <span aria-hidden="true"></span>
             <!-- Center: App name -->
-            <small class="text-body-emphasis wama-footer-text">
+            {% comment %}Un `span`, pas un `small` : la règle `small` d'app_modern.css impose sa couleur
+            (`!important`), et le pied d'un thème de charte peut être sombre sous un thème clair.{% endcomment %}
+            <span class="wama-footer-text">
                 {% block footer_text %}
                 WAMA - Web App for Multimodal Automation
                 {% endblock %}
-            </small>
+            </span>
 
             <!-- Right: System Stats -->
             <div id="systemStats" class="d-flex align-items-center justify-content-end gap-3" style="font-size: 0.75rem;">

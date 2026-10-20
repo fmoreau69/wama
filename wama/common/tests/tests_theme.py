@@ -196,6 +196,33 @@ def theme_blocks(css=None):
     return blocks
 
 
+#: Les bandes de la page : (texte, fond, ce sur quoi le fond se pose s'il est translucide).
+BANDS = (('--wama-panel-head-text', '--wama-panel-head-bg', '--wama-page-bg-start'),
+         ('--wama-footer-text', '--wama-footer-bg', '--wama-page-bg-start'),
+         ('--wama-footer-text-muted', '--wama-footer-bg', '--wama-page-bg-start'))
+
+
+def illegible_bands(blocks, keys):
+    """[(thème, token de texte, rapport)] des textes de bande sous 4,5:1 sur leur fond."""
+    from wama.common.theme_mirror import contrast_ratio, parse
+
+    def over(value, ground):
+        _kind, rgb, alpha = parse(value)
+        if not alpha:
+            return rgb
+        a = int(alpha, 16) / 255 if len(alpha) == 2 and '.' not in alpha else float(alpha)
+        return tuple(a * c + (1 - a) * g for c, g in zip(rgb, ground))
+    found = []
+    for key in keys:
+        block = blocks[key]
+        for text, band, page in BANDS:
+            ground = over(block[band], parse(block[page])[1])
+            ratio = contrast_ratio(over(block[text], ground), ground)
+            if ratio < 4.5:
+                found.append((key, text, round(ratio, 2)))
+    return found
+
+
 class ThemeDeclarationTest(SimpleTestCase):
 
     def test_the_default_theme_is_declared_and_keys_are_unique(self):
@@ -291,6 +318,35 @@ class ThemeTokensTest(SimpleTestCase):
                 if name.endswith('-rgb'):
                     with self.subTest(theme=key, token=name):
                         self.assertRegex(value.strip(), r'^\d{1,3},\s*\d{1,3},\s*\d{1,3}$')
+
+    def test_the_text_of_every_band_reads_on_it(self):
+        """Les BANDES de la page (2026-10-20 : en-tête des volets, pied) : un thème de charte peut
+        en faire des aplats de couleur (UGE : indigo, bleu nuit) — leur texte y passe 4,5:1 sous
+        CHAQUE thème. Un fond translucide est d'abord posé sur la page, un texte translucide sur
+        son fond."""
+        from wama.common.themes import THEMES
+        self.assertEqual([], illegible_bands(theme_blocks(), [t.key for t in THEMES]))
+
+    def test_the_footer_takes_its_text_colours_from_the_theme(self):
+        """Ni `text-body-*` sur le pied ni `<small>` pour son titre : la classe de Bootstrap et la
+        règle `small` d'app_modern.css (`!important`) imposeraient leur couleur, illisible sur le
+        pied bleu nuit d'UGE (vu au navigateur le 2026-10-20)."""
+        base = (ROOT / 'wama' / 'templates' / 'base.html').read_text(encoding='utf-8')
+        footer = re.search(r'<footer[^>]*>(.*?)</footer>', base, re.S)
+        self.assertNotIn('text-body-', re.search(r'<footer[^>]*>', base).group(0))
+        self.assertIn('<span class="wama-footer-text">', footer.group(1))
+        sheet = (ROOT / 'wama' / 'common' / 'static' / 'common' / 'css' / 'app_modern.css').read_text(encoding='utf-8')
+        self.assertRegex(sheet, r'body > footer \{[^}]*color: var\(--wama-footer-text-muted\)')
+        self.assertRegex(sheet, r'body > footer \.wama-footer-text \{[^}]*color: var\(--wama-footer-text\)')
+
+    def test_the_band_guard_sees_a_white_text_on_a_pale_band(self):
+        """Contre-épreuve sur des blocs écrits pour elle : texte blanc sur un en-tête clair, texte
+        discret trop pâle sur le pied."""
+        blocks = {'a': {'--wama-page-bg-start': '#ffffff', '--wama-panel-head-bg': 'rgba(0, 0, 0, .05)',
+                        '--wama-panel-head-text': '#ffffff', '--wama-footer-bg': '#0f273b',
+                        '--wama-footer-text': '#ffffff', '--wama-footer-text-muted': 'rgba(255, 255, 255, .3)'}}
+        self.assertEqual([('a', '--wama-panel-head-text'), ('a', '--wama-footer-text-muted')],
+                         [(k, n) for k, n, _ in illegible_bands(blocks, ['a'])])
 
     def test_no_block_for_an_undeclared_theme(self):
         from wama.common.themes import THEMES

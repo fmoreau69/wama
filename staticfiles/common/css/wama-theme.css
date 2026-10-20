@@ -273,6 +273,17 @@
   --wama-fm-lab: #7dd3fc;              /* section WAMA Lab de l'arbre */
   --wama-fm-lab-rgb: 125, 211, 252;
 
+  /* ── Bandes de la page (2026-10-20) : en-tête des volets, bouton plein de la barre du haut,
+     trait de l'onglet actif, texte du pied. Un thème de charte en fait des bandes de couleur
+     (UGE : indigo, bleu nuit, rouge — comme le site de l'université) ── */
+  --wama-panel-head-bg: rgba(0, 0, 0, .2);  /* en-tête « Explorateur », « Panneau » */
+  --wama-panel-head-text: #e2e8f0;
+  --wama-header-action-bg: #212529;         /* bouton « Applications » (celui de `btn-dark`) */
+  --wama-header-action-hover: #424649;
+  --wama-tab-rule: var(--wama-accent);      /* trait sous l'onglet actif : l'accent du thème */
+  --wama-footer-text: #fff;                 /* titre du pied de page */
+  --wama-footer-text-muted: rgba(222, 226, 230, .75); /* ressources du système */
+
   /* ── Studio (graphe) ── */
   --wama-studio-canvas: #0d0d1a;       /* fond du canevas et des ports */
   --wama-studio-canvas-rgb: 13, 13, 26;
@@ -807,6 +818,15 @@
   --wama-fm-lab: #00374c;                   /* section WAMA Lab de l'arbre */
   --wama-fm-lab-rgb: 0, 55, 76;
 
+  /* ── Bandes de la page (2026-10-20) ── */
+  --wama-panel-head-bg: rgba(0, 0, 0, .2);  /* en-tête « Explorateur », « Panneau » */
+  --wama-panel-head-text: #181c22;
+  --wama-header-action-bg: #212529;         /* bouton « Applications » (celui de `btn-dark`) */
+  --wama-header-action-hover: #424649;
+  --wama-tab-rule: var(--wama-accent);      /* trait sous l'onglet actif : l'accent du thème */
+  --wama-footer-text: #000000;              /* titre du pied de page */
+  --wama-footer-text-muted: rgba(31, 33, 36, .75); /* ressources du système */
+
   /* ── Studio (graphe) ── */
   --wama-studio-canvas: #f4f4ff;            /* fond du canevas et des ports */
   --wama-studio-canvas-rgb: 244, 244, 255;
@@ -1075,7 +1095,9 @@
        Bootstrap (boutons, cases cochées, barres de progression, menus) — 11,7:1 sur le blanc ;
      • les SECONDAIRES pour les rôles secondaires : bleu nuit #0f273b (lien discret, texte de
        l'accent doux), cyan #1eafd0 (accent doux, famille de lot), violet #8b4a97 ;
-     • le gris de page #f1f2f2.
+     • le gris de page #f1f2f2 ;
+     • les BANDES, relevées sur le site de l'université (2026-10-20) : en-têtes des volets et
+       bouton plein en indigo, pied en bleu nuit #0f273b, le rouge #d2213c sous l'onglet actif.
    Les couleurs de SENS (succès, échec, en cours…) restent celles du clair : la charte n'en
    donne pas, et ses vert, rouge et jaune n'atteignent pas 4,5:1 en texte sur le blanc.
    La typographie de la charte, TT Norms, est NOMMÉE, jamais servie : sa licence (Monotype, poste
@@ -1113,6 +1135,22 @@
   --bs-primary-text-emphasis: #131135;      /* assombrie de 60 % */
   --bs-primary-bg-subtle: #d5d4e7;          /* éclaircie de 80 % */
   --bs-primary-border-subtle: #acaace;      /* éclaircie de 60 % */
+
+  /* ── Les BANDES du site de l'université (relevé le 2026-10-20, Fabien : « inspire-toi du site
+     web […] je le trouve un peu fade ») : volets à l'en-tête indigo, bouton plein indigo
+     (bleu nuit au survol), pied bleu nuit, le rouge sous l'onglet actif comme le trait rouge
+     sous chaque titre du site, les titres de section des volets en indigo. Toutes des couleurs
+     de la charte ── */
+  --wama-panel-head-bg: #2f2a85;
+  --wama-panel-head-text: #ffffff;
+  --wama-header-action-bg: #2f2a85;
+  --wama-header-action-hover: #0f273b;
+  --wama-tab-rule: #d2213c;
+  --wama-footer-bg: #0f273b;
+  --wama-footer-text: #ffffff;
+  --wama-footer-text-muted: #ffffff;
+  --wama-fm-label: #2f2a85;
+  --wama-fm-border: #acaace;                /* l'indigo éclairci de 60 % */
 
   /* ── Typographie de la charte, si le poste l'a ; sinon son repli ── */
   --bs-body-font-family: "TT Norms Pro", "TT Norms", Tahoma, var(--bs-font-sans-serif);

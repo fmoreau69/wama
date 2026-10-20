@@ -181,6 +181,17 @@
     font-weight: 600;
 }
 
+/* Le bouton PLEIN de la barre (« Applications ») prend sa couleur du thème : celle de `btn-dark`
+   par défaut, l'indigo de la charte sous UGE (2026-10-20). */
+.wama-header .btn-dark {
+    --bs-btn-bg: var(--wama-header-action-bg);
+    --bs-btn-border-color: var(--wama-header-action-bg);
+    --bs-btn-hover-bg: var(--wama-header-action-hover);
+    --bs-btn-hover-border-color: var(--wama-header-action-hover);
+    --bs-btn-active-bg: var(--wama-header-action-hover);
+    --bs-btn-active-border-color: var(--wama-header-action-hover);
+}
+
 /* Dropdown menu must overflow outside header */
 .wama-header .dropdown {
     position: relative;
@@ -350,7 +361,7 @@ body.wama-sans-volet > .container-fluid {
 .filemanager-header,
 .right-panel-header {
     padding: 0 15px;
-    background: rgba(var(--wama-shadow-rgb), 0.2);
+    background: var(--wama-panel-head-bg);
     border-bottom: 1px solid var(--wama-fm-border);
     display: flex;
     align-items: center;
@@ -365,14 +376,15 @@ body.wama-sans-volet > .container-fluid {
     margin: 0;
     font-size: 0.95rem;
     font-weight: 700;
-    color: var(--wama-fm-text);
+    color: var(--wama-panel-head-text);
     letter-spacing: 0.3px;
 }
 
 .filemanager-header .btn-close-sidebar {
     background: transparent;
     border: none;
-    color: var(--wama-fm-label);
+    color: var(--wama-panel-head-text);
+    opacity: .75;
     font-size: 1.2rem;
     cursor: pointer;
     padding: 5px;

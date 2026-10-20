@@ -6243,6 +6243,27 @@ listes déroulantes.
    CATALOGUE (propriétaire `owner`, `owner_model` du registre) n'y a pas d'entrée. C'est le même
    manque que le « Partager » d'un pipeline (`§29`) : à combler une fois pour les deux, au point
    d'entrée commun, et la vue du thème s'y ralliera.
+   **Les BANDES du thème UGE, le 2026-10-20** (Fabien : *« Pour le thème UGE, peux-tu t'inspirer
+   du site web aussi pour l'améliorer : https://www.univ-gustave-eiffel.fr/. Je le trouve un peu
+   fade (fond blanc) »*). *Relevé sur le site* (navigateur, couleurs CALCULÉES des zones) : des
+   aplats indigo #2f2a86 pleine largeur, des bandes gris clair, un pied bleu nuit #0e273b, le rouge
+   #d2213c des boutons d'appel et du trait sous chaque titre, TT Norms — toutes déjà des couleurs de
+   la charte, au code près. Le thème ne redéfinissait que l'accent : la barre, les volets et le pied
+   restaient ceux du clair. *Six tokens neufs*, les « bandes » de la page, déclarés dans les deux
+   bases avec la valeur d'avant (`themes.LIGHT_FIXED` pour les fonds, miroir pour les textes) :
+   `--wama-panel-head-bg` / `-text` (en-têtes « Explorateur », « Panneau »),
+   `--wama-header-action-bg` / `-hover` (le bouton plein « Applications »), `--wama-tab-rule` (le
+   trait de l'onglet actif, `var(--wama-accent)` par défaut, donc la couleur de chaque thème
+   personnalisé), `--wama-footer-text` / `-muted`. Le bloc `uge` en fait l'indigo, le bleu nuit et
+   le rouge du site, et passe en indigo les titres de section des volets (`--wama-fm-label`) ; le
+   blanc entre à sa charte (texte sur les bandes). *Piège vu au navigateur* : le titre du pied
+   était un `<small>`, et la règle `small` d'`app_modern.css` (`!important`) le laissait sombre sur
+   le bleu nuit — c'est un `<span>` désormais, et le pied ne porte plus `text-body-secondary`.
+   *Gardes* : `tests_theme.ThemeTokensTest` — le texte de chaque bande passe 4,5:1 sur son fond sous
+   CHAQUE thème (fond translucide posé sur la page), et le pied lit ses couleurs du thème ; trois
+   contre-épreuves rouges sur les vrais blocs altérés en mémoire, une sur le `base.html` d'avant.
+   *Mesuré* (serveur éphémère) : scénario de contraste, 90 pages sous Sombre, Clair et UGE, aucun
+   texte illisible ; captures : sombre et La Suite inchangés.
 
 ## 29. PROVENANCE de tout ce qui entre dans WAMA — privé à son auteur, « Système » une fois promu (ouvert le 2026-10-18, demande de Fabien)
 

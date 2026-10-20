@@ -57,6 +57,14 @@ body > footer {
     margin: 0 !important;
     z-index: 1030;
     background-color: var(--wama-footer-bg);
+    /* Les couleurs du pied viennent du thème (2026-10-20) : un pied de charte peut être sombre
+       sous un thème clair (UGE : bleu nuit), ce que `text-body-secondary` ne suivrait pas. */
+    color: var(--wama-footer-text-muted);
+}
+
+body > footer .wama-footer-text {
+    color: var(--wama-footer-text);
+    font-size: .875em;
 }
 
 body > footer .container {
