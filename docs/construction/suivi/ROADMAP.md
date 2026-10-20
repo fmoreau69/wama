@@ -1481,7 +1481,9 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
   2. ✅ **Bascule sur panne** (13/10) : 429, 5xx, délai dépassé, connexion refusée → le
      fournisseur est noté SATURÉ (durée = `Retry-After`, sinon celle de la source ; 3 min pour une
      panne) et le tirage AUTOMATIQUE l'écarte le temps de la note — pour tout appelant, puisque
-     tous lisent `allowed_cloud_keys`. Domicile : `cloud_models` (l'admission), pas
+     tous lisent `allowed_cloud_keys`. ⚠ Sauf le tirage de DÉVELOPPEMENT jusqu'au 2026-10-20 : il
+     reprenait ses souverains du choix MANUEL, sans l'exclusion — désormais commune aux deux
+     (`cloud_models.drop_unavailable`, `WAMA_LLM` §« 2026-10-20 »). Domicile : `cloud_models` (l'admission), pas
      `resource_governor`, qui gouverne les ressources LOCALES ; la note vit dans le cache partagé.
      L'assistant en est le premier utilisateur : modèle tiré → relais immédiat, sans l'attente de
      60 s, une source jamais reprise dans le même tour, bascule DITE ; modèle choisi → relais
@@ -1623,6 +1625,9 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
   sélection RAM-aware avec chaînes de fallback, et appelle Ollama en direct (pas LiteLLM). Une
   fois la politique ci-dessus en place, c'est à **lui d'adopter la brique** (il gagne le cloud
   au passage) — plus simple que le plan initial « exposer `config.py` via MCP ».
+  🔄 **Pour les rôles, c'est fait** : tirage commun pour le compte (13/10), appel local par
+  `llm_chat` et relais sur la note de saturation (20/10, `WAMA_LLM` §« 2026-10-20 »). Restent
+  `cli.py` et l'audit, qui lisent encore `config.py`.
 - `llm_chat(provider=user_provider, api_key=user_key)` → LiteLLM route vers le bon provider
 - UI : section "Providers IA" dans le profil utilisateur + indicateur "mode hybride actif"
 - ⚠️ À préciser dans l'UI : **abonnement ChatGPT Plus / Claude.ai ≠ accès API**

@@ -25053,3 +25053,71 @@ commentaires de `ui_smoke`.
 
 🔚 **Reste nommé** : la v3 garde d'autres réglages qu'aucune inclusion ne lui passe (référence, URL)
 — à retirer avec le passage de la médiathèque à la v4, hors de ce périmètre.
+
+## §PALIER 2026-10-20 (après-midi), « Portage apps, étape 3 : la chaîne de génération ACCÉLÉRÉE, wama-dev-ai sur les briques de l'assistant » — non poussé — 🔴 relancer gunicorn ET workers (démarrage, registre nocturne, gouverneur, `model_manager.services`)
+
+**Question de Fabien** (pendant la régénération des jumelles, 39 min la première) : *« vérifier toute
+la chaîne de génération d'applications : pas de process redondants, inutiles ou mal construits…
+je ne comprends pas que la génération d'app soit si longue »*. Mesuré : presque rien n'est dans
+la génération. **Un démarrage de Django coûtait 58-63 s sous WSL** (70,6 s à conditions égales,
+registre compris), et la chaîne en lançait une trentaine par jumelle.
+
+**Les causes, nommées par la ligne** (profil + traçage des imports) :
+- l'enregistrement des scénarios nocturnes au `ready()` de `common` résolvait l'index de chaque app
+  (`ui_smoke.discoverable_apps` → `reverse`) : TOUTE la configuration d'URL, les vues, tâches et
+  backends des apps — torch, ultralytics, cv2 (`anonymizer/views.py:32` → `backends/anonymize.py:4`) ;
+- celui du Studio importait `generic_runner`, qui dérive à l'import les ports de chaque app (7,5 s) ;
+- le plafond CUDA (`configure_cuda_process`) importait torch dans chaque processus Django ;
+- le `ready()` du transcriber importait `workers.py` (torch), alors que Celery le découvre déjà
+  (`wama/celery.py:29`) ;
+- `model_manager/services/__init__.py` importait d'office ses vingt modules (sondes mémoire → torch) ;
+- côté chaîne : 4 démarrages par substitution (commande, `check`, smoke de page, smoke de file
+  habitée), 3 pour `remove`, 3 pour `create` ; l'extraction du manifeste à froid à chaque
+  commande (87 s) ; `check` lancé même quand un juge statique avait déjà décidé du revert.
+
+**Livré :**
+- **démarrage 11 s** (70,6 → 11,4 s, mesuré dans le même processus) : registre nocturne rempli au
+  PREMIER USAGE (`nightly_tests.add_registrar`, chemin `module:fonction`, `REGISTRY` lisible tel
+  quel) ; plafond CUDA posé au PREMIER IMPORT de torch (crochet d'import à un coup,
+  `resource_governor.configure_cuda_process_when_torch_loads` ; Celery et TTS gardent leur appel
+  direct) ; import du `ready()` du transcriber retiré ; `model_manager.services` chargé à la
+  demande (PEP 562, `__all__` inchangé) ;
+- **chaîne** : UN sous-processus de juge par substitution (`app_sandbox._judge` : `check`, page, file
+  habitée ; `check` à part pour `models`), aucun démarrage quand un juge statique a décidé, la
+  chaîne en UNE commande (`substitute <jumelle> a,b+c,…`) et une seconde passe des groupes revenus
+  au témoin quand un groupe placé après eux a tenu ; ordre recalé sur la flotte : `apps` →
+  `urls+views+templates` → **`tasks+function_specs`** (couple : chacun seul est refusé) → `params` →
+  `surfaces` → `models` (`ROUTE §10.3`) ;
+- **wama-dev-ai sur les briques de l'assistant** (demande de Fabien) : un souverain saturé n'est
+  plus tirable par un rôle (`cloud_models.drop_unavailable`, commune aux deux tirages — défaut
+  confirmé `development_models.py:117` + `cloud_models.py:584`) ; l'appel local des rôles passe par
+  `llm_chat` ; la reprise suit la NOTE de saturation et rejoue le tirage de développement (autre
+  souverain ou local), plus une expression sur le texte d'erreur (`role_utils._relay`, `WAMA_LLM`
+  §« 2026-10-20 », `ROADMAP §8d`).
+
+**Preuves** : tests ciblés sous WSL 1461 (puis 329 après correction de deux gardes de mon fichier
+neuf) ; `tests_boot_cost` (démarrage léger en processus frais, registre paresseux, plafond au
+premier import, paquet à la demande, juge unique, chaîne) ; NEUF contre-épreuves ROUGES, une par
+garde, fichiers restaurés par remplacement inverse (`numstat` identique avant/après) ;
+`check_docs` 0/2972.
+
+⚠ **Deux constats du palier du 19/10 (nuit) étaient FAUX, corrigés ici** :
+- « une jumelle montrera l'onglet de la voix de référence (synthesizer) et ceux du résultat
+  (transcriber) » : mesuré, les onglets des dix jumelles sont ceux de leur source — le catalogue
+  d'une jumelle est une copie de celui de sa source (`sandbox.inject_sandbox_catalog`,
+  `sandbox.py:329`). `ports_carried_elsewhere` ne manque qu'au MANIFESTE (une app qui en naîtrait) ;
+- « budget des noms de test 1292 > 1291, `tests_theme.py` (session des thèmes) » : l'unité était
+  MON test de l'étape 2 (`tests_designation_js`, racine `declares` de la liste noire), renommé ce
+  jour ; le dépassement restant (1292) est `tests_theme.py:1172`, arrivé après (`c2d4d812`).
+
+**Flotte** : `converter_01` (pilote), `reader_01`, `anonymizer_01`, `synthesizer_01` régénérées par
+l'ancienne chaîne (arrêtée après `synthesizer_01`, décision de Fabien : accélérer d'abord) ; la
+relance par la chaîne en une commande tourne au moment de ce palier — ses verdicts au palier suivant.
+
+🔚 **Restes nommés** : le chargement des URL reste à ≈ 47 s dans tout juge (dont 20 s de
+torch/ultralytics/cv2 tirés par des vues qui importent leurs tâches au niveau module —
+`anonymizer` en tête) ; `generic_runner` dérive encore les ports à l'import (payé au premier usage
+du Studio) ; côté LLM, le comptage des appels LOCAUX, la boucle d'outils et l'extraction du JSON en
+double, `cli.py` et l'audit sur `config.py` (`WAMA_LLM` §C) ; la barre de progression du job dans
+l'échange de l'assistant (accord de Fabien, après la flotte) ; `writer_01` (glu de `tasks.py` écrite
+à la main, sauvegardée) à régénérer après la flotte.

@@ -107,6 +107,54 @@ def configure_cuda_process() -> bool:
         return False
 
 
+class _CapWhenTorchLoads:
+    """Crochet d'import à UN coup : quand `torch` s'importe, le plafond est posé juste après
+    l'exécution du module — avant toute allocation possible, puisqu'une allocation passe par
+    torch. Retiré de `sys.meta_path` dès qu'il a servi."""
+
+    def find_spec(self, name, path=None, target=None):
+        if name != 'torch':
+            return None
+        import sys
+        from importlib.util import find_spec
+        if self in sys.meta_path:
+            sys.meta_path.remove(self)
+        spec = find_spec('torch')
+        loader = getattr(spec, 'loader', None)
+        if loader is None or not hasattr(loader, 'exec_module'):
+            return spec
+        execute = loader.exec_module
+
+        def exec_module(module):
+            execute(module)
+            configure_cuda_process()
+        loader.exec_module = exec_module
+        return spec
+
+
+def configure_cuda_process_when_torch_loads() -> None:
+    """Le plafond CUDA du processus, posé au PREMIER IMPORT de torch plutôt qu'au démarrage
+    (2026-10-20) — ce qu'appelle le `ready()` de `common`, pour les processus Django.
+
+    `configure_cuda_process()` importait torch dans CHAQUE processus Django (≈ 10–13 s sous WSL),
+    y compris ceux qui n'y touchent jamais — `manage.py check`, les smokes de page, la plupart des
+    commandes : mesuré ce jour-là sur la chaîne de génération d'apps, qui en lance une trentaine
+    par jumelle. Le plafond n'a de sens que là où torch se charge : il y est posé au même instant,
+    et un processus qui n'importe jamais torch ne paie plus rien. torch déjà chargé, ou crochet
+    impossible à poser : le plafond tout de suite, comme avant. Les workers Celery et le service
+    TTS gardent leur appel direct (`worker_process_init`, `startup`) : ils chargent torch de toute
+    façon."""
+    import sys
+    if 'torch' in sys.modules:
+        configure_cuda_process()
+        return
+    try:
+        if not any(isinstance(f, _CapWhenTorchLoads) for f in sys.meta_path):
+            sys.meta_path.insert(0, _CapWhenTorchLoads())
+    except Exception:
+        configure_cuda_process()
+
+
 #: VRAM de la carte une fois MESURÉE (elle ne change pas pendant la vie du processus).
 _CARD_GB = 0.0
 

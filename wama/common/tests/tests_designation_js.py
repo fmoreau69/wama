@@ -188,7 +188,7 @@ class DesignationJsTest(SimpleTestCase):
                     offenders.append(str(path.relative_to(ROOT)))
         self.assertEqual([], offenders)
 
-    def test_on_an_attach_card_the_file_joins_the_port_the_card_declares(self):
+    def test_on_an_attach_card_the_file_joins_the_port_the_card_offers(self):
         attached, posted = self._on_a_card('attache')
         self.assertEqual([['port', 'users/3/temp/melody.wav']], attached)
         self.assertEqual(0, posted, 'rien ne part avant « Ajouter »')

@@ -156,20 +156,27 @@ class RepoToAppChainTest(SimpleTestCase):
         self.assertEqual(1, read.call_count)
         self.assertEqual({}, self.chain.output_of('[app] verdict : clean\n'))
 
-    def test_a_remote_cut_is_replayed_once_locally_by_every_role_and_an_error_is_not(self):
+    def test_a_remote_cut_is_relayed_once_by_every_role_and_an_error_is_not(self):
         """La reprise vit dans `role_utils.call_llm` (2026-10-16) : le rôle `app` lancé SEUL par
-        l'assistant n'en avait aucune quand elle vivait dans la chaîne."""
+        l'assistant n'en avait aucune quand elle vivait dans la chaîne. Depuis le 2026-10-20 elle
+        suit la NOTE de saturation que pose la brique commune (une coupure est reconnue par son
+        type, `llm_utils.provider_saturation`), jamais le texte de l'erreur, et rejoue le TIRAGE de
+        développement — ici, un modèle local. La note est simulée : une vraie s'écrirait dans le
+        cache partagé."""
         from unittest import mock
+        from wama.common.services import development_models, source_quota
         from wama.common.utils import llm_utils
         role_utils = load_dev_ai_module('role_utils')
-        for error, replayed in (('litellm.InternalServerError: Connection error.', True),
-                                ('401 clé refusée', False)):
+        for error, noted in (('litellm.InternalServerError: Connection error.', 'indisponible'),
+                             ('401 clé refusée', '')):
             with self.subTest(error=error), \
                     mock.patch.object(llm_utils, 'chat_with_source', return_value=(None, error)), \
-                    mock.patch.object(role_utils, 'resolve_model', return_value='qwen3.8:latest'), \
+                    mock.patch.object(source_quota, 'saturation_reason', return_value=noted), \
+                    mock.patch.object(development_models, 'development_model',
+                                      return_value='ollama:qwen3.8:latest'), \
                     mock.patch.object(role_utils, 'local_llm_guard', return_value='0') as guard, \
                     mock.patch.object(role_utils, 'call_ollama', return_value='ok') as local:
-                if replayed:
+                if noted:
                     self.assertEqual('ok', role_utils.call_llm('ilaas', 'qwen', 's', 'u'))
                     self.assertEqual('qwen3.8:latest', local.call_args.args[0])
                     self.assertEqual('0', local.call_args.kwargs['keep_alive'])
@@ -178,6 +185,27 @@ class RepoToAppChainTest(SimpleTestCase):
                     with self.assertRaises(RuntimeError):
                         role_utils.call_llm('ilaas', 'qwen', 's', 'u')
                     local.assert_not_called()
+
+    def test_the_relay_takes_another_sovereign_when_the_draw_gives_one(self):
+        """Le tirage de développement écarte la source notée : il peut rendre un AUTRE souverain
+        ouvert au compte (Albert après une coupure d'ILaaS), appelé par la même brique."""
+        from unittest import mock
+        from wama.common.services import development_models, source_quota
+        from wama.common.utils import llm_utils
+        role_utils = load_dev_ai_module('role_utils')
+        calls = []
+
+        def chat(source, model, messages, **kwargs):
+            calls.append((source, model))
+            return (None, 'Connection error') if source == 'ilaas' else ('relayé', None)
+        with mock.patch.object(llm_utils, 'chat_with_source', side_effect=chat), \
+                mock.patch.object(source_quota, 'saturation_reason', return_value='indisponible'), \
+                mock.patch.object(development_models, 'development_model',
+                                  return_value='albert:gpt-oss-120b'), \
+                mock.patch.object(role_utils, 'call_ollama') as local:
+            self.assertEqual('relayé', role_utils.call_llm('ilaas', 'qwen', 's', 'u'))
+        self.assertEqual([('ilaas', 'qwen'), ('albert', 'gpt-oss-120b')], calls)
+        local.assert_not_called()
 
 
 class ValidatedLibraryIsNeverReproposedTest(TestCase):

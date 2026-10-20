@@ -714,46 +714,87 @@ def replace_glue_hole(source: str, function: str, code: str) -> str:
     return new_source
 
 
-def _smoke_page(label: str) -> subprocess.CompletedProcess:
-    """La page de la jumelle répond-elle 200 ? Sous-process frais (le boot relit le registre).
-    rc 0 = 200, rc 1 = autre statut ou exception."""
+#: Le JUGE d'un paquet, en UN sous-processus frais (le boot relit le registre) : `check`, la page,
+#: puis la file habitée. Chaque étape s'annonce (`JUDGE-STAGE`) avant de jouer, pour que l'appelant
+#: sache laquelle a échoué. Codes : 0 tout tient ; 3 `check` KO ; 1 la page ou un rendu de card
+#: lève ou n'est pas 200 ; 2 témoin INCRÉABLE (contraintes propres à l'app — non mesuré, jamais
+#: bloquant).
+_JUDGE_SCRIPT = r'''
+import os, sys
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
+import django
+django.setup()
+label, item_model, check_card, run_check = sys.argv[1], sys.argv[2], sys.argv[3] == '1', sys.argv[4] == '1'
+if run_check:
+    print('JUDGE-STAGE check', flush=True)
+    from django.core.management import call_command
+    try:
+        call_command('check')
+    except Exception as exc:
+        print(exc)
+        raise SystemExit(3)
+from django.test import Client
+print('JUDGE-STAGE page', flush=True)
+r = Client().get(f'/{label}/', follow=True)
+print(r.status_code)
+if r.status_code != 200:
+    raise SystemExit(1)
+if not item_model:
+    raise SystemExit(0)
+# Smoke « file HABITÉE » : un élément témoin créé, la page rendue (et la card seule si
+# `check_card`), le témoin supprimé.
+print('JUDGE-STAGE populated', flush=True)
+from django.apps import apps
+from wama.common.services.nightly_tests import get_test_dev_user
+M = apps.get_model(label, item_model)
+u = get_test_dev_user()
+try:
+    it = M.objects.create(user=u)
+except Exception as e:
+    print('temoin increable:', e)
+    raise SystemExit(2)
+try:
+    c = Client()
+    c.force_login(u)
+    r = c.get(f'/{label}/', follow=True)
+    print(r.status_code)
+    # La card SEULE aussi (`card_html`) : des vues GÉNÉRÉES rendent le partial généré
+    # `_generic_card.html`, que des templates COPIÉS n'ont pas — page 200, mais 🗑/⚙/↻ (qui
+    # redemandent la card) en 500. Mesuré sur composer_01 le 2026-09-22 par le contrat générique
+    # de suppression, invisible du smoke de page. Route absente (app sans card_html) → non
+    # mesuré, jamais bloquant.
+    if check_card:
+        from django.urls import reverse, NoReverseMatch
+        try:
+            url = reverse(f'{label}:card_html', args=[it.id])
+        except NoReverseMatch:
+            url = None
+        if url:
+            r2 = c.get(url)
+            print('card_html', r2.status_code)
+            r = r2 if r2.status_code != 200 else r
+finally:
+    it.delete()
+raise SystemExit(0 if r.status_code == 200 else 1)
+'''
+
+
+def _judge(label: str, item_model: str = '', check_card: bool = False,
+           run_check: bool = False) -> subprocess.CompletedProcess:
+    """`check` (si `run_check`), la page de la jumelle, puis sa file HABITÉE (si `item_model`) —
+    en UN sous-processus (2026-10-20). C'étaient trois processus, chacun avec son démarrage de
+    Django et son chargement de toute la configuration d'URL (≈ 60 s sous WSL, mesuré) : une
+    substitution en payait trois, une jumelle une vingtaine. Codes : voir `_JUDGE_SCRIPT`."""
     return subprocess.run(
-        [sys.executable, '-c',
-         "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
-         "django.setup();from django.test import Client;"
-         f"r=Client().get('/{label}/',follow=True);print(r.status_code);"
-         "raise SystemExit(0 if r.status_code==200 else 1)"],
+        [sys.executable, '-c', _JUDGE_SCRIPT, label, item_model or '', '1' if check_card else '0',
+         '1' if run_check else '0'],
         capture_output=True, text=True, cwd=str(BASE_DIR))
 
 
-def _smoke_populated_queue(label: str, item_model: str, check_card: bool) \
-        -> subprocess.CompletedProcess:
-    """Smoke « file HABITÉE » : un élément témoin créé, la page rendue (et la card seule si
-    `check_card`), le témoin supprimé. rc 0 = rendu 200, rc 1 = un rendu lève ou n'est pas 200,
-    rc 2 = témoin INCRÉABLE (contraintes propres à l'app — non mesuré, jamais bloquant)."""
-    return subprocess.run(
-        [sys.executable, '-c',
-         "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
-         "django.setup();from django.apps import apps;from django.test import Client;"
-         "from wama.common.services.nightly_tests import get_test_dev_user;"
-         f"M=apps.get_model('{label}','{item_model}');u=get_test_dev_user();\n"
-         "try:\n    it=M.objects.create(user=u)\n"
-         "except Exception as e:\n    print('temoin increable:',e);raise SystemExit(2)\n"
-         "try:\n    c=Client();c.force_login(u);r=c.get('" + f'/{label}/' + "',follow=True)\n"
-         "    print(r.status_code)\n"
-         # La card SEULE aussi (`card_html`) : des vues GÉNÉRÉES rendent le partial généré
-         # `_generic_card.html`, que des templates COPIÉS n'ont pas — page 200, mais 🗑/⚙/↻
-         # (qui redemandent la card) en 500. Mesuré sur composer_01 le 2026-09-22 par le
-         # contrat générique de suppression, invisible du smoke de page. Route absente
-         # (app sans card_html) → non mesuré, jamais bloquant.
-         + ("    from django.urls import reverse, NoReverseMatch\n"
-            "    try:\n        url=reverse('" + label + ":card_html', args=[it.id])\n"
-            "    except NoReverseMatch:\n        url=None\n"
-            "    if url:\n        r2=c.get(url)\n        print('card_html', r2.status_code)\n"
-            "        r=r2 if r2.status_code!=200 else r\n" if check_card else '') +
-         "finally:\n    it.delete()\n"
-         "raise SystemExit(0 if r.status_code==200 else 1)"],
-        capture_output=True, text=True, cwd=str(BASE_DIR))
+def _judge_stage(result: subprocess.CompletedProcess) -> str:
+    """L'étape où le juge s'est arrêté (`check`, `page`, `populated`) — la dernière annoncée."""
+    stages = re.findall(r'^JUDGE-STAGE (\w+)$', result.stdout or '', re.M)
+    return stages[-1] if stages else 'boot'
 
 
 class Command(BaseCommand):
@@ -811,6 +852,8 @@ class Command(BaseCommand):
             self._apply_glue(app, opts.get('target'), applied_by=opts.get('owner') or '')
         elif action == 'create':
             self._create(app, owner=opts.get('owner') or '')
+        elif action == 'substitute' and ',' in (opts.get('target') or ''):
+            self._substitute_chain(app, opts['target'])
         elif action == 'substitute' and opts.get('target') == 'static':
             self._resync_static(app)
         elif action == 'substitute':
@@ -977,21 +1020,18 @@ class Command(BaseCommand):
         unresolved = _imports_intra_paquet_non_resolus(label)
         if unresolved:
             return fail('symboles intra-paquet NON RÉSOLUS : ' + ' ; '.join(unresolved[:4]))
-        r = _manage(['check'])
-        if r.returncode != 0:
-            return fail(f'manage.py check KO ({_last_cause(r.stdout, r.stderr)})')
-        smoke = _smoke_page(label)
-        if smoke.returncode != 0:
-            return fail(f'smoke /{label}/ KO ({_last_cause(smoke.stdout, smoke.stderr)})')
         item_model = ((manifest.get('body') or {}).get('processing') or {}).get('item_model')
+        judged = _judge(label, item_model or '', check_card=True, run_check=True)
+        cause, stage = _last_cause(judged.stdout, judged.stderr), _judge_stage(judged)
+        if judged.returncode not in (0, 2):
+            if stage in ('boot', 'check'):
+                return fail(f'manage.py check KO ({cause})')
+            if stage == 'page':
+                return fail(f'smoke /{label}/ KO ({cause})')
+            return fail(f'smoke file HABITÉE KO — le rendu de card lève ({cause})')
         details = []
-        if item_model:
-            populated = _smoke_populated_queue(label, item_model, check_card=True)
-            if populated.returncode == 1:
-                return fail('smoke file HABITÉE KO — le rendu de card lève '
-                            f'({_last_cause(populated.stdout, populated.stderr)})')
-            if populated.returncode == 2:
-                details.append('file habitée NON MESURÉE (témoin incréable)')
+        if judged.returncode == 2:
+            details.append('file habitée NON MESURÉE (témoin incréable)')
 
         entry['stage'] = 'S2-de-zero'
         entry['glue_holes'] = holes
@@ -1050,6 +1090,42 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'{function} ← glu {data.get("model")} appliquée dans wama/{label}/tasks.py. '
             '⚠ Redémarrer les workers pour qu\'ils la chargent.'))
+
+    # ── substitute en CHAÎNE (2026-10-20) ─────────────────────────────────────
+    def _substitute_chain(self, label: str, chain: str):
+        """`substitute <jumelle> apps,urls+views+templates,tasks+function_specs,…` : chaque groupe
+        (séparé par une virgule) est UNE substitution, jouée dans CE processus — le manifeste n'est
+        extrait à froid qu'une fois (≈ 87 s sous WSL la première, 0,4 s ensuite) et la commande ne
+        redémarre pas Django entre deux cibles. Un groupe qui n'a rien à générer (`surfaces` d'une
+        app sans page d'édition) est dit et passé.
+
+        Seconde passe : un groupe revenu au témoin est rejoué une fois si un groupe placé APRÈS lui
+        a tenu — les fichiers copiés se citent entre eux (le `function_specs` copié importe une
+        fonction privée des tâches, les tâches copiées importent les vues…), et c'est la
+        substitution d'un voisin qui les débloque. Mesuré sur la flotte du 20/10."""
+        groups = [g.strip() for g in chain.split(',') if g.strip()]
+        verdicts = {}
+
+        def play(group):
+            try:
+                if group == 'static':
+                    self._resync_static(label)
+                    return 'ok'
+                self._substitute(label, group)
+            except CommandError as exc:
+                self.stderr.write(f'{group} : {exc}')
+                return 'rien' if 'rien à générer' in str(exc) else 'refus'
+            entry = next((e for e in load_registry() if e['label'] == label), {})
+            first = group.split('+')[0]
+            return ((entry.get('substituted') or {}).get(first) or {}).get('verdict') or '?'
+
+        for group in groups:
+            verdicts[group] = play(group)
+        for i, group in enumerate(groups):
+            if verdicts[group] == 'revert' and any(verdicts[g] == 'ok' for g in groups[i + 1:]):
+                self.stdout.write(f'— seconde passe : {group}')
+                verdicts[group] = play(group)
+        self.stdout.write('Chaîne ' + label + ' : ' + ' · '.join(f'{g}={v}' for g, v in verdicts.items()))
 
     # ── substitute (étape S2) ────────────────────────────────────────────────
     def _substitute(self, label: str, requested: str):
@@ -1178,26 +1254,26 @@ class Command(BaseCommand):
         if _perdus:
             verdict = 'revert'
             details.append('membres de modèle PERDUS encore lus : ' + ' ; '.join(_perdus[:6]))
-        r = _manage(['check'])
-        if r.returncode != 0:
-            verdict = 'revert'
-            details.append('manage.py check KO')
+        # Les juges qui DÉMARRENT Django (`check`, la page, la file habitée) ne partent que si le
+        # paquet tient encore : un juge statique a déjà décidé du revert, et chaque démarrage
+        # coûte ≈ 60 s sous WSL (2026-10-20). Ils partent en UN sous-processus (`_judge`) — sauf
+        # pour `models`, où `check` doit précéder `makemigrations`.
         mig_dir = WAMA_DIR / label / 'migrations'
         mig_avant = {p.name for p in mig_dir.glob('0*.py')}
         if verdict == 'ok' and 'models' in targets:
-            r = _manage(['makemigrations', label])
+            r = _manage(['check'])
             if r.returncode != 0:
-                verdict, details = 'revert', ['makemigrations KO']
-            elif 'No changes detected' not in (r.stdout or ''):
-                details.append('schéma DIVERGENT (migration créée — champs en écart)')
-                r2 = _manage(['migrate', label])
-                if r2.returncode != 0:
-                    verdict, details = 'revert', ['migrate de l’écart KO']
-        if verdict == 'ok':
-            smoke = _smoke_page(label)
-            if smoke.returncode != 0:
                 verdict = 'revert'
-                details.append(f"smoke /{label}/ KO ({_last_cause(smoke.stdout, smoke.stderr)})")
+                details.append('manage.py check KO')
+            else:
+                r = _manage(['makemigrations', label])
+                if r.returncode != 0:
+                    verdict, details = 'revert', ['makemigrations KO']
+                elif 'No changes detected' not in (r.stdout or ''):
+                    details.append('schéma DIVERGENT (migration créée — champs en écart)')
+                    r2 = _manage(['migrate', label])
+                    if r2.returncode != 0:
+                        verdict, details = 'revert', ['migrate de l’écart KO']
         # ── Smoke « file HABITÉE » (mesuré le 2026-09-03, describer_01/params) : une page à
         # file VIDE ne rend AUCUNE card — un symbole de schéma disparu (`PARAMS`) ne levait
         # qu'au rendu d'une card réelle : 200 au juge, ImportError chez l'utilisateur. On
@@ -1212,17 +1288,22 @@ class Command(BaseCommand):
         # — il l'exige. Sans cette règle le couple était un ordre à respecter de mémoire.
         templates_ok = ((entry.get('substituted') or {}).get('templates') or {}).get('verdict') == 'ok'
         check_card = 'templates' in targets or templates_ok
-        if verdict == 'ok' and item_model:
-            habite = _smoke_populated_queue(label, item_model, check_card)
-            if habite.returncode == 1:
-                verdict = 'revert'
-                # La CAUSE est la dernière ligne de la trace, jamais la première du flux :
-                # les 160 premiers caractères de stderr étaient un FutureWarning de torch
-                # (mesuré le 2026-09-22 sur describer_01 — verdict illisible).
-                details.append('smoke file HABITÉE KO — le rendu de card lève '
-                               f"({_last_cause(habite.stdout, habite.stderr)})")
-            elif habite.returncode == 2:
+        if verdict == 'ok':
+            judged = _judge(label, item_model or '', check_card, run_check='models' not in targets)
+            # La CAUSE est la dernière ligne de la trace, jamais la première du flux : les 160
+            # premiers caractères de stderr étaient un FutureWarning de torch (mesuré le
+            # 2026-09-22 sur describer_01 — verdict illisible).
+            cause, stage = _last_cause(judged.stdout, judged.stderr), _judge_stage(judged)
+            if judged.returncode == 2:
                 details.append('file habitée NON MESURÉE (témoin incréable — contraintes app)')
+            elif judged.returncode != 0:
+                verdict = 'revert'
+                if stage in ('boot', 'check'):
+                    details.append('manage.py check KO')
+                elif stage == 'page':
+                    details.append(f"smoke /{label}/ KO ({cause})")
+                else:
+                    details.append(f'smoke file HABITÉE KO — le rendu de card lève ({cause})')
 
         # 4. Diff compact copie↔généré (le DÉTECTEUR : chaque écart est un fait).
         # Un fichier NEUF n'a pas de témoin (`tasks.py` d'une app qui loge ses tâches dans
@@ -1418,14 +1499,8 @@ class Command(BaseCommand):
         if not restored and not removed:
             raise CommandError(f'{target} : aucun témoin ni fichier généré — rien à ramener.')
 
-        # Smoke : la jumelle revenue doit RENDRE (même juge que la substitution).
-        smoke = subprocess.run(
-            [sys.executable, '-c',
-             "import os,django;os.environ.setdefault('DJANGO_SETTINGS_MODULE','wama.settings');"
-             "django.setup();from django.test import Client;"
-             f"r=Client().get('/{label}/',follow=True);print(r.status_code);"
-             "raise SystemExit(0 if r.status_code==200 else 1)"],
-            capture_output=True, text=True, cwd=str(BASE_DIR))
+        # Smoke : la jumelle revenue doit RENDRE (même juge que la substitution, page seule).
+        smoke = _judge(label)
         state = 'OK' if smoke.returncode == 0 else f'KO ({_last_cause(smoke.stdout, smoke.stderr)})'
 
         entry.setdefault('substituted', {})[target] = {

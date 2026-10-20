@@ -7,11 +7,9 @@ class TranscriberConfig(AppConfig):
     verbose_name = 'Transcriber'
 
     def ready(self):
-        # Import tasks for Celery autodiscovery
-        try:
-            import wama.transcriber.workers  # noqa: F401
-        except Exception:
-            pass
+        # Les tâches de `workers.py` : Celery les découvre lui-même (`wama/celery.py`,
+        # `autodiscover_tasks(related_name='workers')`). Les importer ici chargeait torch dans
+        # chaque processus Django (retiré le 2026-10-20).
 
         # Reclaim VRAM cross-app : déclare COMMENT libérer les modèles Transcriber.
         # Ne couvre QUE le pipeline pyannote, caché en variable de module donc invisible
@@ -40,12 +38,10 @@ class TranscriberConfig(AppConfig):
         except Exception:
             pass
 
-        # Enregistre les scénarios de test nocturne de l'app (gabarit de référence).
-        try:
-            from .nightly_scenarios import register_scenarios
-            register_scenarios()
-        except Exception:
-            pass
+        # Déclare les scénarios de test nocturne de l'app (gabarit de référence), joués au premier
+        # usage du registre (`add_registrar`, 2026-10-20).
+        from wama.common.services.nightly_tests import add_registrar
+        add_registrar('wama.transcriber.nightly_scenarios:register_scenarios')
 
         # Register for unified preview
         from wama.common.utils.preview_registry import PreviewRegistry

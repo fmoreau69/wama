@@ -2356,6 +2356,28 @@ outillé avant d'ouvrir cette marche.
   > `urls+views+templates` → `tasks` → `params` → `function_specs` → `models`. *L'argument
   > « params AVANT views » visait un params COPIÉ périmé ; sur une jumelle fraîche, c'est l'inverse
   > qui bloque — le même juge des imports, dans l'autre sens.*
+  > ⚠ **Recalé le 2026-10-20 sur la flotte** (reader, anonymizer, synthesizer, recréées) :
+  > **`tasks` et `function_specs` ne tiennent qu'ENSEMBLE** — le `function_specs` COPIÉ importe une
+  > fonction privée des tâches copiées (`_extract_natural_text`, reader) ou nomme `workers:…`
+  > (synthesizer), et le `function_specs` GÉNÉRÉ nomme `tasks:<eta>` que seul le `tasks` généré
+  > porte (son trou de glu) : chacun seul est refusé, dans un sens ou dans l'autre. Ils se
+  > substituent en COUPLE, `tasks+function_specs`, comme `urls+views+templates`. Et des fichiers
+  > copiés qui se citent en BOUCLE (anonymizer : les tâches copiées importent les vues, les vues
+  > copiées les tâches) ne se débloquent que par la substitution d'un voisin. D'où, dans
+  > l'outil : **la chaîne en UNE commande** — `app_sandbox substitute <jumelle>
+  > apps,urls+views+templates,tasks+function_specs,params,surfaces,models` — dont chaque groupe
+  > (séparé par une virgule) est une substitution, et **une seconde passe** qui rejoue une fois un
+  > groupe revenu au témoin si un groupe placé APRÈS lui a tenu (`Command._substitute_chain`).
+  > **Le coût de la chaîne, mesuré le même jour** (Fabien : *« je ne comprends pas que la
+  > génération d'app soit si longue »*) : 39 min par jumelle, et presque rien dans la génération —
+  > un démarrage de Django coûtait 58-63 s sous WSL et la chaîne en lançait une trentaine (trois
+  > juges par substitution, une commande par cible, l'extraction du manifeste à froid à chaque
+  > commande, 87 s). Portés : le démarrage (11 s ; `tests_boot_cost`), UN sous-processus de juge
+  > par substitution (`_judge` : `check`, page, file habitée ; `check` à part pour `models`, qui
+  > le veut avant `makemigrations`), aucun juge démarré quand un juge statique a déjà décidé, et
+  > la chaîne en un processus. ⚠ Un juge charge forcément toute la configuration d'URL (le
+  > `check` la vérifie, un smoke rend une page) : ≈ 47 s, dont 20 s de torch/ultralytics/cv2 que des
+  > vues tirent par leurs tâches (`anonymizer/views.py` → `tasks.py` → `backends/anonymize.py`).
   > **Deux gestes ajoutés le 2026-10-12** (Fabien : « régénère writer_01 et les static des
   > jumelles »). ① **`substitute <jumelle> static`** — aucune cible ne couvrait `static/` (pas de
   > gabarit JS) : le JS d'une jumelle restait la copie de sa création (`reader_01` interceptait

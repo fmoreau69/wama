@@ -74,13 +74,11 @@ class EnhancerConfig(AppConfig):
             'extra_from_params': True,
         })
 
-        # Enregistre les scénarios de test nocturne (AVANT le guard RUN_MAIN : doit aussi
-        # s'enregistrer pour les management commands comme run_nightly_tests).
-        try:
-            from .nightly_scenarios import register_scenarios
-            register_scenarios()
-        except Exception:
-            pass
+        # Déclare les scénarios de test nocturne (AVANT le guard RUN_MAIN : doit aussi valoir pour
+        # les management commands comme run_nightly_tests), joués au premier usage du registre
+        # (`add_registrar`, 2026-10-20).
+        from wama.common.services.nightly_tests import add_registrar
+        add_registrar('wama.enhancer.nightly_scenarios:register_scenarios')
 
         # ⚠ Plus de téléchargement de poids au démarrage (retiré le 2026-10-11, REMOVAL_LEDGER) :
         # les modèles ONNX sont DÉCLARÉS (`utils/model_config.ENHANCER_MODELS`, fichiers et

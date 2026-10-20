@@ -134,8 +134,9 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (53) :
+- **API publique** (54) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
+  - `configure_cuda_process_when_torch_loads() -> None` — Le plafond CUDA du processus, posé au PREMIER IMPORT de torch plutôt qu'au démarrage
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU — la SEULE mesure de WAMA (2026-10-10).
   - `owner_pid(owner: str) -> int | None` — Pid porté par une clé d'owner (`<module>.<Classe>:<pid>#…`, `composer.audiocpp:<pid>`),
   - `reserve_vram(owner: str, gb: float, *, allocated: bool=False, expires_in_s: float | None=None) -> bool` — Déclare que `owner` détient `gb` de VRAM. Écrase la ligne existante du même
@@ -371,15 +372,17 @@ Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA.
 
 ### Tests nocturnes
 
-Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/suite/model_loaded/output). Le stage `suite` (2026-09-19) fait entrer LA SUITE DJANGO dans la grille fonctionnelle : un scénario par app ayant des tests, DÉRIVÉ des apps installées ; verdict lu dans la SORTIE de `manage.py test` (jamais au code retour, qui sort en 0 sans rien lancer) et rouges NOMMÉS. DEUX comptes de test déclaratifs : le standard (rôles métier, SANS tier dev — c'est LUI que la matrice de droits mesure) et `get_test_dev_user` pour les surfaces dev-gated (jumelles de bac à sable), routé par `ui_smoke._test_session_key(app)` — sans lui les 11 scénarios d'une jumelle skippent (mesuré 2026-08-30)
+Registre déclaratif de scénarios + runner sérialisé VRAM-aware (wired/ui/consistency/suite/model_loaded/output). Le stage `suite` (2026-09-19) fait entrer LA SUITE DJANGO dans la grille fonctionnelle : un scénario par app ayant des tests, DÉRIVÉ des apps installées ; verdict lu dans la SORTIE de `manage.py test` (jamais au code retour, qui sort en 0 sans rien lancer) et rouges NOMMÉS. DEUX comptes de test déclaratifs : le standard (rôles métier, SANS tier dev — c'est LUI que la matrice de droits mesure) et `get_test_dev_user` pour les surfaces dev-gated (jumelles de bac à sable), routé par `ui_smoke._test_session_key(app)` — sans lui les 11 scénarios d'une jumelle skippent (mesuré 2026-08-30). Le registre se REMPLIT AU PREMIER USAGE (2026-10-20) : une app déclare son enregistreur dans son `ready()` (`add_registrar`, chemin `module:fonction`) au lieu de l'exécuter — l'enregistrement chargeait toute la configuration d'URL (et torch) dans chaque processus Django
 
 - **Domicile** : `wama/common/services/nightly_tests.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §Tests fonctionnels nocturnes](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Charpente des tests fonctionnels nocturnes de WAMA. ============================================================================
-- **API publique** (17) :
+- **API publique** (19) :
   - `class SkipScenario(Exception)` — Levée par un `run` quand une dépendance est absente (modèle/lib non installé) :
   - `class Scenario` — Un test fonctionnel déclaratif. `run(ctx) -> (ok: bool, detail: str)` ; peut lever.
   - `class ScenarioResult`
-  - `register(**kwargs) -> Scenario` — Enregistre un scénario. Doublon d'id → remplace (réimport sûr).
+  - `register(**kwargs) -> Scenario` — Enregistre un scénario. Doublon d'id → remplace (réimport sûr). Écrit le registre SUR
+  - `add_registrar(registrar) -> None` — Déclare un ENREGISTREUR de scénarios — une fonction sans argument qui appelle `register`,
+  - `load_scenarios() -> None` — Joue une fois les enregistreurs déclarés. `_loading` : False avant, True pendant (un
   - `scenario_cadence(sc: Scenario, sandbox_apps=None) -> str` — `daily` ou `weekly`. La DÉCLARATION prime ; sinon la règle, tirée de ce que le scénario
   - `select_scenarios(app=None, stage=None, cadence=None, scenarios=None) -> List[Scenario]` — Les scénarios ACTIFS d'une campagne — la tâche planifiée et la commande lisent la même.
   - `get_test_user()` — Utilisateur de test DÉDIÉ (jamais le compte réel). Créé si absent.
@@ -1084,7 +1087,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (20) :
+- **API publique** (21) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -1102,6 +1105,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `data_reuse_accepted(user) -> bool` — `user` accepte-t-il qu'un hébergeur garde ou réutilise ses requêtes ? Le dernier cran de
   - `cloud_refusal(user, source: str='') -> str` — Motif de refus d'un appel distant pour `user`, sinon ''. Sans utilisateur : ''.
   - `allowed_cloud_keys(user, automatic: bool=True) -> set` — `model_key` des modèles distants que `user` autorise — à passer à `select_model(cloud_keys=…)`.
+  - `drop_unavailable(user, keys, personal_sources=None) -> set` — `keys` moins les modèles qu'un TIRAGE ne peut pas retenir maintenant : une source notée
   - `is_cloud_key(model_key) -> bool` — La clé de catalogue `model_key` désigne-t-elle un modèle servi par un FOURNISSEUR
   - `class CloudAccessRefused(RuntimeError)` — Appel distant refusé — message lisible par l'utilisateur ; `status` = code HTTP à rendre.
   - `cloud_access(user, source: str, model_id: str='') -> str` — La CLÉ avec laquelle `user` appelle `source` (et le modèle `model_id` s'il est nommé), ou
@@ -1724,7 +1728,7 @@ Vue dérivée : licences+auteurs des 4 registres, traversée par app. Ne voit PA
 
 ### Bac à sable d'apps (jumelles exécutables)
 
-Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (route §10.3 marches S/S2) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + `substitute <label> <cible>` : remplace UN fichier copié par sa version GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, auto-revert sur échec — verdicts journalisés au registre ; `revert <label> <cible>` ramène une cible au témoin à la demande. TROIS JUGES depuis le 03/09, chacun né d'un défaut qui RENDAIT (page 200) sans FONCTIONNER : ① cohérence de paquet par AST (tout `from .x import Y` intra-paquet, imports PARESSEUX compris, doit résoudre) ; ② couple views↔templates (substituer les templates seuls = boutons morts) ; ③ smoke « file HABITÉE » (témoin créé→page rendue→supprimé : une file vide ne rend AUCUNE card, donc ne teste rien du rendu de card). Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée (11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11
+Jumelle <app>_NN coexistante pour comparaison Playwright + diff par témoins (route §10.3 marches S/S2) — registre sandbox_apps.json injecté au boot (INSTALLED_APPS/urls/gating/catalogue) ; create/drop symétriques + `substitute <label> <cible>` : remplace UN fichier copié par sa version GÉNÉRÉE (cibles = gabarits `codegen`), témoin `.temoin` préservé, re-mesure, auto-revert sur échec — verdicts journalisés au registre ; `revert <label> <cible>` ramène une cible au témoin à la demande. TROIS JUGES depuis le 03/09, chacun né d'un défaut qui RENDAIT (page 200) sans FONCTIONNER : ① cohérence de paquet par AST (tout `from .x import Y` intra-paquet, imports PARESSEUX compris, doit résoudre) ; ② couple views↔templates (substituer les templates seuls = boutons morts) ; ③ smoke « file HABITÉE » (témoin créé→page rendue→supprimé : une file vide ne rend AUCUNE card, donc ne teste rien du rendu de card). Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée (11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11. Depuis le 2026-10-20 : la chaîne en UNE commande (`substitute <label> a,b+c,…`, seconde passe des groupes revenus), et UN sous-processus de juge par substitution (`check`, page, file habitée) — un démarrage de Django coûte ≈ 60 s sous WSL
 
 - **Domicile** : `wama/common/sandbox.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Bac à sable d'apps — jumelles EXÉCUTABLES (route §10.3, marche S, actée Fabien 2026-08-18).

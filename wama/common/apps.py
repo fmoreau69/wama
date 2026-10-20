@@ -73,30 +73,26 @@ class CommonConfig(AppConfig):
             logging.getLogger(__name__).debug(
                 'Journal django-errors.log non attaché', exc_info=True)
 
+        # Scénarios nocturnes `consistency` (AVANT le guard RUN_MAIN, comme l'enhancer :
+        # ils doivent exister aussi pour les management commands, run_nightly_tests inclus).
+        # Et `suite` : la suite Django entre dans la grille fonctionnelle (2026-09-19), dérivés des
+        # apps installées qui ont des tests — voir nightly_suite.py. DÉCLARÉS, joués au premier
+        # usage du registre (`nightly_tests.add_registrar`, 2026-10-20) : les jouer ici coûtait à
+        # chaque démarrage le chargement de toute la configuration d'URL.
+        from .services.nightly_tests import add_registrar
+        add_registrar('wama.common.nightly_scenarios:register_scenarios')
+        add_registrar('wama.common.nightly_suite:register_scenarios')
+
         # Gouverneur de ressources : plafonne l'allocateur CUDA de CE process.
         # Couvre les process Django (workers gunicorn) ; les workers Celery sont
         # couverts par le signal `worker_process_init` (wama/celery.py) et le
         # service TTS par son `startup`. Idempotent — un process déjà configuré
         # ne refait rien. Point d'entrée unique : common/services/resource_governor.py
-        # Scénarios nocturnes `consistency` (AVANT le guard RUN_MAIN, comme l'enhancer :
-        # ils doivent exister aussi pour les management commands, run_nightly_tests inclus).
+        # Posé au PREMIER IMPORT de torch (2026-10-20) : un processus qui n'y touche jamais ne
+        # paie plus son import (≈ 10–13 s sous WSL).
         try:
-            from .nightly_scenarios import register_scenarios
-            register_scenarios()
-        except Exception:
-            pass
-
-        # Scénarios nocturnes `suite` : la suite Django entre dans la grille fonctionnelle
-        # (2026-09-19). Dérivés des apps installées qui ont des tests — voir nightly_suite.py.
-        try:
-            from .nightly_suite import register_scenarios as register_suite_scenarios
-            register_suite_scenarios()
-        except Exception:
-            pass
-
-        try:
-            from wama.common.services.resource_governor import configure_cuda_process
-            configure_cuda_process()
+            from wama.common.services.resource_governor import configure_cuda_process_when_torch_loads
+            configure_cuda_process_when_torch_loads()
         except Exception:
             import logging
             logging.getLogger(__name__).debug(

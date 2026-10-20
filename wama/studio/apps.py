@@ -8,12 +8,10 @@ class StudioConfig(AppConfig):
 
     def ready(self):
         # Scénario nocturne `output` (pipeline réel de bout en bout) — même motif que
-        # l'enhancer : enregistré aussi pour les management commands (run_nightly_tests).
-        try:
-            from .nightly_scenarios import register_scenarios
-            register_scenarios()
-        except Exception:
-            pass
+        # l'enhancer : DÉCLARÉ, joué au premier usage du registre (`add_registrar`, 2026-10-20 —
+        # il importe `generic_runner`, qui dérive les ports de chaque app à l'import : 7,5 s).
+        from wama.common.services.nightly_tests import add_registrar
+        add_registrar('wama.studio.nightly_scenarios:register_scenarios')
         # Le studio se DÉCLARE : son monde (`transverse`, décision n°9 de la route §10.6) et sa
         # page — c'est cette déclaration que lisent le menu, `/apps/`, le journal et le calendrier.
         from wama.common.app_registry import register_surface

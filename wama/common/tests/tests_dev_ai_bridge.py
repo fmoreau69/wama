@@ -954,6 +954,24 @@ class FournisseurDesRolesTest(SimpleTestCase):
         direct.assert_called_once()
         self.assertEqual('0', direct.call_args.kwargs['keep_alive'])
 
+    def test_the_local_call_goes_through_the_common_brick_with_the_same_values(self):
+        """`call_ollama` passe par la brique de l'assistant (`llm_chat`, fournisseur `ollama`,
+        2026-10-20) : fenêtre, résidence, température et délai transmis, aucun plafond de jetons,
+        et un échec LÈVE comme avant."""
+        from unittest.mock import patch
+        with patch('wama.common.utils.llm_utils.llm_chat', return_value=('OK', None)) as chat:
+            self.assertEqual('OK', self.role_utils.call_ollama(
+                'gemma4:e4b', 'sys', 'msg', num_ctx=32768, keep_alive='0', temperature=0.2,
+                timeout=900))
+        kwargs = chat.call_args.kwargs
+        self.assertEqual(('ollama', 'gemma4:e4b', 32768, '0', 0.2, 900, None),
+                         (kwargs['provider'], kwargs['model'], kwargs['num_ctx'],
+                          kwargs['keep_alive'], kwargs['temperature'], kwargs['timeout'],
+                          kwargs['num_predict']))
+        with patch('wama.common.utils.llm_utils.llm_chat', return_value=(None, 'HTTP 500')):
+            with self.assertRaises(RuntimeError):
+                self.role_utils.call_ollama('gemma4:e4b', 'sys', 'msg')
+
     def test_un_fournisseur_distant_passe_par_llm_chat_sans_plafond(self):
         from unittest.mock import patch
         with patch('wama.common.utils.llm_utils.llm_chat', return_value=('OK', None)) as chat, \

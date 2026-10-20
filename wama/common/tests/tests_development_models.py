@@ -80,6 +80,26 @@ class DevelopmentGradeTest(TestCase):
         self.user.profile.save()
         self.assertEqual(set(), dm.dev_cloud_keys(get_user_model().objects.get(pk=self.user.pk)))
 
+    def test_a_saturated_sovereign_source_leaves_the_development_draw(self):
+        """2026-10-20 : les souverains ouverts au tirage dev venaient du choix MANUEL, qui n'écarte
+        pas une source saturée — un ILaaS ou un Albert saturé restait tirable par un rôle. La
+        saturation est simulée (`unavailable_keys`) : une vraie note s'écrirait dans le cache
+        PARTAGÉ, sous un `user:<pk>` qui peut être celui d'un compte réel."""
+        from wama.accounts.models import UserApiKey
+        _model('albert:gpt-oss-120b', execution='cloud', source='albert', downloaded=False, vram=0)
+        self.user.profile.cloud_policy = 'cloud_when_saturated'
+        self.user.profile.save()
+        with mock.patch('wama.common.utils.secret_crypto.storage_available', return_value=True):
+            UserApiKey.objects.create(user=self.user, source='albert', api_key='k',
+                                      open_models=['albert:gpt-oss-120b'])
+        with mock.patch('wama.common.services.source_quota.unavailable_keys',
+                        return_value={'albert:gpt-oss-120b': 'saturé'}) as busy:
+            keys = dm.dev_cloud_keys(self.user)
+        self.assertNotIn('albert:gpt-oss-120b', keys)
+        busy.assert_called_once()
+        self.assertEqual('user:%d' % self.user.pk, busy.call_args.args[1]('albert'),
+                         'la portée est la clé de l’utilisateur, qu’il a posée')
+
 
 class AgentFloorTest(TestCase):
     """Le plancher de l'assistant OUTILLÉ (29/09) : le tirage automatique d'un tour connecté ne

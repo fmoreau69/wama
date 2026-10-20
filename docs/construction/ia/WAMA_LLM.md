@@ -1178,13 +1178,16 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
 | model_manager — **prospection** | `prospect_ollama` → `ollama_registry` + `update_checker` | `ollama_base()` |
 | model_manager — bancs & registre | `benchmark_sync`, `model_registry` → `/api/show` | `ollama_base()` |
 | model_manager — chargement | `memory_manager` → `/api/generate` | `ollama_base()` |
-| **wama-dev-ai — les 5 rôles** | `role_utils.call_ollama` → `/api/chat` | `ollama_base()` (délégué, 2026-09-07) |
+| **wama-dev-ai — les rôles** | `role_utils.call_ollama` → `llm_utils.llm_chat` (`ollama`) → `ollama_chat` (2026-10-20 ; un POST `/api/chat` propre avant) | `ollama_base()` |
 | wama-dev-ai — `run_audit` | `/api/ps`, `/api/generate`, `/api/show` | `ollama_base()` (délégué, 2026-09-07) |
 
 **Règle de modification** : une brique d'appel se change après avoir relu **cette ligne-là**
 du tableau *et* les appelants réels (`grep` natif — `rtk` compresse, il ne mesure pas). Les
-familles ci-dessus sont **étanches** : rien dans `wama/` n'importe `role_utils`, et
-`wama-dev-ai` n'importe pas `llm_utils` (vérifié sur tout le dépôt le 2026-09-07).
+familles ci-dessus étaient **étanches** le 2026-09-07 (rien dans `wama/` n'importe `role_utils`,
+`wama-dev-ai` n'importait pas `llm_utils`). ⚠ Ce n'est plus vrai depuis le 2026-09-15 : `role_utils`
+appelle `llm_chat` pour un fournisseur distant (Albert), puis `chat_with_source` (13/10), et
+depuis le 2026-10-20 pour le local aussi — wama-dev-ai passe par les briques de l'assistant, c'est
+la route voulue. `wama/` n'importe toujours pas `role_utils`.
 
 > ✅ **`role_utils.ollama_host()` DÉLÈGUE désormais à la brique commune** (2026-09-07, GO
 > Fabien : « pas de chemins parallèles, une route unique, on globalise »). Il en portait une
@@ -2168,6 +2171,35 @@ process d'app : capacités (`requires` : completion, vision, appel d'outils…),
   contexte CUDA — une sonde sans contexte, comme `total_vram_gb` depuis le 10/10, serait au
   gouverneur de l'offrir.
 
+### 2026-10-20 — wama-dev-ai sur les briques de l'assistant : appel local, saturation, relais
+
+Demande de Fabien : *« wama-dev-ai doit réutiliser ce qui a été mis en place pour l'assistant afin
+d'optimiser la partie dev aussi »*. Le tirage et l'appel DISTANT étaient déjà communs (13/10) ;
+un relevé du code en a nommé trois écarts, portés ce jour-là :
+1. **Un souverain saturé restait tirable par un rôle.** `development_models.dev_cloud_keys` ouvre
+   les souverains dès « cloud si WAMA est saturé » en les reprenant du choix MANUEL
+   (`allowed_cloud_keys(automatic=False)`), qui n'écarte pas une source saturée ni un quota
+   atteint — seul le tirage automatique le fait. L'exclusion vit désormais dans une fonction,
+   `cloud_models.drop_unavailable`, que les deux tirages appellent. Garde :
+   `tests_development_models.DevelopmentGradeTest.test_a_saturated_sovereign_source_leaves_the_development_draw`.
+2. **L'appel local** : `role_utils.call_ollama` portait son POST `/api/chat` ; il passe par
+   `llm_chat(provider='ollama')`, mêmes valeurs à l'octet (fenêtre, résidence, température, délai,
+   aucun plafond, aucun proxy) et un échec lève toujours. Garde :
+   `tests_dev_ai_bridge.FournisseurDesRolesTest.test_the_local_call_goes_through_the_common_brick_with_the_same_values`.
+3. **La reprise d'un appel distant coupé** se lisait au TEXTE de l'erreur (`REMOTE_CUT`, une
+   expression sur « Connection error | InternalServerError | timed out ») et rejouait toujours en
+   local. Elle suit maintenant la NOTE que la brique pose (`llm_chat` → `source_quota`, la coupure
+   reconnue par son type, `provider_saturation`) et rejoue le TIRAGE de développement du compte,
+   qui écarte la source notée : un autre souverain ouvert à ce compte, ou un modèle local sous la
+   garde GPU — le relais de l'assistant (`_failover_target`, `ROADMAP §8d` étape 2), pour les
+   rôles (`role_utils._relay`). Gardes : `tests_dev_ai_app_role` (relais local, relais vers un
+   autre souverain, et une erreur de la requête qui n'est pas relayée).
+
+Restent, consignés au §C : le comptage des appels LOCAUX (ni les rôles ni l'assistant ne les
+comptent, rien ne nourrit l'ETA d'un rôle), la boucle d'outils et l'extraction du JSON en
+double (`core/tools.parse_tool_calls`, `role_utils.extract_json`), `cli.py` et l'audit sur
+`config.py`, les deux sondes de VRAM copiées.
+
 ### ⭐ 2026-10-13 — « les tests bloquent-ils ma tâche ? » : l'assistant lit la place que montre la card
 
 Fil Discord, OCR #1485 : *« Je pense que les tests en cours bloquent le traitement. Peux-tu me
@@ -2428,7 +2460,8 @@ seul) ; validation de `history` (API seule) ; découpage de longueur (Discord se
   + `select_model_for_role` vs `select_model` — adoption déjà décidée, ROADMAP l.1192-1195 ; 🔄 **les six
   rôles l'ont adoptée le 2026-10-13**, tirée pour le compte par la surface ; restent `cli.py` et la
   chaîne mesurée de l'audit, cf. §« 2026-10-13 — wama-dev-ai sur la route commune ») ; **quatre**
-  chats Ollama (`llm_utils.ollama_chat`, `_ollama_call`, `role_utils.call_ollama`, `core/llm.LLMClient`) ;
+  chats Ollama (`llm_utils.ollama_chat`, `_ollama_call`, `role_utils.call_ollama`, `core/llm.LLMClient`)
+  — 🔄 **trois depuis le 2026-10-20** : `role_utils.call_ollama` passe par `llm_chat` (§« 2026-10-20 ») ;
   deux mesures de VRAM copiées (`config.py:575`, `run_audit.py:341`) ; historique `core/history.py` vs
   `conversation_store` ; RAG en mémoire vive (`core/files.py`, `core/tools.py`) vs `recall()` ;
   `memory.json`/`write_memory` (écrit SANS approbation) vs `remember`/`approve` ; deux formats d'appel

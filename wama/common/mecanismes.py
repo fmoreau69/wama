@@ -276,7 +276,11 @@ MECHANISMS = (
               "DEUX comptes de test déclaratifs : le standard (rôles métier, SANS tier dev — c'est "
               "LUI que la matrice de droits mesure) et `get_test_dev_user` pour les surfaces "
               "dev-gated (jumelles de bac à sable), routé par `ui_smoke._test_session_key(app)` "
-              "— sans lui les 11 scénarios d'une jumelle skippent (mesuré 2026-08-30)",
+              "— sans lui les 11 scénarios d'une jumelle skippent (mesuré 2026-08-30). "
+              "Le registre se REMPLIT AU PREMIER USAGE (2026-10-20) : une app déclare son "
+              "enregistreur dans son `ready()` (`add_registrar`, chemin `module:fonction`) au lieu "
+              "de l'exécuter — l'enregistrement chargeait toute la configuration d'URL (et torch) "
+              "dans chaque processus Django",
               'wama/common/services/nightly_tests.py', 'docs/construction/suivi/PROJECT_STATUS.md §Tests fonctionnels nocturnes',
               annexes=('wama/common/services/ui_smoke.py',
                        # Familles de scénarios sorties d'`ui_smoke.py` (5 300 lignes) : leurs
@@ -1535,7 +1539,11 @@ MECHANISMS = (
               "« file HABITÉE » (témoin créé→page rendue→supprimé : une file vide ne rend "
               "AUCUNE card, donc ne teste rien du rendu de card). "
               "Le gate d'acceptation d'une jumelle reste sa BATTERIE UI auto-dérivée "
-              "(11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11",
+              "(11 scénarios `<label>.*` du registre nocturne) : describer_01 = 11/11. "
+              "Depuis le 2026-10-20 : la chaîne en UNE commande (`substitute <label> "
+              "a,b+c,…`, seconde passe des groupes revenus), et UN sous-processus de juge par "
+              "substitution (`check`, page, file habitée) — un démarrage de Django coûte ≈ 60 s "
+              "sous WSL",
               'wama/common/sandbox.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/management/commands/app_sandbox.py',
                        'wama/common/tests/tests_sandbox_coherence.py')),

@@ -582,16 +582,35 @@ def allowed_cloud_keys(user, automatic: bool = True) -> set:
             if (source in free_only and key not in free) or (source in no_free and key in free):
                 keys.discard(key)
     if automatic and keys:
-        # La portée d'une limite de débit est la CLÉ : la sienne s'il l'a posée, sinon l'instance.
-        # Écartés : une source notée saturée (refus récent, panne) ou un modèle dont le quota est
-        # atteint — compté par la brique commune des services externes (étape 3, 14/10).
-        from wama.common.services.source_quota import unavailable_keys
-        busy = unavailable_keys(keys, lambda s: f'user:{user.pk}' if s in personal else 'instance')
-        if busy:
-            keys = {k for k in keys if k not in busy}
-            # Dit dans les journaux : « pourquoi le tirage n'a-t-il pas pris ce modèle ? »
-            logger.info('[cloud] écartées du tirage de %s : %s', getattr(user, 'pk', None),
-                        ', '.join(f'{k} ({r})' for k, r in sorted(busy.items())))
+        keys = drop_unavailable(user, keys, personal_sources=set(personal))
+    return keys
+
+
+def drop_unavailable(user, keys, personal_sources=None) -> set:
+    """`keys` moins les modèles qu'un TIRAGE ne peut pas retenir maintenant : une source notée
+    saturée (refus récent, panne) ou un modèle dont le quota est atteint — comptés par la brique
+    commune des services externes (`source_quota`, `ROADMAP §8d` étapes 2-3). La portée d'une limite
+    de débit est la CLÉ : celle de `user` s'il l'a posée, sinon l'instance. `personal_sources` :
+    les sources où il a posé sa clé (relues en base si l'appelant ne les a pas).
+
+    La règle du tirage automatique (`allowed_cloud_keys`) ; le tirage de DÉVELOPPEMENT l'applique
+    aussi aux souverains qu'il ouvre à part (`development_models.dev_cloud_keys`, 2026-10-20 — il
+    les reprenait du choix manuel, qui ne l'applique pas : un ILaaS ou un Albert saturé restait
+    tirable par un rôle)."""
+    keys = set(keys)
+    if not keys or user is None:
+        return keys
+    if personal_sources is None:
+        from wama.accounts.models import UserApiKey
+        personal_sources = set(UserApiKey.objects.filter(user=user).exclude(api_key='')
+                               .values_list('source', flat=True))
+    from wama.common.services.source_quota import unavailable_keys
+    busy = unavailable_keys(keys, lambda s: f'user:{user.pk}' if s in personal_sources else 'instance')
+    if busy:
+        keys = {k for k in keys if k not in busy}
+        # Dit dans les journaux : « pourquoi le tirage n'a-t-il pas pris ce modèle ? »
+        logger.info('[cloud] écartées du tirage de %s : %s', getattr(user, 'pk', None),
+                    ', '.join(f'{k} ({r})' for k, r in sorted(busy.items())))
     return keys
 
 

@@ -600,7 +600,7 @@ class NewFileSubstitutionTest(SimpleTestCase):
                  patch.object(cmd_sandbox, 'load_registry', return_value=[entry]), \
                  patch.object(cmd_sandbox, '_save_entry', side_effect=saved.append), \
                  patch.object(cmd_sandbox, '_manage', return_value=ok), \
-                 patch.object(cmd_sandbox, '_smoke_page', return_value=ok), \
+                 patch.object(cmd_sandbox, '_judge', return_value=ok), \
                  patch.dict(cmd_sandbox._SUBSTITUTABLE,
                             {'tasks': ('tasks.py', __name__, '_render_stub_tasks')}), \
                  patch('wama.common.manifests.ingest.extract',
@@ -679,7 +679,7 @@ class DeclaredPathsJudgeTest(SimpleTestCase):
                  patch.object(cmd_sandbox, 'load_registry', return_value=[entry]), \
                  patch.object(cmd_sandbox, '_save_entry', side_effect=saved.append), \
                  patch.object(cmd_sandbox, '_manage', return_value=ok), \
-                 patch.object(cmd_sandbox, '_smoke_page', return_value=ok), \
+                 patch.object(cmd_sandbox, '_judge', return_value=ok), \
                  patch.dict(cmd_sandbox._SUBSTITUTABLE,
                             {'tasks': ('tasks.py', __name__, '_render_stub_tasks')}), \
                  patch('wama.common.manifests.ingest.extract',

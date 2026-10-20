@@ -100,19 +100,99 @@ class ScenarioResult:
     skipped: bool = False            # dépendance absente → ni passed ni failed
 
 
-# Registre global. Les apps appellent register(...) (idéalement depuis leur AppConfig.ready()).
-REGISTRY: List[Scenario] = []
+# Registre global, REMPLI AU PREMIER USAGE (2026-10-20). Une app ne s'enregistre plus en
+# exécutant ses `register(...)` dans son `ready()` : elle y DÉCLARE son enregistreur
+# (`add_registrar`), et le premier lecteur du registre les joue tous. Mesuré ce jour-là sous WSL :
+# un `django.setup()` prenait 58-63 s, parce que l'enregistrement des scénarios d'interface
+# résout l'index de chaque app (`reverse`) — donc charge TOUTE la configuration d'URL, les vues,
+# les tâches et les backends des apps (torch, ultralytics, cv2) —, et que celui du Studio importe
+# `generic_runner`, qui dérive à l'import les ports de chaque app (7,5 s). Gunicorn, chaque worker,
+# chaque commande et chaque série de tests payaient ce prix pour un registre que seuls le runner
+# nocturne et la grille fonctionnelle lisent.
+_REGISTRARS: List[Callable] = []
+_loading = False
+
+
+class _Registry(list):
+    """La liste des scénarios, complétée par les enregistreurs à sa première LECTURE (itération,
+    taille, indice, appartenance) : ses lecteurs — le runner, la grille, les tests — la lisent
+    comme avant. Une liste ordinaire posée à sa place (un test qui isole son registre) ne charge
+    rien."""
+
+    def _ensure(self):
+        load_scenarios()
+
+    def __iter__(self):
+        self._ensure()
+        return super().__iter__()
+
+    def __len__(self):
+        self._ensure()
+        return super().__len__()
+
+    def __getitem__(self, index):
+        self._ensure()
+        return super().__getitem__(index)
+
+    def __contains__(self, item):
+        self._ensure()
+        return super().__contains__(item)
+
+
+REGISTRY: List[Scenario] = _Registry()
 
 
 def register(**kwargs) -> Scenario:
-    """Enregistre un scénario. Doublon d'id → remplace (réimport sûr)."""
+    """Enregistre un scénario. Doublon d'id → remplace (réimport sûr). Écrit le registre SUR
+    PLACE et sans le lire par ses méthodes, pour ne pas déclencher son chargement."""
     sc = Scenario(**kwargs)
     if sc.cadence is not None and sc.cadence not in CADENCES:
         raise ValueError(f"{sc.id} : cadence inconnue {sc.cadence!r} (attendu : {CADENCES})")
-    global REGISTRY
-    REGISTRY = [s for s in REGISTRY if s.id != sc.id]
-    REGISTRY.append(sc)
+    kept = [s for s in list.__iter__(REGISTRY) if s.id != sc.id]
+    list.__setitem__(REGISTRY, slice(None), kept + [sc])
     return sc
+
+
+def add_registrar(registrar) -> None:
+    """Déclare un ENREGISTREUR de scénarios — une fonction sans argument qui appelle `register`,
+    ou son chemin `'module:fonction'`, importé seulement au chargement (ce qu'une app déclare dans
+    son `ready()` : rien n'y est importé). Joué au premier usage du registre ; déclaré après le
+    chargement, il est joué tout de suite."""
+    if registrar in _REGISTRARS:
+        return
+    _REGISTRARS.append(registrar)
+    if _loading is None:
+        _run_registrar(registrar)
+
+
+def _run_registrar(registrar) -> None:
+    # Un enregistreur qui échoue — à l'import ou à l'appel — ne prive pas les autres de leurs
+    # scénarios : la tolérance que chaque `ready()` portait autour de son appel (`try/except:
+    # pass`), dite ici au journal.
+    try:
+        if isinstance(registrar, str):
+            module, _, name = registrar.partition(':')
+            registrar = getattr(importlib.import_module(module), name)
+        registrar()
+    except Exception:
+        logger.warning('[nightly] enregistreur %s en échec', getattr(registrar, '__qualname__',
+                                                                  registrar), exc_info=True)
+
+
+def load_scenarios() -> None:
+    """Joue une fois les enregistreurs déclarés. `_loading` : False avant, True pendant (un
+    enregistreur qui relit le registre ne relance pas le chargement), None après."""
+    global _loading
+    if _loading is not False:
+        return
+    _loading = True
+    try:
+        i = 0
+        while i < len(_REGISTRARS):      # un enregistreur déclaré PENDANT le chargement en est
+            _run_registrar(_REGISTRARS[i])
+            i += 1
+    finally:
+        _loading = None
 
 
 def _sandbox_apps() -> set:
@@ -485,222 +565,227 @@ def register_examples() -> None:
              run=_smoke_import("wama.synthesizer.views"))
 
 
-# Auto-enregistrement des exemples au chargement du module (charpente démontrable).
-register_examples()
+def _register_builtin() -> None:
+    """L'enregistreur du module lui-même : les exemples de la charpente et les gestes
+    d'interface, joués au premier usage du registre comme ceux des apps (`add_registrar`)."""
+    register_examples()
 
-# Scénarios UI (un par app exposant une page d'index) — import TARDIF et tolérant : Playwright
-# ou le serveur peuvent manquer sur une machine de dev, ça ne doit pas casser le registre.
-try:
-    from wama.common.services.ui_smoke import (register_batch_actions_scenarios,
-                                               register_batch_import_scenarios,
-                                               register_clear_all_scenarios,
-                                               register_delete_from_batch_scenarios,
-                                               register_duplicate_delete_scenarios,
-                                               register_folder_import_scenarios,
-                                               register_import_scenarios,
-                                               register_add_scenarios,
-                                               register_inspector_actions_scenarios,
-                                               register_history_scenarios,
-                                               register_batch_processing_scenarios,
-                                               register_processing_scenarios,
-                                               register_queue_dnd_scenarios,
-                                               register_queue_search_scenarios,
-                                               register_batch_extract_scenarios,
-                                               register_send_to_scenarios,
-                                               register_settings_scenarios,
-                                               register_tree_drop_scenarios,
-                                               register_chat_drop_scenarios,
-                                               register_ui_scenarios,
-                                               register_url_import_scenarios,
-                                               register_volet_scenarios,
-                                               register_worker_death_scenarios)
-    from wama.common.services.ui_smoke_matching import (register_media_library_scenarios,
-                                                        register_vocals_scenarios,
-                                                        register_voice_language_scenarios,
-                                                        register_voice_library_scenarios)
-    from wama.common.services.ui_smoke_menus import register_menu_scenarios
-    from wama.common.services.ui_smoke_states import register_state_color_scenarios
-    from wama.common.services.ui_smoke_panel import register_panel_reflect_scenarios
-    from wama.common.services.ui_smoke_layout import register_layout_scenarios
-    from wama.common.services.ui_smoke_preview import register_preview_scenarios
-    register_ui_scenarios()
-    # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
-    # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
-    # (avatarizer, mesuré le 13/09). D'où ces gestes dans le navigateur, versés du bloc-notes.
-    register_voice_language_scenarios()
-    # 2026-09-30 — un champ de voix ouvre la médiathèque : ajouter (fichier, micro) puis choisir.
-    register_voice_library_scenarios()
-    register_media_library_scenarios()
-    # 2026-10-05 — la voix d'un morceau (composer) et le ✨ de la brique (imager).
-    register_vocals_scenarios()
-    # 2026-09-14 — les MENUS (cascade, clavier, « Envoyer vers » serveur, état médiathèque) :
-    # même raison, et versés de la sonde de session le jour même. Un menu refermé 7 ms après son
-    # ouverture, ↓ détourné par Bootstrap : aucun des deux ne lève d'erreur.
-    register_menu_scenarios()
-    # `<app>.ui` mesure la SANTÉ de la page (200, 0 erreur console) ; `<app>.import` mesure
-    # son COMPORTEMENT. Les deux sont nécessaires : converter_01 satisfaisait le premier tout
-    # en étant inerte — aucun script chargé, donc rien à planter (mesuré 2026-08-22).
-    register_import_scenarios()
-    # 2026-10-01 — geste 7, CRÉER PAR LE BOUTON PRIMAIRE (la moitié que `.import` laisse aux
-    # cards en mode attache). Écrit le jour où quatre apps sont passées sur la brique commune
-    # `WamaApp.addToQueue` : un portage qu'aucun geste n'exerçait. Il vérifie aussi que rien
-    # n'est LANCÉ à la création — c'est ce qui le laisse tourner chaque nuit.
-    register_add_scenarios()
-    # Phase 1 de la grille FONCTIONNELLE (WAMA_VERIFICATION.md §6) : les gestes 3 et 4 de la
-    # convention. Premier scénario à mesurer une convention que ​RIEN ne garantissait — les
-    # boutons `.duplicate-btn`/`.delete-btn` sont réécrits par chaque app, pas hérités d'un
-    # partial commun.
-    register_duplicate_delete_scenarios()
-    # Geste 2 de la convention (2026-08-23), enregistré le jour où le ⚙ a obtenu sa brique et son
-    # critère `settings_wiring`. Le critère est vert sur 10/10 ; ce scénario existe précisément
-    # parce qu'un vert d'ADOPTION ne dit rien du FONCTIONNEMENT — il atteste deux présences dans
-    # le code, pas qu'une modale s'ouvre ni qu'elle contient quoi que ce soit.
-    register_settings_scenarios()
-    # Premier scénario portant sur le LOT et non sur l'ÉLÉMENT (2026-08-24). Il manquait, et le
-    # trou était structurel : `<app>.duplicate_delete` vise `.wama-card[data-id]`, donc la card
-    # FILLE — les boutons de la card MÈRE n'étaient exercés par AUCUN clic, alors qu'ils venaient
-    # d'être portés à la brique commune sur 5 apps. Un portage non exercé est un portage supposé ;
-    # celui-ci commence par dire si l'app est portée (URLs émises) avant de mesurer le geste.
-    register_batch_actions_scenarios()
-    # 2026-09-15 — SUPPRIMER les cards d'un lot, sans rechargement de la page. Relevé par
-    # Fabien le 14/09 (lot réduit à une card resté affiché en lot) et corrigé AU COMMUN : ni un
-    # rechargement ni un lot figé ne lèvent d'erreur, seul le navigateur les voit.
-    register_delete_from_batch_scenarios()
-    # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
-    # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
-    register_volet_scenarios()
-    # 2026-10-12 — la MISE EN PAGE à largeur de tablette : volets par contexte de largeur, barre
-    # du haut et pied sans chevauchement. Un logo posé sur ses voisins ne lève aucune erreur — il
-    # l'était dès 1 280 px volets ouverts, et personne ne l'a dit avant une mesure.
-    register_layout_scenarios()
-    # 2026-08-27 — le chemin que AUCUN des six précédents n'emprunte : la SÉLECTION.
-    # `batch_actions` clique les boutons DE la card ; c'est `selectItem`/`selectBatch` qui
-    # peuplent le volet Actions. D'où deux défauts MUETS passés au travers du nocturne :
-    # le contrat inversé de `renderBatchActions` (TypeError, 4 apps, atteint sur un compte
-    # réel) et l'imager sans aucun rappel (`fillActions` fait `if (renderFn)` → volet vide,
-    # zéro erreur). La mesure n'est que des clics ; le chemin « card mère » exige en revanche
-    # un lot multi-éléments, que le scénario MONTE quand il manque, sous une garde qui retire
-    # en sortie ce qu'il a créé et rien d'autre (différence d'ids) — jamais un objet existant.
-    register_inspector_actions_scenarios()
-    # 2026-09-06 — MANIPULATION DIRECTE (sélection multiple + seuils de dépôt), la moitié
-    # NAVIGATEUR des gestes livrés le 04/09. `wama-queue-dnd.js` est monté globalement sur les
-    # 13 files et rien ne le vérifiait : la grille d'adoption mesure qu'un fichier est inclus,
-    # pas qu'il AGIT, et `tests_queue_dnd` couvre les endpoints, pas le navigateur. Or un
-    # renommage JS ne casse que dans le navigateur — celui du 04/09 (226 occurrences) a dû être
-    # re-mesuré à la main, faute de ce scénario. Aucun POST : on lit la DÉCISION de dépôt,
-    # jamais le dépôt.
-    register_queue_dnd_scenarios()
-    # 2026-09-09 — geste 18 : la RECHERCHE de la barre de file et la SORTIE DE LOT, les deux
-    # gestes livrés le 08/09. Ils tombaient dans l'interstice EXACT que la session a nommé :
-    # `queue_dnd` ci-dessus ne POSTE rien (par conception, il lit la décision de dépôt) et
-    # `tests_queue_dnd` appelle les endpoints par `reverse()`, donc avec un pk déjà juste. La
-    # substitution du pk — le PONT — n'était tenue par personne, et c'est là que le défaut de
-    # l'imager a vécu : 404 sur pk=0, puis un rechargement identique, sans un mot.
-    # Ces deux familles POSTENT pour de vrai, sur une file HABITÉE qu'elles sèment par la voie
-    # de lot (la seule création dont le contrat garantit qu'elle ne démarre rien) et qu'elles
-    # nettoient en sortie. `duplicate_delete` écrit déjà : ce n'est pas une première.
-    register_queue_search_scenarios()
-    register_batch_extract_scenarios()
-    # 2026-09-06 — geste 17 : ANNULER / RÉTABLIR. `wama-history.js` a deux consommateurs
-    # (correction transcriber, canvas studio) et n'avait AUCUN scénario. Un seul est jouable
-    # sans écrire : la page de correction auto-enregistre (`markDirty` → save 800 ms), le
-    # studio ne persiste qu'en localStorage. Le scénario mesure les DEUX moitiés — le câblage
-    # du consommateur ET la sémantique de la brique — parce qu'aucune ne se déduit de l'autre.
-    register_history_scenarios()
-    # 2026-09-18 — la COULEUR D'ÉTAT d'une card, telle que le navigateur la rend. La bascule du
-    # jour a retiré la classe d'état de 11 gabarits, du générateur et de 4 sites JS : le CSS lit
-    # désormais `data-status`, que la card portait déjà. Aucun test Python ne voit ce
-    # changement — ils lisent des sources, pas un rendu —, et une règle qui ne gagne pas
-    # (spécificité, `!important` de Bootstrap) ne lève AUCUNE erreur : c'est exactement ainsi
-    # que le bord d'état était resté GRIS jusqu'au 02/09, trouvé au `getComputedStyle` seul.
-    register_state_color_scenarios()
-    # 2026-10-11 — le VOLET de réglages : la card sélectionnée y montre ses réglages, le ✕ y remet
-    # ceux de la file. Né du portage des volets générés (avatarizer, synthesizer, enhancer) : une
-    # liste du catalogue liée deux fois y retombait sur « auto » sans la moindre erreur.
-    register_panel_reflect_scenarios()
-    # 2026-09-06 — gestes 8/9/10/12 : DÉMARRER → PROGRESSER → RÉUSSIR → TÉLÉCHARGER. Le
-    # premier scénario du harnais qui va jusqu'au RÉSULTAT sur une app de file. Sa VRAM est
-    # DÉRIVÉE du catalogue (`AIModel.source`), donc le mode sans GPU l'écarte partout où l'app
-    # mobilise un modèle : seul le converter (aucun modèle, tâches routées sur `default`) le
-    # joue chaque nuit. Les autres sont ÉCRITS et attendent `--with-gpu`.
-    register_processing_scenarios()
-    # 2026-09-06 — gestes 13 et 10 : « Démarrer tout » / « Télécharger tout » sur un LOT, et
-    # la PROGRESSION qui avance. Le lot est la seule surface où l'avancement s'échantillonne
-    # sans fabriquer une entrée artificiellement lourde : il franchit des paliers (0 → 50 →
-    # 100), là où un élément seul saute à 100 % en 0,2 s. Même régime GPU que `.processing`.
-    register_batch_processing_scenarios()
-    # 2026-09-24 — un worker MEURT pendant un traitement : la card passe en échec relançable
-    # sans rechargement (demande de Fabien). Aucun GPU : l'état de crash est posé en base, puis la
-    # brique que le worker relancé appelle (`reconcile_dead_worker_tasks`) le solde.
-    register_worker_death_scenarios()
-    # 2026-10-12 — gestes 11 et 11b, l'APERÇU d'une card : son entrée (le nom), puis sa sortie
-    # (la vignette), sur un résultat POSÉ en base — aucun GPU. Le geste 11 de `processing` n'est
-    # joué que sur le converter : « No media URL » (Describer) et l'entrée inerte (Reader) n'étaient
-    # vus par aucun scénario.
-    register_preview_scenarios()
-    # 2026-10-16 — le CONTRASTE (Fabien : « parfois le texte est écrit de la même couleur que le
-    # fond »). Une couleur réelle ne se lit que dans le navigateur ; axe-core la tranche. Aucun GPU.
-    from wama.common.services.ui_smoke_contrast import register_contrast_scenarios
-    register_contrast_scenarios()
-    # 2026-10-18 — les SURFACES : aucune page d'édition n'était ouverte par le nocturne, et le
-    # catalogue des briques UI veut une vignette par brique (Fabien). Chaque surface s'ouvre sur
-    # l'élément témoin qu'elle déclare (`Surface.witness`), ses briques y sont capturées. Aucun GPU.
-    from wama.common.services.ui_smoke_surfaces import register_surface_scenarios
-    register_surface_scenarios()
-    # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
-    # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
-    # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais
-    # il s'est révélé être un geste GPU sur deux d'entre elles : composer expédie la tâche DANS
-    # sa vue de création (`composer/views.py:235`), avatarizer enchaîne `createJob()` puis
-    # `startJob()` (`avatarizer/js/index.js:253-254`). Une session ne lance jamais de traitement.
-    # ⚠ SOLDÉ le 2026-09-29 (règle des deux temps, CARD_DESIGN §11.11 Étape 3) : le bouton
-    # primaire de composer ET d'avatarizer AJOUTE sans lancer — le geste 7 n'est plus un geste
-    # GPU sur ces deux apps. ✅ ÉCRIT le 2026-10-01 (`register_add_scenarios`, plus haut) ; ce
-    # commentaire garde l'historique.
-    # Le fichier de lot atteint le même but par la seule voie dont le CONTRAT sépare « Ajouter »
-    # de « Démarrer » — et le scénario vérifie que ce contrat est tenu, car c'est lui qui
-    # l'autorise à tourner de jour sur un GPU partagé.
-    register_batch_import_scenarios()
-    # 2026-08-28 — geste 5, le seul du catalogue dont l'effet VOULU est destructeur. Il ne
-    # s'exerce donc que sous le compte de TEST, et la borne n'est pas la prudence de
-    # l'instrument : les dix vues `clear_all` filtrent sur `user=` (10/10). Il mesure TROIS
-    # vérités que rien n'obligeait à coïncider — la file vue par l'utilisateur juste après son
-    # clic (les gestionnaires d'app retirent les cards à la main : ce que leur sélecteur ne vise
-    # pas reste à l'écran), celle que le serveur a réellement vidée, et **la BASE, que nul écran
-    # ne montre** : un lot vidé ne rend aucune card, donc rien ne le trahirait.
-    register_clear_all_scenarios()
-    # 2026-08-28 — geste 14, moitié « ENVOYER VERS » : le seul import qui ne PART PAS de l'app.
-    # Il traverse deux moitiés bâties sur des sources DIFFÉRENTES — le menu se construit chez le
-    # client depuis `WAMA_APP_CATALOG.input_extensions` (la déclaration de l'app), la réception
-    # se valide chez le serveur contre une liste écrite à la main dans `api_import_to_app`. Rien
-    # n'oblige les deux à coïncider, et rien ne le signalait : une app OFFERTE puis REFUSÉE ne
-    # produit qu'un toast d'erreur. Un test qui posterait sur l'endpoint ne le verrait jamais —
-    # il faut passer par le menu, c'est-à-dire par le geste.
-    register_send_to_scenarios()
-    # 2026-08-28 — geste 14, moitié « URL ». Le seul geste du catalogue qui fait SORTIR le
-    # serveur, donc le seul dont la mesure rencontre la garde SSRF (`url_guard`). Le scénario
-    # ne la contourne pas : il publie son témoin sous MEDIA_URL (bouclage), et lit ce que
-    # l'app en fait. Une app qui le TÉLÉCHARGE quand même n'appelle pas la garde — c'est un
-    # échec de sécurité, pas un succès du geste, et aucune autre mesure ne le verrait.
-    register_url_import_scenarios()
-    # 2026-08-28 — geste 14, dernier quart : l'IMPORT DE DOSSIER. Le seul geste du catalogue
-    # dont une partie est INATTEIGNABLE par un harnais — le sélecteur de dossier est une boîte
-    # de dialogue du SYSTÈME. Il se mesure donc en deux moitiés SÉPARÉES, parce qu'elles
-    # cassent séparément : la traversée récursive de la brique commune (exercée sur un arbre
-    # synthétique — c'est le code de production qui tourne), puis le câblage de l'app (N
-    # fichiers posés → N éléments EN BASE, car une app qui groupe rendrait UNE card pour deux).
-    register_folder_import_scenarios()
-    # 2026-09-30 — geste 14, part « glisser depuis l'ARBRE » sur la card v4 : chaque tuile
-    # (travail, port, Lot) reçoit un fichier du dossier temporaire ET d'un dossier connecté
-    # jetable. Né de la revérification du 30/09, qui a trouvé trois défauts qu'aucun geste
-    # ne voyait (lot importé comme fichier de travail, port sans contrôle d'`accept`, tuile
-    # masquée d'un onglet inactif prise pour une card repliée).
-    register_tree_drop_scenarios()
-    # 2026-10-18 — le glisser-déposer sur le CHAT de l'assistant (poste, arbre, envoi) : le fichier
-    # de l'arbre n'arrivait pas en mode normal, et aucun geste ne le mesurait (D36).
-    register_chat_drop_scenarios()
-except Exception as _e:                                   # pragma: no cover
-    logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")
+    # Scénarios UI (un par app exposant une page d'index) — import TARDIF et tolérant : Playwright
+    # ou le serveur peuvent manquer sur une machine de dev, ça ne doit pas casser le registre.
+    try:
+        from wama.common.services.ui_smoke import (register_batch_actions_scenarios,
+                                                   register_batch_import_scenarios,
+                                                   register_clear_all_scenarios,
+                                                   register_delete_from_batch_scenarios,
+                                                   register_duplicate_delete_scenarios,
+                                                   register_folder_import_scenarios,
+                                                   register_import_scenarios,
+                                                   register_add_scenarios,
+                                                   register_inspector_actions_scenarios,
+                                                   register_history_scenarios,
+                                                   register_batch_processing_scenarios,
+                                                   register_processing_scenarios,
+                                                   register_queue_dnd_scenarios,
+                                                   register_queue_search_scenarios,
+                                                   register_batch_extract_scenarios,
+                                                   register_send_to_scenarios,
+                                                   register_settings_scenarios,
+                                                   register_tree_drop_scenarios,
+                                                   register_chat_drop_scenarios,
+                                                   register_ui_scenarios,
+                                                   register_url_import_scenarios,
+                                                   register_volet_scenarios,
+                                                   register_worker_death_scenarios)
+        from wama.common.services.ui_smoke_matching import (register_media_library_scenarios,
+                                                            register_vocals_scenarios,
+                                                            register_voice_language_scenarios,
+                                                            register_voice_library_scenarios)
+        from wama.common.services.ui_smoke_menus import register_menu_scenarios
+        from wama.common.services.ui_smoke_states import register_state_color_scenarios
+        from wama.common.services.ui_smoke_panel import register_panel_reflect_scenarios
+        from wama.common.services.ui_smoke_layout import register_layout_scenarios
+        from wama.common.services.ui_smoke_preview import register_preview_scenarios
+        register_ui_scenarios()
+        # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
+        # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
+        # (avatarizer, mesuré le 13/09). D'où ces gestes dans le navigateur, versés du bloc-notes.
+        register_voice_language_scenarios()
+        # 2026-09-30 — un champ de voix ouvre la médiathèque : ajouter (fichier, micro) puis choisir.
+        register_voice_library_scenarios()
+        register_media_library_scenarios()
+        # 2026-10-05 — la voix d'un morceau (composer) et le ✨ de la brique (imager).
+        register_vocals_scenarios()
+        # 2026-09-14 — les MENUS (cascade, clavier, « Envoyer vers » serveur, état médiathèque) :
+        # même raison, et versés de la sonde de session le jour même. Un menu refermé 7 ms après son
+        # ouverture, ↓ détourné par Bootstrap : aucun des deux ne lève d'erreur.
+        register_menu_scenarios()
+        # `<app>.ui` mesure la SANTÉ de la page (200, 0 erreur console) ; `<app>.import` mesure
+        # son COMPORTEMENT. Les deux sont nécessaires : converter_01 satisfaisait le premier tout
+        # en étant inerte — aucun script chargé, donc rien à planter (mesuré 2026-08-22).
+        register_import_scenarios()
+        # 2026-10-01 — geste 7, CRÉER PAR LE BOUTON PRIMAIRE (la moitié que `.import` laisse aux
+        # cards en mode attache). Écrit le jour où quatre apps sont passées sur la brique commune
+        # `WamaApp.addToQueue` : un portage qu'aucun geste n'exerçait. Il vérifie aussi que rien
+        # n'est LANCÉ à la création — c'est ce qui le laisse tourner chaque nuit.
+        register_add_scenarios()
+        # Phase 1 de la grille FONCTIONNELLE (WAMA_VERIFICATION.md §6) : les gestes 3 et 4 de la
+        # convention. Premier scénario à mesurer une convention que ​RIEN ne garantissait — les
+        # boutons `.duplicate-btn`/`.delete-btn` sont réécrits par chaque app, pas hérités d'un
+        # partial commun.
+        register_duplicate_delete_scenarios()
+        # Geste 2 de la convention (2026-08-23), enregistré le jour où le ⚙ a obtenu sa brique et son
+        # critère `settings_wiring`. Le critère est vert sur 10/10 ; ce scénario existe précisément
+        # parce qu'un vert d'ADOPTION ne dit rien du FONCTIONNEMENT — il atteste deux présences dans
+        # le code, pas qu'une modale s'ouvre ni qu'elle contient quoi que ce soit.
+        register_settings_scenarios()
+        # Premier scénario portant sur le LOT et non sur l'ÉLÉMENT (2026-08-24). Il manquait, et le
+        # trou était structurel : `<app>.duplicate_delete` vise `.wama-card[data-id]`, donc la card
+        # FILLE — les boutons de la card MÈRE n'étaient exercés par AUCUN clic, alors qu'ils venaient
+        # d'être portés à la brique commune sur 5 apps. Un portage non exercé est un portage supposé ;
+        # celui-ci commence par dire si l'app est portée (URLs émises) avant de mesurer le geste.
+        register_batch_actions_scenarios()
+        # 2026-09-15 — SUPPRIMER les cards d'un lot, sans rechargement de la page. Relevé par
+        # Fabien le 14/09 (lot réduit à une card resté affiché en lot) et corrigé AU COMMUN : ni un
+        # rechargement ni un lot figé ne lèvent d'erreur, seul le navigateur les voit.
+        register_delete_from_batch_scenarios()
+        # Le VOLET DROIT est une troisième surface : ni la santé de la page ni la création d'un
+        # élément ne voient un ✕ qui ne désélectionne pas (aucune erreur console — cf. WAMA_VOLETS §4).
+        register_volet_scenarios()
+        # 2026-10-12 — la MISE EN PAGE à largeur de tablette : volets par contexte de largeur, barre
+        # du haut et pied sans chevauchement. Un logo posé sur ses voisins ne lève aucune erreur — il
+        # l'était dès 1 280 px volets ouverts, et personne ne l'a dit avant une mesure.
+        register_layout_scenarios()
+        # 2026-08-27 — le chemin que AUCUN des six précédents n'emprunte : la SÉLECTION.
+        # `batch_actions` clique les boutons DE la card ; c'est `selectItem`/`selectBatch` qui
+        # peuplent le volet Actions. D'où deux défauts MUETS passés au travers du nocturne :
+        # le contrat inversé de `renderBatchActions` (TypeError, 4 apps, atteint sur un compte
+        # réel) et l'imager sans aucun rappel (`fillActions` fait `if (renderFn)` → volet vide,
+        # zéro erreur). La mesure n'est que des clics ; le chemin « card mère » exige en revanche
+        # un lot multi-éléments, que le scénario MONTE quand il manque, sous une garde qui retire
+        # en sortie ce qu'il a créé et rien d'autre (différence d'ids) — jamais un objet existant.
+        register_inspector_actions_scenarios()
+        # 2026-09-06 — MANIPULATION DIRECTE (sélection multiple + seuils de dépôt), la moitié
+        # NAVIGATEUR des gestes livrés le 04/09. `wama-queue-dnd.js` est monté globalement sur les
+        # 13 files et rien ne le vérifiait : la grille d'adoption mesure qu'un fichier est inclus,
+        # pas qu'il AGIT, et `tests_queue_dnd` couvre les endpoints, pas le navigateur. Or un
+        # renommage JS ne casse que dans le navigateur — celui du 04/09 (226 occurrences) a dû être
+        # re-mesuré à la main, faute de ce scénario. Aucun POST : on lit la DÉCISION de dépôt,
+        # jamais le dépôt.
+        register_queue_dnd_scenarios()
+        # 2026-09-09 — geste 18 : la RECHERCHE de la barre de file et la SORTIE DE LOT, les deux
+        # gestes livrés le 08/09. Ils tombaient dans l'interstice EXACT que la session a nommé :
+        # `queue_dnd` ci-dessus ne POSTE rien (par conception, il lit la décision de dépôt) et
+        # `tests_queue_dnd` appelle les endpoints par `reverse()`, donc avec un pk déjà juste. La
+        # substitution du pk — le PONT — n'était tenue par personne, et c'est là que le défaut de
+        # l'imager a vécu : 404 sur pk=0, puis un rechargement identique, sans un mot.
+        # Ces deux familles POSTENT pour de vrai, sur une file HABITÉE qu'elles sèment par la voie
+        # de lot (la seule création dont le contrat garantit qu'elle ne démarre rien) et qu'elles
+        # nettoient en sortie. `duplicate_delete` écrit déjà : ce n'est pas une première.
+        register_queue_search_scenarios()
+        register_batch_extract_scenarios()
+        # 2026-09-06 — geste 17 : ANNULER / RÉTABLIR. `wama-history.js` a deux consommateurs
+        # (correction transcriber, canvas studio) et n'avait AUCUN scénario. Un seul est jouable
+        # sans écrire : la page de correction auto-enregistre (`markDirty` → save 800 ms), le
+        # studio ne persiste qu'en localStorage. Le scénario mesure les DEUX moitiés — le câblage
+        # du consommateur ET la sémantique de la brique — parce qu'aucune ne se déduit de l'autre.
+        register_history_scenarios()
+        # 2026-09-18 — la COULEUR D'ÉTAT d'une card, telle que le navigateur la rend. La bascule du
+        # jour a retiré la classe d'état de 11 gabarits, du générateur et de 4 sites JS : le CSS lit
+        # désormais `data-status`, que la card portait déjà. Aucun test Python ne voit ce
+        # changement — ils lisent des sources, pas un rendu —, et une règle qui ne gagne pas
+        # (spécificité, `!important` de Bootstrap) ne lève AUCUNE erreur : c'est exactement ainsi
+        # que le bord d'état était resté GRIS jusqu'au 02/09, trouvé au `getComputedStyle` seul.
+        register_state_color_scenarios()
+        # 2026-10-11 — le VOLET de réglages : la card sélectionnée y montre ses réglages, le ✕ y remet
+        # ceux de la file. Né du portage des volets générés (avatarizer, synthesizer, enhancer) : une
+        # liste du catalogue liée deux fois y retombait sur « auto » sans la moindre erreur.
+        register_panel_reflect_scenarios()
+        # 2026-09-06 — gestes 8/9/10/12 : DÉMARRER → PROGRESSER → RÉUSSIR → TÉLÉCHARGER. Le
+        # premier scénario du harnais qui va jusqu'au RÉSULTAT sur une app de file. Sa VRAM est
+        # DÉRIVÉE du catalogue (`AIModel.source`), donc le mode sans GPU l'écarte partout où l'app
+        # mobilise un modèle : seul le converter (aucun modèle, tâches routées sur `default`) le
+        # joue chaque nuit. Les autres sont ÉCRITS et attendent `--with-gpu`.
+        register_processing_scenarios()
+        # 2026-09-06 — gestes 13 et 10 : « Démarrer tout » / « Télécharger tout » sur un LOT, et
+        # la PROGRESSION qui avance. Le lot est la seule surface où l'avancement s'échantillonne
+        # sans fabriquer une entrée artificiellement lourde : il franchit des paliers (0 → 50 →
+        # 100), là où un élément seul saute à 100 % en 0,2 s. Même régime GPU que `.processing`.
+        register_batch_processing_scenarios()
+        # 2026-09-24 — un worker MEURT pendant un traitement : la card passe en échec relançable
+        # sans rechargement (demande de Fabien). Aucun GPU : l'état de crash est posé en base, puis la
+        # brique que le worker relancé appelle (`reconcile_dead_worker_tasks`) le solde.
+        register_worker_death_scenarios()
+        # 2026-10-12 — gestes 11 et 11b, l'APERÇU d'une card : son entrée (le nom), puis sa sortie
+        # (la vignette), sur un résultat POSÉ en base — aucun GPU. Le geste 11 de `processing` n'est
+        # joué que sur le converter : « No media URL » (Describer) et l'entrée inerte (Reader) n'étaient
+        # vus par aucun scénario.
+        register_preview_scenarios()
+        # 2026-10-16 — le CONTRASTE (Fabien : « parfois le texte est écrit de la même couleur que le
+        # fond »). Une couleur réelle ne se lit que dans le navigateur ; axe-core la tranche. Aucun GPU.
+        from wama.common.services.ui_smoke_contrast import register_contrast_scenarios
+        register_contrast_scenarios()
+        # 2026-10-18 — les SURFACES : aucune page d'édition n'était ouverte par le nocturne, et le
+        # catalogue des briques UI veut une vignette par brique (Fabien). Chaque surface s'ouvre sur
+        # l'élément témoin qu'elle déclare (`Surface.witness`), ses briques y sont capturées. Aucun GPU.
+        from wama.common.services.ui_smoke_surfaces import register_surface_scenarios
+        register_surface_scenarios()
+        # 2026-08-27 — geste 14 (moitié « fichier de lot »), enregistré À LA PLACE du geste 7 qui
+        # devait suivre. Le geste 7 (« créer par le bouton primaire ») débloquait d'un coup
+        # `inspector_actions` et `batch_actions` sur les trois apps dont la file reste vide — mais
+        # il s'est révélé être un geste GPU sur deux d'entre elles : composer expédie la tâche DANS
+        # sa vue de création (`composer/views.py:235`), avatarizer enchaîne `createJob()` puis
+        # `startJob()` (`avatarizer/js/index.js:253-254`). Une session ne lance jamais de traitement.
+        # ⚠ SOLDÉ le 2026-09-29 (règle des deux temps, CARD_DESIGN §11.11 Étape 3) : le bouton
+        # primaire de composer ET d'avatarizer AJOUTE sans lancer — le geste 7 n'est plus un geste
+        # GPU sur ces deux apps. ✅ ÉCRIT le 2026-10-01 (`register_add_scenarios`, plus haut) ; ce
+        # commentaire garde l'historique.
+        # Le fichier de lot atteint le même but par la seule voie dont le CONTRAT sépare « Ajouter »
+        # de « Démarrer » — et le scénario vérifie que ce contrat est tenu, car c'est lui qui
+        # l'autorise à tourner de jour sur un GPU partagé.
+        register_batch_import_scenarios()
+        # 2026-08-28 — geste 5, le seul du catalogue dont l'effet VOULU est destructeur. Il ne
+        # s'exerce donc que sous le compte de TEST, et la borne n'est pas la prudence de
+        # l'instrument : les dix vues `clear_all` filtrent sur `user=` (10/10). Il mesure TROIS
+        # vérités que rien n'obligeait à coïncider — la file vue par l'utilisateur juste après son
+        # clic (les gestionnaires d'app retirent les cards à la main : ce que leur sélecteur ne vise
+        # pas reste à l'écran), celle que le serveur a réellement vidée, et **la BASE, que nul écran
+        # ne montre** : un lot vidé ne rend aucune card, donc rien ne le trahirait.
+        register_clear_all_scenarios()
+        # 2026-08-28 — geste 14, moitié « ENVOYER VERS » : le seul import qui ne PART PAS de l'app.
+        # Il traverse deux moitiés bâties sur des sources DIFFÉRENTES — le menu se construit chez le
+        # client depuis `WAMA_APP_CATALOG.input_extensions` (la déclaration de l'app), la réception
+        # se valide chez le serveur contre une liste écrite à la main dans `api_import_to_app`. Rien
+        # n'oblige les deux à coïncider, et rien ne le signalait : une app OFFERTE puis REFUSÉE ne
+        # produit qu'un toast d'erreur. Un test qui posterait sur l'endpoint ne le verrait jamais —
+        # il faut passer par le menu, c'est-à-dire par le geste.
+        register_send_to_scenarios()
+        # 2026-08-28 — geste 14, moitié « URL ». Le seul geste du catalogue qui fait SORTIR le
+        # serveur, donc le seul dont la mesure rencontre la garde SSRF (`url_guard`). Le scénario
+        # ne la contourne pas : il publie son témoin sous MEDIA_URL (bouclage), et lit ce que
+        # l'app en fait. Une app qui le TÉLÉCHARGE quand même n'appelle pas la garde — c'est un
+        # échec de sécurité, pas un succès du geste, et aucune autre mesure ne le verrait.
+        register_url_import_scenarios()
+        # 2026-08-28 — geste 14, dernier quart : l'IMPORT DE DOSSIER. Le seul geste du catalogue
+        # dont une partie est INATTEIGNABLE par un harnais — le sélecteur de dossier est une boîte
+        # de dialogue du SYSTÈME. Il se mesure donc en deux moitiés SÉPARÉES, parce qu'elles
+        # cassent séparément : la traversée récursive de la brique commune (exercée sur un arbre
+        # synthétique — c'est le code de production qui tourne), puis le câblage de l'app (N
+        # fichiers posés → N éléments EN BASE, car une app qui groupe rendrait UNE card pour deux).
+        register_folder_import_scenarios()
+        # 2026-09-30 — geste 14, part « glisser depuis l'ARBRE » sur la card v4 : chaque tuile
+        # (travail, port, Lot) reçoit un fichier du dossier temporaire ET d'un dossier connecté
+        # jetable. Né de la revérification du 30/09, qui a trouvé trois défauts qu'aucun geste
+        # ne voyait (lot importé comme fichier de travail, port sans contrôle d'`accept`, tuile
+        # masquée d'un onglet inactif prise pour une card repliée).
+        register_tree_drop_scenarios()
+        # 2026-10-18 — le glisser-déposer sur le CHAT de l'assistant (poste, arbre, envoi) : le fichier
+        # de l'arbre n'arrivait pas en mode normal, et aucun geste ne le mesurait (D36).
+        register_chat_drop_scenarios()
+    except Exception as _e:                                   # pragma: no cover
+        logger.debug(f"[nightly] scénarios UI non enregistrés ({_e})")
+
+
+add_registrar(_register_builtin)
 
 # Scénarios de DROITS — bloc SÉPARÉ, et pas par goût de la symétrie : ils ne dépendent pas de
 # Playwright (HTTP nu). Les loger dans le `try` ci-dessus les ferait disparaître du registre sur

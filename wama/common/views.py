@@ -391,8 +391,7 @@ def apps_catalog_view(request):
     # jamais exécutés y figurent : ne montrer que ce qui a tourné surestimerait la couverture.
     grille_droits = []
     try:
-        from .nightly_scenarios import register_scenarios
-        register_scenarios()
+        # Le registre se remplit de lui-même à sa première lecture (`nightly_tests.add_registrar`).
         from .services.nightly_tests import functional_grid
         grille_fonctionnelle = functional_grid()
         # ── 3ᵉ grille : les DROITS (WAMA_VERIFICATION §3ter — branchée le 01/09). Orthogonale

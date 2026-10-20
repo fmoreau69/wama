@@ -108,16 +108,18 @@ def dev_cloud_keys(user) -> set:
     « cloud si WAMA est saturé ». Sans utilisateur (rôle en ligne de commande) : aucun."""
     if user is None or not getattr(user, 'is_authenticated', False):
         return set()
-    from wama.model_manager.services.cloud_models import allowed_cloud_keys
+    from wama.model_manager.services.cloud_models import allowed_cloud_keys, drop_unavailable
     keys = set(allowed_cloud_keys(user, automatic=True))
     if not DEV_SOVEREIGN_AUTOMATIC:
         return keys
     from wama.common import external_sources
     sovereign = {s.key for s in external_sources.SOURCES if getattr(s, 'hosting', '') == 'sovereign'}
-    for key in allowed_cloud_keys(user, automatic=False):
-        if key.partition(':')[0] in sovereign:
-            keys.add(key)
-    return keys
+    # Repris du choix MANUEL, qui n'écarte pas les sources saturées : le tirage les écarte, comme
+    # le tirage automatique (`drop_unavailable`, 2026-10-20 — un ILaaS ou un Albert saturé restait
+    # tirable par un rôle de développement).
+    opened = {key for key in allowed_cloud_keys(user, automatic=False)
+              if key.partition(':')[0] in sovereign} - keys
+    return keys | drop_unavailable(user, opened)
 
 
 def _graded_candidates(cloud: set, grade, user=None) -> list:

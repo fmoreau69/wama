@@ -16,8 +16,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 OUTPUTS = Path(__file__).resolve().parent / 'outputs'
 PROMPTS = Path(__file__).resolve().parent / 'prompts'
 
-# Ollama (gateway) SANS proxy — le proxy UGE avalerait 172.x ; le web AVEC proxy (défaut env).
-_OPENER_DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+# Ollama SANS proxy (le proxy UGE avalerait 172.x) : c'est la brique commune qui l'assure
+# (`llm_utils.ollama_chat`, `trust_env=False`) depuis que `call_ollama` passe par elle
+# (2026-10-20) ; le web, lui, garde le proxy de l'environnement.
 
 
 def ollama_host():
@@ -914,21 +915,20 @@ def call_ollama(model, system, user_msg, num_ctx=16384, keep_alive=None,
     remplacer sans les offrir aurait TRONQUÉ sa matière (jusqu'à 60 000 caractères servis,
     illisibles à num_ctx=16384) et raccourci son délai. *Avant de supprimer un doublon, on
     compare ; s'il diverge, on FUSIONNE — sinon la déduplication perd une capacité.*
+
+    Par la brique COMMUNE de l'assistant depuis le 2026-10-20 (`llm_utils.llm_chat`, fournisseur
+    `ollama`) : ce fichier portait son propre POST `/api/chat`. Mêmes valeurs à l'octet — fenêtre,
+    résidence, température, délai, aucun plafond de jetons, aucun proxy (`trust_env=False` de la
+    brique) —, et l'échec LÈVE toujours : les pilotes n'ont pas à distinguer les chemins.
     """
-    payload = {
-        'model': model,
-        'messages': [{'role': 'system', 'content': system},
-                     {'role': 'user', 'content': user_msg}],
-        'stream': False,
-        'options': {'temperature': temperature, 'num_ctx': num_ctx},
-    }
-    if keep_alive is not None:
-        payload['keep_alive'] = keep_alive
-    req = urllib.request.Request(
-        f'{ollama_host()}/api/chat', data=json.dumps(payload).encode('utf-8'),
-        headers={'Content-Type': 'application/json'})
-    with _OPENER_DIRECT.open(req, timeout=timeout) as r:
-        return json.loads(r.read())['message']['content']
+    from wama.common.utils.llm_utils import llm_chat
+    text, error = llm_chat(
+        [{'role': 'system', 'content': system}, {'role': 'user', 'content': user_msg}],
+        model=model, provider='ollama', num_predict=None, num_ctx=num_ctx,
+        keep_alive=keep_alive, temperature=temperature, timeout=timeout)
+    if text is None:
+        raise RuntimeError(f'ollama : {error}')
+    return text
 
 
 #: Variable d'environnement qui choisit le fournisseur de TOUS les rôles quand la ligne de
@@ -1034,29 +1034,47 @@ def call_llm(provider, model, system, user_msg, num_ctx=16384, keep_alive=None,
             temperature=temperature, timeout=timeout)
     except CloudAccessRefused as refused:
         raise RuntimeError(f'{provider} : {refused}') from refused
-    if text is None and REMOTE_CUT.search(error or ''):
-        return _replay_locally(provider, error, system, user_msg, num_ctx, temperature, timeout)
     if text is None:
+        from wama.common.services.source_quota import saturation_reason
+        reason = saturation_reason(role_user(), provider)
+        if reason:
+            return _relay(provider, reason, error, system, user_msg, num_ctx, temperature, timeout)
         raise RuntimeError(f'{provider} : {error}')
     return text
 
 
-#: Une COUPURE côté fournisseur distant (pas un refus, pas une erreur du rôle) : ILaaS ferme les
-#: requêtes longues — 2 min 55 à 5 min, cinq fois sur cinq pour le brouillon d'app du 15-16/10,
-#: AVEC ou SANS flux (mesuré : le flux n'y change rien, c'est une limite de durée).
-REMOTE_CUT = re.compile(r'Connection error|InternalServerError|timed out', re.I)
+def _relay(provider, reason, error, system, user_msg, num_ctx, temperature, timeout):
+    """L'appel d'un fournisseur que la brique commune vient de NOTER saturé ou en panne
+    (`llm_chat` → `source_quota.note_saturation` : limite de débit, coupure — reconnues par le
+    statut ou le type d'erreur, jamais par le texte), rejoué UNE fois sur le TIRAGE de
+    développement du compte, qui écarte la source notée (`dev_cloud_keys` → `drop_unavailable`) :
+    un autre souverain ouvert à ce compte, ou un modèle local sous la garde GPU commune. Le relais
+    de l'assistant (`assistant_engine._failover_target`, `ROADMAP §8d` étape 2), pour les rôles.
 
-
-def _replay_locally(provider, error, system, user_msg, num_ctx, temperature, timeout):
-    """L'appel coupé, rejoué UNE fois sur le modèle LOCAL de niveau développement du compte —
-    le même tirage (`resolve_model`), sous la garde GPU commune. Vivait dans la seule chaîne
-    `repo_app` (2026-10-15) : le rôle `app` lancé seul par l'assistant n'avait aucune reprise."""
-    local = resolve_model('ollama', 'dev')
-    print(f'[role_utils] {provider} a coupé ({(error or "")[:90]}) — reprise UNE fois en local : '
-          f'{local}')
-    keep_alive = local_llm_guard('ollama', local, log=lambda m: print(f'[role_utils] {m}'))
-    return call_ollama(local, system, user_msg, num_ctx=num_ctx, keep_alive=keep_alive,
-                       temperature=temperature, timeout=timeout)
+    Remplace le 2026-10-20 la reprise « toujours en local » sur une expression du TEXTE d'erreur
+    (`REMOTE_CUT`) : ILaaS coupe les requêtes longues (2 min 55 à 5 min, 15-16/10) — `Connection
+    error`, `InternalServerError`, `timed out`, que la brique classe déjà en panne par leur type."""
+    from wama.common.services.development_models import development_model, role_user
+    from wama.common.utils.model_keys import model_id, split_key
+    picked = development_model(role_user())
+    source = split_key(picked)[0] if picked else ''
+    if not picked or source == provider:
+        picked, source = f"ollama:{resolve_model('ollama', 'dev')}", 'ollama'
+    target = model_id(picked)
+    print(f'[role_utils] {provider} {reason} ({(error or "")[:90]}) — relais UNE fois : '
+          f'{source}:{target}')
+    if source == 'ollama':
+        keep_alive = local_llm_guard('ollama', target, log=lambda m: print(f'[role_utils] {m}'))
+        return call_ollama(target, system, user_msg, num_ctx=num_ctx, keep_alive=keep_alive,
+                           temperature=temperature, timeout=timeout)
+    from wama.common.utils.llm_utils import chat_with_source
+    text, error = chat_with_source(
+        source, target,
+        [{'role': 'system', 'content': system}, {'role': 'user', 'content': user_msg}],
+        user=role_user(), num_predict=None, think=True, temperature=temperature, timeout=timeout)
+    if text is None:
+        raise RuntimeError(f'{source} (relais de {provider}) : {error}')
+    return text
 
 
 def local_llm_guard(provider, model, *, force=False, wait_max=300.0, release_reason='',
