@@ -1568,11 +1568,14 @@ L'historique de l'assistant côté SERVEUR — remplace le localStorage web et l
 
 ### Ingest de source
 
-Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. ⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — récepteur `post_save` sur tout modèle à WAMA_INGEST → tâche `common.ingest_source` (file default) ; le lancement rattrape un échec et attend un téléchargement en cours (verrou partagé). `derive` (chemin pointé) DÉCLARÉ dans la spec ; une page web gardée en `.html` ; nature d'une URL AVANT téléchargement : `url_ingest.url_nature` (même table que la décision page/média)
+Télécharge une source distante vers le FileField, déclaré par WAMA_INGEST. ⭐ Depuis le 2026-10-13 (décision de Fabien) : DÈS LA CRÉATION, hors requête — récepteur `post_save` sur tout modèle à WAMA_INGEST → tâche `common.ingest_source` (file default) ; le lancement rattrape un échec et attend un téléchargement en cours (verrou partagé). `derive` (chemin pointé) DÉCLARÉ dans la spec ; une page web gardée en `.html` ; nature d'une URL AVANT téléchargement : `url_ingest.url_nature` (même table que la décision page/média). Depuis le 2026-10-20 : `download_to_user`, l'URL d'une entrée qui n'est pas encore une card (card d'entrée du Studio) — mêmes primitives, déposée dans l'espace du compte comme un fichier du gestionnaire ; `ingest_mode_for`, le mode suit la nature du port qui la reçoit
 
 - **Domicile** : `wama/common/utils/source_ingest.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : source_ingest — Ingest média DÉCLARATIF et COMMUN (hors common/manifests/**).
-- **API publique** (5) :
+- **API publique** (8) :
+  - `is_remote(ref) -> bool` — Cette entrée est-elle une URL à télécharger (http, https) plutôt qu'un chemin ?
+  - `ingest_mode_for(types) -> str` — Le mode (`audio` | `smart` | `media`) d'une URL destinée à un port de ces natures : celui
+  - `download_to_user(user, url, mode='media') -> str` — Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
   - `ensure_local_input(instance, *, console=None, derive=None)` — Si `instance` déclare `WAMA_INGEST` et a une URL dans son champ source mais
   - `ingest_state(instance)` — Ce que l'Entrée d'une card peut dire de sa SOURCE distante tant que le fichier manque :
   - `ingest_now(instance)` — Le téléchargement DE CRÉATION (tâche `common.ingest_source`) : `ensure_local_input`, avec
@@ -2065,11 +2068,11 @@ Ce que la card mère, le volet, le menu « Ajouter à un lot », le calendrier, 
 
 ### Import par lot
 
-Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot
+Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le 2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et `line_to_ports` (une ligne rangée dans les PORTS d'un nœud : colonne au nom d'un port, rôles `-i`/`-p`/`-r` en alias, refus nommé) — lus par le Studio
 
 - **Domicile** : `wama/common/utils/batch_parsers.py` · **doc** : [docs/construction/ui/BATCH_FORMAT.md](../construction/ui/BATCH_FORMAT.md)
 - **Module** : WAMA Common — Batch file parsers
-- **API publique** (18) :
+- **API publique** (20) :
   - `batch_file_refusal(filename: str, extra=()) -> str` — Le motif de refus d'un fichier de lot, ou '' s'il est d'un format de lot.
   - `parse_batch_file_from_request(request, parser: Optional[Callable]=None) -> Tuple[List[Dict], List[str]]` — Extract batch_file from request.FILES, validate extension, parse it, clean up.
   - `add_filename_to_items(items: List[Dict]) -> List[Dict]` — Add a 'filename' key to each item dict derived from item['path'].
@@ -2083,6 +2086,8 @@ Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot
   - `is_unified_batch_text(text: str) -> bool` — True si le fichier utilise le format à balises (1ʳᵉ ligne utile commence par une balise).
   - `parse_structured_batch_text(text: str) -> Tuple[List[Dict], List[str]]` — Parse un batch STRUCTURÉ (CSV à en-têtes OU balises) → items normalisés.
   - `parse_unified_batch(file_path: str) -> Tuple[List[Dict], List[str]]` — Parse un fichier batch structuré → liste d'items normalisés.
+  - `parse_batch_lines(text: str, plain_as: str='input') -> Tuple[List[Dict], List[str]]` — Les LIGNES d'un fichier de lot, quelle que soit sa famille, sous la forme normalisée des
+  - `line_to_ports(line: Dict, ports: List[Dict]) -> Tuple[Dict, Dict]` — Une ligne de lot rangée dans les PORTS d'un nœud — `({port: valeur}, réglages)`.
   - `is_csv_header_batch(text: str) -> bool` — True si la 1ʳᵉ ligne utile est un en-tête tableur (délimiteur , ; | ou tab)
   - `parse_csv_header_batch(text: str) -> Tuple[List[Dict], List[str]]` — Parse un tableur à en-têtes (délimiteur sniffé) → items normalisés (clés des balises).
   - `is_structured_batch_text(text: str) -> bool` — True si le texte est un batch structuré (CSV à en-têtes OU balises).
@@ -2218,11 +2223,11 @@ Tri + filtrage communs de la file unifiée, préférence persistée et PARTAGÉE
 
 ### Vues de lot (fabrique commune)
 
-Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, batch_update, batch_delete, batch_duplicate, batch_download, batch_status — et l'ÉCRIVAIN de ZIP partagé avec la file (`zip_elements`, 2026-10-17 : rendu late-binding, sinon les sorties DÉCLARÉES de la card ; nommage déclaré ici une fois ; `ResultArchive` depuis le 2026-10-20, qui range dans UN ZIP les cards de plusieurs apps — celui d'une exécution du Studio) — paramétrée comme la fabrique de file (les deux formes de rattachement par `batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps réelles les écrivaient chacune à la main (60 lectures de lot recopiées, `ROUTE §11 #36`) — ADOPTÉE 10/10 le 2026-09-23, spécificités en kwargs (jamais un `if app`), chaque élément lu portant `batch_link` (la ligne qui le porte). Plus aucune vue de lot locale depuis le 2026-10-02 : le ZIP multi-format lit les formats DÉCLARÉS et le rendu ENREGISTRÉ (`export_formats`), et `batch_update` appelle la fonction de réglage de l'APP, celle de sa route d'élément (`apply_settings` — le lot et l'élément ne peuvent plus diverger ; refus = 400, aucune fille écrite). Critère `batch_views_common` VRAI 10/10 ; garde générique `tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`
+Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, batch_update, batch_delete, batch_duplicate, batch_download, batch_status — et l'ÉCRIVAIN de ZIP partagé avec la file (`zip_elements`, 2026-10-17 : rendu late-binding, sinon les sorties DÉCLARÉES de la card ; nommage déclaré ici une fois ; `ResultArchive` depuis le 2026-10-20, qui range dans UN ZIP les cards de plusieurs apps — celui d'une exécution du Studio ; `lot_overview`, la règle d'état d'un lot de `batch_status`, extraite le même jour pour le run de lot du Studio) — paramétrée comme la fabrique de file (les deux formes de rattachement par `batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps réelles les écrivaient chacune à la main (60 lectures de lot recopiées, `ROUTE §11 #36`) — ADOPTÉE 10/10 le 2026-09-23, spécificités en kwargs (jamais un `if app`), chaque élément lu portant `batch_link` (la ligne qui le porte). Plus aucune vue de lot locale depuis le 2026-10-02 : le ZIP multi-format lit les formats DÉCLARÉS et le rendu ENREGISTRÉ (`export_formats`), et `batch_update` appelle la fonction de réglage de l'APP, celle de sa route d'élément (`apply_settings` — le lot et l'élément ne peuvent plus diverger ; refus = 400, aucune fille écrite). Critère `batch_views_common` VRAI 10/10 ; garde générique `tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
-- **API publique** (8) :
+- **API publique** (9) :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
   - `write_element_settings(item, data) -> list` — Pose `data` sur l'élément `item` par l'écrivain de réglages DÉCLARÉ de son app — celui de sa
@@ -2230,6 +2235,7 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
   - `zip_elements(work_model, items, request, declaration=None)` — Le ZIP des RÉSULTATS de `items` (seuls les éléments réussis y entrent) : `(tampon, format)`.
   - `class ResultArchive` — Les entrées d'un ZIP de RÉSULTATS, nommées sans collision — l'écrivain que partagent le ZIP
   - `export_stem(work_model, item, declaration=None)` — Souche d'une entrée RENDUE : celle que l'app déclare (`output_name`), sinon la règle
+  - `lot_overview(statuses, total=None) -> tuple` — `(comptes, état global)` d'un LOT d'après l'état de ses éléments — la règle de
   - `make_batch_views(*, work_model, batch_model, get_user, task=None, file_fields=(), output_fields=(), output_field='output_file', params_fields=(), schema=None,…` — Retourne les huit vues de lot : {'batch_start', 'batch_update', 'batch_delete',
 
 ### Vues de progression (fabrique commune)
@@ -2779,11 +2785,11 @@ Registre de Feature par app + surcharges JSON de l'objet porteur — comparer AV
 
 ### Chemins média
 
-Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le 2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`<champ>__designated` : médiathèque, arbre), par la même vue, avec l'état du volet ; `designate` est la même désignation pour les outils de l'assistant (`tool_api.add_to_*`). ⭐ Depuis le 2026-09-29 : un asset de médiathèque PARTAGÉ (labo, projet, public) est désignable et POINTÉ par les personnes concernées — même règle de visibilité que la liste (`scoping.listable_by`), le compte anonyme n'en hérite pas
+Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_media_dir` : `users/<uid>/<app>/input|output`). ⭐ Depuis le 2026-09-23 la brique décide aussi POINTER ou COPIER (`reference_or_copy`, décision de Fabien, cible annoncée le 12/09) : une source déjà sous `users/<uid>/` du MÊME utilisateur est désignée telle quelle — un `FileField` est déjà un pointeur, l'aperçu commun sert `/media/<chemin stocké>` — tandis qu'un dépôt depuis le poste, un dossier connecté (hors `MEDIA_ROOT`, et un traitement ne lit pas un disque réseau), une URL ou l'arbre d'AUTRUI se copient. ⚠ Une app qui lit ses entrées PAR DOSSIER (cam_analyzer, RTMaps) garde la copie, et son site le dit. ⭐ Depuis le 2026-09-28 : un asset SYSTÈME actif se pointe aussi, `readable_by` est LA règle de ce qu'un utilisateur peut désigner, et `received_inputs` est ce qu'une vue d'upload REÇOIT — un fichier téléversé ou DÉSIGNÉ (`<champ>__designated` : médiathèque, arbre), par la même vue, avec l'état du volet ; `designate` est la même désignation pour les outils de l'assistant (`tool_api.add_to_*`). ⭐ Depuis le 2026-09-29 : un asset de médiathèque PARTAGÉ (labo, projet, public) est désignable et POINTÉ par les personnes concernées — même règle de visibilité que la liste (`scoping.listable_by`), le compte anonyme n'en hérite pas. Depuis le 2026-10-20 : `check_designation`, les gardes de `designate` sans pointer ni copier — pour qui RETIENT une désignation avant qu'une app la reçoive (card d'entrée du Studio)
 
 - **Domicile** : `wama/common/utils/media_paths.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : WAMA Common - Media Path Utilities
-- **API publique** (25) :
+- **API publique** (26) :
   - `get_app_media_path(app_name: str, user_id: Union[int, str], subfolder: str='input') -> Path` — Get the absolute path for an app's user-specific media folder.
   - `class OutsideMediaRoot(ValueError)` — Le chemin demandé sort de MEDIA_ROOT (traversée `..`, dossier frère, absolu étranger).
   - `resolve_under_media_root(candidate, *, must_exist: bool=True)` — Résout un chemin — absolu, ou RELATIF à MEDIA_ROOT — et GARANTIT qu'il y reste.
@@ -2802,6 +2808,7 @@ Emplacements canoniques des entrées/sorties par app et par utilisateur (`app_me
   - `class ReceivedInputs(list)` — Les entrées reçues, plus `refusal` : le motif du premier refus (désignation illisible,
   - `class InputRefused(ValueError)` — Une désignation refusée : hors `MEDIA_ROOT`, absente, ou illisible pour cet utilisateur.
   - `designate(path, user, app_name: str, subfolder: str='input') -> ReceivedInput` — UN fichier DÉSIGNÉ par son chemin (relatif à `MEDIA_ROOT`, ou absolu dessous), reçu pour
+  - `check_designation(path, user) -> str` — Le chemin désigné, s'il passe les gardes de `designate` — sans rien pointer ni copier.
   - `received_inputs(request, user, app_name: str, field: str='file', subfolder: str='input') -> ReceivedInputs` — Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers
   - `class UploadToUserPath` — Callable class for Django FileField upload_to that generates user-specific paths.
   - `system_asset_relpath(asset_type: str, filename: str) -> str` — Chemin relatif (sous `MEDIA_ROOT`) d'un asset système : un sous-dossier par NATURE.
