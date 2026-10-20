@@ -930,10 +930,13 @@ def {nom}(request, pk):
     # perdus, `converter_02`, 2026-10-07). Dérivé du champ que le manifeste déclare servir.
     # Même règle pour le nom d'ENTRÉE (`elem.input_filename`, titre de la card) et pour une app
     # dont le résultat n'est pas un fichier (sortie sans nom) : la card générée ne lit que ce que
-    # `_decorer` pose — `describer_01` (20/10) perdait les deux @property du modèle réel.
+    # `_decorer` pose — `describer_01` (20/10) perdait les deux @property du modèle réel. Le nom
+    # d'entrée suit la règle COMMUNE du nom lisible d'un élément (`batch_views.element_label` :
+    # statut de lot, ZIP, suivi de l'assistant), le fichier en repli.
     out_file = d['out_file']
     output_name_line = f'''
-    _set_unless_property(item, 'input_filename', Path({nom_pour_props}).name)''' + (f'''
+    _set_unless_property(item, 'input_filename',
+                         element_label(item) or Path({nom_pour_props}).name)''' + (f'''
     _set_unless_property(item, 'output_filename',
                          Path(item.{out_file}.name).name if item.{out_file} else '')''' if out_file else '''
     _set_unless_property(item, 'output_filename', '')''')
@@ -1395,7 +1398,8 @@ from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.detail_registry import normalize_status
 from wama.common.utils.process_control import begin_processing, stop_instance
-from wama.common.utils.batch_views import apply_item_settings, make_batch_views, read_settings_payload
+from wama.common.utils.batch_views import (apply_item_settings, element_label, make_batch_views,
+                                           read_settings_payload)
 from wama.common.utils.progress_views import make_progress_views
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 {imports_forme}

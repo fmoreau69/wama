@@ -25386,3 +25386,22 @@ module `workers`) et des ARTEFACTS de l'instrument (tests qui importent une migr
 clés de catalogue renommées `<app>_01:`) — ces derniers à trier avant de lire un chiffre de convergence.
 ⑧ batterie UI des jumelles : elle vise le WAMA VIVANT (`ui_smoke._base_url`) — non lancée avant la
 relance de gunicorn et des workers.
+
+## §PALIER 2026-10-20 (nuit), « /reverif des manques ①–④ (`aeb71947`) » — non poussé — 🔴 relancer gunicorn (vues générées des jumelles)
+
+**Aligné** — deux écarts de MA main, ramenés : le nom d'entrée que `_decorer` pose suivait la règle
+ÉTROITE du gabarit (`views_gen` : colonnes `input_filename`/`input_name`, sinon le fichier) à côté de
+la règle COMMUNE du nom lisible d'un élément, `batch_views.element_label` (statut de lot, ZIP, suivi
+de l'assistant) — la colonne `filename` du describer était ignorée ; et le `default` réémis par
+`models_gen` citait `params_gen._literal` comme règle sans l'appeler (un membre d'énumération serait
+sorti par son `repr`). Lus et laissés, non recopiés : le critère `task_skeleton` (présence du
+squelette dans l'app — `conformity_checker.py:2076`) n'est pas la lecture « quelle tâche y passe »
+d'`app_tasks` ; le Studio lit le `FunctionSpec.impl` VIVANT, `function_specs_gen` le manifeste par
+`split_declared_path` (sa seule lecture côté génération). Déjà là avant moi, nommé : les vues émises
+sous chaque orthographe par f-string (`batch_create`, `stop`) à côté de la boucle de renommage
+générale de `ROUTE_ALIASES`.
+**Testé** : 179 tests ciblés OK ; deux gardes neuves (`element_label` exigé, `OwnDefaultRenderedAs
+LiteralTest`), deux contre-épreuves ROUGES ; card SERVIE de `describer_01` régénérée (compte du juge,
+deux éléments jetables supprimés) : la colonne `filename` titre la card, vide elle retombe sur le
+fichier déposé.
+**Consigné** : `ROUTE §S` (la ligne de `_decorer`).

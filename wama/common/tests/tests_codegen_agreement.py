@@ -157,6 +157,9 @@ class TheGeneratedCardReadsWhatTheViewsSetTest(_Rendered):
                 continue
             names = [n for n in ('input_filename', 'output_filename')
                      if f"_set_unless_property(item, '{n}'" not in views]
+            # The input name follows the COMMON rule of an element's readable name.
+            if 'element_label(item)' not in views:
+                names.append('element_label')
             if names:
                 missing[app] = names
         self.assertEqual({}, missing)
@@ -190,6 +193,28 @@ class GeneratedModelsNeverImportThemselvesTest(_Rendered):
         exec(compile(ast.Module(body=[node], type_ignores=[]), 'models', 'exec'), space)
         self.assertEqual(default_classes2blur(), space['default_classes2blur']())
         self.assertIn('default=default_classes2blur', source)
+
+
+class OwnDefaultRenderedAsLiteralTest(SimpleTestCase):
+    """The re-emitted `default` writes what a LITERAL can write — the rule of `params_gen._literal`:
+    an enum member returned by the source comes out as its value, never as an unknown name."""
+
+    def test_an_enum_member_is_written_as_its_value(self):
+        import sys
+        import types
+        from django.db import models
+        from wama.common.manifests.codegen.models_gen import _own_default
+
+        class Kind(models.TextChoices):
+            AUTO = 'auto', 'Auto'
+
+        module = types.ModuleType('wama_test_own_default')
+        module.default_kinds = lambda: [Kind.AUTO]
+        sys.modules['wama_test_own_default'] = module
+        self.addCleanup(sys.modules.pop, 'wama_test_own_default', None)
+        source = _own_default('wama_test_own_default', 'default_kinds', '[mark]')
+        self.assertIn("return ['auto']", source)
+        self.assertNotIn('TROU DE GLU', source)
 
 
 class FunctionSpecsReadTheDeclaredTaskTest(_Rendered):

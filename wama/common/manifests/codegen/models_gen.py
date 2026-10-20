@@ -254,8 +254,9 @@ def _own_default(module: str, name: str, mark: str) -> str:
     source à lire)."""
     import ast
     import importlib
+    from wama.common.manifests.codegen.params_gen import _literal
     try:
-        value = getattr(importlib.import_module(module), name)()
+        value = _literal(getattr(importlib.import_module(module), name)())
         ast.literal_eval(repr(value))
     except Exception:
         return (f'def {name}():\n'
