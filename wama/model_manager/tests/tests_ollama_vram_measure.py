@@ -12,12 +12,17 @@ CE QUI EST PROTÉGÉ, sans GPU ni Ollama (tout est simulé) :
   hôte ;
 - une observation SALE ne consigne rien, quelle qu'en soit la raison ;
 - l'appel s'exécute UNE fois et rend son résultat, mesure ou pas, panne de mesure comprise ;
-- la mesure consignée atteint la ligne du catalogue et c'est elle que lit le besoin VRAM.
+- la mesure consignée atteint la ligne du catalogue et c'est elle que lit le besoin VRAM ;
+- un modèle résident tient UNE ligne au gouverneur, qui pèse au moins son besoin de catalogue ;
+- les appels de conversation (`ollama_chat`, l'assistant, la vision du describer) sont mesurés,
+  et olmOCR décharge Ollama par les briques communes.
 """
 from unittest import mock
 
 from django.test import SimpleTestCase, TestCase
 
+from wama.common.services import resource_governor as gov
+from wama.common.tests import tests_vram_ledger as ledger_tests
 from wama.model_manager.services.model_registry import ModelRegistry
 
 REGISTRY = 'wama.model_manager.services.model_registry.ModelRegistry'
@@ -42,7 +47,7 @@ class OllamaLoadMeasureTest(SimpleTestCase):
     def _measure(self, *, before=(), after=(_ps(),), card=(7000, 9190, 9195), ledger=({}, {}),
                  name=NAME):
         load = mock.Mock(return_value='vecteurs')
-        with mock.patch(f'{REGISTRY}._ollama_ps', side_effect=[list(before), list(after)]), \
+        with mock.patch(f'{REGISTRY}.ollama_ps', side_effect=[list(before), list(after)]), \
                 mock.patch(f'{GOV}.reservations', side_effect=list(ledger)), \
                 mock.patch(MONITOR, side_effect=_card(*card)) as monitor, \
                 mock.patch(f'{GOV}.record_measured_vram') as record, \
@@ -89,7 +94,7 @@ class OllamaLoadMeasureTest(SimpleTestCase):
 
     def test_a_failing_measure_never_fails_the_call(self):
         load = mock.Mock(return_value='vecteurs')
-        with mock.patch(f'{REGISTRY}._ollama_ps', side_effect=[[], [_ps()]]), \
+        with mock.patch(f'{REGISTRY}.ollama_ps', side_effect=[[], [_ps()]]), \
                 mock.patch(f'{GOV}.reservations', side_effect=[{}, {}]), \
                 mock.patch(MONITOR, side_effect=[[{'memory_used': 7000}], RuntimeError('smi')]), \
                 mock.patch(f'{GOV}.record_measured_vram') as record, \
@@ -98,8 +103,20 @@ class OllamaLoadMeasureTest(SimpleTestCase):
         load.assert_called_once_with()
         record.assert_not_called()
 
+    def test_a_call_that_does_not_keep_the_model_reads_nothing(self):
+        """À `keep_alive` '0', Ollama a rendu le modèle avant qu'on relève : ni `/api/ps` ni la
+        carte. La règle vit dans la mesure, une fois pour tous les appelants."""
+        load = mock.Mock(return_value='vecteurs')
+        with mock.patch(f'{REGISTRY}.ollama_ps') as ps, mock.patch(MONITOR) as monitor:
+            for kept in ('0', '0s', 0):
+                self.assertEqual(ModelRegistry.measure_ollama_load(NAME, load, keep_alive=kept),
+                                 'vecteurs')
+        self.assertEqual(load.call_count, 3)
+        ps.assert_not_called()
+        monitor.assert_not_called()
+
     def test_an_error_of_the_call_itself_is_not_swallowed(self):
-        with mock.patch(f'{REGISTRY}._ollama_ps', return_value=[]), \
+        with mock.patch(f'{REGISTRY}.ollama_ps', return_value=[]), \
                 mock.patch(f'{GOV}.reservations', return_value={}), \
                 mock.patch(MONITOR, return_value=[{'memory_used': 7000}]), \
                 self.assertRaises(ValueError):
@@ -130,3 +147,122 @@ class OllamaMeasureReachesTheCatalogueTest(TestCase):
         self.assertEqual(row.extra_info['vram_measured']['max_gb'], 2.14)
         self.assertEqual(row.vram_gb, 1.3, 'vram_gb reste la valeur de la découverte')
         self.assertEqual(vram_needed_gb(key), 2.14)
+
+
+class OllamaResidencyLineTest(ledger_tests._AvecRegistre):
+    """UNE ligne au gouverneur par modèle résident de l'Ollama hôte (2026-10-20).
+
+    Le client des vecteurs annonçait sous `vectors-<espace>#…` pendant que la synchro posait
+    `ollama-host#…` pour le même modèle : il comptait deux fois dans la VRAM libre des autres
+    (le pilote vu de WSL ne voit rien de l'hôte, ces lignes sont tout ce qu'il en sait), dans
+    les résidents et dans les inactifs ; et décharger le modèle laissait la première en fantôme.
+    Le registre est un dictionnaire (`tests_vram_ledger`), Ollama est simulé."""
+
+    KEY = f'ollama:{NAME}'
+    OWNER = f'ollama-host#ollama:{NAME}'
+
+    def _refresh(self, ps=(), need=None):
+        with mock.patch(f'{REGISTRY}.ollama_ps', return_value=list(ps)), \
+                mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=need):
+            return ModelRegistry.refresh_ollama_residency()
+
+    def _announce(self, need=2.14):
+        from wama.common.vectors import service_client
+        with mock.patch.object(service_client, 'need_gb', return_value=need):
+            self.assertTrue(service_client.reserve('media'))
+
+    def test_a_space_and_the_host_refresh_hold_one_line_for_one_model(self):
+        self._announce()
+        self.assertEqual(self._refresh(ps=[_ps()], need=2.14), 1)
+        self.assertEqual(gov.reservations(), {self.OWNER: 2.14})
+        self.assertEqual(gov.resident_models(), {self.KEY: 2.14})
+        self.assertAlmostEqual(gov.unseen_reserved_gb('driver'), 2.14)
+        self.assertEqual([r['model_key'] for r in gov.idle_models(0)], [self.KEY])
+
+    def test_the_host_line_weighs_at_least_the_catalogue_need(self):
+        cases = {
+            # `/api/ps` oublie les projecteurs : la mesure du catalogue l'emporte.
+            'the catalogue above /api/ps': (0.45, 2.14, 2.14),
+            'nothing known at the catalogue': (0.45, None, 0.45),
+            # Une fenêtre de contexte plus grande que celle de la mesure : Ollama dit vrai.
+            '/api/ps above the catalogue': (3.0, 2.14, 3.0),
+        }
+        for label, (ps_gb, need, expected) in cases.items():
+            with self.subTest(case=label):
+                self._refresh(ps=[_ps(size_gb=ps_gb)], need=need)
+                self.assertAlmostEqual(gov.reservations()[self.OWNER], expected, places=2)
+
+    def test_a_fresh_announcement_survives_a_refresh_that_does_not_see_it_yet(self):
+        self._announce()
+        self._refresh(ps=[])
+        self.assertIn(self.OWNER, gov.reservations(), "le chargement annoncé n'a pas abouti")
+        self.t += ModelRegistry.ANNOUNCE_GRACE_S + 1
+        self._refresh(ps=[])
+        self.assertEqual(gov.reservations(), {}, 'Ollama a rendu le modèle : la ligne part')
+
+    def test_unloading_the_model_frees_its_only_line(self):
+        from wama.model_manager.services.memory_manager import MemoryManager
+        self._announce()
+        self._refresh(ps=[_ps()], need=2.14)
+        with mock.patch('requests.post', return_value=mock.Mock(raise_for_status=lambda: None)):
+            self.assertTrue(MemoryManager.unload_model(self.KEY))
+        self.assertEqual(gov.reservations(), {})
+
+
+class OllamaCallersAreMeasuredTest(SimpleTestCase):
+    """Les appels qui CHARGENT un modèle de l'Ollama hôte et le gardent passent par la mesure
+    (`ollama_host.measured_load`) : les modèles de conversation n'en avaient aucune, faute d'un
+    point commun — il y en a deux (`llm_utils.ollama_chat`, le tour de l'assistant), plus la
+    vision du describer, qui tient son client. Et olmOCR décharge Ollama par les briques."""
+
+    MEASURE = f'{REGISTRY}.measure_ollama_load'
+
+    def _measure(self):
+        return mock.patch(self.MEASURE, side_effect=lambda name, load, keep_alive=None: load())
+
+    def test_a_local_chat_goes_through_the_load_measure(self):
+        from wama.common.utils import llm_utils
+        reply = mock.Mock(status_code=200, json=lambda: {'message': {'content': 'ok'}})
+        client = mock.MagicMock()
+        client.__enter__.return_value.post.return_value = reply
+        messages = [{'role': 'user', 'content': 'x'}]
+        with mock.patch('httpx.Client', return_value=client), self._measure() as measured:
+            self.assertEqual(llm_utils.ollama_chat(messages, model='qwen3.8:latest'), ('ok', None))
+            self.assertEqual(llm_utils.ollama_chat(messages, model='qwen3.8:latest',
+                                                   keep_alive='0'), ('ok', None))
+        self.assertEqual([(c.args[0], c.kwargs['keep_alive']) for c in measured.call_args_list],
+                         [('qwen3.8:latest', None), ('qwen3.8:latest', '0')])
+
+    def test_an_assistant_turn_goes_through_the_load_measure(self):
+        from wama.common.services import assistant_engine
+        usage = {'input_tokens': 3, 'output_tokens': 1}
+        with mock.patch.object(assistant_engine, '_ollama_stream', return_value=('ok', usage)), \
+                self._measure() as measured:
+            self.assertEqual(assistant_engine._ollama_call([], 'gemma4:e4b'), ('ok', usage))
+        self.assertEqual(measured.call_args.args[0], 'gemma4:e4b')
+
+    def test_a_vision_description_goes_through_the_load_measure(self):
+        import tempfile
+
+        from wama.describer.backends import image_backend
+        reply = mock.Mock(status_code=200, json=lambda: {'message': {'content': 'une voiture'}})
+        client = mock.MagicMock()
+        client.__enter__.return_value.post.return_value = reply
+        with tempfile.NamedTemporaryFile(suffix='.png') as image, \
+                mock.patch('httpx.Client', return_value=client), self._measure() as measured:
+            image.write(b'png')
+            image.flush()
+            self.assertEqual(image_backend._describe_with_ollama_vision(
+                'gemma4:12b', image.name, 'Décris.'), 'une voiture')
+        self.assertEqual(measured.call_args.args[0], 'gemma4:12b')
+
+    def test_olmocr_unloads_ollama_through_the_common_gestures(self):
+        from wama.common.backends.olmocr_backend import OlmOCRBackend
+        resident = [{'name': 'gemma4:e4b'}, {'name': NAME}]
+        with mock.patch(f'{REGISTRY}.ollama_ps', return_value=resident), \
+                mock.patch('wama.model_manager.services.memory_manager.MemoryManager.unload_model',
+                           return_value=True) as unload, \
+                mock.patch('httpx.get', side_effect=AssertionError('second lecteur de /api/ps')):
+            self.assertEqual(OlmOCRBackend._unload_ollama_models(), 2)
+        self.assertEqual([c.args[0] for c in unload.call_args_list],
+                         ['ollama:gemma4:e4b', f'ollama:{NAME}'])

@@ -501,6 +501,21 @@ def reserved_gb(exclude: str | None = None) -> float:
     return sum(reservations(exclude=exclude).values())
 
 
+def line_age_s(owner: str) -> float | None:
+    """Secondes depuis le PREMIER dépôt de la ligne de `owner` (`_LOADED_KEY` : son chargement,
+    ou l'annonce qui le précède — le battement ne le réécrit pas), None sans ligne. Ce qui
+    distingue une annonce fraîche d'un modèle parti (`refresh_ollama_residency`, 2026-10-20)."""
+    client = _redis()
+    if client is None:
+        return None
+    try:
+        raw = client.hget(_LOADED_KEY, owner)
+        return None if raw is None else max(0.0, _now() - float(
+            raw.decode() if isinstance(raw, bytes) else raw))
+    except Exception:
+        return None
+
+
 #: Sépare détenteur et modèle dans la clé d'owner (cf. `common.backends.base`).
 #: `#` et non `:` : les clés de catalogue en contiennent (`anonymizer:yolo:yolo11n.pt`).
 OWNER_MODEL_SEP = '#'
@@ -540,7 +555,7 @@ def model_keys_of(owner: str) -> list[str]:
     nom ne se résout pas.
 
     Deux formes de suffixe :
-    - une clé catalogue (`ollama-host#ollama:gemma3:4b`, `vectors-text#ollama:qwen3-embedding:4b`) ;
+    - une clé catalogue (`ollama-host#ollama:gemma3:4b`) ;
     - `@<nom local>`, publié par le contrat de backend : le process qui charge (service TTS
       compris, SANS ORM) ne sait que sa classe et le nom qu'il sert ; la clé se résout ici, dans
       un process Django (`backends.manager.catalog_keys_for_owner`). Jusqu'au 2026-09-14 la
@@ -590,11 +605,13 @@ OLLAMA_HOST_OWNER_PREFIX = f"ollama-host{OWNER_MODEL_SEP}"
 
 
 def ollama_host_owner(name: str) -> str:
-    """Clé d'owner de la résidence du modèle Ollama `name`.
+    """Clé d'owner de la résidence du modèle Ollama `name` — UNE ligne par modèle résident.
 
-    La convention ne s'écrit qu'ICI (2026-09-14) : la synchro du catalogue la pose, et les
-    deux voies qui déchargent Ollama (`MemoryManager.unload_model`, olmOCR) la retirent —
-    elles l'ignoraient jusque-là, laissant une ligne fantôme jusqu'à la synchro suivante.
+    La convention ne s'écrit qu'ICI (2026-09-14) : la synchro du catalogue la pose, et la voie
+    qui décharge Ollama (`MemoryManager.unload_model`, qu'olmOCR emprunte) la retire — elle
+    l'ignorait jusque-là, laissant une ligne fantôme jusqu'à la synchro suivante. Depuis le
+    2026-10-20 le client des vecteurs y ANNONCE aussi sa résidence, au lieu d'une seconde ligne
+    `vectors-<espace>#…` qui comptait deux fois le même modèle.
     """
     return f"{OLLAMA_HOST_OWNER_PREFIX}ollama:{name}"
 
@@ -635,8 +652,11 @@ def unseen_reserved_gb(probe: str = 'driver', exclude: str | None = None) -> flo
 
     ⚠ Seule une empreinte MESURÉE par l'allocateur torch est marquée allouée. Valeurs déclarées
     (CTranslate2, onnxruntime), Ollama hôte et sous-processus restent des annonces : les compter
-    deux fois est prudent, les oublier ne l'est pas. En particulier, que `mem_get_info` sous
-    WSL2 voie les allocations de l'hôte Windows (Ollama) n'est PAS mesuré — d'où ce choix.
+    deux fois est prudent, les oublier ne l'est pas.
+    Pour l'Ollama hôte ce n'est plus un choix prudent, c'est la mesure (2026-10-20) : un
+    chargement d'embeddinggemma-2 a pris 1 906 Mio à la carte (nvidia-smi) et 0 Mio au libre
+    de `mem_get_info` vu de WSL2 — le pilote de WSL ne voit RIEN de ce que l'hôte Windows alloue.
+    Sa ligne (`ollama_host_owner`, une par modèle) est donc tout ce que la sonde en saura.
     """
     if probe not in ('driver', 'process'):
         raise ValueError(f"sonde inconnue : {probe!r} (attendu 'driver' ou 'process')")
@@ -685,7 +705,9 @@ def record_measured_vram(owner: str, gb: float) -> bool:
     Deux mesureurs, chacun pour une mesure FRAÎCHE et concluante :
     - `_wrap_load` : l'allocateur torch du process qui charge ;
     - `ModelRegistry.measure_ollama_load` (2026-10-20) : l'écart de la CARTE autour d'un
-      chargement de l'Ollama hôte, que l'allocateur ne voit pas — détenteur `ollama_host_owner`.
+      chargement de l'Ollama hôte, que l'allocateur ne voit pas — détenteur `ollama_host_owner` ;
+      appelé par les espaces de vecteurs, `llm_utils.ollama_chat`, le tour de l'assistant et la
+      vision du describer.
     La clé catalogue se résout plus tard, à la persistance (process Django) : le service TTS,
     qui mesure aussi, n'a pas d'ORM.
     """

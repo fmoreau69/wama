@@ -83,6 +83,22 @@ def full_tag(name: str) -> str:
     return name if ':' in name else f'{name}:latest'
 
 
+def measured_load(name: str, call, *, keep_alive=None):
+    """`call()` — un appel à l'Ollama hôte qui peut CHARGER le modèle `name` —, sous la mesure de
+    son chargement (`ModelRegistry.measure_ollama_load`) : l'écart de la carte, rendu au catalogue
+    comme l'empreinte de ce modèle. `keep_alive` est celui que l'appel envoie (None = le défaut
+    d'Ollama, le modèle reste) ; à '0' rien ne se mesure.
+
+    Le point d'entrée des appelants du substrat (2026-10-20) : les espaces de vecteurs,
+    `llm_utils.ollama_chat`, le tour de l'assistant, la vision du describer. Hors Django (service
+    de vectorisation, catalogue absent), l'appel nu — la mesure vit au model_manager."""
+    try:
+        from wama.model_manager.services.model_registry import ModelRegistry
+    except Exception:
+        return call()
+    return ModelRegistry.measure_ollama_load(name, call, keep_alive=keep_alive)
+
+
 def ollama_proxies() -> dict:
     """
     `proxies` à passer à `requests` pour NE PAS proxifier l'hôte Ollama.

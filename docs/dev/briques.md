@@ -134,7 +134,7 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
 
 - **Domicile** : `wama/common/services/resource_governor.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §0](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Gouvernance des ressources WAMA (GPU / CPU / RAM) — POINT D'ENTRÉE UNIQUE.
-- **API publique** (54) :
+- **API publique** (55) :
   - `configure_cuda_process() -> bool` — Plafonne l'allocateur CUDA de CE process à `ALLOCATOR_CAP_FRACTION` de la
   - `configure_cuda_process_when_torch_loads() -> None` — Le plafond CUDA du processus, posé au PREMIER IMPORT de torch plutôt qu'au démarrage
   - `total_vram_gb() -> float` — VRAM physique de la carte, 0.0 si pas de GPU — la SEULE mesure de WAMA (2026-10-10).
@@ -144,11 +144,12 @@ Arbitre GPU/CPU/RAM entre process : réservation, résidence, priorités. Une li
   - `vram_reservation(owner: str, gb: float)` — Réserve `gb` pour la DURÉE d'un bloc, puis libère — y compris si le bloc lève.
   - `reservations(exclude: str | None=None) -> dict[str, float]` — Réservations VIVANTES (Go par owner). Les lignes plus vieilles que
   - `reserved_gb(exclude: str | None=None) -> float` — Total BRUT réservé, tous détenteurs et process confondus (sauf `exclude`).
+  - `line_age_s(owner: str) -> float | None` — Secondes depuis le PREMIER dépôt de la ligne de `owner` (`_LOADED_KEY` : son chargement,
   - `resident_models() -> dict[str, float]` — Modèles actuellement RÉSIDENTS en VRAM — `AIModel.model_key` → Go — tous process
   - `model_keys_of(owner: str) -> list[str]` — Clés catalogue du modèle porté par une clé d'owner — [] s'il n'en porte pas, ou si le
   - `model_key_of(owner: str) -> str | None` — Première clé de `model_keys_of` — pour un appelant qui n'en attend qu'une.
   - `resident_here_gb(model_key: str) -> float` — Go que CE process tient déjà pour `model_key` (ses backends résidents) — 0.0 sinon.
-  - `ollama_host_owner(name: str) -> str` — Clé d'owner de la résidence du modèle Ollama `name`.
+  - `ollama_host_owner(name: str) -> str` — Clé d'owner de la résidence du modèle Ollama `name` — UNE ligne par modèle résident.
   - `unseen_reserved_gb(probe: str='driver', exclude: str | None=None) -> float` — VRAM réservée que la SONDE `probe` ne voit pas encore — la seule part à lui retrancher.
   - `mark_used(owner: str) -> bool` — Horodate le dernier USAGE de `owner` (appelé à chaque `process()` d'un backend).
   - `record_measured_vram(owner: str, gb: float) -> bool` — Consigne une empreinte MESURÉE au chargement de `owner` — jamais une valeur déclarée.
@@ -1335,14 +1336,14 @@ Un seul contrat d'outils pour TOUS les cerveaux (Ollama, Claude Code, Albert, un
 
 ### Service de vectorisation
 
-Un ESPACE de vecteurs par nature de média — `text` (qwen3-embedding, celui du RAG) et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 (`vector_service.py`, à la racine comme `tts_service.py`) et son client ; service éteint, le même moteur tourne dans le process appelant. Deux espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la VRAM se demande au gouverneur par espace (2026-10-19), pour le besoin que porte la ligne de catalogue du modèle — un chargement observé se MESURE à la carte et y est rendu (`ModelRegistry.measure_ollama_load`, 2026-10-20)
+Un ESPACE de vecteurs par nature de média — `text` (qwen3-embedding, celui du RAG) et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 (`vector_service.py`, à la racine comme `tts_service.py`) et son client ; service éteint, le même moteur tourne dans le process appelant. Deux espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la VRAM se demande au gouverneur sur la ligne de RÉSIDENCE du modèle à l'Ollama hôte (`ollama_host_owner`, une par modèle), pour le besoin que porte sa ligne de catalogue — un chargement observé se MESURE à la carte et y est rendu (`ollama_host.measured_load`, 2026-10-20, qui mesure aussi les conversations)
 
 - **Domicile** : `wama/common/vectors/service_client.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §7sexies](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Client COMMUN du service de vectorisation (`vector_service.py`, FastAPI, uvicorn 127.0.0.1:8002). Doc : `WAMA_MEMORY.md §7sexies`. Même patron que `common/tts/service_client.py` : tout le monde vectorise par ici — le RAG (`memory/embed.py`), l'indexation des médias, le Describer.
 - **API publique** (9) :
   - `service_url() -> str`
   - `embed(space_key: str, items, *, query: bool=False, timeout: float=TIMEOUT_S, keep_alive: str | None=None) -> list` — Les vecteurs de `items` dans l'espace `space_key` (même ordre), ou `[]` si indisponible.
-  - `owner(space: VectorSpace) -> str` — Détenteur déclaré au gouverneur. Convention `<qui>#<clé catalogue>` (`OWNER_MODEL_SEP`) :
+  - `owner(space: VectorSpace) -> str` — Détenteur déclaré au gouverneur : la ligne de RÉSIDENCE de l'Ollama hôte pour ce modèle
   - `need_gb(space: VectorSpace) -> float | None` — L'empreinte VRAM du modèle de l'espace, lue au CATALOGUE par la cascade commune
   - `residency_allowed(space_key: str) -> tuple[bool, str]` — Demande au GOUVERNEUR s'il y a de la place pour garder le modèle de l'espace chargé.
   - `reserve(space_key: str, *, expires_in_s: float=None) -> bool` — Déclare la résidence au gouverneur, pour que les AUTRES process la voient. `expires_in_s` :
@@ -1678,7 +1679,7 @@ Qui consomme quoi (imports + briques front), niveau APP vs infrastructure, et jo
   - `front_sources(base: Path)` — Chemins .html/.js de notre front (templates + static d'app), relatifs à base.
   - `load_sources(base: Path | None=None) -> dict[str, str]` — {chemin relatif: contenu} pour tout le corpus balayé. Coûteux : à charger UNE fois.
   - `consumers(mechanism, sources: dict[str, str]) -> list[str]` — Fichiers qui IMPORTENT le domicile (ou une annexe), hors le mécanisme lui-même.
-  - `code_only(rel: str, src: str) -> str` — Le source SANS sa prose (2026-10-19) : ce qu'il fait, pas ce qu'il raconte. Un commentaire
+  - `code_only(rel: str, src: str) -> str` — Le source SANS sa prose (2026-10-19) : ce qu'il fait, pas ce qu'il raconte, positions
   - `owners_of_path(path: str) -> list` — Les mécanismes qui tiennent un fichier nommé comme une PAGE le nomme — un statique comme
   - `consuming_apps(mechanism, sources: dict[str, str], found=None) -> list[str]` — Apps du catalogue dont au moins un fichier NON-HARNAIS consomme le mécanisme.
   - `adoption_matrix(sources: dict[str, str] | None=None) -> dict` — Mesure complète, UNE passe : {key: {'consommateurs': [...], 'apps': [...], 'niveau_app': bool}}.
@@ -3498,7 +3499,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `ask_claude_code(user, task: str, write: bool=False, timeout: int=300, model: str='') -> dict` — Delegate a DEVELOPMENT task to Claude Code, running on the owner's subscription.
   - `list_my_items(user, app: str='', limite: int=25, statut: str='all', q: str='') -> dict` — List what the user has produced across ALL apps — one vocabulary instead of ten.
   - `get_item_detail(user, app: str, pk: int) -> dict` — Everything known about ONE item, in the canonical schema — exactly what the user sees in
-  - `get_item_preview(user, app: str, pk: int, side: str='input') -> dict` — Look at what an item actually holds: the file it started from, the result it produced, or
+  - `get_item_preview(user, app: str, pk: int, side: str='input', variant: str='', look: bool=False, question: str='') -> dict` — Look at what an item actually holds — the SAME faces the user sees on the card, in the
   - `get_item_result(user, app: str, pk: int, output_format: str='') -> dict` — Read the RESULT of a finished item — the extracted text of an OCR, a transcript, a
   - `delete_item(user, app: str, pk: int) -> dict` — Delete ONE of the user's items from an app queue.
   - `duplicate_item(user, app: str, pk: int) -> dict` — Duplicate ONE of the user's items, so it can be re-run with different settings.

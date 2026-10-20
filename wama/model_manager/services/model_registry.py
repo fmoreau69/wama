@@ -419,11 +419,23 @@ class ModelRegistry:
         ⚠ Rafraîchie par la tâche `model_manager.refresh_ollama_residency` (toutes les 10 min)
         depuis le 2026-09-14 : la synchro du catalogue seule tournait toutes les 2 h, au-delà
         du TTL d'1 h — une ligne expirait alors que le modèle restait chargé.
+
+        UNE ligne par résidence (2026-10-20) : le client des vecteurs annonce sous ce même
+        détenteur, au lieu d'une seconde ligne `vectors-<espace>#…` qui comptait deux fois le même
+        modèle — dans la VRAM libre, les résidents et les inactifs.
+        Ce qu'elle pèse : au moins le besoin du CATALOGUE (`auto_model.vram_needed_gb`, la mesure
+        quand elle existe). `/api/ps` sous-compte — embeddinggemma-2 annonce 0,45 Go pour 1,5 à
+        2,2 pris par la carte, ses projecteurs n'y sont pas —, et le pilote vu de WSL ne voit RIEN
+        de l'hôte (`resource_governor.unseen_reserved_gb`) : cette ligne est tout ce que les
+        autres process savent de ce modèle.
+        Une ligne ABSENTE de `/api/ps` posée il y a moins de `ANNOUNCE_GRACE_S` est l'annonce d'un
+        chargement en cours (le client l'écrit AVANT d'appeler) : elle reste ; son auteur la libère.
         """
         from wama.common.services.resource_governor import (OLLAMA_HOST_OWNER_PREFIX,
-                                                            ollama_host_owner,
+                                                            line_age_s, ollama_host_owner,
                                                             release_reservation,
                                                             reservations, reserve_vram)
+        from wama.common.utils.auto_model import vram_needed_gb
         prefixe = OLLAMA_HOST_OWNER_PREFIX
         try:
             charges = ModelRegistry._ollama_charges()
@@ -435,13 +447,21 @@ class ModelRegistry:
                 continue
             owner = ollama_host_owner(nom)
             vivants.add(owner)
-            reserve_vram(owner, float(go or 0))
+            reserve_vram(owner, max(float(go or 0), vram_needed_gb(f'ollama:{nom}') or 0.0))
         # Ollama a déchargé (keep_alive écoulé) → la ligne doit disparaître TOUT DE SUITE :
         # laisser expirer au TTL ferait croire le GPU occupé pendant une heure.
         for owner in reservations():
             if owner.startswith(prefixe) and owner not in vivants:
+                age = line_age_s(owner)
+                if age is not None and age < ModelRegistry.ANNOUNCE_GRACE_S:
+                    continue
                 release_reservation(owner)
         return len(vivants)
+
+    #: Âge sous lequel une ligne de résidence absente de `/api/ps` est une ANNONCE (le chargement
+    #: n'a pas encore abouti) et non un modèle déchargé. Un modèle d'espace se charge en quelques
+    #: secondes ; la marge couvre un disque lent.
+    ANNOUNCE_GRACE_S = 120
 
     def _overlay_declared_engines(self):
         """Reporte le MOTEUR déclaré par chaque app sur les modèles qu'elle possède.
@@ -2510,13 +2530,14 @@ class ModelRegistry:
         d'exception, la découverte ne doit pas échouer pour ça.
         """
         return {m.get('name', ''): round((m.get('size') or 0) / (1024 ** 3), 2)
-                for m in ModelRegistry._ollama_ps()}
+                for m in ModelRegistry.ollama_ps()}
 
     @staticmethod
-    def _ollama_ps() -> list:
+    def ollama_ps() -> list:
         """Les lignes BRUTES de `/api/ps` (`name`, `size`, `size_vram`, `context_length`…) — le
         seul lecteur de la résidence de l'Ollama hôte, `[]` s'il est injoignable. `_ollama_charges`
-        en dérive ; la mesure d'un chargement (`measure_ollama_load`) y lit aussi `size_vram`."""
+        en dérive ; la mesure d'un chargement (`measure_ollama_load`) y lit aussi `size_vram`, et
+        olmOCR la liste de ce qu'il décharge avant de charger (il tenait son propre lecteur)."""
         try:
             import requests
             from wama.common.utils.ollama_host import ollama_base, ollama_kwargs
@@ -2535,7 +2556,7 @@ class ModelRegistry:
     CARD_SETTLE_S = 0.25
 
     @staticmethod
-    def measure_ollama_load(name: str, load):
+    def measure_ollama_load(name: str, load, *, keep_alive=None):
         """Exécute `load()` — l'appel qui CHARGE le modèle Ollama `name` — et rend son résultat ;
         quand l'observation est PROPRE, consigne au gouverneur l'empreinte que la CARTE a prise
         (`record_measured_vram`, détenteur `ollama_host_owner`). La voie de `_wrap_load` ensuite :
@@ -2564,17 +2585,25 @@ class ModelRegistry:
         réel de ce modèle, à la fenêtre de contexte de l'appel. Un écart de bruit hors WAMA pèse
         vers le haut — le sens prudent du maximum gardé au catalogue.
 
-        Seul un appel qui GARDE le modèle après sa réponse se mesure (`keep_alive` non nul) : à
-        `keep_alive='0'`, Ollama l'a déjà rendu quand on relève. Toute panne de la mesure est
-        avalée — elle ne fait jamais échouer l'appel.
+        Seul un appel qui GARDE le modèle après sa réponse se mesure : `keep_alive` est celui que
+        l'appel envoie (None = le défaut d'Ollama, 5 min) ; à '0', Ollama l'a déjà rendu quand on
+        relève, et rien n'est lu. La règle vit ici, une fois, pour tous les appelants : les espaces
+        de vecteurs, `llm_utils.ollama_chat`, le tour de l'assistant, la vision du describer.
+        Toute panne de la mesure est avalée — elle ne fait jamais échouer l'appel.
+
+        Un modèle de CONVERSATION se mesure à la fenêtre de contexte de l'appel qui l'a chargé ; le
+        catalogue garde le maximum des relevés, donc l'empreinte de la plus grande fenêtre vue —
+        le sens prudent pour l'admission.
         """
         import time
 
         from wama.common.utils.ollama_host import full_tag
+        if str(keep_alive).strip() in ('0', '0s', '0m'):
+            return load()
         wanted = {name, full_tag(name)}
 
         def resident():
-            return {m.get('name', ''): m for m in ModelRegistry._ollama_ps()}
+            return {m.get('name', ''): m for m in ModelRegistry.ollama_ps()}
 
         def card_mib():
             from wama.common.services.system_monitor import SystemMonitor

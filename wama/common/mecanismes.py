@@ -597,9 +597,10 @@ MECHANISMS = (
               "service éteint, le même moteur tourne dans le process appelant. Deux "
               "espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le "
               "MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la "
-              "VRAM se demande au gouverneur par espace (2026-10-19), pour le besoin que porte la "
-              "ligne de catalogue du modèle — un chargement observé se MESURE à la carte et y est "
-              "rendu (`ModelRegistry.measure_ollama_load`, 2026-10-20)",
+              "VRAM se demande au gouverneur sur la ligne de RÉSIDENCE du modèle à l'Ollama hôte "
+              "(`ollama_host_owner`, une par modèle), pour le besoin que porte sa ligne de "
+              "catalogue — un chargement observé se MESURE à la carte et y est rendu "
+              "(`ollama_host.measured_load`, 2026-10-20, qui mesure aussi les conversations)",
               'wama/common/vectors/service_client.py',
               'docs/construction/ia/WAMA_MEMORY.md §7sexies',
               # `vector_service.py` n'est pas une annexe : le relevé des consommateurs lit un

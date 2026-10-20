@@ -330,8 +330,10 @@ une corruption silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000
   modèle (`model_key`), qu'une tâche passe à `model_readiness.ensure_installed`. Un appel
   interactif (le rappel du RAG) garde la règle du §7 : **dégrader, jamais échouer**.
 - **La VRAM reste au gouverneur** : le service ne tient aucun poids (Ollama les tient). Résidence,
-  réservation et déchargement passent par le client, par espace (détenteur
-  `vectors-<espace>#<clé catalogue>`) — `memory/embed.py` s'y appuie désormais.
+  réservation et déchargement passent par le client, sur la ligne de RÉSIDENCE du modèle à
+  l'Ollama hôte (`ollama_host_owner`, une par modèle) — `memory/embed.py` s'y appuie désormais.
+  Jusqu'au 2026-10-20 le client annonçait sous `vectors-<espace>#<clé catalogue>`, une seconde
+  ligne pour le même modèle (§7sexies.1).
 - **Le service écoute la boucle locale seule** : il n'a pas d'authentification. Une médiathèque
   distante passe par WAMA (son connecteur lit les médias, la tâche d'indexation appelle le client),
   jamais par le port du service.
@@ -401,7 +403,7 @@ Ce qui est livré :
 | pièce | où | ce qu'elle fait |
 |---|---|---|
 | la mesure | `ModelRegistry.measure_ollama_load(name, load)` | exécute l'appel qui charge et relève l'écart de la carte (`SystemMonitor.get_gpu_info`, sans contexte CUDA). Elle ne le retient que si l'observation est PROPRE : modèle absent avant ; entier sur la carte après (`size_vram` = `size`) ; autres modèles d'Ollama et registre du gouverneur inchangés ; deux relevés concordants ; écart au moins égal à l'annonce d'Ollama. Puis `record_measured_vram(ollama_host_owner(nom))` : la voie de `_wrap_load`, `persist_measured_vram` la rend au catalogue |
-| qui mesure | `vectors.service_client._measured` | tout appel des espaces qui GARDE le modèle après sa réponse (index des médias, réindex, rappel résident). À `keep_alive='0'`, Ollama l'a rendu avant qu'on relève : rien à observer, et pas même `/api/ps` à lire |
+| qui mesure | `ollama_host.measured_load` | le point d'entrée de tout appel qui peut charger un modèle de l'hôte : les espaces (`vectors.service_client._measured` — index des médias, réindex, rappel résident) et, depuis le soir, les modèles de conversation (ci-dessous). À `keep_alive='0'`, Ollama l'a rendu avant qu'on relève : la mesure ne lit rien, pas même `/api/ps` — la règle vit dans `measure_ollama_load`, une fois |
 | qui lit | `vectors.need_gb` → `auto_model.vram_needed_gb` | la cascade commune (mesurée → source → déclarée → preset) ; `residency_allowed` et `reserve` en dépendent. Empreinte inconnue ⇒ ni résidence ni réservation |
 | retirés | `VectorSpace.vram_gb`, `memory/embed.VRAM_GB` | le chiffre recopié |
 | un seul nom de tag | `ollama_host.full_tag` | `x` = `x:latest`, la règle qui vivait en quatre copies |
@@ -414,17 +416,33 @@ l'hôte Windows. Le catalogue garde le MAXIMUM des relevés (`max_gb`) : il mont
 au fil des passes, ce qui est le sens prudent. Le relevé consigné d'embeddinggemma-2 (1,53) est sous
 les quatre relevés de la sonde qui l'ont suivi (1,78 à 2,20) : la prochaine passe le relèvera.
 
+Ce qui restait, nommé au palier — ✅ **soldé le soir même** (bloc suivant) :
+- ~~un modèle tenu par un espace est compté DEUX fois au registre~~ ;
+- ~~les modèles de CONVERSATION ne sont pas mesurés~~ ;
+- ~~olmOCR lit `/api/ps` à sa main~~.
+
+**Une ligne par résidence Ollama, et les conversations mesurées (2026-10-20, soir).**
+
+Mesuré d'abord, parce que tout en dépend : **le pilote vu de WSL ne voit RIEN de l'hôte.** Un
+chargement d'embeddinggemma-2 a pris 1 906 Mio à la carte (nvidia-smi) et 0 Mio au libre de
+`torch.cuda.mem_get_info` sous WSL2. Le gouverneur traitait déjà la ligne de l'Ollama hôte en
+ANNONCE « par prudence, faute de mesure » : c'est désormais la mesure. Cette ligne est donc tout ce
+que les autres processus savent d'un modèle de l'hôte — elle doit exister une fois, et peser juste.
+
+| défaut | ce qui le corrige |
+|---|---|
+| le même modèle tenait DEUX lignes pendant une passe : `vectors-<espace>#…` (le client) et `ollama-host#…` (la synchro) — retranché deux fois de la VRAM libre des autres, compté deux fois dans les résidents, listé deux fois dans les inactifs ; et décharger le modèle (`MemoryManager.unload_model`) laissait la première en fantôme jusqu'à son expiration | le client annonce sur la ligne de résidence (`service_client.owner` = `ollama_host_owner`), celle que la synchro rafraîchit et que le déchargement retire |
+| la synchro (`refresh_ollama_residency`, 10 min) écrivait ce qu'annonce `/api/ps` — 0,45 Go pour embeddinggemma-2, qui en prend 1,5 à 2,2 | la ligne pèse au moins le besoin du CATALOGUE (`auto_model.vram_needed_gb`, la mesure quand elle existe) ; plus, si `/api/ps` dit plus (fenêtre de contexte plus grande que celle de la mesure) |
+| une annonce posée AVANT l'appel (le client) pouvait être retirée par une synchro tombée pendant le chargement | une ligne absente de `/api/ps` mais posée il y a moins de `ModelRegistry.ANNOUNCE_GRACE_S` (120 s, `resource_governor.line_age_s`) reste ; son auteur la libère |
+| les modèles de CONVERSATION n'étaient pas mesurés | ils passent par `ollama_host.measured_load` aux deux points communs : `llm_utils.ollama_chat` (`llm_chat` local, rôles wama-dev-ai, GLM-OCR) et le tour de l'assistant (`assistant_engine._ollama_call`) ; plus la vision du describer, qui garde son client. Leur empreinte suit la fenêtre de contexte de l'appel qui charge : le catalogue garde le MAXIMUM des relevés, l'empreinte de la plus grande fenêtre vue |
+| olmOCR lisait `/api/ps` et déchargeait Ollama avec son propre client | `OlmOCRBackend._unload_ollama_models` : le lecteur commun (`ModelRegistry.ollama_ps`) et `MemoryManager.unload_model`, qui retire aussi la ligne |
+
 Ce qui reste, nommé :
-- ⏳ **un modèle tenu par un espace est compté DEUX fois au registre** pendant une passe :
-  `vectors-<espace>#…` (le besoin du catalogue) et `ollama-host#…` (ce qu'annonce `/api/ps`, posé
-  par `refresh_ollama_residency`). C'est un défaut d'avant ce palier, dans le sens prudent ; le
-  palier n'y touche pas ;
-- ⏳ **les modèles de CONVERSATION ne sont pas mesurés** : aucun point commun par lequel passent
-  leurs chargements (`llm_chat`, rôles wama-dev-ai, olmOCR). Leur empreinte dépend en plus de la
-  fenêtre de contexte demandée, que `vram_measured` ne distingue pas. `measure_ollama_load` est
-  prête à envelopper un tel appel ;
-- olmOCR lit `/api/ps` à sa main (`olmocr_backend.py:68`), à côté du lecteur commun
-  `ModelRegistry._ollama_ps` — antérieur, relevé ici, non ramené.
+- les appels à Ollama qui gardent leur propre client ne sont pas mesurés : le banc
+  (`model_manager/services/bench.py`, qui mesure la vitesse) et la sonde de vision
+  (`model_manager/services/vision_probe.py`) ;
+- la vision du describer garde son client (`/api/chat` puis `/api/generate` pour les anciens
+  modèles) au lieu de `ollama_chat` : la porter changerait sa température — décision à part.
 
 ## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
 

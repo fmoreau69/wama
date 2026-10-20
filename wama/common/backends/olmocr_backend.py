@@ -51,6 +51,26 @@ class OlmOCRBackend(OCRBackend):
 
     # `process()` → `run()` : celui du contrat OCR (`ocr_base.OCRBackend`, 2026-10-07).
 
+    @staticmethod
+    def _unload_ollama_models() -> int:
+        """Décharge les modèles que l'Ollama hôte tient en mémoire ; rend le nombre déchargé.
+
+        Par les briques (2026-10-20) : le lecteur commun de `/api/ps` (`ModelRegistry.ollama_ps`)
+        et le déchargement de `MemoryManager.unload_model`, qui retire aussi la ligne de résidence
+        du gouverneur. Ce bloc tenait son propre client HTTP pour les deux."""
+        unloaded = 0
+        try:
+            from wama.model_manager.services.memory_manager import MemoryManager
+            from wama.model_manager.services.model_registry import ModelRegistry
+            for m in ModelRegistry.ollama_ps():
+                name = m.get('name', '')
+                if name and MemoryManager.unload_model(f'ollama:{name}'):
+                    unloaded += 1
+                    logger.info(f"[olmOCR] Ollama déchargé : {name}")
+        except Exception as e:
+            logger.debug(f"[olmOCR] Ollama unload skipped : {e}")
+        return unloaded
+
     def _free_vram_before_load(self):
         """Libère la VRAM avant le chargement du modèle :
         1. Décharge les modèles Ollama actifs
@@ -61,33 +81,7 @@ class OlmOCRBackend(OCRBackend):
         import gc
 
         # 1. Unload Ollama models (keep_alive=0)
-        try:
-            import httpx
-            from wama.common.utils.ollama_host import ollama_base
-            host = ollama_base()
-            r = httpx.get(f'{host}/api/ps', timeout=3.0, trust_env=False)
-            if r.status_code == 200:
-                for m in r.json().get('models', []):
-                    name = m.get('name', '')
-                    if name:
-                        resp = httpx.post(
-                            f'{host}/api/generate',
-                            json={'model': name, 'keep_alive': 0},
-                            timeout=10.0,
-                            trust_env=False,
-                        )
-                        logger.info(f"[olmOCR] Ollama déchargé : {name}")
-                        # La ligne de résidence part avec le modèle (2026-09-14) : sans ce
-                        # retrait, le gouverneur croyait ces Go occupés jusqu'à la synchro.
-                        if resp.status_code == 200:
-                            try:
-                                from wama.common.services.resource_governor import (
-                                    ollama_host_owner, release_reservation)
-                                release_reservation(ollama_host_owner(name))
-                            except Exception:
-                                pass
-        except Exception as e:
-            logger.debug(f"[olmOCR] Ollama unload skipped : {e}")
+        self._unload_ollama_models()
 
         # 2. Clear PyTorch CUDA cache
         try:

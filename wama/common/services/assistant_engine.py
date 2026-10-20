@@ -489,7 +489,7 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta
     # `os.environ.get('OLLAMA_HOST', 'http://127.0.0.1:11434')` (settings.py:661), donc il n'est
     # JAMAIS vide — un `or` dessus retomberait toujours sur le mauvais défaut au lieu de laisser
     # la brique répondre. Une valeur explicitement exportée continue de gagner.
-    from wama.common.utils.ollama_host import ollama_base
+    from wama.common.utils.ollama_host import measured_load, ollama_base
 
     ollama_host = (os.environ.get('OLLAMA_HOST') or ollama_base()).rstrip('/')
     ollama_url = f"{ollama_host}/api/chat"
@@ -509,7 +509,10 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta
     if think is not None:
         payload["think"] = bool(think)
     try:
-        return _ollama_stream(ollama_url, payload, on_delta or (lambda _fragment: None))
+        # Le tour GARDE le modèle (aucun `keep_alive` : le défaut d'Ollama) — son chargement se
+        # mesure à la carte et rend son empreinte au catalogue (2026-10-20).
+        return measured_load(ollama_model, lambda: _ollama_stream(
+            ollama_url, payload, on_delta or (lambda _fragment: None)))
     except httpx.ConnectError:
         # Le RÉGLAGE (sans la réécriture WSL2) — c'est lui que l'utilisateur peut corriger.
         from wama.common.external_sources import base_url

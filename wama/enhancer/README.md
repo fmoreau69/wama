@@ -104,7 +104,7 @@ ici. Il ne déclare pas de licence — accepté (décision de Fabien, 11/10) par
 épinglée garantit les octets. L'Anime y porte un autre nom (`RealSRx4_Anime_fp16.onnx`) : la
 déclaration le dit.
 
-⚠ **Retirés le 2026-10-11** (`docs/construction/suivi/REMOVAL_LEDGER.md`) : le téléchargement au
+⚠ **Supprimés le 2026-10-11** (`docs/construction/suivi/REMOVAL_LEDGER.md`) : le téléchargement au
 démarrage de `runserver` (`apps.py`), `utils/model_downloader.py` et la commande
 `download_enhancer_models` — un second chemin d'installation, sans garde d'espace disque, sans
 empreinte, sans journal.

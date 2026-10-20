@@ -46,20 +46,17 @@ def embed(space_key: str, items, *, query: bool = False, timeout: float = TIMEOU
 
 
 def _measured(space: VectorSpace, keep_alive, call):
-    """`call()`, sous la mesure du chargement d'Ollama (`ModelRegistry.measure_ollama_load`) —
-    c'est ainsi que l'empreinte d'un espace atteint le catalogue (`need_gb`).
+    """`call()`, sous la mesure du chargement d'Ollama (`ollama_host.measured_load`) — c'est ainsi
+    que l'empreinte d'un espace atteint le catalogue (`need_gb`).
 
-    Seulement quand l'appel GARDE le modèle après sa réponse (à `keep_alive='0'`, Ollama l'a rendu
-    avant qu'on relève : rien à observer, et on s'épargne la lecture de `/api/ps`) et quand le
-    premier fournisseur est l'Ollama de cette machine. Sans Django (catalogue absent), l'appel nu."""
-    kept = str(engine.KEEP_ALIVE if keep_alive is None else keep_alive).strip()
-    if kept in ('0', '0s') or space.providers[:1] != ('ollama',):
+    La mesure reçoit la résidence EFFECTIVE de l'appel (celle du moteur quand l'appelant n'en
+    pose pas) : à '0', Ollama a rendu le modèle avant qu'on relève, elle n'observe rien. Seul
+    l'Ollama de cette machine se mesure."""
+    if space.providers[:1] != ('ollama',):
         return call()
-    try:
-        from wama.model_manager.services.model_registry import ModelRegistry
-    except Exception:
-        return call()
-    return ModelRegistry.measure_ollama_load(space.model, call)
+    from wama.common.utils.ollama_host import measured_load
+    return measured_load(space.model, call,
+                         keep_alive=engine.KEEP_ALIVE if keep_alive is None else keep_alive)
 
 
 def _embed_prepared(space: VectorSpace, inputs, *, timeout: float, keep_alive) -> list:
@@ -90,9 +87,15 @@ def _embed_prepared(space: VectorSpace, inputs, *, timeout: float, keep_alive) -
 # ── Gouvernance de la VRAM, par espace ───────────────────────────────────────────────────
 
 def owner(space: VectorSpace) -> str:
-    """Détenteur déclaré au gouverneur. Convention `<qui>#<clé catalogue>` (`OWNER_MODEL_SEP`) :
-    c'est ce qui permet à `resident_models()` de rattacher la réservation au modèle du catalogue."""
-    return f'vectors-{space.key}#{space.model_key}'
+    """Détenteur déclaré au gouverneur : la ligne de RÉSIDENCE de l'Ollama hôte pour ce modèle
+    (`ollama_host_owner`), celle que `refresh_ollama_residency` rafraîchit et que
+    `MemoryManager.unload_model` retire. Le modèle n'occupe la carte qu'une fois, où qu'on le
+    demande : jusqu'au 2026-10-20 l'espace annonçait sous `vectors-<espace>#…`, et le même modèle
+    comptait DEUX fois — dans la VRAM libre des autres, dans les résidents, dans les inactifs (et
+    décharger l'un laissait l'autre en fantôme jusqu'à son expiration)."""
+    from wama.common.services.resource_governor import ollama_host_owner
+    from wama.common.utils.ollama_host import full_tag
+    return ollama_host_owner(full_tag(space.model))
 
 
 def need_gb(space: VectorSpace) -> float | None:

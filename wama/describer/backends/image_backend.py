@@ -76,7 +76,7 @@ def _describe_with_ollama_vision(model: str, image_path: str, prompt: str) -> Op
     try:
         import base64
         import httpx
-        from wama.common.utils.ollama_host import ollama_base
+        from wama.common.utils.ollama_host import measured_load, ollama_base
         host = ollama_base()
 
         with open(image_path, 'rb') as fh:
@@ -97,8 +97,13 @@ def _describe_with_ollama_vision(model: str, image_path: str, prompt: str) -> Op
             "options": {"num_predict": 1024},
         }
 
-        with httpx.Client(timeout=180.0, trust_env=False) as client:
-            resp = client.post(f"{host}/api/chat", json=payload_chat)
+        def chat():
+            with httpx.Client(timeout=180.0, trust_env=False) as client:
+                return client.post(f"{host}/api/chat", json=payload_chat)
+
+        # C'est cet appel qui CHARGE le modèle de vision (et le garde : défaut d'Ollama) : son
+        # empreinte se mesure à la carte — `/api/ps` en oublie les projecteurs (2026-10-20).
+        resp = measured_load(model, chat)
 
         if resp.status_code == 200:
             text = resp.json().get("message", {}).get("content", "").strip()

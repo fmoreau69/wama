@@ -161,9 +161,12 @@ class ClientTest(SimpleTestCase):
             self.assertEqual(service_client.embed('text', ['texte']), [])
         local.assert_not_called()
 
-    def test_residency_is_asked_to_the_governor_per_space(self):
+    def test_residency_is_asked_to_the_governor_on_the_line_of_its_model(self):
+        # La ligne de RÉSIDENCE de l'Ollama hôte, pas une seconde ligne par espace : le modèle
+        # n'occupe la carte qu'une fois (`tests_ollama_vram_measure.OllamaResidencyLineTest`).
         self.assertEqual(service_client.owner(spaces.MEDIA),
-                         'vectors-media#ollama:embeddinggemma-2:latest')
+                         'ollama-host#ollama:embeddinggemma-2:latest')
+        self.assertEqual(service_client.owner(spaces.TEXT), 'ollama-host#ollama:qwen3-embedding:4b')
         need = mock.patch.object(service_client, 'need_gb', return_value=2.14)
         with need, mock.patch('wama.common.services.resource_governor.effective_free_gb',
                               return_value=2.14 * 2):
@@ -171,7 +174,7 @@ class ClientTest(SimpleTestCase):
         with need, mock.patch('wama.common.services.resource_governor.effective_free_gb',
                               return_value=2.14 * 4) as free:
             self.assertTrue(service_client.residency_allowed('media')[0])
-        free.assert_called_once_with(exclude='vectors-media#ollama:embeddinggemma-2:latest')
+        free.assert_called_once_with(exclude='ollama-host#ollama:embeddinggemma-2:latest')
 
     def test_the_need_of_a_space_is_read_at_its_catalogue_row(self):
         with mock.patch('wama.common.utils.auto_model.vram_needed_gb', return_value=2.14) as need:
@@ -182,7 +185,7 @@ class ClientTest(SimpleTestCase):
                            return_value=True) as reserve, \
                 mock.patch('wama.common.services.resource_governor.mark_used'):
             self.assertTrue(service_client.reserve('media', expires_in_s=300))
-        reserve.assert_called_once_with('vectors-media#ollama:embeddinggemma-2:latest', 2.14,
+        reserve.assert_called_once_with('ollama-host#ollama:embeddinggemma-2:latest', 2.14,
                                         expires_in_s=300)
 
     def test_an_unknown_need_neither_keeps_nor_reserves(self):
@@ -199,15 +202,16 @@ class ClientTest(SimpleTestCase):
         answer = mock.Mock(status_code=200, json=lambda: {'vectors': [[0.2] * 768]})
         measure = 'wama.model_manager.services.model_registry.ModelRegistry.measure_ollama_load'
         with mock.patch('requests.post', return_value=answer), \
-                mock.patch(measure, side_effect=lambda name, load: load()) as measured:
+                mock.patch(measure, side_effect=lambda name, load, keep_alive=None: load()) \
+                as measured:
             self.assertEqual(len(service_client.embed('media', ['x'], keep_alive='10m')), 1)
-            measured.assert_called_once()
-            self.assertEqual(measured.call_args.args[0], spaces.MEDIA.model)
-            measured.reset_mock()
-            # Déchargé sitôt la réponse rendue : rien à observer, pas même `/api/ps`.
             service_client.embed('media', ['x'])
             service_client.embed('media', ['x'], keep_alive='0')
-            measured.assert_not_called()
+        # La mesure reçoit la résidence EFFECTIVE — celle du moteur quand l'appelant n'en pose
+        # pas — et c'est elle qui renonce à '0' (`OllamaLoadMeasureTest`).
+        self.assertEqual([(c.args[0], c.kwargs['keep_alive']) for c in measured.call_args_list],
+                         [(spaces.MEDIA.model, '10m'), (spaces.MEDIA.model, engine.KEEP_ALIVE),
+                          (spaces.MEDIA.model, '0')])
 
 
 class ServiceTest(SimpleTestCase):

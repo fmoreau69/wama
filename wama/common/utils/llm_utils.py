@@ -242,7 +242,7 @@ def ollama_chat(
     """
     import httpx
 
-    from .ollama_host import ollama_base
+    from .ollama_host import measured_load, ollama_base
 
     # Résolution via la brique : sous WSL2, `127.0.0.1` désigne la VM et non l'hôte Windows où
     # tourne Ollama. Le contournement du proxy, lui, est déjà assuré plus bas par le
@@ -277,9 +277,15 @@ def ollama_chat(
     if keep_alive is not None:
         payload["keep_alive"] = keep_alive
 
-    try:
+    def post():
         with httpx.Client(timeout=timeout, trust_env=False) as client:
-            resp = client.post(url, json=payload)
+            return client.post(url, json=payload)
+
+    try:
+        # Un chargement que l'appel GARDE se mesure à la carte et rend son empreinte au catalogue
+        # (`measure_ollama_load`, 2026-10-20) : `/api/ps` sous-compte, et le pilote vu de WSL ne
+        # voit rien de l'hôte.
+        resp = measured_load(model, post, keep_alive=keep_alive)
         if resp.status_code != 200:
             return None, f"Ollama HTTP {resp.status_code}: {resp.text[:200]}"
         text = resp.json().get("message", {}).get("content", "") or ""
