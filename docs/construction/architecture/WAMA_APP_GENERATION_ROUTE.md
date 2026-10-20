@@ -5970,6 +5970,18 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   `:1793`) rendent la source sous la clé `app`, valeur brute — la confusion de l'ancien
 >   filtre, sur une surface que lit le LLM (`anthropic` ou `huggingface` y passent pour une
 >   app) ; renommer la clé touche le contrat de l'outil, donc à décider avec le reste.
+>   **Mesuré le même jour, pour décider** : (1) 13 libellés de `ModelSource` sur 19 diffèrent du
+>   nom servi (« WAMA Imager » / « Imager », « HuggingFace » / « HuggingFace Hub », « Ollama » /
+>   « Ollama (hôte) », « Claude Code (abonnement) » / « Claude Code ») ; ils ne sont lus que par
+>   le filtre et le formulaire de l'admin, mais chaque migration de `source` les fige (six
+>   `AlterField` déjà, 0008 → 0024, une par source ajoutée). (2) `platform_label` n'est lu que
+>   par l'info-bulle du lien de card ; `_URL_PAR_PLATEFORME` sert aussi de vocabulaire des
+>   plateformes (validation du manifeste `model`, `backfill_platform_refs`), et `platform_url`
+>   lit l'adresse d'ollama.com DEUX fois — en dur dans le gabarit, par le registre
+>   (`ollama_registry.BASE_SITE`) dans son repli. 29 lignes et 9 manifestes portent le
+>   préfixe `ollama:` : on l'associe à `ollama_site`, on ne le renomme pas. (3) Rien dans le
+>   code ni dans les tests ne lit la clé `app` rendue par les deux outils ; sur les 200
+>   premières lignes de `list_ai_models`, 120 y portent une source qui n'est pas une app.
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**
