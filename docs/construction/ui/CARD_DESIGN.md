@@ -1840,10 +1840,18 @@ synthesizer sortent de `drift`, `INPUT_MODEL_MATCHING §6.10`) ; la grille (`rec
 card elle-même : `WamaImport({attach: 'card'})`, jumelle d'`addToQueue({ports: 'card'})` —
 adoptée par le composer et l'avatarizer (leur relevé écrit à la main) et par le générateur, dont
 une jumelle « attache » émettait jusque-là la voie qui CRÉE.
+**Une seule lecture des onglets (revérification du 2026-10-20)** : les deux jumelles relevaient
+chacune les panes de la card, et trois autres lecteurs aussi (le réglage lié à un port de
+`wama-params`, les slots d'appariement du composer, les ports d'avatar de l'avatarizer). Tous lisent
+désormais `WamaInputSlots.filePorts(node)` — `[{id, inputId, zoneId}]`, les onglets FICHIER de la
+card, dans son ordre —, servi par la brique qui rend et câble ces onglets (`wama-input-slots.js`).
+Et la card v3, qui ne sert plus que la médiathèque, ne prend plus de forme d'entrée de son appelant
+(`depot_cree`, `show_prompt` : `REMOVAL_LEDGER` R155).
 Gardes : `tests_catalogues.EntryFormComesFromThePortsTest`, `AlternativeRequirementsTest` (le nœud
 porte l'obligation — garde du 30/09 INVERSÉE), `tests_codegen_templates.GeneratedEntryFormTest`
 (et le test du cover, sorti d'`expectedFailure`), `tests_designation_js` (V8 : `attach: 'card'`
-joint sur une card attache, envoie sur une card qui crée).
+joint sur une card attache, envoie sur une card qui crée ; `filePorts` ; aucune autre lecture des
+onglets dans `wama/`, `wama_lab/`, `wama_data/`).
 
 > **L'aperçu de voix du synthesizer ne passe par AUCUN chemin commun côté lecture, ni par le
 > chemin de la synthèse côté serveur** (mesuré le 2026-09-28, `synthesizer/views.py::voice_preview`

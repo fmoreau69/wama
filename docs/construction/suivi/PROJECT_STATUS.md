@@ -25022,3 +25022,34 @@ session des thèmes).
   card offre) — candidat à `attach: 'card'`, non porté ;
 - `tests_import_contract.PORTEES` se calcule à l'import (catalogue réel, avant la base de test) — comme
   avant, mais par la forme déduite au lieu d'un motif de fichier.
+
+## §PALIER 2026-10-20, « Portage apps : revérification de la FORME D'ENTRÉE (`3dabd934`) » — non poussé — 🔴 relancer gunicorn (JS servis, card v3, gabarit du composer)
+
+**Deux écarts trouvés par `/reverif`, ramenés** :
+- **une seule lecture des onglets de la card** : `WamaImport({attach: 'card'})` (de ma main, le
+  19/10) refaisait le relevé de `addToQueue({ports: 'card'})`, et trois lecteurs plus anciens
+  cherchaient l'input d'un port dans les panes (`wama-params` pour `default_from`, les slots
+  d'appariement du composer, les ports d'avatar de l'avatarizer). Tous lisent
+  `WamaInputSlots.filePorts(node)` (`[{id, inputId, zoneId}]`), servi par la brique qui rend et
+  câble ces onglets (`wama-input-slots.js`) ; une garde refuse toute autre lecture dans `wama/`,
+  `wama_lab/`, `wama_data/` (jumelles exclues : elles se régénèrent — `composer_01` porte encore
+  l'ancien relevé, étape 3) ;
+- **la card v3 ne prend plus de forme d'entrée de son appelant** : `depot_cree`, `show_prompt` et
+  la cellule de consigne n'avaient plus d'appelant (la médiathèque, sa seule surface, crée au dépôt)
+  — `REMOVAL_LEDGER` R155 ; la garde des pages couvre les deux cards et les gabarits communs.
+
+**Preuves** : tests ciblés sous WSL (catalogues, designation_js, lot_tab, score_input, import_wired,
+composer, avatarizer : 435, puis les deux modules retouchés : 20 OK) et sous Windows (V8 :
+designation_js, codegen_templates — 64 OK). Contre-épreuves ROUGES : `filePorts` neutralisé dans la
+copie servie (3 échecs), un lecteur de plus des onglets (1), la v3 qui relit `depot_cree` (1), une
+page qui le lui passe (1) — tout restauré, vérifié par `cmp`. Page SERVIE (serveur éphémère 8011,
+Chromium, compte de test) : `/composer/` — ports `work_audio`, `work_score`, `default_from` posé sur
+l'input de `work_audio` ; `/avatarizer/` — `work_audio`, `work_image`, `work_object3d` ; `/imager/`,
+`/describer/` : aucune erreur JS (les seuls rouges console sont deux API du model manager en 403 pour
+ce compte). `check_docs` 0/2971 ; `doc_facts --check` à jour.
+
+Docs : `CARD_DESIGN §11.11`, `mecanismes.py` (`add_to_queue`) et sa table régénérée, deux
+commentaires de `ui_smoke`.
+
+🔚 **Reste nommé** : la v3 garde d'autres réglages qu'aucune inclusion ne lui passe (référence, URL)
+— à retirer avec le passage de la médiathèque à la v4, hors de ce périmètre.

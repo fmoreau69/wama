@@ -17,9 +17,34 @@
  *
  * Zéro code par app : auto-init sur DOMContentLoaded. Garde anti-double-init comme
  * wama-new-item-card.js.
+ *
+ * `WamaInputSlots.filePorts(node)` (2026-10-20) : la SEULE lecture des ports d'une card hors de
+ * cette brique — l'envoi (`WamaApp.addToQueue({ports: 'card'})`), le dépôt qui se joint
+ * (`WamaImport({attach: 'card'})`), le réglage lié à un port (`wama-params`), les slots
+ * d'appariement du composer et l'app qui cherche l'input d'UN port (avatarizer) relevaient chacun
+ * les panes à leur façon.
  */
 (function (global) {
     'use strict';
+
+    /** Les ports FICHIER d'une card v4, `[{id, inputId, zoneId}]` — un par onglet qui porte un
+     *  input (`data-port-kind="file"` : ni le live ni le lot), dans l'ordre de la card ; `zoneId`,
+     *  l'id de l'onglet s'il en a un (`undefined` sinon). `node` : un
+     *  élément DANS la card (bouton, zone de dépôt) ou la card elle-même ; `document` : les ports
+     *  de toutes les cards de la page (`[]` hors de toute card). */
+    function filePorts(node) {
+        var scope = !node ? null
+            : node.closest ? node.closest('[data-wama-ports]')
+            : node.querySelectorAll ? node : null;
+        if (!scope) return [];
+        return Array.prototype.map.call(
+            scope.querySelectorAll('[data-port-pane][data-port-kind="file"]'),
+            function (pane) {
+                return { id: pane.getAttribute('data-port-pane'),
+                         inputId: pane.getAttribute('data-port-input'),
+                         zoneId: pane.id || undefined };
+            }).filter(function (p) { return p.inputId; });
+    }
 
     function inputOf(pane) {
         var id = pane.dataset.portInput;
@@ -268,5 +293,6 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
 
-    global.WamaInputSlots = { renderFiles: renderFiles, showFace: showFace, activate: activate };
+    global.WamaInputSlots = { renderFiles: renderFiles, showFace: showFace, activate: activate,
+                              filePorts: filePorts };
 })(window);

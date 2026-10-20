@@ -954,8 +954,9 @@ def check_app_import(app: str, url_path: str):
                 // PAS — un test qui vise au hasard produit des faux échecs, et un faux échec
                 // répété apprend à ignorer la barrière.
                 || (tous.length === 1 ? tous[0] : null);
-        // Ce que FAIT un dépôt sur cette card — DÉCLARÉ par l'app, pas deviné
-        // (`common/_new_item_card.html`, data-wama-depot). 'attache' = le fichier se
+        // Ce que FAIT un dépôt sur cette card — rendu par la card commune, pas deviné
+        // (data-wama-depot, déduit de l'obligation des ports : `app_registry.entry_form`,
+        // 2026-10-19). 'attache' = le fichier se
         // joint au formulaire et c'est le bouton primaire qui crée l'élément.
         const carteDepot = (dz && dz.closest('[data-wama-depot]')) || carte
                 || document.querySelector('[data-wama-depot]');
@@ -3718,7 +3719,7 @@ def _monter_un_lot(page, app: str = '', n: int = 2):
     """
     exclus = '[id*="atch"], [id*="elody"], [id*="eference"], [id*="voice"], [id*="avatar"]'
     champ = page.query_selector(f'[data-wama-nic] input[type=file]:not({exclus})')
-    # Ce que FAIT un dépôt ici est DÉCLARÉ, pas deviné (`_new_item_card.html`). `attache` =
+    # Ce que FAIT un dépôt ici est rendu par la card, pas deviné (`entry_form`). `attache` =
     # le fichier se joint au formulaire et rien n'est créé : déposer y perdrait 8 s pour
     # conclure « l'app ne groupe pas », ce qui serait FAUX. On passe donc directement par la
     # voie de lot, qui est la voie de création de ces apps-là.

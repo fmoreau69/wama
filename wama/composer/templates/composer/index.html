@@ -329,12 +329,13 @@ window.COMPOSER_PARAMS_SCHEMA = {{ params_json|safe }};
     if (window.WamaInputMatch) {
         var panelCaps = window.WamaModelCaps
             ? WamaModelCaps.init({ task: COMPOSER_MATCH.task, modelSelectId: 'modelSelect' }) : null;
-        // Les slots SONT les ports de la card (2026-10-03) : lus du DOM, jamais écrits ici —
-        // la partition de YuE2 n'était pas déclarée dans la liste écrite à la main.
-        var panelSlots = Array.from(document.querySelectorAll('#composerNewCard [data-port-pane]'))
-            .filter(function (p) { return p.dataset.portInput; })
+        // Les slots SONT les ports de la card (2026-10-03) : lus par sa brique
+        // (`WamaInputSlots.filePorts`), jamais écrits ici — la partition de YuE2 n'était pas
+        // déclarée dans la liste écrite à la main.
+        var panelSlots = (window.WamaInputSlots
+            ? WamaInputSlots.filePorts(document.getElementById('composerNewCard')) : [])
             .reduce(function (acc, p) {
-                acc[p.dataset.portPane] = { inputId: p.dataset.portInput, zoneId: p.id || undefined };
+                acc[p.id] = { inputId: p.inputId, zoneId: p.zoneId };
                 return acc;
             }, {});
         panelSlots.vocals = COMPOSER_MATCH.vocalsSlot('vocalsSelect');

@@ -924,17 +924,14 @@
       const el = pane && pane.querySelector('[data-port-url]');
       return el ? el : null;
     };
-    // Les ports de l'envoi : la liste donnée, ou ceux de la card du bouton (`ports: 'card'`).
+    // Les ports de l'envoi : la liste donnée, ou ceux de la card du bouton (`ports: 'card'`,
+    // lus par la brique de la card, `WamaInputSlots.filePorts`).
     const portsOf = function () {
       if (opts.ports !== 'card') return opts.ports || [];
-      const card = button && button.closest('[data-wama-ports]');
-      if (!card) return [];
+      const slots = global.WamaInputSlots;
       const extra = opts.portOptions || {};
-      return Array.prototype.filter.call(card.querySelectorAll('[data-port-pane]'), function (pane) {
-        return pane.dataset.portInput && pane.dataset.portPane !== 'lot';
-      }).map(function (pane) {
-        return Object.assign({ inputId: pane.dataset.portInput, field: pane.dataset.portPane },
-                             extra[pane.dataset.portInput] || {});
+      return (slots ? slots.filePorts(button) : []).map(function (port) {
+        return Object.assign({ inputId: port.inputId, field: port.id }, extra[port.inputId] || {});
       });
     };
     const promptValue = function (el) {

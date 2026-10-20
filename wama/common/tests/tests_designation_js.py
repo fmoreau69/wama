@@ -122,14 +122,71 @@ class DesignationJsTest(SimpleTestCase):
 
     def _on_a_card(self, depot):
         """`attach: 'card'` (2026-10-19) sur une card dont la forme d'entrée est `depot` : une
-        désignation audio, et ce qui en sort — `[ports qui l'ont reçue, requêtes envoyées]`."""
+        désignation audio, et ce qui en sort — `[ports qui l'ont reçue, requêtes envoyées]`. Les
+        ports se lisent par la brique de la card, chargée comme sur la page."""
         ctx = self._import(", attach: 'card'")
-        ctx.eval("var pane = {getAttribute: function (k) { return k === 'data-port-input' ? 'port' : null; }};"
-                 "var card = {getAttribute: function (k) { return k === 'data-wama-depot' ? '"
-                 + depot + "' : null; }, querySelectorAll: function () { return [pane]; }};"
+        self._load_slots(ctx)
+        ctx.eval("var card = fakeCard('" + depot + "', [fakePane('melody', 'file', 'port')]);"
                  "elements.dz.closest = function () { return card; };"
                  "api.handleDesignations([{path: 'users/3/temp/melody.wav', type: 'audio/wav'}]);")
         return json.loads(ctx.eval('JSON.stringify([attached, posted.length])'))
+
+    #: Une card v4 sans navigateur : des panes qui répondent à `getAttribute`, une card qui ne rend
+    #: que ceux que le sélecteur des ports FICHIER retient (le live et le lot n'en sont pas).
+    FAKE_CARD = """
+    function fakePane(port, kind, input, id) { var a = {'data-port-pane': port, 'data-port-kind': kind,
+      'data-port-input': input || null}; return {id: id || '', getAttribute: function (k) { return k in a ? a[k] : null; }}; }
+    function fakeCard(depot, panes) { var card = {
+      getAttribute: function (k) { return k === 'data-wama-depot' ? depot : null; },
+      querySelectorAll: function (sel) { return sel === '[data-port-pane][data-port-kind="file"]'
+        ? panes.filter(function (p) { return p.getAttribute('data-port-kind') === 'file'; }) : []; } };
+      card.closest = function () { return card; }; return card; }
+    """
+
+    def _load_slots(self, ctx):
+        """La brique de la card (`wama-input-slots.js`), SERVIE, sur le faux document."""
+        ctx.eval("document.querySelectorAll = function () { return []; };" + self.FAKE_CARD)
+        ctx.eval((SERVED / 'common/js/wama-input-slots.js').read_text(encoding='utf-8'))
+
+    def test_the_card_brick_lists_its_file_ports_in_order(self):
+        """`WamaInputSlots.filePorts` (2026-10-20) : un port par onglet FICHIER qui porte un input,
+        dans l'ordre de la card — depuis un élément de la card, la card, ou `document` ; rien hors
+        d'une card."""
+        ctx = _mini_racer(self)
+        ctx.eval(FAKE_ENV)
+        self._load_slots(ctx)
+        got = json.loads(ctx.eval(
+            "var card = fakeCard('attache', [fakePane('live', 'live'), fakePane('prompt_file', 'file', 'pf', 'pfPane'),"
+            " fakePane('work_audio', 'file', 'wa'), fakePane('lot', 'lot'), fakePane('orphan', 'file')]);"
+            "var inside = {closest: function () { return card; }};"
+            "var outside = {closest: function () { return null; }};"
+            "var page = {querySelectorAll: card.querySelectorAll};"
+            "JSON.stringify([WamaInputSlots.filePorts(inside), WamaInputSlots.filePorts(card),"
+            " WamaInputSlots.filePorts(page), WamaInputSlots.filePorts(outside), WamaInputSlots.filePorts(null)]);"))
+        expected = [{'id': 'prompt_file', 'inputId': 'pf', 'zoneId': 'pfPane'},
+                    {'id': 'work_audio', 'inputId': 'wa'}]
+        self.assertEqual([expected, expected, expected, [], []], got)
+
+    def test_the_card_ports_are_read_by_the_card_brick_only(self):
+        """Une seule lecture des onglets de la card hors de sa brique : `filePorts`. L'envoi
+        (`addToQueue`), le dépôt qui se joint (`WamaImport`), le réglage lié à un port
+        (`wama-params`), l'avatarizer et le composer relevaient chacun les panes (2026-10-20).
+        Jumelles du bac à sable exclues : elles se régénèrent."""
+        from wama.common.app_registry import APP_CATALOG
+        twins = {app for app, spec in APP_CATALOG.items()
+                 if spec.get('generated_from') or spec.get('sandbox')}
+        offenders = []
+        for base in ('wama', 'wama_lab', 'wama_data'):
+            for path in (ROOT / base).rglob('*'):
+                if (path.suffix not in ('.js', '.html') or 'node_modules' in path.parts
+                        or twins & set(path.parts)):
+                    continue
+                if path.name == 'wama-input-slots.js':
+                    continue
+                text = path.read_text(encoding='utf-8', errors='replace')
+                if re.search(r"querySelector(All)?\(\s*['\"][^'\"]*\[data-port-pane", text):
+                    offenders.append(str(path.relative_to(ROOT)))
+        self.assertEqual([], offenders)
 
     def test_on_an_attach_card_the_file_joins_the_port_the_card_declares(self):
         attached, posted = self._on_a_card('attache')

@@ -65,16 +65,19 @@
     // -----------------------------------------------------------------------
     // La galerie propre à l'app et l'import d'avatar du volet droit sont RETIRÉS (2026-09-29) :
     // l'avatar est le port `work_image`, dont la médiathèque s'ouvre sur l'onglet Avatar. Son
-    // input se lit sur le pane du port (`data-port-input`) — l'id est dérivé par la card, on ne
-    // le recompose pas ici.
-    const avatarPane  = $('#avatarizerNewCard [data-port-pane="work_image"]');
-    const avatarInput = avatarPane ? document.getElementById(avatarPane.dataset.portInput) : null;
+    // input se lit par la brique de la card (`WamaInputSlots.filePorts`) — l'id est dérivé par la
+    // card, on ne le recompose pas ici.
+    const cardPorts = window.WamaInputSlots ? WamaInputSlots.filePorts($('#avatarizerNewCard')) : [];
+    const portInput = (id) => {
+        const port = cardPorts.find((p) => p.id === id);
+        return port ? document.getElementById(port.inputId) : null;
+    };
+    const avatarInput = portInput('work_image');
     const AVATAR_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
     // L'avatar 3D (2026-09-30) : le port `work_object3d`, qu'ouvre le moteur TalkingHead. Il
     // n'existe que si ce modèle est au catalogue (les ports viennent des modèles) — d'où `null`.
     // L'avatar est une photo OU un objet 3D : les deux ports alimentent `avatar_upload`.
-    const avatar3dPane  = $('#avatarizerNewCard [data-port-pane="work_object3d"]');
-    const avatar3dInput = avatar3dPane ? document.getElementById(avatar3dPane.dataset.portInput) : null;
+    const avatar3dInput = portInput('work_object3d');
     const avatarInputs  = [avatarInput, avatar3dInput].filter(Boolean);
 
     /** Le port d'avatar rempli (photo ou 3D), ou null. */

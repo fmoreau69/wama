@@ -1036,8 +1036,8 @@
 
   /** Valeur PROPOSÉE d'après une ENTRÉE de la card (`default_from`, 2026-10-04 — la durée du
    *  composer reprend celle de la chanson à reprendre). Le port déclaré est retrouvé par la card
-   *  d'entrée elle-même (`[data-port-pane=<port>][data-port-input]`) : aucune app ne nomme son
-   *  input. Au dépôt OU à la désignation (`designateInto` émet le même `change`), la propriété est
+   *  d'entrée elle-même (`WamaInputSlots.filePorts`, la brique de la card) : aucune app ne nomme
+   *  son input. Au dépôt OU à la désignation (`designateInto` émet le même `change`), la propriété est
    *  lue (`WamaApp.mediaDuration`) puis posée — arrondie au pas, BORNÉE par le max du moment
    *  (celui que `cap_from` a posé pour le modèle choisi). Contexte : la surface de CRÉATION
    *  (`panel`, là où vit la card d'entrée) — une modale d'élément existant ne suit pas le fichier
@@ -1060,8 +1060,10 @@
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
       var targetId = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
       if (!container.querySelector('#' + CSS.escape(targetId))) return;
-      var pane = document.querySelector('[data-port-pane="' + CSS.escape(df.port) + '"][data-port-input]');
-      var input = pane && document.getElementById(pane.dataset.portInput);
+      // Les panes n'existent qu'avec la card, qui charge sa brique avant eux : sans elle, pas de port.
+      var port = (global.WamaInputSlots ? global.WamaInputSlots.filePorts(document) : [])
+        .filter(function (q) { return q.id === df.port; })[0];
+      var input = port && document.getElementById(port.inputId);
       if (!input) return;                    // pas de card d'entrée portant ce port sur la page
       input._wpDefaultFrom = input._wpDefaultFrom || {};
       var already = Object.keys(input._wpDefaultFrom).length > 0;

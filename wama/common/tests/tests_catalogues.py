@@ -2076,24 +2076,37 @@ class EntryFormComesFromThePortsTest(TestCase):
         self.assertNotIn('id="describerPrompt"', describer)
 
     def test_no_page_writes_the_entry_form_by_hand(self):
-        """Les littéraux `depot_cree` / `show_prompt` ne sont plus lus par la card v4 : une page qui
-        les passerait encore ferait croire qu'elle décide (jumelles exclues : régénérées)."""
+        """Les littéraux `depot_cree` / `show_prompt` ne sont plus lus par aucune card commune : une
+        page qui les passerait encore ferait croire qu'elle décide (jumelles exclues : régénérées).
+        Les deux cards, la v3 comprise (2026-10-20, `REMOVAL_LEDGER` R155) — gabarits communs aussi."""
         import re
         from pathlib import Path
         from django.conf import settings
         from wama.common.app_registry import APP_CATALOG
         base = Path(settings.BASE_DIR)
-        offenders = []
+        dirs = [base / 'wama' / 'common' / 'templates']
         for app, spec in APP_CATALOG.items():
             if spec.get('generated_from') or spec.get('sandbox'):
                 continue
-            for root in ('wama', 'wama_lab', 'wama_data'):
-                for page in (base / root / app / 'templates').rglob('*.html'):
-                    for line in page.read_text(encoding='utf-8', errors='replace').splitlines():
-                        if ("_new_item_card_v4.html' with" in line
-                                and re.search(r'\b(depot_cree|show_prompt)\s*=', line)):
-                            offenders.append(str(page.relative_to(base)))
+            dirs += [base / root / app / 'templates' for root in ('wama', 'wama_lab', 'wama_data')]
+        offenders = []
+        for folder in dirs:
+            for page in folder.rglob('*.html'):
+                for line in page.read_text(encoding='utf-8', errors='replace').splitlines():
+                    if (re.search(r"_new_item_card(_v4)?\.html' with", line)
+                            and re.search(r'\b(depot_cree|show_prompt)\s*=', line)):
+                        offenders.append(str(page.relative_to(base)))
         self.assertEqual([], offenders)
+
+    def test_the_v3_card_no_longer_takes_the_entry_form_from_its_caller(self):
+        """La v3 ne sert plus que la médiathèque, où le dépôt crée : les littéraux qui la faisaient
+        « attache » ou lui posaient une consigne sont RETIRÉS (R155) — passés, ils ne changent rien."""
+        from django.template.loader import render_to_string
+        context = {'drop_zone_id': 'z', 'file_input_id': 'f', 'collapsible': True,
+                   'depot_cree': False, 'show_prompt': True, 'prompt_input_id': 'legacyPrompt'}
+        html = render_to_string('common/_new_item_card.html', context)
+        self.assertIn('data-wama-depot="cree"', html)
+        self.assertNotIn('legacyPrompt', html)
 
 
 class PipelineStageOpensNoPortTest(TestCase):

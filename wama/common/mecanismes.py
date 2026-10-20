@@ -1993,7 +1993,9 @@ MECHANISMS = (
               "le générateur (`views_gen.card_entry`) et `WamaImport({attach: 'card'})`. Adoptée le jour même "
               "par imager, avatarizer, composer et synthesizer (leur formulaire maison retiré). "
               "`ports: 'card'` (05/10) : les ports relus sur la card v4 à chaque envoi, chacun "
-              "posté sous son nom — le relevé que le composer et le générateur écrivaient chacun",
+              "posté sous son nom — le relevé que le composer et le générateur écrivaient chacun ; "
+              "lus par la brique de la card (`WamaInputSlots.filePorts`, 2026-10-20), la seule "
+              "lecture des onglets hors d'elle",
               'wama/common/static/common/js/wama-app-base.js', 'docs/construction/ui/CARD_DESIGN.md',
               annexes=('wama/common/manifests/codegen/templates_gen.py',
                        'wama/common/manifests/codegen/views_gen.py'),

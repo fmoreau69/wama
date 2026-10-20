@@ -139,21 +139,19 @@
 
 
     /**
-     * Les ports d'ATTACHE de l'instance. `attach: 'card'` (2026-10-19) : les ports FICHIER lus sur
-     * la card d'entrée v4 de la zone de dépôt (`[data-port-pane][data-port-kind="file"]`), relus à
-     * chaque dépôt — et AUCUN quand la card dit qu'un dépôt CRÉE (`data-wama-depot`, forme d'entrée
-     * déduite de l'obligation des ports, `app_registry.entry_form`) : le fichier part alors vers
-     * `uploadUrl`. Jumelle de `WamaApp.addToQueue({ports: 'card'})` ; le composer et le générateur
-     * d'apps écrivaient chacun ce relevé. Une LISTE d'ids reste lue telle quelle.
+     * Les ports d'ATTACHE de l'instance. `attach: 'card'` (2026-10-19) : les ports FICHIER de la
+     * card d'entrée v4 de la zone de dépôt (`WamaInputSlots.filePorts`, la brique de la card), relus
+     * à chaque dépôt — et AUCUN quand la card dit qu'un dépôt CRÉE (`data-wama-depot`, forme
+     * d'entrée déduite de l'obligation des ports, `app_registry.entry_form`) : le fichier part alors
+     * vers `uploadUrl`. Jumelle de `WamaApp.addToQueue({ports: 'card'})` ; le composer et le
+     * générateur d'apps écrivaient chacun ce relevé. Une LISTE d'ids reste lue telle quelle.
      */
     function attachInputs() {
       if (cfg.attach !== 'card') return cfg.attach || [];
       var zone = el(cfg.dropZoneId) || el(cfg.fileInputId);
       var card = zone && zone.closest('[data-wama-ports]');
-      if (!card || card.getAttribute('data-wama-depot') !== 'attache') return [];
-      return Array.prototype.map.call(
-        card.querySelectorAll('[data-port-pane][data-port-kind="file"]'),
-        function (pane) { return pane.getAttribute('data-port-input'); }).filter(Boolean);
+      if (!card || card.getAttribute('data-wama-depot') !== 'attache' || !global.WamaInputSlots) return [];
+      return WamaInputSlots.filePorts(card).map(function (port) { return port.inputId; });
     }
 
     /** L'input porte-t-il déjà CE fichier (même nom, taille, date) ? */
