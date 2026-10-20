@@ -52,6 +52,16 @@ body.wama-simple [data-wama-chat][data-density="full"] .wama-assistant-feed { ma
   max-height: 120px; overflow-y: auto; white-space: pre-wrap; word-break: break-word;
   margin: 4px 0 0 0; }
 
+/* Progression des jobs lancés par une réponse (2026-10-20) : le bloc commun des cards (badge,
+   barre `.wama-progress-*`, %, ETA), sous la bulle qui a lancé le traitement. */
+[data-wama-chat] .wama-assistant-jobs {
+  clear: both; background: var(--wama-chat-bubble); border-radius: 8px; padding: 6px 8px;
+  margin: 0 0 .5rem 0; color: var(--wama-text-bright); }
+[data-wama-chat][data-density="compact"] .wama-assistant-jobs { font-size: .72rem; padding: 4px 6px; }
+[data-wama-chat] .wama-assistant-job + .wama-assistant-job { margin-top: 6px; }
+[data-wama-chat] .wama-assistant-job-name { min-width: 0; }
+[data-wama-chat] .wama-assistant-job .wama-eta { color: var(--wama-text-label); }
+
 [data-wama-chat] .wama-assistant-empty { color: var(--wama-text-label); text-align: center; padding: 6px 0; }
 [data-wama-chat][data-density="full"] .wama-assistant-empty { padding: 1.5rem 0; }
 

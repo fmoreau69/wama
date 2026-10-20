@@ -53,7 +53,22 @@ def _chat_thread(user) -> list:
     from wama.common.models import Conversation
     from wama.common.services import conversation_store
     fil = Conversation.objects.filter(user=user, surface='web', thread_key='').first()
-    return conversation_store.display_entries(fil)
+    entries = conversation_store.display_entries(fil)
+    # Un traitement long lancé depuis le fil survit à la page : à son rechargement, la réponse qui
+    # l'a lancé retrouve sa barre (`jobs`) tant qu'il tourne (2026-10-20). Les derniers tours
+    # seulement — chaque élément se relit.
+    from wama.common.services.job_follow_ups import turn_jobs
+    steps_seen = 0
+    for i in range(len(entries) - 1, -1, -1):
+        if entries[i]['type'] != 'tool_steps' or i + 1 >= len(entries):
+            continue
+        steps_seen += 1
+        if steps_seen > THREAD_JOBS_TURNS:
+            break
+        jobs = turn_jobs(user, entries[i]['steps'])
+        if jobs and entries[i + 1]['type'] == 'assistant':
+            entries[i + 1]['jobs'] = jobs
+    return entries
 
 
 def home(request):
@@ -360,6 +375,37 @@ def _turn_follow_ups(request, result) -> None:
         from wama.common.services.job_follow_ups import web_follow_ups
         result['follow_ups'] = web_follow_ups(request.user, notices,
                                               absolute=request.build_absolute_uri)
+    # Les éléments que le tour a lancés et qui tournent ENCORE : la réponse les porte, le chat en
+    # suit la progression sous elle (2026-10-20, `ai_chat_jobs`) — l'utilisateur n'a plus à
+    # redemander où en est un traitement long ; sa fin reste racontée par la relève.
+    if result.get('tool_steps'):
+        from wama.common.services.job_follow_ups import turn_jobs
+        jobs = turn_jobs(request.user, result['tool_steps'])
+        if jobs:
+            result['jobs'] = jobs
+
+
+#: Tours relus, à l'affichage du fil, pour y remettre la progression des jobs encore en cours.
+THREAD_JOBS_TURNS = 10
+
+
+@require_http_methods(["GET"])
+def ai_chat_jobs(request):
+    """L'état des éléments qu'un tour de l'assistant a lancés — la barre de progression de
+    l'échange l'interroge (2026-10-20). `?items=famille:id,famille:id` ; chacun rendu par
+    `tool_api.job_progress` (la ligne du geste « statut », bornée aux éléments de l'utilisateur) —
+    un élément inconnu ou à autrui est simplement absent de la réponse."""
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    from wama.common.services.job_follow_ups import TURN_JOBS_MAX
+    from wama.tool_api import job_progress
+    jobs = []
+    for key in (request.GET.get('items') or '').split(',')[:TURN_JOBS_MAX]:
+        family, _, pk = key.strip().rpartition(':')
+        row = job_progress(request.user, family, pk) if family and pk.isdigit() else None
+        if row:
+            jobs.append(row)
+    return JsonResponse({'jobs': jobs})
 
 
 @require_http_methods(["POST"])

@@ -26,6 +26,7 @@ urlpatterns = [
     path('api/ai-chat/clear/', views.ai_chat_clear, name='ai_chat_clear'),
     path('api/ai-chat/settings/', views.ai_chat_settings, name='ai_chat_settings'),
     path('api/ai-chat/follow-ups/', views.ai_chat_follow_ups, name='ai_chat_follow_ups'),
+    path('api/ai-chat/jobs/', views.ai_chat_jobs, name='ai_chat_jobs'),
     path('api/ai-chat/thread/', views.ai_chat_thread, name='ai_chat_thread'),
     path('api/ai-chat/stream/', views.ai_chat_stream, name='ai_chat_stream'),
     path('api/tts-kokoro/', views.kokoro_tts, name='kokoro_tts'),

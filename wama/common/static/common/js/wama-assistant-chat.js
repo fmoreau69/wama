@@ -88,6 +88,7 @@
       threadEl: root.dataset.threadEl || '',
       clearUrl: root.dataset.clearUrl || '',
       followUpsUrl: root.dataset.followUpsUrl || '',
+      jobsUrl: root.dataset.jobsUrl || '',
       settingsUrl: root.dataset.settingsUrl || '',
       paramsScript: root.dataset.paramsScript || '',
       greeting: root.dataset.greeting || '',
@@ -356,6 +357,155 @@
     return div;
   };
 
+  // ── Progression des JOBS lancés par un tour (2026-10-20) ─────────────────────
+  // Demande de Fabien : « que l'utilisateur sache où en est le statut du job sans avoir à
+  // redemander pour un traitement long ». Sous la réponse qui a lancé un traitement, la MÊME
+  // lecture que sa card : le serveur rend l'état de chaque élément (`ai_chat_jobs` →
+  // `tool_api.job_progress` : progression vivante, place dans la file GPU), la forme est celle du
+  // bloc commun des cards (`common/_card_progress.html` : badge, barre, %, ETA), l'ETA vient de
+  // `WamaEta` (débit observé, l'a priori de l'élément en amorce), et la boucle est `WamaApp.Poller`.
+  // À la fin d'un élément, la relève de la cloche est demandée tout de suite : sa fin est racontée
+  // par le chemin existant (`job_follow_ups`), une fois, au lieu d'attendre le tour de la cloche.
+  var JOB_POLL_MS = 3000;
+  var JOB_BADGES = {
+    PENDING: ['bg-secondary', 'En attente'], AWAITING_RESOURCES: ['bg-awaiting', 'En attente de ressources'],
+    RUNNING: ['bg-warning', 'En cours'], SUCCESS: ['bg-success', 'Terminé'],
+    FAILURE: ['bg-danger', 'Échec'], STALE: ['bg-stale', 'Périmé'],
+  };
+  var jobBlockSeq = 0;
+
+  function jobKey(job) { return job.family + ':' + job.id; }
+
+  /** Le texte du badge : l'état, et pour un élément qui attend, sa place dans la file GPU — la
+   *  pastille « En file » de la card (`global_queue.place_of`, `ahead` : tâches devant). */
+  function jobBadgeText(job) {
+    var badge = JOB_BADGES[job.status] || ['bg-secondary', job.status || '…'];
+    var ahead = job.queue && job.queue.ahead;
+    if (!job.terminal && job.status !== 'RUNNING' && ahead) {
+      return 'En file · ' + ahead + ' tâche' + (ahead > 1 ? 's' : '') + ' avant';
+    }
+    return badge[1];
+  }
+
+  Chat.prototype.jobRow = function (job) {
+    var row = document.createElement('div');
+    row.className = 'wama-assistant-job';
+    row.dataset.jobKey = jobKey(job);
+    row.innerHTML =
+      '<div class="d-flex align-items-center gap-2 small">' +
+      '<span class="badge status-badge"></span>' +
+      '<span class="wama-assistant-job-name text-truncate"></span>' +
+      '<small class="ms-auto progress-text"></small></div>' +
+      '<div class="wama-progress-track mt-1"><div class="wama-progress-fill"></div></div>' +
+      '<span class="wama-eta d-block small"></span>';
+    row.querySelector('.wama-assistant-job-name').textContent = job.label || jobKey(job);
+    this.paintJob(row, job);
+    return row;
+  };
+
+  Chat.prototype.paintJob = function (row, job) {
+    var pct = job.terminal && job.ok ? 100 : Math.max(0, Math.min(100, job.progress || 0));
+    var badge = row.querySelector('.status-badge');
+    badge.className = 'badge status-badge ' + ((JOB_BADGES[job.status] || ['bg-secondary'])[0]);
+    badge.textContent = jobBadgeText(job);
+    row.querySelector('.progress-text').textContent = pct + '%';
+    var fill = row.querySelector('.wama-progress-fill');
+    fill.style.width = pct + '%';
+    fill.classList.toggle('active', job.status === 'RUNNING');
+    fill.classList.toggle('is-frozen', job.status === 'FAILURE');
+    var eta = row.querySelector('.wama-eta');
+    if (global.WamaEta && eta) {
+      var id = 'chat:' + jobKey(job);
+      var est = global.WamaEta.update(id, { progress: pct, status: job.status,
+                                           seedSeconds: job.estimated_seconds });
+      global.WamaEta.render(eta, est);
+      if (job.terminal) global.WamaEta.reset(id);
+    }
+    row.dataset.terminal = job.terminal ? '1' : '';
+  };
+
+  /** Le bloc de suivi d'une réponse : une ligne par élément lancé et encore en cours. Rendu vide
+   *  (`null`) sans job ou sans adresse de suivi ; sinon suivi jusqu'à ce que tous soient finis. */
+  Chat.prototype.jobsBlock = function (jobs) {
+    if (!jobs || !jobs.length || !this.cfg.jobsUrl) return null;
+    var self = this;
+    var block = document.createElement('div');
+    block.className = 'wama-assistant-jobs';
+    block.dataset.jobsBlock = String(++jobBlockSeq);
+    jobs.forEach(function (job) { block.appendChild(self.jobRow(job)); });
+    this.followJobs(block);
+    return block;
+  };
+
+  Chat.prototype.appendJobs = function (jobs) {
+    var block = this.jobsBlock(jobs);
+    if (block) { this.feed.appendChild(block); this.scrollToEnd(); }
+  };
+
+  Chat.prototype.followJobs = function (block) {
+    if (!global.WamaApp || !global.WamaApp.Poller) return;
+    var self = this;
+    this.jobBlocks = this.jobBlocks || {};
+    this.jobBlocks[block.dataset.jobsBlock] = block;
+    if (!this.jobPoller) {
+      this.jobPoller = new global.WamaApp.Poller({
+        interval: JOB_POLL_MS,
+        request: function (id) {
+          var target = self.jobBlocks[id];
+          var keys = Array.prototype.map.call(
+            target ? target.querySelectorAll('[data-job-key]') : [],
+            function (row) { return row.dataset.jobKey; });
+          return fetch(self.cfg.jobsUrl + '?items=' + encodeURIComponent(keys.join(',')),
+                       { headers: { Accept: 'application/json' } })
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+        },
+        onData: function (id, data) { self.updateJobs(id, (data && data.jobs) || []); },
+      });
+    }
+    this.jobPoller.start(block.dataset.jobsBlock);
+  };
+
+  Chat.prototype.updateJobs = function (id, jobs) {
+    var block = this.jobBlocks && this.jobBlocks[id];
+    // Bloc retiré (fil effacé, rechargé) : plus rien à suivre.
+    if (!block || !block.isConnected) { this.stopJobs(id); return; }
+    var self = this, ended = false, seen = {};
+    jobs.forEach(function (job) {
+      var row = block.querySelector('[data-job-key="' + jobKey(job) + '"]');
+      if (!row) return;
+      seen[jobKey(job)] = true;
+      var wasTerminal = row.dataset.terminal === '1';
+      self.paintJob(row, job);
+      if (job.terminal && !wasTerminal) ended = true;
+    });
+    // Un élément que le serveur ne rend plus (supprimé entre-temps) : sa ligne s'arrête, et le dit.
+    Array.prototype.forEach.call(block.querySelectorAll('[data-job-key]:not([data-terminal="1"])'),
+      function (row) {
+        if (seen[row.dataset.jobKey]) return;
+        row.dataset.terminal = '1';
+        var badge = row.querySelector('.status-badge');
+        badge.className = 'badge status-badge bg-secondary';
+        badge.textContent = 'Introuvable';
+        row.querySelector('.wama-progress-fill').classList.remove('active');
+      });
+    var running = block.querySelectorAll('[data-job-key]:not([data-terminal="1"])').length;
+    if (!running) this.stopJobs(id);
+    // Une fin : la relève de la cloche tout de suite (la notification s'écrit en fin de tâche).
+    if (ended && global.WamaApp && global.WamaApp.checkNotifications) {
+      setTimeout(function () { global.WamaApp.checkNotifications(); }, 1500);
+    }
+  };
+
+  Chat.prototype.stopJobs = function (id) {
+    if (this.jobPoller) this.jobPoller.stop(id);
+    if (this.jobBlocks) delete this.jobBlocks[id];
+  };
+
+  Chat.prototype.stopAllJobs = function () {
+    if (this.jobPoller) this.jobPoller.stopAll();
+    this.jobBlocks = {};
+  };
+
   /** L'accueil DÉCLARÉ. Un `<template>` plutôt qu'un attribut : le message de bienvenue est
    *  rendu par le serveur (il VARIE selon l'état de connexion) et peut contenir des liens ;
    *  le faire transiter par un attribut `data-` imposerait un double échappement fragile. */
@@ -375,6 +525,7 @@
 
   Chat.prototype.render = function (entries) {
     var self = this;
+    this.stopAllJobs();
     this.feed.innerHTML = '';
     var lastModel = null;
     (entries || []).forEach(function (entry) {
@@ -382,6 +533,9 @@
       else if (entry.type === 'user') self.feed.appendChild(self.bubble(entry.content, 'user'));
       else if (entry.type === 'assistant') {
         self.feed.appendChild(self.bubble(entry.content, 'assistant', entry.model));
+        // Un traitement lancé par cette réponse et qui tourne encore (`_chat_thread`) : sa barre.
+        var block = self.jobsBlock(entry.jobs);
+        if (block) self.feed.appendChild(block);
         lastModel = entry.model || lastModel;
       } else if (entry.type === 'error') self.feed.appendChild(self.bubble(entry.content, 'error'));
     });
@@ -407,7 +561,10 @@
 
   Chat.prototype.clear = function () {
     var self = this;
-    var done = function () { self.feed.innerHTML = ''; self.showGreeting(); self.setStatus(''); };
+    var done = function () {
+      self.stopAllJobs();
+      self.feed.innerHTML = ''; self.showGreeting(); self.setStatus('');
+    };
     if (!this.cfg.clearUrl) { done(); return Promise.resolve(); }
     return fetch(this.cfg.clearUrl, { method: 'POST', headers: { 'X-CSRFToken': csrfToken() } })
       .catch(function () {})          // l'écran se vide quand même ; le fil revient au rechargement
@@ -586,6 +743,7 @@
         self.applyActions(data.tool_steps);
       }
       self.feed.appendChild(self.bubble(data.response, 'assistant', data.model));
+      self.appendJobs(data.jobs);
       if (data.model) self.setStatus(data.model);
       var said = [data.response].concat(self.tellTurnFollowUps(data.follow_ups));
       var spoken = global.WamaAssistantVoice ? global.WamaAssistantVoice.speak(said.join('\n\n')) : null;
@@ -668,6 +826,7 @@
               bulle.appendChild(badge);
             }
           }
+          self.appendJobs(r.jobs);
           if (r.model) self.setStatus(r.model);
           self.tellTurnFollowUps(r.follow_ups).forEach(function (text) {
             if (voix) voix.push('\n\n' + text);

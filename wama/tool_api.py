@@ -4007,6 +4007,99 @@ TRIAD_SPECS = {
 }
 
 
+def _status_value(app_id: str, item, field):
+    """Une valeur de ligne de statut, lue selon sa déclaration (cf. l'en-tête de TRIAD_SPECS)."""
+    if isinstance(field, str):
+        return getattr(item, field, None)
+    if any(getattr(item, name, None) != expected
+           for name, expected in (field.get('when') or {}).items()):
+        return field.get('else')
+    value = getattr(item, field['attr'], None)
+    if field.get('call') and callable(value):
+        value = value()
+    if field.get('url'):
+        return value.url if value else None
+    if field.get('basename'):
+        return os.path.basename(value.name) if value else None
+    if field.get('preview'):
+        size = field['preview']
+        if not value and field.get('partial_fallback'):
+            # Aperçu du texte PARTIEL pendant le run (during_preview) — extrait de la
+            # triade main du describer à sa migration (2026-09-03).
+            try:
+                from wama.common.utils.preview_utils import get_partial_text
+                value = get_partial_text(app_id, item.pk)
+            except Exception:
+                value = None
+        return ((value[:size] + '…') if len(value) > size else value) if value else None
+    if field.get('or_none'):
+        return value or None
+    if 'default' in field:
+        return value or field['default']
+    return value
+
+
+def _status_row(app_id: str, spec: dict, item, places: dict) -> dict:
+    """La ligne de statut d'UN élément selon sa déclaration (`status_fields`) : la progression
+    VIVANTE (cache publié par le squelette, sinon la base — la lecture de la card) et sa place dans
+    la file GPU quand il attend. Celle du geste « statut » et du suivi d'un job dans l'échange
+    (`job_progress`, 2026-10-20) : une seule lecture, deux lecteurs."""
+    from django.core.cache import cache
+    progress_key = spec.get('progress_key') or f'{app_id}_progress_{{pk}}'
+    row = {}
+    for key, field in (spec.get('status_fields') or {}).items():
+        if key == 'progress':
+            stored = getattr(item, field if isinstance(field, str) else 'progress', 0) or 0
+            live = cache.get(progress_key.format(pk=item.pk))
+            row[key] = (live.get('pct', stored) if isinstance(live, dict)
+                        else (stored if live is None else live))
+        else:
+            row[key] = _status_value(app_id, item, field)
+    if item.pk in places:
+        row['queue'] = places[item.pk]
+    return row
+
+
+def job_progress(user, family: str, pk) -> dict | None:
+    """Où en est UN élément de `user` lancé depuis l'assistant — la barre de progression de
+    l'échange (2026-10-20, demande de Fabien : « l'utilisateur sait où en est le statut du job sans
+    avoir à redemander »). La ligne du geste « statut » (`_status_row` : progression vivante, place
+    dans la file GPU), plus ce que la barre lit sans le deviner : `family`, `id`, un libellé, le
+    statut NORMALISÉ (`normalize_job_status`), `terminal` / `ok`, et l'ETA a priori quand les process
+    de l'élément la déclarent (`process_runs.launch_eta`, la même que sa card). None hors d'une
+    famille déclarée, ou pour un élément qui n'est pas à `user` (même borne que le statut)."""
+    from django.utils.module_loading import import_string
+    from wama.common.models import JOB_STATUS_TERMINAL, normalize_job_status
+
+    spec = TRIAD_SPECS.get(family)
+    if spec is None:
+        return None
+    try:
+        item = import_string(spec['model']).objects.filter(user=user, pk=int(pk)).first()
+    except (TypeError, ValueError):
+        return None
+    if item is None:
+        return None
+    row = _status_row(family, spec, item, _queue_places(user, [item]))
+    status = normalize_job_status(str(getattr(item, 'status', '') or ''))
+    try:
+        progress = max(0, min(100, int(row.get('progress') or 0)))
+    except (TypeError, ValueError):
+        progress = 0
+    row.update(family=family, id=item.pk, status=status, progress=progress,
+               terminal=status in JOB_STATUS_TERMINAL, ok=status == 'SUCCESS',
+               label=str(row.get('name') or f'{family} #{item.pk}'))
+    if not row['terminal']:
+        try:
+            from wama.common.services.process_runs import launch_eta
+            seconds = launch_eta(item)
+        except Exception:
+            seconds = None
+        if seconds:
+            row['estimated_seconds'] = seconds
+    return row
+
+
 def _triad_fns(app_id: str, spec: dict) -> tuple:
     """(start, status) construits depuis une entrée TRIAD_SPECS.
 
@@ -4109,60 +4202,14 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
                            default=None, annotation=str)],
         return_annotation=dict)
 
-    def _value(item, field):
-        """Une valeur de ligne de statut, lue selon sa déclaration (cf. l'en-tête de TRIAD_SPECS)."""
-        if isinstance(field, str):
-            return getattr(item, field, None)
-        if any(getattr(item, name, None) != expected
-               for name, expected in (field.get('when') or {}).items()):
-            return field.get('else')
-        value = getattr(item, field['attr'], None)
-        if field.get('call') and callable(value):
-            value = value()
-        if field.get('url'):
-            return value.url if value else None
-        if field.get('basename'):
-            return os.path.basename(value.name) if value else None
-        if field.get('preview'):
-            size = field['preview']
-            if not value and field.get('partial_fallback'):
-                # Aperçu du texte PARTIEL pendant le run (during_preview) — extrait de la
-                # triade main du describer à sa migration (2026-09-03).
-                try:
-                    from wama.common.utils.preview_utils import get_partial_text
-                    value = get_partial_text(app_id, item.pk)
-                except Exception:
-                    value = None
-            return ((value[:size] + '…') if len(value) > size else value) if value else None
-        if field.get('or_none'):
-            return value or None
-        if 'default' in field:
-            return value or field['default']
-        return value
-
     def _status(user) -> dict:
-        from django.core.cache import cache
         model = import_string(spec['model'])
         items = list(model.objects.filter(user=user, **(spec.get('queue_filter') or {}))
                      .order_by(spec.get('status_order', '-id'))[:10])
         # La place dans la file GPU, celle de la pastille de la card (2026-10-13) — sans elle, un
         # travail qui ATTEND se lisait « RUNNING, 0 % », comme un travail bloqué.
         places = _queue_places(user, items)
-        jobs = []
-        for item in items:
-            row = {}
-            for key, field in (spec.get('status_fields') or {}).items():
-                if key == 'progress':
-                    stored = getattr(item, field if isinstance(field, str) else 'progress', 0) or 0
-                    live = cache.get(progress_key.format(pk=item.pk))
-                    row[key] = (live.get('pct', stored) if isinstance(live, dict)
-                                else (stored if live is None else live))
-                else:
-                    row[key] = _value(item, field)
-            if item.pk in places:
-                row['queue'] = places[item.pk]
-            jobs.append(row)
-        return {'jobs': jobs}
+        return {'jobs': [_status_row(app_id, spec, item, places) for item in items]}
 
     _status.__name__ = _status.__qualname__ = f'get_{app_id}_status'
     _status.__doc__ = (f"État des 10 derniers travaux {app_id} de l'utilisateur, et pour ceux qui "

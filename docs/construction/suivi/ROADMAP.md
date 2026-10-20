@@ -4309,6 +4309,28 @@ l'enregistrement du tour et celui de son récit raconte donc la fin une seconde 
   n'est pas rejouée en test : un `TransactionTestCase` viderait la base de test PARTAGÉE en
   cascade ; elle est tenue par le verrou de ligne de Postgres, pris des deux côtés par `tell`.
 
+✅ **L'ENTRE-DEUX : la progression du job DANS l'échange, le 2026-10-20** — Fabien : *« ajouter la
+barre de progression globale à l'assistant, mais directement dans l'échange : l'utilisateur sait
+où en est le statut du job sans avoir à redemander systématiquement pour un traitement long »*. La
+relève racontait la FIN ; rien ne montrait le chemin. Rien de neuf n'est lu :
+- **le serveur** joint à la réponse d'un tour ses éléments encore en cours
+  (`job_follow_ups.turn_jobs`, lus par `turn_designations`), chacun dans l'état de SA CARD :
+  `tool_api.job_progress`, la ligne du geste « statut » (`_status_row`, sortie de `_status` pour
+  être partagée : progression vivante au cache, place dans la file GPU) plus le statut normalisé et
+  l'ETA a priori de ses process (`process_runs.launch_eta`) ; `GET api/ai-chat/jobs/?items=` les
+  relit (bornés aux éléments de l'utilisateur) ; le fil rechargé rend sa barre à la réponse qui a
+  lancé un traitement encore en cours (`views._chat_thread`, dix derniers tours) ;
+- **le chat** rend le bloc commun des cards (`common/_card_progress.html` : badge, barre
+  `.wama-progress-*`, %, ETA par `WamaEta` — chargé désormais par `base.html`, protégé contre une
+  seconde définition) et le suit par `WamaApp.Poller` (3 s, pause en onglet caché, arrêt quand tout
+  est fini) ; un élément qui attend dit sa place (« En file · 3 tâches avant ») ;
+- **la fin** demande la relève de la cloche tout de suite (`WamaApp.checkNotifications`) : elle est
+  racontée par le chemin de la relève, une fois, au lieu d'attendre jusqu'à 60 s.
+Gardes : `tests_assistant_job_progress` (chaîne réelle : card, fil, vues ; V8 sur le chat servi) —
+huit contre-épreuves rouges. ⏳ Les tâches de DÉVELOPPEMENT (`dev_*`) n'ont pas de progression
+déclarée : pas de barre ; les canaux (Discord) n'en ont pas non plus — un message ne se met pas à
+jour comme une bulle.
+
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) ⏳
 
 - **wama-dev-ai** n'a **aucune API** (CLI pur : `run_audit.py`, `run_codegen.py`). Wrapper

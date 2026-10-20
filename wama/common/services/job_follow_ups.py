@@ -191,6 +191,26 @@ def turn_designations(steps) -> tuple:
     return items, jobs
 
 
+#: Éléments suivis au plus pour UN tour (un lancement de toute la file rend ses `ids`).
+TURN_JOBS_MAX = 20
+
+
+def turn_jobs(user, steps, in_flight_only: bool = True) -> list:
+    """Les éléments qu'un tour a créés ou lancés, chacun dans l'état de sa card (`tool_api.
+    job_progress`) — ce que la barre de progression de l'échange suit (2026-10-20). Par défaut,
+    ceux qui sont ENCORE EN COURS : un élément déjà fini a sa fin racontée par la relève (`tell`).
+    Les tâches de développement (`dev_*`) n'ont pas de progression déclarée : pas de barre."""
+    from wama.tool_api import job_progress
+
+    items, _dev_jobs = turn_designations(steps)
+    rows = []
+    for family, pk in sorted(items)[:TURN_JOBS_MAX]:
+        row = job_progress(user, family, pk)
+        if row and not (in_flight_only and row['terminal']):
+            rows.append(row)
+    return rows
+
+
 def notices_of_turn(user, steps, since) -> list:
     """Les fins de tâche ARRIVÉES PENDANT un tour, pour ce qu'il a désigné — ids de notification.
 

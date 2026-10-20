@@ -25197,3 +25197,36 @@ forme pour une app sans tâche lifecycle (reader, enhancer) ; ④ `tasks_gen` : 
 jumelle générée stocke sous le nom du param ; ⑦ mesurer `enhancer_01` et `avatarizer_01` par
 `app_sandbox converge` (tests de l'original), non lancé ; ⑧ la batterie UI des jumelles
 (`run_nightly_tests --id <jumelle>.`), non lancée.
+
+## §PALIER 2026-10-20 (nuit), « Assistant : la progression du job DANS l'échange » — non poussé — 🔴 relancer gunicorn (vues, gabarits, JS et CSS servis)
+
+**Demande de Fabien** (ordre convenu, après l'étape 3 du portage) : *« ajouter la barre de
+progression globale à l'assistant, mais directement dans l'échange : l'utilisateur sait où en est
+le statut du job sans avoir à redemander systématiquement pour un traitement long »*. Domicile :
+`ROADMAP §19.2` (la relève des fins de tâche — elle racontait la fin, rien ne montrait le chemin).
+
+**Livré, rien de neuf lu** : le serveur joint à la réponse d'un tour ses éléments encore en cours
+(`job_follow_ups.turn_jobs` ← `turn_designations`), chacun dans l'état de SA CARD
+(`tool_api.job_progress` = la ligne du geste « statut », sortie de `_status` en `_status_row` pour
+être partagée : progression vivante, place dans la file GPU ; + statut normalisé, ETA a priori des
+process) ; `GET api/ai-chat/jobs/?items=` (borné à l'utilisateur) ; le fil rechargé rend la barre à
+la réponse qui a lancé un traitement encore en cours (`_chat_thread`, dix derniers tours). Le chat
+rend le bloc commun des cards (`_card_progress.html` : badge, barre, %, ETA par `WamaEta` — chargé
+par `base.html`, protégé contre une seconde définition), le suit par `WamaApp.Poller` (3 s, arrêt
+quand tout est fini, élément disparu dit « Introuvable »), dit la place en file (« En file · 3
+tâches avant ») ; à la fin, il demande la relève de la cloche (`checkNotifications`) — la fin est
+racontée par le chemin existant, une fois.
+
+**Preuves** : `tests_assistant_job_progress` (9 : chaîne réelle card + fil + vues, cache LOCAL — une
+clé de progression écrite au Redis partagé sous un id de test pourrait être celle d'un élément réel ;
+V8 sur le chat SERVI) ; tests de la relève, de `tool_api` et de la passerelle verts (188, un rouge
+d'autrui ci-dessous) ; HUIT contre-épreuves rouges ; pages servies (compte de test) : accueil et
+volet portent `data-jobs-url`, `wama-eta.js` chargé avant le chat, l'adresse répond 200 et ne rend
+pas l'élément d'un autre.
+
+🔚 **Restes nommés** : les tâches de développement (`dev_*`) n'ont pas de progression déclarée — pas
+de barre ; les canaux (Discord) non plus. **D'autrui, relevés en passant, non touchés** :
+`tests_tool_api_lectures.AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role_et_rend_les_candidats`
+rouge (le composer DÉCLARE son rôle de médiathèque depuis `52fa7362`, le test attend des candidats) ;
+`check_docs` 2 références cassées vers `filemanager/right_panel.html`, que la session du volet droit
+vient de retirer (`ROUTE:330`, `WAMA_VOLETS:332`).

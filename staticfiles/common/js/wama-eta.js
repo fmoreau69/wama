@@ -19,7 +19,9 @@
  *   Niveau global / batch :    WamaEta.render(el, WamaEta.aggregateAll());
  *                              WamaEta.render(el, WamaEta.aggregate([id1,id2]));
  * ======================================================================== */
-window.WamaEta = (function () {
+// Chargé par `base.html` (le chat de l'assistant, 2026-10-20) ET par les pages d'app
+// (`_app_scripts.html`) : une seconde définition viderait le registre des cards en cours.
+window.WamaEta = window.WamaEta || (function () {
     'use strict';
 
     // Registre par item : { id: { firstAt, firstProgress, lastProgress, est } }

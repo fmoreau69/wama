@@ -1509,11 +1509,11 @@ Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app
 
 ### Fin de tâche racontée dans le fil d'origine
 
-La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'élément) racontée dans le fil de l'assistant d'où la tâche a été demandée : origine LUE dans les étapes d'outils persistées (`tool_api.items_of_step`), geste « statut » RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois, sous verrou, AVANT publication (`tell`). Commun aux surfaces : la passerelle la relève par un curseur de canal, joint les fichiers, et republie au retour du canal ce que le fil a raconté (`told_since`) et que le salon ne montre pas ; le fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT. Une fin arrivée PENDANT le tour qui l'a lancée part avec sa réponse (`notices_of_turn`, joint par `conversation_turn` ; `tell` raconte une seule fois)
+La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'élément) racontée dans le fil de l'assistant d'où la tâche a été demandée : origine LUE dans les étapes d'outils persistées (`tool_api.items_of_step`), geste « statut » RÉELLEMENT joué, sorties déclarées, enregistrement au fil — une fois, sous verrou, AVANT publication (`tell`). Commun aux surfaces : la passerelle la relève par un curseur de canal, joint les fichiers, et republie au retour du canal ce que le fil a raconté (`told_since`) et que le salon ne montre pas ; le fil WEB par la relève de la cloche (`wama:notifications`), le chat la DIT. Une fin arrivée PENDANT le tour qui l'a lancée part avec sa réponse (`notices_of_turn`, joint par `conversation_turn` ; `tell` raconte une seule fois). Et l'entre-deux (2026-10-20) : les éléments encore en cours suivis SOUS la réponse, dans l'état de leur card (`turn_jobs` → `tool_api.job_progress`, `api/ai-chat/jobs/`), leur fin demandant la relève
 
 - **Domicile** : `wama/common/services/job_follow_ups.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.2](../construction/suivi/ROADMAP.md)
 - **Module** : La FIN D'UNE TÂCHE racontée dans le fil d'où elle a été demandée — brique commune à toute surface de l'assistant (canaux de la passerelle, fil web).
-- **API publique** (13) :
+- **API publique** (14) :
   - `notice_text(note) -> str` — Le texte d'une fin de tâche : son titre (« … terminé » / « … a échoué ») et son détail.
   - `origin_conversation(note, surface: str)` — Le fil de CETTE surface où l'élément de la notification a été créé ou lancé — lu dans les
   - `dev_origin_conversation(note, surface: str)` — Le fil de CETTE surface dont une étape `dev_*` a rendu le `job_id` de la notification — la
@@ -1524,6 +1524,7 @@ La fin d'un traitement (notification `job_done`/`job_failed`, qui DÉSIGNE l'él
   - `record(conversation, note, response: str, step: dict) -> None` — Enregistre au fil la fin de tâche — un échange comme un autre
   - `told_since(surface: str, since) -> list` — Les fins RACONTÉES sur cette surface depuis `since`, relues du fil tel que `record` l'écrit :
   - `turn_designations(steps) -> tuple` — Ce qu'un tour a désigné : `({(famille, id)}, {job_id})` — les éléments d'app lus par
+  - `turn_jobs(user, steps, in_flight_only: bool=True) -> list` — Les éléments qu'un tour a créés ou lancés, chacun dans l'état de sa card (`tool_api.
   - `notices_of_turn(user, steps, since) -> list` — Les fins de tâche ARRIVÉES PENDANT un tour, pour ce qu'il a désigné — ids de notification.
   - `tell(note, surface: str, compose)` — Raconte UNE fin de tâche dans son fil d'origine sur cette surface, une seule fois :
   - `web_follow_ups(user, notification_ids, absolute=lambda url: url) -> list` — Les fins de tâche à raconter dans le fil WEB de `user`, pour les notifications que sa cloche
@@ -3451,7 +3452,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (88) :
+- **API publique** (89) :
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
@@ -3516,6 +3517,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_my_rag(user, level: str='', query: str='', limit: int=50) -> dict` — List the documents the user has entrusted to the RAG ("Mon RAG"): each source, at which
   - `get_my_profile(user) -> dict` — Read the user's profile ("Profil"): identity, preferences (language, interface mode,
   - `remember_fact(user, content: str, kind: str='semantic', subject: str='') -> dict` — Save something the user wants WAMA to remember — a fact, a correction, a preference, the
+  - `job_progress(user, family: str, pk) -> dict | None` — Où en est UN élément de `user` lancé depuis l'assistant — la barre de progression de
   - `tool_role(tool_name)` — Rôle d'un outil dans la triade : 'add' | 'start' | 'status', sinon None.
   - `app_id_for_tool(tool_name)` — app_id gardé correspondant à un outil, ou None si l'outil est transverse.
   - `tool_family(tool_name)` — La FAMILLE d'un outil : la clé d'adapter de détail (`DetailRegistry`) des éléments qu'il
