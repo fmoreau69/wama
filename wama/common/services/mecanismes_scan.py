@@ -207,32 +207,42 @@ def _owners() -> dict:
 
 #: Les commentaires d'un script ou d'une feuille de style — un `/*` collé à un mot ou à un
 #: guillemet n'en ouvre pas un (`accept="image/*"`), ni un `//` après `:` ou un guillemet (une URL).
+#: Une seule alternance : le commentaire le plus à GAUCHE gagne, donc une ligne `//` qui cite
+#: `text/*` n'ouvre pas de faux bloc (le piège du 2026-09-08 de la grille, 100 lignes avalées).
 _JS_COMMENT = re.compile(r'(?<![\w\'"*/])/\*.*?\*/|(?<![:\'"\\/])//[^\n]*', re.S)
 #: Les commentaires d'un gabarit : HTML, Django court et bloc.
 _TEMPLATE_COMMENT = re.compile(
     r'<!--.*?-->|\{#.*?#\}|\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', re.S)
+#: Le `<script>` en ligne d'un gabarit : une ligne `//` ENTIÈRE seulement — une URL `https://`
+#: en milieu de ligne (un attribut) n'est jamais touchée.
+_TEMPLATE_SCRIPT_LINE = re.compile(r'(?m)^\s*//[^\n]*')
+
+
+def _blank(match: re.Match) -> str:
+    """Un commentaire devient autant d'espaces : les sauts de ligne et les positions restent, donc
+    une preuve citée `fichier:ligne` reste juste."""
+    return re.sub(r'[^\n]', ' ', match.group(0))
 
 
 def code_only(rel: str, src: str) -> str:
-    """Le source SANS sa prose (2026-10-19) : ce qu'il fait, pas ce qu'il raconte. Un commentaire
-    qui cite une autre brique (« la visionneuse est aussi appelée par le sélecteur de médias »)
-    n'en fait pas une pièce — mesuré sur la visionneuse : 4 « pièces » sur 8 n'étaient que des
-    renvois en commentaire. Lu par la COMPOSITION d'une brique UI (`UIBrick.mechanisms`) ; le
-    balayage d'adoption compte encore la prose (en changer déplacerait tous les comptes de la
-    carte : une décision à part)."""
-    if rel.endswith(('.js', '.css')):
-        return _JS_COMMENT.sub(' ', src)
-    if rel.endswith('.html'):
-        return _TEMPLATE_COMMENT.sub(' ', src)
+    """Le source SANS sa prose (2026-10-19) : ce qu'il fait, pas ce qu'il raconte, positions
+    gardées. Un commentaire qui cite une autre brique (« la visionneuse est aussi appelée par le
+    sélecteur de médias ») n'en fait pas une pièce — mesuré sur la visionneuse : 4 « pièces » sur 8
+    n'étaient que des renvois en commentaire. LA lecture du dépôt : la grille de conformité la lit
+    (un commentaire qui déclare l'absence d'une brique n'en est pas la preuve) comme la
+    COMPOSITION d'une brique UI (`UIBrick.mechanisms`). Le balayage d'adoption, lui, compte encore
+    la prose (en changer déplacerait tous les comptes de la carte : une décision à part)."""
     if rel.endswith('.py'):
-        import io
-        import tokenize
-        try:
-            tokens = tokenize.generate_tokens(io.StringIO(src).readline)
-            return tokenize.untokenize((t.type, t.string) for t in tokens
-                                       if t.type != tokenize.COMMENT)
-        except (tokenize.TokenError, SyntaxError, IndentationError):
-            return src
+        # Le `#` le plus simple, VOULU : un `#` dans une chaîne est rare et le faux négatif bien
+        # moins grave qu'un commentaire lu comme du code. ⚠ Pas `tokenize` (essayé le 2026-10-20) :
+        # il garde les docstrings, et la grille a pris pour preuve une consigne `# … cache_dir=`
+        # écrite DANS la docstring de `imager_01/utils/model_config.py`.
+        return re.sub(r'#[^\n]*', _blank, src)
+    if rel.endswith('.html'):
+        return _TEMPLATE_SCRIPT_LINE.sub(_blank, _TEMPLATE_COMMENT.sub(_blank, src))
+    if rel.endswith(('.js', '.css')):
+        # Un script peut porter des balises de gabarit (une chaîne de HTML, un `.js` rendu).
+        return _JS_COMMENT.sub(_blank, _TEMPLATE_COMMENT.sub(_blank, src))
     return src
 
 

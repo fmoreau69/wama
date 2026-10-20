@@ -538,6 +538,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       module de PREMIER NIVEAU (`vector_service.py`, déclaré le même soir) au lieu de planter.
       Gardes : `tests_ui_bricks_page.PageBrickTest` (5), `tests_mecanismes_scan.CodeOnlyTest` (3)
       et le module de premier niveau — contre-épreuves rouges.
+      Revérification du 20/10 : `code_only` était une SECONDE lecture du code sans sa prose, à côté
+      de celle de la grille (`conformity_checker._sans_commentaires`). Il n'y en a plus qu'une :
+      la grille appelle `code_only`, qui garde les positions (la grille cite `fichier:ligne`) et
+      sa règle du `#` pour le Python — `tokenize`, essayé, garde les docstrings et faisait citer à
+      la grille une consigne écrite DANS une docstring. Mesuré sur les 22 apps : 2262 résultats,
+      états et preuves identiques ; compositions des 11 briques identiques. `CodeOnlyTest` (5).
       ⏳ La FILE, quand elle sera une pièce unique (point (2) ci-dessus).
   - ✅ **2ᵉ SURFACE — 2026-10-13, la page d'édition du FOND du Writer** (décisions de Fabien le
     jour même ; `ROADMAP §21.5` étape 1) :

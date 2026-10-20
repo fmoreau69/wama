@@ -10,6 +10,8 @@ paquet devant la feuille. `wama/gateway/services.py` (appariement d'identité Di
 sens, un vrai import relatif (`from ..services import bench`) n'était pas vu — 242 manquants.
 L'import relatif est désormais RÉSOLU depuis le dossier du fichier qui importe.
 """
+from unittest import mock
+
 from django.test import SimpleTestCase
 
 from wama.common.mecanismes import Mechanism
@@ -90,10 +92,34 @@ class CodeOnlyTest(SimpleTestCase):
                 self.assertIn(code, kept)
         self.assertNotIn('end', kept)
 
-    def test_a_python_comment_goes_a_docstring_stays(self):
-        kept = code_only('wama/x.py', '"""doc"""\nx = 1  # picker.js\n')
-        self.assertIn('"""doc"""', kept)
-        self.assertNotIn('picker.js', kept)
+    def test_a_python_comment_goes_even_inside_a_docstring(self):
+        """The rule the conformity grid had: a `# …` line written in a docstring is prose too —
+        `tokenize` would keep it, and the grid then cited it as evidence."""
+        kept = code_only('wama/x.py', '"""doc\n# cache_dir=X\n"""\nx = 1  # picker.js\n')
+        for prose in ('picker.js', 'cache_dir'):
+            with self.subTest(prose=prose):
+                self.assertNotIn(prose, kept)
+        self.assertIn('x = 1', kept)
+
+    def test_lines_and_positions_are_kept_for_the_evidence_the_grid_cites(self):
+        sources = {'wama/x.py': 'a = 1  # one\nb = 2\n',
+                   'wama/common/static/common/js/d.js': '/* one\ntwo */ run();\n// three\ngo();\n',
+                   'wama/common/templates/common/e.html': '{# one #}\n<script>\n  // two\n</script>\n'}
+        for rel, src in sources.items():
+            with self.subTest(rel=rel):
+                kept = code_only(rel, src)
+                self.assertEqual(len(src), len(kept))
+                self.assertEqual(src.count('\n'), kept.count('\n'))
+                self.assertNotIn('one', kept)
+
+    def test_the_conformity_grid_reads_code_through_the_same_function(self):
+        """One reading of the code without its prose (2026-10-20) : the grid had its own."""
+        from wama.common.services import conformity_checker
+        src = 'x = 1  # picker.js\n'
+        with mock.patch('wama.common.services.mecanismes_scan.code_only',
+                        lambda rel, text: 'SENTINEL'):
+            self.assertEqual('SENTINEL', conformity_checker._sans_commentaires(src, '.py'))
+        self.assertEqual(code_only('x.py', src), conformity_checker._sans_commentaires(src, '.py'))
 
 
 class ScanResolvesImportsTest(SimpleTestCase):

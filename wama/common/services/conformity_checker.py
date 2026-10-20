@@ -173,40 +173,14 @@ class _AppFiles:
         return own or self._find_in(self.backend_paths(), regex, code=code)
 
 
-def _blanc(m: re.Match) -> str:
-    """Remplace un commentaire par autant d'espaces/sauts de ligne : les offsets sont préservés."""
-    return re.sub(r'[^\n]', ' ', m.group(0))
-
-
 def _sans_commentaires(text: str, suffixe: str) -> str:
-    """Neutralise les commentaires Python (# …) ou de gabarit ({# #}, {% comment %}).
-
-    Volontairement simple : un `#` dans une chaîne Python est rare dans le code balayé et le
-    faux négatif qu'il produirait est bien moins grave que le faux POSITIF d'un commentaire
-    qui déclare l'absence de la brique qu'on cherche.
-    """
-    if suffixe == '.py':
-        return re.sub(r'#[^\n]*', _blanc, text)
-    if suffixe in ('.html', '.js'):
-        text = re.sub(r'\{#.*?#\}', _blanc, text, flags=re.S)
-        text = re.sub(r'\{%\s*comment\s*%\}.*?\{%\s*endcomment\s*%\}', _blanc, text, flags=re.S)
-        text = re.sub(r'<!--.*?-->', _blanc, text, flags=re.S)
-        if suffixe == '.html':
-            # Les `<script>` en ligne d'un gabarit portent les mêmes commentaires de ligne qu'un
-            # `.js` (2026-10-13) : la preuve d'`input_match_ui` du transcriber pointait sur
-            # `// Appariement entrée↔modèles (brique commune wama-input-match)`. Ligne entière
-            # seulement — une URL `https://` en milieu de ligne n'est jamais touchée.
-            text = re.sub(r'(?m)^\s*//[^\n]*', _blanc, text)
-        if suffixe == '.js':
-            # ⚠ Les lignes `//` d'ABORD (2026-09-08) : un commentaire de ligne qui cite `text/*`
-            # ou `image/*` ouvrait un faux bloc `/* … */` quand les blocs étaient retirés en
-            # premier — 100 lignes de code de l'avatarizer avalées, `import_front` ROUGE sur une
-            # app portée. Un bloc `/* */` contenant une ligne `//` reste un bloc : l'ordre
-            # inverse ne crée aucun faux positif.
-            text = re.sub(r'(?m)^\s*//[^\n]*', _blanc, text)
-            text = re.sub(r'/\*.*?\*/', _blanc, text, flags=re.S)
-        return text
-    return text
+    """Le code sans ses commentaires, positions gardées : le faux POSITIF d'un commentaire qui
+    déclare l'absence de la brique qu'on cherche est bien plus grave qu'un faux négatif. Une seule
+    lecture pour tout le dépôt, `mecanismes_scan.code_only` (2026-10-20 : la grille avait la sienne,
+    la composition des briques UI une seconde) — ses pièges vécus y sont : la ligne `//` qui cite
+    `image/*` (2026-09-08), le `<script>` en ligne d'un gabarit (2026-10-13)."""
+    from wama.common.services.mecanismes_scan import code_only
+    return code_only('x' + suffixe, text)
 
 
 TEMPLATES = ['templates/**/*.html']
