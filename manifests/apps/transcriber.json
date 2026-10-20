@@ -2110,13 +2110,13 @@
         {
           "file": "workers.py",
           "function": "transcribe",
-          "lifecycle": false,
+          "lifecycle": true,
           "task_name": null
         },
         {
           "file": "workers.py",
           "function": "transcribe_without_preprocessing",
-          "lifecycle": false,
+          "lifecycle": true,
           "task_name": null
         },
         {

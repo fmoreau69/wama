@@ -164,6 +164,13 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
     mark = _GEN_MARK.format(app_id=app_id)
     imports = set()
     blocs = []
+    # Un `default` CALLABLE logé dans le module même (`default=default_classes2blur`) : le
+    # sérialiseur le rend `wama.<app>.models.<nom>` — le modèle généré s'importait lui-même
+    # (import circulaire, `check` KO sur anonymizer_01, 2026-10-20) et la fonction n'existait
+    # nulle part, alors que les migrations la désignent par ce chemin. Elle est réémise sous son
+    # nom (`_own_default`).
+    own_module = f'wama.{app_id}.models'
+    own_defaults = []
     for m in data.get('models') or []:
         corps = []
         mgr = m.get('manager')
@@ -190,10 +197,19 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
                 mod, cls = path.rsplit('.', 1)
                 imports.add(f'from {mod} import {cls}')
                 cls_expr = cls
-            morceaux = [a['expr'] for a in f.get('args') or []]
-            morceaux += [f"{k}={v['expr']}" for k, v in (f.get('kwargs') or {}).items()]
+            def expr(val):
+                text = val['expr']
+                name = text[len(own_module) + 1:] if text.startswith(own_module + '.') else ''
+                if name.isidentifier():
+                    if name not in own_defaults:
+                        own_defaults.append(name)
+                    return name
+                return text
+
+            morceaux = [expr(a) for a in f.get('args') or []]
+            morceaux += [f"{k}={expr(v)}" for k, v in (f.get('kwargs') or {}).items()]
             for val in list(f.get('args') or []) + list((f.get('kwargs') or {}).values()):
-                imports.update(val.get('imports') or [])
+                imports.update(i for i in (val.get('imports') or []) if i != f'import {own_module}')
             corps.append(f"    {f['name']} = {cls_expr}({', '.join(morceaux)})")
         meta = m.get('meta') or {}
         if meta:
@@ -227,7 +243,27 @@ def _render_from_data(app_id: str, data: dict, ingest: dict = None,
         *sorted(i for i in imports if i != 'from django.db import models'),
         '', '',
     ]
-    return '\n'.join(tete) + '\n\n\n'.join(blocs) + '\n'
+    defaults = [_own_default(own_module, name, mark) for name in own_defaults]
+    return '\n'.join(tete) + '\n\n\n'.join(defaults + blocs) + '\n'
+
+
+def _own_default(module: str, name: str, mark: str) -> str:
+    """La fonction de `default` d'un champ, réémise : elle rend la valeur que la SOURCE rend à la
+    génération quand c'est un littéral (une liste de classes, un dict de réglages) — la règle de
+    `params_gen._literal` ; sinon un TROU DE GLU marqué (une app née d'un manifeste n'a pas de
+    source à lire)."""
+    import ast
+    import importlib
+    try:
+        value = getattr(importlib.import_module(module), name)()
+        ast.literal_eval(repr(value))
+    except Exception:
+        return (f'def {name}():\n'
+                f'    """TROU DE GLU {mark} — `default` de champ déclaré par la source, marche B."""\n'
+                f"    raise NotImplementedError('{mark} default `{name}` non généré (marche B)')")
+    return (f'def {name}():\n'
+            f'    """`default` de champ : la valeur que la source rend (relue à la génération)."""\n'
+            f'    return {value!r}')
 
 
 def render_models(manifest: dict) -> tuple:

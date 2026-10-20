@@ -52,6 +52,30 @@ def _model_field(manifest: dict) -> str:
                  if isinstance(f, dict) and f.get('options_source') == 'catalog'), '') or ''
 
 
+def _pipeline_task(manifest: dict, specs: list, functions: dict) -> tuple:
+    """`(tâche, '')` qui porte le pipeline, ou `('', raison)`. C'est celle que les process
+    DÉCLARENT (`impl` de leurs manifestes `function` : la même pour tous) ; elle doit être une
+    tâche du cycle de vie d'un élément, la seule forme que le `tasks.py` généré émet. Sans `impl`
+    déclaré, l'unique tâche lifecycle. Jusqu'au 2026-10-20, seule cette seconde règle existait :
+    le reader et l'enhancer, deux tâches lifecycle chacun, n'avaient pas de `function_specs`."""
+    from wama.common.manifests.codegen.tasks_gen import split_declared_path
+    proc = (manifest.get('body') or {}).get('processing') or {}
+    lifecycle = [t['function'] for t in proc.get('tasks') or [] if t.get('lifecycle')]
+    declared = {split_declared_path((functions[s['function']].get('body') or {}).get('impl'))[1]
+                for s in specs} - {''}
+    if len(declared) > 1:
+        return '', f"les process déclarent plusieurs tâches (`impl`) : {', '.join(sorted(declared))}"
+    if declared:
+        task = declared.pop()
+        if task not in lifecycle:
+            return '', (f"la tâche déclarée par les process (`{task}`) n'est pas une tâche lifecycle "
+                        f"(déclarées : {lifecycle})")
+        return task, ''
+    if len(lifecycle) != 1:
+        return '', f"une tâche lifecycle attendue pour porter le pipeline (déclarées : {lifecycle})"
+    return lifecycle[0], ''
+
+
 def render_function_specs(manifest: dict) -> tuple:
     """(source, raison) — `function_specs.py` complet, ou (None, raison) sans pipeline déclaré."""
     from ..builtin.app import _GEN_MARK
@@ -62,17 +86,15 @@ def render_function_specs(manifest: dict) -> tuple:
     specs = process_specs(pipeline)
     if len(specs) < 2:
         return None, "un pipeline d'un seul process ne se déclare pas (§10.6 : c'est le cas normal)"
-    proc = (manifest.get('body') or {}).get('processing') or {}
-    lifecycle = [t['function'] for t in proc.get('tasks') or [] if t.get('lifecycle')]
-    if len(lifecycle) != 1:
-        return None, f"une tâche lifecycle attendue pour porter le pipeline (déclarées : {lifecycle})"
-    task = lifecycle[0]
     missing = [s['key'] for s in specs if not s['function']]
     if missing:
         return None, f"nœud(s) sans fonction déclarée : {', '.join(missing)}"
     unknown = [s['function'] for s in specs if s['function'] not in functions]
     if unknown:
         return None, f"fonction(s) sans manifeste `function` : {', '.join(unknown)}"
+    task, why = _pipeline_task(manifest, specs, functions)
+    if not task:
+        return None, why
     # La catégorie est le RÔLE du process (position commune du 05/10) : une catégorie absente ou
     # inconnue se refuse en le disant — elle devenait `transform` sans un mot.
     categories = _category_names()
@@ -132,6 +154,12 @@ def render_function_specs(manifest: dict) -> tuple:
             f"    value = getattr(item, {model_field!r}, '') or ''",
             '    return None if is_auto(value) else value',
         ]
+    # Les fonctions que le pipeline DÉCLARE dans ce module même (le `result` du describer et du
+    # reader, `<app>.function_specs:transcript_text`) : un trou de glu chacune, comme `tasks_gen`
+    # pour les siennes — sans lui, la déclaration rendue pointait dans le vide (2026-10-20, ③).
+    from wama.common.manifests.codegen.tasks_gen import declared_glue_holes
+    lines += declared_glue_holes(manifest, specs, mark, {'_requested_model'},
+                                 modules={'function_specs'})
     # `watched` ne garde que les champs HORS schéma : un réglage du schéma déclare lui-même les
     # process qu'il périme (`Param.stales`, 2026-10-05) et `AppPipeline.watched_of` réunit les
     # deux. Un pipeline EXPORTÉ porte l'union ; on en retire ce que le schéma dit déjà — la

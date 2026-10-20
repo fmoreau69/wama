@@ -1166,6 +1166,23 @@ class Command(BaseCommand):
             self.stdout.write(f'— ensemble : {union}')
             if play(union) == 'ok':
                 verdicts.update({g: 'ok' for g in stuck})
+                stuck = []
+                # `models` revenu AVANT l'union pouvait n'être bloqué que par un fichier qu'elle
+                # vient de générer (`params` copié important `default_classes2blur` du modèle —
+                # anonymizer_01, 20/10) : rejoué une fois, comme à la seconde passe.
+                if verdicts.get('models') == 'revert':
+                    self.stdout.write('— après l\'ensemble : models')
+                    verdicts['models'] = play('models')
+        # Quatrième : le `models.py` COPIÉ peut lui-même tenir le nœud — il déclare par chaîne une
+        # fonction du module de tâches COPIÉ (`WAMA_INGEST['derive']` → `workers`) que le `tasks`
+        # généré retire, pendant que le `models` généré, seul, perd des membres que les gabarits
+        # copiés lisent encore (describer_01, 20/10). Ces groupes ne tiennent qu'avec `models` : le
+        # revert d'un groupe qui le contient défait aussi ses migrations.
+        if stuck and verdicts.get('models') == 'revert':
+            union = '+'.join(dict.fromkeys([t for g in stuck for t in g.split('+')] + ['models']))
+            self.stdout.write(f'— ensemble, modèle compris : {union}')
+            if play(union) == 'ok':
+                verdicts.update({g: 'ok' for g in stuck + ['models']})
         self.stdout.write('Chaîne ' + label + ' : ' + ' · '.join(f'{g}={v}' for g, v in verdicts.items()))
 
     # ── substitute (étape S2) ────────────────────────────────────────────────

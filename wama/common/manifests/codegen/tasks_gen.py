@@ -13,7 +13,10 @@ Deux rôles :
     cycle de vie d'item (adopteront `run_item_task`) des ENRICHISSEMENTS à la demande
     (transcriber `enrich` — hors contrat brique, cf. task_skeleton ; l'`analyze` du reader
     est un process de son pipeline depuis le 2026-10-13, joué par `run_item_task`).
-    Heuristique : segment source contenant `run_item_task`, ou 'SUCCESS' ET 'FAILURE'.
+    Heuristique : segment source contenant `run_item_task`, ou 'SUCCESS' ET 'FAILURE' — ou une
+    fonction du MÊME module qu'elle appelle et qui atteint `run_item_task` (le transcriber passe
+    par `_run_transcription`, 2026-10-20 : ses tâches se lisaient « non lifecycle », rien n'était
+    généré et les vues générées importaient un module absent).
   - `render_tasks(manifest)` : rend le fichier mince pour les tâches lifecycle déclarées.
     Requiert `processing.tasks` + `processing.item_model` (extraits par la facette).
 """
@@ -38,7 +41,9 @@ def app_tasks(app_id: str) -> list:
         if not p.is_file():
             continue
         src = p.read_text(encoding='utf-8')
-        for node in ast.parse(src).body:
+        tree = ast.parse(src)
+        reaches_skeleton = _functions_reaching_skeleton(tree)
+        for node in tree.body:
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             decore, task_name = False, None
@@ -54,11 +59,33 @@ def app_tasks(app_id: str) -> list:
             if not decore:
                 continue
             seg = ast.get_source_segment(src, node) or ''
-            lifecycle = ('run_item_task' in seg
+            lifecycle = (node.name in reaches_skeleton
                          or ("'SUCCESS'" in seg and "'FAILURE'" in seg))
             out.append({'function': node.name, 'task_name': task_name,
                         'file': fname, 'lifecycle': lifecycle})
     return out
+
+
+def _functions_reaching_skeleton(tree) -> set:
+    """Les fonctions de niveau module qui appellent le squelette commun (`run_item_task`), ou une
+    fonction du même module qui l'appelle — transitivement. Le seul signal propagé est la BRIQUE :
+    une aide qui écrit 'SUCCESS' ne fait pas d'une tâche une tâche d'élément. Seuls comptent les
+    appels par NOM NU (`_run_transcription(...)`) : un appel d'attribut homonyme
+    (`backend.transcribe(...)`) n'est pas la fonction du module."""
+    calls = {}
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            calls[node.name] = {n.func.id for n in ast.walk(node)
+                                if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    reaching = {name for name, called in calls.items() if 'run_item_task' in called}
+    grew = True
+    while grew:
+        grew = False
+        for name, called in calls.items():
+            if name not in reaching and called & reaching:
+                reaching.add(name)
+                grew = True
+    return reaching
 
 
 def model_route(manifest: dict):
@@ -195,12 +222,14 @@ def generated_task_path(manifest: dict, path):
     return f'{prefix}{app_id}.tasks{sep}{name}'
 
 
-def declared_glue(manifest: dict, steps: list) -> list:
+def declared_glue(manifest: dict, steps: list, modules=None) -> list:
     """`[(nom, rôle)]` des fonctions que le manifeste et le pipeline déclarent dans le module de
-    tâches de l'app : le `derive` de l'ingest, l'`eta` et le `result` de chaque process."""
+    tâches de l'app : le `derive` de l'ingest, l'`eta` et le `result` de chaque process.
+    `modules` (noms de module de l'app) en vise un autre : `function_specs_gen` y lit les lectures
+    de résultat qu'un pipeline loge dans `function_specs` (describer, reader — 2026-10-20)."""
     app_id = manifest.get('key') or ''
     proc = (manifest.get('body') or {}).get('processing') or {}
-    modules = {f'{app_id}.{m}' for m in _task_modules(manifest)}
+    modules = {f'{app_id}.{m}' for m in (modules or _task_modules(manifest))}
     declared = [((proc.get('ingest') or {}).get('derive'), 'derive')]
     declared += [(s.get(role), role) for s in steps for role in ('eta', 'result')]
     out = []
@@ -211,11 +240,12 @@ def declared_glue(manifest: dict, steps: list) -> list:
     return out
 
 
-def _declared_glue_holes(manifest: dict, steps: list, mark: str, emitted: set) -> list:
+def declared_glue_holes(manifest: dict, steps: list, mark: str, emitted: set,
+                        modules=None) -> list:
     """Le TROU DE GLU de chaque fonction déclarée par chaîne (`declared_glue`) que le fichier
     n'émet pas déjà — même marque que les autres trous : le geste `app_sandbox glue` le remplit."""
     lines = []
-    for name, role in declared_glue(manifest, steps):
+    for name, role in declared_glue(manifest, steps, modules):
         if name in emitted:
             continue
         params, declaration, caller = _DECLARED_GLUE[role]
@@ -350,7 +380,7 @@ def render_tasks(manifest: dict) -> tuple:
                 f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
             ]
         emitted = {fn} | {f'_process_{fn}_{s["key"]}' for s in _steps}
-        lignes.extend(_declared_glue_holes(manifest, _steps, mark, emitted))
+        lignes.extend(declared_glue_holes(manifest, _steps, mark, emitted))
         lignes.extend(_instant_hole(manifest, mark))
         lignes.append('')
         return '\n'.join(lignes), None
@@ -507,7 +537,7 @@ def render_tasks(manifest: dict) -> tuple:
                 f"    raise NotImplementedError('{mark} corps de backend non généré (marche B)')",
             ]
     emitted = {n for t in taches for n in (t['function'], f"_process_{t['function']}")}
-    lignes.extend(_declared_glue_holes(manifest, _steps, mark, emitted))
+    lignes.extend(declared_glue_holes(manifest, _steps, mark, emitted))
     lignes.extend(_instant_hole(manifest, mark))
     lignes.append('')
     return '\n'.join(lignes), None

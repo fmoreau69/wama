@@ -25332,3 +25332,57 @@ Chantier reçu par la §PASSATION « APERÇU » ci-dessus (session « Briques UI
   (onde fenêtrée à couches, carte de chaleur, minimap, segments), lecteur nu non synchronisé du volet
   (`edit.html:238`), puis surface déclarée — forme à trancher par Fabien. Même méthode : la batterie
   rejouée avant/après.
+
+## §PALIER 2026-10-20 (nuit), « Portage apps : les manques ①–④ du générateur comblés, cinq jumelles entièrement générées » — non poussé — 🔴 relancer gunicorn ET workers (jumelles régénérées, `workers.py` retirés de trois d'entre elles)
+
+**Demande de Fabien** : *« on passe aux trous du générateur ①–⑧ »* (liste du palier précédent).
+Domicile : `ROUTE §S` (sept lignes ajoutées, chacune avec sa garde).
+
+**Comblés, chaque fois par une LECTURE de ce qui était déclaré** :
+① `tasks_gen.app_tasks` voit une tâche qui atteint `run_item_task` par une fonction du module, appelée
+par nom nu (transcriber `_run_transcription`, imager `_run_generation` : lus « non lifecycle », rien
+n'était généré) ; ④ `views_gen` dispatche la tâche lifecycle, pas la première déclarée (synthesizer :
+`download_voice_refs_task`) ; ② un alias de route servi par une vue de FABRIQUE (`download_all =
+_pv[…]`) se renomme aussi (anonymizer `download_all_media`) ; ③ `function_specs_gen` lit la tâche
+que les process déclarent (`impl`) au lieu d'exiger UNE tâche lifecycle (reader, enhancer), et émet un
+trou de glu pour chaque lecture de résultat que le pipeline loge dans `function_specs` (describer,
+reader) — `declared_glue_holes(modules=…)`, la mécanique de `tasks_gen`.
+**Trouvés en route, comblés** : la chaîne élargit l'union bloquée à `models` quand le `models.py`
+COPIÉ tient le nœud (describer), et rejoue `models` après une union qui a tenu (anonymizer) ;
+`_decorer` pose `input_filename`/`output_filename`, que la card générée lit (describer) ; un `default`
+callable du module même n'importe plus le module (import circulaire, anonymizer) — réémis, rendant la
+valeur que la source rend.
+
+**Jumelles** (`app_sandbox list`) : **entièrement générées** enhancer_01, avatarizer_01, reader_01,
+describer_01, anonymizer_01 (+ writer_01, née d'un manifeste) ; **tout sauf `models`** converter_01,
+composer_01, synthesizer_01, transcriber_01 ; imager_01 : `apps` et `tasks+function_specs` (le reste =
+chantier de portage de l'imager, routes hors convention). Corpus : `transcriber.json` et `imager.json`
+réexportés (`lifecycle` vrai).
+
+**Preuves** : `tests_codegen_agreement` (neuf gardes sur les 10 apps réelles : tâche importée = tâche
+générée, route = vue, `function_specs` rendu, résultats déclarés définis, noms posés pour la card,
+modèle qui ne s'importe pas) + `SubstitutionChainTest` (+3) ; dix contre-épreuves ROUGES ; 234 puis 157
+tests ciblés OK sous WSL.
+
+🔚 **Restes** :
+⑤ la glu des MODÈLES — après régénération, il ne reste que des lecteurs HORS de portée du générateur :
+`converter/utils/cross_app.py` (`.cross_app_options`), `synthesizer/services.py` (`.update_metadata`),
+`composer/surfaces.py` non générable (`.SCORE_FIELDS`), `transcriber/utils/transcript_documents.py`
+(`.format_time_range`) et une commande (`.filename`) ; imager à part. **Décision de Fabien** sur la
+forme (trous de membre de classe, que le geste `glue` ne sait pas encore remplir — il ne vise que les
+fonctions de `tasks.py`).
+⑥ la clé de STOCKAGE des réglages : TROIS règles dans le parc, pas deux — le nom du param (reader,
+describer, anonymizer, composer), le `dom_id` du volet (enhancer, converter, imager — défaut de
+`user_settings`), et des règles ÉCRITES en code (transcriber `_STORED_UNDER`, avatarizer
+`VOICE_SETTINGS`/`NOT_REMEMBERED`, synthesizer `STORED_UNDER`). MESURÉ : les vues GÉNÉRÉES appellent
+`save_panel_settings`/`read_panel_settings` SANS `key` (`views_gen.py:438`, `:462`), donc sous le
+`dom_id` ; le `user_setting_key = panel_name_key` que le `params` généré déclare n'est lu par AUCUN
+fichier généré. Les jumelles de l'enhancer, du converter et de l'imager stockent donc comme leur
+source ; les sept autres (quatre à règle « nom », trois à règle écrite) divergent d'elle. **Décision de Fabien** : déclarer la règle au schéma (un seul lecteur, celui que vues et
+`params` générés suivent).
+⑦ `converge` MESURÉ : enhancer_01 45 rouges / 62, avatarizer_01 8 / 30, reader_01 13 / 40, describer_01
+1 / 1 — la glu manquante (marche B : tests de l'original sur ses noms privés, `_try_direct_extraction`,
+module `workers`) et des ARTEFACTS de l'instrument (tests qui importent une migration par son nom,
+clés de catalogue renommées `<app>_01:`) — ces derniers à trier avant de lire un chiffre de convergence.
+⑧ batterie UI des jumelles : elle vise le WAMA VIVANT (`ui_smoke._base_url`) — non lancée avant la
+relance de gunicorn et des workers.

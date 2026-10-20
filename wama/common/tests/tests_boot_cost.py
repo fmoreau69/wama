@@ -286,13 +286,42 @@ class SubstitutionChainTest(SimpleTestCase):
         """Copied tasks import the views, copied views import the tasks (anonymizer, 2026-10-20):
         neither holds alone, no second pass unblocks them — their union is tried once."""
         played, out = self._chain({'urls+views+templates': ['revert'],
-                                   'tasks+function_specs': ['revert'], 'models': ['revert'],
+                                   'tasks+function_specs': ['revert'], 'models': ['revert', 'revert'],
                                    'urls+views+templates+tasks+function_specs': ['ok']},
                                   chain='urls+views+templates,tasks+function_specs,models')
-        self.assertEqual('urls+views+templates+tasks+function_specs', played[-1])
+        self.assertEqual(['urls+views+templates+tasks+function_specs', 'models'], played[-2:])
         self.assertIn('urls+views+templates=ok', out)
         self.assertIn('tasks+function_specs=ok', out)
-        self.assertIn('models=revert', out, 'the model glue is never folded into the union')
+        self.assertIn('models=revert', out, 'a union that holds alone does not take the model')
+
+    def test_the_model_reverted_before_the_union_is_replayed_after_it(self):
+        """anonymizer_01, 2026-10-20: `models` came back because the COPIED params imported a
+        model constant; the union generated `params` — the model then holds."""
+        played, out = self._chain({'urls+views+templates': ['revert'], 'params': ['revert'],
+                                   'models': ['revert', 'ok'],
+                                   'urls+views+templates+params': ['ok']},
+                                  chain='urls+views+templates,params,models')
+        self.assertEqual(['urls+views+templates+params', 'models'], played[-2:])
+        self.assertIn('models=ok', out)
+
+    def test_a_copied_model_holding_the_knot_joins_the_union(self):
+        """describer_01, 2026-10-20: the COPIED models.py declares the ingest `derive` in the copied
+        `workers.py` that the generated tasks withdraw, and the generated models alone lose members
+        the copied cards read — the code groups hold only with `models`."""
+        played, out = self._chain({'urls+views+templates': ['revert'],
+                                   'tasks+function_specs': ['revert'], 'models': ['revert'],
+                                   'urls+views+templates+tasks+function_specs': ['revert'],
+                                   'urls+views+templates+tasks+function_specs+models': ['ok']},
+                                  chain='urls+views+templates,tasks+function_specs,models')
+        self.assertEqual('urls+views+templates+tasks+function_specs+models', played[-1])
+        self.assertIn('urls+views+templates=ok', out)
+        self.assertIn('models=ok', out)
+
+    def test_the_model_is_not_tried_when_no_code_group_is_stuck(self):
+        played, out = self._chain({'urls+views+templates': ['ok'], 'models': ['revert']},
+                                  chain='urls+views+templates,models')
+        self.assertEqual(['urls+views+templates', 'models'], played)
+        self.assertIn('models=revert', out)
 
     def test_a_group_unblocked_by_a_later_one_is_replayed(self):
         played, out = self._chain({'tasks': ['revert', 'ok'], 'surfaces': ['rien'],

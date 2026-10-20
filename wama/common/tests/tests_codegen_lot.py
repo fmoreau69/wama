@@ -1035,10 +1035,13 @@ class DeclaredResultDownloadTest(SimpleTestCase):
         body = _fonction(src, '_decorer') or ''
         self.assertIn("_set_unless_property(item, 'output_filename'", body)
         self.assertIn('item.output_file.name', body)
-        # Counter-check: a TEXT result has no file name to derive.
+        # Counter-check: a TEXT result has no file name to derive — the name is set EMPTY (the card
+        # reads only what `_decorer` sets, 2026-10-20), never derived from a field.
         src, why = _vues_generees(SOURCE_LINK)
         self.assertTrue(src, why)
-        self.assertNotIn("'output_filename'", _fonction(src, '_decorer') or '')
+        body = _fonction(src, '_decorer') or ''
+        self.assertIn("_set_unless_property(item, 'output_filename', '')", body)
+        self.assertNotIn('.output_file.name', body)
 
 
 class GeneratedModelBasesTest(SimpleTestCase):

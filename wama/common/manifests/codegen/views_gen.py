@@ -110,7 +110,12 @@ def _donnees(manifest: dict) -> dict:
         'item': item,
         'input_field': spec.get('input_field') or 'input_file',
         'endpoints': list(proc.get('endpoints') or []),
-        'tasks': [t.get('function') for t in (proc.get('tasks') or []) if t.get('function')],
+        # Les tâches que les vues DISPATCHENT : celles du cycle de vie d'un élément — les seules que
+        # `tasks_gen` émet, dans le `tasks.py` généré que la vue importe. Toutes les tâches ici, la
+        # première déclarée était lancée par « ▶ » : `download_voice_refs_task` du synthesizer,
+        # absente du `tasks.py` généré (2026-10-20, manque ④ de l'étape 3).
+        'tasks': [t.get('function') for t in (proc.get('tasks') or [])
+                  if t.get('function') and t.get('lifecycle')],
         # Repli : le vocabulaire COMMUN (cette ligne en portait une copie figée à 4 états).
         'statuses': list(proc.get('statuses') or job_status_values()),
         'params_fields': list(spec.get('params_fields') or []),
@@ -264,7 +269,7 @@ def render_views(manifest: dict) -> tuple:
     if d.get('_raison'):
         return None, d['_raison']
     if not d['tasks']:
-        return None, 'processing.tasks vide (aucune tâche à dispatcher)'
+        return None, 'aucune tâche lifecycle déclarée (processing.tasks) : rien à dispatcher'
     if not (d['form'] and d['batch'] and d['row_field']):
         return None, ('forme de file inconnue : ni liaison déclarée '
                       '(processing.model_spec.batch avec link_name + row_index) ni FK directe '
@@ -923,10 +928,15 @@ def {nom}(request, pk):
     # modèle réel c'est une @property (converter, describer) : glu non sérialisée, perdue par
     # le `models` généré — la card rendait une sortie SANS NOM, en silence (juge des membres
     # perdus, `converter_02`, 2026-10-07). Dérivé du champ que le manifeste déclare servir.
+    # Même règle pour le nom d'ENTRÉE (`elem.input_filename`, titre de la card) et pour une app
+    # dont le résultat n'est pas un fichier (sortie sans nom) : la card générée ne lit que ce que
+    # `_decorer` pose — `describer_01` (20/10) perdait les deux @property du modèle réel.
     out_file = d['out_file']
-    output_name_line = '' if not out_file else f'''
+    output_name_line = f'''
+    _set_unless_property(item, 'input_filename', Path({nom_pour_props}).name)''' + (f'''
     _set_unless_property(item, 'output_filename',
-                         Path(item.{out_file}.name).name if item.{out_file} else '')'''
+                         Path(item.{out_file}.name).name if item.{out_file} else '')''' if out_file else '''
+    _set_unless_property(item, 'output_filename', '')''')
     decorateur = f'''def _set_unless_property(item, name, value):
     """Pose une valeur DÉCORATIVE sur l'instance — sauf si le modèle la calcule déjà.
 
@@ -1235,11 +1245,19 @@ consolidate       = _qm['consolidate']'''
     # chacun leur boucle ; `upload/generate` du composer a montré le 22/09 qu'il en faudrait une
     # par alias — donc une règle générale). Le premier `def <canon>(` du corps prend le nom
     # déclaré ; une classe (index) n'a pas d'alias.
+    # Un corps est une fonction (`def <canon>(`) OU une vue de fabrique affectée
+    # (`<canon> = _pv[…]`) : les deux formes se renomment. Seule la première l'était — l'alias
+    # `download_all_media` de l'anonymizer redéfinissait `download_all`, et sa route n'avait plus
+    # de vue (2026-10-20, manque ② de l'étape 3).
+    import re as _re
     for _canon, _alts in ROUTE_ALIASES.items():
         if _canon in vues:
             for _alt in _alts:
                 if _alt not in vues and alias_fits(_canon, _alt, d['view_patterns']):
-                    vues[_alt] = vues[_canon].replace(f'def {_canon}(', f'def {_alt}(', 1)
+                    body, renamed = _re.subn(rf'^(def |class )?{_canon}\b', rf'\g<1>{_alt}',
+                                             vues[_canon], count=1, flags=_re.M)
+                    if renamed:     # sinon : un bouchon VISIBLE, jamais une seconde `<canon>`
+                        vues[_alt] = body
 
     # ── Assemblage : UNE définition par callable exigé (conventionnel ou stub) ──
     # `batch_preview` RETIRÉ de cet ensemble (2026-08-22) : sa route conventionnelle est

@@ -2595,13 +2595,13 @@
         {
           "file": "tasks.py",
           "function": "generate_image_task",
-          "lifecycle": false,
+          "lifecycle": true,
           "task_name": null
         },
         {
           "file": "tasks.py",
           "function": "generate_video_task",
-          "lifecycle": false,
+          "lifecycle": true,
           "task_name": null
         }
       ]
