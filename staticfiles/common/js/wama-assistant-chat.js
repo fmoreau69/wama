@@ -364,27 +364,23 @@
   // `tool_api.job_progress` : progression vivante, place dans la file GPU), la forme est celle du
   // bloc commun des cards (`common/_card_progress.html` : badge, barre, %, ETA), l'ETA vient de
   // `WamaEta` (débit observé, l'a priori de l'élément en amorce), et la boucle est `WamaApp.Poller`.
+  // Le libellé et la couleur d'un état sont ceux du serveur (`WamaApp.statusLabel` / `statusBadge`,
+  // `state_presentation`), la place dans la file GPU est la pastille même de la card
+  // (`WamaSchedule.queueChip`) — rien n'est réécrit ici.
   // À la fin d'un élément, la relève de la cloche est demandée tout de suite : sa fin est racontée
   // par le chemin existant (`job_follow_ups`), une fois, au lieu d'attendre le tour de la cloche.
   var JOB_POLL_MS = 3000;
-  var JOB_BADGES = {
-    PENDING: ['bg-secondary', 'En attente'], AWAITING_RESOURCES: ['bg-awaiting', 'En attente de ressources'],
-    RUNNING: ['bg-warning', 'En cours'], SUCCESS: ['bg-success', 'Terminé'],
-    FAILURE: ['bg-danger', 'Échec'], STALE: ['bg-stale', 'Périmé'],
-  };
   var jobBlockSeq = 0;
 
   function jobKey(job) { return job.family + ':' + job.id; }
 
-  /** Le texte du badge : l'état, et pour un élément qui attend, sa place dans la file GPU — la
-   *  pastille « En file » de la card (`global_queue.place_of`, `ahead` : tâches devant). */
-  function jobBadgeText(job) {
-    var badge = JOB_BADGES[job.status] || ['bg-secondary', job.status || '…'];
-    var ahead = job.queue && job.queue.ahead;
-    if (!job.terminal && job.status !== 'RUNNING' && ahead) {
-      return 'En file · ' + ahead + ' tâche' + (ahead > 1 ? 's' : '') + ' avant';
-    }
-    return badge[1];
+  function statusLabel(status) {
+    return (global.WamaApp && global.WamaApp.statusLabel) ? global.WamaApp.statusLabel(status) : status;
+  }
+
+  function statusBadge(status) {
+    return (global.WamaApp && global.WamaApp.statusBadge) ? global.WamaApp.statusBadge(status)
+                                                          : 'bg-secondary';
   }
 
   Chat.prototype.jobRow = function (job) {
@@ -406,8 +402,16 @@
   Chat.prototype.paintJob = function (row, job) {
     var pct = job.terminal && job.ok ? 100 : Math.max(0, Math.min(100, job.progress || 0));
     var badge = row.querySelector('.status-badge');
-    badge.className = 'badge status-badge ' + ((JOB_BADGES[job.status] || ['bg-secondary'])[0]);
-    badge.textContent = jobBadgeText(job);
+    badge.className = 'badge status-badge ' + statusBadge(job.status);
+    badge.textContent = statusLabel(job.status);
+    // Un élément qui ATTEND : la pastille « En file » de sa card (place, début et fin prévus).
+    var oldChip = row.querySelector('.wama-queue-chip');
+    if (oldChip) oldChip.remove();
+    // Même règle que la card (`WamaSchedule.decorate`) : une entrée `queued`, jamais `running`.
+    if (!job.terminal && job.queue && job.queue.state === 'queued' && global.WamaSchedule
+        && global.WamaSchedule.queueChip) {
+      row.appendChild(global.WamaSchedule.queueChip(job.queue));
+    }
     row.querySelector('.progress-text').textContent = pct + '%';
     var fill = row.querySelector('.wama-progress-fill');
     fill.style.width = pct + '%';

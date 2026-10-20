@@ -310,7 +310,9 @@
         });
     }
 
-    global.WamaSchedule = { open: open, refresh: refresh, label: label };
+    // `queueChip` : la pastille « En file » d'un élément qui attend — posée aussi sous la réponse
+    // de l'assistant qui l'a lancé (`wama-assistant-chat.js`, 2026-10-20), la même que sa card.
+    global.WamaSchedule = { open: open, refresh: refresh, label: label, queueChip: queueChip };
 
     function start() { refresh(); watch(); }
     if (document.readyState === 'loading') {

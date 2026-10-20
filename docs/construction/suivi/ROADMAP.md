@@ -4324,13 +4324,30 @@ relève racontait la FIN ; rien ne montrait le chemin. Rien de neuf n'est lu :
 - **le chat** rend le bloc commun des cards (`common/_card_progress.html` : badge, barre
   `.wama-progress-*`, %, ETA par `WamaEta` — chargé désormais par `base.html`, protégé contre une
   seconde définition) et le suit par `WamaApp.Poller` (3 s, pause en onglet caché, arrêt quand tout
-  est fini) ; un élément qui attend dit sa place (« En file · 3 tâches avant ») ;
+  est fini) ; le libellé et la couleur d'un état sont ceux de `WamaApp.statusLabel` /
+  `statusBadge` (`state_presentation`), et un élément qui attend porte la pastille « En file » de
+  SA card (`WamaSchedule.queueChip`, exportée pour cela ; entrée `queued` seulement, comme
+  `decorate`) ; le libellé de l'élément est le nom déclaré par la ligne, sinon la règle commune
+  `batch_views.element_label` ;
 - **la fin** demande la relève de la cloche tout de suite (`WamaApp.checkNotifications`) : elle est
   racontée par le chemin de la relève, une fois, au lieu d'attendre jusqu'à 60 s.
-Gardes : `tests_assistant_job_progress` (chaîne réelle : card, fil, vues ; V8 sur le chat servi) —
-huit contre-épreuves rouges. ⏳ Les tâches de DÉVELOPPEMENT (`dev_*`) n'ont pas de progression
-déclarée : pas de barre ; les canaux (Discord) n'en ont pas non plus — un message ne se met pas à
-jour comme une bulle.
+Gardes : `tests_assistant_job_progress` (chaîne réelle : card, fil, vues ; V8 sur le chat ET la
+pastille servis) — douze contre-épreuves rouges. ⏳ Les tâches de DÉVELOPPEMENT (`dev_*`) n'ont pas
+de progression déclarée : pas de barre ; les canaux (Discord) n'en ont pas non plus — un message ne
+se met pas à jour comme une bulle.
+*Revérification du même jour* : trois RECOPIES de ma main ramenées — une table état → libellé/couleur
+écrite dans le chat (`JOB_BADGES`) à côté de `WamaApp.statusLabel`, le texte « En file · N tâches
+avant » à côté de `wama-schedule.js::queueChip`, un libellé `name or famille #id` à côté
+d'`element_label`. 🔚 **Écart CONSIGNÉ, non ramené** : la progression VIVANTE a DEUX lecteurs —
+`tool_api._status_row` (`progress_key` de la triade, valeur ou dict `pct`) et
+`progress_views.make_progress_views._live` (crochet `progress_of`, sinon `<app>_progress_<pk>`) ;
+et l'ETA a priori de `job_progress` ne lit que `launch_eta`, quand celle de la card
+(`progress_views._estimate`) retombe sur le triplet `eta_for` de l'app — une app sans process
+déclarant leur ETA a une barre sans ETA d'amorce dans l'échange. Le remède est UNE lecture
+« progression + ETA d'un élément » que les deux appellent ; elle touche les dix apps (`progress_of`,
+`eta_for` sont déclarés à leur `make_progress_views`) : un chantier, pas un correctif.
+*(Un visiteur sans compte reçoit 200 et une liste vide : l'assistant est une app PUBLIQUE, le
+middleware lui donne une identité éphémère — la règle d'`ai_chat`, pas une fuite.)*
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) ⏳
 

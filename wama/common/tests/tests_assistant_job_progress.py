@@ -60,6 +60,18 @@ class JobProgressTest(TestCase):
                           row['terminal'], row['ok']))
         self.assertTrue(row['label'])
 
+    def test_without_a_declared_name_the_label_is_the_common_readable_name(self):
+        """A line that declares no `name` (most declare `filename` or `prompt`): the label is the
+        common rule of an element's readable name (`batch_views.element_label`)."""
+        from wama import tool_api
+        from wama.common.utils.batch_views import element_label
+        spec = dict(tool_api.TRIAD_SPECS['describer'])
+        spec['status_fields'] = {k: v for k, v in spec['status_fields'].items() if k != 'name'}
+        with mock.patch.dict(tool_api.TRIAD_SPECS, {'describer': spec}):
+            row = tool_api.job_progress(self.user, 'describer', self.card.pk)
+        self.assertTrue(element_label(self.card))
+        self.assertEqual(element_label(self.card), row['label'])
+
     def test_an_item_of_someone_else_or_an_unknown_family_is_not_read(self):
         from wama.tool_api import job_progress
         other = User.objects.create_user('job_progress_other', password='x')
@@ -114,14 +126,21 @@ class JobProgressTest(TestCase):
 
 
 #: A served chat without a browser: elements answering the selectors the chat uses, a Poller that
-#: records what it follows, and a bell that counts its relays.
+#: records what it follows, and a bell that counts its relays. The states' label and colour are
+#: `WamaApp`'s (marked, so that a table written again in the chat shows); the queue chip is the
+#: SERVED `wama-schedule.js`'s, loaded after this fake (`document.readyState` 'loading': it does
+#: not start reading the queue).
 FAKE_BROWSER = r"""
 var window = this;
-var document = { readyState: 'complete', querySelectorAll: function () { return []; },
+var document = { readyState: 'loading', querySelectorAll: function () { return []; },
+                 querySelector: function () { return null; },
+                 createElement: function () { return el(); },
                  cookie: '', addEventListener: function () {} };
 var checked = 0, stopped = [], started = [];
 window.WamaApp = {
   checkNotifications: function () { checked++; },
+  statusLabel: function (s) { return 'label:' + s; },
+  statusBadge: function (s) { return 'badge:' + s; },
   Poller: function () {
     this.start = function (id) { started.push(id); };
     this.stop = function (id) { stopped.push(id); };
@@ -129,9 +148,10 @@ window.WamaApp = {
   },
 };
 function setTimeout(fn) { fn(); }
+function setInterval() {}
 function el() {
   var classes = {};
-  return { className: '', textContent: '', style: {}, dataset: {},
+  return { className: '', textContent: '', innerHTML: '', style: {}, dataset: {},
            classList: { toggle: function (c, on) { classes[c] = !!on; },
                         remove: function (c) { classes[c] = false; } },
            has: function (c) { return !!classes[c]; } };
@@ -140,8 +160,13 @@ function fakeRow(key) {
   var row = el();
   row.dataset.jobKey = key;
   row.parts = { '.status-badge': el(), '.progress-text': el(), '.wama-progress-fill': el(),
-                '.wama-eta': null };
+                '.wama-eta': null, '.wama-queue-chip': null };
   row.querySelector = function (s) { return this.parts[s]; };
+  row.appendChild = function (child) {
+    var parts = this.parts;
+    parts['.wama-queue-chip'] = child;
+    child.remove = function () { parts['.wama-queue-chip'] = null; };
+  };
   return row;
 }
 function fakeBlock(rows) {
@@ -165,10 +190,11 @@ class ChatFollowsTheJobsTest(SimpleTestCase):
             from py_mini_racer import MiniRacer
         except ImportError:
             self.skipTest('py_mini_racer absent de ce venv : pas de V8')
-        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
-                  / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        served = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
         ctx = MiniRacer()
-        ctx.eval(FAKE_BROWSER + source)
+        ctx.eval(FAKE_BROWSER)
+        for name in ('wama-schedule.js', 'wama-assistant-chat.js'):
+            ctx.eval((served / name).read_text(encoding='utf-8'))
         ctx.eval("""
             var chat = Object.create(WamaAssistantChat._Chat.prototype);
             chat.cfg = { jobsUrl: '/api/ai-chat/jobs/' };
@@ -181,18 +207,31 @@ class ChatFollowsTheJobsTest(SimpleTestCase):
     def _read(self, ctx, expr):
         return json.loads(ctx.eval('JSON.stringify(%s)' % expr))
 
-    def test_a_waiting_job_says_its_place_in_the_queue_and_a_running_one_moves(self):
+    def test_a_waiting_job_carries_the_queue_chip_of_its_card_and_a_running_one_moves(self):
         ctx = self._ctx()
         ctx.eval("""chat.updateJobs('1', [
             {family: 'describer', id: 1, status: 'PENDING', progress: 0, terminal: false,
-             queue: {ahead: 3}},
-            {family: 'describer', id: 2, status: 'RUNNING', progress: 42, terminal: false}]);""")
-        self.assertEqual('En file · 3 tâches avant', self._read(ctx, "a.parts['.status-badge'].textContent"))
+             queue: {state: 'queued', ahead: 3, expectedStart: '2026-10-20T10:00:00',
+                     expectedEnd: '2026-10-20T10:05:00', durationSource: 'measured'}},
+            {family: 'describer', id: 2, status: 'RUNNING', progress: 42, terminal: false,
+             queue: {state: 'running', ahead: 0}}]);""")
+        # The state's label and colour are WamaApp's, never a table of the chat.
+        self.assertEqual(['label:PENDING', 'badge status-badge badge:PENDING'], self._read(
+            ctx, "[a.parts['.status-badge'].textContent, a.parts['.status-badge'].className]"))
+        chip = self._read(ctx, "a.parts['.wama-queue-chip'] && a.parts['.wama-queue-chip'].innerHTML")
+        self.assertIn('En file · 3 tâches avant', chip or '', 'the chip of the card (WamaSchedule)')
+        self.assertIsNone(self._read(ctx, "b.parts['.wama-queue-chip']"),
+                          'a running entry has no queue chip, like on its card')
         self.assertEqual(['42%', '42%', True], self._read(
             ctx, "[b.parts['.progress-text'].textContent, b.parts['.wama-progress-fill'].style.width,"
                  " b.parts['.wama-progress-fill'].has('active')]"))
         self.assertEqual([], self._read(ctx, 'stopped'), 'still running: still followed')
         self.assertEqual(0, self._read(ctx, 'checked'))
+        # Once it runs, its chip goes.
+        ctx.eval("""chat.updateJobs('1', [
+            {family: 'describer', id: 1, status: 'RUNNING', progress: 5, terminal: false,
+             queue: {state: 'running', ahead: 0}}]);""")
+        self.assertIsNone(self._read(ctx, "a.parts['.wama-queue-chip']"))
 
     def test_the_end_of_every_job_stops_the_follow_and_asks_the_bell(self):
         ctx = self._ctx()
@@ -201,7 +240,7 @@ class ChatFollowsTheJobsTest(SimpleTestCase):
             {family: 'describer', id: 2, status: 'FAILURE', progress: 12, terminal: true, ok: false}]);""")
         self.assertEqual(['1'], self._read(ctx, 'stopped'))
         self.assertEqual(1, self._read(ctx, 'checked'), 'the relay is asked once, at the end')
-        self.assertEqual(['Terminé', '100%', 'Échec'], self._read(
+        self.assertEqual(['label:SUCCESS', '100%', 'label:FAILURE'], self._read(
             ctx, "[a.parts['.status-badge'].textContent, a.parts['.progress-text'].textContent,"
                  " b.parts['.status-badge'].textContent]"))
 

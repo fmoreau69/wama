@@ -25228,8 +25228,9 @@ pas l'élément d'un autre.
 de barre ; les canaux (Discord) non plus. **D'autrui, relevés en passant, non touchés** :
 `tests_tool_api_lectures.AddItemToMediaLibraryTest.test_ne_DEVINE_pas_le_role_et_rend_les_candidats`
 rouge (le composer DÉCLARE son rôle de médiathèque depuis `52fa7362`, le test attend des candidats) ;
-`check_docs` 2 références cassées vers `filemanager/right_panel.html`, que la session du volet droit
-vient de retirer (`ROUTE:330`, `WAMA_VOLETS:332`).
+`check_docs` 2 références cassées vers le gabarit right_panel du filemanager, que la session du volet
+droit vient de retirer (`ROUTE:330`, `WAMA_VOLETS:332`). *(Chemin décité à la revérification du
+même jour : le citer ici faisait de cette ligne la 3ᵉ référence cassée.)*
 
 ## §PALIER 2026-10-20 (nuit), « APERÇU : le code mort retiré, la CARD suit la face Pendant » — non poussé — 🔴 relancer gunicorn si un worker n'a pas été recyclé depuis 19 h 30 (vues et routes de trois apps, gabarits des 11 cards ; la prod relancée vers 19 h 30 par quelqu'un d'autre les sert déjà)
 
@@ -25288,3 +25289,25 @@ régression. »*
 - Ce que cette session-ci a touché au transcriber ce soir, pour ne pas le redécouvrir :
   `static/transcriber/js/index.js` (le report vers Speak retiré, R158), `views.py` (`_progress_extra`
   sans `partial_text`), `_transcript_card.html` (l'hôte Pendant de la card). Rien dans `edit.*`.
+
+## §PALIER 2026-10-20 (soir), « /reverif : boot, chaîne, LLM de dev, progression dans l'échange » — non poussé — 🔴 relancer gunicorn (JS servis, `tool_api`)
+
+Revérification de `7a86d155`, `24af7c85`, `defab85a` (WAMA relancé). **Aligné** — trois RECOPIES de
+ma main, toutes dans le suivi de job de l'échange, ramenées : la table état → libellé/couleur du chat
+(`JOB_BADGES`) → `WamaApp.statusLabel` / `statusBadge` (`state_presentation`) ; le texte « En file ·
+N tâches avant » → la pastille de la card, `WamaSchedule.queueChip` (exportée ; entrée `queued`
+seule, comme `decorate`) ; le libellé `name or famille #id` → `batch_views.element_label` après le
+nom déclaré. Un nom de test de `24af7c85` portait un radical noir (`…_declare_…`) : renommé.
+**Testé** : 154 tests des domaines touchés — rouges, aucun de cette session :
+`tests_tool_api_lectures…test_ne_DEVINE_pas_le_role…` (déjà relevé) et les budgets de langue
+(code 2653 > 2651 : `ui_smoke.py`, `doc_facts.py`, `check_docs.py`, `tests_catalogues.py`,
+`model_manager/tests/tests.py` ; noms de tests 1293 > 1291 : `tests_skill_provenance.py:173`,
+`tests_theme.py:1172`, nés aujourd'hui ailleurs). Quatre contre-épreuves neuves rouges (douze au
+total pour la progression). Serveur relancé : les deux JS servis portent les corrections ; un
+visiteur sans compte lit `api/ai-chat/jobs/` en 200 et liste vide — l'assistant est PUBLIC,
+identité éphémère, règle d'`ai_chat`.
+**Consigné** : `ROADMAP §19.2` (les recopies, et l'écart NON ramené : deux lecteurs de la
+progression vivante — `tool_api._status_row` / `progress_views._live` — et une ETA d'amorce sans
+le repli `eta_for` dans l'échange : un chantier sur les dix apps) ; `check_docs` : la seule
+référence cassée restante était dans MON bloc de `defab85a` (le chemin du gabarit retiré, cité) —
+décitée.

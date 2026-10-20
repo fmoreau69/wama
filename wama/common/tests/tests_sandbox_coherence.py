@@ -100,7 +100,7 @@ class ParamsRenderedAsLiteralsTest(SimpleTestCase):
         with self.assertRaisesRegex(ValueError, 'non littérale'):
             render_params(_manifeste(schemas={'PARAMS_JSON': [{'name': 'a', 'default': object()}]}))
 
-    def test_the_generated_params_declare_the_common_storage_key_like_the_real_apps(self):
+    def test_the_generated_params_carry_the_common_storage_key_like_the_real_apps(self):
         """Every real `params.py` declares its settings storage key since the birth cascade
         (`user_setting_key`, 2026-10-18); the template did not, and COPIED views importing it sent
         `params` back to the witness on four twins (2026-10-20). For an app on the common rule the

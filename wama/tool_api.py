@@ -4086,9 +4086,12 @@ def job_progress(user, family: str, pk) -> dict | None:
         progress = max(0, min(100, int(row.get('progress') or 0)))
     except (TypeError, ValueError):
         progress = 0
+    # Le libellé : le nom que la ligne déclare, sinon la règle commune du nom lisible d'un élément
+    # (`batch_views.element_label`, celle du statut de lot et du ZIP), sinon la famille et l'id.
+    from wama.common.utils.batch_views import element_label
     row.update(family=family, id=item.pk, status=status, progress=progress,
                terminal=status in JOB_STATUS_TERMINAL, ok=status == 'SUCCESS',
-               label=str(row.get('name') or f'{family} #{item.pk}'))
+               label=str(row.get('name') or element_label(item) or f'{family} #{item.pk}'))
     if not row['terminal']:
         try:
             from wama.common.services.process_runs import launch_eta
