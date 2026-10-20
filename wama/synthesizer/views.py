@@ -672,6 +672,9 @@ def update_settings(request, pk: int):
         return JsonResponse({'error': str(refusal)}, status=400)
 
     if voice_received:
+        # L'ancienne voix est LIBÉRÉE, comme dans « Démarrer tout » (`start_all`) : remplacée
+        # sans un mot, elle restait orpheline sur le disque (2026-10-20).
+        release_card_file(synthesis, 'voice_reference')
         synthesis.voice_reference = voice_received[0].value
 
     synthesis.save()
@@ -1076,8 +1079,8 @@ def voice_preview(request):
             multi_speaker=request.POST.get('multi_speaker') == '1',
             scene_description=request.POST.get('scene_description', ''),
             speed=speed, pitch=pitch, read_timeout=60,
-            sentence_pause=chosen.get('sentence_pause', 0.0),
-            clause_pause=chosen.get('clause_pause', 0.0))
+            sentence_pause=chosen.get('sentence_pause'),
+            clause_pause=chosen.get('clause_pause'))
     except TTSServiceLoadingError:
         return JsonResponse({'error': 'Le service de synthèse vocale démarre : réessayez dans '
                                       'quelques secondes.', 'busy': True}, status=503)

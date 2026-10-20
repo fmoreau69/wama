@@ -11,6 +11,7 @@ from django.core.validators import FileExtensionValidator
 from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 from wama.common.tts.constants import (
     DEFAULT_TTS_MODEL, TTS_MODEL_CHOICES, LANGUAGE_CHOICES, VOICE_PRESET_CHOICES,
+    VOICE_PAUSE_SETTINGS,
 )
 from wama.common.app_registry import VOICE_SAMPLE_EXTENSIONS
 
@@ -144,14 +145,17 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     )
 
     # PAUSES de la voix (2026-10-18), en secondes — passées aux moteurs dans `options`, posées par
-    # leur contrat commun (`tts_base.TTSBackend.synthesize`). 0 = les pauses du moteur, le rendu
-    # d'avant. `db_default` : le code encore en service, qui ignore ces colonnes, crée des lignes.
+    # leur contrat commun (`tts_base.TTSBackend.synthesize`). 0 = les pauses du moteur. Défaut :
+    # celui de l'assistant, déclaré une fois (`VOICE_PAUSE_SETTINGS`, 2026-10-20 — il valait 0).
+    # `db_default` : le code encore en service, qui ignore ces colonnes, crée des lignes.
     sentence_pause = models.FloatField(
-        default=0.0, db_default=0.0,
+        default=VOICE_PAUSE_SETTINGS['sentence_pause']['default'],
+        db_default=VOICE_PAUSE_SETTINGS['sentence_pause']['default'],
         help_text="Pause en fin de phrase, en secondes (0 = celle du moteur)"
     )
     clause_pause = models.FloatField(
-        default=0.0, db_default=0.0,
+        default=VOICE_PAUSE_SETTINGS['clause_pause']['default'],
+        db_default=VOICE_PAUSE_SETTINGS['clause_pause']['default'],
         help_text="Pause sur virgule, parenthèse, tiret, en secondes (0 = celle du moteur)"
     )
 

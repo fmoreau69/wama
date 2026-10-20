@@ -771,8 +771,11 @@ l'intuition :
   sans appel ; le multi-voix de Higgs n'est jamais découpé ; la scène n'ouvre que le 1ᵉʳ segment ;
   borne `MAX_PAUSE_S`). Les deux réglages sont DÉCLARÉS une fois (`common/tts/constants.
   VOICE_PAUSE_SETTINGS` : libellé, bornes, aide), lus par le schéma de l'assistant et par celui du
-  synthesizer — champs `VoiceSynthesis.sentence_pause` / `clause_pause` (défaut 0 = la voix du
-  moteur, le rendu d'avant ; `db_default`, migration `0030` appliquée), passés par `render_speech`
+  synthesizer — champs `VoiceSynthesis.sentence_pause` / `clause_pause` (`db_default`, migration
+  `0030` appliquée ; défaut 0 = la voix du moteur ce jour-là — ⚠ **corrigé le 2026-10-20** :
+  le synthesizer SUIT l'assistant, décision de Fabien, le défaut 0,4 / 0,15 s est déclaré dans
+  `VOICE_PAUSE_SETTINGS` et le modèle en dérive `default`/`db_default`, migration `0031` ; les
+  éléments déjà créés gardent leur 0), passés par `render_speech`
   dans `options` (synthèse ET aperçu — le silence entre deux segments longs devient la pause de fin
   de phrase). Volet et modale d'élément, PAS le lot : la modale de lot commune reposterait le défaut
   sur des filles aux pauses différentes (`MODES_QUEUE_UX §5ter`). Le volet a pu les recevoir parce

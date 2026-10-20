@@ -86,6 +86,36 @@ class OneCreationPathTest(TestCase):
         self.assertFalse(VoiceSynthesis.objects.filter(user=self.user).exists())
 
 
+class ReplacedReferenceVoiceIsReleasedTest(TestCase):
+    """La modale d'une synthèse EXISTANTE remplace sa voix de référence : l'ancienne est LIBÉRÉE
+    (`release_card_file`), comme dans « Démarrer tout » — elle restait orpheline sans un mot
+    (2026-10-20)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('synth_voice_swap', password='x')
+        _grant(self.user)
+        self.client.force_login(self.user)
+        response = self.client.post(reverse('synthesizer:upload_text'),
+                                    {'text_content': 'Bonjour la voix'})
+        self.synthesis = VoiceSynthesis.objects.get(pk=response.json()['id'])
+
+    def _post_voice(self, name):
+        return self.client.post(reverse('synthesizer:update_settings', args=[self.synthesis.pk]),
+                                {'voice_reference': SimpleUploadedFile(name, b'RIFF0000WAVE')})
+
+    def test_replacing_the_reference_voice_releases_the_old_one(self):
+        from wama.common.models import ReleasedFile
+        self.assertEqual(200, self._post_voice('first.wav').status_code)
+        first = VoiceSynthesis.objects.get(pk=self.synthesis.pk).voice_reference.name
+        self.assertTrue(first)
+        self.assertEqual(200, self._post_voice('second.wav').status_code)
+        second = VoiceSynthesis.objects.get(pk=self.synthesis.pk).voice_reference.name
+        self.assertNotEqual(first, second)
+        self.assertTrue(ReleasedFile.objects.filter(user=self.user, path=first).exists(),
+                        "l'ancienne voix est notée libérée, l'utilisateur en sera prévenu")
+        self.assertFalse(ReleasedFile.objects.filter(path=second).exists())
+
+
 class PanelSettingsFollowTheSchemaTest(TestCase):
     """Les réglages du VOLET circulent par le SCHÉMA, plus par des listes de clés (2026-10-18).
 

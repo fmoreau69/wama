@@ -457,12 +457,15 @@ class VoicePreviewSharesTheSynthesisChainTest(TestCase):
 
     def test_the_pauses_of_the_panel_are_heard_in_the_preview(self):
         """L'aperçu fait entendre les PAUSES réglées (2026-10-18) : lues par le lecteur dérivé du
-        schéma, comme à la création ; sans réglage, la voix du moteur."""
+        schéma, comme à la création ; sans réglage, le défaut commun — celui de l'assistant."""
+        from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
         self._post(sentence_pause='0.5', clause_pause='0.1')
         self.assertEqual({'sentence_pause': 0.5, 'clause_pause': 0.1}, self.calls[0]['options'])
         self.calls.clear()
         self._post()
-        self.assertEqual({'sentence_pause': 0.0, 'clause_pause': 0.0}, self.calls[0]['options'])
+        self.assertEqual({name: VOICE_PAUSE_SETTINGS[name]['default']
+                          for name in ('sentence_pause', 'clause_pause')},
+                         self.calls[0]['options'])
 
     def test_worker_and_preview_share_one_render_function(self):
         from wama.synthesizer import workers
@@ -554,11 +557,14 @@ class SynthesisIsHeardWhileItGrowsTest(TestCase):
         self.assertEqual(len(sent) * 1500, len(AudioSegment.from_wav(final)))
 
     def test_the_pauses_are_declared_once_and_kept_out_of_the_batch_modal(self):
-        """Libellé, bornes et aide de la déclaration COMMUNE (celle de l'assistant) ; volet et
-        modale d'élément, PAS le lot : la modale de lot commune reposterait leur défaut sur des
-        filles aux pauses différentes (`MODES_QUEUE_UX §5ter`)."""
+        """Libellé, bornes, aide et DÉFAUT de la déclaration COMMUNE (celle de l'assistant —
+        décision de Fabien du 2026-10-20 pour le défaut, qui valait 0 ici) ; volet et modale
+        d'élément, PAS le lot : la modale de lot commune reposterait leur défaut sur des filles aux
+        pauses différentes (`MODES_QUEUE_UX §5ter`). Le défaut du MODÈLE est le même : un élément
+        né hors du schéma (assistant, lot, API) parle comme celui du volet."""
         from wama.assistant.params import PARAMS_JSON as ASSISTANT
         from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
+        from wama.synthesizer.models import VoiceSynthesis
         from wama.synthesizer.params import PARAMS_JSON
         mine = {p['name']: p for p in PARAMS_JSON}
         theirs = {p['name']: p for p in ASSISTANT}
@@ -566,7 +572,10 @@ class SynthesisIsHeardWhileItGrowsTest(TestCase):
             self.assertEqual(['item', 'panel'], list(mine[name]['contexts']))
             self.assertEqual(VOICE_PAUSE_SETTINGS[name]['label'], mine[name]['label'])
             self.assertEqual(mine[name]['label'], theirs['voice_' + name]['label'])
-            self.assertEqual(0.0, mine[name]['default'], '0 = la voix du moteur, le rendu d’avant')
+            self.assertGreater(VOICE_PAUSE_SETTINGS[name]['default'], 0)
+            self.assertEqual(theirs['voice_' + name]['default'], mine[name]['default'])
+            self.assertEqual(mine[name]['default'],
+                             VoiceSynthesis._meta.get_field(name).get_default())
 
     def test_the_worker_publishes_the_during_face_then_clears_it(self):
         from types import SimpleNamespace

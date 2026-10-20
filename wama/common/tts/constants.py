@@ -33,19 +33,21 @@ ASSISTANT_TTS_ENGINE = os.environ.get('WAMA_ASSISTANT_TTS_ENGINE', 'kokoro-onnx'
 ASSISTANT_STT_MODEL = os.environ.get('WAMA_ASSISTANT_STT_MODEL', 'large-v3')
 
 #: Les PAUSES de la voix (2026-10-18) — deux réglages déclarés UNE fois : l'assistant
-#: (`assistant/params.py`) et le synthesizer (`synthesizer/params.py`) en tirent libellé, bornes
-#: et aide ; chaque surface garde son DÉFAUT (l'assistant prend son temps, le synthesizer garde la
-#: voix de son moteur tant qu'on ne le règle pas). Les deux marques de la découpe
+#: (`assistant/params.py`) et le synthesizer (`synthesizer/params.py`, `VoiceSynthesis`) en tirent
+#: libellé, bornes, aide ET DÉFAUT. Le défaut était propre à chaque surface jusqu'au 2026-10-20
+#: (synthesizer à 0, la voix du moteur) ; décision de Fabien ce jour-là : le synthesizer suit
+#: l'assistant — une voix qui prend son temps sur la ponctuation. Les deux marques de la découpe
 #: (`tts_text.pause_segments`) : fin de phrase (`. ! ? …`) et fin de proposition (`, ; :` — les
 #: parenthèses et tirets d'incise y arrivent réécrits en virgules). Les moteurs les reçoivent dans
 #: `options` sous ces clés, et le contrat commun (`tts_base.TTSBackend.synthesize`) les pose.
 VOICE_PAUSE_SETTINGS = {
     'sentence_pause': dict(
         type='range', label="Pause en fin de phrase", icon='fa-pause', min=0, max=1.5, step=0.05,
+        default=0.4,
         help="Silence, en secondes, après un point, un point d'exclamation ou d'interrogation."),
     'clause_pause': dict(
         type='range', label="Pause sur virgule, parenthèse, tiret", icon='fa-pause',
-        min=0, max=1, step=0.05,
+        min=0, max=1, step=0.05, default=0.15,
         help="Silence, en secondes, après une virgule, un point-virgule, deux-points, une "
              "parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle."),
 }

@@ -293,11 +293,11 @@
               "class": "django.db.models.FloatField",
               "kwargs": {
                 "db_default": {
-                  "expr": "0.0",
+                  "expr": "0.4",
                   "imports": []
                 },
                 "default": {
-                  "expr": "0.0",
+                  "expr": "0.4",
                   "imports": []
                 },
                 "help_text": {
@@ -312,11 +312,11 @@
               "class": "django.db.models.FloatField",
               "kwargs": {
                 "db_default": {
-                  "expr": "0.0",
+                  "expr": "0.15",
                   "imports": []
                 },
                 "default": {
-                  "expr": "0.0",
+                  "expr": "0.15",
                   "imports": []
                 },
                 "help_text": {
@@ -1204,7 +1204,7 @@
               "item",
               "panel"
             ],
-            "default": 0.0,
+            "default": 0.4,
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -1255,7 +1255,7 @@
               "item",
               "panel"
             ],
-            "default": 0.0,
+            "default": 0.15,
             "default_from": null,
             "display_format": "",
             "dom_id": {
@@ -1699,7 +1699,7 @@
       "descriptions": {
         "add_to_synthesizer": {
           "args": {
-            "clause_pause": "range — Silence, en secondes, après une virgule, un point-virgule, deux-points, une parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle. [0–1] (défaut : 0.0)",
+            "clause_pause": "range — Silence, en secondes, après une virgule, un point-virgule, deux-points, une parenthèse ou un tiret d'incise. À 0, la phrase est dite d'un seul souffle. [0–1] (défaut : 0.15)",
             "emotion_intensity": "float (défaut : 1.0)",
             "language": "select — Langue de synthèse (choix : fr | en | es | de | it | pt | pl | tr …) (défaut : 'fr')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus) (défaut : 'original')",
@@ -1707,7 +1707,7 @@
             "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "reference_voice": "str",
-            "sentence_pause": "range — Silence, en secondes, après un point, un point d'exclamation ou d'interrogation. [0–1.5] (défaut : 0.0)",
+            "sentence_pause": "range — Silence, en secondes, après un point, un point d'exclamation ou d'interrogation. [0–1.5] (défaut : 0.4)",
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
             "text": "str",
             "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",

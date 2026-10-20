@@ -69,12 +69,12 @@ PARAMS = [
     # marques : fin de phrase (`. ! ? …`) et fin de proposition (`, ; :`) — parenthèses et tirets
     # d'incise y arrivent réécrits en virgules (`tts_text.say_incises`). Le contrat commun des
     # moteurs les pose (`tts_base.TTSBackend.synthesize`) ; la vue de vocalisation les lui passe.
-    # Libellé, bornes et aide : la déclaration COMMUNE (`VOICE_PAUSE_SETTINGS`), lue aussi par le
-    # synthesizer. Défauts plus longs que ceux du moteur : c'est l'objet de la demande.
+    # Libellé, bornes, aide et défaut : la déclaration COMMUNE (`VOICE_PAUSE_SETTINGS`), lue aussi
+    # par le synthesizer. Défauts plus longs que ceux du moteur : c'est l'objet de la demande.
     # Rangées dans le groupe « Voix », REPLIÉ : réglées une fois, elles ne chargent pas la surface.
-    Param(name='voice_sentence_pause', default=0.4, contexts=SURFACES, group='voice',
+    Param(name='voice_sentence_pause', contexts=SURFACES, group='voice',
           **VOICE_PAUSE_SETTINGS['sentence_pause']),
-    Param(name='voice_clause_pause', default=0.15, contexts=SURFACES, group='voice',
+    Param(name='voice_clause_pause', contexts=SURFACES, group='voice',
           **VOICE_PAUSE_SETTINGS['clause_pause']),
 ]
 
