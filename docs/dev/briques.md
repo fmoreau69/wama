@@ -3163,7 +3163,7 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
-- **API publique** (26) :
+- **API publique** (27) :
   - `cost_label(tier: str) -> str` — « gratuit (quota) », « facturé à l'usage », « abonnement » — '' pour un coût inconnu.
   - `remote_origin_label(source: str, cost_tier: str='') -> str` — LE libellé d'un modèle distant, calculé de ce qui est DÉCLARÉ : hébergement · fournisseur ·
   - `source_origin_label(source: str) -> str` — Où partent les données d'un FOURNISSEUR et ce qu'il coûte, sans son nom (que l'écran
@@ -3186,6 +3186,7 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
   - `api_key_origin(key: str) -> str` — D'où vient la clé d'instance : 'stored' (page Sources externes), 'env' (`.env`) ou ''.
   - `is_configured(key: str) -> bool` — La source est-elle utilisable en l'état ? (clé posée si elle en exige une)
   - `attributions() -> tuple[str, ...]` — Attributions exigées par les licences des sources qui en portent une.
+  - `effective_url(key: str) -> str` — Adresse EFFECTIVE d'une source — celle qu'on sonde et qu'on appelle. Pour Ollama, le
   - `probe(key: str, timeout: float=PROBE_TIMEOUT_S) -> dict` — Sonde UNE source : clé posée ? adresse joignable ? en combien de temps ?
   - `report_path()`
   - `probe_all(write: bool=False) -> dict` — Sonde TOUTES les sources déclarées, et écrit le rapport si demandé.
