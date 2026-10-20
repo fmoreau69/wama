@@ -938,6 +938,39 @@ class UserFunction(ScopedVisibility):
         }
 
 
+class UserTheme(ScopedVisibility):
+    """Un thème tiré d'une CHARTE graphique (PDF) — pour un labo, une équipe, un établissement
+    (`ROADMAP §28` étape 7, voie 2, 2026-10-20). Ses GRAINES seules sont gardées (base, accent,
+    police nommée) : le bloc se génère comme celui d'un thème personnalisé (`theme_generator`),
+    jamais des tokens écrits à la main.
+
+    Provenance (`ROADMAP §29`) : il naît PRIVÉ à son auteur, se partage par une portée
+    (`services/sharing.partager`) ; un administrateur seul le rend SYSTÈME — `owner` vide,
+    l'auteur gardé dans `source` pour l'attribution."""
+    BASES = [('light', 'Clair'), ('dark', 'Sombre')]
+    name = models.CharField(max_length=96)
+    base = models.CharField(max_length=8, choices=BASES, default='light')
+    accent = models.CharField(max_length=7)
+    #: Police de la charte, NOMMÉE : elle ne s'affiche que sur un poste qui l'a (jamais servie).
+    font = models.CharField(max_length=64, blank=True)
+    owner = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.CASCADE,
+                              related_name='wama_themes')
+    #: Ce que la lecture de la charte a trouvé (couleurs, rôles, lecteur) et qui l'a fait naître
+    #: ou promu — la trace, jamais relue pour générer.
+    source = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ScopedManager()
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Thème de charte'
+
+    def __str__(self):
+        return f'{self.name} ({self.owner_id or "système"})'
+
+
 class Manifest(models.Model):
     """Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
 

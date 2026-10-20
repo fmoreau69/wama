@@ -353,7 +353,11 @@ def partager(user, element, visibility, org_unit_id=None, project_id=None,
         # Une app non portée sur `ScopedVisibility` ne doit pas échouer en 500 : elle doit
         # DIRE qu'elle n'est pas partageable (grille : critère `shareable_models`).
         raise RefusDePartage("cet élément n'est pas partageable (app non portée)")
-    if getattr(element, 'user_id', None) != getattr(user, 'id', None):
+    # Le propriétaire d'un élément de file s'appelle `user` ; celui d'un élément de CATALOGUE,
+    # `owner`, vide pour un élément système (`ROADMAP §29` : un thème de charte, 2026-10-20).
+    owner_id = (getattr(element, 'user_id', None) if hasattr(element, 'user_id')
+                else getattr(element, 'owner_id', None))
+    if owner_id is None or owner_id != getattr(user, 'id', None):
         raise RefusDePartage("seul le propriétaire peut partager")
 
     unite, projet = _verifier_cible(user, visibility, org_unit_id, project_id)

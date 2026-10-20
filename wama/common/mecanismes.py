@@ -2070,12 +2070,18 @@ MECHANISMS = (
               "PERSONNALISÉ (2026-10-20, `Theme.generated` : clair ou sombre) naît d'une couleur "
               "d'accent cliquée au Profil (`PALETTES`, ou le sélecteur) : `theme_generator` en "
               "GÉNÈRE le bloc d'identité, chaque texte ajusté à 4,5:1 sur les fonds de sa base, "
-              "posé par base.html dans `#wama-theme-generated`",
+              "posé par base.html dans `#wama-theme-generated`. Un thème de CHARTE (même jour) "
+              "naît d'un PDF lu au Profil (`theme_charter` : les règles relèvent les couleurs "
+              "écrites, le LLM local choisit parmi elles la principale, le nom, la police ; un "
+              "humain valide) ; ses graines vivent sur une ligne `UserTheme` qui a une "
+              "provenance — privée, partagée par `sharing.partager`, système une fois promue "
+              "par un admin",
               'wama/common/themes.py', 'docs/construction/suivi/ROADMAP.md §28',
               annexes=('wama/common/static/common/css/wama-theme.css',
                        'wama/common/static/common/js/wama-theme.js',
                        'wama/common/theme_mirror.py',
                        'wama/common/theme_generator.py',
+                       'wama/common/theme_charter.py',
                        'wama/common/tests/tests_theme.py')),
 
     Mechanism('filter_bar', 'Barre de filtrage',

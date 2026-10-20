@@ -222,6 +222,11 @@ DEFAULT_CHOICE = DEFAULT
 SETTING_APP, SETTING_NAME = 'common', 'theme'
 #: … et la couleur d'accent d'un thème personnalisé, à côté.
 SETTING_ACCENT = 'theme_accent'
+#: … et le thème de CHARTE choisi (`common.UserTheme`, étape 7 voie 2) : son pk. Le thème posé
+#: reste le personnalisé de SA base ; ce sont ses graines qui changent.
+SETTING_CHARTER = 'theme_charter'
+#: Le choix d'un thème de charte, tel que le Profil le propose et l'enregistre : `charter:<pk>`.
+CHARTER_PREFIX = 'charter:'
 
 
 def choices() -> list[tuple[str, str]]:
@@ -249,17 +254,26 @@ def theme_choice(user) -> str:
 
 def save_theme_choice(user, value, accent=None) -> str:
     """Enregistre le choix du compte, et la couleur d'accent si elle est donnée ; `ValueError`
-    pour un choix qui n'est pas proposé ou une couleur qui n'en est pas une."""
+    pour un choix qui n'est pas proposé ou une couleur qui n'en est pas une. Un thème de charte
+    (`charter:<pk>`) doit être VISIBLE du compte ; tout autre choix le quitte."""
     from wama.common.theme_generator import valid_seed
+    from wama.common.utils.user_settings import clear_user_app_settings, save_user_app_settings
+    if isinstance(value, str) and value.startswith(CHARTER_PREFIX):
+        row = _charter_row(user, value[len(CHARTER_PREFIX):])
+        if row is None:
+            raise ValueError(f"Thème de charte inconnu : '{value}'")
+        save_user_app_settings(user, SETTING_APP, {SETTING_NAME: f'custom-{row.base}',
+                                                   SETTING_CHARTER: row.pk})
+        return value
     if not _valid(value):
         raise ValueError(f"Thème inconnu : '{value}'")
     if accent is not None and not valid_seed(accent):
         raise ValueError(f"Couleur invalide : '{accent}' (attendu : #rrggbb)")
-    from wama.common.utils.user_settings import save_user_app_settings
     values = {SETTING_NAME: value}
     if accent is not None:
         values[SETTING_ACCENT] = accent.lower()
     save_user_app_settings(user, SETTING_APP, values)
+    clear_user_app_settings(user, SETTING_APP, [SETTING_CHARTER])
     return value
 
 
@@ -284,6 +298,84 @@ def generated_css(choice: str, accent: str) -> str:
         return ''
     from wama.common.theme_generator import css_block
     return css_block(t.key, t.base, accent)
+
+
+# ── Les thèmes de CHARTE (`common.UserTheme`, étape 7 voie 2, 2026-10-20) ─────────────────
+# Une charte lue au Profil (`theme_charter`) laisse des GRAINES sur une ligne qui a une provenance
+# (`ROADMAP §29`) : privée à son auteur, partagée par une portée, système une fois promue par un
+# admin. Le compte qui la choisit reçoit le thème personnalisé de sa base, avec ses graines.
+
+def charter_themes(user):
+    """Les thèmes de charte que `user` voit — le filtre des catalogues (l'administrateur voit tout,
+    décision c du §29 ; sans compte, le système et le public seuls)."""
+    from wama.common.models import UserTheme, catalogue_visible_q
+    return UserTheme.objects.filter(catalogue_visible_q(user, owner_field='owner', model=UserTheme))
+
+
+def _charter_row(user, pk):
+    try:
+        return charter_themes(user).filter(pk=int(pk)).first()
+    except (TypeError, ValueError):
+        return None
+
+
+def theme_charter(user):
+    """Le thème de charte choisi par le compte, s'il le voit encore ; None sinon. Fail-safe."""
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return None
+    try:
+        from wama.common.utils.user_settings import get_user_app_setting
+        pk = get_user_app_setting(user, SETTING_APP, SETTING_CHARTER, None)
+        return _charter_row(user, pk) if pk else None
+    except Exception:
+        return None
+
+
+def profile_choice(user) -> str:
+    """Ce que le Profil montre choisi : `charter:<pk>` sous un thème de charte, sinon le choix."""
+    choice, row = theme_choice(user), theme_charter(user)
+    if row is not None and choice == f'custom-{row.base}':
+        return f'{CHARTER_PREFIX}{row.pk}'
+    return choice
+
+
+def account_generated_css(user, choice: str) -> str:
+    """Le bloc GÉNÉRÉ que `base.html` pose pour le compte : les graines de sa charte s'il en a
+    choisi une, sinon sa couleur d'accent ; '' sous un thème qui n'est pas généré."""
+    t = next((t for t in THEMES if t.key == choice), None)
+    if t is None or not t.generated:
+        return ''
+    row = theme_charter(user)
+    if row is not None and row.base == t.base:
+        from wama.common.theme_generator import css_block
+        return css_block(t.key, t.base, row.accent, row.font)
+    return generated_css(choice, theme_accent(user))
+
+
+def charter_choices(user) -> list[dict]:
+    """Les thèmes de charte que le Profil propose, avec leur provenance comme partout dans WAMA
+    (« Système », « à moi », « partagé par X ») et ce que le compte peut en faire."""
+    from wama.accounts.permissions import is_admin_tier
+    from wama.common.services.sharing import scope_label
+    from wama.common.theme_generator import generate
+    admin = is_admin_tier(user)
+    rows = []
+    for row in charter_themes(user).select_related('owner', 'scope_org_unit', 'scope_project'):
+        mine = bool(row.owner_id) and row.owner_id == getattr(user, 'pk', None)
+        provenance = ('Système' if not row.owner_id else 'à moi' if mine
+                      else f'partagé par {row.owner.get_username()}')
+        scope = row.visibility
+        if row.visibility == 'unit' and row.scope_org_unit_id:
+            scope = f'unit:{row.scope_org_unit_id}'
+        elif row.visibility == 'project' and row.scope_project_id:
+            scope = f'project:{row.scope_project_id}'
+        rows.append({'value': f'{CHARTER_PREFIX}{row.pk}', 'pk': row.pk, 'name': row.name,
+                     'key': f'custom-{row.base}', 'base': row.base, 'accent': row.accent,
+                     'font': row.font, 'obtained': generate(row.base, row.accent)['--wama-accent-text'],
+                     'provenance': provenance, 'scope': scope, 'scope_label': scope_label(row),
+                     'mine': mine, 'can_delete': mine or admin,
+                     'can_promote': admin and bool(row.owner_id)})
+    return rows
 
 
 def palette_previews() -> list[dict]:

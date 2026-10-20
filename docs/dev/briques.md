@@ -2135,7 +2135,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (43) :
+- **API publique** (44) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2162,6 +2162,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class ScopedQuerySet(models.QuerySet)` — QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`.
   - `class ScopedManager(models.Manager.from_queryset(ScopedQuerySet))` — Manager par défaut des modèles partageables.
   - `class UserFunction(ScopedVisibility)` — Fonction de traitement CRÉÉE PAR UN UTILISATEUR (WAMA Data), stockée en BDD, avec
+  - `class UserTheme(ScopedVisibility)` — Un thème tiré d'une CHARTE graphique (PDF) — pour un labo, une équipe, un établissement
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
@@ -2562,11 +2563,11 @@ Modale commune de choix d'un asset de la médiathèque (filtrée par type), rend
 
 ### Thèmes et tokens de couleur
 
-Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), passés à toute page par le contexte et posés par base.html sur `<html>` (`data-wama-theme`, `data-bs-theme`) ; leurs VALEURS dans `wama-theme.css`, un bloc par thème, chargé avant toute feuille. Un composant lit un token (`var(--wama-text-label)`), il n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). `common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre (`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que `themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot). Un thème DÉRIVÉ (`Theme.base`, 2026-10-19 : Université Gustave Eiffel, La Suite numérique) reçoit toutes les valeurs de sa base par la liste de sélecteurs de son bloc et ne redéfinit que son identité, chaque couleur venant de sa charte (`CHARTERS`) ; La Suite se décline aussi en sombre, dérivé du sombre. Un thème peut porter le logo de sa charte (`Theme.logo`, UGE) : la barre du haut les pose tous, la feuille ne montre que celui du thème actif ; une police sous licence commerciale est NOMMÉE, jamais servie (`LICENSED_FONTS`, TT Norms) ; une police libre est SERVIE, vendorisée par `update_vendors.sh` et déclarée par sa charte (`CHARTERS[…]['font']`, Roboto Flex pour La Suite, 2026-10-20). Le compte CHOISIT au Profil (2026-10-19) un thème déclaré — le SOMBRE par défaut — ou « Automatique », qui suit le mode du système (`wama-theme.js`, résolu avant le premier rendu) ; `theme_choice`, réglage durable `user_settings`. Un thème PERSONNALISÉ (2026-10-20, `Theme.generated` : clair ou sombre) naît d'une couleur d'accent cliquée au Profil (`PALETTES`, ou le sélecteur) : `theme_generator` en GÉNÈRE le bloc d'identité, chaque texte ajusté à 4,5:1 sur les fonds de sa base, posé par base.html dans `#wama-theme-generated`
+Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), passés à toute page par le contexte et posés par base.html sur `<html>` (`data-wama-theme`, `data-bs-theme`) ; leurs VALEURS dans `wama-theme.css`, un bloc par thème, chargé avant toute feuille. Un composant lit un token (`var(--wama-text-label)`), il n'écrit plus de couleur : la card commune est le 1ᵉʳ adopteur (2026-10-17). `common.contrast` joue chaque thème déclaré ; `tests_theme` exige que chaque thème définisse chaque token et tient le BUDGET des couleurs écrites en dur, qui ne peut que descendre. Le CLAIR (2026-10-18) est le miroir de luminance du sombre (`theme_mirror.mirror`, contrastes conservés), sauf les fixes et surfaces que `themes.py` déclare ; une région fixe son thème par `data-wama-theme` (îlot). Un thème DÉRIVÉ (`Theme.base`, 2026-10-19 : Université Gustave Eiffel, La Suite numérique) reçoit toutes les valeurs de sa base par la liste de sélecteurs de son bloc et ne redéfinit que son identité, chaque couleur venant de sa charte (`CHARTERS`) ; La Suite se décline aussi en sombre, dérivé du sombre. Un thème peut porter le logo de sa charte (`Theme.logo`, UGE) : la barre du haut les pose tous, la feuille ne montre que celui du thème actif ; une police sous licence commerciale est NOMMÉE, jamais servie (`LICENSED_FONTS`, TT Norms) ; une police libre est SERVIE, vendorisée par `update_vendors.sh` et déclarée par sa charte (`CHARTERS[…]['font']`, Roboto Flex pour La Suite, 2026-10-20). Le compte CHOISIT au Profil (2026-10-19) un thème déclaré — le SOMBRE par défaut — ou « Automatique », qui suit le mode du système (`wama-theme.js`, résolu avant le premier rendu) ; `theme_choice`, réglage durable `user_settings`. Un thème PERSONNALISÉ (2026-10-20, `Theme.generated` : clair ou sombre) naît d'une couleur d'accent cliquée au Profil (`PALETTES`, ou le sélecteur) : `theme_generator` en GÉNÈRE le bloc d'identité, chaque texte ajusté à 4,5:1 sur les fonds de sa base, posé par base.html dans `#wama-theme-generated`. Un thème de CHARTE (même jour) naît d'un PDF lu au Profil (`theme_charter` : les règles relèvent les couleurs écrites, le LLM local choisit parmi elles la principale, le nom, la police ; un humain valide) ; ses graines vivent sur une ligne `UserTheme` qui a une provenance — privée, partagée par `sharing.partager`, système une fois promue par un admin
 
 - **Domicile** : `wama/common/themes.py` · **doc** : [docs/construction/suivi/ROADMAP.md §28](../construction/suivi/ROADMAP.md)
 - **Module** : Thèmes de WAMA — LA déclaration (chantier ouvert le 2026-10-17, demande de Fabien : « ça fonctionnera aussi quand on aura mis en place plusieurs thèmes/modes (sombre/clair/UGE/etc) »).
-- **API publique** (12) :
+- **API publique** (17) :
   - `class Theme`
   - `font_stylesheets() -> list[str]` — Les feuilles des polices que WAMA SERT (`CHARTERS[…]['font']['stylesheet']`), une fois
   - `theme(key: str) -> Theme` — Le thème déclaré sous `key`, sinon le thème par défaut (jamais une page sans thème).
@@ -2575,6 +2576,11 @@ Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), pas
   - `save_theme_choice(user, value, accent=None) -> str` — Enregistre le choix du compte, et la couleur d'accent si elle est donnée ; `ValueError`
   - `theme_accent(user) -> str` — La couleur d'accent du thème personnalisé du compte ; `DEFAULT_ACCENT` sans compte, sans
   - `generated_css(choice: str, accent: str) -> str` — La règle que `base.html` pose pour un choix de thème GÉNÉRÉ ; '' pour tout autre choix.
+  - `charter_themes(user)` — Les thèmes de charte que `user` voit — le filtre des catalogues (l'administrateur voit tout,
+  - `theme_charter(user)` — Le thème de charte choisi par le compte, s'il le voit encore ; None sinon. Fail-safe.
+  - `profile_choice(user) -> str` — Ce que le Profil montre choisi : `charter:<pk>` sous un thème de charte, sinon le choix.
+  - `account_generated_css(user, choice: str) -> str` — Le bloc GÉNÉRÉ que `base.html` pose pour le compte : les graines de sa charte s'il en a
+  - `charter_choices(user) -> list[dict]` — Les thèmes de charte que le Profil propose, avec leur provenance comme partout dans WAMA
   - `palette_previews() -> list[dict]` — Ce que montre le Profil pour chaque couleur proposée : la graine, et l'accent qu'elle
   - `resolve(choice: str) -> Theme` — Le thème que le SERVEUR pose pour un choix. « Automatique » rend le défaut : le script de
   - `declared_for_pages(choice: str) -> dict` — Ce que lit `wama-theme.js` : le choix, le mode de Bootstrap de chaque thème, et le thème que
@@ -3306,7 +3312,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (43) :
+- **API publique** (44) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -3333,6 +3339,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
   - `class ScopedQuerySet(models.QuerySet)` — QuerySet des modèles `ScopedVisibility` : expose `visible_to(user)`.
   - `class ScopedManager(models.Manager.from_queryset(ScopedQuerySet))` — Manager par défaut des modèles partageables.
   - `class UserFunction(ScopedVisibility)` — Fonction de traitement CRÉÉE PAR UN UTILISATEUR (WAMA Data), stockée en BDD, avec
+  - `class UserTheme(ScopedVisibility)` — Un thème tiré d'une CHARTE graphique (PDF) — pour un labo, une équipe, un établissement
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration

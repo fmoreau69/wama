@@ -259,11 +259,11 @@ Sonde chaque source déclarée : clé d'API de l'instance posée ? adresse joign
 
 - **Clé** : `themes` — Dérivé à chaque affichage — toujours à jour
 - **Source** : `common/themes.py` — les thèmes déclarés ; leurs valeurs dans `common/css/wama-theme.css`
-- **Provenance des éléments** : Système — déclaré par WAMA, sans auteur
+- **Provenance des éléments** : Système et auteurs — des éléments système et des éléments d'utilisateurs — portée par `common.UserTheme`
 - **Doc** : [docs/construction/suivi/ROADMAP.md §28](../construction/suivi/ROADMAP.md)
 - **Citable dans une doc** : `WAMA:FAIT(themes/<clé>/<champ>)`
 
-Les thèmes que WAMA sait poser sur une page. Un thème est un jeu de TOKENS (un composant lit `var(--wama-…)`, il n'écrit plus de couleur) et le mode de Bootstrap qu'il prend pour base. Le scénario de contraste mesure chaque thème de cette liste.
+Les thèmes que WAMA sait poser sur une page. Un thème est un jeu de TOKENS (un composant lit `var(--wama-…)`, il n'écrit plus de couleur) et le mode de Bootstrap qu'il prend pour base. Le scénario de contraste mesure chaque thème de cette liste. Un thème de CHARTE (lue au Profil) n'en garde que les graines, sur sa ligne.
 
 ## Kinds de manifeste
 

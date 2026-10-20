@@ -471,11 +471,14 @@ register(Registry(
     source="`common/themes.py` — les thèmes déclarés ; leurs valeurs dans `common/css/wama-theme.css`",
     count=lambda: len(_themes()),
     entries=lambda: {t.key: t.to_dict() for t in _themes()},
-    provenance=SYSTEM,
+    # Les thèmes DÉCLARÉS sont système ; un thème tiré d'une CHARTE a un auteur et une portée sur
+    # sa ligne `UserTheme`, système une fois promu par un admin (`ROADMAP §28` étape 7, §29).
+    provenance=MIXED, owner_model='common.UserTheme',
     doc='docs/construction/suivi/ROADMAP.md §28',
     description="Les thèmes que WAMA sait poser sur une page. Un thème est un jeu de TOKENS (un "
                 "composant lit `var(--wama-…)`, il n'écrit plus de couleur) et le mode de Bootstrap "
-                "qu'il prend pour base. Le scénario de contraste mesure chaque thème de cette liste.",
+                "qu'il prend pour base. Le scénario de contraste mesure chaque thème de cette liste. "
+                "Un thème de CHARTE (lue au Profil) n'en garde que les graines, sur sa ligne.",
 ))
 
 

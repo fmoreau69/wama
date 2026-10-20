@@ -56,6 +56,12 @@ def _oklab(rgb):
             0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s)
 
 
+def chroma(rgb) -> float:
+    """La chroma OKLCH d'un triplet 0-255 : 0 pour un gris, ~0,3 pour un bleu saturé."""
+    _L, a, b = _oklab(rgb)
+    return math.hypot(a, b)
+
+
 def _linear_from_oklch(L, C, h):
     a, b = C * math.cos(h), C * math.sin(h)
     l = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3

@@ -16,6 +16,7 @@
                          border: 2px solid var(--bs-border-color); }
     .wama-theme-swatch[aria-pressed="true"] { outline: 3px solid var(--bs-body-color); outline-offset: 2px; }
     #themeAccentInput { width: 44px; height: 30px; padding: 2px; }
+    .wama-theme-swatch-sm { width: 18px; height: 18px; display: inline-block; cursor: default; }
 </style>
 {% endblock %}
 
@@ -361,13 +362,22 @@
                         Sombre par défaut. « Automatique » suit le réglage clair ou sombre de votre
                         ordinateur. Le thème change dès que vous le choisissez, sur toutes les pages.
                     </p>
+                    {% with current=theme_profile_choice|default:theme_choice %}
                     <select id="themeSelect"
                             class="form-select form-select-sm bg-body text-body-emphasis border-secondary"
-                            style="max-width: 260px;">
+                            style="max-width: 320px;">
                         {% for value, label in theme_choices %}
-                        <option value="{{ value }}" {% if value == theme_choice %}selected{% endif %}>{{ label }}</option>
+                        <option value="{{ value }}" {% if value == current %}selected{% endif %}>{{ label }}</option>
                         {% endfor %}
+                        {% if theme_charters %}
+                        <optgroup label="Chartes graphiques">
+                            {% for c in theme_charters %}
+                            <option value="{{ c.value }}" data-key="{{ c.key }}" {% if c.value == current %}selected{% endif %}>{{ c.name }} — {{ c.provenance }}</option>
+                            {% endfor %}
+                        </optgroup>
+                        {% endif %}
                     </select>
+                    {% endwith %}
                     {# Thème personnalisé : une couleur d'accent, le générateur en tire le thème (`themes.PALETTES`, `theme_generator`) #}
                     <div id="themeAccent" class="mt-3" data-generated-keys="{{ theme_generated_keys|join:',' }}"
                          data-accent="{{ theme_accent }}" {% if theme_choice not in theme_generated_keys %}hidden{% endif %}>
@@ -386,6 +396,38 @@
                             </label>
                         </div>
                     </div>
+                    <div class="mt-3">
+                        <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal"
+                                data-bs-target="#charterModal">
+                            <i class="fas fa-file-import me-1"></i> Importer une charte graphique…
+                        </button>
+                    </div>
+                    {% if theme_charters %}
+                    <ul class="list-unstyled small mt-3 mb-0" id="charterList">
+                        {% for c in theme_charters %}
+                        <li class="d-flex flex-wrap align-items-center gap-2 py-1" data-charter="{{ c.pk }}">
+                            <span class="wama-theme-swatch wama-theme-swatch-sm" data-obtained="{{ c.obtained }}"></span>
+                            <span class="flex-grow-1">{{ c.name }}{% if c.font %} · {{ c.font }}{% endif %}
+                                <span class="text-body-secondary">— {{ c.provenance }}{% if c.scope_label %} ({{ c.scope_label }}){% endif %}</span></span>
+                            {% if c.mine %}
+                            <select class="form-select form-select-sm w-auto" data-charter-scope aria-label="Portée">
+                                {% for s in theme_scopes %}
+                                <option value="{{ s.value }}" {% if s.value == c.scope %}selected{% endif %}>{{ s.label }}</option>
+                                {% endfor %}
+                            </select>
+                            {% endif %}
+                            {% if c.can_promote %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-charter-action="promote"
+                                    title="Le thème devient système : sans propriétaire, son auteur reste cité">Rendre système</button>
+                            {% endif %}
+                            {% if c.can_delete %}
+                            <button type="button" class="btn btn-outline-danger btn-sm" data-charter-action="delete"
+                                    title="Retirer ce thème" aria-label="Retirer ce thème"><i class="fas fa-trash"></i></button>
+                            {% endif %}
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% endif %}
                     <div id="themeMsg" class="mt-2" style="display:none;"></div>
                 </div>
             </div>
@@ -687,6 +729,73 @@
         </div>
     </div>
 </div>
+
+{% endblock %}
+
+{# Au niveau du <body> (`base.html`, bloc `extra_modals`) : logée dans le contenu, la modale passe sous son voile #}
+{% block extra_modals %}
+<!-- ── Importer une charte graphique (`ROADMAP §28` étape 7 voie 2) ─────────────────── -->
+<div class="modal fade" id="charterModal" tabindex="-1" aria-labelledby="charterModalTitle" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content bg-body">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title" id="charterModalTitle"><i class="fas fa-file-import me-2"></i>Importer une charte graphique</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <p class="small text-body-secondary">
+                    Un PDF de charte (ou un document Word, un texte). WAMA relève les couleurs écrites ;
+                    un modèle de langue local propose la couleur principale, un nom et la police ;
+                    vous validez. Le thème naît privé : partagez-le à votre unité, un projet, ou à tous.
+                </p>
+                <div class="d-flex gap-2">
+                    <input type="file" id="charterFile" class="form-control form-control-sm" accept=".pdf,.docx,.txt,.md">
+                    <button type="button" id="charterReadBtn" class="btn btn-primary btn-sm text-nowrap">
+                        <i class="fas fa-magnifying-glass me-1"></i> Lire
+                    </button>
+                </div>
+                <div id="charterStatus" class="small mt-2"></div>
+                <div id="charterProposal" class="mt-3" hidden>
+                    <div class="row g-2">
+                        <div class="col-md-7">
+                            <label class="form-label small mb-1" for="charterName">Nom du thème</label>
+                            <input type="text" id="charterName" class="form-control form-control-sm" maxlength="96">
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small mb-1" for="charterBase">Base</label>
+                            <select id="charterBase" class="form-select form-select-sm">
+                                <option value="light">Claire</option>
+                                <option value="dark">Sombre</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="small mt-3 mb-1">Couleur principale — chaque pastille montre la couleur obtenue, ajustée pour rester lisible :</div>
+                    <div id="charterColours" class="d-flex flex-wrap gap-2"></div>
+                    <div id="charterColourContext" class="small text-body-secondary mt-1"></div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-7">
+                            <label class="form-label small mb-1" for="charterFont">Police</label>
+                            <input type="text" id="charterFont" class="form-control form-control-sm" maxlength="64">
+                            <div class="form-text">Nommée seulement : elle s'affiche sur un poste qui l'a installée.</div>
+                        </div>
+                        <div class="col-md-5">
+                            <label class="form-label small mb-1" for="charterScope">Partage</label>
+                            <select id="charterScope" class="form-select form-select-sm">
+                                {% for s in theme_scopes %}<option value="{{ s.value }}">{{ s.label }}</option>{% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" id="charterSaveBtn" class="btn btn-primary btn-sm" disabled>
+                    <i class="fas fa-check me-1"></i> Enregistrer et appliquer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -696,6 +805,9 @@ const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
 const UNITS_URL          = "{% url 'accounts:profile-units' %}";
 {# `as` : ne lève pas si la route n'est pas encore chargée (gabarit relu avant le code, en prod) #}
 {% url 'accounts:profile-theme' as theme_url %}const THEME_URL          = "{{ theme_url }}";
+{% url 'accounts:profile-theme-charter-read' as charter_read_url %}const CHARTER_READ_URL   = "{{ charter_read_url }}";
+{% url 'accounts:profile-theme-charter-save' as charter_save_url %}const CHARTER_SAVE_URL   = "{{ charter_save_url }}";
+{% url 'accounts:profile-theme-charter-manage' as charter_manage_url %}const CHARTER_MANAGE_URL = "{{ charter_manage_url }}";
 const NOTIFICATIONS_URL  = "{% url 'accounts:profile-notifications' %}";
 const RETENTION_URL      = "{% url 'accounts:profile-retention' %}";
     const AUTOPLAY_URL       = "{% url 'accounts:profile-inspector-autoplay' %}";
@@ -839,13 +951,12 @@ if (_themeSelect && _themeAccent) {
 
     async function saveTheme(choice, newAccent) {
         const msg = document.getElementById('themeMsg');
-        if (window.WamaTheme) window.WamaTheme.apply(choice);
+        const option = _themeSelect.querySelector('option[value="' + CSS.escape(choice) + '"]');
+        if (window.WamaTheme) window.WamaTheme.apply((option && option.dataset.key) || choice);
         try {
             const data = await postJson(THEME_URL, newAccent ? { theme: choice, accent: newAccent } : { theme: choice });
             if (!data.success) { showMsg(msg, data.error || 'Erreur', true); return; }
-            let style = document.getElementById('wama-theme-generated');
-            if (!style) { style = document.createElement('style'); style.id = 'wama-theme-generated'; document.head.appendChild(style); }
-            style.textContent = data.css || '';
+            applyThemeReply(data);
             accent = data.accent || accent;
             paintAccent(choice);
             showMsg(msg, '✓ Thème enregistré');
@@ -860,6 +971,121 @@ if (_themeSelect && _themeAccent) {
     document.getElementById('themeAccentInput').addEventListener('change', (e) => saveTheme(_themeSelect.value, e.target.value));
     paintAccent(_themeSelect.value);
 }
+
+// Ce que le serveur rend après un choix : le bloc GÉNÉRÉ du compte, puis le thème à poser.
+function applyThemeReply(data) {
+    let style = document.getElementById('wama-theme-generated');
+    if (!style) { style = document.createElement('style'); style.id = 'wama-theme-generated'; document.head.appendChild(style); }
+    style.textContent = data.css || '';
+    if (data.key && window.WamaTheme) window.WamaTheme.apply(data.key);
+}
+
+// ── Thème d'une CHARTE : lire, valider, puis gérer (portée, retrait, promotion) ──────────────
+// Les textes venus du document (contexte d'une couleur) n'entrent jamais en HTML : textContent.
+(function () {
+    const readBtn = document.getElementById('charterReadBtn');
+    if (!readBtn) return;
+    const status = document.getElementById('charterStatus');
+    const box = document.getElementById('charterProposal');
+    const colours = document.getElementById('charterColours');
+    const context = document.getElementById('charterColourContext');
+    const baseSelect = document.getElementById('charterBase');
+    const saveBtn = document.getElementById('charterSaveBtn');
+    let found = null, picked = '';
+
+    function say(text, isError) {
+        status.className = 'small mt-2 ' + (isError ? 'text-danger' : 'text-body-secondary');
+        status.textContent = text;
+    }
+
+    function paint() {
+        colours.replaceChildren();
+        (found.candidates || []).forEach((c) => {
+            const b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'wama-theme-swatch';
+            b.style.backgroundColor = c.obtained[baseSelect.value];
+            b.title = c.hex;
+            b.setAttribute('aria-label', c.hex);
+            b.setAttribute('aria-pressed', String(c.hex === picked));
+            b.addEventListener('click', () => { picked = c.hex; paint(); });
+            colours.appendChild(b);
+        });
+        const chosen = (found.candidates || []).find((c) => c.hex === picked);
+        context.textContent = chosen ? (chosen.hex + ' — écrite après : « ' + chosen.context.slice(-90) + ' »') : '';
+        saveBtn.disabled = !picked;
+    }
+
+    readBtn.addEventListener('click', async () => {
+        const file = document.getElementById('charterFile').files[0];
+        if (!file) { say('Choisissez un fichier.', true); return; }
+        readBtn.disabled = true;
+        say('Lecture de la charte… (le modèle de langue lit les couleurs, quelques secondes)');
+        const form = new FormData();
+        form.append('charter', file);
+        try {
+            const resp = await fetch(CHARTER_READ_URL, { method: 'POST', headers: { 'X-CSRFToken': CSRF_TOKEN }, body: form });
+            const data = await resp.json();
+            if (!data.success) { say(data.error || 'Lecture impossible', true); return; }
+            found = data;
+            const p = data.proposal;
+            picked = p.principal || '';
+            document.getElementById('charterName').value = p.name || '';
+            document.getElementById('charterFont').value = p.font || '';
+            baseSelect.value = p.base || 'light';
+            box.hidden = false;
+            paint();
+            const who = p.reader === 'llm' ? 'proposition du modèle de langue' : 'proposition par règles — ' + (p.note || '');
+            say(data.candidates.length + ' couleur(s) trouvée(s) · ' + who + '. Vérifiez puis enregistrez.');
+        } catch (e) {
+            say('Erreur réseau', true);
+        } finally {
+            readBtn.disabled = false;
+        }
+    });
+    baseSelect.addEventListener('change', () => { if (found) paint(); });
+
+    saveBtn.addEventListener('click', async () => {
+        saveBtn.disabled = true;
+        try {
+            const data = await postJson(CHARTER_SAVE_URL, {
+                name: document.getElementById('charterName').value, base: baseSelect.value, accent: picked,
+                font: document.getElementById('charterFont').value, scope: document.getElementById('charterScope').value,
+                filename: found.filename, reader: found.proposal.reader, proposal: found.proposal,
+                colours: (found.candidates || []).map((c) => c.hex),
+            });
+            if (!data.success) { say(data.error || 'Erreur', true); saveBtn.disabled = false; return; }
+            applyThemeReply(data);
+            say('✓ Thème enregistré et appliqué — rechargement…');
+            setTimeout(() => window.location.reload(), 700);
+        } catch (e) {
+            say('Erreur réseau', true);
+            saveBtn.disabled = false;
+        }
+    });
+
+    document.querySelectorAll('#charterList [data-obtained]').forEach((s) => { s.style.backgroundColor = s.dataset.obtained; });
+    async function manage(row, body) {
+        const msg = document.getElementById('themeMsg');
+        const data = await postJson(CHARTER_MANAGE_URL, Object.assign({ pk: row.dataset.charter }, body));
+        if (!data.success) { showMsg(msg, data.error || 'Erreur', true); return false; }
+        return true;
+    }
+    document.querySelectorAll('#charterList [data-charter-scope]').forEach((sel) => {
+        sel.addEventListener('change', async () => {
+            if (await manage(sel.closest('[data-charter]'), { action: 'share', scope: sel.value })) {
+                showMsg(document.getElementById('themeMsg'), '✓ Partage enregistré');
+            }
+        });
+    });
+    document.querySelectorAll('#charterList [data-charter-action]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+            const action = btn.dataset.charterAction;
+            if (action === 'delete' && !confirm('Retirer ce thème ? Les comptes qui l\'utilisent reviennent à leur couleur d\'accent.')) return;
+            if (await manage(btn.closest('[data-charter]'), { action })) window.location.reload();
+        });
+    });
+})();
 
 // ── Aperçu inspecteur : lecture auto ──────────────────────────────────────────
 const _autoplayToggle = document.getElementById('inspectorAutoplay');

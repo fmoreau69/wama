@@ -19,6 +19,10 @@ urlpatterns = [
     path('profile/language/', views.language_update, name='profile-language'),
     path('profile/units/', views.units_update, name='profile-units'),
     path('profile/theme/', views.theme_update, name='profile-theme'),
+    # Thème tiré d'une CHARTE graphique (`ROADMAP §28` étape 7 voie 2) : lire, valider, gérer.
+    path('profile/theme/charter/read/', views.theme_charter_read, name='profile-theme-charter-read'),
+    path('profile/theme/charter/save/', views.theme_charter_save, name='profile-theme-charter-save'),
+    path('profile/theme/charter/manage/', views.theme_charter_manage, name='profile-theme-charter-manage'),
     path('profile/notifications/', views.notifications_update, name='profile-notifications'),
     path('profile/retention/', views.retention_update, name='profile-retention'),
     path('profile/layout/', views.layout_update, name='profile-layout'),

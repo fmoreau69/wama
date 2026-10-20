@@ -941,3 +941,202 @@ class HardCodedColourBudgetTest(SimpleTestCase):
                 '<script>ctx.fillStyle = "#dc3545"; // #111\n</script>')
         self.assertEqual(2, colour_count('a.html', page))
         self.assertEqual(1, colour_count('a.html', '{% block app_styles %}b{color:#abc}/* #def */{% endblock %}'))
+
+
+def make_charter_pdf(path, pages):
+    """Un PDF de charte écrit pour le test (PyMuPDF), une page par chaîne de `pages`."""
+    import fitz
+    doc = fitz.open()
+    for text in pages:
+        page = doc.new_page()
+        page.insert_text((40, 60), text, fontsize=10)
+    doc.save(str(path))
+    doc.close()
+
+
+#: Une charte comme l'extraction les rend : le libellé COLLÉ au code d'avant, l'ordre brouillé,
+#: et un « principes » lointain qui ne désigne aucune couleur (relevé sur la charte UGE).
+SCRAMBLED = ("Les principes de la charte\nCOULEURS\nCMJN 100 78 47 56\nRVB\n15 • 39 • 59\n#0f273b\n"
+             "RVB 232 / 53 / 131\n#e83583\n#ef7d00Couleur principale :\nCouleurs secondaires :Pantone 2746C\n"
+             "RVB\n47 • 42 • 133\n#2f2a85\nRGB 300 12 12\nTYPOGRAPHIE\nTT Norms est la typographie")
+
+
+class CharterThemeTest(TestCase):
+    """Étape 7, voie 2 (2026-10-20) : une CHARTE graphique lue au Profil — les règles relèvent les
+    couleurs écrites, le LLM choisit parmi elles, un humain valide ; la ligne `UserTheme` a une
+    provenance (privée, partagée par une portée, système une fois promue par un admin)."""
+
+    def test_the_rules_find_every_written_colour_once_in_order(self):
+        from wama.common.theme_charter import colour_candidates
+        found = colour_candidates(SCRAMBLED)
+        self.assertEqual(['#0f273b', '#e83583', '#ef7d00', '#2f2a85'], [c['hex'] for c in found])
+        self.assertEqual(2, found[0]['count'], 'RVB and hex of the same colour')
+        self.assertIn('Couleur principale', found[3]['context'])
+        self.assertNotIn('#2c0c0c', [c['hex'] for c in found], 'a channel above 255 is no colour')
+        self.assertEqual([], colour_candidates('#0d6efdcc fond, #1234567 rien'), 'eight digits, seven digits')
+
+    def test_the_principal_is_the_colour_its_own_label_names(self):
+        from wama.common.theme_charter import labelled_principal, rules_proposal, colour_candidates
+        found = colour_candidates(SCRAMBLED)
+        self.assertEqual('#2f2a85', labelled_principal(found), 'glued label, distant « principes » ignored')
+        self.assertEqual('#2f2a85', rules_proposal(SCRAMBLED, found)['principal'])
+        unlabelled = colour_candidates('#808080 gris\n#1167d4 bleu')
+        self.assertEqual('#1167d4', rules_proposal('', unlabelled)['principal'], 'first vivid colour')
+
+    def test_the_model_chooses_among_the_written_colours_never_beyond(self):
+        from wama.common.theme_charter import colour_candidates, propose
+        found = colour_candidates(SCRAMBLED)
+        answer = ('<think>…</think>{"name": "Université X", "principal": "#E83583", "base": "dark", '
+                  '"font": "TT Norms"}')
+        p = propose(SCRAMBLED, found, chat=lambda messages: (answer, None))
+        self.assertEqual(('llm', '#e83583', 'Université X', 'dark', 'TT Norms'),
+                         (p['reader'], p['principal'], p['name'], p['base'], p['font']))
+        invented = propose(SCRAMBLED, found, chat=lambda m: ('{"principal": "#123456"}', None))
+        self.assertEqual(('rules', '#2f2a85'), (invented['reader'], invented['principal']))
+        self.assertIn('#123456', invented['note'])
+        down = propose(SCRAMBLED, found, chat=lambda m: (None, 'connexion refusée'))
+        self.assertEqual(('rules', '#2f2a85'), (down['reader'], down['principal']))
+        hostile = propose(SCRAMBLED, found, chat=lambda m: (
+            '{"principal": "#2f2a85", "font": "x\\"; } body { display: none"}', None))
+        self.assertEqual('', hostile['font'], 'a font name that could close the declaration is dropped')
+        self.assertEqual('rules', propose('rien', [])['reader'])
+
+    def test_the_model_reads_the_label_hint_and_the_typography(self):
+        from wama.common.theme_charter import colour_candidates, propose
+        seen = {}
+        long_text = 'x' * 20000 + SCRAMBLED
+
+        def chat(messages):
+            seen['user'] = messages[1]['content']
+            return '{"principal": "#2f2a85"}', None
+        propose(long_text, colour_candidates(long_text), chat=chat)
+        self.assertIn('#2f2a85 (written after:', seen['user'])
+        self.assertIn('← its label says principal', seen['user'])
+        self.assertIn('TT Norms est la typographie', seen['user'], 'the typography beyond the first pages')
+
+    def test_a_named_font_enters_the_generated_block_and_nothing_else_does(self):
+        from wama.common.theme_generator import css_block, generate
+        block = generate('light', '#2f2a85', 'TT Norms Pro')
+        self.assertEqual('"TT Norms Pro", var(--bs-font-sans-serif)', block['--bs-body-font-family'])
+        self.assertNotIn('--bs-body-font-family', generate('light', '#2f2a85'))
+        for bad in ('x"; } body {', 'a' * 70, '<b>'):
+            with self.subTest(font=bad), self.assertRaises(ValueError):
+                css_block('custom-light', 'light', '#2f2a85', bad)
+
+    def _accounts(self):
+        from django.contrib.auth.models import User
+        return (User.objects.create_user('charter-author', password='x'),
+                User.objects.create_user('charter-reader', password='x'),
+                User.objects.create_superuser('charter-admin', 'a@x.fr', 'x'))
+
+    def _context(self, user):
+        from wama.common.context_processors import theme
+        request = RequestFactory().get('/')
+        request.user = user
+        return theme(request)
+
+    def test_a_charter_is_read_validated_private_shared_and_promoted(self):
+        import json
+        import tempfile
+        from unittest import mock
+
+        from django.urls import reverse
+
+        from wama.common import theme_charter
+        from wama.common.models import UserTheme
+        from wama.common.theme_generator import css_block
+        from wama.common.themes import charter_choices, theme_choice
+        author, reader, admin = self._accounts()
+        self.client.force_login(author)
+        with tempfile.TemporaryDirectory() as tmp:
+            pdf = Path(tmp) / 'Charte_Labo.pdf'
+            make_charter_pdf(pdf, ['Les principes de la charte du labo', SCRAMBLED])
+            answer = '{"name": "Labo X", "principal": "#2f2a85", "base": "light", "font": "TT Norms"}'
+            with mock.patch.object(theme_charter, '_chat', return_value=(answer, None)), open(pdf, 'rb') as f:
+                read = self.client.post(reverse('accounts:profile-theme-charter-read'), {'charter': f}).json()
+        self.assertTrue(read['success'], read)
+        self.assertEqual(('llm', '#2f2a85', 'Labo X'),
+                         (read['proposal']['reader'], read['proposal']['principal'], read['proposal']['name']))
+        self.assertIn('#2f2a85', [c['hex'] for c in read['candidates']])
+        self.assertEqual(0, UserTheme.objects.count(), 'reading saves nothing')
+
+        save = reverse('accounts:profile-theme-charter-save')
+        body = {'name': 'Labo X', 'base': 'light', 'accent': '#2f2a85', 'font': 'TT Norms',
+                'filename': 'Charte_Labo.pdf', 'reader': 'llm', 'colours': ['#2f2a85'], 'scope': 'private'}
+        self.assertEqual(400, self.client.post(save, json.dumps(dict(body, accent='indigo')),
+                                               content_type='application/json').status_code)
+        data = self.client.post(save, json.dumps(body), content_type='application/json').json()
+        row = UserTheme.objects.get(pk=data['pk'])
+        self.assertEqual((author.pk, 'private'), (row.owner_id, row.visibility))
+        expected = css_block('custom-light', 'light', '#2f2a85', 'TT Norms')
+        self.assertEqual((expected, 'custom-light'), (data['css'], data['key']))
+        self.assertEqual(expected, self._context(author)['theme_generated_css'])
+        self.assertEqual('custom-light', theme_choice(author))
+        html = self.client.get(reverse('accounts:profile')).content.decode()
+        self.assertRegex(html, rf'<option value="charter:{row.pk}" data-key="custom-light" selected>Labo X — à moi')
+
+        # Privé : l'autre compte ne le voit ni ne le choisit.
+        self.assertEqual([], charter_choices(reader))
+        self.client.force_login(reader)
+        theme_url = reverse('accounts:profile-theme')
+        self.assertEqual(400, self.client.post(theme_url, json.dumps({'theme': f'charter:{row.pk}'}),
+                                               content_type='application/json').status_code)
+        manage = reverse('accounts:profile-theme-charter-manage')
+        self.assertEqual(404, self.client.post(manage, json.dumps({'pk': row.pk, 'action': 'share', 'scope': 'public'}),
+                                               content_type='application/json').status_code)
+
+        # Partagé par son auteur, par le service commun : visible, choisi, mais pas à lui.
+        self.client.force_login(author)
+        self.assertTrue(self.client.post(manage, json.dumps({'pk': row.pk, 'action': 'share', 'scope': 'public'}),
+                                         content_type='application/json').json()['success'])
+        self.assertEqual(['partagé par charter-author'], [c['provenance'] for c in charter_choices(reader)])
+        self.client.force_login(reader)
+        chosen = self.client.post(theme_url, json.dumps({'theme': f'charter:{row.pk}'}),
+                                  content_type='application/json').json()
+        self.assertEqual(expected, chosen['css'])
+        for action in ('share', 'delete', 'promote'):
+            with self.subTest(refused=action):
+                self.assertEqual(403, self.client.post(manage, json.dumps({'pk': row.pk, 'action': action, 'scope': 'private'}),
+                                                       content_type='application/json').status_code)
+
+        # Promu par un admin : système, sans propriétaire, l'auteur gardé pour l'attribution.
+        self.client.force_login(admin)
+        self.assertTrue(self.client.post(manage, json.dumps({'pk': row.pk, 'action': 'promote'}),
+                                         content_type='application/json').json()['success'])
+        row.refresh_from_db()
+        self.assertEqual((None, 'public', 'charter-author', 'charter-admin'),
+                         (row.owner_id, row.visibility, row.source['proposed_by'], row.source['promoted_by']))
+        self.assertEqual(['Système'], [c['provenance'] for c in charter_choices(reader)])
+
+        # Retiré : qui l'avait choisi retombe sur sa couleur d'accent, jamais sur une page sans thème.
+        self.assertTrue(self.client.post(manage, json.dumps({'pk': row.pk, 'action': 'delete'}),
+                                         content_type='application/json').json()['success'])
+        self.assertEqual(css_block('custom-light', 'light', '#0d6efd'), self._context(reader)['theme_generated_css'])
+
+    def test_another_choice_leaves_the_charter(self):
+        from wama.common.models import UserTheme
+        from wama.common.themes import profile_choice, save_theme_choice, theme_charter
+        author, _reader, _admin = self._accounts()
+        row = UserTheme.objects.create(owner=author, name='Labo', base='dark', accent='#16a34a')
+        save_theme_choice(author, f'charter:{row.pk}')
+        self.assertEqual((row, f'charter:{row.pk}'), (theme_charter(author), profile_choice(author)))
+        save_theme_choice(author, 'custom-dark', '#dc2626')
+        self.assertEqual((None, 'custom-dark'), (theme_charter(author), profile_choice(author)))
+        from wama.common.theme_generator import css_block
+        self.assertEqual(css_block('custom-dark', 'dark', '#dc2626'), self._context(author)['theme_generated_css'])
+
+    def test_the_charter_modal_lives_at_body_level(self):
+        """Logée dans le contenu de la page, une modale passe SOUS son voile (mesuré au navigateur
+        le 2026-10-20 : le voile interceptait chaque clic) — sa place est `extra_modals`."""
+        source = (ROOT / 'wama' / 'accounts' / 'templates' / 'accounts' / 'profile.html').read_text(encoding='utf-8')
+        block = source.split('{% block extra_modals %}', 1)[1].split('{% endblock %}', 1)[0]
+        self.assertIn('id="charterModal"', block)
+
+    def test_the_read_rejects_what_is_not_a_charter(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        author, _reader, _admin = self._accounts()
+        self.client.force_login(author)
+        url = reverse('accounts:profile-theme-charter-read')
+        self.assertEqual(400, self.client.post(url, {}).status_code)
+        self.assertEqual(400, self.client.post(url, {'charter': SimpleUploadedFile('x.exe', b'MZ')}).status_code)

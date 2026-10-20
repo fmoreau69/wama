@@ -236,6 +236,11 @@ def profile_view(request):
         'theme_generated_keys': [t.key for t in themes.THEMES if getattr(t, 'generated', False)],
         'theme_palettes': getattr(themes, 'palette_previews', list)(),
         'theme_accent': getattr(themes, 'theme_accent', lambda user: '')(request.user),
+        # Thèmes de CHARTE (étape 7 voie 2) : ceux que le compte voit, et le choix tel que le
+        # Profil le montre (`charter:<pk>` sous une charte).
+        'theme_charters': getattr(themes, 'charter_choices', lambda user: [])(request.user),
+        'theme_profile_choice': getattr(themes, 'profile_choice', themes.theme_choice)(request.user),
+        'theme_scopes': _theme_scopes(request.user),
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
@@ -510,10 +515,152 @@ def theme_update(request):
         choice = save_theme_choice(request.user, data.get('theme'), *(() if accent is None else (accent,)))
     except ValueError as exc:
         return JsonResponse({'error': str(exc)}, status=400)
-    # `getattr` : même raison que dans `profile` (un `themes` d'avant l'étape 7 en mémoire).
-    accent = getattr(declared, 'theme_accent', lambda user: '')(request.user)
-    css = getattr(declared, 'generated_css', lambda choice, accent: '')(choice, accent)
-    return JsonResponse({'success': True, 'theme': choice, 'accent': accent, 'css': css})
+    return JsonResponse({'success': True, 'theme': choice, **_theme_reply(request.user, declared)})
+
+
+def _theme_reply(user, declared):
+    """Ce que le Profil pose sur place après un choix : le thème à poser (`key`), la couleur
+    d'accent et le bloc GÉNÉRÉ du compte. `getattr` : même raison que dans `profile`."""
+    stored = declared.theme_choice(user)
+    accent = getattr(declared, 'theme_accent', lambda user: '')(user)
+    css = getattr(declared, 'account_generated_css', lambda user, choice: '')(user, stored)
+    return {'key': declared.resolve(stored).key, 'accent': accent, 'css': css}
+
+
+def _theme_scopes(user) -> list:
+    """Les portées qu'un thème de charte peut prendre, à plat pour un `<select>` : `private`,
+    `unit:<id>`, `project:<id>`, `public` — celles que le service commun OFFRE à ce compte."""
+    from wama.common.services.sharing import portees_offrables
+    flat = []
+    for offer in portees_offrables(user):
+        if offer['cibles']:
+            flat += [{'value': f"{offer['valeur']}:{c['id']}", 'label': f"{offer['libelle']} — {c['libelle']}"}
+                     for c in offer['cibles']]
+        else:
+            flat.append({'value': offer['valeur'], 'label': offer['libelle']})
+    return flat
+
+
+def _share_theme(user, row, scope: str):
+    """Pose la portée `scope` (forme de `_theme_scopes`) par le service commun `partager`."""
+    from wama.common.services.sharing import partager
+    visibility, _, target = (scope or 'private').partition(':')
+    return partager(user, row, visibility,
+                    org_unit_id=target if visibility == 'unit' else None,
+                    project_id=target if visibility == 'project' else None)
+
+
+@login_required
+@require_POST
+def theme_charter_read(request):
+    """AJAX (multipart, champ `charter`) : LIT une charte graphique — les couleurs écrites, et la
+    proposition du modèle de langue (principale, nom, base, police) — sans rien enregistrer.
+    L'utilisateur valide ensuite (`theme_charter_save`)."""
+    import os
+    import tempfile
+
+    from wama.common import theme_charter
+    from wama.common.theme_generator import generate
+
+    upload = request.FILES.get('charter')
+    if upload is None:
+        return JsonResponse({'error': 'Aucun fichier reçu.'}, status=400)
+    stem, ext = os.path.splitext(upload.name or '')
+    if ext.lower() not in theme_charter.CHARTER_EXTENSIONS:
+        return JsonResponse({'error': f"Format non lu : {ext or '?'} (PDF, Word, texte)."}, status=400)
+    if upload.size > theme_charter.MAX_CHARTER_BYTES:
+        return JsonResponse({'error': 'Fichier trop lourd pour une charte.'}, status=400)
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, 'charter' + ext.lower())
+        with open(path, 'wb') as out:
+            for chunk in upload.chunks():
+                out.write(chunk)
+        try:
+            found = theme_charter.read_charter(path, fallback_name=stem.replace('_', ' '))
+        except (ValueError, RuntimeError) as exc:
+            return JsonResponse({'error': f'Lecture impossible : {exc}'}, status=400)
+    candidates = [{'hex': c['hex'], 'context': c['context'], 'count': c['count'],
+                   'obtained': {base: generate(base, c['hex'])['--wama-accent-text'] for base in ('light', 'dark')}}
+                  for c in found['candidates']]
+    return JsonResponse({'success': True, 'filename': upload.name, 'candidates': candidates,
+                         'proposal': found['proposal']})
+
+
+@login_required
+@require_POST
+def theme_charter_save(request):
+    """AJAX : enregistre le thème VALIDÉ d'une charte — une ligne `UserTheme` privée au compte,
+    partagée si une portée est donnée — et le pose comme thème du compte."""
+    from wama.common import themes as declared
+    from wama.common.models import UserTheme
+    from wama.common.services.sharing import RefusDePartage
+    from wama.common.theme_charter import check_seeds
+
+    try:
+        data = json.loads(request.body)
+        seeds = check_seeds(data.get('name'), data.get('base'), data.get('accent'), data.get('font', ''))
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    colours = [c for c in (data.get('colours') or []) if isinstance(c, str)][:64]
+    row = UserTheme.objects.create(
+        owner=request.user, **seeds,
+        source={'charter': str(data.get('filename') or '')[:200], 'colours': colours,
+                'reader': str(data.get('reader') or '')[:16], 'proposed': data.get('proposal') or {},
+                'created_by': request.user.get_username()})
+    try:
+        if (data.get('scope') or 'private') != 'private':
+            _share_theme(request.user, row, data.get('scope'))
+    except RefusDePartage as exc:
+        return JsonResponse({'error': f'Thème enregistré, mais non partagé : {exc}', 'pk': row.pk}, status=400)
+    choice = declared.save_theme_choice(request.user, f'{declared.CHARTER_PREFIX}{row.pk}')
+    return JsonResponse({'success': True, 'theme': choice, 'pk': row.pk,
+                         **_theme_reply(request.user, declared)})
+
+
+@login_required
+@require_POST
+def theme_charter_manage(request):
+    """AJAX : `share` (une portée, par le service commun), `delete` (son auteur, ou un admin),
+    `promote` (un ADMIN seul, décision b du §29 : le thème devient SYSTÈME, sans propriétaire,
+    l'auteur gardé pour l'attribution)."""
+    from wama.accounts.permissions import is_admin_tier
+    from wama.common.models import UserTheme
+    from wama.common.services.sharing import RefusDePartage
+    from wama.common.themes import charter_themes
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    row = charter_themes(request.user).filter(pk=data.get('pk') if str(data.get('pk', '')).isdigit() else -1).first()
+    if row is None:
+        return JsonResponse({'error': 'Thème inconnu.'}, status=404)
+    action, admin = data.get('action'), is_admin_tier(request.user)
+    mine = row.owner_id is not None and row.owner_id == request.user.pk
+    if action == 'share':
+        try:
+            done = _share_theme(request.user, row, data.get('scope'))
+        except RefusDePartage as exc:
+            return JsonResponse({'error': str(exc)}, status=403)
+        return JsonResponse({'success': True, 'visibility': done['visibility']})
+    if action == 'delete':
+        if not (mine or admin):
+            return JsonResponse({'error': "Seul son auteur, ou un administrateur, le retire."}, status=403)
+        row.delete()
+        return JsonResponse({'success': True})
+    if action == 'promote':
+        if not admin:
+            return JsonResponse({'error': 'Rendre un thème système est réservé aux administrateurs.'}, status=403)
+        if row.owner_id is None:
+            return JsonResponse({'error': 'Ce thème est déjà système.'}, status=400)
+        source = dict(row.source or {}, proposed_by=row.owner.get_username(),
+                      promoted_by=request.user.get_username())
+        UserTheme.objects.filter(pk=row.pk).update(owner=None, visibility=UserTheme.VIS_PUBLIC,
+                                                   scope_org_unit=None, scope_project=None, source=source)
+        return JsonResponse({'success': True})
+    return JsonResponse({'error': f'Action inconnue : {action!r}'}, status=400)
 
 
 @login_required

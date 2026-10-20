@@ -30,12 +30,20 @@ TEXT_RATIO = 4.5
 PAGE_TINT = {'light': 0.05, 'dark': 0.06}
 
 _HEX6 = re.compile(r'^#[0-9a-fA-F]{6}$')
+#: Un nom de police tel qu'une charte l'écrit (« TT Norms Pro ») : rien qui puisse fermer la
+#: déclaration CSS où il entre.
+_FONT = re.compile(r'^[A-Za-z0-9][A-Za-z0-9 .\-]{0,62}$')
 _WHITE, _BLACK = (255, 255, 255), (0, 0, 0)
 
 
 def valid_seed(value) -> bool:
     """Une graine est une couleur `#rrggbb` (ce que rend un `<input type="color">`)."""
     return isinstance(value, str) and bool(_HEX6.match(value))
+
+
+def valid_font(value) -> bool:
+    """Un nom de police (lettres, chiffres, espaces, point, tiret) ; '' = aucune."""
+    return value == '' or (isinstance(value, str) and bool(_FONT.match(value)))
 
 
 @lru_cache(maxsize=None)
@@ -85,11 +93,12 @@ def grounds(base: str, page) -> tuple:
     return (_rgb(v['--wama-surface']), _rgb(v['--wama-surface-raised']), page)
 
 
-def generate(base: str, accent: str) -> dict:
+def generate(base: str, accent: str, font: str = '') -> dict:
     """Le bloc d'identité d'un thème de base `base` ('light' / 'dark') et d'accent `accent`
-    (`#rrggbb`) : {propriété CSS: valeur}."""
-    if base not in ('light', 'dark') or not valid_seed(accent):
-        raise ValueError(f'graine invalide : {base!r}, {accent!r}')
+    (`#rrggbb`) : {propriété CSS: valeur}. `font` : la police d'une charte, NOMMÉE en tête de la
+    pile — un poste qui l'a l'affiche, WAMA ne la sert pas (`themes.LICENSED_FONTS`)."""
+    if base not in ('light', 'dark') or not valid_seed(accent) or not valid_font(font):
+        raise ValueError(f'graine invalide : {base!r}, {accent!r}, {font!r}')
     v = base_values(base)
     seed = _rgb(accent)
     page_start = _mix(_rgb(v['--wama-page-bg-start']), seed, PAGE_TINT[base])
@@ -120,6 +129,7 @@ def generate(base: str, accent: str) -> dict:
 
     def channels(rgb):
         return ', '.join(str(round(x)) for x in rgb)
+    named = {'--bs-body-font-family': f'"{font}", var(--bs-font-sans-serif)'} if font else {}
     return {
         '--wama-page-bg-start': _hex(page_start), '--wama-page-bg-end': _hex(page_end),
         '--wama-accent': _hex(accent_fill), '--wama-accent-rgb': channels(accent_fill),
@@ -133,10 +143,11 @@ def generate(base: str, accent: str) -> dict:
         '--bs-primary': _hex(primary), '--bs-primary-rgb': channels(primary),
         '--bs-primary-text-emphasis': _hex(emphasis),
         '--bs-primary-bg-subtle': _hex(bg_subtle), '--bs-primary-border-subtle': _hex(border_subtle),
+        **named,
     }
 
 
-def css_block(key: str, base: str, accent: str) -> str:
+def css_block(key: str, base: str, accent: str, font: str = '') -> str:
     """La règle CSS du thème `key` : ce que `base.html` pose dans `#wama-theme-generated`."""
-    body = ''.join(f'  {name}: {value};\n' for name, value in generate(base, accent).items())
+    body = ''.join(f'  {name}: {value};\n' for name, value in generate(base, accent, font).items())
     return f'[data-wama-theme="{key}"] {{\n{body}}}\n'

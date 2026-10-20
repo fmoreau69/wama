@@ -6164,8 +6164,8 @@ listes déroulantes.
    cliquer ? une image dont un LLM tire le thème ?) : toutes les voies produisent la MÊME chose,
    quelques couleurs-graines, et UN générateur en dérive le bloc avec les gardes ci-dessus
    (contraste ajusté jusqu'à 4,5:1) — jamais 421 tokens édités à la main. Ordre retenu :
-   (1) ✅ palettes et couleur d'accent à cliquer au Profil (2026-10-20, ci-dessous) ; (2) ⏳ import
-   d'une CHARTE (PDF) pour un labo, une équipe, un établissement — le LLM lit les valeurs dans le
+   (1) ✅ palettes et couleur d'accent à cliquer au Profil (2026-10-20, ci-dessous) ; (2) ✅ import
+   d'une CHARTE (PDF) pour un labo, une équipe, un établissement (2026-10-20, ci-dessous) — le LLM lit les valeurs dans le
    texte (comme la p. 7 de la charte UGE), un humain valide, le thème est partagé selon la portée
    (même héritage que la visibilité, `§29`) ; (3) ⏳ une image : la palette s'en extrait sans LLM
    (regroupement des couleurs en OKLab), le LLM ne sert au plus qu'à choisir les rôles. Les deux
@@ -6196,6 +6196,45 @@ listes déroulantes.
    Sombre (événements du calendrier, boutons « outline ») ; smoke au Profil (serveur éphémère) :
    choix, pastille, sélecteur, autre page, retour à UGE, aucune erreur JS — réglages du compte de
    test restaurés à l'identique (il reste sans choix : captures sombres).
+   **Voie (2), livrée le 2026-10-20** (Fabien : *« Oui, recharge gunicorn, puis on attaque la voie
+   2 »*). *Lecture* : `wama/common/theme_charter.py`, en deux étages. Les RÈGLES relèvent les couleurs
+   ÉCRITES (hexadécimal `#rrggbb`, triplets RVB/RGB), chacune avec les 120 caractères qui la
+   précèdent ; le texte vient de la brique commune `extract_batch_file_text` (PDF, Word, texte). Le
+   LLM local (`llm_chat`, modèle tiré par le catalogue) choisit PARMI ELLES la principale et propose
+   le nom, la base et la police : une couleur qu'il rendrait sans l'avoir lue est refusée, et les
+   règles reprennent la main (le libellé « Couleur principale » dans le contexte immédiat, sinon la
+   première couleur franche) — elles la prennent aussi sans LLM. *Mesuré sur la charte UGE* (36
+   pages) : 11 couleurs, principale #2f2a85, « Université Gustave Eiffel », TT Norms, base claire —
+   3 fois sur 3 avec qwen3.5:4b, et la même principale par les règles seules. Deux pièges de
+   l'extraction PDF, chacun tenu par un test : le libellé COLLÉ au code d'avant (`#ef7d00Couleur
+   principale`, où `\b` ne voit pas de frontière de mot) et le code collé au mot qui suit (le « C »
+   de « Couleur » pris pour un 7ᵉ chiffre). Le premier « principes » du document (page 2) faisait
+   prendre le bleu nuit : seul un libellé PROCHE désigne une couleur. *Validation* : modale du Profil
+   (bloc `extra_modals` de `base.html` — logée dans le contenu, son voile interceptait chaque clic,
+   vu au navigateur), pastilles de la couleur OBTENUE, contexte de la couleur choisie, nom, base,
+   police, portée. Rien n'est enregistré avant « Enregistrer et appliquer ». *Stockage et
+   provenance* (`§29`) : `common.UserTheme` (`ScopedVisibility`, migration `common/0033`
+   APPLIQUÉE) ne garde que les GRAINES (base, accent, police NOMMÉE — jamais servie) et la trace de
+   la lecture (`source`) ; naît PRIVÉ à son auteur ; se partage par le service commun
+   `sharing.partager` (qui reconnaît désormais le propriétaire `owner` d'un élément de catalogue) et
+   les portées que `portees_offrables` offre ; un ADMIN seul le rend SYSTÈME (sans propriétaire,
+   public, auteur et valideur gardés dans `source` — décisions a et b) ; l'admin voit tout
+   (`catalogue_visible_q`, décision c). Le registre `themes` passe en provenance `mixed`
+   (`owner_model='common.UserTheme'`). *Choix* : `charter:<pk>` au Profil ; le thème posé est le
+   personnalisé de SA base, avec ses graines (`themes.account_generated_css`) ; tout autre choix
+   quitte la charte, et une charte retirée ramène à la couleur d'accent du compte. *Gardes* :
+   `tests_theme.CharterThemeTest` (9 tests : relevé, libellé collé, choix du LLM borné, indice et
+   typographie transmis, police nommée, parcours lecture → privé → partagé → promu → retiré avec
+   quatre comptes, quitter la charte, place de la modale, refus de ce qui n'est pas une charte).
+   Neuf contre-épreuves rouges : couleur
+   inventée acceptée, libellé collé, code collé, police non vérifiée, chartes non filtrées par la
+   portée, `partager` sans `owner`, promotion sans contrôle admin, choix qui garde la charte, modale
+   dans le contenu. *Mesuré au navigateur* (serveur éphémère, vrai LLM) : import de la charte UGE,
+   proposition juste, thème posé (primaire #2f2a85, « TT Norms » en tête), partage public, autre
+   page, aucune erreur JS — thème créé supprimé et compte de test restauré à l'identique.
+   ⏳ *Reste* : la voie (3), l'image ; une charte qui ne donne ses couleurs qu'en CMJN ou en
+   Pantone (aucun hexadécimal ni RVB) n'est pas lue — la conversion CMJN → écran est approximative,
+   à décider avant de la proposer.
 
 ## 29. PROVENANCE de tout ce qui entre dans WAMA — privé à son auteur, « Système » une fois promu (ouvert le 2026-10-18, demande de Fabien)
 
