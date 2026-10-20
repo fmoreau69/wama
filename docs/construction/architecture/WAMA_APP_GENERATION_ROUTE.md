@@ -5949,7 +5949,11 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   `AIModel.platform_label` et `_URL_PAR_PLATEFORME` (`models.py`) redisent les noms et les
 >   adresses des plateformes que porte `external_sources`, mais la clé de plateforme
 >   `ollama` désigne `ollama_site` du registre, pas `ollama` : aligner demande que le
->   registre déclare l'adresse d'une fiche de modèle.
+>   registre déclare l'adresse d'une fiche de modèle. Relevé à la revérification du même
+>   jour : les outils de l'assistant `list_ai_models` et `get_ai_model` (`wama/tool_api.py:1750`,
+>   `:1793`) rendent la source sous la clé `app`, valeur brute — la confusion de l'ancien
+>   filtre, sur une surface que lit le LLM (`anthropic` ou `huggingface` y passent pour une
+>   app) ; renommer la clé touche le contrat de l'outil, donc à décider avec le reste.
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**
