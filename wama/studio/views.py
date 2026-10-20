@@ -13,8 +13,12 @@ from django.shortcuts import render
 @login_required
 def index(request):
     """Canvas du studio. (Corrigé le 2026-09-15 : l'exécution réelle existe depuis le
-    2026-07-11 — `api_run` → `services/launch.launch_graph` → `tasks.run_pipeline_task`.)"""
-    return render(request, 'studio/index.html')
+    2026-07-11 — `api_run` → `services/launch.launch_graph` → `tasks.run_pipeline_task`.)
+
+    Le volet déclare ce que la page remplit (l'inspecteur du nœud et ses actions) : la section
+    Médias n'y portait que le texte par défaut (2026-10-20)."""
+    from wama.common.utils.volet import volet
+    return render(request, 'studio/index.html', {'volet': volet(medias=False)})
 
 
 @login_required

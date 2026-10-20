@@ -113,7 +113,8 @@ def api_app_modes(request, app):
 
 def modes_demo(request):
     """Page de prévisualisation isolée du générateur WamaModes (outil de dev)."""
-    return render(request, 'common/modes_demo.html')
+    from .utils.volet import VOLET_AUCUN
+    return render(request, 'common/modes_demo.html', {'volet': VOLET_AUCUN})   # rien à y montrer
 
 
 @require_GET
@@ -431,7 +432,9 @@ def apps_catalog_view(request):
                    'grille_substrat': grille_substrat,
                    'grille_droits': grille_droits,
                    'abo': _resume_abo(request.user, 'app', autorisees),
-                   'abo_ids': autorisees})
+                   'abo_ids': autorisees,
+                   # Ce que la page REMPLIT : l'inspecteur de l'app et ses actions, pas de média.
+                   'volet': volet(medias=False)})
 
 
 @require_POST
@@ -933,9 +936,11 @@ def backends_catalog_view(request):
     return render(request, 'common/backends.html', {
         'inv': inv,
         'facettes_backends': facettes,
-        # Inspecteur au clic (comme /apps/ et les sources externes) ; pas de section Médias :
-        # un backend n'a rien à prévisualiser.
-        'volet': volet(medias=False),
+        # Inspecteur au clic, la fiche dérivée de la tuile (`_inspector_registre.html`) ; pas de
+        # section Médias (un backend n'a rien à prévisualiser) ni Actions (la page n'en porte
+        # aucune : la section restait sur son texte par défaut — relevé le 2026-10-20 par le
+        # garde des pages du compte, `tests_volet.AccountPagesHaveNoDefaultTest`).
+        'volet': volet(medias=False, actions=False),
     })
 
 
@@ -2119,7 +2124,24 @@ def shares_page(request):
     partagé, avec mon accès ; les demandes en attente dans les deux sens."""
     from django.shortcuts import render
     from wama.common.services.sharing import shares_overview
-    return render(request, 'common/shares.html', shares_overview(request.user))
+    data = shares_overview(request.user)
+    # UNE liste, comme les autres pages du compte et des registres (2026-10-20, Fabien : « faire
+    # converger avec toutes les autres pages ») : le SENS devient une facette de la barre
+    # commune au lieu de deux onglets, et l'ordre de départ est celui du premier tri déclaré.
+    items = [dict(s, direction="Partagé par moi") for s in data['shared']] + \
+            [dict(s, direction="Partagé avec moi") for s in data['received']]
+    items.sort(key=lambda s: s['scope_since'].timestamp() if s.get('scope_since') else 0,
+               reverse=True)
+    facettes = [{'cle': cle, 'label': label, 'tous': tous} for cle, label, tous in (
+        ('sens', 'Sens', 'Tous les partages'), ('app', 'App', 'Toutes'),
+        ('nature', 'Nature', 'Toutes'), ('partage', 'Portée', 'Toutes'))]
+    sort_options = [('since:desc', 'Plus récent'), ('since:asc', 'Plus ancien'),
+                    ('label:asc', 'Nom'), ('app:asc', 'App')]
+    return render(request, 'common/shares.html', {
+        **data, 'items': items, 'facettes': facettes, 'sort_options': sort_options,
+        # Ce que la page REMPLIT : l'aperçu et le détail d'un élément partagé (ceux de sa card,
+        # par l'inspecteur commun) et la fiche de chaque partage ; pas d'actions dans le volet.
+        'volet': volet(actions=False)})
 
 
 @login_required

@@ -178,6 +178,8 @@ class PagesDeclarantesTest(TestCase):
         # 2026-10-18 : la card de l'élément cliqué au volet, sans cadre « Aucun paramètre ».
         ('journal', 'common:journal'),
         ('calendrier', 'common:calendar'),
+        # 2026-10-20 : le Studio déclare ce qu'il remplit (l'inspecteur du nœud, ses actions).
+        ('studio', 'studio:index'),
     ]
 
     def _pages_rendues(self):
@@ -290,6 +292,53 @@ class PagesDeclarantesTest(TestCase):
             self.assertIn(marqueur, html,
                           f"cam_analyzer : section '{cle}' perdue — son volet est un PANNEAU "
                           "DE TRAVAIL permanent, pas un inspecteur")
+
+
+class AccountPagesHaveNoDefaultTest(TestCase):
+    """Une page du COMPTE n'a pas de volet par défaut (Fabien, 2026-10-20 : « on met les champs
+    en fonction du contenu de la page, pas de champ par défaut ») : elle déclare ce qu'elle
+    remplit, et sans déclaration elle n'a aucune section (`context_processors.volet_defaut`).
+
+    Mesuré sur TOUTES les pages que le registre déclare (`app_registry.account_pages`), pas sur
+    une liste : le jour même, quatre d'entre elles (Partages, Notifications, Formats médias,
+    Apps) rendaient encore les trois cadres vides, et aucune liste ne les citait."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        cls.account = get_user_model().objects.create_superuser(
+            username='volet_account_pages', email='volet-pages@test.local', password='x')
+
+    def setUp(self):
+        self.client.force_login(self.account)
+
+    def test_no_account_page_renders_an_empty_default_section(self):
+        from django.urls import NoReverseMatch, reverse
+
+        from wama.common.app_registry import account_pages
+        measured, faults = [], []
+        for page in account_pages():
+            try:
+                path = reverse(page['url_name'])
+            except NoReverseMatch:
+                continue
+            response = self.client.get(path)
+            if response.status_code != 200 or 'text/html' not in response.get('Content-Type', ''):
+                continue
+            html = response.content.decode('utf-8', 'replace')
+            measured.append(page['key'])
+            faults += [f"{page['key']} : section '{key}' rendue avec le contenu par défaut"
+                       for key, marker in MARQUEURS.items()
+                       if marker in html and DEFAUTS[key] in html]
+        self.assertGreaterEqual(len(measured), 10, f"trop peu de pages mesurées : {measured}")
+        self.assertIn('shares', measured)
+        self.assertEqual([], faults, "\n".join(faults))
+
+    def test_an_undeclared_account_page_gets_no_section_and_an_app_page_keeps_its_three(self):
+        from django.urls import reverse
+        notifications = self.client.get(reverse('common:notifications'))
+        self.assertEqual(VOLET_AUCUN, notifications.context['volet'])
+        self.assertEqual(VOLET_DEFAUT, volet_defaut(None)['volet'])
 
 
 class PagesDAppTest(TestCase):

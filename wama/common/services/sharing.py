@@ -82,13 +82,33 @@ def shares_overview(user, limit: int = 200) -> dict:
     from wama.common.utils.preview_registry import PreviewRegistry
     from wama.common.utils.scoping import listable_by
 
+    from wama.common.app_registry import app_identity
+    from wama.common.services.journal import app_queue_url
+    from wama.common.utils.detail_registry import DetailRegistry
+
+    def _shown_element(entry, is_lot, element_model):
+        """L'élément dont le volet montre l'aperçu et le détail : l'élément lui-même, ou pour un
+        LOT son premier élément que `user` voit — les lectures de la file (`batch_elements`,
+        `visible_members`) ; dans une app, le lot se lit par ses cards présentes dans la page."""
+        if not is_lot:
+            return entry
+        from wama.common.utils.batch_common import batch_elements, visible_members
+        members = visible_members(user, entry, batch_elements(entry, element_model))
+        return members[0] if members else None
+
     def describe(entry, surface, element_model, mine):
         is_lot = entry._meta.model is batch_model_for(element_model)
-        row = {'app': entry._meta.app_label, 'surface': surface, 'pk': entry.pk,
-               'nature': 'lot' if is_lot else 'element',
+        app = entry._meta.app_label
+        shown = _shown_element(entry, is_lot, element_model)
+        row = {'app': app, 'app_label': app_identity(app)['label'], 'surface': surface,
+               'pk': entry.pk, 'nature': 'lot' if is_lot else 'element',
                'label': _label(entry),
                'scope': scope_label(entry), 'scope_since': scope_since(entry),
-               'url': f'/{entry._meta.app_label}/'}
+               # La page de file de l'app (`journal.app_queue_url`, la lecture du journal) et,
+               # pour un ÉLÉMENT, le crochet de l'inspecteur commun : le volet montre son
+               # aperçu et son détail comme dans la file (`DetailRegistry.preview_url`).
+               'url': app_queue_url(app),
+               'preview_url': DetailRegistry.preview_url(surface, shown.pk) if shown else ''}
         if mine:
             # Les PERSONNES (partage nominatif, ou collaboration accordée sur demande) : une
             # par personne, son mode, depuis quand — et de quoi la retirer (E5).
@@ -244,9 +264,11 @@ def _catalogue_shares(user, limit: int):
             continue
         for row, bucket, is_mine in [(r, shared, True) for r in mine] + \
                                     [(r, received, False) for r in theirs]:
-            item = {'app': registry.label, 'registry': registry.key, 'pk': row.pk,
-                    'nature': 'catalogue', 'label': getattr(row, 'name', '') or str(row),
-                    'scope': scope_label(row), 'scope_since': scope_since(row), 'url': url}
+            item = {'app': registry.key, 'app_label': registry.label, 'registry': registry.key,
+                    'pk': row.pk, 'nature': 'catalogue',
+                    'label': getattr(row, 'name', '') or str(row),
+                    'scope': scope_label(row), 'scope_since': scope_since(row), 'url': url,
+                    'preview_url': ''}
             if not is_mine:
                 item['owner'] = row.owner.get_username()
                 item['mode'] = CURRENT_SHARE_MODE

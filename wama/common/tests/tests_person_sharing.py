@@ -316,6 +316,44 @@ class PersonSharingSurfacesTest(TestCase):
         page = self.client.get(reverse('common:shares'))
         self.assertContains(page, 'pv_bob')
 
+    def test_the_shares_page_is_a_registry_page_and_a_shared_element_opens_its_card_detail(self):
+        """Alignée le 2026-10-20 sur les pages du compte et des registres : la barre COMMUNE
+        (recherche, facettes, tri), une grille inspectée, et pour un ÉLÉMENT le crochet de sa
+        card (`DetailRegistry.preview_url`) — son aperçu et son détail sont ceux de la file. Le
+        volet déclare ce que la page remplit, rien par défaut."""
+        from wama.common.utils.detail_registry import DetailRegistry
+        from wama.common.utils.volet import volet
+        job = _job(self.owner)                       # sans lot : l'entrée est l'ÉLÉMENT
+        share_with_person(self.owner, job, _job_model(), self.bob)
+        self.client.force_login(self.bob)
+        page = self.client.get(reverse('common:shares'))
+        self.assertContains(page, 'data-wama-inspecte=".wama-cat-card"')
+        self.assertContains(page, 'data-f-role="sort"')
+        self.assertContains(page, 'data-f-sens="Partagé avec moi"')
+        (entry,) = shares_overview(self.bob)['received']
+        self.assertEqual(('element', job.pk), (entry['nature'], entry['pk']))
+        hook = DetailRegistry.preview_url('converter', job.pk)
+        self.assertTrue(hook)
+        self.assertContains(page, f'data-preview-url="{hook}"')
+        self.assertEqual(volet(actions=False), page.context['volet'])
+
+    def test_a_received_card_has_its_detail_like_its_preview_and_a_stranger_has_neither(self):
+        """Le DÉTAIL commun suit la règle de l'aperçu (`scoping.can_view`) : il refusait tout
+        non-propriétaire, si bien qu'une card reçue n'avait pas son détail au volet (relevé le
+        2026-10-20 sur la page « Partages »)."""
+        from django.contrib.auth import get_user_model
+        job = _job(self.owner)
+        share_with_person(self.owner, job, _job_model(), self.bob)
+        detail = reverse('common:unified_detail', args=['converter', job.pk])
+        preview = reverse('common:unified_preview', args=['converter', job.pk])
+        self.client.force_login(self.bob)
+        self.assertEqual((200, 200), (self.client.get(detail).status_code,
+                                      self.client.get(preview).status_code))
+        stranger = get_user_model().objects.create_user('pv_stranger', password='x')
+        self.client.force_login(stranger)
+        self.assertEqual((403, 403), (self.client.get(detail).status_code,
+                                      self.client.get(preview).status_code))
+
     def test_the_shares_page_and_the_modal_say_since_when_for_a_scope(self):
         from django.utils import timezone
         job = _job(self.owner, batch=_batch(self.owner))

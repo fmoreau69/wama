@@ -141,26 +141,12 @@ class PreviewRegistry:
         if not reg:
             return False
 
-        user_field = reg.get('user_field', 'user')
-        instance_user = getattr(instance, user_field, None)
-
-        if instance_user is None:
-            return True  # No user field, allow access
-
-        # Allow if user matches or is staff
-        if hasattr(user, 'is_staff') and user.is_staff:
-            return True
-
-        if instance_user == user:
-            return True
         # Une card REÇUE (2026-10-02) : la file du destinataire la montre, son aperçu doit suivre —
         # sinon la vignette du résultat sort en 403 (mesuré sur le converter par le geste
-        # `common.received_card_visible`). Lecture seule : l'aperçu ne modifie rien.
-        manager = type(instance)._default_manager
-        if hasattr(manager, 'visible_to'):
-            from wama.common.utils.scoping import listable_by
-            return listable_by(manager.all(), user).filter(pk=instance.pk).exists()
-        return False
+        # `common.received_card_visible`). Lecture seule : l'aperçu ne modifie rien. La règle
+        # vit dans `scoping.can_view` depuis le 2026-10-20, partagée avec le détail commun.
+        from wama.common.utils.scoping import can_view
+        return can_view(instance, user, reg.get('user_field', 'user'))
 
 
 # Utility functions for creating adapters

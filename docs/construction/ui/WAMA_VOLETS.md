@@ -143,6 +143,15 @@ context['volet'] = volet(tete=True, medias=False, parametres=False, actions=Fals
    pixel — contrainte n°1 du chantier. C'est le context processor `volet_defaut` qui garantit
    un dict complet ; sans lui, `{% if volet.medias %}` sur une variable absente vaudrait faux
    et masquerait TOUT.
+   ⚠ **Sauf pour une page du COMPTE, depuis le 2026-10-20** (Fabien : *« on met les champs en
+   fonction du contenu de la page, pas de champ par défaut »*). Une page déclarée au registre
+   des pages du compte (`app_registry.register_account_page`) n'a AUCUNE section sans
+   déclaration : elle déclare ce qu'elle remplit. Mesuré le jour même : Partages,
+   Notifications, Formats médias et Apps rendaient encore « Médias / Sélectionnez un fichier »,
+   « Aucun paramètre disponible » et un cadre Actions vide. Apps déclare ses deux sections
+   remplies ; Studio (hors compte) la sienne ; Backends ne déclare plus d'Actions vides. Garde :
+   `tests_volet.AccountPagesHaveNoDefaultTest`, sur TOUTES les pages du registre — elle a trouvé
+   Backends le jour de son écriture, qu'aucune liste ne citait.
 2. **Une déclaration est toujours COMPLÈTE.** Un dict partiel masquerait les clés non citées
    (même cause). `volet()` remplit les quatre. L'alternative — un filtre maison
    `volet|section:'medias'` — a été écartée pour la raison que `_filter_bar.html` donne déjà :
@@ -165,6 +174,7 @@ pas sa mini-carte Leaflet.
 | `DeclarationTest` | retrait ciblé · retrait total (aside ET classe) · `tete` seule |
 | `PagesDAppTest` | **les 11 apps du catalogue** rendues à l'identique (pages réelles) |
 | `PagesDeclarantesTest` | 10 pages transversales + connexion en visiteur + accueil + cam_analyzer |
+| `AccountPagesHaveNoDefaultTest` | (2026-10-20) TOUTES les pages du registre des pages du compte : aucune section rendue avec le contenu par défaut ; une page du compte sans déclaration n'a aucune section |
 
 ⚠ Le périmètre de `PagesDAppTest` est `APP_CATALOG`, **pas** `discoverable_apps()` : la
 médiathèque expose un index mais est une surface transversale qui DÉCLARE. Les confondre

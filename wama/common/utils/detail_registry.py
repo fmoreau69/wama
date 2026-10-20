@@ -449,9 +449,13 @@ def unified_detail(request, app_name: str, pk: int):
         return HttpResponseNotFound(f"App '{app_name}' non enregistrée pour le détail")
     instance = get_object_or_404(entry['model'], pk=pk)
 
-    viewer = request.user if request.user.is_authenticated else None
-    owner = getattr(instance, 'user', None)
-    if owner is not None and viewer is not None and owner != viewer and not viewer.is_staff:
+    # La règle de l'aperçu, son jumeau (`scoping.can_view`) : le propriétaire, le staff, ou qui
+    # peut le LISTER — une card reçue a son détail au volet. Elle refusait tout non-propriétaire
+    # (2026-10-20) et laissait passer une requête sans compte ; le visiteur est celui de l'aperçu.
+    from .preview_utils import get_or_create_anonymous_user
+    from .scoping import can_view
+    viewer = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+    if not can_view(instance, viewer):
         return HttpResponseForbidden("Accès refusé.")
 
     try:

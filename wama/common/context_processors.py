@@ -3,7 +3,8 @@ Context processors du socle commun.
 
 `volet_defaut` garantit que `volet` est TOUJOURS un dict complet dans les gabarits, y compris
 pour les pages qui ne déclarent rien — c'est ce qui rend le défaut « les trois sections »
-sûr sans obliger les 10 apps à écrire quoi que ce soit. Voir `wama/common/utils/volet.py`.
+sûr sans obliger les 10 apps à écrire quoi que ce soit. Une page du COMPTE n'a pas ce défaut
+(2026-10-20). Voir `wama/common/utils/volet.py`.
 """
 from __future__ import annotations
 
@@ -12,8 +13,18 @@ from wama.common.utils.volet import VOLET_DEFAUT
 
 def volet_defaut(request):
     """Déclaration de volet par DÉFAUT ; une vue qui passe `volet` la remplace (elle est
-    empilée au-dessus du contexte des processors)."""
-    return {'volet': VOLET_DEFAUT}
+    empilée au-dessus du contexte des processors).
+
+    Une page du COMPTE (`app_registry.register_account_page` : journal, partages, notifications,
+    catalogues…) n'a PAS de défaut : elle déclare les sections qu'elle remplit, et sans
+    déclaration elle n'en a aucune (Fabien, 2026-10-20 : « on met les champs en fonction du
+    contenu de la page, pas de champ par défaut »). Les pages d'APP gardent les trois sections,
+    que `app_modern_base.html` remplit : elles n'ont rien à écrire."""
+    from wama.common.app_registry import account_page_of
+    from wama.common.utils.volet import VOLET_AUCUN
+    match = getattr(request, 'resolver_match', None)
+    url_name = getattr(match, 'view_name', '') if match is not None else ''
+    return {'volet': VOLET_AUCUN if account_page_of(url_name) else VOLET_DEFAUT}
 
 
 def unread_notifications(request):

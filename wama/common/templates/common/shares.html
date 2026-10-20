@@ -1,109 +1,112 @@
 {% extends 'base.html' %}
+{% load wama_catalog %}
 
 {% comment %}
 PARTAGES — WAMA_COLLABORATION §5.3 (2026-10-03) : « ce que j'ai partagé — avec qui, quel droit,
 depuis quand, et c'est ICI qu'on modifie ou retire les droits ; ce qu'on m'a partagé — qui, quel
-droit ». Un partage doit pouvoir être CONSTATÉ. L'unité est l'entrée de file (le lot, ou la card
-sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
-Les éléments de CATALOGUE qu'un compte possède (skill de prompt, thème de charte, fonction ou
-modèle d'utilisateur — `ROADMAP §29`, 2026-10-20) y figurent aussi : `nature == 'catalogue'`, leur
-page est celle de leur registre, et « Retirer le partage » les rend privés
-(`api_catalogue_unshare`).
+droit ». Un partage doit pouvoir être CONSTATÉ. Données : `sharing.shares_overview`.
+
+ALIGNÉE le 2026-10-20 sur les autres pages du compte et des registres (Fabien : « faire
+converger, sans rien réinventer ») — aucune pièce n'est propre à cette page :
+- l'en-tête du menu (`_catalog_header.html`), la grille de tuiles et ses compteurs (`wama-catalog`) ;
+- la barre COMMUNE (`_filter_bar.html`, mode client) : recherche, facettes dérivées des tuiles
+  (`data-f-*`), tri déclaré (`sort_options` → `data-s-*`). Le SENS du partage y est une facette :
+  les deux onglets d'avant sont devenus deux valeurs d'un même filtre ;
+- le volet de l'inspecteur commun : la tuile d'un ÉLÉMENT porte le crochet de sa card
+  (`data-preview-url`), donc son aperçu et son détail sont ceux de la file ; toute tuile reçoit la
+  fiche dérivée de ses facettes (`_inspector_registre.html`, `data-wama-inspecte`).
+
+Un élément de CATALOGUE (skill, thème de charte, fonction ou modèle d'utilisateur — `ROADMAP §29`)
+y figure aussi : sa page est celle de son registre, « Retirer le partage » le rend privé
+(`api_catalogue_unshare`). Un LOT n'a pas d'aperçu commun hors de sa file : sa fiche, et l'app.
 {% endcomment %}
 
-{% block title %}WAMA — Partages{% endblock %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
 
 {% block extra_css %}
 <style>
-    .shares-page { padding: 2rem 0; max-width: 64rem; }
-    .shares-page h1 { font-size: 1.6rem; font-weight: 600; color: var(--wama-text-strong); margin-bottom: .25rem; }
-    .shares-page .subtitle { color: var(--wama-text-secondary); font-size: .9rem; margin-bottom: 1.25rem; }
-    .share-row { background: var(--wama-night-surface); border: 1px solid var(--wama-night-border); border-radius: .5rem;
-                 padding: .7rem 1rem; margin-bottom: .5rem; color: var(--wama-text); }
-    .share-row .share-label { font-weight: 600; color: var(--wama-text-card); }
-    .share-row .share-meta { color: var(--wama-collab-link); font-size: .82rem; }
-    .share-pill { display: inline-block; font-size: .72rem; padding: 0 .45rem; border-radius: 999px;
-                  background: rgba(var(--wama-collab-mid-rgb), .18); border: 1px solid rgba(var(--wama-collab-rgb), .45);
-                  color: var(--wama-collab-text); margin-right: .25rem; }
-    .shares-empty { color: var(--wama-text-secondary); padding: 1.5rem 0; }
-    .nav-tabs .nav-link { color: var(--wama-collab-link); }
-    .nav-tabs .nav-link.active { color: var(--wama-text-card); background: var(--wama-night-surface); border-color: var(--wama-night-border) var(--wama-night-border) var(--wama-night-surface); }
+  /* Squelette = brique COMMUNE `wama-catalog.css` — restent les pastilles de partage. */
+  .share-pill { display: inline-block; font-size: .72rem; padding: 0 .45rem; border-radius: 999px;
+                background: rgba(var(--wama-collab-mid-rgb), .18); border: 1px solid rgba(var(--wama-collab-rgb), .45);
+                color: var(--wama-collab-text); margin: 0 .25rem .2rem 0; }
+  .share-gestes { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: auto; padding-top: 6px; }
 </style>
 {% endblock %}
 
-{% block content %}
-<div class="container shares-page">
-  <h1><i class="fas fa-share-nodes me-2" style="color:var(--wama-collab-link);"></i>Partages</h1>
-  <p class="subtitle">Ce que vous partagez, avec qui, et ce qu'on vous partage. Retirer un partage ou
-    un droit prend effet tout de suite ; un traitement déjà lancé va à son terme.</p>
+{% block right_panel_media_hint %}Cliquez un partage<br>pour son aperçu{% endblock %}
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail du partage{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
 
-  {% if incoming %}
-  <h2 class="h6 text-body-emphasis mt-2">Demandes qui vous attendent</h2>
-  {% for r in incoming %}
-  <div class="share-row d-flex justify-content-between align-items-center gap-2" data-incoming="{{ r.id }}">
-    <span><b>{{ r.who }}</b> demande : {{ r.level }} — « {{ r.label }} » ({{ r.app }})</span>
-    <a class="btn btn-sm btn-outline-emphasis" href="/common/requests/{{ r.id }}/">Répondre</a>
+{% block content %}
+<div class="wama-cat-wrap">
+  {% include 'common/_catalog_header.html' %}
+
+  <div class="wama-cat-hero">
+    <p class="mb-0">Ce que vous partagez, avec qui, et ce qu'on vous partage. Retirer un partage ou
+      un droit prend effet tout de suite ; un traitement déjà lancé va à son terme.</p>
   </div>
-  {% endfor %}
+
+  <div class="wama-cat-stats">
+    <div class="wama-cat-stat"><b>{{ shared|length }}</b> partagé{{ shared|length|pluralize }} par moi</div>
+    <div class="wama-cat-stat"><b>{{ received|length }}</b> partagé{{ received|length|pluralize }} avec moi</div>
+    {% if incoming %}<div class="wama-cat-stat"><b>{{ incoming|length }}</b> demande{{ incoming|length|pluralize }} à traiter</div>{% endif %}
+    {% if outgoing %}<div class="wama-cat-stat"><b>{{ outgoing|length }}</b> demande{{ outgoing|length|pluralize }} en attente</div>{% endif %}
+  </div>
+
+  {% if incoming or outgoing %}
+  <div class="wama-cat-hero" style="border-left-color:var(--wama-cat-alert);">
+    {% for r in incoming %}
+    <div class="d-flex justify-content-between align-items-center gap-2 mb-1" data-incoming="{{ r.id }}">
+      <span><b>{{ r.who }}</b> demande : {{ r.level }} — « {{ r.label }} » ({{ r.app }})</span>
+      <a class="btn btn-sm btn-outline-emphasis" href="/common/requests/{{ r.id }}/">Répondre</a>
+    </div>
+    {% endfor %}
+    {% for r in outgoing %}
+    <div class="small">Votre demande : {{ r.level }} — « {{ r.label }} » ({{ r.app }}) · <a href="/common/requests/{{ r.id }}/">voir</a></div>
+    {% endfor %}
+  </div>
   {% endif %}
 
-  <ul class="nav nav-tabs mt-3" role="tablist">
-    <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#sharesMine" type="button">
-      Ce que j'ai partagé <span class="badge bg-secondary">{{ shared|length }}</span></button></li>
-    <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#sharesReceived" type="button">
-      Ce qu'on m'a partagé <span class="badge bg-secondary">{{ received|length }}</span></button></li>
-  </ul>
-  <div class="tab-content pt-3">
-    <div class="tab-pane fade show active" id="sharesMine" role="tabpanel">
-      {% for s in shared %}
-      <div class="share-row" data-shared-entry="{{ s.surface }}:{{ s.nature }}:{{ s.pk }}">
-        <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
-          <div>
-            <span class="share-label">{{ s.label }}</span> <span class="text-body-secondary small">({{ s.app }})</span>
-            <div class="share-meta mt-1">{% if s.scope %}<span class="share-pill">{{ s.scope }} · 👁 Lecture seule{% if s.scope_since %} · depuis le {{ s.scope_since|date:'d/m/Y' }}{% endif %}</span>{% endif %}
-              {% for p in s.persons %}<span class="share-pill" data-person="{{ p.grant }}" title="Depuis le {{ p.since|date:'d/m/Y H:i' }}">{{ p.mode.icon }} {{ p.name }} · {{ p.mode.label }} · depuis le {{ p.since|date:'d/m/Y' }}
-                <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="color:var(--wama-danger-softer);font-size:.72rem;"
-                        data-revoke="{{ p.grant }}" title="Retirer le partage avec {{ p.name }}">retirer</button></span>{% endfor %}
-            </div>
-          </div>
-          <div class="d-flex gap-2">
-            {% if s.nature == 'catalogue' %}
-            {% if s.url %}<a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">Ouvrir la page</a>{% endif %}
-            <button type="button" class="btn btn-sm btn-outline-danger" data-unshare-catalogue
-                    data-registry="{{ s.registry }}" data-pk="{{ s.pk }}">Retirer le partage</button>
-            {% else %}
-            <a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">Ouvrir l'app</a>
-            <button type="button" class="btn btn-sm btn-outline-danger" data-unshare
-                    data-surface="{{ s.surface }}" data-nature="{{ s.nature }}" data-pk="{{ s.pk }}">Retirer le partage</button>
-            {% endif %}
-          </div>
-        </div>
+  {% include 'common/_filter_bar.html' with facettes=facettes cible='.wama-cat-card' mode='client' sort_options=sort_options sort_value='since:desc' placeholder='Rechercher un partage (nom, app, personne…)' %}
+
+  <div class="wama-cat-grid mt-3" style="--cat-card-min: 320px;"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
+    {% for s in items %}
+    <div class="wama-cat-card" data-id="{{ s.label }}"
+         data-f-sens="{{ s.direction }}" data-f-app="{{ s.app_label }}"
+         data-f-nature="{% if s.nature == 'catalogue' %}Élément de catalogue{% elif s.nature == 'lot' %}Lot{% else %}Élément{% endif %}"
+         data-f-partage="{{ s.scope|default:'Personnes' }}"
+         {% if s.owner %}data-f-auteur="{{ s.owner }}"{% endif %}
+         {% if s.mode %}data-f-mode="{{ s.mode.label }}"{% endif %}
+         data-s-since="{{ s.scope_since|date:'U'|default:'0' }}" data-s-label="{{ s.label }}" data-s-app="{{ s.app_label }}"
+         {% if s.preview_url %}data-preview-url="{{ s.preview_url }}"{% endif %}>
+      <h4>{{ s.label }} <span class="wama-cat-badge">{{ s.app_label }}</span></h4>
+      <div class="wama-cat-meta">
+        {% if s.owner %}de <b>{{ s.owner }}</b> · <span class="share-pill">{{ s.mode.icon }} {{ s.mode.label }}</span>{% endif %}
+        {% if s.scope %}<span class="share-pill">{{ s.scope }} · 👁 Lecture seule{% if s.scope_since %} · depuis le {{ s.scope_since|date:'d/m/Y' }}{% endif %}</span>{% endif %}
+        {% for p in s.persons %}<span class="share-pill" data-person="{{ p.grant }}" title="Depuis le {{ p.since|date:'d/m/Y H:i' }}">{{ p.mode.icon }} {{ p.name }} · {{ p.mode.label }} · depuis le {{ p.since|date:'d/m/Y' }}
+          <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="color:var(--wama-danger-softer);font-size:.72rem;"
+                  data-revoke="{{ p.grant }}" title="Retirer le partage avec {{ p.name }}">retirer</button></span>{% endfor %}
       </div>
-      {% empty %}
-      <p class="shares-empty">Vous ne partagez rien pour le moment.</p>
-      {% endfor %}
-    </div>
-    <div class="tab-pane fade" id="sharesReceived" role="tabpanel">
-      {% if outgoing %}
-      <h2 class="h6 text-body-emphasis">Vos demandes en attente</h2>
-      {% for r in outgoing %}
-      <div class="share-row small">{{ r.level }} — « {{ r.label }} » ({{ r.app }}) · <a href="/common/requests/{{ r.id }}/">voir</a></div>
-      {% endfor %}
-      {% endif %}
-      {% for s in received %}
-      <div class="share-row d-flex justify-content-between align-items-center gap-2 flex-wrap">
-        <div>
-          <span class="share-label">{{ s.label }}</span> <span class="text-body-secondary small">({{ s.app }})</span>
-          <div class="share-meta mt-1">de <b>{{ s.owner }}</b> · <span class="share-pill">{{ s.mode.icon }} {{ s.mode.label }}</span></div>
-        </div>
-        {% if s.url %}<a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">{% if s.nature == 'catalogue' %}Ouvrir la page{% else %}Ouvrir l'app{% endif %}</a>{% endif %}
+      <div class="share-gestes">
+        {% if s.url %}<a class="btn btn-sm btn-outline-emphasis py-0" href="{{ s.url }}">{% if s.nature == 'catalogue' %}Ouvrir la page{% else %}Ouvrir l'app{% endif %}</a>{% endif %}
+        {% if s.direction == 'Partagé par moi' %}
+          {% if s.nature == 'catalogue' %}
+          <button type="button" class="btn btn-sm btn-outline-danger py-0" data-unshare-catalogue
+                  data-registry="{{ s.registry }}" data-pk="{{ s.pk }}">Retirer le partage</button>
+          {% else %}
+          <button type="button" class="btn btn-sm btn-outline-danger py-0" data-unshare
+                  data-surface="{{ s.surface }}" data-nature="{{ s.nature }}" data-pk="{{ s.pk }}">Retirer le partage</button>
+          {% endif %}
+        {% endif %}
       </div>
-      {% empty %}
-      <p class="shares-empty">Personne ne vous partage rien pour le moment.</p>
-      {% endfor %}
     </div>
+    {% empty %}
+    <p class="text-body-secondary">Rien n'est partagé, ni par vous ni avec vous, pour le moment.</p>
+    {% endfor %}
   </div>
 </div>
+
 <script>
 (function () {
   const csrf = (document.cookie.match(/csrftoken=([^;]+)/) || [])[1] || '';
@@ -114,30 +117,30 @@ page est celle de leur registre, et « Retirer le partage » les rend privés
       .then(function (r) { return r.json().catch(function () { return { ok: r.ok }; }); });
   }
   function say(msg, type) { if (window.WamaApp && WamaApp.toast) WamaApp.toast(msg, type || 'info'); }
-  document.querySelectorAll('[data-revoke]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      post('/common/api/grants/' + b.dataset.revoke + '/revoke/').then(function (res) {
-        if (res && res.done) { b.closest('[data-person]').remove(); say('Partage retiré pour cette personne.', 'success'); }
-        else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
-      });
+  // Les gestes ne SÉLECTIONNENT pas la tuile : le clic s'arrête au bouton.
+  function gesture(selector, run) {
+    document.querySelectorAll(selector).forEach(function (b) {
+      b.addEventListener('click', function (ev) { ev.stopPropagation(); run(b); });
+    });
+  }
+  gesture('[data-revoke]', function (b) {
+    post('/common/api/grants/' + b.dataset.revoke + '/revoke/').then(function (res) {
+      if (res && res.done) { b.closest('[data-person]').remove(); say('Partage retiré pour cette personne.', 'success'); }
+      else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
     });
   });
-  document.querySelectorAll('[data-unshare-catalogue]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      post('/common/shares/catalogue/unshare/', { registry: b.dataset.registry, pk: b.dataset.pk }).then(function (res) {
-        if (res && res.ok) { b.closest('.share-row').remove(); say('Partage retiré.', 'success'); }
-        else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
-      });
+  gesture('[data-unshare-catalogue]', function (b) {
+    post('/common/shares/catalogue/unshare/', { registry: b.dataset.registry, pk: b.dataset.pk }).then(function (res) {
+      if (res && res.ok) { b.closest('.wama-cat-card').remove(); say('Partage retiré.', 'success'); }
+      else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
     });
   });
-  document.querySelectorAll('[data-unshare]').forEach(function (b) {
-    b.addEventListener('click', function () {
-      const url = '/common/api/partage/' + encodeURIComponent(b.dataset.surface) + '/'
-        + encodeURIComponent(b.dataset.nature) + '/' + encodeURIComponent(b.dataset.pk) + '/';
-      post(url, { visibility: 'private', unshare_persons: '1' }).then(function (res) {
-        if (res && res.ok) { b.closest('.share-row').remove(); say('Partage retiré.', 'success'); }
-        else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
-      });
+  gesture('[data-unshare]', function (b) {
+    const url = '/common/api/partage/' + encodeURIComponent(b.dataset.surface) + '/'
+      + encodeURIComponent(b.dataset.nature) + '/' + encodeURIComponent(b.dataset.pk) + '/';
+    post(url, { visibility: 'private', unshare_persons: '1' }).then(function (res) {
+      if (res && res.ok) { b.closest('.wama-cat-card').remove(); say('Partage retiré.', 'success'); }
+      else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
     });
   });
 })();

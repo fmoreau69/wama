@@ -2693,9 +2693,10 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
 
 - **Domicile** : `wama/common/utils/scoping.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Accès à un objet partageable depuis une vue — DEUX chemins nommés, et deux seulement.
-- **API publique** (6) :
+- **API publique** (7) :
   - `visible_or_404(model, user, **kwargs)` — Objet que `user` a le droit de VOIR : le sien, ou partagé avec lui (unité/projet/public, ou
   - `listable_by(queryset, user)` — Ce que `user` a le droit de LISTER : `visible_to`, sauf pour un compte de visiteur (le
+  - `can_view(instance, user, owner_field: str='user') -> bool` — `user` peut-il VOIR cet objet DÉJÀ CHARGÉ ? Son propriétaire, le staff, ou quiconque peut le
   - `owned_or_404(model, user, **kwargs)` — Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
   - `editable_or_404(model, user, *, trace: str='', **kwargs)` — Objet que `user` peut ÉDITER : le sien, ou un élément sur lequel il COLLABORE.
   - `can_edit(user, obj) -> bool` — Même règle qu'`editable_or_404`, pour un objet déjà en main (cards, gabarits, tâches).

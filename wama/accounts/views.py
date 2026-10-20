@@ -144,6 +144,11 @@ class UserEdit(UpdateView):
     def get_object(self):
         return self.request.user
 
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['volet'] = VOLET_AUCUN          # formulaire de compte, cf. UserPage
+        return context
+
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         # Apply dark theme styling to all form fields

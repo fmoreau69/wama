@@ -10,6 +10,11 @@ LE PRINCIPE. Une page DÉCLARE son volet ; sans déclaration, elle garde les tro
 Le défaut est donc l'état d'AVANT : les 10 apps n'ont rien à écrire et ne changent pas d'un
 pixel (c'est la contrainte n°1 du chantier). Seules les pages transversales déclarent, et ce
 qu'elles déclarent est un RETRAIT.
+⚠ Depuis le 2026-10-20 (Fabien : « on met les champs en fonction du contenu de la page, pas de
+champ par défaut ») une page du COMPTE (`app_registry.register_account_page`) n'a PLUS de
+défaut : sans déclaration, AUCUNE section (`context_processors.volet_defaut`). Mesuré le jour
+même : quatre pages du compte (Partages, Notifications, Formats médias, Apps) héritaient encore
+des trois cadres vides ; Apps en remplit deux, elle les déclare.
 
 POURQUOI UN DICT COMPLET, ET PAS `{% if volet.medias %}` SUR UN DICT PARTIEL. Une variable
 absente vaut « faux » dans un `{% if %}` Django : un dict partiel masquerait donc les sections

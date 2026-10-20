@@ -51,6 +51,27 @@ def listable_by(queryset, user):
     return queryset.visible_to(user)
 
 
+def can_view(instance, user, owner_field: str = 'user') -> bool:
+    """`user` peut-il VOIR cet objet DÉJÀ CHARGÉ ? Son propriétaire, le staff, ou quiconque peut le
+    LISTER (`listable_by` : partagé avec lui, sauf un compte de visiteur). Un objet sans
+    propriétaire est ouvert.
+
+    La règle des chemins de lecture pour qui tient l'objet au lieu de le chercher : l'APERÇU
+    commun (`PreviewRegistry.check_permission`) et le DÉTAIL commun (`unified_detail`). Le second
+    refusait tout compte qui n'était pas le propriétaire : une card REÇUE avait son aperçu (règle
+    posée pour lui le 2026-10-02) mais pas son détail au volet — relevé le 2026-10-20 sur la page
+    « Partages ». Une garde se pose avec son jumeau : elle vit désormais ici, une fois."""
+    owner = getattr(instance, owner_field, None)
+    if owner is None:
+        return True
+    if getattr(user, 'is_staff', False) or owner == user:
+        return True
+    manager = type(instance)._default_manager
+    if hasattr(manager, 'visible_to'):
+        return listable_by(manager.all(), user).filter(pk=instance.pk).exists()
+    return False
+
+
 def owned_or_404(model, user, **kwargs):
     """
     Objet que `user` a le droit de MODIFIER — aujourd'hui : le sien, point.
