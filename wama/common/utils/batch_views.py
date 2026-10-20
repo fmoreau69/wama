@@ -183,52 +183,86 @@ def _render_safely(render, item, fmt):
 
 def zip_elements(work_model, items, request, declaration=None):
     """Le ZIP des RÉSULTATS de `items` (seuls les éléments réussis y entrent) : `(tampon, format)`.
+    La règle d'écriture est celle de `ResultArchive.add_elements`."""
+    archive = ResultArchive()
+    fmt = archive.add_elements(work_model, items, request, declaration)
+    return archive.zip(), fmt
 
-    Une règle, dans cet ordre :
-      1. app LATE-BINDING (`export_binding='late'` : describer, reader, transcriber) — chaque
-         entrée est RENDUE au format demandé (`?format=`, borné aux formats déclarés), par le rendu
-         que l'app a enregistré ; un rendu qui échoue retombe sur le premier format déclaré (l'idiome
-         des trois vues de file, « jamais un ZIP en erreur pour un élément ») ;
-      2. résultat TEXTE déclaré (`output_text`, apps générées) — une entrée `.txt` ;
-      3. sinon les sorties DÉCLARÉES de la card (`send_to.sorties_de` : `result_file` et
-         `result_files` de sa spec de détail — la même lecture qu'« Envoyer vers… ») ; repli sur le
-         champ servi (`output_field`) pour un modèle sans spec. ⚠ Lire un NOM de champ au lieu de
-         la déclaration faisait répondre 404 au ZIP de lot de l'imager et du composer
-         (`output_file` par défaut, champ qu'ils n'ont pas — mesuré le 2026-10-17).
-    Une entrée prend le nom DÉCLARÉ (`output_name`, quand l'élément n'a qu'un fichier) ou celui de
-    son fichier ; deux entrées de même nom ne s'écrasent pas.
 
-    `declaration` : celle de la fabrique appelante (le ZIP de lot passe la sienne) ; absente, celle
-    que l'app a inscrite pour ce modèle (`_ZIP_DECLARATIONS`, lue par le ZIP de file).
-    """
-    import os
-    from urllib.parse import unquote
+class ResultArchive:
+    """Les entrées d'un ZIP de RÉSULTATS, nommées sans collision — l'écrivain que partagent le ZIP
+    d'un lot, celui de la file (`zip_elements`) et celui d'une exécution du Studio
+    (`studio/services/run_results.py`, 2026-10-20), qui y range les éléments de PLUSIEURS apps à
+    côté de fichiers. Rien n'est écrit avant `zip()` : un appelant qui n'a qu'une entrée peut la
+    servir telle quelle (`entries`)."""
 
-    from django.conf import settings
-    from wama.common.utils.export_formats import (export_builder_for, is_late_binding,
-                                                  requested_format)
-    app = work_model._meta.app_label
-    decl = declaration if declaration is not None else (_ZIP_DECLARATIONS.get(work_model) or {})
-    output_name, output_field = decl.get('output_name'), decl.get('output_field')
-    output_text = decl.get('output_text')
-    render = export_builder_for(app) if is_late_binding(app) else None
-    fmt = requested_format(app, request.GET) if render is not None else ''
-    first = requested_format(app, {}) if render is not None else ''
-    surface = _surface_of(work_model) if render is None and not output_text else None
-    used = set()
+    def __init__(self):
+        self.entries = []          # [(nom, Path | octets)]
+        self._used = set()
 
-    def _unique(name):
+    def _unique(self, name):
+        import os
         stem, ext = os.path.splitext(name)
         n, candidate = 1, name
-        while candidate in used:
+        while candidate in self._used:
             n += 1
             candidate = f'{stem}_{n}{ext}'
-        used.add(candidate)
+        self._used.add(candidate)
         return candidate
 
-    buf = io.BytesIO()
-    # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
-    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+    def add_bytes(self, name, data):
+        self.entries.append((self._unique(name), data))
+
+    def add_file(self, path, name=''):
+        self.entries.append((self._unique(name or Path(path).name), Path(path)))
+
+    def zip(self):
+        buf = io.BytesIO()
+        # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
+        with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+            for name, data in self.entries:
+                if isinstance(data, Path):
+                    z.write(data, name)
+                else:
+                    z.writestr(name, data)
+        buf.seek(0)
+        return buf
+
+    def add_elements(self, work_model, items, request, declaration=None):
+        """Ajoute les RÉSULTATS de `items` (seuls les éléments réussis) ; rend le format demandé.
+
+        Une règle, dans cet ordre :
+          1. app LATE-BINDING (`export_binding='late'` : describer, reader, transcriber) — chaque
+             entrée est RENDUE au format demandé (`?format=`, borné aux formats déclarés), par le rendu
+             que l'app a enregistré ; un rendu qui échoue retombe sur le premier format déclaré (l'idiome
+             des trois vues de file, « jamais un ZIP en erreur pour un élément ») ;
+          2. résultat TEXTE déclaré (`output_text`, apps générées) — une entrée `.txt` ;
+          3. sinon les sorties DÉCLARÉES de la card (`send_to.sorties_de` : `result_file` et
+             `result_files` de sa spec de détail — la même lecture qu'« Envoyer vers… ») ; repli sur le
+             champ servi (`output_field`) pour un modèle sans spec. ⚠ Lire un NOM de champ au lieu de
+             la déclaration faisait répondre 404 au ZIP de lot de l'imager et du composer
+             (`output_file` par défaut, champ qu'ils n'ont pas — mesuré le 2026-10-17).
+        Une entrée prend le nom DÉCLARÉ (`output_name`, quand l'élément n'a qu'un fichier) ou celui de
+        son fichier ; deux entrées de même nom ne s'écrasent pas.
+
+        `declaration` : celle de la fabrique appelante (le ZIP de lot passe la sienne) ; absente, celle
+        que l'app a inscrite pour ce modèle (`_ZIP_DECLARATIONS`, lue par le ZIP de file).
+        """
+        import os
+        from urllib.parse import unquote
+
+        from django.conf import settings
+        from wama.common.utils.export_formats import (export_builder_for, is_late_binding,
+                                                      requested_format)
+        app = work_model._meta.app_label
+        decl = declaration if declaration is not None else (_ZIP_DECLARATIONS.get(work_model) or {})
+        output_name, output_field = decl.get('output_name'), decl.get('output_field')
+        output_text = decl.get('output_text')
+        render = export_builder_for(app) if is_late_binding(app) else None
+        fmt = requested_format(app, request.GET) if render is not None else ''
+        first = requested_format(app, {}) if render is not None else ''
+        surface = _surface_of(work_model) if render is None and not output_text else None
+
         for item in items:
             if getattr(item, 'status', '') != 'SUCCESS':
                 continue
@@ -237,7 +271,7 @@ def zip_elements(work_model, items, request, declaration=None):
                     fmt != first and _render_safely(render, item, first))
                 if built:
                     ext, data = built
-                    z.writestr(_unique(f'{export_stem(work_model, item, decl)}.{ext}'), data)
+                    self.add_bytes(f'{export_stem(work_model, item, decl)}.{ext}', data)
                 continue
             if output_text:
                 text = getattr(item, output_text, '') or ''
@@ -247,7 +281,7 @@ def zip_elements(work_model, items, request, declaration=None):
                     name = (output_name(item) if output_name is not None else '') or \
                         compose_output_name(app=app, ext='.txt', item_id=item.pk,
                                             source_name=Path(src.name).name if src else '')
-                    z.writestr(_unique(name), text)
+                    self.add_bytes(name, text)
                 continue
             paths = []
             if surface:
@@ -259,14 +293,13 @@ def zip_elements(work_model, items, request, declaration=None):
                 declared = (output_name(item) if output_name is not None and len(paths) == 1
                             else '') or ''
                 for path in paths:
-                    z.write(path, _unique(declared or path.name))
+                    self.add_file(path, declared or path.name)
                 continue
             out = getattr(item, output_field, None) if output_field else None
             if out:
                 name = (output_name(item) if output_name is not None else '') or Path(out.name).name
-                z.writestr(_unique(name), out.read())
-    buf.seek(0)
-    return buf, fmt
+                self.add_bytes(name, out.read())
+        return fmt
 
 
 def export_stem(work_model, item, declaration=None):

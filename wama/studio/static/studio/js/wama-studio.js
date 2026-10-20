@@ -1072,10 +1072,28 @@
         s.className = 'small ms-2 ' + (cls || 'text-body-secondary');
     }
 
+    // ⬇ « Télécharger tout » du run (2026-10-20) : le bouton de la barre de file
+    // (`_download_button.html`, basculé par la brique commune) — prêt quand le run terminé a au
+    // moins un résultat ; les bouts de branche qui n'en laissent pas sont NOMMÉS.
+    function setRunDownload(runId, results) {
+        var el = document.getElementById('studioRunDownload');
+        if (!el || !window.WamaGlobalProgress) return;
+        var count = (results && results.count) || 0;
+        el.setAttribute('href', count ? '/studio/api/run/' + runId + '/download/' : '#');
+        WamaGlobalProgress.setDownloadReady(el, count > 0);
+        var missing = (results && results.missing) || [];
+        if (missing.length) {
+            toast('Non conservé dans un fichier : ' + missing.map(function (m) {
+                return m.label + ' (' + m.reason + ')';
+            }).join(' ; '), 'warning');
+        }
+    }
+
     function runPipeline() {
         if (runPoll) { toast('Une exécution est déjà en cours.', 'warning'); return; }
         if (!nodes.length) { toast('Le canvas est vide.', 'warning'); return; }
         clearRunStates();
+        setRunDownload(null, null);
         var btn = document.getElementById('studioRunBtn');
         api('/studio/api/run/', { method: 'POST',
             body: JSON.stringify({ graph: serializeGraph() }) })
@@ -1104,6 +1122,7 @@
                 clearAllFlows();
                 var btn = document.getElementById('studioRunBtn');
                 if (btn) btn.disabled = false;
+                setRunDownload(runId, d.results);
                 if (d.status === 'SUCCESS') {
                     setRunStatus('Terminé ✔ (' + (d.processing_display || '') + ')', 'text-success');
                     toast('Pipeline terminé — sorties dans les files des apps.', 'success');

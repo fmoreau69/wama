@@ -220,10 +220,41 @@ def api_run_status(request, pk):
         run = StudioRun.objects.get(pk=pk, user=request.user)
     except StudioRun.DoesNotExist:
         return JsonResponse({'error': 'Run introuvable'}, status=404)
-    return JsonResponse({
+    payload = {
         'id': run.pk,
         'status': run.status,
         'node_states': run.node_states,
         'error': run.error_message,
         'processing_display': run.processing_display,
-    })
+    }
+    if run.status in ('SUCCESS', 'FAILURE'):
+        # Ce que le ⬇ du run servira (`services/run_results.py`) — lu une fois le run terminé.
+        from .services.run_results import run_results
+        results, missing = run_results(run, request.user)
+        payload['results'] = {'count': len(results), 'missing': missing}
+    return JsonResponse(payload)
+
+
+@login_required
+def api_run_download(request, pk):
+    """GET : ⬇ les résultats d'un run en ZIP — le bout de chaque branche, chaque card écrite par
+    l'écrivain du « ⬇ Télécharger tout » de la file (`services/run_results.run_archive`).
+    `?format=` choisit le rendu d'une app late-binding, comme dans la file."""
+    import datetime
+
+    from django.http import FileResponse
+    from .models import StudioRun
+    from .services.run_results import run_archive
+    if request.method != 'GET':
+        from django.http import HttpResponseNotAllowed
+        return HttpResponseNotAllowed(['GET'])
+    try:
+        run = StudioRun.objects.get(pk=pk, user=request.user)
+    except StudioRun.DoesNotExist:
+        return JsonResponse({'error': 'Run introuvable'}, status=404)
+    archive, missing = run_archive(run, request.user, request)
+    if not archive.entries:
+        return JsonResponse({'error': 'Aucun résultat à télécharger', 'missing': missing},
+                            status=404)
+    name = '_'.join(['studio', f'run{run.pk}', str(datetime.date.today())]) + '.zip'
+    return FileResponse(archive.zip(), as_attachment=True, filename=name)

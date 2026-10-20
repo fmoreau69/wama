@@ -1580,8 +1580,10 @@ MECHANISMS = (
               "Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, "
               "batch_update, batch_delete, batch_duplicate, batch_download, batch_status — "
               "et l'ÉCRIVAIN de ZIP partagé avec la file (`zip_elements`, 2026-10-17 : rendu "
-              "late-binding, sinon les sorties DÉCLARÉES de la card ; nommage déclaré ici une fois) — "
-              "paramétrée comme la fabrique de file (les deux formes de rattachement par "
+              "late-binding, sinon les sorties DÉCLARÉES de la card ; nommage déclaré ici une fois ; "
+              "`ResultArchive` depuis le 2026-10-20, qui range dans UN ZIP les cards de plusieurs "
+              "apps — celui d'une exécution du Studio) — paramétrée comme la fabrique de file "
+              "(les deux formes de rattachement par "
               "`batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps "
               "conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps "
               "réelles les écrivaient chacune à la main (60 lectures de lot recopiées, "
@@ -2773,6 +2775,9 @@ MECHANISMS = (
                        # ce que fournit chaque nœud, ce que reçoit un nœud — LE parcours que lit
                        # aussi le diagnostic des liens.
                        'wama/studio/services/graph_flow.py',
+                       # Les RÉSULTATS d'un run (le bout de chaque branche) et leur ZIP, écrit par
+                       # l'écrivain du ⬇ de la file (2026-10-20).
+                       'wama/studio/services/run_results.py',
                        # La PALETTE d'un compte, seule règle de ce qu'il peut poser et lancer, et
                        # la raison d'un nœud qu'elle n'offre pas (2026-10-19, ROADMAP §16.11).
                        'wama/studio/services/palette.py')),

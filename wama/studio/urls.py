@@ -19,4 +19,6 @@ urlpatterns = [
          name='api_declared_pipeline_detail'),
     path('api/run/', views.api_run, name='api_run'),
     path('api/run/<int:pk>/', views.api_run_status, name='api_run_status'),
+    # ⬇ les résultats d'un run en ZIP (2026-10-20)
+    path('api/run/<int:pk>/download/', views.api_run_download, name='api_run_download'),
 ]

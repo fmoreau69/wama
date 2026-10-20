@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load wama_static %}
+{% load wama_actions %}
 
 {% block title %}Studio (méta-app) — WAMA{% endblock %}
 
@@ -24,6 +25,10 @@
         </select>
         <button id="studioRunBtn" class="btn btn-sm btn-success" title="Exécuter le pipeline"><i class="fas fa-play me-1"></i>Exécuter</button>
         <span id="studioRunStatus" class="small ms-2 text-body-secondary"></span>
+        {% comment %}⬇ les résultats du run (2026-10-20) — le bouton de la barre de file, par la même
+        brique (`queue=True` : un lien basculé par `WamaGlobalProgress.setDownloadReady`) ;
+        `wama-studio.js` lui donne l'adresse du run terminé.{% endcomment %}
+        {% download_button 'studio' '#' False title='Télécharger tout' empty_title='Aucun résultat — exécutez le pipeline' css_class='btn-info' html_id='studioRunDownload' label='Télécharger tout' split=False queue=True %}
         {% comment %}Annuler / Rétablir — brique COMMUNE `wama-history.js` (partagée avec la page
         de correction du transcriber). `disabled` À L'ÉCRITURE : c'est l'historique qui les
         active, et un bouton actif sur une pile vide promet une action qui ne viendra pas.
@@ -92,5 +97,6 @@ il n'est pas global à `base.html` (cf. `common/_app_scripts.html`). `wama-model
 une source d'options adossée à la médiathèque a besoin (le bouton des voix), comme dans une app.{% endcomment %}
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
+<script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
 <script src="{% static_v 'studio/js/wama-studio.js' %}"></script>
 {% endblock %}

@@ -4400,6 +4400,17 @@ voix jamais, et un lien « Texte » refusait le lancement) ; les étapes `summar
   le format (`read_settings_payload(empty_is_value=…)`). Des résultats de natures différentes n'ont
   pas de format commun : le ZIP commun (`batch_views.zip_elements`) range chaque fichier dans le
   sien — le ZIP d'un run du Studio est la passe suivante, acceptée par Fabien.
+  ✅ **Livré le 2026-10-20** (consigne de Fabien : *« aligné avec le reste de WAMA, on ne réinvente
+  rien »*) : le ⬇ « Télécharger tout » de la barre du Studio (la brique `_download_button.html`,
+  `queue=True`, basculée par `WamaGlobalProgress.setDownloadReady`) sert le ZIP des RÉSULTATS d'un
+  run — le bout de chaque branche, process dont rien ne part sinon vers une sortie
+  (`studio/services/run_results.py`). Chaque card y est écrite par l'écrivain du ⬇ de la file,
+  extrait en `batch_views.ResultArchive` pour ranger les cards de PLUSIEURS apps dans une archive
+  (rendu late-binding, sorties déclarées, noms déclarés, `?format=`) ; un fichier hors card se
+  prend s'il est lisible par le compte (`resoudre_chemin_lisible`, la règle de l'assistant et de
+  l'API). Une donnée calculée en mémoire (fonction pure) ne survit pas au run : elle est NOMMÉE au
+  canvas comme non conservée, jamais tue. Garde `studio.tests_run_results` (contre-épreuves
+  rouges : bouts = tous les process, card hors écrivain de file, fichier lu sans la règle commune).
 - **Le nœud Sortie** ne fait plus CLASSER à la main : les usages admissibles sont ceux du geste
   commun de la médiathèque (`media_library.services.candidate_asset_types`, sa politique
   d'acceptation — ramené à la revérification, un premier jet comparait des catégories) ;
@@ -4424,7 +4435,9 @@ voix jamais, et un lien « Texte » refusait le lancement) ; les étapes `summar
   `natures.CATEGORY_DEFAULT` (domicile A′, déclaré pour les puits du Studio) ; le nœud Sortie
   écrit son `UserAsset` lui-même au lieu de passer par `media_library.services.add_file_to_library`,
   et ne lit pas encore l'usage DÉCLARÉ par l'app amont (`result_role`, que `admissible_roles`
-  ferait primer) — à ramener avec le ZIP d'un run.
+  ferait primer) — à ramener avec le ZIP d'un run. ⏳ Toujours dû au 2026-10-20 : le ZIP lit les
+  CARDS, pas les assets de la Sortie, donc il n'en dépendait pas ; reste aussi que la Sortie
+  COPIE, là où le geste commun DÉPLACE (`export_item_to_library`, décision du 2026-09-27).
 
 **3.4 Étages = sous-pipelines.** Le champ `stage` de cam_analyzer (`analyse` / `calcul`,
 `cam_analyzer.json` lignes 105 et 195) devient une STRUCTURE : deux pipelines (« analyse d'image »,
