@@ -25311,3 +25311,24 @@ progression vivante — `tool_api._status_row` / `progress_views._live` — et u
 le repli `eta_for` dans l'échange : un chantier sur les dix apps) ; `check_docs` : la seule
 référence cassée restante était dans MON bloc de `defab85a` (le chemin du gabarit retiré, cité) —
 décitée.
+
+## §PALIER 2026-10-20 (nuit), « TRANSCRIBER, étape 1 : l'ÉDITEUR sur l'AXE COMMUN, parité geste par geste » — `bdc84f6c`, non poussé — 🔴 relancer gunicorn (gabarit `edit.html`, JS servis)
+
+Chantier reçu par la §PASSATION « APERÇU » ci-dessus (session « Briques UI »). Domicile du détail :
+`ROUTE §F3b`, bloc « 2026-10-20 — L'ÉDITEUR DU TRANSCRIBER SUR L'AXE COMMUN » ; page :
+`TRANSCRIBER_CORRECTION.md` 2e.
+- **Méthode exigée, tenue** : inventaire → scénario `transcriber.editor_parity` (38 gestes, sondés
+  par l'`<audio>` et le DOM seuls) → **38/38 avant**, contre-épreuve rouge, portage, **38/38 après**
+  (serveur éphémère : la prod rendait 500 sur TOUTES les pages à 19 h 14 — `_assistant_avatar.html`
+  cite `ai_chat_jobs`, route d'une autre session absente du gunicorn d'alors).
+- **Aligné, rien de réinventé** : le transport de l'éditeur est `WamaAxis` + `WamaShuttle` ; la
+  lecture et la position passent par le lecteur commun (crochets `attach(el, {play, seek})`) — une
+  première version recopiait la règle de `WamaAudioPlayer.seek`, retirée ; `media_transport` (la
+  partition du composer) passe par les mêmes crochets. `R163`.
+- **Face Pendant** non touchée (consigne de Fabien) ; ses tests verts.
+- **Rouges d'autrui** : budgets de langue (code 2653 > 2651, noms de tests 1294 > 1291 — aucun de mes
+  fichiers) ; `common.gestures.touch` par le studio (`/studio/api/node-context/`, `33b837f1`).
+- 🔚 **Étape 2, la PAGE D'ÉDITION sur les briques UI** : vues de l'éditeur en briques universelles
+  (onde fenêtrée à couches, carte de chaleur, minimap, segments), lecteur nu non synchronisé du volet
+  (`edit.html:238`), puis surface déclarée — forme à trancher par Fabien. Même méthode : la batterie
+  rejouée avant/après.
