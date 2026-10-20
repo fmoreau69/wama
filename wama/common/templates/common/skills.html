@@ -154,7 +154,8 @@
       Un skill à vous porte le <strong>nom</strong> d'un skill de prompt (<code>imager-image</code>,
       <code>composer</code>, <code>default-generative</code>…) : pour vous seul, il passe devant le
       skill système du même nom. Il naît <strong>privé</strong> ; partagé, il se <em>copie</em>, il
-      ne s'impose à personne. Un administrateur peut le rendre système.
+      ne s'impose à personne. Un administrateur peut le rendre système. Tout ce que vous partagez,
+      skills compris, se retrouve dans <a href="{% url 'common:shares' %}">Mes partages</a>.
     </p>
     <form id="skNew" class="d-flex flex-column gap-1">
       <input name="name" class="form-control form-control-sm" maxlength="64" required
@@ -168,8 +169,8 @@
       <div class="wama-cat-card" data-pk="{{ k.pk }}">
         <h4>
           <code>{{ k.name }}</code>
-          <span class="wama-cat-badge sk-compte">{% if k.system %}Système{% elif k.mine %}À moi{% else %}Partagé par {{ k.owner }}{% endif %}</span>
-          <span class="sk-selection">{{ k.visibility_label }}{% if k.scope %} · {{ k.scope }}{% endif %}</span>
+          <span class="wama-cat-badge sk-compte">{{ k.provenance }}</span>
+          {% if k.scope_label %}<span class="sk-selection">{{ k.scope_label }}</span>{% endif %}
         </h4>
         {% if k.can_edit %}
         <textarea class="form-control form-control-sm" rows="5" data-role="text">{{ k.text }}</textarea>
@@ -179,12 +180,8 @@
         <div class="sk-gestes">
           {% if k.can_edit %}<button type="button" class="btn btn-sm btn-outline-primary py-0" data-action="update">Enregistrer</button>{% endif %}
           {% if k.can_share %}
-          <select class="form-select form-select-sm w-auto py-0" data-role="scope">
-            {% for p in skills_scopes %}{% if p.cibles %}{% for c in p.cibles %}
-            <option value="{{ p.valeur }}:{{ c.id }}"{% if p.valeur == k.visibility and c.id|stringformat:"s" == k.scope_value|cut:"unit:"|cut:"project:" %} selected{% endif %}>{{ p.libelle }} — {{ c.libelle }}</option>
-            {% endfor %}{% else %}
-            <option value="{{ p.valeur }}"{% if p.valeur == k.scope_value %} selected{% endif %}>{{ p.libelle }}</option>
-            {% endif %}{% endfor %}
+          <select class="form-select form-select-sm w-auto py-0" data-role="scope" aria-label="Portée">
+            {% for o in skills_scopes %}<option value="{{ o.value }}"{% if o.value == k.scope %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
           </select>
           <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-action="share">Partager</button>
           {% endif %}

@@ -211,6 +211,7 @@ def _search_engine_options(user) -> list:
 def profile_view(request):
     """Unified profile page: user info + preferred language + API token."""
     from rest_framework.authtoken.models import Token
+    from wama.common.services.sharing import scope_choices
     from wama.common.tts.constants import LANGUAGE_CHOICES
 
     token_obj, _ = Token.objects.get_or_create(user=request.user)
@@ -240,7 +241,8 @@ def profile_view(request):
         # Profil le montre (`charter:<pk>` sous une charte).
         'theme_charters': getattr(themes, 'charter_choices', lambda user: [])(request.user),
         'theme_profile_choice': getattr(themes, 'profile_choice', themes.theme_choice)(request.user),
-        'theme_scopes': _theme_scopes(request.user),
+        # Les portées OFFERTES, à plat pour un `<select>` (`sharing.scope_choices`).
+        'theme_scopes': scope_choices(request.user),
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
@@ -527,29 +529,6 @@ def _theme_reply(user, declared):
     return {'key': declared.resolve(stored).key, 'accent': accent, 'css': css}
 
 
-def _theme_scopes(user) -> list:
-    """Les portées qu'un thème de charte peut prendre, à plat pour un `<select>` : `private`,
-    `unit:<id>`, `project:<id>`, `public` — celles que le service commun OFFRE à ce compte."""
-    from wama.common.services.sharing import portees_offrables
-    flat = []
-    for offer in portees_offrables(user):
-        if offer['cibles']:
-            flat += [{'value': f"{offer['valeur']}:{c['id']}", 'label': f"{offer['libelle']} — {c['libelle']}"}
-                     for c in offer['cibles']]
-        else:
-            flat.append({'value': offer['valeur'], 'label': offer['libelle']})
-    return flat
-
-
-def _share_theme(user, row, scope: str):
-    """Pose la portée `scope` (forme de `_theme_scopes`) par le service commun `partager`."""
-    from wama.common.services.sharing import partager
-    visibility, _, target = (scope or 'private').partition(':')
-    return partager(user, row, visibility,
-                    org_unit_id=target if visibility == 'unit' else None,
-                    project_id=target if visibility == 'project' else None)
-
-
 @login_required
 @require_POST
 def theme_charter_read(request):
@@ -593,7 +572,7 @@ def theme_charter_save(request):
     partagée si une portée est donnée — et le pose comme thème du compte."""
     from wama.common import themes as declared
     from wama.common.models import UserTheme
-    from wama.common.services.sharing import RefusDePartage
+    from wama.common.services.sharing import RefusDePartage, share_scope
     from wama.common.theme_charter import check_seeds
 
     try:
@@ -611,7 +590,7 @@ def theme_charter_save(request):
                 'created_by': request.user.get_username()})
     try:
         if (data.get('scope') or 'private') != 'private':
-            _share_theme(request.user, row, data.get('scope'))
+            share_scope(request.user, row, data.get('scope'))
     except RefusDePartage as exc:
         return JsonResponse({'error': f'Thème enregistré, mais non partagé : {exc}', 'pk': row.pk}, status=400)
     choice = declared.save_theme_choice(request.user, f'{declared.CHARTER_PREFIX}{row.pk}')
@@ -625,8 +604,8 @@ def theme_charter_manage(request):
     """AJAX : `share` (une portée, par le service commun), `delete` (son auteur, ou un admin),
     `promote` (un ADMIN seul, décision b du §29 : le thème devient SYSTÈME, sans propriétaire,
     l'auteur gardé pour l'attribution)."""
-    from wama.accounts.permissions import is_admin_tier
-    from wama.common.services.sharing import RefusDePartage
+    from wama.common.manifests.ownership import may_remove, promote_by
+    from wama.common.services.sharing import RefusDePartage, share_scope
     from wama.common.themes import charter_themes
 
     try:
@@ -636,26 +615,25 @@ def theme_charter_manage(request):
     row = charter_themes(request.user).filter(pk=data.get('pk') if str(data.get('pk', '')).isdigit() else -1).first()
     if row is None:
         return JsonResponse({'error': 'Thème inconnu.'}, status=404)
-    action, admin = data.get('action'), is_admin_tier(request.user)
-    mine = row.owner_id is not None and row.owner_id == request.user.pk
+    action = data.get('action')
     if action == 'share':
         try:
-            done = _share_theme(request.user, row, data.get('scope'))
+            done = share_scope(request.user, row, data.get('scope'))
         except RefusDePartage as exc:
             return JsonResponse({'error': str(exc)}, status=403)
         return JsonResponse({'success': True, 'visibility': done['visibility']})
     if action == 'delete':
-        if not (mine or admin):
+        if not may_remove(request.user, row):
             return JsonResponse({'error': "Seul son auteur, ou un administrateur, le retire."}, status=403)
         row.delete()
         return JsonResponse({'success': True})
     if action == 'promote':
-        if not admin:
-            return JsonResponse({'error': 'Rendre un thème système est réservé aux administrateurs.'}, status=403)
-        if row.owner_id is None:
-            return JsonResponse({'error': 'Ce thème est déjà système.'}, status=400)
-        from wama.common.manifests.ownership import promote_owned_row
-        promote_owned_row(row, by=request.user)
+        try:
+            promote_by(request.user, row, 'thème')
+        except PermissionError as exc:
+            return JsonResponse({'error': str(exc)}, status=403)
+        except ValueError as exc:
+            return JsonResponse({'error': str(exc)}, status=400)
         return JsonResponse({'success': True})
     return JsonResponse({'error': f'Action inconnue : {action!r}'}, status=400)
 

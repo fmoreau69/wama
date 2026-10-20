@@ -6590,6 +6590,15 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
    - **Gardes** : `common/tests/tests_skill_provenance` (14), un cas de plus dans
      `tests_registry_provenance`. Sept contre-épreuves, toutes rouges, sur cinq brèches (table
      ignorée, partage imposé, `in_code` aveugle, tout compte admin, fichiers du dépôt ignorés).
+   - **Revérification (même jour)** : partage COPIABLE confirmé par Fabien. Trois recopies
+     ramenées à leur domicile, toutes trois nées au Profil pour les thèmes de charte et recopiées
+     par les skills : la portée comme choix d'un `<select>` et son écriture
+     (`sharing.scope_choices`, `scope_value`, `share_scope`, ex-`accounts/views._theme_scopes` et
+     `_share_theme`), la provenance d'une ligne et ses gestes (`ownership.provenance_of`,
+     `may_remove`, `promote_by`, ex-`themes.charter_choices` et `theme_charter_manage`). Et,
+     relevé par Fabien, **« Mes partages » montre TOUS les partages** : elle ne parcourait que les
+     surfaces de file ; les éléments de catalogue qui ont un auteur y entrent, dérivés des
+     registres (`sharing.catalogue_owned_rows`, `WAMA_COLLABORATION §5.3`).
    - **Ce que l'étape ne fait PAS** : aucune demande de promotion par l'auteur (le bouton ira avec
      la pastille, étape 6) ; pas de manifeste `skill` (le corpus versionné n'en porte pas) ; un
      skill de rôle d'assistant n'a pas de version d'utilisateur.

@@ -34,9 +34,11 @@ destinataire, ni les mêmes contraintes d'exécution.
 > depuis wama-dev-ai) **qui n'existe pas dans le code**. Soit on le construit, soit on retire
 > la promesse ; la laisser fait croire à un câblage absent.
 
-**`skills_catalog()` n'est pas une fonction morte** — c'est la brique du futur **catalogue de
+**`skills_catalog()` n'est pas une fonction morte** — ~~c'est la brique du futur **catalogue de
 skills** (page de gestion dans le menu utilisateur, pendant de la page RAG). Elle attend son
-consommateur, elle ne le remplace pas.
+consommateur, elle ne le remplace pas.~~ Corrigé le 2026-10-20 : la page existe depuis le
+2026-08-27 (`/common/skills/`, menu du compte « Skills ») et la lit ; depuis le 2026-10-20 elle
+porte aussi la gestion des skills d'un compte (section « Mes skills »).
 
 ## Enrichissement (consignes par application)
 

@@ -72,7 +72,8 @@ def shares_overview(user, limit: int = 200) -> dict:
 
     L'unité est l'ENTRÉE de file (le lot, ou la card sans lot) — celle du partage, du rangement et
     de la collaboration. Les modèles se DÉRIVENT des surfaces enregistrées (`PreviewRegistry`) :
-    aucune app n'est nommée ici."""
+    aucune app n'est nommée ici. Depuis le 2026-10-20, les éléments de CATALOGUE qui ont un
+    auteur s'y ajoutent, dérivés des registres portés (`catalogue_owned_rows`)."""
     from django.db.models import Q
     from wama.common.models import ObjectGrant
     from wama.common.services.access_requests import _label, collaboration_grant, entry_of, target
@@ -141,7 +142,11 @@ def shares_overview(user, limit: int = 200) -> dict:
             incoming.append(row)
         elif grant.beneficiary_id == user.pk:
             outgoing.append(row)
-    return {'shared': shared, 'received': received, 'incoming': incoming, 'outgoing': outgoing}
+    # Les éléments de CATALOGUE qu'un compte possède (skills de prompt, thèmes de charte,
+    # fonctions et modèles d'utilisateur — `ROADMAP §29`) : la même page, pas une seconde.
+    cat_shared, cat_received = _catalogue_shares(user, limit)
+    return {'shared': shared + cat_shared, 'received': received + cat_received,
+            'incoming': incoming, 'outgoing': outgoing}
 
 
 def scope_label(element) -> str:
@@ -155,6 +160,98 @@ def scope_label(element) -> str:
     if vis == ScopedVisibility.VIS_PROJECT and getattr(element, 'scope_project', None):
         return str(element.scope_project)
     return PORTEES.get(vis, vis)
+
+
+# ── La portée comme UN choix (`private`, `public`, `unit:<id>`, `project:<id>`) ───────────────
+# La forme d'un `<select>` de portée, pour les éléments qui se partagent hors de la modale des
+# cards : les éléments de CATALOGUE qu'un compte possède (thème de charte, skill de prompt…,
+# `ROADMAP §29`). Née au Profil pour les thèmes (`accounts/views`, 2026-10-20), sortie ici à la
+# revérification du jour même, quand les skills la recopiaient.
+
+def scope_choices(user) -> list:
+    """Les portées que `user` peut offrir, à plat : `[{value, label}]` (`portees_offrables`)."""
+    flat = []
+    for offer in portees_offrables(user):
+        if offer['cibles']:
+            flat += [{'value': f"{offer['valeur']}:{c['id']}",
+                      'label': f"{offer['libelle']} — {c['libelle']}"} for c in offer['cibles']]
+        else:
+            flat.append({'value': offer['valeur'], 'label': offer['libelle']})
+    return flat
+
+
+def scope_value(element) -> str:
+    """La portée COURANTE d'un élément dans la forme de `scope_choices`."""
+    vis = getattr(element, 'visibility', ScopedVisibility.VIS_PRIVATE)
+    if vis == ScopedVisibility.VIS_UNIT and getattr(element, 'scope_org_unit_id', None):
+        return f'unit:{element.scope_org_unit_id}'
+    if vis == ScopedVisibility.VIS_PROJECT and getattr(element, 'scope_project_id', None):
+        return f'project:{element.scope_project_id}'
+    return vis
+
+
+def share_scope(user, element, scope: str, consent: bool = False) -> dict:
+    """Pose la portée `scope` (forme de `scope_choices`) par `partager`."""
+    visibility, _, target = (scope or ScopedVisibility.VIS_PRIVATE).partition(':')
+    return partager(user, element, visibility,
+                    org_unit_id=target if visibility == ScopedVisibility.VIS_UNIT else None,
+                    project_id=target if visibility == ScopedVisibility.VIS_PROJECT else None,
+                    consent=consent)
+
+
+def catalogue_owned_rows():
+    """Les familles du CATALOGUE dont une ligne a un auteur (`owner`) : `[(registre, modèle)]`,
+    lues des registres portés (`Registry.owner_model`) — aucune famille n'est nommée ici. Les
+    instances (cards, RAG, souvenirs) ont un `user` et leurs propres pages."""
+    from django.apps import apps
+    from django.core.exceptions import FieldDoesNotExist
+    from wama.common.registries import CARRIED, REGISTRIES
+    out = []
+    for r in REGISTRIES.values():
+        if r.provenance not in CARRIED or not r.owner_model:
+            continue
+        model = apps.get_model(r.owner_model)
+        try:
+            model._meta.get_field('owner')
+        except FieldDoesNotExist:
+            continue
+        out.append((r, model))
+    return out
+
+
+def _catalogue_shares(user, limit: int):
+    """Les éléments de CATALOGUE partagés — par `user` (`shared`) et à lui (`received`) — pour la
+    page « Partages ». Un élément système n'est partagé par personne : il n'y figure pas."""
+    import logging
+    from django.db import DatabaseError, transaction
+    from django.urls import NoReverseMatch, reverse
+    from wama.common.models import scoped_visible_q
+    shared, received = [], []
+    for registry, model in catalogue_owned_rows():
+        try:
+            url = reverse(registry.url_name) if registry.url_name else ''
+        except NoReverseMatch:
+            url = ''
+        try:
+            with transaction.atomic():
+                base = (model._default_manager.exclude(visibility=ScopedVisibility.VIS_PRIVATE)
+                        .select_related('owner', 'scope_org_unit', 'scope_project'))
+                mine = list(base.filter(owner=user)[:limit])
+                theirs = list(base.filter(scoped_visible_q(user, owner_field='owner', model=model))
+                              .exclude(owner=user).exclude(owner__isnull=True)[:limit])
+        except DatabaseError as exc:
+            logging.getLogger(__name__).warning('[partages] %s illisible : %s', registry.key, exc)
+            continue
+        for row, bucket, is_mine in [(r, shared, True) for r in mine] + \
+                                    [(r, received, False) for r in theirs]:
+            item = {'app': registry.label, 'registry': registry.key, 'pk': row.pk,
+                    'nature': 'catalogue', 'label': getattr(row, 'name', '') or str(row),
+                    'scope': scope_label(row), 'scope_since': scope_since(row), 'url': url}
+            if not is_mine:
+                item['owner'] = row.owner.get_username()
+                item['mode'] = CURRENT_SHARE_MODE
+            bucket.append(item)
+    return shared, received
 
 
 class RefusDePartage(Exception):

@@ -1191,10 +1191,14 @@ LE GESTE qui manquait au mécanisme de visibilité : `PROFILES_PERMISSIONS §7.5
 
 - **Domicile** : `wama/common/services/sharing.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : PARTAGE d'un élément de file — la première INTERFACE du mécanisme de visibilité.
-- **API publique** (14) :
+- **API publique** (18) :
   - `share_mode(key: str) -> dict` — La déclaration d'un mode (`SHARE_MODES`), ou celle de la lecture si la clé est inconnue.
   - `shares_overview(user, limit: int=200) -> dict` — Ce que montre la page « Partages » (`WAMA_COLLABORATION §5.3`, 2026-10-03) : ce que `user` a
   - `scope_label(element) -> str` — La portée d'un élément partagé, dite par sa CIBLE (« LESCOT », « Projet X », « Public ») —
+  - `scope_choices(user) -> list` — Les portées que `user` peut offrir, à plat : `[{value, label}]` (`portees_offrables`).
+  - `scope_value(element) -> str` — La portée COURANTE d'un élément dans la forme de `scope_choices`.
+  - `share_scope(user, element, scope: str, consent: bool=False) -> dict` — Pose la portée `scope` (forme de `scope_choices`) par `partager`.
+  - `catalogue_owned_rows()` — Les familles du CATALOGUE dont une ligne a un auteur (`owner`) : `[(registre, modèle)]`,
   - `class RefusDePartage(Exception)` — Refus MOTIVÉ : le motif est destiné à l'utilisateur, pas au journal.
   - `class ConsentRequired(RefusDePartage)` — Le partage d'un élément personnel attend le consentement de celui qui partage.
   - `consent_subject(element) -> str` — Ce que l'élément porte d'une personne (« la voix d'une personne »), ou '' — DÉCLARÉ par
@@ -2140,7 +2144,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (44) :
+- **API publique** (45) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2168,6 +2172,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class ScopedManager(models.Manager.from_queryset(ScopedQuerySet))` — Manager par défaut des modèles partageables.
   - `class UserFunction(ScopedVisibility)` — Fonction de traitement CRÉÉE PAR UN UTILISATEUR (WAMA Data), stockée en BDD, avec
   - `class UserTheme(ScopedVisibility)` — Un thème tiré d'une CHARTE graphique (PDF) — pour un labo, une équipe, un établissement
+  - `class PromptSkill(ScopedVisibility)` — Un SKILL de prompt qui a un AUTEUR (`ROADMAP §29`, décision de Fabien du 2026-10-20 :
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
@@ -2716,7 +2721,7 @@ REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et 
 
 - **Domicile** : `wama/common/registries.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Registre des REGISTRES — l'actualisation devient un mécanisme, pas une page.
-- **API publique** (16) :
+- **API publique** (17) :
   - `class RefreshResult` — Compte-rendu UNIFORME d'une actualisation, quelle que soit sa nature.
   - `class Registry` — Ce qu'une page catalogue déclare pour hériter de l'actualisation.
   - `execution_of(r: Registry) -> str`
@@ -2724,6 +2729,7 @@ REGISTRE des registres : une page catalogue déclare la CLÉ de son registre et 
   - `get(key: str) -> Registry`
   - `carried_rows(element_id, *, access_kind: str='', manifest_kind: str='')` — Les lignes qui portent la provenance de l'élément `element_id` — `owner_model` filtré par
   - `declaring_app(element_id, *, access_kind: str) -> str` — L'app qui déclare l'élément du CODE `element_id`, lue par le registre de sa famille
+  - `declared_in_code(element_id, *, access_kind: str) -> bool` — La clé `element_id` désigne-t-elle aussi un élément du CODE (`Registry.in_code`) ?
   - `is_authorized(r: Registry, user) -> bool` — Ce compte peut-il ACTUALISER ce registre ? Le lire relève de l'accès à l'outil « Registres »
   - `refusal(r: Registry) -> str` — Le motif d'un refus d'actualisation, lisible tel quel (les vues y lisent « réservé »).
   - `mark_refreshed(key: str) -> None` — Signale aux AUTRES processus qu'ils sont périmés.
@@ -3319,7 +3325,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (44) :
+- **API publique** (45) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -3347,6 +3353,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
   - `class ScopedManager(models.Manager.from_queryset(ScopedQuerySet))` — Manager par défaut des modèles partageables.
   - `class UserFunction(ScopedVisibility)` — Fonction de traitement CRÉÉE PAR UN UTILISATEUR (WAMA Data), stockée en BDD, avec
   - `class UserTheme(ScopedVisibility)` — Un thème tiré d'une CHARTE graphique (PDF) — pour un labo, une équipe, un établissement
+  - `class PromptSkill(ScopedVisibility)` — Un SKILL de prompt qui a un AUTEUR (`ROADMAP §29`, décision de Fabien du 2026-10-20 :
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration

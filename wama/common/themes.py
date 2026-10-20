@@ -361,26 +361,14 @@ def account_generated_css(user, choice: str) -> str:
 def charter_choices(user) -> list[dict]:
     """Les thèmes de charte que le Profil propose, avec leur provenance comme partout dans WAMA
     (« Système », « à moi », « partagé par X ») et ce que le compte peut en faire."""
-    from wama.accounts.permissions import is_admin_tier
-    from wama.common.services.sharing import scope_label
+    from wama.common.manifests.ownership import provenance_of
     from wama.common.theme_generator import generate
-    admin = is_admin_tier(user)
     rows = []
     for row in charter_themes(user).select_related('owner', 'scope_org_unit', 'scope_project'):
-        mine = bool(row.owner_id) and row.owner_id == getattr(user, 'pk', None)
-        provenance = ('Système' if not row.owner_id else 'à moi' if mine
-                      else f'partagé par {row.owner.get_username()}')
-        scope = row.visibility
-        if row.visibility == 'unit' and row.scope_org_unit_id:
-            scope = f'unit:{row.scope_org_unit_id}'
-        elif row.visibility == 'project' and row.scope_project_id:
-            scope = f'project:{row.scope_project_id}'
         rows.append({'value': f'{CHARTER_PREFIX}{row.pk}', 'pk': row.pk, 'name': row.name,
                      'key': f'custom-{row.base}', 'base': row.base, 'accent': row.accent,
                      'font': row.font, 'obtained': generate(row.base, row.accent)['--wama-accent-text'],
-                     'provenance': provenance, 'scope': scope, 'scope_label': scope_label(row),
-                     'mine': mine, 'can_delete': mine or admin,
-                     'can_promote': admin and bool(row.owner_id)})
+                     **provenance_of(row, user)})
     return rows
 
 

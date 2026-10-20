@@ -130,9 +130,11 @@ class GesturesTest(_Accounts):
 
     def test_only_an_administrator_promotes_and_never_over_a_repository_file(self):
         row = us.create(self.author, FRESH, 'x')
+        own = us.create(self.dev, 'zzprov-dev', 'x')        # une ligne que le développeur VOIT
         with self.assertRaises(us.SkillRefused) as refused:
-            us.promote(self.dev, row.pk)
+            us.promote(self.dev, own.pk)
         self.assertEqual(403, refused.exception.status)
+        self.assertEqual(self.dev.pk, PromptSkill.objects.get(pk=own.pk).owner_id)
         us.promote(self.admin, row.pk)
         row.refresh_from_db()
         self.assertEqual((None, 'public', 'skill_author', 'skill_admin'),
@@ -162,6 +164,26 @@ class PageAndCallersTest(_Accounts):
         self.client.force_login(self.other)
         self.assertNotContains(self.client.get(reverse('common:skills_catalog')),
                                'MINE ON THE PAGE')
+
+    def test_a_shared_skill_is_on_the_shares_page_on_both_sides_and_unshares_from_there(self):
+        """« Mes partages » montre TOUS les partages (Fabien, 2026-10-20) : un élément de
+        catalogue partagé y figure par la page commune, pas par une liste à côté."""
+        row = us.create(self.author, FRESH, 'x')
+        us.share(self.author, row.pk, 'public')
+        self.client.force_login(self.author)
+        mine = self.client.get(reverse('common:shares'))
+        self.assertContains(mine, f'data-registry="skills" data-pk="{row.pk}"')
+        self.client.force_login(self.other)
+        self.assertContains(self.client.get(reverse('common:shares')), FRESH)
+        unshare = reverse('common:api_catalogue_unshare')
+        self.assertEqual(404, self.client.post(unshare, {'registry': 'skills',
+                                                         'pk': row.pk}).status_code)
+        self.client.force_login(self.author)
+        self.assertTrue(self.client.post(unshare, {'registry': 'skills',
+                                                   'pk': row.pk}).json()['ok'])
+        self.assertEqual('private', PromptSkill.objects.get(pk=row.pk).visibility)
+        self.client.force_login(self.other)
+        self.assertNotContains(self.client.get(reverse('common:shares')), FRESH)
 
     def test_the_enrich_button_resolves_the_skill_of_the_account(self):
         from wama.common.utils.app_metadata import enrich_prompt_value

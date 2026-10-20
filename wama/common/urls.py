@@ -123,6 +123,8 @@ urlpatterns = [
     path('api/people/', views.api_people, name='api_people'),
     # La page « Partages » (§5.3) et le retrait d'un droit (E5), 2026-10-03.
     path('shares/', views.shares_page, name='shares'),
+    # « Retirer le partage » d'un élément de CATALOGUE (skill, thème de charte… — §29).
+    path('shares/catalogue/unshare/', views.api_catalogue_unshare, name='api_catalogue_unshare'),
     path('api/grants/<int:pk>/revoke/', views.api_grant_revoke, name='api_grant_revoke'),
     # Les NOUVELLES notifications, pour la cloche et la fenêtre en bas à droite (2026-10-03).
     path('api/notifications/recent/', views.api_notifications_recent,

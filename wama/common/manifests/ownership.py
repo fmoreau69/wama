@@ -82,6 +82,45 @@ def promote_owned_row(row, *, by=None):
     return row
 
 
+def provenance_of(row, user) -> dict:
+    """Ce qu'une ligne portée (`owner` vide = système) dit d'elle à `user`, comme partout dans
+    WAMA — « Système », « à moi », « partagé par X » —, sa portée (`sharing.scope_value`,
+    `scope_label`) et les gestes que `user` peut y faire : la partager (son auteur), la retirer
+    (son auteur ou un administrateur), la rendre système (un administrateur, si elle a un auteur).
+    Née au Profil pour les thèmes de charte (`themes.charter_choices`), sortie ici à la
+    revérification du 2026-10-20, quand les skills de prompt la recopiaient."""
+    from wama.common.services.sharing import scope_label, scope_value
+    owner_id = row.owner_id
+    mine = bool(owner_id) and owner_id == getattr(user, 'pk', None)
+    return {'provenance': ('Système' if not owner_id else 'à moi' if mine
+                           else f'partagé par {row.owner.get_username()}'),
+            'owner': row.owner.get_username() if owner_id else '', 'system': not owner_id,
+            'mine': mine, 'scope': scope_value(row), 'scope_label': scope_label(row),
+            'can_share': mine, 'can_delete': may_remove(user, row),
+            'can_promote': _is_admin(user) and bool(owner_id)}
+
+
+def _is_admin(user) -> bool:
+    from wama.accounts.permissions import is_admin_tier
+    return is_admin_tier(user)
+
+
+def may_remove(user, row) -> bool:
+    """Retirer une ligne portée : son auteur, ou un administrateur."""
+    return (bool(row.owner_id) and row.owner_id == getattr(user, 'pk', None)) or _is_admin(user)
+
+
+def promote_by(user, row, noun: str):
+    """Le GESTE « Rendre système » d'une ligne portée : un administrateur seul (`ROADMAP §29`,
+    décision b), une ligne qui a un auteur ; puis `promote_owned_row`. Lève `PermissionError` ou
+    `ValueError`, le motif étant destiné à l'utilisateur (`noun` : « thème », « skill »…)."""
+    if not _is_admin(user):
+        raise PermissionError(f"Rendre un {noun} système est réservé aux administrateurs.")
+    if row.owner_id is None:
+        raise ValueError(f"Ce {noun} est déjà système.")
+    return promote_owned_row(row, by=user)
+
+
 def row_fields(manifest: dict) -> dict:
     """L'inverse : ce que la ligne d'un registre porté reçoit de l'enveloppe.
 

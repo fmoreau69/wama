@@ -1025,14 +1025,14 @@ def skills_catalog_view(request):
     # qu'on lui partage, les systèmes promus — et les gestes, par `skills_manage`.
     from django.urls import reverse
 
-    from .services.sharing import portees_offrables
+    from .services.sharing import scope_choices
     from .services.user_skills import as_dict, visible_skills
     account = {}
     if request.user.is_authenticated:
         account = {'skills_api': reverse('common:skills_manage'),
                    'skills_account': [as_dict(r, request.user)
                                       for r in visible_skills(request.user)],
-                   'skills_scopes': portees_offrables(request.user)}
+                   'skills_scopes': scope_choices(request.user)}
     return render(request, 'common/skills.html',
                   {'cat': synthese(), 'facettes_skills': facettes,
                    'volet': volet(medias=False, actions=False), **account})
@@ -1060,8 +1060,7 @@ def skills_manage(request):
         elif action == 'update':
             row = us.update(user, data.get('pk'), data.get('text'))
         elif action == 'share':
-            visibility, _, target = str(data.get('scope') or 'private').partition(':')
-            us.share(user, data.get('pk'), visibility, target or None)
+            us.share(user, data.get('pk'), str(data.get('scope') or 'private'))
             row = us.visible_skills(user).get(pk=data.get('pk'))
         elif action == 'copy':
             row = us.copy(user, pk=data.get('pk'), name=data.get('name') or '')
@@ -2121,6 +2120,28 @@ def shares_page(request):
     from django.shortcuts import render
     from wama.common.services.sharing import shares_overview
     return render(request, 'common/shares.html', shares_overview(request.user))
+
+
+@login_required
+@require_POST
+def api_catalogue_unshare(request):
+    """POST `registry`, `pk` — « Retirer le partage » d'un élément de CATALOGUE depuis la page
+    « Partages » (skill de prompt, thème de charte…, `ROADMAP §29`) : il redevient privé, par le
+    service commun. La famille se lit au registre (`sharing.catalogue_owned_rows`) ; seule une
+    ligne de son auteur est trouvée, un pk étranger rend 404."""
+    from wama.common.services.sharing import RefusDePartage, catalogue_owned_rows, share_scope
+    model = next((m for r, m in catalogue_owned_rows() if r.key == request.POST.get('registry')),
+                 None)
+    pk = request.POST.get('pk') or ''
+    row = model._default_manager.filter(pk=pk, owner=request.user).first() \
+        if model is not None and pk.isdigit() else None
+    if row is None:
+        return JsonResponse({'ok': False, 'reason': 'élément introuvable'}, status=404)
+    try:
+        share_scope(request.user, row, 'private')
+    except RefusDePartage as exc:
+        return JsonResponse({'ok': False, 'reason': str(exc)}, status=400)
+    return JsonResponse({'ok': True})
 
 
 @login_required

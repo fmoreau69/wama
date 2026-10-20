@@ -5,6 +5,10 @@ PARTAGES — WAMA_COLLABORATION §5.3 (2026-10-03) : « ce que j'ai partagé —
 depuis quand, et c'est ICI qu'on modifie ou retire les droits ; ce qu'on m'a partagé — qui, quel
 droit ». Un partage doit pouvoir être CONSTATÉ. L'unité est l'entrée de file (le lot, ou la card
 sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
+Les éléments de CATALOGUE qu'un compte possède (skill de prompt, thème de charte, fonction ou
+modèle d'utilisateur — `ROADMAP §29`, 2026-10-20) y figurent aussi : `nature == 'catalogue'`, leur
+page est celle de leur registre, et « Retirer le partage » les rend privés
+(`api_catalogue_unshare`).
 {% endcomment %}
 
 {% block title %}WAMA — Partages{% endblock %}
@@ -63,9 +67,15 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
             </div>
           </div>
           <div class="d-flex gap-2">
+            {% if s.nature == 'catalogue' %}
+            {% if s.url %}<a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">Ouvrir la page</a>{% endif %}
+            <button type="button" class="btn btn-sm btn-outline-danger" data-unshare-catalogue
+                    data-registry="{{ s.registry }}" data-pk="{{ s.pk }}">Retirer le partage</button>
+            {% else %}
             <a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">Ouvrir l'app</a>
             <button type="button" class="btn btn-sm btn-outline-danger" data-unshare
                     data-surface="{{ s.surface }}" data-nature="{{ s.nature }}" data-pk="{{ s.pk }}">Retirer le partage</button>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -86,7 +96,7 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
           <span class="share-label">{{ s.label }}</span> <span class="text-body-secondary small">({{ s.app }})</span>
           <div class="share-meta mt-1">de <b>{{ s.owner }}</b> · <span class="share-pill">{{ s.mode.icon }} {{ s.mode.label }}</span></div>
         </div>
-        <a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">Ouvrir l'app</a>
+        {% if s.url %}<a class="btn btn-sm btn-outline-emphasis" href="{{ s.url }}">{% if s.nature == 'catalogue' %}Ouvrir la page{% else %}Ouvrir l'app{% endif %}</a>{% endif %}
       </div>
       {% empty %}
       <p class="shares-empty">Personne ne vous partage rien pour le moment.</p>
@@ -108,6 +118,14 @@ sans lot), celle du partage lui-même. Données : `sharing.shares_overview`.
     b.addEventListener('click', function () {
       post('/common/api/grants/' + b.dataset.revoke + '/revoke/').then(function (res) {
         if (res && res.done) { b.closest('[data-person]').remove(); say('Partage retiré pour cette personne.', 'success'); }
+        else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
+      });
+    });
+  });
+  document.querySelectorAll('[data-unshare-catalogue]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      post('/common/shares/catalogue/unshare/', { registry: b.dataset.registry, pk: b.dataset.pk }).then(function (res) {
+        if (res && res.ok) { b.closest('.share-row').remove(); say('Partage retiré.', 'success'); }
         else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
       });
     });

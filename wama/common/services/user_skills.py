@@ -81,14 +81,13 @@ def update(user, pk, text: str):
     return row
 
 
-def share(user, pk, visibility: str, target=None):
-    """La portée, par le service commun — qui revérifie que `user` est le propriétaire."""
-    from wama.common.services.sharing import RefusDePartage, partager
+def share(user, pk, scope: str):
+    """La portée (`sharing.scope_choices` : `private`, `public`, `unit:<id>`, `project:<id>`), par
+    le service commun — qui revérifie que `user` est le propriétaire."""
+    from wama.common.services.sharing import RefusDePartage, share_scope
     row = _row(user, pk)
     try:
-        return partager(user, row, visibility,
-                        org_unit_id=target if visibility == 'unit' else None,
-                        project_id=target if visibility == 'project' else None)
+        return share_scope(user, row, scope)
     except RefusDePartage as exc:
         raise SkillRefused(str(exc), status=403)
 
@@ -108,10 +107,10 @@ def copy(user, *, pk=None, name: str = ''):
 
 
 def delete(user, pk):
-    """Son auteur, ou un administrateur."""
-    from wama.accounts.permissions import is_admin_tier
+    """Son auteur, ou un administrateur (`ownership.may_remove`)."""
+    from wama.common.manifests.ownership import may_remove
     row = _row(user, pk)
-    if row.owner_id != getattr(user, 'pk', None) and not is_admin_tier(user):
+    if not may_remove(user, row):
         raise SkillRefused("Seul son auteur, ou un administrateur, le retire.", status=403)
     row.delete()
 
@@ -120,40 +119,31 @@ def promote(user, pk):
     """Rend le skill SYSTÈME — un administrateur seul (décision b). Refusé s'il porte le nom
     d'un skill système existant : un fichier du dépôt se modifie, il ne se remplace pas ici."""
     from wama.accounts.permissions import is_admin_tier
-    from wama.common.manifests.ownership import promote_owned_row
+    from wama.common.manifests.ownership import promote_by
     from wama.common.models import PromptSkill
     from wama.common.utils.prompt_skills import file_skill_names
-    if not is_admin_tier(user):
-        raise SkillRefused("Rendre un skill système est réservé aux administrateurs.", status=403)
     row = _row(user, pk)
-    if row.owner_id is None:
-        raise SkillRefused("Ce skill est déjà système.")
-    if row.name in file_skill_names():
-        raise SkillRefused(f"« {row.name} » est un fichier du dépôt (prompt_skills/{row.name}.md) : "
-                           f"le remplacer est un geste de développement, pas une promotion.")
-    if PromptSkill.objects.filter(owner__isnull=True, name=row.name).exists():
-        raise SkillRefused(f"Un skill système « {row.name} » existe déjà.")
-    return promote_owned_row(row, by=user)
+    # Les frontières PROPRES au skill (un seul système par nom), puis le geste commun
+    # (`ownership.promote_by` : un administrateur, une ligne qui a un auteur).
+    if is_admin_tier(user) and row.owner_id is not None:
+        if row.name in file_skill_names():
+            raise SkillRefused(f"« {row.name} » est un fichier du dépôt (prompt_skills/{row.name}.md) "
+                               f": le remplacer est un geste de développement, pas une promotion.")
+        if PromptSkill.objects.filter(owner__isnull=True, name=row.name).exists():
+            raise SkillRefused(f"Un skill système « {row.name} » existe déjà.")
+    try:
+        return promote_by(user, row, 'skill')
+    except PermissionError as exc:
+        raise SkillRefused(str(exc), status=403)
+    except ValueError as exc:
+        raise SkillRefused(str(exc))
 
 
 def as_dict(row, user) -> dict:
-    """Ce que la page montre d'une ligne, et les gestes que `user` peut y faire."""
-    from wama.accounts.permissions import is_admin_tier
-    from wama.common.services.sharing import PORTEES
-    mine = row.owner_id is not None and row.owner_id == getattr(user, 'pk', None)
-    admin = is_admin_tier(user)
-    scope, scope_value = '', row.visibility
-    if row.visibility == 'unit' and row.scope_org_unit_id:
-        scope, scope_value = row.scope_org_unit.name, f'unit:{row.scope_org_unit_id}'
-    elif row.visibility == 'project' and row.scope_project_id:
-        scope, scope_value = row.scope_project.name, f'project:{row.scope_project_id}'
-    return {
-        'pk': row.pk, 'name': row.name, 'text': row.text,
-        'lines': len(row.text.splitlines()),
-        'owner': row.owner.get_username() if row.owner_id else '',
-        'system': row.owner_id is None, 'mine': mine,
-        'visibility': row.visibility, 'visibility_label': PORTEES.get(row.visibility, row.visibility),
-        'scope': scope, 'scope_value': scope_value,
-        'can_edit': mine, 'can_share': mine, 'can_copy': not mine,
-        'can_delete': mine or admin, 'can_promote': admin and row.owner_id is not None,
-    }
+    """Ce que la page montre d'une ligne : sa provenance et ses gestes, par la lecture commune des
+    lignes portées (`ownership.provenance_of`), plus ce qui est propre au skill."""
+    from wama.common.manifests.ownership import provenance_of
+    facts = provenance_of(row, user)
+    return {'pk': row.pk, 'name': row.name, 'text': row.text,
+            'lines': len(row.text.splitlines()), **facts,
+            'can_edit': facts['mine'], 'can_copy': not facts['mine']}
