@@ -4458,8 +4458,10 @@ voix jamais, et un lien « Texte » refusait le lancement) ; les étapes `summar
   (`studio/services/run_results.py`). Chaque card y est écrite par l'écrivain du ⬇ de la file,
   extrait en `batch_views.ResultArchive` pour ranger les cards de PLUSIEURS apps dans une archive
   (rendu late-binding, sorties déclarées, noms déclarés, `?format=`) ; un fichier hors card se
-  prend s'il est lisible par le compte (`resoudre_chemin_lisible`, la règle de l'assistant et de
-  l'API). Une donnée calculée en mémoire (fonction pure) ne survit pas au run : elle est NOMMÉE au
+  prend si la LIGNE d'exécution du nœud le désigne (`process_runs.line(run, nœud).output_ref`,
+  posé par l'exécuteur — ramené à la revérification : un premier jet le redéduisait du libellé de
+  `node_states`) et s'il est lisible par le compte (`resoudre_chemin_lisible`, la règle de
+  l'assistant et de l'API). Une donnée calculée en mémoire (fonction pure) ne survit pas au run : elle est NOMMÉE au
   canvas comme non conservée, jamais tue. Garde `studio.tests_run_results` (contre-épreuves
   rouges : bouts = tous les process, card hors écrivain de file, fichier lu sans la règle commune).
 - **Le nœud Sortie** ne fait plus CLASSER à la main : les usages admissibles sont ceux du geste
@@ -4489,6 +4491,9 @@ voix jamais, et un lien « Texte » refusait le lancement) ; les étapes `summar
   ferait primer) — à ramener avec le ZIP d'un run. ⏳ Toujours dû au 2026-10-20 : le ZIP lit les
   CARDS, pas les assets de la Sortie, donc il n'en dépendait pas ; reste aussi que la Sortie
   COPIE, là où le geste commun DÉPLACE (`export_item_to_library`, décision du 2026-09-27).
+  Relevé à la revérification du ZIP, ANTÉRIEUR : le ⬇ d'une card de l'imager à plusieurs images
+  écrit son propre ZIP (`imager/views.py`, `download`) à côté de l'écrivain commun
+  (`batch_views.ResultArchive.add_elements`, qui lit les mêmes sorties déclarées).
 
 **3.4 Étages = sous-pipelines.** Le champ `stage` de cam_analyzer (`analyse` / `calcul`,
 `cam_analyzer.json` lignes 105 et 195) devient une STRUCTURE : deux pipelines (« analyse d'image »,

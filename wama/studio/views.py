@@ -227,7 +227,8 @@ def api_run_status(request, pk):
         'error': run.error_message,
         'processing_display': run.processing_display,
     }
-    if run.status in ('SUCCESS', 'FAILURE'):
+    from wama.common.models import JOB_STATUS_TERMINAL
+    if run.status in JOB_STATUS_TERMINAL:
         # Ce que le ⬇ du run servira (`services/run_results.py`) — lu une fois le run terminé.
         from .services.run_results import run_results
         results, missing = run_results(run, request.user)

@@ -11,8 +11,8 @@ la card, noms déclarés). Le Studio ne fait que DÉSIGNER les cards, lues par l
 
 Ce qu'est un résultat : le bout de chaque BRANCHE — un nœud qui est un process (app ou fonction)
 et dont rien ne part, sinon vers une sortie (médiathèque, export). Les résultats intermédiaires
-restent sur leur card. Un bout qui n'est pas une card se prend s'il est un FICHIER que le compte
-peut lire (`filemanager.services.resoudre_chemin_lisible`, la règle de l'assistant et de l'API :
+restent sur leur card. Un bout qui n'est pas une card se prend si sa ligne d'exécution
+(`process_runs`, adressée par le run) désigne un FICHIER que le compte peut lire (`filemanager.services.resoudre_chemin_lisible`, la règle de l'assistant et de l'API :
 sortie d'une fonction rattachée, image → 3D) ; une donnée calculée en mémoire (fonction pure) ne
 survit pas au run : elle est NOMMÉE comme non conservée, jamais tue.
 """
@@ -54,6 +54,7 @@ def run_results(run, user) -> tuple:
     (`visible_or_404`)."""
     from django.http import Http404
     from wama.common.models import JOB_SUCCESS
+    from wama.common.services import process_runs
     from wama.common.utils.detail_registry import DetailRegistry
     from wama.common.utils.scoping import visible_or_404
     from wama.filemanager.services import resoudre_chemin_lisible
@@ -77,10 +78,13 @@ def run_results(run, user) -> tuple:
             results.append({'node': node['id'], 'label': label, 'model': entry['model'],
                             'item': item})
             continue
-        output = state.get('output')
+        # La sortie FICHIER du nœud est celle de sa LIGNE d'exécution (`output_ref`, posé par
+        # l'exécuteur quand la sortie est un fichier sous MEDIA_ROOT) — la table que le moteur
+        # commun lit ; `node_states` n'en garde qu'un libellé.
+        row = process_runs.line(run, node['id'])
         path = None
-        if isinstance(output, str) and output and '\n' not in output:
-            path, _refused = resoudre_chemin_lisible(user, output)
+        if row is not None and row.output_ref:
+            path, _refused = resoudre_chemin_lisible(user, row.output_ref)
         if path is not None and path.is_file():
             results.append({'node': node['id'], 'label': label, 'path': path})
         else:

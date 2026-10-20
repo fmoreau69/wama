@@ -104,9 +104,17 @@ class RunZipTest(TestCase):
         rel = lambda p: p.relative_to(self.media).as_posix()
         run = self._run(graph, {'g': {'status': JOB_SUCCESS, 'output': rel(own)},
                                 'h': {'status': JOB_SUCCESS, 'output': rel(other)}})
+        # The executor's writing : the node's EXECUTION LINE designates its file (`output_ref`).
+        from wama.common.services import process_runs
+        for node_id, path in (('g', own), ('h', other)):
+            process_runs.succeed(run, node_id, process_key='some.job', output_ref=rel(path))
         results, missing = run_results(run, self.user)
         self.assertEqual([own.resolve()], [r['path'].resolve() for r in results])
         self.assertEqual(['h'], [m['node'] for m in missing])
+        # Counter-test : a node whose line designates no file has nothing to give, whatever its
+        # canvas label says.
+        process_runs.succeed(run, 'g', process_key='some.job', output_ref='')
+        self.assertEqual([], run_results(run, self.user)[0])
 
     def test_the_page_offers_the_queue_download_button_and_its_switch(self):
         page = self.client.get('/studio/').content.decode('utf-8', errors='replace')
