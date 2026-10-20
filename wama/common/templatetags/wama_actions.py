@@ -448,7 +448,9 @@ def source_ingest_state(elem):
 
 @register.simple_tag
 def lot_slot(app):
-    """L'onglet « Lot » de la card v4 — `None` si l'app ne déclare pas le lot (`has_batch`).
+    """L'onglet « Fichier de lot » de la card v4 (« Lot » jusqu'au 2026-10-20 : le LOT, une card mère
+    et ses filles, vient aussi de plusieurs fichiers de travail) — `None` si l'app ne déclare pas le
+    lot (`has_batch`).
 
     Ce n'est PAS un port (décision de Fabien, 2026-09-29) : un port est une entrée d'un nœud
     Studio (`studio_node_ports`), qui passe dans les manifestes et les pipelines. Un fichier de

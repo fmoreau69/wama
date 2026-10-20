@@ -191,11 +191,17 @@
         var fnIds = Object.keys(apps).filter(function (id) { return apps[id].kind === 'function'; });
 
         // Les entrées PAR MONDE (2026-10-20, décision de Fabien) : on ne mélange pas les cards
-        // d'entrée médias et données. Le monde vient du registre (`BuiltinNode.world`).
-        [['media', 'Entrées médias'], ['data', 'Entrées données'], ['', 'Entrées']].forEach(function (w) {
-            var ids = sources.filter(function (id) { return (apps[id].world || '') === w[0]; });
-            if (!ids.length) return;
-            var inputs = paletteSection(w[0] ? 'inputs_' + w[0] : 'inputs', w[1]);
+        // d'entrée médias et données. Le monde et son libellé viennent du serveur
+        // (`BuiltinNode.world`, `world_label` — la déclaration des mondes), jamais d'ici.
+        var worlds = [];
+        sources.forEach(function (id) {
+            var w = apps[id].world || '';
+            if (worlds.indexOf(w) < 0) worlds.push(w);
+        });
+        worlds.forEach(function (w) {
+            var ids = sources.filter(function (id) { return (apps[id].world || '') === w; });
+            var label = w ? 'Entrées · ' + (apps[ids[0]].world_label || w) : 'Entrées';
+            var inputs = paletteSection(w ? 'inputs_' + w : 'inputs', label);
             ids.forEach(function (id) { inputs.appendChild(paletteItem(id, apps[id])); });
             paletteList.appendChild(inputs);
         });
@@ -634,9 +640,8 @@
     // ── Les cards d'entrée MÉDIAS (2026-10-20, `STUDIO_VISION §Entrées du Studio`) ─────────
     // Leur contenu se compose dans la MODALE qui reprend la card d'entrée v4 de l'app alimentée,
     // son volet à côté (`WamaStudioEntry`, `wama-studio-entry.js`) : la card universelle tous
-    // ses onglets, une card simplifiée l'onglet de SON port, le fichier de lot le sien.
-    var ENTRY_MODES = { card_input: 'card', batch_input: 'lot', media_import: 'files',
-                        reference_input: 'files' };
+    // ses onglets, une card simplifiée l'onglet de SON port, le fichier de lot le sien — ce que la
+    // card DÉCLARE au registre des nœuds intégrés (`BuiltinNode.compose`, servi par la palette).
     function entryOf(node) {
         var e = (node.params || {}).entry;
         if (typeof e === 'string') { try { e = JSON.parse(e || '{}'); } catch (x) { e = {}; } }
@@ -663,7 +668,7 @@
         return lines;
     }
     function mountEntry(body, node) {
-        var mode = ENTRY_MODES[node.app];
+        var mode = metaOf(node).compose;
         if (!mode || metaOf(node).unavailable) return;
         var entry = entryOf(node);
         var wrap = el('div', 'studio-entry mt-2 pt-2 border-top border-secondary');

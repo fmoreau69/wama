@@ -335,13 +335,15 @@ lien direct, d'une autre valeur — se refuse au lancement du nœud, en le nomma
 
 Ce qu'une card désigne vit dans son réglage caché `entry` ; `media_import` lit encore son ancien
 `asset_path`, qui garde son sélecteur pour une fonction ou la Sortie (pas de card d'app à rendre).
-La palette range les entrées PAR MONDE (`BuiltinNode.world`) : « Entrées médias », « Entrées
-données ».
+La palette range les entrées PAR MONDE (`BuiltinNode.world`), dans l'ordre et sous le libellé que
+les mondes déclarent (`WORLD_SECTIONS`) : « Entrées · Médias », « Entrées · Données ».
 
 **La modale** (`studio/js/wama-studio-entry.js`, `WamaStudioEntry`) : la card v4 de l'app branchée,
 rendue par le serveur (`/studio/api/entry-card/`, le gabarit des dix apps en `compose_only` : tout
-se JOINT, la barre de lot — qui crée des cards — n'est pas rendue), restreinte à ce que la card du
-Studio porte (tous les onglets ; l'onglet de son port ; l'onglet du fichier de lot) ; à côté, le
+se JOINT, la barre de lot — qui crée des cards — n'est pas rendue ; ses ids voyagent avec elle,
+déclarés une fois côté serveur), restreinte à ce que la card du Studio DÉCLARE porter
+(`BuiltinNode.compose` : `card` tous les onglets ; `files` l'onglet de son port ; `lot` celui du
+fichier de lot — par `WamaInputSlots.restrict`, seule lectrice des onglets) ; à côté, le
 volet : les réglages du nœud de l'app, par le rendu commun du Studio. Vérifiée dans un navigateur
 sur la page servie (dépôt, retenue, onglet seul, fichier de lot compté) — sans erreur console.
 
@@ -361,7 +363,7 @@ résume chaque nœud par la règle d'un lot d'app (`batch_views.lot_overview`, e
 | médiathèque (désignation) | `WamaApp.pickFromLibrary`, `MediaPicker` | — |
 | dépôt du poste dans l'espace du compte | `WamaFM.upload` → `enregistrer_fichier_utilisateur` | — |
 | garde de lecture d'une désignation | `media_paths.designate` | `check_designation` (les mêmes gardes, sans pointer ni copier) |
-| URL téléchargée au lancement | `source_ingest._download` (primitives de l'ingest) | `download_to_user`, `ingest_mode_for` (le mode suit la nature du port) |
+| URL téléchargée au lancement | `source_ingest._download` (primitives de l'ingest) | `download_to_user`, au mode que l'app DÉCLARE (`declared_mode`, son `WAMA_INGEST`) |
 | lignes d'un fichier de lot | `batch_parsers` (balises, CSV à en-têtes, listes) | `parse_batch_lines` (toutes familles), `line_to_ports` |
 | regroupement en lot | `queue_manipulation.consolidate_arrival` | — |
 | état d'un lot | `batch_status` de `make_batch_views` | `lot_overview` (la règle, extraite) |

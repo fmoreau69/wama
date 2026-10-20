@@ -13,8 +13,9 @@ Ce qu'elle retient vit dans son réglage `entry` :
      'files':  ['…'] }                                                   # card simplifiée d'un port
 
 Chaque chemin passe les gardes de la désignation (`media_paths.check_designation`) ; une URL est
-téléchargée AU LANCEMENT, dans la nature du port qui la reçoit (`materialize`), comme celle d'un
-port de la card v4 (« téléchargée au lancement — un fichier joint prime »).
+téléchargée AU LANCEMENT, au mode que l'app destinataire déclare (`received_value`,
+`WAMA_INGEST`), comme celle d'un port de la card v4 (« téléchargée au lancement — un fichier joint
+prime »).
 
 LE LOT, comme dans les apps : plusieurs fichiers de travail OU un fichier de lot donnent la même
 chose, un lot (`CARD_DESIGN §11.11 G`) — et le pipeline tourne UNE FOIS PAR ÉLÉMENT (une card =
@@ -85,14 +86,25 @@ def checked_ref(user, ref, label) -> str:
         raise ValueError(f"Nœud « {label} » : {exc}")
 
 
-def materialize(user, value, types):
-    """Une valeur prête pour l'outil de l'app : une URL est téléchargée dans l'espace du compte,
-    dans la nature du port qui la reçoit (`source_ingest.ingest_mode_for`) ; le reste passe tel
-    quel."""
-    from wama.common.utils.source_ingest import download_to_user, ingest_mode_for, is_remote
-    if isinstance(value, str) and is_remote(value):
-        return download_to_user(user, value, ingest_mode_for(types))
-    return value
+def received_value(user, upstream, mode='media'):
+    """La valeur qu'un nœud reçoit de l'amont, prête pour lui : une URL DÉSIGNÉE est téléchargée
+    dans l'espace du compte, au mode que l'app destinataire DÉCLARE (`source_ingest.declared_mode`,
+    `media` hors d'une app) ; un texte, une consigne, une donnée passent tels quels — même un texte
+    qui commence par une adresse. LA règle, lue par le nœud d'app, la fonction et la sortie."""
+    from wama.common.utils.source_ingest import download_to_user, is_remote
+    value = upstream.get('value')
+    if (upstream.get('is_text') or upstream.get('is_frame') or upstream.get('is_lots')
+            or upstream.get('type') == 'prompt' or not isinstance(value, str)
+            or not is_remote(value)):
+        return value
+    return download_to_user(user, value, mode)
+
+
+def app_ingest_mode(app_id) -> str:
+    """Le mode d'une URL destinée à l'app `app_id` : celui que son modèle d'élément déclare."""
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.source_ingest import declared_mode
+    return declared_mode((DetailRegistry.get(app_id) or {}).get('model'))
 
 
 def nature_of(ref) -> str:
@@ -314,23 +326,20 @@ def _fill(inputs, app_id, port, value) -> None:
 def unfold(user, app_id, port, upstream, inputs) -> None:
     """Range dans `inputs` (par port, et par nature pour l'entrée principale) ce qu'un lien
     apporte au nœud d'app `app_id` : une card ENTIÈRE se déplie sur ses ports, une valeur seule
-    va au port du lien. Une URL est téléchargée ici, dans la nature de son port. Un port déjà
-    rempli d'une autre valeur se refuse (`_fill`)."""
+    va au port du lien. Une URL est téléchargée ici, au mode que l'app déclare
+    (`received_value`). Un port déjà rempli d'une autre valeur se refuse (`_fill`)."""
     from wama.common.app_registry import studio_node_ports
-    from wama.common.utils.source_ingest import is_remote
     from wama.studio.services.generic_runner import primary_ports
     declared = {p['id']: p for p in (studio_node_ports(app_id) or {}).get('inputs') or []}
+    mode = app_ingest_mode(app_id)
     if not upstream.get('is_card'):
         # Une valeur seule : rangée sous le port du lien ET sous sa nature — la lecture d'avant
         # (l'entrée principale se cherche par nature, `generic_runner.create`).
         key = port or upstream.get('type')
-        types = (declared.get(key) or {}).get('types') or [upstream.get('type')]
-        # Un texte reste un texte, même s'il commence par une adresse.
-        remote = (isinstance(upstream['value'], str) and is_remote(upstream['value'])
-                  and not upstream.get('is_text') and upstream.get('type') != 'prompt')
-        value = materialize(user, upstream['value'], types) if remote else upstream['value']
+        value = received_value(user, upstream, mode)
         _fill(inputs, app_id, key, value)
-        kind = nature_of(value) if remote else upstream.get('type')
+        downloaded = value != upstream.get('value')
+        kind = nature_of(value) if downloaded else upstream.get('type')
         if kind:
             inputs[kind] = value
         return
@@ -341,8 +350,8 @@ def unfold(user, app_id, port, upstream, inputs) -> None:
                          f"que cette app n'a pas — recomposez l'entrée sur ce nœud.")
     principal = primary_ports(app_id)
     for pid, value in received.items():
-        if pid != 'prompt':
-            value = materialize(user, value, (declared.get(pid) or {}).get('types') or [])
+        value = received_value(user, {'value': value, 'type': 'prompt' if pid == 'prompt' else ''},
+                               mode)
         _fill(inputs, app_id, pid, value)
         if pid in principal and pid != 'prompt' and nature_of(value):
             inputs[nature_of(value)] = value

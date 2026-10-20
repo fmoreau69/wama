@@ -26,9 +26,15 @@
 (function (global) {
     'use strict';
 
-    var IDS = { card: 'studioEntryCard', files: 'studioEntryFiles', drop: 'studioEntryDrop',
-                folder: 'studioEntryFolder', url: 'studioEntryUrl', prompt: 'studioEntryPrompt',
-                lot: 'studioEntryLot' };
+    // Les ids de la card servie : DÉCLARÉS par le serveur (`studio/views.ENTRY_CARD_IDS`), joints au
+    // fragment sous l'élément `studioEntryIds` et relus à chaque ouverture — jamais recopiés ici.
+    var IDS = {};
+    function readIds() {
+        var host = document.getElementById('studioEntryIds');
+        var ids = host ? JSON.parse(host.textContent) : {};
+        IDS = { card: ids.card_id, files: ids.file_input_id, drop: ids.drop_zone_id,
+                folder: ids.folder_input_id, prompt: ids.prompt_input_id, lot: ids.batch_bid };
+    }
     var modal = null, state = null;
 
     function el(tag, cls, html) {
@@ -162,6 +168,7 @@
             })
             .then(function (html) {
                 cardHost.innerHTML = html;
+                readIds();
                 var card = document.getElementById(IDS.card);
                 if (!card) return;
                 if (state.mode === 'card' && state.entry.prompt) {

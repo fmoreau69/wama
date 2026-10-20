@@ -1222,8 +1222,8 @@ MECHANISMS = (
               "`url_ingest.url_nature` (même table que la décision page/média). Depuis le "
               "2026-10-20 : `download_to_user`, l'URL d'une entrée qui n'est pas encore une card "
               "(card d'entrée du Studio) — mêmes primitives, déposée dans l'espace du compte "
-              "comme un fichier du gestionnaire ; `ingest_mode_for`, le mode suit la nature du "
-              "port qui la reçoit",
+              "comme un fichier du gestionnaire ; `declared_mode`, le mode que l'app destinataire "
+              "DÉCLARE dans son `WAMA_INGEST`",
               'wama/common/utils/source_ingest.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/utils/url_ingest.py',)),
     # Garde de SORTIE, distincte de l'ingest : l'ingest sait CHERCHER, celle-ci dit OÙ il a le

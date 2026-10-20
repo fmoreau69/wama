@@ -86,6 +86,10 @@ class BuiltinNode:
                   réglages de l'app alimentée)]` — les ÉLÉMENTS que la card fournit (plusieurs
                   fichiers de travail ou un fichier de lot = un lot, et le pipeline tourne une
                   fois par élément : `studio/services/entries.lot_graphs`). Absent : un seul.
+      compose     source seulement, optionnel : ce que la MODALE de la card montre de la card
+                  d'entrée v4 de l'app alimentée — `card` (tous ses onglets et sa consigne),
+                  `files` (l'onglet de SON port), `lot` (l'onglet du fichier de lot) ; vide : la
+                  card ne se compose pas dans une modale (Texte, données).
     """
     key: str
     role: str
@@ -100,6 +104,7 @@ class BuiltinNode:
     emits: Optional[Callable] = None
     world: str = ''
     lot: Optional[Callable] = None
+    compose: str = ''
 
     def ports(self) -> dict:
         """Les ports du nœud, sous la MÊME forme que `app_registry.studio_node_ports` et

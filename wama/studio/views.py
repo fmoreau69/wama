@@ -209,6 +209,8 @@ ENTRY_CARD_IDS = {
     'prompt_input_id': 'studioEntryPrompt', 'batch_bid': 'studioEntryLot',
     'match_status_id': 'studioEntryMatch',
 }
+#: L'élément qui porte ces ids dans le fragment servi — le seul nom que la modale connaît.
+ENTRY_CARD_IDS_ELEMENT = 'studioEntryIds'
 
 
 def _offered_app(request, app):
@@ -236,12 +238,14 @@ def api_entry_card(request):
         template_url = reverse(f'{app}:batch_template')
     except NoReverseMatch:
         template_url = ''
+    from django.utils.html import json_script
     html = render_to_string('common/_new_item_card_v4.html', {
         **ENTRY_CARD_IDS, 'app_id': app, 'compose_only': True, 'prompt_rows': 3,
         'url_hint': 'téléchargée au lancement — un fichier joint prime',
         'batch_template_url': template_url,
     }, request=request)
-    return HttpResponse(html)
+    # Les ids de la card, joints au fragment : la modale les LIT ici au lieu de les recopier.
+    return HttpResponse(html + json_script(ENTRY_CARD_IDS, ENTRY_CARD_IDS_ELEMENT))
 
 
 @login_required

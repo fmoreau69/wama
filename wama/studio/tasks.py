@@ -49,7 +49,7 @@ from celery import shared_task
 from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_RUNNING, JOB_SUCCESS,
                                 normalize_job_status)
 from wama.common.utils.console_utils import push_console_line
-from wama.studio.services.entries import CARD_TYPE, materialize, unfold
+from wama.studio.services.entries import CARD_TYPE, received_value, unfold
 
 POLL_INTERVAL_S = 3
 NODE_TIMEOUT_S = 30 * 60
@@ -87,15 +87,6 @@ def _lots_summary(lots) -> str:
 
 
 # ── Nœud FONCTION (D13) ──────────────────────────────────────────────────────
-def _received_file(user, upstream):
-    """La valeur reçue de l'amont, une URL désignée téléchargée dans sa nature
-    (`entries.materialize`) — un texte, une consigne ou une donnée passent tels quels."""
-    if (upstream.get('is_text') or upstream.get('is_frame') or upstream.get('is_lots')
-            or upstream.get('type') == 'prompt'):
-        return upstream['value']
-    return materialize(user, upstream['value'], [upstream.get('type')])
-
-
 def _card_summary(value) -> str:
     """Ce que montre le canvas d'une card entière : ses ports remplis."""
     return 'card · ' + ', '.join(f"{port} : {str(v).rsplit('/', 1)[-1][:60]}"
@@ -452,10 +443,10 @@ def _execute_run(run, task_id, notify=True):
                 continue
             if builtin is not None:
                 # Une card de SORTIE range ce qu'elle reçoit de l'amont (médiathèque, export…) ;
-                # une URL désignée en amont est téléchargée ici, dans sa nature.
+                # une URL désignée en amont est téléchargée ici (`entries.received_value`).
                 _save_state(nid, status=JOB_RUNNING)
                 incoming = [dict(outputs[l['from']],
-                                 value=_received_file(user, outputs[l['from']]))
+                                 value=received_value(user, outputs[l['from']]))
                             for l in links if l['to'] == nid and l['from'] in outputs]
                 note = builtin.run(user, incoming, builtin_node_values(node), run.pk)
                 _save_state(nid, status=JOB_SUCCESS, output=note)
@@ -536,7 +527,7 @@ def _execute_run(run, task_id, notify=True):
                         if port not in ports_connus:
                             port = ports_connus[0] if ports_connus else None
                         if port:
-                            fichiers[port] = _received_file(user, up)
+                            fichiers[port] = received_value(user, up)
                     # Une ÉTAPE de card (process d'un pipeline d'app) se lance comme le ▶ de
                     # l'étape sur la card, réglages de sa ⚙ écrits d'abord (D2, 2026-10-18).
                     from wama.common.services.process_pipeline import process_of_function
@@ -595,7 +586,7 @@ def _execute_run(run, task_id, notify=True):
 
             # Entrées = sorties des nœuds amont, par port et par nature (l'entrée principale se
             # cherche par nature) ; une card entière se déplie sur ses ports, une URL est
-            # téléchargée dans la nature de son port (`entries.unfold`, 2026-10-20).
+            # téléchargée au mode que l'app déclare (`entries.unfold`, 2026-10-20).
             inputs = {}
             for l in links:
                 if l['to'] == nid and l['from'] in outputs:

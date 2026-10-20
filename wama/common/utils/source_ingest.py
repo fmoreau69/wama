@@ -83,22 +83,18 @@ def is_remote(ref) -> bool:
     return str(ref or '').strip().lower().startswith(('http://', 'https://'))
 
 
-#: Le mode de téléchargement d'une URL selon la NATURE du port qui la reçoit — celle que les
-#: modèles déclarent dans `WAMA_INGEST` : un port audio prend l'audio d'une plateforme (YouTube…),
-#: un document la page elle-même, le reste le fichier tel quel.
-INGEST_MODE_BY_NATURE = {'audio': 'audio', 'document': 'smart'}
-
-
-def ingest_mode_for(types) -> str:
-    """Le mode (`audio` | `smart` | `media`) d'une URL destinée à un port de ces natures : celui
-    de la nature quand elle est seule, `media` sinon (un port multi-nature reçoit le fichier)."""
-    natures = [t for t in (types or []) if t]
-    return INGEST_MODE_BY_NATURE.get(natures[0], 'media') if len(natures) == 1 else 'media'
+def declared_mode(model) -> str:
+    """Le mode (`audio` | `smart` | `media`) qu'un modèle d'élément DÉCLARE pour son entrée
+    distante (`WAMA_INGEST`), `media` s'il n'en déclare pas — celui qu'une URL destinée à cette
+    app doit suivre, même hors de la card (2026-10-20 : le describer garde une page web en `.html`,
+    le transcriber prend l'audio d'une plateforme). Lu, jamais redéduit d'une nature."""
+    return (getattr(model, 'WAMA_INGEST', None) or {}).get('mode', 'media')
 
 
 def download_to_user(user, url, mode='media') -> str:
     """Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
-    `MEDIA_ROOT`) — le chemin qu'une désignation reçoit ensuite.
+    `MEDIA_ROOT`) — le chemin qu'une désignation reçoit ensuite. `mode` : celui que l'app
+    destinataire déclare (`declared_mode`).
 
     Pour une entrée qui n'est pas encore une card (2026-10-20 : la card d'entrée du Studio, dont
     l'URL est « téléchargée au lancement », comme celle d'un port de la card v4). Mêmes

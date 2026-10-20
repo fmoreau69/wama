@@ -323,7 +323,7 @@ register_builtin_node(BuiltinNode(
                 "« Entrée de card » d'une app.",
     run=_card_source('Entrée'), port_label='Card', port_types=lambda: ['card'],
     emits=_emits_card, params=lambda: [_entry_param()],
-    lot=card_lot))
+    lot=card_lot, compose='card'))
 
 # La clé `media_import` reste (une DONNÉE des graphes enregistrés) : « Médias importés » devient
 # la card simplifiée du port de travail — la médiathèque est l'une de ses modalités, à côté du
@@ -343,7 +343,7 @@ register_builtin_node(BuiltinNode(
                           stales=NO_STALE,
                           help="Vers une fonction ou une sortie. Vers une app : « Composer "
                                "l'entrée » (poste, médiathèque, URL, plusieurs fichiers).")],
-    lot=files_lot))
+    lot=files_lot, compose='files'))
 
 register_builtin_node(BuiltinNode(
     key='reference_input', role='source', label='Fichier(s) de référence', icon='fas fa-paperclip',
@@ -352,7 +352,7 @@ register_builtin_node(BuiltinNode(
                 "poste, la médiathèque ou une URL. Plusieurs fichiers forment un lot.",
     run=_files_source('Fichier(s) de référence'), port_label='Référence',
     port_types=_media_categories, emits=_emits_files, params=lambda: [_entry_param()],
-    lot=files_lot))
+    lot=files_lot, compose='files'))
 
 register_builtin_node(BuiltinNode(
     key='batch_input', role='source', label='Fichier de lot', icon='fas fa-file-lines',
@@ -362,7 +362,7 @@ register_builtin_node(BuiltinNode(
                 "d'une app.",
     run=_card_source('Fichier de lot'), port_label='Lot', port_types=lambda: ['card'],
     emits=_emits_card, params=lambda: [_entry_param()],
-    lot=card_lot))
+    lot=card_lot, compose='lot'))
 
 register_builtin_node(BuiltinNode(
     key='dataset_input', role='source', label='Jeu de données', icon='fas fa-table',

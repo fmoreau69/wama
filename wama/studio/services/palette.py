@@ -36,9 +36,18 @@ def palette_nodes(user) -> dict:
     # JavaScript (`BUILTINS`, avec un « Batch de prompts » que rien n'exécutait).
     # Leur MONDE (`world`, 2026-10-20) range les entrées par monde : les cards d'entrée médias et
     # données ne se mélangent pas.
+    # Leur libellé de monde vient de la déclaration des mondes (`world_label`, `WORLD_SECTIONS`) ;
+    # `compose` dit ce que la modale d'une card d'entrée montre de la card de l'app.
+    # Dans l'ORDRE des mondes qu'ils déclarent (`WORLD_SECTIONS[…]['order']`), pas dans celui de
+    # leur inscription : les sections de la palette suivent cet ordre.
+    from wama.common.app_registry import WORLD_SECTIONS, world_label
+
+    def world_order(item):
+        return (WORLD_SECTIONS.get(item[1].world) or {}).get('order', len(WORLD_SECTIONS) + 1)
     nodes = {key: {'label': b.label, 'icon': b.icon, 'color': b.color,
-                   'description': b.description, **b.ports(), 'kind': b.role, 'world': b.world}
-             for key, b in builtin_nodes().items()}
+                   'description': b.description, **b.ports(), 'kind': b.role, 'world': b.world,
+                   'world_label': world_label(b.world) if b.world else '', 'compose': b.compose}
+             for key, b in sorted(builtin_nodes().items(), key=world_order)}
     from .entries import card_port
     for app_id, meta in APP_CATALOG.items():
         ports = studio_node_ports(app_id)

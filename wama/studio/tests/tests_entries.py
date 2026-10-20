@@ -122,14 +122,19 @@ class DownloadToUserTest(_MediaCase):
             download_to_user(self.user, 'users/1/temp/a.mp3')
 
 
-class IngestModeTest(SimpleTestCase):
+class DeclaredModeTest(SimpleTestCase):
 
-    def test_the_mode_follows_the_nature_of_the_receiving_port(self):
-        from wama.common.utils.source_ingest import ingest_mode_for
-        self.assertEqual('audio', ingest_mode_for(['audio']))
-        self.assertEqual('smart', ingest_mode_for(['document']))
-        self.assertEqual('media', ingest_mode_for(['image']))
-        self.assertEqual('media', ingest_mode_for(['audio', 'video']), 'a multi-nature port: the file')
+    def test_the_mode_of_a_url_is_the_one_the_app_declares(self):
+        """Read from `WAMA_INGEST`, never re-derived from a nature: the describer keeps a web page
+        (`smart`), the transcriber takes the audio of a platform (`audio`) — a nature table gave
+        the describer `media` (multi-nature port), and a page would have been fetched as a file."""
+        from wama.common.utils.source_ingest import declared_mode
+        from wama.describer.models import Description
+        from wama.studio.models import StudioRun
+        from wama.transcriber.models import Transcript
+        self.assertEqual('smart', declared_mode(Description))
+        self.assertEqual('audio', declared_mode(Transcript))
+        self.assertEqual('media', declared_mode(StudioRun), 'nothing declared: the file as is')
 
 
 class BatchLinesTest(SimpleTestCase):
@@ -363,6 +368,20 @@ class EngineLotTest(_MediaCase):
         self.assertEqual(received['work_audio'], received['audio'],
                          'the principal entry is also found by its nature')
 
+    def test_a_url_sent_to_an_app_is_fetched_in_the_mode_it_declares(self):
+        fetched = []
+
+        def download(user, url, mode):
+            fetched.append(mode)
+            return self.own('page.html')
+        with mock.patch('wama.common.utils.source_ingest.download_to_user', download):
+            run, _fake, _gather = self._play(
+                _graph({'id': 's', 'app': 'media_import',
+                        'params': {'entry': {'files': ['https://exemple.org/article']}}}),
+                'describer')
+        self.assertEqual('SUCCESS', run.status, run.error_message)
+        self.assertEqual(['smart'], fetched)
+
     def test_a_failed_element_does_not_stop_the_others(self):
         from wama.studio.services.launch import launch_graph
         from wama.studio.tasks import run_pipeline_task
@@ -469,6 +488,27 @@ class PaletteAndInspectorTest(_MediaCase):
             self.assertEqual('media', nodes[key]['world'], key)
         for key in ('dataset_input', 'data_connector'):
             self.assertEqual('data', nodes[key]['world'], key)
+        from wama.common.app_registry import WORLD_SECTIONS
+        self.assertEqual(WORLD_SECTIONS['media']['label'], nodes['card_input']['world_label'],
+                         'the label of a world is the one the worlds declare')
+
+    def test_the_input_sections_follow_the_order_the_worlds_declare(self):
+        from wama.common.app_registry import WORLD_SECTIONS
+        from wama.studio.services.palette import palette_nodes
+        worlds = []
+        for meta in palette_nodes(self.user).values():
+            if meta.get('kind') == 'source' and meta['world'] and meta['world'] not in worlds:
+                worlds.append(meta['world'])
+        self.assertEqual(sorted(worlds, key=lambda w: WORLD_SECTIONS[w]['order']), worlds)
+        self.assertEqual(['media', 'data'], worlds)
+
+    def test_each_input_card_declares_what_its_modal_shows(self):
+        from wama.studio.services.palette import palette_nodes
+        nodes = palette_nodes(self.user)
+        self.assertEqual({'card_input': 'card', 'batch_input': 'lot', 'media_import': 'files',
+                          'reference_input': 'files', 'text_input': '', 'dataset_input': ''},
+                         {k: nodes[k]['compose'] for k in ('card_input', 'batch_input',
+                          'media_import', 'reference_input', 'text_input', 'dataset_input')})
 
     def test_what_a_universal_card_fills_shows_provided_on_the_app_node(self):
         from wama.studio.services.entries import CARD_PORT_ID
@@ -498,6 +538,9 @@ class EntryCardViewTest(_MediaCase):
                       'a drop JOINS — even for an app whose drop creates a card on its page')
         self.assertNotIn('DetectBar', html, 'the lot bar creates cards: not rendered here')
         self.assertIn('id="studioEntryDrop"', html)
+        from wama.studio.views import ENTRY_CARD_IDS
+        self.assertIn('id="studioEntryIds"', html, 'the ids travel with the card, read by the modal')
+        self.assertIn(json.dumps(ENTRY_CARD_IDS['card_id']), html)
         self.assertIn('le pipeline tournera une fois par ligne', html)
 
     def test_an_app_page_is_unchanged(self):
@@ -570,6 +613,12 @@ var card = {querySelectorAll: function (sel) { return sel === '[data-port-tab]' 
         self.assertIn('WamaInputSlots.restrict(card, keep)', src)
         self.assertIn('p.urlInputId', src)
         self.assertNotIn('[data-port-tab', src, 'the tabs are read by the card brick only')
+        from wama.studio.views import ENTRY_CARD_IDS
+        for value in ENTRY_CARD_IDS.values():
+            self.assertNotIn(f"'{value}'", src, f'{value}: declared by the server, never copied')
+        canvas = self._src('studio/js/wama-studio.js')
+        self.assertIn('metaOf(node).compose', canvas)
+        self.assertNotIn('ENTRY_MODES', canvas, 'what a modal shows is declared by the registry')
 
     def test_input_slots_exposes_its_wiring_for_a_card_rendered_later(self):
         from py_mini_racer import MiniRacer
