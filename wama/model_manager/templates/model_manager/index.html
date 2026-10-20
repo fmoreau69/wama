@@ -2120,16 +2120,22 @@ document.addEventListener('DOMContentLoaded', function() {
         const box = document.getElementById('mmProposals');
         const list = document.getElementById('mmProposalsList');
         if (!box || !list) return;
-        let items = [], backends = [];
+        // `canDecide` : seul un administrateur valide (`api_manifest_proposal_decide`, 403 sinon) ;
+        // un développeur voit la file où il propose, sans les boutons. Absent d'une réponse = l'ancien
+        // serveur, qui laissait décider : on garde les boutons.
+        let items = [], backends = [], canDecide = true;
         try {
             const r = await fetch('{% url "model_manager:api_manifest_proposals" %}');
             const data = await r.json();
             items = data.proposals || [];
             backends = data.backends || [];
+            canDecide = data.can_decide !== false;
         } catch (e) { console.error('Propositions indisponibles :', e); }
         document.getElementById('mmProposalsCount').textContent = items.length + backends.length;
         box.classList.toggle('d-none', items.length + backends.length === 0);
         const esc = WamaApp.escapeHtml;
+        const waiting = canDecide ? '' : '<div class="text-muted fst-italic">En attente de validation par un administrateur.</div>';
+        const hideDecision = canDecide ? '' : ' d-none';
         // Backend proposé (marche B2) : du CODE, que Valider écrit dans wama/common/backends/.
         // Aucun contrôle ne juge la QUALITÉ de l'image : le smoke dit seulement qu'elle existe.
         const backendHtml = b => {
@@ -2141,7 +2147,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 ${(c.warnings || []).map(w => `<div class="text-warning text-break">${esc(w)}</div>`).join('')}
                 ${r.resolved !== undefined ? `<div class="${r.resolved ? 'text-success' : 'text-danger'}">Résolution : ${r.resolved ? 'ce backend sera choisi' : 'NON choisi (' + esc(String(r.chosen)) + ')'}</div>` : ''}
                 ${s.ran ? `<div class="${s.ok ? 'text-success' : 'text-danger'} text-break">Smoke CPU : ${s.ok ? `image ${esc((s.size || []).join('×'))} en ${esc(String(s.seconds))} s — ${esc(s.image || '')}` : esc(s.error || 'échec')}</div>` : `<div class="text-muted">Smoke : ${esc(s.reason || 'non joué')}</div>`}
-                <div class="d-flex gap-1 mt-1">
+                ${waiting}
+                <div class="d-flex gap-1 mt-1${hideDecision}">
                     <button type="button" class="btn btn-sm btn-success py-0" data-file="${esc(b.file)}"
                             data-decision="apply" ${errors.length ? 'disabled' : ''}
                             title="Écrire le module dans wama/common/backends/ (jamais par-dessus un existant)">
@@ -2160,7 +2167,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <code>${esc(JSON.stringify(d.current))}</code>, proposé <code>${esc(JSON.stringify(d.proposed))}</code>
                     — non appliqué</div>`).join('')}
                 ${errors.map(e => `<div class="text-danger text-break">${esc(e)}</div>`).join('')}
-                <div class="d-flex gap-1 mt-1">
+                ${waiting}
+                <div class="d-flex gap-1 mt-1${hideDecision}">
                     <button type="button" class="btn btn-sm btn-success py-0" data-proposal="${p.id}"
                             data-decision="apply" ${errors.length || !filled.length ? 'disabled' : ''}
                             title="${errors.length ? 'Invalide : corriger la proposition' : (filled.length ? 'Appliquer au catalogue et au corpus' : 'Rien à combler')}">

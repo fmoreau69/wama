@@ -1982,8 +1982,12 @@ def api_manifest_proposals(request):
     # Backends proposés par le rôle `backend` (marche B2) : même geste, autre nature — du CODE,
     # que « Valider » écrit dans wama/common/backends/ (`backend_proposals.apply`).
     import wama.common.services.backend_proposals as backend_proposals
+    from wama.accounts.permissions import is_admin_tier
+    # Un développeur LIT la file (il y propose) ; seul un administrateur la décide — la page
+    # masque alors Valider/Rejeter (`api_manifest_proposal_decide`).
     return JsonResponse({'success': True, 'proposals': items,
-                         'backends': backend_proposals.pending()})
+                         'backends': backend_proposals.pending(),
+                         'can_decide': is_admin_tier(request.user)})
 
 
 @login_required
@@ -1991,10 +1995,19 @@ def api_manifest_proposals(request):
 @require_POST
 def api_manifest_proposal_decide(request):
     """VALIDER ou REJETER une proposition — le geste humain du cycle sandbox → promu
-    (`WAMA_MANIFEST_ARCHITECTURE §4`). Corps JSON : `{"id": <pk>, "decision": "apply"|"reject"}`."""
+    (`WAMA_MANIFEST_ARCHITECTURE §4`). Corps JSON : `{"id": <pk>, "decision": "apply"|"reject"}`.
+
+    Réservé à un ADMINISTRATEUR (Fabien, 2026-10-20 : « les devs proposent, les admins valident,
+    les utilisateurs utilisent » — `ROADMAP §29`, décision b). Il était ouvert aux développeurs
+    depuis le 2026-09-29 par la garde commune des vues du model manager ; « administrateur » se lit
+    au lieu unique des décisions du chantier (`permissions.is_admin_tier`)."""
     import json as _json
 
     import wama.common.manifests.proposals as proposals
+    from wama.accounts.permissions import is_admin_tier
+    if not is_admin_tier(request.user):
+        return JsonResponse({'success': False, 'error': "Valider ou rejeter une proposition est "
+                             "réservé à un administrateur."}, status=403)
     try:
         data = _json.loads(request.body or '{}')
     except ValueError:

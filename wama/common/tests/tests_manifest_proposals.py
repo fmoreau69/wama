@@ -13,7 +13,8 @@ CE QUE CES GARDES TIENNENT :
   5. une proposition pour un modèle absent du catalogue est refusée sans rien écrire ;
   6. (2026-10-18, `ROADMAP §29` étape 2) privé n'est pas « en attente » : seule une DEMANDE entre
      dans la file ; valider rend l'élément au SYSTÈME, pas à l'admin qui valide ; rejeter la
-     demande d'un auteur lui laisse son manifeste.
+     demande d'un auteur lui laisse son manifeste ;
+  7. (2026-10-20, décision b) un développeur LIT la file, seul un administrateur la décide.
 """
 from django.test import TestCase
 
@@ -189,6 +190,47 @@ class ManifestProposalTest(TestCase):
                                                                      password='x'))
         r = self.client.get(reverse('model_manager:api_manifest_proposals'))
         self.assertNotEqual(200, r.status_code)
+
+    def test_a_developer_reads_the_queue_but_only_an_administrator_decides(self):
+        """« Les devs proposent, les admins valident » (Fabien, 2026-10-20, `ROADMAP §29` décision
+        b) : le geste était ouvert aux développeurs depuis le 29/09 par la garde commune du model
+        manager. Un développeur voit la file, sans boutons ; sa décision est refusée, rien
+        n'est écrit, la demande reste en attente ; un administrateur décide."""
+        import json
+
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from wama.accounts.models import UserProfile
+        users = get_user_model().objects
+        dev = users.create_user('proposal_dev', password='x')
+        UserProfile.objects.update_or_create(user=dev, defaults={'account_tier': 'developpeur'})
+        admin = users.create_user('proposal_tier_admin', password='x')
+        UserProfile.objects.update_or_create(user=admin, defaults={'account_tier': 'admin'})
+        obj = proposals.propose(_llm_manifest(), origin='outputs/model_x.json')
+        listing, decide = (reverse('model_manager:api_manifest_proposals'),
+                           reverse('model_manager:api_manifest_proposal_decide'))
+        body = json.dumps({'id': obj.pk, 'decision': 'apply'})
+
+        self.client.force_login(users.get(pk=dev.pk))
+        seen = self.client.get(listing).json()
+        self.assertEqual([obj.pk], [p['id'] for p in seen['proposals']])
+        self.assertIs(False, seen['can_decide'])
+        for decision in ('apply', 'reject'):
+            r = self.client.post(decide, json.dumps({'id': obj.pk, 'decision': decision}),
+                                 content_type='application/json')
+            self.assertEqual(403, r.status_code, decision)
+        self.row.refresh_from_db()
+        self.assertEqual({}, self.row.composition)
+        obj.refresh_from_db()
+        self.assertTrue(obj.is_pending)
+
+        self.client.force_login(users.get(pk=admin.pk))
+        self.assertIs(True, self.client.get(listing).json()['can_decide'])
+        self.assertTrue(self.client.post(decide, body,
+                                         content_type='application/json').json()['success'])
+        self.row.refresh_from_db()
+        self.assertEqual(COMPOSITION, self.row.composition)
 
     def test_a_setting_declared_as_an_input_makes_the_proposal_invalid(self):
         """Vécu au 1er passage réel (gpt-oss-120b, 29/09) : `inputs_optional: [seed, steps, cfg]`

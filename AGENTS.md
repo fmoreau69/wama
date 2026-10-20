@@ -991,7 +991,9 @@ tant que la fiabilité n'est pas éprouvée sur plus de runs.
 > model manager (section « Propositions à valider ») APPLIQUE ce qu'un rôle a proposé : un
 > manifeste `model` (projeté au catalogue, `common/manifests/proposals.py`) et un **backend**
 > (écrit dans `wama/common/backends/`, `common/services/backend_proposals.py`). Ce qui reste :
-> un HUMAIN décide (compte admin/dev), les contrôles sont REFAITS à l'écriture, aucun module
+> un HUMAIN décide — un **administrateur** seul depuis le 2026-10-20 (*« les devs proposent, les
+> admins valident, les utilisateurs utilisent »*, `ROADMAP §29` décision b ; un développeur voit
+> la file sans pouvoir la trancher) —, les contrôles sont REFAITS à l'écriture, aucun module
 > existant n'est écrasé, **rien n'est commité**. Hors de ce périmètre (apps média, code d'app,
 > glu `codegen`), la règle ci-dessus vaut entière. Chaîne et trous : `PROSPECTION_PIPELINE.md
 > §Session du 2026-09-29`.

@@ -6420,9 +6420,17 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
    - **Ce que l'étape ne fait PAS** : aucune page ne liste encore les manifestes d'un compte ; la
      promotion d'une FONCTION d'utilisateur passe le manifeste au système, mais sa ligne
      `UserFunction` reste à l'auteur (devenir système, pour une fonction, c'est entrer au catalogue
-     CODE : étape 4). ⚠ **À trancher** : le geste « Valider » reste ouvert aux comptes
+     CODE : étape 4). ~~⚠ **À trancher** : le geste « Valider » reste ouvert aux comptes
      admin **et dev** (décision du 2026-09-29), là où la décision b dit « admin seul » — à régler
-     avec les quatre prédicats « gérer » à unifier (`PROFILES_PERMISSIONS`).
+     avec les quatre prédicats « gérer » à unifier (`PROFILES_PERMISSIONS`).~~
+     ✅ **Tranché le 2026-10-20 (Fabien)** : *« Pour le moment, « Valider » est réservé à l'admin
+     seul. Les devs proposent, les admins valident, les utilisateurs utilisent. On verra plus
+     tard si on fait évoluer ça. »* `api_manifest_proposal_decide` refuse (403) tout compte qui
+     n'est pas administrateur (`permissions.is_admin_tier`), Rejeter compris ; la liste reste
+     lisible des développeurs, qui y proposent, et dit `can_decide` : la page masque alors les
+     boutons (« En attente de validation par un administrateur »). Garde :
+     `tests_manifest_proposals.test_a_developer_reads_the_queue_but_only_an_administrator_decides`,
+     contre-épreuve rouge (`is_admin_tier` rendu toujours vrai).
 3. ✅ **`AIModel` et ses lecteurs (2026-10-18).** C'était la famille la plus exposée à une
    fuite. Ce qui a été posé :
    - **La ligne porte la provenance.** `AIModel` hérite de `ScopedVisibility` et gagne `owner`
