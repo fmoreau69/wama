@@ -108,30 +108,9 @@ Le titre reste dans la zone étendue (il nomme l'ENTRÉE ; voix, vitesse et aper
             <span class="badge bg-secondary" id="queueCount">{{ queue_count }}</span>
         </h4>
 
-        {% comment %}Toolbar de file COMMUNE (tri/filtre/layout + actions globales) — les ids
-startAllBtn/downloadAllBtn/clearAllBtn migrent ici depuis le volet droit. ⬇ : brique
-`_download_button.html` (2026-10-17). ▶ et 🗑 : brique
-`queue-actions.js` (URLs passées au partial, 2026-10-17 ; le corps du ▶ est déclaré par index.js).{% endcomment %}
-        {% url 'synthesizer:start_all' as q_start_url %}{% url 'synthesizer:clear_all' as q_clear_url %}{% url 'synthesizer:download_all' as q_download_url %}
-        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='synthesizer' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
-
-        <div id="synthesisQueue" class="wama-queue-{{ card_layout|default:'list' }}"
-         {% queue_dnd_attrs 'synthesizer' %}>
-            {% for batch_info in batches_list %}
-
-            {% url 'synthesizer:batch_download' batch_info.obj.id as batch_dl_url %}
-            {% include 'common/_queue_entry.html' with card_template='synthesizer/_synthesis_card.html' download_url=batch_dl_url app='synthesizer' actions_communes=True meta_template='common/_batch_meta_chips.html' confirm_duplicate="Dupliquer ce lot ? Les fichiers sources seront partages, les resultats effaces." %}
-
-            {% endfor %}
-
-            {% if not batches_list %}
-            <div class="text-center text py-5">
-                <i class="fas fa-inbox fa-3x mb-3"></i>
-                <p>Aucun fichier dans la file d'attente</p>
-                <p>Uploadez des fichiers texte pour commencer</p>
-            </div>
-            {% endif %}
-        </div>
+        {% comment %}La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20 — le corps
+        du ▶ de file reste déclaré par index.js.{% endcomment %}
+        {% include 'common/_queue.html' with app='synthesizer' queue_id='synthesisQueue' batches=batches_list card_template='synthesizer/_synthesis_card.html' meta_template='common/_batch_meta_chips.html' confirm_duplicate="Dupliquer ce lot ? Les fichiers sources seront partages, les resultats effaces." empty_text="Aucun fichier dans la file d'attente" empty_hint='Uploadez des fichiers texte pour commencer' %}
     </div>
 </div>
 

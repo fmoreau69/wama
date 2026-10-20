@@ -3,8 +3,9 @@ Gabarit `templates/<app>/index.html` (marche A — v1, marche S2).
 
 Convention MESURÉE (témoin converter, 2026-08-18) : la page d'index est déjà largement
 pilotée par les briques COMMUNES — extends du base d'app, `_global_progress`,
-`_new_item_card` (paramétrée : accept dérivé d'identity.input_extensions), `_queue_toolbar`,
-boucle de lots sur `_batch_card`. Le gabarit rend CE squelette-là ; les parties d'app
+`_new_item_card` (paramétrée : accept dérivé d'identity.input_extensions), la FILE commune
+(`_queue`, depuis le 2026-10-20 : barre, conteneur, entrées de lot, état vide). Le gabarit rend
+CE squelette-là ; les parties d'app
 restent des TROUS DE GLU marqués et VISIBLES (détecteur Playwright) :
   • volet droit réglages (contenu app) — hôte WamaParams minimal seulement ;
   • modales spécifiques, bloc javascript d'app ;
@@ -391,28 +392,11 @@ def render_index(manifest: dict) -> tuple:
     # câblage était le seul maillon, et il n'appartenait à personne. Il appartient désormais au
     # COMMUN (`queue-actions.js`, 3ᵉ étage : élément → lot → file) ; le gabarit n'a plus qu'à
     # passer les URLs — même contrat que `data-batch-<action>-url` pour les lots.
-    route_start_all = resolve_route('start_all', noms_routes)
-    route_clear_all = resolve_route('clear_all', noms_routes)
-    route_dl_all = resolve_route('download_all', noms_routes)
-    urls_file = ''.join(
-        f"""    {{% url '{app}:{cle}' as {var} %}}\n"""
-        for cle, var in ((route_start_all, 'q_start_url'), (route_clear_all, 'q_clear_url'),
-                         (route_dl_all, 'q_download_url')) if cle)
-    # `app` avec le ⬇ : c'est lui qui donne au menu les formats DÉCLARÉS (`export_formats`) ; sans
-    # lui, une jumelle d'une app multi-format rendait un lien nu (2026-10-17, critère
-    # `queue_actions_common`).
-    bits_file = ''.join(bit for cle, bit in (
-        (route_start_all, ' start_url=q_start_url'), (route_clear_all, ' clear_url=q_clear_url'),
-        (route_dl_all, f" app='{app}' download_url=q_download_url")) if cle)
-
-    # Actions COMMUNES de la card MÈRE de lot — émises SEULEMENT si les trois routes de lot
-    # existent au manifeste (contrat `_batch_card.html` : l'opt-in fait émettre les
-    # `data-batch-*-url`, `queue-actions.js` prend ▶⧉🗑 en charge). Une app générée n'a AUCUN
-    # handler local de lot : pas de risque de double-fire — c'était même le défaut mesuré
-    # (`converter_01.batch_actions` : card mère aux boutons inertes, 2026-08-30).
-    lot_bits = ''
-    if all(resolve_route(r, noms_routes) for r in ('batch_delete', 'batch_duplicate', 'batch_start')):
-        lot_bits = f" app='{app}' actions_communes=True"
+    # ⚠ Depuis le 2026-10-20 ce câblage n'est plus émis ICI : la FILE commune
+    # (`common/_queue.html`) lit les trois routes globales sous leurs orthographes admises, l'URL
+    # du ZIP de chaque lot et les actions communes de la card mère — une route absente n'émet
+    # rien, ce que faisait `lot_bits` (2026-08-30 : `converter_01.batch_actions`, card mère aux
+    # boutons inertes). Le générateur écrit la même ligne que les dix apps.
 
     caps = body.get('capabilities') or {}
     url_bits = url_js = ''
@@ -608,46 +592,12 @@ alors que la copie-témoin l'avait : skip `converter_01.inspector_actions` mesur
     {{% include 'common/_new_item_card_v4.html' with app_id='{app}' drop_zone_id='{app}DropZone' file_input_id='{app}FileInput'{folder_bit} file_accept='{accept}' formats_label='{label}' show_batch_bar=True show_media_library=True batch_template_url=batch_tpl_url collapsible=True{url_bits}{ref_bits}{attach_bits} %}}
     <hr class="border-secondary">
 
-{urls_file}    {{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='{app}StartAllBtn' clear_id='{app}ClearAllBtn' download_id='{app}DownloadAllBtn' show_download=True{bits_file} %}}
-
-    <div id="{app}Queue" class="wama-queue-{{{{ card_layout|default:'list' }}}}"
-         {{% queue_dnd_attrs '{app}' %}}>
-        {{% for b in batches_list %}}
-            {{% comment %}}ENTRÉE DE FILE — brique COMMUNE `common/_queue_entry.html`.
-            PORTÉ le 2026-09-09, le lendemain du jour où la fabrique a reçu un CORRECTIF
-            ponctuel au même endroit. C'est la leçon du jour : le 09/09 on a recopié ICI
-            l'enrobage `.wama-queue-entry` que la brique posait DÉJÀ, au lieu d'appeler la
-            brique. Un correctif qui REPRODUIT le contenu d'un commun au lieu de l'appeler
-            n'est pas « on corrige la fabrique » — c'est semer la MÊME dette une génération
-            plus loin. La fabrique était de fait la 11ᵉ copie du bloc, et la seule qui se
-            réplique.
-
-            Le verrou était le même que pour le converter (dernière app portée, le même
-            jour) : la brique passe l'élément sous `elem`, la card générée lisait `item`.
-            Levé — `_generic_card.html` lit `elem`, et `_decorer` (views_gen) pose
-            `item.elem = item`, la FK étant DIRECTE ici aussi (pas de modèle de liaison —
-            trou déjà consigné dans `views_gen` : « le motif est écrit à 4 endroits »).
-
-            Ce que la brique tient désormais à la place de ces 30 lignes : le choix card
-            seule / card mère (`obj.is_unitary`, ex-`b.is_group`), le wrapper de groupe et
-            son id, la card mère commune, le repli par défaut avec son état persisté,
-            l'enrobage `data-entry-batch-id` des entrées unitaires (le correctif du 09/09),
-            et `in_batch` posé sur les filles.
-
-            ⚠ DEUX ALIGNEMENTS ASSUMÉS, l'un et l'autre voulus :
-              • la clé de persistance du repli passe de `{app}-<id>` à `{app}_<id>`
-                (souligné) — la graphie des 10 apps réelles. Une jumelle oublie donc UNE
-                fois son état replié/déplié : c'est du localStorage de bac à sable ;
-              • l'indentation `ps-2 pt-1` cède au liseré cyan de la brique
-                (`CARD_DESIGN §11.2`, référence transcriber). L'écart relevé par Fabien le
-                31/08 — filles pleine largeur et toujours dépliées — reste corrigé : c'est
-                la brique qui le tient maintenant, et pour toutes les apps à la fois.
-            {{% endcomment %}}
-            {{% include 'common/_queue_entry.html' with batch_info=b card_template='{app}/_generic_card.html' card_class='job-card' meta_template='common/_batch_meta_chips.html' batch_key='{app}'{lot_bits} %}}
-        {{% empty %}}
-            <p class="text-muted small">Aucun élément dans la file.</p>
-        {{% endfor %}}
-    </div>
+    {{% comment %}}LA FILE — pièce COMMUNE (barre, conteneur, entrées, état vide), la même ligne que
+    les dix apps (2026-10-20). Le générateur en écrivait la composition — 11ᵉ copie, et la seule
+    qui se réplique : le 09/09 déjà, un correctif y avait recopié l'enrobage d'entrée que la
+    brique posait. `{app}Queue` reste l'id du conteneur : le JS ci-dessous le lit. La card
+    générée lit `elem` (`_decorer` pose `item.elem = item`, FK directe).{{% endcomment %}}
+    {{% include 'common/_queue.html' with app='{app}' queue_id='{app}Queue' batches=batches_list card_template='{app}/_generic_card.html' card_class='job-card' meta_template='common/_batch_meta_chips.html' empty_text='Aucun élément dans la file.' %}}
 
 </div>
 {{% endblock %}}

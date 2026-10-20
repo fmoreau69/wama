@@ -44,10 +44,11 @@ def _lire(chemin):
     return (racine / chemin).read_text(encoding='utf-8')
 
 
-def _include_toolbar(src):
-    """La balise `{% include 'common/_queue_toolbar.html' … %}` du template généré."""
-    for m in re.finditer(r'\{%\s*include\s+\'common/_queue_toolbar\.html\'(.*?)%\}', src, re.S):
-        return m.group(1)
+def _include_queue(src):
+    """Les arguments de `{% include 'common/_queue.html' … %}` du template généré — la FILE
+    commune (2026-10-20), qui inclut la barre et lui passe les URLs qu'elle DÉRIVE."""
+    for m in re.finditer(r'\{%\s*include\s+\'common/_queue\.html\'(.*?)%\}', src, re.S):
+        return dict(re.findall(r"(\w+)='([^']*)'", m.group(1)))
     return None
 
 
@@ -74,26 +75,27 @@ class BarreDeFileGenereeTest(SimpleTestCase):
 
     def test_les_trois_actions_de_file_recoivent_une_url_et_pas_seulement_un_id(self):
         # Un `id` seul est ce qui a produit trois boutons inertes : le partial le rend, l'app
-        # est censée l'écouter, et un gabarit n'écrit pas de handler.
-        inc = _include_toolbar(self.src)
-        self.assertIsNotNone(inc, "le gabarit n'inclut plus la barre d'outils commune")
-        for arg in ('start_url=', 'clear_url=', 'download_url='):
-            self.assertIn(arg, inc, f'{arg} absent de la barre → bouton inerte (ou ⬇ désactivé)')
+        # est censée l'écouter, et un gabarit n'écrit pas de handler. Depuis le 2026-10-20 le
+        # générateur inclut la FILE commune, qui passe à la barre les URLs qu'elle dérive.
+        inc = _include_queue(self.src)
+        self.assertIsNotNone(inc, "le gabarit n'inclut plus la file commune")
+        self.assertEqual(SOURCE, inc.get('app'), "la file ne sait pas de quelle app lire les routes")
+        piece = _lire('wama/common/templates/common/_queue.html')
+        for arg in ('start_url=q.start_url', 'clear_url=q.clear_url', 'download_url=q.download_url'):
+            self.assertIn(arg, piece, f'{arg} absent de la barre → bouton inerte (ou ⬇ désactivé)')
 
     def test_chaque_url_passee_est_DEFINIE_avant_l_include(self):
-        # Le défaut que la sous-chaîne ne voit pas : passer `start_url=q_start_url` sans avoir
-        # posé `{% url … as q_start_url %}` rend la variable VIDE → le partial n'émet pas
-        # l'attribut → bouton inerte, exactement comme avant, sans rien de visible au diff.
-        inc = _include_toolbar(self.src)
-        posees = _variables_url(self.src)
-        passees = re.findall(r'\b(start_url|clear_url|download_url)=([\w_]+)', inc)
-        # ⚠ Sans cette ligne, le test passe À VIDE quand AUCUNE url n'est passée — c'est-à-dire
-        # exactement dans l'état défectueux. Mesuré : rejoué sur HEAD (avant correctif) il était
-        # le seul des trois à rester vert. Un test qui ne boucle sur rien atteste le néant.
-        self.assertEqual(3, len(passees), 'les 3 urls de file doivent être passées au partial')
-        for arg, var in passees:
-            self.assertIn(var, posees,
-                          f'{arg} pointe « {var} », jamais défini par un {{% url … as %}}')
+        # Le défaut que la sous-chaîne ne voit pas : une URL passée VIDE → le partial n'émet pas
+        # l'attribut → bouton inerte, sans rien de visible au diff. On RENDS donc la file telle
+        # que la page générée l'inclut, et on exige les trois attributs remplis.
+        inc = _include_queue(self.src)
+        html = render_to_string('common/_queue.html', {
+            **inc, 'batches': [], 'q_sort': 'recent', 'q_filter': 'all'})
+        qid = inc['queue_id']
+        for attr in ('data-queue-start-url', 'data-queue-clear-url'):
+            self.assertRegex(html, rf'{attr}="/{SOURCE}/[^"]+"', f'{attr} vide ou absent')
+        self.assertRegex(html, rf'id="{qid}-download-all"', 'le ⬇ de file a perdu son id')
+        self.assertIn(f'/{SOURCE}/download', html, 'le ⬇ de file sans URL (désactivé à vie)')
 
     def test_les_routes_citees_existent_reellement(self):
         # Un nom de route supposé produit un POST 404 muet (leçon `stop` vs `cancel`).
@@ -334,22 +336,12 @@ class EmissionsDuGabaritTest(SimpleTestCase):
         self.assertIn("_inspector_actions.html", self.src)
 
     def test_la_card_mere_recoit_les_actions_communes_quand_les_routes_existent(self):
-        # Échec mesuré 30/08 : « la card mère n'émet pas [del, dup, start] ».
-        self.assertIn("actions_communes=True", self.src)
-        # Discriminant : sans les routes de lot au manifeste, PAS d'opt-in (un data-batch-*-url
-        # vers une route absente serait un lien mort silencieux).
-        from copy import deepcopy
-        manifest = deepcopy(_manifeste(SOURCE))
-        proc = (manifest.get('body') or {}).get('processing') or {}
-        proc['endpoints'] = [e for e in (proc.get('endpoints') or [])
-                             if e not in ('batch_delete', 'batch_duplicate', 'batch_start')]
-        proc['extra_routes'] = [e for e in (proc.get('extra_routes') or [])
-                                if (e.get('name') or '') not in
-                                ('batch_delete', 'batch_duplicate', 'batch_start')]
-        src2, _ = render_index(manifest)
-        if isinstance(src2, dict):
-            src2 = src2.get('index.html') or ''
-        self.assertNotIn('actions_communes=True', src2 or '')
+        # Échec mesuré 30/08 : « la card mère n'émet pas [del, dup, start] ». Depuis le
+        # 2026-10-20 la page générée inclut la FILE commune, qui donne l'opt-in à toute card
+        # mère ; le discriminant — une route de lot absente n'émet AUCUNE URL, jamais un lien
+        # mort — est tenu par la card mère et RENDU par `tests_queue_piece`.
+        self.assertIn("include 'common/_queue.html'", self.src)
+        self.assertIn('actions_communes=True', _lire('wama/common/templates/common/_queue.html'))
 
     def test_les_data_param_couvrent_tout_le_schema(self):
         # Constat Fabien 31/08 : la modale enregistrait 3 champs sur 20 et le volet était

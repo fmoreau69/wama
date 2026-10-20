@@ -1898,7 +1898,7 @@ MECHANISMS = (
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/static/common/js/wama-modes.js',)),
     Mechanism('app_base_js', 'Socle JS des apps',
-              "Plomberie commune file/cards : csrfFetch, urls, états vides, et `Poller` — LA boucle "
+              "Plomberie commune file/cards : csrfFetch, urls et `Poller` — LA boucle "
               "d'interrogation du navigateur : jamais deux requêtes en vol, muette en onglet caché "
               "(2026-10-13 ; toute boucle des apps passe par lui, garde `tests_poller_js`)",
               'wama/common/static/common/js/wama-app-base.js', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
@@ -2216,10 +2216,14 @@ MECHANISMS = (
     Mechanism('queue_front', "File d'attente (front)",
               "Comportements communs des files : collapse de batch persisté, mode Solitaire "
               "(accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE "
-              "(CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*",
+              "(CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*. Et la FILE "
+              "elle-même, pièce unique depuis le 2026-10-20 (`_queue.html` : barre, conteneur, "
+              "entrées, état vide — routes lues sous leurs orthographes admises, état vide "
+              "TOUJOURS rendu et basculé ici) : les dix apps et le générateur l'incluent",
               'wama/common/static/common/js/wama-queue.js', 'docs/construction/ui/CARD_DESIGN.md',
               symbol='WamaQueue',           # global de base.html : compté par son symbole
               annexes=('wama/common/static/common/js/queue-actions.js',
+                       'wama/common/templates/common/_queue.html',
                        'wama/common/templates/common/_queue_toolbar.html',
                        'wama/common/templates/common/_queue_actions.html',
                        'wama/common/templates/common/_batch_card.html')),

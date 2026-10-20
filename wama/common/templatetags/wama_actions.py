@@ -202,6 +202,47 @@ def domain_route_prefix(app, domain=None):
 
 
 @register.simple_tag
+def queue_context(app, domain=None):
+    """Ce que la FILE commune (`common/_queue.html`, 2026-10-20) lit de la déclaration de l'app :
+    les URLs de ses trois actions globales et l'icône de son état vide.
+
+    Les routes se LISENT sous chaque orthographe admise (`urls_gen.route_variants` — l'anonymizer
+    dit `clear_all_media`), préfixées par le domaine qui a ses propres routes (`route_prefix` :
+    l'audio de l'enhancer). Une route absente rend '' : le partial des actions retombe alors sur
+    son bouton désactivé, comme avant. Quand plusieurs domaines PARTAGENT les mêmes routes
+    (l'imager : image et vidéo), le ⬇ se borne au sien par `?domain=` — la lecture de
+    `progress_views.download_all`.
+
+    L'icône est celle du domaine, sinon celle de l'app (`app_registry.app_identity`)."""
+    from django.urls import NoReverseMatch, reverse
+    from wama.common.app_registry import app_identity
+    from wama.common.manifests.codegen.urls_gen import route_variants
+    from wama.common.utils.app_modes import get_domain, get_domains, route_prefix
+
+    p = route_prefix(app, domain) if domain else ''
+    pfx = f'{p}_' if p else ''
+
+    def _url(canonical):
+        for name in route_variants(canonical):
+            try:
+                return reverse(f'{app}:{pfx}{name}')
+            except NoReverseMatch:
+                continue
+        return ''
+
+    download = _url('download_all')
+    shared = sum(1 for d in get_domains(app) if not d.get('route_prefix')) > 1
+    if download and domain and not p and shared:
+        download += f'?domain={domain}'
+    icon = (get_domain(app, domain).get('icon') if domain else '') or ''
+    if icon and ' ' not in icon:        # le domaine la déclare courte (`fa-image`)
+        icon = f'fas {icon}'
+    return {'start_url': _url('start_all'), 'clear_url': _url('clear_all'),
+            'download_url': download,
+            'empty_icon': icon or app_identity(app).get('icon') or 'fas fa-inbox'}
+
+
+@register.simple_tag
 def live_input_declared(app):
     """L'app déclare-t-elle la capture EN DIRECT (`has_live_input`) ? — pour la card v3, qui
     affichait le bouton Speak sur le seul littéral `show_live` de la page (2026-09-28)."""

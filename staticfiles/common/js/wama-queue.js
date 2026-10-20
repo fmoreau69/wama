@@ -447,9 +447,26 @@
         return n;
     }
 
+    // ── État vide de la file (2026-10-20, `common/_queue.html`) ─────────────────
+    //
+    // La pièce commune REND toujours son état vide (`.empty-queue`, caché par `hidden` quand la
+    // file a des cards) ; ici on le montre ou le cache quand des cards arrivent ou partent. Avant,
+    // chaque app réécrivait cette bascule — et le markup de l'état vide avec elle, en cinq
+    // idiomes : supprimer la dernière card laissait parfois une file muette, ajouter la première
+    // laissait parfois le message à côté d'elle.
+    function initEmptyState() {
+        document.querySelectorAll('[data-wama-queue]').forEach(function (queue) {
+            const empty = queue.querySelector(':scope > .empty-queue');
+            if (!empty) return;
+            function sync() { empty.hidden = !!queue.querySelector('.wama-card'); }
+            sync();
+            new MutationObserver(sync).observe(queue, { childList: true, subtree: true });
+        });
+    }
+
     // ── Init ─────────────────────────────────────────────────────────────────
 
-    function init() { injectStyle(); initBatchCollapse(); initOnePileOpen(); initLayoutToggle(); initDesignSelect(); initStackToggle(); focusFromSession(); }
+    function init() { injectStyle(); initBatchCollapse(); initOnePileOpen(); initLayoutToggle(); initDesignSelect(); initStackToggle(); initEmptyState(); focusFromSession(); }
 
     // API publique
     window.WamaQueue = window.WamaQueue || {};

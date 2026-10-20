@@ -1378,8 +1378,26 @@ encore la règle.
 > et confronter au code qui l'implémente (ici `queue_view.py:30` disait explicitement le
 > contraire : « plus de batchs d'abord — décision 2026-06-29 »).
 
-**Le bloc entier est COMMUN depuis le 2026-08-25 — `common/_queue_entry.html`.**
-Une app n'écrit plus la structure de sa file, elle la déclare :
+**La FILE ENTIÈRE est une pièce commune depuis le 2026-10-20 — `common/_queue.html`** (barre,
+conteneur, entrées, état vide ; décision de Fabien du 19/10, `ROUTE §F3b`). Une page d'app ne
+compose plus sa file, elle l'inclut — et le générateur écrit la même ligne :
+
+```django
+{% include 'common/_queue.html' with app='<app>' queue_id='<id lu par le JS>' batches=batches_list card_template='<app>/_<x>_card.html' empty_text='…' empty_hint='…' %}
+```
+
+Ce que la pièce DÉRIVE et qu'on ne passe plus : les URLs ▶ / 🗑 / ⬇ de la barre (orthographes
+admises de `urls_gen.ROUTE_ALIASES`, préfixe du domaine, `?domain=` quand deux domaines partagent
+leurs routes), l'URL du ZIP de chaque lot, les ids des trois boutons (`<queue_id>-start-all`,
+`-clear-all`, `-download-all`), l'opt-in aux actions communes de lot, l'icône de l'état vide
+(celle du domaine, sinon celle de l'app). `domain` pour une file par domaine (imager, enhancer) ;
+le reste (`card_class`, `meta_template`, `collapse_prefix`, `batch_key`, `show_settings`,
+`confirm_duplicate`, `clear_confirm`) traverse par le contexte. **L'état vide est TOUJOURS
+rendu**, caché dès qu'une card est là, et basculé par `wama-queue.js` : aucun JS d'app ne
+l'écrit plus. Critère de grille : `queue_piece`.
+
+**L'ENTRÉE de file est COMMUNE depuis le 2026-08-25 — `common/_queue_entry.html`**, que la pièce
+inclut. Elle n'est plus incluse directement par aucune page :
 
 ```django
 {% include 'common/_queue_entry.html' with card_template='<app>/_<x>_card.html' <params _batch_card> %}
@@ -1397,11 +1415,13 @@ cards filles reçoivent leur élément sous le même nom** (`elem`, exposé par
 `build_batches_list` ; avant : 8 graphies `media=`, `gen=`, `e=`, `ae=`, `t=`, `desc=`,
 `synthesis=`, `item=`). Un partial ne peut pas appeler des cards qui ne répondent pas au même
 appel.
-⚠ **Une app qui construit sa file À LA MAIN ne peut pas l'adopter** — le partial lit
+~~⚠ **Une app qui construit sa file À LA MAIN ne peut pas l'adopter** — le partial lit
 `batch_info.items[].elem`, alias posé par `build_batches_list`. C'est le cas du **converter**
 (FK directe job→batch, groupement en mémoire) : son reste-à-faire est l'adoption de
 `build_batches_list`, pas celle de ce partial. Le critère de grille `queue_entry` le gate donc
-en N/A plutôt que de lui reprocher le mauvais défaut.
+en N/A plutôt que de lui reprocher le mauvais défaut.~~ — **périmé depuis le 2026-09-09** (relevé
+le 2026-10-20) : le converter a adopté l'entrée commune en posant lui-même `elem` sur le job
+(`_decorate_job`), et la porte du critère est tombée le même jour (`conformity_checker._queue_entry`).
 
 **Règle « card unique vs card mère » :**
 Un lot d'UN seul membre s'affiche comme une card ordinaire, sans card mère. La décision se lit

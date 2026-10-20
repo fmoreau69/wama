@@ -302,14 +302,15 @@
             // File images → IDs par défaut (#globalProgressBar/Stats/Pct, partial commun).
             // `download` : le ⬇ de CETTE file, que la barre rend prêt dès qu'un élément du domaine
             // est terminé (règle commune, 2026-10-17).
+            // (Ids tirés du conteneur par la file commune : `<queue_id>-download-all`.)
             WamaGlobalProgress.init({ url: config.urls.globalProgress, dataKey: 'image',
-                                      download: 'imager-image-download-all' });
+                                      download: 'generationsQueue-download-all' });
             // File vidéos → IDs dédiés de la barre vidéo.
             WamaGlobalProgress.init({
                 url: config.urls.globalProgress, dataKey: 'video',
                 bar: 'videoGlobalProgressBar', stats: 'videoGlobalProgressStats',
                 pct: 'videoGlobalProgressPct', status: 'videoGlobalStatus', eta: 'videoGlobalEta',
-                download: 'imager-video-download-all',
+                download: 'videoGenerationsQueue-download-all',
             });
         }
 

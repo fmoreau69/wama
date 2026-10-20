@@ -1,0 +1,58 @@
+{% comment %}
+LA FILE — pièce COMMUNE (2026-10-20, `ROUTE §F3b`, décision de Fabien du 19/10 : « la FILE
+devient d'abord une pièce unique — barre de file, conteneur, entrées, état vide — portée aux dix
+apps et au générateur, sans exception »).
+
+Avant elle, chaque page d'app écrivait la même composition à la main : trois `{% templatetag openblock %} url … as {% templatetag closeblock %}`,
+la barre, le conteneur `wama-queue-*` et ses attributs de manipulation, la boucle, l'URL du ZIP
+de chaque lot, l'état vide — et cet état vide une SECONDE fois dans le JS de l'app, en cinq
+idiomes (un id, une classe, un `innerHTML`, un `d-none`, la fonction d'état vide du socle JS). Le
+piège que cette recopie entretenait était réel : l'enhancer passait `download_url=batch_dl_url`
+sans jamais le poser, et ses lots n'avaient AUCUN bouton ZIP (la même faute avait coûté le leur à
+trois apps le 25/08).
+
+PARAMÈTRES
+  app            (requis) nom de l'app — les routes, les formats du ⬇ et l'icône s'en lisent.
+  queue_id       (requis) id du conteneur : le JS de l'app le lit (`#transcriptQueue`…).
+  batches        (requis) les entrées — `batches_list` en général, une liste par domaine chez
+                 l'imager et l'enhancer.
+  card_template  (requis) la card fille, passée à `_queue_entry.html`.
+  domain         (option) le domaine de la file : préfixe des routes (`route_prefix`), portée du
+                 ⬇ quand deux domaines partagent les routes, icône de l'état vide.
+  empty_text, empty_hint, empty_icon — l'état vide (icône par défaut : celle du domaine, sinon
+                 celle de l'app).
+  Le reste traverse vers `_queue_entry.html` / `_batch_card.html` / la barre par le contexte :
+  `card_class`, `meta_template`, `collapse_prefix`, `batch_key`, `show_settings`,
+  `confirm_duplicate`, `clear_confirm`.
+
+CE QUI SE DÉRIVE, ET N'EST PLUS PASSÉ
+  • les URLs ▶ / 🗑 / ⬇ de la barre (`queue_context`, orthographes de `urls_gen.route_variants`) ;
+  • l'URL du ZIP de chaque lot (`batch_download`, préfixée par le domaine) ;
+  • les ids des trois boutons, tirés de `queue_id` (`<queue_id>-start-all`…) — le JS d'une barre
+    de domaine les nomme à sa barre de progression ;
+  • `actions_communes` : les dix apps l'avaient, et une route de lot absente n'émet rien.
+
+⚠ La barre reste AVANT le conteneur, jamais dedans : en mosaïque il devient une grille et elle y
+deviendrait une cellule (`tests_queue_toolbar`).
+
+ÉTAT VIDE — TOUJOURS rendu, caché (`hidden`) dès qu'une card est dans la file. C'est la brique
+commune de la file (`[data-wama-queue]`) qui le montre ou le cache quand les cards arrivent
+ou partent : plus aucune app ne l'écrit. L'idiome est celui du composer (audit B4-11 : une seule
+source du markup), généralisé.
+{% endcomment %}
+{% load wama_actions %}
+{% queue_context app domain as q %}
+{% include 'common/_queue_toolbar.html' with start_id=queue_id|add:'-start-all' clear_id=queue_id|add:'-clear-all' download_id=queue_id|add:'-download-all' show_download=True start_url=q.start_url clear_url=q.clear_url download_url=q.download_url %}
+{% domain_route_prefix app domain as q_route_prefix %}
+<div id="{{ queue_id }}" class="wama-queue-{{ card_layout|default:'list' }}" data-wama-queue
+     {% queue_dnd_attrs app domain %}>
+  {% for batch_info in batches %}
+    {% url app|add:':'|add:q_route_prefix|add:'batch_download' batch_info.obj.id as batch_dl_url %}
+    {% include 'common/_queue_entry.html' with download_url=batch_dl_url actions_communes=True %}
+  {% endfor %}
+  <div class="empty-queue text-center text-body-secondary py-5"{% if batches %} hidden{% endif %}>
+    <i class="{{ empty_icon|default:q.empty_icon }} fa-3x mb-3 opacity-50"></i>
+    <p class="mb-1">{{ empty_text|default:'La file est vide.' }}</p>
+    {% if empty_hint %}<p class="small mb-0">{{ empty_hint }}</p>{% endif %}
+  </div>
+</div>

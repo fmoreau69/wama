@@ -170,8 +170,8 @@
         (d.started || []).forEach(function (id) { insertRenderedCard(id); startPolling(id); });
     });
 
-    // 🗑 RÉSIDU de suppression — la brique commune fait tout le reste (portage 2026-08-23).
-    WamaQueueActions.onDeleted(function () { checkEmptyState(); });
+    // 🗑 Suppression : la brique commune fait tout (portage 2026-08-23) ; l'état vide est basculé
+    // par la brique de la file commune (2026-10-20).
 
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js). Le bouton `.settings-btn`
     // et la délégation appartiennent désormais au commun ; l'app ne garde que le remplissage de
@@ -538,17 +538,11 @@
             const existing = queue.querySelector(`.generation-card[data-id="${id}"]`);
             if (existing) existing.replaceWith(fresh);
             else queue.prepend(fresh);
-            checkEmptyState();
         });
     }
 
-    // Etat vide : bascule du hint RENDU SERVEUR (source unique dans index.html) — audit B4-11.
-    function checkEmptyState() {
-        const queue = document.getElementById('composerQueue');
-        const hint = document.getElementById('emptyHint');
-        if (!queue || !hint) return;
-        hint.classList.toggle('d-none', queue.querySelectorAll('.generation-card').length > 0);
-    }
+    // (État vide : rendu par la file commune et basculé par sa brique — l'idiome que le composer
+    // avait, audit B4-11, généralisé le 2026-10-20.)
 
     // Toast : brique commune (wama-app-base.js) — l'implémentation locale a été PROMUE brique
     // (WamaApp.toast, 2026-07-06) puis supprimée ici.

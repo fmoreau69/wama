@@ -367,10 +367,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (!queue || !fresh) return;
             const existing = queue.querySelector(`.wama-card[data-id="${id}"]`);
             if (existing) existing.replaceWith(fresh);
-            else {
-                queue.querySelector('.empty-queue')?.remove();
-                queue.prepend(fresh);
-            }
+            else queue.prepend(fresh);
             bindCardEvents(fresh);
         });
     }

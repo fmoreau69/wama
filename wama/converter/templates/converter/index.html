@@ -382,46 +382,12 @@ document.addEventListener('DOMContentLoaded', function () {
     converterDropZone/FileInput/FolderInput/Url/UrlSubmit conservés (converter.js inchangé).{% endcomment %}
 {% include 'common/_new_item_card_v4.html' with app_id='converter' drop_zone_id='converterDropZone' file_input_id='converterFileInput' folder_input_id='converterFolderInput' formats_label='Images · Vidéos · Audio · Documents · Archives' show_batch_bar=True url_input_id='converterUrl' url_submit_id='converterUrlSubmit' url_placeholder='https://… (page web, YouTube, média distant)' batch_template_url=converter_batch_template_url collapsible=True %}
 
-    {% comment %}Barre d'outils commune (tri/filtre/disposition Ligne-Mosaïque/actions globales),
-    alignement reader/composer/transcriber/describer (2026-07-10, absente jusqu'ici).
-    ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial).{% endcomment %}
-    {% url 'converter:start_all' as q_start_url %}{% url 'converter:clear_all' as q_clear_url %}{% url 'converter:download_all' as q_download_url %}
-    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='converterStartAllBtn' clear_id='converterClearAllBtn' download_id='converterDownloadAllBtn' show_download=True app='converter' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
-
-    <div id="converterQueue" class="wama-queue-{{ card_layout|default:'list' }}"
-         {% queue_dnd_attrs 'converter' %}>
-        {% for b in batches_list %}
-        {% comment %}── ENTRÉE DE FILE : brique COMMUNE `common/_queue_entry.html` ──────────
-        PORTÉ le 2026-09-09. Le converter était la DERNIÈRE des 10 apps à rendre ce bloc à la
-        main — il rendait la card mère, le repli, l'enrobage d'entrée et les deux boucles,
-        c'est-à-dire exactement ce que la brique fait depuis le 2026-08-25.
-
-        Le seul verrou était un NOM : la brique passe l'élément sous `elem`, `_job_card.html`
-        lisait `job`. Levé par le renommage du gabarit (frontière des données respectée :
-        `.job-card`, `data-job-id` et `data-delete-url` sont INCHANGÉS) et par `elem` posé sur
-        le job dans `_decorate_job` — pour le converter, la liaison et l'élément coïncident
-        (FK directe job→batch, pas de modèle de liaison comme dans les 9 autres apps).
-
-        Ce que la brique reprend TEL QUEL, et qu'il n'y a donc plus à tenir ici : le choix
-        card seule / card mère (`obj.is_unitary`, équivalent mesuré de l'ancien `is_group` —
-        `_auto_wrap_orphans` tourne AVANT, aucun job n'arrive sans lot), l'enrobage
-        `.wama-queue-entry[data-entry-batch-id]` des entrées unitaires (le correctif du
-        09/09 : sans lui `reorder_queue` écartait silencieusement les cards seules), l'id de
-        repli `batchItems<id>` et la clé localStorage `converter_<id>` — les deux défauts de
-        la brique, donc rien à passer —, et `data-media-type` sur le wrapper de groupe, que
-        `converter.js:378` lit pour ouvrir la modale de lot sur la bonne nature.{% endcomment %}
-        {% url 'converter:batch_download' b.obj.id as batch_dl_url %}
-        {% include 'common/_queue_entry.html' with batch_info=b card_template='converter/_job_card.html' card_class='job-card' meta_template='converter/_batch_card_meta.html' download_url=batch_dl_url app='converter' actions_communes=True %}
-        {% empty %}
-        {% comment %}`empty-queue` AJOUTÉ le 2026-08-23 : c'est la classe que la brique commune
-        `WamaApp.emptyState` cherche. Sans elle, le rendu SERVEUR et le rendu JS ne se voyaient
-        pas l'un l'autre et pouvaient coexister (deux états vides empilés).{% endcomment %}
-        <div id="converterEmptyState" class="text-center text-muted py-4 empty-queue">
-            <i class="fas fa-exchange-alt fa-2x mb-2" style="color:var(--bs-teal); opacity:.4;"></i>
-            <p class="mb-0">Aucune conversion — déposez un fichier pour commencer</p>
-        </div>
-        {% endfor %}
-    </div>
+    {% comment %}La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20. Le converter
+    était la dernière des 10 apps à passer sur l'entrée de file commune (09/09) : `elem` posé sur
+    le job par `_decorate_job` (liaison et élément coïncident, FK directe job→lot), et
+    `data-media-type` sur l'enveloppe du lot, que `converter.js` lit pour ouvrir la modale de lot
+    sur la bonne nature.{% endcomment %}
+    {% include 'common/_queue.html' with app='converter' queue_id='converterQueue' batches=batches_list card_template='converter/_job_card.html' card_class='job-card' meta_template='converter/_batch_card_meta.html' empty_text='Aucune conversion' empty_hint='Déposez un fichier pour commencer' %}
 
 </div>
 {% endblock %}

@@ -4,7 +4,8 @@
  * Extrait du Transcriber (app de référence) pour éliminer la duplication inter-apps :
  *   - helpers sans état : escapeHtml, getUrl, csrfHeaders, csrfFetch, wordCount
  *   - WamaApp.Poller    : boucle de polling de progression résiliente (par id)
- *   - WamaApp.emptyState: insertion/retrait d'un état vide dans un conteneur de file
+ *   (l'état vide d'une file n'est plus ici : la file commune le rend et sa brique le bascule —
+ *   `REMOVAL_LEDGER`, 2026-10-20)
  *
  * Aucune dépendance. Expose un namespace global `WamaApp`.
  * Adoption : charger ce script AVANT l'index.js de l'app, puis déléguer.
@@ -226,32 +227,6 @@
     this._pollers.clear();
     pollerRegistry.delete(this);
   };
-
-  // ── État vide d'un conteneur de file ─────────────────────────────────
-  // cfg = { container, cardSelector='.synthesis-card', emptyClass='empty-queue', html }
-  function emptyState(cfg) {
-    cfg = cfg || {};
-    const container = cfg.container;
-    const cardSelector = cfg.cardSelector || '.synthesis-card';
-    const emptyClass = cfg.emptyClass || 'empty-queue';
-    return {
-      remove: function () {
-        if (!container) return;
-        const el = container.querySelector('.' + emptyClass);
-        if (el) el.remove();
-      },
-      insertIfNeeded: function () {
-        if (!container) return;
-        const hasCards = container.querySelectorAll(cardSelector).length > 0;
-        if (!hasCards && !container.querySelector('.' + emptyClass)) {
-          const div = document.createElement('div');
-          div.className = 'text-center py-5 ' + emptyClass;
-          div.innerHTML = cfg.html || '<p class="text-body-secondary">Aucun élément</p>';
-          container.appendChild(div);
-        }
-      },
-    };
-  }
 
   // ── Toast non bloquant (généralise le toast composer ; remplace les alert()) ──
   // type ∈ {success, error|danger, info, warning} — mêmes couleurs que les badges Bootstrap.
@@ -1262,7 +1237,6 @@
     jsonOrExplain: jsonOrExplain,
     wordCount: wordCount,
     Poller: Poller,
-    emptyState: emptyState,
     toast: toast,
     ask: ask,
     filesFromServerPaths: filesFromServerPaths,

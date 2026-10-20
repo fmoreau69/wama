@@ -85,44 +85,9 @@ comme l'imager et l'avatarizer — le drapeau `primary_import_self` du 03/10 est
 {# + endpoint composer:global_progress au contrat {total,done,running,failed,overall_progress}). #}
 {% include 'common/_global_progress.html' %}
 
-{# ── File d'attente ────────────────────────────────────────────────────── #}
-{# Barre d'outils COMMUNE : actions globales à gauche · tri + filtre + disposition à droite. #}
-{# ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial). #}
-{% url 'composer:download_all' as download_all_url %}{% url 'composer:start_all' as q_start_url %}{% url 'composer:clear_all' as q_clear_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='composer' download_url=download_all_url start_url=q_start_url clear_url=q_clear_url clear_confirm='Supprimer toutes les générations (sauf celles en cours) ?' %}
-<div id="composerQueue" class="wama-queue-{{ card_layout|default:'list' }}"
-         {% queue_dnd_attrs 'composer' %}>
-
-    {% for batch_info in batches_list %}
-
-    {% url 'composer:batch_download' batch_info.obj.id as batch_download_url %}
-    {% include 'common/_queue_entry.html' with card_template='composer/_generation_card.html' card_class='generation-card' download_url=batch_download_url app='composer' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
-
-    {% endfor %}
-
-    {# Hint zone vide : TOUJOURS rendu (source UNIQUE du markup — audit B4-11), basculé en d-none #}
-    {# par checkEmptyState() côté JS. Le « Générer » vit dans la card « Nouvel élément » ci-dessus. #}
-    <div class="empty-hint d-flex flex-column align-items-center justify-content-center py-5 text-center{% if batches_list %} d-none{% endif %}"
-         id="emptyHint" style="min-height:280px;">
-        <div style="font-size:3rem; opacity:0.15; margin-bottom:1rem;">
-            <i class="fas fa-music"></i>
-        </div>
-        <p class="text-muted mb-1" style="font-size:1rem;">
-            Aucune génération pour l'instant
-        </p>
-        <p class="text-muted small mb-3" style="max-width:300px; line-height:1.6;">
-            Décrivez ce que vous voulez dans la card
-            <strong class="text-body-emphasis">« Nouvel élément »</strong> ci-dessus
-            et cliquez sur <strong class="text-success">Ajouter à la file d’attente</strong>, puis
-            lancez l’élément par ▶ — prompt vide = le modèle improvise.
-        </p>
-        <p class="text-muted small opacity-50">
-            Ou importez un fichier batch
-            <code style="font-size:0.75rem;">fichier|prompt|modèle|durée</code>
-        </p>
-    </div>
-
-</div>
+{# ── File d'attente : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20 ── #}
+{# Son état vide TOUJOURS rendu et basculé par la brique est l'idiome que le composer avait (audit B4-11). #}
+{% include 'common/_queue.html' with app='composer' queue_id='composerQueue' batches=batches_list card_template='composer/_generation_card.html' card_class='generation-card' meta_template='common/_batch_meta_chips.html' clear_confirm='Supprimer toutes les générations (sauf celles en cours) ?' empty_text="Aucune génération pour l'instant" empty_hint='Décrivez ce que vous voulez dans la card « Nouvel élément » ci-dessus, ajoutez-le à la file d’attente puis lancez-le par ▶ — prompt vide = le modèle improvise.' %}
 
 {% endblock %}
 

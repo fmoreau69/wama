@@ -477,8 +477,9 @@ def _queue_entry(f: _AppFiles):
     dément, c'est l'exemption qui tombe, pas le constat.*
 
     Ce qui reste gardé, et suffit : une app SANS file à lots n'a pas d'objet ici (None).
+    La FILE commune (`common/_queue.html`, 2026-10-20) inclut l'entrée : l'inclure la prouve.
     """
-    trouve = f.find(TEMPLATES, r"common/_queue_entry\.html")
+    trouve = f.find(TEMPLATES, r"common/_queue(?:_entry)?\.html")
     if trouve:
         return True, trouve
     # A-t-elle seulement une file à lots ? Sinon le critère n'a pas d'objet.
@@ -497,9 +498,9 @@ def _eta_batch(f: _AppFiles):
     vient de `build_batches_list`, ou de l'app qui construit ses lignes elle-même (converter,
     clé étrangère directe) à condition de l'y poser en CSV.
     """
-    if not f.find(TEMPLATES, r'batch-group|_batch_card\.html|common/_queue_entry\.html'):
+    if not f.find(TEMPLATES, r'batch-group|_batch_card\.html|common/_queue(?:_entry)?\.html'):
         return None, None          # pas de file à lots : rien à agréger
-    entry = f.find(TEMPLATES, r'common/_queue_entry\.html|common/_batch_card\.html')
+    entry = f.find(TEMPLATES, r'common/_queue(?:_entry)?\.html|common/_batch_card\.html')
     if not entry:
         return False, "card de lot écrite dans le gabarit d'app (pas la card commune)"
     # Le CODE, pas les commentaires (`find_code`) : un commentaire qui raconte l'ancienne liste
@@ -595,6 +596,11 @@ def _fm_notify(f: _AppFiles):
 
 _QUEUE_BAR_INCLUDE = re.compile(
     r"\{%\s*include\s+'common/_queue_(?:toolbar|actions)\.html'\s+with\s+(?P<args>.*?)%\}", re.S)
+#: La FILE commune (2026-10-20) : elle DÉRIVE les URLs de sa barre et tire les ids de ses trois
+#: boutons de `queue_id` (`<queue_id>-start-all`, `-clear-all`, `-download-all`).
+_QUEUE_PIECE_INCLUDE = re.compile(
+    r"\{%\s*include\s+'common/_queue\.html'\s+with\s+(?P<args>.*?)%\}", re.S)
+_QUEUE_PIECE_IDS = ('-start-all', '-clear-all', '-download-all')
 _INCLUDE_ARG = re.compile(r"(\w+)=('[^']*'|\"[^\"]*\"|[\w.]+)")
 
 
@@ -645,15 +651,28 @@ def _queue_actions_common(f: _AppFiles):
     ne partait jamais). Un handler gardé À CÔTÉ des URLs ferait partir le POST deux fois, une
     bascule locale du ⬇ contredirait la barre globale : le critère est alors partiel.
     """
-    bars = []
+    bars, pieces = [], []
     for path in f.glob(TEMPLATES[0]):
         code = _sans_commentaires(f._read(path), '.html')
+        rel = path.relative_to(f.root).as_posix() if path.is_relative_to(f.root) else path.as_posix()
         for m in _QUEUE_BAR_INCLUDE.finditer(code):
-            rel = path.relative_to(f.root).as_posix() if path.is_relative_to(f.root) else path.as_posix()
             bars.append((f"{f.app}/{rel}:{code.count(chr(10), 0, m.start()) + 1}",
                          code, dict(_INCLUDE_ARG.findall(m.group('args')))))
-    if not bars:
+        for m in _QUEUE_PIECE_INCLUDE.finditer(code):
+            pieces.append((f"{f.app}/{rel}:{code.count(chr(10), 0, m.start()) + 1}",
+                           dict(_INCLUDE_ARG.findall(m.group('args')))))
+    if not bars and not pieces:
         return None, None                  # aucune barre de file : rien à câbler
+    # La FILE commune câble ses trois boutons elle-même ; reste qu'aucun JS d'app ne les lise.
+    for proof, args in pieces:
+        queue_id = args.get('queue_id', '').strip('\'"')
+        for suffix in _QUEUE_PIECE_IDS:
+            local = queue_id and _app_js_reads_id(f, queue_id + suffix)
+            if local:
+                return 'partial', (f"{proof} : `#{queue_id}{suffix}` encore lu par le JS de l'app "
+                                   f"({local}) — geste ou bascule écrit à côté de la brique")
+    if not bars:
+        return True, pieces[0][0]
     for proof, code, args in bars:
         shows_download = args.get('show_download', '') not in ('', 'False')
         for key in ('start_url', 'clear_url') + (('download_url',) if shows_download else ()):
@@ -1388,8 +1407,25 @@ def _queue_manipulation(f: _AppFiles):
     return False, None
 
 
+def _queue_piece(f: _AppFiles):
+    """La FILE vient-elle de la pièce commune (`common/_queue.html`) — barre, conteneur, entrées et
+    état vide d'un seul tenant, plutôt que composés à la main dans la page de l'app ?
+
+    Mesuré depuis le 2026-10-20, jour où la file est devenue une pièce unique (décision de Fabien
+    du 19/10, `ROUTE §F3b`). Les critères `queue_entry`, `queue_toolbar`, `batch_card_common`
+    mesurent chacun une PIÈCE de la file ; celui-ci mesure le TOUT, et c'est lui que lit la brique
+    de page « File » du catalogue (`UIBrick.adoption`, par le mécanisme qui tient le gabarit)."""
+    piece = f.find(TEMPLATES, r"common/_queue\.html")
+    if piece:
+        return True, piece
+    if not f.find_code(TEMPLATES, r'class="wama-queue-|common/_queue_(?:entry|toolbar)\.html'):
+        return None, None          # aucune file sur les pages de l'app
+    return False, "file composée à la main (barre, conteneur, entrées, état vide)"
+
+
 def _queue_toolbar(f: _AppFiles):
-    tpl = f.find(TEMPLATES, r"common/_queue_toolbar\.html")
+    # La FILE commune (`_queue.html`, 2026-10-20) inclut la barre : l'inclure la prouve.
+    tpl = f.find(TEMPLATES, r"common/_queue(?:_toolbar)?\.html")
     srv = f.find(VIEWS, r'apply_queue_sort_filter')
     if tpl and srv:
         return True, f"{tpl} + {srv}"
@@ -2449,8 +2485,9 @@ CRITERIA: list[Criterion] = [
               _model_caps_ui, mechanism='model_capabilities'),
     Criterion('modes', 'F3', 'Modes déclarés (APP_MODES) rendus par WamaModes', _modes_declared,
               mechanism='app_modes'),
+    #: La FILE commune (`_queue.html`, 2026-10-20) porte le `card_layout` de son conteneur.
     Criterion('layout', 'F3', 'Bascule Ligne / Mosaïque (card_layout)',
-              lambda f: _present(f, TEMPLATES + JS + VIEWS, r'card_layout|data-layout'),
+              lambda f: _present(f, TEMPLATES + JS + VIEWS, r'card_layout|data-layout|common/_queue\.html'),
               mechanism='card_system'),
     Criterion('during_preview', 'F3', 'Aperçu « PENDANT » (émission backend + consommation front)',
               _during_preview,
@@ -2536,9 +2573,12 @@ CRITERIA: list[Criterion] = [
     #: qui mesure du markup doit SUIVRE ce markup quand il se centralise, sinon il punit
     #: l'adoption. Precedent identique : `btn_order`, rouge sur 10 apps quand le bouton
     #: telecharger a rejoint le partial commun (2026-08-23).
+    #: Et une TROISIÈME depuis le 2026-10-20 : la FILE commune (`_queue.html`) inclut l'entrée.
     Criterion('batch_card_common', 'F5', 'Card mère de batch commune (_batch_card, direct ou via _queue_entry)',
-              lambda f: _present(f, TEMPLATES, r"common/_(batch_card|queue_entry)\.html"),
+              lambda f: _present(f, TEMPLATES, r"common/_(batch_card|queue_entry|queue)\.html"),
               mechanism='queue_front'),
+    Criterion('queue_piece', 'F5', 'File commune d\'un seul tenant (_queue : barre, conteneur, entrées, état vide)',
+              _queue_piece, mechanism='queue_front'),
     Criterion('build_batches_list', 'F5', 'Agrégats de file communs (build_batches_list)',
               lambda f: _present(f, VIEWS, r'build_batches_list'),
               mechanism='batch'),

@@ -153,34 +153,11 @@ bouton AJOUTE (la création ne lance rien — règle des deux temps, Étape 3 po
             <span class="badge bg-secondary" id="queueCount">{{ image_generations|length }}</span>
         </h4>
 
-{% comment %} Toolbar commune : tri/filtre (session) + Tout lancer / Tout effacer /
-Tout telecharger. ⚠ AVANT le conteneur de file, JAMAIS dedans : en mosaïque
-`.wama-queue-grid` devient une grille CSS et la barre y deviendrait une CELLULE — mesuré le
-2026-09-08, 592 px en ligne contre 290 px (une colonne) en mosaïque. L'imager était la seule
-app du parc à l'inclure dedans ; tenu depuis par `tests_queue_toolbar_placement`.
-▶ et 🗑 câblés par la brique `queue-actions.js` ; les deux files partagent les mêmes routes
-(`start_all` lance tout élément en attente, `clear_all` vide les deux) ; le ⬇ est borné à SA file
-(`?domain=`, les domaines déclarés à `make_progress_views` — ceux que compte sa barre). {% endcomment %}
-{% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}{% url 'imager:download_all' as q_download_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-image-start-all' clear_id='imager-image-clear-all' download_id='imager-image-download-all' show_download=True app='imager' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url|add:'?domain=image' %}
-
-        {% comment %}`wama-queue-{{ card_layout }}` : bascule Ligne/Mosaïque commune. La valeur
-        vient du context processor global (accounts) et persiste sur UserProfile ; le toggle est
-        dans _queue_toolbar, le câblage dans wama-queue.js. Rien à écrire par app.{% endcomment %}
-        <div id="generationsQueue" class="wama-queue-{{ card_layout|default:'list' }}"
-         {% queue_dnd_attrs 'imager' 'image' %}>
-{% for batch_info in image_batches %}
-    {% url 'imager:batch_download' batch_info.obj.id as batch_download_url %}
-    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='image' download_url=batch_download_url actions_communes=True meta_template='common/_batch_meta_chips.html' %}
-{% empty %}
-    <div class="card bg-body border-secondary">
-        <div class="card-body text-center text-body-secondary py-4">
-            <i class="fas fa-images fa-3x mb-3"></i>
-            <p class="mb-0">Aucune génération en attente. Créez-en une ci-dessus !</p>
-        </div>
-    </div>
-{% endfor %}
-        </div>
+{% comment %} La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20. Les deux
+files partagent les mêmes routes (`start_all` lance tout élément en attente, `clear_all` vide les
+deux) ; la pièce borne le ⬇ à SA file (`?domain=`) parce que les deux domaines déclarés partagent
+leurs routes. {% endcomment %}
+{% include 'common/_queue.html' with app='imager' domain='image' queue_id='generationsQueue' batches=image_batches card_template='imager/_generation_card.html' card_class='imager-card' meta_template='common/_batch_meta_chips.html' empty_text='Aucune génération en attente.' empty_hint='Créez-en une ci-dessus !' %}
     </div>
 </div>
 
@@ -214,24 +191,8 @@ sa propre voie de lot (`vidBatch`). {% endcomment %}
             <span class="badge bg-success" id="videoQueueCountInner">{{ video_generations|length }}</span>
         </h4>
 
-{% comment %} Toolbar commune — AVANT le conteneur (cf. la file images ci-dessus). {% endcomment %}
-{% url 'imager:start_all' as q_start_url %}{% url 'imager:clear_all' as q_clear_url %}{% url 'imager:download_all' as q_download_url %}
-{% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='imager-video-start-all' clear_id='imager-video-clear-all' download_id='imager-video-download-all' show_download=True app='imager' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url|add:'?domain=video' %}
-
-        <div id="videoGenerationsQueue" class="wama-queue-{{ card_layout|default:'list' }}"
-         {% queue_dnd_attrs 'imager' 'video' %}>
-{% for batch_info in video_batches %}
-    {% url 'imager:batch_download' batch_info.obj.id as batch_download_url %}
-    {% include 'common/_queue_entry.html' with card_template='imager/_generation_card.html' card_class='imager-card' app='imager' domain='video' download_url=batch_download_url actions_communes=True meta_template='common/_batch_meta_chips.html' %}
-{% empty %}
-    <div class="card bg-body border-secondary">
-        <div class="card-body text-center text-body-secondary py-4">
-            <i class="fas fa-film fa-3x mb-3"></i>
-            <p class="mb-0">Aucune génération vidéo en attente. Créez-en une ci-dessus !</p>
-        </div>
-    </div>
-{% endfor %}
-        </div>
+{% comment %} La FILE vidéo — même pièce commune (cf. la file images ci-dessus). {% endcomment %}
+{% include 'common/_queue.html' with app='imager' domain='video' queue_id='videoGenerationsQueue' batches=video_batches card_template='imager/_generation_card.html' card_class='imager-card' meta_template='common/_batch_meta_chips.html' empty_text='Aucune génération vidéo en attente.' empty_hint='Créez-en une ci-dessus !' %}
     </div>
 </div>
 

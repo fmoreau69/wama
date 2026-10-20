@@ -74,11 +74,7 @@
         const fresh = await WamaApp.fetchCard(urlFor('cardHtml'), item.id);
         if (fresh) {
             if (card) card.replaceWith(fresh);
-            else {
-                const empty = document.getElementById('emptyState');
-                if (empty) empty.remove();
-                document.getElementById('queueContainer').prepend(fresh);
-            }
+            else document.getElementById('queueContainer').prepend(fresh);
             card = fresh;
         }
         if (!card) return null;
@@ -87,17 +83,8 @@
         return card;
     }
 
-    // Le RETRAIT de card appartient désormais à la brique commune (queue-actions.js) ; il ne
-    // reste ici que la bascule d'état vide, appelée APRÈS elle (2026-08-23).
-    function insertEmptyStateIfNeeded() {
-        if (document.querySelectorAll('.reader-card').length > 0) return;
-        const container = document.getElementById('queueContainer');
-        if (!container || container.querySelector('#emptyState')) return;
-        container.innerHTML = `<div id="emptyState" class="text-center text-secondary py-5">
-            <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
-            <p>File d'attente vide — importez des documents pour commencer</p>
-        </div>`;
-    }
+    // Le RETRAIT de card appartient à la brique commune (queue-actions.js) ; l'état vide est rendu
+    // par la file commune et basculé par sa brique (2026-10-20).
 
     // ─── Card actions ─────────────────────────────────────────────────────────
 
@@ -176,7 +163,6 @@
     // POST et le retrait de la card. Portage 2026-08-23.
     WamaQueueActions.onDeleted(function (id) {
         stopPolling(id);
-        insertEmptyStateIfNeeded();
     });
 
     // ⚙ item — ouvreur DÉCLARÉ à la brique commune (queue-actions.js).

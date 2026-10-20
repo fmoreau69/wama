@@ -2356,7 +2356,7 @@ Décide, pour une entrée de file, si elle s'affiche en card unique ou en card M
 
 ### File d'attente (front)
 
-Comportements communs des files : collapse de batch persisté, mode Solitaire (accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE (CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*
+Comportements communs des files : collapse de batch persisté, mode Solitaire (accordéon), toggle Ligne/Mosaïque, les 3 densités et le modificateur PILE (CARD_DESIGN §11.4/§11.9), focus card, clearCards, data-wama-*. Et la FILE elle-même, pièce unique depuis le 2026-10-20 (`_queue.html` : barre, conteneur, entrées, état vide — routes lues sous leurs orthographes admises, état vide TOUJOURS rendu et basculé ici) : les dix apps et le générateur l'incluent
 
 - **Domicile** : `wama/common/static/common/js/wama-queue.js` · **doc** : [docs/construction/ui/CARD_DESIGN.md](../construction/ui/CARD_DESIGN.md)
 
@@ -2546,7 +2546,7 @@ La couche JS commune d'une page d'app — `_app_scripts.html` : formulaires du s
 
 ### Socle JS des apps
 
-Plomberie commune file/cards : csrfFetch, urls, états vides, et `Poller` — LA boucle d'interrogation du navigateur : jamais deux requêtes en vol, muette en onglet caché (2026-10-13 ; toute boucle des apps passe par lui, garde `tests_poller_js`)
+Plomberie commune file/cards : csrfFetch, urls et `Poller` — LA boucle d'interrogation du navigateur : jamais deux requêtes en vol, muette en onglet caché (2026-10-13 ; toute boucle des apps passe par lui, garde `tests_poller_js`)
 
 - **Domicile** : `wama/common/static/common/js/wama-app-base.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 

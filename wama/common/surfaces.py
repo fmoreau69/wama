@@ -527,8 +527,19 @@ register_brick(UIBrick(
 
 # ── Briques de PAGE (2026-10-19, `ROUTE §F3b`, étape 3) ──────────────────────────────────────
 # Une page d'app les monte par un gabarit (ou par la page de base, pour toutes) : elles ne se
-# posent pas sur une surface. Elles lisent ce que l'app qui les monte DÉCLARE. La FILE viendra
-# quand elle sera une pièce unique (un gabarit commun aux dix apps et au générateur).
+# posent pas sur une surface. Elles lisent ce que l'app qui les monte DÉCLARE. La FILE les a
+# rejointes le 2026-10-20, le jour où elle est devenue une pièce unique.
+
+register_brick(UIBrick(
+    key='queue', name='File',
+    description="La file d'attente d'une page : la barre (démarrer, télécharger, effacer, tri, "
+                "filtre, recherche, disposition), les entrées — card seule ou lot replié avec sa "
+                "card mère —, la manipulation directe (glisser-déposer, sélection multiple) et "
+                "l'état vide. Ses routes, ses formats de téléchargement et l'icône de son état "
+                "vide se lisent de ce que l'app déclare ; une file par domaine quand l'app en a "
+                "plusieurs.",
+    mount='common/_queue.html',
+    declarations=('app.modes', 'pipeline')))
 
 register_brick(UIBrick(
     key='entry_card', name="Card d'entrée",

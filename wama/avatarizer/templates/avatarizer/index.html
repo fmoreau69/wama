@@ -86,43 +86,11 @@ est CONTEXTUEL (inspecteur) — les actions de FILE vivent dans la toolbar commu
         non applicable, `conformity_checker` du 2026-09-24).{% endcomment %}
         {% include 'common/_new_item_card_v4.html' with app_id='avatarizer' collapsible=True card_id='avatarizerNewCard' prompt_input_id='text_content' prompt_zone_id='text-prompt-zone' prompt_counter_id='word-count' prompt_rows=2 prompt_placeholder='Texte que l’avatar doit dire (la voix sera générée)…' prompt_hint='Ou glissez un fichier texte (TXT, MD, PDF, DOCX) ici. Un audio fourni prime sur le texte.' drop_zone_id='audio-dropzone' file_input_id='audio_input' formats_label='WAV, MP3, OGG, FLAC — la voix de l’avatar' url_input_id='avatarizerUrlInput' url_submit_id='avatarizerUrlSubmit' url_placeholder='https://youtube.com/watch?v=… (audio de la voix)' show_batch_bar=True batch_template_url='/avatarizer/batch/template/' primary_btn_id='btn-generate' primary_btn_label='Ajouter à la file d’attente' primary_btn_icon='fa-plus' %}
 
-        {% comment %}
-          Barre de tri/filtre/disposition COMMUNE — mêmes gestes que les autres files.
-          `q_sort`/`q_filter` viennent de `apply_queue_sort_filter` (persistés en session).
-          ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial).
-        {% endcomment %}
-        {% url 'avatarizer:start_all' as q_start_url %}{% url 'avatarizer:clear_all' as q_clear_url %}{% url 'avatarizer:download_all' as q_download_url %}
-        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='avatarizer' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url %}
-
-        <div id="jobs-container" class="wama-queue-{{ card_layout|default:'list' }}"
-         {% queue_dnd_attrs 'avatarizer' %}>
-            {% if batches_list %}
-                {% for b in batches_list %}
-                {% comment %}
-                  Entrée de file (card seule OU lot) — brique COMMUNE `_queue_entry.html`
-                  (adoptée le 2026-08-25, dernière des 9 files portées).
-
-                  L'avatarizer avait un idiome à lui, que l'extracteur du 25/08 n'a pas reconnu :
-                  un test qui OUVRAIT le lot, une boucle unique partagée, un second test qui le
-                  FERMAIT — plus économe que le `if/else` à boucle dupliquée des 8 autres, mais
-                  illisible pour tout relevé, et surtout non centralisé.
-
-                  ⚠ Le `url … as batch_dl_url` est REMONTÉ ICI, hors du bloc supprimé où il
-                  vivait. Une variable de gabarit inexistante ne lève RIEN côté Django : c'est
-                  par ce piège exact qu'anonymizer, composer et synthesizer ont perdu leur
-                  bouton de téléchargement de lot le 25/08, sans qu'aucun test le voie.
-                {% endcomment %}
-                {% url 'avatarizer:batch_download' b.obj.id as batch_dl_url %}
-                {% include 'common/_queue_entry.html' with batch_info=b card_template='avatarizer/_avatar_card.html' download_url=batch_dl_url app='avatarizer' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
-                {% endfor %}{# b in batches_list #}
-            {% else %}
-            <div id="no-jobs-msg" class="text-center text-muted py-4">
-                <i class="fas fa-film fa-3x mb-2 d-block opacity-50"></i>
-                <p>Aucune vidéo générée pour l'instant.</p>
-                <p class="small">Ajoutez un audio (ou un texte) et un avatar à la file, puis lancez-le par ▶.</p>
-            </div>
-            {% endif %}
-        </div>
+        {% comment %}La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20. L'URL du
+        ZIP de chaque lot y est DÉRIVÉE : une variable de gabarit inexistante ne lève rien côté
+        Django, et c'est par ce piège qu'anonymizer, composer et synthesizer avaient perdu leur
+        bouton de lot le 25/08 — l'enhancer, lui, l'avait perdu jusqu'à ce jour.{% endcomment %}
+        {% include 'common/_queue.html' with app='avatarizer' queue_id='jobs-container' batches=batches_list card_template='avatarizer/_avatar_card.html' meta_template='common/_batch_meta_chips.html' empty_text="Aucune vidéo générée pour l'instant." empty_hint='Ajoutez un audio (ou un texte) et un avatar à la file, puis lancez-le par ▶.' %}
     </div>
 
 </div><!-- /row -->

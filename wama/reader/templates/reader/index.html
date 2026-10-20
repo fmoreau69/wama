@@ -175,30 +175,8 @@ window._batchImport = WamaBatchImport({
     {# Barre globale + ETA agrégée — brique commune (balayage bleu/vert permanent, toujours visible). #}
     {% include 'common/_global_progress.html' %}
 
-    {# Barre d'outils commune : tri + filtre + disposition + actions globales (IDs = handlers reader.js) #}
-    {% comment %}`app` + `download_url` (2026-08-30) : le ⬇ délègue à `common/_download_button.html`
-    — menu des formats DÉCLARÉS (`export_formats` = txt/md/pdf/docx/json), servi par la vue
-    `download_all` qui lit désormais `?format=` (porter le menu AVANT la vue aurait fait un
-    « vert d'ADOPTION, faux en FONCTIONNEMENT »). ▶ et 🗑 de file : brique `queue-actions.js`
-    (URLs passées au partial, 2026-10-17).{% endcomment %}
-    {% url 'reader:download_all' as download_all_url %}{% url 'reader:start_all' as q_start_url %}{% url 'reader:clear_all' as q_clear_url %}
-    {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='reader-process-btn' clear_id='reader-clear-btn' download_id='reader-download-all-btn' show_download=True app='reader' download_url=download_all_url start_url=q_start_url clear_url=q_clear_url %}
-
-    <!-- Queue -->
-    <div id="queueContainer" class="wama-queue-{{ card_layout|default:'list' }}"
-         {% queue_dnd_attrs 'reader' %}>
-        {% for batch_info in batches_list %}
-
-        {% url 'reader:batch_download' batch_info.obj.id as batch_dl_url %}
-        {% include 'common/_queue_entry.html' with card_template='reader/_item_card.html' card_class='reader-card' download_url=batch_dl_url app='reader' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
-
-        {% empty %}
-        <div id="emptyState" class="text-center text-secondary py-5">
-            <i class="fas fa-inbox fa-3x mb-3 opacity-50"></i>
-            <p>File d'attente vide — importez des documents pour commencer</p>
-        </div>
-        {% endfor %}
-    </div>
+    {# La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20. #}
+    {% include 'common/_queue.html' with app='reader' queue_id='queueContainer' batches=batches_list card_template='reader/_item_card.html' card_class='reader-card' meta_template='common/_batch_meta_chips.html' empty_text="File d'attente vide" empty_hint='Importez des documents pour commencer' %}
 
 </div>
 {% endblock %}

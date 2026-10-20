@@ -44,6 +44,13 @@ def _jumelles():
         return set()
 
 
+def _queue_piece_source():
+    """La FILE commune (2026-10-20) : les pages d'app et le générateur l'incluent, et c'est elle
+    qui pose le conteneur, ses attributs de manipulation et l'entrée commune."""
+    return (RACINE / 'wama' / 'common' / 'templates' / 'common'
+            / '_queue.html').read_text(encoding='utf-8')
+
+
 def _apps_de_file():
     """Les `views.py` des apps du monde MÉDIA qui déclarent une file (hors jumelles)."""
     jumelles = _jumelles()
@@ -143,8 +150,11 @@ class CodegenJumelleTest(TestCase):
         from wama.common.manifests.codegen import templates_gen
 
         source = Path(templates_gen.__file__).read_text(encoding='utf-8')
-        self.assertIn('queue_dnd_attrs', source,
-                      "le conteneur de file généré ne déclare pas ses URLs → file inerte, "
+        # Depuis le 2026-10-20 le générateur inclut la FILE commune, qui pose les attributs.
+        self.assertIn("include 'common/_queue.html'", source,
+                      "le générateur n'inclut plus la file commune")
+        self.assertIn('queue_dnd_attrs', _queue_piece_source(),
+                      "le conteneur de la file commune ne déclare pas ses URLs → file inerte, "
                       "et l'inertie ne lève aucune erreur")
 
     def test_le_gabarit_ENROBE_ses_entrees_unitaires(self):
@@ -163,9 +173,14 @@ class CodegenJumelleTest(TestCase):
         from wama.common.manifests.codegen import templates_gen
 
         source = Path(templates_gen.__file__).read_text(encoding='utf-8')
-        self.assertIn('wama-queue-entry', source,
+        # Le chemin depuis le 2026-10-20 : générateur → file commune → entrée commune.
+        self.assertIn("include 'common/_queue.html'", source)
+        self.assertIn("include 'common/_queue_entry.html'", _queue_piece_source())
+        entry = (RACINE / 'wama' / 'common' / 'templates' / 'common'
+                 / '_queue_entry.html').read_text(encoding='utf-8')
+        self.assertIn('wama-queue-entry', entry,
                       "le gabarit généré rend ses cartes unitaires SANS enrobage d'entrée")
-        self.assertIn('data-entry-batch-id', source,
+        self.assertIn('data-entry-batch-id', entry,
                       "l'enrobage généré ne porte pas l'id de lot : `reorder_queue` sautera "
                       "les entrées unitaires, en silence")
 
@@ -177,16 +192,22 @@ class CodegenJumelleTest(TestCase):
         exige donc l'un OU l'autre — la brique, ou l'enrobage écrit — et jamais rien.
         """
         manquants = []
+        seen = 0
         jumelles = _jumelles()
         for gabarit in sorted((RACINE / 'wama').glob('*/templates/*/index.html')):
             if gabarit.parts[-4] in jumelles:
                 continue                       # gabarit GÉNÉRÉ — cf. `_jumelles()`
             texte = gabarit.read_text(encoding='utf-8')
-            if 'class="wama-queue-' not in texte:
+            # La FILE commune (2026-10-20) passe par l'entrée commune : elle compte comme elle.
+            if 'class="wama-queue-' not in texte and "'common/_queue.html'" not in texte:
                 continue                       # pas de file dans cette page
-            if ('_queue_entry.html' in texte) or ('data-entry-batch-id' in texte):
+            seen += 1
+            if ('_queue_entry.html' in texte) or ('data-entry-batch-id' in texte) \
+                    or ("'common/_queue.html'" in texte):
                 continue
             manquants.append(str(gabarit.relative_to(RACINE)))
+        # Garde anti-vide : sans elle, un motif qui ne trouve plus aucune file rend ce test vert.
+        self.assertGreaterEqual(seen, 10, f"seulement {seen} page(s) de file relevée(s)")
         self.assertEqual([], manquants,
                          "files rendant des entrées unitaires sans id de lot (l'ordre les "
                          "sautera) :\n" + "\n".join(manquants))
@@ -489,6 +510,7 @@ class ExpositionDesUrlsTest(TestCase):
         n'est monté (le défaut exact que `_app_scripts.html` documente pour converter_01).
         """
         manquants = []
+        total = 0
         jumelles = _jumelles()
         for gabarit in sorted((RACINE / 'wama').glob('*/templates/*/index.html')):
             if gabarit.parts[-4] in jumelles:
@@ -501,14 +523,20 @@ class ExpositionDesUrlsTest(TestCase):
             # le converter écrive son enrobage à la main. Le conteneur, lui, est TOUJOURS
             # `class="wama-queue-{{ card_layout … }}"`.
             # *Un motif qui vaut pour neuf cas sur dix n'est pas une mesure, c'est une chance.*
-            files = texte.count('class="wama-queue-{{')
+            # La FILE commune (2026-10-20) pose les attributs elle-même : une inclusion = une
+            # file déclarée — à condition que la pièce les pose, vérifié ci-dessous.
+            pieces = texte.count("'common/_queue.html'")
+            files = texte.count('class="wama-queue-{{') + pieces
             if not files:
                 continue
-            poses = texte.count('queue_dnd_attrs')
+            total += files
+            poses = texte.count('queue_dnd_attrs') + pieces
             if poses < files:
                 manquants.append(
                     f"{gabarit.relative_to(RACINE)} : {files} file(s), "
                     f"{poses} `queue_dnd_attrs`")
+        self.assertIn('queue_dnd_attrs', _queue_piece_source())
+        self.assertGreaterEqual(total, 12, f"seulement {total} file(s) relevée(s)")
         self.assertEqual([], manquants, "\n".join(manquants))
 
     def test_le_tag_n_emet_que_les_routes_qui_existent(self):

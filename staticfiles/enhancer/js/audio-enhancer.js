@@ -115,9 +115,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const container = document.getElementById('audio-enhancer-queue');
     if (!container) return;
 
-    const empty = container.querySelector('.empty-state');
-    if (empty) empty.remove();
-
     // Card = rendu SERVEUR (plus de markup construit côté JS), REDEMANDÉE par la brique
     // commune (WamaApp.fetchCard, portage 2026-09-21 — la copie locale du fetch vivait ici).
     const card = await WamaApp.fetchCard(cfg.audioCardHtmlUrlTemplate, data.id);
@@ -260,16 +257,10 @@ document.addEventListener('DOMContentLoaded', function () {
   // ici : `index.js` déclare le résidu des cards d'AMÉLIORATION, et sans scope la seconde
   // déclaration aurait écrasé la première en silence. La brique commune porte la confirmation,
   // le POST, le retrait de card, le lot vidé et le signal au gestionnaire de fichiers ; il ne
-  // reste que l'arrêt du suivi (`WamaApp.Poller`) et le message de file vide.
+  // reste que l'arrêt du suivi (`WamaApp.Poller`) — l'état vide est rendu par la file commune et
+  // basculé par sa brique (2026-10-20).
   WamaQueueActions.onDeleted(function (id) {
     poller.stop(id);
-    const container = document.getElementById('audio-enhancer-queue');
-    if (container && !container.querySelector('[data-id]')) {
-      const el = document.createElement('div');
-      el.className = 'empty-state text-center py-4 text-body-secondary';
-      el.textContent = 'Aucun fichier audio en attente.';
-      container.appendChild(el);
-    }
   }, { domain: 'audio' });
 
   // ── Global progress ───────────────────────────────────────────────────────
@@ -360,7 +351,7 @@ document.addEventListener('DOMContentLoaded', function () {
       url: cfg.audioGlobalProgressUrl,
       bar: 'audioGlobalProgressBar', stats: 'audioGlobalProgressStats',
       pct: 'audioGlobalProgressPct', status: 'audioGlobalStatus', eta: 'audioGlobalEta',
-      download: 'audio-download-all-btn',
+      download: 'audio-enhancer-queue-download-all',   // `<queue_id>-download-all` (file commune)
     });
   }
 });

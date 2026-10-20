@@ -155,6 +155,8 @@ class ConventionCriteriaTest(SimpleTestCase):
                 "{% url 'x:download_all' as q_download_url %}")
         wired = "app='x' start_url=q_start_url clear_url=q_clear_url download_url=q_download_url"
         page = urls + bar.replace('ARGS', wired)
+        piece = ("{% include 'common/_queue.html' with app='x' queue_id='xq' batches=batches_list "
+                 "card_template='x/_c.html' %}")
         cases = (
             ({'templates/x/index.html': urls + bar.replace('ARGS', '')}, False),
             ({'templates/x/index.html': bar.replace('ARGS', wired)}, False),     # variables jamais posées
@@ -172,6 +174,12 @@ class ConventionCriteriaTest(SimpleTestCase):
             ({'templates/x/index.html': page,
               'static/x/i.js': "// l'ancien handler de 'go' est retiré\n"}, True),
             ({'templates/x/index.html': '<p>pas de file</p>'}, None),
+            # La FILE commune (2026-10-20) dérive ses URLs ; reste qu'aucun JS n'en lise les ids.
+            ({'templates/x/index.html': piece}, True),
+            ({'templates/x/index.html': piece,
+              'static/x/i.js': "document.getElementById('xq-clear-all').onclick = f;\n"}, 'partial'),
+            ({'templates/x/index.html': piece,
+              'static/x/i.js': "WamaGlobalProgress.init({ url: u, download: 'xq-download-all' });\n"}, True),
         )
         for files, expected in cases:
             with self.subTest(files=files):

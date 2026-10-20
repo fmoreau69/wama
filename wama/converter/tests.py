@@ -351,8 +351,9 @@ class AdoptionDeLaBriqueDEntreeDeFileTest(TestCase):
 
         src = (Path(settings.BASE_DIR) / 'wama' / 'converter' / 'templates'
                / 'converter' / 'index.html').read_text(encoding='utf-8')
-        self.assertIn("include 'common/_queue_entry.html'", src,
-                      "le converter ne passe plus par la brique commune d'entrée de file")
+        # Depuis le 2026-10-20, par la FILE commune, qui inclut l'entrée commune.
+        self.assertIn("include 'common/_queue.html'", src,
+                      "le converter ne passe plus par la file commune")
         for recopie in ("{% for job in b.items %}", "{% for item in b.items %}"):
             self.assertNotIn(recopie, src,
                              f'boucle de file recopiée à la main ({recopie}) : la brique '

@@ -122,6 +122,9 @@ ROUTE_ALIASES = {
     # quand on demande une suppression — pire que l'absence. Seul `clear_all_media` efface tout
     # (views.py:1292, « Delete all media files for the current user »).
     'clear_all': ('clear_all_media',),
+    # anonymizer, même raison : son ⬇ de file s'appelle `download_all_media`. Ajouté le
+    # 2026-10-20 avec la FILE commune (`common/_queue.html`), qui lit ses trois routes ici.
+    'download_all': ('download_all_media',),
 }
 
 # Classes de vues COMMUNES admises dans les expressions (import connu du gabarit).

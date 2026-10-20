@@ -95,9 +95,6 @@ document.addEventListener('DOMContentLoaded', function () {
   async function appendRow(data) {
     if (!queueTable) return;
 
-    const empty = queueTable.querySelector('.empty-state');
-    if (empty) empty.remove();
-
     // Card = rendu SERVEUR (plus de markup construit côté JS), par la brique commune.
     const card = await WamaApp.fetchCard(config.cardHtmlUrlTemplate, data.id);
     if (!card) {
@@ -275,7 +272,6 @@ document.addEventListener('DOMContentLoaded', function () {
   // c'est le résidu par DÉFAUT de la page, celui des cards audio étant scopé (audio-enhancer.js).
   WamaQueueActions.onDeleted(function (id) {
     stopPolling(id);
-    insertEmptyRowIfNeeded();
   });
 
   // ── Volet : réglages du tirage « auto » (facteur + curseur) ──
@@ -305,23 +301,6 @@ document.addEventListener('DOMContentLoaded', function () {
   // du ▶ déclarés plus bas (`onQueueStartBody` / `onQueueStarted`, domaine image_video). ⬇ Tout
   // télécharger : lien de la brique `_download_button.html`, rendu prêt par la barre globale
   // (`initBulkActions` et `updateDownloadAllState` retirés le même jour).
-
-  function insertEmptyRowIfNeeded(force = false) {
-    if (!queueTable) return;
-
-    const hasItems = queueTable.querySelectorAll('[data-id]').length > 0;
-    const existingEmpty = queueTable.querySelector('.empty-state');
-
-    if (!hasItems || force) {
-      if (existingEmpty) return;
-      const el = document.createElement('div');
-      el.className = 'empty-state text-center py-4 text-body-secondary';
-      el.textContent = 'Aucun fichier en attente.';
-      queueTable.appendChild(el);
-    } else if (existingEmpty) {
-      existingEmpty.remove();
-    }
-  }
 
   // (Barre globale + ETA : brique commune wama-global-progress.js. La copie locale, neutralisée
   // par un `return` et pourtant rappelée toutes les 2 s, est retirée le 2026-10-13.)

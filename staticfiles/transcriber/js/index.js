@@ -18,11 +18,6 @@ document.addEventListener('DOMContentLoaded', function () {
     interval: 1200,
     maxFails: 10,
   });
-  const _empty = WamaApp.emptyState({
-    container: queueContainer,
-    cardSelector: '.synthesis-card',
-    html: '<i class="fas fa-inbox fa-3x mb-3 text-body-secondary"></i><p class="text-body-secondary">Aucune transcription en attente</p>',
-  });
 
   // Helpers génériques délégués au module commun (common/js/wama-app-base.js).
   const getUrl     = WamaApp.getUrl;
@@ -351,7 +346,6 @@ document.addEventListener('DOMContentLoaded', function () {
   WamaQueueActions.onDeleted(function (id) {
     if (_inspector && String(id) === String(_inspector.state().itemId)) _inspector.deselect();  // évite des actions inspecteur orphelines
     stopPolling(id);
-    insertEmptyStateIfNeeded();
   });
 
 
@@ -470,12 +464,7 @@ document.addEventListener('DOMContentLoaded', function () {
   function startPolling(id) { _poller.start(id); }
   function stopPolling(id) { _poller.stop(id); }
 
-  // ======================================================================
-  // Empty state
-  // ======================================================================
-  // État vide — délégué à WamaApp.emptyState (instance `_empty` créée en tête).
-  function removeEmptyState() { _empty.remove(); }
-  function insertEmptyStateIfNeeded() { _empty.insertIfNeeded(); }
+  // (État vide : rendu par la file commune et basculé par sa brique, 2026-10-20.)
 
   // ======================================================================
   // Bulk actions

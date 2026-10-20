@@ -52,31 +52,8 @@ Ids dropZone/fileInput/describerFolderInput/media_url/mediaUrlSubmit conservés.
     <div class="col-12">
         <!-- Titre « File d'attente » RETIRÉ (doublon) : nom + compteur portés par l'ONGLET (base commune). -->
         <!-- Barre d'outils COMMUNE : tri + filtre + toggle Ligne/Mosaïque + actions globales. -->
-        {% comment %}`app` + `download_url` (2026-08-30) : le ⬇ délègue à `common/_download_button.html`
-        — menu des formats DÉCLARÉS (`export_formats` = txt/pdf/docx), servi par la vue
-        `download_all` qui lit désormais `?format=`.{% endcomment %}
-        {% url 'describer:download_all' as download_all_url %}
-        {# ▶ et 🗑 de file câblés par la brique `queue-actions.js` (URLs passées au partial). Le ⬇ #}
-        {# suit la règle commune (prêt dès qu'un élément est terminé, barre globale) : il était #}
-        {# `download_ready=True`, actif sur une file sans aucun résultat (2026-10-17). #}
-        {% url 'describer:start_all' as q_start_url %}{% url 'describer:clear_all' as q_clear_url %}
-        {% include 'common/_queue_toolbar.html' with q_sort=q_sort q_filter=q_filter start_id='startAllBtn' clear_id='clearAllBtn' download_id='downloadAllBtn' show_download=True app='describer' download_url=download_all_url start_url=q_start_url clear_url=q_clear_url %}
-
-        <div id="descriptionQueue" class="wama-queue-{{ card_layout|default:'list' }}"
-         {% queue_dnd_attrs 'describer' %}>
-            {% for batch_info in batches_list %}
-
-            {% url 'describer:batch_download' batch_info.obj.id as batch_dl_url %}
-            {% include 'common/_queue_entry.html' with card_template='describer/_description_card.html' card_class='synthesis-card' download_url=batch_dl_url app='describer' actions_communes=True meta_template='common/_batch_meta_chips.html' %}
-
-            {% empty %}
-            <div class="text-center py-5 empty-queue">
-                <i class="fas fa-inbox fa-3x mb-3 text-body-secondary"></i>
-                <p class="text-body-secondary">Aucun fichier dans la file d'attente</p>
-                <p class="text-body-secondary">Uploadez des fichiers pour commencer</p>
-            </div>
-            {% endfor %}
-        </div>
+        {# La FILE : pièce commune (barre, conteneur, entrées, état vide), 2026-10-20. #}
+        {% include 'common/_queue.html' with app='describer' queue_id='descriptionQueue' batches=batches_list card_template='describer/_description_card.html' card_class='synthesis-card' meta_template='common/_batch_meta_chips.html' empty_text="Aucun fichier dans la file d'attente" empty_hint='Uploadez des fichiers pour commencer' %}
     </div>
 </div>
 

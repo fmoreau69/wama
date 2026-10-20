@@ -244,8 +244,6 @@
             onAdded: function (data) {
                 // `id` = contrat COMMUN (trou #24) ; les anciennes graphies restent lues en repli.
                 const jobId = data.id || data.job_id || data.pk || null;
-                const empty = $('#no-jobs-msg');
-                if (empty) empty.remove();
                 addJobCard(jobId);
                 updateJobsCount(1);
                 if (textArea) textArea.value = '';
@@ -544,19 +542,11 @@
     WamaQueueActions.onSettings(function (id, btn) { openSettingsModal(id, btn); });
 
     // 🗑 RÉSIDU de suppression — la brique retire la card, le lot vidé et signale au gestionnaire
-    // de fichiers ; ne restent que l'arrêt du suivi (`WamaApp.Poller`), le compteur d'en-tête et
-    // le message de file vide.
+    // de fichiers ; ne restent que l'arrêt du suivi (`WamaApp.Poller`) et le compteur d'en-tête
+    // (l'état vide : rendu par la file commune et basculé par sa brique, 2026-10-20).
     WamaQueueActions.onDeleted(function (id) {
         jobPoller.stop(id);
         updateJobsCount(-1);
-        if (!$('.synthesis-card')) {
-            const container = $('#jobs-container');
-            if (container) container.innerHTML = `
-                <div id="no-jobs-msg" class="text-center text-muted py-4">
-                    <i class="fas fa-film fa-3x mb-2 d-block opacity-50"></i>
-                    <p>Aucune vidéo générée pour l'instant.</p>
-                </div>`;
-        }
     });
 
     // -----------------------------------------------------------------------

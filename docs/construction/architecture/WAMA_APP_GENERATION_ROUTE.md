@@ -588,7 +588,29 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       sa règle du `#` pour le Python — `tokenize`, essayé, garde les docstrings et faisait citer à
       la grille une consigne écrite DANS une docstring. Mesuré sur les 22 apps : 2262 résultats,
       états et preuves identiques ; compositions des 11 briques identiques. `CodeOnlyTest` (5).
-      ⏳ La FILE, quand elle sera une pièce unique (point (2) ci-dessus).
+      ✅ **La FILE, pièce unique — 2026-10-20** (point (2) ci-dessus) : `common/_queue.html` —
+      barre, conteneur, entrées, état vide — inclus par les dix apps (douze files : une par
+      domaine chez l'imager et l'enhancer) et écrit par le générateur, sans exception. Ce qu'une
+      page passait, la pièce le DÉRIVE (`wama_actions.queue_context`) : les trois routes de la
+      barre sous leurs orthographes admises (`urls_gen.ROUTE_ALIASES`, qui gagne
+      `download_all_media` pour l'anonymizer), préfixées par le domaine qui a ses routes, bornées
+      par `?domain=` quand deux domaines les partagent ; l'URL du ZIP de chaque lot ; les ids des
+      boutons (`<queue_id>-start-all`…) ; l'icône de l'état vide (domaine, sinon app). Trouvé en
+      portant : les deux files de l'enhancer passaient `download_url=batch_dl_url` sans jamais le
+      poser — leurs lots n'avaient AUCUN bouton ZIP (le piège du 25/08, encore ouvert là). L'état
+      vide était écrit deux fois par app, gabarit ET JS, en cinq idiomes : il est TOUJOURS rendu
+      par la pièce et basculé par `wama-queue.js` (`[data-wama-queue]`, l'idiome du composer) ;
+      `WamaApp.emptyState`, sans appelant, est retiré. Brique de page `queue` (`surfaces.py`),
+      `mount` = la pièce, annexe de `queue_front` : « utilisée par » = les critères de ce
+      mécanisme, dont le nouveau `queue_piece` (10/10). Les sept critères qui lisaient une PIÈCE de
+      la file dans les fichiers de l'app (`queue_entry`, `queue_toolbar`, `batch_card_common`,
+      `queue_actions_common`, `eta_batch`, `layout`, `queue_piece`) acceptent l'inclusion — `layout`
+      était tombé à faux 10/10 avant de la lire. Mesuré sur les 22 apps : seul `queue_piece` change
+      d'état chez les apps réelles. ⚠ Limite connue : la COMPOSITION lue de la brique s'arrête à
+      `queue_front` + `queue_entry` — la manipulation directe (un tag de gabarit, pas un fichier
+      nommé) et le registre d'outils (derrière la façade de barre, règle du 17/10) n'y figurent pas.
+      Les jumelles gardent leur composition figée jusqu'à leur régénération. Gardes :
+      `tests_queue_piece` (14) — contre-épreuves rouges.
   - ✅ **2ᵉ SURFACE — 2026-10-13, la page d'édition du FOND du Writer** (décisions de Fabien le
     jour même ; `ROADMAP §21.5` étape 1) :
     - **un champ FICHIER s'édite comme TEXTE**, nature DÉDUITE du type du champ
@@ -2014,7 +2036,8 @@ propres aux apps restent à relever. `applyBatchState` et `fetchCard` sont la ba
 le résidu que chaque app garde après une suppression (« arrêter le polling ») n'est pas une
 spécificité, c'est la trace de cette brique non adoptée. Il disparaîtra à mesure de l'adoption —
 et `WamaApp.emptyState`, adopté par 1 app avant que le converter ne le rejoigne, est le suivant
-sur la même liste.
+sur la même liste. *(Retiré le 2026-10-20 : l'état vide est rendu par la FILE commune et basculé
+par sa brique — §F3b ; `REMOVAL_LEDGER`.)*
 
 > ✅ **`WamaApp.Poller` ADOPTÉ PARTOUT (2026-10-13)** — constat de Fabien (Imager figé, modales
 > ouvertes « d'un coup ») : les boucles relançaient sans attendre la réponse et tournaient en

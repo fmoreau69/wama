@@ -81,13 +81,16 @@ class PlacementDeLaBarreTest(SimpleTestCase):
         vus = 0
         gabarits = sorted((RACINE / 'wama').glob('*/templates/*/index.html'))
         gabarits += sorted((RACINE / 'wama_lab').glob('*/templates/*/index.html'))
-        for gabarit in gabarits:
-            if gabarit.parts[-4] in jumelles:
+        # La FILE commune (2026-10-20) porte la barre des pages qui l'incluent : elle est
+        # mesurée comme elles, et chaque page qui l'inclut compte comme une page à barre.
+        piece = RACINE / 'wama' / 'common' / 'templates' / 'common' / '_queue.html'
+        for gabarit in gabarits + [piece]:
+            if gabarit != piece and gabarit.parts[-4] in jumelles:
                 continue
             texte = gabarit.read_text(encoding='utf-8')
-            if '_queue_toolbar.html' not in texte:
+            if '_queue_toolbar.html' not in texte and "'common/_queue.html'" not in texte:
                 continue
-            vus += 1
+            vus += gabarit != piece
             for ligne, conteneur in barres_imbriquees_dans_une_file(texte):
                 defauts.append(
                     f"{gabarit.relative_to(RACINE)}:{ligne} — barre incluse DANS le conteneur "
@@ -127,6 +130,12 @@ class PlacementDeLaBarreTest(SimpleTestCase):
         """
         source = (RACINE / 'wama' / 'common' / 'manifests' / 'codegen'
                   / 'templates_gen.py').read_text(encoding='utf-8')
+        # Depuis le 2026-10-20 le générateur inclut la FILE commune : c'est elle qui place.
+        self.assertIn("include 'common/_queue.html'", source,
+                      "le générateur n'inclut plus la file commune")
+        source = (RACINE / 'wama' / 'common' / 'templates' / 'common'
+                  / '_queue.html').read_text(encoding='utf-8')
+        source = RE_COMMENTAIRE_LIGNE.sub('', source)
         barre = source.find("_queue_toolbar.html")
         conteneur = source.find('class="wama-queue-')
         self.assertNotEqual(-1, barre, "le générateur n'émet plus de barre d'outils de file")
