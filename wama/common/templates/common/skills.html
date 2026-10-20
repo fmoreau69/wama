@@ -171,6 +171,7 @@
           <code>{{ k.name }}</code>
           <span class="wama-cat-badge sk-compte">{{ k.provenance }}</span>
           {% if k.scope_label %}<span class="sk-selection">{{ k.scope_label }}</span>{% endif %}
+          {% if k.promotion_pending %}<span class="sk-paire" title="Un administrateur la tranchera">Promotion demandée</span>{% endif %}
         </h4>
         {% if k.can_edit %}
         <textarea class="form-control form-control-sm" rows="5" data-role="text">{{ k.text }}</textarea>
@@ -186,7 +187,10 @@
           <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-action="share">Partager</button>
           {% endif %}
           {% if k.can_copy %}<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-action="copy">Copier dans mes skills</button>{% endif %}
+          {% if k.can_request_promotion %}<button type="button" class="btn btn-sm btn-outline-success py-0" data-action="request_promotion"
+                  title="Les administrateurs sont prévenus ; rendu système, il est partagé à tous et vous reste cité">Demander la promotion</button>{% endif %}
           {% if k.can_promote %}<button type="button" class="btn btn-sm btn-outline-success py-0" data-action="promote">Rendre système</button>{% endif %}
+          {% if k.can_refuse_promotion %}<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-action="refuse_promotion">Refuser la promotion</button>{% endif %}
           {% if k.can_delete %}<button type="button" class="btn btn-sm btn-outline-danger py-0" data-action="delete">Supprimer</button>{% endif %}
         </div>
       </div>

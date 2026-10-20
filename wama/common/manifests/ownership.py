@@ -69,6 +69,8 @@ def promote_owned_row(row, *, by=None):
         raise ValueError(f"{type(row).__name__} : le propriétaire est obligatoire, pas de système")
     fields = {'owner': None, 'visibility': ScopedVisibility.VIS_PUBLIC, 'scope_org_unit': None,
               'scope_project': None}
+    if hasattr(row, 'promotion_requested_at'):
+        fields['promotion_requested_at'] = None          # la demande est tranchée
     if hasattr(row, 'source'):
         source = dict(row.source or {})
         if row.owner_id and not source.get('proposed_by'):
@@ -92,12 +94,19 @@ def provenance_of(row, user) -> dict:
     from wama.common.services.sharing import scope_label, scope_value
     owner_id = row.owner_id
     mine = bool(owner_id) and owner_id == getattr(user, 'pk', None)
+    requestable = hasattr(row, 'promotion_requested_at')
+    pending = requestable and row.promotion_requested_at is not None
+    admin = _is_admin(user)
     return {'provenance': ('Système' if not owner_id else 'à moi' if mine
                            else f'partagé par {row.owner.get_username()}'),
             'owner': row.owner.get_username() if owner_id else '', 'system': not owner_id,
             'mine': mine, 'scope': scope_value(row), 'scope_label': scope_label(row),
             'can_share': mine, 'can_delete': may_remove(user, row),
-            'can_promote': _is_admin(user) and bool(owner_id)}
+            'can_promote': admin and bool(owner_id),
+            # « Demander la promotion » : l'auteur, une fois ; l'administrateur la tranche.
+            'promotion_pending': pending,
+            'can_request_promotion': requestable and mine and not pending,
+            'can_refuse_promotion': admin and pending}
 
 
 def _is_admin(user) -> bool:
@@ -119,6 +128,62 @@ def promote_by(user, row, noun: str):
     if row.owner_id is None:
         raise ValueError(f"Ce {noun} est déjà système.")
     return promote_owned_row(row, by=user)
+
+
+def request_promotion(user, row, noun: str, url: str = ''):
+    """« Demander la promotion » (`ROADMAP §29` étape 6, demande de Fabien du 2026-10-20) : l'AUTEUR
+    demande qu'un administrateur rende sa ligne système. C'est l'état de
+    `Manifest.promotion_requested_at` (« privé est une portée, promotion demandée est une
+    demande »), porté par la ligne ; les ADMINISTRATEURS seuls sont prévenus, dans WAMA — ce sont
+    eux qui tranchent (décision b), là où la ligne se gère (`promote_by`, `refuse_promotion`).
+    Lève `PermissionError` ou `ValueError`, le motif étant destiné à l'utilisateur."""
+    from django.utils import timezone
+    if not hasattr(row, 'promotion_requested_at'):
+        raise ValueError(f"Un {noun} ne se propose pas au système par ce geste.")
+    if row.owner_id is None:
+        raise ValueError(f"Ce {noun} est déjà système.")
+    if row.owner_id != getattr(user, 'pk', None):
+        raise PermissionError(f"Seul son auteur demande la promotion de ce {noun}.")
+    if row.promotion_requested_at is not None:
+        raise ValueError("La promotion est déjà demandée.")
+    row.promotion_requested_at = timezone.now()
+    type(row).objects.filter(pk=row.pk).update(promotion_requested_at=row.promotion_requested_at)
+    _notify(_administrators(), 'promotion_requested',
+            f"{user.get_username()} demande la promotion du {noun} « {_name(row)} »",
+            "Le rendre système le partage à tous, sans propriétaire ; son auteur reste cité.", url)
+    return row
+
+
+def refuse_promotion(user, row, noun: str, url: str = ''):
+    """Un ADMINISTRATEUR refuse la promotion demandée : la demande se close, la ligne reste à son
+    auteur, qui est prévenu (le pendant de « Rejeter » pour le manifeste d'un auteur)."""
+    if not _is_admin(user):
+        raise PermissionError(f"Refuser la promotion d'un {noun} est réservé aux administrateurs.")
+    if getattr(row, 'promotion_requested_at', None) is None:
+        raise ValueError("Aucune promotion n'est demandée.")
+    row.promotion_requested_at = None
+    type(row).objects.filter(pk=row.pk).update(promotion_requested_at=None)
+    if row.owner_id:
+        _notify([row.owner], 'promotion_refused',
+                f"La promotion du {noun} « {_name(row)} » est refusée",
+                f"Il reste à vous, avec sa portée ; refusé par {user.get_username()}.", url)
+    return row
+
+
+def _name(row) -> str:
+    return getattr(row, 'name', '') or str(row)
+
+
+def _administrators() -> list:
+    """Les comptes qui VALIDENT une promotion : les administrateurs (`is_admin_tier`) — pas les
+    développeurs, que `notifications.infrastructure_admins` prévient aussi des pannes."""
+    from django.contrib.auth import get_user_model
+    return [u for u in get_user_model().objects.filter(is_active=True) if _is_admin(u)]
+
+
+def _notify(users, kind, title, body, url):
+    from wama.common.utils.notifications import notify_in_app
+    notify_in_app(users, kind, title, body=body, url=url)
 
 
 def row_fields(manifest: dict) -> dict:

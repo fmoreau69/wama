@@ -69,7 +69,8 @@ y figure aussi : sa page est celle de son registre, « Retirer le partage » le 
 
   {% include 'common/_filter_bar.html' with facettes=facettes cible='.wama-cat-card' mode='client' sort_options=sort_options sort_value='since:desc' placeholder='Rechercher un partage (nom, app, personne…)' %}
 
-  <div class="wama-cat-grid mt-3" style="--cat-card-min: 320px;"
+  <div class="wama-cat-grid mt-3" style="--cat-card-min: 320px;" id="sharesGrid"
+       data-unshare-catalogue-url="{% url 'common:api_catalogue_unshare' %}"
        data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
     {% for s in items %}
     <div class="wama-cat-card" data-id="{{ s.label }}"
@@ -83,7 +84,7 @@ y figure aussi : sa page est celle de son registre, « Retirer le partage » le 
       <h4>{{ s.label }} <span class="wama-cat-badge">{{ s.app_label }}</span></h4>
       <div class="wama-cat-meta">
         {% if s.owner %}de <b>{{ s.owner }}</b> · <span class="share-pill">{{ s.mode.icon }} {{ s.mode.label }}</span>{% endif %}
-        {% if s.scope %}<span class="share-pill">{{ s.scope }} · 👁 Lecture seule{% if s.scope_since %} · depuis le {{ s.scope_since|date:'d/m/Y' }}{% endif %}</span>{% endif %}
+        {% if s.scope %}<span class="share-pill">{{ s.scope }} · {{ scope_mode.icon }} {{ scope_mode.label }}{% if s.scope_since %} · depuis le {{ s.scope_since|date:'d/m/Y' }}{% endif %}</span>{% endif %}
         {% for p in s.persons %}<span class="share-pill" data-person="{{ p.grant }}" title="Depuis le {{ p.since|date:'d/m/Y H:i' }}">{{ p.mode.icon }} {{ p.name }} · {{ p.mode.label }} · depuis le {{ p.since|date:'d/m/Y' }}
           <button type="button" class="btn btn-link btn-sm p-0 ms-1" style="color:var(--wama-danger-softer);font-size:.72rem;"
                   data-revoke="{{ p.grant }}" title="Retirer le partage avec {{ p.name }}">retirer</button></span>{% endfor %}
@@ -130,7 +131,8 @@ y figure aussi : sa page est celle de son registre, « Retirer le partage » le 
     });
   });
   gesture('[data-unshare-catalogue]', function (b) {
-    post('/common/shares/catalogue/unshare/', { registry: b.dataset.registry, pk: b.dataset.pk }).then(function (res) {
+    post(document.getElementById('sharesGrid').dataset.unshareCatalogueUrl,
+         { registry: b.dataset.registry, pk: b.dataset.pk }).then(function (res) {
       if (res && res.ok) { b.closest('.wama-cat-card').remove(); say('Partage retiré.', 'success'); }
       else say('Impossible — ' + ((res && res.reason) || 'refusé'), 'error');
     });

@@ -146,6 +146,76 @@ class GesturesTest(_Accounts):
         self.assertEqual(self.author.pk, PromptSkill.objects.get(pk=over_file.pk).owner_id)
 
 
+class PromotionRequestTest(_Accounts):
+    """« Demander la promotion » (Fabien, 2026-10-20) : l'AUTEUR demande, une fois ; les
+    ADMINISTRATEURS seuls sont prévenus et tranchent — rendre système efface la demande, la
+    refuser la close et prévient l'auteur. Le même geste pour toute ligne qui le porte (un thème
+    de charte aussi : `ownership.request_promotion`)."""
+
+    def _notes(self, user, kind):
+        from wama.common.models import Notification
+        return Notification.objects.filter(recipient=user, kind=kind).count()
+
+    def test_the_author_requests_once_and_only_the_administrators_are_told(self):
+        row = us.create(self.author, FRESH, 'x')
+        us.request_promotion(self.author, row.pk)
+        row.refresh_from_db()
+        self.assertIsNotNone(row.promotion_requested_at)
+        self.assertEqual((1, 0), (self._notes(self.admin, 'promotion_requested'),
+                                  self._notes(self.dev, 'promotion_requested')))
+        with self.assertRaises(us.SkillRefused):
+            us.request_promotion(self.author, row.pk)
+        us.share(self.author, row.pk, 'public')
+        with self.assertRaises(us.SkillRefused) as other:
+            us.request_promotion(self.other, row.pk)
+        self.assertEqual(403, other.exception.status)
+
+    def test_an_administrator_refuses_and_the_author_is_told_or_promotes_and_it_is_closed(self):
+        refused = us.create(self.author, FRESH, 'x')
+        us.request_promotion(self.author, refused.pk)
+        us.share(self.author, refused.pk, 'public')       # le développeur la VOIT : reste le droit
+        with self.assertRaises(us.SkillRefused) as dev:
+            us.refuse_promotion(self.dev, refused.pk)
+        self.assertEqual(403, dev.exception.status)
+        us.refuse_promotion(self.admin, refused.pk)
+        refused.refresh_from_db()
+        self.assertEqual((None, self.author.pk), (refused.promotion_requested_at, refused.owner_id))
+        self.assertEqual(1, self._notes(self.author, 'promotion_refused'))
+        promoted = us.create(self.author, 'zzprov-promoted', 'x')
+        us.request_promotion(self.author, promoted.pk)
+        us.promote(self.admin, promoted.pk)
+        promoted.refresh_from_db()
+        self.assertEqual((None, None), (promoted.owner_id, promoted.promotion_requested_at))
+
+    def test_the_same_gesture_carries_a_charter_theme(self):
+        import json
+
+        from wama.common.models import UserTheme
+        theme = UserTheme.objects.create(owner=self.author, name='Labo', base='light',
+                                         accent='#2f2a85')
+        manage = reverse('accounts:profile-theme-charter-manage')
+        self.client.force_login(self.author)
+        r = self.client.post(manage, json.dumps({'pk': theme.pk, 'action': 'request_promotion'}),
+                             content_type='application/json')
+        self.assertTrue(r.json().get('success'), r.content)
+        theme.refresh_from_db()
+        self.assertIsNotNone(theme.promotion_requested_at)
+        self.assertEqual(1, self._notes(self.admin, 'promotion_requested'))
+
+    def test_the_skills_page_offers_the_button_to_the_author_and_the_answer_to_an_admin(self):
+        row = us.create(self.author, FRESH, 'x')
+        self.client.force_login(self.author)
+        self.assertContains(self.client.get(reverse('common:skills_catalog')),
+                            'data-action="request_promotion"')
+        us.request_promotion(self.author, row.pk)
+        page = self.client.get(reverse('common:skills_catalog'))
+        self.assertContains(page, 'Promotion demandée')
+        self.assertNotContains(page, 'data-action="request_promotion"')
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse('common:skills_catalog')),
+                            'data-action="refuse_promotion"')
+
+
 class PageAndCallersTest(_Accounts):
 
     def test_the_skills_page_shows_the_account_section_and_the_endpoint_obeys(self):

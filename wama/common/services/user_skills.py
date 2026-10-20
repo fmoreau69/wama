@@ -139,6 +139,36 @@ def promote(user, pk):
         raise SkillRefused(str(exc))
 
 
+def _page_url() -> str:
+    from django.urls import reverse
+    return reverse('common:skills_catalog')
+
+
+def request_promotion(user, pk):
+    """« Demander la promotion » — son auteur ; les administrateurs sont prévenus
+    (`ownership.request_promotion`)."""
+    from wama.common.manifests.ownership import request_promotion as request
+    row = _row(user, pk)
+    try:
+        return request(user, row, 'skill', _page_url())
+    except PermissionError as exc:
+        raise SkillRefused(str(exc), status=403)
+    except ValueError as exc:
+        raise SkillRefused(str(exc))
+
+
+def refuse_promotion(user, pk):
+    """Un administrateur refuse la promotion demandée ; l'auteur est prévenu."""
+    from wama.common.manifests.ownership import refuse_promotion as refuse
+    row = _row(user, pk)
+    try:
+        return refuse(user, row, 'skill', _page_url())
+    except PermissionError as exc:
+        raise SkillRefused(str(exc), status=403)
+    except ValueError as exc:
+        raise SkillRefused(str(exc))
+
+
 def as_dict(row, user) -> dict:
     """Ce que la page montre d'une ligne : sa provenance et ses gestes, par la lecture commune des
     lignes portées (`ownership.provenance_of`), plus ce qui est propre au skill."""

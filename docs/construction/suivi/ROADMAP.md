@@ -6493,7 +6493,8 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
        ensemble de l'anonymizer, repli de contexte de l'assistant) ne voient que le système : un
        auteur n'y retrouve pas son modèle privé.
      - Aucun geste « Demander la promotion » à l'écran : le service existe (`proposals.propose`),
-       le bouton ira avec la pastille (étape 6).
+       le bouton ira avec la pastille (étape 6). (2026-10-20 : livré pour les skills et les
+       thèmes de charte, étape 6a ; un modèle garde sa route par manifeste.)
      - Aucun critère de conformité ne mesure encore les lecteurs (le `scoped_reads` des
        catalogues).
 4. ✅ **Les fonctions, les pipelines du Studio — les skills restent à porter (2026-10-19).**
@@ -6603,12 +6604,29 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      relevé par Fabien, **« Mes partages » montre TOUS les partages** : elle ne parcourait que les
      surfaces de file ; les éléments de catalogue qui ont un auteur y entrent, dérivés des
      registres (`sharing.catalogue_owned_rows`, `WAMA_COLLABORATION §5.3`).
-   - **Ce que l'étape ne fait PAS** : aucune demande de promotion par l'auteur (le bouton ira avec
-     la pastille, étape 6) ; pas de manifeste `skill` (le corpus versionné n'en porte pas) ; un
-     skill de rôle d'assistant n'a pas de version d'utilisateur.
+   - **Ce que l'étape ne fait PAS** : ~~aucune demande de promotion par l'auteur (le bouton ira avec
+     la pastille, étape 6)~~ (✅ ci-dessous, 6a) ; pas de manifeste `skill` (le corpus versionné
+     n'en porte pas) ; un skill de rôle d'assistant n'a pas de version d'utilisateur.
 5. Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par
    déplacement vers `common/`.
 6. La pastille et la facette.
+   - **6a. ✅ « Demander la promotion » (2026-10-20, demande de Fabien), avancé avant la
+     pastille.** L'état est celui de `Manifest.promotion_requested_at` (étape 2 : *privé est une
+     portée, promotion demandée est une demande*), porté par la LIGNE : champ
+     `promotion_requested_at` sur `PromptSkill` et `UserTheme` (migration `common/0035`
+     APPLIQUÉE), les deux familles qui ont déjà le geste « Rendre système ». Une brique, à côté
+     de `promote_by` : `ownership.request_promotion` (l'AUTEUR, une fois ; les ADMINISTRATEURS
+     seuls sont prévenus dans WAMA — pas les développeurs, que `notify_admins` prévient des
+     pannes) et `refuse_promotion` (un admin ; la demande se close, l'auteur est prévenu) ;
+     rendre système efface la demande. La réponse se donne là où la ligne se gère : « Refuser
+     la promotion » à côté de « Rendre système » (page des skills, Profil), et la pastille
+     « Promotion demandée ». Types de notification déclarés au panneau de la cloche
+     (`notification_panel.STYLE_BY_KIND`). Gardes : `tests_skill_provenance.PromotionRequestTest`
+     (4), trois contre-épreuves rouges (tous prévenus, personne prévenu, bouton absent).
+   - **Ce que 6a ne fait PAS** : les familles portées par un MANIFESTE (modèle, librairie,
+     fonction d'utilisateur) gardent leur route, `proposals.propose` → file « Propositions à
+     valider » du model manager, sans bouton d'auteur à l'écran ; aucune file de modération
+     unique (`PROFILES_PERMISSIONS §8.7 S4`) — un admin trouve la demande par sa notification.
 
 Relation avec S3 (`AccessGrant`, `PROFILES_PERMISSIONS §8.7`) : S3 répond à « qui a le droit »,
 ce chantier répond à « à qui c'est ». Les deux se composent dans `accessible()`, et aucun ne

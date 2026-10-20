@@ -408,7 +408,7 @@
                         <li class="d-flex flex-wrap align-items-center gap-2 py-1" data-charter="{{ c.pk }}">
                             <span class="wama-theme-swatch wama-theme-swatch-sm" data-obtained="{{ c.obtained }}"></span>
                             <span class="flex-grow-1">{{ c.name }}{% if c.font %} · {{ c.font }}{% endif %}
-                                <span class="text-body-secondary">— {{ c.provenance }}{% if c.scope_label %} ({{ c.scope_label }}){% endif %}</span></span>
+                                <span class="text-body-secondary">— {{ c.provenance }}{% if c.scope_label %} ({{ c.scope_label }}){% endif %}{% if c.promotion_pending %} · promotion demandée{% endif %}</span></span>
                             {% if c.mine %}
                             <select class="form-select form-select-sm w-auto" data-charter-scope aria-label="Portée">
                                 {% for s in theme_scopes %}
@@ -416,9 +416,17 @@
                                 {% endfor %}
                             </select>
                             {% endif %}
+                            {% if c.can_request_promotion %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-charter-action="request_promotion"
+                                    title="Les administrateurs sont prévenus ; rendu système, le thème est proposé à tous et vous reste cité">Demander la promotion</button>
+                            {% endif %}
                             {% if c.can_promote %}
                             <button type="button" class="btn btn-outline-secondary btn-sm" data-charter-action="promote"
                                     title="Le thème devient système : sans propriétaire, son auteur reste cité">Rendre système</button>
+                            {% endif %}
+                            {% if c.can_refuse_promotion %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm" data-charter-action="refuse_promotion"
+                                    title="La demande se close ; le thème reste à son auteur, qui est prévenu">Refuser la promotion</button>
                             {% endif %}
                             {% if c.can_delete %}
                             <button type="button" class="btn btn-outline-danger btn-sm" data-charter-action="delete"

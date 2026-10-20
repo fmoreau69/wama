@@ -22,6 +22,9 @@ STYLE_BY_KIND = {
     'access_request_refused': ('fa-user-times', 'danger'),
     'access_revoked': ('fa-user-slash', 'warning'),
     'share_received': ('fa-share-alt', 'info'),
+    # « Demander la promotion » d'un élément d'auteur (`ownership.request_promotion`, 2026-10-20).
+    'promotion_requested': ('fa-arrow-up-from-bracket', 'info'),
+    'promotion_refused': ('fa-arrow-rotate-left', 'warning'),
 }
 DEFAULT_STYLE = ('fa-bell', 'neutral')
 

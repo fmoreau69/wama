@@ -958,6 +958,9 @@ class UserTheme(ScopedVisibility):
     #: Ce que la lecture de la charte a trouvé (couleurs, rôles, lecteur) et qui l'a fait naître
     #: ou promu — la trace, jamais relue pour générer.
     source = models.JSONField(default=dict, blank=True)
+    #: La DEMANDE de promotion au système (« Demander la promotion », `ownership.request_promotion`)
+    #: — l'état de `Manifest.promotion_requested_at`, porté par la ligne ; vide = aucune.
+    promotion_requested_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -988,6 +991,8 @@ class PromptSkill(ScopedVisibility):
                               related_name='wama_prompt_skills')
     #: Qui l'a écrit, copié de qui, promu par qui — la trace, jamais relue pour résoudre.
     source = models.JSONField(default=dict, blank=True)
+    #: La DEMANDE de promotion au système (`ownership.request_promotion`) ; vide = aucune.
+    promotion_requested_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

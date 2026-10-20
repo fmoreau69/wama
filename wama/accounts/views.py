@@ -608,8 +608,10 @@ def theme_charter_save(request):
 def theme_charter_manage(request):
     """AJAX : `share` (une portée, par le service commun), `delete` (son auteur, ou un admin),
     `promote` (un ADMIN seul, décision b du §29 : le thème devient SYSTÈME, sans propriétaire,
-    l'auteur gardé pour l'attribution)."""
-    from wama.common.manifests.ownership import may_remove, promote_by
+    l'auteur gardé pour l'attribution), `request_promotion` (son auteur : les administrateurs
+    sont prévenus), `refuse_promotion` (un ADMIN : la demande se close, l'auteur est prévenu)."""
+    from wama.common.manifests.ownership import (may_remove, promote_by, refuse_promotion,
+                                                 request_promotion)
     from wama.common.services.sharing import RefusDePartage, share_scope
     from wama.common.themes import charter_themes
 
@@ -632,9 +634,14 @@ def theme_charter_manage(request):
             return JsonResponse({'error': "Seul son auteur, ou un administrateur, le retire."}, status=403)
         row.delete()
         return JsonResponse({'success': True})
-    if action == 'promote':
+    gestures = {'promote': lambda: promote_by(request.user, row, 'thème'),
+                'request_promotion': lambda: request_promotion(
+                    request.user, row, 'thème', reverse('accounts:profile')),
+                'refuse_promotion': lambda: refuse_promotion(
+                    request.user, row, 'thème', reverse('accounts:profile'))}
+    if action in gestures:
         try:
-            promote_by(request.user, row, 'thème')
+            gestures[action]()
         except PermissionError as exc:
             return JsonResponse({'error': str(exc)}, status=403)
         except ValueError as exc:

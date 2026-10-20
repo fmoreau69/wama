@@ -1050,7 +1050,8 @@ def skills_manage(request):
     consigne), `update` (sa consigne), `share` (une portée, `scope` = `private`, `public`,
     `unit:<id>` ou `project:<id>`), `copy` (un skill qu'il voit, `pk` ; ou un skill système,
     `name`), `delete` (son auteur ou un admin), `promote` (un ADMIN seul : le skill devient
-    système). Rend la ligne telle que la page la montre."""
+    système), `request_promotion` (son auteur : les admins sont prévenus), `refuse_promotion` (un
+    ADMIN : la demande se close). Rend la ligne telle que la page la montre."""
     import json
 
     from .services import user_skills as us
@@ -1074,6 +1075,10 @@ def skills_manage(request):
             return JsonResponse({'success': True})
         elif action == 'promote':
             row = us.promote(user, data.get('pk'))
+        elif action == 'request_promotion':
+            row = us.request_promotion(user, data.get('pk'))
+        elif action == 'refuse_promotion':
+            row = us.refuse_promotion(user, data.get('pk'))
         else:
             return JsonResponse({'error': f'Action inconnue : {action!r}'}, status=400)
     except us.SkillRefused as exc:
@@ -2123,7 +2128,8 @@ def shares_page(request):
     collaborateurs, et c'est ICI qu'on retire un droit (E5) ou le partage — et ce qu'on m'a
     partagé, avec mon accès ; les demandes en attente dans les deux sens."""
     from django.shortcuts import render
-    from wama.common.services.sharing import shares_overview
+    from wama.common.services.journal import TRIS
+    from wama.common.services.sharing import CURRENT_SHARE_MODE, shares_overview
     data = shares_overview(request.user)
     # UNE liste, comme les autres pages du compte et des registres (2026-10-20, Fabien : « faire
     # converger avec toutes les autres pages ») : le SENS devient une facette de la barre
@@ -2132,13 +2138,18 @@ def shares_page(request):
             [dict(s, direction="Partagé avec moi") for s in data['received']]
     items.sort(key=lambda s: s['scope_since'].timestamp() if s.get('scope_since') else 0,
                reverse=True)
+    # Le libellé d'une facette est celui que la fiche du volet dérive de sa clé (`data-f-partage`
+    # → « Partage ») : le filtre et la fiche disent le même mot.
     facettes = [{'cle': cle, 'label': label, 'tous': tous} for cle, label, tous in (
         ('sens', 'Sens', 'Tous les partages'), ('app', 'App', 'Toutes'),
-        ('nature', 'Nature', 'Toutes'), ('partage', 'Portée', 'Toutes'))]
-    sort_options = [('since:desc', 'Plus récent'), ('since:asc', 'Plus ancien'),
-                    ('label:asc', 'Nom'), ('app:asc', 'App')]
+        ('nature', 'Nature', 'Toutes'), ('partage', 'Partage', 'Tous'))]
+    # Les libellés de tri du journal (`journal.TRIS`, alignés sur la barre des files).
+    sort_options = [('since:desc', TRIS['recent']), ('since:asc', TRIS['oldest']),
+                    ('label:asc', TRIS['name']), ('app:asc', 'App')]
     return render(request, 'common/shares.html', {
         **data, 'items': items, 'facettes': facettes, 'sort_options': sort_options,
+        # Ce qu'une PORTÉE accorde, déclaré une fois (`SHARE_MODES`) : la lecture.
+        'scope_mode': CURRENT_SHARE_MODE,
         # Ce que la page REMPLIT : l'aperçu et le détail d'un élément partagé (ceux de sa card,
         # par l'inspecteur commun) et la fiche de chaque partage ; pas d'actions dans le volet.
         'volet': volet(actions=False)})
