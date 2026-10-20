@@ -298,6 +298,30 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   l'outil faisait passer pour la face demandée). Rien de neuf côté serveur : `unified_preview` sert
   tout. Gardes : `tests_tool_api_lectures.GetItemPreviewTest` (face Pendant regardée, face absente
   nommée, Comparer sans sortie).
+  ✅ **Vérifié EN LIGNE le 2026-10-20** (workers relancés, compte de test déclaré, route ▶ du
+  composer) : MusicGen small, cinq partiels servis PENDANT le calcul (1,9 → 9,1 s de son, chaque
+  fichier en HTTP 200), plus aucune face Pendant à la fin, la Sortie prend le relais. Gardes
+  ajoutées le soir : la glu (`composer.tests_pipeline` — partiel servi pendant que le moteur
+  calcule, retiré au succès comme à l'échec), le suiveur (`tests_cap_from_js` — un son qui
+  grandit reprend où il en était ; les deux consommateurs remettent leur hôte), le geste
+  nocturne `common.preview_during` (`WAMA_VERIFICATION §3`, 11d). Toutes contre-éprouvées.
+  ⏳ **Restes du chantier « une preview universelle » (inventaire du 2026-10-20, relu au code)** :
+  ① la CARD ne suit pas la face Pendant (volet et visionneuse seulement) — d'où deux recopies
+  par app : le texte partiel écrit dans sa card par le describer
+  (`describer/static/describer/js/index.js:47`) et le panneau « en direct » du transcriber
+  (`transcriber/static/transcriber/js/index.js:595`) ; l'hôte d'aperçu de la card est écrit à
+  la main dans les 11 gabarits (et le générateur), rendu seulement quand la sortie existe — un
+  gabarit commun le rendrait aussi pendant le traitement ; ② le CHAT de l'assistant ne rend
+  aucune face ; ③ code mort : `WAMA_RIGHT_PANEL.showPreview` (`wama/templates/base.html:321`,
+  copie dans `filemanager/right_panel.html`, que rien n'inclut), la modale `#previewModal` du
+  synthesizer, `_mpInjectImage` de l'imager, les routes `anonymizer:preview_media`,
+  `describer:preview`, `synthesizer:preview` (déclarées aux manifestes : retrait au
+  `REMOVAL_LEDGER`) ; ④ recopies partielles : second lecteur nu de `transcriber/edit.html:238`,
+  vignettes de la médiathèque et du sélecteur à la main avec un type DEVINÉ côté navigateur
+  (`media-library.js:582`), sorties vidéo du cam_analyzer en liens bruts, sortie vidéo du
+  face_analyzer à la main, `brick-html-preview.js` (seconde iframe isolée). Ordre proposé à
+  Fabien : ① → ② → ③ → ④. Et MiniMax-Music3 / YuE2 ne montrent rien avant la fin (limite des
+  moteurs, dite plus haut).
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct —
   qui construit sa réponse par la MÊME fabrique de face fichier que les cards (`file_face`,
   2026-10-12 ; il en avait sa copie, seule à extraire le texte d'un .docx).

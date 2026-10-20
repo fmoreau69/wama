@@ -631,13 +631,13 @@ class PreviewModalTest(SimpleTestCase):
         self.assertIn('variantToggle(', self._body('media-preview.js',
                                                   'function _renderModalVariants'))
 
-    def test_the_follower_renders_changes_only_keeps_the_view_and_ends_on_the_card(self):
+    def _follower_v8(self):
+        """V8 with the common loop and the preview brick, a synchronous fake fetch and clock : each
+        call answers the next payload. The follower runs on `WamaApp.Poller` (2026-10-13), which
+        chains `setTimeout` after each answer — `tick()` fires the one pending turn."""
         from py_mini_racer import MiniRacer
         v8 = MiniRacer()
         v8.eval(FAKE_DOM)
-        # A synchronous fake fetch and clock : each call answers the next payload. The follower
-        # runs on the common loop `WamaApp.Poller` (2026-10-13), which chains `setTimeout` after
-        # each answer — `tick()` fires the one pending turn.
         v8.eval("""
             var calls = [], payloads = [], pending = null;
             function setTimeout(fn) { pending = fn; return 1; }
@@ -658,6 +658,10 @@ class PreviewModalTest(SimpleTestCase):
         v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
         v8.eval('var WamaApp = window.WamaApp;')
         v8.eval((JS / 'media-preview.js').read_text(encoding='utf-8'))
+        return v8
+
+    def test_the_follower_renders_changes_only_keeps_the_view_and_ends_on_the_card(self):
+        v8 = self._follower_v8()
         out = v8.eval("""(function () {
             var frame = function (url) { return {url: url, variant: 'blur',
               sides: {during_capable: true, has_during: true}}; };
@@ -679,6 +683,42 @@ class PreviewModalTest(SimpleTestCase):
                          'same frame not re-rendered ; a gap between processes is not the end')
         self.assertEqual(['end'], list(out[1]))
         self.assertEqual('/p/7/?side=during&variant=detection', out[2])
+
+    def test_a_sound_that_grows_resumes_where_it_was_playing(self):
+        """2026-10-20 (Composer : the music shown WHILE it is computed) : each new partial rebuilt
+        the player, which restarted from 0 every few seconds. The follower itself takes the clock
+        of what its `host()` shows before `onFrame`, and gives it to what `onFrame` rendered — for
+        the panel and the viewer alike."""
+        v8 = self._follower_v8()
+        out = v8.eval("""(function () {
+            var medium = function () { var m = {currentTime: 0, paused: true, ended: false, readyState: 4,
+                duration: 60, played: 0, pause: function () { m.paused = true; },
+                play: function () { m.played++; m.paused = false; return {catch: function () {}}; }};
+                return m; };
+            var shown = null;
+            var host = {querySelector: function (sel) { return sel.indexOf('video') >= 0 ? shown : null; }};
+            var frame = function (url) { return {url: url, mime_type: 'video/mp4',
+              sides: {during_capable: true, has_during: true}}; };
+            payloads = [frame('p1.mp4'), frame('p2.mp4')];
+            var players = [];
+            window.WamaMediaPreview.followDuring('/p/8/', {
+              host: function () { return host; },
+              onFrame: function (d) { shown = medium(); players.push(shown); }});
+            // (the first partial is asked at once, `immediate` : nothing to resume yet)
+            players[0].currentTime = 4.2; players[0].paused = false;   // the user listens
+            tick();                                         // the next, longer partial
+            return [players.length, players[0].paused, players[1].currentTime, players[1].played];
+        })()""")
+        self.assertEqual(2, out[0])
+        self.assertTrue(out[1], 'the partial left is stopped')
+        self.assertEqual([4.2, 1], [out[2], out[3]], 'the next partial resumes, playing, at 4.2 s')
+
+    def test_both_consumers_hand_their_host_to_the_follower(self):
+        self.assertIn('host: function () { return previewHost; }',
+                      self._body('wama-inspector.js', 'function _startDuring'))
+        modal = self._body('media-preview.js', 'function _startModalDuring')
+        self.assertIn('host: _modalContainer', modal)
+        self.assertNotIn('takeClock', modal, 'the clock is kept by the follower, not copied per consumer')
 
     def test_the_full_screen_of_an_item_is_the_modal_itself(self):
         expand = self._body('media-preview.js', 'function _expand')

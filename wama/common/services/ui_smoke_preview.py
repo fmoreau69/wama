@@ -23,9 +23,10 @@ CE QU'IL FAIT, sans GPU et sans connaître aucune app :
      visionneuse refermée, exige que le volet sélectionne la card d'arrivée.
 Une erreur d'aperçu (le toast que lève `media-preview.js`) est un ÉCHEC, jamais un constat.
 
-Deux matrices COMMUNES, sans élément monté : `common.preview_layout` (la place de la bascule des
-faces, par nature de fichier) et `common.preview_navigation` (les gestes de navigation : fichiers
-d'un élément, cards voisines, face gardée, gestionnaire de fichiers, galerie et surcouche).
+Trois matrices COMMUNES, sans élément monté : `common.preview_layout` (la place de la bascule des
+faces, par nature de fichier), `common.preview_navigation` (les gestes de navigation : fichiers
+d'un élément, cards voisines, face gardée, gestionnaire de fichiers, galerie et surcouche) et
+`common.preview_during` (2026-10-20 : un élément EN COURS suivi en direct sur sa face Pendant).
 
 Module à part d'`ui_smoke.py` (même raison qu'`ui_smoke_panel`) ; il en réutilise les briques et
 ne redéfinit rien. ⚠ Tout l'ORM est HORS du contexte Playwright (`SynchronousOnlyOperation`).
@@ -964,6 +965,142 @@ def check_preview_navigation():
                   "vignette, gestionnaire de fichiers, galerie et sa surcouche — aucune flèche détournée")
 
 
+#: L'élément FICTIF « en cours » du geste de la face Pendant, servi par la page (`page.route`).
+_DURING_ITEM = '/common/preview/during_probe/1/'
+_DURING_FRAMES = ('p1', 'p2', 'p3')
+
+JS_DURING_CARD = """(item) => {
+    const pane = document.createElement('div');
+    pane.className = 'tab-pane active';
+    pane.id = 'wamaDuringProbe';
+    // Au centre, au premier plan : les volets fixes de la page ne la recouvrent pas.
+    pane.style.cssText = 'position:fixed;left:45%;top:45%;z-index:1040;background:#fff;padding:8px;';
+    pane.innerHTML = `<div class="wama-card" data-id="during1" data-status="RUNNING">`
+        + `<a href="#" class="preview-media-link" data-preview-url="${item}">en cours</a></div>`;
+    document.body.prepend(pane);
+}"""
+
+
+def _during_payload(url: str, base: str, state: dict) -> dict:
+    """Ce que sert l'aperçu commun d'un élément qui calcule : sa face Pendant CHANGE à chaque
+    tour (un nouveau partiel), puis, l'élément terminé, sa Sortie."""
+    running = state['running']
+    sides = {'has_input': True, 'has_output': not running, 'during_capable': True,
+             'has_during': running}
+    if 'side=during' in url and running:
+        state['turns'] += 1
+        name = _DURING_FRAMES[state['turns'] % len(_DURING_FRAMES)]
+        return {'url': f'{base}{name}.png', 'mime_type': 'image/png', 'name': f'pendant {name}',
+                'side': 'during', 'partial': True, 'sides': sides}
+    if 'side=output' in url and not running:
+        return {'url': f'{base}o.png', 'mime_type': 'image/png', 'name': 'o.png', 'side': 'output',
+                'sides': sides}
+    return {'url': f'{base}i.png', 'mime_type': 'image/png', 'name': 'i.png', 'side': 'input',
+            'sides': sides}
+
+
+def _during_witnesses(folder: str):
+    from PIL import Image
+    os.makedirs(folder, exist_ok=True)
+    for k, name in enumerate(_DURING_FRAMES + ('i', 'o')):
+        Image.new('RGB', (320, 180), (40 + 40 * k, 120, 90)).save(os.path.join(folder, f'{name}.png'))
+
+
+def check_preview_during():
+    """La face PENDANT dans la visionneuse, de bout en bout dans le navigateur (2026-10-20 :
+    « dans Composer, la preview est censée se charger au fur et à mesure »). Un élément fictif EN
+    COURS : ouvert, la visionneuse montre ce qui se construit (onglet Pendant) ; chaque nouveau
+    partiel la met à jour sans geste ; l'élément terminé, elle passe d'elle-même à sa Sortie.
+    Le suiveur commun (`followDuring`) et sa reprise de lecture sont tenus en V8
+    (`tests_cap_from_js`) ; ce geste tient le câblage dans une vraie page. (ok, détail)."""
+    import json
+    import shutil
+
+    from django.conf import settings
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    apps = list(discoverable_apps())
+    token = _test_session_key(apps[0][0]) if apps else None
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_during')
+    base = settings.MEDIA_URL + 'smoke_preview_during/'
+    _in_plain_thread(_during_witnesses, folder)
+    state = {'running': True, 'turns': 0}
+    faults, seen = [], []
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1400, 'height': 900})
+                context.add_cookies(_cookie(token))
+                page = context.new_page()
+                js_errors = []
+                page.on('pageerror', lambda e: js_errors.append(str(e)[:160]))
+                page.route(f'**{_DURING_ITEM}**', lambda route: route.fulfill(
+                    content_type='application/json',
+                    body=json.dumps(_during_payload(route.request.url, base, state))))
+                page.goto(f"{BASE_URL.rstrip('/')}{apps[0][1]}", wait_until='networkidle',
+                          timeout=PAGE_TIMEOUT_MS)
+                page.evaluate(JS_DURING_CARD, _DURING_ITEM)
+                page.locator('#wamaDuringProbe .preview-media-link').first.click(timeout=4000)
+                state_js = """() => { const m = document.querySelector('#wamaMediaPreviewModal.show');
+                    if (!m) return null; const a = m.querySelector('.wama-modal-sides .is-active');
+                    const img = m.querySelector('.preview-container img');
+                    return {title: m.querySelector('.modal-title').textContent.trim(),
+                            face: a ? a.textContent.trim() : '', src: img ? img.src : ''}; }"""
+                try:
+                    page.wait_for_function(
+                        "() => { const m = document.querySelector('#wamaMediaPreviewModal.show');"
+                        " const a = m && m.querySelector('.wama-modal-sides .is-active');"
+                        " return a && a.textContent.trim() === 'Pendant'; }", timeout=8000)
+                    seen.append(page.evaluate(state_js)['title'])
+                except Exception:
+                    faults.append(f"ouverture d'un élément en cours : la visionneuse ne montre pas sa face "
+                                  f"Pendant (vu {page.evaluate(state_js)})")
+                if not faults:
+                    try:
+                        page.wait_for_function(
+                            """(first) => { const m = document.querySelector('#wamaMediaPreviewModal.show');
+                                const t = m && m.querySelector('.modal-title').textContent.trim();
+                                return t && t !== first && t.indexOf('pendant ') === 0; }""",
+                            arg=seen[0], timeout=8000)
+                        now = page.evaluate(state_js)
+                        seen.append(now['title'])
+                        if now['face'] != 'Pendant' or '/smoke_preview_during/p' not in now['src']:
+                            faults.append(f"partiel suivant : la visionneuse a quitté la face Pendant ({now})")
+                    except Exception:
+                        faults.append(f"le partiel suivant n'est pas montré sans geste (vu {page.evaluate(state_js)})")
+                    # L'élément se termine : partiels retirés, card terminée.
+                    state['running'] = False
+                    page.evaluate("() => document.querySelector('#wamaDuringProbe .wama-card')"
+                                  ".setAttribute('data-status', 'SUCCESS')")
+                    try:
+                        page.wait_for_function(
+                            """() => { const m = document.querySelector('#wamaMediaPreviewModal.show');
+                                const a = m && m.querySelector('.wama-modal-sides .is-active');
+                                return a && a.textContent.trim() === 'Sortie'
+                                    && m.querySelector('.modal-title').textContent.trim() === 'o.png'; }""",
+                            timeout=8000)
+                    except Exception:
+                        faults.append(f"l'élément terminé, la visionneuse ne passe pas à sa Sortie "
+                                      f"(vu {page.evaluate(state_js)})")
+                _close(page)
+                if js_errors:
+                    faults.append(f"JS en erreur : {' | '.join(js_errors)}")
+                context.close()
+            finally:
+                browser.close()
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    if faults:
+        return False, ' ; '.join(faults)
+    return True, (f"face Pendant suivie en direct dans la visionneuse ({' → '.join(seen)}, "
+                  f"{state['turns']} tours servis), puis la Sortie d'elle-même à la fin")
+
+
 def register_preview_scenarios():
     """Enregistre un scénario `<app>.preview` par app disposant d'un index, la matrice de mise
     en page de la visionneuse (`common.preview_layout`) et ses gestes de navigation
@@ -987,6 +1124,14 @@ def register_preview_scenarios():
                      "sans flèche détournée d'une visionneuse à l'autre"),
         run=lambda ctx: check_preview_navigation(),
         timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id="common.preview_during", app="common", stage="ui",
+        description=("Visionneuse : un élément EN COURS s'ouvre sur sa face Pendant, chaque nouveau "
+                     "partiel s'y affiche sans geste, et l'élément terminé elle passe d'elle-même à "
+                     "sa Sortie — élément fictif servi par la page, aucun traitement"),
+        run=lambda ctx: check_preview_during(),
+        timeout_s=180, vram_gb=0.0,
     )
 
     for label, path in discoverable_apps():

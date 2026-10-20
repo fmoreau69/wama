@@ -164,6 +164,74 @@ class PlanThenRenderTest(TestCase):
         self.assertFalse(gen.planned_score)
         self.assertIsNone(_PlainEngine.renders[0]['score_path'])
 
+    def _streaming_engine(self, fail=False):
+        """An engine that hands the sound it has so far TWICE while it computes (`on_audio`, the
+        music contract) — and records what the « Pendant » face serves at those moments."""
+        from types import SimpleNamespace
+
+        from django.test import RequestFactory
+
+        from wama.common.utils.preview_utils import _during_preview_data
+        test = self
+
+        class _StreamingEngine(_PlainEngine):
+            seen = []
+
+            def generate(self, **kwargs):
+                import numpy as np
+                on_audio = kwargs['on_audio']
+                for seconds in (1, 2):
+                    if not hasattr(on_audio, 'due') or on_audio.due():
+                        on_audio(np.zeros((8000 * seconds, 1), dtype='float32'), 8000)
+                    _StreamingEngine.seen.append(_during_preview_data(
+                        'composer', SimpleNamespace(pk=test._pk), RequestFactory().get('/')))
+                if fail:
+                    raise RuntimeError('moteur en panne')
+                super().generate(**kwargs)
+        _StreamingEngine.seen = []
+        ENGINES[PLAIN_MODEL] = _StreamingEngine
+        self.addCleanup(ENGINES.__setitem__, PLAIN_MODEL, _PlainEngine)
+        return _StreamingEngine
+
+    def test_the_pending_face_is_served_WHILE_the_engine_computes_then_withdrawn(self):
+        """2026-10-20 (Fabien : « la preview est censée se charger au fur et à mesure »). The task
+        cleared the partial on the line after the engine's single, FINAL call : the face lived for
+        milliseconds. Here : a playable file with its wave while the engine runs, gone afterwards."""
+        from types import SimpleNamespace
+
+        from django.test import RequestFactory
+
+        from wama.common.utils.preview_utils import _during_preview_data
+        engine = self._streaming_engine()
+        gen = self._generation(model=PLAIN_MODEL)
+        self._pk = gen.pk
+        gen = self._run(gen, drawn=PLAIN_MODEL)
+        self.assertEqual('SUCCESS', gen.status, gen.error_message)
+        first = engine.seen[0]
+        self.assertIsNotNone(first, 'the sound handed by the engine is served at once')
+        self.assertIn(f'/partials/during_{gen.pk}.wav?v=', first['url'])
+        self.assertTrue(first['peaks'])
+        self.assertAlmostEqual(1.0, float(first['duration']), places=1)
+        self.assertIsNone(_during_preview_data('composer', SimpleNamespace(pk=gen.pk),
+                                               RequestFactory().get('/')),
+                          'the Output takes over')
+        self.assertFalse(list(Path(self.tmp).rglob(f'during_{gen.pk}.wav')), 'the partial file is gone')
+
+    def test_a_failing_engine_withdraws_its_pending_face_too(self):
+        from types import SimpleNamespace
+
+        from django.test import RequestFactory
+
+        from wama.common.utils.preview_utils import _during_preview_data
+        self._streaming_engine(fail=True)
+        gen = self._generation(model=PLAIN_MODEL)
+        self._pk = gen.pk
+        gen = self._run(gen, drawn=PLAIN_MODEL)
+        self.assertEqual('FAILURE', gen.status)
+        self.assertIsNone(_during_preview_data('composer', SimpleNamespace(pk=gen.pk),
+                                               RequestFactory().get('/')))
+        self.assertFalse(list(Path(self.tmp).rglob(f'during_{gen.pk}.wav')))
+
     def test_a_score_the_user_gave_is_followed_and_none_is_planned(self):
         gen = self._generation()
         gen.reference_score.save('mine.abc', ContentFile(b'X:1\nK:G\nGABc|'))

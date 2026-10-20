@@ -25121,3 +25121,28 @@ du Studio) ; côté LLM, le comptage des appels LOCAUX, la boucle d'outils et l'
 double, `cli.py` et l'audit sur `config.py` (`WAMA_LLM` §C) ; la barre de progression du job dans
 l'échange de l'assistant (accord de Fabien, après la flotte) ; `writer_01` (glu de `tasks.py` écrite
 à la main, sauvegardée) à régénérer après la flotte.
+
+## §PALIER 2026-10-20 (soir), « APERÇU : la face Pendant du COMPOSER se construit pendant le calcul, l'ASSISTANT voit les mêmes faces » — `d5292ea3` + revérification `ef4d25cf` + gardes et consignation — non poussé — 🔴 relancer workers (composer, synthesizer) + gunicorn (⚠ gunicorn ne répondait plus à 16 h 22, non relancé par cette session)
+
+- **Demande** (Fabien) : une preview universelle (card / volet / modale / plein écran), aucune réinventée ;
+  le Composer censé montrer sa génération au fil de l'eau « ne fonctionne pas concrètement » ; l'assistant
+  doit bénéficier de la preview (Pendant, Comparer…).
+- **Cause** : les trois moteurs musicaux appelaient `on_audio` une fois, sur l'audio FINAL, puis la tâche
+  retirait le partiel — face de quelques millisecondes, sans fichier jouable. Critère `during_preview`
+  vert (il lit l'appel, pas son moment).
+- **Livré** : le son passe par le publieur commun `PartialFrames` (`publish_audio`, `audio_sink`) — ⚠ le
+  premier jet en faisait une seconde classe, `PartialAudio`, recopie repliée à la revérification
+  (Fabien : « la brique commune existait déjà ») ; MusicGen/AudioGen rendent l'audio pendant
+  l'échantillonnage (`audiocraft_backend._follow_tokens`, `due()` demandé AVANT le décodage) ; reprise de
+  lecture d'un partiel au suivant dans le suiveur commun (`followDuring`, `host`) ; `get_item_preview`
+  (toute face, `compare`, `look`) ; `tool_api._vision_of`.
+- **Vérifié** : banc GPU (4 partiels + final) ; EN LIGNE (5 partiels pendant le calcul, Sortie à la fin) ;
+  geste `common.preview_during` vert sur serveur éphémère (:8012, gunicorn tombé).
+- **Gardes** : `tests_partial_audio`, `composer.tests_pipeline` (×2), `tests_cap_from_js` (×2),
+  `tests_tool_api_lectures.GetItemPreviewTest` (×3), geste `common.preview_during` — contre-épreuves en
+  mémoire toutes rouges, témoins verts.
+- **Rouges hors de ce travail** : budget des noms de tests français (1293-1294 > 1291, mêmes noms sur
+  HEAD) ; `AddItemToMediaLibraryTest` ; tables de jumelles absentes de la base de test (`avatarizer_01`,
+  recréée par une autre session).
+- 🔚 **Restes** (ordre proposé, `ROUTE §F3b`) : la card qui suit Pendant · le chat qui rend les faces ·
+  code mort (trois routes, quatre vues) · recopies partielles (médiathèque, sélecteur, cam/face_analyzer).

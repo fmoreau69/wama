@@ -344,6 +344,8 @@ lieu de reprojeter ou de recopier des `reset_fields` : l'assistant voit et fait 
 l'utilisateur voit et fait. Une projection propre à l'assistant divergerait, et on déboguerait
 deux vérités.
 
+⭐ **`get_item_preview` porte TOUTES les faces depuis le 2026-10-20** (Fabien : *« que l'assistant bénéficie de la preview (y compris during, comparaison, etc) pour n'importe quelle tâche »*) : chaque face que l'aperçu commun annonce (`sides.faces`, `sides.after`), la vue d'une face Pendant (`variant`), `compare` (la Sortie face à `sides.compare_base`), et `look=true`, qui passe les IMAGES de la face à la passe de vision de `look_at_image` (`tool_api._vision_of`, une seule pour les deux outils). L'assistant regarde donc ce qui se construit QUAND on le lui demande ; une face absente est dite (le serveur repliait sur l'Entrée). ⏳ Restent : le chat web ne REND aucune face (JSON brut, liens `/media/` relatifs non cliquables) et l'assistant ne suit pas de lui-même un travail en cours — `ROUTE §F3b`.
+
 🔴 **GARDE D'APP DES ÉCRITURES — à connaître avant d'ajouter un verbe.** Ces outils sont
 **transverses par leur NOM** (`delete_item`, pas `delete_transcriber`) : `app_id_for_tool()` rend
 `None`, donc **`tool_accessible()` les autorise à tous** ; et comme ils appellent la vue par une
