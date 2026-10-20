@@ -6627,6 +6627,13 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      fonction d'utilisateur) gardent leur route, `proposals.propose` → file « Propositions à
      valider » du model manager, sans bouton d'auteur à l'écran ; aucune file de modération
      unique (`PROFILES_PERMISSIONS §8.7 S4`) — un admin trouve la demande par sa notification.
+   - ⚠ **Relevé à la revérification (même jour)** : deux lectures de même nature — « les comptes
+     actifs que le prédicat du geste admet » — sont nées le même jour. `ownership._administrators`
+     (`is_admin_tier`, celui de `promote_by`) prévient d'une promotion ; `accounts.moderation.
+     account_moderators` (`views.is_admin`, par groupes — travail d'une autre session) prévient
+     d'un compte à valider. Chacune suit le prédicat de SA vue de décision, donc elles sont justes
+     aujourd'hui ; elles se réuniront quand Fabien tranchera les trois définitions
+     d'« administrateur » (`PROJECT_STATUS`, clôture du 2026-10-16).
 
 Relation avec S3 (`AccessGrant`, `PROFILES_PERMISSIONS §8.7`) : S3 répond à « qui a le droit »,
 ce chantier répond à « à qui c'est ». Les deux se composent dans `accessible()`, et aucun ne
