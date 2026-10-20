@@ -25405,3 +25405,22 @@ LiteralTest`), deux contre-épreuves ROUGES ; card SERVIE de `describer_01` rég
 deux éléments jetables supprimés) : la colonne `filename` titre la card, vide elle retombe sur le
 fichier déposé.
 **Consigné** : `ROUTE §S` (la ligne de `_decorer`).
+
+## §PALIER 2026-10-20 (nuit), « STUDIO : les cards d'entrée MÉDIAS — la card v4 de l'app dans une modale, le LOT en runs enfants » — `2e73ca7d`, `9c0bb948`, `865c9698`, non poussés — 🔴 relancer gunicorn ET workers (`studio/tasks.py`, gabarit v4 commun) ; migration `studio/0005` appliquée
+
+Décision de Fabien du jour (`STUDIO_VISION §Entrées du Studio`, livré et cartographié là) : une card
+d'entrée UNIVERSELLE qui prend la forme de la card v4 de l'app branchée (modale + volet), des cards
+SIMPLIFIÉES (fichier(s) de travail — ex-« Médias importés », clé gardée —, de référence, fichier de
+lot), le pipeline joué UNE FOIS PAR ÉLÉMENT du lot (runs enfants, cards regroupées en un lot de la
+file). Briques communes ajoutées : `check_designation`, `download_to_user`/`ingest_mode_for`,
+`parse_batch_lines`/`line_to_ports`, `lot_overview`, `WamaInputSlots.wire`/`restrict`, `compose_only`
+au gabarit v4 ; onglet « Fichier de lot ». Tests `wama.studio.tests.tests_entries` (38), 17
+contre-épreuves rouges ; gestes rejoués au navigateur sur 8011 (0 erreur console). Les tests du
+Studio sont rangés dans `wama/studio/tests/` (13 à la racine).
+Suite complète (WSL, avant le rangement) : FAILED 43 + 7 erreurs, établies nom par nom — à moi et
+corrigé : la lecture des onglets hors de la brique ; le reste est à d'autres chantiers (jumelles
+`anonymizer_01`/`writer_01`/`composer_01`, budgets de langue +2/+2, `wama-eta.js` ×2, gabarit
+`accounts`, `lyrics` du composer, boucle de `edit.js`, `add_item_to_media_library`, voix, `iou`).
+🔚 **Restes nommés** : `WamaInputMatch` dans la modale ; la card universelle NON branchée (« accepter
+tout fichier ») ; `-o` d'une ligne de lot non appliqué ; `accounts` (13) et `transcriber` (11) au-delà
+de dix fichiers de tests à la racine (pas à moi).
