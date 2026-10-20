@@ -23,7 +23,7 @@ import logging
 import re
 
 from wama.common.theme_generator import valid_font, valid_seed
-from wama.common.theme_mirror import chroma
+from wama.common.theme_mirror import chroma, hex_of, rgb_of
 
 logger = logging.getLogger(__name__)
 
@@ -63,14 +63,6 @@ Rules: "principal" MUST be one of the listed colours; never invent a colour. Pre
 the charter calls principal/primary/main; otherwise the most characteristic non-grey colour."""
 
 
-def _hex_of(rgb) -> str:
-    return '#' + ''.join(f'{int(x):02x}' for x in rgb)
-
-
-def _chroma(hex_colour: str) -> float:
-    return chroma(tuple(int(hex_colour[i:i + 2], 16) for i in (1, 3, 5)))
-
-
 def colour_candidates(text: str) -> list[dict]:
     """Les couleurs ÉCRITES dans `text`, dans l'ordre de leur première apparition, sans doublon :
     [{hex, at, context, count}]. Un triplet RVB/RGB donne son hexadécimal ; un triplet hors de
@@ -81,7 +73,7 @@ def colour_candidates(text: str) -> list[dict]:
     for m in _RGB.finditer(text):
         channels = [int(m.group(i)) for i in (1, 2, 3)]
         if all(0 <= c <= 255 for c in channels):
-            found.append((m.start(), _hex_of(channels)))
+            found.append((m.start(), hex_of(channels)))
     by_hex = {}
     for at, colour in sorted(found):
         if colour in by_hex:
@@ -105,7 +97,7 @@ def rules_proposal(text: str, candidates: list[dict], fallback_name: str = '') -
     première couleur franche (chroma OKLCH ≥ 0,05), sinon la première relevée."""
     principal = labelled_principal(candidates)
     if not principal:
-        vivid = [c['hex'] for c in candidates if _chroma(c['hex']) >= 0.05]
+        vivid = [c['hex'] for c in candidates if chroma(rgb_of(c['hex'])) >= 0.05]
         principal = vivid[0] if vivid else (candidates[0]['hex'] if candidates else '')
     return {'name': clean_name(fallback_name), 'principal': principal, 'base': 'light', 'font': ''}
 

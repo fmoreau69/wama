@@ -58,6 +58,30 @@ def promote_row(manifest_kind: str, key: str) -> int:
                        scope_project=None)
 
 
+def promote_owned_row(row, *, by=None):
+    """UNE ligne portée, sans manifeste, passe au SYSTÈME — la règle d'`ingest.promote` : plus de
+    propriétaire, publique, sans portée ; l'auteur reste nommé (`source.proposed_by`, jamais
+    écrasé) et le valideur aussi (`source.promoted_by`). Le geste est celui d'un admin, gardé par
+    la vue. Premier appelant : le thème d'une charte (`common.UserTheme`, 2026-10-20) ; un
+    propriétaire OBLIGATOIRE refuse (`ValueError`), comme `promote_row`."""
+    from wama.common.models import ScopedVisibility
+    if not type(row)._meta.get_field('owner').null:
+        raise ValueError(f"{type(row).__name__} : le propriétaire est obligatoire, pas de système")
+    fields = {'owner': None, 'visibility': ScopedVisibility.VIS_PUBLIC, 'scope_org_unit': None,
+              'scope_project': None}
+    if hasattr(row, 'source'):
+        source = dict(row.source or {})
+        if row.owner_id and not source.get('proposed_by'):
+            source['proposed_by'] = row.owner.get_username()
+        if by is not None:
+            source['promoted_by'] = by.get_username()
+        fields['source'] = source
+    type(row).objects.filter(pk=row.pk).update(**fields)
+    for name, value in fields.items():
+        setattr(row, name, value)
+    return row
+
+
 def row_fields(manifest: dict) -> dict:
     """L'inverse : ce que la ligne d'un registre porté reçoit de l'enveloppe.
 

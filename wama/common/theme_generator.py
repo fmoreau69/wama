@@ -20,7 +20,8 @@ from functools import lru_cache
 from pathlib import Path
 
 from wama.common.theme_mirror import contrast_ratio as ratio
-from wama.common.theme_mirror import parse
+from wama.common.theme_mirror import hex_of as _hex
+from wama.common.theme_mirror import rgb_of as _rgb
 
 THEME_CSS = Path(__file__).resolve().parent / 'static' / 'common' / 'css' / 'wama-theme.css'
 
@@ -62,14 +63,6 @@ def _base_blocks(css_text: str) -> dict:
 def base_values(base: str) -> dict:
     """Les tokens du thème `base` tels que `wama-theme.css` les déclare."""
     return _base_blocks(THEME_CSS.read_text(encoding='utf-8'))[base]
-
-
-def _rgb(value: str):
-    return parse(value)[1]
-
-
-def _hex(rgb) -> str:
-    return '#' + ''.join(f'{round(x):02x}' for x in rgb)
 
 
 def _mix(a, b, part_b: float):

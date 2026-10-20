@@ -1113,6 +1113,20 @@ class CharterThemeTest(TestCase):
                                          content_type='application/json').json()['success'])
         self.assertEqual(css_block('custom-light', 'light', '#0d6efd'), self._context(reader)['theme_generated_css'])
 
+    def test_promoting_a_row_keeps_its_first_author_and_refuses_a_mandatory_owner(self):
+        # La règle d'`ingest.promote`, pour une LIGNE : l'auteur d'origine n'est jamais écrasé.
+        from wama.common.manifests.ownership import promote_owned_row
+        from wama.common.models import UserFunction, UserTheme
+        author, _reader, admin = self._accounts()
+        row = UserTheme.objects.create(owner=author, name='T', base='light', accent='#2f2a85',
+                                       source={'proposed_by': 'first-author'})
+        promote_owned_row(row, by=admin)
+        row.refresh_from_db()
+        self.assertEqual((None, 'public', 'first-author', 'charter-admin'),
+                         (row.owner_id, row.visibility, row.source['proposed_by'], row.source['promoted_by']))
+        with self.assertRaises(ValueError):
+            promote_owned_row(UserFunction(owner=author), by=admin)
+
     def test_another_choice_leaves_the_charter(self):
         from wama.common.models import UserTheme
         from wama.common.themes import profile_choice, save_theme_choice, theme_charter

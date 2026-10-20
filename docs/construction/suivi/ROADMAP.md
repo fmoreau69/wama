@@ -6218,7 +6218,9 @@ listes déroulantes.
    la lecture (`source`) ; naît PRIVÉ à son auteur ; se partage par le service commun
    `sharing.partager` (qui reconnaît désormais le propriétaire `owner` d'un élément de catalogue) et
    les portées que `portees_offrables` offre ; un ADMIN seul le rend SYSTÈME (sans propriétaire,
-   public, auteur et valideur gardés dans `source` — décisions a et b) ; l'admin voit tout
+   public, auteur et valideur gardés dans `source` — décisions a et b ; par
+   `manifests.ownership.promote_owned_row`, la règle d'`ingest.promote` pour une LIGNE sans
+   manifeste, ramenée là à la revérification du 2026-10-20) ; l'admin voit tout
    (`catalogue_visible_q`, décision c). Le registre `themes` passe en provenance `mixed`
    (`owner_model='common.UserTheme'`). *Choix* : `charter:<pk>` au Profil ; le thème posé est le
    personnalisé de SA base, avec ses graines (`themes.account_generated_css`) ; tout autre choix
@@ -6234,7 +6236,13 @@ listes déroulantes.
    page, aucune erreur JS — thème créé supprimé et compte de test restauré à l'identique.
    ⏳ *Reste* : la voie (3), l'image ; une charte qui ne donne ses couleurs qu'en CMJN ou en
    Pantone (aucun hexadécimal ni RVB) n'est pas lue — la conversion CMJN → écran est approximative,
-   à décider avant de la proposer.
+   à décider avant de la proposer. ⏳ *Écart consigné à la revérification du 2026-10-20* : le thème
+   se PARTAGE par sa propre vue (`accounts.theme_charter_manage`, qui appelle bien le service
+   `sharing.partager`), pas par le point d'entrée commun `common:share` ni sa modale — celui-ci ne
+   connaît que les éléments de FILE (`PreviewRegistry`, cible cherchée par `user=`), et un élément de
+   CATALOGUE (propriétaire `owner`, `owner_model` du registre) n'y a pas d'entrée. C'est le même
+   manque que le « Partager » d'un pipeline (`§29`) : à combler une fois pour les deux, au point
+   d'entrée commun, et la vue du thème s'y ralliera.
 
 ## 29. PROVENANCE de tout ce qui entre dans WAMA — privé à son auteur, « Système » une fois promu (ouvert le 2026-10-18, demande de Fabien)
 

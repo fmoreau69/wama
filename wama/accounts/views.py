@@ -626,7 +626,6 @@ def theme_charter_manage(request):
     `promote` (un ADMIN seul, décision b du §29 : le thème devient SYSTÈME, sans propriétaire,
     l'auteur gardé pour l'attribution)."""
     from wama.accounts.permissions import is_admin_tier
-    from wama.common.models import UserTheme
     from wama.common.services.sharing import RefusDePartage
     from wama.common.themes import charter_themes
 
@@ -655,10 +654,8 @@ def theme_charter_manage(request):
             return JsonResponse({'error': 'Rendre un thème système est réservé aux administrateurs.'}, status=403)
         if row.owner_id is None:
             return JsonResponse({'error': 'Ce thème est déjà système.'}, status=400)
-        source = dict(row.source or {}, proposed_by=row.owner.get_username(),
-                      promoted_by=request.user.get_username())
-        UserTheme.objects.filter(pk=row.pk).update(owner=None, visibility=UserTheme.VIS_PUBLIC,
-                                                   scope_org_unit=None, scope_project=None, source=source)
+        from wama.common.manifests.ownership import promote_owned_row
+        promote_owned_row(row, by=request.user)
         return JsonResponse({'success': True})
     return JsonResponse({'error': f'Action inconnue : {action!r}'}, status=400)
 

@@ -119,9 +119,20 @@ def parse(value: str):
     return None, None, None
 
 
+def hex_of(rgb) -> str:
+    """`#rrggbb` d'un triplet 0-255 (arrondi) — la seule écriture hexadécimale des thèmes (miroir,
+    générateur, lecture de charte)."""
+    return '#' + ''.join(f'{round(x):02x}' for x in rgb)
+
+
+def rgb_of(value: str):
+    """Le triplet 0-255 d'une couleur (`parse`), ou None."""
+    return parse(value)[1]
+
+
 def _format(kind, rgb, alpha):
     if kind == 'hex':
-        return '#' + ''.join(f'{x:02x}' for x in rgb) + (alpha or '')
+        return hex_of(rgb) + (alpha or '')
     if kind == 'func':
         return (f'rgba({rgb[0]}, {rgb[1]}, {rgb[2]}, {alpha})' if alpha
                 else f'rgb({rgb[0]}, {rgb[1]}, {rgb[2]})')
