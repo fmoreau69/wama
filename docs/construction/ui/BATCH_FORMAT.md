@@ -240,6 +240,28 @@ Il existe sous **deux** formes qu'il ne faut pas confondre :
 **Auto-détection de modèle (composer)** : si `-r` (référence audio) est fourni →
 basculer automatiquement sur un modèle qui l'exploite (`musicgen-melody`).
 
+## Une ligne rangée dans les PORTS d'un nœud — le Studio (2026-10-20)
+
+Le Studio lit un fichier de lot pour n'importe quelle app (card « Fichier de lot », onglet du
+fichier de lot de la card universelle — `STUDIO_VISION.md §Entrées du Studio`) : il range chaque
+ligne dans les PORTS du nœud qu'elle alimente, par deux fonctions communes de `batch_parsers` :
+
+- `parse_batch_lines(texte, plain_as)` — les lignes, quelle que soit la famille : structurées
+  (balises, CSV à en-têtes) telles quelles ; sinon une ligne utile par élément, lue comme un
+  fichier (famille A — le fichier n'est une liste que si TOUTES ses lignes en sont) ou comme une
+  consigne (famille B : quand la consigne suffit à créer l'élément, `principal_entry`) ;
+- `line_to_ports(ligne, ports)` — la réponse que la card v4 laissait ouverte (« les colonnes
+  nomment des RÔLES, pas des ports — à terme des colonnes au nom du port, `-i`/`-r` en alias »,
+  `CARD_DESIGN §11.11`) : une colonne ou une option `--<port>` qui porte le NOM d'un port va à ce
+  port ; les rôles restent des alias — `-i` au port de travail principal, `-p` au port de consigne,
+  `-r` au premier port de référence, à défaut au premier port de travail secondaire (l'avatar de
+  l'avatarizer). Les autres options sont des RÉGLAGES de l'élément : un réglage que l'app ne
+  connaît pas se refuse au lancement, comme un rôle qu'aucun port ne reçoit — une colonne ne se
+  perd pas en silence. `-o` n'est pas appliqué au Studio.
+
+⚠ Les vues de lot des apps gardent chacune leur correspondance (tableau ci-dessus) : aucune ne lit
+encore `line_to_ports`.
+
 ## Rétrocompatibilité
 
 `is_unified_batch_text(text)` détecte le format à balises (1ʳᵉ ligne utile commençant

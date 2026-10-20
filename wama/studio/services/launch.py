@@ -127,7 +127,8 @@ def launch_graph(user, graph, *, pipeline_id=None):
         sortie : ✅ depuis le 2026-10-11, un pipeline SANS process (entrée → sortie, export seul)
         est accepté, comme le modèle du 2026-09-15 le veut (WAMA_APP_GENERATION_ROUTE.md §10.6
         3.6, §11 #35) ;
-      - les réglages de chaque nœud sont applicables (porte commune, 2026-10-12).
+      - les réglages de chaque nœud sont applicables (porte commune, 2026-10-12) ;
+      - le LOT d'une card d'entrée se déplie en éléments, un run enfant chacun (2026-10-20).
     """
     from wama.studio.models import StudioRun
     from wama.studio.services.runners import runner_for
@@ -210,7 +211,22 @@ def launch_graph(user, graph, *, pipeline_id=None):
             return None, (f"Nœud « {node_label(n['app'])} » : réglage(s) refusé(s) — "
                           f"{describe_refusals(refusals)}")
 
+    # Le LOT (2026-10-20, `STUDIO_VISION §Entrées du Studio`) : plusieurs fichiers de travail ou un
+    # fichier de lot = un lot, et le pipeline tourne une fois par élément. Déplié ICI, avant le
+    # dispatch : un fichier de lot illisible, une colonne sans port, deux lots dans un pipeline ou
+    # un réglage de ligne inconnu de l'app se refusent en le nommant, sans rien lancer. Chaque
+    # élément est un run enfant du run lancé (une card mère et ses filles) ; un fichier de lot
+    # d'UNE ligne n'en fait qu'un, joué à la place du graphe.
+    from wama.studio.services.entries import lot_graphs
+    try:
+        elements = lot_graphs(user, graph)
+    except ValueError as exc:
+        return None, str(exc)
+    if len(elements) == 1:
+        graph, elements = elements[0], []
     run = StudioRun.objects.create(user=user, graph=graph, pipeline_id=pipeline_id)
+    for element in elements:
+        StudioRun.objects.create(user=user, graph=element, pipeline_id=pipeline_id, parent=run)
     task = run_pipeline_task.delay(run.pk)
     run.task_id = task.id
     run.save(update_fields=['task_id'])

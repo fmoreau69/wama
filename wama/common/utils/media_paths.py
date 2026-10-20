@@ -537,22 +537,39 @@ def designate(path, user, app_name: str, subfolder: str = 'input') -> ReceivedIn
     garde l'adresse du montage : `record()` en tire la provenance `mount`. Avant, seul « Envoyer
     vers » savait le faire ; un glisser depuis l'arbre et l'assistant étaient refusés.
     """
+    source, rel = _designated_source(path, user)
+    local, value = reference_or_copy(source, app_name, user.id, subfolder, user=user)
+    return ReceivedInput(Path(source).name, value, local_path=str(local), designation=rel)
+
+
+def _designated_source(path, user):
+    """`(fichier source, chemin désigné)` d'une désignation qui passe les gardes de `designate` —
+    le dossier connecté par la règle du gestionnaire, tout autre chemin par le confinement,
+    l'existence et la lisibilité pour CET utilisateur. Lève `InputRefused`."""
     from wama.common.services.user_files import is_mount_path, mounted_file
     if is_mount_path(path):
         rel = str(path).replace('\\', '/').lstrip('/')
         source = mounted_file(rel, user)
         if source is None:
             raise InputRefused(f"Fichier non accessible : {os.path.basename(rel)}")
-        local, value = reference_or_copy(source, app_name, user.id, subfolder, user=user)
-        return ReceivedInput(source.name, value, local_path=str(local), designation=rel)
+        return source, rel
     try:
         abs_path, rel = resolve_under_media_root(path)
     except (OutsideMediaRoot, FileNotFoundError) as exc:
         raise InputRefused(str(exc)) from exc
     if not readable_by(rel, user):
         raise InputRefused(f"Fichier non accessible : {os.path.basename(rel)}")
-    local, value = reference_or_copy(abs_path, app_name, user.id, subfolder, user=user)
-    return ReceivedInput(os.path.basename(rel), value, local_path=str(local), designation=rel)
+    return abs_path, rel
+
+
+def check_designation(path, user) -> str:
+    """Le chemin désigné, s'il passe les gardes de `designate` — sans rien pointer ni copier.
+
+    Pour qui RETIENT une désignation avant qu'une app la reçoive (2026-10-20 : une card d'entrée
+    du Studio désigne ses fichiers à la composition, l'outil de l'app les reçoit au lancement par
+    `designate`) : un fichier illisible se refuse tout de suite, par la même règle. Lève
+    `InputRefused`."""
+    return _designated_source(path, user)[1]
 
 
 def received_inputs(request, user, app_name: str, field: str = 'file',

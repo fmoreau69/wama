@@ -31,8 +31,13 @@ class CatalogueContractTest(SimpleTestCase):
         self.assertNotIn('>Apps<', page, 'the old title (« Apps ») is gone')
         self.assertIn('id="studioPaletteList"', page, 'the id the script fills')
         js = _src('static/studio/js/wama-studio.js')
-        for key in ('inputs', 'outputs', 'pipelines', 'apps', 'functions'):
+        for key in ('outputs', 'pipelines', 'apps', 'functions'):
             self.assertIn(f"paletteSection('{key}'", js, f'section « {key} » missing')
+        # The INPUTS by world (Fabien's decision, 2026-10-20): the media and data input cards are
+        # never mixed — one section per world the registry declares (`BuiltinNode.world`).
+        self.assertIn("paletteSection(w[0] ? 'inputs_' + w[0] : 'inputs', w[1])", js)
+        for label in ('Entrées médias', 'Entrées données'):
+            self.assertIn(label, js, f'section « {label} » missing')
         self.assertNotIn("'Library'", js, '« Library » names the pip packages, never the catalogue')
 
     def test_saved_and_declared_pipelines_open_from_the_catalogue_by_the_selector_path(self):

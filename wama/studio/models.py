@@ -69,6 +69,11 @@ class StudioRun(ProcessingTimeMixin, models.Model):
     node_states = models.JSONField(default=dict)
     error_message = models.TextField(blank=True, default='')
     created_at = models.DateTimeField(auto_now_add=True)
+    #: Le run de LOT dont celui-ci est un ÉLÉMENT (2026-10-20, `STUDIO_VISION §Entrées du
+    #: Studio`) : plusieurs fichiers de travail ou un fichier de lot = un lot, et le pipeline tourne
+    #: une fois par élément — une card mère et ses filles. Vide pour un run ordinaire.
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True,
+                               related_name='elements')
 
     class Meta:
         ordering = ['-created_at']

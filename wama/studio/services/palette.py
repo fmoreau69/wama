@@ -34,9 +34,12 @@ def palette_nodes(user) -> dict:
     # Les nœuds INTÉGRÉS — cards d'entrée et de sortie — que les mondes déclarent au registre
     # commun (R2, 2026-10-18), sous la même forme qu'un nœud d'app. La palette les écrivait en
     # JavaScript (`BUILTINS`, avec un « Batch de prompts » que rien n'exécutait).
+    # Leur MONDE (`world`, 2026-10-20) range les entrées par monde : les cards d'entrée médias et
+    # données ne se mélangent pas.
     nodes = {key: {'label': b.label, 'icon': b.icon, 'color': b.color,
-                   'description': b.description, **b.ports(), 'kind': b.role}
+                   'description': b.description, **b.ports(), 'kind': b.role, 'world': b.world}
              for key, b in builtin_nodes().items()}
+    from .entries import card_port
     for app_id, meta in APP_CATALOG.items():
         ports = studio_node_ports(app_id)
         if not ports or runner_for(app_id) is None:
@@ -48,7 +51,11 @@ def palette_nodes(user) -> dict:
             'icon':  meta.get('icon', 'fas fa-cube'),
             'color': meta.get('color', '#6ea8fe'),
             'description': meta.get('description', '') or meta.get('description_long', ''),
-            'inputs': ports['inputs'],
+            # Les ports de l'app, plus le port DÉRIVÉ « Entrée de card » (2026-10-20) : un nœud qui
+            # crée une card reçoit aussi une card ENTIÈRE — la card d'entrée universelle, un
+            # fichier de lot (`entries.card_port`). Il ne vit pas dans `studio_node_ports` : la
+            # card v4 et les manifestes n'en ont pas l'usage.
+            'inputs': ports['inputs'] + [card_port()],
             'output': ports['output'],
         }
     # D13 — nœuds FONCTION : le catalogue de fonctions par le MÊME accesseur de forme que les

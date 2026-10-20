@@ -190,9 +190,15 @@
         });
         var fnIds = Object.keys(apps).filter(function (id) { return apps[id].kind === 'function'; });
 
-        var inputs = paletteSection('inputs', 'Entrées');
-        sources.forEach(function (id) { inputs.appendChild(paletteItem(id, apps[id])); });
-        paletteList.appendChild(inputs);
+        // Les entrées PAR MONDE (2026-10-20, décision de Fabien) : on ne mélange pas les cards
+        // d'entrée médias et données. Le monde vient du registre (`BuiltinNode.world`).
+        [['media', 'Entrées médias'], ['data', 'Entrées données'], ['', 'Entrées']].forEach(function (w) {
+            var ids = sources.filter(function (id) { return (apps[id].world || '') === w[0]; });
+            if (!ids.length) return;
+            var inputs = paletteSection(w[0] ? 'inputs_' + w[0] : 'inputs', w[1]);
+            ids.forEach(function (id) { inputs.appendChild(paletteItem(id, apps[id])); });
+            paletteList.appendChild(inputs);
+        });
 
         var outputs = paletteSection('outputs', 'Sorties');
         sinks.forEach(function (id) { outputs.appendChild(paletteItem(id, apps[id])); });
@@ -552,6 +558,7 @@
         ];
         try {
             body.innerHTML = WamaDetails.renderSections(data, schema);
+            mountEntry(body, node);
             mountNodeSettings(body, node);
             var acts = WamaDetails.renderActions(data, [
                 { label: 'Supprimer le nœud', icon: 'fas fa-trash', cls: 'btn btn-sm btn-outline-danger w-100',
@@ -624,7 +631,81 @@
         });
     }
 
-    function mountNodeSettings(body, node) {
+    // ── Les cards d'entrée MÉDIAS (2026-10-20, `STUDIO_VISION §Entrées du Studio`) ─────────
+    // Leur contenu se compose dans la MODALE qui reprend la card d'entrée v4 de l'app alimentée,
+    // son volet à côté (`WamaStudioEntry`, `wama-studio-entry.js`) : la card universelle tous
+    // ses onglets, une card simplifiée l'onglet de SON port, le fichier de lot le sien.
+    var ENTRY_MODES = { card_input: 'card', batch_input: 'lot', media_import: 'files',
+                        reference_input: 'files' };
+    function entryOf(node) {
+        var e = (node.params || {}).entry;
+        if (typeof e === 'string') { try { e = JSON.parse(e || '{}'); } catch (x) { e = {}; } }
+        return e || {};
+    }
+    // Le nœud que la card alimente (son premier lien sortant) et le port d'arrivée.
+    function entryTarget(node) {
+        var link = links.find(function (l) { return nodeOf(l.from.dot) === node.id; });
+        if (!link) return null;
+        var target = nodes.find(function (n) { return n.id === nodeOf(link.to.dot); });
+        return target ? { node: target, port: link.to.dot.dataset.port || '' } : null;
+    }
+    function entryLines(node, entry) {
+        var name = function (r) { return String(r).split('?')[0].split('/').pop(); };
+        var list = function (v) { return (Array.isArray(v) ? v : (v ? [v] : [])).filter(Boolean); };
+        var lines = [];
+        list(entry.files).concat(list((node.params || {}).asset_path)).forEach(function (r) { lines.push(name(r)); });
+        Object.keys(entry.ports || {}).forEach(function (p) {
+            var refs = list(entry.ports[p]);
+            if (refs.length) lines.push(p + ' : ' + refs.map(name).join(', '));
+        });
+        if (entry.prompt) lines.push('consigne : « ' + String(entry.prompt).slice(0, 60) + ' »');
+        if (entry.lot) lines.push('fichier de lot : ' + name(entry.lot));
+        return lines;
+    }
+    function mountEntry(body, node) {
+        var mode = ENTRY_MODES[node.app];
+        if (!mode || metaOf(node).unavailable) return;
+        var entry = entryOf(node);
+        var wrap = el('div', 'studio-entry mt-2 pt-2 border-top border-secondary');
+        wrap.appendChild(el('div', 'small text-body-secondary mb-1',
+            '<i class="fas fa-plus-circle me-1"></i>Contenu de la card'));
+        var lines = entryLines(node, entry);
+        wrap.appendChild(el('div', 'small mb-2', lines.length
+            ? lines.map(esc).join('<br>') : '<span class="text-body-secondary">Rien de retenu.</span>'));
+        var target = entryTarget(node);
+        var a = target ? apps[target.node.app] : null;
+        var app = a && !isBuiltin(a) && a.kind !== 'function' ? target.node.app : null;
+        var btn = el('button', 'btn btn-sm btn-outline-info w-100',
+            '<i class="fas fa-pen-to-square me-1"></i>Composer l’entrée…');
+        btn.type = 'button';
+        if (!app || !global.WamaStudioEntry) {
+            btn.disabled = true;
+            wrap.appendChild(btn);
+            wrap.appendChild(el('div', 'small text-body-secondary mt-1', esc(
+                'Reliez la card à une app : elle prend la forme de la card d’entrée de cette app.'
+                + (node.app === 'media_import' ? ' Vers une fonction ou une sortie : le média '
+                   + 'se choisit ci-dessous, dans la médiathèque.' : ''))));
+            body.appendChild(wrap);
+            return;
+        }
+        btn.addEventListener('click', function () {
+            WamaStudioEntry.open({
+                app: app, mode: mode, port: target.port, entry: entry,
+                title: (metaOf(node).label || node.app) + ' → ' + (a.label || app),
+                settings: function (host) { mountNodeSettings(host, target.node, { always: true }); },
+                onSave: function (composed) {
+                    node.params = Object.assign({}, node.params || {}, { entry: composed });
+                    persistDraft();
+                    updateInspector();
+                },
+            });
+        });
+        wrap.appendChild(btn);
+        body.appendChild(wrap);
+    }
+
+    function mountNodeSettings(body, node, opts) {
+        opts = opts || {};
         var schema = nodeSchemas[node.app];
         var wrap = el('div', 'studio-node-params mt-2 pt-2 border-top border-secondary');
         wrap.appendChild(el('div', 'small text-body-secondary mb-1',
@@ -669,7 +750,9 @@
         api('/studio/api/node-context/', {
             method: 'POST', body: JSON.stringify({ graph: serializeGraph(), node: node.id }),
         }).then(function (context) {
-            if (selected !== node.id || !host.isConnected) return;
+            // `always` : le volet d'un AUTRE nœud que le sélectionné (la modale d'une card
+            // d'entrée montre les réglages de l'app qu'elle alimente).
+            if ((!opts.always && selected !== node.id) || !host.isConnected) return;
             renderNodeSettings(host, received, schema, node, context);
         }).catch(function (err) {
             received.innerHTML = '<span class="text-danger">Entrées du nœud indisponibles : '
@@ -1114,9 +1197,18 @@
         onError: function () { /* réseau : ignorer ce tour */ },
         onData: function (runId, d) {
             Object.keys(d.node_states || {}).forEach(function (nid) {
-                setNodeRunState(nid, d.node_states[nid].status);
+                var st = d.node_states[nid];
+                setNodeRunState(nid, st.status);
+                // Un run de LOT : chaque nœud dit combien de ses éléments il a faits.
+                var n = nodes.find(function (x) { return x.id === nid; });
+                if (n && n.el && st.total) n.el.title = st.done + '/' + st.total + ' élément(s) faits';
             });
             updateFlows(d.node_states);
+            if (d.lot && d.status !== 'SUCCESS' && d.status !== 'FAILURE') {
+                setRunStatus('Exécution #' + runId + ' — lot : élément ' + (d.lot.current || d.lot.done)
+                             + '/' + d.lot.total + (d.lot.failed ? ' (' + d.lot.failed + ' en échec)' : '')
+                             + '…', 'text-warning');
+            }
             if (d.status === 'SUCCESS' || d.status === 'FAILURE') {
                 runPoller.stop(runId); runPoll = null;
                 clearAllFlows();

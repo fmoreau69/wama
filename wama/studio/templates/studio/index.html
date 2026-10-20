@@ -98,5 +98,14 @@ une source d'options adossée à la médiathèque a besoin (le bouton des voix),
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
 <script src="{% static_v 'common/js/wama-global-progress.js' %}"></script>
+{% comment %}Les cards d'entrée MÉDIAS (2026-10-20) : leur modale reprend la card d'entrée v4 de
+l'app alimentée — ses briques, celles des pages d'app (`common/_app_scripts.html`) : onglets de
+port (`wama-input-slots`), voie d'import en mode « attache » (`wama-import`), onglet du fichier de
+lot (`batch-import`). AVANT `wama-studio-entry.js`, qui les assemble.{% endcomment %}
+<link rel="stylesheet" href="{% static_v 'common/css/wama-input-slots.css' %}">
+<script src="{% static_v 'common/js/wama-input-slots.js' %}"></script>
+<script src="{% static_v 'common/js/wama-import.js' %}"></script>
+<script src="{% static_v 'common/js/batch-import.js' %}"></script>
+<script src="{% static_v 'studio/js/wama-studio-entry.js' %}"></script>
 <script src="{% static_v 'studio/js/wama-studio.js' %}"></script>
 {% endblock %}

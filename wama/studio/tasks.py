@@ -49,6 +49,7 @@ from celery import shared_task
 from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_RUNNING, JOB_SUCCESS,
                                 normalize_job_status)
 from wama.common.utils.console_utils import push_console_line
+from wama.studio.services.entries import CARD_TYPE, materialize, unfold
 
 POLL_INTERVAL_S = 3
 NODE_TIMEOUT_S = 30 * 60
@@ -86,6 +87,21 @@ def _lots_summary(lots) -> str:
 
 
 # ── Nœud FONCTION (D13) ──────────────────────────────────────────────────────
+def _received_file(user, upstream):
+    """La valeur reçue de l'amont, une URL désignée téléchargée dans sa nature
+    (`entries.materialize`) — un texte, une consigne ou une donnée passent tels quels."""
+    if (upstream.get('is_text') or upstream.get('is_frame') or upstream.get('is_lots')
+            or upstream.get('type') == 'prompt'):
+        return upstream['value']
+    return materialize(user, upstream['value'], [upstream.get('type')])
+
+
+def _card_summary(value) -> str:
+    """Ce que montre le canvas d'une card entière : ses ports remplis."""
+    return 'card · ' + ', '.join(f"{port} : {str(v).rsplit('/', 1)[-1][:60]}"
+                                for port, v in (value or {}).items())
+
+
 def _frame_summary(frame) -> str:
     try:
         return f"{frame.data_type} · {len(frame.df)} ligne(s) · {', '.join(map(str, frame.fields))}"
@@ -288,11 +304,76 @@ def _run_app_process(pipeline, process, spec, params: dict, user, save_state, de
 
 @shared_task(bind=True)
 def run_pipeline_task(self, run_id):
-    from django.contrib.auth import get_user_model
+    """Joue un run — ou, pour un run de LOT, chacun de ses éléments (2026-10-20, `STUDIO_VISION
+    §Entrées du Studio`) : plusieurs fichiers de travail ou un fichier de lot = un lot, et le
+    pipeline tourne UNE FOIS PAR ÉLÉMENT. Chaque élément est un run ordinaire, enfant du run
+    lancé (une card mère et ses filles) : états par nœud, lignes d'exécution et résultats sont
+    les siens. Un élément en échec n'arrête pas les autres, comme une card d'un lot."""
     from .models import StudioRun
+    run = StudioRun.objects.get(pk=run_id)
+    task_id = getattr(self.request, 'id', None) or ''
+    elements = list(run.elements.order_by('pk'))
+    if not elements:
+        return _execute_run(run, task_id)
+    return _execute_lot(run, elements, task_id)
+
+
+def _execute_lot(run, elements, task_id):
+    """Les éléments d'un run de lot, l'un après l'autre ; puis les cards de chaque nœud d'app
+    rangées en UN lot de sa file (`consolidate_arrival`, la voie d'arrivée commune — un dépôt de
+    N fichiers, un import, un fichier de lot), comme si on les avait déposées ensemble."""
+    user = run.user
+    t0 = time.time()
+    run.status = JOB_RUNNING
+    run.save(update_fields=['status'])
+    _console(user.id, f"Studio run #{run.pk} : lot de {len(elements)} élément(s)")
+    failed = []
+    for index, element in enumerate(elements, start=1):
+        _console(user.id, f"Studio run #{run.pk} : élément {index}/{len(elements)}")
+        outcome = _execute_run(element, task_id, notify=False)
+        if outcome.get('status') != JOB_SUCCESS:
+            failed.append(f"élément {index} : {outcome.get('error') or 'échec'}")
+    _consolidate_lot_cards(run, elements)
+    run.status = JOB_FAILURE if failed else JOB_SUCCESS
+    run.error_message = (f"{len(failed)}/{len(elements)} élément(s) en échec — "
+                         + ' ; '.join(failed))[:2000] if failed else ''
+    run.processing_seconds = time.time() - t0
+    run.save(update_fields=['status', 'error_message', 'processing_seconds'])
+    _console(user.id, f"Studio run #{run.pk} : lot terminé — {len(elements) - len(failed)}/"
+                      f"{len(elements)} réussi(s)", level='error' if failed else 'info')
+    try:
+        from wama.common.utils.notifications import notify_job
+        notify_job(user, 'Studio', f"pipeline #{run.pk}", not failed,
+                   **({'detail': run.error_message} if failed else {}))
+    except Exception:
+        pass
+    return {'run': run.pk, 'status': run.status, 'error': run.error_message}
+
+
+def _consolidate_lot_cards(run, elements):
+    """Range en un lot de sa file les cards qu'un nœud d'app a créées pour chaque élément. Ne fait
+    jamais échouer le run : un regroupement manqué se DIT à la console."""
+    from wama.common.manifests.builtin.pipeline import node_kind
+    from wama.common.utils.detail_registry import DetailRegistry
+    from wama.common.utils.queue_manipulation import consolidate_arrival
+    from .services.runners import runner_for
+    for node in (run.graph or {}).get('nodes', []):
+        if node_kind(node) != 'app' or runner_for(node.get('app')) is None:
+            continue
+        ids = [(e.node_states or {}).get(node['id'], {}).get('item_id') for e in elements]
+        ids = [i for i in ids if i]
+        if len(ids) < 2:
+            continue
+        try:
+            consolidate_arrival(DetailRegistry.get(node['app'])['model'], ids, run.user)
+        except Exception as exc:
+            _console(run.user.id, f"Studio run #{run.pk} : cards de « {node['app']} » non "
+                                  f"regroupées en lot — {exc}", level='warning')
+
+
+def _execute_run(run, task_id, notify=True):
     from .services.runners import runner_for
 
-    run = StudioRun.objects.get(pk=run_id)
     user = run.user
     t0 = time.time()
     run.status = JOB_RUNNING
@@ -319,7 +400,7 @@ def run_pipeline_task(self, run_id):
         kind, key = ref
         if status == JOB_RUNNING:
             process_runs.safely(process_runs.start, run, node_id, process_key=key, kind=kind,
-                                task_id=getattr(self.request, 'id', None) or '')
+                                task_id=task_id)
         elif status == JOB_SUCCESS:
             import os
             from django.conf import settings
@@ -359,17 +440,23 @@ def run_pipeline_task(self, run_id):
                 out_type, value = builtin.run(user, builtin_node_values(node))
                 is_frame = hasattr(value, 'df') and hasattr(value, 'data_type')
                 is_lots = _is_lot_list(value)
+                # Une CARD ENTIÈRE (card d'entrée universelle, ligne d'un fichier de lot) :
+                # `{port: valeur}`, dépliée sur les ports du nœud d'app (`entries.unfold`).
+                is_card = out_type == CARD_TYPE
                 outputs[nid] = {'type': out_type, 'value': value, 'is_frame': is_frame,
-                                'is_lots': is_lots}
+                                'is_lots': is_lots, 'is_card': is_card}
                 _save_state(nid, status=JOB_SUCCESS,
                             output=(_frame_summary(value) if is_frame
-                                    else _lots_summary(value) if is_lots else value))
+                                    else _lots_summary(value) if is_lots
+                                    else _card_summary(value) if is_card else value))
                 continue
             if builtin is not None:
-                # Une card de SORTIE range ce qu'elle reçoit de l'amont (médiathèque, export…).
+                # Une card de SORTIE range ce qu'elle reçoit de l'amont (médiathèque, export…) ;
+                # une URL désignée en amont est téléchargée ici, dans sa nature.
                 _save_state(nid, status=JOB_RUNNING)
-                incoming = [outputs[l['from']] for l in links
-                            if l['to'] == nid and l['from'] in outputs]
+                incoming = [dict(outputs[l['from']],
+                                 value=_received_file(user, outputs[l['from']]))
+                            for l in links if l['to'] == nid and l['from'] in outputs]
                 note = builtin.run(user, incoming, builtin_node_values(node), run.pk)
                 _save_state(nid, status=JOB_SUCCESS, output=note)
                 _console(user.id, f"Studio run #{run.pk} : « {builtin.label} » — {note}")
@@ -442,13 +529,14 @@ def run_pipeline_task(self, run_id):
                         if l['to'] != nid or l['from'] not in outputs:
                             continue
                         up = outputs[l['from']]
-                        if up.get('is_frame') or up.get('is_text') or up.get('is_lots'):
+                        if (up.get('is_frame') or up.get('is_text') or up.get('is_lots')
+                                or up.get('is_card')):
                             continue
                         port = l.get('to_port')
                         if port not in ports_connus:
                             port = ports_connus[0] if ports_connus else None
                         if port:
-                            fichiers[port] = up['value']
+                            fichiers[port] = _received_file(user, up)
                     # Une ÉTAPE de card (process d'un pipeline d'app) se lance comme le ▶ de
                     # l'étape sur la card, réglages de sa ⚙ écrits d'abord (D2, 2026-10-18).
                     from wama.common.services.process_pipeline import process_of_function
@@ -505,13 +593,13 @@ def run_pipeline_task(self, run_id):
                 _save_state(nid, status=JOB_SUCCESS, note='source non exécutée (V1)')
                 continue
 
-            # Entrées = sorties des nœuds amont, indexées par type de port
+            # Entrées = sorties des nœuds amont, par port et par nature (l'entrée principale se
+            # cherche par nature) ; une card entière se déplie sur ses ports, une URL est
+            # téléchargée dans la nature de son port (`entries.unfold`, 2026-10-20).
             inputs = {}
             for l in links:
                 if l['to'] == nid and l['from'] in outputs:
-                    up = outputs[l['from']]
-                    inputs[l.get('to_port') or up['type']] = up['value']
-                    inputs[up['type']] = up['value']
+                    unfold(user, app, l.get('to_port'), outputs[l['from']], inputs)
 
             process_nodes[nid] = ('app', app)
             _save_state(nid, status=JOB_RUNNING, progress=0)
@@ -567,7 +655,8 @@ def run_pipeline_task(self, run_id):
         _console(user.id, f"Studio run #{run.pk} : pipeline terminé ✔")
         try:
             from wama.common.utils.notifications import notify_job
-            notify_job(user, 'Studio', f"pipeline #{run.pk}", True)
+            if notify:      # l'élément d'un lot : c'est le run du lot qui prévient
+                notify_job(user, 'Studio', f"pipeline #{run.pk}", True)
         except Exception:
             pass
         return {'run': run.pk, 'status': JOB_SUCCESS}
@@ -588,7 +677,8 @@ def run_pipeline_task(self, run_id):
         _console(user.id, f"Studio run #{run.pk} : ÉCHEC — {exc}", level='error')
         try:
             from wama.common.utils.notifications import notify_job
-            notify_job(user, 'Studio', f"pipeline #{run.pk}", False, detail=str(exc))
+            if notify:
+                notify_job(user, 'Studio', f"pipeline #{run.pk}", False, detail=str(exc))
         except Exception:
             pass
         return {'run': run.pk, 'status': JOB_FAILURE, 'error': str(exc)}

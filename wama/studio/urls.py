@@ -17,6 +17,10 @@ urlpatterns = [
     path('api/declared-pipelines/', views.api_declared_pipelines, name='api_declared_pipelines'),
     path('api/declared-pipelines/<str:key>/', views.api_declared_pipeline_detail,
          name='api_declared_pipeline_detail'),
+    # Les cards d'entrée médias : la card v4 de l'app alimentée, et la lecture d'un fichier de
+    # lot (2026-10-20)
+    path('api/entry-card/', views.api_entry_card, name='api_entry_card'),
+    path('api/entry-lot/', views.api_entry_lot, name='api_entry_lot'),
     path('api/run/', views.api_run, name='api_run'),
     path('api/run/<int:pk>/', views.api_run_status, name='api_run_status'),
     # ⬇ les résultats d'un run en ZIP (2026-10-20)

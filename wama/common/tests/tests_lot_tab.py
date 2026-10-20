@@ -85,6 +85,15 @@ class LotTabTemplateTest(TestCase):
         self.assertIn('data-port-pane="lot"', declared)
         self.assertNotIn('data-port-tab="lot"', silent)
 
+    def test_the_tab_names_the_lot_FILE_not_the_lot(self):
+        """A lot also comes from several work files (CARD_DESIGN §11.11 G, 2026-10-20): the tab is
+        the one of the lot FILE, and says so."""
+        with self._catalog(True):
+            html = _render('app_lot_witness')
+        start = html.index('data-port-tab="lot"')
+        tab = html[start:html.index('</span>', html.index('data-port-count', start))]
+        self.assertIn('Fichier de lot', tab)
+
     def test_the_lot_is_never_a_port(self):
         from wama.common.app_registry import APP_CATALOG, studio_node_ports
         for app, spec in APP_CATALOG.items():

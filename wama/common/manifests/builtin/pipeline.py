@@ -79,6 +79,13 @@ class BuiltinNode:
                   sait d'un lien avant le lancement (`studio/services/graph_flow.py`, 2026-10-18).
                   Absent, ou rien de décidé : les `port_types` — tout ce que la source PEUT
                   produire, donc une nature inconnue.
+      world       le MONDE de la card (`media`, `data`) : la palette range ses entrées par monde
+                  — on ne mélange pas les cards d'entrée médias et données (décision de Fabien,
+                  2026-10-20, `STUDIO_VISION §Entrées du Studio`) ; vide = transverse ;
+      lot         source seulement, optionnel : `lot(user, graphe, nœud) -> [(réglage entry,
+                  réglages de l'app alimentée)]` — les ÉLÉMENTS que la card fournit (plusieurs
+                  fichiers de travail ou un fichier de lot = un lot, et le pipeline tourne une
+                  fois par élément : `studio/services/entries.lot_graphs`). Absent : un seul.
     """
     key: str
     role: str
@@ -91,6 +98,8 @@ class BuiltinNode:
     port_label: str = ''
     port_types: Callable = field(default=lambda: [])
     emits: Optional[Callable] = None
+    world: str = ''
+    lot: Optional[Callable] = None
 
     def ports(self) -> dict:
         """Les ports du nœud, sous la MÊME forme que `app_registry.studio_node_ports` et

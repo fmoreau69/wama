@@ -105,7 +105,7 @@ def _export_params():
 
 register_builtin_node(BuiltinNode(
     key='data_connector', role='source', label='Base connectée', icon='fas fa-database',
-    color='#9ad0ec',
+    color='#9ad0ec', world='data',
     description='Source : une base déjà constituée (.wdat, .trip…) ou un dossier de bases, '
                 'branché SANS copie.',
     run=_source_connector, port_label='Bases', port_types=lambda: ['dataset'],
@@ -116,7 +116,7 @@ register_builtin_node(BuiltinNode(
 
 register_builtin_node(BuiltinNode(
     key='data_export', role='sink', label='Export de données', icon='fas fa-file-export',
-    color='#e78fb3',
+    color='#e78fb3', world='data',
     description='Écrit les tables déclarées (colonnes ordonnées, identité, format) dans le dossier '
                 'choisi, ou à côté des données.',
     run=_sink_data_export, port_label='Bases', port_types=lambda: ['dataset'],

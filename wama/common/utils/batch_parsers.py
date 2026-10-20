@@ -670,6 +670,71 @@ def parse_unified_batch(file_path: str) -> Tuple[List[Dict], List[str]]:
     return parse_structured_batch_text(extract_batch_file_text(file_path))
 
 
+def parse_batch_lines(text: str, plain_as: str = 'input') -> Tuple[List[Dict], List[str]]:
+    """Les LIGNES d'un fichier de lot, quelle que soit sa famille, sous la forme normalisée des
+    balises (``{input, prompt, reference, output, options{}, line_num}``).
+
+    Structuré (CSV à en-têtes, balises) : tel quel. Sinon une ligne utile par élément, lue comme
+    `plain_as` : ``'input'`` — un fichier ou une URL par ligne, et le fichier n'est une liste que
+    si TOUTES ses lignes en sont (`_parse_media_lines`, famille A de `BATCH_FORMAT.md`) ;
+    ``'prompt'`` — une consigne par ligne (famille B : imager, composer, synthesizer).
+    Écrit le 2026-10-20 pour le Studio, qui lit un fichier de lot pour une app quelconque."""
+    if is_structured_batch_text(text):
+        return parse_structured_batch_text(text)
+    if plain_as == 'prompt':
+        lines = [{'input': None, 'prompt': line.strip(), 'reference': None, 'output': None,
+                  'options': {}, 'line_num': n}
+                 for n, line in enumerate(text.splitlines(), start=1)
+                 if line.strip() and not line.strip().startswith('#')]
+        return lines, ([] if lines else ["Aucune consigne trouvée dans le fichier de lot"])
+    media, warnings = _parse_media_lines(text)
+    return ([{'input': m['path'], 'prompt': None, 'reference': None, 'output': None,
+              'options': {}, 'line_num': m['line_num']} for m in media], warnings)
+
+
+#: Les rôles d'une ligne de lot (balises `-i` / `-p` / `-r`) — chacun va au port de son GROUPE.
+LINE_ROLES = ('input', 'prompt', 'reference')
+
+
+def line_to_ports(line: Dict, ports: List[Dict]) -> Tuple[Dict, Dict]:
+    """Une ligne de lot rangée dans les PORTS d'un nœud — `({port: valeur}, réglages)`.
+
+    La question restée ouverte à la card v4 (`CARD_DESIGN §11.11`, adoption : « les colonnes du
+    lot nomment des RÔLES, pas des ports — à terme des colonnes au nom du port, `-i`/`-r` en
+    alias ») : une colonne (ou une option `--<port>`) qui porte le NOM d'un port va à ce port ;
+    les rôles restent des alias, chacun vers le port de son groupe :
+      • `input` (`-i`)     → le port de travail principal (`entry_form`) ;
+      • `prompt` (`-p`)    → le port de consigne ;
+      • `reference` (`-r`) → le premier port de référence, à défaut le premier port de travail
+                             SECONDAIRE (l'avatar de l'avatarizer, `-r` dans son lot).
+    Les autres options sont des RÉGLAGES de l'élément. Lève `ValueError` sur un rôle rempli
+    qu'aucun port de ce nœud ne reçoit : une colonne ne se perd pas en silence.
+    `ports` : la forme de `studio_node_ports()['inputs']`. Écrit le 2026-10-20 pour le Studio,
+    qui range une ligne pour n'importe quelle app — aucune vue d'app ne le partageait."""
+    from wama.common.app_registry import entry_form
+    ids = [p.get('id') for p in ports or [] if p.get('id')]
+    group = {p.get('id'): p.get('group') for p in ports or []}
+    work = entry_form(ports)['work']
+    secondary = [i for i in ids if group[i] == 'travail' and i != work]
+    targets = {
+        'input': work,
+        'prompt': next((i for i in ids if group[i] == 'prompt'), ''),
+        'reference': next((i for i in ids if group[i] == 'reference'), '')
+                     or next(iter(secondary), ''),
+    }
+    settings = dict(line.get('options') or {})
+    out = {pid: settings.pop(pid) for pid in ids if pid in settings}
+    for role in LINE_ROLES:
+        value = line.get(role)
+        if not value:
+            continue
+        if not targets[role]:
+            raise ValueError(f"Ligne {line.get('line_num', '?')} : « {role} » n'a pas de port "
+                             f"où entrer ({', '.join(ids) or 'aucun port'}).")
+        out.setdefault(targets[role], value)
+    return out, settings
+
+
 # ---------------------------------------------------------------------------
 # Phase B (suite) — Variante CSV à en-têtes (« tableur »)
 # ---------------------------------------------------------------------------

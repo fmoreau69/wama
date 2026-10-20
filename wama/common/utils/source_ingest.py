@@ -78,6 +78,53 @@ def _download(url, mode, dest_dir):
     return upload_media_from_url(url, dest_dir), ''
 
 
+def is_remote(ref) -> bool:
+    """Cette entrée est-elle une URL à télécharger (http, https) plutôt qu'un chemin ?"""
+    return str(ref or '').strip().lower().startswith(('http://', 'https://'))
+
+
+#: Le mode de téléchargement d'une URL selon la NATURE du port qui la reçoit — celle que les
+#: modèles déclarent dans `WAMA_INGEST` : un port audio prend l'audio d'une plateforme (YouTube…),
+#: un document la page elle-même, le reste le fichier tel quel.
+INGEST_MODE_BY_NATURE = {'audio': 'audio', 'document': 'smart'}
+
+
+def ingest_mode_for(types) -> str:
+    """Le mode (`audio` | `smart` | `media`) d'une URL destinée à un port de ces natures : celui
+    de la nature quand elle est seule, `media` sinon (un port multi-nature reçoit le fichier)."""
+    natures = [t for t in (types or []) if t]
+    return INGEST_MODE_BY_NATURE.get(natures[0], 'media') if len(natures) == 1 else 'media'
+
+
+def download_to_user(user, url, mode='media') -> str:
+    """Télécharge `url` dans l'espace temporaire de `user` et rend son chemin (relatif à
+    `MEDIA_ROOT`) — le chemin qu'une désignation reçoit ensuite.
+
+    Pour une entrée qui n'est pas encore une card (2026-10-20 : la card d'entrée du Studio, dont
+    l'URL est « téléchargée au lancement », comme celle d'un port de la card v4). Mêmes
+    primitives que l'ingest d'une card (`_download`), même dépôt que le gestionnaire de fichiers
+    (`filemanager.services.enregistrer_fichier_utilisateur`) : le fichier y apparaît comme un
+    fichier déposé. Lève `ValueError` sur une adresse qui n'est pas http(s)."""
+    if not is_remote(url):
+        raise ValueError(f"Adresse non téléchargeable (http/https attendu) : {url}")
+    import mimetypes
+
+    from django.core.files.uploadedfile import UploadedFile
+
+    from wama.filemanager.services import enregistrer_fichier_utilisateur
+    temp_dir = tempfile.mkdtemp()
+    try:
+        path, _title = _download(url.strip(), mode, temp_dir)
+        fname = os.path.basename(path)
+        with open(path, 'rb') as fh:
+            stored = enregistrer_fichier_utilisateur(user, UploadedFile(
+                fh, name=fname, size=os.path.getsize(path),
+                content_type=mimetypes.guess_type(fname)[0]))
+        return stored['path']
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 def _spec(instance):
     return getattr(type(instance), 'WAMA_INGEST', None)
 

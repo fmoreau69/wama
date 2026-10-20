@@ -201,6 +201,70 @@ def api_node_context(request):
     return JsonResponse(node_context(data.get('graph') or {}, data.get('node'), request.user))
 
 
+#: Les ids de la card d'entrée rendue dans la modale du Studio — une seule à la fois sur la page.
+ENTRY_CARD_IDS = {
+    'card_id': 'studioEntryCard', 'drop_zone_id': 'studioEntryDrop',
+    'file_input_id': 'studioEntryFiles', 'folder_input_id': 'studioEntryFolder',
+    'url_input_id': 'studioEntryUrl', 'reference_input_id': 'studioEntryRef',
+    'prompt_input_id': 'studioEntryPrompt', 'batch_bid': 'studioEntryLot',
+    'match_status_id': 'studioEntryMatch',
+}
+
+
+def _offered_app(request, app):
+    """L'app que la palette du compte offre (la règle du lancement, `palette.palette_nodes`) et
+    qui crée une card, ou None."""
+    from .services.palette import palette_nodes
+    node = palette_nodes(request.user).get(app or '')
+    return app if node is not None and node.get('kind') is None else None
+
+
+@login_required
+def api_entry_card(request):
+    """GET `?app=<app>` : la CARD D'ENTRÉE v4 de l'app, rendue pour la modale d'une card d'entrée
+    du Studio (décision de Fabien, 2026-10-20 — `STUDIO_VISION §Entrées du Studio`) : ses onglets
+    de port, leurs modalités, son fichier de lot — le gabarit des dix apps, sans rien de propre au
+    Studio. `compose_only` : elle désigne et retient sans rien créer (le lot se déplie au
+    lancement)."""
+    from django.http import HttpResponse
+    from django.template.loader import render_to_string
+    from django.urls import NoReverseMatch, reverse
+    app = _offered_app(request, request.GET.get('app'))
+    if app is None:
+        return JsonResponse({'error': 'App inconnue ou non accessible'}, status=404)
+    try:
+        template_url = reverse(f'{app}:batch_template')
+    except NoReverseMatch:
+        template_url = ''
+    html = render_to_string('common/_new_item_card_v4.html', {
+        **ENTRY_CARD_IDS, 'app_id': app, 'compose_only': True, 'prompt_rows': 3,
+        'url_hint': 'téléchargée au lancement — un fichier joint prime',
+        'batch_template_url': template_url,
+    }, request=request)
+    return HttpResponse(html)
+
+
+@login_required
+def api_entry_lot(request):
+    """POST `{app, lot}` : ce qu'un fichier de lot DÉSIGNÉ donnera à l'app — `{count}`, ou
+    `{error}` — lu par la règle du lancement (`entries.lot_lines`) : la modale dit tout de suite
+    combien d'éléments le pipeline jouera, ou pourquoi le fichier est refusé."""
+    if request.method != 'POST':
+        return JsonResponse({'error': 'POST requis'}, status=405)
+    from wama.common.app_registry import studio_node_ports
+    from .services.entries import lot_lines
+    data = _json_body(request)
+    app = _offered_app(request, data.get('app'))
+    if app is None:
+        return JsonResponse({'error': 'App inconnue ou non accessible'}, status=404)
+    ports = (studio_node_ports(app) or {}).get('inputs') or []
+    try:
+        lines = lot_lines(request.user, data.get('lot') or '', ports, 'Fichier de lot')
+    except ValueError as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+    return JsonResponse({'count': len(lines)})
+
+
 @login_required
 def api_run(request):
     """POST : lance l'exécution du graphe (Celery). Validation + dispatch = brique PARTAGÉE
@@ -231,6 +295,11 @@ def api_run_status(request, pk):
         'error': run.error_message,
         'processing_display': run.processing_display,
     }
+    # Un run de LOT (2026-10-20) : chaque nœud résume ses N éléments, et le lot dit où il en est.
+    from .services.entries import lot_progress
+    lot = lot_progress(run)
+    if lot is not None:
+        payload.update(lot)
     from wama.common.models import JOB_STATUS_TERMINAL
     if run.status in JOB_STATUS_TERMINAL:
         # Ce que le ⬇ du run servira (`services/run_results.py`) — lu une fois le run terminé.

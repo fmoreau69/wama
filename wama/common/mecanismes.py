@@ -1219,7 +1219,11 @@ MECHANISMS = (
               "(file default) ; le lancement rattrape un échec et attend un téléchargement en "
               "cours (verrou partagé). `derive` (chemin pointé) DÉCLARÉ dans la spec ; une page "
               "web gardée en `.html` ; nature d'une URL AVANT téléchargement : "
-              "`url_ingest.url_nature` (même table que la décision page/média)",
+              "`url_ingest.url_nature` (même table que la décision page/média). Depuis le "
+              "2026-10-20 : `download_to_user`, l'URL d'une entrée qui n'est pas encore une card "
+              "(card d'entrée du Studio) — mêmes primitives, déposée dans l'espace du compte "
+              "comme un fichier du gestionnaire ; `ingest_mode_for`, le mode suit la nature du "
+              "port qui la reçoit",
               'wama/common/utils/source_ingest.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/utils/url_ingest.py',)),
     # Garde de SORTIE, distincte de l'ingest : l'ingest sait CHERCHER, celle-ci dit OÙ il a le
@@ -1579,7 +1583,10 @@ MECHANISMS = (
               annexes=('wama/common/services/released_files.py',
                        'wama/common/static/common/js/released-files.js')),
     Mechanism('batch', 'Import par lot',
-              "Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot",
+              "Parsing des fichiers batch (txt/csv/pdf/docx) et cycle de vie du lot. Depuis le "
+              "2026-10-20 : `parse_batch_lines` (les lignes normalisées, toutes familles) et "
+              "`line_to_ports` (une ligne rangée dans les PORTS d'un nœud : colonne au nom d'un "
+              "port, rôles `-i`/`-p`/`-r` en alias, refus nommé) — lus par le Studio",
               'wama/common/utils/batch_parsers.py', 'docs/construction/ui/BATCH_FORMAT.md',
               annexes=('wama/common/utils/batch_common.py',
                        'wama/common/utils/batch_sync.py',
@@ -1605,7 +1612,9 @@ MECHANISMS = (
               "et l'ÉCRIVAIN de ZIP partagé avec la file (`zip_elements`, 2026-10-17 : rendu "
               "late-binding, sinon les sorties DÉCLARÉES de la card ; nommage déclaré ici une fois ; "
               "`ResultArchive` depuis le 2026-10-20, qui range dans UN ZIP les cards de plusieurs "
-              "apps — celui d'une exécution du Studio) — paramétrée comme la fabrique de file "
+              "apps — celui d'une exécution du Studio ; `lot_overview`, la règle d'état d'un lot "
+              "de `batch_status`, extraite le même jour pour le run de lot du Studio) — "
+              "paramétrée comme la fabrique de file "
               "(les deux formes de rattachement par "
               "`batch_elements`/`attach_to_batch`). EXTRAITE le 2026-09-22 des corps "
               "conventionnels du générateur d'apps (`views_gen`), qui la consomme ; les apps "
@@ -2648,7 +2657,10 @@ MECHANISMS = (
               "même désignation pour les outils de l'assistant (`tool_api.add_to_*`). ⭐ Depuis "
               "le 2026-09-29 : un asset de médiathèque PARTAGÉ (labo, projet, public) est "
               "désignable et POINTÉ par les personnes concernées — même règle de visibilité que "
-              "la liste (`scoping.listable_by`), le compte anonyme n'en hérite pas",
+              "la liste (`scoping.listable_by`), le compte anonyme n'en hérite pas. Depuis le "
+              "2026-10-20 : `check_designation`, les gardes de `designate` sans pointer ni copier "
+              "— pour qui RETIENT une désignation avant qu'une app la reçoive (card d'entrée du "
+              "Studio)",
               'wama/common/utils/media_paths.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md'),
     Mechanism('scoped_visibility', 'Visibilité et portée',
@@ -2815,7 +2827,12 @@ MECHANISMS = (
                        'wama/studio/services/run_results.py',
                        # La PALETTE d'un compte, seule règle de ce qu'il peut poser et lancer, et
                        # la raison d'un nœud qu'elle n'offre pas (2026-10-19, ROADMAP §16.11).
-                       'wama/studio/services/palette.py')),
+                       'wama/studio/services/palette.py',
+                       # Les cards d'entrée MÉDIAS et le LOT (2026-10-20, STUDIO_VISION §Entrées
+                       # du Studio) : port « Entrée de card », lot déplié en runs enfants, URL
+                       # téléchargée au lancement ; la modale reprend la card v4 de l'app.
+                       'wama/studio/services/entries.py',
+                       'wama/studio/static/studio/js/wama-studio-entry.js')),
     Mechanism('tool_api', "Surface d'outils",
               "Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas",
               'wama/tool_api.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md'),

@@ -15,22 +15,21 @@ from __future__ import annotations
 from wama.common.manifests.builtin.pipeline import BuiltinNode, register_builtin_node
 from wama.common.utils.param_schema import Param
 
+from .entries import card_lot, files_lot
+
 #: Un nœud intégré n'est pas un process : aucun réglage n'en périme un.
 NO_STALE = ()
 
 
-def _media_rel(params, key, label) -> str:
-    """Le chemin d'un média de la médiathèque (relatif à MEDIA_ROOT), qui doit exister."""
-    import os
-    from django.conf import settings
+def _media_rel(user, params, key, label) -> str:
+    """Le chemin d'un fichier désigné (relatif à MEDIA_ROOT), s'il passe les gardes de la
+    désignation (`media_paths.check_designation`, 2026-10-20) — avant, seule l'EXISTENCE était
+    vérifiée : un chemin d'un autre compte passait jusqu'à l'outil de l'app."""
+    from .entries import checked_ref
     rel = (params.get(key) or '').strip().lstrip('/')
-    if rel.startswith('media/'):
-        rel = rel[len('media/'):]
     if not rel:
         raise ValueError(f"Nœud « {label} » : choisissez un fichier dans les paramètres du nœud.")
-    if not os.path.exists(os.path.join(settings.MEDIA_ROOT, rel)):
-        raise ValueError(f"Nœud « {label} » : fichier introuvable ({rel}).")
-    return rel
+    return checked_ref(user, rel, label)
 
 
 # ── Entrées ─────────────────────────────────────────────────────────────────────────────────
@@ -41,28 +40,73 @@ def _source_text(user, params):
     return 'prompt', text
 
 
-def _media_nature(params, rel) -> str:
-    """La nature d'un média désigné : celle que dit le réglage, sinon celle de son chemin — UNE
-    règle, lue au lancement (`_source_media`) et avant (`_emits_media`)."""
-    from wama.common.app_registry import category_of_path
-    return params.get('asset_category') or category_of_path(rel)
-
-
-def _source_media(user, params):
-    rel = _media_rel(params, 'asset_path', 'Médias importés')
-    return _media_nature(params, rel), rel
-
-
 def _emits_text(params):
     """Ce que fournira « Texte » : un prompt, et son texte s'il est saisi."""
     return {'types': ['prompt'], 'text': (params.get('text') or '').strip() or None}
 
 
-def _emits_media(params):
-    """Ce que fournira « Médias importés » : la nature du média choisi ; rien de décidé tant
-    qu'aucun média ne l'est (le fichier n'est pas exigé ici : on ne lance rien)."""
-    rel = (params.get('asset_path') or '').strip()
-    return {'types': [_media_nature(params, rel)]} if rel else None
+# ── Les cards d'entrée MÉDIAS : la card d'entrée v4 des apps, dans le Studio (2026-10-20) ────
+# `STUDIO_VISION §Entrées du Studio` : une card UNIVERSELLE (« Entrée ») qui prend la forme de la
+# card v4 de l'app branchée, et ses cards SIMPLIFIÉES — un port de travail, un port de référence,
+# un fichier de lot. Ce qu'elles désignent vit dans leur réglage caché `entry`, composé dans la
+# modale du Studio (la card v4 de l'app, son volet à côté) ; le lot se déplie au lancement
+# (`entries.lot_graphs`). « Texte » reste tel quel : prompts, textes libres, aperçus textuels.
+
+def _entry_param():
+    from .entries import ENTRY_PARAM
+    return Param(name=ENTRY_PARAM, type='hidden', stales=NO_STALE,
+                 help="Ce que la card désigne — composé dans sa modale.")
+
+
+def _files_source(label):
+    """Une card SIMPLIFIÉE d'un port : un ou plusieurs fichiers (plusieurs = un lot)."""
+    def run(user, params):
+        from .entries import entry_of, file_value, nature_of
+        ref = file_value(user, entry_of(params), params, label)
+        return nature_of(ref) or 'file', ref
+    return run
+
+
+def _emits_files(params):
+    """Ce que fournira une card de fichiers : la nature de ses fichiers, s'ils sont choisis ; rien
+    de décidé sinon (le fichier n'est pas exigé ici : on ne lance rien)."""
+    from .entries import _refs, entry_of, nature_of
+    try:
+        refs = _refs(entry_of(params).get('files')) or _refs(params.get('asset_path'))
+    except ValueError:
+        return None
+    natures = list(dict.fromkeys(n for n in map(nature_of, refs) if n))
+    return {'types': natures} if natures else None
+
+
+def _card_source(label):
+    """Une card ENTIÈRE (universelle, fichier de lot) : `{port: valeur}` pour un élément."""
+    def run(user, params):
+        from .entries import CARD_TYPE, card_value, entry_of
+        entry = entry_of(params)
+        if entry.get('lot'):
+            raise ValueError(f"Nœud « {label} » : son fichier de lot se déplie au lancement — "
+                             f"relancez le pipeline depuis le Studio.")
+        return CARD_TYPE, card_value(user, entry, label)
+    return run
+
+
+def _emits_card(params):
+    """Ce que fournira une card entière : ses ports remplis, leur nature et sa consigne — ce que le
+    nœud d'app alimenté montre « fourni » dans l'inspecteur (`graph_flow`)."""
+    from .entries import CARD_TYPE, _refs, entry_of, nature_of
+    try:
+        entry = entry_of(params)
+    except ValueError:
+        return None
+    ports = {}
+    for port, refs in (entry.get('ports') or {}).items():
+        natures = list(dict.fromkeys(n for n in map(nature_of, _refs(refs)) if n))
+        if _refs(refs):
+            ports[port] = {'types': natures, 'text': None}
+    if (entry.get('prompt') or '').strip():
+        ports['prompt'] = {'types': ['prompt'], 'text': entry['prompt'].strip()}
+    return {'types': [CARD_TYPE], 'ports': ports}
 
 
 def _dataset_type(params) -> str:
@@ -83,7 +127,7 @@ def _source_dataset(user, params):
     import os
     from django.conf import settings
     from wama.common.catalog.data_types import TypedFrame, known_types
-    rel = _media_rel(params, 'asset_path', 'Jeu de données')
+    rel = _media_rel(user, params, 'asset_path', 'Jeu de données')
     dtype = _dataset_type(params)
     if dtype not in known_types():
         raise ValueError(f"Nœud « Jeu de données » : type '{dtype}' inconnu de la taxonomie.")
@@ -265,23 +309,64 @@ def _output_params():
 
 register_builtin_node(BuiltinNode(
     key='text_input', role='source', label='Texte', icon='fas fa-keyboard', color='#f7c46c',
+    world='media',
     description='Source : un texte / prompt saisi dans les paramètres du nœud (inspecteur).',
     run=_source_text, port_label='Texte', port_types=lambda: ['prompt'], emits=_emits_text,
     params=lambda: [Param(name='text', type='textarea', label='Texte', stales=NO_STALE,
                           help='Texte ou prompt envoyé au nœud aval.')]))
 
 register_builtin_node(BuiltinNode(
-    key='media_import', role='source', label='Médias importés', icon='fas fa-photo-film',
-    color='#6ee7a8',
-    description='Source : vos médias existants (image, vidéo, audio, document…) injectés dans le '
-                'pipeline.',
-    run=_source_media, port_label='Médias', port_types=_media_categories, emits=_emits_media,
-    params=lambda: [Param(name='asset_path', type='media_picker', label='Média (médiathèque)',
-                          stales=NO_STALE)]))
+    key='card_input', role='source', label='Entrée', icon='fas fa-plus-circle', color='#6ee7a8',
+    world='media',
+    description="Source : la card d'entrée de l'app branchée, avec tous ses ports — prompt, "
+                "fichier(s) de travail, référence(s), fichier de lot. À brancher sur le port "
+                "« Entrée de card » d'une app.",
+    run=_card_source('Entrée'), port_label='Card', port_types=lambda: ['card'],
+    emits=_emits_card, params=lambda: [_entry_param()],
+    lot=card_lot))
+
+# La clé `media_import` reste (une DONNÉE des graphes enregistrés) : « Médias importés » devient
+# la card simplifiée du port de travail — la médiathèque est l'une de ses modalités, à côté du
+# poste et de l'URL ; son ancien réglage `asset_path` est encore lu (`entries.file_value`).
+register_builtin_node(BuiltinNode(
+    key='media_import', role='source', label='Fichier(s) de travail', icon='fas fa-photo-film',
+    color='#6ee7a8', world='media',
+    description="Source : le ou les fichiers que l'app TRAITE — depuis le poste, la médiathèque "
+                "ou une URL. Plusieurs fichiers forment un lot : le pipeline tourne une fois par "
+                "fichier.",
+    run=_files_source('Fichier(s) de travail'), port_label='Fichier(s)',
+    port_types=_media_categories, emits=_emits_files,
+    # `asset_path` garde son sélecteur : vers une FONCTION ou la Sortie, il n'y a pas de card d'app
+    # à rendre dans la modale — c'est alors le geste de la card (un média de la médiathèque).
+    params=lambda: [_entry_param(),
+                    Param(name='asset_path', type='media_picker', label='Média (médiathèque)',
+                          stales=NO_STALE,
+                          help="Vers une fonction ou une sortie. Vers une app : « Composer "
+                               "l'entrée » (poste, médiathèque, URL, plusieurs fichiers).")],
+    lot=files_lot))
+
+register_builtin_node(BuiltinNode(
+    key='reference_input', role='source', label='Fichier(s) de référence', icon='fas fa-paperclip',
+    color='#6ee7a8', world='media',
+    description="Source : le ou les fichiers qui GUIDENT l'app (style, mélodie, voix…) — depuis le "
+                "poste, la médiathèque ou une URL. Plusieurs fichiers forment un lot.",
+    run=_files_source('Fichier(s) de référence'), port_label='Référence',
+    port_types=_media_categories, emits=_emits_files, params=lambda: [_entry_param()],
+    lot=files_lot))
+
+register_builtin_node(BuiltinNode(
+    key='batch_input', role='source', label='Fichier de lot', icon='fas fa-file-lines',
+    color='#6ee7a8', world='media',
+    description="Source : un fichier de lot (TXT, MD, CSV, PDF, DOCX — une ligne = une card) : le "
+                "pipeline tourne une fois par ligne. À brancher sur le port « Entrée de card » "
+                "d'une app.",
+    run=_card_source('Fichier de lot'), port_label='Lot', port_types=lambda: ['card'],
+    emits=_emits_card, params=lambda: [_entry_param()],
+    lot=card_lot))
 
 register_builtin_node(BuiltinNode(
     key='dataset_input', role='source', label='Jeu de données', icon='fas fa-table',
-    color='#9ad0ec',
+    color='#9ad0ec', world='data',
     description="Source : un fichier tabulaire (CSV) de la médiathèque lu comme donnée TYPÉE "
                 "(type choisi dans l'inspecteur) → entrée d'un nœud fonction.",
     run=_source_dataset, port_label='Données', port_types=_known_types, params=_dataset_params,

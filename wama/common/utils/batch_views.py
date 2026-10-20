@@ -330,6 +330,30 @@ def _revoke_quietly(item):
         pass
 
 
+def lot_overview(statuses, total=None) -> tuple:
+    """`(comptes, état global)` d'un LOT d'après l'état de ses éléments — la règle de
+    `batch_status` (forme MESURÉE sur cinq apps) : SUCCESS si tout a réussi ; RUNNING si un
+    tourne ; FAILURE si plus rien n'attend et qu'un a échoué ; PENDING sinon. `comptes` en
+    minuscules {success, running, pending, failure, …}.
+
+    Extraite de la vue le 2026-10-20 : le run de LOT du Studio (un élément = un run enfant)
+    se résume par la même règle, au lieu d'en écrire une seconde."""
+    counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
+    for status in statuses:
+        key = (status or '').lower()
+        counts[key] = counts.get(key, 0) + 1
+    total = total or len(statuses)
+    if total and counts['success'] == total:
+        overall = 'SUCCESS'
+    elif counts['running']:
+        overall = 'RUNNING'
+    elif counts['failure'] and not counts['pending'] and not counts['running']:
+        overall = 'FAILURE'
+    else:
+        overall = 'PENDING'
+    return counts, overall
+
+
 def make_batch_views(*, work_model, batch_model, get_user, task=None,
                      file_fields=(), output_fields=(), output_field='output_file',
                      params_fields=(), schema=None, options_field=None, extra_names=(),
@@ -731,12 +755,9 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         n'attend et qu'un a échoué ; PENDING sinon)."""
         b = _batch_read(request, pk)
         items = _members(request, b)
-        counts = {'success': 0, 'running': 0, 'pending': 0, 'failure': 0}
         rows = []
         for i in items:
             status = getattr(i, 'status', '') or ''
-            key = status.lower()
-            counts[key] = counts.get(key, 0) + 1
             rows.append({'id': i.id, 'filename': _label(i), 'status': status,
                          'progress': _progress(i),
                          'error': (getattr(i, 'error_message', '') or None)
@@ -744,14 +765,7 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         # Un lot REÇU se compte sur ce que ce compte en voit (`_members`), jamais sur le total
         # du propriétaire.
         total = (b.total or len(items)) if b.user_id == get_user(request).pk else len(items)
-        if total and counts['success'] == total:
-            overall = 'SUCCESS'
-        elif counts['running']:
-            overall = 'RUNNING'
-        elif counts['failure'] and not counts['pending'] and not counts['running']:
-            overall = 'FAILURE'
-        else:
-            overall = 'PENDING'
+        counts, overall = lot_overview([r['status'] for r in rows], total)
         return JsonResponse({'batch_id': pk, 'status': overall, 'total': total,
                              'counts': counts, 'items': rows})
 

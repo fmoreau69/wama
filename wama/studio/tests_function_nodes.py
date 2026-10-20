@@ -92,7 +92,10 @@ class LExecuteurDispatcheSurLeKindTest(TestCase):
     def setUp(self):
         from django.conf import settings
         self.user = get_user_model().objects.create_user('studio_exec', password='x')
-        rel = os.path.join('studio_tests', f'trace_{self.user.pk}.csv')
+        # Dans l'espace du COMPTE (2026-10-20) : « Jeu de données » lit son fichier par la règle de
+        # la désignation (`media_paths.check_designation`) — il ne lisait que l'existence, donc
+        # n'importe quel fichier sous MEDIA_ROOT, celui d'un autre compte compris.
+        rel = os.path.join('users', str(self.user.pk), 'temp', 'trace.csv')
         abs_path = os.path.join(settings.MEDIA_ROOT, rel)
         os.makedirs(os.path.dirname(abs_path), exist_ok=True)
         _csv_trace(abs_path)

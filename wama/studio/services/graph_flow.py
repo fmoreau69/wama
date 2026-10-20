@@ -73,6 +73,9 @@ def node_flows(graph) -> dict:
             if emitted:
                 flow['types'] = list(emitted.get('types') or flow['types'])
                 flow['text'] = emitted.get('text')
+                # Une card ENTIÈRE dit ce qu'elle remplit, port par port (2026-10-20).
+                if emitted.get('ports') is not None:
+                    flow['ports'] = dict(emitted['ports'])
         elif kind == 'function':
             # Les CHAMPS — la règle de `launch.diagnostiquer_chainage`, déplacée telle quelle :
             # accumulés si l'amont est connu, inconnus sinon ; seule une fonction PURE rend une
@@ -211,6 +214,13 @@ def node_context(graph, node_id, user=None) -> dict:
         if l.get('to') != node_id:
             continue
         flow = flows.get(l.get('from')) or {}
+        if flow.get('ports') is not None:
+            # Une card ENTIÈRE (port « Entrée de card ») : chacun des ports qu'elle remplit est
+            # reçu comme s'il était relié — ce que le nœud montre « fourni » (2026-10-20).
+            for port, carried in flow['ports'].items():
+                inputs[port] = {'from': l.get('from'), 'types': carried.get('types') or [],
+                                'text': carried.get('text')}
+            continue
         inputs[l.get('to_port') or ''] = {'from': l.get('from'), 'types': flow.get('types') or [],
                                           'text': flow.get('text')}
     values, provided, defaults = {}, {}, {}

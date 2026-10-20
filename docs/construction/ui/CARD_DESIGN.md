@@ -1294,11 +1294,14 @@ prometteuse » ; les cards de FILE restent v1/v2/v3 — v4 ne nomme que la card 
    MODALE ⚙ et de l'inspecteur (exigence 8) et donc le REMPLACEMENT des fichiers d'une card
    PENDING (exigence 7), et la card-MODÈLE d'une file importée sans fichiers (slots vides =
    les mêmes lignes, invites actives). L'utilisateur n'apprend qu'un objet.
-   ⏳ *Toujours dû au 2026-10-20* : aucune modale ⚙ ni inspecteur ne porte encore cette section
-   Entrée (`wama-params.js` ne fait que LIRE les onglets d'une card, `filePorts`). Premier
-   consommateur décidé ce jour-là : la modale de la card d'entrée universelle du Studio, qui est
-   la v4 de l'app branchée avec le volet droit (`STUDIO_VISION.md §Entrées du Studio`). La même
-   pièce servira ensuite la section Entrée des modales ⚙ des apps (§11.8, exigences 7 et 8).
+   🔄 *Au 2026-10-20* : aucune modale ⚙ d'app ni inspecteur ne porte encore cette section Entrée
+   (`wama-params.js` ne fait que LIRE les onglets d'une card, `filePorts`). ✅ Son PREMIER
+   consommateur est livré le même jour : la modale des cards d'entrée du Studio, qui rend la v4 de
+   l'app branchée avec le volet à côté (`STUDIO_VISION.md §Entrées du Studio`). Ce qu'elle a coûté à
+   la v4 COMMUNE : la variable `compose_only` (la card désigne et retient sans rien créer : tout se
+   joint, pas de barre de lot) et `WamaInputSlots.wire`, exposée pour une card rendue après le
+   chargement. La même pièce servira la section Entrée des modales ⚙ des apps (§11.8, exigences 7
+   et 8) — ⏳ ce geste-là reste à faire.
 5. **Densités** : la card d'entrée suit v1/v2/v3 comme les autres (sections nommées) ; en
    Compact les slot-rows se condensent en chips sur une ligne.
 

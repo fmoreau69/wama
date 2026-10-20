@@ -309,16 +309,78 @@ sur le port de travail, l'onglet du fichier de lot, et la forme d'entrée dédui
 7. **Le live : rien pour l'instant.** Il reste hors du Studio (`app_registry.app_has_live_input`,
    décision du 2026-09-28), mais ce n'est pas exclu : à revoir à l'usage.
 
-**⏳ À trancher — comment la card se branche sur l'app.** Un nœud d'app reçoit ses entrées PAR
-PORT (`studio/tasks.py`, une valeur par lien, indexée par `to_port`). Deux formes ont été posées :
-(a) des cards d'entrée par port seulement ; (b) un port supplémentaire, « entrée de card »,
-sur chaque nœud d'app, qui accepte la card universelle. Proposition (Claude, 2026-10-20) : **les
-deux, sans recouvrement**. Les cards simplifiées par port se branchent sur les ports existants.
-La card universelle et le fichier de lot se branchent sur un port « entrée de card ». Ce port ne
-se déclare pas par app : il se DÉRIVE pour tout nœud qui crée une card. Il porte exactement ce
-que porte une ligne de lot, une card entière (`CARD_DESIGN §11.11`, onglet du fichier de lot,
-2026-09-29). Côté moteur, sa valeur se déplie en ports avant `create`. Un port alimenté deux fois
-(par lui ET par un lien direct) se refuse au diagnostic des liens, en le disant.
+**✅ Tranché le 2026-10-20 — comment la card se branche sur l'app : les deux formes, sans
+recouvrement** (proposition acceptée par Fabien). Un nœud d'app reçoit ses entrées PAR PORT
+(`studio/tasks.py`, une valeur par lien, indexée par `to_port`). Les cards simplifiées par port se
+branchent sur les ports existants. La card universelle et le fichier de lot se branchent sur le
+port « Entrée de card ». Ce port ne se déclare pas par app : il se DÉRIVE pour tout nœud qui crée
+une card (`entries.card_port`, posé par la palette, jamais dans `studio_node_ports` — la card v4
+et les manifestes n'en ont pas l'usage). Il porte exactement ce que porte une ligne de lot, une card
+entière (`CARD_DESIGN §11.11`, onglet du fichier de lot, 2026-09-29). Côté moteur, sa valeur se
+déplie en ports avant `create` (`entries.unfold`). Un port alimenté deux fois — par lui ET par un
+lien direct, d'une autre valeur — se refuse au lancement du nœud, en le nommant (la seconde valeur
+écrasait la première en silence).
+
+### ✅ Livré le 2026-10-20 — ce qui est fait, et avec quoi
+
+**Les cards** (registre commun des nœuds intégrés, `studio/services/builtin_nodes.py`) :
+
+| card | clé (donnée des graphes) | se branche sur | multiplie |
+|---|---|---|---|
+| Texte | `text_input` | le port de consigne | — (inchangée) |
+| Entrée (universelle) | `card_input` | « Entrée de card » | plusieurs fichiers de travail, ou son fichier de lot |
+| Fichier(s) de travail | `media_import` (ex-« Médias importés ») | un port de travail | plusieurs fichiers |
+| Fichier(s) de référence | `reference_input` | un port de référence | plusieurs fichiers |
+| Fichier de lot | `batch_input` | « Entrée de card » | une card par ligne |
+
+Ce qu'une card désigne vit dans son réglage caché `entry` ; `media_import` lit encore son ancien
+`asset_path`, qui garde son sélecteur pour une fonction ou la Sortie (pas de card d'app à rendre).
+La palette range les entrées PAR MONDE (`BuiltinNode.world`) : « Entrées médias », « Entrées
+données ».
+
+**La modale** (`studio/js/wama-studio-entry.js`, `WamaStudioEntry`) : la card v4 de l'app branchée,
+rendue par le serveur (`/studio/api/entry-card/`, le gabarit des dix apps en `compose_only` : tout
+se JOINT, la barre de lot — qui crée des cards — n'est pas rendue), restreinte à ce que la card du
+Studio porte (tous les onglets ; l'onglet de son port ; l'onglet du fichier de lot) ; à côté, le
+volet : les réglages du nœud de l'app, par le rendu commun du Studio. Vérifiée dans un navigateur
+sur la page servie (dépôt, retenue, onglet seul, fichier de lot compté) — sans erreur console.
+
+**Le lot** : déplié au lancement (`entries.lot_graphs`, appelé par `launch.launch_graph` avant le
+dispatch) en un graphe par élément, joué chacun comme un run ENFANT du run lancé
+(`StudioRun.parent`, migration `studio/0005`) ; un élément en échec n'arrête pas les autres ; à la
+fin, les cards de chaque nœud d'app forment UN lot de sa file (`consolidate_arrival`). Le canvas
+résume chaque nœud par la règle d'un lot d'app (`batch_views.lot_overview`, extraite de
+`batch_status` pour n'en avoir qu'une) ; le ZIP du run prend les résultats de tous les éléments.
+
+**Cartographie de l'existant réutilisé** (relevée le 2026-10-20 avant d'écrire — rien de réécrit) :
+
+| besoin | la brique | ce qui a été ajouté |
+|---|---|---|
+| onglets, modalités, face fichiers | `_new_item_card_v4.html`, `WamaInputSlots` | `compose_only` ; `WamaInputSlots.wire` exposée (une card rendue après le chargement) |
+| dépôt joint au port qui l'admet | `WamaImport({attach: 'card'})` | — |
+| médiathèque (désignation) | `WamaApp.pickFromLibrary`, `MediaPicker` | — |
+| dépôt du poste dans l'espace du compte | `WamaFM.upload` → `enregistrer_fichier_utilisateur` | — |
+| garde de lecture d'une désignation | `media_paths.designate` | `check_designation` (les mêmes gardes, sans pointer ni copier) |
+| URL téléchargée au lancement | `source_ingest._download` (primitives de l'ingest) | `download_to_user`, `ingest_mode_for` (le mode suit la nature du port) |
+| lignes d'un fichier de lot | `batch_parsers` (balises, CSV à en-têtes, listes) | `parse_batch_lines` (toutes familles), `line_to_ports` |
+| regroupement en lot | `queue_manipulation.consolidate_arrival` | — |
+| état d'un lot | `batch_status` de `make_batch_views` | `lot_overview` (la règle, extraite) |
+| port = argument de l'outil | `generic_runner.port_arguments` | — |
+| ce qu'un nœud reçoit (inspecteur) | `graph_flow.node_context` | les ports d'une card entière |
+
+**Ce qui reste, nommé :**
+- **L'appariement entrée ↔ modèle dans la modale** (`WamaInputMatch`) : la card montre sa ligne
+  d'état, mais rien ne la relie encore au sélecteur de modèle du volet de la modale — chaque app
+  câble le sien sur sa page, avec les métadonnées de ses modèles.
+- **La card universelle NON branchée** n'accepte rien encore : elle prend la forme de la card de
+  l'app qu'elle alimente (« Reliez la card à une app »). « Accepter tout fichier, comme
+  l'assistant » avant le branchement reste à faire.
+- **Le nom de sortie d'une ligne de lot** (`-o`) n'est pas appliqué au Studio ; une ligne qui le
+  porte n'échoue pas, il est ignoré (comme chez les apps de type A, `BATCH_FORMAT.md`).
+- **Une ligne de lot programmée** (`--when`/`--at`) : le réglage est refusé comme inconnu de l'app
+  — la programmation d'un run du Studio n'existe pas.
+- **Les colonnes d'une ligne nommées par PORT** valent au Studio (`line_to_ports`) ; les vues de lot
+  des apps gardent chacune leur correspondance (`CARD_DESIGN §11.11`, question ouverte des lots).
 
 ---
 

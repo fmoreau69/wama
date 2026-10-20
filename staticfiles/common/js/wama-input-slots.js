@@ -16,7 +16,7 @@
  * entre dans l'input du port, et le `change` de l'app fait le reste (le geste de MediaPicker).
  *
  * Zéro code par app : auto-init sur DOMContentLoaded. Garde anti-double-init comme
- * wama-new-item-card.js.
+ * wama-new-item-card.js. Une card rendue plus tard (modale du Studio) : `WamaInputSlots.wire`.
  *
  * `WamaInputSlots.filePorts(node)` (2026-10-20) : la SEULE lecture des ports d'une card hors de
  * cette brique — l'envoi (`WamaApp.addToQueue({ports: 'card'})`), le dépôt qui se joint
@@ -27,9 +27,10 @@
 (function (global) {
     'use strict';
 
-    /** Les ports FICHIER d'une card v4, `[{id, inputId, zoneId}]` — un par onglet qui porte un
-     *  input (`data-port-kind="file"` : ni le live ni le lot), dans l'ordre de la card ; `zoneId`,
-     *  l'id de l'onglet s'il en a un (`undefined` sinon). `node` : un
+    /** Les ports FICHIER d'une card v4, `[{id, inputId, zoneId, urlInputId}]` — un par onglet qui
+     *  porte un input (`data-port-kind="file"` : ni le live ni le lot), dans l'ordre de la card ;
+     *  `zoneId`, l'id de l'onglet s'il en a un (`undefined` sinon) ; `urlInputId` (2026-10-20),
+     *  l'id du champ de sa modalité URL s'il en a une. `node` : un
      *  élément DANS la card (bouton, zone de dépôt) ou la card elle-même ; `document` : les ports
      *  de toutes les cards de la page (`[]` hors de toute card). */
     function filePorts(node) {
@@ -40,10 +41,26 @@
         return Array.prototype.map.call(
             scope.querySelectorAll('[data-port-pane][data-port-kind="file"]'),
             function (pane) {
+                var url = pane.querySelector ? pane.querySelector('.wama-mod-url input') : null;
                 return { id: pane.getAttribute('data-port-pane'),
                          inputId: pane.getAttribute('data-port-input'),
-                         zoneId: pane.id || undefined };
+                         zoneId: pane.id || undefined,
+                         urlInputId: (url && url.id) || undefined };
             }).filter(function (p) { return p.inputId; });
+    }
+
+    /** Ne laisse visibles que les onglets `ids` (ports, `lot`) de la card, et montre le premier
+     *  — rend les ids gardés, dans l'ordre de la card (2026-10-20 : la card d'un port seul, ou du
+     *  seul fichier de lot, dans la modale d'une card d'entrée du Studio). `ids` absent : tout. */
+    function restrict(card, ids) {
+        var kept = [];
+        card.querySelectorAll('[data-port-tab]').forEach(function (tab) {
+            var keep = !ids || ids.indexOf(tab.dataset.portTab) >= 0;
+            tab.style.display = keep ? '' : 'none';
+            if (keep) kept.push(tab.dataset.portTab);
+        });
+        if (kept.length) activate(card, kept[0]);
+        return kept;
     }
 
     function inputOf(pane) {
@@ -293,6 +310,9 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();
 
+    // `wire(card)` (2026-10-20) : une card RENDUE APRÈS le chargement — la card d'entrée de l'app
+    // qu'une card du Studio alimente, dans sa modale — se câble comme celles de la page
+    // (la garde `data-slots-wired` empêche un second câblage).
     global.WamaInputSlots = { renderFiles: renderFiles, showFace: showFace, activate: activate,
-                              filePorts: filePorts };
+                              filePorts: filePorts, wire: wire, restrict: restrict };
 })(window);

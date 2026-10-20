@@ -59,6 +59,15 @@ def run_results(run, user) -> tuple:
     from wama.common.utils.scoping import visible_or_404
     from wama.filemanager.services import resoudre_chemin_lisible
     from .node_params import node_label
+    # Un run de LOT (2026-10-20) : les résultats de chacun de ses éléments, dans leur ordre.
+    elements = list(run.elements.order_by('pk')) if run.pk else []
+    if elements:
+        results, missing = [], []
+        for index, element in enumerate(elements, start=1):
+            got, lost = run_results(element, user)
+            results += got
+            missing += [dict(m, label=f"élément {index} · {m['label']}") for m in lost]
+        return results, missing
     states = run.node_states or {}
     results, missing = [], []
     for node in branch_ends(run.graph or {}):

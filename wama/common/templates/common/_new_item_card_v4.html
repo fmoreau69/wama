@@ -30,6 +30,10 @@ Variables v3 DÉRIVÉES du port et donc plus lues ici : `file_accept`, `show_url
 Et la FORME D'ENTRÉE (2026-10-19, décision « par port ») : `depot_cree` et `show_prompt` ne sont plus
 lus — un dépôt CRÉE ou JOINT, la consigne est rendue ou non, selon l'obligation que portent les
 ports (`ports.entry`, `app_registry.entry_form`).
+  compose_only — (2026-10-20) la card COMPOSE sans rien créer : celle qu'une card d'entrée du Studio
+                 rend pour l'app qu'elle alimente (`studio/views.api_entry_card`). Tout fichier se
+                 JOINT (`attache`), et la barre de lot — qui crée des cards — n'est pas rendue : le
+                 fichier de lot est retenu, déplié au lancement du pipeline.
 {% endcomment %}
 {% load wama_actions wama_static %}
 {% if collapsible %}<script src="{% static_v 'common/js/wama-new-item-card.js' %}"></script>{% endif %}
@@ -41,7 +45,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
 {% input_slots app_id card_domain as ports %}
 {% lot_slot app_id as lot %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"
-     data-wama-depot="{% if ports.entry.drop_creates %}cree{% else %}attache{% endif %}"
+     data-wama-depot="{% if ports.entry.drop_creates and not compose_only %}cree{% else %}attache{% endif %}"
      data-wama-ports="{{ ports|length }}"
      {% if collapsible %}data-wama-nic{% if ports.entry.prompt %} data-nic-primary="{{ prompt_input_id|default:'promptInput' }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
@@ -92,12 +96,15 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                 <span class="wama-port-n" data-port-count></span>
             </span>
         {% endfor %}
-        {% comment %}Onglet LOT (2026-09-29, décision de Fabien) — rendu comme un port, jamais
-        déclaré parmi eux : une ligne de lot remplit une card ENTIÈRE (tag `lot_slot`).{% endcomment %}
+        {% comment %}Onglet du FICHIER DE LOT (2026-09-29, décision de Fabien) — rendu comme un port,
+        jamais déclaré parmi eux : une ligne de lot remplit une card ENTIÈRE (tag `lot_slot`).
+        Nommé « Fichier de lot » le 2026-10-20 (précision de Fabien) : le LOT est le résultat (une
+        card mère et ses filles), qu'on obtient aussi par plusieurs fichiers de travail ; cet onglet
+        est celui du FICHIER, pour ne jamais le confondre avec un fichier de travail texte.{% endcomment %}
         {% if lot %}
             <span class="wama-port-tab wama-port-tab-lot{% if not ports %} is-active{% endif %}" role="tab" data-port-tab="lot"
                   title="Un fichier de lot : une ligne = un élément de la file">
-                📋 Lot<span class="wama-port-n" data-port-count></span>
+                📋 Fichier de lot<span class="wama-port-n" data-port-count></span>
             </span>
         {% endif %}
         </div>
@@ -315,7 +322,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
                 <div class="wama-port-face wama-port-face-files" data-port-face="files">
                     <div class="wama-files-head"><span class="wama-files-back" data-files-back>‹ modalités</span> · <span data-files-title>lot</span></div>
                     <div class="wama-files-list" data-files-list></div>
-                    <div class="wama-files-meta" data-files-meta>aperçu et création : barre ci-dessous</div>
+                    <div class="wama-files-meta" data-files-meta>{% if compose_only %}retenu : le pipeline tournera une fois par ligne{% else %}aperçu et création : barre ci-dessous{% endif %}</div>
                 </div>
             </div>
             {% endwith %}
@@ -335,7 +342,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
         <small id="{{ match_status_id|default:'inputMatchStatus' }}" class="text-info d-block mt-1" style="display:none"></small>
         {% endif %}
 
-        {% if show_batch_bar or lot %}{% include 'common/batch_detect_bar.html' with bid=batch_bid label=batch_label %}{% endif %}
+        {% if not compose_only %}{% if show_batch_bar or lot %}{% include 'common/batch_detect_bar.html' with bid=batch_bid label=batch_label %}{% endif %}{% endif %}
         {% if extra_zone_template %}{% include extra_zone_template %}{% endif %}
 
         {% if collapsible %}</div>{% endif %}
