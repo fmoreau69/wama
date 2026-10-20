@@ -249,11 +249,76 @@ première chaîne qui l'implémente le fait dans son app ; la seconde déclenche
 
 ## Prochaines marches techniques (côté studio, indépendantes des specs)
 1. Ports **multi-entrées** + types **travail/référence/prompt/url** sur les nœuds.
-2. **Card batch de prompts** comme nœud-source branché sur l'Imager vidéo.
+   *(2026-10-20 : les ports typés existent — `studio_node_ports`, union des modèles, un port lu
+   = un argument du même nom de l'outil ; l'URL est une MODALITÉ de chaque port, pas un type.
+   Ce qui manque est la façon de les ALIMENTER : §Entrées du Studio ci-dessous.)*
+2. ~~**Card batch de prompts** comme nœud-source branché sur l'Imager vidéo.~~ Retirée (le
+   moteur ne savait pas faire circuler un lot) ; remplacée par la card « Fichier de lot » et le
+   lot de la card d'entrée universelle (§Entrées du Studio, 2026-10-20).
 3. Réutiliser le **composant card** pour les éléments qui circulent.
 4. ~~**Persistance** du graphe puis **exécution** (la file = méta-app à 1 app).~~ ✅ livré le
    2026-07-11 (corrigé le 2026-09-15) ; la formule « file = méta-app à 1 app » est remplacée par
    **card = instance de pipeline** (`WAMA_APP_GENERATION_ROUTE.md §10.6`).
+
+## Entrées du Studio — la card d'entrée v4 rendue dans le Studio (décision de Fabien, 2026-10-20)
+
+**Le constat.** Le Studio a quatre sources : « Texte », « Médias importés », « Jeu de données »
+et « Base connectée » (`studio/services/builtin_nodes.py`, `wama_data/functions/io/nodes.py`).
+Elles suffisent au monde Data. Elles ne suffisent pas au monde Médias : « Médias importés » ne
+prend qu'UN fichier de la médiathèque et ne vérifie que son existence (`builtin_nodes.py:22-33`).
+Il n'y a ni import depuis le poste, ni URL, ni plusieurs fichiers, ni fichier de lot, ni moyen
+d'alimenter un port de référence par ses modalités.
+
+La card d'entrée v4 des apps fait déjà tout cela (`CARD_DESIGN §11.10-11.11`) : un onglet par
+port, chacun avec ses modalités (Importer · Médiathèque · URL), plusieurs fichiers ou un dossier
+sur le port de travail, l'onglet du fichier de lot, et la forme d'entrée déduite des ports.
+**On ne réinvente rien : on la rend dans le Studio.**
+
+**Ce qui est décidé :**
+
+1. **Médias et données ne se mélangent pas.** « Jeu de données » et « Base connectée » restent
+   les entrées du monde Data.
+2. **Une card d'entrée UNIVERSELLE (médias) qui s'adapte à ce qu'elle alimente.** Branchée sur un
+   nœud d'app, elle prend les onglets de la card v4 de cette app : `input_slots(app, domaine)`,
+   donc l'union des modèles, l'obligation (`required`, `one_of`), la forme d'entrée
+   (`entry_form`) et les ports portés ailleurs. L'appariement entrée ↔ modèle (`WamaInputMatch`)
+   suit le modèle réglé sur le nœud. Non branchée, elle accepte tout fichier, comme l'assistant.
+3. **Ses ajouts vivent dans une MODALE qui reprend la card v4 de l'app, avec le volet droit à
+   côté.** Le volet porte les réglages du nœud, déjà générés du schéma de l'app
+   (`wama-studio.js`, `renderNodeSettings`). C'est le premier consommateur de la section Entrée
+   que `CARD_DESIGN §11.10` point 4 (exigence 8) promettait à la modale ⚙ et à l'inspecteur. La
+   même pièce servira ensuite la section Entrée des modales ⚙ des apps.
+4. **Des cards SIMPLIFIÉES, déclinées de la même pièce, pour aller droit au but** quand on sait ce
+   qu'on ajoute : « Texte », « Fichier(s) de travail », « Fichier(s) de référence » et « Fichier de
+   lot ». **« Texte » reste tel quel** : prompts, textes libres, aperçus textuels qui ne sont pas
+   des fichiers (décision maintenue — la question est revenue plusieurs fois).
+5. **Composer ne met rien en file : les modalités DÉSIGNENT.**
+   - Médiathèque : le fichier est pointé, jamais recopié.
+   - Poste : le fichier est rangé dans l'espace du compte, puis désigné.
+   - URL : téléchargée au lancement, comme au port de référence de la v4 (« un fichier joint
+     prime »).
+
+   Au lancement, chaque port arrive dans l'argument du même nom de l'outil
+   (`generic_runner.port_arguments`), puis passe par la désignation commune et sa règle de
+   lecture. Cela corrige au passage le contrôle de « Médias importés ».
+6. **Le LOT dans le Studio, comme dans les apps.** Une card d'entrée peut porter plusieurs
+   fichiers. Plusieurs fichiers de travail OU un fichier de lot donnent la même chose : un lot
+   (`CARD_DESIGN §11.11 G`, précision du 2026-10-20). **Le pipeline tourne une fois par élément
+   du lot** (une card = une instance de pipeline, `WAMA_APP_GENERATION_ROUTE §10.6`). Le moteur
+   ne distingue pas les deux voies, pas plus que les apps.
+7. **Le live : rien pour l'instant.** Il reste hors du Studio (`app_registry.app_has_live_input`,
+   décision du 2026-09-28), mais ce n'est pas exclu : à revoir à l'usage.
+
+**⏳ À trancher — comment la card se branche sur l'app.** Un nœud d'app reçoit ses entrées PAR
+PORT (`studio/tasks.py`, une valeur par lien, indexée par `to_port`). Deux formes ont été posées :
+(a) des cards d'entrée par port seulement ; (b) un port supplémentaire, « entrée de card »,
+sur chaque nœud d'app, qui accepte la card universelle. Proposition (Claude, 2026-10-20) : **les
+deux, sans recouvrement**. Les cards simplifiées par port se branchent sur les ports existants.
+La card universelle et le fichier de lot se branchent sur un port « entrée de card ». Ce port ne
+se déclare pas par app : il se DÉRIVE pour tout nœud qui crée une card. Il porte exactement ce
+que porte une ligne de lot, une card entière (`CARD_DESIGN §11.11`, onglet du fichier de lot,
+2026-09-29). Côté moteur, sa valeur se déplie en ports avant `create`. Un port alimenté deux fois
+(par lui ET par un lien direct) se refuse au diagnostic des liens, en le disant.
 
 ---
 

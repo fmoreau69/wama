@@ -1281,6 +1281,11 @@ prometteuse » ; les cards de FILE restent v1/v2/v3 — v4 ne nomme que la card 
    ligne travail, la détection structurelle reconnaît un fichier de lot ou un manifeste de
    process (mécanisme batch-detect existant, étendu) et ouvre le bandeau d'aperçu. Un geste
    unique, expliqué APRÈS coup par l'aperçu, plutôt que N boutons à comprendre AVANT.
+   ⚠ *Dépassé le 2026-09-29 (rectifié le 2026-10-20)* : le **fichier de lot** a désormais son
+   onglet (« Lot », §11.11, adoption du 29/09), pour qu'un fichier de lot ne se confonde jamais
+   avec un fichier de travail TEXTE — la subtilité qui tient proprement les natures et formats
+   d'entrée. Le LOT lui-même n'a pas changé de sens : une card mère et ses cards filles, qu'il
+   vienne d'un fichier de lot ou de plusieurs fichiers de travail (détail : la règle du §11.11 G).
 3. **Deux temps partout** (règle du A) : la card d'entrée ne lance jamais rien. La ligne
    d'État dit toujours OÙ on en est et CE QUI MANQUE (« il manque : fichier de travail » /
    « armé 🎙 — réglez puis lancez » / « prêt ») ; ▶ est le seul lanceur, inactif tant qu'un
@@ -1289,6 +1294,11 @@ prometteuse » ; les cards de FILE restent v1/v2/v3 — v4 ne nomme que la card 
    MODALE ⚙ et de l'inspecteur (exigence 8) et donc le REMPLACEMENT des fichiers d'une card
    PENDING (exigence 7), et la card-MODÈLE d'une file importée sans fichiers (slots vides =
    les mêmes lignes, invites actives). L'utilisateur n'apprend qu'un objet.
+   ⏳ *Toujours dû au 2026-10-20* : aucune modale ⚙ ni inspecteur ne porte encore cette section
+   Entrée (`wama-params.js` ne fait que LIRE les onglets d'une card, `filePorts`). Premier
+   consommateur décidé ce jour-là : la modale de la card d'entrée universelle du Studio, qui est
+   la v4 de l'app branchée avec le volet droit (`STUDIO_VISION.md §Entrées du Studio`). La même
+   pièce servira ensuite la section Entrée des modales ⚙ des apps (§11.8, exigences 7 et 8).
 5. **Densités** : la card d'entrée suit v1/v2/v3 comme les autres (sections nommées) ; en
    Compact les slot-rows se condensent en chips sur une ligne.
 
@@ -1339,7 +1349,7 @@ est déjà dessiné.*
 
 | geste | ce qu'il choisit | où il vit |
 |---|---|---|
-| **1ᵉʳ — l'onglet** | le **PORT** : travail · référence · en direct | les `.mtab` de la v3.5, cellule Entrée |
+| **1ᵉʳ — l'onglet** | le **PORT** : travail · référence · en direct — plus, à droite, l'onglet du **fichier de lot** (depuis le 2026-09-29 : jamais un port, il remplit des cards entières) | les `.mtab` de la v3.5, cellule Entrée |
 | **2ᵉ — la tuile** | la **MODALITÉ** : Importer · Médiathèque · URL | **toutes visibles d'un coup** dans la preview |
 | **3ᵉ — la vue** | le contenu bascule sur l'import choisi | la même preview, hauteur constante |
 
@@ -1361,6 +1371,11 @@ la saute, sans réordonner les autres. Domicile : `common/_new_item_card_v4.html
 ⚠ Ports déclarés (`studio_node_ports()`) : anonymizer · converter · describer · enhancer ·
 reader · transcriber = **1** · avatarizer, synthesizer, composer = **2** · imager = **3**.
 **Jamais plus de 2 ports FICHIER** — donc jamais plus de 3 onglets.
+⚠ *Relevé du 2026-09-05, dépassé* (rectifié le 2026-10-20) : les onglets suivent l'union des
+modèles et grandissent avec eux — l'avatarizer a gagné « Objet 3D » le 2026-09-30 (TalkingHead,
+voir l'adoption plus bas), soit **3 ports fichier** (`work_audio`, `work_image`, `work_object3d`),
+plus l'onglet du fichier de lot. La borne reste celle du §6.6 d'`INPUT_MODEL_MATCHING` (« seuil
+d'onglets » : aucun, motif du « … » à reprendre).
 
 **B bis. IMPORT = UN SEUL GESTE — `drop` et `folder` fusionnent** (décision Fabien, 05/09).
 Qu'il s'agisse d'un fichier, de plusieurs, d'un dossier ou de plusieurs, **le geste utilisateur
@@ -1455,6 +1470,16 @@ trois n'en étaient pas. La règle qui les dissout, et qu'il faut garder :
 > lot**, un fichier de lot reconnu = un lot. C'est la reconnaissance du geste, automatique, qui
 > instancie le lot (§11.10-2, mécanisme `batch-import.js` existant). Chercher un « domicile
 > déclaré » au lot revenait à vouloir déclarer un effet.
+>
+> ⚠ **Précisé par Fabien le 2026-10-20 — LOT et FICHIER DE LOT ne sont pas la même chose.** Le
+> **lot** est le RÉSULTAT : une card mère et ses cards filles. On l'obtient par DEUX voies, qui
+> donnent la même chose — un **fichier de lot** (une ligne = une card, `BATCH_FORMAT.md`) ou
+> **plusieurs fichiers de travail** déposés d'un coup (regroupés par `consolidateUrl`,
+> `wama-import.js:418-433`). L'onglet que la card v4 a gagné le 2026-09-29 est celui du
+> **fichier de lot** : il sert à ne jamais confondre un fichier de lot avec un fichier de travail
+> TEXTE, la subtilité qui tient proprement les natures et formats d'entrée. Il ne retire rien à
+> la règle ci-dessus. Le Studio suit la même règle (`STUDIO_VISION.md §Entrées du Studio`) : le
+> pipeline tourne une fois par élément du lot, quelle que soit la voie.
 
 1. ~~Aucun port pour le lot~~ → **normal**, cf. la règle ci-dessus. La colonne « lot » de la
    matrice mesure un littéral de gabarit (`show_batch_bar`), pas une déclaration manquante.
@@ -1691,7 +1716,9 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   `prompt`) reste au volet : c'est le réglage du mode Description, pas une entrée de la card.
 - ✅ **2026-09-29, onglet « LOT » (décision de Fabien)** — un fichier de lot n'est PAS un port :
   une ligne remplit une card ENTIÈRE (travail, prompt, référence, sortie, réglages,
-  programmation — `BATCH_FORMAT.md`), alors qu'un port est l'entrée d'un nœud Studio. D'où un
+  programmation — `BATCH_FORMAT.md`), alors qu'un port est l'entrée d'un nœud Studio (⚠ *précisé
+  le 2026-10-20* : l'onglet est celui du FICHIER de lot ; le lot, lui, naît aussi de plusieurs
+  fichiers de travail — règle du §11.11 G). D'où un
   onglet rendu comme les ports mais tenu À DROITE, dérivé de `has_batch` (tag `lot_slot`),
   jamais dans `studio_node_ports`. Il porte le fichier de lot (TXT·MD·CSV·PDF·DOCX,
   `SUPPORTED_BATCH_EXTENSIONS`) et le gabarit ; la barre de détection reste SOUS la zone (elle
@@ -1704,6 +1731,9 @@ l'ordre, sur les ports que `input_slots` rend pour chaque app :
   la retrouve sans connaître l'app. Plusieurs fichiers ou un dossier restent au port de travail
   (N fichiers de travail, pas un lot). Le geste nocturne `<app>.batch_import` passe désormais
   par ce champ (`[data-lot-input]`). Gardes : `tests_lot_tab` (gabarit + V8).
+  ⚠ *Rectifié le 2026-10-20* : « pas un lot » ci-dessus est faux. Plusieurs fichiers de travail ne
+  sont pas un FICHIER de lot, mais ils forment bien un LOT (card mère et cards filles,
+  `consolidateUrl`, `wama-import.js:418-433`) — la même chose qu'un fichier de lot, par l'autre voie.
 - ✅ **2026-09-29, composer en v4** (3ᵉ app, 1ʳᵉ SANS port de travail) : le prompt au-dessus,
   onglets « Mélodie de référence » (importer, médiathèque filtrée audio, URL) et « Lot ». La
   zone v3 qui recevait lot ET mélodie (`composerBatchDrop`/`batchFileInput`) et son instance

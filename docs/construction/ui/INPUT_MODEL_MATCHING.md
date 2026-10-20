@@ -182,6 +182,16 @@ la **barre de lot** hors ports. Le studio en fait autant, avec le prompt en sock
 ⚠ *Précisé le 2026-09-30* : vrai des ports AFFICHÉS, faux des ports LUS — le runner n'en
 transmettait qu'un. Convention « port = argument du même nom de l'outil » et reste à porter :
 `WAMA_APP_GENERATION_ROUTE §10.6` (encadré du point 4).
+⚠ *Rectifié le 2026-10-20* — le paragraphe ci-dessus est dépassé sur trois points :
+- la **barre de lot** est devenue l'onglet du **fichier de lot** (2026-09-29, `CARD_DESIGN
+  §11.11`), tenu à droite des ports, jamais déclaré parmi eux ; le LOT, lui, naît aussi de
+  plusieurs fichiers de travail (`CARD_DESIGN §11.11 G`) ;
+- le nœud source « Batch de prompts » a été **retiré** du Studio : le moteur ne savait pas faire
+  circuler un lot ;
+- donc « le studio en fait autant » était faux. Les sources du Studio (« Texte », « Médias
+  importés ») n'offrent ni les modalités par port, ni plusieurs fichiers, ni le fichier de lot.
+  La réponse décidée est de rendre la v4 ELLE-MÊME dans le Studio — card d'entrée universelle
+  et cards simplifiées : `STUDIO_VISION.md §Entrées du Studio`.
 
 ⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
 C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.
