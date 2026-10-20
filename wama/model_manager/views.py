@@ -17,7 +17,7 @@ from .services.memory_diagnostics import MemoryDiagnostics
 from .services.memory_cleaner import WAMAMemoryCleaner, get_memory_cleaner
 from wama.common.services.system_monitor import SystemMonitor
 from wama.common.utils.format_policy import get_policy_summary
-from wama.common.utils.volet import VOLET_AUCUN
+from wama.common.utils.volet import VOLET_AUCUN, volet
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +62,8 @@ def index(request):
     origin_choices = [(xs.LOCAL_ORIGIN_KEY, xs.LOCAL_ORIGIN_LABEL)] + [
         (h, xs.CLOUD_ORIGIN_LABELS[h]) for h in xs.HOSTING_SCALE if h in xs.CLOUD_ORIGIN_LABELS]
 
+    from django.urls import reverse
+
     from .models import SOURCE_NATURES
     context = {
         'can_manage': can_manage,
@@ -79,6 +81,13 @@ def index(request):
         'available_models': 0,
         'loaded_models': 0,
         'downloaded_models': 0,
+        # « Demander la promotion » d'un modèle d'auteur : la route commune (`ROADMAP §29` 6a).
+        'promotion_api': reverse('common:api_promotion_request'),
+        # Le volet DÉCLARE ce que la page remplit (une page du compte n'a plus de défaut,
+        # 2026-10-20) : l'inspecteur et la file des propositions (Paramètres), les actions du
+        # modèle, et les ressources système pour qui gère — la section Médias n'a rien d'autre.
+        # Sans cette déclaration, la page perdait TOUT son volet (relevé le jour même).
+        'volet': volet(medias=can_manage),
     }
 
     return render(request, 'model_manager/index.html', context)
@@ -1244,6 +1253,14 @@ def api_models_db(request):
         data['open_to_me'] = not remote or model.model_key in chosen
         data['drawn_for_me'] = not remote or model.model_key in drawn
         data['internal_quality'] = internal.get(model.model_key) or []
+        if model.owner_id:
+            # Un modèle d'AUTEUR (`ROADMAP §29`) : sa provenance pour CE compte, et les gestes
+            # de promotion (« Demander la promotion », « Voir la demande ») — la lecture commune
+            # des lignes portées. Un modèle système n'en a pas : la liste des apps reste légère.
+            from wama.common.manifests.ownership import provenance_of
+            facts = provenance_of(model, request.user)
+            data.update({k: facts[k] for k in ('provenance', 'mine', 'promotion_pending',
+                                               'can_request_promotion', 'promotion_request_url')})
         if not full:
             # Expurgé hors admin/dev : chemins locaux et détails d'exploitation.
             for k in ('local_path', 'extra_info', 'backend_ref'):

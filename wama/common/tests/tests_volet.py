@@ -334,6 +334,45 @@ class AccountPagesHaveNoDefaultTest(TestCase):
         self.assertIn('shares', measured)
         self.assertEqual([], faults, "\n".join(faults))
 
+    def test_a_section_the_page_fills_is_rendered(self):
+        """L'autre moitié de l'invariant : une section qu'un gabarit de la page REMPLIT
+        (`{% block right_panel_… %}` non vide) doit être rendue. Le jour où les pages du compte ont
+        perdu leur défaut, le model manager — page du compte « Modèles » — a perdu TOUT son volet
+        (ressources, propositions à valider, actions) : il ne déclarait rien, et le premier garde,
+        qui ne cherchait que des cadres VIDES, n'avait rien à voir sur une page sans cadre."""
+        import re
+
+        from django.urls import NoReverseMatch, reverse
+
+        from wama.common.app_registry import account_pages
+        block = re.compile(r'{%\s*block\s+(?:app_)?right_panel_(media|settings|actions)\s*%}'
+                           r'(.*?){%\s*endblock', re.S)
+        comment = re.compile(r'{%\s*comment\s*%}.*?{%\s*endcomment\s*%}|{#.*?#}', re.S)
+        section = {'media': 'medias', 'settings': 'parametres', 'actions': 'actions'}
+        checked, faults = [], []
+        for page in account_pages():
+            try:
+                path = reverse(page['url_name'])
+            except NoReverseMatch:
+                continue
+            response = self.client.get(path)
+            if response.status_code != 200 or 'text/html' not in response.get('Content-Type', ''):
+                continue
+            html = response.content.decode('utf-8', 'replace')
+            for template in response.templates:
+                source = getattr(template, 'source', '') or ''
+                if (template.name or '').startswith('common/_') or template.name == 'base.html':
+                    continue
+                for name, body in block.findall(source):
+                    if not comment.sub('', body).strip():
+                        continue
+                    checked.append(f"{page['key']}:{name}")
+                    if MARQUEURS[section[name]] not in html:
+                        faults.append(f"{page['key']} : remplit « {name} » "
+                                      f"({template.name}) sans que la section soit rendue")
+        self.assertIn('models:settings', checked, "le model manager n'est plus mesuré")
+        self.assertEqual([], sorted(set(faults)), "\n".join(sorted(set(faults))))
+
     def test_an_undeclared_account_page_gets_no_section_and_an_app_page_keeps_its_three(self):
         from django.urls import reverse
         notifications = self.client.get(reverse('common:notifications'))

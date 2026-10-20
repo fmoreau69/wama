@@ -1035,6 +1035,7 @@ def skills_catalog_view(request):
     account = {}
     if request.user.is_authenticated:
         account = {'skills_api': reverse('common:skills_manage'),
+                   'promotion_api': reverse('common:api_promotion_request'),
                    'skills_account': [as_dict(r, request.user)
                                       for r in visible_skills(request.user)],
                    'skills_scopes': scope_choices(request.user)}
@@ -1050,8 +1051,8 @@ def skills_manage(request):
     consigne), `update` (sa consigne), `share` (une portée, `scope` = `private`, `public`,
     `unit:<id>` ou `project:<id>`), `copy` (un skill qu'il voit, `pk` ; ou un skill système,
     `name`), `delete` (son auteur ou un admin), `promote` (un ADMIN seul : le skill devient
-    système), `request_promotion` (son auteur : les admins sont prévenus), `refuse_promotion` (un
-    ADMIN : la demande se close). Rend la ligne telle que la page la montre."""
+    système). « Demander la promotion » passe par la route commune (`api_promotion_request`).
+    Rend la ligne telle que la page la montre."""
     import json
 
     from .services import user_skills as us
@@ -1075,10 +1076,6 @@ def skills_manage(request):
             return JsonResponse({'success': True})
         elif action == 'promote':
             row = us.promote(user, data.get('pk'))
-        elif action == 'request_promotion':
-            row = us.request_promotion(user, data.get('pk'))
-        elif action == 'refuse_promotion':
-            row = us.refuse_promotion(user, data.get('pk'))
         else:
             return JsonResponse({'error': f'Action inconnue : {action!r}'}, status=400)
     except us.SkillRefused as exc:
@@ -2080,13 +2077,39 @@ def api_access_request(request):
 @login_required
 def access_request_page(request, pk: int):
     """La DEMANDE, là où la notification renvoie : ce qui est demandé, par qui ; Accepter / Refuser
-    pour le propriétaire, l'état pour le demandeur. Personne d'autre ne la voit."""
+    pour le propriétaire, l'état pour le demandeur. Personne d'autre ne la voit.
+
+    Une demande de PROMOTION (niveau `system`, 2026-10-20) se tranche par un ADMINISTRATEUR : c'est
+    lui qui y répond (« Valider / Refuser »), et la page lui donne de quoi INSPECTER l'élément —
+    sa famille, son auteur, sa portée, et le lien vers la page qui le montre."""
     from django.http import Http404
     from django.shortcuts import render
+    from wama.accounts.permissions import is_admin_tier
     from wama.common.models import ObjectGrant
-    from wama.common.services.access_requests import _label, target
+    from wama.common.services.access_requests import _label, promotion_family, target
+    from .utils.volet import VOLET_AUCUN
     grant = ObjectGrant.objects.select_related('beneficiary', 'granted_by').filter(pk=pk).first()
     obj = target(grant) if grant is not None else None
+    if grant is not None and grant.level == ObjectGrant.LEVEL_SYSTEM:
+        decider = is_admin_tier(request.user)
+        if not (decider or grant.beneficiary_id == request.user.pk):
+            raise Http404
+        registry = promotion_family(obj) if obj is not None else None
+        from django.urls import NoReverseMatch, reverse
+        try:
+            inspect_url = reverse(registry.url_name) if registry and registry.url_name else ''
+        except NoReverseMatch:
+            inspect_url = ''
+        from wama.common.manifests.ownership import provenance_of
+        return render(request, 'common/access_request.html', {
+            'grant': grant, 'is_owner': decider, 'promotion': True,
+            'element_label': _label(obj) if obj is not None else '(élément supprimé)',
+            'element_app': registry.label if registry else '',
+            'family': registry.label if registry else '',
+            'facts': provenance_of(obj, request.user) if obj is not None else {},
+            'inspect_url': inspect_url,
+            'volet': VOLET_AUCUN,
+        })
     is_owner = obj is not None and getattr(obj, 'user_id', None) == request.user.pk
     # Celui qui a RÉPONDU la voit encore : accepter la propriété lui a justement retiré la card
     # (mesuré par le geste du 2026-10-03 — la page lui répondait 404 juste après son « Accepter »).
@@ -2097,6 +2120,8 @@ def access_request_page(request, pk: int):
         'grant': grant, 'is_owner': is_owner,
         'element_label': _label(obj) if obj is not None else '(élément supprimé)',
         'element_app': obj._meta.app_label if obj is not None else '',
+        # La page n'a rien à mettre au volet : aucune section par défaut (2026-10-20).
+        'volet': VOLET_AUCUN,
     })
 
 
@@ -2113,6 +2138,15 @@ def api_access_request_answer(request, pk: int):
     if grant is None:
         return JsonResponse({'done': False, 'reason': 'demande introuvable'}, status=404)
     try:
+        if grant.level == ObjectGrant.LEVEL_SYSTEM:
+            # Une PROMOTION : un administrateur la tranche (`answer_promotion`).
+            from wama.common.services.access_requests import answer_promotion
+            try:
+                report = answer_promotion(request.user, grant,
+                                          request.POST.get('accept') in ('1', 'true'))
+            except (PermissionError, ValueError) as exc:
+                raise AccessRequestRefused(str(exc)) from exc
+            return JsonResponse({'done': True, **report})
         report = answer(request.user, grant, request.POST.get('accept') in ('1', 'true'),
                         consent=request.POST.get('consent') in ('1', 'true', 'on'))
     except TransferConsentRequired as exc:
@@ -2153,6 +2187,41 @@ def shares_page(request):
         # Ce que la page REMPLIT : l'aperçu et le détail d'un élément partagé (ceux de sa card,
         # par l'inspecteur commun) et la fiche de chaque partage ; pas d'actions dans le volet.
         'volet': volet(actions=False)})
+
+
+@login_required
+@require_POST
+def api_promotion_request(request):
+    """POST `registry` + `pk` (ou `key`, le champ d'identifiant que le registre nomme) — « Demander
+    la promotion » d'un élément d'auteur, LA route de toutes les familles (skill, thème de charte,
+    modèle…, `ROADMAP §29` 6a). Seul son auteur la trouve ; les administrateurs sont prévenus et la
+    notification mène à la demande (`access_requests.request_promotion`)."""
+    import json
+
+    from wama.common.services.access_requests import (AccessRequestRefused, request_page_url,
+                                                      request_promotion)
+    from wama.common.services.sharing import catalogue_owned_rows
+    try:
+        data = json.loads(request.body or '{}') if request.content_type == 'application/json' \
+            else request.POST
+    except ValueError:
+        return JsonResponse({'requested': False, 'reason': 'JSON invalide'}, status=400)
+    found = next(((r, m) for r, m in catalogue_owned_rows() if r.key == data.get('registry')), None)
+    row = None
+    if found is not None:
+        registry, model = found
+        rows = model._default_manager.filter(owner=request.user)
+        if str(data.get('pk') or '').isdigit():
+            row = rows.filter(pk=data.get('pk')).first()
+        elif data.get('key') and registry.owner_key:
+            row = rows.filter(**{registry.owner_key: data.get('key')}).first()
+    if row is None:
+        return JsonResponse({'requested': False, 'reason': 'élément introuvable'}, status=404)
+    try:
+        grant = request_promotion(request.user, row)
+    except AccessRequestRefused as exc:
+        return JsonResponse({'requested': False, 'reason': str(exc)}, status=400)
+    return JsonResponse({'requested': True, 'url': request_page_url(grant)})
 
 
 @login_required

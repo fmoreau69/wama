@@ -24,8 +24,10 @@ STYLE_BY_KIND = {
     'access_request_refused': ('fa-user-times', 'danger'),
     'access_revoked': ('fa-user-slash', 'warning'),
     'share_received': ('fa-share-alt', 'info'),
-    # « Demander la promotion » d'un élément d'auteur (`ownership.request_promotion`, 2026-10-20).
+    # « Demander la promotion » d'un élément d'auteur (`access_requests.request_promotion`,
+    # 2026-10-20) : la demande aux administrateurs, puis la réponse à son auteur.
     'promotion_requested': ('fa-arrow-up-from-bracket', 'info'),
+    'promotion_granted': ('fa-circle-check', 'success'),
     'promotion_refused': ('fa-arrow-rotate-left', 'warning'),
 }
 DEFAULT_STYLE = ('fa-bell', 'neutral')
@@ -57,11 +59,36 @@ def _access_request_actions(notification, user) -> list:
     ]
 
 
+def _promotion_request_actions(notification, user) -> list:
+    """« Valider / Refuser » une demande de PROMOTION — à un ADMINISTRATEUR, tant qu'elle attend
+    (`access_requests.answer_promotion`). « Ouvrir » mène à la demande pour l'inspecter d'abord ;
+    la réponse passe par la même route que la page."""
+    match = _REQUEST_URL.match(notification.url or '')
+    if not match:
+        return []
+    from wama.accounts.permissions import is_admin_tier
+    from wama.common.models import ObjectGrant
+    if not is_admin_tier(user):
+        return []
+    grant = ObjectGrant.objects.filter(pk=int(match.group(1)), level=ObjectGrant.LEVEL_SYSTEM,
+                                       state=ObjectGrant.STATE_REQUESTED).first()
+    if grant is None:
+        return []
+    url = reverse('common:access_request_answer', args=[grant.pk])
+    return [
+        {'label': 'Valider', 'icon': 'fa-check', 'tone': 'success',
+         'post': url, 'data': {'accept': '1'}, 'done': 'Promotion validée'},
+        {'label': 'Refuser', 'icon': 'fa-times', 'tone': 'danger',
+         'post': url, 'data': {'accept': '0'}, 'done': 'Promotion refusée'},
+    ]
+
+
 #: Les gestes qu'un type de notification offre dans le panneau : `fonction(notification, user)`
 #: → `[{label, icon, tone, post, data, done}]`. Rien pour un type absent (Ouvrir, lu / non lu et
 #: supprimer valent pour toutes).
 ACTIONS_BY_KIND = {
     'access_request': _access_request_actions,
+    'promotion_requested': _promotion_request_actions,
 }
 
 

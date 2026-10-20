@@ -748,8 +748,14 @@ class ObjectGrant(models.Model):
     jamais lue pour décider qui voit — c'est la colonne de l'élément qui le dit.
     """
     LEVEL_READ, LEVEL_FORK, LEVEL_COLLABORATE, LEVEL_OWN = 'read', 'fork', 'collaborate', 'own'
+    #: La PROMOTION au système d'un élément d'auteur (`ROADMAP §29`, 2026-10-20) : l'auteur la
+    #: demande (`beneficiary`), un ADMINISTRATEUR la tranche — pas le propriétaire, à la
+    #: différence des autres niveaux (`access_requests.request_promotion`). Accordée, elle ne fait
+    #: rien voir à personne : l'élément devient système.
+    LEVEL_SYSTEM = 'system'
     LEVEL_CHOICES = [(LEVEL_READ, 'Lecture seule'), (LEVEL_FORK, 'Modification'),
-                     (LEVEL_COLLABORATE, 'Collaboration'), (LEVEL_OWN, 'Propriété')]
+                     (LEVEL_COLLABORATE, 'Collaboration'), (LEVEL_OWN, 'Propriété'),
+                     (LEVEL_SYSTEM, 'Système')]
     STATE_REQUESTED, STATE_GRANTED, STATE_REFUSED = 'requested', 'granted', 'refused'
     #: Un droit ACCORDÉ puis retiré par le propriétaire (E5, 2026-10-03) — effet immédiat sur les
     #: gestes suivants ; distinct d'un refus, qui répond à une demande.
@@ -958,9 +964,6 @@ class UserTheme(ScopedVisibility):
     #: Ce que la lecture de la charte a trouvé (couleurs, rôles, lecteur) et qui l'a fait naître
     #: ou promu — la trace, jamais relue pour générer.
     source = models.JSONField(default=dict, blank=True)
-    #: La DEMANDE de promotion au système (« Demander la promotion », `ownership.request_promotion`)
-    #: — l'état de `Manifest.promotion_requested_at`, porté par la ligne ; vide = aucune.
-    promotion_requested_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -991,8 +994,6 @@ class PromptSkill(ScopedVisibility):
                               related_name='wama_prompt_skills')
     #: Qui l'a écrit, copié de qui, promu par qui — la trace, jamais relue pour résoudre.
     source = models.JSONField(default=dict, blank=True)
-    #: La DEMANDE de promotion au système (`ownership.request_promotion`) ; vide = aucune.
-    promotion_requested_at = models.DateTimeField(null=True, blank=True, db_index=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

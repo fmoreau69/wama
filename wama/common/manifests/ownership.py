@@ -63,15 +63,19 @@ def promote_owned_row(row, *, by=None):
     propriétaire, publique, sans portée ; l'auteur reste nommé (`source.proposed_by`, jamais
     écrasé) et le valideur aussi (`source.promoted_by`). Le geste est celui d'un admin, gardé par
     la vue. Premier appelant : le thème d'une charte (`common.UserTheme`, 2026-10-20) ; un
-    propriétaire OBLIGATOIRE refuse (`ValueError`), comme `promote_row`."""
+    propriétaire OBLIGATOIRE refuse (`ValueError`), comme `promote_row`.
+
+    `source` n'est une TRACE que si c'est un champ JSON : celui d'`AIModel` dit d'où vient le
+    modèle (« huggingface »), il ne se touche pas."""
+    from django.db.models import JSONField
+
     from wama.common.models import ScopedVisibility
-    if not type(row)._meta.get_field('owner').null:
+    meta = type(row)._meta
+    if not meta.get_field('owner').null:
         raise ValueError(f"{type(row).__name__} : le propriétaire est obligatoire, pas de système")
     fields = {'owner': None, 'visibility': ScopedVisibility.VIS_PUBLIC, 'scope_org_unit': None,
               'scope_project': None}
-    if hasattr(row, 'promotion_requested_at'):
-        fields['promotion_requested_at'] = None          # la demande est tranchée
-    if hasattr(row, 'source'):
+    if any(f.name == 'source' and isinstance(f, JSONField) for f in meta.fields):
         source = dict(row.source or {})
         if row.owner_id and not source.get('proposed_by'):
             source['proposed_by'] = row.owner.get_username()
@@ -84,29 +88,72 @@ def promote_owned_row(row, *, by=None):
     return row
 
 
+def promote_element(user, row):
+    """« Rendre système » un élément d'auteur, quelle que soit sa famille (`ROADMAP §29`) : un
+    administrateur seul (décision b), une ligne qui a un auteur. Sa famille se lit à son registre
+    porté : si elle a un kind de MANIFESTE (un modèle), le manifeste du magasin est promu avec la
+    ligne (`ingest.promote`), sinon la ligne seule (`promote_owned_row`) ; puis le corpus suit le
+    registre (seul le système y entre, `corpus.follow`). La demande en attente est accordée et son
+    auteur prévenu (`access_requests.close_promotion`). Lève `PermissionError` ou `ValueError`."""
+    import logging
+
+    from wama.common.services.access_requests import close_promotion, promotion_family
+    if not _is_admin(user):
+        raise PermissionError("Rendre un élément système est réservé aux administrateurs.")
+    if row.owner_id is None:
+        raise ValueError("Cet élément est déjà système.")
+    registry = promotion_family(row)
+    if registry is None:
+        raise ValueError("Cet élément ne devient pas système par une promotion.")
+    key = getattr(row, registry.owner_key, None) if registry.owner_key else None
+    manifest = None
+    if registry.manifest_kind and key:
+        from wama.common.models import Manifest
+        manifest = Manifest.objects.filter(manifest_kind=registry.manifest_kind, key=key).first()
+    if manifest is not None:
+        from .ingest import promote
+        promote(manifest, by=user)
+        row.refresh_from_db()
+    if row.owner_id is not None:            # pas de manifeste, ou une ligne qu'il ne portait pas
+        promote_owned_row(row, by=user)
+    if registry.manifest_kind and key:
+        try:
+            from .corpus import follow
+            follow(key, kind=registry.manifest_kind)
+        except Exception as exc:             # le corpus est un miroir : il se rattrape à l'export
+            logging.getLogger(__name__).warning('[promotion] corpus de %s non suivi : %s', key, exc)
+    close_promotion(row, user)
+    return row
+
+
 def provenance_of(row, user) -> dict:
     """Ce qu'une ligne portée (`owner` vide = système) dit d'elle à `user`, comme partout dans
     WAMA — « Système », « à moi », « partagé par X » —, sa portée (`sharing.scope_value`,
     `scope_label`) et les gestes que `user` peut y faire : la partager (son auteur), la retirer
-    (son auteur ou un administrateur), la rendre système (un administrateur, si elle a un auteur).
+    (son auteur ou un administrateur), la rendre système (un administrateur, si elle a un auteur),
+    DEMANDER sa promotion (son auteur, une fois) et VOIR la demande en attente (`ObjectGrant` de
+    niveau `system`, `access_requests.request_promotion` : la page où un admin la tranche).
     Née au Profil pour les thèmes de charte (`themes.charter_choices`), sortie ici à la
     revérification du 2026-10-20, quand les skills de prompt la recopiaient."""
+    from wama.common.services.access_requests import (pending_promotion, promotion_family,
+                                                      request_page_url)
     from wama.common.services.sharing import scope_label, scope_value
     owner_id = row.owner_id
     mine = bool(owner_id) and owner_id == getattr(user, 'pk', None)
-    requestable = hasattr(row, 'promotion_requested_at')
-    pending = requestable and row.promotion_requested_at is not None
     admin = _is_admin(user)
+    promotable = bool(owner_id) and promotion_family(row) is not None
+    pending = pending_promotion(row) if promotable else None
     return {'provenance': ('Système' if not owner_id else 'à moi' if mine
                            else f'partagé par {row.owner.get_username()}'),
             'owner': row.owner.get_username() if owner_id else '', 'system': not owner_id,
             'mine': mine, 'scope': scope_value(row), 'scope_label': scope_label(row),
             'can_share': mine, 'can_delete': may_remove(user, row),
-            'can_promote': admin and bool(owner_id),
-            # « Demander la promotion » : l'auteur, une fois ; l'administrateur la tranche.
-            'promotion_pending': pending,
-            'can_request_promotion': requestable and mine and not pending,
-            'can_refuse_promotion': admin and pending}
+            'can_promote': admin and promotable,
+            'promotion_pending': pending is not None,
+            'can_request_promotion': mine and promotable and pending is None,
+            # La demande se voit par son auteur et par ceux qui la tranchent.
+            'promotion_request_url': (request_page_url(pending)
+                                      if pending is not None and (mine or admin) else '')}
 
 
 def _is_admin(user) -> bool:
@@ -117,73 +164,6 @@ def _is_admin(user) -> bool:
 def may_remove(user, row) -> bool:
     """Retirer une ligne portée : son auteur, ou un administrateur."""
     return (bool(row.owner_id) and row.owner_id == getattr(user, 'pk', None)) or _is_admin(user)
-
-
-def promote_by(user, row, noun: str):
-    """Le GESTE « Rendre système » d'une ligne portée : un administrateur seul (`ROADMAP §29`,
-    décision b), une ligne qui a un auteur ; puis `promote_owned_row`. Lève `PermissionError` ou
-    `ValueError`, le motif étant destiné à l'utilisateur (`noun` : « thème », « skill »…)."""
-    if not _is_admin(user):
-        raise PermissionError(f"Rendre un {noun} système est réservé aux administrateurs.")
-    if row.owner_id is None:
-        raise ValueError(f"Ce {noun} est déjà système.")
-    return promote_owned_row(row, by=user)
-
-
-def request_promotion(user, row, noun: str, url: str = ''):
-    """« Demander la promotion » (`ROADMAP §29` étape 6, demande de Fabien du 2026-10-20) : l'AUTEUR
-    demande qu'un administrateur rende sa ligne système. C'est l'état de
-    `Manifest.promotion_requested_at` (« privé est une portée, promotion demandée est une
-    demande »), porté par la ligne ; les ADMINISTRATEURS seuls sont prévenus, dans WAMA — ce sont
-    eux qui tranchent (décision b), là où la ligne se gère (`promote_by`, `refuse_promotion`).
-    Lève `PermissionError` ou `ValueError`, le motif étant destiné à l'utilisateur."""
-    from django.utils import timezone
-    if not hasattr(row, 'promotion_requested_at'):
-        raise ValueError(f"Un {noun} ne se propose pas au système par ce geste.")
-    if row.owner_id is None:
-        raise ValueError(f"Ce {noun} est déjà système.")
-    if row.owner_id != getattr(user, 'pk', None):
-        raise PermissionError(f"Seul son auteur demande la promotion de ce {noun}.")
-    if row.promotion_requested_at is not None:
-        raise ValueError("La promotion est déjà demandée.")
-    row.promotion_requested_at = timezone.now()
-    type(row).objects.filter(pk=row.pk).update(promotion_requested_at=row.promotion_requested_at)
-    _notify(_administrators(), 'promotion_requested',
-            f"{user.get_username()} demande la promotion du {noun} « {_name(row)} »",
-            "Le rendre système le partage à tous, sans propriétaire ; son auteur reste cité.", url)
-    return row
-
-
-def refuse_promotion(user, row, noun: str, url: str = ''):
-    """Un ADMINISTRATEUR refuse la promotion demandée : la demande se close, la ligne reste à son
-    auteur, qui est prévenu (le pendant de « Rejeter » pour le manifeste d'un auteur)."""
-    if not _is_admin(user):
-        raise PermissionError(f"Refuser la promotion d'un {noun} est réservé aux administrateurs.")
-    if getattr(row, 'promotion_requested_at', None) is None:
-        raise ValueError("Aucune promotion n'est demandée.")
-    row.promotion_requested_at = None
-    type(row).objects.filter(pk=row.pk).update(promotion_requested_at=None)
-    if row.owner_id:
-        _notify([row.owner], 'promotion_refused',
-                f"La promotion du {noun} « {_name(row)} » est refusée",
-                f"Il reste à vous, avec sa portée ; refusé par {user.get_username()}.", url)
-    return row
-
-
-def _name(row) -> str:
-    return getattr(row, 'name', '') or str(row)
-
-
-def _administrators() -> list:
-    """Les comptes qui VALIDENT une promotion : les administrateurs (`is_admin_tier`) — pas les
-    développeurs, que `notifications.infrastructure_admins` prévient aussi des pannes."""
-    from django.contrib.auth import get_user_model
-    return [u for u in get_user_model().objects.filter(is_active=True) if _is_admin(u)]
-
-
-def _notify(users, kind, title, body, url):
-    from wama.common.utils.notifications import notify_in_app
-    notify_in_app(users, kind, title, body=body, url=url)
 
 
 def row_fields(manifest: dict) -> dict:

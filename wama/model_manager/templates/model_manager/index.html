@@ -909,12 +909,17 @@ a rien en attente. {% endcomment %}
 {{ block.super }}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
 {{ source_natures|json_script:"mm-source-natures" }}
+{% load wama_static %}<script src="{% static_v 'common/js/wama-promotion.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const csrfToken = '{{ csrf_token }}';
     // Lecture seule pour un non-développeur (2026-10-13) : aucun relevé d'infrastructure ni de
     // gestion n'est lancé — leurs routes le refuseraient, et la page n'en montre rien.
     const CAN_MANAGE = {{ can_manage|yesno:"true,false" }};
+    // « Demander la promotion » d'un modèle d'auteur : la route commune (`wama-promotion.js`),
+    // passée par la vue — un gabarit relu à chaud ne nomme pas une route qu'un serveur non
+    // rechargé ignorerait (le `{% templatetag openblock %} url {% templatetag closeblock %}` y lèverait).
+    const PROMOTION_URL = '{{ promotion_api }}';
     const loadingOverlay = document.getElementById('loading-overlay');
     const loadingMessage = document.getElementById('loading-message');
     const modelsGrid = document.getElementById('models-grid');
@@ -1698,6 +1703,22 @@ document.addEventListener('DOMContentLoaded', function() {
           cls: 'btn btn-sm btn-outline-info',
           when: function (m) { return !m.is_proposed && !!m.platform_url; },
           href: function (m) { return m.platform_url; } },
+        {% comment %} Un modèle d'AUTEUR (`ROADMAP §29` 6a) : son auteur demande sa promotion par la
+        brique commune (`wama-promotion.js`, délégué sur `[data-promotion-request]` — le rendu des
+        actions ne pose pas d'attributs, d'où l'appel direct), et la demande se voit sur SA page,
+        où un administrateur la tranche. {% endcomment %}
+        { label: 'Demander la promotion', icon: 'fas fa-arrow-up-from-bracket', cls: 'btn btn-sm btn-outline-success',
+          when: function (m) { return !!m.can_request_promotion && !!PROMOTION_URL; },
+          onClick: function (m) {
+              WamaPromotion.request(PROMOTION_URL, { registry: 'models', key: m.model_key || m.id })
+                  .then(function (res) {
+                      if (res && res.requested) { WamaApp.toast('Promotion demandée : les administrateurs sont prévenus.', 'success'); loadModels(); }
+                      else { WamaApp.toast('Impossible — ' + ((res && res.reason) || 'refusé'), 'danger'); }
+                  });
+          } },
+        { label: 'Voir la demande', icon: 'fas fa-arrow-up-from-bracket', cls: 'btn btn-sm btn-outline-secondary',
+          when: function (m) { return !!m.promotion_request_url; },
+          href: function (m) { return m.promotion_request_url; } },
         { label: 'Durée max…', icon: 'fas fa-hourglass-half', cls: 'btn btn-sm btn-outline-secondary',
           when: function (m) { return !m.is_proposed; },
           onClick: function (m) { mmSetTaskLimit(m); } },

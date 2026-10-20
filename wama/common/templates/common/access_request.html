@@ -5,9 +5,13 @@ UNE DEMANDE d'accès sur une card partagée (2026-10-03, `ObjectGrant` — WAMA_
 §4.3) : là où la notification du propriétaire renvoie. Le propriétaire accepte ou refuse ; le
 demandeur voit l'état. Accepter la PROPRIÉTÉ cède l'élément (« Transférer à… », ses fichiers le
 suivent) — un élément qui porte une personne demande d'abord le consentement de celui qui cède.
+
+Une demande de PROMOTION (niveau `system`, `ROADMAP §29` 6a, 2026-10-20) emprunte la même page :
+un ADMINISTRATEUR la tranche (Valider / Refuser) après avoir INSPECTÉ l'élément — sa famille, son
+auteur, sa portée, et le lien vers la page qui le montre. `is_owner` y désigne celui qui décide.
 {% endcomment %}
 
-{% block title %}WAMA — Demande d'accès{% endblock %}
+{% block title %}WAMA — {% if promotion %}Demande de promotion{% else %}Demande d'accès{% endif %}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -22,8 +26,19 @@ suivent) — un élément qui porte une personne demande d'abord le consentement
 
 {% block content %}
 <div class="container access-page">
-  <h1><i class="fas fa-hand me-2" style="color:var(--wama-collab-link);"></i>Demande d'accès</h1>
+  <h1><i class="fas {% if promotion %}fa-arrow-up-from-bracket{% else %}fa-hand{% endif %} me-2" style="color:var(--wama-collab-link);"></i>{% if promotion %}Demande de promotion{% else %}Demande d'accès{% endif %}</h1>
   <div class="access-card">
+    {% if promotion %}
+    <dl class="mb-3">
+      <dt>Demandé par</dt><dd>{{ grant.beneficiary.get_full_name|default:grant.beneficiary.username }} (son auteur)</dd>
+      <dt>Ce qui est demandé</dt><dd>Rendre « {{ element_label }} » SYSTÈME : partagé à tous, sans propriétaire ; son auteur reste cité</dd>
+      <dt>Famille</dt><dd>{{ family|default:'—' }}</dd>
+      <dt>Portée aujourd'hui</dt><dd>{{ facts.scope_label|default:'Privé' }}</dd>
+      <dt>Le</dt><dd>{{ grant.created_at|date:"d/m/Y H:i" }}</dd>
+      <dt>État</dt><dd data-request-state>{% if grant.state == 'granted' %}Validée{% elif grant.state == 'refused' %}Refusée{% else %}{{ grant.get_state_display }}{% endif %}{% if grant.answered_at %} le {{ grant.answered_at|date:"d/m/Y H:i" }}{% if grant.granted_by %} par {{ grant.granted_by.username }}{% endif %}{% endif %}</dd>
+    </dl>
+    {% if inspect_url %}<p class="small mb-3"><a href="{{ inspect_url }}" class="btn btn-sm btn-outline-emphasis"><i class="fas fa-magnifying-glass me-1"></i>Inspecter l'élément</a></p>{% endif %}
+    {% else %}
     <dl class="mb-3">
       <dt>Demandé par</dt><dd>{{ grant.beneficiary.get_full_name|default:grant.beneficiary.username }}</dd>
       <dt>Ce qui est demandé</dt>
@@ -32,6 +47,7 @@ suivent) — un élément qui porte une personne demande d'abord le consentement
       <dt>Le</dt><dd>{{ grant.created_at|date:"d/m/Y H:i" }}</dd>
       <dt>État</dt><dd data-request-state>{{ grant.get_state_display }}{% if grant.answered_at %} le {{ grant.answered_at|date:"d/m/Y H:i" }}{% endif %}</dd>
     </dl>
+    {% endif %}
     {% if is_owner and grant.state == 'requested' %}
     <div data-request-consent hidden class="mb-3">
       <div class="alert alert-warning small mb-2 py-2" data-request-statement></div>
@@ -39,7 +55,7 @@ suivent) — un élément qui porte une personne demande d'abord le consentement
     </div>
     <div class="d-flex gap-2">
       <button type="button" class="btn btn-sm btn-success" data-request-answer="1">
-        <i class="fas fa-check me-1"></i>Accepter
+        <i class="fas fa-check me-1"></i>{% if promotion %}Valider{% else %}Accepter{% endif %}
       </button>
       <button type="button" class="btn btn-sm btn-outline-danger" data-request-answer="0">
         <i class="fas fa-xmark me-1"></i>Refuser
@@ -47,7 +63,7 @@ suivent) — un élément qui porte une personne demande d'abord le consentement
     </div>
     <div class="small mt-2" data-request-message></div>
     {% elif not is_owner and grant.state == 'requested' %}
-    <p class="small text-body-secondary mb-0">Votre demande attend la réponse du propriétaire.</p>
+    <p class="small text-body-secondary mb-0">Votre demande attend la réponse {% if promotion %}d'un administrateur{% else %}du propriétaire{% endif %}.</p>
     {% endif %}
   </div>
 </div>

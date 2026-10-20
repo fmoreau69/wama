@@ -269,6 +269,118 @@ def revoke(owner, grant: ObjectGrant, *, notify: bool = True) -> ObjectGrant:
     return grant
 
 
+# ── La PROMOTION au système d'un élément d'auteur (`ROADMAP §29` étape 6a, 2026-10-20) ─────────
+# Demande de Fabien : *« des boutons de modération, avec notification systématique aux
+# administrateurs pour se rendre directement à la demande, l'inspecter, puis la valider ou la
+# refuser — quelque chose d'universel, uniforme et aligné sur le fonctionnement de WAMA »*.
+# C'est le circuit des demandes d'accès, à une différence près : la demande est tranchée par un
+# ADMINISTRATEUR (décision b), pas par le propriétaire. Même ligne (`ObjectGrant`, niveau
+# `system`), même page (`/common/requests/<pk>/`), mêmes boutons dans la cloche. Les familles se
+# lisent aux registres portés (`sharing.catalogue_owned_rows`) : aucune n'est nommée ici.
+
+def promotion_family(row):
+    """Le registre porté de la ligne, si elle peut devenir système (propriétaire facultatif) ;
+    None sinon — une fonction d'utilisateur, au propriétaire obligatoire, entre au catalogue CODE
+    par un geste de développement, pas par une promotion."""
+    from wama.common.services.sharing import catalogue_owned_rows
+    for registry, model in catalogue_owned_rows():
+        if isinstance(row, model):
+            return registry if model._meta.get_field('owner').null else None
+    return None
+
+
+def pending_promotion(row):
+    """La demande de promotion EN ATTENTE de cette ligne, ou None."""
+    object_type, object_id = target_of(row)
+    return ObjectGrant.objects.filter(object_type=object_type, object_id=object_id,
+                                      level=ObjectGrant.LEVEL_SYSTEM,
+                                      state=ObjectGrant.STATE_REQUESTED).first()
+
+
+def promotion_validators() -> list:
+    """Les comptes qui VALIDENT une promotion : les administrateurs (`is_admin_tier`, le prédicat
+    de `ownership.promote_by`) — la demande n'arrive qu'à ceux qui peuvent y répondre."""
+    from django.contrib.auth import get_user_model
+    from wama.accounts.permissions import is_admin_tier
+    return [u for u in get_user_model().objects.filter(is_active=True) if is_admin_tier(u)]
+
+
+def request_page_url(grant) -> str:
+    from django.urls import reverse
+    return reverse('common:access_request', args=[grant.pk])
+
+
+def request_promotion(user, row) -> ObjectGrant:
+    """L'AUTEUR demande que sa ligne devienne système ; TOUS les administrateurs sont prévenus,
+    la notification mène à la demande. Une demande déjà en attente est rendue, pas recréée."""
+    from wama.common.utils.notifications import notify_in_app
+    registry = promotion_family(row)
+    if registry is None:
+        raise AccessRequestRefused("cet élément ne devient pas système par une promotion")
+    if row.owner_id is None:
+        raise AccessRequestRefused("cet élément est déjà système")
+    if row.owner_id != getattr(user, 'pk', None):
+        raise AccessRequestRefused("seul son auteur demande sa promotion")
+    existing = pending_promotion(row)
+    if existing is not None:
+        return existing
+    object_type, object_id = target_of(row)
+    grant = ObjectGrant.objects.create(object_type=object_type, object_id=object_id,
+                                       beneficiary=user, level=ObjectGrant.LEVEL_SYSTEM)
+    notify_in_app(promotion_validators(), 'promotion_requested',
+                  f"{user.get_username()} demande la promotion de « {_label(row)} »",
+                  body=(f"{registry.label} : le rendre système le partage à tous, sans "
+                        "propriétaire ; son auteur reste cité. Inspectez puis validez ou refusez."),
+                  url=request_page_url(grant))
+    return grant
+
+
+def answer_promotion(admin, grant: ObjectGrant, accept: bool) -> dict:
+    """Un ADMINISTRATEUR valide (l'élément devient système, `ownership.promote_element`) ou refuse
+    (il reste à son auteur). L'auteur est prévenu dans les deux cas."""
+    from wama.accounts.permissions import is_admin_tier
+    from wama.common.manifests.ownership import promote_element
+    from wama.common.utils.notifications import notify_in_app
+    if not is_admin_tier(admin):
+        raise AccessRequestRefused("seul un administrateur tranche une promotion")
+    if grant.level != ObjectGrant.LEVEL_SYSTEM:
+        raise AccessRequestRefused("ce n'est pas une demande de promotion")
+    if grant.state != ObjectGrant.STATE_REQUESTED:
+        raise AccessRequestRefused('cette demande a déjà reçu une réponse')
+    row = target(grant)
+    if row is None:
+        raise AccessRequestRefused("l'élément demandé n'existe plus")
+    if accept:
+        promote_element(admin, row)            # ferme la demande (`close_promotion`)
+        grant.refresh_from_db()
+    else:
+        _close(grant, admin, ObjectGrant.STATE_REFUSED)
+        notify_in_app([grant.beneficiary], 'promotion_refused',
+                      f"{admin.get_username()} a refusé la promotion de « {_label(row)} »",
+                      body="L'élément reste à vous, avec sa portée.",
+                      url=request_page_url(grant))
+    return {'state': grant.state}
+
+
+def close_promotion(row, admin) -> None:
+    """L'élément vient de devenir système (« Valider » ici, ou « Rendre système » sur sa page) :
+    sa demande en attente est ACCORDÉE et son auteur prévenu."""
+    from wama.common.utils.notifications import notify_in_app
+    grant = pending_promotion(row)
+    if grant is None:
+        return
+    _close(grant, admin, ObjectGrant.STATE_GRANTED)
+    notify_in_app([grant.beneficiary], 'promotion_granted',
+                  f"« {_label(row)} » est devenu système",
+                  body=f"Validé par {admin.get_username()} ; vous restez cité comme auteur.",
+                  url=request_page_url(grant))
+
+
+def _close(grant, admin, state) -> None:
+    grant.state, grant.granted_by, grant.answered_at = state, admin, timezone.now()
+    grant.save(update_fields=['state', 'granted_by', 'answered_at'])
+
+
 def _label(obj) -> str:
     """Le nom d'un élément dans une notification ou une page. Un LOT (la cible d'une collaboration)
     se dit par son TITRE — « lot « interview_03.wav » (3 cards) », le titre de sa card mère

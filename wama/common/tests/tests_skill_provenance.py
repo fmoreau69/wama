@@ -147,73 +147,126 @@ class GesturesTest(_Accounts):
 
 
 class PromotionRequestTest(_Accounts):
-    """« Demander la promotion » (Fabien, 2026-10-20) : l'AUTEUR demande, une fois ; les
-    ADMINISTRATEURS seuls sont prévenus et tranchent — rendre système efface la demande, la
-    refuser la close et prévient l'auteur. Le même geste pour toute ligne qui le porte (un thème
-    de charte aussi : `ownership.request_promotion`)."""
+    """« Demander la promotion », universelle (Fabien, 2026-10-20 : *« des boutons de modération,
+    avec notification systématique aux administrateurs pour se rendre directement à la demande,
+    l'inspecter, puis la valider ou la refuser »*). Le circuit des demandes d'accès : une ligne
+    `ObjectGrant` de niveau `system`, UNE route pour toutes les familles
+    (`common:api_promotion_request`), la page de la demande (`/common/requests/<pk>/`) et ses
+    boutons dans la cloche ; un ADMINISTRATEUR tranche."""
 
     def _notes(self, user, kind):
         from wama.common.models import Notification
-        return Notification.objects.filter(recipient=user, kind=kind).count()
+        return Notification.objects.filter(recipient=user, kind=kind)
 
-    def test_the_author_requests_once_and_only_the_administrators_are_told(self):
+    def _request(self, user, **target):
+        self.client.force_login(user)
+        return self.client.post(reverse('common:api_promotion_request'), json.dumps(target),
+                                content_type='application/json')
+
+    def _answer(self, user, grant, accept):
+        self.client.force_login(user)
+        return self.client.post(reverse('common:access_request_answer', args=[grant.pk]),
+                                {'accept': '1' if accept else '0'}).json()
+
+    def _grant(self, row):
+        from wama.common.services.access_requests import pending_promotion
+        return pending_promotion(row)
+
+    def test_the_author_requests_once_and_every_administrator_is_led_to_the_request(self):
         row = us.create(self.author, FRESH, 'x')
-        us.request_promotion(self.author, row.pk)
-        row.refresh_from_db()
-        self.assertIsNotNone(row.promotion_requested_at)
-        self.assertEqual((1, 0), (self._notes(self.admin, 'promotion_requested'),
-                                  self._notes(self.dev, 'promotion_requested')))
-        with self.assertRaises(us.SkillRefused):
-            us.request_promotion(self.author, row.pk)
+        made = self._request(self.author, registry='skills', pk=row.pk).json()
+        grant = self._grant(row)
+        self.assertEqual(('system', self.author.pk), (grant.level, grant.beneficiary_id))
+        self.assertTrue(made['requested'])
+        self.assertEqual(made['url'], reverse('common:access_request', args=[grant.pk]))
+        (note,) = self._notes(self.admin, 'promotion_requested')
+        self.assertEqual(made['url'], note.url)
+        self.assertFalse(self._notes(self.dev, 'promotion_requested').exists())
+        again = self._request(self.author, registry='skills', pk=row.pk).json()
+        self.assertEqual(made['url'], again['url'], "une demande en attente est rendue, pas recréée")
         us.share(self.author, row.pk, 'public')
-        with self.assertRaises(us.SkillRefused) as other:
-            us.request_promotion(self.other, row.pk)
-        self.assertEqual(403, other.exception.status)
+        self.assertEqual(404, self._request(self.other, registry='skills', pk=row.pk).status_code)
 
-    def test_an_administrator_refuses_and_the_author_is_told_or_promotes_and_it_is_closed(self):
+    def test_an_administrator_inspects_then_accepts_or_declines_and_the_author_is_told(self):
         refused = us.create(self.author, FRESH, 'x')
-        us.request_promotion(self.author, refused.pk)
-        us.share(self.author, refused.pk, 'public')       # le développeur la VOIT : reste le droit
-        with self.assertRaises(us.SkillRefused) as dev:
-            us.refuse_promotion(self.dev, refused.pk)
-        self.assertEqual(403, dev.exception.status)
-        us.refuse_promotion(self.admin, refused.pk)
+        self._request(self.author, registry='skills', pk=refused.pk)
+        grant = self._grant(refused)
+        self.client.force_login(self.admin)
+        page = self.client.get(reverse('common:access_request', args=[grant.pk]))
+        self.assertContains(page, 'Demande de promotion')
+        self.assertContains(page, reverse('common:skills_catalog'))   # « Inspecter l'élément »
+        self.assertContains(page, 'data-request-answer="1"')
+        self.assertFalse(self._answer(self.dev, grant, False)['done'])
+        self.assertTrue(self._answer(self.admin, grant, False)['done'])
         refused.refresh_from_db()
-        self.assertEqual((None, self.author.pk), (refused.promotion_requested_at, refused.owner_id))
-        self.assertEqual(1, self._notes(self.author, 'promotion_refused'))
-        promoted = us.create(self.author, 'zzprov-promoted', 'x')
-        us.request_promotion(self.author, promoted.pk)
-        us.promote(self.admin, promoted.pk)
-        promoted.refresh_from_db()
-        self.assertEqual((None, None), (promoted.owner_id, promoted.promotion_requested_at))
+        grant.refresh_from_db()
+        self.assertEqual((self.author.pk, 'refused'), (refused.owner_id, grant.state))
+        self.assertTrue(self._notes(self.author, 'promotion_refused').exists())
+        validated = us.create(self.author, 'zzprov-validated', 'x')
+        self._request(self.author, registry='skills', pk=validated.pk)
+        grant = self._grant(validated)
+        self.assertTrue(self._answer(self.admin, grant, True)['done'])
+        validated.refresh_from_db()
+        grant.refresh_from_db()
+        self.assertEqual((None, 'granted', self.admin.pk),
+                         (validated.owner_id, grant.state, grant.granted_by_id))
+        self.assertTrue(self._notes(self.author, 'promotion_granted').exists())
 
-    def test_the_same_gesture_carries_a_charter_theme(self):
-        import json
+    def test_rendering_system_from_the_element_page_grants_the_pending_request(self):
+        row = us.create(self.author, FRESH, 'x')
+        self._request(self.author, registry='skills', pk=row.pk)
+        grant = self._grant(row)
+        us.promote(self.admin, row.pk)
+        grant.refresh_from_db()
+        self.assertEqual('granted', grant.state)
 
+    def test_the_request_page_is_the_requesters_and_the_administrators_only(self):
+        row = us.create(self.author, FRESH, 'x')
+        self._request(self.author, registry='skills', pk=row.pk)
+        url = reverse('common:access_request', args=[self._grant(row).pk])
+        self.client.force_login(self.author)
+        self.assertContains(self.client.get(url), "d'un administrateur")
+        self.client.force_login(self.other)
+        self.assertEqual(404, self.client.get(url).status_code)
+
+    def test_the_bell_offers_validate_and_refuse_to_an_administrator_only(self):
+        from wama.common.services.notification_panel import notification_actions
+        row = us.create(self.author, FRESH, 'x')
+        self._request(self.author, registry='skills', pk=row.pk)
+        (note,) = self._notes(self.admin, 'promotion_requested')
+        self.assertEqual(['Valider', 'Refuser'],
+                         [a['label'] for a in notification_actions(note, self.admin)])
+        self.assertEqual([], notification_actions(note, self.dev))
+
+    def test_the_same_route_carries_a_charter_theme_and_an_authors_model(self):
         from wama.common.models import UserTheme
+        from wama.model_manager.models import AIModel
         theme = UserTheme.objects.create(owner=self.author, name='Labo', base='light',
                                          accent='#2f2a85')
-        manage = reverse('accounts:profile-theme-charter-manage')
-        self.client.force_login(self.author)
-        r = self.client.post(manage, json.dumps({'pk': theme.pk, 'action': 'request_promotion'}),
-                             content_type='application/json')
-        self.assertTrue(r.json().get('success'), r.content)
-        theme.refresh_from_db()
-        self.assertIsNotNone(theme.promotion_requested_at)
-        self.assertEqual(1, self._notes(self.admin, 'promotion_requested'))
+        self.assertTrue(self._request(self.author, registry='themes', pk=theme.pk).json()['requested'])
+        model = AIModel.objects.create(model_key='ollama:zzprov-author-llm', name='zz',
+                                       model_type='llm', source='ollama', owner=self.author,
+                                       visibility='private', is_available=True)
+        self.assertTrue(self._request(self.author, registry='models',
+                                      key=model.model_key).json()['requested'])
+        self.assertTrue(self._answer(self.admin, self._grant(model), True)['done'])
+        model.refresh_from_db()
+        self.assertEqual((None, 'public', 'ollama'), (model.owner_id, model.visibility, model.source),
+                         "la source d'un modèle (un texte) n'est pas une trace de promotion")
 
-    def test_the_skills_page_offers_the_button_to_the_author_and_the_answer_to_an_admin(self):
+    def test_the_pages_offer_the_button_then_the_request(self):
         row = us.create(self.author, FRESH, 'x')
         self.client.force_login(self.author)
         self.assertContains(self.client.get(reverse('common:skills_catalog')),
-                            'data-action="request_promotion"')
-        us.request_promotion(self.author, row.pk)
+                            'data-promotion-request="/common/api/promotion/request/"')
+        self._request(self.author, registry='skills', pk=row.pk)
+        url = reverse('common:access_request', args=[self._grant(row).pk])
         page = self.client.get(reverse('common:skills_catalog'))
         self.assertContains(page, 'Promotion demandée')
-        self.assertNotContains(page, 'data-action="request_promotion"')
+        self.assertContains(page, f'href="{url}"')
+        self.assertNotContains(page, 'data-promotion-request=')
         self.client.force_login(self.admin)
-        self.assertContains(self.client.get(reverse('common:skills_catalog')),
-                            'data-action="refuse_promotion"')
+        self.assertContains(self.client.get(reverse('common:skills_catalog')), f'href="{url}"')
 
 
 class PageAndCallersTest(_Accounts):

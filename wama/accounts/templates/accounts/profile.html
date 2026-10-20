@@ -416,17 +416,17 @@
                                 {% endfor %}
                             </select>
                             {% endif %}
-                            {% if c.can_request_promotion %}
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-charter-action="request_promotion"
+                            {% if c.can_request_promotion and promotion_api %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm"
+                                    data-promotion-request="{{ promotion_api }}" data-registry="themes" data-pk="{{ c.pk }}"
                                     title="Les administrateurs sont prévenus ; rendu système, le thème est proposé à tous et vous reste cité">Demander la promotion</button>
+                            {% endif %}
+                            {% if c.promotion_request_url %}
+                            <a class="btn btn-outline-secondary btn-sm" href="{{ c.promotion_request_url }}">Voir la demande</a>
                             {% endif %}
                             {% if c.can_promote %}
                             <button type="button" class="btn btn-outline-secondary btn-sm" data-charter-action="promote"
                                     title="Le thème devient système : sans propriétaire, son auteur reste cité">Rendre système</button>
-                            {% endif %}
-                            {% if c.can_refuse_promotion %}
-                            <button type="button" class="btn btn-outline-secondary btn-sm" data-charter-action="refuse_promotion"
-                                    title="La demande se close ; le thème reste à son auteur, qui est prévenu">Refuser la promotion</button>
                             {% endif %}
                             {% if c.can_delete %}
                             <button type="button" class="btn btn-outline-danger btn-sm" data-charter-action="delete"
@@ -808,6 +808,7 @@
 
 {% block extra_js %}
 <script src="{% static_v 'common/js/wama-key-field.js' %}"></script>  {# WamaKeyField : champ de clé d'API commun (profil + page Sources externes) #}
+<script src="{% static_v 'common/js/wama-promotion.js' %}"></script>  {# « Demander la promotion » : la route commune (§29 6a) #}
 <script>
 const LANGUAGE_URL       = "{% url 'accounts:profile-language' %}";
 const UNITS_URL          = "{% url 'accounts:profile-units' %}";

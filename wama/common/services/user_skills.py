@@ -119,12 +119,13 @@ def promote(user, pk):
     """Rend le skill SYSTÈME — un administrateur seul (décision b). Refusé s'il porte le nom
     d'un skill système existant : un fichier du dépôt se modifie, il ne se remplace pas ici."""
     from wama.accounts.permissions import is_admin_tier
-    from wama.common.manifests.ownership import promote_by
+    from wama.common.manifests.ownership import promote_element
     from wama.common.models import PromptSkill
     from wama.common.utils.prompt_skills import file_skill_names
     row = _row(user, pk)
     # Les frontières PROPRES au skill (un seul système par nom), puis le geste commun
-    # (`ownership.promote_by` : un administrateur, une ligne qui a un auteur).
+    # (`ownership.promote_element` : un administrateur, une ligne qui a un auteur ; la demande
+    # en attente est accordée).
     if is_admin_tier(user) and row.owner_id is not None:
         if row.name in file_skill_names():
             raise SkillRefused(f"« {row.name} » est un fichier du dépôt (prompt_skills/{row.name}.md) "
@@ -132,37 +133,7 @@ def promote(user, pk):
         if PromptSkill.objects.filter(owner__isnull=True, name=row.name).exists():
             raise SkillRefused(f"Un skill système « {row.name} » existe déjà.")
     try:
-        return promote_by(user, row, 'skill')
-    except PermissionError as exc:
-        raise SkillRefused(str(exc), status=403)
-    except ValueError as exc:
-        raise SkillRefused(str(exc))
-
-
-def _page_url() -> str:
-    from django.urls import reverse
-    return reverse('common:skills_catalog')
-
-
-def request_promotion(user, pk):
-    """« Demander la promotion » — son auteur ; les administrateurs sont prévenus
-    (`ownership.request_promotion`)."""
-    from wama.common.manifests.ownership import request_promotion as request
-    row = _row(user, pk)
-    try:
-        return request(user, row, 'skill', _page_url())
-    except PermissionError as exc:
-        raise SkillRefused(str(exc), status=403)
-    except ValueError as exc:
-        raise SkillRefused(str(exc))
-
-
-def refuse_promotion(user, pk):
-    """Un administrateur refuse la promotion demandée ; l'auteur est prévenu."""
-    from wama.common.manifests.ownership import refuse_promotion as refuse
-    row = _row(user, pk)
-    try:
-        return refuse(user, row, 'skill', _page_url())
+        return promote_element(user, row)
     except PermissionError as exc:
         raise SkillRefused(str(exc), status=403)
     except ValueError as exc:

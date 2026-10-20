@@ -249,6 +249,8 @@ def profile_view(request):
         'theme_profile_choice': getattr(themes, 'profile_choice', themes.theme_choice)(request.user),
         # Les portées OFFERTES, à plat pour un `<select>` (`sharing.scope_choices`).
         'theme_scopes': scope_choices(request.user),
+        # « Demander la promotion » d'un thème de charte : la route commune (§29 6a).
+        'promotion_api': reverse('common:api_promotion_request'),
         'is_ldap': _is_ldap_user(request),
         'channel_links': liaisons,
         'rattachement': rattachement_institutionnel(profile),
@@ -609,10 +611,9 @@ def theme_charter_save(request):
 def theme_charter_manage(request):
     """AJAX : `share` (une portée, par le service commun), `delete` (son auteur, ou un admin),
     `promote` (un ADMIN seul, décision b du §29 : le thème devient SYSTÈME, sans propriétaire,
-    l'auteur gardé pour l'attribution), `request_promotion` (son auteur : les administrateurs
-    sont prévenus), `refuse_promotion` (un ADMIN : la demande se close, l'auteur est prévenu)."""
-    from wama.common.manifests.ownership import (may_remove, promote_by, refuse_promotion,
-                                                 request_promotion)
+    l'auteur gardé pour l'attribution ; la demande en attente est accordée). « Demander la
+    promotion » passe par la route commune (`common:api_promotion_request`)."""
+    from wama.common.manifests.ownership import may_remove, promote_element
     from wama.common.services.sharing import RefusDePartage, share_scope
     from wama.common.themes import charter_themes
 
@@ -635,14 +636,9 @@ def theme_charter_manage(request):
             return JsonResponse({'error': "Seul son auteur, ou un administrateur, le retire."}, status=403)
         row.delete()
         return JsonResponse({'success': True})
-    gestures = {'promote': lambda: promote_by(request.user, row, 'thème'),
-                'request_promotion': lambda: request_promotion(
-                    request.user, row, 'thème', reverse('accounts:profile')),
-                'refuse_promotion': lambda: refuse_promotion(
-                    request.user, row, 'thème', reverse('accounts:profile'))}
-    if action in gestures:
+    if action == 'promote':
         try:
-            gestures[action]()
+            promote_element(request.user, row)
         except PermissionError as exc:
             return JsonResponse({'error': str(exc)}, status=403)
         except ValueError as exc:

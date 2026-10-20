@@ -152,6 +152,12 @@ context['volet'] = volet(tete=True, medias=False, parametres=False, actions=Fals
    remplies ; Studio (hors compte) la sienne ; Backends ne déclare plus d'Actions vides. Garde :
    `tests_volet.AccountPagesHaveNoDefaultTest`, sur TOUTES les pages du registre — elle a trouvé
    Backends le jour de son écriture, qu'aucune liste ne citait.
+   ⚠ **Et l'autre moitié, apprise le même soir** : le MODEL MANAGER est une page du compte
+   (« Modèles ») qui REMPLIT ses trois sections sans les déclarer — il a perdu tout son volet
+   (ressources, propositions à valider, actions) une fois le serveur relancé. Il déclare
+   désormais `volet(medias=can_manage)`, et le garde vérifie aussi qu'une section qu'un gabarit
+   de page du compte remplit est RENDUE (`test_a_section_the_page_fills_is_rendered`). *Retirer
+   un défaut, c'est aussi retirer ce que des pages tenaient de lui sans le dire.*
 2. **Une déclaration est toujours COMPLÈTE.** Un dict partiel masquerait les clés non citées
    (même cause). `volet()` remplit les quatre. L'alternative — un filtre maison
    `volet|section:'medias'` — a été écartée pour la raison que `_filter_bar.html` donne déjà :

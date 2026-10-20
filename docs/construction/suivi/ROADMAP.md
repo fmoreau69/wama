@@ -6663,17 +6663,52 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      « Promotion demandée ». Types de notification déclarés au panneau de la cloche
      (`notification_panel.STYLE_BY_KIND`). Gardes : `tests_skill_provenance.PromotionRequestTest`
      (4), trois contre-épreuves rouges (tous prévenus, personne prévenu, bouton absent).
-   - **Ce que 6a ne fait PAS** : les familles portées par un MANIFESTE (modèle, librairie,
+   - ~~**Ce que 6a ne fait PAS** : les familles portées par un MANIFESTE (modèle, librairie,
      fonction d'utilisateur) gardent leur route, `proposals.propose` → file « Propositions à
      valider » du model manager, sans bouton d'auteur à l'écran ; aucune file de modération
-     unique (`PROFILES_PERMISSIONS §8.7 S4`) — un admin trouve la demande par sa notification.
+     unique (`PROFILES_PERMISSIONS §8.7 S4`) — un admin trouve la demande par sa notification.~~
+     → 6b ci-dessous (le modèle d'auteur a son bouton ; la file des rôles reste celle des
+     propositions de manifestes).
    - ⚠ **Relevé à la revérification (même jour)** : deux lectures de même nature — « les comptes
-     actifs que le prédicat du geste admet » — sont nées le même jour. `ownership._administrators`
+     actifs que le prédicat du geste admet » — sont nées le même jour. `access_requests.promotion_validators` (ex-`ownership._administrators`)
      (`is_admin_tier`, celui de `promote_by`) prévient d'une promotion ; `accounts.moderation.
      account_moderators` (`views.is_admin`, par groupes — travail d'une autre session) prévient
      d'un compte à valider. Chacune suit le prédicat de SA vue de décision, donc elles sont justes
      aujourd'hui ; elles se réuniront quand Fabien tranchera les trois définitions
      d'« administrateur » (`PROJECT_STATUS`, clôture du 2026-10-16).
+   - **6b. ✅ La MODÉRATION universelle (2026-10-20, demande de Fabien)** : *« ajoute les boutons
+     de modération, avec notification systématique aux administrateurs pour se rendre
+     directement à la demande, l'inspecter, puis la valider ou la refuser. Quelque chose
+     d'universel, uniforme et aligné sur le fonctionnement de WAMA. »* 6a reprenait l'état d'un
+     manifeste, posé sur la ligne ; la forme alignée existait déjà : la DEMANDE D'ACCÈS
+     (`WAMA_COLLABORATION §4.3`, *la demande et le droit sont la même ligne*).
+     - **La demande est une ligne `ObjectGrant`**, niveau neuf `system` (migration `common/0036`) ;
+       l'auteur la demande, un ADMINISTRATEUR la tranche (`access_requests.request_promotion`,
+       `answer_promotion`, `close_promotion`). Le champ `promotion_requested_at` de 6a est retiré
+       des deux lignes (`REMOVAL_LEDGER R164`) : deux états de la même demande auraient divergé.
+     - **Une route pour toutes les familles** : `common:api_promotion_request` (registre + pk, ou
+       la clé que le registre nomme), brique `wama-promotion.js` (`[data-promotion-request]`) ;
+       les familles se lisent aux registres portés dont le propriétaire est facultatif
+       (`access_requests.promotion_family`) — skills, thèmes de charte, MODÈLES d'auteur (bouton
+       à l'inspecteur du model manager). Une fonction d'utilisateur, au propriétaire
+       obligatoire, n'est pas proposée.
+     - **La notification mène à la demande** (`/common/requests/<pk>/`, la page des demandes
+       d'accès) : famille, auteur, portée, « Inspecter l'élément » (la page de son registre),
+       Valider / Refuser ; les mêmes boutons dans la cloche (`notification_panel`). L'auteur est
+       prévenu de la réponse ; il voit « Voir la demande » sur l'élément.
+     - **Valider = `ownership.promote_element`** : le geste commun de « Rendre système », qui
+       promeut aussi le manifeste d'un modèle (`ingest.promote`) et fait suivre le corpus
+       (`corpus.follow`) ; « Rendre système » sur la page de l'élément accorde la demande en
+       attente. `promote_owned_row` ne touche plus un `source` qui n'est pas une trace JSON
+       (celui d'`AIModel` dit d'où vient le modèle).
+     - ⚠ **Régression trouvée et réparée au passage** : depuis `c6c428f1` (une page du compte n'a
+       plus de volet par défaut), le model manager — page du compte « Modèles » — avait perdu
+       TOUT son volet sur le serveur relancé (ressources, propositions à valider, actions) : il ne
+       déclarait rien. Il déclare désormais ce qu'il remplit, et le garde des pages du compte
+       vérifie aussi l'autre moitié de l'invariant (`tests_volet.test_a_section_the_page_fills_is_rendered`).
+     - **Gardes** : `tests_skill_provenance.PromotionRequestTest` (7) ; contre-épreuves rouges :
+       tous prévenus, demande jamais close, `source` traitée en trace, cloche ouverte à tous,
+       model manager sans volet.
 
 Relation avec S3 (`AccessGrant`, `PROFILES_PERMISSIONS §8.7`) : S3 répond à « qui a le droit »,
 ce chantier répond à « à qui c'est ». Les deux se composent dans `accessible()`, et aucun ne

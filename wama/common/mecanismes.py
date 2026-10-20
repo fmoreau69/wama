@@ -714,6 +714,9 @@ MECHANISMS = (
                        'wama/common/services/card_transfer.py',
                        'wama/common/services/reception.py',
                        'wama/common/services/access_requests.py',
+                       # « Demander la promotion » d'un élément d'auteur : la demande est une
+                       # ligne `ObjectGrant` de niveau `system` (ROADMAP §29 6a, 20/10).
+                       'wama/common/static/common/js/wama-promotion.js',
                        'wama/common/services/edit_lock.py')),
     Mechanism('send_to', "Envoyer vers (chaînage progressif, hors studio)",
               "La SORTIE d'une card devient l'ENTRÉE d'une autre app, sans passer par le studio. "
