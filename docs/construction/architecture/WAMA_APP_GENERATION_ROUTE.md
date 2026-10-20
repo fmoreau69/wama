@@ -306,13 +306,27 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   grandit reprend où il en était ; les deux consommateurs remettent leur hôte), le geste
   nocturne `common.preview_during` (`WAMA_VERIFICATION §3`, 11d). Toutes contre-éprouvées.
   ⏳ **Restes du chantier « une preview universelle » (inventaire du 2026-10-20, relu au code)** :
-  ① la CARD ne suit pas la face Pendant (volet et visionneuse seulement) — d'où deux recopies
-  par app : le texte partiel écrit dans sa card par le describer
-  (`describer/static/describer/js/index.js:47`) et le panneau « en direct » du transcriber
-  (`transcriber/static/transcriber/js/index.js:595`) ; l'hôte d'aperçu de la card est écrit à
-  la main dans les 11 gabarits (et le générateur), rendu seulement quand la sortie existe — un
-  gabarit commun le rendrait aussi pendant le traitement ; ② le CHAT de l'assistant ne rend
-  aucune face ; ③ code mort : `WAMA_RIGHT_PANEL.showPreview` (`wama/templates/base.html:321`,
+  ① la CARD ne suit pas la face Pendant (volet et visionneuse seulement). Le DESCRIBER comble ce
+  manque chez lui, et c'est du code VIVANT de bout en bout : son worker publie par la brique
+  (`describer/workers.py:205`, `publish_partial_text`), sa route de progression le sert
+  (`describer/views.py:534`, `partial_text`), son JS l'écrit, coupé à 150 caractères, dans
+  l'hôte que la card en cours rend (`.result-preview` du gabarit, `_description_card.html:167`,
+  « Description en cours… » ; `describer/static/describer/js/index.js:48-50`). Ce n'est pas une
+  copie de code commun : c'est la seule card qui montre quelque chose pendant le calcul, par un
+  chemin à elle, faute de surface commune — il disparaît quand la card suivra Pendant. L'hôte
+  d'aperçu de la card est écrit à la main dans les 11 gabarits (et le générateur), rendu
+  seulement quand la sortie existe — un gabarit commun le rendrait aussi pendant le traitement.
+  ⚠ *Corrigé le jour même (Fabien : « tu es sûr que ce n'est pas du code mort ? »)* : ce point
+  citait aussi « le panneau en direct du transcriber » comme une recopie à porter. Relu au code :
+  `updateLiveTranscriptionFromQueue` (`transcriber/static/transcriber/js/index.js:584`, appelée
+  à chaque tour du suivi, `:214`) écrit le texte partiel de la première card en cours dans le
+  panneau de Speak, `#transcriberLive`, MASQUÉ par défaut depuis le 2026-06-30 (`668a15cd`,
+  `transcriber/index.html:198-200`) et révélé seulement par le micro (`index.js:670`) — il
+  n'apparaît donc qu'après une session Speak sur la même page, dans la boîte du micro. C'est un
+  RESTE (né le 2025-12-10, avant la face Pendant commune), pas une surface à porter : il rejoint
+  ③. ② le CHAT de l'assistant ne rend aucune face ; ③ code mort : le report du texte d'une card
+  en cours dans le panneau Speak du transcriber (ci-dessus), `WAMA_RIGHT_PANEL.showPreview`
+  (`wama/templates/base.html:321`,
   copie dans `filemanager/right_panel.html`, que rien n'inclut), la modale `#previewModal` du
   synthesizer, `_mpInjectImage` de l'imager, les routes `anonymizer:preview_media`,
   `describer:preview`, `synthesizer:preview` (déclarées aux manifestes : retrait au

@@ -25144,5 +25144,8 @@ l'échange de l'assistant (accord de Fabien, après la flotte) ; `writer_01` (gl
 - **Rouges hors de ce travail** : budget des noms de tests français (1293-1294 > 1291, mêmes noms sur
   HEAD) ; `AddItemToMediaLibraryTest` ; tables de jumelles absentes de la base de test (`avatarizer_01`,
   recréée par une autre session).
-- 🔚 **Restes** (ordre proposé, `ROUTE §F3b`) : la card qui suit Pendant · le chat qui rend les faces ·
-  code mort (trois routes, quatre vues) · recopies partielles (médiathèque, sélecteur, cam/face_analyzer).
+- 🔚 **Restes** (ordre proposé, `ROUTE §F3b`) : la card qui suit Pendant (le describer la comble chez
+  lui, code vivant) · le chat qui rend les faces · code mort (trois routes, quatre vues, et le report du
+  texte d'une card en cours dans le panneau Speak du transcriber, masqué hors micro — relu au code le
+  soir même, il était compté à tort comme une recopie à porter) · recopies partielles (médiathèque,
+  sélecteur, cam/face_analyzer).
