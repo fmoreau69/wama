@@ -45,6 +45,12 @@ consommateur, elle ne le remplace pas.
 > (`prompt_pipeline` hook A), enrichissement à la demande (`prompt_enrichment.enrich_on_demand`,
 > ex. bouton ✨ imager), assistant IA / wama-dev-ai (`skills_catalog()` — fichiers lisibles sans
 > Django).
+>
+> **Les fichiers de ce dossier sont les skills SYSTÈME.** Depuis le 2026-10-20 (`ROADMAP §29`),
+> un compte peut écrire SON skill d'enrichissement — même nom, même contrat que ce format — sur
+> la page des skills : il vit en base (`common.PromptSkill`), passe devant le fichier du même nom
+> pour son auteur seul, se partage et se copie, et un administrateur seul le rend système.
+> Remplacer un fichier d'ici reste un geste de développement.
 
 ## Format d'un skill
 

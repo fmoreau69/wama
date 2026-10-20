@@ -123,7 +123,7 @@ def prepare_prompt(mode, text, model_key, *, stored_lyrics='', user=None, consol
         return (text if from_prompt else _with(caption, lyrics)), ''
     language = lyrics_language(model_key, user)
     from wama.common.utils.app_metadata import write_lyrics_for
-    written = write_lyrics_for('composer', 'prompt', caption, language=language)
+    written = write_lyrics_for('composer', 'prompt', caption, language=language, user=user)
     if not written:
         say("⚠️ Paroles non écrites (LLM local indisponible) : le morceau est instrumental.")
         return text, ''

@@ -258,11 +258,11 @@ def enrich_prompt_value(app, field, value, **kwargs):
     return _with_lyrics(enrich_on_demand(caption, app=app, **kwargs), lyrics)
 
 
-def write_lyrics_for(app, field, description, *, language='en', timeout=90):
+def write_lyrics_for(app, field, description, *, language='en', timeout=90, user=None):
     """Les PAROLES d'une chanson décrite par `description`, balisées (`[Verse]`, `[Chorus]`…), ou
     '' — le SEUL lieu où un LLM écrit des paroles, et seulement quand on les DEMANDE (réglage de
-    voix « Chanson » sans paroles fournies, composer, 2026-10-04). Skill `<app>-lyrics` ; une cible
-    qui ne déclare pas `lyrics` n'en reçoit jamais. Ne lève jamais."""
+    voix « Chanson » sans paroles fournies, composer, 2026-10-04). Skill `<app>-lyrics` (celui de
+    `user` d'abord) ; une cible qui ne déclare pas `lyrics` n'en reçoit jamais. Ne lève jamais."""
     tgt = _target(app, field)
     if not tgt or not tgt.get('lyrics'):
         return ''
@@ -270,7 +270,7 @@ def write_lyrics_for(app, field, description, *, language='en', timeout=90):
         from wama.common.backends.music_generation_base import tagged_lyrics
         from .prompt_enrichment import enrich_generative
         from .prompt_skills import resolve_skill
-        name, text = resolve_skill(app=app, domain='lyrics', kind=None)
+        name, text = resolve_skill(app=app, domain='lyrics', kind=None, user=user)
         if not text:
             return ''
         brief = str(description or '').strip() or 'A song.'
@@ -455,7 +455,8 @@ def enrich_instance_prompts(app, instance, user=None, glossary=None, source='ing
         try:
             enriched = enrich_prompt_value(app, field, value, domain=domain,
                                            language=lang, glossary=gloss or None,
-                                           keep_alive=KEEP_ALIVE_INGEST, contract=contract)
+                                           keep_alive=KEEP_ALIVE_INGEST, contract=contract,
+                                           user=user)
         except Exception as e:                           # LLM injoignable, timeout, réponse vide
             logger.debug(f"[app_metadata] enrichissement {app}.{field} ignoré ({e})")
             continue

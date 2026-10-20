@@ -178,7 +178,8 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
             # plus qu'un kill switch). Sans utilisateur résolu, seul le kill switch décide.
             if enrichment_enabled(user):
                 from .prompt_skills import resolve_skill
-                sk_name, sk_text = resolve_skill(app=app, domain=domain or model_type, kind=kind)
+                sk_name, sk_text = resolve_skill(app=app, domain=domain or model_type, kind=kind,
+                                                 user=user)
                 enr_lang = routing.get('input_pivot') if result['translated'] else lang
                 enriched = enrich_generative(result['prompt'], language=enr_lang or 'en',
                                              glossary=glossary, console=console, timeout=timeout,
@@ -205,7 +206,8 @@ def process_prompt(prompt, *, kind='generative', model_capabilities=None, model_
         if kind == 'concept' and enrich:
             from .prompt_enrichment import enrich_generative
             from .prompt_skills import resolve_skill
-            sk_name, sk_text = resolve_skill(app=app, domain=domain or model_type, kind=kind)
+            sk_name, sk_text = resolve_skill(app=app, domain=domain or model_type, kind=kind,
+                                             user=user)
             if sk_text:
                 # `console` n'est PAS transmis : le message générique d'`enrich_generative`
                 # dit « prompt enrichi … pour une meilleure génération », ce qui décrit

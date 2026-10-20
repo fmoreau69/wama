@@ -295,16 +295,24 @@ def _count_skills() -> int:
     return len(prompt_skills.skills_catalog())
 
 
+def _file_skill_names() -> list:
+    from .utils import prompt_skills
+    return prompt_skills.file_skill_names()
+
+
 register(Registry(
     key='skills', label='Skills de prompt', nature=REDECLARATION,
-    source="Fichiers `wama/common/prompt_skills/*.md`",
+    source="Fichiers `wama/common/prompt_skills/*.md` (système) et lignes `common.PromptSkill` "
+           "(un auteur et une portée ; système une fois promues)",
     refresh=_refresh_skills, count=_count_skills,
     permission='auth', on_startup=False,
     # Sa page, enfin (27/08). Il était le seul registre de la carte à n'en désigner aucune :
     # le catalogue n'était lisible que par l'assistant et wama-dev-ai.
     url_name='common:skills_catalog',
-    # Des fichiers du dépôt aujourd'hui ; un skill d'utilisateur n'a encore aucun lieu (§29).
-    provenance=TO_CARRY, access_kind='skill',
+    # Les fichiers du dépôt sont système ; un skill d'utilisateur a sa ligne `PromptSkill`
+    # (`ROADMAP §29`, 2026-10-20). Une ligne peut porter le nom d'un fichier : `in_code` le dit.
+    provenance=MIXED, owner_model='common.PromptSkill', owner_key='name',
+    in_code=lambda name: name in _file_skill_names(), access_kind='skill',
     doc='docs/construction/ia/WAMA_LLM.md',
     description="Vide le cache de lecture des skills : un `.md` modifié à chaud est repris sans "
                 "redémarrage. Sans effet de bord partagé, donc ouvert à tout compte connecté.",

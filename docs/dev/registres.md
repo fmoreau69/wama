@@ -237,8 +237,8 @@ Conteneurs que WAMA Data sait ÉCRIRE : `.wdat` natif et `.trip` pour la compati
 ### Skills de prompt
 
 - **Clé** : `skills` — Registre en mémoire, peuplé par import
-- **Source** : Fichiers `wama/common/prompt_skills/*.md`
-- **Provenance des éléments** : À porter — éléments d'utilisateurs prévus, porteur à construire (ROADMAP §29) ; famille d'accès `skill`
+- **Source** : Fichiers `wama/common/prompt_skills/*.md` (système) et lignes `common.PromptSkill` (un auteur et une portée ; système une fois promues)
+- **Provenance des éléments** : Système et auteurs — des éléments système et des éléments d'utilisateurs — portée par `common.PromptSkill` ; famille d'accès `skill`
 - **Page dans WAMA** : `/common/skills/`
 - **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 

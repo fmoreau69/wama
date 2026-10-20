@@ -54,6 +54,13 @@
   .sk-decl h4 { font-size: .9rem; color: var(--wama-kind-semantic); margin-bottom: .5rem; }
   .sk-decl ul { margin: 0; padding-left: 18px; font-size: .82rem; color: var(--wama-cat-hero-text); }
   .sk-decl em { color: var(--wama-night-scope); }
+  /* Les skills d'un COMPTE (`common.PromptSkill`, ROADMAP §29, 2026-10-20). */
+  .sk-mine { border: 1px solid var(--wama-kind-procedural-border);
+             border-radius: .5rem; padding: .8rem 1rem; margin: 1rem 0; }
+  .sk-mine h4 { font-size: .9rem; color: var(--wama-kind-procedural); margin-bottom: .4rem; }
+  .sk-compte { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
+  .sk-mine textarea { font-family: var(--bs-font-monospace); font-size: .76rem; }
+  .sk-gestes { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin-top: 6px; }
 </style>
 {% endblock %}
 
@@ -131,6 +138,66 @@
           aucun <code>{{ l.prompt }}.txt</code></li>
       {% endfor %}
     </ul>
+  </div>
+  {% endif %}
+
+  {% comment %}
+    Les skills d'un COMPTE (`common.PromptSkill`, `ROADMAP §29`, décision de Fabien du
+    2026-10-20) : les siens, ceux qu'on lui partage, les systèmes promus — par le filtre des
+    catalogues. Absent tant que la vue ne passe pas `skills_api` (un serveur non rechargé rend
+    la page d'avant, sans erreur). Gestes : `services/user_skills`.
+  {% endcomment %}
+  {% if skills_api %}
+  <div class="sk-mine" id="skMine" data-api="{{ skills_api }}">
+    <h4><i class="fas fa-user-pen me-1"></i> Mes skills, et ceux qu'on me partage</h4>
+    <p class="sk-resume mb-2">
+      Un skill à vous porte le <strong>nom</strong> d'un skill de prompt (<code>imager-image</code>,
+      <code>composer</code>, <code>default-generative</code>…) : pour vous seul, il passe devant le
+      skill système du même nom. Il naît <strong>privé</strong> ; partagé, il se <em>copie</em>, il
+      ne s'impose à personne. Un administrateur peut le rendre système.
+    </p>
+    <form id="skNew" class="d-flex flex-column gap-1">
+      <input name="name" class="form-control form-control-sm" maxlength="64" required
+             placeholder="nom (ex. imager-image)">
+      <textarea name="text" class="form-control form-control-sm" rows="4" required
+                placeholder="La consigne — envoyée telle quelle au modèle comme prompt système"></textarea>
+      <div><button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Créer</button></div>
+    </form>
+    <div class="wama-cat-grid mt-2" style="--cat-card-min: 340px;">
+      {% for k in skills_account %}
+      <div class="wama-cat-card" data-pk="{{ k.pk }}">
+        <h4>
+          <code>{{ k.name }}</code>
+          <span class="wama-cat-badge sk-compte">{% if k.system %}Système{% elif k.mine %}À moi{% else %}Partagé par {{ k.owner }}{% endif %}</span>
+          <span class="sk-selection">{{ k.visibility_label }}{% if k.scope %} · {{ k.scope }}{% endif %}</span>
+        </h4>
+        {% if k.can_edit %}
+        <textarea class="form-control form-control-sm" rows="5" data-role="text">{{ k.text }}</textarea>
+        {% else %}
+        <details class="sk-texte"><summary>Voir la consigne ({{ k.lines }} ligne{{ k.lines|pluralize }})</summary><pre>{{ k.text }}</pre></details>
+        {% endif %}
+        <div class="sk-gestes">
+          {% if k.can_edit %}<button type="button" class="btn btn-sm btn-outline-primary py-0" data-action="update">Enregistrer</button>{% endif %}
+          {% if k.can_share %}
+          <select class="form-select form-select-sm w-auto py-0" data-role="scope">
+            {% for p in skills_scopes %}{% if p.cibles %}{% for c in p.cibles %}
+            <option value="{{ p.valeur }}:{{ c.id }}"{% if p.valeur == k.visibility and c.id|stringformat:"s" == k.scope_value|cut:"unit:"|cut:"project:" %} selected{% endif %}>{{ p.libelle }} — {{ c.libelle }}</option>
+            {% endfor %}{% else %}
+            <option value="{{ p.valeur }}"{% if p.valeur == k.scope_value %} selected{% endif %}>{{ p.libelle }}</option>
+            {% endif %}{% endfor %}
+          </select>
+          <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-action="share">Partager</button>
+          {% endif %}
+          {% if k.can_copy %}<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-action="copy">Copier dans mes skills</button>{% endif %}
+          {% if k.can_promote %}<button type="button" class="btn btn-sm btn-outline-success py-0" data-action="promote">Rendre système</button>{% endif %}
+          {% if k.can_delete %}<button type="button" class="btn btn-sm btn-outline-danger py-0" data-action="delete">Supprimer</button>{% endif %}
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-body-secondary small mb-0">Aucun skill à vous pour l'instant : créez-en un, ou
+        « Personnaliser » un skill de prompt ci-dessous.</p>
+      {% endfor %}
+    </div>
   </div>
   {% endif %}
 
@@ -218,6 +285,12 @@
         <summary>Voir la consigne ({{ s.lignes }} ligne{{ s.lignes|pluralize }})</summary>
         <pre>{{ s.texte }}</pre>
       </details>
+      {% comment %}« Personnaliser » : une copie PRIVÉE du skill système, que le résolveur préfère
+      pour son auteur — seulement pour les familles que `resolve_skill` résout (pas les rôles).{% endcomment %}
+      {% if skills_api %}{% if s.famille == 'enrichissement' or s.famille == 'repli' %}
+      <div class="sk-gestes"><button type="button" class="btn btn-sm btn-outline-secondary py-0 sk-customize"
+              data-name="{{ s.nom }}">Personnaliser</button></div>
+      {% endif %}{% endif %}
     </div>
     {% empty %}
     <p class="text-body-secondary">Aucun skill déclaré.</p>
@@ -225,4 +298,45 @@
   </div>
 
 </div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+{% if skills_api %}
+<script>
+// Gestes sur les skills d'un compte (`common/services/user_skills`) — la page se recharge après
+// chaque geste : elle est DÉRIVÉE, le serveur dit ce qui est vu et ce qui est permis.
+document.addEventListener('DOMContentLoaded', function () {
+    const box = document.getElementById('skMine');
+    if (!box) return;
+    const api = box.dataset.api;
+    async function act(payload) {
+        try {
+            const r = await fetch(api, {method: 'POST', headers: {'Content-Type': 'application/json',
+                                        'X-CSRFToken': '{{ csrf_token }}'}, body: JSON.stringify(payload)});
+            const data = await r.json();
+            if (!data.success) { WamaApp.toast(data.error || 'Échec', 'danger'); return; }
+            location.reload();
+        } catch (e) { WamaApp.toast('Échec : ' + e, 'danger'); }
+    }
+    document.getElementById('skNew').addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        act({action: 'create', name: this.name.value.trim(), text: this.text.value});
+    });
+    box.addEventListener('click', function (ev) {
+        const b = ev.target.closest('button[data-action]');
+        if (!b) return;
+        const card = b.closest('[data-pk]'), pk = Number(card.dataset.pk), action = b.dataset.action;
+        if (action === 'delete' && !confirm('Supprimer ce skill ?')) return;
+        if (action === 'promote' && !confirm('Rendre ce skill système ? Il ne sera plus à son auteur.')) return;
+        const payload = {action, pk};
+        if (action === 'update') payload.text = card.querySelector('[data-role=text]').value;
+        if (action === 'share') payload.scope = card.querySelector('[data-role=scope]').value;
+        act(payload);
+    });
+    document.querySelectorAll('.sk-customize').forEach(b => b.addEventListener('click',
+        () => act({action: 'copy', name: b.dataset.name})));
+});
+</script>
+{% endif %}
 {% endblock %}

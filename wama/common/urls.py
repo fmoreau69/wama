@@ -168,6 +168,8 @@ urlpatterns = [
     # de la carte sans `url_name`). Elle DÉRIVE des fichiers + PROMPT_TARGETS + DOMAINES, et
     # dit surtout QUI consomme quoi — un skill que rien ne résout est un fichier inerte.
     path('skills/', views.skills_catalog_view, name='skills_catalog'),
+    # Les skills d'un COMPTE : créer, modifier, partager, copier, retirer, promouvoir (§29).
+    path('skills/manage/', views.skills_manage, name='skills_manage'),
     path('backends/', views.backends_catalog_view, name='backends_catalog'),
     # Documentation (15ᵉ registre, 2026-09-11) : la doc de construction en LECTURE SEULE. Le
     # lecteur prend une CLÉ déclarée dans `docs_catalog.py`, jamais un chemin — il n'existe

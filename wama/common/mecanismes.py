@@ -1062,6 +1062,8 @@ MECHANISMS = (
               annexes=('wama/common/utils/app_metadata.py',
                        'wama/common/utils/prompt_pipeline.py',
                        'wama/common/utils/prompt_skills.py',
+                       # Les skills d'un COMPTE (`common.PromptSkill`, ROADMAP §29, 20/10).
+                       'wama/common/services/user_skills.py',
                        'wama/common/utils/reference_comprehension.py',
                        'wama/common/static/common/js/wama-prompt-chips.js',
                        'wama/common/static/common/js/wama-prompt-enrich.js')),

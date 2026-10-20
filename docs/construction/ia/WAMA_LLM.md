@@ -254,7 +254,7 @@ Trois notions distinctes portent le mot « niveau » ; elles se croisent mais ne
 |---|---|---|---|
 | **A. Hiérarchie ORGANISATIONNELLE** | qui appartient à quoi ? | arbre `OrgUnit` (`parent` : institut→université→département→labo→service→équipe) + affiliations du profil (`org_affiliations` — une **LISTE** : multi-labos, multi-équipes) | mécanisme ✅ (héritage ancêtres testé) · données ✅ **5 `OrgUnit` en base** (mesuré 2026-09-09 ; cette ligne annonçait **0**, chiffre du 22/08 jamais repris — le niveau `unit` a donc de quoi s'accrocher) |
 | **B. Niveaux de PARTAGE du RAG** | qui peut rappeler ce document ? | `ScopedVisibility` porté par chaque fragment : `user` / `unit` / `project` / `public` | écriture `user`+`unit` ✅ (`project` ANNONCÉ, `public` plus tard) · lecture `rag_niveaux` ✅ : son RAG / labo / les deux / **rien** |
-| **C. Niveaux d'ENRICHISSEMENT du prompt** (vision §10) | qu'ajoute-t-on au prompt avant le modèle ? | global (règles DANS le code : langue d'émission, glossaire verbatim) · métier (skills `<app>-<domaine>.md`) · organisationnel · utilisateur | global ✅ · métier ✅ · **organisationnel ❌** · **utilisateur ❌** |
+| **C. Niveaux d'ENRICHISSEMENT du prompt** (vision §10) | qu'ajoute-t-on au prompt avant le modèle ? | global (règles DANS le code : langue d'émission, glossaire verbatim) · métier (skills `<app>-<domaine>.md`) · organisationnel · utilisateur | global ✅ · métier ✅ · **organisationnel ❌** · **utilisateur 🔄** (2026-10-20 : son skill de prompt passe devant le système pour lui, `§0bis` ; un skill partagé à l'unité se copie, il ne s'applique pas tout seul aux membres — l'opt-in du RAG) |
 
 ### 0bis. Les SKILLS — deux natures de contrat, cinq familles (vision §9), état mesuré
 
@@ -306,7 +306,7 @@ inutile ou un assistant sans posture.
 | **DOMAINE** (app × métier) | `prompt_skills/<app>-<domaine>.md` (imager-image, composer-music, cam-analyzer-transport…) + rôles assistant `assistant-*` (`DOMAINES` : general, science, design, dev) | ✅ les deux registres vivent (`PROMPT_TARGETS`, `assistant_skills.DOMAINES`) |
 | **DÉVELOPPEUR / workflow** | rôle `assistant-dev` ✅ ; outil `ask_claude_code` ✅ ; ⚠ wama-dev-ai a ses PROPRES consignes (`wama-dev-ai/prompts/*.txt`, 8 fichiers consommés) — il **n'importe PAS** `PROMPT_SKILLS_DIR` (cf. §« Skills de prompt », note du 21/08) | partiel |
 | **INSTITUTIONNELS** (université, instances — « souvent couplés au RAG organisationnel ») | — | ❌ **substrat désormais prêt** (RAG niveau `unit`) ; aucun skill écrit, aucun contenu org indexé |
-| **UTILISATEUR** (préférences, habitudes, formats favoris) | langue du profil + enrich on/off, c'est tout | ❌ pas de skill par utilisateur |
+| **UTILISATEUR** (préférences, habitudes, formats favoris) | langue du profil + enrich on/off ; depuis le 2026-10-20, ses **skills de prompt** (`common.PromptSkill`, page `/common/skills/`) | 🔄 **un skill par utilisateur existe** (`ROADMAP §29`, piste 2 de Fabien) : il porte le NOM d'un skill de prompt et passe devant le système POUR SON AUTEUR (`resolve_skill(…, user=)`) ; il naît privé, se partage par une portée et se COPIE (il ne s'impose à personne), un admin seul le rend système (`services/user_skills`). ⏳ Les skills de RÔLE de l'assistant (`assistant_skills.DOMAINES`) restent des fichiers seuls |
 
 ### 1. Assistant — UN cerveau, N surfaces (web `home.html`, API v1, canaux Discord/Matrix)
 

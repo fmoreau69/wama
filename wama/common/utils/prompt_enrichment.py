@@ -184,16 +184,17 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
 def enrich_on_demand(prompt: str, *, app: str = None, domain: str = None,
                      language: str = 'en', model: str = None, glossary=None,
                      timeout: int = 60, keep_alive: str = _KEEP_ALIVE,
-                     contract: str = None) -> str:
+                     contract: str = None, user=None) -> str:
     """
     Enrichissement EXPLICITE (bouton ✨) : le clic vaut demande → pas d'interrupteur maître.
     Résout le skill de l'app ([[prompt_skills]]) puis passe par le même chemin (cache compris).
     Plafond d'entrée relevé (l'utilisateur peut vouloir étoffer un prompt déjà long).
     Lève RuntimeError si l'enrichissement n'a rien produit (l'appelant informe l'utilisateur).
     `contract` : contrat de sortie du modèle cible si la vue le connaît (cf. `enrich_generative`).
+    `user` : le compte pour qui l'on enrichit — son skill passe devant le système.
     """
     from .prompt_skills import resolve_skill
-    name, text = resolve_skill(app=app, domain=domain, kind='generative')
+    name, text = resolve_skill(app=app, domain=domain, kind='generative', user=user)
     enriched = enrich_generative(prompt, language=language, model=model, glossary=glossary,
                                  timeout=timeout, skill_name=name, skill_text=text,
                                  max_input_chars=2000, keep_alive=keep_alive,

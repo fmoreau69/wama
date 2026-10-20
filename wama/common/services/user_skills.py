@@ -1,0 +1,159 @@
+"""
+Les SKILLS DE PROMPT d'un compte — les gestes, un seul lieu (`ROADMAP §29`, 2026-10-20).
+
+Décision de Fabien (piste 2) : un skill d'utilisateur a sa LIGNE (`common.PromptSkill`), que le
+résolveur lit avant les fichiers (`prompt_skills.resolve_skill`). Il suit la route commune de
+tout ce qui entre dans WAMA, la même que le thème d'une charte (`common.UserTheme`) :
+
+- il naît PRIVÉ à son auteur ;
+- il se PARTAGE par une portée, par le service commun (`services/sharing.partager`) ; un compte
+  qui le voit peut le COPIER dans les siens — un skill partagé ne s'impose à personne (le RAG
+  suit la même règle : l'utilisateur OPTE pour un niveau plus large, `WAMA_MEMORY`) ;
+- un ADMINISTRATEUR seul le rend SYSTÈME (`ownership.promote_owned_row`, décision b), et jamais
+  par-dessus un fichier du dépôt : remplacer `prompt_skills/<nom>.md` est un geste de
+  développement (modifier le fichier), pas une promotion.
+
+Les lectures passent par le filtre des catalogues (`catalogue_visible_to` : système, publics, les
+siens, sa portée ; tout pour l'administrateur, décision c).
+"""
+from __future__ import annotations
+
+#: Plafond du texte d'un skill : un system prompt, pas un document.
+MAX_TEXT = 20000
+
+
+class SkillRefused(Exception):
+    """Refus MOTIVÉ — le motif est destiné à l'utilisateur."""
+
+    def __init__(self, message: str, status: int = 400):
+        super().__init__(message)
+        self.status = status
+
+
+def visible_skills(user):
+    """Les lignes `PromptSkill` que `user` voit dans le catalogue."""
+    from wama.common.models import PromptSkill
+    return PromptSkill.objects.catalogue_visible_to(user).select_related(
+        'owner', 'scope_org_unit', 'scope_project')
+
+
+def _check(name: str, text: str):
+    from wama.common.utils.prompt_skills import is_valid_name
+    name, text = (name or '').strip(), (text or '').strip()
+    if not is_valid_name(name):
+        raise SkillRefused("Nom invalide : minuscules, chiffres et tirets (« imager-image », "
+                           "« composer », « default-generative »), 64 caractères au plus.")
+    if not text:
+        raise SkillRefused("La consigne est vide.")
+    if len(text) > MAX_TEXT:
+        raise SkillRefused(f"La consigne dépasse {MAX_TEXT} caractères.")
+    return name, text
+
+
+def create(user, name: str, text: str, *, copied_from: str = ''):
+    """Un skill PRIVÉ à `user`. Un seul par nom et par compte."""
+    from wama.common.models import PromptSkill
+    name, text = _check(name, text)
+    if PromptSkill.objects.filter(owner=user, name=name).exists():
+        raise SkillRefused(f"Vous avez déjà un skill « {name} » : modifiez-le.")
+    source = {'created_by': user.get_username()}
+    if copied_from:
+        source['copied_from'] = copied_from
+    return PromptSkill.objects.create(owner=user, name=name, text=text, source=source)
+
+
+def _row(user, pk):
+    row = visible_skills(user).filter(pk=pk if str(pk).isdigit() else -1).first()
+    if row is None:
+        raise SkillRefused("Skill inconnu.", status=404)
+    return row
+
+
+def update(user, pk, text: str):
+    """Seul son auteur modifie un skill — le partage est en LECTURE (`owned_by`)."""
+    row = _row(user, pk)
+    if row.owner_id != getattr(user, 'pk', None):
+        raise SkillRefused("Seul son auteur modifie ce skill ; copiez-le pour en faire le vôtre.",
+                           status=403)
+    _name, text = _check(row.name, text)
+    row.text = text
+    row.save(update_fields=['text', 'updated_at'])
+    return row
+
+
+def share(user, pk, visibility: str, target=None):
+    """La portée, par le service commun — qui revérifie que `user` est le propriétaire."""
+    from wama.common.services.sharing import RefusDePartage, partager
+    row = _row(user, pk)
+    try:
+        return partager(user, row, visibility,
+                        org_unit_id=target if visibility == 'unit' else None,
+                        project_id=target if visibility == 'project' else None)
+    except RefusDePartage as exc:
+        raise SkillRefused(str(exc), status=403)
+
+
+def copy(user, *, pk=None, name: str = ''):
+    """Une copie PRIVÉE dans les skills de `user` : d'un skill qu'il voit (`pk`), ou d'un skill
+    SYSTÈME par son nom (le fichier du dépôt, ou une ligne promue) — « personnaliser »."""
+    from wama.common.utils.prompt_skills import skills_catalog
+    if pk is not None:
+        row = _row(user, pk)
+        who = row.owner.get_username() if row.owner_id else 'système'
+        return create(user, row.name, row.text, copied_from=f'{who}:{row.name}')
+    text = skills_catalog().get((name or '').strip())
+    if not text:
+        raise SkillRefused(f"Aucun skill système « {name} ».", status=404)
+    return create(user, name, text, copied_from=f'système:{name}')
+
+
+def delete(user, pk):
+    """Son auteur, ou un administrateur."""
+    from wama.accounts.permissions import is_admin_tier
+    row = _row(user, pk)
+    if row.owner_id != getattr(user, 'pk', None) and not is_admin_tier(user):
+        raise SkillRefused("Seul son auteur, ou un administrateur, le retire.", status=403)
+    row.delete()
+
+
+def promote(user, pk):
+    """Rend le skill SYSTÈME — un administrateur seul (décision b). Refusé s'il porte le nom
+    d'un skill système existant : un fichier du dépôt se modifie, il ne se remplace pas ici."""
+    from wama.accounts.permissions import is_admin_tier
+    from wama.common.manifests.ownership import promote_owned_row
+    from wama.common.models import PromptSkill
+    from wama.common.utils.prompt_skills import file_skill_names
+    if not is_admin_tier(user):
+        raise SkillRefused("Rendre un skill système est réservé aux administrateurs.", status=403)
+    row = _row(user, pk)
+    if row.owner_id is None:
+        raise SkillRefused("Ce skill est déjà système.")
+    if row.name in file_skill_names():
+        raise SkillRefused(f"« {row.name} » est un fichier du dépôt (prompt_skills/{row.name}.md) : "
+                           f"le remplacer est un geste de développement, pas une promotion.")
+    if PromptSkill.objects.filter(owner__isnull=True, name=row.name).exists():
+        raise SkillRefused(f"Un skill système « {row.name} » existe déjà.")
+    return promote_owned_row(row, by=user)
+
+
+def as_dict(row, user) -> dict:
+    """Ce que la page montre d'une ligne, et les gestes que `user` peut y faire."""
+    from wama.accounts.permissions import is_admin_tier
+    from wama.common.services.sharing import PORTEES
+    mine = row.owner_id is not None and row.owner_id == getattr(user, 'pk', None)
+    admin = is_admin_tier(user)
+    scope, scope_value = '', row.visibility
+    if row.visibility == 'unit' and row.scope_org_unit_id:
+        scope, scope_value = row.scope_org_unit.name, f'unit:{row.scope_org_unit_id}'
+    elif row.visibility == 'project' and row.scope_project_id:
+        scope, scope_value = row.scope_project.name, f'project:{row.scope_project_id}'
+    return {
+        'pk': row.pk, 'name': row.name, 'text': row.text,
+        'lines': len(row.text.splitlines()),
+        'owner': row.owner.get_username() if row.owner_id else '',
+        'system': row.owner_id is None, 'mine': mine,
+        'visibility': row.visibility, 'visibility_label': PORTEES.get(row.visibility, row.visibility),
+        'scope': scope, 'scope_value': scope_value,
+        'can_edit': mine, 'can_share': mine, 'can_copy': not mine,
+        'can_delete': mine or admin, 'can_promote': admin and row.owner_id is not None,
+    }

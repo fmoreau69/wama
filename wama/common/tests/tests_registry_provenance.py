@@ -24,7 +24,8 @@ from wama.common.registries import (CARRIED, DERIVED, PROVENANCES, REGISTRIES, T
 #: 2026-10-18. Ne peut que DESCENDRE : y ajouter une clé, c'est faire entrer une capacité sans
 #: dire à qui sont ses éléments ; en garder une qui ne l'est plus, c'est laisser une marge.
 #: `models` en est sorti à l'étape 3 (même jour) : `AIModel` porte propriétaire et portée.
-TO_CARRY_BUDGET = {'apps', 'libraries', 'skills', 'ui_bricks'}
+#: `skills` le 2026-10-20 : un skill d'utilisateur a sa ligne `PromptSkill`.
+TO_CARRY_BUDGET = {'apps', 'libraries', 'ui_bricks'}
 
 
 def _real_registries():
@@ -102,8 +103,16 @@ class RegisterRejectsAnIncoherentProvenanceTest(SimpleTestCase):
 
     def tearDown(self):
         for key in ('_t_prov_unknown', '_t_prov_no_row', '_t_prov_stray_row', '_t_prov_stray_key',
-                    '_t_prov_stray_app'):
+                    '_t_prov_stray_app', '_t_prov_stray_code'):
             REGISTRIES.pop(key, None)
+
+    def test_a_code_overlap_without_the_row_key_is_refused(self):
+        # `in_code` dit qu'une clé de ligne désigne AUSSI un élément du code ; sans `owner_key`,
+        # aucune ligne n'est cherchée d'abord (`registries.declared_in_code`).
+        with self.assertRaises(ValueError):
+            register(Registry(key='_t_prov_stray_code', label='x', nature=DERIVED, source='s',
+                              provenance='mixed', owner_model='common.PromptSkill',
+                              in_code=lambda key: True))
 
     def test_a_declaring_app_without_the_row_key_is_refused(self):
         # `element_app` dit l'app d'un élément SANS ligne ; sans `owner_key`, rien ne

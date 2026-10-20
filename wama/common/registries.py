@@ -199,6 +199,12 @@ class Registry:
     #: code n'a pas de ligne : il n'a pas d'auteur à lui, il suit l'app qui le porte — système
     #: dans une app réelle, à son créateur dans une jumelle. '' : rien ne le restreint.
     element_app: Optional[Callable[[str], str]] = None
+    #: `clé → bool` : la clé désigne-t-elle AUSSI un élément du CODE ? Pour une famille dont une
+    #: ligne d'utilisateur peut porter le NOM d'un élément système (un skill de prompt remplace,
+    #: pour son auteur, le fichier du même nom) : une ligne qu'un compte ne voit pas ne lui ôte
+    #: pas l'élément système (`permissions._provenance_accessible`). None : les clés ne se
+    #: recouvrent pas.
+    in_code: Optional[Callable[[str], bool]] = None
     #: La famille d'`accounts.permissions.KIND_DECISION` dont ce registre liste les éléments : le
     #: lien entre « à qui c'est » (ici) et « qui a le droit » (là-bas), une famille par registre.
     access_kind: str = ''
@@ -246,6 +252,9 @@ def register(r: Registry) -> Registry:
             f"seulement avec elle — c'est la ligne qui porte propriétaire et portée")
     if r.owner_key and not r.owner_model:
         raise ValueError(f"'{r.key}' : `owner_key` nomme un champ de `owner_model`, absent ici")
+    if r.in_code and not r.owner_key:
+        raise ValueError(f"'{r.key}' : `in_code` complète la ligne nommée par `owner_key` ; "
+                         f"sans elle, rien ne le lirait")
     if r.element_app and not r.owner_key:
         raise ValueError(f"'{r.key}' : `element_app` complète la ligne nommée par `owner_key` "
                          f"(un élément sans ligne est du code) ; sans elle, rien ne le lirait")
@@ -288,6 +297,13 @@ def declaring_app(element_id, *, access_kind: str) -> str:
     if registry is None or registry.element_app is None:
         return ''
     return registry.element_app(element_id) or ''
+
+
+def declared_in_code(element_id, *, access_kind: str) -> bool:
+    """La clé `element_id` désigne-t-elle aussi un élément du CODE (`Registry.in_code`) ?"""
+    registry = _carrying_registry(access_kind=access_kind)
+    return bool(registry is not None and registry.in_code is not None
+                and registry.in_code(element_id))
 
 
 def is_authorized(r: Registry, user) -> bool:

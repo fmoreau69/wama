@@ -971,6 +971,41 @@ class UserTheme(ScopedVisibility):
         return f'{self.name} ({self.owner_id or "système"})'
 
 
+class PromptSkill(ScopedVisibility):
+    """Un SKILL de prompt qui a un AUTEUR (`ROADMAP §29`, décision de Fabien du 2026-10-20 :
+    « tout ce qui entre dans WAMA suit la logique de l'organisation, des rôles, des droits et du
+    partage »). Les skills SYSTÈME restent les fichiers du dépôt (`common/prompt_skills/*.md`).
+
+    Même contrat que le fichier (`prompt_skills/README.md`) : le texte EST le system prompt, et
+    le NOM suit la même grammaire (`<app>-<domaine>`, `<app>`, `default-<kind>`). Il naît PRIVÉ ;
+    pour son auteur, `prompt_skills.resolve_skill(…, user=)` le préfère au skill système du même
+    nom. Il se partage par une portée (`services/sharing.partager`) : un compte qui le voit peut
+    le COPIER dans les siens, il ne s'impose à personne. Un administrateur seul le rend SYSTÈME
+    (`ownership.promote_owned_row` : `owner` vide, l'auteur gardé dans `source`)."""
+    name = models.CharField(max_length=64, db_index=True)
+    text = models.TextField()
+    owner = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.CASCADE,
+                              related_name='wama_prompt_skills')
+    #: Qui l'a écrit, copié de qui, promu par qui — la trace, jamais relue pour résoudre.
+    source = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ScopedManager()
+
+    class Meta:
+        ordering = ['name']
+        verbose_name = 'Skill de prompt'
+        constraints = [
+            models.UniqueConstraint(fields=['owner', 'name'], name='prompt_skill_one_per_owner'),
+            models.UniqueConstraint(fields=['name'], condition=models.Q(owner__isnull=True),
+                                    name='prompt_skill_one_system'),
+        ]
+
+    def __str__(self):
+        return f'{self.name} ({self.owner_id or "système"})'
+
+
 class Manifest(models.Model):
     """Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
 

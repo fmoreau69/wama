@@ -75,7 +75,8 @@ def api_enrich_prompt(request):
     try:
         # Par la DÉCLARATION de la cible (2026-10-04) : des paroles balisées restent hors du LLM.
         enhanced = enrich_prompt_value(app, field, prompt, domain=domain, language=lang,
-                                       glossary=keywords or None, contract=contract)
+                                       glossary=keywords or None, contract=contract,
+                                       user=request.user)
         return JsonResponse({'original': prompt, 'enhanced': enhanced,
                              'keywords': keywords})
     except RuntimeError as e:
@@ -1021,8 +1022,60 @@ def skills_catalog_view(request):
     facettes = [{'cle': 'famille', 'label': 'Famille', 'tous': 'Toutes les familles',
                  'options': dict(FAMILLES)}]
 
+    # Les skills d'un COMPTE (`common.PromptSkill`, `ROADMAP §29`, 2026-10-20) : les siens, ceux
+    # qu'on lui partage, les systèmes promus — et les gestes, par `skills_manage`.
+    from django.urls import reverse
+
+    from .services.sharing import portees_offrables
+    from .services.user_skills import as_dict, visible_skills
+    account = {}
+    if request.user.is_authenticated:
+        account = {'skills_api': reverse('common:skills_manage'),
+                   'skills_account': [as_dict(r, request.user)
+                                      for r in visible_skills(request.user)],
+                   'skills_scopes': portees_offrables(request.user)}
     return render(request, 'common/skills.html',
-                  {'cat': synthese(), 'facettes_skills': facettes, 'volet': volet(medias=False, actions=False)})
+                  {'cat': synthese(), 'facettes_skills': facettes,
+                   'volet': volet(medias=False, actions=False), **account})
+
+
+@login_required
+@require_POST
+def skills_manage(request):
+    """AJAX — les gestes sur les skills d'un compte (`services/user_skills`) : `create` (nom,
+    consigne), `update` (sa consigne), `share` (une portée, `scope` = `private`, `public`,
+    `unit:<id>` ou `project:<id>`), `copy` (un skill qu'il voit, `pk` ; ou un skill système,
+    `name`), `delete` (son auteur ou un admin), `promote` (un ADMIN seul : le skill devient
+    système). Rend la ligne telle que la page la montre."""
+    import json
+
+    from .services import user_skills as us
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    action, user = data.get('action'), request.user
+    try:
+        if action == 'create':
+            row = us.create(user, data.get('name'), data.get('text'))
+        elif action == 'update':
+            row = us.update(user, data.get('pk'), data.get('text'))
+        elif action == 'share':
+            visibility, _, target = str(data.get('scope') or 'private').partition(':')
+            us.share(user, data.get('pk'), visibility, target or None)
+            row = us.visible_skills(user).get(pk=data.get('pk'))
+        elif action == 'copy':
+            row = us.copy(user, pk=data.get('pk'), name=data.get('name') or '')
+        elif action == 'delete':
+            us.delete(user, data.get('pk'))
+            return JsonResponse({'success': True})
+        elif action == 'promote':
+            row = us.promote(user, data.get('pk'))
+        else:
+            return JsonResponse({'error': f'Action inconnue : {action!r}'}, status=400)
+    except us.SkillRefused as exc:
+        return JsonResponse({'error': str(exc)}, status=exc.status)
+    return JsonResponse({'success': True, 'skill': us.as_dict(row, user)})
 
 
 @login_required

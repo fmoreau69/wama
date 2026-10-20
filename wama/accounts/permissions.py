@@ -141,7 +141,8 @@ KIND_DECISION = {
     'library':   'S3',
     # Étape 4 : la ligne d'une fonction d'UTILISATEUR, ou l'app qui porte une fonction du CODE.
     'function':  'provenance',
-    'skill':     'S3',
+    # 2026-10-20 (piste 2 de Fabien) : la ligne `PromptSkill` d'un auteur, ou le fichier système.
+    'skill':     'provenance',
     'rag_scope': 'ScopedVisibility',   # gardé AILLEURS (portée héritée) — ne PAS dupliquer ici
 }
 
@@ -421,7 +422,8 @@ def accessible(user, kind, element_id):
     Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
 
     `kind` ∈ `KIND_DECISION` (app | model | library | function | skill | rag_scope). La famille
-    `app` se décide ici par sa politique ; une famille « provenance » (`model`, `function`) par la
+    `app` se décide ici par sa politique ; une famille « provenance » (`model`, `function`,
+    `skill`) par la
     portée de l'élément sur la ligne de son registre, ou par l'app qui déclare un élément du
     code ; les autres déclarent leur mécanisme et renvoient
     True. Un `kind` inconnu LÈVE — cf. le commentaire de `KIND_DECISION`.
@@ -450,13 +452,18 @@ def _provenance_accessible(user, kind, element_id):
     rien ne le restreint quand le registre n'en nomme aucune. Un élément privé d'utilisateur a
     toujours sa ligne, puisque c'est elle qui porte son auteur."""
     from wama.common.models import catalogue_visible_q
-    from wama.common.registries import carried_rows, declaring_app
+    from wama.common.registries import carried_rows, declared_in_code, declaring_app
     rows = carried_rows(element_id, access_kind=kind)
     if rows is None:
         raise ValueError(f"accessible() : la famille « {kind} » se décide par la provenance, "
                          f"mais aucun registre ne nomme la ligne qui la porte")
     if rows.exists():
-        return rows.filter(catalogue_visible_q(user, model=rows.model)).exists()
+        if rows.filter(catalogue_visible_q(user, model=rows.model)).exists():
+            return True
+        # Le skill privé d'un autre compte porte le nom du fichier système qu'il remplace pour
+        # son auteur : il ne retire pas ce fichier aux autres (`Registry.in_code`).
+        if not declared_in_code(element_id, access_kind=kind):
+            return False
     app = declaring_app(element_id, access_kind=kind)
     return not app or accessible(user, 'app', app)
 

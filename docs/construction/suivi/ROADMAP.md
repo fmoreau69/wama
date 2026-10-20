@@ -6529,11 +6529,11 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
    - **Un pipeline DÉCLARÉ en code** s'ouvre si chacun de ses nœuds est accessible
      (`studio.views._declared_pipelines`). Les pipelines des jumelles se disaient système et
      publics, donc listés à tous.
-   - **Skills : toujours `TO_CARRY`** (budget de `tests_registry_provenance` inchangé). Un skill
+   - ~~**Skills : toujours `TO_CARRY`** (budget de `tests_registry_provenance` inchangé). Un skill
      d'utilisateur est une intention (`WAMA_LLM §0bis`, « ❌ pas de skill par utilisateur ») sans
      porteur décidé. Deux pistes lues, à trancher : le souvenir de type `procedural` (`WAMA_MEMORY
      §11`, déjà propriétaire et portée), ou une ligne propre que le résolveur
-     (`prompt_skills.resolve_skill`) lirait avant les fichiers.
+     (`prompt_skills.resolve_skill`) lirait avant les fichiers.~~ → piste 2 retenue, étape 4bis.
    - **Constat corrigé** : la ligne « `FunctionSpec.visibility/owner` … jamais filtrés » du relevé
      ci-dessus était FAUSSE dès son écriture. La palette lisait le champ depuis le 2026-09-09
      (`061439cc`), et le commentaire du code le disait « sans lecteur » depuis le 21/09.
@@ -6551,6 +6551,40 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
        nœud, marqué indisponible, avec ses réglages et ses liens, et le lancement le refuse en le
        nommant (`§16.11` piste 4).
      - Une fonction d'utilisateur se crée toujours dans l'admin seule.
+4bis. ✅ **Les skills de prompt (2026-10-20).** Décision de Fabien : *« Les skills utilisateur
+   vivent dans le registre des skills. Comme pour le RAG, il faut bien distinguer les skills
+   système, les skills privés, le partage de skills. Suivre la route universelle et uniforme de
+   WAMA sur la question des rôles, du partage, etc. Tout ce qui entre dans WAMA doit suivre la
+   logique de l'organisation, des rôles, des droits et du partage. »* Piste 2 : une ligne propre.
+   - **La ligne** : `common.PromptSkill(ScopedVisibility)`, migration `common/0034` APPLIQUÉE.
+     `owner` vide = système ; un skill par nom et par compte, un seul système par nom. Même
+     contrat et même grammaire de nom que les fichiers (`prompt_skills.is_valid_name`). C'est la
+     forme du thème de charte (`UserTheme`, même jour), pas une variante.
+   - **La résolution** (`prompt_skills.resolve_skill(…, user=)`) : à chaque nom candidat, le
+     skill du compte, puis le système promu, puis le fichier. Un skill PARTAGÉ ne s'applique pas
+     tout seul : il se voit et se COPIE (« opter », comme les niveaux du RAG) — il ne s'impose à
+     aucun membre de la portée. Sans compte (tâche de fond), le système seul. Hors Django
+     (wama-dev-ai), les fichiers seuls, comme avant.
+   - **Les appelants passent le compte** : la pipeline de prompts (hooks A et A bis), le bouton ✨
+     (`api_enrich_prompt`), l'ingestion (`enrich_instance_prompts`), les paroles du composer
+     (`write_lyrics_for`). ⏳ Restent sans compte : le cam_analyzer (`enrich_on_demand` dans sa
+     tâche) et les skills de RÔLE de l'assistant (`assistant_skills`, fichiers seuls).
+   - **La décision unique** : `KIND_DECISION['skill'] = 'provenance'` ; le registre `skills` passe
+     `mixed` (`owner_model`, `owner_key='name'`) et sort du budget `TO_CARRY`. Une ligne peut
+     porter le nom d'un fichier : le champ neuf `Registry.in_code` le dit, et la ligne privée
+     d'un autre compte ne retire pas le fichier système (`permissions._provenance_accessible`).
+   - **Les gestes** (`common/services/user_skills`, route `common:skills_manage`, section « Mes
+     skills » de la page des skills, « Personnaliser » sur un skill système) : créer (privé),
+     modifier et partager (son auteur, par `sharing.partager`), copier, supprimer (son auteur
+     ou un admin), **rendre système (un admin seul**, `ownership.promote_owned_row`, auteur gardé
+     dans `source`) — jamais par-dessus un fichier du dépôt, dont le remplacement reste un geste
+     de développement.
+   - **Gardes** : `common/tests/tests_skill_provenance` (14), un cas de plus dans
+     `tests_registry_provenance`. Sept contre-épreuves, toutes rouges, sur cinq brèches (table
+     ignorée, partage imposé, `in_code` aveugle, tout compte admin, fichiers du dépôt ignorés).
+   - **Ce que l'étape ne fait PAS** : aucune demande de promotion par l'auteur (le bouton ira avec
+     la pastille, étape 6) ; pas de manifeste `skill` (le corpus versionné n'en porte pas) ; un
+     skill de rôle d'assistant n'a pas de version d'utilisateur.
 5. Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par
    déplacement vers `common/`.
 6. La pastille et la facette.
