@@ -254,6 +254,44 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   s'éclaircit au fil des pas. Et **un seul concept** : le drapeau
   `streaming`, doublon sans lecteur, est retiré (`REMOVAL_LEDGER R107`) ; la déclaration
   `during_preview` est tenue par `tests_during_preview_declared` (déclaré ⇔ émis).
+  ⚠ **Le COMPOSER ne montrait RIEN pendant le calcul — corrigé le 2026-10-20** (Fabien : *« dans
+  Composer, la preview est censée se charger au fur et à mesure de l'avancement de la génération.
+  Ce qui a été fait, mais ne fonctionne pas concrètement »*). Mesuré : les trois moteurs musicaux
+  (`audiocraft_backend`, `audiocpp_backend`, `yue2_3b_backend`) appelaient `on_audio` UNE fois, sur
+  l'audio FINAL, et la tâche retirait le partiel à la ligne suivante (`clear_partial` du `finally`) —
+  la face Pendant existait quelques millisecondes ; elle ne portait d'ailleurs que des pics, aucun
+  fichier jouable. Le critère `during_preview` et `tests_during_preview_declared` restaient VERTS :
+  ils lisent que l'app APPELLE la brique, pas QUAND (*adoption ≠ fonctionnement*). Désormais :
+  (1) **`preview_utils.PartialAudio`**, le pendant sonore de `PartialFrames` — un WAV à nom fixe
+  servi avec `?v=`, ses pics, sa cadence (`due`, 3 s), son nettoyage (`close`), le rappel
+  `on_audio` du contrat musical (`sink`) ; le synthesizer, qui tenait tout cela dans sa tâche, y
+  passe (`workers._during_preview`, seuls vitesse et hauteur lui restent propres) ; (2) **MusicGen
+  et AudioGen rendent l'audio PENDANT l'échantillonnage** (`audiocraft_backend._follow_tokens`) :
+  AudioCraft ne donne que des COMPTES à son rappel, les jetons sont donc relevés à la sortie de
+  `_sample_next_token` (enveloppé sur l'instance, rien de patché dans la librairie), replacés par le
+  motif du modèle (`revert_pattern_sequence`) et décodés par son codec, tous les 100 pas (~2 s de
+  son) ; la progression monte enfin pas à pas de 40 à 80 % (elle sautait d'un coup). Mesuré sur
+  le GPU (MusicGen small, 8 s) : partiels de 1,9 / 3,9 / 5,9 / 7,9 s pendant le calcul, puis le
+  final. (3) Le partiel suivant reprend la lecture où en était le précédent, au volet et dans la
+  visionneuse (`takeClock`/`giveClock` dans les deux `onFrame`) — chaque tour la faisait repartir
+  de 0. ⏳ **Limites dites** : MiniMax-Music3 (`audiocpp_cli`, un sous-processus qui n'écrit qu'à la
+  fin) et YuE2 (pipeline vendorisé, aucun rappel intermédiaire) ne montrent rien avant leur
+  résultat ; au-delà d'une fenêtre d'AudioCraft (`max_duration`), la progression seule. Gardes :
+  `tests_partial_audio` (ordre des jetons sur le VRAI motif à retard, cadence, fichier jouable +
+  onde, cycle), contre-épreuves en mémoire rouges (sans relevé des jetons, sans replacement par le
+  motif, pics sans fichier).
+  ✅ **L'ASSISTANT voit les MÊMES faces — 2026-10-20** (Fabien : *« que l'assistant bénéficie de la
+  preview (y compris during, comparaison, etc.) pour n'importe quelle tâche »*). `get_item_preview`
+  ne connaissait qu'`input`/`output`/`during` et ne regardait rien : il prend désormais toute face
+  que l'aperçu commun annonce (`sides.faces`, `sides.after` — « Détection », « Résumé »,
+  « Évaluation »…), la vue d'une face Pendant (`variant`), `compare` (la Sortie face à
+  `sides.compare_base`, comme la visionneuse), et `look=true` passe les IMAGES de la face au
+  modèle de vision de `look_at_image` (`vision_probe.describe_image_ollama`, sur le fichier que
+  l'aperçu vient de servir — permission comprise) : l'assistant regarde l'image qui se diffuse ou la
+  frame en cours de floutage. Une face absente est DITE (le serveur repliait sur l'entrée, que
+  l'outil faisait passer pour la face demandée). Rien de neuf côté serveur : `unified_preview` sert
+  tout. Gardes : `tests_tool_api_lectures.GetItemPreviewTest` (face Pendant regardée, face absente
+  nommée, Comparer sans sortie).
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct —
   qui construit sa réponse par la MÊME fabrique de face fichier que les cards (`file_face`,
   2026-10-12 ; il en avait sa copie, seule à extraire le texte d'un .docx).

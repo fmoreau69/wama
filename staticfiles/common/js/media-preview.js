@@ -1275,7 +1275,10 @@
             onFrame: function (d) {
                 d._baseUrl = base;
                 d._duringTick = true;
+                // Le partiel suivant reprend où en était la lecture du précédent (2026-10-20).
+                const clock = takeClock(_modalContainer(), base, null);
                 _display(d);
+                giveClock(_modalContainer(), clock, base);
             },
             onEnd: function () {
                 _json(faceUrl(base, 'output'))

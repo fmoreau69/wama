@@ -17,6 +17,79 @@ from wama.common.backends.music_generation_base import MusicGenerationBackend
 
 logger = logging.getLogger(__name__)
 
+#: Pas de calcul entre deux aperçus « pendant » : le modèle de langue d'AudioCraft en fait 50 par
+#: seconde de son (`frame_rate`) — un aperçu toutes les ~2 s d'audio produit. L'appelant tient
+#: sa propre cadence par-dessus (`PartialAudio.due`).
+PARTIAL_EVERY_STEPS = 100
+
+
+def _follow_tokens(model, progress_callback, on_audio) -> None:
+    """Suit la génération PAS À PAS (2026-10-20, Fabien : « dans Composer, la preview est censée
+    se charger au fur et à mesure de l'avancement de la génération ») :
+      • la progression réelle, de 40 à 80 %, par le rappel qu'AudioCraft offre
+        (`set_custom_progress_callback`) — elle sautait de 40 à 80 d'un coup ;
+      • l'audio déjà produit, rendu à `on_audio` tous les `PARTIAL_EVERY_STEPS` pas.
+
+    AudioCraft ne rend que des COMPTES à son rappel : les jetons sont relevés à leur sortie de
+    l'échantillonneur (`_sample_next_token`, enveloppé sur CETTE instance — rien n'est patché dans
+    la librairie), puis replacés dans l'ordre des pas de temps par le motif du modèle lui-même
+    (`pattern.revert_pattern_sequence`, ce que fait `lm.generate` à la fin) et décodés par son
+    codec (`compression_model.decode`, ce que fait `generate_audio`). Au-delà de `max_duration`,
+    AudioCraft enchaîne des fenêtres qui reprennent un préfixe : progression seule.
+    Ne lève jamais : un aperçu raté n'arrête pas la génération."""
+    lm = model.lm
+    steps = []
+    stream = bool(on_audio) and model.duration <= model.max_duration
+    if stream:
+        sample = lm._sample_next_token
+
+        def _spy(*args, **kwargs):
+            token = sample(*args, **kwargs)
+            steps.append(token)
+            return token
+        lm._sample_next_token = _spy
+
+    def _progress(generated, total):
+        if progress_callback and total:
+            progress_callback(40 + int(40 * min(generated, total) / total))
+        if stream and generated % PARTIAL_EVERY_STEPS == 0:
+            audio = _partial_audio(model, steps)
+            if audio is not None:
+                try:
+                    on_audio(audio, model.sample_rate)
+                except Exception:
+                    logger.debug("[Composer] aperçu partiel non publié", exc_info=True)
+
+    model.set_custom_progress_callback(_progress)
+
+
+def _partial_audio(model, steps):
+    """L'audio des pas de temps COMPLETS déjà échantillonnés (un pas porte chaque codebook avec
+    son retard), en `(échantillons,)` ou `(échantillons, canaux)` ; None s'il n'y en a pas encore."""
+    try:
+        import torch
+        lm = model.lm
+        provider = lm.pattern_provider
+        start = provider.get_pattern(1).get_first_step_with_timesteps(0)
+        timesteps = start + len(steps) - len(provider.get_pattern(0).layout)
+        if not steps or timesteps <= 0:
+            return None
+        first = steps[0]
+        head = torch.full((first.shape[0], first.shape[1], start), lm.special_token_id,
+                          dtype=first.dtype, device=first.device)
+        sequence = torch.cat([head] + list(steps), dim=-1)
+        codes, _, _ = provider.get_pattern(timesteps).revert_pattern_sequence(sequence, special_token=-1)
+        codes = codes[..., :timesteps]
+        if (codes < 0).any() or (codes >= lm.card).any():
+            return None
+        with torch.no_grad():
+            wav = model.compression_model.decode(codes, None)
+        audio = wav[0].float().cpu().numpy()
+        return audio.T if audio.ndim == 2 else audio
+    except Exception:
+        logger.debug("[Composer] audio partiel indécodable", exc_info=True)
+        return None
+
 
 class AudioCraftBackend(MusicGenerationBackend):
     """
@@ -128,11 +201,11 @@ class AudioCraftBackend(MusicGenerationBackend):
             if model_type == 'music':
                 wav = self._generate_music(
                     audiocraft_name, prompt, duration, melody_path,
-                    progress_callback,
+                    progress_callback, on_audio,
                 )
             else:
                 wav = self._generate_sfx(
-                    audiocraft_name, prompt, duration, progress_callback,
+                    audiocraft_name, prompt, duration, progress_callback, on_audio,
                 )
 
             if progress_callback:
@@ -150,11 +223,8 @@ class AudioCraftBackend(MusicGenerationBackend):
             sf.write(output_path, audio_np, sample_rate, subtype='PCM_16')
             logger.info(f"[Composer] Saved to {output_path}")
 
-            # Hook RÉUTILISABLE (best-effort) : publie l'audio produit pour la preview « pendant ».
-            # N'interrompt JAMAIS la génération (try/except). Ici on émet l'audio FINAL ; le vrai
-            # streaming mid-génération (onde qui se construit) nécessiterait le token-callback de
-            # MusicGen (dev GPU) — même point d'appel, à répéter par fenêtre. Dormant tant que l'app
-            # ne déclare pas la capacité during_preview.
+            # L'audio FINAL aussi, au même rappel que les partiels (`_follow_tokens`) — la cadence
+            # est celle de l'appelant. N'interrompt JAMAIS la génération (try/except).
             if on_audio:
                 try:
                     on_audio(audio_np, sample_rate)
@@ -187,6 +257,7 @@ class AudioCraftBackend(MusicGenerationBackend):
         duration: float,
         melody_path: Optional[str],
         progress_callback: Optional[Callable],
+        on_audio: Optional[Callable] = None,
     ):
         """Load MusicGen, generate, unload."""
         from audiocraft.models import MusicGen
@@ -199,6 +270,7 @@ class AudioCraftBackend(MusicGenerationBackend):
 
         if progress_callback:
             progress_callback(40)
+        _follow_tokens(model, progress_callback, on_audio)
 
         if melody_path and audiocraft_name == 'melody':
             import torch
@@ -208,13 +280,13 @@ class AudioCraftBackend(MusicGenerationBackend):
             melody = melody.unsqueeze(0)  # (1, C, T)
             # Prompt vide → description None : conditionnement par la SEULE mélodie
             # (audiocraft accepte des entrées None dans descriptions).
-            wav = model.generate_with_chroma([prompt or None], melody, sr)
+            wav = model.generate_with_chroma([prompt or None], melody, sr, progress=True)
         elif prompt:
-            wav = model.generate([prompt])
+            wav = model.generate([prompt], progress=True)
         else:
             # Prompt VIDE = génération ALÉATOIRE (inconditionnelle) — annoncé dans l'UI
             # (placeholder de la card d'entrée). Cf. INPUT_MODEL_MATCHING.md.
-            wav = model.generate_unconditional(1)
+            wav = model.generate_unconditional(1, progress=True)
 
         if progress_callback:
             progress_callback(80)
@@ -232,6 +304,7 @@ class AudioCraftBackend(MusicGenerationBackend):
         prompt: str,
         duration: float,
         progress_callback: Optional[Callable],
+        on_audio: Optional[Callable] = None,
     ):
         """Load AudioGen, generate, unload."""
         from audiocraft.models import AudioGen
@@ -244,8 +317,9 @@ class AudioCraftBackend(MusicGenerationBackend):
 
         if progress_callback:
             progress_callback(40)
+        _follow_tokens(model, progress_callback, on_audio)
 
-        wav = model.generate([prompt])
+        wav = model.generate([prompt], progress=True)
 
         if progress_callback:
             progress_callback(80)

@@ -2667,30 +2667,61 @@ def _url_relative(valeur):
     return valeur
 
 
-def get_item_preview(user, app: str, pk: int, side: str = 'input') -> dict:
+def get_item_preview(user, app: str, pk: int, side: str = 'input', variant: str = '',
+                     look: bool = False, question: str = '') -> dict:
     """
-    Look at what an item actually holds: the file it started from, the result it produced, or
-    what it is producing RIGHT NOW while the job is still running.
+    Look at what an item actually holds — the SAME faces the user sees on the card, in the
+    right panel and in the viewer: the file it started from, each step of its pipeline, what it
+    is producing RIGHT NOW while the job runs, the result, its evaluation, or the result next to
+    its source.
 
-    `sides` tells you what exists before you ask for it — `has_during` is true when a running
-    job already has something to show, so you can answer "how is it going?" with the real
-    partial output instead of a percentage.
+    `sides` tells you what exists before you ask for it: `faces` (one per pipeline step, e.g.
+    "detect", "summary"), `after` (e.g. "evaluation"), `has_during` (a running job already has
+    something to show — answer "how is it going?" with the real partial output, and ask again
+    later to see it grow), `comparable`. A text face carries its `content`; to SEE an image face
+    (a frame being processed, a generated image, an image being diffused), pass `look=true`.
 
     Args:
-        app:  app id the item belongs to (as returned by `list_my_items`).
-        pk:   item id.
-        side: 'input' (default), 'output', or 'during' for a job in progress.
+        app:      app id the item belongs to (as returned by `list_my_items`).
+        pk:       item id.
+        side:     'input' (default), 'output', 'during' (job in progress), 'compare' (the source
+                  next to the result), or a key of `sides.faces` / `sides.after`.
+        variant:  for 'during' only — one of the `variants` it lists (e.g. detection / blur).
+        look:     true = describe the image(s) of this face with the vision model.
+        question: what to look for, in the user's language (with look=true).
 
     Returns:
-        {"app","id","side","sides":{"has_input","has_output","has_during","during_capable",
-         "comparable"}, …preview payload with relative URLs…} or {"error"}
+        {"app","id","side","sides":{…}, …preview payload with relative URLs…, "look"?}
+        compare: {"app","id","side":"compare","base":{…},"output":{…}} ; or {"error"}
     """
     if refusal := _signed_in_refusal(user):
         return refusal
     side = (side or 'input').lower()
-    if side not in ('input', 'output', 'during'):
-        return {'error': f"side invalide : {side!r}. Valides : input, output, during"}
+    if side == 'compare':
+        return _compare_preview(user, app, pk, look, question)
+    face = _preview_face(user, app, pk, side, variant)
+    if 'error' in face:
+        if side not in ('input', 'output', 'during') and face['error'] != 'forbidden':
+            face['error'] += (" Faces : input, output, during, compare, ou une clé de "
+                                "`sides.faces` / `sides.after`.")
+        return face
+    if face.get('side') != side:
+        # Le serveur REPLIE sur une autre face quand celle demandée n'existe pas (l'entrée,
+        # le plus souvent) : le dire, plutôt que faire passer l'une pour l'autre.
+        s = face.get('sides') or {}
+        known = (['input', 'output', 'during']
+                 + [f.get('key') for f in (s.get('faces') or []) + (s.get('after') or [])]
+                 + (['compare'] if s.get('comparable') else []))
+        return {'error': f"Pas de face « {side} » pour {app}#{pk} en ce moment "
+                         f"(faces : {', '.join(k for k in known if k)}).",
+                'sides': s, 'app': app, 'id': pk}
+    if look:
+        face['look'] = _look_at_face(face, question)
+    return face
 
+
+def _preview_face(user, app: str, pk: int, side: str, variant: str = '') -> dict:
+    """UNE face de l'aperçu commun, telle que le volet la reçoit (URL rendues relatives)."""
     # ⭐ On RÉUTILISE l'endpoint de l'inspecteur au lieu de refaire sa logique : mêmes adapters,
     # MÊME contrôle de permission (`PreviewRegistry.check_permission`), même charge. C'est la
     # règle de §9ter appliquée à l'aperçu — si l'assistant avait sa propre projection, elle
@@ -2699,7 +2730,8 @@ def get_item_preview(user, app: str, pk: int, side: str = 'input') -> dict:
 
     from wama.common.utils.preview_utils import unified_preview
 
-    requete = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE).get('/', {'side': side})
+    params = {'side': side, **({'variant': variant} if variant else {})}
+    requete = RequestFactory(SERVER_NAME=_HOTE_SYNTHETIQUE).get('/', params)
     requete.user = user
     try:
         reponse = unified_preview(requete, app, pk)
@@ -2722,6 +2754,63 @@ def get_item_preview(user, app: str, pk: int, side: str = 'input') -> dict:
     charge = _url_relative(charge)
     charge.update({'app': app, 'id': pk})
     return charge
+
+
+def _compare_preview(user, app: str, pk: int, look: bool, question: str) -> dict:
+    """Comparer, comme la visionneuse : la Sortie face à la face qui montre la SOURCE
+    (`sides.compare_base` — l'entrée, ou l'entrée avec ses détections dessinées)."""
+    output = _preview_face(user, app, pk, 'output')
+    if 'error' in output:
+        return output
+    sides = output.get('sides') or {}
+    if output.get('side') != 'output':
+        return {'error': f"Rien à comparer : {app}#{pk} n'a pas encore de sortie.", 'sides': sides}
+    base = _preview_face(user, app, pk, sides.get('compare_base') or 'input')
+    if 'error' in base:
+        return base
+    result = {'app': app, 'id': pk, 'side': 'compare', 'sides': sides,
+              'base': {k: v for k, v in base.items() if k != 'sides'},
+              'output': {k: v for k, v in output.items() if k != 'sides'}}
+    if look:
+        result['look'] = {'base': _look_at_face(base, question),
+                          'output': _look_at_face(output, question)}
+    return result
+
+
+#: Faces regardées par le modèle de vision, au plus : une sortie multiple (les 4 images d'une
+#: génération) en montre plusieurs, chacune est une passe VLM.
+LOOK_MAX_IMAGES = 4
+
+
+def _look_at_face(face: dict, question: str = '') -> dict:
+    """Ce que montrent les IMAGES d'une face, par le modèle de vision de `look_at_image`
+    (`vision_probe.describe_image_ollama`). Le fichier est celui que l'aperçu commun vient de
+    servir — la permission est déjà passée par lui (`PreviewRegistry.check_permission`). Un texte
+    se lit dans `content` ; un son ou une vidéo ne se regardent pas (le dire)."""
+    from wama.common.utils.preview_utils import _local_media_path
+    files = face.get('files') if isinstance(face.get('files'), list) and face.get('files') else [face]
+    images = [f for f in files if str(f.get('mime_type') or '').startswith('image/')]
+    if not images:
+        mime = face.get('mime_type') or '?'
+        return {'error': f"Rien à regarder : cette face est « {mime} » — un texte se lit dans "
+                         f"`content`, un son ou une vidéo ne se regardent pas."}
+    from wama.model_manager.services.vision_probe import describe_image_ollama
+    keep_alive = '0' if getattr(settings, 'WAMA_GPU_SAFE_MODE', False) else None
+    seen = []
+    for f in images[:LOOK_MAX_IMAGES]:
+        path = _local_media_path(f.get('url'))
+        if not path:
+            seen.append({'name': f.get('name', ''), 'error': 'fichier absent du disque'})
+            continue
+        answer = describe_image_ollama(path, prompt=(question or '').strip() or None,
+                                      keep_alive=keep_alive)
+        seen.append({'name': f.get('name', ''), **(
+            {'description': answer.get('description', ''), 'model': answer.get('model', '')}
+            if answer.get('ok') else {'error': answer.get('error', 'analyse impossible')})})
+    if face.get('overlay'):
+        seen[0]['overlay'] = (f"des {face['overlay'].get('kind', 'annotations')} sont dessinées "
+                              f"par-dessus dans l'aperçu ; l'image regardée est celle du dessous")
+    return {'images': seen, 'more': max(0, len(images) - LOOK_MAX_IMAGES)}
 
 
 #: Caractères de résultat rendus DANS la réponse d'outil. Au-delà, le texte est coupé et le

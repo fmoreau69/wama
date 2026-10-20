@@ -73,46 +73,43 @@ def _console(user_id: int, message: str, level: str = None) -> None:
 def _during_preview(synthesis):
     """Aperçu « PENDANT » (brique COMMUNE preview_utils, `?side=during`, 2026-09-28) : l'audio
     déjà synthétisé, publié après chaque segment d'un texte long — on entend la synthèse
-    GRANDIR. Même patron que l'enhancer et l'anonymizer : un fichier à nom fixe sous
-    `output/partials/`, réécrit, servi avec `?v=` ; les pics d'onde (`waveform.compute_peaks`)
-    l'accompagnent pour que le lecteur commun dessine l'onde sans décoder.
-    Vitesse et hauteur sont appliquées au partiel : il s'entend comme le résultat.
-    Rend le `on_partial` de `render_speech`."""
-    from wama.common.utils.media_paths import get_app_media_path
-    from wama.common.utils.preview_utils import publish_partial, publish_partial_peaks
-    from wama.common.utils.waveform import compute_peaks
+    GRANDIR. Le fichier, son URL, ses pics et leur nettoyage sont ceux de la brique commune de
+    l'audio partiel (`preview_utils.PartialAudio`, 2026-10-20 — ils vivaient ici) ; reste propre
+    au synthesizer ce qu'il fait au son : vitesse et hauteur sont appliquées au partiel, qui
+    s'entend comme le résultat. Rend le `on_partial` de `render_speech`."""
     from .utils.audio_processor import process_audio_output
 
-    folder = Path(get_app_media_path('synthesizer', synthesis.user_id, 'output')) / 'partials'
-    folder.mkdir(parents=True, exist_ok=True)
-    raw = folder / f'during_{synthesis.id}_raw.wav'
-    heard = folder / f'during_{synthesis.id}.wav'
+    partial = _partial_audio(synthesis)
+    raw = Path(partial.path).with_name(f'during_{synthesis.id}_raw.wav')
+    raw.parent.mkdir(parents=True, exist_ok=True)
 
     def _publish(audio, done, total):
         audio.export(str(raw), format='wav')
         final = process_audio_output(str(raw), speed=synthesis.speed, pitch=synthesis.pitch,
-                                     output_path=str(heard))
-        rel = os.path.relpath(final, settings.MEDIA_ROOT).replace('\\', '/')
-        publish_partial('synthesizer', synthesis.id, f'{settings.MEDIA_URL}{rel}?v={done}')
-        peaks, duration = compute_peaks(final, buckets=800, dtype='uint8', with_duration=True)
-        if peaks:
-            publish_partial_peaks('synthesizer', synthesis.id, peaks, duration=duration)
+                                     output_path=partial.path)
+        if os.path.abspath(final) != os.path.abspath(partial.path):
+            os.replace(final, partial.path)        # ni vitesse ni hauteur : le brut EST le partiel
+        partial.publish_file()
         _console(synthesis.user_id, f"Aperçu : {done}/{total} segment(s) à l'écoute")
 
     return _publish
 
 
+def _partial_audio(synthesis):
+    from wama.common.utils.media_paths import get_app_media_path
+    from wama.common.utils.preview_utils import PartialAudio
+    folder = Path(get_app_media_path('synthesizer', synthesis.user_id, 'output')) / 'partials'
+    return PartialAudio('synthesizer', synthesis.id, folder)
+
+
 def _clear_during(synthesis):
     """Fin de run (succès, échec, nouvelle tentative) : la face SORTIE prend le relais."""
-    from wama.common.utils.media_paths import get_app_media_path
-    from wama.common.utils.preview_utils import clear_partial
-    clear_partial('synthesizer', synthesis.id)
-    folder = Path(get_app_media_path('synthesizer', synthesis.user_id, 'output')) / 'partials'
-    for name in (f'during_{synthesis.id}_raw.wav', f'during_{synthesis.id}.wav'):
-        try:
-            (folder / name).unlink()
-        except OSError:
-            pass
+    partial = _partial_audio(synthesis)
+    partial.close()
+    try:
+        Path(partial.path).with_name(f'during_{synthesis.id}_raw.wav').unlink()
+    except OSError:
+        pass
 
 
 def synthesizer_eta_key_size(synthesis):

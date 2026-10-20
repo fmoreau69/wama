@@ -180,6 +180,56 @@ class GetItemPreviewTest(TestCase):
     def test_app_inconnue_sans_lever(self):
         self.assertIn('error', T.get_item_preview(self.moi, 'pasunapp', 1))
 
+    def _during_frame(self, item):
+        """Une image « pendant » publiée comme le fait la diffusion de l'imager (PartialFrames)."""
+        import shutil
+        import tempfile
+
+        import io
+
+        from django.test import override_settings
+        from PIL import Image
+
+        from wama.common.utils.preview_utils import PartialFrames
+        jpeg = io.BytesIO()
+        Image.new('RGB', (8, 8)).save(jpeg, format='JPEG')
+        root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, root, True)
+        media = override_settings(MEDIA_ROOT=root, MEDIA_URL='/media/')
+        media.enable()
+        self.addCleanup(media.disable)
+        frames = PartialFrames('imager', item.pk, f'{root}/u/partials')
+        self.addCleanup(frames.close)
+        frames.publish({'latent': ('Diffusion', jpeg.getvalue())})
+
+    def test_the_assistant_SEES_the_image_being_built(self):
+        """2026-10-20 (Fabien : « que l'assistant bénéficie de la preview, y compris during »).
+        La face Pendant, regardée par le modèle de vision de `look_at_image` — sur le fichier que
+        l'aperçu commun vient de servir."""
+        from unittest import mock
+        item = _item(self.moi)
+        self._during_frame(item)
+        with mock.patch('wama.model_manager.services.vision_probe.describe_image_ollama',
+                        return_value={'ok': True, 'description': 'un ciel', 'model': 'vlm'}) as vlm:
+            out = T.get_item_preview(self.moi, 'imager', item.pk, side='during', look=True,
+                                     question='le ciel ?')
+        self.assertEqual('during', out['side'])
+        self.assertEqual('un ciel', out['look']['images'][0]['description'])
+        self.assertTrue(vlm.call_args.args[0].endswith(f'during_{item.pk}_latent.jpg'))
+        self.assertEqual('le ciel ?', vlm.call_args.kwargs['prompt'])
+
+    def test_a_face_that_does_not_exist_is_SAID_not_replaced_by_another(self):
+        """Le serveur replie sur l'entrée quand la face demandée manque : sans ce contrôle,
+        l'assistant décrirait l'entrée comme si c'était ce qui se construit."""
+        item = _item(self.moi)
+        out = T.get_item_preview(self.moi, 'imager', item.pk, side='during')
+        self.assertIn('error', out)
+        self.assertIn('during', out['error'])
+
+    def test_compare_needs_an_output(self):
+        item = _item(self.moi)
+        self.assertIn('error', T.get_item_preview(self.moi, 'imager', item.pk, side='compare'))
+
 
 class GetMyAccessTest(TestCase):
     def test_dit_les_apps_REFUSEES_autant_que_les_permises(self):

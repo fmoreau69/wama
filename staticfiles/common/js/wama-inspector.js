@@ -561,7 +561,11 @@
         onEnd: function () { _fetchPreviewSide(baseUrl, 'output', title); },   // → la SORTIE
         onFrame: function (d) {
           d._baseUrl = baseUrl;
+          // Un son ou une vidéo qui GRANDIT (2026-10-20) : le partiel suivant reprend à la position
+          // et dans l'état de lecture du précédent — chaque tour le faisait repartir de 0.
+          var clock = P.takeClock ? P.takeClock(previewHost, baseUrl, null) : null;
           P.renderInline(previewHost, d, false);
+          if (clock && P.giveClock) P.giveClock(previewHost, clock, baseUrl);
           // Double-clic → la modale commune, sur CETTE face suivie en direct (2026-10-05 : seule
           // face du volet sans plein écran — le double-clic rouvrait la face précédente).
           _attachFullscreen(d, baseUrl);

@@ -440,7 +440,7 @@ def _render(gen, ctx):
     from django.conf import settings
     from wama.common.utils.auto_model import is_auto
     from wama.common.utils.model_keys import model_id
-    from wama.common.utils.preview_utils import clear_partial, emit_streaming_peaks
+    from wama.common.utils.preview_utils import PartialAudio
     from .utils.model_config import clamp_duration
 
     catalog_key = _model_key(gen)
@@ -479,6 +479,9 @@ def _render(gen, ctx):
     # La partition EXTRAITE porte ses accords (pour la page d'édition) ; le cover n'en joue que la
     # mélodie (`cot="melody"`, chaîne prescrite par le moteur) — une copie jetable sans accords.
     melody_copy = _melody_copy(score_abs) if score and score == _name(gen.extracted_score) else None
+    # Preview « pendant » (COMMUN) : l'audio déjà produit, à l'écoute et en onde, tant que le
+    # moteur calcule — à la cadence de la brique, pas à celle du moteur.
+    partial = PartialAudio(ctx.app_id, gen.id, os.path.join(os.path.dirname(output_abs_path), 'partials'))
 
     try:
         _backend(gen, catalog_key).generate(
@@ -489,15 +492,13 @@ def _render(gen, ctx):
             melody_path=melody_abs,
             score_path=melody_copy or score_abs,
             progress_callback=ctx.progress,
-            # Preview « pendant » (COMMUN) : publie l'audio produit → onde de la face during.
-            # Dormant tant que composer ne déclare pas la capacité during_preview.
-            on_audio=lambda arr, sr: emit_streaming_peaks(ctx.app_id, gen.id, arr, sr),
+            on_audio=partial.sink(),
         )
     except Exception:
         ctx.reset_progress()
         raise
     finally:
-        clear_partial(ctx.app_id, gen.id)   # la face SORTIE prend le relais (ou rien, à l'échec)
+        partial.close()   # la face SORTIE prend le relais (ou rien, à l'échec)
         if melody_copy:
             try:
                 os.remove(melody_copy)

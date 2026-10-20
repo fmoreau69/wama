@@ -445,6 +445,83 @@ class PartialFrames:
         self._written.clear()
 
 
+class PartialAudio:
+    """L'aperçu « pendant » d'un SON en cours de calcul : l'audio déjà produit, écrit dans UN
+    fichier WAV à nom fixe, servi par `?side=during` avec `?v=` (cache du navigateur) et ses pics
+    d'onde (`waveform.compute_peaks`) pour que le lecteur commun dessine l'onde sans décoder. Le
+    pendant SONORE de `PartialFrames`, même cycle :
+
+        partial = PartialAudio('composer', gen.pk, folder)
+        backend.generate(..., on_audio=partial.sink())   # (tableau, fréquence), au fil du calcul
+        partial.close()          # fin : partiels retirés, la face SORTIE prend le relais
+
+    Un producteur qui écrit LUI-MÊME le fichier (le synthesizer applique vitesse et hauteur) y
+    écrit `partial.path` puis appelle `publish_file()`.
+
+    2026-10-20 (Fabien : « dans Composer, la preview est censée se charger au fur et à mesure »).
+    Le synthesizer tenait seul, dans sa tâche, le fichier, l'URL, les pics et leur nettoyage ; le
+    composer ne publiait que des pics, une fois, sur l'audio FINAL."""
+
+    def __init__(self, app_name, pk, folder, every: float = 3.0):
+        self.app_name, self.pk, self.every = app_name, pk, every
+        self.path = os.path.join(str(folder), f'during_{pk}.wav')
+        self._last = 0.0
+        self._count = 0
+
+    def due(self) -> bool:
+        import time
+        return time.time() - self._last >= self.every
+
+    def publish(self, pcm, sr) -> None:
+        """Écrit `pcm` (tableau mono `(n,)` ou `(n, canaux)`) et le publie. Ne lève jamais : un
+        aperçu raté n'arrête pas le calcul."""
+        try:
+            import soundfile as sf
+            os.makedirs(os.path.dirname(self.path), exist_ok=True)
+            sf.write(self.path, pcm, int(sr), subtype='PCM_16')
+        except Exception as exc:
+            logger.debug(f"Aperçu audio {self.app_name}/{self.pk} non écrit : {exc}")
+            return
+        self._announce(pcm, sr)
+
+    def publish_file(self) -> None:
+        """Publie le fichier `self.path`, déjà écrit : son URL et ses pics."""
+        self._announce(self.path, None)
+
+    def _announce(self, source, sr) -> None:
+        import time
+
+        from django.conf import settings
+        from .waveform import compute_peaks
+        self._last = time.time()
+        self._count += 1
+        try:
+            url = settings.MEDIA_URL + os.path.relpath(self.path, settings.MEDIA_ROOT).replace('\\', '/')
+            publish_partial(self.app_name, self.pk, f'{url}?v={self._count}')
+            peaks, duration = compute_peaks(source, buckets=800, sr=sr, dtype='uint8',
+                                            with_duration=True)
+            if peaks:
+                publish_partial_peaks(self.app_name, self.pk, peaks, duration=duration)
+        except Exception as exc:
+            logger.debug(f"Aperçu audio {self.app_name}/{self.pk} non publié : {exc}")
+
+    def sink(self):
+        """Le rappel `on_audio(tableau, fréquence)` du contrat de génération musicale
+        (`MusicGenerationBackend.generate`) : le backend appelle quand il veut, la cadence est
+        tenue ici (`due`) — l'audio FINAL d'un moteur qui ne sait rien montrer avant passe aussi."""
+        def _on_audio(pcm, sr):
+            if self.due():
+                self.publish(pcm, sr)
+        return _on_audio
+
+    def close(self) -> None:
+        clear_partial(self.app_name, self.pk)
+        try:
+            os.remove(self.path)
+        except OSError:
+            pass
+
+
 def publish_partial_peaks(app_name, pk, peaks, duration=None):
     """Worker : publie des PICS d'onde partiels (« waveform par parties », cf. `waveform.compute_peaks`)
     pour le streaming « pendant » — le front dessine l'onde qui se CONSTRUIT sans re-décoder le
