@@ -37,10 +37,7 @@
     return (speakerMap && speakerMap[c]) ? speakerMap[c] : c;
   }
 
-  function fmt(s) {
-    s = Math.max(0, Math.floor(s || 0));
-    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
-  }
+  function fmt(s) { return WamaAxis.formatTime(s); }   // un seul format de temps (`m:ss`, `h:mm:ss`)
   function esc(t) {
     const d = document.createElement('div'); d.textContent = t == null ? '' : t;
     return d.innerHTML;
@@ -259,8 +256,8 @@
     const btn = e.target.closest('.seg-play');
     if (!btn) return;
     const i = parseInt(btn.dataset.i, 10);
-    if (isNaN(i) || !window.WamaAudioPlayer) return;
-    WamaAudioPlayer.seek(playerId, segments[i].start_time || 0, true);
+    if (isNaN(i)) return;
+    playFrom(segments[i].start_time || 0);
     highlight(i);
   });
 
@@ -322,80 +319,47 @@
   // Lecture exclusive : PORTÉE AU COMMUN 2026-08-04 (wama-app-base.js, listener 'play'
   // en capture + WamaApp.pauseDomMedia) — ne pas la ré-introduire ici.
 
-  /* ── Transport : saut avant/arrière + vitesse ──────────────────────── */
-  let playbackRate = 1.0;
+  /* ── Transport : l'AXE COMMUN (2026-10-20, ROUTE §F3b « transport commun ») ───────────── */
+  // Le transport de l'éditeur était écrit ici (sauts, vitesse, échelle J/K/L recopiée de
+  // `wama-shuttle.js`, lecture arrière par minuterie, Espace) et chaque vue lisait l'<audio>. Il
+  // vit désormais dans `WamaAxis` : le clavier du magnéto et le shuttle lui envoient des
+  // COMMANDES, les vues (onde, carte de chaleur, minimap, segment joué) s'y ABONNENT
+  // (`WAMA_DATA_WORLD §5bis`). Restent ici les gestes PROPRES à l'éditeur : modes Navigation /
+  // Édition, Tab par segments, outil Bornes, modes d'écriture. Parité attestée geste par geste par
+  // le scénario `transcriber.editor_parity`, joué avant et après.
+  const SPEED_MIN = 0.5, SPEED_MAX = 2, SPEED_STEP = 0.25;
+  const axis = WamaAxis.create({});
+  // Échelle de l'éditeur = les paliers par défaut de la brique (fins entre 1 et 2, puis 4/8/16).
+  const shuttle = WamaShuttle.create({ apply: function (level) { axis.shuttle(level); } });
   function audio() { return window.WamaAudioPlayer ? WamaAudioPlayer.getAudio(playerId) : null; }
-  function skip(delta) {
-    const a = audio();
-    if (a) { try { a.currentTime = Math.max(0, (a.currentTime || 0) + delta); } catch (_) {} }
+  /** Lire depuis `t` (▶ d'un segment, carte de chaleur, proposition) : le shuttle se rend d'abord. */
+  function playFrom(t) {
+    if (axis.shuttling()) axis.shuttle(0);
+    axis.seek(t);
+    axis.play();
   }
-  function setSpeed(rate) {
-    playbackRate = Math.max(0.5, Math.min(2.0, Math.round(rate * 100) / 100));
-    const a = audio();
-    if (a) a.playbackRate = playbackRate;
-    const el = document.getElementById('speedVal');
-    if (el) el.textContent = playbackRate.toFixed(2).replace(/0$/, '') + '×';
+  function speedLabel(st) {
+    if (st.shuttling) return (st.rate > 0 ? '▶▶ ' + st.rate : '◀◀ ' + (-st.rate)) + '×';
+    return st.speed.toFixed(2).replace(/0$/, '') + '×';
   }
   function initTransport() {
     const sb = document.getElementById('skipBack');
     const sf = document.getElementById('skipFwd');
     const sd = document.getElementById('speedDown');
     const su = document.getElementById('speedUp');
-    if (sb) sb.addEventListener('click', function () { skip(-5); });
-    if (sf) sf.addEventListener('click', function () { skip(5); });
-    if (sd) sd.addEventListener('click', function () { setSpeed(playbackRate - 0.25); });
-    if (su) su.addEventListener('click', function () { setSpeed(playbackRate + 0.25); });
-    // Réapplique la vitesse quand l'audio est (ré)initialisé.
-    const a = audio();
-    if (a) a.playbackRate = playbackRate;
+    const bump = function (d) {
+      axis.setSpeed(Math.max(SPEED_MIN, Math.min(SPEED_MAX, Math.round((axis.speed() + d) * 100) / 100)));
+    };
+    if (sb) sb.addEventListener('click', function () { axis.jump(-5); });
+    if (sf) sf.addEventListener('click', function () { axis.jump(5); });
+    if (sd) sd.addEventListener('click', function () { bump(-SPEED_STEP); });
+    if (su) su.addEventListener('click', function () { bump(SPEED_STEP); });
+    const label = document.getElementById('speedVal');
+    axis.subscribe(function (st) { if (label) label.textContent = speedLabel(st); });
+    // Espace, ←/→ (±5 s ; Maj : ±30 s), Début/Fin, J/K/L — jamais pendant une saisie : en mode
+    // Édition, le focus est dans un champ, et le clavier du magnéto s'efface de lui-même.
+    axis.bindKeys({ jump: 5, shuttle: shuttle });
   }
-
-  /* ── Shuttle JKL (montage) — échelle de vitesse unique ─────────────── */
-  // L incrémente, J décrémente sur l'échelle ci-dessous, K = stop. Donc depuis
-  // 4× avant, J → 2× (réduit la vitesse), pas un passage direct en arrière.
-  // L'arrière (<0) est un défilement silencieux (<audio> ne lit pas le son à l'envers).
-  // Paliers fins (1.25/1.5/1.75) entre 1 et 2 — comme les boutons vitesse — puis
-  // accélération rapide (4/8/16) pour le scrubbing. Symétrique en arrière.
-  const SHUTTLE = [-16, -8, -4, -2, -1.75, -1.5, -1.25, -1, 0, 1, 1.25, 1.5, 1.75, 2, 4, 8, 16];
-  const STOP_IDX = SHUTTLE.indexOf(0);
-  let shuttleIdx = STOP_IDX;
-  let shuttle = 0;                 // = SHUTTLE[shuttleIdx], pour l'affichage
-  let reverseTimer = null;
-  function stopReverse() { if (reverseTimer) { clearInterval(reverseTimer); reverseTimer = null; } }
-  function shuttleLabel() {
-    const el = document.getElementById('speedVal');
-    if (!el) return;
-    if (shuttle > 0) el.textContent = '▶▶ ' + shuttle + '×';
-    else if (shuttle < 0) el.textContent = '◀◀ ' + (-shuttle) + '×';
-    else el.textContent = playbackRate.toFixed(2).replace(/0$/, '') + '×';
-  }
-  function startReverse(rate) {
-    stopReverse();
-    reverseTimer = setInterval(function () {
-      const na = audio(); if (!na) { stopReverse(); return; }
-      na.currentTime = Math.max(0, (na.currentTime || 0) - rate * 0.06);
-      if (na.currentTime <= 0) { shuttleIdx = STOP_IDX; shuttle = 0; stopReverse(); shuttleLabel(); }
-    }, 60);
-  }
-  function applyShuttle() {
-    shuttle = SHUTTLE[shuttleIdx];
-    const a = audio(); if (!a) { shuttleLabel(); return; }
-    if (shuttle > 0) {
-      stopReverse(); a.playbackRate = shuttle;
-      if (window.WamaAudioPlayer) WamaAudioPlayer.play(playerId);   // exclusivité commune
-      else a.play().catch(function () {});
-    }
-    else if (shuttle < 0) { a.pause(); startReverse(-shuttle); }
-    else { stopReverse(); a.pause(); a.playbackRate = playbackRate; }
-    shuttleLabel();
-  }
-  function shuttleStep(dir) {
-    shuttleIdx = Math.max(0, Math.min(SHUTTLE.length - 1, shuttleIdx + dir));
-    applyShuttle();
-  }
-  function shuttleForward() { shuttleStep(1); }   // L : un cran vers l'avant / + rapide
-  function shuttleReverse() { shuttleStep(-1); }  // J : un cran vers l'arrière / réduit
-  function shuttleStop() { shuttleIdx = STOP_IDX; applyShuttle(); }  // K
 
   /* ── Deux modes : Navigation (audio/JKL) ↔ Édition (frappe) ─────────── */
   let selIndex = -1;  // segment sélectionné en mode Navigation
@@ -426,35 +390,22 @@
       const s = window.getSelection(); s.removeAllRanges(); s.addRange(rg);
     } catch (_) {}
   }
-  function togglePlay() {
-    const a = audio(); if (!a) return;
-    // Espace = lecture normale → désengage le shuttle (retour échelle au stop).
-    stopReverse(); shuttleIdx = STOP_IDX; shuttle = 0;
-    if (a.paused) {
-      a.playbackRate = playbackRate;
-      // Exclusivité déléguée au commun (WamaAudioPlayer.play). L'ancien pauseAll()
-      // local ne coupait QUE les autres players : ni les <audio>/<video> du DOM,
-      // ni la vocalisation. Ne pas ré-implémenter l'exclusivité ici.
-      if (window.WamaAudioPlayer) WamaAudioPlayer.play(playerId);
-      else a.play().catch(function () {});
-    } else { a.pause(); }
-    shuttleLabel();
-  }
   // Navigation audio : relocalise la lecture au début du segment suivant (dir=1)
   // ou précédent (dir=-1), relativement à la position courante. Conserve l'état
   // lecture/pause (seek sans forcer play) + surligne le segment ciblé.
   function seekSegment(dir) {
-    const a = audio(); if (!a || !segments.length) return;
-    let cur = indexAt(a.currentTime || 0);
+    if (!segments.length) return;
+    const t = axis.time();
+    let cur = indexAt(t);
     if (cur < 0) {  // hors d'un segment → dernier dont le début précède la position
       cur = 0;
       for (let k = 0; k < segments.length; k++) {
-        if ((segments[k].start_time || 0) <= (a.currentTime || 0)) cur = k;
+        if ((segments[k].start_time || 0) <= t) cur = k;
       }
     }
     const i = Math.max(0, Math.min(segments.length - 1, cur + dir));
     selectSeg(i);
-    if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, segments[i].start_time || 0, false);
+    axis.seek(segments[i].start_time || 0);
   }
   // Synchronise la sélection avec le focus (clic dans un segment = édition)
   segContainer.addEventListener('focusin', function (e) {
@@ -865,17 +816,12 @@
     // ciseaux de l'outil Bornes) — en Édition, il coupe au curseur de texte (plus haut).
     if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      const a = audio(); if (a) splitAtTime(a.currentTime || 0);
+      splitAtTime(axis.time());
       return;
     }
     if (e.key === 'Enter') { e.preventDefault(); enterEdit(selIndex); return; }
-    if (e.key === 'ArrowLeft') { e.preventDefault(); skip(-5); return; }
-    if (e.key === 'ArrowRight') { e.preventDefault(); skip(5); return; }
-    if (e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
+    // Espace, ←/→ et J/K/L : le clavier du magnéto, tenu par l'axe (`initTransport`).
     const k = e.key.toLowerCase();
-    if (k === 'j') { e.preventDefault(); shuttleReverse(); return; }
-    if (k === 'k') { e.preventDefault(); shuttleStop(); return; }
-    if (k === 'l') { e.preventDefault(); shuttleForward(); return; }
     // R : enregistrer (mode Touch : tant que la touche est MAINTENUE ; Latch : jusqu'à l'arrêt)
     if (k === 'r' && !e.ctrlKey && !e.metaKey && !e.altKey
         && (writeMode === 'touch' || writeMode === 'latch')) {
@@ -925,8 +871,8 @@
   // la suivante), DEUX gestes (glisser une borne ; cliquer dans une section pour la couper), jamais
   // un mot coupé ni perdu, un outil dédié (bouton ou C, Échap pour sortir). Le CALCUL est commun
   // (`word_anchoring.move_boundary` / `split_turn`, par la vue `retime_segments`) ; ici, seulement
-  // le geste. Il reste dans le transcriber tant que le transport commun n'est pas conçu (consigne
-  // du 19/08 : ne pas lancer le portage avant) — cf. WAMA_DATA_WORLD §5.
+  // le geste. Le transport est commun depuis le 2026-10-20 (`WamaAxis`) ; le geste reste dans le
+  // transcriber tant que l'onde fenêtrée n'est pas une brique (ROUTE §F3b, étape suivante).
   let boundaryTool = false;
   let boundaryDrag = null;          // {i, t} : jonction i (entre i-1 et i) en cours de glisser
   let hoverT = null, hoverHandle = -1;
@@ -1038,8 +984,9 @@
   let lastActivity = 0;               // dernière plage fermée ou dernier résultat reçu (ms)
   const WAIT_RESULTS_MS = 60000;      // au-delà, une plage sans résultat n'est plus attendue
 
-  function isPlaying() { const a = audio(); return !!(a && !a.paused); }
-  function now() { const a = audio(); return a ? (a.currentTime || 0) : 0; }
+  // « La lecture » qui écrit : en AVANT seulement — la lecture arrière du shuttle ne transcrit rien.
+  function isPlaying() { return axis.playing() && axis.rate() > 0; }
+  function now() { return axis.time(); }
   function arm() { if (armedAt == null && isPlaying()) { armedAt = now(); renderRec(); } }
   function disarm() {
     if (armedAt == null) return;
@@ -1172,10 +1119,10 @@
       if (e.target.closest('.wp-accept')) {
         applySpan(p).then(function (ok) { if (ok) dropProposal(id); });
       } else if (e.target.closest('.wp-reject')) dropProposal(id);
-      else if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, p.start, true);   // écouter
+      else playFrom(p.start);                                          // écouter
     });
-    const a = audio();
-    if (a) a.addEventListener('pause', function () { disarm(); });   // l'arrêt referme la plage
+    // L'arrêt de la lecture AVANT (pause, fin, passage en arrière) referme la plage.
+    axis.subscribe(function (st) { if (!(st.playing && st.rate > 0)) disarm(); });
   }
 
   /* ── Forme d'onde ZOOMABLE (Phase B) : peaks serveur + rendu fenêtré ─── */
@@ -1185,10 +1132,7 @@
   const DEFAULT_VIEW = 240;                  // fenêtre initiale (s) : on ouvre déjà zoomé → onde visible d'emblée
   const LEGIBLE_PXPS = 1.5;                  // seuil bas → l'onde apparaît avec peu de zoom (mini-map = vue d'ensemble)
 
-  function fullDur() {
-    const a = audio();
-    return (a && isFinite(a.duration) && a.duration) ? a.duration : (peaksDur || 0);
-  }
+  function fullDur() { return axis.duration() || peaksDur || 0; }
   function clampView() {
     const D = fullDur(); if (!D) return;
     if (!viewDur || viewDur > D) viewDur = D;
@@ -1267,9 +1211,8 @@
       ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); ctx.restore();
     }
     // Playhead
-    const a = audio();
-    if (a && isFinite(a.currentTime)) {
-      const x = (a.currentTime - viewStart) / viewDur * W;
+    {
+      const x = (axis.time() - viewStart) / viewDur * W;
       if (x >= 0 && x <= W) {
         ctx.strokeStyle = '#0dcaf0'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); ctx.lineWidth = 1;
@@ -1297,7 +1240,7 @@
       z.style.background = SEV_COLOR[sev] || SEV_COLOR.none;
       z.title = segTooltip(s, i);
       z.addEventListener('click', function () {
-        if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, st, true);
+        playFrom(st);
         selectSeg(i);
       });
       frag.appendChild(z);
@@ -1332,39 +1275,24 @@
   /* ── Zoom : interactions ────────────────────────────────────────────── */
   function setZoom(newViewDur, centerT) {
     const D = fullDur(); if (!D) return;
-    const a = audio();
-    const c = (centerT != null) ? centerT : (a ? a.currentTime : viewStart + viewDur / 2);
+    const c = (centerT != null) ? centerT : axis.time();
     viewDur = Math.max(MIN_VIEW, Math.min(D, newViewDur));
     viewStart = c - viewDur / 2;
     redrawWindow();
   }
-  function followWindow() {            // recentre si le playhead sort de la fenêtre
-    const a = audio(); if (!a) return false;
-    const t = a.currentTime;
+  function followWindow(t) {           // recentre si le playhead sort de la fenêtre
     if (t < viewStart || t > viewStart + viewDur) { viewStart = t - viewDur / 2; clampView(); return true; }
     return false;
   }
 
-  /* ── Aller à un timecode (mm:ss / hh:mm:ss / ss) ───────────────────── */
-  function parseTimecode(s) {
-    s = (s || '').trim();
-    if (!s) return null;
-    const parts = s.split(':').map(function (p) { return parseFloat(p.replace(',', '.')); });
-    if (parts.some(isNaN)) return null;
-    let sec;
-    if (parts.length === 1) sec = parts[0];
-    else if (parts.length === 2) sec = parts[0] * 60 + parts[1];
-    else if (parts.length === 3) sec = parts[0] * 3600 + parts[1] * 60 + parts[2];
-    else return null;
-    return Math.max(0, sec);
-  }
+  /* ── Aller à un timecode (ss / mm:ss / hh:mm:ss, virgule admise) — lecture COMMUNE ─── */
   function gotoTimecode() {
     const inp = document.getElementById('gotoTime');
-    const sec = parseTimecode(inp && inp.value);
+    const sec = WamaAxis.parseTime(inp && inp.value);
     if (sec == null) { if (inp) { inp.classList.add('is-invalid'); setTimeout(function () { inp.classList.remove('is-invalid'); }, 1200); } return; }
     const D = fullDur();
     const t = D ? Math.min(sec, D) : sec;
-    if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, t, false);
+    axis.seek(t);
     viewStart = t - viewDur / 2; clampView(); redrawWindow();   // recentre la fenêtre d'onde
     const i = indexAt(t); if (i >= 0) { selectSeg(i); }          // surligne/sélectionne le segment
   }
@@ -1438,7 +1366,7 @@
           if (!info.moved && !info.cancelled) {
             const t = Math.max(0, timeAt(e.clientX));
             if (boundaryTool) { splitAtTime(t); return; }
-            if (window.WamaAudioPlayer) WamaAudioPlayer.seek(playerId, t, false);
+            axis.seek(t);
             redrawWindow();
           }
         },
@@ -1502,22 +1430,21 @@
     initZoomUI();
     initWriteModes();
     fetchPeaks();
-    if (window.WamaAudioPlayer) {
-      const a = WamaAudioPlayer.getAudio(playerId);
-      if (a) {
-        a.playbackRate = playbackRate;
-        let raf = null;
-        function tick() { drawZoom(); raf = a.paused ? null : requestAnimationFrame(tick); }
-        a.addEventListener('play', function () { if (!raf) tick(); });
-        a.addEventListener('pause', drawZoom);
-        a.addEventListener('seeked', function () { followWindow(); redrawWindow(); });
-        a.addEventListener('timeupdate', function () {
-          highlight(indexAt(a.currentTime));
-          if (followWindow()) redrawWindow();
-        });
-        a.addEventListener('loadedmetadata', function () { if (!viewDur) viewDur = Math.min(a.duration, DEFAULT_VIEW); redrawWindow(); });
-        if (a.duration) { if (!viewDur) viewDur = Math.min(a.duration, DEFAULT_VIEW); redrawWindow(); }
-      }
+    const a = audio();
+    if (a) {
+      // Il joue ET se positionne par le lecteur commun : sa lecture EXCLUSIVE coupe les autres
+      // lecteurs, et une position demandée avant les métadonnées (Tab, « aller à ») se repose.
+      axis.attach(a, {
+        play: function () { return WamaAudioPlayer.play(playerId); },
+        seek: function (t) { WamaAudioPlayer.seek(playerId, t, false); },
+      });
     }
+    // Les vues s'ABONNENT à l'axe : à chaque image en lecture (avant comme arrière), à chaque saut.
+    axis.subscribe(function (st) {
+      if (st.duration && !viewDur) viewDur = Math.min(st.duration, DEFAULT_VIEW);
+      highlight(indexAt(st.time));
+      if (followWindow(st.time) || st.reason !== 'tick') redrawWindow();
+      else drawZoom();
+    });
   });
 })();

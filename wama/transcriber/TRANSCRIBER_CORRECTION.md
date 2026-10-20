@@ -350,6 +350,11 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
    une plage enregistrée se referme toutes les 20 s et une tranche serveur fait au plus 30 s, donc
    un mot à cheval sur une coupe peut être imparfait. Joué au navigateur avec résultats semés, et
    Whisper réel sur une plage (CPU) ; la boucle complète dans celery reste à jouer après relance.
+   **2e ✅ livrée (2026-10-20) — le transport de l'éditeur est l'AXE COMMUN** (`WamaAxis` +
+   `WamaShuttle`, `WAMA_APP_GENERATION_ROUTE §F3b`) : mêmes gestes, mêmes raccourcis (38 gestes
+   rejoués avant et après, scénario `transcriber.editor_parity`), plus Maj+←/→ = ±30 s et
+   Début/Fin ; la vitesse choisie survit au shuttle. L'outil Bornes et les modes d'écriture restent
+   ici, abonnés à l'axe, jusqu'à ce que l'onde fenêtrée devienne une brique.
 3. **Confiance** (mot/segment) — déjà la source de la heatmap 2a.
 4. **Guidage** (slider rigueur + hésitations/silences/redondances) en suggestions accept/reject
    (règles FR + gaps de segments + LLM).

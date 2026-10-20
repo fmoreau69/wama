@@ -19,13 +19,19 @@
  *   var off  = axis.subscribe(function (s) { … s.time, s.duration, s.playing, s.rate, s.reason });
  *   axis.attach(audioElement, {offset: 0});
  *   axis.play(); axis.pause(); axis.toggle(); axis.seek(12.5); axis.jump(-5);
- *   axis.setRate(1.5); axis.shuttle(-2);          // shuttle : 0 = arrêt, < 0 = arrière
+ *   axis.setSpeed(1.5);                            // la vitesse CHOISIE (avant), celle de la lecture
+ *   axis.shuttle(-2);                              // un cran de shuttle : 0 = arrêt, < 0 = arrière
  *   axis.bindKeys({jump: 5});                      // Espace, ←/→, Début/Fin (+ J/K/L par WamaShuttle)
  *
+ * VITESSE ET SHUTTLE (2026-10-20, portage de l'éditeur du transcriber) : la vitesse choisie et le
+ * cran du shuttle sont deux choses. Le shuttle l'emporte tant qu'il est engagé (`shuttling`) ;
+ * l'arrêter (K), ou Espace pendant qu'il tourne, ou la lecture arrière qui touche le début, le
+ * DÉSENGAGE et rend la vitesse choisie — l'axe repassait à ×1, et le sélecteur de vitesse du
+ * cam_analyzer avait le défaut inverse (matrice de parité, `§F3b`).
+ *
  * Ce qu'il ne fait PAS encore (la matrice de parité de `§F3b` le dit, ligne par ligne) : le pas
- * image fps-aware, N médias synchronisés avec correction de dérive, la position persistée. Ni
- * l'éditeur du transcriber ni le cam_analyzer ne sont portés : contrainte de Fabien (19/08),
- * « ne rien casser » — la brique naît À CÔTÉ des transports existants.
+ * image fps-aware, N médias synchronisés avec correction de dérive, la position persistée. Le
+ * cam_analyzer n'est pas porté : contrainte de Fabien (19/08), « ne rien casser ».
  */
 (function (global) {
     'use strict';
@@ -46,9 +52,9 @@
         return tenths ? out + '.' + Math.floor((t - whole) * 10) : out;
     }
 
-    /** `1:23.4`, `83.4`, `1:02:03` → secondes ; null si illisible. */
+    /** `1:23.4`, `1:23,4`, `83.4`, `1:02:03` → secondes ; null si illisible. */
     function parseTime(text) {
-        var parts = String(text || '').trim().split(':');
+        var parts = String(text || '').trim().replace(/,/g, '.').split(':');
         if (!parts[0] && parts.length === 1) return null;
         var total = 0;
         for (var i = 0; i < parts.length; i++) {
@@ -72,13 +78,20 @@
             if (global.cancelAnimationFrame) global.cancelAnimationFrame(id); else clearTimeout(id);
         };
 
-        var s = { time: 0, duration: Number(opts.duration) || 0, playing: false, rate: 1 };
+        var s = { time: 0, duration: Number(opts.duration) || 0, playing: false, rate: 1,
+                  speed: 1, shuttling: false };
         var observers = [];
-        var media = null, offset = 0, unlisten = null;
+        var media = null, offset = 0, unlisten = null, playHook = null, seekHook = null;
         var loop = null, last = 0, lastSeek = 0;
 
         function snapshot(reason) {
-            return { time: s.time, duration: s.duration, playing: s.playing, rate: s.rate, reason: reason };
+            return { time: s.time, duration: s.duration, playing: s.playing, rate: s.rate,
+                     speed: s.speed, shuttling: s.shuttling, reason: reason };
+        }
+        /** Le shuttle rendu : la vitesse redevient celle qu'on a choisie. */
+        function disengage() {
+            s.shuttling = false;
+            s.rate = s.speed;
         }
         function notify(reason) {
             var snap = snapshot(reason);
@@ -93,6 +106,10 @@
 
         function setMediaTime(t) {
             if (!media) return;
+            // Le crochet du lecteur qui possède le média (`WamaAudioPlayer.seek` : il repose une
+            // position demandée avant que le fichier ne soit positionnable, et réclame ses
+            // métadonnées à un player à pics serveur) — l'axe ne le refait pas.
+            if (seekHook) { seekHook(Math.max(0, t + offset)); return; }
             try { media.currentTime = Math.max(0, t + offset); } catch (e) { /* métadonnées pas encore là */ }
         }
 
@@ -106,7 +123,9 @@
             if (mediaIsClock()) {
                 try { media.playbackRate = s.rate; } catch (e) { /* vitesse refusée : 1 */ }
                 if (media.paused) {
-                    var p = media.play();
+                    // Le crochet du lecteur qui possède le média (la lecture EXCLUSIVE de
+                    // `WamaAudioPlayer.play`, qui coupe les autres lecteurs de la page).
+                    var p = playHook ? playHook() : media.play();
                     if (p && p.catch) p.catch(function () { s.playing = false; notify('state'); });
                 }
             } else {
@@ -126,6 +145,7 @@
                 s.time += dt * s.rate;
                 if (s.time <= 0) { s.time = 0; s.playing = false; }
                 else if (s.time >= end()) { s.time = end(); s.playing = false; }
+                if (!s.playing && s.shuttling) disengage();      // arrivé au bord : shuttle rendu
                 if (media && (t - lastSeek >= SEEK_EVERY_MS || !s.playing)) { lastSeek = t; setMediaTime(s.time); }
             }
             notify(s.playing ? 'tick' : 'state');
@@ -138,6 +158,20 @@
         }
         function halt() {
             if (loop) { cancelFrame(loop); loop = null; }
+        }
+
+        /** Une vitesse que le média sait tenir lui est posée TOUT DE SUITE, même à l'arrêt : une
+         *  lecture lancée depuis le média lui-même (son bouton) part à la vitesse choisie. */
+        function rateToMedia() {
+            if (media && s.rate > 0 && s.rate <= MEDIA_MAX_RATE) {
+                try { media.playbackRate = s.rate; } catch (e) { /* vitesse refusée */ }
+            }
+        }
+        function applyRate(r) {
+            s.rate = r;
+            rateToMedia();
+            if (s.playing) { syncMedia(); last = now(); run(); }
+            notify('rate');
         }
 
         var axis = {
@@ -182,7 +216,20 @@
                 }
                 notify('state');
             },
-            toggle: function () { if (s.playing) axis.pause(); else axis.play(); },
+            speed: function () { return s.speed; },
+            shuttling: function () { return s.shuttling; },
+
+            /** Espace : pendant le shuttle, il le REND et s'arrête (le geste de l'éditeur) ;
+             *  sinon lecture / pause à la vitesse choisie. */
+            toggle: function () {
+                if (s.shuttling) {
+                    var was = s.playing;
+                    disengage();
+                    if (was) axis.pause(); else notify('rate');
+                    return;
+                }
+                if (s.playing) axis.pause(); else axis.play();
+            },
             stop: function () { axis.pause(); axis.seek(0); },
 
             seek: function (t) {
@@ -193,37 +240,55 @@
             },
             jump: function (dt) { axis.seek(s.time + (Number(dt) || 0)); },
 
-            /** Vitesse signée : < 0 = arrière (silencieux). 0 n'est pas une vitesse : c'est `pause`. */
+            /** Vitesse signée : < 0 = arrière (silencieux). 0 n'est pas une vitesse : c'est `pause`.
+             *  Une vitesse positive devient la vitesse CHOISIE, et rend le shuttle. */
             setRate: function (r) {
                 r = Number(r) || 0;
                 if (!r) { axis.pause(); return; }
-                s.rate = r;
-                if (s.playing) { syncMedia(); last = now(); run(); }
-                notify('rate');
+                s.shuttling = false;
+                if (r > 0) s.speed = r;
+                applyRate(r);
             },
-            /** Le geste du shuttle (J/K/L) : une vitesse ET la lecture ; 0 = arrêt. */
-            shuttle: function (speed) {
-                speed = Number(speed) || 0;
-                if (!speed) { axis.pause(); s.rate = 1; notify('rate'); return; }
-                axis.setRate(speed);
+            /** La vitesse choisie (avant) : celle de la lecture, à laquelle le shuttle revient.
+             *  Pendant le shuttle, elle est retenue sans interrompre le cran en cours. */
+            setSpeed: function (r) {
+                r = Number(r) || 0;
+                if (r <= 0) return;
+                s.speed = r;
+                if (s.shuttling) { notify('rate'); return; }
+                applyRate(r);
+            },
+            /** Le geste du shuttle (J/K/L) : un cran ET la lecture ; 0 = arrêt, vitesse choisie rendue. */
+            shuttle: function (level) {
+                level = Number(level) || 0;
+                if (!level) { axis.pause(); disengage(); notify('rate'); return; }
+                s.shuttling = true;
+                applyRate(level);
                 axis.play();
             },
 
             /** Attache un <audio>/<video> : il devient l'horloge quand il joue en avant. Un geste
              *  sur le média lui-même (son bouton, un clic dans son onde) est suivi par l'axe.
+             *  `o.offset` le décale ; `o.play` et `o.seek(t)` le font jouer et le positionnent à la
+             *  place de `el.play()` / `el.currentTime` — le lecteur qui le possède garde ainsi SES
+             *  règles (lecture exclusive, position reposée quand le fichier devient positionnable).
              *  Rend la fonction qui détache. */
             attach: function (el, o) {
                 axis.detach();
                 if (!el) return function () {};
+                o = o || {};
                 media = el;
-                offset = Number((o || {}).offset) || 0;
+                offset = Number(o.offset) || 0;
+                playHook = typeof o.play === 'function' ? o.play : null;
+                seekHook = typeof o.seek === 'function' ? o.seek : null;
                 var handlers = {
                     loadedmetadata: function () {
                         if (isFinite(el.duration) && el.duration > 0 && !s.duration) axis.setDuration(el.duration - offset);
                     },
                     play: function () {
                         if (s.playing) return;
-                        if (!(s.rate > 0 && s.rate <= MEDIA_MAX_RATE)) s.rate = 1;
+                        if (!(s.rate > 0 && s.rate <= MEDIA_MAX_RATE)) disengage();
+                        rateToMedia();
                         s.playing = true;
                         run();
                         notify('state');
@@ -240,6 +305,7 @@
                     },
                     ended: function () {
                         s.playing = false;
+                        if (s.shuttling) disengage();
                         halt();
                         s.time = end() === Infinity ? el.currentTime - offset : end();
                         notify('state');
@@ -256,6 +322,7 @@
                     Object.keys(handlers).forEach(function (k) { el.removeEventListener(k, handlers[k]); });
                 };
                 if (s.time) setMediaTime(s.time);
+                rateToMedia();
                 return axis.detach;
             },
             detach: function () {
@@ -263,6 +330,8 @@
                 unlisten = null;
                 if (media) pauseMedia();
                 media = null;
+                playHook = null;
+                seekHook = null;
             },
 
             /** Le clavier du magnéto (`WAMA_DATA_WORLD §5`) : Espace, ←/→ (±`jump` s), Début/Fin,
@@ -296,7 +365,15 @@
                     if (handled) e.preventDefault();
                 }
                 document.addEventListener('keydown', onKey);
-                return function () { document.removeEventListener('keydown', onKey); };
+                // Le shuttle RENDU par l'axe (Espace, arrivée au bord, lecture sur le média) : son
+                // échelle repart du stop, sinon le prochain L reprendrait au cran d'avant.
+                var unsubscribe = o.shuttle && o.shuttle.reset ? axis.subscribe(function (st) {
+                    if (!st.shuttling && o.shuttle.speed && o.shuttle.speed() !== 0) o.shuttle.reset();
+                }) : null;
+                return function () {
+                    document.removeEventListener('keydown', onKey);
+                    if (unsubscribe) unsubscribe();
+                };
             },
         };
         return axis;

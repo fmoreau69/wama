@@ -95,9 +95,15 @@
             if (server && server.peaks) Player.setPeaks(playerId, server.peaks);
             var el = Player.getAudio(playerId);
             if (!el) return;
-            if (el.preload === 'none') el.preload = 'metadata';
             if (server && server.duration) axis.setDuration(server.duration);
-            axis.attach(el, { offset: Number(options.offset) || 0 });
+            // Le média joue et se positionne par le lecteur commun : sa lecture EXCLUSIVE, et sa
+            // position reposée quand le fichier devient positionnable (métadonnées réclamées à un
+            // player à pics serveur) — l'axe et la brique ne les refont pas.
+            axis.attach(el, {
+                offset: Number(options.offset) || 0,
+                play: function () { return Player.play(playerId); },
+                seek: function (t) { Player.seek(playerId, t, false); },
+            });
             if (keep) axis.seek(keep);
         }
 

@@ -337,9 +337,13 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{% static_v 'common/js/wama-audio-player.js' %}"></script>
-{% comment %}Historique annuler/rétablir — brique COMMUNE. AVANT edit.js : `WamaHistory.create()`
-est appelé au corps de l'IIFE, donc à l'évaluation du script, pas à un événement.{% endcomment %}
+{% comment %}Le lecteur commun (`wama-audio-player.js`) est monté par `base.html` : il était chargé une
+seconde fois ici (deux registres, deux écouteurs délégués — matrice de parité, ROUTE §F3b).
+Historique, AXE et shuttle — briques COMMUNES, AVANT edit.js : `WamaHistory.create()`,
+`WamaAxis.create()` et `WamaShuttle.create()` sont appelés au corps de l'IIFE, donc à l'évaluation
+du script, pas à un événement.{% endcomment %}
 <script src="{% static_v 'common/js/wama-history.js' %}"></script>
+<script src="{% static_v 'common/js/wama-axis.js' %}"></script>
+<script src="{% static_v 'common/js/wama-shuttle.js' %}"></script>
 <script src="{% static_v 'transcriber/js/edit.js' %}"></script>
 {% endblock %}

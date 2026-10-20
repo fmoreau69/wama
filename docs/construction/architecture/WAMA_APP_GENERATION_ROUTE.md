@@ -905,6 +905,51 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       facette `surfaces` du manifeste du composer et de sa jumelle `composer_01` (l'extraction des
       apps existantes, déjà au reste du Writer) ; le smoke du lecteur 4 caméras après adoption de
       la brique `ranged_response` ; Leaflet hors de `tools/update_vendors.sh`.
+  - ✅ **2026-10-20 — L'ÉDITEUR DU TRANSCRIBER SUR L'AXE COMMUN** (chantier confié ce jour-là à une
+    session dédiée ; règle de la matrice tenue : chaque ligne attestée par son geste AVANT et APRÈS,
+    sur la même page).
+    - **le geste d'abord** : scénario `transcriber.editor_parity` (`ui_smoke_editor.py`), 38 gestes
+      sondés par l'`<audio>` et le DOM seuls, donc valables des deux côtés du portage — aller à,
+      sauts, vitesse, shuttle J/K/L et arrière silencieux, Espace qui rend le shuttle, Tab / Maj+Tab,
+      ↑/↓, Navigation ↔ Édition, coupe Ctrl+Entrée, annuler / rétablir, Alt+L, outil Bornes, mode
+      Touch (R maintenu), molette, clic dans l'onde, minimap, carte de chaleur, ▶ d'un segment,
+      segment joué surligné. **38/38 avant ; contre-épreuve (trois comportements cassés) rouge ;
+      38/38 après.** Les gestes au doigt et à la souris de l'onde (`common.gestures.*`) restent verts.
+    - **le portage** : sauts, vitesse, échelle J/K/L (copie de `wama-shuttle.js`), lecture arrière
+      par minuterie, Espace, format et lecture du temps, écouteurs de l'`<audio>` → `WamaAxis` +
+      `WamaShuttle` ; l'onde fenêtrée, la carte de chaleur, la minimap, le segment joué et les modes
+      d'écriture s'ABONNENT à l'axe. Le lecteur commun n'est plus chargé deux fois (`edit.html`).
+      Retraits : `REMOVAL_LEDGER R163`.
+    - **ce que l'axe a gagné, au commun** (il sert aussi la partition du composer) : la **vitesse
+      choisie** distincte du **cran de shuttle** — K, Espace pendant le shuttle et l'arrière qui
+      touche le début la RENDENT (l'axe repassait à ×1 : le défaut que la matrice relevait au
+      cam_analyzer) ; la vitesse posée au média dès qu'elle change (sinon une lecture lancée depuis
+      le lecteur partait à ×1 — trouvé par le passage « après », seul geste rouge) ; deux crochets,
+      `attach(el, {play, seek})`, par lesquels le LECTEUR QUI POSSÈDE le média le fait jouer et le
+      positionne avec SES règles — lecture exclusive (`WamaAudioPlayer.play`), position reposée
+      quand le fichier devient positionnable et métadonnées réclamées à un player à pics serveur
+      (`WamaAudioPlayer.seek`, `wama-audio-player.js:473`). ⚠ Une première version recopiait cette
+      dernière règle dans l'axe et dans l'éditeur : retirée à la relecture (consigne de Fabien, *« ne
+      rien réinventer »*), et la brique `media_transport`, qui forçait elle aussi `preload` et
+      jouait le média sans la lecture exclusive, passe par les mêmes crochets. Plus la virgule
+      décimale, et l'échelle J/K/L réalignée quand l'axe rend le shuttle (`bindKeys`). Gardes :
+      `tests_surfaces.AxisTest` (6, dont 3 neufs ; sept contre-épreuves rouges) et
+      `transcriber.tests_editor_axis` (5).
+    - **changements visibles, voulus** : Maj+←/→ = ±30 s et Début/Fin (le clavier du magnéto) ; les
+      temps au-delà d'une heure s'écrivent `h:mm:ss` (format commun) au lieu de `142:00`.
+    - ⚠ **La face Pendant n'est pas touchée** (consigne de Fabien le jour même : *« bien conserver le
+      comportement streaming en during_preview »*) : ni `wama-audio-player.js` (pics qui grandissent,
+      `setPeaks`), ni `preview_utils` ; ses tests (`tests_partial_audio`, `tests_card_pending_face`,
+      `tests_during_preview_declared`, `tests_preview_variants`) sont verts et se rejouent à chaque
+      étape. L'onde d'entrée du volet (④) ne se branchera pas sur l'axe sans eux.
+    - ⏳ **Étapes suivantes** (passation : `PROJECT_STATUS §PALIER 2026-10-20 (nuit) « APERÇU »`) :
+      la PAGE D'ÉDITION sur les briques UI — les vues de l'éditeur en briques universelles (onde
+      fenêtrée à couches — silences, bornes, bandes d'écriture —, carte de chaleur, minimap, liste
+      de segments), le lecteur nu NON synchronisé du volet droit (`edit.html:238`, reste ④ du
+      chantier aperçu), puis l'éditeur en surface déclarée (`common/surface.html`) — la forme est à
+      trancher par Fabien ; deux libellés de cran de shuttle coexistent (l'éditeur, `media_transport`)
+      et se réuniront avec les briques ; restent de la matrice le pas image fps-aware, N médias +
+      dérive, la position persistée (cam_analyzer).
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à

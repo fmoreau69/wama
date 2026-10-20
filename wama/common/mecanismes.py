@@ -1949,10 +1949,13 @@ MECHANISMS = (
               "L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue "
               "(`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; "
               "un média attaché est l'horloge en avant, l'axe avance seul et le recale en arrière "
-              "(lecture silencieuse) ; clavier du magnéto. Né le 2026-10-15 À CÔTÉ des transports "
-              "existants (éditeur du transcriber et cam_analyzer non portés, matrice de parité)",
+              "(lecture silencieuse) ; vitesse CHOISIE distincte du cran de shuttle ; clavier du "
+              "magnéto. Né le 2026-10-15 avec la partition du composer ; l'éditeur du transcriber y "
+              "est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`) ; le "
+              "cam_analyzer reste à porter (matrice de parité)",
               'wama/common/static/common/js/wama-axis.js',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
+              annexes=('wama/common/services/ui_smoke_editor.py',),
               depends_on=('shuttle',)),
     Mechanism('playhead_follow', 'Suivre la tête de lecture (traitement au fil de la lecture)',
               "Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle "

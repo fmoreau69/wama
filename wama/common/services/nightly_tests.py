@@ -604,6 +604,7 @@ def _register_builtin() -> None:
         from wama.common.services.ui_smoke_states import register_state_color_scenarios
         from wama.common.services.ui_smoke_panel import register_panel_reflect_scenarios
         from wama.common.services.ui_smoke_layout import register_layout_scenarios
+        from wama.common.services.ui_smoke_editor import register_editor_scenarios
         from wama.common.services.ui_smoke_preview import register_preview_scenarios
         register_ui_scenarios()
         # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
@@ -655,6 +656,10 @@ def _register_builtin() -> None:
         # du haut et pied sans chevauchement. Un logo posé sur ses voisins ne lève aucune erreur — il
         # l'était dès 1 280 px volets ouverts, et personne ne l'a dit avant une mesure.
         register_layout_scenarios()
+        # 2026-10-20 — la PARITÉ de l'éditeur du transcriber, geste par geste : la règle du
+        # chantier « transport commun » (ROUTE §F3b) veut chaque ligne de la matrice attestée
+        # AVANT et APRÈS le portage sur l'axe commun, sur la même page.
+        register_editor_scenarios()
         # 2026-08-27 — le chemin que AUCUN des six précédents n'emprunte : la SÉLECTION.
         # `batch_actions` clique les boutons DE la card ; c'est `selectItem`/`selectBatch` qui
         # peuplent le volet Actions. D'où deux défauts MUETS passés au travers du nocturne :

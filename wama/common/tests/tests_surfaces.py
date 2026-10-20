@@ -495,7 +495,71 @@ class AxisTest(SimpleTestCase):
         self.assertEqual('1:23.4', self._eval('return window.WamaAxis.formatTime(83.45, true);'))
         self.assertEqual('1:02:05', self._eval('return window.WamaAxis.formatTime(3725);'))
         self.assertAlmostEqual(83.4, self._eval('return window.WamaAxis.parseTime("1:23.4");'))
+        self.assertAlmostEqual(83.4, self._eval('return window.WamaAxis.parseTime("1:23,4");'),
+                               msg='a French decimal comma is read (the editor accepted it)')
         self.assertIsNone(self._eval('return window.WamaAxis.parseTime("x");'))
+
+    def test_the_shuttle_is_released_back_to_the_chosen_speed(self):
+        """The editor's gestures : K, Space while shuttling, and backward play reaching the start
+        all give back the CHOSEN speed — the axis used to fall back to ×1."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts));
+            axis.setSpeed(1.5);
+            axis.shuttle(4); var fast = [axis.rate(), axis.shuttling(), axis.speed()];
+            axis.setSpeed(1.75); var keptDuringShuttle = axis.rate();
+            axis.shuttle(0); var stopped = [axis.rate(), axis.playing(), axis.shuttling()];
+            axis.shuttle(2); axis.toggle(); var spaced = [axis.rate(), axis.playing(), axis.shuttling()];
+            axis.toggle(); var replay = [axis.rate(), axis.playing()]; axis.pause();
+            axis.seek(1); axis.shuttle(-2); step(100); step(600);
+            var edge = [axis.time(), axis.playing(), axis.shuttling(), axis.rate()];
+            return {fast: fast, keptDuringShuttle: keptDuringShuttle, stopped: stopped,
+                    spaced: spaced, replay: replay, edge: edge};
+        ''')
+        self.assertEqual([4, True, 1.5], out['fast'])
+        self.assertEqual(4, out['keptDuringShuttle'], 'a speed chosen while shuttling waits for the release')
+        self.assertEqual([1.75, False, False], out['stopped'], 'K gives back the chosen speed')
+        self.assertEqual([1.75, False, False], out['spaced'], 'Space while shuttling pauses and releases')
+        self.assertEqual([1.75, True], out['replay'], 'then Space plays at the chosen speed')
+        self.assertEqual([0, False, False, 1.75], out['edge'], 'backward play reaching 0 releases the shuttle')
+
+    def test_the_medium_gets_the_speed_and_its_owner_plays_and_positions_it(self):
+        """The player that owns the medium keeps ITS rules — exclusive playback, a position set
+        again once the file can be positioned (`WamaAudioPlayer.play` / `.seek`) : the axis hands
+        play and seek to it instead of redoing them."""
+        out = self._eval('''
+            var axis = window.WamaAxis.create(opts), media = fakeMedia(8), played = 0, sought = [];
+            axis.attach(media, {offset: 1,
+                                play: function () { played++; media.paused = false; return null; },
+                                seek: function (t) { sought.push(t); }});
+            axis.setSpeed(1.25); var pausedRate = media.playbackRate;
+            axis.seek(5); var direct = media.currentTime;
+            axis.play();
+            return {pausedRate: pausedRate, sought: sought, direct: direct, played: played,
+                    playing: !media.paused};
+        ''')
+        self.assertEqual(1.25, out['pausedRate'], 'the chosen speed reaches the medium while paused')
+        self.assertEqual([6], out['sought'], "the owner's seek positions the medium (offset applied)")
+        self.assertEqual(0, out['direct'], 'the axis does not set the medium time itself')
+        self.assertEqual(1, out['played'], "the owner's play hook plays the medium (exclusive playback)")
+        self.assertTrue(out['playing'])
+
+    def test_bound_keys_realign_the_shuttle_when_the_axis_releases_it(self):
+        out = self._eval('''
+            var listeners = [];
+            globalThis.document = {addEventListener: function (k, fn) { listeners.push(fn); },
+                                   removeEventListener: function () {}};
+            var level = 0, resets = 0;
+            var shuttle = {forward: function () {}, reverse: function () {}, stop: function () {},
+                           speed: function () { return level; }, reset: function () { resets++; level = 0; }};
+            var axis = window.WamaAxis.create(Object.assign({duration: 60}, opts));
+            axis.bindKeys({shuttle: shuttle});
+            level = 2; axis.shuttle(2); var during = resets;
+            axis.toggle();
+            return {during: during, after: resets, level: level};
+        ''')
+        self.assertEqual(0, out['during'], 'an engaged shuttle is left alone')
+        self.assertEqual(1, out['after'], 'released by Space : the J/K/L ladder starts from the stop again')
+        self.assertEqual(0, out['level'])
 
 
 ABC = 'X:1\nM:4/4\nL:1/8\nQ:1/4=80\nK:C\nC2 D2 E2 F2|G8|\n'
