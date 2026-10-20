@@ -807,7 +807,7 @@ def _champ(request, name: str) -> str:
     ⚠ Le corps lisait `nom` alors que la signature déclare `name` (renommage partiel du
     2026-08-30) : chaque appel levait une NameError, donc la confirmation d'appariement de
     canal et la déliaison répondaient 500. Aucun test n'appelait ces vues — corrigé et gardé
-    le 2026-09-15 (`accounts/tests_channel_views.py`).
+    le 2026-09-15 (`accounts/tests/tests_channel_views.py`).
     """
     if request.content_type and 'application/json' in request.content_type:
         try:
@@ -992,6 +992,26 @@ def user_management(request):
         'volet': VOLET_AUCUN,                   # tableau d'administration, cf. login_view
     }
     return render(request, 'accounts/user_management.html', context)
+
+
+@admin_required
+def user_constellation(request):
+    """La constellation 3D des utilisateurs (2026-10-20, demande de Fabien) — ouverte depuis la
+    gestion des utilisateurs. La page ne porte aucune donnée : elle lit `user_constellation_data`.
+
+    `?embed=1` : la MÊME page sans barre ni volet, pour la frame « Droits · Constellation » de la
+    présentation (`includes/wama_presentation.html`), qui l'intègre en iframe — et noms masqués
+    par défaut, la présentation se projetant devant d'autres personnes."""
+    return render(request, 'accounts/user_constellation.html',
+                  {'volet': VOLET_AUCUN, 'embed': request.GET.get('embed') == '1'})
+
+
+@admin_required
+def user_constellation_data(request):
+    """Les FAITS de la constellation (`accounts.constellation`) — réservés à l'administration :
+    ils disent de chaque compte ses droits, ses partages et son activité."""
+    from wama.accounts.constellation import constellation
+    return JsonResponse(constellation())
 
 
 @admin_required

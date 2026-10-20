@@ -44,6 +44,8 @@ urlpatterns = [
 
     # User Management (Admin only)
     path('users/', views.user_management, name='user-management'),
+    path('users/constellation/', views.user_constellation, name='user-constellation'),
+    path('users/constellation/data/', views.user_constellation_data, name='user-constellation-data'),
     path('users/new/', views.user_add, name='user-add'),
     path('users/<int:user_id>/delete/', views.user_delete, name='user-delete'),
     path('users/<int:user_id>/role/', views.user_update_role, name='user-update-role'),

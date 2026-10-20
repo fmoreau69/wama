@@ -303,7 +303,7 @@ def get_test_dev_user():
 _MOTIF_TEMOIN = re.compile(r'^(wama_temoin_|tmp[A-Za-z0-9_]{8})')
 # Les comptes de test connus (même liste que `_test_session_key` dans ui_smoke). Tous portent le
 # préfixe `wama_` (`accounts.permissions.TEST_ACCOUNT_PREFIX`, renommage du 2026-10-01 :
-# `ui_smoke_v3` et `pw_smoke` l'ont reçu) — garde `accounts/tests_account_kinds`. ⚠ Cette liste
+# `ui_smoke_v3` et `pw_smoke` l'ont reçu) — garde `accounts/tests/tests_account_kinds`. ⚠ Cette liste
 # est l'EXCLUSION des statistiques apprises : `wama_evaluation` est un compte de test au sens de
 # la page des utilisateurs mais n'y figure PAS (il nourrit l'ETA, décision de Fabien du 30/09).
 TEST_USERNAMES = (TEST_USERNAME, TEST_DEV_USERNAME, 'wama_ui_smoke_v3', 'wama_pw_smoke',
@@ -606,7 +606,11 @@ def _register_builtin() -> None:
         from wama.common.services.ui_smoke_layout import register_layout_scenarios
         from wama.common.services.ui_smoke_editor import register_editor_scenarios
         from wama.common.services.ui_smoke_preview import register_preview_scenarios
+        from wama.common.services.ui_smoke_accounts import register_account_scenarios
         register_ui_scenarios()
+        # 2026-10-20 — la CONSTELLATION des utilisateurs : une scène three.js dont rien ne se rend
+        # côté serveur ; une importmap cassée laisserait une page 200 au fond noir.
+        register_account_scenarios()
         # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
         # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
         # (avatarizer, mesuré le 13/09). D'où ces gestes dans le navigateur, versés du bloc-notes.

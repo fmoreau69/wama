@@ -4407,7 +4407,7 @@ avec les mêmes bornes, depuis la même déclaration ; le générateur n'a qu'un
   (apps : leur schéma ENTIER au contexte `item` ; fonctions : le pont ; intégrés : un schéma `Param`) ;
   la coercition unique ; `media_picker` en renderer commun. Retire `_node_params_spec`,
   `function_node_params_specs`, `with_catalog_options` (un select `catalog` se remplit seul, par
-  l'endpoint commun, transverse — `accounts/tests_access_points.py:83`), `renderNodeParams`,
+  l'endpoint commun, transverse — `accounts/tests/tests_access_points.py:83`), `renderNodeParams`,
   `_coerce_params`. L'`extra_params_spec` de l'avatarizer (`generic_runner.py:86-89`) devient un
   `Param`. N'arbitre rien de neuf : applique 3.3, F3 et §10.2.
 - **R2** — la déclaration unique des nœuds intégrés (règle 6) ; les deux nœuds Data s'enregistrent

@@ -1016,7 +1016,7 @@ Deux pièges rencontrés, tous deux visibles seulement à l'écran :
   351 → 276 → 168 ; les étiquettes restent en Affiné (5), l'aperçu sort (2 → 0 au converter) ;
   menu ordonné, case active, persistance au rechargement, 0 erreur console. Transcriber,
   synthesizer, imager : Détaillé = Affiné sur ces cards de test, qui n'ont pas d'aperçu.
-- **Gardé par `wama/accounts/tests_card_designs.py`**, sans nommer aucune densité : le menu offre
+- **Gardé par `wama/accounts/tests/tests_card_designs.py`**, sans nommer aucune densité : le menu offre
   exactement les choix déclarés dans leur ordre ; le défaut ouvre la liste ; tout sélecteur
   `[data-card-design="…"]` des feuilles servies vise une densité déclarée (CSS mort) ; toute
   densité autre que le défaut a ses règles ; tout repli (`|default:'…'`, `|| '…'`) égale le

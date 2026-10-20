@@ -943,7 +943,7 @@ MECHANISMS = (
               "puis les `SECRET_KEY_FALLBACKS`, dont `rotate_secrets` ne garde que TROIS",
               'wama/common/utils/secret_crypto.py',
               'docs/construction/suivi/ROADMAP.md §8d',
-              annexes=('wama/accounts/tests_api_keys.py',)),
+              annexes=('wama/accounts/tests/tests_api_keys.py',)),
     Mechanism('mcp_server', 'Serveur MCP (adaptateur mince sur tool_api)',
               "Un seul contrat d'outils pour TOUS les cerveaux (Ollama, Claude Code, Albert, un "
               "IDE) : `tools/list` = le registre filtré par `tool_accessible`, `tools/call` = "
@@ -2704,9 +2704,15 @@ MECHANISMS = (
               "Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, "
               "un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, "
               "assistant — routes résolues comme celles de toute app, l'assistant gardé aussi dans "
-              "`conversation_turn`). `access_cases()` énumère tous les cas pour la présentation",
+              "`conversation_turn`). `access_cases()` énumère tous les cas pour la présentation ; "
+              "depuis le 2026-10-20, la CONSTELLATION des utilisateurs (`accounts/constellation.py`) "
+              "montre ces décisions compte par compte, avec unités, projets, partages, apports et "
+              "activité — page admin, intégrée à la présentation, jouée chaque nuit "
+              "(`accounts.constellation.ui`) ; les deux vues montrent les mêmes outils "
+              "(`presented_apps`)",
               'wama/accounts/permissions.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
-              annexes=('wama/accounts/tests.py', 'wama/accounts/tests_access_points.py'),
+              annexes=('wama/accounts/tests/tests_anonymous_closure.py', 'wama/accounts/tests/tests_access_points.py',
+                       'wama/accounts/constellation.py', 'wama/common/services/ui_smoke_accounts.py'),
               symbol='accessible'),
     # Ajouté le 2026-10-04 (décision de Fabien : « option 1, persistance par session »). Collé à
     # `app_access` parce qu'il en est le prolongement : la décision dit QUELLE app est ouverte au
@@ -2723,7 +2729,7 @@ MECHANISMS = (
               "visiteur VOIT et ne fait rien (403 de la même garde). `is_guest_account` = le "
               "prédicat unique « compte de visiteur » (partagé ou de session)",
               'wama/accounts/visitors.py', 'docs/construction/exploitation/PROFILES_PERMISSIONS.md',
-              annexes=('wama/accounts/middleware.py', 'wama/accounts/tests_visitors.py'),
+              annexes=('wama/accounts/middleware.py', 'wama/accounts/tests/tests_visitors.py'),
               symbol='attach'),
     # Ajouté le 2026-08-27 avec le jalon S1 (PROFILES_PERMISSIONS §8). Il est le VOISIN de
     # `app_access` et son exact complément — d'où sa place ici, collé à lui : `app_access` répond

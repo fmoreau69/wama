@@ -10,7 +10,7 @@ anti-redirection ouverte posée dans le MÊME geste (une garde se pose avec ses 
 ouvrir le fil `next` sans la garde aurait créé le redirecteur ouvert au moment même où on
 se met à faire circuler des liens profonds par QR).
 
-Lancer : `python manage.py test wama.accounts.tests_login_next` (venv WSL).
+Lancer : `python manage.py test wama.accounts.tests.tests_login_next` (venv WSL).
 """
 from django.contrib.auth.models import User
 from django.test import TestCase

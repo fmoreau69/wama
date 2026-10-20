@@ -202,6 +202,15 @@
     });
   });
 
+  // Pages INTÉGRÉES : une <iframe data-src> ne se charge qu'à l'arrivée de la caméra sur sa frame,
+  // une fois — une scène 3D intégrée (constellation des utilisateurs) ne tourne pas hors champ
+  // avant qu'on y vienne.
+  document.addEventListener('wama:step', e => {
+    const { frame, settled } = e.detail;
+    if (!settled || !frame) return;
+    frame.querySelectorAll('iframe[data-src]').forEach(f => { f.src = f.dataset.src; f.removeAttribute('data-src'); });
+  });
+
   // Démarrage : ancre d'URL (#id ou #n), sinon première frame.
   const h = decodeURIComponent(location.hash.slice(1));
   let start = steps.findIndex(f => f.id === h);

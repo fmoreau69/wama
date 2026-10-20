@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_static %}
+
+{% block title %}Constellation des utilisateurs - WAMA{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static_v 'accounts/css/user-constellation.css' %}">
+{% endblock %}
+
+{% block top_navigation %}{% if not embed %}{{ block.super }}{% endif %}{% endblock %}
+
+{% block content %}
+{% comment %}
+  Constellation 3D des utilisateurs (2026-10-20, demande de Fabien) — ouverte depuis « Users ».
+  La page ne porte AUCUNE donnée : la scène lit `accounts:user-constellation-data`
+  (`accounts/constellation.py`, qui lit chaque fait de sa brique). Le moteur est three.js vendorisé,
+  par l'importmap COMMUNE posée dans `base.html` (`common/_three_importmap.html`) — aucun CDN.
+  Langage visuel : celui de la scène des mondes de la présentation (`presentation/wama-presentation-3d.js`).
+  `embed` : la même page intégrée par la présentation (frame « Droits · Constellation ») — sans
+  barre, sans volet, sans retour, noms masqués par défaut.
+{% endcomment %}
+<div class="uc-stage{% if embed %} embed{% endif %}" id="uc-stage" data-src="{% url 'accounts:user-constellation-data' %}"
+     {% if embed %}data-embed="1"{% endif %}>
+  <div class="uc-canvas" id="uc-canvas"></div>
+  <div class="uc-labels" id="uc-labels"></div>
+  <div class="uc-tooltip" id="uc-tooltip"></div>
+
+  <!-- HUD gauche : titre, mesures, recherche, couches, forces -->
+  <aside class="uc-hud uc-hud-left">
+    {% if not embed %}<a class="uc-back" href="{% url 'accounts:user-management' %}"><i class="fas fa-arrow-left"></i> Gestion des utilisateurs</a>{% endif %}
+    <div class="uc-kicker">Utilisateurs · WAMA</div>
+    <h1 class="uc-title">Constellation</h1>
+    <p class="uc-stats" id="uc-stats">Chargement des comptes…</p>
+
+    <div class="uc-search">
+      <i class="fas fa-magnifying-glass"></i>
+      <input type="search" id="uc-search" list="uc-search-list" placeholder="Trouver une personne…" autocomplete="off">
+      <datalist id="uc-search-list"></datalist>
+    </div>
+
+    <div class="uc-box">
+      <div class="uc-box-title">Couches</div>
+      <div class="uc-chips" id="uc-layers">
+        <button type="button" class="uc-chip on" data-layer="units"><span class="dot u"></span>Unités</button>
+        <button type="button" class="uc-chip on" data-layer="projects"><span class="dot p"></span>Projets</button>
+        <button type="button" class="uc-chip on" data-layer="shares"><span class="dot s"></span>Partages</button>
+        <button type="button" class="uc-chip on" data-layer="satellites"><span class="dot c"></span>Contributions</button>
+        <button type="button" class="uc-chip" data-layer="tests"><span class="dot t"></span>Comptes de test</button>
+        <button type="button" class="uc-chip{% if not embed %} on{% endif %}" data-layer="names"
+                title="Masquer les noms (initiales seules) — pour projeter la constellation devant d'autres personnes">Noms</button>
+      </div>
+      <div class="uc-box-title">Couleur des étoiles</div>
+      <div class="uc-chips" id="uc-colorby">
+        <button type="button" class="uc-chip on" data-color="tier">Profil</button>
+        <button type="button" class="uc-chip" data-color="world">Monde le plus utilisé</button>
+      </div>
+    </div>
+
+    <details class="uc-box uc-forces"{% if not embed %} open{% endif %}>
+      <summary class="uc-box-title">Ce qui rapproche</summary>
+      <p class="uc-hint">La distance entre deux personnes se calcule de ces facteurs ; changez leur poids, la constellation se réarrange.</p>
+      <div id="uc-weights"></div>
+    </details>
+  </aside>
+
+  <!-- Volet droit : la personne choisie, sinon la légende -->
+  <aside class="uc-hud uc-panel" id="uc-panel" aria-live="polite"></aside>
+
+  <noscript><p class="uc-fallback">La constellation demande JavaScript.</p></noscript>
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block extra_js %}
+<script type="module" src="{% static_v 'accounts/js/user-constellation.js' %}"></script>
+{% endblock %}

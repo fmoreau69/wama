@@ -678,7 +678,7 @@ def _politique_session_inactivite(minutes: int):
 
     Fonction plutôt qu'un `if` en ligne pour qu'elle soit TESTABLE : le seul défaut qui
     compte ici est « la valeur par défaut a changé quelque chose », et il ne se voit pas à
-    la lecture (cf. `accounts/tests_session_policy.py`).
+    la lecture (cf. `accounts/tests/tests_session_policy.py`).
     """
     if minutes and minutes > 0:
         return minutes * 60, True

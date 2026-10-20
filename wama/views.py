@@ -81,7 +81,7 @@ def home(request):
     # donc rendu partout) suivait donc UNE règle sur `/` et UNE AUTRE sur toutes les autres
     # pages. Même menu, deux barèmes, selon l'endroit où on se trouve.
     # C'est exactement le défaut soldé le 27/08 sur le model_manager (S2,
-    # `PROFILES_PERMISSIONS §8.9`, `accounts/tests_access_points.py`) ; celui-ci avait
+    # `PROFILES_PERMISSIONS §8.9`, `accounts/tests/tests_access_points.py`) ; celui-ci avait
     # échappé au balayage parce qu'il masque par le CONTEXTE et non par un décorateur —
     # aucun `is_staff` n'apparaissait dans une garde. « Deux barèmes pour une même question
     # ne restent d'accord que par chance. »

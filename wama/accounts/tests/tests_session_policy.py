@@ -7,7 +7,7 @@ compte dans ce montage est donc « la valeur par défaut a changé quelque chose
 voit pas à la lecture : une session qui expire trop tôt se manifeste par des déconnexions
 apparemment aléatoires, chez l'utilisateur, des jours plus tard.
 
-Lancer : `python manage.py test wama.accounts.tests_session_policy` (venv WSL).
+Lancer : `python manage.py test wama.accounts.tests.tests_session_policy` (venv WSL).
 """
 from django.conf import settings
 from django.test import SimpleTestCase

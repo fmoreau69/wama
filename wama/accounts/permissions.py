@@ -544,6 +544,20 @@ class _CaseUser:
         self.groups = self._Groups([GROUP_PREFIX + r for r in roles])
 
 
+def presented_apps():
+    """Les outils que MONTRENT les vues des droits (scène de la présentation, constellation des
+    utilisateurs) : ceux que décide le contrôle d'accès, sans les jumelles de bac à sable —
+    dev-only par contrat, elles doubleraient leur app source. Rangés par MONDE déclaré, dans
+    l'ordre des sections du menu (2026-10-13), puis par groupe."""
+    from wama.common.app_registry import WORLD_SECTIONS, app_world
+
+    def world_rank(a):
+        return (WORLD_SECTIONS.get(app_world(a)) or {}).get('order', 99)
+    return sorted((a for a in all_gated_apps() if app_group(a) != 'Bac à sable'),
+                  key=lambda a: (world_rank(a), APP_GROUP_ORDER.index(app_group(a))
+                                 if app_group(a) in APP_GROUP_ORDER else 99, a))
+
+
 def access_cases():
     """Tous les cas du modèle d'accès : chaque tier × chaque combinaison de rôles × chaque app.
 
@@ -556,14 +570,7 @@ def access_cases():
     role_keys = list(ROLES)
     role_sets = [list(c) for n in range(len(role_keys) + 1) for c in combinations(role_keys, n)]
     from wama.common.app_registry import WORLD_SECTIONS, app_identity, app_world
-    # Jumelles de bac à sable exclues : dev-only par contrat, elles doubleraient leur app source.
-    # Rangées par MONDE déclaré, dans l'ordre des sections du menu (2026-10-13 : la scène des
-    # droits les regroupe), puis par groupe.
-    def world_rank(a):
-        return (WORLD_SECTIONS.get(app_world(a)) or {}).get('order', 99)
-    apps = sorted((a for a in all_gated_apps() if app_group(a) != 'Bac à sable'),
-                  key=lambda a: (world_rank(a), APP_GROUP_ORDER.index(app_group(a))
-                                 if app_group(a) in APP_GROUP_ORDER else 99, a))
+    apps = presented_apps()
     policies = {a: _policy_for(a) for a in apps}
     matrix, distinct = [], set()
     for tier in TIER_ORDER:

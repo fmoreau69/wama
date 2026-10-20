@@ -1887,7 +1887,7 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    `.env` (`reencrypt_stored_secrets`, SQL brut) ; `UserProfile.cloud_policy` à 3 niveaux, défaut
    « 100 % local » — STOCKÉ, pas encore lu par la sélection (4b). Profil : jeton d'API, clés LLM et
    connecteurs dans la section Paramètres du volet droit (`volet(medias=False, actions=False)`),
-   un seul rendu JS pour les deux listes. Gardes : `accounts/tests_api_keys` (chiffrement en base,
+   un seul rendu JS pour les deux listes. Gardes : `accounts/tests/tests_api_keys` (chiffrement en base,
    pas de repli, 503 sur clé serveur non sûre, rechiffrement à la rotation, rendu dans le volet).
    ✅ **Jeton HuggingFace, même règle (27/09, décisions de Fabien)** : un jeton ne sert qu'à
    TÉLÉCHARGER — un modèle installé se charge par chemin local (SAM3 : `load_from_HF=False`) —, donc
@@ -4017,7 +4017,7 @@ et le lien « S'identifier » de l'accueil (`LOGIN_URL='/'`) perdait le `?next=`
 (`firstof request.GET.next …` × 3, lien d'accueil, `login_view`) avec la garde
 anti-redirection ouverte (`url_has_allowed_host_and_scheme`, hôte courant seul) posée dans
 le MÊME geste — ouvrir le fil `next` sans elle aurait créé un redirecteur ouvert au moment
-où le QR met des liens profonds en circulation. 4 tests : `accounts/tests_login_next.py`.
+où le QR met des liens profonds en circulation. 4 tests : `accounts/tests/tests_login_next.py`.
 ↳ ⚠ **RECTIFIÉ le 31/08 (revue de session)** : il était écrit ici que la trajectoire du QR se
 perdait au lien « S'identifier » de l'accueil. **Faux — mauvaise maille.** Ce lien n'est rendu
 que par `clearChatHistory()` (donc après un clic « Effacer ») ; au chargement, c'est un

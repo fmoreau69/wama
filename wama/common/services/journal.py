@@ -458,13 +458,38 @@ def compter_par_app(user, **kwargs):
     `label` : le nom de l'app (`app_registry.app_identity`) — le filtre affichait sa CLÉ."""
     if not getattr(user, 'is_authenticated', False):
         return []
-    from ..app_registry import app_identity
-
     lignes = []
     for src in sources():
         n = src.model.objects.filter(**{src.champ_user: user}).count()
         if n:
-            lignes.append({'app': src.app, 'label': app_identity(src.app)['label'],
-                           'monde': src.monde, 'libelle_monde': src.libelle_monde, 'total': n})
-    lignes.sort(key=lambda d: (-d['total'], d['app']))
+            lignes.append(_count_row(src, n))
+    lignes.sort(key=_count_order)
     return lignes
+
+
+def _count_row(src, total):
+    """Une ligne de répartition — UNE forme pour `compter_par_app` et son agrégat."""
+    from ..app_registry import app_identity
+    return {'app': src.app, 'label': app_identity(src.app)['label'], 'monde': src.monde,
+            'libelle_monde': src.libelle_monde, 'total': total}
+
+
+def _count_order(row):
+    return (-row['total'], row['app'])
+
+
+def count_by_app_per_user():
+    """`compter_par_app` pour TOUS les comptes d'un coup : `{user_id: [rows]}`, une requête
+    agrégée par source au lieu d'une par source ET par compte (constellation des utilisateurs,
+    2026-10-20). Mêmes lignes, même ordre que `compter_par_app` (`_count_row`, `_count_order`)."""
+    from django.db.models import Count
+
+    out = {}
+    for src in sources():
+        counted = (src.model.objects.exclude(**{f'{src.champ_user}__isnull': True})
+                   .values(src.champ_user).annotate(n=Count('pk')).order_by())
+        for row in counted:
+            out.setdefault(row[src.champ_user], []).append(_count_row(src, row['n']))
+    for per_app in out.values():
+        per_app.sort(key=_count_order)
+    return out

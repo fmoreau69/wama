@@ -507,6 +507,38 @@
         <div class="src">WAMA_COLLABORATION.md §3bis · common/services/sharing.py (SHARE_MODES) · ObjectGrant · /common/shares/</div>
       </section>
 
+      {% comment %}La constellation des utilisateurs : la page de la gestion des comptes, INTÉGRÉE
+      telle quelle (`?embed=1` : sans barre ni volet, noms masqués par défaut) — pas une seconde
+      scène écrite pour la présentation. Ses faits sont réservés à l'administration : un autre
+      visiteur lit le texte, pas les comptes. L'iframe ne se charge qu'à l'arrivée de la caméra
+      (`data-src`, wama-presentation.js), comme une vidéo ne se lit qu'à son arrivée.{% endcomment %}
+      <section class="frame" id="constellation" data-x="8500" data-y="7700" data-s="1.2" data-title="Droits · Constellation">
+        <div style="width:470px">
+          <div class="kicker">07 — Droits · Constellation</div>
+          <h2 style="font-size:50px">Des rôles aux <span class="grad">activités</span></h2>
+          <p style="font-size:21px">Chaque personne est une étoile. Son <b>profil</b> et ses <b>métiers</b> ouvrent des
+            <b>droits</b> ; ses droits rendent possible une <b>activité</b> ; ce qu'elle partage et les projets
+            qu'elle mène la rapprochent des autres.</p>
+          <div class="kw">
+            <span>profil · métiers → droits → activité</span>
+            <span>partage et projet rapprochent</span>
+            <span>sphères : équipe, labo, projet</span><span>satellites : ses apports</span>
+          </div>
+          <p style="font-size:17px;margin-top:12px;color:var(--ink-soft)">En direct · noms masqués pour la projection.</p>
+        </div>
+        {% if is_admin %}
+        <div class="embed-slot" style="left:560px;top:40px;width:1000px;height:820px">
+          <iframe data-src="{% url 'accounts:user-constellation' %}?embed=1" title="Constellation des utilisateurs"></iframe>
+        </div>
+        {% else %}
+        <div class="embed-slot embed-closed" style="left:560px;top:40px;width:1000px;height:820px">
+          <p><i class="fas fa-lock"></i> La constellation montre les comptes réels : elle s'ouvre aux administrateurs,
+            depuis la gestion des utilisateurs.</p>
+        </div>
+        {% endif %}
+        <div class="src">accounts/constellation.py · accounts:user-constellation · ObjectGrant · OrgUnit · ProjectMembership · journal</div>
+      </section>
+
       <!-- ═════════════════════ 4 · LA FABRIQUE ═════════════════════ -->
       <section class="frame boxed" id="docs" data-x="4700" data-y="9500" data-s="1" data-section="1" data-title="La doc se construit">
         <div class="kicker">08 — La fabrique · documentation</div>

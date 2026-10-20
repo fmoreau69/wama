@@ -1013,7 +1013,7 @@ Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune lign
 
 - **Domicile** : `wama/common/services/journal.py` · **doc** : [docs/construction/ia/WAMA_MEMORY.md §9bis](../construction/ia/WAMA_MEMORY.md)
 - **Module** : Journal de l'utilisateur — agrégat transversal de ce qu'il a lancé dans WAMA. Doc : `WAMA_MEMORY.md §9bis`.
-- **API publique** (7) :
+- **API publique** (8) :
   - `class SourceJournal` — Un modèle dont les items entrent au journal.
   - `app_queue_url(app)` — Page de file d'une app, `''` si elle n'en déclare pas.
   - `enregistrer_source(app, model, *, champ_date=None, champ_user='user')` — Ajoute une source hors `detail_registry` — point d'extension des mondes lab/data/transverse.
@@ -1021,6 +1021,7 @@ Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune lign
   - `class Entree` — Un item au journal. Volontairement MINCE — le détail vient des endpoints transversaux.
   - `entrees(user, *, mondes=None, apps=None, depuis=None, jusqu_a=None, limite=50, offset=0, avec_gestes=True, tri='recent', statut='all', q='')` — Rend `(liste d'Entree triée, total)`.
   - `compter_par_app(user, **kwargs)` — Répartition par app — alimente les filtres de la page sans requête supplémentaire côté vue.
+  - `count_by_app_per_user()` — `compter_par_app` pour TOUS les comptes d'un coup : `{user_id: [rows]}`, une requête
 
 ### L'assistant, CLIENT MCP de la surface de développement
 
@@ -2151,7 +2152,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (45) :
+- **API publique** (46) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2164,6 +2165,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class ProjectMembership(models.Model)` — Adhésion d'un utilisateur à un projet, avec son rôle et son org (traçabilité
   - `user_projects(user)` — Ids des projets dont l'utilisateur est membre (tous rôles).
   - `user_scope_org_ids(user)` — Ensemble des OrgUnit ids « couvrant » l'utilisateur : ses unités de rattachement
+  - `profile_org_codes(prof)` — Les codes d'annuaire qui RATTACHENT un profil : tous ses rattachements, puis son entité
   - `class ElementPreference(models.Model)` — ABONNEMENT d'un utilisateur à un élément de catalogue (app, modèle, fonction, skill…).
   - `class UserAppSetting(models.Model)` — RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type
@@ -2659,11 +2661,11 @@ PRÉFÉRENCE d'affichage, appliquée APRÈS le droit et seulement à l'affichage
 
 ### Accès aux éléments (apps aujourd'hui)
 
-Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du compte (anonymous < utilisateur < developpeur < admin, tranche en premier) et les RÔLES métier (groupes `role:*`, intersection avec la politique de l'app). Le compte de service `anonymous` y est FERMÉ par code, pas par état de base. Signature GÉNÉRALE depuis S2 — accessible(user, kind, element_id) : chaque FAMILLE d'élément déclare dans KIND_DECISION qui décide pour elle, un kind inconnu LÈVE, et une décision unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9). Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, assistant — routes résolues comme celles de toute app, l'assistant gardé aussi dans `conversation_turn`). `access_cases()` énumère tous les cas pour la présentation
+Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du compte (anonymous < utilisateur < developpeur < admin, tranche en premier) et les RÔLES métier (groupes `role:*`, intersection avec la politique de l'app). Le compte de service `anonymous` y est FERMÉ par code, pas par état de base. Signature GÉNÉRALE depuis S2 — accessible(user, kind, element_id) : chaque FAMILLE d'élément déclare dans KIND_DECISION qui décide pour elle, un kind inconnu LÈVE, et une décision unique ne garde que ce que ses POINTS D'APPLICATION lisent réellement (§8.9). Un outil gardé est une PAGE (card ou `register_surface`) ou, depuis le 2026-10-13, un OUTIL SANS PAGE (`register_pageless_tool` : gestionnaire de fichiers, assistant — routes résolues comme celles de toute app, l'assistant gardé aussi dans `conversation_turn`). `access_cases()` énumère tous les cas pour la présentation ; depuis le 2026-10-20, la CONSTELLATION des utilisateurs (`accounts/constellation.py`) montre ces décisions compte par compte, avec unités, projets, partages, apports et activité — page admin, intégrée à la présentation, jouée chaque nuit (`accounts.constellation.ui`) ; les deux vues montrent les mêmes outils (`presented_apps`)
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (18) :
+- **API publique** (19) :
   - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
@@ -2680,6 +2682,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
   - `user_roles(user)` — Ensemble des clés de rôles métier d'un user (depuis ses Groups 'role:*').
   - `accessible(user, kind, element_id)` — Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
   - `accessible_apps(user, app_ids)` — Sous-ensemble d'app_ids accessibles à user (préserve l'ordre).
+  - `presented_apps()` — Les outils que MONTRENT les vues des droits (scène de la présentation, constellation des
   - `access_cases()` — Tous les cas du modèle d'accès : chaque tier × chaque combinaison de rôles × chaque app.
   - `app_access(app_id)` — Décorateur de vue (défense en profondeur, phase 2) : 403 si l'app n'est pas accessible.
 
@@ -3335,7 +3338,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (45) :
+- **API publique** (46) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -3348,6 +3351,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
   - `class ProjectMembership(models.Model)` — Adhésion d'un utilisateur à un projet, avec son rôle et son org (traçabilité
   - `user_projects(user)` — Ids des projets dont l'utilisateur est membre (tous rôles).
   - `user_scope_org_ids(user)` — Ensemble des OrgUnit ids « couvrant » l'utilisateur : ses unités de rattachement
+  - `profile_org_codes(prof)` — Les codes d'annuaire qui RATTACHENT un profil : tous ses rattachements, puis son entité
   - `class ElementPreference(models.Model)` — ABONNEMENT d'un utilisateur à un élément de catalogue (app, modèle, fonction, skill…).
   - `class UserAppSetting(models.Model)` — RÉGLAGE GLOBAL d'un utilisateur pour une app — DURABLE (brique `utils/user_settings.py`).
   - `class Notification(models.Model)` — Notification DANS WAMA — la brique de `WAMA_COLLABORATION.md §2.3` : destinataire, type

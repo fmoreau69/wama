@@ -450,13 +450,22 @@ def user_scope_org_ids(user):
     prof = getattr(user, 'profile', None)
     if prof is None:
         return set()
+    ids = set()
+    for u in OrgUnit.local().filter(code__in=set(profile_org_codes(prof))):
+        ids.update(u.self_and_ancestor_ids())
+    return ids
+
+
+def profile_org_codes(prof):
+    """Les codes d'annuaire qui RATTACHENT un profil : tous ses rattachements, puis son entité
+    principale — la règle UNE fois, pour les portées de partage et la constellation des
+    utilisateurs (`accounts/constellation.py`)."""
+    if prof is None:
+        return []
     codes = list(prof.org_affiliations or [])
     if prof.org_entity_code:
         codes.append(prof.org_entity_code)
-    ids = set()
-    for u in OrgUnit.local().filter(code__in=set(codes)):
-        ids.update(u.self_and_ancestor_ids())
-    return ids
+    return list(dict.fromkeys(codes))
 
 
 class ElementPreference(models.Model):

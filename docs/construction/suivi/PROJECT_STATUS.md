@@ -14792,7 +14792,7 @@ médiathèque + manifestes **230 OK** ; sonde à blanc OK sous WSL ; `check_docs
   dérivée `docs/dev/briques.md` (périmée pour DEUX raisons mêlées : mes 2 fonctions publiques et le
   travail assistant d'une autre instance qui édite déjà ce fichier → **régénération NON faite**, à
   reprendre par elle ou après son commit), 3 sont hors périmètre et non investigués
-  (`accounts.tests_api_keys`, `tests_mcp_dev_tools` ×2 — fichiers non modifiés dans l'arbre).
+  (`accounts.tests.tests_api_keys`, `tests_mcp_dev_tools` ×2 — fichiers non modifiés dans l'arbre).
 
 ### 🔚 POINT D'ENTRÉE SESSION SUIVANTE
 
@@ -14835,7 +14835,7 @@ une génération vidéo dans l'imager) : tout le reste est en service, seul le p
 | contrôle | valeur |
 |---|---|
 | tests du périmètre | **415 OK** (2 skipped) — imager, model_manager, studio, médiathèque, catalogues, backends, ports |
-| suite complète | 2612 tests, **3 rouges restants hors périmètre** (`accounts.tests_api_keys`, `tests_mcp_dev_tools` ×2) + `tests_doc_plans` (doc dérivée, ci-dessus) |
+| suite complète | 2612 tests, **3 rouges restants hors périmètre** (`accounts.tests.tests_api_keys`, `tests_mcp_dev_tools` ×2) + `tests_doc_plans` (doc dérivée, ci-dessus) |
 | `check_docs --strict` | **0 cassée**, 1 périmée (`TRANSCRIBER_CORRECTION.md:53`, hors périmètre) sur 2011 références |
 | `check_redundancy` | 33 trouvailles, **aucune dans le périmètre** (toutes préexistantes) |
 | corpus de manifestes | **11 apps périmées** (cause partagée, voir ci-dessus) |
@@ -15329,7 +15329,7 @@ poussée — ce n'est pas une brique morte.
 errors=1, skipped=11)` en 650 s.** Les 2 échecs sont ceux de `tests_mcp_dev_tools`, **préexistants**
 (établis cette nuit par `git stash` ciblé). L'**erreur, elle, était nouvelle** — et elle m'a fait
 corriger deux fois mon propre diagnostic :
-- `accounts.tests_api_keys.RotationRechiffreTest` mourait en `UnicodeEncodeError` : `rotate_secrets`
+- `accounts.tests.tests_api_keys.RotationRechiffreTest` mourait en `UnicodeEncodeError` : `rotate_secrets`
   écrit une flèche `→` et des accents, la sortie était en **cp1252** ;
 - ⚠ j'ai d'abord conclu à un **trou de harnais** (48 des 67 commandes écrivent du non-ASCII,
   **229 lignes** ; rien ne force UTF-8 dans `manage.py`/`settings.py`/le runner). **Faux sur le
@@ -19497,7 +19497,7 @@ describer et transcriber régénérés, 20 périmés restants à d'autres chanti
 - ✅ Demande de Fabien : comptes renommés au préfixe `wama_` (`evaluation` → `wama_evaluation`,
   `ui_smoke_v3` → `wama_ui_smoke_v3`, `pw_smoke` → `wama_pw_smoke`) ; page de gestion en deux
   sections (« Utilisateurs », « Comptes de test et système ») sous la barre COMMUNE de filtre / tri /
-  recherche. Règle et garde : `PROFILES_PERMISSIONS §1.4bis`, `accounts/tests_account_kinds`.
+  recherche. Règle et garde : `PROFILES_PERMISSIONS §1.4bis`, `accounts/tests/tests_account_kinds`.
 - ⚠ **Consigne changée** : les évaluations se posent désormais par `asr_eval_corpus … --user
   wama_evaluation` (les blocs plus haut qui disent `--user evaluation` datent d'avant).
 - ⚠ Une erreur unique, non reproduite sur deux relances, au premier passage de
@@ -21123,7 +21123,7 @@ Restes déclarés :
 - ⏳ Le converter refuse TOUJOURS le visiteur (`@login_required`, `public` non déclaré) : le
   scénario reste rouge sur ce seul point. L'ouvrir = décision sur la persistance (compte
   `anonymous` unique → fichiers visibles de tous les visiteurs).
-- Fichiers : `accounts/middleware.py`, `accounts/tests_access_points.py`,
+- Fichiers : `accounts/middleware.py`, `accounts/tests/tests_access_points.py`,
   `common/services/rights_matrix.py`, `media_library/tests/tests_login_required.py`,
   `PROFILES_PERMISSIONS.md`.
 
@@ -21188,7 +21188,7 @@ visiteur ne lance rien, sauf dans le converter ». Détail : `PROFILES_PERMISSIO
   téléchargement par un visiteur ; un second visiteur : card invisible, statut / téléchargement /
   suppression en 404 ; autre app et import par lot en 403 ; `common.rights_anonymous` **VERT pour
   la première fois** (« 9 refus, converter seul ouvert ») ; purge : 3 identités, 0 reste.
-- Gardes : `accounts/tests_visitors.py` (17, contre-épreuves comprises) ; `accounts/tests.py` (deux
+- Gardes : `accounts/tests/tests_visitors.py` (17, contre-épreuves comprises) ; `accounts/tests/tests_anonymous_closure.py` (deux
   tests de la fermeture attendent désormais `['converter']`) ; `tests_scoping` (domicile unique du
   prédicat). Suites accounts + converter + portée : 140 OK.
 - ⚠ Le budget de langue des identifiants est rouge sans rapport avec ce palier (classes et
@@ -24003,7 +24003,7 @@ l'API) […] en réutilisant l'existant. On ne réinvente rien »*. Détail et d
   Validé au navigateur (lecture / pause / reprise, 0 erreur console) ; servie à chaud par le
   8000 (aucun redémarrage).
 - **Garde** `test_every_video_of_the_presentation_and_its_poster_are_shipped`
-  (`wama/accounts/tests_access_cases.py`) — contre-épreuve faite : vidéo retirée → ROUGE.
+  (`wama/accounts/tests/tests_access_cases.py`) — contre-épreuve faite : vidéo retirée → ROUGE.
   ⚠ Le comportement lecture/pause du JS n'est PAS gardé par un test (pas de harnais navigateur
   dans la suite) : seul le smoke manuel l'atteste.
 - **Skill CANDIDAT `video-gestes`** (n=1) : scripts d'enregistrement et de montage + plan versionnés
@@ -25424,3 +25424,23 @@ corrigé : la lecture des onglets hors de la brique ; le reste est à d'autres c
 🔚 **Restes nommés** : `WamaInputMatch` dans la modale ; la card universelle NON branchée (« accepter
 tout fichier ») ; `-o` d'une ligne de lot non appliqué ; `accounts` (13) et `transcriber` (11) au-delà
 de dix fichiers de tests à la racine (pas à moi).
+
+## §PALIER 2026-10-21, « CONSTELLATION DES UTILISATEURS — la 3D des comptes, intégrée à la présentation » — non poussé — 🔴 relancer gunicorn
+
+Demande de Fabien : une page futuriste, ouverte depuis « Users », où chaque personne est une étoile
+avec ses droits, rôles, partages et apports, et où la distance dit ce qui relie les personnes ;
+puis la même vue dans la présentation, pour faire le lien rôles → droits → activités. Domicile :
+`PROFILES_PERMISSIONS §1.9`. Livré : `accounts/constellation.py` (faits lus de leur brique),
+`accounts:user-constellation` (+ `-data`, `?embed=1`), scène three.js
+(`accounts/static/accounts/js/user-constellation.js`), frame « Droits · Constellation » de la
+présentation (iframe chargée à l'arrivée, noms masqués). Recopies ramenées à la revérification :
+`presented_apps` (tri des outils, partagé avec `access_cases`), `profile_org_codes` (règle des
+portées), `journal._count_row` (ligne commune à `compter_par_app` et `count_by_app_per_user`),
+libellés de niveaux / portées / natures de compte transmis par le serveur, couleurs lues des jetons
+(budget CSS des thèmes à 0). Tests rangés : `wama/accounts/tests/` (14 fichiers, `tests.py` →
+`tests_anonymous_closure.py`, décision de Fabien) — garde `tests_test_layout` : reste `transcriber` (11).
+Gardes : `accounts/tests/tests_constellation.py` (11 tests, dans `wama.accounts.suite`) ; scénario
+nocturne `accounts.constellation.ui` VERT sur serveur jetable, contre-épreuve ROUGE nommée.
+🔚 Restes : `transcriber` au-delà de dix tests (pas à moi) ; budgets de langue +2/+2 (fichiers en
+cours d'une autre instance : codegen, `common/privacy/`) ; aucun projet ni apport au catalogue en
+base aujourd'hui — les sphères de projet et les satellites ne se verront qu'avec des données.
