@@ -25800,8 +25800,8 @@ libellé d'état d'installation) ; §7 question 2 tranchée en livrant (registre
 pousser ; valider sur le live : Users → Constellation, catalogue des licences → Constellation,
 gestion des modèles → Constellation (et ses badges de type, inchangés).
 
-**Contrôles mesurés à la clôture** : 342 tests du périmètre verts sur base neuve (scènes, `wama.accounts.tests`, thème, contraste, en-tête des catalogues, registres, suite nocturne) ; `check_docs` 0 cassée, 1 périmée (renvoi
-`views.py:1044` d'une autre session) ; `doc_facts --check` à jour ; `check_redundancy` 87, 0 dans
+**Contrôles mesurés à la clôture** : 342 tests du périmètre verts sur base neuve (scènes, `wama.accounts.tests`, thème, contraste, en-tête des catalogues, registres, suite nocturne) ; `check_docs` 0 cassée, 1 périmée (un renvoi
+fichier:ligne écrit par une autre session dans ce journal) ; `doc_facts --check` à jour ; `check_redundancy` 87, 0 dans
 les fichiers de la session ; `check_skills` 0 défaut ; parité 55/58 au pixel (3 : bruit du champ de
 recherche), DOM 58/58 ; scénarios `accounts.constellation.ui`, `common.scene.licenses.ui`,
 `common.scene.models.ui` verts sur serveur jetable.
