@@ -135,6 +135,18 @@ class PollerLoopTest(SimpleTestCase):
         self.assertEqual(1, self._js('calls.length'))
         self.assertFalse(self._js('p.has(3)'))
 
+    def test_a_stop_with_the_id_as_text_stops_a_poll_started_with_a_number(self):
+        """2026-10-21 : le Reader lance son suivi avec `parseInt(card.dataset.id)`, la brique de
+        suppression l'arrête avec `btn.dataset.id` — une card supprimée restait interrogée (404)
+        jusqu'à `maxFails`. Mesuré par le contrôle « autre élément » du geste ⚙ (`ui_smoke`)."""
+        self.v8.eval("""var p = new WamaApp.Poller({urlTemplate: '/x/0/', immediate: true});
+                        p.start(1769); answer({});
+                        p.start('1769');""")
+        self.assertEqual(1, self._js('calls.length'), 'the same element, followed twice')
+        self.v8.eval("p.stop('1769'); tick(); tick();")
+        self.assertEqual(1, self._js('calls.length'), 'the deleted card is still polled')
+        self.assertFalse(self._js('p.has(1769)'))
+
     def test_two_queue_bars_on_one_endpoint_share_one_call(self):
         self.v8.eval("""
             function bar() { return {style: {}, classList: classList(), textContent: ''}; }

@@ -2710,6 +2710,16 @@ def register_folder_import_scenarios():
         )
 
 
+# ⧉ / 🗑 of a card, by SUFFIX — graphies differ by app (see `check_app_duplicate_delete`).
+# Shared with the settings gesture, which mounts a second element with them (check d).
+DUP_SEL = '[class$="duplicate-btn"], [class*="duplicate-btn "]'
+DEL_SEL = '[class$="delete-btn"], [class*="delete-btn "]'
+
+
+def _visible(sel):
+    return ', '.join(s.strip() + ':visible' for s in sel.split(','))
+
+
 # ── Gestes 3 et 4 : DUPLIQUER puis SUPPRIMER un élément ────────────────────────────────
 #
 # POURQUOI CE SCÉNARIO EXISTE (WAMA_VERIFICATION.md §3, phase 1). Sur les ~16 gestes que la
@@ -2828,12 +2838,11 @@ def check_app_duplicate_delete(app: str, url_path: str):
                 # convention était tenue (erreur du 2026-08-22). On vise donc le SUFFIXE, et on
                 # RAPPORTE la graphie trouvée : le geste est mesuré, la divergence est dite —
                 # jamais masquée par un sélecteur tolérant et muet.
-                DUP = '[class$="duplicate-btn"], [class*="duplicate-btn "]'
-                DEL = '[class$="delete-btn"], [class*="delete-btn "]'
+                DUP, DEL = DUP_SEL, DEL_SEL
                 # Un utilisateur ne clique que ce qu'il VOIT. Sans ce filtre, `.first` peut
                 # résoudre sur la card d'un lot replié (dimensions nulles) et le clic expire —
                 # en accusant l'environnement au lieu de dire « le bouton est masqué ».
-                visible = lambda sel: ', '.join(s.strip() + ':visible' for s in sel.split(','))
+                visible = _visible
                 bouton_dup = page.query_selector(DUP)
                 if not bouton_dup:
                     return False, (f"{len(ids0)} élément(s) en file mais AUCUN bouton de "
@@ -2966,7 +2975,12 @@ def register_duplicate_delete_scenarios():
 #      (listeners left by a destroyed modal would target the same-id fields of the new one);
 #   c. APP ACTIONS — each button in the footer's left zone (`left_html`: "Par défaut",
 #      "Sauver comme profil"…) has a visible effect on a PERTURBED form: a modal opens, or the
-#      perturbed fields change.
+#      perturbed fields change;
+#   d. ANOTHER ELEMENT (2026-10-21) — the ⚙ of a second card, opened after the first, is as
+#      faithful and has no select left EMPTY that the first one had filled. Check b reopened the
+#      SAME card, whose modal replaces itself by id; a closed modal of another card stayed in the
+#      page with the same field ids, and the second modal's TTS select stayed empty until F5
+#      (avatarizer card 1532).
 _JS_MODAL_FORM = """() => {
     const m = [...document.querySelectorAll('.modal.show')].pop();
     if (!m) return null;
@@ -2979,8 +2993,8 @@ _JS_MODAL_FORM = """() => {
     });
     return out;
 }"""
-_JS_GEAR_DATA = """(sel) => {
-    const b = [...document.querySelectorAll(sel)].find(x => x.offsetParent !== null);
+_JS_GEAR_DATA = """([sel, nth]) => {
+    const b = [...document.querySelectorAll(sel)].filter(x => x.offsetParent !== null)[nth];
     if (!b) return null;
     const out = {};
     Object.keys(b.dataset).forEach(k => {
@@ -3017,6 +3031,21 @@ _JS_HIDE_TOP_MODAL = """() => {
     const m = [...document.querySelectorAll('.modal.show')].pop();
     const i = m && bootstrap.Modal.getInstance(m); if (i) i.hide();
 }"""
+# Index, among the visible gears, of the first one that opens ANOTHER element (its own `data-id`)
+# with the same classes as the first gear — a process row's ⚙ (`wcv3-proc-settings`) opens a
+# scoped modal of the same element. The enclosing card does not say it: a duplicate can land in
+# a batch with its original (transcriber, measured 2026-10-21).
+_JS_OTHER_CARD_GEAR = """(sel) => {
+    const gears = [...document.querySelectorAll(sel)].filter(x => x.offsetParent !== null);
+    if (!gears.length) return -1;
+    return gears.findIndex(g => g.dataset.id !== gears[0].dataset.id
+                                && g.className === gears[0].className);
+}"""
+_JS_EMPTY_SELECTS = """() => {
+    const m = [...document.querySelectorAll('.modal.show')].pop();
+    return m ? [...m.querySelectorAll('.modal-body select')].filter(s => !s.options.length)
+                   .map(s => s.name || s.id) : [];
+}"""
 
 
 def _same_shown_value(shown, stored):
@@ -3030,22 +3059,67 @@ def _same_shown_value(shown, stored):
         return False
 
 
-def _modal_fidelity(page, gear_selector):
-    """(compared field count, mismatches) between the open modal and the ⚙ `data-*`."""
+def _modal_fidelity(page, gear_selector, nth=0):
+    """(compared field count, mismatches) between the open modal and the `nth` visible ⚙'s
+    `data-*`."""
     form = page.evaluate(_JS_MODAL_FORM) or {}
-    gear = page.evaluate(_JS_GEAR_DATA, gear_selector) or {}
+    gear = page.evaluate(_JS_GEAR_DATA, [gear_selector, nth]) or {}
     compared = [n for n in form if n in gear and gear[n] not in ('', 'None')]
     return len(compared), [f'{n}: shown {form[n]!r} ≠ stored {gear[n]!r}'
                            for n in compared if not _same_shown_value(form[n], gear[n])]
 
 
-def _reopen_modal(page, gear_selector):
+def _reopen_modal(page, gear_selector, nth=0):
     page.evaluate(_JS_HIDE_TOP_MODAL)
     page.wait_for_selector('.modal.show', state='detached', timeout=8000)
     page.wait_for_timeout(400)
-    page.locator(f'{gear_selector}:visible').first.click(timeout=15000)
+    page.locator(f'{gear_selector}:visible').nth(nth).click(timeout=15000)
     page.wait_for_selector('.modal.show', timeout=8000)
     page.wait_for_timeout(1500)   # catalogue options, capabilities (asynchronous)
+
+
+def _other_element_check(page, gear_selector):
+    """Check d. Returns (summary, True) when it ran, (summary, None) when it could not, and
+    (failure message, False). With a single card, a second one is MOUNTED by the common ⧉ (a
+    duplicate is never started — `duplicate_delete` runs it daily) and removed by the common 🗑
+    in the `finally`; the caller's ORM net catches what would stay."""
+    duplicate = None
+    try:
+        page.evaluate(_JS_HIDE_TOP_MODAL)
+        page.wait_for_selector('.modal.show', state='detached', timeout=8000)
+        other = page.evaluate(_JS_OTHER_CARD_GEAR, gear_selector)
+        if other < 0 and page.query_selector(DUP_SEL):
+            before = page.evaluate(IDS_CARDS_JS)
+            page.locator(_visible(DUP_SEL)).first.click(timeout=15000)
+            page.wait_for_timeout(3000)
+            duplicate = next((i for i in page.evaluate(IDS_CARDS_JS) if i not in before), None)
+            if duplicate:
+                _deplier_autour(page, f'.wama-card[data-id="{duplicate}"]')
+            other = page.evaluate(_JS_OTHER_CARD_GEAR, gear_selector)
+        if other < 0:
+            return '; no second element, check d not run', None
+        _reopen_modal(page, gear_selector)          # the first card's modal, freshly built
+        empty_first = set(page.evaluate(_JS_EMPTY_SELECTS))
+        _reopen_modal(page, gear_selector, nth=other)
+        emptied = sorted(set(page.evaluate(_JS_EMPTY_SELECTS)) - empty_first)
+        n, gaps = _modal_fidelity(page, gear_selector, nth=other)
+        if emptied or gaps:
+            return ("the ⚙ of ANOTHER element, opened after the first, is broken"
+                    + (f": select(s) left EMPTY {emptied}" if emptied else '')
+                    + (f"; mismatches {gaps[:3]}" if gaps else '')
+                    + " — a closed modal still in the page captures its field ids"), False
+        return (f"; another element's ⚙ faithful too ({n} field(s)"
+                + (f", duplicate #{duplicate} mounted then removed" if duplicate else '') + ')'), True
+    finally:
+        if duplicate:
+            page.evaluate(_JS_HIDE_TOP_MODAL)
+            page.wait_for_timeout(600)
+            delete = f'.wama-card[data-id="{duplicate}"] :is({DEL_SEL})'
+            if not page.query_selector(delete):
+                delete = f':is({DEL_SEL})[data-id="{duplicate}"]'
+            if page.query_selector(delete):
+                page.locator(f'{delete}:visible').first.click(timeout=15000)
+                page.wait_for_timeout(3000)
 
 
 def _modal_behaviour(page, gear_selector):
@@ -3087,9 +3161,12 @@ def _modal_behaviour(page, gear_selector):
         if opened:
             page.evaluate(_JS_HIDE_TOP_MODAL)
             page.wait_for_timeout(600)
+    other, mounted = _other_element_check(page, gear_selector)
+    if mounted is False:
+        return '', other
     _reopen_modal(page, gear_selector)   # untouched form for the save half
     return (f"; {n} field(s) faithful to the ⚙, reopened identical"
-            + (f", {', '.join(effects)}" if effects else '')), None
+            + (f", {', '.join(effects)}" if effects else '') + other), None
 
 
 def check_app_settings(app: str, url_path: str):

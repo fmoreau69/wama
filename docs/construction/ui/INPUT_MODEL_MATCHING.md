@@ -357,7 +357,10 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   sans clonage ne peut donc plus être tiré pour une voix clonée. Attesté : tirage 2/2 en test,
   sondes navigateur 15/15 (synthesizer) et 11/11 (avatarizer).
 - ✅ **La modale de l'avatarizer est GÉNÉRÉE à l'ouverture depuis le 2026-09-24** (cycle commun
-  `WamaParams.settingsModal`, qui détruit et recrée la modale à chaque ⚙). L'appariement la suit :
+  `WamaParams.settingsModal`, qui détruit et recrée la modale à chaque ⚙ — ⚠ **vrai pour la MÊME
+  card seulement jusqu'au 2026-10-21** : la modale fermée d'une autre card restait dans la page avec
+  les mêmes ids de champs, et le ⚙ suivant s'ouvrait sur un select de moteur TTS VIDE jusqu'au F5,
+  card #1532 ; la modale quitte désormais la page à sa fermeture). L'appariement la suit :
   il se branche sur les champs de CHAQUE modale ouverte (`avatarizer/js/index.js`,
   `wireTtsMatching`), même configuration qu'avant. Deux conséquences tenues :
   `WamaInputMatch.init` est devenu ré-initialisable (son écouteur ✕ est UNIQUE pour la page, une

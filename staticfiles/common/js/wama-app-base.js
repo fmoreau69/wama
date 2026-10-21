@@ -148,7 +148,18 @@
     });
   }
 
-  Poller.prototype.has = function (id) { return this._pollers.has(id); };
+  // La clé d'un id DÉJÀ suivi, quel que soit son type (2026-10-21). Une app lance souvent le suivi
+  // avec `parseInt(card.dataset.id)`, la brique de suppression l'arrête avec `btn.dataset.id`, une
+  // chaîne : `stop('1769')` ne trouvait pas `1769`, et la card supprimée était interrogée jusqu'à
+  // `maxFails` réponses 404 (mesuré sur le Reader, `reader.js:503` contre `queue-actions.js:451`).
+  Poller.prototype._key = function (id) {
+    if (this._pollers.has(id)) return id;
+    let key = id;
+    this._pollers.forEach(function (st, k) { if (String(k) === String(id)) key = k; });
+    return key;
+  };
+
+  Poller.prototype.has = function (id) { return this._pollers.has(this._key(id)); };
 
   Poller.prototype._url = function (id) {
     return (typeof this.urlTemplate === 'function') ? this.urlTemplate(id)
@@ -205,7 +216,7 @@
   };
 
   Poller.prototype.start = function (id) {
-    if (this._pollers.has(id)) return;
+    if (this.has(id)) return;
     this._pollers.set(id, { timer: null, inFlight: false, fails: 0 });
     pollerRegistry.add(this);
     if (this.immediate) this._tick(id);
@@ -214,9 +225,10 @@
 
   // Un tour tout de suite (changement de filtre, de variante…) — sauf si un tour est en vol :
   // sa réponse arrive, et le suivant lira l'état neuf.
-  Poller.prototype.poke = function (id) { this._tick(id); };
+  Poller.prototype.poke = function (id) { this._tick(this._key(id)); };
 
   Poller.prototype.stop = function (id) {
+    id = this._key(id);
     const st = this._pollers.get(id);
     if (st) { clearTimeout(st.timer); this._pollers.delete(id); }
     if (!this._pollers.size) pollerRegistry.delete(this);

@@ -25557,3 +25557,31 @@ DISPOSITION DE CHACUN, PAR COMPTE, ET FIGÉE ».
   aucun de mes fichiers, vérifié par `--detail`).
 - ⏳ **Reste (décision)** : une disposition figée proposée comme défaut d'équipe, ou publiée par un
   administrateur (partage d'élément).
+
+## §PALIER 2026-10-21, « Le ⚙ d'une SECONDE card s'ouvrait sur un sélecteur de modèle VIDE » — non poussé — aucun redémarrage (JS servis déjà copiés dans `staticfiles/`)
+
+Constat de Fabien : *« J'ai lancé la tâche #1532 qui s'est terminée avec succès. Après la tâche, les
+modèles TTS n'étaient plus disponibles dans le sélecteur (sélecteur vide). »* Une autre instance avait
+proposé `WamaInspector.panel.apply` : **écartée sur pièces** — le select TTS de l'avatarizer n'existe
+qu'en contexte `item` (`avatarizer/params.py:77`), le volet n'a aucun champ que `panel.apply` puisse
+écraser.
+- **Cause mesurée** : la modale ⚙ générée (`WamaParams.settingsModal`) ne retirait que la modale de
+  MÊME id. Celle d'une card ouverte avant restait cachée dans la page, avec les mêmes ids de champs
+  (`dom_id` du schéma) : `_bindOptionSources` (`document.getElementById`), `WamaModelCaps` et
+  `WamaInputMatch` visaient SES champs. Journal d'accès : à 12:42:51, le ⚙ de #1532 n'a émis aucune
+  requête d'options — reproduit en page isolée (1ʳᵉ card 3 options, 2ᵉ card 0, F5 seul remède).
+  Rien à voir avec la tâche : le « parfois » est « après avoir ouvert le ⚙ d'une autre card ».
+- **Corrigé à la brique** : la modale quitte la page à sa fermeture (`wama-params.js`, précédent
+  `WamaApp.confirm`). Toutes les apps à modale générée en profitent.
+- **Second défaut commun, trouvé par la garde** : `WamaApp.Poller` ne reconnaissait pas `stop('1769')`
+  pour un suivi lancé par `start(1769)` (Reader `reader.js:503` contre `queue-actions.js:451`) — une
+  card supprimée restait interrogée en 404 jusqu'à `maxFails`. Clé retrouvée quel que soit le type.
+- **Gardes** : geste `<app>.settings` étendu (contrôle d, « l'autre élément » — doublon monté par ⧉ et
+  retiré par 🗑 s'il n'y a qu'une card) ; `tests_poller_js` +1. **Contre-épreuves rouges** : JS de
+  HEAD servi → `synthesizer_01` (`tts_model`, `voice_preset` vides) et transcriber (`backend` vide) ;
+  brique Poller de HEAD → test rouge. **Avec les corrections** : `.settings` 8 OK (contrôle d joué
+  partout, 6 à 18 champs comparés), reader rejoué seul vert, plus aucune requête après `delete/1771/`.
+- **Rouges d'autrui inchangés** : `enhancer_01`, `reader_01`, `transcriber_01` `.settings` échouent à
+  la fidélité de la PREMIÈRE modale (`blend_factor`, `format_markdown`, `enable_diarization`),
+  identiques sur le JS de HEAD — jumelles, à voir côté générateur ; budgets de langue (déjà relevés
+  ci-dessus). L'avatarizer skippe le geste (compte nocturne sans card, montage par import sans effet).

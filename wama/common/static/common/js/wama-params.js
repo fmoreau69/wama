@@ -1389,7 +1389,8 @@
   //                // de LOT (mêmes briques, seuls les params déclarant 'batch' se rendent)
   //     formClass, formData, // <form> : classe + data-* (délégation existante des apps)
   //     buttons,   // [{label, className, icon?, data?}] — défaut : Annuler + Enregistrer
-  //   }) → { modal, host, form }   (remplace la modale existante de même id)
+  //   }) → { modal, host, form }   (remplace la modale existante de même id ; `settingsModal`
+  //                                 la retire de la page à la fermeture)
   function renderSettingsModal(cfg) {
     cfg = cfg || {};
     const esc = function (s) {
@@ -1568,7 +1569,18 @@
         if (save || restart) doSave(modal, host, data || {}, !!restart);
       });
 
-      new bootstrap.Modal(modal).show();
+      // Fermée, la modale QUITTE la page (2026-10-21, card 1532 de l'avatarizer). Ses champs
+      // portent les ids du schéma (`dom_id`), les mêmes d'une card à l'autre : la modale d'une
+      // card ouverte avant restait cachée dans le DOM, et tout ce qui résout un champ par
+      // `getElementById` (sources d'options, WamaModelCaps, WamaInputMatch) visait SES champs.
+      // Mesuré : le ⚙ d'une seconde card s'ouvrait sur un select de modèle TTS VIDE jusqu'au F5.
+      // `renderSettingsModal` ne retirait que la modale de même id. Précédent : `WamaApp.confirm`.
+      const bs = new bootstrap.Modal(modal);
+      modal.addEventListener('hidden.bs.modal', function () {
+        bs.dispose();
+        modal.remove();
+      });
+      bs.show();
       return res;
     }
 
