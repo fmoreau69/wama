@@ -59,6 +59,7 @@
           "share": 3,
           "watched": [
             "vision_model",
+            "vision_temperature",
             "input_file"
           ]
         }
@@ -81,7 +82,9 @@
             "output_language",
             "max_length",
             "vision_model",
+            "vision_temperature",
             "llm_model",
+            "llm_temperature",
             "input_file"
           ]
         }
@@ -103,6 +106,7 @@
           "watched": [
             "output_language",
             "llm_model",
+            "llm_temperature",
             "summary_type"
           ]
         }
@@ -123,7 +127,8 @@
           "toggle": "verify_coherence",
           "watched": [
             "output_language",
-            "llm_model"
+            "llm_model",
+            "llm_temperature"
           ]
         }
       }

@@ -96,7 +96,7 @@ def preview_text(text):
 
 def render_speech(text, output_path, *, model, language, voice_preset, speaker_wav=None,
                   multi_speaker=False, scene_description='', speed=1.0, pitch=1.0,
-                  sentence_pause=0.0, clause_pause=0.0,
+                  sentence_pause=0.0, clause_pause=0.0, temperature=None,
                   on_segment=None, on_partial=None, console=None, read_timeout=None):
     """Rend `text` en WAV : segments par moteur → service TTS → assemblage → vitesse/hauteur.
 
@@ -118,6 +118,9 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     dans `options` — le contrat commun des moteurs les pose (`TTSBackend.synthesize`), comme pour
     la voix de l'assistant. La découpe par LONGUEUR ci-dessous coupe aux fins de phrase : le
     silence entre deux segments est alors la pause de fin de phrase, quand elle est réglée.
+
+    `temperature` (2026-10-21) : celle de la card, dans `options` elle aussi — le moteur qui tire
+    la lit (`BaseModelBackend.sampling_temperature`) ; None = la sienne, rien n'est envoyé.
     """
     from pydub import AudioSegment
 
@@ -135,7 +138,8 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     extra = {} if read_timeout is None else {'read_timeout': read_timeout}
     from wama.common.backends.tts_base import bounded_pause
     sentence_pause, clause_pause = bounded_pause(sentence_pause), bounded_pause(clause_pause)
-    options = {'sentence_pause': sentence_pause, 'clause_pause': clause_pause}
+    options = {'sentence_pause': sentence_pause, 'clause_pause': clause_pause,
+               **({'temperature': float(temperature)} if temperature not in (None, '') else {})}
     gap_ms = int(sentence_pause * 1000) if sentence_pause else CHUNK_GAP_MS
     total = len(chunks)
     combined = AudioSegment.empty()

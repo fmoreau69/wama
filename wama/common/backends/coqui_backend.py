@@ -29,6 +29,9 @@ class CoquiBackend(TTSBackend):
     description = "Coqui TTS — XTTS v2 (clonage multilingue) et moteurs EN légers."
 
     supports_cloning = True    # XTTS = clonage par speaker_wav (aligné sur le catalogue)
+    #: XTTS tire, mais ce moteur WAMA ne lui transmet pas de température (`tts_to_file`) : dit
+    #: tel quel, le réglage se grise plutôt que d'être ignoré en silence (2026-10-21).
+    default_temperature = None
 
     REQUIRED_PACKAGES = ['TTS', 'soundfile']
     # `pip install TTS` est le paquet idiap/coqui-ai-TTS maintenu — nom pip = nom d'import.

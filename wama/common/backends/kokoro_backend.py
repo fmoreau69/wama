@@ -31,6 +31,8 @@ class KokoroBackend(TTSBackend):
     description = "Kokoro 82M — TTS léger FR/EN/ES/IT/PT/JA/ZH, temps réel."
 
     supports_cloning = False   # voix FIXES par langue (aligné sur le catalogue)
+    #: Il ne tire pas : la voix d'un texte est toujours la même (2026-10-21).
+    default_temperature = None
     #: Sert le temps réel (vocalisation assistant) → gardé chaud par le service TTS.
     #: C'était la règle `if _current_engine == "kokoro"` de `tts_service`, DÉCLARÉE
     #: depuis le 2026-08-31 (cf. `TTSBackend.keep_resident`) : comportement inchangé.

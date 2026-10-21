@@ -55,7 +55,8 @@
           "toggle": "format_markdown",
           "watched": [
             "language",
-            "llm_model"
+            "llm_model",
+            "llm_temperature"
           ]
         }
       },
@@ -73,7 +74,8 @@
           "result": "reader.function_specs:analysis_text",
           "toggle": "generate_analysis",
           "watched": [
-            "llm_model"
+            "llm_model",
+            "llm_temperature"
           ]
         }
       }

@@ -281,6 +281,44 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Température du modèle de vision ; vide = celle du modèle.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "vision_temperature"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Température du modèle de langage ; vide = celle du modèle.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "llm_temperature"
+            },
+            {
+              "args": [],
               "class": "django.db.models.IntegerField",
               "kwargs": {
                 "blank": {
@@ -1245,6 +1283,79 @@
           },
           {
             "advanced": false,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "vision_model",
+                "mode": "reads",
+                "param": "temperature",
+                "reason": "Ce modèle ne tire pas au hasard : la température ne le concerne pas."
+              },
+              {
+                "capability": "recommended_temperature",
+                "field": "vision_model",
+                "label": "Celle du modèle :",
+                "mode": "note"
+              },
+              {
+                "capability": "max_temperature",
+                "field": "vision_model"
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsVisionTemperature",
+              "item": "settingsVisionTemperature",
+              "panel": "vision_temperature"
+            },
+            "group": "",
+            "help": "Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-temperature-half",
+            "inline": false,
+            "label": "Température",
+            "max": 2.0,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "vision_temperature",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "frames",
+              "describe"
+            ],
+            "step": 0.05,
+            "type": "temperature",
+            "unit": ""
+          },
+          {
+            "advanced": false,
             "cap_from": null,
             "chip": true,
             "chip_label": "",
@@ -1301,6 +1412,80 @@
             ],
             "step": null,
             "type": "select",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "llm_model",
+                "mode": "reads",
+                "param": "temperature",
+                "reason": "Ce modèle ne tire pas au hasard : la température ne le concerne pas."
+              },
+              {
+                "capability": "recommended_temperature",
+                "field": "llm_model",
+                "label": "Celle du modèle :",
+                "mode": "note"
+              },
+              {
+                "capability": "max_temperature",
+                "field": "llm_model"
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsLlmTemperature",
+              "item": "settingsLlmTemperature",
+              "panel": "llm_temperature"
+            },
+            "group": "",
+            "help": "Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-temperature-half",
+            "inline": false,
+            "label": "Température",
+            "max": 2.0,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "llm_temperature",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "describe",
+              "summarize",
+              "coherence"
+            ],
+            "step": 0.05,
+            "type": "temperature",
             "unit": ""
           },
           {
@@ -1646,7 +1831,9 @@
             "asr_model",
             "quality_intent",
             "vision_model",
+            "vision_temperature",
             "llm_model",
+            "llm_temperature",
             "generate_summary",
             "summary_type",
             "verify_coherence"
@@ -1685,13 +1872,15 @@
             "file_path": "str (requis)",
             "generate_summary": "toggle — Générer un résumé LLM (défaut : False)",
             "llm_model": "select — Clé de catalogue du modèle de langage, ou « auto ». (défaut : 'auto')",
+            "llm_temperature": "temperature — Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande. [0–2.0]",
             "max_length": "range — Longueur maximale (caractères) de la description. [100–2000] (défaut : 500)",
             "output_language": "select — Langue de sortie (choix : fr | en | auto) (défaut : 'fr')",
             "output_style": "select — Niveau de détail de la description générée. (choix : summary | detailed | scientific | bullet_points) (défaut : 'detailed')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "summary_type": "radio (choix : structured | meeting) (défaut : 'structured')",
             "verify_coherence": "toggle — Vérifier la cohérence (défaut : False)",
-            "vision_model": "select — Clé de catalogue du modèle de vision, ou « auto ». (défaut : 'auto')"
+            "vision_model": "select — Clé de catalogue du modèle de vision, ou « auto ». (défaut : 'auto')",
+            "vision_temperature": "temperature — Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande. [0–2.0]"
           },
           "description": "Ajoute un élément à la file d'attente de Describer (Description automatique d'images, vidéos, fichiers audio et documents par LLM) et renvoie son item_id."
         },

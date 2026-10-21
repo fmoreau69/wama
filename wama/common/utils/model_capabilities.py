@@ -369,6 +369,36 @@ def declared_engine_flag(cls, flag: str):
     return None
 
 
+def declared_engine_value(cls, name: str):
+    """`(déclaré, valeur)` d'un attribut que la classe de moteur écrit dans son PROPRE corps (ou
+    celui d'une classe sous le contrat) — `(False, None)` s'il n'est que le défaut du contrat.
+    Le pendant de `declared_engine_flag` pour une valeur qui n'est pas un booléen : `None` y est
+    une déclaration (« ne la lit pas »), pas un silence."""
+    from wama.common.backends.base import BaseModelBackend      # paresseux : utilitaire feuille
+    for klass in getattr(cls, "__mro__", ()):
+        if klass is BaseModelBackend:
+            return False, None
+        if name in vars(klass):
+            return True, vars(klass)[name]
+    return False, None
+
+
+def _engine_temperature(caps: Dict[str, Any], cls) -> Dict[str, Any]:
+    """La TEMPÉRATURE telle que le moteur la DÉCLARE (`default_temperature`, 2026-10-21) : il la lit
+    (`params` ∋ `temperature`) et l'applique par défaut (`recommended_temperature`), ou il ne la
+    lit pas (déclarée `None` : retirée des `params`, écrite nulle — la synchronisation fusionne clé
+    par clé). Rien de déclaré : rien d'affirmé, `caps` intact."""
+    declared, value = declared_engine_value(cls, "default_temperature")
+    if not declared:
+        return caps
+    params = [p for p in (caps.get("params") or []) if p != TEMPERATURE]
+    if value is not None:
+        params.append(TEMPERATURE)
+    caps["params"] = params
+    caps["recommended_temperature"] = None if value is None else float(value)
+    return caps
+
+
 def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     """Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
 
@@ -379,11 +409,12 @@ def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
 
     Aujourd'hui la règle porte le CLONAGE, seul flag dont la contradiction avait une
     conséquence visible ; `inputs_optional` suit, parce que `reference_voice` n'est rien
-    d'autre que « ce moteur accepte une voix à imiter » (INPUT_MODEL_MATCHING.md).
+    d'autre que « ce moteur accepte une voix à imiter » (INPUT_MODEL_MATCHING.md). Et la
+    TEMPÉRATURE depuis le 2026-10-21 (`_engine_temperature`) : le moteur dit s'il la lit.
     Les autres flags (`supports_timestamps`…) restent posés « seulement s'ils sont vrais » par la
     découverte — sémantique différente, hors de cette règle.
     """
-    caps = dict(caps or {})
+    caps = _engine_temperature(dict(caps or {}), cls)
     declare = declared_engine_flag(cls, "supports_cloning")
     if declare is None:
         return caps                           # défaut de base seulement : on ne conteste rien

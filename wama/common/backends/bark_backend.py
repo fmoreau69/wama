@@ -69,6 +69,9 @@ class BarkBackend(TTSBackend):
     description = "Bark (Suno) — TTS expressif (rires, hésitations, bruitages)."
 
     supports_cloning = False   # presets de locuteurs, pas de clonage libre (aligné sur le catalogue)
+    #: Il TIRE ses deux étages (texte → jetons sémantiques, puis forme d'onde) : 0,7, le défaut
+    #: de `bark.generate_audio` pour `text_temp` comme pour `waveform_temp`. La card règle les deux.
+    default_temperature = 0.7
 
     REQUIRED_PACKAGES = ['bark', 'scipy']
     # ⚠ `pip install bark` installe un paquet HOMONYME sans rapport — l'installation
@@ -131,6 +134,9 @@ class BarkBackend(TTSBackend):
     def process(self, text: str = "", language: str = "fr",
                 voice_preset: str = "default", **_ignored) -> str:
         speaker = bark_speaker_for(voice_preset, language)
-        audio_array = self._funcs["generate_audio"](text, history_prompt=speaker)
+        temperature = self.sampling_temperature(_ignored)
+        audio_array = self._funcs["generate_audio"](text, history_prompt=speaker,
+                                                    text_temp=temperature,
+                                                    waveform_temp=temperature)
         return write_wav_int16(np.asarray(audio_array, dtype=np.float32),
                                self._funcs["SAMPLE_RATE"])

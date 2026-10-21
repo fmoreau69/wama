@@ -599,6 +599,19 @@ class BaseModelBackend(ABC):
     #: mentir (« supportée ») et mentir autrement (« impossible »), alors qu'un son sort.
     #: Vide/None = le moteur n'a pas de repli, ce qui est le cas général.
     fallback_languages: Optional[List[str]] = None
+    #: La TEMPÉRATURE que le moteur applique quand rien n'est demandé (2026-10-21, la notion
+    #: commune à tout modèle qui tire — `model_capabilities.TEMPERATURE`). Un moteur qui TIRE la
+    #: déclare dans son corps (Higgs : 0,7) et lit le réglage par `sampling_temperature` ; un
+    #: moteur qui ne tire pas, ou dont WAMA ne transmet pas la température, déclare `None` — sa
+    #: fiche dit alors qu'il ne la lit pas, et le réglage se grise sous lui. Non déclaré (ce
+    #: défaut du contrat) = rien d'affirmé : `declared_engine_value` remonte la MRO jusqu'ici.
+    default_temperature: Optional[float] = None
+
+    def sampling_temperature(self, kwargs) -> Optional[float]:
+        """La température d'UN appel : celle que la card a réglée (`options['temperature']`, le
+        contrat uniforme), sinon celle du moteur (`default_temperature`)."""
+        value = ((kwargs or {}).get('options') or {}).get('temperature')
+        return self.default_temperature if value in (None, '') else float(value)
 
     # ── Disponibilité / dépendances (hook prospection) ───────────────────────
     @classmethod

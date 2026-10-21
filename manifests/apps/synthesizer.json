@@ -328,6 +328,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Température du moteur de voix ; vide = celle du moteur.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "temperature"
+            },
+            {
+              "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
                 "default": {
@@ -1306,6 +1325,76 @@
           },
           {
             "advanced": false,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "tts_model",
+                "mode": "reads",
+                "param": "temperature",
+                "reason": "Ce modèle ne tire pas au hasard : la température ne le concerne pas."
+              },
+              {
+                "capability": "recommended_temperature",
+                "field": "tts_model",
+                "label": "Celle du modèle :",
+                "mode": "note"
+              },
+              {
+                "capability": "max_temperature",
+                "field": "tts_model"
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "panel"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "item": "settingsTemperature",
+              "panel": "temperature"
+            },
+            "group": "",
+            "help": "Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-temperature-half",
+            "inline": false,
+            "label": "Température",
+            "max": 2.0,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "temperature",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "generate"
+            ],
+            "step": 0.05,
+            "type": "temperature",
+            "unit": ""
+          },
+          {
+            "advanced": false,
             "cap_from": null,
             "chip": false,
             "chip_label": "",
@@ -1664,6 +1753,7 @@
             "pitch",
             "sentence_pause",
             "clause_pause",
+            "temperature",
             "output_format",
             "output_quality"
           ],
@@ -1713,6 +1803,7 @@
             "reference_voice": "str",
             "sentence_pause": "range — Silence, en secondes, après un point, un point d'exclamation ou d'interrogation. [0–1.5] (défaut : 0.4)",
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
+            "temperature": "temperature — Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande. [0–2.0]",
             "text": "str",
             "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",
             "voice_preset": "select — Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark (défaut : 'default')",

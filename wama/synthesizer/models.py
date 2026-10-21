@@ -158,6 +158,10 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         db_default=VOICE_PAUSE_SETTINGS['clause_pause']['default'],
         help_text="Pause sur virgule, parenthèse, tiret, en secondes (0 = celle du moteur)"
     )
+    # La TEMPÉRATURE du moteur (2026-10-21, `temperature_param`) — null = la sienne. Passée elle
+    # aussi dans `options` ; un moteur qui ne tire pas le déclare, le réglage se grise sous lui.
+    temperature = models.FloatField(null=True, blank=True,
+                                    help_text="Température du moteur de voix ; vide = celle du moteur.")
 
     # Higgs Audio specific options
     multi_speaker = models.BooleanField(

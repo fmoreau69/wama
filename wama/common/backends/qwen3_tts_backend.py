@@ -81,6 +81,9 @@ class Qwen3TTSBackend(TTSBackend):
                    "le français, runtime local officiel qwen-tts.")
 
     supports_cloning = False        # checkpoint CustomVoice = locuteurs NOMMÉS (pas de réf audio)
+    #: Ce moteur WAMA ne transmet pas de température à `generate_custom_voice` : dit tel quel,
+    #: le réglage se grise plutôt que d'être ignoré en silence (2026-10-21).
+    default_temperature = None
     keep_resident = False
     supports_timestamps = False
 

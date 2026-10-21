@@ -82,10 +82,14 @@ def _call_tts_service(job: AvatarJob) -> str:
     from wama.common.tts.voice_refs import speaker_wav_for
     speaker_wav = speaker_wav_for(job.tts_model, job.voice_preset, user=job.user,
                                   language=job.language or '')
+    # La TEMPÉRATURE de la card (2026-10-21), dans `options` comme au synthesizer — vide = celle
+    # du moteur, rien n'est envoyé.
+    temperature = getattr(job, 'tts_temperature', None)
     return tts_via_service(
         job.text_content, job.tts_model,
         language=job.language, voice_preset=job.voice_preset,
         speaker_wav=speaker_wav,
+        options={'temperature': float(temperature)} if temperature is not None else None,
     )
 
 

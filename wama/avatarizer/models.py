@@ -74,6 +74,9 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     tts_model = models.CharField(
         max_length=128, default=DEFAULT_TTS_MODEL,
     )
+    # La TEMPÉRATURE du moteur de voix (2026-10-21, `temperature_param`) — null = la sienne.
+    tts_temperature = models.FloatField(null=True, blank=True,
+                                        help_text="Température du moteur de voix ; vide = celle du moteur.")
 
     # Curseur de QUALITÉ du tirage « auto » — cf. `VoiceSynthesis.quality_intent` (même
     # échelle continue 0-100, mêmes positions nommées chez le sélecteur).

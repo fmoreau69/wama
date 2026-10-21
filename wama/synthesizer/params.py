@@ -19,14 +19,14 @@ batch=batchSettings*) → JS de voix/clone/submit inchangé. Gabarit : reader/de
 """
 from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
+from wama.common.utils.param_schema import derive_from_model, schema_to_dicts, temperature_param
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.synthesizer.models import VoiceSynthesis
 
 PARAMS = derive_from_model(
     VoiceSynthesis,
     include=["tts_model", "quality_intent", "language", "voice_preset", "speed", "pitch",
-             "sentence_pause", "clause_pause"],
+             "sentence_pause", "clause_pause", "temperature"],
     overrides={
         "tts_model": dict(
             type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
@@ -98,6 +98,12 @@ PARAMS = derive_from_model(
         "clause_pause": dict(contexts=("item", "panel"),
                              dom_id={"panel": "clause_pause", "item": "settingsClausePause"},
                              **VOICE_PAUSE_SETTINGS["clause_pause"]),
+        # La TEMPÉRATURE du moteur (2026-10-21) : le réglage commun, lié au modèle — grisé sous un
+        # moteur qui ne tire pas (Kokoro) ou dont WAMA ne la transmet pas, la valeur du moteur
+        # rappelée (Higgs 0,7). Mêmes surfaces que les pauses, et pour la même raison (pas `batch`).
+        "temperature": temperature_param(
+            "tts_model", contexts=("item", "panel"),
+            dom_id={"panel": "temperature", "item": "settingsTemperature"}),
     },
 )
 

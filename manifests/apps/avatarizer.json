@@ -181,6 +181,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Température du moteur de voix ; vide = celle du moteur.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "tts_temperature"
+            },
+            {
+              "args": [],
               "class": "django.db.models.IntegerField",
               "kwargs": {
                 "default": {
@@ -1020,6 +1039,74 @@
           },
           {
             "advanced": false,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "tts_model",
+                "mode": "reads",
+                "param": "temperature",
+                "reason": "Ce modèle ne tire pas au hasard : la température ne le concerne pas."
+              },
+              {
+                "capability": "recommended_temperature",
+                "field": "tts_model",
+                "label": "Celle du modèle :",
+                "mode": "note"
+              },
+              {
+                "capability": "max_temperature",
+                "field": "tts_model"
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "item": "settingsTtsTemperature"
+            },
+            "group": "",
+            "help": "Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-temperature-half",
+            "inline": false,
+            "label": "Température",
+            "max": 2.0,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "tts_temperature",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": "text_content",
+            "stales": [
+              "speak"
+            ],
+            "step": 0.05,
+            "type": "temperature",
+            "unit": ""
+          },
+          {
+            "advanced": false,
             "cap_from": null,
             "chip": true,
             "chip_label": "",
@@ -1389,6 +1476,7 @@
             "quality_intent",
             "language",
             "voice_preset",
+            "tts_temperature",
             "animation_model",
             "use_enhancer",
             "bbox_shift"
@@ -1456,6 +1544,7 @@
             "quality_mode": "str (défaut : 'fast')",
             "text_content": "textarea — La relance régénère la voix depuis ce texte.",
             "tts_model": "select — Modèle TTS (défaut : 'synthesizer:coqui-xtts')",
+            "tts_temperature": "temperature — Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande. [0–2.0]",
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. Photo animée seulement : sans effet sur un avatar 3D. (défaut : False)",
             "voice_preset": "select — Voix (défaut : 'default')"
           },

@@ -2623,7 +2623,7 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
-- **API publique** (18) :
+- **API publique** (19) :
   - `reads_temperature(caps: Dict[str, Any]) -> bool` — La fiche dit-elle que le modèle LIT la température ? (son nom dans `params`).
   - `ollama_recommended_temperature(parameters: str)` — La température du fichier de modèle d'Ollama (`/api/show` → `parameters`, une ligne
   - `sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `recommended_steps` / `recommended_guidance` depuis `default_steps` /
@@ -2638,6 +2638,7 @@ Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage 
   - `supports(caps: Dict[str, Any], flag: str) -> bool` — Lecture booléenne tolérante d'un `supports_*` (ex. supports('supports_cloning')).
   - `supports_timestamps_for(caps: Dict[str, Any], lang: str) -> bool` — Horodatage mot disponible POUR CETTE LANGUE.
   - `declared_engine_flag(cls, flag: str)` — Valeur d'un `supports_*` telle que la classe de moteur la DÉCLARE — ou `None`.
+  - `declared_engine_value(cls, name: str)` — `(déclaré, valeur)` d'un attribut que la classe de moteur écrit dans son PROPRE corps (ou
   - `apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]` — Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
   - `normalize_capabilities(raw: Dict[str, Any]) -> Dict[str, Any]` — Convertit un dict `capabilities` produit avec des clés legacy vers le vocabulaire canonique.
   - `is_canonical_key(key: str) -> bool` — Vrai si `key` fait partie du vocabulaire canonique (utilitaire d'audit/tests).

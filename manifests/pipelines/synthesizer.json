@@ -30,6 +30,7 @@
             "pitch",
             "sentence_pause",
             "clause_pause",
+            "temperature",
             "text_file",
             "voice_reference",
             "multi_speaker",

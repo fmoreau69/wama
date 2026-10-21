@@ -37,6 +37,9 @@ class HiggsAudioBackend(TTSBackend):
     description = "Higgs Audio v2 — multi-locuteurs, clonage, conditionnement de scène."
 
     supports_cloning = True    # clonage multi-locuteurs (aligné sur le catalogue)
+    #: Il TIRE ses jetons audio : 0,7, le défaut de `serve_engine` (0,3 provoquait des fins de
+    #: parole précoces — mesuré). Réglable depuis la card (`temperature_param`, 2026-10-21).
+    default_temperature = 0.7
 
     REQUIRED_PACKAGES = ['boson_multimodal', 'transformers', 'librosa', 'soundfile', 'scipy']
     # boson_multimodal s'installe depuis le dépôt Boson AI (pas de wheel PyPI fiable).
@@ -156,7 +159,7 @@ class HiggsAudioBackend(TTSBackend):
             output = self._engine.generate(
                 chat_ml_sample=chat_ml,
                 max_new_tokens=max_tokens,
-                temperature=0.7,   # défaut serve_engine ; 0.3 provoquait des EOS précoces
+                temperature=self.sampling_temperature(_ignored),   # la card, sinon 0,7
                 top_p=0.95,
                 force_audio_gen=True,
             )

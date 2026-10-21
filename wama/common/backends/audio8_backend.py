@@ -85,6 +85,8 @@ class Audio8Backend(TTSBackend):
                    "(trust_remote_code).")
 
     supports_cloning = False        # cf. docstring : il faudrait le transcript de la référence
+    #: Il TIRE (`do_sample`) : 0,8, la valeur de la carte du dépôt. Réglable depuis la card.
+    default_temperature = 0.8
     keep_resident = False
     supports_timestamps = False
 
@@ -161,7 +163,8 @@ class Audio8Backend(TTSBackend):
             sortie = self._model.generate(
                 **entrees,
                 max_new_tokens=2048,       # ~95 s d'audio au codec 21,5 trames/s — le
-                temperature=0.8,           # découpage en segments du worker borne l'entrée
+                # découpage en segments du worker borne l'entrée ; la card, sinon 0,8.
+                temperature=self.sampling_temperature(_ignored),
                 top_p=0.95, top_k=50,
                 do_sample=True,
                 return_dict_in_generate=True,

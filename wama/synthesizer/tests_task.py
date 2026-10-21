@@ -106,6 +106,15 @@ class SynthesisTaskOnSkeletonTest(TestCase):
         kwargs = self.rendered.call_args.kwargs
         self.assertEqual((0.6, 0.2), (kwargs['sentence_pause'], kwargs['clause_pause']))
 
+    def test_the_temperature_set_on_the_card_reaches_the_render_and_replays_the_voice(self):
+        """La TEMPÉRATURE (2026-10-21) : vide = celle du moteur (None jusqu'au rendu), réglée =
+        passée au rendu, et la changer périme la synthèse comme tout réglage de voix."""
+        self._run(self._spoken)
+        self.assertIsNone(self.rendered.call_args.kwargs['temperature'], "the engine's own")
+        self._run(self._spoken, temperature=0.4)
+        self.assertEqual(1, self.rendered.call_count, 'a new temperature synthesizes again')
+        self.assertEqual(0.4, self.rendered.call_args.kwargs['temperature'])
+
     def test_auto_stays_auto_and_the_line_names_the_drawn_model(self):
         with mock.patch.object(workers, 'resolve_tts_model', return_value=MODEL):
             item = self._run(self._spoken, tts_model='auto')

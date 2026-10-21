@@ -337,6 +337,115 @@ class TheAppsCarryItToTheCallTest(SimpleTestCase):
             self.assertEqual(0.5, stream.call_args.args[1]['options']['temperature'])
 
 
+class TheEngineSaysItsTemperatureTest(SimpleTestCase):
+    """A voice engine says whether it samples — the same rule as cloning (`apply_engine_flags`),
+    for the discovery and for the sync of a prospected row."""
+
+    def test_an_engine_that_samples_reads_it_with_its_own_value(self):
+        from wama.common.backends.higgs_backend import HiggsAudioBackend
+        from wama.common.utils.model_capabilities import apply_engine_flags
+        caps = apply_engine_flags({'task': 'text-to-speech', 'params': ['voice']}, HiggsAudioBackend)
+        self.assertEqual((['voice', TEMPERATURE], 0.7),
+                         (caps['params'], caps['recommended_temperature']))
+
+    def test_an_engine_that_does_not_sample_says_so(self):
+        from wama.common.backends.kokoro_backend import KokoroBackend
+        from wama.common.utils.model_capabilities import apply_engine_flags
+        caps = apply_engine_flags({'task': 'text-to-speech', 'params': [TEMPERATURE],
+                                   'recommended_temperature': 1.0}, KokoroBackend)
+        self.assertEqual(([], None), (caps['params'], caps['recommended_temperature']),
+                         'a value left by an earlier sync does not survive')
+
+    def test_an_engine_that_declares_nothing_affirms_nothing(self):
+        from wama.common.backends.tts_base import TTSBackend
+        from wama.common.utils.model_capabilities import apply_engine_flags
+
+        class Silent(TTSBackend):
+            def load(self, model=None):
+                return True
+
+            def unload(self):
+                pass
+
+            def process(self, **kwargs):
+                return ''
+        self.assertEqual({'task': 'text-to-speech'},
+                         apply_engine_flags({'task': 'text-to-speech'}, Silent))
+
+    def test_every_voice_engine_says_it(self):
+        """Seven voice engines, seven declarations — none left to « unknown »."""
+        from wama.common.backends import tts_base
+        from wama.common.backends.manager import backend_for_engine
+        from wama.common.utils.model_capabilities import declared_engine_value
+        from wama.synthesizer.utils.model_config import SYNTHESIZER_MODELS
+        for key, config in SYNTHESIZER_MODELS.items():
+            cls = backend_for_engine(config.get('engine'), key) if config.get('engine') else None
+            if cls is None or not issubclass(cls, tts_base.TTSBackend):
+                continue
+            with self.subTest(engine=cls.__name__):
+                self.assertTrue(declared_engine_value(cls, 'default_temperature')[0])
+
+    def test_a_call_takes_the_cards_value_or_the_engines(self):
+        from wama.common.backends.higgs_backend import HiggsAudioBackend
+        engine = HiggsAudioBackend()
+        self.assertEqual(0.7, engine.sampling_temperature({'options': {}}))
+        self.assertEqual(0.3, engine.sampling_temperature({'options': {'temperature': '0.3'}}))
+        self.assertEqual(0.7, engine.sampling_temperature({}))
+
+    def test_bark_samples_both_stages_at_the_cards_temperature(self):
+        import numpy as np
+
+        from wama.common.backends.bark_backend import BarkBackend
+        engine = BarkBackend()
+        spoken = mock.Mock(return_value=np.zeros(240, dtype=np.float32))
+        engine._funcs = {'generate_audio': spoken, 'SAMPLE_RATE': 24000}
+        Path(engine.process(text='Bonjour', options={'temperature': 0.5})).unlink()
+        self.assertEqual((0.5, 0.5), (spoken.call_args.kwargs['text_temp'],
+                                      spoken.call_args.kwargs['waveform_temp']))
+        Path(engine.process(text='Bonjour')).unlink()
+        self.assertEqual(0.7, spoken.call_args.kwargs['text_temp'], "the engine's own")
+
+    def test_the_speech_render_sends_it_to_the_service_only_when_set(self):
+        from wama.synthesizer.utils import speech_render
+
+        def spoken(text, model, **kwargs):
+            sent.append(kwargs['options'])
+            raise RuntimeError('stop')       # the options are what this test reads
+        for temperature, expected in ((None, False), (0.6, True)):
+            sent = []
+            with self.subTest(temperature=temperature), \
+                    mock.patch.object(speech_render, 'tts_via_service', side_effect=spoken), \
+                    self.assertRaises(RuntimeError):
+                speech_render.render_speech('Bonjour.', '/tmp/x.wav', model='synthesizer:bark',
+                                            language='fr', voice_preset='default',
+                                            temperature=temperature)
+            self.assertEqual(expected, 'temperature' in sent[0])
+
+    def test_the_avatarizer_voice_is_spoken_at_the_cards_temperature(self):
+        from wama.avatarizer import workers
+        from wama.avatarizer.models import AvatarJob
+        from wama.avatarizer.params import PARAMS_JSON
+        p = next(p for p in PARAMS_JSON if p['name'] == 'tts_temperature')
+        self.assertEqual(('temperature', 'tts_model'), (p['type'], cap_bindings(p)[0]['field']))
+        for column, expected in ((0.5, {'temperature': 0.5}), (None, None)):
+            with self.subTest(column=column), \
+                    mock.patch('wama.common.tts.voice_refs.speaker_wav_for', return_value=None), \
+                    mock.patch.object(workers, 'tts_via_service', return_value='x.wav') as spoken:
+                from django.contrib.auth import get_user_model
+                workers._call_tts_service(AvatarJob(user=get_user_model()(username='voice'),
+                                                    text_content='Bonjour.', language='fr',
+                                                    tts_model='synthesizer:bark',
+                                                    voice_preset='default',
+                                                    tts_temperature=column))
+                self.assertEqual(expected, spoken.call_args.kwargs['options'])
+
+    def test_the_synthesizer_binds_it_to_its_voice_engine(self):
+        from wama.synthesizer.params import PARAMS_JSON
+        p = next(p for p in PARAMS_JSON if p['name'] == 'temperature')
+        self.assertEqual(('temperature', 'tts_model', ('generate',)),
+                         (p['type'], cap_bindings(p)[0]['field'], tuple(p['stales'])))
+
+
 class TheAssistantSettingsRouteTest(TestCase):
 
     def setUp(self):

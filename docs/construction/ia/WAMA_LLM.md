@@ -1251,8 +1251,18 @@ gemma4 et qwen3.5) — trois règles pour une même notion, et le distant suivai
 `wama_lab/`, `wama_data/` NOMME sa température (ou relaie `**kwargs`). Le défaut a bougé : un appel
 muet aurait changé de température sans erreur, en rendant un texte plausible.
 
-**Restes, nommés** : les moteurs de voix et de musique qui tirent (Higgs fixé à 0,7, Audio8 à 0,8,
-MusicGen, YuE — synthesizer, avatarizer, composer) n'exposent pas encore la leur ; le transcriber
+**Les VOIX (même jour, 2e vague)** : un moteur DÉCLARE sa température dans son corps
+(`BaseModelBackend.default_temperature`), comme il déclare le clonage — `apply_engine_flags` en tire
+la fiche (découverte ET synchronisation d'une ligne prospectée, `declared_engine_value`) et le moteur
+lit le réglage par `sampling_temperature` (dans `options`, le contrat uniforme des voix, que
+`render_speech` remplit). Higgs 0,7, Audio8 0,8, Bark 0,7 (ses deux étages) la lisent ; Kokoro et
+Kokoro-ONNX ne tirent pas ; XTTS et Qwen3-TTS tirent mais ce moteur WAMA ne la leur transmet pas —
+dit tel quel (`None`), le réglage se grise plutôt que d'être ignoré. Le synthesizer porte le réglage
+(`temperature`, migration 0032), item et volet comme les pauses.
+
+**Restes, nommés** : l'avatarizer (son schéma était en cours d'édition par une autre session) ; les
+moteurs de MUSIQUE (MusicGen, YuE, audio.cpp — composer), dont le contrat `generate` ne porte pas
+encore d'`options` ; le transcriber
 l'a RETIRÉE exprès (reconnaissance de la parole = reproductibilité) — décision de Fabien à prendre
 avant de l'y remettre ; les jumelles du bac à sable (`translator_01`, `writer_01`) la recevront par
 leur manifeste.

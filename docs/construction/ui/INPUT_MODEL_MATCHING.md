@@ -641,7 +641,8 @@ réglage doit apparaître si le modèle le permet »*, pour tout type de modèle
 
 La case « Celle du modèle » vaut VIDE (rien n'est envoyé : le moteur applique sa propre valeur) ;
 la toucher, ou bouger le curseur, règle une valeur. Une borne qui ramène le curseur ne règle rien.
-Adopté par le describer (vision, langage), le reader (langage), l'assistant (conversation). Règle de
+Adopté par le describer (vision, langage), le reader (langage), l'assistant (conversation), le
+synthesizer (moteur de voix : le moteur déclare sa température, `default_temperature`). Règle de
 l'appel : `docs/construction/ia/WAMA_LLM.md §Température`. Gardes : `tests_temperature`.
 
 Modèle « auto » ou capacité absente → champ du schéma intact. Les capacités vidéo (`fps`,

@@ -18,6 +18,10 @@ DECLARED_GAPS = {
     ('avatarizer', 'PARAMS_JSON', 'quality_intent'): 'modal only — not yet looked at',
     ('avatarizer', 'PARAMS_JSON', 'language'): 'modal only — not yet looked at',
     ('avatarizer', 'PARAMS_JSON', 'voice_preset'): 'modal only — not yet looked at',
+    # 2026-10-21 : la température du moteur de voix SUIT le moteur qu'elle règle (`tts_model`,
+    # modale seule ci-dessus) — au volet, sa liaison `cap_from` n'aurait pas de modèle à lire.
+    # Elle sort de cette liste avec la voix, le jour où la voix rejoint le volet.
+    ('avatarizer', 'PARAMS_JSON', 'tts_temperature'): 'modal only — follows tts_model',
     ('composer', 'PARAMS_JSON', 'prompt'): 'modal only — not yet looked at',
     ('enhancer', 'AUDIO_PARAMS_JSON', 'output_format'): 'modal only — not yet looked at',
     ('enhancer', 'AUDIO_PARAMS_JSON', 'output_quality'): 'modal only — not yet looked at',

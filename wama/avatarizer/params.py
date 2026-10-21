@@ -8,7 +8,7 @@ panel = id du champ (ou name du groupe radio). voice_preset hérite des voix cen
 optgroups server-rendered pour l'instant). cardSettings (côté JS) lit les data-* du bouton ⚙ de la card.
 """
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
+from wama.common.utils.param_schema import derive_from_model, schema_to_dicts, temperature_param
 from wama.avatarizer.models import AvatarJob
 from wama.avatarizer.utils.model_config import ANIMATION_SPEC
 
@@ -30,7 +30,7 @@ PARAMS = derive_from_model(
     # rend le premier, et le tirage du moteur TTS du worker (`app_id='avatarizer'`) lit SON
     # domaine. `animation_model` vient après, et son tirage passe un `spec` explicite.
     include=["text_content", "tts_model", "quality_intent", "language", "voice_preset",
-             "animation_model", "use_enhancer", "bbox_shift"],
+             "tts_temperature", "animation_model", "use_enhancer", "bbox_shift"],
     overrides={
         # MODÈLE D'ANIMATION (2026-10-03) : les modèles `lip-sync` de l'avatarizer, au
         # catalogue — MuseTalk (photo), TalkingHead (avatar 3D riggé), et tout modèle qui s'y
@@ -95,6 +95,11 @@ PARAMS = derive_from_model(
                              show_if="text_content", options_source="voices",
                              dom_id={"item": "settingsVoicePreset"}, contexts=("item",),
                              remember=True, stales=("speak",)),
+        # La TEMPÉRATURE du moteur de voix (2026-10-21) : le réglage commun, lié au moteur — grisé
+        # sous un moteur qui ne tire pas. Mêmes conditions que la voix (job porteur de texte).
+        "tts_temperature": temperature_param(
+            "tts_model", show_if="text_content", dom_id={"item": "settingsTtsTemperature"},
+            contexts=("item",), stales=("speak",)),
         "use_enhancer": dict(type="toggle", label="Amélioration CodeFormer", chip=True,
                              icon="fa-wand-magic-sparkles",
                              help="Restauration faciale haute qualité — légèrement plus lent. "

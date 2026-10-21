@@ -412,6 +412,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Température du modèle de langage ; vide = celle du modèle.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "llm_temperature"
+            },
+            {
+              "args": [],
               "class": "django.db.models.DateTimeField",
               "kwargs": {
                 "auto_now_add": {
@@ -1030,6 +1049,79 @@
           },
           {
             "advanced": false,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "llm_model",
+                "mode": "reads",
+                "param": "temperature",
+                "reason": "Ce modèle ne tire pas au hasard : la température ne le concerne pas."
+              },
+              {
+                "capability": "recommended_temperature",
+                "field": "llm_model",
+                "label": "Celle du modèle :",
+                "mode": "note"
+              },
+              {
+                "capability": "max_temperature",
+                "field": "llm_model"
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsLlmTemperature",
+              "item": "rSettings_llm_temperature",
+              "panel": "llmTemperature"
+            },
+            "group": "",
+            "help": "Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-temperature-half",
+            "inline": false,
+            "label": "Température",
+            "max": 2.0,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "llm_temperature",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "format",
+              "analyze"
+            ],
+            "step": 0.05,
+            "type": "temperature",
+            "unit": ""
+          },
+          {
+            "advanced": false,
             "cap_from": null,
             "chip": false,
             "chip_label": "",
@@ -1306,6 +1398,7 @@
             "language",
             "output_format",
             "llm_model",
+            "llm_temperature",
             "format_markdown",
             "generate_analysis"
           ],
@@ -1351,6 +1444,7 @@
             "generate_analysis": "toggle — Analyse LLM du texte lu (résumé, points clés) (défaut : False)",
             "language": "text — Optionnel (ex. fr, en). Auto-détection si vide.",
             "llm_model": "select — Clé de catalogue du modèle de langage, ou « auto ». (défaut : 'auto')",
+            "llm_temperature": "temperature — Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande. [0–2.0]",
             "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : 'auto')",
             "output_format": "select — Format du texte produit. Les autres formats restent téléchargeables ensuite. (choix : txt | markdown) (défaut : 'txt')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)"

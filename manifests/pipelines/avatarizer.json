@@ -33,7 +33,8 @@
             "tts_model",
             "quality_intent",
             "language",
-            "voice_preset"
+            "voice_preset",
+            "tts_temperature"
           ]
         }
       },

@@ -405,7 +405,8 @@ def update_settings(request, pk):
     data = read_settings_payload(request, _AVATAR_PARAMS_JSON, names)
     # TTS (pipeline seulement — un job standalone a un audio, le texte n'y a pas de sens) ;
     # un texte vide ne remplace pas le texte existant : la relance REGÉNÈRE l'audio depuis lui.
-    tts = ('text_content', 'tts_model', 'quality_intent', 'language', 'voice_preset')
+    tts = ('text_content', 'tts_model', 'quality_intent', 'language', 'voice_preset',
+           'tts_temperature')
     if not str(data.get('text_content') or '').strip():
         data.pop('text_content', None)
     fields = [n for n in names if job.mode == 'pipeline' or n not in tts]
