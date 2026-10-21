@@ -1161,6 +1161,14 @@ class ModelRuntimeStat(models.Model):
     load_ema_seconds = models.FloatField(null=True, blank=True)
     per_unit_ema_seconds = models.FloatField(default=0.0)
     samples = models.PositiveIntegerField(default=0)
+    #: Moyennes mobiles de la taille, de la durée, de la taille² et de taille × durée (2026-10-21,
+    #: migration 0026) : la droite « durée = fixe + par unité × taille » qu'`estimate` en tire. Un
+    #: rapport moyen (`per_unit_ema_seconds`) appris sur de PETITES tailles prête leur coût fixe à
+    #: chaque unité : 11 h annoncées pour une transcription de 141 min qui en a pris 10.
+    size_ema = models.FloatField(null=True, blank=True)
+    seconds_ema = models.FloatField(null=True, blank=True)
+    size_sq_ema = models.FloatField(null=True, blank=True)
+    size_seconds_ema = models.FloatField(null=True, blank=True)
 
     updated_at = models.DateTimeField(auto_now=True)
     created_at = models.DateTimeField(auto_now_add=True)

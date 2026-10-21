@@ -367,3 +367,106 @@ class TheFlagSaysWhatTheCatalogueSaysTest(SimpleTestCase):
                     self.assertEqual(uses_the_card, spec.gpu)
                 checked += 1
         self.assertGreater(checked, 25, 'the ten apps were read')
+
+
+class TheLaunchRemembersAcrossDeliveriesTest(_Base):
+    """2026-10-21, transcriber #2522 — a re-delivered task runs its next process in ANOTHER
+    worker: what the launch decided and prepared must not be redone there. The audio was leveled
+    twice (~110 s each on 141 min) and an « auto » model was drawn at every delivery. The skeleton
+    keeps the launch's model and memory under its task id (`task.retry` keeps it), and removes the
+    launch's temporary files at its REAL end only."""
+
+    def _deliveries(self, item, first_glue, second_glue, model_key=None):
+        from wama.common.utils.task_skeleton import run_item_task
+        task, _sent = _task('default')
+        with mock.patch.object(gov, 'effective_free_gb', return_value=24.0):
+            with self.assertRaises(_Resent):
+                run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                              pipeline=self.pipeline, model_key=model_key,
+                              processes={'convert': first_glue, 'enhance': second_glue})
+            task, _sent = _task('gpu', retries=1)
+            run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.pipeline, model_key=model_key,
+                          processes={'convert': first_glue, 'enhance': second_glue})
+        return self.model.objects.get(pk=item.pk)
+
+    def _temporary(self):
+        import tempfile
+        handle, path = tempfile.mkstemp(suffix='_prepared.wav')
+        os.close(handle)
+        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
+        return path
+
+    def test_the_drawn_model_is_not_drawn_again_by_the_next_delivery(self):
+        draws, seen = iter(['family:a', 'family:b']), []
+
+        def draw(element):
+            return next(draws)
+
+        def glue(element, ctx):
+            seen.append(ctx.model_key)
+            return {}
+        item = self._deliveries(self._element('launch_model'), glue, glue, model_key=draw)
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual(['family:a', 'family:a'], seen,
+                         'a second draw could decide otherwise about the next processes')
+
+    def test_what_a_process_prepared_is_found_by_the_next_one_and_removed_at_the_end(self):
+        path, found = self._temporary(), []
+
+        def prepare(element, ctx):
+            ctx.remember('prepared_audio', path)
+            ctx.keep_file(path)
+            return {}
+
+        def reuse(element, ctx):
+            found.append((ctx.recall('prepared_audio'), os.path.exists(path)))
+            return {}
+        item = self._deliveries(self._element('launch_file'), prepare, reuse)
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual([(path, True)], found, 'the re-delivery lost what the launch prepared')
+        self.assertFalse(os.path.exists(path), 'the launch ended: its temporary file goes')
+        from wama.common.utils.task_skeleton import _launch_key
+        from django.core.cache import cache
+        self.assertIsNone(cache.get(_launch_key(self.app, item.pk)))
+
+    def test_a_failed_launch_removes_its_files_too(self):
+        path = self._temporary()
+
+        def prepare(element, ctx):
+            ctx.keep_file(path)
+            raise RuntimeError('boom')
+        from wama.common.utils.task_skeleton import run_item_task
+        item = self._element('launch_fails')
+        task, _sent = _task()
+        with mock.patch.object(gov, 'effective_free_gb', return_value=24.0):
+            run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.pipeline,
+                          processes={'convert': prepare, 'enhance': self._glue('enhance')})
+        self.assertEqual('FAILURE', self.model.objects.get(pk=item.pk).status)
+        self.assertFalse(os.path.exists(path))
+
+    def test_a_new_launch_recalls_nothing_and_clears_an_interrupted_one(self):
+        from django.core.cache import cache
+        from wama.common.utils.task_skeleton import _launch_key, run_item_task
+        path, recalled = self._temporary(), []
+        item = self._element('launch_stale')
+        cache.set(_launch_key(self.app, item.pk),
+                  {'task': 'killed-worker', 'facts': {'prepared_audio': path}, 'files': [path]})
+
+        def glue(element, ctx):
+            recalled.append(ctx.recall('prepared_audio'))
+            return {}
+        task, _sent = _task()
+        with mock.patch.object(gov, 'effective_free_gb', return_value=24.0):
+            run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
+                          pipeline=self.pipeline, processes={'convert': glue, 'enhance': glue})
+        self.assertEqual([None, None], recalled, 'another launch reuses nothing')
+        self.assertFalse(os.path.exists(path), 'the interrupted launch left its file behind')
+
+    def test_outside_a_worker_nothing_is_remembered(self):
+        from wama.common.utils.task_skeleton import TaskContext
+        item = self._element('launch_direct')
+        ctx = TaskContext(self.app, self.model, item)
+        ctx.remember('x', 1)
+        self.assertIsNone(ctx.recall('x'))

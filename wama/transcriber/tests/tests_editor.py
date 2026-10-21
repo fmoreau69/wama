@@ -177,6 +177,21 @@ class WriteModesTest(TestCase):
         _, spans, _ = self._run_loop({'mode': 'write', 't': 0.0, 'wanted': [[0.0, 70.0]]})
         self.assertEqual([(0.0, 30.0), (30.0, 60.0), (60.0, 70.0)], spans)
 
+    def test_an_auto_card_asks_the_backend_for_the_model_the_draw_names(self):
+        """2026-10-21 : « auto » passait tel quel au backend tiré — Albert, chargé sans nom de
+        modèle, se disait « indisponible » à chaque tour. Le tirage est celui de la transcription
+        (`workers._card_model`)."""
+        from unittest import mock
+        Transcript.objects.filter(pk=self.item.pk).update(backend='auto')
+        self.item.refresh_from_db()
+        asked = []
+        with mock.patch('wama.transcriber.backends.manager.resolve_auto_key',
+                        return_value='albert:whisper-large-v3'), \
+                mock.patch('wama.transcriber.backends.manager.TranscriberBackendManager.'
+                           'model_for_request', side_effect=lambda b, name: asked.append(name)):
+            self._run_loop({'mode': 'write', 't': 0.0, 'wanted': [[0.0, 4.0]]})
+        self.assertEqual(['albert:whisper-large-v3'], asked)
+
     def test_a_production_transcription_takes_the_gpu_back(self):
         outcome, spans, _ = self._run_loop({'mode': 'write', 't': 0.0, 'wanted': [[0.0, 4.0]]},
                                            busy=True)

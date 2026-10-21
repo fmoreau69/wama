@@ -1098,6 +1098,34 @@ comme en sortie), ≈ 14 × le temps réel. WER de corpus :
 - 🔜 Décisions (a)-(c) ci-dessus inchangées ; s'y ajoute (d) : ne pas proposer l'amélioration
   de l'enhancer comme prétraitement du transcriber.
 
+**Suite (2026-10-21) — « sans nivellement 44,5 %, avec 65,2 % » sur le lot #489 : ce n'est PAS le
+nivellement.** Question de Fabien, sur l'entretien de Bonneuil (141 min, même référence). Les deux
+cards diffèrent de QUATRE choses à la fois :
+
+| card | moteur | nivellement | filtre de parole | langues | WER | mots rendus (réf. 17 594) |
+|---|---|---|---|---|---|---|
+| #724 | Whisper large-v3 LOCAL | non | auto | auto | 44,5 % | 21 177 |
+| #2522 | whisper-large-v3 ALBERT | oui | coupé | une seule | 65,2 % | 9 055 (9 036 suppressions) |
+
+- La seule paire contrôlée sur cet audio reste #1048 / #1070 ci-dessus (Whisper local, filtre
+  coupé) : **le nivellement y gagne 3,2 points** (42,8 → 39,6 %). Aucune card n'a nivelé cet
+  audio avec Albert seul changé — la mesure « Albert sans nivellement » reste à faire (gratuite en
+  GPU : le moteur est distant).
+- L'écart de #2522 est dominé par les **mots manquants** : Albert rend la moitié du texte (216
+  segments contre 4 296 en local), passage par passage (6 envois de 1 500 s, 30 à 42 segments chacun,
+  `celery-default.log` 15:55:50 → 15:56:29). C'est le défaut d'omission déjà mesuré sur SUMM-RE
+  (`albert_asr_backend.py`, en-tête : « Albert OMETTAIT 70 à 250 mots… l'écart est dans le décodage
+  d'Albert »), ici beaucoup plus fort sur un entretien de 25 min par envoi.
+- **Niveau mesuré avant / après nivellement** (hypothèse de Fabien : « le nivellement baisse peut-être
+  le niveau global, faut-il normaliser vers 0 dB ? ») : parole active −25,8 → **−20,1 dBFS**, RMS
+  −27,3 → −21,8 dBFS, crête +0,4 (l'original écrête déjà) → −0,2 dBFS. Le nivellement RELÈVE le
+  niveau ; une normalisation de crête n'y ajouterait que 0,2 dB. Et Whisper (local comme chez
+  Albert) est peu sensible au gain global : son spectrogramme log-mel est borné à 80 dB SOUS SON
+  MAXIMUM — c'est le niveau RELATIF des passages qui compte, ce que fait le nivellement. ⚠ Ce qui
+  bouge en revanche : le **plancher des silences monte de 14 dB** (−50,6 → −36,6 dBFS), les silences
+  gardant le gain des mots voisins. Sur #1070 les ajouts ont pourtant BAISSÉ (4 213 → 3 291) ; à
+  surveiller sur un audio au fond plus bruyant.
+
 **Suite (2026-10-01, soir) — trois moteurs de plus, exécutables, PAS encore évalués.** LinTO FR
 (NeMo), FrWhisper et Kyutai STT 1B fr/en sont intégrés par les rôles (chaîne et trous :
 `PROSPECTION_PIPELINE.md §Session du 2026-10-01 (soir)`), essayés sur GPU, sélectionnables

@@ -100,3 +100,42 @@ class ModelKeyTest(SimpleTestCase):
         from wama.synthesizer.models import VoiceSynthesis
         default = VoiceSynthesis._meta.get_field('tts_model').default
         self.assertEqual(make_key('synthesizer', default).count('synthesizer:'), 1)
+
+
+class FixedCostIsLearnedApartTest(TestCase):
+    """2026-10-21, transcriber card #2522 (141 min of audio): 11 h announced at the launch, 9 min
+    13 s in reality. Each process key had learned a RATIO (seconds per second of audio) on short
+    audios, where the FIXED cost (loading pyannote, one LLM call) dominates — the ratio lent that
+    cost to every second of the long audio. The estimator now learns the line « seconds = fixed +
+    per unit × size » as soon as the measured sizes differ (`eta_estimator._line`)."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('eta_line_user', password='x')
+
+    def _learn(self, key, runs):
+        for size, seconds in runs:
+            record_run(key, size=size, unit='audio_sec', process_seconds=seconds, user=self.user)
+
+    def _estimate(self, key, size):
+        from wama.model_manager.services.eta_estimator import estimate
+        return estimate(key, size=size, unit='audio_sec', model_loaded=True)
+
+    def test_a_fixed_cost_is_not_lent_to_every_second_of_a_long_audio(self):
+        self._learn('eta-line:summary', [(20.0, 10.6), (8508.6, 11.7)])   # the measured summary
+        self.assertLess(self._estimate('eta-line:summary', 8508.6), 30,
+                        'a summary of a long audio announced as if each second cost a call')
+
+    def test_a_fixed_cost_and_a_rate_are_both_kept(self):
+        self._learn('eta-line:speakers', [(20.0, 30.0), (8508.6, 335.0)])
+        self.assertAlmostEqual(335.0, self._estimate('eta-line:speakers', 8508.6), delta=1)
+        self.assertAlmostEqual(30.0 + 305.0 * (4000 - 20) / 8488.6,
+                               self._estimate('eta-line:speakers', 4000), delta=1)
+
+    def test_counter_proof_one_size_only_keeps_the_ratio(self):
+        self._learn('eta-line:same-size', [(100.0, 50.0), (100.0, 60.0)])
+        stat = ModelRuntimeStat.objects.get(model_key='eta-line:same-size')
+        self.assertAlmostEqual(stat.per_unit_ema_seconds * 300, self._estimate('eta-line:same-size', 300))
+
+    def test_a_line_never_estimates_a_negative_cost(self):
+        self._learn('eta-line:shrinking', [(10.0, 60.0), (1000.0, 20.0)])
+        self.assertGreaterEqual(self._estimate('eta-line:shrinking', 5000), 0.0)

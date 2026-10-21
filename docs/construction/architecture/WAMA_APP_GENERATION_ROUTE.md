@@ -5322,6 +5322,16 @@ process** (clé ETA du process, pas de l'app), signal `RunOutcome` par process, 
 > - **la priorité** d'une re-livraison est celle de l'app (`celery_priority_for`, la source des
 >   routes), jamais celle du message : MESURÉ sur un worker jetable, un message envoyé sans
 >   priorité se relit `priority: 0` — le converter serait entré en tête de la file GPU.
+> - **la MÉMOIRE DU LANCEMENT** (2026-10-21, transcriber #2522) : re-livrée, la tâche continue
+>   dans un AUTRE worker, dont la mémoire de processus est vide. Le squelette garde donc, au cache
+>   et sous l'id du lancement, le modèle qu'il a retenu (`ctx.model_key` — un « auto » n'est plus
+>   retiré à chaque livraison) et ce qu'un process prépare pour le suivant (`ctx.remember` /
+>   `ctx.recall`) ; un fichier temporaire confié par `ctx.keep_file` part à la fin RÉELLE du
+>   lancement (succès, échec, durée max), jamais à une re-livraison, et un nouveau lancement
+>   retire le reste d'un lancement interrompu. Mesuré avant : une transcription distante (Albert,
+>   file par défaut) suivie des locuteurs (file GPU) nivelait 141 min d'audio DEUX fois (~110 s
+>   chacune). Gardes : `tests_process_governance.TheLaunchRemembersAcrossDeliveriesTest`,
+>   contre-épreuves (mémoire et fermeture neutralisées : rouges).
 >
 > **Le sens du drapeau, tranché** : `gpu` = le process sollicite la carte, par un modèle chargé
 > dans le worker OU par un service local qui en charge un (Ollama hôte, service TTS). Les huit

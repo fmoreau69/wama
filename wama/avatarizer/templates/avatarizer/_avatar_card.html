@@ -12,7 +12,7 @@ leur graphie historique (`#job-<id>`, `data-job-id`, `btn-settings-job`) — ils
 pas la variable de gabarit.
 
 ⚠ Contrats JS (index.js) : #job-{{ id }} + [data-id][data-job-id][data-status][data-mode] ;
-  .settings-btn[data-id] + data-* (masqué en RUNNING) ; .delete-btn[data-delete-url] ;
+  .settings-btn[data-id] + data-* (dans TOUS les états — contrat queue-actions.js) ; .delete-btn[data-delete-url] ;
   .duplicate-btn[data-duplicate-url] (brique globale) ; .step-desc (étape live :462) ;
   .wama-progress-fill ; .progress-text ; .wama-eta ; #preview-row-{{ id }}.
 {% endcomment %}
@@ -103,8 +103,9 @@ pas la variable de gabarit.
     <div class="wcv3-sec wcv3-sec--actions">
       <span class="wcv3-lbl">Actions</span>
       <div class="btn-group-actions wcv3-actions">
-        {% if elem.status != 'RUNNING' %}
-        {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08).{% endcomment %}
+        {% comment %}data-* DÉRIVÉS du schéma (brique commune card_gear, 18/08). Posé dans TOUS les
+        états (contrat de queue-actions.js, 2026-10-21) : masqué en cours, le volet lisait d'autres
+        réglages que ceux de la card.{% endcomment %}
         {% comment %}`settings-btn` + `data-id` = contrat de la brique commune queue-actions.js
         (2026-08-23). Remplace `btn-settings-job`/`data-job-id` — graphie propre à l'avatarizer,
         et la SEULE des six à inverser l'ordre des mots (`btn-settings-job` vs `*-settings-btn`),
@@ -116,7 +117,6 @@ pas la variable de gabarit.
                 title="Paramètres">
           <i class="fas fa-cog"></i>
         </button>
-        {% endif %}
         {% include 'common/_cycle_button.html' with id=elem.id status=elem.shown_state|default:elem.status %}
         {% url 'avatarizer:download' elem.id as url_dl %}
         {% if elem.status == 'SUCCESS' and elem.output_video %}

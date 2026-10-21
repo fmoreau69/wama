@@ -501,17 +501,23 @@ def _run_state(t) -> dict:
     return _RUNS.setdefault(t.pk, {})
 
 
-def _release_run(transcript_id: int) -> None:
-    """Fin de tâche, succès comme échec : l'audio préparé (nivelé, débruité) est retiré —
-    l'original de la card, jamais — et le message d'étape s'efface."""
-    state = _RUNS.pop(transcript_id, None) or {}
-    prepared, original = state.get('audio'), state.get('original')
+def _remove_prepared(prepared, original, transcript_id) -> None:
     if prepared and prepared != original and os.path.exists(prepared):
         try:
             os.remove(prepared)
         except OSError as e:
             logger.warning("transcriber #%s : audio préparé non retiré (%s)", transcript_id, e)
+
+
+def _release_run(transcript_id: int) -> None:
+    """Fin de LIVRAISON : la mémoire du processus s'oublie et le message d'étape s'efface. L'audio
+    préparé confié au lancement (`ctx.keep_file`) n'est pas retiré ici : la livraison suivante du
+    même lancement le reprend, et le squelette le retire à la fin RÉELLE du lancement
+    (`task_skeleton._close_launch`). Un audio préparé hors lancement (appel direct) part ici."""
+    state = _RUNS.pop(transcript_id, None) or {}
     cache.set(f"transcriber_status_msg_{transcript_id}", '', timeout=3600)
+    if not state.get('kept'):
+        _remove_prepared(state.get('audio'), state.get('original'), transcript_id)
 
 
 def _model_key(t) -> str:
@@ -525,17 +531,22 @@ def _model_key(t) -> str:
         state['drawn'] = False
         return _external_key(t)
     if 'backend_name' not in state:
-        from wama.transcriber.backends.manager import (catalogue_value, is_auto_value,
-                                                       resolve_auto_key)
-        name = catalogue_value(t.backend)
-        state['drawn'] = is_auto_value(name)
-        if state['drawn']:
-            name = resolve_auto_key(item=t)
-        state['backend_name'] = name
+        state['backend_name'], state['drawn'] = _card_model(t)
     return state['backend_name']
 
 
-def _prepared_audio(t) -> str:
+def _card_model(t) -> tuple:
+    """(clé de catalogue, tirée ?) du modèle de la card : son réglage, ou le tirage « auto » de la
+    brique commune. UN geste pour la transcription et l'écriture au fil de la lecture : celle-ci
+    passait « auto » tel quel au backend tiré, qui ne savait alors pas quel modèle charger —
+    mesuré le 2026-10-21 : Albert chargé sans nom, « indisponible » à chaque tour."""
+    from wama.transcriber.backends.manager import catalogue_value, is_auto_value, resolve_auto_key
+    name = catalogue_value(t.backend)
+    drawn = is_auto_value(name)
+    return (resolve_auto_key(item=t) if drawn else name), drawn
+
+
+def _prepared_audio(t, ctx=None) -> str:
     """L'audio que les process ÉCOUTENT : nivelé puis débruité selon les réglages de la card,
     préparé une fois par lancement.
 
@@ -545,7 +556,11 @@ def _prepared_audio(t) -> str:
     DeepFilterNet efface une parole enregistrée bas (−54 dBFS → texte vide, 100 % d'erreur, sans
     rien signaler) ; demander le débruitage nivelle donc d'abord, et la console le dit. Les deux
     passent AVANT le filtre de parole et la sonde des langues, qui jugent l'audio que le moteur
-    entendra."""
+    entendra.
+
+    `ctx` (le contexte du squelette) : l'audio préparé est GARDÉ par le lancement (`ctx.remember`,
+    `ctx.keep_file`) — le process suivant, re-livré sur une autre file, le reprend au lieu de le
+    préparer une seconde fois (2026-10-21, #2522 : nivelé deux fois, ~110 s chacune)."""
     state = _run_state(t)
     if 'audio' in state:
         return state['audio']
@@ -553,6 +568,14 @@ def _prepared_audio(t) -> str:
     cleaned_path = audio_path
     state['original'] = state['audio'] = audio_path
     level_first = getattr(t, 'level_speech', False) or t.preprocess_audio
+    recipe = [bool(level_first), bool(t.preprocess_audio)]
+    kept = (ctx.recall('prepared_audio') if ctx is not None else None) or {}
+    if (kept.get('source') == audio_path and kept.get('recipe') == recipe
+            and kept.get('path') and os.path.exists(kept['path'])):
+        state['audio'], state['kept'] = kept['path'], True
+        _console(t.user_id, "Audio préparé par l'étape précédente repris — pas de second "
+                            "nivellement.")
+        return kept['path']
     if level_first:
         if t.preprocess_audio and not getattr(t, 'level_speech', False):
             _console(t.user_id, "Débruitage demandé : la parole est d'abord nivelée "
@@ -567,6 +590,11 @@ def _prepared_audio(t) -> str:
             os.remove(cleaned_path)          # le nivelé intermédiaire ; jamais l'original
         cleaned_path = denoised
         state['audio'] = cleaned_path
+    if cleaned_path != audio_path and ctx is not None and ctx.launch:
+        ctx.remember('prepared_audio', {'path': cleaned_path, 'source': audio_path,
+                                        'recipe': recipe})
+        ctx.keep_file(cleaned_path)
+        state['kept'] = True
     return cleaned_path
 
 
@@ -605,6 +633,12 @@ def _transcribe_step(t, ctx):
     _console(t.user_id, f"Transcription {t.id} démarrée.")
     _set_partial_text(t.id, "🎙️ Transcription en cours...\n")
     state = _run_state(t)
+    if getattr(ctx, 'model_key', None) and 'backend_name' not in state:
+        # Le modèle que le LANCEMENT a retenu (le squelette le garde d'une livraison à l'autre) :
+        # re-livrée avant ce process (#2522 : file GPU → file par défaut), la glu ne le retire pas.
+        from wama.transcriber.backends.manager import catalogue_value, is_auto_value
+        state['backend_name'] = ctx.model_key
+        state['drawn'] = is_auto_value(catalogue_value(t.backend))
     try:
         # Le résultat PRÉCÉDENT s'efface ICI, quand ce process est réellement rejoué — plus au
         # clic de lancement (`views._reset_for_relaunch`) : un lancement qui ne rejoue que le
@@ -618,7 +652,7 @@ def _transcribe_step(t, ctx):
         from wama.common.services.result_evaluation import clear
         clear('transcriber', t)
 
-        cleaned_path = _prepared_audio(t)
+        cleaned_path = _prepared_audio(t, ctx)
 
         if not BACKENDS_AVAILABLE:
             raise RuntimeError("Backend system not available")
@@ -814,7 +848,7 @@ def _diarize_step(t, ctx):
     _console(t.user_id, "Diarisation des locuteurs (pyannote)…")
     _set_partial_text(t.id, "🔎 Identification des locuteurs…\n")
     ctx.progress(5)
-    segments = diarize(_prepared_audio(t), segments, model=getattr(t, 'diarization_model', None))
+    segments = diarize(_prepared_audio(t, ctx), segments, model=getattr(t, 'diarization_model', None))
     _run_state(t)['segments'] = segments
     _save_segments(t, segments)
     _console(t.user_id, "Diarisation terminée ✓")
@@ -1354,8 +1388,8 @@ def live_write_task(self, transcript_id: int):
     state = {'backend': None}
 
     def start():
-        from .backends.manager import TranscriberBackendManager, catalogue_value
-        name = catalogue_value(t.backend) or None
+        from .backends.manager import TranscriberBackendManager
+        name = _card_model(t)[0] or None
         # Le modèle de la card (clé de catalogue) — et son utilisateur, pour un modèle distant ;
         # la variante demandée est chargée, pas le défaut du moteur.
         backend = get_backend(name, user=t.user)

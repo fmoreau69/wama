@@ -11,6 +11,7 @@ V8 comes from `py_mini_racer` (the venv's embedded engine, cf. AGENTS.md §JS): 
 read from the SOURCE static folder and run with a minimal fake `window`/`document`.
 """
 import importlib.util
+import json
 from pathlib import Path
 from unittest import skipUnless
 
@@ -819,3 +820,38 @@ class PreviewModalTest(SimpleTestCase):
         css = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'css'
                / 'media-preview.css').read_text(encoding='utf-8')
         self.assertIn('.modal-dialog.modal-fullscreen .preview-container img', css)
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class GearValuesReadsTheCardsGearTest(SimpleTestCase):
+    """`WamaInspector.gearValues` — the ONE reader of a card's settings (right panel and modal).
+    2026-10-21, transcriber #2522: while RUNNING the card's ⚙ was missing, and the first
+    `.settings-btn` of the card was the ⚙ of a PROCESS row (`_card_processes.html`, `data-process`)
+    — it carries no setting: the panel received {} and kept showing other settings."""
+
+    CARD = """
+      function gear(data) { return {dataset: data}; }
+      var processGear = gear({id: '7', process: 'transcribe', only: 'backend'});
+      var cardGear = gear({id: '7', backend: 'albert:whisper-large-v3', levelSpeech: 'true'});
+      function card(gears) {
+        return {dataset: {}, querySelectorAll: function () { return gears; },
+                querySelector: function () { return gears[0] || null; }};
+      }"""
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval((JS / 'wama-inspector.js').read_text(encoding='utf-8'))
+        self.v8.eval(self.CARD)
+
+    def _read(self, gears):
+        return json.loads(self.v8.eval(
+            f"JSON.stringify(window.WamaInspector.gearValues(card({gears}), ['backend', 'level_speech']))"))
+
+    def test_the_process_gear_before_the_cards_gear_is_skipped(self):
+        self.assertEqual({'backend': 'albert:whisper-large-v3', 'level_speech': 'true'},
+                         self._read('[processGear, cardGear]'))
+
+    def test_a_process_gear_alone_gives_nothing_rather_than_its_scope(self):
+        self.assertEqual({}, self._read('[processGear]'))

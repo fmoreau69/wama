@@ -13,6 +13,7 @@ What is held here, and why each point:
   * an optional process switched off no longer weighs on the card ;
   * a process relaunched alone reads what the element kept (segments), not the memory of a task.
 """
+import os
 from unittest import mock
 
 from django.contrib.auth.models import Group, User
@@ -425,3 +426,77 @@ class ExistingResultPlaysTheImportProcessTest(_Pipeline):
         self.assertIn('data-process="summarize"', html)
         self.assertIs(workers.transcribe, _task_for(self.item))
         self.assertFalse(Transcript.objects.get(pk=self.item.pk).preprocess_audio)
+
+
+class ThePreparedAudioFollowsTheLaunchTest(_Pipeline):
+    """2026-10-21, card #2522 : a transcription by a REMOTE model (Albert) plays on the default
+    queue, the speakers on the GPU queue — the skeleton re-delivers the task and the next process
+    runs in ANOTHER worker, whose `_RUNS` is empty. The speech was leveled twice (~110 s each on
+    141 min of audio), the second time at the start of the diarization. The prepared audio is
+    given to the LAUNCH (`ctx.remember` / `ctx.keep_file`, task skeleton) ; the skeleton's own
+    guards (`tests_process_governance.TheLaunchRemembersAcrossDeliveriesTest`) hold the rest."""
+
+    options = {'enable_diarization': True, 'generate_summary': False, 'verify_coherence': False}
+
+    def setUp(self):
+        super().setUp()
+        Transcript.objects.filter(pk=self.item.pk).update(level_speech=True)
+        self.item.refresh_from_db()
+        self.addCleanup(workers._RUNS.clear)
+        self.leveled = []
+
+    def _ctx(self, launch):
+        from wama.common.utils.task_skeleton import TaskContext, _close_launch
+        ctx = TaskContext('transcriber', Transcript, self.item)
+        ctx.launch = launch
+        self.addCleanup(_close_launch, 'transcriber', self.item.pk)
+        return ctx
+
+    def _level(self, src, dst):
+        self.leveled.append(src)
+        with open(dst, 'wb') as f:
+            f.write(b'leveled')
+        return dst
+
+    def _prepare(self, ctx):
+        with mock.patch('wama.common.utils.speech_leveling.level_file', side_effect=self._level):
+            return workers._prepared_audio(self.item, ctx)
+
+    def test_the_next_worker_of_the_same_launch_does_not_level_again(self):
+        ctx = self._ctx('launch-A')
+        first = self._prepare(ctx)
+        workers._release_run(self.item.pk)              # the delivery ends, the launch goes on
+        self.assertTrue(os.path.exists(first), 'a re-delivery is not the end of the launch')
+        self.assertEqual(first, self._prepare(self._ctx('launch-A')))
+        self.assertEqual(1, len(self.leveled), 'the speech was leveled a second time')
+
+    def test_changed_settings_prepare_the_audio_again(self):
+        self._prepare(self._ctx('launch-A'))
+        workers._release_run(self.item.pk)
+        Transcript.objects.filter(pk=self.item.pk).update(preprocess_audio=True)
+        self.item.refresh_from_db()
+        with mock.patch.object(workers, '_preprocess_audio', side_effect=lambda t, p: p):
+            self._prepare(self._ctx('launch-A'))
+        self.assertEqual(2, len(self.leveled))
+
+    def test_outside_a_launch_the_delivery_removes_its_own_audio(self):
+        prepared = self._prepare(None)
+        workers._release_run(self.item.pk)
+        self.assertFalse(os.path.exists(prepared))
+
+    def test_the_transcription_uses_the_model_the_launch_kept(self):
+        """Re-delivered BEFORE the transcription (#2522 : GPU queue → default queue), the glue
+        must not draw « auto » again — the skeleton already chose for the launch."""
+        Transcript.objects.filter(pk=self.item.pk).update(level_speech=False)
+        self.item.refresh_from_db()
+        ctx = self._ctx('launch-A')
+        ctx.model_key = 'transcriber:kept-by-the-launch'
+        with mock.patch('wama.transcriber.backends.manager.resolve_auto_key') as draw, \
+                mock.patch.object(workers, 'get_backend', return_value=self.asr) as backend, \
+                mock.patch('wama.common.utils.waveform.schedule_dense_peaks'), \
+                mock.patch.object(workers, '_save_output_files'), \
+                mock.patch('wama.common.utils.spoken_language.probe_languages',
+                           return_value=[('fr', 0.95)]):
+            workers._transcribe_step(self.item, ctx)
+        draw.assert_not_called()
+        self.assertEqual('transcriber:kept-by-the-launch', backend.call_args.args[0])

@@ -125,6 +125,44 @@ class TaskContext:
         #: La tâche revient-elle d'une attente (re-livraison) ? Posé par le squelette ; lu par
         #: `ensure_model`.
         self.redelivered = False
+        #: L'identité du LANCEMENT (l'id de la tâche, que `task.retry` garde) et le modèle qu'il a
+        #: retenu — posés par le squelette, gardés d'une livraison à l'autre (`remember`).
+        self.launch = ''
+        self.model_key = None
+
+    # ── La MÉMOIRE DU LANCEMENT (2026-10-21, transcriber #2522) ─────────────────────────────
+    # Le squelette RE-LIVRE la tâche quand un process change de file (`_hand_over_to`) ou attend
+    # une ressource : le process suivant se joue dans un AUTRE worker, dont la mémoire est vide.
+    # Mesuré : une transcription distante (Albert, file par défaut) suivie des locuteurs (file
+    # GPU) nivelait l'audio DEUX fois (~110 s chacune sur 141 min), et un modèle « auto » se
+    # retirait à chaque livraison. Ce qu'un lancement prépare pour ses process suivants se garde
+    # ici — au cache, sous l'id du lancement — et ses fichiers temporaires partent à sa fin
+    # RÉELLE (succès, échec, durée max), jamais à une re-livraison.
+
+    def _launch_entry(self) -> dict:
+        kept = cache.get(_launch_key(self.app_id, self.item.pk)) or {}
+        return kept if self.launch and kept.get('task') == self.launch else {}
+
+    def recall(self, name: str, default=None):
+        """Ce qu'une livraison précédente de CE lancement a gardé sous `name`."""
+        return (self._launch_entry().get('facts') or {}).get(name, default)
+
+    def remember(self, name: str, value) -> None:
+        if not self.launch:
+            return                       # hors worker (appel direct) : rien à reprendre
+        entry = self._launch_entry() or {'task': self.launch, 'facts': {}, 'files': []}
+        entry['facts'][name] = value
+        cache.set(_launch_key(self.app_id, self.item.pk), entry, timeout=LAUNCH_TTL_S)
+
+    def keep_file(self, path: str) -> None:
+        """Un fichier TEMPORAIRE du lancement (audio préparé…) : retiré à sa fin réelle, pas avant
+        — jamais un fichier de la card, que la glu ne confie pas ici."""
+        if not self.launch or not path:
+            return
+        entry = self._launch_entry() or {'task': self.launch, 'facts': {}, 'files': []}
+        if path not in entry['files']:
+            entry['files'].append(path)
+        cache.set(_launch_key(self.app_id, self.item.pk), entry, timeout=LAUNCH_TTL_S)
 
     def ensure_model(self, model_key: str) -> str:
         """Le modèle que la glu va employer est-il installé ? Sinon la ROUTE l'installe, la card
@@ -295,6 +333,33 @@ def _grant_honoured(grant, item) -> bool:
         return user is not None and is_admin_tier(user)
     except Exception:
         return False
+
+
+#: Durée de vie de la mémoire d'un lancement au cache — elle se retire à sa fin réelle ; la durée
+#: ne sert qu'au lancement interrompu sans fin (worker tué), que le suivant nettoie aussi.
+LAUNCH_TTL_S = 24 * 3600
+
+
+def _launch_key(app_id: str, item_id) -> str:
+    return f"wama:launch:{app_id}:{item_id}"
+
+
+def _close_launch(app_id: str, item_id, launch: str = None) -> None:
+    """Fin d'un lancement : ses fichiers temporaires partent, sa mémoire aussi. `launch` : ne
+    fermer que CE lancement (une tâche finissante ne ferme jamais celle d'un lancement plus
+    récent) ; None : quel qu'il soit (le reste d'un lancement interrompu)."""
+    import os
+    key = _launch_key(app_id, item_id)
+    entry = cache.get(key) or {}
+    if not entry or (launch is not None and entry.get('task') != launch):
+        return
+    for path in entry.get('files') or ():
+        try:
+            if path and os.path.isfile(path):
+                os.remove(path)
+        except OSError as exc:
+            logger.warning("[%s] item #%s : fichier du lancement non retiré (%s)", app_id, item_id, exc)
+    cache.delete(key)
 
 
 class _HandOver(Exception):
@@ -704,10 +769,15 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         model.objects.filter(pk=item_id, status=JOB_AWAITING_RESOURCES).update(status=JOB_RUNNING)
         item.status = JOB_RUNNING
 
+    ctx.launch = getattr(getattr(task, 'request', None), 'id', '') or ''
     if not essais:
         # Une RE-LIVRAISON garde sa barre : ce que le lancement a déjà rendu y est compté
         # (`_launch_done`), elle ne repart pas de zéro à chaque changement de file.
         ctx.progress(0)
+        # Un NOUVEAU lancement : le reste d'un lancement interrompu sans fin (worker tué) part.
+        stale = cache.get(_launch_key(app_id, item_id)) or {}
+        if stale and stale.get('task') != ctx.launch:
+            _close_launch(app_id, item_id)
 
     # ── Le MODÈLE de la card : installé PAR LA ROUTE avant de servir (2026-10-16) ────────────
     # `model_key` est OPTIONNEL et se déclare comme `vram_needed` : une chaîne, ou un callable
@@ -715,12 +785,17 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     # convention n'existe pas, on ne la devine donc pas). L'installation elle-même se joue dans
     # le `try` ci-dessous (`model_readiness.ensure_installed`) : son attente et son refus y ont
     # leur traitement commun. Ici, on ne fait que lire la clé.
-    resolved_key = None
-    if model_key is not None:
+    # Re-livrée, la tâche garde le modèle que SON lancement a retenu : un « auto » retiré à chaque
+    # livraison pourrait en tirer un autre — et en décider autrement des process qui en dépendent.
+    resolved_key = ctx.recall('model_key') if essais else None
+    if resolved_key is None and model_key is not None:
         try:
             resolved_key = model_key(item) if callable(model_key) else str(model_key)
         except Exception as exc:
             logger.debug('[%s] clé de modèle illisible : %s', app_id, exc)
+        if resolved_key is not None:
+            ctx.remember('model_key', resolved_key)
+    ctx.model_key = resolved_key
     #: Une glu qui tire un modèle SECONDAIRE (celui d'un process) appelle la même brique avec ce
     #: drapeau : une installation échouée se dit au retour d'une attente au lieu d'être relancée.
     ctx.redelivered = bool(essais)
@@ -755,6 +830,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     task_ref = getattr(getattr(task, 'request', None), 'id', '') or ''
     node = process_runs.MAIN_NODE if pipeline is None else None
     process_key = app_id
+    #: Le lancement CONTINUE ailleurs (re-livraison) : sa mémoire et ses fichiers restent.
+    continues = False
     try:
         # Le modèle de la card absent : la ROUTE l'installe (garde d'espace, journal, jeton), la
         # card le dit, la tâche rend son worker et revient (`ServiceNotReady`) — décision de Fabien
@@ -928,6 +1005,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     except _HandOver as handover:
         # La tâche est RE-LIVRÉE (attente de VRAM, ou process suivant sur l'autre file) : rien
         # n'a échoué. Le signal de Celery sort tel quel — c'est lui qui dit au worker « réessayé ».
+        continues = True
         raise handover.signal from None
     except TaskTimeLimitExceeded:
         # Arrêt PROPRE à la durée max : échec RELANÇABLE, dit avec la sortie possible (le plafond
@@ -961,8 +1039,10 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         ctx.console(msg, level='warning')
         logger.info("[%s] item #%s : %s", app_id, item_id, msg)
         try:
+            continues = True
             raise task.retry(countdown=wait.countdown, max_retries=wait.max_attempts)
         except MaxRetriesExceededError:
+            continues = False
             msg = wait.abandon_message()
             fields = {'status': 'FAILURE'}
             if _has_field(model, error_field):
@@ -991,3 +1071,5 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
     finally:
         if token:                     # un process GPU interrompu hors de sa glu (durée max)
             gov.task_finished(token)
+        if not continues:
+            _close_launch(app_id, item_id, ctx.launch)

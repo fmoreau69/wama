@@ -329,6 +329,12 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
   `wama-inspector.js`), menu « Ajouter à un lot », calendrier, page des partages, notifications.
   Posée par `batch_common.attach_identities` dans les trois constructeurs de file ; deux requêtes
   par page.
+- **Le numéro et la date restent lisibles** (2026-10-21, constat de Fabien sur le lot #489 : « ne
+  pas perdre l'identifiant et la date du batch ») : au volet, « #N · créé le … » a sa propre ligne,
+  hors du titre tronqué — un nom de fichier de 39 caractères poussait « #489 » sous les points de
+  suspension, et la date n'était qu'en tête de la card mère (`data-batch-created`, posé par
+  `_batch_card.html`). La bannière dit aussi le numéro (« le lot « … » (#N, tous les éléments) »).
+  Garde : `common.volet.deselection` (lot synthétique à titre long ; rouge sur l'inspecteur d'avant).
 - **Limites connues** : un dossier déposé depuis le poste directement sur une app n'a pas de
   provenance (le chemin relatif est ignoré par les apps, `wama-folder-import.js`), son nom n'est donc
   pas connu — par le gestionnaire de fichiers, il l'est. Le converter tient une partie de ses

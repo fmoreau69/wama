@@ -78,6 +78,7 @@ menu « Ajouter à un lot »), `data-batch-label` le nom donné (vide si dériv�
 lot… » du menu de la card.{% endcomment %}
 <div class="{{ card_class|default:'' }} wama-card is-batch batch-group-header" data-status="batch"
      data-batch-title="{{ batch_info.identity.title|default:'' }}" data-batch-label="{{ batch_info.identity.manual|default:'' }}"
+     data-batch-created="{{ batch_info.obj.created_at|date:'d/m/Y H:i' }}"
      {% if domain %}data-domain="{{ domain }}"{% endif %}
      {% if u_batch_promote %}data-batch-promote-url="{{ u_batch_promote }}"{% endif %}
      data-batch-total="{{ batch_info.obj.total }}" data-batch-success="{{ batch_info.success_count }}"

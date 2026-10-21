@@ -229,6 +229,9 @@ class HeaderRenderTest(TestCase):
         self.assertRegex(html, r'data-batch-field="title"[^>]*>concert\.wav<')
         self.assertIn(f'#{lot.pk}', html)
         self.assertRegex(html, r'data-batch-field="details"[^>]*>Format de sortie : mp3, ogg<')
+        # La date du lot va au volet avec son numéro (2026-10-21, lot #489) : posée sur la mère.
+        from django.utils.timezone import localtime
+        self.assertIn(f'data-batch-created="{localtime(lot.created_at):%d/%m/%Y %H:%M}"', html)
 
     def test_without_identity_the_header_keeps_its_number(self):
         lot, html = self._render(None)

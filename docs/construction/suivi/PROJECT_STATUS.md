@@ -25586,3 +25586,48 @@ qu'en contexte `item` (`avatarizer/params.py:77`), le volet n'a aucun champ que 
   la fidélité de la PREMIÈRE modale (`blend_factor`, `format_markdown`, `enable_diarization`),
   identiques sur le JS de HEAD — jumelles, à voir côté générateur ; budgets de langue (déjà relevés
   ci-dessus). L'avatarizer skippe le geste (compte nocturne sans card, montage par import sans effet).
+
+## §PALIER 2026-10-21 (soir), « Transcriber #2522 : nivellement en double, ETA de 11 h, réglages absents du volet en cours, lot #489 sans numéro » — non poussé — 🔴 relancer gunicorn ET les workers (squelette, estimateur, glue du transcriber) ; migration `model_manager/0026` APPLIQUÉE
+
+Constats de Fabien sur #2522 (Albert whisper-large-v3, 141 min, nivellement, locuteurs, résumé,
+cohérence) et sur le lot #489. Exigence : *« les corrections doivent être portées au commun, aucun
+pansement »* ; *« ne rien réinventer, le bouton de la modale est censé être dans queue_actions »*.
+- **Nivellement « après la transcription »** = un SECOND nivellement : Albert joue la transcription
+  sur la file par défaut, les locuteurs sur la file GPU ; la re-livraison (`task_skeleton.
+  _hand_over_to`) les envoie dans un autre worker, dont `_RUNS` est vide → `_prepared_audio`
+  renivelait (`wama-console.log` 15:55:02 puis 15:58:19, ~110 s chacun). **Au commun** : le squelette
+  garde la MÉMOIRE DU LANCEMENT (`ctx.model_key`, `ctx.remember`/`recall`, `ctx.keep_file`, fichiers
+  retirés à la fin réelle seulement — `ROUTE §10.6` 4.5). Le modèle « auto » n'est plus retiré à
+  chaque livraison. Le transcriber s'en sert (audio préparé, modèle de la glue).
+- **ETA de 11 h** : les clés de process apprenaient un RAPPORT (s / s d'audio) sur des audios
+  courts — locuteurs 3,19 s/s (7 h 32 annoncées, 335 s réelles), résumé 4 505 s (12 s), cohérence
+  6 518 s (8 s). **Au commun** : l'estimateur apprend la droite coût fixe + par unité
+  (`eta_estimator._line`, 4 moyennes mobiles, migration 0026, colonnes nullables) ; amorcée une
+  fois sur l'historique des lignes de process (`relearn_lines_from_runs(apply=True)`, 21 clés, hors
+  comptes de test). #2522 se réestime ~17 min (réel 9 min 13 s ; la transcription Albert reste sur
+  son rapport tant que sa droite ne s'est pas apprise).
+- **Volet sans les réglages en cours + ⚙ disparu** : transcriber et avatarizer ne posaient pas leur
+  ⚙ en RUNNING ; `gearValues` lisait alors le ⚙ d'une ligne de process (aucun réglage). **Au
+  commun** : contrat de `queue-actions.js` (⚙ dans tous les états, `WAMA_APP_CONVENTIONS §6.1`),
+  `gearValues` ignore les ⚙ `data-process`, les deux gabarits ramenés au contrat (le générateur le
+  tenait déjà). L'ENREGISTREMENT pendant le traitement reste la vue de chaque app (7 refusent,
+  transcriber et reader acceptent) — ⏳ **décision de Fabien**.
+- **Lot #489 sans numéro au volet** : le titre (nom de fichier de 39 car.) tronquait « #489 » ; date
+  absente du volet. **Au commun** : ligne « #N · créé le … » hors du titre (`wama-inspector.js`,
+  `data-batch-created` de `_batch_card.html`), bannière avec le numéro (`CARD_DESIGN §3quater`).
+- **Écriture au fil de la lecture** (`live_write_task`) : « auto » passé tel quel → Albert chargé
+  sans modèle, « indisponible » à chaque tour (15:50). Tirage commun à la transcription
+  (`workers._card_model`).
+- **Évaluation 44,5 → 65,2 %** : PAS le nivellement — quatre différences entre les cards, Albert omet
+  la moitié du texte ; la paire contrôlée #1048/#1070 donne au nivellement −3,2 points ; niveau
+  mesuré avant/après (`WAMA_QUALITE §9bis`, suite du 2026-10-21). ⏳ Mesure « Albert sans
+  nivellement » à faire (moteur distant, aucun GPU).
+- **Gardes** (toutes contre-éprouvées, rouges sur le code d'avant) : `tests_process_governance.
+  TheLaunchRemembersAcrossDeliveriesTest` (5), `tests_pipeline.ThePreparedAudioFollowsTheLaunchTest`
+  (4), `tests_eta_test_accounts.FixedCostIsLearnedApartTest` (4), `tests_queue_delete_contract.
+  …test_a_running_card_keeps_its_gear_and_its_settings` (toutes les apps), `tests_cap_from_js.
+  GearValuesReadsTheCardsGearTest` (2), `tests_batch_identity` (date), scénario `common.volet.
+  deselection` (numéro + date), `tests_editor.…auto_card_asks_the_backend…`.
+- **Rouges d'autrui** : `writer_01` (302 sur la route de card, comme les tests voisins) ;
+  `wama/model_manager/apps.py:61` a importé `services.model_scene` avant que le module n'existe
+  (16:59:45 → 17:03, autre instance) : Django ne démarrait plus dans l'arbre pendant ces 4 min.

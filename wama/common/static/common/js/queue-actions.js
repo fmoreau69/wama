@@ -10,6 +10,11 @@
  *   🗑 Supprimer  → <button class="… delete-btn"    data-delete-url="{% url 'app:delete' o.id %}">
  *   ⚙ Paramètres → <button class="… settings-btn"  data-id="{{ o.id }}">
  *                  + côté app, UNE ligne : WamaQueueActions.onSettings((id, btn) => …)
+ *                  Posé dans TOUS les états de la card, en cours compris : ses `data-*` (brique
+ *                  `card_gear`) sont ce que le volet et la modale lisent des réglages
+ *                  (`WamaInspector.gearValues`). Une card en cours qui l'omettait (transcriber,
+ *                  avatarizer jusqu'au 2026-10-21) montrait au volet d'autres réglages que les siens.
+ *                  Enregistrer pendant le traitement reste la décision de la VUE de l'app.
  *
  * Actions de FILE (barre d'outils, `_queue_actions.html`) — l'app passe une URL, rien d'autre :
  *   ▶ Démarrer tout → data-queue-start-url  (start_url au partial)

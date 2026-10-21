@@ -7,7 +7,9 @@ affichée IMMÉDIATEMENT (dès le chargement du modèle) par le composant commun
 `WamaEta` (`seedSeconds`), au lieu d'attendre que la progression observée donne
 un débit. L'estimation s'AFFINE ensuite seule avec les durées réelles mesurées.
 
-Modèle :   ETA ≈ (chargement à froid si modèle non résident) + per_unit × taille
+Modèle :   ETA ≈ (chargement à froid si modèle non résident) + coût fixe + per_unit × taille
+           — le coût fixe et le coût par unité APPRIS ensemble (droite des moyennes mobiles,
+           `_line`, 2026-10-21) dès que les tailles mesurées s'écartent ; avant, le rapport moyen.
 
 Sources, par ordre de priorité :
   1. **Apprises** — `ModelRuntimeStat` (EMA des durées réelles), bucketisées par
@@ -107,6 +109,62 @@ def _apriori(model_key: str, unit: str) -> Tuple[float, float]:
     return load, per_unit
 
 
+#: Écart relatif minimal entre les tailles apprises pour séparer le coût fixe du coût par unité :
+#: en deçà, toutes les mesures parlent de la même taille et seul leur rapport a un sens.
+_LINE_MIN_SPREAD = 0.1
+
+
+def _line(stat) -> Optional[Tuple[float, float]]:
+    """(coût fixe, coût par unité) de la droite apprise — durée = fixe + par unité × taille —, ou
+    None tant que les tailles mesurées ne s'écartent pas assez (2026-10-21).
+
+    POURQUOI. Le rapport moyen `per_unit_ema_seconds` (durée / taille) prête à chaque unité le coût
+    FIXE d'un traitement mesuré sur de petites tailles : le résumé du transcriber s'apprenait
+    0,53 s par seconde d'audio, et s'annonçait 75 min pour 141 min d'audio — il en a pris 12 s.
+    Mesuré sur la card #2522 : 11 h annoncées au lancement, 9 min 13 s réelles. La droite garde ce que le
+    rapport mélangeait ; bornée (aucun coût négatif), elle redevient le rapport quand les mesures
+    ne la déterminent pas."""
+    try:
+        mx, my = stat.size_ema, stat.seconds_ema
+        mxx, mxy = stat.size_sq_ema, stat.size_seconds_ema
+        if None in (mx, my, mxx, mxy) or stat.samples < 2 or mx <= 0:
+            return None
+        variance = mxx - mx * mx
+        if variance <= (_LINE_MIN_SPREAD * mx) ** 2:
+            return None
+        slope = (mxy - mx * my) / variance
+        fixed = my - slope * mx
+        if slope < 0:                       # plus long sur moins de matière : un coût fixe seul
+            return max(my, 0.0), 0.0
+        if fixed < 0:                       # la droite passerait sous zéro : par l'origine
+            return 0.0, (mxy / mxx if mxx > 0 else 0.0)
+        return fixed, slope
+    except Exception:
+        return None
+
+
+def _learn_line(stat, size: float, seconds: float) -> None:
+    """Met à jour les moyennes mobiles de la droite (`_line`) — 1ʳᵉ mesure brute, puis EMA."""
+    x, y = float(size), float(seconds)
+    first = stat.size_ema is None
+    for field, value in (('size_ema', x), ('seconds_ema', y), ('size_sq_ema', x * x),
+                         ('size_seconds_ema', x * y)):
+        previous = getattr(stat, field)
+        setattr(stat, field, value if first or previous is None
+                else _EMA_ALPHA * value + (1 - _EMA_ALPHA) * previous)
+
+
+def _learned_line(model_key: str) -> Optional[Tuple[float, float]]:
+    """La droite apprise pour ce matériel (`_line`), ou None."""
+    try:
+        from wama.model_manager.models import ModelRuntimeStat
+        stat = ModelRuntimeStat.objects.filter(
+            model_key=model_key, hardware_fingerprint=hardware_fingerprint()).first()
+        return _line(stat) if stat else None
+    except Exception:
+        return None
+
+
 def _learned(model_key: str, unit: str) -> Optional[Tuple[Optional[float], float]]:
     """(load, per_unit) APPRIS pour ce hardware, ou None si aucun échantillon."""
     try:
@@ -185,17 +243,21 @@ def estimate(model_key: str, size: float = 1.0, unit: str = 'item',
     try:
         s = float(size) if size and float(size) > 0 else 1.0
         learned = _learned(model_key, unit)
+        fixed = 0.0
         if learned is not None:
             load, per_unit = learned
             if load is None:
                 load, _ = _apriori(model_key, unit)
+            line = _learned_line(model_key)
+            if line is not None:
+                fixed, per_unit = line
         elif fallback_seconds is not None:
             # Cold-start : l'app fournit sa propre estimation (déjà un total, GPU chaud).
             return max(float(fallback_seconds), 0.0)
         else:
             load, per_unit = _apriori(model_key, unit)
 
-        secs = per_unit * s
+        secs = fixed + per_unit * s
         if not model_loaded and load:
             secs += load
         return max(secs, 0.0)
@@ -246,7 +308,57 @@ def record_run(model_key: str, size: float, unit: str = 'item',
                 ls if stat.load_ema_seconds is None
                 else _EMA_ALPHA * ls + (1 - _EMA_ALPHA) * stat.load_ema_seconds
             )
+        # La droite (coût fixe + par unité) : l'estimation la lit dès que les tailles s'écartent.
+        _learn_line(stat, s, max(float(process_seconds), 0.0))
         stat.samples = stat.samples + 1
         stat.save()
     except Exception as e:
         logger.debug("record_run ETA ignoré (%s): %s", model_key, e)
+
+
+def relearn_lines_from_runs(apply: bool = False) -> dict:
+    """Amorce la droite (`_line`) des clés de PROCESS qui n'en ont pas encore, depuis les lignes
+    d'exécution gardées (`ProcessRun` : durée mesurée + taille `eta_size_s`), dans l'ordre où elles
+    ont tourné — un geste unique, le jour où la droite est née (2026-10-21) : sans lui, chaque
+    clé attendrait deux nouvelles mesures de tailles différentes. Une clé qui a déjà sa droite
+    n'est jamais rejouée (aucune mesure comptée deux fois). Rend `{clé: mesures rejouées}` ;
+    `apply=False` ne fait que compter."""
+    from django.apps import apps
+    from wama.common.models import ProcessRun
+    from wama.common.services.process_pipeline import process_of_function
+    from wama.common.services.process_runs import ETA_SIZE_KEY, process_eta
+    from wama.model_manager.models import ModelRuntimeStat
+
+    fingerprint = hardware_fingerprint()
+    pending: dict = {}
+    for row in ProcessRun.objects.filter(status='SUCCESS', duration_s__isnull=False) \
+            .order_by('finished_at').iterator():
+        size = (row.output_summary or {}).get(ETA_SIZE_KEY)
+        pipeline, spec = process_of_function(row.process_key)
+        if not size or spec is None:
+            continue
+        try:
+            item = apps.get_model(pipeline.app, row.object_type).objects.filter(
+                pk=row.object_id).first()
+        except LookupError:
+            item = None
+        eta = process_eta(spec, item) if item is not None else None
+        if not eta:
+            continue
+        # La règle de `record_run` : un compte de TEST n'apprend rien (ses témoins de 8×8 px).
+        from wama.common.services.nightly_tests import is_test_account
+        if getattr(item, 'user', None) is not None and is_test_account(item.user):
+            continue
+        pending.setdefault(eta[0], []).append((float(size), float(row.duration_s)))
+    replayed = {}
+    for key, runs in pending.items():
+        stat = ModelRuntimeStat.objects.filter(model_key=key,
+                                               hardware_fingerprint=fingerprint).first()
+        if stat is None or stat.size_ema is not None:
+            continue
+        replayed[key] = len(runs)
+        if apply:
+            for size, seconds in runs:
+                _learn_line(stat, size, seconds)
+            stat.save(update_fields=['size_ema', 'seconds_ema', 'size_sq_ema', 'size_seconds_ema'])
+    return replayed

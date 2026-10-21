@@ -344,7 +344,8 @@
       const g = qc && qc.querySelector(BATCH_SEL + '[data-batch-id="' + id + '"]');
       const h = g && g.querySelector('.batch-group-header');
       const title = (h && h.dataset.batchTitle) || '';
-      return (title ? 'le lot « ' + title + ' »' : 'le batch #' + id) + ' (tous les éléments)';
+      return (title ? 'le lot « ' + title + ' » (#' + id + ', tous les éléments)'
+                    : 'le batch #' + id + ' (tous les éléments)');
     };
     const panel = cfg.panel || {};
 
@@ -696,10 +697,15 @@
       // 2026-10-19) ; sans titre, le numéro seul, comme avant.
       var header = group && group.querySelector ? group.querySelector('.batch-group-header') : null;
       var title = (header && header.dataset.batchTitle) || '';
-      infoHost.innerHTML = '<div class="d-flex align-items-center gap-2 mb-1"><strong class="text-body-emphasis text-truncate"'
-        + (title ? ' title="' + escapeHtml(title) + '">' + escapeHtml(title) + ' <small class="text-body-secondary fw-normal">#' + escapeHtml(bid) + '</small>'
-                 : '>Batch #' + escapeHtml(bid)) + '</strong>'
+      // Le NUMÉRO et la DATE sur leur ligne, jamais dans le titre tronqué (2026-10-21, lot #489 :
+      // un nom de fichier de 39 caractères poussait « #489 » sous les points de suspension, et la
+      // date n'était qu'en tête de la card mère).
+      var created = (header && header.dataset.batchCreated) || '';
+      infoHost.innerHTML = '<div class="d-flex align-items-center gap-2"><strong class="text-body-emphasis text-truncate"'
+        + (title ? ' title="' + escapeHtml(title) + '">' + escapeHtml(title) : '>Batch') + '</strong>'
         + '<button type="button" class="btn btn-sm btn-link text-body-secondary p-0 ms-auto wama-info-deselect" title="Fermer la sélection"><i class="fas fa-xmark"></i></button></div>'
+        + '<small class="text-body-secondary d-block mb-1" data-batch-field="identity">#' + escapeHtml(bid)
+        + (created ? ' · <i class="fas fa-calendar-alt"></i> créé le ' + escapeHtml(created) : '') + '</small>'
         + _renderAggInfo('<i class="fas fa-layer-group text-info"></i> ' + c.total + ' élément' + (c.total > 1 ? 's' : ''), c);
       if (infoSection) infoSection.style.display = '';
       var banner = $(ids.banner); if (banner) banner.style.display = 'none';
@@ -1194,9 +1200,15 @@
   // UNE seule graphie depuis le 2026-08-23 : `.settings-btn` (contrat queue-actions, porté par
   // les 10 apps) ; `[data-action="settings"]` GARDÉ — enhancer et reader le portent en plus,
   // et il dit l'INTENTION indépendamment du nommage.
+  // ⚠ Le ⚙ de la CARD, jamais celui d'une ligne de process (`_card_processes.html`, même classe,
+  // marqué `data-process`) : il ouvre une modale à PORTÉE et ne porte aucun réglage. Mesuré le
+  // 2026-10-21 (transcriber #2522) : quand le ⚙ de la card manquait, c'est lui qui était lu — le
+  // volet recevait {} et gardait ses valeurs d'avant au lieu de celles de la card.
   function gearValues(card, names) {
     const out = {};
-    const btn = card.querySelector('.settings-btn, [data-action="settings"]');
+    const btn = Array.prototype.find.call(
+      card.querySelectorAll('.settings-btn, [data-action="settings"]'),
+      function (b) { return !(b.dataset && b.dataset.process); }) || null;
     const datasets = btn ? [card.dataset, btn.dataset] : [card.dataset];
     (names || []).forEach(function (n) {
       const camel = n.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });

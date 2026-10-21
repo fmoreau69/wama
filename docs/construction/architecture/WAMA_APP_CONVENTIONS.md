@@ -608,7 +608,7 @@ Les deux doivent rester **synchronisées**.
 
 | Position | Bouton | Style | data-action | Règles |
 |----------|--------|-------|-------------|--------|
-| 1 | **Paramètres** | `btn-outline-secondary` | `settings` | Ouvre modale de config |
+| 1 | **Paramètres** | `btn-outline-secondary` | `settings` | Ouvre modale de config — **dans TOUS les états**, en cours compris (contrat de `queue-actions.js`, 2026-10-21) : ses `data-*` sont ce que le volet et la modale lisent des réglages ; l'enregistrement pendant le traitement reste la décision de la vue |
 | 2 | **Démarrer / Relancer** | `btn-outline-success` (start) / `btn-outline-secondary` (restart) / `btn-outline-warning disabled` (running) | `start` / `restart` | Adaptatif selon statut |
 | 3 | **Télécharger** | `btn-outline-info` | — (lien `<a>`) | Disabled si pas de résultat |
 | 4 | **Dupliquer** | `btn-warning` (jaune — tranché 2026-07-25, aligne `CARD_DESIGN §2` : zéro collision de teinte) | `duplicate` | Partage le fichier source (§12) |

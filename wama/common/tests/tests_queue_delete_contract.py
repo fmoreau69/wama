@@ -230,6 +230,30 @@ class SuppressionDansChaqueAppTest(TestCase):
                 self.assertRegex(html, rf'data-(?:id|job-id|item-id)="{element.pk}"',
                                  'la card rendue ne porte pas l\'identifiant de son élément')
 
+    def test_a_running_card_keeps_its_gear_and_its_settings(self):
+        """Contract of `queue-actions.js` (2026-10-21, transcriber card #2522): the ⚙ of a card is
+        laid in EVERY state. Its `data-*` (`card_gear`) are what the right panel and the modal
+        read of the card's settings (`WamaInspector.gearValues`); the transcriber and the
+        avatarizer omitted it while RUNNING — the panel then showed other settings than the card's,
+        and the ⚙ was gone. The ⚙ of a PROCESS row (`data-process`) does not stand for it."""
+        from wama.common.utils.preview_registry import PreviewRegistry
+        gear_tag = re.compile(r'<button\b[^>]*class="[^"]*(?<![\w-])settings-btn(?![\w-])[^"]*"[^>]*>')
+        for surface, _route_suppression, route_card in _surfaces():
+            with self.subTest(surface=surface):
+                compte = self._compte_pour(surface)
+                modele = PreviewRegistry.get_model(surface)
+                element = _instance(modele, compte)
+                modele.objects.filter(pk=element.pk).update(status='RUNNING')
+                r = self.client.get(reverse(route_card, args=[element.pk]))
+                self.assertEqual(200, r.status_code, r.content[:200])
+                html = r.content.decode()
+                gears = [g for g in gear_tag.findall(html)
+                         if 'data-process=' not in g and f'data-id="{element.pk}"' in g]
+                self.assertTrue(gears, 'a RUNNING card lost its ⚙ — the panel reads nothing of it')
+                expected = getattr(modele.objects.get(pk=element.pk), 'gear_data', None) or {}
+                missing = [k for k in expected if f'data-{k}=' not in html]
+                self.assertEqual([], missing, 'settings the ⚙ should carry while RUNNING')
+
     def test_supprimer_une_card_d_un_lot_de_deux_dit_que_le_lot_redevient_une_card_simple(self):
         from wama.common.utils.preview_registry import PreviewRegistry
         for surface, route_suppression, route_card in _surfaces():

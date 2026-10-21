@@ -4933,8 +4933,12 @@ VOLET_GESTE = """(() => {
     const box = document.createElement('div');
     box.id = 'voletTestQueue';
     box.style.display = 'none';
+    // Un TITRE long et une date (identité posée par `_batch_card.html`, 2026-10-21, lot #489) : le
+    // numéro et la date doivent rester lisibles hors du titre tronqué.
     box.innerHTML = '<div class="batch-group" data-batch-id="999999">'
-        + '<div data-batch-total="2" data-batch-success="1" data-batch-running="0" data-batch-failure="0"></div>'
+        + '<div class="batch-group-header" data-batch-title="Bonneuil_plateforme_partagee_021225.MP3"'
+        + ' data-batch-created="26/09/2026 22:57"'
+        + ' data-batch-total="2" data-batch-success="1" data-batch-running="0" data-batch-failure="0"></div>'
         + '<div class="synthesis-card" data-id="999001"></div>'
         + '<div class="synthesis-card" data-id="999002"></div>'
         + '</div>';
@@ -4951,6 +4955,8 @@ VOLET_GESTE = """(() => {
         const grp = box.querySelector('.batch-group');
         R.selectionne = grp.classList.contains('inspector-selected');
         R.batch_avant = (insp.state() || {}).batchId;
+        const identity = document.querySelector('#inspectorInfo [data-batch-field="identity"]');
+        R.identite = identity ? identity.textContent.trim() : null;
         const croix = document.querySelector('#inspectorInfo .wama-info-deselect');
         R.croix = !!croix;
         if (croix) croix.click();
@@ -5013,6 +5019,11 @@ def check_volet_deselection(app: str, url_path: str):
                        f"{'toujours là' if r.get('encore_selectionne') else 'retirée'}). "
                        "C'est le défaut du 2026-08-22 : le ✕ proxifiait par le bouton du "
                        "bandeau, absent de cette page.")
+    identite = r.get('identite') or ''
+    if '#999999' not in identite or '26/09/2026 22:57' not in identite:
+        return False, (f"le volet d'un lot ne dit plus son numéro et sa date hors du titre "
+                       f"(ligne d'identité : {identite or 'absente'}) — un titre long les "
+                       "cachait sous les points de suspension (lot #489, 2026-10-21)")
     banniere = "⚠ un bandeau est réapparu sur cette page — la condition du défaut n'est plus " \
                "reproduite ici" if r.get('banniere') else "sans bandeau (condition du défaut)"
     return True, (f"✕ du batch : sélection {r.get('batch_avant')} → désélection effective, "
