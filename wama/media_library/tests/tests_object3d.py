@@ -59,6 +59,14 @@ def glb_from_json(doc: dict) -> bytes:
             + struct.pack('<I4s', len(body), b'JSON') + body)
 
 
+def talking_glb() -> bytes:
+    """Un avatar qui PARLE : riggé, visage ARKit et visèmes complets (table des matières seule)."""
+    from wama.common.utils.media_probe import ARKIT_BLENDSHAPES, OCULUS_VISEMES
+    return glb_from_json({'asset': {'version': '2.0'}, 'skins': [{}], 'meshes': [
+        {'name': 'Head', 'extras': {'targetNames': list(ARKIT_BLENDSHAPES + OCULUS_VISEMES)},
+         'primitives': []}]})
+
+
 class FaceRigIsMeasuredFromTheFileTest(TestCase):
     """`face_rig` / `visemes` (2026-09-30) : lus dans les NOMS des formes, posés si le jeu est complet."""
 
@@ -162,10 +170,7 @@ class AvatarFromTheSourceTest(TestCase):
         self.client.force_login(self.user)
 
     def _talking_glb(self):
-        from wama.common.utils.media_probe import ARKIT_BLENDSHAPES, OCULUS_VISEMES
-        return glb_from_json({'asset': {'version': '2.0'}, 'skins': [{}], 'meshes': [
-            {'name': 'Head', 'extras': {'targetNames': list(ARKIT_BLENDSHAPES + OCULUS_VISEMES)},
-             'primitives': []}]})
+        return talking_glb()
 
     def _download(self, url):
         import json
@@ -194,3 +199,69 @@ class AvatarFromTheSourceTest(TestCase):
         """Contre-épreuve : la liste blanche DÉCLARÉE par le connecteur tient toujours."""
         r = self._download('https://evil.example.com/mpfb.glb')
         self.assertEqual(403, r.status_code)
+
+
+class VendoredAvatarIngestTest(TestCase):
+    """`ingest_vendored_avatars` (2026-10-21, demande de Fabien) : l'avatar de l'assistant devient
+    un `SystemAsset(object3d)` que le moteur TalkingHead de l'avatarizer peut désigner — licence
+    lue dans `AVATAR_REPOSITORIES`, visage MESURÉ, fichier COPIÉ (l'original reste servi)."""
+
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.folder = Path(tempfile.mkdtemp())
+        talking = talking_glb()
+        (self.folder / 'mpfb.glb').write_bytes(talking)            # déclaré CC0 par le dépôt
+        (self.folder / 'undeclared.glb').write_bytes(talking)      # licence inconnue
+
+    def tearDown(self):
+        """Le MEDIA_ROOT jetable vaut pour tout le run, pas pour un test : sans ce ménage, le
+        fichier versé par un test fait suffixer celui du suivant (mesuré)."""
+        import shutil
+        from wama.media_library.models import SystemAsset
+        for asset in SystemAsset.objects.filter(asset_type='object3d'):
+            asset.file.storage.delete(asset.file.name)
+        shutil.rmtree(self.folder, ignore_errors=True)
+
+    def _run(self, *args):
+        import io
+        from django.core.management import call_command
+        out = io.StringIO()
+        call_command('ingest_vendored_avatars', '--folder', str(self.folder), *args, stdout=out)
+        return out.getvalue()
+
+    def test_the_declared_avatar_lands_as_a_credited_talking_head(self):
+        from wama.media_library.models import SystemAsset
+        self._run('--apply')
+        asset = SystemAsset.objects.get(name='mpfb')
+        self.assertEqual(('object3d', 'CC0', 'MPFB (MakeHuman) — Blender', 'model/gltf-binary'),
+                         (asset.asset_type, asset.license, asset.author, asset.mime_type))
+        self.assertEqual('https://raw.githubusercontent.com/met4citizen/TalkingHead/main/avatars/mpfb.glb',
+                         asset.source_url)
+        self.assertEqual(('arkit', 'oculus'),
+                         (asset.attributes.get('face_rig'), asset.attributes.get('visemes')))
+        self.assertEqual('media_library/system/object3d/mpfb.glb', asset.file.name)
+        self.assertTrue((self.folder / 'mpfb.glb').is_file(), "l'original de l'assistant doit rester")
+
+    def test_an_avatar_without_a_declared_license_is_never_ingested(self):
+        from wama.media_library.models import SystemAsset
+        out = self._run('--apply')
+        self.assertFalse(SystemAsset.objects.filter(name='undeclared').exists())
+        self.assertIn('licence non déclarée', out)
+
+    def test_the_plan_writes_nothing_and_a_second_run_changes_nothing(self):
+        from wama.media_library.models import SystemAsset
+        self._run()
+        self.assertFalse(SystemAsset.objects.exists())
+        self._run('--apply')
+        first = SystemAsset.objects.get(name='mpfb')
+        out = self._run('--apply')
+        self.assertEqual([first.pk], list(SystemAsset.objects.values_list('pk', flat=True)))
+        self.assertIn('déjà en médiathèque', out)
+
+    def test_the_avatarizer_can_name_it(self):
+        from wama.avatarizer.system_assets import nameable_avatars
+        user = get_user_model().objects.create_user('vendored_avatar', password='x')
+        self.assertNotIn('mpfb', nameable_avatars(user))
+        self._run('--apply')
+        self.assertIn('mpfb', nameable_avatars(user))

@@ -34,6 +34,14 @@ class AvatarRepository:
     author: str = ''
     files: Dict[str, Tuple[str, str]] = field(default_factory=dict)
 
+    def license_of(self, filename: str) -> Tuple[str, str]:
+        """(licence, auteur) que le dépôt publie pour ce fichier — ('', …) si aucune."""
+        return self.files.get(filename, (self.license, self.author))
+
+    def raw_url(self, filename: str) -> str:
+        """Le fichier sur `raw.githubusercontent.com`, à la révision déclarée."""
+        return f'https://raw.githubusercontent.com/{self.repo}/{self.ref}/{self.path}/{filename}'
+
 
 #: Relevé le 2026-09-30 dans le README de TalkingHead (section « Licenses, attributions ») : seul
 #: `mpfb.glb` est libre (CC0) ; les autres sont réservés à un usage NON COMMERCIAL — admis au
@@ -95,7 +103,7 @@ class Avatars3dProvider(BaseProvider):
                 errors.append(f'{source.repo} : {exc}')
                 continue
             for e in entries:
-                license_, author = source.files.get(e['name'], (source.license, source.author))
+                license_, author = source.license_of(e['name'])
                 if not license_:
                     continue                      # licence inconnue : jamais proposé
                 title = e['name'].rsplit('.', 1)[0]

@@ -17,11 +17,13 @@ from pathlib import Path
 
 def ingest_system_file(asset_type: str, name: str, path, *, attributes: dict | None = None,
                        mime_type: str = '', duration: float | None = None, source_url: str = '',
-                       license: str = '', description: str = '', replace: bool = False):
+                       license: str = '', author: str = '', description: str = '',
+                       replace: bool = False):
     """`SystemAsset(asset_type)` nommé `name`, fichier copié depuis `path`. Idempotent : un nom déjà
     porté est rendu tel quel (ou son fichier REMPLACÉ si `replace`). Le stockage Django COPIE sous
     `media_library/system/` (`upload_to` décide du domicile) — l'appelant décide du sort de
-    l'original."""
+    l'original. `author` : à créditer, ce qu'une licence à attribution EXIGE (2026-10-21, avatar
+    de l'assistant sous CC BY-NC)."""
     from django.core.files import File
 
     from wama.media_library.models import SystemAsset
@@ -43,6 +45,8 @@ def ingest_system_file(asset_type: str, name: str, path, *, attributes: dict | N
         asset.source_url = source_url
     if license:
         asset.license = license
+    if author:
+        asset.author = author
     if description:
         asset.description = description
     with open(path, 'rb') as fh:

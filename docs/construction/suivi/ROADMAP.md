@@ -182,6 +182,13 @@
   ✅ Soldés le même jour : verdict d'attributs DÈS L'AJOUT, tirage du modèle d'animation par
   `resolve_model_choice`, avatars 3D cités par NOM (lot, Studio — objets au visage ARKit seuls),
   retrait de `musetalk-v1.0` (R85). Route vendor (D-a) : cf. la décision D-a plus bas.
+  ✅ **2026-10-21 — l'avatar de l'assistant en médiathèque** (Fabien : *« pas d'objet 3D disponible
+  dans la médiathèque, ajouter au moins celui de base de l'assistant »*) : `manage.py
+  ingest_vendored_avatars` verse les `.glb` de `vendors/avatars/` (posés par
+  `tools/update_vendors.sh`) comme `SystemAsset(object3d)` — licence et auteur lus dans
+  `AVATAR_REPOSITORIES`, visage mesuré par la sonde commune, fichier COPIÉ (l'assistant garde le
+  sien). Fait sur l'instance : `brunette` (CC BY-NC 4.0, Ready Player Me ; arkit + oculus). Sur un
+  clone neuf : `update_vendors.sh` puis la commande.
   Deux cas, deux podiums (état du 17/08) :
   - **(a) consignes OFFLINE** : ① **EchoMimicV3(-Flash)** (Ant, Apache-2.0, 01/2026, conçu 24 Go,
     12 Go quantifié, tête+corps, prompt-guidé — successeur naturel de MuseTalk) ; ② **StableAvatar**
