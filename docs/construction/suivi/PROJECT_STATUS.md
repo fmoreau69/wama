@@ -513,6 +513,12 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
 ## 10. Progression globale + ETA
 - ✅ **Barre globale + balayage coloré** : tronc commun (`_global_progress.html` + `wama-global-progress.js`), card « Nouveau » en 1ʳᵉ position, déployé partout (apps mono- et multi-domaine, barres séparées par file).
 - ✅ **ETA seeding auto-apprenant + hardware-aware (terminé 2026-06-27)** : service `model_manager/services/eta_estimator.py` (`ModelRuntimeStat` EMA par modèle×hardware, a-priori par domaine, `fallback_seconds` = heuristique app au démarrage à froid). **Câblé sur les 10 apps** (transcriber, synthesizer, describer, reader, composer, converter, imager image+vidéo, enhancer image/vidéo+audio, avatarizer). 2 patterns : service-based vs load-séparé (imager). Nouvelles unités `page` (OCR) / `mb` (ffmpeg). Détail : `memory/project_eta_seeding.md`.
+- ✅ **Coût fixe appris à part (2026-10-21)** : `estimate` lit la droite « durée = fixe + par unité ×
+  taille » (`eta_estimator._line`, quatre moyennes mobiles de `ModelRuntimeStat`, migration
+  `model_manager/0026`) dès que les tailles mesurées s'écartent ; le rapport seul avant. Mesuré : le
+  rapport appris sur des audios courts annonçait 11 h pour une transcription de 141 min (9 min 13 s
+  réelles). `relearn_lines_from_runs` l'a amorcée une fois sur l'historique des lignes de process.
+  La VITESSE comparée par le curseur (`comparable_speeds`) reste le rapport.
 - ⏳ Reste : **valider sur données réelles** (restart WSL2) ; calibrer les a-priori par modèle (`AIModel.extra_info['eta']` ou test nocturne) ; ETA agrégé batch ; anonymizer (pas encore câblé — vérifier).
 
 ## 11. Transcriber — correction assistée IA (à reconfirmer dans le code)

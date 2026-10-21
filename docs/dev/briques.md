@@ -99,13 +99,14 @@ Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel
 
 - **Domicile** : `wama/model_manager/services/eta_estimator.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §10](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Estimateur d'ETA WAMA — *seeding* auto-apprenant et hardware-aware. ================================================================================
-- **API publique** (6) :
+- **API publique** (7) :
   - `hardware_fingerprint() -> str` — Identifiant court du matériel de calcul (GPU + VRAM) ; 'cpu' à défaut.
   - `make_key(source: str, model_id: str) -> str` — Construit le model_key du registre : '{source}:{model_id}'.
   - `learned_speed(model_key: str) -> Optional[Tuple[str, float, int]]` — (unité, secondes par unité, échantillons) APPRIS pour ce modèle sur ce matériel, ou None.
   - `comparable_speeds(model_keys) -> dict` — `{model_key: secondes par unité}` APPRISES sur ce matériel pour TOUT le lot, ou {} s'il
   - `estimate(model_key: str, size: float=1.0, unit: str='item', model_loaded: bool=False, fallback_seconds: Optional[float]=None) -> float` — Estimation (secondes) du temps TOTAL de traitement d'un item.
   - `record_run(model_key: str, size: float, unit: str='item', process_seconds: float=0.0, load_seconds: Optional[float]=None, user=None) -> None` — Enregistre une exécution RÉELLE pour affiner l'estimation (EMA, par hardware).
+  - `relearn_lines_from_runs(apply: bool=False) -> dict` — Amorce la droite (`_line`) des clés de PROCESS qui n'en ont pas encore, depuis les lignes
 
 ### Gardes de process
 

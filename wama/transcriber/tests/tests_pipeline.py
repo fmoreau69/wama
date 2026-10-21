@@ -500,3 +500,40 @@ class ThePreparedAudioFollowsTheLaunchTest(_Pipeline):
             workers._transcribe_step(self.item, ctx)
         draw.assert_not_called()
         self.assertEqual('transcriber:kept-by-the-launch', backend.call_args.args[0])
+
+
+class TheEstimateLineIsBootstrappedFromTheRunsTest(_Pipeline):
+    """`eta_estimator.relearn_lines_from_runs` (2026-10-21) : the one-shot that seeded the « fixed +
+    per unit » line of the process keys from the kept process rows — played once on the live base.
+    Held here on REAL transcriber rows : only real accounts are replayed (the rule of
+    `record_run`), and a key that already has its line is never replayed (no run counted twice)."""
+
+    options = {'enable_diarization': True, 'generate_summary': False, 'verify_coherence': False}
+
+    def _card(self, user, seconds):
+        from wama.common.services.ui_smoke import _wav_silence
+        item = Transcript(user=user, status='RUNNING', backend='auto', duration_seconds=seconds,
+                          **self.options)
+        item.audio.save('bootstrap.wav', ContentFile(_wav_silence(1.0, 8000)), save=False)
+        item.save()
+        self.addCleanup(lambda: item.audio.delete(save=False))
+        return item
+
+    def test_real_runs_are_replayed_once_and_test_accounts_never(self):
+        from wama.common.services.nightly_tests import TEST_USERNAME
+        from wama.model_manager.models import ModelRuntimeStat
+        from wama.model_manager.services.eta_estimator import relearn_lines_from_runs
+        robot = User.objects.create_user(TEST_USERNAME, password='x')
+        self.asr.max_audio_seconds = None           # a stand-in engine without a length limit
+        for user, seconds in ((self.user, 20.0), (self.user, 8000.0), (robot, 5.0)):
+            self.item = self._card(user, seconds)
+            self._run()
+        key = workers.step_eta_key_size(self.item, 'diarize', self.item.diarization_model)[0]
+        ModelRuntimeStat.objects.filter(model_key=key).update(
+            size_ema=None, seconds_ema=None, size_sq_ema=None, size_seconds_ema=None)
+        self.assertEqual(2, relearn_lines_from_runs(apply=False).get(key),
+                         'the test account run must not be replayed')
+        relearn_lines_from_runs(apply=True)
+        stat = ModelRuntimeStat.objects.get(model_key=key)
+        self.assertIsNotNone(stat.size_seconds_ema)
+        self.assertNotIn(key, relearn_lines_from_runs(apply=False), 'a run counted twice')

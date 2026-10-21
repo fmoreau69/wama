@@ -1140,7 +1140,9 @@ class ModelRuntimeStat(models.Model):
     Durées de traitement APPRISES par modèle ET par hardware — base du *seeding* de l'ETA
     (cf. common WamaEta). Couplé au registre via `model_key` ("{source}:{model_id}").
 
-    Modèle d'estimation :  ETA ≈ (chargement à froid) + per_unit × taille
+    Modèle d'estimation :  ETA ≈ (chargement à froid) + coût fixe + per_unit × taille — le coût
+    fixe et le coût par unité tirés des quatre moyennes mobiles ci-dessous (`eta_estimator._line`),
+    le rapport `per_unit_ema_seconds` seul tant que les tailles mesurées ne s'écartent pas.
       - `load_ema_seconds`     : temps de chargement à froid (size-indépendant) ; None tant qu'inconnu.
       - `per_unit_ema_seconds` : secondes de traitement par unité de `unit` (ex. s de calcul / s d'audio).
       - `unit`                 : grandeur du domaine (audio_sec|video_sec|megapixel|step|token|
