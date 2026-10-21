@@ -202,6 +202,21 @@ le RENDU RÉEL, pas la structure du code.
   ⚠ Pour l'arrêter, `pkill -f "[r]unserver 127.0.0.1:8011"` — le crochet évite que `pkill -f` ne
   tue le `bash -lc` qui le porte (son motif figure dans sa propre ligne de commande ; vécu deux
   fois le même soir, exit 15 avant la commande suivante).
+  🔴 **Le crochet ne suffit pas si la MÊME commande lance aussi le serveur** (vécu le 2026-10-21) :
+  la ligne du `bash -lc` contient alors `runserver 127.0.0.1:8011 --noreload` en clair, `pgrep -f`
+  la trouve, et la session se tue elle-même (exit 15). ✅ Viser la fin exacte de la ligne du
+  serveur : `pgrep -f "manage.py runserver 127.0.0.1:8011 --noreload --insecure$" | xargs -r kill`.
+  ⚠ **Et un serveur jetable peut SURVIVRE à sa session** : lancé par `nohup … &`, il est resté
+  vivant et a servi les passes suivantes (avec le Python de SON démarrage) ; lancé par `( … &)`, il
+  meurt avec la session `wsl.exe`. Avant d'en lancer un : `pgrep -af "python manage.py runserver"`,
+  et après : le même, qui doit être vide — sinon la passe suivante mesure un AUTRE code.
+- ⚠ **Une scène 3D (three.js) se mesure aussi sans GPU** (2026-10-21, constellation des
+  utilisateurs) : `chromium.launch(args=['--use-gl=swiftshader', '--enable-webgl',
+  '--ignore-gpu-blocklist'])` — sans quoi la page affiche son repli « WebGL indisponible ». Les
+  avertissements `GPU stall due to ReadPixels` pendant les captures sont du pilote logiciel, pas
+  de la page : ne compter que les `console.error` et `pageerror`. Une étiquette qui suit une
+  rotation n'est jamais « stable » pour Playwright : `click(force=True)` — l'utilisateur clique
+  bien une cible en mouvement. Une page intégrée en iframe se lit par `page.frame_locator(…)`.
 - ⚠ **Le compte de test nocturne n'a pas forcément de card dans l'app visée** : mesuré, seul
   `wama_ui_smoke_v3` portait une card dans CHACUNE des apps ; une observation du volet se fait sous
   ce compte (session forgée comme `_test_session_key`, retirée ensuite).

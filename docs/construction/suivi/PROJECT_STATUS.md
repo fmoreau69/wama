@@ -25470,3 +25470,40 @@ nocturne `accounts.constellation.ui` VERT sur serveur jetable, contre-épreuve R
 🔚 Restes : `transcriber` au-delà de dix tests (pas à moi) ; budgets de langue +2/+2 (fichiers en
 cours d'une autre instance : codegen, `common/privacy/`) ; aucun projet ni apport au catalogue en
 base aujourd'hui — les sphères de projet et les satellites ne se verront qu'avec des données.
+
+## §CLÔTURE 2026-10-21, « CONSTELLATION DES UTILISATEURS » — `fa899cf5` (+ clôture), non poussés — 🔴 relancer gunicorn
+
+🔚 **POINT D'ENTRÉE SESSION SUIVANTE** : relancer gunicorn, puis ouvrir `/accounts/users/` →
+« Constellation » et la présentation `#constellation` en administrateur (validation sur le LIVE, la
+passe a été faite sur un serveur jetable) ; ensuite, si Fabien donne son GO, la proposition
+ci-dessous.
+
+**Proposition de Fabien, à trancher (⏳, rien de construit)** — une page 3D par REGISTRE, la
+première étant les LICENCES : distance = proximité de PERMISSIVITÉ (le rang de
+`common/services/license_audit.FAMILLES`, permissive → interdite) et autres facteurs (attribution
+exigée, licences portées par les mêmes apps), sphères = familles, satellites = éléments (modèles,
+librairies, médias) — tout est déjà agrégé par le registre `licenses`. Forme recommandée, pour ne
+pas écrire N pages : extraire la scène en brique commune (`common/static/common/js/`, la page des
+utilisateurs en devient le premier consommateur) et faire DÉCLARER par chaque registre ses nœuds,
+ses groupes, ses facteurs de distance et le détail d'un nœud (un champ de `Registry`, sur le
+modèle de `entries`), la page générique se montant depuis `url_name`. À trancher : GO, première
+cible, et si les facteurs se déclarent au registre ou dans un module à côté.
+
+**Pendings système** : relancer gunicorn ; pousser (`fa899cf5` et les commits de cette clôture) ;
+validation sur le live ci-dessus.
+
+**Contrôles attendus au prochain /reprise** (mesurés le 2026-10-21) :
+`wama.accounts` + `tests_catalogues`, `tests_org_identity`, `tests_sharing`, `tests_theme`,
+`tests_test_layout`, `tests_identifier_language` = **462 tests, 5 rouges, aucun de cette session** :
+`tests_test_layout` (`wama/transcriber: 11`) et `tests_identifier_language` ×4 (+2 code, +2 noms
+de tests, fichiers en cours d'une autre instance) ; `tests_constellation` 11 OK, deux mutations
+ROUGES (sens des partages, codes de rattachement) ; `check_docs` 0 sur 3047 ; `check_redundancy`
+90 trouvailles, 0 dans les fichiers de la session ; `doc_facts --check` : 3 blocs périmés par le
+travail en cours d'autrui, mes lignes dans HEAD. Scénario `accounts.constellation.ui` vert (serveur
+jetable), contre-épreuve rouge nommée.
+
+**Artefacts** : sondes et scripts de commit dans le scratchpad de session (jetables) ; aucune
+fixture semée ; le compte de test `wama_pw_smoke` a reçu le groupe `admin` le temps des passes,
+retiré et vérifié ; aucun serveur jetable resté vivant (vérifié) ; sessions de sonde supprimées.
+Leçons versées aux skills : `smoke` (serveur jetable qui survit ou se tue, WebGL sans GPU,
+étiquette en mouvement, iframe) et `reverif §2` (gardes transverses à lancer).

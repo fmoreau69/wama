@@ -80,6 +80,13 @@ pas dans le code.
 
 - Lancer : `/cloture §2a` (périmètre ciblé, puis la suite si le substrat a bougé ; lire les NOMS
   des rouges ; « à qui il appartient » s'ÉTABLIT, ses cinq gestes y sont).
+- 🔴 **Et les gardes TRANSVERSES, que tout fichier neuf peut faire rougir sans toucher leur
+  domaine** (vécu le 2026-10-21, constellation des utilisateurs) : `tests_theme` (couleurs écrites
+  en dur — budget `.css` à ZÉRO : une feuille neuve à hexadécimaux le fait rougir),
+  `tests_identifier_language` (un identifiant français), `tests_test_layout` (un fichier de test de
+  trop à la racine d'une app), `tests_install_route`, `tests_hf_cache_routing`. Les tests du
+  périmètre passaient ; ces cinq-là ont trouvé TROIS écarts de ma main. Un rouge préexistant y
+  reste à son propriétaire, mais s'il est AGGRAVÉ par la session, il est à elle.
 - Garder : `/cloture §2a bis` — une ligne par livrable : son symbole → le test qui le nomme.
 - Prouver : `/contre-epreuve` sur chaque garde neuve (brique neutralisée → ROUGE exigé). Vécu le
   2026-10-12 : sept gardes, toutes rouges — mais c'est la seule façon de le SAVOIR.
