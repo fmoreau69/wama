@@ -56,6 +56,21 @@ class TestLayoutTest(SimpleTestCase):
         slack = {f: (counts.get(f, 0), n) for f, n in PENDING.items() if counts.get(f, 0) < n}
         self.assertEqual(slack, {}, 'budget à baisser à la mesure (une marge autorise un ajout)')
 
+    def test_no_test_hides_in_a_subfolder_of_an_app_that_has_its_package(self):
+        """Le paquet `tests/` d'une app reçoit TOUS ses tests, sous-dossiers compris (2026-10-21,
+        décision de Fabien). Le contrôle ne lisait que la RACINE de l'app : un
+        `wama/common/privacy/tests.py` passait, rangé sous une autre clé que `wama/common`."""
+        base = Path(settings.BASE_DIR)
+        stray = []
+        for folder, n in _test_folders().items():
+            parts = folder.split('/')
+            if 'tests' in parts or len(parts) <= 2:
+                continue
+            root = '/'.join(parts[:2])
+            if (base / root / 'tests' / '__init__.py').exists():
+                stray.append(f'{folder} ({n}) → {root}/tests/')
+        self.assertEqual(stray, [], 'un test d’une app va dans SON paquet tests/')
+
     def test_the_common_tests_live_in_their_package(self):
         # contre-épreuve de lecture : le paquet est bien vu, et la racine de common est vide
         self.assertNotIn('wama/common', _test_folders())
