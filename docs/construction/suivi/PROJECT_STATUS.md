@@ -25533,3 +25533,9 @@ CORRECTION DU TRANSCRIBER EN SURFACE DÉCLARÉE » ; page : `TRANSCRIBER_CORRECT
 - 🔚 **Suite** : l'aperçu sur le transport commun (visionneuse, surcouches, Comparer — tests de la face
   Pendant à l'appui) ; cam_analyzer puis face_analyzer ; décision : la migration qui retire
   `Transcript.waveform_status`.
+
+**SUITE du 2026-10-21 — la cartographie des vues 3D** (demande de Fabien, après la clôture) :
+`docs/construction/ui/WAMA_SCENES_3D.md`, nouveau document de référence (déclaré à `AGENTS.md`,
+`docs_catalog`, arborescence du README) — ce qui gagnerait à une scène 3D (transversal,
+catalogues, activité, Studio, présentation côte à côte), la brique commune proposée et quatre
+décisions à trancher (§7). 🔚 La proposition « page 3D par registre » ci-dessus y a son domicile.

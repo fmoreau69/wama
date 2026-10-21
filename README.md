@@ -365,6 +365,7 @@ by `python manage.py doc_facts` — do not edit it by hand; declare a document i
     - [Champs de l'inspecteur](docs/construction/ui/INSPECTOR_DETAIL_FIELDS.md) — Schéma canonique des champs de détail affichés par l'inspecteur.
     - [Appariement entrée ↔ modèle](docs/construction/ui/INPUT_MODEL_MATCHING.md) — Quel modèle accepte quelle entrée, et comment l'interface le montre.
     - [Format des fichiers de lot](docs/construction/ui/BATCH_FORMAT.md) — Le format des fichiers batch (txt, csv, pdf, docx).
+    - [Vues 3D : tri et proximité](docs/construction/ui/WAMA_SCENES_3D.md) — Cartographie de ce qui gagnerait à une scène 3D (transversal, catalogues, activité, Studio) et la brique commune de scène proposée.
   - **`ia/`** — Couche IA
     - [Couche LLM](docs/construction/ia/WAMA_LLM.md) — Prompts, skills, traduction et enrichissement, routage de modèle, surfaces de l'assistant.
     - [Mémoire & RAG](docs/construction/ia/WAMA_MEMORY.md) — Mémoire d'agent, mémoire de travail et RAG comme un seul mécanisme, plus le journal utilisateur.

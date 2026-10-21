@@ -174,6 +174,9 @@ DOCS: Tuple[Doc, ...] = (
         "Quel modèle accepte quelle entrée, et comment l'interface le montre."),
     Doc('batch-format', 'docs/construction/ui/BATCH_FORMAT.md', 'Format des fichiers de lot', 'ui',
         "Le format des fichiers batch (txt, csv, pdf, docx)."),
+    Doc('scenes-3d', 'docs/construction/ui/WAMA_SCENES_3D.md', 'Vues 3D : tri et proximité', 'ui',
+        "Cartographie de ce qui gagnerait à une scène 3D (transversal, catalogues, activité, "
+        "Studio) et la brique commune de scène proposée."),
     # ── couche IA ──
     Doc('llm', 'docs/construction/ia/WAMA_LLM.md', 'Couche LLM', 'ia',
         "Prompts, skills, traduction et enrichissement, routage de modèle, surfaces de "
