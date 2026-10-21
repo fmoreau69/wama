@@ -60,17 +60,18 @@
   --wc-registry-library: var(--wama-pres-trans);
   --wc-registry-media: var(--wama-pres-media);
   --wc-registry-app: var(--wama-pres-lab);
-  /* Types de modèles (`ModelType`) et où ils tournent. */
-  --wc-type-llm: var(--wama-pres-trans);
-  --wc-type-vlm: var(--bs-indigo);
-  --wc-type-vision: var(--wama-pres-media);
-  --wc-type-diffusion: var(--wama-pres-lab);
-  --wc-type-speech: var(--wama-pres-data);
-  --wc-type-music: var(--bs-orange);
-  --wc-type-embedding: var(--bs-teal);
-  --wc-type-upscaling: var(--wama-pres-ok);
-  --wc-type-lipsync: var(--bs-pink);
-  --wc-type-ocr: var(--bs-blue);
+  /* Types de modèles (`ModelType`) : la couleur des badges de la gestion des modèles, déclarée une
+     fois par le thème (`--wama-mm-type-*`). Puis où ils tournent. */
+  --wc-type-llm: var(--wama-mm-type-llm);
+  --wc-type-vlm: var(--wama-mm-type-vlm);
+  --wc-type-vision: var(--wama-mm-type-vision);
+  --wc-type-diffusion: var(--wama-mm-type-diffusion);
+  --wc-type-speech: var(--wama-mm-type-speech);
+  --wc-type-music: var(--wama-mm-type-music);
+  --wc-type-embedding: var(--wama-mm-type-embedding);
+  --wc-type-upscaling: var(--wama-mm-type-upscaling);
+  --wc-type-lipsync: var(--wama-mm-type-lipsync);
+  --wc-type-ocr: var(--wama-mm-type-ocr);
   --wc-hosting-local: var(--wama-pres-ok);
   --wc-hosting-private: var(--bs-teal);
   --wc-hosting-sovereign: var(--wama-pres-trans);

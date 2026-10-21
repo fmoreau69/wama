@@ -196,6 +196,9 @@ LIGHT_FIXED = {
                      '--wama-studio-reference', '--wama-studio-stale', '--wama-studio-stale-rgb',
                      '--wama-ml-active-tint', '--wama-ml-provider-tint', '--wama-mm-remote',
                      '--wama-mm-type-summarization', '--wama-mm-type-upscaling',
+                     '--wama-mm-type-vision', '--wama-mm-type-diffusion', '--wama-mm-type-speech',
+                     '--wama-mm-type-vlm', '--wama-mm-type-llm', '--wama-mm-type-embedding',
+                     '--wama-mm-type-lipsync', '--wama-mm-type-music', '--wama-mm-type-ocr',
                      '--wama-mm-selection-tint', '--wama-tone-green-rgb', '--wama-home-info-border'),
                     _VIVID_FILL),
 }

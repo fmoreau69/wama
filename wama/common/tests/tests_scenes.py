@@ -64,9 +64,24 @@ class ScenePagesTest(TestCase):
         self.assertEqual(app_id_for_path('/common/scenes/models/data/'), 'registries')
 
     def test_an_anonymous_visitor_is_sent_to_the_login(self):
-        response = self.client.get(reverse('common:scene', args=['licenses']))
-        self.assertEqual(response.status_code, 302)
-        self.assertNotIn('/scenes/', response.url)
+        from django.conf import settings
+        for name in ('common:scene', 'common:scene_data'):
+            response = self.client.get(reverse(name, args=['licenses']))
+            self.assertEqual(response.status_code, 302, name)
+            self.assertTrue(response.url.startswith(str(settings.LOGIN_URL)) or '/login' in response.url,
+                            response.url)
+
+    def test_a_scene_reserved_to_administrators_refuses_a_member(self):
+        # La garde DÉCLARÉE par la scène est celle des pages d'administration (`admin_required`).
+        member = User.objects.create_user('scene_member', password='x')
+        register_scene(Scene(key='admin_only', page_title='x', kicker='x', data='x:y', permission='admin'))
+        try:
+            self.client.force_login(member)
+            response = self.client.get(reverse('common:scene_data', args=['admin_only']))
+            self.assertEqual(response.status_code, 302)
+            self.assertNotIn('/scenes/', response.url)
+        finally:
+            SCENES.pop('admin_only', None)
 
     def test_a_scene_page_carries_its_declaration_and_the_address_of_its_data(self):
         self.client.force_login(self.admin)

@@ -418,6 +418,17 @@
   --wama-mm-remote: #6f8fd6;           /* liseré d'un modèle distant */
   --wama-mm-type-summarization: #17a2b8; /* type de modèle */
   --wama-mm-type-upscaling: #e83e8c;
+  /* La couleur de CHAQUE type de modèle (`ModelType`) — lue par les badges de la gestion des
+     modèles et par la scène 3D des modèles (2026-10-21) : un seul endroit, les deux s'accordent. */
+  --wama-mm-type-vision: var(--bs-purple);
+  --wama-mm-type-diffusion: var(--bs-orange);
+  --wama-mm-type-speech: var(--bs-teal);
+  --wama-mm-type-vlm: var(--wama-accent);
+  --wama-mm-type-llm: var(--bs-indigo);
+  --wama-mm-type-embedding: var(--bs-green);
+  --wama-mm-type-lipsync: var(--bs-red);
+  --wama-mm-type-music: var(--bs-yellow);
+  --wama-mm-type-ocr: var(--bs-blue);
   --wama-mm-badge: #495057;            /* badge de source, format .bin */
   --wama-mm-format-unknown: #343a40;
   --wama-mm-memory-muted: #b0b7bf;
@@ -961,6 +972,15 @@
   --wama-mm-remote: #6f8fd6;                /* liseré d'un modèle distant */
   --wama-mm-type-summarization: #17a2b8;    /* type de modèle */
   --wama-mm-type-upscaling: #e83e8c;
+  --wama-mm-type-vision: var(--bs-purple);  /* couleur de chaque type : cf. thème sombre */
+  --wama-mm-type-diffusion: var(--bs-orange);
+  --wama-mm-type-speech: var(--bs-teal);
+  --wama-mm-type-vlm: var(--wama-accent);
+  --wama-mm-type-llm: var(--bs-indigo);
+  --wama-mm-type-embedding: var(--bs-green);
+  --wama-mm-type-lipsync: var(--bs-red);
+  --wama-mm-type-music: var(--bs-yellow);
+  --wama-mm-type-ocr: var(--bs-blue);
   --wama-mm-badge: #9ba2aa;                 /* badge de source, format .bin */
   --wama-mm-format-unknown: #b9c0c8;
   --wama-mm-memory-muted: #3b4047;

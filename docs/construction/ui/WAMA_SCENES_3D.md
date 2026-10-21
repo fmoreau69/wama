@@ -176,6 +176,20 @@ une vue 3D d'un pipeline est une lecture et un suivi d'exécution, pas un second
 `Registry` — les scènes ne projettent pas toutes un registre (utilisateurs, mécanismes, file, journal).
 Une scène NOMME le registre qu'elle projette (`registry`), ce qui suffit au bouton de sa page.
 
+**Où une scène lit ses données** (précisé avec Fabien le 2026-10-21, après une explication fausse de
+ma part) : dans le REGISTRE lui-même, par la lecture unique que ses autres lecteurs empruntent déjà,
+filtrée par les droits du demandeur — jamais par une copie :
+- **modèles** : la table `AIModel` EST le registre des modèles ; la scène la lit par
+  `AIModel.objects.catalogue_visible_to(user)`, la lecture de la page du catalogue, des sélecteurs
+  des apps, de la sélection automatique et de l'assistant (système, publics, les siens, sa portée ;
+  tout pour un administrateur). Seul tri propre à la scène : les modèles PROPOSÉS sont écartés
+  (`is_proposed`), ils ont leur file à valider ;
+- **licences** : registre DÉRIVÉ, sans table (`AIModel`, `Library`, médias, `requires` des apps) ; sa
+  lecture unique est `license_audit.inventaire(user)` / `par_app`, celle de la page des licences, qui
+  borne les médias d'utilisateur au périmètre visible du demandeur.
+La fiche d'un registre dans `wama/common/registries.py` (nom, page, actualisation, compte) DÉCRIT le
+catalogue sans en porter les éléments : aucune page ne lit ses données à travers elle, la scène non plus.
+
 **La parité de la constellation des utilisateurs** (exigence de Fabien : *« aucune régression sur
 les visuels 3D existants »*) a été MESURÉE, pas supposée : un banc rejoue 56 gestes (page, mode
 intégré, téléphone, faits réels et faits synthétiques qui exercent projets, apports, partages à une
@@ -210,6 +224,13 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
 1. ✅ **Extraire la brique**, la constellation des utilisateurs portée dessus (parité mesurée, §4).
 2. ✅ **Licences (C1) puis modèles (C2)** : données prêtes, l'exemple de Fabien, et la preuve du
    contrat « un registre déclare sa scène ».
+2bis. ⏳ **Filtrer depuis la légende** (demande de Fabien, 2026-10-21 : *« pouvoir filtrer aussi dans la
+   constellation, par exemple depuis le panneau droit »* — la liste des types de la scène des
+   modèles). Forme proposée, à valider : dans la BRIQUE, donc pour toute scène et toute coloration —
+   une ligne de légende se clique pour éteindre ou rallumer sa catégorie (les étoiles sortent, la
+   mise en espace se refait, comme pour la couche « Comptes de test »), un second geste ne garde
+   qu'elle, et le HUD rappelle les filtres actifs avec un « tout montrer ». La même lecture servirait
+   les sphères de la légende (ne garder que les membres d'un groupe).
 3. **Le transversal (T1, T2)** et sa frame dans la présentation, avec le côte à côte.
 4. **La file en 3D (A1)** et la chronologie (A2) : après avoir comblé la proximité card ↔ card
    (§3.3 ⚠).
@@ -218,8 +239,15 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
 ## 6. Trous mesurés (2026-10-21)
 
 - Registres sans `entries` (modèles, skills, librairies, licences, RAG, souvenirs, prompts,
-  backends, et les trois de WAMA Data) : leur scène doit lire leur source — ce que font les scènes
-  des licences et des modèles (2026-10-21).
+  backends, et les trois de WAMA Data) : leur scène lit leurs éléments là où le registre les tient
+  (sa table, ou la lecture qui le dérive) — ce que font les scènes des licences et des modèles (§4).
+- **Deux déclarations en double, relevées à la revérification du 2026-10-21, non ramenées** : la
+  couleur d'une FAMILLE de licences (pastilles `.li-r0…6` de `common/licenses.html`, tons
+  `--wama-tone-*` qui s'inversent au thème clair, contre `--wc-rank-*` de la scène — teintes
+  voisines, pas identiques) et le libellé de l'état d'installation d'un modèle (« Not downloaded »
+  dans la gestion des modèles, « Non installé » dans la scène). Domicile à créer : un jeton par
+  famille dans le thème, comme `--wama-mm-type-*` pour les types de modèles (ramené le jour même).
+- La mise en espace des scènes licences et modèles (`layout`, `label_limit`) est un premier réglage.
 - Aucun monde sur `AIModel` : il passe par `source` → `APP_CATALOG`.
 - Proximité sémantique des cards : images seules, deux espaces séparés, pas de voisinage card ↔
   card, pas de réduction de dimension (§3.3).

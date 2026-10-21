@@ -692,9 +692,10 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
     function detailHtml(n) {
       const d = n.d, det = d.detail || {}, c = css(n.color);
       const near = nearest(n);
-      const nearHtml = `<h3>${esc(spec.nearest_title || 'Les plus proches')}</h3>${near.length ? `<ul class="wc-near">${near.map(x =>
+      // Titre et phrase d'absence : ceux que la scène déclare (`Scene.nearest_*`, défauts compris).
+      const nearHtml = `<h3>${esc(spec.nearest_title)}</h3>${near.length ? `<ul class="wc-near">${near.map(x =>
         `<li data-goto="${esc(x.o.id)}"><span>${esc(shownName(x.o))}</span><span>${x.af.total.toFixed(1)}</span><small>${esc(x.af.why.join(' · '))}</small></li>`).join('')}</ul>`
-        : `<p class="mute">${esc(spec.nearest_empty || 'Rien ne relie encore cet élément aux autres.')}</p>`}`;
+        : `<p class="mute">${esc(spec.nearest_empty)}</p>`}`;
       return `<button type="button" class="wc-close" title="Fermer (Échap)">×</button>
         <div class="wc-id"><div class="wc-avatar" style="--c:${c}">${esc(det.mark || initials(d.name))}</div>
           <div><h2>${esc(shownName(n))}</h2>${d.handle && !masked() ? `<div class="wc-handle">${esc(d.handle)}</div>` : ''}</div></div>

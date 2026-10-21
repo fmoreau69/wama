@@ -25767,3 +25767,16 @@ bascule, en un geste** : la brique prend le domaine (`read/save/reset/new_elemen
 règles propres disparaissent des `params.py` et du générateur, le plan s'exécute, relance. Ensuite :
 les créateurs `tool_api` par la cascade commune (assistant, Studio, MCP, Discord), le curseur au
 lancement par domaine, le volet audio de l'enhancer, les files par domaine, le générateur.
+
+**REVÉRIFICATION du palier ci-dessus (2026-10-21, demande de Fabien)** — trois écarts de ma main
+RAMENÉS : ① la couleur d'un TYPE de modèle était déclarée deux fois (badges `.type-*` de la gestion
+des modèles, jetons `--wc-type-*` de la scène, valeurs divergentes) → un seul domicile, la famille
+`--wama-mm-type-*` du thème (complétée, déclarée fixe dans `themes.py`), lue par les deux — badges
+inchangés ; ② `scene_views.py` recopiait le refus d'`admin_required` → il emploie le décorateur
+(et `login_required`), garde neuve contre-éprouvée ; ③ « Les plus proches » écrit dans `Scene` ET
+dans la brique → la déclaration seule. Parité refaite après la retouche de la brique : 55/58 au
+pixel (les 3 : bruit du champ de recherche au téléphone), DOM 58/58. Deux doubles CONSIGNÉS, non
+ramenés (`WAMA_SCENES_3D §6`) : couleur d'une famille de licences, libellé d'état d'installation.
+⚠ Correction d'une explication fausse donnée à Fabien : les scènes lisent bien les REGISTRES — la
+table `AIModel` par `catalogue_visible_to(user)`, `license_audit.inventaire(user)` pour les licences —,
+filtrés par ses droits ; écrit au `§4`. 🔚 Suite demandée : filtrer depuis la légende (`§5` 2bis).

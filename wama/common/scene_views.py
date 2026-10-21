@@ -1,10 +1,9 @@
 """Les pages des SCÈNES de proximité (constellations 3D) — une page et une route de données pour
 toute scène déclarée (`common/scenes.py`). La page ne porte aucune donnée ; la brique les lit."""
-from django.contrib import messages
 from django.http import Http404, JsonResponse
 from django.shortcuts import redirect, render
 
-from .scenes import can_view, get_scene, page_context, scene_data
+from .scenes import get_scene, page_context, scene_data
 from .utils.volet import VOLET_AUCUN
 
 
@@ -17,32 +16,40 @@ def render_scene(request, scene):
     return render(request, 'common/constellation.html', context)
 
 
-def _scene_or_refusal(request, key):
+def _guarded(scene, view):
+    """La garde que la scène DÉCLARE (`permission`), par les décorateurs qui gardent déjà les
+    pages de WAMA — `admin_required` (le niveau du profil) ou `login_required`."""
+    from django.contrib.auth.decorators import login_required
+
+    from wama.accounts.views import admin_required
+    return admin_required(view) if scene.permission == 'admin' else login_required(view)
+
+
+def _scene(key):
     scene = get_scene(key)
     if scene is None:
         raise Http404(f"aucune scène « {key} »")
-    if not can_view(scene, request.user):
-        if not request.user.is_authenticated:
-            return scene, redirect('accounts:login')
-        messages.error(request, "Accès réservé aux administrateurs.")
-        return scene, redirect('home')
-    return scene, None
+    return scene
 
 
-def scene_page(request, key):
-    scene, refusal = _scene_or_refusal(request, key)
-    if refusal:
-        return refusal
+def _page(request, scene):
     if scene.page_url_name:
         # Une scène qui garde sa propre adresse s'ouvre là, avec la garde de sa vue.
         return redirect(scene.page_url_name)
     return render_scene(request, scene)
 
 
-def scene_data_view(request, key):
-    scene, refusal = _scene_or_refusal(request, key)
-    if refusal:
-        return refusal
+def _data(request, scene):
     if not scene.data:
         return redirect(scene.data_url_name)
     return JsonResponse(scene_data(scene, request.user))
+
+
+def scene_page(request, key):
+    scene = _scene(key)
+    return _guarded(scene, _page)(request, scene)
+
+
+def scene_data_view(request, key):
+    scene = _scene(key)
+    return _guarded(scene, _data)(request, scene)
