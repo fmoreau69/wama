@@ -572,8 +572,8 @@ def schema_for_app(app_id: str) -> List[dict]:
     Retourne [] si l'app n'en déclare pas — l'appelant ne doit pas s'en trouver bloqué.
 
     ⚠ Une app à plusieurs domaines (imager image/vidéo, enhancer média/audio) n'expose ici que
-    son attribut PRINCIPAL : c'est ce que `params_attr` déclare aujourd'hui, pas une limite de
-    cette fonction. Le jour où le pointeur devient multiple, il ne bouge qu'ICI.
+    son attribut PRINCIPAL (`params_attr`). Le schéma de CHAQUE domaine, le domaine le nomme
+    (`app_modes`, `params_schema`, 2026-10-21) : il se lit par `app_modes.domain_schema`.
     """
     module_name, attr = _params_location(app_id)
     return _module_list(module_name, attr)
