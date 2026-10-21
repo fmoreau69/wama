@@ -11,7 +11,7 @@
  *   - la médiathèque : la tuile de la card (`WamaApp.pickFromLibrary`, DÉSIGNATION, rien de recopié) ;
  *   - un fichier du poste : déposé dans l'espace du compte (`WamaFM.upload`, le geste de
  *     l'assistant), puis désigné ;
- *   - une URL : retenue telle quelle, téléchargée au lancement (`entries.materialize`) ;
+ *   - une URL : retenue telle quelle, téléchargée au lancement (`entries.received_value`) ;
  *   - le fichier de lot : déposé, puis lu par la règle du lancement (`/studio/api/entry-lot/`) qui
  *     dit combien d'éléments le pipeline jouera.
  *
@@ -253,7 +253,13 @@
     function save() {
         var card = document.getElementById(IDS.card);
         var rows = card ? portRefs(card) : [];
-        var principal = card ? (WamaInputSlots.filePorts(card)[0] || {}).id : '';
+        // Le port de travail PRINCIPAL est celui que la card DÉSIGNE : il porte l'input aux ids
+        // historiques (`file_input_id`, `input_slots` — le premier port de TRAVAIL, la règle
+        // d'`entry_form` que le serveur suit au dépliage), jamais « le premier onglet », qui peut
+        // être une référence. Sans port de travail : aucun, chaque port ne garde qu'un fichier.
+        var principal = card ? (WamaInputSlots.filePorts(card).filter(function (p) {
+            return p.inputId === IDS.files;
+        })[0] || {}).id : '';
         Promise.all(rows.map(function (row) {
             if (!row.files.length) return Promise.resolve(row);
             return WamaFM.upload(row.files).then(function (d) {

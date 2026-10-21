@@ -246,8 +246,11 @@ def oauth_types_offered() -> list[dict]:
 
 
 def is_remote_url(text: str) -> bool:
-    """Le chemin saisi désigne-t-il un dossier DISTANT (adresse web) plutôt qu'un chemin ?"""
-    return bool(re.match(r'^https?://', (text or '').strip(), re.IGNORECASE))
+    """Le chemin saisi désigne-t-il un dossier DISTANT (adresse web) plutôt qu'un chemin ? La règle
+    commune des entrées distantes (`source_ingest.is_remote`, 2026-10-21) : elle vivait ici en
+    double, même motif."""
+    from wama.common.utils.source_ingest import is_remote
+    return is_remote(text)
 
 
 def _is_declared_host(hostname) -> bool:

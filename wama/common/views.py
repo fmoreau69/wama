@@ -2177,7 +2177,7 @@ def shares_page(request):
                reverse=True)
     # Le libellé d'une facette est celui que la fiche du volet dérive de sa clé (`data-f-partage`
     # → « Partage ») : le filtre et la fiche disent le même mot.
-    facettes = [{'cle': cle, 'label': label, 'tous': tous} for cle, label, tous in (
+    facettes = [{'cle': key, 'label': label, 'tous': tous} for key, label, tous in (
         ('sens', 'Sens', 'Tous les partages'), ('app', 'App', 'Toutes'),
         ('nature', 'Nature', 'Toutes'), ('partage', 'Partage', 'Tous'))]
     # Les libellés de tri du journal (`journal.TRIS`, alignés sur la barre des files).

@@ -620,6 +620,28 @@ class EntryCardViewTest(_MediaCase):
                                    content_type='application/json')
         self.assertEqual(400, refused.status_code)
 
+    def test_the_card_designates_as_principal_the_work_port_the_launch_unfolds(self):
+        """The modal lets the PRINCIPAL work port accumulate files (a lot) and reads it on the card:
+        the port whose input carries `file_input_id`. The launch unfolds a lot on `entry_form`'s
+        `work` (`entries.card_lot`). Both must name the same port — « the first tab » was a second
+        rule, which a reference port listed first would have broken (2026-10-21)."""
+        import re
+
+        from wama.common.app_registry import entry_form, studio_node_ports
+        from wama.studio.views import ENTRY_CARD_IDS
+        checked = 0
+        for app in ('imager', 'transcriber', 'synthesizer', 'enhancer', 'avatarizer', 'converter'):
+            with self.subTest(app=app):
+                html = self.client.get('/studio/api/entry-card/', {'app': app}).content.decode()
+                panes = re.findall(r'data-port-pane="([^"]+)" data-port-kind="file" '
+                                   r'data-port-input="([^"]+)"', html)
+                principal = [port for port, input_id in panes
+                             if input_id == ENTRY_CARD_IDS['file_input_id']]
+                work = entry_form((studio_node_ports(app) or {}).get('inputs') or [])['work']
+                self.assertEqual([work], principal)
+                checked += 1
+        self.assertEqual(6, checked)
+
     def test_the_served_page_loads_the_bricks_of_the_card(self):
         page = self.client.get('/studio/').content.decode('utf-8', errors='replace')
         for script in ('common/js/wama-input-slots.js', 'common/js/wama-import.js',
@@ -673,6 +695,9 @@ var card = {querySelectorAll: function (sel) { return sel === '[data-port-tab]' 
         from wama.studio.views import ENTRY_CARD_IDS
         for value in ENTRY_CARD_IDS.values():
             self.assertNotIn(f"'{value}'", src, f'{value}: declared by the server, never copied')
+        # The principal port is the one the CARD designates (its `file_input_id`), never the first tab.
+        self.assertIn('p.inputId === IDS.files', src)
+        self.assertNotIn('filePorts(card)[0]', src)
         canvas = self._src('studio/js/wama-studio.js')
         self.assertIn('metaOf(node).compose', canvas)
         self.assertNotIn('ENTRY_MODES', canvas, 'what a modal shows is declared by the registry')

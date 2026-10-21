@@ -346,6 +346,11 @@ déclarés une fois côté serveur), restreinte à ce que la card du Studio DÉC
 fichier de lot — par `WamaInputSlots.restrict`, seule lectrice des onglets) ; à côté, le
 volet : les réglages du nœud de l'app, par le rendu commun du Studio. Vérifiée dans un navigateur
 sur la page servie (dépôt, retenue, onglet seul, fichier de lot compté) — sans erreur console.
+Le port qui ACCUMULE les fichiers (un lot) est le port de travail principal que la card DÉSIGNE —
+celui dont l'input porte `file_input_id` (`input_slots` : le premier port de travail, la règle
+d'`entry_form` que suit le dépliage) ; la modale prenait « le premier onglet », une seconde règle
+qu'un port de référence listé en tête aurait fait diverger (revérification du 2026-10-21, garde
+`tests_entries.EntryCardViewTest`).
 
 **Le lot** : déplié au lancement (`entries.lot_graphs`, appelé par `launch.launch_graph` avant le
 dispatch) en un graphe par élément, joué chacun comme un run ENFANT du run lancé
@@ -363,7 +368,7 @@ résume chaque nœud par la règle d'un lot d'app (`batch_views.lot_overview`, e
 | médiathèque (désignation) | `WamaApp.pickFromLibrary`, `MediaPicker` | — |
 | dépôt du poste dans l'espace du compte | `WamaFM.upload` → `enregistrer_fichier_utilisateur` | — |
 | garde de lecture d'une désignation | `media_paths.designate` | `check_designation` (les mêmes gardes, sans pointer ni copier) |
-| URL téléchargée au lancement | `source_ingest._download` (primitives de l'ingest) | `download_to_user`, au mode que l'app DÉCLARE (`declared_mode`, son `WAMA_INGEST`) |
+| URL téléchargée au lancement | `source_ingest._download` (primitives de l'ingest) | `download_to_user`, au mode que l'app DÉCLARE (`declared_mode`, son `WAMA_INGEST`) ; `is_remote`, LA règle « est-ce une URL » — `remote_mounts.is_remote_url`, même motif, lui délègue depuis le 2026-10-21 |
 | lignes d'un fichier de lot | `batch_parsers` (balises, CSV à en-têtes, listes) | `parse_batch_lines` (toutes familles), `line_to_ports` |
 | regroupement en lot | `queue_manipulation.consolidate_arrival` | — |
 | état d'un lot | `batch_status` de `make_batch_views` | `lot_overview` (la règle, extraite) |
