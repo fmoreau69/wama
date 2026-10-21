@@ -25809,3 +25809,13 @@ recherche), DOM 58/58 ; scénarios `accounts.constellation.ui`, `common.scene.li
 **Artefacts** : le banc de parité, les jeux de faits figés et les sondes vivent dans le scratchpad de
 session (jetables) ; serveurs jetables arrêtés ; arbre de travail jetable retiré ; base de test
 privée détruite ; compte `wama_pw_smoke` rendu à son niveau « utilisateur ».
+
+**SUITE de la §CLÔTURE 2026-10-21 soir — le FILTRE depuis la légende** (forme validée par Fabien) : ✅
+livré dans la brique commune (`WAMA_SCENES_3D §5` 2bis) — une ligne d'étoiles se clique (masquer /
+afficher), son « ◎ » ne garde qu'elle, une ligne de sphère ne garde que ses membres ; le HUD gauche
+rappelle les filtres et « Tout montrer ». Les utilisateurs le portent par leur propre légende
+(`api.filterRow`). Parité refaite : captures identiques au pixel hors bruit connu du champ de
+recherche (4 sur 58, ≤ 37 px) ; le DOM ne diffère qu'aux endroits voulus (conteneur caché du rappel,
+attributs des lignes). Scénarios `accounts.constellation.ui`, `common.scene.licenses.ui`,
+`common.scene.models.ui` verts avec l'étape « filtre de la légende ». 🔚 Le point d'entrée de la
+clôture ci-dessus est SOLDÉ ; restent ses pendings (relancer gunicorn, pousser, valider sur le live).

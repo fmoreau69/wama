@@ -284,6 +284,18 @@ details:not([open]) > summary.wc-box-title::after { content: ' ▸'; }
 .wc-legend-row .sw.star { border: 0; background: radial-gradient(circle at 35% 30%, var(--wc-ink), var(--c) 55%); }
 .wc-legend-row .sw.sat { border-radius: 2px; transform: rotate(45deg) scale(.75); border: 0; background: var(--c); }
 .wc-legend-row .sw.line { border: 0; border-radius: 1px; height: 3px; background: var(--c); }
+/* Les lignes qui FILTRENT (2026-10-21) : même place que les autres (la marge négative rend le
+   retrait), une main, un fond au survol ; « ◎ » (ne garder qu'elle) n'apparaît qu'au survol. */
+.wc-legend-row[data-filter], .wc-legend-row[data-group] { cursor: pointer; border-radius: 6px; padding: 3px 6px; margin: 0 -6px; }
+.wc-legend-row[data-filter]:hover, .wc-legend-row[data-group]:hover { background: rgba(var(--wama-pres-line-rgb), .07); color: var(--wc-ink); }
+.wc-legend-row.off { opacity: .38; }
+.wc-legend-row.off .sw { filter: grayscale(1); }
+.wc-legend-row.only { color: var(--wc-ink); background: rgba(var(--wama-pres-media-rgb), .14); }
+.wc-only { margin-left: auto; opacity: 0; font-size: 12px; line-height: 1; color: var(--wc-ink-mute); padding: 0 2px; }
+.wc-legend-row:hover .wc-only { opacity: 1; }
+.wc-only:hover { color: var(--wc-ink); }
+.wc-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.wc-filters[hidden] { display: none; }
 
 .wc-fallback { position: absolute; inset: auto 0 45% 0; text-align: center; color: var(--wc-ink-soft); font-size: 15px; }
 

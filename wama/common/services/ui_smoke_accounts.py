@@ -10,7 +10,7 @@ CE QU'IL MESURE, en geste d'administrateur :
   2. la scène se forme : la ligne de mesures est remplie, une étoile par personne du jeu de faits
      (comptes de test masqués par défaut), et chaque sphère d'unité a son étiquette ;
   3. chercher une personne la choisit : le volet porte son nom et ses sept rubriques ; Échap rend
-     la légende ;
+     la légende, qui filtre (ne garder qu'un profil, puis tout montrer) ;
   4. la couche « Comptes de test » ajoute leurs étoiles, un poids changé ne casse rien ;
   5. la frame « Droits · Constellation » de la présentation charge la même page intégrée, qui se
      forme, noms masqués ;
@@ -151,6 +151,14 @@ def check_constellation():
                     if not page.evaluate(JS_PANEL)['legend']:
                         faults.append("Échap ne rend pas la légende")
                     steps.append('personne choisie par la recherche, Échap')
+                    # 3bis. La légende filtre (brique commune, 2026-10-21), ici par la légende de
+                    #       la scène (son module) : ne garder qu'un profil, puis tout montrer.
+                    from .ui_smoke_scenes import check_legend_filter
+                    fault = check_legend_filter(page)
+                    if fault:
+                        faults.append(fault)
+                    else:
+                        steps.append('filtre de la légende posé puis retiré')
 
                 # 4. Comptes de test, puis un poids changé.
                 page.click('[data-layer="tests"]', force=True)

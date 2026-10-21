@@ -224,13 +224,17 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
 1. ✅ **Extraire la brique**, la constellation des utilisateurs portée dessus (parité mesurée, §4).
 2. ✅ **Licences (C1) puis modèles (C2)** : données prêtes, l'exemple de Fabien, et la preuve du
    contrat « un registre déclare sa scène ».
-2bis. ⏳ **Filtrer depuis la légende** (demande de Fabien, 2026-10-21 : *« pouvoir filtrer aussi dans la
-   constellation, par exemple depuis le panneau droit »* — la liste des types de la scène des
-   modèles). Forme proposée, à valider : dans la BRIQUE, donc pour toute scène et toute coloration —
-   une ligne de légende se clique pour éteindre ou rallumer sa catégorie (les étoiles sortent, la
-   mise en espace se refait, comme pour la couche « Comptes de test »), un second geste ne garde
-   qu'elle, et le HUD rappelle les filtres actifs avec un « tout montrer ». La même lecture servirait
-   les sphères de la légende (ne garder que les membres d'un groupe).
+2bis. ✅ **Filtrer depuis la légende** (demande de Fabien, 2026-10-21 : *« pouvoir filtrer aussi dans la
+   constellation, par exemple depuis le panneau droit »* ; forme validée par lui le soir même),
+   livré dans la BRIQUE, donc pour toute scène et toute coloration : une ligne d'étoiles de la
+   légende se clique pour masquer ou afficher sa catégorie, son « ◎ » (au survol) ne garde qu'elle ;
+   une ligne de sphère, quand une seule sphère porte sa couleur, ne garde que les membres de ce
+   groupe. Les étoiles filtrées SORTENT et la mise en espace se refait sans elles (comme la couche
+   « Comptes de test ») ; le HUD gauche rappelle les filtres (« Sans … » / « Seulement … », chacun
+   retirable) et « Tout montrer ». Une scène qui rend sa propre légende emploie la même ligne
+   (`api.filterRow`) — la constellation des utilisateurs la porte sur ses profils et ses mondes.
+   Garde : l'étape « filtre de la légende » des scénarios `common.scene.<clé>.ui` et
+   `accounts.constellation.ui`.
 3. **Le transversal (T1, T2)** et sa frame dans la présentation, avec le côte à côte.
 4. **La file en 3D (A1)** et la chronologie (A2) : après avoir comblé la proximité card ↔ card
    (§3.3 ⚠).

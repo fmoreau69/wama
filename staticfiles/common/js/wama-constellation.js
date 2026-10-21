@@ -574,7 +574,7 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
 
     // ── Ce que la scène offre à son volet (`hooks`) ───────────────────────
     const api = { state, nodes, nodeOf, spheres, raw, model, spec, color, css, esc, initials, fmtDate,
-                  shownName, nearest, masked, groupById };
+                  shownName, nearest, masked, groupById, filterRow: (...a) => filterRow(...a) };
 
     // ── Survol ───────────────────────────────────────────────────────────
     const ray = new THREE.Raycaster(), mouse = new THREE.Vector2();
@@ -651,8 +651,57 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
     search.addEventListener('change', () => { const n = findNode(search.value); if (n) select(n); });
     search.addEventListener('keydown', ev => { if (ev.key === 'Enter') { const n = findNode(search.value); if (n) select(n); } });
 
+    // ── Filtres de la légende (demande de Fabien, 2026-10-21) ─────────────
+    // Une ligne de légende d'une coloration se clique pour masquer ou afficher sa catégorie, son
+    // « ◎ » ne garde qu'elle ; une ligne de sphère ne garde que les membres de ce groupe. Les étoiles
+    // filtrées SORTENT de la scène et la mise en espace se refait sans elles (comme la couche des
+    // comptes de test) : les distances se lisent dans la sélection. Le HUD gauche rappelle les filtres.
+    const hidden = {};                       // coloration → catégories masquées
+    let groupOnly = null;                    // une sphère : ne garder que ses membres
+    const catOf = (n, k) => String((n.d.cats || {})[k]);
+    const isHidden = (k, cat) => !!hidden[k] && hidden[k].has(String(cat));
+    const filteredOut = n => Object.entries(hidden).some(([k, set]) => set.has(catOf(n, k)))
+      || (!!groupOnly && !groupOnly.members.includes(n));
+    const catLabel = (k, cat) => ((colorings[k] || {}).legend || []).find(([, c]) => String(c) === cat)?.[0] ?? cat;
+    function refilter() { applyVisibility(); reheat(0.9); renderPanel(); renderFilters(); }
+    function toggleCat(k, cat) {
+      const set = hidden[k] = hidden[k] || new Set();
+      if (set.has(cat)) set.delete(cat); else set.add(cat);
+      refilter();
+    }
+    function onlyCat(k, cat) {
+      hidden[k] = new Set(nodes.map(n => catOf(n, k)).filter(c => c !== cat));
+      refilter();
+    }
+    // Une ligne de légende filtrante — la légende générique et celle d'une scène (`hooks.legend`).
+    const filterRow = (k, cat, inner) => `<div class="wc-legend-row${isHidden(k, cat) ? ' off' : ''}" data-filter="${esc(k)}" data-cat="${esc(cat)}" ` +
+      `title="Clic : masquer ou afficher · ◎ : ne garder que celle-ci">${inner}<span class="wc-only" data-only="1">◎</span></div>`;
+    const filtersBox = $('.wc-filters');
+    function renderFilters() {
+      if (!filtersBox) return;
+      const chips = [];
+      for (const [k, set] of Object.entries(hidden)) {
+        if (!set.size) continue;
+        const all = [...new Set(nodes.map(n => catOf(n, k)))];
+        const shown = all.filter(c => !set.has(c)), off = all.filter(c => set.has(c));
+        const text = shown.length < off.length ? `Seulement ${shown.map(c => catLabel(k, c)).join(', ') || '—'}`
+          : `Sans ${off.map(c => catLabel(k, c)).join(', ')}`;
+        chips.push(`<button type="button" class="wc-chip on" data-clear="${esc(k)}" title="Retirer ce filtre">${esc(text)} ×</button>`);
+      }
+      if (groupOnly) chips.push(`<button type="button" class="wc-chip on" data-clear="@group" title="Retirer ce filtre">Seulement ${esc(groupOnly.obj.name)} ×</button>`);
+      filtersBox.hidden = !chips.length;
+      filtersBox.innerHTML = chips.length ? chips.join('') + '<button type="button" class="wc-chip" data-clear="@all">Tout montrer</button>' : '';
+      filtersBox.querySelectorAll('[data-clear]').forEach(b => b.addEventListener('click', () => {
+        const k = b.dataset.clear;
+        if (k === '@all') { for (const key of Object.keys(hidden)) delete hidden[key]; groupOnly = null; }
+        else if (k === '@group') groupOnly = null;
+        else delete hidden[k];
+        refilter();
+      }));
+    }
+
     function applyVisibility() {
-      for (const n of nodes) n.visible = !n.d.layer || !!state.layers[n.d.layer];
+      for (const n of nodes) n.visible = (!n.d.layer || !!state.layers[n.d.layer]) && !filteredOut(n);
       if (state.selected && !state.selected.visible) select(null);
       fillSearch(); renderStats(); applyFocus();
     }
@@ -675,6 +724,15 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
       panelShown = panel.getBoundingClientRect().width > 0;
       const close = panel.querySelector('.wc-close'); if (close) close.onclick = () => select(null);
       panel.querySelectorAll('[data-goto]').forEach(el => el.addEventListener('click', () => select(nodeOf.get(String(el.dataset.goto)))));
+      panel.querySelectorAll('[data-filter]').forEach(el => el.addEventListener('click', ev => {
+        if (ev.target.closest('[data-only]')) onlyCat(el.dataset.filter, el.dataset.cat);
+        else toggleCat(el.dataset.filter, el.dataset.cat);
+      }));
+      panel.querySelectorAll('[data-group]').forEach(el => el.addEventListener('click', () => {
+        const s = spheres[Number(el.dataset.group)];
+        groupOnly = groupOnly === s ? null : s;
+        refilter();
+      }));
     }
     // Le volet GÉNÉRIQUE : rendu des sections que la source déclare sur le nœud (`node.detail`).
     function sectionHtml(s) {
@@ -710,12 +768,19 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
       const kindsShown = [...new Set(spheres.map(s => s.kind))];
       return `<h2>${esc(lg.title || 'Lire la constellation')}</h2>${lg.intro ? `<p>${esc(lg.intro)}</p>` : ''}
         <h3>${esc(lg.nodes_title || 'Étoiles')}</h3>
-        ${(c.legend || []).map(([l, cat]) => `<div class="wc-legend-row"><span class="sw star" style="--c:${css(p.pal[cat] ?? p.fallback ?? 0x64748b)}"></span>${esc(l)}</div>`).join('')}
+        ${(c.legend || []).map(([l, cat]) => filterRow(state.colorBy, String(cat), `<span class="sw star" style="--c:${css(p.pal[cat] ?? p.fallback ?? 0x64748b)}"></span>${esc(l)}`)).join('')}
         ${lg.nodes_note ? `<p class="mute">${esc(lg.nodes_note)}</p>` : ''}
         ${(lg.sats || []).map(s => `<div class="wc-legend-row"><span class="sw sat" style="--c:${css(color(s.color))}"></span>${esc(s.label)}</div>`).join('')}
         ${kindsShown.length ? `<h3>${esc(lg.groups_title || 'Sphères')}</h3>` + kindsShown.map(k => {
-          const seen = new Map(); for (const s of spheres) if (s.kind === k && !seen.has(s.color)) seen.set(s.color, s.obj.legend || s.obj.name || (kinds[k] || {}).label || k);
-          return [...seen].map(([col, l]) => `<div class="wc-legend-row"><span class="sw" style="--c:${css(col)}"></span>${esc(l)}</div>`).join(''); }).join('') : ''}
+          // Une ligne par couleur ; elle filtre quand une SEULE sphère porte cette couleur.
+          const seen = new Map();
+          for (const s of spheres) if (s.kind === k) {
+            if (!seen.has(s.color)) seen.set(s.color, { l: s.obj.legend || s.obj.name || (kinds[k] || {}).label || k, ss: [] });
+            seen.get(s.color).ss.push(s);
+          }
+          return [...seen].map(([col, { l, ss }]) => ss.length === 1
+            ? `<div class="wc-legend-row${groupOnly === ss[0] ? ' only' : ''}" data-group="${spheres.indexOf(ss[0])}" title="Clic : ne garder que ses membres"><span class="sw" style="--c:${css(col)}"></span>${esc(l)}</div>`
+            : `<div class="wc-legend-row"><span class="sw" style="--c:${css(col)}"></span>${esc(l)}</div>`).join(''); }).join('') : ''}
         ${lg.groups_note ? `<p class="mute">${esc(lg.groups_note)}</p>` : ''}
         ${(lg.links || []).length ? `<h3>${esc(lg.links_title || 'Liens')}</h3>` + lg.links.map(l => `<div class="wc-legend-row"><span class="sw line" style="--c:${css(color(l.color))}"></span>${esc(l.label)}</div>`).join('') : ''}
         ${(lg.notes || []).map(t => `<p class="mute">${esc(t)}</p>`).join('')}`;

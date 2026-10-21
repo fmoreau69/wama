@@ -13,7 +13,7 @@ CE QU'IL MESURE, pour chaque scène :
   1. la page de son registre porte le bouton « Constellation », qui y mène ;
   2. la scène se forme : la ligne de mesures est remplie, une étiquette par nœud du contrat ;
   3. chercher le premier nœud visible le choisit : le volet porte son nom, et « Les plus proches » ;
-     Échap rend la légende ;
+     Échap rend la légende ; la légende filtre (ne garder qu'une catégorie, puis tout montrer) ;
   4. chaque couche s'éteint et se rallume, chaque coloration s'applique, un poids change ;
 et sur tout le parcours, zéro erreur JS et aucune requête POST (la scène ne fait que LIRE).
 ⚠ Le compte de test reçoit le niveau administrateur le temps du passage (comme la constellation
@@ -36,6 +36,34 @@ JS_STATE = """() => {
         legend: panel.classList.contains('is-legend'),
     };
 }"""
+
+
+JS_COUNT = """() => {
+    const b = document.querySelector('.wc-stats b');
+    const box = document.querySelector('.wc-filters');
+    return { first: b ? Number(b.textContent) : null, stats: document.querySelector('.wc-stats').textContent.trim(),
+             box: !!box && !box.hidden, rows: document.querySelectorAll('.wc-panel [data-filter]').length };
+}"""
+
+
+def check_legend_filter(page):
+    """Le filtre de la légende (brique commune, 2026-10-21) — `None` si le geste tient, sinon la
+    faute. « ◎ » de la première ligne : ne garder que sa catégorie ; le compte ne peut que baisser
+    et le HUD rappelle le filtre ; « Tout montrer » rend l'état de départ."""
+    before = page.evaluate(JS_COUNT)
+    if not before['rows']:
+        return "la légende ne porte aucune ligne filtrante"
+    page.click('.wc-panel [data-filter] [data-only]', force=True)
+    page.wait_for_timeout(800)
+    only = page.evaluate(JS_COUNT)
+    if not only['box'] or only['first'] is None or only['first'] > before['first']:
+        return f"filtre « ne garder que » : avant {before['stats']!r}, après {only['stats']!r}, rappel {only['box']}"
+    page.click('.wc-filters [data-clear="@all"]', force=True)
+    page.wait_for_timeout(800)
+    after = page.evaluate(JS_COUNT)
+    if after['stats'] != before['stats'] or after['box']:
+        return f"« Tout montrer » : {after['stats']!r} au lieu de {before['stats']!r}"
+    return None
 
 
 def check_scene(key):
@@ -132,6 +160,13 @@ def check_scene(key):
                     if not page.evaluate(JS_STATE)['legend']:
                         faults.append("Échap ne rend pas la légende")
                     steps.append('nœud choisi par la recherche, Échap')
+
+                # 3bis. Filtrer depuis la légende : ne garder qu'une catégorie, puis tout montrer.
+                fault = check_legend_filter(page)
+                if fault:
+                    faults.append(fault)
+                else:
+                    steps.append('filtre de la légende posé puis retiré')
 
                 # 4. Couches, colorations, un poids.
                 for layer in scene.layers:

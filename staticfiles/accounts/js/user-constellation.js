@@ -90,8 +90,12 @@ function adapt(data) {
     nodes, groups, beams,
     links: data.shares.map(s => ({ from: s.from, to: s.to, count: s.count })),
     colorings: {
-      tier: { palette: Object.fromEntries(data.tiers.map(t => [t.key, `--wc-tier-${t.key}`])), fallback: 0x94a3b8 },
-      world: { palette: Object.fromEntries(Object.keys(data.worlds).map(w => [w, `--wc-world-${w}`])), fallback: 0x64748b },
+      // `legend` : les libellés des catégories, pour le rappel des filtres du HUD (la légende du
+      // volet est celle de ce module).
+      tier: { palette: Object.fromEntries(data.tiers.map(t => [t.key, `--wc-tier-${t.key}`])), fallback: 0x94a3b8,
+              legend: data.tiers.map(t => [t.label, t.key]) },
+      world: { palette: Object.fromEntries(Object.keys(data.worlds).map(w => [w, `--wc-world-${w}`])), fallback: 0x64748b,
+               legend: Object.entries(data.worlds).map(([k, l]) => [l, k]) },
     },
   };
 }
@@ -118,8 +122,8 @@ function legend(api) {
   return `<h2>Lire la constellation</h2>
       <p>Chaque étoile est une personne. Cliquez-en une pour tout voir d'elle : profil, métiers, droits, projets, partages, contributions et activité.</p>
       <h3>Étoiles</h3>
-      ${(api.state.colorBy === 'tier' ? data.tiers.map(t => [t.label, api.color(`--wc-tier-${t.key}`)]) : Object.entries(data.worlds).map(([k, l]) => [l, worldColor(api, k)]))
-        .map(([l, c]) => `<div class="wc-legend-row"><span class="sw star" style="--c:${css(c)}"></span>${esc(l)}</div>`).join('')}
+      ${(api.state.colorBy === 'tier' ? data.tiers.map(t => [t.label, api.color(`--wc-tier-${t.key}`), t.key]) : Object.entries(data.worlds).map(([k, l]) => [l, worldColor(api, k), k]))
+        .map(([l, c, cat]) => api.filterRow(api.state.colorBy, cat, `<span class="sw star" style="--c:${css(c)}"></span>${esc(l)}`)).join('')}
       <p class="mute">Taille = volume traité (journal). Étoile pâle = compte inactif.</p>
       <div class="wc-legend-row"><span class="sw" style="--c:${css(ROLE_PALETTE[0])};width:6px;height:6px;border:0;background:${css(ROLE_PALETTE[0])}"></span>Anneau de points : un par métier tenu</div>
       ${data.families.map(f => `<div class="wc-legend-row"><span class="sw sat" style="--c:${css(familyStyle(f.key).color)}"></span>Satellite : ${esc(f.label)}</div>`).join('')}
