@@ -99,6 +99,41 @@ class ACapabilitySlotGreysTheModelsWithoutItTest(SimpleTestCase):
         self.assertTrue(state['composer:musicgen-medium'])
 
 
+class AnInstanceFollowsItsSelectTest(SimpleTestCase):
+    """2026-10-21 — the Studio modal renders the model select in a panel that RE-RENDERS (the
+    select is recreated), and records only gestures (`WamaParams.isGesture`). Two properties of the
+    brick follow: the switch an entry forces is marked as a gesture, and an instance whose select
+    left the page does nothing (its switch would rewrite a detached select, whose stale value the
+    Studio panel would have recorded)."""
+
+    def _ctx(self):
+        ctx = _v8(self)
+        ctx.eval("var sent = []; select.dispatchEvent = function (e) { sent.push(e); };"
+                 "var fileInput = { id: 'f', type: 'file', files: [],"
+                 "  addEventListener: function (t, f) { listeners.push(['file', t, f]); } };"
+                 "byId.f = fileInput;"
+                 "var m = WamaInputMatch.init({ selectId: 'modelSelect', inputLabels: {},"
+                 "  meta: { 'composer:musicgen-small': { inputs_optional: ['work_audio'] },"
+                 "          'huggingface:org/Singer': {} },"
+                 "  slots: { work_audio: { inputId: 'f' } } });")
+        return ctx
+
+    def test_the_switch_an_entry_forces_is_a_gesture(self):
+        ctx = self._ctx()
+        ctx.eval("fileInput.files = [{ name: 'melodie.wav' }]; m.refresh();")
+        self.assertNotEqual('huggingface:org/Singer', ctx.eval('select.value'))
+        self.assertTrue(ctx.eval('options[2].disabled'))
+        self.assertTrue(ctx.eval('sent.length === 1 && sent[0].wamaGesture === true'))
+
+    def test_an_instance_whose_select_left_the_page_does_nothing(self):
+        ctx = self._ctx()
+        ctx.eval("select.isConnected = false; fileInput.files = [{ name: 'melodie.wav' }];"
+                 " m.refresh();")
+        self.assertEqual('huggingface:org/Singer', ctx.eval('select.value'))
+        self.assertFalse(ctx.eval('options[2].disabled'))
+        self.assertEqual(0, ctx.eval('sent.length'))
+
+
 class TheAutoRuleIsTheServerOneTest(SimpleTestCase):
     """`isAutoValue` is the client twin of `auto_model.is_auto`: two rules « is it the draw? »
     that diverged would grey in the browser what the launch draws."""

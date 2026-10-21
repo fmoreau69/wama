@@ -49,9 +49,9 @@ def _element_app(node):
 
 def run_results(run, user) -> tuple:
     """`(résultats, non_conservés)` : chaque résultat `{'node', 'label', 'model', 'item'}` (une
-    card) ou `{'node', 'label', 'path'}` (un fichier) ; chaque non conservé `{'node', 'label',
-    'reason'}`. Seuls les bouts RÉUSSIS comptent ; une card se lit par la règle de lecture commune
-    (`visible_or_404`)."""
+    card) ou `{'node', 'label', 'path'}` (un fichier), plus `name` quand la ligne de lot de son
+    élément porte un `-o` ; chaque non conservé `{'node', 'label', 'reason'}`. Seuls les bouts
+    RÉUSSIS comptent ; une card se lit par la règle de lecture commune (`visible_or_404`)."""
     from django.http import Http404
     from wama.common.models import JOB_SUCCESS
     from wama.common.services import process_runs
@@ -59,14 +59,19 @@ def run_results(run, user) -> tuple:
     from wama.common.utils.scoping import visible_or_404
     from wama.filemanager.services import resoudre_chemin_lisible
     from .node_params import node_label
-    # Un run de LOT (2026-10-20) : les résultats de chacun de ses éléments, dans leur ordre.
+    from .entries import element_output
+    # Un run de LOT (2026-10-20) : les résultats de chacun de ses éléments, dans leur ordre. Le
+    # `-o` de la ligne d'un élément (2026-10-21) nomme ses résultats (`name`), comme il nomme
+    # l'entrée du ZIP d'un lot d'app.
     elements = list(run.elements.order_by('pk')) if run.pk else []
     if elements:
         results, missing = [], []
         for index, element in enumerate(elements, start=1):
             got, lost = run_results(element, user)
-            results += got
-            missing += [dict(m, label=f"élément {index} · {m['label']}") for m in lost]
+            name = element_output(element.graph)
+            results += [dict(r, name=name) if name else r for r in got]
+            said = f"élément {index}" + (f" ({name})" if name else '')
+            missing += [dict(m, label=f"{said} · {m['label']}") for m in lost]
         return results, missing
     states = run.node_states or {}
     results, missing = [], []
@@ -111,7 +116,9 @@ def run_archive(run, user, request):
     results, missing = run_results(run, user)
     for result in results:
         if 'item' in result:
-            archive.add_elements(result['model'], [result['item']], request)
+            archive.add_elements(result['model'], [result['item']], request,
+                                 name=result.get('name', ''))
         else:
-            archive.add_file(result['path'])
+            archive.add_file(result['path'], archive.named(result.get('name', ''),
+                                                           result['path'].suffix))
     return archive, missing

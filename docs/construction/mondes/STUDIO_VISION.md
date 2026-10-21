@@ -370,15 +370,44 @@ résume chaque nœud par la règle d'un lot d'app (`batch_views.lot_overview`, e
 | port = argument de l'outil | `generic_runner.port_arguments` | — |
 | ce qu'un nœud reçoit (inspecteur) | `graph_flow.node_context` | les ports d'une card entière |
 
+### ✅ Livré le 2026-10-21 — l'appariement dans la modale, et le `-o` d'une ligne de lot
+
+**L'appariement entrée ↔ modèle** relie la card de la modale au select de modèle de son volet,
+par le geste des pages d'app (`WamaInputMatch.init`, slots = ports de la card lus par sa brique,
+comme le composer). Le serveur dit quoi apparier (`input_match.card_match`, joint aux ids de la
+card) : le select de modèle du schéma (`auto_model.catalog_field`, celui que le tirage lit), son
+domaine (`select_match_meta`) et les seuls ports FICHIER qu'il JUGE — ceux qu'au moins un de ses
+modèles nomme. Le premier select du schéma ne juge pas toujours la card : l'audio de l'enhancer
+alimente son moteur audio, le fichier du describer sa cascade ; jugés par ce select, ils
+grisaient TOUS ses modèles (mesuré). Fourni = joint, désigné, URL saisie, ou déjà retenu par la
+card. Rebranché à chaque rendu du volet (`mountNodeSettings(…, {onRender})`). Deux propriétés
+gagnées par la brique : la bascule qu'une entrée impose est un GESTE (`wamaGesture` — le Studio
+n'enregistre que les gestes ; sans lui, le volet montrait le modèle basculé quand le nœud gardait
+l'exclu), et une instance dont le select a quitté la page ne fait plus rien. Vérifié sur la page
+servie : une image grise les 6 modèles texte → image de l'imager, avec la phrase qui dit
+pourquoi ; un modèle choisi puis exclu bascule, et le nœud l'enregistre ; le describer ne grise
+rien de plus (contre-épreuve).
+
+**Le `-o` d'une ligne de lot** nomme le résultat de SON élément dans le ZIP du run — ce qu'il
+nomme dans le ZIP d'un lot d'app (`output_filename` de la liaison au synthesizer et au composer).
+Posé sur l'élément au dépliage (`entry['output']`, `entries.card_lot`), lu par `run_results`,
+écrit par l'écrivain commun (`ResultArchive.add_elements(…, name=)` : la souche pour une app
+late-binding, l'extension du fichier s'il n'en porte pas). Le NOM seul, comme chez les apps : la
+destination reste à faire (`BATCH_FORMAT.md` § `-o`) ; un dossier dans la valeur est retiré — il
+serait devenu un chemin dans le ZIP, `..` compris.
+
 **Ce qui reste, nommé :**
-- **L'appariement entrée ↔ modèle dans la modale** (`WamaInputMatch`) : la card montre sa ligne
-  d'état, mais rien ne la relie encore au sélecteur de modèle du volet de la modale — chaque app
-  câble le sien sur sa page, avec les métadonnées de ses modèles.
+- **Les slots de VALEUR dans la modale** (langue, voix clonée, capacité : `langSlot`, `voiceSlot`,
+  `capabilitySlot`) et la **modalité** du describer (`modalitySlot`) : la modale n'apparie que les
+  ports fichier de la card avec le premier select de modèle du schéma ; les règles propres d'une
+  page (les trois selects du describer, le moteur audio de l'enhancer) n'y sont pas.
 - **La card universelle NON branchée** n'accepte rien encore : elle prend la forme de la card de
   l'app qu'elle alimente (« Reliez la card à une app »). « Accepter tout fichier, comme
   l'assistant » avant le branchement reste à faire.
-- **Le nom de sortie d'une ligne de lot** (`-o`) n'est pas appliqué au Studio ; une ligne qui le
-  porte n'échoue pas, il est ignoré (comme chez les apps de type A, `BATCH_FORMAT.md`).
+- **La destination d'un `-o`** (copie dans un dossier monté, décision du 2026-08-25) : ni les apps
+  ni le Studio ne l'appliquent. Et le lot que forment les cards d'un run dans la FILE de l'app
+  (`consolidate_arrival`) garde les noms de l'app : le `-o` ne nomme que le ZIP du run, pas encore
+  la ligne de liaison du synthesizer et du composer (`output_filename`).
 - **Une ligne de lot programmée** (`--when`/`--at`) : le réglage est refusé comme inconnu de l'app
   — la programmation d'un run du Studio n'existe pas.
 - **Les colonnes d'une ligne nommées par PORT** valent au Studio (`line_to_ports`) ; les vues de lot

@@ -1801,7 +1801,8 @@ MECHANISMS = (
               annexes=('wama/common/static/common/js/wama-model-caps.js',
                        'wama/common/static/common/js/wama-input-match.js',
                        # Côté SERVEUR de wama-input-match (meta catalogue + labels INPUT_TYPES),
-                       # extrait de composer/imager le 2026-08-17 (adoption ×7).
+                       # extrait de composer/imager le 2026-08-17 (adoption ×7) ; `card_match`
+                       # (2026-10-21) : la card d'une app à côté de son volet généré (Studio).
                        'wama/common/utils/input_match.py',
                        # Spécialisation TTS du côté serveur : les DEUX apps à select de moteur
                        # TTS (synthesizer, avatarizer) lisent le même catalogue. Extrait de

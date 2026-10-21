@@ -164,6 +164,11 @@
 
     // ── Cœur : appliquer l'appariement dans les deux directions ────────────
     function refresh() {
+      // Une instance dont le select a QUITTÉ la page (volet re-rendu, modale recréée) ne fait plus
+      // rien (2026-10-21) : ses slots écoutent encore, et sa bascule réécrirait un select détaché
+      // — dont le volet du Studio aurait enregistré la valeur périmée dans le graphe. `=== false` :
+      // un select sans la propriété (faux DOM de test) reste jugé.
+      if (select.isConnected === false) return { provided: [], launchable: true, reason: '' };
       const prov = provided();
       const causes = {};   // input_id -> nb de modèles désactivés
       Array.from(select.options).forEach((opt) => {
@@ -195,7 +200,15 @@
       const cur = select.selectedOptions[0];
       if (cur && cur.disabled) {
         const first = Array.from(select.options).find((o) => o.value && !o.disabled);
-        if (first) { select.value = first.value; select.dispatchEvent(new Event('change', { bubbles: true })); }
+        if (first) {
+          select.value = first.value;
+          // La bascule SUIT un geste (une entrée fournie a exclu le modèle) : elle se marque comme
+          // telle (`WamaParams.isGesture`, 2026-10-21) — le Studio n'enregistre que les gestes, et
+          // sans ce marquage son volet montrait le modèle basculé quand le nœud gardait l'exclu.
+          const changed = new Event('change', { bubbles: true });
+          changed.wamaGesture = true;
+          select.dispatchEvent(changed);
+        }
       }
       // Direction MODÈLE→ENTRÉES : mettre en évidence les slots attendus.
       let launchable = true, reason = '';

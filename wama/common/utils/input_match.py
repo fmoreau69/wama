@@ -116,6 +116,40 @@ def select_match_meta(app_id: str, field: str, extra_caps: tuple = (),
     return meta
 
 
+def card_match(app_id: str, ports) -> Dict[str, Any]:
+    """L'appariement de la CARD d'une app rendue À CÔTÉ de son volet généré — `{field, meta,
+    labels, ports}`, ou `{}` s'il n'y a rien à apparier (2026-10-21, modale d'une card d'entrée du
+    Studio : `STUDIO_VISION §Entrées du Studio`).
+
+    `field` : le select de modèle du schéma (`auto_model.catalog_field`, celui que le tirage lit) ;
+    `meta` : son domaine (`select_match_meta`) ; `ports` : les ports FICHIER de la card que ce
+    select JUGE — ceux qu'au moins un de ses modèles nomme. Un port qu'aucun de ses modèles ne
+    nomme alimente un autre moteur ou une autre étape (l'audio de l'enhancer et son moteur audio,
+    le fichier du describer et sa cascade) : le juger ici griserait TOUS les modèles du select
+    (mesuré le 2026-10-21). Les entrées de la meta sont bornées à ces ports — la ligne d'état ne
+    parle que de ce que la card fournit.
+    `ports` (argument) : la forme de `studio_node_ports()['inputs']`. Fail-safe {}."""
+    from wama.common.utils.auto_model import catalog_field
+    try:
+        field = catalog_field(app_id)
+    except Exception:
+        return {}
+    if not field:
+        return {}
+    meta = select_match_meta(app_id, field.get('name'))
+    named = {t for entry in meta.values()
+             for t in (entry.get('inputs_required') or []) + (entry.get('inputs_optional') or [])}
+    judged = [p.get('id') for p in ports or []
+              if p.get('group') != 'prompt' and p.get('id') in named]
+    if not judged:
+        return {}
+    bounded = {mid: {**entry,
+                     'inputs_required': [t for t in entry.get('inputs_required') or [] if t in judged],
+                     'inputs_optional': [t for t in entry.get('inputs_optional') or [] if t in judged]}
+               for mid, entry in meta.items()}
+    return {'field': field.get('name'), 'meta': bounded, 'labels': input_labels(), 'ports': judged}
+
+
 def auto_entry(meta: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """Entrée du pseudo-modèle « auto » d'un select : intersection des requis, union du
     reste en optionnel (l'auto accepte ce qu'au moins UN candidat accepte). Extrait au 2ᵉ

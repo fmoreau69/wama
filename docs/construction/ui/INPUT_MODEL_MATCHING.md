@@ -192,6 +192,10 @@ transmettait qu'un. Convention « port = argument du même nom de l'outil » et 
   importés ») n'offrent ni les modalités par port, ni plusieurs fichiers, ni le fichier de lot.
   La réponse décidée est de rendre la v4 ELLE-MÊME dans le Studio — card d'entrée universelle
   et cards simplifiées : `STUDIO_VISION.md §Entrées du Studio`.
+- *2026-10-21* — l'appariement y suit : la modale du Studio relie la card au select de modèle de
+  son volet (`input_match.card_match`). Règle écrite à cette occasion : **un select ne juge que les
+  ports qu'au moins un de ses modèles nomme** — un port qu'il ne nomme pas alimente un autre
+  moteur ou une autre étape, et le juger grisait tous les modèles du select.
 
 ⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
 C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.

@@ -20,7 +20,8 @@
  *         'files' — UN port (card simplifiée de travail / de référence) : son onglet seul ;
  *         'lot'   — l'onglet du fichier de lot seul ;
  *   entry — ce que la card retient déjà (`{ports, prompt, lot}` ou `{files}`), montré au-dessus ;
- *   settings(host) — monte le volet (réglages du nœud de l'app) dans `host` ;
+ *   settings(host, rendered) — monte le volet (réglages du nœud de l'app) dans `host` et rappelle
+ *         `rendered()` à chaque rendu : l'appariement entrée ↔ modèle s'y branche ;
  *   onSave(entry) — reçoit le contenu composé.
  */
 (function (global) {
@@ -28,12 +29,15 @@
 
     // Les ids de la card servie : DÉCLARÉS par le serveur (`studio/views.ENTRY_CARD_IDS`), joints au
     // fragment sous l'élément `studioEntryIds` et relus à chaque ouverture — jamais recopiés ici.
-    var IDS = {};
+    // Avec eux, l'appariement de la card (`input_match.card_match`) : `{field, meta, labels, ports}`.
+    var IDS = {}, MATCH = {};
     function readIds() {
         var host = document.getElementById('studioEntryIds');
         var ids = host ? JSON.parse(host.textContent) : {};
         IDS = { card: ids.card_id, files: ids.file_input_id, drop: ids.drop_zone_id,
-                folder: ids.folder_input_id, prompt: ids.prompt_input_id, lot: ids.batch_bid };
+                folder: ids.folder_input_id, prompt: ids.prompt_input_id, lot: ids.batch_bid,
+                match: ids.match_status_id };
+        MATCH = ids.match || {};
     }
     var modal = null, state = null;
 
@@ -99,6 +103,7 @@
                 else if (row[0] === 'lot') delete state.entry.lot;
                 else state.entry.ports[row[1]].splice(row[2], 1);
                 renderKept();
+                if (state.match) state.match.refresh();
             });
             chip.appendChild(x);
             host.appendChild(chip);
@@ -120,6 +125,44 @@
                 '<small class="text-warning p-2 d-block">Cette app n’a pas d’entrée « '
                 + esc(state.port || state.mode) + ' » dans sa card.</small>';
         }
+    }
+
+    // ── L'appariement entrée ↔ modèle : la card à gauche, le select de modèle du volet à droite ──
+    // Le geste des pages d'app (`WamaInputMatch.init`, slots = ports de la card par sa brique,
+    // comme le composer), sur ce que le serveur a lu (`card_match`) : le select de modèle du schéma
+    // et les seuls ports qu'il JUGE. Une entrée fournie grise les modèles qui ne la prennent pas ;
+    // la ligne d'état de la card dit pourquoi. Fournie = jointe, désignée, une URL saisie, ou déjà
+    // RETENUE par la card du Studio. Rejoué à chaque rendu du volet (le select est recréé).
+    function provided(port, input, urlId) {
+        var url = urlId ? document.getElementById(urlId) : null;
+        var kept = state.mode === 'files' ? state.entry.files : (state.entry.ports || {})[port];
+        return !!((input && input.files && input.files.length)
+                  || (global.WamaApp && WamaApp.designationOf && WamaApp.designationOf(input))
+                  || (url && url.value.trim()) || refs(kept).length);
+    }
+    function wireMatch() {
+        var card = IDS.card ? document.getElementById(IDS.card) : null;
+        var host = state && state.settingsHost;
+        if (!card || !host || !global.WamaInputMatch || !MATCH.field) return;
+        var row = host.querySelector('[data-param-row="' + MATCH.field + '"]');
+        var select = row ? row.querySelector('select') : null;
+        if (!select || !select.id || select === state.matchSelect) return;
+        var slots = {};
+        WamaInputSlots.filePorts(card).forEach(function (p) {
+            if ((MATCH.ports || []).indexOf(p.id) < 0 || (state.kept || []).indexOf(p.id) < 0) return;
+            slots[p.id] = { inputId: p.inputId, zoneId: p.zoneId,
+                            isProvided: function (input) { return provided(p.id, input, p.urlInputId); } };
+            var url = p.urlInputId ? document.getElementById(p.urlInputId) : null;
+            if (url && !url.dataset.studioMatch) {
+                url.dataset.studioMatch = '1';
+                url.addEventListener('input', function () { if (state.match) state.match.refresh(); });
+            }
+        });
+        if (!Object.keys(slots).length) return;
+        state.matchSelect = select;
+        state.match = WamaInputMatch.init({ selectId: select.id, meta: MATCH.meta || {},
+                                            inputLabels: MATCH.labels || {}, slots: slots,
+                                            statusId: IDS.match });
     }
 
     // Le fichier de lot (onglet du fichier de lot) : déposé, puis lu par la règle du lancement.
@@ -157,7 +200,10 @@
         cardHost.innerHTML = '<span class="text-body-secondary small"><i class="fas fa-spinner fa-spin me-1"></i>Chargement de la card…</span>';
         var settingsHost = modal.querySelector('[data-entry-settings]');
         settingsHost.textContent = '';
-        if (opts.settings) opts.settings(settingsHost);
+        state.settingsHost = settingsHost;
+        // `settings(host, rendered)` : `rendered` est rappelé à chaque rendu du volet — le select de
+        // modèle est alors neuf, l'appariement s'y rebranche.
+        if (opts.settings) opts.settings(settingsHost, wireMatch);
         else settingsHost.innerHTML = '<span class="small text-body-secondary">Aucun réglage ici.</span>';
         renderKept();
         bootstrap.Modal.getOrCreateInstance(modal).show();
@@ -178,6 +224,7 @@
                 if (global.WamaInputSlots) WamaInputSlots.wire(card);
                 keepOnly(card);
                 lotAdapter(card);
+                wireMatch();
                 if (global.WamaImport && document.getElementById(IDS.drop)) {
                     // eslint-disable-next-line no-new
                     new WamaImport({ dropZoneId: IDS.drop, fileInputId: IDS.files,

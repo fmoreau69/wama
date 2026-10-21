@@ -257,7 +257,9 @@ ligne dans les PORTS du nœud qu'elle alimente, par deux fonctions communes de `
   `-r` au premier port de référence, à défaut au premier port de travail secondaire (l'avatar de
   l'avatarizer). Les autres options sont des RÉGLAGES de l'élément : un réglage que l'app ne
   connaît pas se refuse au lancement, comme un rôle qu'aucun port ne reçoit — une colonne ne se
-  perd pas en silence. `-o` n'est pas appliqué au Studio.
+  perd pas en silence. `-o` (2026-10-21) nomme le résultat de son élément dans le ZIP du run
+  (`ResultArchive.add_elements(…, name=)`) — le NOM, sans dossier, comme chez les apps ; la
+  destination n'y est pas plus appliquée qu'ailleurs (`STUDIO_VISION §Entrées du Studio`).
 
 ⚠ Les vues de lot des apps gardent chacune leur correspondance (tableau ci-dessus) : aucune ne lit
 encore `line_to_ports`.

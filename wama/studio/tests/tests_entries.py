@@ -124,7 +124,7 @@ class DownloadToUserTest(_MediaCase):
 
 class DeclaredModeTest(SimpleTestCase):
 
-    def test_the_mode_of_a_url_is_the_one_the_app_declares(self):
+    def test_the_mode_of_a_url_is_the_one_the_app_states(self):
         """Read from `WAMA_INGEST`, never re-derived from a nature: the describer keeps a web page
         (`smart`), the transcriber takes the audio of a platform (`audio`) — a nature table gave
         the describer `media` (multi-nature port), and a page would have been fetched as a file."""
@@ -247,6 +247,20 @@ class LotGraphsTest(_MediaCase):
         self.assertEqual(1, len(graphs))
         self.assertNotIn('lot', graphs[0]['nodes'][0]['params']['entry'])
 
+    def test_the_output_name_of_a_line_goes_with_its_element_without_any_folder(self):
+        """`-o` names the element (`BATCH_FORMAT.md`: the NAME is honoured, not yet the
+        destination) — a folder in it would become a path inside the run ZIP, `..` included."""
+        from wama.studio.services.entries import CARD_PORT_ID, element_output, lot_graphs
+        lot = self.own('named.txt', b'-i a.wav -o "intro.wav"\n'
+                                    b'-i b.wav -o "../../ailleurs/fin"\n-i c.wav\n')
+        graph = _graph({'id': 's', 'app': 'batch_input', 'params': {'entry': {'lot': lot}}},
+                       target='avatarizer', port=CARD_PORT_ID)
+        with _avatar_ports():
+            graphs = lot_graphs(self.user, graph)
+        self.assertEqual(['intro.wav', 'fin', ''], [element_output(g) for g in graphs])
+        self.assertNotIn('output', graphs[2]['nodes'][0]['params']['entry'])
+        self.assertEqual('', element_output(graph), 'the lot run itself names nothing')
+
     def test_what_cannot_be_played_is_refused_before_anything_runs(self):
         from wama.studio.services.entries import CARD_PORT_ID, lot_graphs
         unknown = self.own('bad.txt', b'-i a.wav --nope 1\n-i b.wav\n')
@@ -368,7 +382,7 @@ class EngineLotTest(_MediaCase):
         self.assertEqual(received['work_audio'], received['audio'],
                          'the principal entry is also found by its nature')
 
-    def test_a_url_sent_to_an_app_is_fetched_in_the_mode_it_declares(self):
+    def test_a_url_sent_to_an_app_is_fetched_in_the_mode_it_states(self):
         fetched = []
 
         def download(user, url, mode):
@@ -481,7 +495,7 @@ class PaletteAndInspectorTest(_MediaCase):
         self.assertNotIn(CARD_PORT_ID, [p['id'] for p in studio_node_ports('describer')['inputs']],
                          'the derived port does not leak into the card v4 tabs nor the manifests')
 
-    def test_media_and_data_inputs_declare_their_world(self):
+    def test_media_and_data_inputs_name_their_world(self):
         from wama.studio.services.palette import palette_nodes
         nodes = palette_nodes(self.user)
         for key in ('text_input', 'card_input', 'media_import', 'reference_input', 'batch_input'):
@@ -492,7 +506,7 @@ class PaletteAndInspectorTest(_MediaCase):
         self.assertEqual(WORLD_SECTIONS['media']['label'], nodes['card_input']['world_label'],
                          'the label of a world is the one the worlds declare')
 
-    def test_the_input_sections_follow_the_order_the_worlds_declare(self):
+    def test_the_input_sections_follow_the_order_the_worlds_set(self):
         from wama.common.app_registry import WORLD_SECTIONS
         from wama.studio.services.palette import palette_nodes
         worlds = []
@@ -502,7 +516,7 @@ class PaletteAndInspectorTest(_MediaCase):
         self.assertEqual(sorted(worlds, key=lambda w: WORLD_SECTIONS[w]['order']), worlds)
         self.assertEqual(['media', 'data'], worlds)
 
-    def test_each_input_card_declares_what_its_modal_shows(self):
+    def test_each_input_card_states_what_its_modal_shows(self):
         from wama.studio.services.palette import palette_nodes
         nodes = palette_nodes(self.user)
         self.assertEqual({'card_input': 'card', 'batch_input': 'lot', 'media_import': 'files',
@@ -524,6 +538,37 @@ class PaletteAndInspectorTest(_MediaCase):
                          'the text to say is PROVIDED by the card, not typed on the node')
 
 
+class CardMatchTest(SimpleTestCase):
+    """The input ↔ model matching of an app's card shown NEXT TO its generated panel (2026-10-21):
+    the model select of the schema, and only the ports it JUDGES."""
+
+    PORTS = [{'id': 'prompt', 'group': 'prompt'}, {'id': 'work_file', 'group': 'travail'},
+             {'id': 'work_audio', 'group': 'travail'}]
+
+    def _match(self, meta, field={'name': 'model'}):
+        from wama.common.utils import auto_model, input_match
+        with mock.patch.object(auto_model, 'catalog_field', lambda app: field), \
+                mock.patch.object(input_match, 'select_match_meta', lambda app, name: meta):
+            return input_match.card_match('app', self.PORTS)
+
+    def test_a_port_no_model_of_the_select_names_is_not_judged_by_it(self):
+        """The audio of the enhancer feeds ANOTHER engine, the file of the describer its cascade:
+        judged by this select, it greyed every model (measured on 2026-10-21)."""
+        match = self._match({'m1': {'inputs_required': ['work_file', 'prompt']},
+                             'm2': {'inputs_optional': ['work_image']}})
+        self.assertEqual('model', match['field'])
+        self.assertEqual(['work_file'], match['ports'])
+        self.assertEqual({'m1': ['work_file'], 'm2': []},
+                         {k: v['inputs_required'] + v['inputs_optional']
+                          for k, v in match['meta'].items()},
+                         'the status line speaks only of what the card provides')
+        self.assertIn('work_file', match['labels'])
+
+    def test_nothing_to_match_gives_nothing(self):
+        self.assertEqual({}, self._match({'m1': {'inputs_required': ['work_image']}}))
+        self.assertEqual({}, self._match({'m1': {'inputs_required': ['work_file']}}, field=None))
+
+
 class EntryCardViewTest(_MediaCase):
 
     def setUp(self):
@@ -542,6 +587,17 @@ class EntryCardViewTest(_MediaCase):
         self.assertIn('id="studioEntryIds"', html, 'the ids travel with the card, read by the modal')
         self.assertIn(json.dumps(ENTRY_CARD_IDS['card_id']), html)
         self.assertIn('le pipeline tournera une fois par ligne', html)
+
+    def test_the_matching_travels_with_the_card(self):
+        from wama.common.utils import input_match
+        declared = {'field': 'model', 'meta': {'m': {'inputs_required': ['work_file']}},
+                    'labels': {}, 'ports': ['work_file']}
+        with mock.patch.object(input_match, 'card_match', lambda app, ports: declared):
+            html = self.client.get('/studio/api/entry-card/', {'app': 'anonymizer'}).content.decode()
+        payload = json.loads(html[html.index('id="studioEntryIds"'):].split('>', 1)[1]
+                             .split('</script>', 1)[0])
+        self.assertEqual(declared, payload['match'])
+        self.assertIn('id="studioEntryMatch"', html, 'the status line of the matching is rendered')
 
     def test_an_app_page_is_unchanged(self):
         from django.template.loader import render_to_string
@@ -567,7 +623,8 @@ class EntryCardViewTest(_MediaCase):
     def test_the_served_page_loads_the_bricks_of_the_card(self):
         page = self.client.get('/studio/').content.decode('utf-8', errors='replace')
         for script in ('common/js/wama-input-slots.js', 'common/js/wama-import.js',
-                       'common/js/batch-import.js', 'studio/js/wama-studio-entry.js'):
+                       'common/js/batch-import.js', 'common/js/wama-input-match.js',
+                       'studio/js/wama-studio-entry.js'):
             self.assertIn(script, page)
         self.assertLess(page.index('studio/js/wama-studio-entry.js'),
                         page.index('studio/js/wama-studio.js'))
@@ -619,6 +676,20 @@ var card = {querySelectorAll: function (sel) { return sel === '[data-port-tab]' 
         canvas = self._src('studio/js/wama-studio.js')
         self.assertIn('metaOf(node).compose', canvas)
         self.assertNotIn('ENTRY_MODES', canvas, 'what a modal shows is declared by the registry')
+
+    def test_the_modal_matches_the_card_with_the_model_select_of_its_panel(self):
+        """The gesture of the app pages (`WamaInputMatch.init`, slots = the card's ports by its
+        brick), on the select the SERVER named — rewired at each render of the panel."""
+        src = self._src('studio/js/wama-studio-entry.js')
+        self.assertIn('WamaInputMatch.init(', src)
+        self.assertIn("'[data-param-row=\"' + MATCH.field + '\"]'", src)
+        self.assertIn('statusId: IDS.match', src)
+        self.assertIn('opts.settings(settingsHost, wireMatch)', src)
+        canvas = self._src('studio/js/wama-studio.js')
+        self.assertIn('onRender: rendered', canvas)
+        import re
+        self.assertEqual(2, len(re.findall(r'^\s*rendered\(\);$', canvas, re.M)),
+                         'called after BOTH renders of the panel')
 
     def test_input_slots_exposes_its_wiring_for_a_card_rendered_later(self):
         from py_mini_racer import MiniRacer

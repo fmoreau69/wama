@@ -697,7 +697,9 @@
             WamaStudioEntry.open({
                 app: app, mode: mode, port: target.port, entry: entry,
                 title: (metaOf(node).label || node.app) + ' → ' + (a.label || app),
-                settings: function (host) { mountNodeSettings(host, target.node, { always: true }); },
+                settings: function (host, rendered) {
+                    mountNodeSettings(host, target.node, { always: true, onRender: rendered });
+                },
                 onSave: function (composed) {
                     node.params = Object.assign({}, node.params || {}, { entry: composed });
                     persistDraft();
@@ -746,7 +748,11 @@
         wrap.appendChild(host);
         // Dans le DOM AVANT le rendu : les sources d'options retrouvent leur select par id.
         body.appendChild(wrap);
+        // `onRender` : rappelé après chaque rendu (le volet de la modale d'entrée y rebranche
+        // l'appariement entrée ↔ modèle, son select étant recréé).
+        var rendered = function () { if (opts.onRender) opts.onRender(host); };
         renderNodeSettings(host, received, schema, node, null);
+        rendered();
         // Ce que REÇOIT le nœud — le graphe porteur de valeurs (2026-10-18, ROUTE §10.6 3.3bis
         // règle 5) : la nature de ce qui lui est branché, le texte d'une saisie, ce que porte
         // l'élément d'une étape. Calculé par le SERVEUR (`graph_flow.node_context`, le parcours du
@@ -759,6 +765,7 @@
             // d'entrée montre les réglages de l'app qu'elle alimente).
             if ((!opts.always && selected !== node.id) || !host.isConnected) return;
             renderNodeSettings(host, received, schema, node, context);
+            rendered();
         }).catch(function (err) {
             received.innerHTML = '<span class="text-danger">Entrées du nœud indisponibles : '
                 + esc(err && err.message ? err.message : String(err)) + '</span>';

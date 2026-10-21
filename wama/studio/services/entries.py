@@ -10,7 +10,8 @@ Ce qu'elle retient vit dans son réglage `entry` :
     {'ports':  {'<port>': ['users/<id>/temp/a.wav', 'https://…'], …},   # card universelle
      'prompt': 'texte',                                                  # sa consigne
      'lot':    'users/<id>/temp/lot.csv',                                # un fichier de lot
-     'files':  ['…'] }                                                   # card simplifiée d'un port
+     'files':  ['…'],                                                    # card simplifiée d'un port
+     'output': 'intro.wav' }      # le `-o` d'une ligne de lot, posé sur l'élément au dépliage
 
 Chaque chemin passe les gardes de la désignation (`media_paths.check_designation`) ; une URL est
 téléchargée AU LANCEMENT, au mode que l'app destinataire déclare (`received_value`,
@@ -167,9 +168,10 @@ def target_ports(graph, node_id) -> tuple:
 
 def lot_lines(user, ref, ports, label) -> list:
     """Les lignes d'un fichier de lot désigné, rangées dans les PORTS du nœud alimenté —
-    `[({port: valeur}, réglages)]` (`batch_parsers.parse_batch_lines` / `line_to_ports`). Une
-    ligne sans fichier ni consigne se lit dans la famille de l'app : une consigne par ligne quand
-    sa consigne suffit à créer l'élément (`principal_entry`), un fichier par ligne sinon."""
+    `[({port: valeur}, réglages, nom de sortie)]` (`batch_parsers.parse_batch_lines` /
+    `line_to_ports` ; le nom de sortie est le `-o` de la ligne, `''` sans lui). Une ligne sans
+    fichier ni consigne se lit dans la famille de l'app : une consigne par ligne quand sa consigne
+    suffit à créer l'élément (`principal_entry`), un fichier par ligne sinon."""
     import os
 
     from django.conf import settings
@@ -189,10 +191,28 @@ def lot_lines(user, ref, ports, label) -> list:
     out = []
     for line in lines:
         try:
-            out.append(line_to_ports(line, ports))
+            out.append((*line_to_ports(line, ports), output_name(line.get('output'))))
         except ValueError as exc:
             raise ValueError(f"Nœud « {label} » : {exc}")
     return out
+
+
+def output_name(value) -> str:
+    """Le NOM de sortie d'une ligne de lot (`-o`), sans dossier : le Studio honore le nom, comme
+    les apps, pas encore la destination (`BATCH_FORMAT.md` § `-o`). Le dossier est retiré — il
+    deviendrait un chemin dans le ZIP du run, `..` compris."""
+    import posixpath
+    return posixpath.basename(str(value or '').replace('\\', '/').strip())
+
+
+def element_output(graph) -> str:
+    """Le nom de sortie d'un ÉLÉMENT de lot (le graphe d'un run enfant) : celui que sa ligne a
+    posé dans la card d'entrée (`entry['output']`, `card_lot`), `''` sans lui."""
+    for node in (graph or {}).get('nodes') or []:
+        name = entry_of(node.get('params')).get('output')
+        if name:
+            return output_name(name)
+    return ''
 
 
 def node_elements(user, graph, node) -> list:
@@ -222,11 +242,16 @@ def card_lot(user, graph, node) -> list:
             raise ValueError(f"Nœud « {label} » : reliez-le au port « Entrée de card » d'une app "
                              f"— ses lignes se rangent dans les ports de cette app.")
         elements = []
-        for line_ports, line_settings in lot_lines(user, entry['lot'], target_inputs, label):
+        for line_ports, line_settings, line_output in lot_lines(user, entry['lot'],
+                                                                target_inputs, label):
             fixed = {p: refs[:1] for p, refs in ports.items()}
             fixed.update({p: [v] for p, v in line_ports.items() if p != 'prompt'})
-            elements.append(({'ports': fixed,
-                              'prompt': line_ports.get('prompt') or prompt}, line_settings))
+            element = {'ports': fixed, 'prompt': line_ports.get('prompt') or prompt}
+            # Le `-o` de la ligne nomme le résultat de CET élément dans le ZIP du run
+            # (`run_results.run_archive`), comme il nomme l'entrée du ZIP d'un lot d'app.
+            if line_output:
+                element['output'] = line_output
+            elements.append((element, line_settings))
         return elements
     work = entry_form(target_inputs)['work'] if target_inputs else ''
     work = work or next((p for p, refs in ports.items() if len(refs) > 1), '')

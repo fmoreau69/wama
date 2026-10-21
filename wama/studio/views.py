@@ -239,13 +239,19 @@ def api_entry_card(request):
     except NoReverseMatch:
         template_url = ''
     from django.utils.html import json_script
+    from wama.common.app_registry import studio_node_ports
+    from wama.common.utils.input_match import card_match
     html = render_to_string('common/_new_item_card_v4.html', {
         **ENTRY_CARD_IDS, 'app_id': app, 'compose_only': True, 'prompt_rows': 3,
         'url_hint': 'téléchargée au lancement — un fichier joint prime',
         'batch_template_url': template_url,
     }, request=request)
-    # Les ids de la card, joints au fragment : la modale les LIT ici au lieu de les recopier.
-    return HttpResponse(html + json_script(ENTRY_CARD_IDS, ENTRY_CARD_IDS_ELEMENT))
+    # Les ids de la card, joints au fragment : la modale les LIT ici au lieu de les recopier. Avec
+    # eux, l'appariement entrée ↔ modèle de la card (`input_match.card_match`, 2026-10-21) : le
+    # select de modèle du volet et les ports qu'il juge, lus du schéma et du catalogue.
+    match = card_match(app, (studio_node_ports(app) or {}).get('inputs') or [])
+    return HttpResponse(html + json_script({**ENTRY_CARD_IDS, 'match': match},
+                                           ENTRY_CARD_IDS_ELEMENT))
 
 
 @login_required

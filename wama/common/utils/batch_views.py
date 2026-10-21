@@ -227,6 +227,15 @@ class ResultArchive:
     def add_file(self, path, name=''):
         self.entries.append((self._unique(name or Path(path).name), Path(path)))
 
+    @staticmethod
+    def named(name, suffix):
+        """Un nom IMPOSÉ à une entrée (le `-o` d'une ligne de lot du Studio), complété de
+        l'extension de son fichier s'il n'en porte pas — `''` sans nom."""
+        import os
+        if not name:
+            return ''
+        return name if os.path.splitext(name)[1] else f'{name}{suffix}'
+
     def zip(self):
         buf = io.BytesIO()
         # ZIP_DEFLATED : l'idiome des `batch_download` d'app (anonymizer, synthesizer, converter).
@@ -239,7 +248,7 @@ class ResultArchive:
         buf.seek(0)
         return buf
 
-    def add_elements(self, work_model, items, request, declaration=None):
+    def add_elements(self, work_model, items, request, declaration=None, name=''):
         """Ajoute les RÉSULTATS de `items` (seuls les éléments réussis) ; rend le format demandé.
 
         Une règle, dans cet ordre :
@@ -258,6 +267,8 @@ class ResultArchive:
 
         `declaration` : celle de la fabrique appelante (le ZIP de lot passe la sienne) ; absente, celle
         que l'app a inscrite pour ce modèle (`_ZIP_DECLARATIONS`, lue par le ZIP de file).
+        `name` : un nom IMPOSÉ, qui prime sur le nom déclaré — le `-o` d'une ligne de lot du Studio
+        (2026-10-21) ; sa souche pour une entrée rendue, l'extension du fichier s'il n'en porte pas.
         """
         import os
         from urllib.parse import unquote
@@ -282,17 +293,19 @@ class ResultArchive:
                     fmt != first and _render_safely(render, item, first))
                 if built:
                     ext, data = built
-                    self.add_bytes(f'{export_stem(work_model, item, decl)}.{ext}', data)
+                    stem = os.path.splitext(name)[0] if name else export_stem(work_model, item, decl)
+                    self.add_bytes(f'{stem}.{ext}', data)
                 continue
             if output_text:
                 text = getattr(item, output_text, '') or ''
                 if text:
                     from wama.common.utils.output_naming import compose_output_name
                     src = getattr(item, 'input_file', None)
-                    name = (output_name(item) if output_name is not None else '') or \
+                    entry = self.named(name, '.txt') or \
+                        (output_name(item) if output_name is not None else '') or \
                         compose_output_name(app=app, ext='.txt', item_id=item.pk,
                                             source_name=Path(src.name).name if src else '')
-                    self.add_bytes(name, text)
+                    self.add_bytes(entry, text)
                 continue
             paths = []
             if surface:
@@ -301,15 +314,17 @@ class ResultArchive:
                 paths = [p for p in (root / unquote(rel) for rel in sorties_de(surface, item))
                          if p.is_file()]
             if paths:
-                declared = (output_name(item) if output_name is not None and len(paths) == 1
-                            else '') or ''
+                single = len(paths) == 1
+                declared = (self.named(name, paths[0].suffix) if single else '') or \
+                    (output_name(item) if output_name is not None and single else '') or ''
                 for path in paths:
                     self.add_file(path, declared or path.name)
                 continue
             out = getattr(item, output_field, None) if output_field else None
             if out:
-                name = (output_name(item) if output_name is not None else '') or Path(out.name).name
-                self.add_bytes(name, out.read())
+                entry = self.named(name, Path(out.name).suffix) or \
+                    (output_name(item) if output_name is not None else '') or Path(out.name).name
+                self.add_bytes(entry, out.read())
         return fmt
 
 

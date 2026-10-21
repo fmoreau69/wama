@@ -143,6 +143,43 @@ class RunZipTest(TestCase):
             response = self.client.get(f'/studio/api/run/{run.pk}/download/', {'format': 'docx'})
         self.assertEqual(['.docx'], [Path(n).suffix for n in _names(response)])
 
+    def test_the_output_name_of_a_lot_line_names_its_element_in_the_run_zip(self):
+        """The `-o` of a lot line (2026-10-21): it names the entry of ITS element, as it names the
+        entry of an app's lot ZIP — the file's extension when it has none, the requested format's
+        for a late-binding app. An element without `-o` keeps the name its app gives."""
+        from unittest import mock
+        from wama.common.utils import export_formats
+        from wama.describer.models import Description
+        from wama.imager.models import ImageGeneration
+        from wama.studio.models import StudioRun
+        lot = self._run({'nodes': [], 'links': []}, {})
+        cards = []
+        for prompt in ('un chien', 'un chat'):
+            card = ImageGeneration.objects.create(user=self.user, prompt=prompt, status='SUCCESS',
+                                                  generation_mode='txt2vid')
+            card.output_video.save('rendu.mp4', ContentFile(b'MP4'))
+            cards.append(card)
+        text = Description.objects.create(user=self.user, filename='photo.jpg', status='SUCCESS',
+                                          result_text='une description')
+        for card, app, output in ((cards[0], 'imager', 'intro'), (cards[1], 'imager', ''),
+                                  (text, 'describer', 'resume_1.txt')):
+            entry = {'ports': {}, **({'output': output} if output else {})}
+            StudioRun.objects.create(
+                user=self.user, parent=lot, status=JOB_SUCCESS,
+                graph={'nodes': [{'id': 's', 'app': 'card_input', 'params': {'entry': entry}},
+                                 {'id': 't', 'app': app}],
+                       'links': [{'from': 's', 'to': 't', 'to_port': 'card'}]},
+                node_states={'t': {'status': JOB_SUCCESS, 'item_id': card.pk}})
+        with mock.patch.object(export_formats, 'export_builder_for',
+                               lambda app: lambda element, fmt: (fmt, b'rendu')):
+            names = _names(self.client.get(f'/studio/api/run/{lot.pk}/download/',
+                                           {'format': 'docx'}))
+        self.assertIn('intro.mp4', names)
+        self.assertIn('resume_1.docx', names)
+        self.assertEqual(3, len(names), names)
+        self.assertEqual(1, len([n for n in names if n not in ('intro.mp4', 'resume_1.docx')]),
+                         'the element without -o keeps its own name')
+
     def test_a_failed_run_gives_its_successful_ends_and_a_running_one_nothing_yet(self):
         from wama.describer.models import Description
         from wama.studio.models import StudioRun
