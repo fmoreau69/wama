@@ -22,6 +22,15 @@
 .wama-brick-title { font-size: .78rem; font-weight: 600; color: var(--wama-edit-brick-text); margin-right: auto; }
 .wama-brick-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; color: var(--wama-edit-brick-text); }
 
+/* Disposition FIGÉE (2026-10-21) : plus rien ne bouge, les panneaux perdent leur habit d'atelier.
+   Un titre sans outils disparaît ; celui qui porte des outils devient une bande discrète. */
+.wama-surface-page.is-frozen .grid-stack-item-content { border-color: transparent; border-radius: .6rem; }
+.wama-surface-page.is-frozen .wama-brick-head {
+  cursor: default; background: transparent; border-bottom-color: transparent; min-height: 1.7rem; padding: .1rem .5rem;
+}
+.wama-surface-page.is-frozen .wama-brick-head:not(.has-tools) { display: none; }
+.wama-surface-page.is-frozen .wama-brick-title { font-weight: 500; color: var(--wama-edit-muted); }
+
 .wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
 .wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs {
   padding: .1rem .35rem; font-size: .75rem; line-height: 1.2; color: var(--wama-edit-brick-text);
@@ -169,4 +178,5 @@
 .wama-brick-actions { display: flex; flex-direction: column; gap: .45rem; padding: .55rem; }
 .wama-actions-row { display: flex; gap: .35rem; }
 .wama-actions-row .btn-outline-primary { margin-left: auto; }
+.wama-actions-layout { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .25rem; }
 .wama-actions-help { font-size: .7rem; color: var(--wama-edit-muted); line-height: 1.35; }

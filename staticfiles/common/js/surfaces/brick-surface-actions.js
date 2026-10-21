@@ -6,7 +6,9 @@
  * transcriber et le studio ; Ctrl+Z / Ctrl+Maj+Z valent partout sur la page.
  * Enregistrer : le champ déclaré par la surface, validé par le serveur.
  * Appliquer : enregistre puis rejoue le process que la modification a périmé (`reruns`).
- * Disposition : rend à chaque brique la place que la surface déclare.
+ * Disposition : la FIGER (rendu fini, plus rien ne bouge) ou la rendre modifiable — gardée par
+ * compte, lecture seule comprise (2026-10-21) — et rendre à chaque brique la place que la surface
+ * déclare (inactif tant qu'elle est figée).
  * Aide : les gestes que chaque brique montée DÉCLARE (`help`, lu par `ctx.helps()`) — jamais ceux
  * d'une brique écrits ici (l'aide de l'image y figurait en dur : fausse sur une page de texte).
  */
@@ -32,9 +34,14 @@
             '</div>' +
             (reruns ? '<button type="button" class="btn btn-sm btn-success w-100" data-act="apply" title="Enregistrer puis relancer « ' + reruns + ' »"><i class="fas fa-play"></i> Appliquer</button>' : '') +
             (finish ? '<button type="button" class="btn btn-sm btn-success w-100" data-act="finish" title="Marquer la correction comme terminée"><i class="fas fa-check-double"></i> ' + esc(finish) + '</button>' : '') +
-            '<button type="button" class="btn btn-sm btn-link text-secondary" data-act="layout" title="Rendre à chaque panneau sa place d\'origine"><i class="fas fa-table-cells-large"></i> Disposition par défaut</button>' +
+            '<div class="wama-actions-layout">' +
+            '  <button type="button" class="btn btn-sm btn-link text-secondary" data-act="freeze"></button>' +
+            '  <button type="button" class="btn btn-sm btn-link text-secondary" data-act="layout" title="Rendre à chaque panneau sa place d\'origine"><i class="fas fa-table-cells-large"></i> Disposition par défaut</button>' +
+            '</div>' +
             '<div class="wama-actions-help"></div>';
         var helpEl = body.querySelector('.wama-actions-help');
+        var freezeBtn = body.querySelector('[data-act="freeze"]');
+        var layoutBtn = body.querySelector('[data-act="layout"]');
 
         body.addEventListener('click', function (ev) {
             var b = ev.target.closest('[data-act]');
@@ -43,7 +50,20 @@
             else if (b.dataset.act === 'apply') ctx.apply();
             else if (b.dataset.act === 'finish') ctx.finish();
             else if (b.dataset.act === 'layout') ctx.resetLayout();
+            else if (b.dataset.act === 'freeze') ctx.setFrozen(!ctx.frozen());
         });
+
+        function syncLayout() {
+            var frozen = !!(ctx.frozen && ctx.frozen());
+            freezeBtn.hidden = !ctx.setFrozen;
+            freezeBtn.innerHTML = frozen
+                ? '<i class="fas fa-lock-open"></i> Modifier la disposition'
+                : '<i class="fas fa-lock"></i> Figer la disposition';
+            freezeBtn.title = frozen ? 'Déplacer et redimensionner de nouveau les panneaux'
+                                     : 'Garder cette disposition telle quelle, au rendu fini';
+            layoutBtn.disabled = frozen;
+        }
+        ctx.on('layout', syncLayout);
 
         function refresh() {
             var dirty = ctx.dirty();
@@ -57,6 +77,7 @@
             // Lue à chaque rafraîchissement : les briques placées APRÈS celle-ci sur la grille
             // sont montées plus tard que son `mount`.
             helpEl.textContent = ctx.helps().join(' — ');
+            syncLayout();
         }
         refresh();
         return { refresh: refresh };

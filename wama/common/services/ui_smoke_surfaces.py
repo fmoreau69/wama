@@ -172,8 +172,180 @@ def capture_brick_thumbnails():
     return True, detail
 
 
+#: Ce que la page dit de sa grille : figée, places des emplacements, titres visibles, poignées.
+_GRID_STATE_JS = """() => {
+    const root = document.querySelector('.wama-surface-grid');
+    const seen = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const places = {};
+    root.querySelectorAll('.grid-stack-item').forEach(el => {
+        const n = el.gridstackNode;
+        if (n && n.id) places[n.id] = {x: n.x, y: n.y, w: n.w, h: n.h};
+    });
+    const freeze = document.querySelector('[data-act="freeze"]');
+    const reset = document.querySelector('[data-act="layout"]');
+    return {
+        static: root.classList.contains('grid-stack-static'),
+        frozen: !!document.querySelector('.wama-surface-page.is-frozen'),
+        columns: root.gridstack ? root.gridstack.getColumn() : null,
+        places: places,
+        heads: [...root.querySelectorAll('.wama-brick-head')].filter(seen).length,
+        bareHeads: [...root.querySelectorAll('.wama-brick-head:not(.has-tools)')].filter(seen).length,
+        // PRÉSENTES, pas visibles : gridstack ne les montre qu'au survol ; une grille figée les retire.
+        handles: root.querySelectorAll('.ui-resizable-handle').length,
+        freezeText: freeze ? freeze.textContent.trim() : null,
+        resetDisabled: reset ? reset.disabled : null,
+    }; }"""
+
+#: Un geste de gridstack lui-même (son `update`, qui émet `change` comme un glisser) : l'emplacement
+#: `id` prend la place `place`.
+_MOVE_JS = """([id, place]) => {
+    const root = document.querySelector('.wama-surface-grid');
+    const el = [...root.querySelectorAll('.grid-stack-item')].find(e => e.gridstackNode && e.gridstackNode.id === id);
+    root.gridstack.update(el, place);
+    return !!el; }"""
+
+
+def check_surface_layout(page_hook=None):
+    """La DISPOSITION par compte d'une surface (2026-10-21, demande de Fabien) — (ok, détail).
+
+    Sur une surface témoin qui porte le panneau Actions : un panneau déplacé est gardé au serveur ;
+    « Figer » fige la grille (plus de poignée, titres sans outils masqués, « Disposition par défaut »
+    inactif) et survit au rechargement ; « Modifier » rend la main ; « Disposition par défaut » rend
+    la disposition DÉCLARÉE (gardée vide) ; sur une fenêtre de téléphone la grille s'empile sur une
+    colonne sans rien réécrire. Le réglage du compte de test est rendu tel qu'il était en sortie.
+    `page_hook(page)` : posé sur chaque page avant son ouverture (la contre-épreuve y réécrit le
+    noyau servi)."""
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.user_settings import get_user_app_setting, save_user_app_settings
+
+    surfaces, _refused = _witness_surfaces()
+    candidates = [s for s in surfaces if any(slot.brick == 'surface_actions' for slot in s.slots)]
+    if not candidates:
+        raise SkipScenario("aucune surface témoin ne porte le panneau Actions")
+    surface = sorted(candidates, key=lambda s: s.id)[0]
+    token, uid = _test_session_key(surface.app), _test_account_id(surface.app)
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+    name = f'surface_layout.{surface.key}'
+
+    def stored():
+        from django.contrib.auth import get_user_model
+        return get_user_app_setting(get_user_model().objects.get(pk=uid), surface.app, name)
+
+    def restore(value):
+        from django.contrib.auth import get_user_model
+
+        from wama.common.utils.user_settings import clear_user_app_settings
+        user = get_user_model().objects.get(pk=uid)
+        if value is None:
+            clear_user_app_settings(user, surface.app, [name])
+        else:
+            save_user_app_settings(user, surface.app, {name: value})
+
+    before = _in_plain_thread(stored)
+    verdicts = []
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    sessions_before = _session_keys()
+    try:
+        with _garde_de_montage(surface.app, 'surfaces'):
+            pk = _in_plain_thread(mount_witness, surface, uid)
+            _in_plain_thread(restore, None)          # le passage part de la disposition déclarée
+            declared = {s.id: {'x': s.x, 'y': s.y, 'w': s.w, 'h': s.h} for s in surface.slots}
+            url = BASE_URL.rstrip('/') + reverse('common:surface', args=[surface.app, surface.key, pk])
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                    context.add_cookies(_cookie(token))
+                    page = context.new_page()
+                    page.set_default_timeout(10000)
+                    errors = []
+                    page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+                    if page_hook:
+                        page_hook(page)
+                    _layout_gestures(page, url, surface, declared, stored, verdict, errors)
+                finally:
+                    browser.close()
+    finally:
+        _in_plain_thread(restore, before)
+        _drop_new_sessions(sessions_before)
+    failed = [text for ok, text in verdicts if not ok]
+    detail = f"{surface.id} : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
+def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
+    """Les gestes de `check_surface_layout`, dans l'ordre ; un geste qui ne peut plus se faire
+    (bouton inactif, page qui ne monte pas) est un verdict rouge, pas une exception."""
+
+    def open_page():
+        page.goto(url, wait_until='load', timeout=45000)
+        page.wait_for_selector('[data-act="freeze"]', timeout=20000)
+        page.wait_for_timeout(800)
+        return page.evaluate(_GRID_STATE_JS)
+
+    def settle():
+        page.wait_for_timeout(900)                   # la garde part 300 ms après le geste
+        return _in_plain_thread(stored)
+
+    try:
+        state = open_page()
+        verdict(not state['static'] and not state['frozen'] and state['handles'] > 0
+                and state['freezeText'] == 'Figer la disposition' and state['places'] == declared,
+                f"ouverture : modifiable, disposition déclarée ({state})")
+        moved_id = surface.slots[0].id
+        target = dict(declared[moved_id], h=declared[moved_id]['h'] + 2)
+        page.evaluate(_MOVE_JS, [moved_id, target])
+        kept = settle() or {}
+        verdict((kept.get('slots') or {}).get(moved_id) == target and not kept.get('frozen'),
+                f"panneau agrandi → gardé au serveur ({kept})")
+
+        page.click('[data-act="freeze"]')
+        state = page.evaluate(_GRID_STATE_JS)
+        kept = settle() or {}
+        verdict(state['static'] and state['frozen'] and state['handles'] == 0
+                and state['bareHeads'] == 0 and state['resetDisabled']
+                and state['freezeText'] == 'Modifier la disposition' and kept.get('frozen') is True,
+                f"« Figer » : grille figée, titres sans outils masqués ({state}, {kept})")
+
+        state = open_page()
+        verdict(state['static'] and state['frozen'] and state['places'].get(moved_id) == target,
+                f"rechargement : toujours figée, place gardée ({state['places'].get(moved_id)})")
+
+        page.click('[data-act="freeze"]')
+        state = page.evaluate(_GRID_STATE_JS)
+        kept = settle() or {}
+        verdict(not state['static'] and not state['frozen'] and state['handles'] > 0
+                and state['bareHeads'] > 0 and not state['resetDisabled'] and kept.get('frozen') is False,
+                f"« Modifier » : la main est rendue ({state}, {kept})")
+
+        page.click('[data-act="layout"]')
+        state = page.evaluate(_GRID_STATE_JS)
+        kept = settle() or {}
+        verdict(state['places'] == declared and kept.get('slots') is None,
+                f"« Disposition par défaut » : la disposition déclarée, gardée vide ({kept})")
+
+        page.evaluate(_MOVE_JS, [moved_id, target])
+        kept_wide = settle()
+        page.set_viewport_size({'width': 600, 'height': 900})
+        state = open_page()
+        kept = settle()
+        verdict(state['columns'] == 1 and kept == kept_wide,
+                f"téléphone : une colonne, rien de réécrit ({state['columns']} col., {kept})")
+    except Exception as error:
+        verdict(False, f"geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
+    shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
+    verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+
+
 def register_surface_scenarios():
-    """Le scénario commun des surfaces et des vignettes de briques — aucun GPU."""
+    """Les scénarios communs des surfaces (vignettes de briques, disposition) — aucun GPU."""
     from wama.common.services.nightly_tests import register
 
     register(
@@ -183,4 +355,12 @@ def register_surface_scenarios():
                      "catalogue des briques UI (aucune tâche lancée, témoins retirés en sortie)"),
         run=lambda ctx: capture_brick_thumbnails(),
         timeout_s=300, vram_gb=0.0,
+    )
+    register(
+        id='common.surface_layout', app='common', stage='ui',
+        description=("Surfaces : la disposition se garde par compte, se FIGE (grille immobile, "
+                     "rendu fini, survit au rechargement), se rend modifiable et revient à la "
+                     "disposition déclarée ; une colonne sur téléphone sans rien réécrire"),
+        run=lambda ctx: check_surface_layout(),
+        timeout_s=240, vram_gb=0.0,
     )

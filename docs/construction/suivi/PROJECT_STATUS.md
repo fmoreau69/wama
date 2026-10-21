@@ -25539,3 +25539,21 @@ CORRECTION DU TRANSCRIBER EN SURFACE DÉCLARÉE » ; page : `TRANSCRIBER_CORRECT
 `docs_catalog`, arborescence du README) — ce qui gagnerait à une scène 3D (transversal,
 catalogues, activité, Studio, présentation côte à côte), la brique commune proposée et quatre
 décisions à trancher (§7). 🔚 La proposition « page 3D par registre » ci-dessus y a son domicile.
+
+## §PALIER 2026-10-21, « SURFACES : la DISPOSITION DE CHACUN, par compte, et FIGÉE » — non poussé — 🔴 relancer gunicorn (route `common:surface_layout`, noyau des surfaces)
+
+Demande de Fabien : *« pouvoir passer des briques UI redimensionnables à une version figée, propre,
+esthétique […] chacun personnalise sa propre interface, puis peut la figer »* — GO « en base par
+compte et le reste de tes propositions ». Domicile : `ROUTE §F3b`, bloc « 2026-10-21 — LA
+DISPOSITION DE CHACUN, PAR COMPTE, ET FIGÉE ».
+- **Livré, pour toutes les surfaces** : disposition gardée par compte (`UserAppSetting`,
+  `surfaces.clean_layout`, route commune) au lieu du navigateur ; bouton « Figer / Modifier la
+  disposition » (gridstack `setStatic`, habit fini `.is-frozen`) ; mode Simplifié = figé d'emblée ;
+  une colonne sous 768 px.
+- **Preuves** : `SurfaceLayoutTest` 5/5 ; scénario nocturne `common.surface_layout` 8/8 sur la page
+  servie ; contre-épreuves rouges (2 Python, 3 mutations du noyau servi) ; parité de l'éditeur
+  66/66, conflit 7/7, capture six surfaces inchangés.
+- **Rouges d'autrui inchangés** : budgets de langue (code 2653 > 2651, noms de tests 1297 > 1291 —
+  aucun de mes fichiers, vérifié par `--detail`).
+- ⏳ **Reste (décision)** : une disposition figée proposée comme défaut d'équipe, ou publiée par un
+  administrateur (partage d'élément).

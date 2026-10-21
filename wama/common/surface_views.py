@@ -6,6 +6,8 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
                 …/data/?only=rhythm&role=<rôle>          la grille des temps d'un audio lu
                 …/data/?only=peaks&role=<rôle>[&poll=1]  les pics fins d'un média lu (état ou pics)
   save    POST  …/save/                                  le champ édité, validé par la surface
+  layout  POST  /common/surface/<app>/<clé>/layout/      la disposition de l'UTILISATEUR (places,
+                                                         figée ou non) — un réglage par compte
 
 Droits : LIRE = voir la card (la règle de l'aperçu, `PreviewRegistry.check_permission`, cards
 partagées comprises) ; ÉCRIRE = l'éditer (`scoping.editable_or_404` : le propriétaire ou un
@@ -79,6 +81,42 @@ def _settings_of(found, item) -> dict:
     return {'schema': schema, 'values': values}
 
 
+def _layout_setting(found) -> str:
+    """Le nom du réglage utilisateur (`UserAppSetting`, app de la surface) qui garde sa disposition."""
+    return f'surface_layout.{found.key}'
+
+
+def _layout_of(found, user) -> dict:
+    """La disposition que `user` a gardée pour la surface (`clean_layout`), `stored` à vrai ; à
+    défaut la disposition déclarée — FIGÉE d'emblée en mode Simplifié, où l'on ne dispose pas."""
+    from wama.common.utils.user_settings import get_user_app_setting
+    stored = get_user_app_setting(user, found.app, _layout_setting(found))
+    if isinstance(stored, dict):
+        return {'slots': stored.get('slots') or None, 'frozen': stored.get('frozen') is True,
+                'stored': True}
+    try:
+        simple = user.profile.ui_mode == 'simple'
+    except Exception:
+        simple = False
+    return {'slots': None, 'frozen': simple, 'stored': False}
+
+
+@login_required
+@require_POST
+def surface_layout(request, app: str, key: str):
+    """Garde la disposition de l'utilisateur : une préférence de LECTURE, pas une édition — qui
+    ouvre la page en lecture seule dispose et fige aussi la sienne. Rien ne touche l'élément."""
+    from wama.common.surfaces import clean_layout
+    from wama.common.utils.user_settings import save_user_app_settings
+    found = _surface_or_404(app, key)
+    try:
+        layout = clean_layout(found, json.loads(request.body or b'{}'))
+    except ValueError as error:
+        return JsonResponse({'error': str(error)}, status=400)
+    save_user_app_settings(request.user, found.app, {_layout_setting(found): layout})
+    return JsonResponse({'ok': True, 'layout': layout})
+
+
 @login_required
 @require_GET
 def surface_page(request, app: str, key: str, pk: int):
@@ -101,7 +139,11 @@ def surface_page(request, app: str, key: str, pk: int):
             'revisions_url': base + 'revisions/',
             'back_url': _url(f'{app}:index'),
             'can_edit': _can_edit(request.user, item),
+            # La disposition se garde PAR COMPTE (`surface_layout`) ; la clé du navigateur ne sert
+            # plus qu'à reprendre une disposition gardée avant le 2026-10-21, et en secours.
             'layout_key': f'wama.surface.{found.id}',
+            'layout': _layout_of(found, request.user),
+            'layout_url': reverse('common:surface_layout', args=[app, key]),
             # Les routes de geste de l'app (`Surface.routes`) et celle de ses réglages.
             'routes': {gesture: _url(f'{app}:{name}', pk) for gesture, name in found.routes.items()},
             'settings_url': _settings_url(app, pk) if found.settings else '',

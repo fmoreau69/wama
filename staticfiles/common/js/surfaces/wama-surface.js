@@ -4,8 +4,11 @@
  *
  * Ce que fait le noyau, et lui seul — une brique n'en réécrit rien :
  *   • la GRILLE (gridstack) : chaque brique est un élément déplaçable par son titre et
- *     redimensionnable ; la disposition se garde pour cet utilisateur (stockage local) et se
- *     réinitialise à celle que la surface déclare ;
+ *     redimensionnable ; la disposition se garde PAR COMPTE (route `layout`, 2026-10-21 — le
+ *     stockage du navigateur ne sert plus qu'en secours) et se réinitialise à celle que la
+ *     surface déclare. Elle se FIGE (`ctx.setFrozen`) : la grille ne bouge plus et les panneaux
+ *     prennent un habit fini ; en mode Simplifié, une surface jamais disposée s'ouvre figée.
+ *     Sous 768 px de fenêtre, les panneaux s'empilent sur une colonne (rien n'est alors gardé) ;
  *   • le CONTEXTE partagé : ce que la page lit (`reads`), la valeur ÉDITÉE (la seule donnée que
  *     la page écrit), la SÉLECTION commune et un bus d'événements entre briques ;
  *   • l'HISTORIQUE commun de WAMA (`wama-history.js`) : chaque geste d'édition passe par
@@ -21,7 +24,8 @@
  * `refresh()` est rappelé quand la valeur change (`change`) ou que l'élément est redimensionné
  * (`resize`). `help` : les gestes de la brique, que la brique d'actions affiche (`ctx.helps()`).
  * Événements du bus : `change`, `select`, `resize`, `saved`, `applied`, `focus`, `processes`,
- * `redone` (le process rejoué par « Appliquer » et son aval ont réussi : les médias lus sont neufs).
+ * `redone` (le process rejoué par « Appliquer » et son aval ont réussi : les médias lus sont neufs),
+ * `layout` (la disposition vient d'être figée ou rendue modifiable : `{frozen}`).
  *
  * L'AXE PARTAGÉ (2026-10-15, `wama-axis.js`) : `ctx.axis()` rend LE temps de la surface — un
  * seul par page, créé au premier appel. Le transport le pilote, les vues s'y abonnent ; une
@@ -172,6 +176,10 @@
             },
             on: on, emit: emit, history: history, dirty: dirty, status: status,
             save: save, apply: apply, resetLayout: resetLayout,
+            /** La disposition est-elle figée ? `setFrozen(bool)` la fige ou la rend modifiable
+             *  (événement `layout`). Une préférence du LECTEUR : vaut aussi en lecture seule. */
+            frozen: function () { return !!layout.frozen; },
+            setFrozen: function (on) { setFrozen(on); },
         };
 
         function showConflict(res) {
@@ -326,11 +334,21 @@
         }
 
         // ── Grille ────────────────────────────────────────────────────────────────────────
+        var COLUMNS = surface.columns || 12;
+        var layout = config.layout || { slots: null, frozen: false, stored: false };
+        var page = root.closest('.wama-surface-page') || root;
         var grid = global.GridStack.init({
-            column: surface.columns || 12, cellHeight: CELL_HEIGHT, margin: 6, float: false,
+            column: COLUMNS, cellHeight: CELL_HEIGHT, margin: 6, float: false,
             handle: '.wama-brick-head', resizable: { handles: 'e, se, s, sw, w' },
+            staticGrid: !!layout.frozen,
+            // Téléphone : une colonne, les panneaux dans l'ordre de la grille (option de gridstack).
+            columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }], layout: 'list' },
         }, root);
-        var saved = readLayout(config.layout_key) || {};
+        page.classList.toggle('is-frozen', !!layout.frozen);
+        // Une disposition gardée par ce navigateur AVANT la garde par compte est reprise une fois.
+        var migrated = !layout.stored && readLayout(config.layout_key);
+        if (migrated) layout.slots = migrated;
+        var saved = layout.slots || {};
         var mounted = [];
 
         // Le titre (la poignée `handle`) existe AVANT que gridstack ne prenne l'élément :
@@ -364,7 +382,7 @@
                 return null;
             }
             var brick = def.mount(body, ctx, slot.options || {}) || {};
-            if (brick.tools) head.appendChild(brick.tools);
+            if (brick.tools) { head.appendChild(brick.tools); head.classList.add('has-tools'); }
             if (brick.help) helps.push(brick.help);
             return { slot: slot, el: el, brick: brick };
         }
@@ -378,18 +396,59 @@
             return out;
         }
 
+        // La disposition part au serveur une fois le geste posé (un glisser émet plusieurs
+        // `change`) ; refusée ou injoignable, elle reste dans ce navigateur, en secours.
+        var persistTimer = null;
+        function persistLayout() {
+            clearTimeout(persistTimer);
+            persistTimer = setTimeout(function () {
+                if (!config.layout_url) { writeLayout(config.layout_key, layout.slots); return; }
+                App.csrfFetch(config.layout_url, App.csrfToken(), {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ slots: layout.slots, frozen: !!layout.frozen }),
+                }).then(App.jsonOrExplain).then(function (res) {
+                    if (res && res.error) throw new Error(res.error);
+                    writeLayout(config.layout_key, null);
+                }).catch(function () { writeLayout(config.layout_key, layout.slots); });
+            }, 300);
+        }
+        if (migrated) persistLayout();
+
+        /** Sur une colonne (téléphone), la grille n'est qu'un empilement : rien ne se garde. */
+        function onFullGrid() { return grid.getColumn() === COLUMNS; }
+
+        var resetting = false;
         function resetLayout() {
-            writeLayout(config.layout_key, null);
+            if (layout.frozen || !onFullGrid()) return;
+            layout.slots = null;                 // la disposition DÉCLARÉE, qui suit la surface
+            resetting = true;
             grid.batchUpdate();
             surface.slots.forEach(function (slot) {
                 var m = mounted.filter(function (x) { return x && x.slot.id === slot.id; })[0];
                 if (m) grid.update(m.el, { x: slot.x, y: slot.y, w: slot.w, h: slot.h });
             });
             grid.batchUpdate(false);
+            resetting = false;
+            persistLayout();
             emit('resize');
         }
 
-        grid.on('change', function () { writeLayout(config.layout_key, layoutNow()); });
+        /** FIGER : la grille ne bouge plus, les panneaux perdent leur habit d'atelier (CSS
+         *  `.is-frozen`) ; le titre d'un panneau qui porte des outils reste, en bande discrète. */
+        function setFrozen(on) {
+            layout.frozen = !!on;
+            grid.setStatic(layout.frozen);
+            page.classList.toggle('is-frozen', layout.frozen);
+            persistLayout();
+            emit('layout', { frozen: layout.frozen });
+            emit('resize');
+        }
+
+        grid.on('change', function () {
+            if (resetting || !onFullGrid()) return;
+            layout.slots = layoutNow();
+            persistLayout();
+        });
         grid.on('resizestop', function () { emit('resize'); });
         global.addEventListener('resize', function () { emit('resize'); });
 

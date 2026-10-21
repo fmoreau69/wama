@@ -1040,6 +1040,31 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       et noms entrent aussi aux descriptions des outils de l'assistant (`tool_api`, lu du schéma) ;
       la facette `surfaces` du manifeste du transcriber n'est pas extraite (même reste que le Writer
       et le composer).
+  - ✅ **2026-10-21 — LA DISPOSITION DE CHACUN, PAR COMPTE, ET FIGÉE** (demande de Fabien : *« figer
+    les dispositions/tailles pour avoir un rendu finalisé […] chacun déplace et dimensionne les
+    briques UI à sa guise […] puis peut la figer »*). Pour TOUTES les surfaces, au noyau commun :
+    - **par compte** : la disposition vivait dans le stockage du navigateur (perdue d'un poste à
+      l'autre) ; elle est un réglage utilisateur de l'app de la surface (`UserAppSetting`, nom
+      `surface_layout.<clé>`), écrit par la route commune `common:surface_layout`
+      (`surface_views.surface_layout`, validée par `surfaces.clean_layout` : emplacements DÉCLARÉS
+      seuls, place dans la grille). `slots` vide = la disposition déclarée, qui suit donc la
+      surface. Une préférence du LECTEUR : la lecture seule dispose et fige aussi. Une disposition
+      gardée par le navigateur avant ce jour est reprise une fois ; le navigateur reste le secours
+      si le serveur refuse.
+    - **figée** : bouton « Figer la disposition / Modifier la disposition » du panneau Actions ;
+      gridstack `setStatic` (plus de déplacement ni de poignée), habit fini (`.is-frozen` : bordures
+      effacées, titre sans outils masqué, titre à outils en bande discrète), « Disposition par
+      défaut » inactif tant qu'elle est figée. En mode Simplifié, une surface jamais disposée
+      s'ouvre figée.
+    - **téléphone** : sous 768 px de fenêtre, une colonne (`columnOpts` de gridstack) ; rien n'est
+      gardé dans cet état. ⚠ Le 21/10 j'avais affirmé à Fabien que gridstack empilait déjà sur
+      téléphone : faux, aucune option n'était posée — corrigé ici.
+    - **preuves** : `tests_surfaces.SurfaceLayoutTest` (5 ; contre-épreuves rouges : validation
+      inerte, lecture aveugle) ; scénario nocturne `common.surface_layout` 8/8 sur la page servie
+      (agrandir → gardé, figer, recharger, modifier, défaut, téléphone), trois mutations du noyau
+      servi → rouge ; parité de l'éditeur 66/66, conflit 7/7, capture six surfaces inchangés.
+    - ⏳ **restes** : proposer sa disposition figée comme défaut d'une équipe, ou une disposition
+      publiée par un administrateur (partage d'élément, `WAMA_COLLABORATION`) — à décider.
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à

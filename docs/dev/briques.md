@@ -726,7 +726,7 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
 
 - **Domicile** : `wama/common/surfaces.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : SURFACES et BRIQUES UI — le registre (2026-10-10, ouverture du chantier SURFACES).
-- **API publique** (12) :
+- **API publique** (13) :
   - `thumbnail_path(key: str)` — Le fichier de la vignette d'une brique (qu'il existe ou non).
   - `thumbnail(key: str) -> Optional[dict]` — La vignette d'une brique — `{'url', 'taken_at'}`, ou None tant qu'aucune capture n'existe
   - `validate_text(value) -> str` — Le texte d'un champ fichier édité, assaini : une chaîne, fins de ligne `\n`, plafonnée.
@@ -734,6 +734,7 @@ Une page d'édition DÉCLARÉE par l'app (emplacements, champs lus, champ écrit
   - `class UIBrick`
   - `class BrickSlot` — Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
   - `class Surface`
+  - `clean_layout(surface: Surface, payload) -> dict` — La DISPOSITION d'un utilisateur pour une surface, validée (2026-10-21, demande de Fabien :
   - `register_brick(brick: UIBrick) -> UIBrick`
   - `register_surface(surface: Surface) -> Surface`
   - `surface(app: str, key: str) -> Optional[Surface]`

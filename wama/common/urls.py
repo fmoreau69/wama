@@ -32,6 +32,9 @@ urlpatterns = [
          name='surface_revisions'),
     path('surface/<str:app>/<str:key>/<int:pk>/revisions/<int:number>/',
          surface_views.surface_revision_value, name='surface_revision_value'),
+    # La DISPOSITION de chacun (2026-10-21) : places des panneaux et état figé, par compte.
+    path('surface/<str:app>/<str:key>/layout/', surface_views.surface_layout,
+         name='surface_layout'),
 
     # Enrichissement de prompt à la demande (✨) — générique {prompt, app, domain}, cf. WAMA_LLM.md §Skills
     path('api/enrich-prompt/', views.api_enrich_prompt, name='enrich_prompt'),

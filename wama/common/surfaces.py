@@ -73,6 +73,8 @@ from typing import Callable, Optional
 WORLDS = ('media', 'data', 'lab', 'studio')
 #: Colonnes de la grille de mise en page (gridstack, défaut 12).
 GRID_COLUMNS = 12
+#: Lignes au-delà desquelles une place gardée est refusée : une disposition postée reste une page.
+MAX_LAYOUT_ROWS = 400
 #: Plafond d'un texte édité sur une surface : un document qu'on relit et corrige, pas un flux.
 MAX_TEXT_CHARS = 2_000_000
 #: Dossier des VIGNETTES des briques sous `STATIC_ROOT` (2026-10-18, décision de Fabien) : une
@@ -407,6 +409,35 @@ class Surface:
                 'autosave': self.autosave, 'finish': self.finish,
                 'settings': list(self.settings),
                 'bricks': {b.key: b.to_dict() for b in self.bricks()}}
+
+
+def clean_layout(surface: Surface, payload) -> dict:
+    """La DISPOSITION d'un utilisateur pour une surface, validée (2026-10-21, demande de Fabien :
+    chacun dispose ses panneaux puis FIGE sa disposition) : `{'slots': {id: {x, y, w, h}} | None,
+    'frozen': bool}`. `slots` à None = la disposition DÉCLARÉE, qui suit donc la surface si elle
+    change. Seuls les emplacements déclarés sont gardés (un emplacement retiré depuis est oublié) ;
+    une place hors de la grille lève `ValueError`."""
+    if not isinstance(payload, dict):
+        raise ValueError('disposition illisible')
+    raw = payload.get('slots')
+    slots = None
+    if raw is not None:
+        if not isinstance(raw, dict):
+            raise ValueError('disposition illisible')
+        declared = {s.id for s in surface.slots}
+        slots = {}
+        for slot_id, place in raw.items():
+            if slot_id not in declared:
+                continue
+            try:
+                x, y, w, h = (int(place[k]) for k in ('x', 'y', 'w', 'h'))
+            except (KeyError, TypeError, ValueError):
+                raise ValueError(f'place illisible : {slot_id}')
+            if x < 0 or w < 1 or x + w > GRID_COLUMNS or y < 0 or h < 1 or y + h > MAX_LAYOUT_ROWS:
+                raise ValueError(f'place hors de la grille : {slot_id}')
+            slots[slot_id] = {'x': x, 'y': y, 'w': w, 'h': h}
+        slots = slots or None
+    return {'slots': slots, 'frozen': payload.get('frozen') is True}
 
 
 BRICKS: dict = {}

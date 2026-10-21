@@ -195,6 +195,75 @@ class ReviewSurfaceViewsTest(TestCase):
         self.assertEqual(200, ok.status_code, ok.content)
 
 
+class SurfaceLayoutTest(TestCase):
+    """The LAYOUT of each account (2026-10-21, Fabien : everyone arranges the panels, then FREEZES
+    the result) — kept per user and per surface, never on the element ; frozen from the start in
+    the simple mode while nothing was arranged."""
+
+    def setUp(self):
+        ReviewSurfaceViewsTest.setUp(self)
+        self.url = '/common/surface/anonymizer/review/layout/'
+
+    def _config(self, user):
+        self.client.force_login(user)
+        return self.client.get(self.base).context['config']
+
+    def _post(self, payload):
+        return self.client.post(self.url, json.dumps(payload), content_type='application/json')
+
+    def test_a_frozen_layout_is_kept_for_this_account_only(self):
+        self.assertEqual({'slots': None, 'frozen': False, 'stored': False},
+                         self._config(self.user)['layout'])
+        place = {'image': {'x': 3, 'y': 0, 'w': 9, 'h': 12}, 'actions': {'x': 0, 'y': 0, 'w': 3, 'h': 5}}
+        res = self._post({'slots': place, 'frozen': True})
+        self.assertEqual(200, res.status_code, res.content)
+        self.assertEqual({'slots': place, 'frozen': True, 'stored': True},
+                         self._config(self.user)['layout'])
+        from wama.common.models import UserAppSetting
+        (row,) = UserAppSetting.objects.filter(user=self.user, app='anonymizer')
+        self.assertEqual('surface_layout.review', row.name)
+        # Another account (who cannot open this element) still has the declared layout.
+        from wama.common.surface_views import _layout_of
+        from wama.common.surfaces import surface
+        self.assertEqual({'slots': None, 'frozen': False, 'stored': False},
+                         _layout_of(surface('anonymizer', 'review'), self.other))
+
+    def test_back_to_the_declared_layout_keeps_following_the_surface(self):
+        self.client.force_login(self.user)
+        self._post({'slots': {'image': {'x': 0, 'y': 0, 'w': 6, 'h': 6}}})
+        self._post({'slots': None, 'frozen': False})
+        self.assertEqual({'slots': None, 'frozen': False, 'stored': True},
+                         self._config(self.user)['layout'])
+
+    def test_undeclared_panels_are_dropped_and_a_place_outside_the_grid_is_refused(self):
+        self.client.force_login(self.user)
+        res = self._post({'slots': {'image': {'x': 0, 'y': 0, 'w': 12, 'h': 4},
+                                    'gone': {'x': 0, 'y': 4, 'w': 2, 'h': 2}}})
+        self.assertEqual({'image': {'x': 0, 'y': 0, 'w': 12, 'h': 4}}, res.json()['layout']['slots'])
+        for bad in ({'x': 8, 'y': 0, 'w': 6, 'h': 4}, {'x': 0, 'y': -1, 'w': 2, 'h': 2},
+                    {'x': 0, 'y': 0, 'w': 0, 'h': 2}, {'x': 'a', 'y': 0, 'w': 2, 'h': 2}, 'x'):
+            self.assertEqual(400, self._post({'slots': {'image': bad}}).status_code, bad)
+        self.assertEqual(400, self._post(['frozen']).status_code)
+        self.assertEqual(404, self.client.post('/common/surface/anonymizer/nothing/layout/', '{}',
+                                               content_type='application/json').status_code)
+
+    def test_the_simple_mode_opens_frozen_until_the_user_decides(self):
+        from wama.accounts.models import UserProfile
+        UserProfile.objects.update_or_create(user=self.user, defaults={'ui_mode': 'simple'})
+        self.assertTrue(self._config(self.user)['layout']['frozen'])
+        self._post({'slots': None, 'frozen': False})
+        self.assertFalse(self._config(self.user)['layout']['frozen'])
+
+    def test_the_kernel_freezes_the_grid_and_the_actions_offer_it(self):
+        kernel = _js('common/js/surfaces/wama-surface.js')
+        self.assertIn('grid.setStatic(layout.frozen)', kernel)
+        self.assertIn("page.classList.toggle('is-frozen'", kernel)
+        self.assertIn('if (resetting || !onFullGrid()) return;', kernel)
+        actions = _js('common/js/surfaces/brick-surface-actions.js')
+        self.assertIn('data-act="freeze"', actions)
+        self.assertIn('ctx.setFrozen(!ctx.frozen())', actions)
+
+
 class TextSectionsSplitTest(SimpleTestCase):
     """The text brick cuts a document at its headings WITHOUT losing a character : what it
     writes back is what was read, plus the user's corrections."""
