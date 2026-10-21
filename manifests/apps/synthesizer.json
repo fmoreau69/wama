@@ -856,6 +856,7 @@
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -909,6 +910,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": {
               "equals": "auto",
@@ -1026,6 +1028,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1079,6 +1082,7 @@
             "options_source": "voices",
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1132,6 +1136,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1185,6 +1190,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1236,6 +1242,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1287,6 +1294,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1371,6 +1379,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": null,
@@ -1433,6 +1442,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": {
               "field": "output_format",

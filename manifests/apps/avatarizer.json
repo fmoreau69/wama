@@ -742,6 +742,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": "text_content",
             "stales": [
@@ -793,6 +794,7 @@
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
+            "remember": true,
             "section": "settings",
             "show_if": "text_content",
             "stales": [
@@ -842,6 +844,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": {
               "equals": "auto",
@@ -955,6 +958,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": true,
             "section": "settings",
             "show_if": "text_content",
             "stales": [
@@ -1004,6 +1008,7 @@
             "options_source": "voices",
             "pills": [],
             "radio_name": "",
+            "remember": true,
             "section": "settings",
             "show_if": "text_content",
             "stales": [
@@ -1061,6 +1066,7 @@
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
+            "remember": false,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1113,6 +1119,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1165,6 +1172,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [

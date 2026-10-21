@@ -485,6 +485,10 @@ def applicable_defaults(schema, values=None) -> dict:
 # une fonction du param — le `dom_id` du volet par défaut (la forme de l'imager, unique entre
 # ses deux domaines) ; une app dont les clés stockées suivent une autre règle la DÉCLARE
 # (`key=`), les clés déjà en base restant ce qu'elles sont (frontière des données).
+# ⏳ 2026-10-21 : LA règle commune est posée (`domain_key` : `<domaine>.<nom>` d'un réglage
+# `remembered`), et `manage.py align_setting_keys` en fait le plan et la preuve sur la base ; les
+# trois règles du parc (ce `dom_id`, `panel_name_key`, les règles écrites des apps) restent lues
+# jusqu'à la bascule, qui se fait dans le même geste que l'exécution du plan validé.
 def panel_dom_id(p):
     """dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
 

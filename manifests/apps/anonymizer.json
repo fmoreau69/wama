@@ -1062,6 +1062,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1113,6 +1114,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": {
               "equals": "description",
@@ -1173,6 +1175,7 @@
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1224,6 +1227,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1275,6 +1279,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1326,6 +1331,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1375,6 +1381,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1426,6 +1433,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1477,6 +1485,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1526,6 +1535,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1575,6 +1585,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": {
               "equals": true,
@@ -1627,6 +1638,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1676,6 +1688,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1725,6 +1738,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [],
@@ -1772,6 +1786,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [],
@@ -1819,6 +1834,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [],
@@ -1866,6 +1882,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [],
@@ -1993,6 +2010,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": null,
@@ -2053,6 +2071,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": null,

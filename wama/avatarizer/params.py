@@ -53,6 +53,9 @@ PARAMS = derive_from_model(
             dom_id={"panel": "animation_model", "item": "settingsAnimationModel",
                     "batch": "batchSettingsAnimationModel"},
             contexts=PANEL_ITEM_BATCH,
+            # Jamais retenu d'un dépôt au suivant : un modèle nommé ne convient qu'à UNE nature
+            # d'avatar, et le suivant peut en changer (ex-`NOT_REMEMBERED`).
+            remember=False,
             # Ce que chaque réglage PÉRIME (`Param.stales`, 2026-10-05) : `ProcessSpec.watched`
             # s'en dérive (function_specs.py n'y garde que les champs hors schéma).
             stales=("animate",)),
@@ -75,7 +78,9 @@ PARAMS = derive_from_model(
                              # — le lancement résout dans workers.py.
                              options_auto=True,
                              dom_id={"item": "settingsTtsModel"}, contexts=("item",),
-                             stales=("speak",)),
+                             # La VOIX (moteur, langue, voix) se règle dans la modale, pas au
+                             # volet, et se retrouve au job suivant (ex-`VOICE_SETTINGS`).
+                             remember=True, stales=("speak",)),
         # Curseur de qualité du tirage « auto » — mêmes conditions de visibilité que le
         # select sur lequel il pèse (job porteur de texte ET modèle « auto »).
         "quality_intent": intent_param(
@@ -85,11 +90,11 @@ PARAMS = derive_from_model(
         "language":     dict(type="select", label="Langue", icon="fa-language",
                              show_if="text_content",
                              dom_id={"item": "settingsLanguage"}, contexts=("item",),
-                             stales=("speak",)),
+                             remember=True, stales=("speak",)),
         "voice_preset": dict(type="select", label="Voix", icon="fa-user", chip=True,
                              show_if="text_content", options_source="voices",
                              dom_id={"item": "settingsVoicePreset"}, contexts=("item",),
-                             stales=("speak",)),
+                             remember=True, stales=("speak",)),
         "use_enhancer": dict(type="toggle", label="Amélioration CodeFormer", chip=True,
                              icon="fa-wand-magic-sparkles",
                              help="Restauration faciale haute qualité — légèrement plus lent. "

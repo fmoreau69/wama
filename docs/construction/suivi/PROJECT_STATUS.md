@@ -25707,3 +25707,57 @@ audio `strength` / colonne `denoising_strength` (`WAMA_APP_GENERATION_ROUTE`, li
   neuves (catalogue des licences, gestion des modèles → « Constellation ») ; leur mise en espace
   (`layout`) est un premier réglage, à affiner à l'œil. §7 question 2 tranchée en livrant (registre de
   scènes à part) — à revoir s'il préfère un champ de `Registry`.
+
+## §PALIER 2026-10-21 (soir), « ⑥ étape 2 : LA règle de clé `<domaine>.<nom>`, la rétention déclarée sur le `Param`, le plan et sa preuve » — non poussé — rien d'appliqué en base — 🔴 relancer gunicorn + workers (`param_schema`, `avatarizer/params.py`)
+
+**Question de Fabien** : *« reprend-on un fonctionnement déjà aligné, ou réinvente-t-on ? La
+cartographie est-elle complète, dans tous les mondes ? »* — cartographie COMPLÉTÉE avant d'écrire.
+
+**Ce qui est REPRIS, rien d'inventé** : la règle « clé = nom du param », déjà celle de cinq apps
+(reader, describer, anonymizer, composer, transcriber) et celle que le générateur déclare
+(`params_gen` : `user_setting_key = panel_name_key`), préfixée du domaine que `APP_MODES` nomme
+toujours ; la brique `user_settings` (lecture, garde, remise à zéro, cascade de naissance 10/10) et
+son point d'extension `key=` ; le contexte `panel` du `Param` comme règle de rétention.
+
+**Mesuré — la cartographie des préférences** (couche 4 de `ROADMAP §23.3bis`) :
+- règle `dom_id` (identifiant d'interface) : le converter n'en a que sur 1 de ses 20 réglages de
+  volet — son volet ne retient presque rien ; l'imager perd `image_strength` ; l'enhancer audio
+  n'a aucune mémoire ;
+- jumelles générées : vues sans `key=` + `params` sans `dom_id` → AUCUNE mémoire (`writer_01`,
+  `translator_01` : leurs lignes du 13 au 18/10 sont orphelines, le volet montre les défauts) ;
+- règles écrites : transcriber (deux noms anciens), avatarizer (voix hors volet, modèle
+  d'animation jamais), synthesizer (la voix seule, sous `preferred_*` ; 0 ligne en base).
+
+**Mesuré — les voies de NAISSANCE d'un élément, tous mondes** : dépôt de la card 10/10 et « Envoyer
+vers » (filemanager) passent par la cascade commune ; les créateurs `tool_api.add_to_*` — donc
+l'assistant, le Studio (`generic_runner`), le MCP, Discord — n'y passent que pour le converter :
+défauts écrits dans les signatures (`add_to_audio_enhancer(engine='resemble', …)`) et préférences
+de l'auteur ignorées (reste consigné `ROUTE`, ligne « naissance d'un élément par la cascade
+COMMUNE »). Data : aucune préférence de volet aujourd'hui, la card du Data Analyzer est R4 ; Lab :
+profils NOMMÉS (`AnalysisProfile`, une autre couche), schéma `Param` à venir par R3 ; Studio : les
+valeurs d'un nœud vivent dans le graphe (porteur déclaré, règle 5) — l'élément naît par l'outil.
+
+**Livré, sans toucher aux données** :
+- `Param.remember` (None = au volet ; True/False déclaré) et `param_schema.remembered` ;
+  l'avatarizer DÉCLARE sa voix (`remember=True`) et son modèle d'animation (`remember=False`) ;
+- `param_schema.domain_key` : la règle unique `<domaine>.<nom>` ; ⚠ ces trois pièces de
+  `param_schema.py` (fichier co-édité) sont entrées dans HEAD par `09fda02e` (instance
+  « température », commit du fichier entier à 18:23) — contenu identique, non recommité ;
+- `manage.py align_setting_keys` : relevé + PLAN + PREUVE par compte/app/domaine (le volet rendu par
+  la brique avant et après) ; `--apply <plan>` n'exécute que ce plan et refuse tout si une ligne a
+  bougé ; `--revert <plan>` remet les lignes à l'identique ; cache vidé dans les deux sens.
+  **Relevé du 21/10 : 128 lignes à ranger, 53/53 volets identiques, 15 comptes** ; laissées et
+  dites : `assistant`/`common` (surfaces sans domaine), `last_format_*` du converter (hors cascade),
+  `surface_layout.correct` (disposition de surface), et les lignes orphelines des jumelles ;
+- gardes `wama/common/tests/tests_setting_keys.py` (règle, rétention, « aucun réglage retenu
+  hier n'est oublié par la règle commune » sur chaque app, plan/apply/refus/revert sur des lignes
+  de test) ; deux contre-épreuves en mémoire ROUGES ; corpus des dix apps régénéré (`remember`).
+
+🔚 **Décisions de Fabien avant la bascule** : (a) la preuve et le plan (`logs/setting_keys/`) ;
+(b) le synthesizer ne retient que la voix — garder (`remember=False` sur ses autres réglages de
+volet) ou retenir son volet comme toutes les apps ; (c) les lignes orphelines de `writer_01` (ton
+compte, 13/10) et `translator_01` (compte 4) : les rendre au volet ou les laisser. **Puis la
+bascule, en un geste** : la brique prend le domaine (`read/save/reset/new_element_settings`), les
+règles propres disparaissent des `params.py` et du générateur, le plan s'exécute, relance. Ensuite :
+les créateurs `tool_api` par la cascade commune (assistant, Studio, MCP, Discord), le curseur au
+lancement par domaine, le volet audio de l'enhancer, les files par domaine, le générateur.

@@ -715,6 +715,7 @@
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -764,6 +765,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": {
               "equals": "auto",
@@ -836,6 +838,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -894,6 +897,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -957,6 +961,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "output",
             "show_if": null,
             "stales": null,
@@ -1012,6 +1017,7 @@
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": [
@@ -1066,6 +1072,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": null,
@@ -1117,6 +1124,7 @@
             "options_source": null,
             "pills": [],
             "radio_name": "",
+            "remember": null,
             "section": "settings",
             "show_if": null,
             "stales": null,
