@@ -1563,6 +1563,11 @@ Les valeurs ne s'écrivent **en dur** qu'à l'**export**, où elles sont précis
 
 > **Le critère tient en une ligne : on écrit là où c'est RÉGÉNÉRABLE.** Le fichier de travail est
 > writable *précisément parce que* le perdre ne perd rien d'irremplaçable.
+>
+> ⭐ **Précisé le 2026-10-21 (Fabien, §11.8 ⑩)** : la base agrégée à laquelle on se CONNECTE
+> (`.wdat`, et `.trip` comme dans BIND) est aussi de ce niveau — on peut y écrire. Pendant la
+> session, les écritures vont d'abord dans un `.wdat` de travail TEMPORAIRE (rien ne se perd) ; elles
+> rejoignent la base de l'utilisateur à la SAUVEGARDE, sur choix explicite, mémorisable au profil.
 
 ⚠ **LE POINT QUI AURAIT PU CASSER LE MODÈLE — et qui ne le casse pas.** Une chose du fichier de
 travail n'est pas dérivable des raw data : le **codage humain**. Un chercheur qui code trois heures
@@ -3027,10 +3032,63 @@ dit ce que la card PORTE. Une card (unitaire ou lot) = **entrées + 0..N process
 **Deux façons de travailler, un seul objet à la fin** (§10.6 point 6.3) : **A** — le pipeline est
 connu : un document en langage naturel (+ RAG) donné à l'AI-Assistant, qui PROPOSE le manifeste
 `pipeline` (le LLM propose, la machine dispose, §9bis.4) ; l'utilisateur connecte ses entrées et définit
-ses sorties. **B** — on explore : la card naît avec ses entrées et un **pipeline vide** (place `open`) ;
+ses sorties. **B** — on explore : la card naît avec ses entrées et un **pipeline vide** (~~place
+`open`~~ — corrigé le 2026-10-21 : un pipeline vide, sans degré propre, cf. ⑩) ;
 chaque geste fait dans l'Explorer (sélection), le Segmenter ou le Calculator **ajoute un process
 déclaré** au pipeline de la card — jamais une modification de données non tracée. C'est le « protocole
 accumulé sur la card » de ③, rendu concret ; la promotion ↑ vers la mère l'applique au lot.
+
+**⑩ Décidé le 2026-10-21 (Fabien) — le pipeline d'une card, ce que ses process ÉCRIVENT, et l'export.**
+Trois points, issus d'une confrontation de la cartographie du moteur commun à ce document.
+
+1. **Pas de degré `open`.** *« Le fonctionnement pipeline est l'unité dans tout WAMA. »* Une card
+   porte son pipeline dans tous les mondes, et il FLUCTUE déjà en Médias (le composer réalise par
+   card une partie de ce que l'app déclare : selon le modèle, l'installation, la card elle-même —
+   `WAMA_APP_GENERATION_ROUTE §10.6` point 3.2, corrigé le même jour). La card du Data Analyzer suit
+   la même règle : ses process sont ceux que l'app déclare **plus ceux qu'elle a ajoutés** au fil des
+   gestes (§10.6 6.3 B). Vide au départ, `PENDING`. Ses process sont surtout des calculs
+   PROCESSEUR (segmentation temporelle, colonnes, indicateurs par segment) : sans `gpu`, ils se
+   jouent sur la file par défaut, hors du gouverneur.
+
+2. **Ce que les process ÉCRIVENT — les données brutes jamais, la base agrégée oui.**
+   - ⚠ **Ne pas confondre** les **données brutes** (`.rec`, CSV, vidéos : on n'y écrit JAMAIS) et la
+     **base de données agrégée construite à partir d'elles** (`.wdat`, et `.trip` — BIND levait la
+     lecture seule pour écrire dans le `.trip` depuis son interface). Écrire dans la base à laquelle
+     on se connecte n'est pas un problème en soi, et évite de multiplier les bases (§9quater.5bis :
+     on écrit là où c'est régénérable).
+   - **Deux entrées, deux origines de la base** : se **connecter** à une base existante (`.wdat`,
+     `.trip`, `.sqlite`…), ou **importer** des fichiers volatils (`.csv`, `.xlsx`, `.rec`…) dans une
+     **nouvelle** base `.wdat` (§7, §11.5).
+   - **Regarder ne crée rien** : lire passe par le registre des lecteurs (`sources.load`), un
+     référentiel chargé à la demande puis des dataframes (`frames`) — quelle que soit la source,
+     base ou fichier volatil. Le travail est homogène à la LECTURE sans aucune base.
+   - **Pendant la session, un fichier de travail `.wdat` TEMPORAIRE, systématique** dès qu'un geste
+     écrit : il tient les écritures pour ne rien perdre (panne, coupure). C'est le BAC À SABLE, sous
+     la règle de conservation du dossier temporaire (`PROFILES_PERMISSIONS §3`,
+     `temp_retention_days` : seuls partent les fichiers que rien ne désigne).
+   - **À la SAUVEGARDE, l'écriture va dans la base de l'utilisateur** : la base connectée, ou celle
+     créée à l'import. **Le choix est demandé explicitement**, et l'utilisateur peut l'enregistrer
+     dans son profil pour les fois suivantes. Rien ne s'écrit dans sa base sans ce geste.
+   - Ce qu'une sauvegarde dans un `.trip` ne sait pas porter se COMPTE (`Report.losses`,
+     §9duodecies.5), jamais tu. Une table dérivée rejoint alors sa base (D10 : « dans le même
+     conteneur que ses sources », plus d'orpheline).
+   - ⏳ **À ne pas trancher à la légère, et non tranché** (Fabien) : le détail du geste de sauvegarde
+     (tout ou partie, quand le proposer), une base connectée PARTAGÉE (dossier d'une expérimentation
+     où d'autres travaillent : écrire y modifie la base de tous), et le domicile du réglage de profil.
+     Ce qu'un process désigne dans sa ligne d'exécution (table, colonne du fichier de travail) se
+     précisera avec le moteur.
+
+3. **L'export est un MODULE porté par les cards, pas un réglage de sortie.** Il exporte TOUT le
+   contenu, de façon entièrement configurable (`Declaration` : famille → tables → colonnes ordonnées,
+   identité, « présent dans », décimation, format ; §9ter.6 C, §11.1) — tables, colonnes, segments
+   et leurs indicateurs, sur UNE base ou sur toutes celles d'un lot (`Regroupement(lots=…)`). Il est
+   donc porté par les cards **unitaires, filles et mères** (§11.4 : item vs lot ; ⑧ : la mère porte
+   aussi le bundle `.wds`). ⚠ Concaténer les essais d'un lot est une opération de LOT : un pipeline
+   qui tourne une fois par card ne peut pas la faire. ⏳ **Ouvert** (Fabien : « l'intégrer dans le
+   pipeline, je ne suis pas sûr ») — à confronter à ⑨ (« sorties = nœuds de sortie portant chacun
+   sa `Declaration` », 15/09) et au nœud `data_export` livré au Studio le 2026-10-11, qui concatène
+   déjà les bases d'une connexion : une action de card seule, ou la même `Declaration` servie par
+   deux surfaces (l'action de la card, le nœud de sortie du Studio).
 
 ### 11.9 SEGMENTER — les 4 écrans confrontés au code (2026-08-26)
 
@@ -4623,7 +4681,7 @@ casseraient en silence… sauf le premier, que l'instrument attraperait) :
 | 1 | taxonomie nature×rôle | **ALIGNÉ** | DEUX taxonomies parallèles d'intersection VIDE (`data_types.py` 11 types de donnée vs `MEDIA_CATEGORIES` 7 natures) ; `text` ABSENT de Data (0 hit taxonomique) → le retrait de `text` est un chantier 100 % `wama/` (la ligne contraire de `ROUTE §S2bis.6bis` pt 3 est RECTIFIÉE). ⚠ `.trip/.wdat` ne sont dans AUCUNE taxonomie de fichier : `category_of_path` les classe `document` ; seule la SONDE d'intake (`wama_data/apps.py:39-53`) sait dire « monde Data » |
 | 2 | rôles/ports | **ÉCART structurel** | `PortSpec` (function_catalog) n'a AUCUN rôle (mais a champs requis + optionnalité, que Médias n'a pas — aucun n'est sous-ensemble de l'autre) ; `studio_node_ports` ne connaît aucun type Data ; ~~le validateur du kind `pipeline` REFUSE un nœud `function` ; studio↔Data = 0 référence croisée~~ (corrigé le 2026-09-15 : nœud `function` codé le 2026-09-09, marche D ci-dessous ; `PortSpec` a gagné `group` à la marche C) |
 | 3 | files (UI Data) | **TROU total** | Segmenter/Exporter/Explorer sont des MODULES-MOTEURS, pas des apps UI — `wama_data/` n'a AUCUNE surface Django (0 views/urls/templates, écrit dans `modules.py` même). Briques de file : Médias 10/10 · Lab 0 (6356 lignes d'UI propre) · Data 0 |
-| 4 | reproductibilité | **ALIGNÉ papier / TROU code** | UN seul formalisme voulu — D13 (close 24/08) l'avait décidé AVANT nous : « UNE représentation (pipeline étendu d'un nœud `function`), DEUX éditeurs » ; le `.wdat` embarque déjà son protocole estampillé. ~~Le nœud `function` n'est pas écrit.~~ (corrigé le 2026-09-15 : codé le 2026-09-09.) Process Médias = params plats, process Data = suite ordonnée → ~~le 1-nœud est bien le cas DÉGÉNÉRÉ, pas la forme cible~~ précisé le 2026-09-15 (`WAMA_APP_GENERATION_ROUTE.md §10.6`) : une card porte un pipeline de **0..N process** — un seul process est un cas NORMAL, et une card Data peut démarrer avec un pipeline **VIDE** (place `open`) qu'on compose au fil de l'exploration |
+| 4 | reproductibilité | **ALIGNÉ papier / TROU code** | UN seul formalisme voulu — D13 (close 24/08) l'avait décidé AVANT nous : « UNE représentation (pipeline étendu d'un nœud `function`), DEUX éditeurs » ; le `.wdat` embarque déjà son protocole estampillé. ~~Le nœud `function` n'est pas écrit.~~ (corrigé le 2026-09-15 : codé le 2026-09-09.) Process Médias = params plats, process Data = suite ordonnée → ~~le 1-nœud est bien le cas DÉGÉNÉRÉ, pas la forme cible~~ précisé le 2026-09-15 (`WAMA_APP_GENERATION_ROUTE.md §10.6`) : une card porte un pipeline de **0..N process** — un seul process est un cas NORMAL, et une card Data peut démarrer avec un pipeline **VIDE** (~~place `open`~~ — sans degré propre, corrigé le 2026-10-21, §11.8 ⑩) qu'on compose au fil de l'exploration |
 | 5 | entrées/médiathèque | **ÉCART** | la médiathèque est média-only PAR VALIDATEUR (un `.trip` uploadé lève ValidationError ; `TYPE_GROUPS` dérivé de `MEDIA_CATEGORIES`) ; datasets référencés PAR CHEMIN (1 seul manifeste dataset au corpus) ; 0 `ScopedVisibility` dans `wama_data/` → une file Data partagée est TOUJOURS une file-modèle sans entrées (cas nominal, pas dégradé) |
 | 6 | batch | **TROU sans divergence** | 0 usage du formalisme batch côté Data ; son entrée groupée = group-by sur AXES du plan d'expérience (spécifiée §9, non câblée). Aucun format concurrent à réconcilier |
 | 7 | apps Data au catalogue | **TROU délibéré** → ✅ **arbitrage TRANCHÉ le 2026-09-15 (Fabien) : voie (a)** — le Data Analyzer entre dans `APP_CATALOG` sous le monde `data` ; chaque app déclare son monde (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.1). Constat d'origine : catégorie `data` VIDE dans `APP_CATALOG`, exclusion motivée (contrat d'app générique ≠ brique transversale) → la card v4 générée des ports ne couvre pas Data ; le substitut naturel est `FunctionSpec.to_dict()` (« card + ports + modale », la promesse est déjà écrite dans `WAMA_DATA_FUNCTION_CARDS`) |

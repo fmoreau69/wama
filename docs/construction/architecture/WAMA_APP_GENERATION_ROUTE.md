@@ -4495,11 +4495,26 @@ visuel à part, un pipeline est un nœud comme un autre. Pas de nouveau KIND de 
 |---|---|---|
 | `required` | exécuté quand on lance le pipeline | la transcription du transcriber |
 | `optional` (+ `default: on/off`) | l'utilisateur l'active ou non — c'est une **option** d'aujourd'hui | diarisation, résumé, cohérence (`transcriber/models.py:32,64-69,75`) |
-| `open` (+ catalogue autorisé) | une **place à composer** : l'utilisateur y ajoute des process choisis dans un catalogue filtré (types, capacités, modules) | le traitement d'une card du Data Analyzer, vide au départ |
+| ~~`open` (+ catalogue autorisé)~~ | ~~une **place à composer**~~ — **retiré le 2026-10-21, voir ci-dessous** | |
 
 Une app Médias = `required` + `optional` ; ajouter ou retirer une étape à une app = **modifier son
-pipeline**, pas son code. Une app Lab = `required` (éventuellement par étages). Le Data Analyzer =
-une place `open`. **Un seul formalisme, trois degrés de liberté.**
+pipeline**, pas son code. Une app Lab = `required` (éventuellement par étages). ~~Le Data Analyzer =
+une place `open`. **Un seul formalisme, trois degrés de liberté.**~~
+
+> ⚠ **Corrigé le 2026-10-21 (Fabien) — pas de troisième degré : `open` désalignait.** *« Le
+> fonctionnement pipeline est l'unité dans tout WAMA. »* Mesuré : un pipeline est un graphe
+> `{nodes, links}`, vide valide (`builtin/pipeline.validate_pipeline_body`) ; le Studio en compose un
+> depuis un canvas vide sans aucun degré ; une card sans process est déjà `PENDING`
+> (`process_runs.aggregate`). **Une card porte son pipeline dans tous les mondes**, et il FLUCTUE déjà
+> en Médias : le composer réalise, par card, une partie de ce que l'app déclare — selon le modèle
+> (`applies` : partition planifiée ou extraite), l'installation (`available`) et la card elle-même
+> (`toggle` : la partition complète, cochée après coup et jouée seule). Le pipeline RÉALISÉ d'une card
+> est `AppPipeline.applicable(item)`, lu par une seule lecture (`pipeline_of`). La card du Data
+> Analyzer suit la même règle ; seule la SOURCE de ses process s'étend : ceux que l'app déclare **plus
+> ceux que la card a ajoutés** au fil des gestes (un même calcul peut y figurer deux fois, réglé
+> autrement). Le degré reste `required` / `optional`. Ce qui s'ajoute se choisit par la palette du
+> Studio et le typage des liens — aucune liste « autorisée » à déclarer.
+> **Un seul formalisme, deux degrés ; le pipeline d'une card fluctue dans tous les mondes.**
 
 **3.3 Réglages et péremption.** Chaque process porte le schéma de SES réglages (le `params.py` de
 l'app pour un process d'app, `FunctionSpec` pour une fonction) et la liste des réglages qu'il
@@ -5256,7 +5271,8 @@ appliquée à tous les étages (process → card → lot → file). Règle propo
 l'implémentation** (décision ouverte n°4) : un process `RUNNING` → card `RUNNING` ; sinon un
 `AWAITING_RESOURCES` → `AWAITING_RESOURCES` ; un process `required` en `FAILURE` → `FAILURE` ; tous
 les `required` et `optional` activés en `SUCCESS` → `SUCCESS` ; au moins un `STALE` → `STALE` ;
-une place `open` vide → `PENDING` (« à composer ») ; les `optional` désactivés sont ignorés.
+~~une place `open` vide~~ une card sans process → `PENDING` (« à composer » — corrigé le
+2026-10-21, pas de degré `open`, cf. 3.2) ; les `optional` désactivés sont ignorés.
 
 **4.5 Le moteur commun** — il RÉUNIT trois pièces existantes, il n'en écrit pas une quatrième :
 - **de l'exécuteur du studio** (`studio/tasks.py`, `studio/services/launch.py`) : validation avant
@@ -5946,7 +5962,8 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 **5.1 Anatomie de la card** (même ordre que `CARD_DESIGN §11.8` : Entrée / Réglages / Sortie) :
 **Entrées** (modalités de la card d'entrée) · **Process** — une ligne par process : état, ▶ (le
 lancer seul), ⚙ (réglages générés de son schéma), case à cocher s'il est `optional`, résumé de sa
-sortie ; pour une place `open`, le bouton « ajouter un process » ouvrant le catalogue filtré ·
+sortie ; pour une card qui compose son pipeline (Data Analyzer), le bouton « ajouter un process »
+ouvrant la palette (corrigé le 2026-10-21 : ~~une place `open`~~, cf. 3.2) ·
 **Sorties** (onglets de résultat, téléchargement, exports). En tête : ▶ tout / compléter manquant +
 périmé, et la rangée d'actions commune (décision 6 du `PROJECT_STATUS §PALIER 2026-09-15`), dont le
 bouton de cycle lit l'état AGRÉGÉ par un adaptateur unique, jamais `item.status` en dur.
@@ -6295,7 +6312,7 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 |---|---|---|
 | **Médias** | `required` + `optional` | transcriber : transcription → diarisation → résumé → cohérence, aujourd'hui des blocs `if` dans une fonction (`transcriber/workers.py:402-592`) dont les échecs optionnels sont avalés et l'item passe `SUCCESS` (`:484`, `:551`, `:567`, `:592`, `:601`) ; anonymizer : détection/segmentation → floutage, aujourd'hui fusionnés en mémoire ; avatarizer : TTS (optionnel, dérivé du texte, `MODES_QUEUE_UX.md:93-100`) → animation → amélioration (optionnelle) |
 | **Lab** | `required`, par étages | cam_analyzer : 13 process, étages analyse / calcul, clé d'instance = caméra. **Cible (Fabien, 17/09)** : la SESSION Lab devient une **card qui porte le pipeline**, l'UI de l'app s'ouvre par « Éditer » comme dans Médias — **non câblé tant que le Lab n'est pas aligné** sur les autres mondes (y compris pour le partage, `docs/construction/exploitation/WAMA_COLLABORATION.md §3`) |
-| **Data** | place `open` (+ entrées et sorties déclarées) | Data Analyzer : la card porte une source (`.wdat`, `.trip`, dossier d'expérimentation…) et un pipeline composé de modules |
+| **Data** | ~~place `open`~~ pipeline composé par la card, vide au départ (corrigé le 2026-10-21, cf. 3.2) | Data Analyzer : la card porte une source (`.wdat`, `.trip`, dossier d'expérimentation…) et un pipeline composé de modules |
 | **Studio** (transverse) | tout, en graphe | compose et enregistre des pipelines de tous les mondes |
 
 ⚠ Deux points de granularité à ranger : la diarisation déjà fournie par certains moteurs du
@@ -6315,7 +6332,8 @@ kind. **Manques** : aucun rôle ne produit de manifeste `pipeline` ni `dataset` 
 n'en ont pas), aucun lien RAG → génération de pipeline n'est écrit, et un manifeste reconnu par
 l'intake ne peut pas encore être ingéré (`common/utils/intake.py:112-114`).
 
-**B. On explore.** La card naît avec **ses entrées et un pipeline vide** (place `open`). Chaque geste
+**B. On explore.** La card naît avec **ses entrées et un pipeline vide** (~~place `open`~~ —
+corrigé le 2026-10-21 : un pipeline vide, sans degré propre, cf. 3.2). Chaque geste
 fait dans une surface **AJOUTE un process déclaré** au pipeline de la card :
 - une **sélection** dans le graphe ou le tableur de l'Explorer = un process « sélection » dont les
   réglages SONT la sélection (intervalles, occurrences) — rejouable sur cette card ; une curation par
@@ -6385,7 +6403,9 @@ possible **sans aucun process**.
 1. Vocabulaire du point 1 ; **une card = une instance de pipeline** dans tous les mondes.
 2. Un pipeline porte 0..N process ; il est une capacité ; il se chaîne et s'enregistre ; **un
    pipeline peut être un nœud**.
-3. Chaque process déclare son degré de liberté : `required` / `optional` / place `open`.
+3. Chaque process déclare son degré de liberté : `required` / `optional` ~~/ place `open`~~ —
+   **amendée le 2026-10-21 (Fabien)** : pas de troisième degré ; une card porte son pipeline, qui
+   fluctue (déclaré qui a lieu + ajouté par la card), vide valide (point 3.2).
 4. **Un vocabulaire d'états commun, `STALE` compris**, au commun ; état de card déduit des process.
 5. **Un moteur commun**, réunion de l'exécuteur du studio, du squelette de tâche et du suivi de passes.
 6. Porter au commun la gestion de pipeline de cam_analyzer.
