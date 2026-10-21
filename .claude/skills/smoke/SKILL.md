@@ -220,3 +220,32 @@ le RENDU RÉEL, pas la structure du code.
 - ⚠ **Le compte de test nocturne n'a pas forcément de card dans l'app visée** : mesuré, seul
   `wama_ui_smoke_v3` portait une card dans CHACUNE des apps ; une observation du volet se fait sous
   ce compte (session forgée comme `_test_session_key`, retirée ensuite).
+
+## Prouver « aucune régression VISUELLE » d'une extraction : le banc de parité au pixel (2026-10-21)
+
+> Demande de Fabien en portant la constellation des utilisateurs sur la brique commune : *« je ne
+> veux aucune régression sur les visuels 3D existants »*. Un smoke qui dit « la scène se forme »
+> ne le prouve pas ; seule une comparaison ANCIEN code / NOUVEAU code, mêmes entrées, le prouve.
+
+- **Les deux codes servis en même temps** : l'ancien depuis un worktree de HEAD (recette d'AGENTS.md :
+  y copier `.env` et les migrations — et, pour une scène 3D, `wama/static/vendors/three-*/build/`,
+  avalé par `.gitignore`), sur un port ; le nouveau depuis l'arbre, sur un autre. Les deux
+  côté WSL, `runserver --noreload --insecure` (les statics viennent des SOURCES).
+- **Les mêmes entrées** : les faits servis d'un fichier par `context.route(...)` (un jeu réel + un
+  jeu synthétique qui exerce ce que le réel n'a pas : projets, apports, partages à une portée,
+  comptes inactifs et de test) ; les replis aussi (`getContext` → `null` pour « sans WebGL », la
+  route en 500).
+- **Le même temps** : `add_init_script` qui remplace `requestAnimationFrame` et `performance.now`
+  par une horloge avancée à la main (`window.__tick(ms)`, pas de 16 ms) ; capture
+  `animations='disabled'`. Sans cela, deux passages du MÊME code diffèrent.
+- **Les mêmes gestes**, une capture + un relevé du DOM (volet, étiquettes, infobulle, mesures) à
+  chacun. ⚠ **Sortir la souris de la scène après un survol** : une étiquette qui bouge sous une
+  souris immobile fait apparaître l'infobulle au hasard (mesuré : elle variait entre deux passages
+  du même code, ~20 000 px).
+- **Comparer** au pixel (PIL `ImageChops.difference`) en écartant ce qui n'est pas la page mesurée
+  (l'explorateur de fichiers, x < 280 : il lit `media/`, différent d'un worktree), et le DOM une fois
+  le seul renommage VOULU retiré. Bruit mesuré entre deux passages du même code : ≤ 40 px, sous le
+  champ de recherche focalisé ou le verre d'un volet — à étalonner par deux passages de l'ancien
+  code AVANT de juger le nouveau.
+- Toute retouche ultérieure de la brique se reprouve contre la dernière passe du nouveau code
+  (transitivité), sans refaire le worktree.

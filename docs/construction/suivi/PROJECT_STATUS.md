@@ -25780,3 +25780,32 @@ ramenés (`WAMA_SCENES_3D §6`) : couleur d'une famille de licences, libellé d'
 ⚠ Correction d'une explication fausse donnée à Fabien : les scènes lisent bien les REGISTRES — la
 table `AIModel` par `catalogue_visible_to(user)`, `license_audit.inventaire(user)` pour les licences —,
 filtrés par ses droits ; écrit au `§4`. 🔚 Suite demandée : filtrer depuis la légende (`§5` 2bis).
+
+## §CLÔTURE — 2026-10-21 soir, « SCÈNES 3D : brique commune, licences, modèles » — ✅ livré, revérifié
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : la demande de Fabien en fin de session — **filtrer depuis la
+légende** du volet droit (`WAMA_SCENES_3D §5` 2bis : forme proposée, à valider AVANT d'écrire ;
+Fabien : *« on en reste là pour le moment, on y revient plus tard »*). Toute retouche de la brique
+refait la parité au pixel de la constellation des utilisateurs (recette : skill `/smoke`, section
+« banc de parité »).
+
+**Livré** (`58d48d15`, `e9488b23`, `d46971e8` — non poussés) : voir `§PALIER 2026-10-21 soir` et sa
+revérification ci-dessus, `WAMA_SCENES_3D §4`, mécanisme `proximity_scenes`.
+
+**Limites de ce que la session a construit** (à elle) : mise en espace des scènes licences/modèles
+= premier réglage ; deux doubles consignés non ramenés (`§6` : couleur d'une famille de licences,
+libellé d'état d'installation) ; §7 question 2 tranchée en livrant (registre de scènes à part).
+
+**Pendings système** : 🔴 relancer gunicorn (gabarits, URL, `ready()` de trois apps, thème) ;
+pousser ; valider sur le live : Users → Constellation, catalogue des licences → Constellation,
+gestion des modèles → Constellation (et ses badges de type, inchangés).
+
+**Contrôles mesurés à la clôture** : 342 tests du périmètre verts sur base neuve (scènes, `wama.accounts.tests`, thème, contraste, en-tête des catalogues, registres, suite nocturne) ; `check_docs` 0 cassée, 1 périmée (renvoi
+`views.py:1044` d'une autre session) ; `doc_facts --check` à jour ; `check_redundancy` 87, 0 dans
+les fichiers de la session ; `check_skills` 0 défaut ; parité 55/58 au pixel (3 : bruit du champ de
+recherche), DOM 58/58 ; scénarios `accounts.constellation.ui`, `common.scene.licenses.ui`,
+`common.scene.models.ui` verts sur serveur jetable.
+
+**Artefacts** : le banc de parité, les jeux de faits figés et les sondes vivent dans le scratchpad de
+session (jetables) ; serveurs jetables arrêtés ; arbre de travail jetable retiré ; base de test
+privée détruite ; compte `wama_pw_smoke` rendu à son niveau « utilisateur ».
