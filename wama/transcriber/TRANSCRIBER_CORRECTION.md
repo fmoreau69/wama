@@ -497,14 +497,16 @@ instance concrète de la brique `RunOutcome`/`ResultFeedback` visée en ROADMAP 
 ## 9. Corriger une transcription — le guide
 <!-- WAMA:SECTION(audience=utilisateur; type=guide; nature=constat; etat=✅; porte=apps/transcriber) -->
 <!-- Écrit et confronté au code le 2026-09-14 (1ʳᵉ source de la doc utilisateur, ROADMAP §25.1 ⑤) ;
-     reconfronté le 2026-10-21, la page devenue SURFACE : wama/transcriber/surfaces.py, le transport
-     commun (common/js/wama-transport.js), les briques segment_list / item_settings / speaker_names
-     (common/js/surfaces/), wama/transcriber/views.py (correction_saved). -->
+     reconfronté le 2026-10-21, la page devenue SURFACE : wama/transcriber/surfaces.py, la ligne de
+     temps (common/js/wama-timeline.js), le transport commun (common/js/wama-transport.js), les
+     briques segment_list / playback_writing / item_settings / speaker_names (common/js/surfaces/),
+     wama/transcriber/views.py (correction_saved). -->
 
 Une fois la transcription terminée, sa card porte un bouton **Éditer** (icône crayon). Il ouvre
-l'éditeur : la liste des segments, synchronisée avec la lecture, et en dessous le transport — la
-forme d'onde, une bande colorée qui signale les passages douteux, une vue d'ensemble et les
-commandes de lecture. À côté : les actions, le document et les intervenants. Chaque panneau se
+l'éditeur : la liste des segments, synchronisée avec la lecture, et en dessous trois panneaux —
+la **ligne de temps** (la forme d'onde, une bande colorée qui signale les passages douteux, une vue
+d'ensemble), le **transport** (les commandes de lecture) et l'**écriture à la lecture**. À côté :
+les actions, le document et les intervenants. Chaque panneau se
 déplace par son titre et se redimensionne par ses bords ; la disposition est gardée, et **Disposition
 par défaut** la remet. Le survol du bouton Éditer dit où en est la correction : brouillon en cours,
 ou corrigée.
@@ -550,7 +552,7 @@ sont d'abord recalés sur la transcription automatique. Chaque geste s'annule av
 
 ### 9.1ter Les modes d'écriture : la lecture transcrit
 
-Le menu **Lecture** du transport choisit ce que fait la lecture. En mode Lecture, elle ne
+Le menu **Lecture** du panneau Écriture à la lecture choisit ce que fait la lecture. En mode Lecture, elle ne
 fait que jouer. Les autres modes font transcrire, pendant l'écoute, la plage qui est jouée :
 
 | mode | ce qui est transcrit | ce qui change dans le texte |

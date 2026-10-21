@@ -5,7 +5,7 @@
  *
  * Le constat de la cartographie du 2026-10-01 : aucun transport de WAMA n'avait d'objet AXE —
  * chacun prenait un élément média pour source de vérité et appelait ses vues lui-même. Ici
- * l'axe EST la vérité : le magnéto (`brick-media-transport.js`, le clavier) lui envoie des
+ * l'axe EST la vérité : le magnéto (`wama-transport.js`, le clavier) lui envoie des
  * COMMANDES, les vues s'y ABONNENT et ne se parlent jamais. La synchronisation est une
  * conséquence du graphe d'observateurs, comme dans `Magneto.m`.
  *
@@ -19,6 +19,8 @@
  *   var off  = axis.subscribe(function (s) { … s.time, s.duration, s.playing, s.rate, s.reason });
  *   axis.attach(audioElement, {offset: 0});
  *   axis.play(); axis.pause(); axis.toggle(); axis.seek(12.5); axis.jump(-5);
+ *   axis.seek(83, 'goto');                         // un temps NOMMÉ : les vues le montrent
+ *   axis.playFrom(20);                             // écouter depuis : le shuttle se rend
  *   axis.setSpeed(1.5);                            // la vitesse CHOISIE (avant), celle de la lecture
  *   axis.shuttle(-2);                              // un cran de shuttle : 0 = arrêt, < 0 = arrière
  *   axis.bindKeys({jump: 5});                      // Espace, ←/→, Début/Fin (+ J/K/L par WamaShuttle)
@@ -232,13 +234,22 @@
             },
             stop: function () { axis.pause(); axis.seek(0); },
 
-            seek: function (t) {
+            /** Aller à `t`. `reason` dit aux abonnés POURQUOI (défaut `seek`) : `goto`, un temps
+             *  nommé (« aller à ») — une vue fenêtrée le montre au centre, une liste choisit ce
+             *  qui s'y trouve. L'axe ne connaît aucune vue : il le dit, elles décident. */
+            seek: function (t, reason) {
                 s.time = clamp(Number(t) || 0, 0, end());
                 setMediaTime(s.time);
                 last = now();
-                notify('seek');
+                notify(reason || 'seek');
             },
             jump: function (dt) { axis.seek(s.time + (Number(dt) || 0)); },
+            /** Écouter depuis `t` (un segment, une proposition) : le shuttle se rend d'abord. */
+            playFrom: function (t) {
+                if (s.shuttling) axis.shuttle(0);
+                axis.seek(t);
+                axis.play();
+            },
 
             /** Vitesse signée : < 0 = arrière (silencieux). 0 n'est pas une vitesse : c'est `pause`.
              *  Une vitesse positive devient la vitesse CHOISIE, et rend le shuttle. */

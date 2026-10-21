@@ -25,12 +25,16 @@
  * (`resize`). `help` : les gestes de la brique, que la brique d'actions affiche (`ctx.helps()`).
  * Événements du bus : `change`, `select`, `resize`, `saved`, `applied`, `focus`, `processes`,
  * `redone` (le process rejoué par « Appliquer » et son aval ont réussi : les médias lus sont neufs),
- * `layout` (la disposition vient d'être figée ou rendue modifiable : `{frozen}`).
+ * `layout` (la disposition vient d'être figée ou rendue modifiable : `{frozen}`), `bands` (des
+ * plages du temps qu'une brique MARQUE — `{key, bands: [{start, end, color}]}`, une liste par
+ * brique, `end` nul = jusqu'à la tête de lecture — que les vues du temps dessinent).
  *
  * L'AXE PARTAGÉ (2026-10-15, `wama-axis.js`) : `ctx.axis()` rend LE temps de la surface — un
  * seul par page, créé au premier appel. Le transport le pilote, les vues s'y abonnent ; une
- * brique ne parle jamais à une autre (`WAMA_DATA_WORLD §5bis`). Un emplacement peut nommer son
- * titre (`options.title`) : la même brique sert deux rôles sur une page.
+ * brique ne parle jamais à une autre (`WAMA_DATA_WORLD §5bis`). Quatre niveaux depuis le
+ * 2026-10-21 : l'axe, le transport (`media_transport`), les vues (`media_timeline`,
+ * `score_view`, `segment_list`), les outils de domaine (`playback_writing`). Un emplacement
+ * peut nommer son titre (`options.title`) : la même brique sert deux rôles sur une page.
  *
  * Un geste de FRAPPE passe `ctx.edit(fn, {burst: true})` : une rafale = UN cran d'annulation
  * (`WamaHistory.beginBurst`, la règle de la page de correction du Transcriber). Un geste

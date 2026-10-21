@@ -35,9 +35,10 @@ SERVED = BASE / 'staticfiles'
 HAS_V8 = importlib.util.find_spec('py_mini_racer') is not None
 GESTURES = COMMON / 'js' / 'wama-gestures.js'
 STUDIO = BASE / 'wama' / 'studio' / 'static' / 'studio' / 'js' / 'wama-studio.js'
-#: L'onde de la page de correction et sa minimap sont des options du TRANSPORT commun, et la liste
-#: des segments une brique de surface, depuis le 2026-10-21 (la page `edit.js` est retirée, R166).
-EDITOR = COMMON / 'js' / 'wama-transport.js'
+#: L'onde de la page de correction et sa minimap sont la LIGNE DE TEMPS commune, et la liste des
+#: segments une brique de surface, depuis le 2026-10-21 (la page `edit.js` est retirée, R166 ; le
+#: même jour, l'onde a quitté le transport pour sa propre vue).
+EDITOR = COMMON / 'js' / 'wama-timeline.js'
 SEGMENTS = COMMON / 'js' / 'surfaces' / 'brick-segment-list.js'
 QUEUE = COMMON / 'js' / 'wama-queue-dnd.js'
 
@@ -535,7 +536,7 @@ class PagesAdoptTheBrickTest(SimpleTestCase):
                  (QUEUE, SERVED / 'common' / 'js' / 'wama-queue-dnd.js'),
                  (COMMON / 'css' / 'wama-touch.css', SERVED / 'common' / 'css' / 'wama-touch.css'),
                  (STUDIO, SERVED / 'studio' / 'js' / 'wama-studio.js'),
-                 (EDITOR, SERVED / 'common' / 'js' / 'wama-transport.js'),
+                 (EDITOR, SERVED / 'common' / 'js' / 'wama-timeline.js'),
                  (SEGMENTS, SERVED / 'common' / 'js' / 'surfaces' / 'brick-segment-list.js')]
         for source, served in pairs:
             self.assertEqual(_read(source), _read(served), f'{served} is stale')

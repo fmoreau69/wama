@@ -56,7 +56,10 @@ surface par champ.
 
 L'AXE PARTAGÉ (2026-10-15, chantier « transport commun », `ROUTE §F3b`) : une surface qui monte
 une brique temporelle a UN axe de temps (`wama-axis.js`, `ctx.axis()`). Le transport le PILOTE ;
-les vues s'y ABONNENT — elles ne se parlent jamais (`WAMA_DATA_WORLD §5bis`).
+les vues s'y ABONNENT — elles ne se parlent jamais (`WAMA_DATA_WORLD §5bis`). Depuis le
+2026-10-21 (redécoupage décidé par Fabien), quatre niveaux distincts : l'axe, le transport
+(`media_transport`, les commandes), les vues (`media_timeline`, `score_view`, `segment_list`) et
+les outils de domaine (`playback_writing`).
 
 LA CORRECTION DU TRANSCRIBER (2026-10-21, 4ᵉ surface, décisions de Fabien — `ROUTE §F3b`) : la
 page la plus avancée de WAMA devient une surface, sans perte (parité geste par geste). Ce qu'elle
@@ -557,22 +560,48 @@ register_brick(UIBrick(
     script='common/js/surfaces/brick-revision-history.js',
     consumes=('document',), emits=('document',)))
 
+# ── Le TEMPS d'une surface, en quatre niveaux (2026-10-21, redécoupage décidé par Fabien —
+# `ROUTE §F3b`) : l'AXE est le temps (`wama-axis.js`, `ctx.axis()`) ; le TRANSPORT lui envoie des
+# commandes ; les VUES le regardent (ligne de temps, partition, segments) ; les OUTILS DE DOMAINE
+# agissent sur la donnée pendant la lecture. Aucun ne connaît les autres.
 register_brick(UIBrick(
     key='media_transport', name='Transport média',
-    description="Le magnéto de la surface : un média attaché à l'AXE partagé (`wama-axis.js`), son "
-                "onde (le lecteur commun, pics serveur pour un long fichier), lecture / pause, "
-                "début, sauts, vitesse, shuttle J/K/L dont l'arrière silencieux. Il PILOTE l'axe, "
-                "jamais une vue (`WAMA_DATA_WORLD §5bis`) ; il dit si le média est périmé par une "
-                "modification et le recharge quand le process qui le produit a été rejoué. Par "
-                "OPTIONS (2026-10-21, le transport commun `wama-transport.js`, aussi celui de "
-                "l'aperçu et du monde Data) : aller à, vitesse par pas, onde FENÊTRÉE sur pics fins "
-                "et ses couches (repères et silences des segments, bandes d'écriture), zoom, bande "
-                "de qualité, minimap, outil Bornes (déplacer une jonction, couper, créer dans un "
-                "silence) et modes d'écriture (la lecture transcrit).",
+    description="Le magnéto de la surface : un média attaché à l'AXE partagé (`wama-axis.js`), "
+                "dont il devient l'horloge, joué par le lecteur commun (son onde, pics serveur pour "
+                "un long fichier — qu'une surface à ligne de temps tait), et les COMMANDES du temps "
+                "(le transport commun `wama-transport.js`, aussi celui de l'aperçu et du monde "
+                "Data) : lecture / pause, début, sauts, vitesse (liste ou par pas), aller à, shuttle "
+                "J/K/L dont l'arrière silencieux. Il PILOTE l'axe, jamais une vue (`WAMA_DATA_WORLD "
+                "§5bis`) ; il dit si le média est périmé par une modification et le recharge quand "
+                "le process qui le produit a été rejoué.",
     script='common/js/surfaces/brick-media-transport.js',
-    requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js', 'common/js/wama-segments.js',
-              'common/js/wama-transport.js'),
+    requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js', 'common/js/wama-transport.js'),
+    consumes=('audio',)))
+
+register_brick(UIBrick(
+    key='media_timeline', name='Ligne de temps',
+    description="Une VUE du temps, abonnée à l'axe partagé (le module commun `wama-timeline.js`) : "
+                "l'onde FENÊTRÉE d'un média lu sur ses pics fins — zoom de 4 s à la durée, molette, "
+                "glisser, pincer ; un clic y amène la lecture — et, par options, les couches d'une "
+                "suite de segments (repères, silences hachurés), la bande de qualité (un clic "
+                "écoute le segment), la minimap et l'outil Bornes (déplacer une jonction, couper, "
+                "créer dans un silence). Les plages que d'autres briques MARQUENT (écriture à la "
+                "lecture) s'y dessinent.",
+    script='common/js/surfaces/brick-media-timeline.js',
+    requires=('common/js/wama-axis.js', 'common/js/wama-segments.js', 'common/js/wama-timeline.js'),
     consumes=('audio', 'segments'), emits=('segments',)))
+
+register_brick(UIBrick(
+    key='playback_writing', name='Écriture à la lecture',
+    description="Un OUTIL abonné à l'axe partagé : la lecture transcrit une suite de segments. "
+                "Complément comble les blancs devant la tête de lecture ; Touch (R maintenu), "
+                "Latch (R jusqu'à l'arrêt) et Write (toute la lecture) enregistrent des plages et "
+                "PROPOSENT un texte qu'on écoute, accepte ou refuse. Pose le curseur que suit la "
+                "boucle serveur commune (`playhead_follow`) par les routes de geste que la surface "
+                "déclare ; marque ses plages sur les vues du temps.",
+    script='common/js/surfaces/brick-playback-writing.js',
+    requires=('common/js/wama-axis.js', 'common/js/wama-segments.js'),
+    consumes=('segments',), emits=('segments',)))
 
 # ── 2026-10-21 : la page de correction du transcriber devenue surface (ROUTE §F3b, étape 2) ──
 register_brick(UIBrick(

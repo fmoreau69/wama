@@ -1065,6 +1065,51 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       servi → rouge ; parité de l'éditeur 66/66, conflit 7/7, capture six surfaces inchangés.
     - ⏳ **restes** : proposer sa disposition figée comme défaut d'une équipe, ou une disposition
       publiée par un administrateur (partage d'élément, `WAMA_COLLABORATION`) — à décider.
+  - ✅ **2026-10-21 — LE TEMPS EN QUATRE NIVEAUX : axe, transport, vues, outils de domaine**
+    (redécoupage décidé par Fabien, sur trois recommandations soumises). Sa question : *« le
+    transport est ce qui sert la gestion du temps dans tout WAMA — à quel point faut-il intégrer
+    tout ce qu'on a dit ? »* Constat : la phrase du matin (« tout dans la même brique par
+    options ») avait été lue « tout ce qui touche au temps entre dans le transport » — l'onde, sa
+    fenêtre, la bande de qualité, la minimap, l'outil Bornes et les modes d'écriture y étaient
+    devenus des options. C'était contraire à la règle de BIND reprise par la cible de ce chantier
+    (`WAMA_DATA_WORLD §5bis` : *le magnéto pilote l'axe, jamais les vues*). Les trois décisions : quatre
+    niveaux ; l'onde, la minimap et la bande de qualité en UNE vue (elles partagent la fenêtre
+    visible) ; le redécoupage AVANT l'aperçu, pour que l'aperçu n'en hérite pas.
+    - **l'AXE** (`wama-axis.js`, inchangé dans son rôle) gagne deux choses du temps : `playFrom(t)`
+      (écouter depuis, le shuttle rendu — trois appelants l'écrivaient) et une RAISON de seek
+      (`seek(t, 'goto')`) : un temps nommé se DIT aux abonnés, qui décident — la ligne de temps
+      recentre sa fenêtre, la liste choisit le segment. Le transport ne connaît plus ni l'une ni
+      l'autre (il appelait `select(i)` et déplaçait la fenêtre lui-même).
+    - **le TRANSPORT** (`wama-transport.js`, 748 → ~180 lignes) : les COMMANDES seules — début,
+      sauts, lecture, vitesse (liste ou par pas), horloge, aller à, shuttle, clavier. Aucun média,
+      aucune vue, aucune donnée. L'enveloppe `media_transport` y ajoute la SOURCE (le lecteur
+      commun attaché à l'axe, son onde montrable ou tue : `options.wave`) et l'état du process
+      rejoué.
+    - **une VUE, la ligne de temps** (`wama-timeline.js`, brique `media_timeline`) : onde fenêtrée
+      sur pics fins, zoom, couches des segments, bande de qualité, minimap, et l'outil Bornes comme
+      outil de la vue sur les segments (le calcul restait commun, `WamaSegments`). Ses outils (zoom,
+      Bornes) sont dans le titre de la brique. Montable hors surface, comme le transport.
+    - **un OUTIL DE DOMAINE, l'écriture à la lecture** (brique `playback_writing`) : Complément,
+      Touch, Latch, Write et leurs propositions — un process qui agit sur la donnée pendant la
+      lecture, ni du temps ni une vue. Brique UNIVERSELLE (la règle du 10/10 : aucune brique
+      « d'une app ») : elle lit des segments et les routes de geste que la surface déclare. Ses
+      plages se MARQUENT sur les vues par le bus de la surface (événement `bands`, une liste par
+      brique) : elle ne connaît aucune vue.
+    - **la surface du transcriber** compose désormais sept briques ; disposition déclarée refaite
+      (ligne de temps 4 rangs, transport 3, écriture 3) — le transport repliait sa rangée sur deux
+      lignes à 8 colonnes, et une bande de qualité écrasée à 0 px par un panneau trop bas a été vue
+      par la parité (clic impossible), d'où `flex-shrink: 0` sur les bandes de la vue. Seule
+      disposition gardée en base : celle de Fabien, `slots` vide (la déclarée) — rien à migrer.
+    - **preuves** : parité `transcriber.editor_parity` **66/66 avant** (code du matin) **puis 66/66
+      après** ; les commandes ont changé de `data-*` (`data-timeline`, `data-writing`), pas de
+      geste. Gardes : `tests_editor_axis` (le transport ne connaît ni `WamaSegments`, ni
+      `WamaAudioPlayer`, ni `WamaGestures`, ni canvas, ni routes d'écriture ; `goto` entendu par la
+      vue et la liste ; l'outil marque par le bus), `tests_gestures` sur la vue, `tests_poller_js`
+      (la boucle des modes d'écriture déclarée sur sa brique). Face Pendant non touchée.
+    - ⏳ **restes** (inchangés par ce palier, désormais mieux posés) : l'aperçu — sa vidéo est une
+      SOURCE attachée à l'axe, le transport se monte dessous, les surcouches sont des VUES, Comparer
+      demande N médias sur un axe ; cam_analyzer et face_analyzer ; le pas image et la vitesse
+      continue de BIND iront au transport et à l'axe, pas ailleurs.
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à

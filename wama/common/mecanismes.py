@@ -1966,16 +1966,19 @@ MECHANISMS = (
               "(lecture silencieuse) ; vitesse CHOISIE distincte du cran de shuttle ; clavier du "
               "magnéto. Né le 2026-10-15 avec la partition du composer ; l'éditeur du transcriber y "
               "est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`) ; le "
-              "cam_analyzer reste à porter (matrice de parité). Le 2026-10-21 (décision de Fabien : "
-              "« le transport commun avec le transport de preview et le monde Data, tout dans la "
-              "même brique par options ») : le TRANSPORT commun montable partout "
-              "(`wama-transport.js` — onde fenêtrée et couches, bande de qualité, minimap, aller à, "
-              "zoom, outil Bornes, modes d'écriture, par options), les règles des SEGMENTS sans DOM "
+              "cam_analyzer reste à porter (matrice de parité). Le 2026-10-21 : le TRANSPORT commun "
+              "montable partout (`wama-transport.js`), les règles des SEGMENTS sans DOM "
               "(`wama-segments.js`) et les PICS FINS d'un média au commun (`waveform.dense_peaks`, "
-              "fichier dérivé au dossier caché comme la copie de lecture)",
+              "fichier dérivé au dossier caché comme la copie de lecture). Le même jour, "
+              "REDÉCOUPAGE décidé par Fabien — quatre niveaux, aucun ne connaît les autres : l'axe "
+              "(le temps), le transport (ses COMMANDES seulement), les VUES qui le regardent (la "
+              "ligne de temps `wama-timeline.js` : onde fenêtrée et couches, bande de qualité, "
+              "minimap, zoom, outil Bornes) et les OUTILS DE DOMAINE (l'écriture à la lecture, "
+              "brique `playback_writing`) ; un « aller à » se dit aux abonnés (`seek(t, 'goto')`)",
               'wama/common/static/common/js/wama-axis.js',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/static/common/js/wama-transport.js',
+                       'wama/common/static/common/js/wama-timeline.js',
                        'wama/common/static/common/js/wama-segments.js',
                        'wama/common/utils/waveform.py',
                        'wama/common/services/ui_smoke_editor.py'),

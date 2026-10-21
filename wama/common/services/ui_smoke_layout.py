@@ -343,11 +343,12 @@ JS_BELL_STATE = """() => { const it = document.querySelector('.wn-item'); if (!i
     return {tools: st('.wn-tools'), dot: st('.wn-dot'), go: st('.wn-go'),
             toolW: tool ? Math.round(tool.getBoundingClientRect().width) : 0}; }"""
 
-#: L'onde fenêtrée, son zoom et l'outil Bornes de la page de correction — des OPTIONS du transport
-#: commun depuis le 2026-10-21 (`wama-transport.js`, ROUTE §F3b).
-EDITOR_WAVE = '[data-transport="wave"]'
-EDITOR_ZOOM = '[data-transport="zoom-label"]'
-EDITOR_TOOL = '[data-transport="boundaries"]'
+#: L'onde fenêtrée, son zoom et l'outil Bornes de la page de correction — la LIGNE DE TEMPS
+#: commune depuis le redécoupage du 2026-10-21 (`wama-timeline.js`, brique `media_timeline`,
+#: ROUTE §F3b) ; le matin même encore des options du transport.
+EDITOR_WAVE = '[data-timeline="wave"]'
+EDITOR_ZOOM = '[data-timeline="zoom-label"]'
+EDITOR_TOOL = '[data-timeline="boundaries"]'
 
 #: L'identifiant du lecteur de la page de correction — une SURFACE depuis le 2026-10-21 (ROUTE
 #: §F3b) : celui que la brique de transport donne au lecteur commun, `surface-<pk>-audio`.

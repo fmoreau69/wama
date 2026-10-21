@@ -94,27 +94,36 @@
 .wama-transport-rate { width: auto; padding: .1rem 1.6rem .1rem .45rem; font-size: .78rem;
   background-color: var(--wama-edit-field); color: var(--wama-edit-text); border-color: var(--wama-edit-border-strong); }
 .wama-transport-clock { margin-left: auto; font-size: .8rem; color: var(--wama-edit-text); font-variant-numeric: tabular-nums; }
-
-/* Options du transport (2026-10-21, `wama-transport.js` — déplacées de la page de correction du
-   transcriber, `edit.html`) : onde fenêtrée, bande de qualité, minimap, aller à, propositions. */
-.wama-transport-player-hidden { display: none; }    /* l'onde fenêtrée remplace celle du lecteur */
-.wama-transport .zoom-wave { display: block; width: 100%; height: 54px; background: var(--wama-tx-wave);
-  border-radius: 4px; cursor: crosshair; }
-.wama-transport .zoom-mini { display: block; width: 100%; height: 14px; background: var(--wama-edit-field);
-  border-radius: 3px; cursor: pointer; }
-.wama-transport .seg-heatmap { position: relative; height: 10px; border-radius: 3px;
-  background: var(--wama-edit-field); overflow: hidden; }
-.wama-transport .seg-heatmap .hz { position: absolute; top: 0; bottom: 0; cursor: pointer; opacity: .85; }
-.wama-transport .seg-heatmap .hz:hover { opacity: 1; outline: 1px solid rgba(var(--wama-overlay-rgb), 0.5); }
+.wama-transport-player-hidden { display: none; }    /* une ligne de temps montre l'onde à sa place */
 .wama-transport-goto { width: 84px; }
-.wama-transport-speed, .wama-transport-zoom { min-width: 42px; }
-.wama-transport-write { width: auto; }
-.wama-transport .write-proposals { max-height: 110px; overflow-y: auto; }
-.wama-transport .wp-item { display: flex; align-items: center; gap: .4rem; padding: .15rem .3rem; font-size: .78rem;
+.wama-transport-speed { min-width: 42px; }
+
+/* Ligne de temps (2026-10-21, `wama-timeline.js` — une VUE du temps, déplacée du transport, et
+   avant lui de la page de correction du transcriber) : onde fenêtrée, bande de qualité, minimap. */
+.wama-brick-timeline { display: flex; flex-direction: column; gap: .35rem; padding: .45rem .55rem; }
+.wama-brick-timeline > * { flex-shrink: 0; }        /* un panneau trop bas défile, il n'écrase pas une bande */
+.wama-timeline-tools { display: flex; align-items: center; gap: .3rem; cursor: default; }
+.wama-timeline-tools .btn { padding: .1rem .4rem; font-size: .72rem; }
+.wama-timeline-zoom { min-width: 42px; }
+.wama-timeline .zoom-wave { display: block; width: 100%; height: 54px; background: var(--wama-tx-wave);
+  border-radius: 4px; cursor: crosshair; }
+.wama-timeline .zoom-mini { display: block; width: 100%; height: 14px; background: var(--wama-edit-field);
+  border-radius: 3px; cursor: pointer; }
+.wama-timeline .seg-heatmap { position: relative; height: 10px; border-radius: 3px;
+  background: var(--wama-edit-field); overflow: hidden; }
+.wama-timeline .seg-heatmap .hz { position: absolute; top: 0; bottom: 0; cursor: pointer; opacity: .85; }
+.wama-timeline .seg-heatmap .hz:hover { opacity: 1; outline: 1px solid rgba(var(--wama-overlay-rgb), 0.5); }
+
+/* Écriture à la lecture (2026-10-21, brique `playback_writing` — déplacée du transport) */
+.wama-brick-writing { display: flex; flex-direction: column; gap: .35rem; padding: .45rem .55rem; }
+.wama-writing-row { display: flex; align-items: center; gap: .4rem; }
+.wama-writing-mode { width: auto; }
+.wama-brick-writing .write-proposals { max-height: 110px; overflow-y: auto; }
+.wama-brick-writing .wp-item { display: flex; align-items: center; gap: .4rem; padding: .15rem .3rem; font-size: .78rem;
   border-left: 3px solid var(--wama-tx-warning-point); background: rgba(var(--wama-tx-warning-point-rgb), 0.07);
   margin-bottom: 2px; cursor: pointer; }
-.wama-transport .wp-time { flex: 0 0 auto; color: var(--wama-text-muted); font-variant-numeric: tabular-nums; }
-.wama-transport .wp-text { flex: 1 1 auto; min-width: 0; color: var(--wama-edit-text); white-space: nowrap;
+.wama-brick-writing .wp-time { flex: 0 0 auto; color: var(--wama-text-muted); font-variant-numeric: tabular-nums; }
+.wama-brick-writing .wp-text { flex: 1 1 auto; min-width: 0; color: var(--wama-edit-text); white-space: nowrap;
   overflow: hidden; text-overflow: ellipsis; }
 
 /* Segments (2026-10-21, déplacés de `edit.html`) — la liste éditable synchronisée à l'axe */

@@ -2,12 +2,14 @@
 
 2026-10-20 : le transport écrit dans `edit.js` (échelle J/K/L recopiée, lecture arrière par
 minuterie, sauts, Espace, lecture du temps) passe par l'axe commun. 2026-10-21 (décisions de
-Fabien) : la page entière devient la surface `transcriber.correct` — onde fenêtrée et couches,
-bande de qualité, minimap, outil Bornes et modes d'écriture sont des OPTIONS du transport commun
-(`wama-transport.js`), la liste des segments une brique universelle, le titre, la date et les noms
-des RÉGLAGES de la card. Ces gardes empêchent qu'une seconde version d'un geste revienne ; le
-COMPORTEMENT est attesté dans le navigateur par `transcriber.editor_parity` (66 gestes, 66/66 sur
-l'ancienne page puis sur la surface).
+Fabien) : la page entière devient la surface `transcriber.correct` — la liste des segments une
+brique universelle, le titre, la date et les noms des RÉGLAGES de la card. Le même jour, le TEMPS
+est redécoupé en quatre niveaux : l'axe, le transport (ses commandes seules, `wama-transport.js`),
+la ligne de temps (une vue : onde fenêtrée et couches, bande de qualité, minimap, zoom, outil
+Bornes — `wama-timeline.js`) et l'écriture à la lecture (un outil, brique `playback_writing`).
+Ces gardes empêchent qu'une seconde version d'un geste revienne, et que le transport reprenne ce
+qui n'est pas du temps ; le COMPORTEMENT est attesté dans le navigateur par
+`transcriber.editor_parity` (66 gestes, 66/66 avant puis après chaque étape).
 """
 import json
 from pathlib import Path
@@ -21,6 +23,9 @@ BASE = Path(settings.BASE_DIR)
 APP = BASE / 'wama' / 'transcriber'
 COMMON_JS = BASE / 'wama' / 'common' / 'static' / 'common' / 'js'
 TRANSPORT = COMMON_JS / 'wama-transport.js'
+TIMELINE = COMMON_JS / 'wama-timeline.js'
+TRANSPORT_BRICK = COMMON_JS / 'surfaces' / 'brick-media-transport.js'
+WRITING_BRICK = COMMON_JS / 'surfaces' / 'brick-playback-writing.js'
 SERVED = BASE / 'staticfiles'
 
 
@@ -36,18 +41,20 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
                      SERVED / 'transcriber' / 'js' / 'edit.js'):
             self.assertFalse(gone.exists(), f'{gone} : the page is a declared surface now')
 
-    def test_the_surface_composes_universal_bricks_with_the_transport_options(self):
+    def test_the_surface_composes_the_time_in_four_levels(self):
         from wama.common.surfaces import surface
         found = surface('transcriber', 'correct')
         self.assertIsNotNone(found)
         bricks = {s.brick: s.options for s in found.slots}
-        self.assertEqual({'segment_list', 'media_transport', 'surface_actions', 'item_settings',
-                          'speaker_names'}, set(bricks))
+        self.assertEqual({'segment_list', 'media_timeline', 'media_transport', 'playback_writing',
+                          'surface_actions', 'item_settings', 'speaker_names'}, set(bricks))
+        timeline = bricks['media_timeline']
+        for option in ('segments', 'quality', 'minimap', 'zoom'):
+            self.assertTrue(timeline.get(option), option)
+        self.assertEqual('retime', timeline['boundaries'])
         transport = bricks['media_transport']
-        for option in ('window', 'segments', 'quality', 'minimap', 'goto', 'zoom', 'writing'):
-            self.assertTrue(transport.get(option), option)
-        self.assertEqual('retime', transport['boundaries'])
-        self.assertEqual('steps', transport['speed'])
+        self.assertEqual({'role': 'audio', 'wave': False, 'goto': True, 'speed': 'steps'}, transport,
+                         'the transport carries the commands of the time, nothing else')
         self.assertTrue(found.autosave)
         self.assertEqual('Terminer la correction', found.finish)
         self.assertEqual(('title', 'meeting_date', 'speaker_map'), found.settings)
@@ -57,17 +64,43 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
         js = _read(TRANSPORT)
         self.assertIn('WamaShuttle.create(', js)
         self.assertIn('axis.bindKeys(', js, 'Space, arrows and J/K/L come from the axis keyboard')
-        for gone, why in (('const SHUTTLE', 'the J/K/L ladder is the brick default'),
-                          ('reverseTimer', 'backward play is the axis, silent'),
-                          ('parseTimecode', 'times are read by WamaAxis.parseTime'),
-                          ('.currentTime', 'views read the axis time, not the <audio>'),
-                          ('.playbackRate', 'the speed is the axis speed'),
-                          ('.preload', 'the common player asks for the metadata itself')):
-            self.assertNotIn(gone, js, why)
+        for path in (TRANSPORT, TIMELINE, TRANSPORT_BRICK, WRITING_BRICK):
+            code = _read(path)
+            for gone, why in (('const SHUTTLE', 'the J/K/L ladder is the brick default'),
+                              ('reverseTimer', 'backward play is the axis, silent'),
+                              ('parseTimecode', 'times are read by WamaAxis.parseTime'),
+                              ('.currentTime', 'views read the axis time, not the <audio>'),
+                              ('.playbackRate', 'the speed is the axis speed'),
+                              ('.preload', 'the common player asks for the metadata itself')):
+                self.assertNotIn(gone, code, f'{path.name}: {why}')
         # The medium plays and seeks through the common player — its rules (exclusive playback, a
-        # position set again once seekable) are never redone in the transport.
-        self.assertIn('play: function () { return Player.play(cfg.playerId); }', js)
-        self.assertIn('seek: function (t) { Player.seek(cfg.playerId, t, false); }', js)
+        # position set again once seekable) are never redone by the brick that attaches it.
+        brick = _read(TRANSPORT_BRICK)
+        self.assertIn('play: function () { return Player.play(playerId); }', brick)
+        self.assertIn('seek: function (t) { Player.seek(playerId, t, false); }', brick)
+
+    def test_the_transport_knows_no_view_no_medium_and_no_data(self):
+        # Redécoupage du 2026-10-21 : le transport envoie des commandes à l'axe, rien d'autre. Un
+        # « aller à » se DIT aux abonnés (`goto`) : la ligne de temps recentre, la liste choisit.
+        js = _read(TRANSPORT)
+        for gone, why in (('WamaSegments', 'segments are a view or a tool, never the transport'),
+                          ('WamaAudioPlayer', 'the medium is attached by its brick, not the transport'),
+                          ('WamaGestures', 'gestures on time are a view'),
+                          ('canvas', 'drawing time is a view'),
+                          ('write_cursor', 'writing while playing is a domain tool'),
+                          ('select(', 'choosing a segment is the list, told by the axis')):
+            self.assertNotIn(gone, js, why)
+        self.assertIn("axis.seek(D ? Math.min(sec, D) : sec, 'goto')", js)
+        self.assertIn("st.reason === 'goto'", _read(TIMELINE))
+        self.assertIn("st.reason === 'goto'", _read(COMMON_JS / 'surfaces' / 'brick-segment-list.js'))
+
+    def test_a_tool_marks_its_spans_on_the_views_through_the_bus(self):
+        # L'écriture à la lecture ne connaît aucune vue : elle MARQUE ses plages (`bands`), la
+        # ligne de temps les dessine. Une brique ne parle jamais à une autre (§5bis).
+        writing = _read(WRITING_BRICK)
+        self.assertIn("ctx.emit('bands'", writing)
+        self.assertNotIn('WamaTimeline', writing)
+        self.assertIn("ctx.on('bands'", _read(COMMON_JS / 'surfaces' / 'brick-media-timeline.js'))
 
     def test_the_parity_is_measured_by_a_scenario_on_the_surface(self):
         from wama.common.services import nightly_tests, ui_smoke_editor
@@ -77,9 +110,11 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
     def test_the_served_copies_are_the_sources(self):
         surfaces = COMMON_JS / 'surfaces'
         pairs = [(COMMON_JS / name, SERVED / 'common' / 'js' / name)
-                 for name in ('wama-axis.js', 'wama-transport.js', 'wama-segments.js', 'wama-params.js')]
+                 for name in ('wama-axis.js', 'wama-transport.js', 'wama-timeline.js', 'wama-segments.js',
+                              'wama-params.js')]
         pairs += [(surfaces / name, SERVED / 'common' / 'js' / 'surfaces' / name)
-                  for name in ('wama-surface.js', 'brick-media-transport.js', 'brick-segment-list.js',
+                  for name in ('wama-surface.js', 'brick-media-transport.js', 'brick-media-timeline.js',
+                               'brick-playback-writing.js', 'brick-segment-list.js',
                                'brick-item-settings.js', 'brick-speaker-names.js',
                                'brick-surface-actions.js')]
         css = BASE / 'wama' / 'common' / 'static' / 'common' / 'css' / 'wama-surface.css'

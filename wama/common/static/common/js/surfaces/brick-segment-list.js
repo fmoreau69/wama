@@ -353,8 +353,8 @@
             showBanner();
         });
 
-        // ── Clavier — en CAPTURE : Échap qui sort d'une saisie est pris AVANT le transport (qui,
-        // sinon, sortirait aussi de l'outil Bornes : une touche, un geste) ─────────────────────
+        // ── Clavier — en CAPTURE : Échap qui sort d'une saisie est pris AVANT la ligne de temps
+        // (qui, sinon, sortirait aussi de l'outil Bornes : une touche, un geste) ───────────────
         document.addEventListener('keydown', function (e) {
             var inField = editing();
             var tgt = e.target;
@@ -402,14 +402,19 @@
             if (e.key === 'Enter') { e.preventDefault(); enterEdit(selIndex); }
         }, true);
 
-        // La page choisit un segment (aller à, bande de qualité, borne) : le sélectionner, ou
+        // La page choisit un segment (bande de qualité, borne, aller à) : le sélectionner, ou
         // l'éditer s'il vient d'être créé (`focus`).
         ctx.on('select', function (p) {
             if (p.id == null || p.id < 0) return;
             if (p.focus) enterEdit(p.id); else selectSeg(p.id);
         });
         ctx.on('settings', function () { if (signature() !== renderedSig) render(); });
-        axis.subscribe(function (st) { highlight(Seg.indexAt(segsOf(), st.time)); });
+        axis.subscribe(function (st) {
+            var i = Seg.indexAt(segsOf(), st.time);
+            highlight(i);
+            // « Aller à » un temps nommé (`goto`, dit par l'axe) : le segment qui s'y trouve est choisi.
+            if (st.reason === 'goto' && i >= 0) ctx.select(i);
+        });
 
         render();
         showBanner();

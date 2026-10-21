@@ -6,9 +6,10 @@
 ## Corriger une transcription
 
 Une fois la transcription terminée, sa card porte un bouton **Éditer** (icône crayon). Il ouvre
-l'éditeur : la liste des segments, synchronisée avec la lecture, et en dessous le transport — la
-forme d'onde, une bande colorée qui signale les passages douteux, une vue d'ensemble et les
-commandes de lecture. À côté : les actions, le document et les intervenants. Chaque panneau se
+l'éditeur : la liste des segments, synchronisée avec la lecture, et en dessous trois panneaux —
+la **ligne de temps** (la forme d'onde, une bande colorée qui signale les passages douteux, une vue
+d'ensemble), le **transport** (les commandes de lecture) et l'**écriture à la lecture**. À côté :
+les actions, le document et les intervenants. Chaque panneau se
 déplace par son titre et se redimensionne par ses bords ; la disposition est gardée, et **Disposition
 par défaut** la remet. Le survol du bouton Éditer dit où en est la correction : brouillon en cours,
 ou corrigée.
@@ -54,7 +55,7 @@ sont d'abord recalés sur la transcription automatique. Chaque geste s'annule av
 
 ### Les modes d'écriture : la lecture transcrit
 
-Le menu **Lecture** du transport choisit ce que fait la lecture. En mode Lecture, elle ne
+Le menu **Lecture** du panneau Écriture à la lecture choisit ce que fait la lecture. En mode Lecture, elle ne
 fait que jouer. Les autres modes font transcrire, pendant l'écoute, la plage qui est jouée :
 
 | mode | ce qui est transcrit | ce qui change dans le texte |

@@ -234,9 +234,10 @@ class EveryPollingLoopIsTheCommonOneTest(SimpleTestCase):
         'wama/common/static/common/js/library-add.js':
             (1, "chronomètre d'enregistrement micro, aucune requête"),
         # La page de correction du transcriber, devenue surface le 2026-10-21 : sa boucle est
-        # passée au transport commun. ⚠ L'ancienne raison disait « aucune requête » : faux pour
-        # celle-ci, qui interroge — mais seulement pendant qu'un mode d'écriture est choisi.
-        'wama/common/static/common/js/wama-transport.js':
+        # passée au transport commun, puis — redécoupage du même jour — à la brique d'écriture à
+        # la lecture. ⚠ L'ancienne raison disait « aucune requête » : faux pour celle-ci, qui
+        # interroge — mais seulement pendant qu'un mode d'écriture est choisi.
+        'wama/common/static/common/js/surfaces/brick-playback-writing.js':
             (1, "modes d'écriture : pose le curseur que suit la boucle serveur `playhead_follow` et "
                 "lit ses résultats chaque seconde, SEULEMENT tant qu'un mode est choisi"),
         'wama/static/presentation/wama-presentation-3d.js':

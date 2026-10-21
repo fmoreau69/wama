@@ -78,14 +78,15 @@ class RetimeSegmentsTest(TestCase):
                                          item=theirs).status_code)
 
     def test_the_correction_surface_carries_the_tool_and_its_route(self):
-        # Une SURFACE depuis le 2026-10-21 : l'outil Bornes est une option du transport, sa route
-        # une route de geste que la surface déclare et que sa page résout pour l'élément.
+        # Une SURFACE depuis le 2026-10-21 : l'outil Bornes est une option de la ligne de temps
+        # (redécoupage du même jour), sa route une route de geste que la surface déclare et que sa
+        # page résout pour l'élément.
         page = self.client.get(f'/transcriber/edit/{self.item.pk}/', follow=True)
         self.assertEqual(f'/common/surface/transcriber/correct/{self.item.pk}/', page.request['PATH_INFO'])
         config = page.context['config']
         self.assertEqual(f'/transcriber/edit/{self.item.pk}/retime/', config['routes']['retime'])
-        transport = [s for s in config['surface']['slots'] if s['brick'] == 'media_transport'][0]
-        self.assertEqual('retime', transport['options']['boundaries'])
+        timeline = [s for s in config['surface']['slots'] if s['brick'] == 'media_timeline'][0]
+        self.assertEqual('retime', timeline['options']['boundaries'])
 
     def test_replace_fills_a_gap_with_a_new_section_of_the_neighbours_speaker(self):
         answer = self._post({'op': 'replace', 'start': 1.0, 'end': 1.2, 'speaker_id': 'SPEAKER_01',

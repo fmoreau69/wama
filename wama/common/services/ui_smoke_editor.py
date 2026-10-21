@@ -36,18 +36,21 @@ from .ui_smoke_layout import _collect, _desktop_page, _mount_transcripts, _wait_
 #: — 66/66 le 2026-10-21 — et s'est retirée avec la page (REMOVAL_LEDGER R166).
 PAGES = {
     # La surface déclarée (`transcriber/surfaces.py`) : les commandes portent un `data-*` de leur
-    # brique — le transport commun, la liste des segments, les réglages, les intervenants.
+    # brique — le transport commun, la ligne de temps, l'écriture à la lecture, la liste des
+    # segments, les réglages, les intervenants. Le 2026-10-21 (redécoupage : l'axe, le transport,
+    # les vues, les outils de domaine), l'onde et l'écriture ont quitté le transport : leurs
+    # commandes ont changé de `data-*`, pas de geste — 66/66 avant, puis après.
     'surface': {
         'url': ('common:surface', ('transcriber', 'correct')),
         'player': 'surface-{pk}-audio',
         'goto': '[data-transport="goto"]', 'speed_up': '[data-transport="speed-up"]',
         'speed_down': '[data-transport="speed-down"]', 'speed_label': '[data-transport="speed-label"]',
         'skip_fwd': '[data-transport="skip-fwd"]', 'skip_back': '[data-transport="skip-back"]',
-        'zoom_label': '[data-transport="zoom-label"]', 'wave': '[data-transport="wave"]',
-        'mini': '[data-transport="mini"]', 'heat': '[data-transport="heat"] .hz',
-        'lock': '[data-segments="follow"]', 'tool': '[data-transport="boundaries"]',
-        'write_mode': '[data-transport="write-mode"]', 'rec': '[data-transport="rec"]',
-        'proposal': '[data-transport="proposals"] .wp-item',
+        'zoom_label': '[data-timeline="zoom-label"]', 'wave': '[data-timeline="wave"]',
+        'mini': '[data-timeline="mini"]', 'heat': '[data-timeline="heat"] .hz',
+        'lock': '[data-segments="follow"]', 'tool': '[data-timeline="boundaries"]',
+        'write_mode': '[data-writing="mode"]', 'rec': '[data-writing="rec"]',
+        'proposal': '[data-writing="proposals"] .wp-item',
         'compact': '[data-segments="compact"]', 'finalize': '[data-act="finish"]',
         'review_count': '[data-segments="review-count"]',
         'title': '[data-settings] [name="title"]', 'speaker_names': '[data-speakers] input[data-key]',
