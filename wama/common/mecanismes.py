@@ -2739,6 +2739,24 @@ MECHANISMS = (
               annexes=('wama/accounts/tests/tests_anonymous_closure.py', 'wama/accounts/tests/tests_access_points.py',
                        'wama/accounts/constellation.py', 'wama/common/services/ui_smoke_accounts.py'),
               symbol='accessible'),
+    # Ajouté le 2026-10-21 (GO de Fabien : « une brique commune réutilisable pour différents
+    # registres »). La constellation des utilisateurs en fut extraite, sans changement visible.
+    Mechanism('proximity_scenes', "Scènes de proximité (constellations 3D)",
+              "Une scène DÉCLARE ce qu'elle montre — couches, facteurs de distance pondérés "
+              "(relationnel, catégoriel, numérique), sortes de groupes, mesures, textes — et UNE "
+              "brique la monte : nœuds, sphères de verre qui enveloppent leurs membres, liens "
+              "animés, volet de détail, curseurs, mode intégré. Déclarée par son domaine dans le "
+              "`ready()` de son app ; une scène qui projette un registre (`registry`) donne à la "
+              "page de ce registre son bouton « Constellation » (`scene_button`). Scènes : les "
+              "utilisateurs (premier consommateur, son adresse gardée), les licences, les modèles ; "
+              "une scène de la page commune est jouée chaque nuit (`common.scene.<clé>.ui`)",
+              'wama/common/scenes.py', 'docs/construction/ui/WAMA_SCENES_3D.md',
+              annexes=('wama/common/static/common/js/wama-constellation.js',
+                       'wama/common/static/common/css/wama-constellation.css',
+                       'wama/common/templates/common/constellation.html',
+                       'wama/common/scene_views.py', 'wama/common/services/license_scene.py',
+                       'wama/common/services/ui_smoke_scenes.py', 'wama/common/tests/tests_scenes.py'),
+              depends_on=('app_access',)),
     # Ajouté le 2026-10-04 (décision de Fabien : « option 1, persistance par session »). Collé à
     # `app_access` parce qu'il en est le prolongement : la décision dit QUELLE app est ouverte au
     # visiteur (`public`), celui-ci dit SOUS QUELLE IDENTITÉ il y agit.

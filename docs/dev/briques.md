@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**211 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**212 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -3169,6 +3169,24 @@ Moteur unique de miroir (modèles, base, médias, secrets) et restauration
   - `remember_last_run(cache_key: str, state: str, payload: dict) -> dict` — Garde le bilan de la dernière exécution TERMINÉE (succès, partiel, échec), sans expiration.
   - `last_mirror_run(cache_key: str)` — Bilan de la dernière exécution terminée d'un miroir, ou None s'il n'a jamais tourné.
   - `run_mirror_job(runner, *, cache_key, task_id, label, ttl=24 * 3600)` — Exécute un miroir en publiant son avancement dans le cache — enveloppe COMMUNE aux
+
+### Scènes de proximité (constellations 3D)
+
+Une scène DÉCLARE ce qu'elle montre — couches, facteurs de distance pondérés (relationnel, catégoriel, numérique), sortes de groupes, mesures, textes — et UNE brique la monte : nœuds, sphères de verre qui enveloppent leurs membres, liens animés, volet de détail, curseurs, mode intégré. Déclarée par son domaine dans le `ready()` de son app ; une scène qui projette un registre (`registry`) donne à la page de ce registre son bouton « Constellation » (`scene_button`). Scènes : les utilisateurs (premier consommateur, son adresse gardée), les licences, les modèles ; une scène de la page commune est jouée chaque nuit (`common.scene.<clé>.ui`)
+
+- **Domicile** : `wama/common/scenes.py` · **doc** : [docs/construction/ui/WAMA_SCENES_3D.md](../construction/ui/WAMA_SCENES_3D.md)
+- **Module** : Les SCÈNES DE PROXIMITÉ (constellations 3D) — déclarées par leur domaine, montées par UNE brique.
+- **API publique** (10) :
+  - `class Scene`
+  - `register_scene(scene: Scene) -> Scene` — Déclare une scène. Les incohérences se voient À LA DÉCLARATION, pas dans le navigateur.
+  - `get_scene(key: str) -> Optional[Scene]`
+  - `scene_for_registry(registry_key: str) -> Optional[Scene]` — La scène qui projette ce registre, s'il y en a une (bouton de l'en-tête de sa page).
+  - `can_view(scene: Scene, user) -> bool`
+  - `page_url(scene: Scene) -> str`
+  - `data_url(scene: Scene) -> str`
+  - `scene_data(scene: Scene, user) -> dict` — Le contrat de la scène, lu de sa source (`data`).
+  - `scene_spec(scene: Scene) -> dict` — La déclaration, telle que la page la sert à la brique (`<script type="application/json">`).
+  - `page_context(scene: Scene, embed: bool) -> dict` — Le contexte du gabarit commun : la déclaration, et l'état de départ de chaque puce.
 
 ### Servir un fichier par morceaux (HTTP Range)
 

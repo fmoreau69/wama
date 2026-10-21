@@ -1003,9 +1003,13 @@ def user_constellation(request):
 
     `?embed=1` : la MÊME page sans barre ni volet, pour la frame « Droits · Constellation » de la
     présentation (`includes/wama_presentation.html`), qui l'intègre en iframe — et noms masqués
-    par défaut, la présentation se projetant devant d'autres personnes."""
-    return render(request, 'accounts/user_constellation.html',
-                  {'volet': VOLET_AUCUN, 'embed': request.GET.get('embed') == '1'})
+    par défaut, la présentation se projetant devant d'autres personnes.
+
+    La page est celle de TOUTE scène déclarée (`common/scenes.py`, scène `users`) : elle garde son
+    adresse et sa garde d'administration, la brique commune la monte."""
+    from wama.common.scene_views import render_scene
+    from wama.common.scenes import get_scene
+    return render_scene(request, get_scene('users'))
 
 
 @admin_required

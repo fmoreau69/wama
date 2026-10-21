@@ -57,6 +57,9 @@ class ModelManagerConfig(AppConfig):
                               url_name='model_manager:libraries_catalog', order=30)
         register_account_page('models', section='wama', label='Models', icon='fa-microchip',
                               tone='info', access='account', surface='model_manager', order=50)
+        # La scène 3D du registre des modèles (brique commune des constellations, 2026-10-21).
+        from .services.model_scene import register_scene
+        register_scene()
 
         # Journal DÉDIÉ pour la synchro du catalogue (brique COMMUNE) : `[ModelSync]`
         # émet une ligne par modèle à chaque réconciliation et représentait 71 % de

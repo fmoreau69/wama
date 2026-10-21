@@ -191,6 +191,9 @@ PATH_APP_MAP = [
     ('common/registries',   'registries'),
     ('common/registres',    'registries'),
     ('common/api/registres', 'registries'),
+    # Les scènes 3D des registres (licences, modèles — `common/scenes.py`, 2026-10-21) : une
+    # LECTURE d'un registre, sous le droit des Registres comme le gestionnaire de modèles.
+    ('common/scenes',       'registries'),
     # L'assistant, outil SANS PAGE (2026-10-13, `app_registry.register_pageless_tool`) : ses
     # routes web. Le gestionnaire de fichiers, autre outil sans page, se résout par son 1er
     # segment (`/filemanager/`), comme toute app.

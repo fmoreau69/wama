@@ -531,14 +531,14 @@ def licenses_catalog_view(request):
     Les médias utilisateur sont filtrés sur le périmètre visible du demandeur — une page d'audit
     n'a pas à révéler la médiathèque des autres.
     """
-    from .services.license_audit import synthese
+    from .services.license_audit import REGISTRES, synthese
 
     # Facettes de la barre commune. Les options sont DÉCLARÉES bien qu'on soit en mode client :
     # la dérivation depuis le DOM rendrait les valeurs brutes (« model », « library »), alors que
     # la page affichait des libellés français. Déclarer prime sur dériver quand le libellé compte.
     facettes = [{
         'cle': 'registre', 'label': 'Registre', 'tous': 'Tous les registres',
-        'options': {'model': 'Modèles', 'library': 'Librairies', 'media': 'Médias'},
+        'options': dict(REGISTRES),
     }]
 
     return render(request, 'common/licenses.html',

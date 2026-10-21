@@ -37,10 +37,10 @@ JS_SCENE = """async (src) => {
     const facts = await (await fetch(src, {credentials: 'same-origin'})).json();
     const shown = sel => [...document.querySelectorAll(sel)].filter(e => e.style.display !== 'none');
     return {
-        canvas: !!document.querySelector('#uc-canvas canvas'),
-        stats: document.getElementById('uc-stats').textContent.trim(),
-        stars: document.querySelectorAll('.uc-label:not(.sphere):not(.core)').length,
-        spheres: shown('.uc-label.sphere').length,
+        canvas: !!document.querySelector('.wc-canvas canvas'),
+        stats: document.querySelector('.wc-stats').textContent.trim(),
+        stars: document.querySelectorAll('.wc-label:not(.sphere):not(.core)').length,
+        spheres: shown('.wc-label.sphere').length,
         persons: facts.users.filter(u => u.kind === 'person').length,
         users: facts.users.length,
         first: (facts.users.find(u => u.kind === 'person') || {}).username || null,
@@ -48,9 +48,9 @@ JS_SCENE = """async (src) => {
     };
 }"""
 JS_PANEL = """() => ({
-    title: (document.querySelector('#uc-panel h2') || {}).textContent || '',
-    sections: [...document.querySelectorAll('#uc-panel h3')].length,
-    legend: document.getElementById('uc-panel').classList.contains('is-legend'),
+    title: (document.querySelector('.wc-panel h2') || {}).textContent || '',
+    sections: [...document.querySelectorAll('.wc-panel h3')].length,
+    legend: document.querySelector('.wc-panel').classList.contains('is-legend'),
 })"""
 
 
@@ -117,12 +117,12 @@ def check_constellation():
                 page.wait_for_url(f"**{page_path}", timeout=PAGE_TIMEOUT_MS)
                 try:
                     page.wait_for_function(
-                        "() => /personne/.test(document.getElementById('uc-stats').textContent)",
+                        "() => /personne/.test(document.querySelector('.wc-stats').textContent)",
                         timeout=SCENE_TIMEOUT_MS)
                 except PlaywrightTimeout:
                     # Le défaut que ce scénario existe pour voir : une page 200 au fond noir. Le
                     # verdict nomme la cause (l'erreur JS), pas seulement un délai dépassé.
-                    stats = page.locator('#uc-stats').inner_text()
+                    stats = page.locator('.wc-stats').inner_text()
                     return False, (f"la scène ne s'est pas formée en {SCENE_TIMEOUT_MS // 1000} s "
                                    f"(mesures : « {stats} ») — erreurs JS : {js_errors[:3]}")
                 page.wait_for_timeout(1500)
@@ -140,8 +140,8 @@ def check_constellation():
 
                 # 3. Choisir une personne par la recherche, puis revenir à la légende.
                 if s['first']:
-                    page.fill('#uc-search', s['first'])
-                    page.press('#uc-search', 'Enter')
+                    page.fill('.wc-search input', s['first'])
+                    page.press('.wc-search input', 'Enter')
                     page.wait_for_timeout(1200)
                     v = page.evaluate(JS_PANEL)
                     if v['title'] != s['firstName'] or v['sections'] < 7 or v['legend']:
@@ -155,10 +155,10 @@ def check_constellation():
                 # 4. Comptes de test, puis un poids changé.
                 page.click('[data-layer="tests"]', force=True)
                 page.wait_for_timeout(800)
-                stats = page.locator('#uc-stats').inner_text()
+                stats = page.locator('.wc-stats').inner_text()
                 if not stats.startswith(str(s['users'])):
                     faults.append(f"couche « Comptes de test » : « {stats} », attendu {s['users']}")
-                page.evaluate("() => { const i = document.getElementById('uc-w-share'); "
+                page.evaluate("() => { const i = document.querySelector('[data-weight=\"share\"] input'); "
                               "i.value = 6; i.dispatchEvent(new Event('input')); }")
                 page.wait_for_timeout(800)
                 steps.append('couche des comptes de test, poids des partages')
@@ -169,7 +169,7 @@ def check_constellation():
                           wait_until='domcontentloaded', timeout=PAGE_TIMEOUT_MS)
                 embedded = page.frame_locator('#constellation iframe')
                 try:
-                    embedded.locator('#uc-stats').filter(has_text='personne').wait_for(
+                    embedded.locator('.wc-stats').filter(has_text='personne').wait_for(
                         timeout=SCENE_TIMEOUT_MS)
                     masked = 'on' not in (embedded.locator('[data-layer="names"]')
                                           .get_attribute('class') or '')

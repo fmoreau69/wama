@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_static %}
+
+{% block title %}{{ scene.page_title }} - WAMA{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static_v 'common/css/wama-constellation.css' %}">
+{% endblock %}
+
+{% block top_navigation %}{% if not embed %}{{ block.super }}{% endif %}{% endblock %}
+
+{% block content %}
+{% comment %}
+  La page COMMUNE des constellations (2026-10-21) — toute scène déclarée (`common/scenes.py`) s'y
+  monte : la constellation des utilisateurs (ouverte depuis « Users »), les licences, les modèles.
+  La page ne porte AUCUNE donnée : la brique (`common/js/wama-constellation.js`) lit `data-src`, et
+  la DÉCLARATION de la scène (couches, facteurs, sortes de groupes, mesures, textes) lui arrive dans
+  le `<script type="application/json">` ci-dessous. Le HUD se rend de la même déclaration.
+  Moteur : three.js vendorisé, par l'importmap COMMUNE posée dans `base.html`
+  (`common/_three_importmap.html`) — aucun CDN.
+  `embed` : la même page intégrée par une présentation — sans barre, sans volet, sans retour, noms
+  masqués par défaut.
+{% endcomment %}
+<div class="wc-stage{% if embed %} embed{% endif %}" id="wc-{{ scene.key }}" data-src="{{ scene_data_url }}"
+     {% if embed %}data-embed="1"{% endif %}{% if not scene.module %} data-generic{% endif %}>
+  {{ scene_spec|json_script:scene_spec_id }}
+  <div class="wc-canvas"></div>
+  <div class="wc-labels"></div>
+  <div class="wc-tooltip"></div>
+
+  <!-- HUD gauche : titre, mesures, recherche, couches, forces -->
+  <aside class="wc-hud wc-hud-left">
+    {% if scene_back_url %}<a class="wc-back" href="{{ scene_back_url }}"><i class="fas fa-arrow-left"></i> {{ scene.back_label }}</a>{% endif %}
+    <div class="wc-kicker">{{ scene.kicker }}</div>
+    <h1 class="wc-title">{{ scene.heading }}</h1>
+    <p class="wc-stats">{{ scene.loading }}</p>
+
+    <div class="wc-search">
+      <i class="fas fa-magnifying-glass"></i>
+      <input type="search" id="wc-{{ scene.key }}-search" list="wc-{{ scene.key }}-search-list" placeholder="{{ scene.search_placeholder }}" autocomplete="off">
+      <datalist id="wc-{{ scene.key }}-search-list"></datalist>
+    </div>
+
+    <div class="wc-box">
+      <div class="wc-box-title">Couches</div>
+      <div class="wc-chips wc-layers">
+        {% for layer in scene_layers %}<button type="button" class="wc-chip{% if layer.on_now %} on{% endif %}" data-layer="{{ layer.key }}"{% if layer.title %}
+                title="{{ layer.title }}"{% endif %}>{% if layer.dot %}<span class="dot{% if layer.flat %} flat{% endif %}" style="--dot:var(--wc-{{ layer.dot }}){% if layer.glow %};--dot-glow:var(--wc-{{ layer.glow }}){% endif %}"></span>{% endif %}{{ layer.label }}</button>
+        {% endfor %}
+      </div>
+      {% if scene.colorings %}<div class="wc-box-title">{{ scene.colorings_title }}</div>
+      <div class="wc-chips wc-colorby">
+        {% for c in scene.colorings %}<button type="button" class="wc-chip{% if forloop.first %} on{% endif %}" data-color="{{ c.key }}">{{ c.label }}</button>
+        {% endfor %}
+      </div>{% endif %}
+    </div>
+
+    <details class="wc-box wc-forces"{% if not embed %} open{% endif %}>
+      <summary class="wc-box-title">{{ scene.forces_title }}</summary>
+      <p class="wc-hint">{{ scene.forces_hint }}</p>
+      <div class="wc-weights"></div>
+    </details>
+  </aside>
+
+  <!-- Volet droit : l'élément choisi, sinon la légende -->
+  <aside class="wc-hud wc-panel" aria-live="polite"></aside>
+
+  <noscript><p class="wc-fallback">La constellation demande JavaScript.</p></noscript>
+</div>
+{% endblock %}
+
+{% block footer %}{% endblock %}
+
+{% block extra_js %}
+{% if scene.module %}
+<script type="module" src="{% static_v scene.module %}"></script>
+{% else %}
+<script type="module">
+  import { mountAll } from 'wama/constellation';
+  mountAll();
+</script>
+{% endif %}
+{% endblock %}

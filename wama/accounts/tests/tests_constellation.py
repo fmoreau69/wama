@@ -52,8 +52,19 @@ class ConstellationAccessTest(TestCase):
         self.assertIn('data-embed="1"', embedded)
         self.assertNotIn('data-embed', full)
         # La couche « Noms » : allumée sur la page, éteinte dans la présentation.
-        self.assertRegex(full, r'class="uc-chip on" data-layer="names"')
-        self.assertRegex(embedded, r'class="uc-chip" data-layer="names"')
+        self.assertRegex(full, r'class="wc-chip on" data-layer="names"')
+        self.assertRegex(embedded, r'class="wc-chip" data-layer="names"')
+
+    def test_the_page_is_the_common_scene_page_mounted_by_the_users_adapter(self):
+        # Premier consommateur de la brique commune des constellations (2026-10-21) : la page est
+        # celle de toute scène, l'adaptateur des utilisateurs la monte.
+        self.client.force_login(self.admin)
+        response = self.client.get(reverse('accounts:user-constellation'))
+        self.assertTemplateUsed(response, 'common/constellation.html')
+        html = response.content.decode()
+        self.assertIn('accounts/js/user-constellation.js', html)
+        self.assertIn('id="wc-users-spec"', html)
+        self.assertNotIn('data-generic', html)
 
     def test_the_presentation_embeds_it_for_an_administrator_only(self):
         embed = reverse('accounts:user-constellation') + '?embed=1'

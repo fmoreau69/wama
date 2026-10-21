@@ -161,6 +161,11 @@ class CommonConfig(AppConfig):
 
         self._register_account_pages()
 
+        # La scène 3D des licences (brique commune des constellations, `scenes.py`, 2026-10-21) :
+        # la vue des licences vit dans le substrat, sa scène aussi.
+        from .services.license_scene import register_scene
+        register_scene()
+
         # ⚠ Le substrat n'enregistre PLUS les fonctions du monde Data (déport du 2026-08-22) :
         # chaque monde se déclare dans son propre `ready()` — `wama_data/apps.py`,
         # `wama_lab/cam_analyzer/apps.py`. Le substrat ne doit connaître aucun monde par son nom.

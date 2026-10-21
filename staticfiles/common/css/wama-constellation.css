@@ -1,0 +1,300 @@
+/* ==========================================================================
+   WAMA — la feuille COMMUNE des constellations (`common/js/wama-constellation.js`, 2026-10-21).
+   Tirée mot pour mot de la constellation des utilisateurs (2026-10-20), son premier consommateur :
+   seul le préfixe a changé (`uc-` → `wc-`). Scène three.js plein écran sous la barre du haut ;
+   HUD en verre par-dessus. Couleurs : les jetons de la présentation (`wama-theme.css`,
+   `--wama-pres-*`) — la scène est sombre dans les deux thèmes, comme la scène des mondes.
+   ========================================================================== */
+
+.wc-stage {
+  --wc-bg-0: var(--wama-pres-bg-0);
+  --wc-bg-1: var(--wama-pres-bg-1);
+  --wc-ink: var(--wama-pres-ink);
+  --wc-ink-soft: var(--wama-pres-ink-soft);
+  --wc-ink-mute: var(--wama-pres-ink-mute);
+  --wc-line: rgba(var(--wama-pres-line-rgb), .16);
+  --wc-glass: rgba(var(--wama-pres-glass-rgb), .62);
+  --wc-glass-strong: rgba(var(--wama-pres-glass-rgb), .86);
+  --wc-media: var(--wama-pres-media);
+  --wc-data: var(--wama-pres-data);
+  --wc-lab: var(--wama-pres-lab);
+  --wc-trans: var(--wama-pres-trans);
+  --wc-ok: var(--wama-pres-ok);
+  /* Couleur d'une étoile par profil, et d'un outil par monde — celles de la scène des droits de la
+     présentation (les profils y portent les couleurs des mondes). Lues par le module JS. */
+  --wc-tier-anonymous: var(--wama-pres-todo);
+  --wc-tier-utilisateur: var(--wama-pres-media);
+  --wc-tier-developpeur: var(--wama-pres-data);
+  --wc-tier-admin: var(--wama-pres-lab);
+  --wc-world-media: var(--wama-pres-media);
+  --wc-world-data: var(--wama-pres-data);
+  --wc-world-lab: var(--wama-pres-lab);
+  --wc-world-transverse: var(--wama-pres-trans);
+  /* Les sphères (une couleur par type d'unité d'annuaire, `OrgUnit.TYPE_CHOICES`), le projet, le
+     partage, le cœur « WAMA », le fond et les étoiles lointaines. */
+  --wc-unit-institut: var(--wama-pres-trans);
+  --wc-unit-universite: var(--wama-pres-trans);
+  --wc-unit-etablissement: var(--wama-pres-trans);
+  --wc-unit-departement: var(--bs-blue);
+  --wc-unit-labo: var(--wama-pres-ok);
+  --wc-unit-service: var(--bs-teal);
+  --wc-unit-equipe: var(--bs-indigo);
+  --wc-unit-autre: var(--wama-pres-todo);
+  --wc-project: var(--bs-orange);
+  --wc-share: var(--wama-pres-media);
+  --wc-core: var(--wama-pres-trans);
+  --wc-fog: var(--wama-pres-bg-0);
+  --wc-stars: rgb(var(--wama-pres-line-rgb));
+  /* Familles de licences, de la plus permissive à la plus contraignante (`license_audit.FAMILLES`,
+     rangs 0 → 6) : du vert au rouge, l'ordre des pastilles de la page des licences. Pas leurs tons
+     (`--wama-tone-*`) : ils s'inversent au thème clair, et la scène reste sombre dans les deux. */
+  --wc-rank-0: var(--wama-pres-ok);
+  --wc-rank-1: var(--bs-teal);
+  --wc-rank-2: var(--bs-yellow);
+  --wc-rank-3: var(--bs-orange);
+  --wc-rank-4: var(--bs-purple);
+  --wc-rank-5: var(--wama-pres-todo);
+  --wc-rank-6: var(--bs-red);
+  /* Registres d'où vient un élément (satellites d'une licence) et nature d'un nœud. */
+  --wc-registry-model: var(--wama-pres-data);
+  --wc-registry-library: var(--wama-pres-trans);
+  --wc-registry-media: var(--wama-pres-media);
+  --wc-registry-app: var(--wama-pres-lab);
+  /* Types de modèles (`ModelType`) et où ils tournent. */
+  --wc-type-llm: var(--wama-pres-trans);
+  --wc-type-vlm: var(--bs-indigo);
+  --wc-type-vision: var(--wama-pres-media);
+  --wc-type-diffusion: var(--wama-pres-lab);
+  --wc-type-speech: var(--wama-pres-data);
+  --wc-type-music: var(--bs-orange);
+  --wc-type-embedding: var(--bs-teal);
+  --wc-type-upscaling: var(--wama-pres-ok);
+  --wc-type-lipsync: var(--bs-pink);
+  --wc-type-ocr: var(--bs-blue);
+  --wc-hosting-local: var(--wama-pres-ok);
+  --wc-hosting-private: var(--bs-teal);
+  --wc-hosting-sovereign: var(--wama-pres-trans);
+  --wc-hosting-third_party: var(--bs-orange);
+  --wc-state-installed: var(--wama-pres-ok);
+  --wc-state-available: var(--wama-pres-media);
+  --wc-state-absent: var(--wama-pres-todo);
+  --wc-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --wc-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+
+  /* Calée sur les volets par leurs MARGES dérivées (`wama-panel-toggle.css`) : l'Explorateur
+     ouvert garde sa place, replié il rend la sienne — même rythme que le reste de la page. */
+  position: fixed; left: var(--wama-left-gutter, 0px); right: var(--wama-right-gutter, 0px);
+  top: 56px; bottom: 0; z-index: 5;
+  transition: left var(--wama-panel-anim, .22s), right var(--wama-panel-anim, .22s);
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 50% at 30% 35%, rgba(var(--wama-pres-trans-rgb), .10), transparent 70%),
+    radial-gradient(ellipse 50% 45% at 75% 70%, rgba(var(--wama-pres-media-rgb), .07), transparent 70%),
+    radial-gradient(ellipse at 50% 45%, var(--wc-bg-1) 0%, var(--wc-bg-0) 75%);
+  color: var(--wc-ink);
+  font-family: var(--wc-font);
+  -webkit-font-smoothing: antialiased;
+}
+/* Mode INTÉGRÉ (iframe de la présentation) : toute la fenêtre, ni explorateur ni frontière de volet. */
+.wc-stage.embed { left: 0; right: 0; top: 0; }
+body:has(.wc-stage.embed) #filemanager-sidebar,
+body:has(.wc-stage.embed) .wama-panel-edge { display: none; }
+.wc-stage.embed .wc-panel.is-legend { display: none; }      /* la frame qui l'intègre porte le récit */
+.wc-canvas, .wc-labels { position: absolute; inset: 0; }
+.wc-canvas canvas { display: block; width: 100%; height: 100%; outline: none; cursor: grab; }
+.wc-canvas canvas:active { cursor: grabbing; }
+.wc-labels { pointer-events: none; overflow: hidden; }
+
+/* ── Étiquettes projetées ─────────────────────────────────────────────── */
+.wc-label {
+  position: absolute; left: 0; top: 0; transform: translate(-50%, -50%);
+  font: 600 11.5px/1.2 var(--wc-font); letter-spacing: .04em; white-space: nowrap;
+  color: var(--wc-ink); text-shadow: 0 0 10px rgba(var(--wama-shadow-rgb, 0, 0, 0), .95);
+  pointer-events: auto; cursor: pointer; transition: opacity .25s ease;
+  will-change: transform;
+}
+.wc-label small { display: block; font-weight: 400; font-size: 10px; color: var(--wc-ink-soft); letter-spacing: .02em; text-align: center; }
+.wc-label.dim { opacity: .22; }
+.wc-label.sel { color: var(--wc-ink); }
+.wc-label.sel::before {
+  content: ''; position: absolute; left: 50%; top: -6px; width: 6px; height: 6px; margin-left: -3px;
+  border-radius: 50%; background: currentColor; box-shadow: 0 0 10px currentColor;
+}
+.wc-label.sphere {
+  font: 600 10px/1.1 var(--wc-font); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--wc-ink-soft); pointer-events: none; opacity: .85;
+}
+.wc-label.sphere small { letter-spacing: .04em; text-transform: none; color: var(--wc-ink-mute); }
+.wc-label.core { font: 600 10px/1 var(--wc-mono); letter-spacing: .2em; color: var(--wc-trans); pointer-events: none; }
+
+.wc-tooltip {
+  position: absolute; display: none; pointer-events: none; z-index: 4; max-width: 300px;
+  padding: 8px 11px; border-radius: 9px; background: var(--wc-glass-strong);
+  border: 1px solid var(--wc-line); backdrop-filter: blur(8px);
+  font: 12px/1.45 var(--wc-font); color: var(--wc-ink);
+}
+.wc-tooltip b { color: var(--wc-ink); }
+.wc-tooltip .mute { color: var(--wc-ink-mute); }
+
+/* ── HUD ──────────────────────────────────────────────────────────────── */
+.wc-hud {
+  position: absolute; z-index: 3; max-height: calc(100% - 32px); overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: rgba(var(--wama-pres-line-rgb), .25) transparent;
+}
+.wc-hud-left { left: 16px; top: 16px; width: 290px; display: flex; flex-direction: column; gap: 10px; }
+.wc-back { color: var(--wc-ink-soft); font-size: 12px; text-decoration: none; }
+.wc-back:hover { color: var(--wc-ink); }
+.wc-kicker {
+  font: 600 10.5px/1 var(--wc-mono); letter-spacing: .22em; text-transform: uppercase; color: var(--wc-media);
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+}
+.wc-kicker::before { content: ''; width: 22px; height: 2px; background: linear-gradient(90deg, var(--wc-media), var(--wc-trans)); }
+.wc-title {
+  font: 700 34px/1 var(--wc-font); letter-spacing: -.01em; margin: 0;
+  background: linear-gradient(100deg, var(--wc-media) 0%, var(--wc-trans) 55%, var(--wc-lab) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.wc-stats { font-size: 12px; color: var(--wc-ink-soft); margin: 0; line-height: 1.5; }
+.wc-stats b { color: var(--wc-ink); font-weight: 600; }
+
+.wc-search { position: relative; }
+.wc-search i { position: absolute; z-index: 1; left: 11px; top: 50%; transform: translateY(-50%); color: var(--wc-ink-mute); font-size: 12px; }
+.wc-search input {
+  width: 100%; padding: 8px 10px 8px 31px; border-radius: 9px; font: 13px var(--wc-font);
+  background: var(--wc-glass); border: 1px solid var(--wc-line); color: var(--wc-ink); outline: none;
+  backdrop-filter: blur(8px);
+}
+.wc-search input:focus { border-color: rgba(var(--wama-pres-media-rgb), .6); box-shadow: 0 0 0 3px rgba(var(--wama-pres-media-rgb), .15); }
+.wc-search input::placeholder { color: var(--wc-ink-mute); }
+
+.wc-box {
+  padding: 11px 12px; border-radius: 12px; background: var(--wc-glass);
+  border: 1px solid var(--wc-line); backdrop-filter: blur(10px);
+}
+.wc-box-title {
+  font: 600 10px/1 var(--wc-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--wc-ink-mute);
+  margin: 2px 0 8px;
+}
+.wc-box-title + .wc-chips + .wc-box-title { margin-top: 12px; }
+summary.wc-box-title { cursor: pointer; list-style: none; margin-bottom: 0; }
+summary.wc-box-title::-webkit-details-marker { display: none; }
+summary.wc-box-title::after { content: ' ▾'; }
+details:not([open]) > summary.wc-box-title::after { content: ' ▸'; }
+.wc-forces[open] summary { margin-bottom: 8px; }
+.wc-hint { font-size: 11.5px; color: var(--wc-ink-soft); margin: 0 0 8px; line-height: 1.45; }
+
+.wc-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.wc-chip {
+  display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 999px;
+  font: 500 11.5px/1.2 var(--wc-font); color: var(--wc-ink-soft); cursor: pointer;
+  background: rgba(var(--wama-pres-line-rgb), .06); border: 1px solid var(--wc-line);
+}
+.wc-chip:hover { color: var(--wc-ink); }
+.wc-chip.on { color: var(--wc-ink); background: rgba(var(--wama-pres-media-rgb), .14); border-color: rgba(var(--wama-pres-media-rgb), .5); }
+/* Le point d'une puce : sa couleur est DÉCLARÉE par la couche (`scenes.py`, `dot` / `glow`), un
+   jeton `--wc-*` ; `flat` : sans halo. */
+.wc-chip .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block;
+  background: var(--dot); box-shadow: 0 0 6px var(--dot-glow, var(--dot)); }
+.wc-chip .dot.flat { box-shadow: none; }
+
+.wc-weight { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; align-items: center; margin-bottom: 7px; }
+.wc-weight label { font-size: 12px; color: var(--wc-ink); }
+.wc-weight output { font: 11px var(--wc-mono); color: var(--wc-ink-soft); }
+.wc-weight input { grid-column: 1 / -1; width: 100%; accent-color: var(--wc-media); height: 14px; }
+.wc-weight small { grid-column: 1 / -1; font-size: 10.5px; color: var(--wc-ink-mute); line-height: 1.35; }
+
+/* ── Volet droit ──────────────────────────────────────────────────────── */
+.wc-panel {
+  right: 16px; top: 16px; width: 360px; padding: 16px; border-radius: 14px;
+  background: var(--wc-glass); border: 1px solid var(--wc-line); backdrop-filter: blur(12px);
+  font-size: 12.5px; line-height: 1.5;
+}
+.wc-panel h2 { font: 700 19px/1.2 var(--wc-font); margin: 0; color: var(--wc-ink); }
+.wc-panel h3 {
+  font: 600 10px/1 var(--wc-mono); letter-spacing: .16em; text-transform: uppercase; color: var(--wc-ink-mute);
+  margin: 16px 0 8px; display: flex; align-items: center; gap: 8px;
+}
+.wc-panel h3::after { content: ''; flex: 1; height: 1px; background: var(--wc-line); }
+.wc-panel p { margin: 0 0 6px; color: var(--wc-ink-soft); }
+.wc-panel .mute { color: var(--wc-ink-mute); }
+.wc-panel ul { list-style: none; margin: 0; padding: 0; }
+.wc-panel li { padding: 3px 0; color: var(--wc-ink-soft); }
+.wc-panel li b { color: var(--wc-ink); font-weight: 600; }
+.wc-close {
+  position: absolute; right: 10px; top: 10px; width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--wc-line); background: transparent; color: var(--wc-ink-soft); cursor: pointer;
+}
+.wc-close:hover { color: var(--wc-ink); }
+
+.wc-id { display: flex; gap: 12px; align-items: center; padding-right: 28px; }
+.wc-avatar {
+  flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+  font: 700 16px var(--wc-font); color: var(--wama-pres-chip-on-text);
+  box-shadow: 0 0 0 2px rgba(var(--wama-pres-line-rgb), .12), 0 0 22px var(--c);
+  background: radial-gradient(circle at 35% 30%, var(--wc-ink) 0%, var(--c) 45%, color-mix(in srgb, var(--c) 55%, var(--wc-bg-0)) 100%);
+}
+.wc-handle { font: 11.5px var(--wc-mono); color: var(--wc-ink-mute); }
+.wc-badges { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+.wc-badge {
+  display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; border: 1px solid var(--wc-line); color: var(--wc-ink-soft);
+}
+.wc-badge.tier { color: var(--wama-pres-chip-on-text); border-color: transparent; background: var(--c); font-weight: 600; }
+.wc-badge.off { color: var(--bs-danger); border-color: rgba(var(--bs-danger-rgb), .4); }
+.wc-badge .sw { width: 7px; height: 7px; border-radius: 50%; background: var(--c); }
+
+.wc-kv { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; }
+.wc-kv dt { color: var(--wc-ink-mute); font-weight: 400; }
+.wc-kv dd { margin: 0; color: var(--wc-ink); overflow-wrap: anywhere; }
+.wc-tag { font: 10px var(--wc-mono); color: var(--wc-data); margin-left: 4px; }
+.wc-link { color: var(--wc-media); text-decoration: none; font-size: 12px; }
+.wc-link:hover { color: var(--wc-ink); }
+
+.wc-world { margin-bottom: 8px; }
+.wc-world-head { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--wc-ink); margin-bottom: 4px; }
+.wc-world-head span:last-child { font-family: var(--wc-mono); color: var(--wc-ink-soft); }
+.wc-apps { display: flex; flex-wrap: wrap; gap: 4px; }
+.wc-app {
+  font-size: 10.5px; padding: 1px 7px; border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent);
+  color: var(--wc-ink); background: color-mix(in srgb, var(--c) 14%, transparent);
+}
+.wc-app.no { color: var(--wc-ink-mute); background: transparent; border-color: var(--wc-line); text-decoration: line-through; text-decoration-color: rgba(var(--wama-pres-line-rgb), .3); }
+
+.wc-bar { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin-bottom: 6px; }
+.wc-bar span:first-child { color: var(--wc-ink); }
+.wc-bar span:nth-child(2) { font: 11px var(--wc-mono); color: var(--wc-ink-soft); }
+.wc-bar i { grid-column: 1 / -1; height: 4px; border-radius: 2px; background: var(--c); box-shadow: 0 0 8px var(--c); display: block; }
+
+.wc-family { margin-bottom: 8px; }
+.wc-family-head { display: flex; align-items: center; gap: 7px; color: var(--wc-ink); }
+.wc-family-head .sw { width: 9px; height: 9px; transform: rotate(45deg); background: var(--c); box-shadow: 0 0 6px var(--c); }
+.wc-family-head .n { margin-left: auto; font: 11px var(--wc-mono); color: var(--wc-ink-soft); }
+.wc-family .items { font-size: 11px; color: var(--wc-ink-soft); margin: 3px 0 0 16px; }
+.wc-family .items em { font-style: normal; color: var(--wc-ok); }
+
+.wc-near li { display: grid; grid-template-columns: 1fr auto; gap: 0 8px; cursor: pointer; border-radius: 6px; padding: 4px 6px; margin: 0 -6px; }
+.wc-near li:hover { background: rgba(var(--wama-pres-line-rgb), .07); }
+.wc-near li small { grid-column: 1 / -1; color: var(--wc-ink-mute); font-size: 10.5px; }
+.wc-near li span:nth-child(2) { font: 11px var(--wc-mono); color: var(--wc-media); }
+
+.wc-legend-row { display: flex; align-items: center; gap: 9px; padding: 3px 0; color: var(--wc-ink-soft); }
+.wc-legend-row .sw { flex: none; width: 12px; height: 12px; border-radius: 50%; border: 1.5px solid var(--c); background: color-mix(in srgb, var(--c) 18%, transparent); box-shadow: 0 0 8px color-mix(in srgb, var(--c) 60%, transparent); }
+.wc-legend-row .sw.star { border: 0; background: radial-gradient(circle at 35% 30%, var(--wc-ink), var(--c) 55%); }
+.wc-legend-row .sw.sat { border-radius: 2px; transform: rotate(45deg) scale(.75); border: 0; background: var(--c); }
+.wc-legend-row .sw.line { border: 0; border-radius: 1px; height: 3px; background: var(--c); }
+
+.wc-fallback { position: absolute; inset: auto 0 45% 0; text-align: center; color: var(--wc-ink-soft); font-size: 15px; }
+
+/* ── Téléphone : le volet devient une feuille basse, le HUD se resserre ── */
+@media (max-width: 760px) {
+  .wc-hud-left { left: 16px; right: 16px; width: auto; top: 12px; gap: 8px; }
+  .wc-hud-left .wc-box, .wc-hud-left .wc-stats, .wc-hud-left .wc-kicker { display: none; }
+  .wc-title { font-size: 24px; }
+  .wc-panel { left: 16px; right: 16px; width: auto; top: auto; bottom: 12px; max-height: 46%; }
+  /* La légende cède la place à la scène : le volet ne s'ouvre que pour une personne choisie. */
+  .wc-panel.is-legend { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wc-label { transition: none; }
+}

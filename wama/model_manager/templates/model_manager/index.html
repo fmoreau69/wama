@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% load static %}
 {% load wama_static %}
+{% load wama_catalog %}
 
 {% block title %}Model Manager - WAMA{% endblock %}
 
@@ -308,6 +309,7 @@
         </style>
         {% endif %}
         <div class="col-auto d-flex align-items-center gap-2">
+            {% scene_button 'models' 'btn btn-outline-primary btn-action' %}
             <button class="btn btn-outline-info btn-action" id="btn-refresh" title="Refresh model list">
                 <i class="fas fa-sync-alt me-1"></i> Refresh
             </button>

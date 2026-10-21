@@ -9,6 +9,7 @@ from django.views.generic import RedirectView
 
 from .utils import preview_utils
 from .utils import detail_registry
+from . import scene_views
 from . import surface_views
 from . import views
 from .vectors import views as vector_views
@@ -79,6 +80,11 @@ urlpatterns = [
 
     path('licenses/', views.licenses_catalog_view, name='licenses_catalog'),
     path('licences/', RedirectView.as_view(pattern_name='common:licenses_catalog', permanent=True)),
+
+    # Scènes de PROXIMITÉ (constellations 3D, 2026-10-21) : une page et une route de données pour
+    # toute scène déclarée (`common/scenes.py`) — licences, modèles… (WAMA_SCENES_3D.md).
+    path('scenes/<slug:key>/', scene_views.scene_page, name='scene'),
+    path('scenes/<slug:key>/data/', scene_views.scene_data_view, name='scene_data'),
 
     # ABONNEMENT aux éléments de catalogue — la couche PRÉFÉRENCE (PROFILES_PERMISSIONS §8).
     # UNE route pour toutes les natures (`kind` dans le corps) : c'est ce qui fera hériter les

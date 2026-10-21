@@ -25678,3 +25678,32 @@ de l'imager, `views.py:1044` —, le dépôt de l'imager `:264`/`:305`), le gén
 gabarits par domaine : l'audio d'`enhancer_01`), un critère de grille. Reste nommé : le réglage
 audio `strength` / colonne `denoising_strength` (`WAMA_APP_GENERATION_ROUTE`, ligne « naissance d'un
 élément par la cascade COMMUNE », décision de déclaration à prendre).
+
+## PALIER 2026-10-21 soir — la BRIQUE COMMUNE des constellations, licences et modèles (GO de Fabien)
+
+> *« GO pour la brique commune, commence par les licences, puis les modèles. […] Je ne veux aucune
+> régression sur les visuels 3d existants. »*
+
+- ✅ **La brique** : registre `wama/common/scenes.py` (une scène se DÉCLARE dans le `ready()` de son
+  domaine : couches, facteurs, sortes de groupes, mesures, textes, `layout`, `label_limit`), brique JS
+  `common/js/wama-constellation.js` (importmap `wama/constellation`), feuille `wama-constellation.css`
+  (préfixe `wc-`), page `common/constellation.html`, routes `common:scene` / `common:scene_data`
+  (`scene_views.py`, sous le droit des Registres), bouton « Constellation » hérité par la page d'un
+  registre qui déclare sa scène (`wama_catalog.scene_button`). Domicile : `WAMA_SCENES_3D §4` ;
+  mécanisme `proximity_scenes`.
+- ✅ **Utilisateurs** portés dessus (adaptateur `accounts/js/user-constellation.js`, adresse et garde
+  inchangées). **Parité MESURÉE** : banc de 58 gestes, temps figé, faits servis d'un fichier, ancien
+  code (arbre de HEAD) contre nouveau — **57/58 captures identiques au pixel** (la 58ᵉ : 37 px du champ
+  de recherche au téléphone, le bruit mesuré entre deux passages du MÊME code), DOM identique une fois
+  le renommage `uc-` → `wc-` retiré (hors HUD, dont seul le balisage des points change). La scène des
+  droits de la présentation n'est pas touchée. Banc : `scratchpad/parity/` de la session (non versionné).
+- ✅ **Licences** (`common/services/license_scene.py`, 31 licences, 7 familles, 10 apps au relevé) et
+  **modèles** (`model_manager/services/model_scene.py`, 151 locaux, distants en couche éteinte).
+- Gardes : `common/tests/tests_scenes.py` (11 tests, 4 mutations → 4 rouges), `tests_constellation`
+  (+1), scénarios nocturnes `common.scene.licenses.ui` / `common.scene.models.ui` (contre-épreuve :
+  une exception injectée dans la brique les fait rougir en la nommant) et `accounts.constellation.ui`
+  (sélecteurs `wc-`), verts sur serveur jetable.
+- 🔚 **Pour Fabien** : relancer gunicorn (gabarits, URL, `ready()`), puis regarder les deux scènes
+  neuves (catalogue des licences, gestion des modèles → « Constellation ») ; leur mise en espace
+  (`layout`) est un premier réglage, à affiner à l'œil. §7 question 2 tranchée en livrant (registre de
+  scènes à part) — à revoir s'il préfère un champ de `Registry`.

@@ -1,4 +1,5 @@
 {% load static %}
+{% load wama_static %}
 {% comment %}
   Importmap LOCALE de three.js — brique COMMUNE, à inclure dans le <head> de toute page
   qui charge un module three (TalkingHead, preview `.glb` de la médiathèque, rendu 3D→2D).
@@ -17,6 +18,10 @@
   version au chemin, ce qui est correct pour un fichier mais casse un PRÉFIXE de dossier
   (`three/addons/`), qui doit rester nu pour que la concaténation du navigateur tombe juste.
 
+  `wama/constellation` (2026-10-21) : la brique commune des scènes de proximité, importée par nom
+  par chaque adaptateur de scène — un FICHIER, donc `static_v` (son empreinte casse le cache quand
+  la brique change ; un adaptateur qui l'importerait par chemin garderait l'ancienne).
+
   Versions vendorisées : three 0.180.0 (celle qu'exige l'exemple TalkingHead — une version
   différente n'est pas garantie compatible), TalkingHead 1.7.
   Dépendances résolues en FERMETURE TRANSITIVE (fflate, BufferGeometryUtils, NURBS* ne sont
@@ -28,7 +33,8 @@
     "three": "{% static 'vendors/three-0.180.0/build/three.module.js' %}",
     "three/addons/": "{% static 'vendors/three-0.180.0/addons/' %}",
     "talkinghead": "{% static 'vendors/talkinghead-1.7/talkinghead.mjs' %}",
-    "wama/3d-viewer": "{% static 'common/js/wama-3d-viewer.js' %}"
+    "wama/3d-viewer": "{% static 'common/js/wama-3d-viewer.js' %}",
+    "wama/constellation": "{% static_v 'common/js/wama-constellation.js' %}"
   }
 }
 </script>

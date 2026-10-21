@@ -4,8 +4,9 @@
 > rapproche, ce qui les groupe. ⚠ Ne couvre PAS les médias 3D (objets `.glb`, avatar parlant,
 > rendu 3D→2D : `STUDIO_VISION`, `ROADMAP`), qui partagent seulement le moteur vendorisé.
 >
-> **Statut (2026-10-21)** : CARTOGRAPHIE et démarche, demandées par Fabien. Trois scènes existent
-> (§1) ; tout le reste est une INTENTION (⏳), à trancher (§7). Chaque fait ci-dessous a été relevé
+> **Statut (2026-10-21)** : CARTOGRAPHIE et démarche, demandées par Fabien. ✅ La **brique commune**
+> est livrée le soir même (GO de Fabien, §4) avec ses deux premières scènes de registre, licences et
+> modèles ; le reste de la cartographie est une INTENTION (⏳). Chaque fait ci-dessous a été relevé
 > dans le code le jour même — un chiffre qui a vieilli se remesure, il ne se recopie pas.
 
 ## 0. Pourquoi
@@ -32,7 +33,9 @@ Trois principes en découlent, qui valent pour toute scène de ce document :
 |---|---|---|---|
 | Les quatre mondes | présentation, frame `mondes` | déclarées dans la scène | `wama/static/presentation/wama-presentation-3d.js` (`buildWorlds`) |
 | Les droits — tous les cas | présentation, frame `acces` | `accounts.permissions.access_cases()` via `presentation_access_cases` | même module (`buildAccess` : une grille `InstancedMesh` profil × rôles × outil) |
-| Constellation des utilisateurs | page admin `accounts:user-constellation`, et la frame `constellation` de la présentation (iframe, `?embed=1`) | `wama/accounts/constellation.py` | `wama/accounts/static/accounts/js/user-constellation.js` (forces pondérées, sphères, liens animés, volet de détail) |
+| Constellation des utilisateurs | page admin `accounts:user-constellation`, et la frame `constellation` de la présentation (iframe, `?embed=1`) | `wama/accounts/constellation.py` | la brique commune (§4) ; son adaptateur `wama/accounts/static/accounts/js/user-constellation.js` met les faits au contrat et rend le volet d'une personne |
+| Licences (C1) ✅ 2026-10-21 | `common:scene` `licenses`, bouton « Constellation » du catalogue des licences | `wama/common/services/license_scene.py` (`license_audit`) | la brique commune, sans adaptateur |
+| Modèles (C2) ✅ 2026-10-21 | `common:scene` `models`, bouton de la gestion des modèles | `wama/model_manager/services/model_scene.py` (catalogue visible du demandeur) | la brique commune, sans adaptateur |
 
 Et, hors de ce domaine, la visionneuse d'objets 3D (`wama/common/static/common/js/wama-3d-viewer.js`)
 et l'avatar (TalkingHead). Tous lisent three.js 0.180 vendorisé par l'importmap commune
@@ -150,7 +153,38 @@ une vue 3D d'un pipeline est une lecture et un suivi d'exécution, pas un second
 - Les scènes T1 (mécanismes) et T2 (composition) sont les meilleures candidates pour la frame
   « Monde Transversal », que Fabien juge la plus difficile à faire comprendre.
 
-## 4. La brique commune — la forme proposée (⏳ intention)
+## 4. La brique commune — ✅ livrée le 2026-10-21
+
+**Ce qui existe** (mesuré au commit) :
+- **le registre des scènes** `wama/common/scenes.py` (`Scene`, `register_scene`) : chaque domaine y
+  déclare sa scène dans le `ready()` de son app — couches et leur rôle (`groups`, `links`,
+  `satellites`, `nodes`, `names`), facteurs (`relation`, `groups`, `hierarchy`, `jaccard`, `same`,
+  `closeness`), sortes de groupes (hiérarchie, fusion des groupes aux mêmes membres, marge,
+  attraction), mesures, textes, constantes de mise en espace (`layout`), plafond d'étiquettes
+  (`label_limit`). Une déclaration incohérente est refusée à la déclaration ;
+- **la brique JS** `wama/common/static/common/js/wama-constellation.js`, importée par son nom
+  (`wama/constellation`, importmap commune), et sa feuille `wama-constellation.css` (préfixe `wc-`) ;
+- **la page commune** `common/constellation.html` (HUD rendu de la déclaration) et ses routes
+  `common:scene` / `common:scene_data` (`wama/common/scene_views.py`), lues sous le droit des
+  Registres (`permissions.PATH_APP_MAP`, `common/scenes`) ;
+- **le bouton** « Constellation » que reçoit la page d'un registre dont une scène se déclare
+  (`wama_catalog.scene_button`, posé par l'en-tête commun `_catalog_header.html`) ;
+- **les gardes** : `wama/common/tests/tests_scenes.py`, et un scénario nocturne par scène de la page
+  commune (`common.scene.<clé>.ui`, `wama/common/services/ui_smoke_scenes.py`).
+
+**Décision prise en livrant (question 2 du §7)** : un registre de scènes À PART, pas un champ de
+`Registry` — les scènes ne projettent pas toutes un registre (utilisateurs, mécanismes, file, journal).
+Une scène NOMME le registre qu'elle projette (`registry`), ce qui suffit au bouton de sa page.
+
+**La parité de la constellation des utilisateurs** (exigence de Fabien : *« aucune régression sur
+les visuels 3D existants »*) a été MESURÉE, pas supposée : un banc rejoue 56 gestes (page, mode
+intégré, téléphone, faits réels et faits synthétiques qui exercent projets, apports, partages à une
+portée, comptes inactifs et de test, replis sans WebGL ou sans faits), temps figé
+(`requestAnimationFrame` remplacé), faits servis d'un fichier, sur l'ancien code (arbre de travail
+de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une fois le seul renommage
+`uc-` → `wc-` retiré. La scène des droits de la présentation n'est pas touchée.
+
+### La forme proposée le matin (gardée pour la trace)
 
 - **Un module de scène** dans les briques JS communes (`wama/common/static/common/js/`), extrait de
   la constellation des utilisateurs : rendu, fond étoilé, verre des sphères, forces à facteurs
@@ -173,8 +207,8 @@ une vue 3D d'un pipeline est une lecture et un suivi d'exécution, pas un second
 
 ## 5. Ordre proposé
 
-1. **Extraire la brique**, la constellation des utilisateurs portée dessus (parité).
-2. **Licences (C1) puis modèles (C2)** : données prêtes, l'exemple de Fabien, et la preuve du
+1. ✅ **Extraire la brique**, la constellation des utilisateurs portée dessus (parité mesurée, §4).
+2. ✅ **Licences (C1) puis modèles (C2)** : données prêtes, l'exemple de Fabien, et la preuve du
    contrat « un registre déclare sa scène ».
 3. **Le transversal (T1, T2)** et sa frame dans la présentation, avec le côte à côte.
 4. **La file en 3D (A1)** et la chronologie (A2) : après avoir comblé la proximité card ↔ card
@@ -184,7 +218,8 @@ une vue 3D d'un pipeline est une lecture et un suivi d'exécution, pas un second
 ## 6. Trous mesurés (2026-10-21)
 
 - Registres sans `entries` (modèles, skills, librairies, licences, RAG, souvenirs, prompts,
-  backends, et les trois de WAMA Data) : leur scène doit lire leur source.
+  backends, et les trois de WAMA Data) : leur scène doit lire leur source — ce que font les scènes
+  des licences et des modèles (2026-10-21).
 - Aucun monde sur `AIModel` : il passe par `source` → `APP_CATALOG`.
 - Proximité sémantique des cards : images seules, deux espaces séparés, pas de voisinage card ↔
   card, pas de réduction de dimension (§3.3).
@@ -197,9 +232,10 @@ une vue 3D d'un pipeline est une lecture et un suivi d'exécution, pas un second
 
 ## 7. À trancher (Fabien)
 
-1. GO pour la brique commune (§4), et l'ordre du §5.
-2. Le contrat se déclare-t-il sur `Registry` (un champ de plus) ou dans un registre de scènes à
-   part, qui couvrirait aussi les sources hors registre ?
+1. ✅ GO pour la brique commune (§4), et l'ordre du §5 — Fabien, 2026-10-21 : *« commence par les
+   licences, puis les modèles »*, sans aucune régression des visuels existants.
+2. ✅ Un registre de scènes à part, qui NOMME le registre projeté (tranché en livrant, §4 — à
+   revoir si Fabien préfère l'autre forme).
 3. La proximité sémantique des cards : vectoriser aussi leur TEXTE (transcriptions, descriptions)
    dans l'espace `text`, et calculer les voisins côté serveur ?
 4. Le côte à côte dans la présentation : deux emplacements dans une frame, ou une vue « deux

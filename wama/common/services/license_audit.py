@@ -43,6 +43,10 @@ FAMILLES = {
     INTERDITE:        ('Interdite (territoire)', 'Lue : aucun droit concédé dans l’UE — ne pas utiliser.'),
 }
 
+#: Les registres que l'audit recoupe, et leur nom — lu par la page des licences (sa facette) et
+#: par leur scène 3D (`license_scene`).
+REGISTRES = {'model': 'Modèles', 'library': 'Librairies', 'media': 'Médias'}
+
 #: Identifiant normalisé → (famille, exige une attribution).
 #: Table de DOMAINE (ce qu'une licence permet) : elle ne se dérive d'aucune donnée du dépôt,
 #: contrairement aux listes de classes ou de spécialités qu'on a supprimées ailleurs.

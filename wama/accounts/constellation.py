@@ -23,12 +23,71 @@ d'un même projet.
 Les familles qui n'ont pas encore d'auteur (`TO_CARRY` : librairies, apps, briques UI…) sont
 NOMMÉES dans la réponse, jamais passées sous silence : la page dit ce qu'elle ne peut pas montrer.
 
-La distance elle-même se calcule côté page (`accounts/user-constellation.js`), parce que ses poids
-sont des curseurs : le serveur ne livre que des FAITS.
+La distance elle-même se calcule côté page, parce que ses poids sont des curseurs : le serveur ne
+livre que des FAITS. La scène est montée par la brique COMMUNE des constellations
+(`common/js/wama-constellation.js`, 2026-10-21) — elle en fut le premier consommateur ; ses
+couches, ses facteurs et ses sphères sont DÉCLARÉS ici (`SCENE`), son adaptateur
+(`accounts/js/user-constellation.js`) met les faits au contrat de la brique et rend le volet.
 """
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def register_scene():
+    """Déclare la scène `users` (appelé par `AccountsConfig.ready`)."""
+    from wama.common.scenes import Scene, register_scene as register
+    register(Scene(
+        key='users', page_title='Constellation des utilisateurs', kicker='Utilisateurs · WAMA',
+        description="Les personnes, leurs droits, rôles, partages et apports ; la distance dit ce qui les lie.",
+        permission='admin', module='accounts/js/user-constellation.js',
+        page_url_name='accounts:user-constellation', data_url_name='accounts:user-constellation-data',
+        back_url_name='accounts:user-management', back_label='Gestion des utilisateurs',
+        loading='Chargement des comptes…', search_placeholder='Trouver une personne…',
+        layers=(
+            {'key': 'units', 'role': 'groups', 'label': 'Unités', 'dot': 'unit-labo', 'on': True},
+            {'key': 'projects', 'role': 'groups', 'label': 'Projets', 'dot': 'project', 'on': True},
+            {'key': 'shares', 'role': 'links', 'label': 'Partages', 'dot': 'media', 'on': True},
+            {'key': 'satellites', 'role': 'satellites', 'label': 'Contributions', 'dot': 'ink',
+             'glow': 'trans', 'on': True},
+            {'key': 'tests', 'role': 'nodes', 'label': 'Comptes de test', 'dot': 'ink-mute',
+             'flat': True, 'on': False},
+            {'key': 'names', 'role': 'names', 'label': 'Noms', 'on': True, 'embed_on': False,
+             'title': "Masquer les noms (initiales seules) — pour projeter la constellation devant "
+                      "d'autres personnes"},
+        ),
+        colorings=({'key': 'tier', 'label': 'Profil'},
+                   {'key': 'world', 'label': 'Monde le plus utilisé'}),
+        forces_hint="La distance entre deux personnes se calcule de ces facteurs ; changez leur "
+                    "poids, la constellation se réarrange.",
+        factors=(
+            {'key': 'share', 'kind': 'relation', 'label': 'Partages', 'value': 3, 'max': 6,
+             'one': 'partage', 'many': 'partages',
+             'help': "Un élément partagé, dans un sens ou dans l'autre (log du nombre)."},
+            {'key': 'project', 'kind': 'groups', 'group': 'project', 'label': 'Projets communs',
+             'value': 2.5, 'max': 6, 'help': 'Un point par projet partagé.'},
+            {'key': 'unit', 'kind': 'hierarchy', 'group': 'unit', 'label': 'Unités communes',
+             'value': 2, 'max': 6, 'help': "L'unité commune la plus fine compte le plus."},
+            {'key': 'roles', 'kind': 'jaccard', 'set': 'roles', 'label': 'Métiers communs',
+             'value': 0.6, 'max': 4, 'one': 'métier', 'many': 'métiers',
+             'help': 'Part des rôles métier en commun.'},
+        ),
+        group_kinds={
+            # L'arbre de l'annuaire : une unité englobe ses sous-unités ; les unités aux mêmes
+            # membres se fondent ; une unité fine tire ses membres plus fort.
+            'unit': {'layer': 'units', 'label': 'Unité', 'hierarchical': True, 'merge': True,
+                     'base': 0.03, 'rim': 0.55, 'margin': {'base': 1.1, 'per_level': 0.9},
+                     'pull': {'weight': 'unit', 'k': 0.008, 'by_depth': True}},
+            'project': {'layer': 'projects', 'label': 'Projet', 'base': 0.02, 'rim': 0.42,
+                        'wire': True, 'margin': 1.6, 'mesh': True,
+                        'pull': {'weight': 'project', 'k': 0.012}},
+        },
+        stats=({'count': 'nodes', 'one': 'personne', 'many': 'personnes'},
+               {'count': 'groups', 'kind': 'unit', 'one': 'unité', 'many': 'unités'},
+               {'count': 'groups', 'kind': 'project', 'one': 'projet', 'many': 'projets'},
+               {'count': 'links', 'one': 'partage entre personnes',
+                'many': 'partages entre personnes'}),
+    ))
 
 #: Plafond d'éléments NOMMÉS par famille et par compte — le compte, lui, est toujours exact.
 ITEM_LIMIT = 12

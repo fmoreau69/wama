@@ -16,11 +16,12 @@ Variables :
   icone    — (option) même règle : classe Font Awesome (avec son préfixe `fa-`).
   registre — clé du registre pour le bouton hérité (`refresh_button` décide seul du rendu
              selon la nature et la permission). ABSENTE = pas de bouton global — cas de la
-             page des registres, qui porte un bouton PAR card.
+             page des registres, qui porte un bouton PAR card. Un registre qui déclare sa scène
+             3D (`common/scenes.py`) reçoit aussi le bouton « Constellation » (`scene_button`).
 {% endcomment %}
 {% load wama_catalog %}
 {% page_heading titre icone as heading %}
 <div class="wama-cat-header d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
   <h2 class="mb-0 text-body-emphasis">{% if heading.icon %}<i class="fas {{ heading.icon }} me-2"></i>{% endif %}{{ heading.label }}</h2>
-  {% if registre %}{% refresh_button registre %}{% endif %}
+  {% if registre %}<div class="d-flex align-items-center gap-2">{% scene_button registre %}{% refresh_button registre %}</div>{% endif %}
 </div>

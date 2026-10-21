@@ -30,3 +30,6 @@ class AccountsConfig(AppConfig):
                               order=90,
                               description="Gestion des comptes, de leurs profils et rôles, et "
                                           "des droits d'accès aux applications.")
+        # Sa scène de proximité, montée par la brique commune des constellations.
+        from .constellation import register_scene
+        register_scene()

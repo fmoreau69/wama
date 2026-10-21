@@ -27,6 +27,22 @@ def page_heading(context, title='', icon=''):
     return {'label': title or page.get('label', ''), 'icon': icon or page.get('icon', '')}
 
 
+@register.simple_tag(takes_context=True)
+def scene_button(context, registry_key, css_class='btn btn-outline-primary btn-sm'):
+    """Le bouton « Constellation » d'un registre qui DÉCLARE sa scène 3D (`scenes.py`, champ
+    `registry`) — rien pour un registre sans scène, ni pour qui ne peut pas l'ouvrir. Une page de
+    registre n'écrit donc jamais son bouton : elle le reçoit de la déclaration de la scène."""
+    from django.utils.html import format_html
+
+    from ..scenes import can_view, page_url, scene_for_registry
+    scene = scene_for_registry(registry_key)
+    user = getattr(context.get('request'), 'user', None)
+    if scene is None or user is None or not can_view(scene, user):
+        return ''
+    return format_html('<a class="{}" href="{}" title="{}"><i class="fas fa-circle-nodes me-1"></i>'
+                       'Constellation</a>', css_class, page_url(scene), scene.description)
+
+
 @register.inclusion_tag('common/_catalog_refresh.html', takes_context=True)
 def refresh_button(context, key, reload_page=True):
     """Rend le contrôle d'actualisation du registre `key`.
