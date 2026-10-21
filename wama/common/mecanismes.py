@@ -2755,6 +2755,7 @@ MECHANISMS = (
                        'wama/common/static/common/css/wama-constellation.css',
                        'wama/common/templates/common/constellation.html',
                        'wama/common/scene_views.py', 'wama/common/services/license_scene.py',
+                       'wama/model_manager/services/model_scene.py',
                        'wama/common/services/ui_smoke_scenes.py', 'wama/common/tests/tests_scenes.py'),
               depends_on=('app_access',)),
     # Ajouté le 2026-10-04 (décision de Fabien : « option 1, persistance par session »). Collé à
