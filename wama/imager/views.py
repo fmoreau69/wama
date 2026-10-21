@@ -58,8 +58,11 @@ def _generation_domain(gen):
     UNE déclaration, deux lectures par la fabrique commune : le domaine du lot (`_batch_domain`,
     `batch_extra`) et `group_key` (2026-10-16 — sans lui, une arrivée mêlant images et vidéos
     formait UN lot au domaine du premier élément, donc dans le mauvais onglet ; la fabrique le
-    prescrit : « une app qui fige une nature sur le lot passe le `group_key` jumeau »)."""
-    return 'video' if gen.is_video_generation else 'image'
+    prescrit : « une app qui fige une nature sur le lot passe le `group_key` jumeau »).
+    Lu dans la déclaration commune (`app_modes.element_domain`, 2026-10-21) : le schéma que la
+    spec de détail choisit pour l'élément désigne son domaine."""
+    from wama.common.utils.app_modes import element_domain
+    return element_domain(gen) or 'image'
 
 
 def _batch_domain(gen):
@@ -185,16 +188,15 @@ def index(request):
                       item_model=GenerationBatchItem, fk_name='generation',
                       batch_extra=_batch_domain)
 
+    from wama.common.utils.app_modes import domain_schema
     from wama.common.utils.card_chips import common_chips_for_items
-    from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
     batches_all = build_batches_list(
         user, batch_model=GenerationBatch, work_attr='generation',
         # Réglages COMMUNS aux filles (slot meta_template — porté le 31/08) : imager a
         # DEUX schémas, celui du DOMAINE du lot s'applique (fabrique scopée par onglet).
         extra=lambda b, items, gens: {
             'common_chips': common_chips_for_items(
-                gens, VIDEO_PARAMS_JSON if getattr(b, 'domain', '') == 'video'
-                else IMAGE_PARAMS_JSON)})
+                gens, domain_schema('imager', getattr(b, 'domain', '') or 'image'))})
     # Chips schéma-driven sur chaque card ; les lignes d'exécution de TOUTES les cards de la page
     # sont lues en une requête (bande des process).
     from wama.common.services.process_pipeline import decorate_cards
@@ -1153,10 +1155,10 @@ def delete_generation(request, generation_id):
 
 
 def _schema_for(gen):
-    """Schéma du DOMAINE de la génération (image | vidéo) — params.py est la source
-    unique : vues de réglages, chips de card et modale ⚙ lisent le même objet."""
-    from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
-    return VIDEO_PARAMS_JSON if gen.is_video_generation else IMAGE_PARAMS_JSON
+    """Schéma du DOMAINE de la génération (image | vidéo), celui que le domaine nomme
+    (`app_modes.domain_schema`) : vues de réglages, chips de card et modale ⚙ lisent le même objet."""
+    from wama.common.utils.app_modes import domain_schema
+    return domain_schema('imager', _generation_domain(gen))
 
 
 def _apply_generation_settings(generation, data):
@@ -1209,9 +1211,7 @@ def _decorate_card(gen, preloaded=False):
     (`process_pipeline.decorate`, `ROUTE §10.6` 5.1)."""
     from wama.common.services.process_pipeline import decorate
     from wama.common.utils.card_chips import chips_by_section
-    from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
-    gen.chips = chips_by_section(
-        gen, VIDEO_PARAMS_JSON if gen.is_video_generation else IMAGE_PARAMS_JSON)
+    gen.chips = chips_by_section(gen, _schema_for(gen))
     decorate(gen, preloaded=preloaded)
     return gen
 
@@ -1230,9 +1230,8 @@ def card_html(request, generation_id):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     generation = visible_or_404(ImageGeneration, user, id=generation_id)   # LECTURE
     _decorate_card(generation)
-    domain = 'video' if generation.is_video_generation else 'image'
     html = render_to_string('imager/_generation_card.html',
-                            {'elem': generation, 'domain': domain,
+                            {'elem': generation, 'domain': _generation_domain(generation),
                              'in_batch': is_batch_child(generation)}, request=request)
     return HttpResponse(html)
 

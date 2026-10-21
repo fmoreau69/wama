@@ -105,7 +105,7 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   | ~~—~~ | ~~`result_tabs`~~ | ~~onglets de résultat texte (R18)~~ — **retiré du vocabulaire le 2026-10-13** (`REMOVAL_LEDGER R127`) : le describer (R125) puis le transcriber (R126) l'avaient quitté, leurs facettes sont les faces de la visionneuse commune ; une spec qui le déclarerait encore rougit `tests_detail_spec` | — |
   | valeur | `['a', 'b']` sur une LISTE *(2026-10-05)* | dans « premier champ non vide », un champ qui porte une collection rend son PREMIER élément | imager (la vidéo, sinon la 1ʳᵉ image) |
   | valeur | `result_files: 'champ'` *(2026-10-05)* | la COLLECTION de résultats (émise à partir de deux) | imager (`output_images`) |
-  | valeur | `params_schema: <valeur>` *(2026-10-05)* | le schéma des réglages, NOMMÉ ou CHOISI PAR ÉLÉMENT (`*PARAMS_JSON` du module de l'app PROPRIÉTAIRE du modèle) ; absent = le schéma principal | imager (image/vidéo), audio_enhancer (`AUDIO_PARAMS_JSON`) |
+  | valeur | `params_schema: <valeur>` *(2026-10-05)* | le schéma des réglages CHOISI PAR ÉLÉMENT (`*PARAMS_JSON` du module de l'app PROPRIÉTAIRE du modèle), pour une surface qui sert deux domaines — c'est aussi ce qui désigne le domaine de l'élément (`app_modes.element_domain`) ; absent = le schéma du DOMAINE que sert la surface (`app_modes`, `params_schema` du domaine), sinon le principal. ⚠ Le 2026-10-21, la constante `AUDIO_PARAMS_JSON` d'audio_enhancer est retirée : son domaine `audio` la nomme | imager (image/vidéo) |
 
   **Un réglage vrai s'affiche « Oui »** — règle d'AFFICHAGE unique (`wama-inspector.js`,
   `_settingValue`), pour toutes les apps : la donnée reste `true`. Avant, le transcriber écrivait

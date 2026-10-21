@@ -2336,11 +2336,11 @@ data-* du ⚙ DÉRIVÉS du schéma (contrat cardSettings de l'inspecteur, qui li
 
 ### Domaines → modes
 
-Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`)
+Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle d'élément et le domaine d'un élément se dérive (`element_domain`) ; un mode est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`)
 
 - **Domicile** : `wama/common/utils/app_modes.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Schéma déclaratif DOMAINES → MODES des apps — clé de voûte UX (voir MODES_QUEUE_UX.md).
-- **API publique** (13) :
+- **API publique** (19) :
   - `get_app_modes(app: str) -> dict` — Schéma {domains:[…]} d'une app, ou {} si non déclaré.
   - `get_domains(app: str) -> list`
   - `has_domain_tabs(app: str) -> bool` — True si l'app a PLUSIEURS domaines (→ afficher des onglets). Sinon : modes directs.
@@ -2348,6 +2348,12 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
   - `get_domain(app: str, domain_id: str) -> dict`
   - `get_mode(app: str, domain_id: str, mode_id: str) -> dict`
   - `route_prefix(app: str, domain_id: str) -> str` — Préfixe des routes de ce domaine (`audio` → `audio_batch_delete`), '' par défaut.
+  - `surface_name(app: str, prefix: str='') -> str` — La SURFACE d'une famille de routes : l'app, préfixée par le `route_prefix` de son domaine
+  - `domain_surface(app: str, domain_id: str) -> str` — La surface de ce domaine (`surface_name` de son `route_prefix`).
+  - `surface_domains(app: str, surface: str) -> list` — Les domaines de l'app que cette surface sert — un seul, sauf quand deux domaines
+  - `domain_schema_name(app: str, domain_id: str) -> str` — Le nom du schéma de réglages de ce domaine (`*PARAMS_JSON` du module `params` de l'app),
+  - `domain_schema(app: str, domain_id: str) -> list` — Le schéma de réglages de ce domaine : celui qu'il nomme, sinon le principal de l'app.
+  - `element_domain(element) -> str | None` — Le domaine d'un ÉLÉMENT, dérivé de ce qui est déjà déclaré : la surface de son modèle
   - `accepts(app: str, domain_id: str) -> tuple` — Catégories média (MEDIA_CATEGORIES) que ce domaine prend en ENTRÉE.
   - `domain_for_category(app: str, categorie: str) -> str | None` — Domaine d'une app capable d'accueillir cette catégorie média — base du ROUTAGE d'un
   - `mode_param(app: str, domain_id: str) -> str` — Le param du schéma qui porte le mode de ce domaine ('' si le domaine n'en déclare pas).
@@ -2436,7 +2442,7 @@ Schéma canonique des infos d'item affichées au volet droit
   - `register_app_detail(app_name, model_class, adapter)` — Enregistre l'adapter de détail d'une app. `adapter(instance) -> dict canonique`.
   - `register_app_detail_spec(app_name, model_class, spec)` — Variante DÉCLARATIVE (A3a) : la registration est une SPEC-donnée, pas un callable.
   - `spec_value(instance, form)` — UNE valeur de spec résolue contre l'instance — le vocabulaire entier tient ici :
-  - `spec_schema(instance, spec, app_name)` — Le schéma de réglages d'un ÉLÉMENT : celui que la spec NOMME (`params_schema`, une valeur
+  - `spec_schema(instance, spec, app_name)` — Le schéma de réglages d'un ÉLÉMENT : celui que la spec choisit pour lui (`params_schema`,
   - `detail_from_spec(instance, spec, app_name)` — Adapter GÉNÉRIQUE : résout la spec déclarative contre l'instance puis délègue à
   - `settings_from_schema(instance, schema, *, skip=(), carrier=None)` — {libellé: valeur} des réglages POSÉS du schéma — la liste « Réglages » du volet, pour les
   - `build_detail(instance, *, source_file=None, source_type=None, engine=None, engine_effective=None, result_file=None, result_files=None, result_role=None, result…` — Assemble le dict canonique d'un item (épine dorsale). Les valeurs vides sont OMISES

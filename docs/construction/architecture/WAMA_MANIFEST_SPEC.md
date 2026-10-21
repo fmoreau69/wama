@@ -198,8 +198,12 @@ body:                                   # (sous l'enveloppe commune)
   #   output_type   = catégorie média FIXE (ports/preview/routage) ; converter = 'mirror/any'
   #   output_format = mécanisme COMMUN hérité du converter (générique-par-catégorie ∪ app-spécifique) ; sélecteur download
   #   domains       = onglets, hint DÉCLARATIF, NON dérivé du type (converter=0 onglet ; imager≠enhancer même modalités)
-  domains: [{id, label, icon}]         # hint déclaratif d'onglets (ex-APP_MODES.domains), reflète l'UI verbatim
-  modes: [{id, label, icon, realtime, settings:[param_name]}]  # DÉRIVÉ des capacités-modèle (switch inspecteur), pas déclaré
+  # ⚠ Corrigé le 2026-10-21 sur mesure : ces deux lignes décrivaient `domains` et `modes` comme deux
+  # clés sœurs, et des modes « DÉRIVÉS des capacités-modèle » portant `settings:[param_name]`. Le code
+  # extrait UNE facette `modes: {domains: [...]}`, recopie d'`APP_MODES` (`builtin/app._project_modes`) ;
+  # les modes y sont DÉCLARÉS, et aucune liste `settings` n'y a de lecteur (retirées, MODES_QUEUE_UX §3).
+  modes: {domains: [{id, label, icon, variant?, accepts, params_schema?, route_prefix?, mode_param?,
+                     inputs?, library_natures?, modes: [{id, label, icon, variant?, realtime?, inputs}]}]}
 
   # F3 UI / INSTANCIATION  [params.py PARAMS_JSON — déjà source unique, inchangé]
   params: [ Param{name,type,label,icon,default,choices,options_source,show_if,

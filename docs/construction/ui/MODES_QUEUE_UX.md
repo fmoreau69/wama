@@ -110,6 +110,19 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
   Transcriber/Synthesizer `[normal, temps_réel]`.
 - **L'UI se génère depuis ces descriptions** (sélecteur de mode + champs d'entrée + sections de réglages),
   comme `WamaDetails` génère l'inspecteur. **Zéro spécificité hardcodée** au-delà de la description.
+- ✅ **Les « sections de réglages » sont tenues — mais pas par une liste sur le mode** (confronté au code le
+  2026-10-21, demande de Fabien). Le DOMAINE nomme son schéma (`app_modes`, `params_schema` — absent = le
+  schéma principal de l'app) ; le mode est un réglage de ce schéma (`mode_param`, 2026-09-27) ; un réglage
+  propre à un mode le dit par son `show_if` sur `mode_param`, et une section de page propre à un mode se
+  marque `data-mode-section` (`wama-modes.js`, adopté par l'anonymizer). Les listes `sections_réglages`
+  écrites `settings:[…]` sur les modes n'avaient AUCUN lecteur (JS, Python, manifeste, API, tests —
+  mesuré) et avaient dérivé : celles de l'enhancer nommaient des COLONNES (`tile_size`,
+  `denoising_strength`), pas des params. Retirées (anonymizer le 2026-09-27, enhancer le 2026-10-21,
+  `REMOVAL_LEDGER`). Ce qu'un process LIT hors schéma a, lui, son domicile : `ProcessSpec.watched`.
+- ✅ **Le domaine est la charnière élément ↔ réglages** (2026-10-21) : sa SURFACE (l'app préfixée par son
+  `route_prefix` — `audio_enhancer`) est la clé de son modèle d'élément au registre de détail, et le
+  domaine d'un élément se DÉRIVE (`element_domain`) : la surface de son modèle, ou — deux domaines sur un
+  même modèle, l'imager — le schéma que la spec de détail choisit pour lui. Aucune déclaration par app.
 - **Sources d'une entrée fichier = upload OU MÉDIATHÈQUE (déjà en place, composé auto)** : brique commune
   **`MediaPicker`** (`common/js/media-picker.js` + endpoint `media_library:api_list`) ouvre une modale
   filtrée par `asset_type` et renvoie un **`File`** (drop-in de l'upload). Déjà consommée par imager/

@@ -25631,3 +25631,50 @@ pansement »* ; *« ne rien réinventer, le bouton de la modale est censé être
 - **Rouges d'autrui** : `writer_01` (302 sur la route de card, comme les tests voisins) ;
   `wama/model_manager/apps.py:61` a importé `services.model_scene` avant que le module n'existe
   (16:59:45 → 17:03, autre instance) : Django ne démarrait plus dans l'arbre pendant ces 4 min.
+
+## §PALIER 2026-10-21, « ⑥ étape 1 : le DOMAINE nomme son schéma, son élément et le domaine d'un élément se DÉRIVENT » — non poussé — 🔴 relancer gunicorn + workers (`app_modes`, `detail_registry`, vues de l'imager)
+
+**Demande de Fabien** : *« un seul fonctionnement commun, universel, que toute app récupère »*, la doc
+confrontée au code. Mesuré avant : le lien domaine ↔ réglages ↔ élément était du CODE, en trois
+formes (enhancer : deux modèles, deux familles de vues ; imager : `is_video_generation` testé en cinq
+endroits ; les autres : un domaine implicite).
+
+**Livré — une seule déclaration neuve, le reste dérivé de ce qui était déjà déclaré** :
+- le domaine NOMME son schéma (`app_modes`, `params_schema` — le vocabulaire de `params_attr`, des
+  clés de la facette `params` et de la spec de détail) ; absent = le schéma principal. Déclaré par les
+  deux apps à deux domaines (enhancer, imager) ; une garde exige des schémas DISTINCTS (le critère du
+  domaine, `MODES_QUEUE_UX §2bis`) ;
+- son ÉLÉMENT n'est pas redéclaré : sa SURFACE (`domain_surface` : l'app préfixée par `route_prefix`)
+  est la clé de son modèle au registre de détail — la règle que suivaient déjà les outils
+  `start_<surface>` (`scheduled_actions.start_tool_for` la lit désormais) ;
+- le domaine d'un ÉLÉMENT se dérive (`element_domain`) : la surface de son modèle, ou, deux domaines
+  sur un modèle (imager), le schéma que la spec de détail choisit déjà pour lui ;
+- lecteurs portés : `detail_registry.spec_schema` (la constante `AUDIO_PARAMS_JSON` de la spec
+  `audio_enhancer` retirée, son domaine la nomme), l'imager (`_generation_domain`, `_schema_for`,
+  chips de card, domaine de `card_html`, chips communes de lot) ;
+- les listes `settings` des modes de l'enhancer RETIRÉES (aucun lecteur, colonnes et non params —
+  `REMOVAL_LEDGER R169`) ; l'intention « sections de réglages » est marquée TENUE (`MODES_QUEUE_UX §3` :
+  `mode_param` + `show_if` + `data-mode-section`) ; `WAMA_MANIFEST_SPEC` corrigé (la facette est
+  `modes: {domains: […]}`, déclarée, pas « dérivée des capacités-modèle ») ; `INSPECTOR_DETAIL_FIELDS`.
+
+**Les mondes** (question de Fabien) : la clé de stockage ne se range PAS sous le monde. Le monde est
+une fonction de l'app (`app_registry.app_world`, une déclaration par app) — l'app suffit à scoper ; et
+le monde d'une app a déjà CHANGÉ (transcriber, reader, describer, converter : `data`/`transverse` →
+`media` le 2026-10-02, `WAMA_VISION_COMPLET §2.4`) : une clé qui l'aurait porté aurait orphelin leurs
+réglages ce jour-là. Doctrine inchangée : un monde est déclaré, jamais une frontière (`ROUTE §10.6`).
+
+**Testé** : `wama/common/tests/tests_domain_declaration.py` (vocabulaire du domaine et du mode, schéma
+et élément de chaque domaine, domaine d'un élément retrouvé, schéma d'élément = schéma du domaine,
+outil de lancement) ; six contre-épreuves en mémoire, toutes ROUGES ; 80 puis 568 tests ciblés sous
+WSL — une rouge à une autre instance (`tests_node_settings` : `wama-params.js` modifié à 17:14, copie
+servie non resynchronisée). Corpus : `enhancer`, `imager` régénérés (diff = ma seule part),
+aller-retour fidèle ; `check_docs` 0/3068.
+
+🔚 **Étape 2** (avant tout geste sur les données) : la clé de stockage `domaine.nom` lue et écrite
+par `user_settings`, la commande de migration réversible et sa PREUVE par utilisateur (volet
+identique avant/après) soumise à Fabien ; puis les consommateurs (volet audio de l'enhancer avec
+mémoire, `auto_model.quality_intent_of` par domaine, files par domaine — le filtre `VIDEO_MODES`
+de l'imager, `views.py:1044` —, le dépôt de l'imager `:264`/`:305`), le générateur (vues, routes,
+gabarits par domaine : l'audio d'`enhancer_01`), un critère de grille. Reste nommé : le réglage
+audio `strength` / colonne `denoising_strength` (`WAMA_APP_GENERATION_ROUTE`, ligne « naissance d'un
+élément par la cascade COMMUNE », décision de déclaration à prendre).

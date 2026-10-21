@@ -60,17 +60,15 @@ class EnhancerConfig(AppConfig):
             'extra_from_params': True,
         })
 
-        # Branche AUDIO : SPEC déclarative depuis le 2026-10-05 (adapter code avant : la spec ne
-        # savait lire que le schéma PRINCIPAL de l'app, et celui de l'audio ne l'est pas). Le
-        # schéma est NOMMÉ (`params_schema`), lu dans le module de l'app propriétaire du modèle.
-        # Mesuré identique sur les 6 éléments réels avant bascule. Pas de `result_role` : un
-        # audio amélioré peut être une voix, une musique ou un bruitage.
+        # Branche AUDIO : SPEC déclarative depuis le 2026-10-05 (adapter code avant). Son schéma
+        # est celui du DOMAINE `audio` (`app_modes`, `params_schema`), que la surface
+        # `audio_enhancer` sert — la spec le recopiait en constante jusqu'au 2026-10-21. Pas de
+        # `result_role` : un audio amélioré peut être une voix, une musique ou un bruitage.
         register_app_detail_spec('audio_enhancer', AudioEnhancement, {
             'source_file': 'input_file',
             'source_type': {'const': 'audio'},
             'engine': 'engine',
             'result_file': 'output_file',
-            'params_schema': {'const': 'AUDIO_PARAMS_JSON'},
             'extra_from_params': True,
         })
 

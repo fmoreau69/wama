@@ -123,10 +123,11 @@ def register_app_detail_spec(app_name, model_class, spec):
                                                 # champ JSON porteur, True = champs individuels
        # FORMES ajoutées le 2026-10-05 — les deux derniers adapters code (imager, audio de
        # l'enhancer) n'écrivaient rien d'autre :
-       #   • SCHÉMA NOMMÉ ou CHOISI PAR ÉLÉMENT — `params_schema` : une valeur de spec qui rend
-       #     le nom d'un `*PARAMS_JSON` du module de l'app (`{'const': 'AUDIO_PARAMS_JSON'}`,
-       #     ou `{'when_any': ['is_video_generation'], 'then': 'VIDEO_PARAMS_JSON',
-       #     'else': 'IMAGE_PARAMS_JSON'}`) ; absent = le schéma principal (`spec_schema`) ;
+       #   • SCHÉMA CHOISI PAR ÉLÉMENT — `params_schema` : une valeur de spec qui rend le nom
+       #     d'un `*PARAMS_JSON` du module de l'app (`{'when_any': ['is_video_generation'],
+       #     'then': 'VIDEO_PARAMS_JSON', 'else': 'IMAGE_PARAMS_JSON'}`), pour une surface qui
+       #     sert DEUX domaines ; absent = le schéma du domaine que sert la surface
+       #     (`app_modes`, `params_schema` du domaine), sinon le principal (`spec_schema`) ;
        #   • COLLECTION de résultats — `result_files` : le champ qui porte la liste ;
        #   • PREMIER ÉLÉMENT D'UNE LISTE — dans la forme « premier champ non vide » ci-dessus,
        #     un champ qui porte une liste rend son premier élément (`['output_video',
@@ -175,20 +176,26 @@ def spec_value(instance, form):
 
 
 def spec_schema(instance, spec, app_name):
-    """Le schéma de réglages d'un ÉLÉMENT : celui que la spec NOMME (`params_schema`, une valeur
-    de spec qui rend un nom d'attribut `*PARAMS_JSON`), sinon le schéma principal de l'app.
+    """Le schéma de réglages d'un ÉLÉMENT : celui que la spec choisit pour lui (`params_schema`,
+    une valeur de spec qui rend un nom d'attribut `*PARAMS_JSON` — imager : image OU vidéo selon
+    l'élément), sinon celui du DOMAINE que sert la surface (`app_modes.params_schema`, l'audio de
+    l'enhancer), sinon le schéma principal de l'app.
 
     Le nom se lit dans le module de l'app Django PROPRIÉTAIRE du modèle (`declared_param_schemas`
     connaît tous ses schémas) — pas dans celui de la surface : `audio_enhancer` est une surface de
-    l'app `enhancer`, dont le module déclare `AUDIO_PARAMS_JSON`. 2026-10-05 : les deux derniers
-    adapters code n'écrivaient rien d'autre (imager : image OU vidéo selon l'élément ; audio de
-    l'enhancer : un schéma qui n'est pas le principal)."""
+    l'app `enhancer`, dont le module déclare `AUDIO_PARAMS_JSON`. 2026-10-21 : la spec de
+    `audio_enhancer` ne le recopie plus en constante, son domaine le nomme."""
+    from .app_modes import domain_schema_name, surface_domains
     from .param_schema import declared_param_schemas, schema_for_app
+    meta = getattr(type(instance), '_meta', None)
+    app = getattr(meta, 'app_label', None) or app_name
     name = spec_value(instance, spec.get('params_schema'))
     if not name:
+        served = surface_domains(app, app_name)
+        name = domain_schema_name(app, served[0]) if len(served) == 1 else ''
+    if not name:
         return schema_for_app(app_name) or []
-    meta = getattr(type(instance), '_meta', None)
-    declared = declared_param_schemas(getattr(meta, 'app_label', None) or app_name) or {}
+    declared = declared_param_schemas(app) or {}
     return list((declared.get('schemas') or {}).get(name) or [])
 
 

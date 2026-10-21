@@ -1246,20 +1246,10 @@
               "inputs": [
                 "work_file"
               ],
-              "label": "Amélioration",
-              "settings": [
-                "ai_model",
-                "upscale_factor",
-                "quality_intent",
-                "denoise",
-                "blend_factor",
-                "tile_size",
-                "output_keep_size",
-                "output_format",
-                "output_quality"
-              ]
+              "label": "Amélioration"
             }
           ],
+          "params_schema": "MEDIA_PARAMS_JSON",
           "variant": "primary"
         },
         {
@@ -1276,16 +1266,10 @@
               "inputs": [
                 "work_audio"
               ],
-              "label": "Débruitage / Restauration",
-              "settings": [
-                "engine",
-                "quality_intent",
-                "mode",
-                "denoising_strength",
-                "quality"
-              ]
+              "label": "Débruitage / Restauration"
             }
           ],
+          "params_schema": "AUDIO_PARAMS_JSON",
           "route_prefix": "audio",
           "variant": "success"
         }

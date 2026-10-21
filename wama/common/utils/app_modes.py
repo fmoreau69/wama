@@ -75,8 +75,28 @@ l'élément fournira (`available_inputs`), et ce qui le DISTINGUE des autres mod
 ce que le modèle doit consommer (`consumes`) — vocabulaire de `model_selector.matches_inputs`,
 rien d'inventé (`mode_model_filter`).
 
-Hiérarchie : App → Domaine → Mode → {entrées typées + sections de réglages}. Tout est métadonnée-driven :
+═══ UN DOMAINE NOMME SON SCHÉMA — `params_schema` (2026-10-21) ═════════════════════════════
+
+Le critère du domaine est sa surface de RÉGLAGES (ci-dessus) : deux domaines d'une app ont donc
+deux schémas, et le domaine NOMME le sien — le nom d'un `*PARAMS_JSON` du module `params` de
+l'app, le vocabulaire de `params_attr` (`GENERIC_APPS`), des clés de la facette `params` du
+manifeste et du `params_schema` de la spec de détail. Absent = le schéma principal de l'app
+(`schema_for_app`), ce qui est le cas de toute app à un seul domaine.
+Ce que le domaine ne déclare PAS, parce que c'est déjà déclaré ailleurs :
+  • son ÉLÉMENT — la SURFACE du domaine (`domain_surface` : l'app, préfixée par le `route_prefix`
+    du domaine, `audio_enhancer`) est la clé sous laquelle l'app enregistre son modèle d'élément
+    (`register_app_detail_spec`) ; les outils `start_<surface>` suivent la même règle ;
+  • le domaine d'un élément quand deux domaines partagent un modèle (imager) — la spec de détail
+    choisit déjà le schéma PAR ÉLÉMENT (`params_schema`), et un schéma désigne un domaine.
+D'où `element_domain(élément)` et `domain_schema(app, domaine)`, sans une ligne par app.
+
+Hiérarchie : App → Domaine (son schéma) → Mode → {entrées typées}. Tout est métadonnée-driven :
 l'UI (onglets, switch de mode, champs, sections) se GÉNÈRE depuis ce schéma (générateur JS `WamaModes`).
+Les RÉGLAGES PROPRES À UN MODE ne se listent pas sur le mode : ce sont les params du schéma du
+domaine dont le `show_if` porte sur `mode_param`, et une section de page propre à un mode se marque
+`data-mode-section` (`wama-modes.js`). Les listes `settings` que portaient les modes (anonymizer
+jusqu'au 2026-09-27, enhancer jusqu'au 2026-10-21) n'avaient aucun lecteur et avaient dérivé —
+elles nommaient des COLONNES (`tile_size`, `denoising_strength`), pas des params : retirées.
 
 Les ENTRÉES typées (prompt / work_file / reference_file / url) sont AUSSI les futurs
 **ports de la méta-app** (typage par connexion : card batch → port travail ; card unitaire → port référence).
@@ -200,7 +220,9 @@ INPUT_TYPES = {
 # slots attendus mis en évidence. Réversible par retrait de la chip.
 
 # ── Schéma par app : domaines → modes ────────────────────────────────────────
-# mode = {id, label, icon, realtime?, inputs:[input_type_id], settings:[setting_id]}
+# domaine = {id, label, icon, variant?, accepts, params_schema?, route_prefix?, mode_param?,
+#            inputs?, library_natures?, modes:[…]}
+# mode    = {id, label, icon, variant?, realtime?, inputs:[input_type_id]}
 APP_MODES = {
     # ── IMAGER (app de référence — le plus de modes) ─────────────────────────
     # ── IMAGER — 2 domaines (Image, Vidéo), AUCUN mode ────────────────────────
@@ -223,12 +245,12 @@ APP_MODES = {
              # accepts = ce que le DOMAINE prend en ENTRÉE (le prompt est du `text`) ; son NOM
              # dit la SORTIE. Les deux domaines acceptent la même chose et diffèrent par ce
              # qu'ils produisent — la preuve qu'un domaine n'est pas une nature de fichier.
-             'accepts': ('prompt', 'image'),
+             'accepts': ('prompt', 'image'), 'params_schema': 'IMAGE_PARAMS_JSON',
              # Slots MESURÉS sur la card réelle (index.html:133) : prompt primaire, image de
              # référence (`reference_accept='image/*'`), fichier de prompts batch (.txt/.csv).
              'inputs': ['prompt', 'reference_image'], 'modes': []},
             {'id': 'video', 'label': 'Vidéo', 'icon': 'fa-film', 'variant': 'success',
-             'accepts': ('prompt', 'image'),
+             'accepts': ('prompt', 'image'), 'params_schema': 'VIDEO_PARAMS_JSON',
              # Card vidéo (index.html:175) : prompt + image de DÉPART (i2v) — pas de batch file.
              'inputs': ['prompt', 'reference_image'], 'modes': []},
         ],
@@ -236,16 +258,15 @@ APP_MODES = {
 
     # ── ENHANCER (MULTI-DOMAINE : image/vidéo + audio → 2 onglets domaine) ────
     # Deux sous-modèles (Enhancement image/vidéo, AudioEnhancement) unifiés sous les onglets WamaModes ;
-    # l'onglet domaine scope la file + les réglages + la dropzone.
+    # l'onglet domaine scope la file + les réglages + la dropzone. Chaque domaine a sa SURFACE
+    # (`enhancer`, `audio_enhancer`), donc son modèle d'élément.
     'enhancer': {
         'domains': [
             {'id': 'image_video', 'label': 'Image / Vidéo', 'icon': 'fa-photo-film',
-             'variant': 'primary', 'accepts': ('image', 'video'), 'modes': [
+             'variant': 'primary', 'accepts': ('image', 'video'),
+             'params_schema': 'MEDIA_PARAMS_JSON', 'modes': [
                 {'id': 'enhance', 'label': 'Amélioration', 'icon': 'fa-wand-magic-sparkles',
-                 'inputs': ['work_file'],
-                 'settings': ['ai_model', 'upscale_factor', 'quality_intent', 'denoise',
-                              'blend_factor', 'tile_size', 'output_keep_size', 'output_format',
-                              'output_quality']},
+                 'inputs': ['work_file']},
             ]},
             # `route_prefix` — le SEUL cas du dépôt où un domaine a ses PROPRES routes
             # (`audio_batch_delete`, `audio_delete`… face à `batch_delete`, `delete`). Il est
@@ -253,10 +274,10 @@ APP_MODES = {
             # préfixe » se casserait au premier réordonnancement, et rien ne l'aurait signalé.
             # Absent = pas de préfixe, ce qui est le cas de tous les autres domaines.
             {'id': 'audio', 'label': 'Audio', 'icon': 'fa-volume-high', 'variant': 'success',
-             'accepts': ('audio',), 'route_prefix': 'audio', 'modes': [
+             'accepts': ('audio',), 'route_prefix': 'audio', 'params_schema': 'AUDIO_PARAMS_JSON',
+             'modes': [
                 {'id': 'enhance_audio', 'label': 'Débruitage / Restauration', 'icon': 'fa-wave-square',
-                 'inputs': ['work_audio'],
-                 'settings': ['engine', 'quality_intent', 'mode', 'denoising_strength', 'quality']},
+                 'inputs': ['work_audio']},
             ]},
         ],
     },
@@ -323,8 +344,6 @@ APP_MODES = {
         ],
     },
 
-    # ── CONVERTER (multi-domaine par NATURE, mono-mode « convertir » ; aucun modèle IA —
-    # les settings par domaine = les show_if réels de params.py) ──────────────────────
     # ── CONVERTER — UN domaine, cinq natures acceptées ────────────────────────
     # Déclarait 5 domaines = ses 5 natures d'entrée, et n'a JAMAIS rendu d'onglet (aucun
     # WamaModes dans son gabarit — mesuré 2026-08-23). La déclaration décrivait donc une UI qui
@@ -457,6 +476,60 @@ def route_prefix(app: str, domain_id: str) -> str:
     familles de routes sans qu'aucune brique n'ait à connaître son nom.
     """
     return get_domain(app, domain_id).get('route_prefix') or ''
+
+
+def surface_name(app: str, prefix: str = '') -> str:
+    """La SURFACE d'une famille de routes : l'app, préfixée par le `route_prefix` de son domaine
+    (`audio` + `enhancer` → `audio_enhancer`). C'est la clé sous laquelle l'app enregistre le
+    modèle d'élément du domaine (`register_app_detail_spec`) et que nomment ses outils
+    (`start_audio_enhancer`) — une règle, lue ici, jamais recopiée."""
+    return f'{prefix}_{app}' if prefix else app
+
+
+def domain_surface(app: str, domain_id: str) -> str:
+    """La surface de ce domaine (`surface_name` de son `route_prefix`)."""
+    return surface_name(app, route_prefix(app, domain_id))
+
+
+def surface_domains(app: str, surface: str) -> list:
+    """Les domaines de l'app que cette surface sert — un seul, sauf quand deux domaines
+    partagent un modèle d'élément (imager : image et vidéo, surface `imager`)."""
+    return [d.get('id') for d in get_domains(app) if domain_surface(app, d.get('id')) == surface]
+
+
+def domain_schema_name(app: str, domain_id: str) -> str:
+    """Le nom du schéma de réglages de ce domaine (`*PARAMS_JSON` du module `params` de l'app),
+    '' quand il ne le déclare pas — c'est alors le schéma principal (`schema_for_app`)."""
+    return get_domain(app, domain_id).get('params_schema') or ''
+
+
+def domain_schema(app: str, domain_id: str) -> list:
+    """Le schéma de réglages de ce domaine : celui qu'il nomme, sinon le principal de l'app."""
+    from wama.common.utils.param_schema import declared_param_schemas, schema_for_app
+    name = domain_schema_name(app, domain_id)
+    if not name:
+        return schema_for_app(app) or []
+    return list(((declared_param_schemas(app) or {}).get('schemas') or {}).get(name) or [])
+
+
+def element_domain(element) -> str | None:
+    """Le domaine d'un ÉLÉMENT, dérivé de ce qui est déjà déclaré : la surface de son modèle
+    (`DetailRegistry.surface_of`) désigne le domaine qu'elle sert ; quand elle en sert deux, le
+    schéma que la spec de détail choisit pour CET élément (`params_schema`) désigne le sien.
+    None si rien ne le désigne (app sans domaine déclaré, élément hors du registre)."""
+    from wama.common.utils.detail_registry import DetailRegistry, spec_value
+    model = type(element)
+    app = getattr(getattr(model, '_meta', None), 'app_label', None)
+    surface = DetailRegistry.surface_of(model)
+    if not app or not surface:
+        return None
+    served = surface_domains(app, surface)
+    if len(served) <= 1:
+        return served[0] if served else None
+    chosen = spec_value(element, ((DetailRegistry.get(surface) or {}).get('spec') or {})
+                        .get('params_schema'))
+    named = [d for d in served if chosen and domain_schema_name(app, d) == chosen]
+    return named[0] if len(named) == 1 else None
 
 
 def accepts(app: str, domain_id: str) -> tuple:

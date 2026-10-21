@@ -314,12 +314,14 @@ def start_tool_for(app, prefix=''):
     (`start_audio_enhancer`), sinon celui de l'app (`start_imager` pour ses deux files, un seul
     modèle) ; une jumelle de bac à sable a celui que l'exécution lui injecte, ou aucun
     (`sandbox.inject_sandbox_registry`). Lu par la file (`queue_dnd_attrs`) ET par le fichier
-    batch (`schedule_from_batch`) — une seule dérivation."""
+    batch (`schedule_from_batch`) — une seule dérivation. Le nom de l'outil est celui de la
+    SURFACE du domaine (`app_modes.surface_name`, la clé de son modèle d'élément)."""
     try:
         from wama import tool_api
     except Exception:
         return None
-    for name in ((f'start_{prefix}_{app}',) if prefix else ()) + (f'start_{app}',):
+    from wama.common.utils.app_modes import surface_name
+    for name in dict.fromkeys((f'start_{surface_name(app, prefix)}', f'start_{app}')):
         if name in tool_api.TOOL_REGISTRY and tool_api.tool_role(name) == 'start':
             return name
     return None

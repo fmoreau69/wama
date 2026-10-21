@@ -1919,7 +1919,9 @@ MECHANISMS = (
               "(context processor volet_defaut)",
               'wama/common/utils/volet.py', 'docs/construction/ui/WAMA_VOLETS.md §8'),
     Mechanism('app_modes', 'Domaines → modes',
-              "Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un mode "
+              "Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine "
+              "NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle "
+              "d'élément et le domaine d'un élément se dérive (`element_domain`) ; un mode "
               "est un RÉGLAGE (`mode_param`) qui borne le menu de modèles (`options_mode`)",
               'wama/common/utils/app_modes.py', 'docs/construction/ui/MODES_QUEUE_UX.md',
               annexes=('wama/common/static/common/js/wama-modes.js',)),
