@@ -2261,7 +2261,7 @@ Bouton « Ajouter à la file » de la card d'entrée : consigne + réglages du v
 
 ### Axe de temps partagé (transport commun)
 
-L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue (`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; un média attaché est l'horloge en avant, l'axe avance seul et le recale en arrière (lecture silencieuse) ; vitesse CHOISIE distincte du cran de shuttle ; clavier du magnéto. Né le 2026-10-15 avec la partition du composer ; l'éditeur du transcriber y est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`) ; le cam_analyzer reste à porter (matrice de parité)
+L'AXE auquel les vues s'abonnent et que le magnéto pilote — jamais une vue (`WAMA_DATA_WORLD §5bis`) : lecture, pause, aller, sauts, vitesse signée, shuttle ; un média attaché est l'horloge en avant, l'axe avance seul et le recale en arrière (lecture silencieuse) ; vitesse CHOISIE distincte du cran de shuttle ; clavier du magnéto. Né le 2026-10-15 avec la partition du composer ; l'éditeur du transcriber y est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`) ; le cam_analyzer reste à porter (matrice de parité). Le 2026-10-21 (décision de Fabien : « le transport commun avec le transport de preview et le monde Data, tout dans la même brique par options ») : le TRANSPORT commun montable partout (`wama-transport.js` — onde fenêtrée et couches, bande de qualité, minimap, aller à, zoom, outil Bornes, modes d'écriture, par options), les règles des SEGMENTS sans DOM (`wama-segments.js`) et les PICS FINS d'un média au commun (`waveform.dense_peaks`, fichier dérivé au dossier caché comme la copie de lecture)
 
 - **Domicile** : `wama/common/static/common/js/wama-axis.js` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 
@@ -2826,17 +2826,18 @@ Une vidéo qu'une card porte et que le navigateur ne lit pas (conteneur, profil 
 
 - **Domicile** : `wama/common/utils/video_compat.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Browser-compatibility helpers for video files.
-- **API publique** (13) :
+- **API publique** (14) :
   - `get_video_codec(file_path: str, *, timeout: int=10) -> Optional[str]` — Return the codec name of the first video stream, lowercased
   - `is_browser_compatible_codec(codec: Optional[str]) -> bool` — True when the codec is one HTML5 ``<video>`` can play directly.
   - `ensure_h264(file_path: str, *, timeout: int=1800) -> Union[bool, str]` — Ensure a video is browser-compatible. When the codec is already in
   - `playability(info: Optional[dict]) -> tuple` — `(lisible, raison)` d'une vidéo décrite par la sonde COMMUNE (`media_probe.
-  - `playback_copy_rel(rel: str) -> str` — Le chemin (relatif à MEDIA_ROOT) de la copie de lecture d'un média — pure. Sous
+  - `derived_rel(rel: str, suffix: str) -> str` — Le chemin (relatif à MEDIA_ROOT) d'un fichier DÉRIVÉ d'un média — pure. Sous
+  - `playback_copy_rel(rel: str) -> str` — Le chemin de la copie de lecture d'un média (`derived_rel`, suffixe `.mp4`) — pure.
   - `playback_copy_for(rel: str) -> str` — La copie de lecture À JOUR d'un média (chemin relatif), ou '' — plus ancienne que
   - `make_playback_copy(rel: str, *, timeout: int=3600) -> str` — Crée la copie de lecture d'un média si le navigateur ne le lit pas — idempotent. Rend le
-  - `drop_playback_copy(rel: str) -> bool` — Retire la copie de lecture d'un média (l'original part). Ne lève jamais.
-  - `original_of_copy(copy_rel: str) -> str` — L'original (chemin relatif) d'une copie de lecture — l'inverse de `playback_copy_rel`.
-  - `sweep_orphan_playback_copies(dry_run: bool=False) -> dict` — Retire les copies de lecture dont l'original n'existe plus — quel que soit le geste qui
+  - `drop_playback_copy(rel: str) -> bool` — Retire les fichiers DÉRIVÉS d'un média — sa copie de lecture et, depuis le 2026-10-21, ses
+  - `original_of_copy(copy_rel: str) -> str` — L'original (chemin relatif) d'un fichier dérivé — l'inverse de `derived_rel`, pour chacun
+  - `sweep_orphan_playback_copies(dry_run: bool=False) -> dict` — Retire les fichiers dérivés (copies de lecture, pics fins) dont l'original n'existe plus, ou
   - `schedule_playback_copy(rel: str) -> bool` — Met en file la copie de lecture d'un média vidéo, UNE fois par version du fichier (chemin,
   - `backfill_playback_copies(dry_run: bool=False) -> dict` — Le RATTRAPAGE : les vidéos que des cards portaient AVANT le récepteur (aucun import ne
   - `register_playback_copy_receivers()` — Branche le récepteur sur tout modèle à champ fichier (le recensement COMMUN,

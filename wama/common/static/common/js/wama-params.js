@@ -506,6 +506,45 @@
       api.id + '" ' + api.idAttr + ' value="' + esc(api.value || '') + '">';
   });
 
+  // Une date SEULE (2026-10-21, la date du document du transcriber) — `AAAA-MM-JJ`, vide = pas de
+  // date (le serveur l'efface, `param_schema._coerce_date`).
+  registerRenderer('date', function (p, api) {
+    return '<input type="date" class="form-control form-control-sm w-auto" id="' +
+      api.id + '" ' + api.idAttr + ' value="' + esc(api.value || '') + '">';
+  });
+
+  // Une CORRESPONDANCE `{clé: texte}` (2026-10-21, les noms des intervenants du transcriber) : une
+  // ligne par clé de la VALEUR, son texte éditable. La valeur lue est le JSON de l'objet (champ
+  // caché qui porte le nom), que le serveur assainit (`param_schema._coerce_mapping`). Les clés
+  // viennent de qui rend : une brique qui les connaît (les locuteurs des segments) les pose dans
+  // la valeur, vides si besoin.
+  registerRenderer('mapping', function (p, api) {
+    var v = api.value;
+    if (typeof v === 'string') { try { v = JSON.parse(v || '{}'); } catch (e) { v = {}; } }
+    v = (v && typeof v === 'object' && !Array.isArray(v)) ? v : {};
+    var rows = Object.keys(v).map(function (k) {
+      return '<div class="wama-param-mapping-row"><span class="wama-param-mapping-key">' + esc(k) + '</span>' +
+        '<input type="text" class="form-control form-control-sm" data-key="' + esc(k) +
+        '" value="' + esc(v[k] == null ? '' : v[k]) + '"></div>';
+    }).join('');
+    return '<div class="wama-param-mapping" data-mapping-for="' + api.id + '">' + rows + '</div>' +
+      '<input type="hidden" id="' + api.id + '" ' + api.idAttr + ' value="' + esc(JSON.stringify(v)) + '">';
+  });
+
+  /** Une ligne de correspondance éditée réécrit le JSON du champ caché que `read()` lit. */
+  function _bindMapping(container) {
+    container.querySelectorAll('[data-mapping-for]').forEach(function (box) {
+      var hidden = document.getElementById(box.getAttribute('data-mapping-for'));
+      if (!hidden || box._wpMapping) return;
+      box._wpMapping = true;
+      box.addEventListener('input', function () {
+        var out = {};
+        box.querySelectorAll('input[data-key]').forEach(function (inp) { out[inp.getAttribute('data-key')] = inp.value; });
+        hidden.value = JSON.stringify(out);
+      });
+    });
+  }
+
   function controlHtml(p, ctx, value, resolver) {
     // dom_id : pont de MIGRATION — réutilise l'ID legacy d'un volet existant pour ne pas casser
     // le JS qui le référence (read/apply/save/async). Sinon ID schéma-driven 'wp-{ctx}-{name}'.
@@ -619,6 +658,7 @@
 
     container.innerHTML = html;
     _bindConditional(container);
+    _bindMapping(container);
     _bindModelHelp(container, schema, ctx);
     _bindCapFrom(container, schema, ctx);
     _bindDefaultFrom(container, schema, ctx);

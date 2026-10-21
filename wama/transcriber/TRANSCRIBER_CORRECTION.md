@@ -35,6 +35,9 @@ l'onde, façon diagramme de proximité du cam_analyzer) + options de nettoyage.
 
 - **Surface = page dédiée** `/transcriber/edit/<id>/` (pas overlay) : plein écran,
   URL bookmarkable, « revenir à son travail ». L'overlay reste pour le coup d'œil (preview).
+  Depuis le 2026-10-21, cette page est une **SURFACE déclarée** (`transcriber/surfaces.py`, servie
+  à `/common/surface/transcriber/correct/<id>/` ; l'ancienne adresse y redirige), composée de
+  briques universelles — voir §7, 2f.
 - **Persistance** : original ASR **immuable** ; version corrigée stockée à part
   (`corrected_segments_json` + statut `correction: none/draft/done`) → compare/revert,
   l'IA référence l'original ; **auto-save débounce** pendant l'édition.
@@ -51,7 +54,7 @@ pas.** Le transcriber porte déjà le bon socle : ASR immuable + correction à p
 transcription **ne détruit pas** la correction (`transcriber/views.py:50-60`). Ce qui manque est le
 NOM de l'état intermédiaire : quand une nouvelle génération existe, l'éditeur ne propose que
 « charger la dernière transcription (cela remplacera votre correction) » (`transcriber/views.py:653-663`,
-`templates/transcriber/edit.html:232-236`) — garder une correction périmée, ou la perdre.
+`templates/transcriber/edit.html:232-236` (supprimé le 2026-10-21, R166)) — garder une correction périmée, ou la perdre.
 Avec le modèle du 15/09 (`WAMA_APP_GENERATION_ROUTE.md §10.6`), la correction devient un **process**
 dont l'amont est l'ASR : relancer l'ASR la marque **`STALE`** (« ta correction ne correspond plus à
 cette transcription »), sans rien écraser — conforme au « guidage non destructif » ci-dessus — et
@@ -355,6 +358,17 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
    rejoués avant et après, scénario `transcriber.editor_parity`), plus Maj+←/→ = ±30 s et
    Début/Fin ; la vitesse choisie survit au shuttle. L'outil Bornes et les modes d'écriture restent
    ici, abonnés à l'axe, jusqu'à ce que l'onde fenêtrée devienne une brique.
+   **2f ✅ livrée (2026-10-21) — la page est une SURFACE déclarée** (décisions de Fabien,
+   `WAMA_APP_GENERATION_ROUTE §F3b`) : `transcriber/surfaces.py` la compose de briques
+   universelles en gardant son apparence — la liste des segments (`segment_list`), le transport
+   commun et ses options (onde fenêtrée et couches, bande de qualité, minimap, aller à, zoom, outil
+   Bornes, modes d'écriture — le même transport que l'aperçu et le monde Data monteront), les
+   actions (annuler, rétablir, enregistrer, **Terminer la correction**), le document (titre, date :
+   des réglages de la card, écrits par sa route commune) et les intervenants (un réglage aussi).
+   Les pics fins de l'onde sont un service commun (au dossier caché, comme la copie de lecture).
+   Mêmes gestes : 66 rejoués sur l'ancienne page puis sur la surface (`transcriber.editor_parity`),
+   mêmes verdicts. L'écriture des segments et sa suite (état, texte, lignes de sous-titres, mesure de
+   la correction) passent par les vues communes des surfaces (`views.correction_saved`).
 3. **Confiance** (mot/segment) — déjà la source de la heatmap 2a.
 4. **Guidage** (slider rigueur + hésitations/silences/redondances) en suggestions accept/reject
    (règles FR + gaps de segments + LLM).
@@ -482,14 +496,18 @@ instance concrète de la brique `RunOutcome`/`ResultFeedback` visée en ROADMAP 
 
 ## 9. Corriger une transcription — le guide
 <!-- WAMA:SECTION(audience=utilisateur; type=guide; nature=constat; etat=✅; porte=apps/transcriber) -->
-<!-- Écrit et confronté au code le 2026-09-14 (1ʳᵉ source de la doc utilisateur, ROADMAP §25.1 ⑤) :
-     wama/transcriber/templates/transcriber/edit.html, wama/transcriber/static/transcriber/js/edit.js
-     (gestionnaire clavier, heatmap, auto-save), wama/transcriber/views.py (save_correction). -->
+<!-- Écrit et confronté au code le 2026-09-14 (1ʳᵉ source de la doc utilisateur, ROADMAP §25.1 ⑤) ;
+     reconfronté le 2026-10-21, la page devenue SURFACE : wama/transcriber/surfaces.py, le transport
+     commun (common/js/wama-transport.js), les briques segment_list / item_settings / speaker_names
+     (common/js/surfaces/), wama/transcriber/views.py (correction_saved). -->
 
 Une fois la transcription terminée, sa card porte un bouton **Éditer** (icône crayon). Il ouvre
-l'éditeur : la forme d'onde, une bande colorée qui signale les passages douteux, et la liste des
-segments, synchronisée avec la lecture. Le survol du bouton dit où en est la correction :
-brouillon en cours, ou corrigée.
+l'éditeur : la liste des segments, synchronisée avec la lecture, et en dessous le transport — la
+forme d'onde, une bande colorée qui signale les passages douteux, une vue d'ensemble et les
+commandes de lecture. À côté : les actions, le document et les intervenants. Chaque panneau se
+déplace par son titre et se redimensionne par ses bords ; la disposition est gardée, et **Disposition
+par défaut** la remet. Le survol du bouton Éditer dit où en est la correction : brouillon en cours,
+ou corrigée.
 
 ### 9.1 Deux modes : naviguer, puis éditer
 
@@ -501,7 +519,8 @@ touches servent à taper ; `Échap` revient à la navigation.
 |---|---|---|
 | `Espace` | lecture / pause | (tape un espace) |
 | `J` · `K` · `L` | un cran vers l'arrière · arrêt · un cran vers l'avant (plus rapide à chaque appui) | — |
-| `←` · `→` | recule · avance de 5 secondes | — |
+| `←` · `→` | recule · avance de 5 secondes (avec `Maj` : 30 secondes) | — |
+| `Début` · `Fin` | va au début · à la fin | — |
 | `↑` · `↓` | segment précédent · suivant | — |
 | `Tab` · `Maj+Tab` | la lecture saute au segment suivant · précédent | champ suivant · précédent |
 | `Alt+↑` · `Alt+↓` | segment précédent · suivant | segment précédent · suivant |
@@ -531,7 +550,7 @@ sont d'abord recalés sur la transcription automatique. Chaque geste s'annule av
 
 ### 9.1ter Les modes d'écriture : la lecture transcrit
 
-Le menu **Lecture** de la barre audio choisit ce que fait la lecture. En mode Lecture, elle ne
+Le menu **Lecture** du transport choisit ce que fait la lecture. En mode Lecture, elle ne
 fait que jouer. Les autres modes font transcrire, pendant l'écoute, la plage qui est jouée :
 
 | mode | ce qui est transcrit | ce qui change dans le texte |
@@ -558,16 +577,24 @@ segment.
 
 ### 9.3 Enregistrer, terminer
 
-Les modifications s'enregistrent seules, peu après la frappe ; l'indicateur de la barre d'outils
-affiche « À jour » quand c'est fait, et le texte téléchargeable suit la correction. **Compacter**
-fusionne les segments consécutifs d'un même locuteur. **Terminer la correction** marque la
-transcription comme corrigée et reconstruit ses sous-titres.
+Les modifications s'enregistrent seules, peu après la frappe ; l'indicateur en haut de la page
+affiche « Enregistré » quand c'est fait, et le texte téléchargeable suit la correction.
+**Compacter** (en tête de la liste) fusionne les segments consécutifs d'un même locuteur ; ✓
+marque un segment revu, et le compteur à côté suit la relecture. **Terminer la correction**
+(panneau Actions) marque la transcription comme corrigée et reconstruit ses sous-titres.
+
+Le panneau **Document** porte le titre et la date qui figurent en tête du document de sortie ; le
+panneau **Intervenants** donne un nom à chaque locuteur (**Appliquer les noms**), et
+**Identifier automatiquement** propose des noms entendus dans les présentations, à vérifier avant
+d'appliquer. L'audio et les segments ne changent pas : les noms s'affichent sous chaque locuteur et
+dans le document de sortie.
 
 **À plusieurs** (transcription partagée en collaboration, 2026-10-07) : si quelqu'un d'autre corrige
-la même transcription, un bandeau le dit dès l'ouverture (« X corrige cette transcription en ce
-moment »). Si elle a été modifiée entre votre ouverture et votre enregistrement, l'enregistrement
-est refusé plutôt que d'effacer la correction de l'autre : l'indicateur passe à « Non enregistré »
-et **Recharger** reprend la dernière version. Règle et brique : `WAMA_COLLABORATION §2.4`.
+la même transcription, un bandeau le dit dès l'ouverture (« X édite cet élément en ce moment »).
+Si elle a été modifiée entre votre ouverture et votre enregistrement, l'enregistrement est refusé
+plutôt que d'effacer la correction de l'autre : l'indicateur passe à « Non enregistré » et
+**Recharger** reprend la dernière version. Une personne qui voit la transcription sans pouvoir la
+corriger ouvre la page en lecture seule. Règle et brique : `WAMA_COLLABORATION §2.4`.
 
 ### 9.3bis Évaluer une transcription contre une référence
 

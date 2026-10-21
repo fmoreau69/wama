@@ -733,3 +733,81 @@ class SurfacesGeneratorTest(SimpleTestCase):
         m = self._manifest()
         del m['body']['surfaces']
         self.assertIsNone(render_surfaces(m)[0])
+
+
+class SegmentRulesTest(SimpleTestCase):
+    """`wama-segments.js` (2026-10-21) — the rules of a suite of SEGMENTS, MOVED from the correction
+    page of the transcriber when it became a surface, run under V8 : timed words are kept by a
+    split and a merge, silences are what no segment covers, a cut in a silence creates a segment,
+    the server's retime is applied as ONE gesture and a refusal changes nothing."""
+
+    SETUP = '''
+        var window = {}, edits = [], selected = [], said = [];
+        function edit(fn) { edits.push(fn()); }
+        function select(i, o) { selected.push([i, !!(o && o.focus)]); }
+        function toast(m) { said.push(m); }
+        var W = [{word: ' bonjour', start: 0.1, end: 0.5}, {word: ' à', start: 0.6, end: 0.7},
+                 {word: ' tous', start: 1.2, end: 1.6}];
+        var SEGS = [{start_time: 0, end_time: 2, text: 'bonjour à tous', speaker_id: 'A', words: W},
+                    {start_time: 2, end_time: 4, text: 'oui', speaker_id: 'A',
+                     words: [{word: ' oui', start: 2.2, end: 2.5}]},
+                    {start_time: 4, end_time: 6, text: 'non', speaker_id: 'B'}];
+    '''
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.engine = MiniRacer()
+        self.engine.eval(self.SETUP + _js('common/js/wama-segments.js'))
+
+    def _eval(self, script):
+        return json.loads(self.engine.eval('JSON.stringify((function(){' + script + '})())'))
+
+    def test_a_split_shares_the_words_and_cuts_between_two_of_them(self):
+        out = self._eval("var s = window.WamaSegments.splitAt(SEGS, 0, 7); "
+                         "return [s.length, s[0].text, s[1].text, s[0].end_time, s[1].start_time, "
+                         "s[0].words.length, s[1].words.length, SEGS.length];")
+        self.assertEqual([4, 'bonjour', 'à tous', 0.55, 0.55, 1, 2, 3], out,
+                         'the cut falls between « bonjour » and « à », not pro rata of the characters')
+
+    def test_merges_keep_the_words_and_compact_joins_one_speaker(self):
+        out = self._eval("var S = window.WamaSegments; var m = S.mergeAt(SEGS, 0, 1); "
+                         "var r = S.mergeRange(SEGS, 2, 0); var c = S.compact(SEGS); "
+                         "return [m.segments[0].text, m.segments[0].words.length, m.join, m.segments[0].end_time, "
+                         "r[0].text, r[0].words === undefined, c.length, c[0].text, S.mergeRange(SEGS, 1, 1)];")
+        self.assertEqual(['bonjour à tous oui', 4, 15, 4, 'bonjour à tous oui non', True, 2,
+                          'bonjour à tous oui', None], out,
+                         'a segment without timed words takes them all away (none or all)')
+
+    def test_silences_and_a_cut_inside_one(self):
+        out = self._eval("var S = window.WamaSegments; var g = S.gaps(SEGS, 10); var said0 = said.length; "
+                         "S.cutAt({url: '/r/', segments: SEGS, t: 8, duration: 10, edit: edit, select: select, toast: toast}); "
+                         "return [g, edits[0].length, edits[0][3].start_time, edits[0][3].end_time, "
+                         "edits[0][3].speaker_id, selected[0], said.length - said0];")
+        self.assertEqual([[[6, 10]], 4, 6, 10, 'B', [3, True], 0], out,
+                         'a cut in a silence creates an empty segment of the previous speaker, edited at once')
+
+    def test_a_retime_is_one_gesture_and_a_refusal_changes_nothing(self):
+        self.engine.eval('''
+            var answers = {ok: {ok: true, segments: [{start_time: 0, end_time: 1, text: 'bonjour'},
+                                                    {start_time: 1, end_time: 2, text: 'à tous'}]},
+                           no: {ok: false, reason: 'au moins un mot de chaque côté'}};
+            var next = 'ok';
+            window.WamaApp = {csrfToken: function () { return 't'; },
+                csrfFetch: function () { return Promise.resolve({json: function () { return answers[next]; }}); }};
+            window.WamaSegments.cutAt({url: '/r/', segments: SEGS, t: 1, duration: 10,
+                                       edit: edit, select: select, toast: toast});
+        ''')
+        self.engine.eval("next = 'no'; window.WamaSegments.cutAt({url: '/r/', segments: SEGS, t: 3, "
+                         "duration: 10, edit: edit, select: select, toast: toast});")
+        out = self._eval("return [edits.length, edits[0].length, edits[0][1].text, edits[0][2].text, "
+                         "selected, said];")
+        self.assertEqual([1, 4, 'à tous', 'oui', [[1, False]], ['au moins un mot de chaque côté']], out)
+
+    def test_speakers_are_canonical_and_named_by_the_mapping(self):
+        out = self._eval("var S = window.WamaSegments; "
+                         "return [S.canonSpeaker('0'), S.canonSpeaker('speaker 12'), S.canonSpeaker('Alice'), "
+                         "S.speakers([{speaker_id: '1'}, {speaker_id: 'SPEAKER_01'}, {speaker_id: '0'}]), "
+                         "S.speakerName('0', {SPEAKER_00: 'Alice'}), S.severity({confidence: -0.6}), "
+                         "S.severity({coh_severity: 'error', confidence: 0})];")
+        self.assertEqual(['SPEAKER_00', 'SPEAKER_12', 'Alice', ['SPEAKER_01', 'SPEAKER_00'], 'Alice',
+                          'warn', 'error'], out)

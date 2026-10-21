@@ -1798,6 +1798,141 @@
             "step": null,
             "type": "toggle",
             "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "surface"
+            ],
+            "default": "",
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "ex. Réunion projet WAMA",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-heading",
+            "inline": false,
+            "label": "Titre du document",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "title",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": null,
+            "step": null,
+            "type": "text",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "surface"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-calendar",
+            "inline": false,
+            "label": "Date",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "meeting_date",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": null,
+            "step": null,
+            "type": "date",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "surface"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "Renommez chaque intervenant. Les noms apparaissent dans le document de sortie (l'audio et les segments ne sont pas modifiés).",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-users",
+            "inline": false,
+            "label": "Intervenants",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "speaker_map",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "section": "settings",
+            "show_if": null,
+            "stales": null,
+            "step": null,
+            "type": "mapping",
+            "unit": ""
           }
         ]
       }
@@ -1890,8 +2025,6 @@
         "reorder",
         "reorder_queue",
         "retime_segments",
-        "save_correction",
-        "save_meta",
         "save_realtime",
         "save_user_settings",
         "segments",
@@ -1904,7 +2037,6 @@
         "update_settings",
         "upload",
         "upload_youtube",
-        "waveform_peaks",
         "write_cursor",
         "write_results"
       ],
@@ -1960,11 +2092,6 @@
           "view": "views.edit"
         },
         {
-          "name": "save_correction",
-          "pattern": "edit/<int:pk>/save/",
-          "view": "views.save_correction"
-        },
-        {
           "name": "retime_segments",
           "pattern": "edit/<int:pk>/retime/",
           "view": "views.retime_segments"
@@ -1980,19 +2107,9 @@
           "view": "views.write_results"
         },
         {
-          "name": "save_meta",
-          "pattern": "edit/<int:pk>/save-meta/",
-          "view": "views.save_meta"
-        },
-        {
           "name": "suggest_speakers",
           "pattern": "edit/<int:pk>/suggest-speakers/",
           "view": "views.suggest_speakers"
-        },
-        {
-          "name": "waveform_peaks",
-          "pattern": "edit/<int:pk>/peaks/",
-          "view": "views.waveform_peaks"
         },
         {
           "name": "save_realtime",
@@ -2093,7 +2210,10 @@
             "diarization_model",
             "generate_summary",
             "summary_type",
-            "verify_coherence"
+            "verify_coherence",
+            "title",
+            "meeting_date",
+            "speaker_map"
           ],
           "user_related_name": "transcripts"
         }
@@ -2130,12 +2250,6 @@
           "function": "live_write_task",
           "lifecycle": false,
           "task_name": null
-        },
-        {
-          "file": "workers.py",
-          "function": "compute_waveform_peaks",
-          "lifecycle": false,
-          "task_name": "wama.transcriber.compute_waveform_peaks"
         }
       ]
     },
@@ -2157,9 +2271,12 @@
             "hotwords": "textarea — Séparés par des virgules",
             "language_mode": "select — « Auto » écoute plusieurs passages de l'audio avant de transcrire : s'il entend plusieurs langues, chaque passage est transcrit dans la sienne. « Une seule » garde la même langue partout (évite qu'un passage bruité soit traduit). « Plusieurs » la redécide à chaque passage de 30 s. (choix : auto | single | multi) (défaut : 'auto')",
             "level_speech": "toggle — Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains ou faits à bas niveau, neutre sur un enregistrement propre. (défaut : False)",
+            "meeting_date": "date — Date",
             "preprocess_audio": "toggle — Prétraitement audio (défaut : False)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
+            "speaker_map": "mapping — Renommez chaque intervenant. Les noms apparaissent dans le document de sortie (l'audio et les segments ne sont pas modifiés).",
             "summary_type": "radio (choix : structured | meeting) (défaut : 'structured')",
+            "title": "text — ex. Réunion projet WAMA",
             "vad_mode": "select — Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie d'abord que le filtre ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences. (choix : auto | on | off) (défaut : 'auto')",
             "verify_coherence": "toggle — Score + correction proposée côte à côte (défaut : False)"
           },

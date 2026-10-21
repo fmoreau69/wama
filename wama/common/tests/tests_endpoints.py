@@ -88,8 +88,8 @@ class EveryEndpointAnswersTest(TestCase):
     GET_TASKS_ALLOWED = {
         'synthesizer:index': "téléchargement des voix de référence manquantes — entretien, "
                              "limité à 1×/heure par un drapeau de cache, idempotent",
-        'transcriber:waveform_peaks': "calcul PARESSEUX d'un dérivé (forme d'onde) à la première "
-                                      "lecture — un cache, idempotent",
+        # (`transcriber:waveform_peaks` y figurait : retirée le 2026-10-21 — les pics fins sont un
+        # service commun, lus par la route `data/` des surfaces, REMOVAL_LEDGER R165.)
     }
 
     def setUp(self):

@@ -37,6 +37,14 @@ PARAMS = derive_from_model(
         "generate_summary",
         "summary_type",
         "verify_coherence",
+        # Le document de sortie (2026-10-21, page de correction devenue SURFACE — décision de
+        # Fabien : des réglages de la card, rendus sur la surface par la brique « Réglages de
+        # l'élément ») : titre, date, noms des intervenants. Contexte `surface` SEUL : ni la
+        # modale, ni le volet, ni le nœud du Studio ne les montrent ; une route d'ÉLÉMENT les
+        # écrit (`views.ITEM_ONLY_SETTINGS`), jamais celle d'un lot.
+        "title",
+        "meeting_date",
+        "speaker_map",
     ],
     overrides={
         # dom_id = ID legacy SCOPÉ PAR CONTEXTE → migration sans casse : le volet (panel) et la
@@ -161,6 +169,13 @@ PARAMS = derive_from_model(
             chip=True, chip_label="Cohérence",label="Vérifier la cohérence", icon="fa-check-double",
             dom_id={"panel": "globalVerifyCoherence", "item": "settingsVerifyCoherence"},
             help="Score + correction proposée côte à côte"),
+        "title": dict(type="text", label="Titre du document", icon="fa-heading",
+                      contexts=("surface",), help="ex. Réunion projet WAMA"),
+        "meeting_date": dict(label="Date", icon="fa-calendar", contexts=("surface",)),
+        "speaker_map": dict(type="mapping", label="Intervenants", icon="fa-users",
+                            contexts=("surface",),
+                            help="Renommez chaque intervenant. Les noms apparaissent dans le "
+                                 "document de sortie (l'audio et les segments ne sont pas modifiés)."),
     },
 )
 

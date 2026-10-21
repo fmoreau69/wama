@@ -84,6 +84,10 @@ SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'v
                    'enable_diarization', 'diarization_model',
                    'generate_summary', 'summary_type', 'verify_coherence',
                    'temperature', 'max_tokens')
+#: Réglages d'UN élément seulement (le document de sortie : titre, date, noms des intervenants —
+#: page de correction, 2026-10-21) : la route d'un élément les écrit, celle d'un lot jamais.
+#: Un titre vide est une valeur (« pas de titre »), une date vide l'efface (type `date`).
+ITEM_ONLY_SETTINGS = ('title', 'meeting_date', 'speaker_map')
 
 def _get_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -587,71 +591,10 @@ def _rebuild_segments_from(t: Transcript, segs):
 
 
 def edit(request, pk: int):
-    """Page éditeur de correction (forme d'onde + transcript synchronisé éditable)."""
-    import json as _json
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    t = editable_or_404(Transcript, user, pk=pk)
-    if t.status != 'SUCCESS':
-        from django.contrib import messages
-        messages.warning(request, "La correction n'est disponible qu'après une transcription réussie.")
-        return redirect('transcriber:index')
-
-    segments = _editor_segments(t)
-
-    # Démarre le calcul de l'enveloppe de forme d'onde si pas encore fait (asynchrone).
-    if t.waveform_status in ('none', 'failed') and t.audio:
-        Transcript.objects.filter(pk=t.id).update(waveform_status='pending')
-        try:
-            from .workers import compute_waveform_peaks
-            compute_waveform_peaks.delay(t.id)
-        except Exception:
-            pass
-
-    # Génération ASR brute la plus récente (pour proposer de mettre à jour la
-    # correction si l'utilisateur a relancé la transcription depuis sa correction).
-    latest = t.segments_json or []
-    has_newer = bool(t.corrected_segments_json and latest)
-    from wama.common.services.edit_lock import state_token
-    return render(request, 'transcriber/edit.html', {
-        # L'état sur lequel la page prépare ses enregistrements (`edit_lock.stale_edit`).
-        'state_token': state_token(t.corrected_segments_json),
-        'transcript': t,
-        'audio_url': t.audio.url if t.audio else '',
-        'segments_json': _json.dumps(segments, ensure_ascii=False),
-        'latest_json': _json.dumps(latest, ensure_ascii=False),
-        'is_corrected': bool(t.corrected_segments_json),
-        'has_newer_generation': has_newer,
-        'correction_status': t.correction_status,
-        'speaker_map_json': _json.dumps(t.speaker_map or {}, ensure_ascii=False),
-    })
-
-
-def waveform_peaks(request, pk: int):
-    """Renvoie l'enveloppe de forme d'onde (peaks) calculée en asynchrone.
-
-    {"status": "ready", "duration": float, "peaks": [int...]} si prête,
-    sinon {"status": "pending"|"failed"}. Lance le calcul si pas encore démarré.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    t = editable_or_404(Transcript, user, pk=pk)
-    from .utils.waveform import read_peaks
-    if t.waveform_status == 'ready':
-        data = read_peaks(t)
-        if data:
-            return JsonResponse({'status': 'ready', 'duration': data.get('duration', 0),
-                                 'peaks': data.get('peaks', [])})
-        t.waveform_status = 'none'  # fichier disparu → recalcul
-    if t.waveform_status in ('none', 'failed') and t.audio:
-        Transcript.objects.filter(pk=pk).update(waveform_status='pending')
-        try:
-            from .workers import compute_waveform_peaks
-            compute_waveform_peaks.delay(t.id)
-        except Exception:
-            pass
-        return JsonResponse({'status': 'pending'})
-    return JsonResponse({'status': t.waveform_status or 'none'})
+    """L'adresse d'origine de la page de correction : elle est une SURFACE déclarée depuis le
+    2026-10-21 (`transcriber/surfaces.py`, ROUTE §F3b) — un lien gardé (favori, message envoyé)
+    y mène. La surface juge elle-même la lecture, l'écriture et la disponibilité."""
+    return redirect('common:surface', 'transcriber', 'correct', pk)
 
 
 @require_POST
@@ -736,57 +679,6 @@ def suggest_speakers(request, pk: int):
         logger.warning(f"[Transcriber] suggest_speakers failed: {e}")
         suggestions = {}
     return JsonResponse({'suggestions': suggestions})
-
-
-@require_POST
-def save_meta(request, pk: int):
-    """Enregistre l'avant-propos (titre, date) et le renommage des locuteurs (speaker_map).
-
-    Corps JSON : {"title": "...", "meeting_date": "YYYY-MM-DD"|null, "speaker_map": {"SPEAKER_00": "Nom", ...}}
-    Le speaker_map est appliqué à l'affichage et à l'export sans toucher les segments bruts.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    t = editable_or_404(Transcript, user, pk=pk)
-    try:
-        data = json.loads(request.body.decode('utf-8'))
-    except (json.JSONDecodeError, UnicodeDecodeError):
-        return JsonResponse({'error': 'Invalid JSON'}, status=400)
-
-    update_fields = []
-    if 'title' in data:
-        t.title = (data.get('title') or '')[:300]
-        update_fields.append('title')
-    if 'meeting_date' in data:
-        md = data.get('meeting_date') or None
-        if md:
-            try:
-                t.meeting_date = datetime.datetime.strptime(md, '%Y-%m-%d').date()
-            except (ValueError, TypeError):
-                t.meeting_date = None
-        else:
-            t.meeting_date = None
-        update_fields.append('meeting_date')
-    if 'speaker_map' in data:
-        sm = data.get('speaker_map') or {}
-        # Normalise les clés (libellés canoniques) et ignore les noms vides.
-        clean = {}
-        if isinstance(sm, dict):
-            for k, v in sm.items():
-                name = (v or '').strip()
-                if name:
-                    clean[normalize_speaker_label(k)] = name
-        t.speaker_map = clean or None
-        update_fields.append('speaker_map')
-
-    if update_fields:
-        t.save(update_fields=update_fields)
-    return JsonResponse({
-        'ok': True,
-        'title': t.title,
-        'meeting_date': t.meeting_date.isoformat() if t.meeting_date else None,
-        'speaker_map': t.speaker_map or {},
-    })
 
 
 @require_POST
@@ -889,46 +781,24 @@ def write_results(request, pk: int):
                          'results': results[since:] if since >= 0 else []})
 
 
-@require_POST
-def save_correction(request, pk: int):
-    """Auto-save de la correction (segments corrigés). status: draft | done."""
-    import json as _json
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.scoping import editable_or_404
-    t = editable_or_404(Transcript, user, pk=pk)
-    try:
-        data = _json.loads(request.body or '{}')
-    except (ValueError, TypeError):
-        return JsonResponse({'error': 'payload invalide'}, status=400)
-
-    segs = data.get('segments') or []
-    status = data.get('status', 'draft')
-    status = status if status in ('draft', 'done') else 'draft'
-
-    # Préparé sur un état PÉRIMÉ (quelqu'un a enregistré depuis l'ouverture) : refusé, jamais
-    # écrasé — `edit_lock.stale_edit`, WAMA_COLLABORATION §2.4 (2026-10-07). La ligne est
-    # verrouillée le temps de comparer et d'écrire : deux enregistrements simultanés ne passent pas.
-    from django.db import transaction
-    from wama.common.services import edit_lock
-    with transaction.atomic():
-        t = Transcript.objects.select_for_update().get(pk=t.pk)
-        conflict = edit_lock.stale_edit(user, t, data.get('base'), t.corrected_segments_json)
-        if conflict:
-            return JsonResponse(conflict, status=409)
-        t.corrected_segments_json = segs
-        t.correction_status = status
-        # Le texte de travail (téléchargements TXT) reflète la correction.
-        t.text = ' '.join((s.get('text') or '').strip() for s in segs).strip()
-        t.save(update_fields=['corrected_segments_json', 'correction_status', 'text'])
+def correction_saved(t, segs, user, finished: bool):
+    """Ce qu'une correction ENREGISTRÉE entraîne — appelé par la surface de correction après
+    l'écriture des segments (`Surface.saved`, 2026-10-21 ; extrait de l'ancienne vue
+    `save_correction`) : l'état (brouillon / terminée), le texte de travail ; à la finalisation,
+    les lignes de segments et la mesure de la correction."""
+    t.correction_status = 'done' if finished else 'draft'
+    # Le texte de travail (téléchargements TXT) reflète la correction.
+    t.text = ' '.join((s.get('text') or '').strip() for s in segs).strip()
+    t.save(update_fields=['correction_status', 'text'])
 
     # À la finalisation, on reconstruit les lignes de segments (SRT/aperçus cohérents).
-    if status == 'done':
+    if finished:
         _rebuild_segments_from(t, segs)
         # ── Signal d'exécution (RunOutcome, §16.7) ────────────────────────────────────────
         # LE gisement le plus riche de WAMA : `segments_json` (sortie ASR) et `segs` (version
         # humaine) forment une paire sortie→vérité, c'est-à-dire la SEULE vérité terrain du
         # dépôt. Elle était produite puis jetée à chaque correction.
-        # Uniquement à la FINALISATION : `save_correction` est aussi un auto-save de brouillon,
+        # Uniquement à la FINALISATION : la page enregistre aussi d'elle-même chaque brouillon,
         # et journaliser chaque frappe noierait le signal sous des états intermédiaires.
         # On enregistre l'AMPLEUR, pas un verdict : une transcription très corrigée peut l'avoir
         # été pour du style. C'est l'agrégation qui interprétera, avec le nombre pour elle.
@@ -952,9 +822,6 @@ def save_correction(request, pk: int):
                        model_keys=[produced_by] if produced_by else None, detail=mesure)
         except Exception:
             pass
-
-    return JsonResponse({'status': 'saved', 'correction_status': t.correction_status,
-                         'token': edit_lock.state_token(segs)})
 
 
 def _decorate_card(t, preloaded=False):
@@ -1618,8 +1485,12 @@ def update_settings(request, pk: int):
     from wama.common.utils.scoping import editable_or_404
     t = editable_or_404(Transcript, user, pk=pk)
 
-    data = read_settings_payload(request, _SCHEMA, SETTINGS_FIELDS)
-    touched = apply_item_settings(t, data, params_fields=SETTINGS_FIELDS)
+    data = read_settings_payload(request, _SCHEMA, SETTINGS_FIELDS + ITEM_ONLY_SETTINGS,
+                                 empty_is_value=('title',))
+    touched = apply_item_settings(t, data, params_fields=SETTINGS_FIELDS + ITEM_ONLY_SETTINGS)
+    if 'speaker_map' in touched and t.speaker_map:
+        # Les clés sous leur forme canonique « SPEAKER_NN » (les moteurs disent « 0 » ou « SPEAKER_00 »).
+        t.speaker_map = {normalize_speaker_label(k): v for k, v in t.speaker_map.items()}
     if touched:
         t.save(update_fields=touched)
 
@@ -1638,6 +1509,9 @@ def update_settings(request, pk: int):
         'generate_summary': t.generate_summary,
         'summary_type': t.summary_type,
         'verify_coherence': t.verify_coherence,
+        'title': t.title,
+        'meeting_date': t.meeting_date.isoformat() if t.meeting_date else None,
+        'speaker_map': t.speaker_map or {},
     })
 
 

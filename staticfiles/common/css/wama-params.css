@@ -91,3 +91,10 @@ details.wama-param-group[open] > summary.wama-param-group-title::after { transfo
 }
 .wama-param .wama-cap-note.is-continued { color: var(--wama-param-continued-text); }
 .wama-param.is-continued .wama-range-val { color: var(--wama-param-continued-text) !important; font-weight: 700; }
+
+/* Correspondance {clé: texte} (2026-10-21, type `mapping` — les noms des intervenants) : une ligne
+   par clé, la clé en libellé fixe, le texte éditable. */
+.wama-param-mapping-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .35rem; }
+.wama-param-mapping-key { flex: 0 0 96px; font-size: .72rem; color: var(--wama-text-muted);
+    font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.wama-param-mapping-row input { flex: 1; min-width: 0; }

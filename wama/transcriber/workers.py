@@ -766,11 +766,10 @@ def _transcribe_step(t, ctx):
                 )
         except Exception:
             pass
-        # Enveloppe de forme d'onde (peaks) — calcul asynchrone, non bloquant (éditeur /edit).
-        try:
-            compute_waveform_peaks.delay(t.id)
-        except Exception:
-            pass
+        # Les pics fins de l'onde de l'éditeur, par le service COMMUN (non bloquant, ne lève pas).
+        if t.audio:
+            from wama.common.utils.waveform import schedule_dense_peaks
+            schedule_dense_peaks(t.audio.name)
 
         # La mesure contre la RÉFÉRENCE est faite par le squelette commun, APRÈS le SUCCESS
         # (`task_skeleton._measure_against_reference`).
@@ -1410,34 +1409,3 @@ def live_write_task(self, transcript_id: int):
                 pass
 
 
-@shared_task(name='wama.transcriber.compute_waveform_peaks')
-def compute_waveform_peaks(transcript_id: int):
-    """Calcule l'enveloppe de forme d'onde (peaks) UNE fois, en asynchrone.
-
-    Stocke le JSON sur disque (utils/waveform.py) et met à jour `waveform_status`
-    (pending → ready/failed). Utilisé par l'éditeur de correction pour le zoom fenêtré.
-    """
-    close_old_connections()
-    from .utils.waveform import compute_peaks, write_peaks
-    try:
-        t = Transcript.objects.get(pk=transcript_id)
-    except Transcript.DoesNotExist:
-        return {'ok': False, 'error': 'introuvable'}
-    if not t.audio:
-        Transcript.objects.filter(pk=transcript_id).update(waveform_status='failed')
-        return {'ok': False, 'error': 'pas d\'audio'}
-
-    Transcript.objects.filter(pk=transcript_id).update(waveform_status='pending')
-    try:
-        peaks, duration = compute_peaks(t.audio.path)
-        if peaks is None:
-            Transcript.objects.filter(pk=transcript_id).update(waveform_status='failed')
-            return {'ok': False, 'error': 'ffmpeg indisponible'}
-        write_peaks(t, peaks, duration)
-        Transcript.objects.filter(pk=transcript_id).update(waveform_status='ready')
-        return {'ok': True, 'buckets': len(peaks)}
-    except Exception as exc:
-        import traceback
-        print(f"[Transcriber] peaks error: {traceback.format_exc()}")
-        Transcript.objects.filter(pk=transcript_id).update(waveform_status='failed')
-        return {'ok': False, 'error': str(exc)}

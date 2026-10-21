@@ -13,8 +13,16 @@
 (function (global) {
     'use strict';
 
+    function esc(t) {
+        var d = document.createElement('div'); d.textContent = t == null ? '' : t;
+        return d.innerHTML;
+    }
+
     function mount(body, ctx) {
         var reruns = ctx.config.surface.reruns;
+        // « Terminer » (2026-10-21, `Surface.finish`) : le geste final d'une correction — un
+        // enregistrement marqué fini, dont le serveur tire les conséquences (`Surface.saved`).
+        var finish = ctx.config.surface.finish;
         body.classList.add('wama-brick-actions');
         body.innerHTML =
             '<div class="wama-actions-row">' +
@@ -23,6 +31,7 @@
             '  <button type="button" class="btn btn-sm btn-outline-primary" data-act="save" title="Enregistrer les corrections"><i class="fas fa-floppy-disk"></i> Enregistrer</button>' +
             '</div>' +
             (reruns ? '<button type="button" class="btn btn-sm btn-success w-100" data-act="apply" title="Enregistrer puis relancer « ' + reruns + ' »"><i class="fas fa-play"></i> Appliquer</button>' : '') +
+            (finish ? '<button type="button" class="btn btn-sm btn-success w-100" data-act="finish" title="Marquer la correction comme terminée"><i class="fas fa-check-double"></i> ' + esc(finish) + '</button>' : '') +
             '<button type="button" class="btn btn-sm btn-link text-secondary" data-act="layout" title="Rendre à chaque panneau sa place d\'origine"><i class="fas fa-table-cells-large"></i> Disposition par défaut</button>' +
             '<div class="wama-actions-help"></div>';
         var helpEl = body.querySelector('.wama-actions-help');
@@ -32,6 +41,7 @@
             if (!b) return;
             if (b.dataset.act === 'save') ctx.save();
             else if (b.dataset.act === 'apply') ctx.apply();
+            else if (b.dataset.act === 'finish') ctx.finish();
             else if (b.dataset.act === 'layout') ctx.resetLayout();
         });
 
@@ -40,7 +50,7 @@
             body.querySelectorAll('[data-act="save"]').forEach(function (b) {
                 b.disabled = !ctx.canEdit || !dirty;
             });
-            body.querySelectorAll('[data-act="apply"]').forEach(function (b) {
+            body.querySelectorAll('[data-act="apply"], [data-act="finish"]').forEach(function (b) {
                 b.disabled = !ctx.canEdit;
             });
             ctx.history.syncButtons();

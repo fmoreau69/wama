@@ -386,7 +386,7 @@ boutons → raccourcis clavier.
 
 **Écart avec l'existant WAMA** : `WamaShuttle` (`wama/common/static/common/js/wama-shuttle.js`)
 n'a que J/K/L par **paliers discrets** (`DEFAULT_LEVELS`), pas de pas image, pas de timeline, pas
-de ShuttlePro. Le Transcriber en a une **copie locale** (`transcriber/static/transcriber/js/edit.js:283-320`)
+de ShuttlePro. Le Transcriber en a une **copie locale** (`transcriber/static/transcriber/js/edit.js:283-320` (supprimé le 2026-10-21, R166))
 avec lecture arrière par pas manuel — duplication à résorber APRÈS que le commun ait rattrapé la spec.
 
 ⚠ **Question ouverte (Fabien, 19/08)** : dans BIND le magneto est un *plugin* (fenêtre indépendante

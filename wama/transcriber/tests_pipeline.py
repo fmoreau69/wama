@@ -75,7 +75,7 @@ class _Pipeline(TestCase):
     def _run(self, process=None):
         Transcript.objects.filter(pk=self.item.pk).update(status='RUNNING')
         with mock.patch.object(workers, 'get_backend', return_value=self.asr), \
-                mock.patch.object(workers, 'compute_waveform_peaks'), \
+                mock.patch('wama.common.utils.waveform.schedule_dense_peaks'), \
                 mock.patch.object(workers, '_save_output_files'), \
                 mock.patch('wama.common.utils.spoken_language.probe_languages',
                            return_value=[('fr', 0.95)]), \

@@ -215,22 +215,26 @@ HOLD_WAIT_MS = 700       # au-delà de l'appui long de la brique (450 ms)
 #: geste se trompe de cible (un dépôt sur une card qui partirait en fusion, une borne déplacée).
 BLOCK_WRITES = """(() => {
     window.__wamaPosted = [];
+    // Ce que l'écriture refusée AURAIT envoyé (adresse et corps texte) : un scénario juge ce
+    // qu'une page enregistre sans que le serveur en voie rien.
+    window.__wamaBodies = [];
     const write = m => !['GET', 'HEAD'].includes(String(m || 'GET').toUpperCase());
+    const keep = (u, b) => { window.__wamaPosted.push(u); window.__wamaBodies.push({url: u, body: typeof b === 'string' ? b : ''}); };
     // Une réponse REFUSÉE (503), pas une promesse rejetée : la page la traite comme un refus du
     // serveur, sans erreur non rattrapée qui se lirait comme un défaut de la page.
     const fetch0 = window.fetch;
     window.fetch = function (u, o) {
         const m = (o && o.method) || (u && u.method);
         if (write(m)) {
-            window.__wamaPosted.push(String((u && u.url) || u));
+            keep(String((u && u.url) || u), o && o.body);
             return Promise.resolve(new Response('{"blocked": true}', {status: 503, headers: {'Content-Type': 'application/json'}}));
         }
         return fetch0.apply(this, arguments);
     };
     const open0 = XMLHttpRequest.prototype.open, send0 = XMLHttpRequest.prototype.send;
     XMLHttpRequest.prototype.open = function (m, u) { this.__m = m; this.__u = u; return open0.apply(this, arguments); };
-    XMLHttpRequest.prototype.send = function () {
-        if (write(this.__m)) { window.__wamaPosted.push(String(this.__u)); return; }
+    XMLHttpRequest.prototype.send = function (b) {
+        if (write(this.__m)) { keep(String(this.__u), b); return; }
         return send0.apply(this, arguments);
     };
     if (navigator.sendBeacon) navigator.sendBeacon = u => { window.__wamaPosted.push(String(u)); return true; };
@@ -313,8 +317,8 @@ JS_LIST_SCROLL = """() => { const c = document.querySelector('[data-wama-dnd] .w
 def _wait_player(page, timeout_ms=20000):
     """Attend que le lecteur de l'éditeur ait ses métadonnées (sans quoi il ne se positionne pas)."""
     try:
-        page.wait_for_function("""() => { const id = (window.TRANSCRIBER_EDIT || {}).playerId;
-            const a = id != null && window.WamaAudioPlayer ? WamaAudioPlayer.getAudio(id) : null;
+        page.wait_for_function("""() => { const id = """ + JS_EDITOR_PLAYER + """;
+            const a = id && window.WamaAudioPlayer ? WamaAudioPlayer.getAudio(id) : null;
             return !!a && a.readyState >= 1; }""", timeout=timeout_ms)
     except Exception:
         pass                                   # la mesure qui suit le dira (position inchangée)
@@ -339,9 +343,20 @@ JS_BELL_STATE = """() => { const it = document.querySelector('.wn-item'); if (!i
     return {tools: st('.wn-tools'), dot: st('.wn-dot'), go: st('.wn-go'),
             toolW: tool ? Math.round(tool.getBoundingClientRect().width) : 0}; }"""
 
+#: L'onde fenêtrée, son zoom et l'outil Bornes de la page de correction — des OPTIONS du transport
+#: commun depuis le 2026-10-21 (`wama-transport.js`, ROUTE §F3b).
+EDITOR_WAVE = '[data-transport="wave"]'
+EDITOR_ZOOM = '[data-transport="zoom-label"]'
+EDITOR_TOOL = '[data-transport="boundaries"]'
+
+#: L'identifiant du lecteur de la page de correction — une SURFACE depuis le 2026-10-21 (ROUTE
+#: §F3b) : celui que la brique de transport donne au lecteur commun, `surface-<pk>-audio`.
+JS_EDITOR_PLAYER = """(() => { const c = document.getElementById('wama-surface-config');
+    return c ? 'surface-' + JSON.parse(c.textContent).pk + '-audio' : null; })()"""
+
 #: La position de lecture du lecteur de l'éditeur (un `Audio` hors du DOM, tenu par la brique).
-JS_EDITOR_TIME = """() => { const id = (window.TRANSCRIBER_EDIT || {}).playerId;
-    const a = id != null && window.WamaAudioPlayer ? WamaAudioPlayer.getAudio(id) : null;
+JS_EDITOR_TIME = """() => { const id = """ + JS_EDITOR_PLAYER + """;
+    const a = id && window.WamaAudioPlayer ? WamaAudioPlayer.getAudio(id) : null;
     return a ? a.currentTime : null; }"""
 
 
@@ -668,16 +683,16 @@ def _gestures_editor(browser, token, url, faults, steps):
         page.wait_for_timeout(1500)
         finger = _Finger(page)
         state = lambda: page.evaluate(JS_GESTURE_STATE)
-        wave = page.locator('#zoomWave').bounding_box()
+        wave = page.locator(EDITOR_WAVE).bounding_box()
         if wave and wave['width'] > 50:
-            page.locator('#zoomWave').scroll_into_view_if_needed()
-            wave = page.locator('#zoomWave').bounding_box()
-            label = lambda: page.locator('#zoomLabel').inner_text().strip()
+            page.locator(EDITOR_WAVE).scroll_into_view_if_needed()
+            wave = page.locator(EDITOR_WAVE).bounding_box()
+            label = lambda: page.locator(EDITOR_ZOOM).inner_text().strip()
             y, cx = wave['y'] + wave['height'] / 2, wave['x'] + wave['width'] / 2
             # Outil Bornes, vue ENTIÈRE (avant le pincement) : la jonction des segments 1 et 2 est
             # au tiers de l'onde (20 s sur 60). La déplacer au doigt demande le recalage au serveur
             # — l'écriture est interceptée : la requête relevée EST la preuve du geste.
-            tool = page.locator('#boundaryToolBtn')
+            tool = page.locator(EDITOR_TOOL)
             if tool.count():
                 tool.tap()
                 page.wait_for_timeout(200)
@@ -721,11 +736,12 @@ def _gestures_editor(browser, token, url, faults, steps):
             if t0 is None:
                 steps.append("lecteur de l'éditeur introuvable — position de lecture non mesurée")
             elif t1 == t0:
-                diag = page.evaluate("""() => { const id = (window.TRANSCRIBER_EDIT || {}).playerId;
-                    const a = window.WamaAudioPlayer && id != null ? WamaAudioPlayer.getAudio(id) : null;
-                    const b = document.getElementById('boundaryToolBtn');
+                diag = page.evaluate("""() => { const id = """ + JS_EDITOR_PLAYER + """;
+                    const a = window.WamaAudioPlayer && id ? WamaAudioPlayer.getAudio(id) : null;
+                    const b = document.querySelector('""" + EDITOR_TOOL + """');
                     return {tool: b && b.getAttribute('aria-pressed'), ready: a && a.readyState,
-                            preload: a && a.preload, net: a && a.networkState, zoom: (document.getElementById('zoomLabel') || {}).textContent}; }""")
+                            preload: a && a.preload, net: a && a.networkState,
+                            zoom: (document.querySelector('""" + EDITOR_ZOOM + """') || {}).textContent}; }""")
                 faults.append(f"éditeur : toucher l'onde ne déplace pas la lecture ({t0} s ; {diag})")
             else:
                 steps.append(f"lecture déplacée au doigt ({t0:.1f} → {t1:.1f} s)")
@@ -753,17 +769,22 @@ def _gestures_editor(browser, token, url, faults, steps):
         ctx.close()
 
 
-def _mount_transcripts(uid, count=3):
+def _mount_transcripts(uid, count=3, gap=False, corrected=False):
     """`count` transcriptions du compte de test, chacune dans son lot : des cards pour la file, et
     une page d'éditeur avec une onde à manipuler. Le compte de test ne travaille pas : sa file est
     vide par construction (même constat que `queue_dnd`).
 
     Audio : un témoin `wama_temoin_` d'UNE MINUTE de silence — l'onde tire sa durée de l'audio, et
-    sous 4 s la fenêtre ne peut plus zoomer. Onde déclarée « en cours » : ouvrir l'éditeur sur une
-    onde absente lancerait son calcul, une tâche, et ce scénario n'en lance aucune."""
+    sous 4 s la fenêtre ne peut plus zoomer. Onde déclarée « en cours » (`waveform.hold_dense_peaks`) :
+    ouvrir l'éditeur sur une onde absente lancerait son calcul, une tâche, et ce scénario n'en lance
+    aucune.
+    `gap` : le dernier segment s'arrête à 50 s, un SILENCE reste à la fin (l'outil Bornes y crée un
+    segment). `corrected` : une correction existe déjà, qui diffère de la sortie ASR par le premier
+    texte (« un. ») — la page propose alors de charger la dernière transcription."""
     from django.contrib.auth import get_user_model
     from django.core.files.base import ContentFile
 
+    from wama.common.utils.waveform import hold_dense_peaks
     from wama.transcriber.models import Transcript
     from wama.transcriber.views import _wrap_transcript_in_batch
     from .ui_smoke import _wav_silence
@@ -773,11 +794,18 @@ def _mount_transcripts(uid, count=3):
     # Trois : une plage Maj a besoin d'une card entre deux, et une file qui DÉPASSE l'écran
     # (en portrait une card fait ~440 px) est ce qui permet de mesurer le défilement au bord.
     for k in range(count):
-        t = Transcript(user=user, status='SUCCESS', waveform_status='pending', segments_json=[
-            {'start_time': i * 20, 'end_time': i * 20 + 20, 'text': word, 'speaker_id': 'A'}
-            for i, word in enumerate(('un', 'deux', 'trois'))])
+        segments = [{'start_time': i * 20, 'end_time': i * 20 + 20, 'text': word, 'speaker_id': 'A'}
+                    for i, word in enumerate(('un', 'deux', 'trois'))]
+        if gap:
+            segments[-1]['end_time'] = 50
+        t = Transcript(user=user, status='SUCCESS', segments_json=segments)
+        if corrected:
+            t.corrected_segments_json = [dict(s, text='un.') if i == 0 else dict(s)
+                                         for i, s in enumerate(segments)]
+            t.correction_status = 'draft'
         t.audio.save(f'wama_temoin_gestes_{k}.wav', ContentFile(_wav_silence(60)), save=False)
         t.save()
+        hold_dense_peaks(t.audio.name)
         _wrap_transcript_in_batch(t)
         made.append(t)
     return made
@@ -809,7 +837,7 @@ def _run_gestures(paths: dict, parts, label: str):
         made = _mount_transcripts(uid)
         notify_in_app([get_user_model().objects.get(pk=uid)], kind, 'Témoin : gestes', url=paths['queue'])
         urls = {k: base + v for k, v in paths.items()}
-        urls['editor'] = base + reverse('transcriber:edit', args=[made[0].pk])
+        urls['editor'] = base + reverse('common:surface', args=['transcriber', 'correct', made[0].pk])
         try:
             with sync_playwright() as p:
                 browser = p.chromium.launch()
@@ -989,11 +1017,11 @@ def _mouse_editor_and_bell(browser, token, urls, faults, steps):
             return
         page.wait_for_selector('.seg-drag[data-i="1"]', timeout=30000)
         page.wait_for_timeout(1500)
-        wave = page.locator('#zoomWave')
+        wave = page.locator(EDITOR_WAVE)
         wave.scroll_into_view_if_needed()
         wb = wave.bounding_box()
         y = wb['y'] + wb['height'] / 2
-        label = lambda: page.locator('#zoomLabel').inner_text().strip()
+        label = lambda: page.locator(EDITOR_ZOOM).inner_text().strip()
         z0 = label()
         page.mouse.move(wb['x'] + wb['width'] / 2, y)
         page.mouse.wheel(0, -200)

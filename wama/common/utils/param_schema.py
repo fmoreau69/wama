@@ -26,8 +26,13 @@ class Param:
     """Description d'UN paramètre, indépendante de la surface de rendu."""
     name: str
     type: str                                   # toggle|select|radio|text|textarea|number|range|intent|datetime
+                                                # |date|mapping
                                                 # (`datetime` = date et heure locales, 2026-09-28 :
                                                 #  programmation d'une card)
+                                                # (`date` = une date seule, `AAAA-MM-JJ` — vide l'EFFACE ;
+                                                #  `mapping` = {clé: texte}, rendu par la brique qui
+                                                #  connaît ses clés — 2026-10-21, titre, date et noms
+                                                #  d'intervenants du transcriber, ROUTE §F3b)
                                                 # (`intent` = le curseur rapide/qualité commun,
                                                 #  `auto_model.intent_param` ; borné par coerce_params)
     label: str = ""
@@ -251,6 +256,8 @@ def _django_field_to_param(f) -> Param:
         ptype = "number"
     elif internal == "TextField":
         ptype = "textarea"
+    elif internal == "DateField":
+        ptype = "date"
     else:
         ptype = "text"
 
@@ -822,6 +829,41 @@ def schema_choice_values(app_id, name) -> set:
 _TRUTHY = ('1', 'true', 'on', 'oui', 'yes')
 
 
+#: Plafonds d'un réglage `mapping` : des noms, pas un document.
+MAPPING_MAX_KEYS = 500
+MAPPING_MAX_CHARS = 200
+
+
+def _coerce_date(raw):
+    """Une date `AAAA-MM-JJ` (objet `date`), None si vide ou illisible."""
+    import datetime
+    if isinstance(raw, datetime.date):
+        return raw
+    try:
+        return datetime.date.fromisoformat(str(raw).strip()[:10]) if str(raw).strip() else None
+    except ValueError:
+        return None
+
+
+def _coerce_mapping(raw):
+    """`{clé: texte}` assaini — un objet, ou son JSON posté par un formulaire ; les valeurs vides
+    sortent (une clé sans texte n'est pas nommée). None si rien ne reste."""
+    import json
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw or '{}')
+        except ValueError:
+            return None
+    if not isinstance(raw, dict):
+        return None
+    out = {}
+    for key, value in list(raw.items())[:MAPPING_MAX_KEYS]:
+        text = str(value if value is not None else '').strip()[:MAPPING_MAX_CHARS]
+        if str(key).strip() and text:
+            out[str(key).strip()[:MAPPING_MAX_CHARS]] = text
+    return out or None
+
+
 def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
     """
     Coercition COMPLÈTE d'un mapping selon le schéma : types (booléens) + bornes (numériques).
@@ -842,6 +884,12 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
     for p in schema:
         name, ptype = _pget(p, 'name'), _pget(p, 'type')
         raw = get(name)
+        if ptype == 'date' and raw is not None:
+            out[name] = _coerce_date(raw)       # vide EFFACE la date (« pas de date »)
+            continue
+        if ptype == 'mapping' and raw is not None:
+            out[name] = _coerce_mapping(raw)
+            continue
         # `''` = champ de formulaire laissé vide = NON FOURNI. Sans ça, un `resize_w=''` posté
         # par un <input number> vide serait clampé au minimum du schéma (0) au lieu d'être
         # ignoré, et écraserait la valeur par défaut du traitement.

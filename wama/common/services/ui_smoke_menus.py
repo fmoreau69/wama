@@ -1483,7 +1483,10 @@ def check_correction_conflict():
     from django.utils import timezone
     started = timezone.now()
     share_with_person(owner, item, Transcript, collaborator, 'collaborate', surface='transcriber')
-    page_path = f'/transcriber/edit/{item.pk}/'
+    # La page de correction est une SURFACE depuis le 2026-10-21 (ROUTE §F3b) : son conflit et son
+    # verrou doux sont ceux du noyau des surfaces, portés de cette page même le 2026-10-13.
+    from django.urls import reverse
+    page_path = reverse('common:surface', args=['transcriber', 'correct', item.pk])
     segment = '.seg-text[data-i="0"]'
     before, verdicts = _session_keys(), []
     try:
@@ -1503,13 +1506,13 @@ def check_correction_conflict():
                 owner_page.wait_for_timeout(800)            # le verrou est pris
                 collab_page.goto(BASE_URL + page_path, wait_until='domcontentloaded', timeout=60000)
                 collab_page.wait_for_selector(segment, timeout=30000)
-                banner = collab_page.locator('[data-edit-lock]')
+                banner = collab_page.locator('[data-surface-banner="lock"]')
                 try:
                     banner.wait_for(timeout=10000)
-                    seen = 'corrige cette transcription' in banner.inner_text()
+                    seen = 'édite cet élément' in banner.inner_text()
                 except Exception:
                     seen = False
-                verdicts.append((seen, 'le collaborateur voit « X corrige cette transcription »'))
+                verdicts.append((seen, 'le collaborateur voit « X édite cet élément »'))
                 # Deux enregistrements du MÊME propriétaire, le second demandé pendant que le premier
                 # est EN VOL (envoi retardé de 1,5 s) : la page ne doit pas se refuser à elle-même
                 # (défaut relevé sur le live le 2026-10-09 — le second portait l'ancienne empreinte).
@@ -1538,7 +1541,7 @@ def check_correction_conflict():
                     collab_page.keyboard.type(' le monde')
                 verdicts.append((late.value.status == 409,
                                  f'l’enregistrement périmé est refusé (HTTP {late.value.status})'))
-                conflict = collab_page.locator('[data-edit-conflict]')
+                conflict = collab_page.locator('[data-surface-banner="conflict"]')
                 try:
                     conflict.wait_for(timeout=10000)
                     shown = 'Recharger' in conflict.inner_text()

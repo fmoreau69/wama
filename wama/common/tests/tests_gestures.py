@@ -35,7 +35,10 @@ SERVED = BASE / 'staticfiles'
 HAS_V8 = importlib.util.find_spec('py_mini_racer') is not None
 GESTURES = COMMON / 'js' / 'wama-gestures.js'
 STUDIO = BASE / 'wama' / 'studio' / 'static' / 'studio' / 'js' / 'wama-studio.js'
-EDITOR = BASE / 'wama' / 'transcriber' / 'static' / 'transcriber' / 'js' / 'edit.js'
+#: L'onde de la page de correction et sa minimap sont des options du TRANSPORT commun, et la liste
+#: des segments une brique de surface, depuis le 2026-10-21 (la page `edit.js` est retirée, R166).
+EDITOR = COMMON / 'js' / 'wama-transport.js'
+SEGMENTS = COMMON / 'js' / 'surfaces' / 'brick-segment-list.js'
 QUEUE = COMMON / 'js' / 'wama-queue-dnd.js'
 
 
@@ -515,7 +518,7 @@ class PagesAdoptTheBrickTest(SimpleTestCase):
         # La file, la palette et l'ordre des segments gardent leurs gestionnaires HTML5 : c'est la
         # brique qui traduit le doigt. Un second chemin tactile dans une page serait une 2e version
         # du même geste.
-        for path in (QUEUE, STUDIO, EDITOR):
+        for path in (QUEUE, STUDIO, EDITOR, SEGMENTS):
             js = _read(path)
             for touch_event in ('touchstart', 'touchmove', 'touchend'):
                 self.assertNotIn(touch_event, js, f'{path.name} carries its own {touch_event}')
@@ -532,12 +535,13 @@ class PagesAdoptTheBrickTest(SimpleTestCase):
                  (QUEUE, SERVED / 'common' / 'js' / 'wama-queue-dnd.js'),
                  (COMMON / 'css' / 'wama-touch.css', SERVED / 'common' / 'css' / 'wama-touch.css'),
                  (STUDIO, SERVED / 'studio' / 'js' / 'wama-studio.js'),
-                 (EDITOR, SERVED / 'transcriber' / 'js' / 'edit.js')]
+                 (EDITOR, SERVED / 'common' / 'js' / 'wama-transport.js'),
+                 (SEGMENTS, SERVED / 'common' / 'js' / 'surfaces' / 'brick-segment-list.js')]
         for source, served in pairs:
             self.assertEqual(_read(source), _read(served), f'{served} is stale')
 
     @skipUnless(HAS_V8, 'py_mini_racer absent')
     def test_the_touched_scripts_parse_under_v8(self):
         from py_mini_racer import MiniRacer
-        for path in (GESTURES, STUDIO, EDITOR, QUEUE):
+        for path in (GESTURES, STUDIO, EDITOR, SEGMENTS, QUEUE):
             MiniRacer().eval('(function(){' + _read(path) + '\n})')

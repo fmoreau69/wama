@@ -1965,10 +1965,19 @@ MECHANISMS = (
               "(lecture silencieuse) ; vitesse CHOISIE distincte du cran de shuttle ; clavier du "
               "magnéto. Né le 2026-10-15 avec la partition du composer ; l'éditeur du transcriber y "
               "est porté le 2026-10-20 (parité geste par geste, `transcriber.editor_parity`) ; le "
-              "cam_analyzer reste à porter (matrice de parité)",
+              "cam_analyzer reste à porter (matrice de parité). Le 2026-10-21 (décision de Fabien : "
+              "« le transport commun avec le transport de preview et le monde Data, tout dans la "
+              "même brique par options ») : le TRANSPORT commun montable partout "
+              "(`wama-transport.js` — onde fenêtrée et couches, bande de qualité, minimap, aller à, "
+              "zoom, outil Bornes, modes d'écriture, par options), les règles des SEGMENTS sans DOM "
+              "(`wama-segments.js`) et les PICS FINS d'un média au commun (`waveform.dense_peaks`, "
+              "fichier dérivé au dossier caché comme la copie de lecture)",
               'wama/common/static/common/js/wama-axis.js',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
-              annexes=('wama/common/services/ui_smoke_editor.py',),
+              annexes=('wama/common/static/common/js/wama-transport.js',
+                       'wama/common/static/common/js/wama-segments.js',
+                       'wama/common/utils/waveform.py',
+                       'wama/common/services/ui_smoke_editor.py'),
               depends_on=('shuttle',)),
     Mechanism('playhead_follow', 'Suivre la tête de lecture (traitement au fil de la lecture)',
               "Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle "
@@ -2313,8 +2322,7 @@ MECHANISMS = (
               "restaurer c'est muter (`loadGraph`→`clearCanvas`→`removeNode`→l'entonnoir), donc "
               "tout consommateur à entonnoir remplirait son historique de son propre travail",
               'wama/common/static/common/js/wama-history.js', 'docs/construction/ui/CARD_DESIGN.md',
-              annexes=('wama/transcriber/static/transcriber/js/edit.js',
-                       'wama/studio/static/studio/js/wama-studio.js')),
+              annexes=('wama/studio/static/studio/js/wama-studio.js',)),
     Mechanism('console', 'Console utilisateur',
               "Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », "
               "mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des "
@@ -2872,7 +2880,6 @@ ASSUMED_LOCAL = {
     'wama/common/utils/model_locations.py': "chemins de modèles — plomberie model_manager",
     'wama/common/utils/safetensors_utils.py': "inspection de poids safetensors — plomberie chaîne modèles",
     'wama/common/utils/voice_options.py': "pendant VOIX d'output_formats (avatarizer) — promouvoir si adoption s'élargit",
-    'wama/common/utils/waveform.py': "rendu de forme d'onde — fusion des 2 renderers encore pendante (REPRISE)",
     'wama/model_manager/services/format_converter.py': "conversion de formats de poids — plomberie chaîne modèles (avec format_policy)",
     # Triage du 2026-08-13 (les 3 dernières entrées du backlog) — aucun n'était mort, mes
     # « 0 apps » ne comptaient pas wama_lab :

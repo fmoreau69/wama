@@ -37,6 +37,15 @@
  * (`base`) ; un état périmé est refusé (409) et la page cesse d'enregistrer en proposant de
  * recharger. UN SEUL enregistrement en vol : demandé pendant le vol, il part avec l'empreinte que
  * la réponse rend. Le verrou doux (`WamaCardMenu.holdEditLock`) dit qui d'autre édite.
+ *
+ * Depuis la correction du TRANSCRIBER devenue surface (2026-10-21, ROUTE §F3b), ce que la surface
+ * DÉCLARE (`common/surfaces.py`) : enregistrement automatique après une pause (`autosave`), geste
+ * « Terminer » (`ctx.finish()`, un enregistrement marqué fini), RÉGLAGES de l'élément lus et écrits
+ * par la route commune des réglages (`ctx.settings()`, `ctx.saveSettings()`, événement `settings`),
+ * routes de geste de l'app (`ctx.config.routes`), pics fins d'un média lu (`ctx.peaks(rôle)`).
+ * `ctx.edit(fn, {inPlace: true})` MODIFIE la valeur sans la copier (une frappe dans une longue
+ * transcription) ; `{untracked: true}` ne fait pas de cran (une case « revu », qui ne s'annulait
+ * pas dans la page d'origine).
  */
 (function (global) {
     'use strict';
@@ -63,10 +72,13 @@
         var surface = config.surface;
         var listeners = {};
         var statusEl = document.querySelector('.wama-surface-status');
-        var state = { reads: {}, media: {}, context: {}, value: {}, saved: '{}', selected: null, token: '' };
+        var state = { reads: {}, media: {}, context: {}, value: {}, saved: '{}', selected: null, token: '',
+                      settings: { schema: [], values: {} } };
         var axis = null;
         var conflicted = false;
-        var inFlight = null, queued = false;
+        var inFlight = null, queued = false, finishing = false;
+        var autosaveTimer = null;
+        var AUTOSAVE_MS = 800;              // la pause de l'enregistrement automatique de l'éditeur
         var helps = [];
 
         function on(name, fn) { (listeners[name] = listeners[name] || []).push(fn); }
@@ -104,8 +116,13 @@
 
         function dirty() { return JSON.stringify(state.value) !== state.saved; }
         function changed() {
-            status(dirty() ? 'Modifications non enregistrées' : '', dirty() ? 'dirty' : '');
+            var d = dirty();
+            status(d ? 'Modifications non enregistrées' : '', d ? 'dirty' : '');
             emit('change', state.value);
+            if (d && surface.autosave && ctx.canEdit && !conflicted) {
+                clearTimeout(autosaveTimer);
+                autosaveTimer = setTimeout(function () { save(); }, AUTOSAVE_MS);
+            }
         }
 
         var ctx = {
@@ -128,10 +145,24 @@
              *  `{burst: true}` : une frappe — la rafale entière ne fait qu'un cran. */
             edit: function (fn, opts) {
                 if (!ctx.canEdit) return;
-                if (opts && opts.burst) history.beginBurst(); else history.push();
-                var next = fn(clone(state.value));
+                opts = opts || {};
+                if (opts.untracked) { /* pas de cran : un état de relecture, pas une correction */ }
+                else if (opts.burst) history.beginBurst(); else history.push();
+                var next = fn(opts.inPlace ? state.value : clone(state.value));
                 state.value = next === undefined ? state.value : next;
                 changed();
+            },
+            /** Les RÉGLAGES déclarés de l'élément : `{schema, values}`. */
+            settings: function () { return state.settings; },
+            /** Écrit des réglages par la route commune des réglages de l'app ; émet `settings`. */
+            saveSettings: saveSettings,
+            /** « Terminer » : enregistre la valeur, marquée finie (`Surface.finish`). */
+            finish: function () { finishing = true; clearTimeout(autosaveTimer); return save(); },
+            /** Les pics fins d'un média lu : promesse de `{status, peaks?, duration?}`. `poll` :
+             *  une page qui interroge en attendant (un échec n'y est pas retenté). */
+            peaks: function (role, poll) {
+                return fetch(config.data_url + '?only=peaks&role=' + encodeURIComponent(role) + (poll ? '&poll=1' : ''),
+                             { credentials: 'same-origin' }).then(App.jsonOrExplain);
             },
             helps: function () { return helps.slice(); },
             selected: function () { return state.selected; },
@@ -168,10 +199,17 @@
 
         function send() {
             status('Enregistrement…', 'busy');
-            var sent = state.value;
+            clearTimeout(autosaveTimer);
+            // Ce qui part, figé en TEXTE : la valeur peut être modifiée en place pendant le vol, et
+            // comparer l'objet à lui-même dirait toujours « rien n'a changé depuis l'envoi ».
+            var sentJson = JSON.stringify(state.value);
+            var finished = finishing;
+            finishing = false;
+            var body = { value: state.value, base: state.token };
+            if (finished) body.finished = true;
             return App.csrfFetch(config.save_url, App.csrfToken(), {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ value: sent, base: state.token }),
+                body: JSON.stringify(body),
             }).then(function (response) {
                 // 409 et 400 portent un corps JSON qui DIT la raison : lus avant le repli commun.
                 if (response.status === 409 || response.status === 400) {
@@ -185,7 +223,7 @@
                 state.saved = JSON.stringify(res.value);
                 // Ce qui a été tapé PENDANT le vol reste la valeur éditée ; sinon la valeur
                 // assainie du serveur (fins de ligne) la remplace.
-                if (JSON.stringify(state.value) === JSON.stringify(sent)) state.value = res.value;
+                if (JSON.stringify(state.value) === sentJson) state.value = res.value;
                 (res.stale || []).forEach(function (k) {
                     state.processes = state.processes || {};
                     state.processes[k] = 'STALE';
@@ -195,10 +233,12 @@
                 emit('change', state.value);
                 // Après `change` : ce qui a été tapé pendant le vol reste « non enregistré ».
                 if (dirty()) status('Modifications non enregistrées', 'dirty');
+                else if (res.finished) status('Terminé', 'ok');
                 else status(res.stale && res.stale.length
                     ? 'Enregistré — à rejouer : ' + res.stale.join(', ') : 'Enregistré', 'ok');
                 return true;
             }).catch(function (e) {
+                if (finished) finishing = true;             // « Terminer » n'est jamais perdu
                 status('Échec : ' + e.message, 'error');
                 if (App.toast) App.toast('Enregistrement impossible : ' + e.message, 'danger');
                 return false;
@@ -222,6 +262,26 @@
                         status('Échec du lancement : ' + e.message, 'error');
                         return false;
                     });
+            });
+        }
+
+        // ── Réglages de l'élément (`Surface.settings`) ──────────────────────────────────────
+        // La route commune des réglages d'UN élément (`update_settings`), en JSON : la même qui
+        // sert la modale ⚙ — un réglage écrit ici se relit partout. Ce n'est pas la valeur éditée :
+        // ni cran d'annulation, ni empreinte de conflit (la règle de la modale).
+        function saveSettings(values) {
+            if (!ctx.canEdit || !config.settings_url) return Promise.resolve(false);
+            Object.keys(values || {}).forEach(function (k) { state.settings.values[k] = values[k]; });
+            emit('settings', state.settings.values);
+            return App.csrfFetch(config.settings_url, App.csrfToken(), {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(values || {}),
+            }).then(App.jsonOrExplain).then(function (res) {
+                if (res && res.error) throw new Error(res.error);
+                return true;
+            }).catch(function (e) {
+                if (App.toast) App.toast('Réglage non enregistré : ' + e.message, 'danger');
+                return false;
             });
         }
 
@@ -367,6 +427,8 @@
                 state.saved = JSON.stringify(state.value);
                 state.token = data.token || '';
                 state.processes = data.processes || {};
+                if (data.settings) state.settings = { schema: data.settings.schema || [],
+                                                      values: data.settings.values || {} };
                 ctx.canEdit = !!data.can_edit;
                 history.reset();
                 surface.slots.forEach(function (slot) { mounted.push(frame(slot)); });

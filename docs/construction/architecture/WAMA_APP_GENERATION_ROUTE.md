@@ -330,7 +330,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   copie dans le gabarit right_panel du filemanager, que rien n'incluait), la modale `#previewModal` du
   synthesizer, `_mpInjectImage` de l'imager, les routes `anonymizer:preview_media`,
   `describer:preview`, `synthesizer:preview` (déclarées aux manifestes : retrait au
-  `REMOVAL_LEDGER`) ; ④ recopies partielles : second lecteur nu de `transcriber/edit.html:238`,
+  `REMOVAL_LEDGER`) ; ④ recopies partielles : second lecteur nu de `transcriber/edit.html:238` (supprimé le 2026-10-21, R166),
   vignettes de la médiathèque et du sélecteur à la main avec un type DEVINÉ côté navigateur
   (`media-library.js:582`), sorties vidéo du cam_analyzer en liens bruts, sortie vidéo du
   face_analyzer à la main, `brick-html-preview.js` (seconde iframe isolée). Ordre proposé à
@@ -429,8 +429,8 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     ignoré le besoin data.
   - **Faits revérifiés le 2026-09-30** : `wama-shuttle.js` n'est chargé que par
     `cam_analyzer/base.html` — l'éditeur ne peut pas s'en servir et garde son propre transport
-    (`transcriber/static/transcriber/js/edit.js`) ; `wama-audio-player.js` est monté globalement
-    (`templates/base.html:389`) et rechargé par `transcriber/edit.html:337`.
+    (`transcriber/static/transcriber/js/edit.js` (supprimé le 2026-10-21, R166)) ; `wama-audio-player.js` est monté globalement
+    (`templates/base.html:389`) et rechargé par `transcriber/edit.html:337` (supprimé le 2026-10-21, R166).
   - **Démarche demandée** : ① CARTOGRAPHIER complètement les deux transports les plus avancés —
     l'éditeur du transcriber (audio + texte : onde zoomable sur pics serveur, vitesse, shuttle,
     lecture arrière, synchronisation texte↔temps) et le cam_analyzer (4 vidéos synchronisées, pas
@@ -512,7 +512,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     transport commun de ce chantier) et le **contrat de vue abonnée** ; (2) la **déclaration d'une
     surface** (quelles vues, sur quel axe, quels panneaux tirés du schéma, quels gestes → quels
     process) ; (3) les **vues** elles-mêmes, aujourd'hui enfermées dans des pages : onde fenêtrée
-    sur pics serveur, liste de segments, carte de chaleur, minimap (`wama/transcriber/static/transcriber/js/edit.js`,
+    sur pics serveur, liste de segments, carte de chaleur, minimap (`wama/transcriber/static/transcriber/js/edit.js` (supprimé le 2026-10-21, R166),
     1428 l.) ; et pour YuE2 une vue **partition** (aucun moteur de rendu ABC n'est vendorisé —
     `abcjs` est le candidat évident, route `library`/vendor).
     **Conséquence, proposée à Fabien** : la page d'édition de YuE2 ne s'écrit PAS avant ce chantier
@@ -942,14 +942,104 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       `setPeaks`), ni `preview_utils` ; ses tests (`tests_partial_audio`, `tests_card_pending_face`,
       `tests_during_preview_declared`, `tests_preview_variants`) sont verts et se rejouent à chaque
       étape. L'onde d'entrée du volet (④) ne se branchera pas sur l'axe sans eux.
-    - ⏳ **Étapes suivantes** (passation : `PROJECT_STATUS §PALIER 2026-10-20 (nuit) « APERÇU »`) :
+    - ✅ **Étapes suivantes — la page en surface, faite le 2026-10-21 (bloc suivant)** (passation :
+      `PROJECT_STATUS §PALIER 2026-10-20 (nuit) « APERÇU »`) :
       la PAGE D'ÉDITION sur les briques UI — les vues de l'éditeur en briques universelles (onde
       fenêtrée à couches — silences, bornes, bandes d'écriture —, carte de chaleur, minimap, liste
-      de segments), le lecteur nu NON synchronisé du volet droit (`edit.html:238`, reste ④ du
+      de segments), le lecteur nu NON synchronisé du volet droit (`edit.html:238` (supprimé le 2026-10-21, R166), reste ④ du
       chantier aperçu), puis l'éditeur en surface déclarée (`common/surface.html`) — la forme est à
       trancher par Fabien ; deux libellés de cran de shuttle coexistent (l'éditeur, `media_transport`)
       et se réuniront avec les briques ; restent de la matrice le pas image fps-aware, N médias +
       dérive, la position persistée (cam_analyzer).
+  - ✅ **2026-10-21 — LA PAGE DE CORRECTION DU TRANSCRIBER EN SURFACE DÉCLARÉE** (étape 2 ;
+    décisions de Fabien le jour même, sur les quatre recommandations soumises) : la page devient
+    une SURFACE (`transcriber/surfaces.py`, clé `correct`) ; titre, date et noms des intervenants
+    deviennent des RÉGLAGES de la card ; « Terminer » devient un geste COMMUN d'une surface ;
+    l'onde, la bande de qualité et la minimap sont UNE brique à couches ; les pics fins passent au
+    COMMUN d'abord. Précision de Fabien en cours de route : *« garder l'apparence globale ; le
+    transport commun avec le transport de preview et le monde Data — tout dans la même brique par
+    options »*.
+    - **la méthode, tenue** : la batterie `transcriber.editor_parity` complétée AVANT de toucher
+      (38 → 66 gestes : fusions Suppr / ⌫ / poignée glissée, compactage, locuteur, relecture ✓,
+      enregistrement automatique, « Terminer », outil Bornes — glisser une borne, couper, créer
+      dans un silence —, Latch, Write, Complément, propositions écoutées / acceptées / refusées,
+      titre, intervenants, identification, dernière transcription, temps illisible, Alt+↑↓). Elle
+      lit désormais le CORPS des écritures refusées (`BLOCK_WRITES`, `__wamaBodies`) : un
+      enregistrement se juge à ce qu'il aurait envoyé, quelle que soit la route. Une table par
+      forme de page (`PAGES`). **66/66 sur l'ancienne page** (contre-épreuve : quatre comportements
+      cassés, cinq gestes rouges) → **66/66 sur la surface** (contre-épreuve : trois comportements
+      cassés DANS les nouvelles briques, trois rouges).
+    - **le transport commun** (`common/js/wama-transport.js`, montable HORS surface ;
+      `media_transport` n'en est que l'enveloppe) : par options, l'aller à, la vitesse par pas,
+      l'onde FENÊTRÉE et ses couches (repères et silences des segments, bandes d'écriture), le zoom,
+      la bande de qualité, la minimap, l'outil Bornes et les modes d'écriture — déplacés d'`edit.js`,
+      même calcul. Les règles des segments sans DOM vivent dans `common/js/wama-segments.js`
+      (scinder, fusionner, compacter, silences, mots horodatés, recalage appliqué, ciseaux à un
+      temps — un seul geste pour le clic de l'outil Bornes et Ctrl+Entrée). Un seul libellé de cran
+      de shuttle (`WamaTransport.speedLabel`) : les deux libellés notés hier sont réunis.
+    - **trois briques universelles** : `segment_list` (la liste, ses deux modes et leur clavier,
+      relecture, suivi de lecture, reprise d'une version lue), `item_settings` (des réglages de
+      l'élément rendus par `WamaParams`, contexte `surface`, écrits par la route commune
+      `update_settings` — la même que la modale ⚙ ; elle permettra d'éditer les paroles sur la
+      surface du composer), `speaker_names` (le réglage `mapping` rendu par le moteur commun, ses
+      clés = les locuteurs des segments, « Identifier automatiquement » par la route de geste).
+    - **au noyau des surfaces** (toutes optionnelles, sans effet sur les trois autres surfaces) :
+      `value` (la valeur d'ouverture), `autosave`, `finish` + `saved` (le code de `save_correction`
+      DÉPLACÉ dans `views.correction_saved`), `settings`, `routes` (routes de geste résolues pour
+      l'élément), `edit_state` (le ✎ de la card dit brouillon / corrigé), pics fins par
+      `data/?only=peaks` ; `ctx.edit(fn, {inPlace, untracked})` (une frappe dans une longue
+      transcription ne copie pas la valeur ; « revu » ne fait pas de cran, comme avant). Défaut
+      corrigé au passage : l'enregistrement comparait l'objet envoyé à lui-même — avec une
+      modification en place, ce qui était tapé pendant le vol aurait été écrasé par la réponse.
+      Un rôle « document » peut être un champ JSON (`segments_json`), plus seulement un fichier.
+    - **schéma des réglages** : types `date` et `mapping` (`param_schema`, rendus de `WamaParams`) ;
+      un texte plus long que sa colonne est COUPÉ par la route commune (`apply_item_settings`,
+      jumelle du refus d'une valeur hors choix — l'avant-propos le faisait à la main).
+    - **pics fins au commun** (`waveform.dense_peaks`) : fichier DÉRIVÉ au dossier caché comme la
+      copie de lecture (`video_compat.derived_rel`, reconnu du balayage des orphelins et de l'audit
+      d'intégrité), tâche commune `common.make_dense_peaks`, état par marque de cache.
+      `REMOVAL_LEDGER R165` (⚠ le champ `waveform_status` reste en base, sa migration de retrait est
+      une décision).
+    - **raccordé** : le ✎ de la card est `{% surface_button %}` ; `/transcriber/edit/<pk>/` redirige
+      vers la surface ; `edit.html`, `edit.js`, `save_correction`, `save_meta` retirés
+      (`REMOVAL_LEDGER R166`) ; les scénarios `common.correction_conflict` (7/7),
+      `common.gestures.mouse` (19/19) et `.touch` (partie éditeur sans défaut ; rouge du studio,
+      d'autrui) et `common.ui_bricks_capture` (six surfaces, onze briques) portés sur la surface.
+      Gardes : `transcriber.tests_editor_axis` (11), `tests_surfaces.SegmentRulesTest` (5),
+      `tests_dense_peaks` (11), `tests_edit_conflict` porté.
+    - **changements visibles, voulus** : une grille de panneaux déplaçables et redimensionnables
+      (disposition gardée, réinitialisable) dont la disposition par défaut reprend l'apparence de
+      l'éditeur — plus de barre de lecture repliable ni de volet droit propre ; le verrou « suivre
+      la lecture » est dans l'en-tête des segments (sa préférence repart à zéro, nouvelle clé) ;
+      les raccourcis s'affichent comme l'aide des briques, dans « Actions » ; une personne qui VOIT
+      la card sans pouvoir l'éditer ouvre la page en lecture seule ; la vitesse ×1,75 entre au
+      sélecteur du composer ; le lecteur nu non synchronisé du volet droit n'existe plus (reste ④
+      du chantier aperçu, soldé).
+    - **face Pendant non touchée** : ses tests verts (`tests_partial_audio`, `tests_card_pending_face`,
+      `tests_during_preview_declared`, `tests_preview_variants`).
+    - **inventaire des TRANSPORTS de WAMA** (question de Fabien) — la matrice du 01/10 n'en voyait
+      que deux. Mesuré au code le 2026-10-21 :
+
+      | transport | où | sort |
+      |---|---|---|
+      | axe + shuttle + `media_transport` | `wama-axis.js`, `wama-shuttle.js`, partition du composer | LE transport commun (options) |
+      | page de correction du transcriber | surface `transcriber.correct` | porté (ce bloc) |
+      | lecteur audio commun | `wama-audio-player.js` (volet, cards, aperçu, face Pendant) | reste le lecteur ; le transport s'appuie dessus |
+      | visionneuse | `media-preview.js` : `<video controls>` natif, horloge passée d'une face à l'autre | ⏳ à porter sur l'axe — « le transport de preview » |
+      | surcouches + Comparer | `wama-preview-overlay.js` : dessin au temps de la vidéo, deux vidéos maître / esclave | ⏳ idem (N médias sur un axe) |
+      | cam_analyzer | 4 vidéos synchronisées, pas image (`wama_lab/cam_analyzer`) | ⏳ second temps (Fabien) |
+      | face_analyzer | ±10 s, pas figé à 1/30, vitesse, surcouches et graphe suivis (`wama_lab/face_analyzer`) | ⏳ avec le cam (oublié de la matrice du 01/10) |
+      | lecteurs natifs des cards | anonymizer, avatarizer, synthesizer, médiathèque, sélecteur de médias | hors transport (lecture exclusive commune) |
+      | monde Data | aucun lecteur dans `wama_data/` ; magnéto cible de `WAMA_DATA_WORLD §5bis` | le transport commun sera le sien |
+
+    - ⏳ **restes** : l'aperçu sur le transport commun (visionneuse, surcouches, Comparer — tests de
+      la face Pendant à l'appui) ; cam_analyzer et face_analyzer ; deux rendus d'onde coexistent
+      encore (le lecteur commun, plein fichier ; l'onde fenêtrée du transport — `REMOVAL_LEDGER R19`) ;
+      la migration qui retire `waveform_status` (décision) ; le texte indicatif « Nom de
+      l'intervenant » des champs de noms n'a pas suivi (le rendu `mapping` n'en a pas) ; titre, date
+      et noms entrent aussi aux descriptions des outils de l'assistant (`tool_api`, lu du schéma) ;
+      la facette `surfaces` du manifeste du transcriber n'est pas extraite (même reste que le Writer
+      et le composer).
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à
@@ -5073,7 +5163,7 @@ qui est périmé** (geste « compléter manquant + périmé », 4.5), au lieu de
 `transcriber/models.py:83-84`, décision de `TRANSCRIBER_CORRECTION §4`) ; l'éditeur lit la
 correction si elle existe, sinon l'ASR (`transcriber/views.py:589-609`) ; et quand une nouvelle
 génération existe, il propose « charger la dernière transcription », **en remplaçant la correction**
-(`transcriber/views.py:653-663`, `templates/transcriber/edit.html:232-236`). Relancer la
+(`transcriber/views.py:653-663`, `templates/transcriber/edit.html:232-236` (supprimé le 2026-10-21, R166)). Relancer la
 transcription ne détruit donc rien (`_reset_for_relaunch`, `views.py:50-60`, ne touche pas la
 correction), mais **l'utilisateur n'a que deux issues : garder sa correction périmée, ou la perdre**.
 Dans le modèle : la correction est un **process** (« correction manuelle ») dont l'amont est

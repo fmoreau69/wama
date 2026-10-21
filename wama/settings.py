@@ -841,6 +841,8 @@ if ENABLE_CELERY:
         # Copie de LECTURE d'une vidéo illisible par le navigateur (ffmpeg, CPU) : jamais la file
         # GPU, où elle attendrait derrière un traitement (2026-10-06).
         'common.make_playback_copy': {'queue': 'default'},
+        # Pics FINS de l'onde d'un média (ffmpeg, CPU), même règle (2026-10-21, `waveform`).
+        'common.make_dense_peaks': {'queue': 'default'},
         # Téléchargement de l'entrée d'une card créée avec une URL (réseau, CPU) : jamais la file
         # GPU, où il attendrait derrière un traitement (2026-10-13, `source_ingest`).
         'common.ingest_source': {'queue': 'default'},

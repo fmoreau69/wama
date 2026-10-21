@@ -172,6 +172,10 @@ BROWSER_H264_PROFILES: frozenset[str] = frozenset({
 BROWSER_PIX_FMTS: frozenset[str] = frozenset({'yuv420p', 'yuvj420p'})
 #: Dossier caché des copies de lecture, à la racine de l'utilisateur.
 PLAYBACK_DIR = '.preview'
+#: Les fichiers DÉRIVÉS d'un média rangés dans ce dossier, par leur suffixe : la copie de lecture,
+#: et depuis le 2026-10-21 les pics fins de l'onde (`waveform.DENSE_SUFFIX`, ROUTE §F3b). Le
+#: balayage des orphelins et l'audit d'intégrité les reconnaissent tous par `original_of_copy`.
+DERIVED_SUFFIXES = ('.peaks.json', '.mp4')
 
 
 def playability(info: Optional[dict]) -> tuple:
@@ -193,14 +197,19 @@ def playability(info: Optional[dict]) -> tuple:
     return True, ''
 
 
-def playback_copy_rel(rel: str) -> str:
-    """Le chemin (relatif à MEDIA_ROOT) de la copie de lecture d'un média — pure. Sous
-    `users/<id>/` : `users/<id>/.preview/<reste>.mp4` ; ailleurs : `.preview/<chemin>.mp4`."""
+def derived_rel(rel: str, suffix: str) -> str:
+    """Le chemin (relatif à MEDIA_ROOT) d'un fichier DÉRIVÉ d'un média — pure. Sous
+    `users/<id>/` : `users/<id>/.preview/<reste><suffixe>` ; ailleurs : `.preview/<chemin><suffixe>`."""
     rel = str(rel or '').replace('\\', '/').lstrip('/')
     parts = rel.split('/')
     if len(parts) > 2 and parts[0] == 'users':
-        return '/'.join(parts[:2] + [PLAYBACK_DIR] + parts[2:]) + '.mp4'
-    return f'{PLAYBACK_DIR}/{rel}.mp4'
+        return '/'.join(parts[:2] + [PLAYBACK_DIR] + parts[2:]) + suffix
+    return f'{PLAYBACK_DIR}/{rel}{suffix}'
+
+
+def playback_copy_rel(rel: str) -> str:
+    """Le chemin de la copie de lecture d'un média (`derived_rel`, suffixe `.mp4`) — pure."""
+    return derived_rel(rel, '.mp4')
 
 
 def _absolute(rel: str) -> str:
@@ -247,20 +256,27 @@ def make_playback_copy(rel: str, *, timeout: int = 3600) -> str:
 
 
 def drop_playback_copy(rel: str) -> bool:
-    """Retire la copie de lecture d'un média (l'original part). Ne lève jamais."""
-    try:
-        os.remove(_absolute(playback_copy_rel(rel)))
-        return True
-    except OSError:
-        return False
+    """Retire les fichiers DÉRIVÉS d'un média — sa copie de lecture et, depuis le 2026-10-21, ses
+    pics fins (`DERIVED_SUFFIXES`) : l'original part, ce qu'on en tirait aussi. Rend True si l'un
+    d'eux a été retiré. Ne lève jamais."""
+    removed = False
+    for suffix in DERIVED_SUFFIXES:
+        try:
+            os.remove(_absolute(derived_rel(rel, suffix)))
+            removed = True
+        except OSError:
+            pass
+    return removed
 
 
 def original_of_copy(copy_rel: str) -> str:
-    """L'original (chemin relatif) d'une copie de lecture — l'inverse de `playback_copy_rel`."""
+    """L'original (chemin relatif) d'un fichier dérivé — l'inverse de `derived_rel`, pour chacun
+    des `DERIVED_SUFFIXES` ; '' pour tout autre fichier."""
     copy_rel = str(copy_rel or '').replace('\\', '/')
-    if not copy_rel.endswith('.mp4'):
+    suffix = next((s for s in DERIVED_SUFFIXES if copy_rel.endswith(s)), '')
+    if not suffix:
         return ''
-    parts = copy_rel[:-4].split('/')
+    parts = copy_rel[:-len(suffix)].split('/')
     if len(parts) > 3 and parts[0] == 'users' and parts[2] == PLAYBACK_DIR:
         return '/'.join(parts[:2] + parts[3:])
     if parts and parts[0] == PLAYBACK_DIR:
@@ -269,7 +285,8 @@ def original_of_copy(copy_rel: str) -> str:
 
 
 def sweep_orphan_playback_copies(dry_run: bool = False) -> dict:
-    """Retire les copies de lecture dont l'original n'existe plus — quel que soit le geste qui
+    """Retire les fichiers dérivés (copies de lecture, pics fins) dont l'original n'existe plus, ou
+    qui ne dérivent d'aucun (`original_of_copy` vide) — quel que soit le geste qui
     l'a fait partir (retrait, arbre des fichiers, rétention, dossier vidé à la main). Une copie
     orpheline n'est de toute façon jamais servie (`playback_copy_for` lit l'original) : ce
     balayage ne rend que la place. Rend `{'seen', 'removed'}`."""

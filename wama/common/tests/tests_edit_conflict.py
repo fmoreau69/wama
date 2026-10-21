@@ -75,16 +75,17 @@ class CorrectionPageConflictTest(TestCase):
         self.as_owner.force_login(self.owner)
         self.as_collab.force_login(self.collaborator)
 
+    # La page de correction est une SURFACE depuis le 2026-10-21 (`transcriber/surfaces.py`) : son
+    # empreinte vient de `data/`, son enregistrement de `save/` — les vues communes.
     def _token_of_page(self, client):
-        page = client.get(reverse('transcriber:edit', args=[self.card.pk]))
-        self.assertEqual(200, page.status_code)
-        return page.context['state_token']
+        data = client.get(f'/common/surface/transcriber/correct/{self.card.pk}/data/')
+        self.assertEqual(200, data.status_code, data.content[:200])
+        return data.json()['token']
 
     def _save(self, client, text, base):
-        return client.post(reverse('transcriber:save_correction', args=[self.card.pk]),
-                           data=json.dumps({'segments': [{'start_time': 0, 'end_time': 1,
-                                                          'text': text}],
-                                            'status': 'draft', 'base': base}),
+        return client.post(f'/common/surface/transcriber/correct/{self.card.pk}/save/',
+                           data=json.dumps({'value': [{'start_time': 0, 'end_time': 1, 'text': text}],
+                                            'base': base}),
                            content_type='application/json')
 
     def test_the_second_save_prepared_before_the_first_is_refused(self):

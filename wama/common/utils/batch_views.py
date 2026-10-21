@@ -94,6 +94,15 @@ def _within_choices(item, name, value) -> bool:
     return str(value) in {str(c[0]) for c in choices}
 
 
+def _within_length(item, name, value):
+    """Un texte coupé à la longueur de la colonne du champ `name` (s'il en a une)."""
+    try:
+        limit = getattr(item._meta.get_field(name), 'max_length', None)
+    except Exception:
+        return value
+    return value[:limit] if isinstance(value, str) and limit else value
+
+
 def apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=()):
     """Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
     et, s'il existe, le conteneur JSON `options_field` pour les champs de schéma HORS colonnes
@@ -102,13 +111,15 @@ def apply_item_settings(item, data, *, params_fields=(), options_field=None, ext
 
     Une valeur HORS des `choices` du champ du modèle est IGNORÉE, jamais écrite (2026-09-26,
     contrat générique `tests_item_settings_contract`) : le reader le faisait à la main champ par
-    champ, les autres apps l'écrivaient — ou plantaient en 500 quand elle dépassait la colonne."""
+    champ, les autres apps l'écrivaient — ou plantaient en 500 quand elle dépassait la colonne.
+    Un TEXTE plus long que sa colonne est COUPÉ à sa longueur (2026-10-21 — l'avant-propos de la
+    page de correction du transcriber le faisait à la main, `title[:300]`)."""
     touched = []
     for name in params_fields:
         if name in data:
             if not _within_choices(item, name, data[name]):
                 continue
-            setattr(item, name, data[name])
+            setattr(item, name, _within_length(item, name, data[name]))
             touched.append(name)
     if options_field:
         extras = {k: data[k] for k in extra_names if k in data}

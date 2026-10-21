@@ -108,6 +108,15 @@ def make_playback_copy_task(rel):
     return make_playback_copy(rel)
 
 
+@shared_task(name='common.make_dense_peaks')
+def make_dense_peaks_task(rel):
+    """PICS FINS de l'onde d'un média (`waveform.make_dense_peaks`, 2026-10-21) — ceux que lit
+    l'onde zoomée d'une page, rangés au dossier caché comme la copie de lecture. CPU seul
+    (ffmpeg), jamais la file GPU. Idempotente."""
+    from wama.common.utils.waveform import make_dense_peaks
+    return make_dense_peaks(rel)
+
+
 @shared_task(name='common.ingest_source')
 def ingest_source_task(app_label, model_name, pk):
     """Télécharge l'entrée d'une card créée avec une URL (`source_ingest`, 2026-10-13 — décision

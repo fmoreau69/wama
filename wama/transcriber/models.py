@@ -145,8 +145,9 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # l'affichage et à l'export sans toucher les segments bruts (réversible).
     speaker_map = models.JSONField(null=True, blank=True)
 
-    # Enveloppe de forme d'onde (peaks) calculée 1 fois en asynchrone (éditeur /edit).
-    # none/pending/ready/failed — peaks stockés en fichier (utils/waveform.py).
+    # ⚠ PLUS LU NI ÉCRIT depuis le 2026-10-21 : les pics fins de l'onde sont un service COMMUN
+    # (`common/utils/waveform.dense_peaks`, état par marque de cache, fichier au dossier caché).
+    # Champ gardé en attendant la décision de la migration qui le retire (REMOVAL_LEDGER R165).
     waveform_status = models.CharField(max_length=16, default='none')
 
     # Durée réelle du traitement (s) — affichée à la place de l'ETA une fois terminé.

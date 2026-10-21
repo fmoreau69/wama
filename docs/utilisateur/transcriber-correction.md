@@ -6,9 +6,12 @@
 ## Corriger une transcription
 
 Une fois la transcription terminée, sa card porte un bouton **Éditer** (icône crayon). Il ouvre
-l'éditeur : la forme d'onde, une bande colorée qui signale les passages douteux, et la liste des
-segments, synchronisée avec la lecture. Le survol du bouton dit où en est la correction :
-brouillon en cours, ou corrigée.
+l'éditeur : la liste des segments, synchronisée avec la lecture, et en dessous le transport — la
+forme d'onde, une bande colorée qui signale les passages douteux, une vue d'ensemble et les
+commandes de lecture. À côté : les actions, le document et les intervenants. Chaque panneau se
+déplace par son titre et se redimensionne par ses bords ; la disposition est gardée, et **Disposition
+par défaut** la remet. Le survol du bouton Éditer dit où en est la correction : brouillon en cours,
+ou corrigée.
 
 ### Deux modes : naviguer, puis éditer
 
@@ -20,7 +23,8 @@ touches servent à taper ; `Échap` revient à la navigation.
 |---|---|---|
 | `Espace` | lecture / pause | (tape un espace) |
 | `J` · `K` · `L` | un cran vers l'arrière · arrêt · un cran vers l'avant (plus rapide à chaque appui) | — |
-| `←` · `→` | recule · avance de 5 secondes | — |
+| `←` · `→` | recule · avance de 5 secondes (avec `Maj` : 30 secondes) | — |
+| `Début` · `Fin` | va au début · à la fin | — |
 | `↑` · `↓` | segment précédent · suivant | — |
 | `Tab` · `Maj+Tab` | la lecture saute au segment suivant · précédent | champ suivant · précédent |
 | `Alt+↑` · `Alt+↓` | segment précédent · suivant | segment précédent · suivant |
@@ -50,7 +54,7 @@ sont d'abord recalés sur la transcription automatique. Chaque geste s'annule av
 
 ### Les modes d'écriture : la lecture transcrit
 
-Le menu **Lecture** de la barre audio choisit ce que fait la lecture. En mode Lecture, elle ne
+Le menu **Lecture** du transport choisit ce que fait la lecture. En mode Lecture, elle ne
 fait que jouer. Les autres modes font transcrire, pendant l'écoute, la plage qui est jouée :
 
 | mode | ce qui est transcrit | ce qui change dans le texte |
@@ -77,16 +81,24 @@ segment.
 
 ### Enregistrer, terminer
 
-Les modifications s'enregistrent seules, peu après la frappe ; l'indicateur de la barre d'outils
-affiche « À jour » quand c'est fait, et le texte téléchargeable suit la correction. **Compacter**
-fusionne les segments consécutifs d'un même locuteur. **Terminer la correction** marque la
-transcription comme corrigée et reconstruit ses sous-titres.
+Les modifications s'enregistrent seules, peu après la frappe ; l'indicateur en haut de la page
+affiche « Enregistré » quand c'est fait, et le texte téléchargeable suit la correction.
+**Compacter** (en tête de la liste) fusionne les segments consécutifs d'un même locuteur ; ✓
+marque un segment revu, et le compteur à côté suit la relecture. **Terminer la correction**
+(panneau Actions) marque la transcription comme corrigée et reconstruit ses sous-titres.
+
+Le panneau **Document** porte le titre et la date qui figurent en tête du document de sortie ; le
+panneau **Intervenants** donne un nom à chaque locuteur (**Appliquer les noms**), et
+**Identifier automatiquement** propose des noms entendus dans les présentations, à vérifier avant
+d'appliquer. L'audio et les segments ne changent pas : les noms s'affichent sous chaque locuteur et
+dans le document de sortie.
 
 **À plusieurs** (transcription partagée en collaboration, 2026-10-07) : si quelqu'un d'autre corrige
-la même transcription, un bandeau le dit dès l'ouverture (« X corrige cette transcription en ce
-moment »). Si elle a été modifiée entre votre ouverture et votre enregistrement, l'enregistrement
-est refusé plutôt que d'effacer la correction de l'autre : l'indicateur passe à « Non enregistré »
-et **Recharger** reprend la dernière version. Règle et brique : `WAMA_COLLABORATION §2.4`.
+la même transcription, un bandeau le dit dès l'ouverture (« X édite cet élément en ce moment »).
+Si elle a été modifiée entre votre ouverture et votre enregistrement, l'enregistrement est refusé
+plutôt que d'effacer la correction de l'autre : l'indicateur passe à « Non enregistré » et
+**Recharger** reprend la dernière version. Une personne qui voit la transcription sans pouvoir la
+corriger ouvre la page en lecture seule. Règle et brique : `WAMA_COLLABORATION §2.4`.
 
 ### Évaluer une transcription contre une référence
 

@@ -144,13 +144,10 @@ ni badges brouillon/corrigé) — l'unification lui redonne tout.
                             `<span class="badge">brouillon</span>` qui vivait ICI et élargissait
                             le bouton d'environ 60 px, poussant la corbeille à la ligne
                             suivante. Le libellé n'est pas perdu : il est passé dans le
-                            `title`.{% endcomment %}
-                            <a href="{% url 'transcriber:edit' elem.id %}"
-                               class="btn btn-sm btn-outline-primary edit-btn"
-                               data-edit-state="{{ elem.correction_status|default:'none' }}"
-                               title="Éditer (éditeur audio + texte){% if elem.correction_status == 'draft' %} — brouillon en cours{% elif elem.correction_status == 'done' %} — corrigé{% endif %}">
-                                <i class="fas fa-pen-to-square"></i>
-                            </a>
+                            `title`. Depuis le 2026-10-21 le bouton se DÉDUIT de la surface
+                            déclarée `transcriber.correct` (`transcriber/surfaces.py`), état
+                            brouillon / corrigé compris (`Surface.edit_state`).{% endcomment %}
+                            {% surface_button 'transcriber' 'correct' elem %}
                             {% comment %}⬇ : brique commune (2026-08-23). Les formats viennent de
                             `export_formats` au catalogue — le dropdown n'est plus écrit ici.
                             ⚠ COMPORTEMENT PRÉSERVÉ, PAS CORRIGÉ : ce bloc est tout entier sous

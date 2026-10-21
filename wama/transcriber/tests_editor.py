@@ -77,10 +77,15 @@ class RetimeSegmentsTest(TestCase):
         self.assertEqual(404, self._post({'op': 'split', 'time': 1, 'segments': [{}]},
                                          item=theirs).status_code)
 
-    def test_the_editor_page_carries_the_tool_and_its_route(self):
-        page = self.client.get(f'/transcriber/edit/{self.item.pk}/').content.decode()
-        self.assertIn('id="boundaryToolBtn"', page)
-        self.assertIn(f'/transcriber/edit/{self.item.pk}/retime/', page)
+    def test_the_correction_surface_carries_the_tool_and_its_route(self):
+        # Une SURFACE depuis le 2026-10-21 : l'outil Bornes est une option du transport, sa route
+        # une route de geste que la surface déclare et que sa page résout pour l'élément.
+        page = self.client.get(f'/transcriber/edit/{self.item.pk}/', follow=True)
+        self.assertEqual(f'/common/surface/transcriber/correct/{self.item.pk}/', page.request['PATH_INFO'])
+        config = page.context['config']
+        self.assertEqual(f'/transcriber/edit/{self.item.pk}/retime/', config['routes']['retime'])
+        transport = [s for s in config['surface']['slots'] if s['brick'] == 'media_transport'][0]
+        self.assertEqual('retime', transport['options']['boundaries'])
 
     def test_replace_fills_a_gap_with_a_new_section_of_the_neighbours_speaker(self):
         answer = self._post({'op': 'replace', 'start': 1.0, 'end': 1.2, 'speaker_id': 'SPEAKER_01',
@@ -200,7 +205,7 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         from unittest import mock
         from wama.transcriber import workers
         with mock.patch.object(workers, 'get_backend', return_value=asr), \
-                mock.patch.object(workers, 'compute_waveform_peaks'), \
+                mock.patch('wama.common.utils.waveform.schedule_dense_peaks'), \
                 mock.patch.object(workers, '_save_output_files'), \
                 mock.patch('wama.common.utils.spoken_language.probe_languages',
                            return_value=self.heard) as self.probed, \

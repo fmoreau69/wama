@@ -57,6 +57,12 @@ surface par champ.
 L'AXE PARTAGÉ (2026-10-15, chantier « transport commun », `ROUTE §F3b`) : une surface qui monte
 une brique temporelle a UN axe de temps (`wama-axis.js`, `ctx.axis()`). Le transport le PILOTE ;
 les vues s'y ABONNENT — elles ne se parlent jamais (`WAMA_DATA_WORLD §5bis`).
+
+LA CORRECTION DU TRANSCRIBER (2026-10-21, 4ᵉ surface, décisions de Fabien — `ROUTE §F3b`) : la
+page la plus avancée de WAMA devient une surface, sans perte (parité geste par geste). Ce qu'elle
+faisait seule se DÉCLARE ici pour toutes : valeur d'ouverture (`value`), enregistrement
+automatique, geste « Terminer » et sa suite côté serveur (`saved`), RÉGLAGES de l'élément lus et
+écrits par la route commune des réglages (`settings`), routes de geste de l'app (`routes`).
 """
 from __future__ import annotations
 
@@ -265,6 +271,31 @@ class Surface:
     #: contenu se fabrique au harnais (`ui_smoke.witness_sample`). Vide : aucun témoin, aucune
     #: capture — la page le dit.
     witness: dict = field(default_factory=dict)
+    # ── 2026-10-21, 4ᵉ surface : la page de correction du TRANSCRIBER (ROUTE §F3b, étape 2) ──
+    # Ce qu'elle faisait seule et que toute surface peut désormais déclarer — chaque déclaration
+    # est optionnelle, son absence garde le fonctionnement d'avant.
+    #: La valeur ÉDITÉE telle que la page la reçoit, quand ce n'est pas le champ tel quel — une
+    #: fonction de l'élément (la dernière correction, sinon la sortie ASR). Défaut : le champ.
+    value: Optional[Callable] = None
+    #: Enregistrer de soi-même après une pause dans les gestes ; sinon au geste « Enregistrer ».
+    autosave: bool = False
+    #: Le geste « Terminer » — son libellé : un enregistrement marqué FINI, dont `saved` tire les
+    #: conséquences. Vide : pas de geste.
+    finish: str = ''
+    #: Appelée APRÈS l'écriture du champ : `saved(item, value, user, finished)` — les conséquences
+    #: propres à l'app (texte de travail, lignes de segments, mesure de la correction).
+    saved: Optional[Callable] = None
+    #: RÉGLAGES de l'élément que la page lit et écrit par la route commune des réglages de l'app
+    #: (`update_settings`, schéma de `params.py`) — titre, date, noms des intervenants.
+    settings: tuple = ()
+    #: Routes de GESTE de l'app qu'une brique appelle sans les connaître — `{geste: nom de route}`,
+    #: résolues avec l'élément : un calcul que seul le serveur de l'app sait faire (recaler une
+    #: borne sur les mots de la sortie ASR, transcrire une plage jouée, proposer des noms).
+    routes: dict = field(default_factory=dict)
+    #: L'ÉTAT du geste d'édition sur la card, quand l'élément le porte : `none | draft | done`
+    #: (le bouton ✎ en contour pointillé ou plein, `edit-btn`) — une fonction de l'élément. Défaut :
+    #: « corrigé » dès qu'une couche de corrections n'est pas vide.
+    edit_state: Optional[Callable] = None
 
     def witness_problems(self) -> list:
         """Ce qui empêche de fabriquer le témoin déclaré — [] s'il se fabrique."""
@@ -373,6 +404,8 @@ class Surface:
         return {'id': self.id, 'app': self.app, 'key': self.key, 'label': self.label,
                 'slots': [s.to_dict() for s in self.slots], 'edits': self.edits,
                 'reruns': self.reruns, 'columns': GRID_COLUMNS,
+                'autosave': self.autosave, 'finish': self.finish,
+                'settings': list(self.settings),
                 'bricks': {b.key: b.to_dict() for b in self.bricks()}}
 
 
@@ -499,10 +532,46 @@ register_brick(UIBrick(
                 "onde (le lecteur commun, pics serveur pour un long fichier), lecture / pause, "
                 "début, sauts, vitesse, shuttle J/K/L dont l'arrière silencieux. Il PILOTE l'axe, "
                 "jamais une vue (`WAMA_DATA_WORLD §5bis`) ; il dit si le média est périmé par une "
-                "modification et le recharge quand le process qui le produit a été rejoué.",
+                "modification et le recharge quand le process qui le produit a été rejoué. Par "
+                "OPTIONS (2026-10-21, le transport commun `wama-transport.js`, aussi celui de "
+                "l'aperçu et du monde Data) : aller à, vitesse par pas, onde FENÊTRÉE sur pics fins "
+                "et ses couches (repères et silences des segments, bandes d'écriture), zoom, bande "
+                "de qualité, minimap, outil Bornes (déplacer une jonction, couper, créer dans un "
+                "silence) et modes d'écriture (la lecture transcrit).",
     script='common/js/surfaces/brick-media-transport.js',
-    requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js'),
-    consumes=('audio',)))
+    requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js', 'common/js/wama-segments.js',
+              'common/js/wama-transport.js'),
+    consumes=('audio', 'segments'), emits=('segments',)))
+
+# ── 2026-10-21 : la page de correction du transcriber devenue surface (ROUTE §F3b, étape 2) ──
+register_brick(UIBrick(
+    key='segment_list', name='Segments',
+    description="Une suite de segments (début, fin, texte, locuteur), éditable, abonnée à l'axe : "
+                "le segment joué se surligne et la liste le suit ; deux modes — Navigation (↑/↓, "
+                "Tab = segment suivant, Entrée, Ctrl+Entrée = couper à la tête de lecture) et "
+                "Édition (frappe, scinder au curseur, fusionner) ; ▶ par segment, fusion d'une "
+                "plage au glisser, compactage par locuteur, relecture (✓ et progression), verrou "
+                "« suivre la lecture », noms des intervenants, reprise d'une version lue.",
+    script='common/js/surfaces/brick-segment-list.js',
+    requires=('common/js/wama-axis.js', 'common/js/wama-segments.js'),
+    consumes=('segments',), emits=('segments',)))
+
+register_brick(UIBrick(
+    key='item_settings', name="Réglages de l'élément",
+    description="Des réglages de l'élément sur la page — ceux que l'emplacement nomme parmi ceux que "
+                "la surface déclare —, rendus par le moteur commun des réglages et écrits par la "
+                "route commune de l'app (la même que la modale ⚙) ; des faits en lecture seule.",
+    script='common/js/surfaces/brick-item-settings.js',
+    requires=('common/js/wama-params.js',)))
+
+register_brick(UIBrick(
+    key='speaker_names', name='Intervenants',
+    description="Un nom par locuteur présent dans les segments, appliqué en un geste — un réglage de "
+                "l'élément, montré par les briques qui affichent les locuteurs et repris dans le "
+                "document de sortie ; « Identifier automatiquement » pré-remplit les champs vides.",
+    script='common/js/surfaces/brick-speaker-names.js',
+    requires=('common/js/wama-segments.js', 'common/js/wama-params.js'),
+    consumes=('segments',)))
 
 register_brick(UIBrick(
     key='score_view', name='Partition',

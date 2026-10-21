@@ -4,6 +4,7 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
   page    GET   /common/surface/<app>/<clé>/<pk>/        la page : grille des briques
   data    GET   …/data/                                  ce que les briques lisent (JSON)
                 …/data/?only=rhythm&role=<rôle>          la grille des temps d'un audio lu
+                …/data/?only=peaks&role=<rôle>[&poll=1]  les pics fins d'un média lu (état ou pics)
   save    POST  …/save/                                  le champ édité, validé par la surface
 
 Droits : LIRE = voir la card (la règle de l'aperçu, `PreviewRegistry.check_permission`, cards
@@ -57,6 +58,27 @@ def _url(name: str, *args) -> str:
         return ''
 
 
+def _settings_url(app: str, pk: int) -> str:
+    """La route des réglages d'UN élément que l'app sert (`update_settings` et ses orthographes
+    admises — `urls_gen.served_route`, le résolveur unique), '' si elle n'en sert pas."""
+    from wama.common.manifests.codegen.urls_gen import served_route
+    name = served_route(app, 'update_settings', args=[pk])
+    return _url(f'{app}:{name}', pk) if name else ''
+
+
+def _settings_of(found, item) -> dict:
+    """Les réglages que la page lit (`Surface.settings`) : leur schéma — celui de l'app, réduit aux
+    noms déclarés — et leurs valeurs sur l'élément."""
+    from wama.common.utils.param_schema import schema_for_app
+    names = set(found.settings)
+    schema = [p for p in schema_for_app(found.app) if p.get('name') in names]
+    values = {}
+    for name in found.settings:
+        value = getattr(item, name, None)
+        values[name] = value.isoformat() if hasattr(value, 'isoformat') else value
+    return {'schema': schema, 'values': values}
+
+
 @login_required
 @require_GET
 def surface_page(request, app: str, key: str, pk: int):
@@ -80,6 +102,9 @@ def surface_page(request, app: str, key: str, pk: int):
             'back_url': _url(f'{app}:index'),
             'can_edit': _can_edit(request.user, item),
             'layout_key': f'wama.surface.{found.id}',
+            # Les routes de geste de l'app (`Surface.routes`) et celle de ses réglages.
+            'routes': {gesture: _url(f'{app}:{name}', pk) for gesture, name in found.routes.items()},
+            'settings_url': _settings_url(app, pk) if found.settings else '',
         },
         'scripts': found.scripts(),
     })
@@ -95,6 +120,14 @@ def surface_data(request, app: str, key: str, pk: int):
         return JsonResponse({'error': reason}, status=409)
     if request.GET.get('only') == 'rhythm':
         return JsonResponse({'rhythm': _rhythm_of(found, item, request.GET.get('role') or '')})
+    if request.GET.get('only') == 'peaks':
+        # Les PICS FINS d'un média lu (service commun `waveform.dense_peaks`) : mis en file s'ils
+        # manquent ; un échec se retente à la 1ʳᵉ demande d'une page, pas pendant qu'elle interroge.
+        from wama.common.utils.waveform import dense_peaks
+        field_name = found.reads.get(request.GET.get('role') or '')
+        value = getattr(item, field_name, None) if field_name and field_name not in found.documents else None
+        return JsonResponse(dense_peaks(getattr(value, 'name', '') or '',
+                                        retry_failed=not request.GET.get('poll')))
     from wama.common.services.edit_lock import state_token
     reads, media = {}, {}
     for role, field_name in found.reads.items():
@@ -120,6 +153,7 @@ def surface_data(request, app: str, key: str, pk: int):
         'media': media,
         'value': value,
         'context': found.context_of(item),
+        'settings': _settings_of(found, item) if found.settings else None,
         'can_edit': _can_edit(request.user, item),
         'token': state_token(value),
     })
@@ -224,7 +258,10 @@ def _rhythm_of(found, item, role: str):
 
 
 def _value_of(found, item):
-    """La valeur ÉDITÉE telle que la page la reçoit : le texte du fichier, ou le champ de donnée."""
+    """La valeur ÉDITÉE telle que la page la reçoit : celle que la surface déclare (`value`), sinon
+    le texte du fichier, ou le champ de donnée."""
+    if found.value is not None:
+        return found.value(item)
     edited = found.edited(item)
     if found.text_value:
         return _text(getattr(item, edited, None))
@@ -282,9 +319,12 @@ def _text(value, limit: int = -1) -> str:
 
 
 def _document(value):
-    """Un document JSON porté par un champ fichier (`detections_file`), lu tel quel."""
+    """Un document JSON porté par un champ fichier (`detections_file`), lu tel quel — ou par un
+    champ JSON (`segments_json`, 2026-10-21), rendu tel quel : la nature se DÉDUIT de la valeur."""
     if not value:
         return None
+    if isinstance(value, (dict, list)):
+        return value
     try:
         with open(value.path, encoding='utf-8') as source:
             return json.load(source)
@@ -306,6 +346,8 @@ def surface_save(request, app: str, key: str, pk: int):
         value = found.clean(payload.get('value'))
     except (ValueError, KeyError, TypeError) as error:
         return JsonResponse({'error': str(error)}, status=400)
+    # « Terminer » (`Surface.finish`) : le même enregistrement, marqué fini.
+    finished = bool(found.finish and payload.get('finished') is True)
     changed = True
     edited = found.edited(item)
     with transaction.atomic():
@@ -331,6 +373,9 @@ def surface_save(request, app: str, key: str, pk: int):
         from wama.common.services.revisions import record_revision
         record_revision(app, item, origin=ItemRevision.ORIGIN_MANUAL, user=request.user,
                         output_fields=[edited])
+    if found.saved is not None:
+        # Les conséquences propres à l'app, sur la valeur ÉCRITE (`Surface.saved`).
+        found.saved(item, value, request.user, finished)
     stale = []
     if found.reruns:
         # La péremption suit le champ SURVEILLÉ — on la recalcule ici pour la dire à la page.
@@ -341,5 +386,5 @@ def surface_save(request, app: str, key: str, pk: int):
                 stale = sorted(pipeline.refresh(item))
         except Exception:
             stale = []
-    return JsonResponse({'ok': True, 'value': value, 'stale': stale,
+    return JsonResponse({'ok': True, 'value': value, 'stale': stale, 'finished': finished,
                          'token': edit_lock.state_token(value)})

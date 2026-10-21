@@ -483,13 +483,20 @@ def surface_button(app, key, item):
     if found is None:
         return {'shown': False}
     ok, reason = found.can_open(item)
-    # « Corrigé » se lit d'une couche de corrections non vide ; un fichier texte édité est
-    # TOUJOURS rempli (c'est la sortie du process) et ne dit donc rien de tel.
-    corrections = not found.text_value and (getattr(item, found.edits, None) or {})
+    if found.edit_state is not None:
+        # L'état que l'élément PORTE (`Surface.edit_state` : la correction du transcriber est un
+        # brouillon ou terminée, 2026-10-21).
+        state = found.edit_state(item) or 'none'
+    else:
+        # « Corrigé » se lit d'une couche de corrections non vide ; un fichier texte édité est
+        # TOUJOURS rempli (c'est la sortie du process) et ne dit donc rien de tel.
+        corrections = not found.text_value and (getattr(item, found.edits, None) or {})
+        state = 'done' if corrections else 'none'
+    suffix = {'draft': ' — brouillon en cours', 'done': ' — corrigé'}.get(state, '')
     return {
         'shown': True, 'ok': ok,
         'url': reverse('common:surface', args=[app, key, item.pk]),
-        'title': found.label if ok else reason,
+        'title': (found.label + suffix) if ok else reason,
         # État du geste, rendu par le CSS commun de `edit-btn` (contour plein = corrigé).
-        'state': 'done' if corrections else 'none',
+        'state': state,
     }
