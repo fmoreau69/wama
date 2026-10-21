@@ -2529,9 +2529,11 @@ MECHANISMS = (
     # Rattachés le 2026-09-30 : deux traitements du SIGNAL de parole, sans modèle, qui n'étaient
     # pas sur la carte — le nivellement vivait depuis le 29/09 comme réglage du transcriber.
     Mechanism('speech_leveling', 'Nivellement de la parole',
-              "Automation de niveau qui suit les mots : la parole est amenée vers −20 dBFS, les "
-              "silences gardent le gain des mots voisins (le bruit n'est pas pompé), crêtes limitées "
-              "en douceur. Réglage optionnel du transcriber, MESURÉ dans les lots d'évaluation",
+              "Automation de niveau qui suit les mots : les passages sont égalisés (vers −20 dBFS), "
+              "les silences gardent le gain des mots voisins (le bruit n'est pas pompé) ; le niveau "
+              "de parole ne sort jamais plus bas qu'il n'est entré, puis le signal monte jusqu'à une "
+              "crête de −0,2 dBFS (2026-10-21), crêtes limitées en douceur. Réglage optionnel du "
+              "transcriber, MESURÉ dans les lots d'évaluation",
               'wama/common/utils/speech_leveling.py', 'docs/construction/ia/WAMA_QUALITE.md',
               annexes=('wama/common/tests/tests_speech_leveling.py',)),
     Mechanism('audio_degradation', 'Dégradation contrôlée d\'un enregistrement de parole',

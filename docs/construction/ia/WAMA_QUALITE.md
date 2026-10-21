@@ -1125,6 +1125,13 @@ cards diffèrent de QUATRE choses à la fois :
   bouge en revanche : le **plancher des silences monte de 14 dB** (−50,6 → −36,6 dBFS), les silences
   gardant le gain des mots voisins. Sur #1070 les ajouts ont pourtant BAISSÉ (4 213 → 3 291) ; à
   surveiller sur un audio au fond plus bruyant.
+- ✅ **Garantie posée le jour même** (demande de Fabien : « être sûr qu'on n'abaisse jamais le
+  niveau global ») : le niveau de parole ne sort jamais plus bas qu'il n'est entré — une parole
+  déjà forte (−12 dBFS) sortait à −20 —, puis le signal monte jusqu'à une crête de 0,98
+  (`speech_leveling.level_speech`, gardes `tests_speech_leveling`, rouges sur la brique d'avant).
+  Sur Bonneuil, rien ne change (aucune baisse, crête déjà à −0,2 dBFS). ⚠ Les mesures du banc
+  ci-dessus ont été faites AVANT : sur un audio fort, la brique d'aujourd'hui n'est plus celle
+  mesurée — Whisper étant peu sensible au gain global, l'effet attendu est nul, NON remesuré.
 
 **Suite (2026-10-01, soir) — trois moteurs de plus, exécutables, PAS encore évalués.** LinTO FR
 (NeMo), FrWhisper et Kyutai STT 1B fr/en sont intégrés par les rôles (chaîne et trous :

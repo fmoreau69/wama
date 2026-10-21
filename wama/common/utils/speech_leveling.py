@@ -14,8 +14,9 @@ réglage OPTIONNEL du transcriber, pour être MESURÉ contre une référence dan
 la limitation des crêtes est corrigée (voir en fin de `level_speech`).
 
 ⚠ La cible est un niveau MOYEN de parole (−20 dBFS), pas une crête : viser 0 dB en moyenne
-saturerait en permanence. La limitation douce garde les crêtes sous 0 dB — le nivellement fait
-donc aussi ce que fait une normalisation de crête.
+saturerait en permanence. Depuis le 2026-10-21 le niveau de parole ne sort jamais plus BAS qu'il
+n'est entré, et le signal monte ensuite jusqu'à une crête de 0,98 (−0,2 dBFS) — une normalisation
+de crête vers le haut, la limitation douce gardant les crêtes sous 0 dB.
 """
 from __future__ import annotations
 
@@ -57,12 +58,36 @@ def level_speech(wave, sample_rate: int = 16000, *, target_db: float = -20.0,
     gain_db = np.convolve(gain_db, np.ones(s) / s, 'same')
     gain = np.repeat(10 ** (gain_db / 20), hop).astype(np.float32)
     out = np.concatenate([wave[: n * hop] * gain, wave[n * hop:] * (gain[-1] if len(gain) else 1.0)])
+    # JAMAIS PLUS BAS QU'À L'ENTRÉE, puis la marge de crête (2026-10-21, demande de Fabien : « être
+    # sûr qu'on n'abaisse jamais le niveau global », « l'approcher du 0 dB pour qu'il soit le plus
+    # audible possible »). Le nivellement égalise les passages vers −20 dBFS ; une parole déjà
+    # forte (−12 dBFS) en sortait plus basse. Le niveau de parole global remonte donc à celui de
+    # l'entrée s'il l'a perdu, puis tout le signal monte jusqu'à ce que sa crête touche 0,98 :
+    # l'égalisation des passages reste, le niveau absolu ne baisse jamais.
+    before, after = _speech_level_db(wave, hop, gate_db), _speech_level_db(out, hop, gate_db)
+    if before is not None and after is not None and after < before:
+        out = out * np.float32(10 ** ((before - after) / 20))
+    peak = float(np.abs(out).max()) if len(out) else 0.0
+    if 0.0 < peak < 0.98:
+        out = out * np.float32(0.98 / peak)
     # Limitation douce des crêtes : ≈ linéaire aux bas niveaux, bornée à 0,98. ⚠ Le prototype du
     # 25/09 écrivait `tanh(x) / tanh(1) × 0,98`, qui DÉPASSE 1 dès que |x| > 1 (jusqu'à ×1,29) —
     # l'écriture en 16 bits aurait écrêté. Seule différence avec lui.
     if np.abs(out).max() > 0.98:
         out = 0.98 * np.tanh(out / 0.98)
     return out.astype(np.float32)
+
+
+def _speech_level_db(wave, hop: int, gate_db: float):
+    """Niveau moyen des trames de PAROLE (dBFS) — la lecture de `level_speech`, sur un signal
+    entier ; None sans parole repérable."""
+    n = len(wave) // hop
+    if n == 0:
+        return None
+    power = (np.asarray(wave[: n * hop], dtype=np.float64).reshape(n, hop) ** 2).mean(axis=1) + 1e-12
+    db = 10 * np.log10(power)
+    speech = db > np.percentile(db, 15) + gate_db
+    return float(10 * np.log10(power[speech].mean())) if speech.any() else None
 
 
 def level_file(in_path, out_path, sample_rate: int = 16000) -> str:
