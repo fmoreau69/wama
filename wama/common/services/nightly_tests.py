@@ -289,10 +289,8 @@ def get_test_dev_user():
     from wama.accounts.permissions import GROUP_PREFIX
     group, _ = Group.objects.get_or_create(name=f"{GROUP_PREFIX}ingenierie")
     user.groups.add(group)                     # idempotent
-    prof = getattr(user, 'profile', None)
-    if prof is not None and getattr(prof, 'account_tier', '') != 'developpeur':
-        prof.account_tier = 'developpeur'
-        prof.save(update_fields=['account_tier'])
+    from wama.accounts.permissions import set_account_tier
+    set_account_tier(user, 'developpeur')      # le seul écrivain du niveau (2026-10-21)
     return user
 
 

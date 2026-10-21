@@ -17,9 +17,11 @@ CE QU'IL MESURE, en geste d'administrateur :
   6. au téléphone (390 px), aucun défilement horizontal ;
 et sur tout le parcours, zéro erreur JS et aucune requête POST (la page ne fait que LIRE).
 
-⚠ Les comptes de test ne sont pas administrateurs (`nightly_tests.TEST_USERNAMES`) : le groupe
-`admin` est PRÊTÉ à `wama_pw_smoke` le temps du passage et retiré dans le `finally` — jamais une
-session forgée sur un compte réel (skill `smoke`, page réservée aux admins).
+⚠ Les comptes de test ne sont pas administrateurs (`nightly_tests.TEST_USERNAMES`) : le NIVEAU
+administrateur est PRÊTÉ à `wama_pw_smoke` le temps du passage (`set_account_tier`) et son niveau
+rendu dans le `finally` — jamais une session forgée sur un compte réel (skill `smoke`, page
+réservée aux admins). Il prêtait le groupe `admin`, qui ne fait plus d'administrateur depuis le
+2026-10-21 (le niveau du profil est la seule définition).
 """
 from .ui_smoke import BASE_URL, _drop_new_sessions, _exiger_la_page, _session_keys
 from .ui_smoke_matching import _cookie
@@ -53,25 +55,25 @@ JS_PANEL = """() => ({
 
 
 def _admin_session():
-    """(user, group, had_it, session) — la session du compte de test, le groupe `admin` prêté."""
+    """(user, previous_tier, session) — la session du compte de test, le niveau administrateur prêté."""
     from importlib import import_module
 
     from django.conf import settings
     from django.contrib.auth import get_user_model
-    from django.contrib.auth.models import Group
+
+    from wama.accounts.permissions import set_account_tier, user_tier
 
     user = get_user_model().objects.filter(username=ACCOUNT, is_active=True).first()
-    group = Group.objects.filter(name='admin').first()
-    if user is None or group is None:
+    if user is None:
         return None
-    had_it = user.groups.filter(pk=group.pk).exists()
-    user.groups.add(group)
+    previous_tier = user_tier(user)
+    set_account_tier(user, 'admin')
     session = import_module(settings.SESSION_ENGINE).SessionStore()
     session['_auth_user_id'] = str(user.pk)
     session['_auth_user_backend'] = 'django.contrib.auth.backends.ModelBackend'
     session['_auth_user_hash'] = user.get_session_auth_hash()
     session.create()
-    return user, group, had_it, session
+    return user, previous_tier, session
 
 
 def check_constellation():
@@ -88,8 +90,8 @@ def check_constellation():
     sessions_before = _session_keys()
     granted = _admin_session()
     if granted is None:
-        raise SkipScenario(f"compte de test `{ACCOUNT}` ou groupe `admin` absent")
-    user, group, had_it, session = granted
+        raise SkipScenario(f"compte de test `{ACCOUNT}` absent")
+    user, previous_tier, session = granted
     faults, steps, js_errors, posts = [], [], [], []
     try:
         with sync_playwright() as p:
@@ -191,8 +193,8 @@ def check_constellation():
             finally:
                 browser.close()
     finally:
-        if not had_it:
-            user.groups.remove(group)
+        from wama.accounts.permissions import set_account_tier
+        set_account_tier(user, previous_tier)
         session.delete()
         _drop_new_sessions(sessions_before)
     if js_errors:

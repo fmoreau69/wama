@@ -282,10 +282,10 @@ class InstanceKeyTest(TestCase):
     URL = '/common/sources/{}/instance-key/'
 
     def setUp(self):
-        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import set_account_tier
         User = get_user_model()
         self.admin = User.objects.create_user('instance_key_admin', password='x')
-        self.admin.groups.add(Group.objects.get_or_create(name='admin')[0])
+        set_account_tier(self.admin, 'admin')
         self.user = User.objects.create_user('instance_key_user', password='x')
         refresh = mock.patch('wama.model_manager.services.cloud_models.refresh_key',
                              return_value=(2, ''))
@@ -403,12 +403,12 @@ class RemovedKeyWithdrawsItsModelsTest(TestCase):
     every selector, and no one could call them."""
 
     def setUp(self):
-        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import set_account_tier
 
         from wama.model_manager.models import AIModel
         User = get_user_model()
         self.admin = User.objects.create_user('removed_key_admin', password='x')
-        self.admin.groups.add(Group.objects.get_or_create(name='admin')[0])
+        set_account_tier(self.admin, 'admin')
         self.user = User.objects.create_user('removed_key_user', password='x')
         for model_key in ('albert:only-mine', 'albert:also-elsewhere', 'ilaas:instance-only'):
             source, name = model_key.split(':')
@@ -457,10 +457,10 @@ class InstanceAddressTest(TestCase):
     URL = '/common/sources/{}/instance-address/'
 
     def setUp(self):
-        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import set_account_tier
         User = get_user_model()
         self.admin = User.objects.create_user('instance_address_admin', password='x')
-        self.admin.groups.add(Group.objects.get_or_create(name='admin')[0])
+        set_account_tier(self.admin, 'admin')
         self.user = User.objects.create_user('instance_address_user', password='x')
 
     def _post(self, source, address, user=None):

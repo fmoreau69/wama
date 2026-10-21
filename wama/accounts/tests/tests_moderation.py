@@ -13,12 +13,13 @@ notifications, journal — est le vrai.
 """
 from unittest import mock
 
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.core import mail
 from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from wama.accounts import moderation
+from wama.accounts.permissions import set_account_tier
 from wama.accounts.ldap_backend import WamaLDAPBackend
 from wama.accounts.models import AccessLog
 from wama.common.models import Notification
@@ -31,10 +32,10 @@ class FirstLoginModerationTests(TestCase):
 
     def setUp(self):
         self.admin = User.objects.create_user('the.admin', password='x', email='admin@test.local')
-        self.admin.groups.add(Group.objects.get_or_create(name='admin')[0])
+        set_account_tier(self.admin, 'admin')
         self.root = User.objects.create_superuser('the.root', password='x', email='root@test.local')
         self.dev = User.objects.create_user('the.dev', password='x')
-        self.dev.groups.add(Group.objects.get_or_create(name='dev')[0])
+        set_account_tier(self.dev, 'developpeur')
 
     def _first_login(self, username='new.colleague'):
         """Ce que fait le moteur LDAP pour un nom inconnu de WAMA : il construit le compte, que

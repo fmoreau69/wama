@@ -27,9 +27,12 @@ class _Compte:
     is_staff = False
 
 
-class _Staff:
+class _Admin:
+    """L'administrateur : le NIVEAU du profil (2026-10-21) — sans le drapeau `is_staff`, qui
+    ne décide plus rien dans WAMA."""
     is_authenticated = True
-    is_staff = True
+    is_staff = False
+    profile = type('Profile', (), {'account_tier': 'admin'})()
 
 
 class ContratTest(TestCase):
@@ -275,10 +278,13 @@ class ConformiteTest(TestCase):
 
 class PermissionTest(TestCase):
 
-    def test_staff_exige_pour_un_registre_qui_ecrit(self):
+    def test_a_writing_registry_requires_an_administrator(self):
         self.assertFalse(is_authorized(get('apps'), _Anon()))
         self.assertFalse(is_authorized(get('apps'), _Compte()))
-        self.assertTrue(is_authorized(get('apps'), _Staff()))
+        staff_flag_only = type('StaffFlagOnly', (), {'is_authenticated': True, 'is_staff': True})()
+        self.assertFalse(is_authorized(get('apps'), staff_flag_only),
+                         "le drapeau Django is_staff fait encore un administrateur")
+        self.assertTrue(is_authorized(get('apps'), _Admin()))
 
     def test_a_shared_registry_is_refreshed_by_a_developer_never_by_a_plain_account(self):
         """2026-10-13 (Fabien's decision): a plain account READS the registries, never refreshes

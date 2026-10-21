@@ -2712,11 +2712,13 @@ def api_mount_login_flow_poll(request, flow_id):
 def api_remount_shares(request):
     """
     Re-mount all WAMA-managed CIFS shares (called from start_wama_prod.sh via localhost).
-    Only accessible from 127.0.0.1 or by superusers.
+    Only accessible from 127.0.0.1 or by an administrator (`is_admin_tier`, le niveau du profil —
+    il lisait le drapeau `is_superuser`, 2026-10-21).
     """
     import sys
     addr = request.META.get('REMOTE_ADDR', '')
-    if not (request.user.is_superuser or addr in ('127.0.0.1', '::1')):
+    from wama.accounts.permissions import is_admin_tier
+    if not (is_admin_tier(request.user) or addr in ('127.0.0.1', '::1')):
         return JsonResponse({'error': 'Forbidden'}, status=403)
 
     if not sys.platform.startswith('linux'):

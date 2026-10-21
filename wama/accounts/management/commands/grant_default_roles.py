@@ -8,7 +8,7 @@ par construction, donc c'est justement lui que la cible « sans aucun rôle » a
 Options :
   --roles communication,recherche   limiter aux rôles donnés
   --all-users                       (ré)appliquer même aux users ayant déjà des rôles
-  --include-superusers              inclure les superusers (inutile : ils bypassent)
+  --include-superusers              inclure les administrateurs (inutile : ils bypassent)
 Idempotent.
 """
 from django.core.management.base import BaseCommand
@@ -40,9 +40,12 @@ class Command(BaseCommand):
         # l'accès reste à 0/11 (le tier `anonymous` tranche avant) — mais combiné à un compte
         # RECRÉÉ au tier par défaut `utilisateur`, on retrouve 10 apps sur 11. On ne compte pas
         # sur un seul des deux verrous.
-        qs = User.objects.exclude(username=ANONYMOUS_USERNAME)
+        qs = User.objects.exclude(username=ANONYMOUS_USERNAME).select_related('profile')
         if not opts['include_superusers']:
-            qs = qs.filter(is_superuser=False)
+            # Les ADMINISTRATEURS (le niveau du profil, 2026-10-21) — il filtrait le drapeau
+            # `is_superuser`, une autre définition.
+            from wama.accounts.permissions import is_admin_tier
+            qs = [u for u in qs if not is_admin_tier(u)]
 
         touched = 0
         for u in qs:

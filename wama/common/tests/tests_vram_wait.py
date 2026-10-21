@@ -100,7 +100,9 @@ class ThreeCasesTest(_Base):
         obtain.assert_not_called()
 
     def test_an_admin_s_grant_is_honoured(self):
-        admin = get_user_model().objects.create_user('b1_admin', password='x', is_staff=True)
+        from wama.accounts.permissions import set_account_tier
+        admin = get_user_model().objects.create_user('b1_admin', password='x')
+        set_account_tier(admin, 'admin')
         gov.grant_release('synthesizer', self.item.pk, user_id=admin.pk)
         with mock.patch.object(gov, 'obtain_vram', return_value=(True, 22.0)):
             self.assertFalse(self._defer(20.0))

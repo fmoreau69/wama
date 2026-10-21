@@ -1,5 +1,4 @@
 from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
-from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.models import User
 from django.db import models
 from django.db.models.signals import post_save
@@ -495,13 +494,3 @@ class UserRegistrationForm(UserCreationForm):
             # group = Group.objects.get(name='default_users')
             # user.groups.add(group)
         return user
-
-
-def group_required(*group_names):
-    """
-    Checks whether the user belongs to one of the given groups, or is a superuser.
-    """
-    def in_groups(u):
-        return u.is_authenticated and (u.is_superuser or u.groups.filter(name__in=group_names).exists())
-
-    return user_passes_test(in_groups, login_url='accounts:signin')

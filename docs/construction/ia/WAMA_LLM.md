@@ -2048,6 +2048,8 @@ parce que ce sont des surfaces.
   menu), le niveau de compte `admin` du profil (`permissions.user_tier`), et
   `can_manage_registries` (niveau développeur ou administrateur). Un compte de niveau « admin »
   hors du groupe `admin` n'ouvre pas Users. Décision à prendre, pas un défaut de ce chantier.
+  → **Tranchée le 2026-10-21** : le niveau du profil est la seule définition
+  (`PROFILES_PERMISSIONS §1.10`).
 
 Tests : `tests_assistant_reach` — consignes, mémoire, fichiers et montages, pages, et le chat en
 V8 sur le fichier servi.

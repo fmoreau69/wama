@@ -55,8 +55,9 @@ class RememberFactTest(TestCase):
 
     def setUp(self):
         self.user = get_user_model().objects.create_user('reach_memory', password='x')
-        self.staff = get_user_model().objects.create_user('reach_staff', password='x',
-                                                          is_staff=True)
+        from wama.accounts.permissions import set_account_tier
+        self.staff = get_user_model().objects.create_user('reach_staff', password='x')
+        set_account_tier(self.staff, 'admin')
 
     def test_the_memory_is_proposed_not_active(self, _embed):
         from wama.common.models import MemoryItem

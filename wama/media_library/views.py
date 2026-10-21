@@ -945,7 +945,8 @@ def api_export_item(request, app: str, pk: int):
     if instance is None:
         return JsonResponse({'error': f"Élément #{pk} introuvable."}, status=404)
     proprietaire = getattr(instance, 'user', None)
-    if proprietaire is not None and proprietaire != request.user and not request.user.is_staff:
+    from wama.accounts.permissions import is_admin_tier
+    if proprietaire is not None and proprietaire != request.user and not is_admin_tier(request.user):
         return JsonResponse({'error': 'forbidden'}, status=403)
     # ÉTAT PERSISTÉ : sous quelles CLÉS la sortie est DÉJÀ rangée (provenance). Rendu dans les
     # deux réponses — un asset reste retirable même si l'élément n'a plus de résultat lisible.

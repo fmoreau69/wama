@@ -29,11 +29,12 @@ logger = logging.getLogger(__name__)
 
 def _moderator_emails():
     """Destinataires des notifications de modération : WAMA_MODERATOR_EMAILS,
-    sinon les emails des superusers actifs."""
+    sinon les emails des ADMINISTRATEURS actifs (`permissions.administrators`, le niveau du
+    profil — il lisait le drapeau superutilisateur, une autre définition, 2026-10-21)."""
+    from wama.accounts.permissions import administrators
     emails = list(getattr(settings, 'WAMA_MODERATOR_EMAILS', []) or [])
     if not emails:
-        emails = list(User.objects.filter(is_superuser=True, is_active=True)
-                      .exclude(email='').values_list('email', flat=True))
+        emails = [u.email for u in administrators() if u.email]
     return [e for e in emails if e]
 
 
@@ -50,9 +51,10 @@ PENDING_MESSAGE = ("Votre compte WAMA est en attente de validation par un admini
 def account_moderators():
     """Les comptes qui peuvent ACTIVER un compte — le prédicat de la vue qui le fait
     (`views.user_toggle_active`, `@admin_required` → `views.is_admin`), pour que la demande
-    n'arrive qu'à ceux qui peuvent y répondre."""
-    from .views import is_admin
-    return [u for u in User.objects.filter(is_active=True) if is_admin(u)]
+    n'arrive qu'à ceux qui peuvent y répondre. La lecture commune des administrateurs
+    (`permissions.administrators`), celle de la promotion aussi (2026-10-21)."""
+    from wama.accounts.permissions import administrators
+    return administrators()
 
 
 def request_moderation(user) -> dict:

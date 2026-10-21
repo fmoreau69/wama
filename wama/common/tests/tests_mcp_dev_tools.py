@@ -39,13 +39,15 @@ class PredicatDeveloppeurTest(TestCase):
         self.assertFalse(is_developer(self._user('ordinaire')))
         self.assertFalse(is_developer(None))
 
-    def test_les_groupes_font_un_developpeur(self):
-        from wama.accounts.permissions import DEVELOPER_GROUPS, is_developer
-        for groupe in DEVELOPER_GROUPS:
-            with self.subTest(groupe=groupe):
-                user = self._user(f'g_{groupe}')
-                user.groups.add(Group.objects.get_or_create(name=groupe)[0])
-                self.assertTrue(is_developer(user))
+    def test_a_legacy_group_no_longer_makes_a_developer(self):
+        """Le NIVEAU du profil est la seule définition (décision de Fabien, 2026-10-21) : les
+        groupes hérités de `accounts/0002` faisaient un développeur, ils ne font plus rien."""
+        from wama.accounts.permissions import is_developer
+        for group_name in ('dev', 'admin', 'developpeur'):
+            with self.subTest(group=group_name):
+                user = self._user(f'g_{group_name}')
+                user.groups.add(Group.objects.get_or_create(name=group_name)[0])
+                self.assertFalse(is_developer(user))
 
     def test_le_TIER_developpeur_suffit_sans_groupe(self):
         """La branche qui était MORTE : `profile.tier` n'existe pas, le champ est `account_tier`."""
@@ -141,7 +143,8 @@ class DroitsEtSurfaceTest(TestCase):
     def setUp(self):
         self.ordinaire = get_user_model().objects.create_user('mcp_dev_ordinaire', password='x')
         self.dev = get_user_model().objects.create_user('mcp_dev_dev', password='x')
-        self.dev.groups.add(Group.objects.get_or_create(name='dev')[0])
+        from wama.accounts.permissions import set_account_tier
+        set_account_tier(self.dev, 'developpeur')
 
     def test_un_non_developpeur_ne_voit_ni_n_appelle_rien(self):
         self.assertEqual([], dev_tools.tools_for(self.ordinaire))

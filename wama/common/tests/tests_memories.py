@@ -9,7 +9,8 @@ Ce que ces tests protègent, et pourquoi chacun existe :
    vérités au lieu d'une seule.
 2. **La file de revue n'est PAS scopée** (délibéré : les souvenirs importés portent
    `user=NULL` + `private`, qu'aucune branche de `scoped_visible_q` ne matche). Sa seule garde
-   est le `is_staff` de la vue. Une garde qui tient à une ligne de vue se teste, sinon elle
+   est la garde ADMINISTRATEUR de la vue (`is_admin_tier`, le niveau du profil — elle lisait
+   le drapeau `is_staff` jusqu'au 2026-10-21). Une garde qui tient à une ligne de vue se teste, sinon elle
    disparaîtra au premier remaniement sans que rien ne plante.
 3. **Un non approuvé ne doit JAMAIS entrer dans la liste active** — c'est la gouvernance
    `WAMA_MEMORY §6`, et son coût est mesuré (4 affirmations fausses sur 6 audits).
@@ -18,6 +19,8 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
+
+from wama.accounts.permissions import set_account_tier
 
 from ..memory.store import list_memories
 from ..models import MemoryItem
@@ -73,7 +76,8 @@ class PageSouvenirsTest(TestCase):
     def setUpTestData(cls):
         U = get_user_model()
         cls.simple = U.objects.create_user('simple', password='x')
-        cls.staff = U.objects.create_user('chef', password='x', is_staff=True)
+        cls.staff = U.objects.create_user('chef', password='x')
+        set_account_tier(cls.staff, 'admin')
         _souvenir(user=None, provenance='dev-ai', content='EN-ATTENTE-SECRET')
 
     def test_la_page_exige_une_connexion(self):
@@ -141,7 +145,8 @@ class ApprobationTest(TestCase):
     def setUpTestData(cls):
         U = get_user_model()
         cls.simple = U.objects.create_user('simple_appro', password='x')
-        cls.staff = U.objects.create_user('chef_appro', password='x', is_staff=True)
+        cls.staff = U.objects.create_user('chef_appro', password='x')
+        set_account_tier(cls.staff, 'admin')
 
     def test_approve_refuse_sans_approbateur(self):
         """« Approuvé par personne » est le trou par lequel une sortie LLM entrerait en fait."""

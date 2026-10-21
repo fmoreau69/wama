@@ -2627,7 +2627,8 @@ def get_item_detail(user, app: str, pk: int) -> dict:
     # MÊME règle d'ownership que `unified_detail` (detail_registry.py) — les deux portes ne
     # doivent jamais diverger, sinon l'assistant voit plus (ou moins) que l'inspecteur.
     owner = getattr(instance, 'user', None)
-    if owner is not None and owner != user and not getattr(user, 'is_staff', False):
+    from wama.accounts.permissions import is_admin_tier
+    if owner is not None and owner != user and not is_admin_tier(user):
         return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
 
     try:
@@ -2859,7 +2860,8 @@ def get_item_result(user, app: str, pk: int, output_format: str = '') -> dict:
         return {'error': f"Élément #{pk} introuvable dans '{app}'."}
     # MÊME règle d'ownership que `get_item_detail` et l'inspecteur.
     owner = getattr(instance, 'user', None)
-    if owner is not None and owner != user and not getattr(user, 'is_staff', False):
+    from wama.accounts.permissions import is_admin_tier
+    if owner is not None and owner != user and not is_admin_tier(user):
         return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
 
     status = getattr(instance, 'status', '')
@@ -3217,7 +3219,7 @@ def get_my_access(user) -> dict:
     X?" and "why can't I see X?".
 
     Returns:
-        {"tier", "roles": [...], "apps_allowed": [...], "apps_denied": [...], "is_staff"}
+        {"tier", "roles": [...], "apps_allowed": [...], "apps_denied": [...], "is_admin"}
         or {"error"}
     """
     if refusal := _signed_in_refusal(user):
@@ -3233,7 +3235,9 @@ def get_my_access(user) -> dict:
         # Le refus est aussi informatif que l'accord : sans lui, l'assistant ne peut pas
         # DIRE pourquoi il ne propose pas une app, il peut seulement l'omettre en silence.
         'apps_denied': sorted(gardees - autorisees),
-        'is_staff': bool(getattr(user, 'is_staff', False)),
+        # Administrateur = le NIVEAU du profil (décision de Fabien, 2026-10-21) ; il rendait le
+        # drapeau Django `is_staff`, une autre définition.
+        'is_admin': user_tier(user) == 'admin',
     }
 
 
@@ -3546,7 +3550,8 @@ def remember_fact(user, content: str, kind: str = 'semantic', subject: str = '')
     active = item.approved_at is not None
     # La file de revue est réservée au staff (`memories_view`) : à un autre compte, on dit qui
     # valide, plutôt que de l'envoyer sur une page où il ne verra rien.
-    reviewer = ("vous (page « Mes souvenirs »)" if getattr(user, 'is_staff', False)
+    from wama.accounts.permissions import is_admin_tier
+    reviewer = ("vous (page « Mes souvenirs »)" if is_admin_tier(user)
                 else "un administrateur de WAMA")
     return {
         'id': item.pk,

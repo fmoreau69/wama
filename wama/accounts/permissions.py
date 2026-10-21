@@ -303,9 +303,21 @@ def tool_accessible(user, tool_name):
     return True if app_id is None else accessible(user, 'app', app_id)
 
 
-#: Groupes Django qui font un développeur. `developpeur` est un groupe HOMONYME du tier — les
-#: deux vocabulaires coexistent en base (mesuré le 2026-08-21), on accepte les deux.
-DEVELOPER_GROUPS = ('dev', 'admin', 'developpeur')
+# ── LE RÔLE DU COMPTE : UNE source, le NIVEAU du profil (décision de Fabien, 2026-10-21) ─────────
+# Trois sources décidaient d'« administrateur » ou de « développeur » : le niveau du profil
+# (`UserProfile.account_tier`), les drapeaux Django (`is_superuser`, `is_staff`) et les groupes
+# hérités `admin` / `dev` / `user` de la migration `accounts/0002`. Rien ne les tenait d'accord
+# (mesuré : un compte du groupe `dev` au niveau « utilisateur », deux développeurs sans groupe).
+# Désormais :
+#   • le NIVEAU décide, lu par `user_tier` (un superutilisateur y est compté administrateur : un
+#     compte créé par `createsuperuser` n'a pas encore de profil) ;
+#   • les DRAPEAUX en sont la conséquence, posés par le seul écrivain du niveau
+#     (`set_account_tier` : administrateur ⇒ `is_staff` + `is_superuser`, sinon ni l'un ni
+#     l'autre) — ils n'ouvrent plus que le site d'administration Django, rien dans WAMA ;
+#   • les groupes `admin` / `dev` / `user` sont retirés (`manage.py align_account_tiers`) ; ils
+#     ne portaient aucune permission. Les rôles MÉTIER `role:*` (axe B) ne sont pas concernés.
+# Deux prédicats, deux gestes : `is_admin_tier` (valider, modérer, gérer les comptes) et
+# `is_developer` (gérer les registres, les outils de développement).
 
 
 def can_manage_registries(user):
@@ -316,20 +328,20 @@ def can_manage_registries(user):
     Le PROFIL décide (développeur ou administrateur, superutilisateur compris), jamais les
     Groups hérités 'dev'/'admin' de la migration `accounts/0002` : c'était le second barème
     retiré du model manager le 27/08 (`tests_access_points.ModelManagerGardeUniqueTests`).
+    Même décision que `is_developer` depuis le 2026-10-21 : ce nom dit le GESTE gardé.
     """
-    if user is None or not getattr(user, 'is_authenticated', False):
-        return False
-    return user_tier(user) in BYPASS_TIERS
+    return is_developer(user)
 
 
 def is_developer(user):
     """
     Développeur ou administrateur — DOMICILE UNIQUE du prédicat (2026-09-15).
 
-    Réunit les deux vocabulaires de rôle : le TIER de profil (`BYPASS_TIERS`, lu par
-    `user_tier`, superutilisateur compris) et les GROUPES Django (`DEVELOPER_GROUPS`).
+    Le NIVEAU du profil seul décide (`BYPASS_TIERS`, lu par `user_tier`, superutilisateur
+    compris) — décision de Fabien du 2026-10-21. Il réunissait jusque-là le niveau et les GROUPES
+    Django `dev` / `admin` / `developpeur`, qui sont retirés (`align_account_tiers`).
     Consommateurs : l'abonnement Claude Code (`claude_code.subscription_allowed`), les outils MCP
-    de développement (`common/services/dev_tools.py`).
+    de développement (`common/services/dev_tools.py`), la gestion des registres.
 
     ⚠ DÉFAUT CORRIGÉ en l'extrayant de `subscription_allowed` : sa branche tier lisait
     `profile.tier`, un attribut qui N'EXISTE PAS — le champ est `account_tier`
@@ -338,9 +350,7 @@ def is_developer(user):
     """
     if user is None or not getattr(user, 'is_authenticated', False):
         return False
-    if user_tier(user) in BYPASS_TIERS:
-        return True
-    return user.groups.filter(name__in=DEVELOPER_GROUPS).exists()
+    return user_tier(user) in BYPASS_TIERS
 
 
 def all_gated_apps():
@@ -365,13 +375,48 @@ def user_tier(user):
 
 
 def is_admin_tier(user):
-    """Le compte est-il au niveau ADMINISTRATEUR de son profil (superutilisateur compris) ?
+    """Le compte est-il ADMINISTRATEUR ? Le NIVEAU du profil, superutilisateur compris.
 
-    UN lieu pour la question des décisions du chantier PROVENANCE (`ROADMAP §29`) — l'admin voit
-    tout le catalogue (c), il installe pour le système. ⚠ C'est l'une des trois définitions
-    d'« administrateur » qui coexistent (`PROJECT_STATUS`, clôture du 2026-10-16 : décision de
-    Fabien en attente) ; la trancher se fera ici, pas chez les appelants."""
+    LA définition de WAMA depuis le 2026-10-21 (décision de Fabien). Les trois définitions qui
+    coexistaient (groupe `admin`, drapeau `is_staff`, niveau) n'en font plus qu'une : les vues de
+    gestion des comptes, la modération, la validation, la promotion, les contournements « admin »
+    et les registres réservés lisent ce prédicat."""
     return user_tier(user) == 'admin'
+
+
+def administrators() -> list:
+    """Les comptes ACTIFS administrateurs, ceux qu'on prévient d'une demande à trancher.
+
+    Eux seuls la tranchent (un compte à valider, une promotion). Une lecture, pour toutes les
+    demandes."""
+    from django.contrib.auth import get_user_model
+    return [u for u in get_user_model().objects.filter(is_active=True).select_related('profile')
+            if is_admin_tier(u)]
+
+
+def set_account_tier(user, tier: str):
+    """Le SEUL écrivain du niveau d'un compte, drapeaux Django compris ; rend le niveau posé.
+
+    Pose le profil, puis les drapeaux qui en découlent (administrateur ⇒ `is_staff` +
+    `is_superuser`, sinon ni l'un ni l'autre) — ils n'ouvrent que le site d'administration
+    Django."""
+    from .models import UserProfile
+    if tier not in dict(TIER_CHOICES):
+        raise ValueError(f"niveau inconnu : {tier!r}")
+    # Le profil DÉJÀ chargé sur le compte, s'il l'est : l'objet que tient l'appelant suit alors
+    # le niveau posé (une copie relue à part le laisserait sur l'ancien).
+    try:
+        profile = user.profile
+    except UserProfile.DoesNotExist:
+        profile = UserProfile.objects.create(user=user)
+    if profile.account_tier != tier:
+        profile.account_tier = tier
+        profile.save(update_fields=['account_tier'])
+    admin = tier == 'admin'
+    if (user.is_staff, user.is_superuser) != (admin, admin):
+        user.is_staff = user.is_superuser = admin
+        user.save(update_fields=['is_staff', 'is_superuser'])
+    return tier
 
 
 def user_roles(user):

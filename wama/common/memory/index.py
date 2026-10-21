@@ -214,7 +214,8 @@ def add_item_to_rag(user, app_name, pk, *, level='', org_unit=''):
     owner = getattr(instance, 'user', None)
     # L'élément d'un collègue ne s'ajoute pas à MON rag : ce serait recopier son contenu sous mon
     # identité, donc contourner le partage par NIVEAU au lieu de l'utiliser.
-    if owner is not None and owner != user and not user.is_staff:
+    from wama.accounts.permissions import is_admin_tier
+    if owner is not None and owner != user and not is_admin_tier(user):
         return _refusal("cet élément ne vous appartient pas", 403)
 
     text, origin = item_text(entry['adapter'](instance) or {})

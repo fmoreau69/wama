@@ -316,9 +316,11 @@ def is_authorized(r: Registry, user) -> bool:
     """
     if not (user and user.is_authenticated):
         return False
+    from wama.accounts.permissions import can_manage_registries, is_admin_tier
     if r.permission == 'staff':
-        return bool(user.is_staff)
-    from wama.accounts.permissions import can_manage_registries
+        # « staff » = l'ADMINISTRATEUR, le niveau du profil (2026-10-21) — il lisait le
+        # drapeau Django `is_staff`, une autre définition.
+        return is_admin_tier(user)
     return can_manage_registries(user)
 
 

@@ -53,7 +53,8 @@ def listable_by(queryset, user):
 
 def can_view(instance, user, owner_field: str = 'user') -> bool:
     """`user` peut-il VOIR cet objet DÉJÀ CHARGÉ ? Son propriétaire, le staff, ou quiconque peut le
-    LISTER (`listable_by` : partagé avec lui, sauf un compte de visiteur). Un objet sans
+    LISTER (`listable_by` : partagé avec lui, sauf un compte de visiteur). « Staff » veut dire
+    l'administrateur, le niveau du profil (2026-10-21). Un objet sans
     propriétaire est ouvert.
 
     La règle des chemins de lecture pour qui tient l'objet au lieu de le chercher : l'APERÇU
@@ -64,7 +65,8 @@ def can_view(instance, user, owner_field: str = 'user') -> bool:
     owner = getattr(instance, owner_field, None)
     if owner is None:
         return True
-    if getattr(user, 'is_staff', False) or owner == user:
+    from wama.accounts.permissions import is_admin_tier
+    if owner == user or is_admin_tier(user):
         return True
     manager = type(instance)._default_manager
     if hasattr(manager, 'visible_to'):

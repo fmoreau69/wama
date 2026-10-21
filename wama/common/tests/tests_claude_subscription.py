@@ -37,13 +37,19 @@ class QuiPeutConsommerLAbonnementTests(TestCase):
         self.assertTrue(subscription_allowed(
             User.objects.create(username='fabien', is_superuser=True)))
 
-    def test_les_deux_vocabulaires_de_role_sont_acceptes(self):
-        """⚠ `dev`/`admin` sont des GROUPES, `developpeur` un groupe HOMONYME d'un tier.
-        S'en remettre à un seul vocabulaire refuserait un compte légitime."""
-        for nom_de_groupe in ('dev', 'admin', 'developpeur'):
-            user = User.objects.create(username=f'u-{nom_de_groupe}')
-            user.groups.add(Group.objects.get_or_create(name=nom_de_groupe)[0])
-            self.assertTrue(subscription_allowed(user), f"groupe {nom_de_groupe} refusé")
+    def test_the_profile_tier_decides_and_a_legacy_group_opens_nothing(self):
+        """Le NIVEAU du profil est la seule définition du rôle (décision de Fabien, 2026-10-21).
+        La garde acceptait jusque-là aussi les groupes hérités `dev` / `admin` / `developpeur` :
+        un second vocabulaire, que rien ne tenait d'accord avec le niveau."""
+        from wama.accounts.permissions import set_account_tier
+        for tier in ('developpeur', 'admin'):
+            user = User.objects.create(username=f'u-{tier}')
+            set_account_tier(user, tier)
+            self.assertTrue(subscription_allowed(user), f"niveau {tier} refusé")
+        for group_name in ('dev', 'admin', 'developpeur'):
+            user = User.objects.create(username=f'g-{group_name}')
+            user.groups.add(Group.objects.get_or_create(name=group_name)[0])
+            self.assertFalse(subscription_allowed(user), f"le groupe {group_name} ouvre encore")
 
 
 class LaGardeEstAuPassageObligeTests(TestCase):
@@ -134,9 +140,10 @@ class LEcranEtLaGardeNeDiverjentPasTests(TestCase):
                    for o in g['options']]
         return [(o[0] if isinstance(o, list) else o['value']) for o in groupes]
 
-    def test_un_membre_du_groupe_dev_voit_l_abonnement_bien_que_non_staff(self):
+    def test_a_developer_tier_account_sees_the_subscription_though_not_staff(self):
+        from wama.accounts.permissions import set_account_tier
         user = User.objects.create_user('devguy', password='x')
-        user.groups.add(Group.objects.get_or_create(name='dev')[0])
+        set_account_tier(user, 'developpeur')
         self.assertFalse(user.is_staff, "prérequis du test : ce compte n'est PAS staff")
         self.assertIn(self.MODELE, self._options(self._ouvrir(user)))
 

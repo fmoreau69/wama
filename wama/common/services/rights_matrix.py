@@ -141,8 +141,7 @@ def ensure_rights_profiles():
     """
     from django.contrib.auth import get_user_model
     from django.contrib.auth.models import Group
-    from wama.accounts.models import UserProfile
-    from wama.accounts.permissions import GROUP_PREFIX
+    from wama.accounts.permissions import GROUP_PREFIX, set_account_tier
 
     User = get_user_model()
     sortie = []
@@ -155,10 +154,7 @@ def ensure_rights_profiles():
         if cree:
             user.set_unusable_password()
             user.save(update_fields=['password'])
-        prof, _ = UserProfile.objects.get_or_create(user=user)
-        if prof.account_tier != spec['tier']:
-            prof.account_tier = spec['tier']
-            prof.save(update_fields=['account_tier'])
+        set_account_tier(user, spec['tier'])       # le seul écrivain du niveau (2026-10-21)
         voulus = [Group.objects.get_or_create(name=f"{GROUP_PREFIX}{r}")[0] for r in spec['roles']]
         actuels_roles = [g for g in user.groups.all() if g.name.startswith(GROUP_PREFIX)]
         autres = [g for g in user.groups.all() if not g.name.startswith(GROUP_PREFIX)]

@@ -8,7 +8,6 @@ import logging
 import os
 import re
 import threading
-from functools import wraps
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
@@ -18,23 +17,6 @@ from django.conf import settings
 from wama.common.utils.tts_text import text_for_speech
 
 logger = logging.getLogger(__name__)
-
-
-def _admin_api(view_func):
-    """
-    API decorator for admin-only endpoints.
-    Returns JSON 401/403 instead of HTML redirects so AJAX callers always get JSON.
-    Uses the same is_admin() logic as the home page template guard (admin group OR superuser).
-    """
-    @wraps(view_func)
-    def _wrapped(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return JsonResponse({'error': 'Authentification requise'}, status=401)
-        from wama.accounts.views import is_admin
-        if not is_admin(request.user):
-            return JsonResponse({'error': 'Accès réservé aux administrateurs'}, status=403)
-        return view_func(request, *args, **kwargs)
-    return _wrapped
 
 
 # ---------------------------------------------------------------------------
@@ -75,8 +57,8 @@ def home(request):
     """Home page view with admin check for AI chat."""
     # ⚠ NE PAS re-poser `is_admin` dans le contexte de cette vue — c'était le cas jusqu'au
     # 2026-08-31, avec `request.user.is_staff`. Le context processor `user_role` le fournit
-    # DÉJÀ à toutes les pages, avec le prédicat canonique (`accounts.views.is_admin` =
-    # superutilisateur ou groupe `admin`), et le contexte d'une vue ÉCRASE celui d'un
+    # DÉJÀ à toutes les pages, avec le prédicat canonique (`accounts.views.is_admin` →
+    # `permissions.is_admin_tier`, le niveau du profil), et le contexte d'une vue ÉCRASE celui d'un
     # processor : le menu « Users »/« Models » de `header.html` (inclus par `base.html`,
     # donc rendu partout) suivait donc UNE règle sur `/` et UNE AUTRE sur toutes les autres
     # pages. Même menu, deux barèmes, selon l'endroit où on se trouve.
@@ -85,8 +67,9 @@ def home(request):
     # échappé au balayage parce qu'il masque par le CONTEXTE et non par un décorateur —
     # aucun `is_staff` n'apparaissait dans une garde. « Deux barèmes pour une même question
     # ne restent d'accord que par chance. »
-    # `is_staff` reste légitime AILLEURS (voir autrui : common/views, detail_registry…) :
-    # le défaut n'était pas de l'utiliser, mais de l'appeler `is_admin`.
+    # Depuis le 2026-10-21 (décision de Fabien), « administrateur » n'a plus qu'UNE définition
+    # dans WAMA, le niveau du profil : `is_staff` n'est plus lu nulle part pour décider d'un
+    # droit (il n'ouvre que le site d'administration Django, posé par `set_account_tier`).
     from wama.accounts.views import is_admin as _predicat_admin
     est_admin = _predicat_admin(request.user)
     # Voix de l'assistant DÉRIVÉES de la langue du profil (brique commune) au lieu des 3

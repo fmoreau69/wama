@@ -2666,7 +2666,7 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
 
 - **Domicile** : `wama/accounts/permissions.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Modèle d'accès WAMA à DEUX AXES (voir PROFILES_PERMISSIONS.md) : - PROFIL DE COMPTE (tier, unique, hiérarchique) : anonymous < utilisateur < developpeur < admin. - RÔLES MÉTIER (cumulatifs, = Django Groups préfixés 'role:') : communication / recherche / …
-- **API publique** (19) :
+- **API publique** (21) :
   - `is_guest_account(user) -> bool` — Ce compte est-il un compte de SERVICE pour visiteur non connecté — le compte `anonymous`
   - `account_kind(user) -> str` — 'test' pour un compte de test (préfixe `wama_`) ou le compte système anonyme, 'person'
   - `app_group(app_id)`
@@ -2679,7 +2679,9 @@ Décide seul qui voit quel élément, sur DEUX axes qui se cumulent : le TIER du
   - `all_gated_apps()` — Ensemble des app_ids soumis au contrôle d'accès (pour calculer accessible_apps).
   - `tier_rank(tier)`
   - `user_tier(user)`
-  - `is_admin_tier(user)` — Le compte est-il au niveau ADMINISTRATEUR de son profil (superutilisateur compris) ?
+  - `is_admin_tier(user)` — Le compte est-il ADMINISTRATEUR ? Le NIVEAU du profil, superutilisateur compris.
+  - `administrators() -> list` — Les comptes ACTIFS administrateurs, ceux qu'on prévient d'une demande à trancher.
+  - `set_account_tier(user, tier: str)` — Le SEUL écrivain du niveau d'un compte, drapeaux Django compris ; rend le niveau posé.
   - `user_roles(user)` — Ensemble des clés de rôles métier d'un user (depuis ses Groups 'role:*').
   - `accessible(user, kind, element_id)` — Un user peut-il accéder à cet élément ? Point UNIQUE de décision (nav, vues, studio, outils).
   - `accessible_apps(user, app_ids)` — Sous-ensemble d'app_ids accessibles à user (préserve l'ordre).

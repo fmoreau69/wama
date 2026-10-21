@@ -498,7 +498,8 @@ def api_vram_grant(request):
     # (`owned_or_404`, la règle commune des mutations), ou en admin. Le squelette refait le
     # contrôle au moment d'honorer l'accord (`task_skeleton._grant_honoured`) ; sans celui-ci,
     # n'importe qui pouvait déposer un accord sur l'élément d'un autre (sans effet, mais écrit).
-    if not request.user.is_staff:
+    from wama.accounts.permissions import is_admin_tier
+    if not is_admin_tier(request.user):
         from wama.common.utils.detail_registry import DetailRegistry
         from wama.common.utils.scoping import owned_or_404
         entry = DetailRegistry.get(app_id)

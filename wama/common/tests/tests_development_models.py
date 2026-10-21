@@ -222,9 +222,9 @@ class RoleModelDrawnForTheAccountTest(TestCase):
     dans son process ; un choix sous le niveau est remplacé ET le résultat le dit."""
 
     def setUp(self):
-        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import set_account_tier
         self.user = get_user_model().objects.create_user('role_draw', password='x')
-        self.user.groups.add(Group.objects.get_or_create(name='dev')[0])
+        set_account_tier(self.user, 'developpeur')
         self.small = _model('ollama:small:4b', coding=22.6, vram=3.4)
         self.big = _model('ollama:big:8b', coding=58.2, vram=17.0)
         vram = mock.patch('wama.model_manager.services.model_selector.get_free_vram_gb',

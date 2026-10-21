@@ -6508,7 +6508,8 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      système passe. « Administrateur » veut dire ici le niveau `admin` du profil, nommé une seule
      fois (`permissions.is_admin_tier`). C'est l'une des trois définitions qui coexistent
      (`PROJECT_STATUS`, clôture du 2026-10-16), et la décision de Fabien à leur sujet se
-     reportera à cet endroit.
+     reportera à cet endroit. → **Tranchée le 2026-10-21** : c'est désormais LA définition
+     (`PROFILES_PERMISSIONS §1.10`).
    - **La décision unique** : `KIND_DECISION['model'] = 'provenance'`. `accessible(user, 'model',
      clé)` lit la ligne que le registre déclare (`owner_model`, et le champ neuf `owner_key`), par
      `registries.carried_rows`, la même lecture que la promotion. Le registre `models` passe `mixed`
@@ -6682,7 +6683,9 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
      account_moderators` (`views.is_admin`, par groupes — travail d'une autre session) prévient
      d'un compte à valider. Chacune suit le prédicat de SA vue de décision, donc elles sont justes
      aujourd'hui ; elles se réuniront quand Fabien tranchera les trois définitions
-     d'« administrateur » (`PROJECT_STATUS`, clôture du 2026-10-16).
+     d'« administrateur » (`PROJECT_STATUS`, clôture du 2026-10-16). → **Réunies le
+     2026-10-21** : toutes deux rendent `permissions.administrators()` (`PROFILES_PERMISSIONS
+     §1.10`).
    - **6b. ✅ La MODÉRATION universelle (2026-10-20, demande de Fabien)** : *« ajoute les boutons
      de modération, avec notification systématique aux administrateurs pour se rendre
      directement à la demande, l'inspecter, puis la valider ou la refuser. Quelque chose

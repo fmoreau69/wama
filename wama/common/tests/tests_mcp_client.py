@@ -17,7 +17,6 @@ from unittest import mock
 import anyio
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import Group
 from django.test import SimpleTestCase, TestCase
 
 from wama.common.services import assistant_engine, mcp_client, mcp_server
@@ -44,7 +43,8 @@ class DevToolsThroughTheAssistantTest(TestCase):
         import os
         self.ordinary = get_user_model().objects.create_user('mcp_client_ordinary', password='x')
         self.dev = get_user_model().objects.create_user('mcp_client_dev', password='x')
-        self.dev.groups.add(Group.objects.get_or_create(name='dev')[0])
+        from wama.accounts.permissions import set_account_tier
+        set_account_tier(self.dev, 'developpeur')
         mcp_client._list_cache.clear()
         # ⚠ L'ORM sous `anyio.run` ouvre une AUTRE connexion, qui ne voit pas la transaction du
         # test (mesuré : les groupes du compte y sont vides — piège déjà consigné le 15/09 sur

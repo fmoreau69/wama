@@ -12,6 +12,14 @@ class UserProfileAdmin(admin.ModelAdmin):
                    'notify_sound')
     search_fields = ('user__username', 'user__email')
 
+    def save_model(self, request, obj, form, change):
+        """Le niveau édité ici entraîne ses drapeaux Django (`set_account_tier`, 2026-10-21) :
+        sans quoi un compte passé administrateur par ce formulaire n'ouvrirait pas ce site, et un
+        compte rétrogradé y garderait l'accès."""
+        super().save_model(request, obj, form, change)
+        from wama.accounts.permissions import set_account_tier
+        set_account_tier(obj.user, obj.account_tier)
+
 
 @admin.register(AppAccessPolicy)
 class AppAccessPolicyAdmin(admin.ModelAdmin):

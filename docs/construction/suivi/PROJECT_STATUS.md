@@ -24087,6 +24087,7 @@ vectorisation » d'un document ajouté au RAG ; puis `/reverif` de toute la sess
 `accounts.views.is_admin` (superutilisateur ou groupe `admin` : celle de `admin_required` et du
 menu), le niveau de compte `admin` du profil (`permissions.user_tier`), `can_manage_registries`
 (développeur ou administrateur). Un compte de niveau « admin » hors du groupe n'ouvre pas Users.
+→ **Tranchée le 2026-10-21** : le niveau du profil est la seule définition (`PROFILES_PERMISSIONS §1.10`).
 
 **Restes nommés** : la liste d'outils du scénario nocturne des lectures recopie des noms du
 registre (relevé ANTÉRIEUR de `check_redundancy`, 9 → 14 noms) — la dériver demande de DÉCLARER

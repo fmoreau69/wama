@@ -298,11 +298,11 @@ def pending_promotion(row):
 
 
 def promotion_validators() -> list:
-    """Les comptes qui VALIDENT une promotion : les administrateurs (`is_admin_tier`, le prédicat
-    de `ownership.promote_by`) — la demande n'arrive qu'à ceux qui peuvent y répondre."""
-    from django.contrib.auth import get_user_model
-    from wama.accounts.permissions import is_admin_tier
-    return [u for u in get_user_model().objects.filter(is_active=True) if is_admin_tier(u)]
+    """Les comptes qui VALIDENT une promotion : les administrateurs — la demande n'arrive qu'à
+    ceux qui peuvent y répondre. La lecture commune (`permissions.administrators`), celle de la
+    modération des comptes aussi depuis l'unification du 2026-10-21."""
+    from wama.accounts.permissions import administrators
+    return administrators()
 
 
 def request_page_url(grant) -> str:

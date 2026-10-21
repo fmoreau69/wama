@@ -289,7 +289,10 @@ def _grant_honoured(grant, item) -> bool:
         return True
     try:
         from django.contrib.auth import get_user_model
-        return get_user_model().objects.filter(pk=uid, is_staff=True).exists()
+        from wama.accounts.permissions import is_admin_tier
+        # « un admin » = le NIVEAU du profil (2026-10-21) — il lisait le drapeau `is_staff`.
+        user = get_user_model().objects.filter(pk=uid).first()
+        return user is not None and is_admin_tier(user)
     except Exception:
         return False
 

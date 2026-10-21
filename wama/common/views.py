@@ -272,7 +272,8 @@ def conformity_refresh(request):
     measure_and_write_conformity (domicile unique). Staff uniquement : la mesure
     est peu coûteuse (~1 s, greps de code) mais écrit le rapport global.
     """
-    if not (request.user.is_authenticated and request.user.is_staff):
+    from wama.accounts.permissions import is_admin_tier
+    if not is_admin_tier(request.user):
         return JsonResponse({'error': 'Réservé au staff'}, status=403)
     from wama.common.app_registry import measure_and_write_conformity
     report = measure_and_write_conformity()
@@ -513,7 +514,6 @@ def registres_view(request):
         'nb_periodiques': sum(1 for r in registres if r['periodic']),
         'facettes_registres': facettes,
         'peut_actualiser': request.user.is_authenticated,
-        'est_staff': request.user.is_authenticated and request.user.is_staff,
         # Page de SUPERVISION : tout y est dans le corps (cf. WAMA_VOLETS §2 — elle figurait
         # parmi les 17 pages héritant de 3 cadres vides).
         'volet': volet(medias=False, actions=False),
@@ -1640,7 +1640,9 @@ def memories_view(request):
     from .memory.store import list_memories
 
     actifs = list_memories(request.user)
-    attente = list_memories(request.user, en_attente=True) if request.user.is_staff else []
+    from wama.accounts.permissions import is_admin_tier
+    reviewer = is_admin_tier(request.user)     # LA définition d'administrateur (2026-10-21)
+    attente = list_memories(request.user, en_attente=True) if reviewer else []
 
     q = (request.GET.get('q') or '').strip()
     if q:
@@ -1683,7 +1685,7 @@ def memories_view(request):
     # arbitre pour des souvenirs de PLATEFORME (`user=NULL`), qui ne dépendent d'aucun profil.
     # ⚠ Le champ est `unit_type`, pas `type` (mesuré — un `u.type` lève).
     unites = []
-    if request.user.is_staff:
+    if reviewer:
         from .models import OrgUnit
         unites = [{'id': u.id, 'nom': u.name or u.code} for u in OrgUnit.objects.order_by('name')]
 
@@ -1697,7 +1699,7 @@ def memories_view(request):
         'facettes': facettes,
         'q': q,
         'url_reset': reverse('common:memories'),
-        'est_staff': request.user.is_staff,
+        'est_staff': reviewer,
         # Même volet réduit que ses sœurs catalogues (`tests_inspecteur_registre`).
         'volet': volet(medias=False, actions=False),
     })
@@ -1718,7 +1720,8 @@ def memories_approve(request):
     from .memory.store import approve
     from .models import MemoryItem
 
-    if not request.user.is_staff:
+    from wama.accounts.permissions import is_admin_tier
+    if not is_admin_tier(request.user):
         return JsonResponse({'erreur': 'réservé au staff'}, status=403)
 
     try:

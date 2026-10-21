@@ -407,7 +407,8 @@ def export_item_to_library(user, app: str, pk: int, asset_type: str = '', name: 
 
     # MÊME règle d'ownership que `unified_detail` et `get_item_detail` — trois portes, une règle.
     proprietaire = getattr(instance, 'user', None)
-    if proprietaire is not None and proprietaire != user and not getattr(user, 'is_staff', False):
+    from wama.accounts.permissions import is_admin_tier
+    if proprietaire is not None and proprietaire != user and not is_admin_tier(user):
         return {'error': 'forbidden', 'detail': "Cet élément appartient à un autre utilisateur."}
 
     try:

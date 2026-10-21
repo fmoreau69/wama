@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 
 def admin_required(view_func):
-    """Decorator that checks if user is in admin group."""
+    """Réserve une vue aux ADMINISTRATEURS (`is_admin` → `permissions.is_admin_tier`)."""
     @wraps(view_func)
     def wrapper(request, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -37,31 +37,33 @@ def admin_required(view_func):
 
 
 def is_admin(user):
-    """Check if user is an admin."""
-    if not user.is_authenticated:
-        return False
-    return user.is_superuser or user.groups.filter(name='admin').exists()
+    """Administrateur — LA définition (`permissions.is_admin_tier`, le niveau du profil ;
+    décision de Fabien du 2026-10-21). Elle lisait le groupe hérité `admin` et le drapeau
+    superutilisateur : une seconde définition, que rien n'accordait au niveau."""
+    from wama.accounts.permissions import is_admin_tier
+    return is_admin_tier(user)
 
 
 def is_dev(user):
-    """Check if user is a developer."""
-    if not user.is_authenticated:
-        return False
-    return user.groups.filter(name='dev').exists() or is_admin(user)
+    """Développeur ou administrateur (`permissions.is_developer`, le niveau du profil) — elle
+    lisait le groupe hérité `dev`."""
+    from wama.accounts.permissions import is_developer
+    return is_developer(user)
+
+
+#: Le rôle tel que la page des utilisateurs le nomme (`admin` / `dev` / `user`), lu sur le niveau.
+ROLE_OF_TIER = {'admin': 'admin', 'developpeur': 'dev', 'utilisateur': 'user'}
+#: …et le niveau que pose un rôle choisi sur cette page (« Ajouter », « Rôle »).
+TIER_OF_ROLE = {role: tier for tier, role in ROLE_OF_TIER.items()}
 
 
 def get_user_role(user):
-    """Get the primary role of a user."""
-    from wama.accounts.permissions import is_guest_account
+    """Le rôle principal d'un compte, DÉRIVÉ de son niveau (`permissions.user_tier`) — il lisait
+    les groupes hérités `admin` / `dev` / `user`, retirés le 2026-10-21."""
+    from wama.accounts.permissions import is_guest_account, user_tier
     if not user.is_authenticated or is_guest_account(user):
         return 'anonymous'
-    if user.is_superuser or user.groups.filter(name='admin').exists():
-        return 'admin'
-    if user.groups.filter(name='dev').exists():
-        return 'dev'
-    if user.groups.filter(name='user').exists():
-        return 'user'
-    return 'user'  # Default to user if authenticated but no group
+    return ROLE_OF_TIER.get(user_tier(user), 'user')
 
 
 def login_view(request):
@@ -1160,24 +1162,11 @@ def user_add(request):
                 user.set_unusable_password()
                 user.save()
 
-            # Assign role
-            if role in ['admin', 'dev', 'user']:
-                group, _ = Group.objects.get_or_create(name=role)
-                user.groups.add(group)
-
-                if role == 'admin':
-                    user.is_staff = True
-                    user.is_superuser = True
-                    user.save()
-
-            # Synchronise l'axe A réel (UserProfile.account_tier, consommé par
-            # permissions.py::accessible()) — sans ça 'dev' ne débloque aucune app WAMA (seul
-            # 'admin'/is_superuser fonctionnait, cf. user_update_role ci-dessous).
-            from wama.accounts.models import UserProfile
-            tier_map = {'admin': 'admin', 'dev': 'developpeur', 'user': 'utilisateur'}
-            profile, _ = UserProfile.objects.get_or_create(user=user)
-            profile.account_tier = tier_map.get(role, 'utilisateur')
-            profile.save(update_fields=['account_tier'])
+            # Le RÔLE choisi pose le NIVEAU, et le niveau ses drapeaux Django
+            # (`permissions.set_account_tier`, décision de Fabien du 2026-10-21) — plus aucun
+            # groupe hérité.
+            from wama.accounts.permissions import set_account_tier
+            set_account_tier(user, TIER_OF_ROLE.get(role, 'utilisateur'))
 
             return JsonResponse({
                 'success': True,
@@ -1236,37 +1225,12 @@ def user_update_role(request, user_id):
             if user == request.user and new_role != 'admin':
                 return JsonResponse({'success': False, 'error': 'Vous ne pouvez pas retirer votre propre rôle admin'})
 
-            # Ne retirer QUE les groupes de TIER legacy (admin/dev/user) — surtout PAS
-            # `user.groups.clear()`, qui effaçait aussi silencieusement les rôles MÉTIER
-            # ('role:*', axe B indépendant, cf. permissions.py) à chaque changement de tier
-            # (bug corrigé 2026-07-09, remonté par Fabien).
-            user.groups.remove(*user.groups.filter(name__in=['admin', 'dev', 'user']))
-
-            # Assign new role
-            if new_role in ['admin', 'dev', 'user']:
-                group, _ = Group.objects.get_or_create(name=new_role)
-                user.groups.add(group)
-
-            # Update staff/superuser status
-            if new_role == 'admin':
-                user.is_staff = True
-                user.is_superuser = True
-            else:
-                user.is_staff = False
-                user.is_superuser = False
-
-            user.save()
-
-            # Synchronise l'axe A réel (UserProfile.account_tier) — c'est LUI que
-            # `permissions.py::accessible()` consulte pour gater les apps WAMA (nav/vues/studio),
-            # pas ce Group legacy. Sans cette synchro, choisir « Développeur » ici ne donnait accès
-            # à AUCUNE app (seul « Admin » fonctionnait via is_superuser) → l'utilisateur devait
-            # être rendu admin pour tout débloquer, même juste pour tester.
-            from wama.accounts.models import UserProfile
-            tier_map = {'admin': 'admin', 'dev': 'developpeur', 'user': 'utilisateur'}
-            profile, _ = UserProfile.objects.get_or_create(user=user)
-            profile.account_tier = tier_map.get(new_role, 'utilisateur')
-            profile.save(update_fields=['account_tier'])
+            # Le RÔLE pose le NIVEAU, et le niveau ses drapeaux Django (`set_account_tier`) —
+            # décision de Fabien du 2026-10-21 : le niveau est la seule source. Les groupes
+            # hérités `admin` / `dev` / `user` ne s'écrivent plus (ils sont retirés) ; les rôles
+            # MÉTIER `role:*` ne sont pas touchés.
+            from wama.accounts.permissions import set_account_tier
+            set_account_tier(user, TIER_OF_ROLE.get(new_role, 'utilisateur'))
 
             return JsonResponse({
                 'success': True,
