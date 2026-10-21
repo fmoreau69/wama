@@ -73,7 +73,7 @@ class GroupedAccessDecisionTest(TestCase):
 class ReaderGlobalProgressTest(TestCase):
     """La progression globale est interrogée en continu par la page : UNE requête sur `status` et
     `progress`, même calcul qu'avant (2026-10-03 ; même correctif au transcriber, gardé par
-    `transcriber/tests_queue_load`)."""
+    `transcriber/tests/tests_queue_load`)."""
 
     def test_the_figures_are_unchanged_and_come_from_one_light_query(self):
         from django.urls import reverse

@@ -164,6 +164,9 @@ wama/<app>/
   **Rangés depuis** : `wama/model_manager` (19 fichiers) et `wama/media_library` (14), le soir du
   2026-09-29 (décision de Fabien, même geste), puis `wama_lab/cam_analyzer` (20) le même soir.
   Plus aucune app en attente : la liste `PENDING` du contrôle est vide.
+  Puis `wama/transcriber` (11) le 2026-10-21 : le 11ᵉ fichier (`tests_editor_axis`, 20/10) avait
+  fait rougir le contrôle, relevé à une revérification ; ni import relatif ni `__file__` à
+  réécrire, une seule référence de doc par chemin (`check_docs`).
 
 ---
 

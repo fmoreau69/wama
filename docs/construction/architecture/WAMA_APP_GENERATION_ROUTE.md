@@ -5415,7 +5415,7 @@ notification et l'annulation, et décodait la vidéo N+1 fois (`anonymizer/tasks
 > chauds) et les quatre process (207,7 s dans un process FROID : 86,8 + 104,8 + 11,8 + 3,6 s,
 > dont le premier chargement de Whisper et de pyannote) ; type de résumé changé → le résumé SEUL
 > est rejoué (2,5 s) ; ▶ des locuteurs seuls → 3,7 s, résumé et cohérence deviennent périmés.
-> Gardes : `transcriber/tests_pipeline.py` (14), `tests_process_pipeline` (interrupteur,
+> Gardes : `transcriber/tests/tests_pipeline.py` (14), `tests_process_pipeline` (interrupteur,
 > optionnel en échec, empreinte déclarée, une requête par page).
 > ⏳ Restes : `enrich_transcript` (résumé à la demande, hors contrat) est remplacé dans les faits
 > par le ▶ du process `summarize` mais sa route et sa tâche existent encore ; la CORRECTION
