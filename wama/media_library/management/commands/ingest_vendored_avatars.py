@@ -14,8 +14,8 @@ CE QUI EST REPRIS, PAS RÉÉCRIT
     - la licence et l'auteur : ceux que le dépôt PUBLIE, lus dans `providers/avatars3d.py`
       (`AVATAR_REPOSITORIES`) — un fichier dont la licence n'y est pas déclarée n'est PAS versé,
       même règle que le fournisseur ;
-    - les attributs (rig, visage ARKit, visèmes) : MESURÉS dans le fichier par la sonde commune
-      (`enrich_asset_from_file`), comme pour tout dépôt ;
+    - le type MIME et les attributs (rig, visage ARKit, visèmes) : LUS du fichier par la sonde
+      commune (`enrich_asset_from_file`), comme pour tout dépôt ;
     - l'écriture : `system_files.ingest_system_file` (idempotente — un nom déjà porté est sauté).
 
 ⚠ Le fichier est COPIÉ (`media_library/system/object3d/`) : l'original reste servi à l'assistant.
@@ -54,7 +54,7 @@ def ingest(entry: dict):
     from wama.media_library.services import enrich_asset_from_file
     from wama.media_library.system_files import ingest_system_file
     asset = ingest_system_file(
-        'object3d', entry['name'], entry['path'], mime_type='model/gltf-binary',
+        'object3d', entry['name'], entry['path'],
         source_url=entry['source'].raw_url(entry['path'].name), license=entry['license'],
         author=entry['author'],
         description="Avatar 3D de l'assistant (TalkingHead) — riggé, visage ARKit et visèmes : "
