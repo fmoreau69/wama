@@ -5,9 +5,10 @@ page de CORRECTION, qui était écrite à la main (`edit.html` + `edit.js`, 1 45
 COMPOSÉE de briques universelles, en gardant son apparence : la liste des segments au centre, en
 bas le TEMPS — la ligne de temps (onde fenêtrée et ses couches : silences, bornes, bandes
 d'écriture ; bande de qualité, minimap, zoom, outil Bornes), le transport (aller à, sauts,
-vitesse) et l'écriture à la lecture —, et à côté les actions, le document (titre, date) et les
-intervenants. Ces trois briques étaient, jusqu'au redécoupage du même jour (décision de Fabien :
-l'axe, le transport, les vues, les outils de domaine), des options d'un seul transport.
+vitesse) et l'écriture à la lecture —, et dans la colonne du VOLET droit les actions, le document
+(titre, date) et les intervenants. Ces trois briques du temps étaient, jusqu'au redécoupage du
+même jour (décision de Fabien : l'axe, le transport, les vues, les outils de domaine), des options
+d'un seul transport.
 
 La valeur éditée est la CORRECTION (`corrected_segments_json`) ; la sortie ASR (`segments_json`)
 reste immuable et se lit à côté (« charger la dernière transcription », mots de référence de
@@ -72,19 +73,22 @@ def _facts(transcript) -> list:
 register_surface(Surface(
     app='transcriber', key='correct', label='Corriger la transcription',
     model='transcriber.Transcript',
-    slots=(BrickSlot('segments', 'segment_list', 0, 0, 8, 10,
+    # Au centre, le texte et le temps ; au VOLET (sa colonne, 2026-10-21), les actions, le
+    # document et les intervenants — là où l'éditeur d'origine les avait.
+    slots=(BrickSlot('segments', 'segment_list', 0, 0, 12, 10,
                      {'latest': 'latest', 'names': 'speaker_map'}),
-           BrickSlot('timeline', 'media_timeline', 0, 10, 8, 4,
+           BrickSlot('timeline', 'media_timeline', 0, 10, 12, 4,
                      {'role': 'audio', 'segments': True, 'quality': True, 'minimap': True,
                       'zoom': True, 'boundaries': 'retime'}),
-           BrickSlot('transport', 'media_transport', 0, 14, 8, 3,
+           BrickSlot('transport', 'media_transport', 0, 14, 12, 2,
                      {'role': 'audio', 'wave': False, 'goto': True, 'speed': 'steps'}),
-           BrickSlot('writing', 'playback_writing', 0, 17, 8, 3),
-           BrickSlot('actions', 'surface_actions', 8, 0, 4, 6),
-           BrickSlot('document', 'item_settings', 8, 6, 4, 5,
-                     {'title': 'Document', 'fields': ['title', 'meeting_date'], 'facts': 'facts'}),
-           BrickSlot('speakers', 'speaker_names', 8, 11, 4, 9,
-                     {'setting': 'speaker_map', 'suggest': 'suggest_speakers'})),
+           BrickSlot('writing', 'playback_writing', 0, 16, 12, 3),
+           BrickSlot('actions', 'surface_actions', 0, 0, 1, 6, zone='panel'),
+           BrickSlot('document', 'item_settings', 0, 6, 1, 5,
+                     {'title': 'Document', 'fields': ['title', 'meeting_date'], 'facts': 'facts'},
+                     zone='panel'),
+           BrickSlot('speakers', 'speaker_names', 0, 11, 1, 6,
+                     {'setting': 'speaker_map', 'suggest': 'suggest_speakers'}, zone='panel')),
     reads={'audio': 'audio', 'latest': 'segments_json'},
     documents=('latest',),
     edits='corrected_segments_json', validate=validate_segments,

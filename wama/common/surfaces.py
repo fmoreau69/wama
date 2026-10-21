@@ -76,6 +76,12 @@ from typing import Callable, Optional
 WORLDS = ('media', 'data', 'lab', 'studio')
 #: Colonnes de la grille de mise en page (gridstack, défaut 12).
 GRID_COLUMNS = 12
+#: Les deux ZONES d'une surface (2026-10-21, décision de Fabien) : la grille du centre et la
+#: COLONNE du volet droit — une colonne, pas une seconde grille libre : on y réordonne et on y
+#: règle la hauteur ; une brique passe de l'une à l'autre. Le volet a sa largeur à lui.
+ZONES = ('grid', 'panel')
+#: Colonnes de la zone du volet.
+PANEL_COLUMNS = 1
 #: Lignes au-delà desquelles une place gardée est refusée : une disposition postée reste une page.
 MAX_LAYOUT_ROWS = 400
 #: Plafond d'un texte édité sur une surface : un document qu'on relit et corrige, pas un flux.
@@ -222,7 +228,9 @@ class UIBrick:
 @dataclass(frozen=True)
 class BrickSlot:
     """Une brique placée sur une surface : position et taille PAR DÉFAUT (l'utilisateur les
-    change sur la page), options propres à cet emplacement."""
+    change sur la page), options propres à cet emplacement. `zone` : la grille du centre
+    (`grid`) ou la colonne du volet (`panel`, où `x` vaut 0 et `w` 1 — `y` est l'ordre et `h` la
+    hauteur, en rangs de la même grille)."""
     id: str
     brick: str
     x: int
@@ -230,10 +238,11 @@ class BrickSlot:
     w: int
     h: int
     options: dict = field(default_factory=dict)
+    zone: str = 'grid'
 
     def to_dict(self) -> dict:
         return {'id': self.id, 'brick': self.brick, 'x': self.x, 'y': self.y, 'w': self.w,
-                'h': self.h, 'options': dict(self.options)}
+                'h': self.h, 'options': dict(self.options), 'zone': self.zone}
 
 
 @dataclass(frozen=True)
@@ -416,10 +425,11 @@ class Surface:
 
 def clean_layout(surface: Surface, payload) -> dict:
     """La DISPOSITION d'un utilisateur pour une surface, validée (2026-10-21, demande de Fabien :
-    chacun dispose ses panneaux puis FIGE sa disposition) : `{'slots': {id: {x, y, w, h}} | None,
-    'frozen': bool}`. `slots` à None = la disposition DÉCLARÉE, qui suit donc la surface si elle
-    change. Seuls les emplacements déclarés sont gardés (un emplacement retiré depuis est oublié) ;
-    une place hors de la grille lève `ValueError`."""
+    chacun dispose ses panneaux puis FIGE sa disposition) : `{'slots': {id: {x, y, w, h, zone}}
+    | None, 'frozen': bool}`. `slots` à None = la disposition DÉCLARÉE, qui suit donc la surface
+    si elle change. Seuls les emplacements déclarés sont gardés (un emplacement retiré depuis est
+    oublié) ; une place hors de sa zone lève `ValueError`. Une place sans `zone` est dans la
+    grille — là où toute place était gardée avant la colonne du volet."""
     if not isinstance(payload, dict):
         raise ValueError('disposition illisible')
     raw = payload.get('slots')
@@ -434,11 +444,15 @@ def clean_layout(surface: Surface, payload) -> dict:
                 continue
             try:
                 x, y, w, h = (int(place[k]) for k in ('x', 'y', 'w', 'h'))
-            except (KeyError, TypeError, ValueError):
+                zone = place.get('zone') or 'grid'
+            except (KeyError, TypeError, ValueError, AttributeError):
                 raise ValueError(f'place illisible : {slot_id}')
-            if x < 0 or w < 1 or x + w > GRID_COLUMNS or y < 0 or h < 1 or y + h > MAX_LAYOUT_ROWS:
-                raise ValueError(f'place hors de la grille : {slot_id}')
-            slots[slot_id] = {'x': x, 'y': y, 'w': w, 'h': h}
+            if zone not in ZONES:
+                raise ValueError(f'zone inconnue : {slot_id}')
+            columns = PANEL_COLUMNS if zone == 'panel' else GRID_COLUMNS
+            if x < 0 or w < 1 or x + w > columns or y < 0 or h < 1 or y + h > MAX_LAYOUT_ROWS:
+                raise ValueError(f'place hors de sa zone : {slot_id}')
+            slots[slot_id] = {'x': x, 'y': y, 'w': w, 'h': h, 'zone': zone}
         slots = slots or None
     return {'slots': slots, 'frozen': payload.get('frozen') is True}
 
@@ -460,6 +474,11 @@ def register_surface(surface: Surface) -> Surface:
     if page:
         raise ValueError(f"surface {surface.id} : {page} se monte(nt) par une page, pas sur une "
                          "surface")
+    for slot in surface.slots:
+        columns = PANEL_COLUMNS if slot.zone == 'panel' else GRID_COLUMNS
+        if slot.zone not in ZONES or slot.x < 0 or slot.w < 1 or slot.x + slot.w > columns:
+            raise ValueError(f"surface {surface.id} : emplacement « {slot.id} » hors de sa zone "
+                             f"({slot.zone}, x={slot.x}, w={slot.w})")
     SURFACES[surface.id] = surface
     return surface
 

@@ -7,7 +7,10 @@
  *     redimensionnable ; la disposition se garde PAR COMPTE (route `layout`, 2026-10-21 — le
  *     stockage du navigateur ne sert plus qu'en secours) et se réinitialise à celle que la
  *     surface déclare. Elle se FIGE (`ctx.setFrozen`) : la grille ne bouge plus et les panneaux
- *     prennent un habit fini ; en mode Simplifié, une surface jamais disposée s'ouvre figée.
+ *     prennent un habit fini ; une surface jamais disposée s'ouvre FIGÉE (pour tous depuis le
+ *     2026-10-21, décision de Fabien). Deux ZONES : la grille du centre et la COLONNE du volet
+ *     droit (`.wama-surface-panel`, `zone='panel'`), où l'on réordonne et règle la hauteur ; une
+ *     brique passe de l'une à l'autre en la glissant, sans être remontée.
  *     Sous 768 px de fenêtre, les panneaux s'empilent sur une colonne (rien n'est alors gardé) ;
  *   • le CONTEXTE partagé : ce que la page lit (`reads`), la valeur ÉDITÉE (la seule donnée que
  *     la page écrit), la SÉLECTION commune et un bus d'événements entre briques ;
@@ -339,16 +342,41 @@
 
         // ── Grille ────────────────────────────────────────────────────────────────────────
         var COLUMNS = surface.columns || 12;
-        var layout = config.layout || { slots: null, frozen: false, stored: false };
+        var layout = config.layout || { slots: null, frozen: true, stored: false };
         var page = root.closest('.wama-surface-page') || root;
+        // La COLONNE du volet (2026-10-21, décision de Fabien) : une seconde zone, d'une colonne —
+        // on y réordonne, on y règle la hauteur, une brique passe d'une zone à l'autre en la
+        // glissant. Absente (page sans volet), tout reste dans la grille.
+        var panelRoot = document.querySelector('.wama-surface-panel');
         var grid = global.GridStack.init({
             column: COLUMNS, cellHeight: CELL_HEIGHT, margin: 6, float: false,
             handle: '.wama-brick-head', resizable: { handles: 'e, se, s, sw, w' },
-            staticGrid: !!layout.frozen,
+            staticGrid: !!layout.frozen, acceptWidgets: !!panelRoot,
             // Téléphone : une colonne, les panneaux dans l'ordre de la grille (option de gridstack).
             columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }], layout: 'list' },
         }, root);
-        page.classList.toggle('is-frozen', !!layout.frozen);
+        var panel = panelRoot ? global.GridStack.init({
+            column: 1, cellHeight: CELL_HEIGHT, margin: 6, float: false, minRow: 2,
+            handle: '.wama-brick-head', resizable: { handles: 's' },
+            staticGrid: !!layout.frozen, acceptWidgets: true,
+        }, panelRoot) : null;
+        var zones = panel ? [grid, panel] : [grid];
+        function showFrozen(on) {
+            page.classList.toggle('is-frozen', on);
+            if (panelRoot) panelRoot.classList.toggle('is-frozen', on);
+        }
+        showFrozen(!!layout.frozen);
+        /** La zone d'une place : celle qu'elle porte (gardée), sinon celle que l'emplacement
+         *  déclare ; une place gardée sans zone date d'avant la colonne : la grille. */
+        function zoneOf(slot, place) {
+            var zone = place === slot ? (slot.zone || 'grid') : ((place && place.zone) || 'grid');
+            return zone === 'panel' && panel ? 'panel' : 'grid';
+        }
+        function gridOf(zone) { return zone === 'panel' ? panel : grid; }
+        function placeIn(zone, place) {
+            return zone === 'panel' ? { x: 0, y: place.y, w: 1, h: place.h }
+                                    : { x: place.x, y: place.y, w: place.w, h: place.h };
+        }
         // Une disposition gardée par ce navigateur AVANT la garde par compte est reprise une fois.
         var migrated = !layout.stored && readLayout(config.layout_key);
         if (migrated) layout.slots = migrated;
@@ -362,6 +390,7 @@
         // 2026-10-13). D'où l'élément construit à la main plutôt que `addWidget`.
         function frame(slot) {
             var place = saved[slot.id] || slot;
+            var zone = zoneOf(slot, place);
             var el = document.createElement('div');
             el.className = 'grid-stack-item';
             var content = document.createElement('div');
@@ -379,8 +408,11 @@
             body.className = 'wama-brick-body';
             content.appendChild(head);
             content.appendChild(body);
-            root.appendChild(el);
-            grid.makeWidget(el, { id: slot.id, x: place.x, y: place.y, w: place.w, h: place.h });
+            var target = gridOf(zone);
+            target.el.appendChild(el);
+            var at = placeIn(zone, place);
+            at.id = slot.id;
+            target.makeWidget(el, at);
             if (!def.mount) {
                 body.textContent = 'Brique « ' + slot.brick + ' » non chargée.';
                 return null;
@@ -393,9 +425,12 @@
 
         function layoutNow() {
             var out = {};
-            grid.getGridItems().forEach(function (el) {
-                var n = el.gridstackNode;
-                if (n && n.id) out[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h };
+            zones.forEach(function (g) {
+                var zone = g === panel ? 'panel' : 'grid';
+                g.getGridItems().forEach(function (el) {
+                    var n = el.gridstackNode;
+                    if (n && n.id) out[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h, zone: zone };
+                });
             });
             return out;
         }
@@ -421,17 +456,30 @@
         /** Sur une colonne (téléphone), la grille n'est qu'un empilement : rien ne se garde. */
         function onFullGrid() { return grid.getColumn() === COLUMNS; }
 
-        var resetting = false;
+        // Le montage des briques ajoute leurs éléments aux zones (`added`) : ce n'est pas un geste.
+        var resetting = false, building = false;
         function resetLayout() {
             if (layout.frozen || !onFullGrid()) return;
             layout.slots = null;                 // la disposition DÉCLARÉE, qui suit la surface
             resetting = true;
-            grid.batchUpdate();
+            zones.forEach(function (g) { g.batchUpdate(); });
             surface.slots.forEach(function (slot) {
                 var m = mounted.filter(function (x) { return x && x.slot.id === slot.id; })[0];
-                if (m) grid.update(m.el, { x: slot.x, y: slot.y, w: slot.w, h: slot.h });
+                if (!m) return;
+                var zone = zoneOf(slot, slot), target = gridOf(zone), at = placeIn(zone, slot);
+                var from = m.el.gridstackNode && m.el.gridstackNode.grid;
+                if (from && from !== target) {
+                    // Rendue à sa zone déclarée : le même élément change de grille, la brique
+                    // montée ne se remonte pas.
+                    from.removeWidget(m.el, false, false);
+                    target.el.appendChild(m.el);
+                    at.id = slot.id;
+                    target.makeWidget(m.el, at);
+                } else {
+                    target.update(m.el, at);
+                }
             });
-            grid.batchUpdate(false);
+            zones.forEach(function (g) { g.batchUpdate(false); });
             resetting = false;
             persistLayout();
             emit('resize');
@@ -441,19 +489,43 @@
          *  `.is-frozen`) ; le titre d'un panneau qui porte des outils reste, en bande discrète. */
         function setFrozen(on) {
             layout.frozen = !!on;
-            grid.setStatic(layout.frozen);
-            page.classList.toggle('is-frozen', layout.frozen);
+            zones.forEach(function (g) { g.setStatic(layout.frozen); });
+            showFrozen(layout.frozen);
             persistLayout();
             emit('layout', { frozen: layout.frozen });
             emit('resize');
         }
 
-        grid.on('change', function () {
-            if (resetting || !onFullGrid()) return;
+        // Un geste posé dans l'une des deux zones — y compris une brique glissée de l'une à
+        // l'autre (`added` / `removed`) — garde la disposition ENTIÈRE, les deux zones ensemble.
+        // ⚠ Pas `changed` : c'est le nom du geste de VALEUR (`ctx.edit`), plus haut — une seconde
+        // déclaration le remplacerait dans toute la fonction (vécu : la parité de l'éditeur l'a vu).
+        function layoutChanged() {
+            if (resetting || building || !onFullGrid()) return;
             layout.slots = layoutNow();
             persistLayout();
+        }
+        zones.forEach(function (g) {
+            g.on('change added removed', layoutChanged);
+            g.on('resizestop', function () { emit('resize'); });
+            g.on('added', function () { emit('resize'); });      // la brique a changé de largeur
         });
-        grid.on('resizestop', function () { emit('resize'); });
+        // Une brique venue du volet arrive dans la grille avec la largeur de la colonne (1) : on lui
+        // donne celle de la colonne de droite d'une surface (un tiers), qu'on retaille ensuite.
+        var FROM_PANEL_W = Math.round(COLUMNS / 3);
+        if (panel) {
+            panel.on('removed', function (e, items) {
+                (items || []).forEach(function (n) { if (n.el) n.el.dataset.fromPanel = '1'; });
+            });
+            grid.on('added', function (e, items) {
+                if (building || resetting) return;
+                (items || []).forEach(function (n) {
+                    if (!n.el || !n.el.dataset.fromPanel) return;
+                    delete n.el.dataset.fromPanel;
+                    if (n.w < FROM_PANEL_W) grid.update(n.el, { w: FROM_PANEL_W });
+                });
+            });
+        }
         global.addEventListener('resize', function () { emit('resize'); });
 
         on('change', function () { mounted.forEach(function (m) { m && m.brick.refresh && m.brick.refresh(); }); });
@@ -494,7 +566,9 @@
                                                       values: data.settings.values || {} };
                 ctx.canEdit = !!data.can_edit;
                 history.reset();
-                surface.slots.forEach(function (slot) { mounted.push(frame(slot)); });
+                building = true;
+                try { surface.slots.forEach(function (slot) { mounted.push(frame(slot)); }); }
+                finally { building = false; }
                 status(ctx.canEdit ? '' : 'Lecture seule', ctx.canEdit ? '' : 'readonly');
                 emit('change', state.value);
                 holdLock();

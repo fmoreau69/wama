@@ -88,17 +88,15 @@ def _layout_setting(found) -> str:
 
 def _layout_of(found, user) -> dict:
     """La disposition que `user` a gardée pour la surface (`clean_layout`), `stored` à vrai ; à
-    défaut la disposition déclarée — FIGÉE d'emblée en mode Simplifié, où l'on ne dispose pas."""
+    défaut la disposition déclarée, FIGÉE — pour tous depuis le 2026-10-21 (décision de Fabien :
+    la mise en page d'origine verrouillée, le cadenas la rend modifiable) ; seul le mode Simplifié
+    l'était jusque-là."""
     from wama.common.utils.user_settings import get_user_app_setting
     stored = get_user_app_setting(user, found.app, _layout_setting(found))
     if isinstance(stored, dict):
         return {'slots': stored.get('slots') or None, 'frozen': stored.get('frozen') is True,
                 'stored': True}
-    try:
-        simple = user.profile.ui_mode == 'simple'
-    except Exception:
-        simple = False
-    return {'slots': None, 'frozen': simple, 'stored': False}
+    return {'slots': None, 'frozen': True, 'stored': False}
 
 
 @login_required
@@ -124,11 +122,16 @@ def surface_page(request, app: str, key: str, pk: int):
     item = _readable_or_404(found, request.user, pk)
     ok, reason = found.can_open(item)
     base = f'/common/surface/{app}/{key}/{pk}/'
+    from wama.common.utils.volet import volet
     return render(request, 'common/surface.html', {
         'surface': found,
         'item': item,
         'available': ok,
         'reason': reason,
+        # Le volet d'une surface (2026-10-21) : l'assistant en tête, puis la COLONNE de briques de
+        # la surface (`zone='panel'`) — plus les sections par défaut, qui n'y montraient rien
+        # (« Sélectionnez un fichier pour l'aperçu », « Aucun paramètre disponible »).
+        'volet': volet(tete=True, medias=False, parametres=False, actions=False),
         'config': {
             'surface': found.to_dict(),
             'pk': pk,

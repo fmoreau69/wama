@@ -197,8 +197,9 @@ class ReviewSurfaceViewsTest(TestCase):
 
 class SurfaceLayoutTest(TestCase):
     """The LAYOUT of each account (2026-10-21, Fabien : everyone arranges the panels, then FREEZES
-    the result) — kept per user and per surface, never on the element ; frozen from the start in
-    the simple mode while nothing was arranged."""
+    the result) — kept per user and per surface, never on the element ; frozen from the start for
+    EVERY account while nothing was arranged (the same day : the original layout, locked). Two
+    zones : the grid and the COLUMN of the right panel."""
 
     def setUp(self):
         ReviewSurfaceViewsTest.setUp(self)
@@ -212,12 +213,13 @@ class SurfaceLayoutTest(TestCase):
         return self.client.post(self.url, json.dumps(payload), content_type='application/json')
 
     def test_a_frozen_layout_is_kept_for_this_account_only(self):
-        self.assertEqual({'slots': None, 'frozen': False, 'stored': False},
+        self.assertEqual({'slots': None, 'frozen': True, 'stored': False},
                          self._config(self.user)['layout'])
         place = {'image': {'x': 3, 'y': 0, 'w': 9, 'h': 12}, 'actions': {'x': 0, 'y': 0, 'w': 3, 'h': 5}}
         res = self._post({'slots': place, 'frozen': True})
         self.assertEqual(200, res.status_code, res.content)
-        self.assertEqual({'slots': place, 'frozen': True, 'stored': True},
+        kept = {k: dict(v, zone='grid') for k, v in place.items()}
+        self.assertEqual({'slots': kept, 'frozen': True, 'stored': True},
                          self._config(self.user)['layout'])
         from wama.common.models import UserAppSetting
         (row,) = UserAppSetting.objects.filter(user=self.user, app='anonymizer')
@@ -225,7 +227,7 @@ class SurfaceLayoutTest(TestCase):
         # Another account (who cannot open this element) still has the declared layout.
         from wama.common.surface_views import _layout_of
         from wama.common.surfaces import surface
-        self.assertEqual({'slots': None, 'frozen': False, 'stored': False},
+        self.assertEqual({'slots': None, 'frozen': True, 'stored': False},
                          _layout_of(surface('anonymizer', 'review'), self.other))
 
     def test_back_to_the_declared_layout_keeps_following_the_surface(self):
@@ -239,7 +241,8 @@ class SurfaceLayoutTest(TestCase):
         self.client.force_login(self.user)
         res = self._post({'slots': {'image': {'x': 0, 'y': 0, 'w': 12, 'h': 4},
                                     'gone': {'x': 0, 'y': 4, 'w': 2, 'h': 2}}})
-        self.assertEqual({'image': {'x': 0, 'y': 0, 'w': 12, 'h': 4}}, res.json()['layout']['slots'])
+        self.assertEqual({'image': {'x': 0, 'y': 0, 'w': 12, 'h': 4, 'zone': 'grid'}},
+                         res.json()['layout']['slots'])
         for bad in ({'x': 8, 'y': 0, 'w': 6, 'h': 4}, {'x': 0, 'y': -1, 'w': 2, 'h': 2},
                     {'x': 0, 'y': 0, 'w': 0, 'h': 2}, {'x': 'a', 'y': 0, 'w': 2, 'h': 2}, 'x'):
             self.assertEqual(400, self._post({'slots': {'image': bad}}).status_code, bad)
@@ -247,18 +250,59 @@ class SurfaceLayoutTest(TestCase):
         self.assertEqual(404, self.client.post('/common/surface/anonymizer/nothing/layout/', '{}',
                                                content_type='application/json').status_code)
 
-    def test_the_simple_mode_opens_frozen_until_the_user_decides(self):
-        from wama.accounts.models import UserProfile
-        UserProfile.objects.update_or_create(user=self.user, defaults={'ui_mode': 'simple'})
-        self.assertTrue(self._config(self.user)['layout']['frozen'])
+    def test_every_account_opens_frozen_until_it_decides(self):
+        for mode in ('simple', 'advanced'):
+            from wama.accounts.models import UserProfile
+            UserProfile.objects.update_or_create(user=self.user, defaults={'ui_mode': mode})
+            self.assertTrue(self._config(self.user)['layout']['frozen'], mode)
         self._post({'slots': None, 'frozen': False})
         self.assertFalse(self._config(self.user)['layout']['frozen'])
 
-    def test_the_kernel_freezes_the_grid_and_the_actions_offer_it(self):
+    def test_a_place_in_the_panel_column_is_kept_with_its_zone(self):
+        self.client.force_login(self.user)
+        place = {'x': 0, 'y': 3, 'w': 1, 'h': 5, 'zone': 'panel'}
+        res = self._post({'slots': {'actions': place}})
+        self.assertEqual({'actions': place}, res.json()['layout']['slots'])
+        for bad in ({'x': 0, 'y': 0, 'w': 2, 'h': 2, 'zone': 'panel'},
+                    {'x': 1, 'y': 0, 'w': 1, 'h': 2, 'zone': 'panel'},
+                    {'x': 0, 'y': 0, 'w': 2, 'h': 2, 'zone': 'sidebar'}):
+            self.assertEqual(400, self._post({'slots': {'actions': bad}}).status_code, bad)
+
+    def test_a_slot_declared_outside_its_zone_is_refused(self):
+        from wama.common.surfaces import BrickSlot, Surface, register_surface
+        for slot in (BrickSlot('a', 'surface_actions', 0, 0, 2, 3, zone='panel'),
+                     BrickSlot('a', 'surface_actions', 0, 0, 2, 3, zone='sidebar'),
+                     BrickSlot('a', 'surface_actions', 8, 0, 6, 3)):
+            with self.assertRaises(ValueError, msg=slot):
+                register_surface(Surface(app='nothing', key='wrong', label='x', model='anonymizer.Media',
+                                         slots=(slot,), reads={}, edits='x'))
+
+    def test_the_panel_of_a_surface_is_its_column_under_the_assistant(self):
+        self.client.force_login(self.user)
+        page = self.client.get(self.base)
+        self.assertEqual({'tete': True, 'medias': False, 'parametres': False, 'actions': False,
+                          'actif': True}, page.context['volet'])
+        self.assertContains(page, 'class="grid-stack wama-surface-panel"')
+        self.assertNotContains(page, 'id="media-section"')
+        self.assertNotContains(page, 'Aucun paramètre disponible')
+
+    def test_the_kernel_freezes_both_zones_and_the_actions_offer_it(self):
         kernel = _js('common/js/surfaces/wama-surface.js')
-        self.assertIn('grid.setStatic(layout.frozen)', kernel)
+        self.assertIn('zones.forEach(function (g) { g.setStatic(layout.frozen); });', kernel)
         self.assertIn("page.classList.toggle('is-frozen'", kernel)
-        self.assertIn('if (resetting || !onFullGrid()) return;', kernel)
+        self.assertIn("panelRoot.classList.toggle('is-frozen'", kernel)
+        self.assertIn('if (resetting || building || !onFullGrid()) return;', kernel)
+        # A brick moved to the other zone keeps its element : it is never mounted twice.
+        self.assertIn('from.removeWidget(m.el, false, false);', kernel)
+
+    def test_no_function_of_the_kernel_is_declared_twice(self):
+        # Lived on 2026-10-21 : a second `function changed()` (the layout) replaced the one of the
+        # edited VALUE in the whole `mount` — every edit gesture stopped, seen by the parity run.
+        import re
+        from collections import Counter
+        names = Counter(re.findall(r'\bfunction\s+([A-Za-z_$][\w$]*)\s*\(',
+                                   _js('common/js/surfaces/wama-surface.js')))
+        self.assertEqual([], [n for n, c in names.items() if c > 1])
         actions = _js('common/js/surfaces/brick-surface-actions.js')
         self.assertIn('data-act="freeze"', actions)
         self.assertIn('ctx.setFrozen(!ctx.frozen())', actions)
@@ -785,7 +829,8 @@ class SurfacesGeneratorTest(SimpleTestCase):
         from wama.common.manifests.codegen.surfaces_gen import render_surfaces
         cases = {
             'brick': ('slots', 0, 'brick', 'no_such_brick', 'brique inconnue'),
-            'grid': ('slots', 0, 'w', 13, 'hors de la grille'),
+            'grid': ('slots', 0, 'w', 13, 'hors de sa zone (grid'),
+            'zone': ('slots', 0, 'zone', 'sidebar', 'zone inconnue'),
         }
         for name, (facet, index, field, value, expected) in cases.items():
             with self.subTest(case=name):
@@ -802,6 +847,16 @@ class SurfacesGeneratorTest(SimpleTestCase):
         m = self._manifest()
         del m['body']['surfaces']
         self.assertIsNone(render_surfaces(m)[0])
+
+    def test_a_slot_in_the_panel_column_is_rendered_with_its_zone(self):
+        from wama.common.manifests.codegen.surfaces_gen import render_surfaces
+        m = self._manifest()
+        m['body']['surfaces'][0]['slots'][0].update(x=0, w=1, zone='panel')
+        src, reason = render_surfaces(m)
+        self.assertIsNone(reason)
+        self.assertIn("zone='panel')", src)
+        m['body']['surfaces'][0]['slots'][0]['w'] = 2
+        self.assertIn('hors de sa zone (panel', render_surfaces(m)[1])
 
 
 class SegmentRulesTest(SimpleTestCase):

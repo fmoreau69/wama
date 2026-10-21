@@ -408,7 +408,9 @@ MECHANISMS = (
               "et `media_transport`, sur l'AXE partagé de la surface (`ctx.axis()`). 2026-10-18 : "
               "chaque surface DÉCLARE son élément témoin (`witness`), sur lequel le nocturne "
               "l'ouvre et capture ses briques — les vignettes du catalogue (`thumbnail`), qui "
-              "montre aussi les composants SYSTÈME (domaine `UI_DOMAIN`)",
+              "montre aussi les composants SYSTÈME (domaine `UI_DOMAIN`). 2026-10-21 : disposition "
+              "par compte, FIGÉE par défaut pour tous ; deux ZONES (`BrickSlot.zone`) — la grille "
+              "et la COLONNE du volet droit, une brique passant de l'une à l'autre",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',

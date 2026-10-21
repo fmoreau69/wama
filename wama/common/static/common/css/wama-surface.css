@@ -9,8 +9,9 @@
 .wama-surface-status[data-kind="ok"] { color: var(--bs-teal); }
 .wama-surface-status[data-kind="error"] { color: var(--wama-error-text); }
 
-/* Grille gridstack : chaque brique = un panneau à titre (poignée de déplacement). */
-.wama-surface-grid .grid-stack-item-content {
+/* Grille gridstack : chaque brique = un panneau à titre (poignée de déplacement). La COLONNE du
+   volet (2026-10-21) est une seconde zone, mêmes panneaux. */
+.wama-surface-grid .grid-stack-item-content, .wama-surface-panel .grid-stack-item-content {
   display: flex; flex-direction: column; background: var(--wama-edit-grid); border: 1px solid var(--wama-edit-border);
   border-radius: .45rem; overflow: hidden; inset: 3px;
 }
@@ -20,19 +21,32 @@
   min-height: 2rem;
 }
 .wama-brick-title { font-size: .78rem; font-weight: 600; color: var(--wama-edit-brick-text); margin-right: auto; }
-.wama-brick-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; color: var(--wama-edit-brick-text); }
+.wama-brick-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; color: var(--wama-edit-brick-text);
+  container-type: inline-size; }
+/* Réglages en 2 colonnes (`ParamGroup.columns=2`) dans une brique : c'est la LARGEUR DE LA BRIQUE
+   qui décide, pas celle de la fenêtre — une brique rétrécie passe sur une colonne, élargie en
+   retrouve deux, où qu'elle soit posée (la colonne du volet garde ses deux colonnes). */
+@container (max-width: 280px) { .wama-param-group-cols-2 { grid-template-columns: 1fr; } }
+
+/* La colonne du volet : une zone de dépôt quand la disposition est modifiable, rien de plus. */
+.wama-surface-panel { margin: 0 -6px .5rem; }
+.wama-surface-panel:not(.is-frozen) { outline: 1px dashed var(--wama-edit-border-strong); outline-offset: -2px; border-radius: .45rem; }
+.wama-surface-panel.is-frozen:not(:has(.grid-stack-item)) { display: none; }
 
 /* Disposition FIGÉE (2026-10-21) : plus rien ne bouge, les panneaux perdent leur habit d'atelier.
    Un titre sans outils disparaît ; celui qui porte des outils devient une bande discrète. */
-.wama-surface-page.is-frozen .grid-stack-item-content { border-color: transparent; border-radius: .6rem; }
-.wama-surface-page.is-frozen .wama-brick-head {
+.wama-surface-page.is-frozen .grid-stack-item-content,
+.wama-surface-panel.is-frozen .grid-stack-item-content { border-color: transparent; border-radius: .6rem; }
+.wama-surface-page.is-frozen .wama-brick-head, .wama-surface-panel.is-frozen .wama-brick-head {
   cursor: default; background: transparent; border-bottom-color: transparent; min-height: 1.7rem; padding: .1rem .5rem;
 }
-.wama-surface-page.is-frozen .wama-brick-head:not(.has-tools) { display: none; }
-.wama-surface-page.is-frozen .wama-brick-title { font-weight: 500; color: var(--wama-edit-muted); }
+.wama-surface-page.is-frozen .wama-brick-head:not(.has-tools),
+.wama-surface-panel.is-frozen .wama-brick-head:not(.has-tools) { display: none; }
+.wama-surface-page.is-frozen .wama-brick-title,
+.wama-surface-panel.is-frozen .wama-brick-title { font-weight: 500; color: var(--wama-edit-muted); }
 
 .wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
-.wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs {
+.wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs, .wama-surface-panel .btn-xs {
   padding: .1rem .35rem; font-size: .75rem; line-height: 1.2; color: var(--wama-edit-brick-text);
   border: 1px solid var(--wama-edit-border-strong); background: transparent;
 }

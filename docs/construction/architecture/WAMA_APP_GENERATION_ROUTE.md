@@ -1110,6 +1110,18 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       SOURCE attachée à l'axe, le transport se monte dessous, les surcouches sont des VUES, Comparer
       demande N médias sur un axe ; cam_analyzer et face_analyzer ; le pas image et la vitesse
       continue de BIND iront au transport et à l'axe, pas ailleurs.
+  - ✅ **2026-10-21 — LE VOLET DEVIENT UNE ZONE DE BRIQUES, étape 1 : les surfaces** (décision de
+    Fabien : *« on passe tout WAMA progressivement en briques UI »*, verrouillé par défaut pour
+    tous, le volet en colonne, les réglages en deux colonnes gardés). Domicile : `WAMA_VOLETS
+    §3-ter`. Une surface a deux ZONES (`BrickSlot.zone` : la grille, la colonne du volet) ; une
+    brique passe de l'une à l'autre sans être remontée ; la disposition par compte porte la zone ;
+    toute surface jamais disposée s'ouvre figée. Le transcriber retrouve son volet (actions,
+    document, intervenants). Le générateur (`codegen/surfaces_gen`) et la spec du manifeste
+    connaissent `zone`. Défaut vu par la parité en cours de route : une seconde `function
+    changed()` (la disposition) remplaçait celle de la valeur dans tout le noyau — plus aucun
+    geste d'édition ; renommée, et `tests_surfaces` refuse désormais une fonction du noyau
+    déclarée deux fois. ⏳ étapes ② sections du volet des pages d'apps, ③ cam_analyzer, ④ centre
+    des pages d'apps (`WAMA_VOLETS §3-ter`).
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à

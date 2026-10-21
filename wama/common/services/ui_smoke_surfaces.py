@@ -172,26 +172,36 @@ def capture_brick_thumbnails():
     return True, detail
 
 
-#: Ce que la page dit de sa grille : figée, places des emplacements, titres visibles, poignées.
+#: Ce que la page dit de sa grille : figée, places des emplacements (et leur ZONE : la grille ou
+#: la colonne du volet, 2026-10-21), titres visibles, poignées.
 _GRID_STATE_JS = """() => {
     const root = document.querySelector('.wama-surface-grid');
+    const panel = document.querySelector('.wama-surface-panel');
     const seen = el => !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
     const places = {};
-    root.querySelectorAll('.grid-stack-item').forEach(el => {
-        const n = el.gridstackNode;
-        if (n && n.id) places[n.id] = {x: n.x, y: n.y, w: n.w, h: n.h};
+    [[root, 'grid'], [panel, 'panel']].forEach(([zoneRoot, zone]) => {
+        if (!zoneRoot) return;
+        zoneRoot.querySelectorAll(':scope > .grid-stack-item').forEach(el => {
+            const n = el.gridstackNode;
+            if (n && n.id) places[n.id] = {x: n.x, y: n.y, w: n.w, h: n.h, zone: zone};
+        });
     });
     const freeze = document.querySelector('[data-act="freeze"]');
     const reset = document.querySelector('[data-act="layout"]');
+    // Les DEUX zones comptent : figer, c'est figer la grille ET la colonne du volet.
+    const zones = [root, panel].filter(Boolean);
+    const all = s => zones.reduce((n, z) => n + [...z.querySelectorAll(s)].filter(seen).length, 0);
     return {
-        static: root.classList.contains('grid-stack-static'),
-        frozen: !!document.querySelector('.wama-surface-page.is-frozen'),
+        static: zones.every(z => z.classList.contains('grid-stack-static')),
+        loose: zones.every(z => !z.classList.contains('grid-stack-static')),
+        frozen: !!document.querySelector('.wama-surface-page.is-frozen')
+                && (!panel || panel.classList.contains('is-frozen')),
         columns: root.gridstack ? root.gridstack.getColumn() : null,
         places: places,
-        heads: [...root.querySelectorAll('.wama-brick-head')].filter(seen).length,
-        bareHeads: [...root.querySelectorAll('.wama-brick-head:not(.has-tools)')].filter(seen).length,
+        heads: all('.wama-brick-head'),
+        bareHeads: all('.wama-brick-head:not(.has-tools)'),
         // PRÉSENTES, pas visibles : gridstack ne les montre qu'au survol ; une grille figée les retire.
-        handles: root.querySelectorAll('.ui-resizable-handle').length,
+        handles: zones.reduce((n, z) => n + z.querySelectorAll('.ui-resizable-handle').length, 0),
         freezeText: freeze ? freeze.textContent.trim() : null,
         resetDisabled: reset ? reset.disabled : null,
     }; }"""
@@ -204,15 +214,35 @@ _MOVE_JS = """([id, place]) => {
     root.gridstack.update(el, place);
     return !!el; }"""
 
+#: Le même élément passé de la grille à la COLONNE du volet, par gridstack lui-même (ce que fait
+#: un glisser d'une zone à l'autre : `removed` d'un côté, `added` de l'autre). Marqué avant : on
+#: vérifie après coup que c'est bien le même élément, la brique n'étant jamais remontée.
+_TO_PANEL_JS = """([id, h]) => {
+    const root = document.querySelector('.wama-surface-grid');
+    const panel = document.querySelector('.wama-surface-panel');
+    const el = [...root.querySelectorAll('.grid-stack-item')].find(e => e.gridstackNode && e.gridstackNode.id === id);
+    if (!el || !panel) return false;
+    el.dataset.smokeMoved = id;
+    root.gridstack.removeWidget(el, false);
+    panel.appendChild(el);
+    panel.gridstack.makeWidget(el, {id: id, x: 0, y: 0, w: 1, h: h});
+    return true; }"""
+
+#: L'élément marqué est-il toujours là, et dans quelle zone ?
+_MOVED_JS = """(id) => { const el = document.querySelector('[data-smoke-moved="' + id + '"]');
+    return el ? (el.closest('.wama-surface-panel') ? 'panel' : 'grid') : null; }"""
+
 
 def check_surface_layout(page_hook=None):
     """La DISPOSITION par compte d'une surface (2026-10-21, demande de Fabien) — (ok, détail).
 
-    Sur une surface témoin qui porte le panneau Actions : un panneau déplacé est gardé au serveur ;
-    « Figer » fige la grille (plus de poignée, titres sans outils masqués, « Disposition par défaut »
-    inactif) et survit au rechargement ; « Modifier » rend la main ; « Disposition par défaut » rend
-    la disposition DÉCLARÉE (gardée vide) ; sur une fenêtre de téléphone la grille s'empile sur une
-    colonne sans rien réécrire. Le réglage du compte de test est rendu tel qu'il était en sortie.
+    Sur une surface témoin qui porte le panneau Actions : elle s'ouvre FIGÉE (verrouillée par défaut
+    pour tous) ; « Modifier » rend la main ; un panneau agrandi est gardé au serveur, un panneau
+    passé dans la COLONNE du volet aussi, avec sa zone, sans être remonté ; « Figer » fige les deux
+    zones (plus de poignée, titres sans outils masqués, « Disposition par défaut » inactif) et
+    survit au rechargement ; « Disposition par défaut » rend la disposition DÉCLARÉE (gardée vide),
+    le panneau revenu dans sa zone ; sur une fenêtre de téléphone la grille s'empile sur une colonne
+    sans rien réécrire. Le réglage du compte de test est rendu tel qu'il était en sortie.
     `page_hook(page)` : posé sur chaque page avant son ouverture (la contre-épreuve y réécrit le
     noyau servi)."""
     from django.urls import reverse
@@ -256,7 +286,8 @@ def check_surface_layout(page_hook=None):
         with _garde_de_montage(surface.app, 'surfaces'):
             pk = _in_plain_thread(mount_witness, surface, uid)
             _in_plain_thread(restore, None)          # le passage part de la disposition déclarée
-            declared = {s.id: {'x': s.x, 'y': s.y, 'w': s.w, 'h': s.h} for s in surface.slots}
+            declared = {s.id: {'x': s.x, 'y': s.y, 'w': s.w, 'h': s.h, 'zone': s.zone}
+                        for s in surface.slots}
             url = BASE_URL.rstrip('/') + reverse('common:surface', args=[surface.app, surface.key, pk])
             with sync_playwright() as p:
                 browser = p.chromium.launch()
@@ -296,9 +327,17 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
 
     try:
         state = open_page()
-        verdict(not state['static'] and not state['frozen'] and state['handles'] > 0
-                and state['freezeText'] == 'Figer la disposition' and state['places'] == declared,
-                f"ouverture : modifiable, disposition déclarée ({state})")
+        verdict(state['static'] and state['frozen'] and state['handles'] == 0
+                and state['freezeText'] == 'Modifier la disposition' and state['places'] == declared,
+                f"ouverture : verrouillée, disposition déclarée ({state})")
+
+        page.click('[data-act="freeze"]')
+        state = page.evaluate(_GRID_STATE_JS)
+        kept = settle() or {}
+        verdict(state['loose'] and not state['frozen'] and state['handles'] > 0
+                and state['bareHeads'] > 0 and not state['resetDisabled'] and kept.get('frozen') is False,
+                f"« Modifier » : la main est rendue ({state}, {kept})")
+
         moved_id = surface.slots[0].id
         target = dict(declared[moved_id], h=declared[moved_id]['h'] + 2)
         page.evaluate(_MOVE_JS, [moved_id, target])
@@ -306,30 +345,39 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
         verdict((kept.get('slots') or {}).get(moved_id) == target and not kept.get('frozen'),
                 f"panneau agrandi → gardé au serveur ({kept})")
 
+        to_panel = next(s.id for s in surface.slots if s.brick == 'surface_actions')
+        moved = page.evaluate(_TO_PANEL_JS, [to_panel, declared[to_panel]['h']])
+        kept = settle() or {}
+        in_panel = (kept.get('slots') or {}).get(to_panel) or {}
+        verdict(moved and in_panel.get('zone') == 'panel' and (in_panel.get('x'), in_panel.get('w')) == (0, 1)
+                and page.evaluate(_MOVED_JS, to_panel) == 'panel',
+                f"panneau passé dans la colonne du volet → gardé avec sa zone, même élément ({in_panel})")
+
         page.click('[data-act="freeze"]')
         state = page.evaluate(_GRID_STATE_JS)
         kept = settle() or {}
         verdict(state['static'] and state['frozen'] and state['handles'] == 0
                 and state['bareHeads'] == 0 and state['resetDisabled']
                 and state['freezeText'] == 'Modifier la disposition' and kept.get('frozen') is True,
-                f"« Figer » : grille figée, titres sans outils masqués ({state}, {kept})")
+                f"« Figer » : les deux zones figées, titres sans outils masqués ({state}, {kept})")
 
         state = open_page()
-        verdict(state['static'] and state['frozen'] and state['places'].get(moved_id) == target,
-                f"rechargement : toujours figée, place gardée ({state['places'].get(moved_id)})")
+        verdict(state['static'] and state['frozen'] and state['places'].get(moved_id) == target
+                and (state['places'].get(to_panel) or {}).get('zone') == 'panel',
+                f"rechargement : toujours figée, places et zone gardées ({state['places']})")
 
         page.click('[data-act="freeze"]')
-        state = page.evaluate(_GRID_STATE_JS)
-        kept = settle() or {}
-        verdict(not state['static'] and not state['frozen'] and state['handles'] > 0
-                and state['bareHeads'] > 0 and not state['resetDisabled'] and kept.get('frozen') is False,
-                f"« Modifier » : la main est rendue ({state}, {kept})")
-
+        settle()
+        page.evaluate("(id) => { const n = [...document.querySelectorAll('.grid-stack-item')]"
+                      ".find(e => e.gridstackNode && e.gridstackNode.id === id); "
+                      "if (n) n.dataset.smokeMoved = id; }", to_panel)
         page.click('[data-act="layout"]')
         state = page.evaluate(_GRID_STATE_JS)
         kept = settle() or {}
-        verdict(state['places'] == declared and kept.get('slots') is None,
-                f"« Disposition par défaut » : la disposition déclarée, gardée vide ({kept})")
+        verdict(state['places'] == declared and kept.get('slots') is None
+                and page.evaluate(_MOVED_JS, to_panel) == declared[to_panel]['zone'],
+                f"« Disposition par défaut » : la disposition déclarée, gardée vide, le panneau "
+                f"rendu à sa zone sans être remonté ({kept})")
 
         page.evaluate(_MOVE_JS, [moved_id, target])
         kept_wide = settle()
@@ -358,9 +406,10 @@ def register_surface_scenarios():
     )
     register(
         id='common.surface_layout', app='common', stage='ui',
-        description=("Surfaces : la disposition se garde par compte, se FIGE (grille immobile, "
-                     "rendu fini, survit au rechargement), se rend modifiable et revient à la "
-                     "disposition déclarée ; une colonne sur téléphone sans rien réécrire"),
+        description=("Surfaces : la disposition s'ouvre verrouillée, se rend modifiable, se garde "
+                     "par compte — un panneau passé dans la colonne du volet garde sa zone —, se "
+                     "FIGE (deux zones immobiles, rendu fini, survit au rechargement) et revient à "
+                     "la disposition déclarée ; une colonne sur téléphone sans rien réécrire"),
         run=lambda ctx: check_surface_layout(),
         timeout_s=240, vram_gb=0.0,
     )

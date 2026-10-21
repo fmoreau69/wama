@@ -40,7 +40,7 @@ def declared_surfaces(manifest: dict) -> list:
 
 def _check(surface: dict, outputs: dict, processes: set) -> str:
     """'' si la surface se génère, sinon la raison du refus."""
-    from wama.common.surfaces import BRICKS, GRID_COLUMNS
+    from wama.common.surfaces import BRICKS, GRID_COLUMNS, PANEL_COLUMNS, ZONES
     key = surface.get('key') or ''
     if not _KEY_RE.match(key):
         return f"clé de surface invalide : {key!r} (underscore_case)"
@@ -56,9 +56,14 @@ def _check(surface: dict, outputs: dict, processes: set) -> str:
         if BRICKS[slot['brick']].is_page:
             return (f"surface {key} : {slot['brick']!r} est une brique de PAGE — une page d'app la "
                     "monte, une surface ne la pose pas")
+        # La zone (2026-10-21) : la grille, ou la colonne du volet (une colonne).
+        zone = slot.get('zone') or 'grid'
+        if zone not in ZONES:
+            return f"surface {key} : zone inconnue {zone!r} pour {slot.get('id')!r} ({', '.join(ZONES)})"
+        columns = PANEL_COLUMNS if zone == 'panel' else GRID_COLUMNS
         x, w = int(slot.get('x', 0)), int(slot.get('w', 0))
-        if not slot.get('id') or w <= 0 or int(slot.get('h', 0)) <= 0 or x < 0 or x + w > GRID_COLUMNS:
-            return f"surface {key} : emplacement {slot.get('id')!r} hors de la grille ({GRID_COLUMNS} colonnes)"
+        if not slot.get('id') or w <= 0 or int(slot.get('h', 0)) <= 0 or x < 0 or x + w > columns:
+            return f"surface {key} : emplacement {slot.get('id')!r} hors de sa zone ({zone}, {columns} colonne(s))"
     edits = surface.get('edits') or ''
     if edits not in outputs:
         return (f"surface {key} : « {edits} » n'est la sortie d'aucun process déclaré — un gabarit "
@@ -81,6 +86,8 @@ def _slot(slot: dict) -> str:
     args = [repr(slot['id']), repr(slot['brick'])] + [str(int(slot.get(k, 0))) for k in 'xywh']
     if slot.get('options'):
         args.append(repr(dict(slot['options'])))
+    if (slot.get('zone') or 'grid') != 'grid':
+        args.append(f"zone={slot['zone']!r}")
     return f"BrickSlot({', '.join(args)})"
 
 

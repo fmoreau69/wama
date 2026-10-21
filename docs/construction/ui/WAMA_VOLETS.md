@@ -186,6 +186,38 @@ pas sa mini-carte Leaflet.
 médiathèque expose un index mais est une surface transversale qui DÉCLARE. Les confondre
 ferait échouer le test au moment même où le chantier avance.
 
+## 3-ter. Le volet devient une ZONE DE BRIQUES — ✅ étape 1 (les surfaces), 2026-10-21
+
+> Décision de Fabien, le 2026-10-21 : *« on passe tout WAMA progressivement en briques UI »* — le
+> volet droit aussi, avec le même fonctionnement que la grille d'une surface : la mise en page
+> d'origine **verrouillée par défaut**, le cadenas la rend modifiable, on replace, on relocke.
+> Le volet est une **COLONNE**, pas une seconde grille libre (on y réordonne et on y règle la
+> hauteur ; il a sa largeur à lui et se replie, `WamaPanels`). Les réglages en **deux colonnes**
+> restent : c'est l'intérieur de la brique (`ParamGroup(columns=2)`), que déplacer ou
+> redimensionner ne touche pas — et c'est désormais la LARGEUR DE LA BRIQUE qui fait passer à une
+> colonne (requête de conteneur, `wama-surface.css`), plus celle de la fenêtre. Pas de repli
+> automatique d'une brique au centre en mode Simplifié : la modale règle une card sans le volet,
+> l'aperçu est dans la card, chaque volet se replie seul — l'agencement du mode Simplifié viendra
+> plus tard (§7).
+
+**Étape 1, livrée : le volet d'une SURFACE.** La page d'une surface déclare `volet(tete=True,
+medias=False, parametres=False, actions=False)` (`surface_views.surface_page`) : l'assistant en
+tête, puis la colonne `.wama-surface-panel` (`common/surface.html`, bloc `right_panel_top`). Ses
+sections par défaut n'y montraient rien. Un emplacement déclare sa zone (`BrickSlot.zone`,
+`grid` | `panel`) ; le noyau monte deux grilles gridstack (`acceptWidgets`), une brique glissée de
+l'une à l'autre garde son élément — elle n'est jamais remontée — et la disposition gardée par
+compte porte la zone de chaque place (`surfaces.clean_layout`). Une surface jamais disposée
+s'ouvre **figée pour tous** (`surface_views._layout_of` ; seul le mode Simplifié l'était). Le
+transcriber y retrouve son volet : actions, document, intervenants ; le centre au texte et au
+temps. Gardes : `tests_surfaces.SurfaceLayoutTest`, scénario `common.surface_layout` (passage
+d'un panneau dans la colonne, retour par « Disposition par défaut »).
+
+**À venir, dans cet ordre (le plus sûr d'abord)** : ② les sections du volet des PAGES D'APPS
+(assistant, aperçu, inspecteur, actions) en briques réordonnables et repliables par compte, rendu
+par défaut inchangé sur les 35 pages — l'inspecteur ENVELOPPÉ, jamais réécrit (§8, avertissement) ;
+③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il déclare, il n'hérite
+pas) ; ④ le centre des pages d'apps (card d'entrée, file) sur la même grille.
+
 ---
 
 ## 4. ⚠ Trois défauts MESURÉS — ✅ CORRIGÉS le 2026-08-22
