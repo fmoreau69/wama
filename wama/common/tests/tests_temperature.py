@@ -439,6 +439,40 @@ class TheEngineSaysItsTemperatureTest(SimpleTestCase):
                                                     tts_temperature=column))
                 self.assertEqual(expected, spoken.call_args.kwargs['options'])
 
+    def test_musicgen_samples_at_the_cards_temperature_or_its_own(self):
+        import os
+
+        from wama.common.backends.audiocraft_backend import AudioCraftBackend
+        engine = AudioCraftBackend()
+        for asked, expected in ((0.4, 0.4), (None, 1.0)):
+            with self.subTest(asked=asked), mock.patch.dict(os.environ), \
+                    mock.patch.object(AudioCraftBackend, '_generate_music',
+                                      side_effect=RuntimeError('stop')) as music, \
+                    self.assertRaises(RuntimeError):
+                engine.generate('musicgen-small', 'a calm piano', 10, '/tmp/x.wav',
+                                temperature=asked)
+            self.assertEqual(expected, music.call_args.kwargs['temperature'])
+
+    def test_every_music_engine_says_it(self):
+        from wama.common.backends.audiocpp_backend import AudioCppBackend
+        from wama.common.backends.audiocraft_backend import AudioCraftBackend
+        from wama.common.backends.yue2_3b_backend import YuE2Backend
+        from wama.common.utils.model_capabilities import declared_engine_value
+        self.assertEqual({AudioCraftBackend: (True, 1.0), YuE2Backend: (True, None),
+                          AudioCppBackend: (True, None)},
+                         {cls: declared_engine_value(cls, 'default_temperature')
+                          for cls in (AudioCraftBackend, YuE2Backend, AudioCppBackend)})
+
+    def test_the_composer_catalogue_rows_carry_their_engines_temperature(self):
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_composer_models()
+        caps = registry._models['composer:musicgen-small'].capabilities
+        self.assertEqual((True, 1.0), (TEMPERATURE in caps['params'],
+                                       caps['recommended_temperature']))
+        self.assertEqual(30.0, caps['max_duration_s'], 'the other facts stay')
+
     def test_the_synthesizer_binds_it_to_its_voice_engine(self):
         from wama.synthesizer.params import PARAMS_JSON
         p = next(p for p in PARAMS_JSON if p['name'] == 'temperature')

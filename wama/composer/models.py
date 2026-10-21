@@ -34,6 +34,9 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     prompt = models.TextField()
     # Défaut 3:30 (210 s), celui du schéma (`params.py`, 2026-10-03) — une chanson, pas un extrait.
     duration = models.FloatField(default=210.0, help_text='Durée en secondes (10–600)')
+    # La TEMPÉRATURE du moteur (2026-10-21, `temperature_param`) — null = la sienne (MusicGen : 1).
+    temperature = models.FloatField(null=True, blank=True,
+                                    help_text="Température du moteur ; vide = celle du moteur.")
     # Clé de CATALOGUE du modèle, ou un « auto » de groupe (`auto:text-to-music`…) — route F4b,
     # 2026-10-01 (`utils/model_choice`). 128 : une clé de dépôt HF dépasse vite 64 caractères.
     model = models.CharField(max_length=128, default='composer:musicgen-small')

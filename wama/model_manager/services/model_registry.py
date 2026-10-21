@@ -58,6 +58,16 @@ FAMILLES_OLLAMA = {
 }
 
 
+def _composer_engine_flags(config: dict, model_id: str, caps: dict) -> dict:
+    """`caps` réalignées sur ce que le moteur d'un modèle du composer DÉCLARE (`apply_engine_flags`)
+    — la classe se dérive du moteur porté par la déclaration ; sans classe, rien n'est contesté."""
+    from wama.common.backends.manager import backend_for_engine
+    from wama.common.utils.model_capabilities import apply_engine_flags
+    engine = config.get('engine') or ((config.get('composition') or {}).get('runtime') or {}).get('engine')
+    cls = backend_for_engine(engine, model_id) if engine else None
+    return apply_engine_flags(caps, cls) if cls is not None else caps
+
+
 def _ollama_family(name: str) -> str:
     """Nom de FAMILLE d'un modèle Ollama pour `FAMILLES_OLLAMA` : le tag sans sa variante
     (`glm-ocr:latest` → `glm-ocr`) ; pour un GGUF tiré du Hub, le nom du DÉPÔT
@@ -2220,7 +2230,9 @@ class ModelRegistry:
                     #   inputs_optional : appariement card↔modèles (INPUT_MODEL_MATCHING.md) —
                     #   seul musicgen-melody accepte une mélodie de référence (conditionnement
                     #   OPTIONNEL : il improvise sans).
-                    capabilities={
+                    # Ce que le MOTEUR déclare (la température, 2026-10-21) : la règle commune
+                    # `apply_engine_flags`, celle des voix et des lignes prospectées.
+                    capabilities=_composer_engine_flags(config, model_id, {
                         'modalities': ['audio'],
                         'task': 'text-to-music' if config.get('type') == 'music' else 'text-to-audio',
                         'languages': ['en'],
@@ -2237,7 +2249,7 @@ class ModelRegistry:
                         # Durée maximale d'une sortie — lue par l'écran (`cap_from` du réglage
                         # Durée) et par la tâche, depuis la même déclaration.
                         **duration_caps_from_declaration(config),
-                    },
+                    }),
                     # Anatomie DÉCLARÉE par l'app (`COMPOSER_MODELS[*]['composition']`) : la forme
                     # AUDIOCRAFT (`state_dict.bin` + `compression_state_dict.bin`), seule chargée,
                     # là où les dépôts `facebook/musicgen-*` portent aussi la forme transformers.

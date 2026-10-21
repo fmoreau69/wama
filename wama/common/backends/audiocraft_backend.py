@@ -113,6 +113,9 @@ class AudioCraftBackend(MusicGenerationBackend):
     REQUIRED_PACKAGES = ['audiocraft']
     recommended_vram_gb = 8.0
     description = "AudioCraft — MusicGen (musique) + AudioGen (bruitages)."
+    #: Il TIRE ses jetons audio : 1,0, le défaut de `set_generation_params` d'AudioCraft (MusicGen
+    #: comme AudioGen). Réglable depuis la card (2026-10-21).
+    default_temperature = 1.0
     _warm = False
 
     @classmethod
@@ -144,6 +147,7 @@ class AudioCraftBackend(MusicGenerationBackend):
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
         score_path: Optional[str] = None,
+        temperature: Optional[float] = None,
     ) -> str:
         """
         Generate audio and save to output_path.
@@ -202,15 +206,18 @@ class AudioCraftBackend(MusicGenerationBackend):
         if progress_callback:
             progress_callback(5)
 
+        # La card, sinon la sienne (`sampling_temperature`, le contrat commun).
+        sampling = self.sampling_temperature({'options': {'temperature': temperature}})
         try:
             if model_type == 'music':
                 wav = self._generate_music(
                     audiocraft_name, prompt, duration, melody_path,
-                    progress_callback, on_audio,
+                    progress_callback, on_audio, temperature=sampling,
                 )
             else:
                 wav = self._generate_sfx(
                     audiocraft_name, prompt, duration, progress_callback, on_audio,
+                    temperature=sampling,
                 )
 
             if progress_callback:
@@ -263,6 +270,7 @@ class AudioCraftBackend(MusicGenerationBackend):
         melody_path: Optional[str],
         progress_callback: Optional[Callable],
         on_audio: Optional[Callable] = None,
+        temperature: float = 1.0,
     ):
         """Load MusicGen, generate, unload."""
         from audiocraft.models import MusicGen
@@ -271,7 +279,7 @@ class AudioCraftBackend(MusicGenerationBackend):
             progress_callback(15)
 
         model = MusicGen.get_pretrained(audiocraft_name)
-        model.set_generation_params(duration=duration)
+        model.set_generation_params(duration=duration, temperature=temperature)
 
         if progress_callback:
             progress_callback(40)
@@ -310,6 +318,7 @@ class AudioCraftBackend(MusicGenerationBackend):
         duration: float,
         progress_callback: Optional[Callable],
         on_audio: Optional[Callable] = None,
+        temperature: float = 1.0,
     ):
         """Load AudioGen, generate, unload."""
         from audiocraft.models import AudioGen
@@ -318,7 +327,7 @@ class AudioCraftBackend(MusicGenerationBackend):
             progress_callback(15)
 
         model = AudioGen.get_pretrained(audiocraft_name)
-        model.set_generation_params(duration=duration)
+        model.set_generation_params(duration=duration, temperature=temperature)
 
         if progress_callback:
             progress_callback(40)

@@ -111,6 +111,9 @@ class AudioCppBackend(MusicGenerationBackend):
     REQUIRED_PACKAGES: list = []
     recommended_vram_gb = 13.0
     description = "audio.cpp — modèles audio multi-composants GGUF (MiniMax-Music3…)."
+    #: Le binaire tire, mais ce moteur WAMA ne lui transmet pas de température : dit tel quel, le
+    #: réglage se grise plutôt que d'être ignoré en silence (2026-10-21).
+    default_temperature = None
     _warm = False
 
     @classmethod
@@ -157,6 +160,7 @@ class AudioCppBackend(MusicGenerationBackend):
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
         score_path: Optional[str] = None,
+        temperature: Optional[float] = None,   # non transmise : cf. `default_temperature`
     ) -> str:
         self.refuse_score(score_path, 'audio.cpp')
         from wama.common.services.resource_governor import vram_reservation

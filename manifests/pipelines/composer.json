@@ -90,6 +90,7 @@
             "lyrics",
             "quality_intent",
             "duration",
+            "temperature",
             "prompt_processed",
             "reference_score",
             "melody_reference",

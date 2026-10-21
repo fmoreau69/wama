@@ -76,6 +76,9 @@ class YuE2Backend(MusicGenerationBackend):
     supports_score_planning = True
     #: Graine fixe tant que le composer n'en fournit pas — la MÊME pour la partition et le rendu.
     SEED = 0
+    #: YuE tire, mais ce moteur WAMA ne transmet pas de température au pipeline : dit tel quel, le
+    #: réglage se grise plutôt que d'être ignoré en silence (2026-10-21).
+    default_temperature = None
 
     # ------------------------------------------------------------------
     # Gestion du cycle de vie
@@ -284,6 +287,7 @@ class YuE2Backend(MusicGenerationBackend):
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
         score_path: Optional[str] = None,
+        temperature: Optional[float] = None,   # non transmise : cf. `default_temperature`
     ) -> str:
         """
         Génère un fichier audio à partir du *prompt*.

@@ -63,6 +63,7 @@ class MusicGenerationBackend(BaseModelBackend):
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
         score_path: Optional[str] = None,
+        temperature: Optional[float] = None,
     ) -> str:
         """Écrit l'audio généré dans `output_path` et rend ce chemin.
 
@@ -79,7 +80,10 @@ class MusicGenerationBackend(BaseModelBackend):
         `on_audio`          : facultatif, `(tableau, fréquence)` d'un aperçu pendant le calcul ;
         `score_path`        : partition facultative (ABC, MIDI, MusicXML — port `reference_score`,
                               2026-10-01) — même règle que la mélodie : un moteur qui ne la suit
-                              pas la REFUSE en le disant (`refuse_score`), jamais en l'ignorant.
+                              pas la REFUSE en le disant (`refuse_score`), jamais en l'ignorant ;
+        `temperature`       : celle de la card (2026-10-21), None = celle du moteur. Un moteur qui
+                              ne la transmet pas le DÉCLARE (`default_temperature = None`) : sa
+                              fiche le dit et le réglage se grise sous lui.
         """
 
     def plan_score(self, model_id: str, prompt: str,

@@ -7,7 +7,7 @@ d'APP_CATALOG). On garde les champs compose existants (id=) ; câblage via initF
 cardSettings générique lit les data-model/data-duration de la racine de card.
 """
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import Param, schema_to_dicts
+from wama.common.utils.param_schema import Param, schema_to_dicts, temperature_param
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, PARTS_EXTRACTION_TASK, TASKS
 from wama.composer.utils.vocals import (AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES,
@@ -94,6 +94,12 @@ PARAMS = [
           cap_from={"field": "model", "capability": "max_duration_s"},
           # La durée est au RENDU seul : la partition ne la lit pas.
           stales=("render",)),
+    # La TEMPÉRATURE du moteur (2026-10-21) : le réglage commun, lié au modèle — MusicGen la lit
+    # (1 par défaut), un moteur qui ne la reçoit pas la grise. Au RENDU seul, comme la durée.
+    Param(name="temperature", **temperature_param(
+        "model", dom_id={"panel": "temperatureSlider", "item": "settingsTemperature",
+                         "batch": "batchSettingsTemperature"},
+        contexts=PANEL_ITEM_BATCH, stales=("render",))),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — le morceau rendu → une partie par instrument, montrée sur la
     # page d'édition. Ne périme qu'elle-même : ni la partition suivie ni le rendu n'en dépendent.

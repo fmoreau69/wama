@@ -96,6 +96,25 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Température du moteur ; vide = celle du moteur.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "temperature"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "default": {
@@ -1106,6 +1125,78 @@
           },
           {
             "advanced": false,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "model",
+                "mode": "reads",
+                "param": "temperature",
+                "reason": "Ce modèle ne tire pas au hasard : la température ne le concerne pas."
+              },
+              {
+                "capability": "recommended_temperature",
+                "field": "model",
+                "label": "Celle du modèle :",
+                "mode": "note"
+              },
+              {
+                "capability": "max_temperature",
+                "field": "model"
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsTemperature",
+              "item": "settingsTemperature",
+              "panel": "temperatureSlider"
+            },
+            "group": "",
+            "help": "Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-temperature-half",
+            "inline": false,
+            "label": "Température",
+            "max": 2.0,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "temperature",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "render"
+            ],
+            "step": 0.05,
+            "type": "temperature",
+            "unit": ""
+          },
+          {
+            "advanced": false,
             "cap_from": null,
             "chip": false,
             "chip_label": "",
@@ -1561,6 +1652,7 @@
             "lyrics",
             "quality_intent",
             "duration",
+            "temperature",
             "extract_parts",
             "parts_model",
             "output_format",
@@ -1624,6 +1716,7 @@
             "parts_model": "select — Modèle de partition complète (défaut : 'auto')",
             "prompt": "textarea — Prompt (requis)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
+            "temperature": "temperature — Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande. [0–2.0]",
             "vocals": "select — « Auto » : chanté si le prompt porte des paroles balisées ([Verse], [Chorus]…) sous la description, instrumental sinon. « Chanson » sans paroles : elles sont écrites pour vous, dans une langue que le modèle chante. Seuls certains modèles chantent ; en automatique, le tirage les retient. (choix : auto | instrumental | song) (défaut : 'auto')",
             "work_audio": "str",
             "work_score": "str"

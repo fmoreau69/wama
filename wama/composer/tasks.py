@@ -494,6 +494,7 @@ def _render(gen, ctx):
             score_path=melody_copy or score_abs,
             progress_callback=ctx.progress,
             on_audio=partial.audio_sink(),
+            temperature=getattr(gen, 'temperature', None),   # la card, sinon celle du moteur
         )
     except Exception:
         ctx.reset_progress()

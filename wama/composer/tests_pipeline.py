@@ -130,6 +130,14 @@ class PlanThenRenderTest(TestCase):
     def _states(self, gen):
         return {row.node_id: row.status for row in process_runs.lines(gen)}
 
+    def test_the_temperature_of_the_card_reaches_the_engine(self):
+        """The TEMPERATURE (2026-10-21): set on the card, passed to the engine's render; left
+        empty, None — the engine applies its own."""
+        for column in (0.6, None):
+            with self.subTest(column=column):
+                self._run(self._generation(model=PLAIN_MODEL, temperature=column), drawn=PLAIN_MODEL)
+                self.assertEqual(column, _PlainEngine.renders[-1]['temperature'])
+
     # ── the two processes ───────────────────────────────────────────────────────────────────
     def test_a_model_that_writes_its_score_runs_plan_then_render(self):
         gen = self._run(self._generation())

@@ -1260,9 +1260,16 @@ Kokoro-ONNX ne tirent pas ; XTTS et Qwen3-TTS tirent mais ce moteur WAMA ne la l
 dit tel quel (`None`), le réglage se grise plutôt que d'être ignoré. Le synthesizer porte le réglage
 (`temperature`, migration 0032), item et volet comme les pauses.
 
-**Restes, nommés** : l'avatarizer (son schéma était en cours d'édition par une autre session) ; les
-moteurs de MUSIQUE (MusicGen, YuE, audio.cpp — composer), dont le contrat `generate` ne porte pas
-encore d'`options` ; le transcriber
+L'avatarizer aussi (`tts_temperature`, migration 0023 — la modale, avec la voix qu'elle règle).
+
+**La MUSIQUE (3e vague)** : le contrat `MusicGenerationBackend.generate` porte `temperature` ;
+AudioCraft (MusicGen, AudioGen) la lit (1,0, son défaut), YuE et audio.cpp tirent mais ce moteur
+WAMA ne la leur transmet pas — déclaré `None`. Le composer porte le réglage (`temperature`,
+migration 0024, au rendu seul) ; ses lignes de catalogue reçoivent la déclaration du moteur par la
+même règle (`_composer_engine_flags` → `apply_engine_flags`).
+
+**Restes, nommés** : XTTS, Qwen3-TTS, YuE, audio.cpp — à câbler un par un (leur API la prend-elle ?
+à mesurer, pas à supposer) ; le transcriber
 l'a RETIRÉE exprès (reconnaissance de la parole = reproductibilité) — décision de Fabien à prendre
 avant de l'y remettre ; les jumelles du bac à sable (`translator_01`, `writer_01`) la recevront par
 leur manifeste.
