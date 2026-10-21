@@ -34,7 +34,7 @@ def assess_output_quality(task: str, input_summary: str, output: str,
               'validator': str} ou {'error': str}.
     `needs_human_review` = score < seuil OU problème signalé → ESCALADE humaine (pas un rejet auto).
     """
-    from wama.common.utils.llm_utils import llm_chat, extract_json_from_llm
+    from wama.common.utils.llm_utils import STEADY_TEMPERATURE, llm_chat, extract_json_from_llm
 
     out = (output or '').strip()
     if not out:
@@ -55,6 +55,7 @@ def assess_output_quality(task: str, input_summary: str, output: str,
                   {"role": "user", "content": prompt}],
         provider=validator_provider, model=validator_model,
         num_predict=400, think=False, timeout=timeout,
+        temperature=STEADY_TEMPERATURE,             # un juge sans réglage : stable
     )
     if err or not text:
         return {'error': err or 'réponse vide', 'validator': f"{validator_provider}:{validator_model}"}

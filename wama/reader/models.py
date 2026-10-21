@@ -86,6 +86,9 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
                                             help_text='Analyse LLM du texte lu (résumé, points clés)')
     llm_model     = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
                                      help_text="Clé de catalogue du modèle de langage, ou « auto ».")
+    # Sa TEMPÉRATURE (2026-10-21, `temperature_param`) — null = celle du modèle.
+    llm_temperature = models.FloatField(null=True, blank=True,
+                                        help_text="Température du modèle de langage ; vide = celle du modèle.")
 
     created_at    = models.DateTimeField(auto_now_add=True)
 

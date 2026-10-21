@@ -2,7 +2,8 @@
 Sonde vision via Ollama — décrire une image avec un modèle multimodal local (gemma4:12b, e4b…).
 Sert au bench (d) : comparer des modèles candidats sur de vraies images WAMA, en français.
 
-API LOCALE officielle Ollama `/api/chat` (champ `images` base64). Aucun scraping.
+API LOCALE officielle Ollama `/api/chat` (champ `images` base64), par l'appel commun
+`llm_utils.ollama_chat` depuis le 2026-10-21. Aucun scraping.
 """
 from __future__ import annotations
 
@@ -12,12 +13,18 @@ import os
 
 def describe_image_ollama(image_path: str, model: str = '',
                           prompt: str | None = None, timeout: int = 180,
-                          keep_alive: str | None = None, num_predict: int | None = None):
+                          keep_alive: str | None = None, num_predict: int | None = None,
+                          temperature: float | None = None):
     """Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
 
     Le seul client de vision de WAMA depuis le 2026-10-20 : le Describer y passe (images et
     images-clés de vidéo), au lieu de son propre appel. `num_predict` borne la longueur (le
-    Describer : 1 024 jetons) ; None = le défaut d'Ollama.
+    Describer : 1 024 jetons) ; None = le défaut d'Ollama. `temperature` : celle que la card a
+    réglée ; None = celle du MODÈLE (son fichier de modèle, comme avant le portage).
+
+    L'appel est celui de toute conversation (`llm_utils.ollama_chat`, 2026-10-21) : adresse,
+    contournement du proxy et MESURE de l'empreinte à la carte (`ollama_host.measured_load`) y
+    vivent — cette sonde tenait sa propre copie des trois.
 
     `model` vide → RÉSOLU par la route commune (`modele_par_tier('default',
     exige=['completion','vision'])`) — plus de nom en dur : l'ancien défaut `'gemma4:12b'`
@@ -31,9 +38,6 @@ def describe_image_ollama(image_path: str, model: str = '',
     ('120s') laisse s'enchaîner un LOT d'images sans repayer le chargement des poids, puis
     libère ; '0' décharge tout de suite. Cf. [[llm_utils]], même réglage côté texte.
     """
-    from django.conf import settings
-    import requests
-
     if not model:
         from wama.common.utils.llm_utils import modele_par_tier
         model = modele_par_tier('default', exige=['completion', 'vision'])
@@ -47,33 +51,12 @@ def describe_image_ollama(image_path: str, model: str = '',
     except OSError as e:
         return {'ok': False, 'error': f"lecture image : {e}"}
 
-    # Résolution via la brique (réécriture passerelle sous WSL2) ; le contournement du proxy
-    # reste assuré par le `trust_env = False` posé plus bas sur la session.
-    from wama.common.utils.ollama_host import measured_load, ollama_base
-    base = ollama_base()
+    from wama.common.utils.llm_utils import ollama_chat
     prompt = prompt or "Décris cette image en français, de façon précise et concise."
-    try:
-        payload = {
-            'model': model, 'stream': False,
-            'messages': [{'role': 'user', 'content': prompt, 'images': [b64]}],
-        }
-        if keep_alive is not None:
-            payload['keep_alive'] = keep_alive
-        if num_predict is not None:
-            payload['options'] = {'num_predict': int(num_predict)}
-        # `trust_env=False` : Ollama est LOCAL. Sans ça, requests honore HTTP(S)_PROXY et
-        # envoie l'appel dans le proxy UGE, qui répond 504 (constaté 2026-07-31 depuis le
-        # smoke UI). Même précaution que llm_utils.ollama_chat, qui pose déjà trust_env=False.
-        def chat():
-            with requests.Session() as s:
-                s.trust_env = False
-                return s.post(f"{base}/api/chat", json=payload, timeout=timeout)
-
-        # L'appel qui CHARGE le modèle de vision : son empreinte se mesure à la carte, `/api/ps`
-        # en oublie les projecteurs (`ollama_host.measured_load`, 2026-10-20).
-        r = measured_load(model, chat, keep_alive=keep_alive)
-        r.raise_for_status()
-        msg = (r.json().get('message') or {})
-        return {'ok': True, 'description': (msg.get('content') or '').strip()}
-    except Exception as e:
-        return {'ok': False, 'error': f"{type(e).__name__}: {e}"}
+    text, error = ollama_chat(
+        [{'role': 'user', 'content': prompt, 'images': [b64]}], model=model,
+        num_predict=int(num_predict) if num_predict is not None else None,
+        timeout=timeout, keep_alive=keep_alive, temperature=temperature)
+    if error:
+        return {'ok': False, 'error': error}
+    return {'ok': True, 'description': text}

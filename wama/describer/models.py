@@ -122,6 +122,12 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
                                     help_text="Clé de catalogue du modèle de vision, ou « auto ».")
     llm_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
                                  help_text="Clé de catalogue du modèle de langage, ou « auto ».")
+    # La TEMPÉRATURE de chacun des deux modèles qui tirent (2026-10-21, `temperature_param`) —
+    # null = celle du modèle (rien n'est envoyé, il applique celle de son éditeur).
+    vision_temperature = models.FloatField(null=True, blank=True,
+                                           help_text="Température du modèle de vision ; vide = celle du modèle.")
+    llm_temperature = models.FloatField(null=True, blank=True,
+                                        help_text="Température du modèle de langage ; vide = celle du modèle.")
     # Curseur rapide/qualité du tirage « auto » — lu au LANCEMENT (`resolve_model_choice(item=…)`
     # → `quality_intent_of`). Null = le réglage d'app de l'utilisateur, sinon équilibré (50).
     quality_intent = models.IntegerField(null=True, blank=True,

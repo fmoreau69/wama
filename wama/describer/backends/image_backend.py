@@ -71,15 +71,17 @@ def _get_available_ollama_models() -> set:
 VISION_NUM_PREDICT = 1024
 
 
-def _describe_with_ollama_vision(model: str, image_path: str, prompt: str) -> Optional[str]:
+def _describe_with_ollama_vision(model: str, image_path: str, prompt: str,
+                                 temperature: Optional[float] = None) -> Optional[str]:
     """La description de l'image par le modèle de vision Ollama `model`, ou None s'il ne répond
     pas. Par le client de vision COMMUN (`vision_probe.describe_image_ollama`, 2026-10-20) : ce
     module tenait le sien, du même `/api/chat` à images, plus un repli sur `/api/generate` pour
     les anciens Ollama et moondream — mort sur l'Ollama servi (0.40.6, où `/api/chat` porte les
-    images de tout modèle de vision) et pour les seuls modèles qu'il reçoit (catalogue, vision)."""
+    images de tout modèle de vision) et pour les seuls modèles qu'il reçoit (catalogue, vision).
+    `temperature` : celle de la card (`vision_temperature`), None = celle du modèle."""
     from wama.model_manager.services.vision_probe import describe_image_ollama
     result = describe_image_ollama(image_path, model=model, prompt=prompt,
-                                   num_predict=VISION_NUM_PREDICT)
+                                   num_predict=VISION_NUM_PREDICT, temperature=temperature)
     if result.get('ok') and result.get('description'):
         return result['description']
     logger.debug(f"[image_backend] {model} unavailable: {result.get('error') or 'réponse vide'}")
@@ -190,7 +192,8 @@ def describe_image(input_path: str, options: dict = None,
         caption = None
         if ollama_model:
             console(f"Essai {ollama_model} (Ollama)…")
-            caption = _describe_with_ollama_vision(ollama_model, input_path, moondream_prompt)
+            caption = _describe_with_ollama_vision(ollama_model, input_path, moondream_prompt,
+                                                   options.get('vision_temperature'))
             if caption:
                 console(f"Description générée avec {ollama_model} ✓")
                 progress(70)

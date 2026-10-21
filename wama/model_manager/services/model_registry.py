@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
+from wama.common.utils.model_capabilities import TEMPERATURE, ollama_recommended_temperature
 from .model_quality import (
     active_params_b as _params_actifs,
     apriori_quality_index as _indice_qualite,
@@ -1043,6 +1044,9 @@ class ModelRegistry:
                             ['prompt'] if model_type not in (
                                 ModelType.VLM, ModelType.VISION, ModelType.SPEECH)
                             else ['work_file']),
+                        # Réglages que le moteur LIT : BLIP cherche en faisceau, il ne tire
+                        # pas — la température du describer se grise sous lui (2026-10-21).
+                        **({'params': list(config['params'])} if 'params' in config else {}),
                     },
                 )
         except ImportError as e:
@@ -2755,6 +2759,9 @@ class ModelRegistry:
                 'experts_actifs': infos.get(f'{arch}.expert_used_count'),
                 'arch': arch,
                 'capabilities': set(d.get('capabilities') or []),
+                # Le fichier de modèle du publieur (« temperature 1 », « top_k 64 »…) : ce que
+                # le moteur applique quand l'appel ne demande rien (2026-10-21).
+                'parameters': d.get('parameters') or '',
             }
         except Exception as exc:
             logger.debug("[ModelRegistry] /api/show %s indisponible : %s", nom, exc)
@@ -2820,6 +2827,11 @@ class ModelRegistry:
         # un modèle de complétion : c'est le comportement d'avant, on ne régresse pas.
         if not brutes:
             caps['completion'] = True
+        # La TEMPÉRATURE (2026-10-21) : un modèle qui génère la lit — c'est Ollama qui l'applique
+        # (`options.temperature`), pour tout modèle qu'il sert. Une famille qui DÉCLARE ses
+        # réglages garde sa déclaration : un OCR ne la lit pas, son moteur la fixe à 0.
+        if 'params' not in caps and caps.get('completion'):
+            caps['params'] = [TEMPERATURE]
         return caps
 
     def _discover_cloud_models(self):
@@ -2989,6 +3001,12 @@ class ModelRegistry:
                                     # QUALITÉ (totaux) du COÛT (actifs) — voir model_quality.py.
                                     **({'context_length': fiche['context_length']}
                                        if fiche.get('context_length') else {}),
+                                    # La température de l'ÉDITEUR, lue dans son fichier de
+                                    # modèle (même appel `/api/show`). Écrite nulle quand il
+                                    # n'en publie pas : la synchronisation fusionne clé par clé,
+                                    # une valeur retirée ne doit pas survivre.
+                                    **({'recommended_temperature': ollama_recommended_temperature(
+                                        fiche.get('parameters'))} if fiche else {}),
                                     **({'params_total_b': pb} if pb else {}),
                                     **({'params_active_b': actifs} if actifs else {}),
                                 ),

@@ -69,7 +69,7 @@ def _hf_card_excerpt(hf_id: str, max_chars: int = 2500) -> str:
 def _judge(contexte: str, provider, model, timeout=120):
     """Un agent rend un verdict JSON sur `contexte` → dict d'avis (ou {'agent','error'}).
     `model=None` = résolution par le catalogue (`llm_chat` → `modele_par_defaut`)."""
-    from wama.common.utils.llm_utils import llm_chat, extract_json_from_llm
+    from wama.common.utils.llm_utils import STEADY_TEMPERATURE, llm_chat, extract_json_from_llm
     etiquette = f"{provider}:{model}" if model else f"{provider} (catalogue)"
     prompt = (
         contexte + "\n\n"
@@ -84,6 +84,7 @@ def _judge(contexte: str, provider, model, timeout=120):
         messages=[{"role": "system", "content": _system_agent()},
                   {"role": "user", "content": prompt}],
         provider=provider, model=model, num_predict=500, think=False, timeout=timeout,
+        temperature=STEADY_TEMPERATURE,             # un avis sans réglage : stable
     )
     if err or not text:
         return {'agent': etiquette, 'error': err or 'réponse vide'}

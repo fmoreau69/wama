@@ -16,6 +16,13 @@ logger = logging.getLogger(__name__)
 #: rend un `content` vide (mesuré le 2026-10-10).
 EMPTY_RESPONSE_ERROR = "LLM returned empty response"
 
+#: La température des tâches SANS réglage — mise en forme, résumé, cohérence, traduction de
+#: prompt, enrichissement : un résultat stable d'une fois sur l'autre. 0,3, la valeur qu'elles
+#: recevaient toutes jusqu'au 2026-10-21 par le défaut d'`ollama_chat`. Ce défaut est devenu « celle
+#: du modèle » (décision de Fabien : le modèle porte sa température, l'utilisateur la règle là où
+#: il choisit le modèle) ; une tâche qui n'a pas de réglage la donne donc elle-même, ici nommée.
+STEADY_TEMPERATURE = 0.3
+
 
 def get_describer_model(content_type: str, output_style: str) -> str:
     """
@@ -235,6 +242,11 @@ def ollama_chat(
                      passes courtes qui PRÉCÈDENT un gros chargement GPU (ex.
                      enrichissement de prompt avant une diffusion), sinon les
                      poids du LLM squattent la VRAM pendant toute la génération.
+        temperature: None = celle du MODÈLE (son fichier de modèle, `recommended_temperature`
+                     au catalogue) — rien n'est envoyé. Une tâche sans réglage passe
+                     `STEADY_TEMPERATURE`.
+        messages[i]['images']: images base64 d'un message (modèle qui voit) — la sonde de
+                     vision passe par ici (`vision_probe`, 2026-10-21).
 
     Returns:
         (text, None)  on success
@@ -255,10 +267,13 @@ def ollama_chat(
     # qui n'impose rien enverrait `"model": ""` à Ollama.
     model = model or modele_par_defaut()
 
-    # `temperature` : 0.3 par défaut, comme avant pour tous les appelants ; un appel qui veut une
-    # sortie DÉTERMINISTE la pose (l'OCR à 0.0 — `glm_ocr_backend`, qui gardait son propre client
-    # Ollama pour cette seule raison jusqu'au 2026-10-07).
-    options: dict = {"temperature": 0.3 if temperature is None else temperature}
+    # `temperature` : None = celle du MODÈLE, rien n'est envoyé — la même règle que la branche
+    # cloud de `llm_chat` (2026-10-21 ; c'était 0,3 imposé, contre l'éditeur de gemma4 et qwen3.5
+    # qui publient 1). Un appel qui veut une sortie DÉTERMINISTE la pose (l'OCR à 0.0 —
+    # `glm_ocr_backend`), une tâche sans réglage pose `STEADY_TEMPERATURE`.
+    options: dict = {}
+    if temperature is not None:
+        options["temperature"] = temperature
     # `None` = pas de plafond (défaut d'Ollama) — même contrat que la branche cloud de
     # `llm_chat`, où `None` n'envoie pas `max_tokens`.
     if num_predict is not None:
@@ -496,7 +511,9 @@ def llm_chat(
                     A source of protocol `openai` is routed as `openai/<model>` with the address
                     and key of `external_sources`.
         num_predict: Max tokens to generate (Ollama) / max_tokens (cloud). None = no cap.
-        temperature: Sampling temperature (None = provider default; Ollama: 0.3).
+        temperature: Sampling temperature. None = the MODEL's own (Ollama: its model file; cloud:
+                    the provider's) — nothing is sent. A task with no setting passes
+                    `STEADY_TEMPERATURE`.
         num_ctx:    KV cache size in tokens (Ollama only, ignored for cloud).
         think:      Qwen3 thinking mode (Ollama only, ignored for cloud).
         keep_alive: Résidence VRAM après réponse (Ollama only, ignoré pour le cloud).
@@ -839,6 +856,9 @@ def extract_json_from_llm(text: str) -> Optional[dict]:
 #    `llm_chat` ne peut pas rattraper. `None` = « le réglage global décide », ce qui
 #    reproduit à l'octet le comportement d'avant tant que `LITELLM_PROVIDER='ollama'`
 #    (sa valeur par défaut, `settings.py:845`).
+# 3. **`temperature` remonte aussi** (2026-10-21) : `STEADY_TEMPERATURE` par défaut — l'appelant
+#    sans réglage (le transcriber) garde ses 0,3 ; une app dont la card porte le réglage
+#    (`temperature_param`) passe SA valeur, `None` voulant dire « celle du modèle ».
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate_meeting_summary(
@@ -847,6 +867,7 @@ def generate_meeting_summary(
     speakers: Optional[list] = None,
     model: str = '',
     provider: Optional[str] = None,
+    temperature: Optional[float] = STEADY_TEMPERATURE,
 ) -> str:
     """
     Generate a structured meeting summary (compte-rendu de réunion).
@@ -895,10 +916,10 @@ def generate_meeting_summary(
     ]
 
     # think=False + budget suffisant + retry (cf. generate_structured_summary).
-    result_text, error = llm_chat(messages, model=model or None, provider=provider,
+    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                   think=False, num_predict=4096)
     if not result_text:
-        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                       think=False, num_predict=4096)
 
     if error or not result_text:
@@ -946,6 +967,7 @@ def verify_text_coherence(
     language: str = 'fr',
     model: str = '',
     provider: Optional[str] = None,
+    temperature: Optional[float] = STEADY_TEMPERATURE,
 ) -> dict:
     """
     Verify text coherence and suggest corrections.
@@ -1006,10 +1028,10 @@ def verify_text_coherence(
     # think=False : tâche de sortie JSON → pas de raisonnement qui consomme le budget
     # de tokens (cause des réponses vides avec les modèles « thinking » type qwen3).
     # + 1 retry sur réponse vide (intermittence Ollama).
-    result_text, error = llm_chat(messages, model=model or None, provider=provider,
+    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                   think=False, num_predict=4096)
     if not result_text:
-        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                       think=False, num_predict=4096)
 
     if error or not result_text:
@@ -1067,6 +1089,7 @@ def analyze_segments_coherence(
     language: str = 'fr',
     model: str = '',
     provider: Optional[str] = None,
+    temperature: Optional[float] = STEADY_TEMPERATURE,
 ) -> dict:
     """Analyse la cohérence PAR SEGMENT (1 seul appel LLM).
 
@@ -1102,10 +1125,10 @@ def analyze_segments_coherence(
     ]
     try:
         # think=False (sortie JSON) + 1 retry sur réponse vide.
-        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                       think=False)
         if not result_text:
-            result_text, error = llm_chat(messages, model=model or None, provider=provider,
+            result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                           think=False)
         if error or not result_text:
             logger.warning(f"[llm_utils] analyze_segments_coherence: {error or 'réponse vide'}")
@@ -1133,6 +1156,7 @@ def suggest_speaker_names(
     language: str = 'fr',
     model: str = '',
     provider: Optional[str] = None,
+    temperature: Optional[float] = STEADY_TEMPERATURE,
 ) -> dict:
     """Propose des noms d'intervenants à partir des présentations dans la transcription.
 
@@ -1180,10 +1204,10 @@ def suggest_speaker_names(
             'Retourne UNIQUEMENT un JSON : {"speakers": [{"id": "SPEAKER_00", "name": "Prénom Nom"}, ...]}.')},
     ]
     try:
-        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                       think=False, num_predict=1024)
         if not result_text:
-            result_text, error = llm_chat(messages, model=model or None, provider=provider,
+            result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                           think=False, num_predict=1024)
         if error or not result_text:
             logger.warning(f"[llm_utils] suggest_speaker_names: {error or 'réponse vide'}")
@@ -1209,6 +1233,7 @@ def generate_structured_summary(
     language: str = 'fr',
     model: str = '',
     provider: Optional[str] = None,
+    temperature: Optional[float] = STEADY_TEMPERATURE,
 ) -> dict:
     """
     Generate a structured summary (summary, key_points, action_items).
@@ -1261,10 +1286,10 @@ def generate_structured_summary(
 
     # think=False (sortie JSON) + num_predict suffisant + 1 retry : sans ça, un texte long
     # fait que le modèle « thinking » épuise son budget en raisonnement → JSON vide.
-    result_text, error = llm_chat(messages, model=model or None, provider=provider,
+    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                   think=False, num_predict=4096)
     if not result_text:
-        result_text, error = llm_chat(messages, model=model or None, provider=provider,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
                                       think=False, num_predict=4096)
 
     if error or not result_text:

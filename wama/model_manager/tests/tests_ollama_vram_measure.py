@@ -226,9 +226,9 @@ class OllamaResidencyLineTest(ledger_tests._AvecRegistre):
 class OllamaCallersAreMeasuredTest(SimpleTestCase):
     """Les appels qui CHARGENT un modèle de l'Ollama hôte et le gardent passent par la mesure
     (`ollama_host.measured_load`) : les modèles de conversation n'en avaient aucune, faute d'un
-    point commun — il y en a deux (`llm_utils.ollama_chat`, le tour de l'assistant), plus les
-    trois qui tiennent leur client (vision du describer, sonde de vision, chauffe du banc). Et
-    olmOCR décharge Ollama par les briques."""
+    point commun — il y en a deux (`llm_utils.ollama_chat`, le tour de l'assistant), plus la
+    chauffe du banc, qui tient son client ; la sonde de vision passe par `ollama_chat` depuis le
+    2026-10-21, le Describer par elle. Et olmOCR décharge Ollama par les briques."""
 
     MEASURE = f'{REGISTRY}.measure_ollama_load'
 
@@ -271,18 +271,19 @@ class OllamaCallersAreMeasuredTest(SimpleTestCase):
         import tempfile
 
         from wama.describer.backends import image_backend
-        session = mock.MagicMock()
-        post = session.__enter__.return_value.post
-        post.return_value = mock.Mock(raise_for_status=lambda: None,
+        client = mock.MagicMock()
+        post = client.__enter__.return_value.post
+        post.return_value = mock.Mock(status_code=200,
                                       json=lambda: {'message': {'content': 'une voiture'}})
         with tempfile.NamedTemporaryFile(suffix='.png') as image, \
-                mock.patch('requests.Session', return_value=session), self._measure() as measured:
+                mock.patch('httpx.Client', return_value=client), self._measure() as measured:
             image.write(b'png')
             image.flush()
             self.assertEqual(image_backend._describe_with_ollama_vision(
                 'gemma4:12b', image.name, 'Décris.'), 'une voiture')
         self.assertEqual(measured.call_args.args[0], 'gemma4:12b')
-        # Le client COMMUN de vision, à la longueur du Describer — plus son propre appel.
+        # Le client COMMUN de vision, à la longueur du Describer — plus son propre appel ; sans
+        # réglage, aucune température : celle du modèle (2026-10-21).
         sent = post.call_args.kwargs['json']
         self.assertEqual(({'num_predict': image_backend.VISION_NUM_PREDICT}, 'Décris.'),
                          (sent['options'], sent['messages'][0]['content']))
@@ -291,11 +292,11 @@ class OllamaCallersAreMeasuredTest(SimpleTestCase):
         import tempfile
 
         from wama.model_manager.services import vision_probe
-        session = mock.MagicMock()
-        session.__enter__.return_value.post.return_value = mock.Mock(
-            raise_for_status=lambda: None, json=lambda: {'message': {'content': 'un chat'}})
+        client = mock.MagicMock()
+        client.__enter__.return_value.post.return_value = mock.Mock(
+            status_code=200, json=lambda: {'message': {'content': 'un chat'}})
         with tempfile.NamedTemporaryFile(suffix='.png') as image, \
-                mock.patch('requests.Session', return_value=session), self._measure() as measured:
+                mock.patch('httpx.Client', return_value=client), self._measure() as measured:
             image.write(b'png')
             image.flush()
             self.assertEqual({'ok': True, 'description': 'un chat'}, vision_probe.describe_image_ollama(

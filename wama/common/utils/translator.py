@@ -34,6 +34,9 @@ _CHUNK_CHARS = 4000  # ~ sous la fenêtre de traduction effective de translatege
 
 #: Le modèle de traduction par défaut — celui des deux consommateurs d'avant le 2026-10-16.
 DEFAULT_MODEL = 'ollama:translategemma:12b'
+#: Repère « pas de réglage » : la température stable de `llm_utils` (lue à l'appel, ce module
+#: s'importe sans Django).
+_STEADY = object()
 #: Version de la consigne de `_translate_chunk`, inscrite dans la clé de cache : la changer à
 #: chaque réécriture de la consigne. 2 = langues nommées par code ISO 639-1, source détectée.
 PROMPT_VERSION = 2
@@ -41,13 +44,16 @@ PROMPT_VERSION = 2
 
 class TranslatorService:
     def __init__(self, model: str = DEFAULT_MODEL, glossary=None, use_cache: bool = True,
-                 user=None):
+                 user=None, temperature=_STEADY):
         from wama.common.utils.model_keys import catalog_key
         # Un nom Ollama nu (`translategemma:12b`, la forme d'avant) reste accepté.
         self.model = catalog_key(model or DEFAULT_MODEL, 'ollama')
         self.glossary = list(glossary or [])
         self.use_cache = use_cache
         self.user = user
+        # `STEADY_TEMPERATURE` pour la traduction de prompts (sans réglage) ; une app dont la card
+        # porte le réglage passe la sienne, None = celle du modèle (2026-10-21).
+        self.temperature = temperature
 
     # ── public ───────────────────────────────────────────────────────────────
     def translate(self, text: str, source_lang: str, target_lang: str, glossary=None,
@@ -58,7 +64,10 @@ class TranslatorService:
             return {'ok': True, 'text': text, 'cached': False}  # passthrough
 
         gloss = list(self.glossary) + list(glossary or [])
-        ckey = self._cache_key(text, source_lang, target_lang, gloss, self.model)
+        # Une température RÉGLÉE entre dans la clé (deux températures ne rendent pas la même
+        # traduction) ; sans réglage, la clé d'avant — le cache existant reste valable.
+        tagged = self.model if self.temperature is _STEADY else f"{self.model}@t={self.temperature}"
+        ckey = self._cache_key(text, source_lang, target_lang, gloss, tagged)
         if self.use_cache:
             cached = self._cache_get(ckey)
             if cached is not None:
@@ -96,7 +105,8 @@ class TranslatorService:
 
     # ── interne ──────────────────────────────────────────────────────────────
     def _translate_chunk(self, text, source_lang, target_lang, glossary, timeout):
-        from wama.common.utils.llm_utils import llm_chat
+        from wama.common.utils.llm_utils import STEADY_TEMPERATURE, llm_chat
+        temperature = STEADY_TEMPERATURE if self.temperature is _STEADY else self.temperature
         gloss_line = ""
         if glossary:
             gloss_line = ("\nNe traduis PAS ces termes (garde-les tels quels) : "
@@ -127,11 +137,12 @@ class TranslatorService:
             from wama.common.services.resource_governor import pipeline_keep_alive
             out, err = llm_chat(messages=messages, provider='ollama', model=model_id,
                                 num_predict=1500, think=False, timeout=timeout,
-                                keep_alive=pipeline_keep_alive())
+                                keep_alive=pipeline_keep_alive(), temperature=temperature)
         else:
             from wama.common.utils.llm_utils import chat_with_catalog_model
             out, err = chat_with_catalog_model(self.model, messages, user=self.user,
-                                               think=False, timeout=timeout)
+                                               think=False, timeout=timeout,
+                                               temperature=temperature)
         if err or not out:
             return {'ok': False, 'error': err or 'réponse vide', 'cached': False}
         return {'ok': True, 'text': out.strip(), 'cached': False}

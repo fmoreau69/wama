@@ -90,6 +90,7 @@ def describe_audio(input_path: str, options: dict = None,
                 transcript, content_hint='audio',
                 language=output_language or 'fr',
                 model=_model, provider=_provider,
+                temperature=options.get('llm_temperature'),
             )
             progress(85)
 

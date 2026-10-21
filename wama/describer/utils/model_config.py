@@ -50,6 +50,9 @@ DESCRIBER_MODELS = {
                             "n'est disponible.",
         'size_gb': 1.8,
         'source': 'huggingface',
+        # Les réglages que le moteur LIT (capacité `params`) : aucun — BLIP cherche en faisceau
+        # (`num_beams`), il ne tire pas au hasard, donc la température ne le concerne pas.
+        'params': [],
     },
 
     # Transcription audio : PAS de modèle propre. Le describer passe par la brique commune

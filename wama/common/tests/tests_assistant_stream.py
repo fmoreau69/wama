@@ -187,7 +187,8 @@ class TurnEventsTest(TestCase):
     def test_a_turn_emits_its_tool_steps_and_its_text_as_they_happen(self):
         calls = []
 
-        def fake_llm(messages, llm_model, provider, user=None, think=None, on_delta=None):
+        def fake_llm(messages, llm_model, provider, user=None, think=None, on_delta=None,
+                     **_settings):            # la température du tour, entre autres (2026-10-21)
             calls.append(on_delta)
             if len(calls) == 1:
                 if on_delta:
@@ -219,7 +220,7 @@ class TurnEventsTest(TestCase):
         """Le portier n'est plus réservé au local : un fournisseur distant qui diffuse voit son
         appel d'outil filtré de la même façon."""
         def fake_llm(messages, llm_model, provider, user=None, think=None, on_delta=None,
-                     tools=None):
+                     tools=None, **_settings):
             self.assertIsNotNone(on_delta)
             # gpt-oss est déclaré `native_tools` chez Albert : la déclaration native accompagne
             # l'appel (2026-10-11) — elle vaut pour ce modèle mesuré, pas pour toute la source.

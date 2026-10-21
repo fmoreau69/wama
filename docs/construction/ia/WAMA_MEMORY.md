@@ -448,10 +448,12 @@ Ce qui restait — ✅ soldé à la revérification du même soir :
   registre n'y est pas le vrai (courtier `memory://`), et un test qui simulait `ollama_chat`
   interrogeait l'Ollama réel, Redis et nvidia-smi.
 
-Ce qui reste, nommé :
-- `vision_probe` garde son client HTTP à côté de `ollama_chat` (même `/api/chat`, images en plus).
-  Le porter changerait sa température : `ollama_chat` impose 0,3, la sonde laisse celle du modèle
-  — une DÉCISION (la description en sortirait plus littérale), pas un reste de portage.
+Ce qui restait — ✅ soldé le 2026-10-21 (décision de Fabien) :
+- ~~`vision_probe` garde son client HTTP à côté de `ollama_chat`~~ : il passe par `ollama_chat`
+  (images dans le message). La température qui bloquait le portage est devenue un RÉGLAGE COMMUN,
+  porté par le modèle (`params` + `recommended_temperature` au catalogue) et réglable là où l'on
+  choisit le modèle ; sans réglage, c'est celle du MODÈLE — `ollama_chat` n'impose plus 0,3. Règle
+  et mécanisme : `WAMA_LLM.md §Température` ; réglage : `INPUT_MODEL_MATCHING.md §7`.
 
 ## 7bis. ⚠ LE VRAI GOULOT : `RunOutcome` est quasi vide (mesuré 2026-08-20)
 

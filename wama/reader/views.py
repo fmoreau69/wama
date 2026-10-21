@@ -418,7 +418,7 @@ def _output_stem(r):
 
 #: Réglages d'une lecture écrits par la modale ⚙, le volet et la modale de LOT (schéma `params.py`).
 SETTINGS_FIELDS = ('backend', 'mode', 'output_format', 'language', 'llm_model',
-                   'format_markdown', 'generate_analysis')
+                   'llm_temperature', 'format_markdown', 'generate_analysis')
 #: `language` vide EST une valeur (auto-détection) — lu par la route d'élément et par la fabrique.
 SETTINGS_EMPTY_IS_VALUE = ('language',)
 

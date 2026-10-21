@@ -244,7 +244,9 @@ def _summarize_step(item, ctx):
         model, provider = llm_for(opts, nature, 'meeting')   # heavy tier sous « auto »
         ctx.console(f"Rédaction du compte-rendu de réunion — modèle : {model}")
         summary, label = generate_meeting_summary(source, language=language, model=model,
-                                                  provider=provider), 'compte-rendu'
+                                                  provider=provider,
+                                                  temperature=opts.get('llm_temperature')), \
+            'compte-rendu'
     else:
         if not (item.result_text or '').strip():
             return {'label': 'rien à résumer'}
@@ -253,7 +255,8 @@ def _summarize_step(item, ctx):
         ctx.console(f"Génération du résumé LLM — modèle : {model}")
         summary = generate_structured_summary(item.result_text, content_hint=nature,
                                               language=language, model=model,
-                                              provider=provider)['summary']
+                                              provider=provider,
+                                              temperature=opts.get('llm_temperature'))['summary']
         label = 'résumé'
     ctx.console(f"{label.capitalize()} généré ✓")
     return {'fields': {'summary': summary}, 'label': label,
@@ -275,7 +278,8 @@ def _coherence_step(item, ctx):
     ctx.console(f"Vérification de cohérence — modèle : {model}")
     coherence = verify_text_coherence(item.result_text, content_hint=nature,
                                       language=opts.get('output_language') or 'fr',
-                                      model=model, provider=provider)
+                                      model=model, provider=provider,
+                                      temperature=opts.get('llm_temperature'))
     ctx.console(f"Cohérence vérifiée — score: {coherence['score']}/100 ✓")
     notes = '\n'.join(coherence['notes'])
     return {'fields': {'coherence_score': coherence['score'], 'coherence_notes': notes,

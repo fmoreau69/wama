@@ -97,7 +97,8 @@ class Command(BaseCommand):
         self.stdout.write(f"\nTest passerelle → {provider} / {model}  (CLOUD) …")
         text, err = llm_chat(
             [{"role": "user", "content": "Réponds uniquement : OK"}],
-            model=model, provider=provider, num_predict=512, timeout=options['timeout'])
+            model=model, provider=provider, num_predict=512, timeout=options['timeout'],
+            temperature=None)                   # celle du fournisseur : on éprouve la passerelle
         if text is None:
             self.stderr.write(self.style.ERROR(f"✗ Échec passerelle : {str(err)[:300]}"))
         else:

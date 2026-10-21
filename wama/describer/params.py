@@ -16,7 +16,7 @@ langage — trois selects tirés du CATALOGUE par capacité (route F4b, patron d
 ses deux selects), « auto » en tête.
 """
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import derive_from_model, schema_to_dicts
+from wama.common.utils.param_schema import derive_from_model, schema_to_dicts, temperature_param
 from wama.describer.models import Description
 
 PANEL_ITEM_BATCH = ("panel", "item", "batch")
@@ -28,7 +28,8 @@ PARAMS = derive_from_model(
     # affinages (`options_resolution`). Les deux autres « auto » sont propres au describer (la
     # cascade vision, les tiers du style) : leur select se tait plutôt que de prévoir faux.
     include=["output_style", "output_language", "max_length",
-             "asr_model", "quality_intent", "vision_model", "llm_model",
+             "asr_model", "quality_intent", "vision_model", "vision_temperature",
+             "llm_model", "llm_temperature",
              "generate_summary", "summary_type", "verify_coherence"],
     overrides={
         # dom_id "batch" (17/08) : modale batch DÉDIÉE générée (contrat reader) — remplace le
@@ -104,6 +105,15 @@ PARAMS = derive_from_model(
             contexts=PANEL_ITEM_BATCH,
             stales=("frames", "describe"),
         ),
+        # La TEMPÉRATURE de chaque modèle qui tire (2026-10-21) : le réglage commun, lié au choix
+        # du modèle — grisé sous BLIP (il ne tire pas), la valeur de l'éditeur rappelée.
+        "vision_temperature": temperature_param(
+            "vision_model",
+            dom_id={"panel": "vision_temperature", "item": "settingsVisionTemperature",
+                    "batch": "batchSettingsVisionTemperature"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("frames", "describe"),
+        ),
         # Langage : rédaction d'un document, d'un audio, d'une vidéo, puis résumé et cohérence.
         # « auto » = le gabarit du style (rapide pour un résumé court, lourd pour une synthèse
         # scientifique ou la cohérence), résolu au catalogue (`llm_utils.get_describer_model`).
@@ -118,6 +128,13 @@ PARAMS = derive_from_model(
                                    "scientifique ou la vérification de cohérence."},
             dom_id={"panel": "llm_model", "item": "settingsLlmModel",
                     "batch": "batchSettingsLlmModel"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("describe", "summarize", "coherence"),
+        ),
+        "llm_temperature": temperature_param(
+            "llm_model",
+            dom_id={"panel": "llm_temperature", "item": "settingsLlmTemperature",
+                    "batch": "batchSettingsLlmTemperature"},
             contexts=PANEL_ITEM_BATCH,
             stales=("describe", "summarize", "coherence"),
         ),

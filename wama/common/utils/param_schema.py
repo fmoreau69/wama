@@ -35,6 +35,9 @@ class Param:
                                                 #  d'intervenants du transcriber, ROUTE §F3b)
                                                 # (`intent` = le curseur rapide/qualité commun,
                                                 #  `auto_model.intent_param` ; borné par coerce_params)
+                                                # (`temperature` = la température d'échantillonnage
+                                                #  commune, `temperature_param` ; vide/None = celle
+                                                #  du MODÈLE — 2026-10-21)
     label: str = ""
     icon: str = ""                              # classe FontAwesome optionnelle (ex. "fa-microchip")
     dom_id: Any = ""                            # pont de migration : ID DOM legacy (sinon wp-{ctx}-{name}).
@@ -61,6 +64,14 @@ class Param:
     min_label: str = ""                         # libellés FORMATÉS des bornes du range (ex. "10s"/"10min")
     max_label: str = ""                         #   — priment sur min/max bruts à l'affichage (P2-bis)
     contexts: Tuple[str, ...] = ALL_CONTEXTS
+    remember: Optional[bool] = None             # Le réglage se RETIENT-il d'un dépôt au suivant
+                                                # (préférence de l'utilisateur, brique `user_settings`) ?
+                                                # None = oui s'il est au VOLET (contexte `panel`) — le cas
+                                                # de presque tous ; True = retenu hors du volet (la voix
+                                                # de l'avatarizer, réglée dans la modale) ; False = jamais
+                                                # (son modèle d'animation : il ne convient qu'à une nature
+                                                # d'avatar). 2026-10-21 : déclaré ici, la règle vivait en
+                                                # code dans les `params.py` (`remembered`).
     options_source: Optional[str] = None        # clé d'options dynamiques (ex. "backends")
     # ⚠ `options_domain` (porte + annonce aux assistants d'un select de catalogue) RETIRÉ le
     # 2026-10-07 (REMOVAL_LEDGER) : un seul utilisateur (le transcriber), une seule règle pour
@@ -174,7 +185,11 @@ class Param:
     pills: list = field(default_factory=list)   # Toggle rendu en sélecteur segmenté (2 pills radio) :
                                                 # [libellé_off, libellé_on] — ex. ["YOLO", "SAM3"]. La valeur
                                                 # lue/envoyée reste 'true'/'false' (contrat serveur inchangé).
-    cap_from: Optional[dict] = None             # Curseur BORNÉ PAR LA CAPACITÉ DU MODÈLE choisi (2026-09-23,
+    cap_from: Any = None                        # Curseur BORNÉ PAR LA CAPACITÉ DU MODÈLE choisi (2026-09-23,
+                                                # un dict, ou une LISTE de dicts quand le réglage lit
+                                                # plusieurs capacités — la température : la lit-il, sa
+                                                # valeur recommandée, son maximum ; 2026-10-21,
+                                                # `cap_bindings`),
                                                 # Fabien : « les paramètres tirent leurs infos des capacités
                                                 # des modèles dans le registre »). {"field": "<param modèle>",
                                                 # "capability": "<clé de capabilities>", "extension":
@@ -339,6 +354,50 @@ def schema_to_dicts(params: List[Param]) -> List[dict]:
     return [p.to_dict() for p in params]
 
 
+def cap_bindings(p) -> List[dict]:
+    """Les liaisons `cap_from` d'un réglage, toujours en LISTE (un dict seul, la forme d'avant
+    le 2026-10-21, en est une à un élément). Jumeau serveur de `wama-params.js::_capBindings`."""
+    cf = _pget(p, 'cap_from')
+    if not cf:
+        return []
+    return [b for b in (cf if isinstance(cf, (list, tuple)) else [cf]) if b]
+
+
+# ── La TEMPÉRATURE d'échantillonnage — un réglage COMMUN à tout modèle qui tire (2026-10-21) ──
+# Demande de Fabien : « le modèle doit porter l'information et le réglage doit apparaître si le
+# modèle le permet ». Le modèle la porte au catalogue (`model_capabilities` : `params` contient
+# `temperature`, `recommended_temperature`, `max_temperature`) ; ce réglage se pose À CÔTÉ de
+# n'importe quel choix de modèle (`model_field`) et en lit les trois par `cap_from` : grisé, raison
+# dite, sous un modèle qui ne tire pas ; la valeur de l'éditeur rappelée dessous ; borné au maximum
+# du moteur. Vide = « celle du modèle » : rien n'est envoyé, le moteur applique la sienne. Il n'entre
+# PAS dans le curseur rapide/qualité (Fabien, même jour) : celui-là choisit le modèle, celle-ci règle
+# sa façon de tirer.
+
+TEMPERATURE_MAX = 2.0
+
+
+def temperature_param(model_field: str, **overrides) -> dict:
+    """Surcouche STANDARD du réglage de température, liée au choix de modèle `model_field` du
+    même schéma — l'app déclare la colonne (`FloatField(null=True, blank=True)`) et passe
+    `temperature_param('<champ modèle>', dom_id=…, stales=…)` en override."""
+    from wama.common.utils.model_capabilities import TEMPERATURE
+    base = dict(
+        type='temperature', label='Température', icon='fa-temperature-half',
+        default=None, min=0, max=TEMPERATURE_MAX, step=0.05,
+        help="Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, "
+             "plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+        cap_from=[
+            {'field': model_field, 'capability': 'params', 'mode': 'reads', 'param': TEMPERATURE,
+             'reason': "Ce modèle ne tire pas au hasard : la température ne le concerne pas."},
+            {'field': model_field, 'capability': 'recommended_temperature', 'mode': 'note',
+             'label': 'Celle du modèle :'},
+            {'field': model_field, 'capability': 'max_temperature'},
+        ],
+    )
+    base.update(overrides)
+    return base
+
+
 def _pget(p, key, default=None):
     """Accès uniforme à un champ de schéma, que `p` soit un Param ou un dict (schema_to_dicts)."""
     return p.get(key, default) if isinstance(p, dict) else getattr(p, key, default)
@@ -447,6 +506,28 @@ def panel_name_key(p):
     return _pget(p, 'name') if 'panel' in (_pget(p, 'contexts') or ()) else None
 
 
+def remembered(p) -> bool:
+    """Le réglage se retient-il (préférence de l'utilisateur) ? Sa déclaration `remember`, sinon
+    sa présence au volet — la surface des défauts de l'utilisateur."""
+    declared = _pget(p, 'remember')
+    if declared is not None:
+        return bool(declared)
+    return 'panel' in (_pget(p, 'contexts') or ())
+
+
+def domain_key(domain: str):
+    """LA règle de clé de stockage (2026-10-21, « une seule règle pour tous ») : `<domaine>.<nom>`
+    d'un réglage retenu, None sinon. Le domaine est toujours nommé (`app_modes`), donc deux
+    domaines d'une app ne se mêlent jamais (l'`audio.quality_intent` de l'enhancer n'est pas son
+    `image_video.quality_intent`), et une app qui gagne un domaine ne déplace aucune clé. Le nom
+    est celui du param : ce que lisent la cascade de naissance et le curseur au lancement.
+    Rend une fonction de param, la forme du `key=` des fonctions du volet."""
+    def key(p):
+        name = _pget(p, 'name')
+        return f'{domain}.{name}' if name and remembered(p) else None
+    return key
+
+
 def panel_defaults(params, key=None) -> dict:
     """{clé de stockage: défaut} des params du volet."""
     key = key or panel_dom_id
@@ -507,6 +588,11 @@ def effective_settings(schema, posees=None, preset=None, contexte=None) -> dict:
     return out
 
 
+#: Les types de réglage NUMÉRIQUES — bornés par le schéma (`coerce_params`). `temperature` en est un
+#: (2026-10-21), avec une valeur de plus : vide = celle du modèle (None, jamais le minimum).
+NUMERIC_TYPES = ('range', 'number', 'intent', 'temperature')
+
+
 def coerce_params(schema, data, caps=None):
     """Borne UNIQUE des paramètres numériques = le SCHÉMA (`params.py`). Source de vérité serveur.
 
@@ -532,7 +618,7 @@ def coerce_params(schema, data, caps=None):
     out = {}
     for p in schema:
         ptype = _pget(p, 'type')
-        if ptype not in ('range', 'number', 'intent'):
+        if ptype not in NUMERIC_TYPES:
             continue
         name = _pget(p, 'name')
         lo = _pget(p, 'min')
@@ -547,6 +633,9 @@ def coerce_params(schema, data, caps=None):
         try:
             val = float(raw)
         except (TypeError, ValueError):
+            if ptype == 'temperature':
+                out[name] = None        # vide, absent ou illisible : celle du MODÈLE
+                continue
             dflt = _pget(p, 'default')
             val = float(dflt) if dflt is not None else (float(lo) if lo is not None else 0.0)
         if lo is not None:
@@ -890,12 +979,15 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
         if ptype == 'mapping' and raw is not None:
             out[name] = _coerce_mapping(raw)
             continue
+        if ptype == 'temperature' and raw == '':
+            out[name] = None                    # vide = revenir à celle du MODÈLE (un choix)
+            continue
         # `''` = champ de formulaire laissé vide = NON FOURNI. Sans ça, un `resize_w=''` posté
         # par un <input number> vide serait clampé au minimum du schéma (0) au lieu d'être
         # ignoré, et écraserait la valeur par défaut du traitement.
         if only_present and (raw is None or raw == ''):
             continue
-        if ptype in ('range', 'number', 'intent'):     # `intent` : entier 0-100 (chantier C)
+        if ptype in NUMERIC_TYPES:     # `intent` : entier 0-100 (chantier C)
             val = numeric.get(name)
             if val is not None and float(val).is_integer():
                 val = int(val)          # 3.0 → 3 : les champs entiers n'aiment pas les floats
@@ -929,7 +1021,7 @@ def schema_refusals(schema, data) -> dict:
     readable = []
     for p in schema:
         name = _pget(p, 'name')
-        if name in out or _pget(p, 'type') not in ('range', 'number', 'intent'):
+        if name in out or _pget(p, 'type') not in NUMERIC_TYPES:
             continue
         raw = data.get(name) if hasattr(data, 'get') else None
         if raw is None or raw == '' or isinstance(raw, bool):

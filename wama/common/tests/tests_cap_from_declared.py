@@ -15,9 +15,11 @@ from wama.common.utils.model_capabilities import (CANONICAL_CAPABILITIES,
 
 
 def _declared_bindings():
-    """(app, schema attribute, schema, param) for every declared setting that carries `cap_from`."""
+    """(app, schema attribute, schema, param) for every BINDING of a declared setting — a setting
+    may read several capabilities (the temperature, 2026-10-21): one tuple per binding, the param
+    carrying that binding alone as its `cap_from`."""
     from wama.common.app_registry import APP_CATALOG
-    from wama.common.utils.param_schema import declared_param_schemas
+    from wama.common.utils.param_schema import cap_bindings, declared_param_schemas
     out = []
     for app, spec in APP_CATALOG.items():
         if (spec or {}).get('sandbox'):
@@ -25,8 +27,8 @@ def _declared_bindings():
         declared = declared_param_schemas(app) or {}
         for attr, schema in (declared.get('schemas') or {}).items():
             for p in schema:
-                if isinstance(p, dict) and p.get('cap_from'):
-                    out.append((app, attr, schema, p))
+                if isinstance(p, dict):
+                    out += [(app, attr, schema, {**p, 'cap_from': cf}) for cf in cap_bindings(p)]
     return out
 
 

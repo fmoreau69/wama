@@ -92,6 +92,12 @@ details.wama-param-group[open] > summary.wama-param-group-title::after { transfo
 .wama-param .wama-cap-note.is-continued { color: var(--wama-param-continued-text); }
 .wama-param.is-continued .wama-range-val { color: var(--wama-param-continued-text) !important; font-weight: 700; }
 
+/* ── TEMPÉRATURE laissée au modèle (`temperature_param`, 2026-10-21) : le curseur montre la valeur
+   de l'éditeur, atténué — rien n'est réglé tant que l'utilisateur n'y touche pas. Une note vide
+   (capacité absente) ne prend pas de place. */
+.wama-temperature-slider.is-own { opacity: .55; }
+.wama-param .wama-cap-note:empty { display: none; }
+
 /* Correspondance {clé: texte} (2026-10-21, type `mapping` — les noms des intervenants) : une ligne
    par clé, la clé en libellé fixe, le texte éditable. */
 .wama-param-mapping-row { display: flex; align-items: center; gap: .4rem; margin-bottom: .35rem; }

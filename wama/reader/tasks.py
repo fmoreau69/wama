@@ -121,7 +121,7 @@ def _extract_natural_text(text: str) -> str:
 
 
 def _format_as_markdown(text: str, language: str = '', model: str = '',
-                        provider: str = None) -> str:
+                        provider: str = None, temperature=None) -> str:
     """
     Use a local LLM (Ollama) to reformat raw OCR text as clean Markdown.
     Preserves all content — only applies structure (headings, lists, tables, bold…).
@@ -129,6 +129,7 @@ def _format_as_markdown(text: str, language: str = '', model: str = '',
     `model` / `provider` : le modèle de langage de la card (`llm_model`), ou '' = le tier
     historique. Un échec LÈVE depuis le 2026-10-13 : il était avalé (texte brut rendu sans un mot)
     — c'est désormais le process `format` qui échoue, sur SA ligne, le texte lu restant en place.
+    `temperature` : celle de la card (`llm_temperature`), None = celle du modèle.
     """
     if not text or not text.strip():
         return text
@@ -161,6 +162,7 @@ def _format_as_markdown(text: str, language: str = '', model: str = '',
         num_ctx=8192,   # Cap KV cache — formatting needs no large context window
         think=False,
         timeout=30.0,  # Fast-fail when Ollama is unavailable
+        temperature=temperature,
     )
 
     if error or not result:
@@ -339,7 +341,8 @@ def _format(item, ctx):
     model, provider = _llm(item)
     ctx.progress(10, "Mise en forme…")
     ctx.console(f"[Reader] Mise en forme via LLM{f' — modèle : {model}' if model else ''}…")
-    result = _format_as_markdown(text, item.language, model=model, provider=provider)
+    result = _format_as_markdown(text, item.language, model=model, provider=provider,
+                                 temperature=getattr(item, 'llm_temperature', None))
     return {'fields': {'result_text': result}, 'label': 'Markdown',
             'models': [ollama_catalog_key(model)] if provider == 'ollama' else [],
             'output_fingerprint': _fingerprint(result), 'eta': format_eta(item)[:3]}
@@ -354,7 +357,8 @@ def _analyze(item, ctx):
     model, provider = _llm(item)
     ctx.console(f"[Reader] Analyse LLM : {item.filename}…")
     data = generate_structured_summary(item.result_text, content_hint='description',
-                                       language='fr', model=model, provider=provider)
+                                       language='fr', model=model, provider=provider,
+                                       temperature=getattr(item, 'llm_temperature', None))
     lines = [data['summary']]
     if data['key_points']:
         lines.append('\nPoints clés :')

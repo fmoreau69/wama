@@ -449,8 +449,11 @@ def ai_chat_settings(request):
     # Les numériques sont bornés par le SCHÉMA ; le curseur de qualité a son helper commun
     # (`read_quality_intent` : type `intent`, hors du champ de `coerce_params`) ; le modèle est
     # validé à part, contre le catalogue et les clés de l'utilisateur.
+    # Seuls ceux PRÉSENTS dans la requête (2026-10-21) : `coerce_params` rend aussi le défaut des
+    # absents — une température laissée hors du POST (le volet n'envoie que le modèle) serait
+    # revenue à « celle du modèle » à chaque choix de modèle.
     valeurs = {k: v for k, v in coerce_params(PARAMS_JSON, data).items()
-               if k in USER_SETTINGS_DEFAULTS}
+               if k in USER_SETTINGS_DEFAULTS and k in data}
     # Les INTERRUPTEURS du schéma (avatar parlant, avatar replié) : `coerce_params` ne borne
     # que le numérique, un toggle se lit ici — en booléen, quelle que soit la graphie du client
     # (`false`/`0` d'un formulaire valent False). Seuls ceux PRÉSENTS dans la requête sont

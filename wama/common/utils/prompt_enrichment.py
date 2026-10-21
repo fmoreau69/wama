@@ -152,13 +152,13 @@ def enrich_generative(prompt: str, *, language: str = 'en', model: str = None,
         user += ("\n\n(Keep these terms verbatim, do not alter: " + ", ".join(gloss) + ".)")
 
     try:
-        from wama.common.utils.llm_utils import llm_chat
+        from wama.common.utils.llm_utils import STEADY_TEMPERATURE, llm_chat
         out, err = llm_chat(
             messages=[{"role": "system", "content": system},
                       {"role": "user", "content": user}],
             provider=provider, model=model,
             num_predict=_NUM_PREDICT, num_ctx=_NUM_CTX, think=False, timeout=timeout,
-            keep_alive=keep_alive,
+            keep_alive=keep_alive, temperature=STEADY_TEMPERATURE,   # sans réglage
         )
     except Exception as e:
         logger.debug(f"[prompt_enrichment] {e}")

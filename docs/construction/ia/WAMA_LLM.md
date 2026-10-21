@@ -1225,6 +1225,38 @@ la route voulue. `wama/` n'importe toujours pas `role_utils`.
 > INCHANGÉS ; codegen passe les siens. *Avant de supprimer un doublon on compare ; s'il diverge,
 > on fusionne — sinon la déduplication perd une capacité en silence.*
 
+### 2quinquies. §Température — le modèle la porte, l'appel suit UNE règle (2026-10-21)
+
+> Décisions de Fabien, le même jour : porter `vision_probe` sur `ollama_chat` ; *« le modèle doit
+> porter l'information et le réglage doit apparaître si le modèle le permet »* ; une notion
+> GÉNÉRALE à tout modèle qui tire, quel que soit son type ; sans réglage, **celle du modèle** ; les
+> appels SANS réglage gardent 0,3 ; elle n'entre PAS dans le curseur rapide/qualité (celui-là
+> choisit le modèle, celle-ci règle sa façon de tirer — et une température basse n'est pas une
+> qualité : Higgs à 0,3 coupait la voix, GLM-OCR à 0,2 part en boucle).
+
+**Mesuré avant** : aucun choix de modèle n'exposait de température ; `ollama_chat` imposait 0,3 à
+qui ne disait rien, l'assistant 0,7 en local, la sonde de vision rien (le fichier de modèle : 1 pour
+gemma4 et qwen3.5) — trois règles pour une même notion, et le distant suivait une quatrième
+(`llm_chat` : rien d'envoyé, la valeur du fournisseur).
+
+| étage | ce qui la porte |
+|---|---|
+| **la fiche** (catalogue) | `params` contient `temperature` quand le modèle la lit ; `recommended_temperature` = celle de l'éditeur ; `max_temperature` = la borne du moteur (`model_capabilities`). Ollama : tout modèle qui génère la lit, sa valeur vient du fichier de modèle (`/api/show`, même appel) ; une famille d'OCR garde ses `params` (son moteur la fixe à 0). Distant : un modèle de conversation la lit, Anthropic borne à 1, l'abonnement Claude Code ne la lit pas. Un modèle d'app la DÉCLARE (`default_temperature`, `sampling_caps_from_declaration`) ; BLIP déclare `params: []` |
+| **l'appel** | `ollama_chat` / `llm_chat` : `None` = celle du MODÈLE, rien n'est envoyé — la même règle local et distant. Une tâche sans réglage passe `STEADY_TEMPERATURE` (0,3), par son nom : les cinq aides de haut niveau (défaut de leur signature), l'enrichissement, la traduction de prompts (`TranslatorService`), le juge `qc`, l'avis de prospection. La sonde de vision passe par `ollama_chat` (images dans le message) ; une absence de réglage y reste celle du modèle, comme avant |
+| **le réglage** | `param_schema.temperature_param(<champ modèle>)`, type `temperature` : vide = celle du modèle ; lié au choix de modèle par trois `cap_from` (`INPUT_MODEL_MATCHING §7`) |
+| **les apps** | describer (`vision_temperature`, `llm_temperature`), reader (`llm_temperature`), assistant (`temperature`, réglage d'utilisateur) — chacune la porte jusqu'à l'appel |
+
+**Garde générale** : `tests_temperature.EveryCallNamesItsTemperatureTest` — tout appel de
+`llm_chat` / `ollama_chat` / `chat_with_source` / `chat_with_catalog_model` dans `wama/`,
+`wama_lab/`, `wama_data/` NOMME sa température (ou relaie `**kwargs`). Le défaut a bougé : un appel
+muet aurait changé de température sans erreur, en rendant un texte plausible.
+
+**Restes, nommés** : les moteurs de voix et de musique qui tirent (Higgs fixé à 0,7, Audio8 à 0,8,
+MusicGen, YuE — synthesizer, avatarizer, composer) n'exposent pas encore la leur ; le transcriber
+l'a RETIRÉE exprès (reconnaissance de la parole = reproductibilité) — décision de Fabien à prendre
+avant de l'y remettre ; les jumelles du bac à sable (`translator_01`, `writer_01`) la recevront par
+leur manifeste.
+
 ### 3. RAG — alimentation par GESTE, rappel par NIVEAUX (`WAMA_MEMORY.md §7ter`)
 
 ```

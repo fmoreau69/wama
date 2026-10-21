@@ -557,7 +557,9 @@ MECHANISMS = (
               "Décrit une image via un modèle multimodal Ollama local — le SEUL client de vision "
               "depuis le 2026-10-20 : le Describer (images, images-clés de vidéo) y passe, avec "
               "le banc, le smoke UI, les fichiers de référence et les outils de l'assistant ; "
-              "son chargement se mesure à la carte (`ollama_host.measured_load`)",
+              "son chargement se mesure à la carte (`ollama_host.measured_load`). Par l'appel "
+              "COMMUN `ollama_chat` depuis le 2026-10-21, à la TEMPÉRATURE de la card (vide = celle "
+              "du modèle)",
               'wama/model_manager/services/vision_probe.py', ''),
     Mechanism('hf_cache', 'Cache HF scopé — dernier recours',
               "Bascule TEMPORAIRE du cache HuggingFace, restaurée en sortie : le levier D de "
@@ -1106,7 +1108,9 @@ MECHANISMS = (
               "par l'assistant et les apps, il vivait en privé dans l'assistant. "
               "`auto` y est REFUSÉ : il se tire AVANT l'appel — `auto_model.resolve_model_choice` "
               "dans une app (le chemin de la prévision « Prévu : … »), `modele_par_defaut` hors "
-              "app (2026-10-01 : un repli interne faisait annoncer un modèle et en lancer un autre)",
+              "app (2026-10-01 : un repli interne faisait annoncer un modèle et en lancer un autre). "
+              "La TEMPÉRATURE (2026-10-21) : `None` = celle du MODÈLE, rien n'est envoyé, en local "
+              "comme en distant ; une tâche sans réglage passe `STEADY_TEMPERATURE` par son nom",
               'wama/common/utils/llm_utils.py', ''),
     Mechanism('assistant_skills', "Skills de rôle de l'assistant",
               "Posture et domaine de l'assistant (science, design, dev) + rappel du "
@@ -1787,7 +1791,11 @@ MECHANISMS = (
               "peut valoir une LISTE, lue « l'une de » par les deux juges de `show_if` (la nature "
               "encore inconnue de ce que reçoit un nœud du Studio : les réglages de chaque nature "
               "possible se montrent), et la réduction de la ⚙ d'UN process a son jumeau serveur "
-              "(`scoped_names` ⟷ `scopedSchema`), lu par le nœud d'étape et son exécuteur",
+              "(`scoped_names` ⟷ `scopedSchema`), lu par le nœud d'étape et son exécuteur. La "
+              "TEMPÉRATURE commune (2026-10-21) : `temperature_param(<champ modèle>)`, type "
+              "`temperature` (vide = celle du modèle), lié à son modèle par une LISTE de `cap_from` "
+              "(`cap_bindings` ⟷ `capBindings`) — grisé s'il ne tire pas, valeur de l'éditeur "
+              "rappelée, borné au maximum du moteur",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),
@@ -1796,7 +1804,10 @@ MECHANISMS = (
               "`category` (vocabulaire fermé `CATEGORY_LABELS`) range un select de modèle en "
               "optgroups (`options_group=\"category\"`, 2026-09-29) ; bornes de TAILLE "
               "(`native_resolution`/`min_resolution`/`max_resolution`, `resolution_bounds`) "
-              "pour l'image comme la vidéo — les tailles proposées en dérivent (2026-09-30)",
+              "pour l'image comme la vidéo — les tailles proposées en dérivent (2026-09-30) ; la "
+              "TEMPÉRATURE d'un modèle qui tire, quel que soit son type (2026-10-21) : `params` ∋ "
+              "`temperature`, `recommended_temperature` (Ollama : son fichier de modèle), "
+              "`max_temperature`",
               'wama/common/utils/model_capabilities.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
               annexes=('wama/common/static/common/js/wama-model-caps.js',
                        'wama/common/static/common/js/wama-input-match.js',

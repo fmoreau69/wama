@@ -627,6 +627,23 @@ tâche serveur) et règle le champ, sur TOUTES les surfaces (modale, volet) sans
 | `note` | la capacité est rappelée sous le champ | `video_resolution` ← `native_resolution` |
 | `reads` (2026-10-13) | le champ est GRISÉ, raison dite, quand le modèle ne le LIT pas — capacité liste `params` (appartenance du nom) ou booléenne `supports_*` ; inconnue → intact | reader `mode`/`language` ← `params` ; transcriber `hotwords` ← `supports_hotwords` ; enhancer mode/force/NFE ← `params` |
 
+**Plusieurs capacités pour un réglage (2026-10-21)** : `cap_from` accepte une LISTE de liaisons
+(`param_schema.cap_bindings`, jumeau `WamaParams.capBindings`), une note par liaison. Premier usage,
+la **TEMPÉRATURE** d'échantillonnage, réglage COMMUN à tout modèle qui tire (`temperature_param(<champ
+modèle>)`, type `temperature`) — demande de Fabien : *« le modèle doit porter l'information et le
+réglage doit apparaître si le modèle le permet »*, pour tout type de modèle :
+
+| liaison | capacité | effet |
+|---|---|---|
+| `reads` (`param: 'temperature'`) | `params` | grisé, raison dite, sous un modèle qui ne tire pas (BLIP, abonnement Claude Code, OCR) |
+| `note` | `recommended_temperature` | la valeur de l'éditeur rappelée ; le curseur s'y place (`data-cap-note`) tant qu'on la laisse |
+| `range` | `max_temperature` | le curseur borné au maximum du moteur (Anthropic : 1) |
+
+La case « Celle du modèle » vaut VIDE (rien n'est envoyé : le moteur applique sa propre valeur) ;
+la toucher, ou bouger le curseur, règle une valeur. Une borne qui ramène le curseur ne règle rien.
+Adopté par le describer (vision, langage), le reader (langage), l'assistant (conversation). Règle de
+l'appel : `docs/construction/ia/WAMA_LLM.md §Température`. Gardes : `tests_temperature`.
+
 Modèle « auto » ou capacité absente → champ du schéma intact. Les capacités vidéo (`fps`,
 `max_frames`, `max_duration_s`, `native_resolution`, `duration_extension`) sont au vocabulaire
 canonique (`model_capabilities.py`), traduites d'une déclaration d'app par

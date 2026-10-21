@@ -158,17 +158,51 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     #: quand la distillation l'exige (FastWan DMD).
     "recommended_steps":    "int — nombre de pas recommandé par l'éditeur",
     "recommended_guidance": "float — guidage (CFG) recommandé ; 1.0 = sans guidage",
+    #: La TEMPÉRATURE d'échantillonnage (2026-10-21, Fabien : « une notion générale aux modèles
+    #: IA quels que soient leur type ») — tout modèle qui TIRE sa sortie la lit : conversation,
+    #: vision, voix, musique. Qu'il la lise se dit dans `params` (le nom `TEMPERATURE`) ; la valeur
+    #: de l'éditeur, ici — celle que le moteur applique quand rien n'est demandé. Rappelée sous le
+    #: réglage (`cap_from`, mode note) ; absente ou nulle = l'éditeur n'en publie pas.
+    "recommended_temperature": "float — température recommandée par l'éditeur ; celle qui s'applique sans réglage",
+    "max_temperature":     "float — température la plus haute que le moteur accepte (Anthropic : 1) ; borne le réglage",
 }
+
+#: Le nom du réglage de température, dans `params` comme dans les schémas (`temperature_param`).
+TEMPERATURE = "temperature"
+
+
+def reads_temperature(caps: Dict[str, Any]) -> bool:
+    """La fiche dit-elle que le modèle LIT la température ? (son nom dans `params`)."""
+    return TEMPERATURE in ((caps or {}).get("params") or [])
+
+
+def ollama_recommended_temperature(parameters: str):
+    """La température du fichier de modèle d'Ollama (`/api/show` → `parameters`, une ligne
+    « temperature 1 » parmi d'autres), ou None s'il n'en déclare pas. MESURÉ le 2026-10-21 :
+    gemma4 et qwen3.5 publient 1, glm-ocr 0, translategemma rien."""
+    for line in (parameters or "").splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[0] == TEMPERATURE:
+            try:
+                return float(parts[1])
+            except ValueError:
+                return None
+    return None
 
 
 def sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]:
     """`recommended_steps` / `recommended_guidance` depuis `default_steps` /
-    `default_guidance_scale` d'une déclaration d'app (image comme vidéo)."""
+    `default_guidance_scale` d'une déclaration d'app (image comme vidéo) ; et la température
+    (`default_temperature`, tout modèle qui échantillonne — voix, musique…) : le modèle la LIT
+    (`params`) et l'éditeur la recommande."""
     out: Dict[str, Any] = {}
     if config.get("default_steps"):
         out["recommended_steps"] = int(config["default_steps"])
     if config.get("default_guidance_scale") is not None:
         out["recommended_guidance"] = float(config["default_guidance_scale"])
+    if config.get("default_temperature") is not None:
+        out["recommended_temperature"] = float(config["default_temperature"])
+        out["params"] = [*(config.get("params") or []), TEMPERATURE]
     return out
 
 

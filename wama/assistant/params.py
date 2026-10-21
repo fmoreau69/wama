@@ -20,7 +20,8 @@ menu, selon son niveau cloud — jamais ceux d'un autre, jamais sans autorisatio
 """
 from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
 from wama.common.utils.auto_model import AUTO, intent_param
-from wama.common.utils.param_schema import Param, ParamGroup, groups_to_dicts, schema_to_dicts
+from wama.common.utils.param_schema import (Param, ParamGroup, groups_to_dicts, schema_to_dicts,
+                                            temperature_param)
 
 #: Deux SURFACES pour un schéma, comme les apps (2026-10-18, décision de Fabien) : la section
 #: « Paramètres » du VOLET droit de l'accueil (`panel`) et la modale ⚙ du chat (`item`), chemin du
@@ -51,6 +52,12 @@ PARAMS = [
         help="Guide le choix automatique du modèle de l'assistant — et s'applique aux tâches que "
              "vous lui demandez de lancer (les apps dont le curseur s'appelle « qualité » "
              "le reçoivent ; l'assistant vous le confirme à chaque lancement).")),
+    # La TEMPÉRATURE du modèle de conversation (2026-10-21) — le réglage commun, lié au select :
+    # vide = celle du modèle (c'était 0,7 imposé en local). Elle ne vaut que pour la conversation,
+    # pas pour les tâches qu'il lance (chacune a la sienne, sur sa card).
+    Param(name='temperature', **temperature_param(
+        'model', dom_id={'panel': 'ai-temperature', 'item': 'ai-temperature-modal'},
+        contexts=SURFACES)),
     # L'AVATAR PARLANT est une préférence DURABLE de l'assistant (2026-09-22, demande de Fabien) :
     # jusque-là « affiché / masqué » n'était qu'un état de la page d'accueil, perdu au premier
     # changement de page. `contexts=()` : ces deux réglages ne sont rendus dans AUCUN panneau de

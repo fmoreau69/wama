@@ -261,6 +261,15 @@ def model_info_for(source: str, item: dict):
     caps = {**default_inputs_for(task), 'task': task, **abilities}
     if abilities.get('vision') and 'image' not in caps.get('modalities', []):
         caps['modalities'] = [*caps.get('modalities', []), 'image']
+    # La TEMPÉRATURE (2026-10-21) : un modèle de conversation distant la lit — `llm_chat` la
+    # transmet au fournisseur. Pas l'abonnement Claude Code : le CLI ne la prend pas. Anthropic
+    # la borne à 1 (son API refuse au-delà).
+    from wama.common.utils.model_capabilities import TEMPERATURE
+    if abilities.get('completion'):
+        # Écrit vide pour l'abonnement : « ne la lit pas » est un fait, qui grise le réglage.
+        caps['params'] = [] if src.protocol in UNLISTABLE_PROTOCOLS else [TEMPERATURE]
+        if src.protocol == 'anthropic':
+            caps['max_temperature'] = 1.0
     return ModelInfo(
         id=item['id'], name=item.get('name') or item['id'],
         model_type=ModelType(model_type), source=ModelSource(source),

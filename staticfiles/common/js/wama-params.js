@@ -492,6 +492,104 @@
     });
   }
 
+  // ── TEMPÉRATURE d'échantillonnage — commune à tout modèle qui tire (2026-10-21) ─────────────
+  // `param_schema.temperature_param` : un curseur, et « Celle du modèle » cochée tant que
+  // l'utilisateur n'a rien réglé. La VALEUR vit dans un champ caché (celui que `read()`/`apply()`
+  // voient) : vide = celle du modèle, rien n'est envoyé. Le CURSEUR porte l'identifiant du
+  // réglage : c'est lui que `cap_from` grise (le modèle ne tire pas), borne (le maximum du
+  // moteur) et annote (la valeur de l'éditeur, `data-cap-note`, où il se place quand on la laisse).
+  function _temperatureLabel(slider, own) {
+    if (!own) return String(slider.value);
+    var rec = slider.dataset.capNote;
+    return 'du modèle' + (rec !== undefined ? ' (' + rec + ')' : '');
+  }
+
+  registerRenderer('temperature', function (p, api) {
+    var own = api.value === '' || api.value === null || api.value === undefined;
+    var v = own ? '' : api.value;
+    var rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
+                  p.max != null ? 'max="' + p.max + '"' : '',
+                  p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
+    return '<div class="wama-temperature">' +
+      '<input type="hidden" class="wama-temperature-value" id="' + api.id + '-value" ' +
+      api.idAttr + ' value="' + esc(v) + '">' +
+      '<div class="d-flex align-items-center gap-2">' +
+      '<input type="range" class="form-range wama-temperature-slider' + (own ? ' is-own' : '') + '"' +
+      ' id="' + api.id + '" ' + rattrs + ' value="' + esc(own ? (p.max != null ? p.max / 2 : 1) : v) + '"' +
+      ' aria-label="' + esc(p.label || 'Température') + '">' +
+      '<span class="wama-temperature-val small text-muted text-nowrap">' +
+      (own ? 'du modèle' : esc(v)) + '</span></div>' +
+      '<div class="form-check form-check-inline small mb-0">' +
+      '<input class="form-check-input wama-temperature-own" type="checkbox" id="' + api.id + '-own"' +
+      (own ? ' checked' : '') + '>' +
+      '<label class="form-check-label" for="' + api.id + '-own">Celle du modèle</label></div>' +
+      api.helpEl + '</div>';
+  });
+
+  /** La SURFACE d'une température depuis sa valeur (champ caché) : case, position, libellé,
+   *  grisage de la case avec celui du curseur. Rejouée après `apply()` et après chaque borne. */
+  function _syncTemperature(root) {
+    var wraps = root && root.classList && root.classList.contains('wama-temperature')
+      ? [root] : (root || document).querySelectorAll('.wama-temperature');
+    Array.prototype.forEach.call(wraps, function (wrap) {
+      var value = wrap.querySelector('.wama-temperature-value');
+      var slider = wrap.querySelector('.wama-temperature-slider');
+      var box = wrap.querySelector('.wama-temperature-own');
+      var label = wrap.querySelector('.wama-temperature-val');
+      if (!value || !slider) return;
+      var own = value.value === '';
+      if (own && slider.dataset.capNote !== undefined) slider.value = slider.dataset.capNote;
+      if (!own) slider.value = value.value;
+      slider.classList.toggle('is-own', own);
+      if (box) { box.checked = own; box.disabled = slider.disabled; }
+      if (label) label.textContent = _temperatureLabel(slider, own);
+    });
+  }
+
+  function _temperatureParts(el) {
+    var wrap = el.closest && el.closest('.wama-temperature');
+    return wrap ? { wrap: wrap, value: wrap.querySelector('.wama-temperature-value'),
+                    slider: wrap.querySelector('.wama-temperature-slider') } : null;
+  }
+
+  // Écouteurs DÉLÉGUÉS (toutes surfaces, modales rendues à la volée), liés une fois.
+  if (!global.__wamaTemperatureBound) {
+    document.addEventListener('input', function (e) {
+      var t = e.target;
+      if (!t.classList || !t.classList.contains('wama-temperature-slider')) return;
+      var parts = _temperatureParts(t);
+      // Un GESTE règle la température ; une borne qui ramène le curseur (maximum du moteur) ne
+      // fait que suivre une valeur déjà réglée — « celle du modèle » reste celle du modèle.
+      if (isGesture(e) || parts.value.value !== '') parts.value.value = t.value;
+      _syncTemperature(parts.wrap);
+    });
+    document.addEventListener('change', function (e) {
+      var t = e.target;
+      if (!t.classList) return;
+      var parts;
+      if (t.classList.contains('wama-temperature-slider') && isGesture(e)) {
+        parts = _temperatureParts(t);
+        parts.value.value = t.value;
+      } else if (t.classList.contains('wama-temperature-own')) {
+        parts = _temperatureParts(t);
+        parts.value.value = t.checked ? '' : parts.slider.value;
+      } else {
+        return;
+      }
+      _syncTemperature(parts.wrap);
+      // La valeur a changé : le DIRE sur le champ qui la porte (enregistrement du volet,
+      // conditions, prévision), comme un champ ordinaire.
+      parts.value.dispatchEvent(gestureEvent('change'));
+    });
+    document.addEventListener('wama:cap-applied', function (e) {
+      var t = e.target;
+      if (t.classList && t.classList.contains('wama-temperature-slider')) {
+        _syncTemperature(t.closest('.wama-temperature'));
+      }
+    });
+    global.__wamaTemperatureBound = true;
+  }
+
   // Repli : type absent du registry → champ texte (comportement historique du `else` final).
   registerRenderer('text', function (p, api) {
     return '<input type="text" class="form-control form-control-sm" id="' + api.id + '" ' +
@@ -1138,7 +1236,12 @@
     note.classList.remove('is-extrapolated');
     if (row) row.classList.remove('is-extrapolated');
     if (mode === 'note') {
-      if (cap) note.textContent = (cf.label || 'Natif :') + ' ' + cap + unit;
+      // `cap != null` et non `cap` : une valeur NULLE est une valeur (température 0 de glm-ocr).
+      var known = cap !== undefined && cap !== null && cap !== '';
+      if (known) note.textContent = (cf.label || 'Natif :') + ' ' + cap + unit;
+      // La valeur rappelée reste lisible par le champ (`data-cap-note`) : la température s'y
+      // place quand l'utilisateur laisse celle du modèle (2026-10-21).
+      if (known) el.dataset.capNote = cap; else delete el.dataset.capNote;
       return;
     }
     if (mode === 'reads') {
@@ -1219,12 +1322,25 @@
           : ' · au-delà (zone rouge) : prolongé, extrapolé');
   }
 
+  // Les liaisons d'un réglage, toujours en LISTE : un réglage peut lire PLUSIEURS capacités de son
+  // modèle (la température : la lit-il, sa valeur recommandée, son maximum — 2026-10-21). Un dict
+  // seul, la forme d'avant, en est une à un élément. Jumeau serveur : `param_schema.cap_bindings`.
+  function _capBindings(p) {
+    var cf = p && p.cap_from;
+    if (!cf) return [];
+    return (Array.isArray(cf) ? cf : [cf]).filter(Boolean);
+  }
+
   function _bindCapFrom(container, schema, ctx) {
     // Les bornes de CE rendu, rejouables : `apply()` pose des valeurs par programme, sans
     // `change` — le modèle d'une modale de lot changeait sans que la borne suive (2026-10-02).
     container._wpCapApply = [];
     (schema || []).forEach(function (p) {
-      var cf = p.cap_from;
+      _capBindings(p).forEach(function (cf) { _bindOneCap(container, schema, ctx, p, cf); });
+    });
+  }
+
+  function _bindOneCap(container, schema, ctx, p, cf) {
       if (!cf || !cf.field || !cf.capability) return;
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
       var el = container.querySelector('#' + CSS.escape(perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name)));
@@ -1246,7 +1362,12 @@
       note.className = 'wama-cap-note small mt-1';
       (row || el.parentNode).appendChild(note);
       _catalogCaps(source, cf.source ? '' : _catalogDomain(modelP)).then(function (capsByKey) {
-        function apply() { _applyCap(el, note, row, p, cf, capsByKey[sel.value] || null); }
+        function apply() {
+          _applyCap(el, note, row, p, cf, capsByKey[sel.value] || null);
+          // Dit au champ que sa borne a bougé : un champ composé (la température) resynchronise
+          // ses autres éléments sans que cette règle les connaisse.
+          el.dispatchEvent(new Event('wama:cap-applied', { bubbles: true }));
+        }
         container._wpCapApply.push(apply);
         sel.addEventListener('change', apply);
         el.addEventListener('input', apply);
@@ -1258,7 +1379,6 @@
         }
         apply();
       });
-    });
   }
 
   // Aide MODÈLE : pour chaque select déclarant help_source, câble WamaModelHelp (desc courte + ⓘ longue
@@ -1369,6 +1489,7 @@
       if (field && name) name.textContent = _mediaShown(field.value) || 'Choisir dans la médiathèque…';
     });
     _syncIntentSliders(container);   // curseur d'intention : hidden → position + tricolore
+    _syncTemperature(container);     // température : champ caché → case, position, libellé
     _bindConditional(container);
     // Bornes par capacité du modèle (`cap_from`) : rejouées sur les valeurs qu'on vient de poser.
     (container._wpCapApply || []).forEach(function (replay) { replay(); });
@@ -1646,6 +1767,8 @@
                         // …et son CÂBLAGE (champ modèle absent du rendu → dit ; valeurs posées
                         // par `apply` → borne rejouée), pour la même garde.
                         bindCapFrom: _bindCapFrom,
+                        capBindings: _capBindings,
+                        syncTemperature: _syncTemperature,
                         // La visibilité `show_if` — exposée pour la garde de PARITÉ avec son
                         // jumeau serveur `param_schema._show_if_met` (`tests_cap_from_js`).
                         bindConditional: _bindConditional,

@@ -263,7 +263,8 @@
                 // lus par la brique sur le volet rendu du schéma.
                 const panel = document.getElementById('readerPanelParams');
                 const vals = (window.WamaParams && panel) ? WamaParams.read(panel) : {};
-                ['llm_model', 'format_markdown', 'generate_analysis'].forEach(function (name) {
+                ['llm_model', 'llm_temperature', 'format_markdown',
+                 'generate_analysis'].forEach(function (name) {
                     if (name in vals) fd.append(name, vals[name]);
                 });
             },

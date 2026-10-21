@@ -99,9 +99,10 @@ def clear_user_app_settings(user, app, names):
 #                 et `clean` — {nom: fonction} qui assainit une valeur postée avant de la garder.
 # Toutes les fonctions acceptent la même déclaration (l'app la passe telle quelle, `**`).
 
-#: Types de param pour qui `''` EST une valeur (un prompt vidé, un choix remis sur « auto ») ;
-#: pour les autres (nombres, interrupteurs), `''` veut dire « non fourni ».
-_EMPTY_IS_VALUE = ('text', 'textarea', 'select')
+#: Types de param pour qui `''` EST une valeur (un prompt vidé, un choix remis sur « auto », une
+#: température rendue au modèle) ; pour les autres (nombres, interrupteurs), `''` veut dire « non
+#: fourni ».
+_EMPTY_IS_VALUE = ('text', 'textarea', 'select', 'temperature')
 
 
 def _panel_defaults(params, key, extra):

@@ -713,12 +713,12 @@ Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la
 
 ### Sonde vision
 
-Décrit une image via un modèle multimodal Ollama local — le SEUL client de vision depuis le 2026-10-20 : le Describer (images, images-clés de vidéo) y passe, avec le banc, le smoke UI, les fichiers de référence et les outils de l'assistant ; son chargement se mesure à la carte (`ollama_host.measured_load`)
+Décrit une image via un modèle multimodal Ollama local — le SEUL client de vision depuis le 2026-10-20 : le Describer (images, images-clés de vidéo) y passe, avec le banc, le smoke UI, les fichiers de référence et les outils de l'assistant ; son chargement se mesure à la carte (`ollama_host.measured_load`). Par l'appel COMMUN `ollama_chat` depuis le 2026-10-21, à la TEMPÉRATURE de la card (vide = celle du modèle)
 
 - **Domicile** : `wama/model_manager/services/vision_probe.py`
 - **Module** : Sonde vision via Ollama — décrire une image avec un modèle multimodal local (gemma4:12b, e4b…). Sert au bench (d) : comparer des modèles candidats sur de vraies images WAMA, en français.
 - **API publique** (1) :
-  - `describe_image_ollama(image_path: str, model: str='', prompt: str | None=None, timeout: int=180, keep_alive: str | None=None, num_predict: int | None=None)` — Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
+  - `describe_image_ollama(image_path: str, model: str='', prompt: str | None=None, timeout: int=180, keep_alive: str | None=None, num_predict: int | None=None, tem…` — Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
 
 ### Surfaces — pages d'édition composées de briques
 
@@ -1435,7 +1435,7 @@ Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référenc
 
 ### Accès LLM
 
-Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local). `chat_with_catalog_model` (2026-09-30) : un appel désigné par une CLÉ DE CATALOGUE (`auto`, `ollama:…`, `albert:…`, `anthropic:…`), lue par `model_keys.split_key` — ce qu'appelle une app dont le réglage « Modèle » est tiré du catalogue (route F4b). `chat_with_source` (2026-10-01) : l'appel à un fournisseur DÉCLARÉ avec la clé de l'UTILISATEUR (garde commune `cloud_access`, refus levé avec son statut) — partagé par l'assistant et les apps, il vivait en privé dans l'assistant. `auto` y est REFUSÉ : il se tire AVANT l'appel — `auto_model.resolve_model_choice` dans une app (le chemin de la prévision « Prévu : … »), `modele_par_defaut` hors app (2026-10-01 : un repli interne faisait annoncer un modèle et en lancer un autre)
+Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local). `chat_with_catalog_model` (2026-09-30) : un appel désigné par une CLÉ DE CATALOGUE (`auto`, `ollama:…`, `albert:…`, `anthropic:…`), lue par `model_keys.split_key` — ce qu'appelle une app dont le réglage « Modèle » est tiré du catalogue (route F4b). `chat_with_source` (2026-10-01) : l'appel à un fournisseur DÉCLARÉ avec la clé de l'UTILISATEUR (garde commune `cloud_access`, refus levé avec son statut) — partagé par l'assistant et les apps, il vivait en privé dans l'assistant. `auto` y est REFUSÉ : il se tire AVANT l'appel — `auto_model.resolve_model_choice` dans une app (le chemin de la prévision « Prévu : … »), `modele_par_defaut` hors app (2026-10-01 : un repli interne faisait annoncer un modèle et en lancer un autre). La TEMPÉRATURE (2026-10-21) : `None` = celle du MODÈLE, rien n'est envoyé, en local comme en distant ; une tâche sans réglage passe `STEADY_TEMPERATURE` par son nom
 
 - **Domicile** : `wama/common/utils/llm_utils.py`
 - **Module** : WAMA Common — LLM utilities Shared Ollama client for use in Celery workers (transcriber, describer, ...).
@@ -1456,13 +1456,13 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
   - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[float]=None, temp…` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
   - `chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[floa…` — Un appel à un fournisseur LLM DÉCLARÉ (`external_sources`, type `llm` : Albert, API
   - `extract_json_from_llm(text: str) -> Optional[dict]` — Extract the first valid JSON object from an LLM response.
-  - `generate_meeting_summary(text: str, language: str='fr', speakers: Optional[list]=None, model: str='', provider: Optional[str]=None) -> str` — Generate a structured meeting summary (compte-rendu de réunion).
-  - `verify_text_coherence(text: str, content_hint: str='transcription', language: str='fr', model: str='', provider: Optional[str]=None) -> dict` — Verify text coherence and suggest corrections.
+  - `generate_meeting_summary(text: str, language: str='fr', speakers: Optional[list]=None, model: str='', provider: Optional[str]=None, temperature: Optional[float…` — Generate a structured meeting summary (compte-rendu de réunion).
+  - `verify_text_coherence(text: str, content_hint: str='transcription', language: str='fr', model: str='', provider: Optional[str]=None, temperature: Optional[floa…` — Verify text coherence and suggest corrections.
   - `build_coherence_report(score, notes, suggestion, original) -> Optional[dict]` — Le rapport de `verify_text_coherence` tel qu'un élément l'a GARDÉ, sous la forme que
   - `coherence_report_text(report: dict) -> str` — Le rapport en TEXTE — ce que Copier emporte et ce qui identifie la face.
-  - `analyze_segments_coherence(segments: list, language: str='fr', model: str='', provider: Optional[str]=None) -> dict` — Analyse la cohérence PAR SEGMENT (1 seul appel LLM).
-  - `suggest_speaker_names(segments: list, language: str='fr', model: str='', provider: Optional[str]=None) -> dict` — Propose des noms d'intervenants à partir des présentations dans la transcription.
-  - `generate_structured_summary(text: str, content_hint: str='transcription', language: str='fr', model: str='', provider: Optional[str]=None) -> dict` — Generate a structured summary (summary, key_points, action_items).
+  - `analyze_segments_coherence(segments: list, language: str='fr', model: str='', provider: Optional[str]=None, temperature: Optional[float]=STEADY_TEMPERATURE) ->…` — Analyse la cohérence PAR SEGMENT (1 seul appel LLM).
+  - `suggest_speaker_names(segments: list, language: str='fr', model: str='', provider: Optional[str]=None, temperature: Optional[float]=STEADY_TEMPERATURE) -> dict` — Propose des noms d'intervenants à partir des présentations dans la transcription.
+  - `generate_structured_summary(text: str, content_hint: str='transcription', language: str='fr', model: str='', provider: Optional[str]=None, temperature: Optiona…` — Generate a structured summary (summary, key_points, action_items).
 
 ### Appariement d'identité de canal
 
@@ -2511,17 +2511,19 @@ Sous la consigne de la card d'entrée, ce que l'app rendrait — PENDANT la frap
 
 ### Schéma de paramètres
 
-Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends. Depuis le 12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont `param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, l'exécution d'une fonction et le moteur de vue Data. Depuis le 18/10 un PORTEUR peut valoir une LISTE, lue « l'une de » par les deux juges de `show_if` (la nature encore inconnue de ce que reçoit un nœud du Studio : les réglages de chaque nature possible se montrent), et la réduction de la ⚙ d'UN process a son jumeau serveur (`scoped_names` ⟷ `scopedSchema`), lu par le nœud d'étape et son exécuteur
+Source unique des réglages d'app : volet droit, modales (item ET lot, `context`) et DÉFAUTS APPLICABLES d'un élément naissant (applicable_defaults, filtre show_if au vocabulaire du moteur JS) sont dérivés de lui. Depuis le 01/09 il porte AUSSI LA cascade des valeurs effectives (effective_settings : défauts du schéma ← preset ← réglages POSÉS — formulation Fabien, ROADMAP §23.2bis) : la base ne stocke que le POSÉ (vide = « le preset décide »), les défauts restent au schéma — c'est ce qui rend un preset POSSIBLE, et ce qui a remplacé resolve_options du converter + les défauts en dur des backends. Depuis le 12/10 (ROUTE §10.6 3.3bis, R1) c'est LA forme de tous les mondes : le pont `param_from_spec` projette les `ParamSpec` d'une fonction sans perte, le Studio rend tous ses nœuds par WamaParams (renderer commun `media_picker`, `isGesture`), et la PORTE des refus (`schema_refusals`/`checked_values` : choix hors liste, nombre illisible ou hors grille) est lue par la porte des outils, le lancement d'un graphe, l'exécution d'une fonction et le moteur de vue Data. Depuis le 18/10 un PORTEUR peut valoir une LISTE, lue « l'une de » par les deux juges de `show_if` (la nature encore inconnue de ce que reçoit un nœud du Studio : les réglages de chaque nature possible se montrent), et la réduction de la ⚙ d'UN process a son jumeau serveur (`scoped_names` ⟷ `scopedSchema`), lu par le nœud d'étape et son exécuteur. La TEMPÉRATURE commune (2026-10-21) : `temperature_param(<champ modèle>)`, type `temperature` (vide = celle du modèle), lié à son modèle par une LISTE de `cap_from` (`cap_bindings` ⟷ `capBindings`) — grisé s'il ne tire pas, valeur de l'éditeur rappelée, borné au maximum du moteur
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (31) :
+- **API publique** (33) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
   - `class ParamGroup` — Groupe d'affichage d'une surface de saisie (modale ⚙ / volet) — l'app le déclare,
   - `groups_to_dicts(groups: List[ParamGroup]) -> List[dict]` — Sérialise les groupes pour le front (JSON) / un template.
   - `schema_to_dicts(params: List[Param]) -> List[dict]` — Sérialise un schéma pour le front (JSON) / un template.
+  - `cap_bindings(p) -> List[dict]` — Les liaisons `cap_from` d'un réglage, toujours en LISTE (un dict seul, la forme d'avant
+  - `temperature_param(model_field: str, **overrides) -> dict` — Surcouche STANDARD du réglage de température, liée au choix de modèle `model_field` du
   - `scoped_names(schema, names) -> List[str]` — Les réglages de la ⚙ d'UN process : `names` (ce qu'il surveille), plus le champ qui COMMANDE
   - `applicable_defaults(schema, values=None) -> dict` — Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
   - `panel_dom_id(p)` — dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
@@ -2616,11 +2618,13 @@ Les thèmes DÉCLARÉS (`THEMES` : clé, libellé, mode natif de Bootstrap), pas
 
 ### Vocabulaire des capacités
 
-Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; `category` (vocabulaire fermé `CATEGORY_LABELS`) range un select de modèle en optgroups (`options_group="category"`, 2026-09-29) ; bornes de TAILLE (`native_resolution`/`min_resolution`/`max_resolution`, `resolution_bounds`) pour l'image comme la vidéo — les tailles proposées en dérivent (2026-09-30)
+Canonicalise capabilities (tâche, modalités, entrées) — source du filtrage UI ; `category` (vocabulaire fermé `CATEGORY_LABELS`) range un select de modèle en optgroups (`options_group="category"`, 2026-09-29) ; bornes de TAILLE (`native_resolution`/`min_resolution`/`max_resolution`, `resolution_bounds`) pour l'image comme la vidéo — les tailles proposées en dérivent (2026-09-30) ; la TEMPÉRATURE d'un modèle qui tire, quel que soit son type (2026-10-21) : `params` ∋ `temperature`, `recommended_temperature` (Ollama : son fichier de modèle), `max_temperature`
 
 - **Domicile** : `wama/common/utils/model_capabilities.py` · **doc** : [docs/construction/ui/INPUT_MODEL_MATCHING.md](../construction/ui/INPUT_MODEL_MATCHING.md)
 - **Module** : Vocabulaire CANONIQUE des capacités modèle (`AIModel.capabilities`) — SOURCE UNIQUE.
-- **API publique** (16) :
+- **API publique** (18) :
+  - `reads_temperature(caps: Dict[str, Any]) -> bool` — La fiche dit-elle que le modèle LIT la température ? (son nom dans `params`).
+  - `ollama_recommended_temperature(parameters: str)` — La température du fichier de modèle d'Ollama (`/api/show` → `parameters`, une ligne
   - `sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `recommended_steps` / `recommended_guidance` depuis `default_steps` /
   - `duration_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]` — `max_duration_s` depuis le `max_duration` (secondes) d'une déclaration d'app — les modèles
   - `video_caps_from_declaration(config: Dict[str, Any], tokens=()) -> Dict[str, Any]` — Les capacités VIDÉO tirées d'une déclaration d'app (`fps`, `max_frames`, `resolution`

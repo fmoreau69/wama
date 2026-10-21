@@ -169,6 +169,7 @@ def describe_text(input_path: str, options: dict = None,
             summary_data = generate_structured_summary(
                 text, content_hint='text', language=output_language or 'fr',
                 model=_model, provider=_provider,
+                temperature=options.get('llm_temperature'),
             )
             progress(85)
 
