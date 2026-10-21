@@ -25277,11 +25277,11 @@ régression. »*
 
 - **Transport** → l'axe de temps partagé (`media_axis`, `wama-axis.js`) et la brique
   `media_transport` (`ROUTE §F3b`, brief « preview globale + transport commun » ; matrice de parité
-  du transport, `9f9b1952`). État relu ce soir : `transcriber/static/transcriber/js/edit.js:322` lit
+  du transport, `9f9b1952`). État relu ce soir : `transcriber/static/transcriber/js/edit.js:322` (supprimé le 2026-10-21, R166) lit
   déjà l'axe commun (2026-10-20) ; `edit.js:874` dit ce qui y reste « tant que le transport commun
   n'est pas conçu » ; `TRANSCRIBER_CORRECTION.md:336` aussi.
 - **Page d'édition** → les briques UI (`ui_bricks`, trois niveaux, `ROUTE §F3b`) ; le second lecteur
-  nu de `transcriber/edit.html:238` est l'un des restes ④ du chantier aperçu.
+  nu de `transcriber/edit.html:238` (supprimé le 2026-10-21, R166) est l'un des restes ④ du chantier aperçu.
 - **Méthode exigée** : inventaire des fonctions de la page AVANT de toucher (chaque geste nommé et
   testé, la matrice de parité comme liste de contrôle), portage, puis vérification geste par geste
   sur la page SERVIE ; `TRANSCRIBER_CORRECTION.md` est le domicile de la page de correction.
@@ -25356,7 +25356,7 @@ Chantier reçu par la §PASSATION « APERÇU » ci-dessus (session « Briques UI
   fichiers) ; `common.gestures.touch` par le studio (`/studio/api/node-context/`, `33b837f1`).
 - 🔚 **Étape 2, la PAGE D'ÉDITION sur les briques UI** : vues de l'éditeur en briques universelles
   (onde fenêtrée à couches, carte de chaleur, minimap, segments), lecteur nu non synchronisé du volet
-  (`edit.html:238`), puis surface déclarée — forme à trancher par Fabien. Même méthode : la batterie
+  (`edit.html:238` (supprimé le 2026-10-21, R166)), puis surface déclarée — forme à trancher par Fabien. Même méthode : la batterie
   rejouée avant/après.
 
 ## §PALIER 2026-10-20 (nuit), « Portage apps : les manques ①–④ du générateur comblés, cinq jumelles entièrement générées » — non poussé — 🔴 relancer gunicorn ET workers (jumelles régénérées, `workers.py` retirés de trois d'entre elles)
@@ -25507,3 +25507,29 @@ fixture semée ; le compte de test `wama_pw_smoke` a reçu le groupe `admin` le 
 retiré et vérifié ; aucun serveur jetable resté vivant (vérifié) ; sessions de sonde supprimées.
 Leçons versées aux skills : `smoke` (serveur jetable qui survit ou se tue, WebGL sans GPU,
 étiquette en mouvement, iframe) et `reverif §2` (gardes transverses à lancer).
+
+## §PALIER 2026-10-21, « TRANSCRIBER, étape 2 : la PAGE DE CORRECTION en SURFACE déclarée, le TRANSPORT COMMUN par options » — `e235ee0b`, non poussé — 🔴 relancer gunicorn ET les workers (gabarit de la card, routes du transcriber, tâche `common.make_dense_peaks`)
+
+Suite de l'étape 1 (bloc précédent). Domicile du détail : `ROUTE §F3b`, bloc « 2026-10-21 — LA PAGE DE
+CORRECTION DU TRANSCRIBER EN SURFACE DÉCLARÉE » ; page : `TRANSCRIBER_CORRECTION.md` 2f et §9.
+- **Décisions de Fabien** (les quatre recommandations) : surface déclarée ; titre, date, noms = réglages
+  de la card ; « Terminer » = geste commun ; onde, bande de qualité, minimap = une brique à couches ;
+  pics fins au commun d'abord — puis *« garder l'apparence globale ; le transport commun avec le
+  transport de preview et le monde Data, tout dans la même brique par options »*.
+- **Parité** : batterie `transcriber.editor_parity` portée à 66 gestes AVANT de toucher ; 66/66 sur
+  l'ancienne page puis 66/66 sur la surface, contre-épreuves rouges des deux côtés. Conflit à deux
+  comptes 7/7, gestes souris 19/19, capture des vignettes (six surfaces, onze briques). 354 tests verts
+  sur HEAD (worktree).
+- **Livré** : transport commun `wama-transport.js` (montable hors surface), règles `wama-segments.js`,
+  briques `segment_list` / `item_settings` / `speaker_names`, six déclarations au noyau des surfaces,
+  types de réglage `date` et `mapping`, pics fins au commun (`waveform.dense_peaks`, R165) ; l'ancienne
+  page retirée, son adresse redirige (R166).
+- **Inventaire des transports** (question de Fabien) au même bloc de la ROUTE : en plus du cam_analyzer,
+  la visionneuse et les surcouches / Comparer de l'aperçu, et face_analyzer, oublié de la matrice.
+- **Rouges d'autrui** : budgets de langue (code 2653 > 2651, noms de tests 1297 > 1291 — aucun de mes
+  fichiers, vérifié) ; `/anonymizer_01/global_progress/` (jumelle) ; `common.gestures.touch` par le
+  studio. Laissés dans l'arbre : le compteur généré des outils de la ROUTE et les décomptes de
+  `WAMA_MECANISMES.md` (ils mêlent d'autres sessions).
+- 🔚 **Suite** : l'aperçu sur le transport commun (visionneuse, surcouches, Comparer — tests de la face
+  Pendant à l'appui) ; cam_analyzer puis face_analyzer ; décision : la migration qui retire
+  `Transcript.waveform_status`.
