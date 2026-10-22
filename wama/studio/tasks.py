@@ -19,8 +19,8 @@ ICI, sur le kind du nœud (`manifests.builtin.pipeline.node_kind`), jamais dans 
                  lancée puis POLLÉE comme un job (session_id… viennent des params du nœud).
 Un `TypedFrame` circule EN MÉMOIRE entre deux nœuds fonction d'un même run ; `node_states`
 n'en garde qu'un résumé (type, lignes, colonnes). La porte d'ingestion d'un fichier Data vers
-un nœud fonction est le nœud-source `dataset_input` (marche E : l'importeur de manifeste
-de process en sera la seconde entrée).
+un nœud fonction est le nœud-source `dataset_input`, inscrit par le monde Data depuis le
+2026-10-22 (marche E : l'importeur de manifeste de process en sera la seconde entrée).
 
 ÉTATS (marche P2 de `WAMA_APP_GENERATION_ROUTE.md §10.6 4.2`) — ✅ fait le 2026-09-17 : les états
 ne s'écrivent plus ici en littéraux, ils VIENNENT du vocabulaire commun (`common/models.py`), et
@@ -413,8 +413,9 @@ def _execute_run(run, task_id, notify=True):
         _write_line(node_id, kw)
 
     try:
-        from wama.common.manifests.builtin.pipeline import (builtin_node, function_key,
-                                                            node_kind)
+        from wama.common.catalog.data_types import known_types
+        from wama.common.manifests.builtin.pipeline import (builtin_node, builtin_nodes,
+                                                            function_key, node_kind)
         order = topo_order(run.graph)
         links = run.graph.get('links', [])
         outputs = {}   # node_id -> {'type': 'audio'|..., 'value': chemin MEDIA relatif | TypedFrame}
@@ -480,14 +481,18 @@ def _execute_run(run, task_id, notify=True):
                                 f"Nœud fonction « {key} » : une base connectée n'entre pas encore "
                                 f"directement dans une fonction (choix du flux à venir).")
                         if not up.get('is_frame'):
-                            # Le libellé de la porte des données typées est celui que son nœud
-                            # DÉCLARE au registre — il était recopié ici (2026-10-22).
-                            gate = builtin_node('dataset_input')
+                            # Les PORTES des données typées : les sources du registre dont le port
+                            # ne produit que des types de donnée — lues au registre, ni recopiées
+                            # ni nommées par leur clé (le Studio ne cite pas un nœud du monde
+                            # Data, qui inscrit le « Jeu de données » depuis le 2026-10-22).
+                            gates = ' ou '.join(
+                                f"« {b.label} »" for b in builtin_nodes().values()
+                                if b.role == 'source' and set(b.port_types() or [])
+                                and set(b.port_types()) <= known_types())
                             raise ValueError(
                                 f"Nœud fonction « {key} » : l'amont « {l['from']} » ne produit pas "
                                 f"une donnée typée (fichier {up.get('type')}) — passez par un "
-                                f"nœud « {gate.label if gate else 'Jeu de données'} » ou une "
-                                f"autre fonction.")
+                                f"nœud {gates or 'de données typées'} ou une autre fonction.")
                         # `to_port` désigne un port PAR SON ID depuis le 2026-09-09. Un lien qui
                         # n'en nomme aucun — ou qui en nomme un que cette fonction n'a pas —
                         # entre par le PREMIER port. Deux cas réels, et le second est celui qui

@@ -434,7 +434,10 @@ médias et données ne se mélangent pas) ; son type passe par la porte commune 
   désignation (`media_paths.designated_file`, par `entries.checked_file`) ; garde
   `tests_function_nodes.ConnectedFolderFilesAreReadTest`, contre-épreuve rouge sur les trois ;
 - l'exécuteur recopiait le libellé « Jeu de données » dans son refus d'un amont non typé : il le
-  lit au registre.
+  lit au registre — par une RÈGLE (les sources dont le port ne produit que des types de donnée),
+  pas par la clé du nœud : le Studio la citait en dur alors que le monde Data l'inscrit
+  (revérification, même jour ; contre-épreuve : sans types déclarés, le refus ne nomme plus la
+  porte et `test_un_amont_non_type…` rougit).
 
 **✅ Tranché et fait le 2026-10-22 (Fabien : « il faut aligner »).** « Jeu de données » est inscrit
 par le monde Data (`wama_data/functions/io/nodes.py`, à côté de « Base connectée » ; même clé, même
@@ -457,7 +460,11 @@ depuis le 2026-10-20. Conséquence mesurée : il lit son fichier par un SECOND d
 alors que le passage « fichier lu → `TypedFrame` » a son domicile dans le monde Data
 (`wama_data/frames.py`, le pont). L'aligner, c'est l'inscrire depuis `wama_data` et le faire lire
 par ce lecteur via le pont — ce qui change sa lecture (XLSX accepté ; nombres typés par colonne au
-lieu de l'inférence de pandas). Reste l'intention de
+lieu de l'inférence de pandas). ⏳ Un JUMEAU de même nature, antérieur, reste dans le monde Data :
+`functions/driving/gps_map_match.load_road_map_csv` décode son export MyMaps par `pd.read_csv` avant
+d'en lire le WKT. Le passer par le lecteur tabulaire typerait par colonne une colonne `name`
+entièrement numérique (flottants au lieu d'entiers), ce qui change les identifiants de sections que
+lit le Lab (cam_analyzer) — relevé, laissé à décider. Reste l'intention de
 `WAMA_DATA_FUNCTION_CARDS §5` (sélection de colonnes, tri, filtre, plage temporelle), ⏳ non
 construite, et deux gardes de chemin différentes entre les deux entrées Data (« Base connectée » :
 `filemanager.resoudre_chemin_lisible` ; « Jeu de données » : la désignation).
