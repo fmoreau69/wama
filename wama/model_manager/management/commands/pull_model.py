@@ -50,12 +50,14 @@ class Command(BaseCommand):
     def _hf_repo(self, repo):
         """Le depot designe : sa ligne du catalogue, sinon sa proposition — ecrite au besoin par
         la recherche nommee —, puis la demande. Jamais de telechargement hors de la route."""
-        from wama.model_manager.models import AIModel
+        from wama.model_manager.models import EXECUTION_CLOUD, AIModel
         from wama.model_manager.services.prospect_ollama import PROPOSED_PREFIX
         from wama.model_manager.services.prospector import seed_hf_search
 
+        # Une ligne servie par un FOURNISSEUR porte le `hf_id` du modèle qu'elle sert : ce n'est
+        # pas ce dépôt chez nous (2026-10-22, `openrouter:qwen/qwen-2.5-7b-instruct`).
         row = (AIModel.objects.filter(hf_id__iexact=repo, is_proposed=False)
-               .order_by('-is_downloaded').first())
+               .exclude(execution=EXECUTION_CLOUD).order_by('-is_downloaded').first())
         if row is not None:
             return self._request_install(row.model_key)
         cand = AIModel.objects.filter(hf_id__iexact=repo, is_proposed=True).first()

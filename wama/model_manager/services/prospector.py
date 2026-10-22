@@ -342,6 +342,10 @@ HF_TASKS = {
     'text-to-audio': {'category': 'music', 'poids_min_go': 0.05, 'max': 3},
     # OCR / documents (reader)
     'image-to-text': {'category': 'ocr', 'poids_min_go': 0.05, 'max': 3},
+    # LLM aux POIDS du Hub (2026-10-22, essai d'AirLLM demandé par Fabien) : les LLM locaux
+    # passent par Ollama (GGUF), qu'un moteur couche par couche ne lit pas — sans cette entrée,
+    # aucun dépôt `text-generation` ne pouvait être proposé, donc installé par la route.
+    'text-generation': {'category': 'llm', 'poids_min_go': 0.5, 'max': 3},
 }
 
 #: Un dépôt de génération sous ce poids est un LoRA/config, pas un modèle installable seul.
@@ -1054,9 +1058,15 @@ def _installed_repos() -> set:
     Une ligne DÉSINSTALLÉE n'en est plus (2026-10-11) : `uninstall_model` la garde pour son
     historique, marquée `uninstalled_at` — comptée ici, elle interdisait de reproposer le dépôt
     (`lightonai/LightOnOCR-3-4B`, `PaddlePaddle/PaddleOCR-VL-1.6` : « already » au lendemain de
-    leur retrait)."""
-    from wama.model_manager.models import AIModel, uninstalled_q
-    rows = AIModel.objects.filter(is_proposed=False).exclude(uninstalled_q())
+    leur retrait).
+
+    Une ligne servie par un FOURNISSEUR (`execution` cloud) n'en est pas une non plus
+    (2026-10-22) : `openrouter:qwen/qwen-2.5-7b-instruct` porte `hf_id = Qwen/Qwen2.5-7B-Instruct`
+    — le modèle qu'il SERT à distance — et rendait le dépôt « already » : impossible de
+    l'installer ici (essai d'AirLLM)."""
+    from wama.model_manager.models import EXECUTION_CLOUD, AIModel, uninstalled_q
+    rows = (AIModel.objects.filter(is_proposed=False).exclude(uninstalled_q())
+            .exclude(execution=EXECUTION_CLOUD))
     have = {(h or '').lower() for h in rows.exclude(hf_id='').values_list('hf_id', flat=True)}
     have |= {ref.partition(':')[2].lower()
              for ref in rows.filter(platform_ref__startswith='huggingface:')

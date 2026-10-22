@@ -3274,6 +3274,37 @@ une réponse COURTE d'un très gros LLM, hors temps réel ; impraticable pour un
 (des dizaines de milliers de jetons par morceau). Une mesure sur ce poste trancherait — elle
 suppose d'installer `airllm` par la route `library` (dépendances à simuler) : décision de Fabien.
 
+✅ **Mesuré le jour même (Fabien : « tu veux tester AirLLM ? »)** — `airllm` 4.0.0 installé par
+la route (`manifests/libraries/airllm.json`, sans dépendances : simulation = `airllm-4.0.0`
+seul) ; `Qwen/Qwen2.5-7B-Instruct` (15 Go bf16) installé par `pull_model`, rangé sous
+`models/llm/`. Le MÊME modèle, la même consigne, RTX 4090, poids sous `/mnt/d` :
+
+| | chargement | 1er jeton | débit | VRAM au pic |
+|---|---|---|---|---|
+| transformers, toute la carte | 188 s | 1,1 s | **31,7 jetons/s** | 14,2 Go |
+| AirLLM (couches relues à chaque jeton) | 226 s (+ découpage, 15 Go réécrits) | 72,5 s | **69 s par jeton** (0,014 jeton/s) | **1,0 Go** |
+
+Soit ≈ **2 200 fois** plus lent pour 14 fois moins de VRAM. Le chargement complet donne le débit
+réel du disque des poids lu depuis WSL : ≈ 80 Mo/s (15 Go en 188 s) — c'est lui qui borne AirLLM.
+Extrapolé (⚠ sans mesure) : un 70B en bf16 (140 Go, plus que la mémoire vive de 47 Go, donc
+relu du disque à chaque jeton) se compterait en DIZAINES DE MINUTES par jeton ; la compression
+4 bits annoncée « ×3 » le laisserait en minutes. **Verdict : impraticable sur ce poste**, pour la
+musique comme pour le texte. Pour un LLM trop gros pour la carte, WAMA a déjà mieux : une version
+QUANTIFIÉE (GGUF, Ollama — un 32B en 4 bits tient sur la carte), le déchargement CPU du gouverneur
+tant que la mémoire vive suffit, ou un fournisseur souverain (Albert, ILaaS). Ce qui la ferait
+revenir : un modèle sans aucune version quantifiée, des poids sur un NVMe natif de Linux, une
+réponse de quelques jetons sans attente. Les couches découpées de l'essai (15 Go) ont été retirées ;
+`airllm` et Qwen2.5-7B restent installés — les retirer est un geste du model manager.
+
+Deux trous de la ROUTE trouvés en l'installant, comblés dans la route :
+- `HF_TASKS` n'avait pas `text-generation` : aucun LLM aux poids du Hub ne pouvait être proposé,
+  donc installé — ajouté (catégorie `llm`, au plus 3 par balayage) ;
+- une ligne servie par un FOURNISSEUR (`execution` cloud) porte le `hf_id` du modèle qu'elle sert
+  (`openrouter:qwen/qwen-2.5-7b-instruct`) : `_installed_repos` la comptait comme installée
+  (« already ») et `pull_model` la prenait pour la ligne à installer. Les deux l'écartent
+  (`tests_prospection_sources`, contre-épreuve : l'ancienne règle → rouge). Au passage, la
+  recherche nommée a proposé `Qwen/Qwen2.5-7B-Instruct-AWQ` (une proposition, rien d'installé).
+
 Sources : [P-MUSE](https://arxiv.org/abs/2608.01920) ·
 [JASCO, index OSAI](https://osai-index.eu/model/jasco) ·
 [MuseControlLite](https://github.com/fundwotsai2001/MuseControlLite) ·

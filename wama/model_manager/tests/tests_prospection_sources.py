@@ -125,6 +125,15 @@ class LeaderboardCandidatesTest(TestCase):
         self.assertTrue(AIModel.objects.filter(
             model_key='proposed:hf:datalab-to/chandra-ocr-2').exists())
 
+    def test_a_model_only_served_by_a_provider_is_not_installed_here(self, *_):
+        """2026-10-22 : `openrouter:qwen/qwen-2.5-7b-instruct` carries the `hf_id` of the model it
+        SERVES ; counted as installed, the repository could never be installed here."""
+        AIModel.objects.create(model_key='openrouter:org/served', name='Served', model_type='ocr',
+                               source='openrouter', execution='cloud', hf_id='org/Served')
+        r = self._seed([_entry('org/Served', 1, 90.0)], {'org/served': _info('org/Served')})
+        self.assertEqual(1, r['total'])
+        self.assertTrue(AIModel.objects.filter(model_key='proposed:hf:org/Served').exists())
+
     def test_a_model_too_large_even_quantized_is_not_proposed(self, *_):
         with patch.object(p, '_repo_weight_gb', return_value=360.0):
             r = self._seed([_entry('final-bench/Darwin-180B', 1, 83.6)],

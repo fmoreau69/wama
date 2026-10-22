@@ -1,0 +1,40 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [
+      "accelerate",
+      "huggingface-hub",
+      "safetensors",
+      "scipy",
+      "sentencepiece",
+      "torch",
+      "tqdm",
+      "transformers"
+    ],
+    "identity": {
+      "author": "Gavin Li",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/lyogavin/airllm",
+      "summary": "Layer-wise inference of large language models on a small GPU",
+      "version": "4.0.0"
+    },
+    "install": {
+      "pip": "airllm==4.0.0",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "AirLLM — inférence COUCHE PAR COUCHE d'un LLM du Hub : les poids, découpés une fois par couche sur disque, sont relus à chaque jeton ; un modèle plus gros que la carte tient sous quelques Go de VRAM, au prix de la vitesse. ESSAI demandé par Fabien le 2026-10-22 (veille `PROSPECTION_PIPELINE §Veille du 2026-10-22`). Sans dépendances : les siennes (torch>=2.4, transformers<6,>=4.49, accelerate>=1.0, safetensors, huggingface-hub, scipy, sentencepiece, tqdm) sont TOUTES dans le venv à des versions conformes (mesuré le jour même) — les laisser à pip ne pourrait que les déplacer.",
+  "key": "airllm",
+  "manifest_kind": "library",
+  "name": "airllm",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:airllm==4.0.0",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
