@@ -22,11 +22,11 @@
 }
 .wama-brick-title { font-size: .78rem; font-weight: 600; color: var(--wama-edit-brick-text); margin-right: auto; }
 .wama-brick-body { flex: 1 1 auto; min-height: 0; position: relative; overflow: auto; color: var(--wama-edit-brick-text);
-  container-type: inline-size; }
+  container: wama-brick / inline-size; }
 /* Réglages en 2 colonnes (`ParamGroup.columns=2`) dans une brique : c'est la LARGEUR DE LA BRIQUE
    qui décide, pas celle de la fenêtre — une brique rétrécie passe sur une colonne, élargie en
    retrouve deux, où qu'elle soit posée (la colonne du volet garde ses deux colonnes). */
-@container (max-width: 280px) { .wama-param-group-cols-2 { grid-template-columns: 1fr; } }
+@container wama-brick (max-width: 280px) { .wama-param-group-cols-2 { grid-template-columns: 1fr; } }
 
 /* La colonne du volet : une zone de dépôt quand la disposition est modifiable, rien de plus. */
 .wama-surface-panel { margin: 0 -6px .5rem; }

@@ -48,12 +48,8 @@
         return b;
     }
 
-    /** Le clavier est-il à une saisie ? (les touches de la vue s'effacent alors d'elles-mêmes) */
-    function typing() {
-        var a = document.activeElement;
-        if (!a) return false;
-        return a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || !!a.isContentEditable;
-    }
+    /** Le clavier est-il à une saisie ? La règle commune (`WamaApp.isTyping`). */
+    function typing() { return global.WamaApp.isTyping(); }
 
     function mount(host, cfg) {
         cfg = cfg || {};

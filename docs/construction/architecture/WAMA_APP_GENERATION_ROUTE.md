@@ -1106,6 +1106,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       `WamaAudioPlayer`, ni `WamaGestures`, ni canvas, ni routes d'écriture ; `goto` entendu par la
       vue et la liste ; l'outil marque par le bus), `tests_gestures` sur la vue, `tests_poller_js`
       (la boucle des modes d'écriture déclarée sur sa brique). Face Pendant non touchée.
+    - **revérification** (même jour) : trois redites de ma main ramenées — « écouter depuis »
+      réécrit par le ▶ d'un segment (→ `axis.playFrom`), l'échappement HTML recopié dans
+      l'écriture à la lecture (→ `WamaApp.escapeHtml`), la règle « le clavier est à une saisie »
+      écrite trois fois (→ `WamaApp.isTyping`, `wama-app-base.js`). Gardée par
+      `tests_editor_axis`. ⏳ Elle reste écrite à la main, plus ancienne, dans
+      `brick-image-boxes.js`, `wama-queue.js` et `wama-queue-dnd.js` (variantes sans `SELECT`).
     - ⏳ **restes** (inchangés par ce palier, désormais mieux posés) : l'aperçu — sa vidéo est une
       SOURCE attachée à l'axe, le transport se monte dessous, les surcouches sont des VUES, Comparer
       demande N médias sur un axe ; cam_analyzer et face_analyzer ; le pas image et la vitesse

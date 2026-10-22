@@ -184,9 +184,7 @@
             if (btn) {
                 var k = parseInt(btn.dataset.i, 10);
                 if (isNaN(k)) return;
-                if (axis.shuttling()) axis.shuttle(0);
-                axis.seek(segsOf()[k].start_time || 0);
-                axis.play();
+                axis.playFrom(segsOf()[k].start_time || 0);       // le shuttle se rend d'abord
                 highlight(k);
             }
         });

@@ -2,7 +2,7 @@
  * wama-app-base.js — Plomberie JS commune aux apps WAMA (file d'attente / cards).
  *
  * Extrait du Transcriber (app de référence) pour éliminer la duplication inter-apps :
- *   - helpers sans état : escapeHtml, getUrl, csrfHeaders, csrfFetch, wordCount
+ *   - helpers sans état : escapeHtml, isTyping, getUrl, csrfHeaders, csrfFetch, wordCount
  *   - WamaApp.Poller    : boucle de polling de progression résiliente (par id)
  *   (l'état vide d'une file n'est plus ici : la file commune le rend et sa brique le bascule —
  *   `REMOVAL_LEDGER`, 2026-10-20)
@@ -18,6 +18,15 @@
     return (str || '').replace(/[&<>"']/g, function (m) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
     });
+  }
+
+  // Le clavier est-il à une SAISIE (champ, zone de texte, liste, texte éditable) ? Une touche de
+  // raccourci s'efface alors d'elle-même. Une règle pour les briques du temps (transport, ligne
+  // de temps, écriture à la lecture), qui l'écrivaient chacune (2026-10-21, revérification).
+  function isTyping() {
+    var a = document.activeElement;
+    if (!a) return false;
+    return a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || !!a.isContentEditable;
   }
 
   // Remplace le segment id factice « /0/ » d'un template d'URL Django par l'id réel.
@@ -1242,6 +1251,7 @@
     mediaDuration: mediaDuration,
     updateProcessRows: updateProcessRows,
     escapeHtml: escapeHtml,
+    isTyping: isTyping,
     getUrl: getUrl,
     csrfHeaders: csrfHeaders,
     csrfFetch: csrfFetch,

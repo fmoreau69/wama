@@ -94,6 +94,23 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
         self.assertIn("st.reason === 'goto'", _read(TIMELINE))
         self.assertIn("st.reason === 'goto'", _read(COMMON_JS / 'surfaces' / 'brick-segment-list.js'))
 
+    def test_the_time_bricks_share_one_keyboard_rule_and_one_play_from(self):
+        # Revérification du 2026-10-21 : la règle « le clavier est à une saisie » était écrite trois
+        # fois (transport, ligne de temps, écriture), « écouter depuis » quatre (dont le ▶ d'un
+        # segment), l'échappement HTML recopié à côté de `WamaApp.escapeHtml`.
+        segment_list = _read(COMMON_JS / 'surfaces' / 'brick-segment-list.js')
+        for path in (TRANSPORT, TIMELINE, WRITING_BRICK):
+            code = _read(path)
+            self.assertIn('WamaApp.isTyping()', code, path.name)
+            self.assertNotIn('a.isContentEditable', code, f'{path.name} writes the rule again')
+        for path, code in ((TIMELINE, _read(TIMELINE)), (WRITING_BRICK, _read(WRITING_BRICK)),
+                           (COMMON_JS / 'surfaces' / 'brick-segment-list.js', segment_list)):
+            self.assertIn('axis.playFrom(', code, path.name)
+            self.assertNotIn('axis.shuttle(0);\n', code.replace('if (s.shuttling) axis.shuttle(0);', ''),
+                             f'{path.name} releases the shuttle by hand')
+        self.assertIn('WamaApp.escapeHtml(', _read(WRITING_BRICK))
+        self.assertNotIn('function esc(', _read(WRITING_BRICK))
+
     def test_a_tool_marks_its_spans_on_the_views_through_the_bus(self):
         # L'écriture à la lecture ne connaît aucune vue : elle MARQUE ses plages (`bands`), la
         # ligne de temps les dessine. Une brique ne parle jamais à une autre (§5bis).
@@ -111,7 +128,7 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
         surfaces = COMMON_JS / 'surfaces'
         pairs = [(COMMON_JS / name, SERVED / 'common' / 'js' / name)
                  for name in ('wama-axis.js', 'wama-transport.js', 'wama-timeline.js', 'wama-segments.js',
-                              'wama-params.js')]
+                              'wama-params.js', 'wama-app-base.js')]
         pairs += [(surfaces / name, SERVED / 'common' / 'js' / 'surfaces' / name)
                   for name in ('wama-surface.js', 'brick-media-transport.js', 'brick-media-timeline.js',
                                'brick-playback-writing.js', 'brick-segment-list.js',

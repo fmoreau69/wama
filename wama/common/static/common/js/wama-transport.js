@@ -47,12 +47,8 @@
         return b;
     }
 
-    /** Le clavier est-il à une saisie ? (le magnéto s'efface alors de lui-même) */
-    function typing() {
-        var a = document.activeElement;
-        if (!a) return false;
-        return a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || !!a.isContentEditable;
-    }
+    /** Le clavier est-il à une saisie ? La règle commune (`WamaApp.isTyping`). */
+    function typing() { return global.WamaApp.isTyping(); }
 
     function mount(host, cfg) {
         cfg = cfg || {};

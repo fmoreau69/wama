@@ -295,6 +295,16 @@ class SurfaceLayoutTest(TestCase):
         # A brick moved to the other zone keeps its element : it is never mounted twice.
         self.assertIn('from.removeWidget(m.el, false, false);', kernel)
 
+    def test_two_column_settings_follow_the_width_of_their_brick(self):
+        # Fabien, 2026-10-21 : les réglages en 2 colonnes se gardent ; dans une brique, c'est SA
+        # largeur qui fait passer à une colonne (mesuré sur la page servie : 327 px → 2, 240 → 1,
+        # et 240 px hors brique → 2 : le conteneur est NOMMÉ, seules les briques décident).
+        css = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'css'
+               / 'wama-surface.css').read_text(encoding='utf-8')
+        self.assertIn('container: wama-brick / inline-size;', css)
+        self.assertIn('@container wama-brick (max-width: 280px) { .wama-param-group-cols-2 '
+                      '{ grid-template-columns: 1fr; } }', css)
+
     def test_no_function_of_the_kernel_is_declared_twice(self):
         # Lived on 2026-10-21 : a second `function changed()` (the layout) replaced the one of the
         # edited VALUE in the whole `mount` — every edit gesture stopped, seen by the parity run.

@@ -24,17 +24,8 @@
     var WAIT_RESULTS_MS = 60000;
     var PROPOSAL_BAND = 'rgba(239,68,68,0.16)', RECORDING_BAND = 'rgba(239,68,68,0.32)';
 
-    function esc(t) {
-        var d = document.createElement('div'); d.textContent = t == null ? '' : t;
-        return d.innerHTML;
-    }
-
-    /** Le clavier est-il à une saisie ? (R s'efface alors de lui-même) */
-    function typing() {
-        var a = document.activeElement;
-        if (!a) return false;
-        return a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || !!a.isContentEditable;
-    }
+    /** Le clavier est-il à une saisie ? La règle commune (`WamaApp.isTyping`). */
+    function typing() { return global.WamaApp.isTyping(); }
 
     function mount(body, ctx) {
         var Seg = global.WamaSegments, Axis = global.WamaAxis;
@@ -163,7 +154,7 @@
             proposalsHost.innerHTML = proposals.map(function (p) {
                 return '<div class="wp-item" data-id="' + p.id + '">' +
                     '<span class="wp-time">' + fmt(p.start) + '–' + fmt(p.end) + '</span>' +
-                    '<span class="wp-text" title="' + esc(p.text) + '">' + esc(p.text) + '</span>' +
+                    '<span class="wp-text" title="' + global.WamaApp.escapeHtml(p.text) + '">' + global.WamaApp.escapeHtml(p.text) + '</span>' +
                     '<button class="btn btn-sm btn-success py-0 px-2 wp-accept" title="Remplacer le texte de cette plage">' +
                     '<i class="fas fa-check"></i></button>' +
                     '<button class="btn btn-sm btn-outline-secondary py-0 px-2 wp-reject" title="Garder le texte actuel">' +
