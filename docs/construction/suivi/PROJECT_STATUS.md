@@ -25904,3 +25904,20 @@ Détail et décisions : `WAMA_SCENES_3D §3.6`.
   MediaPipe déclarées (trou du catalogue, Face Landmarker compris) ; une brique commune de capture
   caméra/micro (quatre sites refont le même contrôle) ; l'architecture de WAMA en constellation
   (`§3.6`), à concevoir avec Fabien.
+
+## §PALIER 2026-10-22 — PARTITION : UNE SEULE VUE, ET LA PARTITION COMPLÈTE ENFIN COMPLÈTE (#880)
+
+Suite de `§PALIER 2026-10-19 — PARTITION` ; domicile `ROUTE §F3b`, détail `PROSPECTION_PIPELINE
+§Session du 2026-10-16`.
+- **Une seule vue** (demande de Fabien : la complète dans une demi-fenêtre est illisible) : la
+  brique commune `score_view` gagne `options.versions` (la partition éditée + des rôles lus en
+  texte, un choix « Partition » dans sa poignée) ; la surface du composer n'a plus qu'une vue,
+  sur toute la largeur, versions et actions au volet (`zone='panel'`).
+- **La voix manquait dès la sortie du modèle** (61 notes sur 4 fenêtres de 10 s sur 22) : le
+  backend MuScriptor fait deux passages — détection rapide des instruments, puis transcription
+  qui les NOMME (`instruments=`) : voix 458 notes, 9 mesures vides sur 79 (68 avant). Pic GPU
+  13,34 Go → `vram_gb` 13,4.
+- ⏳ Proposé, non fait (Fabien : « du détail » devant une app fonctionnelle) : menu unique
+  « Aucune / Réduite / Complète » relié aux modèles qui exigent une partition.
+- 🔴 relancer gunicorn + workers, puis `sync_models` (VRAM du catalogue) ; rejouer
+  « Partition complète » sur les cards déjà produites.

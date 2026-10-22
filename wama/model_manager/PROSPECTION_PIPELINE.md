@@ -3076,6 +3076,21 @@ Suite de la veille ci-dessus, décisions (a)(b)(d) appliquées ; licence accept�
   il les mesure tous (aucun autre oubli dans le parc). Gardes : `composer.tests_parts`
   (création, volet, case cochée après coup = seule la partition complète rejouée) ;
   contre-épreuves : 5 mutations, 5 rouges.
+- ✅ **La partition complète ne ressortait pas complète (relevé par Fabien sur #880, 2026-10-22)**
+  : la portée « Voix » presque vide (68 mesures vides sur 79) alors que la voix chante tout le
+  morceau. Ni la notation ni la lecture MIDI : le MIDI BRUT du modèle n'avait que 61 notes de voix,
+  sur 4 fenêtres de 10 s sur 22 (sonde jetable, MuScriptor seul sur le rendu). Le même modèle, à
+  qui l'on NOMME les instruments présents (`transcribe(instruments=…)` — une condition du modèle,
+  pas seulement un filtre), en écrit 436 sur 20 fenêtres ; basse et batterie inchangées. Le
+  backend fait donc DEUX passages : une détection rapide (par lots de 4 tranches, sans prologue
+  forcé), qui garde les instruments entendus dans au moins deux tranches de 5 s
+  (`present_instruments` — une seule tranche est une fausse piste : la guitare saturée, 3 notes,
+  en devenait 574), puis la transcription qui les nomme. Mesuré sur #880 (215 s, RTX 4090) : voix
+  458 notes, 9 mesures vides sur 79 (étendue ré 3 – si 4) ; 518 s au total dont 97 s de détection ;
+  pic GPU **13,34 Go** (9,77 avant) — le `vram_gb` de la ligne passe à 13,4 (prend effet au
+  `sync_models`). Gardes : `tests_midi_score.InstrumentsAreNamedToTheModelTest` (2) ; contre-
+  épreuve : détection neutralisée → 2 rouges. Les cards déjà produites gardent l'ancienne
+  partition jusqu'à ce que le process « Partition complète » soit rejoué.
 - ⚠ **Correction du soir (relevée par Fabien : « un fichier venu d'ailleurs doit passer par les
   mécanismes en place »)** — la première forme livrée faisait tirer le point de contrôle de Beat
   This! par le BACKEND au premier usage, et la revérification avait écrit ici qu'un « composant

@@ -838,7 +838,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         sur les temps JOUÉS de l'audio (`audio_rhythm`), anacrouse reculée d'une mesure entière.
       - **page** : 2ᵉ brique `score_view` en LECTURE SEULE sous la mélodie (`options.role='parts'`),
         même axe, mêmes notes colorées ; `Surface.texts` (rôles lus en texte, ni URL ni grille de
-        temps) ; une card sans partition complète dit comment l'obtenir.
+        temps) ; une card sans partition complète dit comment l'obtenir. ✅ **2026-10-22 (demande de
+        Fabien : « une seule UI […] la partition complète dans une demi-fenêtre sera illisible »)** :
+        UNE vue `score_view` sur toute la largeur, `options.versions` = la réduite (éditée) et la
+        complète (rôle `parts`, lue) — un choix « Partition » dans sa poignée, le geste de la version
+        écoutée du transport ; versions et actions passent au volet (`zone='panel'`, comme le
+        transcriber).
       - **grille de temps** : MuScriptor refusait un tempo « non fixe » sur les rendus YuE2 — un temps
         manqué par le suivi décalait tous les rangs. `robust_tempo` re-numérote les temps, garde la
         phase dominante (première droite Theil-Sen : un bloc de contretemps en fin de morceau faisait

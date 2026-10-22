@@ -8,7 +8,8 @@ What each test holds:
   * a wide keyboard on two staves under one brace, the left hand unnamed ; labels in French ;
   * a MIDI without a metre is placed on the PLAYED beats of the audio, and a pickup before the
     first beat moves the whole score back by a whole bar ;
-  * one missed beat and a section tracked on the off-beats do not change the tempo found.
+  * one missed beat and a section tracked on the off-beats do not change the tempo found ;
+  * the transcription NAMES the instruments a first, quick pass heard (2026-10-22, #880).
 
 No model, no GPU: the MIDI is built in memory.
 """
@@ -186,6 +187,61 @@ class MuScriptorIsInstalledByTheRouteTest(SimpleTestCase):
             with self.assertRaisesMessage(RuntimeError, 'pull_model huggingface:MuScriptor'):
                 muscriptor_backend.installed_file(muscriptor_backend.BEAT_CHECKPOINT)
         dl.assert_not_called()
+
+
+class InstrumentsAreNamedToTheModelTest(SimpleTestCase):
+    """2026-10-22, #880 : left free, MuScriptor wrote 61 notes of the VOICE of a YuE2 render (4
+    windows of 10 s out of 22) ; told which instruments sound, 436 (20 windows). A first, quick
+    pass finds the instruments present ; the transcription names them."""
+
+    @staticmethod
+    def _note(name, start):
+        from types import SimpleNamespace
+        return SimpleNamespace(instrument=name, start_time=start, pitch=60, index=0)
+
+    def test_an_instrument_heard_in_one_chunk_only_is_not_named(self):
+        from types import SimpleNamespace
+        from wama.common.backends.muscriptor_backend import present_instruments
+        events = [self._note('voice', 1), self._note('voice', 12), self._note('drums', 0),
+                  self._note('drums', 6), self._note('distorted_electric_guitar', 30),
+                  self._note('distorted_electric_guitar', 31), self._note('program_42', 0),
+                  self._note('program_42', 20), SimpleNamespace(end_time=2.0)]
+        self.assertEqual(['drums', 'voice'],
+                         present_instruments(events, known={'voice', 'drums',
+                                                            'distorted_electric_guitar'}),
+                         'two notes in the same 5 s chunk are one chunk ; an unknown name is dropped')
+
+    def test_the_transcription_names_the_instruments_the_first_pass_found(self):
+        from unittest import mock
+        import numpy as np
+        from wama.common.backends import muscriptor_backend as mb
+        calls = []
+
+        class Model:
+            _device = 'cpu'
+
+            def transcribe(self, audio, **options):
+                calls.append(options)
+                return iter([InstrumentsAreNamedToTheModelTest._note(name, t)
+                             for name in ('voice', 'electric_bass') for t in (0, 6)]
+                            + [InstrumentsAreNamedToTheModelTest._note('flutes', 3)])
+
+            def events_to_midi_bytes(self, events, beat_grid=None):
+                list(events)
+                return b'MThd'
+
+        backend = mb.MuScriptorBackend()
+        backend._model = Model()
+        with mock.patch('wama.common.utils.audio_decode.decode_audio_at',
+                        return_value=(np.zeros(16000, dtype=np.float32), mb.SAMPLE_RATE)), \
+                mock.patch.object(mb, 'installed_file', return_value='ckpt'), \
+                mock.patch.object(mb, 'beat_grid', return_value=None):
+            self.assertEqual(b'MThd', backend.extract_midi(model_id=mb.HF_ID, audio_path='song.wav'))
+        detection, transcription = calls
+        self.assertEqual({'prelude_forcing': False, 'batch_size': mb.DETECTION_BATCH}, detection,
+                         'the first pass is the quick one')
+        self.assertEqual({'instruments': ['electric_bass', 'voice']}, transcription,
+                         'the transcription names what the first pass heard, nothing else')
 
 
 class RobustTempoTest(SimpleTestCase):

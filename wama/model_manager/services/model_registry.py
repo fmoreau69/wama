@@ -1568,8 +1568,10 @@ class ModelRegistry:
                             "accès contrôlé.",
                 description_short="Transcription multi-instrument audio → MIDI",
                 hf_id=HF_ID,
-                # Pic MESURÉ le 2026-10-16 sur #754 (210 s, RTX 4090) : 9,77 Go.
-                vram_gb=9.8,
+                # Pic MESURÉ le 2026-10-16 sur #754 (210 s, RTX 4090) : 9,77 Go ; 13,34 Go le
+                # 2026-10-22 sur #880 (215 s) depuis le passage de DÉTECTION des instruments, par
+                # lots de quatre tranches (`muscriptor_backend.DETECTION_BATCH`).
+                vram_gb=13.4,
                 format='safetensors',
                 preferred_format='safetensors',
                 is_downloaded=declared_files_present(root, MUSCRIPTOR_FILES),

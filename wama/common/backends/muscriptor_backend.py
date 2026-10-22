@@ -16,7 +16,14 @@ Ce que ce backend décide, et pourquoi :
     Laissées à elles-mêmes, les librairies rangeraient poids et point de contrôle dans le `$HOME`
     (`~/.cache/muscriptor`, `torch.hub`) : on leur passe les CHEMINS locaux ;
   • l'audio est décodé par la brique commune (`audio_decode`) : `beat_this` lit un fichier par
-    `torchaudio.load`, cassé en WSL (`reference_torchcodec_broken`) — on lui passe le signal.
+    `torchaudio.load`, cassé en WSL (`reference_torchcodec_broken`) — on lui passe le signal ;
+  • DEUX PASSAGES (2026-10-22, #880 : « la partition complète ne ressort pas complète », Fabien) :
+    laissé libre, le modèle manque l'essentiel de la VOIX d'un rendu YuE2 — mesuré sur #880, 61
+    notes sur 4 fenêtres de 10 s (sur 22) ; à qui l'on DIT les instruments présents (`instruments=`
+    de la librairie, une condition du modèle en plus d'un filtre), 436 notes sur 20 fenêtres, le
+    reste inchangé (basse 286 → 292 notes, batterie 919 → 956). Un premier passage, rapide (par
+    lots, sans le prologue forcé — `README` de la librairie), relève les instruments présents
+    (`present_instruments`) ; le second transcrit en les nommant.
 """
 from __future__ import annotations
 
@@ -77,6 +84,32 @@ def installed_file(relative: str) -> Path:
         raise RuntimeError(f"MuScriptor : {path} absent — installer « MuScriptor large » depuis le "
                            f"model manager (`pull_model {MODEL_KEY}`)")
     return path
+
+
+#: Le passage de DÉTECTION des instruments : tranches de 5 s par lot (la valeur GPU de la
+#: librairie hors prologue forcé), et le nombre de tranches où un instrument doit sonner pour être
+#: tenu présent — une seule tranche est le plus souvent une fausse piste (#880 : guitare saturée,
+#: 3 notes dans une tranche, devenue 574 notes une fois nommée).
+DETECTION_BATCH = 4
+MIN_PRESENCE_CHUNKS = 2
+#: Durée d'une tranche du modèle (`muscriptor.transcription_model._SEGMENT_DURATION`).
+CHUNK_SECONDS = 5.0
+#: Part de la progression donnée au passage de détection.
+DETECTION_SHARE = 30
+
+
+def present_instruments(events, known=None, min_chunks: int = MIN_PRESENCE_CHUNKS) -> list:
+    """Les instruments qui sonnent dans au moins `min_chunks` tranches du flux d'événements de la
+    librairie (`NoteStartEvent` : `instrument`, `start_time`), triés ; `known`, s'il est donné,
+    écarte un nom que la librairie ne saurait pas reprendre en condition (`program_<n>`)."""
+    seen = {}
+    for event in events:
+        name = getattr(event, 'instrument', None)
+        if name is None or not hasattr(event, 'start_time'):
+            continue
+        seen.setdefault(name, set()).add(int(event.start_time // CHUNK_SECONDS))
+    return sorted(name for name, chunks in seen.items()
+                  if len(chunks) >= min_chunks and (known is None or name in known))
 
 
 #: Tolérance (en temps) d'un temps à la phase dominante, et la part des temps qu'elle doit garder.
@@ -226,14 +259,22 @@ class MuScriptorBackend(MidiExtractionBackend):
             logger.warning("[MuScriptor] pas de grille de temps (%s) : tempo de remplacement", error)
             grid = None
 
-        def events():
-            for ev in self._model.transcribe((wav, rate)):
+        from muscriptor.tokenizer.mt3 import MT3_FULL_PLUS_GROUP_NAMES
+
+        def events(start, end, **options):
+            for ev in self._model.transcribe((wav, rate), **options):
                 if isinstance(ev, ProgressEvent) and progress_callback and ev.total:
-                    progress_callback(int(95 * ev.completed / ev.total))
+                    progress_callback(start + int((end - start) * ev.completed / ev.total))
                 yield ev
 
         with torch.inference_mode():
-            midi = self._model.events_to_midi_bytes(events(), beat_grid=grid)
+            # 1er passage, rapide : quels instruments sonnent ? 2ᵉ : la transcription, en les nommant.
+            present = present_instruments(
+                events(0, DETECTION_SHARE, prelude_forcing=False, batch_size=DETECTION_BATCH),
+                known=MT3_FULL_PLUS_GROUP_NAMES)
+            logger.info("[MuScriptor] instruments présents : %s", ', '.join(present) or 'aucun')
+            midi = self._model.events_to_midi_bytes(
+                events(DETECTION_SHARE, 95, instruments=present or None), beat_grid=grid)
         if not midi:
             raise RuntimeError("MuScriptor n'a rien transcrit")
         if progress_callback:

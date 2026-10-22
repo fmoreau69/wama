@@ -713,9 +713,13 @@ class ComposerScoreSurfaceTest(TestCase):
     def test_the_page_composes_the_score_the_transport_and_the_versions(self):
         from wama.common.surfaces import surface
         score = surface('composer', 'score')
-        self.assertEqual(['score_view', 'score_view', 'media_transport', 'text_sections',
-                          'revision_history', 'surface_actions'], [s.brick for s in score.slots])
-        self.assertEqual('parts', score.slots[1].options['role'], 'the full score, read only')
+        self.assertEqual(['score_view', 'media_transport', 'text_sections', 'surface_actions',
+                          'revision_history'], [s.brick for s in score.slots])
+        view = score.slots[0]
+        self.assertEqual((0, 12), (view.x, view.w), 'ONE score view, the whole width')
+        self.assertEqual([None, 'parts'], [v.get('role') for v in view.options['versions']],
+                         'the reduced score (edited) and the full score (read only) in the same view')
+        self.assertIn('parts', score.texts, 'the full score is read as text')
         scripts = score.scripts()
         self.assertLess(scripts.index('vendors/abcjs-6.4.4/abcjs-basic-min.js'),
                         scripts.index('common/js/surfaces/brick-score-view.js'))

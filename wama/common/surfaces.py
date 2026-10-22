@@ -695,7 +695,10 @@ register_brick(UIBrick(
                 "d'un degré par cran — un geste d'édition annulable. Le temps de la PARTITION "
                 "guide : chaque temps écrit est calé sur un temps joué de l'audio lu "
                 "(`options.media`, grille de `audio_rhythm` servie par `data/?only=rhythm`), "
-                "le premier ancré par les hauteurs qui sonnent ; le tempo écrit sinon.",
+                "le premier ancré par les hauteurs qui sonnent ; le tempo écrit sinon. Plusieurs "
+                "partitions d'un même élément (`options.versions` : l'éditée et des rôles lus en "
+                "texte) se montrent dans la MÊME vue, un choix « Partition » passant de l'une à "
+                "l'autre ; une partition lue ne s'édite pas.",
     script='common/js/surfaces/brick-score-view.js',
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
               'common/js/wama-score.js'),

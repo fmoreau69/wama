@@ -5,8 +5,11 @@
 (les notes jouées se colorent), la corriger — à la gravure (glisser une note) ou dans sa source
 ABC —, avec l'annuler/rétablir et les versions de WAMA. Toutes ses briques sont universelles.
 
-La PARTITION COMPLÈTE (2026-10-16) s'y lit en dessous : une partie par instrument (process
-optionnel `parts`, MuScriptor), en lecture seule, sur le même axe.
+La PARTITION COMPLÈTE (2026-10-16) : une partie par instrument (process optionnel `parts`,
+MuScriptor), en lecture seule, sur le même axe. Depuis le 2026-10-22 (demande de Fabien : « une
+seule UI […] afficher la partition complète dans une demi-fenêtre sera illisible ») elle se lit
+dans LA MÊME vue que la partition réduite, sur toute la largeur — un choix « Partition » passe de
+l'une à l'autre (`options.versions` de `score_view`) ; versions et actions vont au volet.
 
 La partition est un RÉSULTAT de la card, écrit par l'un de deux process ALTERNATIFS : `plan`
 (la consigne → la partition) ou `extract_score` (l'audio du morceau à reprendre → sa mélodie) —
@@ -38,17 +41,18 @@ def _score_available(generation) -> tuple:
 register_surface(Surface(
     app='composer', key='score', label='Éditer la partition',
     model='composer.ComposerGeneration',
-    slots=(BrickSlot('score', 'score_view', 0, 0, 8, 9, {'media': 'audio'}),
-           # La PARTITION COMPLÈTE (2026-10-16) : lue, jamais éditée ici — même axe, mêmes notes
-           # colorées, une partie par instrument (process optionnel `parts`).
-           BrickSlot('parts', 'score_view', 0, 9, 8, 8,
-                     {'role': 'parts', 'media': 'audio', 'title': 'Partition complète',
-                      'empty': "Pas encore de partition complète : cocher « Partition complète "
-                               "(instruments) » dans les réglages de la card, puis relancer."}),
-           BrickSlot('transport', 'media_transport', 0, 17, 8, 4, {'role': 'audio'}),
-           BrickSlot('source', 'text_sections', 8, 0, 4, 11, {'title': 'Source ABC'}),
-           BrickSlot('versions', 'revision_history', 8, 11, 4, 5),
-           BrickSlot('actions', 'surface_actions', 8, 16, 4, 5)),
+    slots=(BrickSlot('score', 'score_view', 0, 0, 12, 14, {
+               'media': 'audio',
+               # La réduite (mélodie et accords) s'édite ; la COMPLÈTE est lue, jamais éditée ici.
+               'versions': [
+                   {'label': 'Réduite'},
+                   {'role': 'parts', 'label': 'Complète',
+                    'empty': "Pas encore de partition complète : cocher « Partition complète "
+                             "(instruments) » dans les réglages de la card, puis relancer."}]}),
+           BrickSlot('transport', 'media_transport', 0, 14, 12, 3, {'role': 'audio'}),
+           BrickSlot('source', 'text_sections', 0, 17, 12, 6, {'title': 'Source ABC'}),
+           BrickSlot('actions', 'surface_actions', 0, 0, 1, 5, zone='panel'),
+           BrickSlot('versions', 'revision_history', 0, 5, 1, 6, zone='panel')),
     reads={'audio': 'audio_output', 'parts': 'parts_score'},
     texts=('parts',),
     edits=SCORE_FIELDS,

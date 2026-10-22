@@ -24,6 +24,13 @@
  * LECTURE SEULE (2026-10-16, la partition complète du composer) : `options.role` montre un rôle LU
  * en texte (`Surface.texts`) au lieu de la valeur éditée — même gravure, même axe, mêmes notes
  * colorées, aucun geste d'édition ; `options.empty` dit pourquoi il n'y a encore rien.
+ *
+ * PLUSIEURS PARTITIONS, UNE SEULE VUE (2026-10-22, demande de Fabien : « une seule UI, qui affiche
+ * soit la partition réduite, soit la partition complète ») : `options.versions` = `[{label, role?,
+ * empty?}]` — la valeur éditée (sans `role`) et des rôles lus en texte. Un choix « Partition » dans
+ * la poignée passe de l'une à l'autre, sur la même largeur, le même axe ; une version lue (`role`)
+ * se montre en lecture seule. Le geste de la version écoutée du transport (`ctx.sources()`), pour
+ * une partition.
  */
 (function (global) {
     'use strict';
@@ -62,13 +69,37 @@
 
         var timings = [], tl = null, lit = [], rendered = null, pending = null;
         var msPerBeat = 0, notes = [], grid = null, alignment = null;
-        var readOnly = !!options.role;
-        var editable = !readOnly && !!ctx.canEdit;
+        var versions = (options.versions && options.versions.length) ? options.versions
+            : [{ role: options.role || '', empty: options.empty }];
+        var chosen = 0;
+
+        function current() { return versions[chosen]; }
+        function readOnly() { return !!current().role; }
+        function editable() { return !readOnly() && !!ctx.canEdit; }
 
         function text() {
-            if (readOnly) return String((ctx.reads() || {})[options.role] || '');
+            if (readOnly()) return String((ctx.reads() || {})[current().role] || '');
             var v = ctx.value();
             return typeof v === 'string' ? v : '';
+        }
+
+        if (versions.length > 1) {
+            var pick = document.createElement('select');
+            pick.className = 'form-select form-select-sm py-0 w-auto';
+            pick.title = 'Partition : celle que la vue montre';
+            pick.setAttribute('aria-label', 'Partition');
+            versions.forEach(function (version, i) {
+                var option = document.createElement('option');
+                option.value = String(i);
+                option.textContent = version.label || ('Partition ' + (i + 1));
+                pick.appendChild(option);
+            });
+            pick.addEventListener('change', function () {
+                chosen = Number(pick.value) || 0;
+                rendered = null;
+                render();
+            });
+            tools.insertBefore(pick, warn);
         }
 
         /** Le temps ÉCRIT (ms au tempo de la partition) qui sonne à l'instant `seconds` de l'axe. */
@@ -109,13 +140,14 @@
             notes = [];
             tl = null;
             if (!abc.trim() || !ABCJS) {
-                paper.textContent = ABCJS ? (options.empty || 'Partition vide.') : 'Moteur de partition non chargé.';
+                paper.textContent = ABCJS ? (current().empty || options.empty || 'Partition vide.')
+                    : 'Moteur de partition non chargé.';
                 realign();
                 return;
             }
             var tune = ABCJS.renderAbc(paper, abc, {
                 add_classes: true, responsive: 'resize', selectTypes: ['note'],
-                dragging: editable, clickListener: onNote,
+                dragging: editable(), clickListener: onNote,
             })[0];
             // La séquence audio d'abcjs donne aux notes leurs hauteurs MIDI — de quoi les caler sur
             // ce qui sonne. Aucun son n'est produit.
@@ -170,7 +202,7 @@
 
         function onNote(abcelem, tuneNumber, classes, analysis, drag) {
             if (!abcelem || abcelem.startChar == null) return;
-            if (drag && drag.step && editable) {
+            if (drag && drag.step && editable()) {
                 ctx.edit(function (v) { return Score.transposeAt(v, abcelem.startChar, abcelem.endChar, drag.step); });
                 return;
             }
@@ -193,16 +225,18 @@
         if (axis) axis.subscribe(function (snap) { paint(snap.time, snap.playing || snap.reason === 'seek'); });
         // Un rendu refait (« Appliquer ») est un autre audio : sa grille se redemande — et une
         // partition LUE (lecture seule) a pu être réécrite par son process.
-        ctx.on('redone', function () { grid = null; realign(); loadGrid(); if (readOnly) schedule(); });
-        if (readOnly) ctx.on('processes', function () { if (text() !== rendered) schedule(); });
+        ctx.on('redone', function () { grid = null; realign(); loadGrid(); if (readOnly()) schedule(); });
+        ctx.on('processes', function () { if (readOnly() && text() !== rendered) schedule(); });
 
         render();
         loadGrid();
+        var anyEdited = versions.some(function (version) { return !version.role; });
         return {
             refresh: function () { if (text() !== rendered) schedule(); },
             tools: tools,
-            help: readOnly ? null
-                : 'Partition : clic sur une note = y aller · glisser une note vers le haut ou le bas = la transposer d’un degré (Ctrl+Z annule) · les temps écrits sont calés sur les temps joués de l’audio',
+            help: !anyEdited ? null
+                : 'Partition : clic sur une note = y aller · glisser une note vers le haut ou le bas = la transposer d’un degré (Ctrl+Z annule) · les temps écrits sont calés sur les temps joués de l’audio'
+                  + (versions.length > 1 ? ' · une partition LUE (choix « Partition ») ne se modifie pas ici' : ''),
         };
     }
 
