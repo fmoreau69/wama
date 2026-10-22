@@ -51,11 +51,8 @@
         });
     }
 
-    // -----------------------------------------------------------------------
-    // bbox_shift slider — champ GÉNÉRÉ du schéma (volet rendu avant ce script, 2026-10-11) :
-    // le renderer `range` commun affiche lui-même sa valeur, plus de `#bbox_shift_val`.
-    // -----------------------------------------------------------------------
-    const bboxSlider = $('#bbox_shift');
+    // bbox_shift — champ GÉNÉRÉ du schéma (volet rendu avant ce script, 2026-10-11) : le renderer
+    // `range` commun affiche lui-même sa valeur ; le dépôt le lit avec tout le volet.
 
     // Le couple de modes rapide/qualité est MORT (2026-08-03) : l'Amélioration
     // CodeFormer (#use_enhancer) est le SEUL contrôle de qualité, toujours visible.
@@ -232,11 +229,17 @@
                 fd.append('avatar_source', 'upload');
                 // Photo OU objet 3D : le serveur dérive le moteur de la nature du fichier.
                 WamaApp.appendInput(fd, chosenAvatar(), 'avatar_upload');
-                // Modèle d'animation du volet (« auto » par défaut ; le serveur valide au catalogue).
-                const animationModel = $('#animation_model');
-                fd.append('animation_model', animationModel ? animationModel.value : 'auto');
-                fd.append('bbox_shift', bboxSlider ? bboxSlider.value : '0');
-                fd.append('use_enhancer', $('#use_enhancer') && $('#use_enhancer').checked ? 'true' : 'false');
+                // Les réglages du VOLET, lus par le schéma (2026-10-22, aligné sur le
+                // synthesizer) : modèle d'animation, amélioration, décalage — et la VOIX (moteur,
+                // langue, voix, température), qui a rejoint le volet. Trois champs étaient relus
+                // ici par leur id : un réglage ajouté au volet ne partait pas. Une valeur vide
+                // n'est pas postée : le serveur applique le défaut du schéma.
+                const panel = document.getElementById('avatarPanelParams');
+                const values = (panel && window.WamaParams) ? WamaParams.read(panel) : {};
+                Object.keys(values).forEach(function (name) {
+                    const value = values[name];
+                    if (value !== '' && value !== null && value !== undefined) fd.append(name, value);
+                });
             },
             // L'AVATAR reste choisi : plusieurs vidéos d'un même visage s'enchaînent. Seuls le
             // texte, l'audio et son URL se vident (geste de l'app : `clearPort` met le port à jour).

@@ -8,6 +8,9 @@
       "modalities": [
         "text"
       ],
+      "params": [
+        "temperature"
+      ],
       "task": "text-generation"
     },
     "composition": {

@@ -72,6 +72,9 @@ class BarkBackend(TTSBackend):
     #: Il TIRE ses deux étages (texte → jetons sémantiques, puis forme d'onde) : 0,7, le défaut
     #: de `bark.generate_audio` pour `text_temp` comme pour `waveform_temp`. La card règle les deux.
     default_temperature = 0.7
+    #: Il ne sait pas descendre à 0 : il divise par elle (`bark.generation`, `logits / temp`) et ne
+    #: connaît que le tirage — jamais reproductible. Le curseur s'arrête à 0,1.
+    min_temperature = 0.1
 
     REQUIRED_PACKAGES = ['bark', 'scipy']
     # ⚠ `pip install bark` installe un paquet HOMONYME sans rapport — l'installation

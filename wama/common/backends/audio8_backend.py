@@ -159,14 +159,16 @@ class Audio8Backend(TTSBackend):
                         "transcript, non porté par le flux de voix WAMA")
         entrees = self._processor(text=[text], return_tensors="pt")
         entrees = {k: v.to(self._device) for k, v in entrees.items()}
+        # La card, sinon 0,8. À 0 : le choix le plus probable (transformers refuse de TIRER à 0).
+        temperature = self.sampling_temperature(_ignored)
+        sampling = ({'do_sample': True, 'temperature': temperature, 'top_p': 0.95, 'top_k': 50}
+                    if self.samples(temperature) else {'do_sample': False})
         with torch.inference_mode():
             sortie = self._model.generate(
                 **entrees,
                 max_new_tokens=2048,       # ~95 s d'audio au codec 21,5 trames/s — le
-                # découpage en segments du worker borne l'entrée ; la card, sinon 0,8.
-                temperature=self.sampling_temperature(_ignored),
-                top_p=0.95, top_k=50,
-                do_sample=True,
+                # découpage en segments du worker borne l'entrée.
+                **sampling,
                 return_dict_in_generate=True,
             )
             ondes, longueurs = self._model.decode_audio(sortie.codes)

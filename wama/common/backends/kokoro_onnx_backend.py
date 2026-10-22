@@ -123,6 +123,7 @@ class KokoroOnnxBackend(TTSBackend):
     supports_cloning = False
     #: Il ne tire pas : la voix d'un texte est toujours la même (2026-10-21).
     default_temperature = None
+    reproducible = True
     #: Même rôle TEMPS RÉEL que le jumeau .pt (vocalisation assistant, preview) → chaud.
     keep_resident = True
     #: kokoro_onnx expose des timings, non câblés ici — on ne promet rien d'invérifié.

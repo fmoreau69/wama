@@ -638,12 +638,30 @@ réglage doit apparaître si le modèle le permet »*, pour tout type de modèle
 | `reads` (`param: 'temperature'`) | `params` | grisé, raison dite, sous un modèle qui ne tire pas (BLIP, abonnement Claude Code, OCR) |
 | `note` | `recommended_temperature` | la valeur de l'éditeur rappelée ; le curseur s'y place (`data-cap-note`) tant qu'on la laisse |
 | `range` | `max_temperature` | le curseur borné au maximum du moteur (Anthropic : 1) |
+| `min` (2026-10-22) | `min_temperature` | le curseur s'arrête au PLANCHER du moteur (Bark : 0,1 — il divise par elle) ; une valeur dessous y remonte |
+
+Sous le curseur, une ligne dit si le résultat est REPRODUCTIBLE pour la valeur du moment (à 0 :
+le choix le plus probable ; au-dessus : il varie à chaque lancement ; `reproducible` sur la fiche :
+toujours), lue sur la fiche du modèle choisi que chaque liaison laisse au champ (`wamaModelCaps`).
+L'identifiant du réglage est celui du champ qui PORTE la valeur (lecteurs par id : l'inspecteur du
+volet) ; le curseur que les liaisons visent est désigné par `data-cap-target` (2026-10-22 — l'id était
+celui du curseur, et le volet envoyait sa position au lieu du vide).
+
+**Une condition `show_if` dont le champ n'est PAS RENDU dans ce conteneur ne se juge pas** : le
+réglage reste visible (`_bindConditional`, 2026-10-22, décision de Fabien — la règle de `reads` : on
+ne cache jamais sur une absence d'information). Cas : la voix de l'avatarizer, au volet, dépend du
+texte de la card de dépôt. Le jumeau serveur (`_show_if_met`) juge des VALEURS, pas un rendu : il
+n'a pas changé (un champ absent y est « non posté », et c'est juste pour les défauts d'un élément
+qui naît).
 
 La case « Celle du modèle » vaut VIDE (rien n'est envoyé : le moteur applique sa propre valeur) ;
 la toucher, ou bouger le curseur, règle une valeur. Une borne qui ramène le curseur ne règle rien.
 Adopté par le describer (vision, langage), le reader (langage), l'assistant (conversation), le
 synthesizer et l'avatarizer (moteur de voix : le moteur déclare sa température,
-`default_temperature`), le composer (moteur de musique). Règle de
+`default_temperature`), le composer (moteur de musique). L'avatarizer porte depuis le 2026-10-22 sa
+VOIX au volet comme le synthesizer (moteur, curseur, langue, voix, température — elle ne vivait que
+dans la modale, écart « not yet looked at » depuis le 26/09) et son dépôt lit tout le volet par le
+schéma (trois champs y étaient relus à la main). Règle de
 l'appel : `docs/construction/ia/WAMA_LLM.md §Température`. Gardes : `tests_temperature`.
 
 Modèle « auto » ou capacité absente → champ du schéma intact. Les capacités vidéo (`fps`,

@@ -16,6 +16,9 @@
       "modalities": [
         "audio"
       ],
+      "params": [],
+      "recommended_temperature": null,
+      "reproducible": true,
       "supports_cloning": false,
       "task": "text-to-speech"
     },

@@ -8,6 +8,7 @@
         "image"
       ],
       "params": [],
+      "reproducible": true,
       "task": "captioning"
     },
     "composition": {

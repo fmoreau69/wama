@@ -28,6 +28,7 @@
       ],
       "params": [],
       "recommended_temperature": null,
+      "reproducible": true,
       "supports_cloning": false,
       "supports_timestamps": true,
       "task": "text-to-speech",

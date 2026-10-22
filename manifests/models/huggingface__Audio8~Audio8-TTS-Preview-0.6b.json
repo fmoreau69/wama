@@ -20,6 +20,10 @@
       "modalities": [
         "audio"
       ],
+      "params": [
+        "temperature"
+      ],
+      "recommended_temperature": 0.8,
       "supports_cloning": false,
       "task": "text-to-speech"
     },

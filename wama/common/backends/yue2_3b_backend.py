@@ -79,6 +79,8 @@ class YuE2Backend(MusicGenerationBackend):
     #: YuE tire, mais ce moteur WAMA ne transmet pas de température au pipeline : dit tel quel, le
     #: réglage se grise plutôt que d'être ignoré en silence (2026-10-21).
     default_temperature = None
+    #: …et il tire avec une GRAINE FIXE (`SEED`) : même prompt, même morceau — dit sous le réglage.
+    reproducible = True
 
     # ------------------------------------------------------------------
     # Gestion du cycle de vie

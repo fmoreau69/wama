@@ -384,14 +384,19 @@ def temperature_param(model_field: str, **overrides) -> dict:
     base = dict(
         type='temperature', label='Température', icon='fa-temperature-half',
         default=None, min=0, max=TEMPERATURE_MAX, step=0.05,
-        help="Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, "
-             "plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+        # La REPRODUCTIBILITÉ dépend de la valeur (Fabien, 2026-10-21) : à 0, le choix le plus
+        # probable ; au-dessus, un tirage — « celle du modèle » est souvent au-dessus. La ligne
+        # sous le curseur le dit pour la valeur du moment (`wama-params.js::_temperatureHint`).
+        help="Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat "
+             "varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même "
+             "résultat, même à 0.",
         cap_from=[
             {'field': model_field, 'capability': 'params', 'mode': 'reads', 'param': TEMPERATURE,
-             'reason': "Ce modèle ne tire pas au hasard : la température ne le concerne pas."},
+             'reason': "Ce modèle ne reçoit pas de réglage de température."},
             {'field': model_field, 'capability': 'recommended_temperature', 'mode': 'note',
              'label': 'Celle du modèle :'},
             {'field': model_field, 'capability': 'max_temperature'},
+            {'field': model_field, 'capability': 'min_temperature', 'mode': 'min'},
         ],
     )
     base.update(overrides)

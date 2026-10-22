@@ -13,15 +13,9 @@ from django.test import SimpleTestCase
 
 #: (app, schema attribute, param) → what is known. Measured 2026-09-26; none decided yet.
 DECLARED_GAPS = {
-    ('avatarizer', 'PARAMS_JSON', 'text_content'): 'modal only — not yet looked at',
-    ('avatarizer', 'PARAMS_JSON', 'tts_model'): 'modal only — not yet looked at',
-    ('avatarizer', 'PARAMS_JSON', 'quality_intent'): 'modal only — not yet looked at',
-    ('avatarizer', 'PARAMS_JSON', 'language'): 'modal only — not yet looked at',
-    ('avatarizer', 'PARAMS_JSON', 'voice_preset'): 'modal only — not yet looked at',
-    # 2026-10-21 : la température du moteur de voix SUIT le moteur qu'elle règle (`tts_model`,
-    # modale seule ci-dessus) — au volet, sa liaison `cap_from` n'aurait pas de modèle à lire.
-    # Elle sort de cette liste avec la voix, le jour où la voix rejoint le volet.
-    ('avatarizer', 'PARAMS_JSON', 'tts_temperature'): 'modal only — follows tts_model',
+    # Le texte à dire est le PROMPT de la card de dépôt (comme celui du composer) ; la voix de
+    # l'avatarizer (moteur, curseur, langue, voix, température) a rejoint le volet le 2026-10-22.
+    ('avatarizer', 'PARAMS_JSON', 'text_content'): 'modal only — the prompt of the deposit card',
     ('composer', 'PARAMS_JSON', 'prompt'): 'modal only — not yet looked at',
     ('enhancer', 'AUDIO_PARAMS_JSON', 'output_format'): 'modal only — not yet looked at',
     ('enhancer', 'AUDIO_PARAMS_JSON', 'output_quality'): 'modal only — not yet looked at',

@@ -1809,7 +1809,9 @@ MECHANISMS = (
               "TEMPÉRATURE commune (2026-10-21) : `temperature_param(<champ modèle>)`, type "
               "`temperature` (vide = celle du modèle), lié à son modèle par une LISTE de `cap_from` "
               "(`cap_bindings` ⟷ `capBindings`) — grisé s'il ne tire pas, valeur de l'éditeur "
-              "rappelée, borné au maximum du moteur",
+              "rappelée, borné au maximum et au minimum du moteur, une ligne qui dit si le "
+              "résultat est REPRODUCTIBLE (2026-10-22). Et une condition `show_if` dont le champ "
+              "n'est pas RENDU dans le conteneur ne cache rien (même date)",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),

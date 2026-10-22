@@ -16,6 +16,7 @@
       ],
       "params": [],
       "recommended_temperature": null,
+      "reproducible": true,
       "supports_vocals": true,
       "task": "text-to-music"
     },

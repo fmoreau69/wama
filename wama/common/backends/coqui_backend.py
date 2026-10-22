@@ -29,9 +29,10 @@ class CoquiBackend(TTSBackend):
     description = "Coqui TTS — XTTS v2 (clonage multilingue) et moteurs EN légers."
 
     supports_cloning = True    # XTTS = clonage par speaker_wav (aligné sur le catalogue)
-    #: XTTS tire, mais ce moteur WAMA ne lui transmet pas de température (`tts_to_file`) : dit
-    #: tel quel, le réglage se grise plutôt que d'être ignoré en silence (2026-10-21).
-    default_temperature = None
+    #: XTTS TIRE : 0,75, la valeur de son `config.json` (`xtts_v2/config.json`, lue par
+    #: `Xtts.synthesize`) ; `tts_to_file` transmet le réglage à `Xtts.inference` (2026-10-21).
+    #: Le seul modèle de ce moteur au catalogue est XTTS v2.
+    default_temperature = 0.75
 
     REQUIRED_PACKAGES = ['TTS', 'soundfile']
     # `pip install TTS` est le paquet idiap/coqui-ai-TTS maintenu — nom pip = nom d'import.
@@ -97,6 +98,10 @@ class CoquiBackend(TTSBackend):
                 kwargs["speaker_wav"] = speaker_wav
             else:
                 raise ValueError("XTTS v2 requires a speaker_wav reference audio file")
+            # La température de la card, sinon 0,75 ; à 0, le choix le plus probable.
+            temperature = self.sampling_temperature(_ignored)
+            kwargs.update({"temperature": temperature, "do_sample": True}
+                          if self.samples(temperature) else {"do_sample": False})
 
         self._tts.tts_to_file(**kwargs)
         return tmp.name

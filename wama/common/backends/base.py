@@ -606,12 +606,29 @@ class BaseModelBackend(ABC):
     #: fiche dit alors qu'il ne la lit pas, et le réglage se grise sous lui. Non déclaré (ce
     #: défaut du contrat) = rien d'affirmé : `declared_engine_value` remonte la MRO jusqu'ici.
     default_temperature: Optional[float] = None
+    #: La plus BASSE température que le moteur accepte (2026-10-21). Non déclarée = 0, où il prend
+    #: toujours le choix le plus probable — même entrée, même résultat (reproductible). Un moteur
+    #: qui ne sait pas descendre à 0 la déclare (Bark divise par elle) : le curseur s'arrête là.
+    min_temperature: Optional[float] = None
+    #: Le moteur rend le MÊME résultat à chaque lancement, quel que soit le réglage : il ne tire
+    #: pas (Kokoro), ou tire avec une graine fixe (YuE). Dit sous le réglage (2026-10-21).
+    reproducible: Optional[bool] = None
 
     def sampling_temperature(self, kwargs) -> Optional[float]:
         """La température d'UN appel : celle que la card a réglée (`options['temperature']`, le
-        contrat uniforme), sinon celle du moteur (`default_temperature`)."""
+        contrat uniforme), sinon celle du moteur (`default_temperature`) — jamais sous son
+        minimum (`min_temperature`)."""
         value = ((kwargs or {}).get('options') or {}).get('temperature')
-        return self.default_temperature if value in (None, '') else float(value)
+        value = self.default_temperature if value in (None, '') else float(value)
+        if value is not None and self.min_temperature is not None:
+            value = max(float(self.min_temperature), value)
+        return value
+
+    @staticmethod
+    def samples(temperature) -> bool:
+        """Tirer au hasard ? Non à 0 : le choix le plus probable, la règle de Higgs et
+        d'AudioCraft — que transformers REFUSE en tirage (`temperature` strictement positive)."""
+        return temperature is None or float(temperature) > 0
 
     # ── Disponibilité / dépendances (hook prospection) ───────────────────────
     @classmethod

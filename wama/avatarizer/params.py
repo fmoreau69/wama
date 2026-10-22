@@ -77,29 +77,40 @@ PARAMS = derive_from_model(
                              # « auto » + prévision (brique commune auto_model, 2026-09-02)
                              # — le lancement résout dans workers.py.
                              options_auto=True,
-                             dom_id={"item": "settingsTtsModel"}, contexts=("item",),
-                             # La VOIX (moteur, langue, voix) se règle dans la modale, pas au
-                             # volet, et se retrouve au job suivant (ex-`VOICE_SETTINGS`).
-                             remember=True, stales=("speak",)),
+                             dom_id={"panel": "tts_model", "item": "settingsTtsModel",
+                                     "batch": "batchSettingsTtsModel"},
+                             # La VOIX (moteur, langue, voix) se règle au VOLET, dans la modale et
+                             # dans la modale de lot, comme au synthesizer (2026-10-22, décision de
+                             # Fabien : « il faut aligner l'avatarizer ») — elle vivait dans la
+                             # modale seule. Elle se retrouve au job suivant (`VOICE_SETTINGS`).
+                             # Au volet, son `show_if` vise le texte de la card de dépôt, qui n'y
+                             # est pas rendu : la condition ne se juge pas, le réglage reste
+                             # visible (`wama-params.js::_bindConditional`).
+                             contexts=PANEL_ITEM_BATCH, remember=True, stales=("speak",)),
         # Curseur de qualité du tirage « auto » — mêmes conditions de visibilité que le
         # select sur lequel il pèse (job porteur de texte ET modèle « auto »).
         "quality_intent": intent_param(
-            dom_id={"item": "settingsQualityIntent"}, contexts=("item",),
+            dom_id={"panel": "quality_intent", "item": "settingsQualityIntent",
+                    "batch": "batchSettingsQualityIntent"}, contexts=PANEL_ITEM_BATCH,
             show_if={"field": "tts_model", "equals": "auto"}, stales=("speak",),
         ),
         "language":     dict(type="select", label="Langue", icon="fa-language",
                              show_if="text_content",
-                             dom_id={"item": "settingsLanguage"}, contexts=("item",),
+                             dom_id={"panel": "language", "item": "settingsLanguage",
+                                     "batch": "batchSettingsLanguage"}, contexts=PANEL_ITEM_BATCH,
                              remember=True, stales=("speak",)),
         "voice_preset": dict(type="select", label="Voix", icon="fa-user", chip=True,
                              show_if="text_content", options_source="voices",
-                             dom_id={"item": "settingsVoicePreset"}, contexts=("item",),
+                             dom_id={"panel": "voice_preset", "item": "settingsVoicePreset",
+                                     "batch": "batchSettingsVoicePreset"}, contexts=PANEL_ITEM_BATCH,
                              remember=True, stales=("speak",)),
         # La TEMPÉRATURE du moteur de voix (2026-10-21) : le réglage commun, lié au moteur — grisé
-        # sous un moteur qui ne tire pas. Mêmes conditions que la voix (job porteur de texte).
+        # sous un moteur qui ne la reçoit pas. Volet et modale d'élément, comme au synthesizer
+        # (pas `batch`, pour la même raison : `MODES_QUEUE_UX §5ter`).
         "tts_temperature": temperature_param(
-            "tts_model", show_if="text_content", dom_id={"item": "settingsTtsTemperature"},
-            contexts=("item",), stales=("speak",)),
+            "tts_model", show_if="text_content",
+            dom_id={"panel": "tts_temperature", "item": "settingsTtsTemperature"},
+            contexts=PANEL_ITEM, stales=("speak",)),
         "use_enhancer": dict(type="toggle", label="Amélioration CodeFormer", chip=True,
                              icon="fa-wand-magic-sparkles",
                              help="Restauration faciale haute qualité — légèrement plus lent. "

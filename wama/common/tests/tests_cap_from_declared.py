@@ -59,7 +59,7 @@ class EveryDeclaredBindingCanBeBoundTest(SimpleTestCase):
                 self.assertIn(cf.get('capability'), CANONICAL_CAPABILITIES)
                 if cf.get('extension'):
                     self.assertIn(cf['extension'], CANONICAL_CAPABILITIES)
-                self.assertIn(cf.get('mode', 'range'), ('range', 'fixed', 'note', 'reads'))
+                self.assertIn(cf.get('mode', 'range'), ('range', 'fixed', 'note', 'reads', 'min'))
 
     def test_a_reads_binding_reads_a_list_of_settings_or_a_boolean(self):
         """« reads » greys a setting the chosen model does not read: the capability must be the

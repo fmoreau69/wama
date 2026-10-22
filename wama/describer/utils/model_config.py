@@ -53,6 +53,8 @@ DESCRIBER_MODELS = {
         # Les réglages que le moteur LIT (capacité `params`) : aucun — BLIP cherche en faisceau
         # (`num_beams`), il ne tire pas au hasard, donc la température ne le concerne pas.
         'params': [],
+        # …donc même image, même légende : reproductible quel que soit le réglage (2026-10-21).
+        'reproducible': True,
     },
 
     # Transcription audio : PAS de modèle propre. Le describer passe par la brique commune

@@ -22,6 +22,9 @@
         "text",
         "image"
       ],
+      "params": [
+        "temperature"
+      ],
       "task": "text-generation",
       "vision": true
     },

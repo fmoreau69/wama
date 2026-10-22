@@ -96,6 +96,7 @@ details.wama-param-group[open] > summary.wama-param-group-title::after { transfo
    de l'éditeur, atténué — rien n'est réglé tant que l'utilisateur n'y touche pas. Une note vide
    (capacité absente) ne prend pas de place. */
 .wama-temperature-slider.is-own { opacity: .55; }
+.wama-temperature-hint:empty { display: none; }
 .wama-param .wama-cap-note:empty { display: none; }
 
 /* Correspondance {clé: texte} (2026-10-21, type `mapping` — les noms des intervenants) : une ligne

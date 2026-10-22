@@ -778,13 +778,17 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "panel",
+              "item",
+              "batch"
             ],
             "default": "synthesizer:coqui-xtts",
             "default_from": null,
             "display_format": "",
             "dom_id": {
-              "item": "settingsTtsModel"
+              "batch": "batchSettingsTtsModel",
+              "item": "settingsTtsModel",
+              "panel": "tts_model"
             },
             "group": "",
             "help": "",
@@ -830,13 +834,17 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "panel",
+              "item",
+              "batch"
             ],
             "default": 50,
             "default_from": null,
             "display_format": "",
             "dom_id": {
-              "item": "settingsQualityIntent"
+              "batch": "batchSettingsQualityIntent",
+              "item": "settingsQualityIntent",
+              "panel": "quality_intent"
             },
             "group": "",
             "help": "Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources.",
@@ -944,13 +952,17 @@
               ]
             ],
             "contexts": [
-              "item"
+              "panel",
+              "item",
+              "batch"
             ],
             "default": "fr",
             "default_from": null,
             "display_format": "",
             "dom_id": {
-              "item": "settingsLanguage"
+              "batch": "batchSettingsLanguage",
+              "item": "settingsLanguage",
+              "panel": "language"
             },
             "group": "",
             "help": "",
@@ -994,13 +1006,17 @@
             "chip_label": "",
             "choices": null,
             "contexts": [
-              "item"
+              "panel",
+              "item",
+              "batch"
             ],
             "default": "default",
             "default_from": null,
             "display_format": "",
             "dom_id": {
-              "item": "settingsVoicePreset"
+              "batch": "batchSettingsVoicePreset",
+              "item": "settingsVoicePreset",
+              "panel": "voice_preset"
             },
             "group": "",
             "help": "",
@@ -1045,7 +1061,7 @@
                 "field": "tts_model",
                 "mode": "reads",
                 "param": "temperature",
-                "reason": "Ce modèle ne tire pas au hasard : la température ne le concerne pas."
+                "reason": "Ce modèle ne reçoit pas de réglage de température."
               },
               {
                 "capability": "recommended_temperature",
@@ -1056,22 +1072,29 @@
               {
                 "capability": "max_temperature",
                 "field": "tts_model"
+              },
+              {
+                "capability": "min_temperature",
+                "field": "tts_model",
+                "mode": "min"
               }
             ],
             "chip": false,
             "chip_label": "",
             "choices": null,
             "contexts": [
+              "panel",
               "item"
             ],
             "default": null,
             "default_from": null,
             "display_format": "",
             "dom_id": {
-              "item": "settingsTtsTemperature"
+              "item": "settingsTtsTemperature",
+              "panel": "tts_temperature"
             },
             "group": "",
-            "help": "Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+            "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1544,7 +1567,7 @@
             "quality_mode": "str (défaut : 'fast')",
             "text_content": "textarea — La relance régénère la voix depuis ce texte.",
             "tts_model": "select — Modèle TTS (défaut : 'synthesizer:coqui-xtts')",
-            "tts_temperature": "temperature — Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande. [0–2.0]",
+            "tts_temperature": "temperature — Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0. [0–2.0]",
             "use_enhancer": "toggle — Restauration faciale haute qualité — légèrement plus lent. Photo animée seulement : sans effet sur un avatar 3D. (défaut : False)",
             "voice_preset": "select — Voix (défaut : 'default')"
           },

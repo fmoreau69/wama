@@ -206,11 +206,12 @@ class TheCommonSettingTest(SimpleTestCase):
     SCHEMA = [{'name': 'model', 'type': 'select'},
               {'name': 'temperature', **temperature_param('model')}]
 
-    def test_it_is_bound_to_the_three_facts_of_its_model(self):
+    def test_it_is_bound_to_the_four_facts_of_its_model(self):
         p = temperature_param('vision_model')
         self.assertEqual(('temperature', None), (p['type'], p['default']))
-        self.assertEqual(['params', 'recommended_temperature', 'max_temperature'],
+        self.assertEqual(['params', 'recommended_temperature', 'max_temperature', 'min_temperature'],
                          [b['capability'] for b in cap_bindings(p)])
+        self.assertIn('même résultat', p['help'], 'the help says what the value implies')
         self.assertEqual({'vision_model'}, {b['field'] for b in cap_bindings(p)})
         self.assertEqual(TEMPERATURE, cap_bindings(p)[0]['param'],
                          'the app names its field as it wants, the model lists `temperature`')
@@ -356,7 +357,7 @@ class TheEngineSaysItsTemperatureTest(SimpleTestCase):
         self.assertEqual(([], None), (caps['params'], caps['recommended_temperature']),
                          'a value left by an earlier sync does not survive')
 
-    def test_an_engine_that_declares_nothing_affirms_nothing(self):
+    def test_an_engine_that_says_nothing_affirms_nothing(self):
         from wama.common.backends.tts_base import TTSBackend
         from wama.common.utils.model_capabilities import apply_engine_flags
 
@@ -473,11 +474,112 @@ class TheEngineSaysItsTemperatureTest(SimpleTestCase):
                                        caps['recommended_temperature']))
         self.assertEqual(30.0, caps['max_duration_s'], 'the other facts stay')
 
+    def test_at_zero_audio8_takes_the_most_likely_choice(self):
+        import torch
+
+        from wama.common.backends.audio8_backend import Audio8Backend
+        engine = Audio8Backend()
+        engine._device = 'cpu'
+        engine._processor = mock.Mock(return_value={'input_ids': torch.zeros(1, 2)})
+        engine._model = mock.Mock()
+        engine._model.generate.return_value = mock.Mock(codes=None)
+        engine._model.decode_audio.return_value = (torch.zeros(1, 240), [240])
+        engine._model.config.codec_sample_rate = 24000
+        for asked, expected in ((0, {'do_sample': False}),
+                                (0.5, {'do_sample': True, 'temperature': 0.5})):
+            with self.subTest(asked=asked):
+                Path(engine.process(text='Bonjour', options={'temperature': asked})).unlink()
+                sent = engine._model.generate.call_args.kwargs
+                self.assertEqual(expected, {k: sent[k] for k in expected})
+                if not asked:
+                    self.assertNotIn('temperature', sent, 'transformers refuses to sample at 0')
+
+    def test_xtts_receives_the_cards_temperature_and_zero_is_the_most_likely(self):
+        from wama.common.backends.coqui_backend import CoquiBackend
+        engine = CoquiBackend()
+        engine._tts = mock.Mock()
+        engine.loaded_model = 'coqui-xtts'
+        with tempfile.NamedTemporaryFile(suffix='.wav') as ref:
+            for asked, expected in ((None, {'temperature': 0.75, 'do_sample': True}),
+                                    (0, {'do_sample': False})):
+                with self.subTest(asked=asked):
+                    out = engine.process(text='Bonjour', model='coqui-xtts', speaker_wav=ref.name,
+                                         options={'temperature': asked})
+                    Path(out).unlink(missing_ok=True)
+                    sent = engine._tts.tts_to_file.call_args.kwargs
+                    self.assertEqual(expected, {k: sent[k] for k in expected})
+
+    def test_qwen3_tts_samples_both_stages_at_the_cards_temperature(self):
+        import numpy as np
+
+        from wama.common.backends.qwen3_tts_backend import Qwen3TTSBackend
+        engine = Qwen3TTSBackend()
+        engine._model = mock.Mock()
+        engine._model.generate_custom_voice.return_value = ([np.zeros(240, dtype=np.float32)], 24000)
+        for asked, expected in ((None, {'temperature': 0.9, 'subtalker_temperature': 0.9}),
+                                (0, {'do_sample': False, 'subtalker_dosample': False})):
+            with self.subTest(asked=asked):
+                Path(engine.process(text='Bonjour', options={'temperature': asked})).unlink()
+                sent = engine._model.generate_custom_voice.call_args.kwargs
+                self.assertEqual(expected, {k: sent[k] for k in expected})
+
+    def test_bark_never_goes_below_its_floor(self):
+        import numpy as np
+
+        from wama.common.backends.bark_backend import BarkBackend
+        engine = BarkBackend()
+        spoken = mock.Mock(return_value=np.zeros(240, dtype=np.float32))
+        engine._funcs = {'generate_audio': spoken, 'SAMPLE_RATE': 24000}
+        Path(engine.process(text='Bonjour', options={'temperature': 0})).unlink()
+        self.assertEqual(0.1, spoken.call_args.kwargs['text_temp'], 'it divides by it')
+
+    def test_the_fiche_says_the_floor_and_what_always_renders_the_same(self):
+        from wama.common.backends.bark_backend import BarkBackend
+        from wama.common.backends.kokoro_backend import KokoroBackend
+        from wama.common.backends.yue2_3b_backend import YuE2Backend
+        from wama.common.utils.model_capabilities import apply_engine_flags
+        from wama.model_manager.services.model_registry import ModelRegistry
+        self.assertEqual(0.1, apply_engine_flags({}, BarkBackend)['min_temperature'])
+        for cls in (KokoroBackend, YuE2Backend):
+            with self.subTest(engine=cls.__name__):
+                self.assertIs(True, apply_engine_flags({}, cls)['reproducible'])
+        registry = ModelRegistry()
+        registry._models = {}
+        registry._discover_describer_models()
+        self.assertIs(True, registry._models['describer:blip'].capabilities['reproducible'])
+
+    def test_the_avatarizer_voice_is_on_the_panel_like_the_synthesizers(self):
+        from wama.avatarizer.params import PARAMS_JSON
+        for name in ('tts_model', 'quality_intent', 'language', 'voice_preset', 'tts_temperature'):
+            with self.subTest(setting=name):
+                p = next(p for p in PARAMS_JSON if p['name'] == name)
+                self.assertTrue({'panel', 'item'} <= set(p['contexts']), p['contexts'])
+
     def test_the_synthesizer_binds_it_to_its_voice_engine(self):
         from wama.synthesizer.params import PARAMS_JSON
         p = next(p for p in PARAMS_JSON if p['name'] == 'temperature')
         self.assertEqual(('temperature', 'tts_model', ('generate',)),
                          (p['type'], cap_bindings(p)[0]['field'], tuple(p['stales'])))
+
+
+class TheAvatarizerPageServesTheVoiceOnItsPanelTest(TestCase):
+    """The served page (the deliverable is VISIBLE, `/reverif §2`): the schema the panel renders
+    carries the voice with its panel ids — and the deposit reads the whole panel."""
+
+    def test_the_page_carries_the_voice_for_its_panel(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+        user = get_user_model().objects.create_superuser('avatar-panel', 'a@b.c', 'x')
+        self.client.force_login(user)
+        page = self.client.get(reverse('avatarizer:index'))
+        self.assertEqual(200, page.status_code)
+        html = page.content.decode()
+        for dom_id in ('"panel": "tts_model"', '"panel": "voice_preset"', '"panel": "tts_temperature"'):
+            self.assertIn(dom_id, html)
+        script = (Path(settings.BASE_DIR) / 'wama/avatarizer/static/avatarizer/js/index.js').read_text(
+            encoding='utf-8')
+        self.assertIn("WamaParams.read(panel)", script)
+        self.assertNotIn("fd.append('animation_model'", script, 'no field read by hand any more')
 
 
 class TheAssistantSettingsRouteTest(TestCase):
@@ -528,7 +630,7 @@ function classList(initial) {
           toggle: function (c, on) { if (on === undefined) on = !s[c]; if (on) s[c] = 1; else delete s[c]; },
           contains: function (c) { return !!s[c]; }};
 }
-function temperatureWidget(value, capNote) {
+function temperatureWidget(value, recommended, caps) {
   var wrap = {classList: classList(['wama-temperature'])};
   function part(cls, extra) {
     var el = {classList: classList([cls]), dataset: {}, disabled: false, dispatched: [],
@@ -540,10 +642,14 @@ function temperatureWidget(value, capNote) {
   var parts = {value: part('wama-temperature-value', {value: value}),
                slider: part('wama-temperature-slider', {value: '1'}),
                own: part('wama-temperature-own', {checked: false}),
-               val: part('wama-temperature-val', {textContent: ''})};
-  if (capNote !== undefined) parts.slider.dataset.capNote = capNote;
+               val: part('wama-temperature-val', {textContent: ''}),
+               hint: part('wama-temperature-hint', {textContent: ''})};
+  if (recommended !== undefined || caps) {
+    parts.slider.wamaModelCaps = caps || {recommended_temperature: recommended};
+  }
   var byClass = {'.wama-temperature-value': parts.value, '.wama-temperature-slider': parts.slider,
-                 '.wama-temperature-own': parts.own, '.wama-temperature-val': parts.val};
+                 '.wama-temperature-own': parts.own, '.wama-temperature-val': parts.val,
+                 '.wama-temperature-hint': parts.hint};
   wrap.querySelector = function (sel) { return byClass[sel] || null; };
   parts.wrap = wrap;
   return parts;
@@ -553,7 +659,7 @@ function fire(type, target, trusted) {
 }
 function state(w) {
   return {value: w.value.value, slider: String(w.slider.value), own: w.own.checked,
-          label: w.val.textContent, boxDisabled: w.own.disabled,
+          label: w.val.textContent, boxDisabled: w.own.disabled, hint: w.hint.textContent,
           announced: w.value.dispatched.slice()};
 }
 """
@@ -612,18 +718,66 @@ class TemperatureWidgetJsTest(SimpleTestCase):
         self.assertTrue(out['boxDisabled'])
         self.assertEqual('0.4', out['value'], "the value stays the user's")
 
-    def test_the_note_keeps_the_publishers_value_zero_included(self):
+    def test_the_note_says_the_publishers_value_zero_included(self):
         out = self._run(
             "var el = {dataset: {}}; var note = {textContent: '', classList: classList()};"
             "var cf = {field: 'm', capability: 'recommended_temperature', mode: 'note',"
             "          label: 'Celle du modèle :'};"
             "window.WamaParams.applyCapFrom(el, note, null, {}, cf, {recommended_temperature: 0});"
-            "var zero = [el.dataset.capNote, note.textContent];"
+            "var zero = note.textContent;"
             "window.WamaParams.applyCapFrom(el, note, null, {}, cf, {recommended_temperature: null});"
-            "return {zero: zero, cleared: el.dataset.capNote === undefined, text: note.textContent};")
-        self.assertEqual([0, 'Celle du modèle : 0'], list(out['zero']))
-        self.assertTrue(out['cleared'])
-        self.assertEqual('', out['text'])
+            "return {zero: zero, text: note.textContent};")
+        self.assertEqual(('Celle du modèle : 0', ''), (out['zero'], out['text']))
+
+    def test_the_line_under_the_slider_says_whether_the_result_is_reproducible(self):
+        hint = lambda caps, value, own, disabled=False: self._run(  # noqa: E731
+            f"return window.WamaParams.temperatureHint({json.dumps(caps)}, {json.dumps(value)},"
+            f" {json.dumps(own)}, {json.dumps(disabled)});")
+        self.assertIn('Reproductible', hint({}, '0', False))
+        self.assertIn('varie', hint({}, '0.7', False))
+        self.assertIn('varie', hint({'recommended_temperature': 1}, '', True),
+                      "the model's own is often above 0")
+        self.assertIn('Reproductible', hint({'recommended_temperature': 0}, '', True))
+        self.assertIn('en général', hint(None, '', True), 'unknown under « auto »')
+        self.assertIn('ne descend pas à 0', hint({'min_temperature': 0.1}, '0.1', False))
+        self.assertIn('Reproductible', hint({'reproducible': True}, '', True, True),
+                      'a model that always renders the same says so, greyed or not')
+        self.assertEqual('', hint({'params': []}, '0.4', False, True))
+
+    def test_the_slider_shows_the_line_for_the_value_of_the_moment(self):
+        out = self._run("var w = temperatureWidget('', 1); window.WamaParams.syncTemperature(w.wrap);"
+                        "var own = w.hint.textContent; w.value.value = '0';"
+                        "window.WamaParams.syncTemperature(w.wrap); return [own, w.hint.textContent];")
+        self.assertIn('varie', out[0])
+        self.assertIn('Reproductible', out[1])
+
+    def test_an_engine_floor_stops_the_slider_and_lifts_a_value_below(self):
+        out = self._run(
+            "var el = {value: '0', min: '0', dataset: {}, dispatched: [],"
+            "          dispatchEvent: function (e) { el.dispatched.push(e.type); }};"
+            "var note = {textContent: '', classList: classList()};"
+            "var cf = {field: 'm', capability: 'min_temperature', mode: 'min'};"
+            "window.WamaParams.applyCapFrom(el, note, null, {min: 0}, cf, {min_temperature: 0.1});"
+            "var lifted = [String(el.value), String(el.min), note.textContent, el.dispatched.join()];"
+            "window.WamaParams.applyCapFrom(el, note, null, {min: 0}, cf, {});"
+            "return {lifted: lifted, back: String(el.min), note: note.textContent};")
+        self.assertEqual(['0.1', '0.1', 'Minimum du modèle : 0,1', 'input'], list(out['lifted']))
+        self.assertEqual(('0', ''), (out['back'], out['note']), 'another model: the schema floor')
+
+    def test_a_condition_on_a_field_not_rendered_here_leaves_the_setting_visible(self):
+        """The avatarizer's voice in the panel depends on the deposit card's text, which the
+        panel does not render (2026-10-22): not judged, shown. A field rendered here still rules."""
+        def shown(fields):
+            return self._run(
+                "var row = {style: {}, getAttribute: function () { return 'text_content'; }};"
+                f"var fields = {json.dumps(fields)}.map(function (f) {{ return {{value: f[1],"
+                "  getAttribute: function (n) { return n === 'name' ? f[0] : null; }}; });"
+                "var box = {addEventListener: function () {}, querySelectorAll: function (sel) {"
+                "  return sel === '[data-show-if]' ? [row] : fields; }};"
+                "window.WamaParams.bindConditional(box); return row.style.display !== 'none';")
+        self.assertTrue(shown([['tts_model', 'auto']]), 'the field is not in this rendering')
+        self.assertFalse(shown([['text_content', '']]), 'rendered and empty: hidden')
+        self.assertTrue(shown([['text_content', 'Bonjour.']]))
 
     def test_a_list_of_bindings_and_a_single_one_read_alike(self):
         out = self._run("return [window.WamaParams.capBindings({cap_from: {field: 'm'}}).length,"
@@ -638,6 +792,48 @@ class TemperatureWidgetJsTest(SimpleTestCase):
             "window.WamaParams.render(host, [{name: 'temperature', type: 'temperature', min: 0,"
             "  max: 2, step: 0.05, label: 'Température', default: null}], {context: 'item'});"
             "return host.innerHTML;")
-        self.assertIn('name="temperature" value=""', out)
+        self.assertIn('id="wp-item-temperature" name="temperature" '
+                      'data-cap-target="wp-item-temperature-slider" value=""', out,
+                      'an id reader (the panel inspector) reads the field that carries the value')
+        self.assertIn('id="wp-item-temperature-slider"', out)
         self.assertIn('wama-temperature-own" type="checkbox" id="wp-item-temperature-own" checked',
                       out)
+        self.assertIn('wama-temperature-hint', out)
+
+    def test_the_capability_bindings_act_on_the_slider_not_on_the_carrying_field(self):
+        """`data-cap-target`: the id is the carrying field's, the bounds go to the slider — run
+        through the real wiring (`bindCapFrom`) with a stand-in catalogue."""
+        self._run("""
+            document.createElement = function () { return {className: '', textContent: '',
+                                                           classList: classList()}; };
+            window.fetch = fetch = function () { return Promise.resolve({json: function () {
+                return Promise.resolve({models: [{model_key: 'synthesizer:kokoro',
+                                                  capabilities: {params: [], reproducible: true}}]}); }}); };
+            window.slider = {value: '1', min: '0', max: '2', dataset: {}, disabled: false, title: '',
+                             classList: classList(), style: {setProperty: function () {},
+                             removeProperty: function () {}}, closest: function () { return null; },
+                             parentNode: {appendChild: function () {}},
+                             addEventListener: function () {}, dispatchEvent: function () {}};
+            window.carrier = {getAttribute: function (n) {
+                return n === 'data-cap-target' ? 'wp-item-temperature-slider' : null; }};
+            var select = {value: 'synthesizer:kokoro', addEventListener: function () {}};
+            var byId = {'#wp-item-temperature': window.carrier, '#wp-item-temperature-slider': window.slider,
+                        '#wp-item-tts_model': select};
+            var box = {querySelector: function (sel) { return byId[sel] || null; }};
+            var schema = [{name: 'tts_model', type: 'select', options_source: 'catalog',
+                           options_query: {task: 'text-to-speech'}, help_source: 'synthesizer'},
+                          {name: 'temperature', type: 'temperature', min: 0, max: 2,
+                           cap_from: [{field: 'tts_model', capability: 'params', mode: 'reads',
+                                       param: 'temperature'}]}];
+            window.WamaParams.bindCapFrom(box, schema, 'item');
+            return true;""")
+        out = self._run("return [window.slider.disabled, !!window.slider.wamaModelCaps,"
+                        " window.carrier.disabled === undefined];")
+        self.assertEqual([True, True, True], list(out),
+                         'the slider is greyed and knows its model; the carrying field is untouched')
+
+    def test_a_value_set_on_the_carrying_field_moves_the_surface(self):
+        """The panel inspector sets the field by its id, then says `change`: the surface follows."""
+        out = self._run("var w = temperatureWidget(''); w.value.value = '0.3';"
+                        "fire('change', w.value, false); return state(w);")
+        self.assertEqual(('0.3', '0.3', False), (out['value'], out['slider'], out['own']))

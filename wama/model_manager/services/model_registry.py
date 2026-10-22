@@ -1058,6 +1058,8 @@ class ModelRegistry:
                         # Réglages que le moteur LIT : BLIP cherche en faisceau, il ne tire
                         # pas — la température du describer se grise sous lui (2026-10-21).
                         **({'params': list(config['params'])} if 'params' in config else {}),
+                        **({'reproducible': bool(config['reproducible'])}
+                           if 'reproducible' in config else {}),
                     },
                 )
         except ImportError as e:

@@ -1273,8 +1273,22 @@ WAMA ne la leur transmet pas — déclaré `None`. Le composer porte le réglage
 migration 0024, au rendu seul) ; ses lignes de catalogue reçoivent la déclaration du moteur par la
 même règle (`_composer_engine_flags` → `apply_engine_flags`).
 
-**Restes, nommés** : XTTS, Qwen3-TTS, YuE, audio.cpp — à câbler un par un (leur API la prend-elle ?
-à mesurer, pas à supposer) ; le transcriber
+**La REPRODUCTIBILITÉ dépend de la valeur (revérification du 2026-10-22, Fabien)** — et laisser
+« celle du modèle » ne l'assure PAS : elle vaut le plus souvent plus que 0 (1 pour gemma4,
+qwen3.5, MusicGen ; 0,7 Higgs ; 0,75 XTTS ; 0,9 Qwen3-TTS). Mesuré dans les moteurs : à 0, Higgs
+(`serve_engine.py:388`) et AudioCraft (`lm.py:381`) prennent le choix le plus probable ;
+transformers REFUSE de tirer à 0 (`logits_process.py:282`) ; Bark divise par elle
+(`bark/generation.py:482`). D'où, au contrat : `samples(t)` (0 = le choix le plus probable, la
+règle appliquée par Audio8, XTTS et Qwen3-TTS) et deux faits de plus sur la fiche —
+`min_temperature` (Bark : 0,1, le curseur s'y arrête, mode `min` de `cap_from`) et `reproducible`
+(même résultat quel que soit le réglage : Kokoro, BLIP, YuE par sa graine fixe). Sous le curseur, une
+ligne dit ce que la valeur DU MOMENT implique (`wama-params.js::_temperatureHint`) ; l'aide ajoute
+qu'un modèle distant ne le garantit pas toujours, même à 0.
+
+XTTS (0,75, `xtts_v2/config.json:149`, transmis par `tts_to_file` → `Xtts.inference`) et
+Qwen3-TTS (0,9, `generation_config.json`, ses deux étages) lisent désormais le réglage.
+
+**Restes, nommés** : audio.cpp (aucune option repérée — à mesurer sur le binaire) ; le transcriber
 l'a RETIRÉE exprès (reconnaissance de la parole = reproductibilité) — décision de Fabien à prendre
 avant de l'y remettre ; les jumelles du bac à sable (`translator_01`, `writer_01`) la recevront par
 leur manifeste.

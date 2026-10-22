@@ -496,12 +496,41 @@
   // `param_schema.temperature_param` : un curseur, et « Celle du modèle » cochée tant que
   // l'utilisateur n'a rien réglé. La VALEUR vit dans un champ caché (celui que `read()`/`apply()`
   // voient) : vide = celle du modèle, rien n'est envoyé. Le CURSEUR porte l'identifiant du
-  // réglage : c'est lui que `cap_from` grise (le modèle ne tire pas), borne (le maximum du
-  // moteur) et annote (la valeur de l'éditeur, `data-cap-note`, où il se place quand on la laisse).
+  // réglage : c'est lui que `cap_from` grise (le modèle ne la reçoit pas), borne (le maximum et le
+  // minimum du moteur) et renseigne (`wamaModelCaps`, la fiche du modèle choisi : sa valeur
+  // recommandée, où il se place quand on la laisse, et s'il est reproductible).
+  function _temperatureCaps(slider) {
+    return slider.wamaModelCaps || null;
+  }
+
+  function _recommendedTemperature(slider) {
+    var caps = _temperatureCaps(slider);
+    var rec = caps ? caps.recommended_temperature : null;
+    return (rec === undefined || rec === null || rec === '') ? null : Number(rec);
+  }
+
   function _temperatureLabel(slider, own) {
     if (!own) return String(slider.value);
-    var rec = slider.dataset.capNote;
-    return 'du modèle' + (rec !== undefined ? ' (' + rec + ')' : '');
+    var rec = _recommendedTemperature(slider);
+    return 'du modèle' + (rec !== null ? ' (' + rec + ')' : '');
+  }
+
+  /** La REPRODUCTIBILITÉ que la valeur du moment implique (Fabien, 2026-10-21 : « il faut
+   *  informer l'utilisateur que la reproductibilité dépend de la valeur ») — lue sur la fiche du
+   *  modèle choisi : `reproducible` (même résultat quel que soit le réglage), `min_temperature`
+   *  (un moteur qui ne descend pas à 0) ; à 0 le choix le plus probable, au-dessus un tirage.
+   *  Pure (gardée en V8, `tests_temperature`). '' : rien à dire (le modèle ne la reçoit pas). */
+  function _temperatureHint(caps, value, own, disabled) {
+    if (caps && caps.reproducible) return 'Reproductible : ce modèle rend le même résultat à chaque lancement.';
+    if (disabled) return '';
+    var floor = caps && Number(caps.min_temperature) > 0 ? Number(caps.min_temperature) : 0;
+    var t = own ? (caps && caps.recommended_temperature !== undefined && caps.recommended_temperature !== null
+                   ? Number(caps.recommended_temperature) : null)
+                : Number(value);
+    if (t === null) return 'Celle du modèle : en général, le résultat varie d\'un lancement à l\'autre ; à 0, il est reproductible.';
+    if (t <= 0 && floor === 0) return 'Reproductible : à 0, le modèle prend toujours le choix le plus probable.';
+    if (floor > 0) return 'Le résultat varie d\'un lancement à l\'autre : ce modèle ne descend pas à 0.';
+    return 'Le résultat varie d\'un lancement à l\'autre ; à 0, il est reproductible.';
   }
 
   registerRenderer('temperature', function (p, api) {
@@ -510,12 +539,17 @@
     var rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
                   p.max != null ? 'max="' + p.max + '"' : '',
                   p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
+    // L'IDENTIFIANT du réglage est celui du champ qui PORTE la valeur : tout lecteur par id
+    // (l'inspecteur du volet, `WamaInspector.initFromSchema`, et ses jumeaux d'app) lit « celle du
+    // modèle » vide, et pose une valeur que la surface suit. Le curseur, que `cap_from` grise et
+    // borne, est désigné aux liaisons par `data-cap-target` (2026-10-22 — vécu : l'id était celui
+    // du curseur, le volet envoyait sa position au lieu du vide).
     return '<div class="wama-temperature">' +
-      '<input type="hidden" class="wama-temperature-value" id="' + api.id + '-value" ' +
-      api.idAttr + ' value="' + esc(v) + '">' +
+      '<input type="hidden" class="wama-temperature-value" id="' + api.id + '" ' +
+      api.idAttr + ' data-cap-target="' + api.id + '-slider" value="' + esc(v) + '">' +
       '<div class="d-flex align-items-center gap-2">' +
       '<input type="range" class="form-range wama-temperature-slider' + (own ? ' is-own' : '') + '"' +
-      ' id="' + api.id + '" ' + rattrs + ' value="' + esc(own ? (p.max != null ? p.max / 2 : 1) : v) + '"' +
+      ' id="' + api.id + '-slider" ' + rattrs + ' value="' + esc(own ? (p.max != null ? p.max / 2 : 1) : v) + '"' +
       ' aria-label="' + esc(p.label || 'Température') + '">' +
       '<span class="wama-temperature-val small text-muted text-nowrap">' +
       (own ? 'du modèle' : esc(v)) + '</span></div>' +
@@ -523,6 +557,8 @@
       '<input class="form-check-input wama-temperature-own" type="checkbox" id="' + api.id + '-own"' +
       (own ? ' checked' : '') + '>' +
       '<label class="form-check-label" for="' + api.id + '-own">Celle du modèle</label></div>' +
+      '<div class="wama-temperature-hint small text-muted">' +
+      esc(_temperatureHint(null, v, own, false)) + '</div>' +
       api.helpEl + '</div>';
   });
 
@@ -536,13 +572,17 @@
       var slider = wrap.querySelector('.wama-temperature-slider');
       var box = wrap.querySelector('.wama-temperature-own');
       var label = wrap.querySelector('.wama-temperature-val');
+      var hint = wrap.querySelector('.wama-temperature-hint');
       if (!value || !slider) return;
       var own = value.value === '';
-      if (own && slider.dataset.capNote !== undefined) slider.value = slider.dataset.capNote;
+      var rec = _recommendedTemperature(slider);
+      if (own && rec !== null) slider.value = rec;
       if (!own) slider.value = value.value;
       slider.classList.toggle('is-own', own);
       if (box) { box.checked = own; box.disabled = slider.disabled; }
       if (label) label.textContent = _temperatureLabel(slider, own);
+      if (hint) hint.textContent = _temperatureHint(_temperatureCaps(slider), value.value, own,
+                                                    slider.disabled);
     });
   }
 
@@ -567,6 +607,11 @@
       var t = e.target;
       if (!t.classList) return;
       var parts;
+      if (t.classList.contains('wama-temperature-value')) {
+        // La valeur POSÉE par un lecteur d'id (l'inspecteur) : la surface la suit.
+        _syncTemperature(t.closest('.wama-temperature'));
+        return;
+      }
       if (t.classList.contains('wama-temperature-slider') && isGesture(e)) {
         parts = _temperatureParts(t);
         parts.value.value = t.value;
@@ -1239,9 +1284,19 @@
       // `cap != null` et non `cap` : une valeur NULLE est une valeur (température 0 de glm-ocr).
       var known = cap !== undefined && cap !== null && cap !== '';
       if (known) note.textContent = (cf.label || 'Natif :') + ' ' + cap + unit;
-      // La valeur rappelée reste lisible par le champ (`data-cap-note`) : la température s'y
-      // place quand l'utilisateur laisse celle du modèle (2026-10-21).
-      if (known) el.dataset.capNote = cap; else delete el.dataset.capNote;
+      return;
+    }
+    if (mode === 'min') {
+      // Le PLANCHER du modèle (2026-10-21, `min_temperature` : Bark ne descend pas à 0) : le
+      // curseur s'y arrête, une valeur posée dessous y remonte — en le disant. Absent : le schéma.
+      var lo = Number(p.min != null ? p.min : 0);
+      var floor = (cap !== undefined && cap !== null && Number(cap) > lo) ? Number(cap) : lo;
+      el.min = floor;
+      if (Number(el.value) < floor) {
+        el.value = floor;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+      }
+      if (floor > lo) note.textContent = 'Minimum du modèle : ' + _capLabel(floor, p, unit);
       return;
     }
     if (mode === 'reads') {
@@ -1345,6 +1400,10 @@
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
       var el = container.querySelector('#' + CSS.escape(perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name)));
       if (!el) return;                       // ce réglage n'est pas rendu dans ce conteneur
+      // Un champ COMPOSÉ désigne l'élément que ses bornes visent (la température : son curseur,
+      // l'identifiant restant au champ qui porte la valeur).
+      var target = el.getAttribute && el.getAttribute('data-cap-target');
+      if (target) el = container.querySelector('#' + CSS.escape(target)) || el;
       var modelP = (schema || []).filter(function (q) { return q.name === cf.field; })[0];
       var source = cf.source || (modelP && modelP.help_source);
       var sel = modelP && container.querySelector(
@@ -1363,6 +1422,9 @@
       (row || el.parentNode).appendChild(note);
       _catalogCaps(source, cf.source ? '' : _catalogDomain(modelP)).then(function (capsByKey) {
         function apply() {
+          // La FICHE du modèle choisi, lisible par le champ (2026-10-21) : un champ composé (la
+          // température) en tire ce qu'il dit sous lui, sans relire le catalogue.
+          el.wamaModelCaps = capsByKey[sel.value] || null;
           _applyCap(el, note, row, p, cf, capsByKey[sel.value] || null);
           // Dit au champ que sa borne a bougé : un champ composé (la température) resynchronise
           // ses autres éléments sans que cette règle les connaisse.
@@ -1433,10 +1495,23 @@
       if ('not_equals' in cond) return String(cur) !== String(cond.not_equals);
       return !!cur && cur !== 'false' && cur !== '0';   // défaut : truthy
     }
+    // Le champ d'une condition est-il RENDU dans ce conteneur ? (même parcours que `valByName`)
+    function rendered(name) {
+      let found = false;
+      container.querySelectorAll('[name],[data-param]').forEach(function (el) {
+        if ((el.getAttribute('name') || el.getAttribute('data-param')) === name) found = true;
+      });
+      return found;
+    }
     function apply() {
       container.querySelectorAll('[data-show-if]').forEach(function (row) {
         const cond = parseCond(row.getAttribute('data-show-if'));
-        row.style.display = (cond && met(cond)) ? '' : 'none';
+        // Une condition dont le champ n'est PAS rendu ici ne se juge pas : le réglage reste
+        // visible (2026-10-21, décision de Fabien — la règle de `cap_from` : on ne cache jamais
+        // sur une absence d'information). Vécu : la voix de l'avatarizer, au volet, dépend du
+        // texte de la card de dépôt, qui n'est pas dans le volet. Le jumeau serveur
+        // (`_show_if_met`) juge des VALEURS, pas un rendu : il n'a rien à changer.
+        row.style.display = (cond && (!rendered(cond.field) || met(cond))) ? '' : 'none';
       });
     }
     apply();
@@ -1769,6 +1844,7 @@
                         bindCapFrom: _bindCapFrom,
                         capBindings: _capBindings,
                         syncTemperature: _syncTemperature,
+                        temperatureHint: _temperatureHint,
                         // La visibilité `show_if` — exposée pour la garde de PARITÉ avec son
                         // jumeau serveur `param_schema._show_if_met` (`tests_cap_from_js`).
                         bindConditional: _bindConditional,

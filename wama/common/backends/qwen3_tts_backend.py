@@ -81,9 +81,9 @@ class Qwen3TTSBackend(TTSBackend):
                    "le français, runtime local officiel qwen-tts.")
 
     supports_cloning = False        # checkpoint CustomVoice = locuteurs NOMMÉS (pas de réf audio)
-    #: Ce moteur WAMA ne transmet pas de température à `generate_custom_voice` : dit tel quel,
-    #: le réglage se grise plutôt que d'être ignoré en silence (2026-10-21).
-    default_temperature = None
+    #: Il TIRE ses deux étages (parole, puis sous-locuteur) : 0,9, la valeur du
+    #: `generation_config.json` du modèle installé (2026-10-21) — le réglage les règle tous deux.
+    default_temperature = 0.9
     keep_resident = False
     supports_timestamps = False
 
@@ -151,10 +151,17 @@ class Qwen3TTSBackend(TTSBackend):
                 voice_preset: str = "default", **_ignored) -> str:
         if self._model is None:
             self.load()
+        # La card, sinon 0,9 ; à 0, le choix le plus probable pour les deux étages.
+        temperature = self.sampling_temperature(_ignored)
+        sampling = ({'do_sample': True, 'temperature': temperature,
+                     'subtalker_dosample': True, 'subtalker_temperature': temperature}
+                    if self.samples(temperature)
+                    else {'do_sample': False, 'subtalker_dosample': False})
         wavs, sr = self._model.generate_custom_voice(
             text=text,
             language=QWEN_LANG.get(language, 'Auto'),
             speaker=QWEN_SPEAKERS.get(voice_preset, QWEN_SPEAKERS['default']),
+            **sampling,
         )
         if wavs is None or not len(wavs):
             raise RuntimeError("Qwen3-TTS : aucun audio généré")

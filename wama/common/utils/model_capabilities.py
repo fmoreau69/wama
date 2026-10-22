@@ -165,6 +165,12 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     #: réglage (`cap_from`, mode note) ; absente ou nulle = l'éditeur n'en publie pas.
     "recommended_temperature": "float — température recommandée par l'éditeur ; celle qui s'applique sans réglage",
     "max_temperature":     "float — température la plus haute que le moteur accepte (Anthropic : 1) ; borne le réglage",
+    #: La plus basse (2026-10-21) : absente = 0, où le modèle prend toujours le choix le plus
+    #: probable — même entrée, même résultat. Bark ne descend pas à 0 (il divise par elle).
+    "min_temperature":     "float — température la plus basse que le moteur accepte ; absente = 0 (reproductible)",
+    #: Même résultat à chaque lancement QUEL QUE SOIT le réglage : le modèle ne tire pas (Kokoro,
+    #: BLIP en faisceau) ou tire avec une graine fixe (YuE). Dit sous le réglage de température.
+    "reproducible":        "bool — même entrée, même résultat, quel que soit le réglage",
 }
 
 #: Le nom du réglage de température, dans `params` comme dans les schémas (`temperature_param`).
@@ -388,6 +394,10 @@ def _engine_temperature(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     (`params` ∋ `temperature`) et l'applique par défaut (`recommended_temperature`), ou il ne la
     lit pas (déclarée `None` : retirée des `params`, écrite nulle — la synchronisation fusionne clé
     par clé). Rien de déclaré : rien d'affirmé, `caps` intact."""
+    for name in ("min_temperature", "reproducible"):
+        declared, value = declared_engine_value(cls, name)
+        if declared:
+            caps[name] = value
     declared, value = declared_engine_value(cls, "default_temperature")
     if not declared:
         return caps

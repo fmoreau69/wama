@@ -27,8 +27,9 @@ Avatar) ; la section Médias redevient l'aperçu commun de l'élément sélectio
 {% block app_right_panel_settings %}
 {% include 'common/_inspector_banner.html' %}{# bandeau « Réglages de l'élément #N » (inspecteur contextuel) #}
 {% comment %}Avatarizer : audio (fourni, ou produit en amont par le Synthesizer via le Studio)
-+ avatar → modèle d'animation. Ce VOLET porte les réglages d'animation — les champs TTS vivent
-dans la MODALE générée par WamaParams (contexte 'item'), sous `show_if="text_content"`.
++ avatar → modèle d'animation. Ce VOLET porte les réglages d'animation ET la voix (moteur, langue,
+voix, température — 2026-10-22, aligné sur le synthesizer) ; dans la modale, la voix ne se montre
+que sur un job porteur de texte (`show_if="text_content"`).
 
 VOLET GÉNÉRÉ DU SCHÉMA depuis le 2026-10-11 (`WamaParams.render(context:'panel')`, script du bas,
 AVANT index.js) : les trois champs écrits ici à la main (modèle d'animation, décalage visage,

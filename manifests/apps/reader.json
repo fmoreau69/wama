@@ -1055,7 +1055,7 @@
                 "field": "llm_model",
                 "mode": "reads",
                 "param": "temperature",
-                "reason": "Ce modèle ne tire pas au hasard : la température ne le concerne pas."
+                "reason": "Ce modèle ne reçoit pas de réglage de température."
               },
               {
                 "capability": "recommended_temperature",
@@ -1066,6 +1066,11 @@
               {
                 "capability": "max_temperature",
                 "field": "llm_model"
+              },
+              {
+                "capability": "min_temperature",
+                "field": "llm_model",
+                "mode": "min"
               }
             ],
             "chip": false,
@@ -1085,7 +1090,7 @@
               "panel": "llmTemperature"
             },
             "group": "",
-            "help": "Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande.",
+            "help": "Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1444,7 +1449,7 @@
             "generate_analysis": "toggle — Analyse LLM du texte lu (résumé, points clés) (défaut : False)",
             "language": "text — Optionnel (ex. fr, en). Auto-détection si vide.",
             "llm_model": "select — Clé de catalogue du modèle de langage, ou « auto ». (défaut : 'auto')",
-            "llm_temperature": "temperature — Le hasard du modèle : bas, une sortie plus stable d'une fois sur l'autre ; haut, plus variée. « Celle du modèle » : la valeur que son éditeur recommande. [0–2.0]",
+            "llm_temperature": "temperature — Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0. [0–2.0]",
             "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : 'auto')",
             "output_format": "select — Format du texte produit. Les autres formats restent téléchargeables ensuite. (choix : txt | markdown) (défaut : 'txt')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)"
