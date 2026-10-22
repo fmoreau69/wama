@@ -1857,7 +1857,10 @@ class RouteUniqueDInstallationTest(TestCase):
         cand = AIModel.objects.get(model_key='proposed:yolo:yolo26s-seg')
         # La tâche se déduit du suffixe du nom — même fait que le sous-dossier d'installation.
         self.assertEqual(cand.capabilities['task'], 'segment')
-        self.assertEqual(cand.platform_ref, 'github:ultralytics/assets:yolo26s-seg')
+        # L'identité que posera son INSTALLATION (`identity_for_spec`, 2026-10-22) : la forme
+        # `github:ultralytics/assets:<nom>` qu'il portait rendait une page qui n'existe pas.
+        self.assertEqual(cand.platform_ref, 'github:ultralytics/assets')
+        self.assertEqual(cand.platform_url, 'https://github.com/ultralytics/assets')
         self.assertEqual(cand.extra_info['prospect']['spec'],
                          {'kind': 'yolo', 'ref': 'yolo26s-seg', 'task': 'segment',
                           'note': 'installation VISION par nom'})

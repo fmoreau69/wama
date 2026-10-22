@@ -1728,6 +1728,7 @@ def seed_yolo_candidate(name: str) -> dict:
 
     from .model_installer import pull_yolo_weights, weight_for_spec, yolo_task_of
     from .prospect_ollama import PROPOSED_PREFIX, write_candidate
+    from .provenance import identity_for_spec
 
     ref = (name or '').strip()
     verdict = pull_yolo_weights(ref, dry_run=True)
@@ -1750,7 +1751,10 @@ def seed_yolo_candidate(name: str) -> dict:
         # modalités et entrées par défaut — le candidat porte donc les mêmes faits que la
         # ligne installée les portera.
         capabilities={'task': task, **default_inputs_for(task)},
-        platform_ref=f"github:ultralytics/assets:{base}",
+        # L'identité que l'INSTALLATION posera (`provenance.identity_for_spec`), dérivée du même
+        # spec : la ligne écrivait sa propre forme (`github:ultralytics/assets:<nom>`), dont la
+        # page rendait `github.com/ultralytics/assets:<nom>` — une adresse qui n'existe pas.
+        platform_ref=(identity_for_spec(spec) or {}).get('platform_ref', ''),
         disk_gb=weight_for_spec(spec) or 0.0,
     )
     return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}

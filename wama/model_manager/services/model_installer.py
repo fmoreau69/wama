@@ -731,8 +731,8 @@ def github_release_of(ref: str) -> tuple:
     return (repo, tag) if sep else ('', '')
 
 
-#: `platform_ref` d'une version : la page de la version, que le gabarit d'URL de la plateforme
-#: `github` (`AIModel._URL_PAR_PLATEFORME`) rend telle quelle.
+#: `platform_ref` d'une version : la page de la version, que la fiche déclarée de la plateforme
+#: `github` (`external_sources.model_page_url`) rend telle quelle.
 _GITHUB_RELEASE_PAGE = '{repo}/releases/tag/{tag}'
 
 

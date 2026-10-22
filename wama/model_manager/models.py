@@ -519,44 +519,62 @@ class ModelSource(models.TextChoices):
     OLLAMA = 'ollama', 'Ollama'
     HUGGINGFACE = 'huggingface', 'HuggingFace'
     # Poids publiés dans une VERSION GitHub (2026-10-07, pilote `github` de `install_from_spec`) :
-    # le pendant de HUGGINGFACE pour le balayage générique — même valeur que la plateforme
-    # (`_URL_PAR_PLATEFORME['github']`) et que la source déclarée (`external_sources`).
+    # le pendant de HUGGINGFACE pour le balayage générique — même valeur que la plateforme et que
+    # la source déclarée (`external_sources`, qui déclare aussi sa fiche : `model_platforms`).
     GITHUB = 'github', 'GitHub'
     CUSTOM = 'custom', 'Custom'
 
 
-#: Les NATURES d'une source de modèle, dans l'ordre des groupes du filtre « Source » du model
-#: manager (2026-10-20). Une app WAMA, un fournisseur DISTANT (`external_sources`, famille `llm`)
-#: ou une plateforme d'où le modèle vient hors de toute app (Hugging Face, Ollama, GitHub…).
-SOURCE_NATURES = (('app', 'Apps WAMA'), ('remote', 'Fournisseurs distants'),
-                  ('platform', 'Plateformes'))
+def source_groups() -> list:
+    """Les GROUPES du filtre « Source » du model manager, dans leur ordre — `[{'key', 'label'}]`.
+
+    Aucun n'est écrit ici : une app se range dans son MONDE (`app_registry.WORLD_SECTIONS`, l'ordre
+    et le libellé du menu, de l'accueil et de `/apps/`), une source du registre dans sa FAMILLE
+    (`external_sources.KINDS`, la facette « Type » de la page des sources). Remplace les trois
+    groupes écrits à la main le 2026-10-20 (« Apps WAMA », « Fournisseurs distants »,
+    « Plateformes »), qui redisaient ces déclarations en les simplifiant : Ollama, un service local,
+    et Hugging Face, un catalogue, y tombaient sous le même mot.
+    """
+    from wama.common import external_sources
+    from wama.common.app_registry import WORLD_SECTIONS
+    worlds = sorted(WORLD_SECTIONS.items(), key=lambda item: item[1].get('order', 0))
+    return ([{'key': f'world:{world}', 'label': section['label']} for world, section in worlds]
+            + [{'key': f'kind:{kind}', 'label': label}
+               for kind, label in external_sources.KINDS.items()])
 
 
 def source_identity(source: str) -> dict:
-    """LE nom d'une source de modèle (`AIModel.source`) — `{'key', 'nature', 'label'}`.
+    """LE nom d'une source de modèle (`AIModel.source`) — `{'key', 'group', 'label'}`.
 
     La clé a trois natures, et chacune est déjà NOMMÉE ailleurs : rien n'est redit ici.
-    • une app → son identité commune (`app_registry.app_identity`) ;
-    • une source du registre (`external_sources`) → son nom déclaré : `remote` pour un
-      fournisseur LLM (l'abonnement Claude Code y reste distinct de l'API Anthropic), `platform`
-      pour le reste (Hugging Face Hub, Ollama, GitHub) ;
-    • sinon (`custom`) → le libellé de l'énumération, seule déclaration de cette clé.
+    • une app → son identité commune (`app_registry.app_identity`), rangée dans son monde ;
+    • un FOURNISSEUR distant (famille `llm` du registre) → `remote_origin_label`, la phrase des
+      sélecteurs de modèle : hébergement · fournisseur · COÛT. « Claude Code » seul ne dit pas
+      l'abonnement — Claude Code peut aussi tourner sur l'API ; « Cloud commercial · Claude Code ·
+      abonnement » et « Cloud commercial · API Anthropic (Claude) · facturé à l'usage », si ;
+    • une autre source du registre (Hugging Face Hub, Ollama, GitHub) → son nom déclaré ;
+    • sinon (`custom`) → le libellé de l'énumération, seule déclaration de cette clé, hors groupe.
+    `group` est une clé de `source_groups()`, '' pour une source qu'aucune déclaration ne range.
 
-    Avant le 2026-10-20 la barre de filtres, le badge de card et l'inspecteur affichaient la clé
-    BRUTE (`openrouter`, `face_analyzer`), et les libellés de `ModelSource` recopiaient ces noms
-    — déjà divergents (« Claude Code (abonnement) », « HuggingFace »).
+    ⚠ Corrigé le 2026-10-22 (Fabien : « je dois connaître la provenance exacte des modèles, donc
+    savoir si c'est Claude API ou Claude abonnement »). La version du 20/10 nommait un fournisseur
+    par son seul nom au registre, qui a perdu « (abonnement) » le 10/10 parce que le COÛT se dit par
+    `remote_origin_label` : le filtre, le badge et l'inspecteur ne disaient plus l'abonnement,
+    alors que la route consignée le jour même prescrivait `remote_origin_label`
+    (`WAMA_APP_GENERATION_ROUTE §10.6 P1`).
     """
     from wama.common import external_sources
     from wama.common.app_registry import app_identity
     app = app_identity(source)
     if app['declared']:
-        return {'key': source, 'nature': 'app', 'label': app['label']}
+        return {'key': source, 'group': f"world:{app['world']}" if app['world'] else '',
+                'label': app['label']}
     declared = external_sources.by_key().get(source)
     if declared is not None:
-        return {'key': source, 'nature': 'remote' if declared.kind == 'llm' else 'platform',
-                'label': declared.label}
-    return {'key': source, 'nature': 'platform',
-            'label': dict(ModelSource.choices).get(source) or source}
+        label = (external_sources.remote_origin_label(source) if declared.kind == 'llm'
+                 else declared.label)
+        return {'key': source, 'group': f'kind:{declared.kind}', 'label': label}
+    return {'key': source, 'group': '', 'label': dict(ModelSource.choices).get(source) or source}
 
 
 EXECUTION_LOCAL = 'local'
@@ -893,30 +911,43 @@ class AIModel(ScopedVisibility):
                                    help_text="Composants + runtime d'un modele compose "
                                              "(declare par son manifeste, vide sinon).")
 
+    def _platform_refs(self):
+        """`platform_ref`, puis ce que la ligne porte déjà du même fait tant qu'il n'est pas
+        renseigné partout (il vient du manifeste) : `hf_id` → `huggingface:<hf_id>`, une clé
+        `ollama:` → `ollama:<famille>` — la règle même de `backfill_platform_refs`, qui le pose."""
+        refs = [self.platform_ref] if self.platform_ref else []
+        if self.hf_id:
+            refs.append(f'huggingface:{self.hf_id}')
+        if 'ollama:' in (self.model_key or ''):
+            family = (self.name or '').split(':', 1)[0]
+            if family:
+                refs.append(f'ollama:{family}')
+        return refs
+
+    def _platform(self):
+        """`(source de la plateforme, platform_ref)` — la première référence qu'une plateforme
+        DÉCLARÉE sait rendre (`external_sources.model_platforms`), ou `(None, '')`."""
+        from wama.common.external_sources import model_platforms
+        platforms = model_platforms()
+        for ref in self._platform_refs():
+            prefix, _, ident = ref.partition(':')
+            if ident and prefix in platforms:
+                return platforms[prefix], ref
+        return None, ''
+
     @property
     def platform_url(self):
         """
         Page publique du modele sur SA plateforme, ou None si on ne sait pas la construire.
 
         Le template conditionnait le bouton a `hf_id` seul : les 38 modeles Ollama n'avaient
-        donc jamais de lien, alors que leur page existe. On derive ici au lieu de coder une
-        plateforme en dur dans la vue -- ajouter une plateforme se fera a cet endroit unique.
+        donc jamais de lien, alors que leur page existe. L'adresse se DÉRIVE de la fiche que la
+        plateforme déclare au registre des sources (`external_sources.model_page_url`) — depuis
+        le 2026-10-22, plus de table d'adresses ici : ajouter une plateforme se fait là-bas.
         """
-        plateforme, _, identifiant = (self.platform_ref or '').partition(':')
-        if plateforme and identifiant:
-            gabarit = self._URL_PAR_PLATEFORME.get(plateforme)
-            if gabarit:
-                return gabarit.format(id=identifiant)
-
-        # Repli tant que `platform_ref` n'est pas renseigne partout (il vient du manifeste).
-        if self.hf_id:
-            return f"https://huggingface.co/{self.hf_id}"
-        if 'ollama:' in (self.model_key or ''):
-            from wama.model_manager.services.ollama_registry import BASE_SITE
-            # `gemma4:12b` -> page de la famille, le tag n'a pas de page propre.
-            famille = (self.name or '').split(':', 1)[0]
-            return f"{BASE_SITE}/library/{famille}" if famille else None
-        return None
+        from wama.common.external_sources import model_page_url
+        _source, ref = self._platform()
+        return model_page_url(ref) if ref else None
 
     @property
     def is_installable(self):
@@ -929,26 +960,15 @@ class AIModel(ScopedVisibility):
         from .services.model_installer import spec_for_catalog_row
         return spec_for_catalog_row(self) is not None
 
-    # Un seul endroit a etendre pour brancher une plateforme de plus (Roboflow…).
-    _URL_PAR_PLATEFORME = {
-        'huggingface': 'https://huggingface.co/{id}',
-        'ollama': 'https://ollama.com/library/{id}',
-        'roboflow': 'https://universe.roboflow.com/{id}',
-        'github': 'https://github.com/{id}',
-    }
-
     @property
     def platform_label(self):
-        """Nom de la plateforme, pour libeller le lien sans le deviner cote template."""
-        plateforme = (self.platform_ref or '').partition(':')[0]
-        if plateforme:
-            return {'huggingface': 'HuggingFace', 'ollama': 'Ollama',
-                    'roboflow': 'Roboflow', 'github': 'GitHub'}.get(plateforme, plateforme)
-        if self.hf_id:
-            return 'HuggingFace'
-        if 'ollama:' in (self.model_key or ''):
-            return 'Ollama'
-        return ''
+        """Nom de la plateforme, pour libeller le lien sans le deviner cote template — le NOM
+        que la source déclare au registre (« HuggingFace Hub », « ollama.com »…). Une plateforme
+        que rien ne déclare garde son préfixe brut, comme avant."""
+        source, _ref = self._platform()
+        if source is not None:
+            return source.label
+        return (self.platform_ref or '').partition(':')[0]
 
     @property
     def size_display(self):
@@ -1038,7 +1058,7 @@ class AIModel(ScopedVisibility):
         source = source_identity(self.source)
         return {
             'source_label': source['label'],
-            'source_nature': source['nature'],
+            'source_group': source['group'],
             'origin': self.origin_label,
             'hosting': self.hosting,
             # Rang sur l'échelle des hébergements (0 = local) : le tri « le plus proche d'abord ».

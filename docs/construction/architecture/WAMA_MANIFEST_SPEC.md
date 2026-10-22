@@ -465,8 +465,10 @@ vers la plateforme était conditionné à `hf_id`, absent sur les 70 modèles qu
 scan disque.
 
 `platform_ref` porte le **fait** (`huggingface:org/repo`, `ollama:gemma4`, `roboflow:projet/3`),
-pas l'URL. L'URL en est un rendu, dérivé par `AIModel.platform_url` via une table
-plateforme → gabarit à un seul endroit. Stocker 129 chaînes d'URL, ce serait 129 chaînes à
+pas l'URL. L'URL en est un rendu, dérivé par `AIModel.platform_url` depuis la FICHE que la
+plateforme déclare au registre des sources (`ExternalSource.model_page`, lue par
+`external_sources.model_page_url` — depuis le 2026-10-22 ; une table plateforme → gabarit vivait
+avant dans `AIModel`, en double du registre). Stocker 129 chaînes d'URL, ce serait 129 chaînes à
 corriger le jour où une plateforme change son schéma d'adresse.
 
 > ⚠ **Frontière propre au kind `model`, à ne pas calquer sur `library`.**

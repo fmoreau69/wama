@@ -1366,8 +1366,11 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   d'unloader. Hors process (sous-processus) → `vram_reservation` (avatarizer).
   ⚠ Non applicable au synthesizer : il ne charge **rien** en process (aucun `torch`, aucun
   `from_pretrained` — tout part au service TTS).
-- **Redondances** : `ModelType`/`ModelSource` dupliqués (`models.py` + `model_registry.py`) ; capabilities
-  canonicalisées dans la découverte, pas dans les `model_config` d'app.
+- **Redondances** : ~~`ModelType`/`ModelSource` dupliqués (`models.py` + `model_registry.py`)~~ —
+  constat périmé depuis le 2026-08-05 (`a28687a8` : une seule énumération, celle du modèle Django,
+  ré-exportée par `model_registry.py`) ; relevé et corrigé le 2026-10-22, avec le retrait du
+  contrôle qui les comparait (R173) ; capabilities canonicalisées dans la découverte, pas dans les
+  `model_config` d'app.
 - **Manifeste** : `models.{consumes, selection:{strategy: select_model|app_custom|fixed, requires, classes,
   priority, prefer_loaded}, paths_key, capabilities_vocab}`.
 - **Contrat de backend commun** (`common/backends/base.py::BaseModelBackend`) : cycle de vie
@@ -6354,6 +6357,42 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   préfixe `ollama:` : on l'associe à `ollama_site`, on ne le renomme pas. (3) Rien dans le
 >   code ni dans les tests ne lit la clé `app` rendue par les deux outils ; sur les 200
 >   premières lignes de `list_ai_models`, 120 y portent une source qui n'est pas une app.
+>   🔴 **Corrigé le 2026-10-22 — la livraison du 20/10 s'était ÉCARTÉE de ce qui est consigné
+>   trois paragraphes plus haut** (Fabien : *« je dois connaître la provenance exacte des
+>   modèles, donc savoir si c'est Claude API ou Claude abonnement »*). La route disait « un
+>   fournisseur distant → `remote_origin_label` » ; le code a pris le nom court du registre, qui
+>   a perdu « (abonnement) » le 10/10 parce que le coût se dit par `remote_origin_label`. Mesuré :
+>   le filtre, le badge et l'inspecteur affichaient « Claude Code » — Claude Code peut aussi
+>   tourner sur l'API — là où l'énumération qu'on remplaçait disait encore « Claude Code
+>   (abonnement) » ; et le test (`tests_source_identity`) EXIGEAIT le nom court. *Le trou de la
+>   clé brute bouché, celui du coût ouvert.* Repris sur les lectures existantes, rien d'écrit :
+>   - un fournisseur se nomme par `remote_origin_label` (« Cloud commercial · Claude Code ·
+>     abonnement » / « … API Anthropic (Claude) · facturé à l'usage ») — la phrase des
+>     sélecteurs de modèle ; une card distante affiche l'ORIGINE du modèle (`origin_label` : son
+>     coût, qui peut s'écarter de celui de sa source — les gratuits d'OpenRouter) ;
+>   - les groupes du filtre ne s'écrivent plus (`SOURCE_NATURES` retiré) : une app se range dans
+>     son MONDE (`WORLD_SECTIONS`), une source dans sa FAMILLE (`external_sources.KINDS`) —
+>     `models.source_groups()` ; `custom`, que rien ne déclare, reste choisissable hors groupe ;
+>   - les PLATEFORMES se déclarent au registre des sources (`ExternalSource.model_page`,
+>     `platform_ref_prefix` : `ollama:` → `ollama_site`), lues par `model_platforms()` /
+>     `model_page_url()` ; `_URL_PAR_PLATEFORME` et la table de noms de `platform_label` sont
+>     retirés (`REMOVAL_LEDGER` R173), les adresses rendues sont IDENTIQUES (garde
+>     `tests_model_platforms`, l'ancienne table recopiée à la lettre) ; la validation du
+>     manifeste `model` et `backfill_platform_refs` lisent la même liste ;
+>   - l'inspecteur dit l'Origine, la Plateforme, l'Auteur et la Licence (déjà servis par
+>     `to_dict`, jusque-là jamais affichés) ; l'admin filtre par le même nom (`SourceFilter`) ;
+>   - les outils `list_ai_models` / `get_ai_model` rendent `source` et `origin` au lieu de `app` ;
+>   - le candidat YOLO (`seed_yolo_candidate`) pose l'identité que posera son installation
+>     (`identity_for_spec`) — il écrivait `github:ultralytics/assets:<nom>`, page inexistante ;
+>   - `model_manager/checks.py` (W001) est supprimé : depuis la fusion des deux énumérations
+>     (`a28687a8`, 2026-08-05), il comparait `ModelSource` à lui-même (R173).
+>   Contre-épreuves : six mutations de fichier et quatre neutralisations, toutes rouges.
+>   ⏳ **Reste une DÉCISION** : les libellés de `ModelSource` ne sont plus lus que par le
+>   formulaire de l'admin ; retirer `choices=` du champ (une migration sans SQL, la dernière
+>   d'une série de six) ferait de l'énumération un vocabulaire sans libellés. ⏳ Constat sans
+>   geste : 12 lignes portent `hf_id` sans `platform_ref` (le lien se dérive déjà de `hf_id`) —
+>   `backfill_platform_refs --ecrire` les poserait, hors manifeste ; à faire passer par
+>   `set_identity` si on le veut au corpus.
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**

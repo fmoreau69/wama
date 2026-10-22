@@ -2393,7 +2393,12 @@ MECHANISMS = (
               "PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ "
               "de saisie est UNE brique (`WamaKeyField`) pour le profil et la page. Une clé "
               "FACULTATIVE (`api_key_optional`, 2026-10-12 : le jeton de `github_api`) "
-              "relève un quota sans rendre la source « non configurée » quand elle manque",
+              "relève un quota sans rendre la source « non configurée » quand elle manque. Une "
+              "PLATEFORME de modèles déclare la fiche d'un modèle (`model_page`, 2026-10-22) : "
+              "`model_platforms()` est le vocabulaire de `AIModel.platform_ref`, "
+              "`model_page_url()` en rend la page (lien de card, validation du manifeste "
+              "`model`) ; un fournisseur distant se DIT par `remote_origin_label` — "
+              "hébergement · fournisseur · coût — partout où il est nommé",
               'wama/common/external_sources.py', 'docs/construction/suivi/PROJECT_STATUS.md',
               annexes=('wama/common/utils/http_proxy.py',
                        'wama/common/utils/ollama_host.py',

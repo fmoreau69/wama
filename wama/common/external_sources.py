@@ -334,6 +334,16 @@ class ExternalSource:
     protocol: str = ''
     #: Type des modèles quand le fournisseur ne le dit pas (tag de tâche HuggingFace).
     default_remote_type: str = ''
+    #: PLATEFORME de modèles (2026-10-22) : chemin de la FICHE publique d'un modèle, relatif à
+    #: l'adresse de la source — `{id}` = l'identifiant que porte `AIModel.platform_ref`
+    #: (`huggingface:org/repo` → `org/repo`). '' = la source ne publie pas de fiches de modèles.
+    #: C'est ce qui fait d'une source une plateforme au sens de `platform_ref` (`model_platforms`) :
+    #: la table plateforme → gabarit d'adresse et les noms des plateformes vivaient en double dans
+    #: `AIModel` (`_URL_PAR_PLATEFORME`, `platform_label`), sous d'autres libellés.
+    model_page: str = ''
+    #: Le préfixe de `platform_ref` qui désigne cette source quand il n'est pas sa clé : une fiche
+    #: `ollama:<famille>` est celle du SITE (`ollama_site`), pas du moteur local (`ollama`).
+    platform_ref_prefix: str = ''
     #: Fournisseur LLM : modèle appelé quand l'appelant n'en nomme aucun (`llm_utils.
     #: default_cloud_model`, 2026-10-07 — ex-entrée de `CLOUD_DEFAULT_MODELS`, chantier 5 de
     #: `WAMA_HARNESS.md`). ⚠ Un nom de modèle vieillit : le fournisseur le retire.
@@ -585,7 +595,9 @@ SOURCES: tuple[ExternalSource, ...] = (
     # ── Catalogues de modèles ───────────────────────────────────────────────────────────
     ExternalSource(
         'ollama_site', 'ollama.com', 'https://ollama.com',
-        "Pages publiques du catalogue Ollama — prospection (HTML scrapé)", kind='catalogue'),
+        "Pages publiques du catalogue Ollama — prospection (HTML scrapé)", kind='catalogue',
+        # `gemma4:12b` → la page de la FAMILLE (`ollama:gemma4`) : un tag n'a pas de page propre.
+        model_page='library/{id}', platform_ref_prefix='ollama'),
     ExternalSource(
         'ollama_registry', "Registre d'images Ollama", 'https://registry.ollama.ai',
         "Manifestes et digests des tags Ollama — désambiguïse une variante par son ARTEFACT",
@@ -602,11 +614,11 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Poids, datasets et fiches de modèles — source principale du parc ; jeton = dépôts "
         "gated + quota d'API relevé", kind='catalogue', api_key_env='HF_TOKEN', user_key=True,
         api_key_label='Jeton HuggingFace (lecture)',
-        api_key_help_url='https://huggingface.co/settings/tokens'),
+        api_key_help_url='https://huggingface.co/settings/tokens', model_page='{id}'),
     ExternalSource(
         'roboflow', 'Roboflow Universe', 'https://universe.roboflow.com',
         "Fiches de modèles de vision (référence de plateforme, pas de téléchargement)",
-        kind='catalogue'),
+        kind='catalogue', model_page='{id}'),
     # ── Corpus de voix : Mozilla Data Collective (décision de Fabien, 2026-09-27) ────────────
     # Pourquoi cette source EXISTE, alors que les corpus arrivaient jusqu'ici par le Hub :
     # depuis **octobre 2025, Common Voice n'est PLUS distribué que par cette plateforme**. Le
@@ -700,7 +712,9 @@ SOURCES: tuple[ExternalSource, ...] = (
         'github', 'GitHub', 'https://github.com',
         "Poids et échantillons publiés en releases (ultralytics, coqui, "
         "serengil/deepface_models…) — TOUT poids qui n'est pas sur HuggingFace passe par ici",
-        kind='poids'),
+        # `github:owner/repo` ou `github:owner/repo/releases/tag/<tag>` (pilote `github`) : le
+        # chemin EST l'identifiant.
+        kind='poids', model_page='{id}'),
     # Jeton FACULTATIF (2026-10-12) : deux lecteurs le prenaient dans l'environnement, hors du
     # registre (`prospector.github_release`, `benchmark_sync._mteb_index`) — la page ne pouvait
     # ni le dire ni le poser. Il ne sert qu'à l'API ; le téléchargement d'un poids publié
@@ -891,6 +905,25 @@ MTEB_RESULTS_REPO = 'embeddings-benchmark/results'
 
 def by_key() -> dict[str, ExternalSource]:
     return {s.key: s for s in SOURCES}
+
+
+def model_platforms() -> dict[str, ExternalSource]:
+    """Les PLATEFORMES de modèles, par préfixe de `AIModel.platform_ref` — les sources qui déclarent
+    la fiche d'un modèle (`model_page`). C'est le vocabulaire des plateformes : la validation du
+    manifeste `model`, `backfill_platform_refs` et le lien de la card le lisent (2026-10-22).
+    Ajouter une plateforme = déclarer sa fiche sur sa source, ici."""
+    return {(s.platform_ref_prefix or s.key): s for s in SOURCES if s.model_page}
+
+
+def model_page_url(platform_ref: str) -> str | None:
+    """L'adresse de la fiche publique d'un modèle, DÉRIVÉE de son `platform_ref`
+    (`huggingface:org/repo` → `https://huggingface.co/org/repo`), ou None pour une plateforme que
+    rien ne déclare. L'adresse de base est celle de la source (`base_url`), jamais recopiée."""
+    platform, _, ident = (platform_ref or '').partition(':')
+    source = model_platforms().get(platform)
+    if source is None or not ident:
+        return None
+    return f"{base_url(source.key)}/{source.model_page.format(id=ident)}"
 
 
 class _RemoteEngine:

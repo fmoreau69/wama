@@ -162,7 +162,8 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
         return {'platform_ref': 'github:ultralytics/assets'}
     if kind == 'github':
         # La VERSION est le modèle (pilote `github`, 2026-10-07) : `platform_ref` désigne sa page,
-        # que le gabarit existant (`AIModel._URL_PAR_PLATEFORME['github']`) rend telle quelle.
+        # que la fiche déclarée de la plateforme (`external_sources`, source `github`) rend telle
+        # quelle.
         # La licence vient du spec quand la prospection l'a relevée sur la version — jamais
         # supposée ici.
         from .model_installer import github_platform_ref, github_release_of

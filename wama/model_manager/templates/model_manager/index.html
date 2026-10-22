@@ -578,8 +578,10 @@
                 </select>
             </div>
             <div class="col-auto">
-                {% comment %} Source (2026-10-20) : le NOM de chaque source, groupé par nature — app,
-                fournisseur distant, plateforme (`models.source_identity`) ; il affichait la clé brute. {% endcomment %}
+                {% comment %} Source : le NOM de chaque source (`models.source_identity`) — une app,
+                rangée dans son monde ; un fournisseur distant avec son hébergement et son coût
+                (« Cloud commercial · Claude Code · abonnement ») ; une plateforme, rangée dans sa
+                famille du registre des sources. Groupes : `models.source_groups`. {% endcomment %}
                 <label class="text-muted small me-2" for="filter-source">Source :</label>
                 <select class="form-select form-select-sm filter-select d-inline-block w-auto" id="filter-source">
                     <option value="all">Toutes</option>
@@ -910,7 +912,7 @@ a rien en attente. {% endcomment %}
 {% block javascript %}
 {{ block.super }}
 {# wama-inspector.js + wama-inspector-autofill.js : GLOBAUX (base.html) — ne PAS les ré-inclure ici (double inclusion, cf. REMOVAL_LEDGER R7). #}
-{{ source_natures|json_script:"mm-source-natures" }}
+{{ source_groups|json_script:"mm-source-groups" }}
 {% load wama_static %}<script src="{% static_v 'common/js/wama-promotion.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -1132,6 +1134,14 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Le badge de source d'une card : le nom de la source ; pour un modèle DISTANT, son ORIGINE
+    // (`AIModel.origin_label`, la phrase des sélecteurs : hébergement · fournisseur · coût) — le
+    // coût du MODÈLE, qui peut s'écarter de celui de sa source (les gratuits d'OpenRouter).
+    function sourceBadge(model) {
+        if (model.execution === 'cloud' && model.origin) return model.origin;
+        return model.source_label || model.source;
+    }
+
     function renderModels(models) {
         allModels = models;
         document.getElementById('total-count').textContent = models.length;
@@ -1174,7 +1184,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <input type="checkbox" class="form-check-input model-checkbox me-2 model-select-cb"
                                    data-model-id="${model.id}" ${selectedModels.has(model.id) ? 'checked' : ''}>
                             <span class="type-badge type-${model.type} me-1">${model.type}</span>
-                            <span class="source-badge">${WamaApp.escapeHtml(model.source_label || model.source)}</span>
+                            <span class="source-badge">${WamaApp.escapeHtml(sourceBadge(model))}</span>
                         </div>
                         ${model.is_proposed ?
                             `<span class="badge" style="background:var(--bs-purple)"><i class="fas fa-wand-magic-sparkles fa-xs me-1"></i>${model.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau'}</span>` :
@@ -1664,9 +1674,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 return v ? v + ' min (réglée pour ce modèle)' : 'défaut de l\'app (30 min)';
             } },
         ] },
+        {% comment %} Identité ET provenance (2026-10-22, Fabien : « je dois connaître la provenance
+        exacte des modèles ») — tout est déjà servi par `to_dict`, rien n'est recomposé ici :
+        l'origine (où il s'exécute, qui le sert, ce qu'il coûte), la plateforme d'où viennent ses
+        poids (nom déclaré au registre des sources), son auteur et sa licence. {% endcomment %}
         { section: 'Identité', rows: [
             { k: 'Type', field: 'type' },
             { k: 'Source', get: function (m) { return m.source_label || m.source || ''; } },
+            { k: 'Origine', field: 'origin' },
+            { k: 'Plateforme', get: function (m) {
+                if (!m.platform_label) return '';
+                const ident = (m.platform_ref || '').split(':').slice(1).join(':') || m.hf_id || '';
+                return ident ? m.platform_label + ' — ' + ident : m.platform_label;
+            } },
+            { k: 'Auteur', field: 'author' },
+            { k: 'Licence', field: 'license' },
             { k: 'Clé', get: function (m) { return m.model_key || m.id; }, code: true },
             { k: 'Backend', field: 'backend_ref' },
             { k: 'HF id', field: 'hf_id', code: true },
@@ -2267,7 +2289,7 @@ document.addEventListener('DOMContentLoaded', function() {
         typeSelect.innerHTML = '<option value="all">All Types</option>' +
             types.map(t => `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('');
 
-        // Sources : leur NOM, un groupe par nature dans l'ordre déclaré (`SOURCE_NATURES`).
+        // Sources : leur NOM, rangées dans les groupes DÉCLARÉS, dans leur ordre (`source_groups`).
         const sourceSelect = document.getElementById('filter-source');
         sourceSelect.innerHTML = '<option value="all">Toutes</option>' + sourceOptions(models);
     }
@@ -2276,13 +2298,16 @@ document.addEventListener('DOMContentLoaded', function() {
         const esc = WamaApp.escapeHtml;
         const named = new Map();
         models.forEach(m => named.set(m.source, {label: m.source_label || m.source,
-                                                  nature: m.source_nature || ''}));
-        return JSON.parse(document.getElementById('mm-source-natures').textContent).map(n => {
-            const options = [...named].filter(([, s]) => s.nature === n.key)
-                .sort((a, b) => a[1].label.localeCompare(b[1].label))
-                .map(([key, s]) => `<option value="${esc(key)}">${esc(s.label)}</option>`).join('');
-            return options ? `<optgroup label="${esc(n.label)}">${options}</optgroup>` : '';
-        }).join('');
+                                                  group: m.source_group || ''}));
+        const groups = JSON.parse(document.getElementById('mm-source-groups').textContent);
+        const known = new Set(groups.map(g => g.key));
+        const options = list => list.sort((a, b) => a[1].label.localeCompare(b[1].label))
+            .map(([key, s]) => `<option value="${esc(key)}">${esc(s.label)}</option>`).join('');
+        // Une source qu'aucune déclaration ne range (`custom`) reste choisissable, hors groupe.
+        return groups.map(g => {
+            const inner = options([...named].filter(([, s]) => s.group === g.key));
+            return inner ? `<optgroup label="${esc(g.label)}">${inner}</optgroup>` : '';
+        }).join('') + options([...named].filter(([, s]) => !known.has(s.group)));
     }
 
     function applyFilters() {

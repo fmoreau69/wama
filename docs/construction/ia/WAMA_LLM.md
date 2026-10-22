@@ -1095,12 +1095,17 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   l'Origine la dit. Garde : `tests_cloud_models.FilterBarForMeTest`.
   **Le filtre « Source » NOMME ses sources — 2026-10-20** : il affichait la clé brute
   (`claude_code`, `face_analyzer`). Une lecture, `model_manager.models.source_identity` (une
-  app par son identité, un fournisseur ou une plateforme par son nom au registre des sources),
-  groupée par nature — Apps WAMA, Fournisseurs distants, Plateformes ; « Claude Code » et
-  « API Anthropic (Claude) » y restent deux entrées. Le badge de card, l'inspecteur et la liste
-  d'admin lisent le même nom. ⚠ Le filtre et le formulaire de l'admin lisent encore le libellé
-  de l'énumération `ModelSource` (« Claude Code (abonnement) ») : son sort est à décider
-  (`WAMA_APP_GENERATION_ROUTE §10.6 P1`). Garde : `tests_source_identity`.
+  app par son identité, une plateforme par son nom au registre des sources). Le badge de card,
+  l'inspecteur et la liste d'admin lisent le même nom. ⚠ **Corrigé le 2026-10-22** (Fabien :
+  savoir si c'est l'API Claude ou l'abonnement) : un FOURNISSEUR s'y nommait par son seul nom,
+  « Claude Code », qui ne dit pas l'abonnement ; il se nomme désormais par `remote_origin_label`
+  (« Cloud commercial · Claude Code · abonnement »), la phrase des sélecteurs, et une card
+  distante dit l'origine de SON modèle. Groupes dérivés — le monde d'une app, la famille d'une
+  source au registre (`source_groups`) ; l'admin filtre par le même nom ; l'inspecteur dit
+  l'origine, la plateforme, l'auteur et la licence ; `list_ai_models` / `get_ai_model` rendent
+  `source` et `origin`. Seul le formulaire de l'admin lit encore les libellés de `ModelSource`
+  (décision : retirer `choices=`, `WAMA_APP_GENERATION_ROUTE §10.6 P1`). Gardes :
+  `tests_source_identity`, `tests_model_platforms`.
 - **Clés d'INSTANCE posées depuis WAMA — 2026-10-07** (décision de Fabien : *« c'est la page
   Sources externes qui doit gérer les clés système »*). Un admin pose la clé d'une source dans
   l'inspecteur de `/common/sources/` (`accounts.InstanceApiKey`, chiffrée comme les clés

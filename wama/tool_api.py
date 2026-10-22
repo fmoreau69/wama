@@ -1702,10 +1702,14 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
         limit: max results (default 50).
 
     Returns:
-        {"models": [{"key","name","app","type","vram_gb","task","modalities",
+        {"models": [{"key","name","source","origin","type","vram_gb","task","modalities",
                      "downloaded","loaded","quality_index","benchmark","description"}],
-         "count", "truncated"} — `benchmark` = third-party score {value, scale, direction,
-         source, provenance} or null; compare two models only on the SAME scale.
+         "count", "truncated"} — `source` = the catalogue source of the key (an app, a remote
+         provider or the platform it was found on — NOT always an app); `origin` = where the model
+         runs, who serves it and what it costs (« WAMA local », « Cloud commercial · Claude Code ·
+         abonnement », « Cloud commercial · API Anthropic (Claude) · facturé à l'usage ») ;
+         `benchmark` = third-party score {value, scale, direction, source, provenance} or null;
+         compare two models only on the SAME scale.
     """
     from wama.model_manager.models import AIModel
 
@@ -1747,7 +1751,12 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
     models = [{
         'key': m.model_key,
         'name': m.name,
-        'app': m.source,
+        # La SOURCE de la clé, sous son nom (2026-10-22) : elle était rendue sous la clé `app`
+        # alors qu'elle vaut aussi `anthropic` ou `huggingface` ; et l'ORIGINE, la phrase des
+        # sélecteurs (`AIModel.origin_label`) — sans elle, l'assistant ne pouvait pas dire si un
+        # modèle Claude passe par l'API facturée ou par l'abonnement.
+        'source': m.source,
+        'origin': m.origin_label,
         'type': m.model_type,
         'vram_gb': m.vram_gb,
         'task': (m.capabilities or {}).get('task'),
@@ -1778,9 +1787,11 @@ def get_ai_model(user, model_key: str) -> dict:
     Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
     (e.g. 'synthesizer:kokoro') — use list_ai_models to discover keys.
 
-    Returns the complete metadata: descriptions, capabilities, footprints
-    (vram/ram/disk), license + author, platform_ref, quality_index, `benchmark` (third-party
-    score, or null), states. For the install choices of a proposal, see get_install_options.
+    Returns the complete metadata: `source` (an app, a remote provider or a platform), `origin`
+    (where it runs, who serves it, what it costs — e.g. « Cloud commercial · Claude Code ·
+    abonnement »), descriptions, capabilities, footprints (vram/ram/disk), license + author,
+    platform_ref, quality_index, `benchmark` (third-party score, or null), states. For the
+    install choices of a proposal, see get_install_options.
     """
     from wama.model_manager.models import AIModel
 
@@ -1790,7 +1801,8 @@ def get_ai_model(user, model_key: str) -> dict:
         return {'error': f"Modèle '{model_key}' introuvable au catalogue "
                          f"(les clés se découvrent via list_ai_models)."}
     return {
-        'key': m.model_key, 'name': m.name, 'app': m.source, 'type': m.model_type,
+        'key': m.model_key, 'name': m.name, 'source': m.source, 'origin': m.origin_label,
+        'type': m.model_type,
         'description': m.description or m.description_short or '',
         'capabilities': m.capabilities or {},
         'vram_gb': m.vram_gb, 'ram_gb': m.ram_gb, 'disk_gb': m.disk_gb,

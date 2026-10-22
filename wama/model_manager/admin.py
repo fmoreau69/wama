@@ -7,6 +7,22 @@ from django.utils.html import format_html
 from .models import AIModel, ModelSyncLog, source_identity
 
 
+class SourceFilter(admin.SimpleListFilter):
+    """Filtre par source qui NOMME ses sources comme la page du model manager (`source_identity` :
+    l'abonnement Claude Code et l'API Anthropic avec leur coût). Le filtre par champ lisait les
+    libellés de l'énumération `ModelSource`, recopies à la main qui avaient divergé (2026-10-22)."""
+    title = 'Source'
+    parameter_name = 'source'
+
+    def lookups(self, request, model_admin):
+        sources = (model_admin.get_queryset(request).order_by()
+                   .values_list('source', flat=True).distinct())
+        return sorted(((s, source_identity(s)['label']) for s in sources), key=lambda o: o[1])
+
+    def queryset(self, request, queryset):
+        return queryset.filter(source=self.value()) if self.value() else queryset
+
+
 @admin.register(AIModel)
 class AIModelAdmin(admin.ModelAdmin):
     list_display = [
@@ -14,7 +30,7 @@ class AIModelAdmin(admin.ModelAdmin):
         'format_badge', 'size_display', 'updated_at'
     ]
     list_filter = [
-        'source', 'model_type', 'is_downloaded',
+        SourceFilter, 'model_type', 'is_downloaded',
         'is_loaded', 'is_available', 'format'
     ]
     search_fields = ['name', 'model_key', 'hf_id', 'description']

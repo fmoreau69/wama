@@ -64,13 +64,14 @@ def index(request):
 
     from django.urls import reverse
 
-    from .models import SOURCE_NATURES
+    from .models import source_groups
     context = {
         'can_manage': can_manage,
         'origin_choices': origin_choices,
-        # Groupes du filtre « Source » (2026-10-20) ; chaque modèle porte sa nature et son nom
+        # Groupes du filtre « Source » — les mondes des apps puis les familles du registre des
+        # sources (`source_groups`, 2026-10-22) ; chaque modèle porte son groupe et son nom
         # (`source_identity`, servis par `to_dict`).
-        'source_natures': [{'key': k, 'label': label} for k, label in SOURCE_NATURES],
+        'source_groups': source_groups(),
         'cost_choices': list(xs.COST_TIERS),
         'model_types': [t.value for t in ModelType],
         'cpu_info': stats['cpu_info'],

@@ -33,9 +33,6 @@ class ModelManagerConfig(AppConfig):
         - Démarre le file watcher en dev (runserver) uniquement.
         La réconciliation périodique est planifiée via Celery Beat (CELERY_BEAT_SCHEDULE).
         """
-        # Enregistre le garde-fou anti-dérive des enums (registre ⊆ DB), cf. checks.py / F5.
-        from . import checks  # noqa: F401  (l'import déclenche @register)
-
         # La gestion des modèles se DÉCLARE : son monde et sa page (route §10.6 point 6.1).
         # `nav_hide` : présente au catalogue `/apps/`, pas au menu Applications — elle a son
         # entrée dans la section Administration. Depuis le 2026-10-13 c'est une page des

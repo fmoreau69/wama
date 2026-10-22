@@ -121,10 +121,12 @@ class Command(BaseCommand):
                 self.stderr.write(self.style.ERROR(f"  format attendu CLE=PLATFORM_REF : {entree!r}"))
                 continue
             plateforme, _, identifiant = ref.partition(':')
-            if not identifiant or plateforme not in AIModel._URL_PAR_PLATEFORME:
+            # Les plateformes déclarées au registre des sources (`model_platforms`).
+            from wama.common.external_sources import model_platforms
+            if not identifiant or plateforme not in model_platforms():
                 self.stderr.write(self.style.ERROR(
                     f"  plateforme inconnue dans {ref!r} "
-                    f"(connues : {', '.join(sorted(AIModel._URL_PAR_PLATEFORME))})"))
+                    f"(connues : {', '.join(sorted(model_platforms()))})"))
                 continue
             m = AIModel.objects.filter(model_key=cle).first()
             if m is None:

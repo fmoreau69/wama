@@ -50,9 +50,11 @@ def validate_model_body(body: dict) -> list[str]:
             errs.append(f"identity.source '{src}' hors ModelSource ({', '.join(sorted(_model_sources()))})")
         ref = ident.get('platform_ref')
         if ref:
-            from wama.model_manager.models import AIModel
+            # Les plateformes DÉCLARÉES au registre des sources (`model_platforms`, 2026-10-22) —
+            # la même liste que celle qui rend le lien de la card.
+            from wama.common.external_sources import model_platforms
             plateforme = str(ref).partition(':')[0]
-            connues = sorted(AIModel._URL_PAR_PLATEFORME)
+            connues = sorted(model_platforms())
             if ':' not in str(ref):
                 errs.append(f"identity.platform_ref '{ref}' doit s'ecrire '<plateforme>:<identifiant>'")
             elif plateforme not in connues:
