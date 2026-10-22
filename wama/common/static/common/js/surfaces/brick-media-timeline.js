@@ -10,7 +10,8 @@
  * déclare. Les options de l'emplacement passent telles quelles (`WamaTimeline`).
  *
  * Ce qui reste propre à la brique : les plages que d'autres briques MARQUENT par le bus (`bands`,
- * une liste par brique qui marque) et la relecture des pics quand le média est refait (`redone`).
+ * une liste par brique qui marque) et la relecture des pics quand le média est refait (`redone`)
+ * ou que la VERSION écoutée change (`source`, 2026-10-21 : `ctx.peaks` lit celle qui est choisie).
  */
 (function (global) {
     'use strict';
@@ -40,6 +41,7 @@
             timeline.redraw();
         });
         ctx.on('redone', function () { timeline.load(); });
+        ctx.on('source', function (p) { if (p && p.role === role) timeline.load(); });
 
         timeline.load();
         return {

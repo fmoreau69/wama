@@ -1,0 +1,55 @@
+{
+  "body": {
+    "app": "transcriber",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "transcriber.workers:transcribe",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio nivelé.",
+        "group": "travail",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "transcriber.denoise",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio débruité, mono 16 kHz.",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "speech",
+      "gpu"
+    ]
+  },
+  "description": "Débruite l'audio nivelé par le modèle du catalogue (DeepFilterNet), pour les fonds très bruyants. L'audio débruité est gardé sur la card : c'est lui que la transcription écoute.",
+  "key": "transcriber.denoise",
+  "manifest_kind": "function",
+  "name": "Transcriber — débruiter",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:transcriber.denoise",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

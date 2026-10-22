@@ -441,42 +441,9 @@ class TranscriptionTaskOnSkeletonTest(TestCase):
         self.assertEqual(['en', 'fr'], [s.get('language') for s in self.item.segments_json])
         self.assertEqual('fr', self.item.language)
 
-    def test_the_leveled_audio_is_what_the_engine_hears(self):
-        from unittest import mock
-        Transcript.objects.filter(pk=self.item.pk).update(level_speech=True, status='RUNNING')
-        asr = self._asr()
-        with mock.patch('wama.common.utils.speech_leveling.level_file',
-                        side_effect=lambda src, dst: dst) as leveled:
-            self._run(asr)
-        self.assertTrue(leveled.called)
-        self.assertTrue(asr.transcribe.call_args.kwargs['audio_path'].endswith('_leveled.wav'))
-
-    def test_denoising_always_comes_after_leveling(self):
-        """Order fixed by the preprocessing bench (2026-10-01): DeepFilterNet erases speech
-        recorded low, so asking for it levels first — even without the leveling option."""
-        from unittest import mock
-        Transcript.objects.filter(pk=self.item.pk).update(preprocess_audio=True, level_speech=False,
-                                                          status='RUNNING')
-        asr = self._asr()
-        calls = []
-
-        def denoise(t, path):
-            calls.append(('denoise', path))
-            return path.replace('.wav', '_cleaned.wav')
-        with mock.patch('wama.common.utils.speech_leveling.level_file',
-                        side_effect=lambda src, dst: calls.append(('level', src)) or dst), \
-                mock.patch('wama.transcriber.workers._preprocess_audio', side_effect=denoise):
-            self._run(asr, task='transcribe')       # la tâche qui GARDE le prétraitement
-        self.assertEqual(['level', 'denoise'], [step for step, _ in calls])
-        self.assertTrue(calls[1][1].endswith('_leveled.wav'), 'the denoiser gets the LEVELED audio')
-        self.assertTrue(asr.transcribe.call_args.kwargs['audio_path'].endswith('_leveled_cleaned.wav'))
-
-    def test_without_the_option_nothing_is_leveled(self):
-        from unittest import mock
-        asr = self._asr()
-        with mock.patch('wama.common.utils.speech_leveling.level_file') as leveled:
-            self._run(asr)
-        leveled.assert_not_called()
+    # Nivellement et débruitage : deux PROCESS déclarés depuis le 2026-10-21 (ordre du banc,
+    # audio entendu par le moteur, rien sans les options) — tenus par
+    # `tests_pipeline.ThePreparationIsDeclaredTest`, dans un dossier média jetable.
 
     def test_a_failed_transcription_is_a_failure_with_its_message(self):
         self._run(self._asr(fail=True))

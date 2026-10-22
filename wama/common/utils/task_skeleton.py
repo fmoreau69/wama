@@ -24,6 +24,10 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
                    manifeste (`writer`). Ajouté le 2026-10-01 : la glu du Writer passait
                    `'writer'` à la pipeline de prompts, qui ne trouvait aucune cible et rendait
                    la consigne intacte — document de référence ignoré, sans un message.
+  - `ctx.output_place(ext, nature='', model='', source_name='')` : (chemin relatif, chemin
+                   absolu) du fichier d'une SORTIE de la card — dossier de sortie de l'app au
+                   domicile de l'utilisateur, nom par la règle commune (2026-10-21) ; le chemin
+                   relatif va dans `fields` et `output_ref`.
   - `ctx.ensure_model(clé)` : AVANT de charger un modèle, au moment où la glu connaît sa clé de
                    catalogue — absent, la ROUTE l'installe, la card le dit, la tâche attend
                    (`ServiceNotReady`) ; rend la clé. Le modèle de la CARD, déclaré
@@ -135,9 +139,12 @@ class TaskContext:
     # une ressource : le process suivant se joue dans un AUTRE worker, dont la mémoire est vide.
     # Mesuré : une transcription distante (Albert, file par défaut) suivie des locuteurs (file
     # GPU) nivelait l'audio DEUX fois (~110 s chacune sur 141 min), et un modèle « auto » se
-    # retirait à chaque livraison. Ce qu'un lancement prépare pour ses process suivants se garde
-    # ici — au cache, sous l'id du lancement — et ses fichiers temporaires partent à sa fin
-    # RÉELLE (succès, échec, durée max), jamais à une re-livraison.
+    # retirait à chaque livraison. Ce qu'un lancement décide pour ses process suivants se garde
+    # ici — au cache, sous l'id du lancement — et s'oublie à sa fin RÉELLE (succès, échec, durée
+    # max), jamais à une re-livraison. Un FICHIER qu'un process prépare pour le suivant n'y a pas
+    # sa place : c'est une sortie de process, déclarée (`ProcessSpec.outputs`) et gardée sur la
+    # card — l'audio nivelé du transcriber, qui vivait ici le matin du 2026-10-21 (`keep_file`,
+    # retiré le jour même : `REMOVAL_LEDGER`).
 
     def _launch_entry(self) -> dict:
         kept = cache.get(_launch_key(self.app_id, self.item.pk)) or {}
@@ -150,19 +157,32 @@ class TaskContext:
     def remember(self, name: str, value) -> None:
         if not self.launch:
             return                       # hors worker (appel direct) : rien à reprendre
-        entry = self._launch_entry() or {'task': self.launch, 'facts': {}, 'files': []}
+        entry = self._launch_entry() or {'task': self.launch, 'facts': {}}
         entry['facts'][name] = value
         cache.set(_launch_key(self.app_id, self.item.pk), entry, timeout=LAUNCH_TTL_S)
 
-    def keep_file(self, path: str) -> None:
-        """Un fichier TEMPORAIRE du lancement (audio préparé…) : retiré à sa fin réelle, pas avant
-        — jamais un fichier de la card, que la glu ne confie pas ici."""
-        if not self.launch or not path:
-            return
-        entry = self._launch_entry() or {'task': self.launch, 'facts': {}, 'files': []}
-        if path not in entry['files']:
-            entry['files'].append(path)
-        cache.set(_launch_key(self.app_id, self.item.pk), entry, timeout=LAUNCH_TTL_S)
+    def output_place(self, ext: str, *, nature: str = '', model: str = '',
+                     source_name: str = '') -> tuple:
+        """(chemin relatif à MEDIA_ROOT, chemin absolu) d'une SORTIE de cette card — le geste d'un
+        process qui écrit un fichier déclaré dans ses `outputs` : le dossier de sortie de l'app au
+        domicile de l'utilisateur (`app_media_dir`, créé), le nom par la règle commune
+        (`compose_output_name` : `nature` quand la sortie n'est pas celle de l'app — `score`,
+        `audio` —, `model` le nom du modèle qui l'a rendue). Le chemin relatif est ce que la glu
+        rend dans `fields` et `output_ref`.
+
+        Écrit dans le composer (`_output_place`, 2026-10-02) et recopié par chaque glu qui range
+        un fichier ; porté ici le 2026-10-21, quand la préparation audio du transcriber en devenait
+        une de plus. `ctx.app_id`, jamais un label en dur : une jumelle a le sien."""
+        import os
+        from django.conf import settings
+        from wama.common.utils.media_paths import app_media_dir
+        from wama.common.utils.output_naming import compose_output_name
+        rel_dir = app_media_dir(self.app_id, self.user_id, 'output')
+        abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
+        os.makedirs(abs_dir, exist_ok=True)
+        name = compose_output_name(app=self.app_id, model=model, ext=ext, nature=nature,
+                                   source_name=source_name, item_id=self.item.pk)
+        return f'{rel_dir}/{name}', os.path.join(abs_dir, name)
 
     def ensure_model(self, model_key: str) -> str:
         """Le modèle que la glu va employer est-il installé ? Sinon la ROUTE l'installe, la card
@@ -345,20 +365,13 @@ def _launch_key(app_id: str, item_id) -> str:
 
 
 def _close_launch(app_id: str, item_id, launch: str = None) -> None:
-    """Fin d'un lancement : ses fichiers temporaires partent, sa mémoire aussi. `launch` : ne
-    fermer que CE lancement (une tâche finissante ne ferme jamais celle d'un lancement plus
-    récent) ; None : quel qu'il soit (le reste d'un lancement interrompu)."""
-    import os
+    """Fin d'un lancement : sa mémoire s'oublie. `launch` : ne fermer que CE lancement (une tâche
+    finissante ne ferme jamais celle d'un lancement plus récent) ; None : quel qu'il soit (le
+    reste d'un lancement interrompu)."""
     key = _launch_key(app_id, item_id)
     entry = cache.get(key) or {}
     if not entry or (launch is not None and entry.get('task') != launch):
         return
-    for path in entry.get('files') or ():
-        try:
-            if path and os.path.isfile(path):
-                os.remove(path)
-        except OSError as exc:
-            logger.warning("[%s] item #%s : fichier du lancement non retiré (%s)", app_id, item_id, exc)
     cache.delete(key)
 
 

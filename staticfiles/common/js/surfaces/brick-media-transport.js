@@ -18,6 +18,13 @@
  * « périmé » après une modification enregistrée, « en cours » après « Appliquer » — et le
  * RECHARGEMENT du média quand ce process et son aval ont fini : on écoute le rendu refait, à la
  * même place.
+ *
+ * La VERSION écoutée (2026-10-21, demande de Fabien : « se rendre compte à l'oreille de
+ * l'amélioration ou de la détérioration de l'audio ») : quand le média lu a plusieurs versions
+ * (`ctx.sources()` — l'original et les sorties des process du même type, que le serveur DÉRIVE
+ * du pipeline : l'audio nivelé, débruité), un choix « Écouter » les propose. La source est
+ * l'enveloppe : elle recharge le lecteur à la même position, et le dit au bus (`ctx.setSource` →
+ * `source`) — la ligne de temps relit alors les pics de la même version.
  */
 (function (global) {
     'use strict';
@@ -79,6 +86,33 @@
 
         var badge = document.createElement('span');
         badge.className = 'badge d-none';
+        var tools = document.createElement('span');
+        tools.className = 'd-inline-flex align-items-center gap-1';
+
+        // ── La version écoutée ──────────────────────────────────────────────────────────────
+        var versions = (ctx.sources() || {})[role] || [];
+        if (versions.length > 1) {
+            var pick = document.createElement('select');
+            pick.className = 'form-select form-select-sm py-0 w-auto';
+            pick.title = 'Écouter : la version du média que lit le lecteur';
+            pick.setAttribute('aria-label', 'Écouter');
+            pick.dataset.transport = 'source';
+            versions.forEach(function (version) {
+                var option = document.createElement('option');
+                option.value = version.key;
+                option.textContent = version.label;
+                pick.appendChild(option);
+            });
+            pick.value = ctx.source(role).key;
+            pick.addEventListener('change', function () { ctx.setSource(role, pick.value); });
+            tools.appendChild(pick);
+        }
+        tools.appendChild(badge);
+        ctx.on('source', function (p) {
+            if (!p || p.role !== role) return;
+            var version = ctx.source(role);
+            load(version.url, version.peaks);
+        });
 
         function showState(states) {
             var now = (states || {})[rerun] || '';
@@ -95,13 +129,15 @@
         ctx.on('processes', showState);
         // Le média refait (le noyau le dit, `redone`) : même chemin réécrit le plus souvent —
         // d'où l'adresse « fraîche » qui contourne le cache du navigateur.
-        ctx.on('redone', function (reads) {
-            load((reads || {})[role] || '', (ctx.media() || {})[role], true);
+        ctx.on('redone', function () {
+            var version = ctx.source(role);
+            load(version.url, version.peaks, true);
         });
 
-        load((ctx.reads() || {})[role] || '', (ctx.media() || {})[role]);
+        var first = ctx.source(role);
+        load(first.url, first.peaks);
         return {
-            tools: badge,
+            tools: tools,
             help: transport.help + (showWave ? ' · clic dans l’onde = y aller' : ''),
         };
     }

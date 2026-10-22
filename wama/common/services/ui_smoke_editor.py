@@ -56,6 +56,7 @@ PAGES = {
         'title': '[data-settings] [name="title"]', 'speaker_names': '[data-speakers] input[data-key]',
         'apply_speakers': '[data-speakers="apply"]', 'suggest': '[data-speakers="suggest"]',
         'load_latest': '[data-segments="load-latest"]',
+        'source': '[data-transport="source"]',
         'finished': '"finished":true',
     },
 }
@@ -510,6 +511,55 @@ def _views(ed, checks):
     checks.append((s['active'] == 1, f"en lecture, le segment joué se surligne ({s['t']}, {s['active']})"))
 
 
+def _versions(ed, checks):
+    """La VERSION écoutée (2026-10-21, demande de Fabien : « se rendre compte à l'oreille ») : le
+    témoin porte un audio nivelé (la sortie du process `level`) ; le transport propose « Original /
+    Nivellement », la bascule garde la position, le retour rend l'original — et le choix tient dans
+    l'en-tête de la brique sans le faire passer à la ligne (la barre déclarée du transcriber)."""
+    page = ed.page
+    options = page.eval_on_selector(ed.m['source'], "s => [...s.options].map(o => [o.value, o.textContent])")
+    checks.append((options == [['', 'Original'], ['level', 'Nivellement']],
+                   f"versions proposées : {options}"))
+    head = page.eval_on_selector(ed.m['source'], """s => {
+        const h = s.closest('.wama-brick-head'), t = h && h.querySelector('.wama-brick-title');
+        const a = s.getBoundingClientRect(), b = t ? t.getBoundingClientRect() : a;
+        return {height: h ? Math.round(h.getBoundingClientRect().height) : 0,
+                apart: Math.round(Math.abs((a.top + a.bottom) - (b.top + b.bottom)) / 2)}; }""")
+    checks.append((head['apart'] <= 8, f"le choix tient sur la ligne du titre (écart {head['apart']} px, "
+                                       f"en-tête {head['height']} px)"))
+    source = "(id) => { const a = WamaAudioPlayer.getAudio(id); return a ? (a.currentSrc || a.src) : ''; }"
+    ed.ensure_paused()
+    ed.goto('0:19')
+    page.select_option(ed.sel('source'), 'level')
+    page.wait_for_timeout(1500)
+    _wait_player(page)
+    s = ed.state()
+    heard = page.evaluate(source, ed.m['player'])
+    checks.append(('_leveled_' in heard, f"le lecteur lit l'audio nivelé (…{heard[-36:]})"))
+    checks.append((_near(s['t'], 19.0, 0.6), f"à la même position ({s['t']} s)"))
+    page.select_option(ed.sel('source'), '')
+    page.wait_for_timeout(1500)
+    _wait_player(page)
+    heard = page.evaluate(source, ed.m['player'])
+    checks.append(('_leveled_' not in heard and heard, "retour à l'original"))
+    ed.release_focus()
+
+
+def _with_a_leveled_version(transcript):
+    """Le témoin reçoit la sortie du process `level` : une copie de son audio, rangée comme une
+    sortie de la card (`leveled_audio`), le nivellement demandé. Rend le chemin à retirer."""
+    import shutil
+    from django.conf import settings
+    from wama.common.utils.media_paths import app_media_dir
+    rel_dir = app_media_dir('transcriber', transcript.user_id, 'output')
+    os.makedirs(os.path.join(settings.MEDIA_ROOT, rel_dir), exist_ok=True)
+    rel = f"{rel_dir}/wama_temoin_leveled_{transcript.pk}.wav"
+    target = os.path.join(settings.MEDIA_ROOT, rel)
+    shutil.copyfile(transcript.audio.path, target)
+    type(transcript).objects.filter(pk=transcript.pk).update(level_speech=True, leveled_audio=rel)
+    return target
+
+
 def check_editor_parity(form=None):
     """Les lignes « éditeur » de la matrice de parité, chacune par son geste."""
     from django.core.cache import cache
@@ -530,6 +580,7 @@ def check_editor_parity(form=None):
     with _garde_de_montage('transcriber', 'editor_parity') as cleaned:
         made = _mount_transcripts(uid, count=1, gap=True, corrected=True)
         pk = made[0].pk
+        leveled = _with_a_leveled_version(made[0])
         name, extra = selectors.pop('url')
         url = BASE_URL.rstrip('/') + reverse(name, args=[*extra, pk])
         selectors['player'] = selectors['player'].format(pk=pk)
@@ -554,9 +605,9 @@ def check_editor_parity(form=None):
                             page.wait_for_timeout(800)
                             ed = _Editor(page, selectors)
                             parts = (_transport, _shuttle, _navigation, _editing, _bornes, _toggles,
-                                     lambda e, c: _writing(e, c, seed), _panel, _views)
+                                     lambda e, c: _writing(e, c, seed), _panel, _views, _versions)
                             labels = ('Transport', 'Shuttle', 'Navigation', 'Édition', 'Bornes', 'Bascules',
-                                      "Modes d'écriture", 'Volet', 'Vues')
+                                      "Modes d'écriture", 'Volet', 'Vues', 'Versions')
                             for part, label in zip(parts, labels):
                                 checks = []
                                 try:
@@ -582,6 +633,8 @@ def check_editor_parity(form=None):
                     t.audio.delete(save=False)
                 except Exception:
                     pass
+            if os.path.exists(leveled):
+                os.remove(leveled)
     if cleaned:
         steps.append(f"{_total_nettoye(cleaned)} objet(s) de montage retiré(s)")
     if faults:

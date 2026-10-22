@@ -369,6 +369,17 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
    Mêmes gestes : 66 rejoués sur l'ancienne page puis sur la surface (`transcriber.editor_parity`),
    mêmes verdicts. L'écriture des segments et sa suite (état, texte, lignes de sous-titres, mesure de
    la correction) passent par les vues communes des surfaces (`views.correction_saved`).
+   **2g ✅ livrée (2026-10-21) — on ÉCOUTE la version de l'audio qu'on veut** (demande de Fabien :
+   « se rendre compte à l'oreille de l'amélioration/détérioration de l'audio ») : le nivellement et
+   le débruitage sont devenus deux process déclarés qui GARDENT leur audio sur la card (`level`,
+   `denoise`, `WAMA_APP_GENERATION_ROUTE §10.6` 4.6) ; la barre du transport propose « Écouter :
+   Original / Nivellement / Débruitage » — dérivé du pipeline par la surface commune
+   (`Surface.sources_of`), le transcriber n'en nomme aucune. Le lecteur reprend à la même position,
+   la ligne de temps dessine l'onde de la version choisie. L'aperçu de la card montre les mêmes
+   versions, une face par process. Parité `transcriber.editor_parity` rejouée sur serveur jetable
+   (WSL) : **66/66**, plus le geste neuf « Versions » (5/5 — proposées, bascule à la même position,
+   retour à l'original, le choix tient sur la ligne du titre à 1440 px ; contre-épreuve rouge sans
+   audio nivelé). Le choix n'est pas retenu d'une ouverture à l'autre.
 3. **Confiance** (mot/segment) — déjà la source de la heatmap 2a.
 4. **Guidage** (slider rigueur + hésitations/silences/redondances) en suggestions accept/reject
    (règles FR + gaps de segments + LLM).

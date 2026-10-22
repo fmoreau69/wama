@@ -1800,6 +1800,13 @@ def duplicate(request, pk):
     return JsonResponse(_item_to_dict(new_item))
 ```
 
+> Depuis le 2026-10-21, ce que les PROCESS d'une app à pipeline ont écrit est vidé par la brique
+> (`AppPipeline.produced_fields`) : `clear_fields` — comme `make_batch_views(output_fields=…)` —
+> ne nomme plus que ce qu'aucun process ne déclare (un texte, une réponse, la sortie d'une app
+> sans pipeline). Une copie garde ce que l'utilisateur a DONNÉ, même quand ce champ est aussi la
+> sortie d'un process qui n'a pas eu lieu (l'audio d'un avatarizer « standalone »). Garde :
+> `tests_process_pipeline.ADuplicateStartsWithoutWhatItsProcessesWroteTest`.
+
 ### 12.2 Index des utilitaires disponibles
 
 | Fichier | Fonctions clés | Usage |

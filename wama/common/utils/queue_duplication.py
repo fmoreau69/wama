@@ -321,6 +321,18 @@ def duplicate_instance(instance, reset_fields=None, clear_fields=None, *, for_us
     from wama.common.services.revisions import KEPT_FIELD
     if hasattr(obj, KEPT_FIELD):
         setattr(obj, KEPT_FIELD, [])
+    # Et ce que ses PROCESS ont écrit (`AppPipeline.produced_fields`, 2026-10-21) : la copie n'a
+    # aucune ligne d'exécution, elle rejoue tout. Elle garde ce que l'utilisateur a DONNÉ — le
+    # partage des fichiers ci-dessus reste le contrat —, jamais un résultat de la source. Les
+    # vues le recopiaient dans `clear_fields`, en deux exemplaires par app, et en oubliaient.
+    from wama.common.services.process_pipeline import pipeline_of
+    pipeline = pipeline_of(obj)
+    if pipeline is not None:
+        source = model_class.objects.get(pk=instance.pk)
+        declared = {f.name: f for f in obj._meta.concrete_fields}
+        for field_name in pipeline.produced_fields(source):
+            if field_name in declared:
+                setattr(obj, field_name, None if declared[field_name].null else '')
 
     obj.save()
     if received:

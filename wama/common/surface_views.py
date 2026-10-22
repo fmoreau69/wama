@@ -4,7 +4,9 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
   page    GET   /common/surface/<app>/<clé>/<pk>/        la page : grille des briques
   data    GET   …/data/                                  ce que les briques lisent (JSON)
                 …/data/?only=rhythm&role=<rôle>          la grille des temps d'un audio lu
-                …/data/?only=peaks&role=<rôle>[&poll=1]  les pics fins d'un média lu (état ou pics)
+                …/data/?only=peaks&role=<rôle>[&source=<process>][&poll=1]
+                                                         les pics fins d'un média lu (état ou pics) —
+                                                         de l'une de ses versions (`sources_of`)
   save    POST  …/save/                                  le champ édité, validé par la surface
   layout  POST  /common/surface/<app>/<clé>/layout/      la disposition de l'UTILISATEUR (places,
                                                          figée ou non) — un réglage par compte
@@ -169,12 +171,18 @@ def surface_data(request, app: str, key: str, pk: int):
         # Les PICS FINS d'un média lu (service commun `waveform.dense_peaks`) : mis en file s'ils
         # manquent ; un échec se retente à la 1ʳᵉ demande d'une page, pas pendant qu'elle interroge.
         from wama.common.utils.waveform import dense_peaks
-        field_name = found.reads.get(request.GET.get('role') or '')
+        role = request.GET.get('role') or ''
+        field_name = found.reads.get(role)
         value = getattr(item, field_name, None) if field_name and field_name not in found.documents else None
-        return JsonResponse(dense_peaks(getattr(value, 'name', '') or '',
-                                        retry_failed=not request.GET.get('poll')))
+        name = getattr(value, 'name', '') or ''
+        source = request.GET.get('source') or ''
+        if source:
+            # Une VERSION du média lu (une sortie de process, `Surface.sources_of`) : seulement
+            # l'une de celles que la surface propose — jamais un champ nommé par la page.
+            name = next((s['name'] for s in found.sources_of(item, role) if s['key'] == source), '')
+        return JsonResponse(dense_peaks(name, retry_failed=not request.GET.get('poll')))
     from wama.common.services.edit_lock import state_token
-    reads, media = {}, {}
+    reads, media, sources = {}, {}, {}
     for role, field_name in found.reads.items():
         value = getattr(item, field_name, None)
         if role in found.documents:
@@ -187,15 +195,20 @@ def surface_data(request, app: str, key: str, pk: int):
             peaks = _server_peaks(reads[role])
             if peaks:
                 media[role] = peaks
+            versions = _sources(found, item, role)
+            if versions:
+                sources[role] = versions
     if request.GET.get('only') == 'state':
         # Le SUIVI d'un process rejoué (« Appliquer ») : ce que les briques relisent, sans la
         # valeur éditée — que la page tient déjà, et qui peut peser un document entier.
-        return JsonResponse({'reads': reads, 'media': media, 'processes': _process_states(item)})
+        return JsonResponse({'reads': reads, 'media': media, 'sources': sources,
+                             'processes': _process_states(item)})
     value = _value_of(found, item)
     return JsonResponse({
         'processes': _process_states(item),
         'reads': reads,
         'media': media,
+        'sources': sources,
         'value': value,
         'context': found.context_of(item),
         'settings': _settings_of(found, item) if found.settings else None,
@@ -268,6 +281,21 @@ def _process_states(item) -> dict:
         return {key: row.status for key, row in pipeline.rows(item).items()}
     except Exception:
         return {}
+
+
+def _sources(found, item, role: str) -> list:
+    """Les versions du média lu sous `role` (`Surface.sources_of`), servies : `[{key, label, url,
+    peaks?}]` — les pics serveur d'un long audio, comme ceux du rôle (`media`)."""
+    from django.core.files.storage import default_storage
+    out = []
+    for version in found.sources_of(item, role):
+        url = default_storage.url(version['name'])
+        entry = {'key': version['key'], 'label': version['label'], 'url': url}
+        peaks = _server_peaks(url)
+        if peaks:
+            entry['peaks'] = peaks
+        out.append(entry)
+    return out
 
 
 def _server_peaks(url: str):

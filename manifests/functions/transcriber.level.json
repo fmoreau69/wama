@@ -1,0 +1,54 @@
+{
+  "body": {
+    "app": "transcriber",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "transcriber.workers:transcribe",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio (ou la vidéo) à niveler.",
+        "group": "travail",
+        "key": "work_audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "transcriber.level",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "L'audio nivelé, mono 16 kHz.",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "speech"
+    ]
+  },
+  "description": "Amène chaque voix au même niveau tout au long de l'audio, sans jamais abaisser le niveau d'ensemble (brique commune `speech_leveling`). L'audio nivelé est gardé sur la card : c'est lui que la transcription écoute.",
+  "key": "transcriber.level",
+  "manifest_kind": "function",
+  "name": "Transcriber — niveler la parole",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:transcriber.level",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

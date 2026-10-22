@@ -371,10 +371,10 @@ class TheFlagSaysWhatTheCatalogueSaysTest(SimpleTestCase):
 
 class TheLaunchRemembersAcrossDeliveriesTest(_Base):
     """2026-10-21, transcriber #2522 — a re-delivered task runs its next process in ANOTHER
-    worker: what the launch decided and prepared must not be redone there. The audio was leveled
-    twice (~110 s each on 141 min) and an « auto » model was drawn at every delivery. The skeleton
-    keeps the launch's model and memory under its task id (`task.retry` keeps it), and removes the
-    launch's temporary files at its REAL end only."""
+    worker: what the launch decided must not be redone there — an « auto » model was drawn at
+    every delivery. The skeleton keeps the launch's model and memory under its task id
+    (`task.retry` keeps it) and forgets them at its REAL end only. (The audio leveled twice is
+    held otherwise since the same day: the leveled audio is the declared output of a process.)"""
 
     def _deliveries(self, item, first_glue, second_glue, model_key=None):
         from wama.common.utils.task_skeleton import run_item_task
@@ -390,13 +390,6 @@ class TheLaunchRemembersAcrossDeliveriesTest(_Base):
                           processes={'convert': first_glue, 'enhance': second_glue})
         return self.model.objects.get(pk=item.pk)
 
-    def _temporary(self):
-        import tempfile
-        handle, path = tempfile.mkstemp(suffix='_prepared.wav')
-        os.close(handle)
-        self.addCleanup(lambda: os.path.exists(path) and os.remove(path))
-        return path
-
     def test_the_drawn_model_is_not_drawn_again_by_the_next_delivery(self):
         draws, seen = iter(['family:a', 'family:b']), []
 
@@ -411,58 +404,57 @@ class TheLaunchRemembersAcrossDeliveriesTest(_Base):
         self.assertEqual(['family:a', 'family:a'], seen,
                          'a second draw could decide otherwise about the next processes')
 
-    def test_what_a_process_prepared_is_found_by_the_next_one_and_removed_at_the_end(self):
-        path, found = self._temporary(), []
+    def test_what_a_process_decided_is_found_by_the_next_one_and_forgotten_at_the_end(self):
+        found = []
 
-        def prepare(element, ctx):
-            ctx.remember('prepared_audio', path)
-            ctx.keep_file(path)
+        def decide(element, ctx):
+            ctx.remember('language', 'fr')
             return {}
 
         def reuse(element, ctx):
-            found.append((ctx.recall('prepared_audio'), os.path.exists(path)))
+            found.append(ctx.recall('language'))
             return {}
-        item = self._deliveries(self._element('launch_file'), prepare, reuse)
+        item = self._deliveries(self._element('launch_fact'), decide, reuse)
         self.assertEqual('SUCCESS', item.status)
-        self.assertEqual([(path, True)], found, 'the re-delivery lost what the launch prepared')
-        self.assertFalse(os.path.exists(path), 'the launch ended: its temporary file goes')
+        self.assertEqual(['fr'], found, 'the re-delivery lost what the launch decided')
         from wama.common.utils.task_skeleton import _launch_key
         from django.core.cache import cache
-        self.assertIsNone(cache.get(_launch_key(self.app, item.pk)))
+        self.assertIsNone(cache.get(_launch_key(self.app, item.pk)), 'the launch ended: forgotten')
 
-    def test_a_failed_launch_removes_its_files_too(self):
-        path = self._temporary()
+    def test_a_failed_launch_is_forgotten_too(self):
+        from django.core.cache import cache
+        from wama.common.utils.task_skeleton import _launch_key, run_item_task
 
-        def prepare(element, ctx):
-            ctx.keep_file(path)
+        def decide(element, ctx):
+            ctx.remember('language', 'fr')
             raise RuntimeError('boom')
-        from wama.common.utils.task_skeleton import run_item_task
         item = self._element('launch_fails')
         task, _sent = _task()
         with mock.patch.object(gov, 'effective_free_gb', return_value=24.0):
             run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
                           pipeline=self.pipeline,
-                          processes={'convert': prepare, 'enhance': self._glue('enhance')})
+                          processes={'convert': decide, 'enhance': self._glue('enhance')})
         self.assertEqual('FAILURE', self.model.objects.get(pk=item.pk).status)
-        self.assertFalse(os.path.exists(path))
+        self.assertIsNone(cache.get(_launch_key(self.app, item.pk)))
 
     def test_a_new_launch_recalls_nothing_and_clears_an_interrupted_one(self):
         from django.core.cache import cache
         from wama.common.utils.task_skeleton import _launch_key, run_item_task
-        path, recalled = self._temporary(), []
+        recalled = []
         item = self._element('launch_stale')
         cache.set(_launch_key(self.app, item.pk),
-                  {'task': 'killed-worker', 'facts': {'prepared_audio': path}, 'files': [path]})
+                  {'task': 'killed-worker', 'facts': {'language': 'de'}})
 
         def glue(element, ctx):
-            recalled.append(ctx.recall('prepared_audio'))
+            recalled.append(ctx.recall('language'))
             return {}
         task, _sent = _task()
         with mock.patch.object(gov, 'effective_free_gb', return_value=24.0):
             run_item_task(task, app_id=self.app, model=self.model, item_id=item.pk,
                           pipeline=self.pipeline, processes={'convert': glue, 'enhance': glue})
         self.assertEqual([None, None], recalled, 'another launch reuses nothing')
-        self.assertFalse(os.path.exists(path), 'the interrupted launch left its file behind')
+        self.assertIsNone(cache.get(_launch_key(self.app, item.pk)),
+                          'the interrupted launch left its memory behind')
 
     def test_outside_a_worker_nothing_is_remembered(self):
         from wama.common.utils.task_skeleton import TaskContext

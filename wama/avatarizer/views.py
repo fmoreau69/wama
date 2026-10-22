@@ -464,7 +464,7 @@ def duplicate(request, pk):
         job,
         for_user=user,
         reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
-        clear_fields=['output_video'],
+        # La vidéo (et l'audio d'un job « pipeline ») : ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
     )
 
     # Le lot d'origine n'accueille que la copie de SA PROPRE card : celle d'une card reçue est à
@@ -991,7 +991,7 @@ def _derive_quality_mode(job):
 _bv = make_batch_views(
     work_model=AvatarJob, batch_model=BatchAvatarJob, get_user=_get_user,
     task_for=_task_for,
-    output_fields=('output_video',), output_field='output_video',
+    output_field='output_video',
     params_fields=SETTINGS_FIELDS, schema=_SCHEMA, after_update=_derive_quality_mode,
     item_model=BatchAvatarJobItem, fk_name='job',
     read_lookup=lambda user, pk: visible_or_404(BatchAvatarJob, user, pk=pk),

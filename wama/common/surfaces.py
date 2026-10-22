@@ -407,6 +407,41 @@ class Surface:
             pass
         return ' ou '.join(f'« {label} »' for label in (labels or self.fields))
 
+    def sources_of(self, item, role: str) -> list:
+        """Les VERSIONS d'un média lu entre lesquelles la page laisse choisir ce qu'on écoute
+        (2026-10-21, demande de Fabien : « se rendre compte à l'oreille de l'amélioration ») :
+        `[{key, label, name}]` — le champ du rôle d'abord (`key` vide ; « Original », ou le
+        libellé du process qui l'écrit), puis chaque sortie de process du pipeline de l'élément
+        du TYPE que consomment les briques qui lisent ce rôle (`UIBrick.consumes`, l'audio pour le
+        transport et la ligne de temps), quand son process a lieu et l'a rendue (`output_of`).
+        Dérivées des déclarations, comme les faces de l'aperçu : aucune app ne les nomme. [] quand
+        il n'y a rien à choisir (une seule version)."""
+        field_name = self.reads.get(role)
+        if not field_name or role in self.documents or role in self.texts:
+            return []
+        kinds = {kind for slot in self.slots if (slot.options or {}).get('role') == role
+                 for kind in BRICKS[slot.brick].consumes}
+        try:
+            from wama.common.services.process_pipeline import pipeline_of
+            pipeline = pipeline_of(item)
+        except Exception:
+            pipeline = None
+        if pipeline is None or not kinds:
+            return []
+        own = getattr(getattr(item, field_name, None), 'name', '') or ''
+        producer = next((spec for spec in pipeline.specs if field_name in spec.outputs), None)
+        found = ([{'key': '', 'label': (producer.label or producer.key) if producer else 'Original',
+                   'name': own}] if own else [])
+        seen = {own}
+        for spec in pipeline.ordered():
+            if pipeline.output_type(spec) not in kinds:
+                continue
+            name = pipeline.output_of(item, spec.key)
+            if name and name not in seen:
+                seen.add(name)
+                found.append({'key': spec.key, 'label': spec.label or spec.key, 'name': name})
+        return found if len(found) > 1 else []
+
     def bricks(self) -> list:
         return [BRICKS[slot.brick] for slot in self.slots]
 

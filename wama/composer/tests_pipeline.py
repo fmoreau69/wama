@@ -98,6 +98,13 @@ class PlanThenRenderTest(TestCase):
         self.addCleanup(media.disable)
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.user = get_user_model().objects.create_user('composer_pipeline', password='x')
+        # Les moteurs se résolvent pendant TOUT le test, comme le catalogue le fait en service :
+        # l'état d'une card se lit au modèle qu'elle demande (`AppPipeline.still_counts`,
+        # 2026-10-21) — hors de ce faux catalogue, la partition « n'aurait plus lieu ».
+        engines = mock.patch('wama.common.backends.manager.backend_for_key',
+                             side_effect=lambda key: ENGINES.get(key))
+        engines.start()
+        self.addCleanup(engines.stop)
         _ScoreEngine.built, _ScoreEngine.plans, _ScoreEngine.renders = 0, [], []
         _ScoreEngine.unloaded, _ScoreEngine.error = 0, None
         _PlainEngine.renders = []
@@ -523,6 +530,27 @@ class TheRunButtonPerProcessTest(TestCase):
             r = client.post(reverse('composer:start_process', args=[gen.pk, process]))
         gen.refresh_from_db()
         return r, sent
+
+    def test_a_duplicate_starts_without_any_output_of_its_processes(self):
+        """⧉ « Dupliquer » : la copie repart sans résultat — rendu, partitions écrite, extraite et
+        complète (`parts_score` manquait à `clear_fields` jusqu'au 2026-10-21)."""
+        from django.contrib.auth.models import Group
+        from django.test import Client
+        from django.urls import reverse
+        from wama.accounts.permissions import GROUP_PREFIX
+        gen = self._run(self._generation())
+        parts = gen.planned_score.name.replace('.abc', '_parts.abc')
+        ComposerGeneration.objects.filter(pk=gen.pk).update(parts_score=parts)
+        # La partition complète, rendue par SON process (une ligne qui la désigne) — l'option est
+        # retirée depuis : c'est un ancien résultat, que la copie ne garde pas non plus.
+        process_runs.succeed(gen, 'parts', output_ref=parts)
+        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}communication')[0])
+        client = Client(HTTP_HOST='localhost')
+        client.force_login(self.user)
+        self.assertEqual(200, client.post(reverse('composer:duplicate', args=[gen.pk])).status_code)
+        copy = ComposerGeneration.objects.exclude(pk=gen.pk).get(user=self.user)
+        self.assertEqual([], [f for f in ('audio_output', 'planned_score', 'extracted_score',
+                                          'parts_score') if getattr(copy, f)])
 
     def test_the_strip_carries_a_run_button_per_process(self):
         gen = self._run(self._generation())

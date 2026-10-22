@@ -4,9 +4,14 @@
 un registre de process en code, chaque process un `FunctionSpec binding: app`, le registre
 exporté en manifeste `pipeline`. `load_all()` importe ce module ; `workers.py` en lit `PIPELINE`.
 
-SIX process (point 3.2 de la route : « une app Médias = `required` + `optional` ») :
-  • `transcribe` — l'audio → le texte et ses segments horodatés (prétraitements compris :
-    nivellement, débruitage, filtre de parole, langue). REQUIS pour une card sans document.
+HUIT process (point 3.2 de la route : « une app Médias = `required` + `optional` ») :
+  • `level`      — l'audio → la parole nivelée, GARDÉE sur la card (`leveled_audio`). OPTIONNEL :
+    quand la card le demande, ou demande le débruitage (qui n'écoute jamais un audio non nivelé).
+  • `denoise`    — l'audio nivelé → débruité (DeepFilterNet), GARDÉ (`denoised_audio`). OPTIONNEL,
+    interrupteur `preprocess_audio`. Ces deux-là se faisaient DANS `transcribe` jusqu'au
+    2026-10-21, dans un fichier temporaire (`split_from`, `ROUTE §10.6` 4.6).
+  • `transcribe` — l'audio préparé par ses amonts → le texte et ses segments horodatés (filtre de
+    parole et langue compris). REQUIS pour une card sans document.
   • `import`     — le document posé sur la card (port `work_result` : SRT, VTT, Sonal, texte)
     TIENT LIEU de transcription : relu, ancré sur les mots d'une sortie ASR s'il n'a pas
     d'heures, jamais retranscrit. REQUIS pour une card qui porte un document. `transcribe` et
@@ -77,16 +82,49 @@ def _align_applies(transcript, model_key=None) -> bool:
     return bool(document) and os.path.splitext(document.name)[1].lower() not in TIMED_EXTENSIONS
 
 
+def _levels(transcript, model_key=None) -> bool:
+    """La parole est nivelée quand on la transcrit et que la card le demande — ou qu'elle demande
+    le débruitage, qui n'écoute JAMAIS un audio non nivelé (banc du 2026-10-01, `WAMA_QUALITE
+    §9bis` : DeepFilterNet efface une parole enregistrée bas)."""
+    return _transcribes(transcript) and bool(getattr(transcript, 'level_speech', False)
+                                              or getattr(transcript, 'preprocess_audio', False))
+
+
+def _denoises(transcript, model_key=None) -> bool:
+    return _transcribes(transcript)
+
+
 def _diarize_applies(transcript, model_key) -> bool:
     # Un document repris n'a pas de moteur : l'interrupteur de la card décide seul.
     return _has_existing_result(transcript) or not diarizes_natively(model_key)
 
 
 register(FunctionSpec(
+    key='transcriber.level', name='Transcriber — niveler la parole',
+    description="Amène chaque voix au même niveau tout au long de l'audio, sans jamais abaisser "
+                "le niveau d'ensemble (brique commune `speech_leveling`). L'audio nivelé est gardé "
+                "sur la card : c'est lui que la transcription écoute.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'speech'],
+    inputs=[PortSpec('work_audio', 'audio', description="L'audio (ou la vidéo) à niveler.")],
+    outputs=[PortSpec('audio', 'audio', description="L'audio nivelé, mono 16 kHz.")]))
+
+register(FunctionSpec(
+    key='transcriber.denoise', name='Transcriber — débruiter',
+    description="Débruite l'audio nivelé par le modèle du catalogue (DeepFilterNet), pour les fonds "
+                "très bruyants. L'audio débruité est gardé sur la card : c'est lui que la "
+                "transcription écoute.",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'speech', 'gpu'],
+    inputs=[PortSpec('audio', 'audio', description="L'audio nivelé.")],
+    outputs=[PortSpec('audio', 'audio', description="L'audio débruité, mono 16 kHz.")]))
+
+register(FunctionSpec(
     key='transcriber.transcribe', name='Transcriber — transcrire',
     description="Transcrit la parole d'un audio (ou de la piste son d'une vidéo) en texte "
-                "horodaté, avec le modèle de la card ou le tirage automatique. Nivellement, "
-                "débruitage, filtre de parole et choix de la langue en font partie.",
+                "horodaté, avec le modèle de la card ou le tirage automatique — l'audio nivelé ou "
+                "débruité quand la card le demande. Filtre de parole et choix de la langue en "
+                "font partie.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'speech', 'gpu'],
     inputs=[PortSpec('work_audio', 'audio', description="L'audio (ou la vidéo) à transcrire.")],
@@ -163,7 +201,22 @@ def _requested_model(t):
 #: tient pas la carte (`ProcessSpec.card_model`, 2026-10-14). Les autres process GPU gardent leur
 #: modèle local (alignement, locuteurs, résumé et cohérence par l'Ollama hôte).
 PIPELINE = register_app_pipeline(_APP, (
-    ProcessSpec('transcribe', label='Transcription',
+    # La PRÉPARATION de l'audio (2026-10-21, décision de Fabien : « rendre le pré-traitement en
+    # tant que process déclaré ») : faite jusque-là DANS `transcribe`, dans un fichier temporaire.
+    # Deux process, parce qu'ils ne tiennent pas les mêmes ressources : le nivellement est un
+    # calcul sur le signal (file par défaut — une transcription distante n'en change pas de file),
+    # le débruitage charge un modèle sur la carte. Chacun GARDE son audio (`outputs`) : la
+    # transcription et les locuteurs l'écoutent (`upstream_output`), l'aperçu et la page de
+    # correction le font entendre. `split_from` : une transcription rendue avant le détachement
+    # l'a fait en elle-même — elle vaut pour eux tant que leurs réglages n'ont pas changé.
+    ProcessSpec('level', label='Nivellement', degree=OPTIONAL, applies=_levels, share=2,
+                outputs=('leveled_audio',), split_from='transcribe',
+                eta='transcriber.workers:level_eta'),
+    ProcessSpec('denoise', label='Débruitage', depends_on=('level',), degree=OPTIONAL,
+                toggle='preprocess_audio', applies=_denoises, gpu=True, share=2,
+                outputs=('denoised_audio',), split_from='transcribe',
+                eta='transcriber.workers:denoise_eta'),
+    ProcessSpec('transcribe', label='Transcription', depends_on=('level', 'denoise'),
                 applies=_transcribes, gpu=True, card_model=True, share=17,
                 eta='transcriber.workers:transcribe_eta',
                 result=f'{_DOCUMENTS}:transcription_text'),
@@ -188,6 +241,7 @@ PIPELINE = register_app_pipeline(_APP, (
                 degree=OPTIONAL, toggle='verify_coherence', gpu=True, share=1,
                 eta='transcriber.workers:coherence_eta', result=f'{_DOCUMENTS}:coherence_report',
                 result_format='coherence'),
-), label='Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence',
+), label='Transcriber — nivellement, débruitage, transcription ou import, alignement, '
+         'locuteurs, résumé, cohérence',
    source_ref='transcriber.function_specs:PIPELINE',
    model_of=lambda t: _requested_model(t))

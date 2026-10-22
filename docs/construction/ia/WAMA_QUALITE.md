@@ -1132,6 +1132,12 @@ cards diffèrent de QUATRE choses à la fois :
   Sur Bonneuil, rien ne change (aucune baisse, crête déjà à −0,2 dBFS). ⚠ Les mesures du banc
   ci-dessus ont été faites AVANT : sur un audio fort, la brique d'aujourd'hui n'est plus celle
   mesurée — Whisper étant peu sensible au gain global, l'effet attendu est nul, NON remesuré.
+- ✅ **L'écoute, posée le même soir** (demande de Fabien : « se rendre compte à l'oreille ») : le
+  nivellement et le débruitage sont deux PROCESS déclarés du transcriber, qui gardent leur audio
+  sur la card (`ROUTE §10.6` 4.6) — l'aperçu en a une face chacun, la page de correction propose
+  « Écouter : Original / Nivellement / Débruitage ». Un débruiteur absent fait échouer SA ligne au
+  lieu de rendre l'audio non débruité en silence. ⚠ Pour un banc, chaque version est désormais un
+  fichier de la card : les comparer à l'oreille ne demande plus de les refaire.
 
 **Suite (2026-10-01, soir) — trois moteurs de plus, exécutables, PAS encore évalués.** LinTO FR
 (NeMo), FrWhisper et Kyutai STT 1B fr/en sont intégrés par les rôles (chaîne et trous :

@@ -3,6 +3,21 @@
     "layout": {},
     "links": [
       {
+        "from": "level",
+        "to": "denoise",
+        "to_port": null
+      },
+      {
+        "from": "level",
+        "to": "transcribe",
+        "to_port": null
+      },
+      {
+        "from": "denoise",
+        "to": "transcribe",
+        "to_port": null
+      },
+      {
         "from": "import",
         "to": "align",
         "to_port": null
@@ -61,6 +76,45 @@
     "nodes": [
       {
         "app": null,
+        "function": "transcriber.level",
+        "id": "level",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "transcriber.workers:level_eta",
+          "gpu": false,
+          "label": "Nivellement",
+          "outputs": [
+            "leveled_audio"
+          ],
+          "share": 2,
+          "watched": [
+            "level_speech"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "transcriber.denoise",
+        "id": "denoise",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "transcriber.workers:denoise_eta",
+          "gpu": true,
+          "label": "Débruitage",
+          "outputs": [
+            "denoised_audio"
+          ],
+          "share": 2,
+          "toggle": "preprocess_audio",
+          "watched": []
+        }
+      },
+      {
+        "app": null,
         "function": "transcriber.transcribe",
         "id": "transcribe",
         "kind": "function",
@@ -76,8 +130,6 @@
           "watched": [
             "backend",
             "hotwords",
-            "preprocess_audio",
-            "level_speech",
             "vad_mode",
             "language_mode"
           ]
@@ -174,7 +226,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "transcriber",
   "manifest_kind": "pipeline",
-  "name": "Transcriber — transcription ou import, alignement, locuteurs, résumé, cohérence (6 process)",
+  "name": "Transcriber — nivellement, débruitage, transcription ou import, alignement, locuteurs, résumé, cohérence (8 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

@@ -288,6 +288,144 @@ class WhatALaunchReplaysTest(TestCase):
         self.assertEqual({'render'}, pipeline.refresh(item))
 
 
+class AnUpstreamThatNoLongerTakesPlaceTest(WhatALaunchReplaysTest):
+    """2026-10-21 — measured before the fix: an upstream that stops taking place for the element
+    (the leveling unticked, the cover audio removed) kept its line, made stale by the setting that
+    removed it — and its downstream, replayed without it, was stale again at every read (`refresh`
+    → {'render'} after the relaunch, the card « stale » for ever). A line counts as long as the
+    ELEMENT asks for its process (`still_counts`) ; the downstream that read it is stale ONCE."""
+
+    def _prepared(self):
+        return AppPipeline('demo_pipeline', (
+            ProcessSpec('prep', watched=('level',), applies=lambda item, mk: bool(item.level)),
+            ProcessSpec('render', depends_on=('prep',), watched=('prompt',)),
+        ), label='Demo', model_of=lambda item: 'any')
+
+    def test_the_downstream_is_stale_once_and_valid_again_once_replayed_without_it(self):
+        pipeline, item = self._prepared(), _Element(level=True)
+        self._played(pipeline, item, 'prep', self._output(f'prep{item.pk}.wav', 'RIFF1'))
+        self._played(pipeline, item, 'render', self._output(f'out{item.pk}.txt', 'A'))
+        item.level = False
+        self.assertEqual({'render'}, pipeline.refresh(item), 'it was rendered from the prep')
+        self.assertEqual(['render'], _keys(pipeline.steps_to_run(item, 'any')))
+        self._played(pipeline, item, 'render', self._output(f'out{item.pk}.txt', 'B'))
+        self.assertEqual(set(), pipeline.refresh(item))
+        self.assertEqual(JOB_SUCCESS, pipeline.card_state(item))
+        self.assertEqual(['render'], [row['key'] for row in pipeline.card_rows(item, 'any')],
+                         'the strip no longer shows a process the element no longer plays')
+
+    def test_under_a_model_not_drawn_yet_only_the_switch_judges(self):
+        """« auto » before the draw : `requested_model` is None — the line is not guessed away."""
+        pipeline, item = self._prepared(), _Element(level=True)
+        self._played(pipeline, item, 'prep', self._output(f'prep{item.pk}.wav', 'RIFF1'))
+        self.assertTrue(pipeline.still_counts(pipeline.spec('prep'), _Element(level=False), None))
+
+    def test_what_is_installed_does_not_judge_a_result(self):
+        """Uninstalling a model does not change the card: its results stand."""
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('prep', available=lambda: False),
+            ProcessSpec('render', depends_on=('prep',)),
+        ), label='Demo')
+        self.assertTrue(pipeline.still_counts(pipeline.spec('prep'), _Element(), 'any'))
+        self.assertFalse(pipeline.takes_place(pipeline.spec('prep'), _Element(), 'any'))
+
+
+class WhatADownstreamReadsTest(SimpleTestCase):
+    """`AppPipeline.output_of` / `upstream_output` (2026-10-21) : a downstream reads the output of
+    its upstream by ONE gesture — the file, while its process takes place — and the data follows
+    the declared links: the nearest upstream that rendered the asked type, the one before it when
+    it rendered nothing (its process failed), the card's input when none did."""
+
+    class _File:
+        def __init__(self, name):
+            self.name = name
+
+    def _chain(self):
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('level', applies=lambda item, mk: item.level, outputs=('leveled',)),
+            ProcessSpec('denoise', depends_on=('level',), degree='optional', toggle='denoise_on',
+                        outputs=('denoised',)),
+            ProcessSpec('transcribe', depends_on=('level', 'denoise')),
+            ProcessSpec('speakers', depends_on=('transcribe',)),
+        ), label='Demo')
+        types = {'level': 'audio', 'denoise': 'audio', 'transcribe': 'document'}
+        patcher = mock.patch.object(AppPipeline, 'output_type',
+                                    lambda self, spec: types.get(spec.key, ''))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        return pipeline
+
+    def test_the_nearest_upstream_that_rendered_the_type_is_read(self):
+        pipeline = self._chain()
+        item = _Element(level=True, denoise_on=True, leveled=self._File('l.wav'),
+                        denoised=self._File('d.wav'))
+        self.assertEqual('d.wav', pipeline.upstream_output(item, 'transcribe', 'audio'))
+        self.assertEqual('d.wav', pipeline.upstream_output(item, 'speakers', 'audio'),
+                         'through the transcription, which renders no audio')
+        item.denoised = None                      # the denoising failed: its field stayed empty
+        self.assertEqual('l.wav', pipeline.upstream_output(item, 'transcribe', 'audio'))
+
+    def test_an_upstream_that_does_not_take_place_is_never_read_even_with_its_old_file(self):
+        pipeline = self._chain()
+        item = _Element(level=False, denoise_on=False, leveled=self._File('old.wav'),
+                        denoised=None)
+        self.assertEqual('', pipeline.output_of(item, 'level'))
+        self.assertEqual('', pipeline.upstream_output(item, 'transcribe', 'audio'),
+                         'the card input, then')
+
+
+class AProcessSplitFromItsDownstreamTest(WhatALaunchReplaysTest):
+    """`ProcessSpec.split_from` (2026-10-21, the leveling taken out of the transcription) : a
+    downstream line rendered BEFORE the split did the work itself — its photo still holds the
+    settings of the split process. It stands for it while they did not change: an old card is
+    not transcribed again for a changed kind of summary."""
+
+    def _split(self):
+        return AppPipeline('demo_pipeline', (
+            ProcessSpec('prep', watched=('level',), split_from='render'),
+            ProcessSpec('render', depends_on=('prep',), watched=('prompt',)),
+            ProcessSpec('summary', depends_on=('render',), watched=('kind',)),
+        ), label='Demo')
+
+    def _old_card(self, pipeline):
+        item = _Element(level=True, kind='short')
+        before = AppPipeline('demo_pipeline', (
+            ProcessSpec('render', watched=('prompt', 'level')),
+            ProcessSpec('summary', depends_on=('render',), watched=('kind',)),
+        ), label='Demo')
+        self._played(before, item, 'render', self._output(f'out{item.pk}.txt', 'A'))
+        self._played(before, item, 'summary', self._output(f'sum{item.pk}.txt', 'S'))
+        return item
+
+    def test_the_old_line_stands_for_the_split_process(self):
+        pipeline = self._split()
+        item = self._old_card(pipeline)
+        self.assertEqual(set(), pipeline.refresh(item))
+        item.kind = 'long'
+        self.assertEqual(['summary'], _keys(pipeline.steps_to_run(item, 'any')),
+                         'the old render did the prep itself: neither is replayed')
+        rows = {row['key']: row for row in pipeline.card_rows(item, 'any')}
+        self.assertEqual(JOB_SUCCESS, rows['prep']['status'])
+        self.assertIn('« render »', rows['prep']['output_label'], 'the strip says where it was done')
+
+    def test_a_changed_setting_of_the_split_process_stales_the_old_line(self):
+        pipeline = self._split()
+        item = self._old_card(pipeline)
+        item.level = False
+        self.assertEqual({'render', 'summary'}, pipeline.refresh(item))
+        self.assertEqual(['prep', 'render', 'summary'], _keys(pipeline.steps_to_run(item, 'any')))
+
+    def test_a_line_rendered_after_the_split_holds_nothing(self):
+        pipeline, item = self._split(), _Element(level=True, kind='short')
+        self._played(pipeline, item, 'render', self._output(f'out{item.pk}.txt', 'A'))
+        self.assertEqual(['prep', 'render', 'summary'], _keys(pipeline.steps_to_run(item, 'any')))
+
+    def test_the_split_process_must_be_an_upstream_of_its_origin(self):
+        with self.assertRaisesMessage(ValueError, 'split_from'):
+            AppPipeline('demo', (ProcessSpec('prep', split_from='render'),
+                                 ProcessSpec('render')), label='x')
+
+
 class AResultOlderThanThePipelineTest(TestCase):
     """2026-10-13 — Fabien's transcript #739 (28/09) predates the transcriber pipeline (03/10): no
     line, so nothing was « up to date » and the ▶ of « Locuteurs » re-listened to the whole audio.
@@ -974,6 +1112,95 @@ class InputsThePipelineBringsTest(SimpleTestCase):
     def test_availability_never_reaches_the_manifest(self):
         declared = [node['process'] for node in self._pipeline().graph()['nodes']]
         self.assertTrue(all('available' not in p for p in declared), declared)
+
+
+class ADuplicateStartsWithoutWhatItsProcessesWroteTest(TestCase):
+    """`duplicate_instance` + `AppPipeline.produced_fields` (2026-10-21) : a copy SHARES what the
+    user gave (the brick's contract) and starts without what the source's processes WROTE — the
+    declared output of a process that takes place, or that one of its lines rendered. Every app's
+    views copied these lists by hand, twice (card view, batch factory), and they had drifted
+    (`parts_score`). A declared output is not always a result: the audio of an avatarizer job is
+    `speak`'s output in « pipeline » mode, and the user's own audio in « standalone » mode."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from wama.common.catalog.function_catalog import load_all
+        load_all()
+        self.user = get_user_model().objects.create_user('duplicate_produced', password='x')
+
+    def _filled(self, model, **fields):
+        item = _instance(model, self.user)
+        names = [f.name for f in model._meta.concrete_fields
+                 if f.get_internal_type() in ('FileField', 'ImageField')]
+        model.objects.filter(pk=item.pk).update(
+            **{n: f'users/{self.user.pk}/{n}_{item.pk}.bin' for n in names}, **fields)
+        item.refresh_from_db()
+        return item, names
+
+    def test_every_app_with_a_pipeline_drops_what_it_produced_and_shares_the_rest(self):
+        from wama.common.utils.preview_registry import PreviewRegistry
+        from wama.common.utils.queue_duplication import duplicate_instance
+        produced_somewhere = []
+        for app, pipeline in APP_PIPELINES.items():
+            model = PreviewRegistry.get_model(app)
+            if model is None:
+                continue
+            with self.subTest(app=app):
+                item, names = self._filled(model)
+                produced = pipeline.produced_fields(item)
+                copy = duplicate_instance(item)
+                self.assertEqual([], [n for n in produced if getattr(copy, n)],
+                                 'the copy keeps a result of the source')
+                self.assertEqual([], [n for n in names if n not in produced
+                                      and getattr(copy, n).name != getattr(item, n).name],
+                                 'the copy lost something the user gave')
+                produced_somewhere += produced
+        self.assertTrue(produced_somewhere, 'nothing produced anywhere: the guard measures nothing')
+
+    def test_the_avatar_s_audio_goes_when_spoken_and_stays_when_given(self):
+        from wama.avatarizer.models import AvatarJob
+        from wama.common.utils.queue_duplication import duplicate_instance
+        spoken, _ = self._filled(AvatarJob, mode='pipeline')
+        given, _ = self._filled(AvatarJob, mode='standalone')
+        self.assertFalse(duplicate_instance(spoken).audio_input, 'the TTS audio is a result')
+        self.assertEqual(given.audio_input.name, duplicate_instance(given).audio_input.name,
+                         "the user's own audio is an input: the copy keeps it")
+
+    def test_an_old_result_goes_even_when_its_process_no_longer_takes_place(self):
+        from wama.common.utils.queue_duplication import duplicate_instance
+        from wama.transcriber.models import Transcript
+        item, _ = self._filled(Transcript, level_speech=False, preprocess_audio=False)
+        process_runs.succeed(item, 'level', output_ref=item.leveled_audio.name)
+        self.assertIn('leveled_audio', APP_PIPELINES['transcriber'].produced_fields(item))
+        self.assertFalse(duplicate_instance(item).leveled_audio)
+
+    def test_no_duplicate_list_names_a_field_the_pipeline_derives(self):
+        """One path: a view's `clear_fields` / `output_fields` names only what no process declares
+        (a text, an error message) — never a declared output, which the brick derives. The sandbox
+        twins are generated: the generator derives its own list (`views_gen.champs_sortie`, file
+        fields minus input ports) — aligning it on the brick is a named rest (`ROUTE §10.6` 4.6)."""
+        import ast
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.sandbox import sandbox_labels
+        twins = set(sandbox_labels())
+        found = []
+        for app, pipeline in APP_PIPELINES.items():
+            if app in twins:
+                continue
+            declared = {f for spec in pipeline.specs for f in spec.outputs}
+            views = Path(settings.BASE_DIR) / 'wama' / app / 'views.py'
+            if not declared or not views.exists():
+                continue
+            for node in ast.walk(ast.parse(views.read_text(encoding='utf-8'))):
+                if isinstance(node, ast.keyword) and node.arg in ('clear_fields', 'output_fields'):
+                    try:
+                        listed = set(ast.literal_eval(node.value))
+                    except ValueError:
+                        found.append(f'{app}: {node.arg} non littéral ({ast.unparse(node.value)})')
+                        continue
+                    found += [f'{app}: {node.arg} nomme {f}' for f in sorted(listed & declared)]
+        self.assertEqual([], found)
 
 
 class EveryAppPipelineTest(SimpleTestCase):

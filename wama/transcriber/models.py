@@ -2,7 +2,7 @@ from functools import cached_property
 
 from django.db import models
 from django.contrib.auth.models import User
-from wama.common.utils.media_paths import upload_to_user_input
+from wama.common.utils.media_paths import upload_to_user_input, upload_to_user_output
 from wama.common.models import ProcessingTimeMixin, ScopedManager, ScopedVisibility, JOB_STATUS_CHOICES
 from wama.common.backends.pyannote_diarizer import (
     DEFAULT_MODEL as DEFAULT_DIARIZATION_MODEL, pipeline_choices,
@@ -35,9 +35,17 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # Options
     preprocess_audio = models.BooleanField(default=False)
     # Nivellement de la parole (`common/utils/speech_leveling.py`), EN PREMIER — et imposé quand
-    # le débruitage est demandé (banc du 2026-10-01, `workers._transcribe_item`). Optionnel,
+    # le débruitage est demandé (banc du 2026-10-01, `function_specs._levels`). Optionnel,
     # coupé par défaut.
     level_speech = models.BooleanField(default=False, db_default=False)
+    # Sorties des process `level` et `denoise` (préparation de l'audio, 2026-10-21) : l'audio
+    # nivelé, puis débruité, que la transcription et les locuteurs ÉCOUTENT — gardés comme toute
+    # sortie de process (sans eux, la ligne de la préparation n'aurait plus rien à reprendre),
+    # écoutables dans l'aperçu et la page de correction.
+    leveled_audio = models.FileField(upload_to=upload_to_user_output('transcriber'),
+                                     blank=True, null=True)
+    denoised_audio = models.FileField(upload_to=upload_to_user_output('transcriber'),
+                                      blank=True, null=True)
 
     # MODÈLE de transcription — CLÉ DE CATALOGUE entière depuis le 2026-09-30 (route F4b ⑦) :
     # `transcriber:qwen3-asr-1.7b`, `albert:whisper-large-v3`, `huggingface:org/nom` — la valeur même

@@ -5398,13 +5398,16 @@ process** (clé ETA du process, pas de l'app), signal `RunOutcome` par process, 
 > - **la MÉMOIRE DU LANCEMENT** (2026-10-21, transcriber #2522) : re-livrée, la tâche continue
 >   dans un AUTRE worker, dont la mémoire de processus est vide. Le squelette garde donc, au cache
 >   et sous l'id du lancement, le modèle qu'il a retenu (`ctx.model_key` — un « auto » n'est plus
->   retiré à chaque livraison) et ce qu'un process prépare pour le suivant (`ctx.remember` /
->   `ctx.recall`) ; un fichier temporaire confié par `ctx.keep_file` part à la fin RÉELLE du
->   lancement (succès, échec, durée max), jamais à une re-livraison, et un nouveau lancement
->   retire le reste d'un lancement interrompu. Mesuré avant : une transcription distante (Albert,
->   file par défaut) suivie des locuteurs (file GPU) nivelait 141 min d'audio DEUX fois (~110 s
->   chacune). Gardes : `tests_process_governance.TheLaunchRemembersAcrossDeliveriesTest`,
->   contre-épreuves (mémoire et fermeture neutralisées : rouges).
+>   retiré à chaque livraison) et ce qu'un process DÉCIDE pour le suivant (`ctx.remember` /
+>   `ctx.recall`) ; elle s'oublie à la fin RÉELLE du lancement (succès, échec, durée max), jamais
+>   à une re-livraison, et un nouveau lancement retire le reste d'un lancement interrompu. Mesuré
+>   avant : une transcription distante (Albert, file par défaut) suivie des locuteurs (file GPU)
+>   nivelait 141 min d'audio DEUX fois (~110 s chacune). Gardes :
+>   `tests_process_governance.TheLaunchRemembersAcrossDeliveriesTest`, contre-épreuves (mémoire et
+>   fermeture neutralisées : rouges). ⚠ **Un FICHIER n'y a pas sa place** (corrigé le soir même,
+>   décision de Fabien) : l'audio nivelé y vivait comme fichier temporaire (`ctx.keep_file`) ; il
+>   est devenu la SORTIE DÉCLARÉE d'un process (`level`, `denoise`), gardée sur la card — voir
+>   « Une préparation devient un process » ci-dessous. `keep_file` retiré (`REMOVAL_LEDGER`).
 >
 > **Le sens du drapeau, tranché** : `gpu` = le process sollicite la carte, par un modèle chargé
 > dans le worker OU par un service local qui en charge un (Ollama hôte, service TTS). Les huit
@@ -5462,6 +5465,77 @@ sortie d'un process qui alimente un autre est donc **persistée** ou **recalcula
 fonction d'un même run (`studio/tasks.py:17`). L'anonymizer, lui, PERSISTE ses détections
 depuis le 2026-10-04 (document `detections`, `common/utils/detections.py` — corrigé ce jour-là :
 cette ligne disait qu'il n'en gardait aucune). Choix par process : décision ouverte n°2.
+
+> **Une préparation devient un process — 2026-10-21, décision de Fabien** (*« rendre le
+> pré-traitement en tant que process déclaré […] On garde le média intermédiaire comme pour toute
+> chaîne de process […] Les jobs existants restent valables […] l'étape peut être facultative »*).
+> Le nivellement et le débruitage du transcriber se faisaient DANS `transcribe`, dans un fichier
+> temporaire, une fois par livraison (#2522 : nivelé deux fois). Ce sont deux process `optional`
+> du pipeline — `level` (calcul sur le signal, file par défaut) et `denoise` (DeepFilterNet,
+> GPU, interrupteur `preprocess_audio`, comme la partition complète du composer) — : deux
+> process et non un, parce qu'ils ne tiennent pas les mêmes ressources et que `gpu` est un
+> drapeau statique, exporté au manifeste. Chacun GARDE son audio (`leveled_audio`,
+> `denoised_audio`, `ProcessSpec.outputs`) : sans lui, sa ligne n'aurait rien à reprendre. Ce que
+> le moteur commun a gagné pour cela, et qui vaut pour toute app :
+> - **une ligne compte tant que l'élément demande son process** (`AppPipeline.still_counts`) :
+>   l'interrupteur ET `applies` au modèle que la card demande — pas la disponibilité (désinstaller
+>   un modèle ne change pas une card). MESURÉ avant : un amont qui n'avait plus lieu (nivellement
+>   décoché ; dans le composer, audio de cover retiré) laissait son aval périmé À JAMAIS, même
+>   rejoué sans lui (`refresh` → `{'render'}` après la relance). Désormais l'aval est périmé UNE
+>   fois — sa photo portait l'empreinte de cet amont —, valable dès qu'il est rejoué ;
+> - **un aval lit la sortie de son amont par UN geste** : `output_of` (le fichier, tant que le
+>   process a lieu — un vieux fichier d'un process décoché n'est plus écouté) et
+>   `upstream_output(item, process, type)` — la donnée suit les liens DÉCLARÉS : le plus proche
+>   amont qui rend ce type et l'a rendu (débruité, sinon nivelé, sinon l'entrée de la card ; un
+>   amont qui a échoué laisse la place au précédent). Le composer l'a adopté pour la partition que
+>   suit son rendu (`_score_to_follow`, écrit à la main jusque-là) ;
+> - **un process DÉTACHÉ de son aval** (`ProcessSpec.split_from`) : une ligne de cet aval rendue
+>   avant le détachement — sa photo porte encore les réglages du process détaché et son
+>   interrupteur — a fait le travail en elle-même et VAUT pour lui tant que ces réglages n'ont pas
+>   changé. C'est ce qui garde valables les transcriptions d'avant : sans lui, changer le type de
+>   résumé d'une card nivelée aurait rejoué le nivellement PUIS la transcription entière ;
+> - **la place d'un fichier de sortie** : `ctx.output_place(ext, nature=, model=, source_name=)`
+>   (dossier de sortie de l'app au domicile de l'utilisateur, nom commun) — écrit dans le composer,
+>   recopié par chaque glu qui rangeait un fichier ; adopté par le composer et le transcriber, la
+>   consigne du rôle `codegen` le nomme ;
+> - **une copie garde ce que l'utilisateur a DONNÉ et repart sans ce que ses process ont ÉCRIT**
+>   (`AppPipeline.produced_fields`, lu par `duplicate_instance`) : le champ déclaré d'un process
+>   qui a lieu pour la card, ou qu'une de ses lignes a rendu (un ancien résultat). MESURÉ avant :
+>   chaque app recopiait ces champs à la main, DEUX fois (`clear_fields` de la vue ⧉,
+>   `make_batch_views(output_fields=…)`), et les deux avaient dérivé (`parts_score` du composer
+>   absent des deux ; les audios préparés du transcriber). Les listes ne nomment plus que ce
+>   qu'aucun process ne déclare (texte, réponse d'un LLM, fichier d'une app sans pipeline).
+>   ⚠ **Deux formes fausses écartées le même soir, à retenir** : (1) « vider TOUTE sortie
+>   déclarée » — l'audio d'un avatarizer est la sortie de `speak` en mode « pipeline » mais
+>   l'audio DONNÉ par l'utilisateur en mode « standalone » (`avatarizer/function_specs.py:33`) :
+>   la copie l'aurait perdu (contre-épreuve rouge sur ce seul cas) ; (2) revenir aux listes à la
+>   main, au motif que les tests de contrat rougissaient — ils supposaient que la copie désigne
+>   TOUS les champs fichier ; l'invariant qu'ils tiennent (un fichier que la COPIE désigne survit
+>   à l'original et n'est libéré qu'avec la dernière card) est désormais écrit tel quel, et un
+>   résultat que seul l'original désignait part avec lui ;
+> - **les versions d'un média lu** (`Surface.sources_of`) : la page de correction propose
+>   « Original / Nivellement / Débruitage » — dérivé du pipeline et de ce que CONSOMMENT les briques
+>   qui lisent le rôle ; le transport recharge à la même position et le dit au bus (`source`), la
+>   ligne de temps relit les pics de la même version. Aucune app ne nomme ses versions.
+> Gardes : `tests_process_pipeline` (`AnUpstreamThatNoLongerTakesPlaceTest`,
+> `WhatADownstreamReadsTest`, `AProcessSplitFromItsDownstreamTest`), `tests_task_skeleton_contract`
+> (la place d'une sortie, pour les dix apps), `tests_process_pipeline.ADuplicateStartsWithout
+> WhatItsProcessesWroteTest` (toutes les apps à pipeline, l'audio de l'avatarizer, l'ancien
+> résultat, aucune liste de vue ne recopie un champ dérivé), `tests_queue_delete_contract` et
+> `tests_retention` (l'invariant de partage), `transcriber.tests_pipeline.
+> ThePreparationIsDeclaredTest` (8, dont la vue ⧉), `composer.tests_pipeline.…a_duplicate_starts_
+> without_any_output_of_its_processes` ; scénario `transcriber.editor_parity` (66/66 + « Versions »
+> 5/5) ; contre-épreuves en mémoire, toutes rouges.
+> ⏳ **Restes, nommés** : (a) les autres glues qui composent encore dossier et nom à la main
+> (converter, anonymizer, enhancer, imager, avatarizer, synthesizer, les glues générées
+> `tasks_gen`) — adoption de `ctx.output_place` à porter ; (b) l'ancien audio préparé d'un process
+> qui n'a plus lieu reste sur la card jusqu'à la relance de ce process (l'aperçu le montre) — le
+> libérer au lancement qui ne le joue plus est une DÉCISION — et l'aperçu (« le contenu PRÉSENT
+> décide ») et la page de correction (`sources_of` : seulement ce qui a lieu) n'appliquent pas la
+> même règle à ce reste ; (c) le choix de version n'est pas retenu d'une ouverture à l'autre ;
+> (d) le GÉNÉRATEUR dérive encore sa propre liste de sorties pour les jumelles
+> (`views_gen.champs_sortie` : champs fichier moins ports d'entrée) — à aligner sur
+> `produced_fields`, avec la régénération des jumelles.
 
 **4.7 Les enrichissements deviennent des process optionnels.** Le résumé à la demande du
 transcriber (`enrich_transcript`) et l'analyse du reader sont aujourd'hui **hors contrat** du

@@ -470,7 +470,9 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
     def test_a_file_shared_by_a_duplicate_survives_until_its_last_card_goes(self):
         """« Dupliquer » PARTAGE le fichier (`duplicate_instance`, par contrat) : supprimer
         l'original ne doit ni casser la copie ni annoncer un orphelin, et le fichier n'est libéré
-        qu'avec la dernière card."""
+        qu'avec la dernière card. La copie repart sans ce que les process de la source ont ÉCRIT
+        (`AppPipeline.produced_fields`, 2026-10-21) : un tel résultat n'est désigné que par
+        l'original, et part avec lui — libéré, jamais détruit."""
         from wama.common.utils.queue_duplication import duplicate_instance
         for surface, route, account, model, app_home in self._fleet():
             with self.subTest(surface=surface):
@@ -478,15 +480,26 @@ class DeletingACardRemovesTheFilesItOwnsTest(TestCase):
                 if not files:
                     continue
                 duplicate = duplicate_instance(original)
+                shared = self._designated_by(duplicate, files)
+                results = [p for p in files if p not in shared]
                 self._delete_card(route, original)
                 self.assertEqual([], self._lost(files), 'supprimer l’original a détruit un fichier '
-                                                        'que sa COPIE utilise encore')
-                self.assertEqual(sorted(p.name for p in files), sorted(self._not_released(files)),
+                                                        '— que sa COPIE utilise, ou un résultat à libérer')
+                self.assertEqual(sorted(p.name for p in shared), sorted(self._not_released(shared)),
                                  'un fichier que la copie utilise encore est annoncé orphelin')
+                self.assertEqual([], self._not_released(results),
+                                 'un résultat de l’original, que la copie ne désigne pas, n’est pas libéré')
                 self._delete_card(route, duplicate)
                 self.assertEqual([], self._lost(files))
                 self.assertEqual([], self._not_released(files),
                                  'la dernière card partie, le fichier n’est pas signalé comme libéré')
+
+    def _designated_by(self, card, files):
+        """Les témoins que `card` désigne encore (ses champs fichier)."""
+        card.refresh_from_db()
+        names = {str(getattr(card, f.name) or '') for f in card._meta.concrete_fields
+                 if isinstance(f, models.FileField)}
+        return [p for p in files if p.relative_to(self.tmp).as_posix() in names]
 
 
 class DuplicatingAndRestartingKeepFilesTest(TestCase):

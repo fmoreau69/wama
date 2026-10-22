@@ -169,6 +169,16 @@ class ProcessSpec:
                   commun ») ; 'segments' — `result` rend des tours de parole
                   `[{speaker, time_range, text}]`, que la face montre un par un, le locuteur
                   dans sa couleur (la diarisation de la modale du transcriber, même jour).
+      split_from  le process dont celui-ci a été DÉTACHÉ, en amont (2026-10-21 : la préparation
+                  audio du transcriber, qui se faisait DANS `transcribe`). Une ligne de ce process
+                  rendue AVANT le détachement — sa photo porte encore tous les réglages que
+                  celui-ci surveille et son interrupteur, puisqu'elle les surveillait alors —
+                  a fait son travail en
+                  elle-même : elle VAUT pour lui tant que ces réglages n'ont pas changé
+                  (`_held_within`). Sans cela, la card ancienne n'ayant aucune ligne du process
+                  détaché, toute relance l'aurait joué et aurait rejoué son aval avec lui — une
+                  transcription entière refaite pour un type de résumé changé. Inerte dès que
+                  l'aval a été rendu de nouveau (sa photo ne porte plus ces réglages).
     """
     key: str
     label: str = ''
@@ -186,6 +196,7 @@ class ProcessSpec:
     eta: object = None
     result: object = None
     result_format: str = ''
+    split_from: str = ''
 
 
 def output_fingerprint(ref: str) -> str:
@@ -265,6 +276,10 @@ class AppPipeline:
             if spec.toggle and spec.degree != OPTIONAL:
                 raise ValueError(f"pipeline de {app} : « {spec.key} » porte un interrupteur "
                                  f"(`toggle`) mais n'est pas `optional`")
+            if spec.split_from and spec.key not in getattr(
+                    self._by_key.get(spec.split_from), 'depends_on', ()):
+                raise ValueError(f"pipeline de {app} : « {spec.key} » se dit détaché de "
+                                 f"« {spec.split_from} » (`split_from`), qui doit en dépendre")
             if spec.result_format not in RESULT_FORMATS:
                 raise ValueError(f"pipeline de {app} : forme de résultat « {spec.result_format} » "
                                  f"inconnue ({', '.join(f or '(texte)' for f in RESULT_FORMATS)})")
@@ -486,8 +501,9 @@ class AppPipeline:
 
     def snapshot(self, spec: ProcessSpec, item, rows: dict | None = None) -> dict:
         """Photo de ce que le process SURVEILLE aujourd'hui : ses réglages, et l'empreinte de la
-        sortie de chacun de ses amonts qui a tourné (un amont sans ligne n'y figure pas)."""
-        rows = self.rows(item) if rows is None else rows
+        sortie de chacun de ses amonts qui a tourné ET compte encore (`_live_rows` : un amont sans
+        ligne, ou qui n'a plus lieu, n'y figure pas)."""
+        rows = self._live_rows(item) if rows is None else rows
         taken = process_runs.snapshot(item, self.watched_of(spec))
         upstream = {key: _fingerprint_of(rows[key])
                     for key in spec.depends_on if key in rows}
@@ -539,6 +555,93 @@ class AppPipeline:
         """Les process qui ont lieu pour cet élément, dans l'ordre de lancement (`takes_place`)."""
         return [spec for spec in self.ordered() if self.takes_place(spec, item, model_key)]
 
+    def still_counts(self, spec: ProcessSpec, item, model_key=None) -> bool:
+        """La ligne de ce process COMPTE-t-elle encore pour l'élément — pour la péremption, l'état
+        de la card, la photo de son aval ? Oui tant que l'ÉLÉMENT le demande : un `optional`
+        désactivé ne compte plus (règle 4.4), ni un process que le modèle ne sert plus pour lui
+        (`applies` : un nivellement décoché, un audio de cover retiré). Sous un modèle encore
+        inconnu (« auto » non tiré, `requested_model` → None), seul l'interrupteur juge : on ne
+        devine pas le tirage (`card_rows`). La DISPONIBILITÉ (`available`, ce qui est installé
+        ici) ne juge pas : désinstaller un modèle ne change pas la card, ses résultats valent.
+
+        Avant le 2026-10-21, seul l'interrupteur jugeait : la ligne d'un amont qui n'avait plus
+        lieu restait, périmée par le réglage qui l'écartait — et son aval, rejoué sans lui,
+        redevenait périmé à chaque relecture (mesuré : `refresh` → {'render'} après la relance,
+        card à jamais « périmée »). Le composer y était exposé (cover retiré après extraction),
+        la préparation audio du transcriber l'aurait été à chaque nivellement décoché."""
+        if not self.enabled(spec, item):
+            return False
+        return model_key is None or self.applies(spec, item, model_key)
+
+    def output_of(self, item, key: str, model_key=None) -> str:
+        """Le fichier (relatif à MEDIA_ROOT) que le process `key` a rendu à cet élément et que son
+        aval doit LIRE — le premier de ses `outputs` que l'élément porte ; '' quand le process n'a
+        pas lieu pour lui (`takes_place`, le même lieu que le lancement), ou qu'il n'a rien rendu.
+        Un aval lit donc la sortie de son amont par CE geste, jamais par le champ seul : une card
+        dont le nivellement est décoché garde son ancien audio préparé, que la transcription ne
+        doit plus écouter (2026-10-21 ; le composer le disait à la main pour ses partitions)."""
+        spec = self.spec(key)
+        if not self.takes_place(spec, item, model_key):
+            return ''
+        for field in spec.outputs:
+            value = getattr(item, field, None)
+            name = getattr(value, 'name', value) if value else ''
+            if isinstance(name, str) and name:
+                return name
+        return ''
+
+    def produced_fields(self, item) -> list:
+        """Les champs FICHIER de l'élément que ses process ont ÉCRITS — ce dont une copie repart
+        sans (`duplicate_instance`, 2026-10-21) : le champ déclaré d'un process (`outputs`) quand ce
+        process a lieu pour l'élément (au modèle qu'il demande), ou qu'une de ses lignes
+        d'exécution a rendu ce fichier (un ancien résultat). Un champ déclaré qui n'est ni l'un ni
+        l'autre a été DONNÉ par l'utilisateur : l'audio d'un avatarizer « standalone » est la sortie
+        déclarée de `speak`, qui n'a lieu qu'en mode « pipeline » — la copie le garde. Rien n'est
+        nommé par app : les vues recopiaient ces listes à la main, en deux exemplaires (vue de la
+        card, fabrique des lots), et elles avaient dérivé (`parts_score` du composer)."""
+        model_key = self.requested_model(item)
+        rows = self.rows(item)
+        produced = []
+        for spec in self.specs:
+            row = rows.get(spec.key)
+            # Sous « auto » non tiré, `applies` juge sans modèle ; une ligne passée tranche alors.
+            takes_place = self.takes_place(spec, item, model_key)
+            for field in spec.outputs:
+                value = getattr(item, field, None)
+                name = getattr(value, 'name', value) if value else ''
+                if not name or field in produced:
+                    continue
+                if takes_place or (row is not None and row.output_ref == name):
+                    produced.append(field)
+        return produced
+
+    def upstream_output(self, item, key: str, data_type: str, model_key=None) -> str:
+        """Le fichier de type `data_type` (une nature de PORT : `audio`, `score`…) que le process
+        `key` LIT de son amont — la sortie (`output_of`) du plus PROCHE de ses amonts, de proche
+        en proche par `depends_on` et le plus en aval d'abord, qui rend ce type (le port de sortie
+        de son `FunctionSpec`), a lieu pour l'élément ET a rendu son fichier. '' quand aucun : le
+        process lit alors l'entrée de la card. Un amont qui a lieu sans avoir rendu (son process
+        a échoué — sa ligne le dit, et l'aval s'en trouve périmé) laisse la place au précédent :
+        une transformation de plus qui manque ne fait pas écouter l'original.
+
+        La donnée suit les liens que le pipeline DÉCLARE (2026-10-21) : la transcription écoute
+        l'audio débruité, sinon nivelé, sinon l'original ; les locuteurs, en aval d'elle, le même
+        — sans que la glu nomme ses amonts. Le rendu du composer suit la partition extraite ou
+        écrite, deux amonts exclusifs (`applies`)."""
+        order = {spec.key: index for index, spec in enumerate(self.ordered())}
+        seen, pending = set(), list(self.spec(key).depends_on)
+        while pending:
+            upstream = pending.pop()
+            if upstream not in seen:
+                seen.add(upstream)
+                pending.extend(self.spec(upstream).depends_on)
+        for upstream in sorted(seen, key=lambda name: -order[name]):
+            if self.output_type(self.spec(upstream)) == data_type:
+                found = self.output_of(item, upstream, model_key)
+                if found:
+                    return found
+        return ''
+
     def backfill_prior_runs(self, item) -> dict:
         """BACKFILL (le mot de `backfill_platform_refs` : poser après coup ce qu'un enregistrement
         antérieur n'a pas reçu). Le même pour toutes les apps à pipeline — rien n'y dépend de
@@ -584,10 +687,12 @@ class AppPipeline:
         """Passe `STALE` les lignes en succès qui ne sont plus à jour ; rend leurs clés.
 
         Ne regarde que les process qui ONT une ligne : seul un résultat rendu peut être périmé,
-        et un amont jamais lancé (un process qui n'avait pas lieu) ne périme personne. Un
-        `optional` DÉSACTIVÉ est ignoré : ni périmé, ni cause de péremption (règle 4.4).
+        et un amont jamais lancé (un process qui n'avait pas lieu) ne périme personne. Une ligne
+        qui ne compte plus (`still_counts` : `optional` désactivé, process qui n'a plus lieu) est
+        ignorée : ni périmée, ni cause de péremption (règle 4.4) — c'est son ABSENCE de la photo
+        de l'aval qui périme celui-ci, une fois, s'il avait été rendu avec elle.
         """
-        rows = self._enabled_rows(item)
+        rows = self._live_rows(item)
         if not rows:
             return set()
         known = [spec for spec in self.specs if spec.key in rows]
@@ -595,17 +700,56 @@ class AppPipeline:
             states={spec.key: rows[spec.key].status for spec in known},
             depends_on={spec.key: [d for d in spec.depends_on if d in rows] for spec in known},
             snapshots={spec.key: rows[spec.key].settings_snapshot or {} for spec in known},
-            current={spec.key: self.snapshot(spec, item, rows) for spec in known})
+            current=self._current_photos(item, known, rows))
         if stale:
             process_runs.mark_stale(item, stale)
             for key in stale:             # les lignes déjà lues (préchargées) disent la même chose
                 rows[key].status = JOB_STALE
         return stale
 
-    def _enabled_rows(self, item) -> dict:
-        """Les lignes des process ACTIVÉS — ce qui compte pour la péremption et l'état."""
+    def _current_photos(self, item, known, rows) -> dict:
+        """La photo d'AUJOURD'HUI de chaque ligne connue — celle qu'elle prendrait maintenant
+        (`snapshot`), plus, pour une ligne qui vaut pour un process détaché d'elle
+        (`_held_within`), les réglages que celui-ci surveille : elle les a photographiés quand
+        elle faisait son travail, leur changement la périme."""
+        current = {spec.key: self.snapshot(spec, item, rows) for spec in known}
+        for split, host in self._held(rows).items():
+            if host in current:
+                current[host] = {**current[host], **process_runs.snapshot(
+                    item, self._split_settings(self._by_key[split]))}
+        return current
+
+    def _split_settings(self, spec: ProcessSpec) -> tuple:
+        """Les réglages qui décident du travail d'un process détaché : ceux qu'il surveille, et
+        son interrupteur — que son aval d'origine surveillait quand il faisait ce travail."""
+        return tuple(dict.fromkeys(self.watched_of(spec) + ((spec.toggle,) if spec.toggle else ())))
+
+    def _held_within(self, spec: ProcessSpec, rows: dict):
+        """La ligne qui VAUT pour le process `spec` détaché d'elle (`ProcessSpec.split_from`) :
+        celle de son aval d'origine, rendue avant le détachement — sa photo porte tous les
+        réglages que `spec` surveille. None : rien de détaché, `spec` a sa propre ligne, ou la
+        ligne de l'aval a été rendue depuis le détachement."""
+        if not spec.split_from or spec.key in rows:
+            return None
+        row = rows.get(spec.split_from)
+        settings = self._split_settings(spec)
+        photo = (row.settings_snapshot or {}) if row is not None else {}
+        if not settings or any(name not in photo for name in settings):
+            return None
+        return row
+
+    def _held(self, rows: dict) -> dict:
+        """`{process détaché: process dont la ligne vaut pour lui}` (`_held_within`)."""
+        return {spec.key: spec.split_from for spec in self.specs
+                if self._held_within(spec, rows) is not None}
+
+    def _live_rows(self, item) -> dict:
+        """Les lignes qui COMPTENT encore (`still_counts`, au modèle que la card demande) — ce
+        que lisent la péremption, l'état de la card et la photo d'un aval."""
         rows = self.rows(item)
-        return {key: row for key, row in rows.items() if self.enabled(self._by_key[key], item)}
+        model_key = self.requested_model(item)
+        return {key: row for key, row in rows.items()
+                if self.still_counts(self._by_key[key], item, model_key)}
 
     def up_to_date(self, item) -> dict:
         """`{clé: ligne}` des process en succès après `refresh` — ceux que rien n'a périmés."""
@@ -637,6 +781,9 @@ class AppPipeline:
         """
         steps = self.applicable(item, model_key)
         fresh = self.up_to_date(item)
+        # Un process DÉTACHÉ dont la ligne d'origine vaut encore (`_held_within`, et elle est à
+        # jour : ses réglages n'ont pas changé) est REPRIS comme un process à jour — sans ligne.
+        held = {key for key, host in self._held(self._live_rows(item)).items() if host in fresh}
         if only is not None:
             by_key = {spec.key: spec for spec in steps}
             if only not in by_key:
@@ -646,15 +793,15 @@ class AppPipeline:
                 key = pending.pop()
                 if key in needed or key not in by_key:
                     continue
-                if key in fresh and not _output_lost(fresh[key]):
+                if (key in fresh and not _output_lost(fresh[key])) or key in held:
                     continue                      # un amont encore valable est REPRIS
                 needed.add(key)
                 pending.extend(by_key[key].depends_on)
             return [spec for spec in steps if spec.key in needed]
-        if all(spec.key in fresh for spec in steps):
+        if all(spec.key in fresh or spec.key in held for spec in steps):
             return steps
-        todo = {spec.key for spec in steps
-                if spec.key not in fresh or _output_lost(fresh[spec.key])}
+        todo = {spec.key for spec in steps if spec.key not in held
+                and (spec.key not in fresh or _output_lost(fresh[spec.key]))}
         grown = True
         while grown:
             grown = False
@@ -678,10 +825,10 @@ class AppPipeline:
         return cleared
 
     def card_state(self, item) -> str:
-        """État de la card DÉDUIT de ses process ACTIVÉS (règle 4.4) — lu, jamais écrit dans
-        l'élément."""
+        """État de la card DÉDUIT des lignes qui comptent encore (`still_counts`, règle 4.4) — lu,
+        jamais écrit dans l'élément."""
         self.refresh(item)
-        rows = self._enabled_rows(item)
+        rows = self._live_rows(item)
         return process_runs.aggregate(
             (rows[spec.key].status, spec.degree) for spec in self.specs if spec.key in rows)
 
@@ -699,7 +846,7 @@ class AppPipeline:
             return status
         if rows is None:
             self.refresh(item)
-            rows = self._enabled_rows(item)
+            rows = self._live_rows(item)
         if not rows:
             return status or JOB_PENDING
         return process_runs.aggregate(
@@ -712,6 +859,7 @@ class AppPipeline:
         tourné). `{key, label, degree, status, duration_s, model_key, output_label, error}`."""
         self.refresh(item)
         rows = self.rows(item)
+        held = self._held(self._live_rows(item))
         out = []
         for spec in self.ordered():
             row = rows.get(spec.key)
@@ -721,12 +869,22 @@ class AppPipeline:
             if row is None and not (model_key and self.can_run(spec)
                                     and self.applies(spec, item, model_key)):
                 continue
+            # Une ligne d'un process qui n'a PLUS lieu pour ce modèle (nivellement décoché) ne se
+            # montre plus : elle ne pèse plus sur la card (`still_counts`), la bande le dit pareil.
+            if row is not None and model_key and not self.applies(spec, item, model_key):
+                continue
             summary = (row.output_summary or {}) if row is not None else {}
+            host = rows.get(held.get(spec.key, ''))
+            if row is None and host is not None:
+                # Un process DÉTACHÉ, fait dans la ligne d'origine (`_held_within`) : son état est
+                # celui de cette ligne, et la bande le dit.
+                summary = {'label': f"fait dans « {self._by_key[host.node_id].label or host.node_id} »"}
             out.append({
                 'key': spec.key,
                 'label': spec.label or spec.key,
                 'degree': spec.degree,
-                'status': row.status if row is not None else JOB_PENDING,
+                'status': (row.status if row is not None
+                           else host.status if host is not None else JOB_PENDING),
                 'duration_s': row.duration_s if row is not None else None,
                 'model_key': row.model_key if row is not None else '',
                 'output_label': summary.get('label') or '',

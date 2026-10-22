@@ -125,8 +125,19 @@ class RetentionFollowsTheDeletionRuleTest(TestCase):
             with self.subTest(model=model._meta.label):
                 self.assertFalse(model.objects.filter(pk=original.pk).exists())
                 self.assertTrue(model.objects.filter(pk=copy.pk).exists())
-                self.assertEqual([], [p.name for p in files if not p.exists()],
+                # La copie partage ce que l'utilisateur a DONNÉ ; ce que les process de l'original
+                # ont écrit, elle ne le désigne pas (`AppPipeline.produced_fields`, 2026-10-21) —
+                # c'est à l'original seul, et sa purge vaut suppression.
+                copy.refresh_from_db()
+                kept = {str(getattr(copy, f.name) or '') for f in model._meta.concrete_fields
+                        if isinstance(f, models.FileField)}
+                shared = [p for p in files if p.relative_to(self.tmp).as_posix() in kept]
+                self.assertTrue(shared, 'la copie ne désigne plus rien : le contrat ne mesure rien')
+                self.assertEqual([], [p.name for p in shared if not p.exists()],
                                  'la purge a détruit un fichier que la COPIE récente utilise encore')
+                self.assertEqual([], [p.name for p in files if p not in shared and p.exists()],
+                                 'un résultat de l’original, que la copie ne désigne pas, a survécu '
+                                 'à sa purge')
 
     def test_path_lists_follow_the_ownership_rule(self):
         from wama.common.services.retention import purge_expired_media

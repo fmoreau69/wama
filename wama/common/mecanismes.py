@@ -160,7 +160,11 @@ MECHANISMS = (
               "process GPU (`ProcessSpec.gpu`), attente de VRAM (besoin déclaré, sinon celui du "
               "modèle de la card, moins ce que le worker tient) et déclaration « en cours » ; "
               "chaque process se joue sur SA file (GPU ou par défaut), la tâche se re-livrant à "
-              "l'autre entre deux process (`queue_of`, barre et durées du lancement reportées)",
+              "l'autre entre deux process (`queue_of`, barre et durées du lancement reportées). "
+              "2026-10-21 : la MÉMOIRE DU LANCEMENT (`ctx.remember`/`recall`, le modèle retenu "
+              "gardé d'une livraison à l'autre) et la PLACE d'un fichier de sortie "
+              "(`ctx.output_place` : dossier de sortie de l'app au domicile de l'utilisateur, nom "
+              "commun)",
               'wama/common/utils/task_skeleton.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_governance.py',),
               depends_on=('process_runs', 'resource_governor', 'model_readiness')),
@@ -194,7 +198,13 @@ MECHANISMS = (
               "(`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. "
               "Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, "
               "réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre "
-              "le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05)",
+              "le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05). 2026-10-21 : une "
+              "ligne ne COMPTE que tant que l'élément demande son process (`still_counts` — un "
+              "amont qui n'a plus lieu ne laisse plus son aval périmé à jamais) ; un aval LIT la "
+              "sortie de son amont par un geste (`output_of`, `upstream_output` : le plus proche "
+              "amont qui rend ce type) ; un process DÉTACHÉ de son aval (`split_from`) garde "
+              "valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT "
+              "(`produced_fields`), dont une copie repart sans",
               'wama/common/services/process_pipeline.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_pipeline.py',),
               depends_on=('process_runs', 'input_provenance')),

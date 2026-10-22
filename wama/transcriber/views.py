@@ -1154,6 +1154,7 @@ def duplicate(request, pk: int):
             'coherence_notes': '',
             'coherence_suggestion': '',
         },
+        # L'audio préparé (process `level`, `denoise`) : ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
         clear_fields=['segments_json', 'key_points', 'action_items', 'coherence_score'],
     )
     # Élément d'un VRAI batch (>1) → la copie reste dans ce batch (élément frère).

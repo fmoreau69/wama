@@ -375,9 +375,8 @@ def _reset_for_relaunch(job):
     job.progress = 0
 
 
-#: Les fichiers que la card PRODUIT — vidés à la duplication (élément et lot) : la sortie, et la
-#: conversion brute qu'un post-traitement reprend (pipeline, 2026-10-13).
-OUTPUT_FIELDS = ('output_file', 'converted_file')
+# Les fichiers que la card PRODUIT (la sortie, la conversion brute qu'un post-traitement
+# reprend) : à la duplication, ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21) — élément et lot.
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -618,7 +617,6 @@ def duplicate(request, pk):
             'task_id':       '',
             'error_message': '',
         },
-        clear_fields=list(OUTPUT_FIELDS),
     )
     return JsonResponse({'success': True, 'id': new_job.id})   # contrat commun (cf. upload)
 
@@ -815,7 +813,6 @@ def _task_for(_job):
 _bv = make_batch_views(
     work_model=ConversionJob, batch_model=ConversionBatch, get_user=lambda request: request.user,
     task_for=_task_for, start_only_pending=True, startable=lambda job: bool(job.output_format),
-    output_fields=OUTPUT_FIELDS,
     batch_attr='batch', row_field='batch_row_index',
     batch_extra=lambda lot: {'media_type': lot.media_type},
     zip_name=lambda lot: f'converter_batch_{lot.id}.zip',

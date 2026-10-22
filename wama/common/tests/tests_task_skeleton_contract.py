@@ -152,6 +152,30 @@ class TaskSkeletonOutcomeContractTest(TestCase):
                 self._run(app, model, glue)
                 self.assertIn((app, 'SUCCESS'), measured)
 
+    def test_an_output_placed_by_the_context_lands_in_the_owner_s_output_folder(self):
+        """`ctx.output_place` (2026-10-21) : the file of a process output — the app's output folder
+        at the owner's home, the common naming rule, the card's id in the name. Written by the
+        composer, copied by every glue that stored a file ; the app is the one that RUNS."""
+        import os
+        import shutil
+        import tempfile
+        from django.test import override_settings
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        for app, model in _adopters():
+            placed = {}
+
+            def glue(item, ctx, placed=placed):
+                placed['rel'], placed['abs'] = ctx.output_place('.txt', nature='probe')
+                with open(placed['abs'], 'w', encoding='utf-8') as handle:
+                    handle.write('x')
+                return {}
+            with self.subTest(app=app), override_settings(MEDIA_ROOT=tmp):
+                item = self._run(app, model, glue)
+                self.assertEqual(f'users/{item.user_id}/{app}/output/probe{item.pk}.txt',
+                                 placed['rel'])
+                self.assertTrue(os.path.isfile(os.path.join(tmp, placed['rel'])))
+
     def test_a_glue_that_raises_ends_in_failure_with_its_message(self):
         def glue(item, ctx):
             raise RuntimeError('panne du contrat')

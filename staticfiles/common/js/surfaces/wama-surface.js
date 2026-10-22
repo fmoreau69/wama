@@ -30,7 +30,10 @@
  * `redone` (le process rejoué par « Appliquer » et son aval ont réussi : les médias lus sont neufs),
  * `layout` (la disposition vient d'être figée ou rendue modifiable : `{frozen}`), `bands` (des
  * plages du temps qu'une brique MARQUE — `{key, bands: [{start, end, color}]}`, une liste par
- * brique, `end` nul = jusqu'à la tête de lecture — que les vues du temps dessinent).
+ * brique, `end` nul = jusqu'à la tête de lecture — que les vues du temps dessinent), `source` (la
+ * VERSION écoutée d'un média lu a changé — `{role, key}` ; 2026-10-21 : l'original, ou la sortie
+ * d'un process du même type, `Surface.sources_of` — que le transport recharge et dont la ligne de
+ * temps relit les pics).
  *
  * L'AXE PARTAGÉ (2026-10-15, `wama-axis.js`) : `ctx.axis()` rend LE temps de la surface — un
  * seul par page, créé au premier appel. Le transport le pilote, les vues s'y abonnent ; une
@@ -83,8 +86,8 @@
         var surface = config.surface;
         var listeners = {};
         var statusEl = document.querySelector('.wama-surface-status');
-        var state = { reads: {}, media: {}, context: {}, value: {}, saved: '{}', selected: null, token: '',
-                      settings: { schema: [], values: {} } };
+        var state = { reads: {}, media: {}, sources: {}, chosen: {}, context: {}, value: {}, saved: '{}',
+                      selected: null, token: '', settings: { schema: [], values: {} } };
         var axis = null;
         var conflicted = false;
         var inFlight = null, queued = false, finishing = false;
@@ -142,6 +145,21 @@
             reads: function () { return state.reads; },
             /** `{rôle: {peaks, duration}}` des médias lus que le serveur a préparés (pics d'un audio long). */
             media: function () { return state.media; },
+            /** `{rôle: [{key, label, url, peaks?}]}` : les VERSIONS d'un média lu entre lesquelles
+             *  choisir ce qu'on écoute (l'original d'abord, `key` vide) — absent : rien à choisir. */
+            sources: function () { return state.sources; },
+            /** La version écoutée d'un rôle : l'entrée de `sources()`, sinon celle du rôle lu. */
+            source: function (role) {
+                var list = state.sources[role] || [];
+                var key = state.chosen[role] || '';
+                for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i];
+                return { key: '', url: state.reads[role] || '', peaks: state.media[role] };
+            },
+            /** Choisit la version écoutée d'un rôle ; émet `source` (`{role, key}`). */
+            setSource: function (role, key) {
+                state.chosen[role] = key || '';
+                emit('source', { role: role, key: state.chosen[role] });
+            },
             context: function () { return state.context; },
             /** L'axe de temps PARTAGÉ de la surface (`WamaAxis`), créé au premier appel ; null si
              *  aucune brique chargée ne l'a demandé (`requires`). */
@@ -172,7 +190,9 @@
             /** Les pics fins d'un média lu : promesse de `{status, peaks?, duration?}`. `poll` :
              *  une page qui interroge en attendant (un échec n'y est pas retenté). */
             peaks: function (role, poll) {
-                return fetch(config.data_url + '?only=peaks&role=' + encodeURIComponent(role) + (poll ? '&poll=1' : ''),
+                var key = state.chosen[role] || '';
+                return fetch(config.data_url + '?only=peaks&role=' + encodeURIComponent(role) +
+                             (key ? '&source=' + encodeURIComponent(key) : '') + (poll ? '&poll=1' : ''),
                              { credentials: 'same-origin' }).then(App.jsonOrExplain);
             },
             helps: function () { return helps.slice(); },
@@ -321,6 +341,7 @@
                     .then(function (res) {
                         state.reads = res.reads || state.reads;
                         state.media = res.media || state.media;
+                        state.sources = res.sources || state.sources;
                         state.processes = res.processes || {};
                         emit('processes', state.processes);
                         var s = state.processes[key];
@@ -557,6 +578,7 @@
                 if (data.error) throw new Error(data.error);
                 state.reads = data.reads || {};
                 state.media = data.media || {};
+                state.sources = data.sources || {};
                 state.context = data.context || {};
                 state.value = data.value == null ? {} : data.value;
                 state.saved = JSON.stringify(state.value);

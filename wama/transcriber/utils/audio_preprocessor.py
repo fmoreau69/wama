@@ -49,33 +49,26 @@ class AudioPreprocessor:
 
         logger.info(f"Prétraitement audio (DeepFilterNet) : {input_path}")
 
-        # 1) Débruitage IA via DeepFilterNet (singleton keep_loaded de l'enhancer)
-        source = input_path
-        tmp_denoised = None
+        # 1) Débruitage IA via DeepFilterNet (singleton keep_loaded de l'enhancer). Le débruitage
+        # est un PROCESS déclaré depuis le 2026-10-21 (`function_specs`, `denoise`) : impossible,
+        # il ÉCHOUE en le disant — sa ligne le montre, la transcription écoute l'audio nivelé.
+        # Jusque-là il rendait l'audio non débruité en silence (un avertissement au journal).
+        # Le MODÈLE porte son moteur ; le backend s'en dérive (2026-09-07) : le préprocesseur
+        # demande « le backend d'enhancer:deepfilternet », plus une classe par chemin.
+        from wama.common.backends.manager import backend_for_key
+        from wama.common.backends.audio_enhancer import get_deepfilternet_backend
+        DeepFilterNetBackend = backend_for_key('enhancer:deepfilternet')
+        if DeepFilterNetBackend is None or not DeepFilterNetBackend.is_available():
+            raise RuntimeError("DeepFilterNet indisponible : l'audio n'est pas débruité")
+        tmp_denoised = output_path + ".dfn.wav"
         try:
-            # Le MODÈLE porte son moteur ; le backend s'en dérive (2026-09-07) : le
-            # préprocesseur demande « le backend d'enhancer:deepfilternet », plus une classe
-            # par chemin. Le singleton keep_loaded reste celui de l'enhancer (fonction).
-            from wama.common.backends.manager import backend_for_key
-            from wama.common.backends.audio_enhancer import get_deepfilternet_backend
-            DeepFilterNetBackend = backend_for_key('enhancer:deepfilternet')
-            if DeepFilterNetBackend is not None and DeepFilterNetBackend.is_available():
-                tmp_denoised = output_path + ".dfn.wav"
-                # mono=True : l'étape 2 reconvertit de toute façon en 16 kHz mono, donc
-                # débruiter en stéréo ne change RIEN au résultat ASR et double la RAM
-                # (un 2 h 21 stéréo à 48 kHz = 3,3 Go rien qu'en entrée). Gratuit.
-                get_deepfilternet_backend().enhance(input_path, tmp_denoised, mono=True)
-                source = tmp_denoised
-            else:
-                logger.warning("[preprocess] DeepFilterNet indisponible — "
-                               "mise au format ASR uniquement (pas de débruitage)")
-        except Exception as e:
-            logger.warning(f"[preprocess] Débruitage IA ignoré ({e}) — "
-                           "mise au format ASR uniquement")
-            source = input_path
+            # mono=True : l'étape 2 reconvertit de toute façon en 16 kHz mono, donc
+            # débruiter en stéréo ne change RIEN au résultat ASR et double la RAM
+            # (un 2 h 21 stéréo à 48 kHz = 3,3 Go rien qu'en entrée). Gratuit.
+            get_deepfilternet_backend().enhance(input_path, tmp_denoised, mono=True)
+            source = tmp_denoised
 
-        # 2) Mise au format ASR : 16 kHz mono + normalisation crête légère
-        try:
+            # 2) Mise au format ASR : 16 kHz mono + normalisation crête légère
             y, _ = librosa.load(source, sr=self.target_sr, mono=True)
             peak = float(np.max(np.abs(y))) if y.size else 0.0
             if peak > 0:

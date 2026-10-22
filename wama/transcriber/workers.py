@@ -21,12 +21,6 @@ try:
 except ImportError:
     BACKENDS_AVAILABLE = False
 
-# Import audio preprocessor
-try:
-    from .utils.audio_preprocessor import AudioPreprocessor
-except Exception:
-    AudioPreprocessor = None
-
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
 logger = logging.getLogger(__name__)
@@ -75,68 +69,6 @@ def _set_partial_text(transcript_id: int, text: str) -> None:
     lue par l'endpoint de progression ET par le volet `?side=during` (during_preview)."""
     from wama.common.utils.preview_utils import publish_partial_text
     publish_partial_text('transcriber', transcript_id, text)
-
-
-def _preprocess_audio(transcript: Transcript, audio_path: str) -> str:
-    """
-    Preprocess audio file for better transcription quality.
-
-    Args:
-        transcript: Transcript instance
-        audio_path: Path to original audio file
-
-    Returns:
-        Path to preprocessed audio file (or original if preprocessing fails)
-    """
-    if AudioPreprocessor is None:
-        return audio_path
-
-    try:
-        _console(transcript.user_id, "Prétraitement audio en cours...")
-        _set_progress(transcript, 10)
-
-        preprocessor = AudioPreprocessor(
-            target_sr=16000,
-            noise_reduction=0.5,
-            stationary=False
-        )
-
-        # Écrire le fichier prétraité dans un dossier temp (PAS dans input/) pour
-        # ne pas déclencher de refresh du filemanager sur un fichier intermédiaire.
-        import tempfile
-        base_name = os.path.splitext(os.path.basename(audio_path))[0]
-        cleaned_path = os.path.join(tempfile.gettempdir(), f"{base_name}_cleaned.wav")
-        result_path = preprocessor.preprocess(audio_path, cleaned_path)
-
-        _console(transcript.user_id, "Prétraitement terminé ✓")
-        _set_progress(transcript, 15)
-
-        return result_path
-
-    except Exception as e:
-        _console(transcript.user_id, f"Avertissement: prétraitement échoué ({e}), utilisation du fichier original")
-        return audio_path
-
-
-def _level_speech(transcript: Transcript, audio_path: str, source_path: str) -> str:
-    """Nivelle `source_path` dans un fichier temporaire (brique `speech_leveling`). Un fichier
-    intermédiaire (sortie du débruitage) est retiré ; l'original de la card, jamais. Échec → on
-    transcrit sans nivellement, et la console le dit."""
-    import tempfile
-    from wama.common.utils.speech_leveling import level_file
-    try:
-        _set_status_message(transcript, "Nivellement de la parole…")
-        base = os.path.splitext(os.path.basename(audio_path))[0]
-        leveled = level_file(source_path, os.path.join(tempfile.gettempdir(),
-                                                       f"{base}_{transcript.pk}_leveled.wav"))
-    except Exception as e:
-        _console(transcript.user_id, f"Avertissement: nivellement échoué ({e}), audio non nivelé",
-                 level='warning')
-        return source_path
-    if source_path != audio_path and os.path.exists(source_path):
-        os.remove(source_path)
-    _console(transcript.user_id, "Nivellement de la parole ✓")
-    return leveled
 
 
 def _get_output_stem(transcript: Transcript, backend_name: str) -> str:
@@ -377,8 +309,8 @@ def transcribe_eta(t):
 
 
 def step_eta_key_size(t, process: str, variant: str = ''):
-    """(clé, taille, unité) de l'ETA d'un process SECONDAIRE de la card (alignement, locuteurs,
-    résumé, cohérence) : ∝ durée audio, sous `transcriber:<process>[:<variante>]` ; None sans
+    """(clé, taille, unité) de l'ETA d'un process SECONDAIRE de la card (nivellement, débruitage,
+    alignement, locuteurs, résumé, cohérence) : ∝ durée audio, sous `transcriber:<process>[:<variante>]` ; None sans
     durée connue. Rendu par sa glu (`record_run`) et déclaré à son process."""
     duration = float(t.duration_seconds or 0)
     if duration <= 0:
@@ -390,6 +322,14 @@ def _learned_only(triplet):
     """Une clé de PROCESS n'a pas d'a priori de domaine — ceux de l'estimateur décrivent des
     modèles (0,25 s par seconde d'audio : un ASR, pas un résumé) : estimée apprise seulement."""
     return (*triplet, True, 0.0) if triplet else None
+
+
+def level_eta(t):
+    return _learned_only(step_eta_key_size(t, 'level'))
+
+
+def denoise_eta(t):
+    return _learned_only(step_eta_key_size(t, 'denoise'))
 
 
 def align_eta(t):
@@ -488,12 +428,13 @@ def _language_plan(t, audio_path: str, backend) -> tuple:
     return 'single', (fallback if in_passes else None), fallback
 
 
-# ── LE PIPELINE DU TRANSCRIBER : quatre process, une tâche (ROUTE §10.6 P4 — 2026-10-03) ────
-# `function_specs.PIPELINE` déclare transcribe → diarize → summarize / coherence ; chaque process
-# a ICI sa glu, au contrat du squelette. Ce qu'un lancement partage entre ses process — le moteur
-# chargé, l'audio préparé, les segments encore en mémoire — vit dans `_RUNS`, par transcript, et
-# s'oublie en fin de tâche (`_release_run`). Un process relancé SEUL (▶ de la bande) ne trouve
-# rien en mémoire : il relit ce que l'élément a gardé (segments, texte) et re-prépare l'audio.
+# ── LE PIPELINE DU TRANSCRIBER : process déclarés, une tâche (ROUTE §10.6 P4 — 2026-10-03) ───
+# `function_specs.PIPELINE` déclare level → denoise → transcribe → diarize → summarize /
+# coherence ; chaque process a ICI sa glu, au contrat du squelette. Ce qu'un lancement partage
+# entre ses process DANS un worker — le moteur chargé, les segments encore en mémoire — vit dans
+# `_RUNS`, par transcript, et s'oublie en fin de livraison (`_release_run`). Un process relancé
+# SEUL (▶ de la bande) ne trouve rien en mémoire : il relit ce que l'élément a gardé (segments,
+# texte, audio préparé — une SORTIE de process depuis le 2026-10-21, gardée sur la card).
 _RUNS: dict = {}
 
 
@@ -501,23 +442,10 @@ def _run_state(t) -> dict:
     return _RUNS.setdefault(t.pk, {})
 
 
-def _remove_prepared(prepared, original, transcript_id) -> None:
-    if prepared and prepared != original and os.path.exists(prepared):
-        try:
-            os.remove(prepared)
-        except OSError as e:
-            logger.warning("transcriber #%s : audio préparé non retiré (%s)", transcript_id, e)
-
-
 def _release_run(transcript_id: int) -> None:
-    """Fin de LIVRAISON : la mémoire du processus s'oublie et le message d'étape s'efface. L'audio
-    préparé confié au lancement (`ctx.keep_file`) n'est pas retiré ici : la livraison suivante du
-    même lancement le reprend, et le squelette le retire à la fin RÉELLE du lancement
-    (`task_skeleton._close_launch`). Un audio préparé hors lancement (appel direct) part ici."""
-    state = _RUNS.pop(transcript_id, None) or {}
+    """Fin de LIVRAISON : la mémoire du processus s'oublie et le message d'étape s'efface."""
+    _RUNS.pop(transcript_id, None)
     cache.set(f"transcriber_status_msg_{transcript_id}", '', timeout=3600)
-    if not state.get('kept'):
-        _remove_prepared(state.get('audio'), state.get('original'), transcript_id)
 
 
 def _model_key(t) -> str:
@@ -546,56 +474,83 @@ def _card_model(t) -> tuple:
     return (resolve_auto_key(item=t) if drawn else name), drawn
 
 
-def _prepared_audio(t, ctx=None) -> str:
-    """L'audio que les process ÉCOUTENT : nivelé puis débruité selon les réglages de la card,
-    préparé une fois par lancement.
+def _listened_audio(t, step: str) -> str:
+    """Chemin de l'audio que le process `step` ÉCOUTE : la sortie audio du plus proche de ses
+    amonts qui a eu lieu — débruitée, sinon nivelée (`AppPipeline.upstream_output`, la donnée
+    suit les liens DÉCLARÉS) —, sinon l'original de la card. Jusqu'au 2026-10-21 la préparation se
+    faisait ICI, dans un fichier temporaire, une fois par livraison (#2522 : nivelé deux fois)."""
+    from django.conf import settings
+    from .function_specs import PIPELINE
+    prepared = PIPELINE.upstream_output(t, step, 'audio')
+    return os.path.join(settings.MEDIA_ROOT, prepared) if prepared else t.audio.path
 
-    Ordre fixé par le banc des prétraitements du 2026-09-30/10-01 (`WAMA_QUALITE §9bis`,
-    décisions de Fabien) : (a) le nivellement passe AVANT le débruitage — il battait l'ordre
-    inverse sur 8 enregistrements sur 12 ; (b) on ne débruite JAMAIS un audio non nivelé :
-    DeepFilterNet efface une parole enregistrée bas (−54 dBFS → texte vide, 100 % d'erreur, sans
-    rien signaler) ; demander le débruitage nivelle donc d'abord, et la console le dit. Les deux
-    passent AVANT le filtre de parole et la sonde des langues, qui jugent l'audio que le moteur
-    entendra.
 
-    `ctx` (le contexte du squelette) : l'audio préparé est GARDÉ par le lancement (`ctx.remember`,
-    `ctx.keep_file`) — le process suivant, re-livré sur une autre file, le reprend au lieu de le
-    préparer une seconde fois (2026-10-21, #2522 : nivelé deux fois, ~110 s chacune)."""
-    state = _run_state(t)
-    if 'audio' in state:
-        return state['audio']
-    audio_path = t.audio.path
-    cleaned_path = audio_path
-    state['original'] = state['audio'] = audio_path
-    level_first = getattr(t, 'level_speech', False) or t.preprocess_audio
-    recipe = [bool(level_first), bool(t.preprocess_audio)]
-    kept = (ctx.recall('prepared_audio') if ctx is not None else None) or {}
-    if (kept.get('source') == audio_path and kept.get('recipe') == recipe
-            and kept.get('path') and os.path.exists(kept['path'])):
-        state['audio'], state['kept'] = kept['path'], True
-        _console(t.user_id, "Audio préparé par l'étape précédente repris — pas de second "
-                            "nivellement.")
-        return kept['path']
-    if level_first:
-        if t.preprocess_audio and not getattr(t, 'level_speech', False):
-            _console(t.user_id, "Débruitage demandé : la parole est d'abord nivelée "
-                                "(un audio enregistré bas serait effacé par le débruiteur).")
-        cleaned_path = _level_speech(t, audio_path, audio_path)
-        state['audio'] = cleaned_path
-    if t.preprocess_audio:
-        _set_status_message(t, "Prétraitement audio…")
-        _set_partial_text(t.id, "🔧 Prétraitement audio...\n")
-        denoised = _preprocess_audio(t, cleaned_path)
-        if denoised != cleaned_path and cleaned_path != audio_path and os.path.exists(cleaned_path):
-            os.remove(cleaned_path)          # le nivelé intermédiaire ; jamais l'original
-        cleaned_path = denoised
-        state['audio'] = cleaned_path
-    if cleaned_path != audio_path and ctx is not None and ctx.launch:
-        ctx.remember('prepared_audio', {'path': cleaned_path, 'source': audio_path,
-                                        'recipe': recipe})
-        ctx.keep_file(cleaned_path)
-        state['kept'] = True
-    return cleaned_path
+def _prepared_output(t, ctx, key: str, nature: str) -> tuple:
+    """Le fichier de la sortie audio du process `key`, l'ancienne retirée d'abord — le résultat
+    d'un process s'efface quand CE process est rejoué (`views._reset_for_relaunch`) : un
+    nivellement qui échoue ne laisse pas l'ancien audio écouté à sa place. (chemin relatif,
+    chemin absolu) par la brique commune ; la souche est celle de l'audio de la card."""
+    from .function_specs import PIPELINE
+    fields = PIPELINE.reset_outputs(t, (key,))
+    t.save(update_fields=fields)
+    return ctx.output_place('.wav', nature=nature, source_name=t.audio.name)
+
+
+def _schedule_peaks(rel: str) -> None:
+    """Les pics fins de l'audio préparé, par le service COMMUN (non bloquant, ne lève pas) : la
+    page de correction le fait écouter et en dessine l'onde (`Surface.sources_of`)."""
+    from wama.common.utils.waveform import schedule_dense_peaks
+    schedule_dense_peaks(rel)
+
+
+def _level_step(t, ctx):
+    """Process `level` (optionnel) : la parole nivelée — chaque voix au même niveau, le niveau
+    d'ensemble jamais abaissé (brique commune `speech_leveling`) —, gardée sur la card
+    (`leveled_audio`). Ordre fixé par le banc des prétraitements du 2026-09-30/10-01
+    (`WAMA_QUALITE §9bis`, décisions de Fabien) : le nivellement passe AVANT le débruitage, et on
+    ne débruite jamais un audio non nivelé — demander le débruitage nivelle donc d'abord
+    (`function_specs._levels`). Son échec ne fait pas échouer la card : sa ligne le dit, la
+    transcription écoute l'original."""
+    from wama.common.utils.speech_leveling import level_file
+    if t.preprocess_audio and not t.level_speech:
+        _console(t.user_id, "Débruitage demandé : la parole est d'abord nivelée "
+                            "(un audio enregistré bas serait effacé par le débruiteur).")
+    _set_status_message(t, "Nivellement de la parole…")
+    _set_partial_text(t.id, "🎚️ Nivellement de la parole…\n")
+    ctx.progress(5)
+    rel, path = _prepared_output(t, ctx, 'level', 'leveled')
+    level_file(t.audio.path, path)
+    _schedule_peaks(rel)
+    _console(t.user_id, "Nivellement de la parole ✓")
+    return {'fields': {'leveled_audio': rel}, 'output_ref': rel, 'label': os.path.basename(rel),
+            'eta': step_eta_key_size(t, 'level')}
+
+
+#: Le modèle du débruitage, au catalogue — installé par la route s'il manque (`ensure_model`).
+DENOISER_KEY = 'enhancer:deepfilternet'
+
+
+def _denoise_step(t, ctx):
+    """Process `denoise` (optionnel, interrupteur `preprocess_audio`) : l'audio NIVELÉ débruité par
+    DeepFilterNet, gardé sur la card (`denoised_audio`). Impossible (modèle absent, échec), il
+    échoue en le disant : sa ligne le montre et la transcription écoute l'audio nivelé."""
+    from django.conf import settings
+    from .function_specs import PIPELINE
+    from .utils.audio_preprocessor import AudioPreprocessor
+    source = PIPELINE.upstream_output(t, 'denoise', 'audio')
+    if not source:
+        raise RuntimeError("Aucun audio nivelé : le débruitage n'écoute jamais un audio non "
+                           "nivelé (un enregistrement bas serait effacé).")
+    ctx.ensure_model(DENOISER_KEY)
+    _set_status_message(t, "Débruitage de l'audio…")
+    _set_partial_text(t.id, "🔧 Débruitage de l'audio…\n")
+    ctx.progress(5)
+    rel, path = _prepared_output(t, ctx, 'denoise', 'denoised')
+    AudioPreprocessor().preprocess(os.path.join(settings.MEDIA_ROOT, source), path)
+    _schedule_peaks(rel)
+    _console(t.user_id, "Débruitage ✓")
+    return {'fields': {'denoised_audio': rel}, 'output_ref': rel, 'label': os.path.basename(rel),
+            'models': [DENOISER_KEY], 'eta': step_eta_key_size(t, 'denoise')}
 
 
 def _segments_in_memory(t) -> list:
@@ -625,8 +580,9 @@ def _transcript_fingerprint(t) -> str:
 
 
 def _transcribe_step(t, ctx):
-    """Process `transcribe` : prétraitement → chargement du moteur → ASR → sauvegarde du texte et
-    des segments. Une exception fait passer la card en FAILURE (process REQUIS)."""
+    """Process `transcribe` : l'audio préparé par ses amonts (nivellement, débruitage) →
+    chargement du moteur → ASR → sauvegarde du texte et des segments. Une exception fait passer
+    la card en FAILURE (process REQUIS)."""
     import time
     from django.utils import timezone
 
@@ -652,7 +608,7 @@ def _transcribe_step(t, ctx):
         from wama.common.services.result_evaluation import clear
         clear('transcriber', t)
 
-        cleaned_path = _prepared_audio(t, ctx)
+        cleaned_path = _listened_audio(t, 'transcribe')
 
         if not BACKENDS_AVAILABLE:
             raise RuntimeError("Backend system not available")
@@ -848,7 +804,8 @@ def _diarize_step(t, ctx):
     _console(t.user_id, "Diarisation des locuteurs (pyannote)…")
     _set_partial_text(t.id, "🔎 Identification des locuteurs…\n")
     ctx.progress(5)
-    segments = diarize(_prepared_audio(t, ctx), segments, model=getattr(t, 'diarization_model', None))
+    segments = diarize(_listened_audio(t, 'diarize'), segments,
+                       model=getattr(t, 'diarization_model', None))
     _run_state(t)['segments'] = segments
     _save_segments(t, segments)
     _console(t.user_id, "Diarisation terminée ✓")
@@ -989,8 +946,9 @@ def _align_step(t, ctx):
 
 
 #: La glu de chaque process du pipeline (`function_specs.PIPELINE`).
-PROCESSES = {'transcribe': _transcribe_step, 'import': _import_step, 'align': _align_step,
-             'diarize': _diarize_step, 'summarize': _summarize_step, 'coherence': _coherence_step}
+PROCESSES = {'level': _level_step, 'denoise': _denoise_step, 'transcribe': _transcribe_step,
+             'import': _import_step, 'align': _align_step, 'diarize': _diarize_step,
+             'summarize': _summarize_step, 'coherence': _coherence_step}
 
 
 @shared_task(bind=True, name='wama.transcriber.enrich_transcript')

@@ -727,9 +727,21 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertEqual('planned_score', score.edited(self.gen), 'the declared order decides')
 
     def test_a_correction_keeps_the_original_as_a_version_and_stales_the_render(self):
+        from unittest import mock
         from wama.common.models import ItemRevision
         from wama.common.services import process_runs
         from wama.composer.function_specs import PIPELINE
+        # Une card de COVER dont le modèle reprend l'audio par sa partition : celle pour qui
+        # l'extraction a lieu — et dont le rendu suit la partition qu'on corrige. Une ligne
+        # d'extraction ne compte que pour elle (`AppPipeline.still_counts`, 2026-10-21) : avec le
+        # modèle par défaut (MusicGen, sans partition) et sans audio, le rendu ne la lirait pas.
+        type(self.gen).objects.filter(pk=self.gen.pk).update(
+            melody_reference=self.rel.replace('score_extracted.abc', 'cover.wav'))
+        self.gen.refresh_from_db()
+        covers = mock.patch('wama.composer.utils.model_choice.covers_audio_by_score',
+                            return_value=True)
+        covers.start()
+        self.addCleanup(covers.stop)
         process_runs.succeed(self.gen, 'extract_score', output_ref=self.rel, process_key='composer.extract_score',
                              settings_snapshot=PIPELINE.snapshot(PIPELINE.spec('extract_score'), self.gen))
         process_runs.succeed(self.gen, 'render', process_key='composer.render',

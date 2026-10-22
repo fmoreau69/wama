@@ -274,8 +274,11 @@ class TheCardShowsItsFourProcessesTest(_Pipeline):
         self._run()
         client = self._client()
         payload = client.get(reverse('transcriber:progress', args=[self.item.pk])).json()
-        self.assertEqual(['transcribe', 'diarize', 'summarize', 'coherence'],
+        # Le débruitage (2026-10-21) se montre en CASE À COCHER, désactivé, comme tout optionnel
+        # à interrupteur ; le nivellement, que la card ne demande pas, n'a pas lieu.
+        self.assertEqual(['denoise', 'transcribe', 'diarize', 'summarize', 'coherence'],
                          [p['key'] for p in payload['processes']])
+        self.assertFalse(payload['processes'][0]['enabled'])
         self.assertEqual(('SUCCESS', 'SUCCESS'), (payload['status'], payload['shown_state']))
 
 
@@ -428,68 +431,23 @@ class ExistingResultPlaysTheImportProcessTest(_Pipeline):
         self.assertFalse(Transcript.objects.get(pk=self.item.pk).preprocess_audio)
 
 
-class ThePreparedAudioFollowsTheLaunchTest(_Pipeline):
+class TheLaunchKeepsItsModelTest(_Pipeline):
     """2026-10-21, card #2522 : a transcription by a REMOTE model (Albert) plays on the default
     queue, the speakers on the GPU queue — the skeleton re-delivers the task and the next process
-    runs in ANOTHER worker, whose `_RUNS` is empty. The speech was leveled twice (~110 s each on
-    141 min of audio), the second time at the start of the diarization. The prepared audio is
-    given to the LAUNCH (`ctx.remember` / `ctx.keep_file`, task skeleton) ; the skeleton's own
-    guards (`tests_process_governance.TheLaunchRemembersAcrossDeliveriesTest`) hold the rest."""
+    runs in ANOTHER worker, whose `_RUNS` is empty. The model the launch drew is kept by the
+    skeleton (`tests_process_governance.TheLaunchRemembersAcrossDeliveriesTest`) ; the audio the
+    processes listen to is a declared output since the same day (`ThePreparationIsDeclaredTest`)."""
 
     options = {'enable_diarization': True, 'generate_summary': False, 'verify_coherence': False}
-
-    def setUp(self):
-        super().setUp()
-        Transcript.objects.filter(pk=self.item.pk).update(level_speech=True)
-        self.item.refresh_from_db()
-        self.addCleanup(workers._RUNS.clear)
-        self.leveled = []
-
-    def _ctx(self, launch):
-        from wama.common.utils.task_skeleton import TaskContext, _close_launch
-        ctx = TaskContext('transcriber', Transcript, self.item)
-        ctx.launch = launch
-        self.addCleanup(_close_launch, 'transcriber', self.item.pk)
-        return ctx
-
-    def _level(self, src, dst):
-        self.leveled.append(src)
-        with open(dst, 'wb') as f:
-            f.write(b'leveled')
-        return dst
-
-    def _prepare(self, ctx):
-        with mock.patch('wama.common.utils.speech_leveling.level_file', side_effect=self._level):
-            return workers._prepared_audio(self.item, ctx)
-
-    def test_the_next_worker_of_the_same_launch_does_not_level_again(self):
-        ctx = self._ctx('launch-A')
-        first = self._prepare(ctx)
-        workers._release_run(self.item.pk)              # the delivery ends, the launch goes on
-        self.assertTrue(os.path.exists(first), 'a re-delivery is not the end of the launch')
-        self.assertEqual(first, self._prepare(self._ctx('launch-A')))
-        self.assertEqual(1, len(self.leveled), 'the speech was leveled a second time')
-
-    def test_changed_settings_prepare_the_audio_again(self):
-        self._prepare(self._ctx('launch-A'))
-        workers._release_run(self.item.pk)
-        Transcript.objects.filter(pk=self.item.pk).update(preprocess_audio=True)
-        self.item.refresh_from_db()
-        with mock.patch.object(workers, '_preprocess_audio', side_effect=lambda t, p: p):
-            self._prepare(self._ctx('launch-A'))
-        self.assertEqual(2, len(self.leveled))
-
-    def test_outside_a_launch_the_delivery_removes_its_own_audio(self):
-        prepared = self._prepare(None)
-        workers._release_run(self.item.pk)
-        self.assertFalse(os.path.exists(prepared))
 
     def test_the_transcription_uses_the_model_the_launch_kept(self):
         """Re-delivered BEFORE the transcription (#2522 : GPU queue → default queue), the glue
         must not draw « auto » again — the skeleton already chose for the launch."""
-        Transcript.objects.filter(pk=self.item.pk).update(level_speech=False)
-        self.item.refresh_from_db()
-        ctx = self._ctx('launch-A')
+        from wama.common.utils.task_skeleton import TaskContext, _close_launch
+        self.addCleanup(workers._RUNS.clear)
+        ctx = TaskContext('transcriber', Transcript, self.item)
+        ctx.launch = 'launch-A'
+        self.addCleanup(_close_launch, 'transcriber', self.item.pk)
         ctx.model_key = 'transcriber:kept-by-the-launch'
         with mock.patch('wama.transcriber.backends.manager.resolve_auto_key') as draw, \
                 mock.patch.object(workers, 'get_backend', return_value=self.asr) as backend, \
@@ -500,6 +458,219 @@ class ThePreparedAudioFollowsTheLaunchTest(_Pipeline):
             workers._transcribe_step(self.item, ctx)
         draw.assert_not_called()
         self.assertEqual('transcriber:kept-by-the-launch', backend.call_args.args[0])
+
+
+class ThePreparationIsDeclaredTest(_Pipeline):
+    """2026-10-21, decision of Fabien — « rendre le pré-traitement en tant que process déclaré » :
+    the leveling and the denoising were done INSIDE `transcribe`, in a temporary file, once per
+    delivery (#2522 : leveled twice). They are two declared optional processes (`level`, CPU ;
+    `denoise`, GPU, switched by `preprocess_audio`), each KEEPS its audio on the card as any
+    process output — the transcription and the speakers listen to it, the preview and the
+    correction page make it heard. Held here:
+
+      * the order of the preprocessing bench (level, then denoise ; never denoise unleveled audio) ;
+      * the engine and pyannote hear the audio of the nearest upstream that rendered one ;
+      * a denoising that fails says so on ITS line and the transcription hears the leveled audio ;
+      * switching the leveling off makes the transcription stale ONCE, and the relaunch hears the
+        original — the common engine used to keep it stale forever ;
+      * a card transcribed BEFORE the split (no line of the new processes, the leveling in the
+        photo of its transcription) stays valid : changing its kind of summary does not
+        transcribe again (`ProcessSpec.split_from`) ;
+      * the kept audio is a face of the preview, and a duplicate does not inherit it."""
+
+    options = {'enable_diarization': True, 'generate_summary': True, 'verify_coherence': False}
+    _client = TheCardShowsItsFourProcessesTest._client
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from django.test import override_settings
+        self.tmp = tempfile.mkdtemp()
+        media = override_settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        super().setUp()
+        self.leveled, self.denoised, self.denoise_error = [], [], None
+
+    def _level(self, src, dst):
+        self.leveled.append(src)
+        with open(dst, 'wb') as handle:
+            handle.write(b'RIFF leveled')
+        return dst
+
+    def _denoise(self, preprocessor, src, dst):
+        if self.denoise_error:
+            raise self.denoise_error
+        self.denoised.append(src)
+        with open(dst, 'wb') as handle:
+            handle.write(b'RIFF denoised')
+        return dst
+
+    def _set(self, **fields):
+        Transcript.objects.filter(pk=self.item.pk).update(**fields)
+        self.item.refresh_from_db()
+
+    def _run(self, process=None, task=None):
+        from wama.transcriber.utils.audio_preprocessor import AudioPreprocessor
+        heard = []
+        diarize = self._diarize
+
+        def listening(audio_path, segments, **kwargs):
+            heard.append(('diarize', audio_path))
+            return diarize(audio_path, segments, **kwargs)
+        self._diarize = listening
+        self.asr.transcribe.reset_mock()          # what THIS launch made the engine hear
+        with mock.patch('wama.common.utils.speech_leveling.level_file', side_effect=self._level), \
+                mock.patch.object(AudioPreprocessor, 'preprocess', autospec=True,
+                                  side_effect=self._denoise), \
+                mock.patch('wama.common.utils.model_readiness.ensure_installed'), \
+                mock.patch.object(workers, 'transcribe_without_preprocessing',
+                                  getattr(workers, task or 'transcribe')):
+            item = super()._run(process)
+        self._diarize = diarize
+        self.heard = [('transcribe', call.kwargs['audio_path'])
+                      for call in self.asr.transcribe.call_args_list] + heard
+        return item
+
+    def _abs(self, field):
+        return os.path.join(self.tmp, getattr(self.item, field).name)
+
+    def test_the_leveled_audio_is_kept_and_is_what_the_engine_and_pyannote_hear(self):
+        self._set(level_speech=True)
+        item = self._run()
+        self.assertEqual('SUCCESS', item.status)
+        self.assertEqual(JOB_SUCCESS, self._states()['level'])
+        self.assertNotIn('denoise', self._states(), 'the denoising was not asked for')
+        self.assertTrue(os.path.isfile(self._abs('leveled_audio')), 'the leveled audio is kept')
+        self.assertEqual([item.audio.path], self.leveled, 'leveled once, from the original')
+        self.assertEqual([('transcribe', self._abs('leveled_audio')),
+                          ('diarize', self._abs('leveled_audio'))], self.heard)
+        self.assertEqual(f'users/{self.user.pk}/transcriber/output',
+                         os.path.dirname(item.leveled_audio.name), 'an output of the card')
+
+    def test_denoising_comes_after_leveling_and_is_what_the_engine_hears(self):
+        """Order fixed by the preprocessing bench (2026-10-01): DeepFilterNet erases speech
+        recorded low, so asking for it levels first — even without the leveling option."""
+        self._set(preprocess_audio=True, level_speech=False)
+        item = self._run()
+        self.assertEqual(['level', 'denoise', 'transcribe'],
+                         [k for k in ('level', 'denoise', 'transcribe') if k in self._states()])
+        self.assertEqual([self._abs('leveled_audio')], self.denoised,
+                         'the denoiser gets the LEVELED audio')
+        self.assertEqual(('transcribe', self._abs('denoised_audio')), self.heard[0])
+        self.assertEqual(['enhancer:deepfilternet'],
+                         process_runs.line(item, 'denoise').output_summary.get('models')
+                         or [process_runs.line(item, 'denoise').model_key])
+
+    def test_a_failed_denoising_says_so_and_the_engine_hears_the_leveled_audio(self):
+        self._set(preprocess_audio=True)
+        self.denoise_error = RuntimeError("DeepFilterNet indisponible : l'audio n'est pas débruité")
+        item = self._run()
+        self.assertEqual('SUCCESS', item.status, 'an optional process does not fail the card')
+        self.assertEqual(JOB_FAILURE, process_runs.line(item, 'denoise').status)
+        self.assertIn('DeepFilterNet', process_runs.line(item, 'denoise').error_message)
+        self.assertEqual(('transcribe', self._abs('leveled_audio')), self.heard[0])
+        self.assertIn('transcribe', PIPELINE.refresh(item),
+                      'the transcription does not reflect what the card asks : stale')
+
+    def test_without_the_options_nothing_is_prepared(self):
+        item = self._run()
+        self.assertEqual([], self.leveled)
+        self.assertNotIn('level', self._states())
+        self.assertEqual(('transcribe', item.audio.path), self.heard[0])
+
+    def test_switching_the_leveling_off_stales_the_transcription_once(self):
+        self._set(level_speech=True)
+        self._run()
+        self._set(level_speech=False)
+        self.assertIn('transcribe', PIPELINE.refresh(self.item),
+                      'the transcription heard a leveling the card no longer asks for')
+        item = self._run()
+        self.assertEqual(('transcribe', item.audio.path), self.heard[0], 'the original, now')
+        self.assertEqual(1, len(self.leveled), 'nothing was leveled again')
+        self.assertEqual(set(), PIPELINE.refresh(item), 'replayed without it: valid again')
+        self.assertEqual(JOB_SUCCESS, PIPELINE.card_state(item))
+        self.assertNotIn('level', [row['key'] for row in PIPELINE.card_rows(item, 'auto')],
+                         'the strip no longer shows a process the card no longer plays')
+
+    def test_a_card_transcribed_before_the_split_stays_valid(self):
+        """Its transcription leveled the audio itself : its photo holds the leveling settings,
+        it has no line of `level`. Changing the kind of summary replays the summary alone."""
+        self._set(level_speech=True)
+        self._run()
+        process_runs.lines(self.item).filter(node_id='level').delete()
+        row = process_runs.line(self.item, 'transcribe')
+        photo = {k: v for k, v in row.settings_snapshot.items() if not k.startswith('@')}
+        photo.update(level_speech=True, preprocess_audio=False)
+        row.settings_snapshot = photo
+        row.save(update_fields=['settings_snapshot'])
+        for later in ('diarize', 'summarize'):          # rendered then, without `level` either
+            line = process_runs.line(self.item, later)
+            photo = dict(line.settings_snapshot)
+            photo['@upstream'] = {k: v for k, v in photo.get('@upstream', {}).items()
+                                  if k != 'level'}
+            line.settings_snapshot = photo
+            line.save(update_fields=['settings_snapshot'])
+        self._set(leveled_audio=None)
+        self.assertEqual(set(), PIPELINE.refresh(self.item), 'nothing changed: valid')
+        self._set(summary_type='meeting')
+        self.assertEqual(['summarize'],
+                         [s.key for s in PIPELINE.steps_to_run(self.item, 'auto')])
+        strip = {row['key']: row for row in PIPELINE.card_rows(self.item, 'auto')}
+        self.assertEqual(JOB_SUCCESS, strip['level']['status'], 'done within the transcription')
+        self._set(summary_type='structured', level_speech=False)
+        self.assertIn('transcribe', PIPELINE.refresh(self.item),
+                      'its leveling is no longer asked for: its transcription is stale')
+
+    def test_the_kept_audio_is_a_face_of_the_preview_and_a_duplicate_starts_without_it(self):
+        """⧉ « Dupliquer » : la copie repart sans résultat, audio préparé compris (`clear_fields`
+        de la vue — `duplicate_instance` PARTAGE les fichiers par contrat, il ne choisit rien)."""
+        from django.test import RequestFactory
+        from wama.common.utils.preview_utils import _process_faces
+        self._set(level_speech=True, preprocess_audio=True)
+        item = self._run()
+        faces = _process_faces('transcriber', item, RequestFactory().get('/'), None, None)
+        meta, data = faces['level']
+        self.assertEqual(('Nivellement', 'fa-volume-high'), (meta['label'], meta['icon']))
+        self.assertIn(os.path.basename(item.leveled_audio.name), data['url'])
+        self.assertIn('denoise', faces)
+        response = self._client().post(reverse('transcriber:duplicate', args=[item.pk]))
+        self.assertEqual(200, response.status_code, response.content[:200])
+        copy = Transcript.objects.exclude(pk=item.pk).get(user=self.user)
+        self.assertEqual((False, False), (bool(copy.leveled_audio), bool(copy.denoised_audio)),
+                         'the copy has no line: it keeps no prepared audio')
+        self.assertEqual(item.audio.name, copy.audio.name, 'its input is shared, as before')
+
+    def test_the_correction_page_lets_one_listen_to_each_version(self):
+        """« Se rendre compte à l'oreille » (Fabien, 2026-10-21) : the surface offers the
+        original and the prepared audio — DERIVED from the pipeline (`Surface.sources_of`), the
+        transcriber names nothing — and serves the peaks of the chosen one only."""
+        from django.test import Client
+        from wama.common.surfaces import surface
+        self._set(preprocess_audio=True)
+        item = self._run()
+        found = surface('transcriber', 'correct')
+        self.assertEqual([('', 'Original'), ('level', 'Nivellement'), ('denoise', 'Débruitage')],
+                         [(v['key'], v['label']) for v in found.sources_of(item, 'audio')])
+        self.assertEqual([], found.sources_of(item, 'latest'), 'a document has no versions')
+        client = Client(HTTP_HOST='localhost')
+        client.force_login(self.user)
+        base = f'/common/surface/transcriber/correct/{item.pk}/data/'
+        with mock.patch('wama.common.surface_views._server_peaks', return_value=None):
+            data = client.get(base).json()
+        self.assertEqual(['', 'level', 'denoise'], [v['key'] for v in data['sources']['audio']])
+        self.assertTrue(data['sources']['audio'][1]['url'].endswith(
+            os.path.basename(item.leveled_audio.name)))
+        with mock.patch('wama.common.utils.waveform.dense_peaks',
+                        return_value={'status': 'pending'}) as peaks:
+            client.get(base + '?only=peaks&role=audio&source=level')
+            client.get(base + '?only=peaks&role=audio&source=leveled_audio')
+        self.assertEqual([item.leveled_audio.name, ''], [c.args[0] for c in peaks.call_args_list],
+                         'only a version the surface offers — never a field the page names')
+        self._set(preprocess_audio=False, level_speech=False)
+        self.assertEqual([], found.sources_of(self.item, 'audio'),
+                         'a preparation the card no longer asks for is not offered')
 
 
 class TheEstimateLineIsBootstrappedFromTheRunsTest(_Pipeline):

@@ -25605,6 +25605,10 @@ pansement »* ; *« ne rien réinventer, le bouton de la modale est censé être
   garde la MÉMOIRE DU LANCEMENT (`ctx.model_key`, `ctx.remember`/`recall`, `ctx.keep_file`, fichiers
   retirés à la fin réelle seulement — `ROUTE §10.6` 4.5). Le modèle « auto » n'est plus retiré à
   chaque livraison. Le transcriber s'en sert (audio préparé, modèle de la glue).
+  ⚠ **Corrigé le soir même** (décision de Fabien) : l'audio préparé n'est plus un fichier
+  temporaire du lancement — `ctx.keep_file` est retiré (`REMOVAL_LEDGER R171`), la garde
+  `ThePreparedAudioFollowsTheLaunchTest` remplacée par `ThePreparationIsDeclaredTest` : nivellement
+  et débruitage sont des process déclarés (palier « La PRÉPARATION de l'audio… » ci-dessous).
 - **ETA de 11 h** : les clés de process apprenaient un RAPPORT (s / s d'audio) sur des audios
   courts — locuteurs 3,19 s/s (7 h 32 annoncées, 335 s réelles), résumé 4 505 s (12 s), cohérence
   6 518 s (8 s). **Au commun** : l'estimateur apprend la droite coût fixe + par unité
@@ -25628,6 +25632,12 @@ pansement »* ; *« ne rien réinventer, le bouton de la modale est censé être
   la moitié du texte ; la paire contrôlée #1048/#1070 donne au nivellement −3,2 points ; niveau
   mesuré avant/après (`WAMA_QUALITE §9bis`, suite du 2026-10-21). ⏳ Mesure « Albert sans
   nivellement » à faire (moteur distant, aucun GPU).
+  ⏳ **Décision de Fabien — Albert dans le tirage « auto »** : l'omission de la moitié des mots
+  (9 036 suppressions sur #489) n'est PAS corrigée, et le tirage automatique retient Albert pour un
+  profil qui ouvre les distants. Trois voies : (a) l'écarter de l'automatique, (b) le garder en
+  prévenant, (c) mesurer d'abord sur un corpus. Rien n'a été changé en attendant.
+  ⚠ **WIP d'autrui laissé** : `wama-inspector.js` porte un correctif « Bug #1532 » de
+  `panel.apply` non commité d'une autre instance — ni repris ni commité ici.
 - **Gardes** (toutes contre-éprouvées, rouges sur le code d'avant) : `tests_process_governance.
   TheLaunchRemembersAcrossDeliveriesTest` (5), `tests_pipeline.ThePreparedAudioFollowsTheLaunchTest`
   (4), `tests_eta_test_accounts.FixedCostIsLearnedApartTest` (4), `tests_queue_delete_contract.
@@ -25809,6 +25819,53 @@ recherche), DOM 58/58 ; scénarios `accounts.constellation.ui`, `common.scene.li
 **Artefacts** : le banc de parité, les jeux de faits figés et les sondes vivent dans le scratchpad de
 session (jetables) ; serveurs jetables arrêtés ; arbre de travail jetable retiré ; base de test
 privée détruite ; compte `wama_pw_smoke` rendu à son niveau « utilisateur ».
+
+## §PALIER 2026-10-21 (nuit), « La PRÉPARATION de l'audio devient deux process déclarés — et on écoute chaque version » — non poussé — migration `transcriber/0028` APPLIQUÉE — 🔴 relancer gunicorn ET les workers (`process_pipeline`, `task_skeleton`, glues du transcriber, surfaces)
+
+Décision de Fabien : *« rendre le pré-traitement en tant que process déclaré […] On garde le média
+intermédiaire comme pour toute chaîne de process […] Les jobs existants restent valables […] l'étape
+peut être facultative […] parfaitement schéma-driven »*. Détail et règles : `ROUTE §10.6` 4.6
+(« Une préparation devient un process »).
+
+- ✅ **Transcriber** : process `level` (« Nivellement », file par défaut) et `denoise` (« Débruitage »,
+  GPU, interrupteur `preprocess_audio`) ; sorties `leveled_audio` / `denoised_audio` gardées sur la
+  card ; la transcription et les locuteurs écoutent la plus proche (`upstream_output`). Un
+  débruiteur absent fait échouer SA ligne (fini le repli silencieux). Aperçu : une face par process,
+  sans code. Page de correction : « Écouter : Original / Nivellement / Débruitage ».
+- ✅ **Moteur commun** : `still_counts` (MESURÉ avant : un amont qui n'a plus lieu laissait son aval
+  périmé À JAMAIS — composer exposé aussi), `output_of` / `upstream_output` (adoptés par le composer),
+  `ProcessSpec.split_from` (les transcriptions d'avant restent valables : un type de résumé changé ne
+  retranscrit pas), `ctx.output_place` (adopté par composer et transcriber, rôle `codegen` informé),
+  `Surface.sources_of` + bus `source` (transport et ligne de temps). **Duplication** : une copie
+  garde ce que l'utilisateur a donné et repart sans ce que ses process ont écrit
+  (`AppPipeline.produced_fields`, lu par `duplicate_instance`) — les listes recopiées à la main dans
+  la vue ⧉ ET la fabrique des lots de cinq apps ont perdu ce qui se dérive (elles avaient dérivé :
+  `parts_score`). Deux formes fausses écartées en route : « vider toute sortie déclarée » (aurait
+  fait perdre à la copie l'audio DONNÉ d'un avatarizer « standalone ») et « revenir aux listes »
+  (les tests de contrat supposaient que la copie désigne TOUS les champs ; leur invariant réel —
+  un fichier que la copie désigne survit — est désormais écrit tel quel).
+- ✅ **Retiré** : `ctx.keep_file` et la préparation interne du transcriber (`REMOVAL_LEDGER R171`).
+- Gardes : `tests_process_pipeline` (4 classes, dont la duplication sur toutes les apps à
+  pipeline), `tests_queue_delete_contract` / `tests_retention` (invariant de partage réécrit),
+  `tests_task_skeleton_contract` (place d'une sortie, 10 apps), `transcriber.tests_pipeline.
+  ThePreparationIsDeclaredTest` (8), la vue ⧉ du composer ; contre-épreuves en mémoire, rouges
+  (dont « vider toute sortie déclarée » : rouge sur l'audio donné de l'avatarizer). JS : parse V8.
+- 🔚 Reste aussi : le générateur dérive sa propre liste de sorties pour les jumelles
+  (`views_gen.champs_sortie`) — à aligner sur `produced_fields` avec leur régénération.
+- **Suite complète (WSL, série, 8 430 tests)** : les rouges restants préexistent sur HEAD ou
+  viennent du travail non commité d'autres instances — jumelles `anonymizer_01` (`FieldError
+  progress`), `composer_01`, `writer_01` (302), `avatarizer_01`/`synthesizer_01` (porte des voix),
+  `wama/common/privacy/` (test hors de son paquet), budgets de langue.
+- ⚠ **Artefacts `venv_win`, pas des régressions** : `tests_surfaces` « unchanged … writes nothing » (×2)
+  rougissent sous Windows (`Path.write_text` écrit `\r\n`), verts sous WSL.
+- 🔚 **Restes** : (a) adoption de `ctx.output_place` par les autres glues (converter, anonymizer,
+  enhancer, imager, avatarizer, synthesizer, `tasks_gen`) ; (b) l'ancien audio préparé d'un process
+  décoché reste sur la card jusqu'à sa relance — le libérer au lancement est une DÉCISION ; (c) choix
+  de version non retenu d'une ouverture à l'autre.
+- ✅ **Parité** `transcriber.editor_parity` sur serveur jetable WSL (8011, `venv_linux`) : **66/66**,
+  plus le geste neuf « Versions » 5/5 (contre-épreuve rouge sans audio nivelé). ⚠ Joué sous
+  `venv_win`, « une proposition reçue s'affiche » rougit : le cache y est `LocMemCache`, la
+  proposition semée par le scénario n'atteint pas le serveur — artefact du harnais, pas du code.
 
 **SUITE de la §CLÔTURE 2026-10-21 soir — le FILTRE depuis la légende** (forme validée par Fabien) : ✅
 livré dans la brique commune (`WAMA_SCENES_3D §5` 2bis) — une ligne d'étoiles se clique (masquer /

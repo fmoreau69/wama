@@ -137,7 +137,6 @@ from wama.composer.params import PARAMS_JSON as _SETTINGS_SCHEMA  # noqa: E402
 _bv = make_batch_views(
     work_model=ComposerGeneration, batch_model=ComposerBatch, get_user=_get_user,
     task_for=_task_for, start_only_pending=True,
-    output_fields=('audio_output', 'planned_score', 'extracted_score'),
     item_model=ComposerBatchItem, fk_name='generation',
     reset_on_start=_reset_for_relaunch,
     reset_on_duplicate={'status': 'PENDING', 'progress': 0, 'task_id': None,
@@ -792,7 +791,7 @@ def duplicate(request, pk):
             'task_id': None, 'error_message': '',
             'exported_to_library': False,
         },
-        clear_fields=['audio_output', 'planned_score', 'extracted_score'],
+        # Le rendu et les partitions : ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21) — la liste écrite ici oubliait `parts_score`.
     )
     # Fille d'un VRAI batch (total > 1) : dupliquer en frère DANS le batch.
     # Card UNITAIRE (batch-de-1) : la copie devient une card indépendante (nouveau batch-de-1) —

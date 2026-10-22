@@ -252,31 +252,6 @@ def _backend(gen, catalog_key):
     return gen._backend
 
 
-def _output_place(gen, ctx, catalog_key, ext, nature=''):
-    """(dossier relatif, nom, chemin absolu) d'une sortie de cette card ; `nature` quand la sortie
-    n'est pas celle de l'app (la partition : `score<id>_…`, pas `audio<id>_…`).
-
-    Le dossier vient de la brique (`app_media_dir`) : il décide où le fichier atterrit ET ce que
-    la base retient. Composé à la main (`composer/<uid>/output`) jusqu'au 2026-10-02, il aurait
-    recréé l'ancien arbre à la première génération après la bascule des médias du 2026-09-12
-    (mesuré : aucune génération depuis — les 5 sorties en base ont été migrées) — et la règle de
-    propriété n'aurait jamais reconnu ce fichier comme celui de l'app.
-    Le nom vient de la brique COMMUNE de nommage (2026-08-25). ⚠ Le rendu a CHANGÉ ce jour-là,
-    volontairement (arbitrage Fabien : l'homogénéité prime sur le portage à l'identique) :
-    `{modèle}_{uuid8}.wav` → `audio{id}_{modèle}.wav`. L'uuid était unique mais MUET — il ne
-    rattachait le fichier à aucune card."""
-    from django.conf import settings
-    from wama.common.utils.media_paths import app_media_dir
-    from wama.common.utils.model_keys import model_id
-    from wama.common.utils.output_naming import compose_output_name
-    rel_dir = app_media_dir(ctx.app_id, gen.user_id, 'output')
-    abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
-    os.makedirs(abs_dir, exist_ok=True)
-    name = compose_output_name(app=ctx.app_id, model=model_id(catalog_key), item_id=gen.id,
-                               ext=ext, nature=nature)
-    return rel_dir, name, os.path.join(abs_dir, name)
-
-
 # ── Glu ──────────────────────────────────────────────────────────────────────────────────────
 
 def _extract_score(gen, ctx):
@@ -333,10 +308,10 @@ def _extract_score(gen, ctx):
         except Exception:
             logger.warning("[composer] modèle d'extraction de #%s non déchargé", gen.pk,
                            exc_info=True)
-    rel_dir, name, abs_path = _output_place(gen, ctx, extractor_key, '.abc', nature='score')
+    score_rel, abs_path = ctx.output_place('.abc', nature='score', model=model_id(extractor_key))
+    name = os.path.basename(score_rel)
     with open(abs_path, 'w', encoding='utf-8') as handle:
         handle.write(text)
-    score_rel = f'{rel_dir}/{name}'
     return {
         'fields': {'extracted_score': score_rel},
         'output_ref': score_rel,
@@ -390,10 +365,10 @@ def _parts(gen, ctx):
                            exc_info=True)
     grid = beat_grid(audio_abs) or {}
     text = midi_to_abc(midi, title=f'#{gen.pk}', beat_times=grid.get('beats'))
-    rel_dir, name, abs_path = _output_place(gen, ctx, extractor_key, '.abc', nature='score')
+    score_rel, abs_path = ctx.output_place('.abc', nature='score', model=model_id(extractor_key))
+    name = os.path.basename(score_rel)
     with open(abs_path, 'w', encoding='utf-8') as handle:
         handle.write(text)
-    score_rel = f'{rel_dir}/{name}'
     return {
         'fields': {'parts_score': score_rel},
         'output_ref': score_rel,
@@ -420,10 +395,10 @@ def _plan(gen, ctx):
     except Exception:
         ctx.reset_progress()
         raise
-    rel_dir, name, abs_path = _output_place(gen, ctx, catalog_key, '.abc', nature='score')
+    score_rel, abs_path = ctx.output_place('.abc', nature='score', model=model_id(catalog_key))
+    name = os.path.basename(score_rel)
     with open(abs_path, 'w', encoding='utf-8') as handle:
         handle.write(text)
-    score_rel = f'{rel_dir}/{name}'
     return {
         'fields': {'planned_score': score_rel},
         'output_ref': score_rel,
@@ -463,7 +438,8 @@ def _render(gen, ctx):
             gen.duration = duration
     ctx.console(f"[Composer] Démarrage : {catalog_key} — {gen.prompt[:60]}…")
 
-    output_rel_dir, output_filename, output_abs_path = _output_place(gen, ctx, catalog_key, '.wav')
+    output_rel, output_abs_path = ctx.output_place('.wav', model=model_id(catalog_key))
+    output_filename = os.path.basename(output_rel)
 
     # L'audio du cover n'est donné qu'au modèle qui le prend LUI-MÊME (MusicGen Melody) : un modèle
     # qui le reprend par sa partition (YuE2) le refuserait — il reçoit la partition extraite.
@@ -507,7 +483,6 @@ def _render(gen, ctx):
             except OSError:
                 pass
 
-    output_rel = f'{output_rel_dir}/{output_filename}'
     # Le format et la qualité de sortie sont le process suivant, `output` (brique commune) : ici
     # la glu rend le WAV du modèle. Les rendus et l'original gardé de la fois d'avant partent.
     from wama.common.services.output_process import drop_previous_outputs, generated
@@ -555,12 +530,10 @@ def _score_to_follow(gen, catalog_key) -> str:
     `extract_score` vaut pour la card (audio retiré, modèle changé : l'ancienne n'est plus suivie) ;
     puis celle du process `plan`, suivie seulement par un modèle qui planifie : une card passée
     d'un modèle à partition à un modèle qui n'en prend pas garde son ancien `planned_score` en
-    base — le lui donner le ferait refuser le rendu."""
-    from .function_specs import extracts_score, plans_a_score
+    base — le lui donner le ferait refuser le rendu. La partition d'un amont se lit par le geste
+    COMMUN (`AppPipeline.upstream_output` : la sortie de type `score` de l'amont qui a lieu —
+    2026-10-21)."""
+    from .function_specs import PIPELINE
     if gen.reference_score:
         return gen.reference_score.name
-    extracted = getattr(gen.extracted_score, 'name', gen.extracted_score) or ''
-    if extracted and extracts_score(gen, catalog_key):
-        return extracted
-    planned = getattr(gen.planned_score, 'name', gen.planned_score) or ''
-    return planned if planned and plans_a_score(catalog_key) else ''
+    return PIPELINE.upstream_output(gen, 'render', 'score', catalog_key)

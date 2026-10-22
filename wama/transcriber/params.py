@@ -124,7 +124,8 @@ PARAMS = derive_from_model(
                       'propre ou lointain : à réserver aux fonds très bruyants.</span><br>'
                       '<a href="#" class="text-info text-decoration-none" data-bs-toggle="modal" '
                       'data-bs-target="#preprocessingModal"><i class="fas fa-circle-question"></i> En savoir plus</a>',
-            stales=("transcribe",),
+            # L'INTERRUPTEUR du process `denoise` (`ProcessSpec.toggle`, 2026-10-21) : comme ceux
+            # des autres process optionnels, il ne déclare pas de `stales`.
         ),
         "level_speech": dict(
             label="Nivellement de la parole", icon="fa-sliders",
@@ -132,7 +133,8 @@ PARAMS = derive_from_model(
                  "remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué "
                  "en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains "
                  "ou faits à bas niveau, neutre sur un enregistrement propre.",
-            stales=("transcribe",)),
+            # Le process `level` (2026-10-21) ; la transcription, qui écoute son audio, le suit.
+            stales=("level",)),
         "vad_mode": dict(
             type="select", label="Filtre de parole (VAD)", icon="fa-wave-square",
             help="Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie "

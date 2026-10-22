@@ -523,7 +523,9 @@ def matiere_process(man: dict, pipeline: dict, functions: dict, spec: dict,
     if function:
         lines.append(f"Manifeste `function` du process :\n{json.dumps(function, ensure_ascii=False, indent=1)}")
     lines.append("⚠ L'exemple du composer (`_plan`) appelle des helpers PROPRES au composer "
-                 "(`_output_place`, `_backend`, `_model_key`…) : ils n'existent pas ici.")
+                 "(`_backend`, `_model_key`…) : ils n'existent pas ici. Le fichier d'une sortie se "
+                 "place par la brique COMMUNE `ctx.output_place(ext, nature=…, model=…)` → "
+                 "(chemin relatif, chemin absolu).")
     return '\n'.join(lines)
 
 
