@@ -23,8 +23,7 @@
   masqués par défaut.
 {% endcomment %}
 <div class="wc-stage{% if embed %} embed{% endif %}" id="wc-{{ scene.key }}" data-src="{{ scene_data_url }}"
-     {% if embed %}data-embed="1"{% endif %}{% if not scene.module %} data-generic{% endif %}
-     data-hands-wasm="{{ hands.wasm }}" data-hands-model="{{ hands.model }}" data-hands-manage="{{ hands.manage }}">
+     {% if embed %}data-embed="1"{% endif %}{% if not scene.module %} data-generic{% endif %}>
   {{ scene_spec|json_script:scene_spec_id }}
   <div class="wc-canvas"></div>
   <div class="wc-labels"></div>
@@ -51,9 +50,7 @@
       <div class="wc-chips wc-layers">
         {% for layer in scene_layers %}<button type="button" class="wc-chip{% if layer.on_now %} on{% endif %}" data-layer="{{ layer.key }}"{% if layer.title %}
                 title="{{ layer.title }}"{% endif %}>{% if layer.dot %}<span class="dot{% if layer.flat %} flat{% endif %}" style="--dot:var(--wc-{{ layer.dot }}){% if layer.glow %};--dot-glow:var(--wc-{{ layer.glow }}){% endif %}"></span>{% endif %}{{ layer.label }}</button>
-        {% endfor %}<button type="button" class="wc-chip" data-hands
-                title="Piloter la scène à la main, par la webcam : poing fermé pour tourner, deux poings pour zoomer. Les images ne quittent pas le navigateur."><i class="fas fa-hand"></i>Mains</button>
-
+        {% endfor %}
       </div>
       {% if scene.colorings %}<div class="wc-box-title">{{ scene.colorings_title }}</div>
       <div class="wc-chips wc-colorby">
@@ -68,12 +65,6 @@
       <div class="wc-weights"></div>
     </details>
   </aside>
-
-  <!-- Les mains : la vignette de la webcam, ce que WAMA y lit (`common/js/wama-hands.js`) -->
-  <div class="wc-hands" hidden>
-    <video muted playsinline></video><canvas></canvas>
-    <div class="wc-hands-status"></div>
-  </div>
 
   <!-- Volet droit : l'élément choisi, sinon la légende -->
   <aside class="wc-hud wc-panel" aria-live="polite"></aside>

@@ -77,17 +77,21 @@ class GestureModelRouteTest(TestCase):
         self.assertEqual(200, response.status_code)
         self.assertEqual(b'task-bytes', body)
 
-    def test_every_scene_page_carries_the_hands_chip_and_their_addresses(self):
+    def test_the_hands_are_one_global_icon_not_a_button_per_scene(self):
+        # Décision de Fabien (2026-10-22) : UNE interface globale, dans la barre du haut — cachée
+        # tant qu'aucune page ne se déclare cible ; une scène n'a plus de bouton à elle.
         from wama.accounts.permissions import set_account_tier
         set_account_tier(self.user, 'admin')
         self.client.force_login(self.user)
-        for url in (reverse('common:scene', args=['licenses']), reverse('accounts:user-constellation')):
+        for url in (reverse('common:scene', args=['licenses']), reverse('accounts:user-constellation'),
+                    reverse('home')):
             html = self.client.get(url).content.decode()
-            self.assertIn('data-hands', html, url)
-            self.assertIn('class="wc-hands" hidden', html, url)
+            self.assertIn('id="wamaHandsToggle"', html, url)
             self.assertIn(f'data-hands-model="{reverse("common:hand_model")}"', html, url)
-            self.assertIn('mediapipe-tasks-vision-1.1.1/wasm', html, url)
-            self.assertIn('"mediapipe/tasks-vision"', html, url)     # l'importmap commune
+            self.assertIn('"wama/hands-ui"', html, url)              # l'importmap commune
+            self.assertIn('"mediapipe/tasks-vision"', html, url)
+            self.assertNotIn('wc-hands-toggle', html, url)
+            self.assertNotIn('data-hands-wasm', html, url)
 
 
 # Un faux navigateur n'est pas utile : `HandGestures` ne touche pas au DOM.
@@ -96,12 +100,19 @@ def _gestures_engine():
     source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'wama-hands.js').read_text(encoding='utf-8')
     ctx = MiniRacer()
     ctx.eval(source.replace('export class ', 'class ').replace('export async function ', 'async function ')
-             .replace('export function ', 'function '))
+             .replace('export function ', 'function ').replace('export const ', 'const '))
     return ctx
 
 
 def _hand(id_, gesture, x, y):
     return {'id': id_, 'gesture': gesture, 'score': 0.9, 'palm': {'x': x, 'y': y}}
+
+
+def _pointing(id_, x, y, pinch_gap):
+    """Une main ouverte dont le bout de l'index est en (x, y), le pouce à `pinch_gap` de lui ; la
+    taille de la main (poignet → base du majeur) vaut 0,2."""
+    return {'id': id_, 'gesture': 'Open_Palm', 'score': 0.9, 'palm': {'x': x, 'y': y + 0.1},
+            'tips': {'index': {'x': x, 'y': y}, 'thumb': {'x': x + pinch_gap, 'y': y}}, 'size': 0.2}
 
 
 class HandGesturesTest(SimpleTestCase):
@@ -156,3 +167,36 @@ class HandGesturesTest(SimpleTestCase):
         hands = json.loads(self.ctx.eval(f'JSON.stringify(handsFromResult({json.dumps(res)}))'))
         self.assertEqual(('Left', 'Closed_Fist'), (hands[0]['id'], hands[0]['gesture']))
         self.assertAlmostEqual(0.5, hands[0]['palm']['x'])
+
+    def test_an_open_hand_points_and_a_pinch_clicks_once(self):
+        out = self._frame(_pointing('Right', 0.5, 0.5, 0.15))
+        self.assertEqual('point', out['mode'])
+        self.assertAlmostEqual(0.5, out['pointer']['x'])                # le centre reste le centre
+        self.assertFalse(out['click'])
+        self.assertFalse(self._frame(_pointing('Right', 0.5, 0.5, 0.02))['click'], 'une image ne pince pas')
+        out = self._frame(_pointing('Right', 0.5, 0.5, 0.02))
+        self.assertTrue(out['click'])
+        self.assertEqual('pinch', out['mode'])
+        self.assertFalse(self._frame(_pointing('Right', 0.5, 0.5, 0.02))['click'], 'un pincement tenu ne reclique pas')
+
+    def test_the_scene_is_mirrored_with_a_margin_so_its_edges_stay_reachable(self):
+        edge = json.loads(self.ctx.eval('JSON.stringify(toScene({x: 0.88, y: 0.12}))'))
+        self.assertEqual({'x': 0, 'y': 0}, edge)                           # miroir : la droite de l'image à gauche
+        self.assertEqual({'x': 1, 'y': 1}, json.loads(self.ctx.eval('JSON.stringify(toScene({x: 0.05, y: 0.97}))')))
+
+    def test_the_wide_field_asks_the_camera_for_16_9(self):
+        wide = json.loads(self.ctx.eval('JSON.stringify(cameraConstraints(HAND_DEFAULTS))'))['video']
+        self.assertAlmostEqual(16 / 9, wide['aspectRatio']['ideal'])
+        self.assertEqual(1920, wide['width']['ideal'])
+        chosen = json.loads(self.ctx.eval('JSON.stringify(cameraConstraints({wide: false, deviceId: "cam-2"}))'))['video']
+        self.assertEqual({'exact': 'cam-2'}, chosen['deviceId'])
+        self.assertAlmostEqual(4 / 3, chosen['aspectRatio']['ideal'])
+
+    def test_sensitivity_amplifies_rotation_and_zoom_but_not_the_pointer(self):
+        out = json.loads(self.ctx.eval('JSON.stringify(scaleGesture({mode: "rotate", rotate: {dx: 0.1, dy: -0.05}, '
+                                       'zoom: null, pointer: {x: 0.3, y: 0.4}, click: false}, 2))'))
+        self.assertAlmostEqual(0.2, out['rotate']['dx'])
+        self.assertAlmostEqual(-0.1, out['rotate']['dy'])
+        self.assertEqual({'x': 0.3, 'y': 0.4}, out['pointer'])
+        zoom = json.loads(self.ctx.eval('JSON.stringify(scaleGesture({zoom: 0.5, rotate: null}, 2))'))['zoom']
+        self.assertAlmostEqual(0.25, zoom)

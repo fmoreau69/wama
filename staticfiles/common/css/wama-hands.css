@@ -1,0 +1,48 @@
+/* ==========================================================================
+   WAMA — l'interface GLOBALE des mains (`common/js/wama-hands-ui.js`, 2026-10-22) : la vignette de
+   la caméra et ses réglages, en bas de la fenêtre, et les MAINS VIRTUELLES sur toute la page.
+   Chargée par le module lui-même, à l'allumage. Couleurs : les jetons de la présentation
+   (`--wama-pres-*`, sombres dans les deux thèmes, comme les scènes).
+   ========================================================================== */
+.wama-hands, .wama-hands-overlay {
+  --wama-hands-ink: var(--wama-pres-ink);
+  --wama-hands-grip: var(--wama-pres-media);
+}
+#wamaHandsToggle.active { color: var(--wama-pres-media); }
+
+/* La vignette prend le FORMAT de l'image reçue (16:9 au champ large) ; l'image est en MIROIR, comme
+   un reflet, pour que la main droite aille à droite. */
+.wama-hands {
+  position: fixed; z-index: 2000; left: 50%; bottom: 16px; transform: translateX(-50%);
+  width: 260px; border-radius: 12px; overflow: hidden;
+  background: rgba(var(--wama-pres-glass-rgb), .86); border: 1px solid rgba(var(--wama-pres-line-rgb), .16);
+  backdrop-filter: blur(8px); color: var(--wama-pres-ink);
+  font: 11.5px/1.4 "Inter", "Segoe UI", system-ui, sans-serif;
+}
+.wama-hands[hidden] { display: none; }
+.wama-hands video, .wama-hands canvas { display: block; width: 100%; height: auto; transform: scaleX(-1); }
+.wama-hands canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+.wama-hands .wc-hands-status { padding: 6px 9px; color: var(--wama-pres-ink-soft); }
+.wama-hands .wc-hands-status a { color: var(--wama-pres-media); }
+.wama-hands.error .wc-hands-status { color: var(--wama-pres-ink); }
+.wama-hands.error video, .wama-hands.error canvas { display: none; }
+.wama-hands .wc-hands-gear {
+  position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; border-radius: 50%; cursor: pointer;
+  display: grid; place-items: center; font-size: 12px; color: var(--wama-pres-ink);
+  background: rgba(var(--wama-pres-glass-rgb), .86); border: 1px solid rgba(var(--wama-pres-line-rgb), .16);
+}
+.wama-hands .wc-hands-settings { padding: 4px 9px 8px; display: grid; gap: 6px; color: var(--wama-pres-ink-soft); }
+.wama-hands .wc-hands-settings[hidden] { display: none; }
+.wama-hands .wc-hands-settings label { display: grid; gap: 2px; }
+.wama-hands .wc-hands-settings select {
+  font: inherit; color: var(--wama-pres-ink); background: rgba(var(--wama-pres-glass-rgb), .62);
+  border: 1px solid rgba(var(--wama-pres-line-rgb), .16); border-radius: 6px; padding: 2px 4px;
+}
+.wama-hands .wc-hands-settings input { width: 100%; accent-color: var(--wama-pres-media); }
+.wama-hands .wc-hands-settings output { font-family: monospace; color: var(--wama-pres-ink); }
+.wama-hands .wc-hands-settings .mute { margin: 0; color: var(--wama-pres-ink-mute); font-size: 10.5px; }
+
+/* Les MAINS VIRTUELLES : toute la fenêtre, au-dessus de tout, sans rien capter — le pointeur
+   clique ce qui est DESSOUS. */
+.wama-hands-overlay { position: fixed; inset: 0; z-index: 1999; pointer-events: none; }
+.wama-hands-overlay[hidden] { display: none; }

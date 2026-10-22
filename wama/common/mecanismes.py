@@ -2771,8 +2771,9 @@ MECHANISMS = (
               "page de ce registre son bouton « Constellation » (`scene_button`). Scènes : les "
               "utilisateurs (premier consommateur, son adresse gardée), les licences, les modèles ; "
               "une scène de la page commune est jouée chaque nuit (`common.scene.<clé>.ui`). La "
-              "légende filtre ; les MAINS pilotent toute scène à la webcam (MediaPipe dans le "
-              "navigateur, modèle des gestes installé par la route)",
+              "légende filtre ; les MAINS pilotent toute scène à la webcam — interface GLOBALE de "
+              "la barre du haut (pointeur et pincement universels, ce qu'une page déclare en cible), "
+              "MediaPipe dans le navigateur, modèle des gestes installé par la route",
               'wama/common/scenes.py', 'docs/construction/ui/WAMA_SCENES_3D.md',
               annexes=('wama/common/static/common/js/wama-constellation.js',
                        'wama/common/static/common/css/wama-constellation.css',
@@ -2781,6 +2782,8 @@ MECHANISMS = (
                        'wama/model_manager/services/model_scene.py',
                        'wama/common/services/ui_smoke_scenes.py', 'wama/common/tests/tests_scenes.py',
                        'wama/common/hand_gestures.py', 'wama/common/static/common/js/wama-hands.js',
+                       'wama/common/static/common/js/wama-hands-ui.js',
+                       'wama/common/static/common/css/wama-hands.css',
                        'wama/common/tests/tests_hands.py'),
               depends_on=('app_access',)),
     # Ajouté le 2026-10-04 (décision de Fabien : « option 1, persistance par session »). Collé à

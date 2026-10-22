@@ -155,17 +155,10 @@ def page_context(scene: Scene, embed: bool) -> dict:
 
     La couche des NOMS s'éteint d'office quand une présentation intègre la page (`embed_on`) :
     elle se projette devant d'autres personnes. Le détail « Ce qui rapproche » s'y replie aussi."""
-    from django.templatetags.static import static
     from django.urls import reverse
-
-    from .hand_gestures import TASKS_VISION_VENDOR
     layers = [dict(l, on_now=(l['embed_on'] if embed and 'embed_on' in l else l.get('on', False)))
               for l in scene.layers]
     return {
-        # Les MAINS (`common/js/wama-hands.js`) : les moteurs WebAssembly vendorisés, le modèle des
-        # gestes servi par la route de la page, et la page où l'installer s'il manque.
-        'hands': {'wasm': static(f'{TASKS_VISION_VENDOR}/wasm'), 'model': reverse('common:hand_model'),
-                  'manage': reverse('model_manager:index')},
         'scene': scene,
         'scene_spec': scene_spec(scene),
         'scene_spec_id': f'wc-{scene.key}-spec',

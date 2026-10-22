@@ -170,7 +170,23 @@ Données sans recopie : `mecanismes.py` (domaines, `depends_on`), les `requires`
 `app_registry` (mondes). Les scènes T1/T2 du §3.1 en sont les briques.
 
 **Les MAINS qui pilotent la 3D à la webcam — ✅ livrées le 2026-10-22** (« en serrant la main puis
-en la déplaçant, ça fait tourner ; avec les deux mains, on zoome »). Puce « Mains » de toute scène :
+en la déplaçant, ça fait tourner ; avec les deux mains, on zoome »). **Une interface GLOBALE**
+(décision de Fabien le jour même : *« préparer la petite interface qui permettra de gérer tout ça de
+façon globale et universelle dans WAMA, même si pour le moment ça ne s'applique qu'aux scènes 3D —
+il vaut mieux déjà centraliser qu'ajouter des boutons dans toutes les scènes »*) :
+- une ICÔNE de main dans la barre du haut (`includes/header.html`, `#wamaHandsToggle`), cachée tant
+  qu'aucune page ne se déclare cible ; la vignette de la caméra en bas de la fenêtre, avec ses
+  RÉGLAGES (⚙ : caméra, champ large 16:9 par défaut — la plupart des webcams recadrent en 4:3 —,
+  zoom matériel au plus large quand la caméra l'expose, sensibilité ; gardés dans le navigateur, une
+  caméra n'existant que sur sa machine) ; les MAINS VIRTUELLES (squelette) sur toute la page —
+  `common/js/wama-hands-ui.js` + `common/css/wama-hands.css` ;
+- UNIVERSEL : le pointeur au bout de l'index d'une main ouverte, et le PINCEMENT pouce-index qui
+  clique l'élément dessous (bouton, lien, puce, ligne de légende…) ; l'image de la caméra couvre la
+  fenêtre en miroir, avec une marge pour atteindre les bords sans sortir du champ ;
+- PROPRE à une page, DÉCLARÉ (`registerHandTarget`) : une scène 3D y déclare la rotation (un poing),
+  le zoom (deux poings), le clic (l'étoile sous le doigt) et le survol (son infobulle). Les deux
+  premières versions (une puce parmi les couches, puis une icône par scène) sont retirées.
+⏳ Suite (intention de Fabien) : d'autres pages se déclarent cibles — l'interface est prête.
 - MediaPipe Gesture Recognizer (Apache-2.0), exécuté DANS LE NAVIGATEUR (`common/js/wama-hands.js`,
   librairie vendorisée `mediapipe-tasks-vision-1.1.1`, chargée seulement à l'allumage) : aucune
   image de la webcam ne quitte la page ;
@@ -193,8 +209,9 @@ en la déplaçant, ça fait tourner ; avec les deux mains, on zoome »). Puce «
   atteint) et le journaliseur de MediaPipe s'arrête au premier refus. À revérifier à chaque montée
   de version de la librairie.
 Gardes : `common/tests/tests_hands.py` (déclaration, ligne du catalogue, route du modèle, page, et
-l'interprétation des gestes rejouée dans V8) ; étape « mains » du scénario `common.scene.<clé>.ui`
-sur une webcam factice. ⏳ Suite possible : index pointé pour survoler, pincement pour choisir.
+l'interprétation des gestes rejouée dans V8 : poing, zoom, pointeur, pincement, marge, champ,
+sensibilité) ; étapes « mains » (icône, webcam factice) et « pincement » (clic universel rejoué
+par `applyGesture`) du scénario `common.scene.<clé>.ui`.
 ⚠ Sa ligne du catalogue n'a pas de LICENCE, bien qu'elle soit établie (Apache-2.0, Google) — comme
 le Face Landmarker du Face Analyzer : la découverte d'une ligne DÉCLARÉE hors HuggingFace ne pose
 pas de licence. Trou du catalogue, préexistant, non ouvert ici ; il fait compter ces deux modèles en

@@ -14,7 +14,8 @@ CE QU'IL MESURE, pour chaque scène :
   2. la scène se forme : la ligne de mesures est remplie, une étiquette par nœud du contrat ;
   3. chercher le premier nœud visible le choisit : le volet porte son nom, et « Les plus proches » ;
      Échap rend la légende ; la légende filtre (ne garder qu'une catégorie, puis tout montrer) ;
-     les mains s'allument sur une webcam factice et s'éteignent (modèle absent : la vignette le dit) ;
+     l'icône globale des mains apparaît, les allume sur une webcam factice et les éteint (modèle
+     absent : la vignette le dit) ;
   4. chaque couche s'éteint et se rallume, chaque coloration s'applique, un poids change ;
 et sur tout le parcours, zéro erreur JS et aucune requête POST (la scène ne fait que LIRE).
 ⚠ Le compte de test reçoit le niveau administrateur le temps du passage (comme la constellation
@@ -53,11 +54,14 @@ FAKE_CAMERA_ARGS = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-med
 
 
 def check_hands(page):
-    """Les mains (`wama-hands.js`, 2026-10-22) — `None` si le geste tient, sinon la faute. La puce
+    """Les mains (interface GLOBALE `wama-hands-ui.js`, 2026-10-22) — `None` si le geste tient,
+    sinon la faute. La scène s'est déclarée cible : l'icône de la barre du haut est VISIBLE et
     allume la vignette ; avec le modèle installé, la reconnaissance tourne sur la mire et demande
-    une main ; sans lui, la vignette le DIT et nomme la page où l'installer ; la puce les éteint."""
+    une main ; sans lui, la vignette le DIT et nomme la page où l'installer ; l'icône les éteint."""
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
-    page.click('[data-hands]', force=True)
+    if not page.locator('#wamaHandsToggle').is_visible():
+        return "mains : l'icône de la barre du haut reste cachée — la scène ne s'est pas déclarée cible"
+    page.click('#wamaHandsToggle')
     try:
         page.wait_for_function(
             "() => { const s = document.querySelector('.wc-hands-status'); "
@@ -70,10 +74,36 @@ def check_hands(page):
             return "mains : le modèle manque et la vignette ne dit pas où l'installer"
     elif 'Montrez' not in status:
         return f"mains : « {status} »"
-    page.click('[data-hands]', force=True)
+    page.click('#wamaHandsToggle')
     page.wait_for_timeout(500)
-    if not page.evaluate("() => document.querySelector('.wc-hands').hidden"):
-        return "mains : la puce ne les éteint pas"
+    if not page.evaluate("() => document.querySelector('.wama-hands').hidden"):
+        return "mains : l'icône ne les éteint pas"
+    return None
+
+
+JS_PINCH = """async (sel) => {
+    const el = document.querySelector(sel);
+    if (!el) return 'absent';
+    const r = el.getBoundingClientRect();
+    const m = await import('wama/hands-ui');
+    m.applyGesture({ mode: 'pinch', pointer: { x: (r.left + r.width / 2) / innerWidth, y: (r.top + r.height / 2) / innerHeight }, click: true });
+    return 'ok';
+}"""
+
+
+def check_hand_pointer(page):
+    """Le PINCEMENT clique ce qui est sous le pointeur, partout dans la page (interface globale,
+    `applyGesture` — le point d'entrée de la caméra, rejoué sans main devant l'objectif) : sur une
+    ligne de légende, un filtre se pose ; sur « Tout montrer », il s'en va. `None` si le geste tient."""
+    if page.evaluate(JS_PINCH, '.wc-panel [data-filter]') != 'ok':
+        return "pointeur : aucune ligne de légende à pincer"
+    page.wait_for_timeout(800)
+    if page.evaluate("() => document.querySelector('.wc-filters').hidden"):
+        return "pointeur : le pincement sur une ligne de légende ne pose aucun filtre"
+    page.evaluate(JS_PINCH, '.wc-filters [data-clear="@all"]')
+    page.wait_for_timeout(800)
+    if not page.evaluate("() => document.querySelector('.wc-filters').hidden"):
+        return "pointeur : le pincement sur « Tout montrer » ne retire pas le filtre"
     return None
 
 
@@ -205,6 +235,11 @@ def check_scene(key):
                     faults.append(fault)
                 else:
                     steps.append('mains allumées puis éteintes')
+                fault = check_hand_pointer(page)
+                if fault:
+                    faults.append(fault)
+                else:
+                    steps.append('pincement : filtre posé puis retiré')
 
                 # 4. Couches, colorations, un poids.
                 for layer in scene.layers:

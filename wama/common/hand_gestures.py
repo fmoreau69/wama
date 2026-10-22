@@ -1,5 +1,6 @@
 """Les MAINS qui pilotent les scènes 3D (2026-10-22, demande de Fabien) — le modèle des gestes,
-DÉCLARÉ à côté de son consommateur, la brique `common/js/wama-hands.js`.
+DÉCLARÉ à côté de son consommateur, la brique `common/js/wama-hands.js` (et l'interface
+globale des mains, `common/js/wama-hands-ui.js`, icône de la barre du haut).
 
 Le geste se reconnaît DANS LE NAVIGATEUR (MediaPipe Tasks Vision, vendorisé sous
 `static/vendors/mediapipe-tasks-vision-*`, section `mediapipe` de `tools/update_vendors.sh`) :
@@ -23,9 +24,6 @@ GESTURE_FILES = [
      'origin': {'source': 'mediapipe_models',
                 'file': 'gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'}},
 ]
-
-#: Le dossier vendorisé de MediaPipe Tasks Vision (sous `static/`) — le bundle ES et ses moteurs.
-TASKS_VISION_VENDOR = 'vendors/mediapipe-tasks-vision-1.1.1'
 
 
 def gesture_folder() -> Path:

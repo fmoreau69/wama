@@ -624,12 +624,11 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
       stage.querySelectorAll('.wc-colorby .wc-chip').forEach(c => c.classList.toggle('on', c === chip));
       paintNodes(); renderPanel();
     }));
-    // ── Les MAINS : piloter la scène à la webcam (`wama-hands.js`, 2026-10-22) ──────────────
-    // Un poing fermé SAISIT la scène comme la souris (la main va à droite, la scène suit) ; deux
-    // poings qui s'écartent rapprochent la caméra. Chargé à l'allumage seulement ; rien ne quitte
-    // le navigateur.
-    const handsChip = $('[data-hands]'), handsBox = $('.wc-hands');
-    let hands = null;
+    // ── Les MAINS : la scène se DÉCLARE cible de l'interface globale des mains (`wama-hands-ui.js`,
+    // icône de la barre du haut, 2026-10-22). L'interface porte la caméra, les mains virtuelles et le
+    // pointeur ; la scène dit ce que veulent dire les gestes ici : un poing fermé SAISIT la scène
+    // comme la souris (la main va à droite, la scène suit), deux poings qui s'écartent rapprochent
+    // la caméra, le pincement choisit l'étoile sous le doigt, le survol montre son infobulle.
     const spherical = new THREE.Spherical(), offset = new THREE.Vector3();
     const HAND_GAIN = 4.5;
     function orbitBy(dx, dy) {
@@ -643,24 +642,19 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
       offset.setLength(Math.min(controls.maxDistance, Math.max(controls.minDistance, offset.length() * f)));
       camera.position.copy(controls.target).add(offset);
     }
-    if (handsChip && handsBox) handsChip.addEventListener('click', async () => {
-      if (hands) {
-        hands.stop(); hands = null; handsChip.classList.remove('on'); handsBox.hidden = true;
-        controls.autoRotate = !reduceMotion && !state.selected;
-        return;
-      }
-      handsChip.classList.add('on'); handsBox.hidden = false;
-      const { startHands } = await import('wama/hands');
-      hands = await startHands(handsBox, {
-        wasm: stage.dataset.handsWasm, model: stage.dataset.handsModel, manage: stage.dataset.handsManage,
-        onGesture: out => {
-          if (out.rotate || out.zoom) { controls.autoRotate = false; flight = null; }
-          if (out.rotate) orbitBy(out.rotate.dx, out.rotate.dy);
-          if (out.zoom) zoomBy(out.zoom);
-        },
-        onError: () => handsChip.classList.remove('on'),
-      });
-    });
+    const handStill = () => { controls.autoRotate = false; flight = null; };
+    import('wama/hands-ui').then(m => m.registerHandTarget({
+      element: renderer.domElement,
+      rotate: (dx, dy) => { handStill(); orbitBy(dx, dy); },
+      zoom: f => { handStill(); zoomBy(f); },
+      // Un clic de la main n'est pas la fin d'une rotation à la souris (`downAt`).
+      click: (clientX, clientY) => { downAt = null; select(pick({ clientX, clientY })); },
+      hover: (clientX, clientY) => {
+        const n = pick({ clientX, clientY }); state.hover = n;
+        showTip({ clientX, clientY }, n ? tipHtml(n) : null);
+      },
+      release: () => { controls.autoRotate = !reduceMotion && !state.selected; },
+    })).catch(err => console.warn('[constellation] mains indisponibles', err));
     const weightsBox = $('.wc-weights');
     const wid = `wc-${spec.key || 'scene'}-w`;
     for (const w of factors) {

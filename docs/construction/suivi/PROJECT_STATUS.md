@@ -25905,6 +25905,19 @@ Détail et décisions : `WAMA_SCENES_3D §3.6`.
   caméra/micro (quatre sites refont le même contrôle) ; l'architecture de WAMA en constellation
   (`§3.6`), à concevoir avec Fabien.
 
+**SUITE du palier des MAINS (2026-10-22, retours de Fabien après essai)** — « ça fonctionne très
+bien » ; trois demandes, livrées : ① le CHAMP de la caméra (réglages ⚙ dans la vignette : caméra,
+champ large 16:9 par défaut — 1920 × 1080 au lieu de 640 × 480 —, zoom matériel au plus large
+quand la caméra l'expose, sensibilité ; gardés dans le navigateur) ; ② les MAINS VIRTUELLES sur la
+page, un pointeur au bout de l'index et le PINCEMENT qui clique ce qui est dessous ; ③ une
+interface GLOBALE plutôt qu'un bouton par scène : icône de main dans la barre du haut
+(`wama-hands-ui.js`, `wama-hands.css`), cachée tant qu'aucune page ne se déclare cible
+(`registerHandTarget` — les scènes 3D y déclarent rotation, zoom, clic et survol). Le chemin des
+moteurs WebAssembly se déduit de l'importmap : la version de MediaPipe ne vit plus que dans
+l'importmap et `update_vendors.sh`. Gardes : V8 (pointeur, pincement, marge, champ, sensibilité) ;
+étapes « mains » et « pincement » du scénario `common.scene.<clé>.ui`, vertes. Détail :
+`WAMA_SCENES_3D §3.6`. 🔚 Relancer gunicorn ; d'autres pages pourront se déclarer cibles.
+
 ## §PALIER 2026-10-22 — PARTITION : UNE SEULE VUE, ET LA PARTITION COMPLÈTE ENFIN COMPLÈTE (#880)
 
 Suite de `§PALIER 2026-10-19 — PARTITION` ; domicile `ROUTE §F3b`, détail `PROSPECTION_PIPELINE

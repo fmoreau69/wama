@@ -187,6 +187,19 @@
                 </li>
                 <!-- Bouton Compte / Login -->
                 {% if user.is_authenticated and user.username != 'anonymous' %}
+                {% comment %}Les MAINS (2026-10-22, décision de Fabien : une interface GLOBALE plutôt
+                qu'un bouton par scène) : piloter WAMA à la webcam — pointeur au bout de l'index,
+                pincement pour cliquer, et ce que la page DÉCLARE (une scène 3D : poing pour tourner,
+                deux poings pour zoomer). Cachée tant qu'aucune page ne se déclare cible
+                (`common/js/wama-hands-ui.js`, `registerHandTarget`). Le modèle des gestes est servi
+                par `common:hand_model` ; absent, la vignette renvoie à la gestion des modèles.{% endcomment %}
+                <li class="nav-item" hidden>
+                    <button type="button" class="nav-link btn btn-link" id="wamaHandsToggle" aria-pressed="false"
+                            data-hands-model="{% url 'common:hand_model' %}" data-hands-manage="{% url 'model_manager:index' %}"
+                            title="Piloter à la main, par la webcam — les images ne quittent pas le navigateur">
+                        <i class="fas fa-hand"></i>
+                    </button>
+                </li>
                 {% comment %}Notifications DANS WAMA (WAMA_COLLABORATION §2.3) : badge des non
                 lues, compte fourni par `context_processors.unread_notifications`. Un clic ouvre le
                 PANNEAU de la cloche (`wama-notifications.js`, 2026-10-13) ; le lien reste la page
