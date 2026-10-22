@@ -8,6 +8,8 @@ n'écrit ni page, ni lecture, ni enregistrement (2026-10-10, chantier SURFACES).
                                                          les pics fins d'un média lu (état ou pics) —
                                                          de l'une de ses versions (`sources_of`)
   save    POST  …/save/                                  le champ édité, validé par la surface
+          data/save/revisions acceptent `field` (2026-10-22) : un champ des `Surface.also_edits`
+          édité à la place du principal (la partition complète du composer)
   layout  POST  /common/surface/<app>/<clé>/layout/      la disposition de l'UTILISATEUR (places,
                                                          figée ou non) — un réglage par compte
 
@@ -203,7 +205,11 @@ def surface_data(request, app: str, key: str, pk: int):
         # valeur éditée — que la page tient déjà, et qui peut peser un document entier.
         return JsonResponse({'reads': reads, 'media': media, 'sources': sources,
                              'processes': _process_states(item)})
-    value = _value_of(found, item)
+    try:
+        field = found.target(item, request.GET.get('field') or '')
+    except ValueError as error:
+        return JsonResponse({'error': str(error)}, status=400)
+    value = _value_of(found, item, field)
     return JsonResponse({
         'processes': _process_states(item),
         'reads': reads,
@@ -214,6 +220,7 @@ def surface_data(request, app: str, key: str, pk: int):
         'settings': _settings_of(found, item) if found.settings else None,
         'can_edit': _can_edit(request.user, item),
         'token': state_token(value),
+        'field': field,
     })
 
 
@@ -230,7 +237,10 @@ def surface_revisions(request, app: str, key: str, pk: int):
         return JsonResponse({'revisions': [], 'keeps': False})
     from wama.common.models import ItemRevision
     labels = dict(ItemRevision.ORIGIN_CHOICES)
-    edited = found.edited(item)
+    try:
+        edited = found.target(item, request.GET.get('field') or '')
+    except ValueError as error:
+        return JsonResponse({'error': str(error)}, status=400)
     out = []
     for revision in revisions_of(app, item).select_related('user')[:200]:
         user = revision.user
@@ -258,7 +268,11 @@ def surface_revision_value(request, app: str, key: str, pk: int, number: int):
     from wama.common.surfaces import validate_text
     found = _surface_or_404(app, key)
     item = _readable_or_404(found, request.user, pk)
-    rel = kept_file(app, item, number, found.edited(item)) if found.text_value else ''
+    try:
+        edited = found.target(item, request.GET.get('field') or '')
+    except ValueError:
+        raise Http404("champ non édité ici")
+    rel = kept_file(app, item, number, edited) if found.text_value else ''
     if not rel:
         raise Http404("aucune version gardée pour cette révision")
     try:
@@ -330,9 +344,11 @@ def _rhythm_of(found, item, role: str):
         return None
 
 
-def _value_of(found, item):
+def _value_of(found, item, field: str = ''):
     """La valeur ÉDITÉE telle que la page la reçoit : celle que la surface déclare (`value`), sinon
-    le texte du fichier, ou le champ de donnée."""
+    le texte du fichier, ou le champ de donnée. `field` : un champ des `also_edits` (son texte)."""
+    if field and field in found.also_edits:
+        return _text(getattr(item, field, None))
     if found.value is not None:
         return found.value(item)
     edited = found.edited(item)
@@ -417,23 +433,28 @@ def surface_save(request, app: str, key: str, pk: int):
     try:
         payload = json.loads(request.body or b'{}')
         value = found.clean(payload.get('value'))
+        # Un champ des `also_edits` (la partition complète du composer) : seulement s'il existe
+        # déjà — un fichier vide ne se crée pas d'ici, il est le résultat de son process.
+        field = found.target(item, payload.get('field') or '')
+        if field in found.also_edits and not getattr(getattr(item, field, None), 'name', ''):
+            raise ValueError(f"« {field} » : rien à éditer, son process ne l'a pas encore écrit")
     except (ValueError, KeyError, TypeError) as error:
         return JsonResponse({'error': str(error)}, status=400)
     # « Terminer » (`Surface.finish`) : le même enregistrement, marqué fini.
     finished = bool(found.finish and payload.get('finished') is True)
     changed = True
-    edited = found.edited(item)
+    edited = field
     with transaction.atomic():
         item = type(item).objects.select_for_update().get(pk=item.pk)
         conflict = edit_lock.stale_edit(request.user, item, payload.get('base'),
-                                        _value_of(found, item))
+                                        _value_of(found, item, field))
         if conflict:
             return JsonResponse(conflict, status=409)
         if found.text_value:
             # L'état présent d'abord, s'il n'est encore gardé par aucune révision (produit avant
             # que l'app ne garde ses sorties) : réécrit en place, il serait perdu sans retour.
             from wama.common.services.revisions import ensure_kept
-            if value != _value_of(found, item):
+            if value != _value_of(found, item, field):
                 ensure_kept(app, item, edited)
             changed = _write_text(item, edited, value)
         else:
@@ -446,8 +467,9 @@ def surface_save(request, app: str, key: str, pk: int):
         from wama.common.services.revisions import record_revision
         record_revision(app, item, origin=ItemRevision.ORIGIN_MANUAL, user=request.user,
                         output_fields=[edited])
-    if found.saved is not None:
-        # Les conséquences propres à l'app, sur la valeur ÉCRITE (`Surface.saved`).
+    if found.saved is not None and field not in found.also_edits:
+        # Les conséquences propres à l'app, sur la valeur ÉCRITE (`Surface.saved`) — celle du
+        # champ principal : un champ des `also_edits` n'en déclare aucune.
         found.saved(item, value, request.user, finished)
     stale = []
     if found.reruns:
@@ -460,4 +482,4 @@ def surface_save(request, app: str, key: str, pk: int):
         except Exception:
             stale = []
     return JsonResponse({'ok': True, 'value': value, 'stale': stale, 'finished': finished,
-                         'token': edit_lock.state_token(value)})
+                         'token': edit_lock.state_token(value), 'field': field})

@@ -70,8 +70,11 @@
             body.querySelectorAll('[data-act="save"]').forEach(function (b) {
                 b.disabled = !ctx.canEdit || !dirty;
             });
+            // « Appliquer » rejoue le process que le champ PRINCIPAL périme : un autre champ édité
+            // (`ctx.target()`, la partition complète du composer) ne le nourrit pas (2026-10-22).
+            var other = !!(ctx.target && ctx.target());
             body.querySelectorAll('[data-act="apply"], [data-act="finish"]').forEach(function (b) {
-                b.disabled = !ctx.canEdit;
+                b.disabled = !ctx.canEdit || (other && b.dataset.act === 'apply');
             });
             ctx.history.syncButtons();
             // Lue à chaque rafraîchissement : les briques placées APRÈS celle-ci sur la grille

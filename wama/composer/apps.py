@@ -71,4 +71,6 @@ class ComposerConfig(AppConfig):
         # rendu (≈ 100 Mo) par révision ne se garde pas — il se refait depuis sa partition.
         from wama.common.services.revisions import keep_outputs
         from .models import ComposerGeneration
-        keep_outputs('composer', keep=20, fields=ComposerGeneration.SCORE_FIELDS)
+        # La partition COMPLÈTE aussi depuis le 2026-10-22 : elle se corrige sur la même surface.
+        keep_outputs('composer', keep=20,
+                     fields=tuple(ComposerGeneration.SCORE_FIELDS) + ('parts_score',))

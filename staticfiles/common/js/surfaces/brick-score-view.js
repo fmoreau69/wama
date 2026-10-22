@@ -30,13 +30,40 @@
  * empty?}]` — la valeur éditée (sans `role`) et des rôles lus en texte. Un choix « Partition » dans
  * la poignée passe de l'une à l'autre, sur la même largeur, le même axe ; une version lue (`role`)
  * se montre en lecture seule. Le geste de la version écoutée du transport (`ctx.sources()`), pour
- * une partition.
+ * une partition. Une version qui nomme un `field` (un `also_edits` de la surface) se CORRIGE comme
+ * la principale : choisie, elle devient la valeur éditée (`ctx.retarget`).
+ *
+ * LE CLAVIER (2026-10-22, demande de Fabien : « hauteur et rythme, l'essentiel de l'édition ») : un
+ * clic CHOISIT une note (et y amène la lecture) ; puis ↑ ↓ la montent ou la descendent d'un degré,
+ * ← → la décalent d'un pas dans le temps, + − l'allongent ou la raccourcissent d'un pas — la
+ * mesure garde sa durée (`WamaScore.retime`), Échap la quitte. Chaque touche est UN geste
+ * (`ctx.edit`, Ctrl+Z l'annule).
+ *
+ * EXPORTER (même jour) : la partition MONTRÉE, telle qu'elle est à l'écran (modifications non
+ * enregistrées comprises), en ABC, en MIDI (abcjs, `synth.getMidiFile`) — le format que lisent
+ * MuseScore, Guitar Pro et les séquenceurs — ou en PDF (la gravure imprimée, « Enregistrer en
+ * PDF » du navigateur).
  */
 (function (global) {
     'use strict';
 
     var RENDER_DELAY_MS = 250;
     var PLAYING = 'wama-score-playing';
+    /** Touche → geste rythmique (`WamaScore.retime`). `=` : le + sans Maj d'un clavier français. */
+    var RETIME_KEYS = { ArrowLeft: 'left', ArrowRight: 'right', '+': 'longer', '=': 'longer',
+                        '-': 'shorter' };
+
+    /** Télécharge `data` sous `name` — un lien jetable, sans aller-retour serveur. */
+    function download(data, type, name) {
+        var url = URL.createObjectURL(new Blob([data], { type: type }));
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
 
     function mount(body, ctx, options) {
         options = options || {};
@@ -67,15 +94,17 @@
         // Les outils vivent dans la poignée de la brique : un clic ne doit pas la déplacer.
         tools.addEventListener('mousedown', function (e) { e.stopPropagation(); });
 
-        var timings = [], tl = null, lit = [], rendered = null, pending = null;
+        var timings = [], tl = null, lit = [], rendered = null, pending = null, tune = null;
         var msPerBeat = 0, notes = [], grid = null, alignment = null;
         var versions = (options.versions && options.versions.length) ? options.versions
             : [{ role: options.role || '', empty: options.empty }];
         var chosen = 0;
+        /** La note CHOISIE (`[start, end)` dans le texte) : ce que le clavier modifie. */
+        var selection = null;
 
         function current() { return versions[chosen]; }
         function readOnly() { return !!current().role; }
-        function editable() { return !readOnly() && !!ctx.canEdit; }
+        function editable() { return !readOnly() && !!ctx.canEdit && !!text().trim(); }
 
         function text() {
             if (readOnly()) return String((ctx.reads() || {})[current().role] || '');
@@ -95,11 +124,83 @@
                 pick.appendChild(option);
             });
             pick.addEventListener('change', function () {
-                chosen = Number(pick.value) || 0;
-                rendered = null;
-                render();
+                var next = Number(pick.value) || 0, version = versions[next];
+                // Une version ÉDITÉE (sans `role`) devient la valeur de la page : ce qui est en
+                // cours s'enregistre d'abord (`ctx.retarget`).
+                var ready = version.role || !ctx.retarget ? Promise.resolve(true)
+                    : ctx.retarget(version.field || '');
+                pick.disabled = true;
+                ready.then(function (ok) {
+                    pick.disabled = false;
+                    if (!ok) { pick.value = String(chosen); return; }
+                    chosen = next;
+                    selection = null;
+                    rendered = null;
+                    render();
+                });
             });
             tools.insertBefore(pick, warn);
+        }
+
+        // ── Exporter la partition montrée ───────────────────────────────────────────────────
+        var exporter = document.createElement('select');
+        exporter.className = 'form-select form-select-sm py-0 w-auto';
+        exporter.title = 'Exporter la partition montrée (modifications non enregistrées comprises)';
+        exporter.setAttribute('aria-label', 'Exporter');
+        [['', 'Exporter…'], ['mid', 'MIDI'], ['pdf', 'PDF (impression)'], ['abc', 'ABC']].forEach(function (o) {
+            var option = document.createElement('option');
+            option.value = o[0];
+            option.textContent = o[1];
+            exporter.appendChild(option);
+        });
+        exporter.addEventListener('change', function () {
+            var kind = exporter.value;
+            exporter.value = '';
+            if (kind) exportAs(kind);
+        });
+        tools.insertBefore(exporter, warn);
+
+        function baseName() {
+            var label = (current().label || 'partition').toLowerCase()
+                .normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-');
+            return 'partition-' + (ctx.config.pk || '') + '-' + label;
+        }
+
+        function exportAs(kind) {
+            var abc = text();
+            if (!abc.trim()) { ctx.status('Rien à exporter : la partition est vide.', 'error'); return; }
+            if (kind === 'abc') { download(abc, 'text/vnd.abc;charset=utf-8', baseName() + '.abc'); return; }
+            if (kind === 'mid') {
+                var midi = null;
+                try { midi = ABCJS.synth.getMidiFile(tune || abc, { midiOutputType: 'binary' }); }
+                catch (e) { midi = null; }
+                if (Array.isArray(midi)) midi = midi[0];
+                if (!midi || !midi.length) { ctx.status('Export MIDI impossible pour cette partition.', 'error'); return; }
+                download(midi, 'audio/midi', baseName() + '.mid');
+                return;
+            }
+            if (kind === 'pdf') printScore(abc);
+        }
+
+        /** La gravure, sans couleurs de lecture ni de choix, dans une fenêtre d'impression : le
+         *  navigateur propose « Enregistrer en PDF ». */
+        function printScore(abc) {
+            var sheet = document.createElement('div');
+            sheet.style.cssText = 'position:absolute;left:-10000px;top:0;width:760px';
+            document.body.appendChild(sheet);
+            // Un SVG par système : la page se coupe entre deux systèmes, jamais au milieu.
+            try { ABCJS.renderAbc(sheet, abc, { staffwidth: 720, oneSvgPerLine: true }); } catch (e) { /* vide */ }
+            var svg = sheet.innerHTML;
+            sheet.remove();
+            var w = global.open('', '_blank');
+            if (!w) { ctx.status('Fenêtre d’impression bloquée par le navigateur.', 'error'); return; }
+            w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>' +
+                baseName() + '</title><style>body{margin:12mm;background:#fff;color:#000}' +
+                'svg{width:100%;height:auto;page-break-inside:avoid}</style></head><body>' +
+                svg + '</body></html>');
+            w.document.close();
+            w.focus();
+            setTimeout(function () { w.print(); }, 300);
         }
 
         /** Le temps ÉCRIT (ms au tempo de la partition) qui sonne à l'instant `seconds` de l'axe. */
@@ -139,16 +240,18 @@
             timings = [];
             notes = [];
             tl = null;
+            tune = null;
             if (!abc.trim() || !ABCJS) {
                 paper.textContent = ABCJS ? (current().empty || options.empty || 'Partition vide.')
                     : 'Moteur de partition non chargé.';
                 realign();
                 return;
             }
-            var tune = ABCJS.renderAbc(paper, abc, {
+            tune = ABCJS.renderAbc(paper, abc, {
                 add_classes: true, responsive: 'resize', selectTypes: ['note'],
                 dragging: editable(), clickListener: onNote,
             })[0];
+            highlight();
             // La séquence audio d'abcjs donne aux notes leurs hauteurs MIDI — de quoi les caler sur
             // ce qui sonne. Aucun son n'est produit.
             try { tune.setUpAudio({}); } catch (e) { /* hauteurs absentes : tempo écrit */ }
@@ -203,12 +306,61 @@
         function onNote(abcelem, tuneNumber, classes, analysis, drag) {
             if (!abcelem || abcelem.startChar == null) return;
             if (drag && drag.step && editable()) {
-                ctx.edit(function (v) { return Score.transposeAt(v, abcelem.startChar, abcelem.endChar, drag.step); });
+                transpose(abcelem.startChar, abcelem.endChar, drag.step);
                 return;
             }
+            selection = { start: abcelem.startChar, end: abcelem.endChar };
+            highlight();
+            // Le clavier s'adresse à la brique : sans voler le défilement de la page.
+            try { body.focus({ preventScroll: true }); } catch (e) { body.focus(); }
             var ms = Score.eventTime(timings, abcelem.startChar);
             if (ms != null && axis) axis.seek(axisSeconds(ms));
         }
+
+        /** La note choisie, surlignée par abcjs (`rangeHighlight`) — refait après chaque gravure. */
+        function highlight() {
+            if (!tune || !tune.engraver || !tune.engraver.rangeHighlight) return;
+            try { tune.engraver.rangeHighlight(selection ? selection.start : -1, selection ? selection.end : -1); }
+            catch (e) { /* gravure en cours de remplacement */ }
+        }
+
+        /** ↑ ↓ (ou le glisser d'abcjs) : `step` degrés VERS LE BAS — la note garde sa place choisie. */
+        function transpose(start, end, step) {
+            ctx.edit(function (v) {
+                var out = Score.transposeAt(v, start, end, step);
+                if (selection && selection.start === start) selection.end = end + (out.length - v.length);
+                return out;
+            });
+        }
+
+        /** ← → + − : un geste refusé (la mesure ne le permet pas) ne fait pas de cran, il se dit. */
+        function retime(op) {
+            var r = Score.retime(text(), selection.start, op);
+            if (r.error) { ctx.status(r.error, 'error'); return; }
+            selection = { start: r.start, end: r.end };
+            ctx.edit(function () { return r.abc; });
+        }
+
+        // CAPTURE : la brique lit la touche AVANT la note gravée — abcjs, dont les notes glissables
+        // écoutent elles-mêmes ↑ ↓, la transposerait une seconde fois.
+        body.tabIndex = 0;
+        body.addEventListener('keydown', function (e) {
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            var t = e.target;
+            if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+            if (e.key === 'Escape' && selection) { selection = null; highlight(); return; }
+            if (!selection || !editable()) return;
+            var op = RETIME_KEYS[e.key];
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                transpose(selection.start, selection.end, e.key === 'ArrowUp' ? -1 : 1);
+            } else if (op) {
+                retime(op);
+            } else {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        }, true);
 
         /** La grille des temps de l'audio, demandée à part : quelques secondes la 1re fois. */
         function loadGrid() {
@@ -227,6 +379,8 @@
         // partition LUE (lecture seule) a pu être réécrite par son process.
         ctx.on('redone', function () { grid = null; realign(); loadGrid(); if (readOnly()) schedule(); });
         ctx.on('processes', function () { if (readOnly() && text() !== rendered) schedule(); });
+        // Annuler / rétablir peut rendre un texte où la note choisie n'est plus à sa place.
+        ctx.on('change', function () { if (selection && selection.end > text().length) selection = null; });
 
         render();
         loadGrid();
@@ -235,8 +389,8 @@
             refresh: function () { if (text() !== rendered) schedule(); },
             tools: tools,
             help: !anyEdited ? null
-                : 'Partition : clic sur une note = y aller · glisser une note vers le haut ou le bas = la transposer d’un degré (Ctrl+Z annule) · les temps écrits sont calés sur les temps joués de l’audio'
-                  + (versions.length > 1 ? ' · une partition LUE (choix « Partition ») ne se modifie pas ici' : ''),
+                : 'Partition : clic sur une note = la choisir et y aller · ↑ ↓ = la monter / descendre d’un degré (ou la glisser) · ← → = la décaler d’un pas, la mesure s’ajuste · + − = l’allonger / la raccourcir d’un pas · Échap = ne plus la choisir · Ctrl+Z annule · « Exporter » : MIDI, PDF, ABC'
+                  + (versions.some(function (v) { return v.role; }) ? ' · une partition LUE ne se modifie pas ici' : ''),
         };
     }
 

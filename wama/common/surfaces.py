@@ -261,6 +261,11 @@ class Surface:
     #: `validate` ne se déclare que pour un champ de donnée. Un TUPLE nomme des champs
     #: ALTERNATIFS de même nature : la page édite le premier rempli (`edited`).
     edits: object
+    #: Champs FICHIER qu'une brique peut éditer À LA PLACE du champ principal, un à la fois
+    #: (2026-10-22, demande de Fabien : la partition complète du composer se corrige comme la
+    #: réduite) — la page les ouvre par `ctx.retarget(champ)`, la route les lit et les écrit par
+    #: `field`. Même nature que `edits` (texte d'un fichier) ; un champ vide ne s'édite pas.
+    also_edits: tuple = ()
     validate: Optional[Callable] = None
     #: Process que l'écriture périme et que « Appliquer » rejoue (`<app>:start_process`).
     reruns: str = ''
@@ -364,6 +369,16 @@ class Surface:
                 return name
         return self.fields[0]
 
+    def target(self, item, requested: str = '') -> str:
+        """Le champ qu'une requête édite : `requested` s'il est l'un des `also_edits`, sinon le
+        champ principal (`edited`). Lève `ValueError` pour un champ que la surface ne déclare pas —
+        jamais un champ nommé par la page."""
+        if not requested:
+            return self.edited(item)
+        if requested not in self.also_edits:
+            raise ValueError(f"surface {self.id} : « {requested} » ne s'édite pas ici")
+        return requested
+
     @property
     def text_value(self) -> bool:
         """Les champs écrits sont-ils des FICHIERS, édités comme texte ? Lu du modèle, jamais
@@ -371,7 +386,8 @@ class Surface:
         from django.db.models import FileField
         try:
             meta = self.model_class()._meta
-            return all(isinstance(meta.get_field(name), FileField) for name in self.fields)
+            return all(isinstance(meta.get_field(name), FileField)
+                       for name in self.fields + tuple(self.also_edits))
         except Exception:
             return False
 
@@ -452,6 +468,7 @@ class Surface:
     def to_dict(self) -> dict:
         return {'id': self.id, 'app': self.app, 'key': self.key, 'label': self.label,
                 'slots': [s.to_dict() for s in self.slots], 'edits': self.edits,
+                'also_edits': list(self.also_edits),
                 'reruns': self.reruns, 'columns': GRID_COLUMNS,
                 'autosave': self.autosave, 'finish': self.finish,
                 'settings': list(self.settings),

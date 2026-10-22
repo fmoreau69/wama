@@ -843,7 +843,21 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         UNE vue `score_view` sur toute la largeur, `options.versions` = la réduite (éditée) et la
         complète (rôle `parts`, lue) — un choix « Partition » dans sa poignée, le geste de la version
         écoutée du transport ; versions et actions passent au volet (`zone='panel'`, comme le
-        transcriber).
+        transcriber). ✅ **Même jour, suite (Fabien : « pourquoi la complète se lit seulement ? »
+        ; hauteur ET rythme ; export)** : (1) une surface édite un champ de plus,
+        `Surface.also_edits` — `ctx.retarget(champ)` côté page, `field` sur les routes `data`,
+        `save`, `revisions` (un champ non déclaré : 400 ; un fichier vide ne se crée pas d'ici) ;
+        « Appliquer » n'enregistre que pour un tel champ (le process rejoué lit le principal) ; la
+        complète du composer a ses versions gardées. (2) LE CLAVIER de `score_view` : clic = choisir
+        la note, ↑ ↓ un degré, ← → un pas dans le temps, + − un pas de durée, la MESURE gardant sa
+        durée (`WamaScore.retime` : la voisine chevauchée raccourcit — un silence peut disparaître,
+        une note jamais —, le vide va à la note précédente vers la droite, à un silence sinon ;
+        triolet, pointé `>`, agrément : refusé, la source ABC reste le recours) ; touches lues en
+        CAPTURE (les notes glissables d'abcjs écoutent ↑ ↓ elles-mêmes). (3) EXPORTER la partition
+        montrée : MIDI (`ABCJS.synth.getMidiFile`), PDF (impression de la gravure, un SVG par
+        système), ABC — côté page : aucune librairie serveur ne lit l'ABC, et `export_formats` sert
+        le résultat de la card (l'audio), pas une partition en cours d'édition. ⏳ MusicXML
+        (librairie à faire entrer par la route `library`).
       - **grille de temps** : MuScriptor refusait un tempo « non fixe » sur les rendus YuE2 — un temps
         manqué par le suivi décalait tous les rangs. `robust_tempo` re-numérote les temps, garde la
         phase dominante (première droite Theil-Sen : un bloc de contretemps en fin de morceau faisait

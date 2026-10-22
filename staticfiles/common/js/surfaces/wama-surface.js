@@ -60,6 +60,11 @@
  * `ctx.edit(fn, {inPlace: true})` MODIFIE la valeur sans la copier (une frappe dans une longue
  * transcription) ; `{untracked: true}` ne fait pas de cran (une case « revu », qui ne s'annulait
  * pas dans la page d'origine).
+ *
+ * UN AUTRE CHAMP ÉDITÉ (2026-10-22, la partition complète du composer, `Surface.also_edits`) :
+ * `ctx.retarget(champ)` enregistre ce qui est en cours, relit la valeur de ce champ et en fait
+ * la valeur éditée — l'historique repart de là ; `''` revient au champ principal. Événement
+ * `target` (`{field}`) ; `ctx.target()` dit le champ édité.
  */
 (function (global) {
     'use strict';
@@ -92,6 +97,7 @@
         var conflicted = false;
         var inFlight = null, queued = false, finishing = false;
         var autosaveTimer = null;
+        var target = '';                    // le champ édité : '' = le principal de la surface
         var AUTOSAVE_MS = 800;              // la pause de l'enregistrement automatique de l'éditeur
         var helps = [];
 
@@ -203,6 +209,9 @@
             },
             on: on, emit: emit, history: history, dirty: dirty, status: status,
             save: save, apply: apply, resetLayout: resetLayout,
+            /** Le champ édité : '' = le principal, sinon l'un des `also_edits` de la surface. */
+            target: function () { return target; },
+            retarget: retarget,
             /** La disposition est-elle figée ? `setFrozen(bool)` la fige ou la rend modifiable
              *  (événement `layout`). Une préférence du LECTEUR : vaut aussi en lecture seule. */
             frozen: function () { return !!layout.frozen; },
@@ -241,6 +250,7 @@
             var finished = finishing;
             finishing = false;
             var body = { value: state.value, base: state.token };
+            if (target) body.field = target;
             if (finished) body.finished = true;
             return App.csrfFetch(config.save_url, App.csrfToken(), {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -280,8 +290,38 @@
             });
         }
 
+        /** Édite un autre champ (`Surface.also_edits`), ou le principal (`''`) : ce qui est en
+         *  cours s'enregistre d'abord ; la valeur du champ est relue, l'historique repart. */
+        function retarget(field) {
+            field = field || '';
+            if (field === target) return Promise.resolve(true);
+            if (field && (surface.also_edits || []).indexOf(field) < 0) return Promise.resolve(false);
+            return (dirty() && ctx.canEdit ? save() : Promise.resolve(true)).then(function (ok) {
+                if (!ok) return false;
+                status('Chargement…', 'busy');
+                return fetch(config.data_url + (field ? '?field=' + encodeURIComponent(field) : ''),
+                             { credentials: 'same-origin' })
+                    .then(App.jsonOrExplain).then(function (data) {
+                        if (data.error) throw new Error(data.error);
+                        target = field;
+                        state.value = data.value == null ? {} : data.value;
+                        state.saved = JSON.stringify(state.value);
+                        state.token = data.token || '';
+                        history.reset();
+                        status(ctx.canEdit ? '' : 'Lecture seule', ctx.canEdit ? '' : 'readonly');
+                        emit('target', { field: field });
+                        emit('change', state.value);
+                        return true;
+                    });
+            }).catch(function (e) {
+                status('Chargement impossible : ' + e.message, 'error');
+                return false;
+            });
+        }
+
         function apply() {
-            if (!config.run_url) return save();
+            // Le process rejoué lit le champ PRINCIPAL : un autre champ édité ne fait qu'enregistrer.
+            if (!config.run_url || target) return save();
             return (dirty() ? save() : Promise.resolve(true)).then(function (ok) {
                 if (!ok) return false;
                 status('Lancement…', 'busy');

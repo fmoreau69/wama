@@ -10,6 +10,9 @@
  * c'est un geste d'édition comme une frappe — `ctx.edit()`, donc un cran de l'historique commun
  * (Ctrl+Z l'annule) —, et c'est l'enregistrement qui en fait une révision NOUVELLE. Les versions
  * plus récentes restent dans la liste.
+ *
+ * Elle suit le champ ÉDITÉ (2026-10-22, `ctx.target()` — la partition complète du composer a ses
+ * propres copies) : la liste se relit quand la page en change (`target`).
  */
 (function (global) {
     'use strict';
@@ -23,6 +26,11 @@
     function mount(body, ctx) {
         var App = global.WamaApp || {};
         var url = ctx.config.revisions_url || '';
+        /** `?field=` du champ édité, quand ce n'est pas le principal. */
+        function query() {
+            var field = ctx.target ? ctx.target() : '';
+            return field ? '?field=' + encodeURIComponent(field) : '';
+        }
         body.classList.add('wama-brick-revisions');
         var list = document.createElement('div');
         list.className = 'wama-revision-list';
@@ -69,7 +77,7 @@
 
         function load() {
             if (!url) { note('Versions indisponibles ici.'); return; }
-            fetch(url, { credentials: 'same-origin' }).then(App.jsonOrExplain).then(function (res) {
+            fetch(url + query(), { credentials: 'same-origin' }).then(App.jsonOrExplain).then(function (res) {
                 if (!res.keeps) { note('Cette app ne garde pas les versions de ce fichier.'); return; }
                 if (!(res.revisions || []).length) { note('Aucune version pour l’instant.'); return; }
                 list.innerHTML = '';
@@ -83,7 +91,7 @@
             if (!btn || btn.disabled) return;
             var n = btn.dataset.number;
             btn.disabled = true;
-            fetch(url + n + '/', { credentials: 'same-origin' }).then(App.jsonOrExplain).then(function (res) {
+            fetch(url + n + '/' + query(), { credentials: 'same-origin' }).then(App.jsonOrExplain).then(function (res) {
                 if (res.error) throw new Error(res.error);
                 ctx.edit(function () { return res.value; });
                 ctx.status('Version ' + n + ' reprise — « Enregistrer » en fait une révision nouvelle', 'dirty');
@@ -95,6 +103,7 @@
         // Une révision NAÎT d'un enregistrement (correction à la main) ou d'un process qui finit.
         var lastStates = JSON.stringify(ctx.processes());
         ctx.on('saved', load);
+        ctx.on('target', load);
         ctx.on('processes', function (states) {
             var now = JSON.stringify(states || {});
             var finished = Object.keys(states || {}).some(function (k) { return states[k] === 'SUCCESS'; });

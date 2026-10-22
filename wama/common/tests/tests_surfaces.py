@@ -469,6 +469,68 @@ class ScoreRulesTest(SimpleTestCase):
         self.assertEqual('K:C\nC2 ^F/2 "Am"[CEG]2 c\' A,|', self._transpose(abc, 'B,', 1))
         self.assertEqual(abc, self._transpose(abc, 'C2', 0), 'no step, no change')
 
+    def _retime(self, abc, note, op, occurrence=0):
+        at = abc.index(note)
+        for _ in range(occurrence):
+            at = abc.index(note, at + 1)
+        return self._call('retime(%s, %d, %s)' % (json.dumps(abc), at, json.dumps(op)))
+
+    def test_a_note_moves_in_time_and_its_neighbours_keep_the_bar_whole(self):
+        """2026-10-22, Fabien : ← → shift the note by one step, the neighbour it overlaps gets
+        shorter, the previous note fills the gap ; + − change its length, never the bar's."""
+        bar = 'K:C\nA4 B4 c4 d4|e16|'
+        right = self._retime(bar, 'B4', 'right')
+        self.assertEqual('K:C\nA5 B4 c3 d4|e16|', right['abc'], 'the previous note fills the gap')
+        self.assertEqual('B4', right['abc'][right['start']:right['end']], 'the moved note stays selected')
+        self.assertEqual('K:C\nA3 B4z c4 d4|e16|', self._retime(bar, 'B4', 'left')['abc'],
+                         'moving back leaves a rest behind')
+        self.assertEqual('K:C\nA4 B5 c3 d4|e16|', self._retime(bar, 'B4', 'longer')['abc'])
+        self.assertEqual('K:C\nA4 B3z c4 d4|e16|', self._retime(bar, 'B4', 'shorter')['abc'])
+        self.assertEqual('K:C\nzA4 B3 c4 d4|e16|', self._retime(bar, 'A4', 'right')['abc'],
+                         'at the start of the bar, a rest opens it')
+        self.assertEqual('K:C\nA4 B4 c5 d3|e16|', self._retime(bar, 'd4', 'right')['abc'],
+                         'the last note moves on : the end of the bar does not')
+
+    def test_a_rest_gives_way_a_note_never_vanishes(self):
+        self.assertEqual('K:C\nA4 B4z c6|', self._retime('K:C\nA4 z B4 c6|', 'B4', 'left')['abc'],
+                         'a rest of one step is absorbed, the gap after becomes a rest')
+        self.assertIn('error', self._retime('K:C\nA4 B4 c d7|', 'B4', 'longer'), 'the next note would vanish')
+        self.assertIn('error', self._retime('K:C\nA4 B4 c4 d4|', 'A4', 'left'), 'the start of the bar')
+        self.assertIn('error', self._retime('K:C\nA4 B c4 d7|', 'B', 'shorter'), 'already the shortest')
+        self.assertIn('error', self._retime('K:C\nA4 z c4 d7|', 'z', 'right'), 'a rest is not moved')
+
+    def test_rests_merge_ties_to_a_rest_go_and_chord_symbols_keep_their_time(self):
+        self.assertEqual('K:C\nA4 B4 z2 c6|', self._retime('K:C\nA4 B5 z c6|', 'B5', 'shorter')['abc'],
+                         'the freed step joins the rest that follows')
+        self.assertEqual('K:C\nA4 B3z B4 d4|', self._retime('K:C\nA4 B4- B4 d4|', 'B4-', 'shorter')['abc'],
+                         'a tie cannot lead to a rest')
+        self.assertEqual('K:C\n"Am"zA4 B3 c4 d4|', self._retime('K:C\n"Am"A4 B4 c4 d4|', 'A4', 'right')['abc'],
+                         'the chord symbol stays at the start of the bar')
+        self.assertEqual('K:C\nA B/ c5/2|', self._retime('K:C\nA/ B/ c3|', 'B/', 'right')['abc'],
+                         'the step is the smallest written fraction')
+
+    def test_a_bar_it_cannot_read_is_left_alone(self):
+        for bar in ('K:C\n(3ABc d4|', 'K:C\nA>B c4|', 'K:C\n{g}A4 B4|', 'K:C\nZ4|'):
+            self.assertIn('error', self._call('retime(%s, 5, "right")' % json.dumps(bar)), bar)
+
+    def test_a_bar_keeps_its_length_whatever_the_gesture(self):
+        script = '''
+            var S = window.WamaScore, bar = 'K:C\\n"C"A2 B3/2 z/2 [ce]2- [ce]2 d4 z2 e2|';
+            function total(abc) {
+                var span = S.barAt(abc, 5), parsed = S.parseBar(abc.slice(span.start, span.end));
+                return parsed.items.reduce(function (s, it) { return s + it.num / it.den; }, 0);
+            }
+            var out = [], ops = ['left', 'right', 'longer', 'shorter'];
+            for (var at = 7; at < bar.length - 1; at++) ops.forEach(function (op) {
+                var r = S.retime(bar, at, op);
+                if (r.abc) out.push(total(r.abc));
+            });
+            return JSON.stringify({before: total(bar), after: out});'''
+        res = json.loads(self.engine.eval('(function(){' + script + '})()'))
+        self.assertEqual(16, res['before'])
+        self.assertTrue(res['after'], 'some gestures were possible')
+        self.assertEqual({16}, set(res['after']), 'no gesture changes the length of the bar')
+
     def test_each_voice_keeps_its_sounding_note_lit(self):
         tl = ('timeline([{ms: 0, sets: [{voice: 0, ref: "a"}, {voice: 1, ref: "x"}]},'
               ' {ms: 1000, sets: [{voice: 0, ref: "b"}]}, {ms: 2000, sets: [{voice: 0, ref: "c"}]},'
@@ -717,9 +779,9 @@ class ComposerScoreSurfaceTest(TestCase):
                           'revision_history'], [s.brick for s in score.slots])
         view = score.slots[0]
         self.assertEqual((0, 12), (view.x, view.w), 'ONE score view, the whole width')
-        self.assertEqual([None, 'parts'], [v.get('role') for v in view.options['versions']],
-                         'the reduced score (edited) and the full score (read only) in the same view')
-        self.assertIn('parts', score.texts, 'the full score is read as text')
+        self.assertEqual([None, 'parts_score'], [v.get('field') for v in view.options['versions']],
+                         'the reduced score and the full score in the same view, both edited')
+        self.assertEqual(('parts_score',), score.also_edits)
         scripts = score.scripts()
         self.assertLess(scripts.index('vendors/abcjs-6.4.4/abcjs-basic-min.js'),
                         scripts.index('common/js/surfaces/brick-score-view.js'))
@@ -775,16 +837,45 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertEqual(ABC, self.client.get(self.base + 'revisions/1/').json()['value'])
         self.assertEqual(corrected, self.client.get(self.base + 'revisions/2/').json()['value'])
 
-    def test_the_full_score_is_read_as_text_and_never_as_a_beat_grid(self):
-        data = self.client.get(self.base + 'data/').json()
-        self.assertEqual('', data['reads']['parts'], 'no full score yet')
+    def test_the_full_score_is_edited_like_the_reduced_one(self):
+        """2026-10-22, Fabien : « pourquoi la partition complète se lit seulement ? » — a second
+        edited field (`Surface.also_edits`), read, written and versioned by `field`."""
+        from wama.common.models import ItemRevision
+        empty = self.client.get(self.base + 'data/?field=parts_score').json()
+        self.assertEqual('', empty['value'], 'no full score yet')
+        refused = self.client.post(self.base + 'save/', json.dumps({'value': 'X:1\n', 'field': 'parts_score'}),
+                                   content_type='application/json')
+        self.assertEqual(400, refused.status_code, 'an empty full score is not created from here')
         parts = self.rel.replace('score_extracted.abc', 'score_parts.abc')
         (Path(settings.MEDIA_ROOT) / parts).write_text('X:1\nV:I0\nK:C\nC4|\n', encoding='utf-8')
         type(self.gen).objects.filter(pk=self.gen.pk).update(parts_score=parts)
-        data = self.client.get(self.base + 'data/').json()
-        self.assertEqual('X:1\nV:I0\nK:C\nC4|\n', data['reads']['parts'], 'its text, not its URL')
-        self.assertEqual(ABC, data['value'], 'the edited score is still the melody')
-        self.assertIsNone(self.client.get(self.base + 'data/?only=rhythm&role=parts').json()['rhythm'])
+        data = self.client.get(self.base + 'data/?field=parts_score').json()
+        self.assertEqual(('X:1\nV:I0\nK:C\nC4|\n', 'parts_score'), (data['value'], data['field']))
+        self.assertEqual(ABC, self.client.get(self.base + 'data/').json()['value'],
+                         'without `field`, the reduced score')
+        res = self.client.post(self.base + 'save/', json.dumps(
+            {'value': 'X:1\nV:I0\nK:C\nD4|\n', 'field': 'parts_score', 'base': data['token']}),
+            content_type='application/json')
+        self.assertEqual(200, res.status_code, res.content)
+        self.assertEqual([], res.json()['stale'], 'the render does not read the full score')
+        self.assertEqual('X:1\nV:I0\nK:C\nD4|\n', (Path(settings.MEDIA_ROOT) / parts).read_text(encoding='utf-8'))
+        self.assertEqual(ABC, (Path(settings.MEDIA_ROOT) / self.rel).read_text(encoding='utf-8'),
+                         'the reduced score is untouched')
+        self.assertEqual([ItemRevision.ORIGIN_PROCESS, ItemRevision.ORIGIN_MANUAL],
+                         list(ItemRevision.objects.filter(app='composer', object_id=self.gen.pk)
+                              .order_by('number').values_list('origin', flat=True)),
+                         'the produced full score is kept before its first correction')
+        listed = self.client.get(self.base + 'revisions/?field=parts_score').json()
+        self.assertTrue(all(r['kept'] for r in listed['revisions']), 'its versions are kept')
+        self.assertEqual('X:1\nV:I0\nK:C\nC4|\n',
+                         self.client.get(self.base + 'revisions/1/?field=parts_score').json()['value'])
+
+    def test_a_field_the_surface_does_not_declare_is_never_edited(self):
+        self.assertEqual(400, self.client.get(self.base + 'data/?field=audio_output').status_code)
+        res = self.client.post(self.base + 'save/', json.dumps({'value': 'x', 'field': 'prompt'}),
+                               content_type='application/json')
+        self.assertEqual(400, res.status_code)
+        self.assertEqual(400, self.client.get(self.base + 'revisions/?field=prompt').status_code)
 
     def test_only_the_score_is_kept_never_the_render(self):
         from wama.common.services.revisions import record_revision

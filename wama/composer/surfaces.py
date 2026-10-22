@@ -9,7 +9,9 @@ La PARTITION COMPLÈTE (2026-10-16) : une partie par instrument (process optionn
 MuScriptor), en lecture seule, sur le même axe. Depuis le 2026-10-22 (demande de Fabien : « une
 seule UI […] afficher la partition complète dans une demi-fenêtre sera illisible ») elle se lit
 dans LA MÊME vue que la partition réduite, sur toute la largeur — un choix « Partition » passe de
-l'une à l'autre (`options.versions` de `score_view`) ; versions et actions vont au volet.
+l'une à l'autre (`options.versions` de `score_view`) ; versions et actions vont au volet. Elle se
+CORRIGE comme la réduite (même jour, demande de Fabien) : un champ édité de plus
+(`Surface.also_edits`), ses versions gardées comme celles de la réduite (`apps.py`).
 
 La partition est un RÉSULTAT de la card, écrit par l'un de deux process ALTERNATIFS : `plan`
 (la consigne → la partition) ou `extract_score` (l'audio du morceau à reprendre → sa mélodie) —
@@ -43,19 +45,19 @@ register_surface(Surface(
     model='composer.ComposerGeneration',
     slots=(BrickSlot('score', 'score_view', 0, 0, 12, 14, {
                'media': 'audio',
-               # La réduite (mélodie et accords) s'édite ; la COMPLÈTE est lue, jamais éditée ici.
+               # La réduite (mélodie et accords), puis la COMPLÈTE (une partie par instrument).
                'versions': [
                    {'label': 'Réduite'},
-                   {'role': 'parts', 'label': 'Complète',
+                   {'field': 'parts_score', 'label': 'Complète',
                     'empty': "Pas encore de partition complète : cocher « Partition complète "
                              "(instruments) » dans les réglages de la card, puis relancer."}]}),
            BrickSlot('transport', 'media_transport', 0, 14, 12, 3, {'role': 'audio'}),
            BrickSlot('source', 'text_sections', 0, 17, 12, 6, {'title': 'Source ABC'}),
            BrickSlot('actions', 'surface_actions', 0, 0, 1, 5, zone='panel'),
            BrickSlot('versions', 'revision_history', 0, 5, 1, 6, zone='panel')),
-    reads={'audio': 'audio_output', 'parts': 'parts_score'},
-    texts=('parts',),
+    reads={'audio': 'audio_output'},
     edits=SCORE_FIELDS,
+    also_edits=('parts_score',),
     reruns='render', available=_score_available,
     # L'élément témoin des vignettes du catalogue des briques (nocturne) : une partition, sa
     # partition complète et un rendu audio — rien n'est lancé, les fichiers sont des témoins.

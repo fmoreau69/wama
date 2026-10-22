@@ -25960,3 +25960,18 @@ Demandes de Fabien du 2026-10-22.
 - Gardes : `ThePreparationIsDeclaredTest` (+3) ; contre-épreuves rouges (`release_absent`,
   `upstream_switch`). Rouges de la suite hors périmètre : copie servie de `wama-params.js` (WIP
   d'autrui), source tableur du Studio, profil du converter.
+
+## §PALIER 2026-10-22 (suite) — PARTITION : LA COMPLÈTE SE CORRIGE, HAUTEUR ET RYTHME AU CLAVIER, EXPORT
+
+Suite du palier précédent (vue unique, MuScriptor en deux passages) ; domicile `ROUTE §F3b`.
+- **Un champ édité de plus** (Fabien : « pourquoi la partition complète se lit seulement ? ») :
+  `Surface.also_edits` + `ctx.retarget` ; routes `data`/`save`/`revisions` par `field` ; la
+  complète du composer a ses versions gardées.
+- **Le clavier de `score_view`** : clic = choisir, ↑ ↓ degré, ← → un pas dans le temps, + − un
+  pas de durée, la mesure garde sa durée (`WamaScore.retime`, testé sous V8 ; positions abcjs
+  relevées sur abcjs lui-même).
+- **Exporter** la partition montrée : MIDI, PDF (impression), ABC — côté page. ⏳ MusicXML.
+- ⏳ Veille : aucun modèle du catalogue ne joue une partition COMPLÈTE (YuE2 ne suit que la
+  mélodie, accords compris en mode `full`).
+- Pas de smoke navigateur (MCP playwright déconnecté) : clavier et export à éprouver à l'écran.
+- 🔴 relancer gunicorn + workers, puis Ctrl+F5 sur la page de partition.
