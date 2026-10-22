@@ -2700,7 +2700,9 @@ MECHANISMS = (
               "la liste (`scoping.listable_by`), le compte anonyme n'en hérite pas. Depuis le "
               "2026-10-20 : `check_designation`, les gardes de `designate` sans pointer ni copier "
               "— pour qui RETIENT une désignation avant qu'une app la reçoive (card d'entrée du "
-              "Studio)",
+              "Studio) ; depuis le 2026-10-22, `designated_file`, le fichier DISQUE de la "
+              "désignation (dossier connecté compris) pour qui la LIT sans la recevoir (lot, « Jeu "
+              "de données » et Sortie du Studio : `MEDIA_ROOT/<chemin>` manquait un montage)",
               'wama/common/utils/media_paths.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md'),
     Mechanism('scoped_visibility', 'Visibilité et portée',

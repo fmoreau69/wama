@@ -480,10 +480,14 @@ def _execute_run(run, task_id, notify=True):
                                 f"Nœud fonction « {key} » : une base connectée n'entre pas encore "
                                 f"directement dans une fonction (choix du flux à venir).")
                         if not up.get('is_frame'):
+                            # Le libellé de la porte des données typées est celui que son nœud
+                            # DÉCLARE au registre — il était recopié ici (2026-10-22).
+                            gate = builtin_node('dataset_input')
                             raise ValueError(
                                 f"Nœud fonction « {key} » : l'amont « {l['from']} » ne produit pas "
                                 f"une donnée typée (fichier {up.get('type')}) — passez par un "
-                                f"nœud « Jeu de données » ou une autre fonction.")
+                                f"nœud « {gate.label if gate else 'Jeu de données'} » ou une "
+                                f"autre fonction.")
                         # `to_port` désigne un port PAR SON ID depuis le 2026-09-09. Un lien qui
                         # n'en nomme aucun — ou qui en nomme un que cette fonction n'a pas —
                         # entre par le PREMIER port. Deux cas réels, et le second est celui qui

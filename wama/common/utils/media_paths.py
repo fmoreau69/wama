@@ -572,6 +572,17 @@ def check_designation(path, user) -> str:
     return _designated_source(path, user)[1]
 
 
+def designated_file(path, user) -> str:
+    """Le fichier DISQUE d'une désignation qui passe les gardes de `designate` — sans rien pointer
+    ni copier.
+
+    Pour qui LIT le fichier désigné sans le recevoir dans une app (2026-10-22 : le fichier de lot,
+    le « Jeu de données » et la Sortie du Studio). Joindre `MEDIA_ROOT` au chemin désigné ne vaut
+    que hors d'un dossier CONNECTÉ : un `mounts/<id>/…` passait la garde (`check_designation`)
+    puis se lisait à une adresse qui n'existe pas. Lève `InputRefused`."""
+    return str(_designated_source(path, user)[0])
+
+
 def received_inputs(request, user, app_name: str, field: str = 'file',
                     subfolder: str = 'input') -> ReceivedInputs:
     """Ce qu'une vue d'upload reçoit : les fichiers TÉLÉVERSÉS sous `field`, puis les fichiers

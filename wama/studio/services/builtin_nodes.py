@@ -124,16 +124,16 @@ def _source_dataset(user, params):
     du `data_type` choisi. C'est la CARD D'ENTRÉE de `WAMA_DATA_FUNCTION_CARDS §5` (source +
     type déclaré → port typé), pas un contournement du pivot taxonomique (marche B) : le type
     est DIT par l'utilisateur, jamais deviné d'une extension."""
-    import os
-    from django.conf import settings
     from wama.common.catalog.data_types import TypedFrame, known_types
+    from .entries import checked_file
     rel = _media_rel(user, params, 'asset_path', 'Jeu de données')
     dtype = _dataset_type(params)
     if dtype not in known_types():
         raise ValueError(f"Nœud « Jeu de données » : type '{dtype}' inconnu de la taxonomie.")
     import pandas as pd
     try:
-        df = pd.read_csv(os.path.join(settings.MEDIA_ROOT, rel), sep=None, engine='python')
+        # Le fichier DISQUE de la désignation (un dossier connecté compris), pas `MEDIA_ROOT/rel`.
+        df = pd.read_csv(checked_file(user, rel, 'Jeu de données'), sep=None, engine='python')
     except Exception as exc:
         raise ValueError(f"Nœud « Jeu de données » : lecture impossible ({exc}).")
     return dtype, TypedFrame(df, dtype, meta={'source': rel})
@@ -242,13 +242,13 @@ def _sink_file_to_media_library(user, value, params):
     """Copie la sortie dans la MÉDIATHÈQUE (UserAsset) — fichier DUPLIQUÉ (la sortie
     d'app reste dans sa file ; l'asset est autonome, supprimable indépendamment)."""
     import os
-    from django.conf import settings
     from django.core.files import File
     from wama.common.utils.mime_utils import guess_mime_type
     from wama.media_library.models import UserAsset
-    src_abs = os.path.join(settings.MEDIA_ROOT, value)
-    if not os.path.exists(src_abs):
-        raise ValueError(f"Nœud « Sortie » : fichier à ranger introuvable ({value}).")
+    from .entries import checked_file
+    # Le fichier DISQUE de ce qu'il reçoit : une sortie d'app, ou un fichier désigné en amont — un
+    # dossier connecté compris (`MEDIA_ROOT/<valeur>` ne l'atteignait pas).
+    src_abs = checked_file(user, value, 'Sortie')
     asset_type = _asset_type_for(params, os.path.basename(value))
     base = (params.get('asset_name') or '').strip() or os.path.splitext(os.path.basename(value))[0]
     name = _unique_asset_name(user, base, asset_type)

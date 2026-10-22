@@ -318,3 +318,65 @@ class LaPaletteServeLesFonctionsTest(TestCase):
                         'un réglage numérique se rend en NOMBRE, plus en champ texte')
         app = [p['name'] for p in node_schema('function:cam_analyzer.distance')['params']]
         self.assertEqual(app[0], 'session_id', "l'argument requis de la tâche, par introspection")
+
+
+class ConnectedFolderFilesAreReadTest(TestCase):
+    """A file DESIGNATED in a connected folder (`mounts/<id>/…`) is read where it lives (2026-10-22).
+
+    The guard of the designation resolved it (`media_paths.check_designation`), then three readers
+    opened `MEDIA_ROOT/<designated path>` — an address that does not exist for a mount: the « Jeu
+    de données » source, the Sortie, and the lot file of a Studio entry card. They read through
+    `media_paths.designated_file` now. The mount is simulated at its only resolver
+    (`user_files.mounted_file`); everything else runs for real."""
+
+    def setUp(self):
+        import tempfile
+        self.user = get_user_model().objects.create_user('studio_mount', password='x')
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(__import__('shutil').rmtree, self.folder, True)
+        self.files = {'mounts/9/trace.csv': os.path.join(self.folder, 'trace.csv'),
+                      'mounts/9/lot.txt': os.path.join(self.folder, 'lot.txt')}
+        _csv_trace(self.files['mounts/9/trace.csv'])
+        with open(self.files['mounts/9/lot.txt'], 'w', encoding='utf-8') as fh:
+            fh.write('-i a.png\n-i b.png\n-i c.png\n')
+        patcher = mock.patch('wama.common.services.user_files.mounted_file',
+                             lambda path, user: self.files.get(str(path).lstrip('/')))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def _run(self, graph):
+        from wama.studio.models import StudioRun
+        from wama.studio.tasks import run_pipeline_task
+        run = StudioRun.objects.create(user=self.user, graph=graph)
+        run_pipeline_task(run.pk)
+        run.refresh_from_db()
+        return run
+
+    def test_the_dataset_source_reads_a_file_of_a_connected_folder(self):
+        run = self._run({
+            'nodes': [{'id': 'n1', 'app': 'dataset_input',
+                       'params': {'asset_path': 'mounts/9/trace.csv', 'data_type': 'geo_track'}},
+                      {'id': 'n2', 'app': 'function:ego_track_filter', 'params': {}}],
+            'links': [{'from': 'n1', 'to': 'n2', 'to_port': 'track'}]})
+        self.assertEqual(run.status, 'SUCCESS', run.error_message)
+        self.assertTrue(run.node_states['n2']['output'].startswith('geo_track · 40 ligne(s)'))
+
+    def test_the_output_stores_a_designated_file_of_a_connected_folder(self):
+        from wama.media_library.models import UserAsset
+        run = self._run({
+            'nodes': [{'id': 'n1', 'app': 'media_import',
+                       'params': {'entry': {'files': ['mounts/9/trace.csv']}}},
+                      {'id': 'n2', 'app': 'studio_output', 'params': {'asset_name': 'from-mount'}}],
+            'links': [{'from': 'n1', 'to': 'n2'}]})
+        self.assertEqual(run.status, 'SUCCESS', run.error_message)
+        asset = UserAsset.objects.get(user=self.user, name='from-mount')
+        self.addCleanup(asset.delete)
+        self.addCleanup(asset.file.delete, False)
+        with open(asset.file.path, encoding='utf-8') as fh:
+            self.assertEqual('time,lat,lon', fh.readline().strip())
+
+    def test_a_lot_file_of_a_connected_folder_is_read(self):
+        from wama.common.app_registry import studio_node_ports
+        from wama.studio.services.entries import lot_lines
+        ports = (studio_node_ports('describer') or {}).get('inputs') or []
+        self.assertEqual(3, len(lot_lines(self.user, 'mounts/9/lot.txt', ports, 'Lot')))

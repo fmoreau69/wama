@@ -72,19 +72,34 @@ def _refs(values) -> list:
     return [str(v).strip() for v in values or [] if str(v or '').strip()]
 
 
+def _designated(user, ref, label, read):
+    """La garde de la désignation appliquée à `ref` par `read` (`check_designation` : le chemin
+    désigné ; `designated_file` : le fichier disque) — refusée tout de suite, en nommant le nœud."""
+    from wama.common.utils.media_paths import InputRefused
+    rel = ref[len('media/'):] if ref.startswith('media/') else ref
+    try:
+        return read(rel, user)
+    except InputRefused as exc:
+        raise ValueError(f"Nœud « {label} » : {exc}")
+
+
 def checked_ref(user, ref, label) -> str:
     """Une référence retenue : une URL telle quelle (téléchargée au lancement), un chemin s'il
     passe les gardes de la désignation — refusé tout de suite, en le nommant, sinon."""
-    from wama.common.utils.media_paths import InputRefused, check_designation
+    from wama.common.utils.media_paths import check_designation
     from wama.common.utils.source_ingest import is_remote
     ref = str(ref).strip()
     if is_remote(ref):
         return ref
-    rel = ref[len('media/'):] if ref.startswith('media/') else ref
-    try:
-        return check_designation(rel, user)
-    except InputRefused as exc:
-        raise ValueError(f"Nœud « {label} » : {exc}")
+    return _designated(user, ref, label, check_designation)
+
+
+def checked_file(user, ref, label) -> str:
+    """Le fichier DISQUE d'une référence désignée, pour qui le LIT (un fichier de lot, une donnée,
+    ce que range la Sortie) : par la même garde que `checked_ref`, un dossier connecté compris
+    (`media_paths.designated_file`) — joindre `MEDIA_ROOT` au chemin désigné le manquait."""
+    from wama.common.utils.media_paths import designated_file
+    return _designated(user, str(ref).strip(), label, designated_file)
 
 
 def received_value(user, upstream, mode='media'):
@@ -172,15 +187,10 @@ def lot_lines(user, ref, ports, label) -> list:
     `line_to_ports` ; le nom de sortie est le `-o` de la ligne, `''` sans lui). Une ligne sans
     fichier ni consigne se lit dans la famille de l'app : une consigne par ligne quand sa consigne
     suffit à créer l'élément (`principal_entry`), un fichier par ligne sinon."""
-    import os
-
-    from django.conf import settings
-
     from wama.common.app_registry import principal_entry
     from wama.common.utils.batch_parsers import (extract_batch_file_text, line_to_ports,
                                                  parse_batch_lines)
-    rel = checked_ref(user, ref, label)
-    path = os.path.join(settings.MEDIA_ROOT, rel)
+    path = checked_file(user, ref, label)
     plain_as = 'prompt' if principal_entry(ports).get('primary_input') == 'prompt' else 'input'
     try:
         lines, warnings = parse_batch_lines(extract_batch_file_text(path), plain_as=plain_as)
