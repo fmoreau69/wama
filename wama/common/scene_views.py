@@ -53,3 +53,22 @@ def scene_page(request, key):
 def scene_data_view(request, key):
     scene = _scene(key)
     return _guarded(scene, _data)(request, scene)
+
+
+def hand_model_view(request):
+    """Le modèle des gestes de la main (`common/hand_gestures.py`), INSTALLÉ par la route, servi au
+    navigateur qui le charge (les mains des scènes 3D). Absent, la réponse le dit et donne la page
+    où l'installer — la scène l'affiche ; rien ne se télécharge à côté de la route."""
+    from django.contrib.auth.decorators import login_required
+    from django.http import FileResponse
+    from django.urls import reverse
+
+    from .hand_gestures import gesture_model_installed, gesture_model_path
+
+    @login_required
+    def view(request):
+        if not gesture_model_installed():
+            return JsonResponse({'installed': False, 'manage_url': reverse('model_manager:index')},
+                                status=404)
+        return FileResponse(open(gesture_model_path(), 'rb'), content_type='application/octet-stream')
+    return view(request)

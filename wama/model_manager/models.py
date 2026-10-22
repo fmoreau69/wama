@@ -123,6 +123,10 @@ class ModelTask(models.TextChoices):
     # perceptuelle) du banc d'agrandissement (`WAMA_QUALITE §4`, mesure interne). Une tâche à part
     # pour qu'aucune sélection d'app ne le tire, et qu'il s'installe comme tout modèle.
     QUALITY_METRIC = 'quality-metric', 'Métrique de qualité (mesure)'
+    # Gestes de la MAIN (2026-10-22) : la webcam pilote les scènes 3D (MediaPipe Gesture
+    # Recognizer, exécuté dans le navigateur). Ni `pose` (le corps entier, sans les doigts), ni une
+    # détection : il rend des repères de main ET un geste nommé (poing fermé, main ouverte…).
+    HAND_GESTURE = 'hand-gesture', 'Gestes de la main'
     # video
     LIP_SYNC = 'lip-sync', 'Synchronisation labiale'
 
@@ -203,6 +207,9 @@ TASK_TO_PLATFORM_TAGS = {
     # Ni l'une ni l'autre n'a d'équivalent sur les plateformes (propres à WAMA).
     ModelTask.ROAD_SEGMENTATION:  (None,                           None,        None,        None),
     ModelTask.QUALITY_METRIC:     (None,                           None,        None,        None),
+    # Repères de main + geste nommé : aucune tâche de pipeline ne le dit (`keypoint-detection` de HF
+    # ne nomme pas le geste, `pose` d'Ultralytics est le corps entier).
+    ModelTask.HAND_GESTURE:       (None,                           None,        None,        None),
     ModelTask.LIP_SYNC:           (None,                           None,        None,        None),
 }
 REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
@@ -253,6 +260,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.AUDIO_TO_MIDI:      ModelType.MUSIC,
     ModelTask.ROAD_SEGMENTATION:  ModelType.VISION,
     ModelTask.QUALITY_METRIC:     ModelType.VISION,
+    ModelTask.HAND_GESTURE:       ModelType.VISION,
     ModelTask.LIP_SYNC:           ModelType.LIPSYNC,
 }
 
@@ -344,6 +352,8 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.AUDIO_TO_MIDI:      (('audio',),                     ('work_audio',),           ()),
     ModelTask.ROAD_SEGMENTATION:  (('image', 'video'),             ('work_file',),            ()),
     ModelTask.QUALITY_METRIC:     (('image',),                     ('work_file',),            ()),
+    # Le flux de la webcam, lu image par image dans le navigateur.
+    ModelTask.HAND_GESTURE:       (('image', 'video'),             ('work_file',),            ()),
     ModelTask.LIP_SYNC:           (('image', 'audio', 'video'),    ('work_image', 'work_audio'), ()),
 }
 

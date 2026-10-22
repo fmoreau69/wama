@@ -2765,14 +2765,18 @@ MECHANISMS = (
               "`ready()` de son app ; une scène qui projette un registre (`registry`) donne à la "
               "page de ce registre son bouton « Constellation » (`scene_button`). Scènes : les "
               "utilisateurs (premier consommateur, son adresse gardée), les licences, les modèles ; "
-              "une scène de la page commune est jouée chaque nuit (`common.scene.<clé>.ui`)",
+              "une scène de la page commune est jouée chaque nuit (`common.scene.<clé>.ui`). La "
+              "légende filtre ; les MAINS pilotent toute scène à la webcam (MediaPipe dans le "
+              "navigateur, modèle des gestes installé par la route)",
               'wama/common/scenes.py', 'docs/construction/ui/WAMA_SCENES_3D.md',
               annexes=('wama/common/static/common/js/wama-constellation.js',
                        'wama/common/static/common/css/wama-constellation.css',
                        'wama/common/templates/common/constellation.html',
                        'wama/common/scene_views.py', 'wama/common/services/license_scene.py',
                        'wama/model_manager/services/model_scene.py',
-                       'wama/common/services/ui_smoke_scenes.py', 'wama/common/tests/tests_scenes.py'),
+                       'wama/common/services/ui_smoke_scenes.py', 'wama/common/tests/tests_scenes.py',
+                       'wama/common/hand_gestures.py', 'wama/common/static/common/js/wama-hands.js',
+                       'wama/common/tests/tests_hands.py'),
               depends_on=('app_access',)),
     # Ajouté le 2026-10-04 (décision de Fabien : « option 1, persistance par session »). Collé à
     # `app_access` parce qu'il en est le prolongement : la décision dit QUELLE app est ouverte au

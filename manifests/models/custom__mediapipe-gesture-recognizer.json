@@ -1,0 +1,70 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image",
+        "video"
+      ],
+      "task": "hand-gesture"
+    },
+    "composition": {},
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task",
+            "source": "mediapipe_models"
+          },
+          "path": "gesture_recognizer.task",
+          "sha256": "97952348cf6a6a4915c2ea1496b4b37ebabc50cbbf80571435643c455f2b0482",
+          "size": 8373440
+        }
+      ]
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "task",
+      "preferred_format": "task"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Gestes de la main à la webcam (scènes 3D)",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "custom"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.007798373699188232,
+      "ram_gb": 0.0,
+      "vram_gb": 0.0
+    }
+  },
+  "description": "Reconnaissance des gestes de la main (21 repères par main, jusqu'à deux mains ; poing fermé, main ouverte, index levé…) — exécutée dans le navigateur, aucune image ne part au serveur. Pilote les scènes 3D à la webcam : poing pour tourner, deux poings pour zoomer.",
+  "key": "custom:mediapipe-gesture-recognizer",
+  "manifest_kind": "model",
+  "name": "MediaPipe Gesture Recognizer",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:custom:mediapipe-gesture-recognizer",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

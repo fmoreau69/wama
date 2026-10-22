@@ -613,7 +613,7 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
     document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && state.selected) select(null); });
 
     // ── HUD : couches, couleur, forces, recherche ────────────────────────
-    stage.querySelectorAll('.wc-layers .wc-chip').forEach(chip => chip.addEventListener('click', () => {
+    stage.querySelectorAll('.wc-layers .wc-chip[data-layer]').forEach(chip => chip.addEventListener('click', () => {
       const k = chip.dataset.layer; state.layers[k] = !state.layers[k]; chip.classList.toggle('on', state.layers[k]);
       const role = (layers.find(l => l.key === k) || {}).role;
       if (role === 'nodes') { applyVisibility(); reheat(0.9); }
@@ -624,6 +624,43 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
       stage.querySelectorAll('.wc-colorby .wc-chip').forEach(c => c.classList.toggle('on', c === chip));
       paintNodes(); renderPanel();
     }));
+    // ── Les MAINS : piloter la scène à la webcam (`wama-hands.js`, 2026-10-22) ──────────────
+    // Un poing fermé SAISIT la scène comme la souris (la main va à droite, la scène suit) ; deux
+    // poings qui s'écartent rapprochent la caméra. Chargé à l'allumage seulement ; rien ne quitte
+    // le navigateur.
+    const handsChip = $('[data-hands]'), handsBox = $('.wc-hands');
+    let hands = null;
+    const spherical = new THREE.Spherical(), offset = new THREE.Vector3();
+    const HAND_GAIN = 4.5;
+    function orbitBy(dx, dy) {
+      offset.subVectors(camera.position, controls.target); spherical.setFromVector3(offset);
+      spherical.theta -= dx * HAND_GAIN;
+      spherical.phi = Math.min(Math.PI - 0.05, Math.max(0.05, spherical.phi - dy * HAND_GAIN));
+      offset.setFromSpherical(spherical); camera.position.copy(controls.target).add(offset);
+    }
+    function zoomBy(f) {
+      offset.subVectors(camera.position, controls.target);
+      offset.setLength(Math.min(controls.maxDistance, Math.max(controls.minDistance, offset.length() * f)));
+      camera.position.copy(controls.target).add(offset);
+    }
+    if (handsChip && handsBox) handsChip.addEventListener('click', async () => {
+      if (hands) {
+        hands.stop(); hands = null; handsChip.classList.remove('on'); handsBox.hidden = true;
+        controls.autoRotate = !reduceMotion && !state.selected;
+        return;
+      }
+      handsChip.classList.add('on'); handsBox.hidden = false;
+      const { startHands } = await import('wama/hands');
+      hands = await startHands(handsBox, {
+        wasm: stage.dataset.handsWasm, model: stage.dataset.handsModel, manage: stage.dataset.handsManage,
+        onGesture: out => {
+          if (out.rotate || out.zoom) { controls.autoRotate = false; flight = null; }
+          if (out.rotate) orbitBy(out.rotate.dx, out.rotate.dy);
+          if (out.zoom) zoomBy(out.zoom);
+        },
+        onError: () => handsChip.classList.remove('on'),
+      });
+    });
     const weightsBox = $('.wc-weights');
     const wid = `wc-${spec.key || 'scene'}-w`;
     for (const w of factors) {

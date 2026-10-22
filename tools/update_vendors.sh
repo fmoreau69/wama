@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # =============================================================================
 # Met à jour les assets front vendorés en LOCAL (Bootstrap / Font Awesome / jsTree / three /
-# TalkingHead / FullCalendar / gridstack / abcjs / Roboto Flex). ⚠ Leaflet (cam_analyzer) n'y est
-# pas encore.
+# TalkingHead / FullCalendar / gridstack / abcjs / Roboto Flex / MediaPipe Tasks Vision).
+# ⚠ Leaflet (cam_analyzer) n'y est pas encore.
 #
 # WAMA est LOCAL-FIRST (cf. memory/reference_offline_assets_local) : aucune dépendance
 # CDN au runtime → fonctionne hors-ligne. Ce script garde les liens de récupération et
@@ -47,6 +47,15 @@ ABCJS_VER=6.4.4
 # (`index.css`, famille « Roboto Flex Variable »), les six sous-ensembles qu'il déclare. Le
 # navigateur ne télécharge une fonte que sous un thème qui la demande.
 ROBOTO_FLEX_VER=5.3.0
+# MediaPipe Tasks Vision (Apache-2.0, Google) — les MAINS qui pilotent les scènes 3D (brique
+# `wama-hands.js`, 2026-10-22) : reconnaissance des gestes DANS LE NAVIGATEUR, aucune image ne part
+# au serveur. Le paquet npm ne joint pas de LICENSE : celle du dépôt MediaPipe l'accompagne. Ses
+# moteurs WebAssembly (~13 Mo chacun) sont GITIGNORÉS, comme l'avatar GLB : ce script les tire.
+# Le MODÈLE des gestes n'est pas ici : c'est une ligne du catalogue (`common/hand_gestures.py`).
+# ⚠ À chaque montée de version : la librairie envoie une télémétrie d'usage à Google
+# (`odml.pa.googleapis.com`), coupée par `wama-hands.js` — rejouer le scénario `common.scene.*.ui`,
+# qui refuse tout POST, avant de committer.
+MEDIAPIPE_TASKS_VER=1.1.1
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V="$ROOT/wama/static/vendors"
@@ -177,6 +186,20 @@ dl "$RF/LICENSE"   "$V/roboto-flex-$ROBOTO_FLEX_VER/LICENSE"
 for sub in latin latin-ext cyrillic cyrillic-ext greek vietnamese; do
   dl "$RF/files/roboto-flex-$sub-wght-normal.woff2" "$V/roboto-flex-$ROBOTO_FLEX_VER/files/roboto-flex-$sub-wght-normal.woff2"
 done
+fi
+
+if want mediapipe; then
+echo "== MediaPipe Tasks Vision $MEDIAPIPE_TASKS_VER (bundle ES + moteurs WebAssembly) =="
+MP="https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@$MEDIAPIPE_TASKS_VER"
+D="$V/mediapipe-tasks-vision-$MEDIAPIPE_TASKS_VER"
+mkdir -p "$D/wasm"
+dl "$MP/vision_bundle.mjs" "$D/vision_bundle.mjs"
+# Le moteur SIMD (tout navigateur récent) et son repli sans SIMD, que `FilesetResolver` choisit.
+for f in vision_wasm_internal vision_wasm_nosimd_internal; do
+  dl "$MP/wasm/$f.js"   "$D/wasm/$f.js"
+  dl "$MP/wasm/$f.wasm" "$D/wasm/$f.wasm"
+done
+dl "https://raw.githubusercontent.com/google-ai-edge/mediapipe/master/LICENSE" "$D/LICENSE"
 fi
 
 if want avatar; then

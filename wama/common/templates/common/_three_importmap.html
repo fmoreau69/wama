@@ -21,6 +21,10 @@
   `wama/constellation` (2026-10-21) : la brique commune des scènes de proximité, importée par nom
   par chaque adaptateur de scène — un FICHIER, donc `static_v` (son empreinte casse le cache quand
   la brique change ; un adaptateur qui l'importerait par chemin garderait l'ancienne).
+  `wama/hands` et `mediapipe/tasks-vision` (2026-10-22) : les mains qui pilotent les scènes, et la
+  librairie qu'elles chargent à l'allumage seulement. ⚠ Comme celle de three.js, la version de
+  MediaPipe s'écrit ici ET dans `tools/update_vendors.sh` (`MEDIAPIPE_TASKS_VER`) et
+  `common/hand_gestures.py` (`TASKS_VISION_VENDOR`) : une montée de version change les trois.
 
   Versions vendorisées : three 0.180.0 (celle qu'exige l'exemple TalkingHead — une version
   différente n'est pas garantie compatible), TalkingHead 1.7.
@@ -34,7 +38,9 @@
     "three/addons/": "{% static 'vendors/three-0.180.0/addons/' %}",
     "talkinghead": "{% static 'vendors/talkinghead-1.7/talkinghead.mjs' %}",
     "wama/3d-viewer": "{% static 'common/js/wama-3d-viewer.js' %}",
-    "wama/constellation": "{% static_v 'common/js/wama-constellation.js' %}"
+    "wama/constellation": "{% static_v 'common/js/wama-constellation.js' %}",
+    "wama/hands": "{% static_v 'common/js/wama-hands.js' %}",
+    "mediapipe/tasks-vision": "{% static 'vendors/mediapipe-tasks-vision-1.1.1/vision_bundle.mjs' %}"
   }
 }
 </script>

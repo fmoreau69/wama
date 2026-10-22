@@ -14,6 +14,7 @@ CE QU'IL MESURE, pour chaque scène :
   2. la scène se forme : la ligne de mesures est remplie, une étiquette par nœud du contrat ;
   3. chercher le premier nœud visible le choisit : le volet porte son nom, et « Les plus proches » ;
      Échap rend la légende ; la légende filtre (ne garder qu'une catégorie, puis tout montrer) ;
+     les mains s'allument sur une webcam factice et s'éteignent (modèle absent : la vignette le dit) ;
   4. chaque couche s'éteint et se rallume, chaque coloration s'applique, un poids change ;
 et sur tout le parcours, zéro erreur JS et aucune requête POST (la scène ne fait que LIRE).
 ⚠ Le compte de test reçoit le niveau administrateur le temps du passage (comme la constellation
@@ -44,6 +45,36 @@ JS_COUNT = """() => {
     return { first: b ? Number(b.textContent) : null, stats: document.querySelector('.wc-stats').textContent.trim(),
              box: !!box && !box.hidden, rows: document.querySelectorAll('.wc-panel [data-filter]').length };
 }"""
+
+
+#: Une WEBCAM factice (une mire, sans main) et l'accès accordé sans demande : de quoi éprouver la
+#: chaîne des mains entière — caméra, moteurs WebAssembly, modèle servi, reconnaissance qui tourne.
+FAKE_CAMERA_ARGS = ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']
+
+
+def check_hands(page):
+    """Les mains (`wama-hands.js`, 2026-10-22) — `None` si le geste tient, sinon la faute. La puce
+    allume la vignette ; avec le modèle installé, la reconnaissance tourne sur la mire et demande
+    une main ; sans lui, la vignette le DIT et nomme la page où l'installer ; la puce les éteint."""
+    from playwright.sync_api import TimeoutError as PlaywrightTimeout
+    page.click('[data-hands]', force=True)
+    try:
+        page.wait_for_function(
+            "() => { const s = document.querySelector('.wc-hands-status'); "
+            "return s && /Montrez|installé|Caméra|démarrer|sécurisée/.test(s.textContent); }", timeout=60000)
+    except PlaywrightTimeout:
+        return f"mains : la vignette n'a rien dit en 60 s (« {page.locator('.wc-hands-status').inner_text()} »)"
+    status = page.locator('.wc-hands-status').inner_text()
+    if "n'est pas installé" in status:
+        if not page.locator('.wc-hands-status a').count():
+            return "mains : le modèle manque et la vignette ne dit pas où l'installer"
+    elif 'Montrez' not in status:
+        return f"mains : « {status} »"
+    page.click('[data-hands]', force=True)
+    page.wait_for_timeout(500)
+    if not page.evaluate("() => document.querySelector('.wc-hands').hidden"):
+        return "mains : la puce ne les éteint pas"
+    return None
 
 
 def check_legend_filter(page):
@@ -93,9 +124,9 @@ def check_scene(key):
         registry = REGISTRIES.get(scene.registry)
         registry_url = f"{base}{reverse(registry.url_name)}" if registry and registry.url_name else ''
         with sync_playwright() as p:
-            browser = p.chromium.launch(args=GL_ARGS)
+            browser = p.chromium.launch(args=GL_ARGS + FAKE_CAMERA_ARGS)
             try:
-                ctx = browser.new_context(viewport={'width': 1600, 'height': 950})
+                ctx = browser.new_context(viewport={'width': 1600, 'height': 950}, permissions=['camera'])
                 ctx.add_cookies(_cookie(session.session_key))
                 page = ctx.new_page()
                 page.on('pageerror', lambda e: js_errors.append(f"pageerror: {e}"[:200]))
@@ -167,6 +198,13 @@ def check_scene(key):
                     faults.append(fault)
                 else:
                     steps.append('filtre de la légende posé puis retiré')
+
+                # 3ter. Les mains, sur la webcam factice.
+                fault = check_hands(page)
+                if fault:
+                    faults.append(fault)
+                else:
+                    steps.append('mains allumées puis éteintes')
 
                 # 4. Couches, colorations, un poids.
                 for layer in scene.layers:

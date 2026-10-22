@@ -141,6 +141,11 @@ staticfiles/*_[0-9][0-9]/
 # autant dans l historique). Meme parti que MuseTalk, cloné par setup_avatarizer.sh.
 wama/static/vendors/avatars/
 staticfiles/vendors/avatars/
+# Moteurs WebAssembly de MediaPipe Tasks Vision (2026-10-22, mains des scènes 3D) : ~13 Mo de
+# binaire chacun, même parti que l'avatar — tirés par tools/update_vendors.sh (section
+# `mediapipe`) ; le JS qui les charge, lui, est versionné.
+wama/static/vendors/mediapipe-tasks-vision-*/wasm/*.wasm
+staticfiles/vendors/mediapipe-tasks-vision-*/wasm/*.wasm
 
 # Vignettes des briques UI (2026-10-18, decision de Fabien) -- des CAPTURES refaites par le
 # nocturne sur de vraies surfaces (`surfaces.THUMBNAILS_DIR`), servies depuis STATIC_ROOT ; une

@@ -153,6 +153,53 @@ une vue 3D d'un pipeline est une lecture et un suivi d'exécution, pas un second
 - Les scènes T1 (mécanismes) et T2 (composition) sont les meilleures candidates pour la frame
   « Monde Transversal », que Fabien juge la plus difficile à faire comprendre.
 
+### 3.6 Deux pistes ouvertes par Fabien le 2026-10-22
+
+**L'architecture de WAMA en constellation — ⏳ à concevoir avec Fabien avant d'écrire.** Le risque
+est la pelote : 212 mécanismes, des dizaines d'apps, des centaines de modèles d'un coup. Principes
+retenus (proposés, approuvés comme démarche) :
+1. un ZOOM PAR NIVEAUX plutôt qu'une scène unique — les quatre mondes (l'esthétique de la frame
+   `mondes` de la présentation) → l'intérieur d'un monde (ses apps et les mécanismes qu'elles
+   empruntent) → l'intérieur d'une app (modèles, librairies, fonctions, pipelines, mécanismes) ;
+   quelques dizaines d'éléments par niveau ;
+2. partir de QUESTIONS — des préréglages (couches, filtres, choix) : « qu'y a-t-il derrière le
+   Transcriber ? », « qui utilise cette brique ? », « ce que plusieurs mondes partagent » ;
+3. suivre une CHAÎNE entière (amont et aval d'un élément) — la brique n'allume aujourd'hui que les
+   voisins directs : c'est le seul ajout de fond.
+Données sans recopie : `mecanismes.py` (domaines, `depends_on`), les `requires` des manifestes,
+`app_registry` (mondes). Les scènes T1/T2 du §3.1 en sont les briques.
+
+**Les MAINS qui pilotent la 3D à la webcam — ✅ livrées le 2026-10-22** (« en serrant la main puis
+en la déplaçant, ça fait tourner ; avec les deux mains, on zoome »). Puce « Mains » de toute scène :
+- MediaPipe Gesture Recognizer (Apache-2.0), exécuté DANS LE NAVIGATEUR (`common/js/wama-hands.js`,
+  librairie vendorisée `mediapipe-tasks-vision-1.1.1`, chargée seulement à l'allumage) : aucune
+  image de la webcam ne quitte la page ;
+- un poing fermé SAISIT la scène comme la souris (image en miroir) ; deux poings qui s'écartent
+  rapprochent la caméra ; une main ouverte lâche ; un poing ne se déclare qu'après deux images et ne
+  se relâche qu'après quatre (une image mal lue ne fait ni saisir ni lâcher), la paume est lissée ;
+- le MODÈLE (`gesture_recognizer.task`, 8 Mo) est une ligne du catalogue
+  (`custom:mediapipe-gesture-recognizer`, tâche `hand-gesture`), déclarée par `common/hand_gestures.py`,
+  installée par la route (pilote `files`, origine `mediapipe_models`, comme le Face Landmarker) et
+  servie au navigateur par `common:hand_model` ; absent, la vignette le dit et renvoie à la gestion
+  des modèles ;
+- YOLO pose écarté : 17 points du corps entier, pour la main le seul poignet (aucun doigt, donc pas
+  de poing), et une exécution serveur qui imposerait d'envoyer chaque image ;
+- ⚠ la caméra n'est permise qu'en contexte SÉCURISÉ (https, ou `localhost`) : servi en http par
+  l'adresse réseau du serveur, le navigateur la refuse — la vignette le dit ;
+- ⚠ **la librairie envoie d'elle-même une télémétrie d'usage à Google** (`POST
+  https://odml.pa.googleapis.com/v1/log`, toutes les 60 s, aucune option publique pour la couper) —
+  trouvé par le scénario nocturne, qui refuse tout POST. Coupée dans `wama-hands.js` : le temps des
+  mains, tout `fetch` hors de l'origine de WAMA reçoit un refus LOCAL (le réseau n'est jamais
+  atteint) et le journaliseur de MediaPipe s'arrête au premier refus. À revérifier à chaque montée
+  de version de la librairie.
+Gardes : `common/tests/tests_hands.py` (déclaration, ligne du catalogue, route du modèle, page, et
+l'interprétation des gestes rejouée dans V8) ; étape « mains » du scénario `common.scene.<clé>.ui`
+sur une webcam factice. ⏳ Suite possible : index pointé pour survoler, pincement pour choisir.
+⚠ Sa ligne du catalogue n'a pas de LICENCE, bien qu'elle soit établie (Apache-2.0, Google) — comme
+le Face Landmarker du Face Analyzer : la découverte d'une ligne DÉCLARÉE hors HuggingFace ne pose
+pas de licence. Trou du catalogue, préexistant, non ouvert ici ; il fait compter ces deux modèles en
+« inconnue » dans l'audit des licences.
+
 ## 4. La brique commune — ✅ livrée le 2026-10-21
 
 **Ce qui existe** (mesuré au commit) :
@@ -252,6 +299,12 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
   dans la gestion des modèles, « Non installé » dans la scène). Domicile à créer : un jeton par
   famille dans le thème, comme `--wama-mm-type-*` pour les types de modèles (ramené le jour même).
 - La mise en espace des scènes licences et modèles (`layout`, `label_limit`) est un premier réglage.
+- **Capture caméra / micro sans brique commune** (relevé le 2026-10-22 en écrivant les mains) :
+  quatre sites appellent `getUserMedia` et refont chacun le contrôle du contexte sécurisé et le
+  message de refus — l'enregistrement de la médiathèque (`library-add.js`), l'écoute de l'assistant
+  (`wama-assistant-listen.js`), le temps réel du Face Analyzer (son gabarit) et les mains
+  (`wama-hands.js`). Domicile à créer dans les briques JS communes ; non fait : il touche trois
+  chantiers d'autres sessions.
 - Aucun monde sur `AIModel` : il passe par `source` → `APP_CATALOG`.
 - Proximité sémantique des cards : images seules, deux espaces séparés, pas de voisinage card ↔
   card, pas de réduction de dimension (§3.3).

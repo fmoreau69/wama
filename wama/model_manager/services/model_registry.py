@@ -369,6 +369,7 @@ class ModelRegistry:
         self._discover_midi_extraction_models()
         self._discover_image_to_3d_models()
         self._discover_face_analyzer_models()
+        self._discover_hand_gesture_models()
 
         # EN DERNIER, après toutes les découvertes d'app : le balayage générique ne
         # couvre que ce qu'AUCUNE app ne déclare (dédup par hf_id) — l'entrée déclarée
@@ -1505,6 +1506,41 @@ class ModelRegistry:
             )
         except Exception as e:
             self.discovery_errors.append(f'quality-metric: {e}')
+
+    def _discover_hand_gesture_models(self):
+        """Gestes de la main (task=hand-gesture, 2026-10-22) — MediaPipe Gesture Recognizer, que les
+        scènes 3D chargent DANS LE NAVIGATEUR pour se piloter à la webcam (`wama-hands.js`). Même
+        patron que LPIPS : le consommateur est une brique commune, la déclaration vit à côté d'elle
+        (`common/hand_gestures.py`) ; la ligne existe absente, installable par le pilote `files`
+        depuis l'origine officielle (`mediapipe_models`, comme le Face Landmarker)."""
+        try:
+            from wama.common.hand_gestures import (
+                GESTURE_FILES, GESTURE_KEY, gesture_folder, gesture_model_installed, gesture_model_path,
+            )
+            self._models[GESTURE_KEY] = ModelInfo(
+                id=GESTURE_KEY,
+                name='MediaPipe Gesture Recognizer',
+                model_type=ModelType.VISION,
+                source=ModelSource.CUSTOM,
+                description="Reconnaissance des gestes de la main (21 repères par main, jusqu'à deux "
+                            "mains ; poing fermé, main ouverte, index levé…) — exécutée dans le "
+                            "navigateur, aucune image ne part au serveur. Pilote les scènes 3D à la "
+                            "webcam : poing pour tourner, deux poings pour zoomer.",
+                description_short="Gestes de la main à la webcam (scènes 3D)",
+                vram_gb=0.0,
+                format='task',
+                preferred_format='task',
+                is_downloaded=gesture_model_installed(),
+                extra_info={'path': str(gesture_model_path()),
+                            'size_bytes': sum(f['size'] for f in GESTURE_FILES),
+                            'install_dir': str(gesture_folder()),
+                            'declared_files': GESTURE_FILES},
+                # Pas de `composition.runtime` : aucun moteur Python ne le charge, le navigateur oui.
+                capabilities={'task': 'hand-gesture', 'modalities': ['image', 'video'],
+                              'inputs_required': ['work_file']},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'hand-gesture: {e}')
 
     def _discover_midi_extraction_models(self):
         """Transcription audio → MIDI multi-instrument (task=audio-to-midi, 2026-10-16) — la

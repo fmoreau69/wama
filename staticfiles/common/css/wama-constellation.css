@@ -297,6 +297,22 @@ details:not([open]) > summary.wc-box-title::after { content: ' ▸'; }
 .wc-filters { display: flex; flex-wrap: wrap; gap: 6px; }
 .wc-filters[hidden] { display: none; }
 
+/* ── Les mains (webcam, 2026-10-22) : la vignette en bas, au centre de la scène ; l'image est en
+   MIROIR, comme un reflet, pour que la main droite aille à droite. ── */
+.wc-chip i.fa-hand { font-size: 11px; }
+.wc-hands {
+  position: absolute; z-index: 4; left: 50%; bottom: 14px; transform: translateX(-50%);
+  width: 220px; border-radius: 12px; overflow: hidden;
+  background: var(--wc-glass-strong); border: 1px solid var(--wc-line); backdrop-filter: blur(8px);
+}
+.wc-hands[hidden] { display: none; }
+.wc-hands video, .wc-hands canvas { display: block; width: 100%; aspect-ratio: 4 / 3; transform: scaleX(-1); }
+.wc-hands canvas { position: absolute; left: 0; top: 0; pointer-events: none; }
+.wc-hands-status { padding: 6px 9px; font-size: 11.5px; line-height: 1.4; color: var(--wc-ink-soft); }
+.wc-hands-status a { color: var(--wc-media); }
+.wc-hands.error .wc-hands-status { color: var(--wc-ink); }
+.wc-hands.error video, .wc-hands.error canvas { display: none; }
+
 .wc-fallback { position: absolute; inset: auto 0 45% 0; text-align: center; color: var(--wc-ink-soft); font-size: 15px; }
 
 /* ── Téléphone : le volet devient une feuille basse, le HUD se resserre ── */

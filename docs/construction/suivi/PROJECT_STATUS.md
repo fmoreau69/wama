@@ -25876,3 +25876,31 @@ recherche (4 sur 58, ≤ 37 px) ; le DOM ne diffère qu'aux endroits voulus (con
 attributs des lignes). Scénarios `accounts.constellation.ui`, `common.scene.licenses.ui`,
 `common.scene.models.ui` verts avec l'étape « filtre de la légende ». 🔚 Le point d'entrée de la
 clôture ci-dessus est SOLDÉ ; restent ses pendings (relancer gunicorn, pousser, valider sur le live).
+
+## §PALIER — 2026-10-22, « Les MAINS pilotent les scènes 3D à la webcam » — ✅ livré
+
+Demande de Fabien : *« en serrant la main, puis en déplaçant la main, ça fait tourner la 3D ; avec
+les deux mains, on zoome »* — proposition (MediaPipe dans le navigateur, YOLO pose écarté) validée.
+Détail et décisions : `WAMA_SCENES_3D §3.6`.
+- ✅ Puce « Mains » de toute scène (brique commune) : poing fermé = saisir et tourner (miroir),
+  deux poings = zoom, main ouverte = lâcher ; vignette de la webcam en bas de la scène.
+- ✅ `common/js/wama-hands.js` (interprétation pure + caméra), MediaPipe Tasks Vision 1.1.1
+  vendorisé (`tools/update_vendors.sh` section `mediapipe`, moteurs `.wasm` gitignorés comme
+  l'avatar), chargé à l'allumage seulement ; importmap `wama/hands`, `mediapipe/tasks-vision`.
+- ✅ Le modèle `custom:mediapipe-gesture-recognizer` (tâche `hand-gesture`, déclarée avec sa
+  catégorie et ses entrées) : déclaré par `common/hand_gestures.py`, découvert au catalogue,
+  INSTALLÉ par la route (`pull_model`, pilote `files`, origine `mediapipe_models` — taille et
+  empreinte vérifiées), servi au navigateur par `common:hand_model` ; fiche du corpus exportée seule.
+- ⚠ **Télémétrie de Google coupée** : la librairie POSTe d'elle-même à `odml.pa.googleapis.com`
+  (trouvé par le scénario nocturne, qui refuse tout POST) ; `wama-hands.js` refuse localement tout
+  `fetch` hors de l'origine le temps des mains. Ses lignes « INFO: » de `console.error` passent en
+  `console.info`.
+- Gardes : `common/tests/tests_hands.py` (déclaration, ligne, route du modèle, page, gestes rejoués
+  dans V8) ; étape « mains » de `common.scene.<clé>.ui` sur webcam factice (Chromium) — verte, et
+  rouge sur le POST de télémétrie avant la coupure. Parité de la constellation des utilisateurs :
+  seule la puce « Mains » ajoutée diffère (≈ 70 × 24 px dans le HUD).
+- 🔚 **Pour Fabien** : relancer gunicorn ; la caméra exige https ou `localhost` (en http par
+  l'adresse réseau, le navigateur la refuse). Consignés, non ouverts : la licence absente des lignes
+  MediaPipe déclarées (trou du catalogue, Face Landmarker compris) ; une brique commune de capture
+  caméra/micro (quatre sites refont le même contrôle) ; l'architecture de WAMA en constellation
+  (`§3.6`), à concevoir avec Fabien.
