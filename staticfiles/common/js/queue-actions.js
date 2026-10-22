@@ -14,7 +14,8 @@
  *                  `card_gear`) sont ce que le volet et la modale lisent des réglages
  *                  (`WamaInspector.gearValues`). Une card en cours qui l'omettait (transcriber,
  *                  avatarizer jusqu'au 2026-10-21) montrait au volet d'autres réglages que les siens.
- *                  Enregistrer pendant le traitement reste la décision de la VUE de l'app.
+ *                  Enregistrer PENDANT le traitement est accepté par toutes les vues (2026-10-22) ;
+ *                  RELANCER une card en cours se confirme ici (bloc « RELANCER UNE CARD EN COURS »).
  *
  * Actions de FILE (barre d'outils, `_queue_actions.html`) — l'app passe une URL, rien d'autre :
  *   ▶ Démarrer tout → data-queue-start-url  (start_url au partial)
@@ -833,6 +834,70 @@
         }).observe(document.documentElement, { subtree: true, childList: true,
                                                attributes: true, attributeFilter: ['data-status'] });
     }
+
+    // ── RELANCER UNE CARD EN COURS : confirmer, puis laisser passer le geste (2026-10-22) ────
+    //
+    // Décision de Fabien : les réglages s'enregistrent pendant un traitement, et la card peut être
+    // relancée — complète (« Enregistrer et relancer », ↻) ou par étape (▶ d'un process) —, mais
+    // l'utilisateur CONFIRME d'abord que le traitement en cours s'arrête. Un seul endroit pour
+    // toutes les apps : ce bloc intercepte le geste en phase de CAPTURE (avant la modale commune
+    // et le bouton de cycle), demande, obtient l'accord du serveur (`api/replace-grant/`, à usage
+    // unique, consommé par `begin_processing`), puis REJOUE le même clic. Le lancement qui suit
+    // est celui de l'app, inchangé ; l'ancienne tâche se retire d'elle-même
+    // (`task_skeleton.LaunchSuperseded`). Card hors « en cours » : rien n'est intercepté.
+    const REPLACE_API = '/common/api/replace-grant/';
+    const RELAUNCH = '.save-and-restart-btn, .wama-cycle-btn[data-cycle-action="start"], '
+                   + '.wama-cycle-btn[data-cycle-action="restart"]';
+    let settingsCard = null;                 // la card dont la ⚙ a ouvert la modale
+
+    function relaunchedCard(btn) {
+        if (!btn.classList.contains('save-and-restart-btn')) return btn.closest('.wama-card');
+        const modal = btn.closest('.modal');
+        const id = modal && modal.dataset.wamaItemId;
+        if (!id) return null;
+        if (settingsCard && settingsCard.isConnected && settingsCard.dataset.id === String(id)) {
+            return settingsCard;
+        }
+        return document.querySelector('.wama-card[data-id="' + String(id).replace(/"/g, '') + '"]');
+    }
+
+    function grantReplace(coords) {
+        const body = new FormData();
+        body.append('surface', coords.surface);
+        body.append('pk', coords.pk);
+        return post(REPLACE_API, body).then(readResponse);
+    }
+
+    document.addEventListener('click', function (e) {
+        const gear = e.target.closest('.settings-btn[data-id]');
+        if (gear) { settingsCard = gear.closest('.wama-card'); return; }
+        const btn = e.target.closest(RELAUNCH);
+        if (!btn) return;
+        if (btn.dataset.replaceGranted) { delete btn.dataset.replaceGranted; return; }
+        const card = relaunchedCard(btn);
+        if (!card || String(card.dataset.status || '').toUpperCase() !== 'RUNNING') return;
+        const coords = window.WamaShare && WamaShare.coordonnees(card);
+        if (!coords) return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const step = btn.dataset.process ? ' à partir de cette étape' : '';
+        const text = 'Ce traitement est en cours : le relancer' + step + ' ARRÊTE le traitement '
+                   + 'en cours, puis le relance avec les réglages enregistrés.';
+        const asking = (window.WamaApp && WamaApp.ask)
+            ? WamaApp.ask({ text: text, okLabel: 'Arrêter et relancer', danger: true })
+            : Promise.resolve({ ok: window.confirm(text) });
+        asking.then(function (answer) {
+            if (!answer.ok) return;
+            return grantReplace(coords).then(function (data) {
+                // `granted: false` : la card a fini entre-temps — le geste passe tel quel.
+                btn.dataset.replaceGranted = '1';
+                btn.click();
+                return data;
+            });
+        }).catch(function () {
+            if (window.WamaApp && WamaApp.toast) WamaApp.toast('Relance impossible : erreur réseau', 'error');
+        });
+    }, true);
 
     window.WamaQueueActions = { onSettings: onSettings, onDeleted: onDeleted,
                                 applyBatchState: applyBatchState,

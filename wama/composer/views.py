@@ -651,9 +651,10 @@ def update_settings(request, pk):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from wama.common.utils.scoping import editable_or_404
     gen = editable_or_404(ComposerGeneration, user, id=pk)
-
-    if gen.status == 'RUNNING':
-        return JsonResponse({'error': 'Impossible de modifier une génération en cours'}, status=400)
+    # Réglages enregistrables PENDANT un traitement (2026-10-22) : seules les colonnes CHANGÉES
+    # s'écrivent, jamais le statut ni les sorties que la tâche pose en base.
+    from wama.common.utils.batch_views import columns_changed, columns_snapshot
+    before = columns_snapshot(gen)
 
     # JSON (inspecteur) OU FormData (modale ⚙) par le lecteur COMMUN — la vue lisait
     # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
@@ -672,11 +673,11 @@ def update_settings(request, pk):
     # génération. La modale le pose toujours (`index.js` collect) ; absent = on ne relance pas.
     restart = str(data.get('restart', '0')) == '1'
     if not restart:
-        gen.save()
+        gen.save(update_fields=columns_changed(gen, before))
         return JsonResponse({'success': True, 'status': gen.status, 'restarted': False})
 
     # Sauvegarde des réglages PUIS relance ANTI-RACE (brique commune : verrou + revoke + reset)
-    gen.save()
+    gen.save(update_fields=columns_changed(gen, before))
     from wama.common.utils.process_control import begin_processing
     gen, err = begin_processing(ComposerGeneration, gen.pk, user=user, reset=_reset_for_relaunch)
     if err:
@@ -791,7 +792,8 @@ def duplicate(request, pk):
             'task_id': None, 'error_message': '',
             'exported_to_library': False,
         },
-        # Le rendu et les partitions : ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21) — la liste écrite ici oubliait `parts_score`.
+        # Le rendu et les partitions : ce que les process ont écrit, la brique le vide elle-même
+        # (`AppPipeline.produced_fields`, 2026-10-21) — la liste écrite ici oubliait `parts_score`.
     )
     # Fille d'un VRAI batch (total > 1) : dupliquer en frère DANS le batch.
     # Card UNITAIRE (batch-de-1) : la copie devient une card indépendante (nouveau batch-de-1) —

@@ -20,6 +20,38 @@ pas est le plus souvent un worker OCCUPÉ par la tâche qu'on s'apprête à déc
 from __future__ import annotations
 
 
+#: Durée d'une autorisation de REMPLACEMENT : le temps que la page enchaîne le lancement après
+#: la confirmation (enregistrer, puis relancer) — jamais une autorisation durable.
+REPLACE_GRANT_TTL_S = 120
+
+
+def _replace_key(model, pk) -> str:
+    return f"wama:replace:{model._meta.label_lower}:{pk}"
+
+
+def grant_replace(model, pk, user) -> None:
+    """L'utilisateur a CONFIRMÉ qu'il arrête le traitement en cours de cet élément pour le
+    relancer (2026-10-22, décision de Fabien : « demander confirmation à l'utilisateur pour qu'il
+    ne soit pas surpris que la tâche en cours s'arrête et se relance »). Autorisation à USAGE
+    UNIQUE, au cache, sous l'élément et l'utilisateur ; `begin_processing` la consomme. Le geste
+    qui suit est le lancement ordinaire de l'app (son ▶, son « Enregistrer et relancer », le ▶
+    d'une étape) : aucune vue de lancement ni aucun `onSaved` d'app n'apprend rien. Même forme
+    que l'accord « Libérer la carte et lancer » (`resource_governor.grant_release`)."""
+    from django.core.cache import cache
+    cache.set(_replace_key(model, pk), getattr(user, 'pk', None), REPLACE_GRANT_TTL_S)
+
+
+def _take_replace_grant(model, pk, user) -> bool:
+    """Consomme l'autorisation de remplacement — seulement celle de CET utilisateur."""
+    from django.core.cache import cache
+    key = _replace_key(model, pk)
+    holder = cache.get(key)
+    if holder is None or holder != getattr(user, 'pk', None):
+        return False
+    cache.delete(key)
+    return True
+
+
 def begin_processing(model, pk, *, user=None, reset=None,
                      status_field: str = "status", task_field: str = "task_id",
                      running_value: str = "RUNNING"):
@@ -63,7 +95,14 @@ def begin_processing(model, pk, *, user=None, reset=None,
                 return None, 'not_found'
             by_collaborator = True
         if getattr(instance, status_field, None) == running_value:
-            return None, 'already_running'
+            if not _take_replace_grant(model, pk, user):
+                return None, 'already_running'
+            # REMPLACEMENT confirmé (2026-10-22) : le lancement en cours s'arrête de lui-même —
+            # sa tâche voit que l'élément ne porte plus la sienne et se retire sans rien écrire
+            # (`task_skeleton.LaunchSuperseded`) ; un worker `--pool=solo` ne peut pas être tué en
+            # cours de tâche, l'arrêt est donc COOPÉRATIF. Ses lignes ouvertes se referment ici,
+            # comme à l'arrêt : le process interrompu sera rejoué par la relance.
+            _close_process_lines(instance, 'FAILURE', 'Interrompu : relancé par l’utilisateur')
         # Un résultat antérieur au pipeline reçoit ses lignes AVANT le passage à RUNNING (après,
         # il n'est plus « réussi ») : un ▶ par process reprend alors ses amonts au lieu de tout
         # rejouer, même sur une card qu'aucune page n'a relue (`backfill_prior_runs`).
@@ -100,6 +139,8 @@ def stop_instance(instance, *, status_field: str = "status", task_field: str = "
     """
     Stoppe le traitement d'un item : révoque la tâche Celery (SIGTERM) et le remet dans un état
     relançable. Idempotent (sans tâche → ne fait que normaliser le statut). Retourne le nouveau statut.
+    Sur un worker `--pool=solo` (la file GPU), SIGTERM n'atteint pas la tâche en cours : c'est la
+    tâche du squelette qui voit sa tâche effacée et se retire (`task_skeleton.LaunchSuperseded`).
 
     Args:
         instance      : l'objet modèle (Transcript, Conversion, …).

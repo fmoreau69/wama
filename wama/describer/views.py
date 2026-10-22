@@ -936,9 +936,6 @@ def update_settings(request, pk):
     from wama.common.utils.scoping import editable_or_404
     description = editable_or_404(Description, user, pk=pk)
 
-    if description.status == 'RUNNING':
-        return JsonResponse({'error': 'Cannot update while running'}, status=400)
-
     data = read_settings_payload(request, _SCHEMA, SETTINGS_FIELDS)
     touched = apply_item_settings(description, data, params_fields=SETTINGS_FIELDS)
     if touched:

@@ -392,9 +392,6 @@ def update_settings(request, pk):
     from wama.common.utils.scoping import editable_or_404
     job = editable_or_404(AvatarJob, user, pk=pk)
 
-    if job.status == 'RUNNING':
-        return JsonResponse({'error': 'Impossible de modifier un job en cours.'}, status=400)
-
     # Les réglages du SCHÉMA — JSON (inspecteur) OU FormData (modale ⚙) — par le lecteur et
     # l'écrivain COMMUNS (coercition et bornes du schéma, valeur hors choix ignorée, rien de
     # touché qui n'est pas posté). La vue lisait `request.POST` seul, et remettait
@@ -464,7 +461,8 @@ def duplicate(request, pk):
         job,
         for_user=user,
         reset_fields={'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''},
-        # La vidéo (et l'audio d'un job « pipeline ») : ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
+        # La vidéo (et l'audio d'un job « pipeline ») : ce que les process ont écrit, la brique le
+        # vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
     )
 
     # Le lot d'origine n'accueille que la copie de SA PROPRE card : celle d'une card reçue est à

@@ -653,7 +653,8 @@ def _read_batch(user, pk):
 _bv = make_batch_views(
     work_model=Media, batch_model=BatchAnonymizer, get_user=_get_user,
     task=process_single_media, reset_on_start=_reset_and_forget_progress,
-    # Les détections : ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
+    # Les détections : ce que les process ont écrit, la brique le vide elle-même
+    # (`AppPipeline.produced_fields`, 2026-10-21).
     output_fields=('output_file',),
     read_lookup=_read_batch,
     params_fields=tuple(p['name'] for p in _ANON_PARAMS_JSON if p.get('name')),
@@ -1214,7 +1215,8 @@ def duplicate_media(request, media_id):
         media,
         for_user=user,
         reset_fields={'status': 'PENDING', 'blur_progress': 0},
-        # L'entrée se partage, la sortie jamais (2026-09-27) ; les détections : ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
+        # L'entrée se partage, la sortie jamais (2026-09-27) ; les détections : ce que les process
+        # ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21).
         clear_fields=['output_file'],
     )
     return JsonResponse({'duplicated': new_media.id})

@@ -2033,6 +2033,32 @@ def api_reception(request):
     return JsonResponse({'done': True, 'entry': f'{entry._meta.label}#{entry.pk}'})
 
 
+@login_required
+@require_POST
+def api_replace_grant(request):
+    """POST `surface`, `pk` — l'utilisateur a CONFIRMÉ qu'il arrête le traitement en cours de
+    cette card pour la relancer (2026-10-22, décision de Fabien). L'accord, à usage unique, est
+    consommé par le lancement ordinaire de l'app qui suit (`process_control.begin_processing`) ;
+    la confirmation elle-même est posée par la brique des actions de card (`queue-actions.js`),
+    pour toutes les apps. Seul qui peut MODIFIER la card l'obtient (propriétaire, collaborateur)."""
+    from wama.common.utils.preview_registry import PreviewRegistry
+    from wama.common.utils.process_control import grant_replace
+    from wama.common.utils.scoping import editable_or_404
+
+    surface = request.POST.get('surface') or ''
+    model = PreviewRegistry.get_model(surface)
+    if model is None:
+        return JsonResponse({'error': 'surface inconnue'}, status=404)
+    pk = request.POST.get('pk')
+    if not str(pk or '').isdigit():
+        return JsonResponse({'error': 'pk manquant'}, status=400)
+    card = editable_or_404(model, request.user, pk=int(pk))
+    running = getattr(card, 'status', None) == 'RUNNING'
+    if running:
+        grant_replace(model, card.pk, request.user)
+    return JsonResponse({'granted': running})
+
+
 def _shared_target(surface, pk, nature):
     """La card (ou le lot, `nature=lot`) désignée par les coordonnées du partage — cherchée au seul
     pk : c'est le service appelé qui revérifie la visibilité et la propriété. None si introuvable."""

@@ -1390,10 +1390,10 @@ def update_settings(request, pk):
     try:
         from wama.common.utils.scoping import editable_or_404
         generation = editable_or_404(ImageGeneration, user, id=pk)   # ÉDITION (sien ou collaboration)
-
-        # Don't allow editing while running
-        if generation.status == 'RUNNING':
-            return JsonResponse({'error': 'Cannot edit a running generation'}, status=400)
+        # Réglages enregistrables PENDANT un traitement (2026-10-22) : seules les colonnes
+        # CHANGÉES s'écrivent, jamais le statut ni les sorties que la tâche pose en base.
+        from wama.common.utils.batch_views import columns_changed, columns_snapshot
+        before = columns_snapshot(generation)
 
         # JSON (inspecteur) OU FormData (modale ⚙) par le lecteur COMMUN — la vue lisait
         # `request.POST` seul (contrat générique `tests_item_settings_contract`, 2026-09-26).
@@ -1408,7 +1408,7 @@ def update_settings(request, pk):
             _apply_generation_settings(generation, data)   # la même fonction que le lot
         except ValueError as refusal:
             return JsonResponse({'error': str(refusal)}, status=400)
-        generation.save()
+        generation.save(update_fields=columns_changed(generation, before))
 
         logger.info(f"Updated settings for generation #{generation.id}")
 

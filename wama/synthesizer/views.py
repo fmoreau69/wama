@@ -627,11 +627,10 @@ def update_settings(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from wama.common.utils.scoping import editable_or_404
     synthesis = editable_or_404(VoiceSynthesis, user, pk=pk)
-
-    if synthesis.status == 'RUNNING':
-        return JsonResponse({
-            'error': 'Impossible de modifier une synthèse en cours'
-        }, status=400)
+    # Réglages enregistrables PENDANT un traitement (2026-10-22) : seules les colonnes CHANGÉES
+    # s'écrivent, jamais le statut ni les sorties que la tâche pose en base.
+    from wama.common.utils.batch_views import columns_changed, columns_snapshot
+    before = columns_snapshot(synthesis)
 
     # Les réglages du SCHÉMA — JSON (inspecteur) OU FormData (modale ⚙) — par le lecteur et
     # l'écrivain COMMUNS (coercition au schéma, valeur hors choix ignorée). La vue lisait
@@ -657,7 +656,7 @@ def update_settings(request, pk: int):
         release_card_file(synthesis, 'voice_reference')
         synthesis.voice_reference = voice_received[0].value
 
-    synthesis.save()
+    synthesis.save(update_fields=columns_changed(synthesis, before))
     if voice_received:
         voice_received[0].record(synthesis, 'voice_reference')
 

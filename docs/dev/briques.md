@@ -110,11 +110,12 @@ Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel
 
 ### Gardes de process
 
-Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ; solde des tâches d'un worker MORT (preuve : processus disparu) au démarrage du worker relancé (`worker_ready`) et par la surveillance des workers (`scripts/worker_watchdog.sh` → `manage.py worker_died`)
+Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ; solde des tâches d'un worker MORT (preuve : processus disparu) au démarrage du worker relancé (`worker_ready`) et par la surveillance des workers (`scripts/worker_watchdog.sh` → `manage.py worker_died`) ; relance d'un élément EN COURS sur accord confirmé (`grant_replace`, `api/replace-grant/`), la tâche remplacée ou arrêtée se retirant d'elle-même (`task_skeleton.LaunchSuperseded`)
 
 - **Domicile** : `wama/common/utils/process_control.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Contrôle de process COMMUN — brique transversale (cf. memory project_process_button_lifecycle).
-- **API publique** (13) :
+- **API publique** (14) :
+  - `grant_replace(model, pk, user) -> None` — L'utilisateur a CONFIRMÉ qu'il arrête le traitement en cours de cet élément pour le
   - `begin_processing(model, pk, *, user=None, reset=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING')` — Démarrage ANTI-RACE d'un item (pattern obligatoire AGENTS.md — généralise describer
   - `stop_instance(instance, *, status_field: str='status', task_field: str='task_id', to_status: str='FAILURE', error_field: str | None=None, error_message: str="I…` — Stoppe le traitement d'un item : révoque la tâche Celery (SIGTERM) et le remet dans un état
   - `is_task_dead(task_id: str) -> bool` — True si la tâche Celery est dans un état terminal (finie/échouée/révoquée). NE classe PAS PENDING
@@ -317,7 +318,7 @@ Garantit la VRAM avant un chargement, la reprend sur les autres modèles, et ré
 
 ### Pipeline déclaré d'une app (plusieurs process)
 
-Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05). 2026-10-21 : une ligne ne COMPTE que tant que l'élément demande son process (`still_counts` — un amont qui n'a plus lieu ne laisse plus son aval périmé à jamais) ; un aval LIT la sortie de son amont par un geste (`output_of`, `upstream_output` : le plus proche amont qui rend ce type) ; un process DÉTACHÉ de son aval (`split_from`) garde valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT (`produced_fields`), dont une copie repart sans
+Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surveillés, degré, condition d'application) comme le cam_analyzer déclare ses passes ; le registre devient un manifeste `pipeline` à nœuds `function` (`register_app_pipeline`). Dit ce qu'un lancement JOUE (`steps_to_run` : ce qui n'est plus à jour et son aval ; une card à jour relancée rejoue tout), ce qui est PÉRIMÉ (`refresh` : réglage changé, sortie d'amont remplacée, cascade) et l'état déduit de la card (`card_state`). L'exécution reste au squelette de tâche (`run_item_task(pipeline=…, processes=…)`), une ligne d'exécution par process. Une VUE lit dans une fenêtre (`preload` … `release`) : lignes lues une fois, réponses de `applies` retenues par (process, modèle) — un `applies` peut résoudre le backend du modèle (0,56 s l'appel, mesuré le 2026-10-05). 2026-10-21 : une ligne ne COMPTE que tant que l'élément demande son process (`still_counts` — un amont qui n'a plus lieu ne laisse plus son aval périmé à jamais) ; un aval LIT la sortie de son amont par un geste (`output_of`, `upstream_output` : le plus proche amont qui rend ce type) ; un process DÉTACHÉ de son aval (`split_from`) garde valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT (`produced_fields`), dont une copie repart sans. 2026-10-22 : une relance COMPLÈTE libère ce qui ne compte plus (`release_absent`) ; un process peut ne pas LIRE ses amonts (`upstream_switch`, `read_upstreams`)
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
@@ -364,7 +365,8 @@ Enchaînement commun des tâches Celery d'item : gardes, progress, statuts, ETA.
 
 - **Domicile** : `wama/common/utils/task_skeleton.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Squelette COMMUN des tâches Celery d'item (brique F5 — marche A2 de la route §10.3).
-- **API publique** (6) :
+- **API publique** (7) :
+  - `class LaunchSuperseded(BaseException)` — Le lancement n'est plus celui de l'élément : l'utilisateur l'a ARRÊTÉ (⏹ — l'élément n'est
   - `class TaskContext` — Poignées offertes à la glu : progress + console. `progress_fn` permet à une app de
   - `class TaskTimeLimitExceeded(Exception)` — Le traitement a dépassé sa durée max (`resource_governor.task_time_limit_s`).
   - `class ServiceNotReady(Exception)` — Ce dont le traitement DÉPEND n'est pas encore prêt — un service qui charge (le service TTS
@@ -2231,9 +2233,11 @@ Les six ACTIONS de lot en une fabrique — `make_batch_views` : batch_start, bat
 
 - **Domicile** : `wama/common/utils/batch_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common — Les VUES DE LOT : fabrique commune (`make_batch_views`).
-- **API publique** (9) :
+- **API publique** (11) :
   - `read_settings_payload(request, schema=None, schema_names=(), empty_is_value=())` — Les RÉGLAGES postés à une vue d'édition — JSON ou formulaire, coercés selon le schéma.
   - `apply_item_settings(item, data, *, params_fields=(), options_field=None, extra_names=())` — Pose sur `item` les réglages présents dans `data` — colonnes déclarées (`params_fields`)
+  - `columns_snapshot(item) -> dict` — Les colonnes de `item` telles qu'elles sont À CET INSTANT — à prendre juste après l'avoir
+  - `columns_changed(item, before: dict) -> list` — Les colonnes que l'écriture des réglages a CHANGÉES depuis `columns_snapshot` — ce que
   - `write_element_settings(item, data) -> list` — Pose `data` sur l'élément `item` par l'écrivain de réglages DÉCLARÉ de son app — celui de sa
   - `element_label(item, item_label=None) -> str` — Le nom LISIBLE d'un élément : celui que l'app déclare (`item_label`), sinon le premier de ses
   - `zip_elements(work_model, items, request, declaration=None)` — Le ZIP des RÉSULTATS de `items` (seuls les éléments réussis y entrent) : `(tampon, format)`.

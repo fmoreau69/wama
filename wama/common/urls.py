@@ -124,6 +124,8 @@ urlpatterns = [
     path('api/reception/', views.api_reception, name='api_reception'),
     path('api/reception/show-all/', views.api_reception_show_all, name='api_reception_show_all'),
     path('api/reception/hidden/', views.api_reception_hidden, name='api_reception_hidden'),
+    # Relancer une card EN COURS, après confirmation : l'accord que consomme son lancement.
+    path('api/replace-grant/', views.api_replace_grant, name='api_replace_grant'),
     # DEMANDES d'accès sur une card reçue (2026-10-03, `ObjectGrant`) — et la page où l'on répond.
     path('api/access/', views.api_access, name='api_access'),
     path('api/access/request/', views.api_access_request, name='api_access_request'),

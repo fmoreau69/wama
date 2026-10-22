@@ -327,39 +327,28 @@ def upload(request):
 @require_POST
 def start(request, pk):
     """Start (or restart) a ConversionJob."""
+    from django.http import Http404
+    from wama.common.utils.process_control import begin_processing
+    from wama.common.utils.scoping import editable_or_404
     from .tasks import convert_media_task
 
-    with transaction.atomic():
-        from django.http import Http404
-        from wama.common.utils.scoping import can_edit
-        job = get_object_or_404(ConversionJob.objects.select_for_update(), pk=pk)
-        if not can_edit(request.user, job):     # le sien, ou en collaboration (E1)
-            raise Http404
-        if job.status == 'RUNNING':
-            return JsonResponse({'error': 'Conversion déjà en cours'}, status=400)
-        # Un job importé par lot ou par fichier NAÎT sans format (`output_format=''`) ; le lot le
-        # saute déjà (`batch_start`). Lancé seul, il partait en tâche et tombait sur « Format
-        # vidéo non supporté : » (format VIDE) — lu comme un rejet de codec (job #27, 2026-09-14).
-        if not job.output_format:
-            return JsonResponse({'error': "Format de sortie non défini — le choisir dans "
-                                          "⚙ Paramètres avant de lancer."}, status=400)
-
-        # Revoke previous task if any
-        if job.task_id:
-            try:
-                from celery import current_app
-                current_app.control.revoke(job.task_id, terminate=False)
-            except Exception:
-                pass
-
-        # L'ancienne sortie n'est plus effacée ICI (pipeline, 2026-10-13) : un lancement ne
-        # rejoue que ce qui n'est plus à jour, et la glu qui réécrit une sortie remplace
-        # l'ancienne (`tasks._convert` / `_enhance`, `safe_delete_file`) — effacer au clic
-        # aurait emporté la conversion brute que le post-traitement reprend.
-        _reset_for_relaunch(job)
-        job.status        = 'RUNNING'
-        job.task_id       = ''
-        job.save()
+    # Un job importé par lot ou par fichier NAÎT sans format (`output_format=''`) ; le lot le
+    # saute déjà (`batch_start`). Lancé seul, il partait en tâche et tombait sur « Format vidéo non
+    # supporté : » (format VIDE) — lu comme un rejet de codec (job #27, 2026-09-14).
+    if not editable_or_404(ConversionJob, request.user, pk=pk).output_format:
+        return JsonResponse({'error': "Format de sortie non défini — le choisir dans "
+                                      "⚙ Paramètres avant de lancer."}, status=400)
+    # Le démarrage COMMUN (`begin_processing`, 2026-10-22) : verrou, révocation de l'ancienne
+    # tâche, lignes d'un résultat antérieur au pipeline, remplacement d'un traitement en cours
+    # quand l'utilisateur l'a confirmé. La vue le refaisait à la main, sans ces deux derniers.
+    # L'ancienne sortie n'est pas effacée au clic (pipeline, 2026-10-13) : la glu qui réécrit
+    # une sortie remplace l'ancienne — effacer ici emporterait la conversion brute que le
+    # post-traitement reprend.
+    job, err = begin_processing(ConversionJob, pk, user=request.user, reset=_reset_for_relaunch)
+    if err == 'not_found':
+        raise Http404
+    if err:
+        return JsonResponse({'error': 'Conversion déjà en cours'}, status=400)
 
     task    = convert_media_task.delay(job.id)
     job.task_id = task.id
@@ -376,7 +365,8 @@ def _reset_for_relaunch(job):
 
 
 # Les fichiers que la card PRODUIT (la sortie, la conversion brute qu'un post-traitement
-# reprend) : à la duplication, ce que les process ont écrit, la brique le vide elle-même (`AppPipeline.produced_fields`, 2026-10-21) — élément et lot.
+# reprend) : à la duplication, ce que les process ont écrit, la brique le vide elle-même
+# (`AppPipeline.produced_fields`, 2026-10-21) — élément et lot.
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -422,13 +412,11 @@ global_progress = login_required(_pv['global_progress'])
 @login_required
 @require_POST
 def update_settings(request, pk):
-    """Update a job's output_format and options (only when not RUNNING)."""
+    """Update a job's output_format and options."""
     import json as _json
 
     from wama.common.utils.scoping import editable_or_404
     job = editable_or_404(ConversionJob, request.user, pk=pk)
-    if job.status == 'RUNNING':
-        return JsonResponse({'error': 'Impossible de modifier une conversion en cours'}, status=400)
 
     # JSON (inspecteur) OU FormData (modale ⚙), par le lecteur COMMUN : la vue ne lisait que
     # `request.POST`, et seulement le blob `options_json` — un réglage posté à plat n'était

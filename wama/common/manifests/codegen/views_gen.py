@@ -1140,8 +1140,6 @@ def {nom}(request, pk):
     user = _user(request)
     from wama.common.utils.scoping import editable_or_404
     item = editable_or_404({item}, user, pk=pk)   # le sien, ou en collaboration (E1)
-    if item.status == 'RUNNING':
-        return JsonResponse({{'error': 'Impossible de modifier un élément en cours'}}, status=400)
     donnees = read_settings_payload(request, _SCHEMA, _SETTING_NAMES)
     touches = apply_item_settings(item, donnees, params_fields=_SETTING_COLUMNS,
                                   options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE)

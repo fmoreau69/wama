@@ -107,6 +107,55 @@ def _has_field(model, name: str) -> bool:
     return any(getattr(f, 'name', None) == name for f in model._meta.get_fields())
 
 
+class LaunchSuperseded(BaseException):
+    """Le lancement n'est plus celui de l'élément : l'utilisateur l'a ARRÊTÉ (⏹ — l'élément n'est
+    plus en cours) ou l'a RELANCÉ (l'élément porte une autre tâche — `process_control.
+    grant_replace`, 2026-10-22). La tâche se retire sans rien écrire : ni statut, ni ligne, ni
+    notification, qui seraient ceux d'un traitement que l'utilisateur a remplacé.
+    `BaseException` et non `Exception` : une glu qui attrape `Exception` (un process optionnel, un
+    repli) ne doit pas l'avaler. L'arrêt est COOPÉRATIF parce qu'un worker `--pool=solo` (la file
+    GPU) ne peut pas être tué en cours de tâche : `revoke(terminate=True)` n'y fait rien."""
+
+
+#: Intervalle minimal entre deux vérifications « suis-je toujours le lancement ? » faites depuis
+#: la progression — une lecture en base, pas à chaque pourcent d'une longue transcription.
+CURRENT_CHECK_S = 2.0
+
+
+_ACTIVE = ('RUNNING', 'AWAITING_RESOURCES')
+
+
+def _superseded(model, item_id, launch: str, seen: dict) -> bool:
+    """L'élément a-t-il quitté ce lancement ? Vrai s'il n'existe plus, si la tâche qu'il portait
+    — la nôtre, vue une fois — a été effacée ou remplacée (⏹ et `begin_processing` l'effacent, la
+    relance en pose une autre), ou s'il est sorti de « en cours » alors qu'il y était au début du
+    lancement. Tant que notre tâche n'a pas été vue, une autre ne prouve rien : la vue de
+    lancement pose la nôtre juste APRÈS `.delay()`, et une vue qui ne l'efface pas avant laisse
+    lire l'ancienne (un lancement encore EN FILE que l'on remplace est révoqué, lui). Un statut
+    qui n'était pas « en cours » au départ ne prouve rien non plus. Faux hors worker (aucun
+    identifiant de lancement) et en cas de doute.
+    `seen` garde, d'une vérification à l'autre : `ours` (notre tâche vue sur l'élément) et
+    `started_active` (l'élément était en cours au départ)."""
+    if not launch:
+        return False
+    fields = ['status'] + (['task_id'] if _has_field(model, 'task_id') else [])
+    try:
+        row = model.objects.filter(pk=item_id).values(*fields).first()
+    except Exception:
+        return False
+    if row is None:
+        return True
+    current = row.get('task_id') or ''
+    if current == launch:
+        seen['ours'] = True
+    elif seen.get('ours'):
+        return True
+    if 'started_active' not in seen:
+        seen['started_active'] = row.get('status') in _ACTIVE
+        return False
+    return seen['started_active'] and row.get('status') not in _ACTIVE
+
+
 class TaskContext:
     """Poignées offertes à la glu : progress + console. `progress_fn` permet à une app de
     substituer son écriture de progression (ex. throttle du transcriber) sans réécrire le
@@ -133,6 +182,9 @@ class TaskContext:
         #: retenu — posés par le squelette, gardés d'une livraison à l'autre (`remember`).
         self.launch = ''
         self.model_key = None
+        #: Ce que la vérification « suis-je toujours le lancement ? » a déjà vu (`_superseded`).
+        self._seen = {}
+        self._checked_at = 0.0
 
     # ── La MÉMOIRE DU LANCEMENT (2026-10-21, transcriber #2522) ─────────────────────────────
     # Le squelette RE-LIVRE la tâche quand un process change de file (`_hand_over_to`) ou attend
@@ -207,7 +259,27 @@ class TaskContext:
         self._window = (0.0, 100.0)
         self.progress(0)
 
+    def check_current(self, force: bool = False) -> None:
+        """Lève `LaunchSuperseded` si l'élément a quitté ce lancement (arrêté, relancé) — au plus
+        toutes les `CURRENT_CHECK_S` secondes, sauf `force`. Appelé par la progression, donc au
+        rythme de chaque glu, et par le squelette avant chaque process et avant le succès."""
+        now = time.monotonic()
+        if not force and self._checked_at and now - self._checked_at < CURRENT_CHECK_S:
+            return
+        self._checked_at = now
+        if not self._seen and self.launch:
+            # Une RE-LIVRAISON reprend ce que la livraison précédente avait vu : sans cela, la
+            # tâche d'une relance, posée pendant l'attente, ne prouverait rien au worker suivant.
+            self._seen = dict(self.recall('current_seen') or {})
+        before = dict(self._seen)
+        superseded = _superseded(self._model, self.item.pk, self.launch, self._seen)
+        if self._seen != before:
+            self.remember('current_seen', dict(self._seen))
+        if superseded:
+            raise LaunchSuperseded()
+
     def progress(self, pct: int, msg: str = None) -> None:
+        self.check_current()
         if self._window != (0.0, 100.0):
             low, high = self._window
             pct = low + (high - low) * max(0.0, min(100.0, float(pct))) / 100.0
@@ -783,6 +855,13 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         item.status = JOB_RUNNING
 
     ctx.launch = getattr(getattr(task, 'request', None), 'id', '') or ''
+    try:
+        # Un élément SUPPRIMÉ ou déjà quitté par ce lancement (re-livraison) ne redémarre pas.
+        ctx.check_current(force=True)
+    except LaunchSuperseded:
+        logger.info("[%s] item #%s : lancement %s remplacé ou arrêté avant de démarrer",
+                    app_id, item_id, ctx.launch)
+        return
     if not essais:
         # Une RE-LIVRAISON garde sa barre : ce que le lancement a déjà rendu y est compté
         # (`_launch_done`), elle ne repart pas de zéro à chaque changement de file.
@@ -884,6 +963,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
             from wama.model_manager.services.cloud_models import is_cloud_key
             card_remote = is_cloud_key(resolved_key)
             for index, (node, process_key, glue, spec) in enumerate(steps):
+                ctx.check_current(force=True)     # arrêté ou relancé entre deux process
                 share = spec.share if spec is not None else 1
                 # ── Le process sur SA file, avec SA VRAM, déclaré s'il tient la carte ────────
                 # Une glu sans déclaration (`spec` None) garde la règle d'avant : elle est
@@ -957,6 +1037,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
                     carried_label = res['label']
                 if index == len(steps) - 1:
                     break             # le DERNIER process rend la card : flux de succès ci-dessous
+                # Ce que rend un lancement remplacé n'est plus celui de la card : rien ne s'écrit.
+                ctx.check_current(force=True)
                 # Un process INTERMÉDIAIRE a rendu : ses champs sont écrits tout de suite (la glu
                 # suivante les lit sur `item`, et ils survivent à l'échec d'un aval), sa ligne
                 # passe en succès, son ETA s'apprend — sans attendre la fin de la card.
@@ -983,6 +1065,7 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         res = dict(res, fields=written, models=used or res.get('models'))
         if not res.get('label') and carried_label:
             res['label'] = carried_label
+        ctx.check_current(force=True)         # le succès d'un lancement remplacé ne s'écrit pas
         fields = dict(written)
         fields['status'] = 'SUCCESS'
         if _has_field(model, 'progress'):
@@ -1019,6 +1102,13 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         # `produit` — posée ici, elle vaut pour toutes les apps du squelette sans une ligne par app.
         _revision(model, item_id, app_id, outcome, res)
         _notify(item, label_app, nom, True, app_id=app_id)
+    except LaunchSuperseded:
+        # L'utilisateur a ARRÊTÉ ou RELANCÉ l'élément (`process_control.begin_processing`, après
+        # confirmation) : ce lancement se retire sans rien écrire — le statut, les lignes et la
+        # barre appartiennent désormais à celui qui l'a remplacé, ou à l'arrêt qui les a posés.
+        logger.info("[%s] item #%s : lancement %s remplacé ou arrêté — retiré sans rien écrire",
+                    app_id, item_id, ctx.launch)
+        ctx.console("Traitement précédent arrêté : il a été remplacé ou interrompu.", level='info')
     except _HandOver as handover:
         # La tâche est RE-LIVRÉE (attente de VRAM, ou process suivant sur l'autre file) : rien
         # n'a échoué. Le signal de Celery sort tel quel — c'est lui qui dit au worker « réessayé ».

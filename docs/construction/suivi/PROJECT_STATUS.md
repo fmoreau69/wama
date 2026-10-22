@@ -25956,7 +25956,7 @@ Demandes de Fabien du 2026-10-22.
   écoutent l'original ; recoché, la transcription est périmée une fois. Exporté au manifeste.
 - ⏳ **Versions** : exigence consignée (`WAMA_COLLABORATION §7`, 2026-10-22) — une version garde ses
   intermédiaires ; NVMe 4 To en local, serveur de stockage local en production.
-- 🔄 **Réglages pendant un traitement + arrêt/relance confirmés** : chantier ouvert (palier suivant).
+- ✅ **Réglages pendant un traitement + arrêt/relance confirmés** : livrés, palier « relance en cours ».
 - Gardes : `ThePreparationIsDeclaredTest` (+3) ; contre-épreuves rouges (`release_absent`,
   `upstream_switch`). Rouges de la suite hors périmètre : copie servie de `wama-params.js` (WIP
   d'autrui), source tableur du Studio, profil du converter.
@@ -25975,3 +25975,20 @@ Suite du palier précédent (vue unique, MuScriptor en deux passages) ; domicile
   mélodie, accords compris en mode `full`).
 - Pas de smoke navigateur (MCP playwright déconnecté) : clavier et export à éprouver à l'écran.
 - 🔴 relancer gunicorn + workers, puis Ctrl+F5 sur la page de partition.
+
+## §PALIER 2026-10-22 (relance en cours) — RÉGLAGES PENDANT UN TRAITEMENT, ARRÊT ET RELANCE CONFIRMÉS — non poussé — 🔴 relancer gunicorn ET les workers, puis Ctrl+F5
+
+Suite du palier « Albert MESURÉ » (le chantier qu'il annonçait) ; domicile `ROUTE §10.6` 4.6.
+- ✅ **Les dix apps enregistrent les réglages d'un élément EN COURS** (8 refus retirés, générateur
+  et jumelles compris) et n'écrivent que les colonnes CHANGÉES (`batch_views.columns_changed`,
+  aussi pour l'écrivain hors requête) : quatre vues faisaient un `save()` complet.
+- ✅ **Relancer une card en cours se CONFIRME** — « Enregistrer et relancer », ↻, le ▶ d'une étape :
+  `queue-actions.js` demande, obtient un accord à usage unique (`api/replace-grant/`), rejoue le
+  geste ; `begin_processing` le consomme au lieu de refuser.
+- ✅ **Arrêt COOPÉRATIF** (`task_skeleton.LaunchSuperseded`) : la tâche remplacée ou arrêtée se
+  retire sans rien écrire — à sa progression, avant chaque process, avant le succès. ⏹ devient
+  enfin effectif sur la file GPU (`--pool=solo`). Hors squelette (studio, cam_analyzer) : inchangé.
+- Gardes : `tests_relaunch_during_processing` (21) ; contre-épreuves rouges (vérification
+  neutralisée, accord ignoré, un refus rétabli, bloc JS coupé, sauvegarde complète).
+- ⏳ À éprouver à l'écran (pas de geste UI pendant un traitement GPU) : la modale de confirmation
+  par-dessus la modale de réglages.

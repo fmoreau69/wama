@@ -262,7 +262,9 @@ MECHANISMS = (
               "Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ; "
               "solde des tâches d'un worker MORT (preuve : processus disparu) au démarrage du "
               "worker relancé (`worker_ready`) et par la surveillance des workers "
-              "(`scripts/worker_watchdog.sh` → `manage.py worker_died`)",
+              "(`scripts/worker_watchdog.sh` → `manage.py worker_died`) ; relance d'un élément "
+              "EN COURS sur accord confirmé (`grant_replace`, `api/replace-grant/`), la tâche "
+              "remplacée ou arrêtée se retirant d'elle-même (`task_skeleton.LaunchSuperseded`)",
               'wama/common/utils/process_control.py', 'docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md',
               annexes=('wama/celery.py', 'wama/common/management/commands/worker_died.py',
                        'scripts/worker_watchdog.sh', 'scripts/wama_services.sh')),

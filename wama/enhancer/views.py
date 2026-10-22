@@ -650,12 +650,12 @@ def update_settings(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from wama.common.utils.scoping import editable_or_404
     enhancement = editable_or_404(Enhancement, user, pk=pk)
-
-    if enhancement.status == 'RUNNING':
-        return JsonResponse({'error': 'Cannot update running enhancement'}, status=400)
-
+    # Réglages enregistrables PENDANT un traitement (2026-10-22) : seules les colonnes CHANGÉES
+    # s'écrivent, jamais le statut ni les sorties que la tâche pose en base.
+    from wama.common.utils.batch_views import columns_changed, columns_snapshot
+    before = columns_snapshot(enhancement)
     _apply_enhancement_settings(enhancement, _read_enhancement_settings(request))
-    enhancement.save()
+    enhancement.save(update_fields=columns_changed(enhancement, before))
 
     return JsonResponse({
         'id': enhancement.id,
@@ -995,8 +995,8 @@ def audio_update(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from wama.common.utils.scoping import editable_or_404
     ae = editable_or_404(AudioEnhancement, user, pk=pk)
-    if ae.status == 'RUNNING':
-        return JsonResponse({'error': 'Cannot update running enhancement'}, status=400)
+    from wama.common.utils.batch_views import columns_changed, columns_snapshot
+    before = columns_snapshot(ae)      # en cours compris : seules les colonnes changées s'écrivent
     P = request.POST
     if P.get('engine'):
         ae.engine = P['engine']
@@ -1020,7 +1020,7 @@ def audio_update(request, pk: int):
         ae.output_format = P['output_format']
     if P.get('output_quality'):
         ae.output_quality = P['output_quality']
-    ae.save()
+    ae.save(update_fields=columns_changed(ae, before))
     return JsonResponse({'id': ae.id, 'engine': ae.engine, 'mode': ae.mode,
                          'denoising_strength': ae.denoising_strength, 'quality': ae.quality,
                          'quality_intent': ae.quality_intent,

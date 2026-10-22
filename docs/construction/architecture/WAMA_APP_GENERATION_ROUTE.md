@@ -5574,7 +5574,28 @@ cette ligne disait qu'il n'en gardait aucune). Choix par process : décision ouv
 >   « Original / Nivellement / Débruitage » — dérivé du pipeline et de ce que CONSOMMENT les briques
 >   qui lisent le rôle ; le transport recharge à la même position et le dit au bus (`source`), la
 >   ligne de temps relit les pics de la même version. Aucune app ne nomme ses versions.
-> Gardes : `tests_process_pipeline` (`AnUpstreamThatNoLongerTakesPlaceTest`,
+> - **2026-10-22 — relancer une card EN COURS, après confirmation** (décision de Fabien : « on
+>   accepte l'enregistrement des réglages pendant un traitement et on permet de relancer le job
+>   complet ou par étapes […] demander confirmation à l'utilisateur »). Quatre pièces, communes :
+>   ① les routes de réglages des dix apps (et le générateur, `views_gen.corps_update`) acceptent
+>   un élément en cours, et n'écrivent que les colonnes CHANGÉES (`batch_views.columns_changed`,
+>   aussi pour `write_element_settings`) — un `save()` complet réécrivait le statut et les sorties
+>   que la tâche venait de poser ; ② la confirmation vit dans `queue-actions.js` (phase de
+>   capture sur « Enregistrer et relancer », ↻ et le ▶ d'une étape) : elle demande, obtient un
+>   accord à usage unique (`api/replace-grant/` → `process_control.grant_replace`), puis REJOUE
+>   le geste — le lancement reste celui de l'app ; ③ `begin_processing` consomme l'accord (de CE
+>   compte seulement) au lieu de refuser, referme les lignes ouvertes, révoque la tâche (une
+>   re-livraison en attente ne repart pas) ; ④ l'arrêt est COOPÉRATIF, un worker `--pool=solo`
+>   ne pouvant pas être tué en cours de tâche : le squelette vérifie qu'il est toujours le
+>   lancement de l'élément (à la progression, au plus toutes les 2 s, avant chaque process, avant
+>   d'écrire le succès) et se retire sans rien écrire sinon (`LaunchSuperseded`). Le même geste
+>   rend enfin ⏹ effectif sur la file GPU. ⚠ Tant que la tâche n'a pas vu SA tâche sur
+>   l'élément, une autre ne prouve rien (la vue la pose juste après `.delay()`) ; une
+>   re-livraison reprend ce qu'elle avait vu (mémoire du lancement). Hors squelette (studio,
+>   cam_analyzer), l'arrêt reste celui d'avant.
+> Gardes : `tests_relaunch_during_processing` (squelette, accord, vue, routes des dix apps en
+> cours, colonnes changées, geste JS en V8 — contre-épreuves rouges : vérification neutralisée,
+> accord ignoré, un refus rétabli, bloc JS coupé, sauvegarde complète). `tests_process_pipeline` (`AnUpstreamThatNoLongerTakesPlaceTest`,
 > `WhatADownstreamReadsTest`, `AProcessSplitFromItsDownstreamTest`), `tests_task_skeleton_contract`
 > (la place d'une sortie, pour les dix apps), `tests_process_pipeline.ADuplicateStartsWithout
 > WhatItsProcessesWroteTest` (toutes les apps à pipeline, l'audio de l'avatarizer, l'ancien

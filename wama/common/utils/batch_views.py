@@ -33,6 +33,7 @@ Les deux formes de rattachement du dépôt sont servies par les briques de `batc
 forme que par ses kwargs (`item_model`/`fk_name` pour la liaison ; `batch_attr`/`row_field` pour
 la FK directe).
 """
+import copy
 import datetime
 import io
 import json
@@ -131,6 +132,31 @@ def apply_item_settings(item, data, *, params_fields=(), options_field=None, ext
     return touched
 
 
+def _column_value(item, field):
+    value = field.value_from_object(item)
+    if hasattr(value, 'name') and hasattr(value, 'storage'):      # FieldFile : son chemin
+        return value.name
+    return copy.deepcopy(value)       # un JSON modifié EN PLACE doit se voir comme changé
+
+
+def columns_snapshot(item) -> dict:
+    """Les colonnes de `item` telles qu'elles sont À CET INSTANT — à prendre juste après l'avoir
+    lu, avant d'y poser des réglages (`columns_changed`)."""
+    return {f.attname: _column_value(item, f) for f in item._meta.concrete_fields
+            if not f.primary_key}
+
+
+def columns_changed(item, before: dict) -> list:
+    """Les colonnes que l'écriture des réglages a CHANGÉES depuis `columns_snapshot` — ce que
+    sauve une vue de réglages, et rien d'autre (2026-10-22). Les réglages s'enregistrent désormais
+    PENDANT un traitement (décision de Fabien) : un `save()` complet réécrirait le statut, la
+    progression et les sorties que la tâche vient d'écrire en base avec les valeurs lues avant
+    elle — une card finie qui repasse « en cours », une sortie effacée."""
+    by_attname = {f.attname: f for f in item._meta.concrete_fields if not f.primary_key}
+    return [by_attname[name].name for name, old in before.items()
+            if name in by_attname and _column_value(item, by_attname[name]) != old]
+
+
 #: Comment s'écrivent les entrées du ZIP d'un modèle d'élément — DÉCLARÉ une fois, par sa
 #: fabrique de lot (`make_batch_views` : `output_name`, `output_field`, `output_text`,
 #: `item_label`), et lu par les DEUX ZIP : celui d'un lot (`batch_download`) et celui de la file
@@ -153,16 +179,17 @@ def write_element_settings(item, data) -> list:
     """Pose `data` sur l'élément `item` par l'écrivain de réglages DÉCLARÉ de son app — celui de sa
     ⚙ — puis le sauve. Les valeurs sont coercées par le schéma (une chaîne de formulaire comme une
     valeur typée) ; un champ du schéma laissé VIDE veut dire « ne pas toucher ». Rend les champs
-    écrits (`None` : l'élément entier, l'écrivain de l'app ne les nomme pas). Lève `ValueError`
+    écrits — ceux que l'écrivain a CHANGÉS quand il ne les nomme pas (`columns_changed`). Lève `ValueError`
     sur un refus de l'app (rien n'est sauvé), `LookupError` si aucune fabrique n'a inscrit
     d'écrivain pour ce modèle."""
     writer = _SETTINGS_WRITERS.get(type(item))
     if writer is None:
         raise LookupError(f"aucun écrivain de réglages déclaré pour {type(item).__name__}")
+    before = columns_snapshot(item)
     touched = writer(item, dict(data or {}))
     if touched is None:
-        item.save()
-    elif touched:
+        touched = columns_changed(item, before)
+    if touched:
         item.save(update_fields=list(touched))
     return touched
 
