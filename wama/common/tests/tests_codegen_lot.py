@@ -266,8 +266,10 @@ class CheminDeLotTest(SimpleTestCase):
                       'import relatif au paquet — la jumelle doit résoudre SES copies')
         self.assertIn('backends.image_backend.convert_image', src)
         self.assertIn('effective_settings', src, 'la tâche lit les colonnes (§23.2quater)')
-        # The output NAME comes from the common naming brick, like the source's (2026-10-07).
-        self.assertIn('compose_output_name', src)
+        # The output PLACE and NAME come from the skeleton's brick, like the source's glue
+        # (`ctx.output_place`, 2026-10-22 ; the common naming brick alone since 2026-10-07).
+        self.assertIn('ctx.output_place(fmt, source_name=item.input_filename)', body)
+        self.assertNotIn('compose_output_name', body, 'a place composed by hand')
         self.assertNotIn('.stem}_{item.id}', src, 'a second, hand-made naming format')
 
     def test_B1_sans_routes_declarees_le_stub_demeure(self):

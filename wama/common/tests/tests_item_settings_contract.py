@@ -144,6 +144,26 @@ class ItemSettingsRouteContractTest(TestCase):
                 self.assertEqual(getattr(item, name), before, f'`{name}` took a value outside its choices')
 
 
+class AnOverrideNamesAnExposedSettingTest(TestCase):
+    """An override whose field `include` does not list rendered nothing, silently : « Transcrire
+    l'audio préparé » had one, and neither the ⚙ modal nor the route knew the setting (2026-10-22).
+    `derive_from_model` refuses it — so every app's schema, imported here, has none."""
+
+    def test_an_override_without_its_field_is_refused(self):
+        from wama.common.utils.param_schema import derive_from_model
+        from wama.transcriber.models import Transcript
+        with self.assertRaises(ValueError):
+            derive_from_model(Transcript, include=['hotwords'], overrides={'title': {}})
+        self.assertEqual(['hotwords'], [p.name for p in derive_from_model(
+            Transcript, include=['hotwords'], overrides={'hotwords': {}})])
+
+    def test_every_app_schema_loads(self):
+        from wama.common.utils.param_schema import schema_for_app
+        for app, _model, schema in _surfaces():
+            with self.subTest(app=app):
+                self.assertTrue(schema_for_app(app))
+
+
 # ── The batch ⚙ — the SAME rules as the element route (2026-10-02) ───────────────────────────
 
 #: Apps whose batch settings view still applies the settings with code of its own, next to the

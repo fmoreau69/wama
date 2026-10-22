@@ -52,12 +52,12 @@ def _derive_media_type(inst, path, fname):
     return touched
 
 
-def _final_place(job):
+def _final_place(job, ctx):
     """Où va la sortie FINALE de la card : `(dossier relatif à MEDIA_ROOT, dossier, nom, en place)`.
 
       - dest_dir set (quick convert in-place) → next to the source, keep the original stem, add a
         numeric suffix on collision.
-      - otherwise → the user's home, users/<user>/converter/output/, named after the card."""
+      - otherwise → the user's home, the card's output place (`ctx.output_place`)."""
     from django.conf import settings
     in_place = bool(job.dest_dir)
     if in_place:
@@ -66,18 +66,22 @@ def _final_place(job):
         out_dir.mkdir(parents=True, exist_ok=True)
         return rel_dir, out_dir, _build_inplace_name(out_dir, job.input_filename,
                                                      job.output_format), True
-    # Le domicile de l'utilisateur, décidé par la brique (`app_media_dir`) et nulle part
-    # ailleurs. ⚠ Cette ligne composait `f"converter/{job.user_id}/output/"` à la main et a
+    # Le domicile de l'utilisateur et le nom, décidés par la brique (`ctx.output_place`) et nulle
+    # part ailleurs. ⚠ Cette ligne composait `f"converter/{job.user_id}/output/"` à la main et a
     # survécu à la bascule du 2026-09-12 : chaque conversion recréait `media/converter/` et
     # y enregistrait sa sortie (jobs 27 et 31, relancés le 14/09 — relevé le 2026-09-22).
     # Aucune des trois gardes ne la voyait : ni `MEDIA_ROOT` sur la ligne, ni fichier listé,
     # ni `upload_to` — c'est le NOM enregistré (`'output_file': …`) qui partait faux.
-    from wama.common.utils.media_paths import app_media_dir
-    rel_dir = app_media_dir('converter', job.user_id, 'output') + '/'
-    out_dir = settings.MEDIA_ROOT / rel_dir
-    out_dir.mkdir(parents=True, exist_ok=True)
-    return rel_dir, out_dir, _build_output_name(job.input_filename, job.output_format,
-                                                item_id=job.id), False
+    return _place(ctx, job.output_format, job.input_filename) + (False,)
+
+
+def _place(ctx, output_format: str, input_filename: str, nature: str = '') -> tuple:
+    """`(dossier relatif, dossier, nom)` d'une sortie de la card au domicile de l'app, par la
+    brique (`ctx.output_place`) : `<souche>_converted_<id>.<format>`, ou la nature d'une sortie
+    intermédiaire (`raw`). L'identifiant de card y est : l'entrée peut venir d'un dossier MONTÉ,
+    où la souche n'est pas rendue unique par le stockage Django."""
+    rel, path = ctx.output_place(output_format.lower(), nature=nature, source_name=input_filename)
+    return os.path.dirname(rel) + '/', Path(path).parent, os.path.basename(rel)
 
 
 def _reserved_temp(output_format: str) -> str:
@@ -115,17 +119,11 @@ def _convert(job, ctx):
     if then_enhance:
         # La conversion BRUTE : un fichier de travail de la card, dans le domicile de l'app —
         # jamais à côté de la source de l'utilisateur, même en conversion rapide.
-        from wama.common.utils.media_paths import app_media_dir
-        from wama.common.utils.output_naming import compose_output_name
-        output_rel_dir = app_media_dir('converter', job.user_id, 'output') + '/'
-        output_dir = settings.MEDIA_ROOT / output_rel_dir
-        output_dir.mkdir(parents=True, exist_ok=True)
-        output_name = compose_output_name(app='converter', source_name=job.input_filename,
-                                          item_id=job.id, nature='raw',
-                                          ext=job.output_format.lower())
+        output_rel_dir, output_dir, output_name = _place(ctx, job.output_format,
+                                                         job.input_filename, nature='raw')
         in_place = False
     else:
-        output_rel_dir, output_dir, output_name, in_place = _final_place(job)
+        output_rel_dir, output_dir, output_name, in_place = _final_place(job, ctx)
 
     final_output_path = str(output_dir / output_name)
     # Atomic output for in-place quick convert: the backend writes a temp file, moved to the
@@ -236,7 +234,7 @@ def _enhance(job, ctx):
         # à l'étendue de CE process.
         apply_cross_app_options(job, work, ctx.console,
                                 lambda p: ctx.progress(max(0, min(99, int((p - 90) * 12)))))
-        output_rel_dir, output_dir, output_name, _ = _final_place(job)
+        output_rel_dir, output_dir, output_name, _ = _final_place(job, ctx)
         rel_path = f"{output_rel_dir}{output_name}"
         if job.output_file and job.output_file.name != rel_path:
             safe_delete_file(job, 'output_file')
@@ -284,21 +282,6 @@ def _clear_during(job):
         clear_partial('converter', job.pk)
     except Exception:
         pass
-
-
-def _build_output_name(input_filename: str, output_format: str, item_id=None) -> str:
-    """`<stem>_converted[_<id>].<format>` — brique COMMUNE de nommage (2026-08-25).
-
-    ⚠ L'HORODATAGE a disparu. Il assurait l'unicité, mais muettement : deux conversions du
-    même fichier donnaient `rapport_1756134012.pdf` et `rapport_1756134139.pdf`, deux noms
-    que rien ne rattachait à leur card. L'identifiant de card dit la même chose en la
-    désignant — et c'est la même règle que les autres apps.
-    ⚠ Il le faut ICI et pas ailleurs : l'entrée du converter peut venir d'un dossier MONTÉ,
-    où la souche n'est pas rendue unique par le stockage Django.
-    """
-    from wama.common.utils.output_naming import compose_output_name
-    return compose_output_name(app='converter', source_name=input_filename,
-                               item_id=item_id, ext=output_format.lower())
 
 
 def _build_inplace_name(output_dir, input_filename: str, output_format: str) -> str:

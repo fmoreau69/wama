@@ -25992,3 +25992,22 @@ Suite du palier « Albert MESURÉ » (le chantier qu'il annonçait) ; domicile `
   neutralisée, accord ignoré, un refus rétabli, bloc JS coupé, sauvegarde complète).
 - ⏳ À éprouver à l'écran (pas de geste UI pendant un traitement GPU) : la modale de confirmation
   par-dessus la modale de réglages.
+
+## §PALIER 2026-10-22 (restes alignés) — SORTIES PAR `ctx.output_place`, VERSION ÉCOUTÉE GARDÉE, GÉNÉRATEUR ALIGNÉ — non poussé — migration `transcriber/0030` APPLIQUÉE — 🔴 relancer gunicorn ET les workers, puis Ctrl+F5
+
+Demande de Fabien : « aligner les restes ouverts […] persister le choix de version de l'audio dans
+la card ». Domicile `ROUTE §10.6` 4.6 (restes soldés).
+- ✅ **Toutes les glues placent leur sortie par `ctx.output_place`** : anonymizer, converter,
+  avatarizer, enhancer, imager, synthesizer, glue générée. Noms et dossiers INCHANGÉS (la brique a
+  pris `folder`, `index`/`total`, `card_id=False`). Le synthesizer ne fait plus d'enregistrement
+  complet de l'élément en cours de tâche (`FieldFile.save()`).
+- ✅ **Version écoutée gardée sur la card** : `Surface.sources_setting` + réglage `listened_sources`.
+- ✅ **Générateur** : la liste de duplication ne nomme plus une sortie déclarée d'un process.
+- ✅ **Corrigé en passant** : « Transcrire l'audio préparé » absent du schéma (ni modale ni route) ;
+  `derive_from_model` refuse désormais une surcharge sans champ.
+- ⏳ **Reste nouveau** : le générateur compte les entrées de référence comme des sorties (ports
+  sans champ) — `ROUTE §10.6` 4.6.
+- ⏳ **Albert** : décision de Fabien (a / b / c, `WAMA_QUALITE §9bis`).
+- Gardes : 6 tests neufs + 2 étendus ; contre-épreuves rouges (6). Corpus `manifests/apps/
+  transcriber.json` régénéré (seul : les autres manifestes périmés portent le travail d'autres
+  instances — `seed`, `top_p`).

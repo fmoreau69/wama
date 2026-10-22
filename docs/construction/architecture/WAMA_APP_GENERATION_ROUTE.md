@@ -5604,15 +5604,33 @@ cette ligne disait qu'il n'en gardait aucune). Choix par process : décision ouv
 > ThePreparationIsDeclaredTest` (8, dont la vue ⧉), `composer.tests_pipeline.…a_duplicate_starts_
 > without_any_output_of_its_processes` ; scénario `transcriber.editor_parity` (66/66 + « Versions »
 > 5/5) ; contre-épreuves en mémoire, toutes rouges.
-> ⏳ **Restes, nommés** : (a) les autres glues qui composent encore dossier et nom à la main
-> (converter, anonymizer, enhancer, imager, avatarizer, synthesizer, les glues générées
-> `tasks_gen`) — adoption de `ctx.output_place` à porter ; (b) ✅ tranché le 2026-10-22 (relance
-> complète → libéré, `release_absent`) ; entre la désactivation et la relance, l'aperçu le montre
-> encore (« le contenu PRÉSENT décide ») quand la page de correction ne le propose plus ; (c) le
-> choix de version n'est pas retenu d'une ouverture à l'autre ;
-> (d) le GÉNÉRATEUR dérive encore sa propre liste de sorties pour les jumelles
-> (`views_gen.champs_sortie` : champs fichier moins ports d'entrée) — à aligner sur
-> `produced_fields`, avec la régénération des jumelles.
+> ✅ **Restes soldés le 2026-10-22** (demande de Fabien : « aligner les restes ouverts ») :
+> (a) **toutes les glues placent leur sortie par `ctx.output_place`** — anonymizer (détections,
+>   floutage), converter (sortie et conversion brute ; la conversion rapide « à côté de la source »
+>   reste la sienne), avatarizer, enhancer, imager, synthesizer, et la glue générée (`tasks_gen`).
+>   La brique a pris les trois variantes qu'elles écrivaient à la main : `folder` (`output/media`,
+>   `output/image`…), `index`/`total` (les images de l'imager), `card_id=False` (l'enhancer, dont
+>   les noms ne changent pas). Le synthesizer rangeait par `FieldFile.save()`, qui ENREGISTRAIT
+>   L'ÉLÉMENT ENTIER en cours de tâche — il aurait réécrit des réglages enregistrés pendant le
+>   traitement ; le texte extrait qu'il écrivait au passage va désormais dans `fields`. Seule
+>   exception déclarée : l'amélioration faciale de l'avatarizer, placée à côté de la copie que lui
+>   tend la brique de sortie (`output_step`). Garde : `tests_task_skeleton_contract.
+>   …no_glue_composes_its_output_place_by_hand` (par AST, toute fonction qui reçoit `ctx`) ;
+> (b) ✅ tranché (relance complète → libéré, `release_absent`) ; entre la désactivation et la
+>   relance, l'aperçu le montre encore (« le contenu PRÉSENT décide ») ;
+> (c) **la version écoutée est gardée sur la card** (`Surface.sources_setting`, réglage
+>   `listened_sources` du transcriber) ;
+> (d) **le générateur suit la règle des apps** : `views_gen.champs_sortie` ne nomme plus une sortie
+>   déclarée d'un process (la brique de duplication la dérive) — garde étendue au code GÉNÉRÉ.
+> ⚠ Trouvé en passant, corrigé : « Transcrire l'audio préparé » (`upstream_switch`) avait sa
+> surcharge mais pas sa place dans `include` — ni la modale ni la route ne le connaissaient.
+> `derive_from_model` refuse désormais une surcharge sans champ exposé.
+> ⏳ **Reste NOUVEAU, nommé** : le générateur compte encore comme SORTIES les entrées de
+> référence (`voice_reference` du synthesizer, `reference_image` de l'imager, `reference_score` du
+> composer, `avatar_upload` de l'avatarizer) — ses ports d'entrée (`reference_voice`, `work_image`…)
+> ne disent pas leur CHAMP, donc `ports_entree` ne les écarte pas : un ⧉ d'une jumelle vide la voix
+> de référence que l'utilisateur avait donnée. À porter : le champ du port au manifeste, puis la
+> liste du générateur dérivée de lui.
 
 **4.7 Les enrichissements deviennent des process optionnels.** Le résumé à la demande du
 transcriber (`enrich_transcript`) et l'analyse du reader sont aujourd'hui **hors contrat** du

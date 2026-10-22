@@ -157,6 +157,11 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
     # l'affichage et à l'export sans toucher les segments bruts (réversible).
     speaker_map = models.JSONField(null=True, blank=True)
 
+    # La VERSION écoutée de l'audio à la correction : {"audio": "level"} — le process dont la
+    # sortie se lit (`Surface.sources_setting`, 2026-10-22) ; rien noté = l'original. Gardée sur la
+    # card : elle suit la card, pas le navigateur.
+    listened_sources = models.JSONField(null=True, blank=True)
+
     # ⚠ PLUS LU NI ÉCRIT depuis le 2026-10-21 : les pics fins de l'onde sont un service COMMUN
     # (`common/utils/waveform.dense_peaks`, état par marque de cache, fichier au dossier caché).
     # Champ gardé en attendant la décision de la migration qui le retire (REMOVAL_LEDGER R165).

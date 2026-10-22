@@ -214,13 +214,21 @@ class TaskContext:
         cache.set(_launch_key(self.app_id, self.item.pk), entry, timeout=LAUNCH_TTL_S)
 
     def output_place(self, ext: str, *, nature: str = '', model: str = '',
-                     source_name: str = '') -> tuple:
+                     source_name: str = '', folder: str = 'output', index: int = None,
+                     total: int = 1, card_id: bool = True) -> tuple:
         """(chemin relatif à MEDIA_ROOT, chemin absolu) d'une SORTIE de cette card — le geste d'un
         process qui écrit un fichier déclaré dans ses `outputs` : le dossier de sortie de l'app au
         domicile de l'utilisateur (`app_media_dir`, créé), le nom par la règle commune
         (`compose_output_name` : `nature` quand la sortie n'est pas celle de l'app — `score`,
         `audio` —, `model` le nom du modèle qui l'a rendue). Le chemin relatif est ce que la glu
-        rend dans `fields` et `output_ref`.
+        rend dans `fields` et `output_ref`. `ext` vide : celle de `source_name`.
+
+        Les variantes que les glues écrivaient à la main (relevé du 2026-10-22, en les portant) :
+        `folder` — le sous-dossier de la sortie quand l'app en range plusieurs natures
+        (`output/media` et `output/audio` de l'enhancer, `output/image` et `output/video` de
+        l'imager) ; `index`/`total` — une série de fichiers pour une card (les images de l'imager) ;
+        `card_id=False` — la famille FICHIER sans l'identifiant de la card, quand la souche d'une
+        entrée déposée suffit à l'unicité (l'enhancer : ses noms ne changent pas au portage).
 
         Écrit dans le composer (`_output_place`, 2026-10-02) et recopié par chaque glu qui range
         un fichier ; porté ici le 2026-10-21, quand la préparation audio du transcriber en devenait
@@ -229,11 +237,13 @@ class TaskContext:
         from django.conf import settings
         from wama.common.utils.media_paths import app_media_dir
         from wama.common.utils.output_naming import compose_output_name
-        rel_dir = app_media_dir(self.app_id, self.user_id, 'output')
+        rel_dir = app_media_dir(self.app_id, self.user_id, folder)
         abs_dir = os.path.join(settings.MEDIA_ROOT, rel_dir)
         os.makedirs(abs_dir, exist_ok=True)
         name = compose_output_name(app=self.app_id, model=model, ext=ext, nature=nature,
-                                   source_name=source_name, item_id=self.item.pk)
+                                   source_name=source_name,
+                                   item_id=self.item.pk if card_id else None,
+                                   index=index, total=total)
         return f'{rel_dir}/{name}', os.path.join(abs_dir, name)
 
     def ensure_model(self, model_key: str) -> str:

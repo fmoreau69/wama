@@ -30,6 +30,7 @@ PARAMS = derive_from_model(
         "hotwords",
         "preprocess_audio",
         "level_speech",
+        "use_prepared_audio",
         "vad_mode",
         "language_mode",
         "enable_diarization",
@@ -45,6 +46,10 @@ PARAMS = derive_from_model(
         "title",
         "meeting_date",
         "speaker_map",
+        # La version écoutée de l'audio à la correction (2026-10-22) : un réglage de la PAGE, lu
+        # et écrit par elle (`Surface.sources_setting`), que la brique « Écouter » du transport
+        # pose — aucune surface de saisie ne le montre.
+        "listened_sources",
     ],
     overrides={
         # dom_id = ID legacy SCOPÉ PAR CONTEXTE → migration sans casse : le volet (panel) et la
@@ -186,6 +191,10 @@ PARAMS = derive_from_model(
                             contexts=("surface",),
                             help="Renommez chaque intervenant. Les noms apparaissent dans le "
                                  "document de sortie (l'audio et les segments ne sont pas modifiés)."),
+        "listened_sources": dict(type="mapping", label="Version écoutée", icon="fa-headphones",
+                                  contexts=("surface",),
+                                  help="L'audio que lit la page de correction : l'original, ou la "
+                                       "sortie d'un process qui le prépare."),
     },
 )
 

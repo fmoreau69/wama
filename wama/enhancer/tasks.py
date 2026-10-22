@@ -20,8 +20,6 @@ import logging
 import os
 from celery import shared_task
 
-from wama.common.utils.media_paths import app_media_dir
-
 from .models import AudioEnhancement, Enhancement
 
 logger = logging.getLogger(__name__)
@@ -156,7 +154,6 @@ def _enhance_media(enhancement, ctx):
     """GLU image/vidéo (contrat task_skeleton) : route par nature, nommage commun, stockage,
     aperçu « pendant » (vidéo), conversion de sortie inline. Une exception = FAILURE (le
     squelette pose statut/console/notification) ; l'aperçu partiel est retiré ICI."""
-    from wama.common.utils.output_naming import compose_output_name
     from wama.common.utils.work_dir import work_dir
 
     from wama.common.utils.auto_model import is_auto, quality_intent_of
@@ -168,8 +165,11 @@ def _enhance_media(enhancement, ctx):
     from wama.common.utils.model_keys import model_id
     model = _media_model(enhancement)              # clé de catalogue (route F4b ⑤)
     # Le NOM porte l'identifiant (comme l'imager) : `RealESR_Gx4`, pas `enhancer-RealESR_Gx4`.
-    output_filename = compose_output_name(app='enhancer', model=model_id(model),
-                                          source_name=input_path)
+    # Sa place et son nom par la brique (`ctx.output_place`) : la souche d'une entrée déposée
+    # suffit à l'unicité, le nom ne porte donc pas l'identifiant de la card (inchangé au portage).
+    storage_name, _path = ctx.output_place('', model=model_id(model), source_name=input_path,
+                                           folder='output/media', card_id=False)
+    output_filename = os.path.basename(storage_name)
     if is_auto(enhancement.ai_model):
         ctx.console(f"[Enhancer] 🧠 Auto → {model} (×{enhancement.upscale_factor}, VRAM libre au "
                     f"lancement, curseur qualité {quality_intent_of(enhancement, 'enhancer')}/100)")
@@ -199,9 +199,7 @@ def _enhance_media(enhancement, ctx):
             # Le nom de STOCKAGE vient de la brique : il décide où le fichier atterrit ET ce que
             # la base retient. Composé à la main (`f'enhancer/{uid}/output/…'`) jusqu'au
             # 2026-09-22, il aurait recréé l'ancien arbre à la première sortie après la bascule.
-            saved = _store_output(
-                enhancement, local,
-                f"{app_media_dir('enhancer', enhancement.user_id, 'output/media')}/{output_filename}")
+            saved = _store_output(enhancement, local, storage_name)
     finally:
         if frames is not None:
             frames.close()           # la face SORTIE prend le relais ; le JPEG partiel part
@@ -241,7 +239,6 @@ def _enhance_audio(ae, ctx):
     """GLU audio (contrat task_skeleton) : route 'audio', nommage commun (`{base}_enhanced_
     {moteur}.wav`), stockage, conversion de sortie inline."""
     from wama.common.utils.auto_model import is_auto, quality_intent_of
-    from wama.common.utils.output_naming import compose_output_name
     from wama.common.utils.work_dir import work_dir
     from wama.common.backends.manager import route_for_nature
     from .utils.auto_model import audio_nfe
@@ -253,8 +250,9 @@ def _enhance_audio(ae, ctx):
     name = model_id(engine)                        # l'identifiant : ce que le moteur commun lit
     nfe = audio_nfe(ae, engine)
     # Le NOM porte l'identifiant (comme la branche média) : `resemble`, pas `enhancer-resemble`.
-    output_filename = compose_output_name(app='enhancer', model=name,
-                                          source_name=input_path, ext='.wav')
+    storage_name, _path = ctx.output_place('.wav', model=name, source_name=input_path,
+                                           folder='output/audio', card_id=False)
+    output_filename = os.path.basename(storage_name)
     if is_auto(ae.engine):
         ctx.console(f"[Enhancer] 🧠 Auto → {engine} (VRAM libre au lancement, curseur qualité "
                     f"{quality_intent_of(ae, 'enhancer')}/100"
@@ -273,8 +271,7 @@ def _enhance_audio(ae, ctx):
         local = os.path.join(str(_work), output_filename)
         route(input_path, local, ae.output_format, options=options,
               progress_callback=lambda p: ctx.progress(5 + int(p * 0.9)))
-        saved = _store_output(
-            ae, local, f"{app_media_dir('enhancer', ae.user_id, 'output/audio')}/{output_filename}")
+        saved = _store_output(ae, local, storage_name)
 
     ae.output_file.name = saved
     from wama.common.services.output_process import generated

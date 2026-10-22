@@ -86,6 +86,22 @@
         } catch (e) { /* stockage indisponible : la disposition déclarée reste */ }
     }
 
+    /** La version écoutée GARDÉE sur la card, par rôle (le réglage `setting`, `Surface.
+     *  sources_setting`) — seulement une version que le serveur propose encore : un process
+     *  décoché, une sortie libérée, laissent l'original. Lue AVANT le montage des briques, qui
+     *  jouent `ctx.source(rôle)` à leur montage. Pure (testée en V8). */
+    function keptSources(sources, values, setting) {
+        var kept = (setting && (values || {})[setting]) || {};
+        var chosen = {};
+        Object.keys(sources || {}).forEach(function (role) {
+            var key = kept[role];
+            if (key && (sources[role] || []).some(function (v) { return v.key === key; })) {
+                chosen[role] = key;
+            }
+        });
+        return chosen;
+    }
+
     function mount(root, config) {
         var App = global.WamaApp || {};
         var surface = config.surface;
@@ -161,10 +177,20 @@
                 for (var i = 0; i < list.length; i++) if (list[i].key === key) return list[i];
                 return { key: '', url: state.reads[role] || '', peaks: state.media[role] };
             },
-            /** Choisit la version écoutée d'un rôle ; émet `source` (`{role, key}`). */
+            /** Choisit la version écoutée d'un rôle ; émet `source` (`{role, key}`). La surface qui
+             *  le déclare (`sources_setting`) GARDE ce choix sur la card, par la route commune des
+             *  réglages : la prochaine ouverture le reprend (2026-10-22). */
             setSource: function (role, key) {
                 state.chosen[role] = key || '';
                 emit('source', { role: role, key: state.chosen[role] });
+                if (surface.sources_setting) {
+                    var kept = {}, values = {};
+                    Object.keys(state.chosen).forEach(function (r) {
+                        if (state.chosen[r]) kept[r] = state.chosen[r];
+                    });
+                    values[surface.sources_setting] = kept;
+                    saveSettings(values);
+                }
             },
             context: function () { return state.context; },
             /** L'axe de temps PARTAGÉ de la surface (`WamaAxis`), créé au premier appel ; null si
@@ -626,6 +652,8 @@
                 state.processes = data.processes || {};
                 if (data.settings) state.settings = { schema: data.settings.schema || [],
                                                       values: data.settings.values || {} };
+                state.chosen = keptSources(state.sources, state.settings.values,
+                                           surface.sources_setting);
                 ctx.canEdit = !!data.can_edit;
                 history.reset();
                 building = true;
@@ -640,5 +668,5 @@
         return ctx;
     }
 
-    global.WamaSurface = { registerBrick: registerBrick, mount: mount };
+    global.WamaSurface = { registerBrick: registerBrick, mount: mount, keptSources: keptSources };
 })(window);

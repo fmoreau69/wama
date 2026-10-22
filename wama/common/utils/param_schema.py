@@ -314,8 +314,16 @@ def derive_from_model(model_class, include: List[str], overrides: dict = None) -
 
     Returns:
         [Param] prêtes pour le rendu (cf. to_dict()).
+
+    Lève `ValueError` pour une surcharge dont le champ n'est pas exposé (2026-10-22) : elle ne
+    rendait rien, en silence — « Transcrire l'audio préparé » avait sa surcharge et son process,
+    mais ni modale ni route ne le montraient ni ne l'écrivaient, faute d'être dans `include`.
     """
     overrides = overrides or {}
+    orphans = sorted(set(overrides) - set(include))
+    if orphans:
+        raise ValueError(f"{model_class.__name__} : surcharge sans champ exposé "
+                         f"({', '.join(orphans)}) — l'ajouter à `include`, ou la retirer")
     meta = model_class._meta
     params: List[Param] = []
     for name in include:

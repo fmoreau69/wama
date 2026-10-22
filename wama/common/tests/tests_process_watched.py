@@ -46,7 +46,10 @@ class EverySettingSaysWhatItMakesStaleTest(SimpleTestCase):
     def test_every_element_setting_is_accounted_for(self):
         for app, pipe in _real_pipelines().items():
             watched = {w for spec in pipe.specs for w in pipe.watched_of(spec)}
-            toggles = {spec.toggle for spec in pipe.specs if spec.toggle}
+            # The switch of a process (`toggle`) or of what it READS (`upstream_switch`,
+            # 2026-10-22) : the pipeline says what the setting changes.
+            toggles = ({spec.toggle for spec in pipe.specs if spec.toggle}
+                       | {spec.upstream_switch for spec in pipe.specs if spec.upstream_switch})
             for name, p in _element_settings(app).items():
                 with self.subTest(app=app, setting=name):
                     declared_none = _pget(p, 'stales') == () or _pget(p, 'stales') == []

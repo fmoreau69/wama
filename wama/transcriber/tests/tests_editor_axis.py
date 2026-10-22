@@ -57,7 +57,9 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
                          'the transport carries the commands of the time, nothing else')
         self.assertTrue(found.autosave)
         self.assertEqual('Terminer la correction', found.finish)
-        self.assertEqual(('title', 'meeting_date', 'speaker_map'), found.settings)
+        # + the version listened to, kept on the card (`sources_setting`, 2026-10-22).
+        self.assertEqual(('title', 'meeting_date', 'speaker_map', 'listened_sources'),
+                         found.settings)
         self.assertEqual({'retime', 'write_cursor', 'write_results', 'suggest_speakers'}, set(found.routes))
 
     def test_one_transport_drives_the_common_axis_and_player(self):
@@ -164,7 +166,7 @@ class CorrectionSurfaceEndToEndTest(TestCase):
         self.assertEqual('bonjour', data['value'][0]['text'])
         self.assertEqual('SPEAKER_00', data['value'][0]['speaker_id'], 'speakers in canonical form')
         self.assertEqual('bonjour', data['reads']['latest'][0]['text'], 'the ASR output, read beside')
-        self.assertEqual({'title', 'meeting_date', 'speaker_map'},
+        self.assertEqual({'title', 'meeting_date', 'speaker_map', 'listened_sources'},
                          {p['name'] for p in data['settings']['schema']})
 
     def test_finishing_marks_the_correction_done_and_rebuilds_the_rows(self):

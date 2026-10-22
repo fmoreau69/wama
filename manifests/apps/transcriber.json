@@ -106,6 +106,63 @@
             },
             {
               "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('transcriber', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "leveled_audio"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('transcriber', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "denoised_audio"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "use_prepared_audio"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "blank": {
@@ -716,6 +773,21 @@
                 }
               },
               "name": "speaker_map"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.JSONField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "listened_sources"
             },
             {
               "args": [],
@@ -1354,9 +1426,7 @@
             "remember": null,
             "section": "settings",
             "show_if": null,
-            "stales": [
-              "transcribe"
-            ],
+            "stales": null,
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1405,8 +1475,56 @@
             "section": "settings",
             "show_if": null,
             "stales": [
-              "transcribe"
+              "level"
             ],
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": true,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "Décoché : l'audio nivelé ou débruité reste produit et écoutable (aperçu, page de correction — pour mieux entendre en corrigeant), mais la transcription et les locuteurs écoutent l'original.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-ear-listen",
+            "inline": false,
+            "label": "Transcrire l'audio préparé",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "use_prepared_audio",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": null,
             "step": null,
             "type": "toggle",
             "unit": ""
@@ -1948,6 +2066,52 @@
             "step": null,
             "type": "mapping",
             "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "surface"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": "",
+            "group": "",
+            "help": "L'audio que lit la page de correction : l'original, ou la sortie d'un process qui le prépare.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-headphones",
+            "inline": false,
+            "label": "Version écoutée",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "listened_sources",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": null,
+            "step": null,
+            "type": "mapping",
+            "unit": ""
           }
         ]
       }
@@ -2219,6 +2383,7 @@
             "hotwords",
             "preprocess_audio",
             "level_speech",
+            "use_prepared_audio",
             "vad_mode",
             "language_mode",
             "enable_diarization",
@@ -2228,7 +2393,8 @@
             "verify_coherence",
             "title",
             "meeting_date",
-            "speaker_map"
+            "speaker_map",
+            "listened_sources"
           ],
           "user_related_name": "transcripts"
         }
@@ -2286,12 +2452,14 @@
             "hotwords": "textarea — Séparés par des virgules",
             "language_mode": "select — « Auto » écoute plusieurs passages de l'audio avant de transcrire : s'il entend plusieurs langues, chaque passage est transcrit dans la sienne. « Une seule » garde la même langue partout (évite qu'un passage bruité soit traduit). « Plusieurs » la redécide à chaque passage de 30 s. (choix : auto | single | multi) (défaut : 'auto')",
             "level_speech": "toggle — Amène chaque voix au même niveau tout au long de l'audio (les voix faibles sont remontées, les fortes rabaissées, sans remonter le bruit des silences). Appliqué en premier, avant le prétraitement. Mesuré : aide les enregistrements lointains ou faits à bas niveau, neutre sur un enregistrement propre. (défaut : False)",
+            "listened_sources": "mapping — L'audio que lit la page de correction : l'original, ou la sortie d'un process qui le prépare.",
             "meeting_date": "date — Date",
             "preprocess_audio": "toggle — Prétraitement audio (défaut : False)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "speaker_map": "mapping — Renommez chaque intervenant. Les noms apparaissent dans le document de sortie (l'audio et les segments ne sont pas modifiés).",
             "summary_type": "radio (choix : structured | meeting) (défaut : 'structured')",
             "title": "text — ex. Réunion projet WAMA",
+            "use_prepared_audio": "toggle — Décoché : l'audio nivelé ou débruité reste produit et écoutable (aperçu, page de correction — pour mieux entendre en corrigeant), mais la transcription et les locuteurs écoutent l'original. (défaut : True)",
             "vad_mode": "select — Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie d'abord que le filtre ne rejette pas une parole lointaine (entretien enregistré à distance) et le désactive alors. « Désactivé » garde tout, au risque de texte inventé dans les longs silences. (choix : auto | on | off) (défaut : 'auto')",
             "verify_coherence": "toggle — Score + correction proposée côte à côte (défaut : False)"
           },

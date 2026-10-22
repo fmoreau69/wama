@@ -176,6 +176,68 @@ class TaskSkeletonOutcomeContractTest(TestCase):
                                  placed['rel'])
                 self.assertTrue(os.path.isfile(os.path.join(tmp, placed['rel'])))
 
+    def test_an_output_place_takes_the_variants_the_glues_wrote_by_hand(self):
+        """Measured when porting the glues (2026-10-22) : a sub-folder per nature (the imager's
+        `output/image`), a series (its images, `_<i>` only when there are several), and the FILE
+        family without the card's id (the enhancer's names do not change)."""
+        import shutil
+        import tempfile
+        from django.test import override_settings
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, True)
+        app, model = _adopters()[0]
+        placed = []
+
+        def glue(item, ctx):
+            placed.append(ctx.output_place('.png', model='m', folder='output/image',
+                                           index=2, total=3)[0])
+            placed.append(ctx.output_place('.png', model='m', folder='output/image',
+                                           index=1, total=1)[0])
+            placed.append(ctx.output_place('', model='m', source_name='dir/Réunion.wav',
+                                           card_id=False)[0])
+            return {}
+        with override_settings(MEDIA_ROOT=tmp):
+            item = self._run(app, model, glue)
+        from wama.common.utils.output_naming import output_tag
+        tag, home = output_tag(app), f'users/{item.user_id}/{app}'
+        self.assertEqual([f'{home}/output/image/{tag}{item.pk}_m_2.png',
+                          f'{home}/output/image/{tag}{item.pk}_m.png',
+                          f'{home}/output/Réunion_{tag}_m.wav'], placed)
+
+    def test_no_glue_composes_its_output_place_by_hand(self):
+        """A glue (a function given `ctx`) places its output by `ctx.output_place` — not by
+        `compose_output_name` and a folder of its own, the copy each glue made of the composer's
+        `_output_place` (2026-10-22 : anonymizer, converter, avatarizer, enhancer, imager,
+        synthesizer, the generated glue). The one left is declared, with its reason."""
+        import ast
+        from pathlib import Path
+        from django.conf import settings
+        allowed = {
+            # Placed NEXT TO the copy the output brick hands it (`output_process.output_step`,
+            # `apply`) : the brick decides where an output's transformation lives.
+            ('wama/avatarizer/workers.py', '_codeformer'),
+        }
+        found = set()
+        for folder in ('wama', 'wama_lab', 'wama_data'):
+            for path in sorted((Path(settings.BASE_DIR) / folder).rglob('*.py')):
+                rel = path.relative_to(settings.BASE_DIR).as_posix()
+                if '/tests' in rel or '/migrations/' in rel or any(
+                        part.endswith('_01') for part in path.parts):
+                    continue
+                try:
+                    tree = ast.parse(path.read_text(encoding='utf-8'))
+                except (SyntaxError, UnicodeDecodeError):
+                    continue
+                for node in ast.walk(tree):
+                    if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) or 'ctx' not in [
+                            a.arg for a in node.args.args + node.args.kwonlyargs]:
+                        continue
+                    if any(isinstance(c, ast.Call) and (getattr(c.func, 'id', None) or getattr(
+                            c.func, 'attr', None)) == 'compose_output_name' for c in ast.walk(node)):
+                        found.add((rel, node.name))
+        self.assertEqual(set(), found - allowed, 'a glue composes its output place by hand')
+        self.assertEqual(set(), allowed - found, 'an exemption no longer needed')
+
     def test_a_glue_that_raises_ends_in_failure_with_its_message(self):
         def glue(item, ctx):
             raise RuntimeError('panne du contrat')

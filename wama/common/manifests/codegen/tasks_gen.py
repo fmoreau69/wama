@@ -480,8 +480,6 @@ def render_tasks(manifest: dict) -> tuple:
                 '    COMMUN des backends. Import RELATIF AU PAQUET : la jumelle résout SES',
                 '    copies de backends/ sans citer aucun nom d\'app. La tâche lit les COLONNES',
                 '    (modèle événementiel §23.2quater) — le preset s\'écrit au clic, pas ici."""',
-                '    from pathlib import Path as _P',
-                '    from django.conf import settings as _s',
                 '    from wama.common.backends.manager import route_for_nature',
                 '    from wama.common.utils.param_schema import effective_settings',
                 f'    from .params import {schema_symbole} as _SCH',
@@ -501,23 +499,17 @@ def render_tasks(manifest: dict) -> tuple:
                 '            posees[_n] = _v',
                 f"    opts = effective_settings(_SCH, posees=posees, contexte={{'{nature_champ}': nature}})",
                 '',
-                # Le dossier de sortie vient de la BRIQUE, pas d'une chaîne émise ici : ce gabarit
-                # émettait `f"<app>/{item.user_id}/output/"` et fabriquait donc l'ancien domicile
-                # dans CHAQUE app générée, bascule du 2026-09-12 ou non (relevé le 2026-09-22).
-                '    from wama.common.utils.media_paths import app_media_dir as _amd',
-                f"    rel_dir = _amd({app_id!r}, item.user_id, 'output') + '/'",
-                '    out_dir = _P(_s.MEDIA_ROOT) / rel_dir',
-                '    out_dir.mkdir(parents=True, exist_ok=True)',
-                # Le NOM aussi vient de la brique (`compose_output_name`, règle commune de
-                # nommage) : ce gabarit composait `<souche>_<id>.<fmt>` à la main, un second
-                # format de nom que la card et l'app source ne parlent pas (relevé 2026-10-07).
-                '    from wama.common.utils.output_naming import compose_output_name as _con',
-                f'    nom = _con(app={app_id!r}, source_name=item.input_filename, item_id=item.id, ext=fmt)',
+                # La PLACE et le NOM de la sortie viennent de la brique du squelette
+                # (`ctx.output_place` : domicile de l'app, règle commune de nommage), comme dans
+                # les glues des apps réelles (2026-10-22). Ce gabarit émettait d'abord
+                # `f"<app>/{item.user_id}/output/"` (l'ancien domicile, relevé le 2026-09-22), puis
+                # `app_media_dir` + `compose_output_name` à la main (relevé le 2026-10-07).
+                '    rel, path = ctx.output_place(fmt, source_name=item.input_filename)',
                 '',
                 f'    ctx.console(f"Conversion : {{item.input_filename}} → .{{fmt}} ({{fonc}})")',
-                '    backend(item.input_file.path, str(out_dir / nom), fmt,',
+                '    backend(item.input_file.path, path, fmt,',
                 '            options=opts, progress_callback=ctx.progress)',
-                "    return {'fields': {'output_file': rel_dir + nom},",
+                "    return {'fields': {'output_file': rel},",
                 '            \'label\': f".{fmt}"}',
             ]
         else:

@@ -1176,15 +1176,17 @@ class ADuplicateStartsWithoutWhatItsProcessesWroteTest(TestCase):
 
     def test_no_duplicate_list_names_a_field_the_pipeline_derives(self):
         """One path: a view's `clear_fields` / `output_fields` names only what no process declares
-        (a text, an error message) — never a declared output, which the brick derives. The sandbox
-        twins are generated: the generator derives its own list (`views_gen.champs_sortie`, file
-        fields minus input ports) — aligning it on the brick is a named rest (`ROUTE §10.6` 4.6)."""
+        (a text, an error message) — never a declared output, which the brick derives. Held on the
+        app's views AND on the views the GENERATOR renders from its manifest (the sandbox twins) :
+        `views_gen.champs_sortie` derived its own list until 2026-10-22."""
         import ast
         from pathlib import Path
         from django.conf import settings
+        from wama.common.manifests.codegen.views_gen import render_views
+        from wama.common.manifests.ingest import extract
         from wama.common.sandbox import sandbox_labels
         twins = set(sandbox_labels())
-        found = []
+        found, generated = [], 0
         for app, pipeline in APP_PIPELINES.items():
             if app in twins:
                 continue
@@ -1192,14 +1194,22 @@ class ADuplicateStartsWithoutWhatItsProcessesWroteTest(TestCase):
             views = Path(settings.BASE_DIR) / 'wama' / app / 'views.py'
             if not declared or not views.exists():
                 continue
-            for node in ast.walk(ast.parse(views.read_text(encoding='utf-8'))):
-                if isinstance(node, ast.keyword) and node.arg in ('clear_fields', 'output_fields'):
-                    try:
-                        listed = set(ast.literal_eval(node.value))
-                    except ValueError:
-                        found.append(f'{app}: {node.arg} non littéral ({ast.unparse(node.value)})')
-                        continue
-                    found += [f'{app}: {node.arg} nomme {f}' for f in sorted(listed & declared)]
+            rendered, _why = render_views(extract('app', app))
+            generated += bool(rendered)
+            for origin, source in (('app', views.read_text(encoding='utf-8')),
+                                   ('généré', rendered or '')):
+                for node in ast.walk(ast.parse(source)):
+                    if isinstance(node, ast.keyword) and node.arg in ('clear_fields',
+                                                                     'output_fields'):
+                        try:
+                            listed = set(ast.literal_eval(node.value))
+                        except ValueError:
+                            found.append(f'{app} ({origin}): {node.arg} non littéral '
+                                         f'({ast.unparse(node.value)})')
+                            continue
+                        found += [f'{app} ({origin}): {node.arg} nomme {f}'
+                                  for f in sorted(listed & declared)]
+        self.assertTrue(generated, 'no generated views: the generator side measures nothing')
         self.assertEqual([], found)
 
 

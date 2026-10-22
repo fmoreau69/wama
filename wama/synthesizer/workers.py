@@ -8,6 +8,7 @@ running on TTS_SERVICE_URL (default: http://localhost:8001).
 
 import os
 import re
+import shutil
 import unicodedata
 import logging
 from celery import shared_task
@@ -16,7 +17,6 @@ from pathlib import Path
 from django.conf import settings
 from django.core.cache import cache
 from django.db import close_old_connections
-from django.core.files.base import ContentFile
 
 from .models import VoiceSynthesis
 from wama.common.utils.console_utils import push_console_line
@@ -266,25 +266,22 @@ def _synthesize(synthesis, ctx):
         _console(synthesis.user_id, "Sauvegarde du fichier audio...")
         ctx.progress(90)
 
-        with open(final_output, 'rb') as f:
-            # Brique COMMUNE de nommage (2026-08-25). Le synthesizer est de la famille
-            # FICHIER — il dérive du texte d'entrée — mais il lui manquait le mot de process :
-            # `{stem}_{modèle}.wav` devient `{stem}_voice_{modèle}.wav`.
-            # ⚠ Il NORMALISAIT les accents (« Réunion » → « Reunion ») ; la règle de la
-            # famille FICHIER est que l'utilisateur retrouve SON nom, et le stockage Django
-            # assainit déjà à l'écriture. Les accents sont donc préservés désormais.
-            # ⚠ `item_id` est passé en repli : sans fichier texte (synthèse directe), la
-            # brique bascule d'elle-même sur la famille PROMPT au lieu de produire un nom vide.
-            from wama.common.utils.output_naming import compose_output_name
-            audio_filename = compose_output_name(
-                app='synthesizer', model=tts_model,
-                source_name=(synthesis.text_file.name or ''),
-                item_id=synthesis.id, ext='.wav')
-            # Le rendu et l'original gardé de la fois d'avant partent d'abord : le lanceur ne
-            # retire plus l'audio au clic, et le stockage renommerait le nouveau fichier.
-            from wama.common.services.output_process import drop_previous_outputs, generated
-            drop_previous_outputs(synthesis, 'audio_output')
-            synthesis.audio_output.save(audio_filename, ContentFile(f.read()))
+        # Place et nom par la brique (`ctx.output_place`, 2026-10-22). Le synthesizer est de la
+        # famille FICHIER — il dérive du texte d'entrée : `{stem}_voice_{modèle}_{id}.wav`, accents
+        # préservés (la règle de la famille FICHIER : l'utilisateur retrouve SON nom) ; sans
+        # fichier texte (synthèse directe), la brique bascule d'elle-même sur la famille PROMPT.
+        # ⚠ Le fichier est COPIÉ à sa place et la card le désigne par son nom : `FieldFile.save()`
+        # enregistrait l'élément ENTIER en cours de tâche, ce qui aurait réécrit des réglages
+        # enregistrés pendant le traitement (décision du 2026-10-22). Le squelette écrit le champ
+        # rendu (`fields`).
+        audio_rel, audio_path = ctx.output_place(
+            '.wav', model=tts_model, source_name=(synthesis.text_file.name or ''))
+        # Le rendu et l'original gardé de la fois d'avant partent d'abord : le lanceur ne retire
+        # plus l'audio au clic, et le même nom serait sinon celui de l'ancien fichier.
+        from wama.common.services.output_process import drop_previous_outputs, generated
+        drop_previous_outputs(synthesis, 'audio_output')
+        shutil.copyfile(final_output, audio_path)
+        synthesis.audio_output.name = audio_rel
 
         # Le format et la qualité de sortie sont le process suivant, `output` (`_output`).
         # La mention « généré par IA » dans les MÉTADONNÉES (décision de Fabien, 2026-09-30 :
@@ -311,8 +308,10 @@ def _synthesize(synthesis, ctx):
         # chargement : c'est le squelette qui l'enregistre (`eta` du retour).
         return generated(
             [synthesis.audio_output.path],
-            # La sortie de la card, pour sa RÉVISION (le fichier est déjà écrit et rattaché).
-            fields={'audio_output': synthesis.audio_output.name},
+            # La sortie de la card, pour sa RÉVISION, et le texte extrait : écrits par le squelette
+            # (ils l'étaient par l'enregistrement complet de `FieldFile.save()`, retiré le 22/10).
+            fields={'audio_output': synthesis.audio_output.name,
+                    'text_content': synthesis.text_content},
             eta=synthesizer_eta_key_size(synthesis),
             label=getattr(synthesis, 'name', '') or f"synthèse #{synthesis.id}",
             models=[tts_model] if tts_model else None,

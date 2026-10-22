@@ -122,7 +122,10 @@ class ConverterFollowsItsRoutesTest(SimpleTestCase):
                 id=7, pk=7, user_id=1, user=None, dest_dir='', output_format='webp',
                 input_filename='in.png', input_file=SimpleNamespace(path=str(source)),
                 media_type='image', options={}, CHAMPS_CROSS_APP=())
-            ctx = SimpleNamespace(console=lambda *_a: None, progress=mock.Mock())
+            # Its output is placed by the skeleton's brick (`ctx.output_place`, 2026-10-22).
+            from wama.common.utils.task_skeleton import TaskContext
+            ctx = SimpleNamespace(console=lambda *_a: None, progress=mock.Mock(),
+                                  output_place=TaskContext('converter', None, job).output_place)
             routes = dict(converter_backends.ROUTES, image='backends.audio_backend.convert_audio')
             with override_settings(MEDIA_ROOT=Path(root)), \
                     mock.patch.object(converter_backends, 'ROUTES', routes), \

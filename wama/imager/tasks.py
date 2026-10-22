@@ -265,12 +265,6 @@ def _generate_image(generation, ctx):
         _console(user_id, f"[Imager] Using backend: {backend.display_name}")
         logger.info(f"Using backend: {backend.name} ({backend.display_name})")
 
-        # Create output directory (user-specific path)
-        from wama.common.utils.media_paths import app_media_dir
-        output_dir = os.path.join(settings.MEDIA_ROOT,
-                                  app_media_dir('imager', generation.user.id, 'output'), 'image')
-        os.makedirs(output_dir, exist_ok=True)
-
         ctx.progress(10)
         _console(user_id, f"[Imager] Loading model: {model_key}")
         # Le modèle TIRÉ (« auto » résolu ici) absent : la route l'installe, la card le dit, la
@@ -381,14 +375,13 @@ def _generate_image(generation, ctx):
         # l'index multi-sorties (`num_images` va de 1 à 4) : le portage aligne la FORME, il
         # n'ajoute aucune capacité. ⚠ L'index disparaît quand il n'y a qu'une image — un `_1`
         # sur une sortie unique n'apprend rien et fait croire à une suite.
-        from wama.common.utils.output_naming import compose_output_name
+        # Place et nom par la brique (`ctx.output_place`, sous-dossier `output/image`).
         generated_paths = []
         for i, img in enumerate(result.images):
             try:
-                filename = compose_output_name(
-                    app='imager', model=backend_model, item_id=generation.id, ext='.png',
-                    index=i + 1, total=len(result.images))
-                output_path = os.path.join(output_dir, filename)
+                _rel, output_path = ctx.output_place('.png', model=backend_model,
+                                                     folder='output/image',
+                                                     index=i + 1, total=len(result.images))
                 img.save(output_path)
                 generated_paths.append(output_path)
                 logger.info(f"Saved image {i+1}/{len(result.images)}: {output_path}")
@@ -966,10 +959,9 @@ def _generate_video(generation, ctx):
 
         # Export video to MP4
         # Include model name in filename for easy identification
-        from wama.common.utils.output_naming import compose_output_name
-        video_filename = compose_output_name(app='imager', model=model_name,
-                                             item_id=generation.id, ext='.mp4')
-        video_path = os.path.join(output_dir, video_filename)
+        # Place et nom par la brique (`ctx.output_place`, sous-dossier `output/video`).
+        relative_video_path, video_path = ctx.output_place('.mp4', model=model_name,
+                                                           folder='output/video')
 
         export_start = time.time()
         if not backend.export_video(video_frames, video_path, fps=export_fps):
@@ -985,8 +977,6 @@ def _generate_video(generation, ctx):
         from wama.common.services.output_process import drop_previous_outputs, generated
         drop_previous_outputs(generation, _rendered_field, keep=[video_path])
 
-        # Save video path relative to MEDIA_ROOT for FileField
-        relative_video_path = os.path.relpath(video_path, settings.MEDIA_ROOT).replace(os.sep, '/')
 
         # Seeding ETA : génération vidéo → temps ∝ durée produite (clé par modèle) ;
         # chargement séparé (model_load_time) enregistré seulement à froid (>2s). Enregistré

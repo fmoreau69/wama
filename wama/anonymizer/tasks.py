@@ -459,10 +459,8 @@ def _detect(media, ctx):
     (`detections_file`). Rien n'est flouté ici : c'est le process suivant, qui le relit.
 
     Pendant une vidéo, l'aperçu montre la frame courante avec ses détections dessinées."""
-    from django.conf import settings
     from wama.common.services.output_process import drop_previous_outputs
     from wama.common.utils import detections
-    from wama.common.utils.output_naming import compose_output_name
     if not media.file:
         raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
     user = media.user
@@ -488,16 +486,12 @@ def _detect(media, ctx):
         if frames is not None:
             frames.close()
 
-    folder = get_app_media_path('anonymizer', user.id, 'output')
-    os.makedirs(folder, exist_ok=True)
-    target = os.path.join(folder, compose_output_name(
-        app='anonymizer', model=doc.get('tag') or doc.get('engine') or 'yolo',
-        source_name=kwargs['media_path'], item_id=media.id, nature='detections', ext='.json'))
+    rel, target = ctx.output_place('.json', nature='detections', source_name=kwargs['media_path'],
+                                   model=doc.get('tag') or doc.get('engine') or 'yolo')
     detections.write(target, doc)
     # Le document d'avant part s'il n'a plus le même nom (moteur changé) ; l'original que garde
     # la SORTIE n'est pas le sien : il reste (`natives=False`).
     drop_previous_outputs(media, 'detections_file', keep=[target], natives=False)
-    rel = os.path.relpath(target, settings.MEDIA_ROOT).replace(chr(92), '/')
     media.detections_file.name = rel
     found = detections.count(doc)
     shown = len(doc.get('frames') or [])
@@ -525,7 +519,6 @@ def _blur(media, ctx):
     frame floutée — entre lesquelles l'inspecteur bascule (variantes de `preview_utils`)."""
     from wama.common.utils import detections
     from wama.common.utils.blur_utils import blur_detections
-    from wama.common.utils.output_naming import compose_output_name
     if not media.file:
         raise ValueError("Média sans fichier (ni URL rapatriée) : rien à traiter.")
     if not media.detections_file:
@@ -552,11 +545,8 @@ def _blur(media, ctx):
     def blur_frame(image, found):
         return blur_detections(image, found, **settings_)
 
-    folder = get_app_media_path('anonymizer', user.id, 'output')
-    os.makedirs(folder, exist_ok=True)
-    target = os.path.join(folder, compose_output_name(
-        app='anonymizer', model=doc.get('tag') or doc.get('engine') or 'yolo',
-        source_name=source, item_id=media.id))
+    _rel, target = ctx.output_place('', source_name=source,
+                                    model=doc.get('tag') or doc.get('engine') or 'yolo')
     preview = _partial_frames(media)
 
     def on_frame(index, original, painted, found):

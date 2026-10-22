@@ -486,8 +486,14 @@ class RoutesContractTest(SimpleTestCase):
 
 
 class _Ctx:
-    def __init__(self):
+    def __init__(self, item=None):
         self.progress_values, self.lines = [], []
+        self.item = item
+
+    def output_place(self, ext, **kwargs):
+        """The skeleton's own brick (`TaskContext.output_place`), on the card under test."""
+        from wama.common.utils.task_skeleton import TaskContext
+        return TaskContext('enhancer', type(self.item), self.item).output_place(ext, **kwargs)
 
     def progress(self, pct, msg=None):
         self.progress_values.append(pct)
@@ -568,7 +574,7 @@ class GlueTest(TestCase):
                 progress_callback(100)
                 return {'width': 8, 'height': 6}
 
-            ctx = _Ctx()
+            ctx = _Ctx(e)
             # Le tirage rend une CLÉ de catalogue depuis la route F4b ⑤ (2026-10-06).
             with mock.patch('wama.enhancer.backends.media_backend.enhance_image', fake_route), \
                     mock.patch('wama.enhancer.utils.auto_model.resolve_media_model',
@@ -604,7 +610,7 @@ class GlueTest(TestCase):
             with mock.patch('wama.enhancer.backends.audio_backend.enhance_audio', fake_route), \
                     mock.patch('wama.enhancer.utils.auto_model.resolve_audio_engine',
                                return_value='enhancer:resemble'):   # a KEY since route F4b ⑤
-                res = tasks._enhance_audio(ae, _Ctx())
+                res = tasks._enhance_audio(ae, _Ctx(ae))
         # The common engine receives the IDENTIFIER; the NFE still declines from the slider.
         self.assertEqual((seen['engine'], seen['quality']), ('resemble', 128))
         self.assertTrue(res['fields']['output_file'].endswith('_resemble.wav'))

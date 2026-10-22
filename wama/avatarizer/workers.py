@@ -21,7 +21,6 @@ import logging
 from pathlib import Path
 
 from celery import shared_task
-from django.conf import settings
 
 from .models import AvatarJob
 from wama.common.services.resource_governor import vram_reservation
@@ -327,10 +326,15 @@ def _animate(job, ctx):
             _console(job.user_id, f"Avatar : {reason} — la bouche sera moins précise.", 'warning')
 
         # Sortie de l'app : le livrable, et RIEN d'autre (règle `MEDIA_STORAGE_TIERING.md` —
-        # `media/` ne contient que `<app>/<user>/input|output/` et `users/`).
-        from wama.common.utils.media_paths import app_media_dir
-        sortie_app = Path(settings.MEDIA_ROOT) / app_media_dir('avatarizer', job.user_id, 'output')
-        sortie_app.mkdir(parents=True, exist_ok=True)
+        # `media/` ne contient que `<app>/<user>/input|output/` et `users/`). Sa place et son nom
+        # par la brique (`ctx.output_place`) : famille FICHIER, la source étant l'AUDIO (c'est lui
+        # que l'utilisateur reconnaît ; l'avatar n'est qu'un paramètre de rendu). L'identifiant de
+        # job reste porté : `output/` est PLAT, et deux jobs partant du même audio produiraient
+        # sinon le même nom — Django en renommerait un et le lien affiché deviendrait faux.
+        rel_path, target = ctx.output_place('.mp4', model=model_key.split(':', 1)[-1],
+                                           source_name=audio_path)
+        target = Path(target)
+        output_folder = target.parent
 
         # L'animation REJOUE : la vidéo d'avant (et l'animée gardée sous une améliorée) part.
         from wama.common.services.output_process import drop_previous_outputs
@@ -371,7 +375,7 @@ def _animate(job, ctx):
                 # Aperçu « PENDANT » (2026-10-06) : la dernière image rendue, toutes les ~2 s, par
                 # la brique commune (`PartialFrames`, comme l'enhancer vidéo). MuseTalk, lancé
                 # d'un bloc en sous-processus, ne montre rien avant la fin.
-                frames = _partial_frames(job, sortie_app)
+                frames = _partial_frames(job, output_folder)
                 try:
                     animated_video = _backend(model_key).process(
                         avatar_path=image_path, audio_path=audio_path,
@@ -398,23 +402,13 @@ def _animate(job, ctx):
                 _console(job.user_id, "CodeFormer ignoré : sans objet sur un avatar 3D.", 'info')
 
             # ⚠ SORTIR le livrable AVANT la fin du bloc — après, `travail` n'existe plus.
-            # Brique COMMUNE de nommage : famille FICHIER, la source étant l'AUDIO (c'est lui
-            # que l'utilisateur reconnaît ; l'avatar n'est qu'un paramètre de rendu).
-            # L'identifiant de job reste porté : `output/` est PLAT, et deux jobs partant du
-            # même audio produiraient sinon le même nom — Django en renommerait un et le lien
-            # affiché deviendrait faux.
-            from wama.common.utils.output_naming import compose_output_name
-            cible = sortie_app / compose_output_name(
-                app='avatarizer', model=model_key.split(':', 1)[-1],
-                source_name=audio_path, item_id=job_id, ext='.mp4')
-            _shutil.move(str(animated_video), str(cible))
+            _shutil.move(str(animated_video), str(target))
 
         ctx.progress(95)
 
         # ------------------------------------------------------------------
         # Le résultat
         # ------------------------------------------------------------------
-        rel_path = os.path.relpath(cible, settings.MEDIA_ROOT).replace('\\', '/')
         fields = {'output_video': rel_path}
 
         # Durée du média (= durée audio) : métadonnée + taille pour le seeding ETA.
@@ -432,12 +426,12 @@ def _animate(job, ctx):
         # faciale apprend la sienne, `_enhance`) : clé du moteur, jamais celle de la qualité.
         from wama.common.services.output_process import generated
         return generated(
-            [str(cible)],
+            [str(target)],
             fields=fields,
             eta=(avatarizer_eta_key_size(job, duration=_dur, avatar_3d=avatar_3d)
                  if _dur > 0 else None),
             label=getattr(job, 'name', '') or f"avatar #{job_id}",
-            console_success=f"Vidéo animée : {os.path.basename(str(cible))}",
+            console_success=f"Vidéo animée : {os.path.basename(str(target))}",
             models=[model_key])
     except Exception:
         ctx.reset_progress()

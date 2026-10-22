@@ -164,7 +164,8 @@ MECHANISMS = (
               "2026-10-21 : la MÉMOIRE DU LANCEMENT (`ctx.remember`/`recall`, le modèle retenu "
               "gardé d'une livraison à l'autre) et la PLACE d'un fichier de sortie "
               "(`ctx.output_place` : dossier de sortie de l'app au domicile de l'utilisateur, nom "
-              "commun)",
+              "commun) ; 2026-10-22 : adoptée par toutes les glues (sous-dossier par nature, série, "
+              "famille FICHIER sans identifiant), l'arrêt COOPÉRATIF d'un lancement remplacé",
               'wama/common/utils/task_skeleton.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_governance.py',),
               depends_on=('process_runs', 'resource_governor', 'model_readiness')),
@@ -415,7 +416,8 @@ MECHANISMS = (
               "(2026-10-10). Registre `ui_bricks` = le catalogue des briques. 2ᵉ (2026-10-13) : "
               "le fond du Writer — un champ FICHIER s'édite comme texte (règles communes), la "
               "surface se déclare au manifeste (facette `surfaces`) et se génère ; refus 409 sur "
-              "état périmé et verrou doux pour toutes les surfaces ; brique « Versions » : reprendre "
+              "état périmé et verrou doux pour toutes les surfaces ; la VERSION écoutée d'un média lu "
+              "gardée sur la card (`sources_setting`, 2026-10-22) ; brique « Versions » : reprendre "
               "le texte d'une révision GARDÉE, un geste d'édition annulable. 3ᵉ (2026-10-15) : la "
               "partition du composer — champs ALTERNATIFS (sortie de l'un de deux process), "
               "briques `score_view` (gravure abcjs, notes jouées colorées, glisser = transposer) "

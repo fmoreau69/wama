@@ -311,6 +311,13 @@ class Surface:
     #: résolues avec l'élément : un calcul que seul le serveur de l'app sait faire (recaler une
     #: borne sur les mots de la sortie ASR, transcrire une plage jouée, proposer des noms).
     routes: dict = field(default_factory=dict)
+    #: Le RÉGLAGE de l'élément (l'un de `settings`, type `mapping`) où la page GARDE la version
+    #: écoutée de chaque média lu — `{rôle: clé de version}` (`sources_of`), l'original quand rien
+    #: n'est noté (2026-10-22, demande de Fabien : « persister le choix de version de l'audio dans
+    #: la card »). La page le lit à l'ouverture et l'écrit au choix, par la route commune des
+    #: réglages ; une version qui n'existe plus (process décoché, sortie libérée) laisse l'original.
+    #: Vide : le choix dure le temps de la page.
+    sources_setting: str = ''
     #: L'ÉTAT du geste d'édition sur la card, quand l'élément le porte : `none | draft | done`
     #: (le bouton ✎ en contour pointillé ou plein, `edit-btn`) — une fonction de l'élément. Défaut :
     #: « corrigé » dès qu'une couche de corrections n'est pas vide.
@@ -472,6 +479,7 @@ class Surface:
                 'reruns': self.reruns, 'columns': GRID_COLUMNS,
                 'autosave': self.autosave, 'finish': self.finish,
                 'settings': list(self.settings),
+                'sources_setting': self.sources_setting,
                 'bricks': {b.key: b.to_dict() for b in self.bricks()}}
 
 
@@ -531,6 +539,10 @@ def register_surface(surface: Surface) -> Surface:
         if slot.zone not in ZONES or slot.x < 0 or slot.w < 1 or slot.x + slot.w > columns:
             raise ValueError(f"surface {surface.id} : emplacement « {slot.id} » hors de sa zone "
                              f"({slot.zone}, x={slot.x}, w={slot.w})")
+    if surface.sources_setting and surface.sources_setting not in surface.settings:
+        # La page écrit ce réglage par la route commune, qui n'écrit que les `settings` déclarés.
+        raise ValueError(f"surface {surface.id} : `sources_setting` « {surface.sources_setting} » "
+                         "doit être l'un de ses `settings`")
     SURFACES[surface.id] = surface
     return surface
 

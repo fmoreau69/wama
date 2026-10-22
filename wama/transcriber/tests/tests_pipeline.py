@@ -684,9 +684,54 @@ class ThePreparationIsDeclaredTest(_Pipeline):
         self.assertIn('transcribe', PIPELINE.refresh(self.item),
                       'its leveling is no longer asked for: its transcription is stale')
 
+    def test_the_prepared_audio_switch_is_a_setting_the_card_shows_and_writes(self):
+        """« Transcrire l'audio préparé » had its process switch (`upstream_switch`) and an
+        override, but no place in the schema (`include`) : neither the ⚙ modal nor the route knew
+        it (found on 2026-10-22). `derive_from_model` now refuses such an override."""
+        from wama.common.utils.param_schema import schema_for_app
+        param = next((p for p in schema_for_app('transcriber')
+                      if p['name'] == 'use_prepared_audio'), None)
+        self.assertIsNotNone(param, 'the switch is not in the schema')
+        self.assertIn('item', param['contexts'], 'the ⚙ modal shows it')
+        response = self._client().post(reverse('transcriber:update_settings', args=[self.item.pk]),
+                                       {'use_prepared_audio': 'false'})
+        self.assertEqual(200, response.status_code, response.content[:200])
+        self.item.refresh_from_db()
+        self.assertFalse(self.item.use_prepared_audio, 'the route does not write it')
+
+    def test_the_version_listened_to_is_kept_on_the_card(self):
+        """« Persister le choix de version de l'audio dans la card » (Fabien, 2026-10-22) : the
+        page writes it through the common settings route (`Surface.sources_setting`), and reads it
+        back at the next opening ; « Original » again notes nothing."""
+        import json
+        from wama.common.surfaces import surface
+        self._set(preprocess_audio=True)
+        item = self._run()
+        found = surface('transcriber', 'correct')
+        self.assertEqual('listened_sources', found.sources_setting)
+        self.assertEqual('listened_sources', found.to_dict()['sources_setting'],
+                         'the page knows where to keep it')
+        client = self._client()
+        url = reverse('transcriber:update_settings', args=[item.pk])
+        response = client.post(url, json.dumps({'listened_sources': {'audio': 'level'}}),
+                               content_type='application/json')
+        self.assertEqual(200, response.status_code, response.content[:200])
+        item.refresh_from_db()
+        self.assertEqual({'audio': 'level'}, item.listened_sources)
+        with mock.patch('wama.common.surface_views._server_peaks', return_value=None):
+            data = client.get(f'/common/surface/transcriber/correct/{item.pk}/data/').json()
+        self.assertEqual({'audio': 'level'}, data['settings']['values']['listened_sources'],
+                         'the next opening reads it back')
+        page = client.get(f'/common/surface/transcriber/correct/{item.pk}/')
+        self.assertContains(page, '"sources_setting": "listened_sources"',
+                            msg_prefix='the SERVED page tells the core where to keep it')
+        client.post(url, json.dumps({'listened_sources': {}}), content_type='application/json')
+        item.refresh_from_db()
+        self.assertFalse(item.listened_sources, '« Original » again: nothing kept')
+
     def test_the_kept_audio_is_a_face_of_the_preview_and_a_duplicate_starts_without_it(self):
-        """⧉ « Dupliquer » : la copie repart sans résultat, audio préparé compris (`clear_fields`
-        de la vue — `duplicate_instance` PARTAGE les fichiers par contrat, il ne choisit rien)."""
+        """⧉ « Dupliquer » : la copie repart sans résultat, audio préparé compris — ce que ses
+        process ont écrit (`AppPipeline.produced_fields`) ; son entrée, elle, est partagée."""
         from django.test import RequestFactory
         from wama.common.utils.preview_utils import _process_faces
         self._set(level_speech=True, preprocess_audio=True)

@@ -379,7 +379,11 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
    versions, une face par process. Parité `transcriber.editor_parity` rejouée sur serveur jetable
    (WSL) : **66/66**, plus le geste neuf « Versions » (5/5 — proposées, bascule à la même position,
    retour à l'original, le choix tient sur la ligne du titre à 1440 px ; contre-épreuve rouge sans
-   audio nivelé). Le choix n'est pas retenu d'une ouverture à l'autre.
+   audio nivelé). ✅ **Le choix est GARDÉ sur la card depuis le 2026-10-22** (demande de Fabien) :
+   un réglage de la page (`listened_sources`, `{rôle: process}`, contexte `surface` comme les noms
+   des intervenants), que la surface commune nomme (`Surface.sources_setting`), relit à l'ouverture
+   et écrit au choix par la route commune des réglages ; une version qui n'existe plus laisse
+   l'original.
 3. **Confiance** (mot/segment) — déjà la source de la heatmap 2a.
 4. **Guidage** (slider rigueur + hésitations/silences/redondances) en suggestions accept/reject
    (règles FR + gaps de segments + LLM).

@@ -79,7 +79,8 @@ from wama.transcriber.params import PARAMS_JSON as _SCHEMA
 #: Réglages d'un transcript écrits par la modale et le volet (schéma `params.py`) ; `temperature`
 #: et `max_tokens` sont hors schéma depuis leur retrait des réglages, gardés pour un client qui
 #: les posterait encore (JSON déjà typé).
-SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'vad_mode',
+SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'use_prepared_audio',
+                   'vad_mode',
                    'language_mode',
                    'enable_diarization', 'diarization_model',
                    'generate_summary', 'summary_type', 'verify_coherence',
@@ -87,7 +88,7 @@ SETTINGS_FIELDS = ('backend', 'hotwords', 'preprocess_audio', 'level_speech', 'v
 #: Réglages d'UN élément seulement (le document de sortie : titre, date, noms des intervenants —
 #: page de correction, 2026-10-21) : la route d'un élément les écrit, celle d'un lot jamais.
 #: Un titre vide est une valeur (« pas de titre »), une date vide l'efface (type `date`).
-ITEM_ONLY_SETTINGS = ('title', 'meeting_date', 'speaker_map')
+ITEM_ONLY_SETTINGS = ('title', 'meeting_date', 'speaker_map', 'listened_sources')
 
 def _get_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()

@@ -306,8 +306,17 @@ def render_views(manifest: dict) -> tuple:
     # port `reference_layout` du Writer, une colonne du même nom, aurait été vidé à la duplication).
     ports_entree = {p.get('id') for p in
                     (((manifest.get('body') or {}).get('ports') or {}).get('inputs') or [])}
+    # Ce que les PROCESS déclarent écrire, la brique de duplication le vide elle-même — et
+    # seulement s'ils l'ont écrit (`AppPipeline.produced_fields`, 2026-10-21) : la liste n'en
+    # garde que le reste, comme les vues des apps réelles (2026-10-22, garde
+    # `tests_process_pipeline…names_a_field_the_pipeline_derives`). L'écrire ici aussi viderait
+    # ce que l'utilisateur a DONNÉ dans un champ qu'un process sait aussi produire.
+    from wama.common.manifests.codegen.pipeline_decl import declared_pipeline, process_specs
+    _declared, _ = declared_pipeline(app)
+    derives = {f for spec in (process_specs(_declared) if _declared else ())
+               for f in spec['outputs']}
     champs_sortie = [n for n in champs_fichiers
-                     if n != d['input_field'] and n not in ports_entree]
+                     if n != d['input_field'] and n not in ports_entree and n not in derives]
     # Nom de fichier pour les propriétés d'ENTRÉE de la card (input_props_for) : le champ
     # nom déclaré, sinon le nom du FileField lui-même.
     nom_pour_props = (f"getattr(item, '{d['name_field']}', '') or ''" if d['name_field']

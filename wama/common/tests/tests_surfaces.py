@@ -61,6 +61,34 @@ class RegistryTest(SimpleTestCase):
         self.assertEqual('common/js/wama-detections.js', review.scripts()[0],
                          'a dependency loads before the bricks that need it')
 
+    def test_the_kept_version_setting_must_be_one_the_page_writes(self):
+        """`Surface.sources_setting` (2026-10-22) is written through the common settings route,
+        which writes only the declared `settings` : anything else is refused at registration."""
+        import dataclasses
+        from wama.common.surfaces import SURFACES, register_surface, surface
+        probe = dataclasses.replace(surface('transcriber', 'correct'), key='probe_kept_version',
+                                    settings=('title',))
+        with self.assertRaises(ValueError):
+            register_surface(probe)
+        self.assertNotIn(probe.id, SURFACES)
+
+    def test_the_kept_version_is_one_the_page_still_offers(self):
+        """`WamaSurface.keptSources`, run in V8 on the SERVED file : the version kept on the card
+        is taken back while the server still offers it ; a version gone (process switched off,
+        output released) leaves the original, and a surface that declares nothing keeps nothing."""
+        from py_mini_racer import MiniRacer
+        served = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'surfaces' / 'wama-surface.js'
+        engine = MiniRacer()
+        engine.eval('var window = {};' + served.read_text(encoding='utf-8'))
+        sources = {'audio': [{'key': ''}, {'key': 'level'}, {'key': 'denoise'}]}
+        kept = lambda values, setting: json.loads(engine.eval(
+            'JSON.stringify(window.WamaSurface.keptSources(%s, %s, %s))'
+            % (json.dumps(sources), json.dumps(values), json.dumps(setting))))
+        self.assertEqual({'audio': 'level'}, kept({'heard': {'audio': 'level'}}, 'heard'))
+        self.assertEqual({}, kept({'heard': {'audio': 'gone'}}, 'heard'), 'a vanished version')
+        self.assertEqual({}, kept({'heard': {'audio': 'level'}}, ''), 'nothing declared')
+        self.assertEqual({}, kept({'heard': None}, 'heard'), 'nothing kept yet')
+
     def test_the_blur_watches_the_corrections_not_the_detection(self):
         from wama.anonymizer.function_specs import PIPELINE
         self.assertIn('detection_corrections', PIPELINE.watched_of(PIPELINE.spec('blur')))
