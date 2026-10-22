@@ -24,7 +24,9 @@
  *                            place de la note dans le nouveau texte) ou `{error}`.
  *
  * Le PAS est la plus petite durée écrite dans la mesure (l'unité `L:`, ou sa fraction si la
- * mesure en écrit une). Ce qui ajuste la mesure :
+ * mesure en écrit une) — sauf un pas FORCÉ (`retime(abc, at, op, 1/4)` : une fraction de ronde,
+ * ici la noire ; 2026-10-22, Fabien), ramené à l'unité `L:` en vigueur ; plus fin que l'écrit, il
+ * donne des durées fractionnaires (`A/2`). Ce qui ajuste la mesure :
  *   • une note qui empiète sur sa VOISINE la raccourcit — un silence peut disparaître, une note
  *     jamais (le geste est refusé) ;
  *   • le vide laissé est comblé par la note PRÉCÉDENTE quand la note part vers la droite (elle se
@@ -326,7 +328,15 @@
         return { text: out + bar.tail, place: place };
     }
 
-    function retime(abc, at, op) {
+    /** L'unité de durée `L:` en vigueur au caractère `at` : `[a, b]` (fraction de ronde). Sans
+     *  `L:`, la valeur par défaut de la norme ABC pour une mesure courante, la croche. */
+    function unitAt(abc, at) {
+        var re = /(?:^|\n)L:\s*(\d+)\s*\/\s*(\d+)/g, m, found = [1, 8];
+        while ((m = re.exec(abc)) && m.index < at) found = [Number(m[1]), Number(m[2])];
+        return found;
+    }
+
+    function retime(abc, at, op, stepWhole) {
         if (at == null || at < 0 || at >= abc.length) return { error: 'Aucune note choisie.' };
         var span = barAt(abc, at);
         var bar = parseBar(abc.slice(span.start, span.end));
@@ -334,8 +344,15 @@
             return { error: 'Cette mesure écrit un rythme que ce geste ne retouche pas (triolet, ' +
                             'pointé, agrément) : la corriger dans la source ABC.' };
         }
-        // Les durées en unités entières : le pas est la plus petite fraction écrite de `L:`.
-        var scale = bar.items.reduce(function (s, it) { return s * it.den / gcd(s, it.den); }, 1);
+        // Les durées en unités entières : le pas est la plus petite fraction écrite de `L:`, sauf
+        // un pas FORCÉ (`stepWhole`, une fraction de ronde : 1/4 = la noire), ramené en `L:`.
+        var stepNum = 1, stepDen = 1;
+        if (stepWhole) {
+            var unit = unitAt(abc, at), whole = Math.round(1 / stepWhole);
+            stepNum = unit[1]; stepDen = whole * unit[0];
+            var g0 = gcd(stepNum, stepDen); stepNum /= g0; stepDen /= g0;
+        }
+        var scale = bar.items.reduce(function (s, it) { return s * it.den / gcd(s, it.den); }, stepDen);
         bar.items.forEach(function (it) { it.u = it.num * scale / it.den; });
         var offset = at - span.start, pos = 0, i = -1;
         for (var k = 0; k < bar.items.length; k++) {
@@ -344,7 +361,8 @@
             if (offset >= from && offset < pos) { i = k; break; }
         }
         if (i < 0) return { error: 'Aucune note à cet endroit.' };
-        var items = bar.items, cur = items[i], step = 1;
+        var items = bar.items, cur = items[i];
+        var step = stepWhole ? stepNum * scale / stepDen : 1;
         if (cur.rest) return { error: 'Un silence ne se déplace pas : déplacer la note voisine.' };
 
         function touch(item, delta) { item.u += delta; item.changed = true; }
@@ -356,12 +374,14 @@
             else bar.tail = blank ? (bar.tail || gone.pre) : gone.pre + bar.tail;
         }
         function untie(item) { if (item.tie) { item.tie = false; item.changed = true; } }
-        /** La voisine `k` cède un pas : un silence peut disparaître, une note jamais. */
+        var TOO_WIDE = 'Le pas choisi est plus grand que la place disponible : choisir un pas plus fin.';
+        /** La voisine `k` cède un pas : un silence peut disparaître, une note jamais. Un silence
+         *  plus court qu'un pas FORCÉ ne suffit pas à le céder. */
         function shrink(k, what) {
             var n = items[k];
             if (n.u > step) { touch(n, -step); return true; }
-            if (n.rest) { remove(k); return true; }
-            return what;
+            if (n.rest && n.u === step) { remove(k); return true; }
+            return n.rest ? TOO_WIDE : what;
         }
         var refused;
         if (op === 'longer') {
@@ -370,7 +390,7 @@
             if (refused !== true) return { error: refused };
             touch(cur, step);
         } else if (op === 'shorter') {
-            if (cur.u <= step) return { error: 'La note a déjà la plus petite durée de la mesure.' };
+            if (cur.u <= step) return { error: 'La note n’est pas plus longue que le pas : elle ne peut pas raccourcir.' };
             touch(cur, -step);
             if (i + 1 < items.length && items[i + 1].rest) touch(items[i + 1], step);
             else { items.splice(i + 1, 0, rest(step)); untie(cur); }
@@ -381,7 +401,7 @@
             } else if (cur.u > step) {
                 touch(cur, -step);                            // la fin de la mesure ne bouge pas
             } else {
-                return { error: 'Fin de la mesure : la note ne peut pas aller plus loin.' };
+                return { error: 'Fin de la mesure : la note ne peut pas aller plus loin d’un pas.' };
             }
             if (i === 0) {                                    // le vide, au début de la mesure
                 var first = rest(step);
@@ -395,7 +415,8 @@
             if (i === 0) return { error: 'Début de la mesure : la note ne peut pas reculer.' };
             var before = items[i - 1];
             if (before.u > step) touch(before, -step);
-            else if (before.rest) { remove(i - 1); i -= 1; }
+            else if (before.rest && before.u === step) { remove(i - 1); i -= 1; }
+            else if (before.rest) return { error: TOO_WIDE };
             else return { error: 'La note précédente disparaîtrait : la raccourcir d’abord.' };
             if (i + 1 < items.length && items[i + 1].rest) touch(items[i + 1], step);
             else { items.splice(i + 1, 0, rest(step)); untie(cur); }
@@ -412,6 +433,6 @@
         transposeAt: transposeAt, voiceOf: voiceOf, timeline: timeline,
         playingAt: playingAt, eventTime: eventTime,
         notesFromTimings: notesFromTimings, align: align,
-        barAt: barAt, parseBar: parseBar, retime: retime,
+        barAt: barAt, parseBar: parseBar, retime: retime, unitAt: unitAt,
     };
 })(window);

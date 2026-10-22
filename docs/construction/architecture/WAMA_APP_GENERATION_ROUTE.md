@@ -857,14 +857,15 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         montrée : MIDI (`ABCJS.synth.getMidiFile`), PDF (impression de la gravure, un SVG par
         système), ABC — côté page : aucune librairie serveur ne lit l'ABC, et `export_formats` sert
         le résultat de la card (l'audio), pas une partition en cours d'édition. ⏳ MusicXML
-        (librairie à faire entrer par la route `library`). ⏳ **PAS FORCÉ (proposé par Fabien le
-        2026-10-22, à faire après son essai du clavier)** : une SURCHARGE du pas automatique — un
-        choix « Pas » dans la poignée (auto, ronde, blanche, noire, croche, double, triple croche)
-        et les touches chiffres pour le changer sans la souris ; l'automatique reste le défaut.
-        Touches suggérées : la convention de MuseScore (vers qui on exporte), où le chiffre monte
-        avec la durée — 3 double, 4 croche, 5 noire, 6 blanche, 7 ronde — plutôt que 1/2/4/8/16
-        (deux touches pour 16). Mécanique : `WamaScore.retime(…, step)` en fraction de ronde ; un
-        pas plus fin que l'écrit donne des durées fractionnaires (`A/2`), que l'ABC écrit.
+        (librairie à faire entrer par la route `library`). ✅ **PAS FORCÉ (proposé par Fabien,
+        fait le même jour)** : une SURCHARGE du pas automatique — un choix « Pas » dans la poignée
+        (auto, ronde, blanche, noire, croche, double, triple croche) et les chiffres, à la
+        convention de MuseScore (vers qui on exporte), où le chiffre monte avec la durée — 2 triple,
+        3 double, 4 croche, 5 noire, 6 blanche, 7 ronde, 0 = auto — plutôt que 1/2/4/8/16 (deux
+        touches pour 16) ; l'automatique reste le défaut, le dernier pas est gardé par le
+        navigateur du lecteur. `WamaScore.retime(…, pas)` en fraction de ronde, ramenée à l'unité
+        `L:` en vigueur (`unitAt`) ; plus fin que l'écrit, des durées fractionnaires (`A/2`) ; un
+        silence plus court que le pas ne le cède pas (refus dit).
       - **grille de temps** : MuScriptor refusait un tempo « non fixe » sur les rendus YuE2 — un temps
         manqué par le suivi décalait tous les rangs. `robust_tempo` re-numérote les temps, garde la
         phase dominante (première droite Theil-Sen : un bloc de contretemps en fin de morceau faisait

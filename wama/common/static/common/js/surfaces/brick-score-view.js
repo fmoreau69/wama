@@ -37,7 +37,9 @@
  * clic CHOISIT une note (et y amène la lecture) ; puis ↑ ↓ la montent ou la descendent d'un degré,
  * ← → la décalent d'un pas dans le temps, + − l'allongent ou la raccourcissent d'un pas — la
  * mesure garde sa durée (`WamaScore.retime`), Échap la quitte. Chaque touche est UN geste
- * (`ctx.edit`, Ctrl+Z l'annule).
+ * (`ctx.edit`, Ctrl+Z l'annule). Le PAS est automatique (la plus petite durée écrite de la
+ * mesure) tant qu'on n'en FORCE pas un — choix « Pas », ou les chiffres 2 à 7 comme MuseScore
+ * (5 = noire), 0 = automatique ; gardé par le navigateur du lecteur.
  *
  * EXPORTER (même jour) : la partition MONTRÉE, telle qu'elle est à l'écran (modifications non
  * enregistrées comprises), en ABC, en MIDI (abcjs, `synth.getMidiFile`) — le format que lisent
@@ -52,6 +54,21 @@
     /** Touche → geste rythmique (`WamaScore.retime`). `=` : le + sans Maj d'un clavier français. */
     var RETIME_KEYS = { ArrowLeft: 'left', ArrowRight: 'right', '+': 'longer', '=': 'longer',
                         '-': 'shorter' };
+    /** Le PAS des gestes rythmiques (2026-10-22, Fabien : « forcer une rythmique précise ») : le
+     *  dénominateur de la figure (4 = la noire) ; '' = automatique, le défaut. */
+    var STEPS = [['', 'Pas : auto'], ['1', 'Pas : ronde'], ['2', 'Pas : blanche'], ['4', 'Pas : noire'],
+                 ['8', 'Pas : croche'], ['16', 'Pas : double croche'], ['32', 'Pas : triple croche']];
+    /** Chiffres → pas : la convention de MuseScore (vers qui on exporte), le chiffre monte avec la
+     *  durée ; 0 rend l'automatique. */
+    var STEP_KEYS = { '0': '', '2': '32', '3': '16', '4': '8', '5': '4', '6': '2', '7': '1' };
+    var STEP_STORE = 'wama.score.step';           // un confort du lecteur : son dernier pas
+
+    function readStep() {
+        var v = '';
+        try { v = localStorage.getItem(STEP_STORE) || ''; } catch (e) { v = ''; }
+        return STEPS.some(function (s) { return s[0] === v; }) ? v : '';
+    }
+    function writeStep(v) { try { localStorage.setItem(STEP_STORE, v); } catch (e) { /* sans stockage */ } }
 
     /** Télécharge `data` sous `name` — un lien jetable, sans aller-retour serveur. */
     function download(data, type, name) {
@@ -141,6 +158,29 @@
             });
             tools.insertBefore(pick, warn);
         }
+
+        // ── Le pas des gestes rythmiques ────────────────────────────────────────────────────
+        var step = readStep();
+        var stepPick = document.createElement('select');
+        stepPick.className = 'form-select form-select-sm py-0 w-auto';
+        stepPick.title = 'Pas des gestes ← → + − : automatique (la plus petite durée écrite de la ' +
+            'mesure) ou une figure — chiffres 2 à 7 (comme MuseScore), 0 = automatique';
+        stepPick.setAttribute('aria-label', 'Pas');
+        STEPS.forEach(function (s) {
+            var option = document.createElement('option');
+            option.value = s[0];
+            option.textContent = s[1];
+            stepPick.appendChild(option);
+        });
+        stepPick.value = step;
+        function setStep(v) {
+            step = v;
+            stepPick.value = v;
+            writeStep(v);
+            ctx.status(STEPS.filter(function (s) { return s[0] === v; })[0][1], '');
+        }
+        stepPick.addEventListener('change', function () { setStep(stepPick.value); });
+        tools.insertBefore(stepPick, warn);
 
         // ── Exporter la partition montrée ───────────────────────────────────────────────────
         var exporter = document.createElement('select');
@@ -335,7 +375,7 @@
 
         /** ← → + − : un geste refusé (la mesure ne le permet pas) ne fait pas de cran, il se dit. */
         function retime(op) {
-            var r = Score.retime(text(), selection.start, op);
+            var r = Score.retime(text(), selection.start, op, step ? 1 / Number(step) : undefined);
             if (r.error) { ctx.status(r.error, 'error'); return; }
             selection = { start: r.start, end: r.end };
             ctx.edit(function () { return r.abc; });
@@ -349,6 +389,12 @@
             var t = e.target;
             if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
             if (e.key === 'Escape' && selection) { selection = null; highlight(); return; }
+            if (STEP_KEYS.hasOwnProperty(e.key)) {
+                setStep(STEP_KEYS[e.key]);
+                e.preventDefault();
+                e.stopPropagation();
+                return;
+            }
             if (!selection || !editable()) return;
             var op = RETIME_KEYS[e.key];
             if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -389,7 +435,7 @@
             refresh: function () { if (text() !== rendered) schedule(); },
             tools: tools,
             help: !anyEdited ? null
-                : 'Partition : clic sur une note = la choisir et y aller · ↑ ↓ = la monter / descendre d’un degré (ou la glisser) · ← → = la décaler d’un pas, la mesure s’ajuste · + − = l’allonger / la raccourcir d’un pas · Échap = ne plus la choisir · Ctrl+Z annule · « Exporter » : MIDI, PDF, ABC'
+                : 'Partition : clic sur une note = la choisir et y aller · ↑ ↓ = la monter / descendre d’un degré (ou la glisser) · ← → = la décaler d’un pas, la mesure s’ajuste · + − = l’allonger / la raccourcir d’un pas · le pas : automatique, ou une figure (choix « Pas », chiffres 2 à 7 comme MuseScore, 0 = auto) · Échap = ne plus la choisir · Ctrl+Z annule · « Exporter » : MIDI, PDF, ABC'
                   + (versions.some(function (v) { return v.role; }) ? ' · une partition LUE ne se modifie pas ici' : ''),
         };
     }

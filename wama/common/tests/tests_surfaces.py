@@ -509,6 +509,22 @@ class ScoreRulesTest(SimpleTestCase):
         self.assertEqual('K:C\nA B/ c5/2|', self._retime('K:C\nA/ B/ c3|', 'B/', 'right')['abc'],
                          'the step is the smallest written fraction')
 
+    def test_a_forced_step_overrides_the_automatic_one(self):
+        """2026-10-22, Fabien : force a figure (a quarter, a 32nd…) instead of the smallest written
+        length — read against the `L:` unit in force ; the automatic step stays the default."""
+        bar = 'X:1\nL:1/16\nK:C\nA4 B4 c8|'
+        at = bar.index('B4')
+        call = lambda step: self._call('retime(%s, %d, "right", %s)' % (json.dumps(bar), at, step))
+        self.assertEqual('X:1\nL:1/16\nK:C\nA5 B4 c7|', call('undefined')['abc'], 'automatic : one 16th')
+        self.assertEqual('X:1\nL:1/16\nK:C\nA8 B4 c4|', call('1/4')['abc'], 'a quarter = 4 units of L:1/16')
+        self.assertEqual('X:1\nL:1/16\nK:C\nA9/2 B4 c15/2|', call('1/32')['abc'],
+                         'finer than written : fractional lengths')
+        self.assertIn('error', call('1/2'), 'a half does not fit before the end of the bar')
+        self.assertIn('error', self._call('retime(%s, %d, "longer", 1/4)' % (
+            json.dumps('X:1\nL:1/16\nK:C\nA4 B4 z2 c6|'), 'X:1\nL:1/16\nK:C\nA4 B4 z2 c6|'.index('B4'))),
+            'a rest shorter than the forced step cannot give it')
+        self.assertEqual([1, 8], self._call('unitAt("K:C\\nA|", 3)'), 'no L: — the 8th of the standard')
+
     def test_a_bar_it_cannot_read_is_left_alone(self):
         for bar in ('K:C\n(3ABc d4|', 'K:C\nA>B c4|', 'K:C\n{g}A4 B4|', 'K:C\nZ4|'):
             self.assertIn('error', self._call('retime(%s, 5, "right")' % json.dumps(bar)), bar)
@@ -521,9 +537,12 @@ class ScoreRulesTest(SimpleTestCase):
                 return parsed.items.reduce(function (s, it) { return s + it.num / it.den; }, 0);
             }
             var out = [], ops = ['left', 'right', 'longer', 'shorter'];
-            for (var at = 7; at < bar.length - 1; at++) ops.forEach(function (op) {
-                var r = S.retime(bar, at, op);
-                if (r.abc) out.push(total(r.abc));
+            // le pas automatique, puis des pas FORCÉS (noire, croche, triple croche)
+            [undefined, 1 / 4, 1 / 8, 1 / 32].forEach(function (step) {
+                for (var at = 7; at < bar.length - 1; at++) ops.forEach(function (op) {
+                    var r = S.retime(bar, at, op, step);
+                    if (r.abc) out.push(total(r.abc));
+                });
             });
             return JSON.stringify({before: total(bar), after: out});'''
         res = json.loads(self.engine.eval('(function(){' + script + '})()'))
