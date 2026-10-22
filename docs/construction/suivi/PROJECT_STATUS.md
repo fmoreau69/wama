@@ -25934,3 +25934,29 @@ Suite de `§PALIER 2026-10-19 — PARTITION` ; domicile `ROUTE §F3b`, détail `
   « Aucune / Réduite / Complète » relié aux modèles qui exigent une partition.
 - 🔴 relancer gunicorn + workers, puis `sync_models` (VRAM du catalogue) ; rejouer
   « Partition complète » sur les cards déjà produites.
+
+## §PALIER 2026-10-22, « Albert MESURÉ ; relance complète qui libère ; l'audio préparé écoutable sans être transcrit » — non poussé — migration `transcriber/0029` APPLIQUÉE — 🔴 relancer gunicorn ET les workers
+
+Demandes de Fabien du 2026-10-22.
+- ✅ **Albert ne rend pas tout le texte — MESURÉ** (`WAMA_QUALITE §9bis`, suite du 2026-10-22) : pas le
+  quota (toutes les requêtes 200 ; un refus fait échouer la card, il ne laisse pas tomber un
+  morceau), pas la découpe (10 min / 2 min / 30 s : même résultat), pas un filtre de parole ; le
+  décodage côté serveur par fenêtres de 30 s rend au plus un segment par fenêtre et en saute
+  d'entières sur une parole lointaine (56 % des mots du local dans ses trous). `temperature` et
+  `prompt` sans effet ; le nivellement AGGRAVE chez Albert (484 → 262 mots). **ILaaS ne sert aucun
+  modèle de parole** (ses deux passerelles listées avec nos clés). ⏳ Décision : (a) écarter Albert
+  de l'automatique pour la parole lointaine, (b) garde commune « temps couvert / temps actif »,
+  (c) signaler à la DINUM.
+- ✅ **Confirmé par un test** : tâche complète sans prétraitement → nivellement activé et lancé SEUL →
+  audio produit, gardé, écoutable → la transcription périmée, son ▶ écoute l'audio nivelé.
+- ✅ **Relance complète** : un prétraitement désactivé perd sa ligne et sa sortie, LIBÉRÉE (sur le
+  disque, l'utilisateur prévenu) — `AppPipeline.release_absent` ; un ▶ borné garde tout.
+- ✅ **« Transcrire l'audio préparé »** (`ProcessSpec.upstream_switch`, réglage du schéma) : décoché,
+  l'audio préparé reste produit et écoutable pour la correction, transcription et locuteurs
+  écoutent l'original ; recoché, la transcription est périmée une fois. Exporté au manifeste.
+- ⏳ **Versions** : exigence consignée (`WAMA_COLLABORATION §7`, 2026-10-22) — une version garde ses
+  intermédiaires ; NVMe 4 To en local, serveur de stockage local en production.
+- 🔄 **Réglages pendant un traitement + arrêt/relance confirmés** : chantier ouvert (palier suivant).
+- Gardes : `ThePreparationIsDeclaredTest` (+3) ; contre-épreuves rouges (`release_absent`,
+  `upstream_switch`). Rouges de la suite hors périmètre : copie servie de `wama-params.js` (WIP
+  d'autrui), source tableur du Studio, profil du converter.

@@ -194,6 +194,8 @@ def render_function_specs(manifest: dict) -> tuple:
             args.append(f"outputs={tuple(s['outputs'])!r}")
         if s['toggle']:
             args.append(f"toggle={s['toggle']!r}")
+        if s.get('upstream_switch'):
+            args.append(f"upstream_switch={s['upstream_switch']!r}")
         # Une ETA ou un résultat logés dans un module de tâches que le `tasks.py` GÉNÉRÉ remplace
         # (`workers`) le suivent : sinon la déclaration pointe un module retiré.
         if s.get('eta'):

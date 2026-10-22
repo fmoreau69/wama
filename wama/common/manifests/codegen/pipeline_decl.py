@@ -95,6 +95,7 @@ def process_specs(pipeline: dict) -> list:
             'share': int(declared.get('share') or 1),
             'outputs': list(declared.get('outputs') or []),
             'toggle': declared.get('toggle', ''),
+            'upstream_switch': declared.get('upstream_switch', ''),
             'eta': declared.get('eta', ''),
             'result': declared.get('result', ''),
             'result_format': declared.get('result_format', ''),

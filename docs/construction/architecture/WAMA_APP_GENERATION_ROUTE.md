@@ -5534,6 +5534,20 @@ cette ligne disait qu'il n'en gardait aucune). Choix par process : décision ouv
 >   TOUS les champs fichier ; l'invariant qu'ils tiennent (un fichier que la COPIE désigne survit
 >   à l'original et n'est libéré qu'avec la dernière card) est désormais écrit tel quel, et un
 >   résultat que seul l'original désignait part avec lui ;
+> - **2026-10-22 — une relance COMPLÈTE retire ce qui ne compte plus** (`AppPipeline.
+>   release_absent`, appelé par le squelette quand le lancement n'est pas borné) : la ligne et la
+>   sortie d'un process que l'élément ne demande plus (prétraitement désactivé) quittent la card —
+>   la sortie LIBÉRÉE (sur le disque, l'utilisateur prévenu), jamais effacée. Un ▶ borné garde
+>   tout : le cas de Fabien — « tâche complète sans prétraitement, puis le prétraitement SEUL, puis
+>   les étapes suivantes sur l'audio préparé » — tient tel quel (garde `…test_leveling_added_later
+>   _and_run_alone_then_feeds_the_next_steps`) ;
+> - **2026-10-22 — un process peut ne pas LIRE ses amonts** (`ProcessSpec.upstream_switch`, un
+>   booléen de l'élément, déclaré au schéma) : à faux, il lit l'entrée de la card pour le type qu'il
+>   consomme ; ces amonts ne le concernent plus (`read_upstreams` : photo, péremption, relance,
+>   `upstream_output`). Demande de Fabien : l'audio préparé sert AUSSI l'intelligibilité pour la
+>   correction humaine — « Transcrire l'audio préparé » décoché, il reste produit et écoutable,
+>   la transcription et les locuteurs écoutent l'original. Exporté au manifeste `pipeline`, relu
+>   et régénéré (`pipeline_decl`, `function_specs_gen`) ;
 > - **les versions d'un média lu** (`Surface.sources_of`) : la page de correction propose
 >   « Original / Nivellement / Débruitage » — dérivé du pipeline et de ce que CONSOMMENT les briques
 >   qui lisent le rôle ; le transport recharge à la même position et le dit au bus (`source`), la
@@ -5549,11 +5563,10 @@ cette ligne disait qu'il n'en gardait aucune). Choix par process : décision ouv
 > 5/5) ; contre-épreuves en mémoire, toutes rouges.
 > ⏳ **Restes, nommés** : (a) les autres glues qui composent encore dossier et nom à la main
 > (converter, anonymizer, enhancer, imager, avatarizer, synthesizer, les glues générées
-> `tasks_gen`) — adoption de `ctx.output_place` à porter ; (b) l'ancien audio préparé d'un process
-> qui n'a plus lieu reste sur la card jusqu'à la relance de ce process (l'aperçu le montre) — le
-> libérer au lancement qui ne le joue plus est une DÉCISION — et l'aperçu (« le contenu PRÉSENT
-> décide ») et la page de correction (`sources_of` : seulement ce qui a lieu) n'appliquent pas la
-> même règle à ce reste ; (c) le choix de version n'est pas retenu d'une ouverture à l'autre ;
+> `tasks_gen`) — adoption de `ctx.output_place` à porter ; (b) ✅ tranché le 2026-10-22 (relance
+> complète → libéré, `release_absent`) ; entre la désactivation et la relance, l'aperçu le montre
+> encore (« le contenu PRÉSENT décide ») quand la page de correction ne le propose plus ; (c) le
+> choix de version n'est pas retenu d'une ouverture à l'autre ;
 > (d) le GÉNÉRATEUR dérive encore sa propre liste de sorties pour les jumelles
 > (`views_gen.champs_sortie` : champs fichier moins ports d'entrée) — à aligner sur
 > `produced_fields`, avec la régénération des jumelles.

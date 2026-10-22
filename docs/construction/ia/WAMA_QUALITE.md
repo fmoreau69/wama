@@ -1116,6 +1116,49 @@ cards diffèrent de QUATRE choses à la fois :
   `celery-default.log` 15:55:50 → 15:56:29). C'est le défaut d'omission déjà mesuré sur SUMM-RE
   (`albert_asr_backend.py`, en-tête : « Albert OMETTAIT 70 à 250 mots… l'écart est dans le décodage
   d'Albert »), ici beaucoup plus fort sur un entretien de 25 min par envoi.
+- ✅ **MESURÉ le 2026-10-22 — pourquoi Albert ne rend pas tout le texte** (demande de Fabien : « on
+  mesure d'abord »). Mêmes 10 premières minutes de Bonneuil, envoyées directement à l'API :
+
+  | envoi | mots | temps couvert |
+  |---|---|---|
+  | 10 min en une requête (comme la card) | 484 | 43 % |
+  | les mêmes, NIVELÉES | **262** | 21 % |
+  | morceaux de 2 min | 492 | 45 % |
+  | morceaux de 30 s | 552 | 45 % |
+  | Whisper large-v3 LOCAL, filtre coupé (#1048) | **1 287** | — |
+
+  - **Ce n'est PAS le quota** : toutes les requêtes ont répondu 200 ; un refus (429 persistant,
+    HTTP ≠ 200) fait ÉCHOUER la transcription en le disant (`workers._transcribe_maybe_chunked` :
+    `if not r.success: return r`), il ne laisse jamais tomber un morceau en silence. Les trous sont
+    DANS des réponses réussies.
+  - **Ce n'est pas la découpe** (10 min, 2 min, 30 s : même résultat), **ni un filtre de parole**
+    côté serveur : le VAD Silero ne garde que 2 s de ces 10 min (parole lointaine), Albert en couvre
+    258 s.
+  - **C'est le décodage par fenêtres de 30 s** : au plus UN segment par fenêtre, qui commence près de
+    son début (0, 28, 60, 93, 132, 163… s) et s'arrête avant sa fin ; des fenêtres entières ne rendent
+    RIEN (270-300 s : 0 mot chez Albert, 55 en local). **56 % des mots** du Whisper local (722 sur
+    1 287) tombent dans ces trous. Les entretiens proches du micro (SUMM-RE, 20 min) n'ont pas ce
+    défaut : Albert y couvre 92 à 99 % du temps (#1072-#1234).
+  - **Aucun réglage de l'API ne l'atteint** : `temperature=0.4` et un `prompt` de contexte rendent les
+    mêmes mots, au mot près, sur trois fenêtres — le serveur décode à sa façon (sans le repli en
+    température ni la recherche en faisceau du local), et ses segments ne portent ni `avg_logprob` ni
+    `no_speech_prob` (champs `id, start, end, text, type, speaker`) : on ne peut même pas dire
+    lesquels il juge douteux.
+  - **Le nivellement aggrave chez Albert** (484 → 262 mots), alors qu'il aide le local (−3,2 points) :
+    à ne pas proposer devant Albert.
+  - **ILaaS n'offre pas de remplaçant** : ni sa passerelle LLM (6 modèles de conversation) ni sa
+    passerelle RAG (OpenGateLLM, la même qu'Albert : bge-m3, reranker, gpt-oss-120b) ne sert de
+    modèle de parole, bien que la route `/audio/transcriptions` existe — listes lues avec nos clés
+    le 2026-10-22.
+  - Le local lui-même tombe à ~5 000 mots sur cet audio dès que le filtre de parole est gardé ou que
+    DeepFilterNet débruite (#173, #176, #1049-#1051) : l'omission sur parole lointaine n'est pas
+    propre à Albert — elle l'est seulement quand rien de NOTRE côté ne l'explique.
+  ⏳ **Décision de Fabien, éléments** : rien à corriger côté WAMA dans l'appel ; trois voies — (a)
+  écarter Albert du tirage automatique pour la parole lointaine ou longue ; (b) une GARDE mesurée
+  et commune à tout moteur : comparer le temps COUVERT par les segments rendus au temps ACTIF du
+  signal (la sonde `speech_activity` mesure déjà l'énergie) et, sous un seuil, le dire sur la card
+  et proposer le moteur local ; (c) signaler le défaut à la DINUM (mesures ci-dessus, données de
+  la session dans le dossier jetable, jamais versionnées : c'est l'entretien de Fabien).
 - **Niveau mesuré avant / après nivellement** (hypothèse de Fabien : « le nivellement baisse peut-être
   le niveau global, faut-il normaliser vers 0 dB ? ») : parole active −25,8 → **−20,1 dBFS**, RMS
   −27,3 → −21,8 dBFS, crête +0,4 (l'original écrête déjà) → −0,2 dBFS. Le nivellement RELÈVE le

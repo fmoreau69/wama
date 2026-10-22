@@ -216,7 +216,10 @@ PIPELINE = register_app_pipeline(_APP, (
                 toggle='preprocess_audio', applies=_denoises, gpu=True, share=2,
                 outputs=('denoised_audio',), split_from='transcribe',
                 eta='transcriber.workers:denoise_eta'),
+    # `upstream_switch` (2026-10-22) : « Transcrire l'audio préparé » décoché, la transcription et
+    # les locuteurs écoutent l'original ; l'audio préparé reste produit et ÉCOUTABLE (correction).
     ProcessSpec('transcribe', label='Transcription', depends_on=('level', 'denoise'),
+                upstream_switch='use_prepared_audio',
                 applies=_transcribes, gpu=True, card_model=True, share=17,
                 eta='transcriber.workers:transcribe_eta',
                 result=f'{_DOCUMENTS}:transcription_text'),
@@ -226,7 +229,7 @@ PIPELINE = register_app_pipeline(_APP, (
     ProcessSpec('align', label='Alignement', depends_on=('import',), degree=OPTIONAL,
                 applies=_align_applies, gpu=True, share=2, eta='transcriber.workers:align_eta'),
     ProcessSpec('diarize', label='Locuteurs', depends_on=('transcribe', 'import', 'align'),
-                degree=OPTIONAL, toggle='enable_diarization',
+                degree=OPTIONAL, toggle='enable_diarization', upstream_switch='use_prepared_audio',
                 applies=_diarize_applies, gpu=True, share=1, eta='transcriber.workers:diarize_eta',
                 result=f'{_DOCUMENTS}:diarization_segments', result_format='segments'),
     # Résumé et cohérence lisent le texte ET ses locuteurs (le compte-rendu de réunion les cite,

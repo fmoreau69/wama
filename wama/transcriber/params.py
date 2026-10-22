@@ -135,6 +135,14 @@ PARAMS = derive_from_model(
                  "ou faits à bas niveau, neutre sur un enregistrement propre.",
             # Le process `level` (2026-10-21) ; la transcription, qui écoute son audio, le suit.
             stales=("level",)),
+        "use_prepared_audio": dict(
+            label="Transcrire l'audio préparé", icon="fa-ear-listen",
+            help="Décoché : l'audio nivelé ou débruité reste produit et écoutable (aperçu, page de "
+                 "correction — pour mieux entendre en corrigeant), mais la transcription et les "
+                 "locuteurs écoutent l'original."),
+            # L'interrupteur d'une LECTURE (`ProcessSpec.upstream_switch`, 2026-10-22), pas d'un
+            # réglage surveillé : changer de source périme la transcription par la photo de ses
+            # amonts, seulement si un audio préparé existe.
         "vad_mode": dict(
             type="select", label="Filtre de parole (VAD)", icon="fa-wave-square",
             help="Whisper et Albert sautent les passages jugés sans parole. « Auto » vérifie "

@@ -852,6 +852,10 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         # n'est pas du temps de traitement.
         ctx.ensure_model(resolved_key)
         with _time_guard(limit_s):
+            if pipeline is not None and only is None:
+                # Relance COMPLÈTE : ce qu'un process désactivé avait rendu quitte la card, libéré
+                # et annoncé (`AppPipeline.release_absent`, décision de Fabien du 2026-10-22).
+                process_runs.safely(pipeline.release_absent, item)
             steps = _selected_steps(app_id, item, process, pipeline, processes, resolved_key,
                                     only=only)
             # Ce que chaque process avait RENDU, lu AVANT que le plan ne repasse ses lignes en

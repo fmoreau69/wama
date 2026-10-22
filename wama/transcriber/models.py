@@ -46,6 +46,10 @@ class Transcript(ProcessingTimeMixin, ScopedVisibility):
                                      blank=True, null=True)
     denoised_audio = models.FileField(upload_to=upload_to_user_output('transcriber'),
                                       blank=True, null=True)
+    # La transcription et les locuteurs écoutent-ils cet audio préparé ? Décoché, il reste
+    # ÉCOUTABLE (aperçu, page de correction — l'intelligibilité pour la correction humaine) et ils
+    # écoutent l'original (`ProcessSpec.upstream_switch`, 2026-10-22, demande de Fabien).
+    use_prepared_audio = models.BooleanField(default=True, db_default=True)
 
     # MODÈLE de transcription — CLÉ DE CATALOGUE entière depuis le 2026-09-30 (route F4b ⑦) :
     # `transcriber:qwen3-asr-1.7b`, `albert:whisper-large-v3`, `huggingface:org/nom` — la valeur même

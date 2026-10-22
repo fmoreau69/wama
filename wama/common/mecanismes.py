@@ -204,7 +204,9 @@ MECHANISMS = (
               "sortie de son amont par un geste (`output_of`, `upstream_output` : le plus proche "
               "amont qui rend ce type) ; un process DÉTACHÉ de son aval (`split_from`) garde "
               "valables les lignes rendues avant le détachement ; ce que les process ont ÉCRIT "
-              "(`produced_fields`), dont une copie repart sans",
+              "(`produced_fields`), dont une copie repart sans. 2026-10-22 : une relance COMPLÈTE "
+              "libère ce qui ne compte plus (`release_absent`) ; un process peut ne pas LIRE ses "
+              "amonts (`upstream_switch`, `read_upstreams`)",
               'wama/common/services/process_pipeline.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_pipeline.py',),
               depends_on=('process_runs', 'input_provenance')),

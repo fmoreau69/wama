@@ -179,6 +179,13 @@ class ProcessSpec:
                   détaché, toute relance l'aurait joué et aurait rejoué son aval avec lui — une
                   transcription entière refaite pour un type de résumé changé. Inerte dès que
                   l'aval a été rendu de nouveau (sa photo ne porte plus ces réglages).
+      upstream_switch  champ BOOLÉEN de l'élément qui dit si ce process LIT la sortie de ses
+                  amonts du type qu'il consomme (les ports d'entrée de son `FunctionSpec`) ; à
+                  faux, il lit l'entrée de la card, et ces amonts ne le concernent plus — ni sa
+                  photo, ni sa péremption, ni sa relance (`read_upstreams`). Leur sortie reste
+                  produite et ÉCOUTABLE. 2026-10-22, demande de Fabien : l'audio préparé sert
+                  aussi l'intelligibilité pour la correction humaine — on doit pouvoir le
+                  produire sans que la transcription l'écoute.
     """
     key: str
     label: str = ''
@@ -197,6 +204,7 @@ class ProcessSpec:
     result: object = None
     result_format: str = ''
     split_from: str = ''
+    upstream_switch: str = ''
 
 
 def output_fingerprint(ref: str) -> str:
@@ -444,6 +452,9 @@ class AppPipeline:
                              # 2026-10-14 (ROADMAP §8d étape 4) : écrit seulement quand il est
                              # vrai — ajout pur, les autres pipelines exportés ne bougent pas.
                              **({'card_model': True} if spec.card_model else {}),
+                             # 2026-10-22 : écrit seulement quand il est posé (ajout pur).
+                             **({'upstream_switch': spec.upstream_switch}
+                                if spec.upstream_switch else {}),
                              **({'label': spec.label} if spec.label else {}),
                              **({'outputs': list(spec.outputs)} if spec.outputs else {}),
                              **({'share': spec.share} if spec.share != 1 else {}),
@@ -499,14 +510,25 @@ class AppPipeline:
                 for row in process_runs.lines(item).filter(instance_key='',
                                                            node_id__in=list(self._by_key))}
 
+    def read_upstreams(self, spec: ProcessSpec, item) -> tuple:
+        """Les amonts que le process LIT pour cet élément : tous (`depends_on`), sauf — quand son
+        interrupteur `upstream_switch` est à faux — ceux qui rendent un type qu'il consomme (ses
+        ports d'entrée) : il lit alors l'entrée de la card, et leur sortie ne le concerne plus. Ce
+        que lisent la photo, la péremption, la relance et `upstream_output`."""
+        if not spec.upstream_switch or getattr(item, spec.upstream_switch, True):
+            return tuple(spec.depends_on)
+        consumed = {port.data_type for port in self._ports(spec)[0]}
+        return tuple(key for key in spec.depends_on
+                     if self.output_type(self._by_key[key]) not in consumed)
+
     def snapshot(self, spec: ProcessSpec, item, rows: dict | None = None) -> dict:
         """Photo de ce que le process SURVEILLE aujourd'hui : ses réglages, et l'empreinte de la
-        sortie de chacun de ses amonts qui a tourné ET compte encore (`_live_rows` : un amont sans
-        ligne, ou qui n'a plus lieu, n'y figure pas)."""
+        sortie de chacun des amonts qu'il LIT (`read_upstreams`) qui a tourné ET compte encore
+        (`_live_rows` : un amont sans ligne, ou qui n'a plus lieu, n'y figure pas)."""
         rows = self._live_rows(item) if rows is None else rows
         taken = process_runs.snapshot(item, self.watched_of(spec))
         upstream = {key: _fingerprint_of(rows[key])
-                    for key in spec.depends_on if key in rows}
+                    for key in self.read_upstreams(spec, item) if key in rows}
         if upstream:
             taken[UPSTREAM_KEY] = upstream
         return taken
@@ -627,14 +649,20 @@ class AppPipeline:
         La donnée suit les liens que le pipeline DÉCLARE (2026-10-21) : la transcription écoute
         l'audio débruité, sinon nivelé, sinon l'original ; les locuteurs, en aval d'elle, le même
         — sans que la glu nomme ses amonts. Le rendu du composer suit la partition extraite ou
-        écrite, deux amonts exclusifs (`applies`)."""
-        order = {spec.key: index for index, spec in enumerate(self.ordered())}
-        seen, pending = set(), list(self.spec(key).depends_on)
+        écrite, deux amonts exclusifs (`applies`). Seuls les amonts LUS comptent
+        (`read_upstreams`) : un process dont l'interrupteur `upstream_switch` est coupé lit
+        l'entrée de la card pour le type qu'il consomme (2026-10-22)."""
+        spec = self.spec(key)
+        if (spec.upstream_switch and not getattr(item, spec.upstream_switch, True)
+                and data_type in {port.data_type for port in self._ports(spec)[0]}):
+            return ''
+        order = {s.key: index for index, s in enumerate(self.ordered())}
+        seen, pending = set(), list(self.read_upstreams(spec, item))
         while pending:
             upstream = pending.pop()
             if upstream not in seen:
                 seen.add(upstream)
-                pending.extend(self.spec(upstream).depends_on)
+                pending.extend(self.read_upstreams(self.spec(upstream), item))
         for upstream in sorted(seen, key=lambda name: -order[name]):
             if self.output_type(self.spec(upstream)) == data_type:
                 found = self.output_of(item, upstream, model_key)
@@ -698,7 +726,8 @@ class AppPipeline:
         known = [spec for spec in self.specs if spec.key in rows]
         stale = process_runs.stale_nodes(
             states={spec.key: rows[spec.key].status for spec in known},
-            depends_on={spec.key: [d for d in spec.depends_on if d in rows] for spec in known},
+            depends_on={spec.key: [d for d in self.read_upstreams(spec, item) if d in rows]
+                        for spec in known},
             snapshots={spec.key: rows[spec.key].settings_snapshot or {} for spec in known},
             current=self._current_photos(item, known, rows))
         if stale:
@@ -788,7 +817,7 @@ class AppPipeline:
             by_key = {spec.key: spec for spec in steps}
             if only not in by_key:
                 raise ValueError(f"process « {only} » : inconnu, ou sans objet pour cet élément")
-            needed, pending = {only}, list(by_key[only].depends_on)
+            needed, pending = {only}, list(self.read_upstreams(by_key[only], item))
             while pending:
                 key = pending.pop()
                 if key in needed or key not in by_key:
@@ -796,7 +825,7 @@ class AppPipeline:
                 if (key in fresh and not _output_lost(fresh[key])) or key in held:
                     continue                      # un amont encore valable est REPRIS
                 needed.add(key)
-                pending.extend(by_key[key].depends_on)
+                pending.extend(self.read_upstreams(by_key[key], item))
             return [spec for spec in steps if spec.key in needed]
         if all(spec.key in fresh or spec.key in held for spec in steps):
             return steps
@@ -806,7 +835,7 @@ class AppPipeline:
         while grown:
             grown = False
             for spec in steps:
-                if spec.key not in todo and any(d in todo for d in spec.depends_on):
+                if spec.key not in todo and any(d in todo for d in self.read_upstreams(spec, item)):
                     todo.add(spec.key)
                     grown = True
         return [spec for spec in steps if spec.key in todo]
@@ -822,6 +851,37 @@ class AppPipeline:
                 safe_delete_file(item, field)
                 setattr(item, field, None)
                 cleared.append(field)
+        return cleared
+
+    def release_absent(self, item) -> list:
+        """Relance COMPLÈTE de la card (son ▶, pas celui d'un process) : un process qui ne compte
+        plus pour l'élément (`still_counts` — désactivé, ou que l'élément ne demande plus) perd sa
+        ligne et sa sortie. La sortie est LIBÉRÉE (`release_card_file` : elle reste sur le disque,
+        l'utilisateur est prévenu, c'est lui qui la supprime), jamais effacée : une partition
+        corrigée à la main ne disparaît pas sans retour. Rend les champs vidés.
+
+        Décision de Fabien (2026-10-22) : *« on devrait retirer l'audio pré-traité si on désactive
+        le pré-traitement dans les réglages et que l'on relance la tâche complète »* — et seulement
+        alors : un ▶ borné (« le prétraitement seul ») garde tout, l'audio produit sert ensuite aux
+        étapes qu'on relance. Jusque-là le fichier restait sur la card, montré par l'aperçu alors
+        que la page de correction ne le proposait plus."""
+        from wama.common.utils.queue_duplication import release_card_file
+        rows = self.rows(item)
+        model_key = self.requested_model(item)
+        gone = [spec for spec in self.specs
+                if spec.key in rows and not self.still_counts(spec, item, model_key)]
+        cleared = []
+        for spec in gone:
+            for field in spec.outputs:
+                if getattr(getattr(item, field, None), 'name', ''):
+                    release_card_file(item, field)
+                    setattr(item, field, None)
+                    cleared.append(field)
+        if cleared:
+            item.save(update_fields=cleared)
+        if gone:
+            process_runs.lines(item).filter(instance_key='',
+                                            node_id__in=[s.key for s in gone]).delete()
         return cleared
 
     def card_state(self, item) -> str:

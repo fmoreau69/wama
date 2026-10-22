@@ -127,6 +127,7 @@
           "label": "Transcription",
           "result": "transcriber.utils.transcript_documents:transcription_text",
           "share": 17,
+          "upstream_switch": "use_prepared_audio",
           "watched": [
             "backend",
             "hotwords",
@@ -180,6 +181,7 @@
           "result": "transcriber.utils.transcript_documents:diarization_segments",
           "result_format": "segments",
           "toggle": "enable_diarization",
+          "upstream_switch": "use_prepared_audio",
           "watched": [
             "diarization_model"
           ]

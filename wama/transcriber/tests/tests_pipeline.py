@@ -580,6 +580,67 @@ class ThePreparationIsDeclaredTest(_Pipeline):
         self.assertNotIn('level', self._states())
         self.assertEqual(('transcribe', item.audio.path), self.heard[0])
 
+    def test_leveling_added_later_and_run_alone_then_feeds_the_next_steps(self):
+        """Fabien's case (2026-10-22) : the full task ran WITHOUT preparation ; the leveling is
+        switched on and ONLY it is run (its ▶) — the leveled audio is produced, kept, readable ;
+        the transcription, rendered from the original, is then stale, and its ▶ (or the card's)
+        transcribes the leveled audio without leveling again."""
+        self._run()
+        self.assertNotIn('level', self._states())
+        self._set(level_speech=True)
+        self.assertIn('level', [row['key'] for row in PIPELINE.card_rows(self.item, 'auto')],
+                      'the strip offers the new step, with its ▶')
+        self.assertEqual(['level'], [s.key for s in PIPELINE.steps_to_run(self.item, 'auto',
+                                                                         only='level')])
+        item = self._run(process='level')
+        self.assertTrue(os.path.isfile(self._abs('leveled_audio')), 'produced and kept')
+        self.assertEqual([], self.heard, 'run alone : nothing downstream was replayed')
+        self.assertIn('transcribe', PIPELINE.refresh(item),
+                      'the transcription was rendered from the original : stale')
+        item = self._run(process='transcribe')
+        self.assertEqual(('transcribe', self._abs('leveled_audio')), self.heard[0])
+        self.assertEqual(1, len(self.leveled), 'the leveling is resumed, not redone')
+
+    def test_the_prepared_audio_can_be_heard_without_being_transcribed(self):
+        """Fabien (2026-10-22) : the preparation also serves the human ear. « Transcrire l'audio
+        préparé » unticked : the leveled audio is produced, kept and offered to listen to, while
+        the engine and pyannote hear the original ; ticking it back stales the transcription
+        ONCE, and the relaunch hears the leveled audio (`ProcessSpec.upstream_switch`)."""
+        from wama.common.surfaces import surface
+        self._set(level_speech=True, use_prepared_audio=False)
+        item = self._run()
+        self.assertTrue(os.path.isfile(self._abs('leveled_audio')), 'produced and kept')
+        self.assertEqual([('transcribe', item.audio.path), ('diarize', item.audio.path)], self.heard)
+        self.assertEqual(['', 'level'],
+                         [v['key'] for v in surface('transcriber', 'correct').sources_of(item, 'audio')],
+                         'offered to the ear all the same')
+        self.assertEqual(set(), PIPELINE.refresh(item), 'nothing it reads changed')
+        self._set(use_prepared_audio=True)
+        self.assertIn('transcribe', PIPELINE.refresh(self.item), 'now it should hear the leveled audio')
+        item = self._run()
+        self.assertEqual(('transcribe', self._abs('leveled_audio')), self.heard[0])
+        self.assertEqual(1, len(self.leveled), 'the leveling is resumed, not redone')
+        self.assertEqual(set(), PIPELINE.refresh(item))
+
+    def test_a_full_relaunch_releases_the_audio_of_a_preparation_switched_off(self):
+        """Fabien (2026-10-22) : leveling switched off, FULL relaunch → the leveled audio leaves
+        the card — RELEASED (still on disk, the user is told), never erased ; its line goes. A
+        bounded run (one process's ▶) keeps it."""
+        from wama.common.models import ReleasedFile
+        self._set(level_speech=True)
+        self._run()
+        leveled = self._abs('leveled_audio')
+        rel = self.item.leveled_audio.name
+        self._set(level_speech=False)
+        self._run(process='transcribe')
+        self.assertEqual(rel, self.item.leveled_audio.name, 'a bounded run keeps it')
+        self.assertIn('level', self._states())
+        item = self._run()
+        self.assertFalse(item.leveled_audio, 'the full relaunch takes it off the card')
+        self.assertNotIn('level', self._states(), 'its line goes with it')
+        self.assertTrue(os.path.isfile(leveled), 'released, not erased')
+        self.assertTrue(ReleasedFile.objects.filter(path=rel).exists(), 'the user is told')
+
     def test_switching_the_leveling_off_stales_the_transcription_once(self):
         self._set(level_speech=True)
         self._run()
