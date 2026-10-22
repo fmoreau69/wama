@@ -418,7 +418,7 @@ serait devenu un chemin dans le ZIP, `..` compris.
 - **Les colonnes d'une ligne nommées par PORT** valent au Studio (`line_to_ports`) ; les vues de lot
   des apps gardent chacune leur correspondance (`CARD_DESIGN §11.11`, question ouverte des lots).
 
-### 🔄 Revérification du 2026-10-22 — « Jeu de données » confronté aux autres nœuds intégrés
+### ✅ Revérification du 2026-10-22 — « Jeu de données » confronté aux autres nœuds intégrés
 
 Demande de Fabien : confronter le nœud `dataset_input` aux huit autres nœuds intégrés du registre
 (`manifests/builtin/pipeline.py`). Ce qui est **aligné** : il est inscrit au registre commun comme
@@ -436,7 +436,18 @@ médias et données ne se mélangent pas) ; son type passe par la porte commune 
 - l'exécuteur recopiait le libellé « Jeu de données » dans son refus d'un amont non typé : il le
   lit au registre.
 
-**⏳ Décision ouverte — son DOMICILE et sa LECTURE.** Le contrat du registre veut un nœud « déclaré
+**✅ Tranché et fait le 2026-10-22 (Fabien : « il faut aligner »).** « Jeu de données » est inscrit
+par le monde Data (`wama_data/functions/io/nodes.py`, à côté de « Base connectée » ; même clé, même
+libellé, mêmes réglages) et lit son fichier par le lecteur tabulaire, via le pont :
+`frames.frame_from_table`, sur une capacité optionnelle du contrat des lecteurs
+(`SourceReader.table`, implémentée par `TabularReader` : son décodage et son typage par colonne).
+Il lit désormais un TSV, un TXT et un XLSX ; une cellule vide reste une valeur manquante. Gardes :
+`wama_data/tests_frames.FrameFromTableTest` (4), le nœud sur un tableur
+(`tests_function_nodes.ConnectedFolderFilesAreReadTest`), et la règle « un nœud est inscrit par le
+monde qu'il déclare » lue au module qui l'inscrit (`tests_node_settings`) ; contre-épreuves rouges
+(l'ancien décodeur remis, le nœud réinscrit par le Studio). Le constat qui l'a motivé :
+
+**Le constat — son DOMICILE et sa LECTURE.** Le contrat du registre veut un nœud « déclaré
 UNE fois par son monde » (`pipeline.py:52-64`) ; R2 a déplacé « Base connectée » et « Export » dans
 `wama_data/functions/io/nodes.py`, et a laissé « Jeu de données » au Studio parce qu'il n'importe
 pas `wama_data` (`d3602860`) — non par décision sur son monde, qu'il déclare pourtant `data`
@@ -446,7 +457,7 @@ depuis le 2026-10-20. Conséquence mesurée : il lit son fichier par un SECOND d
 alors que le passage « fichier lu → `TypedFrame` » a son domicile dans le monde Data
 (`wama_data/frames.py`, le pont). L'aligner, c'est l'inscrire depuis `wama_data` et le faire lire
 par ce lecteur via le pont — ce qui change sa lecture (XLSX accepté ; nombres typés par colonne au
-lieu de l'inférence de pandas) : choix de Fabien. Reste aussi l'intention de
+lieu de l'inférence de pandas). Reste l'intention de
 `WAMA_DATA_FUNCTION_CARDS §5` (sélection de colonnes, tri, filtre, plage temporelle), ⏳ non
 construite, et deux gardes de chemin différentes entre les deux entrées Data (« Base connectée » :
 `filemanager.resoudre_chemin_lisible` ; « Jeu de données » : la désignation).

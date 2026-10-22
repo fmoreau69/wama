@@ -173,6 +173,15 @@ class SourceReader:
         """
         raise NotImplementedError
 
+    def table(self, path: Path) -> Optional[tuple]:
+        """`(en-têtes, lignes)` d'un fichier PLAT, lu comme une table — sans axe temporel exigé —,
+        ou None si ce format n'en est pas une (une base `.trip` a des flux, pas une table).
+
+        Capacité OPTIONNELLE (2026-10-22) : c'est elle que lit l'entrée « Jeu de données » du
+        Studio, par le pont (`frames.frame_from_table`). Elle lisait son fichier par un second
+        décodeur, à côté de celui du lecteur tabulaire."""
+        return None
+
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 # Registre

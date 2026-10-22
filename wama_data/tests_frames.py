@@ -297,3 +297,63 @@ class PontCompletTest(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FrameFromTableTest(unittest.TestCase):
+    """`frame_from_table` — un fichier PLAT lu par le lecteur du registre, en cadre du type DIT
+    (2026-10-22). Le « Jeu de données » du Studio le lisait par `pandas.read_csv`, un second
+    décodeur à côté de celui du lecteur tabulaire : CSV seul, et des colonnes typées par pandas."""
+
+    def setUp(self):
+        import tempfile
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(__import__('shutil').rmtree, self.folder, True)
+
+    def _file(self, name, text):
+        import os
+        path = os.path.join(self.folder, name)
+        with open(path, 'w', encoding='utf-8') as fh:
+            fh.write(text)
+        return path
+
+    def test_the_separator_is_detected_and_each_column_typed_as_a_whole(self):
+        from .frames import frame_from_table
+        path = self._file('trace.csv', 'time;speed;label\n0;1.5;a\n1;2;b\n2;;c\n')
+        frame = frame_from_table(path, DataType.TABLE, meta={'source': 'trace.csv'})
+        self.assertEqual(['time', 'speed', 'label'], frame.fields)
+        self.assertEqual([0.0, 1.0, 2.0], list(frame.df['time']))
+        self.assertEqual([1.5, 2.0], list(frame.df['speed'])[:2])
+        # A hole, not a text value: pandas' missing value in a numeric column, as `read_csv` gave.
+        self.assertTrue(pd.isna(frame.df['speed'][2]))
+        self.assertEqual(['a', 'b', 'c'], list(frame.df['label']))
+        self.assertEqual((DataType.TABLE, 'trace.csv'), (frame.data_type, frame.meta['source']))
+
+    def test_a_short_row_is_padded_and_a_long_one_cut_to_the_header(self):
+        from .frames import frame_from_table
+        frame = frame_from_table(self._file('ragged.csv', 'a,b\n1\n2,3,4\n'), DataType.TABLE)
+        self.assertEqual([1.0, 2.0], list(frame.df['a']))
+        self.assertTrue(pd.isna(frame.df['b'][0]))
+        self.assertEqual(3.0, frame.df['b'][1])
+
+    def test_a_spreadsheet_is_read_too(self):
+        import os
+
+        from openpyxl import Workbook
+
+        from .frames import frame_from_table
+        path = os.path.join(self.folder, 'trace.xlsx')
+        book = Workbook()
+        sheet = book.active
+        for row in (('time', 'lat', 'lon'), (0, 45.1, 4.8), (1, 45.2, 4.9)):
+            sheet.append(row)
+        book.save(path)
+        frame = frame_from_table(path, DataType.GEO_TRACK)
+        self.assertEqual(['time', 'lat', 'lon'], frame.fields)
+        self.assertEqual([45.1, 45.2], list(frame.df['lat']))
+
+    def test_a_file_no_reader_reads_as_a_table_is_refused_naming_the_formats(self):
+        from .frames import frame_from_table
+        with self.assertRaises(ValueError) as said:
+            frame_from_table(self._file('notes.md', '# titre\n'), DataType.TABLE)
+        self.assertIn('notes.md', str(said.exception))
+        self.assertIn('.csv', str(said.exception))

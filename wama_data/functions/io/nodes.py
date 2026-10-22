@@ -2,11 +2,13 @@
 io/ — les nœuds INTÉGRÉS du monde Data, inscrits au registre commun des nœuds du pipeline.
 
 ROUTE §10.6 point 3.3bis, marche R2 (2026-10-18). Le registre (`manifests/builtin/pipeline.py`,
-`register_builtin_node`) ne connaît pas ses producteurs : le monde Data y inscrit ici son ENTRÉE
-Connector et sa SORTIE Exporter (`WAMA_DATA_WORLD §11.5`, `§11.8 ⑨`, ROUTE §10.6 3.6) — une base
-déjà constituée (`.wdat`, `.trip`…) branchée sans copie, et un nœud de sortie qui porte ses
-`Declaration`s d'export. Ni l'un ni l'autre n'est un process : un pipeline qui ne contient qu'eux
-(« je connecte une base et j'en extrais les tables ») est valide.
+`register_builtin_node`) ne connaît pas ses producteurs : le monde Data y inscrit ici ses DEUX
+ENTRÉES — le « Jeu de données » (un fichier plat lu comme donnée typée, l'entrée des nœuds
+fonction ; inscrit par le Studio jusqu'au 2026-10-22) et le Connector — et sa SORTIE Exporter
+(`WAMA_DATA_WORLD §11.5`, `§11.8 ⑨`, ROUTE §10.6 3.6) : une base déjà constituée (`.wdat`,
+`.trip`…) branchée sans copie, et un nœud de sortie qui porte ses `Declaration`s d'export. Aucun
+n'est un process : un pipeline qui ne contient qu'eux (« je connecte une base et j'en extrais les
+tables ») est valide.
 
 Leurs exécuteurs vivaient dans l'exécuteur du Studio (`studio/tasks.py`) et leurs réglages dans
 `studio/services/node_params.py` : le substrat citait donc le monde Data en dur. Déplacés ici tels
@@ -102,6 +104,69 @@ def _export_params():
               default=False, stales=NO_STALE),
     ]
 
+
+def _dataset_type(params) -> str:
+    """Le type de donnée DIT au nœud « Jeu de données » — lu au lancement et avant."""
+    from wama.common.catalog.data_types import DataType, normalize_type
+    return normalize_type((params.get('data_type') or DataType.TABLE).strip())
+
+
+def _emits_dataset(params):
+    return {'types': [_dataset_type(params)]}
+
+
+def _known_types() -> list:
+    from wama.common.catalog.data_types import known_types      # accesseur unique (2026-09-16)
+    return sorted(known_types())
+
+
+def _source_dataset(user, params):
+    """Nœud « Jeu de données » : un fichier PLAT (CSV, TSV, TXT, XLSX) de la médiathèque →
+    `TypedFrame` du `data_type` choisi. C'est la CARD D'ENTRÉE de `WAMA_DATA_FUNCTION_CARDS §5`
+    (source + type déclaré → port typé) : le type est DIT par l'utilisateur, jamais deviné d'une
+    extension. Le fichier se lit par le lecteur tabulaire du monde, par le pont
+    (`frames.frame_from_table`) ; le chemin, par la garde de la désignation — le fichier DISQUE, un
+    dossier connecté compris (`entries.checked_file`).
+
+    Inscrit par le Studio jusqu'au 2026-10-22 (R2 l'y avait laissé : il n'importait pas
+    `wama_data`), il lisait son fichier par `pandas.read_csv`, un second décodeur (CSV seul)."""
+    from wama.common.catalog.data_types import known_types
+    from wama.studio.services.entries import checked_file
+
+    from ...frames import frame_from_table
+    label = 'Jeu de données'
+    raw = (params.get('asset_path') or '').strip().lstrip('/')
+    if not raw:
+        raise ValueError(f"Nœud « {label} » : choisissez un fichier dans les paramètres du nœud.")
+    path = checked_file(user, raw, label)
+    dtype = _dataset_type(params)
+    if dtype not in known_types():
+        raise ValueError(f"Nœud « {label} » : type '{dtype}' inconnu de la taxonomie.")
+    try:
+        return dtype, frame_from_table(path, dtype, meta={'source': raw})
+    except (ValueError, OSError) as exc:
+        raise ValueError(f"Nœud « {label} » : lecture impossible ({exc}).")
+
+
+def _dataset_params():
+    from wama.common.catalog.data_types import DataType
+    return [
+        Param(name='asset_path', type='media_picker', label='Fichier tabulaire (médiathèque)',
+              stales=NO_STALE),
+        Param(name='data_type', type='select', label='Type de donnée', stales=NO_STALE,
+              help='Le type est DIT, jamais deviné de l’extension — la taxonomie des types de '
+                   'donnée.',
+              choices=[(t, t) for t in _known_types()], default=DataType.TABLE),
+    ]
+
+
+register_builtin_node(BuiltinNode(
+    key='dataset_input', role='source', label='Jeu de données', icon='fas fa-table',
+    color='#9ad0ec', world='data',
+    description="Source : un fichier tabulaire (CSV, TSV, TXT, XLSX) de la médiathèque lu comme "
+                "donnée TYPÉE (type choisi dans l'inspecteur) → entrée d'un nœud fonction.",
+    run=_source_dataset, port_label='Données', port_types=_known_types, params=_dataset_params,
+    emits=_emits_dataset))
 
 register_builtin_node(BuiltinNode(
     key='data_connector', role='source', label='Base connectée', icon='fas fa-database',

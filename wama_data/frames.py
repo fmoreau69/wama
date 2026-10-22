@@ -192,6 +192,36 @@ def frame_from_referential(ref: TemporalReferential, name: str, *,
                                meta={'referentiel': ref.name})
 
 
+def frame_from_table(path, data_type: str, *,
+                     meta: Optional[Mapping[str, Any]] = None) -> TypedFrame:
+    """Un fichier PLAT (CSV, TSV, TXT, XLSX…) en cadre du type DIT — l'entrée « Jeu de données »
+    du Studio (2026-10-22).
+
+    Le fichier est lu par le lecteur du registre qui sait en faire une TABLE (`SourceReader.table`,
+    le décodage et le typage par colonne du lecteur tabulaire) — jamais par un second décodeur :
+    il en existait un, `pandas.read_csv`, à côté. Le type n'est pas déduit du fichier : il est
+    DIT par l'utilisateur (`WAMA_DATA_FUNCTION_CARDS §5`). Lève `ValueError` si aucun lecteur ne
+    lit ce fichier comme une table."""
+    import pandas as pd
+    from pathlib import Path
+
+    from .sources import READERS, SourceReader, reader_for
+
+    p = Path(path)
+    reader = reader_for(p)
+    table = reader.table(p) if reader is not None else None
+    if table is None:
+        # Les formats dont le lecteur DÉCLARE savoir rendre une table (il redéfinit `table`).
+        flat = sorted({e for r in READERS.values() if type(r).table is not SourceReader.table
+                       for e in r.extensions})
+        raise ValueError(f"« {p.name} » ne se lit pas comme une table "
+                         f"(formats tabulaires : {', '.join(flat) or '—'})")
+    headers, rows = table
+    width = len(headers)
+    rows = [list(r[:width]) + [None] * (width - len(r)) for r in rows]
+    return TypedFrame(pd.DataFrame(rows, columns=headers), data_type, meta=dict(meta or {}))
+
+
 # ══════════════════════════════════════════════════════════════════════════════════════════════
 # 2. TypedFrame → Signal (le retour d'un calcul dans le référentiel)
 # ══════════════════════════════════════════════════════════════════════════════════════════════

@@ -118,6 +118,12 @@ class TabularReader(SourceReader):
             rows = [r for r in lecteur if r]
         return [str(h).strip() for h in entetes], rows
 
+    def table(self, path: Path) -> tuple:
+        """Le fichier lu comme une TABLE : le même décodage que les flux (séparateur détecté, BOM,
+        XLSX) et le même typage PAR COLONNE (`_numerise`) — sans exiger de colonne temporelle."""
+        entetes, rows = self._read_rows(path)
+        return entetes, _numerise(entetes, rows)
+
     @staticmethod
     def _colonne_temps(entetes: List[str]) -> Optional[int]:
         bas = [h.strip().lower() for h in entetes]

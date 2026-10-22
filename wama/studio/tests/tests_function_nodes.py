@@ -375,6 +375,27 @@ class ConnectedFolderFilesAreReadTest(TestCase):
         with open(asset.file.path, encoding='utf-8') as fh:
             self.assertEqual('time,lat,lon', fh.readline().strip())
 
+    def test_the_dataset_source_reads_a_spreadsheet_through_the_data_reader(self):
+        """« Jeu de données » lit son fichier par le lecteur tabulaire du monde Data, par le pont
+        (`frames.frame_from_table`, 2026-10-22) — son ancien décodeur, `pandas.read_csv`, ne
+        lisait qu'un CSV : un tableur était refusé."""
+        from openpyxl import Workbook
+        path = os.path.join(self.folder, 'trace.xlsx')
+        book = Workbook()
+        rows = [('time', 'lat', 'lon')] + [(float(i), 45.7578 + 2.4e-5 * i, 4.832 + 2.6e-5 * i)
+                                           for i in range(40)]
+        for row in rows:
+            book.active.append(row)
+        book.save(path)
+        self.files['mounts/9/trace.xlsx'] = path
+        run = self._run({
+            'nodes': [{'id': 'n1', 'app': 'dataset_input',
+                       'params': {'asset_path': 'mounts/9/trace.xlsx', 'data_type': 'geo_track'}},
+                      {'id': 'n2', 'app': 'function:ego_track_filter', 'params': {}}],
+            'links': [{'from': 'n1', 'to': 'n2', 'to_port': 'track'}]})
+        self.assertEqual(run.status, 'SUCCESS', run.error_message)
+        self.assertTrue(run.node_states['n2']['output'].startswith('geo_track · 40 ligne(s)'))
+
     def test_a_lot_file_of_a_connected_folder_is_read(self):
         from wama.common.app_registry import studio_node_ports
         from wama.studio.services.entries import lot_lines

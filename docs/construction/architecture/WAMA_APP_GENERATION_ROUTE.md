@@ -4665,9 +4665,16 @@ les 10 à 15 premières secondes ne montrait AUCUN réglage, sans rien dire ; un
 n'atteignait pas toujours l'élément ; un geste enregistrait l'instantané de tous les champs.
 - **Règle 6 — un nœud intégré, une déclaration.** `manifests/builtin/pipeline.BuiltinNode` +
   `register_builtin_node` (registre `pipeline_nodes` de `registries.py`) : rôle, libellé, icône,
-  ports, réglages `Param`, exécuteur. Le Studio inscrit texte, médiathèque, jeu de données et sortie
-  (`studio/services/builtin_nodes.py`), le monde Data sa base connectée et son export
-  (`wama_data/functions/io/nodes.py`) — le substrat du Studio n'importe plus `wama_data`. La palette
+  ports, réglages `Param`, exécuteur. Le Studio inscrit texte, médiathèque, ~~jeu de données~~ et
+  sortie (`studio/services/builtin_nodes.py`), le monde Data sa base connectée et son export
+  (`wama_data/functions/io/nodes.py`) — le substrat du Studio n'importe plus `wama_data`.
+  ⚠ **Corrigé le 2026-10-22** (revérification, décision de Fabien) : le « Jeu de données » se
+  déclarait `data` et restait inscrit par le Studio — R2 l'y avait laissé parce qu'il n'importait
+  pas `wama_data`, et il lisait son fichier par un second décodeur (`pandas.read_csv`, CSV seul). Il
+  est inscrit par le monde Data et lit par son lecteur tabulaire, via le pont
+  (`frames.frame_from_table`, capacité `SourceReader.table`) ; la garde lit le monde DÉCLARÉ de
+  chaque nœud au module qui l'inscrit (`tests_node_settings.test_each_world_registers_its_own_nodes`),
+  plus une liste de clés. La palette
   (le catalogue `/studio/api/nodes/` les sert), `node_kind`, l'inspecteur, le lancement (libellés du
   refus compris) et l'exécuteur les lisent. Retirés : `SOURCE_NODES`/`SINK_NODES`, `BUILTINS` du JS
   (avec « Batch de prompts », que rien n'exécutait), `SOURCE_HANDLERS` et les branches par nom de

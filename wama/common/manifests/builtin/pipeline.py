@@ -60,8 +60,8 @@ class BuiltinNode:
 
     Le registre ne connaît pas ses producteurs : chaque monde inscrit ses nœuds depuis son module
     déclarant (`functions` / `function_specs`, chargé par `function_catalog.load_all`), comme ses
-    fonctions — le Studio ses entrées et sa sortie médiathèque, le monde Data sa base connectée et
-    son export.
+    fonctions — le Studio ses entrées médias et sa sortie médiathèque, le monde Data son jeu de
+    données (depuis le 2026-10-22), sa base connectée et son export.
 
       key         identifiant de palette (`app` du graphe canvas) — une DONNÉE persistée dans les
                   graphes enregistrés : il ne se renomme pas ;

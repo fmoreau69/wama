@@ -3101,10 +3101,11 @@ SEULE frontière entre les deux vocabulaires du monde Data : le référentiel (p
 
 - **Domicile** : `wama_data/frames.py` · **doc** : [docs/construction/mondes/WAMA_DATA_WORLD.md §9quater.7](../construction/mondes/WAMA_DATA_WORLD.md)
 - **Module** : LE PONT — `Signal` / `TemporalReferential` ↔ `TypedFrame`.
-- **API publique** (5) :
+- **API publique** (6) :
   - `default_type(signal: Signal) -> str` — Type de cadre : la FAMILLE DÉCLARÉE d'abord, la structure en repli.
   - `frame_from_signal(signal: Signal, *, t0: Optional[float]=None, t1: Optional[float]=None, offset: float=0.0, data_type: Optional[str]=None, champs: Optional[Ite…` — Une FENÊTRE d'un flux, en cadre typé prêt pour le catalogue.
   - `frame_from_referential(ref: TemporalReferential, name: str, *, t0: Optional[float]=None, t1: Optional[float]=None, data_type: Optional[str]=None, champs: Optio…` — Une fenêtre d'un flux du référentiel, **en temps de session** (piège ①).
+  - `frame_from_table(path, data_type: str, *, meta: Optional[Mapping[str, Any]]=None) -> TypedFrame` — Un fichier PLAT (CSV, TSV, TXT, XLSX…) en cadre du type DIT — l'entrée « Jeu de données »
   - `signal_from_frame(frame: TypedFrame, name: str, *, fs: Optional[float]=None, units: Optional[Mapping[str, str]]=None, comments: str='') -> Signal` — Un cadre typé redevient un flux — **toujours DÉRIVÉ, jamais acquis** (piège ④).
   - `adjoin(ref: TemporalReferential, name: str, frame: TypedFrame, *, offset: float=0.0, **kwargs) -> Signal` — Ajoute au référentiel un flux issu d'un calcul, et le rend.
 

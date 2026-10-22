@@ -367,14 +367,25 @@ class TheBuiltinNodesAreDeclaredOnceByTheirWorldTest(TestCase):
         self.assertEqual({k: b.role for k, b in builtin_nodes().items()}, offered)
 
     def test_each_world_registers_its_own_nodes(self):
-        """Le Studio ses entrées et sa sortie médiathèque, le monde Data sa base et son export —
-        lus au module qui a inscrit chaque nœud, jamais à une liste."""
+        """Un nœud DÉCLARE son monde (`BuiltinNode.world`) et c'est CE monde qui l'inscrit — lu au
+        module qui l'a inscrit, jamais à une liste. Le substrat héberge le monde Médias et les
+        nœuds transverses (le Studio) ; tout autre monde inscrit les siens. « Jeu de données » se
+        déclarait `data` et restait inscrit par le Studio, avec son propre décodeur de fichier
+        (corrigé le 2026-10-22) — la liste qui tenait ce test ne pouvait pas le voir."""
+        from django.apps import apps
+        from wama.common.app_registry import app_world
         from wama.common.manifests.builtin.pipeline import builtin_nodes
-        worlds = {k: b.run.__module__.split('.')[0] for k, b in builtin_nodes().items()}
-        self.assertEqual('wama_data', worlds['data_connector'])
-        self.assertEqual('wama_data', worlds['data_export'])
-        self.assertEqual({'wama'}, {w for k, w in worlds.items()
-                                    if k not in ('data_connector', 'data_export')})
+        checked = 0
+        for key, node in builtin_nodes().items():
+            module = node.run.__module__
+            with self.subTest(node=key, module=module):
+                if node.world in ('', 'media'):
+                    self.assertEqual('wama', module.split('.')[0])
+                    continue
+                config = apps.get_containing_app_config(module)
+                self.assertEqual(node.world, app_world(config.label) if config else None)
+                checked += 1
+        self.assertGreaterEqual(checked, 3, 'the data world registers its three nodes')
 
     def test_every_builtin_node_is_runnable_and_its_settings_render(self):
         from wama.common.manifests.builtin.pipeline import builtin_nodes, node_kind

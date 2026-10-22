@@ -3,8 +3,9 @@ Studio — ses nœuds INTÉGRÉS (cards d'entrée et de sortie), inscrits au reg
 
 ROUTE §10.6 point 3.3bis, marche R2 (2026-10-18). Le registre (`manifests/builtin/pipeline.py`,
 `register_builtin_node`) est lu par la palette, l'inspecteur, le lancement et l'exécuteur ; ce
-module y inscrit ce que le Studio apporte — le texte, le média de la médiathèque, le jeu de données
-et la sortie médiathèque. Le monde Data inscrit les siens (`wama_data/functions/io/nodes.py`).
+module y inscrit ce que le Studio apporte — le texte, les cards d'entrée médias et la sortie
+médiathèque. Le monde Data inscrit les siens (`wama_data/functions/io/nodes.py`) : le jeu de
+données (depuis le 2026-10-22), la base connectée et l'export.
 
 Importé par le module déclarant du Studio (`studio/function_specs.py`, chargé par `load_all`).
 Les exécuteurs et les réglages vivaient dans `studio/tasks.py` (`SOURCE_HANDLERS`, des branches par
@@ -19,17 +20,6 @@ from .entries import card_lot, files_lot
 
 #: Un nœud intégré n'est pas un process : aucun réglage n'en périme un.
 NO_STALE = ()
-
-
-def _media_rel(user, params, key, label) -> str:
-    """Le chemin d'un fichier désigné (relatif à MEDIA_ROOT), s'il passe les gardes de la
-    désignation (`media_paths.check_designation`, 2026-10-20) — avant, seule l'EXISTENCE était
-    vérifiée : un chemin d'un autre compte passait jusqu'à l'outil de l'app."""
-    from .entries import checked_ref
-    rel = (params.get(key) or '').strip().lstrip('/')
-    if not rel:
-        raise ValueError(f"Nœud « {label} » : choisissez un fichier dans les paramètres du nœud.")
-    return checked_ref(user, rel, label)
 
 
 # ── Entrées ─────────────────────────────────────────────────────────────────────────────────
@@ -109,36 +99,6 @@ def _emits_card(params):
     return {'types': [CARD_TYPE], 'ports': ports}
 
 
-def _dataset_type(params) -> str:
-    """Le type de donnée DIT au nœud « Jeu de données » — lu au lancement et avant."""
-    from wama.common.catalog.data_types import DataType, normalize_type
-    return normalize_type((params.get('data_type') or DataType.TABLE).strip())
-
-
-def _emits_dataset(params):
-    return {'types': [_dataset_type(params)]}
-
-
-def _source_dataset(user, params):
-    """Nœud « Jeu de données » : un fichier tabulaire (CSV) de la médiathèque → `TypedFrame`
-    du `data_type` choisi. C'est la CARD D'ENTRÉE de `WAMA_DATA_FUNCTION_CARDS §5` (source +
-    type déclaré → port typé), pas un contournement du pivot taxonomique (marche B) : le type
-    est DIT par l'utilisateur, jamais deviné d'une extension."""
-    from wama.common.catalog.data_types import TypedFrame, known_types
-    from .entries import checked_file
-    rel = _media_rel(user, params, 'asset_path', 'Jeu de données')
-    dtype = _dataset_type(params)
-    if dtype not in known_types():
-        raise ValueError(f"Nœud « Jeu de données » : type '{dtype}' inconnu de la taxonomie.")
-    import pandas as pd
-    try:
-        # Le fichier DISQUE de la désignation (un dossier connecté compris), pas `MEDIA_ROOT/rel`.
-        df = pd.read_csv(checked_file(user, rel, 'Jeu de données'), sep=None, engine='python')
-    except Exception as exc:
-        raise ValueError(f"Nœud « Jeu de données » : lecture impossible ({exc}).")
-    return dtype, TypedFrame(df, dtype, meta={'source': rel})
-
-
 def _media_categories() -> list:
     """Les catégories média, déclarées une fois (`app_registry.MEDIA_CATEGORIES`) — un média de la
     médiathèque en a une, et la sortie range n'importe laquelle. L'ancienne palette JS en
@@ -150,18 +110,6 @@ def _media_categories() -> list:
 def _known_types() -> list:
     from wama.common.catalog.data_types import known_types      # accesseur unique (2026-09-16)
     return sorted(known_types())
-
-
-def _dataset_params():
-    from wama.common.catalog.data_types import DataType
-    return [
-        Param(name='asset_path', type='media_picker', label='Fichier tabulaire (médiathèque)',
-              stales=NO_STALE),
-        Param(name='data_type', type='select', label='Type de donnée', stales=NO_STALE,
-              help='Le type est DIT, jamais deviné de l’extension — la taxonomie des types de '
-                   'donnée.',
-              choices=[(t, t) for t in _known_types()], default=DataType.TABLE),
-    ]
 
 
 # ── Sortie médiathèque ──────────────────────────────────────────────────────────────────────
@@ -363,14 +311,6 @@ register_builtin_node(BuiltinNode(
     run=_card_source('Fichier de lot'), port_label='Lot', port_types=lambda: ['card'],
     emits=_emits_card, params=lambda: [_entry_param()],
     lot=card_lot, compose='lot'))
-
-register_builtin_node(BuiltinNode(
-    key='dataset_input', role='source', label='Jeu de données', icon='fas fa-table',
-    color='#9ad0ec', world='data',
-    description="Source : un fichier tabulaire (CSV) de la médiathèque lu comme donnée TYPÉE "
-                "(type choisi dans l'inspecteur) → entrée d'un nœud fonction.",
-    run=_source_dataset, port_label='Données', port_types=_known_types, params=_dataset_params,
-    emits=_emits_dataset))
 
 register_builtin_node(BuiltinNode(
     key='studio_output', role='sink', label='Sortie', icon='fas fa-flag-checkered',
