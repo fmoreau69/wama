@@ -287,10 +287,6 @@ def create_generation(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-#: Une graine postée VIDE est un choix (aléatoire) — la déclaration que lit aussi la route d'élément.
-SETTINGS_EMPTY_IS_VALUE = ('seed',)
-
-
 def new_generation_settings(user, mode, post=None, model=None, app='imager') -> dict:
     """Les colonnes de réglage d'une génération NAISSANTE, quel que soit son mode, par la cascade
     COMMUNE (`user_settings.new_element_settings`, 2026-10-18) sur le schéma de son DOMAINE (vidéo
@@ -306,7 +302,9 @@ def new_generation_settings(user, mode, post=None, model=None, app='imager') -> 
     from .params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
     schema = VIDEO_PARAMS_JSON if mode in VIDEO_MODES else IMAGE_PARAMS_JSON
     item_model = model or ImageGeneration
-    kwargs = dict(post=post, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+    # Une graine postée VIDE est un choix (un tirage neuf) : la règle COMMUNE des réglages de tirage
+    # (`param_schema.EMPTY_IS_NONE_TYPES`, 2026-10-22) — elle était déclarée ici.
+    kwargs = dict(post=post)
     # Le MODÈLE est lui-même un réglage : on le lit par la cascade, puis ses défauts déclarés
     # deviennent le préréglage de la cascade complète.
     chosen = new_element_settings(user, app, schema, item_model, **kwargs).get('model') or 'auto'
@@ -1185,16 +1183,11 @@ def _apply_generation_settings(generation, data):
         apply_prompt_state(generation, 'prompt', prompt, data.get('prompt_state'))
         whole = True
 
-    # Seed VIDE = aléatoire : remis à None explicitement (sinon l'ancienne graine survivrait).
-    # Une valeur vide n'arrive ici que si le lecteur l'a gardée (route d'un élément) ; pour un
-    # lot, un champ laissé vide veut dire « ne pas toucher » et n'est pas transmis.
-    seed_cleared = data.get('seed', None) == ''
+    # Graine VIDE = un tirage neuf : le lecteur commun la rend `None` (type `seed`, 2026-10-22),
+    # posée comme toute valeur — elle était remise à la main ici.
     touched = apply_item_settings(
         generation, {k: v for k, v in data.items() if k != 'prompt'},
-        params_fields=[n for n in names if n != 'prompt' and (n != 'seed' or not seed_cleared)])
-    if seed_cleared:
-        generation.seed = None
-        touched.append('seed')
+        params_fields=[n for n in names if n != 'prompt'])
 
     # HORS schéma : résolution image (widget à présets par modèle).
     for name in ('width', 'height'):
@@ -1402,8 +1395,7 @@ def update_settings(request, pk):
         from wama.common.utils.batch_views import read_settings_payload
         schema = _schema_for(generation)
         names = [p['name'] for p in schema]
-        # Sur UN élément, une graine postée VIDE est une valeur (aléatoire).
-        data = read_settings_payload(request, schema, names, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+        data = read_settings_payload(request, schema, names)
         try:
             _apply_generation_settings(generation, data)   # la même fonction que le lot
         except ValueError as refusal:

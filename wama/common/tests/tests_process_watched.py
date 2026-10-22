@@ -77,11 +77,13 @@ class TheDerivationTest(SimpleTestCase):
     def test_settings_come_first_in_schema_order_then_the_off_schema_fields(self):
         pipe = _real_pipelines()['composer']
         watched = pipe.watched_of(pipe.spec('render'))
-        # `temperature` (2026-10-21) : la température du moteur, au rendu seul comme la durée.
+        # `temperature` (2026-10-21) : la température du moteur, au rendu seul comme la durée ;
+        # `seed` (2026-10-22) : sa graine, à la partition ET au rendu.
         self.assertEqual(('prompt', 'model', 'vocals', 'lyrics', 'quality_intent', 'duration',
-                          'temperature'), watched[:7])
+                          'temperature', 'seed'), watched[:8])
         self.assertEqual(('prompt_processed', 'reference_score', 'melody_reference', 'source_url'),
-                         watched[7:])
+                         watched[8:])
+        self.assertIn('seed', pipe.watched_of(pipe.spec('plan')), 'YuE draws its score with it')
         self.assertNotIn('duration', pipe.watched_of(pipe.spec('plan')),
                          'the duration is the render only: the score does not read it')
 

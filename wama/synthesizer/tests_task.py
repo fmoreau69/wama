@@ -107,13 +107,18 @@ class SynthesisTaskOnSkeletonTest(TestCase):
         self.assertEqual((0.6, 0.2), (kwargs['sentence_pause'], kwargs['clause_pause']))
 
     def test_the_temperature_set_on_the_card_reaches_the_render_and_replays_the_voice(self):
-        """La TEMPÉRATURE (2026-10-21) : vide = celle du moteur (None jusqu'au rendu), réglée =
-        passée au rendu, et la changer périme la synthèse comme tout réglage de voix."""
+        """La TEMPÉRATURE (2026-10-21) : vide = celle du moteur (rien n'est passé), réglée =
+        passée au rendu dans ses réglages de tirage, et la changer périme la synthèse comme tout
+        réglage de voix. La graine et le top_p (2026-10-22) suivent le même chemin."""
         self._run(self._spoken)
-        self.assertIsNone(self.rendered.call_args.kwargs['temperature'], "the engine's own")
+        self.assertEqual({}, self.rendered.call_args.kwargs['sampling'], "the engine's own")
         self._run(self._spoken, temperature=0.4)
         self.assertEqual(1, self.rendered.call_count, 'a new temperature synthesizes again')
-        self.assertEqual(0.4, self.rendered.call_args.kwargs['temperature'])
+        self.assertEqual({'temperature': 0.4}, self.rendered.call_args.kwargs['sampling'])
+        self._run(self._spoken, temperature=0.4, seed=7, top_p=0.8)
+        self.assertEqual(1, self.rendered.call_count, 'a new seed synthesizes again')
+        self.assertEqual({'temperature': 0.4, 'seed': 7, 'top_p': 0.8},
+                         self.rendered.call_args.kwargs['sampling'])
 
     def test_auto_stays_auto_and_the_line_names_the_drawn_model(self):
         with mock.patch.object(workers, 'resolve_tts_model', return_value=MODEL):

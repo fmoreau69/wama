@@ -21,7 +21,7 @@ menu, selon son niveau cloud — jamais ceux d'un autre, jamais sans autorisatio
 from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
 from wama.common.utils.auto_model import AUTO, intent_param
 from wama.common.utils.param_schema import (Param, ParamGroup, groups_to_dicts, schema_to_dicts,
-                                            temperature_param)
+                                            seed_param, temperature_param, top_p_param)
 
 #: Deux SURFACES pour un schéma, comme les apps (2026-10-18, décision de Fabien) : la section
 #: « Paramètres » du VOLET droit de l'accueil (`panel`) et la modale ⚙ du chat (`item`), chemin du
@@ -58,6 +58,11 @@ PARAMS = [
     Param(name='temperature', **temperature_param(
         'model', dom_id={'panel': 'ai-temperature', 'item': 'ai-temperature-modal'},
         contexts=SURFACES)),
+    # Ses deux voisins (2026-10-22, réglages proposés par Albert) : vides = ceux du modèle.
+    Param(name='seed', **seed_param(
+        'model', dom_id={'panel': 'ai-seed', 'item': 'ai-seed-modal'}, contexts=SURFACES)),
+    Param(name='top_p', **top_p_param(
+        'model', dom_id={'panel': 'ai-top-p', 'item': 'ai-top-p-modal'}, contexts=SURFACES)),
     # L'AVATAR PARLANT est une préférence DURABLE de l'assistant (2026-09-22, demande de Fabien) :
     # jusque-là « affiché / masqué » n'était qu'un état de la page d'accueil, perdu au premier
     # changement de page. `contexts=()` : ces deux réglages ne sont rendus dans AUCUN panneau de

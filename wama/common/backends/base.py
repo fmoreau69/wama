@@ -630,6 +630,37 @@ class BaseModelBackend(ABC):
         d'AudioCraft — que transformers REFUSE en tirage (`temperature` strictement positive)."""
         return temperature is None or float(temperature) > 0
 
+    #: Le TOP P que le moteur applique sans réglage (2026-10-22) — même règle que
+    #: `default_temperature` : une valeur déclarée = il le lit (`sampling_top_p`) ; `None` déclaré
+    #: = il ne le lit pas, le réglage se grise sous lui ; non déclaré = rien d'affirmé.
+    default_top_p: Optional[float] = None
+    #: Le moteur LIT une graine (2026-10-22) : vrai = `sampling_seed` la pose avant de tirer, ou il
+    #: la passe à sa librairie ; faux = il ne tire pas, ou pas avec une graine qu'on lui donne.
+    #: Non déclaré = rien d'affirmé. Les moteurs d'image et de vidéo la lisent tous
+    #: (`GenerationParams.seed`, déclaré une fois sur `ImageGenerationBackend`).
+    reads_seed: Optional[bool] = None
+
+    @staticmethod
+    def _sampling_option(kwargs, name):
+        value = ((kwargs or {}).get('options') or {}).get(name)
+        return None if value in (None, '') else value
+
+    def sampling_top_p(self, kwargs) -> Optional[float]:
+        """Le top_p d'UN appel : celui de la card (`options['top_p']`), sinon celui du moteur."""
+        value = self._sampling_option(kwargs, 'top_p')
+        return self.default_top_p if value is None else float(value)
+
+    def sampling_seed(self, kwargs) -> Optional[int]:
+        """La graine d'UN appel (`options['seed']`), POSÉE sur les générateurs du processus
+        (`seed_generators` : random, numpy, torch) — même graine, mêmes réglages, même résultat
+        sur la même machine. `None` : rien n'est posé, un tirage neuf."""
+        value = self._sampling_option(kwargs, 'seed')
+        if value is None:
+            return None
+        seed = int(value)
+        seed_generators(seed)
+        return seed
+
     # ── Disponibilité / dépendances (hook prospection) ───────────────────────
     @classmethod
     def missing_packages(cls) -> List[str]:
@@ -703,3 +734,23 @@ class BaseModelBackend(ABC):
             "recommended_vram_gb": self.recommended_vram_gb,
             "description": self.description,
         }
+
+
+def seed_generators(seed: int) -> None:
+    """Pose `seed` sur les générateurs que les moteurs tirent (2026-10-22) : `random`, numpy, torch
+    (CPU et CUDA) — chacun s'il est présent. Le service TTS sert un appel à la fois (`--workers 1`) :
+    la graine d'un appel ne se mêle pas à celle d'un autre."""
+    import random
+    random.seed(seed)
+    try:
+        import numpy as np
+        np.random.seed(seed % (2 ** 32))
+    except ImportError:
+        pass
+    try:
+        import torch
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+    except ImportError:
+        pass

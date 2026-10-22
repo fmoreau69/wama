@@ -18,6 +18,8 @@ import logging
 import subprocess
 import tempfile
 
+from wama.common.utils.param_schema import sampling_of
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +67,7 @@ def caption_frames(input_path: str, options: dict = None, progress_callback=None
 
         if chosen and chosen != BLIP:
             return describe_frames_with(chosen, frames, progress, console,
-                                        temperature=options.get('vision_temperature'))
+                                        sampling=sampling_of(options, 'vision_'))
         return describe_frames(frames, progress, console)
 
 
@@ -120,7 +122,7 @@ def describe_video(input_path: str, options: dict = None,
             audio_transcript = condense_transcript(
                 audio_transcript, max_length // 2, output_language=output_language,
                 llm_model=llm_model, llm_provider=llm_provider,
-                llm_temperature=options.get('llm_temperature'))
+                llm_sampling=sampling_of(options, 'llm_'))
         progress(75)
 
         # Combine visual and audio descriptions
@@ -269,11 +271,11 @@ def has_audio(file_path: str) -> bool:
 
 
 def describe_frames_with(model: str, frames: list, progress=None, console=None,
-                         temperature=None) -> list:
+                         sampling=None) -> list:
     """Légende chaque image-clé avec le modèle de vision Ollama DÉSIGNÉ — même forme que
     `describe_frames` (BLIP). Une image sans réponse est sautée, comme BLIP ; aucune réponse du
-    tout est une erreur dite (un modèle désigné n'est jamais remplacé en silence). `temperature` :
-    celle de la card, None = celle du modèle."""
+    tout est une erreur dite (un modèle désigné n'est jamais remplacé en silence). `sampling` :
+    les réglages de tirage de la card (`sampling_of(options, 'vision_')`), None = ceux du modèle."""
     if not frames:
         return []
     progress = progress or _noop
@@ -286,7 +288,7 @@ def describe_frames_with(model: str, frames: list, progress=None, console=None,
     descriptions = []
     for i, frame_path in enumerate(frames):
         progress(30 + int((i / len(frames)) * 25))
-        caption = _describe_with_ollama_vision(model, frame_path, prompt, temperature)
+        caption = _describe_with_ollama_vision(model, frame_path, prompt, sampling)
         if not caption:
             logger.warning(f"{model} : aucune légende pour l'image {i}")
             continue
@@ -343,7 +345,7 @@ def transcribe_track(file_path: str, asr_model: str = None, console=None, user=N
 
 def condense_transcript(transcript: str, max_words: int, output_language: str = 'fr',
                         llm_model: str = '', llm_provider: str = None,
-                        llm_temperature=None) -> str:
+                        llm_sampling=None) -> str:
     """La piste son, telle que la description d'une vidéo la cite : un transcript trop long pour
     elle (`max_words`) est résumé par le LLM, tronqué si le LLM ne répond pas.
 
@@ -360,7 +362,9 @@ def condense_transcript(transcript: str, max_words: int, output_language: str = 
         summary_data = generate_structured_summary(
             transcript, content_hint='audio',
             language=output_language, model=llm_model, provider=llm_provider,
-            temperature=llm_temperature,
+            temperature=(llm_sampling or {}).get('temperature'),
+            seed=(llm_sampling or {}).get('seed'),
+            top_p=(llm_sampling or {}).get('top_p'),
         )
         return summary_data['summary']
     except Exception as e:

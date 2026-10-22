@@ -20,6 +20,7 @@ from django.core.files.base import ContentFile
 
 from .models import VoiceSynthesis
 from wama.common.utils.console_utils import push_console_line
+from wama.common.utils.param_schema import sampling_options
 from .utils.text_extractor import extract_text_from_file
 from .utils.speech_render import render_speech, resolve_tts_model
 
@@ -253,7 +254,7 @@ def _synthesize(synthesis, ctx):
             scene_description=getattr(synthesis, 'scene_description', ''),
             speed=synthesis.speed, pitch=synthesis.pitch,
             sentence_pause=synthesis.sentence_pause, clause_pause=synthesis.clause_pause,
-            temperature=getattr(synthesis, 'temperature', None),
+            sampling=sampling_options(synthesis),   # température, graine, top_p de la card
             on_segment=lambda i, n: ctx.progress(40 + int(i / n * 35)),
             on_partial=_during_preview(synthesis),
             console=lambda m: _console(synthesis.user_id, m),

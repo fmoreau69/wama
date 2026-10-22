@@ -37,6 +37,10 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     # La TEMPÉRATURE du moteur (2026-10-21, `temperature_param`) — null = la sienne (MusicGen : 1).
     temperature = models.FloatField(null=True, blank=True,
                                     help_text="Température du moteur ; vide = celle du moteur.")
+    # Sa GRAINE (2026-10-22, `seed_param`) — null = un tirage neuf (YuE : sa graine fixe). Pas de
+    # top_p : aucun moteur du composer ne le lit (AudioCraft tire par `top_k`).
+    seed = models.IntegerField(null=True, blank=True,
+                               help_text="Graine du moteur de musique ; vide = un tirage neuf.")
     # Clé de CATALOGUE du modèle, ou un « auto » de groupe (`auto:text-to-music`…) — route F4b,
     # 2026-10-01 (`utils/model_choice`). 128 : une clé de dépôt HF dépasse vite 64 caractères.
     model = models.CharField(max_length=128, default='composer:musicgen-small')

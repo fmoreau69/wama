@@ -147,6 +147,7 @@
   //   standalone    : le renderer rend TOUT (label + aide compris) → pas d'enveloppe label/aide
   //   noRow         : pas de <div class="wama-param"> autour (champ invisible)
   //   labelIsBlock  : le libellé est un <div> et non un <label for> (contrôle multi-éléments)
+  //   helpInside    : le renderer place l'aide lui-même (infobulle) → pas de paragraphe d'aide
   //   modelHelp     : accepte l'aide MODÈLE dynamique (help_source → WamaModelHelp)
   //   optionSources : accepte le peuplement ASYNC des options (options_source → endpoint)
   const RENDERERS = {};
@@ -509,10 +510,12 @@
     return (rec === undefined || rec === null || rec === '') ? null : Number(rec);
   }
 
+  // La valeur À CÔTÉ du curseur — celle de l'éditeur quand on la lui laisse (la case le dit déjà ;
+  // compacté le 2026-10-22, la valeur de l'éditeur était aussi redite sur une ligne de note).
   function _temperatureLabel(slider, own) {
     if (!own) return String(slider.value);
     var rec = _recommendedTemperature(slider);
-    return 'du modèle' + (rec !== null ? ' (' + rec + ')' : '');
+    return rec !== null ? String(rec) : '—';
   }
 
   /** La REPRODUCTIBILITÉ que la valeur du moment implique (Fabien, 2026-10-21 : « il faut
@@ -529,8 +532,12 @@
                 : Number(value);
     if (t === null) return 'Celle du modèle : en général, le résultat varie d\'un lancement à l\'autre ; à 0, il est reproductible.';
     if (t <= 0 && floor === 0) return 'Reproductible : à 0, le modèle prend toujours le choix le plus probable.';
-    if (floor > 0) return 'Le résultat varie d\'un lancement à l\'autre : ce modèle ne descend pas à 0.';
-    return 'Le résultat varie d\'un lancement à l\'autre ; à 0, il est reproductible.';
+    // Une GRAINE fixée rend aussi le tirage reproductible (2026-10-22) — sous un modèle qui la lit.
+    var seeded = caps && (caps.params || []).indexOf('seed') !== -1;
+    if (floor > 0) return 'Le résultat varie d\'un lancement à l\'autre : ce modèle ne descend pas à 0' +
+      (seeded ? ' ; une graine fixée le rend reproductible.' : '.');
+    return 'Le résultat varie d\'un lancement à l\'autre ; à 0' +
+      (seeded ? ', ou avec une graine fixée,' : ',') + ' il est reproductible.';
   }
 
   registerRenderer('temperature', function (p, api) {
@@ -544,6 +551,11 @@
     // modèle » vide, et pose une valeur que la surface suit. Le curseur, que `cap_from` grise et
     // borne, est désigné aux liaisons par `data-cap-target` (2026-10-22 — vécu : l'id était celui
     // du curseur, le volet envoyait sa position au lieu du vide).
+    // COMPACT (2026-10-22, Fabien : « la température occupe beaucoup de place ») : curseur, valeur
+    // et « Celle du modèle » sur UNE ligne ; dessous, la seule ligne de reproductibilité, l'aide
+    // du schéma en infobulle (ⓘ) au lieu d'un paragraphe.
+    var info = p.help ? ' <i class="fas fa-circle-info wama-temperature-info" title="' +
+      esc(p.help) + '" aria-label="' + esc(p.help) + '"></i>' : '';
     return '<div class="wama-temperature">' +
       '<input type="hidden" class="wama-temperature-value" id="' + api.id + '" ' +
       api.idAttr + ' data-cap-target="' + api.id + '-slider" value="' + esc(v) + '">' +
@@ -552,15 +564,14 @@
       ' id="' + api.id + '-slider" ' + rattrs + ' value="' + esc(own ? (p.max != null ? p.max / 2 : 1) : v) + '"' +
       ' aria-label="' + esc(p.label || 'Température') + '">' +
       '<span class="wama-temperature-val small text-muted text-nowrap">' +
-      (own ? 'du modèle' : esc(v)) + '</span></div>' +
-      '<div class="form-check form-check-inline small mb-0">' +
+      (own ? '—' : esc(v)) + '</span>' +
+      '<div class="form-check small mb-0 text-nowrap">' +
       '<input class="form-check-input wama-temperature-own" type="checkbox" id="' + api.id + '-own"' +
       (own ? ' checked' : '') + '>' +
-      '<label class="form-check-label" for="' + api.id + '-own">Celle du modèle</label></div>' +
-      '<div class="wama-temperature-hint small text-muted">' +
-      esc(_temperatureHint(null, v, own, false)) + '</div>' +
-      api.helpEl + '</div>';
-  });
+      '<label class="form-check-label" for="' + api.id + '-own">Celle du modèle</label></div></div>' +
+      '<div class="small text-muted"><span class="wama-temperature-hint">' +
+      esc(_temperatureHint(null, v, own, false)) + '</span>' + info + '</div></div>';
+  }, { labelIsBlock: true, helpInside: true });
 
   /** La SURFACE d'une température depuis sa valeur (champ caché) : case, position, libellé,
    *  grisage de la case avec celui du curseur. Rejouée après `apply()` et après chaque borne. */
@@ -633,6 +644,66 @@
       }
     });
     global.__wamaTemperatureBound = true;
+  }
+
+  // ── GRAINE et TOP P — les deux voisins de la température (2026-10-22) ─────────────────────
+  // `param_schema.seed_param` / `top_p_param`. Un champ nombre dont VIDE est un choix (« un tirage
+  // neuf », « celui du modèle ») : il porte lui-même id et nom, `cap_from` le grise sous un modèle
+  // qui ne le lit pas. L'aide du schéma en infobulle, comme la température (compacts).
+  function _infoIcon(p) {
+    return p.help ? '<i class="fas fa-circle-info text-muted" title="' + esc(p.help) +
+      '" aria-label="' + esc(p.help) + '"></i>' : '';
+  }
+  function _numberAttrs(p) {
+    return [p.min != null ? 'min="' + esc(p.min) + '"' : '',
+            p.max != null ? 'max="' + esc(p.max) + '"' : '',
+            p.step != null ? 'step="' + esc(p.step) + '"' : ''].join(' ');
+  }
+  registerRenderer('seed', function (p, api) {
+    var v = (api.value === null || api.value === undefined) ? '' : api.value;
+    return '<div class="d-flex align-items-center gap-2">' +
+      '<input type="number" class="form-control form-control-sm wama-seed-value" id="' + api.id + '" ' +
+      api.idAttr + ' value="' + esc(v) + '" placeholder="Aléatoire" ' + _numberAttrs(p) + '>' +
+      // 🎲 : tire une graine qu'on peut GARDER — « Aléatoire » en tire une neuve à chaque lancement.
+      '<button type="button" class="btn btn-sm btn-outline-secondary wama-seed-draw" ' +
+      'title="Tirer une graine à garder" aria-label="Tirer une graine à garder">' +
+      '<i class="fas fa-dice"></i></button>' + _infoIcon(p) + '</div>';
+  }, { helpInside: true });
+  registerRenderer('top_p', function (p, api) {
+    var v = (api.value === null || api.value === undefined) ? '' : api.value;
+    return '<div class="d-flex align-items-center gap-2">' +
+      '<input type="number" class="form-control form-control-sm wama-top-p-value" id="' + api.id + '" ' +
+      api.idAttr + ' value="' + esc(v) + '" placeholder="Celui du modèle" ' + _numberAttrs(p) + '>' +
+      _infoIcon(p) + '</div>';
+  }, { helpInside: true });
+
+  /** Le texte d'attente du top_p : celui de l'éditeur quand la fiche du modèle choisi le dit
+   *  (`recommended_top_p`, laissée au champ par ses liaisons — `wamaModelCaps`). Pure. */
+  function _topPPlaceholder(caps) {
+    var rec = caps ? caps.recommended_top_p : null;
+    if (rec === undefined || rec === null || rec === '') return 'Celui du modèle';
+    return 'Celui du modèle : ' + String(rec).replace('.', ',');
+  }
+  if (!global.__wamaSeedTopPBound) {
+    document.addEventListener('click', function (e) {
+      var btn = e.target && e.target.closest ? e.target.closest('.wama-seed-draw') : null;
+      if (!btn) return;
+      var input = btn.parentNode.querySelector('.wama-seed-value');
+      if (!input || input.disabled) return;
+      input.value = String(Math.floor(Math.random() * 2147483647));
+      input.dispatchEvent(gestureEvent('change'));
+    });
+    document.addEventListener('wama:cap-applied', function (e) {
+      var t = e.target;
+      if (t && t.classList && t.classList.contains('wama-top-p-value')) {
+        t.placeholder = _topPPlaceholder(t.wamaModelCaps);
+      }
+      if (t && t.classList && t.classList.contains('wama-seed-value')) {
+        var draw = t.parentNode && t.parentNode.querySelector('.wama-seed-draw');
+        if (draw) draw.disabled = !!t.disabled;
+      }
+    });
+    global.__wamaSeedTopPBound = true;
   }
 
   // Repli : type absent du registry → champ texte (comportement historique du `else` final).
@@ -723,7 +794,7 @@
     // dans render() pour les types qui déclarent la capacité `modelHelp` (catalogue model_manager).
     const modelHelp = (r.modelHelp && (p.help_source || p.help_fallback))
       ? '<div class="wama-model-help small text-muted mt-1" id="' + id + '-help"></div>' : '';
-    return label + inner + helpEl + modelHelp;
+    return label + inner + (r.helpInside ? '' : helpEl) + modelHelp;
   }
 
   function _showIfAttr(cond) {
@@ -777,6 +848,15 @@
         controlHtml(p, ctx, value, resolver) + '</div>';
     }
 
+    // Les réglages AVANCÉS sans groupe forment le groupe implicite « Avancé », replié, en dernier —
+    // sur TOUTE surface, groupes déclarés ou non (2026-10-22, Fabien : « c'est là si l'utilisateur
+    // veut aller plus loin, mais s'il n'y touche pas, ça ne surcharge pas l'interface »). Il ne se
+    // formait qu'avec `opts.groups` : le volet d'une app sans groupes montrait l'avancé à plat.
+    const advancedGroup = function (adv) {
+      return _groupWrap({ key: '_advanced', title: opts.advancedTitle || 'Avancé',
+                          icon: 'fa-sliders', collapsed: true }, adv.map(rowHtml).join(''));
+    };
+    const isAdvanced = function (p) { return p.advanced && p.type !== 'hidden'; };
     let html;
     if (Array.isArray(opts.groups) && opts.groups.length) {
       // Rendu par GROUPES déclarés (ParamGroup) : 1) champs hors groupe non avancés (ordre schéma),
@@ -785,18 +865,17 @@
       const flat = [], adv = [];
       params.forEach(function (p) {
         if (p.group) (byGroup[p.group] = byGroup[p.group] || []).push(p);
-        else if (p.advanced && p.type !== 'hidden') adv.push(p);
+        else if (isAdvanced(p)) adv.push(p);
         else flat.push(p);
       });
       html = flat.map(rowHtml).join('') +
         opts.groups.map(function (meta) {
           return _groupWrap(meta, (byGroup[meta.key] || []).map(rowHtml).join(''));
-        }).join('') +
-        _groupWrap({ key: '_advanced', title: opts.advancedTitle || 'Avancé',
-                     icon: 'fa-sliders', collapsed: true },
-                   adv.map(rowHtml).join(''));
+        }).join('') + advancedGroup(adv);
     } else {
-      html = params.map(rowHtml).join('');
+      // Sans groupes déclarés, un `group` ne désigne rien : seul `advanced` range le réglage.
+      html = params.filter(function (p) { return !isAdvanced(p); }).map(rowHtml).join('') +
+        advancedGroup(params.filter(isAdvanced));
     }
 
     container.innerHTML = html;
@@ -1513,6 +1592,16 @@
         // (`_show_if_met`) juge des VALEURS, pas un rendu : il n'a rien à changer.
         row.style.display = (cond && (!rendered(cond.field) || met(cond))) ? '' : 'none';
       });
+      // Un groupe dont TOUS les réglages sont cachés par leur condition se cache aussi (2026-10-22) :
+      // sinon un « Avancé » replié s'ouvrait sur un corps vide (la qualité JPEG du converter, sous
+      // un format qui n'est pas une image). Sa propre condition, jugée plus haut, prime.
+      container.querySelectorAll('[data-group]').forEach(function (group) {
+        if (!group.querySelectorAll || !group.style) return;
+        if (group.getAttribute('data-show-if') && group.style.display === 'none') return;
+        const rows = group.querySelectorAll('[data-param-row]');
+        const shown = Array.prototype.some.call(rows, function (r) { return r.style.display !== 'none'; });
+        group.style.display = (rows.length && !shown) ? 'none' : '';
+      });
     }
     apply();
     // Un seul écouteur délégué, lié UNE fois par conteneur (apply re-interroge le DOM vivant →
@@ -1844,7 +1933,7 @@
                         bindCapFrom: _bindCapFrom,
                         capBindings: _capBindings,
                         syncTemperature: _syncTemperature,
-                        temperatureHint: _temperatureHint,
+                        temperatureHint: _temperatureHint, topPPlaceholder: _topPPlaceholder,
                         // La visibilité `show_if` — exposée pour la garde de PARITÉ avec son
                         // jumeau serveur `param_schema._show_if_met` (`tests_cap_from_js`).
                         bindConditional: _bindConditional,

@@ -40,6 +40,10 @@ class HiggsAudioBackend(TTSBackend):
     #: Il TIRE ses jetons audio : 0,7, le défaut de `serve_engine` (0,3 provoquait des fins de
     #: parole précoces — mesuré). Réglable depuis la card (`temperature_param`, 2026-10-21).
     default_temperature = 0.7
+    #: 0,95, le défaut de `serve_engine.generate` (`serve_engine.py:347`) ; la graine lui est
+    #: passée telle quelle (`seed`, même signature) — réglables depuis la card (2026-10-22).
+    default_top_p = 0.95
+    reads_seed = True
 
     REQUIRED_PACKAGES = ['boson_multimodal', 'transformers', 'librosa', 'soundfile', 'scipy']
     # boson_multimodal s'installe depuis le dépôt Boson AI (pas de wheel PyPI fiable).
@@ -160,7 +164,8 @@ class HiggsAudioBackend(TTSBackend):
                 chat_ml_sample=chat_ml,
                 max_new_tokens=max_tokens,
                 temperature=self.sampling_temperature(_ignored),   # la card, sinon 0,7
-                top_p=0.95,
+                top_p=self.sampling_top_p(_ignored),               # la card, sinon 0,95
+                seed=self.sampling_seed(_ignored),                 # la card, sinon un tirage neuf
                 force_audio_gen=True,
             )
 

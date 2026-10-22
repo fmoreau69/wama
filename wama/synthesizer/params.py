@@ -19,14 +19,15 @@ batch=batchSettings*) → JS de voix/clone/submit inchangé. Gabarit : reader/de
 """
 from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import derive_from_model, schema_to_dicts, temperature_param
+from wama.common.utils.param_schema import (derive_from_model, schema_to_dicts, seed_param,
+                                            temperature_param, top_p_param)
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.synthesizer.models import VoiceSynthesis
 
 PARAMS = derive_from_model(
     VoiceSynthesis,
     include=["tts_model", "quality_intent", "language", "voice_preset", "speed", "pitch",
-             "sentence_pause", "clause_pause", "temperature"],
+             "sentence_pause", "clause_pause", "temperature", "seed", "top_p"],
     overrides={
         "tts_model": dict(
             type="select", label="Modèle TTS", icon="fa-microchip", chip=True,
@@ -104,6 +105,13 @@ PARAMS = derive_from_model(
         "temperature": temperature_param(
             "tts_model", contexts=("item", "panel"),
             dom_id={"panel": "temperature", "item": "settingsTemperature"}),
+        # Ses deux voisins (2026-10-22) : mêmes surfaces, même raison.
+        "seed": seed_param(
+            "tts_model", contexts=("item", "panel"),
+            dom_id={"panel": "seed", "item": "settingsSeed"}),
+        "top_p": top_p_param(
+            "tts_model", contexts=("item", "panel"),
+            dom_id={"panel": "top_p", "item": "settingsTopP"}),
     },
 )
 

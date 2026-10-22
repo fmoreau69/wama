@@ -89,6 +89,12 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
     # Sa TEMPÉRATURE (2026-10-21, `temperature_param`) — null = celle du modèle.
     llm_temperature = models.FloatField(null=True, blank=True,
                                         help_text="Température du modèle de langage ; vide = celle du modèle.")
+    # Sa GRAINE et son TOP P (2026-10-22, `seed_param` / `top_p_param`) — null = un tirage neuf,
+    # celui du modèle.
+    llm_seed = models.IntegerField(null=True, blank=True,
+                                   help_text="Graine du modèle de langage ; vide = un tirage neuf.")
+    llm_top_p = models.FloatField(null=True, blank=True,
+                                  help_text="Top P du modèle de langage ; vide = celui du modèle.")
 
     created_at    = models.DateTimeField(auto_now_add=True)
 

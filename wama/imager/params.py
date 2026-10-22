@@ -26,7 +26,7 @@ Sélecteurs de MODÈLE (route F4b, 2026-09-29) : options tirées du CATALOGUE pa
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.common.utils.param_schema import (
-    ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts,
+    ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts, seed_param,
 )
 from wama.imager.models import ImageGeneration
 
@@ -120,11 +120,12 @@ IMAGE_PARAMS = derive_from_model(
             cap_from={"field": "model", "capability": "recommended_guidance", "mode": "note",
                       "label": "Guidage recommandé pour ce modèle :"},
         ),
-        "seed": dict(
-            type="number", label="Seed", icon="fa-dice",
-            dom_id={"item": "settings_seed", "panel": "seed"},
-            group="qualite",
-            help="Graine aléatoire (vide = aléatoire).",
+        # La GRAINE commune (2026-10-22, `seed_param`) : la même que celle des modèles de langage,
+        # de voix et de musique — vide = un tirage neuf, la fiche dit si le modèle la lit (tous les
+        # moteurs d'image et de vidéo : `ImageGenerationBackend.reads_seed`). Elle reste dans la
+        # Qualité, où on la cherche ici.
+        "seed": seed_param(
+            "model", dom_id={"item": "settings_seed", "panel": "seed"}, group="qualite",
         ),
         "image_strength": dict(
             type="range", label="Force de l'image de référence", icon="fa-image",
@@ -225,10 +226,8 @@ VIDEO_PARAMS = derive_from_model(
             cap_from={"field": "model", "capability": "recommended_guidance", "mode": "note",
                       "label": "Guidage recommandé pour ce modèle :"},
         ),
-        "seed": dict(
-            type="number", label="Seed", icon="fa-dice",
-            dom_id={"item": "video_settings_seed", "panel": "panel_video_seed"},
-            help="Graine aléatoire (vide = aléatoire).",
+        "seed": seed_param(
+            "model", dom_id={"item": "video_settings_seed", "panel": "panel_video_seed"},
             group="qualite",
         ),
     },

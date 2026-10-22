@@ -1275,7 +1275,8 @@ même règle (`_composer_engine_flags` → `apply_engine_flags`).
 
 **La REPRODUCTIBILITÉ dépend de la valeur (revérification du 2026-10-22, Fabien)** — et laisser
 « celle du modèle » ne l'assure PAS : elle vaut le plus souvent plus que 0 (1 pour gemma4,
-qwen3.5, MusicGen ; 0,7 Higgs ; 0,75 XTTS ; 0,9 Qwen3-TTS). Mesuré dans les moteurs : à 0, Higgs
+qwen3.5, MusicGen ; 0,7 Higgs ; 0,75 XTTS ; 0,9 Qwen3-TTS). Mesuré dans les librairies du venv
+(`site-packages`) : à 0, Higgs
 (`serve_engine.py:388`) et AudioCraft (`lm.py:381`) prennent le choix le plus probable ;
 transformers REFUSE de tirer à 0 (`logits_process.py:282`) ; Bark divise par elle
 (`bark/generation.py:482`). D'où, au contrat : `samples(t)` (0 = le choix le plus probable, la
@@ -1285,13 +1286,48 @@ règle appliquée par Audio8, XTTS et Qwen3-TTS) et deux faits de plus sur la fi
 ligne dit ce que la valeur DU MOMENT implique (`wama-params.js::_temperatureHint`) ; l'aide ajoute
 qu'un modèle distant ne le garantit pas toujours, même à 0.
 
-XTTS (0,75, `xtts_v2/config.json:149`, transmis par `tts_to_file` → `Xtts.inference`) et
+XTTS (0,75, le `config.json` de ses poids, ligne 149 — sous `AI-models`, hors dépôt ; transmis par
+`tts_to_file` → `Xtts.inference`) et
 Qwen3-TTS (0,9, `generation_config.json`, ses deux étages) lisent désormais le réglage.
 
 **Restes, nommés** : audio.cpp (aucune option repérée — à mesurer sur le binaire) ; le transcriber
 l'a RETIRÉE exprès (reconnaissance de la parole = reproductibilité) — décision de Fabien à prendre
 avant de l'y remettre ; les jumelles du bac à sable (`translator_01`, `writer_01`) la recevront par
 leur manifeste.
+
+**Ses deux VOISINS, la GRAINE et le TOP P (2026-10-22)** — réglages proposés par Albert (avec
+`max_tokens`, les pénalités et les séquences d'arrêt, laissés de côté : aucun n'est une façon de
+TIRER). Fabien : *« certains modèles comme dans l'Imager portent déjà seed ou graine. Vérifie bien ce
+qui existe déjà pour ne pas faire de doublon. On aligne tout parfaitement. »* **Mesuré avant** : la
+graine vivait dans le SEUL imager (`seed`, type `number`, « vide = aléatoire » tenu par une exception
+de sa vue, `SETTINGS_EMPTY_IS_VALUE` + `seed_cleared`), lue par les dix moteurs d'image et de vidéo ;
+le top_p n'existait nulle part comme réglage, écrit en dur dans deux moteurs (Audio8, Higgs : 0,95).
+
+| étage | graine (`seed`) | top_p (`top_p`) |
+|---|---|---|
+| **la fiche** | `params` ∋ `seed` : Ollama (tout modèle qui converse), un fournisseur compatible OpenAI (Albert, ILaaS, OpenRouter), les moteurs qui la DÉCLARENT (`reads_seed` — Audio8, Higgs, XTTS, Qwen3-TTS, Bark, AudioCraft, YuE ; tous les moteurs d'image et de vidéo, déclaré une fois sur `ImageGenerationBackend`) | `params` ∋ `top_p` et `recommended_top_p` : Ollama (fichier de modèle, `ollama_parameter`), un fournisseur compatible OpenAI, les moteurs qui le déclarent (`default_top_p` — Audio8 0,95, Higgs 0,95, XTTS 0,85, Qwen3-TTS 1,0, valeurs lues dans leurs librairies) |
+| **ne la/le lit pas** | Kokoro ×2, audio.cpp (déclarés), l'API Anthropic (pas de graine), l'abonnement Claude Code | Bark, AudioCraft (il tire par `top_k=250`, `top_p=0` voulant dire « top_k »), YuE, Kokoro ×2, audio.cpp, l'API Anthropic (elle refuse un top_p à côté d'une température) |
+| **l'appel** | `ollama_chat` / `llm_chat` / `chat_with_*` et les cinq aides prennent `seed` et `top_p` EXPLICITES, `None` = rien n'est envoyé ; au distant, à une source compatible OpenAI seulement. Un moteur les lit dans `options` (`sampling_seed` POSE la graine sur random, numpy et torch ; `sampling_top_p`) — la musique les reçoit par `sampling` (ex-`temperature`), comme la voix par `options` | idem |
+| **le réglage** | `seed_param(<champ modèle>)`, type `seed`, vide = un tirage neuf, bouton 🎲 pour tirer une graine à GARDER | `top_p_param(<champ modèle>)`, type `top_p`, vide = celui du modèle, sa valeur dans le texte d'attente |
+
+**Une règle « vide = un choix », commune** : `param_schema.EMPTY_IS_NONE_TYPES` (`temperature`,
+`seed`, `top_p`) — `coerce_*` rend `None`, le volet le garde (`user_settings._EMPTY_IS_VALUE`), et
+ce `None` posté l'emporte sur une préférence retenue à la naissance d'un élément. L'exception de
+l'imager est retirée (elle n'existait que parce que sa graine était un `number`, dont le vide veut
+dire « non fourni »). Ce sont des TYPES et non un champ `nullable` de `Param` : un champ de plus
+réécrivait le schéma sérialisé de toutes les apps. Le générateur d'apps leur donne une colonne
+nulle (`codegen/models_gen._champ_option` — la température y devenait un `CharField`).
+
+**Les apps** : la graine et le top_p à côté de chaque température — describer (`vision_*`, `llm_*`,
+migration 0018), reader (`llm_*`, 0015), assistant (réglages d'utilisateur), synthesizer (0033),
+avatarizer (`tts_*`, 0024) ; le composer la graine seule (0025 : aucun de ses moteurs ne lit de top_p),
+que YuE emploie pour sa partition ET son rendu (`plan_score(sampling=…)`) ; l'imager sa graine, devenue
+la commune. Les apps passent `**sampling_of(item, '<préfixe>')` (les trois, `None` compris) aux appels
+de langage, `sampling_options(item, …)` (les réglés seuls) aux moteurs.
+
+**Sous la température**, la ligne de reproductibilité dit qu'une graine fixée rend aussi le tirage
+reproductible, sous un modèle qui la lit. Les trois réglages sont AVANCÉS : rangés dans le groupe
+« Avancé » replié, qui se forme désormais sur toute surface (`INPUT_MODEL_MATCHING §7`).
 
 ### 3. RAG — alimentation par GESTE, rappel par NIVEAUX (`WAMA_MEMORY.md §7ter`)
 

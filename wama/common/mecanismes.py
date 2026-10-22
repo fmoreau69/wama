@@ -1126,7 +1126,9 @@ MECHANISMS = (
               "dans une app (le chemin de la prévision « Prévu : … »), `modele_par_defaut` hors "
               "app (2026-10-01 : un repli interne faisait annoncer un modèle et en lancer un autre). "
               "La TEMPÉRATURE (2026-10-21) : `None` = celle du MODÈLE, rien n'est envoyé, en local "
-              "comme en distant ; une tâche sans réglage passe `STEADY_TEMPERATURE` par son nom",
+              "comme en distant ; une tâche sans réglage passe `STEADY_TEMPERATURE` par son nom. "
+              "La GRAINE et le TOP P (2026-10-22) : `seed`, `top_p` explicites, rien d'envoyé sans "
+              "réglage, à une source distante compatible OpenAI seulement",
               'wama/common/utils/llm_utils.py', ''),
     Mechanism('assistant_skills', "Skills de rôle de l'assistant",
               "Posture et domaine de l'assistant (science, design, dev) + rappel du "
@@ -1813,7 +1815,11 @@ MECHANISMS = (
               "(`cap_bindings` ⟷ `capBindings`) — grisé s'il ne tire pas, valeur de l'éditeur "
               "rappelée, borné au maximum et au minimum du moteur, une ligne qui dit si le "
               "résultat est REPRODUCTIBLE (2026-10-22). Et une condition `show_if` dont le champ "
-              "n'est pas RENDU dans le conteneur ne cache rien (même date)",
+              "n'est pas RENDU dans le conteneur ne cache rien (même date). Un réglage `advanced` "
+              "sans groupe se range dans le groupe « Avancé » replié sur TOUTE surface, la "
+              "température comprise (même date), avec ses deux voisins `seed_param` / "
+              "`top_p_param` (types `seed`, `top_p`) ; vide = un CHOIX pour les trois "
+              "(`EMPTY_IS_NONE_TYPES`), la graine de l'imager comprise",
               'wama/common/utils/param_schema.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/static/common/js/wama-params.js',
                        'wama/common/templates/common/_settings_modal_footer.html')),
@@ -1825,7 +1831,8 @@ MECHANISMS = (
               "pour l'image comme la vidéo — les tailles proposées en dérivent (2026-09-30) ; la "
               "TEMPÉRATURE d'un modèle qui tire, quel que soit son type (2026-10-21) : `params` ∋ "
               "`temperature`, `recommended_temperature` (Ollama : son fichier de modèle), "
-              "`max_temperature`",
+              "`max_temperature` ; la graine et le top_p (2026-10-22) : `params` ∋ `seed` / "
+              "`top_p`, `recommended_top_p`, déclarés par le moteur (`reads_seed`, `default_top_p`)",
               'wama/common/utils/model_capabilities.py', 'docs/construction/ui/INPUT_MODEL_MATCHING.md',
               annexes=('wama/common/static/common/js/wama-model-caps.js',
                        'wama/common/static/common/js/wama-input-match.js',

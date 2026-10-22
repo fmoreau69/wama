@@ -138,12 +138,18 @@ class PlanThenRenderTest(TestCase):
         return {row.node_id: row.status for row in process_runs.lines(gen)}
 
     def test_the_temperature_of_the_card_reaches_the_engine(self):
-        """The TEMPERATURE (2026-10-21): set on the card, passed to the engine's render; left
-        empty, None — the engine applies its own."""
-        for column in (0.6, None):
+        """The TEMPERATURE (2026-10-21): set on the card, passed to the engine's render in its
+        sampling settings (2026-10-22); left empty, not sent — the engine applies its own."""
+        for column, expected in ((0.6, {'temperature': 0.6}), (None, {})):
             with self.subTest(column=column):
                 self._run(self._generation(model=PLAIN_MODEL, temperature=column), drawn=PLAIN_MODEL)
-                self.assertEqual(column, _PlainEngine.renders[-1]['temperature'])
+                self.assertEqual(expected, _PlainEngine.renders[-1]['sampling'])
+
+    def test_the_seed_of_the_card_reaches_the_score_and_the_render(self):
+        """The SEED (2026-10-22): YuE draws its score AND its render with it — the same one."""
+        self._run(self._generation(seed=1234))
+        self.assertEqual({'seed': 1234}, _ScoreEngine.plans[-1]['sampling'])
+        self.assertEqual({'seed': 1234}, _ScoreEngine.renders[-1]['sampling'])
 
     # ── the two processes ───────────────────────────────────────────────────────────────────
     def test_a_model_that_writes_its_score_runs_plan_then_render(self):

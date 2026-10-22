@@ -14,7 +14,8 @@ de langage ne relit pas le document. Les deux process optionnels ont leur interr
 modèle de langage qu'ils emploient se choisit (`llm_model`).
 """
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import derive_from_model, schema_to_dicts, temperature_param
+from wama.common.utils.param_schema import (derive_from_model, schema_to_dicts, seed_param,
+                                            temperature_param, top_p_param)
 from wama.reader.models import ReadingItem
 from wama.reader.utils.model_config import OCR_SPEC
 
@@ -28,7 +29,8 @@ PARAMS = derive_from_model(
     # de l'utilisateur (brique durable `user_settings`), lu au lancement par
     # `auto_model.quality_intent_of(item, 'reader')` quand le moteur est sur « auto ».
     include=["backend", "quality_intent", "mode", "language", "output_format",
-             "llm_model", "llm_temperature", "format_markdown", "generate_analysis"],
+             "llm_model", "llm_temperature", "llm_seed", "llm_top_p", "format_markdown",
+             "generate_analysis"],
     overrides={
         "quality_intent": intent_param(
             dom_id={"panel": "qualityIntent"}, contexts=("panel",),
@@ -115,6 +117,19 @@ PARAMS = derive_from_model(
             "llm_model",
             dom_id={"panel": "llmTemperature", "batch": "batchSettingsLlmTemperature",
                     "item": "rSettings_llm_temperature"},
+            stales=("format", "analyze"),
+        ),
+        # Ses deux voisins (2026-10-22) : vides = un tirage neuf, celui du modèle.
+        "llm_seed": seed_param(
+            "llm_model",
+            dom_id={"panel": "llmSeed", "batch": "batchSettingsLlmSeed",
+                    "item": "rSettings_llm_seed"},
+            stales=("format", "analyze"),
+        ),
+        "llm_top_p": top_p_param(
+            "llm_model",
+            dom_id={"panel": "llmTopP", "batch": "batchSettingsLlmTopP",
+                    "item": "rSettings_llm_top_p"},
             stales=("format", "analyze"),
         ),
         # Les INTERRUPTEURS des process optionnels : ils sont le `toggle` de leur process, ils ne

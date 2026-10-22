@@ -181,7 +181,8 @@ class Param:
     group: str = ""                             # Groupement UI des SURFACES de saisie (modale/volet) : clé
                                                 # d'un ParamGroup déclaré par l'app. DISTINCT de `section`
                                                 # (chips de card). Vide + advanced=True → groupe implicite
-                                                # « Avancé » replié (WamaParams.render, opts.groups).
+                                                # « Avancé » replié (WamaParams.render), sur TOUTE surface
+                                                # depuis le 2026-10-22 (groupes déclarés ou non).
     pills: list = field(default_factory=list)   # Toggle rendu en sélecteur segmenté (2 pills radio) :
                                                 # [libellé_off, libellé_on] — ex. ["YOLO", "SAM3"]. La valeur
                                                 # lue/envoyée reste 'true'/'false' (contrat serveur inchangé).
@@ -368,7 +369,7 @@ def cap_bindings(p) -> List[dict]:
 # modèle le permet ». Le modèle la porte au catalogue (`model_capabilities` : `params` contient
 # `temperature`, `recommended_temperature`, `max_temperature`) ; ce réglage se pose À CÔTÉ de
 # n'importe quel choix de modèle (`model_field`) et en lit les trois par `cap_from` : grisé, raison
-# dite, sous un modèle qui ne tire pas ; la valeur de l'éditeur rappelée dessous ; borné au maximum
+# dite, sous un modèle qui ne tire pas ; la valeur de l'éditeur à côté du curseur ; borné au maximum
 # du moteur. Vide = « celle du modèle » : rien n'est envoyé, le moteur applique la sienne. Il n'entre
 # PAS dans le curseur rapide/qualité (Fabien, même jour) : celui-là choisit le modèle, celle-ci règle
 # sa façon de tirer.
@@ -384,23 +385,94 @@ def temperature_param(model_field: str, **overrides) -> dict:
     base = dict(
         type='temperature', label='Température', icon='fa-temperature-half',
         default=None, min=0, max=TEMPERATURE_MAX, step=0.05,
+        # Un réglage AVANCÉ (Fabien, 2026-10-22 : « c'est là si l'utilisateur veut aller plus loin,
+        # mais s'il n'y touche pas, ça ne change rien ») : rangé dans le groupe « Avancé » replié.
+        advanced=True,
         # La REPRODUCTIBILITÉ dépend de la valeur (Fabien, 2026-10-21) : à 0, le choix le plus
         # probable ; au-dessus, un tirage — « celle du modèle » est souvent au-dessus. La ligne
         # sous le curseur le dit pour la valeur du moment (`wama-params.js::_temperatureHint`).
         help="Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat "
              "varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même "
              "résultat, même à 0.",
+        # La valeur de l'éditeur (`recommended_temperature`) n'a plus de ligne de note : le curseur
+        # l'affiche à côté de « Celle du modèle » (compacté le 2026-10-22), lue sur la fiche que
+        # chaque liaison laisse au champ (`wamaModelCaps`).
         cap_from=[
             {'field': model_field, 'capability': 'params', 'mode': 'reads', 'param': TEMPERATURE,
              'reason': "Ce modèle ne reçoit pas de réglage de température."},
-            {'field': model_field, 'capability': 'recommended_temperature', 'mode': 'note',
-             'label': 'Celle du modèle :'},
             {'field': model_field, 'capability': 'max_temperature'},
             {'field': model_field, 'capability': 'min_temperature', 'mode': 'min'},
         ],
     )
     base.update(overrides)
     return base
+
+
+# ── La GRAINE et le TOP P — les deux voisins de la température (2026-10-22) ─────────────────────
+# Fabien : « certains modèles comme dans l'Imager portent déjà seed ou graine. Vérifie bien ce qui
+# existe déjà pour ne pas faire de doublon. On aligne tout parfaitement. » La graine vivait dans le
+# seul imager (`seed`, type `number`, « vide = aléatoire » tenu par une exception de sa vue) ; le top_p
+# nulle part, écrit en dur dans deux moteurs (Audio8, Higgs : 0,95). Mêmes règles que la température :
+# le modèle dit s'il les lit (`params` ∋ `seed` / `top_p`), le réglage se grise sinon ; vide = un
+# choix (`EMPTY_IS_NONE_TYPES`) ; réglages AVANCÉS. `nullable` n'est pas un champ de `Param` : un
+# champ de plus réécrirait le schéma sérialisé de toutes les apps — ce sont deux TYPES.
+
+#: Une graine tient dans une colonne `IntegerField` (PostgreSQL : entier signé de 32 bits).
+SEED_MAX = 2 ** 31 - 1
+
+
+def seed_param(model_field: str, **overrides) -> dict:
+    """Surcouche STANDARD de la graine, liée au choix de modèle `model_field` : colonne
+    `IntegerField(null=True, blank=True)`. Vide = un tirage neuf à chaque lancement."""
+    from wama.common.utils.model_capabilities import SEED
+    base = dict(
+        type='seed', label='Graine', icon='fa-dice', default=None, min=0, max=SEED_MAX, step=1,
+        advanced=True,
+        help="Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages "
+             "et le même modèle, redonne le même résultat sur cette machine.",
+        cap_from=[{'field': model_field, 'capability': 'params', 'mode': 'reads', 'param': SEED,
+                   'reason': "Ce modèle ne reçoit pas de graine."}],
+    )
+    base.update(overrides)
+    return base
+
+
+def top_p_param(model_field: str, **overrides) -> dict:
+    """Surcouche STANDARD du top_p, liée au choix de modèle `model_field` : colonne
+    `FloatField(null=True, blank=True)`. Vide = celui du modèle, rien n'est envoyé."""
+    from wama.common.utils.model_capabilities import TOP_P
+    base = dict(
+        type='top_p', label='Top P', icon='fa-filter', default=None, min=0, max=1, step=0.05,
+        advanced=True,
+        help="Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du "
+             "total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
+        cap_from=[{'field': model_field, 'capability': 'params', 'mode': 'reads', 'param': TOP_P,
+                   'reason': "Ce modèle ne reçoit pas de top_p."}],
+    )
+    base.update(overrides)
+    return base
+
+
+#: Les réglages de TIRAGE d'un modèle — leur nom au schéma, sans préfixe, et dans `options`.
+SAMPLING_SETTINGS = ('temperature', 'seed', 'top_p')
+
+
+def sampling_of(source, prefix: str = '') -> dict:
+    """Les réglages de tirage d'un élément (ses colonnes `<prefix>temperature`, `<prefix>seed`,
+    `<prefix>top_p`) ou d'un dict d'options, par leur nom NU — TOUJOURS les trois clés : `None` y
+    veut dire « celui du modèle » (graine : un tirage neuf), jamais « non dit ». Ce que les apps
+    passent aux moteurs (`options`) et aux appels de langage (`**sampling_of(item, 'llm_')`), au
+    lieu de relire chaque colonne."""
+    def read(name):
+        key = prefix + name
+        return source.get(key) if isinstance(source, dict) else getattr(source, key, None)
+    return {name: read(name) for name in SAMPLING_SETTINGS}
+
+
+def sampling_options(source, prefix: str = '') -> dict:
+    """`sampling_of` réduit à ce qui est RÉGLÉ — le `options` d'un moteur (le contrat uniforme de
+    `BaseModelBackend.sampling_*`), où une clé absente laisse jouer celle du moteur."""
+    return {k: v for k, v in sampling_of(source, prefix).items() if v not in (None, '')}
 
 
 def _pget(p, key, default=None):
@@ -598,8 +670,15 @@ def effective_settings(schema, posees=None, preset=None, contexte=None) -> dict:
 
 
 #: Les types de réglage NUMÉRIQUES — bornés par le schéma (`coerce_params`). `temperature` en est un
-#: (2026-10-21), avec une valeur de plus : vide = celle du modèle (None, jamais le minimum).
-NUMERIC_TYPES = ('range', 'number', 'intent', 'temperature')
+#: (2026-10-21), avec une valeur de plus : vide = celle du modèle (None, jamais le minimum). La
+#: graine (`seed`, vide = un tirage neuf) et le `top_p` (vide = celui du modèle) aussi (2026-10-22).
+NUMERIC_TYPES = ('range', 'number', 'intent', 'temperature', 'seed', 'top_p')
+
+#: Les réglages de TIRAGE pour qui VIDE est un CHOIX — « celle du modèle » (température, top_p),
+#: « un tirage neuf » (graine) — rendu `None`, jamais le minimum ni le défaut (2026-10-22 : la
+#: règle de la température étendue à ses deux voisins ; la graine de l'imager la tenait par une
+#: exception locale, `SETTINGS_EMPTY_IS_VALUE`, et un `seed_cleared` écrit dans sa vue).
+EMPTY_IS_NONE_TYPES = ('temperature', 'seed', 'top_p')
 
 
 def coerce_params(schema, data, caps=None):
@@ -642,8 +721,8 @@ def coerce_params(schema, data, caps=None):
         try:
             val = float(raw)
         except (TypeError, ValueError):
-            if ptype == 'temperature':
-                out[name] = None        # vide, absent ou illisible : celle du MODÈLE
+            if ptype in EMPTY_IS_NONE_TYPES:
+                out[name] = None        # vide, absent ou illisible : celle du MODÈLE (graine : neuve)
                 continue
             dflt = _pget(p, 'default')
             val = float(dflt) if dflt is not None else (float(lo) if lo is not None else 0.0)
@@ -651,7 +730,7 @@ def coerce_params(schema, data, caps=None):
             val = max(float(lo), val)
         if hi is not None:
             val = min(float(hi), val)
-        out[name] = int(round(val)) if ptype == 'intent' else val
+        out[name] = int(round(val)) if ptype in ('intent', 'seed') else val
     return out
 
 
@@ -988,7 +1067,7 @@ def coerce_schema_values(schema, data, only_present: bool = True) -> dict:
         if ptype == 'mapping' and raw is not None:
             out[name] = _coerce_mapping(raw)
             continue
-        if ptype == 'temperature' and raw == '':
+        if ptype in EMPTY_IS_NONE_TYPES and raw == '':
             out[name] = None                    # vide = revenir à celle du MODÈLE (un choix)
             continue
         # `''` = champ de formulaire laissé vide = NON FOURNI. Sans ça, un `resize_w=''` posté

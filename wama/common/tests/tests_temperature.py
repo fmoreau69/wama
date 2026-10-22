@@ -206,15 +206,21 @@ class TheCommonSettingTest(SimpleTestCase):
     SCHEMA = [{'name': 'model', 'type': 'select'},
               {'name': 'temperature', **temperature_param('model')}]
 
-    def test_it_is_bound_to_the_four_facts_of_its_model(self):
+    def test_it_is_bound_to_the_facts_of_its_model(self):
+        """The publisher's value has no note line any more: the slider shows it beside « Celle du
+        modèle » (compacted 2026-10-22), read on the fiche every binding leaves on the field."""
         p = temperature_param('vision_model')
         self.assertEqual(('temperature', None), (p['type'], p['default']))
-        self.assertEqual(['params', 'recommended_temperature', 'max_temperature', 'min_temperature'],
+        self.assertEqual(['params', 'max_temperature', 'min_temperature'],
                          [b['capability'] for b in cap_bindings(p)])
         self.assertIn('même résultat', p['help'], 'the help says what the value implies')
         self.assertEqual({'vision_model'}, {b['field'] for b in cap_bindings(p)})
         self.assertEqual(TEMPERATURE, cap_bindings(p)[0]['param'],
                          'the app names its field as it wants, the model lists `temperature`')
+
+    def test_it_is_an_advanced_setting(self):
+        """Fabien, 2026-10-22: there if the user wants to go further, out of the way otherwise."""
+        self.assertTrue(temperature_param('model')['advanced'])
 
     def test_a_single_binding_is_a_list_of_one(self):
         self.assertEqual([{'field': 'm', 'capability': 'fps'}],
@@ -292,8 +298,9 @@ class TheAppsCarryItToTheCallTest(SimpleTestCase):
         from wama.describer.backends import image_backend, video_backend
         with mock.patch.object(image_backend, '_describe_with_ollama_vision',
                                return_value='a road') as seen:
-            video_backend.describe_frames_with('gemma4:12b', ['f1.jpg'], temperature=0.2)
-        self.assertEqual(0.2, seen.call_args.args[3])
+            video_backend.describe_frames_with('gemma4:12b', ['f1.jpg'],
+                                               sampling={'temperature': 0.2})
+        self.assertEqual(0.2, seen.call_args.args[3]['temperature'])
 
     def test_a_describer_document_is_written_at_the_cards_temperature(self):
         from wama.describer.backends import text_backend
@@ -324,7 +331,8 @@ class TheAppsCarryItToTheCallTest(SimpleTestCase):
     def test_the_reader_formats_at_the_cards_temperature(self):
         from wama.reader import tasks
         with mock.patch.object(llm_utils, 'llm_chat', return_value=('# ok', None)) as chat:
-            tasks._format_as_markdown('texte', model='m', provider='ollama', temperature=0.1)
+            tasks._format_as_markdown('texte', model='m', provider='ollama',
+                                      sampling={'temperature': 0.1})
         self.assertEqual(0.1, chat.call_args.kwargs['temperature'])
 
     def test_the_assistant_sends_the_users_temperature_or_none(self):
@@ -346,7 +354,7 @@ class TheEngineSaysItsTemperatureTest(SimpleTestCase):
         from wama.common.backends.higgs_backend import HiggsAudioBackend
         from wama.common.utils.model_capabilities import apply_engine_flags
         caps = apply_engine_flags({'task': 'text-to-speech', 'params': ['voice']}, HiggsAudioBackend)
-        self.assertEqual((['voice', TEMPERATURE], 0.7),
+        self.assertEqual((['voice', TEMPERATURE, 'seed', 'top_p'], 0.7),
                          (caps['params'], caps['recommended_temperature']))
 
     def test_an_engine_that_does_not_sample_says_so(self):
@@ -419,7 +427,7 @@ class TheEngineSaysItsTemperatureTest(SimpleTestCase):
                     self.assertRaises(RuntimeError):
                 speech_render.render_speech('Bonjour.', '/tmp/x.wav', model='synthesizer:bark',
                                             language='fr', voice_preset='default',
-                                            temperature=temperature)
+                                            sampling={'temperature': temperature})
             self.assertEqual(expected, 'temperature' in sent[0])
 
     def test_the_avatarizer_voice_is_spoken_at_the_cards_temperature(self):
@@ -451,7 +459,7 @@ class TheEngineSaysItsTemperatureTest(SimpleTestCase):
                                       side_effect=RuntimeError('stop')) as music, \
                     self.assertRaises(RuntimeError):
                 engine.generate('musicgen-small', 'a calm piano', 10, '/tmp/x.wav',
-                                temperature=asked)
+                                sampling={'temperature': asked})
             self.assertEqual(expected, music.call_args.kwargs['temperature'])
 
     def test_every_music_engine_says_it(self):
@@ -680,7 +688,7 @@ class TemperatureWidgetJsTest(SimpleTestCase):
     def test_left_to_the_model_it_sits_on_the_publishers_value(self):
         out = self._run("var w = temperatureWidget('', '1'); window.WamaParams.syncTemperature(w.wrap);"
                         "return state(w);")
-        self.assertEqual(('', '1', True, 'du modèle (1)'),
+        self.assertEqual(('', '1', True, '1'),
                          (out['value'], out['slider'], out['own'], out['label']))
 
     def test_a_set_value_unticks_the_models_own(self):
@@ -705,7 +713,8 @@ class TemperatureWidgetJsTest(SimpleTestCase):
     def test_ticking_the_models_own_empties_the_value(self):
         out = self._run("var w = temperatureWidget('0.4'); w.own.checked = true;"
                         "fire('change', w.own, true); return state(w);")
-        self.assertEqual(('', True, 'du modèle'), (out['value'], out['own'], out['label']))
+        self.assertEqual(('', True, '—'), (out['value'], out['own'], out['label']),
+                         'no publisher value known: the box says « Celle du modèle », nothing more')
 
     def test_under_a_model_that_does_not_sample_the_box_greys_with_the_slider(self):
         out = self._run(
@@ -773,7 +782,7 @@ class TemperatureWidgetJsTest(SimpleTestCase):
                 f"var fields = {json.dumps(fields)}.map(function (f) {{ return {{value: f[1],"
                 "  getAttribute: function (n) { return n === 'name' ? f[0] : null; }}; });"
                 "var box = {addEventListener: function () {}, querySelectorAll: function (sel) {"
-                "  return sel === '[data-show-if]' ? [row] : fields; }};"
+                "  return sel === '[data-show-if]' ? [row] : sel === '[data-group]' ? [] : fields; }};"
                 "window.WamaParams.bindConditional(box); return row.style.display !== 'none';")
         self.assertTrue(shown([['tts_model', 'auto']]), 'the field is not in this rendering')
         self.assertFalse(shown([['text_content', '']]), 'rendered and empty: hidden')
@@ -831,6 +840,50 @@ class TemperatureWidgetJsTest(SimpleTestCase):
                         " window.carrier.disabled === undefined];")
         self.assertEqual([True, True, True], list(out),
                          'the slider is greyed and knows its model; the carrying field is untouched')
+
+    def _render(self, schema, groups=None):
+        opts = {'context': 'panel'}
+        if groups is not None:
+            opts['groups'] = groups
+        return self._run(
+            "var host = {innerHTML: '', querySelectorAll: function () { return []; },"
+            "            querySelector: function () { return null; }, addEventListener: function () {}};"
+            f"window.WamaParams.render(host, {json.dumps(schema)}, {json.dumps(opts)});"
+            "return host.innerHTML;")
+
+    def test_an_advanced_setting_folds_into_advanced_even_without_declared_groups(self):
+        """Fabien, 2026-10-22: the panel of an app without groups showed the advanced settings flat."""
+        out = self._render([{'name': 'voice', 'type': 'text', 'label': 'Voix'},
+                            {'name': 'temperature', 'type': 'temperature', 'label': 'Température',
+                             'advanced': True, 'min': 0, 'max': 2}])
+        self.assertIn('<details class="wama-param-group" data-group="_advanced"', out)
+        self.assertLess(out.index('data-param-row="voice"'), out.index('data-group="_advanced"'))
+        self.assertGreater(out.index('data-param-row="temperature"'), out.index('<details'),
+                           'the temperature sits inside the folded group')
+        # Counter-check: nothing advanced, no « Avancé » at all.
+        self.assertNotIn('_advanced', self._render([{'name': 'voice', 'type': 'text'}]))
+
+    def test_the_compact_slider_puts_the_help_in_a_tooltip(self):
+        out = self._render([{'name': 'temperature', 'type': 'temperature', 'label': 'Température',
+                             'help': 'Le hasard du modèle.', 'min': 0, 'max': 2}])
+        self.assertIn('title="Le hasard du modèle."', out)
+        self.assertNotIn('<small class="text-muted d-block">Le hasard', out, 'no help paragraph')
+        self.assertEqual(1, out.count('wama-temperature-hint'), 'one line under the slider')
+
+    def test_a_group_whose_settings_are_all_hidden_hides_too(self):
+        """An « Avancé » whose only setting is hidden by its condition would open on nothing."""
+        def group_display(value):
+            return self._run(
+                "var row = {style: {}, getAttribute: function () { return 'output_format'; }};"
+                "var group = {style: {}, getAttribute: function () { return null; },"
+                "             querySelectorAll: function () { return [row]; }};"
+                "var field = {value: " + json.dumps(value) + ", getAttribute: function (n) {"
+                "  return n === 'name' ? 'output_format' : null; }};"
+                "var box = {addEventListener: function () {}, querySelectorAll: function (sel) {"
+                "  return sel === '[data-show-if]' ? [row] : sel === '[data-group]' ? [group] : [field]; }};"
+                "window.WamaParams.bindConditional(box); return group.style.display;")
+        self.assertEqual('none', group_display(''))
+        self.assertEqual('', group_display('jpg'), 'one setting shown: the group shows')
 
     def test_a_value_set_on_the_carrying_field_moves_the_surface(self):
         """The panel inspector sets the field by its id, then says `change`: the surface follows."""

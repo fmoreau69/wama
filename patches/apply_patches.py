@@ -254,7 +254,9 @@ print("=== higgs_backend.py (in repo — vérification seulement) ===")
 higgs = project_dir / "wama" / "common" / "backends" / "higgs_backend.py"
 checks = [
     ('HIGGS_DISABLE_CUDA_GRAPHS', "CUDA graphs disabled"),
-    ('temperature=0.7', "temperature=0.7 (was 0.3)"),
+    # Déclarée au contrat commun depuis le 2026-10-21 (`default_temperature`, réglable par la card) :
+    # l'aiguille `temperature=0.7` de l'appel n'existait plus, le contrôle criait [MISSING] à tort.
+    ('default_temperature = 0.7', "temperature=0.7 (was 0.3)"),
     ('MAX_REF_DURATION_S', "reference audio auto-trim to 6s"),
     ('_generation_lock', "sérialisation des générations (KV cache partagé)"),
 ]

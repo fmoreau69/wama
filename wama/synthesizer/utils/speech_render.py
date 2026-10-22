@@ -21,6 +21,7 @@ import os
 import shutil
 
 from wama.common.tts.service_client import tts_via_service
+from wama.common.utils.param_schema import sampling_options
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +97,7 @@ def preview_text(text):
 
 def render_speech(text, output_path, *, model, language, voice_preset, speaker_wav=None,
                   multi_speaker=False, scene_description='', speed=1.0, pitch=1.0,
-                  sentence_pause=0.0, clause_pause=0.0, temperature=None,
+                  sentence_pause=0.0, clause_pause=0.0, sampling=None,
                   on_segment=None, on_partial=None, console=None, read_timeout=None):
     """Rend `text` en WAV : segments par moteur → service TTS → assemblage → vitesse/hauteur.
 
@@ -119,8 +120,9 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     la voix de l'assistant. La découpe par LONGUEUR ci-dessous coupe aux fins de phrase : le
     silence entre deux segments est alors la pause de fin de phrase, quand elle est réglée.
 
-    `temperature` (2026-10-21) : celle de la card, dans `options` elle aussi — le moteur qui tire
-    la lit (`BaseModelBackend.sampling_temperature`) ; None = la sienne, rien n'est envoyé.
+    `sampling` : les réglages de TIRAGE de la card (`param_schema.sampling_options` — température
+    2026-10-21, graine et top_p 2026-10-22), dans `options` eux aussi — le moteur qui tire les lit
+    (`BaseModelBackend.sampling_*`) ; une clé absente = la sienne, rien n'est envoyé.
     """
     from pydub import AudioSegment
 
@@ -139,7 +141,7 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     from wama.common.backends.tts_base import bounded_pause
     sentence_pause, clause_pause = bounded_pause(sentence_pause), bounded_pause(clause_pause)
     options = {'sentence_pause': sentence_pause, 'clause_pause': clause_pause,
-               **({'temperature': float(temperature)} if temperature not in (None, '') else {})}
+               **sampling_options(sampling or {})}
     gap_ms = int(sentence_pause * 1000) if sentence_pause else CHUNK_GAP_MS
     total = len(chunks)
     combined = AudioSegment.empty()

@@ -100,9 +100,11 @@ def clear_user_app_settings(user, app, names):
 # Toutes les fonctions acceptent la même déclaration (l'app la passe telle quelle, `**`).
 
 #: Types de param pour qui `''` EST une valeur (un prompt vidé, un choix remis sur « auto », une
-#: température rendue au modèle) ; pour les autres (nombres, interrupteurs), `''` veut dire « non
-#: fourni ».
-_EMPTY_IS_VALUE = ('text', 'textarea', 'select', 'temperature')
+#: température, un top_p rendus au modèle, une graine rendue au hasard — `EMPTY_IS_NONE_TYPES`) ;
+#: pour les autres (nombres, interrupteurs), `''` veut dire « non fourni ».
+from wama.common.utils.param_schema import EMPTY_IS_NONE_TYPES  # noqa: E402 (feuille sans import)
+
+_EMPTY_IS_VALUE = ('text', 'textarea', 'select') + EMPTY_IS_NONE_TYPES
 
 
 def _panel_defaults(params, key, extra):
@@ -197,6 +199,9 @@ def new_element_settings(user, app, params, model, *, post=None, context=None, k
     # existant, ici pour un élément qui naît (2026-10-18).
     for name in invalid_choice_values(params, given):
         given.pop(name)
+    # Un réglage de TIRAGE posté vide (`EMPTY_IS_NONE_TYPES`) n'a rien à faire ici : la coercition
+    # le rend `None`, et ce choix posté l'emporte sur la préférence retenue (2026-10-22 — la graine de
+    # l'imager se déclarait dans `empty_is_value` parce qu'elle était un `number`).
     for name in empty_is_value:
         if post is not None and name in post and post.get(name) in (None, ''):
             given.pop(name, None)

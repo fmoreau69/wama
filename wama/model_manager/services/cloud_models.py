@@ -263,13 +263,19 @@ def model_info_for(source: str, item: dict):
         caps['modalities'] = [*caps.get('modalities', []), 'image']
     # La TEMPÉRATURE (2026-10-21) : un modèle de conversation distant la lit — `llm_chat` la
     # transmet au fournisseur. Pas l'abonnement Claude Code : le CLI ne la prend pas. Anthropic
-    # la borne à 1 (son API refuse au-delà).
-    from wama.common.utils.model_capabilities import TEMPERATURE
+    # la borne à 1 (son API refuse au-delà). La GRAINE et le TOP P (2026-10-22) : un fournisseur
+    # compatible OpenAI les reçoit (Albert les propose) ; l'API Anthropic n'a pas de graine et
+    # refuse un top_p à côté d'une température — `llm_chat` ne les lui envoie pas.
+    from wama.common.utils.model_capabilities import SEED, TEMPERATURE, TOP_P
     if abilities.get('completion'):
         # Écrit vide pour l'abonnement : « ne la lit pas » est un fait, qui grise le réglage.
-        caps['params'] = [] if src.protocol in UNLISTABLE_PROTOCOLS else [TEMPERATURE]
-        if src.protocol == 'anthropic':
+        if src.protocol in UNLISTABLE_PROTOCOLS:
+            caps['params'] = []
+        elif src.protocol == 'anthropic':
+            caps['params'] = [TEMPERATURE]
             caps['max_temperature'] = 1.0
+        else:
+            caps['params'] = [TEMPERATURE, SEED, TOP_P]
     return ModelInfo(
         id=item['id'], name=item.get('name') or item['id'],
         model_type=ModelType(model_type), source=ModelSource(source),

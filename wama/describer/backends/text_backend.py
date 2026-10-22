@@ -49,6 +49,7 @@ def extract_from_html(file_path: str) -> str:
 
 # _html_to_readable_text : extraction portee au commun (reutilisable partout).
 from wama.common.utils.url_ingest import html_to_readable_text as _html_to_readable_text  # noqa: E402,F401
+from wama.common.utils.param_schema import sampling_of  # noqa: E402
 
 
 def extract_from_pdf(file_path: str) -> str:
@@ -169,7 +170,7 @@ def describe_text(input_path: str, options: dict = None,
             summary_data = generate_structured_summary(
                 text, content_hint='text', language=output_language or 'fr',
                 model=_model, provider=_provider,
-                temperature=options.get('llm_temperature'),
+                **sampling_of(options, 'llm_'),
             )
             progress(85)
 

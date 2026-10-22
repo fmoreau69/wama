@@ -460,7 +460,8 @@ def thinking_wanted(quality_intent) -> bool:
 
 
 def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta=None,
-                 temperature: float | None = None) -> tuple:
+                 temperature: float | None = None, seed: int | None = None,
+                 top_p: float | None = None) -> tuple:
     """
     Low-level Ollama POST.
 
@@ -469,7 +470,7 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta
 
     `temperature` : le réglage de l'utilisateur (`assistant/params.py`) ; None = celle du MODÈLE,
     rien n'est envoyé. C'était 0,7 imposé jusqu'au 2026-10-21 — contre l'éditeur de gemma4 et
-    qwen3.5, qui publient 1 — et réglable nulle part.
+    qwen3.5, qui publient 1 — et réglable nulle part. `seed`, `top_p` (2026-10-22) : même règle.
 
     `on_delta(fragment)` : si fourni, chaque fragment est remis à l'appelant au fil de l'eau —
     levier 5 de `WAMA_LLM §1bis`. La réponse est demandée en flux DANS TOUS LES CAS (cf. le
@@ -509,7 +510,9 @@ def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta
         "model": ollama_model,
         "messages": messages,
         "options": {"num_predict": 4096,
-                    **({"temperature": temperature} if temperature is not None else {})},
+                    **({"temperature": temperature} if temperature is not None else {}),
+                    **({"seed": int(seed)} if seed is not None else {}),
+                    **({"top_p": top_p} if top_p is not None else {})},
         "stream": True,
     }
     if think is not None:
@@ -719,7 +722,8 @@ def _claude_code_call(messages: list, user=None, model: str = '') -> tuple:
 
 def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
               think: bool = None, on_delta=None, tools: list | None = None,
-              rate_limit_wait: bool = True, temperature: float | None = None) -> tuple:
+              rate_limit_wait: bool = True, temperature: float | None = None,
+              seed: int | None = None, top_p: float | None = None) -> tuple:
     """
     Un tour de LLM, quel que soit le fournisseur.
 
@@ -743,6 +747,7 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
 
     `temperature` : le réglage de l'utilisateur, None = celle du modèle — transmise à tout
     fournisseur sauf l'abonnement (le CLI ne la prend pas ; sa fiche le dit, `params` vide).
+    `seed`, `top_p` (2026-10-22) : la même règle — `llm_chat` ne les envoie qu'où la fiche les dit.
 
     Returns:
         (text, usage_dict) on success · (None, error_dict) on failure
@@ -753,7 +758,7 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
         # Seul l'abonnement Claude Code reste synchrone : il lance un process qui finit avant
         # de parler.
         return _ollama_call(messages, llm_model, think=think, on_delta=on_delta,
-                            temperature=temperature)
+                            temperature=temperature, seed=seed, top_p=top_p)
 
     if provider in _SUBSCRIPTION_PROVIDERS:
         return _claude_code_call(messages, user=user, model=llm_model or '')
@@ -779,13 +784,14 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
             text, err = chat_with_source(source.key, llm_model, messages, user=user,
                                          num_predict=4096, timeout=180.0, on_delta=on_delta,
                                          tools=tools, rate_limit_wait=rate_limit_wait,
-                                         temperature=temperature)
+                                         temperature=temperature, seed=seed, top_p=top_p)
         except CloudAccessRefused as e:
             return None, {'error': str(e), 'status': e.status}
     else:
         # Non déclaré : seulement sans utilisateur (refusé plus haut sinon) — clé d'instance.
         text, err = llm_chat(messages, model=llm_model, provider=llm_provider,
-                             num_predict=4096, timeout=180.0, temperature=temperature)
+                             num_predict=4096, timeout=180.0, temperature=temperature,
+                             seed=seed, top_p=top_p)
     if text is None:
         from wama.common.utils.llm_utils import EMPTY_RESPONSE_ERROR
         if err == EMPTY_RESPONSE_ERROR:
@@ -1544,9 +1550,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # le même réglage que le tirage automatique lit (`resolve_turn_model`). Le domaine de
     # développement ne l'impose plus (bridage levé le 2026-10-12).
     think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
-    # La TEMPÉRATURE de l'utilisateur (`temperature_param`, 2026-10-21) — None = celle du modèle ;
-    # elle vaut pour le tour entier, relais compris.
-    temperature = assistant_settings(user).get('temperature')
+    # Les réglages de TIRAGE de l'utilisateur (température 2026-10-21, graine et top_p 2026-10-22)
+    # — None = ceux du modèle ; ils valent pour le tour entier, relais compris.
+    from wama.common.utils.param_schema import sampling_of
+    sampling = sampling_of(assistant_settings(user))
 
     def _label(provider, llm_model, local, served=''):
         # `served` : le modèle que le fournisseur dit avoir RÉELLEMENT employé (abonnement
@@ -1621,7 +1628,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
             gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
         text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
                                  on_delta=(gate.feed if gate else None),
-                                 temperature=temperature, **no_wait, **native_kwargs)
+                                 **sampling, **no_wait, **native_kwargs)
         if gate is not None:
             gate.close()
         # BASCULE SUR PANNE (`ROADMAP §8d` étape 2, 2026-10-13) : le fournisseur vient d'être noté
@@ -1758,7 +1765,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
             gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
         text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
                                  on_delta=(gate.feed if gate else None),
-                                 temperature=temperature, **no_wait)
+                                 **sampling, **no_wait)
         if gate is not None:
             gate.close()
         # Ce dernier appel bascule aussi (modèle TIRÉ) : sans relais, le tour finissait sur la seule

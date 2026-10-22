@@ -103,6 +103,11 @@ class ImageGenerationBackend(BaseModelBackend):
     # Supported models mapping: internal_name -> (display_name, model_id)
     SUPPORTED_MODELS: dict = {}
 
+    #: Tous les moteurs d'image et de vidéo LISENT la graine (`GenerationParams.seed`, mesuré le
+    #: 2026-10-22 sur les dix classes : diffusers, flux2-klein, qwen-image, imaginairy, supra2,
+    #: cogvideox, ltx, mochi, wan, hunyuan) : la fiche le dit (`params` ∋ `seed`).
+    reads_seed = True
+
     def __init__(self):
         self._loaded = False
         self._device = None

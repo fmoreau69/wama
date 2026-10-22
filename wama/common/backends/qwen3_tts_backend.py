@@ -84,6 +84,10 @@ class Qwen3TTSBackend(TTSBackend):
     #: Il TIRE ses deux étages (parole, puis sous-locuteur) : 0,9, la valeur du
     #: `generation_config.json` du modèle installé (2026-10-21) — le réglage les règle tous deux.
     default_temperature = 0.9
+    #: 1,0, la valeur du même `generation_config.json` (`top_p`, `subtalker_top_p`), que le réglage
+    #: règle tous deux comme la température ; la graine se pose sur torch (2026-10-22).
+    default_top_p = 1.0
+    reads_seed = True
     keep_resident = False
     supports_timestamps = False
 
@@ -153,8 +157,11 @@ class Qwen3TTSBackend(TTSBackend):
             self.load()
         # La card, sinon 0,9 ; à 0, le choix le plus probable pour les deux étages.
         temperature = self.sampling_temperature(_ignored)
-        sampling = ({'do_sample': True, 'temperature': temperature,
-                     'subtalker_dosample': True, 'subtalker_temperature': temperature}
+        top_p = self.sampling_top_p(_ignored)
+        self.sampling_seed(_ignored)
+        sampling = ({'do_sample': True, 'temperature': temperature, 'top_p': top_p,
+                     'subtalker_dosample': True, 'subtalker_temperature': temperature,
+                     'subtalker_top_p': top_p}
                     if self.samples(temperature)
                     else {'do_sample': False, 'subtalker_dosample': False})
         wavs, sr = self._model.generate_custom_voice(

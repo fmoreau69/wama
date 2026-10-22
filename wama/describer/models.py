@@ -128,6 +128,16 @@ class Description(ProcessingTimeMixin, ScopedVisibility):
                                            help_text="Température du modèle de vision ; vide = celle du modèle.")
     llm_temperature = models.FloatField(null=True, blank=True,
                                         help_text="Température du modèle de langage ; vide = celle du modèle.")
+    # Leur GRAINE et leur TOP P (2026-10-22, `seed_param` / `top_p_param`) — null = un tirage neuf,
+    # celui du modèle.
+    vision_seed = models.IntegerField(null=True, blank=True,
+                                      help_text="Graine du modèle de vision ; vide = un tirage neuf.")
+    vision_top_p = models.FloatField(null=True, blank=True,
+                                     help_text="Top P du modèle de vision ; vide = celui du modèle.")
+    llm_seed = models.IntegerField(null=True, blank=True,
+                                   help_text="Graine du modèle de langage ; vide = un tirage neuf.")
+    llm_top_p = models.FloatField(null=True, blank=True,
+                                  help_text="Top P du modèle de langage ; vide = celui du modèle.")
     # Curseur rapide/qualité du tirage « auto » — lu au LANCEMENT (`resolve_model_choice(item=…)`
     # → `quality_intent_of`). Null = le réglage d'app de l'utilisateur, sinon équilibré (50).
     quality_intent = models.IntegerField(null=True, blank=True,

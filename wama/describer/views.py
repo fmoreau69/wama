@@ -425,8 +425,9 @@ def _output_stem(d):
 
 #: Réglages d'un élément — les colonnes que la modale et le volet écrivent (schéma `params.py`).
 SETTINGS_FIELDS = ('output_style', 'output_language', 'max_length', 'asr_model',
-                   'quality_intent', 'vision_model', 'vision_temperature', 'llm_model',
-                   'llm_temperature', 'generate_summary', 'summary_type', 'verify_coherence')
+                   'quality_intent', 'vision_model', 'vision_temperature', 'vision_seed',
+                   'vision_top_p', 'llm_model', 'llm_temperature', 'llm_seed', 'llm_top_p',
+                   'generate_summary', 'summary_type', 'verify_coherence')
 
 
 def _reset_and_clear_progress(description):

@@ -68,6 +68,13 @@ def _champ_option(entry: dict) -> str:
         # le réglage de l'utilisateur puis équilibré (`quality_intent_of`). Forme majoritaire
         # du parc (converter, enhancer, composer, imager). Sans ce cas, il devenait un CharField.
         return f"{nom} = models.IntegerField(null=True, blank=True)"
+    # Les réglages de TIRAGE (`param_schema.EMPTY_IS_NONE_TYPES`, 2026-10-22) : VIDE = celui du
+    # modèle (la graine : un tirage neuf). Sans ces cas, ils devenaient des CharField — la
+    # température comprise depuis le 2026-10-21.
+    if t in ('temperature', 'top_p'):
+        return f"{nom} = models.FloatField(null=True, blank=True)"
+    if t == 'seed':
+        return f"{nom} = models.IntegerField(null=True, blank=True)"
     if t in ('number', 'range'):
         bornes = (d, entry.get('min'), entry.get('max'), entry.get('step'))
         if any(isinstance(x, float) for x in bornes):

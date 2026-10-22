@@ -12,7 +12,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
-from wama.common.utils.model_capabilities import TEMPERATURE, ollama_recommended_temperature
+from wama.common.utils.model_capabilities import (SEED, TEMPERATURE, TOP_P, ollama_parameter,
+                                                  ollama_recommended_temperature)
 from .model_quality import (
     active_params_b as _params_actifs,
     apriori_quality_index as _indice_qualite,
@@ -2881,9 +2882,10 @@ class ModelRegistry:
             caps['completion'] = True
         # La TEMPÉRATURE (2026-10-21) : un modèle qui génère la lit — c'est Ollama qui l'applique
         # (`options.temperature`), pour tout modèle qu'il sert. Une famille qui DÉCLARE ses
-        # réglages garde sa déclaration : un OCR ne la lit pas, son moteur la fixe à 0.
+        # réglages garde sa déclaration : un OCR ne la lit pas, son moteur la fixe à 0. La GRAINE et
+        # le TOP P (2026-10-22) : Ollama les applique de même (`options.seed`, `options.top_p`).
         if 'params' not in caps and caps.get('completion'):
-            caps['params'] = [TEMPERATURE]
+            caps['params'] = [TEMPERATURE, SEED, TOP_P]
         return caps
 
     def _discover_cloud_models(self):
@@ -3059,6 +3061,9 @@ class ModelRegistry:
                                     # une valeur retirée ne doit pas survivre.
                                     **({'recommended_temperature': ollama_recommended_temperature(
                                         fiche.get('parameters'))} if fiche else {}),
+                                    # …et son top_p (2026-10-22), même règle.
+                                    **({'recommended_top_p': ollama_parameter(
+                                        fiche.get('parameters'), TOP_P)} if fiche else {}),
                                     **({'params_total_b': pb} if pb else {}),
                                     **({'params_active_b': actifs} if actifs else {}),
                                 ),

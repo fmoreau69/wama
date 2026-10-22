@@ -81,6 +81,10 @@ class YuE2Backend(MusicGenerationBackend):
     default_temperature = None
     #: …et il tire avec une GRAINE FIXE (`SEED`) : même prompt, même morceau — dit sous le réglage.
     reproducible = True
+    #: La graine de la card remplace `SEED` (2026-10-22) — une autre version du même morceau, la
+    #: MÊME pour la partition et le rendu. Pas de top_p transmis au pipeline.
+    reads_seed = True
+    default_top_p = None
 
     # ------------------------------------------------------------------
     # Gestion du cycle de vie
@@ -247,11 +251,17 @@ class YuE2Backend(MusicGenerationBackend):
             "notes": events,
         }
 
+    def _seed(self, sampling: Optional[dict]) -> int:
+        """La graine de la card (`sampling['seed']`), sinon `SEED` — le pipeline exige un entier."""
+        seed = self.sampling_seed({'options': sampling or {}})
+        return self.SEED if seed is None else seed
+
     # ------------------------------------------------------------------
     # Partition (process `plan`)
     # ------------------------------------------------------------------
     def plan_score(self, model_id: str, prompt: str,
-                   progress_callback: Optional[Callable[[int], None]] = None) -> str:
+                   progress_callback: Optional[Callable[[int], None]] = None,
+                   sampling: Optional[dict] = None) -> str:
         """La partition ABC que le moteur écrit pour *prompt* — l'étape `plan()` de son pipeline,
         appelée seule. `generate(score_path=…)` la reprend par son TEXTE (« Using provided
         score ») : même découpe style/paroles, même graine.
@@ -265,7 +275,8 @@ class YuE2Backend(MusicGenerationBackend):
         if progress_callback:
             progress_callback(0)
         try:
-            planned = self._pipeline.plan(style=style, lyrics=lyrics, cot="full", seed=self.SEED)
+            planned = self._pipeline.plan(style=style, lyrics=lyrics, cot="full",
+                                          seed=self._seed(sampling))
         except Exception as exc:
             logger.exception("Échec de la planification YuE2‑3B")
             raise RuntimeError(f"YuE2 score planning failed: {exc}") from exc
@@ -289,7 +300,7 @@ class YuE2Backend(MusicGenerationBackend):
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
         score_path: Optional[str] = None,
-        temperature: Optional[float] = None,   # non transmise : cf. `default_temperature`
+        sampling: Optional[dict] = None,   # la graine seule : cf. `reads_seed`
     ) -> str:
         """
         Génère un fichier audio à partir du *prompt*.
@@ -330,8 +341,8 @@ class YuE2Backend(MusicGenerationBackend):
         # Génération via le pipeline vendorisé
         # Le pipeline expose un appel direct (voir README du moteur) :
         #   pipe(style=..., lyrics=..., cot="full", seed=...)
-        # On utilise un seed fixe (`SEED`) si le compositeur n’en fournit pas.
-        seed = self.SEED
+        # La graine de la card, sinon la graine fixe (`SEED`).
+        seed = self._seed(sampling)
         # `cot` DÉDUIT de la partition fournie (2026-10-03) : une mélodie sans accords — celle
         # qu'extrait le process `extract_score` d'un cover — se joue en `melody` ; sans partition,
         # ou avec des accords, `full` comme avant.

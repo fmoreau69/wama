@@ -171,10 +171,16 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     #: Même résultat à chaque lancement QUEL QUE SOIT le réglage : le modèle ne tire pas (Kokoro,
     #: BLIP en faisceau) ou tire avec une graine fixe (YuE). Dit sous le réglage de température.
     "reproducible":        "bool — même entrée, même résultat, quel que soit le réglage",
+    #: Le TOP P de l'éditeur (2026-10-22) — celui qui s'applique sans réglage. Qu'il le lise se dit
+    #: dans `params` (`TOP_P`), comme la graine (`SEED`) et la température.
+    "recommended_top_p":   "float — top_p recommandé par l'éditeur ; celui qui s'applique sans réglage",
 }
 
 #: Le nom du réglage de température, dans `params` comme dans les schémas (`temperature_param`).
 TEMPERATURE = "temperature"
+#: La graine et le top_p (2026-10-22, `seed_param` / `top_p_param`) : leur nom dans `params`.
+SEED = "seed"
+TOP_P = "top_p"
 
 
 def reads_temperature(caps: Dict[str, Any]) -> bool:
@@ -182,18 +188,23 @@ def reads_temperature(caps: Dict[str, Any]) -> bool:
     return TEMPERATURE in ((caps or {}).get("params") or [])
 
 
-def ollama_recommended_temperature(parameters: str):
-    """La température du fichier de modèle d'Ollama (`/api/show` → `parameters`, une ligne
-    « temperature 1 » parmi d'autres), ou None s'il n'en déclare pas. MESURÉ le 2026-10-21 :
-    gemma4 et qwen3.5 publient 1, glm-ocr 0, translategemma rien."""
+def ollama_parameter(parameters: str, name: str):
+    """Un réglage numérique du fichier de modèle d'Ollama (`/api/show` → `parameters`, une ligne
+    « temperature 1 », « top_p 0.95 » parmi d'autres), ou None s'il n'en déclare pas."""
     for line in (parameters or "").splitlines():
         parts = line.split()
-        if len(parts) >= 2 and parts[0] == TEMPERATURE:
+        if len(parts) >= 2 and parts[0] == name:
             try:
                 return float(parts[1])
             except ValueError:
                 return None
     return None
+
+
+def ollama_recommended_temperature(parameters: str):
+    """La température du fichier de modèle d'Ollama, ou None. MESURÉ le 2026-10-21 : gemma4 et
+    qwen3.5 publient 1, glm-ocr 0, translategemma rien."""
+    return ollama_parameter(parameters, TEMPERATURE)
 
 
 def sampling_caps_from_declaration(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -409,6 +420,23 @@ def _engine_temperature(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     return caps
 
 
+def _engine_seed_top_p(caps: Dict[str, Any], cls) -> Dict[str, Any]:
+    """La GRAINE et le TOP P tels que le moteur les DÉCLARE (2026-10-22), la règle de
+    `_engine_temperature` : `reads_seed` (vrai : `params` ∋ `seed` ; faux : retirée) ;
+    `default_top_p` (une valeur : il le lit et l'applique par défaut, `recommended_top_p` ; `None` :
+    il ne le lit pas). Rien de déclaré : `caps` intact sur ce point."""
+    declared, reads = declared_engine_value(cls, "reads_seed")
+    if declared and reads is not None:
+        params = [p for p in (caps.get("params") or []) if p != SEED]
+        caps["params"] = params + ([SEED] if reads else [])
+    declared, value = declared_engine_value(cls, "default_top_p")
+    if declared:
+        params = [p for p in (caps.get("params") or []) if p != TOP_P]
+        caps["params"] = params + ([TOP_P] if value is not None else [])
+        caps["recommended_top_p"] = None if value is None else float(value)
+    return caps
+
+
 def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     """Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
 
@@ -420,11 +448,12 @@ def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     Aujourd'hui la règle porte le CLONAGE, seul flag dont la contradiction avait une
     conséquence visible ; `inputs_optional` suit, parce que `reference_voice` n'est rien
     d'autre que « ce moteur accepte une voix à imiter » (INPUT_MODEL_MATCHING.md). Et la
-    TEMPÉRATURE depuis le 2026-10-21 (`_engine_temperature`) : le moteur dit s'il la lit.
+    TEMPÉRATURE depuis le 2026-10-21 (`_engine_temperature`) : le moteur dit s'il la lit ; la
+    graine et le top_p depuis le 2026-10-22 (`_engine_seed_top_p`).
     Les autres flags (`supports_timestamps`…) restent posés « seulement s'ils sont vrais » par la
     découverte — sémantique différente, hors de cette règle.
     """
-    caps = _engine_temperature(dict(caps or {}), cls)
+    caps = _engine_seed_top_p(_engine_temperature(dict(caps or {}), cls), cls)
     declare = declared_engine_flag(cls, "supports_cloning")
     if declare is None:
         return caps                           # défaut de base seulement : on ne conteste rien

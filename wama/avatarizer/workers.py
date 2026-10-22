@@ -82,14 +82,15 @@ def _call_tts_service(job: AvatarJob) -> str:
     from wama.common.tts.voice_refs import speaker_wav_for
     speaker_wav = speaker_wav_for(job.tts_model, job.voice_preset, user=job.user,
                                   language=job.language or '')
-    # La TEMPÉRATURE de la card (2026-10-21), dans `options` comme au synthesizer — vide = celle
-    # du moteur, rien n'est envoyé.
-    temperature = getattr(job, 'tts_temperature', None)
+    # Les réglages de TIRAGE de la card (température 2026-10-21, graine et top_p 2026-10-22),
+    # dans `options` comme au synthesizer — vides = ceux du moteur, rien n'est envoyé.
+    from wama.common.utils.param_schema import sampling_options
+    sampling = sampling_options(job, 'tts_')
     return tts_via_service(
         job.text_content, job.tts_model,
         language=job.language, voice_preset=job.voice_preset,
         speaker_wav=speaker_wav,
-        options={'temperature': float(temperature)} if temperature is not None else None,
+        options=sampling or None,
     )
 
 

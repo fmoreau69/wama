@@ -10,6 +10,7 @@ Traduit de `utils/audio_describer.py` (2026-09-03, marche B1) — mêmes moteurs
 """
 
 import logging
+from wama.common.utils.param_schema import sampling_of
 
 logger = logging.getLogger(__name__)
 
@@ -90,7 +91,7 @@ def describe_audio(input_path: str, options: dict = None,
                 transcript, content_hint='audio',
                 language=output_language or 'fr',
                 model=_model, provider=_provider,
-                temperature=options.get('llm_temperature'),
+                **sampling_of(options, 'llm_'),
             )
             progress(85)
 

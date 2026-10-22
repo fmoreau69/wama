@@ -15,6 +15,7 @@ from django.http import JsonResponse, FileResponse, HttpResponse, HttpResponseBa
 from django.contrib.auth.decorators import login_required
 from django.utils.decorators import method_decorator
 from django.core.cache import cache
+from wama.common.utils.param_schema import sampling_options
 from django.views.decorators.http import require_POST
 from django.utils.encoding import smart_str, iri_to_uri
 from django.core.validators import FileExtensionValidator
@@ -1059,7 +1060,7 @@ def voice_preview(request):
             scene_description=request.POST.get('scene_description', ''),
             speed=speed, pitch=pitch, read_timeout=60,
             sentence_pause=chosen.get('sentence_pause'),
-            clause_pause=chosen.get('clause_pause'), temperature=chosen.get('temperature'))
+            clause_pause=chosen.get('clause_pause'), sampling=sampling_options(chosen))
     except TTSServiceLoadingError:
         return JsonResponse({'error': 'Le service de synthèse vocale démarre : réessayez dans '
                                       'quelques secondes.', 'busy': True}, status=503)

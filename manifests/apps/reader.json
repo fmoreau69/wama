@@ -431,6 +431,44 @@
             },
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Graine du modèle de langage ; vide = un tirage neuf.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "llm_seed"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Top P du modèle de langage ; vide = celui du modèle.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "llm_top_p"
+            },
+            {
+              "args": [],
               "class": "django.db.models.DateTimeField",
               "kwargs": {
                 "auto_now_add": {
@@ -1048,7 +1086,7 @@
             "unit": ""
           },
           {
-            "advanced": false,
+            "advanced": true,
             "cap_from": [
               {
                 "capability": "params",
@@ -1056,12 +1094,6 @@
                 "mode": "reads",
                 "param": "temperature",
                 "reason": "Ce modèle ne reçoit pas de réglage de température."
-              },
-              {
-                "capability": "recommended_temperature",
-                "field": "llm_model",
-                "label": "Celle du modèle :",
-                "mode": "note"
               },
               {
                 "capability": "max_temperature",
@@ -1123,6 +1155,132 @@
             ],
             "step": 0.05,
             "type": "temperature",
+            "unit": ""
+          },
+          {
+            "advanced": true,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "llm_model",
+                "mode": "reads",
+                "param": "seed",
+                "reason": "Ce modèle ne reçoit pas de graine."
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsLlmSeed",
+              "item": "rSettings_llm_seed",
+              "panel": "llmSeed"
+            },
+            "group": "",
+            "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-dice",
+            "inline": false,
+            "label": "Graine",
+            "max": 2147483647,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "llm_seed",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "format",
+              "analyze"
+            ],
+            "step": 1,
+            "type": "seed",
+            "unit": ""
+          },
+          {
+            "advanced": true,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "llm_model",
+                "mode": "reads",
+                "param": "top_p",
+                "reason": "Ce modèle ne reçoit pas de top_p."
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsLlmTopP",
+              "item": "rSettings_llm_top_p",
+              "panel": "llmTopP"
+            },
+            "group": "",
+            "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-filter",
+            "inline": false,
+            "label": "Top P",
+            "max": 1,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "llm_top_p",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "format",
+              "analyze"
+            ],
+            "step": 0.05,
+            "type": "top_p",
             "unit": ""
           },
           {
@@ -1404,6 +1562,8 @@
             "output_format",
             "llm_model",
             "llm_temperature",
+            "llm_seed",
+            "llm_top_p",
             "format_markdown",
             "generate_analysis"
           ],
@@ -1449,7 +1609,9 @@
             "generate_analysis": "toggle — Analyse LLM du texte lu (résumé, points clés) (défaut : False)",
             "language": "text — Optionnel (ex. fr, en). Auto-détection si vide.",
             "llm_model": "select — Clé de catalogue du modèle de langage, ou « auto ». (défaut : 'auto')",
+            "llm_seed": "seed — Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine. [0–2147483647]",
             "llm_temperature": "temperature — Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0. [0–2.0]",
+            "llm_top_p": "top_p — Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix. [0–1]",
             "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : 'auto')",
             "output_format": "select — Format du texte produit. Les autres formats restent téléchargeables ensuite. (choix : txt | markdown) (défaut : 'txt')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)"

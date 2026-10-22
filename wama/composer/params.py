@@ -7,7 +7,7 @@ d'APP_CATALOG). On garde les champs compose existants (id=) ; câblage via initF
 cardSettings générique lit les data-model/data-duration de la racine de card.
 """
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import Param, schema_to_dicts, temperature_param
+from wama.common.utils.param_schema import Param, schema_to_dicts, seed_param, temperature_param
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.composer.utils.model_choice import AUTO_MUSIC, AUTO_SFX, PARTS_EXTRACTION_TASK, TASKS
 from wama.composer.utils.vocals import (AUTO as VOCALS_AUTO, CHOICES as VOCALS_CHOICES,
@@ -100,6 +100,13 @@ PARAMS = [
         "model", dom_id={"panel": "temperatureSlider", "item": "settingsTemperature",
                          "batch": "batchSettingsTemperature"},
         contexts=PANEL_ITEM_BATCH, stales=("render",))),
+    # Sa GRAINE (2026-10-22) : le moteur qui la lit tire la même version du morceau. YuE la lit
+    # pour la partition ET le rendu (`plan_score`) : elle périme les deux. Pas de top_p : aucun
+    # moteur du composer ne le lit, le réglage y serait grisé partout.
+    Param(name="seed", **seed_param(
+        "model", dom_id={"panel": "seedInput", "item": "settingsSeed",
+                         "batch": "batchSettingsSeed"},
+        contexts=PANEL_ITEM_BATCH, stales=("plan", "render"))),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
     # `parts` (`ProcessSpec.toggle`) — le morceau rendu → une partie par instrument, montrée sur la
     # page d'édition. Ne périme qu'elle-même : ni la partition suivie ni le rendu n'en dépendent.

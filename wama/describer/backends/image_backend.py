@@ -22,6 +22,8 @@ C'est le comportement de « auto ». Un modèle DÉSIGNÉ (`options['vision_mode
 import logging
 from typing import Optional
 
+from wama.common.utils.param_schema import sampling_of
+
 logger = logging.getLogger(__name__)
 
 # Cached list of available Ollama models (refreshed per worker process start)
@@ -72,16 +74,20 @@ VISION_NUM_PREDICT = 1024
 
 
 def _describe_with_ollama_vision(model: str, image_path: str, prompt: str,
-                                 temperature: Optional[float] = None) -> Optional[str]:
+                                 sampling: Optional[dict] = None) -> Optional[str]:
     """La description de l'image par le modèle de vision Ollama `model`, ou None s'il ne répond
     pas. Par le client de vision COMMUN (`vision_probe.describe_image_ollama`, 2026-10-20) : ce
     module tenait le sien, du même `/api/chat` à images, plus un repli sur `/api/generate` pour
     les anciens Ollama et moondream — mort sur l'Ollama servi (0.40.6, où `/api/chat` porte les
     images de tout modèle de vision) et pour les seuls modèles qu'il reçoit (catalogue, vision).
-    `temperature` : celle de la card (`vision_temperature`), None = celle du modèle."""
+    `sampling` : température, graine et top_p de la card (`sampling_of(options, 'vision_')`,
+    2026-10-22) ; un None = celui du modèle."""
     from wama.model_manager.services.vision_probe import describe_image_ollama
     result = describe_image_ollama(image_path, model=model, prompt=prompt,
-                                   num_predict=VISION_NUM_PREDICT, temperature=temperature)
+                                   num_predict=VISION_NUM_PREDICT,
+                                   temperature=(sampling or {}).get('temperature'),
+                                   seed=(sampling or {}).get('seed'),
+                                   top_p=(sampling or {}).get('top_p'))
     if result.get('ok') and result.get('description'):
         return result['description']
     logger.debug(f"[image_backend] {model} unavailable: {result.get('error') or 'réponse vide'}")
@@ -193,7 +199,7 @@ def describe_image(input_path: str, options: dict = None,
         if ollama_model:
             console(f"Essai {ollama_model} (Ollama)…")
             caption = _describe_with_ollama_vision(ollama_model, input_path, moondream_prompt,
-                                                   options.get('vision_temperature'))
+                                                   sampling_of(options, 'vision_'))
             if caption:
                 console(f"Description générée avec {ollama_model} ✓")
                 progress(70)

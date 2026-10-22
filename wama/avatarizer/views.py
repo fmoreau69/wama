@@ -403,7 +403,7 @@ def update_settings(request, pk):
     # TTS (pipeline seulement — un job standalone a un audio, le texte n'y a pas de sens) ;
     # un texte vide ne remplace pas le texte existant : la relance REGÉNÈRE l'audio depuis lui.
     tts = ('text_content', 'tts_model', 'quality_intent', 'language', 'voice_preset',
-           'tts_temperature')
+           'tts_temperature', 'tts_seed', 'tts_top_p')
     if not str(data.get('text_content') or '').strip():
         data.pop('text_content', None)
     fields = [n for n in names if job.mode == 'pipeline' or n not in tts]

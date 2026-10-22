@@ -124,6 +124,9 @@ class KokoroOnnxBackend(TTSBackend):
     #: Il ne tire pas : la voix d'un texte est toujours la même (2026-10-21).
     default_temperature = None
     reproducible = True
+    #: Rien à tirer, donc ni graine ni top_p (2026-10-22).
+    reads_seed = False
+    default_top_p = None
     #: Même rôle TEMPS RÉEL que le jumeau .pt (vocalisation assistant, preview) → chaud.
     keep_resident = True
     #: kokoro_onnx expose des timings, non câblés ici — on ne promet rien d'invérifié.

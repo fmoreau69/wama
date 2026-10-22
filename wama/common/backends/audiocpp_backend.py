@@ -114,6 +114,9 @@ class AudioCppBackend(MusicGenerationBackend):
     #: Le binaire tire, mais ce moteur WAMA ne lui transmet pas de température : dit tel quel, le
     #: réglage se grise plutôt que d'être ignoré en silence (2026-10-21).
     default_temperature = None
+    #: Ni graine ni top_p transmis au binaire non plus (2026-10-22).
+    reads_seed = False
+    default_top_p = None
     _warm = False
 
     @classmethod
@@ -160,7 +163,7 @@ class AudioCppBackend(MusicGenerationBackend):
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
         score_path: Optional[str] = None,
-        temperature: Optional[float] = None,   # non transmise : cf. `default_temperature`
+        sampling: Optional[dict] = None,   # non transmis : cf. `default_temperature`, `reads_seed`
     ) -> str:
         self.refuse_score(score_path, 'audio.cpp')
         from wama.common.services.resource_governor import vram_reservation

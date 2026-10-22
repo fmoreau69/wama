@@ -73,8 +73,12 @@ class BarkBackend(TTSBackend):
     #: de `bark.generate_audio` pour `text_temp` comme pour `waveform_temp`. La card règle les deux.
     default_temperature = 0.7
     #: Il ne sait pas descendre à 0 : il divise par elle (`bark.generation`, `logits / temp`) et ne
-    #: connaît que le tirage — jamais reproductible. Le curseur s'arrête à 0,1.
+    #: connaît que le tirage — reproductible par sa seule GRAINE. Le curseur s'arrête à 0,1.
     min_temperature = 0.1
+    #: Son tirage passe par torch (`torch.multinomial`) : la graine se pose avant (2026-10-22).
+    #: `generate_audio` ne prend pas de top_p.
+    reads_seed = True
+    default_top_p = None
 
     REQUIRED_PACKAGES = ['bark', 'scipy']
     # ⚠ `pip install bark` installe un paquet HOMONYME sans rapport — l'installation
@@ -138,6 +142,7 @@ class BarkBackend(TTSBackend):
                 voice_preset: str = "default", **_ignored) -> str:
         speaker = bark_speaker_for(voice_preset, language)
         temperature = self.sampling_temperature(_ignored)
+        self.sampling_seed(_ignored)
         audio_array = self._funcs["generate_audio"](text, history_prompt=speaker,
                                                     text_temp=temperature,
                                                     waveform_temp=temperature)

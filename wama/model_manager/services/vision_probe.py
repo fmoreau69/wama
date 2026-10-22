@@ -14,13 +14,15 @@ import os
 def describe_image_ollama(image_path: str, model: str = '',
                           prompt: str | None = None, timeout: int = 180,
                           keep_alive: str | None = None, num_predict: int | None = None,
-                          temperature: float | None = None):
+                          temperature: float | None = None, seed: int | None = None,
+                          top_p: float | None = None):
     """Décrit une image via un modèle vision Ollama LOCAL. Retourne {'ok', 'description'|'error'}.
 
     Le seul client de vision de WAMA depuis le 2026-10-20 : le Describer y passe (images et
     images-clés de vidéo), au lieu de son propre appel. `num_predict` borne la longueur (le
     Describer : 1 024 jetons) ; None = le défaut d'Ollama. `temperature` : celle que la card a
-    réglée ; None = celle du MODÈLE (son fichier de modèle, comme avant le portage).
+    réglée ; None = celle du MODÈLE (son fichier de modèle, comme avant le portage). `seed`,
+    `top_p` (2026-10-22) : même règle.
 
     L'appel est celui de toute conversation (`llm_utils.ollama_chat`, 2026-10-21) : adresse,
     contournement du proxy et MESURE de l'empreinte à la carte (`ollama_host.measured_load`) y
@@ -56,7 +58,7 @@ def describe_image_ollama(image_path: str, model: str = '',
     text, error = ollama_chat(
         [{'role': 'user', 'content': prompt, 'images': [b64]}], model=model,
         num_predict=int(num_predict) if num_predict is not None else None,
-        timeout=timeout, keep_alive=keep_alive, temperature=temperature)
+        timeout=timeout, keep_alive=keep_alive, temperature=temperature, seed=seed, top_p=top_p)
     if error:
         return {'ok': False, 'error': error}
     return {'ok': True, 'description': text}

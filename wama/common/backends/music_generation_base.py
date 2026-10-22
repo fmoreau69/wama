@@ -63,7 +63,7 @@ class MusicGenerationBackend(BaseModelBackend):
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
         score_path: Optional[str] = None,
-        temperature: Optional[float] = None,
+        sampling: Optional[dict] = None,
     ) -> str:
         """Écrit l'audio généré dans `output_path` et rend ce chemin.
 
@@ -81,13 +81,18 @@ class MusicGenerationBackend(BaseModelBackend):
         `score_path`        : partition facultative (ABC, MIDI, MusicXML — port `reference_score`,
                               2026-10-01) — même règle que la mélodie : un moteur qui ne la suit
                               pas la REFUSE en le disant (`refuse_score`), jamais en l'ignorant ;
-        `temperature`       : celle de la card (2026-10-21), None = celle du moteur. Un moteur qui
-                              ne la transmet pas le DÉCLARE (`default_temperature = None`) : sa
-                              fiche le dit et le réglage se grise sous lui.
+        `sampling`          : les réglages de TIRAGE de la card (`param_schema.sampling_options` :
+                              `temperature`, `seed`, `top_p`, les seuls réglés — 2026-10-22,
+                              ex-`temperature` seul), lus par `sampling_temperature/_seed/_top_p`
+                              (`{'options': sampling}`, le contrat uniforme). Un moteur qui n'en
+                              transmet pas un le DÉCLARE (`default_temperature = None`,
+                              `reads_seed = False`, `default_top_p = None`) : sa fiche le dit et
+                              le réglage se grise sous lui.
         """
 
     def plan_score(self, model_id: str, prompt: str,
-                   progress_callback: Optional[Callable[[int], None]] = None) -> str:
+                   progress_callback: Optional[Callable[[int], None]] = None,
+                   sampling: Optional[dict] = None) -> str:
         """Écrit la PARTITION (texte ABC) du morceau que `prompt` demande, sans le jouer — le
         process `plan` de la card (ROUTE §10.6, 2026-10-02). `generate(score_path=…)` la suit
         ensuite. ⚠ Les deux appels réunis ne sont PAS garantis identiques à un `generate` seul :

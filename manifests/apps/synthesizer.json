@@ -347,6 +347,44 @@
             },
             {
               "args": [],
+              "class": "django.db.models.IntegerField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Graine du moteur de voix ; vide = un tirage neuf.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "seed"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FloatField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Top P du moteur de voix ; vide = celui du moteur.'",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                }
+              },
+              "name": "top_p"
+            },
+            {
+              "args": [],
               "class": "django.db.models.BooleanField",
               "kwargs": {
                 "default": {
@@ -1324,7 +1362,7 @@
             "unit": ""
           },
           {
-            "advanced": false,
+            "advanced": true,
             "cap_from": [
               {
                 "capability": "params",
@@ -1332,12 +1370,6 @@
                 "mode": "reads",
                 "param": "temperature",
                 "reason": "Ce modèle ne reçoit pas de réglage de température."
-              },
-              {
-                "capability": "recommended_temperature",
-                "field": "tts_model",
-                "label": "Celle du modèle :",
-                "mode": "note"
               },
               {
                 "capability": "max_temperature",
@@ -1396,6 +1428,126 @@
             ],
             "step": 0.05,
             "type": "temperature",
+            "unit": ""
+          },
+          {
+            "advanced": true,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "tts_model",
+                "mode": "reads",
+                "param": "seed",
+                "reason": "Ce modèle ne reçoit pas de graine."
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "panel"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "item": "settingsSeed",
+              "panel": "seed"
+            },
+            "group": "",
+            "help": "Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-dice",
+            "inline": false,
+            "label": "Graine",
+            "max": 2147483647,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "seed",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "generate"
+            ],
+            "step": 1,
+            "type": "seed",
+            "unit": ""
+          },
+          {
+            "advanced": true,
+            "cap_from": [
+              {
+                "capability": "params",
+                "field": "tts_model",
+                "mode": "reads",
+                "param": "top_p",
+                "reason": "Ce modèle ne reçoit pas de top_p."
+              }
+            ],
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "item",
+              "panel"
+            ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "item": "settingsTopP",
+              "panel": "top_p"
+            },
+            "group": "",
+            "help": "Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-filter",
+            "inline": false,
+            "label": "Top P",
+            "max": 1,
+            "max_label": "",
+            "min": 0,
+            "min_label": "",
+            "name": "top_p",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "generate"
+            ],
+            "step": 0.05,
+            "type": "top_p",
             "unit": ""
           },
           {
@@ -1759,6 +1911,8 @@
             "sentence_pause",
             "clause_pause",
             "temperature",
+            "seed",
+            "top_p",
             "output_format",
             "output_quality"
           ],
@@ -1806,10 +1960,12 @@
             "pitch": "range — Hauteur de la voix (0.5 = grave, 2.0 = aigu) [0.5–2.0] (défaut : 1.0)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "reference_voice": "str",
+            "seed": "seed — Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine. [0–2147483647]",
             "sentence_pause": "range — Silence, en secondes, après un point, un point d'exclamation ou d'interrogation. [0–1.5] (défaut : 0.4)",
             "speed": "range — Vitesse de parole (0.5 = lent, 2.0 = rapide) [0.5–2.0] (défaut : 1.0)",
             "temperature": "temperature — Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0. [0–2.0]",
             "text": "str",
+            "top_p": "top_p — Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix. [0–1]",
             "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",
             "voice_preset": "select — Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark (défaut : 'default')",
             "work_file": "str"

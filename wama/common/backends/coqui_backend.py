@@ -33,6 +33,10 @@ class CoquiBackend(TTSBackend):
     #: `Xtts.synthesize`) ; `tts_to_file` transmet le réglage à `Xtts.inference` (2026-10-21).
     #: Le seul modèle de ce moteur au catalogue est XTTS v2.
     default_temperature = 0.75
+    #: 0,85, la valeur du même `config.json` (`"top_p": 0.85`) ; la graine se pose sur torch avant
+    #: la synthèse (2026-10-22).
+    default_top_p = 0.85
+    reads_seed = True
 
     REQUIRED_PACKAGES = ['TTS', 'soundfile']
     # `pip install TTS` est le paquet idiap/coqui-ai-TTS maintenu — nom pip = nom d'import.
@@ -100,7 +104,9 @@ class CoquiBackend(TTSBackend):
                 raise ValueError("XTTS v2 requires a speaker_wav reference audio file")
             # La température de la card, sinon 0,75 ; à 0, le choix le plus probable.
             temperature = self.sampling_temperature(_ignored)
-            kwargs.update({"temperature": temperature, "do_sample": True}
+            self.sampling_seed(_ignored)
+            kwargs.update({"temperature": temperature, "do_sample": True,
+                           "top_p": self.sampling_top_p(_ignored)}
                           if self.samples(temperature) else {"do_sample": False})
 
         self._tts.tts_to_file(**kwargs)

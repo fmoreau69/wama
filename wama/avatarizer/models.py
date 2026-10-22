@@ -77,6 +77,12 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # La TEMPÉRATURE du moteur de voix (2026-10-21, `temperature_param`) — null = la sienne.
     tts_temperature = models.FloatField(null=True, blank=True,
                                         help_text="Température du moteur de voix ; vide = celle du moteur.")
+    # Sa GRAINE et son TOP P (2026-10-22, `seed_param` / `top_p_param`) — null = un tirage neuf,
+    # celui du moteur.
+    tts_seed = models.IntegerField(null=True, blank=True,
+                                   help_text="Graine du moteur de voix ; vide = un tirage neuf.")
+    tts_top_p = models.FloatField(null=True, blank=True,
+                                  help_text="Top P du moteur de voix ; vide = celui du moteur.")
 
     # Curseur de QUALITÉ du tirage « auto » — cf. `VoiceSynthesis.quality_intent` (même
     # échelle continue 0-100, mêmes positions nommées chez le sélecteur).

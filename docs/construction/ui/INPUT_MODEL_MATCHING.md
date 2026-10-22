@@ -636,7 +636,7 @@ réglage doit apparaître si le modèle le permet »*, pour tout type de modèle
 | liaison | capacité | effet |
 |---|---|---|
 | `reads` (`param: 'temperature'`) | `params` | grisé, raison dite, sous un modèle qui ne tire pas (BLIP, abonnement Claude Code, OCR) |
-| `note` | `recommended_temperature` | la valeur de l'éditeur rappelée ; le curseur s'y place (`data-cap-note`) tant qu'on la laisse |
+| ~~`note`~~ | `recommended_temperature` | ~~la valeur de l'éditeur rappelée sous le curseur~~ — **retirée le 2026-10-22** (compactage) : le curseur l'affiche à côté de « Celle du modèle » et s'y place tant qu'on la laisse, lue sur la fiche (`wamaModelCaps`) que toute liaison laisse au champ |
 | `range` | `max_temperature` | le curseur borné au maximum du moteur (Anthropic : 1) |
 | `min` (2026-10-22) | `min_temperature` | le curseur s'arrête au PLANCHER du moteur (Bark : 0,1 — il divise par elle) ; une valeur dessous y remonte |
 
@@ -656,6 +656,25 @@ qui naît).
 
 La case « Celle du modèle » vaut VIDE (rien n'est envoyé : le moteur applique sa propre valeur) ;
 la toucher, ou bouger le curseur, règle une valeur. Une borne qui ramène le curseur ne règle rien.
+
+**Réglage AVANCÉ, curseur COMPACT (2026-10-22, Fabien : « c'est là si l'utilisateur veut aller plus
+loin, mais s'il n'y touche pas, ça ne change rien et ça ne surcharge pas l'interface »)** :
+`temperature_param` est `advanced=True`, et le groupe implicite « Avancé » replié se forme désormais
+sur TOUTE surface — il ne se formait qu'avec des groupes déclarés (`opts.groups`), si bien que le volet
+d'une app sans groupes montrait l'avancé à plat. Un groupe dont tous les réglages sont cachés par leur
+condition se cache aussi (`_bindConditional`). Le curseur tient sur UNE ligne (curseur, valeur,
+« Celle du modèle »), la ligne de reproductibilité dessous, l'aide du schéma en infobulle (drapeau de
+renderer `helpInside`) : il en faisait cinq (libellé, curseur, case, note, ligne, plus l'aide — qui
+s'affichait DEUX fois, le renderer et l'enveloppe la rendant chacun).
+
+**La GRAINE et le TOP P (2026-10-22)**, ses deux voisins (`seed_param`, `top_p_param`, types `seed` et
+`top_p`) : une seule liaison chacun, `reads` sur `params` (`param: 'seed'` / `'top_p'`), grisés sous
+un modèle qui ne les lit pas ; vides = un tirage neuf, celui du modèle. Un champ nombre compact : la
+graine porte un bouton 🎲 (tirer une graine à garder), le top_p dit la valeur de l'éditeur dans son
+texte d'attente (`recommended_top_p`, lu sur `wamaModelCaps` à l'événement `wama:cap-applied`). Adoptés
+à côté de chaque température (describer, reader, assistant, synthesizer, avatarizer ; le composer la
+graine seule) et par l'imager, dont la graine écrite à la main devient la commune. Domicile du contrat
+d'appel et des fiches : `WAMA_LLM.md §2quinquies`.
 Adopté par le describer (vision, langage), le reader (langage), l'assistant (conversation), le
 synthesizer et l'avatarizer (moteur de voix : le moteur déclare sa température,
 `default_temperature`), le composer (moteur de musique). L'avatarizer porte depuis le 2026-10-22 sa

@@ -87,6 +87,10 @@ class Audio8Backend(TTSBackend):
     supports_cloning = False        # cf. docstring : il faudrait le transcript de la référence
     #: Il TIRE (`do_sample`) : 0,8, la valeur de la carte du dépôt. Réglable depuis la card.
     default_temperature = 0.8
+    #: 0,95, la valeur que ce moteur passait en dur (2026-10-22 : réglable) ; la graine se pose
+    #: sur torch avant `generate` (`sampling_seed`).
+    default_top_p = 0.95
+    reads_seed = True
     keep_resident = False
     supports_timestamps = False
 
@@ -161,7 +165,9 @@ class Audio8Backend(TTSBackend):
         entrees = {k: v.to(self._device) for k, v in entrees.items()}
         # La card, sinon 0,8. À 0 : le choix le plus probable (transformers refuse de TIRER à 0).
         temperature = self.sampling_temperature(_ignored)
-        sampling = ({'do_sample': True, 'temperature': temperature, 'top_p': 0.95, 'top_k': 50}
+        self.sampling_seed(_ignored)
+        sampling = ({'do_sample': True, 'temperature': temperature,
+                     'top_p': self.sampling_top_p(_ignored), 'top_k': 50}
                     if self.samples(temperature) else {'do_sample': False})
         with torch.inference_mode():
             sortie = self._model.generate(

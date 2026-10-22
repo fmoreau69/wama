@@ -18,6 +18,7 @@ import logging
 from celery import shared_task
 
 from .models import Description
+from wama.common.utils.param_schema import sampling_of
 
 logger = logging.getLogger(__name__)
 
@@ -245,7 +246,7 @@ def _summarize_step(item, ctx):
         ctx.console(f"Rédaction du compte-rendu de réunion — modèle : {model}")
         summary, label = generate_meeting_summary(source, language=language, model=model,
                                                   provider=provider,
-                                                  temperature=opts.get('llm_temperature')), \
+                                                  **sampling_of(opts, 'llm_')), \
             'compte-rendu'
     else:
         if not (item.result_text or '').strip():
@@ -256,7 +257,7 @@ def _summarize_step(item, ctx):
         summary = generate_structured_summary(item.result_text, content_hint=nature,
                                               language=language, model=model,
                                               provider=provider,
-                                              temperature=opts.get('llm_temperature'))['summary']
+                                              **sampling_of(opts, 'llm_'))['summary']
         label = 'résumé'
     ctx.console(f"{label.capitalize()} généré ✓")
     return {'fields': {'summary': summary}, 'label': label,
@@ -279,7 +280,7 @@ def _coherence_step(item, ctx):
     coherence = verify_text_coherence(item.result_text, content_hint=nature,
                                       language=opts.get('output_language') or 'fr',
                                       model=model, provider=provider,
-                                      temperature=opts.get('llm_temperature'))
+                                      **sampling_of(opts, 'llm_'))
     ctx.console(f"Cohérence vérifiée — score: {coherence['score']}/100 ✓")
     notes = '\n'.join(coherence['notes'])
     return {'fields': {'coherence_score': coherence['score'], 'coherence_notes': notes,

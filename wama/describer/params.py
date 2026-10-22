@@ -16,7 +16,8 @@ langage — trois selects tirés du CATALOGUE par capacité (route F4b, patron d
 ses deux selects), « auto » en tête.
 """
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.param_schema import derive_from_model, schema_to_dicts, temperature_param
+from wama.common.utils.param_schema import (derive_from_model, schema_to_dicts, seed_param,
+                                            temperature_param, top_p_param)
 from wama.describer.models import Description
 
 PANEL_ITEM_BATCH = ("panel", "item", "batch")
@@ -29,7 +30,8 @@ PARAMS = derive_from_model(
     # cascade vision, les tiers du style) : leur select se tait plutôt que de prévoir faux.
     include=["output_style", "output_language", "max_length",
              "asr_model", "quality_intent", "vision_model", "vision_temperature",
-             "llm_model", "llm_temperature",
+             "vision_seed", "vision_top_p",
+             "llm_model", "llm_temperature", "llm_seed", "llm_top_p",
              "generate_summary", "summary_type", "verify_coherence"],
     overrides={
         # dom_id "batch" (17/08) : modale batch DÉDIÉE générée (contrat reader) — remplace le
@@ -114,6 +116,21 @@ PARAMS = derive_from_model(
             contexts=PANEL_ITEM_BATCH,
             stales=("frames", "describe"),
         ),
+        # Ses deux voisins (2026-10-22) : vides = un tirage neuf, celui du modèle.
+        "vision_seed": seed_param(
+            "vision_model",
+            dom_id={"panel": "vision_seed", "item": "settingsVisionSeed",
+                    "batch": "batchSettingsVisionSeed"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("frames", "describe"),
+        ),
+        "vision_top_p": top_p_param(
+            "vision_model",
+            dom_id={"panel": "vision_top_p", "item": "settingsVisionTopP",
+                    "batch": "batchSettingsVisionTopP"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("frames", "describe"),
+        ),
         # Langage : rédaction d'un document, d'un audio, d'une vidéo, puis résumé et cohérence.
         # « auto » = le gabarit du style (rapide pour un résumé court, lourd pour une synthèse
         # scientifique ou la cohérence), résolu au catalogue (`llm_utils.get_describer_model`).
@@ -135,6 +152,20 @@ PARAMS = derive_from_model(
             "llm_model",
             dom_id={"panel": "llm_temperature", "item": "settingsLlmTemperature",
                     "batch": "batchSettingsLlmTemperature"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("describe", "summarize", "coherence"),
+        ),
+        "llm_seed": seed_param(
+            "llm_model",
+            dom_id={"panel": "llm_seed", "item": "settingsLlmSeed",
+                    "batch": "batchSettingsLlmSeed"},
+            contexts=PANEL_ITEM_BATCH,
+            stales=("describe", "summarize", "coherence"),
+        ),
+        "llm_top_p": top_p_param(
+            "llm_model",
+            dom_id={"panel": "llm_top_p", "item": "settingsLlmTopP",
+                    "batch": "batchSettingsLlmTopP"},
             contexts=PANEL_ITEM_BATCH,
             stales=("describe", "summarize", "coherence"),
         ),

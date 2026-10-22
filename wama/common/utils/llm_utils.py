@@ -220,6 +220,8 @@ def ollama_chat(
     timeout: float = 180.0,
     keep_alive: Optional[str] = None,
     temperature: Optional[float] = None,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> tuple[Optional[str], Optional[str]]:
     """
     Send a chat request to the local Ollama server.
@@ -245,6 +247,8 @@ def ollama_chat(
         temperature: None = celle du MODÈLE (son fichier de modèle, `recommended_temperature`
                      au catalogue) — rien n'est envoyé. Une tâche sans réglage passe
                      `STEADY_TEMPERATURE`.
+        seed, top_p: la graine et le top_p de la card (2026-10-22) — None = rien n'est
+                     envoyé (un tirage neuf ; celui du fichier de modèle).
         messages[i]['images']: images base64 d'un message (modèle qui voit) — la sonde de
                      vision passe par ici (`vision_probe`, 2026-10-21).
 
@@ -274,6 +278,10 @@ def ollama_chat(
     options: dict = {}
     if temperature is not None:
         options["temperature"] = temperature
+    if seed is not None:
+        options["seed"] = int(seed)
+    if top_p is not None:
+        options["top_p"] = top_p
     # `None` = pas de plafond (défaut d'Ollama) — même contrat que la branche cloud de
     # `llm_chat`, où `None` n'envoie pas `max_tokens`.
     if num_predict is not None:
@@ -487,6 +495,8 @@ def llm_chat(
     api_base: Optional[str] = None,
     keep_alive: Optional[str] = None,
     temperature: Optional[float] = None,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
     on_delta=None,
     tools: Optional[list] = None,
     data_reuse_ok: bool = False,
@@ -514,6 +524,10 @@ def llm_chat(
         temperature: Sampling temperature. None = the MODEL's own (Ollama: its model file; cloud:
                     the provider's) — nothing is sent. A task with no setting passes
                     `STEADY_TEMPERATURE`.
+        seed, top_p: the card's seed and top_p (2026-10-22). None = nothing is sent. Sent to
+                    Ollama and to an OpenAI-compatible source; NOT to a native one (the
+                    Anthropic API: no seed, and top_p with a temperature is refused) — its
+                    fiche does not list them, so the setting is greyed under it.
         num_ctx:    KV cache size in tokens (Ollama only, ignored for cloud).
         think:      Qwen3 thinking mode (Ollama only, ignored for cloud).
         keep_alive: Résidence VRAM après réponse (Ollama only, ignoré pour le cloud).
@@ -563,6 +577,8 @@ def llm_chat(
             timeout=timeout,
             keep_alive=keep_alive,
             temperature=temperature,
+            seed=seed,
+            top_p=top_p,
         )
 
     # ── Phase 2: cloud provider via LiteLLM ───────────────────────────────────
@@ -619,6 +635,13 @@ def llm_chat(
         kwargs['max_tokens'] = num_predict
     if temperature is not None:
         kwargs['temperature'] = temperature
+    # Graine et top_p : à un fournisseur compatible OpenAI seulement (Albert les propose) — la
+    # fiche d'une source native ne les liste pas (2026-10-22).
+    if openai_compatible_source(provider):
+        if seed is not None:
+            kwargs['seed'] = int(seed)
+        if top_p is not None:
+            kwargs['top_p'] = top_p
     if api_key:
         kwargs['api_key'] = api_key
     if api_base:
@@ -692,6 +715,8 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
                             num_predict: Optional[int] = None, think: bool = False,
                             timeout: Optional[float] = None,
                             temperature: Optional[float] = None,
+                            seed: Optional[int] = None,
+                            top_p: Optional[float] = None,
                             ) -> tuple[Optional[str], Optional[str]]:
     """
     Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
@@ -720,8 +745,8 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
       - l'abonnement Claude Code (`claude_code:*`) n'est pas un appel LiteLLM : refusé ici.
     `num_predict` (jetons max) : `None` par défaut = sans plafond — même raison que `timeout`
     ci-dessous : un document entier (le HTML d'une dizaine de diapositives) dépasse vite un plafond
-    écrit d'avance, et la glu RECOPIE le défaut qu'elle lit ici. `think`, `temperature` : ceux de
-    `llm_chat`.
+    écrit d'avance, et la glu RECOPIE le défaut qu'elle lit ici. `think`, `temperature`, `seed`,
+    `top_p` : ceux de `llm_chat`.
     `timeout` : `None` par défaut, et c'est voulu — dans une tâche, la borne est la DURÉE MAX du
     squelette (`task_skeleton._time_guard`, réglable au profil et par modèle). Un délai plus court
     posé ici ajoute un échec arbitraire : mesuré le 2026-10-01, la 1ʳᵉ génération réelle de
@@ -733,7 +758,7 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
     """
     from wama.common.utils.model_keys import split_key
     llm_kwargs = {'num_predict': num_predict, 'think': think, 'timeout': timeout,
-                  'temperature': temperature}
+                  'temperature': temperature, 'seed': seed, 'top_p': top_p}
     key = (catalog_key or '').strip()
     from wama.common.utils.auto_model import is_auto
     if is_auto(key):
@@ -765,6 +790,7 @@ def chat_with_catalog_model(catalog_key: str, messages: list, *, user=None,
 def chat_with_source(source: str, model_id: Optional[str], messages: list, *, user=None,
                      num_predict: Optional[int] = None, think: bool = False,
                      timeout: Optional[float] = None, temperature: Optional[float] = None,
+                     seed: Optional[int] = None, top_p: Optional[float] = None,
                      on_delta=None, tools: Optional[list] = None,
                      rate_limit_wait: bool = True,
                      ) -> tuple[Optional[str], Optional[str]]:
@@ -796,7 +822,8 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
         scope = lambda: saturation_scope(user, source)  # noqa: E731
     return llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
                     num_predict=num_predict, think=think, timeout=timeout,
-                    temperature=temperature, on_delta=on_delta, tools=tools,
+                    temperature=temperature, seed=seed, top_p=top_p,
+                    on_delta=on_delta, tools=tools,
                     data_reuse_ok=data_reuse_ok, rate_limit_wait=rate_limit_wait,
                     saturation_scope=scope)
 
@@ -859,6 +886,8 @@ def extract_json_from_llm(text: str) -> Optional[dict]:
 # 3. **`temperature` remonte aussi** (2026-10-21) : `STEADY_TEMPERATURE` par défaut — l'appelant
 #    sans réglage (le transcriber) garde ses 0,3 ; une app dont la card porte le réglage
 #    (`temperature_param`) passe SA valeur, `None` voulant dire « celle du modèle ».
+#    Graine et top_p (2026-10-22) : `None` par défaut — rien d'envoyé ; l'app dont la card les
+#    porte passe les siens (`**param_schema.sampling_of(item, 'llm_')`).
 # ─────────────────────────────────────────────────────────────────────────────
 
 def generate_meeting_summary(
@@ -868,6 +897,8 @@ def generate_meeting_summary(
     model: str = '',
     provider: Optional[str] = None,
     temperature: Optional[float] = STEADY_TEMPERATURE,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> str:
     """
     Generate a structured meeting summary (compte-rendu de réunion).
@@ -916,10 +947,10 @@ def generate_meeting_summary(
     ]
 
     # think=False + budget suffisant + retry (cf. generate_structured_summary).
-    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                   think=False, num_predict=4096)
     if not result_text:
-        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                       think=False, num_predict=4096)
 
     if error or not result_text:
@@ -968,6 +999,8 @@ def verify_text_coherence(
     model: str = '',
     provider: Optional[str] = None,
     temperature: Optional[float] = STEADY_TEMPERATURE,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> dict:
     """
     Verify text coherence and suggest corrections.
@@ -1028,10 +1061,10 @@ def verify_text_coherence(
     # think=False : tâche de sortie JSON → pas de raisonnement qui consomme le budget
     # de tokens (cause des réponses vides avec les modèles « thinking » type qwen3).
     # + 1 retry sur réponse vide (intermittence Ollama).
-    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                   think=False, num_predict=4096)
     if not result_text:
-        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                       think=False, num_predict=4096)
 
     if error or not result_text:
@@ -1090,6 +1123,8 @@ def analyze_segments_coherence(
     model: str = '',
     provider: Optional[str] = None,
     temperature: Optional[float] = STEADY_TEMPERATURE,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> dict:
     """Analyse la cohérence PAR SEGMENT (1 seul appel LLM).
 
@@ -1125,10 +1160,10 @@ def analyze_segments_coherence(
     ]
     try:
         # think=False (sortie JSON) + 1 retry sur réponse vide.
-        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                       think=False)
         if not result_text:
-            result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+            result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                           think=False)
         if error or not result_text:
             logger.warning(f"[llm_utils] analyze_segments_coherence: {error or 'réponse vide'}")
@@ -1157,6 +1192,8 @@ def suggest_speaker_names(
     model: str = '',
     provider: Optional[str] = None,
     temperature: Optional[float] = STEADY_TEMPERATURE,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> dict:
     """Propose des noms d'intervenants à partir des présentations dans la transcription.
 
@@ -1204,10 +1241,10 @@ def suggest_speaker_names(
             'Retourne UNIQUEMENT un JSON : {"speakers": [{"id": "SPEAKER_00", "name": "Prénom Nom"}, ...]}.')},
     ]
     try:
-        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                       think=False, num_predict=1024)
         if not result_text:
-            result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+            result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                           think=False, num_predict=1024)
         if error or not result_text:
             logger.warning(f"[llm_utils] suggest_speaker_names: {error or 'réponse vide'}")
@@ -1234,6 +1271,8 @@ def generate_structured_summary(
     model: str = '',
     provider: Optional[str] = None,
     temperature: Optional[float] = STEADY_TEMPERATURE,
+    seed: Optional[int] = None,
+    top_p: Optional[float] = None,
 ) -> dict:
     """
     Generate a structured summary (summary, key_points, action_items).
@@ -1286,10 +1325,10 @@ def generate_structured_summary(
 
     # think=False (sortie JSON) + num_predict suffisant + 1 retry : sans ça, un texte long
     # fait que le modèle « thinking » épuise son budget en raisonnement → JSON vide.
-    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+    result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                   think=False, num_predict=4096)
     if not result_text:
-        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature,
+        result_text, error = llm_chat(messages, model=model or None, provider=provider, temperature=temperature, seed=seed, top_p=top_p,
                                       think=False, num_predict=4096)
 
     if error or not result_text:

@@ -24,6 +24,8 @@ import os
 
 from celery import shared_task
 
+from wama.common.utils.param_schema import sampling_options
+
 from .models import ComposerGeneration
 
 logger = logging.getLogger(__name__)
@@ -391,7 +393,8 @@ def _plan(gen, ctx):
     try:
         text = _backend(gen, catalog_key).plan_score(
             model_id=model_id(catalog_key), prompt=_routed_prompt(gen, ctx),
-            progress_callback=ctx.progress)
+            progress_callback=ctx.progress,
+            sampling=sampling_options(gen))   # la graine de la card : la même qu'au rendu
     except Exception:
         ctx.reset_progress()
         raise
@@ -470,7 +473,8 @@ def _render(gen, ctx):
             score_path=melody_copy or score_abs,
             progress_callback=ctx.progress,
             on_audio=partial.audio_sink(),
-            temperature=getattr(gen, 'temperature', None),   # la card, sinon celle du moteur
+            # Température, graine et top_p de la card, sinon ceux du moteur (2026-10-22).
+            sampling=sampling_options(gen),
         )
     except Exception:
         ctx.reset_progress()

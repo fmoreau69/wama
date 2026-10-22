@@ -116,6 +116,10 @@ class AudioCraftBackend(MusicGenerationBackend):
     #: Il TIRE ses jetons audio : 1,0, le défaut de `set_generation_params` d'AudioCraft (MusicGen
     #: comme AudioGen). Réglable depuis la card (2026-10-21).
     default_temperature = 1.0
+    #: La graine se pose sur torch avant le tirage (2026-10-22). Pas de top_p : AudioCraft tire
+    #: par `top_k=250` et `top_p=0` (« 0 = top_k ») — régler l'un changerait de stratégie.
+    reads_seed = True
+    default_top_p = None
     _warm = False
 
     @classmethod
@@ -147,7 +151,7 @@ class AudioCraftBackend(MusicGenerationBackend):
         progress_callback: Optional[Callable[[int], None]] = None,
         on_audio: Optional[Callable] = None,
         score_path: Optional[str] = None,
-        temperature: Optional[float] = None,
+        sampling: Optional[dict] = None,
     ) -> str:
         """
         Generate audio and save to output_path.
@@ -206,18 +210,20 @@ class AudioCraftBackend(MusicGenerationBackend):
         if progress_callback:
             progress_callback(5)
 
-        # La card, sinon la sienne (`sampling_temperature`, le contrat commun).
-        sampling = self.sampling_temperature({'options': {'temperature': temperature}})
+        # La card, sinon la sienne (`sampling_temperature`, le contrat commun) ; sa graine posée.
+        options = {'options': sampling or {}}
+        temperature = self.sampling_temperature(options)
+        self.sampling_seed(options)
         try:
             if model_type == 'music':
                 wav = self._generate_music(
                     audiocraft_name, prompt, duration, melody_path,
-                    progress_callback, on_audio, temperature=sampling,
+                    progress_callback, on_audio, temperature=temperature,
                 )
             else:
                 wav = self._generate_sfx(
                     audiocraft_name, prompt, duration, progress_callback, on_audio,
-                    temperature=sampling,
+                    temperature=temperature,
                 )
 
             if progress_callback:

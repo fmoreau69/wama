@@ -162,6 +162,12 @@ class VoiceSynthesis(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
     # aussi dans `options` ; un moteur qui ne tire pas le déclare, le réglage se grise sous lui.
     temperature = models.FloatField(null=True, blank=True,
                                     help_text="Température du moteur de voix ; vide = celle du moteur.")
+    # Sa GRAINE et son TOP P (2026-10-22, `seed_param` / `top_p_param`) — null = un tirage neuf,
+    # celui du moteur.
+    seed = models.IntegerField(null=True, blank=True,
+                               help_text="Graine du moteur de voix ; vide = un tirage neuf.")
+    top_p = models.FloatField(null=True, blank=True,
+                              help_text="Top P du moteur de voix ; vide = celui du moteur.")
 
     # Higgs Audio specific options
     multi_speaker = models.BooleanField(

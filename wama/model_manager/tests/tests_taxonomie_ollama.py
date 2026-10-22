@@ -42,11 +42,12 @@ class TacheDeclareeTest(TestCase):
         self.assertEqual(['image', 'document'], caps['modalities'], 'no duplicate image')
         self.assertEqual(['language'], caps['params'])
         # Counter-check: a chat model keeps the inputs of a chat model, and the only setting it
-        # reads is the temperature (2026-10-21) — Ollama applies it to every model it serves.
+        # reads are its sampling settings (temperature 2026-10-21, seed and top_p 2026-10-22) —
+        # Ollama applies them to every model it serves.
         chat = self._caps('qwen3.8:latest', {'completion', 'vision'})
         self.assertEqual(['prompt'], chat['inputs_required'])
         self.assertEqual(['text', 'image'], chat['modalities'])
-        self.assertEqual(['temperature'], chat['params'])
+        self.assertEqual(['temperature', 'seed', 'top_p'], chat['params'])
 
     def test_a_model_that_sees_or_hears_accepts_the_matching_input(self):
         """Its modalities said `image` while its inputs said `prompt` alone (2026-10-13): no
