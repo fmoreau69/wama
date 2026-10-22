@@ -119,6 +119,14 @@ class TheModelCarriesThemTest(SimpleTestCase):
         cli = model_info_for('claude_code', declared_listing('claude_code')[0])
         self.assertEqual([], cli.capabilities['params'])
 
+    def test_the_fiche_follows_the_rule_of_the_call(self):
+        """The fiche lists them for exactly the sources `llm_chat` sends them to: a provider that
+        stopped being OpenAI-compatible loses them on its fiche too (a single rule, 2026-10-22)."""
+        from wama.model_manager.services.cloud_models import model_info_for
+        with mock.patch.object(llm_utils, 'openai_compatible_source', return_value=''):
+            albert = model_info_for('albert', {'id': 'gpt-oss-120b', 'type': 'text-generation'})
+        self.assertEqual([TEMPERATURE], albert.capabilities['params'])
+
     def test_the_ollama_model_file_gives_the_publishers_top_p(self):
         self.assertEqual(0.95, ollama_parameter('temperature 1\ntop_p 0.95\ntop_k 64', TOP_P))
         self.assertIsNone(ollama_parameter('temperature 1', TOP_P))
@@ -314,6 +322,26 @@ class AnElementBornWithAnEmptySeedTest(TestCase):
                                                  ImageGeneration, post={}).get('seed'))
 
 
+class ThePageServesThemTest(TestCase):
+    """The deliverable is VISIBLE (`/reverif §2`): the page the panel is rendered from carries both
+    settings, typed, bound to the voice engine — and the served script knows their types."""
+
+    def test_the_synthesizer_page_carries_the_seed_and_the_top_p(self):
+        from django.urls import reverse
+        user = get_user_model().objects.create_superuser('sampling-page', 's@p.c', 'x')
+        self.client.force_login(user)
+        page = self.client.get(reverse('synthesizer:index'))
+        self.assertEqual(200, page.status_code)
+        html = page.content.decode()
+        for kind in ('"type": "seed"', '"type": "top_p"', '"type": "temperature"'):
+            self.assertIn(kind, html)
+        self.assertIn('wama-params.js', html)
+        served = (Path(settings.BASE_DIR) / 'staticfiles/common/js/wama-params.js').read_text(
+            encoding='utf-8')
+        self.assertIn("registerRenderer('seed'", served, 'the served copy, not only the source')
+        self.assertIn("registerRenderer('top_p'", served)
+
+
 HAS_V8 = importlib.util.find_spec('py_mini_racer') is not None
 JS = Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'js'
 DOM = """
@@ -355,7 +383,8 @@ class TheWidgetsJsTest(SimpleTestCase):
         out = self._render([{'name': 'top_p', 'type': 'top_p', 'label': 'Top P'}])
         self.assertIn('name="top_p" value="" placeholder="Celui du modèle"', out)
         self.assertEqual('Celui du modèle : 0,95',
-                         self._run("return window.WamaParams.topPPlaceholder({recommended_top_p: 0.95});"))
+                         self._run("return window.WamaParams.topPPlaceholder({recommended_top_p: 0.95});"),
+                         'two decimals: the common formatter rounds to one by default (0,95 → 1)')
         self.assertEqual('Celui du modèle', self._run("return window.WamaParams.topPPlaceholder(null);"))
 
     def test_the_temperature_line_mentions_a_seed_where_the_model_reads_one(self):

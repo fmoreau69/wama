@@ -336,9 +336,7 @@
   // le curseur l'affichait —, et un réglage de fonction en mètres ou en secondes perdait la
   // moitié de son sens en passant de la déclaration au formulaire. `step: 'any'` = décimal libre.
   registerRenderer('number', function (p, api) {
-    const attrs = [p.min != null ? 'min="' + esc(p.min) + '"' : '',
-                   p.max != null ? 'max="' + esc(p.max) + '"' : '',
-                   p.step != null ? 'step="' + esc(p.step) + '"' : ''].join(' ');
+    const attrs = _numberAttrs(p);
     const input = '<input type="number" class="form-control form-control-sm" id="' + api.id + '" ' +
       api.idAttr + ' value="' + esc(api.value) + '" ' + attrs + '>';
     if (!p.unit) return input;
@@ -396,9 +394,7 @@
 
   registerRenderer('range', function (p, api) {
     const id = api.id, idA = api.idAttr, v = api.value;
-    const rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
-                    p.max != null ? 'max="' + p.max + '"' : '',
-                    p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
+    const rattrs = _numberAttrs(p);
     // Valeur courante à droite + bornes SOUS le slider — libellés FORMATÉS : min_label/max_label
     // déclarés priment (P2-bis), sinon le format déclaré (`display_format`), sinon valeur + unité.
     const unit = p.unit || '', fmt = p.display_format || '';
@@ -543,9 +539,7 @@
   registerRenderer('temperature', function (p, api) {
     var own = api.value === '' || api.value === null || api.value === undefined;
     var v = own ? '' : api.value;
-    var rattrs = [p.min != null ? 'min="' + p.min + '"' : '',
-                  p.max != null ? 'max="' + p.max + '"' : '',
-                  p.step != null ? 'step="' + p.step + '"' : ''].join(' ');
+    var rattrs = _numberAttrs(p);
     // L'IDENTIFIANT du réglage est celui du champ qui PORTE la valeur : tout lecteur par id
     // (l'inspecteur du volet, `WamaInspector.initFromSchema`, et ses jumeaux d'app) lit « celle du
     // modèle » vide, et pose une valeur que la surface suit. Le curseur, que `cap_from` grise et
@@ -554,8 +548,7 @@
     // COMPACT (2026-10-22, Fabien : « la température occupe beaucoup de place ») : curseur, valeur
     // et « Celle du modèle » sur UNE ligne ; dessous, la seule ligne de reproductibilité, l'aide
     // du schéma en infobulle (ⓘ) au lieu d'un paragraphe.
-    var info = p.help ? ' <i class="fas fa-circle-info wama-temperature-info" title="' +
-      esc(p.help) + '" aria-label="' + esc(p.help) + '"></i>' : '';
+    var info = p.help ? ' ' + _infoIcon(p) : '';
     return '<div class="wama-temperature">' +
       '<input type="hidden" class="wama-temperature-value" id="' + api.id + '" ' +
       api.idAttr + ' data-cap-target="' + api.id + '-slider" value="' + esc(v) + '">' +
@@ -682,7 +675,7 @@
   function _topPPlaceholder(caps) {
     var rec = caps ? caps.recommended_top_p : null;
     if (rec === undefined || rec === null || rec === '') return 'Celui du modèle';
-    return 'Celui du modèle : ' + String(rec).replace('.', ',');
+    return 'Celui du modèle : ' + _fmtNum(rec, 2);
   }
   if (!global.__wamaSeedTopPBound) {
     document.addEventListener('click', function (e) {
@@ -690,7 +683,8 @@
       if (!btn) return;
       var input = btn.parentNode.querySelector('.wama-seed-value');
       if (!input || input.disabled) return;
-      input.value = String(Math.floor(Math.random() * 2147483647));
+      // La borne du champ, celle du schéma (`param_schema.SEED_MAX`) — jamais redite ici.
+      input.value = String(Math.floor(Math.random() * (Number(input.max) + 1)));
       input.dispatchEvent(gestureEvent('change'));
     });
     document.addEventListener('wama:cap-applied', function (e) {
@@ -1291,9 +1285,10 @@
     return (p && p.options_source === 'catalog') ? _optionQuery(p) : '';
   }
 
-  function _fmtNum(v) {
-    var n = Number(v);
-    return (Math.round(n * 10) / 10).toString().replace('.', ',');
+  // Un nombre lisible : `digits` décimales au plus (une par défaut), virgule décimale.
+  function _fmtNum(v, digits) {
+    var n = Number(v), k = Math.pow(10, digits == null ? 1 : digits);
+    return (Math.round(n * k) / k).toString().replace('.', ',');
   }
 
   /** Valeur PROPOSÉE d'après une ENTRÉE de la card (`default_from`, 2026-10-04 — la durée du

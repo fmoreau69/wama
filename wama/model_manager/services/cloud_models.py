@@ -266,16 +266,19 @@ def model_info_for(source: str, item: dict):
     # la borne à 1 (son API refuse au-delà). La GRAINE et le TOP P (2026-10-22) : un fournisseur
     # compatible OpenAI les reçoit (Albert les propose) ; l'API Anthropic n'a pas de graine et
     # refuse un top_p à côté d'une température — `llm_chat` ne les lui envoie pas.
+    from wama.common.utils.llm_utils import openai_compatible_source
     from wama.common.utils.model_capabilities import SEED, TEMPERATURE, TOP_P
     if abilities.get('completion'):
         # Écrit vide pour l'abonnement : « ne la lit pas » est un fait, qui grise le réglage.
         if src.protocol in UNLISTABLE_PROTOCOLS:
             caps['params'] = []
-        elif src.protocol == 'anthropic':
-            caps['params'] = [TEMPERATURE]
-            caps['max_temperature'] = 1.0
-        else:
+        elif openai_compatible_source(src.key):
+            # La règle même de l'appel (`llm_chat` n'envoie graine et top_p qu'à elle).
             caps['params'] = [TEMPERATURE, SEED, TOP_P]
+        else:
+            caps['params'] = [TEMPERATURE]
+            if src.protocol == 'anthropic':
+                caps['max_temperature'] = 1.0
     return ModelInfo(
         id=item['id'], name=item.get('name') or item['id'],
         model_type=ModelType(model_type), source=ModelSource(source),

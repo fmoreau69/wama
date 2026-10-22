@@ -14,6 +14,9 @@ Le rendu (JS/Django) consommera `Param.to_dict()` ; ce module reste pur (aucun r
 from dataclasses import dataclass, field, asdict
 from typing import Any, List, Optional, Tuple
 
+# Feuille sans import Django : les noms des réglages de tirage, tels que la fiche d'un modèle les dit.
+from wama.common.utils.model_capabilities import SEED, TEMPERATURE, TOP_P
+
 # Contextes de rendu d'un paramètre :
 #   item   = modale « Paramètres » d'un élément
 #   batch  = modale « Paramètres » d'un batch
@@ -381,7 +384,6 @@ def temperature_param(model_field: str, **overrides) -> dict:
     """Surcouche STANDARD du réglage de température, liée au choix de modèle `model_field` du
     même schéma — l'app déclare la colonne (`FloatField(null=True, blank=True)`) et passe
     `temperature_param('<champ modèle>', dom_id=…, stales=…)` en override."""
-    from wama.common.utils.model_capabilities import TEMPERATURE
     base = dict(
         type='temperature', label='Température', icon='fa-temperature-half',
         default=None, min=0, max=TEMPERATURE_MAX, step=0.05,
@@ -424,7 +426,6 @@ SEED_MAX = 2 ** 31 - 1
 def seed_param(model_field: str, **overrides) -> dict:
     """Surcouche STANDARD de la graine, liée au choix de modèle `model_field` : colonne
     `IntegerField(null=True, blank=True)`. Vide = un tirage neuf à chaque lancement."""
-    from wama.common.utils.model_capabilities import SEED
     base = dict(
         type='seed', label='Graine', icon='fa-dice', default=None, min=0, max=SEED_MAX, step=1,
         advanced=True,
@@ -440,7 +441,6 @@ def seed_param(model_field: str, **overrides) -> dict:
 def top_p_param(model_field: str, **overrides) -> dict:
     """Surcouche STANDARD du top_p, liée au choix de modèle `model_field` : colonne
     `FloatField(null=True, blank=True)`. Vide = celui du modèle, rien n'est envoyé."""
-    from wama.common.utils.model_capabilities import TOP_P
     base = dict(
         type='top_p', label='Top P', icon='fa-filter', default=None, min=0, max=1, step=0.05,
         advanced=True,
@@ -453,8 +453,9 @@ def top_p_param(model_field: str, **overrides) -> dict:
     return base
 
 
-#: Les réglages de TIRAGE d'un modèle — leur nom au schéma, sans préfixe, et dans `options`.
-SAMPLING_SETTINGS = ('temperature', 'seed', 'top_p')
+#: Les réglages de TIRAGE d'un modèle — leur nom au schéma, sans préfixe, dans `options` et dans
+#: les `params` de la fiche (les noms de `model_capabilities`), et le nom de leur TYPE de réglage.
+SAMPLING_SETTINGS = (TEMPERATURE, SEED, TOP_P)
 
 
 def sampling_of(source, prefix: str = '') -> dict:
@@ -672,13 +673,13 @@ def effective_settings(schema, posees=None, preset=None, contexte=None) -> dict:
 #: Les types de réglage NUMÉRIQUES — bornés par le schéma (`coerce_params`). `temperature` en est un
 #: (2026-10-21), avec une valeur de plus : vide = celle du modèle (None, jamais le minimum). La
 #: graine (`seed`, vide = un tirage neuf) et le `top_p` (vide = celui du modèle) aussi (2026-10-22).
-NUMERIC_TYPES = ('range', 'number', 'intent', 'temperature', 'seed', 'top_p')
+NUMERIC_TYPES = ('range', 'number', 'intent') + SAMPLING_SETTINGS
 
 #: Les réglages de TIRAGE pour qui VIDE est un CHOIX — « celle du modèle » (température, top_p),
 #: « un tirage neuf » (graine) — rendu `None`, jamais le minimum ni le défaut (2026-10-22 : la
 #: règle de la température étendue à ses deux voisins ; la graine de l'imager la tenait par une
 #: exception locale, `SETTINGS_EMPTY_IS_VALUE`, et un `seed_cleared` écrit dans sa vue).
-EMPTY_IS_NONE_TYPES = ('temperature', 'seed', 'top_p')
+EMPTY_IS_NONE_TYPES = SAMPLING_SETTINGS     # chaque type porte le nom de son réglage
 
 
 def coerce_params(schema, data, caps=None):
