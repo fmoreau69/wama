@@ -3231,3 +3231,54 @@ nécessaires. »*
   `tests_glue_installs_its_model` (+3), `describer.tests_pipeline` (+2), `synthesizer.tests`
   (+2, dont les noms de fichiers lus dans les librairies INSTALLÉES), `imager.tests` (+1).
   Contre-épreuves : 9 mutations, 9 rouges.
+
+## Veille du 2026-10-22 : jouer une partition COMPLÈTE, plus de CONTRÔLE sur le rendu musical, et AirLLM — rien d'installé
+
+Question de Fabien, après la partition complète éditable (`ROUTE §F3b`) : YuE2 ne suit que la
+partition RÉDUITE (la mélodie seule pour un cover, `melody_only_abc` ; mélodie et accords en mode
+`full`) — existe-t-il un modèle qui JOUE une partition complète, ou qui se pilote plus finement ?
+Et AirLLM, pour faire tourner des modèles trop gros pour la carte ? Recherche web du jour ;
+chaque ligne dit sa source, ⚠ = source secondaire non confrontée au code.
+
+**Jouer une partition multi-instrument : aucun moteur ouvert MÛR.**
+
+| piste | ce qu'elle prend | état | pour WAMA |
+|---|---|---|---|
+| **P-MUSE** (arXiv 2608.01920, août 2026) | un MIDI cible (mélodie, rythme) + un audio de timbre ; édition locale | piano, guitare, basse, batterie ; **ni code ni poids annoncés** (page de démo seule) | la forme exacte du besoin — à surveiller |
+| **JASCO** (Meta, AudioCraft) | texte + accords, batterie (audio), mélodie, avec leur minutage | poids 400M / 1B, **CC BY-NC 4.0** (régime déjà accepté) ; code MIT dans AudioCraft — ⚠ **le venv a `audiocraft` 1.3.0, sans module JASCO** (mesuré : `audiocraft/models/`) | la plus proche de notre partition RÉDUITE (accords + mélodie) ; extraits courts, sans voix — ⚠ durée à vérifier |
+| **MuseControlLite** (ICML 2025) | mélodie, dynamique, rythme, audio (inpainting) sur Stable Audio Open | poids « mélodie » publiés (dépôt du 2026-01-02), licence non trouvée ; dorsale Stable Audio Open (licence propre) | contrôle fin d'un rendu instrumental |
+| **ACE-Step 1.5** | paroles en script balisé, BPM / tonalité / métrique, repeindre une plage, reprise (« cover ») à force réglable, voix → accompagnement | ⚠ guides tiers ; **déjà au catalogue, installé, AUCUN backend** (`ROADMAP` « YuE2 / ACE-Step 1.5 ») | le contrôle par l'AUDIO (corriger une plage) plutôt que par la partition |
+| LeVo 2 / SongGeneration 2 (Tencent), DiffRhythm 2, Muse (Fudan), SegTune | chansons entières, style et structure par segment | poids publiés (⚠ LeVo 2 : dépôt personnel, licence inconnue) | contrôle de STRUCTURE, pas de note |
+| MIDI-GPT (OpenRAIL-M) | arrangement MIDI multi-pistes, remplissage d'une section | symbolique : écrit des parties, ne les joue pas | compléter une partition, pas la rendre |
+
+Lecture : la chaîne « partition complète → audio » n'a pas de moteur ouvert aujourd'hui. Le plus
+court pour ENTENDRE la complète reste un rendu par banque de sons (fidèle, synthétique — le reste
+« écoute sans rendu » de la surface). Le plus prometteur pour PILOTER un rendu : JASCO (montée de
+version d'`audiocraft` par la route `library`, à simuler : MusicGen et AudioGen en dépendent) et
+le backend ACE-Step, en attente depuis le 2026-09-02.
+
+**AirLLM** (Apache-2.0, v3.0 de 2026-06, entrée d'apprentissage 2026-09 au journal du dépôt) :
+découpe un LLM en couches écrites sur disque, puis les charge UNE PAR UNE à chaque token — un
+70B tient sous 4 Go de VRAM. Ce que ça coûte :
+- **la vitesse** : aucune mesure reproductible publiée (relevé du jour) ; ordres de grandeur des
+  essais tiers ⚠ — 0,5 à 3 tokens/s au mieux sur NVMe, plancher calculé ≈ 20 s/token pour un 70B
+  (le modèle entier relu à chaque token), jusqu'à 292 s/token rapporté ;
+- **le disque** : une copie découpée des poids (`delete_original=True` en garde une seule) ;
+- **le périmètre** : des LLM du Hub par `AutoModel` (Llama, Qwen, DeepSeek, Mistral, Gemma…) —
+  pas les moteurs musicaux vendorisés (YuE2 a son propre pipeline).
+Pour WAMA : une rangée de plus dans la famille « réduire la RÉSIDENCE » du gouverneur (`ROADMAP`
+« Gouvernance des ressources », d), APRÈS le déchargement CPU (`accelerate`), qui garde les poids
+en RAM et va bien plus vite tant qu'elle suffit. ⚠ Nos poids sont sous `/mnt/d` (disque Windows lu
+depuis WSL) : la relecture par couche y serait bien plus lente qu'un NVMe natif. Usage plausible :
+une réponse COURTE d'un très gros LLM, hors temps réel ; impraticable pour un générateur musical
+(des dizaines de milliers de jetons par morceau). Une mesure sur ce poste trancherait — elle
+suppose d'installer `airllm` par la route `library` (dépendances à simuler) : décision de Fabien.
+
+Sources : [P-MUSE](https://arxiv.org/abs/2608.01920) ·
+[JASCO, index OSAI](https://osai-index.eu/model/jasco) ·
+[MuseControlLite](https://github.com/fundwotsai2001/MuseControlLite) ·
+[ACE-Step 1.5, guide Olares](https://www.olares.com/docs/use-cases/ace-step-1.5) ·
+[LeVo 2](https://arxiv.org/abs/2606.30642) · [DiffRhythm 2](https://arxiv.org/abs/2510.22950) ·
+[Muse](https://arxiv.org/abs/2601.03973) · [MIDI-GPT](https://arxiv.org/abs/2501.17011) ·
+[AirLLM](https://github.com/lyogavin/airllm) ·
+[AirLLM, vitesse réelle](https://runaihome.com/blog/airllm-70b-4gb-vram-inference-guide-2026/).
