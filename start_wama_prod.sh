@@ -38,6 +38,13 @@ pkill -f "uvicorn vector_service" || true
 # n'importe quelle commande dont la ligne contient ce mot (un `pgrep -af run_gateway` de
 # diagnostic, une session d'édition…).
 pkill -f "manage.py run_gateway" || true
+# Les deux serveurs MCP (surfaces « wama » et « wama-dev ») : MÊMES deux raisons que la
+# passerelle. Ils n'étaient arrêtés par rien — la supervision plus bas ne les lance que s'ils
+# n'existent pas. MESURÉ le 2026-10-23 : démarrés le 16/10, ils avaient survécu à toutes les
+# relances et servaient encore les outils de jumelles retirées depuis (102 outils annoncés pour
+# 90 au registre) — à Claude Code, aux IDE et à l'assistant. Crochets : le motif ne se trouve pas
+# lui-même.
+pkill -f "manage.py run_[m]cp_server" || true
 pkill -f "redis-server" || true
 
 sleep 2

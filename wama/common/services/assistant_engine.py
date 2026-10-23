@@ -679,11 +679,12 @@ def _claude_code_call(messages: list, user=None, model: str = '') -> tuple:
 
     ⚠ DEUX jeux d'outils se superposent sur ce chemin, et c'est à connaître. La boucle
     agentique de `run_assistant_turn` reste CÂBLÉE pour tous les fournisseurs — le prompt
-    d'outils est injecté et un appel émis serait exécuté. Mais Claude Code a DÉJÀ tourné sa
-    propre boucle (avec SES outils : lecture du dépôt) et rend un texte final ; rien ne
-    garantit qu'il émette en plus le format d'appel attendu par WAMA. Un « ajoute ce fichier
-    à l'imager » est donc à adresser au fournisseur local ou `claude`, non parce que les
-    outils manquent, mais parce que ce chemin-ci n'est pas fait pour eux.
+    d'outils est injecté et un appel émis serait exécuté. Mais Claude Code tourne SA propre
+    boucle et rend un texte final. Depuis le 2026-10-23, cette boucle-là voit les outils de WAMA :
+    le CLI reçoit la surface `wama` du serveur MCP (`claude_code.prepare`, `--mcp-config`), pour le
+    compte de l'utilisateur et par la porte `execute_tool` — un « ajoute ce fichier à l'imager »
+    s'exécute donc DANS l'appel, comme chez les autres fournisseurs (ROADMAP §8d 5). Jusque-là il
+    ne voyait que ses propres outils (lecture du dépôt).
     """
     from wama.common.services.claude_code import ClaudeCodeIndisponible, demander
 
@@ -870,7 +871,7 @@ def _prepare_local_model(llm_model: str | None, messages: list, user, asked_inde
 def _accepts_native_tools(source, model: str | None) -> bool:
     """Ce MODÈLE de la source a-t-il été mesuré avec les outils déclarés nativement ? Sans
     modèle nommé, c'est le modèle par défaut de la source qui répond (préfixe de protocole ôté)."""
-    model_id = (model or source.default_model or '').rsplit('/', 1)[-1]
+    model_id = source.catalogue_model_id(model or source.default_model or '')
     return bool(model_id) and model_id in (source.native_tools or ())
 
 
@@ -889,6 +890,14 @@ def _native_tool_specs(user, provider: str, dev_tools: list, model: str | None =
     source = external_sources.by_key().get(_PROVIDER_ALIAS.get(provider, provider))
     if user is None or source is None or not _accepts_native_tools(source, model):
         return None
+    return native_tool_list(user, dev_tools)
+
+
+def native_tool_list(user, dev_tools: list = ()) -> list:
+    """La liste des outils au format standard (`tools=`) que reçoit un modèle déclaré
+    `native_tools` — celle du serveur MCP pour `user`, plus les outils de développement relayés.
+    Publique pour la MESURE (`llm_gateway_check --tools`, 2026-10-23) : on éprouve un modèle avec la
+    liste même qu'il recevra, avant de le déclarer."""
     from wama.common.services.mcp_server import tools_for
     specs = [{'type': 'function', 'function': {'name': t.name, 'description': t.description,
                                                'parameters': t.inputSchema}}

@@ -62,6 +62,23 @@ utilise SON abonnement, par le jeton `claude setup-token` enregistré au profil 
 `claude_code`, chiffré). Sans jeton, `demander()` REFUSE avant de lancer le CLI : sinon le CLI
 retomberait sur les identifiants de la machine, c'est-à-dire l'abonnement d'une autre personne.
 Le jeton du `.env` et les identifiants de la machine ne servent qu'aux appels SANS utilisateur.
+
+⚠⚠ LE CLI EST UN BINAIRE WINDOWS LANCÉ DEPUIS WSL — MESURÉ le 2026-10-23 : l'interop ne transmet
+au processus Windows QUE les variables nommées dans `WSLENV` (`FOO=x cmd.exe /c echo %FOO%` rend
+`%FOO%` sans elle, `x` avec). Le jeton personnel posé dans l'environnement n'atteignait donc PAS
+le CLI, qui retombait en silence sur les identifiants de la machine — l'abonnement d'une autre
+personne, exactement ce que la règle ci-dessus interdit. `_environnement` nomme désormais ses
+secrets dans `WSLENV` quand le CLI est Windows (`_crosses_to_windows`).
+
+⭐ LES OUTILS DE WAMA PAR MCP (2026-10-23, ROADMAP §8d 5 : « Claude Code = un FOURNISSEUR comme les
+autres : il consomme les outils WAMA par MCP ») : pour un utilisateur, le CLI reçoit la surface
+`wama` du serveur MCP de WAMA (`--mcp-config`, seule config MCP lue : `--strict-mcp-config`), à
+l'adresse du registre (`mcp_client.surface_url`), authentifiée par le jeton d'API du compte
+(`mcp_client.api_key`, transmis par l'environnement, jamais en clair sur la ligne de commande),
+et ses outils sont autorisés (`mcp__wama`). Chaque appel passe par LA porte `execute_tool`, avec les
+droits du compte : rien n'est recopié ici. Sans utilisateur, pas de surface — pas de compte.
+La surface `wama-dev` n'est PAS passée : elle porte `dev_claude_code` lui-même (une délégation
+qui se relancerait) ; la délégation de développement est celle de l'assistant (`mcp_client`).
 """
 from __future__ import annotations
 
@@ -147,7 +164,19 @@ def chemin_cli() -> str:
 SUBSCRIPTION_SOURCE = 'claude_code'
 
 
-def _environnement(oauth_token: str | None = None) -> dict:
+#: Nom du serveur MCP de WAMA dans la config passée au CLI — ses outils s'y appellent
+#: `mcp__wama__<outil>`, et la règle `mcp__wama` les autorise tous (la porte reste `execute_tool`).
+MCP_SERVER_NAME = 'wama'
+
+
+def _crosses_to_windows(cli: str) -> bool:
+    """Le CLI est-il un binaire Windows lancé depuis WSL (interop) ? Son environnement ne passe
+    alors que par `WSLENV` (cf. l'en-tête)."""
+    return os.name == 'posix' and str(cli).lower().endswith('.exe')
+
+
+def _environnement(oauth_token: str | None = None, secrets: dict | None = None,
+                   windows: bool = False) -> dict:
     """
     Environnement MINIMAL et EXPLICITE du sous-processus.
 
@@ -159,6 +188,9 @@ def _environnement(oauth_token: str | None = None) -> dict:
     `oauth_token` : jeton PERSONNEL de l'utilisateur (profil). Sans utilisateur (`None`),
     `CLAUDE_CODE_OAUTH_TOKEN` de l'environnement est transmis s'il existe ; sinon le CLI retombe
     sur les identifiants d'abonnement déjà présents sur la machine.
+    `secrets` : variables de plus (le jeton d'API WAMA de la surface MCP). `windows` : le CLI est
+    un binaire Windows — les variables transmises sont NOMMÉES dans `WSLENV`, sinon l'interop les
+    perd (mesuré le 2026-10-23).
     """
     env = {
         'PATH': os.environ.get('PATH_CLAUDE_CODE', '/usr/local/bin:/usr/bin:/bin'),
@@ -168,6 +200,10 @@ def _environnement(oauth_token: str | None = None) -> dict:
     jeton = oauth_token if oauth_token is not None else os.environ.get('CLAUDE_CODE_OAUTH_TOKEN')
     if jeton:
         env['CLAUDE_CODE_OAUTH_TOKEN'] = jeton
+    env.update({k: v for k, v in (secrets or {}).items() if v})
+    passed = [k for k in ('CLAUDE_CODE_OAUTH_TOKEN', *(secrets or {})) if env.get(k)]
+    if windows and passed:
+        env['WSLENV'] = ':'.join(passed)
     # ⚠ NE JAMAIS ajouter ANTHROPIC_API_KEY ici. Voir l'en-tête du module.
     return env
 
@@ -177,6 +213,21 @@ def declared_model_ids() -> tuple:
     source `claude_code`) — les seuls que `demander(model=…)` transmet au CLI."""
     from wama.common import external_sources
     return tuple(m[0] for m in external_sources.get(SUBSCRIPTION_SOURCE).declared_models)
+
+
+def wama_mcp_config(user) -> tuple:
+    """`(config JSON, {variable: jeton})` de la surface `wama` du serveur MCP pour `user` — ou
+    `('', {})` sans utilisateur. L'en-tête d'autorisation NOMME la variable du jeton (celle du
+    transport stdio du serveur, `mcp_server.TOKEN_ENV`), que le CLI développe : le jeton ne paraît
+    jamais dans la liste des processus."""
+    if user is None or not getattr(user, 'is_authenticated', False):
+        return '', {}
+    from wama.common.services.mcp_client import api_key, surface_url
+    from wama.common.services.mcp_server import SURFACE_WAMA, TOKEN_ENV
+    config = {'mcpServers': {MCP_SERVER_NAME: {
+        'type': 'http', 'url': surface_url(SURFACE_WAMA),
+        'headers': {'Authorization': 'Bearer ${' + TOKEN_ENV + '}'}}}}
+    return json.dumps(config), {TOKEN_ENV: api_key(user)}
 
 
 def prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool = False, user=None,
@@ -202,15 +253,25 @@ def prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool = False, user=
             return {'error': "Aucun jeton d'abonnement Claude dans votre profil : générez-le avec "
                              "`claude setup-token`, puis collez-le dans le volet « Clés d'API » "
                              "de la page Profil."}
-    commande = [chemin_cli(), '-p', prompt, '--output-format', 'json']
+    cli = chemin_cli()
+    commande = [cli, '-p', prompt, '--output-format', 'json']
     if model and model != 'default':
         # Un ALIAS du CLI (« the latest model ») : il suit les sorties de modèles tout seul.
         commande += ['--model', model]
+    # Les outils de WAMA, pour le compte (cf. l'en-tête) : la surface `wama`, seule config MCP lue.
+    mcp_config, mcp_secrets = wama_mcp_config(user)
+    if mcp_config:
+        commande += ['--mcp-config', mcp_config, '--strict-mcp-config']
+    mcp_tools = [f'mcp__{MCP_SERVER_NAME}'] if mcp_config else []
     if not ecriture:
         # Restriction de surface : les outils non listés déclenchent une demande de
         # permission, qui en non-interactif équivaut à un refus.
-        commande += ['--allowedTools', *outils]
-    return {'argv': commande, 'env': _environnement(oauth_token)}
+        commande += ['--allowedTools', *outils, *mcp_tools]
+    elif mcp_tools:
+        # En écriture, `--allowedTools` AJOUTE des règles : les outils de WAMA s'y autorisent.
+        commande += ['--allowedTools', *mcp_tools]
+    return {'argv': commande, 'env': _environnement(oauth_token, mcp_secrets,
+                                                    windows=_crosses_to_windows(cli))}
 
 
 def read_output(raw: str) -> dict:
@@ -271,6 +332,11 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
     return _lire_sortie(acheve.stdout)
 
 
+#: Ce que le CLI écrit quand l'API refuse son jeton (mesuré le 2026-10-23 : « Failed to
+#: authenticate. API Error: 401 Invalid bearer token ») — le message dit alors quoi faire.
+AUTH_REFUSED_MARKS = ('Invalid bearer token', 'Failed to authenticate')
+
+
 def _failure_message(code: int, stdout: str, stderr: str) -> str:
     """
     Message d'échec LISIBLE — la raison, pas les 500 premiers caractères de télémétrie.
@@ -311,6 +377,10 @@ def _failure_message(code: int, stdout: str, stderr: str) -> str:
 
     if not reason:
         reason = (stderr or '').strip()[:500] or 'aucun détail'
+    if any(mark in reason for mark in AUTH_REFUSED_MARKS):
+        reason += (" — le jeton d'abonnement transmis est refusé : régénérez-le avec "
+                   "`claude setup-token`, puis recollez-le dans le volet « Clés d'API » de la "
+                   "page Profil.")
     return f"Claude Code a échoué (code {code}) : {reason}"
 
 

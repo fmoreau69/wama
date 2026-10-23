@@ -49,28 +49,40 @@ def is_dev_tool(name: str) -> bool:
     return bool(name) and str(name).startswith(DEV_TOOL_PREFIX)
 
 
-def dev_surface_url() -> str:
-    """Adresse de l'endpoint MCP de la surface dev — le registre des sources externes fait foi."""
+def surface_url(surface: str) -> str:
+    """Adresse de l'endpoint MCP d'une surface (`mcp_server.SURFACE_WAMA` / `SURFACE_DEV`) — le
+    registre des sources externes fait foi, l'adresse même où le serveur écoute
+    (`mcp_server.http_address`). Lue aussi par l'abonnement Claude Code, qui reçoit la surface
+    `wama` (`claude_code.prepare`, 2026-10-23)."""
     from wama.common.external_sources import base_url
-    from wama.common.services.mcp_server import MCP_PATH
-    return base_url('wama_mcp_dev').rstrip('/') + MCP_PATH
+    from wama.common.services.mcp_server import _ADDRESS_SOURCE, MCP_PATH
+    return base_url(_ADDRESS_SOURCE[surface]).rstrip('/') + MCP_PATH
 
 
-def _api_key(user) -> str:
+def dev_surface_url() -> str:
+    """Adresse de l'endpoint MCP de la surface dev."""
+    from wama.common.services.mcp_server import SURFACE_DEV
+    return surface_url(SURFACE_DEV)
+
+
+def api_key(user) -> str:
+    """Le jeton d'API WAMA du compte — l'identité de tout client MCP (`mcp_server.user_for_token`),
+    créé à la demande comme le fait la page de profil."""
     from rest_framework.authtoken.models import Token
     return Token.objects.get_or_create(user=user)[0].key
 
 
-def _run(user, action):
+def _run(user, action, surface: str = ''):
     """Exécute `action(session)` dans une session MCP ouverte pour `user` — synchrone pour
     l'appelant (le moteur tourne dans une vue Django). Point d'injection des tests, qui y
     branchent une session en mémoire sur le vrai serveur de la surface dev.
 
-    ⚠ L'ORM (jeton) est lu AVANT la boucle asyncio : Django refuse l'ORM en contexte async."""
+    ⚠ L'ORM (jeton) est lu AVANT la boucle asyncio : Django refuse l'ORM en contexte async.
+    `surface` : celle du serveur visée (défaut : la surface dev, le seul usage de l'assistant)."""
     import anyio
 
-    key = _api_key(user)
-    url = dev_surface_url()
+    key = api_key(user)
+    url = surface_url(surface) if surface else dev_surface_url()
 
     async def main():
         import httpx
@@ -167,3 +179,14 @@ def call_dev_tool(user, name: str, arguments) -> dict:
         return parsed if isinstance(parsed, dict) else {'result': parsed}
     except ValueError:
         return {'error': text or 'erreur inconnue'} if result.isError else {'result': text}
+
+
+def surface_tool_names(user, surface: str) -> list:
+    """Les noms des outils qu'une surface du serveur ANNONCE à `user`, lus par le protocole MCP
+    lui-même (session HTTP, son jeton d'API) — ce que voit tout client, Claude Code compris. Pour
+    la MESURE (`llm_gateway_check --provider claude_code`, 2026-10-23) ; lève si la surface est
+    injoignable."""
+    async def action(session):
+        return (await session.list_tools()).tools
+
+    return sorted(t.name for t in _run(user, action, surface))

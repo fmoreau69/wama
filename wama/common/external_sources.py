@@ -420,11 +420,24 @@ class ExternalSource:
     #: (tiré en « auto ») annonçait « je vais chercher le fichier » puis s'arrêtait sans appel,
     #: gemma-4-31b rendait vide ; 0 appel sur 3 chacun, contre 3 sur 3 par la liste du prompt.
     #: D'où un tuple d'identifiants de modèles MESURÉS (sans préfixe de protocole).
+    #: La mesure a son outil depuis le 2026-10-23 : `manage.py llm_gateway_check --provider <source>
+    #: --model <id> --tools --user <compte> --repeat 3` (la liste même que l'assistant envoie, la clé
+    #: et le profil du compte) — elle rejoue le cas deepseek (muet) et gpt-oss (nommé).
     native_tools: tuple = ()
     #: Attribution EXIGÉE par la licence de la source. Une obligation, pas une politesse.
     attribution: str = ''
     #: Document portant l'intention, quand elle est écrite quelque part.
     doc: str = ''
+
+    def catalogue_model_id(self, model: str) -> str:
+        """L'identifiant d'un modèle de cette source tel que le CATALOGUE le porte — `model` sans
+        le préfixe de PROTOCOLE que LiteLLM lui ajoute (`openai/gpt-oss-120b` → `gpt-oss-120b`,
+        l'inverse exact de `llm_chat`). Jamais tout ce qui précède un « / » : il fait partie d'un
+        identifiant OpenRouter (`qwen/qwen3…`) — la coupe au dernier « / » ne reconnaissait aucun
+        d'eux dans `native_tools` (2026-10-23)."""
+        prefix = f'{self.protocol}/'
+        model = model or ''
+        return model[len(prefix):] if self.protocol and model.startswith(prefix) else model
 
 
 #: ⚠ ORDRE : par famille, pour la lecture. Aucun code ne dépend de l'ordre.
@@ -501,7 +514,14 @@ SOURCES: tuple[ExternalSource, ...] = (
         hosting='sovereign', cost_tier='free', protocol='openai',
         default_remote_type='text-generation',
         # Identifiant SERVI, mesuré le 2026-10-12 (`llm_gateway_check --provider ilaas`).
-        default_model='mistral-small-4-119b', doc='docs/construction/ia/WAMA_LLM.md'),
+        default_model='mistral-small-4-119b',
+        # Outils déclarés nativement : PAS ENCORE. Mesurés le 2026-10-23 (`llm_gateway_check
+        # --provider ilaas --model <id> --tools --user … --repeat 3`, les 90 outils du serveur
+        # MCP) : 5 appels nommés sur 5 pour `mistral-small-4-119b` et pour `qwen-3.8-27b`. Mais la
+        # plateforme est en MAINTENANCE (Fabien, même jour) : une mesure faite pendant la
+        # maintenance ne vaut pas preuve. À refaire sur les SIX modèles à sa sortie, puis déclarer
+        # ceux qui passent — d'ici là, la liste du prompt reste leur voie, comme avant.
+        doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-10-13 (demande de Fabien : « que je puisse poser la clé ») : le service RAG d'ILaaS,
     # jeton À PART de celui du chat. Lu sans clé le même jour sur son `/openapi.json` public :
     # c'est OpenGateLLM, la passerelle d'Albert — `/v1/embeddings`, `/v1/rerank`, `/v1/ocr`,

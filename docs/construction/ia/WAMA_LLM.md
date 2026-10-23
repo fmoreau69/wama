@@ -840,6 +840,13 @@ surface (`common/services/mcp_client.py`, `ROADMAP §8d étape 5 moitié dev`) �
 qui converse avec un modèle local voit les outils `dev_*` et peut lancer un rôle ou une jumelle ;
 le serveur dev garde la porte.
 
+**Tous les cerveaux, les MÊMES outils (2026-10-23)** — Ollama, Albert, ILaaS, OpenRouter et l'API
+Anthropic par la boucle commune (`run_assistant_turn`, liste du prompt pour tous, déclaration
+NATIVE pour les seuls modèles mesurés, `ExternalSource.native_tools`) ; l'abonnement Claude Code
+par le serveur MCP (surface `wama`, `claude_code.prepare`) — chaque appel par `execute_tool`, avec
+les droits du compte, après la garde de son profil (`cloud_refusal`). La mesure :
+`llm_gateway_check --tools` / `--provider claude_code` (`ROADMAP §8d` 5).
+
 > 🔓 **LEVÉ pour la CONVERSATION le 2026-10-12** (décision de Fabien : *« le bridage était valable
 > tant qu'on n'avait pas d'API souveraine ; maintenant qu'on a Albert et ILaaS, on peut le
 > lever »*). Mesuré le même jour (fil Discord #43, §2026-10-12 plus bas) : un seul `dev_run_role`

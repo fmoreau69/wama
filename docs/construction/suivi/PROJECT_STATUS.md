@@ -26011,3 +26011,33 @@ la card ». Domicile `ROUTE §10.6` 4.6 (restes soldés).
 - Gardes : 6 tests neufs + 2 étendus ; contre-épreuves rouges (6). Corpus `manifests/apps/
   transcriber.json` régénéré (seul : les autres manifestes périmés portent le travail d'autres
   instances — `seed`, `top_p`).
+
+
+## §PALIER 2026-10-23 — TOUS LES CERVEAUX, LES OUTILS DE WAMA : L'ABONNEMENT CLAUDE CODE PAR MCP, ET LA MESURE — non poussé — 🔴 relancer gunicorn (les serveurs MCP l'ont été) ; régénérer le jeton d'abonnement Claude
+
+Demande de Fabien : « Claude Code appelé PAR WAMA : pas de MCP […] le câbler […] parfaitement aligné,
+en cohérence avec le choix de l'utilisateur dans son profil sur l'exposition de ses données […] ajouter
+des outils de mesures et tests ». Domicile `ROADMAP §8d` 5.
+- ✅ **sync_models** après les migrations de la graine et du top_p : 629 fiches mises à jour, aucune
+  retirée ; 493 fiches portent la graine, 473 le top_p (vérifié famille par famille).
+- ✅ **L'abonnement voit les outils de WAMA** : surface `wama` du serveur MCP par `--mcp-config`
+  (`claude_code.prepare`), jeton d'API du compte par l'environnement, outils `mcp__wama` ; profil jugé
+  avant (`cloud_refusal`). Mesuré en réel (identifiants de la machine) : 102 outils vus, puis 90 après
+  relance des serveurs ; `list_ai_models` appelé par la porte de WAMA.
+- ✅ **Corrigé en chemin** : ① `WSLENV` — le CLI est `claude.exe`, l'interop perdait toute variable non
+  nommée, le jeton d'abonnement PERSONNEL compris (il retombait sur les identifiants de la machine) ;
+  ② les deux serveurs MCP survivaient aux relances (démarrés le 16/10) : arrêtés désormais par
+  `start_wama_prod.sh`, et RELANCÉS ce jour ; ③ `_accepts_native_tools` coupait au dernier « / » —
+  une seule règle, `ExternalSource.catalogue_model_id`.
+- ✅ **La mesure** : `llm_gateway_check --provider claude_code --user … [--live]` et `--tools --user …
+  --repeat N` — trois issues (appel nommé, réponse sans appel, erreur du fournisseur), seules les
+  mesurées concluent. Rejoué : gpt-oss nommé, deepseek muet (comme le 11/10).
+- 🔴 **Le jeton d'abonnement Claude du profil de Fabien est REFUSÉ** (« 401 Invalid bearer token ») :
+  il atteint désormais le CLI (①). Le régénérer (`claude setup-token`) et le recoller au profil ;
+  d'ici là, l'abonnement échoue depuis WAMA en le disant.
+- ⏳ **ILaaS en maintenance** : `mistral-small-4-119b` et `qwen-3.8-27b` nommés 5/5, NON déclarés ; à
+  sa sortie, mesurer ses six modèles puis déclarer `native_tools`. **Anthropic** : crédit de la clé
+  épuisé, rien de mesuré. **OpenRouter** : aucun modèle de conversation ouvert par la clé.
+- ⏳ **DÉCISION** : l'abonnement Claude grand public garde-t-il ou entraîne-t-il sur les échanges ? Si
+  oui, il relève du dernier cran du plafond (`third_party_all`), pas de `third_party`.
+- Gardes : `tests_tool_access` (14 tests) ; contre-épreuves rouges (8).

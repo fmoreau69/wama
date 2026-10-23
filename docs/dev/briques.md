@@ -1030,16 +1030,19 @@ Tout ce qu'il a lancé, toutes apps — DÉRIVÉ de detail_registry, aucune lign
 
 ### L'assistant, CLIENT MCP de la surface de développement
 
-Le moteur de l'assistant RELAIE les outils `dev_*` (rôles wama-dev-ai, bac à sable) à la surface « wama-dev » par le protocole — process séparé, §16 tenu : rien n'est importé, la porte (droits à chaque appel, arguments admis) reste celle du serveur. Annoncés aux seuls développeurs/admins ; serveur absent = aucun outil, l'assistant répond quand même. Étape 5 de §8d, moitié dev (2026-09-22)
+Le moteur de l'assistant RELAIE les outils `dev_*` (rôles wama-dev-ai, bac à sable) à la surface « wama-dev » par le protocole — process séparé, §16 tenu : rien n'est importé, la porte (droits à chaque appel, arguments admis) reste celle du serveur. Annoncés aux seuls développeurs/admins ; serveur absent = aucun outil, l'assistant répond quand même. Étape 5 de §8d, moitié dev (2026-09-22). Il porte l'adresse et le jeton de TOUTE surface (`surface_url`, `api_key`), lus aussi par l'abonnement Claude Code et la mesure (2026-10-23)
 
 - **Domicile** : `wama/common/services/mcp_client.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Client MCP du moteur de l'assistant — la surface « wama-dev » vue DEPUIS l'assistant (ROADMAP §8d Phase 3, étape 5, moitié « outils de dev » ; demande de Fabien du 2026-09-22 : « améliorer WAMA depuis l'assistant, sans forcément passer par Claude, uniquement pour les rôles admin et dev »).
-- **API publique** (5) :
+- **API publique** (8) :
   - `is_dev_tool(name: str) -> bool`
-  - `dev_surface_url() -> str` — Adresse de l'endpoint MCP de la surface dev — le registre des sources externes fait foi.
+  - `surface_url(surface: str) -> str` — Adresse de l'endpoint MCP d'une surface (`mcp_server.SURFACE_WAMA` / `SURFACE_DEV`) — le
+  - `dev_surface_url() -> str` — Adresse de l'endpoint MCP de la surface dev.
+  - `api_key(user) -> str` — Le jeton d'API WAMA du compte — l'identité de tout client MCP (`mcp_server.user_for_token`),
   - `dev_tools_for(user) -> list` — Outils de développement que l'assistant peut ANNONCER à `user` :
   - `tools_block(tools: list) -> str` — Bloc de prompt des outils de dev — MÊME forme que `tool_api.build_tools_list`
   - `call_dev_tool(user, name: str, arguments) -> dict` — Relaie UN appel d'outil de dev à la surface, et rend son résultat comme `execute_tool`
+  - `surface_tool_names(user, surface: str) -> list` — Les noms des outils qu'une surface du serveur ANNONCE à `user`, lus par le protocole MCP
 
 ### Langue des identifiants (budget)
 
@@ -1326,7 +1329,7 @@ Chaque résultat produit donne à l'élément une révision numérotée — rég
 
 ### Serveur MCP (adaptateur mince sur tool_api)
 
-Un seul contrat d'outils pour TOUS les cerveaux (Ollama, Claude Code, Albert, un IDE) : `tools/list` = le registre filtré par `tool_accessible`, `tools/call` = `execute_tool` — LA porte unique. Adaptateur MINCE : aucun protocole maison, `tool_descriptions()` dérive déjà nom/description/schéma. DEUX surfaces, DEUX process : `wama` (prod) et `wama-dev`, jamais chargés ensemble
+Un seul contrat d'outils pour TOUS les cerveaux (Ollama, Claude Code, Albert, un IDE) : `tools/list` = le registre filtré par `tool_accessible`, `tools/call` = `execute_tool` — LA porte unique. Adaptateur MINCE : aucun protocole maison, `tool_descriptions()` dérive déjà nom/description/schéma. DEUX surfaces, DEUX process : `wama` (prod) et `wama-dev`, jamais chargés ensemble. Client de la surface `wama` : l'abonnement Claude Code (2026-10-23) ; les deux process sont ARRÊTÉS à chaque relance (`start_wama_prod.sh`, ils survivaient avec du code périmé) ; la mesure d'accès : `llm_gateway_check --provider claude_code`
 
 - **Domicile** : `wama/common/services/mcp_server.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Serveur MCP de WAMA — l'adaptateur MINCE au-dessus de `tool_api`.
@@ -1485,15 +1488,16 @@ Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors canal
 
 ### Claude Code sur abonnement
 
-Délègue une tâche de développement au CLI Claude Code en headless — lecture seule par défaut, environnement construit sans la clé API
+Délègue une tâche de développement au CLI Claude Code en headless — lecture seule par défaut, environnement construit sans la clé API. Pour un compte, le CLI reçoit la surface MCP `wama` (`--mcp-config` seule lue, jeton d'API par l'environnement, outils `mcp__wama`) : il voit les outils de WAMA, par la porte `execute_tool` (2026-10-23). Binaire Windows : ses secrets passent par `WSLENV`, sans quoi l'interop les perdait — le jeton personnel compris
 
 - **Domicile** : `wama/common/services/claude_code.py` · **doc** : [docs/construction/suivi/ROADMAP.md §19.3](../construction/suivi/ROADMAP.md)
 - **Module** : Appel de Claude Code en mode headless, SUR L'ABONNEMENT du titulaire.
-- **API publique** (7) :
+- **API publique** (8) :
   - `class ClaudeCodeIndisponible(RuntimeError)` — Le CLI est absent ou inexploitable — message destiné à l'utilisateur.
   - `subscription_allowed(user) -> bool` — Qui a le droit de consommer l'abonnement du titulaire — DOMICILE UNIQUE de la règle.
   - `chemin_cli() -> str` — Chemin du CLI Claude Code, ou lève une erreur explicite.
   - `declared_model_ids() -> tuple` — Identifiants de modèle que l'abonnement DÉCLARE (`ExternalSource.declared_models` de la
+  - `wama_mcp_config(user) -> tuple` — `(config JSON, {variable: jeton})` de la surface `wama` du serveur MCP pour `user` — ou
   - `prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool=False, user=None, model: str='') -> dict` — La commande du CLI et son environnement, GARDES COMPRISES — `{'argv', 'env'}` ou
   - `read_output(raw: str) -> dict` — Le résultat d'une sortie `--output-format json` déjà écrite — celle d'une tâche détachée,
   - `demander(prompt: str, *, cwd: str | None=None, delai: int=DELAI_DEFAUT, outils=OUTILS_LECTURE, ecriture: bool=False, user=None, model: str='') -> dict` — Soumet UNE tâche à Claude Code et rend son résultat.
@@ -1604,7 +1608,7 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
 
 - **Domicile** : `wama/common/services/assistant_engine.py`
 - **Module** : Moteur de l'assistant IA — boucle agentique multi-surface (chantier « passerelle de canaux », étape 0).
-- **API publique** (11) :
+- **API publique** (12) :
   - `web_voice_prompt(user, surface: str) -> str` — La consigne de voix et d'avatar de la surface web, avec l'état de CET utilisateur —
   - `surface_attaches_files(surface: str) -> bool` — La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
   - `turn_model_key(provider, llm_model) -> str` — Clé de CATALOGUE du modèle d'un tour (`albert:…`, `ollama:…`) — '' sans modèle nommé.
@@ -1612,6 +1616,7 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
+  - `native_tool_list(user, dev_tools: list=()) -> list` — La liste des outils au format standard (`tools=`) que reçoit un modèle déclaré
   - `warm_up() -> dict` — Remplit les caches de processus du tour d'assistant — `{étape: secondes | 'erreur : …'}`.
   - `message_with_deposits(text: str, paths) -> str` — Le message d'un tour qui DÉPOSE des fichiers dans l'espace de l'utilisateur — UNE graphie
   - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None, on_event=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.

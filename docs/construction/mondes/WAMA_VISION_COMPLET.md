@@ -450,6 +450,16 @@ d'outils au 2026-08-27 — source : `wama/tool_api.py`) : comprendre une demande
 l'application, construire le traitement, le lancer, synthétiser. C'est le même pivot que le
 Studio utilise pour exécuter ses nœuds — **un cerveau, N surfaces**.
 
+**N cerveaux, les mêmes outils ✅ (2026-10-23).** Le modèle qui converse se choisit — local,
+cloud souverain (Albert, ILaaS), cloud commercial (OpenRouter, Anthropic, l'abonnement Claude
+Code) — et chacun atteint les MÊMES outils par la MÊME porte (`execute_tool`), avec les droits
+du compte : la boucle de l'assistant pour les uns, le serveur MCP de WAMA pour l'abonnement Claude
+Code, qui tourne sa propre boucle. Ce que le profil autorise en matière d'exposition des données
+(« 100 % local », jusqu'au souverain, jusqu'au commercial) est jugé AVANT que le moindre outil
+soit offert. Qu'un modèle sache vraiment appeler un outil se MESURE avant de le déclarer
+(`llm_gateway_check --tools`) ⏳ — ILaaS, le principal cloud souverain, à mesurer sur ses six
+modèles à la sortie de sa maintenance.
+
 ---
 
 # Partie 6 — Création multimédia

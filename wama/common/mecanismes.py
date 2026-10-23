@@ -969,7 +969,10 @@ MECHANISMS = (
               "IDE) : `tools/list` = le registre filtré par `tool_accessible`, `tools/call` = "
               "`execute_tool` — LA porte unique. Adaptateur MINCE : aucun protocole maison, "
               "`tool_descriptions()` dérive déjà nom/description/schéma. DEUX surfaces, DEUX "
-              "process : `wama` (prod) et `wama-dev`, jamais chargés ensemble",
+              "process : `wama` (prod) et `wama-dev`, jamais chargés ensemble. Client de la "
+              "surface `wama` : l'abonnement Claude Code (2026-10-23) ; les deux process sont "
+              "ARRÊTÉS à chaque relance (`start_wama_prod.sh`, ils survivaient avec du code "
+              "périmé) ; la mesure d'accès : `llm_gateway_check --provider claude_code`",
               'wama/common/services/mcp_server.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/common/management/commands/run_mcp_server.py',
@@ -1007,7 +1010,9 @@ MECHANISMS = (
               "sable) à la surface « wama-dev » par le protocole — process séparé, §16 tenu : "
               "rien n'est importé, la porte (droits à chaque appel, arguments admis) reste celle "
               "du serveur. Annoncés aux seuls développeurs/admins ; serveur absent = aucun outil, "
-              "l'assistant répond quand même. Étape 5 de §8d, moitié dev (2026-09-22)",
+              "l'assistant répond quand même. Étape 5 de §8d, moitié dev (2026-09-22). Il "
+              "porte l'adresse et le jeton de TOUTE surface (`surface_url`, `api_key`), lus aussi "
+              "par l'abonnement Claude Code et la mesure (2026-10-23)",
               'wama/common/services/mcp_client.py',
               'docs/construction/suivi/ROADMAP.md §8d',
               annexes=('wama/common/tests/tests_mcp_client.py',)),
@@ -1138,7 +1143,11 @@ MECHANISMS = (
               'wama/common/utils/assistant_skills.py', 'docs/construction/suivi/ROADMAP.md §19.7'),
     Mechanism('claude_code', "Claude Code sur abonnement",
               "Délègue une tâche de développement au CLI Claude Code en headless — "
-              "lecture seule par défaut, environnement construit sans la clé API",
+              "lecture seule par défaut, environnement construit sans la clé API. Pour un "
+              "compte, le CLI reçoit la surface MCP `wama` (`--mcp-config` seule lue, jeton "
+              "d'API par l'environnement, outils `mcp__wama`) : il voit les outils de WAMA, par "
+              "la porte `execute_tool` (2026-10-23). Binaire Windows : ses secrets passent par "
+              "`WSLENV`, sans quoi l'interop les perdait — le jeton personnel compris",
               'wama/common/services/claude_code.py', 'docs/construction/suivi/ROADMAP.md §19.3'),
     Mechanism('gateway_identity', "Appariement d'identité de canal",
               "Relie une identité Matrix/Discord à un compte WAMA par code prouvé hors "

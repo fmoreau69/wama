@@ -1833,6 +1833,7 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   ouvert dès le 2ᵉ niveau.
 - **Claude Code = un FOURNISSEUR comme les autres** : il consomme les outils WAMA par MCP
   (`--mcp-config`). `ask_claude_code` reste l'outil de délégation d'une tâche au dépôt.
+  ✅ **Câblé le 2026-10-23** (détail : étape 5 ci-dessous).
 - **Le moteur de l'assistant devient CLIENT MCP pour tous les cerveaux** (outils prod ET dev).
 - **Outils de dev ouverts à l'assistant** : rôles wama-dev-ai (propositions en attente de
   validation) ET bac à sable (`app_sandbox`, `app_regen_check`), dans le serveur SÉPARÉ.
@@ -2082,10 +2083,40 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
      TRANSPORT (`assistant_engine._llm_call`), et chaque appel d'outil passe par la porte
      `execute_tool` (`assistant_engine.py:1120`) — **la même** que celle du serveur MCP
      (`mcp_server.py:150`). Les faire transiter par le protocole MCP ne changerait rien pour eux.
-   - ⏳ **La seule exception est l'ABONNEMENT Claude Code** : il tourne sa PROPRE boucle et ne voit
-     pas les outils de WAMA — lancé avec `--allowedTools`, sans `--mcp-config`
-     (`claude_code.py:211-215`) ; son docstring le dit (`assistant_engine.py:557-563`). **Le reste
-     « moitié prod » se réduit à lui passer le serveur `wama` par `--mcp-config`.**
+   - ✅ **L'ABONNEMENT Claude Code voit les outils de WAMA (2026-10-23)** — il tournait sa PROPRE
+     boucle sans eux. Pour un compte, `claude_code.prepare` lui passe la surface `wama` du serveur
+     (`--mcp-config`, seule config MCP lue : `--strict-mcp-config`), à l'adresse du registre
+     (`mcp_client.surface_url`), authentifiée par le jeton d'API du compte (`mcp_client.api_key`,
+     transmis par l'environnement, `${WAMA_MCP_TOKEN}` dans l'en-tête — jamais sur la ligne de
+     commande), outils autorisés (`mcp__wama`). Même porte que tous : `execute_tool`, droits du
+     compte. Le profil est jugé AVANT (`cloud_refusal` : « 100 % local », plafond d'hébergement) —
+     sans accès, pas de surface. La surface `wama-dev` n'est pas passée (elle porte
+     `dev_claude_code` lui-même). MESURÉ en réel : 102 puis 90 outils vus, `list_ai_models` appelé
+     par la porte de WAMA.
+     Deux défauts trouvés en chemin : ① le CLI est le binaire WINDOWS, et l'interop ne passe que
+     les variables de `WSLENV` — le jeton d'abonnement PERSONNEL n'atteignait donc jamais le CLI,
+     qui retombait sur les identifiants de la machine (corrigé ; `INFRA_WSL_VS_WINDOWS`) ; ② les
+     deux serveurs MCP survivaient à toutes les relances (démarrés le 16/10, outils de jumelles
+     retirées encore servis) — `start_wama_prod.sh` les arrête désormais avec les autres.
+   - ✅ **La MESURE de l'accès aux outils a son outil** (2026-10-23, demande de Fabien) :
+     `llm_gateway_check --provider claude_code --user <compte> [--live]` (surface MCP de
+     l'abonnement : commande préparée, serveur, outils annoncés ; `--live` compare la réponse au
+     résultat de l'outil) et `llm_gateway_check --provider <source> --model <id> --tools --user
+     <compte> --repeat 3` (appel d'outil DÉCLARÉ NATIVEMENT, la liste même de l'assistant,
+     `native_tool_list`) — trois issues, seules les mesurées concluent. Elle a rejoué le 11/10 :
+     gpt-oss (Albert) nommé 2/2, deepseek-v4-flash muet 2/2.
+   - ⏳ **ILaaS** (le principal cloud souverain) : `mistral-small-4-119b` et `qwen-3.8-27b` nommés
+     5/5 chacun le 2026-10-23, mais la plateforme est en MAINTENANCE — rien n'est déclaré
+     `native_tools`. À sa sortie : rejouer la série sur ses SIX modèles (`gemma-4-31b`,
+     `llama-3.1-8b`, `mistral-medium-latest`, `mistral-small-4-119b`, `qwen-3.6-35b-instruct`,
+     `qwen-3.8-27b`), puis déclarer ceux qui passent.
+   - ⏳ **API Anthropic** : mesure impossible le 2026-10-23 (crédit de la clé épuisé) ; sans
+     déclaration native, ses modèles lisent la liste du prompt, comme avant. **OpenRouter** : la clé
+     n'ouvre aucun modèle de conversation pour le compte mesuré — rien à mesurer.
+   - ⏳ **DÉCISION** : l'abonnement Claude est déclaré hébergé `third_party` (« sans conservation »).
+     Ce sont les conditions d'un abonnement GRAND PUBLIC : à vérifier s'il garde ou entraîne sur
+     les échanges — auquel cas il relève du dernier cran du plafond (`third_party_all`), et la
+     surface MCP lui donne désormais accès aux données de l'utilisateur.
    - ⏳ **WAMA client de serveurs MCP EXTERNES** : rien encore — `mcp_client` ne connaît que la
      surface dev (`dev_tools_for`, `call_dev_tool`).
    - ⚠ **Ne pas confondre avec les modèles cloud DANS LES APPS** : ce n'est pas du MCP (protocole
