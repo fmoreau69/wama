@@ -312,6 +312,17 @@ class SurfaceLayoutTest(TestCase):
         self.assertIn('docked: layout.docked || {}', kernel, 'the pin travels with the layout')
         self.assertIn('dockable: true', _js('common/js/surfaces/brick-media-transport.js'))
 
+    def test_a_docked_panel_stops_at_the_header_and_the_footer(self):
+        """Same day, Fabien: pinned to the top it went UNDER the fixed header, unusable. A pinned
+        panel is set between the header and the footer, by the heights the side panels read."""
+        from pathlib import Path
+        css = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'css'
+               / 'wama-surface.css').read_text(encoding='utf-8')
+        top = css.split('.is-docked-top {', 1)[1].split('}', 1)[0]
+        bottom = css.split('.is-docked-bottom {', 1)[1].split('}', 1)[0]
+        self.assertIn('top: var(--fm-header-height', top)
+        self.assertIn('bottom: var(--fm-footer-height', bottom)
+
     def test_a_slot_declared_outside_its_zone_is_refused(self):
         from wama.common.surfaces import BrickSlot, Surface, register_surface
         for slot in (BrickSlot('a', 'surface_actions', 0, 0, 2, 3, zone='panel'),
