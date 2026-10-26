@@ -12,6 +12,7 @@ import unittest
 from types import SimpleNamespace
 
 import numpy as np
+from django import test as django_test
 
 from wama_lab.cam_analyzer.utils import display_anonymization as anon
 from wama_lab.cam_analyzer.utils import pass_tracking as pt
@@ -46,6 +47,26 @@ class OutsideWindowsTest(unittest.TestCase):
         self.assertEqual(frames.get(10, []), [whole])
 
 
+class ConfidenceFloorTest(unittest.TestCase):
+    """Le seuil du floutage (2026-10-26) : ce qui passe sous lui n'est plus flouté."""
+
+    def test_detections_under_the_floor_are_dropped_and_empty_frames_with_them(self):
+        doc = {'kind': 'detections', 'frames': [
+            {'i': 1, 'd': [{'label': 'plate', 'conf': 0.10}, {'label': 'face', 'conf': 0.60}]},
+            {'i': 2, 'd': [{'label': 'plate', 'conf': 0.12}]},
+            {'i': 3, 'd': [{'label': 'plate'}]}]}
+        kept = anon.confident(doc, 0.25)
+        self.assertEqual([f['i'] for f in kept['frames']], [1, 3])
+        self.assertEqual(kept['frames'][0]['d'], [{'label': 'face', 'conf': 0.60}])
+        self.assertEqual(kept['frames'][1]['d'], [{'label': 'plate'}],
+                         "une détection sans confiance est gardée")
+        self.assertEqual(len(doc['frames']), 3, "le document lu n'est pas modifié")
+
+    def test_a_floor_of_zero_keeps_everything(self):
+        doc = {'frames': [{'i': 1, 'd': [{'conf': 0.0}, {'conf': 0.10}]}]}
+        self.assertEqual(anon.confident(doc, 0.0), doc)
+
+
 class OnDemandPassesTest(unittest.TestCase):
 
     def test_the_anonymization_branch_is_declared_on_demand_and_nothing_else_is(self):
@@ -56,6 +77,10 @@ class OnDemandPassesTest(unittest.TestCase):
         self.assertEqual(pt._DEPENDS_ON['anonymize_blur'], ['anonymize_detect'])
         self.assertIn('intersection_windows', pt._DEPENDS_ON['anonymize_detect'])
         self.assertEqual(pt._WATCHED['anonymize_detect'], ['anonymize_classes', 'anonymize_quality'])
+
+    def test_the_blur_threshold_stales_the_blur_and_never_the_detection(self):
+        self.assertEqual(pt._WATCHED['anonymize_blur'], ['anonymize_min_confidence'])
+        self.assertNotIn('anonymize_min_confidence', pt._WATCHED['anonymize_detect'])
 
     def test_a_panel_row_says_whether_its_pass_is_on_demand(self):
         row = pt._panel_row(pt._BY_KEY['anonymize_detect'], 'front')
@@ -134,3 +159,89 @@ class VideoRoundTripTest(unittest.TestCase):
         stripes = lambda image: float(np.std(image[:, :, 0].astype(float)))
         self.assertGreater(stripes(frames[3]), 3 * stripes(frames[8]),
                            "dans la fenêtre l'image reste nette, hors fenêtre elle est floutée")
+
+    def _blurred_frame_3(self, min_confidence):
+        """Image 3 (dans la fenêtre) floutée selon une détection FAIBLE qui couvre toute l'image."""
+        import cv2
+        from wama.common.utils import detections as dets
+        doc = dets.new_document(media='video', width=64, height=48, fps=12.0, frame_count=12)
+        doc['scope'] = [[2, 4]]
+        dets.add(doc, 3, [{'label': 'license_plate', 'conf': 0.12, 'box': [0, 0, 64, 48]}])
+        doc.pop('_index', None)
+        target = os.path.join(self.tmp, f'out_{min_confidence}', 'front.mp4')
+        written = anon.blur_camera(self.camera, doc, {'blur_ratio': 25, 'interpolate_detections': False},
+                                   target, min_confidence=min_confidence)
+        capture = cv2.VideoCapture(written)
+        frames = [capture.read()[1] for _ in range(4)]
+        capture.release()
+        return float(np.std(frames[3][:, :, 0].astype(float)))
+
+    def test_a_detection_under_the_threshold_is_left_sharp(self):
+        self.assertGreater(self._blurred_frame_3(0.25), 3 * self._blurred_frame_3(0.10),
+                           "à 0,25 la détection à 0,12 reste nette ; à 0,10 elle est floutée")
+
+
+class ThresholdViewsTest(django_test.TestCase):
+    """Le seuil se règle seul depuis le ▾ du bouton « Anonymisé », et l'aperçu lit les détections."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from wama_lab.cam_analyzer.models import AnalysisProfile, AnalysisSession, CameraView
+        User = get_user_model()
+        self.user = User.objects.create_user('anon-threshold-test', password='x')
+        self.other = User.objects.create_user('anon-threshold-other', password='x')
+        self.profile = AnalysisProfile.objects.create(user=self.user, name='p', model_path='yolo11n.pt',
+                                                      intersections=[{'lat': 1.0, 'lon': 2.0}])
+        self.session = AnalysisSession.objects.create(user=self.user, name='s', profile=self.profile)
+        self.camera = CameraView.objects.create(session=self.session, position='front')
+
+    def _call(self, view, user, *args, body=None):
+        import json
+        from django.test import RequestFactory
+        from wama_lab.cam_analyzer import views
+        factory = RequestFactory()
+        request = (factory.post('/', data=json.dumps(body), content_type='application/json')
+                   if body is not None else factory.get('/'))
+        request.user = user
+        return getattr(views, view)(request, *args)
+
+    def test_the_threshold_is_saved_alone_and_clamped(self):
+        import json
+        res = self._call('save_anonymize_threshold', self.user, self.profile.id,
+                         body={'anonymize_min_confidence': 1.7})
+        self.assertEqual(json.loads(res.content)['anonymize_min_confidence'], 1.0)
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.anonymize_min_confidence, 1.0)
+        self.assertEqual(self.profile.intersections, [{'lat': 1.0, 'lon': 2.0}],
+                         "le reste du profil n'est pas touché")
+
+    def test_a_threshold_that_is_not_a_number_is_refused(self):
+        res = self._call('save_anonymize_threshold', self.user, self.profile.id,
+                         body={'anonymize_min_confidence': 'beaucoup'})
+        self.assertEqual(res.status_code, 400)
+
+    def test_another_users_profile_is_not_found(self):
+        from django.http import Http404
+        with self.assertRaises(Http404):
+            self._call('save_anonymize_threshold', self.other, self.profile.id,
+                       body={'anonymize_min_confidence': 0.3})
+
+    def test_the_detections_are_served_only_once_the_detection_ran(self):
+        from unittest.mock import patch
+        missing = os.path.join(tempfile.gettempdir(), 'wama-anon-missing.json')
+        with patch.object(anon, 'detections_path', return_value=missing):
+            self.assertEqual(self._call('anonymize_detections', self.user, self.camera.id).status_code, 404)
+        tmp = tempfile.mkdtemp(prefix='wama_anon_view_')
+        try:
+            path = os.path.join(tmp, 'front_detections.json')
+            with open(path, 'w') as out:
+                out.write('{"kind": "detections", "frames": []}')
+            with patch.object(anon, 'detections_path', return_value=path):
+                res = self._call('anonymize_detections', self.user, self.camera.id)
+                self.assertEqual(res.status_code, 200)
+                self.assertEqual(b''.join(res.streaming_content), b'{"kind": "detections", "frames": []}')
+                # le fichier, pas `res.close()` : celle-ci émet la fin de requête, qui ferme la
+                # connexion de la base au milieu de la transaction du test
+                res.file_to_stream.close()
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)

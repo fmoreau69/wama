@@ -833,6 +833,23 @@ document.addEventListener('DOMContentLoaded', function () {
         btn.title = available
             ? "Afficher les vidéos ANONYMISÉES (visages et plaques floutés aux intersections, image entière floutée ailleurs). Affichage seul : l'analyse lit toujours les vidéos d'origine."
             : "Aucune vidéo anonymisée pour cette session : lancer les passes « Anonymisation » du pipeline.";
+        // Son ▾ : actif dès que la DÉTECTION a tourné (le seuil se règle avant tout floutage).
+        const caret = document.getElementById('anonymizeSettingsBtn');
+        if (caret) {
+            const detected = anonDetectionsAvailable();
+            caret.disabled = !detected;
+            caret.title = detected
+                ? "Réglages de « Anonymisé » : seuil du floutage, avec un aperçu sur les vidéos"
+                : "Réglages de « Anonymisé » : aucune détection d'anonymisation pour cette session — lancer « Anonymisation — détection » du pipeline.";
+        }
+        // Autre session : l'aperçu repart de ses propres détections.
+        if (anonPreview.session !== null && anonPreview.session !== currentSessionId) {
+            anonPreview.session = null;
+            anonPreview.loading = null;
+            anonPreview.docs = {};
+            anonPreview.dirty = false;
+            if (anonPreview.active) openTdPanel(null);
+        }
     }
 
     function applyAnonymizedView() {
@@ -859,6 +876,232 @@ document.addEventListener('DOMContentLoaded', function () {
         });
         if (pending === 0 && wasPlaying) syncPlay();
         refreshAnonymizedBtn();
+    }
+
+    // ── RÉGLAGES D'UN BOUTON (son ▾) et APERÇU du seuil de floutage (2026-10-26) ─────────────
+    // Demande de Fabien : un réglage se règle À CÔTÉ du bouton qu'il sert, et dit QUAND il agit
+    // (⚡ tout de suite, ⟳ au prochain calcul). Un seul panneau ouvert à la fois.
+    // Le seuil du floutage (`anonymize_min_confidence`, profil) ne refait que la passe
+    // `anonymize_blur` (processeur). Pour le choisir sans relancer à l'aveugle, les boîtes de la
+    // DÉTECTION sont tracées sur la vidéo tant que son panneau est ouvert : vertes, floutées à ce
+    // seuil ; rouges barrées, laissées nettes. Même règle que le serveur
+    // (`display_anonymization.confident`) ; le comblement entre images n'est pas tracé.
+    const anonPreview = { session: null, docs: {}, loading: null, active: false, threshold: null, dirty: false };
+    const _fmtConf = v => Number(v).toFixed(2).replace('.', ',');
+    const _anonLabel = l => (/plate/i.test(l) ? 'plaque' : /face/i.test(l) ? 'visage' : String(l || '?'));
+
+    function anonDetectionsAvailable() {
+        return Object.values(cameras).some(c => c && c.anonymize_detections_url);
+    }
+
+    function loadAnonDocs() {
+        if (anonPreview.session === currentSessionId && anonPreview.loading) return anonPreview.loading;
+        const sid = currentSessionId;
+        anonPreview.session = sid;
+        anonPreview.docs = {};
+        anonPreview.loaded = false;
+        anonPreview.loading = Promise.all(positions.map(async pos => {
+            const cam = cameras[pos];
+            if (!cam || !cam.anonymize_detections_url) return;
+            try {
+                const r = await fetch(cam.anonymize_detections_url);
+                if (!r.ok) return;
+                const doc = await r.json();
+                if (sid !== currentSessionId) return;
+                const byIndex = new Map();
+                (doc.frames || []).forEach(fr => byIndex.set(Number(fr.i), fr.d || []));
+                anonPreview.docs[pos] = { fps: doc.fps || cam.fps || 12, width: doc.width, height: doc.height,
+                                          scope: doc.scope || [], byIndex };
+            } catch (e) { console.warn("[cam_analyzer] détections d'anonymisation", pos, e); }
+        })).then(() => { if (sid === currentSessionId) anonPreview.loaded = true; });
+        return anonPreview.loading;
+    }
+
+    // Trace l'aperçu PAR-DESSUS l'overlay déjà dessiné (jamais d'effacement ici).
+    function drawAnonPreview(pos) {
+        if (!anonPreview.active) return;
+        const doc = anonPreview.docs[pos];
+        const canvas = document.getElementById(`canvas-${pos}`);
+        const video = document.getElementById(`video-${pos}`);
+        if (!doc || !canvas || !video || !doc.width || !doc.height) return;
+        const { offsetX, offsetY, scaleX, scaleY } = fitOverlay(canvas, video, doc.width, doc.height);
+        const ctx = canvas.getContext('2d');
+        const idx = Math.round(video.currentTime * doc.fps);
+        ctx.save();
+        ctx.font = '11px sans-serif';
+        ctx.textBaseline = 'bottom';
+        const tag = (text, x, y, color) => {
+            const w = ctx.measureText(text).width + 6;
+            ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(x, y - 13, w, 13);
+            ctx.fillStyle = color; ctx.fillText(text, x + 3, y);
+        };
+        if (!doc.scope.some(([s, e]) => idx >= s && idx <= e)) {
+            tag("Hors fenêtre d'intersection : image entière floutée", offsetX + 4, offsetY + 16, '#ffd54f');
+            ctx.restore();
+            return;
+        }
+        const dets = doc.byIndex.get(idx) || doc.byIndex.get(idx - 1) || doc.byIndex.get(idx + 1) || [];
+        dets.forEach(d => {
+            if (!Array.isArray(d.box) || d.box.length < 4) return;
+            const conf = typeof d.conf === 'number' ? d.conf : 1;
+            const kept = conf >= anonPreview.threshold;
+            const x = offsetX + d.box[0] * scaleX, y = offsetY + d.box[1] * scaleY;
+            const w = (d.box[2] - d.box[0]) * scaleX, h = (d.box[3] - d.box[1]) * scaleY;
+            const color = kept ? '#2ecc71' : '#ff4d4f';
+            ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(kept ? [] : [4, 3]);
+            ctx.strokeRect(x, y, w, h);
+            if (!kept) { ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y + h); ctx.stroke(); }
+            ctx.setLineDash([]);
+            tag(`${_anonLabel(d.label)} ${_fmtConf(conf)}`, x, Math.max(13, y - 1), color);
+        });
+        ctx.restore();
+    }
+
+    // Combien de détections ce seuil floute, par classe, toutes caméras chargées.
+    function updateAnonCounts() {
+        const el = document.getElementById('anonMinConfCounts');
+        if (!el) return;
+        const per = {};
+        Object.values(anonPreview.docs).forEach(doc => doc.byIndex.forEach(dets => dets.forEach(d => {
+            const k = _anonLabel(d.label);
+            const c = per[k] || (per[k] = { all: 0, kept: 0 });
+            c.all += 1;
+            if ((typeof d.conf === 'number' ? d.conf : 1) >= anonPreview.threshold) c.kept += 1;
+        })));
+        const parts = Object.entries(per).map(([k, c]) =>
+            `${k}s : <span class="text-success">${c.kept.toLocaleString('fr-FR')} floutées</span>, `
+            + `<span class="text-danger">${(c.all - c.kept).toLocaleString('fr-FR')} laissées nettes</span>`);
+        el.innerHTML = parts.length ? parts.join('<br>')
+            : `<span class="text-secondary">${anonPreview.loaded ? 'Aucune détection chargée.' : 'Chargement des détections…'}</span>`;
+    }
+
+    function renderAnonPanel() {
+        const panel = document.getElementById('tdAnonPanel');
+        if (!panel) return;
+        const p = activeProfile || {};
+        const saved = typeof p.anonymize_min_confidence === 'number' ? p.anonymize_min_confidence : 0.25;
+        if (anonPreview.threshold === null || !anonPreview.dirty) anonPreview.threshold = saved;
+        const classes = (p.anonymize_classes || ['face', 'plate'])
+            .map(c => ({ face: 'visages', plate: 'plaques' }[c] || c)).join(', ');
+        panel.innerHTML = `
+            <div class="td-settings-title"><i class="fas fa-user-secret me-1"></i>Anonymisé — réglages du floutage</div>
+            <div class="small text-secondary mb-1" style="font-size:.7rem;"
+                 title="Les classes et le cran choisissent les détecteurs : les changer refait la DÉTECTION (GPU), puis le floutage.">
+                <span class="td-when d-inline-block">⟳</span>Détection : ${escapeHtml(classes)} · cran ${p.anonymize_quality != null ? p.anonymize_quality : 50}
+                — <a href="#" id="anonEditProfileLink">modifier dans le profil</a> (refait la détection, GPU)
+            </div>
+            <div class="d-flex align-items-center gap-1"
+                 title="Une détection plus faible reste nette. Agit au prochain floutage : « Refaire le floutage ».">
+                <span class="td-when">⟳</span>
+                <span class="small text-secondary" style="min-width:104px;">Confiance min. pour flouter</span>
+                <input type="range" id="anonMinConfSlider" min="0" max="0.9" step="0.01" value="${anonPreview.threshold}" style="width:90px;">
+                <span class="small text-body-emphasis fw-semibold" id="anonMinConfVal" style="min-width:34px;">${_fmtConf(anonPreview.threshold)}</span>
+            </div>
+            <div class="small mt-1 ms-4" id="anonMinConfCounts" style="font-size:.7rem;"></div>
+            <div class="small text-secondary mt-1" style="font-size:.68rem;">
+                Aperçu sur les vidéos tant que ce panneau est ouvert :
+                <span style="color:#2ecc71;">▭ floutée</span> · <span style="color:#ff4d4f;">▭ laissée nette</span> à ce seuil
+                (boîtes de la détection, sans le comblement entre images). Pour bien juger, garder « Anonymisé » éteint.
+            </div>
+            <div id="anonBlurState"></div>
+            <div class="small text-secondary mt-1" style="font-size:.68rem;">
+                Réglage du profil « ${escapeHtml(p.name || '—')} » : il vaut pour toutes ses sessions.
+            </div>`;
+        const slider = document.getElementById('anonMinConfSlider');
+        slider.oninput = () => {
+            anonPreview.threshold = parseFloat(slider.value) || 0;
+            anonPreview.dirty = Math.abs(anonPreview.threshold - saved) > 1e-9;
+            document.getElementById('anonMinConfVal').textContent = _fmtConf(anonPreview.threshold);
+            const save = document.getElementById('anonSaveBtn');
+            if (save) save.disabled = !anonPreview.dirty;
+            updateAnonCounts();
+            updateDetectionOverlay(playheadT());
+        };
+        document.getElementById('anonEditProfileLink').onclick = (e) => { e.preventDefault(); openProfileEditor(); };
+        renderAnonState();
+        updateAnonCounts();
+    }
+
+    // État du floutage et ses boutons — re-rendu à chaque relevé du pipeline (suivi d'un floutage
+    // en cours) sans toucher au curseur. Le seuil employé est rangé dans le résumé de la passe.
+    function renderAnonState() {
+        const box = document.getElementById('anonBlurState');
+        if (!box) return;
+        const rows = (_lastPipelinePasses || []).filter(r => r.pass_type === 'anonymize_blur');
+        const done = rows.filter(r => ['SUCCESS', 'STALE'].includes(passStatus(r)));
+        const floors = [...new Set(done.map(r => (r.output_summary || {}).min_confidence))];
+        let state = 'jamais fait';
+        if (done.length) {
+            state = floors.length === 1 && typeof floors[0] === 'number' ? `au seuil ${_fmtConf(floors[0])}`
+                : (floors.every(v => v == null) ? 'sans seuil (fait avant le 26/10)' : 'à des seuils différents selon les caméras');
+            if (rows.some(r => passStatus(r) === 'STALE')) state += ' — <span class="text-warning">périmé</span>';
+        }
+        const running = rows.some(r => passStatus(r) === 'RUNNING');
+        const eta = rows.reduce((s, r) => s + (r.eta_seconds || 0), 0);
+        const etaTxt = eta && window.WamaEta ? ` (${WamaEta.format(eta, 'low')})` : '';
+        box.innerHTML = `
+            <div class="small mt-1">Floutage actuel : ${state}</div>
+            <div class="d-flex flex-wrap gap-1 mt-2">
+                <button type="button" class="btn btn-sm btn-outline-success" id="anonSaveBtn" ${anonPreview.dirty ? '' : 'disabled'}
+                        title="Enregistre le seuil dans le profil — le floutage des sessions de ce profil devient périmé">Enregistrer le seuil</button>
+                <button type="button" class="btn btn-sm btn-success" id="anonReblurBtn" ${running ? 'disabled' : ''}
+                        title="Enregistre le seuil s'il a changé, puis réécrit les vidéos floutées de cette session (processeur, sans nouvelle détection)">
+                    ${running ? 'Floutage en cours…' : 'Refaire le floutage' + etaTxt}</button>
+            </div>`;
+        document.getElementById('anonSaveBtn').onclick = () => saveAnonThreshold().then(renderAnonState);
+        document.getElementById('anonReblurBtn').onclick = reblurAnonymized;
+    }
+
+    async function saveAnonThreshold() {
+        if (!activeProfile || !anonPreview.dirty) return true;
+        try {
+            const r = await fetch(`${config.urls.anonymizeThreshold}${activeProfile.id}/anonymize-threshold/`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': config.csrfToken, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ anonymize_min_confidence: anonPreview.threshold }),
+            });
+            const d = await r.json();
+            if (!d.success) { alert('Seuil non enregistré : ' + (d.error || '?')); return false; }
+            activeProfile.anonymize_min_confidence = d.anonymize_min_confidence;
+            anonPreview.dirty = false;
+            await loadPipelinePanel();   // le floutage passe « périmé »
+            return true;
+        } catch (e) {
+            alert('Seuil non enregistré : ' + e.message);
+            return false;
+        }
+    }
+
+    async function reblurAnonymized() {
+        const rows = (_lastPipelinePasses || []).filter(r => r.pass_type === 'anonymize_blur');
+        const eta = rows.reduce((s, r) => s + (r.eta_seconds || 0), 0);
+        const etaTxt = eta && window.WamaEta ? `, ${WamaEta.format(eta, 'low')}` : '';
+        if (!confirm(`Refaire le floutage de cette session au seuil ${_fmtConf(anonPreview.threshold)} ?\n`
+                     + `Les vidéos floutées sont réécrites (processeur, sans nouvelle détection${etaTxt}).`)) return;
+        if (!(await saveAnonThreshold())) return;
+        await runPasses(['anonymize_blur'], false);
+        renderAnonState();
+    }
+
+    // Ouvre le panneau d'un ▾ (et ferme les autres) ; `null` les ferme tous.
+    function openTdPanel(panelId) {
+        document.querySelectorAll('#camAnalyzerMapToolbar .td-settings-toggle').forEach(btn => {
+            const open = btn.dataset.tdPanel === panelId;
+            btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            const panel = document.getElementById(btn.dataset.tdPanel);
+            if (panel) panel.classList.toggle('d-none', !open);
+        });
+        const anonOpen = panelId === 'tdAnonPanel';
+        if (anonOpen !== anonPreview.active) {
+            anonPreview.active = anonOpen;
+            if (anonOpen) {
+                renderAnonPanel();
+                loadAnonDocs().then(() => { updateAnonCounts(); updateDetectionOverlay(playheadT()); });
+            } else {
+                anonPreview.dirty = false;
+                updateDetectionOverlay(playheadT());
+            }
+        }
     }
 
     function showCameraVideo(position, videoUrl, camData) {
@@ -1063,6 +1306,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 ['calcul',  '🧮 Calculs', 'Dérive des données déjà extraites (événements, distances, tracking 360°, indicateurs, conflits)'],
             ];
             _lastPipelinePasses = _passes;
+            if (anonPreview.active) renderAnonState();   // panneau « Anonymisé » ouvert : son état suit
             // ▶ d'ÉTAGE (2026-09-07) : lancer TOUTE l'analyse, ou TOUS les calculs. Le gating
             // du ▶ Calculs dérive du graphe : un calcul dérive des détections → grisé tant
             // qu'aucune détection YOLO n'est terminée (le serveur refuse aussi, 409).
@@ -1334,6 +1578,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const data = await resp.json();
             const p = (data.profiles || []).find(x => String(x.id) === String(profileId));
             activeProfile = p || null;
+            if (anonPreview.active && !anonPreview.dirty) renderAnonPanel();   // seuil changé dans la modale
             renderProfileSummary();
             refreshAllAnalyzedBadges();
         } catch (e) {
@@ -1630,6 +1875,8 @@ document.addEventListener('DOMContentLoaded', function () {
             if (data && data.frames.length) {
                 const offset  = camCfg.time_offset || 0;
                 drawOverlayAt(pos, data, video.currentTime - offset);
+            } else if (anonPreview.active) {
+                clearCanvas(pos); drawAnonPreview(pos);   // aperçu du floutage sans détections YOLO
             }
         });
         } catch (e) {
@@ -2167,7 +2414,7 @@ document.addEventListener('DOMContentLoaded', function () {
         positions.forEach(pos => {
             const data   = detectionData[pos];
             const camCfg = cameras[pos];
-            if (!data || !data.frames.length) { clearCanvas(pos); return; }
+            if (!data || !data.frames.length) { clearCanvas(pos); drawAnonPreview(pos); return; }
 
             // (offset déjà appliqué dans syncSeek : currentTime est le temps de la caméra)
             drawOverlayAt(pos, data, currentTime);
@@ -2193,6 +2440,7 @@ document.addEventListener('DOMContentLoaded', function () {
             } else {
                 clearCanvas(pos);
             }
+            drawAnonPreview(pos);
         } catch (e) {
             clearCanvas(pos);
             if (!_overlayErrorWarned[pos]) {
@@ -2362,11 +2610,9 @@ document.addEventListener('DOMContentLoaded', function () {
         return dets.filter(d => d.type !== 'sam3_marking').concat(interp);
     }
 
-    function drawDetections(position, detections, srcWidth, srcHeight) {
-        const canvas = document.getElementById(`canvas-${position}`);
-        const video = document.getElementById(`video-${position}`);
-        if (!canvas || !video) return;
-
+    // Toile calée sur la vidéo affichée, et zone réelle de l'image dans la toile — partagé par
+    // l'overlay des détections et l'aperçu du seuil de floutage (2026-10-26).
+    function fitOverlay(canvas, video, srcWidth, srcHeight) {
         // Match canvas to displayed video element size — only resize if changed
         // (resizing resets the canvas context and forces a DOM re-layout)
         const rect = video.getBoundingClientRect();
@@ -2376,9 +2622,6 @@ document.addEventListener('DOMContentLoaded', function () {
             canvas.width  = Math.round(rect.width);
             canvas.height = Math.round(rect.height);
         }
-
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Compute actual video display area (object-fit:contain creates letterbox)
         const containerAR = canvas.width / canvas.height;
@@ -2398,9 +2641,17 @@ document.addEventListener('DOMContentLoaded', function () {
             offsetX = (canvas.width - drawW) / 2;
             offsetY = 0;
         }
+        return { drawW, drawH, offsetX, offsetY, scaleX: drawW / srcWidth, scaleY: drawH / srcHeight };
+    }
 
-        const scaleX = drawW / srcWidth;
-        const scaleY = drawH / srcHeight;
+    function drawDetections(position, detections, srcWidth, srcHeight) {
+        const canvas = document.getElementById(`canvas-${position}`);
+        const video = document.getElementById(`video-${position}`);
+        if (!canvas || !video) return;
+
+        const { drawW, drawH, offsetX, offsetY, scaleX, scaleY } = fitOverlay(canvas, video, srcWidth, srcHeight);
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
 
         // Gabarit de voie NORMALISÉ projeté sur la vidéo (pinhole sol→image) → permet de
         // CALIBRER la largeur de voie visuellement contre la route réelle. Distinct de la
@@ -5084,6 +5335,10 @@ document.addEventListener('DOMContentLoaded', function () {
                     anonymize_classes: Array.from(document.querySelectorAll('.anonymize-class'))
                         .filter(c => c.checked).map(c => c.value),
                     anonymize_quality: parseInt((document.getElementById('anonymizeQualitySlider') || {}).value, 10) || 50,
+                    // Seuil du floutage (2026-10-26) — aussi réglable depuis le ▾ du bouton « Anonymisé ».
+                    ...(document.getElementById('anonymizeMinConfInput')
+                        ? { anonymize_min_confidence: parseFloat(document.getElementById('anonymizeMinConfInput').value) || 0 }
+                        : {}),
                     analyzed_positions: ['front', 'rear', 'left', 'right'].filter(p =>
                         document.getElementById('analyze-' + p)?.checked
                     ),
@@ -5270,6 +5525,8 @@ document.addEventListener('DOMContentLoaded', function () {
                         _aqs.value = profile.anonymize_quality != null ? profile.anonymize_quality : 50;
                         _aqs.dispatchEvent(new Event('input', { bubbles: true }));
                     }
+                    const _amc = document.getElementById('anonymizeMinConfInput');
+                    if (_amc) _amc.value = profile.anonymize_min_confidence != null ? profile.anonymize_min_confidence : 0.25;
 
                     // Analysed positions (default front + rear)
                     const analyzed = Array.isArray(profile.analyzed_positions) && profile.analyzed_positions.length
@@ -5317,6 +5574,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 _aqsD.value = 50;
                 _aqsD.dispatchEvent(new Event('input', { bubbles: true }));
             }
+            const _amcD = document.getElementById('anonymizeMinConfInput');
+            if (_amcD) _amcD.value = 0.25;
 
             // Analysed positions — default front + rear
             ['front', 'rear', 'left', 'right'].forEach(p => {
@@ -5586,6 +5845,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // du pipeline (étage Calculs) — plus de bouton dédié dans la carte. Cf. volet droit § Analyser.
         // Bascule masquage des véhicules stationnés/garés.
         // Vidéos anonymisées à l'affichage (option du volet droit, cf. applyAnonymizedView).
+        // ▾ des boutons de la section Vue : leurs réglages, un panneau à la fois (cf. openTdPanel).
+        document.querySelectorAll('#camAnalyzerMapToolbar .td-settings-toggle').forEach(btn => {
+            btn.addEventListener('click', () =>
+                openTdPanel(btn.getAttribute('aria-expanded') === 'true' ? null : btn.dataset.tdPanel));
+        });
         const _avb = document.getElementById('anonymizedViewBtn');
         if (_avb) {
             refreshAnonymizedBtn();

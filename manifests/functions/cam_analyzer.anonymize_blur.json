@@ -44,7 +44,18 @@
         "required_fields": []
       }
     ],
-    "params": [],
+    "params": [
+      {
+        "choices": null,
+        "default": 0.25,
+        "description": "Confiance minimale d'une détection pour être floutée.",
+        "key": "anonymize_min_confidence",
+        "max": 1.0,
+        "min": 0.0,
+        "type": "float",
+        "unit": ""
+      }
+    ],
     "projects": [
       "ENA"
     ],

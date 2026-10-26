@@ -140,6 +140,21 @@ def stream_video(request, camera_id):
                                 mimetypes.guess_type(file_path)[0] or 'video/mp4')
 
 
+@login_required
+@require_http_methods(["GET"])
+def anonymize_detections(request, camera_id):
+    """Le document de la passe `anonymize_detect` d'une caméra, tel quel (1 à 3 Mo sur une
+    session ENA) — l'aperçu du seuil de floutage du panneau « Anonymisé » le trace sur la vidéo
+    d'origine. 404 tant que la détection n'a pas tourné."""
+    camera = get_object_or_404(CameraView, id=camera_id, session__user=request.user)
+    from django.http import FileResponse
+    from .utils.display_anonymization import detections_path
+    path = detections_path(camera.session, camera.position)
+    if not os.path.isfile(path):
+        return HttpResponse(status=404)
+    return FileResponse(open(path, 'rb'), content_type='application/json')
+
+
 # =============================================================================
 # Main view
 # =============================================================================
@@ -245,7 +260,7 @@ def create_session(request):
 def get_session(request, session_id):
     """Get full session details."""
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    from .utils.display_anonymization import anonymized_video
+    from .utils.display_anonymization import anonymized_video, detections_path
 
     cameras = []
     for c in session.cameras.all():
@@ -258,6 +273,9 @@ def get_session(request, session_id):
             # droit sert à la place de l'originale (affichage seul).
             'anonymized_video_url': (f'/lab/cam-analyzer/api/cameras/{c.id}/stream/?variant=anonymized'
                                      if c.video_file and anonymized_video(c) else None),
+            # …et ses détections, que l'aperçu du seuil de floutage trace (panneau « Anonymisé »).
+            'anonymize_detections_url': (f'/lab/cam-analyzer/api/cameras/{c.id}/anonymize-detections/'
+                                         if os.path.isfile(detections_path(session, c.position)) else None),
             'filename': os.path.basename(c.video_file.name) if c.video_file else '',
             'duration': c.duration,
             'fps': c.fps,
@@ -1344,6 +1362,7 @@ def list_profiles(request):
         'analyzed_positions': p.analyzed_positions or ['front', 'rear'],
         'anonymize_classes': p.anonymize_classes,
         'anonymize_quality': p.anonymize_quality,
+        'anonymize_min_confidence': p.anonymize_min_confidence,
         'model_path': p.model_path,
         'task_type': p.task_type,
         'target_classes': p.target_classes,
@@ -1399,6 +1418,12 @@ def save_profile(request):
             try:
                 anonymize_settings['anonymize_quality'] = max(0, min(100, int(float(
                     data.get('anonymize_quality')))))
+            except (TypeError, ValueError):
+                pass
+        if 'anonymize_min_confidence' in data:
+            try:
+                anonymize_settings['anonymize_min_confidence'] = round(max(0.0, min(1.0, float(
+                    data.get('anonymize_min_confidence')))), 3)
             except (TypeError, ValueError):
                 pass
         model_path = data.get('model_path', '')
@@ -1509,6 +1534,7 @@ def save_profile(request):
                 'analyzed_positions': profile.analyzed_positions or ['front', 'rear'],
                 'anonymize_classes': profile.anonymize_classes,
                 'anonymize_quality': profile.anonymize_quality,
+                'anonymize_min_confidence': profile.anonymize_min_confidence,
                 'model_path': profile.model_path,
                 'task_type': profile.task_type,
                 'target_classes': profile.target_classes,
@@ -1521,6 +1547,29 @@ def save_profile(request):
     except Exception as e:
         logger.error(f"Error saving profile: {e}", exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
+
+
+@login_required
+@require_http_methods(["POST"])
+def save_anonymize_threshold(request, profile_id):
+    """Le seuil du floutage SEUL, depuis le panneau du bouton « Anonymisé » (2026-10-26) —
+    `save_profile` réécrit tout le profil, il lui faut le formulaire entier. Le seuil ne périme
+    que le floutage (`pass_tracking`, réglage surveillé de `anonymize_blur`) des sessions du
+    profil : la détection garde tout."""
+    profile = get_object_or_404(AnalysisProfile, pk=profile_id, user=request.user)
+    try:
+        value = float(json.loads(request.body or b'{}').get('anonymize_min_confidence'))
+    except (TypeError, ValueError):
+        return JsonResponse({'success': False, 'error': 'Seuil invalide'}, status=400)
+    profile.anonymize_min_confidence = round(max(0.0, min(1.0, value)), 3)
+    profile.save(update_fields=['anonymize_min_confidence'])
+    from .utils.pass_tracking import recompute_stale
+    for s in profile.sessions.filter(user=request.user):
+        try:
+            recompute_stale(s)
+        except Exception:
+            logger.debug('recompute_stale', exc_info=True)
+    return JsonResponse({'success': True, 'anonymize_min_confidence': profile.anonymize_min_confidence})
 
 
 @login_required

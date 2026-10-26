@@ -109,9 +109,10 @@ PASSES: tuple = (
          depends_on=('extraction', 'intersection_windows'),
          watched=('anonymize_classes', 'anonymize_quality'), per_camera=True,
          task='compute_anonymize_detect_task', gpu=True, eta_size='windows', on_demand=True),
+    # Le seuil du floutage (2026-10-26) ne périme que le floutage : la détection garde tout.
     Pass('anonymize_blur', label='Anonymisation — floutage (affichage)', stage='analyse',
-         depends_on=('anonymize_detect',), per_camera=True, task='compute_anonymize_blur_task',
-         eta_size='video', on_demand=True),
+         depends_on=('anonymize_detect',), watched=('anonymize_min_confidence',), per_camera=True,
+         task='compute_anonymize_blur_task', eta_size='video', on_demand=True),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
     Pass('lane_events', label='Évènements de voie', stage='calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
          task='compute_lane_events_task'),

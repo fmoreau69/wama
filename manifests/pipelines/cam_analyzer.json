@@ -277,7 +277,9 @@
           "per_camera": true,
           "stage": "analyse",
           "task": "compute_anonymize_blur_task",
-          "watched": []
+          "watched": [
+            "anonymize_min_confidence"
+          ]
         }
       },
       {

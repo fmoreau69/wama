@@ -30,6 +30,8 @@ urlpatterns = [
     path('api/cameras/<int:camera_id>/delete/', views.delete_camera, name='delete_camera'),
     path('api/cameras/<int:camera_id>/update-position/', views.update_camera_position, name='update_camera_position'),
     path('api/cameras/<int:camera_id>/stream/', views.stream_video, name='stream_video'),
+    path('api/cameras/<int:camera_id>/anonymize-detections/', views.anonymize_detections,
+         name='anonymize_detections'),
 
     # Analysis (Phase 2)
     path('api/sessions/<uuid:session_id>/start/', views.start_analysis, name='start_analysis'),
@@ -57,6 +59,8 @@ urlpatterns = [
     # Profiles
     path('api/profiles/', views.list_profiles, name='list_profiles'),
     path('api/profiles/save/', views.save_profile, name='save_profile'),
+    path('api/profiles/<int:profile_id>/anonymize-threshold/', views.save_anonymize_threshold,
+         name='save_anonymize_threshold'),
     path('api/profiles/<int:profile_id>/delete/', views.delete_profile, name='delete_profile'),
 
     # Road segmentation model auto-download (keremberke/yolov8m-bdd100k-seg)

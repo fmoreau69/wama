@@ -66,6 +66,8 @@ class OverlayJsTestBase(SimpleTestCase):
                       'function clearCanvas(pos) { calls.push("clear:" + pos); }'
                       'function drawDetections(pos) { calls.push("draw:" + pos); }'
                       'function findClosestFrame(frames, t) { return frames[0] || null; }'
+                      # l'aperçu du seuil de floutage (2026-10-26), tracé PAR-DESSUS l'overlay
+                      'function drawAnonPreview(pos) {}'
                       'const _overlayErrorWarned = {};')
         for name in FUNCTIONS:
             self.ctx.eval(extract_function(src, name))
@@ -132,3 +134,11 @@ class OverlayNeverFreezesTest(OverlayJsTestBase):
         data = {'frames': [{'timestamp': 0, 'detections': [{'type': 'yolo'}]}], 'width': 10, 'height': 10}
         self.ctx.eval('drawOverlayAt("rear", %s, 0)' % json.dumps(data))
         self.assertEqual(json.loads(self.ctx.eval('JSON.stringify(calls)')), ['draw:rear'])
+
+    def test_the_blur_preview_is_drawn_over_the_overlay_never_under(self):
+        self.ctx.eval('drawAnonPreview = function (pos) { calls.push("preview:" + pos); };')
+        data = {'frames': [{'timestamp': 0, 'detections': [{'type': 'yolo'}]}], 'width': 10, 'height': 10}
+        self.ctx.eval('drawOverlayAt("rear", %s, 0)' % json.dumps(data))
+        self.ctx.eval('drawOverlayAt("left", %s, 0)' % json.dumps({'frames': [], 'width': 10, 'height': 10}))
+        self.assertEqual(json.loads(self.ctx.eval('JSON.stringify(calls)')),
+                         ['draw:rear', 'preview:rear', 'clear:left', 'preview:left'])

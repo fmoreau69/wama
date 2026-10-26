@@ -690,6 +690,17 @@ de l'étage Analyse ; « SAM3 seul » (2 exemplaires) retiré = ▶ de la ligne 
 | 12 | `indicators` | C | `tasks.compute_indicators_task` (2610) = `_run_global_tracking` **+** `prediction_adapter.annotate_prediction_indicators` (303) | détections + `gps_track` | trajectoire monde par gid (pinhole_ego → véhicule → monde), **moyenne glissante 5 pts**, extrapolation `speed_accel` (défaut) ou `kalman`, pas 0,2 s, horizon 4 s, collision SAT navette↔objet | `detections.prediction_ttc/prediction_pet` | CÂBLÉ — c'est le bouton « Calculer les indicateurs ». ⚠ **Mais il RE-DÉRIVE les positions objets au pinhole et ne lit JAMAIS `world_en`** (0 occurrence dans le fichier, mesuré 11/09) : il hérite de la correction EGO mais d'aucune correction OBJET — §D.5 |
 | 13 | `conflicts` | C | `tasks._compute_conflict_events` (518) | fenêtres + détections + `_gps_speed_at` | conflits en voie navette (qui passe premier, Δt, distance min, TTC min, sévérité) | `ConflictEvent` | CÂBLÉ |
 
+**Branche d'AFFICHAGE — anonymisation** (2026-10-12 ; consignée ici le 2026-10-26, le tableau
+ci-dessus est daté du 05/09) : `anonymize_detect` (étage A, GPU, par caméra, sur les seules
+fenêtres d'intersection — les détecteurs que l'Anonymizer choisit pour `anonymize_classes` ×
+`anonymize_quality`) → `<sortie>/anonymized/<session>/<position>_detections.json` ;
+`anonymize_blur` (étage A, CPU, par caméra) → `<position>.mp4`, image entière floutée hors des
+fenêtres. Les deux sont `on_demand` : aucun ▶ d'étage ni « Compléter » ne les lance, et RIEN de
+l'analyse ne les lit (la vidéo floutée ne sert qu'au bouton « Anonymisé »). Depuis le 2026-10-26,
+le floutage écarte les détections sous `anonymize_min_confidence` (profil, défaut 0,25), réglage
+surveillé du floutage seul : le détecteur de plaques garde son propre seuil (0,10), d'où des
+bandes floutées sur zébras et reflets. Le seuil se règle sous le ▾ du bouton, avec un aperçu.
+
 **Recalage ortho 2b — PASSES depuis le 2026-09-28** (ils n'étaient que deux boutons du panneau
 Calibration, qui restent) : `ortho_recalage` (étage ANALYSE, GPU : SAM3 sur l'orthophoto ; amonts
 `sam3_markings` + `global_tracking`, qui agrège les marquages monde) → `results_summary.ortho_recalage`

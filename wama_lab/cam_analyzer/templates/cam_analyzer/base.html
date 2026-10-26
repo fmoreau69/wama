@@ -80,12 +80,7 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
                 <button type="button" id="camYawSaveBtn" class="btn btn-sm btn-outline-success"
                         title="Enregistrer yaw + FOV caméras pour cette session">💾</button>
             </span>
-            <span class="d-inline-flex align-items-center gap-1 ms-2"
-                  title="Hauteur caméra (m) pour la projection sol→image du gabarit vidéo">
-                <span class="small text-secondary">H cam</span>
-                <input type="range" id="camHeightSlider" min="0.8" max="3.2" step="0.05" value="2.4" style="width:80px;">
-                <span class="small text-secondary" id="camHeightVal" style="min-width:34px;">2.4m</span>
-            </span>
+            {# « H cam » ne sert qu'au gabarit de voie sur la vidéo : rangée sous le ▾ de « Voie/vidéo » (2026-10-26) #}
         </div>
         <div class="d-flex flex-wrap gap-1 align-items-center mt-2">
             <span class="small text-secondary fw-semibold"><i class="fas fa-ruler-combined me-1"></i>Sol</span>
@@ -119,28 +114,59 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
                 title="Masquer les véhicules stationnés/garés (sauf ceux présents aux intersections).">
             <i class="fas fa-parking me-1"></i>Garés
         </button>
-        <button type="button" id="laneVideoBtn" class="btn btn-sm btn-outline-secondary"
-                title="Projeter le gabarit de voie SUR la vidéo pour caler la largeur de voie sur la route réelle (garde la segmentation yolopv2 séparément)">
-            <i class="fas fa-road me-1"></i>Voie/vidéo
-        </button>
-        <button type="button" id="anonymizedViewBtn" class="btn btn-sm btn-outline-success" disabled
-                title="Aucune vidéo anonymisée pour cette session : lancer les passes « Anonymisation » du pipeline.">
-            <i class="fas fa-user-secret me-1"></i>Anonymisé
-        </button>
+        {% comment %} Un bouton qui a des réglages porte un ▾ (2026-10-26, demande de Fabien) : ses
+           réglages s'ouvrent SOUS la section, titrés du nom du bouton, chacun marqué de QUAND il
+           agit — ⚡ tout de suite, ⟳ au prochain calcul (le vocabulaire du panneau Comparer). Un
+           seul panneau ouvert à la fois. Le contenu du panneau « Anonymisé » est rendu par le JS. {% endcomment %}
+        <div class="btn-group" role="group">
+            <button type="button" id="laneVideoBtn" class="btn btn-sm btn-outline-secondary"
+                    title="Projeter le gabarit de voie SUR la vidéo pour caler la largeur de voie sur la route réelle (garde la segmentation yolopv2 séparément)">
+                <i class="fas fa-road me-1"></i>Voie/vidéo
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-secondary td-settings-toggle px-1"
+                    data-td-panel="tdLanePanel" aria-expanded="false" aria-controls="tdLanePanel"
+                    title="Réglages de « Voie/vidéo » : largeur de voie et hauteur de la caméra">
+                <i class="fas fa-caret-down"></i>
+            </button>
+        </div>
+        <div class="btn-group" role="group">
+            <button type="button" id="anonymizedViewBtn" class="btn btn-sm btn-outline-success" disabled
+                    title="Aucune vidéo anonymisée pour cette session : lancer les passes « Anonymisation » du pipeline.">
+                <i class="fas fa-user-secret me-1"></i>Anonymisé
+            </button>
+            <button type="button" id="anonymizeSettingsBtn" class="btn btn-sm btn-outline-success td-settings-toggle px-1"
+                    data-td-panel="tdAnonPanel" aria-expanded="false" aria-controls="tdAnonPanel" disabled
+                    title="Réglages de « Anonymisé » : aucune détection d'anonymisation pour cette session — lancer « Anonymisation — détection » du pipeline.">
+                <i class="fas fa-caret-down"></i>
+            </button>
+        </div>
         <div class="td-subrow">
             <span class="d-inline-flex align-items-center gap-1"
-                  title="Filtre de confiance à l'affichage : masque les détections faibles, SANS ré-analyse">
-                <span class="small text-secondary"><i class="fas fa-filter me-1"></i>Conf ≥</span>
+                  title="Masque à l'affichage les détections (véhicules, piétons…) dont la confiance est plus faible — sur la vidéo et la vue de dessus, sans ré-analyse. Ne concerne aucun bouton : tout ce qui est affiché.">
+                <span class="small text-secondary"><i class="fas fa-filter me-1"></i>Détections affichées : confiance ≥</span>
                 <input type="range" id="overlayConfSlider" min="0" max="0.95" step="0.05" value="0" style="width:70px;">
                 <span class="small text-secondary" id="overlayConfVal" style="min-width:34px;">0%</span>
             </span>
-            <span class="d-inline-flex align-items-center gap-1"
-                  title="Largeur de voie (m) pour le gabarit de la vue de dessus — ajuste pour coller aux bordures (auto à venir)">
-                <span class="small text-secondary"><i class="fas fa-road me-1"></i>Voie</span>
-                <input type="range" id="laneWidthSlider" min="2" max="6" step="0.1" value="3.5" style="width:70px;">
-                <span class="small text-secondary" id="laneWidthVal" style="min-width:38px;">3.5m</span>
-            </span>
         </div>
+        <div id="tdLanePanel" class="td-settings-panel d-none">
+            <div class="td-settings-title"><i class="fas fa-road me-1"></i>Voie/vidéo — réglages</div>
+            <div class="d-flex align-items-center gap-1"
+                 title="Largeur de voie (m) du gabarit — ajuste pour coller aux bordures de la route réelle">
+                <span class="td-when" title="Agit tout de suite">⚡</span>
+                <span class="small text-secondary" style="min-width:104px;">Largeur de voie</span>
+                <input type="range" id="laneWidthSlider" min="2" max="6" step="0.1" value="3.5" style="width:90px;">
+                <span class="small text-secondary" id="laneWidthVal" style="min-width:38px;">3.5m</span>
+            </div>
+            <div class="small text-secondary ms-4" style="font-size:.68rem;">règle aussi le gabarit de la vue de dessus, bouton allumé ou non</div>
+            <div class="d-flex align-items-center gap-1 mt-1"
+                 title="Hauteur de la caméra (m) pour la projection sol→image du gabarit sur la vidéo">
+                <span class="td-when" title="Agit tout de suite">⚡</span>
+                <span class="small text-secondary" style="min-width:104px;">Hauteur caméra</span>
+                <input type="range" id="camHeightSlider" min="0.8" max="3.2" step="0.05" value="2.4" style="width:90px;">
+                <span class="small text-secondary" id="camHeightVal" style="min-width:34px;">2.4m</span>
+            </div>
+        </div>
+        <div id="tdAnonPanel" class="td-settings-panel d-none"></div>
     </div>
     {% comment %} Section 3 : COMPARER / LIVE — les « Indicateurs » sont désormais la passe
        `indicators` du pipeline (étage Calculs), plus de bouton de calcul ici. {% endcomment %}
@@ -196,6 +222,16 @@ encombrer le quotidien) → 2. VUE (bascules d'affichage quotidiennes, live) →
         flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center;
         gap: 10px; margin-top: 2px;
     }
+    /* Réglages d'un bouton (son ▾) : un bloc sur sa propre ligne, rattaché par son titre. */
+    #camAnalyzerMapToolbar .td-settings-panel {
+        flex-basis: 100%; margin-top: 4px; padding: 6px 8px; border-radius: 6px;
+        border: 1px solid var(--wama-border-strong); background: rgba(var(--wama-overlay-rgb), .04);
+    }
+    #camAnalyzerMapToolbar .td-settings-title {
+        font-size: .72rem; font-weight: 600; color: var(--wama-text-secondary); margin-bottom: 4px;
+    }
+    #camAnalyzerMapToolbar .td-when { width: 16px; text-align: center; font-size: .75rem; }
+    #camAnalyzerMapToolbar .td-settings-toggle[aria-expanded="true"] i { transform: rotate(180deg); }
     #camAnalyzerMapToolbar .td-group-label {
         font-size: .62rem; font-weight: 700; letter-spacing: .04em;
         text-transform: uppercase; color: var(--wama-cam-group-label); padding: 0 3px;

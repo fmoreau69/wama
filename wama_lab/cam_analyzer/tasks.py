@@ -1985,9 +1985,14 @@ def compute_anonymize_blur_task(self, session_id: str):
             mark_started(session, pass_key, session.profile, camera=cam)
             try:
                 doc = dets.read(source)
-                path = anon.blur_camera(cam, doc, settings_, anon.video_path(session, cam.position))
+                # Seuil du floutage (profil, 2026-10-26) : les détections plus faibles restent nettes.
+                floor = float(getattr(session.profile, 'anonymize_min_confidence', 0.0) or 0.0)
+                path = anon.blur_camera(cam, doc, settings_, anon.video_path(session, cam.position),
+                                        min_confidence=floor)
                 mark_completed(session, pass_key, camera=cam,
-                               output_summary={'file': os.path.basename(path)})
+                               output_summary={'file': os.path.basename(path), 'min_confidence': floor,
+                                               'detections': dets.count(doc),
+                                               'blurred': dets.count(anon.confident(doc, floor))})
                 written[cam.position] = os.path.basename(path)
                 _console(session.user_id, f"Anonymisation [{cam.position}] : vidéo floutée écrite")
             except Exception as e:

@@ -148,6 +148,16 @@ class AnalysisProfile(models.Model):
         help_text="Curseur rapide/qualité de l'Anonymizer (0 = rapide, 100 = précis) pour les "
                   "vidéos d'affichage.",
     )
+    # Seuil du FLOUTAGE (2026-10-26) : le détecteur de plaques garde son propre seuil (0,10) et
+    # ignore celui de la détection — sur des vidéos de 384×248 il voit des plaques dans les
+    # zébras et les reflets, et l'interpolation en fait des bandes floutées. Le filtre est posé
+    # au floutage : le changer ne refait que la passe `anonymize_blur` (CPU), pas la détection.
+    # 0,25 = le `detection_threshold` déclaré par défaut au schéma de l'Anonymizer.
+    anonymize_min_confidence = models.FloatField(
+        default=0.25, db_default=0.25,
+        help_text="Confiance minimale d'une détection pour être floutée dans les vidéos "
+                  "d'affichage (passe de floutage seule, sans nouvelle détection).",
+    )
     analyzed_positions = models.JSONField(
         default=_default_analyzed_positions,
         blank=True,

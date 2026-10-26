@@ -187,12 +187,30 @@ class _FramesWithOutside(dict):
         return super().get(index, default)
 
 
-def blur_camera(camera, doc, settings_: dict, target: str, progress=None) -> str:
+def confident(doc: dict, min_confidence: float) -> dict:
+    """Le document sans les détections sous `min_confidence` (une détection sans confiance est
+    gardée). Filtré AVANT l'interpolation : une fausse détection écartée n'est plus prolongée en
+    bande floutée, et un objet réel dont la confiance faiblit une image est comblé par ses
+    voisines. Le réglage du profil `anonymize_min_confidence` ; l'aperçu du volet trace la même
+    règle (`index.js`, panneau « Anonymisé »)."""
+    floor = float(min_confidence or 0.0)
+    frames = []
+    for frame in doc.get('frames') or []:
+        kept = [d for d in frame.get('d') or [] if float(d.get('conf', 1.0)) >= floor]
+        if kept:
+            frames.append(dict(frame, d=kept))
+    return dict(doc, frames=frames)
+
+
+def blur_camera(camera, doc, settings_: dict, target: str, progress=None,
+                min_confidence: float = 0.0) -> str:
     """Réécrit la vidéo de `camera` floutée selon `doc` — le process « Floutage » de
     l'Anonymizer (interpolation des trous, extrapolation aux bords, flou à la forme ou au
-    rectangle) — et l'image entière hors des plages anonymisées. Rend le chemin écrit."""
+    rectangle) — et l'image entière hors des plages anonymisées. Rend le chemin écrit.
+    `min_confidence` : les détections plus faibles ne sont pas floutées (`confident`)."""
     from wama.common.utils import detections as dets
     from wama.common.utils.blur_utils import blur_detections
+    doc = confident(doc, min_confidence)
     frames = dets.by_frame(
         doc, interpolate=bool(settings_.get('interpolate_detections', True)),
         max_gap=dets.max_gap_for(doc.get('fps'), settings_.get('max_interpolation_frames') or 0),
