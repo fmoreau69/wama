@@ -26160,3 +26160,16 @@ seul).
 **Leçons portées dans les rituels** : `/reverif §1` (un déplacement de monde rend fautif le
 correctif de la veille — greper le substrat pour la clé déplacée) ; `/contre-epreuve` promu (n=2)
 avec le piège « fonction liée à l'import ».
+
+## §CLÔTURE (suite) — 2026-10-26, « COMPTES ALIGNÉS SUR LA BASE VIVANTE » — ✅ — 🔚 aucun reste de ce périmètre
+
+Le 🔚 du bloc précédent est soldé, sur demande explicite de Fabien après la relance de gunicorn et
+des workers (16:23) : `align_account_tiers --apply` a aligné 3 comptes (`fabien.moreau`, `fmoreau`
+→ `admin` ; `adolphe.bequet` → `developpeur`) et supprimé les groupes `admin`/`dev`/`user`/
+`developpeur` ; second passage (WSL puis Windows) : « Comptes déjà alignés ». Deux groupes
+`communication` / `recherche` sans préfixe `role:`, vides et cités par rien, supprimés à la main
+(décision de Fabien). Relevé mesuré après coup : 20 comptes (18 actifs) — 3 admin, 3 développeurs
+(dont 2 de test), 12 utilisateurs, 2 anonymes inactifs ; drapeaux `is_staff`/`is_superuser`
+conformes au niveau pour chaque compte ; `administrators()` = les 3 admin ; en base, les seuls
+groupes sont les quatre rôles métier. Domicile : `PROFILES_PERMISSIONS §1.10`. Aucun code touché.
+Restent de cette session (inchangés) : pousser, et les limites du bloc précédent.
