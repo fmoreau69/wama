@@ -5,10 +5,13 @@ description: Prouver qu'une garde neuve MESURE vraiment — en neutralisant la b
 
 # /contre-epreuve — un test vert ne prouve rien s'il ne peut pas rougir
 
-> ⚠ CANDIDAT (n=1 comme skill, 2026-09-27) — mais **le geste a été déroulé 7 fois en deux
-> sessions** (22/09 : confirmation de suppression, suivi des liens, enregistrement de provenance ;
-> 27/09 : partage entre apps, pointage, copie hors de l'arbre, repointage vers la médiathèque), et
-> il a attrapé **deux tests aveugles de ma main** que la relecture n'avait pas vus.
+> PROMU (n=2 : 2026-09-27, distillé de 7 déroulés en deux sessions — 22/09 : confirmation de
+> suppression, suivi des liens, enregistrement de provenance ; 27/09 : partage entre apps,
+> pointage, copie hors de l'arbre, repointage vers la médiathèque — où il a attrapé **deux tests
+> aveugles de ma main** ; 2026-10-21→22, déroulé GUIDÉ par ce skill sur onze gardes d'une même
+> session — rôle du compte, lecture des dossiers connectés, déplacement d'un nœud de monde,
+> portes de l'exécuteur du Studio —, toutes rouges, et le piège du §4 « fonction liée à
+> l'import » rencontré et résolu).
 
 La doctrine l'exige déjà partout (« une garde se mesure À BLANC », `AGENTS.md` ; « la SONDE est
 suspecte avant le code ») sans dire COMMENT. Ce skill est la recette, et elle tient en une phrase :
@@ -118,6 +121,14 @@ print('COUNTERPROOF <nom>: failures =', failures,
   à cette position, restaurer à cette même position (`cur[at:at+len(muté)] == muté` vérifié
   d'abord), puis comparer les octets à ceux d'avant. *Une restauration qui cherche ce qu'elle a
   écrit trouve aussi ce que d'autres ont écrit.* (Et jamais par copie d'un fichier co-édité.)
+
+- **2026-10-21 — une fonction LIÉE À L'IMPORT échappe au patch d'attribut.** La garde de
+  l'écrivain du niveau d'un compte importait `set_account_tier` en tête de module
+  (`from wama.accounts.permissions import set_account_tier`) : neutraliser l'attribut du module
+  n'atteignait pas l'objet déjà lié, et la mutation par ÉDITION du fichier non plus tant que le
+  module de test gardait l'ancienne fonction. ✅ Après la mutation : `importlib.reload(<brique>)`
+  PUIS `sys.modules.pop('<module de test>')` avant de lancer le runner (il réimporte), et la même
+  restauration à la fin. *Le patch atteint ce qui se résout à l'appel, pas ce qui l'a déjà été.*
 
 ## 5. Ce que la contre-épreuve ne remplace pas
 

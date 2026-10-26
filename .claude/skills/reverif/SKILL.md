@@ -76,6 +76,15 @@ revérification. ✅ Pour un NOM neuf (capacité, champ de manifeste, clé de vo
 aussi `docs/construction/` (spec, conventions, route) — une intention réservée vit dans la doc,
 pas dans le code.
 
+🔴 **Vécu le 2026-10-22 — un DÉPLACEMENT de monde rend fautif le correctif de la veille.** Une
+revérification avait remplacé un libellé recopié dans l'exécuteur du Studio par sa lecture au
+registre… par la CLÉ du nœud (`builtin_node('dataset_input')`). Le même jour, le nœud est passé au
+monde Data : la lecture « alignée » était devenue une citation d'un monde par le substrat, et
+aucun test ne le disait (le libellé restait juste). ✅ Après avoir DÉPLACÉ une déclaration vers un
+autre monde, greper le SUBSTRAT pour sa clé (code et JS, hors tests) : chaque occurrence se
+remplace par une RÈGLE lue au registre (ici : les sources dont le port ne produit que des types
+de donnée), jamais par le nom de ce qui a déménagé.
+
 ## 2. Testé — lancer, garder, prouver
 
 - Lancer : `/cloture §2a` (périmètre ciblé, puis la suite si le substrat a bougé ; lire les NOMS

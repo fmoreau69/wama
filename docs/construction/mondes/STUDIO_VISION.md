@@ -469,6 +469,20 @@ lit le Lab (cam_analyzer) — relevé, laissé à décider. Reste l'intention de
 construite, et deux gardes de chemin différentes entre les deux entrées Data (« Base connectée » :
 `filemanager.resoudre_chemin_lisible` ; « Jeu de données » : la désignation).
 
+**⏳ Relevés de la même session, non portés** (consignés à la clôture du 2026-10-26) :
+- la règle « un nom de sortie IMPOSÉ reçoit l'extension de son fichier s'il n'en porte pas »
+  vit deux fois : à la lecture d'un lot d'app (`batch_parsers.apply_indexed_output_names`, avec
+  l'extension DÉCLARÉE de l'app) et à l'écriture du ZIP d'un run du Studio
+  (`batch_views.ResultArchive.named`, avec celle du fichier produit). Deux moments, deux sources
+  d'extension : à réunir quand la DESTINATION du `-o` sera honorée (point ouvert plus haut) ;
+- la fonction `studio.image_to_3d` lit son image par `resolve_under_media_root`
+  (`studio/gpu_tasks.py`) : une image d'un dossier connecté est REFUSÉE — elle ne se lit pas de
+  travers, mais elle ne se lit pas. Le geste aligné est la lecture de la désignation
+  (`media_paths.designated_file`) ;
+- `check_redundancy` rapproche `install_history._close` (model manager, fin d'une ligne
+  d'installation) de `access_requests.close_promotion` : faux positif par le NOM, natures
+  différentes.
+
 ---
 
 ## PRINCIPE DIRECTEUR (recadrage Fabien 2026-07-12) : le studio consomme le CONTRAT, jamais l'état courant

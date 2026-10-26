@@ -26098,3 +26098,52 @@ face « Évaluation »). Domicile `WAMA_QUALITE §9bis` ; mécanique `ROUTE §10
   transcription · smoke navigateur de la bande et de la face.
 - Gardes : 15 tests (mesure, registre, déclaration, export, lignes, bande, évaluation, V8,
   squelette) ; contre-épreuves rouges (6).
+
+## §CLÔTURE — 2026-10-20→26, « PARTAGES · MODÉRATION · RÔLE UNIFIÉ · REVÉRIFICATION DU STUDIO · JEU DE DONNÉES » — ✅ LIVRÉ — 🔚 `align_account_tiers --apply`
+
+Session longue, quatre sujets, sept commits sur `dev`, non poussés :
+
+| sujet | commits | domicile |
+|---|---|---|
+| « Mes partages » alignée sur les pages de registre, plus de volet par défaut sur une page de compte | `c6c428f1` | `WAMA_COLLABORATION`, `tests_volet` |
+| Modération UNIVERSELLE des promotions (« Demander la promotion », la demande est une ligne `ObjectGrant` de niveau `system`) | `deb31eea` | `ROADMAP §29` 6b, `REMOVAL_LEDGER R164` |
+| Une seule définition d'administrateur : le NIVEAU du profil, `is_staff`/`is_superuser` dérivés, groupes hérités à retirer | `182f4a0f` | `PROFILES_PERMISSIONS §1.10`, R167-R168 |
+| Revérification des entrées médias du Studio (port principal lu sur la card, `is_remote` unique) | `d9fd72bd` | `STUDIO_VISION §Entrées du Studio` |
+| « Jeu de données » confronté aux autres nœuds : fichier d'un dossier connecté lu où il vit (Jeu de données, Sortie, lot) | `7650ac90` | idem, mécanisme `media_paths` |
+| « Jeu de données » inscrit par le monde Data, lu par son lecteur tabulaire via le pont (`frames.frame_from_table`, `SourceReader.table`) — décision de Fabien | `ab1f7a33` | idem, `ROUTE` règle 6, R172 |
+| L'exécuteur dérive les portes des données typées du registre (plus la clé d'un nœud du monde Data) | `611fbb27` | idem |
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : faire lancer `manage.py align_account_tiers --apply`
+(base VIVANTE, comptes réels — à blanc le 2026-10-26 : `fabien.moreau` et `fmoreau` → admin,
+`adolphe.bequet` → développeur, groupes `admin`/`dev`/`user`/`developpeur` supprimés). La migration
+`common/0036` est APPLIQUÉE (mesuré le 2026-10-26). Tant que la commande n'a pas tourné, un
+gunicorn relancé laisse `adolphe.bequet` sans ses droits de développeur.
+
+**Pendings système** : relancer gunicorn + workers (code des quatre sujets) ; pousser.
+
+**Laissé de côté — limites de CETTE session** (domicile entre parenthèses) :
+- `gps_map_match.load_road_map_csv` décode encore par `pd.read_csv` : le passer par le lecteur
+  tabulaire changerait les identifiants de sections lus par le Lab — décision (`STUDIO_VISION`) ;
+- deux gardes de chemin pour les deux entrées Data (« Base connectée » : filemanager ; « Jeu de
+  données » : la désignation) (idem) ;
+- la règle « extension d'un `-o` imposé » écrite deux fois (lot d'app, ZIP d'un run) ;
+  `studio.image_to_3d` refuse une image d'un dossier connecté (idem, consignés à la clôture) ;
+- `WAMA_DATA_FUNCTION_CARDS §5` (sélection de colonnes, tri, filtre, plage) ⏳ non construite ;
+- smoke NAVIGATEUR de la modale d'entrée du Studio non refait (Playwright indisponible) : vérifié
+  sur la page SERVIE en lecture (catalogue des nœuds, card d'entrée de 6 apps).
+
+**Tests mesurés à la clôture (2026-10-26)** : périmètre de la session (`wama.studio`,
+`wama_data.tests_frames`, `wama.accounts`, et les modules communs touchés : volet, provenance des
+skills, partage aux personnes, registres, souvenirs, abonnement Claude, outils MCP, VRAM, langue,
+rangement des tests) : **638 tests, 6 rouges, aucun de cette session** —
+`tests_mcp_dev_tools.TachesTest` ×2 (sous-processus `dev_tools` qui ne finit pas sous Windows,
+déjà rouge le 21/10) ; budget de langue des NOMS de tests 1298/1291 (mes noms de tests sont en
+anglais, écart de code nul sur mes fichiers) ; `tests_test_layout` (dossier `wama/common/privacy/`
+non suivi d'une autre session). Le 22/10, sur un périmètre plus large : 28 `filemanager` (montages
+réseau sous Windows — même ensemble sur un worktree de HEAD avec et sans mes changements) et
+`tests_gap_fill.TheOldCopiesDelegateTest` (identité `assertIs` rompue par l'ORDRE des tests : vert
+seul).
+
+**Leçons portées dans les rituels** : `/reverif §1` (un déplacement de monde rend fautif le
+correctif de la veille — greper le substrat pour la clé déplacée) ; `/contre-epreuve` promu (n=2)
+avec le piège « fonction liée à l'import ».
