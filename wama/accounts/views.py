@@ -56,6 +56,10 @@ ROLE_OF_TIER = {'admin': 'admin', 'developpeur': 'dev', 'utilisateur': 'user'}
 #: …et le niveau que pose un rôle choisi sur cette page (« Ajouter », « Rôle »).
 TIER_OF_ROLE = {role: tier for tier, role in ROLE_OF_TIER.items()}
 
+#: L'IDENTITÉ modifiable d'un compte : par lui-même (`UserEdit`, « Modifier mon profil ») comme
+#: par un administrateur depuis la page des utilisateurs (`user_edit`).
+IDENTITY_FIELDS = ('first_name', 'last_name', 'email')
+
 
 def get_user_role(user):
     """Le rôle principal d'un compte, DÉRIVÉ de son niveau (`permissions.user_tier`) — il lisait
@@ -139,7 +143,7 @@ class UserPage(DetailView):
 class UserEdit(UpdateView):
     template_name = 'accounts/user_form.html'
     model = User
-    fields = ["first_name", "last_name", "email"]
+    fields = list(IDENTITY_FIELDS)
 
     def get_success_url(self):
         return reverse('anonymizer:upload')
@@ -1152,9 +1156,6 @@ def _password_refusal(password, user):
         return ' '.join(e.messages)
     return None
 
-
-#: Ce qu'un administrateur modifie d'un compte depuis la page des utilisateurs (`user_edit`).
-IDENTITY_FIELDS = ('first_name', 'last_name', 'email')
 
 
 @admin_required

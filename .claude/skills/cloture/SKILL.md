@@ -50,6 +50,10 @@ retrouve-t-elle TOUT ? »*
   de mon bloc>"` doit être vide. Le `git status`, lui, liste les fichiers modifiés par d'autres
   sans dire si les miens y sont encore : c'est cette mesure qui répond à « commite ce qui
   t'appartient ».
+- 🔴 **Un sha se cite depuis une sortie LUE, jamais de mémoire** (vécu le 2026-10-27) : le contrôle
+  `git show --stat --format='%h' HEAD | tail -5` avait COUPÉ la ligne du sha ; j'ai annoncé à
+  Fabien un sha qui n'existait pas, rattrapé à la clôture suivante seulement. ✅ Le relire à part,
+  `git log -1 --format=%h`, avant de l'écrire dans un message ou un handoff.
 
 ## 2. Contrôles mécaniques
 

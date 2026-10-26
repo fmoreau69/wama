@@ -26322,3 +26322,12 @@ Suite des deux §PALIER 2026-10-22 « PARTITION ». WAMA relancé par Fabien le 
   `help_text` du champ dit encore « Partition du rendu » (migration) · menu « Aucune / Réduite /
   Complète » · MusicXML · clavier et export à éprouver à l'écran · rejouer « Partition
   complète » sur #880 (sa complète date d'avant le correctif de la flûte).
+
+**Clôture du même périmètre (2026-10-27)** : revérification d'alignement du stylo — les champs
+d'identité étaient déclarés DEUX fois (`UserEdit.fields` et `IDENTITY_FIELDS`), ramenés à une
+déclaration ; limite consignée (`PROFILES_PERMISSIONS §1.11` : « Modifier mon profil » ne refuse
+pas un email déjà pris). Mesuré : 306 tests (`wama.accounts`, nocturnes, gardes transverses), 4
+rouges, aucun de ce périmètre — budget des noms de tests français ×3 (mes fichiers : 0 nom
+français), `tests_test_layout` (`wama/common/privacy/` non suivi d'une autre session) ;
+`check_redundancy` 89, 0 dans mes fichiers ; `check_docs` 0 cassée, 1 périmée (pas à moi) ;
+`doc_facts` à jour ; `check_skills` sans défaut. 🔚 rien de ce périmètre ; reste à pousser.
