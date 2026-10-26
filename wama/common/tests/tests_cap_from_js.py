@@ -385,6 +385,30 @@ class ProcessSectionsTest(SimpleTestCase):
         self.assertIsNone(self._sections([{'name': 'a', 'stales': ['render']}], '[]'),
                           'no pipeline : flat')
 
+    def test_the_rendered_modal_folds_each_section_and_keeps_advanced_last(self):
+        """What `render` makes of the sections — the browser smoke of 2026-10-26 saw it on the
+        composer ; here it is held : one OPEN `<details>` per process, the shared settings above,
+        « Avancé » folded and last."""
+        schema = [{'name': 'prompt', 'type': 'text', 'stales': ['plan', 'render']},
+                  {'name': 'duration', 'type': 'number', 'stales': ['render']},
+                  {'name': 'extract_parts', 'type': 'toggle', 'stales': ['parts']},
+                  {'name': 'seed', 'type': 'number', 'advanced': True, 'stales': ['render']}]
+        out = self.v8.eval(
+            "(function () { var host = {innerHTML: '', querySelectorAll: function () { return []; },"
+            " querySelector: function () { return null; }, addEventListener: function () {}};"
+            f" window.WamaParams.render(host, {json.dumps(schema)},"
+            f" {{context: 'panel', processes: {self.PROCESSES}}});"
+            " return host.innerHTML; })()")
+        parts = out.index('<details class="wama-param-group" data-group="_process_parts" open>')
+        render = out.index('<details class="wama-param-group" data-group="_process_render" open>')
+        advanced = out.index('data-group="_advanced"')
+        self.assertLess(out.index('data-param-row="prompt"'), parts, 'shared settings first')
+        self.assertTrue(parts < out.index('data-param-row="extract_parts"') < render)
+        self.assertTrue(render < out.index('data-param-row="duration"') < advanced)
+        self.assertGreater(out.index('data-param-row="seed"'), advanced,
+                           'an advanced setting stays in « Avancé », not in its process')
+        self.assertNotIn('data-group="_advanced" open', out)
+
 
 class ProcessesOfThePageTest(SimpleTestCase):
     """What the base page hands to `processSections` (`window.WAMA_APP_PROCESSES`): the processes
