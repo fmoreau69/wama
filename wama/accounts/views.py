@@ -1140,6 +1140,19 @@ def _email_taken(email, exclude_pk=None) -> bool:
     return others.exists()
 
 
+def _password_refusal(password, user):
+    """Ce que les validateurs (`AUTH_PASSWORD_VALIDATORS`) reprochent à un mot de passe posé par
+    un administrateur, ou None. Le même contrôle à l'ajout et à la modification d'un compte
+    (l'ajout n'en faisait aucun jusqu'au 2026-10-26)."""
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+    try:
+        validate_password(password, user)
+    except ValidationError as e:
+        return ' '.join(e.messages)
+    return None
+
+
 #: Ce qu'un administrateur modifie d'un compte depuis la page des utilisateurs (`user_edit`).
 IDENTITY_FIELDS = ('first_name', 'last_name', 'email')
 
@@ -1164,6 +1177,13 @@ def user_add(request):
 
         if email and _email_taken(email):
             return JsonResponse({'success': False, 'error': 'Cet email est déjà utilisé'})
+
+        # Le compte n'existe pas encore : les validateurs le lisent sur une instance non
+        # enregistrée (ressemblance avec l'identifiant, le nom, l'email).
+        refusal = password and _password_refusal(password, User(
+            username=username, email=email, first_name=first_name, last_name=last_name))
+        if refusal:
+            return JsonResponse({'success': False, 'error': refusal})
 
         try:
             # Create user
@@ -1272,7 +1292,6 @@ def user_edit(request, user_id):
     de passe inutilisable) en recevrait un second, que `ModelBackend` accepterait à côté du LDAP.
     """
     from django.contrib.auth import update_session_auth_hash
-    from django.contrib.auth.password_validation import validate_password
     from django.core.exceptions import ValidationError
 
     user = get_object_or_404(User, id=user_id)
@@ -1298,10 +1317,9 @@ def user_edit(request, user_id):
             return JsonResponse({'success': False, 'error': (
                 "Ce compte n'a pas de mot de passe local (compte de l'annuaire ou sans mot de "
                 "passe) : il ne peut pas en recevoir un ici.")}, status=400)
-        try:
-            validate_password(password, user)
-        except ValidationError as e:
-            return JsonResponse({'success': False, 'error': ' '.join(e.messages)}, status=400)
+        refusal = _password_refusal(password, user)
+        if refusal:
+            return JsonResponse({'success': False, 'error': refusal}, status=400)
         user.set_password(password)
         fields.append('password')
     user.save(update_fields=fields)

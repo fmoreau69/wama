@@ -74,6 +74,23 @@ class UserEditTest(TestCase):
         self.post(self.admin, password='Aile-de-martinet-77')
         self.assertEqual(self.client.get('/accounts/users/').status_code, 200)
 
+    def test_adding_an_account_refuses_a_weak_password(self):
+        response = self.client.post('/accounts/users/new/', {'username': 'edit_new', 'password': '123'})
+        self.assertFalse(response.json()['success'])
+        self.assertFalse(User.objects.filter(username='edit_new').exists())
+
+    def test_adding_an_account_refuses_a_password_resembling_its_username(self):
+        response = self.client.post('/accounts/users/new/',
+                                    {'username': 'heronplume', 'password': 'heronplume1'})
+        self.assertFalse(response.json()['success'])
+
+    def test_adding_an_account_accepts_a_valid_password_or_none(self):
+        response = self.client.post('/accounts/users/new/', {'username': 'edit_new', 'password': STRONG})
+        self.assertTrue(response.json()['success'], response.content)
+        self.assertTrue(User.objects.get(username='edit_new').check_password(STRONG))
+        self.client.post('/accounts/users/new/', {'username': 'edit_nopw'})
+        self.assertFalse(User.objects.get(username='edit_nopw').has_usable_password())
+
     def test_the_page_offers_the_pen_on_each_account_but_anonymous(self):
         User.objects.get_or_create(username='anonymous')
         html = self.client.get('/accounts/users/').content.decode()
