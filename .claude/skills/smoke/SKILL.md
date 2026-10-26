@@ -185,6 +185,15 @@ le RENDU RÉEL, pas la structure du code.
   Chromium sont dans venv_win. Attendre que la route neuve réponde 302 avant de jouer.
 - ⚠ Arrêter le serveur 8011 en fin de mesure ; ne JAMAIS déclencher de tâche Celery depuis
   venv_win (deux Redis). Les scénarios sèment sous le compte de test nocturne et nettoient.
+- ✅ **Une page réservée aux administrateurs se joue avec le compte de test ÉLEVÉ puis RÉTABLI**
+  (vécu le 2026-10-22, model manager) : `ui_smoke_accounts._admin_session()` rend
+  `(user, previous_tier, session)` ; le cookie par `ui_smoke_matching._cookie(session.session_key)` ;
+  et dans un `finally` : `accounts.permissions.set_account_tier(user, previous_tier)`,
+  `session.delete()`, `ui_smoke._drop_new_sessions(<clés d'avant>)` — le patron de
+  `ui_smoke_scenes.check_scene`. Jamais le compte d'une personne réelle.
+  ⚠ Une page dont les cards naissent d'un fetch et dont la PREMIÈRE est masquée (les propositions
+  du model manager) : attendre `wait_for_selector('.model-item', state='attached')` — `visible`
+  attend en vain la première, 180 s perdues.
 - Mesuré : C 6/6, E 7/7, F 6/6 sur le chantier médiathèque du 18/09, contre un live en 404.
 - 🔴 **Une sonde qui ÉCRIT dans le cache (aperçu « pendant », progression) exige un serveur jetable
   CÔTÉ WSL** (vécu le 2026-10-04) : un processus Windows hors tests a son cache EN MÉMOIRE

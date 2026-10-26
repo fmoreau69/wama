@@ -26173,3 +26173,57 @@ des workers (16:23) : `align_account_tiers --apply` a aligné 3 comptes (`fabien
 conformes au niveau pour chaque compte ; `administrators()` = les 3 admin ; en base, les seuls
 groupes sont les quatre rôles métier. Domicile : `PROFILES_PERMISSIONS §1.10`. Aucun code touché.
 Restent de cette session (inchangés) : pousser, et les limites du bloc précédent.
+
+## §CLÔTURE — 2026-10-20→26, « ROUTAGE DES MODÈLES : PROVENANCE EXACTE, VOCABULAIRE DES SOURCES, IDENTITÉ PAR LE MANIFESTE » — ✅ LIVRÉ — 🔚 décision : l'ETA d'un modèle DISTANT
+
+Demande de Fabien : connaître la provenance EXACTE d'un modèle (« Claude API ou Claude
+abonnement »), le moins de choses écrites à la main, alignement parfait. Commits sur `dev`, non
+poussés : `979360a9`, `83541f99`, `507ed546` (20/10, filtre « Source » et ses mesures) ;
+`29b9fd28` (fournisseur nommé par `remote_origin_label`, plateformes au registre des sources) ;
+`27de71c7` (`ModelSource` sans libellés, champ sans `choices=`, identité par le manifeste, régime
+d'accès plus perdu à l'installation, collision de casse à la clé explicite) ; `2e0a9533`
+(revérification : quatre recopies, origine d'une card distante sur sa ligne) ; `699d5786` (les deux
+fantômes Albert supprimés par la route, après vérification en direct). Domicile :
+`WAMA_APP_GENERATION_ROUTE §10.6 P1` ; `WAMA_LLM` ; R173, R176, R177, R178.
+
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : trancher où l'ETA range la durée d'un modèle DISTANT —
+sous l'empreinte du GPU local aujourd'hui, ce qui n'a pas de sens (§10 ci-dessus, piste : sous sa
+source). Latent : 0 statistique de distant en base. Rien d'autre de ce périmètre n'est bloqué.
+
+**Pendings système** : relancer gunicorn + workers — la relance de 16:23 sert `29b9fd28` et
+`27de71c7`, PAS le Python de `2e0a9533` et `699d5786` (règle des renommages, dérivation commune
+des plateformes, adresses SAM3) ; pousser. Migration `model_manager/0027` (sans SQL) APPLIQUÉE,
+gitignorée comme toutes. Données posées par la route : 26 identités (`backfill_platform_refs
+--ecrire`, par le manifeste) ; 2 lignes supprimées (`retire_unlisted('albert')`).
+
+**Laissé de côté — limites de CETTE session** :
+- l'ETA des modèles distants (ci-dessus) ;
+- `hf_id` et `platform_ref` disent encore le même fait pour un modèle du Hub (deux champs) —
+  non touché, la dérivation est unique (`AIModel.platform_refs`) ;
+- `custom` reste la seule source qu'aucune déclaration ne nomme (briques LPIPS, gestes de la main) ;
+- quatre manifestes laissés MODIFIÉS dans l'arbre, non commités : `huggingface__triposr`,
+  `transcriber__parakeet-…`, `imager__fastwan-…`, `albert__qwen3-coder-…` — ce sont des
+  PROJECTIONS du catalogue (fichiers déclarés, VRAM mesurée, graine / `top_p` de la session des
+  réglages de tirage) que mon export a fait apparaître ; mes seules lignes (`platform_ref`) sont
+  commitées. Le corpus a 378 manifestes périmés par la régénération en cours de cette autre
+  session : elle les portera.
+
+**Tests mesurés à la clôture (2026-10-26, après la DERNIÈRE écriture)** : périmètre — `tests_source_
+identity`, `tests_model_platforms`, `tests_identity_route`, `tests_cloud_models`,
+`RouteUniqueDInstallationTest`, `GardeAuteurTest`, `RegimeDAccesTest`, `tests_catalogues`,
+`tests_external_sources`, `wama.anonymizer` : **381 tests, 0 rouge, 0 ignoré**. Plus tôt dans la
+journée, 1154 tests (model_manager, anonymizer, gardes transverses) : rouges établis NON miens —
+`tests_test_layout` (`wama/common/privacy/`, non suivi, autre session) et le budget des NOMS de test
+en français (1296 / 1291 ; ma part : 0 ; budget « code » recalé 2651 → 2650 par ma part).
+Contre-épreuves de la session : 24 (20 mutations de fichier, 4 neutralisations), toutes rouges,
+fichiers restaurés à l'octet.
+Navigateur (serveur éphémère WSL 8011, compte de test élevé puis rétabli) : filtre groupé par monde
+et famille, « Cloud commercial · Claude Code · abonnement » / « … API Anthropic (Claude) · facturé à
+l'usage », origine sur sa ligne, « Distant » dans la card, inspecteur Origine / Plateforme, 0 erreur JS.
+`check_docs` : 0 cassée, 1 périmée (renvoi aux vues de l'imager, autre session). `check_redundancy` :
+89 dans le dépôt, 0 dans mes fichiers. `doc_facts` : table des mécanismes périmée par d'autres (ma
+ligne : texte dans HEAD, seule la cellule de décompte bouge).
+
+**Leçons portées dans les rituels** : `/smoke` (page d'admin par `_admin_session`, cards d'un fetch
+attendues `attached`) ; la fiche mémoire du serveur éphémère réduite à un pointeur vers `/smoke` (je
+l'avais suivie, périmée, au lieu du skill).
