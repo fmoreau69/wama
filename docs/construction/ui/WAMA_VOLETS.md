@@ -212,6 +212,16 @@ transcriber y retrouve son volet : actions, document, intervenants ; le centre a
 temps. Gardes : `tests_surfaces.SurfaceLayoutTest`, scénario `common.surface_layout` (passage
 d'un panneau dans la colonne, retour par « Disposition par défaut »).
 
+**Épingler un panneau en haut ou en bas de la fenêtre — ✅ 2026-10-26** (Fabien : *« locker le
+transport en bas ou en haut de page pour qu'il ne défile pas avec la page »*). Le geste est au
+noyau (`wama-surface.js`, bouton `.wama-brick-dock`), la brique le DÉCLARE (`dockable: true` à son
+`registerBrick` — le transport, `media_transport`, est la première). Le choix se garde avec la
+disposition du compte (`docked: {emplacement: 'top' | 'bottom'}`, validé par
+`surfaces.clean_layout` : emplacements déclarés seuls, un bord hors `DOCK_EDGES` refusé). Le
+panneau épinglé est fixé entre les gouttières des volets (`--wama-left-gutter` /
+`--wama-right-gutter`, posées par `wama-panel-toggle.css`) et la page se décale de sa hauteur.
+Garde : `tests_surfaces.SurfaceLayoutTest.test_a_docked_panel_is_kept_with_the_layout_of_the_account`.
+
 **À venir, dans cet ordre (le plus sûr d'abord)** : ② les sections du volet des PAGES D'APPS
 (assistant, aperçu, inspecteur, actions) en briques réordonnables et repliables par compte, rendu
 par défaut inchangé sur les 35 pages — l'inspecteur ENVELOPPÉ, jamais réécrit (§8, avertissement) ;

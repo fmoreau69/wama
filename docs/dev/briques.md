@@ -324,7 +324,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
 
 - **Domicile** : `wama/common/services/process_pipeline.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Pipeline DÉCLARÉ d'une app — la pièce du moteur commun qui dit « cette card porte PLUSIEURS process, dans cet ordre, et voici lesquels sont à (re)jouer ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 3.2, 4.3 à 4.5 (marche P3, palier B) et décision n°11.
-- **API publique** (13) :
+- **API publique** (14) :
   - `segments_text(segments) -> str` — Des SEGMENTS de parole (`result_format='segments'` : `[{speaker, time_range, text}]`) en
   - `preload(items) -> None` — Lit en UNE requête les lignes d'exécution de tous ces éléments (même modèle) et les pose
   - `release(item) -> None` — Referme la fenêtre de `preload` sur cet élément : une instance gardée par l'appelant (un
@@ -335,6 +335,7 @@ Une app DÉCLARE les process de sa card (`ProcessSpec` : amonts, réglages surve
   - `register_app_pipeline(app: str, specs, *, label: str, description: str='', source_ref: str='', model_of=None) -> AppPipeline` — Déclare le pipeline d'une app et l'inscrit comme source de manifeste `pipeline` sous la
   - `process_of_function(function_key: str)` — `(pipeline, ProcessSpec)` de l'ÉTAPE de card qu'est la fonction `function_key` — le process
   - `pipeline_of(item) -> AppPipeline | None` — Le pipeline déclaré par l'app de cet élément, ou None (app à un seul process). Charge
+  - `app_pipeline(app: str) -> AppPipeline | None` — Le pipeline déclaré par l'app `app`, ou None — même lecture que `pipeline_of`, quand on
   - `card_view(item, model_key=DECLARED, preloaded: bool=False)` — Ce que la card et la vue de progression montrent du PIPELINE d'un élément (`§10.6` 5.1) :
   - `decorate(item, model_key=DECLARED, preloaded: bool=False)` — Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
   - `decorate_cards(items, each=None) -> list` — Les cards d'une PAGE : leurs lignes d'exécution lues en UNE requête (`preload`), puis
@@ -561,7 +562,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (50) :
+- **API publique** (52) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -611,6 +612,8 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `ensure_backend_deps(backend_cls, timeout: int=1800) -> dict` — Installe les paquets manquants d'un backend (classe `BaseModelBackend`) si nécessaire.
   - `simuler_installation(spec: str, timeout: int=300, constraints=None, no_deps: bool=False) -> dict` — Ce qu'une installation ENTRAÎNERAIT — `pip install --dry-run`, LECTURE SEULE.
   - `install_library(key: str, apply: bool=False, via: str='') -> dict` — Installe UNE librairie depuis son registre (`common.models.Library`) — la JONCTION
+  - `library_requirers(key: str, dist_name: str='') -> dict` — Qui a encore BESOIN de la librairie `key` (distribution `dist_name`, la clé par défaut) :
+  - `uninstall_library(key: str, apply: bool=False, via: str='') -> dict` — DÉSINSTALLE une librairie du registre — le pendant d'`install_library` (2026-10-23, demande de
   - `install_requirements(app_key: str, apply: bool=False) -> dict` — Le MARCHEUR d'app (« application = modèles + librairies », reste ③ de la route
 
 ### Journal des installations
@@ -3115,7 +3118,7 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
 
 - **Domicile** : `wama/common/utils/midi_score.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Un MIDI multi-pistes → une partition ABC LISIBLE (2026-10-16, la « Partition complète » du composer).
-- **API publique** (9) :
+- **API publique** (11) :
   - `instrument_label(name: str) -> str` — Le libellé français d'une piste nommée par le moteur (`INSTRUMENT_LABELS`).
   - `class MidiPart` — Une partie du MIDI — une piste et un canal : son nom (`track_name`), batterie ou non (canal
   - `class MidiSong` — Ce qu'un fichier MIDI déclare, lu une fois (`read_midi`) : la base de temps, la carte des
@@ -3123,6 +3126,8 @@ Un MIDI à une piste par instrument → une partition ABC lisible : une voix par
   - `abc_pitch(pitch: int) -> tuple` — (lettre ABC avec octave, dièse ?) d'une hauteur MIDI : 60 → ('C', False), 73 → ('c', True).
   - `split_length(steps: int) -> list` — Une durée en pas découpée en valeurs écrivables (la plus longue d'abord).
   - `bar_offset_of(markers) -> float` — Le décalage (s) qu'un moteur a ajouté pour poser la mesure 1 sur un temps fort — marqueur
+  - `mark_downbeat(midi_bytes: bytes, seconds: float) -> bytes` — Le MIDI avec son marqueur de premier temps fort (`DOWNBEAT_MARKER`, en secondes d'audio).
+  - `downbeat_of(markers)` — L'instant (s) du premier temps fort que dit un marqueur `downbeat=<s>`, None sinon.
   - `played_beat_steps(beat_times, grid: int, offset: float)` — `(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
   - `midi_to_abc(midi_bytes: bytes, *, title: str='', grid: int=4, bars_per_line: int=4, beat_times=None) -> str` — Le texte ABC d'un MIDI multi-pistes (voir l'en-tête). Lève `ValueError` sans aucune note.
 

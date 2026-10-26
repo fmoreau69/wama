@@ -212,15 +212,21 @@ class EnginesFollowOrRefuseTheScoreTest(SimpleTestCase):
     def test_a_full_score_is_brought_back_to_the_sung_part_yue2_follows(self):
         """2026-10-26, Fabien : « si l'on fournit une partition complète, que se passe-t-il, YuE2
         n'utilisant qu'une partition réduite ? » — YuE2 follows `Vocal` (+ `Ins`, chords) ; a
-        score with one part per instrument keeps its SUNG part, named `Vocal`."""
-        from wama.common.backends.yue2_3b_backend import cot_for_score, lead_sheet_abc
+        score with one part per instrument keeps its SUNG part, named `Vocal`. Read through
+        `_score_abc`, what the engine calls on a given score — not the reduction alone."""
+        import tempfile
+        from pathlib import Path
+        from wama.common.backends.yue2_3b_backend import YuE2Backend, cot_for_score
         from wama.common.utils.midi_score import midi_to_abc
         full = midi_to_abc(self._full_score_midi([
             ('flutes', False, [(0, .5, 84)]),
             ('voice', False, [(0, .5, 67), (.5, 1, 69)]),
             ('electric bass', False, [(0, 1, 40)]),
             ('drums', True, [(0, .1, 36)])]))
-        sheet = lead_sheet_abc(full)
+        with tempfile.TemporaryDirectory() as tmp:
+            given = Path(tmp, 'full.abc')
+            given.write_text(full, encoding='utf-8')
+            sheet = YuE2Backend._score_abc(str(given))
         self.assertIn('V: Vocal clef=treble name="Vocal Melody"', sheet)
         self.assertNotIn('Flûtes', sheet)
         self.assertNotIn('Basse', sheet)

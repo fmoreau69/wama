@@ -881,6 +881,19 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         détail `source_file`, elle était vide). YuE2 ne suit que `Vocal`/`Ins` + accords : une
         partition fournie à N parties est ramenée à sa partie CHANTÉE (`yue2_3b_backend.
         lead_sheet_abc`, et pour un MIDI la partie nommée « voix » plutôt que la ligne du dessus).
+        ✅ **2026-10-26 — deux défauts de la partition complète vus sur #880 (Fabien)** : ① la VOIX
+        des premières mesures était écrite pour flûte, alors qu'aucune flûte ne joue : la passe de
+        détection en entendait dans 2 tranches sur 43, et l'instrument était nommé au modèle. Un
+        instrument n'est plus nommé que s'il sonne dans au moins 10 % des tranches
+        (`muscriptor_backend.MIN_PRESENCE_SHARE`, en plus des deux tranches de
+        `MIN_PRESENCE_CHUNKS`) ; ② l'ANACROUSE était perdue : sans tempo constant, la mesure 1
+        partait du premier temps ENTENDU. Le suivi de Beat This! trouve pourtant les temps forts :
+        le refus porte le premier (`first_downbeat`), `extract_midi` l'écrit dans le MIDI
+        (`midi_score.mark_downbeat`, marqueur `downbeat=<s>`) et `midi_to_abc` cale la mesure 1 sur
+        le temps joué le plus proche (`downbeat_of`) — les temps d'avant forment l'anacrouse.
+        Gardes : `tests_midi_score` (part des tranches, mesure 1 sur le temps fort), contre-épreuves
+        rouges. YuE2 ramené à la partie chantée : `tests_score_input` passe par `_score_abc`, ce que
+        le moteur appelle (la revérification a trouvé que le test lisait la réduction seule).
       - **grille de temps** : MuScriptor refusait un tempo « non fixe » sur les rendus YuE2 — un temps
         manqué par le suivi décalait tous les rangs. `robust_tempo` re-numérote les temps, garde la
         phase dominante (première droite Theil-Sen : un bloc de contretemps en fin de morceau faisait
@@ -6224,6 +6237,18 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   ces noms (+ les porteurs `hidden`), groupes vides retirés, titre suffixé du process — l'app
 >   garde son unique ouvreur, zéro ligne par app. Portée consommée par la modale suivante
 >   seulement, périmée seule après 3 s (garde V8 `tests_cap_from_js.ScopedSettingsModalTest`).
+> - ✅ **SECTIONS PAR PROCESS dans la modale et le volet (2026-10-26, demande de Fabien : « des
+>   sections automatiques en accordéon par sous-process »)** : sans groupes déclarés
+>   (`ParamGroup`), `WamaParams.render` range chaque réglage dans la section du SEUL process
+>   qu'il périme (`Param.stales`, la part du schéma de `watched_of` : la même lecture que le ⚙
+>   d'une ligne) ; un réglage qui en périme plusieurs reste en tête, sauf s'ils sont tous
+>   optionnels (le modèle des deux partitions complètes du composer va avec la première).
+>   Sections repliables, ouvertes ; rien à structurer (une seule case) → rendu à plat comme
+>   avant. Les process de l'app viennent de la page de base (`window.WAMA_APP_PROCESSES`, posé
+>   par `accounts.context_processors` depuis `process_pipeline.app_pipeline`, qui charge les
+>   déclarations d'un processus web neuf — revérification du même jour : la première version
+>   lisait `APP_PIPELINES` sans elles, le défaut du 2026-10-03). Gardes :
+>   `tests_cap_from_js.ProcessSectionsTest` (V8) et `ProcessesOfThePageTest`.
 > - ✅ **5.2 Gabarit GÉNÉRÉ (même jour)** : la card émise par `templates_gen` inclut la bande
 >   (`_card_processes.html`, vide sous deux process) et lit `elem.shown_state|default:
 >   elem.status` ; `views_gen._decorer` appelle `process_pipeline.decorate(item)` — le point

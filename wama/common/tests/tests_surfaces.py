@@ -940,7 +940,7 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertEqual('X:1\nV:I0\nK:C\nC4|\n',
                          self.client.get(self.base + 'revisions/1/?field=parts_score').json()['value'])
 
-    def test_a_field_the_surface_does_not_declare_is_never_edited(self):
+    def test_a_field_outside_the_surface_is_never_edited(self):
         self.assertEqual(400, self.client.get(self.base + 'data/?field=audio_output').status_code)
         res = self.client.post(self.base + 'save/', json.dumps({'value': 'x', 'field': 'prompt'}),
                                content_type='application/json')

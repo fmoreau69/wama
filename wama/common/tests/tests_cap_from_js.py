@@ -386,6 +386,42 @@ class ProcessSectionsTest(SimpleTestCase):
                           'no pipeline : flat')
 
 
+class ProcessesOfThePageTest(SimpleTestCase):
+    """What the base page hands to `processSections` (`window.WAMA_APP_PROCESSES`): the processes
+    of the app of the address, in pipeline order — read through `app_pipeline`, which loads the
+    declarations a fresh web process has not imported yet (the 500 of 2026-10-03)."""
+
+    def _processes(self, path):
+        from django.contrib.auth.models import AnonymousUser
+        from django.test import RequestFactory
+        from wama.accounts.context_processors import user_role
+        request = RequestFactory().get(path)
+        request.user = AnonymousUser()
+        return json.loads(user_role(request)['current_app_processes_json'])
+
+    def test_a_fresh_process_loads_the_declarations_before_answering(self):
+        from unittest import mock
+        from wama.common.services import process_pipeline as pp
+        declared = pp.AppPipeline('composer', (
+            pp.ProcessSpec('plan', label='Partition'),
+            pp.ProcessSpec('render', label='Rendu', depends_on=('plan',)),
+            pp.ProcessSpec('rendered_parts', label='Partition du rendu', depends_on=('render',),
+                           degree='optional', toggle='extract_rendered_parts'),
+        ), label='Demo')
+        with mock.patch.dict(pp.APP_PIPELINES, clear=True), \
+                mock.patch.object(pp, '_load_declarations',
+                                  side_effect=lambda: pp.APP_PIPELINES.update(composer=declared)) as load:
+            processes = self._processes('/composer/')
+        load.assert_called_once_with()
+        self.assertEqual([{'key': 'plan', 'label': 'Partition', 'toggle': '', 'optional': False},
+                          {'key': 'render', 'label': 'Rendu', 'toggle': '', 'optional': False},
+                          {'key': 'rendered_parts', 'label': 'Partition du rendu',
+                           'toggle': 'extract_rendered_parts', 'optional': True}], processes)
+
+    def test_a_page_outside_the_apps_hands_nothing(self):
+        self.assertEqual([], self._processes('/accounts/profile/'))
+
+
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class ScopedSettingsModalTest(SimpleTestCase):
     """⚙ par process (P5, `ROUTE §10.6` 5.1) : the common modal rendered from the schema REDUCED to

@@ -1102,9 +1102,16 @@ def pipeline_of(item) -> AppPipeline | None:
         label = item._meta.app_label
     except AttributeError:
         return None
-    if label not in APP_PIPELINES:
+    return app_pipeline(label)
+
+
+def app_pipeline(app: str) -> AppPipeline | None:
+    """Le pipeline déclaré par l'app `app`, ou None — même lecture que `pipeline_of`, quand on
+    n'a qu'un NOM d'app (la page de base, qui range les réglages par process, 2026-10-26). Lire
+    `APP_PIPELINES` sans elle, c'est le défaut du 2026-10-03 (`_load_declarations`)."""
+    if app not in APP_PIPELINES:
         _load_declarations()
-    return APP_PIPELINES.get(label)
+    return APP_PIPELINES.get(app)
 
 
 #: Valeur par défaut de `model_key` : le modèle DÉCLARÉ par le pipeline (`requested_model`).

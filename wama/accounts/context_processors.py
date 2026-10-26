@@ -208,9 +208,9 @@ def user_role(request):
     current_app_processes_json = '[]'
     if current_app:
         try:
-            from wama.common.services.process_pipeline import APP_PIPELINES
+            from wama.common.services.process_pipeline import app_pipeline
             from wama.common.services.process_runs import OPTIONAL
-            pipeline = APP_PIPELINES.get(current_app)
+            pipeline = app_pipeline(current_app)
             if pipeline is not None:
                 current_app_processes_json = _json.dumps([
                     {'key': spec.key, 'label': spec.label or spec.key, 'toggle': spec.toggle or '',
