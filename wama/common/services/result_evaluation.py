@@ -19,6 +19,15 @@ vont ensemble : un contrôle (`tests_result_evaluation`) refuse l'une sans l'aut
 
 RÈGLE D'INTÉGRATION — best-effort. Une mesure manquée ne casse jamais la tâche ou le geste qui,
 eux, ont réussi (même précaution que `run_outcome`). Les erreurs se journalisent.
+
+MESURES SANS RÉFÉRENCE (2026-10-22, décision de Fabien : la garde (b) de `WAMA_QUALITE §9bis`) —
+ce qui se juge sur la sortie elle-même, sans vérité en face : la part de la parole que couvre
+une transcription. Un REGISTRE commun (`register_check`), DÉCLARÉ par process
+(`ProcessSpec.checks`), joué par le squelette quand la card a réussi (`run_checks`), gardé sur la
+LIGNE du process et non dans `ResultEvaluation` — celle-ci est une mesure CONTRE une référence,
+la matière de l'indice des modèles : une mesure sans référence la fausserait. La bande des
+process la montre sur sa ligne, la face « Évaluation » à côté des mesures contre référence
+(`item_evaluation`, qui les réunit).
 """
 from __future__ import annotations
 
@@ -328,17 +337,21 @@ def _configurations(spec: EvaluationSpec, items: list) -> Dict[int, Tuple[str, s
 
 
 def item_evaluation(surface: str, item) -> Optional[dict]:
-    """La mesure d'un élément, prête pour l'onglet « Évaluation » ; None s'il n'y en a pas."""
-    spec = evaluation_spec(surface)
-    if spec is None or item is None:
+    """La mesure d'un élément, prête pour l'onglet « Évaluation » ; None s'il n'y en a pas.
+    `checks` : ses mesures SANS référence (`item_checks`), présentes même sans référence."""
+    if item is None:
         return None
+    checks = item_checks(item)
+    spec = evaluation_spec(surface)
+    if spec is None:
+        return _checks_only(checks)
     rows = list(_rows_of(surface, item))
     if not rows:
         reference = getattr(item, spec.reference_field, None)
         if reference and getattr(reference, 'name', ''):
             return {'reference_name': os.path.basename(reference.name), 'metrics': [],
-                    'pending': True}
-        return None
+                    'pending': True, 'checks': checks}
+        return _checks_only(checks)
     labels = _all_metrics()
     # Le modèle de la card est celui des mesures de TEXTE ; une mesure de diarisation est rangée
     # sous le diariseur (`segment_model_key`) et ne doit pas renommer la card.
@@ -361,21 +374,161 @@ def item_evaluation(surface: str, item) -> Optional[dict]:
                     for r in sorted(rows, key=lambda r: spec.metrics.index(r.metric)
                                     if r.metric in spec.metrics else 99)],
         'pending': False,
+        'checks': checks,
     }
+
+
+def _checks_only(checks: list) -> Optional[dict]:
+    """La face « Évaluation » d'un élément SANS mesure contre une référence, mais dont une sortie
+    a été mesurée sans elle ; None s'il n'y a rien."""
+    if not checks:
+        return None
+    return {'reference_name': '', 'metrics': [], 'pending': False, 'checks': checks}
 
 
 def evaluation_text(measure: dict) -> str:
     """La mesure d'`item_evaluation` en TEXTE — ce que Copier emporte de la face « Évaluation »
     de la visionneuse (le dessin est `WamaEvaluation.renderItem`)."""
+    lines = []
     if measure.get('pending'):
-        return (f"Référence {measure.get('reference_name')} posée — la mesure suivra le "
-                f"prochain résultat.")
-    lines = [f"{measure.get('model_label')} comparé à {measure.get('reference_name')}"]
+        lines.append(f"Référence {measure.get('reference_name')} posée — la mesure suivra le "
+                     f"prochain résultat.")
+    elif measure.get('metrics'):
+        lines.append(f"{measure.get('model_label')} comparé à {measure.get('reference_name')}")
     for m in measure.get('metrics') or ():
         rate = '—' if m.get('value') is None else f"{m['value'] * 100:.1f} %"
         lines.append(f"{m.get('label')} : {rate} (substitutions {m.get('substitutions')}, "
                      f"suppressions {m.get('deletions')}, insertions {m.get('insertions')})")
+    for check in measure.get('checks') or ():
+        lines.append(f"{check.get('process_label')} — {check.get('label')} : {check.get('message')}")
     return '\n'.join(lines)
+
+
+# ── Mesures SANS référence d'une sortie (2026-10-22) ────────────────────────────────────────
+
+@dataclass(frozen=True)
+class Check:
+    """Une mesure sans référence de la sortie d'un process. `measure(app_id, item, pipeline,
+    spec, model_key)` rend `{value, short, message, detail?, suggest?}` ou None (rien à juger).
+    `suggest` : `{field, value, label}` — le réglage de la card qui la corrigerait, posé par la
+    bande des process avant de relancer le process (« Relancer avec … »)."""
+
+    key: str
+    label: str
+    measure: Callable
+
+
+CHECKS: Dict[str, Check] = {}
+
+
+def register_check(check: Check) -> None:
+    """Inscrit une mesure ; un process la DÉCLARE par sa clé (`ProcessSpec.checks`)."""
+    CHECKS[check.key] = check
+
+
+def run_checks(app_id: str, item, task_id: str = '') -> list:
+    """Joue les mesures DÉCLARÉES des process que ce lancement a rendus (ligne `SUCCESS` de la
+    tâche `task_id`) et les garde sur leur ligne ; rend celles qui ont été écrites. Appelé par le
+    squelette quand la card a réussi — le résultat se lit alors (`result_segments`). Best-effort :
+    une mesure qui casse est journalisée, jamais levée."""
+    from wama.common.models import JOB_SUCCESS
+    from wama.common.services import process_runs
+    from wama.common.services.process_pipeline import pipeline_of
+    pipeline = pipeline_of(item)
+    if pipeline is None:
+        return []
+    rows = pipeline.rows(item)
+    written = []
+    for spec in pipeline.specs:
+        row = rows.get(spec.key)
+        if not spec.checks or row is None or row.status != JOB_SUCCESS:
+            continue
+        if task_id and row.task_id and row.task_id != task_id:
+            continue
+        results = []
+        for key in spec.checks:
+            try:
+                found = CHECKS[key].measure(app_id, item, pipeline, spec, row.model_key or '')
+            except Exception as exc:
+                logger.warning("[%s] mesure « %s » de #%s impossible : %s", app_id, key, item.pk, exc)
+                continue
+            if found:
+                results.append({'key': key, 'label': CHECKS[key].label, **found})
+        process_runs.safely(process_runs.annotate, item, spec.key, checks=results)
+        written += [dict(r, process=spec.key, process_label=spec.label or spec.key)
+                    for r in results]
+    return written
+
+
+def item_checks(item) -> list:
+    """Les mesures sans référence gardées sur les lignes de l'élément, dans l'ordre du pipeline,
+    chacune avec son process (`process`, `process_label`)."""
+    try:
+        from wama.common.services.process_pipeline import pipeline_of
+        pipeline = pipeline_of(item)
+        if pipeline is None:
+            return []
+        rows = pipeline.rows(item)
+    except Exception:
+        return []
+    out = []
+    for spec in pipeline.ordered():
+        row = rows.get(spec.key)
+        for check in ((row.output_summary or {}).get('checks') or []) if row is not None else []:
+            out.append(dict(check, process=spec.key, process_label=spec.label or spec.key))
+    return out
+
+
+def _local_alternative(app_id: str, item, model_key: str) -> Optional[dict]:
+    """Le modèle LOCAL que le tirage « auto » de la card retiendrait, quand sa sortie vient d'un
+    modèle DISTANT — `{field, value, label}` sur le réglage du modèle de l'app (`catalog_field`).
+    Le même tirage que le lancement, les distants exclus (`cloud_keys=[]`, `select_model`)."""
+    from wama.model_manager.services.cloud_models import is_cloud_key
+    if not model_key or not is_cloud_key(model_key):
+        return None
+    from wama.common.utils.auto_model import catalog_field, resolve_model_choice
+    field = catalog_field(app_id)
+    if not field:
+        return None
+    local = resolve_model_choice('auto', app_id=app_id, item=item, cloud_keys=[])
+    if not local or is_cloud_key(local):
+        return None
+    return {'field': field['name'], 'value': local, 'label': _model_label(local)}
+
+
+def _speech_coverage(app_id: str, item, pipeline, spec, model_key: str) -> Optional[dict]:
+    """La part de la PAROLE que couvrent les segments de la transcription
+    (`speech_activity.speech_coverage`), sur l'audio que le process a écouté
+    (`AppPipeline.input_of`) et les segments que l'app déclare lire (`result_segments`)."""
+    evaluation = evaluation_spec(app_id)
+    if evaluation is None or evaluation.result_segments is None:
+        return None
+    path = pipeline.input_of(item, spec.key, 'audio')
+    from wama.common.app_registry import category_of_path
+    # L'entrée principale de la card peut ne pas être un son (une image d'avatar) ; une VIDÉO en
+    # porte un, que le décodage lit.
+    if not path or not os.path.isfile(path) or category_of_path(path) not in ('audio', 'video'):
+        return None
+    from wama.common.utils.audio_decode import probe_duration_seconds
+    from wama.common.utils.speech_activity import COVERAGE_FLOOR, speech_coverage
+    segments = evaluation.result_segments(item) or []
+    measured = speech_coverage(path, [(s.get('start_time'), s.get('end_time')) for s in segments],
+                               duration_s=probe_duration_seconds(path) or 0)
+    if measured['ratio'] is None:
+        return None
+    percent = round(measured['ratio'] * 100)
+    found = {'value': measured['ratio'], 'floor': COVERAGE_FLOOR, 'short': measured['short'],
+             'message': f"{percent} % de la parole transcrite",
+             'detail': {k: measured[k] for k in ('active_s', 'covered_s', 'windows')}}
+    if measured['short']:
+        found['message'] = f"{percent} % seulement de la parole transcrite : du texte manque"
+        suggestion = _local_alternative(app_id, item, model_key)
+        if suggestion:
+            found['suggest'] = suggestion
+    return found
+
+
+register_check(Check('speech_coverage', 'Parole transcrite', _speech_coverage))
 
 
 def batch_evaluation(surface: str, items: Iterable) -> Optional[dict]:

@@ -699,6 +699,21 @@ class ThePreparationIsDeclaredTest(_Pipeline):
         self.item.refresh_from_db()
         self.assertFalse(self.item.use_prepared_audio, 'the route does not write it')
 
+    def test_the_skeleton_measures_how_much_speech_the_transcription_covers(self):
+        """The declared measure (`ProcessSpec.checks`) is played by the skeleton at the end of the
+        launch, on the audio the transcription HEARD — here the leveled one —, and kept on its
+        line (2026-10-22, the (b) guard)."""
+        self._set(level_speech=True)
+        measured = {'ratio': 0.5, 'active_s': 10.0, 'covered_s': 5.0, 'windows': 3, 'short': True}
+        with mock.patch('wama.common.utils.speech_activity.speech_coverage',
+                        return_value=measured) as probe:
+            item = self._run()
+        self.assertTrue(probe.called, 'the skeleton did not play the declared measure')
+        self.assertEqual(os.path.basename(item.leveled_audio.name),
+                         os.path.basename(probe.call_args.args[0]), 'it judges what was heard')
+        (kept,) = process_runs.line(item, 'transcribe').output_summary['checks']
+        self.assertEqual(('speech_coverage', True), (kept['key'], kept['short']))
+
     def test_the_version_listened_to_is_kept_on_the_card(self):
         """« Persister le choix de version de l'audio dans la card » (Fabien, 2026-10-22) : the
         page writes it through the common settings route (`Surface.sources_setting`), and reads it

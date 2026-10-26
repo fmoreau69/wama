@@ -121,6 +121,9 @@
         "params": {},
         "process": {
           "card_model": true,
+          "checks": [
+            "speech_coverage"
+          ],
           "degree": "required",
           "eta": "transcriber.workers:transcribe_eta",
           "gpu": true,

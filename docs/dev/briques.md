@@ -253,7 +253,7 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (22) :
+- **API publique** (23) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
@@ -264,6 +264,7 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
   - `start(item, node_id: str=MAIN_NODE, *, process_key: str='', kind: str='app', version: str='', instance_key: str='', settings_snapshot: dict | None=None, model_…` — Le process PART : la ligne passe `RUNNING`, sa photo de réglages est prise, l'erreur et
   - `await_resources(item, node_id: str=MAIN_NODE, *, process_key: str='', instance_key: str='', task_id: str='')` — Le tour du process est venu, la VRAM libre ne suffit pas : la ligne le dit, sans effacer
   - `succeed(item, node_id: str=MAIN_NODE, *, instance_key: str='', output_ref: str='', output_summary: dict | None=None, model_key: str | None=None, process_key: s…` — Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
+  - `annotate(item, node_id: str=MAIN_NODE, *, instance_key: str='', **values)` — Ajoute `values` à ce que la ligne retient de sa sortie (`output_summary`), sans toucher à
   - `fail(item, node_id: str=MAIN_NODE, message: str='', *, instance_key: str='', process_key: str='')` — Le process a ÉCHOUÉ — le message est gardé sur la ligne ; la sortie précédente, elle,
   - `close_open(item, to_status: str=JOB_FAILURE, message: str='') -> int` — Referme les lignes OUVERTES d'un élément qu'on arrête ou qu'on réconcilie : une tâche
   - `forget(item) -> int` — Retire les lignes d'un élément qu'on SUPPRIME (une ligne sans élément ne se lit plus
@@ -1416,11 +1417,11 @@ CVE des paquets INSTALLÉS du venv courant via l'API OSV.dev (pas les requiremen
 
 ### Évaluation d'un résultat contre sa référence
 
-Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référence, lecture du résultat et de la référence, modèle, métriques) et la brique fait le reste : pose la référence sur un élément OU un lot (un seul fichier, partagé), mesure, conserve la mesure par élément (`ResultEvaluation` — modèle, échelle, sens, identité de la référence : ce que l'indice interne des modèles agrégera) et compare les modèles d'un lot (taux de CORPUS, et dit quand les références diffèrent). SANS référence, l'accord entre moteurs d'une même entrée (M1 deux à deux, médiane M6, jamais de « meilleur »). Va avec la capacité `has_reference_result` — un test refuse l'une sans l'autre
+Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référence, lecture du résultat et de la référence, modèle, métriques) et la brique fait le reste : pose la référence sur un élément OU un lot (un seul fichier, partagé), mesure, conserve la mesure par élément (`ResultEvaluation` — modèle, échelle, sens, identité de la référence : ce que l'indice interne des modèles agrégera) et compare les modèles d'un lot (taux de CORPUS, et dit quand les références diffèrent). SANS référence, l'accord entre moteurs d'une même entrée (M1 deux à deux, médiane M6, jamais de « meilleur »). Va avec la capacité `has_reference_result` — un test refuse l'une sans l'autre. 2026-10-22 : les MESURES SANS RÉFÉRENCE d'une sortie (`register_check`), déclarées par process (`ProcessSpec.checks`), jouées par le squelette, gardées sur la ligne du process et montrées par la bande des process et la face « Évaluation » — la part de la parole qu'une transcription couvre, avec « Relancer avec » le modèle local
 
 - **Domicile** : `wama/common/services/result_evaluation.py` · **doc** : [docs/construction/ia/WAMA_QUALITE.md](../construction/ia/WAMA_QUALITE.md)
 - **Module** : Évaluation d'un résultat contre sa RÉFÉRENCE — la brique commune que chaque app adopte par une DÉCLARATION (`register_evaluation`), jamais par du code d'évaluation à elle.
-- **API publique** (16) :
+- **API publique** (20) :
   - `class EvaluationSpec` — Ce qu'une surface déclare pour être évaluable. Voir l'en-tête du module.
   - `register_evaluation(spec: EvaluationSpec) -> None` — Appelé depuis le `apps.py:ready()` de l'app — le registre ne connaît jamais ses apps.
   - `evaluation_spec(surface: str) -> Optional[EvaluationSpec]`
@@ -1430,6 +1431,10 @@ Une app DÉCLARE son évaluation (`register_evaluation` : champ de la référenc
   - `evaluate(surface: str, item) -> List` — Mesure le résultat COURANT de `item` contre sa référence ; rend les lignes écrites.
   - `item_evaluation(surface: str, item) -> Optional[dict]` — La mesure d'un élément, prête pour l'onglet « Évaluation » ; None s'il n'y en a pas.
   - `evaluation_text(measure: dict) -> str` — La mesure d'`item_evaluation` en TEXTE — ce que Copier emporte de la face « Évaluation »
+  - `class Check` — Une mesure sans référence de la sortie d'un process. `measure(app_id, item, pipeline,
+  - `register_check(check: Check) -> None` — Inscrit une mesure ; un process la DÉCLARE par sa clé (`ProcessSpec.checks`).
+  - `run_checks(app_id: str, item, task_id: str='') -> list` — Joue les mesures DÉCLARÉES des process que ce lancement a rendus (ligne `SUCCESS` de la
+  - `item_checks(item) -> list` — Les mesures sans référence gardées sur les lignes de l'élément, dans l'ordre du pipeline,
   - `batch_evaluation(surface: str, items: Iterable) -> Optional[dict]` — Comparaison des modèles d'un lot — le résumé de la ligne de la card mère.
   - `batch_agreement(surface: str, items: Iterable) -> Optional[dict]` — Le désaccord entre les moteurs d'un lot, SANS référence (`WAMA_QUALITE` M1, M6).
   - `class ReferenceRefused(ValueError)` — La référence ne peut pas être posée — le motif est DIT à l'utilisateur.
@@ -2754,16 +2759,18 @@ Deux chemins NOMMÉS pour lire un objet partageable depuis une vue (possédé / 
 
 ### Activité vocale (le VAD garde-t-il la parole ?)
 
-Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25. `pause_windows` (2026-10-02) : fenêtres bornées couvrant TOUT l'audio, coupées au creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper) ; `quietest_point` : la même coupe sur un extrait seul, qu'emploie le découpage des audios longs du transcriber (`workers._split_audio_chunks`, plus de coupe à intervalle fixe)
+Confronte, sur quelques fenêtres du média, ce que le filtre de parole Silero retient à ce que l'énergie du signal dit actif : un VAD qui garde bien moins que l'actif rejette une parole lointaine. L'appelant décide (le transcriber transcrit alors sans filtre, réglage `vad_mode` auto) ; mesuré sur deux entretiens le 2026-09-25. `pause_windows` (2026-10-02) : fenêtres bornées couvrant TOUT l'audio, coupées au creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper) ; `quietest_point` : la même coupe sur un extrait seul, qu'emploie le découpage des audios longs du transcriber (`workers._split_audio_chunks`, plus de coupe à intervalle fixe). `speech_coverage` (2026-10-22) : la part de la parole que les segments rendus couvrent — un texte perdu se voit, quel que soit le moteur
 
 - **Domicile** : `wama/common/utils/speech_activity.py` · **doc** : [wama/transcriber/TRANSCRIBER_CORRECTION.md §8](../../wama/transcriber/TRANSCRIBER_CORRECTION.md)
 - **Module** : Activité vocale d'un enregistrement — le filtre de parole (VAD) garde-t-il ce que le signal porte ?
-- **API publique** (6) :
+- **API publique** (8) :
   - `windows_for(duration_s: float) -> int` — Nombre de fenêtres sondées pour un média de `duration_s` secondes.
+  - `active_frames(wave, sr: int, margin_db: float=ACTIVE_MARGIN_DB)` — Les trames de 100 ms ACTIVES (niveau au-dessus du plancher de bruit, 10ᵉ centile, de
   - `energy_active_ratio(wave, sr: int, margin_db: float=ACTIVE_MARGIN_DB) -> float` — Part des trames de 100 ms dont le niveau dépasse le plancher de bruit de `margin_db`.
   - `pause_windows(wave, sr: int, max_seconds: float, search_seconds: float=PAUSE_SEARCH_SECONDS) -> list` — `[(début, fin)]` en secondes, fenêtres CONTIGUËS couvrant TOUT l'audio, chacune ≤
   - `quietest_point(span, sr: int)` — Secondes, depuis le début de `span`, du MILIEU de sa trame de 100 ms la plus calme — là où
   - `vad_speech_ratio(wave, sr: int) -> float` — Part de l'audio que le VAD de faster-whisper retient, avec ses réglages par défaut.
+  - `speech_coverage(path, spans, duration_s: float=0.0, windows: int=None, window_s: float=120.0, decode=None) -> dict` — La part de la PAROLE (trames actives à l'énergie) que couvrent les `spans` — `[(début,
   - `vad_rejects_speech(path, duration_s: float=0.0, windows: int=None, window_s: float=120.0, decode=None) -> dict` — Sonde `windows` fenêtres de `window_s` réparties dans le média (par défaut
 
 ### Actualisation des catalogues

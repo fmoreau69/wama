@@ -26073,3 +26073,21 @@ rien perdre »* — le reste relevé le 22/10 (`WAMA_SCENES_3D §6`). Domicile e
   dictée, le Speak et le Face Analyzer entrent au scénario nocturne `common.capture.ui` (vert ;
   rouge sur `close` neutralisé), la médiathèque l'était déjà (`synthesizer.voice_library_pick`,
   10/10 avec la brique). Constat périmé corrigé : `INFRA_WSL_VS_WINDOWS` (« trois surfaces »).
+
+## §PALIER 2026-10-26 — GARDE (b) : LA PART DE LA PAROLE TRANSCRITE, DANS LA BANDE ET DANS L'ÉVALUATION — non poussé — 🔴 relancer gunicorn ET les workers, puis Ctrl+F5
+
+Décision de Fabien : « on peut faire b » puis « pourquoi pas les deux ? » (bande des process ET
+face « Évaluation »). Domicile `WAMA_QUALITE §9bis` ; mécanique `ROUTE §10.6` 4.6.
+- ✅ **Mesure commune** `speech_activity.speech_coverage` — calée sur 15 cards (complètes ≥ 0,87,
+  texte perdu ≤ 0,60, seuil 0,75), pour tout moteur.
+- ✅ **Déclarée par process** (`ProcessSpec.checks`, registre `result_evaluation.register_check`),
+  jouée par le squelette en fin de lancement, gardée sur la ligne (`process_runs.annotate`),
+  exportée au manifeste et relue par le générateur.
+- ✅ **Montrée** : bande des process (taux + « Relancer avec » le modèle LOCAL quand la sortie
+  venait d'un distant) et face « Évaluation », même sans référence.
+- ✅ Mesurée sur les cards réelles, lecture seule : #2522 0,558 (Whisper Large-v3 proposé),
+  #724 0,90, #1072 1,00.
+- ⏳ (c) signaler à la DINUM · les cards d'avant ne sont mesurées qu'à leur prochaine
+  transcription · smoke navigateur de la bande et de la face.
+- Gardes : 15 tests (mesure, registre, déclaration, export, lignes, bande, évaluation, V8,
+  squelette) ; contre-épreuves rouges (6).

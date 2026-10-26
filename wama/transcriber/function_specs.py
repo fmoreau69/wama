@@ -218,8 +218,10 @@ PIPELINE = register_app_pipeline(_APP, (
                 eta='transcriber.workers:denoise_eta'),
     # `upstream_switch` (2026-10-22) : « Transcrire l'audio préparé » décoché, la transcription et
     # les locuteurs écoutent l'original ; l'audio préparé reste produit et ÉCOUTABLE (correction).
+    # `checks` (même jour, décision de Fabien) : la part de la parole que la transcription couvre
+    # — un texte perdu (moteur distant, filtre de parole, débruitage) se voit sur sa ligne.
     ProcessSpec('transcribe', label='Transcription', depends_on=('level', 'denoise'),
-                upstream_switch='use_prepared_audio',
+                upstream_switch='use_prepared_audio', checks=('speech_coverage',),
                 applies=_transcribes, gpu=True, card_model=True, share=17,
                 eta='transcriber.workers:transcribe_eta',
                 result=f'{_DOCUMENTS}:transcription_text'),

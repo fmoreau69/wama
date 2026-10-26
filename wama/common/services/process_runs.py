@@ -231,6 +231,19 @@ def succeed(item, node_id: str = MAIN_NODE, *, instance_key: str = '', output_re
     return _write(item, node_id, instance_key, defaults)
 
 
+def annotate(item, node_id: str = MAIN_NODE, *, instance_key: str = '', **values):
+    """Ajoute `values` à ce que la ligne retient de sa sortie (`output_summary`), sans toucher à
+    son état — ce qui se MESURE sur une sortie après coup (les mesures sans référence,
+    `result_evaluation.run_checks`, 2026-10-22). Sans ligne : rien. `start` les efface, comme
+    tout le résumé d'une exécution précédente."""
+    existing = line(item, node_id, instance_key)
+    if existing is None:
+        return None
+    summary = dict(existing.output_summary or {})
+    summary.update(values)
+    return _write(item, node_id, instance_key, {'output_summary': summary})
+
+
 def fail(item, node_id: str = MAIN_NODE, message: str = '', *, instance_key: str = '',
          process_key: str = ''):
     """Le process a ÉCHOUÉ — le message est gardé sur la ligne ; la sortie précédente, elle,

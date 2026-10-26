@@ -479,10 +479,10 @@ def _listened_audio(t, step: str) -> str:
     amonts qui a eu lieu — débruitée, sinon nivelée (`AppPipeline.upstream_output`, la donnée
     suit les liens DÉCLARÉS) —, sinon l'original de la card. Jusqu'au 2026-10-21 la préparation se
     faisait ICI, dans un fichier temporaire, une fois par livraison (#2522 : nivelé deux fois)."""
-    from django.conf import settings
     from .function_specs import PIPELINE
-    prepared = PIPELINE.upstream_output(t, step, 'audio')
-    return os.path.join(settings.MEDIA_ROOT, prepared) if prepared else t.audio.path
+    # Le geste commun (`AppPipeline.input_of`) : celui des mesures de la sortie, qui jugent ce que
+    # le process a ÉCOUTÉ. Sans fichier, `t.audio.path` le dit comme avant.
+    return PIPELINE.input_of(t, step, 'audio') or t.audio.path
 
 
 def _prepared_output(t, ctx, key: str, nature: str) -> tuple:

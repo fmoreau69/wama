@@ -5619,6 +5619,14 @@ cette ligne disait qu'il n'en gardait aucune). Choix par process : décision ouv
 > ThePreparationIsDeclaredTest` (8, dont la vue ⧉), `composer.tests_pipeline.…a_duplicate_starts_
 > without_any_output_of_its_processes` ; scénario `transcriber.editor_parity` (66/66 + « Versions »
 > 5/5) ; contre-épreuves en mémoire, toutes rouges.
+> - **2026-10-22 — un process DÉCLARE les mesures sans référence de sa sortie**
+>   (`ProcessSpec.checks`, registre `result_evaluation.register_check`) : jouées par le squelette
+>   à la fin du lancement, gardées sur SA ligne (`process_runs.annotate`), montrées par la bande
+>   des process (taux, « Relancer avec » le réglage qu'elles proposent) et par la face
+>   « Évaluation ». Exportées au manifeste et relues par le générateur (comme `upstream_switch`).
+>   1ʳᵉ : la part de la parole qu'une transcription couvre (`WAMA_QUALITE §9bis`, garde (b)).
+>   `AppPipeline.input_of` : LE geste « ce que ce process a écouté » (amont, sinon entrée de la
+>   card), que la glu du transcriber emploie aussi.
 > ✅ **Restes soldés le 2026-10-22** (demande de Fabien : « aligner les restes ouverts ») :
 > (a) **toutes les glues placent leur sortie par `ctx.output_place`** — anonymizer (détections,
 >   floutage), converter (sortie et conversion brute ; la conversion rapide « à côté de la source »

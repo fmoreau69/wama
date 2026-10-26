@@ -186,6 +186,13 @@ class ProcessSpec:
                   produite et ÉCOUTABLE. 2026-10-22, demande de Fabien : l'audio préparé sert
                   aussi l'intelligibilité pour la correction humaine — on doit pouvoir le
                   produire sans que la transcription l'écoute.
+      checks      les MESURES SANS RÉFÉRENCE de la sortie de ce process — des clés du registre
+                  commun (`result_evaluation.register_check`), jouées par le squelette quand la
+                  card a réussi, gardées sur la LIGNE du process (`output_summary['checks']`) : la
+                  bande des process les montre sur sa ligne, la face « Évaluation » de l'aperçu
+                  avec les mesures contre une référence. 2026-10-22, décision de Fabien : la part
+                  de la parole que couvre une transcription (`speech_coverage`) — un texte perdu
+                  se voit, quel que soit le moteur.
     """
     key: str
     label: str = ''
@@ -205,6 +212,7 @@ class ProcessSpec:
     result_format: str = ''
     split_from: str = ''
     upstream_switch: str = ''
+    checks: tuple = ()
 
 
 def output_fingerprint(ref: str) -> str:
@@ -291,6 +299,12 @@ class AppPipeline:
             if spec.result_format not in RESULT_FORMATS:
                 raise ValueError(f"pipeline de {app} : forme de résultat « {spec.result_format} » "
                                  f"inconnue ({', '.join(f or '(texte)' for f in RESULT_FORMATS)})")
+            if spec.checks:
+                from wama.common.services.result_evaluation import CHECKS
+                unknown = [c for c in spec.checks if c not in CHECKS]
+                if unknown:
+                    raise ValueError(f"pipeline de {app} : « {spec.key} » déclare des mesures "
+                                     f"inconnues ({', '.join(unknown)}) — `register_check`")
         self.ordered()                      # un cycle se refuse à la DÉCLARATION, pas au lancement
 
     # ── Déclaration ─────────────────────────────────────────────────────────────────────────
@@ -463,7 +477,9 @@ class AppPipeline:
                              **({'result': spec.result}
                                 if isinstance(spec.result, str) and spec.result else {}),
                              **({'result_format': spec.result_format}
-                                if spec.result_format else {})}}
+                                if spec.result_format else {}),
+                             # 2026-10-22 : écrit seulement quand il est posé (ajout pur).
+                             **({'checks': list(spec.checks)} if spec.checks else {})}}
                  for spec in self.specs]
         links = [{'from': upstream, 'to': spec.key, 'to_port': None}
                  for spec in self.specs for upstream in spec.depends_on]
@@ -669,6 +685,22 @@ class AppPipeline:
                 if found:
                     return found
         return ''
+
+    def input_of(self, item, key: str, data_type: str, model_key=None) -> str:
+        """Le CHEMIN du fichier de type `data_type` que le process `key` lit : la sortie de son
+        amont (`upstream_output`), sinon l'entrée PRINCIPALE de la card (le champ que l'app
+        déclare à l'aperçu, `PreviewRegistry.register(file_field=…)`, sans en juger le type : une
+        vidéo porte le son qu'un process transcrit). '' sans fichier. Le geste de toute
+        lecture de « ce que ce process a écouté » : la glu du transcriber, et les mesures sans
+        référence de sa sortie (2026-10-22)."""
+        from django.conf import settings
+        from wama.common.utils.preview_registry import PreviewRegistry
+        upstream = self.upstream_output(item, key, data_type, model_key)
+        if upstream:
+            return os.path.join(settings.MEDIA_ROOT, upstream)
+        field = (PreviewRegistry.get(self.app) or {}).get('file_field') or ''
+        value = getattr(item, field, None) if field else None
+        return value.path if value and getattr(value, 'name', '') else ''
 
     def backfill_prior_runs(self, item) -> dict:
         """BACKFILL (le mot de `backfill_platform_refs` : poser après coup ce qu'un enregistrement
@@ -954,6 +986,8 @@ class AppPipeline:
                 # L'interrupteur d'un `optional` (case à cocher de la bande) et son état.
                 'toggle': spec.toggle,
                 'enabled': self.enabled(spec, item),
+                # Les mesures sans référence de sa sortie (`ProcessSpec.checks`, 2026-10-22).
+                'checks': list(summary.get('checks') or []) if row is not None else [],
             })
         return out
 

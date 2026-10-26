@@ -895,7 +895,11 @@ MECHANISMS = (
               "compare les modèles d'un lot (taux de CORPUS, et dit quand les références "
               "diffèrent). SANS référence, l'accord entre moteurs d'une même entrée (M1 deux à "
               "deux, médiane M6, jamais de « meilleur »). Va avec la capacité "
-              "`has_reference_result` — un test refuse l'une sans l'autre",
+              "`has_reference_result` — un test refuse l'une sans l'autre. 2026-10-22 : les "
+              "MESURES SANS RÉFÉRENCE d'une sortie (`register_check`), déclarées par process "
+              "(`ProcessSpec.checks`), jouées par le squelette, gardées sur la ligne du process et "
+              "montrées par la bande des process et la face « Évaluation » — la part de la parole "
+              "qu'une transcription couvre, avec « Relancer avec » le modèle local",
               'wama/common/services/result_evaluation.py', 'docs/construction/ia/WAMA_QUALITE.md',
               annexes=('wama/common/tests/tests_result_evaluation.py',
                        'wama/common/static/common/js/wama-evaluation.js',
@@ -2581,7 +2585,8 @@ MECHANISMS = (
               "creux d'énergie — pour un moteur à fenêtre fixe sans repères de temps (FrWhisper) ; "
               "`quietest_point` : la même coupe sur un extrait seul, qu'emploie le découpage des "
               "audios longs du transcriber (`workers._split_audio_chunks`, plus de coupe à "
-              "intervalle fixe)",
+              "intervalle fixe). `speech_coverage` (2026-10-22) : la part de la parole que les "
+              "segments rendus couvrent — un texte perdu se voit, quel que soit le moteur",
               'wama/common/utils/speech_activity.py',
               'wama/transcriber/TRANSCRIBER_CORRECTION.md §8',
               annexes=('wama/common/tests/tests_speech_activity.py',)),

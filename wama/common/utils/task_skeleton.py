@@ -741,6 +741,20 @@ def _measure_against_reference(app_id: str, model, item_id: int, ctx) -> None:
                        app_id, item_id, exc)
 
 
+def _measure_without_reference(app_id: str, model, item_id: int, ctx, task_ref: str) -> None:
+    """Les mesures SANS référence que les process de ce lancement DÉCLARENT (`ProcessSpec.checks`,
+    `result_evaluation.run_checks`, 2026-10-22) — au même instant que la mesure contre la
+    référence, sur l'élément RELU. Une sortie jugée incomplète est dite à la console ; la bande des
+    process et la face « Évaluation » la montrent. Ne fait jamais échouer un succès."""
+    try:
+        from wama.common.services.result_evaluation import run_checks
+        for check in run_checks(app_id, model.objects.get(pk=item_id), task_ref):
+            if check.get('short'):
+                ctx.console(f"⚠ {check['process_label']} : {check['message']}.", level='warning')
+    except Exception as exc:
+        logger.warning("[%s] mesures sans référence de #%s impossibles : %s", app_id, item_id, exc)
+
+
 def _record_eta(eta, seconds: float, item) -> None:
     """ETA d'UN process (`(clé, taille, unité[, modèle chargé])` rendu par sa glu — la forme que
     lit aussi la vue de progression), best-effort."""
@@ -1096,6 +1110,8 @@ def run_item_task(task, *, app_id: str, model, item_id: int, process=None,
         ctx.enter_step(None, 0, 100)
         ctx.progress(100)
         _measure_against_reference(app_id, model, item_id, ctx)
+        if pipeline is not None:
+            _measure_without_reference(app_id, model, item_id, ctx, task_ref)
         nom = res.get('label') or _item_label(item, item_id)
         ctx.console(res.get('console_success') or f"✓ Terminé : {nom}", level='info')
         logger.info(f"=== {app_id} task DONE | item={item_id} ===")

@@ -48,7 +48,7 @@ Kinds prévus : **`app`** (§3), **`function`** (= `FunctionSpec`, déjà fait, 
 > différente. **`params`** = les VALEURS de réglage que l'utilisateur décide (l'inspecteur du Studio
 > n'écrit que là, et seulement la clé touchée) ; **`process`** (facultatif, dict) = la DÉCLARATION du
 > process qu'un registre de code exporte — `degree`, `watched`, `gpu`, `outputs`, `share`, `label`,
-> `eta`, `toggle`, `card_model`, `upstream_switch`, `result`, `result_format` (pipelines d'app),
+> `eta`, `toggle`, `card_model`, `upstream_switch`, `result`, `result_format`, `checks` (pipelines d'app),
 > `stage`, `per_camera`,
 > `task` (passes du Lab) —, lue par les générateurs (`codegen/pipeline_decl.process_specs`), gardée
 > telle quelle par le canvas. Les deux vivaient dans `params` : un geste pouvait effacer la

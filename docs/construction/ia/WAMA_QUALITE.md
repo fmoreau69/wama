@@ -1153,12 +1153,36 @@ cards diffèrent de QUATRE choses à la fois :
   - Le local lui-même tombe à ~5 000 mots sur cet audio dès que le filtre de parole est gardé ou que
     DeepFilterNet débruite (#173, #176, #1049-#1051) : l'omission sur parole lointaine n'est pas
     propre à Albert — elle l'est seulement quand rien de NOTRE côté ne l'explique.
-  ⏳ **Décision de Fabien, éléments** : rien à corriger côté WAMA dans l'appel ; trois voies — (a)
+  **Décision de Fabien, éléments** : rien à corriger côté WAMA dans l'appel ; trois voies — (a)
   écarter Albert du tirage automatique pour la parole lointaine ou longue ; (b) une GARDE mesurée
   et commune à tout moteur : comparer le temps COUVERT par les segments rendus au temps ACTIF du
   signal (la sonde `speech_activity` mesure déjà l'énergie) et, sous un seuil, le dire sur la card
   et proposer le moteur local ; (c) signaler le défaut à la DINUM (mesures ci-dessus, données de
   la session dans le dossier jetable, jamais versionnées : c'est l'entretien de Fabien).
+  ✅ **(b) LIVRÉE le 2026-10-22** (Fabien : « on peut faire b ») — et montrée à DEUX endroits, la
+  bande des process et la face « Évaluation » (« pourquoi pas les deux ? »). Précision demandée :
+  le découpage en 30 s de WAMA ne concerne que Qwen3-ASR et Canary (`max_audio_seconds`) ; Albert
+  reçoit des envois de 25 min, et les fenêtres de 30 s sont celles du décodage Whisper, chez lui
+  comme chez nous. Calibrage, part de la PAROLE couverte par les segments (15 cards) :
+
+  | cards | moteur | part couverte |
+  |---|---|---|
+  | #724, #1048, #1070 | Whisper local sans filtre | 0,87-0,92 |
+  | #1072-1075, #1233-1234 | Albert, parole proche | 0,95-1,00 |
+  | #2522 | Albert, parole lointaine | 0,56 |
+  | #173, #176, #1049-1051 | Whisper local avec filtre de parole ou débruitage | 0,29-0,60 |
+
+  Seuil `COVERAGE_FLOOR = 0,75`. Le Whisper local PERD lui aussi du texte (filtre, débruitage) :
+  c'est pourquoi la garde est commune plutôt qu'un sort fait à Albert — (a) devient inutile. Chaîne :
+  `speech_activity.speech_coverage` (mesure) → `result_evaluation.register_check('speech_coverage')`
+  → déclarée sur le process `transcribe` (`ProcessSpec.checks`) → jouée par le squelette à la fin
+  du lancement (`_measure_without_reference`), sur l'audio que le process a ÉCOUTÉ
+  (`AppPipeline.input_of`) → gardée sur SA ligne, jamais dans `ResultEvaluation` (mesure contre une
+  vérité, matière de l'indice) → montrée par la bande (taux + « Relancer avec » le modèle LOCAL que
+  tirerait l'auto, `cloud_keys=[]`, quand la sortie venait d'un distant) et par la face
+  « Évaluation », même sans référence. Mesurée en lecture seule sur les cards réelles : #2522
+  0,558 (signalée, Whisper Large-v3 proposé), #724 0,90, #1072 1,00. ⏳ (c) reste à faire ;
+  les cards transcrites avant le 2026-10-22 ne sont mesurées qu'à leur prochaine transcription.
 - **Niveau mesuré avant / après nivellement** (hypothèse de Fabien : « le nivellement baisse peut-être
   le niveau global, faut-il normaliser vers 0 dB ? ») : parole active −25,8 → **−20,1 dBFS**, RMS
   −27,3 → −21,8 dBFS, crête +0,4 (l'original écrête déjà) → −0,2 dBFS. Le nivellement RELÈVE le

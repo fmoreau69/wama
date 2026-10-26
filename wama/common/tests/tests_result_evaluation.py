@@ -426,3 +426,143 @@ class CapabilityAndDeclarationGoTogetherTest(TestCase):
         importing = {s for s in evaluation.evaluable_surfaces()
                      if evaluation.evaluation_spec(s).import_result is not None} & apps
         self.assertEqual(declared, importing)
+
+
+class MeasuresWithoutReferenceTest(TestCase):
+    """The measures WITHOUT a reference of a process output (2026-10-22, decision of Fabien: the
+    (b) guard of `WAMA_QUALITE §9bis`) — DECLARED per process (`ProcessSpec.checks`), registered
+    once (`register_check`), kept on the process LINE (never in `ResultEvaluation`, the measure
+    against a truth), shown by the strip of processes AND by the « Évaluation » face. Witness:
+    the transcriber, whose transcription declares `speech_coverage`."""
+
+    TASK = 'launch-checks'
+
+    def setUp(self):
+        from wama.common.services import process_runs
+        from wama.transcriber.models import Transcript
+        self.tmp = tempfile.mkdtemp()
+        media = override_settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.user = User.objects.create_user('checks_owner', password='x')
+        self.item = Transcript.objects.create(user=self.user, status='SUCCESS', backend='auto',
+                                              segments_json=[{'start_time': 0.0, 'end_time': 4.0,
+                                                              'text': 'bonjour'}])
+        self.item.audio.save('voix.wav', SimpleUploadedFile('voix.wav', b'RIFF0000WAVE'))
+        process_runs.start(self.item, 'transcribe', process_key='transcriber', task_id=self.TASK)
+        process_runs.succeed(self.item, 'transcribe', model_key='albert:whisper-large-v3')
+
+    def _run(self, ratio=0.56, cloud=True, local='transcriber:whisper'):
+        from unittest import mock
+        measured = {'ratio': ratio, 'active_s': 100.0, 'covered_s': 100.0 * ratio, 'windows': 3,
+                    'short': ratio < 0.75}
+        with mock.patch('wama.common.utils.speech_activity.speech_coverage',
+                        return_value=measured) as probe, \
+                mock.patch('wama.model_manager.services.cloud_models.is_cloud_key',
+                           side_effect=lambda key: cloud and str(key).startswith('albert:')), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           return_value=local):
+            written = evaluation.run_checks('transcriber', self.item, self.TASK)
+        return written, probe
+
+    def test_the_transcription_declares_its_measure_and_the_registry_knows_it(self):
+        from wama.transcriber.function_specs import PIPELINE
+        self.assertEqual(('speech_coverage',), PIPELINE.spec('transcribe').checks)
+        self.assertIn('speech_coverage', evaluation.CHECKS)
+
+    def test_an_unknown_measure_is_refused_at_declaration(self):
+        from wama.common.services.process_pipeline import AppPipeline, ProcessSpec
+        with self.assertRaises(ValueError):
+            AppPipeline('probe_checks', (ProcessSpec('a', checks=('no_such_measure',)),),
+                        label='probe')
+
+    def test_a_short_coverage_is_kept_on_its_line_with_the_local_engine_to_relaunch_with(self):
+        from wama.common.services import process_runs
+        written, probe = self._run()
+        self.assertEqual(1, len(written))
+        args = probe.call_args
+        self.assertTrue(args.args[0].endswith('voix.wav'), 'it judges what the process HEARD')
+        self.assertEqual([(0.0, 4.0)], args.args[1])
+        (kept,) = process_runs.line(self.item, 'transcribe').output_summary['checks']
+        self.assertEqual(('speech_coverage', True, 0.56), (kept['key'], kept['short'], kept['value']))
+        self.assertIn('56 %', kept['message'])
+        self.assertEqual({'field': 'backend', 'value': 'transcriber:whisper'},
+                         {k: kept['suggest'][k] for k in ('field', 'value')},
+                         'the model setting of the card, drawn locally')
+
+    def test_no_suggestion_when_the_output_came_from_a_local_engine_or_is_complete(self):
+        from wama.common.services import process_runs
+        self._run(cloud=False)
+        (kept,) = process_runs.line(self.item, 'transcribe').output_summary['checks']
+        self.assertNotIn('suggest', kept)
+        self._run(ratio=0.92)
+        (kept,) = process_runs.line(self.item, 'transcribe').output_summary['checks']
+        self.assertEqual((False, None), (kept['short'], kept.get('suggest')))
+
+    def test_a_line_of_another_launch_is_not_measured(self):
+        from wama.common.services.process_runs import line
+        from unittest import mock
+        with mock.patch('wama.common.utils.speech_activity.speech_coverage') as probe:
+            self.assertEqual([], evaluation.run_checks('transcriber', self.item, 'other-launch'))
+        probe.assert_not_called()
+        self.assertNotIn('checks', line(self.item, 'transcribe').output_summary or {})
+
+    def test_the_strip_of_processes_says_it_and_offers_the_relaunch(self):
+        from django.template.loader import render_to_string
+        from wama.transcriber.function_specs import PIPELINE
+        self._run()
+        rows = PIPELINE.card_rows(self.item, 'albert:whisper-large-v3')
+        row = next(r for r in rows if r['key'] == 'transcribe')
+        self.assertTrue(row['checks'][0]['short'])
+        html = render_to_string('common/_card_processes.html', {
+            'processes': rows + [dict(row, key='other', checks=[])], 'card_id': self.item.pk,
+            'settings_url': '/transcriber/settings/1/', 'elem': self.item})
+        self.assertIn('wcv3-proc-check', html)
+        self.assertIn('56 %', html)
+        self.assertIn('data-value="transcriber:whisper"', html)
+        self.assertIn('data-field="backend"', html)
+
+    def test_the_evaluation_shows_it_even_without_a_reference(self):
+        self._run()
+        measure = evaluation.item_evaluation('transcriber', self.item)
+        self.assertIsNotNone(measure, 'no reference, but a measure of the output: a face')
+        self.assertEqual([], measure['metrics'])
+        self.assertEqual('Transcription', measure['checks'][0]['process_label'])
+        self.assertIn('56 %', evaluation.evaluation_text(measure))
+
+    def test_counter_proof_nothing_measured_no_face(self):
+        self.assertIsNone(evaluation.item_evaluation('transcriber', self.item))
+
+    def test_the_declaration_travels_through_the_manifest_and_the_generator(self):
+        from wama.common.manifests.codegen.pipeline_decl import process_specs
+        from wama.transcriber.function_specs import PIPELINE
+        graph = PIPELINE.graph()
+        node = next(n for n in graph['nodes'] if n['id'] == 'transcribe')
+        self.assertEqual(['speech_coverage'], node['process']['checks'])
+        read = next(s for s in process_specs({'body': graph}) if s['key'] == 'transcribe')
+        self.assertEqual(['speech_coverage'], read['checks'])
+
+    def test_the_common_renderer_draws_the_measures_without_reference(self):
+        """`WamaEvaluation.renderItem` in V8, on the SERVED file."""
+        import json
+        from pathlib import Path
+        from django.conf import settings
+        from py_mini_racer import MiniRacer
+        served = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'wama-evaluation.js'
+        engine = MiniRacer()
+        engine.eval('var window = {};' + served.read_text(encoding='utf-8'))
+        check = {'process_label': 'Transcription', 'label': 'Parole transcrite', 'value': 0.56,
+                 'short': True, 'message': '56 % seulement de la parole transcrite'}
+        out = json.loads(engine.eval(
+            'var c = {innerHTML: ""};'
+            'var shown = window.WamaEvaluation.renderItem(c, %s);'
+            'JSON.stringify({shown: shown, html: c.innerHTML})'
+            % json.dumps({'metrics': [], 'pending': False, 'checks': [check]})))
+        self.assertTrue(out['shown'])
+        self.assertIn('Parole transcrite', out['html'])
+        self.assertIn('fa-triangle-exclamation', out['html'])
+        nothing = json.loads(engine.eval(
+            'var d = {innerHTML: ""};'
+            'JSON.stringify(window.WamaEvaluation.renderItem(d, {metrics: [], pending: false, checks: []}))'))
+        self.assertFalse(nothing)

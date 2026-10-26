@@ -1235,6 +1235,38 @@
       .then(function () { box.disabled = false; });
   });
 
+  /** « RELANCER AVEC … » d'un process dont la sortie a été jugée INSUFFISANTE (bande des process,
+   *  `ProcessSpec.checks` — 2026-10-22) : la mesure PROPOSE un réglage (`data-field` =
+   *  `data-value`, le modèle local quand la sortie venait d'un modèle distant). Le bouton l'écrit
+   *  par la route de réglages de la card — la même que la case à cocher ci-dessus —, puis joue le
+   *  ▶ de CE process (le même bouton de cycle, donc le même lancement que l'app câble). Un refus
+   *  le DIT et ne lance rien. Aucune ligne par app. */
+  document.addEventListener('click', function (e) {
+    const btn = e.target && e.target.closest ? e.target.closest('.wcv3-proc-suggest') : null;
+    if (!btn) return;
+    const url = btn.dataset.settingsUrl, field = btn.dataset.field;
+    if (!url || !field) return;
+    const body = new FormData();
+    body.append(field, btn.dataset.value || '');
+    btn.disabled = true;
+    csrfFetch(url, csrfToken(), { method: 'POST', body: body })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; })
+          .then(function (d) { return { ok: r.ok, data: d || {} }; });
+      })
+      .then(function (res) {
+        if (!res.ok || res.data.error) {
+          toast(res.data.error || 'Réglage refusé par le serveur', 'error');
+          return;
+        }
+        const proc = btn.closest('.wcv3-proc');
+        const run = proc && proc.querySelector('.wcv3-proc-run');
+        if (run) run.click();
+      })
+      .catch(function () { toast('Erreur réseau', 'error'); })
+      .then(function () { btn.disabled = false; });
+  });
+
   /** COULEUR D'UN TOKEN DE THÈME (chantier thèmes, `ROADMAP §28` — 2026-10-18), pour ce qui ne
    *  lit pas le CSS : un canvas, un graphe Chart.js. `themeColor('--bs-danger')` rend la valeur du
    *  thème actif ; `themeColor('--bs-danger-rgb', .1)` compose un voile à partir des canaux d'un

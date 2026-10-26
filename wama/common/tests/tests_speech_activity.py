@@ -21,6 +21,38 @@ def _bursts(seconds=120.0, level=0.3, on_s=1.0, off_s=0.5, seed=0):
     return wave
 
 
+class SpeechCoverageTest(SimpleTestCase):
+    """`speech_coverage` (2026-10-22, the (b) guard of `WAMA_QUALITE §9bis`): the share of the
+    SPEECH (active frames) that a transcription's segments cover — a lost text shows, whatever
+    the engine."""
+
+    def _coverage(self, spans, wave=None):
+        wave = _bursts(100.0) if wave is None else wave
+        return speech_activity.speech_coverage(
+            'x.wav', spans, duration_s=100.0, decode=lambda path, sr, start, d: (wave, SR))
+
+    def test_a_complete_transcription_covers_the_speech(self):
+        found = self._coverage([(0.0, 100.0)])
+        self.assertGreater(found['ratio'], 0.95)
+        self.assertFalse(found['short'])
+
+    def test_a_transcription_that_lost_half_of_it_is_short(self):
+        found = self._coverage([(0.0, 50.0)])
+        self.assertAlmostEqual(0.5, found['ratio'], delta=0.05)
+        self.assertTrue(found['short'], 'under the floor: text is missing')
+        self.assertEqual(0.0, self._coverage([])['ratio'])
+
+    def test_mostly_silence_is_not_judged(self):
+        quiet = np.random.default_rng(1).normal(0, 0.001, 100 * SR).astype('float32')
+        found = self._coverage([], wave=quiet)
+        self.assertIsNone(found['ratio'])
+        self.assertFalse(found['short'])
+
+    def test_the_floor_sits_between_the_measured_groups(self):
+        """Calibrated on 15 cards: complete ≥ 0.87, lost text ≤ 0.60."""
+        self.assertTrue(0.60 < speech_activity.COVERAGE_FLOOR < 0.87)
+
+
 class SpeechActivityTest(SimpleTestCase):
 
     def _probe(self, wave, vad_ratio=None, duration=600.0):

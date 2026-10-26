@@ -10,6 +10,9 @@ l'audio pour 74-76 % d'actif à l'énergie ; sur un enregistrement en champ loin
 `vad_rejects_speech` confronte les deux mesures sur quelques fenêtres réparties dans le média
 (coût : quelques secondes de CPU, sans charger le fichier entier) ; l'appelant décide quoi en
 faire. Réutilisable par tout consommateur d'ASR (transcription, écriture au fil de la lecture).
+
+`speech_coverage` (2026-10-22) mesure APRÈS coup, sur les mêmes fenêtres : la part de la parole
+que les segments rendus couvrent — un texte perdu se voit, quel que soit le moteur.
 """
 from __future__ import annotations
 
@@ -37,15 +40,22 @@ def windows_for(duration_s: float) -> int:
     return max(MIN_WINDOWS, min(MAX_WINDOWS, math.ceil(float(duration_s or 0) / WINDOW_EVERY_S)))
 
 
-def energy_active_ratio(wave, sr: int, margin_db: float = ACTIVE_MARGIN_DB) -> float:
-    """Part des trames de 100 ms dont le niveau dépasse le plancher de bruit de `margin_db`."""
+def active_frames(wave, sr: int, margin_db: float = ACTIVE_MARGIN_DB):
+    """Les trames de 100 ms ACTIVES (niveau au-dessus du plancher de bruit, 10ᵉ centile, de
+    `margin_db`) — un tableau de booléens, vide sous une trame."""
     import numpy as np
     n = int(sr * FRAME_SECONDS)
     if n <= 0 or len(wave) < n:
-        return 0.0
+        return np.zeros(0, dtype=bool)
     frames = np.asarray(wave[: len(wave) // n * n], dtype='float32').reshape(-1, n)
     db = 20 * np.log10(np.sqrt((frames ** 2).mean(axis=1) + 1e-12))
-    return float((db > np.percentile(db, 10) + margin_db).mean())
+    return db > np.percentile(db, 10) + margin_db
+
+
+def energy_active_ratio(wave, sr: int, margin_db: float = ACTIVE_MARGIN_DB) -> float:
+    """Part des trames de 100 ms dont le niveau dépasse le plancher de bruit de `margin_db`."""
+    active = active_frames(wave, sr, margin_db)
+    return float(active.mean()) if len(active) else 0.0
 
 
 #: Où chercher la coupure d'une fenêtre : dans les dernières secondes avant sa longueur maximale.
@@ -101,6 +111,55 @@ def vad_speech_ratio(wave, sr: int) -> float:
     return sum(s['end'] - s['start'] for s in spans) / len(wave)
 
 
+def _probe_starts(duration_s: float, windows: int, window_s: float) -> list:
+    """Débuts des fenêtres sondées, réparties dans le média (une seule pour un média court)."""
+    if duration_s <= window_s:
+        return [0.0]
+    return [max(0.0, duration_s * (i + 1) / (windows + 1) - window_s / 2) for i in range(windows)]
+
+
+#: Sous cette part de la parole COUVERTE par les segments rendus, une transcription a perdu du
+#: texte. Calée le 2026-10-22 sur 15 cards mesurées (`WAMA_QUALITE §9bis`) : les transcriptions
+#: complètes couvrent 0,87-0,92 (Whisper local) et 0,95-1,00 (Albert sur parole proche) ; celles
+#: qui ont perdu du texte, 0,29-0,60 (Whisper local avec filtre de parole ou débruitage) et 0,56
+#: (Albert sur parole lointaine, #2522). La marge est large des deux côtés.
+COVERAGE_FLOOR = 0.75
+
+
+def speech_coverage(path, spans, duration_s: float = 0.0, windows: int = None,
+                    window_s: float = 120.0, decode=None) -> dict:
+    """La part de la PAROLE (trames actives à l'énergie) que couvrent les `spans` — `[(début,
+    fin)]` en secondes, les segments d'une transcription — sur les fenêtres sondées comme
+    `vad_rejects_speech`. Rend `{'ratio', 'active_s', 'covered_s', 'windows', 'short'}`,
+    `ratio` None sous `MIN_ACTIVE` (surtout du silence : rien à juger). Commune à tout moteur de
+    transcription : elle voit un texte PERDU, quelle qu'en soit la cause — décodage d'un moteur
+    distant, filtre de parole, débruitage (2026-10-22, décision de Fabien : la garde (b))."""
+    import numpy as np
+    if decode is None:
+        from wama.common.utils.audio_decode import decode_window as decode
+    duration_s = float(duration_s or 0)
+    starts = _probe_starts(duration_s, windows or windows_for(duration_s), window_s)
+    spans = [(float(a), float(b)) for a, b in spans if b is not None and a is not None and b > a]
+    active_s = covered_s = frames_s = 0.0
+    for start in starts:
+        wave, sr = decode(path, 16000, start, window_s)
+        active = active_frames(wave, sr)
+        if not len(active):
+            continue
+        covered = np.zeros(len(active), dtype=bool)
+        for a, b in spans:
+            lo, hi = int((a - start) / FRAME_SECONDS), int(np.ceil((b - start) / FRAME_SECONDS))
+            if hi > 0 and lo < len(covered):
+                covered[max(0, lo):min(len(covered), hi)] = True
+        active_s += float(active.sum()) * FRAME_SECONDS
+        covered_s += float((active & covered).sum()) * FRAME_SECONDS
+        frames_s += len(active) * FRAME_SECONDS
+    ratio = (covered_s / active_s) if frames_s and active_s / frames_s >= MIN_ACTIVE else None
+    return {'ratio': round(ratio, 3) if ratio is not None else None,
+            'active_s': round(active_s, 1), 'covered_s': round(covered_s, 1),
+            'windows': len(starts), 'short': ratio is not None and ratio < COVERAGE_FLOOR}
+
+
 def vad_rejects_speech(path, duration_s: float = 0.0, windows: int = None,
                        window_s: float = 120.0, decode=None) -> dict:
     """Sonde `windows` fenêtres de `window_s` réparties dans le média (par défaut
@@ -114,11 +173,7 @@ def vad_rejects_speech(path, duration_s: float = 0.0, windows: int = None,
     duration_s = float(duration_s or 0)
     if windows is None:
         windows = windows_for(duration_s)
-    if duration_s <= window_s:
-        starts = [0.0]
-    else:
-        starts = [max(0.0, duration_s * (i + 1) / (windows + 1) - window_s / 2)
-                  for i in range(windows)]
+    starts = _probe_starts(duration_s, windows, window_s)
     vad = energy = 0.0
     for start in starts:
         wave, got_sr = decode(path, sr, start, window_s)

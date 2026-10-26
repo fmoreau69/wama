@@ -1,5 +1,6 @@
 /**
- * WAMA — onglet « Évaluation » : la mesure d'un résultat contre sa RÉFÉRENCE.
+ * WAMA — onglet « Évaluation » : la mesure d'un résultat contre sa RÉFÉRENCE, et celles de ses
+ * sorties SANS référence (`item.checks`, 2026-10-22 — la part de la parole transcrite).
  *
  * Rendu COMMUN (2026-09-23) de ce que rend l'endpoint commun
  * `/common/api/result-reference/<surface>/element/<pk>/` (`result_evaluation.item_evaluation`).
@@ -47,15 +48,34 @@
             }).join('');
     }
 
+    /** Les mesures SANS référence des sorties de l'élément (`item.checks`, `ProcessSpec.checks` —
+     *  2026-10-22) : une ligne par mesure, son process, son taux, son message ; une mesure
+     *  insuffisante (`short`) en avertissement. '' sans mesure. */
+    function checksHtml(checks) {
+        if (!checks || !checks.length) return '';
+        return '<ul class="list-unstyled wama-evaluation-checks mb-3">' + checks.map(function (c) {
+            var icon = c.short ? 'fa-triangle-exclamation text-warning' : 'fa-circle-check text-success';
+            return '<li><i class="fas ' + icon + '"></i> <strong>' + escape(c.process_label) + '</strong> — '
+                + escape(c.label) + ' : ' + percent(c.value) + ' <span class="text-body-secondary">('
+                + escape(c.message) + ')</span></li>';
+        }).join('') + '</ul>';
+    }
+
     /** Remplit `container` avec la mesure `item` ; rend false s'il n'y a rien à montrer. */
     function renderItem(container, item) {
         if (!container) return false;
         if (!item) { container.innerHTML = ''; return false; }
+        var checks = checksHtml(item.checks);
         if (item.pending) {
-            container.innerHTML = '<p class="text-body-emphasis py-3 mb-0"><i class="fas fa-hourglass-half"></i> '
+            container.innerHTML = checks + '<p class="text-body-emphasis py-3 mb-0"><i class="fas fa-hourglass-half"></i> '
                 + 'Référence <strong>' + escape(item.reference_name) + '</strong> posée — '
                 + 'la mesure suivra le prochain résultat.</p>';
             return true;
+        }
+        if (!(item.metrics || []).length) {
+            // Aucune référence posée : les seules mesures sans référence de ses sorties.
+            container.innerHTML = checks;
+            return !!checks;
         }
         var rows = (item.metrics || []).map(function (m) {
             return '<tr><td>' + escape(m.label) + '</td>'
@@ -65,7 +85,7 @@
                 + '<td>' + escape(m.hypothesis_length) + '</td></tr>';
         }).join('');
         var measured = item.measured_at ? new Date(item.measured_at).toLocaleString() : '';
-        container.innerHTML =
+        container.innerHTML = checks +
             '<p class="text-body-emphasis mb-2"><i class="fas fa-scale-balanced text-info"></i> '
             + '<strong>' + escape(item.model_label) + '</strong> comparé à '
             + '<strong>' + escape(item.reference_name) + '</strong></p>'
