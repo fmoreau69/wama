@@ -628,11 +628,12 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
                           ('parts', 'composer.parts')],
                          [(node['id'], node['function']) for node in manifest['body']['nodes']])
         # Two ALTERNATIVE upstreams of the render (2026-10-03): the score comes from the cover
-        # audio, or from the prompt. The full score (2026-10-16) reads the final song.
+        # audio, or from the prompt. The full score (2026-10-16) is a BRANCH of the render, beside
+        # the output (2026-10-26) : changing the format does not stale it.
         self.assertEqual([{'from': 'extract_score', 'to': 'render', 'to_port': None},
                           {'from': 'plan', 'to': 'render', 'to_port': None},
                           {'from': 'render', 'to': 'output', 'to_port': None},
-                          {'from': 'output', 'to': 'parts', 'to_port': None}],
+                          {'from': 'render', 'to': 'parts', 'to_port': None}],
                          manifest['body']['links'])
 
     def test_the_export_command_lists_it(self):

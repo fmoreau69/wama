@@ -4,7 +4,8 @@ part per instrument (task `audio-to-midi`, MuScriptor), written in ABC by the co
 
 What each test holds:
   * the process only runs when the card asks for it (`extract_parts`) AND a model of the task is
-    installed ; it comes after the output, on the final song ;
+    installed ; it is a BRANCH of the render, beside the output (2026-10-26), and reads the
+    render's audio — a new output format does not stale it ;
   * its model is not the card's: chosen on the card (`parts_model`, 2026-10-19) or drawn by task
     under « auto », asked from the route, released at once, named on its execution line ;
   * the MIDI is written as a score output of the card, never handed to the render ;
@@ -114,8 +115,9 @@ class FullScoreTest(TestCase):
         gen = self._run(extract_parts=True)
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
         self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS, 'parts': JOB_SUCCESS}, self._states(gen))
-        self.assertTrue(_Transcriber.calls[0]['audio_path'].replace('\\', '/')
-                        .endswith(gen.audio_output.name), 'the transcription reads the FINAL song')
+        from wama.common.services.output_process import output_sources
+        self.assertEqual(output_sources(gen, 'audio_output')[0], _Transcriber.calls[0]['audio_path'],
+                         "the transcription reads the RENDER's audio, whatever the output did")
         self.assertIn(f'/score{gen.pk}_', gen.parts_score.name, 'named by its nature : a score')
         written = (Path(self.tmp) / gen.parts_score.name).read_text(encoding='utf-8')
         self.assertIn('name="Voix"', written)
@@ -172,6 +174,21 @@ class FullScoreTest(TestCase):
         self.assertEqual(JOB_SUCCESS, self._states(gen)['parts'], gen.error_message)
         self.assertTrue(gen.parts_score)
         self.assertEqual(1, len(_PlainEngine.renders), 'the song is not rendered again')
+
+    def test_a_new_output_format_stales_the_output_never_the_full_score(self):
+        """2026-10-26, Fabien : « je ne vois pas la logique d'avoir la partition complète après la
+        sortie ». A BRANCH of the render : the output may be redone, the full score stays."""
+        from wama.composer.function_specs import PIPELINE
+        gen = self._run(extract_parts=True)
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['parts'], gen.error_message)
+        self.assertEqual(['render'], list(PIPELINE.spec('parts').depends_on))
+        current = gen.output_format
+        other = next(v for v in ('mp3', 'flac', 'wav', 'ogg') if v != current)
+        ComposerGeneration.objects.filter(pk=gen.pk).update(output_format=other)
+        gen = ComposerGeneration.objects.get(pk=gen.pk)
+        stale = PIPELINE.refresh(gen)
+        self.assertIn('output', stale, 'the output follows its format')
+        self.assertNotIn('parts', stale, 'the full score does not depend on the format')
 
     def test_a_failed_transcription_fails_its_line_and_releases_the_model(self):
         _Transcriber.error = RuntimeError('no beat decoded')
@@ -237,3 +254,38 @@ class TheToggleReachesTheCardTest(TestCase):
         self.assertNotIn('extraFields', script, 'a hand list of panel settings forgets the next one')
         panel = {p.name for p in PARAMS if 'panel' in (p.contexts or ())}
         self.assertIn('extract_parts', panel)
+
+
+class TheCoverIsTheInputTest(TestCase):
+    """2026-10-26, Fabien on #880 : « si on fournit un audio cover en entrée, il devrait être en
+    preview d'entrée » — the Input face was EMPTY (a cover has no prompt, nothing named the file).
+    The common rule of the preview : the WORK port first, the prompt otherwise."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        media = override_settings(MEDIA_ROOT=self.tmp)
+        media.enable()
+        self.addCleanup(media.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.user = get_user_model().objects.create_user('composer_cover_input', password='x')
+
+    def _input(self, gen):
+        """The Input face. The composer's WORK ports come from the models of the CATALOGUE (empty
+        in the test base) : set to what the live catalogue gives (measured 2026-10-26 : group
+        `travail`, natures audio and score) — what is held here is which FILE is the input."""
+        from django.test import RequestFactory
+        from wama.common.utils import preview_utils
+        with mock.patch.object(preview_utils, '_input_port_group', return_value='travail'), \
+                mock.patch.object(preview_utils, '_work_natures', return_value={'audio', 'score'}):
+            return preview_utils._input_preview(
+                'composer', gen, RequestFactory().get('/', HTTP_HOST='localhost')) or {}
+
+    def test_the_cover_audio_is_the_input_face_the_prompt_otherwise(self):
+        rel = 'users/1/temp/cover.mp3'
+        (Path(self.tmp) / rel).parent.mkdir(parents=True)
+        (Path(self.tmp) / rel).write_bytes(b'ID3' + b'\0' * 64)
+        cover = ComposerGeneration.objects.create(user=self.user, prompt='', melody_reference=rel)
+        face = self._input(cover)
+        self.assertEqual(('cover.mp3', 'audio/mpeg'), (face.get('name'), face.get('mime_type')))
+        plain = ComposerGeneration.objects.create(user=self.user, prompt='pop song')
+        self.assertEqual('pop song', self._input(plain).get('content'), 'no work file : the prompt')

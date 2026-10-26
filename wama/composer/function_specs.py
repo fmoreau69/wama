@@ -171,11 +171,13 @@ PIPELINE = register_app_pipeline(_APP, (
                 eta='composer.tasks:render_eta'),
     # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.
     output_spec(depends_on=('render',)),
-    # PARTITION COMPLÈTE (2026-10-16) : optionnelle (`extract_parts`), APRÈS la sortie — elle lit
-    # le morceau final. Son modèle n'est pas celui de la card : un modèle de la tâche `audio-to-midi`,
-    # choisi sur la card (`parts_model`, 2026-10-19) ou tiré par le sélecteur commun sous « auto » ;
-    # elle n'a lieu que si un modèle de la tâche est installé (`available`).
-    ProcessSpec('parts', label='Partition complète', depends_on=('output',), degree=OPTIONAL,
+    # PARTITION COMPLÈTE (2026-10-16) : optionnelle (`extract_parts`), une DÉRIVATION du rendu — à
+    # côté de la sortie, pas après (2026-10-26, Fabien : « je ne vois pas la logique d'avoir la
+    # partition complète après la sortie ») : elle lit l'audio du RENDU (`output_sources`), donc
+    # changer de format ne la périme plus. Son modèle n'est pas celui de la card : un modèle de la
+    # tâche `audio-to-midi`, choisi sur la card (`parts_model`, 2026-10-19) ou tiré par le
+    # sélecteur commun sous « auto » ; elle n'a lieu que si un modèle de la tâche est installé.
+    ProcessSpec('parts', label='Partition complète', depends_on=('render',), degree=OPTIONAL,
                 toggle='extract_parts', gpu=True, share=2, available=_parts_available,
                 outputs=('parts_score',), eta='composer.tasks:parts_eta'),
 ), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE',

@@ -51,7 +51,13 @@ class ComposerConfig(AppConfig):
             # « ranger en médiathèque »). Le prompt est l'ENTRÉE (`source_text`) et s'affiche
             # aussi en réglage, tronqué ; son libellé vient du schéma.
             from wama.common.utils.detail_registry import register_app_detail_spec
+            # L'ENTRÉE d'un cover est son AUDIO (2026-10-26, relevé par Fabien sur #880 : face
+            # Entrée VIDE — un cover n'a pas de consigne, et rien ne nommait le fichier) : le
+            # fichier de TRAVAIL d'abord — l'audio repris, sinon la partition fournie —, la
+            # consigne sinon. La règle commune de l'aperçu (`preview_utils._input_preview` :
+            # le port de travail, sinon le prompt).
             register_app_detail_spec('composer', ComposerGeneration, {
+                'source_file': ['melody_reference', 'reference_score'],
                 'engine': 'model',
                 'result_file': 'audio_output',
                 'result_role': {'field': 'generation_type',

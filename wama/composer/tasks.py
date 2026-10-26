@@ -340,18 +340,22 @@ def _parts(gen, ctx):
     from wama.common.utils.model_keys import model_id
     from .utils.model_choice import parts_extractor
 
+    from wama.common.services.output_process import output_sources
+
     extractor_key = parts_extractor(gen)
     if not extractor_key:
         raise RuntimeError("Aucun modèle de partition complète n'est installé (tâche « audio-to-midi »).")
-    if not gen.audio_output:
+    # L'audio du RENDU (2026-10-26, dérivation du rendu) : l'original que la sortie garde quand elle
+    # l'a converti, sinon le rendu lui-même — le même, que la sortie soit passée ou non.
+    sources = [p for p in output_sources(gen, 'audio_output') if os.path.isfile(p)]
+    if not sources:
         raise RuntimeError("Aucun morceau rendu : la partition complète se lit sur le rendu.")
     ctx.ensure_model(extractor_key)        # absent : la route l'installe, la tâche attend
     backend_class = backend_for_key(extractor_key)
     if backend_class is None:
         raise RuntimeError(f"« {extractor_key} » : aucun backend résolu depuis le catalogue.")
-    audio_abs = os.path.join(settings.MEDIA_ROOT, gen.audio_output.name)
-    ctx.console(f"[Composer] Partition complète : {extractor_key} — "
-                f"{os.path.basename(gen.audio_output.name)}")
+    audio_abs = sources[0]
+    ctx.console(f"[Composer] Partition complète : {extractor_key} — {os.path.basename(audio_abs)}")
     backend = backend_class()
     try:
         midi = backend.extract_midi(model_id=model_id(extractor_key), audio_path=audio_abs,

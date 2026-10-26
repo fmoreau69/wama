@@ -18,7 +18,7 @@
         "to_port": null
       },
       {
-        "from": "output",
+        "from": "render",
         "to": "parts",
         "to_port": null
       }
@@ -64,6 +64,7 @@
             "vocals",
             "lyrics",
             "quality_intent",
+            "seed",
             "prompt_processed"
           ]
         }
@@ -91,6 +92,7 @@
             "quality_intent",
             "duration",
             "temperature",
+            "seed",
             "prompt_processed",
             "reference_score",
             "melody_reference",
