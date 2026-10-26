@@ -466,7 +466,7 @@ class MeasuresWithoutReferenceTest(TestCase):
             written = evaluation.run_checks('transcriber', self.item, self.TASK)
         return written, probe
 
-    def test_the_transcription_declares_its_measure_and_the_registry_knows_it(self):
+    def test_the_transcription_names_its_measure_and_the_registry_knows_it(self):
         from wama.transcriber.function_specs import PIPELINE
         self.assertEqual(('speech_coverage',), PIPELINE.spec('transcribe').checks)
         self.assertIn('speech_coverage', evaluation.CHECKS)
