@@ -215,6 +215,34 @@ def bar_offset_of(markers) -> float:
     return 0.0
 
 
+#: Le marqueur qui dit où tombe le premier TEMPS FORT de l'audio (s) — posé par un moteur qui le
+#: connaît sans avoir trouvé de tempo constant (MuScriptor, 2026-10-26), lu ici pour caler la
+#: mesure 1. Une convention de CE module : il l'écrit (`mark_downbeat`) et la lit (`downbeat_of`).
+DOWNBEAT_MARKER = 'downbeat='
+
+
+def mark_downbeat(midi_bytes: bytes, seconds: float) -> bytes:
+    """Le MIDI avec son marqueur de premier temps fort (`DOWNBEAT_MARKER`, en secondes d'audio)."""
+    import mido
+
+    song = mido.MidiFile(file=io.BytesIO(midi_bytes))
+    song.tracks[0].insert(0, mido.MetaMessage('marker', text=f'{DOWNBEAT_MARKER}{seconds:.3f}', time=0))
+    out = io.BytesIO()
+    song.save(file=out)
+    return out.getvalue()
+
+
+def downbeat_of(markers):
+    """L'instant (s) du premier temps fort que dit un marqueur `downbeat=<s>`, None sinon."""
+    for text in markers:
+        if (text or '').startswith(DOWNBEAT_MARKER):
+            try:
+                return float(text[len(DOWNBEAT_MARKER):])
+            except ValueError:
+                return None
+    return None
+
+
 def played_beat_steps(beat_times, grid: int, offset: float):
     """`(secondes MIDI → pas)` sur les temps JOUÉS : une note se place entre les deux temps de
     l'audio qui l'encadrent, au prorata, puis en pas de `grid` par temps. Au-delà des temps
@@ -332,7 +360,15 @@ def midi_to_abc(midi_bytes: bytes, *, title: str = '', grid: int = 4, bars_per_l
     to_steps = lambda tick: song.quarters(tick) * grid    # noqa: E731
     if song.meter is None and beat_times is not None and len(beat_times) >= 8:
         on_beats, bpm = played_beat_steps(beat_times, grid, bar_offset_of(song.markers))
-        to_steps = lambda tick: on_beats(song.seconds(tick))    # noqa: E731
+        # La MESURE 1 sur le premier temps FORT, quand le moteur le dit (2026-10-26, #880 : la
+        # partition complète commençait sur le 1er temps ENTENDU, l'anacrouse perdue) : le temps
+        # joué le plus proche devient le 1er d'une mesure, ceux d'avant forment l'anacrouse.
+        downbeat = downbeat_of(song.markers)
+        lead = 0
+        if downbeat is not None:
+            nearest = min(range(len(beat_times)), key=lambda i: abs(beat_times[i] - downbeat))
+            lead = (-nearest) % numerator * grid
+        to_steps = lambda tick: on_beats(song.seconds(tick)) + lead    # noqa: E731
     bar_steps = int(round(numerator * 4 / denominator * grid))
     voices = _voices_of(song, to_steps)
     if not voices:

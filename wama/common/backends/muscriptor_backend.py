@@ -180,6 +180,10 @@ def beat_grid(wav, rate: int, checkpoint: str, device: str):
     signal = wav.mean(dim=0).detach().cpu().numpy()
     beats, downbeats = Audio2Beats(checkpoint_path=checkpoint, device=device, dbn=False)(signal, rate)
     beats, downbeats = np.asarray(beats, dtype=float), np.asarray(downbeats, dtype=float)
+    # Le premier TEMPS FORT (2026-10-26, relevé par Fabien sur #880 : la partition complète
+    # commençait sur le 1er temps, l'anacrouse perdue) : même refusé, le suivi dit où tombe la
+    # mesure 1 — le refus le porte, `extract_midi` l'écrit dans le MIDI (`midi_score.mark_downbeat`).
+    refused.first_downbeat = float(downbeats[0]) if len(downbeats) else None
     if len(beats) < MIN_BEATS:
         raise refused
     bpm, residual, share, kept = robust_tempo(beats)
@@ -260,13 +264,17 @@ class MuScriptorBackend(MidiExtractionBackend):
             progress_callback(0)
         samples, rate = decode_audio_at(audio_path, SAMPLE_RATE)
         wav = torch.from_numpy(samples).float().unsqueeze(0)          # [1, T], mono 16 kHz
+        downbeat = None
         try:
             grid = beat_grid(wav, rate, str(installed_file(BEAT_CHECKPOINT)), str(self._model._device))
         except BeatDetectionError as error:
             # Un morceau sans tempo stable s'écrit au tempo de remplacement, sans métrique —
-            # la règle « best-effort » de la librairie, dite au journal.
+            # la règle « best-effort » de la librairie, dite au journal. Le premier temps fort
+            # que le suivi a quand même trouvé suit (`first_downbeat`) : la notation y cale la
+            # mesure 1, l'anacrouse avant (2026-10-26).
             logger.warning("[MuScriptor] pas de grille de temps (%s) : tempo de remplacement", error)
             grid = None
+            downbeat = getattr(error, 'first_downbeat', None)
 
         from muscriptor.tokenizer.mt3 import MT3_FULL_PLUS_GROUP_NAMES
 
@@ -288,6 +296,9 @@ class MuScriptorBackend(MidiExtractionBackend):
                 events(DETECTION_SHARE, 95, instruments=present or None), beat_grid=grid)
         if not midi:
             raise RuntimeError("MuScriptor n'a rien transcrit")
+        if downbeat is not None:
+            from wama.common.utils.midi_score import mark_downbeat
+            midi = mark_downbeat(midi, downbeat)
         if progress_callback:
             progress_callback(100)
         return midi

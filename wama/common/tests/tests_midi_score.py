@@ -98,6 +98,21 @@ class MidiToAbcTest(SimpleTestCase):
                                 marker='muscriptor:bar_offset=1.2000'), beat_times=beats)
         self.assertEqual('z12G4|A4B4z8|', _body(abc, 'I0'), 'the same score as without the delay')
 
+    def test_bar_one_starts_on_the_downbeat_the_engine_found(self):
+        """2026-10-26, Fabien on #880 : « la partition réduite présente bien l'anacrouse, la
+        complète commence sur le 1er temps ». Played beats carry no downbeat : the engine's tracker
+        says where it falls (`downbeat=` marker) — that beat opens a bar, those before are the
+        pickup."""
+        from wama.common.utils.midi_score import downbeat_of, mark_downbeat, read_midi
+        beats = [1.0 + 0.6 * i for i in range(12)]
+        notes = [(1.0, 1.6, 67), (1.6, 2.2, 69), (2.2, 2.8, 71)]
+        plain = midi_to_abc(_midi([('voice', False, notes)], metre=False), beat_times=beats)
+        self.assertEqual('G4A4B4z4|', _body(plain, 'I0'), 'without it : bar 1 on the first beat heard')
+        marked = mark_downbeat(_midi([('voice', False, notes)], metre=False), 1.6)
+        self.assertEqual(1.6, downbeat_of(read_midi(marked).markers))
+        self.assertEqual('z12G4|A4B4z8|', _body(midi_to_abc(marked, beat_times=beats), 'I0'),
+                         'the downbeat (2nd beat heard) opens bar 2 ; the first note is the pickup')
+
     def test_too_few_played_beats_keep_the_midi_tempo(self):
         abc = midi_to_abc(_midi([('voice', False, [(0, .5, 67)])], metre=False), beat_times=[0, .6, 1.2])
         self.assertIn('Q:1/4=120', abc)
@@ -254,6 +269,39 @@ class InstrumentsAreNamedToTheModelTest(SimpleTestCase):
                          'the first pass is the quick one')
         self.assertEqual({'instruments': ['electric_bass', 'voice']}, transcription,
                          'the transcription names what the first pass heard, nothing else')
+
+
+class TheDownbeatReachesTheNotationTest(SimpleTestCase):
+    """2026-10-26 : a song without a constant tempo (#880) is refused a grid — but the tracker
+    still found its first downbeat ; the MIDI the backend returns carries it."""
+
+    def test_a_refused_grid_still_gives_its_first_downbeat(self):
+        from unittest import mock
+        from muscriptor.utils.beats import BeatDetectionError
+        from wama.common.backends import muscriptor_backend as mb
+        from wama.common.utils.midi_score import downbeat_of, read_midi
+        produced = _midi([('voice', False, [(1.0, 1.6, 67)])], metre=False)
+        refused = BeatDetectionError('no fixed tempo')
+        refused.first_downbeat = 1.6
+
+        class Model:
+            _device = 'cpu'
+
+            def transcribe(self, audio, **options):
+                return iter([])
+
+            def events_to_midi_bytes(self, events, beat_grid=None):
+                list(events)
+                return produced
+
+        backend = mb.MuScriptorBackend()
+        backend._model = Model()
+        with mock.patch('wama.common.utils.audio_decode.decode_audio_at',
+                        return_value=(np.zeros(16000, dtype=np.float32), mb.SAMPLE_RATE)), \
+                mock.patch.object(mb, 'installed_file', return_value='ckpt'), \
+                mock.patch.object(mb, 'beat_grid', side_effect=refused):
+            midi = backend.extract_midi(model_id=mb.HF_ID, audio_path='song.wav')
+        self.assertEqual(1.6, downbeat_of(read_midi(midi).markers))
 
 
 class RobustTempoTest(SimpleTestCase):
