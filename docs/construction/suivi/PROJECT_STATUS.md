@@ -26278,3 +26278,13 @@ latérales, on a qu'à le faire »*. Domicile `WAMA_VOLETS §3-ter`.
   (`WAMA_VOLETS §7`) · détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`) ·
   smoke sur une surface temporelle (transcriber : transport + ligne de temps + écriture empilés en
   bas) une fois gunicorn relancé.
+
+## §PALIER 2026-10-27 — STYLO DE LA GESTION DES UTILISATEURS VÉRIFIÉ AU NAVIGATEUR — ✅ — 🔚 aucun reste
+
+Suite de la §CLÔTURE 2026-10-20→26 (comptes). Gunicorn relancé par Fabien : la route
+`users/<id>/edit/` répond 302 (garde d'administration ; une route inconnue, 404). Scénario nocturne
+`accounts.user_edit.ui` ajouté (`ui_smoke_accounts.check_user_edit`, patron de la constellation :
+`wama_pw_smoke` élevé admin puis rétabli) et joué sur le live : 19 stylos, modale remplie, prénom
+de `wama_ui_smoke_v3` enregistré et affiché puis rétabli, note à la place du mot de passe pour
+`wama_rights_commun`, « Annuler » sans requête, zéro erreur JS — comptes rétablis à l'identique
+(mesuré). Domicile : `PROFILES_PERMISSIONS §1.11`. Reste : pousser.

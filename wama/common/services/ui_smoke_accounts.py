@@ -212,9 +212,139 @@ def check_constellation():
     return (not faults), ' · '.join(faults or steps)
 
 
+#: Le compte MODIFIÉ par le stylo : un compte de test à mot de passe local (le champ s'affiche),
+#: et un compte de test sans mot de passe local (la note le remplace). Aucun mot de passe touché.
+EDITED_ACCOUNT = 'wama_ui_smoke_v3'
+NO_PASSWORD_ACCOUNT = 'wama_rights_commun'
+EDIT_MARKER = 'Témoin-stylo'
+
+JS_MODAL = """() => {
+    const f = document.getElementById('editUserForm');
+    const shown = id => getComputedStyle(document.getElementById(id)).display !== 'none';
+    return {
+        open: document.getElementById('editUserModal').classList.contains('show'),
+        title: document.getElementById('editUserName').textContent,
+        first: f.elements.first_name.value, last: f.elements.last_name.value,
+        email: f.elements.email.value,
+        password: shown('editUserPassword'), note: shown('editUserNoPassword'),
+    };
+}"""
+
+
+def check_user_edit(screenshot=None):
+    """(ok, détail) du stylo de la gestion des utilisateurs (2026-10-26), en administrateur.
+
+    1. un stylo par compte, aucun sur `anonymous` ;
+    2. le stylo d'un compte à mot de passe local ouvre la modale REMPLIE de ses valeurs, champ du
+       mot de passe affiché ;
+    3. un prénom changé est enregistré : la page rechargée l'affiche (puis il est rétabli) ;
+    4. le stylo d'un compte sans mot de passe local montre la note à la place du champ ; « Annuler »
+       n'envoie rien ;
+    et zéro erreur JS sur le parcours."""
+    from django.contrib.auth import get_user_model
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    User = get_user_model()
+    target = User.objects.filter(username=EDITED_ACCOUNT).first()
+    bare = User.objects.filter(username=NO_PASSWORD_ACCOUNT).first()
+    if target is None or bare is None or not target.has_usable_password() or bare.has_usable_password():
+        raise SkipScenario(f"comptes de test `{EDITED_ACCOUNT}` / `{NO_PASSWORD_ACCOUNT}` absents "
+                           "ou sans la forme attendue")
+    original_first = target.first_name
+    expected = {'first': target.first_name, 'last': target.last_name, 'email': target.email}
+    rows = User.objects.exclude(username='anonymous').count()
+    users_url = f"{BASE_URL.rstrip('/')}{reverse('accounts:user-management')}"
+    sessions_before = _session_keys()
+    granted = _admin_session()
+    if granted is None:
+        raise SkipScenario(f"compte de test `{ACCOUNT}` absent")
+    user, previous_tier, session = granted
+    faults, steps, js_errors, posts = [], [], [], []
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                ctx = browser.new_context(viewport={'width': 1600, 'height': 950})
+                ctx.add_cookies(_cookie(session.session_key))
+                page = ctx.new_page()
+                page.on('pageerror', lambda e: js_errors.append(f"pageerror: {e}"[:200]))
+                page.on('console', lambda m: js_errors.append(f"console: {m.text}"[:200])
+                        if m.type == 'error' else None)
+                page.on('request', lambda r: posts.append(r.url) if r.method == 'POST' else None)
+
+                resp = page.goto(users_url, wait_until='domcontentloaded', timeout=PAGE_TIMEOUT_MS)
+                wrong = _exiger_la_page(page, resp, users_url)
+                if wrong:
+                    return wrong
+                # 1. Un stylo par compte, sauf `anonymous`.
+                pens = page.locator('.edit-user-btn').count()
+                if pens != rows:
+                    faults.append(f"{pens} stylos pour {rows} comptes hors anonymous")
+                steps.append(f"{pens} stylos")
+
+                # 2. La modale remplie, champ du mot de passe affiché.
+                page.click(f'.edit-user-btn[data-user-id="{target.pk}"]')
+                page.wait_for_selector('#editUserModal.show', timeout=10000)
+                page.wait_for_timeout(400)
+                m = page.evaluate(JS_MODAL)
+                if m['title'] != EDITED_ACCOUNT or {k: m[k] for k in expected} != expected:
+                    faults.append(f"modale de {EDITED_ACCOUNT} mal remplie : {m}")
+                if not m['password'] or m['note']:
+                    faults.append(f"compte à mot de passe local : champ {m['password']}, note {m['note']}")
+                if screenshot:
+                    page.screenshot(path=screenshot)
+                steps.append('modale remplie')
+
+                # 3. Enregistrer un prénom : la page rechargée l'affiche.
+                page.fill('#editUserForm [name="first_name"]', EDIT_MARKER)
+                with page.expect_navigation(timeout=PAGE_TIMEOUT_MS):
+                    page.click('#submitEditUser')
+                row = page.locator(f'tr.user-row[data-user-id="{target.pk}"]')
+                if EDIT_MARKER not in row.inner_text():
+                    faults.append(f"prénom enregistré absent de la ligne : « {row.inner_text()[:120]} »")
+                steps.append('prénom enregistré et affiché')
+
+                # 4. Compte sans mot de passe local : la note, et « Annuler » n'envoie rien.
+                sent = len(posts)
+                page.click(f'.edit-user-btn[data-user-id="{bare.pk}"]')
+                page.wait_for_selector('#editUserModal.show', timeout=10000)
+                page.wait_for_timeout(400)
+                m = page.evaluate(JS_MODAL)
+                if m['password'] or not m['note']:
+                    faults.append(f"compte sans mot de passe local : champ {m['password']}, note {m['note']}")
+                page.click('#editUserModal [data-bs-dismiss="modal"].btn-secondary')
+                page.wait_for_selector('#editUserModal', state='hidden', timeout=10000)
+                if len(posts) != sent:
+                    faults.append("« Annuler » a envoyé une requête")
+                steps.append('note à la place du mot de passe, Annuler')
+            finally:
+                browser.close()
+    finally:
+        from wama.accounts.permissions import set_account_tier
+        User.objects.filter(pk=target.pk).update(first_name=original_first)
+        set_account_tier(user, previous_tier)
+        session.delete()
+        _drop_new_sessions(sessions_before)
+    if js_errors:
+        faults.append(f"erreurs JS : {js_errors[:4]}")
+    return (not faults), ' · '.join(faults or steps)
+
+
 def register_account_scenarios():
-    """Enregistre `accounts.constellation.ui`."""
+    """Enregistre `accounts.constellation.ui` et `accounts.user_edit.ui`."""
     from wama.common.services.nightly_tests import register
+    register(
+        id="accounts.user_edit.ui", app="accounts", stage="ui",
+        description=("Gestion des utilisateurs : un stylo par compte (pas sur anonymous), modale "
+                     "remplie, prénom enregistré et affiché (puis rétabli), note à la place du mot "
+                     "de passe d'un compte sans mot de passe local, Annuler n'envoie rien — zéro "
+                     "erreur JS"),
+        run=lambda ctx: check_user_edit(),
+        timeout_s=120, vram_gb=0.0,
+    )
     register(
         id="accounts.constellation.ui", app="accounts", stage="ui",
         description=("Constellation des utilisateurs : lien depuis « Users », scène formée (une étoile "
