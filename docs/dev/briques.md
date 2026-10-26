@@ -1715,10 +1715,12 @@ Un worker publie plusieurs vues du même instant (`publish_partial(variant=, lab
 
 - **Domicile** : `wama/common/utils/preview_utils.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Common - Preview Utilities
-- **API publique** (15) :
+- **API publique** (17) :
   - `get_or_create_anonymous_user()` — Get or create the anonymous user.
   - `file_face(url, path=None, name=None)` — Payload d'aperçu d'UN fichier : `{name, url, mime_type}`, plus `content` (le texte
   - `server_peaks(url: str)` — `{peaks, duration}` de l'audio servi à `url` quand il est trop lourd pour le navigateur —
+  - `is_work_input(app_name, name) -> bool` — Le fichier `name` (chemin ou URL) peut-il être l'ENTRÉE de la card ? LA règle de la face
+  - `work_input_name(app_name, instance) -> str` — Le fichier d'ENTRÉE de la card (relatif à MEDIA_ROOT) : la clé `source_file` de sa spec de
   - `publish_partial(app_name, pk, url_or_path, variant=None, label=None)` — Worker : publie l'URL (média) d'un aperçu PARTIEL courant, servi par `?side=during`.
   - `class PartialFrames` — L'aperçu « pendant » d'un traitement en cours, en FICHIERS : une frame (ou plusieurs
   - `publish_partial_peaks(app_name, pk, peaks, duration=None)` — Worker : publie des PICS d'onde partiels (« waveform par parties », cf. `waveform.compute_peaks`)
