@@ -523,6 +523,24 @@ class MeasuresWithoutReferenceTest(TestCase):
         self.assertIn('data-value="transcriber:whisper"', html)
         self.assertIn('data-field="backend"', html)
 
+    def test_the_served_card_and_face_carry_it(self):
+        """On the SERVED surfaces, not the partial: the card route renders the measure and its
+        relaunch on the card's own settings route; the evaluation route returns it."""
+        from django.urls import reverse
+        from wama.common.services.nightly_tests import get_test_user
+        self._run()
+        self.item.user = get_test_user()      # un compte qui a accès à l'app
+        self.item.save(update_fields=['user'])
+        self.client.force_login(self.item.user)
+        card = self.client.get(reverse('transcriber:card_html', args=[self.item.pk]))
+        self.assertEqual(200, card.status_code)
+        html = card.content.decode()
+        self.assertIn('class="btn btn-sm btn-outline-warning wcv3-proc-suggest"', html)
+        self.assertIn('data-settings-url="%s"' % reverse('transcriber:update_settings',
+                                                         args=[self.item.pk]), html)
+        face = self.client.get(f'/common/api/result-reference/transcriber/element/{self.item.pk}/')
+        self.assertEqual('speech_coverage', face.json()['item']['checks'][0]['key'])
+
     def test_the_evaluation_shows_it_even_without_a_reference(self):
         self._run()
         measure = evaluation.item_evaluation('transcriber', self.item)

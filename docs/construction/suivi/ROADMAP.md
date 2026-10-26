@@ -2083,6 +2083,11 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    sur l'audio multilingue (44,5 → 39,8 %) mais ne comble pas l'écart en réunion, qui est dans son
    décodage (`WAMA_QUALITE §9bis`). Reprise sur la limite de débit (429). ✅ Le compte
    d'évaluation (`wama_evaluation`) a été ouvert au cloud par Fabien le 2026-10-02 (clé Albert).
+   ✅ **Le texte qu'un moteur OMET se voit sur la card** (2026-10-22, garde (b), décision de
+   Fabien) : la part de la parole que couvre une transcription, pour TOUT moteur, dans la bande
+   des process et la face « Évaluation », avec « Relancer avec » le modèle local quand la sortie
+   venait d'un distant (`WAMA_QUALITE` M4 et bloc « pourquoi Albert ne rend pas tout le texte »).
+   ⏳ (c) signaler le défaut à la DINUM.
    🔄 **DIRE quand une donnée part dans le cloud** (idée de Fabien, 2026-10-02 — ✅ (a) la prévision
    dit l'origine, 13/10, `786ce901` ; ⏳ (b) la console de la card et la raison d'une bascule) : le cloud reste un choix de l'utilisateur, WAMA le rend VISIBLE. (a) La prévision
    « Automatique → … » sous le select signale un modèle distant (« ☁ Albert (DINUM) — l'audio

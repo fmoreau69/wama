@@ -295,7 +295,7 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
   de Fabien (audio + transcription auto + transcription manuelle) **n'est pas dans WAMA** — ce sont
   des fichiers (§5, chaînon ⑤).
 
-### M4 — Métrique sans référence ⏳
+### M4 — Métrique sans référence 🔄 (mécanique commune + 1ʳᵉ mesure, 2026-10-22)
 - **Mesure** : une propriété de la sortie seule. Image : qualité perceptive (NIQE, MUSIQ),
   similarité prompt ↔ image (CLIPScore) ; audio : DNSMOS pour un débruitage, intelligibilité pour
   une voix ; vidéo : constance temporelle (similarité entre trames successives) ; ASR : **confiance**
@@ -303,7 +303,13 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
 - **Ne dit pas** : si la sortie répond à la demande. Une image nette hors sujet score haut.
 - **Ancrage** : partiel (la sortie seule, parfois le prompt).
 - **Coût** : un modèle léger par métrique (CLIP, DNSMOS) — donc du GPU, ou du CPU lent.
-- **Code** : la confiance ASR uniquement.
+- **Code** : la confiance ASR ; et depuis le 2026-10-22 la **mécanique commune** d'une mesure
+  sans référence — un process la DÉCLARE (`ProcessSpec.checks`), le registre la porte
+  (`result_evaluation.register_check`), le squelette la joue après un lancement réussi, la ligne
+  du process la garde, la bande des process et la face « Évaluation » la montrent. 1ʳᵉ mesure :
+  la part de la PAROLE qu'une transcription couvre (`speech_activity.speech_coverage`, garde (b)
+  du bloc « pourquoi Albert ne rend pas tout le texte », plus bas). Elle n'entre JAMAIS dans
+  `ResultEvaluation` (mesure contre une référence, matière de l'indice ⑧).
 
 ### M5 — Juge modèle indépendant 🔄 (briques présentes, zéro consommateur)
 - **Mesure** : un LLM ou un VLM d'une **autre famille** que le générateur note la sortie par rapport
@@ -442,7 +448,7 @@ l'état de la mesure interne aujourd'hui.
 
 | tâche (`ModelTask`) — apps | vérité terrain accessible | confrontation sans vérité | juge | banc tiers | levier hors modèle | état |
 |---|---|---|---|---|---|---|
-| `transcription` — transcriber | **humaine** : corrections finalisées (`corrected_segments_json`) ; corpus externe de Fabien (audio + auto + manuel, hors WAMA) | **M1** deux ASR (ou M9 deux réglages), heatmap 1ʳᵉ priorité | M5 cohérence LLM, **cantonnée** (bascule de langue, boucle de jeton, segment tronqué — jamais « incohérence sémantique ») | Open ASR **fr** (WER, sens bas) | profils de correction (`§8.4`), paramètres d'écoute, glossaire ; **finetuning ASR** sur les paires corrigées (§4.3) | M1 ✅ · M3 WER ⏳ · corpus ⏳ (chaînon ⑤) |
+| `transcription` — transcriber | **humaine** : corrections finalisées (`corrected_segments_json`) ; corpus externe de Fabien (audio + auto + manuel, hors WAMA) | **M1** deux ASR (ou M9 deux réglages), heatmap 1ʳᵉ priorité | M5 cohérence LLM, **cantonnée** (bascule de langue, boucle de jeton, segment tronqué — jamais « incohérence sémantique ») | Open ASR **fr** (WER, sens bas) | profils de correction (`§8.4`), paramètres d'écoute, glossaire ; **finetuning ASR** sur les paires corrigées (§4.3) | M1 ✅ · M3 WER ✅ · corpus ✅ (chaînons ⑤ ⑥, 2026-09-23 — cette case disait ⏳ jusqu'au 2026-10-26) · M4 parole couverte ✅ (2026-10-22) |
 | `captioning` — describer, banc, triage smoke | rare ; corrections de description (non captées : le describer n'appelle pas `corrige`) | M6 accord entre VLM (M1 non horodaté), **M10** légende ↔ éléments attendus | M5 VLM d'une autre famille | Arena **vision** (Elo) | consigne au modèle multilingue (langue de sortie), skill de domaine (aucun `PROMPT_TARGET` describer aujourd'hui), contenu RAG (vocabulaire du labo), traduction de sortie (`WAMA_LLM.md §2bis`, non branchée) | ⏳ |
 | `ocr` — reader | **humaine** : texte corrigé ; par construction : rendu d'un document numérique → image → OCR (référence exacte, gratuite) | M1 non horodaté entre moteurs (docTR / olmOCR / glm-ocr) | M5 LLM (correction post-OCR — même risque de réécriture qu'en §8.2) | Arena **document** (LLM frontière ; nos moteurs n'y sont pas) ; **classements officiels du Hub** (olmOCR-Bench, MDPBench, Real5-OmniDocBench, ParseBench — valeurs DÉCLARÉES, 2026-10-10) | prétraitement, moteur par type de document, correction LLM bornée | ⏳ |
 | `text-generation` — assistant, enrichissement, résumé/cohérence du transcriber, rôles wama-dev-ai | **par construction** : consignes à réponse vérifiable (rubrique M3, anglais, versionnée) ; humaine : corrections de résumé (non captées) | M6 entre LLM ; **M9** (température) ; M7 (relance, correction) | M5 LLM d'une autre famille (`qc.py`) | AA Intelligence Index, scores par famille d'épreuves (`benchmark_meta['family_scores']`, lus par `select_model(benchmark_family=…)`), Arena text | **skills** de rôle (`assistant-*.md`) et d'enrichissement (`<app>-<domaine>.md`), `prompt_contract` par modèle, contenu RAG, tier de modèle | ⏳ (débit ✅ depuis le 14/09, coût seulement) |
