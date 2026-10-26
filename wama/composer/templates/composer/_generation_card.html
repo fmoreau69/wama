@@ -128,7 +128,9 @@ App PROMPT-PRIMAIRE : l'ENTRÉE est le prompt (texte), pas un fichier.
     </div>
 
     {# ── PROCESS : une ligne par process, générée des lignes d'exécution (commun, P5) ──── #}
-    {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}
+    {# La route de réglages fait la CASE des process optionnels (« Partition complète » / « de sortie ») #}
+    {% url 'composer:update_settings' elem.id as url_settings %}
+    {% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id settings_url=url_settings %}
 
     {% comment %}Barre pleine largeur — ligne 2 de la grille (§11), FIGÉE au % en échec.{% endcomment %}
     {# barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) #}

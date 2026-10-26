@@ -323,6 +323,15 @@ class EmissionsDuGabaritTest(SimpleTestCase):
                          '_card_processes.html', 'elem.shown_state|default:elem.status'):
             self.assertIn(marqueur, self.card, f'card générée sans {marqueur}')
 
+    def test_the_process_strip_gets_the_settings_route_for_its_checkboxes(self):
+        """2026-10-26 : without `settings_url`, an OPTIONAL process has no checkbox on the card
+        (the composer's « Partition de sortie » was only reachable in the settings) — the real
+        transcriber, describer and reader cards passed it, the generated card did not."""
+        self.assertRegex(self.card,
+                         r"\{% url 'converter:update_settings' elem\.id as url_settings %\}\s*"
+                         r"\{% include 'common/_card_processes\.html' with [^%]*"
+                         r"settings_url=url_settings %\}")
+
     def test_l_import_de_dossier_est_offert(self):
         # Skip mesuré 30/08 : « folder_input_id non déclaré sur la card d'entrée commune ».
         self.assertIn("folder_input_id=", self.src)

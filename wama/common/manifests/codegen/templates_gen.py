@@ -663,6 +663,14 @@ document.addEventListener('DOMContentLoaded', function () {{
     # ✎ ÉDITER : un bouton par SURFACE déclarée au manifeste (facette `surfaces`, 2026-10-13) —
     # le tag commun le rend grisé avec sa raison quand la surface ne s'ouvre pas sur l'élément.
     from wama.common.manifests.codegen.surfaces_gen import declared_surfaces
+    # La bande des process reçoit la route de réglages de l'élément (`settings_url`) : sans elle,
+    # un process OPTIONNEL n'a pas sa case à cocher sur la card (2026-10-26, la « Partition de
+    # sortie » du composer ; les cards réelles du transcriber, du describer et du reader la
+    # passaient déjà).
+    process_strip = (f'''{{% url '{app}:{route_update}' elem.id as url_settings %}}
+      {{% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id settings_url=url_settings %}}'''
+                     if route_update else
+                     "{% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}")
     bouton_edit = ''.join(f'''
         {{% surface_button '{app}' '{s.get('key')}' elem %}}''' for s in declared_surfaces(manifest)
                           if s.get('key'))
@@ -746,7 +754,7 @@ On ne corrige JAMAIS ce fichier dans la jumelle : on corrige le générateur et 
       </div>
 
       {{# PROCESS : une ligne par process, générée des lignes d'exécution (P5, 5.2) — rien sous deux process #}}
-      {{% include 'common/_card_processes.html' with processes=elem.processes card_id=elem.id %}}
+      {process_strip}
 
       {{% comment %}}Barre TOUJOURS rendue, masquée en attente par la CSS commune (2026-10-04) : une
       card rendue en attente puis lancée n'avait pas de barre à remplir. (`{{# #}}` ne vaut que sur

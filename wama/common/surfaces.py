@@ -473,10 +473,10 @@ class Surface:
                 seen.add(name)
                 found.append({'key': spec.key, 'label': spec.label or spec.key, 'name': name})
         from wama.common.app_registry import category_of_path
-        from wama.common.utils.preview_utils import work_input_name
+        from wama.common.utils.preview_utils import INPUT_FACE, work_input_name
         entry = work_input_name(self.app, item)
         if entry and entry not in seen and category_of_path(entry) in kinds:
-            found.insert(0, {'key': INPUT_SOURCE, 'label': 'Entrée', 'name': entry})
+            found.insert(0, {'key': INPUT_SOURCE, 'label': INPUT_FACE, 'name': entry})
         return found if len(found) > 1 else []
 
     def bricks(self) -> list:

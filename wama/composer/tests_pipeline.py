@@ -482,6 +482,24 @@ class TheCardShowsItsProcessesTest(TestCase):
         self.assertNotIn('duration', gears['plan'].split(','))
         self.assertIn('prompt', gears['plan'].split(','))
 
+    def test_under_auto_the_output_score_has_its_checkbox_on_the_card(self):
+        """2026-10-26, Fabien : « je ne vois pas le process "Partition de sortie" sur la card,
+        uniquement dans les réglages ». Under « auto » it takes place whatever the draw (no
+        `applies`), so the strip shows it — and the card passes its settings route, which is what
+        makes the checkbox. Availability (a full-score model installed) is not what is tested."""
+        from unittest import mock
+        from django.urls import reverse
+        from wama.composer.function_specs import PIPELINE
+        gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
+                                                model='auto', status='PENDING')
+        with mock.patch.object(PIPELINE, 'can_run', lambda spec: True):
+            html = self._card(gen)
+        self.assertIn('data-process="rendered_parts"', html)
+        self.assertRegex(html, r'wcv3-proc-toggle"[^>]*data-toggle-field="extract_rendered_parts"'
+                               r'[^>]*data-settings-url="' + reverse('composer:update_settings',
+                                                                     args=[gen.pk]) + '"')
+        self.assertIn('Partition de sortie', html)
+
     def test_a_single_step_model_shows_the_render_then_the_output_and_no_score(self):
         gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
                                                 model=PLAIN_MODEL, status='PENDING')

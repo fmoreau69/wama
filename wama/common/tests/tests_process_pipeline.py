@@ -1321,6 +1321,34 @@ class EveryAppPipelineTest(SimpleTestCase):
     def test_the_fleet_is_measured(self):
         self.assertIn('composer', self.pipelines)
 
+    def test_a_card_with_a_switch_or_a_check_passes_its_settings_route_to_the_strip(self):
+        """The checkbox of an optional process (`ProcessSpec.toggle`) and the « Relancer avec »
+        of a short check (`checks`) are only drawn with `settings_url` (`_card_processes.html`).
+        2026-10-26 : the composer card did not pass it — its « Partition de sortie » could only
+        be switched on in the settings. Every app whose pipeline declares one passes it, from
+        every template of its own that includes the strip. A sandbox TWIN carries what the
+        generator emitted when it was generated : the generator is held by
+        `tests_codegen_templates.EmissionsDuGabaritTest`, the twins follow at their next
+        regeneration (the rule of `tests_process_watched`)."""
+        import re
+        from django.conf import settings
+        from wama.common.sandbox import sandbox_labels
+        root = Path(settings.BASE_DIR) / 'wama'
+        twins = set(sandbox_labels())
+        missing, measured = [], 0
+        for app, pipeline in sorted(self.pipelines.items()):
+            if app in twins or not any(spec.toggle or spec.checks for spec in pipeline.specs):
+                continue
+            templates = root / app / 'templates'
+            for path in (templates.rglob('*.html') if templates.exists() else ()):
+                for line in path.read_text(encoding='utf-8').splitlines():
+                    if re.search(r"\{%\s*include\s+'common/_card_processes\.html'", line):
+                        measured += 1
+                        if 'settings_url=' not in line:
+                            missing.append(f'{path.relative_to(root)}')
+        self.assertGreaterEqual(measured, 4, 'the guard reads no card')
+        self.assertEqual([], missing)
+
     def test_each_process_is_a_function_of_the_catalogue_bound_to_its_app(self):
         from wama.common.catalog.function_catalog import Binding
         for app, pipeline in self.pipelines.items():

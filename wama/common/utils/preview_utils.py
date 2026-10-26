@@ -255,6 +255,11 @@ def _work_natures(app_name) -> set:
             for t in (p.get('types') or [])}
 
 
+#: Le nom de la face ENTRÉE d'un élément — et de la version « Entrée » d'un média lu, qui en est la
+#: même lecture (`Surface.sources_of`).
+INPUT_FACE = 'Entrée'
+
+
 def is_work_input(app_name, name) -> bool:
     """Le fichier `name` (chemin ou URL) peut-il être l'ENTRÉE de la card ? LA règle de la face
     Entrée (`ROUTE §F3b`) : jamais sous un port `prompt` (l'entrée est la consigne), et de la
@@ -322,7 +327,7 @@ def _input_preview(app_name, instance, request):
         if pending:
             return pending
     txt = str(d.get('source_text') or '').strip()
-    name = 'Prompt' if group == 'prompt' else 'Entrée'
+    name = 'Prompt' if group == 'prompt' else INPUT_FACE
     return {'name': name, 'mime_type': 'text/plain', 'content': txt} if txt else None
 
 
@@ -344,7 +349,7 @@ def _source_url_face(app_name, instance):
         status = f"Échec du téléchargement : {state['error']}\nIl sera retenté au lancement."
     else:
         status = "Téléchargement en cours…"
-    return {'name': 'Entrée', 'mime_type': 'text/plain', 'source_url': state['url'],
+    return {'name': INPUT_FACE, 'mime_type': 'text/plain', 'source_url': state['url'],
             'ingest_state': state['state'], 'content': f"Source : {state['url']}\n{status}"}
 
 

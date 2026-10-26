@@ -6283,14 +6283,32 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   « Partition réduite » / « Partition complète » (comme la bascule de la vue partition) et
 >   « Partition de sortie » pour celle du morceau produit (process, case du schéma, titre de la
 >   seconde vue, noms au catalogue ; le `help_text` du modèle reste, il demanderait une
->   migration) ; ② la « Partition de sortie » n'était que dans les réglages : le composer est
->   la SEULE app dont `model_of` rend `None` sous « auto » (les autres rendent `'auto'` pour que
->   leurs process se montrent avant le premier lancement), parce que ses `applies` dépendent du
->   modèle tiré. `card_rows` montre désormais, le modèle inconnu, les process qui n'ont pas de
+>   migration) ; ② la « Partition de sortie » n'était que dans les réglages : parmi les apps
+>   réelles, le composer est la seule dont `model_of` rend `None` sous « auto » (les autres
+>   rendent `'auto'` pour que leurs process se montrent avant le premier lancement), parce que
+>   ses `applies` dépendent du modèle tiré — et le générateur écrit la même forme pour TOUTES les
+>   jumelles (`function_specs_gen`, `_requested_model`) ; *revérification du même jour : la
+>   première version de ce paragraphe disait « la SEULE app », ce que le générateur dément*.
+>   ⏳ **Reste relevé à la même revérification** : les messages « Pas encore de partition… :
+>   cocher « … (instruments) » » des deux vues partition (`composer/surfaces.py`, options
+>   `empty`) RECOPIENT le libellé de la case du schéma — ce renommage a dû toucher trois endroits
+>   pour un nom. À dériver du process qui écrit le champ et de son interrupteur
+>   (`ProcessSpec.toggle` → libellé du `Param`), comme `Surface._producer_label` le fait déjà
+>   pour « Rien à éditer : lancer d'abord … » ; c'est une option de brique, d'où le report. `card_rows` montre désormais, le modèle inconnu, les process qui n'ont pas de
 >   `applies` — ils ont lieu quel que soit le tirage : rien n'est deviné, et la case d'un
 >   optionnel est sur la card. Elle reste À CÔTÉ de la Sortie, pas après : elle lit le rendu
 >   original, un changement de format ne rejoue pas MuScriptor. Garde :
 >   `test_under_auto_a_process_that_needs_no_model_shows_with_its_checkbox`.
+>   ✅ **Revérification au navigateur, même jour : la ligne était là, SANS sa case.** La case
+>   (et le « Relancer avec » d'une mesure) n'est dessinée qu'avec `settings_url` ; les cards du
+>   transcriber, du describer et du reader le passaient, celle du composer NON, ni la card
+>   générée (`templates_gen`, `process_strip` : la route `update` résolue). Gardes :
+>   `EveryAppPipelineTest.test_a_card_with_a_switch_or_a_check_passes_its_settings_route_to_the_strip`
+>   (toute app réelle dont le pipeline déclare un `toggle` ou des `checks`, chaque gabarit qui
+>   inclut la bande), `EmissionsDuGabaritTest.test_the_process_strip_gets_the_settings_route_for_its_checkboxes`
+>   et `composer.tests_pipeline…test_under_auto_the_output_score_has_its_checkbox_on_the_card`.
+>   ⏳ Les jumelles du bac à sable (`composer_01`, `describer_01`, `reader_01`,
+>   `transcriber_01`) gagneront la case à leur prochaine régénération.
 **5.3 Lot** : le pipeline se règle sur la mère ; une fille peut le surcharger ; **promouvoir ↑ /
 réaligner ↓** (`MODES_QUEUE_UX §5ter`) — la charge utile promue EST le pipeline (les réglages Médias
 en sont un cas), avec le garde-fou Data « entrées requises ⊆ ∩ des catalogues des filles », refus
