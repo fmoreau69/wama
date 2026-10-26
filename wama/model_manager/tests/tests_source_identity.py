@@ -92,6 +92,32 @@ class SourceIdentityTest(SimpleTestCase):
                          [g['label'] for g in source_groups()])
 
 
+class SourceVocabularyTest(SimpleTestCase):
+    """`ModelSource` is a VOCABULARY of key prefixes, not a list of names (2026-10-22)."""
+
+    def test_the_source_field_carries_no_choices_so_a_new_source_needs_no_migration(self):
+        self.assertFalse(AIModel._meta.get_field('source').choices)
+
+    def test_the_enumeration_writes_no_label_by_hand(self):
+        for member in ModelSource:
+            with self.subTest(member=member.name):
+                self.assertEqual(member.name.replace('_', ' ').title(), member.label)
+
+    def test_every_value_but_custom_is_the_key_of_an_existing_declaration(self):
+        for source in ModelSource.values:
+            if source == ModelSource.CUSTOM:
+                continue
+            with self.subTest(source=source):
+                self.assertTrue(app_identity(source)['declared']
+                                or source in external_sources.by_key(),
+                                f'{source!r} is declared nowhere')
+
+    def test_the_admin_cannot_change_a_source_apart_from_its_key(self):
+        from django.contrib import admin
+        model_admin = admin.site._registry[AIModel]
+        self.assertTrue({'model_key', 'source'} <= set(model_admin.readonly_fields))
+
+
 class SourceOnTheCatalogueTest(TestCase):
 
     def test_the_catalogue_api_carries_the_name_and_the_group(self):
@@ -132,8 +158,6 @@ class SourceOnTheCatalogueTest(TestCase):
         for source in ('claude_code', 'anthropic'):
             with self.subTest(source=source):
                 self.assertIn(source_identity(source)['label'].replace("'", '&#x27;'), html)
-        # Counter-check: the hand-written enumeration label is no longer what the filter says.
-        self.assertNotIn(ModelSource.CLAUDE_CODE.label, html)
         self.assertEqual(1, len(self.client.get('/admin/model_manager/aimodel/',
                                                 {'source': 'claude_code'})
                                 .context['cl'].result_list))

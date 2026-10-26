@@ -489,40 +489,50 @@ class ModelAbility(models.TextChoices):
 
 
 class ModelSource(models.TextChoices):
-    """Sources/applications that use models."""
-    WAMA_IMAGER = 'imager', 'WAMA Imager'
-    WAMA_DESCRIBER = 'describer', 'WAMA Describer'
-    WAMA_ANONYMIZER = 'anonymizer', 'WAMA Anonymizer'
-    WAMA_TRANSCRIBER = 'transcriber', 'WAMA Transcriber'
-    WAMA_SYNTHESIZER = 'synthesizer', 'WAMA Synthesizer'
-    WAMA_ENHANCER = 'enhancer', 'WAMA Enhancer'
-    WAMA_AVATARIZER = 'avatarizer', 'WAMA Avatarizer'
-    # Alignées sur l'enum de découverte (services/model_registry.py) : la découverte écrit déjà
-    # 'composer'/'reader' dans le CharField `source` (4 + 2 modèles en base), mais ils manquaient ici
-    # (choices/admin). Converter n'a PAS de modèles IA (ffmpeg/pandoc) → pas de source dédiée.
-    WAMA_COMPOSER = 'composer', 'WAMA Composer'
-    WAMA_READER = 'reader', 'WAMA Reader'
-    # Monde LAB (2026-09-05). La liste ci-dessus ne couvrait que le monde Médias : une app du
-    # Lab n'avait donc AUCUNE valeur pour dire d'où viennent ses modèles. Conséquence mesurée :
-    # 1,1 Go de poids DeepFace hors catalogue. Le champ `source` porte le nom d'app, pas le
-    # monde — c'est la même clé que `APP_CATALOG`, il ne faut pas la préfixer.
-    WAMA_FACE_ANALYZER = 'face_analyzer', 'WAMA Lab — Face Analyzer'
+    """Le VOCABULAIRE des sources de modèle — le premier segment de `AIModel.model_key`
+    (`model_keys.split_key`), que la découverte écrit et que la validation du manifeste `model`
+    lit. Chaque valeur est la clé d'une déclaration existante : une app (`app_registry`), une
+    source du registre (`external_sources` : fournisseur distant, plateforme) ou `custom`.
+
+    AUCUN LIBELLÉ ici (2026-10-22, Fabien : « le moins de choses écrites à la main possible ») :
+    une source se NOMME par `source_identity` — l'identité de l'app, la phrase de coût d'un
+    fournisseur (`remote_origin_label`), le nom d'une plateforme au registre. Les libellés écrits
+    ici recopiaient ces noms et avaient divergé (13 sur 19, « Claude Code (abonnement) »,
+    « HuggingFace ») ; le champ `source` ne porte plus de `choices=`, si bien qu'une source de plus
+    ne demande plus de migration (il y en avait eu six, 0008 → 0024). Garde :
+    `tests_source_identity.SourceVocabularyTest`.
+    """
+    WAMA_IMAGER = 'imager'
+    WAMA_DESCRIBER = 'describer'
+    WAMA_ANONYMIZER = 'anonymizer'
+    WAMA_TRANSCRIBER = 'transcriber'
+    WAMA_SYNTHESIZER = 'synthesizer'
+    WAMA_ENHANCER = 'enhancer'
+    WAMA_AVATARIZER = 'avatarizer'
+    # Converter n'a PAS de modèles IA (ffmpeg/pandoc) → pas de source dédiée.
+    WAMA_COMPOSER = 'composer'
+    WAMA_READER = 'reader'
+    # Monde LAB (2026-09-05) : le champ porte le nom d'app, pas le monde — c'est la même clé que
+    # la déclaration de l'app, il ne faut pas la préfixer.
+    WAMA_FACE_ANALYZER = 'face_analyzer'
     # Fournisseurs DISTANTS (2026-09-15, ROADMAP §8d Phase 3, étape 4b — verrou ① levé). La valeur
-    # est la clé de la source `external_sources` (adresse, variable de clé, hébergement). Un modèle
-    # distant entre au catalogue par DÉCOUVERTE, avec la clé d'un utilisateur ; son moteur se lit
-    # dans `composition.runtime.engine`, comme pour tout modèle : le fournisseur se DÉRIVE.
-    ALBERT = 'albert', 'Albert API (DINUM)'
-    ILAAS = 'ilaas', 'ILaaS (ESR)'
-    OPENROUTER = 'openrouter', 'OpenRouter'
-    ANTHROPIC = 'anthropic', 'API Anthropic (Claude)'
-    CLAUDE_CODE = 'claude_code', 'Claude Code (abonnement)'
-    OLLAMA = 'ollama', 'Ollama'
-    HUGGINGFACE = 'huggingface', 'HuggingFace'
+    # est la clé de la source `external_sources` (adresse, variable de clé, hébergement, coût). Un
+    # modèle distant entre au catalogue par DÉCOUVERTE, avec la clé d'un utilisateur ; son moteur se
+    # lit dans `composition.runtime.engine`, comme pour tout modèle : le fournisseur se DÉRIVE.
+    ALBERT = 'albert'
+    ILAAS = 'ilaas'
+    OPENROUTER = 'openrouter'
+    ANTHROPIC = 'anthropic'
+    CLAUDE_CODE = 'claude_code'
+    OLLAMA = 'ollama'
+    HUGGINGFACE = 'huggingface'
     # Poids publiés dans une VERSION GitHub (2026-10-07, pilote `github` de `install_from_spec`) :
     # le pendant de HUGGINGFACE pour le balayage générique — même valeur que la plateforme et que
     # la source déclarée (`external_sources`, qui déclare aussi sa fiche : `model_platforms`).
-    GITHUB = 'github', 'GitHub'
-    CUSTOM = 'custom', 'Custom'
+    GITHUB = 'github'
+    # Ce qu'aucune déclaration ne porte : les modèles d'une brique commune (LPIPS du banc, gestes
+    # de la main) — la seule clé qui se nomme par l'énumération (`source_identity`).
+    CUSTOM = 'custom'
 
 
 def source_groups() -> list:
@@ -553,7 +563,8 @@ def source_identity(source: str) -> dict:
       l'abonnement — Claude Code peut aussi tourner sur l'API ; « Cloud commercial · Claude Code ·
       abonnement » et « Cloud commercial · API Anthropic (Claude) · facturé à l'usage », si ;
     • une autre source du registre (Hugging Face Hub, Ollama, GitHub) → son nom déclaré ;
-    • sinon (`custom`) → le libellé de l'énumération, seule déclaration de cette clé, hors groupe.
+    • sinon (`custom`) → le nom du membre de l'énumération (« Custom »), seule déclaration de
+      cette clé, hors groupe.
     `group` est une clé de `source_groups()`, '' pour une source qu'aucune déclaration ne range.
 
     ⚠ Corrigé le 2026-10-22 (Fabien : « je dois connaître la provenance exacte des modèles, donc
@@ -628,9 +639,10 @@ class AIModel(ScopedVisibility):
         choices=ModelType.choices,
         db_index=True
     )
+    # Le vocabulaire est `ModelSource` (valeurs seules) ; le NOM d'une source, `source_identity`.
+    # Pas de `choices=` (2026-10-22) : il figeait des libellés recopiés et une migration par source.
     source = models.CharField(
         max_length=20,
-        choices=ModelSource.choices,
         db_index=True
     )
 

@@ -34,7 +34,10 @@ class AIModelAdmin(admin.ModelAdmin):
         'is_loaded', 'is_available', 'format'
     ]
     search_fields = ['name', 'model_key', 'hf_id', 'description']
-    readonly_fields = ['model_key', 'created_at', 'updated_at', 'last_synced_at']
+    # `source` en lecture seule (2026-10-22) : c'est le premier segment de `model_key`, lui aussi
+    # en lecture seule — la changer seule désaccorderait la ligne de sa clé. Le champ n'a plus de
+    # `choices=` (vocabulaire `ModelSource`, noms par `source_identity`).
+    readonly_fields = ['model_key', 'source', 'created_at', 'updated_at', 'last_synced_at']
     ordering = ['-updated_at']
 
     fieldsets = (

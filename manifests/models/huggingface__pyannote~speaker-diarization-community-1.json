@@ -18,7 +18,7 @@
       "hf_id": "pyannote/speaker-diarization-community-1",
       "license": null,
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:pyannote/speaker-diarization-community-1",
       "publications": [
         "2104.03603",
         "2111.14448",

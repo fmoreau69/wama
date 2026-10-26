@@ -350,6 +350,29 @@ class CorpusNePorteQueDuDeclaratifTest(TestCase):
         with self.assertRaises(ValueError):
             _nom_fichier(lot[1], lot)
 
+    def test_an_explicit_key_never_overwrites_its_live_case_twin(self):
+        """Récidive du 2026-10-22 : une clé EXPLICITE (`corpus.follow`, appelé par
+        `set_identity`) partait seule dans son lot, et la ligne retirée a réécrit le manifeste
+        de sa jumelle vivante. La ligne vivante, elle, s'exporte toujours."""
+        import tempfile
+        from pathlib import Path
+
+        from django.core.management import call_command
+
+        from wama.model_manager.models import AIModel
+        live, dead = 'albert:temoin-casse-a3b', 'albert:temoin-casse-A3b'
+        AIModel.objects.create(model_key=live, name=live, model_type='llm', source='albert',
+                               is_available=True, execution='cloud')
+        AIModel.objects.create(model_key=dead, name=dead, model_type='llm', source='albert',
+                               is_available=False, execution='cloud')
+        with tempfile.TemporaryDirectory() as out:
+            with self.assertRaises(ValueError):
+                call_command('manifest_export', dead, kind='model', out=out, verbosity=0)
+            self.assertEqual([], list(Path(out).glob('*.json')))
+            call_command('manifest_export', live, kind='model', out=out, verbosity=0)
+            self.assertEqual(['albert__temoin-casse-a3b.json'],
+                             [p.name for p in Path(out).glob('*.json')])
+
     def test_les_modeles_du_catalogue_sont_ENUMERES_pas_seulement_derives(self):
         """Un modèle qu'aucune app ne déclare n'avait jamais de manifeste : mesuré, 12 lignes
         cloud (11 `anthropic:*` + `claude_code:default`)."""

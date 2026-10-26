@@ -319,6 +319,13 @@ class Command(BaseCommand):
         lot = {}
         for kind, cle in cibles:
             lot.setdefault(kind, []).append(cle)
+        # Une clé EXPLICITE part seule dans son lot : le contrôle de casse ne voyait donc jamais la
+        # clé VIVANTE qu'elle écraserait. Récidive le 2026-10-22 par `corpus.follow` (que
+        # `provenance.set_identity` appelle) : la pose d'identité sur la ligne retirée
+        # `albert:qwen3-coder-30b-A3b-instruct` a réécrit le manifeste de sa jumelle en
+        # minuscules. Le lot d'une clé de modèle explicite compte aussi ce que le corpus PORTE.
+        if o['cle'] and o['kind'] == 'model':
+            lot['model'] = sorted(set(lot.get('model', ())) | set(_model_keys()))
 
         for kind, app_id in cibles:
             dossier = base / (o['out'] or DOSSIERS[kind])

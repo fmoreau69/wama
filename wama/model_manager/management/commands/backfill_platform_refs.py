@@ -18,7 +18,11 @@ TROIS SOURCES DE FAIT, par ordre de cout croissant -- aucune ne DEDUIT quoi que 
      contre le depot amont). C'est la porte d'entree qui manquait : le rattachement des 70
      modeles indetermines etait impossible, faute d'un endroit ou deposer le fait etabli.
 
-Apres une ecriture, rafraichir le corpus declaratif :
+L'identite de plateforme (`platform_ref`, `hf_id` des provenances verifiees) se pose PAR LE
+MANIFESTE (`provenance.set_identity`, 2026-10-22) : projection au catalogue ET export au corpus
+d'un modele installe, dans le meme geste ; la licence lue DANS les poids (`--depuis-poids`) aussi.
+La passe `--licenses` (licence, auteur, regime d'acces, publications) suit la meme voie, sans
+export (rattrapage de masse) ; apres elle, rafraichir le corpus declaratif :
     python manage.py manifest_export --kind model <model_key>
 (le manifeste est EXTRAIT du catalogue -- tant que le catalogue est vide, le manifeste l'est
 aussi et sa projection ne rend rien.)
@@ -72,8 +76,7 @@ class Command(BaseCommand):
                 continue
             poses += 1
             if ecrire:
-                m.platform_ref = ref
-                m.save(update_fields=['platform_ref'])
+                self._set_identity(m, {'platform_ref': ref})
 
         self.stdout.write(f"platform_ref  : {poses} a poser, {deja} deja renseignes, "
                           f"{len(indetermines)} indetermines")
@@ -144,9 +147,19 @@ class Command(BaseCommand):
                 continue
             self.stdout.write(f"  + {cle:52s} -> {ref}")
             if ecrire:
-                for c, v in champs.items():
-                    setattr(m, c, v)
-                m.save(update_fields=list(champs))
+                self._set_identity(m, champs)
+
+    def _set_identity(self, m, identity):
+        """Pose une identité de plateforme PAR LE MANIFESTE (`provenance.set_identity`) — la voie
+        de toute identité, que la branche `--ultralytics` suivait déjà (2026-10-22). Ces écritures
+        allaient directement en base : le corpus des manifestes ne les recevait pas, et la
+        prochaine extraction n'avait rien à porter. Un candidat (`is_proposed`) est projeté sans
+        export : le corpus ne connaît que les modèles installés."""
+        from wama.model_manager.services.provenance import set_identity
+        res = set_identity(m.model_key, identity, export=not m.is_proposed)
+        if not res.get('applied'):
+            self.stderr.write(self.style.ERROR(f"    {m.model_key} : pose en echec — "
+                                               f"{res.get('error')}"))
 
     def _ultralytics(self, ecrire):
         """
@@ -260,8 +273,7 @@ class Command(BaseCommand):
                 if infos.get(cle):
                     self.stdout.write(f"      {etiquette} : {str(infos[cle])[:100]}")
             if ecrire:
-                m.license = lic[:64]
-                m.save(update_fields=['license'])
+                self._set_identity(m, {'license': lic[:64]})
                 mues += 1
         self.stdout.write(f"depuis-poids  : {vus} licence(s) lue(s) dans les fichiers"
                           + (f", {mues} ecrite(s)" if ecrire else ""))
@@ -298,53 +310,36 @@ class Command(BaseCommand):
                 echecs += 1
                 self.stderr.write(f"  {m.hf_id} : depot injoignable")
                 continue
-            lic, auteur = ident.get('license') or '', ident.get('author') or ''
-            # L'auteur de la carte est un SLUG d'organisation (« black-forest-labs »,
-            # voire l'org MIROIR : « hunyuanvideo-community » pour Tencent Hunyuan) : il
-            # COMPLÈTE un champ vide, il n'écrase JAMAIS une valeur posée — même règle que
-            # le placeholder `other` pour la licence, apprise deux fois (2026-08-12 licence,
-            # 2026-08-27 : cette boucle a écrasé 6 auteurs curés, restaurés depuis le corpus).
-            if auteur and not m.author:
-                m.author = auteur[:200]
-                if ecrire:
-                    m.save(update_fields=['author'])
-            # Regime d'ACCES : meme requete, donc gratuit. Il s'ECRASE, contrairement a l'auteur --
-            # ce n'est pas un fait cure a la main mais l'etat courant du depot amont, qui change
-            # (un editeur ouvre ou ferme l'acces). La reponse ne dit jamais 'inconnu' : on vient
-            # d'interroger. Compte a part, car il progresse meme quand la licence, elle, ne bouge pas.
+            # TOUT ce que la carte dit passe par le MANIFESTE (`set_identity`, 2026-10-22), comme
+            # à l'installation : licence, auteur, régime d'accès, publications — une seule voie et
+            # ses règles (l'auteur ne remplit qu'un vide ; `other` n'écrase pas une licence
+            # qualifiée ; l'accès, état courant du dépôt amont, s'écrase). Le corpus n'est pas
+            # réécrit ici (un rattrapage de masse) : il les reprendra à sa prochaine extraction.
+            # Les comptes ci-dessous ne font que DIRE ce que la pose va changer.
+            lic = str(ident.get('license') or '')[:64]
             acces = ident.get('gated') or ''
             if acces and acces != m.gated:
-                m.gated = acces
                 acces_poses += 1
-                if ecrire:
-                    m.save(update_fields=['gated'])
-            # Publications de la carte (2026-10-10) : même requête. Par le MANIFESTE
-            # (`set_identity`), qui les projette dans `extra_info` ; le corpus n'est pas réécrit
-            # ici (un rattrapage de masse), il les reprendra à sa prochaine extraction.
             pubs = ident.get('publications') or []
             if pubs and (m.extra_info or {}).get('publications') != pubs:
                 publications_set += 1
-                if ecrire:
-                    from wama.model_manager.services.provenance import set_identity
-                    set_identity(m.model_key, {'publications': pubs}, export=False)
-            lic = str(lic)[:64]
-            if not lic or lic == m.license:
-                continue
-            # `other` n'est pas un fait : c'est le placeholder HuggingFace pour « licence
-            # maison ». Une qualification déjà posée (cpml-1.0, hunyuan-community…) est PLUS
-            # précise que le placeholder — l'écraser referait le travail de lecture à l'envers.
-            if lic == 'other' and m.license and m.license != 'other':
-                continue
-            if m.license:
-                corriges += 1
-                self.stdout.write(self.style.WARNING(
-                    f"  {m.model_key:46s} {m.license} -> {lic}  (l'editeur prime sur les poids)"))
-            else:
-                vus += 1
-                self.stdout.write(f"  {m.model_key:46s} -> {lic}")
+            if lic and lic != m.license and not (lic == 'other' and m.license
+                                                 and m.license != 'other'):
+                if m.license:
+                    corriges += 1
+                    self.stdout.write(self.style.WARNING(
+                        f"  {m.model_key:46s} {m.license} -> {lic}  (l'editeur prime sur les poids)"))
+                else:
+                    vus += 1
+                    self.stdout.write(f"  {m.model_key:46s} -> {lic}")
             if ecrire:
-                m.license = lic
-                m.save(update_fields=['license'])
+                from wama.model_manager.services.provenance import set_identity
+                res = set_identity(m.model_key, {k: ident.get(k) for k in
+                                                 ('license', 'author', 'gated', 'publications')},
+                                   export=False)
+                if not res.get('applied'):
+                    self.stderr.write(self.style.ERROR(f"    {m.model_key} : pose en echec — "
+                                                       f"{res.get('error')}"))
         self.stdout.write(f"licences      : {vus} posee(s), {corriges} corrigee(s), {echecs} en echec")
         self.stdout.write(f"acces (gated) : {acces_poses} regime(s) mis a jour"
                           + ("" if ecrire else " (simulation)"))

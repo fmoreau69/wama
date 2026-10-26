@@ -36,7 +36,7 @@
       "hf_id": "stabilityai/TripoSR",
       "license": null,
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "huggingface:stabilityai/TripoSR",
       "publications": [
         "2311.04400",
         "2403.02151"

@@ -56,7 +56,7 @@
       "hf_id": "FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
       "license": null,
       "model_type": "diffusion",
-      "platform_ref": null,
+      "platform_ref": "huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
       "publications": [
         "2505.13389",
         "2502.04507"

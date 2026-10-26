@@ -1880,6 +1880,8 @@ class RouteUniqueDInstallationTest(TestCase):
         # `github:ultralytics/assets:<nom>` qu'il portait rendait une page qui n'existe pas.
         self.assertEqual(cand.platform_ref, 'github:ultralytics/assets')
         self.assertEqual(cand.platform_url, 'https://github.com/ultralytics/assets')
+        # … et sa source est la plateforme de ses poids, une clé du vocabulaire (2026-10-22).
+        self.assertEqual(cand.source, 'github')
         self.assertEqual(cand.extra_info['prospect']['spec'],
                          {'kind': 'yolo', 'ref': 'yolo26s-seg', 'task': 'segment',
                           'note': 'installation VISION par nom'})
@@ -1896,7 +1898,9 @@ class RouteUniqueDInstallationTest(TestCase):
         self._admin('admin_yolo_faux')
         rep = self._poster({'source': 'yolo', 'name': 'https://ailleurs/poids.pt'})
         self.assertEqual(rep.status_code, 400, rep.content)
-        self.assertFalse(AIModel.objects.filter(is_proposed=True, source='yolo').exists())
+        # Par la CLÉ du candidat : sa source est celle de son identité (`github`, 2026-10-22).
+        self.assertFalse(AIModel.objects.filter(is_proposed=True,
+                                                model_key__startswith='proposed:yolo:').exists())
 
     def test_weight_is_asked_of_the_descriptor_like_identity(self):
         """

@@ -1377,14 +1377,19 @@ manifeste** (ce que le kind `app` capte + cible de projection).
 - **Catalogue** = `AIModel` (source unique), `capabilities` JSON canonique (`CANONICAL_CAPABILITIES`,
   `model_capabilities.py:30`). **Découverte** : `_discover_<app>_models()` importe le `model_config.py` de
   l'app et construit les capabilities (`model_registry.py`). **Déclaration app** : `<APP>_MODELS` + `*_DIR`.
-- **Tirage runtime** : `settings.MODEL_PATHS → *_DIR → HF_HUB_CACHE (avant import) → cache_dir → from_pretrained`
-  (backends imager conformes AGENTS.md) — **indépendant de `select_model()`**.
-- **Sélection VRAM-aware** `select_model()` (`model_selector.py:66`) : **adoptée par 2/10** — composer
+- **Tirage runtime** : `settings.MODEL_PATHS → *_DIR → ~~HF_HUB_CACHE (avant import) →~~ cache_dir → from_pretrained`
+  (backends imager conformes AGENTS.md) — **indépendant de `select_model()`**. ⚠ La mutation de
+  `HF_HUB_CACHE` est INTERDITE depuis le 2026-09-03 (`AGENTS.md`, « le modèle par `cache_dir=`, ses
+  dépendances par le cache partagé ») ; budget de mutations 0 (`tests_hf_cache_routing`).
+- **Sélection VRAM-aware** `select_model()` (`model_selector.py:66`) : ~~**adoptée par 2/10** — composer
   (`auto_model.py:43`) + **transcriber depuis 2026-07-24** (`transcriber/backends/manager.py`,
   `_select_backend_via_model_manager` = fin adaptateur, **fallback intégral** sur la priorité statique si
   catalogue vide/model_manager KO ; pont granularité backend↔model_key via `_backend_for_model_key`).
-  anonymizer a **son propre** sélecteur (dupliqué). Converter = **pas de modèle** (ffmpeg/pandoc) →
-  `models: null` doit être toléré.
+  anonymizer a **son propre** sélecteur (dupliqué).~~ — constat de juillet, périmé : **remesuré le
+  2026-10-22, les 9 apps à modèles** passent par la résolution commune (`resolve_model_choice` /
+  `resolve_auto_key` / `select_model_id`, puis la porte `backend_for_key` / `backend_instance_for_key`)
+  — le détail par app est au §F4b ci-dessous (étapes ②–⑧). Converter = **pas de modèle**
+  (ffmpeg/pandoc) → `models: null` doit être toléré.
 - **Reclaim/coordination VRAM** — ✅ **UNIFIÉ 2026-07-31** (`1c31c94`). Le diagnostic « adopté 1/10 »
   était trompeur : le problème n'était pas l'adoption mais **TROIS mécaniques concurrentes**, dont deux
   dans le même fichier — (1) le registre `_VRAM_UNLOADERS`, (2) `MemoryManager._unload_<app>_model()` +
@@ -6496,12 +6501,35 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   - `model_manager/checks.py` (W001) est supprimé : depuis la fusion des deux énumérations
 >     (`a28687a8`, 2026-08-05), il comparait `ModelSource` à lui-même (R173).
 >   Contre-épreuves : six mutations de fichier et quatre neutralisations, toutes rouges.
->   ⏳ **Reste une DÉCISION** : les libellés de `ModelSource` ne sont plus lus que par le
+>   ~~⏳ **Reste une DÉCISION** : les libellés de `ModelSource` ne sont plus lus que par le
 >   formulaire de l'admin ; retirer `choices=` du champ (une migration sans SQL, la dernière
 >   d'une série de six) ferait de l'énumération un vocabulaire sans libellés. ⏳ Constat sans
 >   geste : 12 lignes portent `hf_id` sans `platform_ref` (le lien se dérive déjà de `hf_id`) —
 >   `backfill_platform_refs --ecrire` les poserait, hors manifeste ; à faire passer par
->   `set_identity` si on le veut au corpus.
+>   `set_identity` si on le veut au corpus.~~
+>   ✅ **Aligné le même jour (Fabien : « il faut aligner ce qui ne l'est pas… tout doit être
+>   parfaitement aligné »)** — sur ce que la route déclare déjà, rien d'ajouté :
+>   - `ModelSource` est un VOCABULAIRE sans libellés (le premier segment d'une clé) et le champ
+>     `AIModel.source` n'a plus de `choices=` — migration `model_manager/0027`, sans SQL : une
+>     source de plus ne demande plus de migration. Chaque valeur, `custom` mis à part, est la clé
+>     d'une déclaration (app ou source du registre) ; l'admin ne laisse plus changer une source,
+>     premier segment d'une clé elle-même en lecture seule. Mesuré avant : une app NEUVE n'a pas
+>     de source à elle — une jumelle lit les modèles de sa source (`sandbox.declaring_app`), une
+>     app générée tire les siens par tâche (§F4b) ; le vocabulaire ne bloque donc pas la route.
+>   - L'IDENTITÉ passe toute par le manifeste (`provenance.set_identity`) : `backfill_platform_refs`
+>     écrivait `platform_ref`, `hf_id`, licences, auteurs et régime d'accès en base, à côté de la
+>     règle de `provenance.py` (« l'identité transite par le manifeste, sinon le corpus reste à
+>     l'écart ») ; il les pose désormais par elle — export au corpus d'un modèle installé, jamais
+>     d'un candidat. Trou trouvé en route : le régime d'accès (`gated`), lu par
+>     `huggingface_identity` à l'installation, n'était recopié par personne — une installation le
+>     perdait ; `set_identity` le pose, et porte aussi la règle « `other` n'écrase pas une licence
+>     qualifiée », qui ne vivait que dans la commande. Les 12 lignes ont reçu leur `platform_ref`
+>     par cette route (`backfill_platform_refs --ecrire`).
+>   - Un candidat Ollama naît avec la provenance que posera son installation (`write_candidate`,
+>     l'écrivain unique, `identity_for_spec` kind `ollama`) ; un candidat YOLO a pour source la
+>     plateforme de ses poids (`github`), plus `yolo`, clé hors du vocabulaire.
+>   Gardes : `tests_source_identity.SourceVocabularyTest`, `tests_identity_route` ; contre-épreuves
+>   par mutation, toutes rouges (`REMOVAL_LEDGER` R176).
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**

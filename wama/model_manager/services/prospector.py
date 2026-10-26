@@ -1751,8 +1751,15 @@ def seed_yolo_candidate(name: str) -> dict:
     # Le SPEC est écrit UNE fois et sert aux deux : il part sur le candidat, et c'est lui qu'on
     # pèse. Peser autre chose que ce qu'on va tirer est le défaut que le descripteur évite.
     spec = {'kind': 'yolo', 'ref': base, 'task': task, 'note': 'installation VISION par nom'}
+    # L'identité que l'INSTALLATION posera (`provenance.identity_for_spec`), dérivée du même spec :
+    # la ligne écrivait sa propre forme (`github:ultralytics/assets:<nom>`), dont la page rendait
+    # `github.com/ultralytics/assets:<nom>` — une adresse qui n'existe pas.
+    platform_ref = (identity_for_spec(spec) or {}).get('platform_ref', '')
     created = write_candidate(
-        cand_key, nom=base, model_type='vision', source='yolo',
+        # La SOURCE d'un candidat est la plateforme d'où viennent ses poids — `huggingface`,
+        # `ollama` pour les autres candidats —, ici celle de son identité (`github`). Il portait
+        # `yolo`, une clé hors du vocabulaire `ModelSource`, que le filtre « Source » montrait brute.
+        cand_key, nom=base, model_type='vision', source=platform_ref.partition(':')[0],
         description=f"[{task}] Poids officiels Ultralytics, demandés par leur nom.",
         kind='new', confidence=None,
         extra={'kind': 'new', 'role': f"yolo:{task}", 'name': base,
@@ -1761,10 +1768,7 @@ def seed_yolo_candidate(name: str) -> dict:
         # modalités et entrées par défaut — le candidat porte donc les mêmes faits que la
         # ligne installée les portera.
         capabilities={'task': task, **default_inputs_for(task)},
-        # L'identité que l'INSTALLATION posera (`provenance.identity_for_spec`), dérivée du même
-        # spec : la ligne écrivait sa propre forme (`github:ultralytics/assets:<nom>`), dont la
-        # page rendait `github.com/ultralytics/assets:<nom>` — une adresse qui n'existe pas.
-        platform_ref=(identity_for_spec(spec) or {}).get('platform_ref', ''),
+        platform_ref=platform_ref,
         disk_gb=weight_for_spec(spec) or 0.0,
     )
     return {'ok': True, 'model_key': cand_key, 'created': created, 'task': task}

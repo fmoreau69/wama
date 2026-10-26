@@ -33,7 +33,7 @@
       "hf_id": "justjuu/rtdetr-v2-license-plate-detection",
       "license": null,
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "huggingface:justjuu/rtdetr-v2-license-plate-detection",
       "source": "anonymizer"
     },
     "prompts": {

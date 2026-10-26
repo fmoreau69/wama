@@ -1100,9 +1100,11 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   l'aide sous le sélecteur et la prévision « auto » (`AIModel.origin_label`, la seconde depuis
   le 2026-10-13) et le profil sous chaque fournisseur
   (`source_origin_label`). Vocabulaire des coûts : `external_sources.COST_TIERS`, dont
-  `COST_TIER_CHOICES` dérive. Le nom de la source Claude Code perd « (abonnement) » ; ⚠ le
+  `COST_TIER_CHOICES` dérive. Le nom de la source Claude Code perd « (abonnement) » ; ~~⚠ le
   libellé de l'énumération `ModelSource.CLAUDE_CODE` (admin seulement) le garde : le changer
-  demande une migration.
+  demande une migration~~ — ✅ 2026-10-22 : `ModelSource` ne porte plus aucun libellé, le champ
+  plus de `choices=` (migration `model_manager/0027`, sans SQL) ; une source se nomme par
+  `source_identity`.
 - **La barre du model manager filtre par origine, coût et profil — 2026-10-16** (demande de
   Fabien ; 438 modèles OpenRouter facturés au catalogue, mesuré). Trois filtres : **Origine**
   (WAMA local · cloud privé · souverain · commercial, ou tous les distants — `AIModel.hosting`,
@@ -1124,9 +1126,11 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   distante dit l'origine de SON modèle. Groupes dérivés — le monde d'une app, la famille d'une
   source au registre (`source_groups`) ; l'admin filtre par le même nom ; l'inspecteur dit
   l'origine, la plateforme, l'auteur et la licence ; `list_ai_models` / `get_ai_model` rendent
-  `source` et `origin`. Seul le formulaire de l'admin lit encore les libellés de `ModelSource`
-  (décision : retirer `choices=`, `WAMA_APP_GENERATION_ROUTE §10.6 P1`). Gardes :
-  `tests_source_identity`, `tests_model_platforms`.
+  `source` et `origin`. Le même jour (Fabien : « aligner ce qui ne l'est pas »), `ModelSource`
+  devient un VOCABULAIRE sans libellés et le champ perd `choices=` — une source de plus ne
+  demande plus de migration ; l'admin ne laisse plus changer une source, premier segment de la
+  clé (`WAMA_APP_GENERATION_ROUTE §10.6 P1`). Gardes : `tests_source_identity`,
+  `tests_model_platforms`, `tests_identity_route`.
 - **Clés d'INSTANCE posées depuis WAMA — 2026-10-07** (décision de Fabien : *« c'est la page
   Sources externes qui doit gérer les clés système »*). Un admin pose la clé d'une source dans
   l'inspecteur de `/common/sources/` (`accounts.InstanceApiKey`, chiffrée comme les clés

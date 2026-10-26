@@ -239,9 +239,24 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
         value = (identity.get(field) or '').strip()
         if field == 'author' and ident.get('author'):
             continue
+        # `other` n'est pas un fait : c'est le placeholder du Hub pour « licence maison ». Une
+        # qualification déjà posée (cpml-1.0, hunyuan-community…) est plus précise — règle de
+        # `backfill_platform_refs`, apprise le 2026-08-12, qui vaut pour toute pose (2026-10-22).
+        if field == 'license' and value == 'other' and ident.get('license') not in (None, '', 'other'):
+            continue
         if value and ident.get(field) != value:
             ident[field] = value
             posed.append(field)
+    # Régime d'ACCÈS au dépôt (2026-10-22) : `huggingface_identity` le lit dans la même requête,
+    # mais rien ne le recopiait — une installation par la route le PERDAIT, et seule la passe
+    # `backfill_platform_refs --licenses` l'écrivait, en base. C'est l'état courant du dépôt amont :
+    # il se pose dès qu'il est connu, jamais un vide (« inconnu » ≠ « libre »).
+    from wama.model_manager.models import AIModel
+    gated = identity.get('gated')
+    if gated in (AIModel.GATED_LIBRE, AIModel.GATED_AUTO, AIModel.GATED_MANUEL) \
+            and ident.get('gated') != gated:
+        ident['gated'] = gated
+        posed.append('gated')
     # Publications de la carte (2026-10-10) : même règle que la licence — l'éditeur fait foi
     # quand il dit quelque chose, une liste vide n'efface rien.
     publications = [str(p) for p in (identity.get('publications') or []) if p]

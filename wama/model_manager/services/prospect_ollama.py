@@ -105,6 +105,16 @@ def write_candidate(cand_key, *, nom, model_type, description, kind, confidence,
         extra_info={'prospect': extra},
     )
     defaults.update(champs)
+    # La PROVENANCE d'un candidat Ollama (2026-10-22) : celle que posera son installation
+    # (`provenance.identity_for_spec`, kind `ollama` — la famille, ou le dépôt d'un GGUF du Hub ;
+    # aucune requête). Les candidats du Hub, de GitHub et du scout la reçoivent de leur appelant ;
+    # les trois sites Ollama n'en passaient pas, si bien que leurs lignes naissaient sans
+    # `platform_ref` (11 mesurées) — un candidat ne porte pas d'autres faits que sa ligne installée.
+    if source == 'ollama' and not defaults.get('platform_ref'):
+        from .provenance import identity_for_spec
+        ref = (identity_for_spec({'kind': 'ollama', 'ref': nom}) or {}).get('platform_ref')
+        if ref:
+            defaults['platform_ref'] = ref
     # Une évaluation LLM persistée (`assess_proposed`) a COÛTÉ des appels d'agents :
     # la re-prospection rafraîchit le candidat (raison, cible…), elle ne l'efface pas.
     # Sans cette garde, chaque clic « Prospecter » remettait `confidence=None` sur tous

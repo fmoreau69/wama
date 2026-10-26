@@ -21,7 +21,7 @@
       "hf_id": "depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",
       "license": null,
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "huggingface:depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",
       "publications": [
         "2406.09414",
         "2401.10891"

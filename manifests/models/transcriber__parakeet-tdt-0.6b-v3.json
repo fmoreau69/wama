@@ -59,7 +59,7 @@
       "hf_id": "nvidia/parakeet-tdt-0.6b-v3",
       "license": null,
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:nvidia/parakeet-tdt-0.6b-v3",
       "publications": [
         "2509.14128",
         "2505.13404",

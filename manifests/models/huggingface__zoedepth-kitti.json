@@ -29,7 +29,7 @@
       "hf_id": "Intel/zoedepth-kitti",
       "license": null,
       "model_type": "vision",
-      "platform_ref": null,
+      "platform_ref": "huggingface:Intel/zoedepth-kitti",
       "publications": [
         "2302.12288"
       ],

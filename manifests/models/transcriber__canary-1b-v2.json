@@ -65,7 +65,7 @@
       "hf_id": "nvidia/canary-1b-v2",
       "license": null,
       "model_type": "speech",
-      "platform_ref": null,
+      "platform_ref": "huggingface:nvidia/canary-1b-v2",
       "publications": [
         "2509.14128",
         "2505.13404",
