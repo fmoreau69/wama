@@ -386,8 +386,9 @@
         body.tabIndex = 0;
         body.addEventListener('keydown', function (e) {
             if (e.ctrlKey || e.metaKey || e.altKey) return;
-            var t = e.target;
-            if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
+            // Une touche dans une saisie (la source ABC, un choix de la poignée) n'est pas un geste
+            // sur la note : la règle commune des briques du temps (`WamaApp.isTyping`).
+            if (App.isTyping && App.isTyping()) return;
             if (e.key === 'Escape' && selection) { selection = null; highlight(); return; }
             if (STEP_KEYS.hasOwnProperty(e.key)) {
                 setStep(STEP_KEYS[e.key]);

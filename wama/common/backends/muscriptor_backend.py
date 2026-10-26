@@ -87,21 +87,30 @@ def installed_file(relative: str) -> Path:
 
 
 #: Le passage de DÉTECTION des instruments : tranches de 5 s par lot (la valeur GPU de la
-#: librairie hors prologue forcé), et le nombre de tranches où un instrument doit sonner pour être
-#: tenu présent — une seule tranche est le plus souvent une fausse piste (#880 : guitare saturée,
-#: 3 notes dans une tranche, devenue 574 notes une fois nommée).
+#: librairie hors prologue forcé), et ce qu'il faut pour tenir un instrument présent — au moins
+#: `MIN_PRESENCE_CHUNKS` tranches ET `MIN_PRESENCE_SHARE` des tranches du morceau. Un instrument
+#: NOMMÉ au second passage s'impose : une fausse piste vole les notes d'un vrai. Mesuré sur #880
+#: (43 tranches, 2026-10-26) : des FLÛTES dans 2 tranches (5 %) et une guitare claire dans 3 (7 %)
+#: passaient le seul plancher de 2 tranches — nommées, elles ont pris la voix des premières
+#: mesures (relevé par Fabien) ; les vrais instruments sonnent dans 12 % (piano) à 72 % (basse,
+#: batterie) des tranches.
 DETECTION_BATCH = 4
 MIN_PRESENCE_CHUNKS = 2
+MIN_PRESENCE_SHARE = 0.10
 #: Durée d'une tranche du modèle (`muscriptor.transcription_model._SEGMENT_DURATION`).
 CHUNK_SECONDS = 5.0
 #: Part de la progression donnée au passage de détection.
 DETECTION_SHARE = 30
 
 
-def present_instruments(events, known=None, min_chunks: int = MIN_PRESENCE_CHUNKS) -> list:
+def present_instruments(events, known=None, min_chunks: int = MIN_PRESENCE_CHUNKS,
+                        total_chunks: int = 0, min_share: float = MIN_PRESENCE_SHARE) -> list:
     """Les instruments qui sonnent dans au moins `min_chunks` tranches du flux d'événements de la
-    librairie (`NoteStartEvent` : `instrument`, `start_time`), triés ; `known`, s'il est donné,
-    écarte un nom que la librairie ne saurait pas reprendre en condition (`program_<n>`)."""
+    librairie (`NoteStartEvent` : `instrument`, `start_time`) — et, si `total_chunks` est donné,
+    dans au moins `min_share` d'entre elles —, triés ; `known`, s'il est donné, écarte un nom que
+    la librairie ne saurait pas reprendre en condition (`program_<n>`)."""
+    import math
+    needed = max(min_chunks, math.ceil(min_share * total_chunks)) if total_chunks else min_chunks
     seen = {}
     for event in events:
         name = getattr(event, 'instrument', None)
@@ -109,7 +118,7 @@ def present_instruments(events, known=None, min_chunks: int = MIN_PRESENCE_CHUNK
             continue
         seen.setdefault(name, set()).add(int(event.start_time // CHUNK_SECONDS))
     return sorted(name for name, chunks in seen.items()
-                  if len(chunks) >= min_chunks and (known is None or name in known))
+                  if len(chunks) >= needed and (known is None or name in known))
 
 
 #: Tolérance (en temps) d'un temps à la phase dominante, et la part des temps qu'elle doit garder.
@@ -269,9 +278,11 @@ class MuScriptorBackend(MidiExtractionBackend):
 
         with torch.inference_mode():
             # 1er passage, rapide : quels instruments sonnent ? 2ᵉ : la transcription, en les nommant.
+            import math
             present = present_instruments(
                 events(0, DETECTION_SHARE, prelude_forcing=False, batch_size=DETECTION_BATCH),
-                known=MT3_FULL_PLUS_GROUP_NAMES)
+                known=MT3_FULL_PLUS_GROUP_NAMES,
+                total_chunks=math.ceil(samples.shape[-1] / rate / CHUNK_SECONDS))
             logger.info("[MuScriptor] instruments présents : %s", ', '.join(present) or 'aucun')
             midi = self._model.events_to_midi_bytes(
                 events(DETECTION_SHARE, 95, instruments=present or None), beat_grid=grid)

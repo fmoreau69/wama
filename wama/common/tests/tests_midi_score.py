@@ -211,6 +211,18 @@ class InstrumentsAreNamedToTheModelTest(SimpleTestCase):
                                                             'distorted_electric_guitar'}),
                          'two notes in the same 5 s chunk are one chunk ; an unknown name is dropped')
 
+    def test_an_instrument_heard_in_too_small_a_share_of_the_song_is_not_named(self):
+        """2026-10-26, #880 : flutes in 2 chunks out of 43 (5 %) passed the 2-chunk floor ; named,
+        they took the voice of the first bars."""
+        from wama.common.backends.muscriptor_backend import present_instruments
+        events = ([self._note('voice', 5 * c) for c in range(20)]
+                  + [self._note('flutes', 5 * c) for c in (6, 19)]
+                  + [self._note('acoustic_piano', 5 * c) for c in (6, 14, 15, 18, 19)])
+        self.assertEqual(['acoustic_piano', 'voice'], present_instruments(events, total_chunks=43),
+                         '2 of 43 chunks (5 %) is a false lead ; 5 of 43 (12 %) is an instrument')
+        self.assertEqual(['acoustic_piano', 'flutes', 'voice'], present_instruments(events),
+                         'without the length of the song, the floor alone')
+
     def test_the_transcription_names_the_instruments_the_first_pass_found(self):
         from unittest import mock
         import numpy as np
