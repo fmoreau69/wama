@@ -288,9 +288,13 @@ def topo_order(graph):
 AUTO_LAYOUT_DX, AUTO_LAYOUT_DY, AUTO_LAYOUT_X0, AUTO_LAYOUT_Y0 = 280, 120, 40, 40
 
 
-def _depths(node_ids, links):
+def node_depths(node_ids, links):
     """Profondeur de chaque nœud = plus long chemin depuis une racine (graphe acyclique ; un
-    cycle, refusé à l'exécution, est simplement borné ici pour ne jamais boucler)."""
+    cycle, refusé à l'exécution, est simplement borné ici pour ne jamais boucler).
+
+    Deux lecteurs, une disposition : le canvas du studio (une colonne par profondeur,
+    `body_to_graph`) et la bande des process d'une card (`AppPipeline.card_rows`, 2026-10-26),
+    où les process d'une même profondeur s'empilent — c'est là que se voient les BRANCHES."""
     preds = {nid: [] for nid in node_ids}
     for l in links:
         if l.get('from') in preds and l.get('to') in preds:
@@ -344,7 +348,7 @@ def body_to_graph(body: dict) -> dict:
     raw_links = (body or {}).get('links', []) or []
     layout = (body or {}).get('layout') or {}
     by_id = {n.get('id'): n for n in raw_nodes}
-    depth = _depths(list(by_id), raw_links)
+    depth = node_depths(list(by_id), raw_links)
     rows = {}
     nodes = []
     for n in raw_nodes:

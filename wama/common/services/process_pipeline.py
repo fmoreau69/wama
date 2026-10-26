@@ -948,7 +948,8 @@ class AppPipeline:
         """Une ligne d'affichage par process de la card, dans l'ordre du graphe : ceux qui ont
         tourné, plus ceux qui ont lieu pour le modèle donné (`model_key` : le réglage quand il
         est désigné ; sous « auto », None — on ne devine pas le tirage, on montre ce qui a
-        tourné). `{key, label, degree, status, duration_s, model_key, output_label, error}`."""
+        tourné). `{key, label, degree, status, duration_s, model_key, output_label, error}`, plus
+        la colonne de chacun dans le graphe (`_columns`) — d'où les branches de la bande."""
         self.refresh(item)
         rows = self.rows(item)
         held = self._held(self._live_rows(item))
@@ -989,7 +990,46 @@ class AppPipeline:
                 # Les mesures sans référence de sa sortie (`ProcessSpec.checks`, 2026-10-22).
                 'checks': list(summary.get('checks') or []) if row is not None else [],
             })
-        return out
+        return self._columns(item, out)
+
+    def _columns(self, item, out: list) -> list:
+        """Range les lignes de la bande en COLONNES, comme le studio dispose le graphe (une colonne
+        par profondeur, `node_depths`) : les process d'une même profondeur s'empilent, et une
+        BRANCHE (deux process qui lisent le même amont, ou deux racines) se voit à côté de sa
+        sœur au lieu de s'aligner à la suite de la chaîne (2026-10-26, demande de Fabien : « la
+        dérivation comme c'est natif dans le studio »). Aucune déclaration de plus : le graphe
+        est celui des `depends_on` que l'élément LIT (`read_upstreams`).
+
+        Chaque ligne gagne `column` (rang parmi les colonnes montrées, sans trou), `after` (les
+        libellés des amonts MONTRÉS les plus proches, à travers ceux qui ne le sont pas) et
+        `branch_end` (ne nourrit aucun process montré alors qu'une colonne suit : une sortie de
+        côté). Ordre rendu : par colonne, puis dans l'ordre du graphe — un ordre topologique, la
+        profondeur croissant strictement le long d'un lien."""
+        from wama.common.manifests.builtin.pipeline import node_depths
+        upstreams = {spec.key: self.read_upstreams(spec, item) for spec in self.specs}
+        depth = node_depths(list(upstreams), [{'from': up, 'to': key}
+                                              for key, ups in upstreams.items() for up in ups])
+        shown = {row['key']: row['label'] for row in out}
+        rank = {d: i for i, d in enumerate(sorted({depth[key] for key in shown}))}
+
+        def nearest(key, seen=frozenset()):
+            found = []
+            for up in upstreams.get(key, ()):
+                if up not in seen:
+                    found += [up] if up in shown else nearest(up, seen | {up})
+            return found
+
+        fed = set()
+        for row in out:
+            ups = list(dict.fromkeys(nearest(row['key'])))
+            fed.update(ups)
+            row['column'] = rank[depth[row['key']]]
+            row['after'] = [shown[up] for up in ups]
+        last = max((row['column'] for row in out), default=0)
+        for row in out:
+            row['branch_end'] = row['key'] not in fed and row['column'] < last
+        order = {row['key']: index for index, row in enumerate(out)}
+        return sorted(out, key=lambda row: (row['column'], order[row['key']]))
 
 
 #: Pipelines déclarés, par app — inscrits depuis le `function_specs.py` de chaque app. Lu par

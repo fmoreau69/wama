@@ -135,7 +135,7 @@ brique commune (§6).
 
 | # | scène | nœuds · groupes · liens | facteurs | données | lecture |
 |---|---|---|---|---|---|
-| S1 | **Un pipeline du Studio** | nœuds (app, fonction, source, puits) · ports typés · liens | **profondeur** topologique en axe (`pipeline.topo_order`, `_depths`), type de port | **prêtes** : `StudioPipeline.graph`, `wama/common/manifests/builtin/pipeline.py`, `studio/services/graph_flow.py` | les longues chaînes en couches ; un run (`StudioRun.node_states`) anime le flux ; un LOT = les runs enfants (`StudioRun.parent`) en strates |
+| S1 | **Un pipeline du Studio** | nœuds (app, fonction, source, puits) · ports typés · liens | **profondeur** topologique en axe (`pipeline.topo_order`, `node_depths`), type de port | **prêtes** : `StudioPipeline.graph`, `wama/common/manifests/builtin/pipeline.py`, `studio/services/graph_flow.py` | les longues chaînes en couches ; un run (`StudioRun.node_states`) anime le flux ; un LOT = les runs enfants (`StudioRun.parent`) en strates |
 | S2 | **Le pipeline d'une app** (l'intérieur d'une card) | process de `APP_PIPELINES` · `depends_on` | profondeur, GPU, sorties | **prêtes** : `wama/common/services/process_pipeline.py` | ce qu'une app fait vraiment, étape par étape |
 | S3 | **Tous les pipelines** | pipelines déclarés et enregistrés · nœuds partagés | apps et fonctions communes | **prêtes** | les chaînes qui se ressemblent |
 

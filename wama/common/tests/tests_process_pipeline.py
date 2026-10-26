@@ -584,6 +584,72 @@ class WhatTheCardShowsTest(TestCase):
                             'a process switched off has no ▶')
         self.assertRegex(html, r'wcv3-proc-run"[^>]*data-process="render"')
 
+    # ── branches: the strip lays the graph out as the studio does (one column per depth) ───────
+    def _branching(self):
+        """The composer's shape: two roots, one of them a side output, and two processes that
+        read the render. `full` is declared AFTER `render`: the strip still puts it beside the
+        other root."""
+        return AppPipeline('demo_pipeline', (
+            ProcessSpec('score', label='Partition'),
+            ProcessSpec('render', label='Rendu', depends_on=('score',)),
+            ProcessSpec('full', label='Partition complète'),
+            ProcessSpec('output', label='Sortie', depends_on=('render',)),
+            ProcessSpec('render_score', label='Partition du rendu', depends_on=('render',)),
+        ), label='Demo')
+
+    def test_processes_of_the_same_depth_share_a_column_and_a_side_output_says_so(self):
+        pipeline = self._branching()
+        item = _Element(status=JOB_SUCCESS)
+        for key in ('score', 'render', 'full', 'output', 'render_score'):
+            process_runs.start(item, key)
+            process_runs.succeed(item, key)
+        rows = pipeline.card_rows(item)
+        self.assertEqual([('score', 0), ('full', 0), ('render', 1), ('output', 2),
+                          ('render_score', 2)], [(r['key'], r['column']) for r in rows])
+        by_key = {r['key']: r for r in rows}
+        self.assertEqual(['Rendu'], by_key['render_score']['after'])
+        self.assertEqual([], by_key['full']['after'])
+        self.assertEqual({'full'}, {r['key'] for r in rows if r['branch_end']},
+                         'only a process that feeds nothing while a column follows is a side '
+                         'output — the last column ends every chain')
+
+        from django.template.loader import render_to_string
+        html = render_to_string('common/_card_processes.html', {'processes': rows, 'card_id': 7})
+        self.assertEqual(3, html.count('class="wcv3-proc-col'))
+        self.assertEqual(2, html.count('wcv3-proc-col--branches'))
+        self.assertEqual(2, html.count('wcv3-proc-sep'), 'arrows go between columns only')
+        self.assertRegex(html, r'data-process="full"[^>]*title="[^"]*branche')
+        self.assertEqual(1, html.count('wcv3-proc-branch"'))
+
+    def test_a_chain_without_branches_keeps_one_line(self):
+        pipeline = self._with_an_option()
+        item = _Element(status=JOB_SUCCESS, wants_summary=True)
+        for key in ('render', 'summary'):
+            process_runs.start(item, key)
+            process_runs.succeed(item, key)
+        from django.template.loader import render_to_string
+        html = render_to_string('common/_card_processes.html',
+                                {'processes': pipeline.card_rows(item), 'card_id': 7})
+        self.assertNotIn('wcv3-proc-col--branches', html)
+        self.assertNotIn('wcv3-proc-branch"', html)
+        self.assertEqual(1, html.count('wcv3-proc-sep'))
+
+    def test_a_process_that_does_not_take_place_leaves_no_empty_column(self):
+        """A → B → C with B absent for this model: C comes right after A, and says it follows A."""
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('first', label='A'),
+            ProcessSpec('middle', label='B', depends_on=('first',),
+                        applies=lambda item, model_key: False),
+            ProcessSpec('last', label='C', depends_on=('middle',)),
+        ), label='Demo')
+        item = _Element(status=JOB_SUCCESS)
+        for key in ('first', 'last'):
+            process_runs.start(item, key)
+            process_runs.succeed(item, key)
+        rows = pipeline.card_rows(item, 'any')
+        self.assertEqual([('first', 0, []), ('last', 1, ['A'])],
+                         [(r['key'], r['column'], r['after']) for r in rows])
+
     def test_an_output_that_is_not_a_file_makes_its_downstream_stale_when_it_changes(self):
         """A transcription is text in the base, not a file: its glue DECLARES a fingerprint
         (`output_fingerprint`), kept on the line — replaced, the downstream goes stale."""

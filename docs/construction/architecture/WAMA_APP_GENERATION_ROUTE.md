@@ -6227,6 +6227,18 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   pipeline a donc sa bande, son état montré et ses ⚙/▶ par process sans rien écrire.
 > - ⏳ **Reste de 5.1** : case des process `optional` (aucune app n'en déclare encore —
 >   transcriber à P6) ; studio (5.4) — lot (5.3) : ✅ ci-dessous.
+> - ✅ **Les BRANCHES dans la bande (2026-10-26, demande de Fabien : « la dérivation comme c'est
+>   natif dans le studio »)** : la bande se dispose comme le canvas du studio, une colonne par
+>   profondeur du graphe — la MÊME fonction, `manifests/builtin/pipeline.node_depths` (ex-
+>   `_depths`, devenue publique pour ce second lecteur). `AppPipeline.card_rows` rend chaque
+>   ligne avec `column` (rang sans trou parmi les colonnes montrées), `after` (amonts montrés
+>   les plus proches, à travers un process qui n'a pas lieu) et `branch_end` (ne nourrit rien
+>   alors qu'une colonne suit : une sortie de côté, icône de branche) ; ordre par colonne puis
+>   par graphe, donc toujours topologique. Aucune déclaration de plus : le graphe est celui des
+>   `depends_on` que l'élément LIT (`read_upstreams`). Composer : « Partition extraite »,
+>   « Partition complète » et « Partition » empilées → « Rendu » → « Sortie » et « Partition du
+>   rendu » empilées. Une chaîne sans branche garde une seule ligne. Gardes :
+>   `tests_process_pipeline.WhatTheCardShowsTest` (colonnes, chaîne, process absent).
 **5.3 Lot** : le pipeline se règle sur la mère ; une fille peut le surcharger ; **promouvoir ↑ /
 réaligner ↓** (`MODES_QUEUE_UX §5ter`) — la charge utile promue EST le pipeline (les réglages Médias
 en sont un cas), avec le garde-fou Data « entrées requises ⊆ ∩ des catalogues des filles », refus
