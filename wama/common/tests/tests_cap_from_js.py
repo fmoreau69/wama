@@ -339,6 +339,54 @@ class SortAndFactsTest(SimpleTestCase):
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class ProcessSectionsTest(SimpleTestCase):
+    """2026-10-26, Fabien : « des sections automatiques en accordéon par sous-process » in the
+    modal and the panel — each setting in the section of the ONE process it stales, the shared
+    ones first ; settings staling only OPTIONAL processes go with the first of them."""
+
+    PROCESSES = json.dumps([{'key': 'extract_score', 'label': 'Partition extraite', 'optional': False},
+                            {'key': 'parts', 'label': 'Partition complète', 'optional': True},
+                            {'key': 'plan', 'label': 'Partition', 'optional': False},
+                            {'key': 'render', 'label': 'Rendu', 'optional': False},
+                            {'key': 'output', 'label': 'Sortie', 'optional': False},
+                            {'key': 'rendered_parts', 'label': 'Partition du rendu', 'optional': True}])
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.v8 = MiniRacer()
+        self.v8.eval(FAKE_DOM)
+        self.v8.eval((JS / 'wama-params.js').read_text(encoding='utf-8'))
+
+    def _sections(self, schema, processes=None):
+        return json.loads(self.v8.eval(
+            f"JSON.stringify(window.WamaParams.processSections({json.dumps(schema)}, "
+            f"{processes or self.PROCESSES}))"))
+
+    def test_each_setting_goes_to_the_section_of_its_process(self):
+        schema = [{'name': 'prompt', 'stales': ['plan', 'render']},
+                  {'name': 'model', 'stales': ['plan', 'render']},
+                  {'name': 'duration', 'stales': ['render']},
+                  {'name': 'extract_parts', 'stales': ['parts']},
+                  {'name': 'extract_rendered_parts', 'stales': ['rendered_parts']},
+                  {'name': 'parts_model', 'stales': ['parts', 'rendered_parts']},
+                  {'name': 'output_format', 'stales': ['output']},
+                  {'name': 'show_boxes', 'stales': []}]
+        out = self._sections(schema)
+        self.assertEqual(['prompt', 'model', 'show_boxes'], out['general'], 'shared ones first')
+        self.assertEqual([('parts', ['extract_parts', 'parts_model']), ('render', ['duration']),
+                          ('output', ['output_format']), ('rendered_parts', ['extract_rendered_parts'])],
+                         [(s['key'], s['names']) for s in out['sections']],
+                         'pipeline order ; the model of the two optional ones with the first')
+
+    def test_nothing_to_structure_stays_flat(self):
+        self.assertIsNone(self._sections([{'name': 'a', 'stales': ['render']},
+                                          {'name': 'b', 'stales': ['render']}]),
+                          'one section alone : flat')
+        self.assertIsNone(self._sections([{'name': 'a', 'stales': ['render']}], '[]'),
+                          'no pipeline : flat')
+
+
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
 class ScopedSettingsModalTest(SimpleTestCase):
     """⚙ par process (P5, `ROUTE §10.6` 5.1) : the common modal rendered from the schema REDUCED to
     what one process watches — the rule is pure (`scopedSchema`), the scope is posed for the NEXT

@@ -796,16 +796,44 @@
     return ' data-show-if="' + esc(typeof cond === 'string' ? cond : JSON.stringify(cond)) + '"';
   }
 
+  // SECTIONS PAR PROCESS (2026-10-26, demande de Fabien : « des sections automatiques en accordéon
+  // par sous-process » dans la modale et le volet). Pure : `params` (non avancés) et les process de
+  // l'app dans l'ordre de son pipeline (`[{key, label, optional}]`, `window.WAMA_APP_PROCESSES`,
+  // posé par la page de base) → `{general: [noms], sections: [{key, label, names}]}`, ou null quand
+  // il n'y aurait qu'une seule case à ranger (rien à structurer). Un réglage va dans la section du
+  // SEUL process qu'il périme (`stales`) ; s'il en périme plusieurs, en tête (la consigne, le
+  // modèle) — sauf s'ils sont tous OPTIONNELS : le premier d'entre eux (le modèle des deux
+  // partitions complètes du composer). Sans `stales` : en tête.
+  function processSections(params, processes) {
+    const order = {}, optional = {};
+    (processes || []).forEach(function (p, i) { order[p.key] = i; optional[p.key] = !!p.optional; });
+    const buckets = {}, general = [];
+    (params || []).forEach(function (p) {
+      const keys = (p.stales || []).filter(function (k) { return k in order; })
+        .sort(function (a, b) { return order[a] - order[b]; });
+      let target = null;
+      if (keys.length === 1) target = keys[0];
+      else if (keys.length > 1 && keys.every(function (k) { return optional[k]; })) target = keys[0];
+      if (target) (buckets[target] = buckets[target] || []).push(p.name);
+      else general.push(p.name);
+    });
+    const sections = (processes || []).filter(function (p) { return buckets[p.key]; })
+      .map(function (p) { return { key: p.key, label: p.label, names: buckets[p.key] }; });
+    const visible = general.length ? 1 : 0;
+    return sections.length + visible >= 2 ? { general: general, sections: sections } : null;
+  }
+
   // Enveloppe d'un groupe déclaré (ParamGroup) : titre + corps ; show_if de GROUPE géré par
-  // _bindConditional comme celui d'un champ ; collapsed → <details> natif (zéro JS).
+  // _bindConditional comme celui d'un champ ; collapsed → <details> natif (zéro JS) ;
+  // `collapsible` (les sections par process) → <details> OUVERT, qu'on replie d'un clic.
   function _groupWrap(meta, inner) {
     if (!inner) return '';
     const ic = meta.icon ? '<i class="fas ' + esc(meta.icon) + ' me-1"></i>' : '';
     const title = ic + esc(meta.title || '');
     const attrs = ' data-group="' + esc(meta.key) + '"' + _showIfAttr(meta.show_if);
     const body = 'wama-param-group-body' + (meta.columns === 2 ? ' wama-param-group-cols-2' : '');
-    if (meta.collapsed) {
-      return '<details class="wama-param-group"' + attrs + '>' +
+    if (meta.collapsed || meta.collapsible) {
+      return '<details class="wama-param-group"' + attrs + (meta.collapsed ? '' : ' open') + '>' +
         '<summary class="wama-param-group-title">' + title + '</summary>' +
         '<div class="' + body + '">' + inner + '</div></details>';
     }
@@ -867,9 +895,25 @@
           return _groupWrap(meta, (byGroup[meta.key] || []).map(rowHtml).join(''));
         }).join('') + advancedGroup(adv);
     } else {
-      // Sans groupes déclarés, un `group` ne désigne rien : seul `advanced` range le réglage.
-      html = params.filter(function (p) { return !isAdvanced(p); }).map(rowHtml).join('') +
-        advancedGroup(params.filter(isAdvanced));
+      // Sans groupes déclarés, un `group` ne désigne rien : seul `advanced` range le réglage — et,
+      // quand l'app a un pipeline, les SECTIONS PAR PROCESS (`processSections`, 2026-10-26).
+      const plain = params.filter(function (p) { return !isAdvanced(p); });
+      const procs = opts.processes || global.WAMA_APP_PROCESSES || [];
+      const sections = processSections(plain.filter(function (p) { return p.type !== 'hidden'; }), procs);
+      if (sections) {
+        const byName = {};
+        plain.forEach(function (p) { byName[p.name] = p; });
+        const placed = {};
+        sections.sections.forEach(function (s) { s.names.forEach(function (n) { placed[n] = true; }); });
+        html = plain.filter(function (p) { return !placed[p.name]; }).map(rowHtml).join('') +
+          sections.sections.map(function (s) {
+            return _groupWrap({ key: '_process_' + s.key, title: s.label, icon: 'fa-diagram-project',
+                                collapsible: true },
+                              s.names.map(function (n) { return rowHtml(byName[n]); }).join(''));
+          }).join('') + advancedGroup(params.filter(isAdvanced));
+      } else {
+        html = plain.map(rowHtml).join('') + advancedGroup(params.filter(isAdvanced));
+      }
     }
 
     container.innerHTML = html;
@@ -1944,6 +1988,8 @@
                         // actions, consommée par le prochain `settingsModal` ; `scopedSchema`
                         // est la règle pure, exposée pour sa garde V8.
                         scopeNextModal: scopeNextModal,
+                        // Sections par process (2026-10-26) : la règle pure, pour sa garde V8.
+                        processSections: processSections,
                         scopedSchema: scopedSchema,
                         scopedConfig: scopedConfig,
                         takeModalScope: takeScope,

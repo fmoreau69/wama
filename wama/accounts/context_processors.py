@@ -202,7 +202,24 @@ def user_role(request):
     except Exception:
         pass
 
+    # Les PROCESS de l'app courante, dans l'ordre de son pipeline (2026-10-26, demande de Fabien :
+    # « des sections automatiques en accordéon par sous-process » dans la modale et le volet) —
+    # `WamaParams.render` y range chaque réglage d'après les process qu'il périme (`stales`).
+    current_app_processes_json = '[]'
+    if current_app:
+        try:
+            from wama.common.services.process_pipeline import APP_PIPELINES
+            from wama.common.services.process_runs import OPTIONAL
+            pipeline = APP_PIPELINES.get(current_app)
+            if pipeline is not None:
+                current_app_processes_json = _json.dumps([
+                    {'key': spec.key, 'label': spec.label or spec.key, 'toggle': spec.toggle or '',
+                     'optional': spec.degree == OPTIONAL} for spec in pipeline.ordered()])
+        except Exception:
+            current_app_processes_json = '[]'
+
     return {
+        'current_app_processes_json': current_app_processes_json,
         'is_admin': is_admin(user),
         'is_dev': is_dev(user),
         'user_role': get_user_role(user),
