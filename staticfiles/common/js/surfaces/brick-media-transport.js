@@ -142,5 +142,7 @@
         };
     }
 
-    global.WamaSurface.registerBrick('media_transport', { title: 'Transport', mount: mount });
+    // `dockable` (2026-10-26) : le transport s'épingle en haut ou en bas de la fenêtre (le geste
+    // est au noyau, `wama-surface.js`) — il reste sous la main quand la partition défile.
+    global.WamaSurface.registerBrick('media_transport', { title: 'Transport', mount: mount, dockable: true });
 })(window);

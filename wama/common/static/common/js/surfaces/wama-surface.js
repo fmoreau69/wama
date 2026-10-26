@@ -506,9 +506,68 @@
             }
             var brick = def.mount(body, ctx, slot.options || {}) || {};
             if (brick.tools) { head.appendChild(brick.tools); head.classList.add('has-tools'); }
+            if (def.dockable) dockControl(slot, el, head);
             if (brick.help) helps.push(brick.help);
             return { slot: slot, el: el, brick: brick };
         }
+
+        // ── ÉPINGLER un panneau en haut ou en bas de la fenêtre (2026-10-26, demande de Fabien :
+        // « locker le transport […] pour qu'il ne défile pas avec la page ») — une brique le
+        // DÉCLARE (`dockable`), le noyau pose le geste dans sa poignée. Gardé avec la disposition
+        // (par compte, `docked`) : une préférence de LECTURE, valable aussi en lecture seule. La
+        // page garde la place du panneau épinglé en marge, pour que rien ne passe dessous.
+        var DOCK_NEXT = { '': 'top', top: 'bottom', bottom: '' };
+        var DOCK_TITLES = { '': 'Épingler ce panneau en haut de la fenêtre',
+                            top: 'Épinglé en haut — cliquer : en bas de la fenêtre',
+                            bottom: 'Épinglé en bas — cliquer : le désépingler' };
+        layout.docked = layout.docked || {};
+
+        function dockControl(slot, el, head) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-xs wama-brick-dock';
+            btn.innerHTML = '<i class="fas fa-thumbtack"></i>';
+            btn.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+            btn.addEventListener('click', function () {
+                var edge = DOCK_NEXT[layout.docked[slot.id] || ''];
+                if (edge) layout.docked[slot.id] = edge; else delete layout.docked[slot.id];
+                applyDock(slot, el, btn);
+                persistLayout();
+            });
+            head.appendChild(btn);
+            head.classList.add('has-tools');
+            applyDock(slot, el, btn);
+        }
+
+        function applyDock(slot, el, btn) {
+            var edge = layout.docked[slot.id] || '';
+            if (edge && !el.classList.contains('is-docked')) {
+                el.style.setProperty('--wama-dock-height', el.offsetHeight + 'px');
+            }
+            el.classList.toggle('is-docked', !!edge);
+            el.classList.toggle('is-docked-top', edge === 'top');
+            el.classList.toggle('is-docked-bottom', edge === 'bottom');
+            btn.classList.toggle('active', !!edge);
+            btn.title = DOCK_TITLES[edge];
+            btn.setAttribute('aria-pressed', edge ? 'true' : 'false');
+            dockMargins();
+            emit('resize');
+        }
+
+        /** La marge que la page laisse en haut et en bas : la hauteur des panneaux épinglés. */
+        function dockMargins() {
+            ['top', 'bottom'].forEach(function (edge) {
+                var height = 0;
+                root.parentNode.querySelectorAll('.is-docked-' + edge).forEach(function (el) {
+                    height = Math.max(height, el.offsetHeight);
+                });
+                if (panelRoot) panelRoot.querySelectorAll('.is-docked-' + edge).forEach(function (el) {
+                    height = Math.max(height, el.offsetHeight);
+                });
+                page.style.setProperty('--wama-dock-' + edge, height + 'px');
+            });
+        }
+        global.addEventListener('resize', dockMargins);
 
         function layoutNow() {
             var out = {};
@@ -531,7 +590,8 @@
                 if (!config.layout_url) { writeLayout(config.layout_key, layout.slots); return; }
                 App.csrfFetch(config.layout_url, App.csrfToken(), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ slots: layout.slots, frozen: !!layout.frozen }),
+                    body: JSON.stringify({ slots: layout.slots, frozen: !!layout.frozen,
+                                           docked: layout.docked || {} }),
                 }).then(App.jsonOrExplain).then(function (res) {
                     if (res && res.error) throw new Error(res.error);
                     writeLayout(config.layout_key, null);

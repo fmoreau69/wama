@@ -99,8 +99,8 @@ def _layout_of(found, user) -> dict:
     stored = get_user_app_setting(user, found.app, _layout_setting(found))
     if isinstance(stored, dict):
         return {'slots': stored.get('slots') or None, 'frozen': stored.get('frozen') is True,
-                'stored': True}
-    return {'slots': None, 'frozen': True, 'stored': False}
+                'docked': stored.get('docked') or {}, 'stored': True}
+    return {'slots': None, 'frozen': True, 'docked': {}, 'stored': False}
 
 
 @login_required

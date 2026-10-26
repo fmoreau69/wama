@@ -241,13 +241,13 @@ class SurfaceLayoutTest(TestCase):
         return self.client.post(self.url, json.dumps(payload), content_type='application/json')
 
     def test_a_frozen_layout_is_kept_for_this_account_only(self):
-        self.assertEqual({'slots': None, 'frozen': True, 'stored': False},
+        self.assertEqual({'slots': None, 'frozen': True, 'docked': {}, 'stored': False},
                          self._config(self.user)['layout'])
         place = {'image': {'x': 3, 'y': 0, 'w': 9, 'h': 12}, 'actions': {'x': 0, 'y': 0, 'w': 3, 'h': 5}}
         res = self._post({'slots': place, 'frozen': True})
         self.assertEqual(200, res.status_code, res.content)
         kept = {k: dict(v, zone='grid') for k, v in place.items()}
-        self.assertEqual({'slots': kept, 'frozen': True, 'stored': True},
+        self.assertEqual({'slots': kept, 'frozen': True, 'docked': {}, 'stored': True},
                          self._config(self.user)['layout'])
         from wama.common.models import UserAppSetting
         (row,) = UserAppSetting.objects.filter(user=self.user, app='anonymizer')
@@ -255,14 +255,14 @@ class SurfaceLayoutTest(TestCase):
         # Another account (who cannot open this element) still has the declared layout.
         from wama.common.surface_views import _layout_of
         from wama.common.surfaces import surface
-        self.assertEqual({'slots': None, 'frozen': True, 'stored': False},
+        self.assertEqual({'slots': None, 'frozen': True, 'docked': {}, 'stored': False},
                          _layout_of(surface('anonymizer', 'review'), self.other))
 
     def test_back_to_the_declared_layout_keeps_following_the_surface(self):
         self.client.force_login(self.user)
         self._post({'slots': {'image': {'x': 0, 'y': 0, 'w': 6, 'h': 6}}})
         self._post({'slots': None, 'frozen': False})
-        self.assertEqual({'slots': None, 'frozen': False, 'stored': True},
+        self.assertEqual({'slots': None, 'frozen': False, 'docked': {}, 'stored': True},
                          self._config(self.user)['layout'])
 
     def test_undeclared_panels_are_dropped_and_a_place_outside_the_grid_is_refused(self):
@@ -295,6 +295,22 @@ class SurfaceLayoutTest(TestCase):
                     {'x': 1, 'y': 0, 'w': 1, 'h': 2, 'zone': 'panel'},
                     {'x': 0, 'y': 0, 'w': 2, 'h': 2, 'zone': 'sidebar'}):
             self.assertEqual(400, self._post({'slots': {'actions': bad}}).status_code, bad)
+
+    def test_a_docked_panel_is_kept_with_the_layout_of_the_account(self):
+        """2026-10-26, Fabien : « locker le transport en bas ou en haut de page pour qu'il ne
+        défile pas » — the edge a panel is pinned to, kept with the layout ; declared panels and
+        known edges only."""
+        self.client.force_login(self.user)
+        res = self._post({'slots': None, 'docked': {'actions': 'bottom', 'gone': 'top'}})
+        self.assertEqual(200, res.status_code, res.content)
+        self.assertEqual({'actions': 'bottom'}, res.json()['layout']['docked'])
+        self.assertEqual({'actions': 'bottom'}, self._config(self.user)['layout']['docked'])
+        for bad in ({'actions': 'left'}, ['actions']):
+            self.assertEqual(400, self._post({'docked': bad}).status_code, bad)
+        kernel = _js('common/js/surfaces/wama-surface.js')
+        self.assertIn('if (def.dockable) dockControl(slot, el, head);', kernel)
+        self.assertIn('docked: layout.docked || {}', kernel, 'the pin travels with the layout')
+        self.assertIn('dockable: true', _js('common/js/surfaces/brick-media-transport.js'))
 
     def test_a_slot_declared_outside_its_zone_is_refused(self):
         from wama.common.surfaces import BrickSlot, Surface, register_surface

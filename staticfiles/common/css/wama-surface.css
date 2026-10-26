@@ -45,6 +45,23 @@
 .wama-surface-page.is-frozen .wama-brick-title,
 .wama-surface-panel.is-frozen .wama-brick-title { font-weight: 500; color: var(--wama-edit-muted); }
 
+/* Panneau ÉPINGLÉ en haut ou en bas de la fenêtre (2026-10-26) : il ne défile plus avec la page.
+   Calé entre les deux volets (les marges communes `--wama-left-gutter` / `--wama-right-gutter`,
+   comme la scène 3D) ; la page garde sa hauteur en marge pour que rien ne passe dessous. */
+.grid-stack > .grid-stack-item.is-docked {
+  position: fixed !important; left: var(--wama-left-gutter, 0px) !important;
+  right: var(--wama-right-gutter, 0px) !important; width: auto !important;
+  height: var(--wama-dock-height, auto) !important; transform: none !important; z-index: 1030;
+}
+.grid-stack > .grid-stack-item.is-docked-top { top: 0 !important; bottom: auto !important; }
+.grid-stack > .grid-stack-item.is-docked-bottom { bottom: 0 !important; top: auto !important; }
+.grid-stack > .grid-stack-item.is-docked > .grid-stack-item-content {
+  inset: 0; border-radius: 0; box-shadow: 0 0 .75rem rgba(var(--wama-overlay-rgb), .25);
+}
+.wama-surface-page { padding-top: calc(.5rem + var(--wama-dock-top, 0px));
+  padding-bottom: calc(2rem + var(--wama-dock-bottom, 0px)); }
+.wama-brick-dock { margin-left: .15rem; }
+
 .wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
 .wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs, .wama-surface-panel .btn-xs {
   padding: .1rem .35rem; font-size: .75rem; line-height: 1.2; color: var(--wama-edit-brick-text);

@@ -82,6 +82,8 @@ GRID_COLUMNS = 12
 ZONES = ('grid', 'panel')
 #: Colonnes de la zone du volet.
 PANEL_COLUMNS = 1
+#: Les bords de la fenêtre où un panneau s'ÉPINGLE (2026-10-26) : il ne défile plus avec la page.
+DOCK_EDGES = ('top', 'bottom')
 #: Lignes au-delà desquelles une place gardée est refusée : une disposition postée reste une page.
 MAX_LAYOUT_ROWS = 400
 #: Plafond d'un texte édité sur une surface : un document qu'on relit et corrige, pas un flux.
@@ -514,7 +516,21 @@ def clean_layout(surface: Surface, payload) -> dict:
                 raise ValueError(f'place hors de sa zone : {slot_id}')
             slots[slot_id] = {'x': x, 'y': y, 'w': w, 'h': h, 'zone': zone}
         slots = slots or None
-    return {'slots': slots, 'frozen': payload.get('frozen') is True}
+    # Les panneaux ÉPINGLÉS (2026-10-26, demande de Fabien : « locker le transport en bas ou en
+    # haut de page pour qu'il ne défile pas ») : `{id: 'top' | 'bottom'}`, un réglage de LECTURE
+    # comme la disposition. Seuls les emplacements déclarés ; un bord inconnu est refusé.
+    docked = {}
+    raw_docked = payload.get('docked') or {}
+    if not isinstance(raw_docked, dict):
+        raise ValueError('épinglage illisible')
+    declared = {s.id for s in surface.slots}
+    for slot_id, edge in raw_docked.items():
+        if slot_id not in declared:
+            continue
+        if edge not in DOCK_EDGES:
+            raise ValueError(f'bord inconnu : {slot_id}')
+        docked[slot_id] = edge
+    return {'slots': slots, 'frozen': payload.get('frozen') is True, 'docked': docked}
 
 
 BRICKS: dict = {}
