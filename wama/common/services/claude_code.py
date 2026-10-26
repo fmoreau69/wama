@@ -126,12 +126,9 @@ def subscription_allowed(user) -> bool:
     exactement le cas que la règle « zéro duplication » vise, et une garde de sécurité
     qui dérive s'ouvre du côté qu'on a oublié de mettre à jour.
 
-    ⚠ DEUX VOCABULAIRES DE RÔLE COEXISTENT dans WAMA (mesuré le 2026-08-21) : les GROUPES
-    Django (`dev`, `admin` — ce que lit `is_dev()`) et les TIERS de profil (`developpeur`,
-    `admin` — ce que lit `permissions.BYPASS_TIERS`). Et un groupe `developpeur` existe
-    AUSSI en base, homonyme du tier mais invisible pour `is_dev()`. S'en remettre à un seul
-    vocabulaire produirait un refus incompréhensible pour un compte légitimement
-    développeur. On accepte donc les deux — et ce commentaire vit ici, pas en trois copies.
+    Le rôle du compte n'a plus qu'UNE source depuis le 2026-10-21 : le NIVEAU du profil, que
+    lit `permissions.is_developer` (les groupes Django `dev` / `admin` / `developpeur`, qui
+    faisaient coexister deux vocabulaires depuis le relevé du 2026-08-21, sont retirés).
     """
     # Délègue depuis le 2026-09-15 au prédicat DOMICILE (`accounts.permissions.is_developer`),
     # qui a un second consommateur (outils MCP de développement). L'extraction a corrigé la

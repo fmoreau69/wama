@@ -2,7 +2,7 @@
 
 *Vision, architecture et trajectoire — document de référence unique*
 
-**Août 2026**
+**Août 2026** — confronté au code le 2026-10-26
 
 > ---
 > ### 🧭 À propos de ce document
@@ -18,7 +18,8 @@
 > **Convention de lecture (discipline verbale)** : le **présent de l'indicatif décrit ce qui
 > existe** ; le futur et le conditionnel décrivent ce qui est visé. Chaque partie porte un
 > marquage d'état — **✅ acquis** · **🔄 en chantier** · **⏳ visé** · **📜 doctrine** (acté, pas du
-> code) — daté de la dernière confrontation au code (2026-08-27 pour cette édition). Le marquage
+> code) — daté de la dernière confrontation au code (2026-08-27 pour cette édition ; confrontation complète
+> reprise le 2026-10-26, chaque correction y porte sa date). Le marquage
 > de maturité `[ÉTAGÈRE]` (intégration d'outils existants) / `[INGÉNIERIE]` (construction
 > maîtrisée) / `[RECHERCHE]` (problème ouvert, axe de collaboration scientifique) qualifie les
 > ambitions.
@@ -64,8 +65,10 @@ développée dans un laboratoire de recherche en sciences cognitives appliquées
 (Université Gustave Eiffel). Née de besoins concrets — anonymisation RGPD de corpus vidéo,
 transcription d'entretiens, préparation de stimuli expérimentaux, analyse de comportements — elle
 est aujourd'hui **opérationnelle** : une douzaine d'applications en service (dix génériques, deux
-métier), accessibles depuis un navigateur, exécutées sur GPU en interne, sans qu'aucune donnée de
-recherche ne quitte l'établissement.
+métier), accessibles depuis un navigateur, exécutées sur GPU en interne. Chaque compte est **100 % local par défaut** : aucune donnée de
+recherche ne quitte l'établissement sans un choix explicite du profil (cloud souverain, puis
+commercial, plafonné — *précisé le 2026-10-26*, `accounts/models.py` `cloud_policy` /
+`cloud_hosting_max`).
 
 WAMA n'est pas un catalogue d'outils juxtaposés : c'est un environnement unifié où chaque
 application déclare ses capacités (entrées, sorties, paramètres, modèles) dans un format commun —
@@ -124,6 +127,10 @@ Corollaire : l'homogénéité est un objectif de design, pas un effet de bord. L
 retrouve partout les mêmes gestes (mêmes boutons, même volet droit, même file d'attente) ; les
 spécificités légitimes d'une application se **déclarent** (capacités, schémas) au lieu de se
 coder en dur.
+*Constaté le 2026-10-26* : l'apparence elle-même se déclare — thèmes déclarés (`common/themes.py` :
+sombre, clair, chartes UGE et La Suite, thème personnel ou tiré d'une charte graphique en PDF),
+plus aucune couleur écrite en dur (2026-10-18/20) ; et les mêmes gestes valent au doigt (brique
+commune de gestes, tablette — ROADMAP §27).
 
 ## 1.3 L'IA est dans la chaîne, pas à côté 📜
 
@@ -152,7 +159,9 @@ WAMA fait de ce constat un principe d'architecture, porté par des mécanismes c
   sans produire ;
 - **la mutualisation du matériel** — une infrastructure commune à bon taux de charge plutôt que
   des stations individuelles sous-utilisées ; les traitements massifs regroupés en lots et
-  planifiés hors des pics (🔄 files batch en place, planification heures creuses ⏳) ;
+  planifiés hors des pics (🔄 files batch en place ; ✅ *2026-09-28* : une card, une sélection ou un
+  lot se programme, et une tâche longue part d'elle-même dans les heures creuses mesurées sur
+  l'activité réelle — `common/services/scheduled_actions.py`) ;
 - **la mesure comme condition du pilotage** — suivi de la consommation par utilisateur et par
   application (🔄 statistiques d'exécution par modèle en place ; rapport de sobriété ⏳) ;
 - **la proximité des données** — les corpus volumineux sont traités sur le réseau local : aucun
@@ -170,7 +179,9 @@ d'abstraction vaut pour l'USAGE, jamais pour la PREUVE. **L'orchestration choisi
 modèle, mais chaque exécution journalise modèle, version, paramètres et données d'entrée**, et
 tout résultat doit pouvoir être restitué en « fiche de méthode » citable — un matériel et
 méthodes prêt pour publication. Les germes existent (états de run du Studio, statistiques
-d'exécution par modèle, `extra_info` des items) ; l'érection en garantie exportable de premier
+d'exécution par modèle, `extra_info` des items — enrichis depuis : provenance de l'entrée de chaque
+card, empreinte comprise, `InputProvenance`, 2026-09-11 ; réglages de tirage communs — température,
+graine, top_p — déclarés par moteur, 2026-10-22) ; l'érection en garantie exportable de premier
 rang est en chantier. Pour une plateforme de recherche, c'est la provenance qui est l'objet
 scientifique — l'abstraction devient un argument au lieu d'une contradiction.
 
@@ -188,7 +199,7 @@ scientifique — l'abstraction devient un argument au lieu d'une contradiction.
 | Monde | Contenu | Entrées/sorties | État (2026-08-27) |
 |---|---|---|---|
 | **Médias** | les applications génériques de traitement de médias | média → média | ✅ dix apps en service |
-| **Data** | le moteur de données scientifiques (`wama_data/`) : référentiel temporel, lecteurs, fonctions typées, sessions | données → tri/traitement → données | 🔄 socle réel (moteur sans UI) |
+| **Data** | le moteur de données scientifiques (`wama_data/`) : référentiel temporel, lecteurs, fonctions typées, sessions | données → tri/traitement → données | 🔄 socle réel (moteur sans UI ; premières entrées/sorties Data au Studio, 2026-10-11) |
 | **Lab** | les applications métier de recherche (`wama_lab/`) | domaine-spécifique | 🔄 Cam Analyzer avancé, Face Analyzer embryon |
 | **Transversal** | le substrat commun : assistant IA, model manager, mémoire/RAG, pipeline de prompts, Studio, médiathèque, comptes | services partagés | 🔄 riche et vivant |
 
@@ -243,7 +254,10 @@ L'accès réutilise le modèle de profils et permissions existant, sur trois axe
 Cet arbre (`OrgUnit`, ✅ livré, alimenté par LDAP/SUPANN au login) est **la colonne vertébrale
 partagée de trois usages — un seul modèle, ne jamais dupliquer** : (a) l'héritage de la mémoire
 et du RAG ; (b) les **scopes de partage** (« avec mon équipe / mon labo / mon université », mixin
-`ScopedVisibility` appliqué à la médiathèque, aux fonctions utilisateur et à la mémoire) ; (c) le
+`ScopedVisibility` appliqué à la médiathèque, aux fonctions utilisateur et à la mémoire — et, au
+relevé du 2026-10-26, aux cards et lots des dix apps, aux pipelines du Studio, aux modèles, skills
+et thèmes ; 🔄 chantier PROVENANCE, ROADMAP §29, ouvert le 2026-10-18 : tout élément est
+« Système » ou a un auteur et une portée, une promotion se valide par un administrateur) ; (c) le
 gating d'accès. S'y ajoute la couche **Projet** (✅), transverse à l'arbre : un projet traverse
 les organisations (partenaires d'autres laboratoires ou universités) et constitue un quatrième
 scope de visibilité. L'accès à un MONDE est un gate grossier au-dessus des rôles par app
@@ -269,8 +283,11 @@ catalogues en dérivent (`WAMA_APP_GENERATION_ROUTE.md §10.6` point 6.1). 🔄 
 2026-10-02** pour les dix apps du catalogue (`world` dans `APP_CATALOG`, accesseur
 `app_registry.app_world()`) : la déduction par le groupe de la matrice d'accès est retirée, et
 transcriber, reader, describer et converter, qu'elle rangeait `data` ou `transverse`, sont en
-`media` dans `manifests/apps/`. ⏳ Restent les surfaces hors catalogue, le monde des fonctions et
-les surfaces dérivées (même point 6.1). La piste `origine`/`portee` ci-dessus reste une
+`media` dans `manifests/apps/`. ✅ *Même jour* : les surfaces hors catalogue (Lab, Studio,
+médiathèque, model manager) se déclarent par `register_surface(…, world=…)`, et le monde d'une
+fonction se dérive de l'app qui la porte (`manifests/builtin/function.py` `_spec_world`) —
+*constaté le 2026-10-26*. ⏳ Restent les surfaces dérivées (menu, accueil et `/apps/` groupés par
+monde — même point 6.1) et le gate d'accès par monde. La piste `origine`/`portee` ci-dessus reste une
 proposition non actée.
 
 ---
@@ -313,7 +330,9 @@ Deux mécanismes récents (2026-08) étendent le contrat au **corps des modèles
 WAMA traite les modèles comme des ressources dynamiques : catalogue unique (`AIModel`),
 découverte, installation depuis spec (variantes quantisées choisies AVANT install et persistées),
 désinstallation, sélection VRAM-aware et par tiers, singleton `keep_loaded`, statistiques
-d'exécution, ETA auto-apprenant, sauvegarde miroir. L'objectif n'est pas d'exécuter un modèle,
+d'exécution, ETA auto-apprenant, sauvegarde miroir — et un gouverneur de ressources qui sait ce qui tourne,
+demande la libération à son détenteur et ne l'obtient que par accord explicite (2026-09-20), au
+grain du process (2026-10-14). L'objectif n'est pas d'exécuter un modèle,
 mais de **gérer un écosystème de modèles actifs** sur un budget de VRAM contraint.
 
 ## 3.4 Veille et prospection : des rôles LLM gouvernés 🔄
@@ -322,14 +341,15 @@ La chaîne de prospection est opérationnelle : découverte de modèles candidat
 d'évaluation → jugement (VRAM, licence, intérêt par application) → installation ou rejet motivé.
 Elle est **gouvernée** : passes LLM déclenchées explicitement, jamais en tâche de fond
 silencieuse ; l'humain valide. Elle se structure en **rôles** spécialisés (bibliothécaire pour
-les manifestes de librairies ; éclaireur et intégrateur pour la prospection — premiers runs en
-cours au 2026-08-27). Deux issues par candidat : **intégration directe** (le modèle améliore une
+les manifestes de librairies ; éclaireur et intégrateur pour la prospection — premiers runs au
+2026-08-27 ; première intégration complète par la chaîne des rôles, YuE2, le 2026-10-01 ; une
+librairie se désinstalle aussi par la route depuis le 2026-10-26). Deux issues par candidat : **intégration directe** (le modèle améliore une
 capacité existante — manifeste, configuration, tests) ou **nouvelle capacité** (le modèle ouvre
 un domaine — proposition d'application, gatée comme ci-dessous).
 
 Réf. : `wama/model_manager/PROSPECTION_PIPELINE.md`.
 
-## 3.5 Auto-instanciation d'applications ⏳ `[RECHERCHE→INGÉNIERIE]` — gatée
+## 3.5 Auto-instanciation d'applications ⏳→🔄 `[RECHERCHE→INGÉNIERIE]` — gatée
 
 Le manifeste permet à terme l'instanciation automatique d'applications généralistes : un nouveau
 modèle apparaît, WAMA analyse ses capacités, crée ou complète son manifeste, l'intègre comme
@@ -339,6 +359,11 @@ exécutable → scaffold EN DERNIER, toujours avec revue humaine. L'écart mesur
 analyse un dépôt » et un résultat fiable (campagnes d'audit locales : affirmations d'absence
 fausses dans 4 rapports sur 6) justifie ce gating : on ne promet pas une trajectoire naturelle,
 on décrit un pari dont chaque maillon doit être validé.
+
+🔄 *Constaté le 2026-10-26* : les premières apps sont NÉES d'un manifeste au bac à sable
+(`app_sandbox create --from-manifest`) — Writer (2026-10-01), Translator (2026-10-16, brouillon
+produit par le rôle `app` de wama-dev-ai), deux jumelles entièrement régénérées (2026-10-20) —,
+privées à leur auteur, revues par un humain, jamais promues d'office.
 
 ---
 
@@ -359,7 +384,11 @@ les files (un moteur, une ligne par process), pas propre au Studio.
 d'outils, suivi par nœud, cards d'entrée/sortie reliées à la médiathèque) sont livrés ;
 ~~la couverture des runners par application est partielle~~ (corrigé le 2026-09-15 : les 10 apps
 génériques passent par le runner générique, et les fonctions du catalogue sont des nœuds exécutables
-depuis le 2026-09-09) ; le batch orchestré et le fan-out parallèle restent à faire.
+depuis le 2026-09-09) ; ~~le batch orchestré et le fan-out parallèle restent à faire~~ ✅ *le lot
+orchestré est livré le 2026-10-20* (plusieurs fichiers ou un fichier de lot → le pipeline tourne
+une fois par élément, cards rangées en un lot, ZIP du run — `studio/tasks.py` `_execute_lot`),
+avec les cards d'entrée médias et les lignes d'exécution communes (`ProcessRun`, 2026-10-03) ;
+⏳ reste le fan-out **parallèle** (les éléments s'exécutent l'un après l'autre).
 
 ## 4.2 Le graphe de capacités ✅🔄
 
@@ -369,7 +398,8 @@ une analyse scientifique, un traitement data, une source de données — et un *
 dérivés des déclarations du catalogue (pas d'adaptateurs écrits à la main côté Studio — c'est le
 **contrat uniforme** : quand une app ne s'y conforme pas, on finit le port de l'app, on n'écrit
 pas d'adaptateur). Les types scientifiques (DataFrame, signaux, embeddings) rejoindront le typage
-avec la connexion du monde Data — la règle de compatibilité entre un port `audio` (média) et un
+avec la connexion du monde Data (*2026-10-26* : `timeseries` et `signal` sont déjà dans la
+taxonomie, `common/catalog/data_types.py`) — la règle de compatibilité entre un port `audio` (média) et un
 port `signal` (data) est une décision à trancher explicitement, pas en silence (cf. §2.4).
 
 ---
@@ -380,7 +410,7 @@ Un modèle n'a de valeur opérationnelle que dans un environnement qui lui fourn
 les bonnes connaissances et les bonnes interfaces. WAMA intègre ces couches une fois, pour toutes
 les applications.
 
-## 5.1 Rôle et skills : deux niveaux d'enrichissement ✅ (skills) ⏳ (rôles organisationnels)
+## 5.1 Rôle et skills : deux niveaux d'enrichissement ✅ (skills, rôles de l'assistant) ⏳ (skills institutionnels)
 
 - **Rôle** — identité macro, stable : définit *qui répond* (assistant recherche, assistant
   développement…). Un seul rôle actif à la fois.
@@ -390,6 +420,10 @@ les applications.
 Les skills de prompt par application sont livrés (résolution par app et domaine, endpoint commun
 ✨). Les familles visées restent : skills spécialisés modèle, skills domaine, skills développeur,
 skills institutionnels (couplés au RAG organisationnel, ⏳), skills utilisateur.
+*Constaté le 2026-10-26* : ✅ les rôles de l'assistant existent — cinq domaines déclarés
+(général, scientifique, graphisme, développement, investigation), un seul actif à la fois
+(`common/utils/assistant_skills.py`, 2026-08-21) ; 🔄 un skill utilisateur a un auteur et une
+portée, et se promeut par un administrateur (2026-10-20).
 
 ## 5.2 La chaîne unifiée du prompt au modèle ✅ (socle) 🔄 (RAG branché, QC)
 
@@ -397,8 +431,12 @@ skills institutionnels (couplés au RAG organisationnel, ⏳), skills utilisateu
 
 Le socle est opérationnel (`process_prompt` : traduction → skill → enrichissement → émission,
 transparence en console). Les champs-prompt se **déclarent** dans les métadonnées d'application ;
-la traduction et l'enrichissement ne se patchent jamais par app. Restent à câbler le branchement
-mémoire/RAG dans l'étape d'enrichissement et le contrôle qualité post-génération.
+la traduction et l'enrichissement ne se patchent jamais par app. ~~Restent à câbler le branchement
+mémoire/RAG dans l'étape d'enrichissement~~ *Corrigé le 2026-10-26* : le branchement RAG existe
+(Hook B, opt-in `rag=True`, `prompt_pipeline.py`, 2026-08-21) et sert les domaines de l'assistant
+qui le déclarent ; aucune app ne l'active encore. Le contrôle qualité post-génération a son premier
+germe : des mesures sans référence, déclarées par process (`result_evaluation.register_check`,
+2026-10-22).
 
 Réf. : `WAMA_LLM.md` (document de référence de toute la couche LLM).
 
@@ -414,7 +452,7 @@ câble la **langue**, jamais la **traduction** en dur.
 
 La difficulté d'une traduction ou d'une analyse de document n'est pas linguistique mais
 structurelle : texte courant, figures, images contenant du texte. WAMA vise une brique commune —
-un **parseur structurel de document** partagé (Describer, futur Translator, toute app manipulant
+un **parseur structurel de document** partagé (Describer, Translator — né au bac à sable le 2026-10-16 —, toute app manipulant
 des documents composites) : `document → parseur (texte / figures / images-texte) → traitement
 ciblé → réassemblage, mise en page conservée`. Le texte intégré aux images suit OCR → traduction
 → réinsertion.
@@ -435,6 +473,10 @@ utile — livré ; (2) **mesure d'usage réelle** ; (3) extension aux niveaux é
 **si et seulement si** la valeur du niveau de base est démontrée. La hiérarchie de gouvernance
 est une conséquence de l'usage, pas un préalable d'architecture.
 
+*Constaté le 2026-10-26* : un service de vectorisation commun, un espace par nature de média
+(2026-10-20), un embedder passé à `qwen3-embedding:4b` avec réindexation complète (2026-10-19), un
+lot nocturne et un bouton « Vectoriser maintenant » (2026-10-16).
+
 ## 5.6 Adaptateurs de modèle : compilation de format ✅🔄
 
 À ne pas confondre avec la traduction linguistique : certains modèles imposent un schéma de
@@ -442,13 +484,15 @@ requête strict (une liste d'objets pour un modèle de segmentation, pas des phr
 adaptation est une **compilation déterministe** exécutée juste avant l'appel — la séparer du
 raisonnement du LLM évite de polluer son contexte avec du formatage.
 
-## 5.7 L'assistant IA comme interface de l'écosystème ✅ (socle) ⏳ (boucle agentique riche)
+## 5.7 L'assistant IA comme interface de l'écosystème ✅ (socle) 🔄 (boucle agentique riche)
 
 L'assistant n'est pas le cœur du système : c'est une **interface naturelle** vers les capacités
 existantes. Chaque application expose ses actions via l'API d'outils commune (une cinquantaine
-d'outils au 2026-08-27 — source : `wama/tool_api.py`) : comprendre une demande, trouver
+d'outils au 2026-08-27, **86** au 2026-10-26 — source : `wama/tool_api.py`, `TOOL_REGISTRY`) : comprendre une demande, trouver
 l'application, construire le traitement, le lancer, synthétiser. C'est le même pivot que le
-Studio utilise pour exécuter ses nœuds — **un cerveau, N surfaces**.
+Studio utilise pour exécuter ses nœuds — **un cerveau, N surfaces**. *(2026-10-26 : la boucle
+enchaîne jusqu'à huit appels d'outils par tour, `assistant_engine.MAX_TOOL_ITERATIONS`, avec
+investigation web, lecture d'images et retour des tâches terminées dans le fil.)*
 
 **N cerveaux, les mêmes outils ✅ (2026-10-23).** Le modèle qui converse se choisit — local,
 cloud souverain (Albert, ILaaS), cloud commercial (OpenRouter, Anthropic, l'abonnement Claude
@@ -485,14 +529,18 @@ composable au Studio.
 L'objectif n'est jamais « générer une image » mais une **création contrôlée et reproductible** :
 références, contraintes, provenance conservée. Cohérence de personnages inter-scènes et direction
 artistique persistante : entre `[INGÉNIERIE]` et `[RECHERCHE]` — prototyper avant de promettre.
+*(2026-10-26 : image → objet 3D écrit, non exécuté, 2026-09-13 ; l'avatar 3D de l'assistant est en
+médiathèque, 2026-10-21.)*
 
-## 6.2 Médiathèque créative ✅ (socle) ⏳ (sémantique)
+## 6.2 Médiathèque créative ✅ (socle) 🔄 (sémantique)
 
 La médiathèque gère les actifs partagés (voix, images, documents), l'apport Creative Commons
 (fournisseurs libres intégrés), licence et origine portées par chaque média, la promotion par
 scope (privé / unité / projet / public). Un média n'est pas un fichier : c'est un objet porteur
 de son auteur, sa licence, son origine, ses tags — et à terme son embedding et ses relations
-(recherche sémantique : avec l'extension du RAG).
+(recherche sémantique : avec l'extension du RAG). 🔄 *Constaté le 2026-10-26* : la recherche par
+le contenu des images existe dans les files des apps (espace `media`, `MediaVector`, 2026-10-20) ;
+la médiathèque ne l'emploie pas encore.
 
 ## 6.3 La chaîne narrative : Story Director, storyboard, montage ⏳ — gatée
 
@@ -527,12 +575,15 @@ Analyse faciale en vidéo expérimentale : expressions, indicateurs physiologiqu
 oculométriques, variables comportementales croisables avec les autres données. L'application
 existe hors catalogue ; son intégration UI/file suit le standard des apps génériques.
 
-## 7.3 Vers le Studio ⏳
+## 7.3 Vers le Studio ⏳→🔄
 
 L'objectif n'est pas de posséder une application spécialisée mais de rendre ses capacités
 accessibles : `nouvelle campagne vidéo → Cam Analyzer → extraction d'événements → analyse Data →
 rapport automatique`, pipeline reproductible. Règle actée : **contrat uniforme** — jamais
 d'adaptateurs côté Studio ; on finit le port de l'app.
+🔄 *2026-09-29* : les passes du Cam Analyzer sont des pipelines déclarés (`manifests/pipelines/`),
+ouverts au Studio en diagramme, et elles écrivent les lignes d'exécution communes (2026-10-04) ;
+⏳ leur exécution depuis le Studio attend le type de nœud pipeline.
 
 ---
 
@@ -558,19 +609,22 @@ entrant dans `APP_CATALOG`, ROUTE §10.6 point 6.3.)*
 
 Principe de manifeste : **il déclare ce que le corpus EST, jamais ce qu'une analyse en fera.**
 
-## 8.2 Le plan d'expérience comme donnée de première classe 📜
+## 8.2 Le plan d'expérience comme donnée de première classe 📜 ✅ (formalisme)
 
 Un corpus de recherche n'est pas un tas de fichiers : il porte un **plan** — unités
 d'observation, regroupements comparés, conditions manipulées et croisées, covariables. Cette
 structure est aujourd'hui encodée dans des arborescences de dossiers qui changent d'une
 expérimentation à l'autre. WAMA modélise **le plan, pas l'arborescence** : un vocabulaire de
-rôles fermé (unité, regroupement, facteur, covariable) à libellés ouverts, avec nidification et
-croisement déclarés. C'est ce qui rend la taxonomie universelle — les mêmes quatre rôles
+rôles fermé — `observation` (le grain), `factor`, `attribute` (critère SDMX) — à libellés ouverts,
+avec nidification et croisement déclarés. C'est ce qui rend la taxonomie universelle — les mêmes trois rôles
 décrivent une passation de conduite, une série d'essais mécaniques ou une campagne de comptage —
 et ce qui permet à la couche statistique de **proposer le traitement licite** au lieu de le
 demander. L'exploration assistée par IA d'une arborescence mal rangée reste un accélérateur,
 jamais un passage obligé — et quand une IA propose un plan, elle propose une **structure
 vérifiable mécaniquement** : la contre-épreuve est le corpus lui-même, pas un second avis.
+*(Corrigé le 2026-10-26 : le plan est dans le kind `dataset` depuis le 2026-08-26,
+`manifests/builtin/dataset.py` `AXIS_ROLES` ; covariable et bloc ont été écartés — ils nomment un
+rôle dans un modèle statistique, pas un fait de corpus.)*
 
 ## 8.3 Data Comprehender : comprendre avant d'exploiter ⏳
 
@@ -646,14 +700,16 @@ et traçabilité des accès (✅ LDAP, journal d'accès, modération de premièr
 partie se présente comme une **offre de service** avec coût d'exploitation et engagements, pas
 comme une extension logicielle.
 
-## 9.2 Médiathèque institutionnelle intelligente ⏳ (socle ✅)
+## 9.2 Médiathèque institutionnelle intelligente ⏳ (socle ✅, premier maillon sémantique 🔄)
 
 L'objectif est double : une infrastructure interne maîtrisant la gestion des ressources
 numériques (photographies, vidéos, supports pédagogiques, captations, médias de communication —
 souvent dispersés et sous-exploités), et sa transformation en base de connaissances multimédia :
 `dépôt → analyse IA → métadonnées automatiques → indexation → recherche par le sens`. Le socle
 existe (médiathèque, scopes, providers) ; l'analyse automatique à l'ingestion et l'indexation
-sémantique suivent l'extension du RAG.
+sémantique suivent l'extension du RAG. *(2026-10-26 : le service de vectorisation commun et son
+espace `media` texte + image existent et servent les files ; l'indexation à l'ingestion de la
+médiathèque reste ⏳.)*
 
 ## 9.3 Système d'information laboratoire et réunions basées sur les faits ⏳
 
@@ -673,6 +729,8 @@ discussion devient moins basée sur la reconstruction du passé, davantage sur l
 Import batch unifié multi-formats, file d'attente commune, suivi par lot (total auto-réparé,
 progression, ETA). Visé : le batch **orchestré** depuis le Studio
 (`1000 vidéos → Cam Analyzer → extraction d'événements → analyse → rapport`).
+✅ *2026-10-20* : un lot lancé depuis le Studio exécute le pipeline une fois par élément ; un lot se
+programme, heures creuses comprises (2026-09-28) ; ⏳ exécution parallèle des éléments.
 *Précisé le 2026-09-15 → ROUTE §10.6* : un lot = **N instances du même pipeline** sur des entrées
 différentes, lançable depuis n'importe quelle file (le Studio compose le pipeline, il n'est pas le
 seul lieu d'où le lancer).
@@ -681,7 +739,7 @@ seul lieu d'où le lancer).
 
 WAMA participe à sa propre maintenance : tests nocturnes gouvernés par un registre (runner
 VRAM-aware), patches de compatibilité systématisés et rejouables, contrôles mécaniques des docs
-et des gabarits, grille de conformité **mesurée** (82 critères sur 8 facettes au 2026-08-26,
+et des gabarits, grille de conformité **mesurée** (82 critères au 2026-08-26, **112** sur 8 facettes au 2026-10-26,
 rapport écrit par la commande — les booléens déclarés sont écrasés par la mesure).
 
 Doctrine de vérification (`WAMA_VERIFICATION.md`) : **un critère de grille atteste une ADOPTION,
@@ -690,7 +748,7 @@ prouvent qu'une chaîne marche. Le catalogue des gestes et leur couverture sont 
 couverture progresse geste par geste. Corollaire pour les audits assistés par LLM : les
 affirmations d'absence se revérifient toujours mécaniquement.
 
-## 10.3 Veille, prospection et évaluation continue 🔄 (chaîne) ⏳ (évaluation)
+## 10.3 Veille, prospection et évaluation continue 🔄 (chaîne) 🔄 (évaluation)
 
 La chaîne de veille est décrite en §3.4. Son maillon manquant est l'**évaluation continue** en
 couche de premier rang : « modèles interchangeables » n'est vrai que si l'on sait **mesurer** un
@@ -698,6 +756,9 @@ remplacement. Exigences : chaque capacité déclarée référence son jeu de tes
 laboratoire) et ses métriques ; la veille ne propose un remplacement qu'avec un **delta mesuré**
 sur ces jeux — jamais sur la seule réputation du modèle ; les tests nocturnes tirent ces jeux.
 Sans cette couche, l'interchangeabilité est un slogan.
+🔄 *Constaté le 2026-10-26* : la mesure contre une référence existe (brique `result_evaluation`,
+déclarée par app — le transcriber d'abord, banc ASR sur corpus réels, 2026-09-29) ; ⏳ restent le
+jeu de test par capacité déclarée et le delta mesuré exigé par la veille.
 
 ---
 
@@ -738,7 +799,8 @@ mais cantonnés à la génération), les développements ad hoc de laboratoire (
 jetables). La combinaison portée par WAMA — registre de capacités structuré + gestion partagée
 des ressources GPU + applications métier exécutables dans le même environnement — n'existe, à
 notre connaissance, dans aucun système disponible. S'y ajoutent trois garanties
-institutionnelles : souveraineté (hébergement interne intégral), ouverture (open source,
+institutionnelles : souveraineté (hébergement interne par défaut ; cloud souverain puis commercial seulement par choix
+explicite du profil, plafonné — précisé le 2026-10-26), ouverture (open source,
 auditabilité), gouvernance des accès (profils, quotas, journalisation).
 
 `Modèles IA → capacités → applications → Studio → données → connaissances → découverte scientifique`
@@ -749,7 +811,7 @@ auditabilité), gouvernance des accès (profils, quotas, journalisation).
 
 # Partie 12 — Interconnexion conversationnelle et routage des modèles
 
-## 12.1 Routage des modèles ✅ (socle) ⏳ (politique complète)
+## 12.1 Routage des modèles ✅ (socle) 🔄 (politique complète)
 
 Une couche d'abstraction (LiteLLM, ✅ câblée, routage local-d'abord vers Ollama) unifie modèles
 locaux et cloud. La politique de sélection croise besoin, confidentialité, coût et ressources :
@@ -758,17 +820,27 @@ l'autorise ; traitement massif → local optimisé. La **porte de confidentialit
 (détection et masquage d'informations personnelles avant tout envoi externe) est décidée et non
 construite — elle est le prérequis du routage cloud sûr.
 
+🔄 *Constaté le 2026-10-26* : la politique côté utilisateur est en place — 100 % local par défaut,
+puis « cloud si saturé » ou « cloud autorisé », plafond d'hébergement (souverain par défaut : Albert,
+ILaaS ; commercial : OpenRouter, Anthropic), modèle facturé jamais tiré d'office
+(`accounts/models.py`, refus commun `cloud_models.cloud_refusal`). ⚠ La porte de confidentialité
+avant-cloud reste NON construite dans le code versionné : le routage cloud existe donc sans elle,
+sous le seul consentement du profil.
+
 ## 12.2 Priorité aux solutions ouvertes ✅
 
 Appliqué de fait : modèles locaux d'abord, actifs front vendorés (pas de CDN), hébergement
 interne. Les plateformes externes restent utilisables lorsque c'est pertinent — un choix
 contrôlé, pas une dépendance.
 
-## 12.3 L'assistant dans les environnements de travail ⏳ — gaté par le modèle de menace 📜
+## 12.3 L'assistant dans les environnements de travail 🔄 — gaté par le modèle de menace 📜
 
 L'objectif : interagir avec WAMA depuis les canaux existants (messageries collaboratives,
-institutionnelles — Tchap/Matrix, Discord…) plutôt que d'exiger une nouvelle habitude. Aucun
-connecteur n'existe. **Prérequis avant tout connecteur** : identité forte par canal (liaison
+institutionnelles — Tchap/Matrix, Discord…) plutôt que d'exiger une nouvelle habitude. ~~Aucun
+connecteur n'existe.~~ *Corrigé le 2026-10-26* : un connecteur existe — Discord, en service depuis
+le 2026-08-22 (ROADMAP §19), sur un cœur sans protocole prêt pour Tchap/Matrix (⏳) ; tenus :
+identité forte par appariement (`gateway.ChannelLink`), droits = ceux du compte (`execute_tool`),
+journal des outils exécutés par tour ; ⏳ quotas par canal. **Prérequis avant tout connecteur** : identité forte par canal (liaison
 compte WAMA ↔ compte messagerie, pas de commande anonyme) ; allowlist d'actions par rôle — le
 canal n'obtient jamais plus de droits que l'utilisateur authentifié ; confirmation explicite pour
 toute action destructive, coûteuse en GPU ou touchant aux données d'autrui ; résistance à
@@ -807,6 +879,8 @@ par l'histoire du projet : la dispersion. Règles d'engagement :
    attend en plus ses garde-fous méthodologiques (§8.4).
 
 Toute exception à ces règles est une décision explicite, consignée — pas une dérive.
+*Exception consignée* : la règle 5 a été levée par arbitrage du 2026-08-20 (ROADMAP §19) — le
+connecteur Discord est en service depuis le 2026-08-22.
 
 ## 13.2 Parcours d'adoption : le point de vue du chercheur 📜
 
@@ -818,6 +892,9 @@ chercheur non-technicien. Engagements de conception :
 - **Pente douce** : du dépôt simple → aux paramètres → aux batchs → au Studio. Chaque marche est
   optionnelle ; personne n'a besoin du canvas pour bénéficier de WAMA.
 - **Rencontrer les usagers là où ils sont** plutôt que d'exiger une nouvelle habitude.
+  *(2026-10-26 : Discord, la tablette, les thèmes, l'abonnement Claude Code qui voit les outils de
+  WAMA par MCP ; et des scènes 3D — utilisateurs, licences, modèles — pilotables au doigt ou à la
+  webcam, `common/scenes.py`, `WAMA_SCENES_3D.md`.)*
 - Chaque capacité livrée doit répondre : *« qu'est-ce que ça change pour un collègue qui
   n'ouvrira jamais le Studio ? »*
 
