@@ -112,7 +112,8 @@ def get_sam3_status() -> Dict:
         'version': None,
         'error': None,
         'gated': '',
-        'access_url': f'https://huggingface.co/{SAM3_HF_REPO}',
+        # La fiche du dépôt, lue au registre des sources (2026-10-22) — plus écrite ici.
+        'access_url': _repo_page(),
         'profile_url': '',
     }
     try:
@@ -204,8 +205,15 @@ def get_sam3_requirements() -> Dict:
             "depuis le gestionnaire de modèles",
         ],
         'hf_model_repo': SAM3_HF_REPO,
-        'hf_access_request_url': f'https://huggingface.co/{SAM3_HF_REPO}',
+        'hf_access_request_url': _repo_page(),
     }
+
+
+def _repo_page() -> str:
+    """La fiche du dépôt SAM3 sur le Hub, DÉRIVÉE de la fiche que la plateforme déclare au
+    registre des sources (`external_sources.model_page_url`) — l'adresse ne s'écrit qu'une fois."""
+    from wama.common.external_sources import model_page_url
+    return model_page_url(f'huggingface:{SAM3_HF_REPO}') or ''
 
 
 def ensure_sam3_models_dir() -> str:

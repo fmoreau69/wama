@@ -1134,12 +1134,15 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // Le badge de source d'une card : le nom de la source ; pour un modèle DISTANT, son ORIGINE
-    // (`AIModel.origin_label`, la phrase des sélecteurs : hébergement · fournisseur · coût) — le
-    // coût du MODÈLE, qui peut s'écarter de celui de sa source (les gratuits d'OpenRouter).
-    function sourceBadge(model) {
-        if (model.execution === 'cloud' && model.origin) return model.origin;
-        return model.source_label || model.source;
+    // Ce qu'une card dit de sa SOURCE : un modèle local, le nom de sa source en badge ; un modèle
+    // DISTANT, son ORIGINE sur une ligne à elle (`AIModel.origin_label`, la phrase des sélecteurs :
+    // hébergement · fournisseur · coût — le coût du MODÈLE, qui peut s'écarter de celui de sa
+    // source, les gratuits d'OpenRouter). Dans le badge d'en-tête, la phrase s'écrasait sur quatre
+    // lignes et chassait le badge « Distant » hors de la card (vu au navigateur, 2026-10-22).
+    function cardSource(model) {
+        const remote = model.execution === 'cloud' && !!model.origin;
+        return {badge: remote ? '' : (model.source_label || model.source || ''),
+                origin: remote ? model.origin : ''};
     }
 
     function renderModels(models) {
@@ -1184,7 +1187,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <input type="checkbox" class="form-check-input model-checkbox me-2 model-select-cb"
                                    data-model-id="${model.id}" ${selectedModels.has(model.id) ? 'checked' : ''}>
                             <span class="type-badge type-${model.type} me-1">${model.type}</span>
-                            <span class="source-badge">${WamaApp.escapeHtml(sourceBadge(model))}</span>
+                            ${cardSource(model).badge ? `<span class="source-badge">${WamaApp.escapeHtml(cardSource(model).badge)}</span>` : ''}
                         </div>
                         ${model.is_proposed ?
                             `<span class="badge" style="background:var(--bs-purple)"><i class="fas fa-wand-magic-sparkles fa-xs me-1"></i>${model.proposal_kind === 'update' ? 'MAJ proposée' : 'Nouveau'}</span>` :
@@ -1201,6 +1204,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     <h6 class="model-name mb-1">${model.name}</h6>
                     <p class="model-desc mb-2">${truncate(model.description, 60)}</p>
+                    ${cardSource(model).origin ? `<div class="model-meta mb-2" data-card-origin><i class="fas fa-cloud me-1"></i>${WamaApp.escapeHtml(cardSource(model).origin)}</div>` : ''}
 
                     ${model.is_proposed ? `
                     <!-- Candidat proposé : confiance + complexité + remplacement + actions -->

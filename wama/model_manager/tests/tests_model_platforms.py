@@ -63,6 +63,46 @@ class DeclaredPlatformsTest(SimpleTestCase):
         self.assertIn('inconnue', errors[0])
 
 
+class NoPageAddressByHandTest(SimpleTestCase):
+    """L'adresse d'une fiche de modèle se lit au registre (`model_page_url`) : nul ne l'écrit en dur
+    ailleurs. Trois recopies relevées à la revérification du 2026-10-22 (`sam3_manager` ×2, la
+    prospection du Hub) — le motif cherché est un GABARIT, une f-string qui complète l'adresse
+    d'une plateforme par un identifiant."""
+
+    PATTERN = r"""f['"]https://(huggingface\.co|github\.com|ollama\.com/library|universe\.roboflow\.com)/\{"""
+
+    def test_no_python_file_builds_a_platform_page_by_hand(self):
+        import re
+        from pathlib import Path
+
+        from django.conf import settings
+
+        from wama.common.sandbox import LABEL_RE
+        pattern = re.compile(self.PATTERN)
+        base = Path(settings.BASE_DIR)
+        found = []
+        for root in ('wama', 'wama_lab', 'wama_data'):
+            for path in (base / root).rglob('*.py'):
+                rel = path.relative_to(base).as_posix()
+                # Une jumelle du bac à sable (`wama/<app>_NN/`, gitignorée) est une COPIE générée
+                # de sa source, déjà balayée — même exclusion que `check_identifier_language`.
+                if LABEL_RE.match(path.relative_to(base / root).parts[0]):
+                    continue
+                if ('/tests' in rel or '/migrations/' in rel or '/vendor/' in rel
+                        or rel.endswith('common/external_sources.py')):
+                    continue
+                for n, line in enumerate(path.read_text(encoding='utf-8', errors='replace')
+                                         .splitlines(), 1):
+                    if pattern.search(line):
+                        found.append(f'{rel}:{n}')
+        self.assertEqual([], found)
+
+    def test_the_pattern_sees_a_hand_written_page(self):
+        import re
+        self.assertTrue(re.search(self.PATTERN, "url = f'https://huggingface.co/{repo}'"))
+        self.assertFalse(re.search(self.PATTERN, "model_page_url(f'huggingface:{repo}')"))
+
+
 class YoloCandidatePlatformTest(TestCase):
 
     def test_a_yolo_candidate_carries_the_identity_its_installation_will_set(self):

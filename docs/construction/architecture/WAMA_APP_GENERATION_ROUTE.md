@@ -6555,6 +6555,17 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >     plateforme de ses poids (`github`), plus `yolo`, clé hors du vocabulaire.
 >   Gardes : `tests_source_identity.SourceVocabularyTest`, `tests_identity_route` ; contre-épreuves
 >   par mutation, toutes rouges (`REMOVAL_LEDGER` R176).
+>   🔎 **Revérification du même jour (`/reverif`), quatre recopies de plus, ramenées** — par la
+>   question « qui déclare DÉJÀ cette donnée ? » : l'adresse d'une fiche du Hub écrite en dur trois
+>   fois (`sam3_manager` ×2, la prospection du Hub) → `model_page_url` ; la dérivation
+>   `hf_id`/clé `ollama:` → `platform_ref` écrite dans `backfill_platform_refs` ET dans `AIModel`
+>   → UNE règle, `AIModel.platform_refs()`, qui appelle `provenance.ollama_identity` ; la règle
+>   `other` recopiée pour les COMPTES de la passe `--licenses` → les comptes lisent ce que
+>   `set_identity` déclare poser (`posed`). Garde de forme : `tests_model_platforms.
+>   NoPageAddressByHandTest`. Et un défaut VISIBLE de `29b9fd28`, vu au navigateur (serveur
+>   éphémère, compte de test) : la phrase d'origine s'écrasait sur quatre lignes dans le badge
+>   d'en-tête d'une card distante et chassait le badge « Distant » hors de la card — elle a sa
+>   ligne propre (`cardSource`). Contre-épreuves : trois mutations, rouges (`REMOVAL_LEDGER` R177).
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**

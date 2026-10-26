@@ -65,12 +65,9 @@ class Command(BaseCommand):
             if m.platform_ref:
                 deja += 1
                 continue
-            ref = ''
-            if m.hf_id:
-                ref = f"huggingface:{m.hf_id}"
-            elif 'ollama:' in (m.model_key or ''):
-                famille = (m.name or '').split(':', 1)[0]
-                ref = f"ollama:{famille}" if famille else ''
+            # LA règle de dérivation (`AIModel.platform_refs`, celle du lien de la card) — plus
+            # recopiée ici (2026-10-22).
+            ref = next(iter(m.platform_refs()), '')
             if not ref:
                 indetermines.append(m.model_key)
                 continue
@@ -315,16 +312,21 @@ class Command(BaseCommand):
             # ses règles (l'auteur ne remplit qu'un vide ; `other` n'écrase pas une licence
             # qualifiée ; l'accès, état courant du dépôt amont, s'écrase). Le corpus n'est pas
             # réécrit ici (un rattrapage de masse) : il les reprendra à sa prochaine extraction.
-            # Les comptes ci-dessous ne font que DIRE ce que la pose va changer.
+            # Les comptes LISENT ce que la pose déclare poser (`posed`), à blanc comme pour de
+            # vrai : aucune règle n'est redite ici.
+            from wama.model_manager.services.provenance import set_identity
             lic = str(ident.get('license') or '')[:64]
-            acces = ident.get('gated') or ''
-            if acces and acces != m.gated:
-                acces_poses += 1
-            pubs = ident.get('publications') or []
-            if pubs and (m.extra_info or {}).get('publications') != pubs:
-                publications_set += 1
-            if lic and lic != m.license and not (lic == 'other' and m.license
-                                                 and m.license != 'other'):
+            res = set_identity(m.model_key, {k: ident.get(k) for k in
+                                             ('license', 'author', 'gated', 'publications')},
+                               apply=ecrire, export=False)
+            if res.get('error'):
+                self.stderr.write(self.style.ERROR(f"    {m.model_key} : pose en echec — "
+                                                   f"{res.get('error')}"))
+                continue
+            posed = res.get('posed') or []
+            acces_poses += 'gated' in posed
+            publications_set += 'publications' in posed
+            if 'license' in posed:
                 if m.license:
                     corriges += 1
                     self.stdout.write(self.style.WARNING(
@@ -332,14 +334,6 @@ class Command(BaseCommand):
                 else:
                     vus += 1
                     self.stdout.write(f"  {m.model_key:46s} -> {lic}")
-            if ecrire:
-                from wama.model_manager.services.provenance import set_identity
-                res = set_identity(m.model_key, {k: ident.get(k) for k in
-                                                 ('license', 'author', 'gated', 'publications')},
-                                   export=False)
-                if not res.get('applied'):
-                    self.stderr.write(self.style.ERROR(f"    {m.model_key} : pose en echec — "
-                                                       f"{res.get('error')}"))
         self.stdout.write(f"licences      : {vus} posee(s), {corriges} corrigee(s), {echecs} en echec")
         self.stdout.write(f"acces (gated) : {acces_poses} regime(s) mis a jour"
                           + ("" if ecrire else " (simulation)"))

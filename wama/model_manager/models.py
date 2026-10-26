@@ -923,17 +923,20 @@ class AIModel(ScopedVisibility):
                                    help_text="Composants + runtime d'un modele compose "
                                              "(declare par son manifeste, vide sinon).")
 
-    def _platform_refs(self):
+    def platform_refs(self):
         """`platform_ref`, puis ce que la ligne porte déjà du même fait tant qu'il n'est pas
         renseigné partout (il vient du manifeste) : `hf_id` → `huggingface:<hf_id>`, une clé
-        `ollama:` → `ollama:<famille>` — la règle même de `backfill_platform_refs`, qui le pose."""
+        `ollama:` → `ollama:<famille>`. LA règle de dérivation : le lien de la card la lit, et
+        `backfill_platform_refs` pose la première référence d'une ligne qui n'en a pas."""
         refs = [self.platform_ref] if self.platform_ref else []
         if self.hf_id:
             refs.append(f'huggingface:{self.hf_id}')
         if 'ollama:' in (self.model_key or ''):
-            family = (self.name or '').split(':', 1)[0]
-            if family:
-                refs.append(f'ollama:{family}')
+            # L'identité d'un tag Ollama a SA fonction (`provenance.ollama_identity`).
+            from .services.provenance import ollama_identity
+            ref = (ollama_identity(self.name) or {}).get('platform_ref')
+            if ref:
+                refs.append(ref)
         return refs
 
     def _platform(self):
@@ -941,7 +944,7 @@ class AIModel(ScopedVisibility):
         DÉCLARÉE sait rendre (`external_sources.model_platforms`), ou `(None, '')`."""
         from wama.common.external_sources import model_platforms
         platforms = model_platforms()
-        for ref in self._platform_refs():
+        for ref in self.platform_refs():
             prefix, _, ident = ref.partition(':')
             if ident and prefix in platforms:
                 return platforms[prefix], ref

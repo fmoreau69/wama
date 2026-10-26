@@ -229,6 +229,7 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
     except ImportError:
         return {'ok': False, 'error': "huggingface_hub non installé (pip install huggingface_hub)"}
 
+    from wama.common.external_sources import model_page_url
     from wama.model_manager.models import AIModel
     # « Déjà chez nous » s'indexe sur les DEUX identités de plateforme, pas sur `hf_id` seul :
     # les modèles découverts par scan disque n'ont pas de `hf_id`, mais peuvent porter un
@@ -303,7 +304,8 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
                      or _sans_suffixe_date(m.id.lower()) in have_famille),
             'metrique': _metrique_declaree(carte),
             'license': licence,
-            'url': f"https://huggingface.co/{m.id}",
+            # La fiche, lue au registre des sources (`model_page_url`, 2026-10-22).
+            'url': model_page_url(f"huggingface:{m.id}"),
         })
     return {'ok': True, 'task': task, 'candidates': candidates}
 

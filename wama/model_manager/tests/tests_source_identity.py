@@ -202,19 +202,23 @@ class SourceFilterScriptTest(SimpleTestCase):
                     "{ k: 'Auteur', field: 'author' }", "{ k: 'Licence', field: 'license' }"):
             with self.subTest(row=row):
                 self.assertIn(row, self.html)
-        self.assertIn('${WamaApp.escapeHtml(sourceBadge(model))}', self.html)
+        self.assertIn('${WamaApp.escapeHtml(cardSource(model).badge)}', self.html)
+        self.assertIn('data-card-origin', self.html)
         self.assertNotIn("<span class=\"source-badge\">${model.source}</span>", self.html)
 
     @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
     def test_a_remote_card_shows_the_origin_of_the_model_a_local_one_its_source(self):
         from py_mini_racer import MiniRacer
         ctx = MiniRacer()
-        ctx.eval(self._function('sourceBadge'))
+        ctx.eval(self._function('cardSource'))
         free = {'execution': 'cloud', 'source_label': 'Cloud commercial · OpenRouter · facturé',
                 'origin': 'Cloud commercial · OpenRouter · gratuit (quota)'}
         local = {'execution': 'local', 'source_label': 'Anonymizer', 'origin': 'WAMA local'}
-        self.assertEqual(free['origin'], ctx.eval('sourceBadge(%s)' % json.dumps(free)))
-        self.assertEqual('Anonymizer', ctx.eval('sourceBadge(%s)' % json.dumps(local)))
+        # Distant : l'origine DU MODÈLE sur sa ligne, pas de badge qui l'écraserait.
+        self.assertEqual({'badge': '', 'origin': free['origin']},
+                         json.loads(ctx.eval('JSON.stringify(cardSource(%s))' % json.dumps(free))))
+        self.assertEqual({'badge': 'Anonymizer', 'origin': ''},
+                         json.loads(ctx.eval('JSON.stringify(cardSource(%s))' % json.dumps(local))))
 
     @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
     def test_the_options_are_grouped_by_declared_group_and_named(self):

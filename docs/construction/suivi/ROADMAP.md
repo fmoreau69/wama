@@ -1845,7 +1845,10 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   distant… c'est le cas partout ». La route commune des options (`api_model_options`) range
   désormais chaque liste sous l'origine de ses modèles — « WAMA local », « Albert API (DINUM) »,
   « API Anthropic (Claude) », « Claude Code (abonnement) » — local d'abord, puis l'échelle des
-  hébergements (`external_sources.model_origin`, `_groups_by_origin`). Un groupe déjà nommé
+  hébergements (`external_sources.model_origin`, `_groups_by_origin`). ⚠ Intitulés du 05/10 :
+  depuis le 2026-10-10 ils disent hébergement · fournisseur · coût (`remote_origin_label` —
+  « Cloud commercial · Claude Code · abonnement »), et le filtre « Source » du model manager les
+  emploie à son tour depuis le 2026-10-22 (`WAMA_APP_GENERATION_ROUTE §10.6 P1`). Un groupe déjà nommé
   (tâche, catégorie) garde son nom suivi de l'origine ; « auto » reste en tête, hors groupe.
   Une règle, donc l'assistant et les dix sélecteurs de modèle des apps (tous sur la source
   `catalog`). ⏳ Seule liste encore écrite en dur : `diarization_model` du transcriber.
