@@ -245,6 +245,25 @@ def check_surface_layout(page_hook=None):
     sans rien réécrire. Le réglage du compte de test est rendu tel qu'il était en sortie.
     `page_hook(page)` : posé sur chaque page avant son ouverture (la contre-épreuve y réécrit le
     noyau servi)."""
+    return _on_layout_witness(_layout_gestures, page_hook)
+
+
+def check_surface_stack(page_hook=None):
+    """EMPILER et ÉPINGLER (2026-10-26, demande de Fabien : « empiler des briques pour les
+    compacter en une seule, uniquement en affichage », et les garder à un bord) — (ok, détail).
+
+    Sur la même surface témoin, disposition modifiable : deux panneaux empilés en UN (les mêmes
+    éléments, gardés au serveur) ; le panneau épinglé en bas (entre l'en-tête et le pied, la page
+    s'en écarte), puis à gauche (une colonne fixe sous l'en-tête) ; le rechargement le rend tel
+    quel ; descendre la tête change la tête et l'épinglage la suit ; détacher rend deux panneaux ;
+    « Dans la page » le désépingle. Mêmes garanties de sortie que `check_surface_layout`."""
+    return _on_layout_witness(_stack_gestures, page_hook)
+
+
+def _on_layout_witness(gestures, page_hook=None):
+    """La charpente commune des scénarios de DISPOSITION : la surface témoin qui porte le panneau
+    Actions, le compte de test, le réglage de disposition du compte rendu tel qu'il était en
+    sortie ; `gestures(page, url, surface, declared, stored, verdict, errors)` joue les gestes."""
     from django.urls import reverse
     from playwright.sync_api import sync_playwright
 
@@ -300,7 +319,7 @@ def check_surface_layout(page_hook=None):
                     page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
                     if page_hook:
                         page_hook(page)
-                    _layout_gestures(page, url, surface, declared, stored, verdict, errors)
+                    gestures(page, url, surface, declared, stored, verdict, errors)
                 finally:
                     browser.close()
     finally:
@@ -392,6 +411,146 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
     verdict(not shown, f"aucune erreur JS ({shown[:3]})")
 
 
+#: Ce que la page dit de ses PANNEAUX (2026-10-26) : les briques de chacun (une pile en a
+#: plusieurs), son bord épinglé, sa boîte à l'écran ; l'en-tête, le pied, la marge des volets et
+#: celle que la page laisse aux bords épinglés.
+_STACK_STATE_JS = """() => {
+    const panels = {};
+    // Par `data-panel` : un panneau ÉPINGLÉ a quitté la grille, il n'a plus de nœud gridstack.
+    document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(el => {
+        const id = el.dataset.panel || (el.gridstackNode && el.gridstackNode.id);
+        if (!id) return;
+        const r = el.getBoundingClientRect();
+        panels[id] = {
+            sections: [...el.querySelectorAll('.wama-brick-section')].map(s => s.dataset.slot),
+            docked: el.dataset.docked || '', fixed: getComputedStyle(el).position === 'fixed',
+            rect: [r.left, r.top, r.right, r.bottom].map(Math.round)};
+    });
+    const value = (el, v) => parseFloat(getComputedStyle(el).getPropertyValue(v)) || 0;
+    const pageEl = document.querySelector('.wama-surface-page');
+    const root = document.querySelector('.wama-surface-grid');
+    return {panels: panels, viewport: [innerWidth, innerHeight],
+            rows: root && root.gridstack ? root.gridstack.getRow() : null,
+            header: value(document.body, '--fm-header-height') || 50,
+            footer: value(document.body, '--fm-footer-height') || 40,
+            gutterLeft: value(document.body, '--wama-left-gutter'),
+            padLeft: parseFloat(getComputedStyle(pageEl).paddingLeft),
+            padBottom: parseFloat(getComputedStyle(pageEl).paddingBottom)}; }"""
+
+#: Marque une section (titre + corps d'une brique) pour vérifier ensuite que c'est la MÊME.
+_MARK_SECTION_JS = """(id) => {
+    const s = document.querySelector('.wama-brick-section[data-slot="' + id + '"]');
+    if (s) s.dataset.smokeKept = id;
+    return s ? s.querySelector('.wama-brick-title').textContent : null; }"""
+
+#: Les sections marquées sont-elles toutes dans un panneau d'empilement ?
+_IN_SHELL_JS = """(ids) => ids.every(id => {
+    const s = document.querySelector('[data-smoke-kept="' + id + '"]');
+    return !!(s && s.closest('.wama-brick-stack-shell')); })"""
+
+
+def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
+    """Les gestes de `check_surface_stack`, dans l'ordre ; un geste impossible est un verdict
+    rouge. Les panneaux se pilotent par leurs BOUTONS et le menu commun — ce que fait la main."""
+    first, second = [s.id for s in surface.slots if s.zone == 'grid'][:2]
+
+    def state():
+        return page.evaluate(_STACK_STATE_JS)
+
+    def settle():
+        page.wait_for_timeout(900)                   # la garde part 300 ms après le geste
+        return _in_plain_thread(stored) or {}
+
+    def press(slot_id, icon):
+        page.locator(f'.wama-brick-section[data-slot="{slot_id}"] > .wama-brick-head '
+                     f'button:has(i.{icon})').first.click()
+
+    def pick(text):
+        page.locator('.wama-card-menu button.wama-cm-item', has_text=text).first.click()
+
+    def open_page():
+        page.goto(url, wait_until='load', timeout=45000)
+        page.wait_for_selector('[data-act="freeze"]', timeout=20000)
+        page.wait_for_timeout(800)
+
+    try:
+        open_page()
+        page.click('[data-act="freeze"]')            # disposition modifiable
+        settle()
+        page.evaluate(_MARK_SECTION_JS, first)
+        title = page.evaluate(_MARK_SECTION_JS, second)
+        press(first, 'fa-layer-group')
+        pick(title)
+        kept, now = settle(), state()
+        same = page.evaluate(_IN_SHELL_JS, [first, second])
+        verdict((now['panels'].get(first) or {}).get('sections') == [first, second]
+                and second not in now['panels'] and same
+                and [e['id'] for e in (kept.get('stacks') or {}).get(first, [])] == [first, second],
+                f"empiler : un seul panneau, les MÊMES briques, gardé au serveur "
+                f"({now['panels'].get(first)}, {kept.get('stacks')})")
+
+        rows_before = now['rows']
+        press(first, 'fa-thumbtack')
+        pick('En bas de la fenêtre')
+        kept, now = settle(), state()
+        box = now['panels'][first]
+        verdict(now['rows'] < rows_before and (kept.get('slots') or {}).get(first),
+                f"la page se referme derrière le panneau épinglé ({rows_before} → {now['rows']} "
+                f"rangées) et sa place reste gardée ({(kept.get('slots') or {}).get(first)})")
+        height = box['rect'][3] - box['rect'][1]
+        verdict(box['fixed'] and box['docked'] == 'bottom'
+                and box['rect'][3] <= now['viewport'][1] - now['footer'] + 1
+                and box['rect'][1] >= now['header'] - 1
+                and abs(now['padBottom'] - (32 + height)) <= 2
+                and kept.get('docked') == {first: 'bottom'},
+                f"épinglé en bas : au-dessus du pied, la page s'en écarte ({box}, pied "
+                f"{now['footer']}, marge {now['padBottom']}, {kept.get('docked')})")
+
+        press(first, 'fa-thumbtack')
+        pick('À gauche')
+        kept, now = settle(), state()
+        box = now['panels'][first]
+        verdict(box['fixed'] and box['docked'] == 'left'
+                and box['rect'][0] >= now['gutterLeft'] - 1 and box['rect'][1] >= now['header'] - 1
+                and box['rect'][3] <= now['viewport'][1] - now['footer'] + 1
+                and abs(now['padLeft'] - (box['rect'][2] - box['rect'][0])) <= 2
+                and kept.get('docked') == {first: 'left'},
+                f"épinglé à gauche : une colonne fixe sous l'en-tête, la page s'en écarte ({box}, "
+                f"volet {now['gutterLeft']}, marge {now['padLeft']}, {kept.get('docked')})")
+
+        open_page()
+        now = state()
+        verdict((now['panels'].get(first) or {}).get('sections') == [first, second]
+                and now['panels'][first]['docked'] == 'left',
+                f"rechargement : la pile et son bord rendus tels quels ({now['panels'].get(first)})")
+
+        press(first, 'fa-chevron-down')
+        kept, now = settle(), state()
+        verdict((now['panels'].get(second) or {}).get('sections') == [second, first]
+                and now['panels'][second]['docked'] == 'left'
+                and kept.get('docked') == {second: 'left'} and list(kept.get('stacks') or {}) == [second],
+                f"descendre la tête : la nouvelle tête porte la pile et l'épinglage "
+                f"({now['panels'].get(second)}, {kept.get('docked')})")
+
+        press(first, 'fa-object-ungroup')
+        kept, now = settle(), state()
+        verdict((now['panels'].get(first) or {}).get('sections') == [first]
+                and (now['panels'].get(second) or {}).get('sections') == [second]
+                and not kept.get('stacks') and now['panels'][second]['docked'] == 'left',
+                f"détacher : deux panneaux, l'épinglage reste au panneau ({kept.get('stacks')})")
+
+        press(second, 'fa-thumbtack')
+        pick('Dans la page')
+        kept, now = settle(), state()
+        verdict(not now['panels'][second]['fixed'] and not kept.get('docked') and now['padLeft'] == 0,
+                f"« Dans la page » : désépinglé, plus de marge ({now['panels'][second]}, "
+                f"{kept.get('docked')})")
+    except Exception as error:
+        verdict(False, f"geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
+    shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
+    verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+
+
 def register_surface_scenarios():
     """Les scénarios communs des surfaces (vignettes de briques, disposition) — aucun GPU."""
     from wama.common.services.nightly_tests import register
@@ -411,5 +570,14 @@ def register_surface_scenarios():
                      "FIGE (deux zones immobiles, rendu fini, survit au rechargement) et revient à "
                      "la disposition déclarée ; une colonne sur téléphone sans rien réécrire"),
         run=lambda ctx: check_surface_layout(),
+        timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id='common.surface_stack', app='common', stage='ui',
+        description=("Surfaces : deux panneaux EMPILÉS en un (les mêmes briques, gardé par compte), "
+                     "épinglé en bas puis à gauche (entre l'en-tête et le pied, la page s'en "
+                     "écarte), rendu tel quel au rechargement ; la tête descendue garde "
+                     "l'épinglage ; détacher rend deux panneaux ; « Dans la page » désépingle"),
+        run=lambda ctx: check_surface_stack(),
         timeout_s=240, vram_gb=0.0,
     )

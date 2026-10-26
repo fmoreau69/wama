@@ -429,7 +429,11 @@ MECHANISMS = (
               "l'ouvre et capture ses briques — les vignettes du catalogue (`thumbnail`), qui "
               "montre aussi les composants SYSTÈME (domaine `UI_DOMAIN`). 2026-10-21 : disposition "
               "par compte, FIGÉE par défaut pour tous ; deux ZONES (`BrickSlot.zone`) — la grille "
-              "et la COLONNE du volet droit, une brique passant de l'une à l'autre",
+              "et la COLONNE du volet droit, une brique passant de l'une à l'autre. 2026-10-26 : "
+              "des briques EMPILÉES en un panneau (`stacks`, affichage seul — le transport, la "
+              "ligne de temps et l'écriture fixés ensemble) et un panneau ÉPINGLÉ à un bord de la "
+              "fenêtre (haut, bas, gauche, droite : la page se referme derrière lui), gardés avec "
+              "la disposition — `WAMA_VOLETS §3-ter`, scénario `common.surface_stack`",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',

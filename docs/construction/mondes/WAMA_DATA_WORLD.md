@@ -798,6 +798,11 @@ temporelle et la couche plugins ne le sont pas. Elles se rebâtissent, elles ne 
    écrire 2-3 plugins d'abord, extraire ensuite ;
 5. **le conteneur de vues** : layout dockable + détachement en vraie fenêtre.
    > Amorce existante : `audio_player` gère déjà l'exclusivité **inter-onglets** (`mecanismes.py:333`).
+   > 🔄 **2026-10-26 — le layout dockable existe, commun à tous les mondes** : les SURFACES
+   > (`wama-surface.js`) disposent des briques sur une grille magnétique par compte, les EMPILENT en
+   > un panneau et les ÉPINGLENT à un bord de la fenêtre (haut, bas, gauche, droite) — le transport
+   > et ses vues synchronisées par l'axe partagé, où l'utilisateur le veut (`WAMA_VOLETS §3-ter`).
+   > ⏳ Reste le détachement en vraie fenêtre.
 
 ### 8.3 Plan d'intégration ordonné
 

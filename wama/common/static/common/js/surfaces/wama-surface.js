@@ -12,6 +12,10 @@
  *     droit (`.wama-surface-panel`, `zone='panel'`), où l'on réordonne et règle la hauteur ; une
  *     brique passe de l'une à l'autre en la glissant, sans être remontée.
  *     Sous 768 px de fenêtre, les panneaux s'empilent sur une colonne (rien n'est alors gardé) ;
+ *   • GARDER à l'écran (2026-10-26) : des briques EMPILÉES en un seul panneau (`stacks`, la tête
+ *     d'abord — affichage seul, chaque brique garde son code et son état) et un panneau ÉPINGLÉ à
+ *     un bord de la fenêtre (`docked` : haut, bas, gauche, droite), le centre défilant entre les
+ *     bords ; tous deux gardés avec la disposition du compte ;
  *   • le CONTEXTE partagé : ce que la page lit (`reads`), la valeur ÉDITÉE (la seule donnée que
  *     la page écrit), la SÉLECTION commune et un bus d'événements entre briques ;
  *   • l'HISTORIQUE commun de WAMA (`wama-history.js`) : chaque geste d'édition passe par
@@ -71,6 +75,7 @@
 
     var BRICKS = {};
     var CELL_HEIGHT = 46;
+    var MAX_ROWS = 400;                     // le plafond de `surfaces.MAX_LAYOUT_ROWS`
 
     function registerBrick(key, def) { BRICKS[key] = def; }
 
@@ -100,6 +105,16 @@
             }
         });
         return chosen;
+    }
+
+    /** Les poids d'une pile (`[{id, h}]`) ramenés à `rows` rangées : chaque brique garde sa part
+     *  de la hauteur du panneau (au moins une rangée) — ce qu'elle retrouve détachée, ce qu'elle
+     *  apporte à une autre pile. Pure (testée en V8). */
+    function scaleWeights(list, rows) {
+        var total = list.reduce(function (s, e) { return s + (e.h > 0 ? e.h : 1); }, 0) || 1;
+        return list.map(function (e) {
+            return { id: e.id, h: Math.max(1, Math.round((e.h > 0 ? e.h : 1) * rows / total)) };
+        });
     }
 
     function mount(root, config) {
@@ -475,7 +490,13 @@
         // rend TOUTE la brique déplaçable — un glisser dans l'image (redimensionner une zone)
         // devenait, après quelques pixels, un déplacement de la brique (relevé par Fabien,
         // 2026-10-13). D'où l'élément construit à la main plutôt que `addWidget`.
-        function frame(slot) {
+        //
+        // La SECTION (titre + corps) est ce qu'une brique apporte dans un panneau : seule, elle
+        // remplit le sien ; EMPILÉE, elle passe dans le panneau du groupe — le même élément, la
+        // brique n'est jamais remontée. Deux temps : `build` pose les cadres (et reforme les piles
+        // gardées), `mountBrick` monte les briques une fois tout attaché à la page.
+        var frames = {};                    // emplacement → {slot, def, el, section, head, body, brick}
+        function build(slot, placed) {
             var place = saved[slot.id] || slot;
             var zone = zoneOf(slot, place);
             var el = document.createElement('div');
@@ -484,6 +505,9 @@
             content.className = 'grid-stack-item-content';
             el.appendChild(content);
             var def = BRICKS[slot.brick] || {};
+            var section = document.createElement('div');
+            section.className = 'wama-brick-section';
+            section.dataset.slot = slot.id;
             var head = document.createElement('div');
             head.className = 'wama-brick-head';
             var title = document.createElement('span');
@@ -493,81 +517,393 @@
             head.appendChild(title);
             var body = document.createElement('div');
             body.className = 'wama-brick-body';
-            content.appendChild(head);
-            content.appendChild(body);
-            var target = gridOf(zone);
-            target.el.appendChild(el);
-            var at = placeIn(zone, place);
-            at.id = slot.id;
-            target.makeWidget(el, at);
+            section.appendChild(head);
+            section.appendChild(body);
+            content.appendChild(section);
+            var rec = { slot: slot, def: def, el: el, section: section, head: head, body: body,
+                        brick: {}, zone: zone, place: placeIn(zone, place) };
+            frames[slot.id] = rec;
+            if (placed) putSolo(slot.id, rec.place, gridOf(zone));
+            return rec;
+        }
+
+        function mountBrick(rec) {
+            var def = rec.def;
             if (!def.mount) {
-                body.textContent = 'Brique « ' + slot.brick + ' » non chargée.';
-                return null;
+                rec.body.textContent = 'Brique « ' + rec.slot.brick + ' » non chargée.';
+            } else {
+                rec.brick = def.mount(rec.body, ctx, rec.slot.options || {}) || {};
+                if (rec.brick.tools) {
+                    rec.head.appendChild(rec.brick.tools);
+                    rec.head.classList.add('has-tools');
+                    rec.hasTools = true;
+                }
+                if (rec.brick.help) helps.push(rec.brick.help);
             }
-            var brick = def.mount(body, ctx, slot.options || {}) || {};
-            if (brick.tools) { head.appendChild(brick.tools); head.classList.add('has-tools'); }
-            if (def.dockable) dockControl(slot, el, head);
-            if (brick.help) helps.push(brick.help);
-            return { slot: slot, el: el, brick: brick };
+            layoutTools(rec);
+            return rec;
         }
 
-        // ── ÉPINGLER un panneau en haut ou en bas de la fenêtre (2026-10-26, demande de Fabien :
-        // « locker le transport […] pour qu'il ne défile pas avec la page ») — une brique le
-        // DÉCLARE (`dockable`), le noyau pose le geste dans sa poignée. Gardé avec la disposition
-        // (par compte, `docked`) : une préférence de LECTURE, valable aussi en lecture seule. La
-        // page garde la place du panneau épinglé en marge, pour que rien ne passe dessous.
-        var DOCK_NEXT = { '': 'top', top: 'bottom', bottom: '' };
-        var DOCK_TITLES = { '': 'Épingler ce panneau en haut de la fenêtre',
-                            top: 'Épinglé en haut — cliquer : en bas de la fenêtre',
-                            bottom: 'Épinglé en bas — cliquer : le désépingler' };
+        // ── EMPILER des briques en UN panneau (2026-10-26, Fabien : « empiler/imbriquer des
+        // briques pour les compacter en une seule, uniquement en affichage » — le transport, la
+        // ligne de temps et l'écriture à la lecture, qu'on fixe ensemble). Chaque brique garde son
+        // code et son état ; seul son CADRE change. Gardé par compte (`stacks` : `{tête: [{id, h}]}`,
+        // `surfaces.clean_layout`) ; la tête donne au panneau sa place et son épinglage. Un geste de
+        // DISPOSITION : il se fait disposition modifiable, comme déplacer ou redimensionner.
+        layout.stacks = layout.stacks || {};
         layout.docked = layout.docked || {};
+        var shells = {};                    // tête → l'élément du panneau d'une pile
 
-        function dockControl(slot, el, head) {
-            var btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'btn btn-xs wama-brick-dock';
-            btn.innerHTML = '<i class="fas fa-thumbtack"></i>';
-            btn.addEventListener('mousedown', function (e) { e.stopPropagation(); });
-            btn.addEventListener('click', function () {
-                var edge = DOCK_NEXT[layout.docked[slot.id] || ''];
-                if (edge) layout.docked[slot.id] = edge; else delete layout.docked[slot.id];
-                applyDock(slot, el, btn);
-                persistLayout();
+        function groupOf(id) {
+            for (var key in layout.stacks) {
+                if (layout.stacks[key].some(function (e) { return e.id === id; })) return key;
+            }
+            return null;
+        }
+        /** Les panneaux de la page : une brique seule, ou la tête d'une pile. */
+        function containers() {
+            return surface.slots.map(function (s) { return s.id; }).filter(function (id) {
+                if (!frames[id]) return false;
+                var key = groupOf(id);
+                return !key || key === id;
             });
-            head.appendChild(btn);
-            head.classList.add('has-tools');
-            applyDock(slot, el, btn);
+        }
+        function containerEl(key) { return shells[key] || frames[key].el; }
+        // Un panneau ÉPINGLÉ quitte la grille — la page se referme derrière lui — et y retrouve SA
+        // place quand on le désépingle : elle est gardée ici, et dans la disposition du compte.
+        var dockPlaces = {};                // panneau → {x, y, w, h, grid}
+        /** La place d'un panneau dans sa zone, qu'il y soit ou qu'il en soit sorti, épinglé. */
+        function placeOf(key) {
+            if (dockPlaces[key]) return dockPlaces[key];
+            var node = containerEl(key).gridstackNode;
+            return node ? { x: node.x, y: node.y, w: node.w, h: node.h, grid: node.grid } : null;
+        }
+        function titleOf(id) { return frames[id].head.querySelector('.wama-brick-title').textContent; }
+        function labelOf(key) {
+            return (layout.stacks[key] || [{ id: key }]).map(function (e) { return titleOf(e.id); })
+                .join(' + ');
+        }
+        /** La place d'une zone : la colonne du volet n'a qu'une colonne. */
+        function fit(at, g) {
+            return g === panel ? { x: 0, y: at.y, w: 1, h: at.h }
+                               : { x: at.x, y: at.y, w: Math.min(at.w, COLUMNS), h: at.h };
+        }
+        function putSolo(id, at, g) {
+            var rec = frames[id];
+            rec.section.style.flexGrow = '';
+            rec.el.querySelector('.grid-stack-item-content').appendChild(rec.section);
+            rec.el.dataset.panel = id;
+            g.el.appendChild(rec.el);
+            var place = fit(at, g);
+            place.id = id;
+            g.makeWidget(rec.el, place);
+        }
+        function buildShell(list, at, g) {
+            var el = document.createElement('div');
+            el.className = 'grid-stack-item wama-brick-stack-shell';
+            el.dataset.panel = list[0].id;
+            var content = document.createElement('div');
+            content.className = 'grid-stack-item-content';
+            list.forEach(function (entry) {
+                var section = frames[entry.id].section;
+                section.style.flexGrow = String(entry.h);     // son poids dans la hauteur du panneau
+                content.appendChild(section);
+            });
+            el.appendChild(content);
+            g.el.appendChild(el);
+            var place = fit(at, g);
+            place.id = list[0].id;
+            g.makeWidget(el, place);
+            shells[list[0].id] = el;
+            return el;
+        }
+        /** Retire un panneau de sa zone (sans détruire ses briques) : rend sa place et sa zone. */
+        function take(key) {
+            var el = containerEl(key), node = el.gridstackNode, place = placeOf(key);
+            var g = (place && place.grid) || grid;
+            var at = place ? { x: place.x, y: place.y, w: place.w, h: place.h } : { x: 0, y: 0, w: 4, h: 4 };
+            if (node && node.grid) node.grid.removeWidget(el, false, false);
+            if (el.parentNode) el.parentNode.removeChild(el);
+            clearDock(el);
+            delete shells[key];
+            delete dockPlaces[key];
+            return { at: at, grid: g };
+        }
+        /** Ses briques et leur poids, ramenés à sa hauteur actuelle (un panneau a pu être retaillé). */
+        function entriesOf(key) {
+            var place = placeOf(key), rows = place ? place.h : 1;
+            var list = layout.stacks[key];
+            if (!list) return [{ id: key, h: rows }];
+            return scaleWeights(list, rows);
         }
 
-        function applyDock(slot, el, btn) {
-            var edge = layout.docked[slot.id] || '';
-            if (edge && !el.classList.contains('is-docked')) {
-                el.style.setProperty('--wama-dock-height', el.offsetHeight + 'px');
-            }
-            el.classList.toggle('is-docked', !!edge);
-            el.classList.toggle('is-docked-top', edge === 'top');
-            el.classList.toggle('is-docked-bottom', edge === 'bottom');
-            btn.classList.toggle('active', !!edge);
-            btn.title = DOCK_TITLES[edge];
-            btn.setAttribute('aria-pressed', edge ? 'true' : 'false');
+        function restack(fn) {
+            if (layout.frozen) return;
+            resetting = true;
+            try { fn(); } finally { resetting = false; }
+            if (onFullGrid()) layout.slots = layoutNow();
+            syncLayoutTools();
+            applyDocks();
+            persistLayout();
+        }
+        /** Le panneau `other` (brique ou pile) rejoint celui de `own`, sous ses briques. */
+        function join(own, other) {
+            restack(function () {
+                var a = entriesOf(own), b = entriesOf(other);
+                var ta = take(own), tb = take(other);
+                delete layout.stacks[own]; delete layout.stacks[other]; delete layout.docked[other];
+                var list = a.concat(b);
+                layout.stacks[list[0].id] = list;
+                buildShell(list, { x: ta.at.x, y: ta.at.y, w: ta.at.w,
+                                   h: Math.min(ta.at.h + tb.at.h, MAX_ROWS) }, ta.grid);
+            });
+        }
+        /** Monte ou descend une brique dans sa pile ; la tête peut changer, son épinglage la suit. */
+        function moveInStack(id, delta) {
+            restack(function () {
+                var key = groupOf(id), list = entriesOf(key);
+                var i = list.findIndex(function (e) { return e.id === id; }), j = i + delta;
+                if (j < 0 || j >= list.length) return;
+                var moved = list[i]; list[i] = list[j]; list[j] = moved;
+                var edge = layout.docked[key], t = take(key);
+                delete layout.stacks[key]; delete layout.docked[key];
+                layout.stacks[list[0].id] = list;
+                if (edge) layout.docked[list[0].id] = edge;
+                buildShell(list, t.at, t.grid);
+            });
+        }
+        /** Sort une brique de sa pile : elle reprend sa hauteur, juste sous le panneau. */
+        function detach(id) {
+            restack(function () {
+                var key = groupOf(id), list = entriesOf(key);
+                var gone = list.filter(function (e) { return e.id === id; })[0];
+                var rest = list.filter(function (e) { return e.id !== id; });
+                var edge = layout.docked[key], t = take(key);
+                delete layout.stacks[key]; delete layout.docked[key];
+                var restH = Math.max(1, t.at.h - gone.h);
+                var at = { x: t.at.x, y: t.at.y, w: t.at.w, h: restH };
+                if (rest.length > 1) {
+                    layout.stacks[rest[0].id] = rest;
+                    buildShell(rest, at, t.grid);
+                } else {
+                    putSolo(rest[0].id, at, t.grid);
+                }
+                if (edge) layout.docked[rest[0].id] = edge;
+                putSolo(id, { x: t.at.x, y: t.at.y + restH, w: t.at.w, h: gone.h }, t.grid);
+            });
+        }
+        /** Défait toutes les piles, chaque brique à sa hauteur (« Disposition par défaut »). */
+        function dissolveAll() {
+            Object.keys(layout.stacks).forEach(function (key) {
+                var list = entriesOf(key), t = take(key), y = t.at.y;
+                list.forEach(function (e) {
+                    putSolo(e.id, { x: t.at.x, y: y, w: t.at.w, h: e.h }, t.grid);
+                    y += e.h;
+                });
+            });
+            layout.stacks = {};
+        }
+
+        // ── GARDER un panneau à l'écran : ÉPINGLÉ à un bord de la fenêtre (2026-10-26, demande de
+        // Fabien : « locker le transport […] pour qu'il ne défile pas avec la page », puis le jour
+        // même : à gauche et à droite aussi, une colonne fixe pendant que le centre défile). Une
+        // bande en haut ou en bas, une colonne à gauche ou à droite ; plusieurs panneaux sur un
+        // même bord se rangent l'un après l'autre. Jamais « sur place » au milieu de la page : on
+        // choisit un BORD. Gardé avec la disposition (`docked`) : une préférence de LECTURE, valable
+        // aussi en lecture seule et disposition figée — pour une brique qui le DÉCLARE (`dockable`,
+        // le transport) ou un panneau déjà épinglé ; disposition modifiable, pour tout panneau.
+        var DOCK_CHOICES = [
+            ['top', 'fa-arrow-up', 'En haut de la fenêtre'],
+            ['bottom', 'fa-arrow-down', 'En bas de la fenêtre'],
+            ['left', 'fa-arrow-left', 'À gauche — une colonne fixe'],
+            ['right', 'fa-arrow-right', 'À droite — une colonne fixe'],
+            ['', 'fa-arrows-up-down', 'Dans la page — défile avec elle'],
+        ];
+        var DOCK_SAID = { top: 'Épinglé en haut de la fenêtre', bottom: 'Épinglé en bas de la fenêtre',
+                          left: 'Épinglé à gauche', right: 'Épinglé à droite' };
+        var SIDES = ['left', 'right'];
+
+        function toolButton(icon, title, fn) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.className = 'btn btn-xs';
+            b.title = title;
+            b.setAttribute('aria-label', title);
+            b.innerHTML = '<i class="fas ' + icon + '"></i>';
+            b.addEventListener('mousedown', function (e) { e.stopPropagation(); });
+            b.addEventListener('click', function (e) { e.stopPropagation(); fn(b); });
+            return b;
+        }
+        function openMenu(btn, entries, title) {
+            var r = btn.getBoundingClientRect();
+            if (global.WamaCardMenu) global.WamaCardMenu.ouvrir(r.left, r.bottom + 4, entries, title);
+        }
+
+        function layoutTools(rec) {
+            var box = document.createElement('span');
+            box.className = 'wama-brick-stack-tools';
+            rec.head.appendChild(box);
+            rec.stackTools = box;
+            if (rec.def.dockable === false) return;
+            rec.dockBtn = toolButton('fa-thumbtack', '', function (b) { openDockMenu(rec.slot.id, b); });
+            rec.dockBtn.classList.add('wama-brick-dock');
+            rec.head.appendChild(rec.dockBtn);
+        }
+
+        function openDockMenu(key, btn) {
+            var current = layout.docked[key] || '';
+            var narrow = !onFullGrid();
+            openMenu(btn, DOCK_CHOICES.map(function (c) {
+                return {
+                    icone: 'fas ' + (c[0] === current ? 'fa-check' : c[1]), libelle: c[2],
+                    desactive: c[0] === current || (narrow && SIDES.indexOf(c[0]) >= 0),
+                    agir: function () {
+                        if (c[0]) layout.docked[key] = c[0]; else delete layout.docked[key];
+                        applyDocks();
+                        syncLayoutTools();
+                        persistLayout();
+                    },
+                };
+            }), 'Garder ce panneau à l’écran');
+        }
+
+        function openStackMenu(key, btn) {
+            var others = containers().filter(function (k) { return k !== key; });
+            openMenu(btn, others.length ? others.map(function (k) {
+                return { icone: 'fas fa-layer-group', libelle: labelOf(k),
+                         agir: function () { join(key, k); } };
+            }) : [{ vide: true, libelle: 'Aucun autre panneau sur la page' }],
+            'Empiler dans ce panneau');
+        }
+
+        /** Les outils de disposition de chaque titre, d'après les piles et les épinglages. */
+        function syncLayoutTools() {
+            Object.keys(frames).forEach(function (id) {
+                var rec = frames[id], key = groupOf(id), list = key ? layout.stacks[key] : null;
+                var i = list ? list.findIndex(function (e) { return e.id === id; }) : 0;
+                var box = rec.stackTools;
+                if (!box) return;
+                box.innerHTML = '';
+                if (list && i > 0) box.appendChild(toolButton('fa-chevron-up', 'Monter dans le panneau',
+                    function () { moveInStack(id, -1); }));
+                if (list && i < list.length - 1) box.appendChild(toolButton('fa-chevron-down',
+                    'Descendre dans le panneau', function () { moveInStack(id, 1); }));
+                if (list) box.appendChild(toolButton('fa-object-ungroup', 'Détacher du panneau',
+                    function () { detach(id); }));
+                if (i === 0) box.appendChild(toolButton('fa-layer-group',
+                    'Empiler un autre panneau dans celui-ci (une seule bande, fixée ensemble)',
+                    function (b) { openStackMenu(key || id, b); }));
+                // L'épingle : sur la tête du panneau seulement — c'est le panneau qui s'épingle.
+                var dockable = (list || [{ id: id }]).some(function (e) { return frames[e.id].def.dockable; });
+                var edge = i === 0 ? (layout.docked[key || id] || '') : '';
+                if (rec.dockBtn) {
+                    rec.dockBtn.hidden = i !== 0;
+                    rec.dockBtn.classList.toggle('active', !!edge);
+                    rec.dockBtn.classList.toggle('is-optional', !dockable && !edge);
+                    rec.dockBtn.title = (edge ? DOCK_SAID[edge] + ' — ' : '') + 'Garder ce panneau à l’écran…';
+                    rec.dockBtn.setAttribute('aria-pressed', edge ? 'true' : 'false');
+                }
+                rec.head.classList.toggle('has-tools', !!rec.hasTools
+                    || !!(rec.dockBtn && i === 0 && (dockable || edge)));
+            });
+        }
+
+        /** Pose les cadres — les piles gardées reformées, une brique dans une seule —, puis monte
+         *  les briques dans l'ordre déclaré, chacune déjà attachée à la page où qu'elle soit. */
+        function buildAll() {
+            var known = {}, inGroup = {}, groups = {};
+            surface.slots.forEach(function (s) { known[s.id] = true; });
+            Object.keys(layout.stacks || {}).forEach(function (key) {
+                var list = (layout.stacks[key] || []).filter(function (e) {
+                    return known[e.id] && !inGroup[e.id];
+                });
+                if (list.length < 2) return;
+                list.forEach(function (e) { inGroup[e.id] = true; });
+                groups[list[0].id] = list;
+            });
+            layout.stacks = groups;
+            surface.slots.forEach(function (slot) { build(slot, !inGroup[slot.id]); });
+            Object.keys(groups).forEach(function (key) {
+                buildShell(groups[key], frames[key].place, gridOf(frames[key].zone));
+            });
+            surface.slots.forEach(function (slot) { mounted.push(mountBrick(frames[slot.id])); });
+            helps.push(LAYOUT_HELP);
+        }
+        var LAYOUT_HELP = 'Épingle : garder un panneau au bord de la fenêtre (haut, bas, gauche, '
+            + 'droite) — disposition modifiable : empiler des panneaux en un seul (calques), les '
+            + 'monter, les descendre, les détacher';
+
+        function clearDock(el) {
+            el.classList.remove('is-docked');
+            DOCK_CHOICES.forEach(function (c) { if (c[0]) el.classList.remove('is-docked-' + c[0]); });
+            el.style.removeProperty('--wama-dock-height');
+            el.style.removeProperty('--wama-dock-width');
+            el.style.removeProperty('--wama-dock-offset');
+            delete el.dataset.docked;
+        }
+        /** Pose chaque panneau à son bord. Sa taille dans la grille, relevée AVANT qu'il ne la
+         *  quitte, devient celle de sa bande (hauteur) ou de sa colonne (largeur). Une colonne n'a
+         *  pas sa place sur une fenêtre de téléphone : le panneau y reste dans la page. */
+        function applyDocks() {
+            var narrow = !onFullGrid();
+            var was = resetting;
+            resetting = true;               // la page qui se referme n'est pas un geste à garder
+            try {
+                containers().forEach(function (key) {
+                    var el = containerEl(key);
+                    var edge = layout.docked[key] || '';
+                    if (narrow && SIDES.indexOf(edge) >= 0) edge = '';
+                    if (!edge) { undock(key, el); return; }
+                    if (!dockPlaces[key]) {
+                        // Sa taille dans la grille, relevée AVANT qu'il ne la quitte.
+                        el.style.setProperty('--wama-dock-height', el.offsetHeight + 'px');
+                        el.style.setProperty('--wama-dock-width', el.offsetWidth + 'px');
+                        var node = el.gridstackNode;
+                        if (node && node.grid) {
+                            dockPlaces[key] = { x: node.x, y: node.y, w: node.w, h: node.h, grid: node.grid };
+                            node.grid.removeWidget(el, false, false);
+                        }
+                    }
+                    el.dataset.docked = edge;
+                    el.classList.add('is-docked');
+                    DOCK_CHOICES.forEach(function (c) {
+                        if (c[0]) el.classList.toggle('is-docked-' + c[0], c[0] === edge);
+                    });
+                });
+            } finally { resetting = was; }
             dockMargins();
             emit('resize');
         }
-
-        /** La marge que la page laisse en haut et en bas : la hauteur des panneaux épinglés. */
+        /** Désépinglé : le panneau retrouve SA place dans sa zone (gridstack écarte les autres). */
+        function undock(key, el) {
+            var place = dockPlaces[key];
+            clearDock(el);
+            if (!place) return;
+            delete dockPlaces[key];
+            var at = fit(place, place.grid);
+            at.id = key;
+            place.grid.makeWidget(el, at);
+        }
+        /** Tous les panneaux épinglés rendus à la grille (avant de la réordonner). */
+        function undockAll() {
+            Object.keys(dockPlaces).forEach(function (key) { undock(key, containerEl(key)); });
+        }
+        /** Ce que chaque bord occupe : la page s'en écarte, rien ne passe dessous ; deux panneaux
+         *  sur un même bord se rangent l'un après l'autre. Posé sur le corps : la colonne du volet
+         *  le lit aussi. */
         function dockMargins() {
-            ['top', 'bottom'].forEach(function (edge) {
-                var height = 0;
-                root.parentNode.querySelectorAll('.is-docked-' + edge).forEach(function (el) {
-                    height = Math.max(height, el.offsetHeight);
-                });
-                if (panelRoot) panelRoot.querySelectorAll('.is-docked-' + edge).forEach(function (el) {
-                    height = Math.max(height, el.offsetHeight);
-                });
-                page.style.setProperty('--wama-dock-' + edge, height + 'px');
+            var used = { top: 0, bottom: 0, left: 0, right: 0 };
+            containers().forEach(function (key) {
+                var el = containerEl(key), edge = el.dataset.docked;
+                if (!edge) return;
+                el.style.setProperty('--wama-dock-offset', used[edge] + 'px');
+                used[edge] += SIDES.indexOf(edge) >= 0 ? el.offsetWidth : el.offsetHeight;
+            });
+            Object.keys(used).forEach(function (edge) {
+                document.body.style.setProperty('--wama-dock-' + edge, used[edge] + 'px');
             });
         }
-        global.addEventListener('resize', dockMargins);
+        global.addEventListener('resize', function () { if (Object.keys(frames).length) applyDocks(); });
 
         function layoutNow() {
             var out = {};
@@ -577,6 +913,11 @@
                     var n = el.gridstackNode;
                     if (n && n.id) out[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h, zone: zone };
                 });
+            });
+            // Un panneau épinglé a quitté la grille, pas la disposition : sa place reste la sienne.
+            Object.keys(dockPlaces).forEach(function (key) {
+                var p = dockPlaces[key];
+                out[key] = { x: p.x, y: p.y, w: p.w, h: p.h, zone: p.grid === panel ? 'panel' : 'grid' };
             });
             return out;
         }
@@ -591,7 +932,8 @@
                 App.csrfFetch(config.layout_url, App.csrfToken(), {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ slots: layout.slots, frozen: !!layout.frozen,
-                                           docked: layout.docked || {} }),
+                                           docked: layout.docked || {},
+                                           stacks: layout.stacks || {} }),
                 }).then(App.jsonOrExplain).then(function (res) {
                     if (res && res.error) throw new Error(res.error);
                     writeLayout(config.layout_key, null);
@@ -609,9 +951,11 @@
             if (layout.frozen || !onFullGrid()) return;
             layout.slots = null;                 // la disposition DÉCLARÉE, qui suit la surface
             resetting = true;
+            undockAll();                         // chacun reprend place dans la grille, pour s'y ranger
+            dissolveAll();                       // une pile est un geste de disposition : défaite
             zones.forEach(function (g) { g.batchUpdate(); });
             surface.slots.forEach(function (slot) {
-                var m = mounted.filter(function (x) { return x && x.slot.id === slot.id; })[0];
+                var m = frames[slot.id];
                 if (!m) return;
                 var zone = zoneOf(slot, slot), target = gridOf(zone), at = placeIn(zone, slot);
                 var from = m.el.gridstackNode && m.el.gridstackNode.grid;
@@ -628,8 +972,9 @@
             });
             zones.forEach(function (g) { g.batchUpdate(false); });
             resetting = false;
+            syncLayoutTools();
+            applyDocks();
             persistLayout();
-            emit('resize');
         }
 
         /** FIGER : la grille ne bouge plus, les panneaux perdent leur habit d'atelier (CSS
@@ -638,6 +983,7 @@
             layout.frozen = !!on;
             zones.forEach(function (g) { g.setStatic(layout.frozen); });
             showFrozen(layout.frozen);
+            applyDocks();                        // rendue modifiable, un panneau épinglé reste immobile
             persistLayout();
             emit('layout', { frozen: layout.frozen });
             emit('resize');
@@ -717,8 +1063,10 @@
                 ctx.canEdit = !!data.can_edit;
                 history.reset();
                 building = true;
-                try { surface.slots.forEach(function (slot) { mounted.push(frame(slot)); }); }
+                try { buildAll(); }
                 finally { building = false; }
+                syncLayoutTools();
+                applyDocks();
                 status(ctx.canEdit ? '' : 'Lecture seule', ctx.canEdit ? '' : 'readonly');
                 emit('change', state.value);
                 holdLock();
@@ -728,5 +1076,6 @@
         return ctx;
     }
 
-    global.WamaSurface = { registerBrick: registerBrick, mount: mount, keptSources: keptSources };
+    global.WamaSurface = { registerBrick: registerBrick, mount: mount, keptSources: keptSources,
+                           scaleWeights: scaleWeights };
 })(window);

@@ -221,6 +221,44 @@ disposition du compte (`docked: {emplacement: 'top' | 'bottom'}`, validé par
 panneau épinglé est fixé entre les gouttières des volets (`--wama-left-gutter` /
 `--wama-right-gutter`, posées par `wama-panel-toggle.css`) et la page se décale de sa hauteur.
 Garde : `tests_surfaces.SurfaceLayoutTest.test_a_docked_panel_is_kept_with_the_layout_of_the_account`.
+⚠ Calé à `top: 0`, il passait SOUS l'en-tête fixe (relevé par Fabien le jour même, `95018c69`) :
+il se cale entre l'en-tête et le pied, par les hauteurs que lisent déjà les volets
+(`--fm-header-height` / `--fm-footer-height`).
+
+**EMPILER des briques en un panneau, ÉPINGLER à QUATRE bords — ✅ 2026-10-26, le soir** (Fabien :
+*« tout ce qui est lié au temps et à la lecture devrait pouvoir s'assembler en un module […] la
+dissociation doit être dans le code, pas dans la présentation »* ; *« empiler/imbriquer des
+briques pour les compacter en une seule, uniquement en affichage »* ; *« pour les zones fixes
+latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune brique touchée :
+- **Empiler** : chaque brique apporte une SECTION (titre + corps) ; « Empiler dans ce panneau »
+  (icône calques, menu commun `WamaCardMenu`) fait passer un autre panneau — brique ou pile —
+  SOUS celui-ci ; chaque section garde son titre, sa part de la hauteur et son état (le même
+  élément : rien n'est remonté) ; flèches pour monter / descendre, « Détacher » pour sortir. La
+  tête de la pile donne au panneau sa place et son épinglage. Gardé avec la disposition
+  (`stacks : {tête: [{id, h}]}`, validé par `surfaces._clean_stacks` : une brique dans un seul
+  panneau, un emplacement retiré oublié). Un geste de DISPOSITION : disposition modifiable
+  seulement, défait par « Disposition par défaut ».
+- **Épingler** à un bord : un menu de cinq choix (haut, bas, gauche, droite, « Dans la page »)
+  au lieu du bouton qui faisait défiler deux bords — on choisit un BORD, jamais « sur place » au
+  milieu de la page. Haut et bas : une bande qui garde sa hauteur dans la grille (≤ 45 % de la
+  fenêtre) ; gauche et droite : une COLONNE fixe entre les bandes, sa largeur dans la grille
+  (≤ 40 % de la zone centrale) ; deux panneaux sur un même bord se rangent l'un après l'autre.
+  Le panneau épinglé QUITTE la grille — la page se referme derrière lui — et y retrouve sa place
+  désépinglé (elle reste gardée dans la disposition). Une colonne n'a pas sa place sur une
+  fenêtre de téléphone : le panneau y reste dans la page. Tout panneau s'épingle disposition
+  modifiable ; figée, l'épingle ne reste que pour une brique qui la DÉCLARE (`dockable` : le
+  transport) ou un panneau déjà épinglé — le rendu fini ne se couvre pas d'épingles.
+- Ce qui ne change pas : la grille magnétique, la colonne du volet (`zone='panel'`), le centre qui
+  défile, la disposition figée par défaut, le repli des volets.
+- Gardes : `tests_surfaces` (piles et quatre bords au serveur, poids d'une pile en V8, calage
+  sous l'en-tête et au-dessus du pied sur le CSS servi) ; scénario nocturne
+  **`common.surface_stack`** (9 gestes sur la page servie : empiler les MÊMES briques, épingler en
+  bas puis à gauche mesurés à l'écran, la page qui se referme, rechargement, tête descendue qui
+  garde l'épinglage, détacher, désépingler), à côté de `common.surface_layout` (9/9, rien n'a
+  reculé) ; trois contre-épreuves rouges (empilement neutralisé, panneau laissé dans la grille,
+  colonne calée à 0).
+- ⏳ Reste de `WAMA_DATA_WORLD §8.2 ⑤` (« layout dockable + détachement en vraie fenêtre ») : le
+  DÉTACHEMENT d'un panneau dans une autre fenêtre.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ② les sections du volet des PAGES D'APPS
 (assistant, aperçu, inspecteur, actions) en briques réordonnables et repliables par compte, rendu
@@ -411,6 +449,18 @@ pages de catalogue** — ce qui vit dans leur volet droit n'est accessible **que
 Aucune solution ne satisfait tous les cas ; et puisque le mode simplifié vise un chatbot sans
 navigation, **il n'a peut-être pas à les satisfaire**. Question laissée ouverte, non
 prioritaire.
+
+⏳ **2026-10-26 — le RETIRER ? (question de Fabien, décision à prendre)** : *« le mode simplifié
+masque les volets gauche et droit de façon stricte et ne permet pas de rouvrir un des deux à la
+volée — il n'est pas aligné sur le repli des volets […] Je me demande même si à terme, le mode
+simplifié ne devrait pas être retiré : il n'apporte plus grand-chose à part masquer les deux
+volets d'un coup ; l'assistant permet déjà de glisser des fichiers. »* Constat au code :
+`body.wama-simple` met les deux gouttières à 0 (`wama-panel-toggle.css:23`) sans passer par le
+repli par la frontière (§9 ②), qui, lui, se rouvre d'un clic. Deux voies : (a) le RETIRER — le
+repli des deux volets en tient lieu, l'accueil chatbot devient un choix d'accueil à part ; (b)
+l'ALIGNER — « Simplifié » = replier les deux volets par le même mécanisme, chacun se rouvrant à
+la volée. Un retrait passe par `REMOVAL_LEDGER` (trois surfaces : code, préférence du profil,
+docs). Rien n'est touché avant la décision.
 
 ---
 

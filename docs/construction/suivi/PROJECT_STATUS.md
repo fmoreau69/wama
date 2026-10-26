@@ -26253,3 +26253,28 @@ Utilisateurs modifie prénom, nom, email et le mot de passe d'un compte LOCAL sa
 (`PROFILES_PERMISSIONS §1.11`, `tests_user_edit`, 3 contre-épreuves rouges). 🔴 **relancer
 gunicorn** : la route `users/<id>/edit/` est neuve, le gabarit (lu à chaud) montre déjà le stylo —
 avant la relance, « Enregistrer » répond par une erreur.
+Puis l'**ajout** d'un compte est aligné sur les mêmes validateurs de mot de passe (`_password_refusal`,
+partagé avec le stylo) — il n'en appliquait aucun. Mesuré : `wama.accounts` 202 tests OK (base de
+test privée) ; contre-épreuve rouge (validateurs neutralisés → 3 tests rougissent).
+
+## §PALIER 2026-10-26 (soir) — EMPILER des briques en un panneau, ÉPINGLER à QUATRE bords — non poussé — 🔴 relancer gunicorn, puis Ctrl+F5
+
+Fabien : *« tout ce qui est lié au temps et à la lecture devrait pouvoir s'assembler en un module
+[…] la dissociation doit être dans le code, pas dans la présentation »* ; *« empiler/imbriquer
+des briques pour les compacter en une seule, uniquement en affichage »* ; *« pour les zones fixes
+latérales, on a qu'à le faire »*. Domicile `WAMA_VOLETS §3-ter`.
+- ✅ `95018c69` : un panneau épinglé en haut passait SOUS l'en-tête fixe — calé entre l'en-tête et
+  le pied (`--fm-header-height` / `--fm-footer-height`, ceux des volets).
+- ✅ **Empiler** (noyau `wama-surface.js` seul, aucune brique touchée) : une SECTION par brique,
+  « Empiler dans ce panneau » par le menu commun `WamaCardMenu`, monter / descendre / détacher ;
+  les mêmes éléments, rien n'est remonté ; `stacks` gardé avec la disposition
+  (`surfaces._clean_stacks`).
+- ✅ **Épingler** à haut, bas, gauche, droite (menu de cinq choix) ; le panneau épinglé QUITTE la
+  grille (la page se referme) et y retrouve sa place ; colonne ≤ 40 % de la zone centrale ; figée,
+  l'épingle ne reste que pour une brique `dockable` ou déjà épinglée.
+- ✅ Gardes : `tests_surfaces` (72) ; scénario nocturne **`common.surface_stack`** 9/9 sur la page
+  servie (serveur jetable), `common.surface_layout` 9/9 ; trois contre-épreuves rouges.
+- ⏳ Décision de Fabien : **retirer le mode simplifié** ou l'aligner sur le repli des volets
+  (`WAMA_VOLETS §7`) · détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`) ·
+  smoke sur une surface temporelle (transcriber : transport + ligne de temps + écriture empilés en
+  bas) une fois gunicorn relancé.

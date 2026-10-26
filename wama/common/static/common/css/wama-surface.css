@@ -49,22 +49,61 @@
    Calé entre les deux volets (les marges communes `--wama-left-gutter` / `--wama-right-gutter`,
    comme la scène 3D) ; la page garde sa hauteur en marge pour que rien ne passe dessous.
    Et entre l'en-tête et le pied, comme la frontière des volets (`wama-panel-toggle.css`) : calé
-   à 0, il passait SOUS l'en-tête fixe — inutilisable (relevé par Fabien le jour même). */
+   à 0, il passait SOUS l'en-tête fixe — inutilisable (relevé par Fabien le jour même).
+   À GAUCHE et à DROITE (le jour même) : une colonne fixe, entre les bandes du haut et du bas,
+   pendant que le centre défile. Deux panneaux sur un même bord se rangent l'un après l'autre
+   (`--wama-dock-offset`) ; une bande garde sa hauteur dans la grille, une colonne sa largeur,
+   bornées pour laisser la page lisible (le panneau défile alors en lui-même). */
 .grid-stack > .grid-stack-item.is-docked {
-  position: fixed !important; left: var(--wama-left-gutter, 0px) !important;
-  right: var(--wama-right-gutter, 0px) !important; width: auto !important;
-  height: var(--wama-dock-height, auto) !important; transform: none !important; z-index: 1030;
+  position: fixed !important; transform: none !important; z-index: 1030;
+  transition: none !important;          /* il gagne son bord, il n'y glisse pas depuis la grille */
+}
+.grid-stack > .grid-stack-item.is-docked-top, .grid-stack > .grid-stack-item.is-docked-bottom {
+  left: var(--wama-left-gutter, 0px) !important; right: var(--wama-right-gutter, 0px) !important;
+  width: auto !important; height: var(--wama-dock-height, auto) !important; max-height: 45vh;
 }
 .grid-stack > .grid-stack-item.is-docked-top {
-  top: var(--fm-header-height, 50px) !important; bottom: auto !important; }
+  top: calc(var(--fm-header-height, 50px) + var(--wama-dock-offset, 0px)) !important;
+  bottom: auto !important; }
 .grid-stack > .grid-stack-item.is-docked-bottom {
-  bottom: var(--fm-footer-height, 40px) !important; top: auto !important; }
+  bottom: calc(var(--fm-footer-height, 40px) + var(--wama-dock-offset, 0px)) !important;
+  top: auto !important; }
+.grid-stack > .grid-stack-item.is-docked-left, .grid-stack > .grid-stack-item.is-docked-right {
+  top: calc(var(--fm-header-height, 50px) + var(--wama-dock-top, 0px)) !important;
+  bottom: calc(var(--fm-footer-height, 40px) + var(--wama-dock-bottom, 0px)) !important;
+  height: auto !important;
+  /* Au plus 40 % de la zone CENTRALE (entre les volets) : la page garde de quoi se lire. */
+  width: min(var(--wama-dock-width, 22rem),
+             calc((100vw - var(--wama-left-gutter, 0px) - var(--wama-right-gutter, 0px)) * .4)) !important;
+}
+.grid-stack > .grid-stack-item.is-docked-left {
+  left: calc(var(--wama-left-gutter, 0px) + var(--wama-dock-offset, 0px)) !important;
+  right: auto !important; }
+.grid-stack > .grid-stack-item.is-docked-right {
+  right: calc(var(--wama-right-gutter, 0px) + var(--wama-dock-offset, 0px)) !important;
+  left: auto !important; }
 .grid-stack > .grid-stack-item.is-docked > .grid-stack-item-content {
   inset: 0; border-radius: 0; box-shadow: 0 0 .75rem rgba(var(--wama-overlay-rgb), .25);
 }
 .wama-surface-page { padding-top: calc(.5rem + var(--wama-dock-top, 0px));
-  padding-bottom: calc(2rem + var(--wama-dock-bottom, 0px)); }
+  padding-bottom: calc(2rem + var(--wama-dock-bottom, 0px));
+  padding-left: var(--wama-dock-left, 0px); padding-right: var(--wama-dock-right, 0px); }
 .wama-brick-dock { margin-left: .15rem; }
+/* Figée, l'épingle ne reste que pour un panneau qui la DÉCLARE (le transport) ou déjà épinglé :
+   le rendu fini ne se couvre pas d'épingles. */
+.wama-surface-page.is-frozen .wama-brick-dock.is-optional,
+.wama-surface-panel.is-frozen .wama-brick-dock.is-optional { display: none; }
+
+/* Briques EMPILÉES en un panneau (2026-10-26) : chacune garde son titre, sa part de la hauteur
+   (son poids) et défile en elle-même ; un filet les sépare. Les outils d'empilement sont des
+   gestes de disposition : absents d'une disposition figée. */
+.wama-brick-section { display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; }
+.wama-brick-stack-shell .wama-brick-section { flex-basis: 0; }
+.wama-brick-stack-shell .wama-brick-section + .wama-brick-section { border-top: 1px solid var(--wama-edit-border); }
+.wama-brick-stack-tools { display: inline-flex; align-items: center; gap: .15rem; }
+.wama-brick-stack-tools:empty { display: none; }
+.wama-surface-page.is-frozen .wama-brick-stack-tools,
+.wama-surface-panel.is-frozen .wama-brick-stack-tools { display: none; }
 
 .wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
 .wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs, .wama-surface-panel .btn-xs {

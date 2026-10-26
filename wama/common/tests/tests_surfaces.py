@@ -241,13 +241,13 @@ class SurfaceLayoutTest(TestCase):
         return self.client.post(self.url, json.dumps(payload), content_type='application/json')
 
     def test_a_frozen_layout_is_kept_for_this_account_only(self):
-        self.assertEqual({'slots': None, 'frozen': True, 'docked': {}, 'stored': False},
+        self.assertEqual({'slots': None, 'frozen': True, 'docked': {}, 'stacks': {}, 'stored': False},
                          self._config(self.user)['layout'])
         place = {'image': {'x': 3, 'y': 0, 'w': 9, 'h': 12}, 'actions': {'x': 0, 'y': 0, 'w': 3, 'h': 5}}
         res = self._post({'slots': place, 'frozen': True})
         self.assertEqual(200, res.status_code, res.content)
         kept = {k: dict(v, zone='grid') for k, v in place.items()}
-        self.assertEqual({'slots': kept, 'frozen': True, 'docked': {}, 'stored': True},
+        self.assertEqual({'slots': kept, 'frozen': True, 'docked': {}, 'stacks': {}, 'stored': True},
                          self._config(self.user)['layout'])
         from wama.common.models import UserAppSetting
         (row,) = UserAppSetting.objects.filter(user=self.user, app='anonymizer')
@@ -255,14 +255,14 @@ class SurfaceLayoutTest(TestCase):
         # Another account (who cannot open this element) still has the declared layout.
         from wama.common.surface_views import _layout_of
         from wama.common.surfaces import surface
-        self.assertEqual({'slots': None, 'frozen': True, 'docked': {}, 'stored': False},
+        self.assertEqual({'slots': None, 'frozen': True, 'docked': {}, 'stacks': {}, 'stored': False},
                          _layout_of(surface('anonymizer', 'review'), self.other))
 
     def test_back_to_the_declared_layout_keeps_following_the_surface(self):
         self.client.force_login(self.user)
         self._post({'slots': {'image': {'x': 0, 'y': 0, 'w': 6, 'h': 6}}})
         self._post({'slots': None, 'frozen': False})
-        self.assertEqual({'slots': None, 'frozen': False, 'docked': {}, 'stored': True},
+        self.assertEqual({'slots': None, 'frozen': False, 'docked': {}, 'stacks': {}, 'stored': True},
                          self._config(self.user)['layout'])
 
     def test_undeclared_panels_are_dropped_and_a_place_outside_the_grid_is_refused(self):
@@ -305,11 +305,14 @@ class SurfaceLayoutTest(TestCase):
         self.assertEqual(200, res.status_code, res.content)
         self.assertEqual({'actions': 'bottom'}, res.json()['layout']['docked'])
         self.assertEqual({'actions': 'bottom'}, self._config(self.user)['layout']['docked'])
-        for bad in ({'actions': 'left'}, ['actions']):
+        for bad in ({'actions': 'middle'}, ['actions']):
             self.assertEqual(400, self._post({'docked': bad}).status_code, bad)
+        # The same day: left and right too — a fixed COLUMN while the centre scrolls.
+        res = self._post({'docked': {'actions': 'left', 'objects': 'right'}})
+        self.assertEqual({'actions': 'left', 'objects': 'right'}, res.json()['layout']['docked'])
         kernel = _js('common/js/surfaces/wama-surface.js')
-        self.assertIn('if (def.dockable) dockControl(slot, el, head);', kernel)
         self.assertIn('docked: layout.docked || {}', kernel, 'the pin travels with the layout')
+        self.assertIn('rec.dockBtn = toolButton(', kernel, 'every panel can be pinned')
         self.assertIn('dockable: true', _js('common/js/surfaces/brick-media-transport.js'))
 
     def test_a_docked_panel_stops_at_the_header_and_the_footer(self):
@@ -318,10 +321,50 @@ class SurfaceLayoutTest(TestCase):
         from pathlib import Path
         css = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'css'
                / 'wama-surface.css').read_text(encoding='utf-8')
-        top = css.split('.is-docked-top {', 1)[1].split('}', 1)[0]
-        bottom = css.split('.is-docked-bottom {', 1)[1].split('}', 1)[0]
-        self.assertIn('top: var(--fm-header-height', top)
-        self.assertIn('bottom: var(--fm-footer-height', bottom)
+        def rules(selector):            # every rule that names it (one is shared top/bottom)
+            return ' '.join(b.split('}', 1)[0] for b in css.split(selector + ' {')[1:])
+        top, bottom = rules('.is-docked-top'), rules('.is-docked-bottom')
+        self.assertIn('top: calc(var(--fm-header-height', top)
+        self.assertIn('bottom: calc(var(--fm-footer-height', bottom)
+        side = css.split('.is-docked-left, .grid-stack > .grid-stack-item.is-docked-right {', 1)[1]
+        side = side.split('}', 1)[0]
+        self.assertIn('top: calc(var(--fm-header-height', side, 'a column stops under the header')
+        self.assertIn('bottom: calc(var(--fm-footer-height', side)
+
+    def test_stacked_panels_are_kept_as_one_panel(self):
+        """2026-10-26, Fabien: « empiler/imbriquer des briques pour les compacter en une seule,
+        uniquement en affichage » — the ordered bricks of one panel, its head first; the head
+        carries the place and the pin, a stacked brick is never pinned on its own."""
+        self.client.force_login(self.user)
+        group = [{'id': 'objects', 'h': 9}, {'id': 'actions', 'h': 5}]
+        res = self._post({'slots': None, 'stacks': {'objects': group + [{'id': 'gone', 'h': 2}]},
+                          'docked': {'objects': 'bottom', 'actions': 'top'}})
+        self.assertEqual(200, res.status_code, res.content)
+        layout = res.json()['layout']
+        self.assertEqual({'objects': group}, layout['stacks'], 'an undeclared brick is forgotten')
+        self.assertEqual({'objects': 'bottom'}, layout['docked'], 'the group is pinned, not a member')
+        self.assertEqual({'objects': group}, self._config(self.user)['layout']['stacks'])
+        lonely = self._post({'stacks': {'objects': [{'id': 'objects', 'h': 3}]}})
+        self.assertEqual({}, lonely.json()['layout']['stacks'], 'one brick is not a stack')
+        for bad in ({'objects': group, 'image': [{'id': 'image', 'h': 2}, {'id': 'actions', 'h': 1}]},
+                    {'image': group},
+                    {'objects': [{'id': 'objects', 'h': 0}, {'id': 'actions', 'h': 1}]},
+                    {'objects': 'actions'}, ['objects']):
+            self.assertEqual(400, self._post({'stacks': bad}).status_code, bad)
+
+    def test_the_weights_of_a_stack_follow_the_height_of_its_panel(self):
+        """`WamaSurface.scaleWeights` in V8, on the SERVED kernel: the share of each brick is
+        kept when the panel was resized, one row at least."""
+        from py_mini_racer import MiniRacer
+        from pathlib import Path
+        engine = MiniRacer()
+        engine.eval('var window = {};' + (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                    / 'surfaces' / 'wama-surface.js').read_text(encoding='utf-8'))
+        scaled = json.loads(engine.eval(
+            'JSON.stringify([window.WamaSurface.scaleWeights([{id: "a", h: 3}, {id: "b", h: 1}], 8),'
+            ' window.WamaSurface.scaleWeights([{id: "a", h: 9}, {id: "b", h: 1}], 2)])'))
+        self.assertEqual([[{'id': 'a', 'h': 6}, {'id': 'b', 'h': 2}],
+                          [{'id': 'a', 'h': 2}, {'id': 'b', 'h': 1}]], scaled)
 
     def test_a_slot_declared_outside_its_zone_is_refused(self):
         from wama.common.surfaces import BrickSlot, Surface, register_surface

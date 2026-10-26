@@ -83,7 +83,9 @@ ZONES = ('grid', 'panel')
 #: Colonnes de la zone du volet.
 PANEL_COLUMNS = 1
 #: Les bords de la fenêtre où un panneau s'ÉPINGLE (2026-10-26) : il ne défile plus avec la page.
-DOCK_EDGES = ('top', 'bottom')
+#: Haut et bas pour une bande (le transport), gauche et droite pour une colonne fixe, le centre
+#: défilant entre elles — le jour même, à la demande de Fabien.
+DOCK_EDGES = ('top', 'bottom', 'left', 'right')
 #: Clé de la version « Entrée » d'un média lu (`Surface.sources_of`) — hors de l'espace des clés
 #: de process (un identifiant), pour qu'aucun process ne la prenne.
 INPUT_SOURCE = '_input'
@@ -531,18 +533,63 @@ def clean_layout(surface: Surface, payload) -> dict:
     # Les panneaux ÉPINGLÉS (2026-10-26, demande de Fabien : « locker le transport en bas ou en
     # haut de page pour qu'il ne défile pas ») : `{id: 'top' | 'bottom'}`, un réglage de LECTURE
     # comme la disposition. Seuls les emplacements déclarés ; un bord inconnu est refusé.
+    declared = {s.id for s in surface.slots}
+    stacks = _clean_stacks(payload.get('stacks'), declared)
+    members = {m['id'] for group in stacks.values() for m in group[1:]}
     docked = {}
     raw_docked = payload.get('docked') or {}
     if not isinstance(raw_docked, dict):
         raise ValueError('épinglage illisible')
-    declared = {s.id for s in surface.slots}
     for slot_id, edge in raw_docked.items():
-        if slot_id not in declared:
+        # Une brique EMPILÉE suit son groupe : c'est le groupe (sa tête) qui s'épingle.
+        if slot_id not in declared or slot_id in members:
             continue
         if edge not in DOCK_EDGES:
             raise ValueError(f'bord inconnu : {slot_id}')
         docked[slot_id] = edge
-    return {'slots': slots, 'frozen': payload.get('frozen') is True, 'docked': docked}
+    return {'slots': slots, 'frozen': payload.get('frozen') is True, 'docked': docked,
+            'stacks': stacks}
+
+
+def _clean_stacks(raw, declared: set) -> dict:
+    """Les briques EMPILÉES en un seul panneau (2026-10-26, Fabien : « empiler/imbriquer des
+    briques pour les compacter en une seule, uniquement en affichage » — le transport, la ligne de
+    temps et l'écriture à la lecture, fixés ensemble). `{tête: [{id, h}, …]}` : la liste
+    ORDONNÉE des briques du panneau, la tête en premier — c'est elle qui donne au panneau sa place
+    (`slots`) et son épinglage (`docked`) ; `h` est le poids de chaque brique dans la hauteur du
+    panneau, et la hauteur qu'elle retrouve détachée. Rien n'est remonté : chaque brique garde son
+    code et son état, seul son cadre change. Un emplacement retiré depuis est oublié (comme
+    `slots`) ; une brique dans deux panneaux, ou une liste dont la tête n'est pas la clé, est
+    refusée."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise ValueError('empilement illisible')
+    stacks, seen = {}, set()
+    for head, group in raw.items():
+        if not isinstance(group, list):
+            raise ValueError(f'empilement illisible : {head}')
+        kept = []
+        for entry in group:
+            try:
+                slot_id, h = entry['id'], int(entry['h'])
+            except (KeyError, TypeError, ValueError):
+                raise ValueError(f'empilement illisible : {head}')
+            if not isinstance(slot_id, str) or h < 1 or h > MAX_LAYOUT_ROWS:
+                raise ValueError(f'empilement illisible : {head}')
+            if slot_id not in declared:
+                continue
+            if slot_id in seen:
+                raise ValueError(f'brique dans deux panneaux : {slot_id}')
+            seen.add(slot_id)
+            kept.append({'id': slot_id, 'h': h})
+        if not kept:
+            continue
+        if kept[0]['id'] != head and head in declared:
+            raise ValueError(f'tête de panneau incohérente : {head}')
+        if len(kept) > 1:
+            stacks[kept[0]['id']] = kept
+    return stacks
 
 
 BRICKS: dict = {}
