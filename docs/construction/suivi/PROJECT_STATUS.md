@@ -26227,3 +26227,11 @@ ligne : texte dans HEAD, seule la cellule de décompte bouge).
 **Leçons portées dans les rituels** : `/smoke` (page d'admin par `_admin_session`, cards d'un fetch
 attendues `attached`) ; la fiche mémoire du serveur éphémère réduite à un pointeur vers `/smoke` (je
 l'avais suivie, périmée, au lieu du skill).
+
+**Suite, même jour** (demandes de Fabien) : `Démo_IATOU` reste admin (décision) ; la fiche de profil
+manquante de `regis.blanchet` (compte antérieur au signal qui la crée) est posée au niveau
+`utilisateur`, rôles intacts — plus aucun compte sans fiche. Et un bouton **stylo** sur la page
+Utilisateurs modifie prénom, nom, email et le mot de passe d'un compte LOCAL sans s'y connecter
+(`PROFILES_PERMISSIONS §1.11`, `tests_user_edit`, 3 contre-épreuves rouges). 🔴 **relancer
+gunicorn** : la route `users/<id>/edit/` est neuve, le gabarit (lu à chaud) montre déjà le stylo —
+avant la relance, « Enregistrer » répond par une erreur.

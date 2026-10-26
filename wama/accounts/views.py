@@ -1131,6 +1131,19 @@ def app_access_toggle(request):
     return JsonResponse({'success': True})
 
 
+def _email_taken(email, exclude_pk=None) -> bool:
+    """L'email est-il déjà porté par un AUTRE compte ? Le refus est le même à l'ajout et à la
+    modification d'un compte."""
+    others = User.objects.filter(email=email)
+    if exclude_pk is not None:
+        others = others.exclude(pk=exclude_pk)
+    return others.exists()
+
+
+#: Ce qu'un administrateur modifie d'un compte depuis la page des utilisateurs (`user_edit`).
+IDENTITY_FIELDS = ('first_name', 'last_name', 'email')
+
+
 @admin_required
 def user_add(request):
     """Add a new user."""
@@ -1149,7 +1162,7 @@ def user_add(request):
         if User.objects.filter(username=username).exists():
             return JsonResponse({'success': False, 'error': 'Ce nom d\'utilisateur existe déjà'})
 
-        if email and User.objects.filter(email=email).exists():
+        if email and _email_taken(email):
             return JsonResponse({'success': False, 'error': 'Cet email est déjà utilisé'})
 
         try:
@@ -1245,6 +1258,56 @@ def user_update_role(request, user_id):
             return JsonResponse({'success': False, 'error': str(e)})
 
     return JsonResponse({'success': False, 'error': 'Méthode non autorisée'})
+
+
+@admin_required
+@require_POST
+def user_edit(request, user_id):
+    """AJAX : un administrateur met à jour l'IDENTITÉ d'un compte — prénom, nom, email, et le mot
+    de passe d'un compte LOCAL — sans se connecter à ce compte (2026-10-26, demande de Fabien).
+
+    Le niveau et les rôles métier ont déjà leurs gestes sur la ligne. L'identifiant ne change pas :
+    il décide de la nature du compte (`account_kind`) et c'est l'`uid` de l'annuaire.
+    Le mot de passe ne se pose que sur un compte qui en a DÉJÀ un : un compte de l'annuaire (mot
+    de passe inutilisable) en recevrait un second, que `ModelBackend` accepterait à côté du LDAP.
+    """
+    from django.contrib.auth import update_session_auth_hash
+    from django.contrib.auth.password_validation import validate_password
+    from django.core.exceptions import ValidationError
+
+    user = get_object_or_404(User, id=user_id)
+    if user.username == ANONYMOUS_USERNAME:
+        return JsonResponse({'success': False, 'error': "Le compte anonymous ne se modifie pas"},
+                            status=400)
+    for field in IDENTITY_FIELDS:
+        setattr(user, field, request.POST.get(field, '').strip())
+    try:
+        # Longueurs et format d'email : ceux que déclare le modèle, rien de réécrit ici.
+        user.clean_fields(exclude=[f.name for f in User._meta.fields if f.name not in IDENTITY_FIELDS])
+    except ValidationError as e:
+        return JsonResponse({'success': False,
+                             'error': ' '.join(m for msgs in e.message_dict.values() for m in msgs)},
+                            status=400)
+    if user.email and _email_taken(user.email, exclude_pk=user.pk):
+        return JsonResponse({'success': False, 'error': 'Cet email est déjà utilisé'}, status=400)
+
+    fields = list(IDENTITY_FIELDS)
+    password = request.POST.get('password', '')
+    if password:
+        if not user.has_usable_password():
+            return JsonResponse({'success': False, 'error': (
+                "Ce compte n'a pas de mot de passe local (compte de l'annuaire ou sans mot de "
+                "passe) : il ne peut pas en recevoir un ici.")}, status=400)
+        try:
+            validate_password(password, user)
+        except ValidationError as e:
+            return JsonResponse({'success': False, 'error': ' '.join(e.messages)}, status=400)
+        user.set_password(password)
+        fields.append('password')
+    user.save(update_fields=fields)
+    if password and user == request.user:
+        update_session_auth_hash(request, user)     # l'administrateur reste connecté
+    return JsonResponse({'success': True, 'message': f'Compte {user.username} mis à jour'})
 
 
 @admin_required

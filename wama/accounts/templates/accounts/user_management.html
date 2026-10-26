@@ -148,6 +148,18 @@
                                     <td>{% if item.user.last_login %}{{ item.user.last_login|date:"d/m/Y" }}<br><small class="text-muted">{{ item.user.last_login|date:"H:i" }}</small>{% else %}Jamais{% endif %}</td>
                                     <td>
                                         <div class="btn-group btn-group-sm">
+                                            {% if item.user.username != 'anonymous' %}
+                                            <button class="btn btn-outline-primary edit-user-btn"
+                                                    data-user-id="{{ item.user.id }}"
+                                                    data-username="{{ item.user.username }}"
+                                                    data-first-name="{{ item.user.first_name }}"
+                                                    data-last-name="{{ item.user.last_name }}"
+                                                    data-email="{{ item.user.email }}"
+                                                    data-local-password="{% if item.user.has_usable_password %}1{% endif %}"
+                                                    title="Modifier les informations">
+                                                <i class="fas fa-pen"></i>
+                                            </button>
+                                            {% endif %}
                                             {% if item.user.username != 'anonymous' and item.user != request.user %}
                                             <button class="btn btn-outline-warning toggle-active-btn"
                                                     data-user-id="{{ item.user.id }}"
@@ -160,7 +172,7 @@
                                                     title="Supprimer">
                                                 <i class="fas fa-trash"></i>
                                             </button>
-                                            {% else %}
+                                            {% elif item.user.username == 'anonymous' %}
                                             <button class="btn btn-outline-secondary" disabled title="Action non disponible">
                                                 <i class="fas fa-lock"></i>
                                             </button>
@@ -269,6 +281,56 @@
         </div>
     </div>
 </div>
+
+{% comment %}Modification d'un compte par un administrateur (2026-10-26, demande de Fabien) : la
+modale est remplie depuis les `data-*` du bouton stylo de la ligne, aucune lecture de plus.{% endcomment %}
+<div class="modal fade" id="editUserModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content bg-body text-body-emphasis border-secondary">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title"><i class="fas fa-pen"></i> Modifier <span id="editUserName"></span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="editUserForm">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Prénom</label>
+                            <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
+                                   name="first_name">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Nom</label>
+                            <input type="text" class="form-control bg-body text-body-emphasis border-secondary"
+                                   name="last_name">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control bg-body text-body-emphasis border-secondary"
+                               name="email">
+                    </div>
+                    <div class="mb-3" id="editUserPassword">
+                        <label class="form-label">Nouveau mot de passe</label>
+                        <input type="password" class="form-control bg-body text-body-emphasis border-secondary"
+                               name="password" placeholder="Laisser vide pour ne pas le changer"
+                               autocomplete="new-password">
+                    </div>
+                    <p class="small text-muted mb-0" id="editUserNoPassword">
+                        Ce compte n'a pas de mot de passe local : son mot de passe ne se change pas ici.
+                        S'il vient de l'annuaire, prénom, nom et email y sont relus à chaque connexion.
+                    </p>
+                </form>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="submitEditUser">
+                    <i class="fas fa-check"></i> Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block javascript %}
@@ -301,6 +363,44 @@ document.addEventListener('DOMContentLoaded', function() {
         .catch(error => {
             console.error('Error:', error);
             alert('Erreur lors de la création');
+        });
+    });
+
+    // Modifier un compte : la modale reprend les valeurs portées par le bouton stylo.
+    const editModalEl = document.getElementById('editUserModal');
+    const editForm = document.getElementById('editUserForm');
+    let editedUserId = null;
+    document.querySelectorAll('.edit-user-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            editedUserId = this.dataset.userId;
+            document.getElementById('editUserName').textContent = this.dataset.username;
+            editForm.elements.first_name.value = this.dataset.firstName || '';
+            editForm.elements.last_name.value = this.dataset.lastName || '';
+            editForm.elements.email.value = this.dataset.email || '';
+            editForm.elements.password.value = '';
+            const localPassword = this.dataset.localPassword === '1';
+            document.getElementById('editUserPassword').style.display = localPassword ? '' : 'none';
+            document.getElementById('editUserNoPassword').style.display = localPassword ? 'none' : '';
+            bootstrap.Modal.getOrCreateInstance(editModalEl).show();
+        });
+    });
+    document.getElementById('submitEditUser').addEventListener('click', function() {
+        fetch(`/accounts/users/${editedUserId}/edit/`, {
+            method: 'POST',
+            headers: {'X-CSRFToken': csrfToken},
+            body: new FormData(editForm)
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erreur: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('Erreur lors de la modification');
         });
     });
 
