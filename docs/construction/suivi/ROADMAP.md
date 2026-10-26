@@ -4928,7 +4928,9 @@ ce terrain (un document sans source WAMA), ne pas concurrencer ces outils ; Pres
   Les schémas : SVG/Mermaid écrits par le LLM plutôt qu'un modèle d'image. Le converter n'écrit ni
   pptx ni tex aujourd'hui (`converter/utils/format_router.py:40-41`).
 - Au passage : deux doublons indisponibles au catalogue (`albert:openai/gpt-oss-120b`,
-  `albert:qwen3-coder-30b-A3b-instruct`) à côté de leurs équivalents valides.
+  `albert:qwen3-coder-30b-A3b-instruct`) à côté de leurs équivalents valides. ✅ Supprimés le
+  2026-10-22 par la route (`cloud_models.drop_renamed`), après vérification en direct chez Albert :
+  deux renommages.
 
 #### Risques connus
 

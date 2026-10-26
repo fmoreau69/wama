@@ -520,6 +520,13 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   réelles). `relearn_lines_from_runs` l'a amorcée une fois sur l'historique des lignes de process.
   La VITESSE comparée par le curseur (`comparable_speeds`) reste le rapport.
 - ⏳ Reste : **valider sur données réelles** (restart WSL2) ; calibrer les a-priori par modèle (`AIModel.extra_info['eta']` ou test nocturne) ; ETA agrégé batch ; anonymizer (pas encore câblé — vérifier).
+- ⏳ **DÉCISION, latente (relevé de Fabien, 2026-10-22)** : l'empreinte d'une durée apprise est
+  celle du GPU de CETTE machine (`eta_estimator.hardware_fingerprint`, « cpu » à défaut), pour
+  tout modèle — un modèle DISTANT compris, dont la vitesse dépend du fournisseur et du réseau, pas
+  de la carte locale ; un changement de GPU lui ferait réapprendre sa vitesse pour rien. Mesuré le
+  même jour : 0 statistique de modèle distant en base, donc rien de faux aujourd'hui ; le premier
+  cas sera une transcription par Albert. Piste : ranger un distant sous sa source
+  (`execution == 'cloud'` → empreinte du fournisseur).
 
 ## 11. Transcriber — correction assistée IA (à reconfirmer dans le code)
 Doc : `wama/transcriber/TRANSCRIBER_CORRECTION.md`.
@@ -15601,6 +15608,12 @@ désormais le rôle là où le test attend une ambiguïté.
    d'avant la normalisation des clés, et ce sont elles qui ont fait écraser un manifeste valide le
    18/09 (même nom de fichier à la casse près). Les retirer, ou les garder marquées ? La garde de
    `_nom_fichier` protège désormais dans les deux cas.
+   ✅ **Tranché le 2026-10-22 (Fabien : « si le modèle n'existe pas on supprime la ligne fantôme
+   par la route, mais on vérifie d'abord »)** : vérifié EN DIRECT chez Albert — les deux sont des
+   RENOMMAGES (`…-a3b-…` servi ; `openai/gpt-oss-120b` alias déclaré de `gpt-oss-120b`), sans
+   historique. Supprimés par la route, `cloud_models.drop_renamed` (appelée par
+   `retire_unlisted`) ; ⚠ la garde de `_nom_fichier` ne protégeait PAS une clé explicite —
+   l'écrasement a récidivé le même jour, garde corrigée (`WAMA_APP_GENERATION_ROUTE §10.6 P1`).
 
 **Restes assumés, inchangés** : ligne doublon `huggingface:FastVideo/FastWan…` (à retirer par
 réconciliation — son manifeste existe maintenant, *le corpus reflète le catalogue, y compris ses

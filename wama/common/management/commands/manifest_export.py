@@ -107,11 +107,13 @@ def _model_keys() -> list:
 
     ⚠ Les lignes RETIRÉES sont exclues, et ce n'est pas un détail de propreté : `retire_unlisted`
     MARQUE (`is_available=False`) au lieu de supprimer, pour garder l'historique d'une ligne que
-    la source ne liste plus. Deux résidus d'avant la normalisation des clés existent
+    la source ne liste plus. Deux résidus d'avant la normalisation des clés existaient
     (`albert:openai/gpt-oss-120b`, `albert:qwen3-coder-30b-A3b-instruct`) et c'est l'export de
     l'un d'eux qui, le 2026-09-18, a ÉCRASÉ un manifeste valide : sous Windows son nom de
     fichier ne différait que par la casse. *Exporter une ligne morte ne crée pas un fichier de
-    plus, il peut en détruire un vivant.*
+    plus, il peut en détruire un vivant.* Supprimés le 2026-10-22 par la route qui sait qu'un
+    fournisseur a RENOMMÉ un modèle (`cloud_models.drop_renamed`, après vérification en direct
+    chez Albert).
 
     Les modèles SYSTÈME seuls (2026-10-18, `ROADMAP §29` étape 3) : un modèle à son auteur n'est
     pas une cible du corpus, il n'est donc ni exporté ni compté « refusé » — sans quoi

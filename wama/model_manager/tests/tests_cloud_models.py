@@ -889,6 +889,47 @@ class NightlyRefreshTest(TestCase):
         self.assertEqual('model_manager.refresh_cloud_keys', entry['task'])
 
 
+class RenamedModelTest(TestCase):
+    """Un fournisseur qui RENOMME un modèle ne fait pas un modèle de plus (2026-10-22, vérifié en
+    direct chez Albert) : l'ancien nom — même id à la casse près, ou alias déclaré du vivant — se
+    SUPPRIME ; un modèle vraiment retiré, ou qui porte un historique, reste marqué."""
+
+    def setUp(self):
+        from wama.accounts.models import UserApiKey
+        user = get_user_model().objects.create_user('renamed_cloud', password='x')
+        UserApiKey.objects.create(user=user, source='albert', api_key='sk',
+                                  open_models=['albert:coder-a3b', 'albert:gpt-x'])
+        row = {'model_type': 'llm', 'source': 'albert', 'execution': 'cloud'}
+        AIModel.objects.create(model_key='albert:coder-a3b', name='a', **row)
+        AIModel.objects.create(model_key='albert:gpt-x', name='g', extra_info={'aliases': ['org/gpt-x']},
+                               **row)
+        for key in ('albert:coder-A3b', 'albert:org/gpt-x', 'albert:gone', 'albert:CODER-A3B-tracked'):
+            AIModel.objects.create(model_key=key, name=key, is_available=False, **row)
+
+    def test_an_old_name_goes_a_withdrawn_model_stays(self):
+        retired = cloud_models.retire_unlisted('albert')
+        keys = set(AIModel.objects.filter(source='albert').values_list('model_key', flat=True))
+        # `coder-A3b` (même id à la casse près) et `org/gpt-x` (alias déclaré) sont partis ;
+        # `gone` (vraiment retiré) et `CODER-A3B-tracked` (un AUTRE id) restent, marqués.
+        self.assertEqual({'albert:coder-a3b', 'albert:gpt-x', 'albert:gone', 'albert:CODER-A3B-tracked'},
+                         keys)
+        self.assertEqual(0, retired)                       # rien de vivant n'a été retiré
+
+    def test_a_row_with_a_runtime_history_is_never_deleted(self):
+        from wama.model_manager.models import ModelRuntimeStat
+        from wama.model_manager.services.eta_estimator import hardware_fingerprint
+        # Un ancien nom qui porte une durée APPRISE : il reste. L'empreinte est la vraie (celle de
+        # cette machine, sous laquelle l'ETA range TOUTE durée, distante comprise) — la règle ne lit
+        # que la clé.
+        ModelRuntimeStat.objects.create(model_key='albert:coder-A3b',
+                                        hardware_fingerprint=hardware_fingerprint())
+        dropped = cloud_models.drop_renamed('albert')
+        self.assertNotIn('albert:coder-A3b', dropped)
+        self.assertTrue(AIModel.objects.filter(model_key='albert:coder-A3b').exists())
+        # Contre-épreuve : l'autre ancien nom, sans historique, part.
+        self.assertEqual(['albert:org/gpt-x'], dropped)
+
+
 class OriginLabelTest(TestCase):
     """L'ORIGINE d'un modèle se DÉRIVE de sa ligne (exécution, source, hébergement, coût) —
     affichée sous les sélecteurs de modèle (`WamaModelHelp`)."""

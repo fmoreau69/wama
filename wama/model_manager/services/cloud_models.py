@@ -364,7 +364,45 @@ def retire_unlisted(source: str) -> int:
     rows = AIModel.objects.filter(source=source, execution=EXECUTION_CLOUD, is_proposed=False)
     retired = rows.exclude(model_key__in=opened).filter(is_available=True).update(is_available=False)
     rows.filter(model_key__in=opened, is_available=False).update(is_available=True)
+    drop_renamed(source)
     return retired
+
+
+def drop_renamed(source: str) -> list:
+    """SUPPRIME les lignes retirées de `source` qui ne sont qu'un ANCIEN NOM d'une ligne vivante —
+    même identifiant à la casse près, ou identifiant que le fournisseur déclare parmi les ALIAS du
+    vivant (`extra_info['aliases']`). Rend les clés supprimées.
+
+    Un renommage ne fait pas un modèle de plus (2026-10-22, Fabien : « si le modèle n'existe pas on
+    supprime la ligne fantôme par la route, mais on vérifie d'abord ») : vérifié en direct chez
+    Albert, `qwen3-coder-30b-A3b-instruct` est servi `…-a3b-…`, et `openai/gpt-oss-120b` est un
+    alias déclaré de `gpt-oss-120b`. Garder ces lignes MARQUÉES ne gardait aucun historique
+    (aucune exécution, aucune carte) mais gardait un piège : sous un système de fichiers insensible
+    à la casse, le manifeste de `…-A3b-…` EST celui de `…-a3b-…` — son export l'a écrasé deux fois
+    (2026-09-18, 2026-10-22). Même geste que les alias internes d'Ollama (`model_sync`), qui ne
+    sont pas des modèles non plus.
+
+    ⚠ La doctrine de `retire_unlisted` tient pour tout le reste : un modèle que le fournisseur a
+    RETIRÉ (aucun nom vivant ne le reprend) reste marqué, et une ligne qui porte un historique
+    d'exécution (`ModelRuntimeStat`) n'est jamais supprimée. Le corpus n'est pas touché : la ligne
+    retirée n'y entre pas (`manifest_export._model_keys`), et son nom de fichier peut être celui
+    de la ligne vivante.
+    """
+    from wama.model_manager.models import AIModel, EXECUTION_CLOUD, ModelRuntimeStat
+
+    rows = AIModel.objects.filter(source=source, execution=EXECUTION_CLOUD, is_proposed=False)
+    live = list(rows.filter(is_available=True))
+    names = {m.model_key.partition(':')[2].lower() for m in live}
+    aliases = {str(a) for m in live for a in ((m.extra_info or {}).get('aliases') or [])}
+    doomed = [g.model_key for g in rows.filter(is_available=False)
+              if (g.model_key.partition(':')[2].lower() in names
+                  or g.model_key.partition(':')[2] in aliases)
+              and not ModelRuntimeStat.objects.filter(model_key=g.model_key).exists()]
+    if doomed:
+        logger.info("[cloud_models] %s : anciens noms d'un modèle renommé, supprimés : %s",
+                    source, doomed)
+        AIModel.objects.filter(model_key__in=doomed).delete()
+    return doomed
 
 
 def refresh_key(row, background: bool = False) -> tuple:

@@ -6566,6 +6566,17 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   éphémère, compte de test) : la phrase d'origine s'écrasait sur quatre lignes dans le badge
 >   d'en-tête d'une card distante et chassait le badge « Distant » hors de la card — elle a sa
 >   ligne propre (`cardSource`). Contre-épreuves : trois mutations, rouges (`REMOVAL_LEDGER` R177).
+>   🧹 **Les deux fantômes Albert, supprimés par la route** (Fabien : « si le modèle n'existe pas
+>   on supprime la ligne fantôme par la route, mais on vérifie d'abord ») — vérifié EN DIRECT
+>   (`GET /models`, trois clés relues le jour même) : Albert sert `qwen3-coder-30b-a3b-instruct`
+>   (l'ancien `…-A3b-…` n'est plus servi) et déclare `openai/gpt-oss-120b` comme alias de
+>   `gpt-oss-120b` ; aucun historique (0 exécution, 0 carte). Deux RENOMMAGES, pas deux modèles :
+>   `cloud_models.drop_renamed`, appelée par `retire_unlisted` (la route qui sait qu'un
+>   fournisseur a changé sa liste), supprime l'ancien nom — jamais un modèle vraiment retiré (16
+>   chez OpenRouter, laissés marqués), jamais une ligne à historique ; le corpus n'est pas touché
+>   (le fichier de `…-A3b-…` EST celui de la ligne vivante). Appliqué : exactement ces deux lignes,
+>   manifeste vivant intact. Garde `tests_cloud_models.RenamedModelTest`, trois mutations rouges
+>   (`REMOVAL_LEDGER` R178).
 >
 > 🔄 **P1, 3ᵉ pièce LIVRÉE le 2026-10-02 — une catégorie n'est plus un monde, et le menu,
 > l'accueil et `/apps/` lisent UN groupage.**

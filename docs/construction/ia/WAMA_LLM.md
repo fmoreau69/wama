@@ -1181,6 +1181,11 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   indisponibles (`api_keys.forget_opened_models` → `cloud_models.retire_unlisted`) — marqués,
   jamais supprimés : une clé reposée les rend. Avant, la sonde nocturne ne rattrapait que les
   sources qui gardaient une clé, et les modèles de la dernière clé retirée restaient proposés.
+  Une seule exception, depuis le 2026-10-22 : un ANCIEN NOM — un fournisseur qui renomme un modèle
+  (même id à la casse près, ou id déclaré parmi les alias du nouveau) ne fait pas un modèle de
+  plus. `cloud_models.drop_renamed`, appelée par `retire_unlisted`, le supprime, sauf s'il porte
+  un historique d'exécution. Vérifié en direct chez Albert, appliqué : deux lignes
+  (`…-A3b-…`, `openai/gpt-oss-120b`). Garde : `tests_cloud_models.RenamedModelTest`.
 - **Apps** : `select_model()` (model_manager) — VRAM-aware, `prefer_loaded`, capacités requises ;
   les tiers de `llm_utils` s'appuient dessus.
 - **Cible non atteinte** (§15 + ROADMAP §8d) : croiser **intention + fichiers d'entrée +
