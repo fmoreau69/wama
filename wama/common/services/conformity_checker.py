@@ -1273,10 +1273,18 @@ def _output_naming(f: _AppFiles):
 
     ⚠ NON APPLICABLE à une app qui ne produit aucun fichier de sortie : lui reprocher un nom
     qu'elle n'écrit pas désignerait le mauvais défaut.
+
+    ⚠ Depuis le 2026-10-22 (`98e26793`, `ROUTE §10.6` « restes soldés » (a)), une glue place sa
+    sortie par le geste du squelette `ctx.output_place`, qui appelle la brique
+    (`task_skeleton.TaskContext.output_place`) : c'est la forme CIBLE, pas un contournement. Le
+    critère ne cherchait que le nom de la brique dans le code de l'app — il a rougi les cinq apps
+    qui avaient adopté le geste et laissé vertes celles qui l'appellent encore à la main (relevé
+    du 2026-10-26). Que la glue ne compose pas sa place à la main, c'est
+    `tests_task_skeleton_contract` qui le tient, par AST.
     """
     if not f.find(PY + TEMPLATES, r'output_file|result_file|download|\.zip'):
         return None, "aucune sortie produite — le nom de sortie n'a pas d'objet"
-    trouve = f.find(PY, r'compose_output_name')
+    trouve = f.find_code(PY, r'\.output_place\(') or f.find(PY, r'compose_output_name')
     if trouve:
         return True, trouve
     return False, ("sortie nommée à la main — deux modèles produisent le même nom, "

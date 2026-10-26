@@ -72,8 +72,12 @@
    de cette ligne** est nommé au §24 : trois critères rouges reviennent sur presque toutes les
    apps — `backend_routes`, `task_skeleton` (F5) et `detail_spec`/`triad_specs` (F3/F6).
    ✅ **Soldés le 2026-10-12** (`ac46fb72`, `b12d81cd`) ; relevé du 2026-10-26
-   (`logs/conformity_report.json`) : 98 à 100 % sur les dix apps, seul rouge le critère neuf
-   `output_naming` (composer, converter, enhancer, imager, synthesizer).
+   (`logs/conformity_report.json`) : 98 à 100 % sur les dix apps, seul rouge `output_naming`
+   (composer, converter, enhancer, imager, synthesizer). ✅ *Même jour* : le critère (posé le
+   2026-09-12) était en RETARD du mécanisme, pas les apps — elles placent leur sortie par le geste
+   du squelette `ctx.output_place` depuis le 2026-10-22 (`98e26793`), qui appelle la brique ; il
+   le reconnaît désormais (garde `tests_output_naming.OutputNamingCriterionTest`, contre-épreuve
+   rouge) et les dix apps sont à **100 %**.
 2. Transcriber gold standard — ⚠ **95 %, pas 100 %** (mesuré 2026-09-10). Restent 3 rouges dont
    un de fond : `model_options_catalog` — la liste de modèles est **écrite en dur**
    (`transcriber/params.py:39`), donc un modèle installé n'apparaîtra jamais.

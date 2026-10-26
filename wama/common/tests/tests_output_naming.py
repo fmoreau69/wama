@@ -178,3 +178,41 @@ class EntreesDeZipTests(TestCase):
         """Noms des entrées de l'archive — la réponse peut être streamée ou non."""
         blob = b''.join(reponse.streaming_content) if reponse.streaming else reponse.content
         return zipfile.ZipFile(io.BytesIO(blob)).namelist()
+
+
+class OutputNamingCriterionTest(SimpleTestCase):
+    """Le critère de grille `output_naming` reconnaît le geste du squelette (2026-10-26).
+
+    Depuis le 2026-10-22 une glue place sa sortie par `ctx.output_place`, qui appelle la brique :
+    le critère ne cherchait que `compose_output_name` dans le code de l'app et rougissait les cinq
+    apps qui avaient adopté le geste (composer, converter, enhancer, imager, synthesizer)."""
+
+    def _fake_app(self, tmp, tasks_py):
+        from wama.common.services import conformity_checker as checker
+        tmp.mkdir(parents=True)
+        (tmp / 'tasks.py').write_text(tasks_py, encoding='utf-8')
+        (tmp / 'views.py').write_text('def download(request, pk): ...\n', encoding='utf-8')
+        files = checker._AppFiles('fake')
+        files.root = tmp
+        return checker._output_naming(files)
+
+    def test_the_skeleton_gesture_is_green_and_a_hand_made_name_is_red(self):
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            state, proof = self._fake_app(
+                Path(d) / 'a', "rel, path = ctx.output_place('.wav', model=key)\n")
+            self.assertIs(state, True)
+            self.assertIn('tasks.py:1', proof)
+        with tempfile.TemporaryDirectory() as d:
+            state, _ = self._fake_app(
+                Path(d) / 'b', "# ctx.output_place('.wav') raconté dans un commentaire\n"
+                               "name = f'{stem}_{item.id}.wav'\n")
+            self.assertIs(state, False, 'un commentaire ne verdit pas une app')
+
+    def test_the_ten_apps_measure_green(self):
+        from wama.common import app_registry
+        from wama.common.services import conformity_checker as checker
+        apps = sorted(a for a, s in app_registry.APP_CATALOG.items() if not s.get('sandbox'))
+        states = {app: checker._output_naming(checker._AppFiles(app))[0] for app in apps}
+        self.assertEqual({app: True for app in apps}, states)
