@@ -286,6 +286,7 @@ de code, citer son verdict ; sinon le refaire.
   messages de commit gardent l'ancienne numérotation. Garde mécanique ouvert en **D34**.
 
 ### 2c. `check_docs` — et le piège qui a récidivé QUATRE fois
+- 🔴 **Passe courte `/doc-sync §1`** (2026-10-26, Fabien : « pas seulement à la clôture ») : le doc du domaine, le STATUT de la section de `ROADMAP` qui planifiait le livrable (⏳ → 🔄/✅, daté, sha) et la MARQUE de la section de vision qui en porte l'intention — rien ne les faisait suivre.
 - Des RÉFÉRENCES doc ont bougé → `check_docs` (Windows OU WSL2, rendu identique).
   ⚠ Un RETRAIT de code compte aussi : il raccourcit le fichier et périme les renvois
   `fichier:ligne` des traces datées (`/reverif §3`, vécu le 2026-10-12).

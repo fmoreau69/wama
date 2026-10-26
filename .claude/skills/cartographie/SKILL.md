@@ -78,6 +78,7 @@ wama-dev-ai a produit des **affirmations d'absence fausses 4 fois sur 6**. Donc 
 
 Dans le document de référence du domaine (**pas un nouveau `.md`**) :
 
+- la section de `ROADMAP` qui avait ouvert la cartographie, son statut daté (`/doc-sync §1`) ;
 - les faits établis, avec leur référence rejouable (`corpus:chemin`) et la ligne — le préfixe
   sur CHAQUE référence, pas seulement en tête de bloc : `check_docs` ne reconnaît une référence
   externe qu'à son préfixe de corpus déclaré (`wama-dev-ai/corpus.py::CORPORA`) ; sans lui, il

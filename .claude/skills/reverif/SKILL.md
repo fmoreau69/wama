@@ -107,6 +107,12 @@ pas dans le code.
   une autre session a pu le prendre) ; un registre qui a bougé a son corpus régénéré (`/cloture §2b`).
 - Une doc générée régénérée porte aussi le travail d'autrui : n'en commiter que sa part
   (`/commit-partiel §4`).
+- 🔴 **La passe courte `/doc-sync §1` sur CHAQUE livrable revérifié** (2026-10-26, Fabien : « la doc
+  semble très en retard […] notamment roadmap et vision ») : le STATUT de la section de `ROADMAP`
+  qui le planifiait et la MARQUE de la section de vision qui en porte l'intention se confrontent ici,
+  pas seulement le doc du domaine — `check_docs` ne voit ni un ⏳ devenu ✅ ni un compte périmé.
+  Et si la passe montre un décrochage d'ensemble (en-tête vieux de semaines, centaines de commits
+  depuis), le DIRE et proposer `/doc-sync §2`.
 
 ## 4. Commité — et rien d'autre
 

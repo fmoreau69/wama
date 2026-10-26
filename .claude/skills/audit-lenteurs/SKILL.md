@@ -114,3 +114,5 @@ dev_run_role(role="task", args={"task": "<page> prend <s> s (<n> requêtes) ; pr
   cache… Modèle : `wama/common/tests/tests_page_cost.py` (prouvé par mutation — `/contre-epreuve`).
 - Consigner le relevé daté et le gain dans la mémoire de référence des lenteurs ; le chiffre
   ne se recopie pas ici.
+- Passe courte `/doc-sync §1` : le doc du domaine du code corrigé, et la section de `ROADMAP` qui
+  portait la lenteur (statut daté, sha).

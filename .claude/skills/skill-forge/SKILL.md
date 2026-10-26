@@ -42,6 +42,8 @@ distiller (un gabarit vide au mieux, de la doctrine inventée au pire).
       qui le mesure ; une valeur ne subsiste que **datée**, pour l'ordre de grandeur
 - [ ] **les chiffres vivent dans leur doc-domicile** (table des domaines de AGENTS.md) —
       le skill RENVOIE, il ne recopie pas
+- [ ] un skill qui LIVRE (code, registre, doc) renvoie à la passe courte `/doc-sync §1` dans
+      son étape de consignation — une ligne, jamais une copie de la passe
 - [ ] scripts rejouables **DANS le dossier du skill**, jamais au scratchpad — un scratchpad
       meurt avec sa session (vécu : les scripts de nettoyage du 25/08, réécrits le 28/08
       dans `/crash-residus`)

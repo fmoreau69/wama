@@ -98,3 +98,5 @@ description: Renommer une API française (ou tout renommage d'identifiants multi
    NAVIGATEUR après restart du parc (⚠ gunicorn sert l'ancien code ; ⚠ sonde WSL :
    `no_proxy=localhost` sinon le proxy UGE avale localhost) → 6. re-consignation
    (AGENTS.md, §PENDING, mémoire) avec les RESTES ASSUMÉS nommés.
+   La passe courte `/doc-sync §1` en fait partie : un nom renommé vit aussi dans la `ROADMAP`
+   et la vision (c'est là que la passe du 2026-08-29 en avait laissé 27).

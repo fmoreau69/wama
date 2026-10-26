@@ -142,6 +142,7 @@ Un round-trip qui diverge sur un champ **déclaratif** est un bug ; sur un champ
 3. Semer 1-2 exemples au corpus et lancer `manifest_roundtrip --all`.
 4. Mettre à jour `docs/construction/architecture/WAMA_MANIFEST_SPEC.md` (formalisme) **et** `docs/construction/architecture/WAMA_MANIFEST_ARCHITECTURE.md`
    (tableau des kinds) — les deux dérivent vite.
+- 🔴 **Passe courte `/doc-sync §1`** (2026-10-26, Fabien : « pas seulement à la clôture ») : le doc du domaine, le STATUT de la section de `ROADMAP` qui planifiait le livrable (⏳ → 🔄/✅, daté, sha) et la MARQUE de la section de vision qui en porte l'intention — rien ne les faisait suivre.
 
 ## 6. Coordination
 

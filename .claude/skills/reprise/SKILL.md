@@ -38,6 +38,12 @@ python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la 
 python manage.py test                       # SUITE COMPLÈTE (~15 min) — ajoutée le 2026-08-25
 ```
 
+🔴 **Et le DÉCROCHAGE de la doc** (2026-10-26) — la date d'en-tête de la ROADMAP et de la vision,
+contre les commits depuis : `grep -n -m2 -i "mise à jour\|confrontation" docs/construction/suivi/ROADMAP.md
+docs/construction/mondes/WAMA_VISION_COMPLET.md`, puis `git log --since=<cette date> --oneline | wc -l`.
+Des centaines de commits depuis = la doc a décroché : le DIRE à l'ouverture et proposer
+`/doc-sync §2` (passe longue) — mesuré ce jour-là : 3 025 commits depuis l'en-tête de la ROADMAP.
+
 > 🔴 **La suite se lance DEPUIS WSL2 (`venv_linux`) — c'est le runtime réel** (ajouté le
 > 2026-09-05). Mesuré ce jour : **4 tests étaient verts depuis venv_win et n'avaient JAMAIS pu
 > passer sous Linux** depuis leur création (littéral `'/dossier'` = `D:\dossier` créé sur le

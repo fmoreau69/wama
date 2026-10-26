@@ -104,5 +104,6 @@ Trois questions, dans l'ordre, AVANT d'extraire :
   (jamais une ligne à la main dans `docs/construction/architecture/WAMA_MECANISMES.md` — la table est générée), puis
   `python manage.py doc_facts` pour régénérer et `doc_facts --check` pour vérifier.
 - La brique + son taux d'adoption → `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` (facette F1-F8 concernée).
+- 🔴 **Passe courte `/doc-sync §1`** (2026-10-26, Fabien : « pas seulement à la clôture ») : le doc du domaine, le STATUT de la section de `ROADMAP` qui planifiait le livrable (⏳ → 🔄/✅, daté, sha) et la MARQUE de la section de vision qui en porte l'intention — rien ne les faisait suivre.
 - Si mesurable → ajouter/ajuster le critère dans `conformity_checker.py` (cf. /conformite §3).
 - Palier → `/palier` (PROJECT_STATUS + commit par chemins explicites).

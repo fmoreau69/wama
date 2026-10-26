@@ -173,3 +173,4 @@ travail est de CONSOMMER, pas de créer. Route d'ensemble : `docs/construction/a
 - Validation empirique : `manage.py check` (venv WSL), page 200, endpoints unifiés ; si Playwright
   MCP disponible → `/smoke` sur les parcours de l'app.
 - Consigner via `/palier` (PROJECT_STATUS + ROUTE si une facette a bougé).
+- 🔴 **Passe courte `/doc-sync §1`** (2026-10-26, Fabien : « pas seulement à la clôture ») : le doc du domaine, le STATUT de la section de `ROADMAP` qui planifiait le livrable (⏳ → 🔄/✅, daté, sha) et la MARQUE de la section de vision qui en porte l'intention — rien ne les faisait suivre.

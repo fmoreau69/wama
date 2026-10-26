@@ -23,6 +23,7 @@ Objectif : ne jamais laisser un palier non consigné ni non validé. À déroule
 ## 2. Consignation (exhaustive, pas lossy)
 - `docs/construction/suivi/PROJECT_STATUS.md` : mettre à jour la/les sections du chantier (✅/🔄/⏳, date, ce qui RESTE — y compris « validation navigateur en attente » si on n'a pas pu cliquer).
 - Le doc de référence du domaine (cf. table AGENTS.md) : consigner décision + pourquoi + implications + ce que ça remplace.
+- 🔴 **Passe courte `/doc-sync §1`** (2026-10-26, Fabien : « pas seulement à la clôture ») : le doc du domaine, le STATUT de la section de `ROADMAP` qui planifiait le livrable (⏳ → 🔄/✅, daté, sha) et la MARQUE de la section de vision qui en porte l'intention — rien ne les faisait suivre.
 - Mécanisme transversal créé/déplacé/supprimé → entrée du registre `wama/common/mecanismes.py` puis `python manage.py doc_facts` (la table de `docs/construction/architecture/WAMA_MECANISMES.md` est GÉNÉRÉE, ne jamais l'éditer à la main).
 - Un registre déclaratif a bougé (params, capacités, tool_api, modèles…) → `python manage.py manifest_export` puis `manifest_export --check` **depuis WSL2** (la vue venv_win donne de faux « périmés » sur les libraries — dépendances de wheel différentes).
 - Cam Analyzer : entrée `CAM_ANALYZER_CHANGELOG.md` obligatoire si le comportement a changé.

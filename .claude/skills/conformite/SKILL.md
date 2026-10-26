@@ -92,3 +92,4 @@ python -c "import json;c=json.load(open('logs/conformity_report.json'))['criteri
 ## 4. Consigner
 - Évolution notable des scores → une ligne dans `PROJECT_STATUS` (section du chantier concerné),
   pas de recopie de la grille (elle est vivante).
+- 🔴 **Passe courte `/doc-sync §1`** (2026-10-26, Fabien : « pas seulement à la clôture ») : le doc du domaine, le STATUT de la section de `ROADMAP` qui planifiait le livrable (⏳ → 🔄/✅, daté, sha) et la MARQUE de la section de vision qui en porte l'intention — rien ne les faisait suivre.
