@@ -224,6 +224,18 @@ def _still_loaded(instance) -> bool:
         return False
 
 
+def _holds_no_local_vram(instance) -> bool:
+    """Le backend DÉCLARE n'occuper aucune VRAM dans ce processus : `recommended_vram_gb = 0`,
+    écrit exprès — un fournisseur distant (Albert), un modèle servi par Ollama hors du processus
+    (GLM-OCR). Jamais l'absence de déclaration (`None`, le défaut), qui se mesure.
+
+    POURQUOI (2026-10-26, conversation vocale : « ma parole met longtemps à être reconnue ») :
+    la mesure d'avant chargement importait PyTorch. Pour la PREMIÈRE phrase écoutée par Albert
+    dans un worker gunicorn neuf, cela coûtait ~28 s sur 31 (mesuré : lecture de milliers de
+    fichiers de torch sur /mnt/d), pour un `load()` qui ne fait que retenir un nom."""
+    return getattr(instance, 'recommended_vram_gb', None) == 0
+
+
 def _wrap_load(func):
     """Déclare l'empreinte VRAM au gouverneur après un chargement réussi."""
     if getattr(func, _WRAPPED, False):
@@ -231,7 +243,9 @@ def _wrap_load(func):
 
     @functools.wraps(func)
     def wrapper(self, *args, **kwargs):
-        before = _vram_snapshot()
+        # Rien à mesurer pour un backend qui ne tient rien ici (cf. `_holds_no_local_vram`) :
+        # sans mesure, `_footprint_to_publish` ne publie rien — ce que sa déclaration de 0 disait.
+        before = None if _holds_no_local_vram(self) else _vram_snapshot()
         result = func(self, *args, **kwargs)
         try:
             if result is not False:

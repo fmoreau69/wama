@@ -634,6 +634,28 @@ avait tiré `ollama:gemma4:12b` (résident, donc préféré par `prefer_loaded`)
   libres) relève du curseur, pas de l'écoute — signalé, pas touché.
 - Gardes : 39 tests au même fichier (moteur par profil, repli, préchauffage muet, porte commune,
   route `/speech-only`, filtre des fantômes et sa contre-épreuve, 429 sans attente).
+- 🔄 **2026-10-26 — « ma parole ne semble pas reçue ou met longtemps à être reconnue »** (Fabien).
+  **Mesuré**, étape par étape (phrase de la voix locale, compte de Fabien, écoute par Albert) : dans
+  un processus NEUF, la première phrase prenait **33,4 s**, la suivante **0,5 s** ; ~28 s étaient
+  l'import de PyTorch, amené par la mesure de VRAM de l'enveloppe commune des backends
+  (`backends/base._wrap_load`) autour d'un `load()` d'Albert qui ne retient qu'un nom. ✅ Un backend
+  qui DÉCLARE 0 Go (`recommended_vram_gb = 0` : Albert, GLM-OCR par Ollama) ne mesure plus
+  (`_holds_no_local_vram`, garde `tests_vram_ledger`) : **33,4 → 3,0 s**, et l'inventaire des
+  backends (2,4 s restantes) entre au préchauffage des workers (`assistant_engine.WARM_UP_STEPS`).
+  ⚠ Un worker PRÉCHAUFFÉ importe déjà PyTorch (étape `backend_catalog`) : la première phrase y
+  prend **1,2 s**. Le gain vaut dans la FENÊTRE de préchauffage — **~3 min** après chaque naissance
+  de worker (163 à 182 s mesurées) : une phrase arrivée 20 s après la naissance, préchauffage en
+  cours dans son fil, prend **6,3 s** (mesuré, après correction). Cette fenêtre revient toutes les
+  ~20 min : `max_requests = 1000` pour ~50
+  requêtes/min, dont les deux tiers le relevé `/common/api/system-stats/` (toutes les 5 s par
+  page visible ; un navigateur automatisé n'est jamais caché). Le Whisper LOCAL à froid (après
+  10 min sans phrase, `STT_IDLE_UNLOAD_S`) : **22,4 s**, puis 1,1 s — c'est lui qui prend la
+  phrase quand Albert plafonne (10/min), et le préchauffage ne le charge pas quand le distant
+  écoute. ⏳ À décider : `max_requests`, préchauffer aussi le local en écoute distante (10 Go
+  réservés), l'écoute SOURDE pendant que l'assistant RÉFLÉCHIT sans rien jouer
+  (`wama-assistant-listen.js` `frameMode` : aucun écho possible tant qu'il ne parle pas).
+  ⚠ Les triplets « 429 → filtre indisponible → service inaccessible » du journal de ce jour
+  venaient des TESTS (`tests_assistant_listen`), qui écrivent dans le même journal.
 
 **Remesuré le 2026-10-04 — « encore lent, même par Albert » (Fabien). RIEN de câblé, cinq
 constats.** Mesures faites dans un processus neuf (script de mesure du scratchpad de session :

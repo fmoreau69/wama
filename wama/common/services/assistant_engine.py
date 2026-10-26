@@ -947,6 +947,15 @@ def _warm_backend_catalog():
     prime_catalog_index()
 
 
+def _warm_backend_inventory():
+    # La résolution d'un backend par sa clé (`manager.backend_instance_for_key`) lit l'inventaire
+    # des backends : 2,4 s au premier appel d'un processus (mesuré le 2026-10-26, lectures de
+    # fichiers sur /mnt/d), payées par la première PHRASE de la conversation vocale (`/api/stt/`,
+    # écoute distante) comme par le premier tirage d'un outil qui lance un modèle.
+    from wama.common.services.backend_inventory import resolvable_entries
+    resolvable_entries()
+
+
 def _warm_tools_prompt():
     from wama.tool_api import build_tools_list
     build_tools_list()
@@ -966,6 +975,7 @@ WARM_UP_STEPS = (
     ('app_pipelines', _warm_app_pipelines),
     ('litellm', _warm_litellm),
     ('backend_catalog', _warm_backend_catalog),
+    ('backend_inventory', _warm_backend_inventory),
     ('tools_prompt', _warm_tools_prompt),
     ('dev_client', _warm_dev_client),
 )

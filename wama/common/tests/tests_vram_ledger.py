@@ -349,6 +349,23 @@ class EnveloppeTest(_AvecRegistre):
         self._charger(0, 0.0)
         self.assertEqual(self._ligne(), {})
 
+    def test_a_backend_declaring_zero_vram_takes_no_measure(self):
+        """2026-10-26 : la mesure d'avant chargement importait PyTorch — ~28 s pour la première
+        phrase écoutée par Albert dans un worker neuf, dont le `load()` ne retient qu'un nom."""
+        self.b.recommended_vram_gb = 0
+        with mock.patch.object(base, '_vram_snapshot') as snapshot:
+            self.assertTrue(self.b.load())
+        snapshot.assert_not_called()
+        self.assertEqual(self._ligne(), {})
+
+    def test_a_backend_declaring_a_footprint_is_still_measured(self):
+        """Contre-cas : seule la déclaration EXPLICITE de 0 dispense de la mesure."""
+        with mock.patch.object(base, '_vram_snapshot', return_value=0) as snapshot, \
+                mock.patch.object(base, '_measured_vram_gb', return_value=8.0):
+            self.b.load()
+        snapshot.assert_called_once()
+        self.assertEqual(list(self._ligne().values()), [8.0])
+
     def test_un_chargement_REFUSE_ne_rend_pas_le_backend_resident(self):
         self.b.refus = True
         self.assertFalse(self._charger(0, 0.0))

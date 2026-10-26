@@ -498,9 +498,11 @@ class WarmUpTest(TestCase):
         self.assertTrue(callable(tool_api.build_tools_list))
         from wama.common.services import process_pipeline
         self.assertTrue(callable(process_pipeline._load_declarations))
+        from wama.common.services import backend_inventory
+        self.assertTrue(callable(backend_inventory.resolvable_entries))
         self.assertEqual([name for name, _ in engine.WARM_UP_STEPS],
-                         ['app_pipelines', 'litellm', 'backend_catalog', 'tools_prompt',
-                          'dev_client'])
+                         ['app_pipelines', 'litellm', 'backend_catalog', 'backend_inventory',
+                          'tools_prompt', 'dev_client'])
 
     def test_the_pipelines_step_loads_the_app_declarations(self):
         """2026-10-26 : la 1ʳᵉ ouverture d'une page par un worker neuf payait 25 s de chargement
