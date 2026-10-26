@@ -26073,6 +26073,13 @@ rien perdre »* — le reste relevé le 22/10 (`WAMA_SCENES_3D §6`). Domicile e
   dictée, le Speak et le Face Analyzer entrent au scénario nocturne `common.capture.ui` (vert ;
   rouge sur `close` neutralisé), la médiathèque l'était déjà (`synthesizer.voice_library_pick`,
   10/10 avec la brique). Constat périmé corrigé : `INFRA_WSL_VS_WINDOWS` (« trois surfaces »).
+- 🔚 **Pour Fabien** (clôture du même jour) : relancer gunicorn (`settings.py` porte un processeur
+  de contexte de plus, `base.html` et la page du Face Analyzer ont changé), pousser `32aab567` et
+  `44825a1b`, puis essayer en https sur le live : dictée, Speak, enregistrement de la
+  médiathèque, Face Analyzer, mains. Solde la brique de capture laissée ouverte au palier des
+  MAINS du 22/10. Limite de ce palier : la sonde des noms n'est tenue que par V8. Contrôles
+  attendus : `tests_capture` 19 OK, `tests_assistant_listen` vert, nocturne `common.capture.ui`
+  vert.
 
 ## §PALIER 2026-10-26 — GARDE (b) : LA PART DE LA PAROLE TRANSCRITE, DANS LA BANDE ET DANS L'ÉVALUATION — non poussé — 🔴 relancer gunicorn ET les workers, puis Ctrl+F5
 
