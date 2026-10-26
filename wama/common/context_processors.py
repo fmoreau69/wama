@@ -65,6 +65,15 @@ def theme(request):
             'theme_generated_css': generated(user, choice) if generated else ''}
 
 
+def public_address(request):
+    """L'adresse PUBLIQUE de l'instance (`settings.WAMA_PUBLIC_URL`, lue par
+    `navigation.absolute_url` et rien d'autre), '' si elle n'est pas déclarée. `base.html` la
+    donne à la capture caméra / micro (`common/js/wama-capture.js`), qui la cite à qui est en http
+    — jusqu'au 2026-10-26 une adresse écrite en dur dans le JS, fausse sur toute autre instance."""
+    from wama.common.services.navigation import absolute_url
+    return {'wama_public_url': absolute_url('')}
+
+
 #: Ce que voit un visiteur sans compte : pas d'avatar (la vocalisation exige un compte).
 _AVATAR_ABSENT = {'available': False, 'enabled': False, 'collapsed': False, 'voice': False,
                   'compact_chat': False}

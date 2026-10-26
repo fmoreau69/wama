@@ -1933,7 +1933,9 @@ de la médiathèque (`library-add.js`), les mains (`wama-hands.js`) et le temps 
 Analyzer. Ce que la brique porte, pour tous :
 - le **contexte sécurisé** vérifié avant toute demande (https, ou `localhost` —
   `docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` dit pourquoi le navigateur refuse
-  sinon) ;
+  sinon) ; le message cite l'adresse PUBLIQUE de l'instance quand elle est déclarée en https
+  (`WAMA_PUBLIC_URL`, lue par `navigation.absolute_url`, donnée par `base.html` à la balise de la
+  brique — elle était écrite en dur dans le JS jusqu'à la revérification du 2026-10-26) ;
 - un **refus expliqué** par périphérique : autorisation refusée (et où la rendre), aucun
   périphérique (et quoi faire en bureau à distance), périphérique occupé, autre panne ;
 - le **périphérique choisi** et son **repli** sur celui par défaut quand il ne répond plus
@@ -1948,6 +1950,11 @@ Ce qu'une page ne fait plus : appeler `getUserMedia`, `enumerateDevices`, `Media
 `permissions.query` elle-même — `tests_capture.NoDeviceAccessOutsideTheBrickTest` le refuse dans
 `wama/`, `wama_lab/` et `wama_data/`. Ce que la brique ne fait pas : traiter le flux (le découpage
 de la parole reste à l'écoute, la reconnaissance des gestes aux mains).
+
+Les consommateurs sont rejoués chaque nuit sur les périphériques simulés de Chromium :
+`common.capture.ui` (dictée de l'assistant, Speak du transcriber, Face Analyzer — un seul flux
+chacun, rendu à l'arrêt ; `wama/common/services/ui_smoke_capture.py`), `<app>.voice_library_pick`
+(l'enregistrement de la médiathèque, jusqu'au WAV) et `common.scene.<clé>.ui` (les mains).
 
 ---
 

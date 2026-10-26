@@ -612,6 +612,8 @@ TEMPLATES = [
                 'wama.common.context_processors.unread_notifications',
                 # THÈME de la page (`common/themes.py`), posé sur <html> par base.html.
                 'wama.common.context_processors.theme',
+                # Adresse PUBLIQUE de l'instance (`WAMA_PUBLIC_URL`), pour la capture caméra/micro.
+                'wama.common.context_processors.public_address',
             ],
         },
     },

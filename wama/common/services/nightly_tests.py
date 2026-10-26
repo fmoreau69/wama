@@ -606,12 +606,16 @@ def _register_builtin() -> None:
         from wama.common.services.ui_smoke_preview import register_preview_scenarios
         from wama.common.services.ui_smoke_accounts import register_account_scenarios
         from wama.common.services.ui_smoke_scenes import register_scene_scenarios
+        from wama.common.services.ui_smoke_capture import register_capture_scenarios
         register_ui_scenarios()
         # 2026-10-20 — la CONSTELLATION des utilisateurs : une scène three.js dont rien ne se rend
         # côté serveur ; une importmap cassée laisserait une page 200 au fond noir.
         register_account_scenarios()
         # 2026-10-21 — les scènes 3D des registres, une par scène déclarée (`common/scenes.py`).
         register_scene_scenarios()
+        # 2026-10-26 — la CAPTURE caméra / micro (`common/js/wama-capture.js`) : ses consommateurs,
+        # sur les périphériques simulés de Chromium.
+        register_capture_scenarios()
         # Les briques d'APPARIEMENT s'exécutent SERVIES : aucun test Python ne voit un bloc gardé
         # par `if (window.WamaModelCaps)` qui se tait parce que la brique n'est pas chargée
         # (avatarizer, mesuré le 13/09). D'où ces gestes dans le navigateur, versés du bloc-notes.

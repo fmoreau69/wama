@@ -26065,3 +26065,11 @@ rien perdre »* — le reste relevé le 22/10 (`WAMA_SCENES_3D §6`). Domicile e
   caméra rendus à chaque fois.
 - ⚠ Non exercé en navigateur : la SONDE des noms (Chromium, avec ses périphériques factices, les
   donne avant toute autorisation) — tenue par le test V8.
+- **Revérification (même jour)** — deux écarts de ma main, ramenés : ① l'adresse https citée en
+  http était ÉCRITE dans la brique (`https://wama.univ-eiffel.fr`, héritée de l'écoute), alors que
+  l'instance la déclare (`WAMA_PUBLIC_URL`, lue par `navigation.absolute_url`) : un processeur de
+  contexte la donne à la balise de la brique, citée seulement si elle est en https — fausse sur
+  toute autre instance sinon ; ② mes passages au navigateur étaient des sondes à la main : la
+  dictée, le Speak et le Face Analyzer entrent au scénario nocturne `common.capture.ui` (vert ;
+  rouge sur `close` neutralisé), la médiathèque l'était déjà (`synthesizer.voice_library_pick`,
+  10/10 avec la brique). Constat périmé corrigé : `INFRA_WSL_VS_WINDOWS` (« trois surfaces »).

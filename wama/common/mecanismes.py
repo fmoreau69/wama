@@ -2277,10 +2277,11 @@ MECHANISMS = (
               "l'arrêt et au `pagehide`. Consommée par l'écoute de l'assistant (et le Speak du "
               "transcriber, par elle), l'enregistrement de la médiathèque, les mains et le temps "
               "réel du Face Analyzer ; aucune page n'appelle `getUserMedia` elle-même (garde "
-              "`tests_capture`). Elle ouvre le périphérique, elle ne traite pas le flux",
+              "`tests_capture`), et les consommateurs sont rejoués chaque nuit "
+              "(`common.capture.ui`). Elle ouvre le périphérique, elle ne traite pas le flux",
               'wama/common/static/common/js/wama-capture.js',
               'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
-              annexes=('wama/common/tests/tests_capture.py',),
+              annexes=('wama/common/tests/tests_capture.py', 'wama/common/services/ui_smoke_capture.py'),
               symbol='WamaCapture'),        # global de base.html : compté par son symbole
     Mechanism('card_menu', "Menu contextuel de card/lot + débordement « … »",
               "Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; "

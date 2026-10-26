@@ -43,8 +43,12 @@
     microphone: { noun: 'Le micro', short: 'Micro', refused: 'Micro refusé : autorisez-le', none: 'Aucun micro détecté sur ce poste',
                   remote: "activer l'enregistrement audio à distance", used: 'Le micro est utilisé', input: 'audioinput', unnamed: 'Micro' },
   };
-  // L'adresse sécurisée de WAMA, dite dans le message quand la page est servie en http.
-  var SECURE_ADDRESS = 'https://wama.univ-eiffel.fr';
+  // L'adresse sécurisée de l'instance, dite dans le message quand la page est servie en http : son
+  // adresse PUBLIQUE déclarée (`WAMA_PUBLIC_URL`, posée par base.html sur cette balise), si elle
+  // est en https. Rien sinon — jusqu'au 2026-10-26 une adresse écrite ici, fausse ailleurs.
+  var script = global.document && document.currentScript;
+  var declared = (script && script.getAttribute('data-public-url')) || '';
+  var SECURE_ADDRESS = declared.indexOf('https://') === 0 ? declared : '';
 
   var open_ = [];                         // les flux ouverts par la brique, rendus au `pagehide`
 
@@ -59,7 +63,8 @@
     if (err && err.explained) return err.message;       // déjà rendue lisible par `open`
     var w = words(kind), name = err && (err.reason || err.name);
     if (name === 'insecure') {
-      return w.noun + " n'est disponible qu'en connexion sécurisée : https (" + SECURE_ADDRESS + ") ou l'adresse localhost.";
+      return w.noun + " n'est disponible qu'en connexion sécurisée : https" +
+        (SECURE_ADDRESS ? ' (' + SECURE_ADDRESS + ')' : '') + " ou l'adresse localhost.";
     }
     if (name === 'NotAllowedError' || name === 'SecurityError') {
       return w.refused + " pour ce site (cadenas de la barre d'adresse › " + w.short + ').';

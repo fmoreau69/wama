@@ -14,7 +14,7 @@ from pathlib import Path
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 User = get_user_model()
@@ -76,13 +76,17 @@ function keepError(key) { return function (e) { out[key] = { message: e.message,
 class CaptureBrickTest(SimpleTestCase):
     """La brique servie, exécutée par V8."""
 
-    def _ctx(self, secure=True):
+    def _ctx(self, secure=True, public_url=None):
         try:
             from py_mini_racer import MiniRacer
         except ImportError:
             self.skipTest('py_mini_racer absent de ce venv : pas de V8')
         ctx = MiniRacer()
-        ctx.eval(FAKE_BROWSER + ('' if secure else 'window.isSecureContext = false;')
+        # La balise de la brique, telle que base.html la pose (`data-public-url`).
+        tag = ('' if public_url is None else
+               'var document = { currentScript: { getAttribute: function (n) { '
+               'return n === "data-public-url" ? %s : null; } } };' % json.dumps(public_url))
+        ctx.eval(FAKE_BROWSER + tag + ('' if secure else 'window.isSecureContext = false;')
                  + (STATIC_JS / 'wama-capture.js').read_text(encoding='utf-8'))
         return ctx
 
@@ -99,9 +103,18 @@ class CaptureBrickTest(SimpleTestCase):
         self.assertIn("Le micro n'est disponible qu'en connexion sécurisée", mic['message'])
         self.assertIn("La caméra n'est disponible qu'en connexion sécurisée", cam['message'])
         for message in (mic['message'], cam['message']):
-            self.assertIn('https://wama.univ-eiffel.fr', message)
+            self.assertIn('https', message)
             self.assertIn('localhost', message)
+            self.assertNotIn('(http', message, 'aucune adresse déclarée : aucune adresse citée')
         self.assertEqual([], self._js(ctx, 'asked'), 'aucune demande au navigateur')
+
+    def test_the_declared_public_address_is_named_only_when_it_is_https(self):
+        insecure = "WamaCapture.explain({ reason: 'insecure' }, 'microphone')"
+        self.assertIn('https (https://wama.exemple.fr) ou',
+                      self._ctx(secure=False, public_url='https://wama.exemple.fr').eval(insecure))
+        self.assertNotIn('wama.exemple.fr',
+                         self._ctx(secure=False, public_url='http://wama.exemple.fr').eval(insecure),
+                         "une adresse en http n'est pas la réponse à « il faut https »")
 
     def test_every_refusal_is_explained_for_each_device(self):
         ctx = self._ctx()
@@ -246,10 +259,21 @@ class CaptureBrickTest(SimpleTestCase):
 class CaptureBrickIsLoadedFirstTest(TestCase):
     """`base.html` charge la brique avant les pages et briques qui ouvrent un périphérique."""
 
-    def test_the_capture_brick_comes_before_its_consumers(self):
+    def _home(self):
         user = User.objects.create_user('capture_tester', password='x', is_staff=True, is_superuser=True)
         self.client.force_login(user)
-        html = self.client.get(reverse('home')).content.decode()
+        return self.client.get(reverse('home')).content.decode()
+
+    @override_settings(WAMA_PUBLIC_URL='https://wama.exemple.fr')
+    def test_the_brick_is_given_the_declared_public_address(self):
+        self.assertRegex(self._home(), r'wama-capture\.js[^"]*" data-public-url="https://wama\.exemple\.fr"')
+
+    @override_settings(WAMA_PUBLIC_URL='')
+    def test_without_a_declared_address_the_brick_is_given_none(self):
+        self.assertRegex(self._home(), r'wama-capture\.js[^"]*" data-public-url=""')
+
+    def test_the_capture_brick_comes_before_its_consumers(self):
+        html = self._home()
         at = html.find('common/js/wama-capture.js')
         self.assertNotEqual(-1, at)
         for consumer in ('common/js/library-add.js', 'common/js/wama-assistant-listen.js'):
