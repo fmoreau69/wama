@@ -111,9 +111,11 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     #: dans l'ordre où on les cherche — ce que la surface édite et dont les versions se gardent.
     SCORE_FIELDS = ('planned_score', 'extracted_score')
 
-    # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : process OPTIONNEL `parts` — le morceau
-    # RENDU → une partie par instrument (tâche `audio-to-midi`, MuScriptor), mise en notation par
-    # la brique commune `midi_score`. Montrée et lue sur la page d'édition, jamais donnée au rendu.
+    # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : process OPTIONNEL `parts` — une partie
+    # par instrument (tâche `audio-to-midi`, MuScriptor), mise en notation par la brique commune
+    # `midi_score`. Depuis le 2026-10-26 (décision de Fabien) elle lit l'ENTRÉE — l'audio du cover,
+    # comme la partition réduite : les deux décrivent le même morceau ; la lecture du morceau
+    # PRODUIT est un autre process, « Partition du rendu » (`rendered_parts`, plus bas).
     # `db_default` : le code en service crée des générations sans connaître la colonne.
     extract_parts = models.BooleanField(default=False, db_default=False,
                                         help_text='Partition complète : une partie par instrument')
@@ -123,6 +125,16 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     parts_model = models.CharField(max_length=200, blank=True, default='auto', db_default='auto',
                                    help_text="Clé de catalogue du modèle de partition complète, ou « auto ».")
     parts_score = models.FileField(
+        upload_to=upload_to_user_output('composer'),
+        blank=True, null=True,
+    )
+    # PARTITION DU RENDU (2026-10-26, décision de Fabien : « on propose les deux, l'entrée et la
+    # sortie ») : process OPTIONNEL `rendered_parts` — le morceau PRODUIT → sa partition complète,
+    # pour comparer ce qui a été demandé et ce qui a été joué. Dérivé du rendu, lu seulement : il ne
+    # nourrit rien. Même modèle que `parts` (`parts_model`). `db_default` : cf. ci-dessus.
+    extract_rendered_parts = models.BooleanField(
+        default=False, db_default=False, help_text='Partition du rendu : une partie par instrument')
+    rendered_parts_score = models.FileField(
         upload_to=upload_to_user_output('composer'),
         blank=True, null=True,
     )

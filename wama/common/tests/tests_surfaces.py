@@ -822,13 +822,20 @@ class ComposerScoreSurfaceTest(TestCase):
     def test_the_page_composes_the_score_the_transport_and_the_versions(self):
         from wama.common.surfaces import surface
         score = surface('composer', 'score')
-        self.assertEqual(['score_view', 'media_transport', 'text_sections', 'surface_actions',
-                          'revision_history'], [s.brick for s in score.slots])
+        self.assertEqual(['score_view', 'media_transport', 'score_view', 'text_sections',
+                          'surface_actions', 'revision_history'], [s.brick for s in score.slots])
         view = score.slots[0]
-        self.assertEqual((0, 12), (view.x, view.w), 'ONE score view, the whole width')
+        self.assertEqual((0, 12), (view.x, view.w), 'the input score, the whole width')
         self.assertEqual([None, 'parts_score'], [v.get('field') for v in view.options['versions']],
                          'the reduced score and the full score in the same view, both edited')
         self.assertEqual(('parts_score',), score.also_edits)
+        # 2026-10-26 (Fabien) : the INPUT edited — the imported score first —, the score of the
+        # RENDER in a second view, read only, to set beside it.
+        self.assertEqual('reference_score', score.fields[0])
+        rendered = score.slots[2]
+        self.assertEqual(('rendered', 'rendered_parts_score'),
+                         (rendered.options['role'], score.reads['rendered']))
+        self.assertIn('rendered', score.texts)
         scripts = score.scripts()
         self.assertLess(scripts.index('vendors/abcjs-6.4.4/abcjs-basic-min.js'),
                         scripts.index('common/js/surfaces/brick-score-view.js'))

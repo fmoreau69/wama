@@ -866,6 +866,21 @@ manifeste** (ce que le kind `app` capte + cible de projection).
         navigateur du lecteur. `WamaScore.retime(…, pas)` en fraction de ronde, ramenée à l'unité
         `L:` en vigueur (`unitAt`) ; plus fin que l'écrit, des durées fractionnaires (`A/2`) ; un
         silence plus court que le pas ne le cède pas (refus dit).
+        ✅ **2026-10-26 — ENTRÉE et SORTIE (décisions de Fabien : « la partition doit refléter
+        l'audio d'entrée », « on propose les deux », « une partition importée est affichée à la
+        place de celle d'un cover », réduction pour YuE2)** : la partition complète (`parts`) lit
+        l'audio du COVER, comme la réduite — un nœud SANS amont du même pipeline, à côté
+        d'`extract_score` (le graphe `depends_on` est la seule forme de branche, rien de parallèle
+        n'est construit) ; n'a pas lieu sans cover ni avec une partition importée. La lecture du
+        morceau PRODUIT est un process à part, « Partition du rendu » (`rendered_parts`, colonnes
+        `extract_rendered_parts` / `rendered_parts_score`, migration composer 0026), branché sur le
+        RENDU à côté de la Sortie (il lit `output_process.output_sources` : un changement de format
+        ne le périme pas). La surface édite l'entrée — `reference_score` (importée) d'abord, puis
+        planifiée / extraite — et montre la partition du rendu dans une SECONDE `score_view` lue,
+        à placer à côté pour comparer. La face Entrée de la card montre l'audio du cover (spec de
+        détail `source_file`, elle était vide). YuE2 ne suit que `Vocal`/`Ins` + accords : une
+        partition fournie à N parties est ramenée à sa partie CHANTÉE (`yue2_3b_backend.
+        lead_sheet_abc`, et pour un MIDI la partie nommée « voix » plutôt que la ligne du dessus).
       - **grille de temps** : MuScriptor refusait un tempo « non fixe » sur les rendus YuE2 — un temps
         manqué par le suivi décalait tous les rangs. `robust_tempo` re-numérote les temps, garde la
         phase dominante (première droite Theil-Sen : un bloc de contretemps en fin de morceau faisait

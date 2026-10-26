@@ -193,6 +193,67 @@ class EnginesFollowOrRefuseTheScoreTest(SimpleTestCase):
             now = tick
         mid.save(path)
 
+    @staticmethod
+    def _full_score_midi(parts) -> bytes:
+        """A multi-part MIDI : `parts` = [(name, is_drum, [(start s, end s, pitch)])] at 120 bpm."""
+        import io
+
+        import pretty_midi
+        pm = pretty_midi.PrettyMIDI(initial_tempo=120.0)
+        pm.time_signature_changes.append(pretty_midi.TimeSignature(4, 4, 0))
+        for name, drum, notes in parts:
+            inst = pretty_midi.Instrument(program=0, is_drum=drum, name=name)
+            inst.notes = [pretty_midi.Note(100, p, s, e) for s, e, p in notes]
+            pm.instruments.append(inst)
+        buffer = io.BytesIO()
+        pm.write(buffer)
+        return buffer.getvalue()
+
+    def test_a_full_score_is_brought_back_to_the_sung_part_yue2_follows(self):
+        """2026-10-26, Fabien : « si l'on fournit une partition complète, que se passe-t-il, YuE2
+        n'utilisant qu'une partition réduite ? » — YuE2 follows `Vocal` (+ `Ins`, chords) ; a
+        score with one part per instrument keeps its SUNG part, named `Vocal`."""
+        from wama.common.backends.yue2_3b_backend import cot_for_score, lead_sheet_abc
+        from wama.common.utils.midi_score import midi_to_abc
+        full = midi_to_abc(self._full_score_midi([
+            ('flutes', False, [(0, .5, 84)]),
+            ('voice', False, [(0, .5, 67), (.5, 1, 69)]),
+            ('electric bass', False, [(0, 1, 40)]),
+            ('drums', True, [(0, .1, 36)])]))
+        sheet = lead_sheet_abc(full)
+        self.assertIn('V: Vocal clef=treble name="Vocal Melody"', sheet)
+        self.assertNotIn('Flûtes', sheet)
+        self.assertNotIn('Basse', sheet)
+        self.assertNotIn('%%percmap', sheet, 'the drum map speaks of a part that is gone')
+        self.assertNotIn('%%score', sheet)
+        self.assertIn('K:C', sheet)
+        body = sheet.split('V: Vocal\n', 1)[1]
+        self.assertIn('G', body)
+        self.assertIn('A', body)
+        self.assertNotIn("c'", body, 'not a note of the flute')
+        self.assertEqual('melody', cot_for_score(sheet), 'a melody without chords : the cover chain')
+
+    def test_a_score_already_in_yue2_form_or_without_voices_is_left_as_it_is(self):
+        from wama.common.backends.yue2_3b_backend import lead_sheet_abc
+        sheet = ('X:1\nL:1/16\nV: Vocal clef=treble name="Vocal Melody" snm="Vocal"\n'
+                 'V: Ins clef=treble name="Ins Melody" snm="Inst."\nK:Am\nV: Vocal\n"Am"A4|\n'
+                 'V: Ins\nZ|\n')
+        self.assertEqual(sheet, lead_sheet_abc(sheet))
+        self.assertEqual('X:1\nK:C\nCDEF|\n', lead_sheet_abc('X:1\nK:C\nCDEF|\n'))
+
+    def test_a_full_score_midi_gives_its_sung_part_not_the_top_line(self):
+        import tempfile
+        from pathlib import Path
+        from wama.common.backends.yue2_3b_backend import YuE2Backend
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'full.mid')
+            path.write_bytes(self._full_score_midi([
+                ('flutes', False, [(0, .5, 84), (.5, 1, 86)]),
+                ('voice', False, [(0, .5, 67), (.5, 1, 69)])]))
+            events = YuE2Backend._midi_events(str(path))
+        self.assertEqual([67, 69], [n[2] for n in events['notes']],
+                         'the voice, not the flute above it')
+
     def test_yue2_turns_a_midi_into_its_own_abc_dialect_through_the_engine_compiler(self):
         import tempfile
         from pathlib import Path

@@ -48,6 +48,58 @@ def melody_only_abc(abc: str) -> str:
     return '\n'.join(line if _ABC_HEADER.match(line) else _ABC_CHORD.sub('', line)
                      for line in (abc or '').split('\n'))
 
+
+#: Les deux voix que YuE2 SUIT — le format de toutes les partitions de son moteur
+#: (`vendor/yue/examples/*.abc` : « Vocal Melody » et « Ins Melody », plus les accords).
+YUE_VOICES = ('Vocal', 'Ins')
+_ABC_VOICE = re.compile(r'^\s*V:\s*([^\s\]]+)(.*)$')
+#: Une partie CHANTÉE, reconnue à son identifiant ou à son nom (`name="Voix"` de la notation
+#: commune, `voice` de MuScriptor, `Vocal` de SheetSage2).
+_SUNG = re.compile(r'(?i)voi(x|ce)|vocal|chant|sing|lead')
+_VOCAL_HEADER = 'V: Vocal clef=treble name="Vocal Melody" snm="Vocal"'
+
+
+def lead_sheet_abc(abc: str) -> str:
+    """Une partition ABC ramenée à ce que YuE2 sait SUIVRE (2026-10-26, décision de Fabien : une
+    partition COMPLÈTE fournie). YuE2 attend `Vocal`, `Ins` et des accords ; une partition à N
+    parties nommées par instrument (la partition complète du composer) ne correspond pas : on en
+    garde la partie CHANTÉE, renommée `Vocal` — la mélodie que le rendu suit, comme un cover
+    (`cot="melody"`). Sans partie chantée, la première partie qui n'est pas une batterie. Une
+    partition déjà au format de YuE2, ou sans voix déclarée, est rendue telle quelle."""
+    lines = (abc or '').split('\n')
+    voices = {}                                  # id → (nom, définition) dans l'ordre
+    for line in lines:
+        found = _ABC_VOICE.match(line)
+        if found and ('name=' in found.group(2) or 'clef=' in found.group(2)):
+            voices.setdefault(found.group(1), found.group(2))
+    if not voices or set(voices) <= set(YUE_VOICES):
+        return abc
+    chosen = next((vid for vid, rest in voices.items() if _SUNG.search(vid + rest)), None)
+    if chosen is None:
+        chosen = next((vid for vid, rest in voices.items() if 'clef=perc' not in rest), None)
+    if chosen is None:
+        return abc
+    out, current = [], None
+    for line in lines:
+        found = _ABC_VOICE.match(line)
+        if found:
+            vid, rest = found.group(1), found.group(2)
+            if 'name=' in rest or 'clef=' in rest:          # une DÉFINITION de voix (en-tête)
+                if vid == chosen:
+                    out.append(_VOCAL_HEADER)
+                continue
+            current = vid                                     # le corps passe à cette voix
+            if vid == chosen:
+                out.append('V: Vocal')
+            continue
+        if current is None:
+            # L'en-tête : l'ordre des portées et la carte de percussion parlent des voix retirées.
+            if not line.startswith(('%%score', '%%staves', '%%percmap')):
+                out.append(line)
+        elif current == chosen:
+            out.append(line)
+    return '\n'.join(out)
+
 # ----------------------------------------------------------------------
 # Inventaire des modèles supportés (module‑level)
 # ----------------------------------------------------------------------
@@ -193,7 +245,9 @@ class YuE2Backend(MusicGenerationBackend):
         text = Path(score_path).read_text(encoding="utf-8", errors="replace").strip()
         if not text:
             raise ValueError("La partition ABC fournie est vide.")
-        return text
+        # Une partition COMPLÈTE (une partie par instrument) n'est pas au format que YuE2 suit :
+        # ramenée à sa partie chantée (`lead_sheet_abc`, 2026-10-26).
+        return lead_sheet_abc(text)
 
     @classmethod
     def _midi_events(cls, midi_path: str) -> dict:
@@ -215,7 +269,12 @@ class YuE2Backend(MusicGenerationBackend):
         tpb = song.ticks_per_beat
         tempo = song.tempi[0][1] if song.tempi else None
         meter, key = song.meter, song.key
-        notes = [note for part in song.parts if not part.is_drum for note in part.notes]
+        # La partie CHANTÉE quand le fichier en nomme une (2026-10-26 : une partition complète, une
+        # partie par instrument — la ligne du dessus mêlerait la voix et les instruments) ; sinon
+        # toutes les parties mélodiques, dont on garde la ligne du dessus.
+        pitched = [part for part in song.parts if not part.is_drum]
+        sung = [part for part in pitched if _SUNG.search(part.name or '')]
+        notes = [note for part in (sung or pitched) for note in part.notes]
         if not notes:
             raise ValueError("aucune note jouée dans le fichier MIDI (batterie exceptée)")
 

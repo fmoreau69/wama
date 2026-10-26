@@ -49,7 +49,8 @@ def compose_task(self, generation_id: int, process: str | None = None):
         run_item_task(self, app_id='composer', model=ComposerGeneration, item_id=generation_id,
                       pipeline=PIPELINE,
                       processes={'extract_score': _extract_score, 'plan': _plan, 'render': _render,
-                                 'output': _output, 'parts': _parts},
+                                 'output': _output, 'parts': _parts,
+                                 'rendered_parts': _rendered_parts},
                       model_key=_model_key, notify_label='Composer',
                       only=process)
     finally:
@@ -325,37 +326,52 @@ def _extract_score(gen, ctx):
 
 
 def _parts(gen, ctx):
-    """GLU du process `parts` (2026-10-16) : le morceau RENDU → sa partition complète, une partie par
-    instrument, rangée comme une sortie de la card (`parts_score`).
+    """GLU du process `parts` : l'audio de l'ENTRÉE — le morceau à reprendre (cover) — → sa
+    partition complète, à côté de la partition réduite qu'en tire `extract_score` (sur l'entrée
+    depuis le 2026-10-26, décision de Fabien : les deux décrivent le même morceau)."""
+    from django.conf import settings
+    if not gen.melody_reference:
+        raise RuntimeError("Aucun audio à reprendre : la partition complète se lit sur l'entrée.")
+    audio_abs = os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
+    return _full_score(gen, ctx, audio_abs, field='parts_score', nature='score',
+                       label='Partition complète')
+
+
+def _rendered_parts(gen, ctx):
+    """GLU du process `rendered_parts` (2026-10-26) : le morceau PRODUIT → sa partition complète,
+    pour la comparer à celle de l'entrée. Lit l'audio du RENDU — l'original que la sortie garde
+    quand elle l'a converti, sinon le rendu lui-même : le même, que la sortie soit passée ou non."""
+    from wama.common.services.output_process import output_sources
+    sources = [p for p in output_sources(gen, 'audio_output') if os.path.isfile(p)]
+    if not sources:
+        raise RuntimeError("Aucun morceau rendu : la partition du rendu se lit sur le rendu.")
+    return _full_score(gen, ctx, sources[0], field='rendered_parts_score', nature='render_score',
+                       label='Partition du rendu')
+
+
+def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str):
+    """Un audio → sa partition complète, une partie par instrument, rangée comme une sortie de la
+    card (`field`) — le corps commun des deux process de partition complète (2026-10-16).
 
     Le modèle est celui que la card désigne (`parts_model`, 2026-10-19), ou sous « auto » celui de
     la tâche `audio-to-midi` tiré par le sélecteur commun ; absent, la ROUTE l'installe et la tâche
     attend (`ctx.ensure_model`) ; DÉCHARGÉ aussitôt (la règle d'`extract_score`). Le moteur rend un
     MIDI ; la notation est la brique commune `midi_score`, qui place les notes sur les temps JOUÉS
     du morceau (`audio_rhythm`) quand le moteur n'a pas trouvé de tempo constant."""
-    from django.conf import settings
     from wama.common.backends.manager import backend_for_key
     from wama.common.utils.audio_rhythm import beat_grid
     from wama.common.utils.midi_score import midi_to_abc
     from wama.common.utils.model_keys import model_id
     from .utils.model_choice import parts_extractor
 
-    from wama.common.services.output_process import output_sources
-
     extractor_key = parts_extractor(gen)
     if not extractor_key:
         raise RuntimeError("Aucun modèle de partition complète n'est installé (tâche « audio-to-midi »).")
-    # L'audio du RENDU (2026-10-26, dérivation du rendu) : l'original que la sortie garde quand elle
-    # l'a converti, sinon le rendu lui-même — le même, que la sortie soit passée ou non.
-    sources = [p for p in output_sources(gen, 'audio_output') if os.path.isfile(p)]
-    if not sources:
-        raise RuntimeError("Aucun morceau rendu : la partition complète se lit sur le rendu.")
     ctx.ensure_model(extractor_key)        # absent : la route l'installe, la tâche attend
     backend_class = backend_for_key(extractor_key)
     if backend_class is None:
         raise RuntimeError(f"« {extractor_key} » : aucun backend résolu depuis le catalogue.")
-    audio_abs = sources[0]
-    ctx.console(f"[Composer] Partition complète : {extractor_key} — {os.path.basename(audio_abs)}")
+    ctx.console(f"[Composer] {label} : {extractor_key} — {os.path.basename(audio_abs)}")
     backend = backend_class()
     try:
         midi = backend.extract_midi(model_id=model_id(extractor_key), audio_path=audio_abs,
@@ -371,15 +387,15 @@ def _parts(gen, ctx):
                            exc_info=True)
     grid = beat_grid(audio_abs) or {}
     text = midi_to_abc(midi, title=f'#{gen.pk}', beat_times=grid.get('beats'))
-    score_rel, abs_path = ctx.output_place('.abc', nature='score', model=model_id(extractor_key))
+    score_rel, abs_path = ctx.output_place('.abc', nature=nature, model=model_id(extractor_key))
     name = os.path.basename(score_rel)
     with open(abs_path, 'w', encoding='utf-8') as handle:
         handle.write(text)
     return {
-        'fields': {'parts_score': score_rel},
+        'fields': {field: score_rel},
         'output_ref': score_rel,
         'label': name,
-        'console_success': f"✓ Partition complète : {name}",
+        'console_success': f"✓ {label} : {name}",
         'models': [extractor_key],
         'eta': parts_eta_key_size(gen),
     }

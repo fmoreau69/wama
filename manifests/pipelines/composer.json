@@ -19,7 +19,7 @@
       },
       {
         "from": "render",
-        "to": "parts",
+        "to": "rendered_parts",
         "to_port": null
       }
     ],
@@ -39,6 +39,30 @@
             "extracted_score"
           ],
           "watched": [
+            "melody_reference",
+            "source_url"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "composer.parts",
+        "id": "parts",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "eta": "composer.tasks:parts_eta",
+          "gpu": true,
+          "label": "Partition complète",
+          "outputs": [
+            "parts_score"
+          ],
+          "share": 2,
+          "toggle": "extract_parts",
+          "watched": [
+            "extract_parts",
+            "parts_model",
             "melody_reference",
             "source_url"
           ]
@@ -119,22 +143,22 @@
       },
       {
         "app": null,
-        "function": "composer.parts",
-        "id": "parts",
+        "function": "composer.rendered_parts",
+        "id": "rendered_parts",
         "kind": "function",
         "params": {},
         "process": {
           "degree": "optional",
           "eta": "composer.tasks:parts_eta",
           "gpu": true,
-          "label": "Partition complète",
+          "label": "Partition du rendu",
           "outputs": [
-            "parts_score"
+            "rendered_parts_score"
           ],
           "share": 2,
-          "toggle": "extract_parts",
+          "toggle": "extract_rendered_parts",
           "watched": [
-            "extract_parts",
+            "extract_rendered_parts",
             "parts_model"
           ]
         }
@@ -144,7 +168,7 @@
   "description": "Pipeline déclaré en code : chaque process est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "composer",
   "manifest_kind": "pipeline",
-  "name": "Composer — partition, rendu, sortie (5 process)",
+  "name": "Composer — partition, rendu, sortie (6 process)",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

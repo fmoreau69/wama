@@ -623,17 +623,18 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIsNotNone(manifest, 'the registry is not a pipeline source')
         self.assertEqual([], validate(manifest))
         self.assertEqual('media', manifest['world'])
-        self.assertEqual([('extract_score', 'composer.extract_score'), ('plan', 'composer.plan'),
-                          ('render', 'composer.render'), ('output', 'composer.output'),
-                          ('parts', 'composer.parts')],
+        self.assertEqual([('extract_score', 'composer.extract_score'), ('parts', 'composer.parts'),
+                          ('plan', 'composer.plan'), ('render', 'composer.render'),
+                          ('output', 'composer.output'),
+                          ('rendered_parts', 'composer.rendered_parts')],
                          [(node['id'], node['function']) for node in manifest['body']['nodes']])
         # Two ALTERNATIVE upstreams of the render (2026-10-03): the score comes from the cover
-        # audio, or from the prompt. The full score (2026-10-16) is a BRANCH of the render, beside
-        # the output (2026-10-26) : changing the format does not stale it.
+        # audio, or from the prompt. The full score of the INPUT (2026-10-26) reads the cover and
+        # feeds nothing : no link ; the score of the RENDER is a branch of it, beside the output.
         self.assertEqual([{'from': 'extract_score', 'to': 'render', 'to_port': None},
                           {'from': 'plan', 'to': 'render', 'to_port': None},
                           {'from': 'render', 'to': 'output', 'to_port': None},
-                          {'from': 'render', 'to': 'parts', 'to_port': None}],
+                          {'from': 'render', 'to': 'rendered_parts', 'to_port': None}],
                          manifest['body']['links'])
 
     def test_the_export_command_lists_it(self):
@@ -641,7 +642,7 @@ class ThePipelineIsInTheCatalogueTest(SimpleTestCase):
         self.assertIn('composer', _pipeline_keys())
 
     def test_the_task_has_a_glue_for_every_process(self):
-        self.assertEqual({'extract_score', 'plan', 'render', 'output', 'parts'},
+        self.assertEqual({'extract_score', 'plan', 'render', 'output', 'parts', 'rendered_parts'},
                          {spec.key for spec in PIPELINE.specs})
         for spec in PIPELINE.specs:
             self.assertTrue(callable(getattr(tasks, f'_{spec.key}')), spec.key)

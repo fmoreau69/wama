@@ -108,26 +108,37 @@ PARAMS = [
                          "batch": "batchSettingsSeed"},
         contexts=PANEL_ITEM_BATCH, stales=("plan", "render"))),
     # PARTITION COMPLÈTE (2026-10-16, décision de Fabien) : la case qui ACTIVE le process optionnel
-    # `parts` (`ProcessSpec.toggle`) — le morceau rendu → une partie par instrument, montrée sur la
-    # page d'édition. Ne périme qu'elle-même : ni la partition suivie ni le rendu n'en dépendent.
+    # `parts` (`ProcessSpec.toggle`) — depuis le 2026-10-26 sur l'ENTRÉE : l'audio repris, comme la
+    # partition réduite. Ne périme qu'elle-même : le rendu suit la réduite, jamais celle-ci.
     Param(name="extract_parts", type="toggle", label="Partition complète (instruments)",
           icon="fa-list-ol",
-          help="Après le rendu, écrit une partie par instrument entendu (voix, piano, basse, "
-               "batterie…) à partir du morceau produit. Lisible et calée sur l'audio dans la page "
-               "« Éditer la partition ». Une transcription automatique : à relire.",
+          help="Écrit une partie par instrument entendu (voix, piano, basse, batterie…) dans "
+               "l'audio repris (cover), à côté de la partition réduite que le rendu suit. "
+               "Lisible et calée sur l'audio dans la page « Éditer la partition ». Une "
+               "transcription automatique : à relire.",
           dom_id={"panel": "extractParts", "item": "settingsExtractParts",
                   "batch": "batchSettingsExtractParts"},
           contexts=PANEL_ITEM_BATCH, stales=("parts",)),
-    # Le MODÈLE de la partition complète (2026-10-19) : plusieurs modèles peuvent écrire ce process
-    # — le patron des modèles de rôle du describer (`asr_model`, route F4b : options du CATALOGUE
-    # bornées par la TÂCHE, « auto » en tête et sa prévision), montré quand la case l'active, comme
-    # le modèle de diarisation du transcriber. ⚠ Après `model` : `auto_model.catalog_field` rend le
-    # PREMIER select de catalogue, celui du rendu.
-    # Pas de chip : la card ne liste pas un réglage inactif, et une chip ne lit pas le `show_if`
-    # (`card_chips.chips_for`) — la case qui l'active n'en a pas non plus.
-    Param(name="parts_model", type="select", label="Modèle de partition complète",
+    # PARTITION DU RENDU (2026-10-26, décision de Fabien : « on propose les deux ») : la case du
+    # process optionnel `rendered_parts` — le morceau PRODUIT → sa partition complète, pour le
+    # comparer à l'entrée. Ne périme qu'elle-même.
+    Param(name="extract_rendered_parts", type="toggle", label="Partition du rendu (instruments)",
           icon="fa-list-ol",
-          show_if="extract_parts",
+          help="Après le rendu, écrit la partition complète du morceau PRODUIT, pour la comparer "
+               "à celle de l'entrée dans la page « Éditer la partition ». Une transcription "
+               "automatique : à relire.",
+          dom_id={"panel": "extractRenderedParts", "item": "settingsExtractRenderedParts",
+                  "batch": "batchSettingsExtractRenderedParts"},
+          contexts=PANEL_ITEM_BATCH, stales=("rendered_parts",)),
+    # Le MODÈLE des partitions complètes (2026-10-19) : plusieurs modèles peuvent écrire ces process
+    # — le patron des modèles de rôle du describer (`asr_model`, route F4b : options du CATALOGUE
+    # bornées par la TÂCHE, « auto » en tête et sa prévision). ⚠ Après `model` :
+    # `auto_model.catalog_field` rend le PREMIER select de catalogue, celui du rendu.
+    # Il sert les DEUX process (entrée et rendu, 2026-10-26) : plus de `show_if` — il ne nomme
+    # qu'un champ, et le réglage vaut dès que l'une des deux cases est cochée.
+    # Pas de chip : la card ne liste pas un réglage d'un process éteint.
+    Param(name="parts_model", type="select", label="Modèle des partitions complètes",
+          icon="fa-list-ol",
           options_source="catalog",
           options_query={"task": PARTS_EXTRACTION_TASK},
           options_auto=True,
@@ -137,7 +148,7 @@ PARAMS = [
           default="auto",
           dom_id={"panel": "partsModel", "item": "settingsPartsModel",
                   "batch": "batchSettingsPartsModel"},
-          contexts=PANEL_ITEM_BATCH, stales=("parts",)),
+          contexts=PANEL_ITEM_BATCH, stales=("parts", "rendered_parts")),
 ]
 
 # Format + qualité de sortie depuis la brique commune (audio, early-binding auto via le catalogue).

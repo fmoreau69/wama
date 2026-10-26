@@ -85,6 +85,13 @@ class FullScoreTest(TestCase):
         self.draws.append({'task': task, **domain})
         return TRANSCRIBER if (self.installed and task == 'audio-to-midi') else fallback
 
+    def _cover(self) -> str:
+        """An audio of the song to cover (`melody_reference`) : the INPUT the full score reads."""
+        rel = 'users/1/temp/cover.wav'
+        (Path(self.tmp) / rel).parent.mkdir(parents=True, exist_ok=True)
+        (Path(self.tmp) / rel).write_bytes(b'RIFF' + b'\0' * 64)
+        return rel
+
     def _run(self, gen=None, **fields):
         if gen is None:
             gen = ComposerGeneration.objects.create(user=self.user, prompt='pop song',
@@ -111,21 +118,35 @@ class FullScoreTest(TestCase):
     def _states(self, gen):
         return {row.node_id: row.status for row in process_runs.lines(gen)}
 
-    def test_the_full_score_is_written_after_the_song_when_the_card_asks(self):
-        gen = self._run(extract_parts=True)
+    def test_the_full_score_reads_the_input_audio_when_the_card_asks(self):
+        """2026-10-26, Fabien : « la partition devrait refléter cet audio d'entrée » — the full
+        score describes the SAME audio as the reduced one : the cover, not the song produced."""
+        from django.conf import settings
+        cover = self._cover()
+        gen = self._run(extract_parts=True, melody_reference=cover)
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
-        self.assertEqual({'render': JOB_SUCCESS, 'output': JOB_SUCCESS, 'parts': JOB_SUCCESS}, self._states(gen))
-        from wama.common.services.output_process import output_sources
-        self.assertEqual(output_sources(gen, 'audio_output')[0], _Transcriber.calls[0]['audio_path'],
-                         "the transcription reads the RENDER's audio, whatever the output did")
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['parts'])
+        self.assertEqual(str(Path(settings.MEDIA_ROOT) / cover),
+                         str(Path(_Transcriber.calls[0]['audio_path'])), 'the cover is read')
         self.assertIn(f'/score{gen.pk}_', gen.parts_score.name, 'named by its nature : a score')
         written = (Path(self.tmp) / gen.parts_score.name).read_text(encoding='utf-8')
         self.assertIn('name="Voix"', written)
         self.assertIn('name="Basse électrique"', written)
-        self.assertEqual(1, len(_PlainEngine.renders), 'the song is rendered once, before')
+        from wama.composer.function_specs import PIPELINE
+        self.assertEqual([], list(PIPELINE.spec('parts').depends_on), 'an INPUT reading')
+
+    def test_without_a_cover_or_with_an_imported_score_there_is_nothing_to_read(self):
+        gen = self._run(extract_parts=True)
+        self.assertNotIn('parts', self._states(gen), 'no input audio')
+        self.assertEqual([], _Transcriber.calls)
+        from wama.composer.function_specs import PIPELINE
+        imported = ComposerGeneration(melody_reference=self._cover(), reference_score='x.abc',
+                                      extract_parts=True)
+        self.assertFalse(PIPELINE.spec('parts').applies(imported, PLAIN_MODEL),
+                         'an IMPORTED score is the input itself')
 
     def test_its_model_is_drawn_by_task_released_and_named_on_its_line(self):
-        gen = self._run(extract_parts=True)
+        gen = self._run(extract_parts=True, melody_reference=self._cover())
         self.assertEqual((1, 1), (_Transcriber.built, _Transcriber.unloaded))
         line = process_runs.line(gen, 'parts')
         self.assertEqual((gen.parts_score.name, 'composer.parts', TRANSCRIBER),
@@ -135,7 +156,8 @@ class FullScoreTest(TestCase):
         """2026-10-19 : several models can write this process ; the card names one
         (`parts_model`). It is not drawn, it is asked from the ROUTE (absent, installed while the
         task waits), loaded and named on the line."""
-        gen = self._run(extract_parts=True, parts_model=OTHER_TRANSCRIBER)
+        gen = self._run(extract_parts=True, parts_model=OTHER_TRANSCRIBER,
+                        melody_reference=self._cover())
         self.assertEqual(JOB_SUCCESS, self._states(gen)['parts'], gen.error_message)
         self.assertEqual(OTHER_TRANSCRIBER, process_runs.line(gen, 'parts').model_key)
         self.assertEqual('org/other-transcriber', _Transcriber.calls[0]['model_id'])
@@ -145,29 +167,32 @@ class FullScoreTest(TestCase):
     def test_under_auto_the_draw_is_made_for_the_card(self):
         """« auto » : the common selector draws among the task's models FOR this card — its
         account and its quality cursor, the ones its select's forecast reads."""
-        gen = self._run(extract_parts=True, quality_intent=10)
+        gen = self._run(extract_parts=True, quality_intent=10, melody_reference=self._cover())
         self.assertEqual(TRANSCRIBER, process_runs.line(gen, 'parts').model_key)
         (draw,) = [d for d in self.draws if d['task'] == 'audio-to-midi']
         self.assertEqual((10, self.user.pk), (draw.get('quality_intent'), draw['user'].pk))
         self.assertIn(TRANSCRIBER, self.asked)
 
     def test_without_the_toggle_nothing_is_transcribed(self):
-        gen = self._run()
+        gen = self._run(melody_reference=self._cover())
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
         self.assertNotIn('parts', self._states(gen))
+        self.assertNotIn('rendered_parts', self._states(gen))
         self.assertEqual([], _Transcriber.calls)
 
     def test_without_a_model_of_the_task_the_process_does_not_take_place(self):
         self.installed = False
-        gen = self._run(extract_parts=True)
+        gen = self._run(extract_parts=True, extract_rendered_parts=True,
+                        melody_reference=self._cover())
         self.assertEqual('SUCCESS', gen.status, gen.error_message)
         self.assertNotIn('parts', self._states(gen))
+        self.assertNotIn('rendered_parts', self._states(gen))
         self.assertEqual([], _Transcriber.calls)
 
     def test_turned_on_after_the_song_only_the_full_score_is_played(self):
         """The gesture of #849 (2026-10-19): a song rendered without the toggle, the toggle turned
         on, the card relaunched — the full score is written, the song is not rendered again."""
-        gen = self._run()
+        gen = self._run(melody_reference=self._cover())
         self.assertNotIn('parts', self._states(gen))
         ComposerGeneration.objects.filter(pk=gen.pk).update(extract_parts=True, status='RUNNING')
         gen = self._run(ComposerGeneration.objects.get(pk=gen.pk))
@@ -175,24 +200,40 @@ class FullScoreTest(TestCase):
         self.assertTrue(gen.parts_score)
         self.assertEqual(1, len(_PlainEngine.renders), 'the song is not rendered again')
 
-    def test_a_new_output_format_stales_the_output_never_the_full_score(self):
+    def test_the_score_of_the_render_reads_the_song_produced(self):
+        """2026-10-26, Fabien : « on propose les deux, l'entrée et la sortie » — the score of the
+        RENDER, a branch of it, written beside the input's full score, never in its place."""
+        from wama.common.services.output_process import output_sources
+        gen = self._run(extract_parts=True, extract_rendered_parts=True,
+                        melody_reference=self._cover())
+        self.assertEqual((JOB_SUCCESS, JOB_SUCCESS),
+                         (self._states(gen)['parts'], self._states(gen)['rendered_parts']),
+                         gen.error_message)
+        read = {Path(call['audio_path']).name for call in _Transcriber.calls}
+        self.assertIn(Path(output_sources(gen, 'audio_output')[0]).name, read,
+                      "the render's audio, whatever the output did")
+        self.assertIn('cover.wav', read, 'and the cover, for the input')
+        self.assertIn(f'/render_score{gen.pk}_', gen.rendered_parts_score.name)
+        self.assertNotEqual(gen.parts_score.name, gen.rendered_parts_score.name)
+
+    def test_a_new_output_format_stales_the_output_never_the_score_of_the_render(self):
         """2026-10-26, Fabien : « je ne vois pas la logique d'avoir la partition complète après la
-        sortie ». A BRANCH of the render : the output may be redone, the full score stays."""
+        sortie ». A BRANCH of the render : the output may be redone, its score stays."""
         from wama.composer.function_specs import PIPELINE
-        gen = self._run(extract_parts=True)
-        self.assertEqual(JOB_SUCCESS, self._states(gen)['parts'], gen.error_message)
-        self.assertEqual(['render'], list(PIPELINE.spec('parts').depends_on))
+        gen = self._run(extract_rendered_parts=True)
+        self.assertEqual(JOB_SUCCESS, self._states(gen)['rendered_parts'], gen.error_message)
+        self.assertEqual(['render'], list(PIPELINE.spec('rendered_parts').depends_on))
         current = gen.output_format
         other = next(v for v in ('mp3', 'flac', 'wav', 'ogg') if v != current)
         ComposerGeneration.objects.filter(pk=gen.pk).update(output_format=other)
         gen = ComposerGeneration.objects.get(pk=gen.pk)
         stale = PIPELINE.refresh(gen)
         self.assertIn('output', stale, 'the output follows its format')
-        self.assertNotIn('parts', stale, 'the full score does not depend on the format')
+        self.assertNotIn('rendered_parts', stale, 'the score of the render does not depend on it')
 
     def test_a_failed_transcription_fails_its_line_and_releases_the_model(self):
         _Transcriber.error = RuntimeError('no beat decoded')
-        gen = self._run(extract_parts=True)
+        gen = self._run(extract_parts=True, melody_reference=self._cover())
         self.assertEqual(JOB_FAILURE, self._states(gen)['parts'])
         self.assertEqual(JOB_SUCCESS, self._states(gen)['output'], 'the song itself is kept')
         self.assertEqual(1, _Transcriber.unloaded)
@@ -227,18 +268,18 @@ class TheToggleReachesTheCardTest(TestCase):
                 self.assertEqual(OTHER_TRANSCRIBER, gen.parts_model)
 
     def test_the_model_setting_follows_its_process(self):
-        """Its select : the catalogue models of the task the glue draws in, « auto » first ;
-        shown when the toggle turns the process on ; it stales that process alone."""
+        """Its select : the catalogue models of the task the glue draws in, « auto » first ; it
+        serves the two full-score processes (the input's, the render's — 2026-10-26) and stales
+        them alone ; no `show_if`, which names a single toggle."""
         from wama.composer.function_specs import PIPELINE
         from wama.composer.params import PARAMS
         from wama.composer.utils.model_choice import PARTS_EXTRACTION_TASK
         (param,) = [p for p in PARAMS if p.name == 'parts_model']
-        self.assertEqual(('catalog', {'task': PARTS_EXTRACTION_TASK}, True, 'extract_parts'),
+        self.assertEqual(('catalog', {'task': PARTS_EXTRACTION_TASK}, True, None),
                          (param.options_source, param.options_query, param.options_auto,
                           param.show_if))
-        self.assertIn('parts_model', PIPELINE.watched_of(PIPELINE.spec('parts')))
         others = [s.key for s in PIPELINE.specs if 'parts_model' in PIPELINE.watched_of(s)]
-        self.assertEqual(['parts'], others)
+        self.assertEqual(['parts', 'rendered_parts'], others)
         self.assertEqual('auto', ComposerGeneration().parts_model)
 
     def test_the_panel_posts_its_whole_host_not_a_hand_list(self):

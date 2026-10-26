@@ -15,6 +15,9 @@ TROIS process, et un seul est NORMAL :
     tâche `audio-to-score`). N'a lieu que pour un COVER par un modèle qui suit une partition sans
     prendre l'audio lui-même (YuE2) ; il REMPLACE alors `plan` — la partition vient de l'audio,
     pas de la consigne. Jamais « transcribe » : ce verbe est celui du transcriber.
+Et deux process OPTIONNELS de lecture (2026-10-26, décision de Fabien), qui ne nourrissent rien :
+  • `parts` — la partition COMPLÈTE de l'ENTRÉE (l'audio du cover), à côté de la réduite ;
+  • `rendered_parts` — la partition complète du morceau PRODUIT, dérivée du rendu, pour comparer.
 
 Ce que la séparation apporte : changer un réglage du rendu (durée, format) ne rejoue pas la
 partition ; une partition corrigée à la main se rend sans être replanifiée ; un rendu qui
@@ -62,6 +65,15 @@ def _parts_available() -> bool:
     return parts_extraction_available()
 
 
+def _parts_applies(gen, model_key) -> bool:
+    """La partition complète de l'ENTRÉE (2026-10-26) : il faut un audio repris — fichier, ou URL
+    qui le remplira au lancement. Une partition IMPORTÉE est elle-même l'entrée : rien à
+    transcrire. Le modèle de rendu n'y entre pas : le rendu ne la suit pas."""
+    if getattr(gen, 'reference_score', None):
+        return False
+    return bool(getattr(gen, 'melody_reference', None) or getattr(gen, 'source_url', ''))
+
+
 def extracts_score(gen, model_key) -> bool:
     """Le process `extract_score` a-t-il lieu pour cette card ? — la réponse de `takes_place`,
     que posent aussi `plan` (son alternative) et le rendu (quelle partition suivre)."""
@@ -96,14 +108,27 @@ register(FunctionSpec(
 
 register(FunctionSpec(
     key='composer.parts', name='Composer — partition complète',
-    description="Écrit la partition COMPLÈTE du morceau rendu : une partie par instrument entendu "
-                "(voix, piano, basse, batterie…), par un modèle de la tâche `audio-to-midi` "
-                "(MuScriptor) mis en notation par la brique commune. Optionnelle ; montrée et lue "
-                "sur la page d'édition, jamais donnée au rendu.",
+    description="Écrit la partition COMPLÈTE du morceau à reprendre (cover) : une partie par "
+                "instrument entendu (voix, piano, basse, batterie…), par un modèle de la tâche "
+                "`audio-to-midi` (MuScriptor) mis en notation par la brique commune — à côté de la "
+                "partition réduite, sur le même audio. Optionnelle ; montrée et corrigée sur la "
+                "page d'édition, jamais donnée au rendu (YuE2 ne suit que la réduite).",
+    category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
+    tags=['audio', 'music', 'gpu'],
+    inputs=[PortSpec('work_audio', 'audio', group='travail',
+                     description="Audio du morceau à reprendre (cover).")],
+    outputs=[PortSpec('score', 'score', description="La partition, une partie par instrument.")]))
+
+register(FunctionSpec(
+    key='composer.rendered_parts', name='Composer — partition du rendu',
+    description="Écrit la partition COMPLÈTE du morceau PRODUIT, une partie par instrument, pour la "
+                "comparer à celle de l'entrée — par le même modèle et la même notation que la "
+                "partition complète. Optionnelle ; montrée sur la page d'édition, lue seulement.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('audio', 'audio', description="Le morceau rendu.")],
-    outputs=[PortSpec('score', 'score', description="La partition, une partie par instrument.")]))
+    outputs=[PortSpec('score', 'score', description="La partition du rendu, une partie par "
+                                                    "instrument.")]))
 
 register(FunctionSpec(
     key='composer.output', name='Composer — réglages de sortie',
@@ -160,6 +185,16 @@ PIPELINE = register_app_pipeline(_APP, (
                 watched=('melody_reference', 'source_url'),
                 gpu=True, share=1, applies=_extract_applies, available=_extract_available,
                 outputs=('extracted_score',), eta='composer.tasks:extract_score_eta'),
+    # PARTITION COMPLÈTE de l'ENTRÉE (2026-10-16 ; sur l'entrée depuis le 2026-10-26, décision de
+    # Fabien : « la partition doit refléter cet audio d'entrée ») : optionnelle (`extract_parts`),
+    # à côté de la partition extraite — le même audio, une partie par instrument. Le rendu ne la
+    # suit pas (YuE2 ne lit que la réduite) : elle ne le périme pas. Son modèle n'est pas celui de
+    # la card : un modèle de la tâche `audio-to-midi` (`parts_model`, ou tiré sous « auto ») ; elle
+    # n'a lieu que si un modèle de la tâche est installé (`available`).
+    ProcessSpec('parts', label='Partition complète', watched=('melody_reference', 'source_url'),
+                degree=OPTIONAL, toggle='extract_parts', gpu=True, share=2,
+                applies=_parts_applies, available=_parts_available,
+                outputs=('parts_score',), eta='composer.tasks:parts_eta'),
     # La partition ne dépend que de la consigne et du modèle (le curseur pèse dans le tirage
     # « auto », donc dans le modèle) — ni de la durée ni du format, qui sont au rendu.
     ProcessSpec('plan', label='Partition', watched=_PROMPT_WATCHED,
@@ -171,14 +206,13 @@ PIPELINE = register_app_pipeline(_APP, (
                 eta='composer.tasks:render_eta'),
     # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.
     output_spec(depends_on=('render',)),
-    # PARTITION COMPLÈTE (2026-10-16) : optionnelle (`extract_parts`), une DÉRIVATION du rendu — à
-    # côté de la sortie, pas après (2026-10-26, Fabien : « je ne vois pas la logique d'avoir la
-    # partition complète après la sortie ») : elle lit l'audio du RENDU (`output_sources`), donc
-    # changer de format ne la périme plus. Son modèle n'est pas celui de la card : un modèle de la
-    # tâche `audio-to-midi`, choisi sur la card (`parts_model`, 2026-10-19) ou tiré par le
-    # sélecteur commun sous « auto » ; elle n'a lieu que si un modèle de la tâche est installé.
-    ProcessSpec('parts', label='Partition complète', depends_on=('render',), degree=OPTIONAL,
-                toggle='extract_parts', gpu=True, share=2, available=_parts_available,
-                outputs=('parts_score',), eta='composer.tasks:parts_eta'),
+    # PARTITION DU RENDU (2026-10-26, décision de Fabien : « on propose les deux, l'entrée et la
+    # sortie ») : optionnelle (`extract_rendered_parts`), une DÉRIVATION du rendu — à côté de la
+    # sortie, pas après : elle lit l'audio du RENDU (`output_sources`), changer de format ne la
+    # périme pas. Lue seulement, pour comparer ce qui a été demandé et ce qui a été joué.
+    ProcessSpec('rendered_parts', label='Partition du rendu', depends_on=('render',),
+                degree=OPTIONAL, toggle='extract_rendered_parts', gpu=True, share=2,
+                available=_parts_available, outputs=('rendered_parts_score',),
+                eta='composer.tasks:parts_eta'),
 ), label='Composer — partition, rendu, sortie', source_ref='composer.function_specs:PIPELINE',
    model_of=lambda gen: _requested_model(gen))

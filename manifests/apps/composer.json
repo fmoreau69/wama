@@ -409,6 +409,46 @@
             },
             {
               "args": [],
+              "class": "django.db.models.BooleanField",
+              "kwargs": {
+                "db_default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "default": {
+                  "expr": "False",
+                  "imports": []
+                },
+                "help_text": {
+                  "expr": "'Partition du rendu : une partie par instrument'",
+                  "imports": []
+                }
+              },
+              "name": "extract_rendered_parts"
+            },
+            {
+              "args": [],
+              "class": "django.db.models.FileField",
+              "kwargs": {
+                "blank": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "null": {
+                  "expr": "True",
+                  "imports": []
+                },
+                "upload_to": {
+                  "expr": "wama.common.utils.media_paths.UploadToUserPath('composer', 'output')",
+                  "imports": [
+                    "import wama.common.utils.media_paths"
+                  ]
+                }
+              },
+              "name": "rendered_parts_score"
+            },
+            {
+              "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
                 "default": {
@@ -747,6 +787,10 @@
             "sfx": "audio_sfx"
           }
         },
+        "source_file": [
+          "melody_reference",
+          "reference_score"
+        ],
         "source_text": "prompt"
       },
       "preview": {
@@ -1296,7 +1340,7 @@
               "panel": "extractParts"
             },
             "group": "",
-            "help": "Après le rendu, écrit une partie par instrument entendu (voix, piano, basse, batterie…) à partir du morceau produit. Lisible et calée sur l'audio dans la page « Éditer la partition ». Une transcription automatique : à relire.",
+            "help": "Écrit une partie par instrument entendu (voix, piano, basse, batterie…) dans l'audio repris (cover), à côté de la partition réduite que le rendu suit. Lisible et calée sur l'audio dans la page « Éditer la partition ». Une transcription automatique : à relire.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1341,6 +1385,60 @@
               "item",
               "batch"
             ],
+            "default": null,
+            "default_from": null,
+            "display_format": "",
+            "dom_id": {
+              "batch": "batchSettingsExtractRenderedParts",
+              "item": "settingsExtractRenderedParts",
+              "panel": "extractRenderedParts"
+            },
+            "group": "",
+            "help": "Après le rendu, écrit la partition complète du morceau PRODUIT, pour la comparer à celle de l'entrée dans la page « Éditer la partition ». Une transcription automatique : à relire.",
+            "help_fallback": null,
+            "help_html": "",
+            "help_source": null,
+            "icon": "fa-list-ol",
+            "inline": false,
+            "label": "Partition du rendu (instruments)",
+            "max": null,
+            "max_label": "",
+            "min": null,
+            "min_label": "",
+            "name": "extract_rendered_parts",
+            "option_groups": null,
+            "options_abilities": false,
+            "options_auto": false,
+            "options_cloud": false,
+            "options_group": "",
+            "options_mode": null,
+            "options_ports": false,
+            "options_query": null,
+            "options_resolution": null,
+            "options_source": null,
+            "pills": [],
+            "radio_name": "",
+            "remember": null,
+            "section": "settings",
+            "show_if": null,
+            "stales": [
+              "rendered_parts"
+            ],
+            "step": null,
+            "type": "toggle",
+            "unit": ""
+          },
+          {
+            "advanced": false,
+            "cap_from": null,
+            "chip": false,
+            "chip_label": "",
+            "choices": null,
+            "contexts": [
+              "panel",
+              "item",
+              "batch"
+            ],
             "default": "auto",
             "default_from": null,
             "display_format": "",
@@ -1358,7 +1456,7 @@
             "help_source": "composer",
             "icon": "fa-list-ol",
             "inline": false,
-            "label": "Modèle de partition complète",
+            "label": "Modèle des partitions complètes",
             "max": null,
             "max_label": "",
             "min": null,
@@ -1380,9 +1478,10 @@
             "radio_name": "",
             "remember": null,
             "section": "settings",
-            "show_if": "extract_parts",
+            "show_if": null,
             "stales": [
-              "parts"
+              "parts",
+              "rendered_parts"
             ],
             "step": null,
             "type": "select",
@@ -1736,6 +1835,7 @@
             "temperature",
             "seed",
             "extract_parts",
+            "extract_rendered_parts",
             "parts_model",
             "output_format",
             "output_quality"
@@ -1790,12 +1890,13 @@
         "add_to_composer": {
           "args": {
             "duration": "range — Durée [10–600s] (défaut : 210)",
-            "extract_parts": "toggle — Après le rendu, écrit une partie par instrument entendu (voix, piano, basse, batterie…) à partir du morceau produit. Lisible et calée sur l'audio dans la page « Éditer la partition ». Une transcription automatique : à relire.",
+            "extract_parts": "toggle — Écrit une partie par instrument entendu (voix, piano, basse, batterie…) dans l'audio repris (cover), à côté de la partition réduite que le rendu suit. Lisible et calée sur l'audio dans la page « Éditer la partition ». Une transcription automatique : à relire.",
+            "extract_rendered_parts": "toggle — Après le rendu, écrit la partition complète du morceau PRODUIT, pour la comparer à celle de l'entrée dans la page « Éditer la partition ». Une transcription automatique : à relire.",
             "lyrics": "textarea — Paroles chantées, en sections balisées ([Verse], [Chorus]…). Écrites pour vous si vous demandez une chanson sans en donner ; modifiez-les puis relancez. Des paroles écrites dans le prompt, sous la description, priment.",
             "model": "select — Modèle (défaut : 'auto:text-to-music')",
             "output_format": "select — Format de sortie (choix : original | mp3 | wav | flac | ogg | m4a | aac | opus) (défaut : 'original')",
             "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max) (défaut : 'balanced')",
-            "parts_model": "select — Modèle de partition complète (défaut : 'auto')",
+            "parts_model": "select — Modèle des partitions complètes (défaut : 'auto')",
             "prompt": "textarea — Prompt (requis)",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "seed": "seed — Vide : un tirage neuf à chaque lancement. Une graine fixée, avec les mêmes réglages et le même modèle, redonne le même résultat sur cette machine. [0–2147483647]",
