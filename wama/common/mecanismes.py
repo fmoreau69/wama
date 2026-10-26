@@ -277,7 +277,10 @@ MECHANISMS = (
                        'wama/model_manager/services/memory_cleaner.py',
                        'wama/model_manager/services/memory_diagnostics.py')),
     Mechanism('eta', 'ETA auto-apprenante',
-              "Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel ; "
+              "Estimation de durée par a-priori puis moyenne mobile, rangée par LIEU DE CALCUL "
+              "(le matériel, ou la source d'un modèle distant : `compute_place`, 2026-10-26) ; "
+              "un modèle CHAUD — distant, ou résident selon le gouverneur (`is_warm`) — ne paie "
+              "pas de chargement ; "
               "sous la clé de catalogue d'un modèle, c'est aussi sa VITESSE D'INFÉRENCE, que le "
               "banc calibre et que le curseur rapide/qualité de toutes les apps compare "
               "(`comparable_speeds` → `model_selector.intent_choice`, 2026-10-11)",

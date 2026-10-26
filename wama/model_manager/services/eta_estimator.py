@@ -7,13 +7,20 @@ affichée IMMÉDIATEMENT (dès le chargement du modèle) par le composant commun
 `WamaEta` (`seedSeconds`), au lieu d'attendre que la progression observée donne
 un débit. L'estimation s'AFFINE ensuite seule avec les durées réelles mesurées.
 
-Modèle :   ETA ≈ (chargement à froid si modèle non résident) + coût fixe + per_unit × taille
+Modèle :   ETA ≈ (chargement à froid si modèle non CHAUD) + coût fixe + per_unit × taille
            — le coût fixe et le coût par unité APPRIS ensemble (droite des moyennes mobiles,
            `_line`, 2026-10-21) dès que les tailles mesurées s'écartent ; avant, le rapport moyen.
 
 Sources, par ordre de priorité :
-  1. **Apprises** — `ModelRuntimeStat` (EMA des durées réelles), bucketisées par
-     empreinte hardware → un changement de GPU repart de l'a-priori et réapprend.
+  1. **Apprises** — `ModelRuntimeStat` (EMA des durées réelles), rangées par LIEU DE CALCUL
+     (`compute_place`) : le matériel de cette machine — un changement de GPU repart de l'a-priori
+     et réapprend —, ou, pour un modèle DISTANT, sa SOURCE (2026-10-26, décision de Fabien : la
+     vitesse d'Albert ne dépend pas de la carte locale).
+
+Un modèle CHAUD ne paie pas de chargement (`is_warm`, 2026-10-26) : un modèle distant (le
+fournisseur le tient), ou un modèle RÉSIDENT selon le gouverneur, tous process confondus —
+quoi que l'appelant suppose (le transcriber déclarait son modèle « non chargé » alors qu'il le
+garde en mémoire depuis le 2026-09-25).
   2. **A-priori par modèle** — `AIModel.extra_info['eta']` (calibrable à la main /
      par le test nocturne) : { unit, load_seconds, per_unit_seconds }.
   3. **A-priori par domaine** — table grossière ci-dessous (suffisant en 1ʳᵉ utilisation).
@@ -70,6 +77,55 @@ def hardware_fingerprint() -> str:
     except Exception:
         pass
     return "cpu"
+
+
+def _remote_source(model_key: str) -> Optional[str]:
+    """La SOURCE distante que nomme une clé d'ETA, ou None. Un fournisseur distant (déclaré au
+    registre des sources : `external_sources.llm_engine_inventory`) peut y figurer sous trois
+    formes, toutes mesurées le 2026-10-26 : la clé de catalogue d'un modèle distant
+    (`albert:whisper-large-v3`), la clé PRÉFIXÉE d'un usage de ce modèle (un tour d'assistant :
+    `assistant-turn:albert:gemma-4-31b-it`), ou la clé de MOTEUR d'une app — pour un distant, le
+    moteur EST le fournisseur (`transcriber:albert`). Le premier segment qui nomme un fournisseur
+    l'emporte ; aucune lecture de base."""
+    try:
+        from wama.common.external_sources import llm_engine_inventory
+        remote = llm_engine_inventory()
+    except Exception:
+        return None
+    return next((segment for segment in str(model_key or '').split(':') if segment in remote),
+                None)
+
+
+def compute_place(model_key: str) -> str:
+    """OÙ tourne le calcul mesuré sous cette clé — la valeur sous laquelle l'ETA le range
+    (`ModelRuntimeStat.hardware_fingerprint`) : la source d'un modèle DISTANT, sinon le matériel
+    de cette machine (`hardware_fingerprint`). Décision de Fabien (2026-10-26) : une durée chez
+    Albert dépend d'Albert et du réseau, jamais du GPU local — rangée sous lui, elle ne se
+    réapprendrait pas à chaque changement de carte, et ne se partagerait pas entre un worker qui
+    voit le GPU et un qui ne le voit pas (`transcriber:albert` existait sous les deux)."""
+    return _remote_source(model_key) or hardware_fingerprint()
+
+
+def is_warm(model_key: str) -> bool:
+    """Le modèle derrière cette clé est-il CHAUD — aucun chargement à payer avant de calculer ?
+    Un modèle distant l'est toujours (son fournisseur le tient). Un modèle local l'est s'il est
+    RÉSIDENT selon le gouverneur (`resource_governor.resident_models`, tous process confondus),
+    sous sa clé de catalogue : la clé elle-même, ou la clé qu'elle porte après un préfixe
+    d'usage. Une clé d'opération ou de moteur que le gouverneur ne connaît pas n'est pas chaude :
+    l'appelant décide alors (`estimate(model_loaded=…)`)."""
+    if _remote_source(model_key):
+        return True
+    try:
+        from wama.common.services.resource_governor import resident_models
+        resident = resident_models()
+    except Exception:
+        return False
+    key = str(model_key or '')
+    while key:
+        if key in resident:
+            return True
+        key = key.partition(':')[2]
+    return False
 
 
 def make_key(source: str, model_id: str) -> str:
@@ -159,18 +215,18 @@ def _learned_line(model_key: str) -> Optional[Tuple[float, float]]:
     try:
         from wama.model_manager.models import ModelRuntimeStat
         stat = ModelRuntimeStat.objects.filter(
-            model_key=model_key, hardware_fingerprint=hardware_fingerprint()).first()
+            model_key=model_key, hardware_fingerprint=compute_place(model_key)).first()
         return _line(stat) if stat else None
     except Exception:
         return None
 
 
 def _learned(model_key: str, unit: str) -> Optional[Tuple[Optional[float], float]]:
-    """(load, per_unit) APPRIS pour ce hardware, ou None si aucun échantillon."""
+    """(load, per_unit) APPRIS à son lieu de calcul (`compute_place`), ou None si aucun échantillon."""
     try:
         from wama.model_manager.models import ModelRuntimeStat
         stat = ModelRuntimeStat.objects.filter(
-            model_key=model_key, hardware_fingerprint=hardware_fingerprint()
+            model_key=model_key, hardware_fingerprint=compute_place(model_key)
         ).first()
         if stat and stat.samples >= 1:
             return stat.load_ema_seconds, stat.per_unit_ema_seconds
@@ -189,11 +245,12 @@ def _learned(model_key: str, unit: str) -> Optional[Tuple[Optional[float], float
 # vitesse de modèle : elle mesure une tâche entière, et n'est lue par aucune comparaison.
 
 def learned_speed(model_key: str) -> Optional[Tuple[str, float, int]]:
-    """(unité, secondes par unité, échantillons) APPRIS pour ce modèle sur ce matériel, ou None."""
+    """(unité, secondes par unité, échantillons) APPRIS pour ce modèle à son lieu de calcul
+    (`compute_place` : ce matériel, ou la source d'un modèle distant), ou None."""
     try:
         from wama.model_manager.models import ModelRuntimeStat
         stat = ModelRuntimeStat.objects.filter(
-            model_key=model_key, hardware_fingerprint=hardware_fingerprint(), samples__gte=1
+            model_key=model_key, hardware_fingerprint=compute_place(model_key), samples__gte=1
         ).first()
         if stat:
             return stat.unit, stat.per_unit_ema_seconds, stat.samples
@@ -212,9 +269,12 @@ def comparable_speeds(model_keys) -> dict:
         return {}
     try:
         from wama.model_manager.models import ModelRuntimeStat
+        # Chaque clé à SON lieu de calcul : un modèle distant à sa source, un local sur ce matériel.
+        places = {key: compute_place(key) for key in keys}
         rows = ModelRuntimeStat.objects.filter(
-            model_key__in=keys, hardware_fingerprint=hardware_fingerprint(), samples__gte=1)
-        found = {r.model_key: (r.unit, r.per_unit_ema_seconds) for r in rows}
+            model_key__in=keys, hardware_fingerprint__in=set(places.values()), samples__gte=1)
+        found = {r.model_key: (r.unit, r.per_unit_ema_seconds) for r in rows
+                 if r.hardware_fingerprint == places[r.model_key]}
     except Exception:
         return {}
     if set(found) != set(keys) or len({unit for unit, _ in found.values()}) != 1:
@@ -232,7 +292,9 @@ def estimate(model_key: str, size: float = 1.0, unit: str = 'item',
         model_key        : "{source}:{model_id}" (cf. make_key).
         size             : grandeur du domaine (s d'audio/vidéo, mégapixels, steps, tokens…). 1 par défaut.
         unit             : nom de la grandeur (clé de _DEFAULT_*). Cohérent avec record_run.
-        model_loaded     : True si le modèle est déjà résident (singleton keep_loaded) → on omet le chargement.
+        model_loaded     : True si l'appelant SAIT le modèle déjà résident → on omet le chargement.
+                           Faux n'impose rien : un modèle CHAUD (`is_warm` — distant, ou résident
+                           selon le gouverneur) ne paie jamais de chargement.
         fallback_seconds : estimation a priori PROPRE à l'app (heuristique statique) utilisée au
                            démarrage à froid — AVANT tout apprentissage — à la place de l'a-priori
                            générique par domaine. Dès qu'un run réel est enregistré, l'appris prime.
@@ -258,7 +320,7 @@ def estimate(model_key: str, size: float = 1.0, unit: str = 'item',
             load, per_unit = _apriori(model_key, unit)
 
         secs = fixed + per_unit * s
-        if not model_loaded and load:
+        if not model_loaded and load and not is_warm(model_key):
             secs += load
         return max(secs, 0.0)
     except Exception:
@@ -293,7 +355,7 @@ def record_run(model_key: str, size: float, unit: str = 'item',
         per_unit_sample = max(float(process_seconds), 0.0) / s
 
         stat, _ = ModelRuntimeStat.objects.get_or_create(
-            model_key=model_key, hardware_fingerprint=hardware_fingerprint(),
+            model_key=model_key, hardware_fingerprint=compute_place(model_key),
             defaults={'unit': unit},
         )
         stat.unit = unit
@@ -302,7 +364,9 @@ def record_run(model_key: str, size: float, unit: str = 'item',
             per_unit_sample if stat.samples == 0
             else _EMA_ALPHA * per_unit_sample + (1 - _EMA_ALPHA) * stat.per_unit_ema_seconds
         )
-        if load_seconds is not None:
+        # Un modèle DISTANT n'a pas de chargement à apprendre : ce qu'un backend mesurerait là
+        # (ouvrir un client, poser une clé) n'est pas le chargement d'un modèle (2026-10-26).
+        if load_seconds is not None and not _remote_source(model_key):
             ls = max(float(load_seconds), 0.0)
             stat.load_ema_seconds = (
                 ls if stat.load_ema_seconds is None
@@ -329,7 +393,6 @@ def relearn_lines_from_runs(apply: bool = False) -> dict:
     from wama.common.services.process_runs import ETA_SIZE_KEY, process_eta
     from wama.model_manager.models import ModelRuntimeStat
 
-    fingerprint = hardware_fingerprint()
     pending: dict = {}
     for row in ProcessRun.objects.filter(status='SUCCESS', duration_s__isnull=False) \
             .order_by('finished_at').iterator():
@@ -353,7 +416,7 @@ def relearn_lines_from_runs(apply: bool = False) -> dict:
     replayed = {}
     for key, runs in pending.items():
         stat = ModelRuntimeStat.objects.filter(model_key=key,
-                                               hardware_fingerprint=fingerprint).first()
+                                               hardware_fingerprint=compute_place(key)).first()
         if stat is None or stat.size_ema is not None:
             continue
         replayed[key] = len(runs)

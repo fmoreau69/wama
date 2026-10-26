@@ -347,14 +347,17 @@ class OneTripletPerFamilyTest(TestCase):
 
     def test_a_glue_that_learns_the_load_apart_states_its_model_not_loaded(self):
         """The imager and the transcriber measure the cold load apart and learn it : their
-        declaration says « model not loaded », the load counts at the start (the old views did)."""
+        declaration says « model not loaded », the load counts at the start (the old views did)
+        — unless the model is WARM (`eta_estimator.is_warm`, 2026-10-26) : none is resident here."""
         from types import SimpleNamespace as NS
         from wama.imager.models import ImageGeneration
         imager = process_runs.process_eta(ProcessSpec('generate', eta='imager.tasks:generate_eta'),
                                           ImageGeneration(model='auto', steps=20, num_images=2))
-        transcript = NS(used_backend='whisper', backend='whisper', duration_seconds=60.0)
-        transcriber = process_runs.process_eta(
-            ProcessSpec('transcribe', eta='transcriber.workers:transcribe_eta'), transcript)
+        transcript = NS(used_backend='whisper', backend='whisper', model_key='',
+                        duration_seconds=60.0)
+        with mock.patch('wama.common.services.resource_governor.resident_models', return_value={}):
+            transcriber = process_runs.process_eta(
+                ProcessSpec('transcribe', eta='transcriber.workers:transcribe_eta'), transcript)
         self.assertEqual(('imager:img:auto', 40, 'step', False),
                          (imager[0], imager[1], imager[2], imager[3]))
         self.assertEqual((60.0, 'audio_sec', False), transcriber[1:4])

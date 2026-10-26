@@ -1195,9 +1195,12 @@ class ModelRuntimeStat(models.Model):
     Sous la clé de CATALOGUE d'un modèle, c'est aussi sa VITESSE D'INFÉRENCE sur ce matériel, que
     le curseur rapide/qualité compare (`eta_estimator.comparable_speeds`, 2026-10-11).
 
-    Bucketisé par **empreinte hardware** : un changement de GPU repart de l'a-priori et réapprend
-    (les stats de l'ancien matériel ne polluent pas le nouveau). L'a-priori (1ʳᵉ utilisation) vit
-    dans `AIModel.extra_info['eta']` ; ici on stocke ce qui est mesuré, via moyenne mobile (EMA).
+    Bucketisé par **lieu de calcul** (`eta_estimator.compute_place`, rangé dans
+    `hardware_fingerprint`) : l'empreinte du matériel de cette machine — un changement de GPU
+    repart de l'a-priori et réapprend (les stats de l'ancien matériel ne polluent pas le nouveau) —,
+    ou, pour un modèle DISTANT, la clé de sa SOURCE (`albert`, 2026-10-26 : sa vitesse ne dépend
+    pas de la carte locale). L'a-priori (1ʳᵉ utilisation) vit dans `AIModel.extra_info['eta']` ;
+    ici on stocke ce qui est mesuré, via moyenne mobile (EMA).
     """
     model_key = models.CharField(max_length=255, db_index=True,
                                  help_text='Identifiant registre : {source}:{model_id}')

@@ -303,9 +303,19 @@ def transcriber_eta_key_size(t, engine: str = None):
 
 def transcribe_eta(t):
     """ETA déclarée du process `transcribe` (`ProcessSpec.eta`) : le triplet que la glu apprend
-    (elle mesure le chargement à part), modèle réputé NON chargé."""
+    (elle mesure le chargement à part), et si son modèle est CHAUD — lu par la règle commune
+    (`eta_estimator.is_warm` : distant, ou résident selon le gouverneur) sur la clé de catalogue
+    du modèle qui a tourné, sinon de celui que la card demande. La clé d'ETA, elle, est celle du
+    MOTEUR, que le gouverneur ne connaît pas. Elle disait « réputé NON chargé » quel que soit
+    l'état réel (2026-10-26) : le modèle ASR RESTE chargé depuis le 2026-09-25, et l'estimation lui
+    ajoutait à chaque card un chargement qui n'avait pas lieu."""
     triplet = transcriber_eta_key_size(t)
-    return (*triplet, False) if triplet else None
+    if not triplet:
+        return None
+    from wama.model_manager.services.eta_estimator import is_warm
+    from wama.transcriber.backends.manager import catalogue_value, is_auto_value
+    model_key = t.model_key or catalogue_value(t.backend)
+    return (*triplet, bool(model_key) and not is_auto_value(model_key) and is_warm(model_key))
 
 
 def step_eta_key_size(t, process: str, variant: str = ''):

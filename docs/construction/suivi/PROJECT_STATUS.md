@@ -520,13 +520,28 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   réelles). `relearn_lines_from_runs` l'a amorcée une fois sur l'historique des lignes de process.
   La VITESSE comparée par le curseur (`comparable_speeds`) reste le rapport.
 - ⏳ Reste : **valider sur données réelles** (restart WSL2) ; calibrer les a-priori par modèle (`AIModel.extra_info['eta']` ou test nocturne) ; ETA agrégé batch ; anonymizer (pas encore câblé — vérifier).
-- ⏳ **DÉCISION, latente (relevé de Fabien, 2026-10-22)** : l'empreinte d'une durée apprise est
-  celle du GPU de CETTE machine (`eta_estimator.hardware_fingerprint`, « cpu » à défaut), pour
-  tout modèle — un modèle DISTANT compris, dont la vitesse dépend du fournisseur et du réseau, pas
-  de la carte locale ; un changement de GPU lui ferait réapprendre sa vitesse pour rien. Mesuré le
-  même jour : 0 statistique de modèle distant en base, donc rien de faux aujourd'hui ; le premier
-  cas sera une transcription par Albert. Piste : ranger un distant sous sa source
-  (`execution == 'cloud'` → empreinte du fournisseur).
+- ✅ **L'ETA d'un distant sous sa SOURCE, et aucun chargement pour un modèle CHAUD (décision de
+  Fabien, 2026-10-26)**. Deux règles communes de `eta_estimator`, sans aucune déclaration neuve :
+  `compute_place` range une durée sous la source d'un modèle distant (le premier segment de la
+  clé qui nomme un fournisseur du registre des sources, `llm_engine_inventory` — clé de catalogue
+  `albert:…`, clé d'usage `assistant-turn:albert:…`, clé de moteur `transcriber:albert`), sinon
+  sous le matériel ; `is_warm` dit qu'un modèle ne paie pas de chargement s'il est distant ou
+  RÉSIDENT selon le gouverneur (`resident_models`, tous process), quoi que l'appelant suppose. Un
+  distant n'apprend jamais de chargement (`record_run`). Le process `transcribe` déclarait son
+  modèle « non chargé » à chaque card alors qu'il reste en mémoire depuis le 2026-09-25
+  (`transcriber.workers.transcribe_eta`, désormais lu par `is_warm`).
+  ⚠ **Corrige une mesure fausse de cette ligne** (« 0 statistique de modèle distant en base ») :
+  elle ne cherchait que les clés de catalogue exactes. Il y en avait **5** — trois tours
+  d'assistant (Albert ×2, ILaaS) et `transcriber:albert` sous DEUX empreintes (`cpu` et la RTX).
+  Migration `model_manager/0028` (appliquée) : les 5 rangées sous leur source, les deux
+  `transcriber:albert` réunies (la ligne de 22 mesures gardée, celle d'une seule retirée).
+  Gardes : `model_manager/tests/tests_eta_compute_place.py` (16, six mutations toutes rouges).
+  ⏳ **Reste, non tranché** : l'asymétrie inverse — les appelants qui passent `model_loaded=True`
+  par défaut (`progress_views._estimate`, `process_runs.process_eta` sans 4ᵉ élément, l'assistant)
+  omettent le chargement même quand le modèle n'est PAS résident. Les laisser lire `is_warm` à la
+  place serait plus juste, mais change des ETA affichées partout : décision de Fabien. Et deux
+  clés d'opération LOCALES (`anonymizer:blur:img`, `converter:video:gif`) existent aussi sous
+  `cpu` et sous la RTX — cause non établie (aucun worker ne masque CUDA dans les configurations).
 
 ## 11. Transcriber — correction assistée IA (à reconfirmer dans le code)
 Doc : `wama/transcriber/TRANSCRIBER_CORRECTION.md`.
@@ -26174,7 +26189,7 @@ conformes au niveau pour chaque compte ; `administrators()` = les 3 admin ; en b
 groupes sont les quatre rôles métier. Domicile : `PROFILES_PERMISSIONS §1.10`. Aucun code touché.
 Restent de cette session (inchangés) : pousser, et les limites du bloc précédent.
 
-## §CLÔTURE — 2026-10-20→26, « ROUTAGE DES MODÈLES : PROVENANCE EXACTE, VOCABULAIRE DES SOURCES, IDENTITÉ PAR LE MANIFESTE » — ✅ LIVRÉ — 🔚 décision : l'ETA d'un modèle DISTANT
+## §CLÔTURE — 2026-10-20→26, « ROUTAGE DES MODÈLES : PROVENANCE EXACTE, VOCABULAIRE DES SOURCES, IDENTITÉ PAR LE MANIFESTE » — ✅ LIVRÉ, ETA d'un distant comprise — 🔚 `hf_id` → `platform_ref` (plan à valider)
 
 Demande de Fabien : connaître la provenance EXACTE d'un modèle (« Claude API ou Claude
 abonnement »), le moins de choses écrites à la main, alignement parfait. Commits sur `dev`, non
@@ -26186,9 +26201,12 @@ d'accès plus perdu à l'installation, collision de casse à la clé explicite) 
 fantômes Albert supprimés par la route, après vérification en direct). Domicile :
 `WAMA_APP_GENERATION_ROUTE §10.6 P1` ; `WAMA_LLM` ; R173, R176, R177, R178.
 
-**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : trancher où l'ETA range la durée d'un modèle DISTANT —
-sous l'empreinte du GPU local aujourd'hui, ce qui n'a pas de sens (§10 ci-dessus, piste : sous sa
-source). Latent : 0 statistique de distant en base. Rien d'autre de ce périmètre n'est bloqué.
+**🔚 POINT D'ENTRÉE SESSION SUIVANTE** : ~~trancher où l'ETA range la durée d'un modèle DISTANT~~
+— ✅ tranché et livré le même jour (§10 ci-dessus : sous sa source, et aucun chargement pour un
+modèle chaud ; migration `model_manager/0028`). ⚠ « Latent : 0 statistique de distant en base »
+était FAUX : la mesure ne lisait que les clés de catalogue exactes, il y en avait 5 (§10).
+Reste à décider : l'asymétrie inverse des appelants « chargé par défaut » (§10), et `hf_id`
+(ci-dessous).
 
 **Pendings système** : relancer gunicorn + workers — la relance de 16:23 sert `29b9fd28` et
 `27de71c7`, PAS le Python de `2e0a9533` et `699d5786` (règle des renommages, dérivation commune
@@ -26197,7 +26215,7 @@ gitignorée comme toutes. Données posées par la route : 26 identités (`backfi
 --ecrire`, par le manifeste) ; 2 lignes supprimées (`retire_unlisted('albert')`).
 
 **Laissé de côté — limites de CETTE session** :
-- l'ETA des modèles distants (ci-dessus) ;
+- ~~l'ETA des modèles distants (ci-dessus)~~ — livrée (§10) ;
 - `hf_id` et `platform_ref` disent encore le même fait pour un modèle du Hub (deux champs) —
   non touché, la dérivation est unique (`AIModel.platform_refs`) ;
 - `custom` reste la seule source qu'aucune déclaration ne nomme (briques LPIPS, gestes de la main) ;
