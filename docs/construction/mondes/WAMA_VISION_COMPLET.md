@@ -825,7 +825,8 @@ puis « cloud si saturé » ou « cloud autorisé », plafond d'hébergement (so
 ILaaS ; commercial : OpenRouter, Anthropic), modèle facturé jamais tiré d'office
 (`accounts/models.py`, refus commun `cloud_models.cloud_refusal`). ⚠ La porte de confidentialité
 avant-cloud reste NON construite dans le code versionné : le routage cloud existe donc sans elle,
-sous le seul consentement du profil.
+sous le seul consentement du profil. Ce report est une décision de Fabien du 2026-10-26 (« on
+fera plus tard ») : l'intention est gardée ⏳.
 
 ## 12.2 Priorité aux solutions ouvertes ✅
 

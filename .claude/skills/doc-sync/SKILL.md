@@ -23,7 +23,14 @@ Deux passes : la COURTE, à chaque livrable, quelques minutes ; la LONGUE, quand
 - Une **intention** (but, plan, vision) ne se retire JAMAIS par une passe : sa marque change
   (✅ fait · 🔄 en partie · ⏳ pas encore), datée. Seule une DÉCISION la retire.
 - Une **trace datée** (un relevé « mesuré le … », un palier de `PROJECT_STATUS`) ne se réécrit pas :
-  on y AJOUTE un relevé daté.
+  on y AJOUTE un relevé daté. ⚠ **Lire le PARAGRAPHE entier avant de la dire périmée** : son
+  relevé suit souvent quelques lignes plus bas. Vécu le 2026-10-26 : `ROUTE §F3b` signalé à Fabien
+  comme faux (« aucune émission : imager, avatarizer », trace du 28/09) alors que treize lignes plus
+  bas le même paragraphe disait « ✅ 10/10 apps émettent » depuis le 06/10 — un faux signal.
+- Une **intention qui contredit une DÉCISION** déjà prise (ex. « indexation automatique au RAG »
+  face à « l'entrée au RAG est un geste », 2026-08-21) : la SIGNALER à Fabien, ne pas la retirer.
+  Sa décision tombée, la barrer (`~~…~~`) avec la date et ses mots cités — jamais l'effacer :
+  la trace dit pourquoi l'idée n'est plus là.
 - Toute correction nomme sa preuve : `fichier:ligne`, sha de commit, sortie de commande. Jamais une
   conclusion d'un `grep` seul (ouvrir ce qu'il désigne) ; une ABSENCE se prouve en grepant le symbole
   ET ses accesseurs.
@@ -69,6 +76,10 @@ groupes ; toute énumération écrite ici dériverait.
 Les agents se trompent, surtout sur les ABSENCES et les « c'est fait » : re-vérifier soi-même
 (`Grep`, `git log -S`, lecture du code) chaque [STATUT PÉRIMÉ], [CASSÉ] et [FAIT PÉRIMÉ] AVANT de
 l'appliquer. Ignorer les INCERTAIN non confirmés. ⚠ Un sha cité doit exister (`git cat-file -t`).
+Vécu le 2026-10-26 (six lectures) : un sha inexistant, un « coût distant = 0 » contraire à une
+décision consignée (`model_selector.py:460`), une absence non prouvée — tous écartés à la
+contre-vérification. Un constat d'agent qui porte sur une LIGNE se vérifie sur son paragraphe
+(§0, trace datée suivie de son relevé).
 
 ### 2.4 Appliquer
 - **Blocs GÉNÉRÉS = hors périmètre manuel** : la table de `docs/construction/architecture/WAMA_MECANISMES.md`
@@ -79,6 +90,9 @@ l'appliquer. Ignorer les INCERTAIN non confirmés. ⚠ Un sha cité doit exister
   docs touchés.
 - Respecter « un domaine = un fichier » : aucun doc « bis » ; un contenu au mauvais endroit se
   fusionne vers le fichier de référence.
+- Consigner la passe par un **relevé daté** dans la ROADMAP (modèle : `§24.9`) : méthode, sections
+  touchées, ce qui est resté VRAI, repères de ligne décalés — et les **décisions que la passe
+  demande à Fabien**, listées à part dans le compte rendu : une passe ne les tranche pas.
 
 ## 3. Commit
 Commit local par chemins explicites (les seuls `.md` touchés ; `/commit-partiel` dès qu'un fichier

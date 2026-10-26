@@ -33,7 +33,7 @@ Objectif : repartir de l'état RÉEL du projet, pas d'un souvenir. À dérouler 
 python manage.py check_docs                 # références doc→code
 python manage.py manifest_export --check    # corpus de manifestes périmé ? (⚠ depuis WSL2)
 python manage.py manifest_roundtrip --all   # régénération : facettes projetables, fidélité
-python manage.py check_app_conformity       # grille 82 critères déclarés (mesuré 26/08)
+python manage.py check_app_conformity       # grille F1-F8 (le compte vit dans logs/conformity_report.json)
 python manage.py doc_facts --check          # blocs GÉNÉRÉS des .md (dont la carte WAMA_MECANISMES)
 python manage.py test                       # SUITE COMPLÈTE (~15 min) — ajoutée le 2026-08-25
 ```

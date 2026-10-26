@@ -125,6 +125,9 @@
    bac à sable livrés (Writer, Translator, jumelles enhancer_01/avatarizer_01 entièrement générées,
    `24af7c85`) ; la sortie en production reste gatée.
 4. Anonymisation multimodale (Presidio + GLiNER) = porte privacy avant tout routage cloud.
+   ⏳ *2026-10-26* : non construite alors que le routage cloud est ouvert par le profil ; **reportée
+   par Fabien** (« on fera plus tard ») — l'intention reste, d'ici là la seule garde est le choix
+   d'exposition du profil (`cloud_models.cloud_refusal`).
 5. Évaluation continue : jeux de test par capacité + QC câblé ; la veille ne propose un modèle
    qu'avec delta mesuré. Prospection suites (multi-agents, routing capacité→app Phase A).
 6. Face Analyzer : intégration au catalogue (flag lab) + premier flux exploitable.
@@ -1396,10 +1399,13 @@ PDF
 
 ### Phase 3 — Intégration RAG 🔄 *(relevé du 2026-10-26)*
 > ✅ un résultat describer entre au RAG par le GESTE de l'inspecteur (`ea854ce4`) et se rappelle par
-> `memory_recall` ; ⚠ « indexation automatique » ci-dessous est contraire à la décision du
-> 2026-08-21 (l'entrée au RAG est un GESTE, `d0841e97`) — intention à requalifier par Fabien, pas à
-> retirer ; ⏳ citations de passages par section (attend la Phase 1).
-- Indexation automatique du papier dans le RAG utilisateur après analyse
+> `memory_recall` ; ⏳ citations de passages par section (attend la Phase 1).
+> **Tranché par Fabien le 2026-10-26** : *« pas d'indexation automatique. C'est un geste
+> utilisateur. »* — la ligne ci-dessous, contraire à la décision du 2026-08-21 (l'entrée au RAG est
+> un GESTE, `d0841e97`), est retirée par décision. ⚠ Ne vise que le RAG : l'index de recherche
+> par le contenu des files (service de vectorisation, espace `media`) est un autre mécanisme.
+- ~~Indexation automatique du papier dans le RAG utilisateur après analyse~~ — retirée le
+  2026-10-26 (décision) : le papier entre au RAG par le geste « Ajouter au RAG » de l'inspecteur
 - Q&A sur le papier depuis l'AI assistant WAMA avec citations de passages
 
 ---
@@ -5888,7 +5894,11 @@ datés vieillissent bien — mais il n'en fait pas la preuve.
   Analyzer absent, i18n du générateur, `check_structure` absent, outils d'import par lot / URL /
   dossier absents de `tool_api`, Matrix ⏳, `translate_output` sans appelant, Hunyuan non retiré,
   porte de confidentialité avant-cloud non construite (`wama/common/privacy/` existe dans l'arbre
-  mais N'EST PAS versionné — travail d'une autre instance, non compté).
+  mais N'EST PAS versionné — travail d'une autre instance, non compté ; report décidé par Fabien
+  le jour même, H2 point 4).
+- **Décidé le jour même, sur ce relevé** (Fabien) : la porte de confidentialité est reportée
+  (H2 point 4, vision §12.1) ; l'« indexation automatique » du Describer au RAG est retirée, l'entrée
+  au RAG reste un geste (§8b Phase 3).
 - **Repères de ligne décalés, non réécrits** (les blocs qui les portent sont des traces datées) :
   `wama/settings.py:165-167` → `:236-238` ; `start_wama_prod.sh:271` → `:275` ;
   `resource_governor` `resident_models` → `:524`, `idle_models` → `:770` ; `wama/views.py:254`

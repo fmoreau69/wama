@@ -57,6 +57,8 @@ pas d'`extract` : pour lui le manifeste EST l'origine.
 Composition mesurée : **91 liens `app → model`** + jambes `app → library` SEMÉES (corpus
 **111 manifestes** au 2026-08-26 — 10 apps + 9 libraries + 91 models dérivés des requires +
 **1 dataset écrit À LA MAIN** ; transcriber = 4 modèles + 9 libraries, 13/13 résolus).
+*Relevé du 2026-10-26 (`ls manifests/<kind>/`) : 10 apps, 48 libraries, 354 models, 114 functions,
+13 pipelines, 4 datasets — compter à nouveau, ne jamais recopier ces nombres.*
 ⚠ Le dataset est le SEUL manifeste du corpus sans origine mécanique — normal, `dataset` n'a pas
 d'`extract` — et l'écrire à la main a trouvé **4 défauts réels en une heure** (dont D31, un
 identifiant de flux divergent entre `probe()` et `read()`). **Écrire un manifeste à la main est
