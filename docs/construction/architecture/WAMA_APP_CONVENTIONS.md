@@ -1924,6 +1924,31 @@ comme `?app=<nom_app>` à l'endpoint `{% url 'common:console' %}`.
 | Synthesizer | ✅ | ✅ | ✅ | ✅ |
 | Transcriber | ✅ | ✅ | ✅ | ✅ |
 
+### 12.5 Caméra et micro — une seule brique (`WamaCapture`, 2026-10-26)
+
+Toute page qui ouvre la caméra ou le micro passe par `common/js/wama-capture.js`, montée par
+`base.html` avant ses consommateurs. Jusque-là quatre sites le faisaient chacun à sa façon et
+aucun n'avait le tout : l'écoute de l'assistant (`wama-assistant-listen.js`), l'enregistrement
+de la médiathèque (`library-add.js`), les mains (`wama-hands.js`) et le temps réel du Face
+Analyzer. Ce que la brique porte, pour tous :
+- le **contexte sécurisé** vérifié avant toute demande (https, ou `localhost` —
+  `docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md` dit pourquoi le navigateur refuse
+  sinon) ;
+- un **refus expliqué** par périphérique : autorisation refusée (et où la rendre), aucun
+  périphérique (et quoi faire en bureau à distance), périphérique occupé, autre panne ;
+- le **périphérique choisi** et son **repli** sur celui par défaut quand il ne répond plus
+  (`fallback`), la page en étant prévenue pour oublier son choix ;
+- la **liste des périphériques avec leurs noms**, la demande d'autorisation qu'elle exige étant
+  REFERMÉE aussitôt (le Face Analyzer ouvrait la caméra deux fois) ;
+- ce que la piste a **réellement accordé** (taille, annulation d'écho), le **zoom matériel** ;
+- l'**enregistrement** (`MediaRecorder`) et la **permission** lue sans rien demander ;
+- les pistes **rendues** à l'arrêt et en quittant la page (`pagehide`).
+
+Ce qu'une page ne fait plus : appeler `getUserMedia`, `enumerateDevices`, `MediaRecorder` ou
+`permissions.query` elle-même — `tests_capture.NoDeviceAccessOutsideTheBrickTest` le refuse dans
+`wama/`, `wama_lab/` et `wama_data/`. Ce que la brique ne fait pas : traiter le flux (le découpage
+de la parole reste à l'écoute, la reconnaissance des gestes aux mains).
+
 ---
 
 ## 13. Intégration RAG (Planifié)

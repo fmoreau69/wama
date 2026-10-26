@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**212 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**213 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -2300,6 +2300,12 @@ Recherche + facettes EN DIRECT ; options dérivées du DOM (client) ou déclaré
 Bouton commun ▶/⏹/↻ toujours vert — l'icône porte l'action, l'état vit sur la card
 
 - **Domicile** : `wama/common/static/common/js/wama-cycle-button.js`
+
+### Capture caméra / micro du navigateur
+
+Montée par base.html avant ses consommateurs : TOUTE ouverture de la caméra ou du micro passe par `WamaCapture` — contexte sécurisé vérifié avant de rien demander, refus EXPLIQUÉ par périphérique (autorisation, absence, occupé), périphérique choisi et repli sur celui par défaut, liste des périphériques AVEC leurs noms (la demande d'autorisation qu'elle exige est refermée aussitôt), réglages accordés et zoom matériel, enregistrement, permission lue sans rien demander, pistes rendues à l'arrêt et au `pagehide`. Consommée par l'écoute de l'assistant (et le Speak du transcriber, par elle), l'enregistrement de la médiathèque, les mains et le temps réel du Face Analyzer ; aucune page n'appelle `getUserMedia` elle-même (garde `tests_capture`). Elle ouvre le périphérique, elle ne traite pas le flux
+
+- **Domicile** : `wama/common/static/common/js/wama-capture.js` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 
 ### Card v3
 

@@ -316,12 +316,10 @@ de HEAD) et sur le nouveau, captures comparées au pixel et DOM comparé une foi
   dans la gestion des modèles, « Non installé » dans la scène). Domicile à créer : un jeton par
   famille dans le thème, comme `--wama-mm-type-*` pour les types de modèles (ramené le jour même).
 - La mise en espace des scènes licences et modèles (`layout`, `label_limit`) est un premier réglage.
-- **Capture caméra / micro sans brique commune** (relevé le 2026-10-22 en écrivant les mains) :
-  quatre sites appellent `getUserMedia` et refont chacun le contrôle du contexte sécurisé et le
-  message de refus — l'enregistrement de la médiathèque (`library-add.js`), l'écoute de l'assistant
-  (`wama-assistant-listen.js`), le temps réel du Face Analyzer (son gabarit) et les mains
-  (`wama-hands.js`). Domicile à créer dans les briques JS communes ; non fait : il touche trois
-  chantiers d'autres sessions.
+- ✅ ~~**Capture caméra / micro sans brique commune**~~ (relevé le 2026-10-22 en écrivant les
+  mains) — **soldé le 2026-10-26** : `common/js/wama-capture.js` (`WamaCapture`), adoptée par les
+  quatre sites (médiathèque, écoute de l'assistant, Face Analyzer, mains) ; domicile et contrat :
+  `WAMA_APP_CONVENTIONS §12.5`.
 - Aucun monde sur `AIModel` : il passe par `source` → `APP_CATALOG`.
 - Proximité sémantique des cards : images seules, deux espaces séparés, pas de voisinage card ↔
   card, pas de réduction de dimension (§3.3).

@@ -2265,6 +2265,23 @@ MECHANISMS = (
               annexes=('wama/common/tests/tests_gestures.py',
                        'wama/common/services/ui_smoke_layout.py'),
               symbol='WamaGestures'),       # global de base.html : compté par son symbole
+    # Ajouté le 2026-10-26 (décision de Fabien : « la brique commune, méticuleusement, sans rien
+    # casser, sans rien perdre ») : quatre sites ouvraient caméra ou micro chacun à sa façon.
+    Mechanism('media_capture', "Capture caméra / micro du navigateur",
+              "Montée par base.html avant ses consommateurs : TOUTE ouverture de la caméra ou du "
+              "micro passe par `WamaCapture` — contexte sécurisé vérifié avant de rien demander, "
+              "refus EXPLIQUÉ par périphérique (autorisation, absence, occupé), périphérique choisi "
+              "et repli sur celui par défaut, liste des périphériques AVEC leurs noms (la demande "
+              "d'autorisation qu'elle exige est refermée aussitôt), réglages accordés et zoom "
+              "matériel, enregistrement, permission lue sans rien demander, pistes rendues à "
+              "l'arrêt et au `pagehide`. Consommée par l'écoute de l'assistant (et le Speak du "
+              "transcriber, par elle), l'enregistrement de la médiathèque, les mains et le temps "
+              "réel du Face Analyzer ; aucune page n'appelle `getUserMedia` elle-même (garde "
+              "`tests_capture`). Elle ouvre le périphérique, elle ne traite pas le flux",
+              'wama/common/static/common/js/wama-capture.js',
+              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
+              annexes=('wama/common/tests/tests_capture.py',),
+              symbol='WamaCapture'),        # global de base.html : compté par son symbole
     Mechanism('card_menu', "Menu contextuel de card/lot + débordement « … »",
               "Clic droit = la liste COMPLÈTE des actions (+ celles de la SÉLECTION MULTIPLE) ; "
               "le « … » de la rangée = le DÉBORDEMENT SEUL, au-delà des 6 actions nominales "

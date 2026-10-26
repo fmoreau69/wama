@@ -175,9 +175,10 @@ export async function startHands(box, { wasm, model, manage, onGesture, onError 
   const say = (text, isError = false) => { status.innerHTML = text; box.classList.toggle('error', isError); };
   const fail = html => { say(html, true); if (onError) onError(); return { stop() {} }; };
   say(STATUS.loading);
-  if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    return fail("La caméra demande une connexion sécurisée (https, ou l'adresse localhost).");
-  }
+  // L'accès à la caméra (contexte sécurisé, refus expliqué, repli, zoom, pistes rendues) : brique
+  // commune `WamaCapture`, montée par base.html.
+  const capture = window.WamaCapture;
+  if (!capture.available()) return fail(capture.explain({ reason: 'insecure' }, 'camera'));
   const head = await fetch(model, { method: 'HEAD', credentials: 'same-origin' }).catch(() => null);
   if (!head || !head.ok) {
     return fail(`Le modèle des gestes n'est pas installé. <a href="${manage}">Gestion des modèles</a> → « MediaPipe Gesture Recognizer ».`);
@@ -185,29 +186,20 @@ export async function startHands(box, { wasm, model, manage, onGesture, onError 
   const settings = loadSettings();
   const video = box.querySelector('video'), canvas = box.querySelector('canvas'), g = canvas.getContext('2d');
   let stream = null;
-  const track = () => stream && stream.getVideoTracks()[0];
-  const zoomRange = () => { const t = track(); const c = t && t.getCapabilities ? t.getCapabilities() : {}; return c.zoom || null; };
   // Le zoom MATÉRIEL, quand la caméra l'expose : au plus large par défaut.
-  async function applyZoom() {
-    const z = zoomRange(); if (!z) return;
-    const value = Math.min(z.max, Math.max(z.min, settings.zoom ?? z.min));
-    try { await track().applyConstraints({ advanced: [{ zoom: value }] }); } catch (e) { /* refusé par la caméra */ }
-  }
-  // Ouvrir (ou rouvrir) la caméra selon les réglages ; une caméra choisie qui a disparu → celle par défaut.
+  const applyZoom = () => capture.setZoom(stream, settings.zoom);
+  // Ouvrir (ou rouvrir) la caméra selon les réglages ; une caméra choisie qui a disparu → celle par
+  // défaut, et le choix est oublié.
   async function openCamera() {
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    try { stream = await navigator.mediaDevices.getUserMedia(cameraConstraints(settings)); }
-    catch (e) {
-      if (!settings.deviceId || e.name === 'NotAllowedError') throw e;
-      settings.deviceId = ''; saveSettings(settings);
-      stream = await navigator.mediaDevices.getUserMedia(cameraConstraints(settings));
-    }
+    capture.close(stream);
+    stream = await capture.open(cameraConstraints(settings), {
+      fallback: true, onFallback: () => { settings.deviceId = ''; saveSettings(settings); } });
     video.srcObject = stream;
     await video.play().catch(() => {});
     await applyZoom();
   }
   try { await openCamera(); }
-  catch (e) { return fail(`Caméra indisponible (${e.name === 'NotAllowedError' ? 'accès refusé' : e.message}).`); }
+  catch (e) { return fail(capture.explain(e, 'camera')); }
 
   // ── Les réglages, dans la vignette (⚙) ──
   const gear = document.createElement('button');
@@ -218,12 +210,12 @@ export async function startHands(box, { wasm, model, manage, onGesture, onError 
   box.append(gear, panel);
   async function renderSettings() {
     if (panel.hidden) return;
-    const cams = (await navigator.mediaDevices.enumerateDevices().catch(() => [])).filter(d => d.kind === 'videoinput');
-    const t = track(), st = t && t.getSettings ? t.getSettings() : {}, z = zoomRange();
+    const cams = await capture.devices('camera');
+    const st = capture.trackSettings(stream, 'camera'), z = capture.zoomRange(stream);
     const current = settings.deviceId || st.deviceId || '';
     const opt = (v, label, on) => { const o = document.createElement('option'); o.value = v; o.textContent = label; o.selected = on; return o.outerHTML; };
     panel.innerHTML =
-      `<label>Caméra<select data-k="deviceId">${cams.map((c, i) => opt(c.deviceId, c.label || `Caméra ${i + 1}`, c.deviceId === current)).join('')}</select></label>` +
+      `<label>Caméra<select data-k="deviceId">${cams.map(c => opt(c.deviceId, c.label, c.deviceId === current)).join('')}</select></label>` +
       `<label>Champ<select data-k="wide">${opt('1', 'Large (16:9)', settings.wide)}${opt('0', 'Standard (4:3)', !settings.wide)}</select></label>` +
       (z ? `<label>Zoom de la caméra<input type="range" data-k="zoom" min="${z.min}" max="${z.max}" step="${z.step || 0.1}" value="${settings.zoom ?? z.min}"></label>` : '') +
       `<label>Sensibilité <output>${settings.sensitivity.toFixed(1)}</output><input type="range" data-k="sensitivity" min="0.5" max="4" step="0.1" value="${settings.sensitivity}"></label>` +
@@ -262,7 +254,7 @@ export async function startHands(box, { wasm, model, manage, onGesture, onError 
   };
   const cleanup = () => {
     gear.remove(); panel.remove();
-    if (stream) stream.getTracks().forEach(t => t.stop());
+    capture.close(stream);
     video.srcObject = null;
     console.error = consoleError; window.fetch = pageFetch;
   };

@@ -314,33 +314,39 @@ function setupEventListeners() {
     resolutionSelect.addEventListener('change', updateResolution);
 }
 
+// L'accès à la caméra passe par la brique commune `WamaCapture` (base.html) : contexte sécurisé
+// vérifié, refus expliqué, flux de la demande d'autorisation REFERMÉ (il restait ouvert jusqu'au
+// 2026-10-26 : la caméra était ouverte deux fois), pistes rendues en quittant la page.
+function cameraError(badge, err) {
+    console.error(badge, err);
+    const message = WamaCapture.explain(err, 'camera');
+    connectionStatus.textContent = badge;
+    connectionStatus.className = 'badge bg-danger';
+    connectionStatus.title = message;
+    if (window.WamaApp && WamaApp.toast) WamaApp.toast(message, 'error');
+}
+
 async function enumerateCameras() {
     try {
-        // Request permission first
-        await navigator.mediaDevices.getUserMedia({ video: true });
+        // Les noms des caméras n'existent qu'après l'autorisation : la brique la demande.
+        const cameras = await WamaCapture.devices('camera', { ask: true });
 
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const cameras = devices.filter(d => d.kind === 'videoinput');
-
-        cameraSelect.innerHTML = cameras.map((cam, i) => `
-            <option value="${cam.deviceId}">${cam.label || 'Caméra ' + (i + 1)}</option>
+        cameraSelect.innerHTML = cameras.map(cam => `
+            <option value="${cam.deviceId}">${cam.label}</option>
         `).join('');
 
         if (cameras.length > 0) {
             startWebcam(cameras[0].deviceId);
         }
     } catch (err) {
-        console.error('Error enumerating cameras:', err);
-        connectionStatus.textContent = 'Erreur caméra';
-        connectionStatus.className = 'badge bg-danger';
+        cameraError('Erreur caméra', err);
     }
 }
 
 async function startWebcam(deviceId) {
     try {
-        if (webcamStream) {
-            webcamStream.getTracks().forEach(t => t.stop());
-        }
+        WamaCapture.close(webcamStream);
+        webcamStream = null;
 
         const [width, height] = resolutionSelect.value.split('x').map(Number);
 
@@ -353,7 +359,7 @@ async function startWebcam(deviceId) {
             }
         };
 
-        webcamStream = await navigator.mediaDevices.getUserMedia(constraints);
+        webcamStream = await WamaCapture.open(constraints);
         webcamVideo.srcObject = webcamStream;
 
         webcamVideo.onloadedmetadata = () => {
@@ -366,9 +372,7 @@ async function startWebcam(deviceId) {
             connectionStatus.className = 'badge bg-success';
         };
     } catch (err) {
-        console.error('Error starting webcam:', err);
-        connectionStatus.textContent = 'Erreur';
-        connectionStatus.className = 'badge bg-danger';
+        cameraError('Erreur', err);
     }
 }
 

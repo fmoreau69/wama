@@ -374,8 +374,10 @@ class ListenBrickTest(SimpleTestCase):
             from py_mini_racer import MiniRacer
         except ImportError:
             self.skipTest('py_mini_racer absent de ce venv : pas de V8')
-        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
-                  / 'wama-assistant-listen.js').read_text(encoding='utf-8')
+        # Dans l'ordre de base.html : la capture (accès au micro, 2026-10-26) avant l'écoute.
+        js = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+        source = ''.join((js / name).read_text(encoding='utf-8')
+                         for name in ('wama-capture.js', 'wama-assistant-listen.js'))
         ctx = MiniRacer()
         ctx.eval(FAKE_BROWSER + source)
         return ctx

@@ -26041,3 +26041,27 @@ des outils de mesures et tests ». Domicile `ROADMAP §8d` 5.
 - ⏳ **DÉCISION** : l'abonnement Claude grand public garde-t-il ou entraîne-t-il sur les échanges ? Si
   oui, il relève du dernier cran du plafond (`third_party_all`), pas de `third_party`.
 - Gardes : `tests_tool_access` (14 tests) ; contre-épreuves rouges (8).
+
+## §PALIER 2026-10-26 — CAPTURE CAMÉRA / MICRO : UNE BRIQUE COMMUNE, LES QUATRE SITES PORTÉS — non poussé — 🔴 relancer gunicorn (base.html, Face Analyzer)
+
+Décision de Fabien : *« la brique commune, méticuleusement, en profondeur, sans rien casser, sans
+rien perdre »* — le reste relevé le 22/10 (`WAMA_SCENES_3D §6`). Domicile et contrat :
+`WAMA_APP_CONVENTIONS §12.5` ; mécanisme `media_capture`.
+- ✅ `common/js/wama-capture.js` (`WamaCapture`), montée par `base.html` avant ses consommateurs :
+  contexte sécurisé, refus expliqué par périphérique, périphérique choisi et repli, liste avec les
+  noms (sonde refermée), réglages accordés, zoom matériel, enregistrement, permission, pistes
+  rendues à l'arrêt et au `pagehide`. Elle ouvre le périphérique, elle ne traite pas le flux.
+- ✅ Portés, chacun gardant tout ce qu'il faisait : l'écoute de l'assistant (et le Speak du
+  transcriber, qui passe par elle), l'enregistrement de la médiathèque, les mains, le temps réel
+  du Face Analyzer. Gagné en route : la médiathèque et le Face Analyzer vérifient le contexte
+  sécurisé et expliquent un refus ; le Face Analyzer n'ouvre plus la caméra deux fois (sa demande
+  de noms restait ouverte) et rend sa caméra en quittant la page.
+- Gardes : `common/tests/tests_capture.py` (16, V8 + page + aucun accès direct hors de la brique
+  dans les trois mondes) ; `tests_assistant_listen` charge la brique avant l'écoute, comme la page.
+  Contre-épreuves rouges (4 mutations : sonde non refermée, repli retiré, `pagehide` oublié,
+  contexte non vérifié). Navigateur (serveur jetable, caméra et micro factices) : dictée, Speak
+  (enregistrement envoyé, 39 787 octets, intercepté), médiathèque (enregistrer / arrêter), Face
+  Analyzer (un seul flux, rendu au `pagehide`), mains (étapes du scénario nocturne) — micro et
+  caméra rendus à chaque fois.
+- ⚠ Non exercé en navigateur : la SONDE des noms (Chromium, avec ses périphériques factices, les
+  donne avant toute autorisation) — tenue par le test V8.

@@ -260,7 +260,8 @@
     });
 
     // ── Enregistrer (nature `recordable`) ───────────────────────────────────
-    var recorder = null, chunks = [], started = 0, tick = null;
+    // Le micro et l'enregistreur : brique `WamaCapture` (refus expliqué, pistes rendues).
+    var recording = null, started = 0, tick = null;
 
     function stopTimer() {
       if (tick) { clearInterval(tick); tick = null; }
@@ -271,29 +272,32 @@
 
     async function startRecording() {
       if (!nature()) { toast('Choisissez d’abord une nature (onglet).', 'warning'); return; }
-      var stream;
+      var capture = global.WamaCapture, stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: { echoCancellation: true, noiseSuppression: true } });
+        stream = await capture.open({ audio: { echoCancellation: true, noiseSuppression: true } });
       } catch (err) {
-        toast(err && err.name === 'NotAllowedError'
-          ? 'Accès au microphone refusé : autorisez-le dans les réglages du navigateur.'
-          : 'Micro indisponible : ' + (err && err.message || err), 'error');
+        toast(capture.explain(err, 'microphone'), 'error');
         return;
       }
-      chunks = [];
-      recorder = new MediaRecorder(stream);
-      recorder.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-      recorder.onstop = function () {
-        stream.getTracks().forEach(function (t) { t.stop(); });
-        stopTimer();
-        var blob = new Blob(chunks, { type: recorder.mimeType || 'audio/webm' });
-        recorder = null;
-        if (!blob.size) { toast('Enregistrement vide.', 'warning'); return; }
-        // Même voie qu'un fichier déposé : le serveur le range dans le pivot de la nature (wav).
-        api.handleFiles([new File([blob], 'Enregistrement ' + stamp() + '.webm', { type: 'audio/webm' })]);
+      var handle = capture.record(stream);
+      if (!handle) {
+        capture.close(stream);
+        toast('Ce navigateur ne sait pas enregistrer le micro.', 'error');
+        return;
+      }
+      recording = {
+        state: handle.state,
+        stop: function () {
+          return handle.stop().then(function (blob) {
+            capture.close(stream);
+            stopTimer();
+            recording = null;
+            if (!blob || !blob.size) { toast('Enregistrement vide.', 'warning'); return; }
+            // Même voie qu'un fichier déposé : le serveur le range dans le pivot de la nature (wav).
+            api.handleFiles([new File([blob], 'Enregistrement ' + stamp() + '.webm', { type: 'audio/webm' })]);
+          });
+        },
       };
-      recorder.start();
       started = Date.now();
       if (recordLabel) recordLabel.textContent = 'Arrêter';
       if (recordBtn) recordBtn.classList.replace('btn-outline-info', 'btn-danger');
@@ -301,13 +305,13 @@
       tick = setInterval(function () {
         var s = Math.floor((Date.now() - started) / 1000);
         if (recordTimer) recordTimer.textContent = s + ' s';
-        if (s >= MAX_RECORD_SECONDS && recorder && recorder.state === 'recording') recorder.stop();
+        if (s >= MAX_RECORD_SECONDS && recording && recording.state() === 'recording') recording.stop();
       }, 250);
     }
 
     if (recordBtn) {
       recordBtn.addEventListener('click', function () {
-        if (recorder && recorder.state === 'recording') recorder.stop();
+        if (recording && recording.state() === 'recording') recording.stop();
         else startRecording();
       });
     }

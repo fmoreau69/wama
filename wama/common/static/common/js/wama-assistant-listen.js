@@ -52,8 +52,9 @@
  *   stop()                 : coupe tout (micro rendu, conversation arrêtée).
  *   state()                : {mode: 'off'|'dictation'|'conversation'|'capture', phase, echoCancelled}.
  *
- * Dépend de : `WamaAssistantChat` (send/abort/isBusy/input), `WamaAssistantVoice`
- * (isAudible/isOwnSpeech/stop/onChange), `WamaApp.toast` et `WamaApp.csrfToken` si présents.
+ * Dépend de : `WamaCapture` (accès au micro, enregistrement — 2026-10-26), `WamaAssistantChat`
+ * (send/abort/isBusy/input), `WamaAssistantVoice` (isAudible/isOwnSpeech/stop/onChange),
+ * `WamaApp.toast` et `WamaApp.csrfToken` si présents.
  *
  * L'ÉCHO (2026-10-13) : la fin d'une réponse, encore jouée par le haut-parleur, est repartie
  * comme réplique — l'assistant s'est répondu à lui-même. Trois gestes, dans la brique : l'écoute
@@ -250,12 +251,10 @@
     "registerProcessor('wama-tap', WamaTap);",
   ].join('\n');
 
+  // L'accès au micro (contexte sécurisé, refus expliqué, pistes rendues) : brique `WamaCapture`.
   function openMic(onFrame) {
-    if (!global.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      return Promise.reject(new Error('insecure'));
-    }
     var mic = { stream: null, ctx: null, node: null };
-    return navigator.mediaDevices.getUserMedia({
+    return global.WamaCapture.open({
       audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
     }).then(function (stream) {
       mic.stream = stream;
@@ -273,9 +272,7 @@
         source.connect(mic.node);
         mic.node.connect(mute);
         mute.connect(mic.ctx.destination);
-        var track = stream.getAudioTracks()[0];
-        var settings = (track && track.getSettings) ? track.getSettings() : {};
-        mic.echoCancelled = settings.echoCancellation === true;
+        mic.echoCancelled = global.WamaCapture.trackSettings(stream, 'microphone').echoCancellation === true;
         mic.rate = mic.ctx.sampleRate;
         return mic;
       });
@@ -285,24 +282,13 @@
   function closeMic(mic) {
     if (!mic) return;
     if (mic.node) { try { mic.node.port.onmessage = null; mic.node.disconnect(); } catch (_) {} }
-    if (mic.stream) mic.stream.getTracks().forEach(function (t) { t.stop(); });
+    global.WamaCapture.close(mic.stream);
     if (mic.ctx) { try { mic.ctx.close(); } catch (_) {} }
   }
 
-  function explainMicError(e) {
-    var name = e && e.name;
-    if (e && e.message === 'insecure') {
-      return "Le micro n'est disponible qu'en HTTPS (https://wama.univ-eiffel.fr).";
-    }
-    if (name === 'NotAllowedError' || name === 'SecurityError') {
-      return 'Micro refusé : autorisez-le pour ce site (cadenas de la barre d\'adresse › Micro).';
-    }
-    if (name === 'NotFoundError' || name === 'OverconstrainedError') {
-      return "Aucun micro détecté sur ce poste (en bureau à distance : activer l'enregistrement audio à distance).";
-    }
-    if (name === 'NotReadableError') return 'Le micro est utilisé par une autre application.';
-    return 'Micro indisponible : ' + ((e && e.message) || name || 'erreur inconnue');
-  }
+  // Un refus d'accès arrive déjà expliqué ; une panne du traitement audio (module de découpage)
+  // reçoit le même message de repli « Micro indisponible : … ».
+  function explainMicError(e) { return global.WamaCapture.explain(e, 'microphone'); }
 
   // La réponse ENTIÈRE du serveur ({text, language, engine}) ; `transcribe` n'en garde que le texte.
   function transcribeClip(samples, rate) {
@@ -583,8 +569,7 @@
     this.phase = 'idle';
     this.mic = null;
     this.segmenter = null;
-    this.recorder = null;
-    this.chunks = [];
+    this.recorder = null;                 // `WamaCapture.record` quand `record: true`
     this.texts = [];
     this.language = '';
     this.pending = 0;
@@ -613,13 +598,8 @@
       self.segmenter = new Segmenter(mic.rate, END_MS.capture, function (evt, samples) {
         self.onSegment(evt, samples);
       });
-      if (self.opts.record && global.MediaRecorder) {
-        try {
-          self.recorder = new global.MediaRecorder(mic.stream);
-          self.recorder.ondataavailable = function (e) { if (e.data && e.data.size) self.chunks.push(e.data); };
-          self.recorder.start();
-        } catch (_) { self.recorder = null; }              // le texte reste, sans enregistrement
-      }
+      // Sans enregistreur dans ce navigateur, le texte reste, sans enregistrement.
+      if (self.opts.record) self.recorder = global.WamaCapture.record(mic.stream);
       self.setPhase('listening');
       return self;
     }).catch(function (e) {
@@ -661,12 +641,7 @@
     if (this.segmenter) this.segmenter.finish();
     this.mode = 'off';
     if (ctl === this) ctl = null;
-    var recorded = new Promise(function (resolve) {
-      var r = self.recorder;
-      if (!r || r.state === 'inactive') { resolve(null); return; }
-      r.onstop = function () { resolve(new Blob(self.chunks, { type: r.mimeType || 'audio/webm' })); };
-      r.stop();
-    });
+    var recorded = this.recorder ? this.recorder.stop() : Promise.resolve(null);
     this.ended = recorded.then(function (recording) {
       closeMic(self.mic);
       self.mic = null;
@@ -698,10 +673,10 @@
     // Conversation ouverte sur la page précédente : elle reprend, si le micro est déjà permis
     // (sinon on n'ouvre pas de demande d'autorisation sans geste de l'utilisateur).
     var first = controllers.filter(function (c) { return c.talkBtn; })[0];
-    if (first && remembered() && navigator.permissions && navigator.permissions.query) {
-      navigator.permissions.query({ name: 'microphone' }).then(function (status) {
-        if (status.state === 'granted' && first.mode === 'off') first.start('conversation');
-      }).catch(function () {});
+    if (first && remembered()) {
+      global.WamaCapture.permission('microphone').then(function (state) {
+        if (state === 'granted' && first.mode === 'off') first.start('conversation');
+      });
     }
   }
 
