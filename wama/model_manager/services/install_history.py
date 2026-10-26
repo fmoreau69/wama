@@ -10,7 +10,8 @@ l'assistant et par le model manager*) — jamais par surface :
     bouton ET de l'assistant — et par le marcheur d'app) : l'événement s'ouvre avec sa VOIE ;
   • dans les deux tâches Celery (`resumed`) : l'événement retrouvé par sa clé est marqué DÉMARRÉ
     à la prise en charge, puis clos avec l'issue ;
-  • `uninstall_model` ; `install_library` quand pip est réellement appelé (`opened`, synchrones).
+  • `uninstall_model` ; `install_library` et `uninstall_library` (2026-10-23) quand pip est
+    réellement appelé (`opened`, synchrones).
 
 ⚠ AUCUN ARGUMENT NOUVEAU DANS LES MESSAGES CELERY (mesuré le 2026-09-30, relevé par une autre
 instance) : la première version passait `via=` à la tâche. Un processus au code neuf (un shell,

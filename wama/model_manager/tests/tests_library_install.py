@@ -213,3 +213,94 @@ class InstallLibraryTest(TestCase):
         lib = Library.objects.get(key='django')
         self.assertTrue(lib.is_installed)
         self.assertEqual(lib.installed_version, version)
+
+
+class UninstallLibraryTest(TestCase):
+    """2026-10-23 : the counterpart of `install_library` (Fabien : remove AirLLM « proprement, par
+    les mécanismes de WAMA »). Same contract — a plan without effect, the kill switch, the dated
+    log, the state checked after — and REFUSED while anything still needs the library. pip is
+    never really called here."""
+
+    def _lib(self, **fields):
+        values = dict(key='probe-lib', name='probe-lib', pip_spec='probe-lib==1.0.0',
+                      is_allowed=True, is_installed=True, installed_version='1.0.0')
+        values.update(fields)
+        return Library.objects.create(**values)
+
+    def test_a_library_a_manifest_still_requires_is_not_removed(self):
+        from unittest.mock import patch
+        from wama.model_manager.services.model_installer import library_requirers, uninstall_library
+        self.assertIn('apps/transcriber.json', library_requirers('faster-whisper')['manifests'],
+                      'the corpus is read : the transcriber requires faster-whisper')
+        self._lib(key='faster-whisper', name='faster-whisper', pip_spec='faster-whisper==1.0.0')
+        with patch('subprocess.run') as run:
+            res = uninstall_library('faster-whisper', apply=True)
+        self.assertFalse(res['ok'])
+        self.assertIn('encore requise', res['error'])
+        run.assert_not_called()
+
+    def test_an_installed_package_that_depends_on_it_blocks_the_removal(self):
+        # `django` is required by installed packages of the venv (channels, celery beat…).
+        from wama.model_manager.services.model_installer import library_requirers
+        self.assertTrue(library_requirers('django')['packages'])
+
+    def _free(self, versions):
+        """`probe-lib` installed then gone, nobody requiring it."""
+        import importlib.metadata as im
+        from unittest.mock import patch
+        real = im.version
+
+        def version(name):
+            if name != 'probe-lib':
+                return real(name)
+            value = versions.pop(0)
+            if value is None:
+                raise im.PackageNotFoundError(name)
+            return value
+        return (patch('importlib.metadata.version', side_effect=version),
+                patch('wama.model_manager.services.model_installer.library_requirers',
+                      return_value={'packages': [], 'manifests': []}),
+                patch('wama.model_manager.services.model_installer._replay_patches',
+                      return_value={'ok': True}))
+
+    def test_the_plan_removes_nothing(self):
+        from unittest.mock import patch
+        from wama.model_manager.services.model_installer import uninstall_library
+        self._lib()
+        a, b, c = self._free(['1.0.0'])
+        with a, b, c, patch('subprocess.run') as run:
+            res = uninstall_library('probe-lib')
+        self.assertTrue(res['ok'])
+        self.assertTrue(res['would_uninstall'])
+        run.assert_not_called()
+        self.assertTrue(Library.objects.get(key='probe-lib').is_installed)
+
+    def test_the_removal_takes_the_package_alone_logs_it_and_withdraws_the_permission(self):
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        from wama.model_manager.models import InstallEvent
+        from wama.model_manager.services.model_installer import uninstall_library
+        self._lib()
+        a, b, c = self._free(['1.0.0', None])
+        with a, b, c, patch('subprocess.run', return_value=SimpleNamespace(
+                returncode=0, stdout='Successfully uninstalled probe-lib-1.0.0', stderr='')) as run:
+            res = uninstall_library('probe-lib', apply=True, via='cli')
+        self.assertTrue(res['ok'], res)
+        self.assertEqual(['-m', 'pip', 'uninstall', '-y', 'probe-lib'], run.call_args.args[0][1:],
+                         'its own package, never its dependencies')
+        lib = Library.objects.get(key='probe-lib')
+        self.assertEqual((False, '', False), (lib.is_installed, lib.installed_version, lib.is_allowed))
+        event = InstallEvent.objects.get(key='probe-lib')
+        self.assertEqual(('uninstall', 'library', 'SUCCESS', 'cli'),
+                         (event.action, event.kind, event.status, event.via))
+
+    def test_the_kill_switch_stops_before_pip(self):
+        from unittest.mock import patch
+        from wama.model_manager.services.model_installer import uninstall_library
+        self._lib()
+        a, b, c = self._free(['1.0.0'])
+        with a, b, c, patch('subprocess.run') as run, \
+                patch.dict(os.environ, {PIP_KILL_SWITCH_ENV: '1'}):
+            res = uninstall_library('probe-lib', apply=True)
+        self.assertFalse(res['ok'])
+        run.assert_not_called()

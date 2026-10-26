@@ -1775,6 +1775,20 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
             if locks.is_dir():
                 shutil.rmtree(locks, ignore_errors=True)
             kind = 'hf_snapshot' if target.name.startswith('models--') else 'weights_dir'
+            # Le dossier de cache qu'une installation du Hub a créé POUR CE SEUL modèle (un
+            # candidat : `models/llm/Qwen2.5-7B-Instruct/`) restait vide, son `.locks` aussi
+            # (mesuré le 2026-10-23). Retirés s'ils sont VIDES — `rmdir`, jamais la catégorie : une
+            # famille partagée garde ses autres modèles. Un dossier de poids DÉCLARÉ (bark) laisse
+            # son parent tel quel : c'est l'app qui a posé ce rangement.
+            if kind == 'hf_snapshot':
+                family = target.parent
+                for folder in (family / '.locks', family):
+                    try:
+                        where = folder.resolve()
+                        if where != root and where.parent != root:
+                            folder.rmdir()
+                    except OSError:
+                        pass                   # non vide, ou déjà absent : on le laisse
 
     # Recalage IMMÉDIAT du catalogue (le sync ne re-mesure ces lignes qu'à sa prochaine
     # passe, et un snapshot générique disparu n'est simplement plus re-découvert).
@@ -2360,6 +2374,118 @@ def install_library(key: str, apply: bool = False, via: str = '') -> dict:
     lib.save(update_fields=['is_installed', 'installed_version'])
     return {'ok': True, 'library': key, 'installed': patches is not None,
             'version': version_cible, 'patches': patches, 'plan': plan}
+
+
+def library_requirers(key: str, dist_name: str = '') -> dict:
+    """Qui a encore BESOIN de la librairie `key` (distribution `dist_name`, la clé par défaut) :
+    `{'packages': [...], 'manifests': [...]}` — les distributions INSTALLÉES du venv qui la
+    déclarent dans leurs dépendances, et les manifestes du corpus qui la REQUIÈRENT
+    (`requires` : `{kind: library, key}`). Vide : la retirer ne casse rien de déclaré."""
+    import importlib.metadata as im
+
+    from packaging.requirements import InvalidRequirement, Requirement
+    from packaging.utils import canonicalize_name
+
+    wanted = canonicalize_name(dist_name or key)
+    packages = set()
+    for dist in im.distributions():
+        own = canonicalize_name(dist.metadata.get('Name') or '')
+        if not own or own == wanted:
+            continue
+        for line in dist.requires or []:
+            try:
+                req = Requirement(line)
+            except InvalidRequirement:
+                continue
+            # Une dépendance d'« extra » (`; extra == "…"`) n'est pas tirée par défaut.
+            if canonicalize_name(req.name) == wanted and 'extra' not in str(req.marker or ''):
+                packages.add(dist.metadata.get('Name'))
+    manifests = []
+    corpus = Path(__file__).resolve().parents[3] / 'manifests'
+    for path in sorted(corpus.rglob('*.json')):
+        try:
+            manifest = json.loads(path.read_text(encoding='utf-8'))
+        except Exception:
+            continue
+        refs = manifest.get('requires') if isinstance(manifest, dict) else None
+        if any(isinstance(r, dict) and r.get('kind') == 'library' and r.get('key') == key
+               for r in refs or []):
+            manifests.append(str(path.relative_to(corpus)).replace('\\', '/'))
+    return {'packages': sorted(packages), 'manifests': manifests}
+
+
+def uninstall_library(key: str, apply: bool = False, via: str = '') -> dict:
+    """
+    DÉSINSTALLE une librairie du registre — le pendant d'`install_library` (2026-10-23, demande de
+    Fabien : retirer AirLLM « proprement, par les mécanismes de WAMA » ; rien ne le permettait,
+    et `un_write_back_library` refuse justement de retirer du registre une librairie installée).
+
+    Même contrat qu'à l'installation : `apply=False` = PLAN sans effet ; kill switch ; journal
+    daté (`opened`, action `uninstall`) ; état CONSTATÉ après coup. Un seul paquet retiré, le sien
+    — jamais ses dépendances, partagées par le venv. REFUSÉ tant qu'un paquet installé ou un
+    manifeste du corpus en a besoin (`library_requirers`) : on ne casse pas en silence ce qui
+    l'importe. Le registre garde sa ligne (`is_installed=False`) et perd son autorisation
+    (`is_allowed=False`) : la réinstaller redemande une décision. Une librairie VENDORISÉE (clone
+    au commit) n'est pas couverte ici — le dire plutôt que retirer à moitié.
+    """
+    import importlib.metadata as im
+    import subprocess
+    import sys
+
+    from wama.common.models import Library
+
+    lib = Library.objects.filter(key=key).first()
+    if lib is None:
+        return {'ok': False, 'library': key, 'error': "librairie absente du registre"}
+    if lib.vendor:
+        return {'ok': False, 'library': key,
+                'error': "librairie vendorisée : sa désinstallation n'est pas encore une route"}
+    dist = (lib.pip_spec or key).partition('==')[0].split('[', 1)[0].strip() or key
+    try:
+        constat = im.version(dist)
+    except im.PackageNotFoundError:
+        constat = None
+    requirers = library_requirers(key, dist)
+    plan = {'library': key, 'distribution': dist, 'installed_version': constat,
+            'requirers': requirers, 'venv': sys.executable,
+            'post_step': "patches/apply_patches.py rejoué après le retrait"}
+    if requirers['packages'] or requirers['manifests']:
+        return {'ok': False, 'library': key, 'plan': plan,
+                'error': "encore requise : " + ', '.join(requirers['packages']
+                                                        + requirers['manifests'])}
+    if not apply:
+        return {'ok': True, 'plan': plan, 'would_uninstall': constat is not None}
+    if os.environ.get(PIP_KILL_SWITCH_ENV):
+        return {'ok': False, 'library': key, 'plan': plan,
+                'error': f"opérations pip désactivées ({PIP_KILL_SWITCH_ENV} posé)"}
+
+    patches = None
+    if constat is not None:
+        from .install_history import opened
+        with opened('library', key, name=lib.name or key, action='uninstall', via=via) as outcome:
+            proc = subprocess.run([sys.executable, '-m', 'pip', 'uninstall', '-y', dist],
+                                  capture_output=True, text=True, timeout=600)
+            if proc.returncode != 0:
+                error = (proc.stderr or proc.stdout or '').strip()[-500:]
+                outcome.update({'ok': False, 'error': error})
+                return {'ok': False, 'library': key, 'plan': plan, 'error': error}
+            patches = _replay_patches()
+            try:
+                still = im.version(dist)
+            except im.PackageNotFoundError:
+                still = None
+            if still is not None:
+                error = f"pip a répondu ok mais {dist} {still} est toujours installé"
+                outcome.update({'ok': False, 'error': error})
+                return {'ok': False, 'library': key, 'plan': plan, 'error': error}
+            outcome.update({'ok': True, 'version': constat})
+
+    lib.is_installed = False
+    lib.installed_version = ''
+    lib.is_allowed = False
+    lib.save(update_fields=['is_installed', 'installed_version', 'is_allowed'])
+    return {'ok': True, 'library': key, 'uninstalled': patches is not None,
+            'version': constat, 'patches': patches, 'plan': plan}
 
 
 def install_requirements(app_key: str, apply: bool = False) -> dict:

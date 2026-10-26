@@ -493,6 +493,25 @@ class DesinstallationTest(TestCase):
                         "la ligne porte l'historique — elle se marque, ne se supprime pas")
         self.assertIn('uninstalled_at', modele.extra_info)
 
+    def test_the_cache_folder_made_for_the_model_alone_goes_a_shared_one_stays(self):
+        """2026-10-23 : uninstalling a Hub candidate left its own empty folder and `.locks`
+        (`models/llm/Qwen2.5-7B-Instruct/`). Removed when EMPTY ; a family holding another
+        snapshot, and the category, stay."""
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            alone, _ = self._modele_avec_snapshot(root)
+            family = root / 'models' / 'music' / 'Fam'
+            self.assertTrue(self._uninstall(root, alone.model_key)['ok'])
+            self.assertFalse(family.exists(), 'its own empty folder and `.locks` are gone')
+            self.assertTrue((root / 'models' / 'music').exists(), 'the category stays')
+            kept = _faux_snapshot(root, 'music', 'Shared', 'Org', 'Kept')
+            gone = _faux_snapshot(root, 'music', 'Shared', 'Org', 'Gone')
+            AIModel.objects.create(model_key='huggingface:Org/Gone', name='Gone', model_type='music',
+                                   source='huggingface', is_downloaded=True, local_path=str(gone))
+            self.assertTrue(self._uninstall(root, 'huggingface:Org/Gone')['ok'])
+            self.assertTrue(kept.exists(), 'a family holding another snapshot stays')
+
     def test_un_modele_charge_ne_se_desinstalle_pas(self):
         from ..services.model_installer import uninstall_model
         AIModel.objects.create(model_key='huggingface:Org/Charge', name='Chargé',

@@ -3294,7 +3294,11 @@ QUANTIFIÉE (GGUF, Ollama — un 32B en 4 bits tient sur la carte), le décharge
 tant que la mémoire vive suffit, ou un fournisseur souverain (Albert, ILaaS). Ce qui la ferait
 revenir : un modèle sans aucune version quantifiée, des poids sur un NVMe natif de Linux, une
 réponse de quelques jetons sans attente. Les couches découpées de l'essai (15 Go) ont été retirées ;
-`airllm` et Qwen2.5-7B restent installés — les retirer est un geste du model manager.
+✅ `airllm` et Qwen2.5-7B **retirés le 2026-10-23** à la demande de Fabien (`REMOVAL_LEDGER R175`),
+par la route : `uninstall_model`, et `uninstall_library` — le pendant d'`install_library`, qui
+n'existait pas (plan sans effet, kill switch, journal daté, refus tant qu'un paquet installé ou un
+manifeste du corpus la requiert, autorisation retirée) ; la désinstallation d'un candidat du Hub
+retire aussi son dossier de cache devenu vide.
 
 Deux trous de la ROUTE trouvés en l'installant, comblés dans la route :
 - `HF_TASKS` n'avait pas `text-generation` : aucun LLM aux poids du Hub ne pouvait être proposé,

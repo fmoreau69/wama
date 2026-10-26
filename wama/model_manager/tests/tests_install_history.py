@@ -132,7 +132,8 @@ class EveryEntryPointNamesItsRouteTest(SimpleTestCase):
     """Hors tests : chaque appel de la route porte `via=`, et les deux tâches ne partent que par
     `dispatch_install` (qui date la demande et n'ajoute rien au message)."""
 
-    ENTRY_POINTS = {'request_install', 'uninstall_model', 'install_library', 'dispatch_install'}
+    ENTRY_POINTS = {'request_install', 'uninstall_model', 'install_library', 'uninstall_library',
+                    'dispatch_install'}
     TASKS = {'install_catalog_task', 'install_proposed_task'}
 
     def _calls(self):
