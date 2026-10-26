@@ -40,7 +40,7 @@
   "description": "Extrait la partition (ABC, mélodie seule) de l'audio du morceau à reprendre, pour un modèle qui reprend un audio PAR SA PARTITION (YuE2). La partition est un résultat de la card : lisible, corrigeable, rejouable.",
   "key": "composer.extract_score",
   "manifest_kind": "function",
-  "name": "Composer — extraire la partition",
+  "name": "Composer — partition réduite de l'entrée",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

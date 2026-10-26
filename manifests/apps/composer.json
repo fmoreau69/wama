@@ -1400,7 +1400,7 @@
             "help_source": null,
             "icon": "fa-list-ol",
             "inline": false,
-            "label": "Partition du rendu (instruments)",
+            "label": "Partition de sortie (instruments)",
             "max": null,
             "max_label": "",
             "min": null,

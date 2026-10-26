@@ -255,6 +255,32 @@ def _work_natures(app_name) -> set:
             for t in (p.get('types') or [])}
 
 
+def is_work_input(app_name, name) -> bool:
+    """Le fichier `name` (chemin ou URL) peut-il être l'ENTRÉE de la card ? LA règle de la face
+    Entrée (`ROUTE §F3b`) : jamais sous un port `prompt` (l'entrée est la consigne), et de la
+    nature d'un port de TRAVAIL quand l'app en déclare — une référence ne l'est jamais. Lue par
+    la face Entrée (`_input_preview`) et par les versions d'un média lu (`Surface.sources_of`)."""
+    if not name or _input_port_group(app_name) == 'prompt':
+        return False
+    natures = _work_natures(app_name)
+    if not natures:
+        return True
+    from wama.common.app_registry import category_of_path
+    return category_of_path(str(name).split('?')[0]) in natures
+
+
+def work_input_name(app_name, instance) -> str:
+    """Le fichier d'ENTRÉE de la card (relatif à MEDIA_ROOT) : la clé `source_file` de sa spec de
+    détail — la déclaration que lit la face Entrée —, s'il passe `is_work_input` ; '' sinon (app à
+    consigne, référence, app sans spec déclarative). 2026-10-26 : le transport du composer
+    propose l'audio du cover à côté du rendu (demande de Fabien : comparer entrée et sortie)."""
+    from .detail_registry import DetailRegistry, spec_value
+    spec = (DetailRegistry.get(app_name) or {}).get('spec') or {}
+    value = spec_value(instance, spec.get('source_file'))
+    name = getattr(value, 'name', '') or ''
+    return name if is_work_input(app_name, name) else ''
+
+
 #: Ce que l'adaptateur du registre AJOUTE à la face Entrée, quand il décrit le même fichier.
 REGISTERED_METADATA = ('duration', 'resolution', 'properties')
 
@@ -284,12 +310,9 @@ def _input_preview(app_name, instance, request):
     if d is None:
         return PreviewRegistry.get_preview_data(app_name, instance, request)
     group = _input_port_group(app_name)
-    url = d.get('source_file') if group != 'prompt' else None
-    natures = _work_natures(app_name) if url else set()
-    if url and natures:
-        from wama.common.app_registry import category_of_path
-        if category_of_path(str(url).split('?')[0]) not in natures:
-            url = None          # pas de la nature d'un port de TRAVAIL : une référence (§F3b)
+    url = d.get('source_file')
+    if url and not is_work_input(app_name, url):
+        url = None          # la consigne, ou pas de la nature d'un port de TRAVAIL : une référence (§F3b)
     if url:
         data = _media_face(url, request)
         data.update(_registered_metadata(app_name, instance, request, url))

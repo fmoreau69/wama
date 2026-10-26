@@ -5607,6 +5607,15 @@ cette ligne disait qu'il n'en gardait aucune). Choix par process : décision ouv
 >   « Original / Nivellement / Débruitage » — dérivé du pipeline et de ce que CONSOMMENT les briques
 >   qui lisent le rôle ; le transport recharge à la même position et le dit au bus (`source`), la
 >   ligne de temps relit les pics de la même version. Aucune app ne nomme ses versions.
+>   ✅ **2026-10-26 — et l'ENTRÉE de la card** (Fabien : « comme pour le Transcriber, avoir le
+>   choix de l'audio à jouer entrée/sortie pour comparer ») : quand elle est du type lu et n'est
+>   pas déjà l'une des versions, elle vient EN TÊTE sous la clé `surfaces.INPUT_SOURCE`, libellée
+>   « Entrée ». Elle se lit par la déclaration de la face Entrée de l'aperçu
+>   (`preview_utils.work_input_name` : la clé `source_file` de la spec de détail, filtrée par
+>   `is_work_input` — la règle « jamais une référence » que `_input_preview` applique, sortie en
+>   fonction pour ses deux lecteurs). Le composer fait donc écouter le cover à côté du rendu ; le
+>   transcriber, dont le champ lu EST l'entrée, n'en gagne rien. Le défaut reste le champ lu.
+>   Garde : `tests_surfaces.ComposerScoreSurfaceTest.test_the_transport_offers_the_input_beside_the_render`.
 > - **2026-10-22 — relancer une card EN COURS, après confirmation** (décision de Fabien : « on
 >   accepte l'enregistrement des réglages pendant un traitement et on permet de relancer le job
 >   complet ou par étapes […] demander confirmation à l'utilisateur »). Quatre pièces, communes :
@@ -6269,6 +6278,19 @@ Objectif : les gabarits d'app ne portent que l'emballage.
 >   « Partition complète » et « Partition » empilées → « Rendu » → « Sortie » et « Partition du
 >   rendu » empilées. Une chaîne sans branche garde une seule ligne. Gardes :
 >   `tests_process_pipeline.WhatTheCardShowsTest` (colonnes, chaîne, process absent).
+>   ✅ **Même jour, deux retouches demandées par Fabien** : ① les LIBELLÉS — « Partition
+>   extraite » et « Partition complète » étaient deux partitions extraites ; ce sont désormais
+>   « Partition réduite » / « Partition complète » (comme la bascule de la vue partition) et
+>   « Partition de sortie » pour celle du morceau produit (process, case du schéma, titre de la
+>   seconde vue, noms au catalogue ; le `help_text` du modèle reste, il demanderait une
+>   migration) ; ② la « Partition de sortie » n'était que dans les réglages : le composer est
+>   la SEULE app dont `model_of` rend `None` sous « auto » (les autres rendent `'auto'` pour que
+>   leurs process se montrent avant le premier lancement), parce que ses `applies` dépendent du
+>   modèle tiré. `card_rows` montre désormais, le modèle inconnu, les process qui n'ont pas de
+>   `applies` — ils ont lieu quel que soit le tirage : rien n'est deviné, et la case d'un
+>   optionnel est sur la card. Elle reste À CÔTÉ de la Sortie, pas après : elle lit le rendu
+>   original, un changement de format ne rejoue pas MuScriptor. Garde :
+>   `test_under_auto_a_process_that_needs_no_model_shows_with_its_checkbox`.
 **5.3 Lot** : le pipeline se règle sur la mère ; une fille peut le surcharger ; **promouvoir ↑ /
 réaligner ↓** (`MODES_QUEUE_UX §5ter`) — la charge utile promue EST le pipeline (les réglages Médias
 en sont un cas), avec le garde-fou Data « entrées requises ⊆ ∩ des catalogues des filles », refus

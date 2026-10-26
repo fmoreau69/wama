@@ -122,7 +122,7 @@ PARAMS = [
     # PARTITION DU RENDU (2026-10-26, décision de Fabien : « on propose les deux ») : la case du
     # process optionnel `rendered_parts` — le morceau PRODUIT → sa partition complète, pour le
     # comparer à l'entrée. Ne périme qu'elle-même.
-    Param(name="extract_rendered_parts", type="toggle", label="Partition du rendu (instruments)",
+    Param(name="extract_rendered_parts", type="toggle", label="Partition de sortie (instruments)",
           icon="fa-list-ol",
           help="Après le rendu, écrit la partition complète du morceau PRODUIT, pour la comparer "
                "à celle de l'entrée dans la page « Éditer la partition ». Une transcription "

@@ -9,9 +9,9 @@
       {
         "cardinality": "one",
         "data_type": "audio",
-        "description": "Le morceau rendu.",
+        "description": "Audio du morceau à reprendre (cover).",
         "group": "travail",
-        "key": "audio",
+        "key": "work_audio",
         "optional": false,
         "produced_fields": [],
         "required_fields": []
@@ -37,10 +37,10 @@
       "gpu"
     ]
   },
-  "description": "Écrit la partition COMPLÈTE du morceau rendu : une partie par instrument entendu (voix, piano, basse, batterie…), par un modèle de la tâche `audio-to-midi` (MuScriptor) mis en notation par la brique commune. Optionnelle ; montrée et lue sur la page d'édition, jamais donnée au rendu.",
+  "description": "Écrit la partition COMPLÈTE du morceau à reprendre (cover) : une partie par instrument entendu (voix, piano, basse, batterie…), par un modèle de la tâche `audio-to-midi` (MuScriptor) mis en notation par la brique commune — à côté de la partition réduite, sur le même audio. Optionnelle ; montrée et corrigée sur la page d'édition, jamais donnée au rendu (YuE2 ne suit que la réduite).",
   "key": "composer.parts",
   "manifest_kind": "function",
-  "name": "Composer — partition complète",
+  "name": "Composer — partition complète de l'entrée",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

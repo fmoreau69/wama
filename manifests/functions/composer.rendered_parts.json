@@ -1,0 +1,55 @@
+{
+  "body": {
+    "app": "composer",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "composer.tasks:compose_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "audio",
+        "description": "Le morceau rendu.",
+        "group": "travail",
+        "key": "audio",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "composer.rendered_parts",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "score",
+        "description": "La partition de sortie, une partie par instrument.",
+        "key": "score",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [],
+    "tags": [
+      "audio",
+      "music",
+      "gpu"
+    ]
+  },
+  "description": "Écrit la partition COMPLÈTE du morceau PRODUIT, une partie par instrument, pour la comparer à celle de l'entrée — par le même modèle et la même notation que la partition complète. Optionnelle ; montrée sur la page d'édition, lue seulement.",
+  "key": "composer.rendered_parts",
+  "manifest_kind": "function",
+  "name": "Composer — partition de sortie",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:composer.rendered_parts",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "media"
+}

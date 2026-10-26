@@ -96,7 +96,7 @@ register(FunctionSpec(
     outputs=[PortSpec('score', 'score', description="La partition ABC que le rendu suivra.")]))
 
 register(FunctionSpec(
-    key='composer.extract_score', name='Composer — extraire la partition',
+    key='composer.extract_score', name="Composer — partition réduite de l'entrée",
     description="Extrait la partition (ABC, mélodie seule) de l'audio du morceau à reprendre, pour "
                 "un modèle qui reprend un audio PAR SA PARTITION (YuE2). La partition est un "
                 "résultat de la card : lisible, corrigeable, rejouable.",
@@ -107,7 +107,7 @@ register(FunctionSpec(
     outputs=[PortSpec('score', 'score', description="La partition que le rendu suivra.")]))
 
 register(FunctionSpec(
-    key='composer.parts', name='Composer — partition complète',
+    key='composer.parts', name="Composer — partition complète de l'entrée",
     description="Écrit la partition COMPLÈTE du morceau à reprendre (cover) : une partie par "
                 "instrument entendu (voix, piano, basse, batterie…), par un modèle de la tâche "
                 "`audio-to-midi` (MuScriptor) mis en notation par la brique commune — à côté de la "
@@ -120,14 +120,14 @@ register(FunctionSpec(
     outputs=[PortSpec('score', 'score', description="La partition, une partie par instrument.")]))
 
 register(FunctionSpec(
-    key='composer.rendered_parts', name='Composer — partition du rendu',
+    key='composer.rendered_parts', name='Composer — partition de sortie',
     description="Écrit la partition COMPLÈTE du morceau PRODUIT, une partie par instrument, pour la "
                 "comparer à celle de l'entrée — par le même modèle et la même notation que la "
                 "partition complète. Optionnelle ; montrée sur la page d'édition, lue seulement.",
     category=FC.TRANSFORM, binding=Binding.APP, app=_APP, impl=_IMPL,
     tags=['audio', 'music', 'gpu'],
     inputs=[PortSpec('audio', 'audio', description="Le morceau rendu.")],
-    outputs=[PortSpec('score', 'score', description="La partition du rendu, une partie par "
+    outputs=[PortSpec('score', 'score', description="La partition de sortie, une partie par "
                                                     "instrument.")]))
 
 register(FunctionSpec(
@@ -181,7 +181,10 @@ PIPELINE = register_app_pipeline(_APP, (
     # La partition EXTRAITE ne dépend que de l'audio (remarque d'ae, 2026-10-03) : changer le
     # modèle de RENDU ne la périme pas — s'il cesse de suivre une partition, c'est `applies` qui
     # écarte le process, pas la péremption. `source_url` remplit l'audio au lancement.
-    ProcessSpec('extract_score', label='Partition extraite',
+    # Libellés de la bande (2026-10-26, Fabien : « les 2 sont des partitions extraites, l'une est
+    # réduite, l'autre complète — ce n'est pas très clair ») : « réduite » / « complète », comme
+    # la bascule de la vue partition ; celle du morceau produit, « de sortie ».
+    ProcessSpec('extract_score', label='Partition réduite',
                 watched=('melody_reference', 'source_url'),
                 gpu=True, share=1, applies=_extract_applies, available=_extract_available,
                 outputs=('extracted_score',), eta='composer.tasks:extract_score_eta'),
@@ -206,11 +209,11 @@ PIPELINE = register_app_pipeline(_APP, (
                 eta='composer.tasks:render_eta'),
     # Les réglages de SORTIE (format, qualité) : process COMMUN (`output_process`), toujours joué.
     output_spec(depends_on=('render',)),
-    # PARTITION DU RENDU (2026-10-26, décision de Fabien : « on propose les deux, l'entrée et la
+    # PARTITION DE SORTIE (2026-10-26, décision de Fabien : « on propose les deux, l'entrée et la
     # sortie ») : optionnelle (`extract_rendered_parts`), une DÉRIVATION du rendu — à côté de la
     # sortie, pas après : elle lit l'audio du RENDU (`output_sources`), changer de format ne la
     # périme pas. Lue seulement, pour comparer ce qui a été demandé et ce qui a été joué.
-    ProcessSpec('rendered_parts', label='Partition du rendu', depends_on=('render',),
+    ProcessSpec('rendered_parts', label='Partition de sortie', depends_on=('render',),
                 degree=OPTIONAL, toggle='extract_rendered_parts', gpu=True, share=2,
                 available=_parts_available, outputs=('rendered_parts_score',),
                 eta='composer.tasks:parts_eta'),

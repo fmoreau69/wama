@@ -872,6 +872,48 @@ class ComposerScoreSurfaceTest(TestCase):
         self.assertContains(page, 'abcjs-6.4.4/abcjs-basic-min.js')
         self.assertContains(page, 'brick-media-transport.js')
 
+    def test_the_transport_offers_the_input_beside_the_render(self):
+        """2026-10-26, Fabien : « avoir le choix de l'audio à jouer entrée/sortie pour pouvoir
+        comparer ». The cover is the card's INPUT (the Entrée face's declaration), not a process
+        output : `sources_of` puts it first, the render stays the default (empty key). Ports come
+        from the catalogue, absent in the test base : the two port readings are the live ones."""
+        from unittest import mock
+        from wama.common.surfaces import INPUT_SOURCE, surface
+        from wama.common.utils.media_paths import app_media_dir, get_app_media_path
+        folder = get_app_media_path('composer', self.user.id, 'output')
+        for name in ('cover.mp3', 'render.wav'):
+            (folder / name).write_bytes(b'\0' * 64)
+        rel = app_media_dir('composer', self.user.id, 'output')
+        type(self.gen).objects.filter(pk=self.gen.pk).update(
+            melody_reference=f'{rel}/cover.mp3', audio_output=f'{rel}/render.wav')
+        self.gen.refresh_from_db()
+        found = surface('composer', 'score')
+        ports = (mock.patch('wama.common.utils.preview_utils._input_port_group', return_value='travail'),
+                 mock.patch('wama.common.utils.preview_utils._work_natures',
+                            return_value={'audio', 'score'}))
+        with ports[0], ports[1]:
+            versions = found.sources_of(self.gen, 'audio')
+            self.assertEqual([(INPUT_SOURCE, 'Entrée', f'{rel}/cover.mp3'),
+                              ('', 'Rendu', f'{rel}/render.wav')],
+                             [(v['key'], v['label'], v['name']) for v in versions])
+            with mock.patch('wama.common.surface_views._server_peaks', return_value=None):
+                served = self.client.get(self.base + 'data/').json()['sources']['audio']
+            self.assertEqual([INPUT_SOURCE, ''], [v['key'] for v in served])
+            self.assertTrue(served[0]['url'].endswith('cover.mp3'))
+            with mock.patch('wama.common.utils.waveform.dense_peaks',
+                            return_value={'status': 'pending'}) as peaks:
+                self.client.get(self.base + f'data/?only=peaks&role=audio&source={INPUT_SOURCE}')
+            self.assertEqual(f'{rel}/cover.mp3', peaks.call_args.args[0])
+        # Counter-checks : a reference is never the input ; an input already among the versions
+        # (the transcriber's, whose read field IS its input) is not offered twice.
+        with mock.patch('wama.common.utils.preview_utils._input_port_group', return_value='travail'), \
+                mock.patch('wama.common.utils.preview_utils._work_natures', return_value={'score'}):
+            self.assertEqual([], found.sources_of(self.gen, 'audio'), 'audio not a work nature')
+        type(self.gen).objects.filter(pk=self.gen.pk).update(melody_reference=f'{rel}/render.wav')
+        self.gen.refresh_from_db()
+        with ports[0], ports[1]:
+            self.assertEqual([], found.sources_of(self.gen, 'audio'), 'one file, one version')
+
     def test_the_filled_alternative_is_the_one_edited(self):
         from wama.common.surfaces import surface
         score = surface('composer', 'score')

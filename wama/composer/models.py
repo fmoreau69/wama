@@ -115,7 +115,7 @@ class ComposerGeneration(KeptOutputsMixin, ProcessingTimeMixin, NativeOutputsMix
     # par instrument (tâche `audio-to-midi`, MuScriptor), mise en notation par la brique commune
     # `midi_score`. Depuis le 2026-10-26 (décision de Fabien) elle lit l'ENTRÉE — l'audio du cover,
     # comme la partition réduite : les deux décrivent le même morceau ; la lecture du morceau
-    # PRODUIT est un autre process, « Partition du rendu » (`rendered_parts`, plus bas).
+    # PRODUIT est un autre process, « Partition de sortie » (`rendered_parts`, plus bas).
     # `db_default` : le code en service crée des générations sans connaître la colonne.
     extract_parts = models.BooleanField(default=False, db_default=False,
                                         help_text='Partition complète : une partie par instrument')

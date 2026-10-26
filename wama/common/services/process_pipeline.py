@@ -947,8 +947,9 @@ class AppPipeline:
     def card_rows(self, item, model_key=None) -> list:
         """Une ligne d'affichage par process de la card, dans l'ordre du graphe : ceux qui ont
         tourné, plus ceux qui ont lieu pour le modèle donné (`model_key` : le réglage quand il
-        est désigné ; sous « auto », None — on ne devine pas le tirage, on montre ce qui a
-        tourné). `{key, label, degree, status, duration_s, model_key, output_label, error}`, plus
+        est désigné ; sous « auto », None — on ne devine pas le tirage : ce qui a tourné, et ce
+        qui ne dépend d'aucun modèle).
+        `{key, label, degree, status, duration_s, model_key, output_label, error}`, plus
         la colonne de chacun dans le graphe (`_columns`) — d'où les branches de la bande."""
         self.refresh(item)
         rows = self.rows(item)
@@ -958,9 +959,12 @@ class AppPipeline:
             row = rows.get(spec.key)
             # Une ligne jamais jouée : montrée si le process a lieu pour ce modèle et PEUT avoir
             # lieu ici (`can_run`). L'interrupteur, lui, n'en retire pas : un optionnel désactivé
-            # reste visible, en case à cocher.
-            if row is None and not (model_key and self.can_run(spec)
-                                    and self.applies(spec, item, model_key)):
+            # reste visible, en case à cocher. Sous « auto » (modèle inconnu), un process qui ne
+            # dépend d'AUCUN modèle (sans `applies`) a lieu quel que soit le tirage : il se
+            # montre aussi — rien n'est deviné (2026-10-26, Fabien : la « Partition de sortie »
+            # du composer n'était visible que dans les réglages, sa case manquait à la bande).
+            if row is None and not (self.can_run(spec) and (
+                    self.applies(spec, item, model_key) if model_key else spec.applies is None)):
                 continue
             # Une ligne d'un process qui n'a PLUS lieu pour ce modèle (nivellement décoché) ne se
             # montre plus : elle ne pèse plus sur la card (`still_counts`), la bande le dit pareil.

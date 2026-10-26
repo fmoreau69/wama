@@ -287,7 +287,7 @@ def _extract_score(gen, ctx):
     if backend_class is None:
         raise RuntimeError(f"« {extractor_key} » : aucun backend résolu depuis le catalogue.")
     audio_abs = os.path.join(settings.MEDIA_ROOT, gen.melody_reference.name)
-    ctx.console(f"[Composer] Partition extraite de l'audio : {extractor_key} — "
+    ctx.console(f"[Composer] Partition réduite de l'audio : {extractor_key} — "
                 f"{os.path.basename(gen.melody_reference.name)}")
     backend = backend_class()
     try:
@@ -299,8 +299,8 @@ def _extract_score(gen, ctx):
             try:
                 text = extract(False)
             except RuntimeError as error:
-                ctx.console(f"[Composer] Partition complète impossible ({error}) — "
-                            "mélodie seule, sans accords")
+                ctx.console(f"[Composer] Accords impossibles ({error}) — partition réduite à la "
+                            "mélodie seule")
                 text = extract(True)
     except Exception:
         ctx.reset_progress()
@@ -319,7 +319,7 @@ def _extract_score(gen, ctx):
         'fields': {'extracted_score': score_rel},
         'output_ref': score_rel,
         'label': name,
-        'console_success': f"✓ Partition extraite : {name}",
+        'console_success': f"✓ Partition réduite : {name}",
         'models': [extractor_key],
         'eta': extract_score_eta_key_size(gen),
     }
@@ -344,9 +344,9 @@ def _rendered_parts(gen, ctx):
     from wama.common.services.output_process import output_sources
     sources = [p for p in output_sources(gen, 'audio_output') if os.path.isfile(p)]
     if not sources:
-        raise RuntimeError("Aucun morceau rendu : la partition du rendu se lit sur le rendu.")
+        raise RuntimeError("Aucun morceau rendu : la partition de sortie se lit sur le rendu.")
     return _full_score(gen, ctx, sources[0], field='rendered_parts_score', nature='render_score',
-                       label='Partition du rendu')
+                       label='Partition de sortie')
 
 
 def _full_score(gen, ctx, audio_abs: str, *, field: str, nature: str, label: str):

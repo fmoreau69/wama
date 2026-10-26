@@ -524,7 +524,9 @@ class WhatTheCardShowsTest(TestCase):
     def test_without_any_line_the_element_alone_is_shown(self):
         item = _Element(status=JOB_PENDING)
         self.assertEqual(JOB_PENDING, self.pipeline.shown_state(item))
-        self.assertEqual([], self.pipeline.card_rows(item))
+        # 2026-10-26 : the model unknown, only what takes place whatever the draw is shown — the
+        # render (no `applies`), not the plan (it applies to one model only).
+        self.assertEqual(['render'], [r['key'] for r in self.pipeline.card_rows(item)])
 
     def test_each_row_says_what_its_process_watches_for_its_own_gear(self):
         """⚙ par process (P5) : the gear of a row shows the settings the process WATCHES — read
@@ -594,7 +596,7 @@ class WhatTheCardShowsTest(TestCase):
             ProcessSpec('render', label='Rendu', depends_on=('score',)),
             ProcessSpec('full', label='Partition complète'),
             ProcessSpec('output', label='Sortie', depends_on=('render',)),
-            ProcessSpec('render_score', label='Partition du rendu', depends_on=('render',)),
+            ProcessSpec('render_score', label='Partition de sortie', depends_on=('render',)),
         ), label='Demo')
 
     def test_processes_of_the_same_depth_share_a_column_and_a_side_output_says_so(self):
@@ -633,6 +635,30 @@ class WhatTheCardShowsTest(TestCase):
         self.assertNotIn('wcv3-proc-col--branches', html)
         self.assertNotIn('wcv3-proc-branch"', html)
         self.assertEqual(1, html.count('wcv3-proc-sep'))
+
+    def test_under_auto_a_process_that_needs_no_model_shows_with_its_checkbox(self):
+        """2026-10-26, Fabien : the composer's « Partition de sortie » was in the settings, not
+        on the card. Under « auto » the model is unknown, so a never-played process whose taking
+        place DEPENDS on the model (`applies`) stays hidden — nothing is guessed —, but one that
+        declares no `applies` takes place whatever the draw : it shows, an optional one with its
+        checkbox, so that it can be switched on from the card."""
+        pipeline = AppPipeline('demo_pipeline', (
+            ProcessSpec('score', label='Partition',
+                        applies=lambda item, model_key: model_key == 'writes-scores'),
+            ProcessSpec('render', label='Rendu', depends_on=('score',)),
+            ProcessSpec('output', label='Sortie', depends_on=('render',)),
+            ProcessSpec('render_score', label='Partition de sortie', depends_on=('render',),
+                        degree='optional', toggle='wants_it'),
+        ), label='Demo')
+        item = _Element(status=JOB_SUCCESS, wants_it=False)
+        for key in ('render', 'output'):
+            process_runs.start(item, key)
+            process_runs.succeed(item, key)
+        rows = {r['key']: r for r in pipeline.card_rows(item)}
+        self.assertEqual(['render', 'output', 'render_score'], list(rows),
+                         'the model-dependent process that never ran stays hidden under « auto »')
+        self.assertEqual(('wants_it', False), (rows['render_score']['toggle'],
+                                               rows['render_score']['enabled']))
 
     def test_a_process_that_does_not_take_place_leaves_no_empty_column(self):
         """A → B → C with B absent for this model: C comes right after A, and says it follows A."""

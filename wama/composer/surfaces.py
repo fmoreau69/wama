@@ -64,8 +64,8 @@ register_surface(Surface(
            BrickSlot('transport', 'media_transport', 0, 14, 12, 3, {'role': 'audio'}),
            # La SORTIE, lue seulement (2026-10-26) : à placer à côté de l'entrée pour comparer.
            BrickSlot('rendered', 'score_view', 0, 17, 12, 12, {
-               'role': 'rendered', 'media': 'audio', 'title': 'Partition du rendu',
-               'empty': "Pas encore de partition du rendu : cocher « Partition du rendu "
+               'role': 'rendered', 'media': 'audio', 'title': 'Partition de sortie',
+               'empty': "Pas encore de partition de sortie : cocher « Partition de sortie "
                         "(instruments) » dans les réglages de la card, puis relancer."}),
            BrickSlot('source', 'text_sections', 0, 29, 12, 6, {'title': 'Source ABC'}),
            BrickSlot('actions', 'surface_actions', 0, 0, 1, 5, zone='panel'),

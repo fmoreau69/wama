@@ -344,12 +344,12 @@ class ProcessSectionsTest(SimpleTestCase):
     modal and the panel — each setting in the section of the ONE process it stales, the shared
     ones first ; settings staling only OPTIONAL processes go with the first of them."""
 
-    PROCESSES = json.dumps([{'key': 'extract_score', 'label': 'Partition extraite', 'optional': False},
+    PROCESSES = json.dumps([{'key': 'extract_score', 'label': 'Partition réduite', 'optional': False},
                             {'key': 'parts', 'label': 'Partition complète', 'optional': True},
                             {'key': 'plan', 'label': 'Partition', 'optional': False},
                             {'key': 'render', 'label': 'Rendu', 'optional': False},
                             {'key': 'output', 'label': 'Sortie', 'optional': False},
-                            {'key': 'rendered_parts', 'label': 'Partition du rendu', 'optional': True}])
+                            {'key': 'rendered_parts', 'label': 'Partition de sortie', 'optional': True}])
 
     def setUp(self):
         from py_mini_racer import MiniRacer
@@ -429,7 +429,7 @@ class ProcessesOfThePageTest(SimpleTestCase):
         declared = pp.AppPipeline('composer', (
             pp.ProcessSpec('plan', label='Partition'),
             pp.ProcessSpec('render', label='Rendu', depends_on=('plan',)),
-            pp.ProcessSpec('rendered_parts', label='Partition du rendu', depends_on=('render',),
+            pp.ProcessSpec('rendered_parts', label='Partition de sortie', depends_on=('render',),
                            degree='optional', toggle='extract_rendered_parts'),
         ), label='Demo')
         with mock.patch.dict(pp.APP_PIPELINES, clear=True), \
@@ -439,7 +439,7 @@ class ProcessesOfThePageTest(SimpleTestCase):
         load.assert_called_once_with()
         self.assertEqual([{'key': 'plan', 'label': 'Partition', 'toggle': '', 'optional': False},
                           {'key': 'render', 'label': 'Rendu', 'toggle': '', 'optional': False},
-                          {'key': 'rendered_parts', 'label': 'Partition du rendu',
+                          {'key': 'rendered_parts', 'label': 'Partition de sortie',
                            'toggle': 'extract_rendered_parts', 'optional': True}], processes)
 
     def test_a_page_outside_the_apps_hands_nothing(self):

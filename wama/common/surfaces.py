@@ -84,6 +84,9 @@ ZONES = ('grid', 'panel')
 PANEL_COLUMNS = 1
 #: Les bords de la fenêtre où un panneau s'ÉPINGLE (2026-10-26) : il ne défile plus avec la page.
 DOCK_EDGES = ('top', 'bottom')
+#: Clé de la version « Entrée » d'un média lu (`Surface.sources_of`) — hors de l'espace des clés
+#: de process (un identifiant), pour qu'aucun process ne la prenne.
+INPUT_SOURCE = '_input'
 #: Lignes au-delà desquelles une place gardée est refusée : une disposition postée reste une page.
 MAX_LAYOUT_ROWS = 400
 #: Plafond d'un texte édité sur une surface : un document qu'on relit et corrige, pas un flux.
@@ -439,8 +442,12 @@ class Surface:
         libellé du process qui l'écrit), puis chaque sortie de process du pipeline de l'élément
         du TYPE que consomment les briques qui lisent ce rôle (`UIBrick.consumes`, l'audio pour le
         transport et la ligne de temps), quand son process a lieu et l'a rendue (`output_of`).
-        Dérivées des déclarations, comme les faces de l'aperçu : aucune app ne les nomme. [] quand
-        il n'y a rien à choisir (une seule version)."""
+        Et l'ENTRÉE de la card quand elle est de ce type et n'est pas déjà l'une d'elles
+        (`preview_utils.work_input_name`, la déclaration de la face Entrée ; clé `INPUT_SOURCE`),
+        en tête : le composer fait écouter le cover à côté du rendu (2026-10-26, Fabien :
+        « comparer les audios et les partitions »). Le transcriber, dont le champ lu EST
+        l'entrée, n'en gagne rien. Dérivées des déclarations, comme les faces de l'aperçu : aucune
+        app ne les nomme. [] quand il n'y a rien à choisir (une seule version)."""
         field_name = self.reads.get(role)
         if not field_name or role in self.documents or role in self.texts:
             return []
@@ -465,6 +472,11 @@ class Surface:
             if name and name not in seen:
                 seen.add(name)
                 found.append({'key': spec.key, 'label': spec.label or spec.key, 'name': name})
+        from wama.common.app_registry import category_of_path
+        from wama.common.utils.preview_utils import work_input_name
+        entry = work_input_name(self.app, item)
+        if entry and entry not in seen and category_of_path(entry) in kinds:
+            found.insert(0, {'key': INPUT_SOURCE, 'label': 'Entrée', 'name': entry})
         return found if len(found) > 1 else []
 
     def bricks(self) -> list:

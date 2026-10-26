@@ -34,7 +34,7 @@
           "degree": "required",
           "eta": "composer.tasks:extract_score_eta",
           "gpu": true,
-          "label": "Partition extraite",
+          "label": "Partition réduite",
           "outputs": [
             "extracted_score"
           ],
@@ -151,7 +151,7 @@
           "degree": "optional",
           "eta": "composer.tasks:parts_eta",
           "gpu": true,
-          "label": "Partition du rendu",
+          "label": "Partition de sortie",
           "outputs": [
             "rendered_parts_score"
           ],
