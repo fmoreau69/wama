@@ -1724,6 +1724,15 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      ⚑ **Ces choix reviennent à la session de routage cloud** (signalé le 13/10 par la session
      d'intégration d'ILaaS) : l'usage d'ILaaS RAG — embeddings, classement (`bge-reranker-v2-m3`)
      et son modèle de chat `gpt-oss-120b` — se décide ici, avec l'ordre de préférence de l'étape 4.
+     ⚠ *Mesuré le 2026-10-26* (Fabien : « Oui, branche le service RAG d'ILaaS ») : avec la clé
+     d'instance, `bge-m3` répond (`/v1/embeddings`, **1024** dimensions, 8 phrases en 0,5 s) ;
+     `gpt-oss-120b`, pourtant listé, rend **404 « Unknown model »** à tout appel de chat
+     (`gpt-oss-120b` comme `openai/gpt-oss-120b`) ; `/v1/rerank` (`bge-reranker-v2-m3`) rend
+     **500** (« Unsupported provider », côté passerelle). Le déclarer fournisseur `llm` ferait
+     entrer au tirage un modèle de chat qui échoue, et aucun mécanisme n'écarte un modèle listé
+     mais injoignable : déclaration préparée puis RETIRÉE, rien n'est branché — choix soumis à
+     Fabien (embeddings : l'espace `text` est `qwen3-embedding:4b` depuis le 19/10, `bge-m3`
+     n'y entre pas sans réindex ; reclassement : aucune étape n'existe dans `store.recall`).
   **Tranché par Fabien le 13/10** : ① un modèle CHOISI à la main qui sature ne bascule pas seul —
   on le dit et on propose le relais en un clic (le choix manuel est un consentement explicite) ;
   ② la bascule vit d'emblée dans la brique commune, l'assistant en premier utilisateur.
