@@ -665,6 +665,20 @@ worker et non dans le maître : Django n'y est pas chargé, et l'ouverture du po
 retardée de 20 s à chaque relance. Gardes : `tests_assistant_surfaces.WarmUpTest`.
 ⚠ Le profil a montré que le poste n'était pas le seul import : le premier tirage « auto »
 importe TOUS les modules de backends (index du catalogue) — un coût de processus, pas de tour.
+✅ **2026-10-26 — les PIPELINES des apps entrent au préchauffage, en tête** (étape `app_pipelines`,
+`process_pipeline._load_declarations`). Plainte de Fabien : la correction d'une transcription
+« charge mais ne s'affiche jamais ». Mesuré : la 1ʳᵉ demande de ses données par un worker neuf
+coûtait **24 à 27 s**, dont 25,7 s de chargement des pipelines déclarés — par
+`param_schema._params_location`, qui importe `studio.services.generic_runner`, dont l'import
+DÉRIVE les ports de dix apps à travers l'inventaire des moteurs (7 978 `stat` sur `/mnt/d`).
+Après l'étape : **0,8 s**. Ce n'est PAS une page de l'assistant : toute page d'app et toute
+surface les lisent — d'où la tête de liste. ⚠ Le préchauffage entier mesure désormais **142 s**
+par worker (litellm 42 s, catalogue des backends 83 s — « ≈ 5 s » le 04/10), quatre workers
+ensemble : pendant ce temps, chaque page attend la machine. Deux restes, décisions : rendre
+paresseuse la dérivation des ports du studio (`_fill_io_from_ports`, 17 s, retirée du `ready()`
+le 20/10 pour la même raison et revenue par `_params_location`) ; et 20 s de
+`torch.library._register_fake` qui relit le source de son appelant (`inspect.getframeinfo`)
+pendant l'import des backends — un patch de venv (`patches/apply_patches.py`).
 
 ✅ **Levier ② CÂBLÉ le 2026-10-04 — la voix sur la carte graphique.** Ce n'était pas un choix : deux distributions du moteur ONNX cohabitaient et la version processeur masquait l'autre (`INFRA_WSL_VS_WINDOWS §onnxruntime`). Réparé, session construite avec la liste commune de fournisseurs, premier appel amorcé au chargement : 1,3 s → 0,18 s pour une phrase courte, 4,5 s → 0,53 s pour 11 s de son. Gardes : `tests_onnx_runtime`. 🔴 relancer le service de voix et les workers.
 

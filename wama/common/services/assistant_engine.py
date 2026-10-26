@@ -924,6 +924,17 @@ def native_tool_list(user, dev_tools: list = ()) -> list:
 # `post_worker_init`) : le site sert tout de suite, et un tour arrivé pendant le préchauffage
 # attend au pire ce qu'il aurait attendu sans lui (verrou d'import), jamais plus.
 
+def _warm_app_pipelines():
+    # Les PIPELINES déclarés des apps (`process_pipeline._load_declarations`) : toute page d'app
+    # (bande des process) et toute surface d'édition les lisent, l'assistant aussi (nœuds du
+    # studio). Les charger tire `studio.services.generic_runner`, qui dérive à son import les
+    # ports de dix apps à travers l'inventaire des moteurs — mesuré le 2026-10-26 : 25,7 s sur
+    # 27,4 s de la PREMIÈRE ouverture de la correction d'une transcription, 0,9 s ensuite
+    # (7 978 `stat` sur `/mnt/d`). Le premier visiteur d'un worker neuf les payait.
+    from wama.common.services import process_pipeline
+    process_pipeline._load_declarations()
+
+
 def _warm_litellm():
     import litellm  # noqa: F401
     # `litellm` charge le client OpenAI PARESSEUSEMENT, au premier appel d'un fournisseur
@@ -949,8 +960,10 @@ def _warm_dev_client():
 
 
 #: Étapes du préchauffage, dans l'ordre du gain mesuré. Ajouter un cache de processus que le
-#: premier tour remplit = ajouter une ligne ici.
+#: premier tour remplit = ajouter une ligne ici. Les pipelines d'abord : chaque PAGE d'app les
+#: lit, quand un tour d'assistant est plus rare.
 WARM_UP_STEPS = (
+    ('app_pipelines', _warm_app_pipelines),
     ('litellm', _warm_litellm),
     ('backend_catalog', _warm_backend_catalog),
     ('tools_prompt', _warm_tools_prompt),

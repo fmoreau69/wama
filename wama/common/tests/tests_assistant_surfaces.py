@@ -496,8 +496,20 @@ class WarmUpTest(TestCase):
         from wama.common.services import assistant_engine as engine
         self.assertTrue(callable(manager.prime_catalog_index))
         self.assertTrue(callable(tool_api.build_tools_list))
+        from wama.common.services import process_pipeline
+        self.assertTrue(callable(process_pipeline._load_declarations))
         self.assertEqual([name for name, _ in engine.WARM_UP_STEPS],
-                         ['litellm', 'backend_catalog', 'tools_prompt', 'dev_client'])
+                         ['app_pipelines', 'litellm', 'backend_catalog', 'tools_prompt',
+                          'dev_client'])
+
+    def test_the_pipelines_step_loads_the_app_declarations(self):
+        """2026-10-26 : la 1ʳᵉ ouverture d'une page par un worker neuf payait 25 s de chargement
+        des pipelines déclarés ; l'étape les charge à la naissance du worker."""
+        from wama.common.services import assistant_engine as engine
+        step = dict(engine.WARM_UP_STEPS)['app_pipelines']
+        with mock.patch('wama.common.services.process_pipeline._load_declarations') as load:
+            step()
+        load.assert_called_once_with()
 
     def test_the_catalogue_step_fills_the_process_cache(self):
         from wama.common.backends import manager
