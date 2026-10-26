@@ -112,10 +112,17 @@ class OneRuleForACatalogueModelIdTest(SimpleTestCase):
         self.assertTrue(_accepts_native_tools(external_sources.get('albert'), None),
                         'the default model, written in its LiteLLM form')
 
-    def test_nothing_is_declared_while_ilaas_is_in_maintenance(self):
-        """Measured 5/5 on two models on 2026-10-23, during the platform's maintenance: not a
-        proof. Declared after the series is replayed on its six models, once it is back."""
-        self.assertEqual((), external_sources.get('ilaas').native_tools)
+    def test_only_the_ilaas_models_measured_three_out_of_three_are_declared(self):
+        """Measured on 2026-10-26, once out of maintenance: five models named the tool 3/3 and
+        are declared (Fabien's decision). `mistral-medium-latest` answered 503 « busy » 6 times
+        out of 7: not measured, so not declared — it keeps the prompt's list."""
+        from wama.common.services.assistant_engine import _accepts_native_tools
+        ilaas = external_sources.get('ilaas')
+        self.assertEqual({'gemma-4-31b', 'llama-3.1-8b', 'mistral-small-4-119b',
+                          'qwen-3.6-35b-instruct', 'qwen-3.8-27b'}, set(ilaas.native_tools))
+        self.assertTrue(_accepts_native_tools(ilaas, 'openai/qwen-3.8-27b'),
+                        'recognised in its LiteLLM form')
+        self.assertFalse(_accepts_native_tools(ilaas, 'mistral-medium-latest'))
 
 
 class TheMeasureConcludesOnlyOnWhatItMeasuredTest(SimpleTestCase):

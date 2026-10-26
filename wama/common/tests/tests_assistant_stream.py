@@ -529,7 +529,12 @@ class NativeToolCallTest(SimpleTestCase):
                                                         [{'name': 'dev_x', 'args': ['action']}])
             self.assertEqual(['get_install_options', 'dev_x'],
                              [s['function']['name'] for s in specs])
-            self.assertIsNone(assistant_engine._native_tool_specs(user, 'ilaas', []))
+            # OpenRouter ne déclare aucun modèle ; ILaaS en déclare cinq depuis le 2026-10-26, pas
+            # le saturé qu'on n'a pas pu mesurer.
+            self.assertIsNone(assistant_engine._native_tool_specs(user, 'openrouter', []))
+            self.assertIsNone(assistant_engine._native_tool_specs(user, 'ilaas', [],
+                                                                  'mistral-medium-latest'))
+            self.assertTrue(assistant_engine._native_tool_specs(user, 'ilaas', [], 'qwen-3.8-27b'))
             self.assertIsNone(assistant_engine._native_tool_specs(user, 'wama-dev-ai', []))
             self.assertIsNone(assistant_engine._native_tool_specs(None, 'albert', []))
 

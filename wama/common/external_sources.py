@@ -522,12 +522,14 @@ SOURCES: tuple[ExternalSource, ...] = (
         default_remote_type='text-generation',
         # Identifiant SERVI, mesuré le 2026-10-12 (`llm_gateway_check --provider ilaas`).
         default_model='mistral-small-4-119b',
-        # Outils déclarés nativement : PAS ENCORE. Mesurés le 2026-10-23 (`llm_gateway_check
-        # --provider ilaas --model <id> --tools --user … --repeat 3`, les 90 outils du serveur
-        # MCP) : 5 appels nommés sur 5 pour `mistral-small-4-119b` et pour `qwen-3.8-27b`. Mais la
-        # plateforme est en MAINTENANCE (Fabien, même jour) : une mesure faite pendant la
-        # maintenance ne vaut pas preuve. À refaire sur les SIX modèles à sa sortie, puis déclarer
-        # ceux qui passent — d'ici là, la liste du prompt reste leur voie, comme avant.
+        # Outils déclarés nativement (décision de Fabien, 2026-10-26) : les CINQ modèles qui ont
+        # nommé l'outil 3 fois sur 3 à la sortie de maintenance (`llm_gateway_check --provider
+        # ilaas --model <id> --tools --user … --repeat 3`, les 90 outils du serveur MCP). La
+        # mesure du 2026-10-23, faite PENDANT la maintenance, ne valait pas preuve.
+        # `mistral-medium-latest` n'y est PAS : 503 « busy » à 6 essais sur 7, donc non mesuré —
+        # la liste du prompt reste sa voie jusqu'à une série complète.
+        native_tools=('gemma-4-31b', 'llama-3.1-8b', 'mistral-small-4-119b',
+                      'qwen-3.6-35b-instruct', 'qwen-3.8-27b'),
         doc='docs/construction/ia/WAMA_LLM.md'),
     # 2026-10-13 (demande de Fabien : « que je puisse poser la clé ») : le service RAG d'ILaaS,
     # jeton À PART de celui du chat. Lu sans clé le même jour sur son `/openapi.json` public :

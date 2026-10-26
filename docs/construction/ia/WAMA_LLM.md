@@ -860,6 +860,11 @@ NATIVE pour les seuls modèles mesurés, `ExternalSource.native_tools`) ; l'abon
 par le serveur MCP (surface `wama`, `claude_code.prepare`) — chaque appel par `execute_tool`, avec
 les droits du compte, après la garde de son profil (`cloud_refusal`). La mesure :
 `llm_gateway_check --tools` / `--provider claude_code` (`ROADMAP §8d` 5).
+✅ *2026-10-26* : déclarés nativement chez **ILaaS** les cinq modèles mesurés 3/3 à sa sortie de
+maintenance (`gemma-4-31b`, `llama-3.1-8b`, `mistral-small-4-119b`, `qwen-3.6-35b-instruct`,
+`qwen-3.8-27b`) ; `mistral-medium-latest`, saturé (503), garde la liste du prompt. ⚠ `gemma-4-31b`
+réussit chez ILaaS ce qu'il ratait chez Albert (`gemma-4-31b-it`, 0/3 le 11/10) : la
+déclaration se fait par source ET par modèle.
 
 > 🔓 **LEVÉ pour la CONVERSATION le 2026-10-12** (décision de Fabien : *« le bridage était valable
 > tant qu'on n'avait pas d'API souveraine ; maintenant qu'on a Albert et ILaaS, on peut le

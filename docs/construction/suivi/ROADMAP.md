@@ -2244,7 +2244,10 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
      `mistral-medium-latest` **non mesurable** (503 « busy » sur 6 essais sur 7, le seul répondu
      a nommé l'outil) — à rejouer. ⚠ `gemma-4-31b` passe chez ILaaS alors qu'il rendait vide chez
      Albert le 11/10 : la déclaration est bien PAR source ET par modèle. Rien déclaré encore
-     (geste humain).
+     (geste humain). ✅ *Même jour, décision de Fabien* : les cinq sont déclarés
+     (`external_sources` ILaaS `native_tools`, garde `tests_tool_access`) ; reste à rejouer
+     `mistral-medium-latest`. Le service RAG d'ILaaS (`ilaas_rag`, autre clé) publie trois autres
+     modèles — `bge-m3`, `bge-reranker-v2-m3`, `gpt-oss-120b` — que WAMA ne lit pas encore.
    - ⏳ **API Anthropic** : mesure impossible le 2026-10-23 (crédit de la clé épuisé) ; sans
      déclaration native, ses modèles lisent la liste du prompt, comme avant. **OpenRouter** : la clé
      n'ouvre aucun modèle de conversation pour le compte mesuré — rien à mesurer.
