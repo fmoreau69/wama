@@ -253,8 +253,11 @@ def prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool = False, user=
         # Un jeton déposé AVANT le contrôle de forme (2026-10-26) peut être tronqué : le dire
         # ici plutôt que de laisser l'API répondre « 401 Invalid bearer token ».
         if key_shape_error(SUBSCRIPTION_SOURCE, oauth_token):
+            # Le préfixe se lit sur la source, qui le DÉCLARE — jamais recopié ici.
+            from wama.common import external_sources
+            prefix = external_sources.get(SUBSCRIPTION_SOURCE).api_key_prefix
             return {'error': "Le jeton d'abonnement Claude de votre profil est incomplet (il ne "
-                             "commence pas par « sk-ant-oat ») : régénérez-le avec "
+                             f"commence pas par « {prefix} ») : régénérez-le avec "
                              "`claude setup-token`, puis recollez-le EN ENTIER dans le volet "
                              "« Clés d'API » de la page Profil."}
     cli = chemin_cli()

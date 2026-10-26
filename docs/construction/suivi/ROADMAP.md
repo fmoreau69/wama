@@ -2238,6 +2238,13 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
      `native_tools`. À sa sortie : rejouer la série sur ses SIX modèles (`gemma-4-31b`,
      `llama-3.1-8b`, `mistral-medium-latest`, `mistral-small-4-119b`, `qwen-3.6-35b-instruct`,
      `qwen-3.8-27b`), puis déclarer ceux qui passent.
+     🔄 *Mesuré le 2026-10-26* (sortie de maintenance, `llm_gateway_check --tools --repeat 3`,
+     compte `fabien.moreau`, 90 outils déclarés nativement) : **3/3 nommés** pour `gemma-4-31b`,
+     `llama-3.1-8b`, `mistral-small-4-119b`, `qwen-3.6-35b-instruct`, `qwen-3.8-27b` ;
+     `mistral-medium-latest` **non mesurable** (503 « busy » sur 6 essais sur 7, le seul répondu
+     a nommé l'outil) — à rejouer. ⚠ `gemma-4-31b` passe chez ILaaS alors qu'il rendait vide chez
+     Albert le 11/10 : la déclaration est bien PAR source ET par modèle. Rien déclaré encore
+     (geste humain).
    - ⏳ **API Anthropic** : mesure impossible le 2026-10-23 (crédit de la clé épuisé) ; sans
      déclaration native, ses modèles lisent la liste du prompt, comme avant. **OpenRouter** : la clé
      n'ouvre aucun modèle de conversation pour le compte mesuré — rien à mesurer.

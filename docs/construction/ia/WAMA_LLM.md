@@ -1143,6 +1143,14 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   saisie (`WamaKeyField`, `wama-key-field.js`) pour les deux écrans ; la découverte, l'union des
   modèles ouverts et la sonde nocturne lisent les deux natures de clé (`accounts.ProviderKey`).
   ⚠ `HF_TOKEN` reste au `.env` : la bibliothèque HuggingFace lit l'environnement elle-même.
+  ✅ **2026-10-26 — la FORME d'une clé se contrôle dans ce geste** : une source déclare le début
+  de ses clés (`ExternalSource.api_key_prefix`, mesuré sur des clés réelles : `sk-ant-oat`
+  abonnement Claude Code, `sk-ant-api` API Anthropic) ; `api_keys.key_shape_error` refuse une
+  clé sans ce début, ou coupée d'un espace ou d'un retour à la ligne — une copie tronquée. Vécu :
+  le jeton d'abonnement d'un profil, tronqué au dépôt le 15/09, n'a été refusé (401) qu'au
+  23/10, quand il a enfin atteint le CLI. `claude_code.prepare` le dit aussi avant l'appel, pour
+  les jetons déposés avant le contrôle. Une source sans forme déclarée n'est pas contrôlée ; les
+  clés du `.env` non plus (aucun écran). Garde : `tests_claude_subscription.TokenShapeTests`.
   Au passage, **chantier 5 de `WAMA_HARNESS.md`** : ① `OPENAI_COMPATIBLE_PROVIDERS` est remplacé
   par une dérivation (`llm_utils.openai_compatible_source`) ; ② le modèle par défaut d'un
   fournisseur DÉCLARÉ vit au registre (`ExternalSource.default_model`) — `CLOUD_DEFAULT_MODELS`
