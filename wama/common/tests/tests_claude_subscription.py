@@ -317,3 +317,68 @@ class SubscriptionModelsTests(TestCase):
         self.assertEqual('Claude Code — Opus', opus.name)
         self.assertIn('alias « opus »', opus.description)
         self.assertEqual('Cloud commercial · Claude Code · abonnement', opus.origin_label)
+
+
+class TokenShapeTests(TestCase):
+    """Un jeton TRONQUÉ se dit là où on l'a collé, pas en « 401 » au premier usage (2026-10-26).
+
+    Vécu : le jeton d'abonnement d'un profil, collé le 15/09, n'avait pas son début (92
+    caractères sans `sk-ant-oat01-`). Tant qu'il n'atteignait pas le CLI (avant `WSLENV`, le
+    23/10), le CLI répondait avec les identifiants de la machine — le défaut était invisible.
+    La forme est DÉCLARÉE sur la source (`ExternalSource.api_key_prefix`), mesurée sur des clés
+    réelles ; une source qui n'en déclare pas n'est pas contrôlée."""
+
+    TRUNCATED = 'tail_of-a-token-whose-beginning-was-lost'
+    WELL_FORMED = 'sk-ant-oat01-well-formed-fake'
+
+    def _developer(self):
+        user = User.objects.create(username='token_shape_dev', is_superuser=True)
+        user.profile.cloud_policy = 'cloud_allowed'
+        user.profile.cloud_hosting_max = 'third_party'
+        user.profile.save()
+        return user
+
+    def test_a_truncated_subscription_token_is_refused_at_entry(self):
+        from wama.accounts.api_keys import store_key
+        from wama.accounts.models import UserApiKey
+        user = self._developer()
+        result = store_key(UserApiKey(user=user, source='claude_code'), self.TRUNCATED)
+        self.assertEqual(400, result['status'])
+        self.assertIn('sk-ant-oat', result['error'])
+        self.assertFalse(UserApiKey.objects.filter(user=user, source='claude_code').exists())
+
+    def test_a_well_formed_token_is_stored(self):
+        """Contre-épreuve : le contrôle ne refuse que ce qui n'a pas la forme."""
+        from wama.accounts.api_keys import store_key
+        from wama.accounts.models import UserApiKey
+        user = self._developer()
+        with patch('requests.get'):
+            result = store_key(UserApiKey(user=user, source='claude_code'), self.WELL_FORMED)
+        self.assertEqual(200, result['status'], result)
+        self.assertTrue(UserApiKey.objects.filter(user=user, source='claude_code').exists())
+
+    def test_a_line_break_inside_a_key_is_refused(self):
+        from wama.accounts.api_keys import key_shape_error
+        self.assertTrue(key_shape_error('claude_code', 'sk-ant-oat01-first-half\nsecond-half'))
+        self.assertTrue(key_shape_error('anthropic', 'sk-ant-api03-first half'))
+        self.assertEqual('', key_shape_error('anthropic', 'sk-ant-api03-whole'))
+
+    def test_a_source_without_a_declared_shape_is_not_checked(self):
+        from wama.accounts.api_keys import key_shape_error
+        from wama.common import external_sources
+        self.assertEqual('', external_sources.get('albert').api_key_prefix)
+        self.assertEqual('', key_shape_error('albert', 'any shape at all'))
+        self.assertEqual('', key_shape_error('no-such-source', 'whatever'))
+
+    def test_a_stored_truncated_token_is_named_before_the_cli_runs(self):
+        """Le jeton déposé AVANT ce contrôle : `prepare` le dit, le CLI n'est pas lancé."""
+        from wama.accounts.models import UserApiKey
+        from wama.common.services import claude_code
+        user = self._developer()
+        UserApiKey.objects.create(user=user, source='claude_code', api_key=self.TRUNCATED)
+        with patch.object(claude_code, 'chemin_cli', return_value='claude'), \
+                patch.object(claude_code.subprocess, 'run') as run:
+            result = claude_code.demander('question', user=user)
+        self.assertFalse(result['success'])
+        self.assertIn('incomplet', result['error'])
+        run.assert_not_called()

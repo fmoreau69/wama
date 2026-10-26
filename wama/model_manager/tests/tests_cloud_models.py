@@ -259,7 +259,7 @@ class AbonnementPersonnelTest(TestCase):
     def test_local_only_policy_prevents_subscription_launch(self):
         from wama.accounts.models import UserApiKey
         from wama.common.services import claude_code
-        UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='jeton-perso')
+        UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='sk-ant-oat01-jeton-perso')
         self.dev.profile.cloud_policy = 'local_only'
         self.dev.profile.save()
         with mock.patch('subprocess.run') as run:
@@ -319,13 +319,13 @@ class AbonnementPersonnelTest(TestCase):
     def test_personal_token_is_passed_to_cli_not_env_one(self):
         from wama.accounts.models import UserApiKey
         from wama.common.services import claude_code
-        UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='jeton-perso')
+        UserApiKey.objects.create(user=self.dev, source='claude_code', api_key='sk-ant-oat01-jeton-perso')
         fini = mock.Mock(returncode=0, stdout='{"result": "ok"}', stderr='')
         with mock.patch.object(claude_code, 'chemin_cli', return_value='/bin/claude'), \
              mock.patch('subprocess.run', return_value=fini) as run, \
              mock.patch.dict('os.environ', {'CLAUDE_CODE_OAUTH_TOKEN': 'jeton-machine'}):
             claude_code.demander('bonjour', user=self.dev)
-        self.assertEqual('jeton-perso', run.call_args.kwargs['env']['CLAUDE_CODE_OAUTH_TOKEN'])
+        self.assertEqual('sk-ant-oat01-jeton-perso', run.call_args.kwargs['env']['CLAUDE_CODE_OAUTH_TOKEN'])
 
 
 class NonRegressionTest(TestCase):

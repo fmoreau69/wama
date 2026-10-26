@@ -2045,6 +2045,9 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    MESURÉ avec les clés de Fabien : API Anthropic → 11 modèles découverts ; le jeton d'abonnement
    est REFUSÉ par `GET /v1/models` (401) mais fait tourner le CLI (appel réel « OK », 0,50 $
    d'équivalent API à froid) — l'abonnement n'a donc pas de liste (`UNLISTABLE_PROTOCOLS`).
+   ⚠ *Relevé du 2026-10-26* : cet « OK » venait des identifiants de la MACHINE — le jeton
+   n'atteignait pas le CLI (`WSLENV`, corrigé le 23/10) et il était TRONQUÉ ; le 401 de
+   `/v1/models` ne prouve donc rien sur l'abonnement (détail : §8d 5 ①).
    **Sélecteur de l'assistant BRANCHÉ (15/09)** : les fournisseurs distants ne sont plus écrits
    dans `home.html` ; `assistant_engine.chat_provider_choices(user)` les lit du profil (niveau
    cloud, clés, prédicat développeur pour l'abonnement) et du catalogue (modèles ouverts à la clé,
@@ -2213,6 +2216,13 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
      qui retombait sur les identifiants de la machine (corrigé ; `INFRA_WSL_VS_WINDOWS`) ; ② les
      deux serveurs MCP survivaient à toutes les relances (démarrés le 16/10, outils de jumelles
      retirées encore servis) — `start_wama_prod.sh` les arrête désormais avec les autres.
+     ⚠ *Relevé du 2026-10-26* : depuis ①, le jeton du profil de Fabien est REFUSÉ (401). Cause
+     mesurée (forme seule) : 92 caractères sans `sk-ant-oat01-`, une copie TRONQUÉE du 15/09. Contre-
+     épreuve, même CLI, même question : identifiants de la machine → « OK », jeton du profil → 401.
+     Tout ce qui « marchait » avant le 23/10 passait donc par la connexion de la machine (l'« appel
+     réel OK » du 15/09, §8d 4a, compris). ✅ La forme se contrôle désormais au dépôt et avant
+     l'appel : `ExternalSource.api_key_prefix` (mesuré : `sk-ant-oat` abonnement, `sk-ant-api` API),
+     `api_keys.key_shape_error`, garde `tests_claude_subscription.TokenShapeTests`.
    - ✅ **La MESURE de l'accès aux outils a son outil** (2026-10-23, demande de Fabien) :
      `llm_gateway_check --provider claude_code --user <compte> [--live]` (surface MCP de
      l'abonnement : commande préparée, serveur, outils annoncés ; `--live` compare la réponse au

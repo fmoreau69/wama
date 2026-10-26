@@ -35,7 +35,7 @@ def _developer(name='subscriber', policy='cloud_allowed'):
     user.profile.cloud_policy = policy
     user.profile.cloud_hosting_max = 'third_party'   # the subscription is a third-party host
     user.profile.save()
-    UserApiKey.objects.create(user=user, source='claude_code', api_key='personal-oauth-token')
+    UserApiKey.objects.create(user=user, source='claude_code', api_key='sk-ant-oat01-personal-token')
     return user
 
 
@@ -81,7 +81,7 @@ class TheSubscriptionSeesWamaToolsTest(TestCase):
     def test_the_windows_cli_gets_its_secrets_through_wslenv(self):
         env = self._prepare(_developer(), cli=WINDOWS_CLI)['env']
         self.assertEqual({'CLAUDE_CODE_OAUTH_TOKEN', TOKEN_ENV}, set(env['WSLENV'].split(':')))
-        self.assertEqual('personal-oauth-token', env['CLAUDE_CODE_OAUTH_TOKEN'])
+        self.assertEqual('sk-ant-oat01-personal-token', env['CLAUDE_CODE_OAUTH_TOKEN'])
         # Counter-check: a native CLI inherits nothing more, and needs no WSLENV.
         self.assertNotIn('WSLENV', self._prepare(_developer('native'), cli='claude')['env'])
         self.assertNotIn('ANTHROPIC_API_KEY', env, 'never the API key (it would bill the API)')

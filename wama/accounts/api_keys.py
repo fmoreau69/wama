@@ -116,6 +116,26 @@ def shared_sources() -> set:
 MAX_KEY_LENGTH = 500
 
 
+def key_shape_error(source: str, api_key: str) -> str:
+    """Pourquoi `api_key` n'a pas la forme des clés de `source` — '' si elle l'a, ou si la source
+    ne déclare pas de forme (`ExternalSource.api_key_prefix`). Contrôlé au dépôt (`store_key`) et
+    avant l'appel (`claude_code.prepare`) : une clé tronquée se dit à l'endroit où on l'a collée,
+    pas en « 401 » au premier usage."""
+    try:
+        source_def = external_sources.get(source)
+    except KeyError:
+        return ''
+    prefix = source_def.api_key_prefix
+    if not prefix:
+        return ''
+    if not api_key.startswith(prefix) or any(c.isspace() for c in api_key):
+        label = source_def.api_key_label or "La clé"
+        return (f"{label} : forme inattendue — une clé {source_def.label} commence par « {prefix} » "
+                f"et ne contient pas d'espace ni de retour à la ligne. La copie est sans doute "
+                f"incomplète : recopiez-la en entier.")
+    return ''
+
+
 def store_key(row, api_key: str) -> dict:
     """Enregistre `api_key` (chiffrée) sur la ligne `row` — `UserApiKey` du profil ou
     `InstanceApiKey` de la page Sources externes —, puis lit les modèles qu'elle ouvre si la
@@ -127,6 +147,9 @@ def store_key(row, api_key: str) -> dict:
 
     if len(api_key) > MAX_KEY_LENGTH:
         return {'error': f'Clé trop longue ({MAX_KEY_LENGTH} caractères au plus)', 'status': 400}
+    shape_error = key_shape_error(row.source, api_key)
+    if shape_error:
+        return {'error': shape_error, 'status': 400}
     # Refus AVANT toute écriture : levée pendant un `save()`, l'exception marquerait la
     # transaction en cours comme cassée. Celle du champ reste le filet de sécurité.
     if not storage_available():

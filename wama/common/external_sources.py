@@ -350,6 +350,13 @@ class ExternalSource:
     default_model: str = ''
     #: Libellé du champ de saisie au profil ('' = « Clé d'API »).
     api_key_label: str = ''
+    #: Début de toute clé que délivre ce fournisseur ('' = forme inconnue, rien n'est contrôlé).
+    #: Une clé saisie qui ne commence pas ainsi est refusée au dépôt (`api_keys.key_shape_error`) :
+    #: c'est une copie TRONQUÉE. Vécu le 2026-10-26 : le jeton d'abonnement Claude d'un profil,
+    #: collé le 15/09, n'avait pas son début (92 caractères, sans `sk-ant-oat01-`) — refusé par
+    #: l'API (401) dès qu'il a enfin atteint le CLI. N'y écrire qu'un préfixe MESURÉ sur des clés
+    #: réelles, et le plus court qui les distingue (la version qui suit peut changer).
+    api_key_prefix: str = ''
     #: La clé est posée par CHAQUE UTILISATEUR, au profil (2026-09-22). Indépendant de
     #: `api_key_env`, qui dit la clé de l'INSTANCE : une source `llm` porte les deux (l'instance
     #: ne sert qu'aux usages sans utilisateur), un connecteur de la médiathèque seulement la
@@ -581,6 +588,8 @@ SOURCES: tuple[ExternalSource, ...] = (
         "Modèles Claude facturés à la requête — fournisseur « claude » de l'assistant, via llm_chat",
         kind='llm', api_key_env='ANTHROPIC_API_KEY', user_key=True,
         api_key_help_url='https://console.anthropic.com/settings/keys',
+        # Mesuré le 2026-10-26 sur la clé d'instance et sur une clé de profil : `sk-ant-api03-…`.
+        api_key_prefix='sk-ant-api',
         hosting='third_party', cost_tier='metered', protocol='anthropic',
         default_remote_type='image-text-to-text', default_model='claude-sonnet-4-6',
         doc='docs/construction/ia/WAMA_LLM.md'),
@@ -592,6 +601,9 @@ SOURCES: tuple[ExternalSource, ...] = (
         "« claude-abo », geste !code) ; réservé aux développeurs", kind='llm',
         api_key_env='CLAUDE_CODE_OAUTH_TOKEN', api_key_label='Jeton « claude setup-token »',
         user_key=True,
+        # `claude setup-token` rend un jeton `sk-ant-oat01-…` (OAuth longue durée) : une copie
+        # depuis le terminal qui en perd le début se voit donc au dépôt.
+        api_key_prefix='sk-ant-oat',
         hosting='third_party', cost_tier='subscription', protocol='claude_cli',
         default_remote_type='image-text-to-text', developer_only=True,
         # Les modèles de l'abonnement (2026-10-04, question de Fabien : « je n'ai accès qu'à un

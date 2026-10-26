@@ -244,12 +244,19 @@ def prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool = False, user=
         refus = cloud_refusal(user, SUBSCRIPTION_SOURCE)
         if refus:
             return {'error': refus}
-        from wama.accounts.api_keys import key_for
+        from wama.accounts.api_keys import key_for, key_shape_error
         oauth_token = key_for(user, SUBSCRIPTION_SOURCE)
         if not oauth_token:
             return {'error': "Aucun jeton d'abonnement Claude dans votre profil : générez-le avec "
                              "`claude setup-token`, puis collez-le dans le volet « Clés d'API » "
                              "de la page Profil."}
+        # Un jeton déposé AVANT le contrôle de forme (2026-10-26) peut être tronqué : le dire
+        # ici plutôt que de laisser l'API répondre « 401 Invalid bearer token ».
+        if key_shape_error(SUBSCRIPTION_SOURCE, oauth_token):
+            return {'error': "Le jeton d'abonnement Claude de votre profil est incomplet (il ne "
+                             "commence pas par « sk-ant-oat ») : régénérez-le avec "
+                             "`claude setup-token`, puis recollez-le EN ENTIER dans le volet "
+                             "« Clés d'API » de la page Profil."}
     cli = chemin_cli()
     commande = [cli, '-p', prompt, '--output-format', 'json']
     if model and model != 'default':
