@@ -26288,3 +26288,37 @@ Suite de la §CLÔTURE 2026-10-20→26 (comptes). Gunicorn relancé par Fabien :
 de `wama_ui_smoke_v3` enregistré et affiché puis rétabli, note à la place du mot de passe pour
 `wama_rights_commun`, « Annuler » sans requête, zéro erreur JS — comptes rétablis à l'identique
 (mesuré). Domicile : `PROFILES_PERMISSIONS §1.11`. Reste : pousser.
+
+## §CLÔTURE 2026-10-27 — PARTITION, BANDE DES PROCESS, TRANSPORT ENTRÉE / RENDU (série du 22→26/10) — ✅ LIVRÉ, non poussé — 🔚 rejouer « Partition complète » sur #880 et juger à l'écran
+
+Suite des deux §PALIER 2026-10-22 « PARTITION ». WAMA relancé par Fabien le 27/10 (gunicorn).
+- ✅ `42cea2ea` le PAS forcé du clavier (proposé en `9061d708`).
+- ✅ AirLLM : veille `6df03a36`, mesuré `caa1570b` (69 s par jeton contre 31,7 jetons/s sur la
+  carte), puis retiré avec Qwen2.5-7B PAR LA ROUTE (`860c8c27`, `uninstall_library`, R175).
+- ✅ `54722281` la voix n'est plus prise pour une flûte (instrument nommé à MuScriptor seulement
+  s'il sonne dans 10 % du morceau). `22932912` l'anacrouse : la mesure 1 se cale sur le premier
+  temps FORT trouvé par le suivi.
+- ✅ `41c9ea4b` puis `9e10f7e0` (décisions de Fabien) : la partition complète lit l'ENTRÉE comme
+  la réduite ; `rendered_parts` = branche du Rendu (migration composer 0026 appliquée).
+- ✅ `721b60f2` + `6fd38ad9` réglages en SECTIONS PAR PROCESS, repliables, modale et volet.
+  `ba41e44a` un panneau s'épingle en haut ou en bas (étendu par une autre session : `52cc1284`).
+- ✅ `ec8459c7` les BRANCHES dans la bande des process (une colonne par profondeur, `node_depths`
+  partagé avec le studio — le même DAG, aucun chemin parallèle).
+- ✅ `12a7d17d` + `f2c4c5db` (retours de Fabien) : libellés « Partition réduite / complète / de
+  sortie » ; sous « auto », un process qui ne dépend d'aucun modèle a sa ligne et sa case ; le
+  transport propose l'ENTRÉE à côté du rendu (`Surface.sources_of`, `INPUT_SOURCE`).
+- ✅ revérifications `9f8bacf8`, `7acf92f5` : la page lit les process par `app_pipeline` ; le test
+  du lead sheet passe par `_score_abc` ; la card du composer ET la card générée passent
+  `settings_url` (garde générique dans `tests_process_pipeline`) ; un seul nom `INPUT_FACE`.
+- Mesuré le 27/10 après la relance : la card #880 rendue porte deux cases (« Partition
+  complète » cochée, « Partition de sortie » décochée) et la route `/composer/settings/880/`.
+- Tests le 27/10 : 494 ciblés (périmètre + gardes transverses), 4 rouges HORS session —
+  `tests_identifier_language` ×3 (budget des noms de méthodes de test, aucun nom de la session)
+  et `tests_test_layout` (dossier `privacy` de `common`, non suivi). `check_redundancy` : 89,
+  aucune dans les fichiers de la session. `doc_facts --check` à jour. `check_docs` : 0 cassée,
+  1 périmée (bloc du 21/10, autre chantier).
+- ⏳ Restes de CETTE session : messages « vide » des vues partition qui recopient le libellé de
+  la case (`ROUTE §10.6` 5.1) · les jumelles gagnent la case à leur prochaine régénération ·
+  `help_text` du champ dit encore « Partition du rendu » (migration) · menu « Aucune / Réduite /
+  Complète » · MusicXML · clavier et export à éprouver à l'écran · rejouer « Partition
+  complète » sur #880 (sa complète date d'avant le correctif de la flûte).
