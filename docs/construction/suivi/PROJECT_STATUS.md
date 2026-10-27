@@ -26340,3 +26340,45 @@ Puis, à la demande de Fabien, la limite est soldée : « Modifier mon profil »
 refuse un email déjà porté par un autre compte, par le même `_email_taken`. Mesuré : `wama.accounts`
 204 tests OK ; contre-épreuve rouge (`_email_taken` neutralisé → les deux gardes de l'email
 rougissent). Effet visible au prochain relancement de gunicorn.
+
+## §CLÔTURE 2026-10-27 — « VOIX DE L'ASSISTANT, CLÉS, ILaaS » (suite du §PALIER 2026-10-23 « TOUS LES CERVEAUX ») — ✅ LIVRÉ, non poussé — 🔚 relancer gunicorn, Ctrl+F5, puis la conversation vocale au vrai micro
+
+Du 26 au 27/10, à la demande de Fabien, après le §PALIER 2026-10-23 :
+- ✅ `2eca1fe2` `/doc-sync` passe courte appelée par 12 skills ; `6f89384b` ROADMAP et vision
+  confrontées au code (relevé `ROADMAP §24.9`) ; `854e3df3` décisions : porte de confidentialité
+  avant-cloud REPORTÉE (⏳ gardée), Describer sans indexation automatique au RAG (geste utilisateur).
+- ✅ `8e432011` + `493da0ea` contrôle de FORME d'une clé (`external_sources.api_key_prefix`,
+  `api_keys.key_shape_error`, refus à l'entrée et avant la CLI) : le jeton d'abonnement Claude du
+  profil est TRONQUÉ (92 caractères, sans `sk-ant-oat01-`, mesuré) — les « succès » d'avant le 23/10
+  passaient par le login de la machine (WSLENV), preuve par contraste.
+- ✅ `2c1fcacd` les cinq modèles ILaaS mesurés 3/3 déclarés `native_tools` (geste demandé par
+  Fabien) ; `mistral-medium-latest` 503 (6 essais sur 7).
+- ✅ `719a1266` la 1ʳᵉ phrase écoutée par Albert n'importe plus PyTorch (33,4 → 3,0 s ; 6,3 s
+  pendant le préchauffage) ; `da1e6739` ILaaS RAG MESURÉ : seuls les embeddings `bge-m3`
+  répondent (chat 404, reclassement 500) — non branché ; le 27/10 Fabien garde
+  `qwen3-embedding:4b` (« on ne change rien de ce côté »), addendum `ROADMAP §8d` étape 7.
+- ✅ `04609dc6` (Fabien : « je vois le micro qui module, mais ma voix n'est pas transcrite ») —
+  l'écoute ne reste plus muette : fond appris au-dessus de -55 dBFS, voix plus « audible » pour
+  toujours (réflexion, pause étrangère, canal pris, tour en échec), écoute pendant la réflexion
+  (décision), `max_requests = 5000` (décision) ; `de6426bb` gardes du nom du micro ouvert
+  (`WamaCapture.trackLabel`, `WAMA_APP_CONVENTIONS §12.5`). Domicile : `WAMA_LLM.md` L'ÉCOUTE.
+- Mesuré le 27/10 : 472 tests du périmètre OK (écoute, voix, capture, surfaces, flux, VRAM, accès
+  aux outils, abonnement Claude, clés, modèles cloud, transcription distante, poller, sync) ;
+  gardes transverses : 4 rouges HORS session — `tests_identifier_language` ×3 (budget des noms de
+  méthodes de test, 1294 > 1291 : aucun nom de mes fichiers) et `tests_test_layout`
+  (`wama/common/privacy/` non suivi). Contre-épreuves : chaque brique servie remise à son état
+  d'avant → 4 + 3 + 1 rouges (voix), 2 rouges (nom du micro). `check_redundancy` 89, aucune
+  dans mes fichiers ; `check_docs` 0 cassée, 1 périmée (pas à moi) ; `doc_facts --check` :
+  `WAMA_MECANISMES` et `docs/dev/briques.md` périmés par le registre `mecanismes.py` modifié dans
+  l'arbre par une autre instance ; `check_skills` sans défaut. Leçon portée au skill
+  `/contre-epreuve` §4 (variable de boucle partagée en bash).
+- ⏳ Restes de CETTE session : validation de l'écoute au vrai micro · préchauffer le Whisper
+  local quand Albert écoute (22 s à froid quand il plafonne ; 10 Go réservés — non décidé) ·
+  mémoire des workers à surveiller (5000) · une phrase commencée pendant la réflexion se perd si la
+  voix démarre avant sa fin sans annulation d'écho (assumé) · `waitAvatarSilence` attend
+  `head.isSpeaking` sans borne (non mesuré, non touché) · rejouer `mistral-medium-latest`.
+- Hérités, à Fabien : régénérer le jeton d'abonnement Claude (`claude setup-token`, collé EN
+  ENTIER) · crédit Anthropic épuisé · abonnement grand public → `third_party_all` ? · reclassement
+  ILaaS s'il répond un jour · le navigateur automatisé d'une autre session ouvert depuis le 26/10
+  07:06 (la moitié du trafic de `system-stats`).
+- Pendings système : relancer gunicorn (+ workers), Ctrl+F5 ; pousser (rien n'est poussé).

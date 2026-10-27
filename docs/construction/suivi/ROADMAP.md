@@ -1737,6 +1737,9 @@ WAMA utilise alors le provider cloud à la place d'Ollama pour les tâches séle
      mais injoignable : déclaration préparée puis RETIRÉE, rien n'est branché — choix soumis à
      Fabien (embeddings : l'espace `text` est `qwen3-embedding:4b` depuis le 19/10, `bge-m3`
      n'y entre pas sans réindex ; reclassement : aucune étape n'existe dans `store.recall`).
+     ✅ *Décidé le 2026-10-27* (Fabien : « qwen3-embedding:4b est meilleur. On ne change rien de ce
+     côté. ») : l'espace `text` de la mémoire reste `qwen3-embedding:4b`, ILaaS RAG n'est pas branché ;
+     le reclassement (500 ce jour-là) n'a pas été tranché.
   **Tranché par Fabien le 13/10** : ① un modèle CHOISI à la main qui sature ne bascule pas seul —
   on le dit et on propose le relais en un clic (le choix manuel est un consentement explicite) ;
   ② la bascule vit d'emblée dans la brique commune, l'assistant en premier utilisateur.

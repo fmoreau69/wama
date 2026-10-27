@@ -130,6 +130,15 @@ print('COUNTERPROOF <nom>: failures =', failures,
   PUIS `sys.modules.pop('<module de test>')` avant de lancer le runner (il réimporte), et la même
   restauration à la fin. *Le patch atteint ce qui se résout à l'appel, pas ce qui l'a déjà été.*
 
+- **2026-10-27 — en bash, une fonction de restauration PARTAGE la variable de la boucle.** Une
+  contre-épreuve par brique (« remettre chaque JS servi à HEAD, un par un ») appelait `restore()`
+  en tête de boucle ; `restore` bouclait elle-même avec `for f in …` : à son retour, `$f` valait
+  le DERNIER fichier de sa liste. Les trois passes ont muté la même brique — trois fois le même
+  rouge, attribué à trois briques différentes par l'en-tête affiché. Vu en lisant les NOMS des
+  rouges (tous ceux du chat), pas leur nombre. ✅ `local g` dans toute fonction appelée depuis une
+  boucle ; et une passe par mutation doit afficher des rouges DIFFÉRENTS — *trois sorties
+  identiques pour trois mutations accusent d'abord le harnais.*
+
 ## 5. Ce que la contre-épreuve ne remplace pas
 
 Le GESTE RÉEL. Une garde peut mesurer exactement ce qu'on croit et le geste rester cassé à l'écran :
