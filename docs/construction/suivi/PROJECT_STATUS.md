@@ -26222,9 +26222,17 @@ modèle chaud ; migration `model_manager/0028`). ⚠ « Latent : 0 statistique d
 Reste à décider : l'asymétrie inverse des appelants « chargé par défaut » (§10). `hf_id` : étapes 1 à 3
 livrées le 27/10 (« Suite, 2026-10-27 » ci-dessous), la 4ᵉ part avec la session des manifestes.
 
-**Pendings système** : relancer gunicorn + workers — la relance de 16:23 sert `29b9fd28` et
-`27de71c7`, PAS le Python de `2e0a9533` et `699d5786` (règle des renommages, dérivation commune
-des plateformes, adresses SAM3) ; pousser. Migration `model_manager/0027` (sans SQL) APPLIQUÉE,
+**🔚 POINT D'ENTRÉE (mis à jour à la clôture du 27/10)** : l'étape 4 de `hf_id`, AVEC la session des
+manifestes — retirer `identity.hf_id` (extraction, projection, producteurs scout et `model_manifest`), la
+copie `extra_info['hf_id']` de 10 modèles, puis la colonne ; régénérer le corpus. Mesure de départ :
+`tests_platform_ref_only.HF_ID_BUDGET` (15 sites, 6 fichiers), à faire descendre à 0.
+Décisions ouvertes : appelants « chargé par défaut » de l'ETA (§10) ; regrouper la paire GitHub
+`github_platform_ref` / `github_ref_of_platform` à côté de la paire HF (`external_sources`).
+
+**Pendings système** : 🔴 relancer gunicorn + workers — le Python de `4e251275` et `25b88679` (et,
+avant eux, `2e0a9533`, `699d5786`, `cf43dcbc`) n'est servi qu'à moitié : la relance de 01:26 a pris
+l'arbre au milieu du chantier, et des modules importés plus tard viennent du code neuf (worker MIXTE,
+constaté à 02:08). Migrations `model_manager/0029` et `0030` APPLIQUÉES. Pousser. Migration `model_manager/0027` (sans SQL) APPLIQUÉE,
 gitignorée comme toutes. Données posées par la route : 26 identités (`backfill_platform_refs
 --ecrire`, par le manifeste) ; 2 lignes supprimées (`retire_unlisted('albert')`).
 

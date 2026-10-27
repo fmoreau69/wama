@@ -92,6 +92,11 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > **le chiffre reporté au §4 soit MESURÉ dans cette session**, pas recopié du handoff précédent.
 > ⚠ Et lire les **NOMS** des rouges, jamais le seul compte — un total identique peut recouvrir
 > un échec qui en remplace un autre.
+> 🔴 **Une sortie de suite ne se TRONQUE pas** (vécu le 2026-10-27) : `… | grep … | head -150` a
+> coupé un run de 21 minutes AVANT sa ligne `Ran N` et la moitié de ses rouges — il a fallu le
+> refaire. ✅ La sortie ENTIÈRE dans un fichier (`> <scratchpad>/suite.txt 2>&1`), puis les
+> `grep` dessus. Et pour départager « à moi / à autrui » : la suite sur un worktree de HEAD + ses
+> seuls fichiers, puis les rouges rejoués sur HEAD nu — ce qui rougit des deux côtés préexiste.
 >
 > ⚠⚠ **Si la commande demande « Type 'yes' to delete » puis meurt en `EOFError` : NE PAS
 > répondre par `--noinput`.** La base de test est PARTAGÉE entre instances, et `--noinput`
