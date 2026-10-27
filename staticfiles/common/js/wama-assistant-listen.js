@@ -31,7 +31,8 @@
  *      ne pas couvrir ce que joue la page, un écho le coupait). ⚠ Seulement si le navigateur confirme
  *      l'annulation d'écho (`getSettings().echoCancellation`) : sans elle, l'assistant
  *      s'entendrait lui-même et s'interromprait. L'écoute est alors SOURDE pendant qu'il parle
- *      (chacun son tour), et le bouton le dit.
+ *      (chacun son tour), et le bouton le dit. Pendant qu'il RÉFLÉCHIT, rien ne joue : l'écoute
+ *      reste ordinaire, et une phrase dite là remplace la question en cours (2026-10-27).
  *   5. ÉCOUTER SANS CHAT (2026-10-12, demande de Fabien : « appliquer les améliorations au
  *      bouton Speak, aligner sur le commun ») : `capture()` rend le même micro, le même
  *      découpage et la même route à une page qui veut seulement du TEXTE dit au micro — le
@@ -80,6 +81,13 @@
   var MIN_SPEECH_MS = 250;                // en dessous : un bruit, pas une phrase
   var MAX_UTTERANCE_MS = 30000;
   var PREROLL_MS = 400;
+  //: Le bruit de fond = le niveau le plus BAS entendu sur cette fenêtre (2026-10-27). Il se
+  //: mesurait sur les seules trames jugées calmes — or « calme » se jugeait par rapport à lui :
+  //: une pièce au-dessus de -55 dBFS (souffle d'un casque, gain automatique) n'était jamais
+  //: apprise. Mesuré sur la brique servie : la « phrase » s'ouvrait à 85 ms et ne se fermait
+  //: plus, jusqu'au plafond de 30 s — le bouton pulsait, aucun texte ne venait.
+  var FLOOR_WINDOW_MS = 4000;
+  var DIGITAL_SILENCE_DB = -100;          // trames nulles d'un périphérique qui s'ouvre : pas un fond
 
   var cfg = { sttUrl: '' };
   var ctl = null;                         // le contrôleur ACTIF (un seul micro par page)
@@ -164,9 +172,25 @@
     this.rate = rate;
     this.endMs = endMs;
     this.onEvent = onEvent;
-    this.floor = null;                    // bruit de fond, mesuré en continu hors parole
+    this.floor = null;                    // bruit de fond : le plus bas de `levels`, borné
+    this.levels = [];                     // [dB, ms] des dernières trames (FLOOR_WINDOW_MS)
+    this.levelsMs = 0;
     this.reset();
   }
+
+  /** Retient le niveau d'une trame et en déduit le fond : le minimum de la fenêtre. Un bruit
+   *  constant devient le fond même s'il est fort ; une voix, qui a ses creux, ne le devient pas. */
+  Segmenter.prototype.track = function (db, ms) {
+    if (db <= DIGITAL_SILENCE_DB) return;
+    this.levels.push([db, ms]);
+    this.levelsMs += ms;
+    while (this.levelsMs > FLOOR_WINDOW_MS && this.levels.length > 1) {
+      this.levelsMs -= this.levels.shift()[1];
+    }
+    var low = Infinity;
+    for (var i = 0; i < this.levels.length; i++) low = Math.min(low, this.levels[i][0]);
+    this.floor = Math.min(-30, Math.max(-90, low));
+  };
 
   Segmenter.prototype.reset = function () {
     this.preroll = [];
@@ -181,8 +205,9 @@
   Segmenter.prototype.feed = function (frame, mode) {
     var db = levelDb(frame);
     var ms = frame.length / this.rate * 1000;
-    if (this.floor === null) this.floor = db;
     if (mode === 'deaf') { this.reset(); return; }
+    this.track(db, ms);
+    if (this.floor === null) return;      // rien encore que du silence numérique
     var p = PARAMS[mode] || PARAMS.normal;
 
     if (!this.frames) {
@@ -191,13 +216,8 @@
       while (this.prerollMs > PREROLL_MS && this.preroll.length > 1) {
         this.prerollMs -= this.preroll.shift().length / this.rate * 1000;
       }
-      if (db > Math.max(this.floor + p.startDb, p.floorDb)) {
-        this.loudMs += ms;
-      } else {
-        this.loudMs = 0;
-        // Le fond suit lentement le bruit ambiant (ventilation, clim), borné.
-        this.floor = Math.min(-30, Math.max(-90, this.floor * 0.95 + db * 0.05));
-      }
+      if (db > Math.max(this.floor + p.startDb, p.floorDb)) this.loudMs += ms;
+      else this.loudMs = 0;
       if (this.loudMs >= p.startMs) {
         this.frames = this.preroll;
         this.preroll = [];
@@ -273,6 +293,9 @@
         mic.node.connect(mute);
         mute.connect(mic.ctx.destination);
         mic.echoCancelled = global.WamaCapture.trackSettings(stream, 'microphone').echoCancellation === true;
+        // Le micro que le NAVIGATEUR a ouvert, dit dans l'info-bulle : ce n'est pas toujours
+        // celui où l'on parle (périphérique par défaut du système, casque branché après coup).
+        mic.label = global.WamaCapture.trackLabel(stream, 'microphone');
         mic.rate = mic.ctx.sampleRate;
         return mic;
       });
@@ -367,9 +390,12 @@
     return !!((this.chat.isBusy && this.chat.isBusy()) || (voice && voice.isAudible()));
   };
 
+  /** Pendant qu'il RÉFLÉCHIT, rien ne sort du haut-parleur : aucune écoute ne s'y assourdit ni
+   *  ne s'y durcit (2026-10-27, décision de Fabien). Seule sa voix AUDIBLE le fait. */
   Controller.prototype.frameMode = function () {
     if (this.phase === 'transcribing' && this.mode === 'dictation') return 'deaf';
-    if (this.mode !== 'conversation' || !this.assistantActive()) return 'normal';
+    var voice = global.WamaAssistantVoice;
+    if (this.mode !== 'conversation' || !(voice && voice.isAudible())) return 'normal';
     return (this.mic && this.mic.echoCancelled) ? 'interrupt' : 'deaf';
   };
 
@@ -454,8 +480,9 @@
       this.heardAt = Date.now() - (this.segmenter ? this.segmenter.speechMs : 0);
       // Une voix qui couvre l'assistant : on ne le coupe qu'une fois la phrase transcrite et
       // reconnue comme n'étant pas la sienne (2026-10-13, décision de Fabien) — l'annulation
-      // d'écho du navigateur peut ne pas couvrir ce que joue la page.
-      this.bargeIn = (how === 'interrupt');
+      // d'écho du navigateur peut ne pas couvrir ce que joue la page. Une phrase commencée
+      // pendant qu'il réfléchit le reprend aussi : elle remplace la question en cours.
+      this.bargeIn = (how === 'interrupt') || (this.mode === 'conversation' && this.assistantActive());
       this.phase = 'hearing';
       this.render();
       return;
@@ -551,11 +578,13 @@
       paint(this.talkBtn, 'fa-circle-notch fa-spin', 'btn-success', 'Transcription…');
     } else if (this.assistantActive()) {
       paint(this.talkBtn, 'fa-headset', 'btn-outline-success',
-            (this.mic && this.mic.echoCancelled)
+            (this.frameMode() !== 'deaf')
               ? 'L’assistant répond — parlez pour l’interrompre (clic : arrêter la conversation)'
               : 'L’assistant répond — l’écoute reprend quand il a fini (clic : arrêter la conversation)');
     } else {
-      paint(this.talkBtn, 'fa-headset', 'btn-success', 'À vous — je vous écoute (clic : arrêter la conversation)');
+      paint(this.talkBtn, 'fa-headset', 'btn-success', 'À vous — je vous écoute'
+            + (this.mic && this.mic.label ? ' (micro : ' + this.mic.label + ')' : '')
+            + ' (clic : arrêter la conversation)');
     }
   };
 

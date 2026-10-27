@@ -16,7 +16,8 @@
  *       voix est activée ; rend une Promise résolue à la fin.
  *   stop()           : coupe la lecture en cours (canal commun ET avatar).
  *   setEnabled(on)   : muet / actif, PERSISTÉ par la même route que les réglages de l'assistant.
- *   isAudible()      : la voix parle, ou sort encore du haut-parleur (latence de sortie).
+ *   isAudible()      : la voix JOUE (premier son du tour passé), ou sort encore du haut-parleur
+ *       (latence de sortie). Un tour ouvert qui n'a rien joué encore ne l'est pas.
  *   isOwnSpeech(text, heardAt) : une phrase entendue au micro n'est-elle que l'ÉCHO de ce que
  *       la voix disait ? — lu par l'écoute de la conversation (`wama-assistant-listen.js`).
  *   bindButton(btn)  : câble le bouton à trois états — ⏹ pendant une lecture (clic = arrêter),
@@ -46,6 +47,12 @@
   //: déforme des mots ; mesuré sur l'écho du 13/10, la part était de 1.
   var ECHO_SHARE = 0.8;
   var said = { words: [], audibleUntil: 0 };    // le tour de parole en cours, ou le dernier
+  //: Le tour de parole COURANT de la voix (2026-10-27). `stop()` l'avance : un tour arrêté ne
+  //: joue plus rien et ne redevient jamais audible. C'est aussi lui, et non le jeton du canal
+  //: commun, qui dit si la fin d'un tour doit rendre le silence — un autre lecteur qui prend le
+  //: canal (Synthesizer) coupait la voix sans que la fin du tour la déclare muette : l'écoute de
+  //: la conversation, qui la croyait encore audible, restait sourde pour de bon.
+  var current = 0;
 
   function speechWords(text) {
     return String(text || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -58,9 +65,11 @@
     said.audibleUntil = Date.now() + latency;
   }
 
-  /** La voix de l'assistant s'entend-elle encore ? (parle, ou sort encore du haut-parleur) */
+  /** La voix de l'assistant s'entend-elle encore ? (joue, ou sort encore du haut-parleur).
+   *  Un tour OUVERT qui n'a encore rien joué — l'assistant réfléchit — ne s'entend pas
+   *  (2026-10-27) : l'écoute de la conversation y reste ordinaire. */
   function isAudible() {
-    return state.speaking || Date.now() < said.audibleUntil;
+    return Date.now() < said.audibleUntil;
   }
 
   /**
@@ -167,22 +176,31 @@
 
   // Un morceau : l'avatar le joue s'il est prêt (TalkingHead met en file, on enchaîne sans
   // attendre) ; sinon le canal commun, et on attend la fin.
-  function playChunk(blob, text, turn) {
+  function playChunk(blob, text, turn, owns) {
     if (avatarReady()) {
       return global.WamaAvatar.speak(blob, text, state.lang).then(function (ok) {
         if (ok) return;
-        return playOnChannel(blob, turn);
+        return playOnChannel(blob, turn, owns);
       });
     }
-    return playOnChannel(blob, turn);
+    return playOnChannel(blob, turn, owns);
   }
 
-  function playOnChannel(blob, turn) {
+  // ⚠ Une lecture COUPÉE par un autre son (média de la page, autre onglet : `silenceLocal`) est
+  // mise en pause, et une pause ne déclenche jamais `ended` : la file attendait pour toujours,
+  // le tour ne finissait pas et la voix restait audible (2026-10-27). Coupée, la voix s'arrête —
+  // si ce tour est encore le sien (`owns`) : la pause arrive APRÈS coup, quand la voix a pu
+  // ouvrir le tour suivant, et ne doit pas le couper.
+  function playOnChannel(blob, turn, owns) {
     var audio = turn.play(blob);
     if (!audio) return Promise.resolve();
     return new Promise(function (resolve) {
       audio.addEventListener('ended', resolve);
       audio.addEventListener('error', resolve);
+      audio.addEventListener('pause', function () {
+        if (!audio.ended && owns()) stop();
+        resolve();
+      });
     });
   }
 
@@ -206,6 +224,7 @@
   }
 
   function stop() {
+    current++;
     if (global.WamaApp && global.WamaApp.Speech) global.WamaApp.Speech.stop();
     if (global.WamaAvatar && global.WamaAvatar.stop) global.WamaAvatar.stop();
     clearInterval(avatarPoll); avatarPoll = null;
@@ -233,8 +252,9 @@
     }
     var turn = global.WamaApp.Speech.claim();
     if (global.WamaAvatar && global.WamaAvatar.stop) global.WamaAvatar.stop();
+    var mine = ++current;
+    function owns() { return mine === current && turn.valid(); }
     said.words = [];
-    said.audibleUntil = Infinity;               // jusqu'à la fin de ce tour, `end()` la date
     setSpeaking(true);
     var pending = '';            // texte reçu, pas encore prononçable
     var playback = Promise.resolve();
@@ -279,14 +299,16 @@
       // Les mots de l'ÉCHO : ceux de la phrase (le Markdown n'y laisse aucune lettre de plus).
       said.words = said.words.concat(speechWords(sentence));
       var audio = requests.then(function () {
-        if (!turn.valid()) return null;
+        if (!owns()) return null;
         return fetchSpeech(sentence, turn.signal);
       }).catch(function (e) { report(e); return null; });
       requests = audio;
       playback = playback.then(function () {
         return audio.then(function (speech) {
-          if (!turn.valid() || !speech) return;
-          return playChunk(speech.blob, speech.spoken, turn);
+          if (!owns() || !speech) return;
+          // Audible dès le premier son, jusqu'à la fin du tour (`end()` la date).
+          if (said.audibleUntil !== Infinity) { said.audibleUntil = Infinity; notify(); }
+          return playChunk(speech.blob, speech.spoken, turn, owns);
         });
       }).catch(report);
     }
@@ -304,7 +326,7 @@
         pending = '';
         if (rest) enqueue(rest);
         return playback.then(waitAvatarSilence).then(function () {
-          if (turn.valid()) { markSilent(); setSpeaking(false); }
+          if (mine === current) { markSilent(); setSpeaking(false); }
           return true;
         });
       },

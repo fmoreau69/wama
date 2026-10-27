@@ -17,6 +17,7 @@ var window = this;
 window.addEventListener = function () {};
 var document = { cookie: '' };
 var console = { error: function () {} };
+var clearInterval = function () {};
 var asked = [];        // les textes demandés au service, dans l'ordre
 var playing = [];      // les lectures en cours : fin déclenchée par le test
 function fetch(url, options) {
@@ -25,8 +26,9 @@ function fetch(url, options) {
 }
 function atob() { return 'x'; }
 function Blob() {}
+var channelOwned = true;   // faux quand un AUTRE lecteur a pris le canal commun
 var WamaApp = { Speech: { stop: function () {}, claim: function () {
-  return { signal: null, valid: function () { return true; },
+  return { signal: null, valid: function () { return channelOwned; },
            play: function () {
              var audio = { handlers: {}, addEventListener: function (name, fn) { this.handlers[name] = fn; } };
              playing.push(audio);
@@ -34,6 +36,8 @@ var WamaApp = { Speech: { stop: function () {}, claim: function () {
            } };
 } } };
 function finishPlayback(index) { playing[index].handlers.ended(); }
+// Un autre son met la lecture en PAUSE (sans effet sur une brique qui ne l'écoute pas).
+function pauseFrom(index) { var h = playing[index].handlers.pause; if (h) h(); }
 """
 
 FIRST = "Voici une première phrase assez longue pour partir seule au service de voix. "
@@ -222,6 +226,88 @@ class VoiceKnowsItsOwnWordsTest(SimpleTestCase):
         self.assertTrue(ctx.eval("WamaAssistantVoice.isAudible()"), 'le haut-parleur joue encore')
         ctx.eval("fakeNow += 301;")
         self.assertFalse(ctx.eval("WamaAssistantVoice.isAudible()"))
+
+
+class VoiceNeverStaysAudibleForeverTest(SimpleTestCase):
+    """L'écoute de la conversation est sourde tant que la voix est audible (sans annulation d'écho
+    confirmée). Le 2026-10-27, trois chemins laissaient la voix audible POUR TOUJOURS — « je vois
+    le micro qui module, mais aucun texte n'apparaît » : un tour ouvert l'était dès la question,
+    réflexion comprise ; une lecture coupée par un autre son ne finissait jamais ; un tour dont
+    un autre lecteur avait pris le canal finissait sans se déclarer muet."""
+
+    _ctx = NextSentenceIsRequestedDuringPlaybackTest._ctx
+
+    def _audible(self, ctx):
+        return ctx.eval("WamaAssistantVoice.isAudible()")
+
+    def test_a_turn_that_has_played_nothing_yet_is_not_audible(self):
+        ctx = self._ctx()
+        self.assertTrue(ctx.eval("WamaAssistantVoice.isSpeaking()"), 'le tour est ouvert')
+        self.assertFalse(self._audible(ctx), "il réfléchit : rien ne sort du haut-parleur")
+        ctx.eval("turn.push(%r);" % FIRST)
+        self.assertTrue(self._audible(ctx), 'audible dès le premier son')
+
+    def test_a_voice_cut_by_another_sound_falls_silent(self):
+        ctx = self._ctx()
+        ctx.eval("turn.push(%r); turn.push(%r);" % (FIRST, SECOND))
+        ctx.eval("pauseFrom(0);")       # un média de la page l'a mise en pause
+        self.assertFalse(self._audible(ctx))
+        self.assertFalse(ctx.eval("WamaAssistantVoice.isSpeaking()"))
+        self.assertEqual(1, ctx.eval("playing.length"), 'coupée, la voix ne reprend pas la suite')
+
+    def test_a_turn_whose_channel_another_player_took_ends_silent(self):
+        ctx = self._ctx()
+        ctx.eval("turn.push(%r);" % FIRST)
+        ctx.eval("channelOwned = false; pauseFrom(0); turn.end();")
+        self.assertFalse(self._audible(ctx))
+
+    def test_a_late_pause_does_not_cut_the_next_turn(self):
+        """Contre-épreuve : la pause de l'ancienne lecture arrive APRÈS coup, quand la voix a
+        déjà ouvert le tour suivant — elle ne le coupe pas."""
+        ctx = self._ctx()
+        ctx.eval("turn.push(%r);" % FIRST)
+        ctx.eval("var next = WamaAssistantVoice.speakStream(); next.push(%r);" % SECOND)
+        ctx.eval("pauseFrom(0);")
+        self.assertTrue(self._audible(ctx))
+        self.assertEqual(2, ctx.eval("playing.length"))
+
+
+CHAT_BROWSER = r"""
+var window = this;
+var document = { readyState: 'complete', querySelectorAll: function () { return []; }, cookie: '' };
+window.ReadableStream = function () {};
+window.TextDecoder = function () {};
+window.fetch = function () { return Promise.reject(new TypeError('Failed to fetch')); };
+var fetch = window.fetch;
+var ended = 0;
+window.WamaAssistantVoice = { speakStream: function () {
+  return { push: function () {}, end: function () { ended++; return Promise.resolve(true); } };
+} };
+"""
+
+
+class FailedTurnClosesItsVoiceTest(SimpleTestCase):
+    """Un tour en flux qui ÉCHOUE ferme son tour de parole : resté ouvert, la voix se croyait
+    audible et l'écoute de la conversation restait sourde (2026-10-27)."""
+
+    def test_a_turn_lost_on_the_network_ends_its_voice(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        ctx = MiniRacer()
+        ctx.eval(CHAT_BROWSER + source)
+        ctx.eval("""
+            var failed = null;
+            var chat = Object.create(WamaAssistantChat._Chat.prototype);
+            chat.cfg = { streamUrl: '/api/ai-chat/stream/' };
+            chat.controller = null;
+            chat.sendStreaming('Bonjour').catch(function (e) { failed = e.message; });
+        """)
+        self.assertEqual('Failed to fetch', ctx.eval("failed"), "l'échec remonte au tour")
+        self.assertEqual(1, ctx.eval("ended"))
 
 
 FAKE_HEAD = r"""

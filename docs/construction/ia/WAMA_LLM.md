@@ -563,7 +563,8 @@ chez Google, il fallait envoyer soi-même, et elle n'existait que sur l'accueil.
   ⚠ **Seulement si le navigateur confirme l'annulation d'écho** (`getSettings().echoCancellation`) :
   sans elle l'assistant s'entendrait et s'interromprait — l'écoute est alors SOURDE pendant qu'il
   répond (chacun son tour), et le bouton le dit. Le serveur, lui, finit le tour interrompu et
-  l'enregistre au fil.
+  l'enregistre au fil. *(2026-10-27 : sourde ou durcie pendant que sa voix est AUDIBLE seulement —
+  plus pendant la réflexion, bloc du 27/10 plus bas.)*
 - **VRAM, mesurée** : large-v3 occupe **4,1 Go** réels, mais le gouverneur en RÉSERVE **10**
   (`WhisperBackend.recommended_vram_gb`, valeur de repli — CTranslate2 alloue hors de PyTorch).
   Le service le DÉCHARGE donc après 10 min sans phrase (`WAMA_STT_IDLE_UNLOAD_S`). ⏳ Ramener la
@@ -656,6 +657,39 @@ avait tiré `ollama:gemma4:12b` (résident, donc préféré par `prefer_loaded`)
   (`wama-assistant-listen.js` `frameMode` : aucun écho possible tant qu'il ne parle pas).
   ⚠ Les triplets « 429 → filtre indisponible → service inaccessible » du journal de ce jour
   venaient des TESTS (`tests_assistant_listen`), qui écrivent dans le même journal.
+- 🔄 **2026-10-27 — décisions, et la vraie cause du « micro qui module sans texte »** (Fabien :
+  *« Oui pour max_requests à 5000 et l'écoute pendant la réflexion »* ; *« je vois le micro qui
+  module, mais ma voix n'est pas transcrite […] rien de ce que tu signales ne semble lié »* ;
+  `qwen3-embedding:4b` reste l'espace de la mémoire, ILaaS RAG non branché). Relevé des journaux :
+  le 26/10 à 13:38 l'écoute s'est ouverte (préchauffage reçu) et **aucune phrase n'est partie** —
+  le blocage était dans le NAVIGATEUR, avant tout envoi. Deux défauts de la brique, chacun capable
+  de rendre l'écoute muette pour toute la session :
+  1. **Le fond n'était jamais appris au-dessus de -55 dBFS.** Il ne se mesurait que sur les trames
+     jugées calmes, et « calme » se jugeait par rapport à lui. Mesuré sur la brique servie
+     (simulation V8) : -56 dBFS découpe, **-54 ouvre une « phrase » à 85 ms qui ne se ferme
+     plus** — le bouton pulse « Je vous écoute… », le texte ne vient (s'il vient) qu'au plafond de
+     30 s. ✅ Le fond est le niveau le plus BAS des 4 dernières secondes (`Segmenter.track`) ; les
+     trames nulles d'un micro qui s'ouvre n'en sont pas. Découpe juste de -70 à -45 dBFS.
+  2. **La voix pouvait rester « audible » pour toujours, et l'écoute sourde avec elle** (sans
+     annulation d'écho confirmée). Elle l'était dès la question, réflexion comprise (`speakStream`
+     posait `audibleUntil = Infinity` à l'ouverture du tour) ; une lecture COUPÉE par un autre son
+     (média de la page, autre onglet) restait en pause sans jamais finir ; un tour dont un autre
+     lecteur avait pris le canal (Synthesizer) finissait sans se déclarer muet ; un tour en flux
+     en échec (réseau) ne fermait pas son tour de parole. Et l'écoute sourde ne pouvait plus rien
+     envoyer — donc plus rien ne relançait la voix. ✅ Audible au PREMIER SON seulement ; une
+     pause étrangère arrête la voix ; la fin d'un tour se juge sur le tour de la VOIX (`current`),
+     plus sur le jeton du canal ; `sendStreaming` ferme le tour de parole en échec.
+  ✅ **Écoute pendant la réflexion** (décision) : `frameMode` ne s'assourdit ni ne se durcit que
+  si la voix est AUDIBLE ; une phrase dite pendant qu'il réfléchit remplace la question en cours
+  (`bargeIn`, `voice.stop` + `chat.abort`). ✅ `max_requests = 5000` (jitter 250,
+  `gunicorn_conf.py`) : un worker renaît ~toutes les 100 min au lieu de 20 — surveiller la
+  mémoire des workers. ✅ L'info-bulle « À vous — je vous écoute » nomme le micro que le
+  NAVIGATEUR a ouvert (`WamaCapture.trackLabel`) : ce n'est pas toujours celui où l'on parle.
+  Gardes : `tests_assistant_listen` (pièce bruyante apprise, bruit seul sans phrase, réflexion),
+  `tests_assistant_voice_js` (`VoiceNeverStaysAudibleForeverTest`, `FailedTurnClosesItsVoiceTest`)
+  — contre-épreuve : chaque brique remise à HEAD, 4 + 3 + 1 rouges, le contre-cas « pause tardive »
+  reste vert. ⏳ Validation au vrai micro par Fabien ; préchauffer le Whisper local en écoute
+  distante (non décidé).
 
 **Remesuré le 2026-10-04 — « encore lent, même par Albert » (Fabien). RIEN de câblé, cinq
 constats.** Mesures faites dans un processus neuf (script de mesure du scratchpad de session :

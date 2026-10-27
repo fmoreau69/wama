@@ -36,8 +36,12 @@ pidfile = "logs/gunicorn.pid"
 capture_output = True
 
 # Restart workers after handling N requests (prevents memory leaks)
-max_requests = 1000
-max_requests_jitter = 50
+# 5000 depuis le 2026-10-27 (décision de Fabien) : à ~50 requêtes/min, 1000 faisait renaître un
+# worker toutes les ~20 min, et chaque naissance ouvre ~3 min de préchauffage pendant lesquelles
+# la conversation vocale et le premier tour de l'assistant sont lents (`WAMA_LLM.md`, L'ÉCOUTE).
+# La garde contre les fuites reste : surveiller la mémoire des workers.
+max_requests = 5000
+max_requests_jitter = 250
 
 
 # Worker lifecycle hooks

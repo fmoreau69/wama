@@ -24,6 +24,7 @@
  *                               bref, REFERMÉ aussitôt. Sans `ask`, ne rejette jamais ([] au pire).
  *   permission(kind)            → Promise<'granted'|'denied'|'prompt'|'unknown'>, sans rien demander.
  *   trackSettings(stream, kind) ce que le périphérique a réellement accordé (taille, écho…).
+ *   trackLabel(stream, kind)    le nom du périphérique ouvert ('' si le navigateur le tait).
  *   zoomRange(stream)           le zoom MATÉRIEL de la caméra {min, max, step}, ou null.
  *   setZoom(stream, value)      → Promise ; borné à la plage, sans effet si la caméra refuse.
  *   record(stream, {type})      → {state(), stop() → Promise<Blob|null>}, ou null sans MediaRecorder.
@@ -168,6 +169,11 @@
     return (t && t.getSettings) ? t.getSettings() : {};
   }
 
+  function trackLabel(stream, kind) {
+    var t = track(stream, kind || 'camera');
+    return (t && t.label) || '';
+  }
+
   function zoomRange(stream) {
     var t = track(stream, 'camera');
     var caps = (t && t.getCapabilities) ? t.getCapabilities() : {};
@@ -215,6 +221,7 @@
     devices: devices,
     permission: permission,
     trackSettings: trackSettings,
+    trackLabel: trackLabel,
     zoomRange: zoomRange,
     setZoom: setZoom,
     record: record,

@@ -423,6 +423,45 @@ class ListenBrickTest(SimpleTestCase):
         ctx = self._ctx()
         self.assertEqual([], self._segment(ctx, [[0, 1000], [0.1, 1500], [0, 1500]], 'deaf'))
 
+    def _room(self, ctx, pattern, opening_zeros=True):
+        """Comme `_segment`, dans une pièce BRUITÉE : [(voix, durée ms, bruit rms)], précédé des
+        trames nulles d'un micro qui s'ouvre."""
+        return json.loads(ctx.eval("""
+            JSON.stringify((function () {
+              var events = [], rate = 48000, len = 2048, k = 0, seed = 7;
+              function noise() { seed = (seed * 16807) %% 2147483647; return seed / 1073741823.5 - 1; }
+              var seg = new WamaAssistantListen._Segmenter(rate, 900, function (evt) { events.push(evt); });
+              if (%s) for (var z = 0; z < 3; z++) seg.feed(new Float32Array(len), 'normal');
+              %s.forEach(function (p) {
+                var n = Math.round(p[1] / (len / rate * 1000));
+                for (var i = 0; i < n; i++, k++) {
+                  var f = new Float32Array(len);
+                  for (var j = 0; j < len; j++) {
+                    f[j] = p[2] * 1.732 * noise() + p[0] * Math.sin(2 * Math.PI * 220 * (j + k * len) / rate);
+                  }
+                  seg.feed(f, 'normal');
+                }
+              });
+              return events;
+            })())
+        """ % ('true' if opening_zeros else 'false', json.dumps(pattern))))
+
+    def test_a_noisy_room_is_learnt_as_the_background(self):
+        """2026-10-27 : au-dessus de -55 dBFS (souffle d'un casque, gain automatique), le fond
+        n'était jamais appris — la « phrase » s'ouvrait à 85 ms et ne se fermait qu'au plafond
+        de 30 s. Mesuré sur la brique servie : -56 dBFS découpait, -54 ne découpait plus."""
+        ctx = self._ctx()
+        noise = 10 ** (-50 / 20)
+        self.assertEqual(['start', 'end', 'start', 'end'], self._room(ctx, [
+            [0, 2000, noise], [0.05, 2000, noise], [0, 3000, noise],
+            [0.05, 1500, noise], [0, 3000, noise]]))
+
+    def test_the_noise_of_a_room_alone_is_not_a_phrase(self):
+        """Contre-épreuve : le même bruit, sans voix, n'ouvre rien — pas même aux trames nulles
+        de l'ouverture du micro, qui ne deviennent pas le fond."""
+        ctx = self._ctx()
+        self.assertEqual([], self._room(ctx, [[0, 8000, 10 ** (-50 / 20)]]))
+
     def test_the_clip_is_a_standard_16_khz_mono_wav(self):
         ctx = self._ctx()
         data = json.loads(ctx.eval("""
@@ -450,7 +489,17 @@ class ListenBrickTest(SimpleTestCase):
         self.assertEqual('deaf', ctx.eval("c.frameMode()"),
                          "sans annulation d'écho, l'assistant s'interromprait lui-même")
         ctx.eval("voice.speaking = false; chat.busy = true;")
-        self.assertEqual('deaf', ctx.eval("c.frameMode()"), 'pendant la réflexion aussi')
+        self.assertEqual('normal', ctx.eval("c.frameMode()"),
+                         "pendant qu'il réfléchit, rien ne joue : l'écoute reste ordinaire (2026-10-27)")
+
+    def test_a_phrase_said_while_it_thinks_replaces_the_question(self):
+        """2026-10-27, décision de Fabien : l'écoute était sourde (ou durcie) pendant toute la
+        réflexion, alors qu'aucun son ne sortait — « ma parole ne semble pas reçue »."""
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=False)
+        ctx.eval("chat.busy = true; c.onSegment('start', null, c.frameMode());")
+        self.assertEqual(['Plutôt la liste des images'], self._heard(ctx, 'Plutôt la liste des images'))
+        self.assertEqual(['voice.stop', 'chat.abort'], json.loads(ctx.eval("JSON.stringify(calls)")))
 
     def test_speaking_over_the_assistant_stops_it_once_the_phrase_is_understood(self):
         """2026-10-13 : on ne coupe plus au premier son — l'annulation d'écho du navigateur peut

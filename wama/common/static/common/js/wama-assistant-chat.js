@@ -852,6 +852,11 @@
         });
       }
       return pomper().then(function () { self.followPendingPage(voix ? voix.end() : null); });
+    }).catch(function (e) {
+      // Un tour en ÉCHEC (réseau, flux rompu) ferme aussi son tour de parole : resté ouvert, la
+      // voix se croyait encore audible et l'écoute de la conversation restait sourde (2026-10-27).
+      if (voix) voix.end();
+      throw e;
     });
   };
 
