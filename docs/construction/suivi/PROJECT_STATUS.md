@@ -26443,3 +26443,42 @@ Du 26 au 27/10, à la demande de Fabien, après le §PALIER 2026-10-23 :
   ILaaS s'il répond un jour · le navigateur automatisé d'une autre session ouvert depuis le 26/10
   07:06 (la moitié du trafic de `system-stats`).
 - Pendings système : relancer gunicorn (+ workers), Ctrl+F5 ; pousser (rien n'est poussé).
+
+## §CLÔTURE 2026-10-27 — « TRANSCRIBER #2522 → GARDE (b), LENTEUR DE LA CORRECTION, SURFACES EMPILÉES / ÉPINGLÉES » (session du 21→27/10) — ✅ LIVRÉ, non poussé — 🔚 décisions de Fabien ci-dessous
+
+Périmètre de la session (la série précédente est close aux §PALIER 2026-10-21/22, 2026-10-26
+GARDE (b), 2026-10-26 (soir)) : préparation audio en process et restes alignés, garde (b) « part
+de la parole transcrite », pipelines au préchauffage (correction #724 : 24 → 0,8 s), panneaux
+EMPILÉS et ÉPINGLÉS à quatre bords, puis deux revérifications.
+- ✅ Revérifié sur le LIVE relancé (gunicorn de 01:52, qui sert `cb71be34`) : préchauffage au
+  journal (`app_pipelines` 5,7 à 8,0 s par worker, en arrière-plan) ; `common.surface_stack`
+  12/12 et `common.surface_layout` 9/9 ; `transcriber.process_check_relaunch` (NEUF) vert.
+- ✅ Gardes ajoutées à la revérification (`a906f25a`) : figée / « Disposition par défaut » /
+  téléphone au scénario des piles ; le clic « Relancer avec » au navigateur, lancement
+  intercepté ; la face Évaluation sur la route d'aperçu servie — six contre-épreuves rouges, celles
+  du live jouées DANS le navigateur du scénario (rien sur le disque).
+- ✅ Clôture (`729919ba`) : `check_redundancy` a trouvé une recopie DE MA MAIN (`98e26793`) —
+  la surface du transcriber redisait `listened_sources` dans `settings`, et `register_surface`
+  l'exigeait ; `Surface.page_settings` lit les deux, déclarés une fois.
+- 🔚 **POINT D'ENTRÉE** : rien de bloquant côté code. Ce qui attend Fabien : (1) essayer, sur la
+  correction du transcriber, transport + ligne de temps + écriture empilés puis épinglés en bas ;
+  (2) décisions — **mode simplifié** retiré ou aligné sur le repli des volets (`WAMA_VOLETS §7`),
+  détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`), préchauffage (dérivation
+  paresseuse des ports du studio 17 s, patch `torch.library` 20 s, 142 s par worker),
+  **318 005 lignes de process orphelines** (`ROUTE §10.6` 4.1 : purge + geste de retrait
+  manquant) ; (3) (c) signaler à la DINUM le défaut du filtre de parole d'Albert.
+- **Limites de cette session** (à elle) : un panneau épinglé ne se retaille pas sur place ; les
+  cards transcrites avant la garde (b) ne sont mesurées qu'à leur prochaine transcription ;
+  `wama/transcriber/surfaces.py` garde deux trouvailles de `check_redundancy` qui ne sont pas de
+  la session (`_segments`, `_available`, commit `e235ee0b` du 21/10) et la sélection
+  `settings=(…)` par nom, que le gardien compte comme recopie.
+- **Pendings hérités / système** : pousser (dev, non poussé) ; la table générée de
+  `WAMA_MECANISMES` est périmée — trois décomptes de consommateurs me reviennent (« Lignes
+  d'exécution », « Pipeline déclaré », « Évaluation » : le scénario neuf les importe), le reste au
+  WIP d'autres instances : régénérer avec le registre de qui le commitera ; worktree
+  `wt_hfid` d'une autre session.
+- Contrôles attendus au prochain /reprise (mesurés le 2026-10-27) : `tests_surfaces` 73 ;
+  surfaces + transcriber (`tests_editor_axis`, `tests_pipeline`) + évaluation 171 OK ;
+  `check_docs` 0 cassée, 1 périmée (`PROJECT_STATUS:25721`, ligne du 21/10, pas de cette
+  session) ; rouges transverses d'autrui : budget des noms de tests (1 294 / 1 291),
+  `tests_test_layout` (`wama/common/privacy`, non suivi).

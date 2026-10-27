@@ -186,6 +186,16 @@ trie, et il est plus utile que « couverture » :
   Vécu : `model=''` produit le modèle `"openai/"` — erreur DISTANTE, invisible en local ;
   un rôle sans posture rend une sortie crédible et fausse.
 
+🔴 **Un livrable d'INTERFACE se garde par COMPORTEMENT, pas par symbole** (vécu le 2026-10-27,
+question de Fabien « a-t-on ajouté tous les tests nécessaires ? » après relance). Le noyau des
+surfaces avait ses tests et un scénario 9/9 ; trois branches ÉCRITES n'étaient jouées nulle part
+— disposition figée, « Disposition par défaut » (qui gardait l'épinglage sans que la doc le
+dise), largeur de téléphone — et le clic « Relancer avec » de la garde (b), qui enchaîne deux
+requêtes, n'avait qu'un test du HTML. ✅ Énumérer les BRANCHES du code écrit (un `if` d'état, une
+réinitialisation, un seuil de largeur, un clic qui en déclenche un autre) et nommer pour chacune
+le geste de scénario qui la joue ; jouer les scénarios contre le serveur EN SERVICE une fois
+relancé (base par défaut, compte de test), un lancement réel INTERCEPTÉ (`page.route`).
+
 ⚠ **Un smoke lancé à la main n'est pas une garde.** Vécu le 09/09 : le pont wama-dev-ai avait
 été validé par un script du scratchpad — donc rien ne le protégeait, alors qu'il venait de
 passer 14 mois à ne pas exister pendant que trois documents l'affirmaient. Si le code n'est pas

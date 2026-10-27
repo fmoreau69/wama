@@ -139,6 +139,21 @@ print('COUNTERPROOF <nom>: failures =', failures,
   boucle ; et une passe par mutation doit afficher des rouges DIFFÉRENTS — *trois sorties
   identiques pour trois mutations accusent d'abord le harnais.*
 
+- **2026-10-27 — muter le fichier que la garde LIT, pas son jumeau.** Une garde du noyau des
+  surfaces lisait la SOURCE (`wama/common/static/…`) ; ma mutation visait la copie SERVIE
+  (`staticfiles/…`) : vert, que j'aurais pu lire comme « garde aveugle ». ✅ Avant de muter, lire
+  dans le test quel chemin il ouvre (`STATIC = …`, `_js()`, `staticfiles`) ; un fichier synchronisé
+  en deux copies se mute à celle-là.
+- 🔴 **2026-10-27 — contre le LIVE, la mutation se fait DANS LE NAVIGATEUR du scénario, jamais
+  sur le disque.** Les scénarios nocturnes visent le gunicorn en service : réécrire un `.js` ou un
+  `.css` servi l'enverrait à tous les comptes. ✅ Le scénario accepte un `page_hook(page)` ; la
+  contre-épreuve y pose `page.route(<motif>, handler)` qui fait `route.fetch()`, remplace le
+  texte et `route.fulfill(...)` — le serveur et les autres utilisateurs ne voient rien. Relever
+  le nombre d'occurrences remplacées : ⚠ un motif GLOB (`'**/wama-surface.js'`) ne prend PAS une
+  URL statique qui porte `?v=…` — trois contre-épreuves « vertes » sans mutation posée (`[]`) ;
+  un motif `re.compile(r'/js/…\.js')` les a posées (`[1, 1, 1]`) et rendues rouges. *Une
+  contre-épreuve verte dont la mutation n'a pas été posée ne prouve rien — compter la pose.*
+
 ## 5. Ce que la contre-épreuve ne remplace pas
 
 Le GESTE RÉEL. Une garde peut mesurer exactement ce qu'on croit et le geste rester cassé à l'écran :
