@@ -493,6 +493,8 @@ class Surface:
                 'slots': [s.to_dict() for s in self.slots], 'edits': self.edits,
                 'also_edits': list(self.also_edits),
                 'reruns': self.reruns, 'columns': GRID_COLUMNS,
+                # Les bornes que `clean_layout` applique, lues par le noyau plutôt que recopiées.
+                'max_rows': MAX_LAYOUT_ROWS, 'dock_edges': list(DOCK_EDGES),
                 'autosave': self.autosave, 'finish': self.finish,
                 'settings': list(self.settings),
                 'sources_setting': self.sources_setting,
@@ -502,7 +504,8 @@ class Surface:
 def clean_layout(surface: Surface, payload) -> dict:
     """La DISPOSITION d'un utilisateur pour une surface, validée (2026-10-21, demande de Fabien :
     chacun dispose ses panneaux puis FIGE sa disposition) : `{'slots': {id: {x, y, w, h, zone}}
-    | None, 'frozen': bool}`. `slots` à None = la disposition DÉCLARÉE, qui suit donc la surface
+    | None, 'frozen': bool, 'docked': {id: bord}, 'stacks': {tête: [{id, h}]}}` (les deux
+    derniers le 2026-10-26, `_clean_stacks`). `slots` à None = la disposition DÉCLARÉE, qui suit donc la surface
     si elle change. Seuls les emplacements déclarés sont gardés (un emplacement retiré depuis est
     oublié) ; une place hors de sa zone lève `ValueError`. Une place sans `zone` est dans la
     grille — là où toute place était gardée avant la colonne du volet."""
@@ -531,8 +534,9 @@ def clean_layout(surface: Surface, payload) -> dict:
             slots[slot_id] = {'x': x, 'y': y, 'w': w, 'h': h, 'zone': zone}
         slots = slots or None
     # Les panneaux ÉPINGLÉS (2026-10-26, demande de Fabien : « locker le transport en bas ou en
-    # haut de page pour qu'il ne défile pas ») : `{id: 'top' | 'bottom'}`, un réglage de LECTURE
-    # comme la disposition. Seuls les emplacements déclarés ; un bord inconnu est refusé.
+    # haut de page pour qu'il ne défile pas ») : `{id: bord}`, un des `DOCK_EDGES` (haut et bas,
+    # puis gauche et droite le jour même), un réglage de LECTURE comme la disposition. Seuls les
+    # emplacements déclarés ; un bord inconnu est refusé.
     declared = {s.id for s in surface.slots}
     stacks = _clean_stacks(payload.get('stacks'), declared)
     members = {m['id'] for group in stacks.values() for m in group[1:]}

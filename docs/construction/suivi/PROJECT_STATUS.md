@@ -26274,6 +26274,11 @@ latérales, on a qu'à le faire »*. Domicile `WAMA_VOLETS §3-ter`.
   l'épingle ne reste que pour une brique `dockable` ou déjà épinglée.
 - ✅ Gardes : `tests_surfaces` (72) ; scénario nocturne **`common.surface_stack`** 9/9 sur la page
   servie (serveur jetable), `common.surface_layout` 9/9 ; trois contre-épreuves rouges.
+- ✅ Revérification du 2026-10-27 : le noyau RECOPIAIT le plafond de lignes (`400`) et la liste
+  des bords que le serveur applique — ils sont désormais servis avec la surface
+  (`Surface.to_dict` : `max_rows`, `dock_edges`) et lus par le noyau, un bord que le serveur
+  refuserait n'est plus proposé ; garde `test_the_kernel_reads_the_bounds_the_server_applies`
+  (deux contre-épreuves rouges), `tests_surfaces` 73, les deux scénarios rejoués 9/9.
 - ⏳ Décision de Fabien : **retirer le mode simplifié** ou l'aligner sur le repli des volets
   (`WAMA_VOLETS §7`) · détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`) ·
   smoke sur une surface temporelle (transcriber : transport + ligne de temps + écriture empilés en

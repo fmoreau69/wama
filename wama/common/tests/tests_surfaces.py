@@ -315,6 +315,19 @@ class SurfaceLayoutTest(TestCase):
         self.assertIn('rec.dockBtn = toolButton(', kernel, 'every panel can be pinned')
         self.assertIn('dockable: true', _js('common/js/surfaces/brick-media-transport.js'))
 
+    def test_the_kernel_reads_the_bounds_the_server_applies(self):
+        """The row ceiling and the pin edges are served with the surface, never copied in the
+        kernel: an edge the server would refuse is never offered."""
+        from wama.common.surfaces import DOCK_EDGES, MAX_LAYOUT_ROWS
+        self.client.force_login(self.user)
+        surface = self._config(self.user)['surface']
+        self.assertEqual(MAX_LAYOUT_ROWS, surface['max_rows'])
+        self.assertEqual(list(DOCK_EDGES), surface['dock_edges'])
+        kernel = _js('common/js/surfaces/wama-surface.js')
+        self.assertIn('var MAX_ROWS = surface.max_rows', kernel)
+        self.assertIn('surface.dock_edges.indexOf(c[0])', kernel)
+        self.assertNotIn(f'MAX_ROWS = {MAX_LAYOUT_ROWS}', kernel, 'the ceiling is read, not copied')
+
     def test_a_docked_panel_stops_at_the_header_and_the_footer(self):
         """Same day, Fabien: pinned to the top it went UNDER the fixed header, unusable. A pinned
         panel is set between the header and the footer, by the heights the side panels read."""

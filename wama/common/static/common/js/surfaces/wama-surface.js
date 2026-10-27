@@ -75,7 +75,6 @@
 
     var BRICKS = {};
     var CELL_HEIGHT = 46;
-    var MAX_ROWS = 400;                     // le plafond de `surfaces.MAX_LAYOUT_ROWS`
 
     function registerBrick(key, def) { BRICKS[key] = def; }
 
@@ -444,6 +443,9 @@
 
         // ── Grille ────────────────────────────────────────────────────────────────────────
         var COLUMNS = surface.columns || 12;
+        // Le plafond de lignes et les bords d'épinglage sont ceux que le serveur applique
+        // (`surfaces.MAX_LAYOUT_ROWS`, `DOCK_EDGES`), lus de la surface — jamais recopiés ici.
+        var MAX_ROWS = surface.max_rows || Infinity;
         var layout = config.layout || { slots: null, frozen: true, stored: false };
         var page = root.closest('.wama-surface-page') || root;
         // La COLONNE du volet (2026-10-21, décision de Fabien) : une seconde zone, d'une colonne —
@@ -718,7 +720,9 @@
             ['left', 'fa-arrow-left', 'À gauche — une colonne fixe'],
             ['right', 'fa-arrow-right', 'À droite — une colonne fixe'],
             ['', 'fa-arrows-up-down', 'Dans la page — défile avec elle'],
-        ];
+        ].filter(function (c) {
+            return !c[0] || !surface.dock_edges || surface.dock_edges.indexOf(c[0]) >= 0;
+        });
         var DOCK_SAID = { top: 'Épinglé en haut de la fenêtre', bottom: 'Épinglé en bas de la fenêtre',
                           left: 'Épinglé à gauche', right: 'Épinglé à droite' };
         var SIDES = ['left', 'right'];
