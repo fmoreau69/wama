@@ -310,6 +310,86 @@ class FailedTurnClosesItsVoiceTest(SimpleTestCase):
         self.assertEqual(1, ctx.eval("ended"))
 
 
+#: Un tour qui ne se dénoue que quand le test le décide (`answer(i)`) ou quand on l'interrompt.
+CHAT_TURNS = r"""
+var aborts = 0, asked = [], answers = [];
+window.WamaAssistantVoice.stop = function () {};
+window.AbortController = function () {
+  var self = this;
+  this.signal = {};
+  this.abort = function () { aborts++; if (self.onabort) self.onabort(); };
+};
+var chat = Object.create(WamaAssistantChat._Chat.prototype);
+var noop = function () {};
+chat.cfg = { streamUrl: '/api/ai-chat/stream/' };
+chat.root = { setAttribute: noop };
+chat.input = { value: '', disabled: false, focus: noop };
+chat.sendBtn = { disabled: false };
+chat.feed = { appendChild: noop };
+chat.deposits = [];
+chat.controller = null;
+['dropGreeting', 'startWaiting', 'stopWaiting', 'renderDeposits', 'autoGrow', 'scrollToEnd']
+  .forEach(function (name) { chat[name] = noop; });
+chat.bubble = function () { return {}; };
+chat.sendStreaming = function (message) {
+  var ctl = chat.controller;
+  asked.push(message);
+  return new Promise(function (resolve, reject) {
+    answers.push(resolve);
+    ctl.onabort = function () { var e = new Error('aborted'); e.name = 'AbortError'; reject(e); };
+  });
+};
+function type(text) { chat.input.value = text; chat.send(); }
+function answer(i) { answers[i](); }
+"""
+
+
+class TypingWhileItThinksTest(SimpleTestCase):
+    """La saisie reste ouverte pendant un tour (2026-10-27, Fabien : « quand l'assistant
+    réfléchit, je ne peux plus lui écrire ») : la zone et le bouton étaient désactivés jusqu'à la
+    fin de la réponse, et un message envoyé pendant la réflexion était ignoré."""
+
+    def _ctx(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        ctx = MiniRacer()
+        ctx.eval(CHAT_BROWSER + source)
+        ctx.eval(CHAT_TURNS)
+        return ctx
+
+    def test_the_input_stays_open_while_it_thinks(self):
+        ctx = self._ctx()
+        ctx.eval("type('Première question');")
+        self.assertTrue(ctx.eval("chat.isBusy()"))
+        self.assertFalse(ctx.eval("chat.input.disabled || chat.sendBtn.disabled"))
+
+    def test_a_message_sent_while_it_thinks_replaces_the_question(self):
+        """La règle de la conversation vocale : le tour en cours s'interrompt, le nouveau part
+        une fois l'ancien dénoué."""
+        ctx = self._ctx()
+        ctx.eval("type('Première question');")
+        ctx.eval("type('En fait, autre chose');")
+        ctx.eval("0")                                  # le tour interrompu se dénoue
+        self.assertEqual(1, ctx.eval("aborts"))
+        self.assertEqual('["Première question","En fait, autre chose"]',
+                         ctx.eval("JSON.stringify(asked)"))
+        self.assertTrue(ctx.eval("chat.isBusy()"), 'le nouveau tour est en cours')
+
+    def test_a_message_sent_after_the_answer_interrupts_nothing(self):
+        """Contre-épreuve : un tour fini ne s'interrompt pas."""
+        ctx = self._ctx()
+        ctx.eval("type('Première question');")
+        ctx.eval("answer(0);")
+        ctx.eval("type('Deuxième question');")
+        ctx.eval("0")
+        self.assertEqual(0, ctx.eval("aborts"))
+        self.assertEqual(2, ctx.eval("asked.length"))
+
+
 FAKE_HEAD = r"""
 var window = this;
 var spoken = null;

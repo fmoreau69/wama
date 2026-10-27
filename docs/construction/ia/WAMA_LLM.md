@@ -690,6 +690,15 @@ avait tiré `ollama:gemma4:12b` (résident, donc préféré par `prefer_loaded`)
   — contre-épreuve : chaque brique remise à HEAD, 4 + 3 + 1 rouges, le contre-cas « pause tardive »
   reste vert. ⏳ Validation au vrai micro par Fabien ; préchauffer le Whisper local en écoute
   distante (non décidé).
+  ✅ **Même jour, la SAISIE aussi reste ouverte pendant la réflexion** (Fabien : *« quand
+  l'assistant réfléchit, je ne peux plus lui écrire […] il faut régler ça »*) : `Chat.busy`
+  désactivait la zone et le bouton jusqu'à la fin de la réponse, et `send` ignorait tout message
+  envoyé entre-temps. Désormais le tour en cours se DIT (`aria-busy`) sans rien fermer, et un
+  message envoyé pendant qu'il réfléchit ou parle suit la règle de la voix : le tour s'interrompt
+  (`chat.abort`, la voix se tait), le nouveau part une fois l'ancien dénoué (`Chat.turn`). Le
+  serveur finit l'ancien tour et l'enregistre au fil, comme pour une interruption à la voix.
+  Garde : `tests_assistant_voice_js.TypingWhileItThinksTest` — brique servie remise à HEAD,
+  2 rouges, le contre-cas « message après la réponse » reste vert.
 
 **Remesuré le 2026-10-04 — « encore lent, même par Albert » (Fabien). RIEN de câblé, cinq
 constats.** Mesures faites dans un processus neuf (script de mesure du scratchpad de session :

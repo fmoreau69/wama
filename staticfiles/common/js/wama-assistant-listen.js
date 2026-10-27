@@ -530,8 +530,8 @@
     input.focus();
   };
 
-  // Le tour précédent peut encore se dénouer (interruption) : on l'attend avant d'envoyer,
-  // sinon la zone de saisie est encore désactivée et `send()` ne ferait rien.
+  // Les répliques partent dans l'ordre où elles ont été dites : chacune attend la précédente
+  // (un tour en cours, lui, est repris par `send()` même — la saisie reste ouverte, 27/10).
   Controller.prototype.sendTurn = function (text) {
     var self = this;
     this.lastTurn = this.lastTurn.then(function () {

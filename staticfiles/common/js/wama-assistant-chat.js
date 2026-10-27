@@ -103,6 +103,7 @@
     this.statusEl = root.querySelector('[data-assistant-status]');
     this.waitTimer = null;
     this.deposits = [];               // fichiers GLISSÉS sur le chat, en attente d'envoi
+    this.turn = Promise.resolve();    // le dernier tour lancé : le suivant l'attend (`send`)
     this.bind();
     this.loadThread();
   }
@@ -632,7 +633,12 @@
     var message = relay ? relay.message : (this.input.value || '').trim();
     // Les fichiers déposés partent avec CE message (un relais garde ceux du message relayé).
     var files = relay ? (relay.files || []) : this.deposits.map(function (d) { return d.path; });
-    if ((!message && !files.length) || this.input.disabled) return Promise.resolve(false);
+    if (!message && !files.length) return Promise.resolve(false);
+    // La saisie reste ouverte pendant un tour (2026-10-27, Fabien : « quand l'assistant
+    // réfléchit, je ne peux plus lui écrire ») : un message envoyé pendant qu'il réfléchit ou
+    // parle le REPREND — le tour en cours s'interrompt et celui-ci le remplace, la règle de la
+    // conversation vocale. Le nouveau tour attend que l'ancien se soit dénoué.
+    if (this.isBusy()) this.abort();
     this.dropGreeting();
     var names = relay ? files.map(function (p) { return p.split('/').pop(); })
       : this.deposits.map(function (d) { return d.name; });
@@ -645,17 +651,18 @@
       this.renderDeposits();
       this.autoGrow();
     }
-    this.lastFiles = files;
-    this.busy(true);
-    this.startWaiting();
     if (global.WamaAssistantVoice) global.WamaAssistantVoice.stop();
-    this.controller = global.AbortController ? new AbortController() : null;
-    this.pendingPage = null;          // une page retenue par un tour précédent ne se suit plus
     var self = this;
     var model = relay ? relay.model : null;
-    var tour = this.cfg.streamUrl ? this.sendStreaming(message, model)
-      : this.sendBlocking(message, model);
-    return tour.catch(function (e) {
+    this.turn = Promise.resolve(this.turn).then(function () {
+      self.lastFiles = files;
+      self.busy(true);
+      self.startWaiting();
+      self.controller = global.AbortController ? new AbortController() : null;
+      self.pendingPage = null;        // une page retenue par un tour précédent ne se suit plus
+      return self.cfg.streamUrl ? self.sendStreaming(message, model)
+        : self.sendBlocking(message, model);
+    }).catch(function (e) {
       self.stopWaiting();
       self.pendingPage = null;        // tour interrompu ou en échec : on ne quitte pas la page
       // Interrompu par l'utilisateur (`abort`, il a repris la parole) : pas une panne.
@@ -668,6 +675,7 @@
       self.input.focus();
       return true;
     });
+    return this.turn;
   };
 
   /** Interrompt le tour EN COURS (requête et lecture du flux) — l'utilisateur reprend la
@@ -683,9 +691,9 @@
     return this.controller ? this.controller.signal : undefined;
   };
 
+  // Un tour en cours se DIT, il ne ferme rien : la saisie et l'envoi restent ouverts (`send`).
   Chat.prototype.busy = function (on) {
-    this.input.disabled = on;
-    this.sendBtn.disabled = on;
+    this.root.setAttribute('aria-busy', on ? 'true' : 'false');
   };
 
   /** Un résultat d'outil peut demander à la SURFACE de faire quelque chose — basculer le mode
