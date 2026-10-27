@@ -26329,6 +26329,13 @@ changements restent intacts) et sur les blobs de HEAD (commit = HEAD + ce seul r
 ⚠ Trois jumelles NON SUIVIES (`imager_01`, `transcriber_01`, `avatarizer_01`) recopient le code
 d'avant le 27/10 (`hf_id=`, `QwenASRBackend.hf_id_for`) : décalées depuis les étapes 1-3, à
 régénérer — pas portées à la main.
+Commité `f35742d1` (368 fichiers : 20 miens + 348 manifestes suivis, 358 lignes `hf_id` retirées,
+aucune ajoutée). Mesuré : 1429 tests ciblés (model_manager entier, couche manifeste, pont
+wama-dev-ai, gardes transverses), 4 rouges NON miens — budget des noms de tests en français (1294
+dans l'arbre, 1292 sur HEAD seul : identique avec les versions d'avant de mes fichiers de test, ma
+part est nulle) et `tests_test_layout` (`wama/common/privacy/`, non suivi) ; puis 235 après le refus
+au validateur, 0 rouge. 8 contre-épreuves dans un worktree de HEAD, 8 rouges, fichiers restaurés à
+l'octet. `check_redundancy` : 89, aucune dans mes fichiers. `check_docs` : 0 cassée.
 
 ## §PALIER 2026-10-26 (soir) — EMPILER des briques en un panneau, ÉPINGLER à QUATRE bords — non poussé — 🔴 relancer gunicorn, puis Ctrl+F5
 
