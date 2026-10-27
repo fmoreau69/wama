@@ -142,6 +142,11 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 >    le run explique un rouge qu'aucun diff ne montre (vécu : corpus migré à 13:05, run
 >    12:47→13:26 — l'import voyait l'ancien chemin, l'exécution non) ;
 > 4. **`git log -1 -- <fichier du test>`** : qui l'a écrit, et dans quel chantier.
+>    ⚠ **Un rouge de BUDGET (langue, thème…) se départage par la LISTE qu'il imprime, nom par nom**
+>    (vécu le 2026-10-27) : « 133 > 132 classes » attribué à un fichier non suivi d'autrui parce
+>    qu'il contenait des noms en « refuses » — c'était MA classe, `TheGuardRefusesBeforeDeletingTest`,
+>    signalée par une autre session. `check_identifier_language --test-names` nomme chaque fichier :
+>    la ressemblance n'attribue rien, la liste si.
 >
 > 5. **rejouer les modules rouges sur une base de test NEUVE** (un nom de base jamais utilisé, cf.
 >    le module de settings jetable ci-dessus) quand les rouges touchent des JUMELLES de bac à sable.
