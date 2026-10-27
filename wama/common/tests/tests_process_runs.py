@@ -12,10 +12,14 @@ What is held here, and why each point:
     reconciliation) closes the open line. Without that the line would stay RUNNING for a task that
     will never return, which is the divergence the element / line pair must not have.
 """
+import shutil
+import tempfile
+from pathlib import Path
+from types import SimpleNamespace
 from unittest import mock
 
 from django.contrib.auth import get_user_model
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_PENDING, JOB_RUNNING,
                                 JOB_STALE, JOB_SUCCESS, ProcessRun)
@@ -183,6 +187,22 @@ class StaleNodesTest(SimpleTestCase):
         self.assertEqual(process_runs.stale_nodes(
             states, self.GRAPH, snapshots=taken, current={'render': {}}), {'render'},
             'an upstream that left the photo (no longer takes place) is still a change')
+
+
+class OutputLostTest(SimpleTestCase):
+    """A line's output is LOST when it designates a file the disk no longer holds — common to
+    every world that writes its lines (cards, studio nodes)."""
+
+    def test_only_a_designated_file_gone_from_the_disk_is_lost(self):
+        media = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, media, True)
+        (Path(media) / 'kept.wav').write_bytes(b'RIFF')
+        with override_settings(MEDIA_ROOT=media):
+            self.assertFalse(process_runs.output_lost(None))
+            self.assertFalse(process_runs.output_lost(SimpleNamespace(output_ref='')),
+                             'never kept is not lost')
+            self.assertFalse(process_runs.output_lost(SimpleNamespace(output_ref='kept.wav')))
+            self.assertTrue(process_runs.output_lost(SimpleNamespace(output_ref='gone.wav')))
 
 
 class AggregateTest(SimpleTestCase):

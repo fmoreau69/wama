@@ -101,6 +101,13 @@ def run_results(run, user) -> tuple:
             path, _refused = resoudre_chemin_lisible(user, row.output_ref)
         if path is not None and path.is_file():
             results.append({'node': node['id'], 'label': label, 'path': path})
+        elif process_runs.output_lost(row):
+            # Le fichier ÉTAIT gardé et a disparu du disque (`process_runs.output_lost`,
+            # 2026-10-27) — ne pas le dire « non conservé », ce qui ferait relier une Sortie
+            # de plus au lieu de relancer.
+            missing.append({'node': node['id'], 'label': label,
+                            'reason': "sortie perdue : son fichier n'est plus sur le disque — "
+                                      "« Exécuter » de nouveau la refait"})
         else:
             missing.append({'node': node['id'], 'label': label,
                             'reason': "donnée calculée pendant l'exécution, non conservée — "

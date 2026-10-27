@@ -18,6 +18,7 @@ CE QUE CE MODULE FAIT
     LANCEMENT : `launch_eta`, la somme de ses process (`ProcessSpec.eta`, 2026-10-05) ;
   • referme les lignes ouvertes d'un élément stoppé ou réconcilié : `close_open` ;
   • dit ce qui est périmé : `stale_nodes` (réglage surveillé changé, puis cascade vers l'aval) ;
+  • dit une sortie PERDUE (fichier désigné, absent du disque) : `output_lost` ;
   • déduit l'état d'une card de ses process : `aggregate` (règle du point 4.4).
 
 CE QU'IL NE FAIT PAS. Il ne lance rien et n'ordonne rien : l'exécution reste au squelette de
@@ -32,6 +33,7 @@ non plus de l'état AFFICHÉ d'une card à un seul process : tant que l'élémen
 from __future__ import annotations
 
 import logging
+import os
 
 from django.utils import timezone
 
@@ -231,6 +233,18 @@ def succeed(item, node_id: str = MAIN_NODE, *, instance_key: str = '', output_re
     return _write(item, node_id, instance_key, defaults)
 
 
+def output_lost(row) -> bool:
+    """La ligne désigne une sortie FICHIER (`output_ref`, relatif à `MEDIA_ROOT`) que le disque ne
+    porte plus — une sortie PERDUE, pas une sortie jamais gardée (`output_ref` vide). Commun à
+    tout monde qui écrit ses lignes : une card (`AppPipeline` : rejouée par `steps_to_run`, dite
+    par la bande des process), un nœud du studio (`run_results`). Une sortie perdue ne périme pas
+    son aval (`_fingerprints_changed`) : elle se dit et se rejoue (2026-10-27)."""
+    if row is None or not row.output_ref:
+        return False
+    from django.conf import settings
+    return not os.path.exists(os.path.join(settings.MEDIA_ROOT, row.output_ref))
+
+
 def annotate(item, node_id: str = MAIN_NODE, *, instance_key: str = '', **values):
     """Ajoute `values` à ce que la ligne retient de sa sortie (`output_summary`), sans toucher à
     son état — ce qui se MESURE sur une sortie après coup (les mesures sans référence,
@@ -423,7 +437,7 @@ def _fingerprints_changed(taken, now) -> bool:
     comme un changement. Seule une empreinte DIFFÉRENTE périme (décision de Fabien, 2026-10-27,
     après la perte de `media/` : 79 process étaient passés périmés pendant que leurs fichiers
     manquaient, et le restaurer à l'identique ne les rendait pas). Une sortie perdue se rejoue
-    par `steps_to_run` (`_output_lost`), pas par la péremption. Un amont qui n'est plus DANS la
+    par `steps_to_run` (`output_lost`), pas par la péremption. Un amont qui n'est plus DANS la
     photo (process qui n'a plus lieu) reste un changement."""
     if not isinstance(taken, dict) or not isinstance(now, dict):
         return taken != now

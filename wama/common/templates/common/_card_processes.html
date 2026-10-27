@@ -9,8 +9,10 @@ DEUX process : une card à un seul process (le cas normal, et le composer avec u
 planifie pas) a son état dans la section État, la bande ne lui dirait rien de plus.
 
 Variables :
-  processes — liste de `{key, label, degree, status, duration_s, model_key, output_label, error}`
-              (`AppPipeline.card_rows`), vide ou absente = rien.
+  processes — liste de `{key, label, degree, status, duration_s, model_key, output_label, error,
+              lost}` (`AppPipeline.card_rows`), vide ou absente = rien. `lost` : rendu, mais son
+              fichier n'est plus sur le disque (`process_runs.output_lost`, 2026-10-27) — la note
+              dit « sortie perdue » ; il ne périme pas son aval, son ▶ le refait.
   card_id   — (optionnel) identifiant de la card : chaque process gagne alors son ▶ « lancer ce
               process seul » — un bouton de cycle commun (`.wama-cycle-btn`, action `start`)
               porteur de `data-process`. L'app le reçoit dans son `WamaCycleButton.wire`
@@ -59,11 +61,11 @@ est le seul gabarit commun que les ONZE cards incluent ; il ne dépend pas de `p
     <span class="wcv3-proc-col{% if col.list|length > 1 %} wcv3-proc-col--branches{% endif %}">
     {% for p in col.list %}
     <span class="wcv3-proc{% if p.degree == 'optional' %} wcv3-proc--optional{% endif %}{% if p.toggle and not p.enabled %} wcv3-proc--off{% endif %}" data-process="{{ p.key }}"
-          title="{{ p.label }}{% if p.after %} · après « {{ p.after|join:' », « ' }} »{% endif %}{% if p.branch_end %} · branche : ne nourrit aucun process en aval{% endif %}{% if p.model_key %} · {{ p.model_key }}{% endif %}{% if p.output_label %} · {{ p.output_label }}{% endif %}{% if p.error %} · {{ p.error|truncatechars:160 }}{% endif %}{% for c in p.checks %} · {{ c.label }} : {{ c.message }}{% endfor %}">
+          title="{{ p.label }}{% if p.after %} · après « {{ p.after|join:' », « ' }} »{% endif %}{% if p.branch_end %} · branche : ne nourrit aucun process en aval{% endif %}{% if p.model_key %} · {{ p.model_key }}{% endif %}{% if p.output_label %} · {{ p.output_label }}{% endif %}{% if p.lost %} · sortie perdue : son fichier n'est plus sur le disque, ▶ le refait{% endif %}{% if p.error %} · {{ p.error|truncatechars:160 }}{% endif %}{% for c in p.checks %} · {{ c.label }} : {{ c.message }}{% endfor %}">
       {% if p.toggle and card_id and settings_url %}<input type="checkbox" class="form-check-input wcv3-proc-toggle" data-id="{{ card_id }}" data-toggle-field="{{ p.toggle }}" data-settings-url="{{ settings_url }}"{% if p.enabled %} checked{% endif %} title="{% if p.enabled %}Désactiver{% else %}Activer{% endif %} « {{ p.label }} » pour cette card">{% endif %}
       <span class="wama-status-dot" data-s="{{ p.status }}"></span>
       <span class="wcv3-proc-name">{{ p.label }}</span>{% if p.branch_end %}<i class="fas fa-code-branch wcv3-proc-branch" aria-hidden="true"></i>{% endif %}
-      <small class="wcv3-proc-note text-body-secondary">{% if p.status == 'SUCCESS' and p.duration_s %}{{ p.duration_s|floatformat:0 }} s{% elif p.status == 'STALE' %}périmé{% elif p.status == 'FAILURE' %}échec{% elif p.status == 'RUNNING' %}en cours{% elif p.status == 'AWAITING_RESOURCES' %}attend{% endif %}</small>
+      <small class="wcv3-proc-note {% if p.lost %}text-warning{% else %}text-body-secondary{% endif %}">{% if p.lost %}sortie perdue{% elif p.status == 'SUCCESS' and p.duration_s %}{{ p.duration_s|floatformat:0 }} s{% elif p.status == 'STALE' %}périmé{% elif p.status == 'FAILURE' %}échec{% elif p.status == 'RUNNING' %}en cours{% elif p.status == 'AWAITING_RESOURCES' %}attend{% endif %}</small>
       {% for c in p.checks %}{% if c.short %}<small class="wcv3-proc-check text-warning" data-check="{{ c.key }}" title="{{ c.label }} : {{ c.message }}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i> {% widthratio c.value 1 100 %} %</small>{% if c.suggest and card_id and settings_url %}<button type="button" class="btn btn-sm btn-outline-warning wcv3-proc-suggest" data-id="{{ card_id }}" data-process="{{ p.key }}" data-settings-url="{{ settings_url }}" data-field="{{ c.suggest.field }}" data-value="{{ c.suggest.value }}" title="Relancer « {{ p.label }} » avec {{ c.suggest.label }}"><i class="fas fa-rotate-right"></i></button>{% endif %}{% endif %}{% endfor %}
       {% if card_id and p.watched %}<button type="button" class="btn btn-sm btn-outline-secondary settings-btn wcv3-proc-settings" data-id="{{ card_id }}" data-process="{{ p.key }}" data-only="{{ p.watched|join:',' }}" data-scope-label="{{ p.label }}" title="Réglages de « {{ p.label }} »"><i class="fas fa-cog"></i></button>{% endif %}
       {% if card_id and p.enabled != False %}<button type="button" class="btn btn-sm btn-outline-success wama-cycle-btn wcv3-proc-run" data-cycle-action="start" data-id="{{ card_id }}" data-process="{{ p.key }}" title="Lancer « {{ p.label }} » seul (ses amonts périmés d'abord)"><i class="fas fa-play"></i></button>{% endif %}

@@ -15,6 +15,7 @@ What is held here, and why each point:
     execution line per process ; a failure closes the line of the process that failed and leaves
     the ones before it valid.
 """
+import json
 import shutil
 import tempfile
 from pathlib import Path
@@ -202,10 +203,17 @@ class WhatALaunchReplaysTest(TestCase):
         score.unlink()
         self.assertEqual(set(), pipeline.refresh(item), 'a missing file is not a new fingerprint')
         self.assertEqual(JOB_SUCCESS, pipeline.card_state(item))
+        from django.template.loader import render_to_string
+        rows = pipeline.card_rows(item)
+        self.assertEqual({'plan': True, 'render': False}, {r['key']: r['lost'] for r in rows},
+                         'the band says which output is lost, and only that one')
+        html = render_to_string('common/_card_processes.html', {'processes': rows, 'card_id': 7})
+        self.assertEqual(1, html.count('>sortie perdue<'), html)
         self.assertEqual(['plan', 'render'], _keys(pipeline.steps_to_run(item, only='render')),
                          'the lost score is replayed before its downstream')
         self._output(score.name)
         self.assertEqual(set(), pipeline.refresh(item), 'restored identical: still up to date')
+        self.assertFalse(any(r['lost'] for r in pipeline.card_rows(item)))
         self._output(score.name, 'X:1 another score')
         self.assertEqual({'render'}, pipeline.refresh(item))
 
@@ -834,6 +842,34 @@ class WhatTheCardShowsTest(TestCase):
             {'key': 'render', 'label': 'Rendu', 'degree': 'required', 'status': JOB_SUCCESS,
              'duration_s': 54.0, 'model_key': '', 'output_label': '', 'error': ''}]})
         self.assertEqual('', single.strip(), 'one process is not a pipeline to show')
+
+    def test_the_live_update_says_a_lost_output_like_the_template(self):
+        """The JS twin of the band (`WamaApp.updateProcessRows`, during a treatment) applies the
+        template's rule: a lost output says « sortie perdue » before its duration (2026-10-27)."""
+        import importlib.util
+        if importlib.util.find_spec('py_mini_racer') is None:
+            self.skipTest('py_mini_racer absent de ce venv')
+        from django.conf import settings
+        from py_mini_racer import MiniRacer
+        from wama.common.tests.tests_cap_from_js import FAKE_DOM
+        from wama.common.tests.tests_poller_js import HARNESS
+        v8 = MiniRacer()
+        v8.eval(FAKE_DOM + HARNESS)
+        v8.eval((Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / 'common' / 'js'
+                 / 'wama-app-base.js').read_text(encoding='utf-8'))
+        shown = json.loads(v8.eval('''
+            var notes = {plan: fakeNote(), render: fakeNote()};
+            var card = {querySelector: function (s) {
+              var key = /data-process="([^"]+)"/.exec(s);
+              return key ? {querySelector: function (q) {
+                return q === '.wcv3-proc-note' ? notes[key[1]] : {dataset: {}}; }} : null; }};
+            window.WamaApp.updateProcessRows(card, [
+              {key: 'plan', status: 'SUCCESS', duration_s: 12, lost: true},
+              {key: 'render', status: 'SUCCESS', duration_s: 7.4, lost: false}]);
+            JSON.stringify([notes.plan.textContent, notes.plan.classList.contains('text-warning'),
+                            notes.render.textContent, notes.render.classList.contains('text-warning')]);
+        '''))
+        self.assertEqual(['sortie perdue', True, '7 s', False], shown)
 
 
 class SkeletonRunsThePipelineTest(TestCase):

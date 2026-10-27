@@ -5188,8 +5188,11 @@ panneau parle `JOB_*`).
 >   ⚠ **Une sortie DISPARUE n'est pas une entrée remplacée** (décision de Fabien, 2026-10-27,
 >   après la perte de `media/` — `MEDIA_STORAGE_TIERING §10`) : sans fichier il n'y a pas
 >   d'empreinte (`missing:`), donc pas de changement (`process_runs._fingerprints_changed`) ; la
->   sortie perdue se REJOUE à la relance (`_output_lost`). Avant, son absence périmait l'aval à
->   SENS UNIQUE : 79 process restés périmés une fois les fichiers restaurés à l'identique.
+>   sortie perdue se REJOUE à la relance (`steps_to_run`) et se DIT — prédicat commun à tout monde
+>   qui écrit ses lignes, `process_runs.output_lost` : « sortie perdue » dans la bande des process
+>   d'une card (`card_rows` → `lost`) et dans les résultats d'un run du studio. Avant, son absence
+>   périmait l'aval à SENS UNIQUE : 79 process restés périmés une fois les fichiers restaurés à
+>   l'identique.
 > - **Le squelette joue N process dans UNE tâche** : `run_item_task(pipeline=…,
 >   processes={clé: glu})`. Chaque glu garde le contrat d'un process ; ses `fields` sont écrits
 >   dès qu'elle a rendu (la suivante les lit sur `item`, et ils survivent à l'échec d'un aval) ;

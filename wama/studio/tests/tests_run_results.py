@@ -116,6 +116,27 @@ class RunZipTest(TestCase):
         process_runs.succeed(run, 'g', process_key='some.job', output_ref='')
         self.assertEqual([], run_results(run, self.user)[0])
 
+    def test_a_kept_file_gone_from_the_disk_is_said_lost_not_unkept(self):
+        """2026-10-27 (`media/` lost) : a node whose file WAS kept and disappeared must not read
+        « non conservée — reliez une Sortie », which sends to the wrong gesture."""
+        from wama.common.services import process_runs
+        from wama.studio.services.run_results import run_results
+        kept = Path(self.media) / 'users' / str(self.user.pk) / 'temp' / 'mesh.glb'
+        kept.parent.mkdir(parents=True)
+        kept.write_bytes(b'GLB')
+        graph = {'nodes': [{'id': 'g', 'app': 'function:some.job'},
+                           {'id': 'm', 'app': 'function:some.job'}], 'links': []}
+        run = self._run(graph, {'g': {'status': JOB_SUCCESS, 'output': 'mesh.glb'},
+                                'm': {'status': JOB_SUCCESS, 'output': 'computed in memory'}})
+        process_runs.succeed(run, 'g', process_key='some.job',
+                             output_ref=kept.relative_to(self.media).as_posix())
+        process_runs.succeed(run, 'm', process_key='some.job', output_ref='')
+        kept.unlink()
+        _results, missing = run_results(run, self.user)
+        reasons = {m['node']: m['reason'] for m in missing}
+        self.assertIn('sortie perdue', reasons['g'])
+        self.assertNotIn('sortie perdue', reasons['m'], 'never kept is not lost')
+
     def test_a_card_step_at_a_branch_end_gives_its_card(self):
         """A step node (`function:<app>.<step>`) launched the step OF A CARD : its result is that
         card, read by the step's app — not the label of the node."""

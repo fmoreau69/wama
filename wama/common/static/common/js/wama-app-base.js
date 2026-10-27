@@ -1191,9 +1191,13 @@
       if (dot) dot.dataset.s = row.status;
       const note = el.querySelector('.wcv3-proc-note');
       if (note) {
-        note.textContent = (row.status === 'SUCCESS' && row.duration_s)
-          ? Math.round(row.duration_s) + ' s'
+        // Une sortie PERDUE (`lost` : rendu, fichier absent du disque, 2026-10-27) se dit avant la
+        // durée — la même règle que le gabarit `_card_processes.html`.
+        note.textContent = row.lost ? 'sortie perdue'
+          : (row.status === 'SUCCESS' && row.duration_s) ? Math.round(row.duration_s) + ' s'
           : (PROCESS_NOTES[row.status] || '');
+        note.classList.toggle('text-warning', !!row.lost);
+        note.classList.toggle('text-body-secondary', !row.lost);
       }
     });
   }

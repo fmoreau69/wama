@@ -220,7 +220,7 @@ def output_fingerprint(ref: str) -> str:
     commune `provenance.sha256_of` — la même que la RÉVISION garde de chaque sortie
     (`revisions.output_references`). Un fichier trop gros pour être lu est suivi par sa taille ;
     une sortie disparue n'a pas d'empreinte (`missing:`) — elle ne périme pas son aval
-    (`process_runs._fingerprints_changed`), elle se rejoue (`_output_lost`)."""
+    (`process_runs._fingerprints_changed`), elle se dit et se rejoue (`process_runs.output_lost`)."""
     if not ref:
         return ''
     from django.conf import settings
@@ -241,14 +241,6 @@ def _fingerprint_of(row) -> str:
     en base), sinon celle du fichier de `output_ref`."""
     declared = (row.output_summary or {}).get('fingerprint')
     return str(declared) if declared else output_fingerprint(row.output_ref)
-
-
-def _output_lost(row) -> bool:
-    """La ligne annonce une sortie que le disque ne porte plus."""
-    if not row.output_ref:
-        return False
-    from django.conf import settings
-    return not os.path.exists(os.path.join(settings.MEDIA_ROOT, row.output_ref))
 
 
 def declared_stales(app: str) -> dict:
@@ -855,7 +847,7 @@ class AppPipeline:
                 key = pending.pop()
                 if key in needed or key not in by_key:
                     continue
-                if (key in fresh and not _output_lost(fresh[key])) or key in held:
+                if (key in fresh and not process_runs.output_lost(fresh[key])) or key in held:
                     continue                      # un amont encore valable est REPRIS
                 needed.add(key)
                 pending.extend(self.read_upstreams(by_key[key], item))
@@ -863,7 +855,7 @@ class AppPipeline:
         if all(spec.key in fresh or spec.key in held for spec in steps):
             return steps
         todo = {spec.key for spec in steps if spec.key not in held
-                and (spec.key not in fresh or _output_lost(fresh[spec.key]))}
+                and (spec.key not in fresh or process_runs.output_lost(fresh[spec.key]))}
         grown = True
         while grown:
             grown = False
@@ -950,7 +942,7 @@ class AppPipeline:
         tourné, plus ceux qui ont lieu pour le modèle donné (`model_key` : le réglage quand il
         est désigné ; sous « auto », None — on ne devine pas le tirage : ce qui a tourné, et ce
         qui ne dépend d'aucun modèle).
-        `{key, label, degree, status, duration_s, model_key, output_label, error}`, plus
+        `{key, label, degree, status, duration_s, model_key, output_label, error, lost}`, plus
         la colonne de chacun dans le graphe (`_columns`) — d'où les branches de la bande."""
         self.refresh(item)
         rows = self.rows(item)
@@ -994,6 +986,10 @@ class AppPipeline:
                 'enabled': self.enabled(spec, item),
                 # Les mesures sans référence de sa sortie (`ProcessSpec.checks`, 2026-10-22).
                 'checks': list(summary.get('checks') or []) if row is not None else [],
+                # Rendu, mais son fichier n'est plus sur le disque (`process_runs.output_lost`,
+                # 2026-10-27) : la bande le dit — il ne périme rien, son ▶ le refait.
+                'lost': row is not None and row.status == JOB_SUCCESS
+                        and process_runs.output_lost(row),
             })
         return self._columns(item, out)
 
