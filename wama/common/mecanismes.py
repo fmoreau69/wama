@@ -2227,7 +2227,7 @@ MECHANISMS = (
               "pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la "
               "fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La "
               "place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / "
-              "`--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le "
+              "`--wama-right-gutter` (0 replié ou sans volet) que lisent le "
               "corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la "
               "largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), "
               "la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`. DEUX "

@@ -406,17 +406,13 @@ class SurfaceLayoutTest(TestCase):
             d = D.without(D.without(d, 'audio'), 'writing');
             return JSON.stringify([two, beside, top, renamed, d.bottom, D.edgeOf(d, 'image'),
                                    D.together(beside, 'transport', 'writing'),
-                                   D.together(beside, 'timeline', 'writing'),
-                                   D.read({transport: 'bottom'}), D.read(beside)]);
+                                   D.together(beside, 'timeline', 'writing')]);
         })()"""))
         self.assertEqual([{'bottom': [['timeline'], ['transport']]},
                           {'bottom': [['timeline'], ['transport', 'writing']]},
                           [['objects'], ['image']],
                           [['timeline'], ['audio', 'writing']],
-                          [['timeline']], 'top', True, False,
-                          # the shape served by a server not yet reloaded is read as rows
-                          {'bottom': [['transport']]},
-                          {'bottom': [['timeline'], ['transport', 'writing']]}], got)
+                          [['timeline']], 'top', True, False], got)
         self.assertEqual({'bottom': [['writing', 'transport']]}, json.loads(engine.eval(
             "JSON.stringify(window.WamaSurface.docks.put({bottom: [['transport']]}, 'writing', "
             "'bottom', 'transport', true))")), 'dropped on the left side: before it')

@@ -889,7 +889,9 @@ La vision est écrite du point de vue du système ; l'adoption se joue du point 
 chercheur non-technicien. Engagements de conception :
 
 - **5 minutes, zéro formation** : déposer un fichier → obtenir un résultat utile (transcription,
-  description, anonymisation). C'est le contrat du mode simplifié, au cœur de l'UX.
+  description, anonymisation). C'était le contrat du mode simplifié ; depuis son retrait
+  (2026-10-27, `WAMA_VOLETS §7`) il est porté par le chat de l'accueil — un fichier joint ou
+  glissé, l'assistant propose quoi en faire —, au cœur de l'UX.
 - **Pente douce** : du dépôt simple → aux paramètres → aux batchs → au Studio. Chaque marche est
   optionnelle ; personne n'a besoin du canvas pour bénéficier de WAMA.
 - **Rencontrer les usagers là où ils sont** plutôt que d'exiger une nouvelle habitude.

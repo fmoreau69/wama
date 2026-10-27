@@ -297,9 +297,9 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   transport — les « quatre niveaux » de `common/surfaces.py`). `docked` devient
   `{bord: [[panneau, …], …]}` (`surfaces._clean_docked`) : en haut et en bas des lignes ordonnées
   de panneaux côte à côte, à gauche et à droite des colonnes — une LISTE, le stockage (jsonb) ne
-  gardant pas l'ordre des clés. L'ancienne forme `{id: bord}` est relue, côté serveur
-  (`_layout_of` passe par `clean_layout`) comme côté page (`WamaSurface.docks.read`, le temps
-  qu'un serveur en service soit relancé). Une ligne prend la hauteur de son plus grand panneau,
+  gardant pas l'ordre des clés. L'ancienne forme `{id: bord}` est relue côté serveur
+  (`_layout_of` passe par `clean_layout`) ; la relecture côté page, tenue le temps de la relance
+  du live, est retirée à la revérification du même soir — un seul chemin. Une ligne prend la hauteur de son plus grand panneau,
   lue dans la grille ; une brique DÉCLARE sa largeur de ligne (`rowWidth` à son
   `registerBrick` — l'écriture à la lecture : `17rem`), prise quand elle PARTAGE sa ligne, seule
   elle la remplit. Geste : le menu de l'épingle propose « À côté de « X » » pour chaque panneau

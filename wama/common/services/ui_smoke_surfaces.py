@@ -536,8 +536,24 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         if faults:
             verdict(False, f"zone sûre rompue après « {after} » : {faults[:3]}")
 
+    # Les envois de la disposition EN VOL : lire la base avant leur réponse rendait des rouges
+    # intermittents sur un serveur chargé (trois gestes différents en dix passages, le 2026-10-27 —
+    # la page montrait le bon état, la base pas encore).
+    inflight = {'n': 0}
+
+    def _layout_post(request):
+        return request.method == 'POST' and '/layout/' in request.url
+
+    page.on('request', lambda r: inflight.update(n=inflight['n'] + 1) if _layout_post(r) else None)
+    for done in ('requestfinished', 'requestfailed'):
+        page.on(done, lambda r: inflight.update(n=inflight['n'] - 1) if _layout_post(r) else None)
+
     def settle(after='geste'):
-        page.wait_for_timeout(900)                   # la garde part 300 ms après le geste
+        page.wait_for_timeout(600)                   # la garde part 300 ms après le geste
+        for _ in range(100):                         # puis sa réponse, au plus 10 s
+            if inflight['n'] <= 0:
+                break
+            page.wait_for_timeout(100)
         guard(after)
         return _in_plain_thread(stored) or {}
 
@@ -693,7 +709,8 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
                 and after.get('fixed') and reloaded.get('fixed')
                 and min(tall) > 2 * 46 and abs(tall[0] - tall[1]) <= 2,
                 f"pile épinglée retouchée : sa bande garde sa hauteur après « Détacher » et au "
-                f"rechargement ({tall} px)")
+                f"rechargement ({tall} px ; piles {full.get('sections')} → {after.get('sections')} → "
+                f"{reloaded.get('sections')} ; fixe {after.get('fixed')}/{reloaded.get('fixed')})")
 
         # À CÔTÉ (2026-10-27, Fabien : un petit élément « se placerait à côté, collé au
         # transport ») : un panneau rejoint la LIGNE d'un panneau épinglé — même bande, même
@@ -757,7 +774,8 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         verdict(not (now['panels'].get(first) or {}).get('fixed') and now['padLeft'] == 0
                 and kept == kept_wide and kept.get('docked') == {'left': [[first]]},
                 f"téléphone : la colonne reste dans la page, rien de réécrit "
-                f"({now['panels'].get(first)}, {kept.get('docked')})")
+                f"({now['panels'].get(first)}, {kept.get('docked')}, marge {now['padLeft']}, "
+                f"réécrit : { {k: (kept_wide.get(k), kept.get(k)) for k in set(kept) | set(kept_wide) if kept.get(k) != kept_wide.get(k)} })")
     except Exception as error:
         verdict(False, f"geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
     verdict(len(guarded) >= 15,f"garde permanente : zone sûre mesurée après {len(guarded)} gestes "

@@ -123,18 +123,6 @@
      *  côte à côte, à gauche et à droite des colonnes (`surfaces._clean_docked`). Chaque fonction
      *  rend un NOUVEL objet. Pures (testées en V8). */
     var Docks = {
-        /** La forme d'avant (`{id: bord}`, 2026-10-26) relue en lignes, comme le fait
-         *  `surfaces._clean_docked` : tant que le serveur en service n'est pas relancé, la page la
-         *  reçoit encore — lue comme des lignes, elle arrêtait la page. */
-        read: function (docked) {
-            var out = {};
-            Object.keys(docked || {}).forEach(function (key) {
-                var value = docked[key];
-                if (typeof value === 'string') (out[value] = out[value] || []).push([key]);
-                else if (Array.isArray(value)) out[key] = (out[key] || []).concat(value);
-            });
-            return out;
-        },
         /** Le bord d'un panneau, '' s'il n'est pas épinglé. */
         edgeOf: function (docked, key) {
             for (var edge in docked || {}) {
@@ -622,7 +610,7 @@
         // `surfaces.clean_layout`) ; la tête donne au panneau sa place et son épinglage. Un geste de
         // DISPOSITION : il se fait disposition modifiable, comme déplacer ou redimensionner.
         layout.stacks = layout.stacks || {};
-        layout.docked = Docks.read(layout.docked);
+        layout.docked = layout.docked || {};
         var shells = {};                    // tête → l'élément du panneau d'une pile
 
         function groupOf(id) {
