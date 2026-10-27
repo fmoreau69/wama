@@ -1,4 +1,4 @@
-"""
+r"""
 Miroir incrémental d'une arborescence locale vers un espace distant — brique COMMUNE.
 
 POURQUOI ICI (extrait le 2026-08-10)

@@ -26589,3 +26589,47 @@ Constat, datation, cause, restauration, vérification de la base et effet de bor
   mesurables (Fabien : rien créé) · fichiers retirés avant la nuit possiblement réapparus
   (Fabien : marginal).
 - Pendings système : relancer gunicorn + workers + beat, Ctrl+F5 ; pousser (rien n'est poussé).
+
+## §CLÔTURE 2026-10-28 — « PERTE DE `media/`, SUITE : sortie perdue DITE, CAUSE GARDÉE, AUDIT DE TOUS LES TESTS, RESTAURATION PAR LA ROUTE » — ✅ LIVRÉ, non poussé — 🔚 relancer gunicorn + workers + beat, puis trancher les deux décisions ci-dessous
+
+Suite du §CLÔTURE 2026-10-27 « PERTE TOTALE DE `media/` » (même session), à la demande de Fabien :
+« ok pour tes 3 propositions… on ne laisse rien de côté », puis « aucun risque de casse restant
+dans tous les tests ». Domicile du récit et des chiffres : `MEDIA_STORAGE_TIERING §10` (points 4 à 8).
+- ✅ `9a207fff` une sortie PERDUE se dit — prédicat commun à tous les mondes
+  (`process_runs.output_lost`) : bande des process (« sortie perdue », gabarit + jumeau JS) et
+  résultats d'un run du studio ; Lab et Data n'écrivent aucune sortie fichier sur leurs lignes.
+- ✅ `af37d85a` la CAUSE gardée — la règle seule n'a pas tenu trois heures (une autre session a
+  refait un `TextTestRunner` à 21:30) : `media_guard` refuse tout test de Django hors de
+  `manage.py test`, `get_runner` en script compris (cache et broker Celery non isolés,
+  `runtime_side`) ; nocturne de WAMA Data par `manage.py test` (mêmes 937 tests) ; gardes AST
+  (`from shutil import rmtree`, suite jouée hors du lanceur, valeur `MEDIA*` importée des
+  réglages) ; audit des tests : 4 sources d'écriture hors isolation corrigées (`tests_registries`,
+  `tests_sources`, `tests_dev_ai_app_role`, détecteurs créant `media/anonymizer/` — dossiers vides
+  retirés du vrai `media/`) ; budget de langue recalé (2647).
+- ✅ `0cc71a47` restauration : `restore_backup --missing-only` (la route ne remplace plus un
+  fichier modifié depuis la sauvegarde) ; skill `restauration` (CANDIDAT n=1) ; le `rsync` du
+  27/10 reconnu comme second chemin, à ne pas refaire.
+- Mesuré : suite COMPLÈTE 8 845 tests sous enregistrement réseau — aucune requête n'écrit hors de
+  l'isolation (Ollama `GET /api/tags`, Hub en lecture, `POST /embed` sans état, MCP avec une clé
+  inconnue du vrai serveur) ; batterie finale 1 152 tests, 1 rouge hors session
+  (`tests_test_layout` : `wama/common/privacy/` non suivi). Contre-épreuves rouges sur chaque garde
+  neuve (prédicat 4, gabarit+JS 2, garde des tests 2 + rejeu réel non refusé, `--missing-only` 3,
+  AST : nocturne 2 lignes, imports figés 4 sites).
+  Les 53 rouges de la suite complète, ÉTABLIS : 23 du travail non commité d'autres sessions (verts
+  sur worktree de HEAD + mes seuls changements : `tests_queue_delete_contract` ×16,
+  `tests_card_listed_files` ×4, `tests_access_requests`, `tests_kept_revision_outputs`,
+  `tests_voice_refs`) ; 21 PRÉEXISTANTS sur HEAD (`tests_item_lifecycle_contract` ×11,
+  `tests_assistant_deposit_settings` ×3, `tests_check_templates`, `tests_cloud_failover`,
+  `tests_doc_plans`, `tests_settings_surfaces`, `tests_tool_api_lectures`, `tests_touch`,
+  `tests_display_format`) ; 4 hors session (`openpyxl` absent ×2, `data-key` du converter,
+  `wama/common/privacy/`) ; 2 de la session corrigés ; 3 passagers.
+- ⏳ DÉCISIONS de Fabien : (1) faire suivre `ProcessRun.output_ref` par le gestionnaire de fichiers
+  (`file_references.repoint`) et l'annoncer à la suppression (`usage`) — aujourd'hui « conséquence
+  assumée » (`ROUTE §10.6`), c'est ce qui perd une sortie intermédiaire hors accident ; (2) une
+  option de PÉRIMÈTRE à `restore_backup` (écarter comptes de test / supprimés / anciens dossiers
+  d'app) — sans elle, la route ramène de l'encombrement, pas de casse.
+- ⏳ Limites de CETTE session : des tests DÉPENDENT de services vivants (Ollama, vectorisation,
+  Hub) — fragiles, pas destructeurs ; la garde ne voit ni `rm -rf` de shell (les agents le
+  soumettent à demande) ni boucle d'`unlink` ; skill `restauration` à confirmer à sa 2ᵉ occurrence.
+- Pendings système : relancer gunicorn + workers + beat (la garde se pose au démarrage d'un
+  processus) ; pousser (rien n'est poussé).
