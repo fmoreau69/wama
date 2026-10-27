@@ -26331,3 +26331,7 @@ rouges, aucun de ce périmètre — budget des noms de tests français ×3 (mes 
 français), `tests_test_layout` (`wama/common/privacy/` non suivi d'une autre session) ;
 `check_redundancy` 89, 0 dans mes fichiers ; `check_docs` 0 cassée, 1 périmée (pas à moi) ;
 `doc_facts` à jour ; `check_skills` sans défaut. 🔚 rien de ce périmètre ; reste à pousser.
+Puis, à la demande de Fabien, la limite est soldée : « Modifier mon profil » (`UserEdit.form_valid`)
+refuse un email déjà porté par un autre compte, par le même `_email_taken`. Mesuré : `wama.accounts`
+204 tests OK ; contre-épreuve rouge (`_email_taken` neutralisé → les deux gardes de l'email
+rougissent). Effet visible au prochain relancement de gunicorn.

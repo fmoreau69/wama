@@ -91,6 +91,24 @@ class UserEditTest(TestCase):
         self.client.post('/accounts/users/new/', {'username': 'edit_nopw'})
         self.assertFalse(User.objects.get(username='edit_nopw').has_usable_password())
 
+    def test_editing_ones_own_profile_refuses_an_email_held_by_another_account(self):
+        self.client.force_login(self.local)
+        response = self.client.post('/accounts/user/edit', {'first_name': 'Ancien',
+                                                            'email': 'dir@example.org'})
+        self.assertEqual(response.status_code, 200)             # le formulaire revient, en erreur
+        self.assertIn('Cet email est déjà utilisé', response.content.decode())
+        self.local.refresh_from_db()
+        self.assertEqual(self.local.email, 'local@example.org')
+
+    def test_editing_ones_own_profile_keeps_or_changes_ones_own_email(self):
+        self.client.force_login(self.local)
+        self.assertEqual(self.client.post('/accounts/user/edit', {
+            'first_name': 'Gardé', 'email': 'local@example.org'}).status_code, 302)
+        self.assertEqual(self.client.post('/accounts/user/edit', {
+            'first_name': 'Gardé', 'email': 'libre@example.org'}).status_code, 302)
+        self.local.refresh_from_db()
+        self.assertEqual((self.local.first_name, self.local.email), ('Gardé', 'libre@example.org'))
+
     def test_the_page_offers_the_pen_on_each_account_but_anonymous(self):
         User.objects.get_or_create(username='anonymous')
         html = self.client.get('/accounts/users/').content.decode()

@@ -172,6 +172,14 @@ class UserEdit(UpdateView):
                 field.label = 'Email'
         return form
 
+    def form_valid(self, form):
+        # Le refus de l'ajout et du stylo (`_email_taken`) : un email déjà porté par un AUTRE compte.
+        email = form.cleaned_data.get('email')
+        if email and _email_taken(email, exclude_pk=self.object.pk):
+            form.add_error('email', 'Cet email est déjà utilisé')
+            return self.form_invalid(form)
+        return super().form_valid(form)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         user = self.object
