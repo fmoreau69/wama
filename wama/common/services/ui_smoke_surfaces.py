@@ -487,6 +487,19 @@ _SAFE_AREA_JS = """() => {
     });
     return faults; }"""
 
+#: Le cadre des bords à l'écran (où viser un glisser).
+_FRAME_BOX_JS = """() => { const r = document.querySelector('.wama-dock-frame').getBoundingClientRect();
+    return {x: r.left, y: r.top, w: r.width, h: r.height}; }"""
+
+#: Ce que montre un glisser en cours : la bande de bord active, le repère, la pastille.
+_DROP_SHOWN_JS = """() => {
+    const f = document.querySelector('.wama-dock-frame');
+    const active = f.querySelector('.wama-dock-zone.is-active');
+    const hint = f.querySelector('.wama-dock-hint'), chip = f.querySelector('.wama-dock-chip');
+    return {dropping: f.classList.contains('is-dropping'), zone: active ? active.dataset.edge : '',
+            hint: !!hint && getComputedStyle(hint).display !== 'none',
+            chip: chip && getComputedStyle(chip).display !== 'none' ? chip.textContent : ''}; }"""
+
 #: Marque une section (titre + corps d'une brique) pour vérifier ensuite que c'est la MÊME.
 _MARK_SECTION_JS = """(id) => {
     const s = document.querySelector('.wama-brick-section[data-slot="' + id + '"]');
@@ -534,6 +547,20 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
 
     def pick(text):
         page.locator('.wama-card-menu button.wama-cm-item', has_text=text).first.click()
+
+    def drag(slot_id, to):
+        """Glisse un panneau par son titre jusqu'à `to` (x, y) ; rend ce que la page MONTRAIT
+        juste avant le lâcher (bande active, repère, pastille)."""
+        title = page.locator(f'.wama-brick-section[data-slot="{slot_id}"] > .wama-brick-head '
+                             f'.wama-brick-title').first
+        b = title.bounding_box()
+        page.mouse.move(b['x'] + 4, b['y'] + b['height'] / 2)
+        page.mouse.down()
+        page.mouse.move(to[0], to[1], steps=14)
+        page.wait_for_timeout(250)
+        shown = page.evaluate(_DROP_SHOWN_JS)
+        page.mouse.up()
+        return shown
 
     def open_page():
         page.goto(url, wait_until='load', timeout=45000)
@@ -685,6 +712,40 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         pick('Dans la page')
         settle('rendre à la page')
 
+        # Le GLISSER-DÉPOSER (2026-10-27, Fabien : « par simple drag&drop aux extrémités de la
+        # zone centrale, on visualise directement si l'élément va se fixer ») : les mêmes gestes
+        # que les menus, à la souris — au bord, à côté, rendu à la page, empilé.
+        frame = lambda: page.evaluate(_FRAME_BOX_JS)
+        f = frame()
+        shown = drag(third, (f['x'] + f['w'] / 2, f['y'] + 8))
+        kept, now = settle('glisser au bord du haut'), state()
+        verdict(shown.get('dropping') and shown.get('zone') == 'top' and 'haut' in shown.get('chip', '')
+                and (now['panels'].get(third) or {}).get('docked') == 'top'
+                and kept.get('docked') == {'top': [[third]], 'bottom': [[first]]},
+                f"glisser au bord : la bande du haut s'éclaire, la pastille le dit, lâché il s'y "
+                f"épingle ({shown}, {kept.get('docked')})")
+        box = now['panels'][first]['rect']
+        shown = drag(third, (box[2] - (box[2] - box[0]) * 0.1, (box[1] + box[3]) / 2))
+        kept, now = settle('glisser à côté'), state()
+        verdict(shown.get('hint') and 'À côté' in shown.get('chip', '')
+                and kept.get('docked') == {'bottom': [[first, third]]},
+                f"glisser sur le côté d'un panneau épinglé : à côté, dans sa ligne ({shown}, "
+                f"{kept.get('docked')})")
+        f = frame()
+        shown = drag(third, (f['x'] + f['w'] / 2, f['y'] + f['h'] * 0.4))
+        kept, now = settle('glisser dans la page'), state()
+        verdict('page' in shown.get('chip', '') and kept.get('docked') == {'bottom': [[first]]}
+                and not (now['panels'].get(third) or {}).get('fixed'),
+                f"un panneau épinglé glissé dans la page y revient ({shown}, {kept.get('docked')})")
+        box = now['panels'][first]['rect']
+        shown = drag(third, ((box[0] + box[2]) / 2, (box[1] + box[3]) / 2))
+        kept, now = settle('glisser au centre'), state()
+        verdict(shown.get('hint') and 'Empiler' in shown.get('chip', '')
+                and [e['id'] for e in (kept.get('stacks') or {}).get(first, [])] == [first, second, third]
+                and (now['panels'].get(first) or {}).get('fixed'),
+                f"glisser au centre d'un panneau épinglé : empilé dedans ({shown}, "
+                f"{kept.get('stacks')})")
+
         # Téléphone : une colonne fixe n'y a pas sa place — le panneau reste dans la page, et
         # rien n'est réécrit (le bord reste gardé pour la fenêtre large).
         press(first, 'fa-thumbtack')
@@ -736,7 +797,8 @@ def register_surface_scenarios():
                      "défaut » défait les piles et garde l'épinglage ; téléphone : la colonne "
                      "reste dans la page ; après CHAQUE geste, rien d'épinglé sous l'en-tête, le "
                      "pied ou un volet, aucune brique écrasée — une pile épinglée retouchée garde "
-                     "sa bande"),
+                     "sa bande ; « à côté » sur une ligne ; GLISSER à la souris : au bord, à côté, "
+                     "rendu à la page, empilé, chacun annoncé avant le lâcher"),
         run=lambda ctx: check_surface_stack(),
         timeout_s=240, vram_gb=0.0,
     )

@@ -101,6 +101,26 @@
 .wama-dock-row > .grid-stack-item > .grid-stack-item-content {
   position: absolute; inset: 0; border-radius: 0; box-shadow: 0 0 .75rem rgba(var(--wama-overlay-rgb), .25);
 }
+/* GLISSER-DÉPOSER vers les bords (2026-10-27) : pendant qu'on glisse un panneau, les bandes des
+   bords s'éclairent (celle qui épinglerait, plus fort), un repère montre le panneau où l'on
+   empilerait ou la moitié où l'on poserait à côté, et une pastille DIT ce que fera le lâcher.
+   Tous dans le cadre : rien ne se dessine sous l'en-tête, le pied ou un volet. */
+.wama-dock-zone, .wama-dock-hint, .wama-dock-chip { position: absolute; pointer-events: none; display: none; }
+.wama-dock-frame.is-dropping .wama-dock-zone:not(.is-off),
+.wama-dock-frame.is-dropping .wama-dock-hint.is-shown,
+.wama-dock-frame.is-dropping .wama-dock-chip { display: block; }
+.wama-dock-zone { z-index: 2; background: rgba(var(--wama-accent-rgb), .07);
+  border: 1px dashed rgba(var(--wama-accent-rgb), .45); border-radius: .4rem; }
+.wama-dock-zone.is-active { background: rgba(var(--wama-accent-rgb), .25); border-style: solid; }
+.wama-dock-zone[data-edge="top"] { top: 0; left: 0; right: 0; height: 56px; }
+.wama-dock-zone[data-edge="bottom"] { bottom: 0; left: 0; right: 0; height: 56px; }
+.wama-dock-zone[data-edge="left"] { top: 0; bottom: 0; left: 0; width: 56px; }
+.wama-dock-zone[data-edge="right"] { top: 0; bottom: 0; right: 0; width: 56px; }
+.wama-dock-hint { z-index: 3; background: rgba(var(--wama-accent-rgb), .2);
+  border: 2px solid var(--wama-accent); border-radius: .4rem; }
+.wama-dock-chip { z-index: 4; padding: .15rem .55rem; font-size: .75rem;
+  white-space: nowrap; border-radius: 1rem; background: var(--wama-accent); color: var(--wama-text-on-bright); }
+.wama-dock-row > .grid-stack-item.is-dragging { opacity: .55; }
 .wama-surface-page { padding-top: calc(.5rem + var(--wama-dock-top, 0px));
   padding-bottom: calc(2rem + var(--wama-dock-bottom, 0px));
   padding-left: var(--wama-dock-left, 0px); padding-right: var(--wama-dock-right, 0px); }

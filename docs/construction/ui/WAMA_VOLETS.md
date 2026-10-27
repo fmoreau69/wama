@@ -310,8 +310,26 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   l'ancien Python jusqu'à sa relance) ; deux contre-épreuves rouges de plus (« à côté » ignoré,
   taille remesurée). Vu à l'écran sur la correction du transcriber : ligne de temps, puis transport
   + écriture sur une ligne, au-dessus du pied, rendus tels quels au rechargement.
-- ⏳ **Suite décidée le 2026-10-27** (Fabien, « tu peux dérouler le plan ») : ③ le GLISSER-DÉPOSER magnétique vers les bords et sur un panneau
-  (empiler au centre, à côté sur un côté) ; ④ les boutons d'atelier remplacés par UN menu « ⋯ »
+- **Le GLISSER-DÉPOSER vers les bords — ✅ 2026-10-27** (Fabien : *« par simple drag&drop aux
+  extrémités de la zone centrale (haut/bas/gauche/droite), on visualise directement si l'élément
+  va se fixer […] et de même pour l'empilement, avec la possibilité d'empiler aussi
+  latéralement »*). Pendant qu'on glisse un panneau — de la page (le glisser de gridstack,
+  inchangé) ou déjà épinglé (par son titre) —, les bandes des bords s'éclairent (celle qui
+  épinglerait plus fort), au-dessus d'un panneau épinglé son CENTRE empile et ses CÔTÉS posent à
+  côté (avant ou après lui ; dessus et dessous dans une colonne), et une pastille DIT ce que fera
+  le lâcher (« Épingler en bas de la fenêtre », « À côté de « Transport » », « Empiler dans… »,
+  « Remettre dans la page »). Lâché ailleurs, un panneau épinglé revient dans la page ; relâché
+  sur lui-même, il reste. Le lâcher passe par les MÊMES gestes que les menus (`Docks.put`,
+  `join`) ; le pointeur est suivi par la brique commune `WamaGestures.track` (souris, stylet,
+  doigt) — l'événement `drag` de gridstack ne part qu'aux changements de cellule, mesuré arrêté à
+  200 px du bord visé. Repères et pastille vivent DANS le cadre : ils ne passent pas plus sous
+  l'en-tête qu'un panneau. Disposition figée : rien ne se glisse. Dans la page, la grille
+  magnétique garde la main. Gardes : `test_dragging_a_panel_to_an_edge_goes_through_the_common_gestures`
+  et le « avant » au V8 ; `common.surface_stack` **19/19** — quatre glisser réels à la souris
+  (au bord du haut, à côté, rendu à la page, empilé), chacun vérifié sur ce que la page MONTRAIT
+  avant le lâcher puis sur ce qui est gardé ; deux contre-épreuves rouges (lâcher ignoré, pointeur
+  non suivi). Vu à l'écran sur la correction du transcriber.
+- ⏳ **Suite décidée le 2026-10-27** (Fabien, « tu peux dérouler le plan ») : ④ les boutons d'atelier remplacés par UN menu « ⋯ »
   (gardé pour la disposition figée, le clavier, le tactile et les scénarios) ; le mode simplifié
   remplacé par un bouton d'en-tête qui replie les deux volets + « Joindre » dans le chat (§7).
 - ⏳ Reste de `WAMA_DATA_WORLD §8.2 ⑤` (« layout dockable + détachement en vraie fenêtre ») : le

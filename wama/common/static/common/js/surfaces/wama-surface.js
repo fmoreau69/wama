@@ -163,14 +163,15 @@
             });
             return out;
         },
-        /** Épingle un panneau : à CÔTÉ de `beside` (dans sa ligne, juste après), sinon sur une
-         *  ligne neuve au bord EXTÉRIEUR — le plus près du bord de la fenêtre. */
-        put: function (docked, key, edge, beside) {
+        /** Épingle un panneau : à CÔTÉ de `beside` (dans sa ligne, juste après — juste avant si
+         *  `before`), sinon sur une ligne neuve au bord EXTÉRIEUR — le plus près du bord de la
+         *  fenêtre. */
+        put: function (docked, key, edge, beside, before) {
             var out = Docks.without(docked, key);
             var rows = out[edge] = out[edge] || [];
             for (var i = 0; beside && i < rows.length; i++) {
                 var at = rows[i].indexOf(beside);
-                if (at >= 0) { rows[i].splice(at + 1, 0, key); return out; }
+                if (at >= 0) { rows[i].splice(before ? at : at + 1, 0, key); return out; }
             }
             if (edge === 'bottom' || edge === 'right') rows.push([key]); else rows.unshift([key]);
             return out;
@@ -1050,6 +1051,164 @@
             });
         }
         global.addEventListener('resize', function () { if (Object.keys(frames).length) applyDocks(); });
+
+        // ── GLISSER-DÉPOSER vers les bords (2026-10-27, Fabien : « par simple drag&drop aux
+        // extrémités de la zone centrale, on visualise directement si l'élément va se fixer […]
+        // et de même pour l'empilement, avec la possibilité d'empiler aussi latéralement »).
+        // Pendant qu'on glisse un panneau — de la page (le glisser de gridstack) ou déjà épinglé
+        // (par son titre, `WamaGestures.track`) —, les bords de la zone centrale s'éclairent ;
+        // au-dessus d'un panneau épinglé, son centre EMPILE, ses côtés posent À CÔTÉ ; lâché
+        // ailleurs, un panneau épinglé revient dans la page. Les MÊMES gestes que les menus
+        // (`Docks.put`, `join`) : le glisser n'est qu'un autre chemin vers eux. Dans la page,
+        // rien ne change — la grille magnétique garde la main. Tout se dessine DANS le cadre :
+        // un repère ne passe pas plus sous l'en-tête qu'un panneau.
+        var EDGE_ZONE = 56;                 // px : la bande d'un bord qui épingle
+        var EDGE_FIRST = 16;                // px : au plus près du bord, le bord l'emporte sur un panneau
+        var dropZones = {};
+        Object.keys(regions).forEach(function (edge) {
+            var zone = document.createElement('div');
+            zone.className = 'wama-dock-zone';
+            zone.dataset.edge = edge;
+            dockFrame.appendChild(zone);
+            dropZones[edge] = zone;
+        });
+        var dropHint = document.createElement('div');
+        dropHint.className = 'wama-dock-hint';
+        var dropChip = document.createElement('div');
+        dropChip.className = 'wama-dock-chip';
+        dockFrame.appendChild(dropHint);
+        dockFrame.appendChild(dropChip);
+        var dropping = null;                // {key, fromDock, target}
+
+        function edgeAllowed(edge) {
+            return DOCK_CHOICES.some(function (c) { return c[0] === edge; })
+                && !(SIDES.indexOf(edge) >= 0 && !onFullGrid());
+        }
+        /** Ce qu'un lâcher ferait en (x, y) : `{kind: 'edge' | 'stack' | 'beside', …, rect, said}`,
+         *  ou null (dans la page). Les rectangles sont relatifs au cadre. */
+        function dropTarget(x, y, key) {
+            var f = dockFrame.getBoundingClientRect();
+            if (x < f.left || x > f.right || y < f.top || y > f.bottom) return null;
+            var dist = { top: y - f.top, bottom: f.bottom - y, left: x - f.left, right: f.right - x };
+            var near = '';
+            Object.keys(dist).forEach(function (edge) {
+                if (edgeAllowed(edge) && dist[edge] <= EDGE_ZONE && (!near || dist[edge] < dist[near])) near = edge;
+            });
+            function edgeTarget() {
+                return { kind: 'edge', edge: near, said: DOCK_SAID[near].replace('Épinglé', 'Épingler') };
+            }
+            if (near && dist[near] <= EDGE_FIRST) return edgeTarget();
+            var items = dockFrame.querySelectorAll('.wama-dock-row > .grid-stack-item');
+            for (var i = 0; i < items.length; i++) {
+                var el = items[i], other = el.dataset.panel, r = el.getBoundingClientRect();
+                if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+                // Relâché sur lui-même : il reste où il est (un titre à peine bougé ne désépingle pas).
+                if (other === key) return { kind: 'stay', said: labelOf(key) };
+                var column = SIDES.indexOf(el.dataset.docked) >= 0;
+                var t = column ? (y - r.top) / r.height : (x - r.left) / r.width;
+                var box = { left: r.left - f.left, top: r.top - f.top, width: r.width, height: r.height };
+                if (t > 0.3 && t < 0.7) {
+                    return { kind: 'stack', other: other, rect: box,
+                             said: 'Empiler dans « ' + labelOf(other) + ' »' };
+                }
+                var before = t <= 0.3;
+                if (column) {
+                    box.height /= 2;
+                    if (!before) box.top += box.height;
+                } else {
+                    box.width /= 2;
+                    if (!before) box.left += box.width;
+                }
+                return { kind: 'beside', other: other, edge: el.dataset.docked, before: before, rect: box,
+                         said: 'À côté de « ' + labelOf(other) + ' »' };
+            }
+            return near ? edgeTarget() : null;
+        }
+        function showDrop(x, y) {
+            var t = dropping.target;
+            Object.keys(dropZones).forEach(function (edge) {
+                dropZones[edge].classList.toggle('is-off', !edgeAllowed(edge));
+                dropZones[edge].classList.toggle('is-active', !!t && t.kind === 'edge' && t.edge === edge);
+            });
+            dropHint.classList.toggle('is-shown', !!(t && t.rect));
+            if (t && t.rect) {
+                dropHint.style.left = t.rect.left + 'px';
+                dropHint.style.top = t.rect.top + 'px';
+                dropHint.style.width = t.rect.width + 'px';
+                dropHint.style.height = t.rect.height + 'px';
+            }
+            var f = dockFrame.getBoundingClientRect();
+            dropChip.textContent = t ? t.said : (dropping.fromDock ? 'Remettre dans la page' : labelOf(dropping.key));
+            // En haut à gauche du pointeur — le panneau glissé, saisi par son titre, s'étend vers la
+            // droite et le bas —, et toujours DANS le cadre.
+            var w = dropChip.offsetWidth, h = dropChip.offsetHeight, gap = 12;
+            var left = x - f.left - w - gap, top = y - f.top - h - gap;
+            if (left < 0) left = x - f.left + gap;
+            if (top < 0) top = y - f.top + gap;
+            dropChip.style.left = Math.max(0, Math.min(left, f.width - w)) + 'px';
+            dropChip.style.top = Math.max(0, Math.min(top, f.height - h)) + 'px';
+        }
+        function startDrop(key, fromDock) {
+            if (layout.frozen || !key) return;
+            dropping = { key: key, fromDock: fromDock, target: null };
+            dockFrame.classList.add('is-dropping');
+        }
+        function moveDrop(x, y) {
+            if (!dropping) return;
+            dropping.target = dropTarget(x, y, dropping.key);
+            showDrop(x, y);
+        }
+        function endDrop() {
+            var d = dropping;
+            dropping = null;
+            dockFrame.classList.remove('is-dropping');
+            if (!d) return;
+            var t = d.target;
+            if (!t) { if (d.fromDock) redock(Docks.without(layout.docked, d.key)); return; }
+            if (t.kind === 'stay') return;
+            if (t.kind === 'stack') join(t.other, d.key);
+            else if (t.kind === 'beside') redock(Docks.put(layout.docked, d.key, t.edge, t.other, t.before));
+            else redock(Docks.put(layout.docked, d.key, t.edge));
+        }
+        // Un panneau de la PAGE : gridstack mène le glisser (`dragstart` / `dragstop`) ; le
+        // pointeur se suit au geste commun — l'événement `drag` de gridstack ne part qu'aux
+        // changements de cellule (mesuré : arrêté à 200 px du bord visé, la page ne pouvant
+        // monter plus haut). La page a fini de bouger quand il se pose : le lâcher s'applique
+        // juste après.
+        zones.forEach(function (g) {
+            g.on('dragstart', function (e, el) { startDrop(el && el.dataset.panel, false); });
+            g.on('dragstop', function () { setTimeout(endDrop, 0); });
+            if (global.WamaGestures) {
+                global.WamaGestures.track(g.el, {
+                    touchAction: false, threshold: 0,
+                    start: function (ev) {
+                        return !layout.frozen && ev.target.closest('.wama-brick-head') ? {} : false;
+                    },
+                    move: function (ev) { if (dropping && !dropping.fromDock) moveDrop(ev.clientX, ev.clientY); },
+                });
+            }
+        });
+        // Un panneau ÉPINGLÉ : par son titre (ni ses boutons ni ses champs), au geste commun.
+        if (global.WamaGestures) {
+            global.WamaGestures.track(dockFrame, {
+                touchAction: false, threshold: 6,
+                start: function (ev) {
+                    if (layout.frozen || ev.target.closest('button, select, input, textarea, a')) return false;
+                    var head = ev.target.closest('.wama-brick-head');
+                    var el = head && head.closest('.wama-dock-row > .grid-stack-item');
+                    return el ? { el: el } : false;
+                },
+                move: function (ev, c) {
+                    if (!dropping) { startDrop(c.el.dataset.panel, true); c.el.classList.add('is-dragging'); }
+                    moveDrop(ev.clientX, ev.clientY);
+                },
+                end: function (ev, c, how) {
+                    c.el.classList.remove('is-dragging');
+                    if (how.cancelled) { dropping = null; dockFrame.classList.remove('is-dropping'); return; }
+                    if (how.moved) endDrop();
+                },
+            });
+        }
 
         function layoutNow() {
             var out = {};

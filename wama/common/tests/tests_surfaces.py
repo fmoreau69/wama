@@ -420,8 +420,33 @@ class SurfaceLayoutTest(TestCase):
                           # the shape served by a server not yet reloaded is read as rows
                           {'bottom': [['transport']]},
                           {'bottom': [['timeline'], ['transport', 'writing']]}], got)
+        self.assertEqual({'bottom': [['writing', 'transport']]}, json.loads(engine.eval(
+            "JSON.stringify(window.WamaSurface.docks.put({bottom: [['transport']]}, 'writing', "
+            "'bottom', 'transport', true))")), 'dropped on the left side: before it')
         writing = _js('common/js/surfaces/brick-playback-writing.js')
         self.assertIn("rowWidth: '17rem'", writing, 'a menu does not need the whole row')
+
+    def test_dragging_a_panel_to_an_edge_goes_through_the_common_gestures(self):
+        """2026-10-27, Fabien: « par simple drag&drop aux extrémités de la zone centrale, on
+        visualise directement si l'élément va se fixer ». The pointer is followed by the common
+        brick (`WamaGestures.track`: the page panel's drag is gridstack's, the pinned one's is
+        ours), never by listeners of the kernel's own; every cue is drawn INSIDE the frame; a drop
+        goes through the very gestures of the menus."""
+        kernel = _js('common/js/surfaces/wama-surface.js')
+        self.assertEqual(2, kernel.count('global.WamaGestures.track('))
+        # (`toolButton` keeps its `mousedown` stopper: a press on a title button is not a drag.)
+        for raw in ("addEventListener('pointermove'", "addEventListener('mousemove'",
+                    "addEventListener('touchmove'", "addEventListener('touchstart'"):
+            self.assertNotIn(raw, kernel)
+        for cue in ('dockFrame.appendChild(zone)', 'dockFrame.appendChild(dropHint)',
+                    'dockFrame.appendChild(dropChip)'):
+            self.assertIn(cue, kernel, 'a cue never goes under the header, the footer or a panel')
+        drop = kernel.split('function endDrop()', 1)[1].split('\n        }\n', 1)[0]
+        for gesture in ('join(t.other, d.key)', 'Docks.put(layout.docked, d.key, t.edge, t.other, t.before)',
+                        'Docks.put(layout.docked, d.key, t.edge)', 'Docks.without(layout.docked, d.key)'):
+            self.assertIn(gesture, drop)
+        self.assertIn("g.on('dragstart'", kernel)
+        self.assertIn('if (layout.frozen || !key) return;', kernel, 'a frozen layout does not move')
         css = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'css'
                / 'wama-surface.css').read_text(encoding='utf-8')
         self.assertIn('.is-fit:not(:only-child) { flex: 0 0 var(--wama-fit-width); }', css,
