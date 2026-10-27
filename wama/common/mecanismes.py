@@ -2727,6 +2727,16 @@ MECHANISMS = (
               "réécrit ni ne retire jamais un fichier réel",
               'wama/common/runners.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §①bis',
               annexes=('wama/common/tests/tests_media_tests_hygiene.py',)),
+    Mechanism('media_guard', 'Garde-fou des médias (processus)',
+              "Posé par `CommonConfig.ready()` dans TOUT processus Django (gunicorn, Celery, "
+              "commandes, scripts `django.setup()`, tests) : `shutil.rmtree` refuse, par "
+              "`PermissionError` que `ignore_errors` n'avale pas, d'effacer la racine des médias "
+              "lue au démarrage, `users/`, `media_library/` ou un dossier qui les contient. Né de "
+              "la perte TOTALE du 2026-10-27 (un `setUp` qui effaçait `settings.MEDIA_ROOT`, lancé "
+              "hors du lanceur de tests). Le pendant AST, dans les tests d'hygiène, interdit de "
+              "passer `MEDIA_ROOT` à un `rmtree`",
+              'wama/common/utils/media_guard.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §10',
+              annexes=('wama/common/tests/tests_media_guard.py',)),
     Mechanism('video_utils', 'Utilitaires vidéo',
               "Extraction audio des vidéos + téléchargement YouTube/yt-dlp",
               'wama/common/utils/video_utils.py', ''),

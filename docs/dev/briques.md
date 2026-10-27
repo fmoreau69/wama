@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**213 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**214 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -2925,6 +2925,16 @@ Profils DÉCLARÉS (bruit rose à un rapport signal/bruit donné, champ lointain
   - `add_noise(wave, sr: int, snr_db: float, rng) -> np.ndarray` — Ajoute un bruit rose tel que parole active / bruit = `snr_db`.
   - `reverberate(wave, sr: int, rt60_s: float, rng) -> np.ndarray` — Réverbération synthétique : réponse impulsionnelle = trajet direct + queue de bruit à
   - `degrade(wave, sr: int, profile: str) -> np.ndarray` — Applique le profil déclaré `profile` : réverbération, puis bruit, puis atténuation ;
+
+### Garde-fou des médias (processus)
+
+Posé par `CommonConfig.ready()` dans TOUT processus Django (gunicorn, Celery, commandes, scripts `django.setup()`, tests) : `shutil.rmtree` refuse, par `PermissionError` que `ignore_errors` n'avale pas, d'effacer la racine des médias lue au démarrage, `users/`, `media_library/` ou un dossier qui les contient. Né de la perte TOTALE du 2026-10-27 (un `setUp` qui effaçait `settings.MEDIA_ROOT`, lancé hors du lanceur de tests). Le pendant AST, dans les tests d'hygiène, interdit de passer `MEDIA_ROOT` à un `rmtree`
+
+- **Domicile** : `wama/common/utils/media_guard.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §10](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
+- **Module** : Garde-fou PROCESSUS : aucun `shutil.rmtree` ne peut effacer `media/` en bloc.
+- **API publique** (2) :
+  - `refusal(path, roots=None) -> str` — La raison de refuser d'effacer `path` en bloc, ou '' s'il peut l'être.
+  - `install(media_root) -> bool` — Protège `media_root` dans ce processus. Idempotent ; rend True si la garde est en place.
 
 ### Grille des temps d'un audio
 

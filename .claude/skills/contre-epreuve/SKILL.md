@@ -61,6 +61,14 @@ print('COUNTERPROOF <nom>: failures =', failures,
       '->', 'RED as expected' if failures else 'STILL GREEN (tests aveugles !)')
 ```
 
+- 🔴 **TOUJOURS par `get_runner(settings)` — JAMAIS `unittest.TextTestRunner`, `suite.run()` ni
+  `TestCase(...).run()`** (perte TOTALE des médias le 2026-10-27). Seul le lanceur WAMA redirige
+  `MEDIA_ROOT` vers `media_tests/` et monte une base de TEST : un test lancé hors de lui tourne sur
+  le vrai `media/` et la vraie base. Un `setUp` qui programmait `rmtree(settings.MEDIA_ROOT)` a
+  ainsi effacé les médias de tous les utilisateurs (restaurés depuis le NAS ; perdu ce qui datait
+  d'après la sauvegarde de la nuit). Depuis : `common/utils/media_guard.py` refuse tout
+  `rmtree` de `media/` dans tout processus Django, et `tests_media_tests_hygiene` interdit le
+  motif — mais le lanceur reste la règle, la garde n'est qu'un filet.
 - Le script vit dans le **scratchpad de session**, se lance depuis la racine, et se **supprime
   après** (il ne se commite jamais — et on ne l'écrit pas par son chemin dans une doc, cf. le
   piège `check_docs` du `/cloture §3`).

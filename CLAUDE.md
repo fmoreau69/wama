@@ -14,7 +14,8 @@
 ## Ce que porte `AGENTS.md` (index, pas un résumé)
 
 Philosophie en 6 points · vérifier la route avant de PROPOSER · discipline git
-multi-instances · patches de venv · nommage des dossiers et langue des identifiants ·
+multi-instances · un test ne tourne que par le lanceur WAMA (`media/` ne s'efface jamais) ·
+patches de venv · nommage des dossiers et langue des identifiants ·
 un monde n'est pas un sous-dossier du substrat · pas de `.md` concurrent (+ table des
 fichiers de référence par domaine) · centralisation dans `common/` · librairies et modèles
 par la route d'installation, aucune dérive · ajout d'un modèle AI · conventions UI &

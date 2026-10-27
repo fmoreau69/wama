@@ -218,6 +218,30 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
 
 ---
 
+## 🔴 RÈGLE OBLIGATOIRE : UN TEST NE TOURNE QUE PAR LE LANCEUR WAMA — `media/` NE S'EFFACE JAMAIS
+
+> **2026-10-27 : les médias de TOUS les utilisateurs ont été effacés**, puis restaurés depuis le
+> NAS — ce qui datait d'après la sauvegarde de la nuit est perdu. Un test (`SurfaceLayoutTest`)
+> empruntait le `setUp` d'une autre classe sans son `override_settings(MEDIA_ROOT=…)`, et ce
+> `setUp` programmait `rmtree(settings.MEDIA_ROOT)`. Un script de contre-épreuve l'a lancé par
+> `unittest.TextTestRunner` après `django.setup()` : sur les vrais réglages, donc le vrai `media/`.
+
+- **Un test se lance par `manage.py test` ou `get_runner(settings)`, JAMAIS par `unittest`
+  directement** (`TextTestRunner`, `suite.run()`, `TestCase(...).run()`) : seul le lanceur WAMA
+  redirige `MEDIA_ROOT` vers `media_tests/` et monte une base de TEST. Hors de lui, un `TestCase`
+  écrit et efface dans le vrai `media/` et la vraie base.
+- **Un dossier jetable s'efface par le CHEMIN qu'on a créé, jamais par `settings.MEDIA_ROOT` lu au
+  nettoyage** — ce réglage désigne ce que le processus croit être les médias, et ce n'est pas
+  toujours un dossier de test.
+- **Tenu par deux contrôles** : `common/utils/media_guard.py` (posé par `CommonConfig.ready()`,
+  donc dans TOUT processus Django) refuse avec `PermissionError` tout `shutil.rmtree` de `media/`,
+  de `users/`, de `media_library/` ou d'un dossier qui les contient ; `tests_media_tests_hygiene`
+  relève par AST tout `rmtree` qui reçoit `MEDIA_ROOT`. Le filet ne dispense pas de la règle : il
+  ne voit ni un `rm -rf` de shell, ni une boucle de `unlink`.
+- Détail, restauration et ce qui a été perdu : `docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §10`.
+
+---
+
 ## 🔴 RÈGLE OBLIGATOIRE : PATCHES DE COMPATIBILITÉ VENV → `patches/apply_patches.py`
 
 > **Toute correction manuelle dans `venv_linux/` ou `venv_win/` DOIT être ajoutée à `patches/apply_patches.py`.**

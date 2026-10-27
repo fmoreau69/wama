@@ -61,6 +61,68 @@ class BalayageDesRunsOrphelinsTest(SimpleTestCase):
         self.assertTrue(etranger.exists())
 
 
+def _names_media_root(node) -> bool:
+    """`settings.MEDIA_ROOT`, possibly wrapped (`Path(…)`, `str(…)`, `Path(…).resolve()`)."""
+    import ast
+    while True:
+        if isinstance(node, ast.Attribute) and node.attr == 'MEDIA_ROOT':
+            return True
+        if isinstance(node, ast.Call) and len(node.args) == 1:   # `os.path.join(…, 'x')` : a child
+            node = node.args[0]
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+            node = node.func.value
+        else:
+            return False
+
+
+def _media_root_removals(source: str) -> list:
+    """Lines where `MEDIA_ROOT`, read at that moment, is handed to `rmtree` — called directly or
+    registered with `addCleanup` / `addClassCleanup`."""
+    import ast
+    lines = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        name = getattr(node.func, 'attr', getattr(node.func, 'id', ''))
+        if name == 'rmtree' and node.args and _names_media_root(node.args[0]):
+            lines.append(node.lineno)
+        elif (name in ('addCleanup', 'addClassCleanup') and len(node.args) >= 2
+              and getattr(node.args[0], 'attr', getattr(node.args[0], 'id', '')) == 'rmtree'
+              and _names_media_root(node.args[1])):
+            lines.append(node.lineno)
+    return lines
+
+
+class NothingRemovesMediaRootReadOnTheFlyTest(SimpleTestCase):
+    """2026-10-27 : every user's media was deleted by `addCleanup(shutil.rmtree,
+    settings.MEDIA_ROOT, True)` in a test class that had lost its `override_settings`, run by a
+    script outside the test runner. Whatever MEDIA_ROOT names at that moment gets removed : the
+    throwaway folder is removed by the PATH the test created, never by the setting."""
+
+    def test_no_code_hands_media_root_to_rmtree(self):
+        base = Path(settings.BASE_DIR)
+        found = []
+        for root in ('wama', 'wama_lab', 'wama_data'):
+            for path in (base / root).rglob('*.py'):
+                if 'migrations' in path.parts or 'vendor' in path.parts:
+                    continue
+                source = path.read_text(encoding='utf-8', errors='replace')
+                if 'MEDIA_ROOT' not in source or 'rmtree' not in source:
+                    continue
+                found += [f'{path.relative_to(base)}:{n}' for n in _media_root_removals(source)]
+        self.assertEqual([], found)
+
+    def test_the_scan_sees_each_form_of_the_fault(self):
+        for line in ('shutil.rmtree(settings.MEDIA_ROOT)',
+                     'shutil.rmtree(Path(settings.MEDIA_ROOT).resolve(), ignore_errors=True)',
+                     'self.addCleanup(shutil.rmtree, settings.MEDIA_ROOT, True)',
+                     'self.addCleanup(rmtree, str(settings.MEDIA_ROOT))'):
+            self.assertEqual([1], _media_root_removals(line), line)
+        for line in ('self.addCleanup(shutil.rmtree, self.media, True)',
+                     "shutil.rmtree(os.path.join(settings.MEDIA_ROOT, 'smoke'))"):
+            self.assertEqual([], _media_root_removals(line), line)
+
+
 class LesTemoinsSeReconnaissentAuNomTest(TestCase):
     def test_la_fixture_du_studio_vit_chez_le_compte_de_test_et_porte_le_prefixe(self):
         from wama.studio import nightly_scenarios as ns
