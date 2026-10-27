@@ -338,15 +338,20 @@ class SurfaceLayoutTest(TestCase):
         from pathlib import Path
         css = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'css'
                / 'wama-surface.css').read_text(encoding='utf-8')
-        def rules(selector):            # every rule that names it (one is shared top/bottom)
-            return ' '.join(b.split('}', 1)[0] for b in css.split(selector + ' {')[1:])
-        top, bottom = rules('.is-docked-top'), rules('.is-docked-bottom')
-        self.assertIn('top: calc(var(--fm-header-height', top)
-        self.assertIn('bottom: calc(var(--fm-footer-height', bottom)
-        side = css.split('.is-docked-left, .grid-stack > .grid-stack-item.is-docked-right {', 1)[1]
-        side = side.split('}', 1)[0]
-        self.assertIn('top: calc(var(--fm-header-height', side, 'a column stops under the header')
-        self.assertIn('bottom: calc(var(--fm-footer-height', side)
+        frame = css.split('.wama-dock-frame {', 1)[1].split('}', 1)[0]
+        for bound in ('top: var(--fm-header-height', 'bottom: var(--fm-footer-height',
+                      'left: var(--wama-left-gutter', 'right: var(--wama-right-gutter'):
+            self.assertIn(bound, frame)
+        # 2026-10-27, Fabien: « une garde permanente pour ne jamais avoir d'élément masqué par le
+        # header ou le pied de page ». The FRAME is the only fixed element of a surface: a pinned
+        # panel is laid out inside it, never placed on its own over the page.
+        rules = [b.split('{', 1)[0].strip() for b in css.split('}') if 'position: fixed' in b]
+        self.assertEqual(['.wama-dock-frame'], [r.split('\n')[-1].strip() for r in rules])
+        kernel = _js('common/js/surfaces/wama-surface.js')
+        self.assertIn("regions[edge].appendChild(el)", kernel, 'a pinned panel goes into its region')
+        # Its size is READ from its grid place, never measured on a panel just rebuilt (46 px).
+        self.assertIn("place.h * CELL_HEIGHT + 'px'", kernel)
+        self.assertNotIn("'--wama-dock-height', el.offsetHeight", kernel)
 
     def test_stacked_panels_are_kept_as_one_panel(self):
         """2026-10-26, Fabien: « empiler/imbriquer des briques pour les compacter en une seule,

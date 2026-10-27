@@ -727,6 +727,30 @@
                           left: 'Épinglé à gauche', right: 'Épinglé à droite' };
         var SIDES = ['left', 'right'];
 
+        // Le CADRE des bords (2026-10-27, Fabien : « une garde permanente pour ne jamais avoir
+        // d'élément masqué par le header ou le pied de page », et de même pour les volets). UN
+        // seul élément fixe, borné par l'en-tête, le pied et les deux volets — les marges que lit
+        // la frontière des volets (`wama-panel-toggle.css`) ; un panneau épinglé est DÉPLACÉ dans
+        // la région de son bord, comme il passe de la grille à la colonne du volet. Rien ne se
+        // place panneau par panneau : rien ne peut passer sous l'en-tête, le pied ou un volet.
+        var dockFrame = document.createElement('div');
+        dockFrame.className = 'wama-dock-frame';
+        var regions = {};
+        ['top', 'left', 'right', 'bottom'].forEach(function (edge) {
+            var region = document.createElement('div');
+            region.className = 'wama-dock-region';
+            region.dataset.edge = edge;
+            dockFrame.appendChild(region);
+            regions[edge] = region;
+        });
+        (page === root ? root.parentNode : page).appendChild(dockFrame);
+        // La page s'écarte de ce que chaque bord occupe — relu quand une région change de taille
+        // (une bande plafonnée à la hauteur de la fenêtre, une colonne bornée par sa largeur).
+        if (global.ResizeObserver) {
+            var watcher = new global.ResizeObserver(function () { dockMargins(); });
+            Object.keys(regions).forEach(function (edge) { watcher.observe(regions[edge]); });
+        }
+
         function toolButton(icon, title, fn) {
             var b = document.createElement('button');
             b.type = 'button';
@@ -842,11 +866,18 @@
             DOCK_CHOICES.forEach(function (c) { if (c[0]) el.classList.remove('is-docked-' + c[0]); });
             el.style.removeProperty('--wama-dock-height');
             el.style.removeProperty('--wama-dock-width');
-            el.style.removeProperty('--wama-dock-offset');
             delete el.dataset.docked;
         }
-        /** Pose chaque panneau à son bord. Sa taille dans la grille, relevée AVANT qu'il ne la
-         *  quitte, devient celle de sa bande (hauteur) ou de sa colonne (largeur). Une colonne n'a
+        /** La taille d'un panneau épinglé se LIT dans sa place de grille — rangées × hauteur de
+         *  cellule, colonnes × largeur de colonne —, jamais mesurée sur l'élément : reconstruit à
+         *  l'instant (« Détacher », « Empiler », rechargement), il n'a pas encore sa hauteur, et la
+         *  mesure rendait une cellule (46 px) — la bande s'écrasait sur le pied (relevé par Fabien
+         *  le 2026-10-27, reproduit sur le live). */
+        function sizeDock(el, place) {
+            el.style.setProperty('--wama-dock-height', place.h * CELL_HEIGHT + 'px');
+            el.style.setProperty('--wama-dock-width', Math.round(place.w * place.grid.cellWidth()) + 'px');
+        }
+        /** Pose chaque panneau dans la région de son bord, dans l'ordre de la page. Une colonne n'a
          *  pas sa place sur une fenêtre de téléphone : le panneau y reste dans la page. */
         function applyDocks() {
             var narrow = !onFullGrid();
@@ -858,21 +889,19 @@
                     var edge = layout.docked[key] || '';
                     if (narrow && SIDES.indexOf(edge) >= 0) edge = '';
                     if (!edge) { undock(key, el); return; }
-                    if (!dockPlaces[key]) {
-                        // Sa taille dans la grille, relevée AVANT qu'il ne la quitte.
-                        el.style.setProperty('--wama-dock-height', el.offsetHeight + 'px');
-                        el.style.setProperty('--wama-dock-width', el.offsetWidth + 'px');
-                        var node = el.gridstackNode;
-                        if (node && node.grid) {
-                            dockPlaces[key] = { x: node.x, y: node.y, w: node.w, h: node.h, grid: node.grid };
-                            node.grid.removeWidget(el, false, false);
-                        }
+                    var node = el.gridstackNode;
+                    if (!dockPlaces[key] && node && node.grid) {
+                        dockPlaces[key] = { x: node.x, y: node.y, w: node.w, h: node.h, grid: node.grid };
+                        node.grid.removeWidget(el, false, false);
                     }
+                    if (!dockPlaces[key]) return;   // hors de toute zone : rien à épingler
+                    sizeDock(el, dockPlaces[key]);
                     el.dataset.docked = edge;
                     el.classList.add('is-docked');
                     DOCK_CHOICES.forEach(function (c) {
                         if (c[0]) el.classList.toggle('is-docked-' + c[0], c[0] === edge);
                     });
+                    regions[edge].appendChild(el);
                 });
             } finally { resetting = was; }
             dockMargins();
@@ -886,25 +915,20 @@
             delete dockPlaces[key];
             var at = fit(place, place.grid);
             at.id = key;
+            place.grid.el.appendChild(el);
             place.grid.makeWidget(el, at);
         }
         /** Tous les panneaux épinglés rendus à la grille (avant de la réordonner). */
         function undockAll() {
             Object.keys(dockPlaces).forEach(function (key) { undock(key, containerEl(key)); });
         }
-        /** Ce que chaque bord occupe : la page s'en écarte, rien ne passe dessous ; deux panneaux
-         *  sur un même bord se rangent l'un après l'autre. Posé sur le corps : la colonne du volet
-         *  le lit aussi. */
+        /** Ce que chaque bord occupe — la taille de sa RÉGION, où les panneaux se rangent l'un
+         *  après l'autre : la page s'en écarte. Posé sur le corps : la colonne du volet le lit aussi. */
         function dockMargins() {
-            var used = { top: 0, bottom: 0, left: 0, right: 0 };
-            containers().forEach(function (key) {
-                var el = containerEl(key), edge = el.dataset.docked;
-                if (!edge) return;
-                el.style.setProperty('--wama-dock-offset', used[edge] + 'px');
-                used[edge] += SIDES.indexOf(edge) >= 0 ? el.offsetWidth : el.offsetHeight;
-            });
-            Object.keys(used).forEach(function (edge) {
-                document.body.style.setProperty('--wama-dock-' + edge, used[edge] + 'px');
+            Object.keys(regions).forEach(function (edge) {
+                var region = regions[edge];
+                var used = SIDES.indexOf(edge) >= 0 ? region.offsetWidth : region.offsetHeight;
+                document.body.style.setProperty('--wama-dock-' + edge, used + 'px');
             });
         }
         global.addEventListener('resize', function () { if (Object.keys(frames).length) applyDocks(); });

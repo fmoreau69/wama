@@ -267,6 +267,38 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   GARDE l'épinglage** (une préférence de LECTURE, comme figée) ; sur un téléphone la colonne
   reste dans la page sans rien réécrire —, trois contre-épreuves de plus, rouges, jouées dans le
   navigateur du scénario (noyau et feuille réécrits par `page_hook`, rien sur le disque).
+- **Le CADRE des bords — ✅ 2026-10-27** (Fabien : *« quand je clique sur un bouton pour
+  désempiler, les briques UI fixes se retrouvent de nouveau masquées derrière le pied de page.
+  Il faudrait mettre une garde permanente […] trouver une solution universelle »*). Reproduit sur
+  le live (correction du transcriber, ligne de temps + transport + écriture épinglés en bas) :
+  après « Détacher », et à tout rechargement, la bande retombait à **46 px** collée au pied — sa
+  hauteur était MESURÉE (`offsetHeight`) sur un panneau reconstruit à l'instant, qui n'avait encore
+  que la hauteur d'une cellule. Deux corrections, au noyau seul :
+  1. **un seul élément fixe**, `.wama-dock-frame`, borné par l'en-tête, le pied et les deux volets
+     (`--fm-header-height`, `--fm-footer-height`, `--wama-left-gutter`, `--wama-right-gutter` — les
+     marges que lit la frontière des volets) ; quatre RÉGIONS (haut, bas, gauche, droite), où un
+     panneau épinglé est DÉPLACÉ comme il passe de la grille à la colonne du volet. Recouvrir
+     l'en-tête, le pied ou un volet ouvert n'est plus une erreur à éviter : la place n'existe pas.
+     Le calcul de décalage panneau par panneau (`--wama-dock-offset`) est retiré ; la page s'écarte
+     de la taille des régions (`ResizeObserver`) ;
+  2. **la taille se LIT dans la place de grille** (rangées × cellule, colonnes × largeur de
+     colonne), jamais mesurée sur l'élément.
+  Gardes : la **garde permanente** du scénario `common.surface_stack` mesure la zone sûre sur les
+  ÉLÉMENTS RÉELS (l'en-tête, le pied, chaque volet affiché — jamais les variables que le cadre
+  lit) après CHAQUE geste et chaque ouverture, et qu'aucune brique épinglée n'est écrasée sous son
+  titre ; un geste de plus rejoue le défaut (empiler un 3ᵉ panneau dans une pile épinglée, le
+  détacher, recharger) — **14/14** sur le live ; `test_a_docked_panel_stops_at_the_header_and_the_footer`
+  (le cadre est le SEUL `position: fixed` de la feuille, la taille lue et non mesurée). Sept
+  contre-épreuves rouges : taille remesurée, cadre calé au bas de la fenêtre, cadre calé sous le
+  volet (dans le navigateur) ; second élément fixe, cadre non borné, taille mesurée, panneau hors
+  de sa région (texte lu muté en mémoire).
+- ⏳ **Suite décidée le 2026-10-27** (Fabien, « tu peux dérouler le plan ») : ② dans une bande, des
+  LIGNES de panneaux côte à côte (largeur naturelle DÉCLARÉE par la brique — l'écriture à la
+  lecture reste un OUTIL à part, posé à côté du transport, §« quatre niveaux » de
+  `common/surfaces.py`) ; ③ le GLISSER-DÉPOSER magnétique vers les bords et sur un panneau
+  (empiler au centre, à côté sur un côté) ; ④ les boutons d'atelier remplacés par UN menu « ⋯ »
+  (gardé pour la disposition figée, le clavier, le tactile et les scénarios) ; le mode simplifié
+  remplacé par un bouton d'en-tête qui replie les deux volets + « Joindre » dans le chat (§7).
 - ⏳ Reste de `WAMA_DATA_WORLD §8.2 ⑤` (« layout dockable + détachement en vraie fenêtre ») : le
   DÉTACHEMENT d'un panneau dans une autre fenêtre.
 

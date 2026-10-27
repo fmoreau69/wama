@@ -11,7 +11,8 @@
 
 /* Grille gridstack : chaque brique = un panneau à titre (poignée de déplacement). La COLONNE du
    volet (2026-10-21) est une seconde zone, mêmes panneaux. */
-.wama-surface-grid .grid-stack-item-content, .wama-surface-panel .grid-stack-item-content {
+.wama-surface-grid .grid-stack-item-content, .wama-surface-panel .grid-stack-item-content,
+.wama-dock-frame .grid-stack-item-content {
   display: flex; flex-direction: column; background: var(--wama-edit-grid); border: 1px solid var(--wama-edit-border);
   border-radius: .45rem; overflow: hidden; inset: 3px;
 }
@@ -51,39 +52,47 @@
    Et entre l'en-tête et le pied, comme la frontière des volets (`wama-panel-toggle.css`) : calé
    à 0, il passait SOUS l'en-tête fixe — inutilisable (relevé par Fabien le jour même).
    À GAUCHE et à DROITE (le jour même) : une colonne fixe, entre les bandes du haut et du bas,
-   pendant que le centre défile. Deux panneaux sur un même bord se rangent l'un après l'autre
-   (`--wama-dock-offset`) ; une bande garde sa hauteur dans la grille, une colonne sa largeur,
-   bornées pour laisser la page lisible (le panneau défile alors en lui-même). */
-.grid-stack > .grid-stack-item.is-docked {
-  position: fixed !important; transform: none !important; z-index: 1030;
+   pendant que le centre défile. Une bande garde sa hauteur dans la grille, une colonne sa
+   largeur, bornées pour laisser la page lisible (la région défile alors en elle-même).
+   LE CADRE (2026-10-27, Fabien : « une garde permanente pour ne jamais avoir d'élément masqué
+   par le header ou le pied de page », et la même pour les volets) : le SEUL élément fixe de la
+   surface, borné par l'en-tête, le pied et les deux volets ; un panneau épinglé est rangé dans
+   la région de son bord (`wama-surface.js`), plusieurs l'un après l'autre. Recouvrir l'en-tête,
+   le pied ou un volet n'est plus une erreur à éviter, c'est une place qui n'existe pas. */
+.wama-dock-frame {
+  position: fixed; z-index: 1030; pointer-events: none;
+  top: var(--fm-header-height, 50px); bottom: var(--fm-footer-height, 40px);
+  left: var(--wama-left-gutter, 0px); right: var(--wama-right-gutter, 0px);
+  display: grid;
+  grid-template: "top top top" auto "left center right" minmax(0, 1fr) "bottom bottom bottom" auto
+                 / auto minmax(0, 1fr) auto;
+}
+.wama-dock-region { display: flex; min-width: 0; min-height: 0; pointer-events: auto; }
+.wama-dock-region[data-edge="top"], .wama-dock-region[data-edge="bottom"] {
+  flex-direction: column; max-height: 45vh; overflow-y: auto; }
+.wama-dock-region[data-edge="top"] { grid-area: top; }
+.wama-dock-region[data-edge="bottom"] { grid-area: bottom; }
+.wama-dock-region[data-edge="left"] { grid-area: left; }
+.wama-dock-region[data-edge="right"] { grid-area: right; }
+.wama-dock-region > .grid-stack-item {
+  position: relative !important; inset: auto !important; transform: none !important;
   transition: none !important;          /* il gagne son bord, il n'y glisse pas depuis la grille */
+  flex: 0 0 auto; min-width: 0;
 }
-.grid-stack > .grid-stack-item.is-docked-top, .grid-stack > .grid-stack-item.is-docked-bottom {
-  left: var(--wama-left-gutter, 0px) !important; right: var(--wama-right-gutter, 0px) !important;
-  width: auto !important; height: var(--wama-dock-height, auto) !important; max-height: 45vh;
-}
-.grid-stack > .grid-stack-item.is-docked-top {
-  top: calc(var(--fm-header-height, 50px) + var(--wama-dock-offset, 0px)) !important;
-  bottom: auto !important; }
-.grid-stack > .grid-stack-item.is-docked-bottom {
-  bottom: calc(var(--fm-footer-height, 40px) + var(--wama-dock-offset, 0px)) !important;
-  top: auto !important; }
-.grid-stack > .grid-stack-item.is-docked-left, .grid-stack > .grid-stack-item.is-docked-right {
-  top: calc(var(--fm-header-height, 50px) + var(--wama-dock-top, 0px)) !important;
-  bottom: calc(var(--fm-footer-height, 40px) + var(--wama-dock-bottom, 0px)) !important;
+.wama-dock-region[data-edge="top"] > .grid-stack-item,
+.wama-dock-region[data-edge="bottom"] > .grid-stack-item {
+  width: auto !important; height: var(--wama-dock-height, auto) !important; max-height: 45vh; }
+.wama-dock-region[data-edge="left"] > .grid-stack-item,
+.wama-dock-region[data-edge="right"] > .grid-stack-item {
   height: auto !important;
   /* Au plus 40 % de la zone CENTRALE (entre les volets) : la page garde de quoi se lire. */
   width: min(var(--wama-dock-width, 22rem),
              calc((100vw - var(--wama-left-gutter, 0px) - var(--wama-right-gutter, 0px)) * .4)) !important;
 }
-.grid-stack > .grid-stack-item.is-docked-left {
-  left: calc(var(--wama-left-gutter, 0px) + var(--wama-dock-offset, 0px)) !important;
-  right: auto !important; }
-.grid-stack > .grid-stack-item.is-docked-right {
-  right: calc(var(--wama-right-gutter, 0px) + var(--wama-dock-offset, 0px)) !important;
-  left: auto !important; }
-.grid-stack > .grid-stack-item.is-docked > .grid-stack-item-content {
-  inset: 0; border-radius: 0; box-shadow: 0 0 .75rem rgba(var(--wama-overlay-rgb), .25);
+/* Hors de la grille, les règles de gridstack (`.grid-stack > .grid-stack-item > …`) ne
+   s'appliquent plus : le contenu se pose lui-même sur tout le panneau. */
+.wama-dock-region > .grid-stack-item > .grid-stack-item-content {
+  position: absolute; inset: 0; border-radius: 0; box-shadow: 0 0 .75rem rgba(var(--wama-overlay-rgb), .25);
 }
 .wama-surface-page { padding-top: calc(.5rem + var(--wama-dock-top, 0px));
   padding-bottom: calc(2rem + var(--wama-dock-bottom, 0px));
@@ -106,7 +115,8 @@
 .wama-surface-panel.is-frozen .wama-brick-stack-tools { display: none; }
 
 .wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
-.wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs, .wama-surface-panel .btn-xs {
+.wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs, .wama-surface-panel .btn-xs,
+.wama-dock-frame .btn-xs {
   padding: .1rem .35rem; font-size: .75rem; line-height: 1.2; color: var(--wama-edit-brick-text);
   border: 1px solid var(--wama-edit-border-strong); background: transparent;
 }

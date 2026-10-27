@@ -259,8 +259,11 @@ def check_surface_stack(page_hook=None):
     « Dans la page » le désépingle. Puis (revérification du 2026-10-27) : FIGÉE, la pile épinglée
     reste à son bord sans ses outils d'atelier, et l'épingle quitte les panneaux ordinaires ;
     « Disposition par défaut » défait les piles et GARDE l'épinglage (une préférence de lecture) ;
-    sur un téléphone la colonne reste dans la page sans rien réécrire. Mêmes garanties de sortie
-    que `check_surface_layout`."""
+    sur un téléphone la colonne reste dans la page sans rien réécrire. Et (2026-10-27, le cadre
+    des bords) la GARDE PERMANENTE après chaque geste et chaque ouverture — rien d'épinglé hors de
+    la zone sûre mesurée sur l'en-tête, le pied et les volets réels, aucune brique écrasée —, plus
+    la pile épinglée retouchée (un 3ᵉ panneau empilé puis détaché, la page rechargée) qui garde sa
+    bande. Mêmes garanties de sortie que `check_surface_layout`."""
     return _on_layout_witness(_stack_gestures, page_hook)
 
 
@@ -420,14 +423,17 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
 #: celle que la page laisse aux bords épinglés.
 _STACK_STATE_JS = """() => {
     const panels = {};
-    // Par `data-panel` : un panneau ÉPINGLÉ a quitté la grille, il n'a plus de nœud gridstack.
-    document.querySelectorAll('.grid-stack > .grid-stack-item').forEach(el => {
+    // Par `data-panel` : un panneau ÉPINGLÉ a quitté la grille pour la région de son bord, il n'a
+    // plus de nœud gridstack.
+    document.querySelectorAll('.grid-stack > .grid-stack-item, .wama-dock-region > .grid-stack-item').forEach(el => {
         const id = el.dataset.panel || (el.gridstackNode && el.gridstackNode.id);
         if (!id) return;
         const r = el.getBoundingClientRect();
         panels[id] = {
             sections: [...el.querySelectorAll('.wama-brick-section')].map(s => s.dataset.slot),
-            docked: el.dataset.docked || '', fixed: getComputedStyle(el).position === 'fixed',
+            // Gardé à l'écran = rangé dans le cadre FIXE des bords (2026-10-27), pas fixe lui-même.
+            docked: el.dataset.docked || '', fixed: !!el.closest('.wama-dock-frame')
+                && getComputedStyle(el.closest('.wama-dock-frame')).position === 'fixed',
             rect: [r.left, r.top, r.right, r.bottom].map(Math.round)};
     });
     const value = (el, v) => parseFloat(getComputedStyle(el).getPropertyValue(v)) || 0;
@@ -440,6 +446,46 @@ _STACK_STATE_JS = """() => {
             gutterLeft: value(document.body, '--wama-left-gutter'),
             padLeft: parseFloat(getComputedStyle(pageEl).paddingLeft),
             padBottom: parseFloat(getComputedStyle(pageEl).paddingBottom)}; }"""
+
+#: La GARDE PERMANENTE des bords (2026-10-27, Fabien : « une garde permanente pour ne jamais avoir
+#: d'élément masqué par le header ou le pied de page », et la même pour les volets) : la zone
+#: sûre se MESURE sur les éléments réels — l'en-tête, le pied, chaque volet affiché —, jamais sur
+#: les variables que le cadre lit (une variable fausse passerait alors des deux côtés). Chaque
+#: panneau épinglé doit y tenir, et aucune de ses briques n'être écrasée sous son titre (la
+#: bande retombée à une cellule, 46 px, après « Détacher » : le défaut relevé ce jour-là).
+_SAFE_AREA_JS = """() => {
+    const box = sel => {
+        const el = document.querySelector(sel);
+        if (!el || getComputedStyle(el).display === 'none') return null;
+        const r = el.getBoundingClientRect();
+        return r.width && r.height ? r : null;
+    };
+    const header = box('nav.wama-header'), footer = box('body > footer');
+    const left = box('#filemanager-sidebar'), right = box('#wama-right-panel');
+    const safe = {top: header ? header.bottom : 0, bottom: footer ? footer.top : innerHeight,
+                  left: left ? Math.max(0, left.right) : 0,
+                  right: right ? Math.min(innerWidth, right.left) : innerWidth};
+    const faults = [];
+    // Ce qui se VOIT d'un panneau épinglé est sa région (une bande trop haute y défile) : c'est
+    // elle qui doit tenir dans la zone sûre.
+    document.querySelectorAll('.wama-dock-region').forEach(region => {
+        if (!region.children.length) return;
+        const r = region.getBoundingClientRect();
+        if (r.top < safe.top - 1 || r.bottom > safe.bottom + 1
+                || r.left < safe.left - 1 || r.right > safe.right + 1) {
+            faults.push(region.dataset.edge + ' hors de la zone sûre ' + JSON.stringify(
+                [r.left, r.top, r.right, r.bottom].map(Math.round)) + ' / ' + JSON.stringify(safe));
+        }
+    });
+    document.querySelectorAll('.wama-dock-region > .grid-stack-item').forEach(el => {
+        el.querySelectorAll('.wama-brick-section').forEach(s => {
+            const head = s.querySelector('.wama-brick-head');
+            if (s.clientHeight < (head ? head.offsetHeight : 0) + 20) {
+                faults.push(s.dataset.slot + ' écrasée (' + s.clientHeight + ' px)');
+            }
+        });
+    });
+    return faults; }"""
 
 #: Marque une section (titre + corps d'une brique) pour vérifier ensuite que c'est la MÊME.
 _MARK_SECTION_JS = """(id) => {
@@ -464,12 +510,22 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
     """Les gestes de `check_surface_stack`, dans l'ordre ; un geste impossible est un verdict
     rouge. Les panneaux se pilotent par leurs BOUTONS et le menu commun — ce que fait la main."""
     first, second = [s.id for s in surface.slots if s.zone == 'grid'][:2]
+    guarded = []
 
     def state():
         return page.evaluate(_STACK_STATE_JS)
 
-    def settle():
+    def guard(after):
+        """La garde PERMANENTE, après CHAQUE geste et chaque ouverture — pas seulement après le
+        premier épinglage, où elle seule était mesurée (le défaut du 2026-10-27 venait après)."""
+        faults = page.evaluate(_SAFE_AREA_JS)
+        guarded.append(after)
+        if faults:
+            verdict(False, f"zone sûre rompue après « {after} » : {faults[:3]}")
+
+    def settle(after='geste'):
         page.wait_for_timeout(900)                   # la garde part 300 ms après le geste
+        guard(after)
         return _in_plain_thread(stored) or {}
 
     def press(slot_id, icon):
@@ -483,6 +539,7 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         page.goto(url, wait_until='load', timeout=45000)
         page.wait_for_selector('[data-act="freeze"]', timeout=20000)
         page.wait_for_timeout(800)
+        guard('ouverture')
 
     try:
         open_page()
@@ -587,6 +644,30 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
                 f"« Disposition par défaut » : piles défaites, l'épinglage gardé "
                 f"({kept.get('stacks')}, {kept.get('docked')})")
 
+        # Une pile ÉPINGLÉE qu'on retouche garde sa bande (2026-10-27, relevé par Fabien) :
+        # empiler un troisième panneau, le détacher, recharger — la bande retombait à une cellule
+        # (46 px), écrasée sur le pied, sa hauteur MESURÉE sur un panneau reconstruit à l'instant.
+        third_title = page.evaluate(_MARK_SECTION_JS, third)
+        press(first, 'fa-layer-group')
+        pick(title)
+        settle('empiler dans la pile épinglée')
+        press(first, 'fa-layer-group')
+        pick(third_title)
+        full = state()['panels'].get(first) or {}
+        settle('empiler un troisième panneau')
+        press(third, 'fa-object-ungroup')
+        settle('détacher le troisième')
+        after = state()['panels'].get(first) or {}
+        open_page()
+        reloaded = state()['panels'].get(first) or {}
+        tall = [b['rect'][3] - b['rect'][1] if b.get('rect') else 0 for b in (after, reloaded)]
+        verdict(full.get('sections') == [first, second, third]
+                and after.get('sections') == [first, second] == reloaded.get('sections')
+                and after.get('fixed') and reloaded.get('fixed')
+                and min(tall) > 2 * 46 and abs(tall[0] - tall[1]) <= 2,
+                f"pile épinglée retouchée : sa bande garde sa hauteur après « Détacher » et au "
+                f"rechargement ({tall} px)")
+
         # Téléphone : une colonne fixe n'y a pas sa place — le panneau reste dans la page, et
         # rien n'est réécrit (le bord reste gardé pour la fenêtre large).
         press(first, 'fa-thumbtack')
@@ -601,6 +682,8 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
                 f"({now['panels'].get(first)}, {kept.get('docked')})")
     except Exception as error:
         verdict(False, f"geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
+    verdict(len(guarded) >= 15,f"garde permanente : zone sûre mesurée après {len(guarded)} gestes "
+                                f"et ouvertures")
     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
     verdict(not shown, f"aucune erreur JS ({shown[:3]})")
 
@@ -634,7 +717,9 @@ def register_surface_scenarios():
                      "l'épinglage ; détacher rend deux panneaux ; « Dans la page » désépingle ; "
                      "figée, la pile reste épinglée sans outils d'atelier ; « Disposition par "
                      "défaut » défait les piles et garde l'épinglage ; téléphone : la colonne "
-                     "reste dans la page"),
+                     "reste dans la page ; après CHAQUE geste, rien d'épinglé sous l'en-tête, le "
+                     "pied ou un volet, aucune brique écrasée — une pile épinglée retouchée garde "
+                     "sa bande"),
         run=lambda ctx: check_surface_stack(),
         timeout_s=240, vram_gb=0.0,
     )
