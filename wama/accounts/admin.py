@@ -5,7 +5,7 @@ from wama.accounts.models import UserProfile, AppAccessPolicy
 
 @admin.register(UserProfile)
 class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'account_tier', 'preferred_language', 'ui_mode',
+    list_display = ('user', 'account_tier', 'preferred_language',
                     'notify_email', 'notify_on', 'notify_sound', 'media_retention_days',
                     'temp_retention_days')
     list_filter = ('account_tier', 'preferred_language', 'notify_email', 'notify_on',

@@ -3,12 +3,17 @@
  *
  * Global, monté par base.html sur TOUTE page : aucune app n'écrit une ligne. Une frontière n'est
  * créée que pour un volet présent dans la page — pas de volet droit (`volet.actif` faux, classe
- * `wama-sans-volet`) = pas de frontière droite. Le mode simplifié masque les volets ET leurs
- * frontières (CSS) : c'est un autre usage, qui ne passe pas par ici.
+ * `wama-sans-volet`) = pas de frontière droite.
+ *
+ * LES DEUX D'UN GESTE (2026-10-27, décision de Fabien) : le bouton de l'en-tête
+ * (`[data-wama-panels-switch]`, une icône) replie les deux volets, puis chacun se rouvre seul par
+ * sa frontière ; les deux rouverts, le bouton reprend sa forme « déployés ». Il REMPLACE le mode
+ * simplifié, qui masquait les volets sans pouvoir en rouvrir un seul (retiré le même jour).
+ * L'assistant passe par le même geste (`fold_side_panels`).
  *
  * L'ÉTAT est une préférence de NAVIGATEUR (localStorage), pas de profil : replier un volet sur
  * une tablette ne doit pas le replier sur le poste de bureau. Il est appliqué AVANT le premier
- * rendu par le script en tête de `<body>` (base.html), comme `wama-simple` — sans quoi la page
+ * rendu par le script en tête de `<body>` (base.html) — sans quoi la page
  * s'afficherait volets ouverts puis se replierait sous les yeux.
  *
  * DEUX CONTEXTES DE LARGEUR (2026-10-12, ROADMAP §27 étape 2). Sous le point de rupture `lg` de
@@ -31,6 +36,8 @@
  *   WamaPanels.toggle('left' | 'right')
  *   WamaPanels.setCollapsed(side, bool)
  *   WamaPanels.isCollapsed(side)
+ *   WamaPanels.setAll(bool)         — les deux volets d'un geste (en étroit : n'en rouvre qu'un)
+ *   WamaPanels.allOpen()            — « déployés » : aucun volet présent n'est replié
  *   WamaPanels.isNarrow()           — le contexte étroit est-il actif ?
  */
 (function (global) {
@@ -98,10 +105,48 @@
       remember(s.other, true);
     }
     changed.forEach(paint);
+    paintSwitch();
     announce(changed);
   }
 
   function toggle(side) { setCollapsed(side, !isCollapsed(side)); }
+
+  /** Les volets PRÉSENTS dans la page : un volet absent n'a ni état ni frontière. */
+  function present() {
+    return ['left', 'right'].filter(function (side) { return !!document.getElementById(SIDES[side].panel); });
+  }
+
+  /** Les deux volets d'un geste. Déployer, en contexte étroit, n'en ouvre qu'un — la règle d'un
+   *  seul ouvert : le volet droit, celui de l'assistant. */
+  function setAll(collapsed) {
+    var sides = present();
+    if (collapsed) { sides.forEach(function (side) { setCollapsed(side, true); }); return; }
+    if (isNarrow()) { if (sides.length) setCollapsed(sides.indexOf('right') >= 0 ? 'right' : sides[0], false); return; }
+    sides.forEach(function (side) { setCollapsed(side, false); });
+  }
+
+  /** « Déployés » : aucun volet présent n'est replié — en contexte étroit, où un seul s'ouvre,
+   *  l'un d'eux est ouvert. */
+  function allOpen() {
+    var sides = present();
+    if (!sides.length) return false;
+    return isNarrow() ? sides.some(function (side) { return !isCollapsed(side); })
+                      : sides.every(function (side) { return !isCollapsed(side); });
+  }
+
+  /** Le bouton de l'en-tête dit l'état : volets déployés (un clic les replie) ou repliés. */
+  function paintSwitch() {
+    var open = allOpen(), shown = present().length > 0;
+    var label = open ? 'Replier les volets' : 'Déployer les volets';
+    document.querySelectorAll('[data-wama-panels-switch]').forEach(function (btn) {
+      btn.hidden = !shown;
+      btn.title = label;
+      btn.setAttribute('aria-label', label);
+      btn.setAttribute('aria-pressed', open ? 'false' : 'true');
+      var icon = btn.querySelector('i');
+      if (icon) icon.className = 'fas ' + (open ? 'fa-table-columns' : 'fa-expand');
+    });
+  }
 
   // La largeur change de contexte (rotation, fenêtre redimensionnée) : chaque contexte reprend
   // SA mémoire — rien n'est écrit, rien n'est écrasé.
@@ -110,6 +155,7 @@
     context.apply();
     var changed = ['left', 'right'].filter(function (side) { return isCollapsed(side) !== before[side]; });
     ['left', 'right'].forEach(paint);
+    paintSwitch();
     if (changed.length) announce(changed);
   }
 
@@ -138,6 +184,10 @@
   function mount() {
     mountEdge('left');
     mountEdge('right');
+    document.querySelectorAll('[data-wama-panels-switch]').forEach(function (btn) {
+      btn.addEventListener('click', function () { setAll(allOpen()); });
+    });
+    paintSwitch();
     if (context && global.matchMedia) {
       var mq = global.matchMedia(context.query);
       if (mq.addEventListener) mq.addEventListener('change', onContextChange);
@@ -159,5 +209,6 @@
     setCollapsed(link.getAttribute('data-wama-panel-open'), false);
   }, true);
 
-  global.WamaPanels = { toggle: toggle, setCollapsed: setCollapsed, isCollapsed: isCollapsed, isNarrow: isNarrow };
+  global.WamaPanels = { toggle: toggle, setCollapsed: setCollapsed, isCollapsed: isCollapsed, isNarrow: isNarrow,
+                        setAll: setAll, allOpen: allOpen };
 })(window);

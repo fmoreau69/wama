@@ -200,7 +200,8 @@ class AccountReadingToolsTest(TestCase):
         UserProfile.objects.get_or_create(user=self.user)
         out = tool_api.get_my_profile(self.user)
         self.assertEqual('Ada', out['first_name'])
-        self.assertEqual({'label', 'value'}, set(out['settings']['ui_mode']))
+        self.assertEqual({'label', 'value'}, set(out['settings']['unit_system']))
+        self.assertNotIn('ui_mode', out['settings'], 'the simplified mode is retired (2026-10-27)')
         self.assertIn('cloud_policy', out['settings'])
         flat = repr(out).lower()
         for secret in ('token', 'api_key', 'password'):

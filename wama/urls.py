@@ -31,7 +31,6 @@ urlpatterns = [
     path('api/ai-chat/stream/', views.ai_chat_stream, name='ai_chat_stream'),
     path('api/tts-kokoro/', views.kokoro_tts, name='kokoro_tts'),
     path('api/stt/', views.speech_to_text, name='speech_to_text'),
-    path('api/switch-ui-mode/', views.switch_ui_mode, name='switch_ui_mode'),
     # WAMA Tool API (agentic AI assistant)
     path('api/tools/list-files/',        tool_views.list_user_files_view,       name='tool_list_files'),
     path('api/tools/anonymizer/add/',    tool_views.add_to_anonymizer_view,     name='tool_anon_add'),

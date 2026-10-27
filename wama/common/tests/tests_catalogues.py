@@ -2000,16 +2000,9 @@ class InputCardSaysWhereSettingsLiveTest(TestCase):
                                                'file_input_id': 'f', 'collapsible': True,
                                                'formats_label': 'x'})
             self.assertIn(self.PHRASE, html, template)
-            self.assertIn('wama-settings-hint--simple', html,
-                          f'{template}: no wording for the simplified mode, where the panel is hidden')
-
-    def test_the_simplified_mode_swaps_the_wording(self):
-        from pathlib import Path
-        from django.conf import settings
-        css = (Path(settings.BASE_DIR) / 'wama/common/static/common/css/wama-inspector.css'
-               ).read_text(encoding='utf-8')
-        self.assertIn('body.wama-simple .wama-settings-hint--panel { display: none; }', css)
-        self.assertIn('body.wama-simple .wama-settings-hint--simple { display: inline; }', css)
+            # The simplified mode is retired (2026-10-27): a folded panel is the only other case.
+            self.assertIn('wama-settings-hint--collapsed', html, template)
+            self.assertNotIn('wama-settings-hint--simple', html, template)
 
     def test_no_app_writes_it_by_hand(self):
         from pathlib import Path

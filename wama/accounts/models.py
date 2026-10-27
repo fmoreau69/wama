@@ -31,12 +31,6 @@ class UserProfile(models.Model):
         default='metric',
         verbose_name="Système d'unités",
     )
-    ui_mode = models.CharField(
-        max_length=16,
-        choices=[('advanced', 'Mode Avancé'), ('simple', 'Mode Simplifié')],
-        default='advanced',
-        verbose_name="Mode d'interface",
-    )
     # Géométrie d'affichage des files (ligne = 1/rangée ; mosaïque = grille de cards hautes).
     card_layout = models.CharField(
         max_length=8,

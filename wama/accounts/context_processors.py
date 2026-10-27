@@ -10,9 +10,8 @@ def user_role(request):
 
     user = request.user
 
-    # Preferred language + UI mode (defaults for unauthenticated users)
+    # Preferred language + display preferences (defaults for unauthenticated users)
     preferred_language = 'fr'
-    ui_mode = 'advanced'
     card_layout = 'list'
     card_stacked = False
     card_design = 'v3'
@@ -20,7 +19,6 @@ def user_role(request):
     if user.is_authenticated:
         try:
             preferred_language = user.profile.preferred_language
-            ui_mode = user.profile.ui_mode
             card_layout = user.profile.card_layout
             card_stacked = user.profile.card_stacked
             card_design = user.profile.card_design
@@ -224,7 +222,6 @@ def user_role(request):
         'is_dev': is_dev(user),
         'user_role': get_user_role(user),
         'preferred_language': preferred_language,
-        'ui_mode': ui_mode,
         'card_layout': card_layout,
         'card_stacked': card_stacked,
         'card_design': card_design,

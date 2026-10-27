@@ -7,7 +7,7 @@
  * pointeur. Volet replié : une trace fine reste au bord de la fenêtre pour le rouvrir.
  *
  * LA SOURCE UNIQUE : deux marges dérivées. `--wama-left-gutter` / `--wama-right-gutter` valent la
- * largeur du volet quand il occupe sa place, 0 sinon (replié, page sans volet, mode simplifié).
+ * largeur du volet quand il occupe sa place, 0 sinon (replié, page sans volet).
  * Le corps, l'en-tête et toute barre fixe calée sur les volets (éditeur du transcriber,
  * cam_analyzer) lisent CES marges — jamais plus la largeur du volet elle-même, qui ne dit pas
  * s'il est là. `filemanager.css` porte encore la structure (WAMA_VOLETS §1) et lit ces marges.
@@ -20,7 +20,6 @@
 body.wama-left-collapsed { --wama-left-gutter: 0px; }
 body.wama-right-collapsed,
 body.wama-sans-volet { --wama-right-gutter: 0px; }
-body.wama-simple { --wama-left-gutter: 0px; --wama-right-gutter: 0px; }
 
 /* ── Le volet glisse hors de la fenêtre ; il devient invisible APRÈS l'animation (ni focus
       clavier ni lecteur d'écran dans un volet replié), et visible AVANT celle d'ouverture. */
@@ -113,9 +112,6 @@ body.wama-right-collapsed .wama-panel-edge[data-side="right"] .wama-panel-edge-p
     .wama-panel-edge .wama-panel-edge-pill { opacity: .8; width: 22px; height: 40px; border-radius: 11px; font-size: .75rem; }
     .wama-panel-edge::before { opacity: .25; }
 }
-
-/* Mode simplifié : les volets n'y sont pas, leur frontière non plus. */
-body.wama-simple .wama-panel-edge { display: none; }
 
 @media (prefers-reduced-motion: reduce) {
     #filemanager-sidebar, #wama-right-panel, .top_nav, .wama-panel-edge,

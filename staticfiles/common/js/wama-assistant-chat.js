@@ -177,9 +177,28 @@
   // Un fichier glissé depuis l'ARBRE de fichiers (volet gauche, mode normal) est déjà dans cet
   // espace : le chat se déclare cible de l'arbre (`data-fm-designate`) et reçoit son CHEMIN
   // (`filemanager:designate`) — rien n'est re-téléversé.
+  // « JOINDRE » (2026-10-27, Fabien : sur un téléphone, « charger des fichiers via le bouton de
+  // l'assistant, sans besoin de passer par le filemanager ou de faire un drag&drop ») : le
+  // sélecteur du système — sur un téléphone, il propose aussi la galerie et l'appareil photo —,
+  // puis le MÊME dépôt que le glisser. C'est ce qui rendait le mode simplifié nécessaire.
   Chat.prototype.bindDeposit = function () {
     var self = this;
     var root = this.root;
+    var attach = root.querySelector('[data-assistant-attach]');
+    if (attach) {
+      var picker = document.createElement('input');
+      picker.type = 'file';
+      picker.multiple = true;
+      picker.hidden = true;
+      picker.setAttribute('data-assistant-picker', '');
+      root.appendChild(picker);
+      attach.addEventListener('click', function () { picker.click(); });
+      picker.addEventListener('change', function () {
+        var files = Array.prototype.slice.call(picker.files || []);
+        picker.value = '';
+        self.deposit(files);
+      });
+    }
     root.setAttribute('data-fm-designate', '');
     root.addEventListener('filemanager:designate', function (e) {
       self.designate((e.detail && e.detail.files) || []);
@@ -696,9 +715,10 @@
     this.root.setAttribute('aria-busy', on ? 'true' : 'false');
   };
 
-  /** Un résultat d'outil peut demander à la SURFACE de faire quelque chose — basculer le mode
-   *  d'UI (`switch_ui_mode`), ou OUVRIR UNE PAGE (`open_page`, 2026-10-11). Le pont existe
-   *  depuis l'accueil ; il vaut pour les deux densités, puisque c'est la même brique.
+  /** Un résultat d'outil peut demander à la SURFACE de faire quelque chose — replier ou déployer
+   *  les volets (`fold_side_panels`, le repli commun `WamaPanels` ; il remplace le mode
+   *  simplifié, retiré le 2026-10-27), ou OUVRIR UNE PAGE (`open_page`, 2026-10-11). Il vaut
+   *  pour les deux densités, puisque c'est la même brique.
    *  ⚠ La page n'est pas ouverte ici : quitter la page couperait la réponse et sa voix. Elle
    *  est RETENUE, puis suivie quand le tour est écrit et dit (`followPendingPage`). */
   Chat.prototype.applyActions = function (steps) {
@@ -706,7 +726,7 @@
     (steps || []).forEach(function (step) {
       var r = step && step.result;
       if (!r) return;
-      if (r.action === 'switch_mode' && global.wamaSetMode) global.wamaSetMode(r.mode, false);
+      if (r.action === 'panels' && global.WamaPanels) global.WamaPanels.setAll(!!r.folded);
       if (r.action === 'navigate' && isLocalPath(r.url)) self.pendingPage = r.url;
     });
   };

@@ -51,11 +51,10 @@
     }).catch(function () {});
   }
 
-  // Volet absent de l'écran : mode simplifié, ou volet droit replié par sa frontière
-  // (`WamaPanels`, 2026-10-10) — dans les deux cas rien n'est chargé tant qu'on ne le rouvre pas.
+  // Volet absent de l'écran : replié par sa frontière (`WamaPanels`, 2026-10-10) — rien n'est
+  // chargé tant qu'on ne le rouvre pas.
   function panelHidden() {
-    var c = document.body.classList;
-    return c.contains('wama-simple') || c.contains('wama-right-collapsed');
+    return document.body.classList.contains('wama-right-collapsed');
   }
 
   // Quitter la page ANNULE le chargement en cours (« Failed to fetch ») : ce n'est pas une erreur,

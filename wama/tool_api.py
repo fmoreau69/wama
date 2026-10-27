@@ -1117,24 +1117,27 @@ def list_media_assets(user, asset_type: str = '', q: str = '') -> dict:
         return {'error': f'Erreur lecture médiathèque : {e}', 'assets': [], 'total': 0}
 
 
-def switch_ui_mode(user, mode: str = 'simple') -> dict:
+def fold_side_panels(user, folded: bool = True) -> dict:
     """
-    Switch the WAMA interface mode for the current user.
-    mode: 'simple' (chatbot view) or 'advanced' (full interface)
-    Returns an action payload that the JS client will execute.
+    Fold or unfold the two side panels of the page (file explorer on the left, panel on the
+    right) — "masque les volets", "affiche les volets", a clear screen to focus on the page.
+
+    In the web chat it happens in the user's page; the choice is the one the panels' own edges
+    and the header button make (kept per browser). On another surface (a channel) there is no
+    page to change: say so.
+
+    Args:
+        folded: True to fold both panels, False to unfold them.
+
+    Returns:
+        {"action": "panels", "folded", "message"}
     """
-    if mode not in ('simple', 'advanced'):
-        return {'error': f"Mode invalide : '{mode}'. Valeurs : 'simple' ou 'advanced'"}
-    # Persist to DB
-    try:
-        from wama.accounts.models import UserProfile
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.ui_mode = mode
-        profile.save(update_fields=['ui_mode'])
-    except Exception as e:
-        logger.warning(f'switch_ui_mode: DB save failed: {e}')
-    label = 'simplifié' if mode == 'simple' else 'avancé'
-    return {'action': 'switch_mode', 'mode': mode, 'message': f"Interface passée en mode {label}."}
+    # Le mode simplifié est RETIRÉ (2026-10-27, décision de Fabien) : ce qu'il faisait de
+    # l'interface — masquer les volets — est le repli commun des volets (`WamaPanels`), que le
+    # chat exécute (`wama-assistant-chat.js::applyActions`). Rien n'est gardé au profil.
+    folded = folded not in (False, 'false', 'False', 0, '0')
+    return {'action': 'panels', 'folded': folded,
+            'message': 'Volets repliés.' if folded else 'Volets déployés.'}
 
 
 def open_page(user, page: str) -> dict:
@@ -1158,7 +1161,7 @@ def open_page(user, page: str) -> dict:
     """
     # La brique COMMUNE (`common/services/navigation.py`) : les pages du MENU, avec le droit du
     # menu — aucune liste ici. Le résultat `action: navigate` est exécuté par le chat web
-    # (`wama-assistant-chat.js::applyActions`), le pont qui servait déjà `switch_ui_mode`.
+    # (`wama-assistant-chat.js::applyActions`), le pont qui sert aussi `fold_side_panels`.
     if refusal := _signed_in_refusal(user, "Navigation"):
         return refusal
     from wama.common.services.navigation import absolute_url, find_page
@@ -3692,7 +3695,7 @@ TOOL_REGISTRY = {
     # enregistrés par _register_triads() depuis TRIAD_SPECS (marche A4, soldée le 2026-10-12).
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
-    'switch_ui_mode':         switch_ui_mode,
+    'fold_side_panels':       fold_side_panels,
     'open_page':              open_page,
     'list_studio_pipelines':  list_studio_pipelines,
     'run_studio_pipeline':    run_studio_pipeline,
@@ -3718,7 +3721,7 @@ TOOL_APP_OVERRIDE = {
     'list_user_files':     None,
     'find_user_files':     None,
     'translate_text':      None,
-    'switch_ui_mode':      None,
+    'fold_side_panels':    None,
     # Ouvrir une page : transverse — le droit est celui de la PAGE, décidé dans le corps par la
     # brique de navigation (même décision que le menu).
     'open_page':           None,

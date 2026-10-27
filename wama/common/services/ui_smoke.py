@@ -1838,7 +1838,6 @@ def register_tree_drop_scenarios():
 # d'assistant — le message doit porter le chemin. Aucun modèle n'est appelé.
 
 _CHAT_TARGET = """() => {
-  document.body.classList.remove('wama-simple');            // le mode NORMAL : l'arbre est là
   const chat = [...document.querySelectorAll('[data-wama-chat]')].find(c => c.getBoundingClientRect().width);
   if (!chat) return '';
   chat.setAttribute('data-smoke-chat', '');

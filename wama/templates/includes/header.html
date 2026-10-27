@@ -175,14 +175,14 @@
         <!-- Menu navigation (droite) -->
         <div class="wama-header-right">
             <ul class="navbar-nav flex-row gap-2">
-                <!-- Bouton switch mode UI -->
+                {% comment %}Replier / déployer les DEUX volets d'un geste (2026-10-27, décision de
+                Fabien : il remplace le bouton « Simplifié »). Une icône seule, câblée et repeinte par
+                la brique des volets (`wama-panel-toggle.js`, `data-wama-panels-switch`) : chaque volet
+                se rouvre ensuite seul par sa frontière ; les deux rouverts, le bouton reprend sa forme.{% endcomment %}
                 <li class="nav-item">
-                    <button id="uiModeSwitchBtn"
-                            class="btn btn-sm btn-outline-secondary"
-                            onclick="window.wamaToggleMode && window.wamaToggleMode()"
-                            title="Passer en Mode Simplifié — masque les volets ; le logo WAMA ouvre l’accueil simplifié">
-                        <i id="uiModeBtnIcon" class="fas fa-expand-alt me-1"></i>
-                        <span id="uiModeBtnLabel" class="wama-header-label">Simplifié</span>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-wama-panels-switch
+                            title="Replier les volets" aria-label="Replier les volets" aria-pressed="false">
+                        <i class="fas fa-table-columns"></i>
                     </button>
                 </li>
                 <!-- Bouton Compte / Login -->

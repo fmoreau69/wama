@@ -11,7 +11,6 @@
 [data-wama-chat][data-density="compact"] .wama-assistant-feed { max-height: 180px; font-size: .82rem; }
 [data-wama-chat][data-density="full"]    .wama-assistant-feed {
   max-height: 400px; min-height: 100px; padding: 15px; }
-body.wama-simple [data-wama-chat][data-density="full"] .wama-assistant-feed { max-height: 45vh; }
 
 /* Une ligne = une bulle (+ son bouton « Écouter » en densité pleine). Le flottement garde
    l'utilisateur à droite et l'assistant à gauche sans grille. */

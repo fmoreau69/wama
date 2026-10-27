@@ -300,10 +300,7 @@ class SurfaceLayoutTest(TestCase):
                                                content_type='application/json').status_code)
 
     def test_every_account_opens_frozen_until_it_decides(self):
-        for mode in ('simple', 'advanced'):
-            from wama.accounts.models import UserProfile
-            UserProfile.objects.update_or_create(user=self.user, defaults={'ui_mode': mode})
-            self.assertTrue(self._config(self.user)['layout']['frozen'], mode)
+        self.assertTrue(self._config(self.user)['layout']['frozen'])
         self._post({'slots': None, 'frozen': False})
         self.assertFalse(self._config(self.user)['layout']['frozen'])
 

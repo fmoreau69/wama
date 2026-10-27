@@ -21,8 +21,9 @@
   ⚠ Rendu même quand la préférence est désactivée (`data-enabled="0"`, masqué) : la page
   d'accueil peut ainsi réactiver l'avatar SANS rechargement. Cela ne coûte rien — le module
   three.js/TalkingHead (~6 Mo) n'est importé qu'au moment où l'avatar doit être VISIBLE.
-  ⚠ En mode SIMPLIFIÉ le volet droit entier est masqué (`body.wama-simple`) : l'avatar
-  n'y existe pas, et la brique ne charge rien tant que ce mode est actif.
+  ⚠ Volet droit REPLIÉ (`body.wama-right-collapsed`) : l'avatar n'y est pas visible, et la
+  brique ne charge rien tant qu'il l'est (le mode simplifié, qui masquait le volet, est retiré
+  depuis le 2026-10-27).
 {% endcomment %}
 <div class="right-panel-section" id="assistant-avatar-section"
      data-enabled="{% if assistant_avatar.enabled %}1{% else %}0{% endif %}"
@@ -66,6 +67,9 @@
                 title="Dicter un message"><i class="fas fa-microphone"></i></button>
         <button type="button" class="btn btn-outline-secondary btn-sm" data-assistant-talk
                 title="Conversation vocale"><i class="fas fa-headset"></i></button>
+        {% comment %}Joindre : le sélecteur du système puis le dépôt du glisser (`wama-assistant-chat.js`, 2026-10-27).{% endcomment %}
+        <button type="button" class="btn btn-outline-secondary btn-sm" data-assistant-attach
+                title="Joindre des fichiers (ou les glisser sur le chat)"><i class="fas fa-paperclip"></i></button>
         <textarea rows="1" placeholder="Votre message…" aria-label="Message à l'assistant"></textarea>
         <button type="button" class="btn btn-outline-info btn-sm" data-assistant-voice
                 title="Couper la voix (muet)"><i class="fas fa-volume-up"></i></button>
@@ -75,10 +79,10 @@
                 title="Envoyer"><i class="fas fa-paper-plane"></i></button>
       </div>
       {% comment %}Rappel du dernier tour (modèle · niveau). Les réglages, durables et valables
-      partout, s'ouvrent par la ⚙ (modale commune, 2026-10-18) ; un fichier GLISSÉ sur le chat
-      se dépose dans votre espace et part avec le message.{% endcomment %}
+      partout, s'ouvrent par la ⚙ (modale commune, 2026-10-18) ; un fichier JOINT (trombone) ou
+      GLISSÉ sur le chat se dépose dans votre espace et part avec le message.{% endcomment %}
       <div class="wama-assistant-status" data-assistant-status
-           title="Réglages : ⚙ — glissez un fichier sur le chat pour le joindre"></div>
+           title="Réglages : ⚙ — joignez (trombone) ou glissez un fichier sur le chat"></div>
     </div>
     {% endif %}
   </div>

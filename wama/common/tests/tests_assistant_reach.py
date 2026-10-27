@@ -244,3 +244,67 @@ class ChatFollowsThePageTest(SimpleTestCase):
             ctx.eval("chat.applyActions([{result: {action: 'navigate', url: %r}}]);"
                      "chat.followPendingPage(Promise.resolve(true));" % url)
         self.assertEqual(0, ctx.eval("assigned.length"))
+
+
+class SidePanelsFromTheAssistantTest(SimpleTestCase):
+    """Le mode simplifié est RETIRÉ (2026-10-27, décision de Fabien) : ce qu'il faisait de
+    l'interface — masquer les volets — passe par le repli COMMUN des volets, à la voix aussi
+    (`fold_side_panels`) ; et sur un téléphone, « Joindre » remplace ses zones de dépôt."""
+
+    def test_the_tool_folds_through_the_page_and_keeps_nothing(self):
+        self.assertNotIn('switch_ui_mode', tool_api.TOOL_REGISTRY)
+        self.assertIn('fold_side_panels', tool_api.TOOL_REGISTRY)
+        self.assertIsNone(tool_api.app_id_for_tool('fold_side_panels'), 'transverse')
+        self.assertEqual({'action': 'panels', 'folded': True, 'message': 'Volets repliés.'},
+                         tool_api.fold_side_panels(None))
+        self.assertFalse(tool_api.fold_side_panels(None, folded='false')['folded'])
+
+    def _chat(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        ctx = MiniRacer()
+        ctx.eval(FAKE_BROWSER + source)
+        ctx.eval("var chat = Object.create(WamaAssistantChat._Chat.prototype);")
+        return ctx
+
+    def test_the_chat_folds_the_panels_it_is_told_to(self):
+        ctx = self._chat()
+        ctx.eval("var asked = []; window.WamaPanels = {setAll: function (v) { asked.push(v); }};"
+                 "chat.applyActions([{tool: 'fold_side_panels', result: {action: 'panels', folded: true}},"
+                 "                   {tool: 'fold_side_panels', result: {action: 'panels', folded: false}}]);")
+        self.assertEqual([True, False], list(ctx.eval('asked')))
+
+    def test_attach_opens_the_system_picker_then_deposits_like_a_drop(self):
+        ctx = self._chat()
+        ctx.eval("""
+            function node() { return { handlers: {}, attrs: {}, children: [],
+                addEventListener: function (t, h) { this.handlers[t] = h; },
+                setAttribute: function (k, v) { this.attrs[k] = v; },
+                appendChild: function (c) { this.children.push(c); } }; }
+            var attach = node(), root = node(), clicked = 0, deposited = [];
+            root.querySelector = function (sel) { return sel === '[data-assistant-attach]' ? attach : null; };
+            document.createElement = function () { var n = node(); n.click = function () { clicked++; }; return n; };
+            chat.root = root;
+            chat.deposit = function (files) { deposited.push(files); };
+            chat.bindDeposit();
+            var picker = root.children[0];
+            attach.handlers.click();
+            picker.files = [{name: 'photo.jpg'}];
+            picker.handlers.change();
+        """)
+        self.assertEqual('file', ctx.eval('picker.type'))
+        self.assertTrue(ctx.eval('picker.multiple'))
+        self.assertEqual(1, ctx.eval('clicked'), 'the button opens the system picker')
+        import json
+        self.assertEqual([[{'name': 'photo.jpg'}]], json.loads(ctx.eval('JSON.stringify(deposited)')))
+        self.assertEqual('', ctx.eval('picker.value'), 'the same file can be picked again')
+        self.assertIn('data-fm-designate', list(ctx.eval('Object.keys(root.attrs)')), 'drop still wired')
+
+    def test_both_chats_carry_the_attach_button(self):
+        for template in ('templates/home.html', 'common/templates/common/_assistant_avatar.html'):
+            self.assertIn('data-assistant-attach', (Path(settings.BASE_DIR) / 'wama' / template)
+                          .read_text(encoding='utf-8'), template)

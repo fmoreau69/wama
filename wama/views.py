@@ -652,7 +652,7 @@ def _voice_options(user) -> dict:
             'clause_pause': settings_.get('voice_clause_pause')}
 
 
-def _tts_via_service(text: str, voice: str, options: dict = None):
+def _tts_via_service(text: str, voice: str, options: dict = None, user=None):
     """
     Génère la vocalisation via le microservice TTS (modèle chaud, process dédié → pas de
     course env dans Django). Renvoie le WAV en base64, ou None si le service est indisponible
@@ -682,7 +682,7 @@ def _tts_via_service(text: str, voice: str, options: dict = None):
         # (mêmes voix Kokoro), donc le calcul voix→langue ci-dessus vaut pour les deux.
         wav = tts_via_service(text, ASSISTANT_TTS_ENGINE, language=language,
                               voice_preset=voice_preset, options=options, read_timeout=30,
-                              raw=True)
+                              raw=True, user=user)
         return base64.b64encode(wav).decode('utf-8')
     except Exception as e:
         logger.info(f"[kokoro_tts] TTS service indisponible ({e}) → repli en-process")
@@ -695,6 +695,10 @@ def kokoro_tts(request):
     """
     Generate TTS audio with Kokoro and return a base64-encoded WAV.
     Body: {"text": "...", "voice": "ff_siwis"}
+
+    `pronunciation` (facultatif, 2026-10-27) : la clé d'une prononciation que le compte VOIT —
+    elle est dite pour cette demande, la sienne ou celle qu'on lui partage : on écoute une
+    entrée avant de l'adopter (page des prononciations).
     """
     if not request.user.is_authenticated:
         return JsonResponse({'error': 'Authentification requise'}, status=401)
@@ -727,7 +731,10 @@ def kokoro_tts(request):
         # `spoken` : le texte EFFECTIVEMENT dit (2026-10-18). Le navigateur cale les lèvres de
         # l'avatar et reconnaît l'écho de la voix sur CE texte — il ne nettoie plus rien
         # lui-même : il le faisait à sa façon, en effaçant le code en ligne.
-        audio_b64 = _tts_via_service(text, voice, _voice_options(request.user))
+        from wama.common.services.user_pronunciations import tried_entry
+        tried = tried_entry(request.user, data.get('pronunciation'))
+        options = {**_voice_options(request.user), **({'lexicon': tried} if tried else {})}
+        audio_b64 = _tts_via_service(text, voice, options, user=request.user)
         if audio_b64 is not None:
             return JsonResponse({'audio_b64': audio_b64, 'spoken': text})
 
@@ -735,6 +742,13 @@ def kokoro_tts(request):
         # Derive lang_code from voice prefix (ff_siwis → 'f', am_adam → 'a')
         lang_code = voice[0] if voice else 'f'
         pipeline = _get_kokoro(lang_code)
+        # Le lexique de prononciation (fichier + lignes du compte), comme par le service (27/10).
+        from wama.common.backends.kokoro_backend import say_lexicon_through
+        from wama.common.services.user_pronunciations import lexicon_for
+        from wama.common.tts.voices import langue_de_voix
+        voice_language = langue_de_voix(voice)[0]
+        said = say_lexicon_through(pipeline, lang_code, voice_language, text,
+                                   {**lexicon_for(request.user, voice_language), **tried})
 
         import io
         import wave
@@ -742,7 +756,7 @@ def kokoro_tts(request):
         import numpy as np
 
         samples = []
-        for _, _, audio in pipeline(text, voice=voice, speed=1.0):
+        for _, _, audio in pipeline(said, voice=voice, speed=1.0):
             if audio is not None:
                 arr = audio.numpy() if hasattr(audio, 'numpy') else np.array(audio)
                 samples.append(arr)
@@ -835,23 +849,3 @@ def speech_to_text(request):
     return JsonResponse({'text': (result.get('text') or '').strip(),
                          'language': result.get('language') or language,
                          'engine': result.get('engine', 'local')})
-
-
-@require_http_methods(["POST"])
-@csrf_protect
-def switch_ui_mode(request):
-    """Persist the user's UI mode preference (simple / advanced)."""
-    if not request.user.is_authenticated:
-        return JsonResponse({'ok': True})  # silently ignore for anonymous
-    try:
-        data = json.loads(request.body)
-        mode = data.get('mode', 'advanced')
-        if mode not in ('simple', 'advanced'):
-            mode = 'advanced'
-        from wama.accounts.models import UserProfile
-        profile, _ = UserProfile.objects.get_or_create(user=request.user)
-        profile.ui_mode = mode
-        profile.save(update_fields=['ui_mode'])
-        return JsonResponse({'ok': True, 'mode': mode})
-    except Exception:
-        return JsonResponse({'ok': True})

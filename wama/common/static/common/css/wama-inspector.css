@@ -63,19 +63,15 @@
 .wama-new-item-card .wama-nic-chevron { transition: transform .2s ease; }
 .wama-new-item-card.is-deployed .wama-nic-chevron { transform: rotate(180deg); }
 /* « Réglages : volet de droite » (common/_settings_hint.html, CARD_DESIGN §11.11 Étape 3) :
-   poussé à droite de l'en-tête (le chevron le suit) ; en mode simplifié le volet est masqué,
-   la phrase renvoie alors au ⚙ de l'élément. */
+   poussé à droite de l'en-tête (le chevron le suit). */
 .wama-new-item-card .wama-settings-hint { margin-left: auto; font-size: .72rem; opacity: .85; }
 /* Le chevron est `ms-auto` : poussé à droite quand l'indication est absente (page sans volet,
    la médiathèque) ; juste après elle quand elle est là. */
 .wama-new-item-card .wama-settings-hint + .wama-nic-chevron { margin-left: .5rem !important; }
-.wama-settings-hint--simple { display: none; }
-body.wama-simple .wama-settings-hint--panel { display: none; }
-body.wama-simple .wama-settings-hint--simple { display: inline; }
-/* Volet droit REPLIÉ par sa frontière (WamaPanels) : la phrase le rouvre. Le mode simplifié prime. */
+/* Volet droit REPLIÉ par sa frontière (WamaPanels) : la phrase le rouvre. */
 .wama-settings-hint--collapsed { display: none; }
-body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--panel { display: none; }
-body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { display: inline; }
+body.wama-right-collapsed .wama-settings-hint--panel { display: none; }
+body.wama-right-collapsed .wama-settings-hint--collapsed { display: inline; }
 .wama-settings-hint--collapsed a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 
 /* ── Solitaire 🃏 : batch REPLIÉ = pile de cartes (deck) ; clic = désempile ──────────────

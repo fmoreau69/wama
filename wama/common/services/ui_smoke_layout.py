@@ -1191,6 +1191,143 @@ def check_process_check_relaunch(path: str, page_hook=None):
     return True, ' → '.join(steps)
 
 
+#: Le chat de l'accueil et le bouton des volets, tels qu'on les voit.
+_PHONE_HOME_JS = """() => {
+    const box = sel => { const e = document.querySelector(sel); if (!e) return null;
+        const r = e.getBoundingClientRect(), cs = getComputedStyle(e);
+        return (r.width > 1 && cs.display !== 'none' && cs.visibility !== 'hidden' && !e.hidden)
+            ? {left: r.left, right: r.right, top: r.top, width: r.width} : null; };
+    const sw = document.querySelector('[data-wama-panels-switch]');
+    return {chat: box('#ai-chat textarea'), attach: box('#ai-chat [data-assistant-attach]'),
+            viewport: innerWidth,
+            switchShown: box('[data-wama-panels-switch]'),
+            switchIcon: sw && sw.querySelector('i') ? sw.querySelector('i').className : '',
+            deposits: [...document.querySelectorAll('#ai-chat .wama-assistant-deposit')].map(c => c.textContent.trim())};
+}"""
+
+
+def check_phone_home(url_path: str, page_hook=None):
+    """L'ACCUEIL À LARGEUR DE TÉLÉPHONE (2026-10-27, décision de Fabien : le mode simplifié est
+    retiré, son usage se porte au mode normal) — (ok, détail).
+
+    Sur un téléphone (390 px, doigt), stockage vide : le contexte étroit replie les deux volets,
+    le chat de l'accueil est à pleine largeur, sans défilement horizontal ni barre qui déborde ;
+    « Joindre » ouvre le SÉLECTEUR du système et le fichier choisi part par le dépôt commun
+    (envoi INTERCEPTÉ : rien n'est écrit) puis s'affiche en pastille ; le bouton des volets de
+    l'en-tête en rouvre un (le droit, celui de l'assistant), puis les replie. Au bureau, il replie
+    les deux, puis reprend sa forme quand chacun est rouvert par sa frontière. `page_hook(page)` :
+    posé sur chaque page avant son ouverture (la contre-épreuve y réécrit le code servi)."""
+    import json as _json
+    import re
+
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    sessions_before = _session_keys()
+    token = _test_session_key()
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    faults, steps, uploads = [], [], []
+
+    def fake_upload(route):
+        uploads.append(route.request.method)
+        route.fulfill(status=200, content_type='application/json',
+                      body=_json.dumps({'uploaded': [{'path': 'temp/joint.txt', 'name': 'joint.txt'}]}))
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                ctx = browser.new_context(viewport={'width': 390, 'height': 844}, device_scale_factor=3,
+                                          is_mobile=True, has_touch=True)
+                ctx.add_cookies(_cookie(token))
+                page = ctx.new_page()
+                page.route(re.compile(r'.*/filemanager/api/upload/.*'), fake_upload)
+                if page_hook:
+                    page_hook(page)
+                resp = page.goto(url, wait_until='domcontentloaded', timeout=PAGE_TIMEOUT_MS)
+                wrong = _exiger_la_page(page, resp, url)
+                if wrong:
+                    return wrong
+                page.wait_for_timeout(1500)
+                s, h = page.evaluate(JS_LAYOUT), page.evaluate(_PHONE_HOME_JS)
+                faults += _clean_layout(s, 'téléphone 390 px')
+                if not s['narrow'] or s['leftOpen'] or s['rightOpen']:
+                    faults.append(f"téléphone : attendu le contexte étroit, volets repliés (étroit "
+                                  f"{s['narrow']}, gauche {s['leftOpen']}, droite {s['rightOpen']})")
+                if not h['chat'] or h['chat']['width'] < 150:
+                    faults.append(f"téléphone : la saisie du chat n'est pas utilisable ({h['chat']})")
+                if not h['attach'] or h['attach']['right'] > h['viewport']:
+                    faults.append(f"téléphone : « Joindre » n'est pas à l'écran ({h['attach']})")
+                steps.append(f"téléphone : volets repliés, saisie {round((h['chat'] or {}).get('width', 0))} px, "
+                             f"« Joindre » visible")
+                if h['attach']:
+                    with page.expect_file_chooser(timeout=8000) as chooser:
+                        page.locator('#ai-chat [data-assistant-attach]').tap()
+                    chooser.value.set_files(files=[{'name': 'joint.txt', 'mimeType': 'text/plain',
+                                                    'buffer': b'WAMA'}])
+                    page.wait_for_timeout(800)
+                    h = page.evaluate(_PHONE_HOME_JS)
+                    if uploads != ['POST'] or not any('joint.txt' in d for d in h['deposits']):
+                        faults.append(f"« Joindre » : le fichier choisi n'est pas déposé (envois "
+                                      f"{uploads}, pastilles {h['deposits']})")
+                    steps.append("« Joindre » : sélecteur du système, dépôt commun, pastille")
+                if not h['switchShown']:
+                    faults.append("téléphone : le bouton des volets n'est pas dans l'en-tête")
+                else:
+                    page.locator('[data-wama-panels-switch]').tap()
+                    page.wait_for_timeout(ANIM_MS)
+                    s = page.evaluate(JS_LAYOUT)
+                    if s['leftOpen'] or (s['hasRight'] and not s['rightOpen']):
+                        faults.append(f"téléphone : le bouton des volets doit rouvrir le seul volet "
+                                      f"droit (gauche {s['leftOpen']}, droite {s['rightOpen']})")
+                    page.locator('[data-wama-panels-switch]').tap()
+                    page.wait_for_timeout(ANIM_MS)
+                    s = page.evaluate(JS_LAYOUT)
+                    if s['leftOpen'] or s['rightOpen']:
+                        faults.append("téléphone : un second toucher doit replier les volets")
+                    steps.append("bouton des volets : le volet droit, puis repliés")
+                ctx.close()
+
+                ctx = browser.new_context(viewport={'width': 1280, 'height': 800})
+                ctx.add_cookies(_cookie(token))
+                page = ctx.new_page()
+                if page_hook:
+                    page_hook(page)
+                page.goto(url, wait_until='domcontentloaded', timeout=PAGE_TIMEOUT_MS)
+                page.wait_for_timeout(1500)
+                page.locator('[data-wama-panels-switch]').click()
+                page.wait_for_timeout(ANIM_MS)
+                s, h = page.evaluate(JS_LAYOUT), page.evaluate(_PHONE_HOME_JS)
+                if s['leftOpen'] or s['rightOpen'] or 'fa-expand' not in h['switchIcon']:
+                    faults.append(f"bureau : le bouton doit replier les deux volets et changer de forme "
+                                  f"(gauche {s['leftOpen']}, droite {s['rightOpen']}, {h['switchIcon']})")
+                _edge(page, 'left', False)
+                h = page.evaluate(_PHONE_HOME_JS)
+                if 'fa-expand' not in h['switchIcon']:
+                    faults.append("bureau : un seul volet rouvert, le bouton doit garder sa forme « repliés »")
+                _edge(page, 'right', False)
+                s, h = page.evaluate(JS_LAYOUT), page.evaluate(_PHONE_HOME_JS)
+                if not (s['leftOpen'] and s['rightOpen']) or 'fa-table-columns' not in h['switchIcon']:
+                    faults.append(f"bureau : les deux volets rouverts, le bouton reprend sa forme "
+                                  f"({s['leftOpen']}, {s['rightOpen']}, {h['switchIcon']})")
+                faults += _clean_layout(s, 'bureau 1 280 px')
+                steps.append("bureau : repliés d'un geste, rouverts un par un, le bouton suit")
+            finally:
+                browser.close()
+    except SkipScenario:
+        raise
+    except Exception as error:
+        faults.append(f"interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
+    finally:
+        _drop_new_sessions(sessions_before)
+    if faults:
+        return False, ' ; '.join(faults)
+    return True, ' → '.join(steps)
+
+
 def register_layout_scenarios():
     """Enregistre `common.layout.tablet` (la mise en page à largeur de tablette),
     `common.gestures.touch` (les gestes au doigt) et `common.gestures.mouse` (les mêmes à la souris)."""
@@ -1207,6 +1344,15 @@ def register_layout_scenarios():
         description=("Mise en page : volets par contexte de largeur (tablette portrait / paysage, "
                      "bureau), barre du haut et pied sans chevauchement"),
         run=(lambda p=path: (lambda ctx: check_tablet_layout('transcriber', p)))(),
+        timeout_s=180, vram_gb=0.0,
+    )
+    register(
+        id="common.layout.phone", app="common", stage="ui",
+        description=("Accueil à largeur de téléphone (le mode simplifié retiré le 2026-10-27) : volets "
+                     "repliés, chat utilisable, « Joindre » par le sélecteur du système (envoi "
+                     "intercepté), bouton des volets de l'en-tête — et au bureau, repliés d'un geste, "
+                     "rouverts un par un"),
+        run=(lambda h=reverse('home'): (lambda ctx: check_phone_home(h)))(),
         timeout_s=180, vram_gb=0.0,
     )
     try:

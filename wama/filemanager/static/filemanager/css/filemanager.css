@@ -126,16 +126,13 @@
 }
 
 /* Barre ÉTROITE : les libellés s'effacent derrière leur icône, du moins utile au plus utile —
-   le mode (son bouton garde son infobulle), puis le nom du compte, puis « Applications ».
+   le nom du compte, puis « Applications » (le libellé du mode a disparu avec le mode simplifié,
+   le 2026-10-27 : le bouton des volets n'est qu'une icône).
    Masqués à l'ŒIL seulement : la forme de `.visually-hidden` de Bootstrap, que le lecteur
    d'écran lit toujours (une requête ne peut pas poser une classe). Seuils tirés de la mesure du
    2026-10-12 — tous les libellés tiennent dans 605 px, nom de 16 caractères compris ; sans le
    mode, 535 ; sans la droite, 416 ; sans aucun, 335 — avec une marge pour un nom en lettres
    larges. */
-@container wama-header (max-width: 720px) {
-    #uiModeBtnLabel { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
-    #uiModeBtnIcon { margin-right: 0 !important; }
-}
 @container wama-header (max-width: 580px) {
     .wama-header-right .wama-header-label { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
     .wama-header-right i { margin-right: 0 !important; }
@@ -218,20 +215,6 @@
     height: var(--fm-header-height) !important;
     z-index: 2000 !important;
     overflow: visible !important; /* Critical for dropdown */
-}
-
-/* Simple mode: header spans full width, content spans full width */
-body.wama-simple .top_nav {
-    left: 0 !important;
-    right: 0 !important;
-}
-
-body.wama-simple > .container,
-body.wama-simple > .container-fluid {
-    margin-left: 0 !important;
-    margin-right: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
 }
 
 /* Page SANS volet droit — classe posée par le SERVEUR (base.html) quand la déclaration

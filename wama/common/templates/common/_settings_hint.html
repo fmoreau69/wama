@@ -5,11 +5,8 @@ droit et la modale ⚙ portent les RÉGLAGES : l'utilisateur doit le lire, sur t
 la même phrase. Inclus par les deux cards communes (`_new_item_card.html`, `_new_item_card_v4.html`),
 jamais par une app.
 
-Deux textes, un seul affiché — choisi par CSS (`wama-inspector.css`) : en mode SIMPLIFIÉ le volet
-droit est masqué (`body.wama-simple #wama-right-panel`, base.html), les réglages se font alors par
-le ⚙ de l'élément, une fois ajouté à la file.
-
-Un troisième texte quand le volet droit est REPLIÉ par sa frontière (`WamaPanels`, 2026-10-10) :
+Deux textes, un seul affiché — choisi par CSS (`wama-inspector.css`). Le second quand le volet
+droit est REPLIÉ par sa frontière (`WamaPanels`, 2026-10-10) :
 le volet n'est qu'à un clic, et c'est lui qui porte les réglages AVANT l'ajout — la phrase le
 rouvre (`data-wama-panel-open`) au lieu d'envoyer vers un ⚙ qui n'existe pas encore.
 
@@ -22,7 +19,6 @@ contexte de requête) garde l'indication — c'est le défaut des 10 apps.
 <span class="wama-settings-hint small text-muted text-nowrap" title="Modèle, voix, formats… : ils se règlent hors de cette card, avant de lancer le traitement.">
     <i class="fas fa-sliders-h"></i>
     <span class="wama-settings-hint--panel">Réglages : volet de droite</span>
-    <span class="wama-settings-hint--simple">Réglages : ⚙ de l'élément ajouté</span>
     <span class="wama-settings-hint--collapsed">Réglages : <a href="#" data-wama-panel-open="right">afficher le volet</a></span>
 </span>
 {% endif %}

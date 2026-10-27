@@ -35,9 +35,9 @@
 | `#settings-section` | `:177-186` | Défaut : « Aucun paramètre disponible » |
 | `#actions-section` | `:189-198` | Corps **vide** — mais titre et cadre rendus quand même |
 | Pont apps | `common/app_modern_base.html:264-286` | Redéclare les blocs et ouvre `app_right_panel_*` |
-| Masquage global | `base.html:22` | `body.wama-simple #wama-right-panel { display:none }` — **les deux volets disparaissent en mode simplifié** |
+| ~~Masquage global~~ | — | ~~`body.wama-simple #wama-right-panel { display:none }`~~ — **retiré le 2026-10-27 avec le mode simplifié** (§7) ; le bouton de l'en-tête replie les deux volets par `WamaPanels.setAll` |
 | **Repli par la frontière** (2026-10-10) | `common/js/wama-panel-toggle.js` + `common/css/wama-panel-toggle.css` | `WamaPanels` : un clic sur la frontière d'un volet le replie / le rouvre, sur toute page — voir §9 ② |
-| **Place des volets** (2026-10-10) | `wama-panel-toggle.css` | marges dérivées `--wama-left-gutter` / `--wama-right-gutter` (largeur du volet, ou 0 replié / sans volet / mode simplifié) : SEULE source que lisent le corps, l'en-tête et les barres fixes — jamais plus `--fm-*-width` (`tests_panel_toggle`) |
+| **Place des volets** (2026-10-10) | `wama-panel-toggle.css` | marges dérivées `--wama-left-gutter` / `--wama-right-gutter` (largeur du volet, ou 0 replié / sans volet) : SEULE source que lisent le corps, l'en-tête et les barres fixes — jamais plus `--fm-*-width` (`tests_panel_toggle`) |
 | **Contextes de largeur** (2026-10-12) | `base.html` (amorce `WamaPanelsContext`) + `wama-panel-toggle.js` | sous le `lg` de Bootstrap : classe `wama-narrow`, volets repliés d'office, un seul ouvert, mémoire `wama_panel_<côté>_narrow` — voir §9 ⑤ |
 | **Barre du haut et pied** (2026-10-12) | `includes/header.html`, `base.html`, `filemanager.css` | grilles `1fr auto 1fr` ; la barre est un CONTENEUR (`wama-header`) dont les libellés `.wama-header-label` s'effacent derrière leur icône — §9 ⑤ |
 | Scripts inspecteur | `base.html:309-310` | `wama-inspector.js` + `-autofill.js` chargés **globalement** depuis le 2026-08-20 |
@@ -329,9 +329,12 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   (au bord du haut, à côté, rendu à la page, empilé), chacun vérifié sur ce que la page MONTRAIT
   avant le lâcher puis sur ce qui est gardé ; deux contre-épreuves rouges (lâcher ignoré, pointeur
   non suivi). Vu à l'écran sur la correction du transcriber.
-- ⏳ **Suite décidée le 2026-10-27** (Fabien, « tu peux dérouler le plan ») : ④ les boutons d'atelier remplacés par UN menu « ⋯ »
-  (gardé pour la disposition figée, le clavier, le tactile et les scénarios) ; le mode simplifié
-  remplacé par un bouton d'en-tête qui replie les deux volets + « Joindre » dans le chat (§7).
+- ✅ **Le mode simplifié RETIRÉ — 2026-10-27** : bouton des volets dans l'en-tête, « Joindre »
+  dans le chat, accueil à largeur de téléphone mesuré (§7).
+- ⏳ **Suite décidée le 2026-10-27** (Fabien) : ④ les boutons d'atelier remplacés par UN menu « ⋯ »
+  (gardé pour la disposition figée, le clavier, le tactile et les scénarios) — **après** que Fabien
+  a essayé le glisser-déposer : « si on arrive à gérer tout ça en drag&drop, es-tu ok pour retirer
+  les boutons qui feraient doublon ? ».
 - ⏳ Reste de `WAMA_DATA_WORLD §8.2 ⑤` (« layout dockable + détachement en vraie fenêtre ») : le
   DÉTACHEMENT d'un panneau dans une autre fenêtre.
 
@@ -536,6 +539,35 @@ repli des deux volets en tient lieu, l'accueil chatbot devient un choix d'accuei
 l'ALIGNER — « Simplifié » = replier les deux volets par le même mécanisme, chacun se rouvrant à
 la volée. Un retrait passe par `REMOVAL_LEDGER` (trois surfaces : code, préférence du profil,
 docs). Rien n'est touché avant la décision.
+
+✅ **2026-10-27 — RETIRÉ (décision de Fabien, voie (a) avec ce que (b) gardait)** : *« on remplace
+le bouton "Simplifié" par un switch qui masque les volets de chaque côté, juste avec une icône
+représentative, aligné sur le fonctionnement de repli des volets latéraux permettant de les
+rouvrir et fermer 1 par 1 […] et on ajoute dans l'assistant un bouton permettant d'ajouter des
+documents directement […] Comme ça on conserve bien tout le fonctionnement en place, on réduit
+l'occupation dans le header, on a plus 2 interfaces concurrentes sur la page d'accueil. »* Ce que
+le mode faisait, et où cela vit désormais :
+- **masquer les volets** → le bouton de l'en-tête (`[data-wama-panels-switch]`, une icône) :
+  `WamaPanels.setAll` replie les deux, chacun se rouvre seul par sa frontière, le bouton reprend
+  sa forme quand les deux sont rouverts ; en largeur étroite (un seul ouvert), il rouvre le volet
+  droit, celui de l'assistant. L'assistant y passe aussi (`fold_side_panels`, qui remplace
+  `switch_ui_mode`). Rien au profil : c'est le repli par navigateur, comme la frontière ;
+- **les trois zones de dépôt de l'accueil** → « Joindre » (trombone) dans les DEUX chats : le
+  sélecteur du système (galerie et appareil photo sur un téléphone), puis le dépôt commun du
+  glisser — l'assistant demande quoi en faire et sait ranger en Médiathèque
+  (`tool_api.add_to_media_library`) ou lancer le Reader. C'était le seul geste que le mode
+  rendait indispensable : sur un téléphone, ni glisser ni explorateur ;
+- **l'usage sur un téléphone** → le contexte étroit (volets repliés d'office, §9 ⑤) : mesuré par
+  le scénario nocturne `common.layout.phone` (390 px : saisie utilisable, « Joindre » par le vrai
+  sélecteur, envoi intercepté, bouton des volets) ;
+- **la préférence** → un navigateur qui l'avait choisie retrouve une fois ses volets repliés
+  (amorce de `base.html`, `wama_ui_mode` traduit puis oublié).
+Retraits : `REMOVAL_LEDGER R182`. Gardes : `tests_panel_toggle` (`SimplifiedModeRetiredTest` —
+aucune trace du mode dans le code —, le bouton et la reprise du mode joués en V8),
+`tests_assistant_reach.SidePanelsFromTheAssistantTest` (l'outil, l'action du chat, « Joindre »
+en V8), `common.layout.phone` ; huit contre-épreuves rouges. ⚠ La colonne `ui_mode` reste en base
+jusqu'à la relance (le serveur en service la lit encore) : elle a quitté le modèle par
+`accounts/0030` (défaut en base, retrait de l'état seul) ; sa suppression suit la relance.
 
 ---
 

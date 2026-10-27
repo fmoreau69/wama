@@ -9,7 +9,9 @@ Ce qui est gardé, dans l'ordre où cela peut casser :
    `--fm-right-panel-width`) ne verrait pas un volet replié et laisserait une bande vide. Le
    contrôle est générique — il balaie le dépôt — parce que ces règles naissent dans les pages
    (éditeur du transcriber, cam_analyzer), pas dans la brique.
-3. **Le mode simplifié s'applique sur place** : il ne renvoie plus à l'accueil sans le dire.
+3. **Le mode simplifié est RETIRÉ** (2026-10-27, décision de Fabien) : le bouton de l'en-tête
+   replie les deux volets d'un geste, chacun se rouvre seul, le bouton suit ; un navigateur qui
+   l'avait choisi retrouve une fois ses volets repliés ; plus aucune trace du mode dans le code.
 4. **Deux contextes de largeur** (2026-10-12, ROADMAP §27 étape 2) : sous le point de rupture
    `lg` de Bootstrap, volets repliés d'office, un seul ouvert, mémoire à part — le choix fait en
    grand n'est jamais écrasé. Joué dans V8 avec un faux DOM : le script d'amorce de base.html
@@ -94,7 +96,13 @@ V8_HARNESS = r"""
 var window = globalThis;
 var store = {}, classes = {}, mqHandlers = [], narrowNow = false;
 var localStorage = { getItem: function (k) { return k in store ? store[k] : null; },
-                     setItem: function (k, v) { store[k] = String(v); } };
+                     setItem: function (k, v) { store[k] = String(v); },
+                     removeItem: function (k) { delete store[k]; } };
+// Le bouton des volets de l'en-tête (`[data-wama-panels-switch]`).
+var switchBtn = { hidden: false, title: '', attrs: {}, icon: { className: '' }, onclick: null,
+                  setAttribute: function (k, v) { this.attrs[k] = v; },
+                  querySelector: function () { return this.icon; },
+                  addEventListener: function (t, h) { this.onclick = h; } };
 var classList = {
   contains: function (c) { return !!classes[c]; },
   add: function (c) { classes[c] = true; },
@@ -105,6 +113,7 @@ function el() { return { dataset: {}, style: { setProperty: function () {} }, se
                          addEventListener: function () {}, querySelector: function () { return {}; } }; }
 var document = { readyState: 'complete', documentElement: {}, addEventListener: function () {},
                  body: { classList: classList, appendChild: function () {} },
+                 querySelectorAll: function (sel) { return sel === '[data-wama-panels-switch]' ? [switchBtn] : []; },
                  getElementById: function (id) { return (id === 'filemanager-sidebar' || id === 'wama-right-panel') ? {} : null; },
                  createElement: el };
 window.matchMedia = function () { return { get matches() { return narrowNow; },
@@ -124,7 +133,7 @@ function setWidth(narrow) { narrowNow = narrow; mqHandlers.forEach(function (h) 
 class TwoWidthContextsTest(TestCase):
     """L'amorce de base.html puis la brique, joués dans V8 sur la même mémoire."""
 
-    def _context(self, narrow):
+    def _context(self, narrow, before=''):
         import json
         from py_mini_racer import MiniRacer
         request = RequestFactory().get('/')
@@ -132,7 +141,7 @@ class TwoWidthContextsTest(TestCase):
         boot = _boot_script(render_to_string('base.html', {}, request=request))
         ctx = MiniRacer()
         ctx.eval(V8_HARNESS)
-        ctx.eval(f'narrowNow = {"true" if narrow else "false"};')
+        ctx.eval(f'narrowNow = {"true" if narrow else "false"};' + before)
         ctx.eval(boot)
         ctx.eval(_read(COMMON / 'js' / 'wama-panel-toggle.js'))
         return ctx, (lambda: json.loads(ctx.eval('state()')))
@@ -177,6 +186,43 @@ class TwoWidthContextsTest(TestCase):
         self.assertEqual(s['store']['wama_panel_left'], 'collapsed')
 
 
+    # ── Le bouton de l'en-tête (2026-10-27, Fabien : il remplace « Simplifié ») ──────────────
+    def _switch(self, ctx):
+        import json
+        return json.loads(ctx.eval("JSON.stringify({icon: switchBtn.icon.className, "
+                                   "pressed: switchBtn.attrs['aria-pressed'], title: switchBtn.title})"))
+
+    def test_the_header_switch_folds_both_then_follows_each_panel(self):
+        ctx, state = self._context(narrow=False)
+        self.assertEqual('fas fa-table-columns', self._switch(ctx)['icon'], 'both open: the open form')
+        ctx.eval('switchBtn.onclick()')
+        self.assertEqual((state()['left'], state()['right']), (False, False), 'one gesture folds both')
+        self.assertEqual(('fas fa-expand', 'true'), tuple(self._switch(ctx).values())[:2])
+        ctx.eval("WamaPanels.setCollapsed('left', false)")      # rouvert seul, par sa frontière
+        self.assertEqual('fas fa-expand', self._switch(ctx)['icon'], 'one panel back is not both')
+        ctx.eval("WamaPanels.setCollapsed('right', false)")
+        self.assertEqual('fas fa-table-columns', self._switch(ctx)['icon'], 'both back: the open form again')
+        ctx.eval('switchBtn.onclick()')
+        ctx.eval('switchBtn.onclick()')
+        self.assertEqual((state()['left'], state()['right']), (True, True), 'folded, then unfolded')
+
+    def test_on_a_narrow_screen_the_switch_opens_the_assistant_panel_only(self):
+        ctx, state = self._context(narrow=True)
+        self.assertEqual('fas fa-expand', self._switch(ctx)['icon'])
+        ctx.eval('switchBtn.onclick()')
+        self.assertEqual((state()['left'], state()['right']), (False, True), 'one panel at a time')
+        ctx.eval('switchBtn.onclick()')
+        self.assertEqual((state()['left'], state()['right']), (False, False))
+
+    def test_a_browser_left_in_simplified_mode_finds_its_panels_folded_once(self):
+        ctx, state = self._context(narrow=False, before="store['wama_ui_mode'] = 'simple';")
+        s = state()
+        self.assertEqual((s['left'], s['right']), (False, False))
+        self.assertNotIn('wama_ui_mode', s['store'], 'translated once, then forgotten')
+        ctx.eval("WamaPanels.setCollapsed('left', false)")
+        self.assertTrue(state()['left'], 'a plain fold: each panel reopens on its own')
+
+
 class HeaderAndFooterDoNotOverlapTest(SimpleTestCase):
 
     def test_the_header_is_a_three_column_grid_with_a_container(self):
@@ -212,7 +258,6 @@ class OneSourceForPanelRoomTest(SimpleTestCase):
         css = _read(COMMON / 'css' / 'wama-panel-toggle.css')
         self.assertIn('body.wama-left-collapsed { --wama-left-gutter: 0px; }', css)
         self.assertRegex(css, r'body\.wama-right-collapsed,\s*body\.wama-sans-volet \{ --wama-right-gutter: 0px; \}')
-        self.assertIn('body.wama-simple { --wama-left-gutter: 0px; --wama-right-gutter: 0px; }', css)
 
     def test_the_central_area_and_the_header_read_the_gutters(self):
         css = _read(BASE / 'wama' / 'filemanager' / 'static' / 'filemanager' / 'css' / 'filemanager.css')
@@ -245,13 +290,9 @@ class PanelEdgeBehaviourTest(SimpleTestCase):
         coarse = css[css.index('@media (pointer: coarse)'):]
         self.assertIn('.wama-panel-edge-pill { opacity: .8;', coarse)
 
-    def test_simple_mode_hides_the_edges_with_the_panels(self):
-        self.assertIn('body.wama-simple .wama-panel-edge { display: none; }',
-                      _read(COMMON / 'css' / 'wama-panel-toggle.css'))
-
     def test_the_avatar_is_not_loaded_in_a_collapsed_right_panel(self):
         js = _read(COMMON / 'js' / 'wama-avatar-panel.js')
-        self.assertIn("c.contains('wama-right-collapsed')", js)
+        self.assertIn("classList.contains('wama-right-collapsed')", js)
         self.assertIn('!panelHidden()', js)
 
     def test_the_settings_hint_reopens_a_collapsed_right_panel(self):
@@ -259,7 +300,7 @@ class PanelEdgeBehaviourTest(SimpleTestCase):
         hint = _read(BASE / 'wama' / 'common' / 'templates' / 'common' / '_settings_hint.html')
         self.assertIn('data-wama-panel-open="right"', hint)
         css = _read(COMMON / 'css' / 'wama-inspector.css')
-        self.assertIn('body.wama-right-collapsed:not(.wama-simple) .wama-settings-hint--collapsed { display: inline; }', css)
+        self.assertIn('body.wama-right-collapsed .wama-settings-hint--collapsed { display: inline; }', css)
         js = _read(COMMON / 'js' / 'wama-panel-toggle.js')
         self.assertIn("closest('[data-wama-panel-open]')", js)
 
@@ -283,14 +324,31 @@ class PanelEdgeBehaviourTest(SimpleTestCase):
         MiniRacer().eval('(function(){' + _read(COMMON / 'js' / 'wama-panel-toggle.js') + '\n})')
 
 
-class SimpleModeStaysInPlaceTest(SimpleTestCase):
+class SimplifiedModeRetiredTest(SimpleTestCase):
+    """Le mode simplifié est RETIRÉ (2026-10-27, décision de Fabien) : le bouton des volets, le
+    « Joindre » du chat et le repli d'office des volets à largeur étroite portent ses usages. Un
+    reste — une règle `wama-simple`, une vue, un champ lu — ferait revivre un second mode."""
 
-    def test_switching_to_simple_mode_no_longer_sends_home(self):
-        base = _read(BASE / 'wama' / 'templates' / 'base.html')
-        toggle = base[base.index('window.wamaToggleMode = function'):base.index('function _updateBtn')]
-        self.assertNotIn('location.href', toggle, 'the mode applies where the user is')
-        self.assertIn('window.wamaSetMode(next);', toggle)
+    TRACES = re.compile(r'wama-simple|switch_ui_mode|wamaSetMode|wamaToggleMode|homeSimple|\bui_mode\b')
 
-    def test_the_button_says_where_the_simplified_home_is(self):
+    def test_no_trace_of_the_mode_is_left_in_the_code(self):
+        offenders = []
+        for root in ('wama', 'wama_lab', 'wama_data'):
+            for path in (BASE / root).rglob('*'):
+                if path.suffix not in ('.py', '.js', '.css', '.html') or not path.is_file():
+                    continue
+                parts = path.relative_to(BASE).parts
+                if ({'vendors', 'migrations', 'tests'} & set(parts)
+                        or any(re.search(r'_\d+$', p) for p in parts) or path.name.startswith('tests')):
+                    continue
+                for n, line in enumerate(_read(path).splitlines(), 1):
+                    if self.TRACES.search(line):
+                        offenders.append(f'{path.relative_to(BASE)}:{n}: {line.strip()[:90]}')
+        self.assertEqual([], offenders)
+
+    def test_the_header_carries_the_panels_switch(self):
         header = _read(BASE / 'wama' / 'templates' / 'includes' / 'header.html')
-        self.assertIn('le logo WAMA ouvre l’accueil simplifié', header)
+        self.assertIn('data-wama-panels-switch', header)
+        self.assertNotIn('uiModeSwitchBtn', header)
+        js = _read(COMMON / 'js' / 'wama-panel-toggle.js')
+        self.assertIn("btn.addEventListener('click', function () { setAll(allOpen()); });", js)
