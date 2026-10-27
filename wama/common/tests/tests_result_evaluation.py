@@ -541,6 +541,21 @@ class MeasuresWithoutReferenceTest(TestCase):
         face = self.client.get(f'/common/api/result-reference/transcriber/element/{self.item.pk}/')
         self.assertEqual('speech_coverage', face.json()['item']['checks'][0]['key'])
 
+    def test_the_viewer_offers_the_evaluation_face_for_a_measure_alone(self):
+        """The SERVED preview route: no reference on the element, a measure on its line — the
+        « Évaluation » face is offered after the output and carries the measure."""
+        self.client.force_login(self.user)
+        url = f'/common/preview/transcriber/{self.item.pk}/'
+        before = self.client.get(url).json()
+        self.assertEqual([], before['sides']['after'], 'counter-proof: nothing measured, no face')
+        self._run()
+        sides = self.client.get(url).json()['sides']
+        self.assertEqual(['evaluation'], [f['key'] for f in sides['after']])
+        face = self.client.get(url + '?side=evaluation').json()
+        self.assertEqual('evaluation', face['side'])
+        self.assertEqual('speech_coverage', face['evaluation']['checks'][0]['key'])
+        self.assertIn('56 %', face['content'])
+
     def test_the_evaluation_shows_it_even_without_a_reference(self):
         self._run()
         measure = evaluation.item_evaluation('transcriber', self.item)

@@ -216,7 +216,8 @@ d'un panneau dans la colonne, retour par « Disposition par défaut »).
 transport en bas ou en haut de page pour qu'il ne défile pas avec la page »*). Le geste est au
 noyau (`wama-surface.js`, bouton `.wama-brick-dock`), la brique le DÉCLARE (`dockable: true` à son
 `registerBrick` — le transport, `media_transport`, est la première). Le choix se garde avec la
-disposition du compte (`docked: {emplacement: 'top' | 'bottom'}`, validé par
+disposition du compte (`docked: {emplacement: 'top' | 'bottom'}` — quatre bords le soir même,
+ci-dessous —, validé par
 `surfaces.clean_layout` : emplacements déclarés seuls, un bord hors `DOCK_EDGES` refusé). Le
 panneau épinglé est fixé entre les gouttières des volets (`--wama-left-gutter` /
 `--wama-right-gutter`, posées par `wama-panel-toggle.css`) et la page se décale de sa hauteur.
@@ -237,7 +238,8 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   tête de la pile donne au panneau sa place et son épinglage. Gardé avec la disposition
   (`stacks : {tête: [{id, h}]}`, validé par `surfaces._clean_stacks` : une brique dans un seul
   panneau, un emplacement retiré oublié). Un geste de DISPOSITION : disposition modifiable
-  seulement, défait par « Disposition par défaut ».
+  seulement, défait par « Disposition par défaut » (qui garde, elle, l'épinglage : une
+  préférence de lecture).
 - **Épingler** à un bord : un menu de cinq choix (haut, bas, gauche, droite, « Dans la page »)
   au lieu du bouton qui faisait défiler deux bords — on choisit un BORD, jamais « sur place » au
   milieu de la page. Haut et bas : une bande qui garde sa hauteur dans la grille (≤ 45 % de la
@@ -257,6 +259,14 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   garde l'épinglage, détacher, désépingler), à côté de `common.surface_layout` (9/9, rien n'a
   reculé) ; trois contre-épreuves rouges (empilement neutralisé, panneau laissé dans la grille,
   colonne calée à 0).
+- Revérifié sur le live relancé le 2026-10-27 : le noyau lit ses bornes de la surface
+  (`Surface.to_dict` : `max_rows`, `dock_edges` — il recopiait `400` et la liste des bords,
+  `test_the_kernel_reads_the_bounds_the_server_applies`) ; `common.surface_stack` passe à
+  **12 gestes** — FIGÉE, la pile épinglée reste à son bord sans ses outils d'atelier et
+  l'épingle quitte les panneaux ordinaires ; **« Disposition par défaut » défait les piles et
+  GARDE l'épinglage** (une préférence de LECTURE, comme figée) ; sur un téléphone la colonne
+  reste dans la page sans rien réécrire —, trois contre-épreuves de plus, rouges, jouées dans le
+  navigateur du scénario (noyau et feuille réécrits par `page_hook`, rien sur le disque).
 - ⏳ Reste de `WAMA_DATA_WORLD §8.2 ⑤` (« layout dockable + détachement en vraie fenêtre ») : le
   DÉTACHEMENT d'un panneau dans une autre fenêtre.
 

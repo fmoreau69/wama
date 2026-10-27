@@ -1079,6 +1079,118 @@ def check_mouse_gestures(paths: dict):
     return _run_gestures(paths, parts, 'gestures_mouse')
 
 
+#: La mesure d'un process dans la bande de SA card : le badge, le bouton « Relancer avec ».
+_PROC_CHECK_JS = """([pk, process]) => {
+    const card = document.querySelector('.wama-card[data-id="' + pk + '"]');
+    const row = card && card.querySelector('.wcv3-proc[data-process="' + process + '"]');
+    const shown = el => !!(el && el.offsetParent !== null);
+    const badge = row && row.querySelector('.wcv3-proc-check');
+    const suggest = row && row.querySelector('.wcv3-proc-suggest');
+    return {card: !!card, row: !!row, badge: shown(badge), text: badge ? badge.textContent : '',
+            title: badge ? (badge.title || '') : '', suggest: shown(suggest)}; }"""
+
+
+def check_process_check_relaunch(path: str, page_hook=None):
+    """La garde (b) « sortie insuffisante » vue dans la FILE (2026-10-22 ; scénario ajouté à la
+    revérification du 2026-10-27) — (ok, détail).
+
+    Une transcription du compte de test dont le process porte une mesure qui dit « court », écrite
+    par l'écrivain commun (`process_runs.annotate`, celui de `result_evaluation.run_checks`), avec
+    le réglage que propose le tirage LOCAL réel (`_local_alternative`, la sortie venant d'un
+    modèle distant). Dans la page : la bande de la card montre la mesure et « Relancer avec » ;
+    le clic ÉCRIT le réglage par la route de la card (requête réelle) puis joue le ▶ de CE
+    process — ce lancement est INTERCEPTÉ et relevé, aucune transcription ne part.
+    `page_hook(page)` : posé avant l'ouverture (la contre-épreuve y réécrit un fichier servi)."""
+    import re
+
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services import process_runs
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.services.process_pipeline import app_pipeline
+    from wama.common.services.result_evaluation import CHECKS, _local_alternative
+    from .ui_smoke import _deplier_autour, _garde_de_montage, _test_account_id, _total_nettoye
+
+    pipeline = app_pipeline('transcriber')
+    spec = next((s for s in (pipeline.specs if pipeline else ()) if s.checks), None)
+    if spec is None:
+        raise SkipScenario("aucun process du transcriber ne déclare de mesure (`ProcessSpec.checks`)")
+    token, uid = _test_session_key('transcriber'), _test_account_id('transcriber')
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+    remote = 'albert:whisper-large-v3'
+    sessions_before = _session_keys()
+    launches, steps, faults = [], [], []
+    with _garde_de_montage('transcriber', 'process_check') as cleaned:
+        (item,) = _mount_transcripts(uid, count=1)
+        try:
+            suggestion = _local_alternative('transcriber', item, remote)
+            if not suggestion:
+                raise SkipScenario(f"aucun modèle local à proposer à la place de {remote}")
+            key = spec.checks[0]
+            process_runs.start(item, spec.key, process_key='transcriber', task_id='smoke-check')
+            process_runs.succeed(item, spec.key, model_key=remote)
+            process_runs.annotate(item, spec.key, checks=[{
+                'key': key, 'label': CHECKS[key].label, 'value': 0.5, 'short': True,
+                'message': 'témoin : 50 % seulement, du texte manque', 'suggest': suggestion}])
+            before = getattr(item, suggestion['field'])
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                    context.add_cookies(_cookie(token))
+                    page = context.new_page()
+                    page.set_default_timeout(15000)
+                    errors = []
+                    page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+
+                    def intercept(route):
+                        launches.append(route.request.url)
+                        route.fulfill(status=200, content_type='application/json',
+                                      body='{"success": true}')
+                    page.route(re.compile(rf'/start/{item.pk}/'), intercept)
+                    if page_hook:
+                        page_hook(page)
+                    page.goto(BASE_URL.rstrip('/') + path, wait_until='load', timeout=PAGE_TIMEOUT_MS)
+                    selector = f'.wama-card[data-id="{item.pk}"]'
+                    page.wait_for_selector(selector, state='attached', timeout=30000)
+                    _deplier_autour(page, selector)
+                    page.wait_for_timeout(800)
+                    shown = page.evaluate(_PROC_CHECK_JS, [item.pk, spec.key])
+                    if not (shown['badge'] and shown['suggest'] and '50' in shown['text'] + shown['title']):
+                        faults.append(f"bande : la mesure ou « Relancer avec » manque ({shown})")
+                    else:
+                        steps.append("bande : la mesure et « Relancer avec » sur la ligne du process")
+                        page.locator(f'{selector} .wcv3-proc-suggest').first.click()
+                        page.wait_for_timeout(2500)
+                    if errors:
+                        faults.append(f"erreurs JS {errors[:3]}")
+                finally:
+                    browser.close()
+            item.refresh_from_db()
+            after = getattr(item, suggestion['field'])
+            wanted = rf'/start/{item.pk}/{spec.key}/'
+            if steps and (after != suggestion['value'] or not any(re.search(wanted, u) for u in launches)):
+                faults.append(f"« Relancer avec » : réglage {before!r} → {after!r} (attendu "
+                              f"{suggestion['value']!r}), lancement(s) relevé(s) {launches}")
+            elif steps:
+                steps.append(f"« Relancer avec » : réglage écrit ({suggestion['value']}), puis le ▶ "
+                             f"de « {spec.label or spec.key} » seul (intercepté, rien lancé)")
+        finally:
+            _drop_new_sessions(sessions_before)
+            process_runs.forget(item)
+            try:
+                item.audio.delete(save=False)
+            except Exception:
+                pass
+    if cleaned:
+        steps.append(f"{_total_nettoye(cleaned)} objet(s) de montage retiré(s)")
+    if faults:
+        return False, ' ; '.join(faults)
+    return True, ' → '.join(steps)
+
+
 def register_layout_scenarios():
     """Enregistre `common.layout.tablet` (la mise en page à largeur de tablette),
     `common.gestures.touch` (les gestes au doigt) et `common.gestures.mouse` (les mêmes à la souris)."""
@@ -1116,4 +1228,13 @@ def register_layout_scenarios():
                      "Espace, plage Maj), onde du transcriber, panneau de la cloche"),
         run=(lambda g=gesture_paths: (lambda ctx: check_mouse_gestures(g)))(),
         timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id="transcriber.process_check_relaunch", app="transcriber", stage="ui",
+        description=("Garde (b) dans la file : la bande des process d'une card montre la mesure "
+                     "« sortie insuffisante » de son process et « Relancer avec » ; le clic écrit "
+                     "le réglage proposé (le modèle local) puis joue le ▶ de CE process — lancement "
+                     "intercepté, aucune transcription ne part"),
+        run=(lambda p=path: (lambda ctx: check_process_check_relaunch(p)))(),
+        timeout_s=180, vram_gb=0.0,
     )

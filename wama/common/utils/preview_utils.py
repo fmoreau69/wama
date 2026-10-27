@@ -751,7 +751,9 @@ def _evaluation_face(app_name, instance):
     """La face « Évaluation » : la mesure de la Sortie contre la RÉFÉRENCE posée sur l'élément,
     pour une app qui DÉCLARE son évaluation (`result_evaluation.register_evaluation`) — lue par
     `item_evaluation`, dessinée par le rendu commun `WamaEvaluation.renderItem`. Elle vient
-    APRÈS la Sortie, qu'elle mesure. `{}` : rien de déclaré, ou aucune référence posée.
+    APRÈS la Sortie, qu'elle mesure. Depuis le 2026-10-22, elle porte aussi les mesures SANS
+    référence gardées sur les lignes des process (`ProcessSpec.checks`, `item_checks`) : un
+    élément sans référence mais mesuré a sa face. `{}` : ni référence posée, ni mesure.
 
     2026-10-13 (Fabien : « porte la diarisation, l'évaluation et txt/srt au commun ») : c'était
     un onglet de la modale propre du transcriber."""

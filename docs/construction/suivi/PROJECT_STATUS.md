@@ -26123,9 +26123,23 @@ face « Évaluation »). Domicile `WAMA_QUALITE §9bis` ; mécanique `ROUTE §10
 - ✅ Mesurée sur les cards réelles, lecture seule : #2522 0,558 (Whisper Large-v3 proposé),
   #724 0,90, #1072 1,00.
 - ⏳ (c) signaler à la DINUM · les cards d'avant ne sont mesurées qu'à leur prochaine
-  transcription · smoke navigateur de la bande et de la face.
+  transcription · ~~smoke navigateur de la bande et de la face~~ — fait le 2026-10-27 (ci-dessous).
 - Gardes : 15 tests (mesure, registre, déclaration, export, lignes, bande, évaluation, V8,
   squelette) ; contre-épreuves rouges (6).
+- ✅ **2026-10-27, revérification sur le live relancé** : scénario nocturne
+  `transcriber.process_check_relaunch` (`ui_smoke_layout`) — une card témoin du compte de test, la
+  mesure écrite par l'écrivain commun (`process_runs.annotate`) avec le réglage du tirage LOCAL
+  réel ; dans la page, la bande montre la mesure et « Relancer avec », le clic ÉCRIT le réglage
+  (requête réelle, `auto` → `transcriber:whisper`) puis joue le ▶ du seul process — lancement
+  intercepté, rien ne part. VERT sur le live ; contre-épreuve ROUGE (le ▶ retiré de
+  `wama-app-base.js` dans le navigateur du scénario seul). La face : route d'aperçu servie
+  (`test_the_viewer_offers_the_evaluation_face_for_a_measure_alone`, contre-épreuve rouge) ; la
+  docstring de `preview_utils._evaluation_face` disait encore « `{}` : aucune référence posée ».
+- ⚠ Relevé au passage, PAS de cette session : **318 005 lignes de process ORPHELINES** (élément
+  supprimé, ligne restée) — transcriber 13 968, synthesizer 2 588, jumelles du bac à sable…
+  `process_runs.forget` n'a qu'un appelant (`release_card_files`) : une suppression en cascade,
+  un nettoyage de témoins ou une jumelle supprimée les laisse. Domicile : `ROUTE §10.6` 4.1 —
+  chantier à ouvrir (décision : purge + appelant manquant), rien touché.
 
 ## §CLÔTURE — 2026-10-20→26, « PARTAGES · MODÉRATION · RÔLE UNIFIÉ · REVÉRIFICATION DU STUDIO · JEU DE DONNÉES » — ✅ LIVRÉ — 🔚 `align_account_tiers --apply`
 
@@ -26279,6 +26293,13 @@ latérales, on a qu'à le faire »*. Domicile `WAMA_VOLETS §3-ter`.
   (`Surface.to_dict` : `max_rows`, `dock_edges`) et lus par le noyau, un bord que le serveur
   refuserait n'est plus proposé ; garde `test_the_kernel_reads_the_bounds_the_server_applies`
   (deux contre-épreuves rouges), `tests_surfaces` 73, les deux scénarios rejoués 9/9.
+- ✅ Revérification sur le LIVE relancé (2026-10-27, `cb71be34` servi) : `common.surface_stack`
+  passe à **12 gestes** — figée (pile épinglée gardée, outils d'atelier masqués, épingle retirée
+  des panneaux ordinaires), « Disposition par défaut » (piles défaites, épinglage GARDÉ : une
+  préférence de lecture), téléphone (la colonne reste dans la page, rien réécrit) — 12/12 et
+  `common.surface_layout` 9/9 SUR LE LIVE ; trois contre-épreuves rouges jouées dans le
+  navigateur du scénario (feuille et noyau réécrits par `page_hook`, rien sur le disque).
+  Préchauffage au journal du live : `app_pipelines` 5,7 à 8,0 s par worker, en arrière-plan.
 - ⏳ Décision de Fabien : **retirer le mode simplifié** ou l'aligner sur le repli des volets
   (`WAMA_VOLETS §7`) · détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`) ·
   smoke sur une surface temporelle (transcriber : transport + ligne de temps + écriture empilés en

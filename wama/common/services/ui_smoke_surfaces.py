@@ -256,7 +256,11 @@ def check_surface_stack(page_hook=None):
     éléments, gardés au serveur) ; le panneau épinglé en bas (entre l'en-tête et le pied, la page
     s'en écarte), puis à gauche (une colonne fixe sous l'en-tête) ; le rechargement le rend tel
     quel ; descendre la tête change la tête et l'épinglage la suit ; détacher rend deux panneaux ;
-    « Dans la page » le désépingle. Mêmes garanties de sortie que `check_surface_layout`."""
+    « Dans la page » le désépingle. Puis (revérification du 2026-10-27) : FIGÉE, la pile épinglée
+    reste à son bord sans ses outils d'atelier, et l'épingle quitte les panneaux ordinaires ;
+    « Disposition par défaut » défait les piles et GARDE l'épinglage (une préférence de lecture) ;
+    sur un téléphone la colonne reste dans la page sans rien réécrire. Mêmes garanties de sortie
+    que `check_surface_layout`."""
     return _on_layout_witness(_stack_gestures, page_hook)
 
 
@@ -443,6 +447,13 @@ _MARK_SECTION_JS = """(id) => {
     if (s) s.dataset.smokeKept = id;
     return s ? s.querySelector('.wama-brick-title').textContent : null; }"""
 
+#: Les outils d'un titre à l'écran : ceux de la pile (calques, flèches, détacher) et l'épingle.
+_TOOLS_SHOWN_JS = """(id) => {
+    const head = document.querySelector('.wama-brick-section[data-slot="' + id + '"] > .wama-brick-head');
+    const shown = el => !!(el && el.offsetParent !== null && !el.hidden);
+    return head ? {stack: shown(head.querySelector('.wama-brick-stack-tools')),
+                   pin: shown(head.querySelector('.wama-brick-dock'))} : null; }"""
+
 #: Les sections marquées sont-elles toutes dans un panneau d'empilement ?
 _IN_SHELL_JS = """(ids) => ids.every(id => {
     const s = document.querySelector('[data-smoke-kept="' + id + '"]');
@@ -545,6 +556,49 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         verdict(not now['panels'][second]['fixed'] and not kept.get('docked') and now['padLeft'] == 0,
                 f"« Dans la page » : désépinglé, plus de marge ({now['panels'][second]}, "
                 f"{kept.get('docked')})")
+
+        # FIGÉE : la pile épinglée reste à son bord, ses outils d'atelier disparaissent, et
+        # l'épingle ne reste qu'au panneau épinglé — un panneau ordinaire n'en porte plus.
+        third = next(s.id for s in surface.slots if s.id not in (first, second))
+        press(first, 'fa-layer-group')
+        pick(title)
+        press(first, 'fa-thumbtack')
+        pick('En bas de la fenêtre')
+        settle()
+        page.click('[data-act="freeze"]')
+        kept, now = settle(), state()
+        head, other = page.evaluate(_TOOLS_SHOWN_JS, first), page.evaluate(_TOOLS_SHOWN_JS, third)
+        verdict(now['panels'][first]['fixed'] and now['panels'][first]['sections'] == [first, second]
+                and head == {'stack': False, 'pin': True} and other and not other['pin']
+                and kept.get('frozen') is True and kept.get('docked') == {first: 'bottom'},
+                f"figée : la pile reste épinglée, outils de pile masqués, épingle au seul panneau "
+                f"épinglé ({head}, {third} : {other}, {kept.get('docked')})")
+
+        # « Disposition par défaut » défait les PILES (un geste de disposition) ; l'épinglage, une
+        # préférence de LECTURE, reste au panneau qui le portait.
+        page.click('[data-act="freeze"]')
+        settle()
+        page.click('[data-act="layout"]')
+        kept, now = settle(), state()
+        verdict((now['panels'].get(first) or {}).get('sections') == [first]
+                and (now['panels'].get(second) or {}).get('sections') == [second]
+                and not kept.get('stacks') and kept.get('slots') is None
+                and kept.get('docked') == {first: 'bottom'} and now['panels'][first]['fixed'],
+                f"« Disposition par défaut » : piles défaites, l'épinglage gardé "
+                f"({kept.get('stacks')}, {kept.get('docked')})")
+
+        # Téléphone : une colonne fixe n'y a pas sa place — le panneau reste dans la page, et
+        # rien n'est réécrit (le bord reste gardé pour la fenêtre large).
+        press(first, 'fa-thumbtack')
+        pick('À gauche')
+        kept_wide = settle()
+        page.set_viewport_size({'width': 600, 'height': 900})
+        open_page()
+        kept, now = settle(), state()
+        verdict(not (now['panels'].get(first) or {}).get('fixed') and now['padLeft'] == 0
+                and kept == kept_wide and kept.get('docked') == {first: 'left'},
+                f"téléphone : la colonne reste dans la page, rien de réécrit "
+                f"({now['panels'].get(first)}, {kept.get('docked')})")
     except Exception as error:
         verdict(False, f"geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
@@ -577,7 +631,10 @@ def register_surface_scenarios():
         description=("Surfaces : deux panneaux EMPILÉS en un (les mêmes briques, gardé par compte), "
                      "épinglé en bas puis à gauche (entre l'en-tête et le pied, la page s'en "
                      "écarte), rendu tel quel au rechargement ; la tête descendue garde "
-                     "l'épinglage ; détacher rend deux panneaux ; « Dans la page » désépingle"),
+                     "l'épinglage ; détacher rend deux panneaux ; « Dans la page » désépingle ; "
+                     "figée, la pile reste épinglée sans outils d'atelier ; « Disposition par "
+                     "défaut » défait les piles et garde l'épinglage ; téléphone : la colonne "
+                     "reste dans la page"),
         run=lambda ctx: check_surface_stack(),
         timeout_s=240, vram_gb=0.0,
     )

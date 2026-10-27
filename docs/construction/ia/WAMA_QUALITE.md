@@ -310,6 +310,11 @@ source (sans lequel elle mesure la fluidité et pas la fidélité, cf. `TRANSCRI
   la part de la PAROLE qu'une transcription couvre (`speech_activity.speech_coverage`, garde (b)
   du bloc « pourquoi Albert ne rend pas tout le texte », plus bas). Elle n'entre JAMAIS dans
   `ResultEvaluation` (mesure contre une référence, matière de l'indice ⑧).
+  Gestes joués au navigateur depuis le 2026-10-27 : le scénario nocturne
+  `transcriber.process_check_relaunch` (bande de la card + « Relancer avec » qui écrit le réglage
+  proposé puis joue le ▶ du seul process, lancement intercepté) ; la face « Évaluation » d'un
+  élément mesuré sans référence est gardée sur la route d'aperçu servie
+  (`test_the_viewer_offers_the_evaluation_face_for_a_measure_alone`).
 
 ### M5 — Juge modèle indépendant 🔄 (briques présentes, zéro consommateur)
 - **Mesure** : un LLM ou un VLM d'une **autre famille** que le générateur note la sortie par rapport
