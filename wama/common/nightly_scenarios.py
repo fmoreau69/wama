@@ -440,33 +440,23 @@ def _run_wama_data(ctx):
     ⚠ LE NOMBRE DE MODULES EST RAPPORTÉ, pas seulement le nombre de tests. Sans lui, une suite
     entière qui cesserait d'être découverte (fichier renommé hors convention, paquet sans
     `__init__`) ferait juste baisser un total que personne ne connaît par cœur.
+
+    🔴 PAR LE LANCEUR WAMA, JAMAIS EN PROCESSUS (2026-10-27, après la perte de `media/`). Ce
+    scénario jouait `runner.run_suite(suite)` dans le processus de la campagne, SANS
+    `setup_test_environment()` ni `setup_databases()` : neuf modules de Django
+    (`SimpleTestCase`) tournaient chaque nuit sur les VRAIS réglages — le motif même de la perte.
+    Il passe désormais par la voie du stage `suite` (`nightly_suite._run_label` : `manage.py
+    test wama_data --keepdb`, verdict lu dans la sortie) — les mêmes 937 tests, mesuré —, en
+    gardant sa cadence quotidienne (le stage `suite` est hebdomadaire).
     """
-    from django.test.utils import get_runner
-    from django.conf import settings
+    from wama.common.nightly_suite import _run_label
 
     modules = _modules_de_test('wama_data')
     if not modules:
         return False, ("aucun module de test découvert sous `wama_data` — convention "
                        "`tests_*.py` respectée ? paquet importable ?")
-
-    runner = get_runner(settings)(verbosity=0, interactive=False, keepdb=True)
-    suite = runner.test_loader.loadTestsFromNames(modules)
-    total = suite.countTestCases()
-    if not total:
-        return False, (f"{len(modules)} module(s) découvert(s) mais aucun test chargé — "
-                       "erreur d'import dans les modules de test ?")
-
-    result = runner.run_suite(suite)
-    echecs = len(result.failures) + len(result.errors)
-    sautes = len(getattr(result, 'skipped', ()))
-    detail = (f"{len(modules)} module(s) découvert(s), {result.testsRun} test(s), "
-              f"{echecs} échec(s), {sautes} sauté(s)")
-    if echecs:
-        premier = (result.failures + result.errors)[0]
-        return False, f"{detail} — 1er : {premier[0]}"
-    if sautes:
-        detail += " (base d'expérimentation absente : contrôles sur volumes réels non joués)"
-    return True, detail
+    ok, detail = _run_label('wama_data')(ctx)
+    return ok, f"{len(modules)} module(s) découvert(s) — {detail}"
 
 
 def register_scenarios():

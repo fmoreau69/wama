@@ -96,26 +96,42 @@ class GardeFouG1Test(unittest.TestCase):
     def test_la_decouverte_trouve_les_lecteurs_livres(self):
         self.assertEqual(set(sources.reader_modules()), set(sources.READERS))
 
+    def _deposit(self, name, code):
+        """Dépose un module de lecture dans un dossier JETABLE ajouté au chemin du paquet
+        (`sources.__path__`, ce que parcourt la découverte) — jamais dans le dépôt.
+
+        Jusqu'au 2026-10-27, ces tests écrivaient `zz_*.py` dans `wama_data/sources/` du dépôt,
+        chaque nuit : un run interrompu les y laissait, et pendant la fenêtre tout processus WAMA
+        qui parcourait les lecteurs en voyait un faux (audit des tests après la perte de `media/`)."""
+        import importlib
+        import shutil
+        import sys
+        folder = Path(tempfile.mkdtemp(prefix='wama_reader_'))
+        (folder / f'{name}.py').write_text(code, encoding='utf-8')
+        sources.__path__.append(str(folder))
+        importlib.invalidate_caches()
+
+        def remove():
+            sources.__path__.remove(str(folder))
+            sys.modules.pop(f'wama_data.sources.{name}', None)
+            shutil.rmtree(folder, True)          # the throwaway folder, `__pycache__` included
+            importlib.invalidate_caches()
+        self.addCleanup(remove)
+
     def test_un_lecteur_DEPOSE_est_enregistre_sans_toucher_au_moteur(self):
         """La formulation exacte de G1 : « ajouter un lecteur ne le modifie pas »."""
         import importlib
-        nouveau = Path(sources.__file__).parent / 'zz_essai_g1.py'
-        nouveau.write_text(
-            "from . import SourceReader, register_reader\n"
-            "class _E(SourceReader):\n"
-            "    format = 'essai_g1'\n"
-            "    extensions = ('.essai_g1',)\n"
-            "register_reader(_E())\n", encoding='utf-8')
-        try:
-            importlib.invalidate_caches()
-            self.assertIn('zz_essai_g1', sources.reader_modules())
-            importlib.import_module('wama_data.sources.zz_essai_g1')
-            self.assertIn('essai_g1', sources.READERS)
-            self.assertIn('.essai_g1', sources.supported_extensions())
-        finally:
-            sources.READERS.pop('essai_g1', None)
-            nouveau.unlink(missing_ok=True)
-            importlib.invalidate_caches()
+        self._deposit('zz_essai_g1',
+                      "from . import SourceReader, register_reader\n"
+                      "class _E(SourceReader):\n"
+                      "    format = 'essai_g1'\n"
+                      "    extensions = ('.essai_g1',)\n"
+                      "register_reader(_E())\n")
+        self.addCleanup(sources.READERS.pop, 'essai_g1', None)
+        self.assertIn('zz_essai_g1', sources.reader_modules())
+        importlib.import_module('wama_data.sources.zz_essai_g1')
+        self.assertIn('essai_g1', sources.READERS)
+        self.assertIn('.essai_g1', sources.supported_extensions())
 
     def test_un_lecteur_qui_CASSE_n_empeche_pas_les_autres(self):
         """L'isolation était PROMISE par la docstring et n'existait pas (aucun `try`).
@@ -126,23 +142,17 @@ class GardeFouG1Test(unittest.TestCase):
         module de lecture cassé faisait échouer l'import du PAQUET ENTIER, donc tout `wama_data`.
         """
         import importlib
-        casse = Path(sources.__file__).parent / 'zz_casse_g1.py'
-        casse.write_text("raise ImportError('dependance absente')\n", encoding='utf-8')
-        try:
-            importlib.invalidate_caches()
-            self.assertIn('zz_casse_g1', sources.reader_modules())
-            # Le module est RÉELLEMENT cassé — sinon le test ne prouverait rien.
-            with self.assertRaises(ImportError):
-                importlib.import_module('wama_data.sources.zz_casse_g1')
+        self._deposit('zz_casse_g1', "raise ImportError('dependance absente')\n")
+        self.assertIn('zz_casse_g1', sources.reader_modules())
+        # Le module est RÉELLEMENT cassé — sinon le test ne prouverait rien.
+        with self.assertRaises(ImportError):
+            importlib.import_module('wama_data.sources.zz_casse_g1')
 
-            before = dict(sources.READERS)
-            with self.assertLogs('wama_data.sources', level='WARNING'):
-                sources._register_builtins()          # ne doit PAS lever
-            self.assertEqual(dict(sources.READERS), before,
-                             "les lecteurs sains doivent être intacts")
-        finally:
-            casse.unlink(missing_ok=True)
-            importlib.invalidate_caches()
+        before = dict(sources.READERS)
+        with self.assertLogs('wama_data.sources', level='WARNING'):
+            sources._register_builtins()          # ne doit PAS lever
+        self.assertEqual(dict(sources.READERS), before,
+                         "les lecteurs sains doivent être intacts")
 
 
 class HorodatageTest(unittest.TestCase):

@@ -2,6 +2,7 @@
 `media_tests/` (sœur de `media/`, jamais dedans), les exécutions orphelines s'y balaient, et
 les témoins du nocturne se reconnaissent à leur NOM — y compris dans le dossier temporaire."""
 import os
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -75,6 +76,30 @@ def _names_media_root(node) -> bool:
             return False
 
 
+def _code_trees(needles=(), tests=True):
+    """`(chemin relatif, arbre AST)` du code des trois mondes (hors migrations et code vendorisé),
+    pour les fichiers qui contiennent l'un des `needles` ; `tests=False` écarte les fichiers et
+    dossiers de tests."""
+    import ast
+    base = Path(settings.BASE_DIR)
+    for root in ('wama', 'wama_lab', 'wama_data'):
+        for path in (base / root).rglob('*.py'):
+            parts = set(path.parts)
+            if 'migrations' in parts or 'vendor' in parts:
+                continue
+            if not tests and ('tests' in parts or path.name.startswith('test')):
+                continue
+            source = path.read_text(encoding='utf-8', errors='replace')
+            if needles and not any(needle in source for needle in needles):
+                continue
+            yield path.relative_to(base).as_posix(), ast.parse(source)
+
+
+def _called_name(node) -> str:
+    """Le nom appelé par un `ast.Call` (`f(…)` ou `x.f(…)`)."""
+    return getattr(node.func, 'attr', getattr(node.func, 'id', ''))
+
+
 def _media_root_removals(source: str) -> list:
     """Lines where `MEDIA_ROOT`, read at that moment, is handed to `rmtree` — called directly or
     registered with `addCleanup` / `addClassCleanup`."""
@@ -121,6 +146,50 @@ class NothingRemovesMediaRootReadOnTheFlyTest(SimpleTestCase):
         for line in ('self.addCleanup(shutil.rmtree, self.media, True)',
                      "shutil.rmtree(os.path.join(settings.MEDIA_ROOT, 'smoke'))"):
             self.assertEqual([], _media_root_removals(line), line)
+
+    def test_rmtree_is_never_imported_by_name(self):
+        """`from shutil import rmtree` binds the ORIGINAL function at import, before
+        `CommonConfig.ready()` wraps it : the process guard (`media_guard`) would not see it."""
+        import ast
+        found = [f'{path}:{node.lineno}' for path, tree in _code_trees(('shutil',))
+                 for node in ast.walk(tree)
+                 if isinstance(node, ast.ImportFrom) and node.module == 'shutil'
+                 and any(alias.name in ('rmtree', '*') for alias in node.names)]
+        self.assertEqual([], found)
+
+    def test_no_code_freezes_a_media_setting_at_import(self):
+        """`from wama.settings import MEDIA_ROOT` (or a value derived from it) is read ONCE, at
+        import — the runner's redirection never reaches it, and a test writes into the real
+        `media/` (2026-10-27 : `media/anonymizer/` created during the full suite by a detector
+        built without folders). Read `django.conf.settings` at call time."""
+        import ast
+        found = [f'{path}:{node.lineno}' for path, tree in _code_trees(('settings import',))
+                 for node in ast.walk(tree)
+                 if isinstance(node, ast.ImportFrom) and (node.module or '').split('.')[-1] == 'settings'
+                 and (node.module or '').split('.')[0] in ('wama', 'settings')
+                 and any(alias.name.startswith('MEDIA') for alias in node.names)]
+        self.assertEqual([], found)
+
+    def test_the_default_folders_of_a_detector_follow_the_current_media_root(self):
+        from wama.common.backends.detection_base import DetectionBackend
+        root = Path(tempfile.mkdtemp(prefix='wama_detector_'))
+        self.addCleanup(shutil.rmtree, root, True)
+        with self.settings(MEDIA_ROOT=str(root)):
+            source, destination = DetectionBackend.working_dirs()
+        self.assertEqual((str(root / 'anonymizer' / 'input'), str(root / 'anonymizer' / 'output')),
+                         (source, destination))
+        self.assertTrue(Path(source).is_dir() and Path(destination).is_dir())
+
+    def test_no_code_plays_a_test_suite_outside_manage_py_test(self):
+        """The nightly played the `wama_data` suites IN PROCESS (`run_suite`) on the real settings
+        until 2026-10-27 : a suite runs by `manage.py test` (`nightly_suite._run_label`), never by
+        a runner built in the code. Test files are left out — they exercise the guard itself."""
+        import ast
+        played = {'TextTestRunner', 'run_suite', 'get_runner', 'run_tests'}
+        found = [f'{path}:{node.lineno}' for path, tree in _code_trees(played, tests=False)
+                 for node in ast.walk(tree)
+                 if isinstance(node, ast.Call) and _called_name(node) in played]
+        self.assertEqual([], found)
 
 
 class LesTemoinsSeReconnaissentAuNomTest(TestCase):

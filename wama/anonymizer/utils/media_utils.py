@@ -1,7 +1,6 @@
 import os
 import uuid
 from typing import Union
-from wama.settings import MEDIA_ROOT
 from wama.common.utils.media_paths import get_app_media_path, ensure_app_media_dirs
 
 

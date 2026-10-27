@@ -226,18 +226,27 @@ d'outillage, c'est une décision de reproductibilité et de surface d'attaque.
 > `setUp` programmait `rmtree(settings.MEDIA_ROOT)`. Un script de contre-épreuve l'a lancé par
 > `unittest.TextTestRunner` après `django.setup()` : sur les vrais réglages, donc le vrai `media/`.
 
-- **Un test se lance par `manage.py test` ou `get_runner(settings)`, JAMAIS par `unittest`
-  directement** (`TextTestRunner`, `suite.run()`, `TestCase(...).run()`) : seul le lanceur WAMA
-  redirige `MEDIA_ROOT` vers `media_tests/` et monte une base de TEST. Hors de lui, un `TestCase`
-  écrit et efface dans le vrai `media/` et la vraie base.
+- **Un test de Django se lance par `manage.py test`, et par lui SEUL** — jamais par `unittest`
+  directement (`TextTestRunner`, `suite.run()`, `TestCase(...).run()`), ni par `get_runner(settings)`
+  dans un script : le lanceur WAMA redirige `MEDIA_ROOT` vers `media_tests/` et monte une base de
+  TEST, et seul un processus `manage.py test` garde son cache et son broker Celery en mémoire
+  (`common/services/runtime_side.py`, décidé au chargement des réglages — `get_runner` isolait les
+  médias et la base, pas eux). Hors de lui, un test écrit et efface dans le vrai `media/`, la
+  vraie base, et envoie ses tâches aux vrais workers. Une contre-épreuve passe par
+  `execute_from_command_line` (recette : skill `contre-epreuve` §2).
 - **Un dossier jetable s'efface par le CHEMIN qu'on a créé, jamais par `settings.MEDIA_ROOT` lu au
   nettoyage** — ce réglage désigne ce que le processus croit être les médias, et ce n'est pas
   toujours un dossier de test.
-- **Tenu par deux contrôles** : `common/utils/media_guard.py` (posé par `CommonConfig.ready()`,
-  donc dans TOUT processus Django) refuse avec `PermissionError` tout `shutil.rmtree` de `media/`,
-  de `users/`, de `media_library/` ou d'un dossier qui les contient ; `tests_media_tests_hygiene`
-  relève par AST tout `rmtree` qui reçoit `MEDIA_ROOT`. Le filet ne dispense pas de la règle : il
-  ne voit ni un `rm -rf` de shell, ni une boucle de `unlink`.
+- **Tenu par des contrôles, parce que la règle seule n'a pas tenu trois heures** (le soir même, une
+  autre session a refait un `TextTestRunner`) : `common/utils/media_guard.py`, posé par
+  `CommonConfig.ready()` donc dans TOUT processus Django, refuse avec `PermissionError` tout
+  `shutil.rmtree` de `media/`, de `users/`, de `media_library/` ou d'un dossier qui les contient,
+  ET tout test de Django qui démarre hors de `manage.py test` (avant ses `setUpClass`) ;
+  `tests_media_tests_hygiene` relève par AST tout `rmtree` qui reçoit `MEDIA_ROOT`, et toute
+  valeur `MEDIA*` importée de `wama.settings` (figée à l'import, elle échappe à la redirection :
+  lire `django.conf.settings` à l'appel). Un test n'écrit jamais dans l'arbre du code. Le filet ne
+  voit pas un `rm -rf` de shell (les agents le soumettent à demande, `.claude/settings.json`) ni
+  une boucle d'`unlink`.
 - Détail, restauration et ce qui a été perdu : `docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §10`.
 
 ---

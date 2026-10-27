@@ -311,9 +311,16 @@ class RechargementAChaudTest(TestCase):
 
     `importlib.import_module` rend le module DÉJÀ importé — une fonction ajoutée pendant que le
     serveur tourne reste donc invisible jusqu'au redémarrage. C'est ce que l'actualisation corrige.
+
+    ⚠ HORS DU DÉPÔT depuis le 2026-10-27 (audit des tests après la perte de `media/`). Ce test
+    réécrivait `wama_data/functions/temporal/__init__.py` et créait `_sonde_test.py` dans le
+    dépôt, puis restaurait une copie lue au `setUp` : un run interrompu laissait une fausse
+    fonction au catalogue du vrai WAMA, et une autre session qui éditait ce `__init__.py` pendant
+    le test perdait son travail à la restauration. Le paquet déclarant est désormais JETABLE (un
+    dossier temporaire sur `sys.path`), vu par le registre comme une app installée de plus — la
+    seule lecture qu'en font `_refresh_functions` et `load_all` (`get_app_configs`) : le même
+    rechargement est exercé, sur des fichiers à lui.
     """
-    SONDE = Path('wama_data/functions/temporal/_sonde_test.py')
-    INIT = Path('wama_data/functions/temporal/__init__.py')
     SOURCE = '''from wama.common.catalog.function_catalog import (FunctionCategory, FunctionSpec,
                                                   PortSpec, register)
 from wama.common.catalog.data_types import DataType
@@ -324,15 +331,40 @@ register(FunctionSpec(key='_sonde_test', name='Sonde', description='test',
 '''
 
     def setUp(self):
-        # ⚠ En OCTETS, jamais en texte : `write_text` normalise les fins de ligne et laissait le
-        # fichier « modifié » après chaque passage. Dans un dépôt où plusieurs instances
-        # travaillent, une modification parasite finit dans le commit de quelqu'un d'autre.
-        self.init_orig = self.INIT.read_bytes()
-
-    def tearDown(self):
-        self.SONDE.unlink(missing_ok=True)
-        self.INIT.write_bytes(self.init_orig)
-        refresh('functions')
+        import importlib
+        import shutil
+        import sys
+        import tempfile
+        import uuid
+        from types import SimpleNamespace
+        from unittest import mock
+        from django.apps import apps
+        root = Path(tempfile.mkdtemp(prefix='wama_reload_'))
+        self.addCleanup(shutil.rmtree, root, True)
+        self.addCleanup(refresh, 'functions')           # runs LAST : the catalog without the probe
+        self.package = f'wama_reload_probe_{uuid.uuid4().hex[:8]}'
+        declaring = root / self.package / 'functions'
+        declaring.mkdir(parents=True)
+        (root / self.package / '__init__.py').write_bytes(b'')
+        self.INIT = declaring / '__init__.py'
+        self.INIT.write_bytes(b'')
+        self.init_orig = b''
+        self.SONDE = declaring / '_sonde_test.py'
+        sys.path.insert(0, str(root))
+        self.addCleanup(sys.path.remove, str(root))
+        self.addCleanup(lambda: [sys.modules.pop(name) for name in list(sys.modules)
+                                 if name.split('.')[0] == self.package])
+        installed = apps.get_app_configs
+        probe = SimpleNamespace(name=self.package, label=self.package, path=str(root / self.package))
+        patcher = mock.patch.object(apps, 'get_app_configs', lambda: [*installed(), probe])
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        importlib.import_module(f'{self.package}.functions')    # imported at « startup »
+        # The catalog COMPLETE before each test, as the comparisons assume. Measured on
+        # 2026-10-27 in a fresh process : 78 functions after `ready()`, 150 after a full scan —
+        # this class only passed behind other tests that had filled it.
+        from ..catalog.function_catalog import load_all
+        load_all(rescan=True)
 
     def _ajouter_import(self):
         self.INIT.write_bytes(self.init_orig + b'\nfrom . import _sonde_test  # noqa\n')

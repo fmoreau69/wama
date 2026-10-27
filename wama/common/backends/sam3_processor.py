@@ -18,7 +18,7 @@ import logging
 from PIL import Image
 
 from .detection_base import FrameDetectionBackend
-from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT, MODEL_PATHS, AI_MODELS_DIR
+from wama.settings import MODEL_PATHS, AI_MODELS_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +99,9 @@ class SAM3Processor(FrameDetectionBackend):
     but uses SAM3 (Segment Anything Model 3) for text prompt-based segmentation.
 
     Args:
-        source_dir: Custom input directory (defaults to MEDIA_INPUT_ROOT)
-        destination_dir: Custom output directory (defaults to MEDIA_OUTPUT_ROOT)
+        source_dir: Custom input directory (defaults to `anonymizer/input` under MEDIA_ROOT,
+                    read at call time — `DetectionBackend.working_dirs`)
+        destination_dir: Custom output directory (defaults to `anonymizer/output`, likewise)
 
     Usage (détection seule depuis le 2026-10-04 — le floutage se joue depuis le document) :
         processor = SAM3Processor()
@@ -113,11 +114,7 @@ class SAM3Processor(FrameDetectionBackend):
         logger.info(f"[SAM3] Using device: {self.device}")
         print(f"[SAM3] Using device: {self.device}")
 
-        # Path settings - use custom paths or fall back to Django settings
-        self.source = str(source_dir) if source_dir else str(MEDIA_INPUT_ROOT)
-        self.destination = str(destination_dir) if destination_dir else str(MEDIA_OUTPUT_ROOT)
-        os.makedirs(self.source, exist_ok=True)
-        os.makedirs(self.destination, exist_ok=True)
+        self.source, self.destination = self.working_dirs(source_dir, destination_dir)
 
         self.input_path = None
 

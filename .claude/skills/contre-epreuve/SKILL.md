@@ -46,29 +46,40 @@ test peut échouer, pas qu'il VOIT le défaut.
 ```python
 """Contre-épreuve : <ce qui est neutralisé> → <les tests qui doivent rougir>. JETABLE."""
 import os
+import sys
 from unittest import mock
 
+# AVANT tout chargement des réglages : c'est la ligne de commande qui isole le cache et Celery
+# (`runtime_side.running_tests`) — ce processus EST un `manage.py test`.
+sys.argv = ['manage.py', 'test', '--keepdb', '<chemin.du.Test.la_methode>', ...]
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
-from django.conf import settings
-from django.test.utils import get_runner
+from django.core.management import execute_from_command_line
 
 with mock.patch('wama.common.utils.<brique>.<fonction>', lambda *a, **k: <valeur inerte>):
-    runner = get_runner(settings)(keepdb=True, verbosity=0)
-    failures = runner.run_tests(['<chemin.du.Test.la_methode>', ...])
+    try:
+        execute_from_command_line(sys.argv)
+        failures = 0
+    except SystemExit as stop:          # `manage.py test` sort par `sys.exit(<échecs>)`
+        failures = stop.code
 print('COUNTERPROOF <nom>: failures =', failures,
       '->', 'RED as expected' if failures else 'STILL GREEN (tests aveugles !)')
 ```
+Éprouvée le 2026-10-27 (`output_lost` rendu inerte → 1 rouge, cache en mémoire, garde satisfaite).
 
-- 🔴 **TOUJOURS par `get_runner(settings)` — JAMAIS `unittest.TextTestRunner`, `suite.run()` ni
-  `TestCase(...).run()`** (perte TOTALE des médias le 2026-10-27). Seul le lanceur WAMA redirige
-  `MEDIA_ROOT` vers `media_tests/` et monte une base de TEST : un test lancé hors de lui tourne sur
-  le vrai `media/` et la vraie base. Un `setUp` qui programmait `rmtree(settings.MEDIA_ROOT)` a
-  ainsi effacé les médias de tous les utilisateurs (restaurés depuis le NAS ; perdu ce qui datait
-  d'après la sauvegarde de la nuit). Depuis : `common/utils/media_guard.py` refuse tout
-  `rmtree` de `media/` dans tout processus Django, et `tests_media_tests_hygiene` interdit le
-  motif — mais le lanceur reste la règle, la garde n'est qu'un filet.
+- 🔴 **Un test de Django ne tourne QUE par `manage.py test` — la recette ci-dessus en est un.
+  JAMAIS `unittest.TextTestRunner`, `suite.run()`, `TestCase(...).run()`, ni même
+  `get_runner(settings)` dans un script** (perte TOTALE des médias le 2026-10-27). Le lanceur WAMA
+  redirige `MEDIA_ROOT` vers `media_tests/` et monte une base de TEST ; et seul un processus
+  `manage.py test` garde son cache et son broker Celery en mémoire (`runtime_side`, décidé au
+  chargement des réglages) — `get_runner` dans un script isolait les médias et la base, PAS eux.
+  Un `setUp` qui programmait `rmtree(settings.MEDIA_ROOT)`, lancé par `TextTestRunner`, a effacé
+  les médias de tous les utilisateurs (restaurés depuis le NAS). Depuis :
+  `common/utils/media_guard.py` refuse tout `rmtree` de `media/` ET tout test de Django hors de
+  `manage.py test` (`PermissionError` avant le premier test), et `tests_media_tests_hygiene`
+  interdit le motif. ⚠ Vécu le soir même : la règle seule n'a pas tenu trois heures — une autre
+  session a refait un `TextTestRunner` ; c'est la garde qui tient, pas la mémoire.
 - Le script vit dans le **scratchpad de session**, se lance depuis la racine, et se **supprime
   après** (il ne se commite jamais — et on ne l'écrit pas par son chemin dans une doc, cf. le
   piège `check_docs` du `/cloture §3`).

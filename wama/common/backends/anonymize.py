@@ -10,7 +10,6 @@ from ultralytics import YOLO, settings
 from ultralytics.utils import MACOS, WINDOWS
 
 from .detection_base import DetectionBackend
-from wama.settings import MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 
 #: Détections gardées par image. Le défaut d'ultralytics (300) TRONQUAIT une foule en silence :
 #: sur « le plus grand selfie du monde » (2026-10-10), le détecteur de visages s'arrêtait net à
@@ -29,10 +28,7 @@ class Anonymize(DetectionBackend):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print(f"Using device: {self.device}")
 
-        # Path settings - use custom paths or fall back to Django settings
-        self.source = str(source_dir) if source_dir else str(MEDIA_INPUT_ROOT)
-        self.destination = str(destination_dir) if destination_dir else str(MEDIA_OUTPUT_ROOT)
-        os.makedirs(self.source, exist_ok=True), os.makedirs(self.destination, exist_ok=True)
+        self.source, self.destination = self.working_dirs(source_dir, destination_dir)
         self.input_path, self.output_path = None, None
         self.save_path, self.models_dir = './runs', './models'
         settings.update({'runs_dir': self.save_path, 'weights_dir': self.models_dir})

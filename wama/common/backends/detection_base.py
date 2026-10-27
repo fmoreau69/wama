@@ -41,6 +41,24 @@ class DetectionBackend(BaseModelBackend):
         """
         return self.load(*args, **kwargs)
 
+    @staticmethod
+    def working_dirs(source_dir=None, destination_dir=None) -> tuple:
+        """`(source, destination)` d'un détecteur, créés : ceux donnés, sinon les dossiers par
+        défaut de l'anonymizer (`anonymizer/input` et `output` sous `MEDIA_ROOT`), lus dans les
+        réglages AU MOMENT DE L'APPEL. Jusqu'au 2026-10-27 ils venaient de `MEDIA_INPUT_ROOT` /
+        `MEDIA_OUTPUT_ROOT` importés de `wama.settings` — figés à l'import, donc hors de la
+        redirection du lanceur de tests : un test qui construisait un détecteur sans dossier
+        créait `media/anonymizer/` dans les VRAIS médias (relevé à l'audit des tests)."""
+        import os
+        from pathlib import Path
+        from django.conf import settings
+        default = Path(settings.MEDIA_ROOT) / 'anonymizer'
+        source = str(source_dir) if source_dir else str(default / 'input')
+        destination = str(destination_dir) if destination_dir else str(default / 'output')
+        os.makedirs(source, exist_ok=True)
+        os.makedirs(destination, exist_ok=True)
+        return source, destination
+
     def process(self, **kwargs):
         """Le point d'entrée métier du contrat commun : pour un détecteur, la DÉTECTION — un
         document `detections` (`common/utils/detections.py`). Depuis le 2026-10-04 les deux

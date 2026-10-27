@@ -40,13 +40,14 @@ CE QUE ÇA FAIT
     vrais : c'est la MÊME cause que celle qui avait dispersé 1069 fichiers dans `media/`.
     (Aucune perte ce jour-là : le dossier était un orphelin de 0 Mo déjà voué à la purge.)
 
-    → Dans un script hors `manage.py test`, prendre le runner CONFIGURÉ, jamais la classe :
-
-        from django.conf import settings
-        from django.test.utils import get_runner
-        runner = get_runner(settings)(verbosity=0, interactive=False)   # ← WamaTestRunner
-        runner.setup_test_environment()      # ← indispensable : c'est LUI qui redirige
-        vieux = runner.setup_databases()
+    ~~→ Dans un script hors `manage.py test`, prendre le runner CONFIGURÉ (`get_runner(settings)`
+    puis `setup_test_environment()` et `setup_databases()`).~~ **RETIRÉ le 2026-10-27** : cette
+    voie isole les médias et la base, mais PAS le cache ni le broker Celery, que les réglages
+    décident au chargement sur la ligne de commande (`common/services/runtime_side.py`) — les
+    tâches d'un tel script partaient aux vrais workers avec des identifiants de la base de test.
+    **Un test de Django ne tourne que par `manage.py test`**, et la garde de processus
+    (`common/utils/media_guard.py`) refuse tout autre lancement (perte de `media/` du 2026-10-27,
+    `MEDIA_STORAGE_TIERING §10`).
 """
 import os
 import shutil

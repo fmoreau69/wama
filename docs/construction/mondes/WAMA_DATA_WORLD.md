@@ -1930,6 +1930,16 @@ tourner la nuit** — il n'y a plus rien à alimenter.
 > **nomme les fichiers manquants** dans son message d'échec. Et le compte-rendu nocturne rapporte
 > désormais le **nombre de modules**, pas seulement le nombre de tests.
 
+> 🔴 **2026-10-27 — PAR `manage.py test`, plus jamais en processus.** Ce scénario jouait les suites
+> par `runner.run_suite(suite)` DANS le processus de la campagne, sans `setup_test_environment()`
+> ni `setup_databases()` : neuf modules de Django (`SimpleTestCase`) tournaient chaque nuit sur les
+> VRAIS réglages — le motif même de la perte de `media/` du jour (`MEDIA_STORAGE_TIERING §10`).
+> Il passe désormais par la voie du stage `suite` (`nightly_suite._run_label('wama_data')`, verdict
+> lu dans la sortie), sur les **mêmes 937 tests** (mesuré : identiques un à un), en gardant sa
+> cadence quotidienne. La découverte par `_modules_de_test` reste, pour le compte de modules.
+> Et `wama_data/sources/tests_sources.py` ne dépose plus ses lecteurs d'essai dans le dépôt : un
+> dossier jetable ajouté au chemin du paquet (`sources.__path__`), ce que parcourt la découverte.
+
 ### 9quinquies.6 Ce qui reste à décider
 
 | # | question |

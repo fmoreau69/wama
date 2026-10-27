@@ -7,10 +7,12 @@ app que d'un manifeste du corpus de brouillons ou d'une sortie du rôle.
 
 Chargé par chemin, comme `tests_dev_ai_bridge` (`wama-dev-ai` n'est pas importable).
 """
+import shutil
+import tempfile
 from pathlib import Path
 
 from django.conf import settings
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
 from wama.common.tests.tests_dev_ai_bridge import _charger as load_dev_ai_module
 
@@ -276,11 +278,20 @@ class AppRoleOnTheDevSurfaceTest(SimpleTestCase):
                           '--need', 'traduire'], argv[2:])
 
     def test_an_app_is_born_only_from_a_draft_or_an_app_role_output(self):
+        # In a throwaway BASE_DIR (2026-10-27, audit after the loss of `media/`) : this test used
+        # to write a fake role output into the REAL `wama-dev-ai/outputs/`, where the proposals
+        # are read — and left it there when a run was interrupted.
         from wama.common.services.dev_tools import DevToolError, outputs_dir, sandbox_command
-        outputs_dir().mkdir(parents=True, exist_ok=True)
+        base = Path(tempfile.mkdtemp(prefix='wama_devtools_'))
+        self.addCleanup(shutil.rmtree, base, True)
+        relocated = override_settings(BASE_DIR=base)
+        relocated.enable()
+        self.addCleanup(relocated.disable)
+        outputs_dir().mkdir(parents=True)
         output = outputs_dir() / 'app_zz_test_2026-10-15_00-00.manifest.json'
         output.write_text('{}', encoding='utf-8')
-        self.addCleanup(output.unlink)
+        (base / 'manifests' / 'app_drafts').mkdir(parents=True)
+        (base / 'manifests' / 'app_drafts' / 'writer.json').write_text('{}', encoding='utf-8')
         argv = sandbox_command('create', owner='dev', manifest=str(
             output.relative_to(Path(settings.BASE_DIR)).as_posix()))
         self.assertEqual(['app_sandbox', 'create', '--from-manifest',

@@ -36,7 +36,6 @@ from .utils.sam3_manager import (
 )
 
 from ..accounts.views import get_or_create_anonymous_user
-from ..settings import MEDIA_ROOT, MEDIA_INPUT_ROOT, MEDIA_OUTPUT_ROOT
 from ..common.utils.console_utils import get_console_lines
 from ..common.utils.video_utils import get_media_info
 from ..common.utils.media_paths import get_app_media_path, ensure_app_media_dirs

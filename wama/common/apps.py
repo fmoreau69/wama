@@ -7,11 +7,12 @@ class CommonConfig(AppConfig):
 
     def ready(self):
         # GARDE-FOU DES MÉDIAS, posé AVANT tout le reste : aucun `shutil.rmtree` de ce processus
-        # n'efface plus `media/` en bloc (perte totale du 2026-10-27, `utils/media_guard.py`).
+        # n'efface plus `media/` en bloc (perte totale du 2026-10-27, `utils/media_guard.py`), et
+        # aucun test de Django n'y démarre sur les vrais médias ni la vraie base (hors du lanceur).
         # Pas de `try` : une garde qui ne se pose pas doit se voir au démarrage.
         from django.conf import settings
         from wama.common.utils.media_guard import install as install_media_guard
-        install_media_guard(settings.MEDIA_ROOT)
+        install_media_guard(settings.MEDIA_ROOT, settings.DATABASES['default'].get('NAME', ''))
 
         # INVENTAIRE DES MOTEURS, dérivé des déclarations `ENGINE` des backends (2026-09-04).
         # ⚠ Pourquoi c'est nécessaire, mesuré : `known_engines()` n'agrégeait que les 2
