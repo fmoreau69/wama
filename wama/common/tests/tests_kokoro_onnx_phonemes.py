@@ -66,7 +66,7 @@ class TechnicalTermsAreSaidByTheLexiconTest(SimpleTestCase):
 
     TEXT = 'Fais un git commit, puis un merge.'
 
-    def _phonemes(self, backend_class=None):
+    def _phonemes(self, text=None, options=None):
         import numpy as np
         import os
         from unittest import mock
@@ -74,7 +74,7 @@ class TechnicalTermsAreSaidByTheLexiconTest(SimpleTestCase):
         backend = KokoroOnnxBackend()
         backend._kokoro = mock.Mock(tokenizer=Tokenizer())
         backend._kokoro.create.side_effect = lambda *a, **k: (np.ones(10, np.float32), 24000)
-        os.unlink(backend.process(self.TEXT, language='fr'))
+        os.unlink(backend.synthesize(text=text or self.TEXT, language='fr', options=options))
         return backend._kokoro.create.call_args.args[0]
 
     def test_the_voice_receives_the_lexicon_phonemes(self):
@@ -87,8 +87,7 @@ class TechnicalTermsAreSaidByTheLexiconTest(SimpleTestCase):
     def test_without_the_lexicon_espeak_reads_them_the_french_way(self):
         """Contre-épreuve : le lexique vidé, on retrouve la lecture mesurée avant lui."""
         from unittest import mock
-        with mock.patch('wama.common.utils.tts_text._pronunciation_lookup',
-                        lambda language: (None, {})):
+        with mock.patch('wama.common.utils.tts_text.pronunciations', lambda language: {}):
             phonemes = self._phonemes()
         self.assertIn('ʒˈi', phonemes)
         self.assertNotIn('ɡˈit', phonemes)
@@ -97,9 +96,22 @@ class TechnicalTermsAreSaidByTheLexiconTest(SimpleTestCase):
         """Un caractère hors du vocabulaire est EFFACÉ sans erreur par le tokenizer."""
         from wama.common.utils.tts_text import pronunciations
         vocab = Tokenizer().vocab
-        unknown = {term: [c for c in phonemes.replace('^', '') if c not in vocab]
-                   for term, phonemes in pronunciations('fr').items()}
+        unknown = {term: [c for c in entry.get('phonemes', '').replace('^', '') if c not in vocab]
+                   for term, entry in pronunciations('fr').items()}
         self.assertEqual({}, {term: chars for term, chars in unknown.items() if chars})
+
+    def test_the_account_lexicon_sent_with_the_request_is_said(self):
+        """Les lignes d'un compte arrivent par `options['lexicon']` (le service n'a pas Django) :
+        une orthographe à dire est phonémisée par espeak, à la place de la lecture française."""
+        said = self._phonemes('Un git.', {'lexicon': {'git': {'spelling': 'jite'}}})
+        self.assertNotIn('ɡˈit', said)
+        self.assertEqual(said, self._phonemes('Un jite.'))
+
+    def test_wama_is_said_the_french_way_by_its_spelling(self):
+        """L'ancien `SPOKEN_FORMS` : « WAMA » est dit comme « Ouama » (`wamˈa`), le texte ne
+        change plus avant le moteur."""
+        self.assertEqual(self._phonemes('Bienvenue dans Ouama.'),
+                         self._phonemes('Bienvenue dans WAMA.'))
 
 
 class PytorchTwinSaysTheLexiconTooTest(SimpleTestCase):
@@ -116,6 +128,24 @@ class PytorchTwinSaysTheLexiconTooTest(SimpleTestCase):
         self.assertIn('ɡˈit', phonemes)
         self.assertIn('mˈœʁʤ.', phonemes)
         self.assertNotIn('ʒˈi', phonemes)
+
+    def test_the_twin_says_the_account_lexicon_posed_for_its_thread(self):
+        """Le pipeline est partagé, les lignes d'un compte changent à chaque demande : elles sont
+        posées pour le fil qui synthétise (`use`), et seulement pour lui."""
+        import threading
+        try:
+            from misaki.espeak import EspeakG2P
+        except Exception:
+            self.skipTest('misaki absent de ce venv')
+        from wama.common.backends.kokoro_backend import LexiconG2P
+        g2p = LexiconG2P(EspeakG2P(language='fr-fr'), 'fr')
+        g2p.use({'git': {'spelling': 'jite'}})
+        self.assertNotIn('ɡˈit', g2p('Un git.')[0])
+        other = []
+        thread = threading.Thread(target=lambda: other.append(g2p('Un git.')[0]))
+        thread.start()
+        thread.join()
+        self.assertIn('ɡˈit', other[0], "un autre fil garde le lexique système")
 
 
 @skipUnless(Tokenizer is not None, 'kokoro_onnx absent de ce venv')

@@ -1,0 +1,27 @@
+{% comment %}
+  Les GESTES sur une ligne d'auteur d'un registre porté (`ROADMAP §29`) — partager, copier,
+  demander la promotion, rendre système, supprimer —, lus sur ses FAITS (`ownership.provenance_of`
+  + `can_copy`) : la page ne décide d'aucun droit, le serveur les dit.
+  Sorti de la page des skills le 2026-10-27, quand celle des prononciations l'aurait recopié.
+
+  Paramètres :
+    row            — le dict de la ligne (`as_dict` du service de la famille)
+    scopes         — `sharing.scope_choices(user)`
+    promotion_api  — l'adresse de `api_promotion_request` (vide : pas de demande)
+    registry       — la clé du registre (« skills », « pronunciations »)
+    copy_label     — le libellé du geste « Copier » (« Copier dans mes skills »)
+  Les boutons portent `data-action` : la page les relie à SON adresse de gestes.
+{% endcomment %}
+{% if row.can_share %}
+<select class="form-select form-select-sm w-auto py-0" data-role="scope" aria-label="Portée">
+  {% for o in scopes %}<option value="{{ o.value }}"{% if o.value == row.scope %} selected{% endif %}>{{ o.label }}</option>{% endfor %}
+</select>
+<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-action="share">Partager</button>
+{% endif %}
+{% if row.can_copy %}<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-action="copy">{{ copy_label }}</button>{% endif %}
+{% if row.can_request_promotion and promotion_api %}<button type="button" class="btn btn-sm btn-outline-success py-0"
+        data-promotion-request="{{ promotion_api }}" data-registry="{{ registry }}" data-pk="{{ row.pk }}"
+        title="Les administrateurs sont prévenus ; rendu système, il est partagé à tous et vous reste cité">Demander la promotion</button>{% endif %}
+{% if row.promotion_request_url %}<a class="btn btn-sm btn-outline-secondary py-0" href="{{ row.promotion_request_url }}">Voir la demande</a>{% endif %}
+{% if row.can_promote %}<button type="button" class="btn btn-sm btn-outline-success py-0" data-action="promote">Rendre système</button>{% endif %}
+{% if row.can_delete %}<button type="button" class="btn btn-sm btn-outline-danger py-0" data-action="delete">Supprimer</button>{% endif %}

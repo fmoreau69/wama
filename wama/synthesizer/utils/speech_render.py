@@ -98,7 +98,7 @@ def preview_text(text):
 def render_speech(text, output_path, *, model, language, voice_preset, speaker_wav=None,
                   multi_speaker=False, scene_description='', speed=1.0, pitch=1.0,
                   sentence_pause=0.0, clause_pause=0.0, sampling=None,
-                  on_segment=None, on_partial=None, console=None, read_timeout=None):
+                  on_segment=None, on_partial=None, console=None, read_timeout=None, user=None):
     """Rend `text` en WAV : segments par moteur → service TTS → assemblage → vitesse/hauteur.
 
     `output_path` reçoit l'assemblage ; le fichier FINAL (vitesse/hauteur appliquées) est rendu
@@ -123,6 +123,9 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
     `sampling` : les réglages de TIRAGE de la card (`param_schema.sampling_options` — température
     2026-10-21, graine et top_p 2026-10-22), dans `options` eux aussi — le moteur qui tire les lit
     (`BaseModelBackend.sampling_*`) ; une clé absente = la sienne, rien n'est envoyé.
+
+    `user` (2026-10-27) : le compte de la card — son lexique de prononciation part avec chaque
+    segment (`tts_via_service`).
     """
     from pydub import AudioSegment
 
@@ -156,7 +159,7 @@ def render_speech(text, output_path, *, model, language, voice_preset, speaker_w
                 speaker_wav=speaker_wav, multi_speaker=multi_speaker,
                 # La description de scène (Higgs) ouvre le dialogue : premier segment seulement.
                 scene_description=scene_description if i == 0 else '',
-                options=options, **extra))
+                options=options, user=user, **extra))
             if total > 1:
                 combined += AudioSegment.from_wav(chunk_files[-1])
                 combined += AudioSegment.silent(duration=gap_ms)

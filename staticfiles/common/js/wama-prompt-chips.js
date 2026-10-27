@@ -13,6 +13,11 @@
  *
  * Métadonnée-driven : aucune liste codée en dur côté app. La bibliothèque vit dans
  * la médiathèque (modèle PromptKeyword), partagée et extensible par utilisateur.
+ *
+ * Mode GESTION (`manage: true`, médiathèque — 2026-10-27, ROADMAP §29) : la liste est celle que
+ * le compte VOIT (`?manage=1`), et un clic sur un mot-clé ouvre sa provenance et ses gestes, lus
+ * sur ses FAITS (`media_library/keywords.as_dict`) : partager, copier, demander la promotion,
+ * rendre système, supprimer. La palette sous un prompt, elle, ne change pas.
  */
 (function (global) {
     'use strict';
@@ -70,7 +75,10 @@
 
     Chips.prototype._load = function () {
         var self = this;
-        var url = '/media-library/api/keywords/' + (this.domain ? '?domain=' + encodeURIComponent(this.domain) : '');
+        var params = [];
+        if (this.domain) params.push('domain=' + encodeURIComponent(this.domain));
+        if (this.manage) params.push('manage=1');
+        var url = '/media-library/api/keywords/' + (params.length ? '?' + params.join('&') : '');
         this.container.innerHTML = '<div class="text-muted small">Chargement des mots-clés…</div>';
         fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
             .then(function (r) {
@@ -79,6 +87,15 @@
             })
             .then(function (data) {
                 self.cats = data.categories || {};
+                // Mode gestion : les portées offertes et les adresses des gestes (serveur).
+                self.gestures = self.manage ? {
+                    scopes: data.scopes || [], api: data.manage_api || '',
+                    promotionApi: data.promotion_api || '', registry: data.registry || '',
+                } : null;
+                self.byId = {};
+                Object.keys(self.cats).forEach(function (k) {
+                    (self.cats[k].items || []).forEach(function (kw) { self.byId[kw.id] = kw; });
+                });
                 var n = Object.keys(self.cats).reduce(function (a, k) { return a + (self.cats[k].items || []).length; }, 0);
                 console.debug('[WamaPromptChips]', url, '→', n, 'mot(s)-clé(s)');
                 if (self.onCount) self.onCount(n);
@@ -112,16 +129,19 @@
                 // `kw.common` : mot-clé du TRONC COMMUN (sans propriétaire) — pas de croix, on
                 // ne supprime que les siens. La clé s'appelait `shared` jusqu'au 2026-09-26 ;
                 // « partagé » a un autre sens dans WAMA (cf. `PromptKeyword.to_dict`).
-                var del = kw.common ? '' :
+                var removable = self.manage ? !!kw.can_delete : !kw.common;
+                var del = !removable ? '' :
                     '<span class="wpc-del" data-del="' + kw.id + '" title="Supprimer ce mot-clé perso">&times;</span>';
                 // Esthétique des boutons d'action des cards : btn-outline-X (plein quand actif), pill.
                 var cls = 'wpc-chip btn btn-sm rounded-pill btn-' + (on ? '' : 'outline-') + v;
                 inner += '<button type="button" class="' + cls
-                    + '" data-kw="' + esc(kw.text) + '" data-variant="' + v + '"'
+                    + '" data-kw="' + esc(kw.text) + '" data-variant="' + v + '" data-id="' + kw.id + '"'
+                    + (self.manage && kw.provenance ? ' title="' + esc(kw.provenance) + '"' : '')
                     + (kw.common ? '' : ' data-perso="1"') + '>'
                     + esc(kw.text) + del + '</button>';
             });
             inner += '</span></div>';
+            if (self.manage) inner += '<div class="wpc-detail small" data-detail="' + esc(cat) + '"></div>';
         });
         // Affordance « + perso »
         inner += '<div class="wpc-add input-group input-group-sm mt-1" style="max-width:320px;">'
@@ -205,7 +225,7 @@
         this.container.querySelectorAll('.wpc-chip').forEach(function (b) {
             b.addEventListener('click', function (e) {
                 if (e.target.closest('.wpc-del')) return;  // clic sur la croix géré séparément
-                if (self.manage) return;                   // mode gestion : chip non insérable
+                if (self.manage) { self._detail(this.dataset.id, this); return; }  // gestion : ses gestes
                 self._toggle(this.dataset.kw, this);
             });
         });
@@ -221,6 +241,57 @@
         if (inp) inp.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') { e.preventDefault(); self._add(); }
         });
+    };
+
+    // Mode gestion : la provenance et les gestes d'UN mot-clé, sous sa catégorie. Les droits sont
+    // ceux que dit le serveur (`can_*`) — rien n'est décidé ici.
+    Chips.prototype._detail = function (id, chip) {
+        var self = this, kw = this.byId[id], g = this.gestures;
+        var box = chip.closest('.wpc-cat').nextElementSibling;
+        if (!kw || !g || !box) return;
+        if (box.dataset.open === String(id)) { box.innerHTML = ''; box.dataset.open = ''; return; }
+        var html = '<span class="me-2">' + esc(kw.provenance || '')
+            + (kw.scope_label ? ' · ' + esc(kw.scope_label) : '')
+            + (kw.promotion_pending ? ' · promotion demandée' : '') + '</span>';
+        if (kw.can_share) {
+            html += '<select class="form-select form-select-sm d-inline-block w-auto py-0 wpc-scope" aria-label="Portée">';
+            g.scopes.forEach(function (o) {
+                html += '<option value="' + esc(o.value) + '"' + (o.value === kw.scope ? ' selected' : '')
+                    + '>' + esc(o.label) + '</option>';
+            });
+            html += '</select> <button type="button" class="btn btn-sm btn-outline-secondary py-0" data-act="share">Partager</button> ';
+        }
+        if (kw.can_copy) html += '<button type="button" class="btn btn-sm btn-outline-secondary py-0" data-act="copy">Copier dans les miens</button> ';
+        if (kw.can_request_promotion && g.promotionApi) {
+            html += '<button type="button" class="btn btn-sm btn-outline-success py-0" data-promotion-request="'
+                + esc(g.promotionApi) + '" data-registry="' + esc(g.registry) + '" data-pk="' + kw.id
+                + '">Demander la promotion</button> ';
+        }
+        if (kw.promotion_request_url) html += '<a class="btn btn-sm btn-outline-secondary py-0" href="' + esc(kw.promotion_request_url) + '">Voir la demande</a> ';
+        if (kw.can_promote) html += '<button type="button" class="btn btn-sm btn-outline-success py-0" data-act="promote">Rendre système</button> ';
+        box.innerHTML = html;
+        box.dataset.open = String(id);
+        box.querySelectorAll('[data-act]').forEach(function (b) {
+            b.addEventListener('click', function () {
+                var act = this.dataset.act;
+                if (act === 'promote' && !confirm('Rendre ce mot-clé système ? Il ne sera plus à son auteur.')) return;
+                var payload = { action: act, pk: kw.id };
+                if (act === 'share') payload.scope = box.querySelector('.wpc-scope').value;
+                self._act(payload);
+            });
+        });
+    };
+
+    Chips.prototype._act = function (payload) {
+        var self = this, headers = csrf();
+        headers['Content-Type'] = 'application/json';
+        fetch(this.gestures.api, { method: 'POST', headers: headers, body: JSON.stringify(payload) })
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                if (d && d.success) { self._load(); return; }
+                var msg = (d && d.error) || 'Échec';
+                if (global.WamaApp && WamaApp.toast) WamaApp.toast(msg, 'danger'); else console.warn(msg);
+            });
     };
 
     Chips.prototype._add = function () {

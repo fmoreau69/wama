@@ -1,0 +1,206 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load wama_catalog %}
+{% block title %}{% page_heading as heading %}{{ heading.label }} — WAMA{% endblock %}
+{% block console_app_name %}common{% endblock %}
+
+{% comment %}
+  Vue DÉRIVÉE du lexique de prononciation (registre `pronunciations`, 2026-10-27) : le fichier
+  du dépôt `common/tts/pronunciations.json` (système) et les lignes `common.Pronunciation` que le
+  compte voit. Même charte que les skills : en-tête commun, barre de filtrage commune, cartes.
+  On ÉCOUTE une entrée avant de l'adopter : la voix de l'assistant la dit dans une phrase.
+{% endcomment %}
+
+{% block extra_css %}
+<style>
+  .wama-cat-card h4 code { color: var(--wama-cat-gold-strong); font-size: .95rem; }
+  .pr-resume { font-size: .8rem; color: var(--wama-cat-hero-text); line-height: 1.4; }
+  .pr-forme { font-size: .78rem; color: var(--wama-tone-grey-text); }
+  .pr-forme code { color: var(--wama-cat-code); }
+  .pr-langue { font-size: .68rem; color: var(--wama-night-scope); border: 1px solid var(--wama-night-scope-border);
+               border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
+  .pr-attente { font-size: .68rem; color: var(--wama-kind-procedural); border: 1px solid var(--wama-kind-procedural-border);
+                border-radius: 999px; padding: .05rem .45rem; white-space: nowrap; }
+  .pr-compte { background: var(--wama-tone-grey); color: var(--wama-tone-grey-text); }
+  .pr-mine { border: 1px solid var(--wama-kind-procedural-border);
+             border-radius: .5rem; padding: .8rem 1rem; margin: 1rem 0; }
+  .pr-mine h4 { font-size: .9rem; color: var(--wama-kind-procedural); margin-bottom: .4rem; }
+  .pr-gestes { display: flex; flex-wrap: wrap; gap: .3rem; align-items: center; margin-top: 6px; }
+  .pr-phonemes { font-family: var(--bs-font-monospace); }
+</style>
+{% endblock %}
+
+{% block right_panel_settings_title %}<i class="fas fa-circle-info me-1"></i> Détail de l'élément{% endblock %}
+{% block right_panel_settings %}{% include 'common/_inspector_registre.html' %}{% endblock %}
+
+{% block content %}
+<div class="wama-cat-wrap" id="prPage" data-tts="{{ tts_api }}"
+     {% if pronunciations_api %}data-api="{{ pronunciations_api }}"{% endif %}>
+  {{ voices|json_script:"prVoices" }}
+
+  {% include 'common/_catalog_header.html' with registre='pronunciations' %}
+
+  <div class="wama-cat-hero">
+    <h3>Comment la voix dit un terme</h3>
+    <p>
+      La voix lit le texte avec les règles de sa langue : en français, « git » devient « ji » et
+      « commit » devient « komi ». Une prononciation dit à la voix comment prononcer un terme,
+      sans toucher au texte affiché. Elle sert partout où WAMA parle : l'assistant, le
+      synthesizer, l'avatarizer.
+    </p>
+    <p>
+      Deux formes. Une <strong>orthographe à dire</strong> (« guite ») : toutes les voix la
+      lisent. Des <strong>phonèmes</strong> (<code>ɡˈit</code>) : plus précis, mais seules les
+      voix Kokoro s'en servent. Le terme est reconnu comme mot entier, majuscules ou non, avec
+      ou sans <em>s</em> au pluriel.
+    </p>
+  </div>
+
+  <div class="wama-cat-stats">
+    <div class="wama-cat-stat"><b>{{ system_entries|length }}</b> prononciation{{ system_entries|length|pluralize }} système</div>
+    {% if pronunciations_account %}<div class="wama-cat-stat"><b>{{ pronunciations_account|length }}</b> de compte</div>{% endif %}
+  </div>
+
+  {% if pronunciations_api %}
+  <div class="pr-mine" id="prMine">
+    <h4><i class="fas fa-user-pen me-1"></i> Mes prononciations, et celles qu'on me partage</h4>
+    <p class="pr-resume mb-2">
+      Une prononciation à vous passe devant celle du système pour le même terme, et seulement
+      pour vous. Elle naît <strong>privée</strong>. Partagée, elle se <em>copie</em> : elle ne
+      s'impose à personne. Un administrateur peut la rendre système. Tout ce que vous partagez se
+      retrouve dans <a href="{% url 'common:shares' %}">Mes partages</a>.
+    </p>
+    <form id="prNew" class="d-flex flex-wrap gap-1 align-items-center">
+      <input name="term" class="form-control form-control-sm w-auto" maxlength="80" required placeholder="terme (ex. git)">
+      <select name="language" class="form-select form-select-sm w-auto" aria-label="Langue de la voix">
+        {% for code, label in languages %}<option value="{{ code }}"{% if code == 'fr' %} selected{% endif %}>{{ label }}</option>{% endfor %}
+      </select>
+      <input name="spelling" class="form-control form-control-sm w-auto" maxlength="120" placeholder="à dire (ex. guite)">
+      <input name="phonemes" class="form-control form-control-sm w-auto pr-phonemes" maxlength="200" placeholder="phonèmes (facultatif)">
+      <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-plus me-1"></i>Créer</button>
+    </form>
+    <div class="wama-cat-grid mt-2" style="--cat-card-min: 320px;">
+      {% for k in pronunciations_account %}
+      <div class="wama-cat-card" data-pk="{{ k.pk }}" data-language="{{ k.language }}" data-listen="{{ k.listen }}">
+        <h4>
+          <code>{{ k.term }}</code>
+          <span class="pr-langue">{{ k.language_label }}</span>
+          <span class="wama-cat-badge pr-compte">{{ k.provenance }}</span>
+          {% if k.scope_label %}<span class="pr-langue">{{ k.scope_label }}</span>{% endif %}
+          {% if k.promotion_pending %}<span class="pr-attente" title="Un administrateur la tranchera">Promotion demandée</span>{% endif %}
+        </h4>
+        {% if k.can_edit %}
+        <div class="d-flex flex-wrap gap-1">
+          <input class="form-control form-control-sm w-auto" data-role="spelling" maxlength="120" value="{{ k.spelling }}" placeholder="à dire">
+          <input class="form-control form-control-sm w-auto pr-phonemes" data-role="phonemes" maxlength="200" value="{{ k.phonemes }}" placeholder="phonèmes">
+        </div>
+        {% else %}
+        <div class="pr-forme">
+          {% if k.spelling %}à dire : <code>{{ k.spelling }}</code>{% endif %}
+          {% if k.phonemes %}phonèmes : <code class="pr-phonemes">{{ k.phonemes }}</code>{% endif %}
+        </div>
+        {% endif %}
+        <div class="pr-gestes">
+          <button type="button" class="btn btn-sm btn-outline-info py-0" data-listen-pk="{{ k.pk }}"><i class="fas fa-volume-high me-1"></i>Écouter</button>
+          {% if k.can_edit %}<button type="button" class="btn btn-sm btn-outline-primary py-0" data-action="update">Enregistrer</button>{% endif %}
+          {% include 'common/_owned_row_gestures.html' with row=k scopes=pronunciation_scopes registry='pronunciations' copy_label='Copier dans les miennes' %}
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-body-secondary small mb-0">Aucune prononciation à vous pour l'instant : créez-en
+        une, ou « Personnaliser » une prononciation système ci-dessous.</p>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  {% include 'common/_filter_bar.html' with facettes=facettes_pronunciations cible='.pr-system' mode='client' placeholder='Filtrer (terme, orthographe, phonèmes…)' %}
+
+  <div class="wama-cat-grid mt-3" style="--cat-card-min: 260px;"
+       data-wama-inspecte=".wama-cat-card" data-wama-inspecte-actif="wama-cat-active">
+    {% for e in system_entries %}
+    <div class="wama-cat-card pr-system" data-id="{{ e.language }}:{{ e.term }}" data-f-langue="{{ e.language }}"
+         data-f-forme="{% if e.phonemes %}phonemes{% else %}spelling{% endif %}"
+         data-language="{{ e.language }}" data-listen="{{ e.listen }}">
+      <h4><code>{{ e.term }}</code> <span class="pr-langue">{{ e.language_label }}</span></h4>
+      <div class="pr-forme">
+        {% if e.spelling %}à dire : <code>{{ e.spelling }}</code>{% endif %}
+        {% if e.phonemes %}phonèmes : <code class="pr-phonemes">{{ e.phonemes }}</code>{% endif %}
+      </div>
+      <div class="pr-gestes">
+        <button type="button" class="btn btn-sm btn-outline-info py-0" data-listen-system="1"><i class="fas fa-volume-high me-1"></i>Écouter</button>
+        {% if pronunciations_api %}<button type="button" class="btn btn-sm btn-outline-secondary py-0 pr-customize"
+                data-term="{{ e.term }}" data-language="{{ e.language }}">Personnaliser</button>{% endif %}
+      </div>
+    </div>
+    {% empty %}
+    <p class="text-body-secondary">Aucune prononciation système.</p>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}
+
+{% block javascript %}
+{{ block.super }}
+{% load wama_static %}<script src="{% static_v 'common/js/wama-promotion.js' %}"></script>
+<script>
+// Écoute et gestes — la page se recharge après chaque geste : elle est DÉRIVÉE, le serveur dit
+// ce qui est vu et ce qui est permis (`common/services/user_pronunciations`).
+document.addEventListener('DOMContentLoaded', function () {
+    const page = document.getElementById('prPage');
+    const voices = JSON.parse(document.getElementById('prVoices').textContent || '{}');
+    const headers = {'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}'};
+    let playing = null;
+
+    async function listen(card, pk) {
+        const body = {text: card.dataset.listen, voice: voices[card.dataset.language] || ''};
+        if (pk) body.pronunciation = pk;
+        try {
+            const r = await fetch(page.dataset.tts, {method: 'POST', headers, body: JSON.stringify(body)});
+            const data = await r.json();
+            if (!data.audio_b64) { WamaApp.toast(data.error || 'Voix indisponible', 'danger'); return; }
+            if (playing) playing.pause();
+            playing = new Audio('data:audio/wav;base64,' + data.audio_b64);
+            playing.play();
+        } catch (e) { WamaApp.toast('Échec : ' + e, 'danger'); }
+    }
+    page.addEventListener('click', function (ev) {
+        const b = ev.target.closest('[data-listen-pk],[data-listen-system]');
+        if (b) listen(b.closest('.wama-cat-card'), b.dataset.listenPk || '');
+    });
+
+    const api = page.dataset.api;
+    if (!api) return;
+    async function act(payload) {
+        try {
+            const r = await fetch(api, {method: 'POST', headers, body: JSON.stringify(payload)});
+            const data = await r.json();
+            if (!data.success) { WamaApp.toast(data.error || 'Échec', 'danger'); return; }
+            location.reload();
+        } catch (e) { WamaApp.toast('Échec : ' + e, 'danger'); }
+    }
+    document.getElementById('prNew').addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        act({action: 'create', term: this.term.value.trim(), language: this.language.value,
+             spelling: this.spelling.value, phonemes: this.phonemes.value});
+    });
+    document.getElementById('prMine').addEventListener('click', function (ev) {
+        const b = ev.target.closest('button[data-action]');
+        if (!b) return;
+        const card = b.closest('[data-pk]'), pk = Number(card.dataset.pk), action = b.dataset.action;
+        if (action === 'delete' && !confirm('Supprimer cette prononciation ?')) return;
+        if (action === 'promote' && !confirm('La rendre système ? Elle ne sera plus à son auteur.')) return;
+        const payload = {action, pk};
+        if (action === 'update') {
+            payload.spelling = card.querySelector('[data-role=spelling]').value;
+            payload.phonemes = card.querySelector('[data-role=phonemes]').value;
+        }
+        if (action === 'share') payload.scope = card.querySelector('[data-role=scope]').value;
+        act(payload);
+    });
+    document.querySelectorAll('.pr-customize').forEach(b => b.addEventListener('click',
+        () => act({action: 'copy', term: b.dataset.term, language: b.dataset.language})));
+});
+</script>
+{% endblock %}

@@ -104,7 +104,7 @@ class AccountMenuTest(TestCase):
         menu = account_menu(self.admin)
         self.assertEqual(['Mon espace', 'WAMA'], [s['label'] for s in menu])
         self.assertEqual(['Fonctions', 'Mon calendrier', 'Mon journal', 'Mon RAG', 'Mes souvenirs',
-                          'Mes partages', 'Profil', 'Skills', 'Users'],
+                          'Mes partages', 'Profil', 'Skills', 'Prononciations', 'Users'],
                          [p['label'] for p in menu[0]['pages']])
         self.assertEqual(['Apps', 'Documentation', 'Librairies', 'Licences', 'Models', 'Backends',
                           'Formats médias', 'Briques UI', 'Registres', 'Sources'],

@@ -831,8 +831,10 @@ l'intuition :
 - **Les majuscules** : espeak-ng épelle les mots COURTS d'emphase (« UNE », « UN », « MOT », « CE »,
   « DIT », « NE » ; les longs passent). Liste FERMÉE de mots courants remis en minuscules
   (`say_emphasis`) — un sigle (RAG, GPU) reste un sigle : mis en minuscules, il se lirait comme un
-  mot. Un LEXIQUE (`tts_text.SPOKEN_FORMS`) dit ce qui se prononce autrement : « WAMA », lu à
-  l'anglaise par espeak quelle que soit sa casse, devient « Ouama ».
+  mot. Un LEXIQUE dit ce qui se prononce autrement : « WAMA », lu à l'anglaise par espeak quelle
+  que soit sa casse, devient « Ouama ». *(Corrigé le 2026-10-27 : c'était `tts_text.SPOKEN_FORMS`,
+  appliqué par `say_emphasis` ; c'est désormais une entrée du lexique de prononciation, dite par le
+  moteur — bloc suivant.)*
 - ✅ **2026-10-27 — les termes techniques dits par leurs PHONÈMES** (Fabien : *« améliorer sa
   prononciation pour que ça respecte les termes techniques comme git »*, puis l'option 1 après
   une recherche approfondie, et *« mets déjà en place le fonctionnement avec une liste de 50
@@ -858,12 +860,50 @@ l'intuition :
     `ɡˈit`, `kɔmˈit`, plus `ʒˈi` ; lexique vidé → lecture d'avant ; chaque entrée au vocabulaire ;
     le jumeau `.pt` aussi). Contre-épreuves : insertion neutralisée → 2 rouges ; entrée à `g`
     ASCII et tiret → rouge.
-  - ⏳ Écoute par Fabien (et la cible : sons français ou vrais phonèmes anglais) ; qui tient la
-    liste (dépôt, profil, outil de l'assistant) ; les identifiants de code (`camelCase`, `--option`,
-    `v2.1`) à normaliser avant le lexique — chantier à part ; signaler (sans rien changer à la
-    lecture) les mots d'allure anglaise absents du lexique. ⚠ Écart relevé par la recherche, NON
-    vérifié : le chemin ONNX écrit les diphtongues en deux caractères (`aɪ`), misaki — avec lequel
-    le modèle a été entraîné — en un seul (`I`).
+  - ⏳ Écoute par Fabien (et la cible : sons français ou vrais phonèmes anglais) ; ✅ qui tient la
+    liste (dépôt, profil, outil de l'assistant) — tranché le jour même, bloc suivant ; les
+    identifiants de code (`camelCase`, `--option`, `v2.1`) à normaliser avant le lexique — chantier
+    à part ; signaler (sans rien changer à la lecture) les mots d'allure anglaise absents du
+    lexique. ⚠ Écart relevé par la recherche, NON vérifié : le chemin ONNX écrit les diphtongues en
+    deux caractères (`aɪ`), misaki — avec lequel le modèle a été entraîné — en un seul (`I`).
+- ✅ **2026-10-27 (soir) — le lexique est un REGISTRE, les mots-clés de prompt aussi** (Fabien :
+  *« Est-ce que ce genre de liste a sa place parmi les registres ? […] dans l'idée de ce qu'on a
+  fait pour les mots-clés ? »*, puis *« Oui, lance-le, et aligne aussi les mots-clés. Ok pour ta
+  recommandation »* et *« N'oublie pas le service TTS »*). La route est celle des skills de prompt
+  (`ROADMAP §29`) : un fichier ou un tronc SYSTÈME, et des lignes d'AUTEUR — privées à la
+  naissance, partagées par une portée, COPIÉES (une ligne partagée ne s'impose à personne, la
+  règle du skill et du RAG), rendues système par un administrateur seul.
+  - **Prononciations** (registre `pronunciations`, page `/common/pronunciations/`, menu du compte) :
+    `common.Pronunciation` (terme, langue de VOIX, `spelling` et/ou `phonemes`), gestes dans
+    `services/user_pronunciations`. Une entrée a deux formes : une ORTHOGRAPHE à dire (« guite »),
+    que tout moteur lit — elle se substitue dans le texte, qui garde ses liaisons (« dans Ouama »,
+    `dɑ̃z wamˈa`) —, ou des PHONÈMES, que seul Kokoro reçoit. Le fichier passe à des entrées objets ;
+    `SPOKEN_FORMS` y entre (`WAMA` → `{"spelling": "Ouama"}`) et quitte `say_emphasis`.
+  - **Le service vocal** n'a pas Django : `tts_via_service(user=)` joint le lexique du compte
+    (`lexicon_for` : lignes système promues, puis les siennes) à `options['lexicon']`, et le
+    service relit le FICHIER à chaque changement (date de modification) — une entrée corrigée sans
+    relance. Le CONTRAT commun (`TTSBackend.synthesize`) dit le lexique pour tous les moteurs :
+    orthographe pour un moteur qui lit du texte, rien pour un moteur qui reçoit des phonèmes
+    (`takes_lexicon_phonemes` : Kokoro ONNX, Kokoro `.pt` hors anglais/japonais/chinois). Appelants
+    qui passent le compte : la voix de l'assistant (et son repli en processus,
+    `kokoro_backend.say_lexicon_through`), le synthesizer (synthèse et aperçu, `render_speech`),
+    l'avatarizer. ⇒ **le synthesizer en profite** : ses voix Kokoro par les phonèmes, ses autres
+    moteurs (XTTS, Higgs, Bark…) par l'orthographe — les 50 termes du fichier n'ont encore que des
+    phonèmes, donc rien ne change pour ces moteurs tant qu'on n'y écrit pas d'orthographe.
+  - **On écoute avant d'adopter** : la page fait dire le terme dans une phrase par la voix de
+    l'assistant (`kokoro_tts`, `pronunciation=<clé>` : la ligne VUE est dite pour cette demande, sans
+    devenir la sienne).
+  - **Mots-clés de prompt** (registre `prompt_keywords`, onglet « Mots-clés » de la médiathèque) :
+    `PromptKeyword` hérite de `ScopedVisibility`, `user` devient `owner` (la colonne garde son nom,
+    migration `media_library/0021` sans coupure ; `0022` retire à la relance le défaut de
+    transition) ; le tronc commun passe PUBLIC. Gestes dans `media_library/keywords.py` ; la
+    palette sous un prompt garde le système et les siens, le mode gestion de `WamaPromptChips` voit
+    ce que voit le filtre des catalogues et ouvre, au clic, la provenance et les gestes.
+  - Gabarit commun des gestes d'une ligne d'auteur : `common/_owned_row_gestures.html` (sorti de
+    la page des skills, qu'elle emprunte aussi).
+  - ⏳ Écrire une orthographe aux termes du fichier pour les moteurs qui lisent du texte (après
+    écoute) ; un outil de l'assistant pour ajouter une prononciation (« dis git comme guite ») ; la
+    scène et l'accès par profil (`access_kind`) des deux familles, si un besoin apparaît.
 - **Les pauses** : `kokoro_onnx` sait allonger la pause après chaque marque (`sentence_pause`,
   `clause_pause`), mais seulement avec un modèle qui rend la durée de ses phonèmes ; le nôtre ne la
   rend pas (`has_timings` faux — mesuré : 3,58 s de son pour des pauses de 0, 0,25 et 0,8 s). Le

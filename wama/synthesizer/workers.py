@@ -258,6 +258,7 @@ def _synthesize(synthesis, ctx):
             on_segment=lambda i, n: ctx.progress(40 + int(i / n * 35)),
             on_partial=_during_preview(synthesis),
             console=lambda m: _console(synthesis.user_id, m),
+            user=synthesis.user,   # son lexique de prononciation (27/10)
         )
         _clear_during(synthesis)
         ctx.progress(85)

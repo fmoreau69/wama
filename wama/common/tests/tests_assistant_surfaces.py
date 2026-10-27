@@ -611,8 +611,10 @@ class VoicePausesTest(TestCase):
         options = tts.call_args.args[2]
         self.assertAlmostEqual(0.6, float(options['sentence_pause']))
         self.assertAlmostEqual(0.2, float(options['clause_pause']))
-        # Le texte DIT, après la brique `tts_text` : lexique et incise appliqués.
-        self.assertEqual('Bienvenue dans Ouama, le site.', r.json()['spoken'])
+        # Le texte DIT, après la brique `tts_text` : incise appliquée. Le LEXIQUE (« WAMA » dit
+        # « Ouama ») est au moteur depuis le 2026-10-27 — il dépend de la langue de la voix et du
+        # compte (`tts_text.lexicon`) ; `spoken` ne sert qu'à caler les lèvres de l'avatar.
+        self.assertEqual('Bienvenue dans WAMA, le site.', r.json()['spoken'])
 
     def test_an_untouched_profile_gets_the_declared_defaults(self):
         """Contre-épreuve : sans réglage, les défauts DU SCHÉMA — pas ceux du moteur (0,25/0,1)."""

@@ -1114,6 +1114,8 @@ MECHANISMS = (
                        'wama/common/utils/prompt_skills.py',
                        # Les skills d'un COMPTE (`common.PromptSkill`, ROADMAP §29, 20/10).
                        'wama/common/services/user_skills.py',
+                       # Les mots-clés d'un auteur (`PromptKeyword`, ROADMAP §29 4ter, 27/10).
+                       'wama/media_library/keywords.py',
                        'wama/common/utils/reference_comprehension.py',
                        'wama/common/static/common/js/wama-prompt-chips.js',
                        'wama/common/static/common/js/wama-prompt-enrich.js')),
@@ -2702,17 +2704,25 @@ MECHANISMS = (
               "DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc "
               "toute surface qui vocalise — accueil, volet, canaux) et le synthesizer. Depuis le "
               "2026-10-18 (défauts entendus, mesurés par aller-retour voix → transcription) : "
-              "parenthèses dites en incises (`say_incises`), emphase courte en majuscules et "
-              "LEXIQUE de prononciation (`say_emphasis`, `SPOKEN_FORMS`), code en ligne dit, et "
+              "parenthèses dites en incises (`say_incises`), emphase courte en majuscules "
+              "(`say_emphasis`), code en ligne dit, et "
               "`pause_segments` — où la voix respire, et combien : les réglages de pauses "
               "(déclarés une fois, `common/tts/constants.VOICE_PAUSE_SETTINGS`) de l'assistant et "
               "du synthesizer, posés pour TOUT moteur par leur contrat commun "
-              "(`tts_base.TTSBackend.synthesize`). Le second nettoyage du navigateur est RETIRÉ",
+              "(`tts_base.TTSBackend.synthesize`). Le second nettoyage du navigateur est RETIRÉ. "
+              "Depuis le 2026-10-27, le LEXIQUE de prononciation (`lexicon`) : le fichier système "
+              "`common/tts/pronunciations.json` et les lignes d'un compte (registre "
+              "`pronunciations`), qu'un moteur dit par l'orthographe (`respell_with_lexicon`, au "
+              "contrat commun) ou par les phonèmes (`phonemes_with_lexicon`, Kokoro) — joint à la "
+              "demande par `tts_via_service(user=)`, le service vocal n'ayant pas Django",
               'wama/common/utils/tts_text.py', 'docs/construction/ia/WAMA_LLM.md §1bis',
               annexes=('wama/common/tests/tests_tts_text.py',
                        'wama/synthesizer/utils/text_extractor.py',
                        'wama/common/backends/tts_base.py',
-                       'wama/common/tests/tests_tts_backend_pauses.py'),
+                       'wama/common/tests/tests_tts_backend_pauses.py',
+                       'wama/common/tts/pronunciations.json',
+                       'wama/common/services/user_pronunciations.py',
+                       'wama/common/tests/tests_pronunciations.py'),
               symbol='text_for_speech'),
     Mechanism('test_media_isolation', 'Médias de test isolés',
               "Le runner de tests redirige `MEDIA_ROOT` vers `media_tests/run-<id>/` — dossier "

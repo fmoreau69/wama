@@ -188,6 +188,10 @@ urlpatterns = [
     path('skills/', views.skills_catalog_view, name='skills_catalog'),
     # Les skills d'un COMPTE : créer, modifier, partager, copier, retirer, promouvoir (§29).
     path('skills/manage/', views.skills_manage, name='skills_manage'),
+    # Prononciations (2026-10-27) : comment la voix dit un terme — le fichier système et les
+    # lignes d'un compte, mêmes gestes que les skills (§29).
+    path('pronunciations/', views.pronunciations_catalog_view, name='pronunciations_catalog'),
+    path('pronunciations/manage/', views.pronunciations_manage, name='pronunciations_manage'),
     path('backends/', views.backends_catalog_view, name='backends_catalog'),
     # Documentation (15ᵉ registre, 2026-09-11) : la doc de construction en LECTURE SEULE. Le
     # lecteur prend une CLÉ déclarée dans `docs_catalog.py`, jamais un chemin — il n'existe

@@ -30,6 +30,7 @@ urlpatterns = [
     path('api/keywords/',                 views.api_prompt_keywords,       name='api_prompt_keywords'),
     path('api/keywords/add/',             views.api_prompt_keyword_add,    name='api_prompt_keyword_add'),
     path('api/keywords/<int:pk>/delete/', views.api_prompt_keyword_delete, name='api_prompt_keyword_delete'),
+    path('api/keywords/manage/',          views.api_prompt_keyword_manage, name='api_prompt_keyword_manage'),
 
     # Providers — Phase 3
     path('api/providers/',                views.api_providers_list,   name='api_providers_list'),

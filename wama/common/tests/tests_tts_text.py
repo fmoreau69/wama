@@ -21,8 +21,9 @@ fusionnait la liste entière en une phrase).
 """
 from django.test import SimpleTestCase
 
-from wama.common.utils.tts_text import (make_audible, pause_segments, phonemes_with_lexicon,
-                                        pronunciations, say_emphasis, text_for_speech)
+from wama.common.utils.tts_text import (lexicon, make_audible, pause_segments,
+                                        phonemes_with_lexicon, pronunciations,
+                                        respell_with_lexicon, say_emphasis, text_for_speech)
 
 
 class PronounceableTest(SimpleTestCase):
@@ -156,11 +157,10 @@ class HeardAsWrittenTest(SimpleTestCase):
         self.assertEqual('Le RAG et la carte GPU.', say_emphasis('Le RAG et la carte GPU.'))
         self.assertEqual('Une phrase normale.', say_emphasis('Une phrase normale.'))
 
-    def test_the_lexicon_says_wama_the_french_way(self):
-        """espeak lit « WAMA » à l'anglaise quelle que soit sa casse (entendu « WAM »)."""
-        self.assertEqual("Bienvenue dans Ouama.", say_emphasis('Bienvenue dans WAMA.'))
-        # Contre-épreuve : mot ENTIER — un nom qui le contient ne bouge pas.
-        self.assertEqual('wama_data', say_emphasis('wama_data'))
+    def test_emphasis_no_longer_applies_the_lexicon(self):
+        """Le lexique dépend de la langue de la voix et du compte, que ce texte ignore : il est
+        au moteur depuis le 27/10 (`RespellingTest`). Le texte AFFICHÉ garde « WAMA »."""
+        self.assertEqual('Bienvenue dans WAMA.', say_emphasis('Bienvenue dans WAMA.'))
 
 
 def _brackets(part):
@@ -203,8 +203,80 @@ class PronunciationLexiconTest(SimpleTestCase):
 
     def test_every_entry_writes_its_g_as_the_phonetic_letter(self):
         """Le g du clavier n'est pas au vocabulaire de Kokoro, qui l'effacerait sans rien dire."""
-        offenders = [term for term, phonemes in pronunciations('fr').items() if 'g' in phonemes]
+        offenders = [term for term, entry in pronunciations('fr').items()
+                     if 'g' in entry.get('phonemes', '')]
         self.assertEqual([], offenders)
+
+    def test_an_entry_with_a_spelling_only_is_said_within_its_sentence(self):
+        """« WAMA » n'a qu'une orthographe à dire : elle se substitue DANS le texte, phonémisé
+        d'un seul tenant — « dans Ouama » garde sa liaison (un morceau à part la perdait)."""
+        self.assertEqual('<Bienvenue dans Ouama.>', self._said('Bienvenue dans WAMA.'))
+
+    def test_an_account_entry_passes_before_the_system_one(self):
+        """Les lignes d'un compte (`extra`, jointes à la demande) remplacent, pour lui, l'entrée
+        système du même terme — casse indifférente."""
+        said = phonemes_with_lexicon('Un git.', 'fr', _brackets, extra={'GIT': {'phonemes': 'ʒit'}})
+        self.assertEqual('<Un> ʒit.', said)
+        # Contre-épreuve : sans `extra`, l'entrée système.
+        self.assertEqual('<Un> ɡˈit.', self._said('Un git.'))
+
+    def test_an_account_entry_adds_a_term_the_file_ignores(self):
+        said = phonemes_with_lexicon('Lance ENA_CASA.', 'fr', _brackets,
+                                     extra={'ENA_CASA': {'spelling': 'éna kaza'}})
+        self.assertEqual('<Lance éna kaza.>', said)
+
+    def test_a_malformed_account_entry_is_ignored(self):
+        """La voix ne fait pas confiance à la forme de ce qui lui arrive : une entrée sans forme
+        connue est ignorée, jamais une erreur."""
+        merged = lexicon('fr', {'git': 'ɡit', 'deploy': {'accent': 'x'}, '': {'spelling': 'y'}})
+        self.assertEqual({'phonemes': 'ɡˈit'}, merged['git'])
+        self.assertEqual({'phonemes': 'diplˈɔj'}, merged['deploy'])
+
+
+class RespellingTest(SimpleTestCase):
+    """L'ORTHOGRAPHE à dire, pour un moteur qui lit du texte (le contrat commun l'appelle)."""
+
+    def test_wama_is_said_the_french_way(self):
+        """espeak lit « WAMA » à l'anglaise quelle que soit sa casse (entendu « WAM ») — l'ancien
+        `SPOKEN_FORMS`, une entrée du fichier depuis le 27/10."""
+        self.assertEqual('Bienvenue dans Ouama.', respell_with_lexicon('Bienvenue dans WAMA.', 'fr'))
+        # Contre-épreuve : mot ENTIER — un mot qui le contient ne bouge pas.
+        self.assertEqual('wamadata', respell_with_lexicon('wamadata', 'fr'))
+
+    def test_a_phonemes_only_entry_is_left_to_the_engine(self):
+        """Un moteur qui lit du texte ne saurait pas dire des phonèmes : « git » reste « git »."""
+        self.assertEqual('Un git.', respell_with_lexicon('Un git.', 'fr'))
+
+    def test_the_plural_stays_glued_to_the_spelling(self):
+        self.assertEqual('Deux guites.',
+                         respell_with_lexicon('Deux gits.', 'fr', {'git': {'spelling': 'guite'}}))
+
+    def test_another_voice_language_keeps_its_text(self):
+        """Contre-épreuve : le lexique est par langue de VOIX — une voix anglaise dit « WAMA »."""
+        self.assertEqual('Welcome to WAMA.', respell_with_lexicon('Welcome to WAMA.', 'en'))
+
+
+class LexiconFileIsReadAgainWhenItChangesTest(SimpleTestCase):
+    """Le fichier se relit à chaque CHANGEMENT : le service vocal, un autre processus, voit une
+    entrée corrigée sans relance."""
+
+    def test_a_changed_file_is_read_again(self):
+        import json
+        import os
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+
+        from wama.common.utils import tts_text
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'pronunciations.json'
+            path.write_text(json.dumps({'fr': {'git': {'spelling': 'guite'}}}), encoding='utf-8')
+            with mock.patch.object(tts_text, '_PRONUNCIATIONS_FILE', path),                     mock.patch.object(tts_text, '_FILE_STATE', {'mtime': None, 'data': {}}):
+                self.assertEqual('Un guite.', respell_with_lexicon('Un git.', 'fr'))
+                path.write_text(json.dumps({'fr': {'git': {'spelling': 'jite'}}}), encoding='utf-8')
+                stamp = path.stat().st_mtime_ns + 1_000_000
+                os.utime(path, ns=(stamp, stamp))
+                self.assertEqual('Un jite.', respell_with_lexicon('Un git.', 'fr'))
 
 
 class PauseSegmentsTest(SimpleTestCase):

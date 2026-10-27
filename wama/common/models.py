@@ -14,6 +14,7 @@ ABSTRAIT (une migration additive par app concrète).
 """
 
 from django.db import models
+from django.db.models.functions import Lower
 from pgvector.django import VectorField
 
 
@@ -1019,6 +1020,50 @@ class PromptSkill(ScopedVisibility):
 
     def __str__(self):
         return f'{self.name} ({self.owner_id or "système"})'
+
+
+class Pronunciation(ScopedVisibility):
+    """Comment la VOIX dit un terme — une entrée du lexique de prononciation qui a un AUTEUR
+    (registre `pronunciations`, `ROADMAP §29`, 2026-10-27 ; Fabien : « Ok pour ta recommandation »).
+    Le lexique SYSTÈME reste le fichier du dépôt (`common/tts/pronunciations.json`).
+
+    Deux formes, au moins une : une ORTHOGRAPHE à dire (`spelling`, « guite ») — tout moteur la
+    lit, Kokoro la phonémise —, ou des PHONÈMES (`phonemes`, `ɡˈit`) — seul un moteur qui reçoit
+    des phonèmes (Kokoro) s'en sert. Le texte AFFICHÉ n'est jamais touché. Même route que le skill :
+    il naît PRIVÉ, se partage par une portée et se COPIE (il ne s'impose à personne), un
+    administrateur seul le rend système (`services/user_pronunciations`)."""
+    term = models.CharField(max_length=80)
+    #: Langue de la VOIX (code WAMA, `fr`) : git ne se dit pas pareil d'une voix à l'autre.
+    language = models.CharField(max_length=8, default='fr', db_index=True)
+    spelling = models.CharField(max_length=120, blank=True, default='')
+    phonemes = models.CharField(max_length=200, blank=True, default='')
+    owner = models.ForeignKey('auth.User', null=True, blank=True, on_delete=models.CASCADE,
+                              related_name='wama_pronunciations')
+    #: Qui l'a écrit, copié de qui, promu par qui — la trace, jamais relue pour dire.
+    source = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    objects = ScopedManager()
+
+    class Meta:
+        ordering = ['language', 'term']
+        verbose_name = 'Prononciation'
+        constraints = [
+            models.UniqueConstraint(Lower('term'), models.F('language'), models.F('owner'),
+                                    name='pronunciation_one_per_owner'),
+            models.UniqueConstraint(Lower('term'), models.F('language'),
+                                    condition=models.Q(owner__isnull=True),
+                                    name='pronunciation_one_system'),
+        ]
+
+    def __str__(self):
+        # Le libellé de la ligne dans « Mes partages » (`sharing._catalogue_shares`).
+        return f'{self.term} ({self.language})'
+
+    def as_entry(self) -> dict:
+        """L'entrée telle que la lit la voix (`tts_text.lexicon`) : seules les formes posées."""
+        return {k: v for k, v in (('spelling', self.spelling), ('phonemes', self.phonemes)) if v}
 
 
 class Manifest(models.Model):

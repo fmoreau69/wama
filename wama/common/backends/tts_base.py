@@ -131,6 +131,12 @@ class TTSBackend(BaseModelBackend):
     #: choisit de ne pas l'appeler.
     keep_resident: bool = False
 
+    def takes_lexicon_phonemes(self, language: str) -> bool:
+        """Le moteur reçoit-il des PHONÈMES pour `language` ? Alors il dit le lexique de
+        prononciation lui-même (`tts_text.phonemes_with_lexicon`, Kokoro) ; sinon le contrat
+        remplace, avant lui, chaque terme qui a une orthographe à dire (`synthesize`)."""
+        return False
+
     def __init__(self):
         self._current_model: Optional[str] = None   # suffixe CATALOGUE (clé gouverneur)
         self.loaded_model: Optional[str] = None     # nom UI ('coqui-xtts'…) — /health
@@ -149,10 +155,19 @@ class TTSBackend(BaseModelBackend):
 
         ⚠ Le mode MULTI-VOIX (Higgs) n'est pas découpé : ses balises de locuteur (`[S1]`)
         valent pour la suite du texte, un segment les perdrait. La description de scène ouvre le
-        dialogue : premier segment seulement (la règle de `speech_render`)."""
+        dialogue : premier segment seulement (la règle de `speech_render`).
+
+        Le LEXIQUE de prononciation (2026-10-27) se dit ICI aussi, pour tous les moteurs : le
+        fichier système et les lignes que le serveur web a jointes (`options['lexicon']`). Un
+        moteur qui reçoit des phonèmes le dit lui-même (`takes_lexicon_phonemes`) ; pour les
+        autres, chaque terme qui a une orthographe à dire est remplacé avant eux."""
         from wama.common.utils.audio_decode import decode_audio
-        from wama.common.utils.tts_text import pause_segments
+        from wama.common.utils.tts_text import pause_segments, respell_with_lexicon
         options = kwargs.get('options') or {}
+        language = kwargs.get('language') or ''
+        if not self.takes_lexicon_phonemes(language):
+            kwargs = {**kwargs, 'text': respell_with_lexicon(kwargs.get('text') or '', language,
+                                                             options.get('lexicon'))}
         segments = [] if kwargs.get('multi_speaker') else pause_segments(
             kwargs.get('text') or '', bounded_pause(options.get('sentence_pause')),
             bounded_pause(options.get('clause_pause')))

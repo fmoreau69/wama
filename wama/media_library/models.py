@@ -264,11 +264,19 @@ class UserProviderConfig(models.Model):
         return f"{self.user.username} — {self.provider.name}"
 
 
-class PromptKeyword(models.Model):
+class PromptKeyword(ScopedVisibility):
     """
     Mot-clé réutilisable pour enrichir un prompt (chips cliquables).
-    Vit dans la médiathèque : `user=None` = TRONC COMMUN partagé (seedé) ; sinon = perso utilisateur.
-    Pas un asset fichier → modèle dédié (texte). Surfacé via la palette commune + l'UI médiathèque.
+    Vit dans la médiathèque : `owner=None` = SYSTÈME, le tronc commun (seedé, public) ; sinon =
+    le mot-clé de son auteur. Pas un asset fichier → modèle dédié (texte). Surfacé via la palette
+    commune + l'UI médiathèque.
+
+    Provenance (`ROADMAP §29`, 2026-10-27, demande de Fabien « aligne aussi les mots-clés ») : la
+    route de tout ce qui entre dans WAMA, celle des skills de prompt (`common.PromptSkill`) — il
+    naît PRIVÉ, se PARTAGE par une portée (`services/sharing`), un compte qui le voit le COPIE
+    dans les siens, un ADMINISTRATEUR seul le rend système. Registre `prompt_keywords`.
+    ⚠ Le champ s'appelait `user` : la colonne garde ce nom (`db_column`, migration 0021), le
+    filtre des catalogues et les gestes communs lisent `owner`.
     """
     CATEGORY_CHOICES = [
         ('quality', 'Qualité'),
@@ -280,9 +288,10 @@ class PromptKeyword(models.Model):
         ('domain', 'Domaine'),
     ]
 
-    user = models.ForeignKey(
+    owner = models.ForeignKey(
         User, on_delete=models.CASCADE, null=True, blank=True, related_name='prompt_keywords',
-        help_text="null = tronc commun partagé (système) ; sinon = mot-clé perso de l'utilisateur",
+        db_column='user_id',
+        help_text="vide = système (le tronc commun) ; sinon = l'auteur du mot-clé",
     )
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='style', db_index=True)
     text = models.CharField(max_length=120, help_text="Le mot-clé inséré dans le prompt")
@@ -291,17 +300,21 @@ class PromptKeyword(models.Model):
         help_text="Optionnel : domaine d'application (ex. 'image', 'video', 'transport')",
     )
     order = models.IntegerField(default=0)
+    #: Qui l'a écrit, copié de qui, promu par qui — la trace, jamais relue (comme `PromptSkill`).
+    source = models.JSONField(default=dict, blank=True, db_default={})
     created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ScopedManager()
 
     class Meta:
         verbose_name = 'Mot-clé de prompt'
         verbose_name_plural = 'Mots-clés de prompt'
         ordering = ['category', 'order', 'text']
-        unique_together = [['user', 'category', 'text']]
+        unique_together = [['owner', 'category', 'text']]
 
     def __str__(self):
-        scope = 'commun' if self.user_id is None else self.user.username
-        return f"[{self.category}/{scope}] {self.text}"
+        # Le libellé de la ligne dans « Mes partages » (`sharing._catalogue_shares`).
+        return self.text
 
     def to_dict(self):
         # `common` = ce mot-clé appartient au TRONC COMMUN (aucun propriétaire, `user=None` —
@@ -315,4 +328,4 @@ class PromptKeyword(models.Model):
         # deux lecteurs dans `wama-prompt-chips.js`) — une clé de payload se traite
         # entièrement ou pas du tout (`AGENTS.md`, frontière des données).
         return {'id': self.id, 'category': self.category, 'text': self.text,
-                'domain': self.domain, 'common': self.user_id is None}
+                'domain': self.domain, 'common': self.owner_id is None}

@@ -1060,7 +1060,8 @@ def voice_preview(request):
             scene_description=request.POST.get('scene_description', ''),
             speed=speed, pitch=pitch, read_timeout=60,
             sentence_pause=chosen.get('sentence_pause'),
-            clause_pause=chosen.get('clause_pause'), sampling=sampling_options(chosen))
+            clause_pause=chosen.get('clause_pause'), sampling=sampling_options(chosen),
+            user=user)
     except TTSServiceLoadingError:
         return JsonResponse({'error': 'Le service de synthèse vocale démarre : réessayez dans '
                                       'quelques secondes.', 'busy': True}, status=503)

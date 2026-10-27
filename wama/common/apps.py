@@ -206,6 +206,11 @@ class CommonConfig(AppConfig):
                              "demandes d'accès en attente.")
             page('skills', section='mine', label='Skills', icon='fa-wand-magic-sparkles',
                  tone='info', access='public', url_name='common:skills_catalog', order=80)
+            # Comment la voix dit un terme (registre `pronunciations`, 2026-10-27) : comme les
+            # skills, des entrées système et les siennes.
+            page('pronunciations', section='mine', label='Prononciations', icon='fa-volume-high',
+                 tone='success', access='public', url_name='common:pronunciations_catalog',
+                 order=85)
             page('notifications', section='mine', label='Notifications', icon='fa-bell',
                  access='account', url_name='common:notifications', menu=False,
                  description="Vos notifications dans WAMA, lues et non lues.")

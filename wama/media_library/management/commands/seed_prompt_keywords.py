@@ -1,11 +1,11 @@
 """
-Seed du TRONC COMMUN de mots-clés de prompt (PromptKeyword, user=None) — bibliothèque curée,
+Seed du TRONC COMMUN de mots-clés de prompt (PromptKeyword, owner=None : système, public) — bibliothèque curée,
 inspirée des bonnes pratiques des meilleurs outils de génération (SDXL/Midjourney/Flux/Lexica).
 Idempotent (get_or_create). Extensible : ajouter des entrées ici, ou via l'UI médiathèque (perso).
 """
 from django.core.management.base import BaseCommand
 
-# {catégorie: [mots-clés]} — tronc commun partagé (user=None).
+# {catégorie: [mots-clés]} — tronc commun, système (owner=None).
 TRUNK = {
     'quality': ['haute qualité', 'ultra-détaillé', 'photoréaliste', 'netteté élevée', '8k', 'HDR',
                 'rendu professionnel'],
@@ -24,7 +24,7 @@ TRUNK = {
 
 
 class Command(BaseCommand):
-    help = "Seed le tronc commun de mots-clés de prompt (PromptKeyword partagés, user=None)."
+    help = "Seed le tronc commun de mots-clés de prompt (PromptKeyword système, owner=None)."
 
     def handle(self, *args, **opts):
         from wama.media_library.models import PromptKeyword
@@ -32,11 +32,12 @@ class Command(BaseCommand):
         for category, words in TRUNK.items():
             for i, text in enumerate(words):
                 _, was_created = PromptKeyword.objects.get_or_create(
-                    user=None, category=category, text=text,
-                    defaults={'order': i},
+                    owner=None, category=category, text=text,
+                    # Un élément SYSTÈME est public (`catalogue_visible_q`, ROADMAP §29).
+                    defaults={'order': i, 'visibility': PromptKeyword.VIS_PUBLIC},
                 )
                 created += int(was_created)
-        total = PromptKeyword.objects.filter(user__isnull=True).count()
+        total = PromptKeyword.objects.filter(owner__isnull=True).count()
         self.stdout.write(self.style.SUCCESS(
-            f"Tronc commun : {created} mot(s)-clé(s) ajouté(s), {total} au total (partagés)."
+            f"Tronc commun : {created} mot(s)-clé(s) ajouté(s), {total} au total (système)."
         ))

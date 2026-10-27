@@ -24,15 +24,27 @@ logger = logging.getLogger(__name__)
 REPO_ID = 'hexgrad/Kokoro-82M'
 
 
+#: Les codes de pipeline que KPipeline ne phonémise PAS par espeak (anglais, japonais, chinois) :
+#: misaki y a son propre G2P, sans lexique à recevoir.
+NOT_ESPEAK_CODES = 'abjz'
+
+
 class LexiconG2P:
     """Le phonémiseur espeak d'un `KPipeline` (misaki `EspeakG2P`), le lexique de prononciation
     en plus (`tts_text.phonemes_with_lexicon`, 2026-10-27). La syntaxe `[mot](/phonèmes/)` de
     misaki n'existe que sur sa branche anglaise : hors d'elle, rien ne reçoit un lexique. Une
-    entrée prend la notation de misaki (sa table `e2m` : `d^ʒ` → `ʤ`), comme ce qu'espeak rend."""
+    entrée prend la notation de misaki (sa table `e2m` : `d^ʒ` → `ʤ`), comme ce qu'espeak rend.
+
+    Les lignes d'un compte (`extra`) changent à chaque demande alors que le pipeline est partagé :
+    elles sont posées pour le FIL qui synthétise (`use`), que KPipeline rappelle dans ce même fil."""
 
     def __init__(self, g2p, language: str):
         self.g2p = g2p
         self.language = language
+        self._call = threading.local()
+
+    def use(self, extra):
+        self._call.extra = extra
 
     def _finish(self, entry: str) -> str:
         for old, new in getattr(self.g2p, 'e2m', ()):
@@ -42,7 +54,24 @@ class LexiconG2P:
     def __call__(self, text):
         from wama.common.utils.tts_text import phonemes_with_lexicon
         return phonemes_with_lexicon(text, self.language, lambda part: self.g2p(part)[0],
-                                     finish=self._finish), None
+                                     finish=self._finish,
+                                     extra=getattr(self._call, 'extra', None)), None
+
+
+def say_lexicon_through(pipeline, lang_code: str, language: str, text: str, extra=None) -> str:
+    """Le texte que `pipeline` doit recevoir pour dire le lexique (fichier + `extra`) : par
+    espeak, le pipeline le dira lui-même dans ce fil, le texte est rendu tel quel ; sur la branche
+    anglaise, japonaise ou chinoise de misaki, le texte où chaque terme qui a une orthographe à dire
+    est remplacé. Le moteur l'appelle pour poser le lexique (le contrat a déjà remplacé
+    l'orthographe, il en ignore le texte) ; le repli en processus de la voix de l'assistant, qui
+    ne passe pas par le contrat, prend aussi le texte."""
+    if lang_code in NOT_ESPEAK_CODES:
+        from wama.common.utils.tts_text import respell_with_lexicon
+        return respell_with_lexicon(text, language, extra)
+    if not isinstance(pipeline.g2p, LexiconG2P):
+        pipeline.g2p = LexiconG2P(pipeline.g2p, language)
+    pipeline.g2p.use(extra)
+    return text
 
 
 class KokoroBackend(TTSBackend):
@@ -144,8 +173,14 @@ class KokoroBackend(TTSBackend):
                         lang_code=lang_code, repo_id=REPO_ID, model=modele)
         return self._pipelines[lang_code]
 
+    def takes_lexicon_phonemes(self, language: str) -> bool:
+        """Par espeak seulement : sur la branche anglaise de misaki, l'orthographe du lexique est
+        dite par le contrat, comme pour un moteur qui lit du texte."""
+        from wama.common.tts.voices import code_langue
+        return code_langue(language) not in NOT_ESPEAK_CODES
+
     def process(self, text: str = "", language: str = "fr",
-                voice_preset: str = "default", **_ignored) -> str:
+                voice_preset: str = "default", options: dict | None = None, **_ignored) -> str:
         # Résolution langue→voix : brique COMMUNE (le même calcul vivait ici et, en miroir,
         # dans la vue TTS de l'assistant). `voice_preset` reste du vocabulaire synthesizer.
         from wama.common.tts.voices import code_langue, voix_pour
@@ -156,8 +191,8 @@ class KokoroBackend(TTSBackend):
         pipeline = self._get_pipeline(lang_code)
         # Hors anglais, japonais et chinois, KPipeline phonémise par espeak (misaki `EspeakG2P`) :
         # le lexique de prononciation s'y glisse, comme chez le jumeau ONNX (2026-10-27).
-        if lang_code not in 'abjz' and not isinstance(pipeline.g2p, LexiconG2P):
-            pipeline.g2p = LexiconG2P(pipeline.g2p, language)
+        # (Sur la branche anglaise, le contrat a déjà dit l'orthographe : `takes_lexicon_phonemes`.)
+        say_lexicon_through(pipeline, lang_code, language, text, (options or {}).get('lexicon'))
 
         samples = []
         for _, _, audio in pipeline(text, voice=voice, speed=1.0):

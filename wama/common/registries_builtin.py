@@ -320,6 +320,68 @@ register(Registry(
 
 
 # ──────────────────────────────────────────────────────────────────────────────────────────────
+# PRONONCIATIONS et MOTS-CLÉS DE PROMPT — deux listes de TERMES à auteur (2026-10-27)
+# ──────────────────────────────────────────────────────────────────────────────────────────────
+# Fabien, le jour du lexique : « Est-ce que ce genre de liste a sa place parmi les registres ? […]
+# dans l'idée de ce qu'on a fait pour les mots-clés ? » — puis « lance-le, et aligne aussi les
+# mots-clés ». Les deux suivent la route des skills (`ROADMAP §29`) : système, et lignes d'auteur.
+
+def _count_pronunciations() -> int:
+    from .services.user_pronunciations import system_entries
+    from .models import Pronunciation
+    return len(system_entries()) + Pronunciation.objects.count()
+
+
+def _entries_pronunciations() -> dict:
+    """Les entrées SYSTÈME du fichier, par `langue:terme` — celles qu'une balise de doc peut citer."""
+    from .services.user_pronunciations import system_entries
+    return {f"{e['language']}:{e['term']}": e for e in system_entries()}
+
+
+register(Registry(
+    key='pronunciations', label='Prononciations', nature=DERIVED,
+    source="Fichier `wama/common/tts/pronunciations.json` (système) et lignes "
+           "`common.Pronunciation` (un auteur et une portée ; système une fois promues)",
+    count=_count_pronunciations, entries=_entries_pronunciations,
+    permission='auth', url_name='common:pronunciations_catalog',
+    # Le fichier est relu à chaque CHANGEMENT (`tts_text._file_lexicons`), par les processus web
+    # comme par le service vocal : rien à actualiser, d'où DÉRIVÉ.
+    provenance=MIXED, owner_model='common.Pronunciation', owner_key='term',
+    in_code=lambda term: _pronunciation_in_file(term),
+    doc='docs/construction/ia/WAMA_LLM.md',
+    description="Comment la voix dit un terme : une orthographe à dire (tout moteur), ou des "
+                "phonèmes (Kokoro). Le texte affiché n'est jamais touché. Le fichier du dépôt est "
+                "le lexique système ; l'entrée d'un compte passe devant pour lui, se partage, se "
+                "copie, et un administrateur la rend système.",
+))
+
+
+def _pronunciation_in_file(term: str) -> bool:
+    from .services.user_pronunciations import in_file
+    return in_file(term)
+
+
+def _count_prompt_keywords() -> int:
+    from wama.media_library.models import PromptKeyword
+    return PromptKeyword.objects.count()
+
+
+register(Registry(
+    key='prompt_keywords', label='Mots-clés de prompt', nature=DERIVED,
+    source="Lignes `media_library.PromptKeyword` : le tronc commun (système, `seed_prompt_keywords`) "
+           "et les mots-clés d'auteur (une portée ; système une fois promus)",
+    count=_count_prompt_keywords, permission='auth',
+    # Sa page est l'onglet « Mots-clés » de la médiathèque, là où ils se gèrent depuis juin.
+    url_name='media_library:index',
+    provenance=MIXED, owner_model='media_library.PromptKeyword',
+    doc='docs/construction/ia/WAMA_LLM.md',
+    description="Les mots-clés cliquables sous un champ-prompt (palette `WamaPromptChips`), "
+                "gardés VERBATIM à l'enrichissement. Le tronc commun est système ; un mot-clé "
+                "d'auteur naît privé, se partage, se copie, et un administrateur le rend système.",
+))
+
+
+# ──────────────────────────────────────────────────────────────────────────────────────────────
 # SOURCES EXTERNES — la sonde est la valeur de la page (8ᵉ registre, 2026-09-01)
 # ──────────────────────────────────────────────────────────────────────────────────────────────
 

@@ -1083,6 +1083,86 @@ def skills_manage(request):
     return JsonResponse({'success': True, 'skill': us.as_dict(row, user)})
 
 
+def pronunciations_catalog_view(request):
+    """
+    Catalogue des PRONONCIATIONS — comment la voix dit un terme (registre `pronunciations`,
+    2026-10-27). DÉRIVÉE, comme les skills : le fichier du dépôt (système) et les lignes
+    `common.Pronunciation` vues par le compte, relus à chaque affichage. Gestes :
+    `pronunciations_manage` ; écoute : la voix de l'assistant (`kokoro_tts`, `pronunciation=`).
+    """
+    from django.urls import reverse
+
+    from .services import user_pronunciations as up
+    from .services.sharing import scope_choices
+    from .tts.voices import voix_pour
+
+    language_names = dict(up.languages())
+    system = up.system_entries()
+    for entry in system:
+        entry['listen'] = up.listen_text(entry['term'], entry['language'])
+        entry['language_label'] = language_names.get(entry['language'], entry['language'])
+    facettes = [{'cle': 'langue', 'label': 'Langue', 'tous': 'Toutes les langues',
+                 'options': {e['language']: e['language_label'] for e in system}},
+                {'cle': 'forme', 'label': 'Forme', 'tous': 'Toutes les formes',
+                 'options': {'spelling': 'Orthographe à dire', 'phonemes': 'Phonèmes'}}]
+    context = {'system_entries': system, 'facettes_pronunciations': facettes,
+               'volet': volet(medias=False, actions=False),
+               'voices': {code: voix_pour(code) for code in language_names},
+               'tts_api': reverse('kokoro_tts')}
+    if request.user.is_authenticated:
+        rows = []
+        for row in up.visible_pronunciations(request.user):
+            item = up.as_dict(row, request.user)
+            item['listen'] = up.listen_text(row.term, row.language)
+            item['language_label'] = language_names.get(row.language, row.language)
+            rows.append(item)
+        context.update({'pronunciations_api': reverse('common:pronunciations_manage'),
+                        'promotion_api': reverse('common:api_promotion_request'),
+                        'pronunciations_account': rows,
+                        'pronunciation_scopes': scope_choices(request.user),
+                        'languages': up.languages()})
+    return render(request, 'common/pronunciations.html', context)
+
+
+@login_required
+@require_POST
+def pronunciations_manage(request):
+    """AJAX — les gestes sur les prononciations d'un compte (`services/user_pronunciations`) :
+    `create` (terme, langue, orthographe et/ou phonèmes), `update`, `share` (`scope`), `copy` (une
+    ligne vue, `pk` ; ou une entrée du fichier, `term` + `language`), `delete`, `promote` (un ADMIN
+    seul). « Demander la promotion » passe par la route commune (`api_promotion_request`)."""
+    import json
+
+    from .services import user_pronunciations as up
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    action, user = data.get('action'), request.user
+    try:
+        if action == 'create':
+            row = up.create(user, data.get('term'), data.get('language') or 'fr',
+                            data.get('spelling'), data.get('phonemes'))
+        elif action == 'update':
+            row = up.update(user, data.get('pk'), data.get('spelling'), data.get('phonemes'))
+        elif action == 'share':
+            up.share(user, data.get('pk'), str(data.get('scope') or 'private'))
+            row = up.visible_pronunciations(user).get(pk=data.get('pk'))
+        elif action == 'copy':
+            row = up.copy(user, pk=data.get('pk'), term=data.get('term') or '',
+                          language=data.get('language') or 'fr')
+        elif action == 'delete':
+            up.delete(user, data.get('pk'))
+            return JsonResponse({'success': True})
+        elif action == 'promote':
+            row = up.promote(user, data.get('pk'))
+        else:
+            return JsonResponse({'error': f'Action inconnue : {action!r}'}, status=400)
+    except up.PronunciationRefused as exc:
+        return JsonResponse({'error': str(exc)}, status=exc.status)
+    return JsonResponse({'success': True, 'pronunciation': up.as_dict(row, user)})
+
+
 @login_required
 def journal_view(request):
     """

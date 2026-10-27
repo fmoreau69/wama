@@ -6627,7 +6627,7 @@ listes déroulantes.
 > permettrait aux utilisateurs d'avoir leurs propres briques UI, notamment à la création d'app
 > bac à sable. L'app reste à son auteur tant qu'elle n'est pas promue. On aligne ça sur toutes les
 > capacités qui s'ajoutent dans WAMA. »* Intention ⏳ : rien n'est construit au-delà de l'existant
-> relevé ci-dessous. — 🔄 *2026-10-26 : étapes 1-4bis et 6a-6b livrées (ci-dessous) ; restent les
+> relevé ci-dessous. — 🔄 *2026-10-27 : 4ter livrée (prononciations, mots-clés de prompt).* — 🔄 *2026-10-26 : étapes 1-4bis et 6a-6b livrées (ci-dessous) ; restent les
 > briques UI et jumelles (5), la pastille et la facette (6) ; au budget `TO_CARRY` : `apps`,
 > `libraries`, `ui_bricks` (`tests_registry_provenance.py:28`).* Décisions a–d rendues le jour même (plus bas).
 
@@ -6952,6 +6952,21 @@ sens. Ce qui change d'une famille à l'autre, c'est **d'où la provenance NAÎT*
    - **Ce que l'étape ne fait PAS** : ~~aucune demande de promotion par l'auteur (le bouton ira avec
      la pastille, étape 6)~~ (✅ ci-dessous, 6a) ; pas de manifeste `skill` (le corpus versionné
      n'en porte pas) ; un skill de rôle d'assistant n'a pas de version d'utilisateur.
+4ter. ✅ **Les prononciations de la voix et les mots-clés de prompt (2026-10-27).** Fabien : *« Est-ce
+   que ce genre de liste a sa place parmi les registres ? »*, puis *« Oui, lance-le, et aligne aussi
+   les mots-clés »*. Deux registres `mixed` neufs, sur la route de 4bis (aucun `access_kind` : rien
+   ne se décide par profil) :
+   - `pronunciations` — `common.Pronunciation` (migration `common/0037` APPLIQUÉE), le fichier
+     `common/tts/pronunciations.json` est le système (`in_code`), gestes dans
+     `services/user_pronunciations`, page `common:pronunciations_catalog` ;
+   - `prompt_keywords` — `PromptKeyword` porte enfin `owner` et la portée (`media_library/0021`
+     APPLIQUÉE, sans coupure : la colonne garde `user_id` ; `0022` à la relance), le tronc commun
+     passe public, gestes dans `media_library/keywords.py`, page = l'onglet « Mots-clés » de la
+     médiathèque.
+   - Les gestes d'une ligne d'auteur à l'écran sortent dans un gabarit commun
+     (`common/_owned_row_gestures.html`), que la page des skills emprunte aussi.
+   - Détail, voix et service vocal : `WAMA_LLM.md` (vocalisation, 2026-10-27 soir). Gardes :
+     `tests_pronunciations`, `media_library/tests/tests_prompt_keywords`.
 5. Les briques UI d'utilisateur et les jumelles : la provenance déclarée, et la promotion par
    déplacement vers `common/`.
 6. La pastille et la facette.

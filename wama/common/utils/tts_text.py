@@ -24,11 +24,12 @@ Les entrées, les suivantes étant des étapes de la première (publiques parce 
 peut vouloir l'une sans le nettoyage, ex. un texte déjà propre) :
   • `text_for_speech(text)` — la chaîne complète, dans l'ordre ;
   • `make_audible(text)`    — la mise en forme visuelle traduite en respirations ;
-  • `say_incises` / `say_emphasis` — parenthèses dites en incises, emphase et lexique (18/10) ;
+  • `say_incises` / `say_emphasis` — parenthèses dites en incises, emphase (18/10) ;
   • `pause_segments(text, sentence_pause, clause_pause)` — où la voix respire, et combien :
     le RÉGLAGE des pauses (`assistant/params.py`), appliqué par le moteur (18/10) ;
-  • `phonemes_with_lexicon(text, language, phonemize)` — les termes techniques dits par leurs
-    PHONÈMES (`common/tts/pronunciations.json`), appelé par le moteur qui phonémise (27/10).
+  • `lexicon(language, extra)` — le LEXIQUE de prononciation (le fichier système
+    `common/tts/pronunciations.json` + les lignes du compte), lu par le moteur (27/10) :
+    `phonemes_with_lexicon` pour un moteur qui phonémise, `respell_with_lexicon` pour les autres.
 """
 import functools
 import json
@@ -137,53 +138,127 @@ _SHORT_EMPHASIS_WORDS = frozenset("""
 """.split())
 _LETTER_WORD = re.compile(r'\b[^\W\d_]{2,}\b')
 
-#: Ce qui se PRONONCE autrement que ça ne s'écrit — un LEXIQUE, déclaré ici et nulle part
-#: ailleurs (le moteur, lui, dit « c'est l'affaire d'un lexique », `kokoro_onnx_backend`).
-#: « WAMA » est lu à l'anglaise par espeak quelle que soit sa casse (`wˈɑːmə`, entendu « WAM ») ;
-#: « Ouama » donne la lecture française (`wamˈa`). Mot ENTIER, casse exacte.
-SPOKEN_FORMS = {'WAMA': 'Ouama'}
-_SPOKEN_FORM = re.compile(r'\b(' + '|'.join(map(re.escape, SPOKEN_FORMS)) + r')\b')
-
-#: …et ce qui se prononce par ses PHONÈMES (2026-10-27, Fabien : « améliorer sa prononciation
-#: pour que ça respecte les termes techniques comme git »). Mesuré en `fr-fr` : git → « ji »,
-#: commit → « komi », JSON → « jsonn », framework lu en anglais britannique. Une réécriture
-#: (`SPOKEN_FORMS`) ne sait pas dire « guite » sans deviner l'orthographe que lira espeak ; un
-#: moteur qui reçoit des phonèmes (Kokoro) reçoit ceux du lexique. Le lexique est une DONNÉE
-#: (`common/tts/pronunciations.json`), par langue de la voix ; la langue de chaque MOT n'est pas
-#: devinée — un détecteur se trompe une fois sur quatre sur un mot isolé, et git, commit, cache
-#: sont aussi des mots français (recherche du 27/10, `WAMA_LLM §1bis`).
+#: Ce qui se PRONONCE autrement que ça ne s'écrit — le LEXIQUE de prononciation, une DONNÉE et
+#: non du code (2026-10-27, Fabien : « améliorer sa prononciation pour que ça respecte les termes
+#: techniques comme git »). Mesuré en `fr-fr` : git → « ji », commit → « komi », JSON → « jsonn »,
+#: framework lu en anglais britannique ; « WAMA » lu à l'anglaise (`wˈɑːmə`, entendu « WAM »).
+#: Une entrée a une ou deux formes : une ORTHOGRAPHE à dire (`spelling`, « Ouama ») que tout
+#: moteur lit, ou des PHONÈMES (`phonemes`, `ɡˈit`) pour un moteur qui en reçoit (Kokoro) — une
+#: orthographe ne sait pas dire « guite » sans deviner ce que lira espeak. La langue de chaque
+#: MOT n'est pas devinée : un détecteur se trompe une fois sur quatre sur un mot isolé, et git,
+#: commit, cache sont aussi des mots français (recherche du 27/10, `WAMA_LLM`).
+#:
+#: Deux sources, une lecture (`lexicon`) : le fichier SYSTÈME du dépôt, et les lignes
+#: `common.Pronunciation` (promues ou du compte), que le serveur web résout et ENVOIE avec la
+#: demande de synthèse (`options['lexicon']`, `services/user_pronunciations.lexicon_for`) — le
+#: service vocal n'a pas Django. L'ancien `SPOKEN_FORMS` (« WAMA » → « Ouama ») est une entrée
+#: du fichier depuis le 27/10.
 _PRONUNCIATIONS_FILE = Path(__file__).resolve().parents[1] / 'tts' / 'pronunciations.json'
+#: Le fichier relu quand il CHANGE (date de modification) : un processus web comme le service
+#: vocal voit une entrée corrigée sans relance. Un `stat` par synthèse, pas par mot.
+_FILE_STATE = {'mtime': None, 'data': {}}
+#: Les deux formes d'une entrée, et rien d'autre.
+ENTRY_FORMS = ('spelling', 'phonemes')
 
 
-@functools.lru_cache(maxsize=None)
+def _file_lexicons() -> dict:
+    try:
+        mtime = _PRONUNCIATIONS_FILE.stat().st_mtime_ns
+        if _FILE_STATE['mtime'] != mtime:
+            data = json.loads(_PRONUNCIATIONS_FILE.read_text(encoding='utf-8'))
+            _FILE_STATE.update(mtime=mtime, data={language: entries for language, entries
+                                                  in data.items() if not language.startswith('_')})
+    except (OSError, ValueError):
+        logger.warning('lexique de prononciation illisible : %s', _PRONUNCIATIONS_FILE,
+                       exc_info=True)
+    return _FILE_STATE['data']
+
+
+def _clean_entry(entry) -> dict:
+    """Une entrée réduite à ses formes posées (`ENTRY_FORMS`) ; {} si elle n'en a aucune."""
+    if not isinstance(entry, dict):
+        return {}
+    return {form: str(entry[form]).strip() for form in ENTRY_FORMS
+            if isinstance(entry.get(form), str) and entry[form].strip()}
+
+
 def pronunciations(language: str) -> dict:
-    """Le lexique de `language` (code WAMA, `fr`) : {graphie : phonèmes}. Vide sans lexique."""
-    data = json.loads(_PRONUNCIATIONS_FILE.read_text(encoding='utf-8'))
-    return dict(data.get(language) or {})
+    """Le lexique SYSTÈME de `language` (code WAMA, `fr`), celui du fichier : {graphie : entrée}."""
+    return {term: entry for term, raw in (_file_lexicons().get(language) or {}).items()
+            if (entry := _clean_entry(raw))}
 
 
-@functools.lru_cache(maxsize=None)
-def _pronunciation_lookup(language: str):
-    """(motif, table en minuscules) — mot ENTIER, casse indifférente, pluriel en -s compris ;
-    la graphie la plus longue d'abord (« GitHub » avant « git »)."""
-    table = {term.lower(): phonemes for term, phonemes in pronunciations(language).items()}
-    if not table:
-        return None, table
-    terms = sorted(pronunciations(language), key=len, reverse=True)
-    pattern = re.compile(r'(?<![^\W_])(' + '|'.join(map(re.escape, terms)) + r')s?(?![^\W_])',
-                         re.IGNORECASE)
-    return pattern, table
+def system_lexicons() -> dict:
+    """Tout le fichier : {langue : {graphie : entrée}} — le registre `pronunciations` le lit."""
+    return {language: pronunciations(language) for language in _file_lexicons()}
 
 
-def phonemes_with_lexicon(text: str, language: str, phonemize, finish=None) -> str:
+def lexicon(language: str, extra=None) -> dict:
+    """Le lexique que dit la voix : le fichier, puis `extra` ({graphie : entrée}, les lignes que
+    le serveur web a résolues pour cette demande), qui passe devant à graphie égale, casse
+    indifférente — l'entrée d'un compte remplace, pour lui, celle du système."""
+    merged = {}
+    for source in (pronunciations(language), extra if isinstance(extra, dict) else {}):
+        for term, raw in source.items():
+            entry = _clean_entry(raw)
+            if entry and isinstance(term, str) and term.strip():
+                merged[term.strip().lower()] = (term.strip(), entry)
+    return dict(merged.values())
+
+
+@functools.lru_cache(maxsize=64)
+def _terms_pattern(terms: tuple):
+    """Mot ENTIER, casse indifférente, pluriel en -s compris ; la graphie la plus longue d'abord
+    (« GitHub » avant « git »). Mis en cache par jeu de termes : un compte qui ajoute une entrée
+    a un autre motif, le système garde le sien."""
+    ordered = sorted(terms, key=len, reverse=True)
+    return re.compile(r'(?<![^\W_])(' + '|'.join(map(re.escape, ordered)) + r')s?(?![^\W_])',
+                      re.IGNORECASE)
+
+
+def _lookup(entries: dict):
+    """(motif, table en minuscules) des entrées ; (None, {}) sans entrée."""
+    table = {term.lower(): entry for term, entry in entries.items()}
+    return (_terms_pattern(tuple(sorted(table))) if table else None), table
+
+
+def respell_with_lexicon(text: str, language: str, extra=None) -> str:
+    """Le texte À DIRE, chaque terme qui a une ORTHOGRAPHE (`spelling`) remplacé par elle — pour
+    un moteur qui lit du texte (le contrat commun l'appelle, `TTSBackend.synthesize`). Un terme
+    qui n'a que des phonèmes est laissé tel quel : ce moteur ne saurait pas les dire. Le pluriel
+    reste collé (« commits » → « komites »). En cas d'échec, le texte d'avant."""
+    return _respell(text, {term: entry for term, entry in lexicon(language, extra).items()
+                           if entry.get('spelling')})
+
+
+def _respell(text: str, entries: dict) -> str:
+    pattern, table = _lookup(entries)
+    if pattern is None or not text:
+        return text
+    try:
+        return pattern.sub(lambda m: table[m.group(1).lower()]['spelling']
+                           + m.group(0)[len(m.group(1)):], text)
+    except Exception:
+        logger.warning('lexique de prononciation ignoré pour %r', text[:80], exc_info=True)
+        return text
+
+
+def phonemes_with_lexicon(text: str, language: str, phonemize, finish=None, extra=None) -> str:
     """Les phonèmes de `text`, ceux du LEXIQUE à la place de ce que dirait le phonémiseur.
 
     `phonemize(texte) -> phonèmes` est celui du moteur ; `finish(phonèmes)` rend une entrée du
-    lexique dans SA notation (par défaut : la liaison `^` retirée). Le texte est découpé autour
-    des termes du lexique ; chaque morceau est phonémisé seul, les entrées s'insèrent entre eux.
+    lexique dans SA notation (par défaut : la liaison `^` retirée). Une entrée qui n'a qu'une
+    ORTHOGRAPHE se substitue dans le texte, qui reste d'un seul tenant : « dans WAMA » garde sa
+    liaison (`dɑ̃z wamˈa`, mesuré le 27/10 — phonémisé à part, le morceau la perdait). Puis le texte
+    est découpé autour des termes à PHONÈMES (`lexicon(language, extra)`) ; chaque morceau est
+    phonémisé seul, les entrées s'insèrent entre eux.
     ⚠ Le texte AFFICHÉ n'est jamais touché : seule la chaîne envoyée à la voix change. Si quoi
     que ce soit échoue, la phrase est dite comme avant — jamais muette."""
-    pattern, table = _pronunciation_lookup(language)
+    entries = lexicon(language, extra)
+    text = _respell(text, {term: entry for term, entry in entries.items()
+                           if not entry.get('phonemes')})
+    pattern, table = _lookup({term: entry for term, entry in entries.items()
+                              if entry.get('phonemes')})
     if pattern is None or not pattern.search(text or ''):
         return phonemize(text)
     finish = finish or (lambda phonemes: phonemes.replace('^', ''))
@@ -191,7 +266,7 @@ def phonemes_with_lexicon(text: str, language: str, phonemize, finish=None) -> s
         pieces, start = [], 0
         for match in pattern.finditer(text):
             pieces.append(_phonemize_piece(text[start:match.start()], phonemize))
-            pieces.append(finish(table[match.group(1).lower()]))
+            pieces.append(finish(table[match.group(1).lower()]['phonemes']))
             start = match.end()
         pieces.append(_phonemize_piece(text[start:], phonemize))
         # Une marque de respiration se colle au mot qui la précède, comme le moteur l'écrit.
@@ -265,7 +340,9 @@ def say_incises(text: str) -> str:
 
 def say_emphasis(text: str) -> str:
     """Les mots courts d'EMPHASE en majuscules (`_SHORT_EMPHASIS_WORDS`) passent en minuscules ;
-    tout autre mot en majuscules — un sigle — est laissé tel quel, puis le LEXIQUE s'applique."""
+    tout autre mot en majuscules — un sigle — est laissé tel quel. Le LEXIQUE ne s'applique plus
+    ici depuis le 27/10 : il dépend de la langue de la voix et du compte, que ce texte ignore —
+    le moteur le reçoit (`respell_with_lexicon`, `phonemes_with_lexicon`)."""
     def lower(match):
         word = match.group(0)
         if not (word.isupper() and word.lower() in _SHORT_EMPHASIS_WORDS):
@@ -273,8 +350,7 @@ def say_emphasis(text: str) -> str:
         before = match.string[:match.start()].rstrip()
         # En tête de phrase, la majuscule initiale reste : « CE n'est » → « Ce n'est ».
         return word.capitalize() if not before or before[-1] in SENTENCE_MARKS + '\n' else word.lower()
-    text = _LETTER_WORD.sub(lower, text)
-    return _SPOKEN_FORM.sub(lambda m: SPOKEN_FORMS[m.group(1)], text)
+    return _LETTER_WORD.sub(lower, text)
 
 
 def pause_segments(text: str, sentence_pause: float = 0.0, clause_pause: float = 0.0) -> list:
@@ -319,7 +395,7 @@ def text_for_speech(text: str) -> str:
       5. URL/e-mails  — après (4), pour ne pas décapiter un lien de son libellé. REMPLACÉS par
                         un mot, jamais effacés : sinon la phrase porteuse devient indicible ;
       6. incises      — après (4) et (5) : un lien et une adresse ont leurs propres parenthèses ;
-      7. emphase      — les mots courts en majuscules, puis le lexique ;
+      7. emphase      — les mots courts en majuscules (le lexique, lui, est au moteur) ;
       8. respirations — en dernier : elle raisonne LIGNE PAR LIGNE, donc après tout ce qui
                         peut vider ou fusionner une ligne.
     Le bloc de code part EN PREMIER (0) : tout ce qu'il contient serait sinon nettoyé, puis lu.

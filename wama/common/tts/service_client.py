@@ -54,7 +54,7 @@ def tts_eta_key_size(text, model):
 
 def tts_via_service(text, model, *, language='fr', voice_preset='default',
                     speaker_wav=None, multi_speaker=False, scene_description='',
-                    options=None, read_timeout=DEFAULT_READ_TIMEOUT, raw=False):
+                    options=None, read_timeout=DEFAULT_READ_TIMEOUT, raw=False, user=None):
     """
     Synthétise `text` via le microservice TTS et renvoie le chemin d'un WAV TEMPORAIRE
     (à supprimer par l'appelant), ou les octets bruts si `raw=True` (vocalisation
@@ -63,6 +63,11 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
     Le payload suit le contrat d'appel uniforme des moteurs (`TTSBackend.synthesize`) :
     toujours les mêmes clés, chaque moteur consomme ce qui le concerne.
 
+    `user` (2026-10-27) : le compte pour qui la voix parle. Son LEXIQUE de prononciation — les
+    lignes système promues et les siennes, `user_pronunciations.lexicon_for` — part dans
+    `options['lexicon']` : le service n'a pas Django, il ne lit que le fichier du dépôt. Sans
+    compte, les lignes système seules.
+
     Lève `TTSServiceLoadingError` sur 503 « loading » (service pas encore chaud) et
     `RuntimeError` pour toute autre indisponibilité (connexion, délai, erreur moteur).
     """
@@ -70,8 +75,15 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
     # 2026-09-01) : le service n'a pas Django et ne peut pas aller le chercher. Sans lui, un
     # modèle installé par la prospection est proposable mais pas exécutable — son nom ne dit
     # pas son moteur. `None` pour les moteurs historiques : le routage par le nom suffit.
+    from wama.common.services.user_pronunciations import lexicon_for
     from wama.common.tts.ui_meta import tts_engine_declared
 
+    options = dict(options or {})
+    # Les entrées que l'appelant joint lui-même passent devant (l'écoute d'une prononciation
+    # avant de l'adopter, `kokoro_tts`).
+    lexicon = {**lexicon_for(user, language), **(options.get('lexicon') or {})}
+    if lexicon:
+        options['lexicon'] = lexicon
     payload = {
         'text': text,
         'model': model,

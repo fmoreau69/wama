@@ -197,11 +197,9 @@ def _serialize_system_asset(a):
 @login_required
 def index(request):
     tab = request.GET.get('tab', 'voice')
-    # Compteur de mots-clés visibles (tronc commun partagé + perso de l'utilisateur).
-    kw_filter = Q(user__isnull=True)
-    if request.user.is_authenticated:
-        kw_filter |= Q(user=request.user)
-    keyword_count = PromptKeyword.objects.filter(kw_filter).count()
+    # Compteur des mots-clés de la palette (le système et les siens, `keywords.py`).
+    from .keywords import palette_keywords
+    keyword_count = palette_keywords(request.user).count()
     from .natures import ASSET_NATURES
     context = {
         'asset_types':   ASSET_TYPES,
@@ -840,17 +838,22 @@ def api_provider_key_save(request, slug: str):
     return JsonResponse({'success': True, 'has_key': bool(api_key)})
 
 
-# ── Mots-clés de prompt (tronc commun partagé + perso) ───────────────────────
+# ── Mots-clés de prompt (système + ceux d'un auteur, `keywords.py`, ROADMAP §29) ────────
 
 @login_required
 def api_prompt_keywords(request):
-    """Liste les mots-clés (partagés + perso de l'utilisateur), groupés par catégorie."""
+    """Les mots-clés groupés par catégorie. Par défaut, ceux de la PALETTE (le système et les
+    siens) ; `manage=1` (médiathèque) : ceux que le compte VOIT, chacun avec sa provenance et ses
+    gestes, plus les portées offertes (`keywords.as_dict`)."""
+    from django.urls import reverse
+
+    from wama.common.services.sharing import scope_choices
+    from wama.media_library import keywords
     from wama.media_library.models import PromptKeyword
-    from django.db.models import Q
     domain = request.GET.get('domain', '')
-    qs = PromptKeyword.objects.filter(Q(user__isnull=True) | Q(user=request.user))
-    if domain:
-        qs = qs.filter(Q(domain='') | Q(domain=domain))
+    manage = request.GET.get('manage') == '1'
+    qs = (keywords.catalogue_rows(request.user, domain) if manage
+          else keywords.palette_keywords(request.user, domain))
     cats = dict(PromptKeyword.CATEGORY_CHOICES)
     # Pré-ordonner les catégories selon CATEGORY_CHOICES (ordre curé, pas alphabétique).
     grouped = {}
@@ -858,34 +861,69 @@ def api_prompt_keywords(request):
         grouped[code] = {'label': label, 'items': []}
     for kw in qs:
         g = grouped.setdefault(kw.category, {'label': cats.get(kw.category, kw.category), 'items': []})
-        g['items'].append(kw.to_dict())
+        g['items'].append(keywords.as_dict(kw, request.user) if manage else kw.to_dict())
     # Retirer les catégories vides (ex : filtre domaine).
     grouped = {k: v for k, v in grouped.items() if v['items']}
-    return JsonResponse({'categories': grouped})
+    payload = {'categories': grouped}
+    if manage:
+        payload.update({'scopes': scope_choices(request.user),
+                        'manage_api': reverse('media_library:api_prompt_keyword_manage'),
+                        'promotion_api': reverse('common:api_promotion_request'),
+                        'registry': 'prompt_keywords'})
+    return JsonResponse(payload)
 
 
 @login_required
 @require_POST
 def api_prompt_keyword_add(request):
-    """Ajoute un mot-clé PERSO (user-custom)."""
-    from wama.media_library.models import PromptKeyword
-    text = (request.POST.get('text') or '').strip()
-    category = request.POST.get('category') or 'style'
-    if not text:
-        return JsonResponse({'success': False, 'error': 'Texte vide'}, status=400)
-    kw, _ = PromptKeyword.objects.get_or_create(
-        user=request.user, category=category, text=text[:120],
-    )
+    """Ajoute un mot-clé à l'auteur — PRIVÉ (`keywords.create`)."""
+    from wama.media_library import keywords
+    try:
+        kw = keywords.create(request.user, request.POST.get('text'),
+                             request.POST.get('category') or 'style')
+    except keywords.KeywordRefused as exc:
+        return JsonResponse({'success': False, 'error': str(exc)}, status=exc.status)
     return JsonResponse({'success': True, 'keyword': kw.to_dict()})
 
 
 @login_required
 @require_POST
 def api_prompt_keyword_delete(request, pk):
-    """Supprime un mot-clé PERSO de l'utilisateur (jamais le tronc commun)."""
-    from wama.media_library.models import PromptKeyword
-    n, _ = PromptKeyword.objects.filter(pk=pk, user=request.user).delete()
-    return JsonResponse({'success': bool(n)})
+    """Retire un mot-clé : son auteur, ou un administrateur — jamais le tronc commun."""
+    from wama.media_library import keywords
+    try:
+        keywords.delete(request.user, pk)
+    except keywords.KeywordRefused:
+        return JsonResponse({'success': False})
+    return JsonResponse({'success': True})
+
+
+@login_required
+@require_POST
+def api_prompt_keyword_manage(request):
+    """AJAX — les gestes sur un mot-clé (`keywords.py`) : `share` (`scope`), `copy`, `promote` (un
+    ADMIN seul). « Demander la promotion » passe par la route commune (`api_promotion_request`)."""
+    import json
+
+    from wama.media_library import keywords
+    try:
+        data = json.loads(request.body or '{}')
+    except ValueError:
+        return JsonResponse({'error': 'JSON invalide'}, status=400)
+    action, user, pk = data.get('action'), request.user, data.get('pk')
+    try:
+        if action == 'share':
+            keywords.share(user, pk, str(data.get('scope') or 'private'))
+            row = keywords.catalogue_rows(user).get(pk=pk)
+        elif action == 'copy':
+            row = keywords.copy(user, pk)
+        elif action == 'promote':
+            row = keywords.promote(user, pk)
+        else:
+            return JsonResponse({'error': f'Action inconnue : {action!r}'}, status=400)
+    except keywords.KeywordRefused as exc:
+        return JsonResponse({'error': str(exc)}, status=exc.status)
+    return JsonResponse({'success': True, 'keyword': keywords.as_dict(row, user)})
 
 
 @login_required

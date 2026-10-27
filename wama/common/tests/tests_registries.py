@@ -518,7 +518,10 @@ class NormeUrlsTest(TestCase):
     #: qui la justifie : `MemoryItem` et `RagChunk` sont deux jumeaux (mêmes mixins, un seul
     #: `recall()`). Les normer différemment ferait de l'un un catalogue et de l'autre une page
     #: personnelle — l'asymétrie de surface que cette page a précisément été écrite pour finir.
-    HORS_NORME = {'model_manager:index', 'common:rag', 'common:memories'}
+    #: `media_library:index` (2026-10-27) : l'accueil de la médiathèque, dont l'onglet
+    #: « Mots-clés » est la page du registre `prompt_keywords` — même motif que l'index du
+    #: model_manager.
+    HORS_NORME = {'model_manager:index', 'common:rag', 'common:memories', 'media_library:index'}
 
     def test_tout_nom_de_page_catalogue_finit_en_catalog(self):
         from ..registries import REGISTRIES
@@ -539,7 +542,10 @@ class NormeUrlsTest(TestCase):
                       # `memories` : même exemption que `rag`, même motif (page personnelle,
                       # liste en mode server). Elle porte bien la barre commune — c'est
                       # l'en-tête catalogue qu'elle n'a pas, comme sa jumelle.
-                      'common:memories'}
+                      'common:memories',
+                      # La médiathèque (registre `prompt_keywords`) : l'accueil d'une app, comme
+                      # celui du model_manager — elle porte la barre commune.
+                      'media_library:index'}
 
     def test_chaque_page_de_registre_rend_la_barre_de_filtrage_commune(self):
         """L'uniformité des pages registres se MESURE (demande Fabien, 01/09).

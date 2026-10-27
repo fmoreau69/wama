@@ -261,8 +261,10 @@
             <i class="fas fa-tags me-2" style="color:var(--wama-link);"></i>
             <div>
                 <div class="fw-semibold">Bibliothèque de mots-clés</div>
-                <small class="text-muted">Tronc commun partagé + vos mots-clés perso. Réutilisés dans les
-                    prompts (Imager, etc.). Cliquez « + » pour ajouter ; la croix supprime un mot-clé perso.</small>
+                <small class="text-muted">Le tronc commun (système), vos mots-clés et ceux qu'on vous partage.
+                    Réutilisés dans les prompts (Imager, etc.) : sous un prompt, seuls le système et les vôtres
+                    sont proposés. Cliquez un mot-clé pour le partager, le copier ou demander sa promotion ;
+                    « + » en ajoute un, la croix le supprime.</small>
             </div>
         </div>
         <div id="keywordsManager"></div>
@@ -432,6 +434,7 @@ const NATURES = {{ natures_json|safe }};
 </script>
 <link rel="stylesheet" href="{% static_v 'common/css/wama-prompt-chips.css' %}">
 <script src="{% static_v 'common/js/wama-prompt-chips.js' %}"></script>
+<script src="{% static_v 'common/js/wama-promotion.js' %}"></script>  {# « Demander la promotion » d'un mot-clé (gestion, ROADMAP §29) #}
 <script src="{% static_v 'common/js/wama-import.js' %}"></script>  {# voie d'import COMMUNE de la card d'entrée (WamaImport) #}
 <script src="{% static_v 'media_library/js/media-library.js' %}"></script>
 {% endblock %}

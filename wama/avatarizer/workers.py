@@ -90,6 +90,7 @@ def _call_tts_service(job: AvatarJob) -> str:
         language=job.language, voice_preset=job.voice_preset,
         speaker_wav=speaker_wav,
         options=sampling or None,
+        user=job.user,   # son lexique de prononciation (2026-10-27)
     )
 
 

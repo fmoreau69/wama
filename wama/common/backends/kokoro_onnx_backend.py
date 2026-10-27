@@ -225,8 +225,12 @@ class KokoroOnnxBackend(TTSBackend):
         logger.info("[Kokoro-ONNX] voices-derived.npz assemblé (%d voix)", len(voix))
         return cible
 
+    def takes_lexicon_phonemes(self, language: str) -> bool:
+        """Il reçoit des phonèmes dans toutes ses langues (`is_phonemes=True`)."""
+        return True
+
     def process(self, text: str = "", language: str = "fr",
-                voice_preset: str = "default", **_ignored) -> str:
+                voice_preset: str = "default", options: dict | None = None, **_ignored) -> str:
         """Dit `text` d'un trait. Les PAUSES réglées (`options`) sont posées par le contrat
         commun (`TTSBackend.synthesize`, 2026-10-18), qui appelle ce moteur segment par segment :
         `Kokoro.create(sentence_pause=…)` ne les insère DANS un morceau qu'avec un modèle qui rend
@@ -243,10 +247,12 @@ class KokoroOnnxBackend(TTSBackend):
         lang = ESPEAK_LANG.get(language) or ESPEAK_FALLBACK.get(language) or 'en-us'
         tokenizer = self._kokoro.tokenizer
         # Les termes techniques du lexique sont dits par LEURS phonèmes (2026-10-27) ; une entrée
-        # passe au même filtre de vocabulaire que ce qu'espeak rend.
+        # passe au même filtre de vocabulaire que ce qu'espeak rend. Les lignes du compte arrivent
+        # avec la demande (`options['lexicon']`).
         phonemes = phonemes_with_lexicon(
             text, language, lambda part: phonemes_without_language_flags(tokenizer, part, lang),
-            finish=lambda entry: ''.join(p for p in entry.replace('^', '') if p in tokenizer.vocab))
+            finish=lambda entry: ''.join(p for p in entry.replace('^', '') if p in tokenizer.vocab),
+            extra=(options or {}).get('lexicon'))
         samples, sr = (self._kokoro.create(phonemes, voice=voice, speed=1.0, lang=lang,
                                            is_phonemes=True) if phonemes else (None, None))
         if samples is None or not len(samples):

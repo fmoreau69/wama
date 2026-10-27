@@ -361,21 +361,19 @@ def detected_keywords(text, user=None, domain=None):
 
     Les chips ([[wama-prompt-chips]]) insèrent du TEXTE dans le champ : à l'ingestion, on n'a donc
     aucune liste de ce qui a été cliqué. On la RETROUVE en confrontant le prompt à la palette de
-    l'utilisateur (+ tronc commun `user=None`). Dérivé plutôt que transmis : aucun handler de
+    l'utilisateur (+ le tronc commun, système). Dérivé plutôt que transmis : aucun handler de
     création à patcher (imager en a sept), et un mot-clé tapé à la main est protégé pareil.
+    La palette se lit par sa brique (`media_library.keywords.palette_keywords`, 2026-10-27).
 
     Sert de glossaire d'enrichissement → ces termes sont préservés verbatim.
     """
     try:
-        from django.db.models import Q
-        from wama.media_library.models import PromptKeyword
+        from wama.media_library.keywords import palette_keywords
 
         low = (text or '').lower()
         if not low:
             return []
-        qs = PromptKeyword.objects.filter(Q(user=user) | Q(user__isnull=True))
-        if domain:
-            qs = qs.filter(Q(domain=domain) | Q(domain=''))
+        qs = palette_keywords(user, domain or '')
         return [k.text for k in qs.only('text') if k.text and k.text.lower() in low]
     except Exception:
         return []
