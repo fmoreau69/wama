@@ -26,6 +26,22 @@ def _js(path):
     return (STATIC / path).read_text(encoding='utf-8')
 
 
+def _remove_throwaway_media(test):
+    """Removes the test's MEDIA_ROOT after it — the path read NOW, and only a throwaway one.
+
+    ⚠ 2026-10-27 : `SurfaceLayoutTest` borrowed `ReviewSurfaceViewsTest.setUp` WITHOUT its
+    `override_settings` ; the cleanup, `addCleanup(shutil.rmtree, settings.MEDIA_ROOT)`, then
+    named the real `media/` — and run outside the test runner (a counter-proof script calling
+    `django.setup()` on the real settings), it deleted every user's media. A MEDIA_ROOT outside
+    the system temporary folder is refused LOUDLY : the test fails, nothing is removed."""
+    root = Path(settings.MEDIA_ROOT).resolve()
+    temp = Path(tempfile.gettempdir()).resolve()
+    if temp not in root.parents:
+        raise AssertionError(f'MEDIA_ROOT is not a throwaway folder ({root}) : '
+                             f'decorate the test class with override_settings(MEDIA_ROOT=…)')
+    test.addCleanup(shutil.rmtree, str(root), True)
+
+
 class RegistryTest(SimpleTestCase):
 
     def test_every_brick_consumes_only_existing_vocabularies(self):
@@ -152,7 +168,7 @@ class ReviewSurfaceViewsTest(TestCase):
     def setUp(self):
         from wama.anonymizer.models import Media
         from wama.common.utils.media_paths import app_media_dir, get_app_media_path
-        self.addCleanup(shutil.rmtree, settings.MEDIA_ROOT, True)
+        _remove_throwaway_media(self)
         self.user = get_user_model().objects.create_user('surface_owner', password='x')
         self.other = get_user_model().objects.create_user('surface_other', password='x')
         folder = get_app_media_path('anonymizer', self.user.id, 'input')
@@ -227,6 +243,7 @@ class ReviewSurfaceViewsTest(TestCase):
         self.assertEqual(200, ok.status_code, ok.content)
 
 
+@override_settings(MEDIA_ROOT=tempfile.mkdtemp())
 class SurfaceLayoutTest(TestCase):
     """The LAYOUT of each account (2026-10-21, Fabien : everyone arranges the panels, then FREEZES
     the result) — kept per user and per surface, never on the element ; frozen from the start for
@@ -305,15 +322,28 @@ class SurfaceLayoutTest(TestCase):
         défile pas » — the edge a panel is pinned to, kept with the layout ; declared panels and
         known edges only."""
         self.client.force_login(self.user)
-        res = self._post({'slots': None, 'docked': {'actions': 'bottom', 'gone': 'top'}})
+        res = self._post({'slots': None, 'docked': {'bottom': [['actions'], ['gone']]}})
         self.assertEqual(200, res.status_code, res.content)
-        self.assertEqual({'actions': 'bottom'}, res.json()['layout']['docked'])
-        self.assertEqual({'actions': 'bottom'}, self._config(self.user)['layout']['docked'])
-        for bad in ({'actions': 'middle'}, ['actions']):
+        self.assertEqual({'bottom': [['actions']]}, res.json()['layout']['docked'])
+        self.assertEqual({'bottom': [['actions']]}, self._config(self.user)['layout']['docked'])
+        for bad in ({'middle': [['actions']]}, ['actions'], {'bottom': ['actions']},
+                    {'bottom': [['actions']], 'top': [['actions']]}, {'actions': 'middle'}):
             self.assertEqual(400, self._post({'docked': bad}).status_code, bad)
         # The same day: left and right too — a fixed COLUMN while the centre scrolls.
-        res = self._post({'docked': {'actions': 'left', 'objects': 'right'}})
-        self.assertEqual({'actions': 'left', 'objects': 'right'}, res.json()['layout']['docked'])
+        res = self._post({'docked': {'left': [['actions']], 'right': [['objects']]}})
+        self.assertEqual({'left': [['actions']], 'right': [['objects']]}, res.json()['layout']['docked'])
+        # 2026-10-27, Fabien: a small panel « se placerait à côté, collé au transport » — ROWS of
+        # panels side by side, in the order kept (a list: jsonb does not keep the keys' order).
+        res = self._post({'docked': {'bottom': [['image'], ['objects', 'actions']]}})
+        self.assertEqual({'bottom': [['image'], ['objects', 'actions']]}, res.json()['layout']['docked'])
+        self.assertEqual({'bottom': [['image'], ['objects', 'actions']]},
+                         self._config(self.user)['layout']['docked'])
+        # A layout kept before the rows (`{id: edge}`) is read in today's shape, by the page too.
+        from wama.common.utils.user_settings import save_user_app_settings
+        save_user_app_settings(self.user, 'anonymizer', {'surface_layout.review': {
+            'slots': None, 'frozen': False, 'docked': {'actions': 'bottom', 'image': 'top'}}})
+        self.assertEqual({'bottom': [['actions']], 'top': [['image']]},
+                         self._config(self.user)['layout']['docked'])
         kernel = _js('common/js/surfaces/wama-surface.js')
         self.assertIn('docked: layout.docked || {}', kernel, 'the pin travels with the layout')
         self.assertIn('rec.dockBtn = toolButton(', kernel, 'every panel can be pinned')
@@ -348,10 +378,54 @@ class SurfaceLayoutTest(TestCase):
         rules = [b.split('{', 1)[0].strip() for b in css.split('}') if 'position: fixed' in b]
         self.assertEqual(['.wama-dock-frame'], [r.split('\n')[-1].strip() for r in rules])
         kernel = _js('common/js/surfaces/wama-surface.js')
-        self.assertIn("regions[edge].appendChild(el)", kernel, 'a pinned panel goes into its region')
+        self.assertIn("row.appendChild(containerEl(key))", kernel, 'a pinned panel goes into its row')
+        self.assertIn("region.appendChild(row)", kernel)
         # Its size is READ from its grid place, never measured on a panel just rebuilt (46 px).
-        self.assertIn("place.h * CELL_HEIGHT + 'px'", kernel)
-        self.assertNotIn("'--wama-dock-height', el.offsetHeight", kernel)
+        self.assertIn(": place.h * CELL_HEIGHT;", kernel)
+        self.assertNotIn("offsetHeight + 'px'", kernel)
+
+    def test_pinned_rows_put_a_panel_beside_another(self):
+        """`WamaSurface.docks` in V8, on the SERVED kernel (2026-10-27, Fabien: a small panel « se
+        placerait à côté, collé au transport »): pinned to an edge = a new row at the OUTER side;
+        beside a panel = right after it in its row; a new head keeps the place; an emptied row
+        goes. And the tool that needs no full row DECLARES its width."""
+        from py_mini_racer import MiniRacer
+        from pathlib import Path
+        engine = MiniRacer()
+        engine.eval('var window = {};' + (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                    / 'surfaces' / 'wama-surface.js').read_text(encoding='utf-8'))
+        got = json.loads(engine.eval("""(function () {
+            var D = window.WamaSurface.docks, d = {};
+            d = D.put(d, 'timeline', 'bottom');
+            d = D.put(d, 'transport', 'bottom');
+            var two = d;
+            d = D.put(d, 'writing', 'bottom', 'transport');
+            var beside = d;
+            d = D.put(d, 'image', 'top');
+            d = D.put(d, 'objects', 'top');
+            var top = d.top;
+            d = D.renamed(d, 'transport', 'audio');
+            var renamed = d.bottom;
+            d = D.without(D.without(d, 'audio'), 'writing');
+            return JSON.stringify([two, beside, top, renamed, d.bottom, D.edgeOf(d, 'image'),
+                                   D.together(beside, 'transport', 'writing'),
+                                   D.together(beside, 'timeline', 'writing'),
+                                   D.read({transport: 'bottom'}), D.read(beside)]);
+        })()"""))
+        self.assertEqual([{'bottom': [['timeline'], ['transport']]},
+                          {'bottom': [['timeline'], ['transport', 'writing']]},
+                          [['objects'], ['image']],
+                          [['timeline'], ['audio', 'writing']],
+                          [['timeline']], 'top', True, False,
+                          # the shape served by a server not yet reloaded is read as rows
+                          {'bottom': [['transport']]},
+                          {'bottom': [['timeline'], ['transport', 'writing']]}], got)
+        writing = _js('common/js/surfaces/brick-playback-writing.js')
+        self.assertIn("rowWidth: '17rem'", writing, 'a menu does not need the whole row')
+        css = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'css'
+               / 'wama-surface.css').read_text(encoding='utf-8')
+        self.assertIn('.is-fit:not(:only-child) { flex: 0 0 var(--wama-fit-width); }', css,
+                      'alone on its row, it fills it')
 
     def test_stacked_panels_are_kept_as_one_panel(self):
         """2026-10-26, Fabien: « empiler/imbriquer des briques pour les compacter en une seule,
@@ -360,11 +434,11 @@ class SurfaceLayoutTest(TestCase):
         self.client.force_login(self.user)
         group = [{'id': 'objects', 'h': 9}, {'id': 'actions', 'h': 5}]
         res = self._post({'slots': None, 'stacks': {'objects': group + [{'id': 'gone', 'h': 2}]},
-                          'docked': {'objects': 'bottom', 'actions': 'top'}})
+                          'docked': {'bottom': [['objects']], 'top': [['actions']]}})
         self.assertEqual(200, res.status_code, res.content)
         layout = res.json()['layout']
         self.assertEqual({'objects': group}, layout['stacks'], 'an undeclared brick is forgotten')
-        self.assertEqual({'objects': 'bottom'}, layout['docked'], 'the group is pinned, not a member')
+        self.assertEqual({'bottom': [['objects']]}, layout['docked'], 'the group is pinned, not a member')
         self.assertEqual({'objects': group}, self._config(self.user)['layout']['stacks'])
         lonely = self._post({'stacks': {'objects': [{'id': 'objects', 'h': 3}]}})
         self.assertEqual({}, lonely.json()['layout']['stacks'], 'one brick is not a stack')
@@ -477,7 +551,7 @@ class TextSurfaceViewsTest(TestCase):
         from wama.anonymizer.models import Media
         from wama.common.surfaces import SURFACES, BrickSlot, Surface, register_surface
         from wama.common.utils.media_paths import app_media_dir, get_app_media_path
-        self.addCleanup(shutil.rmtree, settings.MEDIA_ROOT, True)
+        _remove_throwaway_media(self)
         self.user = get_user_model().objects.create_user('text_surface_owner', password='x')
         out = get_app_media_path('anonymizer', self.user.id, 'output')
         out.mkdir(parents=True, exist_ok=True)
@@ -897,7 +971,7 @@ class ComposerScoreSurfaceTest(TestCase):
     def setUp(self):
         from wama.common.utils.media_paths import app_media_dir, get_app_media_path
         from wama.composer.models import ComposerGeneration
-        self.addCleanup(shutil.rmtree, settings.MEDIA_ROOT, True)
+        _remove_throwaway_media(self)
         self.user = get_user_model().objects.create_user('score_owner', password='x')
         out = get_app_media_path('composer', self.user.id, 'output')
         out.mkdir(parents=True, exist_ok=True)

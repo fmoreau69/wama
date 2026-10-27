@@ -98,9 +98,15 @@ def _layout_of(found, user) -> dict:
     from wama.common.utils.user_settings import get_user_app_setting
     stored = get_user_app_setting(user, found.app, _layout_setting(found))
     if isinstance(stored, dict):
-        return {'slots': stored.get('slots') or None, 'frozen': stored.get('frozen') is True,
-                'docked': stored.get('docked') or {}, 'stacks': stored.get('stacks') or {},
-                'stored': True}
+        # Relue par la validation commune : une disposition gardée sous une forme d'avant (les
+        # bords `{id: bord}` du 2026-10-26) arrive à la page sous la forme d'aujourd'hui. Devenue
+        # illisible (la surface a changé), elle est rendue telle quelle, sans épinglage.
+        from wama.common.surfaces import clean_layout
+        try:
+            return dict(clean_layout(found, stored), stored=True)
+        except ValueError:
+            return {'slots': stored.get('slots') or None, 'frozen': stored.get('frozen') is True,
+                    'docked': {}, 'stacks': stored.get('stacks') or {}, 'stored': True}
     return {'slots': None, 'frozen': True, 'docked': {}, 'stacks': {}, 'stored': False}
 
 

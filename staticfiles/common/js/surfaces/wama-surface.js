@@ -15,7 +15,9 @@
  *   • GARDER à l'écran (2026-10-26) : des briques EMPILÉES en un seul panneau (`stacks`, la tête
  *     d'abord — affichage seul, chaque brique garde son code et son état) et un panneau ÉPINGLÉ à
  *     un bord de la fenêtre (`docked` : haut, bas, gauche, droite), le centre défilant entre les
- *     bords ; tous deux gardés avec la disposition du compte ;
+ *     bords ; tous deux gardés avec la disposition du compte. Depuis le 2026-10-27, un seul CADRE
+ *     fixe borné par l'en-tête, le pied et les volets, et des LIGNES de panneaux côte à côte à
+ *     chaque bord (`docked` : `{bord: [[panneau, …]]}`, `WamaSurface.docks`) ;
  *   • le CONTEXTE partagé : ce que la page lit (`reads`), la valeur ÉDITÉE (la seule donnée que
  *     la page écrit), la SÉLECTION commune et un bus d'événements entre briques ;
  *   • l'HISTORIQUE commun de WAMA (`wama-history.js`) : chaque geste d'édition passe par
@@ -115,6 +117,72 @@
             return { id: e.id, h: Math.max(1, Math.round((e.h > 0 ? e.h : 1) * rows / total)) };
         });
     }
+
+    /** L'ÉPINGLAGE en LIGNES (2026-10-27, Fabien : un petit élément « se placerait à côté, collé
+     *  au transport ») : `{bord: [[panneau, …], …]}` — en haut et en bas des lignes de panneaux
+     *  côte à côte, à gauche et à droite des colonnes (`surfaces._clean_docked`). Chaque fonction
+     *  rend un NOUVEL objet. Pures (testées en V8). */
+    var Docks = {
+        /** La forme d'avant (`{id: bord}`, 2026-10-26) relue en lignes, comme le fait
+         *  `surfaces._clean_docked` : tant que le serveur en service n'est pas relancé, la page la
+         *  reçoit encore — lue comme des lignes, elle arrêtait la page. */
+        read: function (docked) {
+            var out = {};
+            Object.keys(docked || {}).forEach(function (key) {
+                var value = docked[key];
+                if (typeof value === 'string') (out[value] = out[value] || []).push([key]);
+                else if (Array.isArray(value)) out[key] = (out[key] || []).concat(value);
+            });
+            return out;
+        },
+        /** Le bord d'un panneau, '' s'il n'est pas épinglé. */
+        edgeOf: function (docked, key) {
+            for (var edge in docked || {}) {
+                if (docked[edge].some(function (row) { return row.indexOf(key) >= 0; })) return edge;
+            }
+            return '';
+        },
+        /** Le panneau retiré de son bord ; une ligne vidée disparaît. */
+        without: function (docked, key) {
+            var out = {};
+            Object.keys(docked || {}).forEach(function (edge) {
+                var rows = docked[edge].map(function (row) {
+                    return row.filter(function (id) { return id !== key; });
+                }).filter(function (row) { return row.length; });
+                if (rows.length) out[edge] = rows;
+            });
+            return out;
+        },
+        /** La tête d'une pile a changé : son épinglage la suit, à la même place. */
+        renamed: function (docked, from, to) {
+            var out = {};
+            Object.keys(docked || {}).forEach(function (edge) {
+                out[edge] = docked[edge].map(function (row) {
+                    return row.map(function (id) { return id === from ? to : id; });
+                });
+            });
+            return out;
+        },
+        /** Épingle un panneau : à CÔTÉ de `beside` (dans sa ligne, juste après), sinon sur une
+         *  ligne neuve au bord EXTÉRIEUR — le plus près du bord de la fenêtre. */
+        put: function (docked, key, edge, beside) {
+            var out = Docks.without(docked, key);
+            var rows = out[edge] = out[edge] || [];
+            for (var i = 0; beside && i < rows.length; i++) {
+                var at = rows[i].indexOf(beside);
+                if (at >= 0) { rows[i].splice(at + 1, 0, key); return out; }
+            }
+            if (edge === 'bottom' || edge === 'right') rows.push([key]); else rows.unshift([key]);
+            return out;
+        },
+        /** Deux panneaux dans la même ligne ? */
+        together: function (docked, a, b) {
+            var edge = Docks.edgeOf(docked, a);
+            return !!edge && docked[edge].some(function (row) {
+                return row.indexOf(a) >= 0 && row.indexOf(b) >= 0;
+            });
+        },
+    };
 
     function mount(root, config) {
         var App = global.WamaApp || {};
@@ -553,7 +621,7 @@
         // `surfaces.clean_layout`) ; la tête donne au panneau sa place et son épinglage. Un geste de
         // DISPOSITION : il se fait disposition modifiable, comme déplacer ou redimensionner.
         layout.stacks = layout.stacks || {};
-        layout.docked = layout.docked || {};
+        layout.docked = Docks.read(layout.docked);
         var shells = {};                    // tête → l'élément du panneau d'une pile
 
         function groupOf(id) {
@@ -653,7 +721,8 @@
             restack(function () {
                 var a = entriesOf(own), b = entriesOf(other);
                 var ta = take(own), tb = take(other);
-                delete layout.stacks[own]; delete layout.stacks[other]; delete layout.docked[other];
+                delete layout.stacks[own]; delete layout.stacks[other];
+                layout.docked = Docks.without(layout.docked, other);
                 var list = a.concat(b);
                 layout.stacks[list[0].id] = list;
                 buildShell(list, { x: ta.at.x, y: ta.at.y, w: ta.at.w,
@@ -667,10 +736,10 @@
                 var i = list.findIndex(function (e) { return e.id === id; }), j = i + delta;
                 if (j < 0 || j >= list.length) return;
                 var moved = list[i]; list[i] = list[j]; list[j] = moved;
-                var edge = layout.docked[key], t = take(key);
-                delete layout.stacks[key]; delete layout.docked[key];
+                var t = take(key);
+                delete layout.stacks[key];
                 layout.stacks[list[0].id] = list;
-                if (edge) layout.docked[list[0].id] = edge;
+                layout.docked = Docks.renamed(layout.docked, key, list[0].id);
                 buildShell(list, t.at, t.grid);
             });
         }
@@ -680,8 +749,9 @@
                 var key = groupOf(id), list = entriesOf(key);
                 var gone = list.filter(function (e) { return e.id === id; })[0];
                 var rest = list.filter(function (e) { return e.id !== id; });
-                var edge = layout.docked[key], t = take(key);
-                delete layout.stacks[key]; delete layout.docked[key];
+                var t = take(key);
+                delete layout.stacks[key];
+                layout.docked = Docks.renamed(layout.docked, key, rest[0].id);
                 var restH = Math.max(1, t.at.h - gone.h);
                 var at = { x: t.at.x, y: t.at.y, w: t.at.w, h: restH };
                 if (rest.length > 1) {
@@ -690,7 +760,6 @@
                 } else {
                     putSolo(rest[0].id, at, t.grid);
                 }
-                if (edge) layout.docked[rest[0].id] = edge;
                 putSolo(id, { x: t.at.x, y: t.at.y + restH, w: t.at.w, h: gone.h }, t.grid);
             });
         }
@@ -778,21 +847,39 @@
             rec.head.appendChild(rec.dockBtn);
         }
 
+        function redock(docked) {
+            layout.docked = docked;
+            applyDocks();
+            syncLayoutTools();
+            persistLayout();
+        }
         function openDockMenu(key, btn) {
-            var current = layout.docked[key] || '';
+            var current = Docks.edgeOf(layout.docked, key);
             var narrow = !onFullGrid();
-            openMenu(btn, DOCK_CHOICES.map(function (c) {
+            var entries = DOCK_CHOICES.map(function (c) {
                 return {
                     icone: 'fas ' + (c[0] === current ? 'fa-check' : c[1]), libelle: c[2],
                     desactive: c[0] === current || (narrow && SIDES.indexOf(c[0]) >= 0),
                     agir: function () {
-                        if (c[0]) layout.docked[key] = c[0]; else delete layout.docked[key];
-                        applyDocks();
-                        syncLayoutTools();
-                        persistLayout();
+                        redock(c[0] ? Docks.put(layout.docked, key, c[0])
+                                    : Docks.without(layout.docked, key));
                     },
                 };
-            }), 'Garder ce panneau à l’écran');
+            });
+            // À CÔTÉ d'un panneau déjà épinglé (2026-10-27) : dans sa ligne — une bande en haut ou
+            // en bas, sa colonne à gauche ou à droite.
+            containers().forEach(function (other) {
+                var edge = Docks.edgeOf(layout.docked, other);
+                if (other === key || !edge || (narrow && SIDES.indexOf(edge) >= 0)) return;
+                entries.push({
+                    icone: 'fas fa-table-columns',
+                    libelle: (SIDES.indexOf(edge) >= 0 ? 'Dans la colonne de « ' : 'À côté de « ')
+                        + labelOf(other) + ' »',
+                    desactive: Docks.together(layout.docked, key, other),
+                    agir: function () { redock(Docks.put(layout.docked, key, edge, other)); },
+                });
+            });
+            openMenu(btn, entries, 'Garder ce panneau à l’écran');
         }
 
         function openStackMenu(key, btn) {
@@ -823,7 +910,7 @@
                     function (b) { openStackMenu(key || id, b); }));
                 // L'épingle : sur la tête du panneau seulement — c'est le panneau qui s'épingle.
                 var dockable = (list || [{ id: id }]).some(function (e) { return frames[e.id].def.dockable; });
-                var edge = i === 0 ? (layout.docked[key || id] || '') : '';
+                var edge = i === 0 ? Docks.edgeOf(layout.docked, key || id) : '';
                 if (rec.dockBtn) {
                     rec.dockBtn.hidden = i !== 0;
                     rec.dockBtn.classList.toggle('active', !!edge);
@@ -862,31 +949,42 @@
             + 'monter, les descendre, les détacher';
 
         function clearDock(el) {
-            el.classList.remove('is-docked');
+            el.classList.remove('is-docked', 'is-fit');
             DOCK_CHOICES.forEach(function (c) { if (c[0]) el.classList.remove('is-docked-' + c[0]); });
-            el.style.removeProperty('--wama-dock-height');
-            el.style.removeProperty('--wama-dock-width');
+            el.style.removeProperty('--wama-fit-width');
             delete el.dataset.docked;
         }
         /** La taille d'un panneau épinglé se LIT dans sa place de grille — rangées × hauteur de
-         *  cellule, colonnes × largeur de colonne —, jamais mesurée sur l'élément : reconstruit à
-         *  l'instant (« Détacher », « Empiler », rechargement), il n'a pas encore sa hauteur, et la
-         *  mesure rendait une cellule (46 px) — la bande s'écrasait sur le pied (relevé par Fabien
-         *  le 2026-10-27, reproduit sur le live). */
-        function sizeDock(el, place) {
-            el.style.setProperty('--wama-dock-height', place.h * CELL_HEIGHT + 'px');
-            el.style.setProperty('--wama-dock-width', Math.round(place.w * place.grid.cellWidth()) + 'px');
+         *  cellule (une bande), colonnes × largeur de colonne (une colonne) —, jamais mesurée sur
+         *  l'élément : reconstruit à l'instant (« Détacher », « Empiler », rechargement), il n'a pas
+         *  encore sa hauteur, et la mesure rendait une cellule (46 px) — la bande s'écrasait sur le
+         *  pied (relevé par Fabien le 2026-10-27, reproduit sur le live). */
+        function dockSize(place, edge) {
+            return SIDES.indexOf(edge) >= 0 ? Math.round(place.w * place.grid.cellWidth())
+                                            : place.h * CELL_HEIGHT;
         }
-        /** Pose chaque panneau dans la région de son bord, dans l'ordre de la page. Une colonne n'a
-         *  pas sa place sur une fenêtre de téléphone : le panneau y reste dans la page. */
+        /** La largeur qu'un panneau prend dans une ligne de bande quand il la PARTAGE : celle que
+         *  ses briques déclarent (`rowWidth` — l'écriture à la lecture, un menu, à côté du
+         *  transport), si toutes la déclarent ; sinon il partage la ligne avec les autres. */
+        function fitWidthOf(key) {
+            var widths = (layout.stacks[key] || [{ id: key }]).map(function (e) {
+                return frames[e.id].def.rowWidth || '';
+            });
+            if (!widths.every(Boolean)) return '';
+            return widths.length === 1 ? widths[0] : 'max(' + widths.join(', ') + ')';
+        }
+        /** Pose chaque panneau épinglé dans sa LIGNE, au bord gardé (`docked`), dans l'ordre gardé ;
+         *  une ligne prend la taille de son plus grand panneau. Une colonne n'a pas sa place sur
+         *  une fenêtre de téléphone : le panneau y reste dans la page. */
         function applyDocks() {
             var narrow = !onFullGrid();
             var was = resetting;
+            var placed = {};                // panneau → le bord qu'il occupe
             resetting = true;               // la page qui se referme n'est pas un geste à garder
             try {
                 containers().forEach(function (key) {
                     var el = containerEl(key);
-                    var edge = layout.docked[key] || '';
+                    var edge = Docks.edgeOf(layout.docked, key);
                     if (narrow && SIDES.indexOf(edge) >= 0) edge = '';
                     if (!edge) { undock(key, el); return; }
                     var node = el.gridstackNode;
@@ -895,13 +993,33 @@
                         node.grid.removeWidget(el, false, false);
                     }
                     if (!dockPlaces[key]) return;   // hors de toute zone : rien à épingler
-                    sizeDock(el, dockPlaces[key]);
+                    var fit = SIDES.indexOf(edge) < 0 ? fitWidthOf(key) : '';
+                    el.classList.toggle('is-fit', !!fit);
+                    if (fit) el.style.setProperty('--wama-fit-width', fit);
+                    else el.style.removeProperty('--wama-fit-width');
                     el.dataset.docked = edge;
                     el.classList.add('is-docked');
                     DOCK_CHOICES.forEach(function (c) {
                         if (c[0]) el.classList.toggle('is-docked-' + c[0], c[0] === edge);
                     });
-                    regions[edge].appendChild(el);
+                    placed[key] = edge;
+                });
+                Object.keys(regions).forEach(function (edge) {
+                    var region = regions[edge], rows = [];
+                    (layout.docked[edge] || []).forEach(function (ids) {
+                        var row = document.createElement('div'), size = 0;
+                        row.className = 'wama-dock-row';
+                        ids.forEach(function (key) {
+                            if (placed[key] !== edge) return;
+                            row.appendChild(containerEl(key));
+                            size = Math.max(size, dockSize(dockPlaces[key], edge));
+                        });
+                        if (!row.children.length) return;
+                        row.style.setProperty('--wama-row-size', size + 'px');
+                        rows.push(row);
+                    });
+                    while (region.firstChild) region.removeChild(region.firstChild);
+                    rows.forEach(function (row) { region.appendChild(row); });
                 });
             } finally { resetting = was; }
             dockMargins();
@@ -1105,5 +1223,5 @@
     }
 
     global.WamaSurface = { registerBrick: registerBrick, mount: mount, keptSources: keptSources,
-                           scaleWeights: scaleWeights };
+                           scaleWeights: scaleWeights, docks: Docks };
 })(window);

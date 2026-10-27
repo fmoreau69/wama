@@ -512,8 +512,8 @@ class Surface:
 def clean_layout(surface: Surface, payload) -> dict:
     """La DISPOSITION d'un utilisateur pour une surface, validée (2026-10-21, demande de Fabien :
     chacun dispose ses panneaux puis FIGE sa disposition) : `{'slots': {id: {x, y, w, h, zone}}
-    | None, 'frozen': bool, 'docked': {id: bord}, 'stacks': {tête: [{id, h}]}}` (les deux
-    derniers le 2026-10-26, `_clean_stacks`). `slots` à None = la disposition DÉCLARÉE, qui suit donc la surface
+    | None, 'frozen': bool, 'docked': {bord: [[id, …]]}, 'stacks': {tête: [{id, h}]}}` (les deux
+    derniers le 2026-10-26, `_clean_docked`, `_clean_stacks`). `slots` à None = la disposition DÉCLARÉE, qui suit donc la surface
     si elle change. Seuls les emplacements déclarés sont gardés (un emplacement retiré depuis est
     oublié) ; une place hors de sa zone lève `ValueError`. Une place sans `zone` est dans la
     grille — là où toute place était gardée avant la colonne du volet."""
@@ -541,26 +541,54 @@ def clean_layout(surface: Surface, payload) -> dict:
                 raise ValueError(f'place hors de sa zone : {slot_id}')
             slots[slot_id] = {'x': x, 'y': y, 'w': w, 'h': h, 'zone': zone}
         slots = slots or None
-    # Les panneaux ÉPINGLÉS (2026-10-26, demande de Fabien : « locker le transport en bas ou en
-    # haut de page pour qu'il ne défile pas ») : `{id: bord}`, un des `DOCK_EDGES` (haut et bas,
-    # puis gauche et droite le jour même), un réglage de LECTURE comme la disposition. Seuls les
-    # emplacements déclarés ; un bord inconnu est refusé.
     declared = {s.id for s in surface.slots}
     stacks = _clean_stacks(payload.get('stacks'), declared)
     members = {m['id'] for group in stacks.values() for m in group[1:]}
-    docked = {}
-    raw_docked = payload.get('docked') or {}
-    if not isinstance(raw_docked, dict):
+    return {'slots': slots, 'frozen': payload.get('frozen') is True,
+            'docked': _clean_docked(payload.get('docked'), declared, members), 'stacks': stacks}
+
+
+def _clean_docked(raw, declared: set, members: set) -> dict:
+    """Les panneaux ÉPINGLÉS (2026-10-26, demande de Fabien : « locker le transport en bas ou en
+    haut de page pour qu'il ne défile pas »), un réglage de LECTURE comme la disposition :
+    `{bord: [[id, …], …]}`, un des `DOCK_EDGES`. Depuis le 2026-10-27 (Fabien : un petit élément
+    « se placerait à côté, collé au transport »), chaque bord porte des LIGNES ORDONNÉES — en haut
+    et en bas, des panneaux côte à côte ; à gauche et à droite, des colonnes. Une liste, pas l'ordre
+    des clés d'un objet : le stockage (jsonb) ne garde pas cet ordre-là.
+    L'ancienne forme `{id: bord}` est relue (une ligne par panneau). Seuls les emplacements
+    déclarés ; une brique EMPILÉE suit son groupe — c'est sa tête qui s'épingle ; un bord inconnu
+    ou un panneau épinglé deux fois est refusé."""
+    if not raw:
+        return {}
+    if not isinstance(raw, dict):
         raise ValueError('épinglage illisible')
-    for slot_id, edge in raw_docked.items():
-        # Une brique EMPILÉE suit son groupe : c'est le groupe (sa tête) qui s'épingle.
-        if slot_id not in declared or slot_id in members:
-            continue
+    if all(isinstance(edge, str) for edge in raw.values()):
+        legacy, raw = raw, {}
+        for slot_id, edge in legacy.items():
+            raw.setdefault(edge, []).append([slot_id])
+    docked, seen = {}, set()
+    for edge, rows in raw.items():
         if edge not in DOCK_EDGES:
-            raise ValueError(f'bord inconnu : {slot_id}')
-        docked[slot_id] = edge
-    return {'slots': slots, 'frozen': payload.get('frozen') is True, 'docked': docked,
-            'stacks': stacks}
+            raise ValueError(f'bord inconnu : {edge}')
+        if not isinstance(rows, list) or not all(isinstance(row, list) for row in rows):
+            raise ValueError(f'épinglage illisible : {edge}')
+        kept_rows = []
+        for row in rows:
+            kept = []
+            for slot_id in row:
+                if not isinstance(slot_id, str):
+                    raise ValueError(f'épinglage illisible : {edge}')
+                if slot_id not in declared or slot_id in members:
+                    continue
+                if slot_id in seen:
+                    raise ValueError(f'panneau épinglé deux fois : {slot_id}')
+                seen.add(slot_id)
+                kept.append(slot_id)
+            if kept:
+                kept_rows.append(kept)
+        if kept_rows:
+            docked[edge] = kept_rows
+    return docked
 
 
 def _clean_stacks(raw, declared: set) -> dict:

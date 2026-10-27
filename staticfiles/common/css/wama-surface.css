@@ -70,28 +70,35 @@
 .wama-dock-region { display: flex; min-width: 0; min-height: 0; pointer-events: auto; }
 .wama-dock-region[data-edge="top"], .wama-dock-region[data-edge="bottom"] {
   flex-direction: column; max-height: 45vh; overflow-y: auto; }
+.wama-dock-region[data-edge="left"], .wama-dock-region[data-edge="right"] { flex-direction: row; }
 .wama-dock-region[data-edge="top"] { grid-area: top; }
 .wama-dock-region[data-edge="bottom"] { grid-area: bottom; }
 .wama-dock-region[data-edge="left"] { grid-area: left; }
 .wama-dock-region[data-edge="right"] { grid-area: right; }
-.wama-dock-region > .grid-stack-item {
+/* Les LIGNES d'un bord (2026-10-27, Fabien : un petit élément « se placerait à côté, collé au
+   transport ») : en haut et en bas, une ligne de panneaux côte à côte, de la hauteur du plus grand
+   (`--wama-row-size`, lue dans la grille) ; à gauche et à droite, une colonne de panneaux, de la
+   largeur du plus large. Un panneau dont les briques DÉCLARENT leur largeur (`rowWidth`) la
+   prend quand il partage sa ligne ; seul, il la remplit. */
+.wama-dock-row { display: flex; flex: 0 0 auto; min-width: 0; min-height: 0; }
+.wama-dock-region[data-edge="top"] > .wama-dock-row,
+.wama-dock-region[data-edge="bottom"] > .wama-dock-row {
+  flex-direction: row; height: var(--wama-row-size, auto); max-height: 45vh; }
+.wama-dock-region[data-edge="left"] > .wama-dock-row,
+.wama-dock-region[data-edge="right"] > .wama-dock-row {
+  flex-direction: column;
+  /* Au plus 40 % de la zone CENTRALE (entre les volets) : la page garde de quoi se lire. */
+  width: min(var(--wama-row-size, 22rem),
+             calc((100vw - var(--wama-left-gutter, 0px) - var(--wama-right-gutter, 0px)) * .4)); }
+.wama-dock-row > .grid-stack-item {
   position: relative !important; inset: auto !important; transform: none !important;
   transition: none !important;          /* il gagne son bord, il n'y glisse pas depuis la grille */
-  flex: 0 0 auto; min-width: 0;
+  width: auto !important; height: auto !important; flex: 1 1 0; min-width: 0; min-height: 0;
 }
-.wama-dock-region[data-edge="top"] > .grid-stack-item,
-.wama-dock-region[data-edge="bottom"] > .grid-stack-item {
-  width: auto !important; height: var(--wama-dock-height, auto) !important; max-height: 45vh; }
-.wama-dock-region[data-edge="left"] > .grid-stack-item,
-.wama-dock-region[data-edge="right"] > .grid-stack-item {
-  height: auto !important;
-  /* Au plus 40 % de la zone CENTRALE (entre les volets) : la page garde de quoi se lire. */
-  width: min(var(--wama-dock-width, 22rem),
-             calc((100vw - var(--wama-left-gutter, 0px) - var(--wama-right-gutter, 0px)) * .4)) !important;
-}
+.wama-dock-row > .grid-stack-item.is-fit:not(:only-child) { flex: 0 0 var(--wama-fit-width); }
 /* Hors de la grille, les règles de gridstack (`.grid-stack > .grid-stack-item > …`) ne
    s'appliquent plus : le contenu se pose lui-même sur tout le panneau. */
-.wama-dock-region > .grid-stack-item > .grid-stack-item-content {
+.wama-dock-row > .grid-stack-item > .grid-stack-item-content {
   position: absolute; inset: 0; border-radius: 0; box-shadow: 0 0 .75rem rgba(var(--wama-overlay-rgb), .25);
 }
 .wama-surface-page { padding-top: calc(.5rem + var(--wama-dock-top, 0px));

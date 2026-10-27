@@ -201,5 +201,8 @@
         };
     }
 
-    global.WamaSurface.registerBrick('playback_writing', { title: 'Écriture à la lecture', mount: mount });
+    // `rowWidth` : épinglée à côté d'un autre panneau (le transport), un menu n'a pas besoin de la
+    // ligne entière (2026-10-27, Fabien) — seule sur sa ligne, elle la remplit.
+    global.WamaSurface.registerBrick('playback_writing', { title: 'Écriture à la lecture', mount: mount,
+                                                          rowWidth: '17rem' });
 })(window);

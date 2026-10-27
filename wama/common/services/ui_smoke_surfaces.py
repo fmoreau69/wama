@@ -425,7 +425,7 @@ _STACK_STATE_JS = """() => {
     const panels = {};
     // Par `data-panel` : un panneau ÉPINGLÉ a quitté la grille pour la région de son bord, il n'a
     // plus de nœud gridstack.
-    document.querySelectorAll('.grid-stack > .grid-stack-item, .wama-dock-region > .grid-stack-item').forEach(el => {
+    document.querySelectorAll('.grid-stack > .grid-stack-item, .wama-dock-row > .grid-stack-item').forEach(el => {
         const id = el.dataset.panel || (el.gridstackNode && el.gridstackNode.id);
         if (!id) return;
         const r = el.getBoundingClientRect();
@@ -477,7 +477,7 @@ _SAFE_AREA_JS = """() => {
                 [r.left, r.top, r.right, r.bottom].map(Math.round)) + ' / ' + JSON.stringify(safe));
         }
     });
-    document.querySelectorAll('.wama-dock-region > .grid-stack-item').forEach(el => {
+    document.querySelectorAll('.wama-dock-row > .grid-stack-item').forEach(el => {
         el.querySelectorAll('.wama-brick-section').forEach(s => {
             const head = s.querySelector('.wama-brick-head');
             if (s.clientHeight < (head ? head.offsetHeight : 0) + 20) {
@@ -570,7 +570,7 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
                 and box['rect'][3] <= now['viewport'][1] - now['footer'] + 1
                 and box['rect'][1] >= now['header'] - 1
                 and abs(now['padBottom'] - (32 + height)) <= 2
-                and kept.get('docked') == {first: 'bottom'},
+                and kept.get('docked') == {'bottom': [[first]]},
                 f"épinglé en bas : au-dessus du pied, la page s'en écarte ({box}, pied "
                 f"{now['footer']}, marge {now['padBottom']}, {kept.get('docked')})")
 
@@ -582,7 +582,7 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
                 and box['rect'][0] >= now['gutterLeft'] - 1 and box['rect'][1] >= now['header'] - 1
                 and box['rect'][3] <= now['viewport'][1] - now['footer'] + 1
                 and abs(now['padLeft'] - (box['rect'][2] - box['rect'][0])) <= 2
-                and kept.get('docked') == {first: 'left'},
+                and kept.get('docked') == {'left': [[first]]},
                 f"épinglé à gauche : une colonne fixe sous l'en-tête, la page s'en écarte ({box}, "
                 f"volet {now['gutterLeft']}, marge {now['padLeft']}, {kept.get('docked')})")
 
@@ -596,7 +596,7 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         kept, now = settle(), state()
         verdict((now['panels'].get(second) or {}).get('sections') == [second, first]
                 and now['panels'][second]['docked'] == 'left'
-                and kept.get('docked') == {second: 'left'} and list(kept.get('stacks') or {}) == [second],
+                and kept.get('docked') == {'left': [[second]]} and list(kept.get('stacks') or {}) == [second],
                 f"descendre la tête : la nouvelle tête porte la pile et l'épinglage "
                 f"({now['panels'].get(second)}, {kept.get('docked')})")
 
@@ -627,7 +627,7 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         head, other = page.evaluate(_TOOLS_SHOWN_JS, first), page.evaluate(_TOOLS_SHOWN_JS, third)
         verdict(now['panels'][first]['fixed'] and now['panels'][first]['sections'] == [first, second]
                 and head == {'stack': False, 'pin': True} and other and not other['pin']
-                and kept.get('frozen') is True and kept.get('docked') == {first: 'bottom'},
+                and kept.get('frozen') is True and kept.get('docked') == {'bottom': [[first]]},
                 f"figée : la pile reste épinglée, outils de pile masqués, épingle au seul panneau "
                 f"épinglé ({head}, {third} : {other}, {kept.get('docked')})")
 
@@ -640,7 +640,7 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         verdict((now['panels'].get(first) or {}).get('sections') == [first]
                 and (now['panels'].get(second) or {}).get('sections') == [second]
                 and not kept.get('stacks') and kept.get('slots') is None
-                and kept.get('docked') == {first: 'bottom'} and now['panels'][first]['fixed'],
+                and kept.get('docked') == {'bottom': [[first]]} and now['panels'][first]['fixed'],
                 f"« Disposition par défaut » : piles défaites, l'épinglage gardé "
                 f"({kept.get('stacks')}, {kept.get('docked')})")
 
@@ -668,6 +668,23 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
                 f"pile épinglée retouchée : sa bande garde sa hauteur après « Détacher » et au "
                 f"rechargement ({tall} px)")
 
+        # À CÔTÉ (2026-10-27, Fabien : un petit élément « se placerait à côté, collé au
+        # transport ») : un panneau rejoint la LIGNE d'un panneau épinglé — même bande, même
+        # hauteur, à sa droite, gardé comme une ligne ; puis il revient dans la page.
+        press(third, 'fa-thumbtack')
+        pick('À côté de')
+        kept, now = settle('épingler à côté'), state()
+        a, b = now['panels'].get(first) or {}, now['panels'].get(third) or {}
+        verdict(a.get('fixed') and b.get('fixed') and b.get('docked') == 'bottom'
+                and abs(a['rect'][1] - b['rect'][1]) <= 1 and abs(a['rect'][3] - b['rect'][3]) <= 1
+                and b['rect'][0] >= a['rect'][2] - 1
+                and kept.get('docked') == {'bottom': [[first, third]]},
+                f"à côté : la même ligne de la bande, collé à droite ({a.get('rect')}, "
+                f"{b.get('rect')}, {kept.get('docked')})")
+        press(third, 'fa-thumbtack')
+        pick('Dans la page')
+        settle('rendre à la page')
+
         # Téléphone : une colonne fixe n'y a pas sa place — le panneau reste dans la page, et
         # rien n'est réécrit (le bord reste gardé pour la fenêtre large).
         press(first, 'fa-thumbtack')
@@ -677,7 +694,7 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         open_page()
         kept, now = settle(), state()
         verdict(not (now['panels'].get(first) or {}).get('fixed') and now['padLeft'] == 0
-                and kept == kept_wide and kept.get('docked') == {first: 'left'},
+                and kept == kept_wide and kept.get('docked') == {'left': [[first]]},
                 f"téléphone : la colonne reste dans la page, rien de réécrit "
                 f"({now['panels'].get(first)}, {kept.get('docked')})")
     except Exception as error:

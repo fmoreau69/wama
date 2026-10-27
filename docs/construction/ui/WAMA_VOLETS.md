@@ -292,10 +292,25 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   contre-épreuves rouges : taille remesurée, cadre calé au bas de la fenêtre, cadre calé sous le
   volet (dans le navigateur) ; second élément fixe, cadre non borné, taille mesurée, panneau hors
   de sa région (texte lu muté en mémoire).
-- ⏳ **Suite décidée le 2026-10-27** (Fabien, « tu peux dérouler le plan ») : ② dans une bande, des
-  LIGNES de panneaux côte à côte (largeur naturelle DÉCLARÉE par la brique — l'écriture à la
-  lecture reste un OUTIL à part, posé à côté du transport, §« quatre niveaux » de
-  `common/surfaces.py`) ; ③ le GLISSER-DÉPOSER magnétique vers les bords et sur un panneau
+- **Des LIGNES de panneaux côte à côte — ✅ 2026-10-27** (Fabien : un petit élément « se placerait
+  à côté, collé au transport » ; l'écriture à la lecture reste un OUTIL à part, posée à côté du
+  transport — les « quatre niveaux » de `common/surfaces.py`). `docked` devient
+  `{bord: [[panneau, …], …]}` (`surfaces._clean_docked`) : en haut et en bas des lignes ordonnées
+  de panneaux côte à côte, à gauche et à droite des colonnes — une LISTE, le stockage (jsonb) ne
+  gardant pas l'ordre des clés. L'ancienne forme `{id: bord}` est relue, côté serveur
+  (`_layout_of` passe par `clean_layout`) comme côté page (`WamaSurface.docks.read`, le temps
+  qu'un serveur en service soit relancé). Une ligne prend la hauteur de son plus grand panneau,
+  lue dans la grille ; une brique DÉCLARE sa largeur de ligne (`rowWidth` à son
+  `registerBrick` — l'écriture à la lecture : `17rem`), prise quand elle PARTAGE sa ligne, seule
+  elle la remplit. Geste : le menu de l'épingle propose « À côté de « X » » pour chaque panneau
+  déjà épinglé (« Dans la colonne de » à gauche et à droite). Gardes :
+  `test_pinned_rows_put_a_panel_beside_another` (V8 sur le noyau servi), la forme et l'ancienne
+  forme au serveur ; `common.surface_stack` **15/15** (geste « à côté » : même ligne, collé à
+  droite, gardé comme une ligne) et `surface_layout` 9/9 sur un serveur jetable (le live sert
+  l'ancien Python jusqu'à sa relance) ; deux contre-épreuves rouges de plus (« à côté » ignoré,
+  taille remesurée). Vu à l'écran sur la correction du transcriber : ligne de temps, puis transport
+  + écriture sur une ligne, au-dessus du pied, rendus tels quels au rechargement.
+- ⏳ **Suite décidée le 2026-10-27** (Fabien, « tu peux dérouler le plan ») : ③ le GLISSER-DÉPOSER magnétique vers les bords et sur un panneau
   (empiler au centre, à côté sur un côté) ; ④ les boutons d'atelier remplacés par UN menu « ⋯ »
   (gardé pour la disposition figée, le clavier, le tactile et les scénarios) ; le mode simplifié
   remplacé par un bouton d'en-tête qui replie les deux volets + « Joindre » dans le chat (§7).
