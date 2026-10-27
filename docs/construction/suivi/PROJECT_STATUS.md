@@ -26149,7 +26149,7 @@ face « Évaluation »). Domicile `WAMA_QUALITE §9bis` ; mécanique `ROUTE §10
   `wama-app-base.js` dans le navigateur du scénario seul). La face : route d'aperçu servie
   (`test_the_viewer_offers_the_evaluation_face_for_a_measure_alone`, contre-épreuve rouge) ; la
   docstring de `preview_utils._evaluation_face` disait encore « `{}` : aucune référence posée ».
-- ⚠ Relevé au passage, PAS de cette session : **318 005 lignes de process ORPHELINES** (élément
+- ⚠ Relevé au passage, PAS de cette session : ~~318 005~~ **1 366** (mesure corrigée le 2026-10-28, réglées le même jour : `ROUTE §10.6` 4.1) **lignes de process ORPHELINES** (élément
   supprimé, ligne restée) — transcriber 13 968, synthesizer 2 588, jumelles du bac à sable…
   `process_runs.forget` n'a qu'un appelant (`release_card_files`) : une suppression en cascade,
   un nettoyage de témoins ou une jumelle supprimée les laisse. Domicile : `ROUTE §10.6` 4.1 —
@@ -26529,7 +26529,7 @@ EMPILÉS et ÉPINGLÉS à quatre bords, puis deux revérifications.
   (2) décisions — **mode simplifié** retiré ou aligné sur le repli des volets (`WAMA_VOLETS §7`),
   détachement d'un panneau en vraie fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`), préchauffage (dérivation
   paresseuse des ports du studio 17 s, patch `torch.library` 20 s, 142 s par worker),
-  **318 005 lignes de process orphelines** (`ROUTE §10.6` 4.1 : purge + geste de retrait
+  ~~318 005~~ **1 366 lignes de process orphelines** (réglées le 2026-10-28) (`ROUTE §10.6` 4.1 : purge + geste de retrait
   manquant) ; (3) (c) signaler à la DINUM le défaut du filtre de parole d'Albert.
 - **Limites de cette session** (à elle) : un panneau épinglé ne se retaille pas sur place ; les
   cards transcrites avant la garde (b) ne sont mesurées qu'à leur prochaine transcription ;

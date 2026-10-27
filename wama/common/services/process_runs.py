@@ -17,6 +17,9 @@ CE QUE CE MODULE FAIT
     reprise de `pass_tracking`, l'ETA par process du cam_analyzer, 2026-10-01), et celle d'un
     LANCEMENT : `launch_eta`, la somme de ses process (`ProcessSpec.eta`, 2026-10-05) ;
   • referme les lignes ouvertes d'un élément stoppé ou réconcilié : `close_open` ;
+  • retire les lignes d'un élément supprimé (`forget`) et celles dont l'élément a disparu par un
+    autre chemin — cascade, témoins du nocturne, jumelle retirée (`forget_orphans`, balayage
+    quotidien `common.forget_orphan_process_runs`, 2026-10-27) ;
   • dit ce qui est périmé : `stale_nodes` (réglage surveillé changé, puis cascade vers l'aval) ;
   • dit une sortie PERDUE (fichier désigné, absent du disque) : `output_lost` ;
   • déduit l'état d'une card de ses process : `aggregate` (règle du point 4.4).
@@ -287,6 +290,66 @@ def forget(item) -> int:
     jamais). Rend le nombre de lignes retirées."""
     deleted, _detail = lines(item).delete()
     return deleted
+
+
+#: Une ligne plus jeune que ce délai n'est jamais balayée : son élément peut naître dans une
+#: transaction que le balayage ne voit pas encore.
+ORPHAN_GRACE_SECONDS = 3600
+
+
+def forget_orphans(*, dry_run: bool = False, chunk: int = 5000) -> dict:
+    """Retire les lignes dont l'ÉLÉMENT n'existe plus (2026-10-27 : 318 005 mesurées ; Fabien : « si
+    c'est sûr, il faut régler ça »). `forget` n'est appelé qu'au retrait d'une card
+    (`release_card_files`) : une suppression en cascade, le nettoyage des témoins du nocturne, une
+    jumelle retirée laissaient les leurs. Rien ne les relit : une ligne est un ÉTAT adressé par son
+    élément (`lines`, `lines_by_item`), pas un journal (`RunOutcome` l'est), et la seule lecture qui
+    parcourt toute la table (`eta_estimator.relearn_lines_from_runs`) écarte une ligne sans élément.
+
+    Par (app, type) : modèle introuvable → toutes ses lignes, sauf celles d'une jumelle encore au
+    registre (`sandbox.sandbox_labels` — née après le démarrage de ce processus, elle n'y est pas
+    chargée) ; sinon les lignes dont l'identifiant n'est plus en base, lu par le gestionnaire de
+    BASE (un gestionnaire filtré ferait prendre un élément masqué pour un disparu). Un identifiant
+    illisible est gardé, jamais deviné. Rend `{'orphans', 'deleted', 'by_type'}`."""
+    from datetime import timedelta
+
+    from django.apps import apps
+
+    from wama.common.models import ProcessRun
+    from wama.common.sandbox import sandbox_labels
+
+    old = ProcessRun.objects.filter(
+        updated_at__lt=timezone.now() - timedelta(seconds=ORPHAN_GRACE_SECONDS))
+    twins = set(sandbox_labels())
+    by_type, doomed = {}, []
+    for app, object_type in old.values_list('app', 'object_type').distinct().order_by():
+        rows = old.filter(app=app, object_type=object_type)
+        try:
+            model = apps.get_model(app, object_type)
+        except LookupError:
+            ids = [] if app in twins else list(rows.values_list('pk', flat=True))
+        else:
+            ids, pk_field = [], model._meta.pk
+            object_ids = list(rows.values_list('object_id', flat=True).distinct().order_by())
+            for start in range(0, len(object_ids), chunk):
+                keys = {}
+                for object_id in object_ids[start:start + chunk]:
+                    try:
+                        keys[object_id] = pk_field.to_python(object_id)
+                    except Exception:
+                        continue
+                present = {str(pk) for pk in model._base_manager.filter(
+                    pk__in=list(keys.values())).values_list('pk', flat=True)}
+                gone = [oid for oid, key in keys.items() if str(key) not in present]
+                if gone:
+                    ids += list(rows.filter(object_id__in=gone).values_list('pk', flat=True))
+        if ids:
+            by_type[f'{app}.{object_type}'] = len(ids)
+            doomed += ids
+    deleted = 0
+    if not dry_run:
+        for start in range(0, len(doomed), chunk):
+            deleted += ProcessRun.objects.filter(pk__in=doomed[start:start + chunk]).delete()[0]
+    return {'orphans': len(doomed), 'deleted': deleted, 'by_type': by_type}
 
 
 def safely(writer, *args, **kwargs):

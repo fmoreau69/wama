@@ -953,6 +953,13 @@ if ENABLE_CELERY:
             'schedule': crontab(hour=1, minute=40),
             'options': {'queue': 'default'},
         },
+        # Lignes de process ORPHELINES (2026-10-27) : celles dont l'élément a disparu sans passer
+        # par son retrait (cascade, témoins du nocturne, jumelle retirée) — `process_runs.forget_orphans`.
+        'forget-orphan-process-runs': {
+            'task': 'common.forget_orphan_process_runs',
+            'schedule': crontab(hour=1, minute=50),
+            'options': {'queue': 'default'},  # requêtes en base, aucun modèle
+        },
         # Corpus système de l'assistant : la doc déclarée, reprojetée chaque nuit (lecture de
         # fichiers, aucun modèle — `common/memory/docs_corpus.py`).
         'docs-corpus-sync': {

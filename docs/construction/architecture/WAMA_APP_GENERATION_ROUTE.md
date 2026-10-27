@@ -4946,12 +4946,20 @@ instance de pipeline (la card) · identifiant du nœud · process référencé (
 une fois par caméra, par fichier…) · état · **photo des réglages surveillés au lancement** · sortie
 (pointeur persisté + résumé) · début, fin, durée · erreur · identifiant de tâche.
 Nom anglais de l'objet : décision ouverte n°1.
-> ⚠ **Mesuré le 2026-10-27 (lecture seule) : 318 005 lignes ORPHELINES** — leur élément n'existe
-> plus. `process_runs.forget` n'a qu'un appelant, `queue_duplication.release_card_files` (le
-> retrait d'une card) : une suppression en cascade, un nettoyage de témoins du nocturne ou une
-> jumelle du bac à sable retirée laissent leurs lignes, qui ne se relisent plus jamais.
-> ⏳ Chantier à ouvrir — décision : une purge, et le geste de retrait qui manque (sans signal
-> `post_delete` : `common/middleware.py` dit pourquoi). `PROJECT_STATUS §PALIER 2026-10-26 GARDE (b)`.
+> ⚠ **Lignes ORPHELINES — leur élément n'existe plus.** `process_runs.forget` n'a qu'un appelant,
+> `queue_duplication.release_card_files` (le retrait d'une card) : une suppression en cascade, un
+> nettoyage de témoins du nocturne ou une jumelle du bac à sable retirée laissent leurs lignes,
+> qui ne se relisent plus jamais. ~~318 005 mesurées le 2026-10-27~~ : **mesure FAUSSE** — un
+> `values_list(…).distinct()` sans `.order_by()` faisait entrer l'ordre par défaut du modèle dans le
+> `DISTINCT`, chaque (app, type) revenait par ligne et les mêmes orphelines se recomptaient. Mesure
+> juste le 2026-10-28 : **1 366 sur 2 454**.
+> ✅ **Réglé le 2026-10-28** (Fabien : « si c'est sûr, il faut régler ça ») : `process_runs.forget_orphans`
+> — balayage, pas de signal `post_delete` (`common/middleware.py` dit pourquoi) —, quotidien
+> (`common.forget_orphan_process_runs`, 01:50). Sûr parce que rien ne relit une ligne sans élément
+> (lectures par l'élément ; `eta_estimator.relearn_lines_from_runs` l'écarte), une ligne de moins
+> d'une heure est gardée, une jumelle encore au registre aussi, et l'existence se lit au gestionnaire
+> de BASE. Purge appliquée : 1 366 retirées, table sauvegardée avant (`backups/db/`, non versionné).
+> Garde : `tests_process_runs.OrphanLinesTest` (deux contre-épreuves rouges : marge, jumelle).
 
 **4.2 Les états — UN vocabulaire, au commun** (`common/models.py:41-61`, étendu) :
 

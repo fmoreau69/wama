@@ -217,6 +217,18 @@ def purge_access_log_task(dry_run=False):
     return summary
 
 
+@shared_task(name='common.forget_orphan_process_runs')
+def forget_orphan_process_runs_task(dry_run=False):
+    """Balayage quotidien des lignes de process dont l'ÉLÉMENT a disparu par un autre chemin que
+    son retrait — cascade, nettoyage des témoins du nocturne, jumelle retirée
+    (`process_runs.forget_orphans`, 2026-10-27)."""
+    from wama.common.services.process_runs import forget_orphans
+    summary = forget_orphans(dry_run=dry_run)
+    if summary['orphans']:
+        logger.info("[process_runs] lignes orphelines : %s", summary)
+    return summary
+
+
 @shared_task(name='common.sync_docs_corpus')
 def sync_docs_corpus_task(dry_run=False):
     """Projection nocturne de la doc DÉCLARÉE vers le corpus système de l'assistant

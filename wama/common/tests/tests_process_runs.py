@@ -322,3 +322,50 @@ class SkeletonWritesTheLineTest(TestCase):
         process_runs.start(item, process_key=app)
         release_card_files(item)
         self.assertFalse(process_runs.lines(item).exists())
+
+class OrphanLinesTest(TestCase):
+    """`forget_orphans` (2026-10-27, Fabien : « si c'est sûr, il faut régler ça ») — the lines whose
+    ELEMENT is gone by another path than `forget` (a cascade, the nightly witnesses' cleanup, a
+    removed twin). What makes it safe is held here: a living element keeps its lines, a fresh line
+    is never swept, a twin still in the registry keeps its lines, an illegible id is kept, and the
+    dry run touches nothing."""
+
+    def _age(self, *runs):
+        from datetime import timedelta
+        from django.utils import timezone
+        ProcessRun.objects.filter(pk__in=[r.pk for r in runs]).update(
+            updated_at=timezone.now() - timedelta(seconds=process_runs.ORPHAN_GRACE_SECONDS + 60))
+
+    def _line(self, app, object_type, object_id):
+        return ProcessRun.objects.create(app=app, object_type=object_type, object_id=object_id,
+                                         node_id='main', process_key='x')
+
+    def test_only_the_lines_of_a_vanished_element_go(self):
+        from wama.studio.models import StudioRun
+        alive, gone = _studio_run('alive_owner'), _studio_run('gone_owner')
+        kept = process_runs.start(alive, 'render', process_key='composer.render')
+        orphan = process_runs.start(gone, 'render', process_key='composer.render')
+        StudioRun.objects.filter(pk=gone.pk).delete()      # a cascade: `forget` is not called
+        fresh_orphan = self._line('studio', 'StudioRun', '999999')
+        illegible = self._line('studio', 'StudioRun', 'not-a-number')
+        removed_twin = self._line('ghost_01', 'Thing', '1')
+        living_twin = self._line('ghost_02', 'Thing', '1')
+        self._age(kept, orphan, illegible, removed_twin, living_twin)
+        with mock.patch('wama.common.sandbox.sandbox_labels', return_value=['ghost_02']):
+            dry = process_runs.forget_orphans(dry_run=True)
+            self.assertEqual((2, 0), (dry['orphans'], dry['deleted']))
+            self.assertEqual(6, ProcessRun.objects.count(), 'the dry run touches nothing')
+            done = process_runs.forget_orphans()
+        self.assertEqual({'studio.StudioRun': 1, 'ghost_01.Thing': 1}, done['by_type'])
+        self.assertEqual(2, done['deleted'])
+        left = set(ProcessRun.objects.values_list('pk', flat=True))
+        self.assertEqual({kept.pk, fresh_orphan.pk, illegible.pk, living_twin.pk}, left)
+
+    def test_the_sweep_runs_every_night_on_the_default_queue(self):
+        from django.conf import settings
+        from wama.common import tasks
+        entry = settings.CELERY_BEAT_SCHEDULE['forget-orphan-process-runs']
+        self.assertEqual('common.forget_orphan_process_runs', entry['task'])
+        self.assertEqual('default', entry['options']['queue'])
+        self.assertEqual('common.forget_orphan_process_runs',
+                         tasks.forget_orphan_process_runs_task.name)
