@@ -59,6 +59,66 @@ class LanguageSwitchFlagsTest(SimpleTestCase):
 
 
 @skipUnless(Tokenizer is not None, 'kokoro_onnx absent de ce venv')
+class TechnicalTermsAreSaidByTheLexiconTest(SimpleTestCase):
+    """Les termes techniques dits par les phonèmes du lexique (2026-10-27). Mesuré avant :
+    « git » → `ʒˈi`, « commit » → `kɔmˈi`. Aucun poids : le modèle est un double qui retient la
+    chaîne de phonèmes qu'on lui donne."""
+
+    TEXT = 'Fais un git commit, puis un merge.'
+
+    def _phonemes(self, backend_class=None):
+        import numpy as np
+        import os
+        from unittest import mock
+        from wama.common.backends.kokoro_onnx_backend import KokoroOnnxBackend
+        backend = KokoroOnnxBackend()
+        backend._kokoro = mock.Mock(tokenizer=Tokenizer())
+        backend._kokoro.create.side_effect = lambda *a, **k: (np.ones(10, np.float32), 24000)
+        os.unlink(backend.process(self.TEXT, language='fr'))
+        return backend._kokoro.create.call_args.args[0]
+
+    def test_the_voice_receives_the_lexicon_phonemes(self):
+        phonemes = self._phonemes()
+        for said in ('ɡˈit', 'kɔmˈit,', 'mˈœʁdʒ.'):
+            self.assertIn(said, phonemes)
+        self.assertNotIn('ʒˈi', phonemes)
+        self.assertIn('fˈɛz', phonemes)                     # le français autour, par espeak
+
+    def test_without_the_lexicon_espeak_reads_them_the_french_way(self):
+        """Contre-épreuve : le lexique vidé, on retrouve la lecture mesurée avant lui."""
+        from unittest import mock
+        with mock.patch('wama.common.utils.tts_text._pronunciation_lookup',
+                        lambda language: (None, {})):
+            phonemes = self._phonemes()
+        self.assertIn('ʒˈi', phonemes)
+        self.assertNotIn('ɡˈit', phonemes)
+
+    def test_every_entry_is_in_the_voice_vocabulary(self):
+        """Un caractère hors du vocabulaire est EFFACÉ sans erreur par le tokenizer."""
+        from wama.common.utils.tts_text import pronunciations
+        vocab = Tokenizer().vocab
+        unknown = {term: [c for c in phonemes.replace('^', '') if c not in vocab]
+                   for term, phonemes in pronunciations('fr').items()}
+        self.assertEqual({}, {term: chars for term, chars in unknown.items() if chars})
+
+
+class PytorchTwinSaysTheLexiconTooTest(SimpleTestCase):
+    """Le jumeau `.pt` (KPipeline, misaki `EspeakG2P`) reçoit le même lexique, dans la notation de
+    misaki (`d^ʒ` → `ʤ`)."""
+
+    def test_the_twin_phonemizer_gets_the_lexicon(self):
+        try:
+            from misaki.espeak import EspeakG2P
+        except Exception:
+            self.skipTest('misaki absent de ce venv')
+        from wama.common.backends.kokoro_backend import LexiconG2P
+        phonemes, _ = LexiconG2P(EspeakG2P(language='fr-fr'), 'fr')('Fais un git merge.')
+        self.assertIn('ɡˈit', phonemes)
+        self.assertIn('mˈœʁʤ.', phonemes)
+        self.assertNotIn('ʒˈi', phonemes)
+
+
+@skipUnless(Tokenizer is not None, 'kokoro_onnx absent de ce venv')
 class VoicePausesAreSilencesBetweenSegmentsTest(SimpleTestCase):
     """Le RÉGLAGE des pauses (2026-10-18). Notre modèle ne rend pas la durée de ses phonèmes
     (`has_timings` faux) : `Kokoro.create(sentence_pause=…)` n'allonge AUCUNE pause à l'intérieur

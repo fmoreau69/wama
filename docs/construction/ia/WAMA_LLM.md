@@ -833,6 +833,37 @@ l'intuition :
   (`say_emphasis`) — un sigle (RAG, GPU) reste un sigle : mis en minuscules, il se lirait comme un
   mot. Un LEXIQUE (`tts_text.SPOKEN_FORMS`) dit ce qui se prononce autrement : « WAMA », lu à
   l'anglaise par espeak quelle que soit sa casse, devient « Ouama ».
+- ✅ **2026-10-27 — les termes techniques dits par leurs PHONÈMES** (Fabien : *« améliorer sa
+  prononciation pour que ça respecte les termes techniques comme git »*, puis l'option 1 après
+  une recherche approfondie, et *« mets déjà en place le fonctionnement avec une liste de 50
+  termes »*). Mesuré en `fr-fr` sur ~90 candidats : git « ji », commit « komi », JSON « jsonn »,
+  nginx « njinks », Kubernetes « kubernœtz » ; framework, streaming, worker en anglais britannique.
+  - **Ce que dit la recherche** (TTS commerciaux, phonémiseurs libres, détection de langue,
+    projets ; rapport remis à Fabien le 27/10) : aucune solution « phonétique complète » — tous
+    (Azure, Google, Polly, ElevenLabs, Pipecat, LiveKit) appliquent un LEXIQUE entre le modèle et
+    la voix, qui ne change que ce qui est dit ; deviner la langue de chaque MOT est écarté (Lingua
+    74 % sur un mot isolé, et git, commit, cache sont aussi des mots français) ; la syntaxe
+    `[mot](/phonèmes/)` de misaki n'existe que sur sa branche anglaise ; le vocabulaire de Kokoro
+    EFFACE sans erreur un caractère inconnu, le `g` du clavier compris (seul `ɡ` U+0261 y est).
+  - **Livré** : `common/tts/pronunciations.json` (DONNÉE, par langue de la voix — 50 termes en
+    `fr`, formes « comme un développeur français le dit », en sons français : PROPOSITIONS, à
+    confirmer à l'écoute) ; `tts_text.phonemes_with_lexicon` découpe le texte autour des termes
+    (mot entier, casse indifférente, pluriel en -s, graphie la plus longue d'abord), phonémise
+    chaque morceau par le phonémiseur du moteur et insère les entrées — en cas d'échec, la phrase
+    est dite comme avant. Les deux jumeaux l'appellent : `kokoro_onnx_backend.process` (la voix
+    de l'assistant) et `kokoro_backend.LexiconG2P`, qui enrobe le `EspeakG2P` de `KPipeline` hors
+    anglais/japonais/chinois (notation de misaki : `d^ʒ` → `ʤ`). Le texte AFFICHÉ ne change pas.
+  - Gardes : `tests_tts_text.PronunciationLexiconTest` (découpage, frontières, casse, pluriel,
+    langue sans lexique, repli), `tests_kokoro_onnx_phonemes` (espeak réel : la voix reçoit
+    `ɡˈit`, `kɔmˈit`, plus `ʒˈi` ; lexique vidé → lecture d'avant ; chaque entrée au vocabulaire ;
+    le jumeau `.pt` aussi). Contre-épreuves : insertion neutralisée → 2 rouges ; entrée à `g`
+    ASCII et tiret → rouge.
+  - ⏳ Écoute par Fabien (et la cible : sons français ou vrais phonèmes anglais) ; qui tient la
+    liste (dépôt, profil, outil de l'assistant) ; les identifiants de code (`camelCase`, `--option`,
+    `v2.1`) à normaliser avant le lexique — chantier à part ; signaler (sans rien changer à la
+    lecture) les mots d'allure anglaise absents du lexique. ⚠ Écart relevé par la recherche, NON
+    vérifié : le chemin ONNX écrit les diphtongues en deux caractères (`aɪ`), misaki — avec lequel
+    le modèle a été entraîné — en un seul (`I`).
 - **Les pauses** : `kokoro_onnx` sait allonger la pause après chaque marque (`sentence_pause`,
   `clause_pause`), mais seulement avec un modèle qui rend la durée de ses phonèmes ; le nôtre ne la
   rend pas (`has_timings` faux — mesuré : 3,58 s de son pour des pauses de 0, 0,25 et 0,8 s). Le

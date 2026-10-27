@@ -26,10 +26,18 @@ peut vouloir l'une sans le nettoyage, ex. un texte déjà propre) :
   • `make_audible(text)`    — la mise en forme visuelle traduite en respirations ;
   • `say_incises` / `say_emphasis` — parenthèses dites en incises, emphase et lexique (18/10) ;
   • `pause_segments(text, sentence_pause, clause_pause)` — où la voix respire, et combien :
-    le RÉGLAGE des pauses (`assistant/params.py`), appliqué par le moteur (18/10).
+    le RÉGLAGE des pauses (`assistant/params.py`), appliqué par le moteur (18/10) ;
+  • `phonemes_with_lexicon(text, language, phonemize)` — les termes techniques dits par leurs
+    PHONÈMES (`common/tts/pronunciations.json`), appelé par le moteur qui phonémise (27/10).
 """
+import functools
+import json
+import logging
 import re
 import unicodedata
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 #: ZWJ, sélecteurs de variation VS15/VS16, combinateur de keycap. Ils n'ont pas de catégorie
 #: Unicode qui les trie avec les pictogrammes, et espeak les verbalise.
@@ -135,6 +143,72 @@ _LETTER_WORD = re.compile(r'\b[^\W\d_]{2,}\b')
 #: « Ouama » donne la lecture française (`wamˈa`). Mot ENTIER, casse exacte.
 SPOKEN_FORMS = {'WAMA': 'Ouama'}
 _SPOKEN_FORM = re.compile(r'\b(' + '|'.join(map(re.escape, SPOKEN_FORMS)) + r')\b')
+
+#: …et ce qui se prononce par ses PHONÈMES (2026-10-27, Fabien : « améliorer sa prononciation
+#: pour que ça respecte les termes techniques comme git »). Mesuré en `fr-fr` : git → « ji »,
+#: commit → « komi », JSON → « jsonn », framework lu en anglais britannique. Une réécriture
+#: (`SPOKEN_FORMS`) ne sait pas dire « guite » sans deviner l'orthographe que lira espeak ; un
+#: moteur qui reçoit des phonèmes (Kokoro) reçoit ceux du lexique. Le lexique est une DONNÉE
+#: (`common/tts/pronunciations.json`), par langue de la voix ; la langue de chaque MOT n'est pas
+#: devinée — un détecteur se trompe une fois sur quatre sur un mot isolé, et git, commit, cache
+#: sont aussi des mots français (recherche du 27/10, `WAMA_LLM §1bis`).
+_PRONUNCIATIONS_FILE = Path(__file__).resolve().parents[1] / 'tts' / 'pronunciations.json'
+
+
+@functools.lru_cache(maxsize=None)
+def pronunciations(language: str) -> dict:
+    """Le lexique de `language` (code WAMA, `fr`) : {graphie : phonèmes}. Vide sans lexique."""
+    data = json.loads(_PRONUNCIATIONS_FILE.read_text(encoding='utf-8'))
+    return dict(data.get(language) or {})
+
+
+@functools.lru_cache(maxsize=None)
+def _pronunciation_lookup(language: str):
+    """(motif, table en minuscules) — mot ENTIER, casse indifférente, pluriel en -s compris ;
+    la graphie la plus longue d'abord (« GitHub » avant « git »)."""
+    table = {term.lower(): phonemes for term, phonemes in pronunciations(language).items()}
+    if not table:
+        return None, table
+    terms = sorted(pronunciations(language), key=len, reverse=True)
+    pattern = re.compile(r'(?<![^\W_])(' + '|'.join(map(re.escape, terms)) + r')s?(?![^\W_])',
+                         re.IGNORECASE)
+    return pattern, table
+
+
+def phonemes_with_lexicon(text: str, language: str, phonemize, finish=None) -> str:
+    """Les phonèmes de `text`, ceux du LEXIQUE à la place de ce que dirait le phonémiseur.
+
+    `phonemize(texte) -> phonèmes` est celui du moteur ; `finish(phonèmes)` rend une entrée du
+    lexique dans SA notation (par défaut : la liaison `^` retirée). Le texte est découpé autour
+    des termes du lexique ; chaque morceau est phonémisé seul, les entrées s'insèrent entre eux.
+    ⚠ Le texte AFFICHÉ n'est jamais touché : seule la chaîne envoyée à la voix change. Si quoi
+    que ce soit échoue, la phrase est dite comme avant — jamais muette."""
+    pattern, table = _pronunciation_lookup(language)
+    if pattern is None or not pattern.search(text or ''):
+        return phonemize(text)
+    finish = finish or (lambda phonemes: phonemes.replace('^', ''))
+    try:
+        pieces, start = [], 0
+        for match in pattern.finditer(text):
+            pieces.append(_phonemize_piece(text[start:match.start()], phonemize))
+            pieces.append(finish(table[match.group(1).lower()]))
+            start = match.end()
+        pieces.append(_phonemize_piece(text[start:], phonemize))
+        # Une marque de respiration se colle au mot qui la précède, comme le moteur l'écrit.
+        glued, said = SENTENCE_MARKS + CLAUSE_MARKS, ''
+        for piece in filter(None, (p.strip() for p in pieces)):
+            said += piece if (not said or piece[0] in glued) else ' ' + piece
+        return said
+    except Exception:
+        logger.warning('lexique de prononciation ignoré pour %r', text[:80], exc_info=True)
+        return phonemize(text)
+
+
+def _phonemize_piece(piece: str, phonemize) -> str:
+    """Un morceau sans lettre ni chiffre (« , », « . ») se garde tel quel : c'est une respiration."""
+    if not any(c.isalnum() for c in piece):
+        return piece.strip()
+    return phonemize(piece)
 
 #: Marques après lesquelles la voix RESPIRE — le vocabulaire même de `kokoro_onnx`
 #: (`chunker.SENTENCE_MARKS` / `CLAUSE_MARKS`) : fin de phrase, et fin de proposition (où

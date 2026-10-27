@@ -239,8 +239,14 @@ class KokoroOnnxBackend(TTSBackend):
         if self._kokoro is None:
             self.load()
         voice = voix_pour(language, voice_preset in ('male_1', 'male_2'))
+        from wama.common.utils.tts_text import phonemes_with_lexicon
         lang = ESPEAK_LANG.get(language) or ESPEAK_FALLBACK.get(language) or 'en-us'
-        phonemes = phonemes_without_language_flags(self._kokoro.tokenizer, text, lang)
+        tokenizer = self._kokoro.tokenizer
+        # Les termes techniques du lexique sont dits par LEURS phonèmes (2026-10-27) ; une entrée
+        # passe au même filtre de vocabulaire que ce qu'espeak rend.
+        phonemes = phonemes_with_lexicon(
+            text, language, lambda part: phonemes_without_language_flags(tokenizer, part, lang),
+            finish=lambda entry: ''.join(p for p in entry.replace('^', '') if p in tokenizer.vocab))
         samples, sr = (self._kokoro.create(phonemes, voice=voice, speed=1.0, lang=lang,
                                            is_phonemes=True) if phonemes else (None, None))
         if samples is None or not len(samples):

@@ -24,6 +24,27 @@ logger = logging.getLogger(__name__)
 REPO_ID = 'hexgrad/Kokoro-82M'
 
 
+class LexiconG2P:
+    """Le phonémiseur espeak d'un `KPipeline` (misaki `EspeakG2P`), le lexique de prononciation
+    en plus (`tts_text.phonemes_with_lexicon`, 2026-10-27). La syntaxe `[mot](/phonèmes/)` de
+    misaki n'existe que sur sa branche anglaise : hors d'elle, rien ne reçoit un lexique. Une
+    entrée prend la notation de misaki (sa table `e2m` : `d^ʒ` → `ʤ`), comme ce qu'espeak rend."""
+
+    def __init__(self, g2p, language: str):
+        self.g2p = g2p
+        self.language = language
+
+    def _finish(self, entry: str) -> str:
+        for old, new in getattr(self.g2p, 'e2m', ()):
+            entry = entry.replace(old, new)
+        return entry.replace('^', '')
+
+    def __call__(self, text):
+        from wama.common.utils.tts_text import phonemes_with_lexicon
+        return phonemes_with_lexicon(text, self.language, lambda part: self.g2p(part)[0],
+                                     finish=self._finish), None
+
+
 class KokoroBackend(TTSBackend):
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'kokoro'
@@ -133,6 +154,10 @@ class KokoroBackend(TTSBackend):
         voice = voix_pour(language, is_male)
 
         pipeline = self._get_pipeline(lang_code)
+        # Hors anglais, japonais et chinois, KPipeline phonémise par espeak (misaki `EspeakG2P`) :
+        # le lexique de prononciation s'y glisse, comme chez le jumeau ONNX (2026-10-27).
+        if lang_code not in 'abjz' and not isinstance(pipeline.g2p, LexiconG2P):
+            pipeline.g2p = LexiconG2P(pipeline.g2p, language)
 
         samples = []
         for _, _, audio in pipeline(text, voice=voice, speed=1.0):

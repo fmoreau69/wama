@@ -21,8 +21,8 @@ fusionnait la liste entière en une phrase).
 """
 from django.test import SimpleTestCase
 
-from wama.common.utils.tts_text import (make_audible, pause_segments, say_emphasis,
-                                        text_for_speech)
+from wama.common.utils.tts_text import (make_audible, pause_segments, phonemes_with_lexicon,
+                                        pronunciations, say_emphasis, text_for_speech)
 
 
 class PronounceableTest(SimpleTestCase):
@@ -161,6 +161,50 @@ class HeardAsWrittenTest(SimpleTestCase):
         self.assertEqual("Bienvenue dans Ouama.", say_emphasis('Bienvenue dans WAMA.'))
         # Contre-épreuve : mot ENTIER — un nom qui le contient ne bouge pas.
         self.assertEqual('wama_data', say_emphasis('wama_data'))
+
+
+def _brackets(part):
+    """Un phonémiseur de test : chaque morceau phonémisé se lit entre chevrons."""
+    return '<' + part.strip() + '>'
+
+
+class PronunciationLexiconTest(SimpleTestCase):
+    """Les termes techniques dits par leurs PHONÈMES (2026-10-27) : le découpage autour des
+    termes, sans espeak — le moteur réel est gardé dans `tests_kokoro_onnx_phonemes`."""
+
+    def _said(self, text, language='fr'):
+        return phonemes_with_lexicon(text, language, _brackets)
+
+    def test_a_term_is_said_by_its_lexicon_phonemes(self):
+        self.assertEqual('<Fais un> ɡˈit kɔmˈit <, puis la suite.>',
+                         self._said('Fais un git commit, puis la suite.'))
+
+    def test_case_and_plural_find_the_same_entry(self):
+        self.assertEqual('<Les> kɔmˈit <de> ɡˈit', self._said('Les commits de Git'))
+
+    def test_the_longest_spelling_wins(self):
+        self.assertEqual('<Sur> ɡitˈœb.', self._said('Sur GitHub.'))
+
+    def test_a_word_that_only_contains_a_term_is_left_to_the_phonemizer(self):
+        """Contre-épreuve : mot ENTIER — « digit » ne cache pas « git »."""
+        self.assertEqual('<Un digit, un gîte.>', self._said('Un digit, un gîte.'))
+
+    def test_an_affricate_loses_its_tie_by_default(self):
+        self.assertEqual('<Un> mˈœʁdʒ', self._said('Un merge'))
+
+    def test_a_language_without_lexicon_is_phonemized_as_before(self):
+        """Contre-épreuve : une voix anglaise lit « git » elle-même."""
+        self.assertEqual('<Push to git.>', self._said('Push to git.', language='en'))
+
+    def test_a_failure_says_the_sentence_as_before(self):
+        def finish(entry):
+            raise ValueError('entrée illisible')
+        self.assertEqual('<Un git.>', phonemes_with_lexicon('Un git.', 'fr', _brackets, finish))
+
+    def test_every_entry_writes_its_g_as_the_phonetic_letter(self):
+        """Le g du clavier n'est pas au vocabulaire de Kokoro, qui l'effacerait sans rien dire."""
+        offenders = [term for term, phonemes in pronunciations('fr').items() if 'g' in phonemes]
+        self.assertEqual([], offenders)
 
 
 class PauseSegmentsTest(SimpleTestCase):
