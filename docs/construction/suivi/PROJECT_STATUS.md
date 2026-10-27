@@ -26546,3 +26546,46 @@ EMPILÉS et ÉPINGLÉS à quatre bords, puis deux revérifications.
   `check_docs` 0 cassée, 1 périmée (`PROJECT_STATUS:25721`, ligne du 21/10, pas de cette
   session) ; rouges transverses d'autrui : budget des noms de tests (1 294 / 1 291),
   `tests_test_layout` (`wama/common/privacy`, non suivi).
+
+## §CLÔTURE 2026-10-27 — « PERTE TOTALE DE `media/` : CAUSE, RESTAURATION, GARDE-FOUS, PÉREMPTION SUR FICHIER ABSENT » — ✅ LIVRÉ, non poussé — 🔚 relancer gunicorn + workers + beat (la garde se pose au démarrage d'un processus)
+
+Constat, datation, cause, restauration, vérification de la base et effet de bord : domicile
+`MEDIA_STORAGE_TIERING §10` (ne pas recopier ici).
+- ✅ `071f7fa4` garde-fous : `common/utils/media_guard.py` posé par `CommonConfig.ready()`
+  (`rmtree` de `media/`, `users/`, `media_library/` ou d'un parent → `PermissionError`),
+  `tests_media_tests_hygiene.NothingRemovesMediaRootReadOnTheFlyTest` (AST), `tests_media_guard`,
+  mécanisme `media_guard` au registre (docs générées : mes seules lignes), règle `AGENTS.md`
+  « un test ne tourne que par le lanceur WAMA », skill `contre-epreuve`. Le correctif de
+  `tests_surfaces.py` est entré dans HEAD par `735c6599` (session « surfaces »,
+  `web-app-for-media-automation-10`, prévenue par message : cause, règle, garde).
+- ✅ `f9df3189` décision de Fabien : *« seulement un changement de fichier qui n'aurait pas la même
+  empreinte »* — une sortie d'amont ABSENTE ne périme plus son aval
+  (`process_runs._fingerprints_changed`), elle se rejoue (`_output_lost`) ; `ROUTE §10.6` 4.3.
+  Lab non concerné (photos sans clé `@`), Studio et Data passeront par la même règle.
+- Base : 75 lignes `ProcessRun` remises `SUCCESS` (colonne `status` seule, après simulation en
+  lecture seule ; liste d'annulation dans le scratchpad de la session) ; 4 lignes cam_analyzer
+  `anonymize_blur` restent `STALE` pour une autre raison (réglage surveillé ajouté le 26/10). Base
+  de contrôle `wama_check_2710` supprimée (accord de Fabien), base de test privée de la session
+  aussi. Médias : `~Archives` non réintégré (Fabien).
+- Mesuré le 27/10 (lanceur WAMA, base de test privée) : 144 tests du pipeline ; 674 avec
+  cam_analyzer et composer ; 192 transcriber, rédaction, anonymizer, avatarizer ; 1 648 describer,
+  reader, imager, studio, synthesizer, enhancer, converter, transcriber, monde Data ; 50 docs et
+  mécanismes. Contre-épreuves rouges : règle de péremption neutralisée (2 rouges, les neufs),
+  hygiène sur la version fautive (3 lignes nommées), garde sur une fausse racine.
+  **Rouges HORS session, établis** : `tests_identifier_language` ×4 (budgets 133 > 132 et
+  1294 > 1291 : `tests_dev_inspect.py` non suivi) · `tests_test_layout` (`wama/common/privacy/`
+  non suivi) · `studio…ConnectedFolderFilesAreReadTest` et `wama_data.tests_frames.FrameFromTableTest`
+  (`openpyxl` absent du venv Linux) · `converter.tests.SauverCommeProfilTest` (`data-key` déjà
+  dans `wama-params.js` sur HEAD, `721b60f2`).
+  `check_redundancy` 89, aucune dans mes fichiers ; `check_docs` 0 cassée, 6 périmées (renvois
+  vers `home.html` et un `views.py` raccourcis par d'autres) ; `doc_facts --check` à jour ;
+  `check_skills` sans défaut.
+- ⏳ Limites de CETTE session : une sortie INTERMÉDIAIRE perdue ne se voit plus sur la card
+  (`§10` ⏳ « sortie perdue » dans la bande, non fait) · la garde ne voit ni un `rm -rf` de shell,
+  ni une boucle d'`unlink`, ni un `rmtree` importé avant `ready()` · `DATA_HOMES` déclaré dans la
+  garde, lié par commentaire à `media_paths` (pas de constante de racine là-bas) · geste
+  « restaurer `media/` depuis le NAS + vérifier la base sur une restauration SÉPARÉE » non
+  distillé en skill (n=1, candidat) · fichiers créés 02:32→16:34 sans référence en base non
+  mesurables (Fabien : rien créé) · fichiers retirés avant la nuit possiblement réapparus
+  (Fabien : marginal).
+- Pendings système : relancer gunicorn + workers + beat, Ctrl+F5 ; pousser (rien n'est poussé).
