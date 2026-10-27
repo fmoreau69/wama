@@ -565,9 +565,9 @@ le mode faisait, et où cela vit désormais :
 Retraits : `REMOVAL_LEDGER R182`. Gardes : `tests_panel_toggle` (`SimplifiedModeRetiredTest` —
 aucune trace du mode dans le code —, le bouton et la reprise du mode joués en V8),
 `tests_assistant_reach.SidePanelsFromTheAssistantTest` (l'outil, l'action du chat, « Joindre »
-en V8), `common.layout.phone` ; huit contre-épreuves rouges. ⚠ La colonne `ui_mode` reste en base
-jusqu'à la relance (le serveur en service la lit encore) : elle a quitté le modèle par
-`accounts/0030` (défaut en base, retrait de l'état seul) ; sa suppression suit la relance.
+en V8), `common.layout.phone` ; huit contre-épreuves rouges. La colonne `ui_mode` est partie en
+deux temps : hors du modèle par `accounts/0030` (défaut en base, le serveur en service la lisait
+encore), puis supprimée par `accounts/0031` après la relance.
 
 ---
 

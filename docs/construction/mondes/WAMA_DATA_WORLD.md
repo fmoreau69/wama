@@ -802,6 +802,10 @@ temporelle et la couche plugins ne le sont pas. Elles se rebâtissent, elles ne 
    > (`wama-surface.js`) disposent des briques sur une grille magnétique par compte, les EMPILENT en
    > un panneau et les ÉPINGLENT à un bord de la fenêtre (haut, bas, gauche, droite) — le transport
    > et ses vues synchronisées par l'axe partagé, où l'utilisateur le veut (`WAMA_VOLETS §3-ter`).
+   > 🔄 **2026-10-27** : un seul CADRE fixe borné par l'en-tête, le pied et les volets (rien ne passe
+   > dessous), des LIGNES de panneaux côte à côte à chaque bord, et le GLISSER-DÉPOSER d'un panneau
+   > vers un bord ou sur un autre (empiler, à côté) — au noyau commun, donc aussi pour les fenêtres
+   > synchronisées du monde Data.
    > ⏳ Reste le détachement en vraie fenêtre.
 
 ### 8.3 Plan d'intégration ordonné

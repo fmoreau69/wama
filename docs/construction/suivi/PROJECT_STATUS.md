@@ -26633,3 +26633,58 @@ dans tous les tests ». Domicile du récit et des chiffres : `MEDIA_STORAGE_TIER
   soumettent à demande) ni boucle d'`unlink` ; skill `restauration` à confirmer à sa 2ᵉ occurrence.
 - Pendings système : relancer gunicorn + workers + beat (la garde se pose au démarrage d'un
   processus) ; pousser (rien n'est poussé).
+
+## §CLÔTURE 2026-10-27 (soir) — « CADRE DES BORDS, LIGNES CÔTE À CÔTE, GLISSER-DÉPOSER, MODE SIMPLIFIÉ RETIRÉ » — ✅ LIVRÉ, non poussé — 🔚 essai du glisser-déposer par Fabien
+
+Suite de la session « TRANSCRIBER #2522 → surfaces » (bloc précédent, même jour). Le plan validé
+par Fabien (« tu peux dérouler le plan ») : tout au COMMUN — noyau des surfaces, brique des volets,
+chat de l'assistant ; aucun fichier du transcriber touché (il n'a servi que de page d'essai).
+- ✅ `b65a9d3e` le CADRE des bords : un seul élément fixe borné par l'en-tête, le pied et les volets ;
+  la bande épinglée retombait à 46 px sur le pied après « Détacher » (hauteur mesurée sur un panneau
+  reconstruit) — lue dans la grille désormais. Garde permanente au scénario (zone sûre mesurée sur
+  les éléments réels après chaque geste).
+- ✅ `735c6599` des LIGNES de panneaux côte à côte (`docked` : `{bord: [[…]]}`, `_clean_docked`
+  relit l'ancienne forme) ; `rowWidth` déclaré par la brique (l'écriture à la lecture à côté du
+  transport).
+- ✅ `59774ed5` le GLISSER-DÉPOSER vers les bords et sur un panneau (centre = empiler, côtés = à
+  côté), pastille qui dit le lâcher ; pointeur suivi par `WamaGestures.track`.
+- ✅ `39e486b6` le MODE SIMPLIFIÉ retiré (`REMOVAL_LEDGER R182`) : bouton des volets dans l'en-tête,
+  « Joindre » dans les deux chats, `fold_side_panels` pour l'assistant, scénario neuf
+  `common.layout.phone`. Colonne `ui_mode` en deux temps : `accounts/0030` (hors modèle) puis
+  `accounts/0031` (supprimée après la relance — tous les processus démarrés après le retrait du
+  champ, vérifié). Migrations non versionnées, appliquées.
+- ✅ `fc23619a` les rouges : barre du haut en tablette (seuils recalés après l'icône des mains,
+  rouge chaque nuit depuis le 23/10), générateur qui lit le champ de progression déclaré
+  (`anonymizer_01` en 500 sur `global_progress`), trois noms de tests hors du faux positif
+  « refus », cinq renvois `home.html:<ligne>` périmés.
+- ✅ `12d99d25` revérification : la relecture côté page de l'ancienne forme retirée (un seul
+  chemin), scénario des piles qui attend la réponse des envois de disposition (trois rouges
+  intermittents en dix passages ; 8/8 ensuite), vision et registre alignés.
+- 🔴 **INCIDENT DE CETTE SESSION** : la perte TOTALE de `media/` à 16:34 vient de ma contre-épreuve
+  (un `TestCase` lancé par `unittest` sur les vrais réglages, dont le nettoyage effaçait
+  `MEDIA_ROOT`). Restaurée depuis le NAS par la session -05, garde-fous `071f7fa4`, règle dans
+  `AGENTS.md`, détail `MEDIA_STORAGE_TIERING §10`. Mes scripts de contre-épreuve qui appelaient
+  `unittest` sont désactivés dans le scratchpad de session.
+- Vérifié sur le LIVE relancé (gunicorn 21:30) : piles 19/19 (huit passages), disposition 9/9,
+  téléphone, tablette ; « Joindre » joué par le vrai sélecteur du système, envoi intercepté.
+- 🔚 **POINT D'ENTRÉE** : Fabien essaie le glisser-déposer ; s'il convient, les boutons d'atelier
+  (empiler, épingle, détacher, monter, descendre) cèdent la place à UN menu « ⋯ » (décision posée
+  par Fabien, gardé pour la disposition figée, le clavier, le tactile et les scénarios).
+- **Pendings système** : `kill -HUP` du maître gunicorn — la jumelle `anonymizer_01` régénérée
+  sert encore l'ancien Python (500 sur `global_progress` jusque-là) ; pousser `dev` ; régénérer
+  `WAMA_MECANISMES` et `docs/dev/briques.md` (portés par le WIP d'autres instances ; ma part :
+  la formulation des marges au registre et l'outil `fold_side_panels`).
+- **Travail d'autrui à connaître** : une instance extrait, ce soir même (23:52, non commité), la
+  disposition du noyau vers une brique commune `wama-brick-layout.js` — elle déplace le code de ce
+  bloc ; elle a déjà adapté un commentaire de `ui_smoke_surfaces`. `tests_dev_inspect.py` (non
+  suivi, 22/10) porte deux noms en « refuses » : à renommer à son commit.
+- **Limites de cette session** (à elle) : un panneau épinglé ne se retaille pas sur place ;
+  « à côté » n'existe que dans une bande épinglée (dans la page, la grille garde la main) ; les
+  seuils de la barre du haut sont fixes — une icône de plus les fera remesurer (le scénario
+  tablette le dira).
+- Contrôles attendus au prochain /reprise (mesurés le 2026-10-27/28) : `tests_surfaces` 76 (avec
+  l'extraction en cours d'autrui dans l'arbre ; un rouge transitoire vu pendant qu'elle écrivait),
+  `tests_panel_toggle` 25, `tests_codegen_lot` 55 ; périmètre + gardes transverses 803 tests, rouges d'autrui seuls
+  (`tests_test_layout` : `wama/common/privacy`, non suivi depuis le 18/10) ; compte 225 OK ;
+  `check_docs` 0 cassée, 1 périmée (`views.py:1044`, antérieure) ; corpus de manifestes 0 à
+  régénérer (19 invalides `openrouter:`, pas de cette session) ; `check_skills` 0 défaut.

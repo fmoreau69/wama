@@ -148,6 +148,14 @@ le RENDU RÉEL, pas la structure du code.
   `getBoundingClientRect()` du média lui-même contre celui de la référence, à DEUX positions du
   curseur (20 % et 80 %) : un média qui suit le curseur au lieu de rester fixe est le défaut.
   Et lire la capture : un chiffre juste sur le mauvais nœud est une preuve fausse.
+- ⚠⚠ **Lire la BASE après un geste : attendre la RÉPONSE des envois en vol, pas un délai fixe**
+  (2026-10-27, scénario des piles contre le live). La page enregistre 300 ms après le geste puis
+  attend la réponse ; un `wait_for_timeout(900)` suivi d'une lecture en base a rendu TROIS rouges
+  intermittents, à trois gestes différents, en dix passages — la page montrait le bon état, la base
+  pas encore (serveur chargé). ✅ Compter les requêtes de la route d'enregistrement par
+  `page.on('request' / 'requestfinished' / 'requestfailed')` et attendre zéro avant de lire
+  (`ui_smoke_surfaces._stack_gestures.settle`). Un rouge qui change de geste d'un passage à l'autre
+  est l'INSTRUMENT, pas le code : le rejouer N fois avant de corriger quoi que ce soit.
 
 
 ## Fixtures de sonde — le NOM est le filet (leçon du 2026-09-02)
