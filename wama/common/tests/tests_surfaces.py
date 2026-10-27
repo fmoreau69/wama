@@ -20,6 +20,8 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from wama.common.utils import detections as dets
 
 STATIC = Path(settings.BASE_DIR) / 'wama' / 'common' / 'static'
+#: The LAYOUT of a page of bricks (2026-10-28) — out of the surface kernel, mounted by it.
+LAYOUT_JS = 'common/js/wama-brick-layout.js'
 
 
 def _js(path):
@@ -58,7 +60,8 @@ class RegistryTest(SimpleTestCase):
         from django.contrib.staticfiles import finders
         from py_mini_racer import MiniRacer
         from wama.common.surfaces import BRICKS
-        paths = {p for b in BRICKS.values() for p in b.scripts()} | {'common/js/surfaces/wama-surface.js'}
+        paths = {p for b in BRICKS.values() for p in b.scripts()} | {'common/js/surfaces/wama-surface.js',
+                                                                    'common/js/wama-brick-layout.js'}
         for path in sorted(paths):
             with self.subTest(script=path):
                 # Resolved like the page resolves it : a vendored library lives under `wama/static`.
@@ -341,9 +344,9 @@ class SurfaceLayoutTest(TestCase):
             'slots': None, 'frozen': False, 'docked': {'actions': 'bottom', 'image': 'top'}}})
         self.assertEqual({'bottom': [['actions']], 'top': [['image']]},
                          self._config(self.user)['layout']['docked'])
-        kernel = _js('common/js/surfaces/wama-surface.js')
-        self.assertIn('docked: layout.docked || {}', kernel, 'the pin travels with the layout')
-        self.assertIn('rec.dockBtn = toolButton(', kernel, 'every panel can be pinned')
+        engine = _js(LAYOUT_JS)
+        self.assertIn('docked: layout.docked || {}', engine, 'the pin travels with the layout')
+        self.assertIn('rec.dockBtn = toolButton(', engine, 'every panel can be pinned')
         self.assertIn('dockable: true', _js('common/js/surfaces/brick-media-transport.js'))
 
     def test_the_kernel_reads_the_bounds_the_server_applies(self):
@@ -354,10 +357,12 @@ class SurfaceLayoutTest(TestCase):
         surface = self._config(self.user)['surface']
         self.assertEqual(MAX_LAYOUT_ROWS, surface['max_rows'])
         self.assertEqual(list(DOCK_EDGES), surface['dock_edges'])
-        kernel = _js('common/js/surfaces/wama-surface.js')
-        self.assertIn('var MAX_ROWS = surface.max_rows', kernel)
-        self.assertIn('surface.dock_edges.indexOf(c[0])', kernel)
-        self.assertNotIn(f'MAX_ROWS = {MAX_LAYOUT_ROWS}', kernel, 'the ceiling is read, not copied')
+        kernel, engine = _js('common/js/surfaces/wama-surface.js'), _js(LAYOUT_JS)
+        self.assertIn('maxRows: surface.max_rows, dockEdges: surface.dock_edges', kernel)
+        self.assertIn('var MAX_ROWS = opts.maxRows || Infinity;', engine)
+        self.assertIn('opts.dockEdges.indexOf(c[0])', engine)
+        self.assertNotIn(f'MAX_ROWS = {MAX_LAYOUT_ROWS}', engine, 'the ceiling is read, not copied')
+        self.assertNotIn(f'maxRows: {MAX_LAYOUT_ROWS}', kernel, 'the ceiling is read, not copied')
 
     def test_a_docked_panel_stops_at_the_header_and_the_footer(self):
         """Same day, Fabien: pinned to the top it went UNDER the fixed header, unusable. A pinned
@@ -374,25 +379,25 @@ class SurfaceLayoutTest(TestCase):
         # panel is laid out inside it, never placed on its own over the page.
         rules = [b.split('{', 1)[0].strip() for b in css.split('}') if 'position: fixed' in b]
         self.assertEqual(['.wama-dock-frame'], [r.split('\n')[-1].strip() for r in rules])
-        kernel = _js('common/js/surfaces/wama-surface.js')
-        self.assertIn("row.appendChild(containerEl(key))", kernel, 'a pinned panel goes into its row')
-        self.assertIn("region.appendChild(row)", kernel)
+        engine = _js(LAYOUT_JS)
+        self.assertIn("row.appendChild(containerEl(key))", engine, 'a pinned panel goes into its row')
+        self.assertIn("region.appendChild(row)", engine)
         # Its size is READ from its grid place, never measured on a panel just rebuilt (46 px).
-        self.assertIn(": place.h * CELL_HEIGHT;", kernel)
-        self.assertNotIn("offsetHeight + 'px'", kernel)
+        self.assertIn(": place.h * CELL_HEIGHT;", engine)
+        self.assertNotIn("offsetHeight + 'px'", engine)
 
     def test_pinned_rows_put_a_panel_beside_another(self):
-        """`WamaSurface.docks` in V8, on the SERVED kernel (2026-10-27, Fabien: a small panel « se
+        """`WamaBrickLayout.docks` in V8, on the SERVED file (2026-10-27, Fabien: a small panel « se
         placerait à côté, collé au transport »): pinned to an edge = a new row at the OUTER side;
         beside a panel = right after it in its row; a new head keeps the place; an emptied row
         goes. And the tool that needs no full row DECLARES its width."""
         from py_mini_racer import MiniRacer
         from pathlib import Path
         engine = MiniRacer()
-        engine.eval('var window = {};' + (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
-                    / 'surfaces' / 'wama-surface.js').read_text(encoding='utf-8'))
+        engine.eval('var window = {};' + (Path(settings.BASE_DIR) / 'staticfiles' / LAYOUT_JS)
+                    .read_text(encoding='utf-8'))
         got = json.loads(engine.eval("""(function () {
-            var D = window.WamaSurface.docks, d = {};
+            var D = window.WamaBrickLayout.docks, d = {};
             d = D.put(d, 'timeline', 'bottom');
             d = D.put(d, 'transport', 'bottom');
             var two = d;
@@ -414,7 +419,7 @@ class SurfaceLayoutTest(TestCase):
                           [['timeline'], ['audio', 'writing']],
                           [['timeline']], 'top', True, False], got)
         self.assertEqual({'bottom': [['writing', 'transport']]}, json.loads(engine.eval(
-            "JSON.stringify(window.WamaSurface.docks.put({bottom: [['transport']]}, 'writing', "
+            "JSON.stringify(window.WamaBrickLayout.docks.put({bottom: [['transport']]}, 'writing', "
             "'bottom', 'transport', true))")), 'dropped on the left side: before it')
         writing = _js('common/js/surfaces/brick-playback-writing.js')
         self.assertIn("rowWidth: '17rem'", writing, 'a menu does not need the whole row')
@@ -425,21 +430,21 @@ class SurfaceLayoutTest(TestCase):
         brick (`WamaGestures.track`: the page panel's drag is gridstack's, the pinned one's is
         ours), never by listeners of the kernel's own; every cue is drawn INSIDE the frame; a drop
         goes through the very gestures of the menus."""
-        kernel = _js('common/js/surfaces/wama-surface.js')
-        self.assertEqual(2, kernel.count('global.WamaGestures.track('))
+        engine = _js(LAYOUT_JS)
+        self.assertEqual(2, engine.count('global.WamaGestures.track('))
         # (`toolButton` keeps its `mousedown` stopper: a press on a title button is not a drag.)
         for raw in ("addEventListener('pointermove'", "addEventListener('mousemove'",
                     "addEventListener('touchmove'", "addEventListener('touchstart'"):
-            self.assertNotIn(raw, kernel)
+            self.assertNotIn(raw, engine)
         for cue in ('dockFrame.appendChild(zone)', 'dockFrame.appendChild(dropHint)',
                     'dockFrame.appendChild(dropChip)'):
-            self.assertIn(cue, kernel, 'a cue never goes under the header, the footer or a panel')
-        drop = kernel.split('function endDrop()', 1)[1].split('\n        }\n', 1)[0]
+            self.assertIn(cue, engine, 'a cue never goes under the header, the footer or a panel')
+        drop = engine.split('function endDrop()', 1)[1].split('\n        }\n', 1)[0]
         for gesture in ('join(t.other, d.key)', 'Docks.put(layout.docked, d.key, t.edge, t.other, t.before)',
                         'Docks.put(layout.docked, d.key, t.edge)', 'Docks.without(layout.docked, d.key)'):
             self.assertIn(gesture, drop)
-        self.assertIn("g.on('dragstart'", kernel)
-        self.assertIn('if (layout.frozen || !key) return;', kernel, 'a frozen layout does not move')
+        self.assertIn("g.on('dragstart'", engine)
+        self.assertIn('if (layout.frozen || !key) return;', engine, 'a frozen layout does not move')
         css = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'css'
                / 'wama-surface.css').read_text(encoding='utf-8')
         self.assertIn('.is-fit:not(:only-child) { flex: 0 0 var(--wama-fit-width); }', css,
@@ -467,16 +472,16 @@ class SurfaceLayoutTest(TestCase):
             self.assertEqual(400, self._post({'stacks': bad}).status_code, bad)
 
     def test_the_weights_of_a_stack_follow_the_height_of_its_panel(self):
-        """`WamaSurface.scaleWeights` in V8, on the SERVED kernel: the share of each brick is
+        """`WamaBrickLayout.scaleWeights` in V8, on the SERVED file: the share of each brick is
         kept when the panel was resized, one row at least."""
         from py_mini_racer import MiniRacer
         from pathlib import Path
         engine = MiniRacer()
-        engine.eval('var window = {};' + (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
-                    / 'surfaces' / 'wama-surface.js').read_text(encoding='utf-8'))
+        engine.eval('var window = {};' + (Path(settings.BASE_DIR) / 'staticfiles' / LAYOUT_JS)
+                    .read_text(encoding='utf-8'))
         scaled = json.loads(engine.eval(
-            'JSON.stringify([window.WamaSurface.scaleWeights([{id: "a", h: 3}, {id: "b", h: 1}], 8),'
-            ' window.WamaSurface.scaleWeights([{id: "a", h: 9}, {id: "b", h: 1}], 2)])'))
+            'JSON.stringify([window.WamaBrickLayout.scaleWeights([{id: "a", h: 3}, {id: "b", h: 1}], 8),'
+            ' window.WamaBrickLayout.scaleWeights([{id: "a", h: 9}, {id: "b", h: 1}], 2)])'))
         self.assertEqual([[{'id': 'a', 'h': 6}, {'id': 'b', 'h': 2}],
                           [{'id': 'a', 'h': 2}, {'id': 'b', 'h': 1}]], scaled)
 
@@ -498,14 +503,33 @@ class SurfaceLayoutTest(TestCase):
         self.assertNotContains(page, 'id="media-section"')
         self.assertNotContains(page, 'Aucun paramètre disponible')
 
-    def test_the_kernel_freezes_both_zones_and_the_actions_offer_it(self):
-        kernel = _js('common/js/surfaces/wama-surface.js')
-        self.assertIn('zones.forEach(function (g) { g.setStatic(layout.frozen); });', kernel)
-        self.assertIn("page.classList.toggle('is-frozen'", kernel)
-        self.assertIn("panelRoot.classList.toggle('is-frozen'", kernel)
-        self.assertIn('if (resetting || building || !onFullGrid()) return;', kernel)
+    def test_the_layout_freezes_both_zones_and_the_actions_offer_it(self):
+        engine = _js(LAYOUT_JS)
+        self.assertIn('zones.forEach(function (g) { g.setStatic(layout.frozen); });', engine)
+        self.assertIn("page.classList.toggle('is-frozen'", engine)
+        self.assertIn("panelRoot.classList.toggle('is-frozen'", engine)
+        self.assertIn('if (resetting || building || !onFullGrid()) return;', engine)
         # A brick moved to the other zone keeps its element : it is never mounted twice.
-        self.assertIn('from.removeWidget(m.el, false, false);', kernel)
+        self.assertIn('from.removeWidget(m.el, false, false);', engine)
+        kernel = _js('common/js/surfaces/wama-surface.js')
+        self.assertIn('setFrozen: function (on) { layout.setFrozen(on); },', kernel)
+
+    def test_the_layout_is_a_common_brick_the_kernel_mounts(self):
+        """2026-10-28 (step ② of `WAMA_VOLETS §3-ter`): the layout left the surface kernel so app
+        pages mount it WITHOUT the editing kernel. One home: the kernel keeps no grid code, the
+        layout knows nothing of what a surface edits, and the page loads it first."""
+        import re
+        kernel, engine = _js('common/js/surfaces/wama-surface.js'), _js(LAYOUT_JS)
+        engine = re.sub(r'/\*.*?\*/|//[^\n]*', '', engine, flags=re.S)       # the code, not its comments
+        self.assertIn('global.WamaBrickLayout.create({', kernel)
+        for gone in ('GridStack.init(', 'function applyDocks(', 'function persistLayout(',
+                     'var Docks', 'function scaleWeights(', 'CELL_HEIGHT'):
+            self.assertNotIn(gone, kernel, 'one home for the layout')
+        for unknown in ('ctx.', 'WamaSurface', 'BRICKS', 'config.', 'surface.'):
+            self.assertNotIn(unknown, engine, 'the layout knows nothing of a surface')
+        page = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'templates' / 'common'
+                / 'surface.html').read_text(encoding='utf-8')
+        self.assertLess(page.index(LAYOUT_JS), page.index('common/js/surfaces/wama-surface.js'))
 
     def test_two_column_settings_follow_the_width_of_their_brick(self):
         # Fabien, 2026-10-21 : les réglages en 2 colonnes se gardent ; dans une brique, c'est SA
@@ -522,9 +546,9 @@ class SurfaceLayoutTest(TestCase):
         # edited VALUE in the whole `mount` — every edit gesture stopped, seen by the parity run.
         import re
         from collections import Counter
-        names = Counter(re.findall(r'\bfunction\s+([A-Za-z_$][\w$]*)\s*\(',
-                                   _js('common/js/surfaces/wama-surface.js')))
-        self.assertEqual([], [n for n, c in names.items() if c > 1])
+        for path in ('common/js/surfaces/wama-surface.js', LAYOUT_JS):
+            names = Counter(re.findall(r'\bfunction\s+([A-Za-z_$][\w$]*)\s*\(', _js(path)))
+            self.assertEqual([], [n for n, c in names.items() if c > 1], path)
         actions = _js('common/js/surfaces/brick-surface-actions.js')
         self.assertIn('data-act="freeze"', actions)
         self.assertIn('ctx.setFrozen(!ctx.frozen())', actions)

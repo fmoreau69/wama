@@ -131,7 +131,7 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
         surfaces = COMMON_JS / 'surfaces'
         pairs = [(COMMON_JS / name, SERVED / 'common' / 'js' / name)
                  for name in ('wama-axis.js', 'wama-transport.js', 'wama-timeline.js', 'wama-segments.js',
-                              'wama-params.js', 'wama-app-base.js')]
+                              'wama-params.js', 'wama-app-base.js', 'wama-brick-layout.js')]
         pairs += [(surfaces / name, SERVED / 'common' / 'js' / 'surfaces' / name)
                   for name in ('wama-surface.js', 'brick-media-transport.js', 'brick-media-timeline.js',
                                'brick-playback-writing.js', 'brick-segment-list.js',

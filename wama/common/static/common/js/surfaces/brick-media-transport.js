@@ -142,8 +142,8 @@
         };
     }
 
-    // `dockable` (2026-10-26) : le transport s'épingle à un bord de la fenêtre (le geste est au
-    // noyau, `wama-surface.js`) — il reste sous la main quand la partition défile. Tout panneau
+    // `dockable` (2026-10-26) : le transport s'épingle à un bord de la fenêtre (le geste est à la
+    // disposition commune, `wama-brick-layout.js`) — il reste sous la main quand la partition défile. Tout panneau
     // s'épingle disposition modifiable ; `dockable` laisse l'épingle à portée même figée.
     global.WamaSurface.registerBrick('media_transport', { title: 'Transport', mount: mount, dockable: true });
 })(window);

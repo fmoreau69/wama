@@ -30,7 +30,7 @@ from .ui_smoke import (BASE_URL, IGNORED_CONSOLE, _drop_new_sessions, _garde_de_
 from .ui_smoke_matching import _cookie
 
 #: Les emplacements d'une surface, repérés par l'identifiant que gridstack porte
-#: (`el.gridstackNode.id`, `wama-surface.js`) — lu dans la page plutôt que posé par le noyau.
+#: (`el.gridstackNode.id`, `wama-brick-layout.js`) — lu dans la page plutôt que posé par le noyau.
 _TAG_SLOTS_JS = """() => {
     const out = [];
     document.querySelectorAll('.grid-stack-item').forEach(el => {

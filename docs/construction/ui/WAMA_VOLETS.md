@@ -337,6 +337,23 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   les boutons qui feraient doublon ? ».
 - ⏳ Reste de `WAMA_DATA_WORLD §8.2 ⑤` (« layout dockable + détachement en vraie fenêtre ») : le
   DÉTACHEMENT d'un panneau dans une autre fenêtre.
+- **Étape ②, 1ᵉʳ geste — la DISPOSITION devient une brique commune ✅ 2026-10-28.** Les pages
+  d'apps ne sont pas des surfaces (on n'y édite pas un élément) mais leur volet doit prendre les
+  mêmes gestes : grille et colonne du volet, figer, empiler, épingler, glisser vers les bords,
+  disposition gardée par compte. Ce code vivait dans le noyau des surfaces, mêlé à l'édition
+  (`wama-surface.js`, 1 374 lignes : l'édition jusqu'à la ligne 500, la disposition ensuite) ; il
+  en sort **tel quel** dans `common/js/wama-brick-layout.js` (`WamaBrickLayout.create`, `docks`,
+  `scaleWeights`) — seuls changent les noms de ce qu'on lui passe (la surface déclarée devient
+  `slots`, `columns`, `maxRows`, `dockEdges`, la route `url`), relevé par un diff du code déplacé.
+  Le noyau (511 lignes) lui passe ce que la surface déclare et monte chaque brique dans le cadre
+  qu'elle pose (`mount(rec)`) ; la disposition ne connaît ni `ctx`, ni la valeur éditée, ni
+  l'enregistrement. Gardes : `test_the_layout_is_a_common_brick_the_kernel_mounts` (une seule
+  maison : aucun code de grille dans le noyau, rien de la surface dans la disposition, chargée
+  avant le noyau), les gardes existantes repointées sur le nouveau fichier (V8 sur la copie
+  servie). Mesuré avant ET après sur un serveur jetable : `common.surface_layout` 9/9,
+  `common.surface_stack` 19/19, parité de l'éditeur 71/71. ⚠ À froid, le premier scénario peut
+  échouer à l'attente de 20 s (le serveur jetable met ~45 s à servir sa première adresse) :
+  rejoué à chaud, il passe — un artefact de démarrage, pas une régression.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ② les sections du volet des PAGES D'APPS
 (assistant, aperçu, inspecteur, actions) en briques réordonnables et repliables par compte, rendu
