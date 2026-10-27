@@ -26688,3 +26688,29 @@ chat de l'assistant ; aucun fichier du transcriber touché (il n'a servi que de 
   (`tests_test_layout` : `wama/common/privacy`, non suivi depuis le 18/10) ; compte 225 OK ;
   `check_docs` 0 cassée, 1 périmée (`views.py:1044`, antérieure) ; corpus de manifestes 0 à
   régénérer (19 invalides `openrouter:`, pas de cette session) ; `check_skills` 0 défaut.
+
+### §CLÔTURE 2026-10-28 (suite) — fichiers libérés et sorties intermédiaires : MESURÉ, et les deux décisions explicitées
+
+Question de Fabien : « l'annonce qu'aucune card n'utilise plus un fichier est-elle intacte ? faut-il
+la généraliser aux sorties intermédiaires ? »
+- **Intacte** : `tests_released_files`, `tests_conformity_card_removal` et le pipeline du composer
+  verts ; les rouges de `tests_card_listed_files` / `tests_queue_delete_contract` sont ceux, établis,
+  du travail non commité d'autrui (jumelles `writer_01`, `anonymizer_01`), verts sur HEAD + les
+  changements de la session.
+- **Déjà générale** : relevé en lecture seule de TOUTES les lignes d'exécution qui désignent une
+  sortie (`ProcessRun.output_ref`) — chacune dont le fichier existe (99) est AUSSI un champ de SA card
+  (partition extraite, voix de l'avatarizer, détections, rendus) ; retirer la card la libère donc et
+  l'annonce (`release_card_files`). Les lignes « portées par aucune card » ont toutes un fichier
+  absent et sont des comptes de test : les lignes orphelines que balaie `forget_orphans` (autre
+  session, en cours).
+- ⏳ **Décision 1 — précisée par la mesure.** Puisque `output_ref` RECOPIE le champ de la card, le
+  gestionnaire de fichiers crée un écart : DÉPLACER ou renommer le fichier repointe le champ
+  (`file_references.repoint`) mais pas la ligne. La bande dit alors « sortie perdue » pour un fichier
+  qui a seulement bougé, et une relance rejoue l'étape (avant le 27/10 : aval périmé à jamais). Les
+  surfaces suivent déjà la ligne quand elles remplacent un fichier (`surface_views`). Options :
+  (a) `repoint` réécrit aussi `ProcessRun.output_ref` — recommandé ; (b) garder la « conséquence
+  assumée » de `ROUTE §10.6`.
+- ⏳ **Décision 2 — périmètre de `restore_backup`.** Le tirage ramène TOUT l'arbre sauvegardé hors
+  `~Archives` : dossiers de comptes de test, de comptes supprimés, anciens dossiers d'app. Options :
+  (a) une option qui écarte ce que la base ne connaît plus (comptes réels seulement) ; (b) rien — de
+  l'encombrement, jamais une casse.
