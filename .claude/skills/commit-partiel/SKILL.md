@@ -316,6 +316,14 @@ mais c'est défaire son geste dans son dos.
   DIFFÉRENCE indexée (`git diff --cached -U0 $BASE -- <f> | grep -c '^@@'` = le nombre de MES hunks).
   *Une garde qui arrête à tort coûte un tour ; une garde qui laisse passer coûte un commit.*
 
+- ⚠ **2026-10-27 — une liste de blobs écrite par Python sous Windows porte des `\r`.**
+  `Path.write_text` (mode texte) traduit `\n` en `\r\n` : `git update-index --index-info` a lu
+  chaque chemin avec son `\r` final et répondu « Ignoring path » 348 fois — l'index temporaire est
+  sorti SANS le corpus, et seul le compte du `--stat` (20 fichiers au lieu de 368) l'a montré. Même
+  cause, même jour : une migration réécrite par `write_text` est passée en CRLF et la mutation qui
+  cherchait son texte ne l'a plus trouvé. ✅ Écrire les fichiers d'outillage en octets ou avec
+  `newline='\n'`, et exiger le NOMBRE de fichiers indexés avant de commiter (`[ "$N" = <attendu> ]`).
+
 ## 4. Docs générées
 
 Un bloc régénéré (`doc_facts`) projette le REGISTRE tel qu'il est dans l'arbre, WIP d'autrui

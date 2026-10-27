@@ -26358,6 +26358,22 @@ limite au §10. ② La forme `owner/repo:tag` et sa paire `platform_ref` (`githu
 `github_platform_ref`, `github_ref_of_platform`, constante `GITHUB`) quittent `model_installer` pour
 `external_sources`, à côté de la paire du Hub ; prospection, provenance, scout et test lisent
 là. Aucun alias laissé.
+Commités `710ca868` (code, tests, registre, ce journal) et `e6ce6f3a` (`docs/dev/briques.md` régénéré
+dans un worktree de HEAD, la ligne `eta` de `WAMA_MECANISMES`, renfort d'une garde). Mesuré : suite de
+l'arbre (model_manager, common, reader, converter, describer, process des autres apps) 6128 tests,
+49 rouges ; dans un worktree de HEAD, 24 restent — et les MÊMES 24 avec mes 18 fichiers ramenés à
+leur version d'avant : ils préexistent, aucun n'est à moi (`tests_item_lifecycle_contract` ×11 « les
+scripts communs une fois », `tests_identifier_language` ×3, `tests_assistant_deposit_settings` ×2,
+`tests_display_format`, `tests_doc_plans`, `tests_tool_api_lectures`, `converter.SauverCommeProfilTest`,
+`tests_check_templates`, `tests_cloud_failover`, `tests_settings_surfaces`, `tests_touch`). Les 25
+autres viennent des jumelles non suivies (`writer_01`, `anonymizer_01`) et du travail non commité.
+7 contre-épreuves, 7 rouges après renfort (l'aller-retour GitHub était aveugle au contrôle de
+plateforme : un cas `gitlab:…/releases/tag/…` ajouté). `check_redundancy` 89, rien dans mes lignes ;
+`doc_facts --check` à jour après régénération dans l'arbre ; `manifest_export --check --kind model` :
+0 périmé, 19 refus OpenRouter (clés à `~`, antérieurs). Les 2 manifestes Ollama régénérés dans l'arbre
+portent aussi des capacités d'une autre session (graine, `top_p`) : laissés non commités.
+Artefacts : la base de test privée `test_wama_hfid_2710b` reste (runs `--keepdb` du worktree,
+jetable) ; scripts de mesure et de commit dans le scratchpad de session, jetables.
 
 ## §PALIER 2026-10-26 (soir) — EMPILER des briques en un panneau, ÉPINGLER à QUATRE bords — non poussé — 🔴 relancer gunicorn, puis Ctrl+F5
 
