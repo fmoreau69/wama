@@ -47,7 +47,6 @@
       "author": "facebook",
       "description_short": "AudioGen Medium — bruitages et sons d'ambiance, 1.5B params",
       "gated": "no",
-      "hf_id": "facebook/audiogen-medium",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:facebook/audiogen-medium",

@@ -454,7 +454,7 @@ en silence.
 | Kind | Possède | Ne possède PAS |
 |---|---|---|
 | `library` *(livré 2026-08-03, `builtin/library.py`)* | dépôt, licence, version, install, points d'entrée, capacités techniques, contraintes (GPU, OS) | l'usage qu'une app en fait |
-| `model` | poids, **`license`**, **`platform_ref`**, modèle de base (`base_model` + `base_model_relation`), VRAM/disque, format, capacités, provenance — `hf_id` en RÉSIDU (ci-dessous) | le réglage utilisateur qui le pilote — **et tout ce que la DÉCOUVERTE établit** |
+| `model` | poids, **`license`**, **`platform_ref`**, modèle de base (`base_model` + `base_model_relation`), VRAM/disque, format, capacités, provenance — `hf_id` RETIRÉ le 2026-10-27 (ci-dessous) | le réglage utilisateur qui le pilote — **et tout ce que la DÉCOUVERTE établit** |
 | `app` | identité, ports, params, permissions, cycle de vie, **et les RÉFÉRENCES** vers `model`/`library` | tout ce qui précède — jamais recopié |
 
 #### 7.1 bis — `model` : deux champs ajoutés, et une frontière qui lui est propre (2026-08-05)
@@ -472,7 +472,7 @@ plateforme déclare au registre des sources (`ExternalSource.model_page`, lue pa
 avant dans `AIModel`, en double du registre). Stocker 129 chaînes d'URL, ce serait 129 chaînes à
 corriger le jour où une plateforme change son schéma d'adresse.
 
-**2026-10-27 — `identity.hf_id` est un RÉSIDU, qui part dans la session des manifestes** (décision
+**2026-10-27 — `identity.hf_id` est RETIRÉ, `platform_ref` seul** (décision
 de Fabien : « ne garder que `platform_ref` »). Mesuré ce jour sur les 818 lignes du catalogue : 397
 portaient la même valeur des deux côtés (`hf_id` = le dépôt de `huggingface:<dépôt>`), aucune ne
 portait `hf_id` sans `platform_ref`, une seule différait — un GGUF du Hub tiré par Ollama, où `hf_id`
@@ -484,10 +484,13 @@ disait le modèle qu'il EST et `platform_ref` le dépôt d'où viennent ses poid
   `identity.base_model_relation`** (`adapter`, `finetune`, `merge`, `quantized`), en PAIRE, projetés
   dans `extra_info` au déclaré seulement (règle des publications) — `AIModel.quantized_base` les lit
   pour une quantification ; le `base_model` d'une LoRA reste celui de la déclaration de l'app ;
-- ⏳ restent, avec le corpus (624 occurrences dans `manifests/models`) : `identity.hf_id` (extraction
-  et projection, `builtin/model.py`), ses producteurs (`wama-dev-ai` : scout, `model_manifest`), la
-  copie `extra_info['hf_id']` de 10 modèles du transcriber et du synthesizer, puis la colonne
-  (migration). Budget figé par AST : `model_manager/tests/tests_platform_ref_only.HF_ID_BUDGET`.
+- ✅ le même jour, avec le corpus : `identity.hf_id` n'est plus ni extrait ni projeté
+  (`builtin/model.py`) et un manifeste qui le porte est REFUSÉ par le validateur
+  (`RETIRED_IDENTITY_FIELDS`), ses producteurs `wama-dev-ai` ne l'écrivent plus (et ôtent, par la
+  même liste, celui qu'un LLM nourri d'anciens exemples écrirait encore), la copie
+  `extra_info['hf_id']` de la découverte est partie, les 624 occurrences de `manifests/models` aussi,
+  puis la colonne (migration `model_manager/0031`, `REMOVAL_LEDGER` R181). Gardes :
+  `model_manager/tests/tests_platform_ref_only.py` (budget AST `HF_ID_BUDGET`, corpus, extraction).
 
 > ⚠ **Frontière propre au kind `model`, à ne pas calquer sur `library`.**
 > Une librairie se **déclare** ; un modèle se **découvre** — il existe parce que des poids sont sur
@@ -504,7 +507,7 @@ disait le modèle qu'il EST et `platform_ref` le dépôt d'où viennent ses poid
 > moteur) → catalogue, la découverte gardant les faits*.
 
 **2026-08-26 — `body.prompts.contract` rejoint les champs déclaratifs projetés** (avec
-`license`/`author`/`platform_ref`/`hf_id`) : le contrat de SORTIE du prompt attendu par le
+`license`/`author`/`platform_ref` — et `hf_id`, retiré le 2026-10-27) : le contrat de SORTIE du prompt attendu par le
 modèle (markdown, anglais — longueur, structure, sections, tags de paroles…), projeté vers
 `AIModel.prompt_contract` (colonne préservée par le sync — c'est PRÉCISÉMENT parce que
 `capabilities` est réécrit qu'il fallait une colonne). Consommé par l'enrichissement de

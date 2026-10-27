@@ -30,7 +30,6 @@
     "identity": {
       "author": "Resemble AI",
       "description_short": "Restauration par diffusion — débruitage + extension de bande, meilleure qualité",
-      "hf_id": null,
       "license": "mit",
       "model_type": "speech",
       "platform_ref": "github:resemble-ai/resemble-enhance",

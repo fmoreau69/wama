@@ -21,7 +21,6 @@
       }
     },
     "extra_info": {
-      "hf_id": "microsoft/VibeVoice-ASR",
       "vram_provenance": "declared"
     },
     "formats": {
@@ -33,7 +32,6 @@
       "author": "microsoft",
       "description_short": "VibeVoice-ASR — multi-locuteurs, précis, un seul passage. Diarisation + timestamps natifs.",
       "gated": "no",
-      "hf_id": "microsoft/VibeVoice-ASR",
       "license": "mit",
       "model_type": "speech",
       "platform_ref": "huggingface:microsoft/VibeVoice-ASR",

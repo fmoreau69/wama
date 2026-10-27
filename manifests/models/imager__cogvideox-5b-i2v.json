@@ -53,7 +53,6 @@
       "author": "Zhipu AI (Z.ai)",
       "description_short": "CogVideoX 5B — Image-to-Video",
       "gated": "no",
-      "hf_id": "THUDM/CogVideoX-5b-I2V",
       "license": "cogvideox-license",
       "model_type": "diffusion",
       "platform_ref": "huggingface:THUDM/CogVideoX-5b-I2V",

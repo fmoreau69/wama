@@ -51,7 +51,6 @@
       "author": "Qwen",
       "description_short": "Snapshot HF Qwen3-TTS-12Hz-1.7B-CustomVoice",
       "gated": "no",
-      "hf_id": "Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
       "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",

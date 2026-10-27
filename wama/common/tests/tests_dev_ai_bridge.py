@@ -516,12 +516,11 @@ class IdentityIsTheRequestedOneTest(SimpleTestCase):
 
     def test_another_models_identity_is_replaced_and_said(self):
         manifest = {'key': 'huggingface:kyutai/stt-2.6b-en',
-                    'body': {'identity': {'hf_id': 'kyutai/stt-2.6b-en'}}}
+                    'body': {'identity': {'platform_ref': 'huggingface:kyutai/stt-2.6b-en'}}}
         concerns = []
         self.role_utils.enforce_identity(manifest, self.KEY, self.HF, concerns)
-        self.assertEqual((self.KEY, self.HF, self.KEY),
-                         (manifest['key'], manifest['body']['identity']['hf_id'],
-                          manifest['body']['identity']['platform_ref']))
+        self.assertEqual((self.KEY, self.KEY),
+                         (manifest['key'], manifest['body']['identity']['platform_ref']))
         self.assertEqual(1, len(concerns))
         self.assertIn('stt-2.6b-en', concerns[0])
 
@@ -552,10 +551,21 @@ class IdentityIsTheRequestedOneTest(SimpleTestCase):
             self.assertEqual(['en', 'fr'], self.role_utils.card_languages('org/repo', folder))
 
     def test_the_right_identity_says_nothing(self):
-        manifest = {'key': self.KEY, 'body': {'identity': {'hf_id': self.HF}}}
+        manifest = {'key': self.KEY, 'body': {'identity': {'platform_ref': self.KEY}}}
         concerns = []
         self.role_utils.enforce_identity(manifest, self.KEY, self.HF, concerns)
         self.assertEqual([], concerns)
+
+    def test_a_retired_hf_id_written_by_the_llm_does_not_enter_the_identity(self):
+        manifest = {'key': self.KEY, 'body': {'identity': {'hf_id': self.HF, 'platform_ref': self.KEY}}}
+        self.role_utils.enforce_identity(manifest, self.KEY, self.HF, [])
+        self.assertEqual({'platform_ref': self.KEY}, manifest['body']['identity'])
+
+    def test_the_scout_drops_the_retired_hf_id_after_its_facts(self):
+        source = (DEV_AI / 'run_scout.py').read_text(encoding='utf-8')
+        self.assertNotIn("'hf_id'", source)
+        self.assertLess(source.index('for chemin, valeur in facts:'),
+                        source.index('drop_retired_identity(manifest)'))
 
     def test_the_model_role_imposes_it_before_the_engine_check(self):
         source = (DEV_AI / 'run_model_manifest.py').read_text(encoding='utf-8')

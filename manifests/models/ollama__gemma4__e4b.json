@@ -43,7 +43,6 @@
     "identity": {
       "author": "Google DeepMind",
       "description_short": "Ollama LLM (9.6 GB)",
-      "hf_id": null,
       "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "ollama:gemma4",

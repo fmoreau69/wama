@@ -27,7 +27,6 @@
     "identity": {
       "author": "Mindee",
       "description_short": "docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires",
-      "hf_id": null,
       "license": "apache-2.0",
       "model_type": "ocr",
       "platform_ref": "github:mindee/doctr",

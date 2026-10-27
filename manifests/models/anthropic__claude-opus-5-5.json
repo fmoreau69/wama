@@ -30,7 +30,6 @@
     "identity": {
       "author": null,
       "description_short": "API Anthropic (Claude) — modèle distant (image-text-to-text)",
-      "hf_id": null,
       "license": null,
       "model_type": "llm",
       "platform_ref": null,

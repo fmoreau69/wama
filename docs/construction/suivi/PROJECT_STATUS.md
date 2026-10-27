@@ -26203,7 +26203,7 @@ conformes au niveau pour chaque compte ; `administrators()` = les 3 admin ; en b
 groupes sont les quatre rôles métier. Domicile : `PROFILES_PERMISSIONS §1.10`. Aucun code touché.
 Restent de cette session (inchangés) : pousser, et les limites du bloc précédent.
 
-## §CLÔTURE — 2026-10-20→26, « ROUTAGE DES MODÈLES : PROVENANCE EXACTE, VOCABULAIRE DES SOURCES, IDENTITÉ PAR LE MANIFESTE » — ✅ LIVRÉ, ETA d'un distant comprise, `platform_ref` seul (étapes 1-3, 27/10) — 🔚 étape 4 avec les manifestes
+## §CLÔTURE — 2026-10-20→26, « ROUTAGE DES MODÈLES : PROVENANCE EXACTE, VOCABULAIRE DES SOURCES, IDENTITÉ PAR LE MANIFESTE » — ✅ LIVRÉ, ETA d'un distant comprise, `platform_ref` seul (étapes 1-4, 27/10) — 🔴 relancer (migration `0031`)
 
 Demande de Fabien : connaître la provenance EXACTE d'un modèle (« Claude API ou Claude
 abonnement »), le moins de choses écrites à la main, alignement parfait. Commits sur `dev`, non
@@ -26222,17 +26222,20 @@ modèle chaud ; migration `model_manager/0028`). ⚠ « Latent : 0 statistique d
 Reste à décider : l'asymétrie inverse des appelants « chargé par défaut » (§10). `hf_id` : étapes 1 à 3
 livrées le 27/10 (« Suite, 2026-10-27 » ci-dessous), la 4ᵉ part avec la session des manifestes.
 
-**🔚 POINT D'ENTRÉE (mis à jour à la clôture du 27/10)** : l'étape 4 de `hf_id`, AVEC la session des
-manifestes — retirer `identity.hf_id` (extraction, projection, producteurs scout et `model_manifest`), la
-copie `extra_info['hf_id']` de 10 modèles, puis la colonne ; régénérer le corpus. Mesure de départ :
-`tests_platform_ref_only.HF_ID_BUDGET` (15 sites, 6 fichiers), à faire descendre à 0.
+**🔚 POINT D'ENTRÉE (mis à jour le 27/10, après l'étape 4)** : ~~l'étape 4 de `hf_id`~~ — ✅ livrée
+(« Suite, étape 4 » ci-dessous). 🔴 La relance du parc applique la migration `model_manager/0031`
+(colonne retirée) : à faire VITE — tant qu'elle n'a pas tourné, un processus du code neuf qui CRÉE
+une ligne `AIModel` échoue (colonne NOT NULL sans défaut en base). Après la relance : revérifier
+`manifest_export --check --kind model` (les 10 lignes transcriber / synthesizer ne doivent plus être
+périmées) et la page servie.
 Décisions ouvertes : appelants « chargé par défaut » de l'ETA (§10) ; regrouper la paire GitHub
 `github_platform_ref` / `github_ref_of_platform` à côté de la paire HF (`external_sources`).
 
 **Pendings système** : 🔴 relancer gunicorn + workers — le Python de `4e251275` et `25b88679` (et,
 avant eux, `2e0a9533`, `699d5786`, `cf43dcbc`) n'est servi qu'à moitié : la relance de 01:26 a pris
 l'arbre au milieu du chantier, et des modules importés plus tard viennent du code neuf (worker MIXTE,
-constaté à 02:08). Migrations `model_manager/0029` et `0030` APPLIQUÉES. Pousser. Migration `model_manager/0027` (sans SQL) APPLIQUÉE,
+constaté à 02:08). Migrations `model_manager/0029` et `0030` APPLIQUÉES ; `0031` (étape 4) À
+APPLIQUER par la relance. Pousser. Migration `model_manager/0027` (sans SQL) APPLIQUÉE,
 gitignorée comme toutes. Données posées par la route : 26 identités (`backfill_platform_refs
 --ecrire`, par le manifeste) ; 2 lignes supprimées (`retire_unlisted('albert')`).
 
@@ -26310,6 +26313,22 @@ fichier, clé, découverte) → la clé se DÉRIVE de l'origine, la source de la
 Consigné sans geste : la paire GitHub `github_platform_ref` / `github_ref_of_platform` vit dans
 `model_installer`, la paire HF dans `external_sources` — même nature, deux modules (antérieure ;
 la regrouper déplacerait la logique des versions).
+
+**Suite, 2026-10-27 — étape 4 : `hf_id` RETIRÉ, avec les manifestes** (Fabien : « terminer l'étape
+4 puis on clôture »). `identity.hf_id` n'est plus extrait ni projeté (`builtin/model.py`) ; le
+validateur du kind REFUSE un manifeste qui le porte (`RETIRED_IDENTITY_FIELDS`, domicile unique,
+que les rôles wama-dev-ai lisent pour ôter celui qu'un LLM nourri d'anciens exemples écrirait —
+`role_utils.drop_retired_identity`) ; le scout et `model_manifest` ne l'écrivent plus ; la
+découverte n'écrit plus la copie `extra_info['hf_id']` (transcriber, higgs-audio, kokoro) ; la
+colonne et son index partent (migration `model_manager/0031`, qui nettoie aussi la copie en base et
+les 7 manifestes `model` STOCKÉS de `common.Manifest` — aucune proposition en attente n'en portait).
+Corpus : 624 occurrences retirées des 614 fichiers de `manifests/models/` — dans l'arbre (348
+suivis, et les 266 NON SUIVIS d'une régénération du 26/10 qui n'est pas la mienne : leurs autres
+changements restent intacts) et sur les blobs de HEAD (commit = HEAD + ce seul retrait). Budget AST
+`HF_ID_BUDGET` : 15 sites → 1 (la liste des champs retirés). R181.
+⚠ Trois jumelles NON SUIVIES (`imager_01`, `transcriber_01`, `avatarizer_01`) recopient le code
+d'avant le 27/10 (`hf_id=`, `QwenASRBackend.hf_id_for`) : décalées depuis les étapes 1-3, à
+régénérer — pas portées à la main.
 
 ## §PALIER 2026-10-26 (soir) — EMPILER des briques en un panneau, ÉPINGLER à QUATRE bords — non poussé — 🔴 relancer gunicorn, puis Ctrl+F5
 

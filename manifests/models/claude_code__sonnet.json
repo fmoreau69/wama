@@ -30,7 +30,6 @@
     "identity": {
       "author": null,
       "description_short": "Le plus récent Claude Sonnet, par l'alias « sonnet » de Claude Code.",
-      "hf_id": null,
       "license": null,
       "model_type": "llm",
       "platform_ref": null,

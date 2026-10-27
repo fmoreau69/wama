@@ -3355,11 +3355,14 @@ Migration `model_manager/0029` (données, réversible) : la paire `base_model` p
 clé des variantes de 62 candidats. ⚠ À appliquer AVEC la relance du parc (le code d'avant lit
 `quant_variants[*]['hf_id']`).
 
-⏳ **Reste, avec la session des manifestes** : `identity.hf_id` (624 occurrences au corpus), son
-extraction et sa projection, ses producteurs (scout, `model_manifest`), la copie
-`extra_info['hf_id']` de 10 modèles, puis la colonne. Mesuré et figé par AST :
-`tests_platform_ref_only.HF_ID_BUDGET` (15 sites dans 6 fichiers, budget qui ne peut que
-descendre). Doctrine : `WAMA_MANIFEST_SPEC §7.1 bis`.
+✅ **Étape 4, le même jour, avec les manifestes** (Fabien : « terminer l'étape 4 ») : `identity.hf_id`
+n'est plus extrait ni projeté et le validateur du kind le REFUSE (`builtin.model.RETIRED_IDENTITY_FIELDS`),
+le scout et `model_manifest` ne l'écrivent plus (et ôtent celui qu'un LLM écrirait encore,
+`role_utils.drop_retired_identity`, même liste), la copie `extra_info['hf_id']` de la
+découverte est partie, les 624 occurrences du corpus aussi, puis la colonne et son index (migration
+`model_manager/0031`, appliquée à la relance ; `REMOVAL_LEDGER` R181). Budget AST
+`tests_platform_ref_only.HF_ID_BUDGET` : 15 sites → 1 (la liste des champs retirés, dans le kind). Doctrine :
+`WAMA_MANIFEST_SPEC §7.1 bis`.
 
 **Même jour — `custom` rangé** (Fabien : « il faut corriger le rangement ») : LPIPS et les gestes de
 la main, modèles de briques communes, passent sous la source de leurs fichiers déclarés

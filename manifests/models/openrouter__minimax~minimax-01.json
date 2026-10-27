@@ -35,7 +35,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (image-text-to-text)",
-      "hf_id": "MiniMaxAI/MiniMax-Text-01",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:MiniMaxAI/MiniMax-Text-01",

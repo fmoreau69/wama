@@ -34,7 +34,6 @@
     "identity": {
       "author": "Sefik Ilkin Serengil",
       "description_short": "Estimation de genre — chargé seulement si « Âge & Genre » est activé",
-      "hf_id": null,
       "license": "mit",
       "model_type": "vision",
       "platform_ref": "github:serengil/deepface_models",

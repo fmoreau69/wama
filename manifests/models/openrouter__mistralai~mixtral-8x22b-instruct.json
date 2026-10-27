@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "mistralai/Mixtral-8x22B-Instruct-v0.1",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Mixtral-8x22B-Instruct-v0.1",

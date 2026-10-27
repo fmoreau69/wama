@@ -36,7 +36,6 @@
     "identity": {
       "author": "Phhofm",
       "description_short": "Version GitHub 1xgaterv3_r_restore",
-      "hf_id": null,
       "license": "CC BY 4.0",
       "model_type": "upscaling",
       "platform_ref": "github:Phhofm/models/releases/tag/1xgaterv3_r_restore",

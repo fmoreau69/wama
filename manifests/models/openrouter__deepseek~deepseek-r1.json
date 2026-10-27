@@ -30,7 +30,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "deepseek-ai/DeepSeek-R1",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:deepseek-ai/DeepSeek-R1",

@@ -30,7 +30,6 @@
     "identity": {
       "author": null,
       "description_short": "RT-DETR v2 — plaques d'immatriculation (transformers).",
-      "hf_id": "justjuu/rtdetr-v2-license-plate-detection",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:justjuu/rtdetr-v2-license-plate-detection",

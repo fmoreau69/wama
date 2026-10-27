@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "Reconstruction mono-image → maillage 3D texturé (LRM, ~0,5 s/objet sur GPU), MIT",
-      "hf_id": "stabilityai/TripoSR",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:stabilityai/TripoSR",

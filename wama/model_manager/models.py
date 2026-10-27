@@ -664,17 +664,9 @@ class AIModel(ScopedVisibility):
     description = models.TextField(blank=True, default='')
     description_short = models.CharField(max_length=255, blank=True, default='')
 
-    # RÉSIDU (2026-10-27) : le dépôt du Hub écrit à part, né avant `platform_ref`, qui le généralise
-    # à toutes les plateformes. Plus AUCUN lecteur : le dépôt se lit par `hf_repo`, le modèle
-    # canonique d'une quantification par `quantized_base`. Seuls l'écrivent encore la projection du
-    # manifeste (`identity.hf_id`, 624 occurrences au corpus) et l'extraction ; la colonne part avec
-    # eux, dans la session des manifestes (décision de Fabien).
-    hf_id = models.CharField(
-        max_length=255,
-        blank=True,
-        default='',
-        help_text="HuggingFace model ID (e.g., 'Wan-AI/Wan2.2-T2V')"
-    )
+    # (`hf_id`, le dépôt du Hub écrit à part avant `platform_ref`, est RETIRÉ le 2026-10-27 — migration
+    # `0031`, `REMOVAL_LEDGER` R181 : le dépôt se lit par `hf_repo`, le modèle canonique d'une
+    # quantification par `quantized_base`.)
 
     # Resource requirements
     vram_gb = models.FloatField(default=0, help_text="Estimated VRAM in GB")
@@ -845,7 +837,6 @@ class AIModel(ScopedVisibility):
         indexes = [
             models.Index(fields=['source', 'model_type']),
             models.Index(fields=['is_downloaded', 'is_available']),
-            models.Index(fields=['hf_id']),
             models.Index(fields=['updated_at']),
         ]
 

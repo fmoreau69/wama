@@ -54,7 +54,6 @@
       "author": "Qwen",
       "description_short": "Qwen Image Edit — édition multi-image, 14 images, 2K",
       "gated": "no",
-      "hf_id": "Qwen/Qwen-Image-Edit-2511",
       "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:Qwen/Qwen-Image-Edit-2511",

@@ -34,7 +34,6 @@
     "identity": {
       "author": null,
       "description_short": "Albert API (DINUM) — modèle distant (text-generation)",
-      "hf_id": "Qwen/Qwen3-Coder-30B-A3B-Instruct",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Qwen/Qwen3-Coder-30B-A3B-Instruct",

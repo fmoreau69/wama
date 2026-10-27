@@ -85,7 +85,6 @@
     "identity": {
       "author": null,
       "description_short": "CodeFormer — restauration de visage (option qualité supérieure, use_enhancer).",
-      "hf_id": "sczhou/CodeFormer",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:sczhou/CodeFormer",

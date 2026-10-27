@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "zai-org/GLM-5",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:zai-org/GLM-5",

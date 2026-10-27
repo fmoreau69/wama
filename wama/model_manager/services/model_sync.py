@@ -381,8 +381,8 @@ class ModelSyncService:
         # (`license` n'a jamais été dans `defaults` — il survivait déjà.)
         # `platform_ref` remplace `hf_id` ici (2026-10-27, décision de Fabien : « ne garder que
         # `platform_ref` ») : c'est le même fait, que la déclaration porte désormais sous ce nom —
-        # écrit quand la découverte le DIT, jamais effacé par son silence. La colonne `hf_id` n'est
-        # plus écrite que par la projection du manifeste, et part avec elle.
+        # écrit quand la découverte le DIT, jamais effacé par son silence. La colonne `hf_id` est
+        # retirée avec `identity.hf_id` des manifestes (migration `0031`, `REMOVAL_LEDGER` R181).
         if model_info.platform_ref:
             defaults['platform_ref'] = model_info.platform_ref
         # A priori DÉCLARÉ avec sa source (`model_quality.DECLARED_PRIORS`, 2026-10-03) quand la

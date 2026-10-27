@@ -53,7 +53,6 @@
     "identity": {
       "author": null,
       "description_short": "FastWan 2.2 TI2V 5B — distillé 3 pas",
-      "hf_id": "FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",
       "license": null,
       "model_type": "diffusion",
       "platform_ref": "huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers",

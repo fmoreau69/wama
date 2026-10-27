@@ -45,7 +45,6 @@
       }
     },
     "extra_info": {
-      "hf_id": "nvidia/canary-1b-v2",
       "vram_measured": {
         "at": "2026-09-29T19:26:32+00:00",
         "last_gb": 9.59,
@@ -62,7 +61,6 @@
     "identity": {
       "author": null,
       "description_short": "Canary 1B v2 (NVIDIA) — 25 langues européennes, meilleur banc FR ouvert",
-      "hf_id": "nvidia/canary-1b-v2",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:nvidia/canary-1b-v2",

@@ -52,7 +52,6 @@
     "identity": {
       "author": null,
       "description_short": "TalkingHead — avatar 3D riggé (GLB) animé par l'audio, rendu image par image ; rapide, sans modèle génératif, non photoréaliste.",
-      "hf_id": null,
       "license": null,
       "model_type": "lipsync",
       "platform_ref": null,

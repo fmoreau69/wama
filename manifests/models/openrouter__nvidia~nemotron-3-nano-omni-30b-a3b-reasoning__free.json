@@ -35,7 +35,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (image-text-to-text)",
-      "hf_id": "nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-BF16",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-BF16",

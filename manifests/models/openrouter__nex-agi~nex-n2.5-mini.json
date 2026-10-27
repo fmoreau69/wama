@@ -35,7 +35,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (image-text-to-text)",
-      "hf_id": "nex-agi/Nex-N2.5-mini",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:nex-agi/Nex-N2.5-mini",

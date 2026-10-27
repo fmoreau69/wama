@@ -152,7 +152,6 @@
       "author": "TMElyralab",
       "description_short": "Lip-sync pipeline v1.5 (UNet + Whisper + SD-VAE + DWPose + S3FD + BiSeNet)",
       "gated": "no",
-      "hf_id": "TMElyralab/MuseTalk",
       "license": "creativeml-openrail-m",
       "model_type": "lipsync",
       "platform_ref": "huggingface:TMElyralab/MuseTalk",

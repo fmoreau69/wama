@@ -33,7 +33,6 @@
       "author": "nvidia",
       "description_short": "Snapshot HF LocateAnything-3B — installé, en attente d'intégration",
       "gated": "no",
-      "hf_id": "nvidia/LocateAnything-3B",
       "license": "other",
       "model_type": "vision",
       "platform_ref": "huggingface:nvidia/LocateAnything-3B",

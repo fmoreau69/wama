@@ -23,7 +23,6 @@
       }
     },
     "extra_info": {
-      "hf_id": "jonatasgrosman/wav2vec2-large-xlsr-53-french",
       "vram_measured": {
         "at": "2026-10-03T20:47:18+00:00",
         "last_gb": 0.59,
@@ -40,7 +39,6 @@
     "identity": {
       "author": null,
       "description_short": "Aligne un texte connu sur l'audio, mot à mot — ne transcrit pas.",
-      "hf_id": "jonatasgrosman/wav2vec2-large-xlsr-53-french",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:jonatasgrosman/wav2vec2-large-xlsr-53-french",

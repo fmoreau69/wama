@@ -147,7 +147,6 @@ def exemples() -> str:
 CHEMINS_DIFF = (
     ('body', 'identity', 'license'),
     ('body', 'identity', 'author'),
-    ('body', 'identity', 'hf_id'),
     ('body', 'identity', 'model_type'),
     ('body', 'identity', 'source'),
     ('body', 'formats', 'format'),
@@ -201,7 +200,7 @@ def main():
     else:
         enforce_identity(manifest, f'huggingface:{args.hf}', args.hf, concerns)
     # Fait mécanique sur le moteur (partagé avec le scout) : `diffusers` doit être PROUVÉ.
-    # Le dépôt se lit sur `platform_ref` (2026-10-27) : `identity.hf_id` part avec les manifestes.
+    # Le dépôt se lit sur `platform_ref` (2026-10-27, `identity.hf_id` retiré du formalisme).
     from wama.common.external_sources import hf_repo
     repo_id = hf_repo(_lire(manifest, ('body', 'identity', 'platform_ref')))
     # Les langues que la FICHE déclare (le snapshot installé d'abord) — 2026-10-01, Kyutai.

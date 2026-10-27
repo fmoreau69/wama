@@ -36,7 +36,6 @@
     "identity": {
       "author": "Phhofm",
       "description_short": "Version GitHub 4xNomosUni_span_multijpg",
-      "hf_id": null,
       "license": "CC BY 4.0",
       "model_type": "upscaling",
       "platform_ref": "github:Phhofm/models/releases/tag/4xNomosUni_span_multijpg",

@@ -32,7 +32,6 @@
     "identity": {
       "author": null,
       "description_short": "Gestes de la main à la webcam (scènes 3D)",
-      "hf_id": null,
       "license": null,
       "model_type": "vision",
       "platform_ref": null,

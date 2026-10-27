@@ -48,7 +48,6 @@
     "identity": {
       "author": "Bartholomheow",
       "description_short": "Snapshot HF Supra2-IMG-ONNX",
-      "hf_id": "Bartholomheow/Supra2-IMG-ONNX",
       "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:Bartholomheow/Supra2-IMG-ONNX",

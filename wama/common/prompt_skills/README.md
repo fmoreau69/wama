@@ -120,7 +120,7 @@ MusicGen vit dans `composer-music.md`).
 **CÂBLÉ le 2026-08-26** (même session que la doctrine, validé Fabien) — la chaîne complète :
 - `AIModel.prompt_contract` (migration 0014) : colonne DÉCLARATIVE, préservée par le sync ;
 - manifeste `model` : `body.prompts.contract` validé, extrait et projeté (`write_back_model`,
-  aux côtés de `license`/`author`/`platform_ref`/`hf_id`) ;
+  aux côtés de `license`/`author`/`platform_ref`) ;
 - `app_metadata._resolve_model` rapporte le contrat AVEC les capacités (même lecture du même
   modèle cible) → `process_prompt(prompt_contract=)` → `prompt_enrichment.build_system` l'ajoute
   APRÈS le skill, avec la clause « il PRIME sur toute règle de longueur/format du skill » ;

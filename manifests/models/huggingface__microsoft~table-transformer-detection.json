@@ -29,7 +29,6 @@
       "author": "microsoft",
       "description_short": "Snapshot HF table-transformer-detection",
       "gated": "no",
-      "hf_id": "microsoft/table-transformer-detection",
       "license": "mit",
       "model_type": "vision",
       "platform_ref": "huggingface:microsoft/table-transformer-detection",

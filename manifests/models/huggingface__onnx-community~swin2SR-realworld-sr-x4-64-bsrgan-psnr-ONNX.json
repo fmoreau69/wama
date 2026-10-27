@@ -36,7 +36,6 @@
     "identity": {
       "author": "onnx-community",
       "description_short": "Snapshot HF swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
-      "hf_id": "onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
       "license": "apache-2.0",
       "model_type": "upscaling",
       "platform_ref": "huggingface:onnx-community/swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",

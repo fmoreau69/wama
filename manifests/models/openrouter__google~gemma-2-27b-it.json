@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "google/gemma-2-27b-it",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:google/gemma-2-27b-it",

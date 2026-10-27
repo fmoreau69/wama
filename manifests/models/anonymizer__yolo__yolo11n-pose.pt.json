@@ -37,7 +37,6 @@
     "identity": {
       "author": "Ultralytics",
       "description_short": "YOLO pose",
-      "hf_id": null,
       "license": "agpl-3.0",
       "model_type": "vision",
       "platform_ref": "github:ultralytics/assets",

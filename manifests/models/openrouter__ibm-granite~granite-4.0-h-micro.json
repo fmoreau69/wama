@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "ibm-granite/granite-4.0-h-micro",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:ibm-granite/granite-4.0-h-micro",

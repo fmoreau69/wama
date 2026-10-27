@@ -37,7 +37,6 @@
     "identity": {
       "author": null,
       "description_short": "YOLO detect (faces)",
-      "hf_id": null,
       "license": null,
       "model_type": "vision",
       "platform_ref": null,

@@ -33,6 +33,12 @@ def _model_sources() -> set:
     return set(ModelSource.values)
 
 
+#: Champs d'identité RETIRÉS du formalisme — `hf_id` le 2026-10-27 (`platform_ref` seul, R181). Un
+#: manifeste qui en porte un est REFUSÉ : il ne serait plus lu par personne, et un LLM nourri
+#: d'anciens exemples peut encore l'écrire (les rôles wama-dev-ai l'ôtent par cette même liste).
+RETIRED_IDENTITY_FIELDS = ('hf_id',)
+
+
 def validate_model_body(body: dict) -> list[str]:
     errs: list[str] = []
     if not isinstance(body, dict):
@@ -42,6 +48,9 @@ def validate_model_body(body: dict) -> list[str]:
     if not isinstance(ident, dict):
         errs.append("identity doit être un dict")
     else:
+        for field in RETIRED_IDENTITY_FIELDS:
+            if field in ident:
+                errs.append(f"identity.{field} est retiré du formalisme : déclarer identity.platform_ref")
         mt = ident.get('model_type')
         if mt and mt not in _model_types():
             errs.append(f"identity.model_type '{mt}' hors ModelType ({', '.join(sorted(_model_types()))})")
@@ -211,7 +220,6 @@ def extract_model(key: str) -> Optional[dict]:
         'identity': {
             'model_type': m.model_type,
             'source': m.source,
-            'hf_id': m.hf_id or None,
             # Licence et identite plateforme : declarees ici, projetees dans AIModel.
             # L'URL de la page n'est PAS portee — elle se derive de `platform_ref`
             # (AIModel.platform_url), sinon un changement de schema d'adresse chez une
@@ -348,11 +356,6 @@ _CHAMPS_PROJETES = [
     ('license', lambda m, b: (b.get('identity') or {}).get('license') or ''),
     ('author', lambda m, b: (b.get('identity') or {}).get('author') or ''),
     ('platform_ref', lambda m, b: (b.get('identity') or {}).get('platform_ref') or ''),
-    # `hf_id` rejoint les champs projetés (2026-08-12) : c'est un fait d'identité de PLATEFORME,
-    # de la même nature que `platform_ref`, et la découverte ne sait pas le produire pour les
-    # modèles trouvés par scan disque. Il n'était pas projetable tant que `model_sync` le
-    # remettait à vide à chaque passe — ce n'est plus le cas.
-    ('hf_id', lambda m, b: (b.get('identity') or {}).get('hf_id') or ''),
     # Contrat de sortie du prompt (2026-08-26) : fait déclaré de même nature que `license` —
     # la découverte ne peut pas le produire, et `capabilities` (réécrit par le sync) ne peut
     # pas le porter. Injecté au system prompt d'enrichissement (prompt_enrichment).
@@ -442,7 +445,7 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     AIModel depuis un manifeste fabriquerait un modele fantome, sans fichier, que la selection
     pourrait retenir. Si la cible est absente, on le DIT et on ne fait rien.
 
-    Projette les champs DECLARATIFS (`_CHAMPS_PROJETES` : licence, auteur, plateforme, hf_id,
+    Projette les champs DECLARATIFS (`_CHAMPS_PROJETES` : licence, auteur, plateforme,
     contrat de prompt), `gated`, `composition`, les publications et le modèle de base seulement
     s'ils sont DECLARES (leur vide est une absence de mesure, pas une valeur), et `capabilities`
     par FUSION clé par clé

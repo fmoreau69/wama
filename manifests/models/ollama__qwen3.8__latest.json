@@ -41,7 +41,6 @@
     "identity": {
       "author": "Qwen team, Alibaba",
       "description_short": "Ollama LLM (17 GB)",
-      "hf_id": null,
       "license": "apache-2.0",
       "model_type": "llm",
       "platform_ref": "ollama:qwen3.8",

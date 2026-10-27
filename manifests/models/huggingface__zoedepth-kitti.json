@@ -26,7 +26,6 @@
     "identity": {
       "author": null,
       "description_short": "Profondeur monoculaire entraînée sur de la conduite (KITTI), natif transformers (MIT)",
-      "hf_id": "Intel/zoedepth-kitti",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:Intel/zoedepth-kitti",

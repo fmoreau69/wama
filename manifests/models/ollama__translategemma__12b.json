@@ -40,7 +40,6 @@
     "identity": {
       "author": "Google",
       "description_short": "Ollama LLM (8.1 GB)",
-      "hf_id": null,
       "license": "gemma-terms",
       "model_type": "llm",
       "platform_ref": "ollama:translategemma",

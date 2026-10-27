@@ -59,7 +59,6 @@
       "author": "stabilityai",
       "description_short": "Stable Diffusion XL — haute résolution (compatibilité LoRA)",
       "gated": "no",
-      "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",
       "license": "openrail++",
       "model_type": "diffusion",
       "platform_ref": "huggingface:stabilityai/stable-diffusion-xl-base-1.0",

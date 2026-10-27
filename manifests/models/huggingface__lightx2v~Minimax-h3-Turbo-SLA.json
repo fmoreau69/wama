@@ -27,7 +27,6 @@
     "identity": {
       "author": "lightx2v",
       "description_short": "Snapshot HF Minimax-h3-Turbo-SLA",
-      "hf_id": "lightx2v/Minimax-h3-Turbo-SLA",
       "license": "apache-2.0",
       "model_type": "diffusion",
       "platform_ref": "huggingface:lightx2v/Minimax-h3-Turbo-SLA",

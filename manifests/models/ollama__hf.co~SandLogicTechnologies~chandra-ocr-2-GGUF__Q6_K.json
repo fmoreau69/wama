@@ -44,7 +44,6 @@
     "identity": {
       "author": null,
       "description_short": "Ollama LLM (4.8 GB)",
-      "hf_id": "SandLogicTechnologies/chandra-ocr-2-GGUF",
       "license": null,
       "model_type": "ocr",
       "platform_ref": "huggingface:SandLogicTechnologies/chandra-ocr-2-GGUF",

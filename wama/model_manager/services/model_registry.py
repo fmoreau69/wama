@@ -1673,9 +1673,6 @@ class ModelRegistry:
             for model_id, config in TRANSCRIBER_MODELS.items():
                 platform_ref = config.get('platform_ref') or ''
                 repo_id = hf_repo(platform_ref)
-                # `extra_info['hf_id']` : copie du dépôt que les manifestes du corpus portent encore —
-                # elle part avec `identity.hf_id`, dans la session des manifestes (2026-10-27).
-                hf_copy = {'hf_id': repo_id}
                 size_gb = config.get('size_gb', 0.5)
                 vram_gb = config.get('vram_gb', size_gb)
 
@@ -1698,7 +1695,7 @@ class ModelRegistry:
                     # `install_dir` (2026-09-28) : ce que `spec_for_catalog_row` exige pour le geste
                     # « Installer » (bouton et outil `install_model` de l'assistant) — le transcriber
                     # ne le déclarait pas, essai de l'assistant du 28/09 : « no_install_location ».
-                    extra = {**hf_copy, 'path': str(vibevoice_dir),
+                    extra = {'path': str(vibevoice_dir),
                              'install_dir': str(vibevoice_dir)}
 
                 elif model_id.startswith('qwen3-asr-'):
@@ -1706,7 +1703,7 @@ class ModelRegistry:
                     is_downloaded = _check_hf_model_downloaded(qwen_asr_dir, repo_id)
                     name = repo_id.split('/')[-1]   # "Qwen3-ASR-0.6B" / "Qwen3-ASR-1.7B"
                     fmt = 'safetensors'
-                    extra = {**hf_copy, 'path': str(qwen_asr_dir),
+                    extra = {'path': str(qwen_asr_dir),
                              'install_dir': str(qwen_asr_dir)}
 
                 elif config.get('engine') == 'nemo':
@@ -1717,7 +1714,7 @@ class ModelRegistry:
                     is_downloaded = _check_hf_model_downloaded(nemo_dir, repo_id)
                     name = repo_id.split('/')[-1]
                     fmt = 'nemo'
-                    extra = {**hf_copy, 'path': str(nemo_dir), 'install_dir': str(nemo_dir)}
+                    extra = {'path': str(nemo_dir), 'install_dir': str(nemo_dir)}
 
                 elif model_id == 'pyannote-diarization':
                     # La RECETTE (config.yaml, 0 octet de poids) ; ses poids sont ses
@@ -1728,7 +1725,7 @@ class ModelRegistry:
                                                                weights_required=False)
                     name = "pyannote 3.1 (diarisation)"
                     fmt = 'pytorch'
-                    extra = {**hf_copy, 'path': str(diarization_dir),
+                    extra = {'path': str(diarization_dir),
                              'install_dir': str(diarization_dir)}
 
                 elif config.get('type') == 'alignment':
@@ -1737,7 +1734,7 @@ class ModelRegistry:
                     is_downloaded = _check_hf_model_downloaded(Path(ALIGNMENT_DIR), repo_id)
                     name = f"{repo_id.split('/')[-1]} (alignement)"
                     fmt = 'safetensors'
-                    extra = {**hf_copy, 'path': str(ALIGNMENT_DIR),
+                    extra = {'path': str(ALIGNMENT_DIR),
                              'install_dir': str(ALIGNMENT_DIR)}
                 # ⚠ Whisper ne reçoit PAS d'`install_dir` : sa ligne déclare `openai/whisper-large-v3`
                 # quand le moteur charge `Systran/faster-whisper-*` — installer depuis la ligne
@@ -1774,7 +1771,7 @@ class ModelRegistry:
                             else str(whisper_dir / f"models--Systran--faster-whisper-{variant}") if hf_ok
                             else str(ct2_dir_v) if ct2_dir_v.exists()
                             else str(ct2_dir))
-                    extra = {**hf_copy, 'path': path if is_downloaded else ''}
+                    extra = {'path': path if is_downloaded else ''}
 
                 # Capacités CANONIQUES — LUES sur `_cls` (lot 4b, 2026-08-20), la même classe
                 # backend qui sert déjà de « SOURCE UNIQUE » aux descriptions 60 lignes plus haut.
@@ -1852,11 +1849,6 @@ class ModelRegistry:
 
             def _synth_ref(key):
                 return _SYNTH_MODELS.get(key, {}).get('platform_ref') or None
-
-            def _synth_hf_copy(key):
-                """`extra_info['hf_id']` : copie du dépôt que les manifestes du corpus portent
-                encore — elle part avec `identity.hf_id`, dans la session des manifestes."""
-                return hf_repo(_synth_ref(key)) or None
 
             def _synth_languages(key):
                 """Langues DÉCLARÉES par l'app, plus jamais réécrites ici (2026-08-29).
@@ -2069,8 +2061,7 @@ class ModelRegistry:
                 format='safetensors',
                 preferred_format=preferred,
                 can_convert_to=[],
-                extra_info={'hf_id': _synth_hf_copy('higgs-audio'),
-                            'path': str(higgs_dir)},
+                extra_info={'path': str(higgs_dir)},
                 capabilities=_tts_caps(
                     engine_key='higgs-audio',  # clonage LU sur HiggsAudioBackend
                     languages=_synth_languages('higgs-audio'),
@@ -2103,7 +2094,7 @@ class ModelRegistry:
                 # il s'INSTALLE — onnx-community/Kokoro-82M-v1.0-ONNX via la prospection
                 # (l'export local d'un KPipeline n'est pas un geste générique).
                 can_convert_to=['safetensors'],
-                extra_info={'hf_id': _synth_hf_copy('kokoro'), 'path': str(kokoro_dir)},
+                extra_info={'path': str(kokoro_dir)},
                 capabilities=_tts_caps(
                     engine_key='kokoro',       # clonage + HORODATAGE lus sur KokoroBackend
                     languages=_synth_languages('kokoro'),

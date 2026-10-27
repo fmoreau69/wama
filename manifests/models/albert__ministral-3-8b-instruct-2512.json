@@ -49,7 +49,6 @@
     "identity": {
       "author": null,
       "description_short": "Albert API (DINUM) — modèle distant (image-text-to-text)",
-      "hf_id": "mistralai/Ministral-3-8B-Instruct-2512",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:mistralai/Ministral-3-8B-Instruct-2512",

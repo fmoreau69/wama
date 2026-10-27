@@ -37,7 +37,6 @@
     "identity": {
       "author": "BAAI",
       "description_short": "Ollama LLM (1.2 GB)",
-      "hf_id": null,
       "license": "mit",
       "model_type": "embedding",
       "platform_ref": "ollama:bge-m3",

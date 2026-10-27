@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "CohereForAI/c4ai-command-a-03-2025",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:CohereForAI/c4ai-command-a-03-2025",

@@ -6627,9 +6627,9 @@ fausses mesurées dans le corpus : transcriber, reader et describer en `data`, c
 >   — le dépôt d'un modèle se lit par UNE règle, `external_sources.hf_repo(platform_ref)` ; `hf_id`
 >   n'a plus de lecteur, les déclarations d'app et de moteur disent `platform_ref` (trois noms
 >   avant : `hf_id`, `hf_model_id`, `model_id`), et le canonique d'un GGUF a le nom de la carte du
->   Hub, `base_model` + `base_model_relation: quantized` (`AIModel.quantized_base`). ⏳ La colonne et
->   `identity.hf_id` partent avec la session des manifestes (`WAMA_MANIFEST_SPEC §7.1 bis`, R179,
->   budget AST `tests_platform_ref_only.HF_ID_BUDGET`).
+>   Hub, `base_model` + `base_model_relation: quantized` (`AIModel.quantized_base`). ✅ La colonne et
+>   `identity.hf_id` sont partis le même jour avec le corpus (étape 4 : `WAMA_MANIFEST_SPEC §7.1 bis`,
+>   R179 + R181, migration `model_manager/0031`, budget AST `tests_platform_ref_only.HF_ID_BUDGET`).
 >   🗂️ **`custom` RANGÉ, même jour** (Fabien : « il faut corriger le rangement ») — « chaque valeur,
 >   `custom` mis à part, est la clé d'une déclaration » n'a plus d'exception : un modèle de BRIQUE
 >   se range sous la source d'où viennent ses fichiers déclarés (`pytorch_download:lpips-alexnet`,

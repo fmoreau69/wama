@@ -35,7 +35,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (image-text-to-text)",
-      "hf_id": "google/gemma-3-12b-it",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:google/gemma-3-12b-it",

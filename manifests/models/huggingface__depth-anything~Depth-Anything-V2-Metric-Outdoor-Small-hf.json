@@ -18,7 +18,6 @@
     "identity": {
       "author": null,
       "description_short": "Snapshot HF Depth-Anything-V2-Metric-Outdoor-Small-hf",
-      "hf_id": "depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",
       "license": null,
       "model_type": "vision",
       "platform_ref": "huggingface:depth-anything/Depth-Anything-V2-Metric-Outdoor-Small-hf",

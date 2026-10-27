@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-FP8",

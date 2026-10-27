@@ -183,6 +183,18 @@ def signal_weight_formats(repo_id, concerns, lister=repo_files):
     return by_ext
 
 
+def drop_retired_identity(manifest):
+    """Retire du manifeste d'un rôle les champs d'identité que le formalisme a retirés
+    (`builtin.model.RETIRED_IDENTITY_FIELDS`, que le validateur du kind refuse) — fait mécanique :
+    l'identité est imposée, un reste d'ancien exemple n'y entre pas."""
+    from wama.common.manifests.builtin.model import RETIRED_IDENTITY_FIELDS
+    identity = (manifest.get('body') or {}).get('identity')
+    if isinstance(identity, dict):
+        for field in RETIRED_IDENTITY_FIELDS:
+            identity.pop(field, None)
+    return manifest
+
+
 def enforce_identity(manifest, key, repo_id, concerns, platform_ref=None):
     """La clé et l'identité du manifeste sont celles du modèle DEMANDÉ — jamais celles que le LLM
     a écrites.
@@ -198,11 +210,11 @@ def enforce_identity(manifest, key, repo_id, concerns, platform_ref=None):
     identity = body.setdefault('identity', {})
     ref = platform_ref or key
     wrong = [f"{name} {value!r}" for name, value, expected in (
-        ('clé', manifest.get('key'), key), ('hf_id', identity.get('hf_id'), repo_id),
+        ('clé', manifest.get('key'), key),
         ('platform_ref', identity.get('platform_ref'), ref)) if value and value != expected]
     manifest['key'] = key
-    identity['hf_id'] = repo_id
     identity['platform_ref'] = ref
+    drop_retired_identity(manifest)
     if wrong:
         # Le NOM suit l'identité fautive (« stt-2.6b-en » pour stt-1b-en_fr-trfs, même run) :
         # il redevient celui du dépôt demandé.
@@ -615,7 +627,7 @@ def vendored_libraries() -> list:
 
 def vendor_loader_defaults(engine_dir, repo_id) -> list:
     """`[(argument, dépôt HF)]` lus par AST dans le `from_pretrained` du code vendorisé qui charge
-    `hf_id` par DÉFAUT — c'est le code lui-même qui dit de quels dépôts le modèle se compose
+    un dépôt par DÉFAUT — c'est le code lui-même qui dit de quels dépôts le modèle se compose
     (YuE : `from_pretrained(model="m-a-p/YuE2-3B", *, vae="m-a-p/YuE2-Vae")`). Les tests sont ignorés."""
     import ast
     found = []

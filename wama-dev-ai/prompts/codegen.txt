@@ -28,7 +28,7 @@ RÈGLES STRICTES :
    ÉCRIS jamais (règle 2) ; ils ne peuvent apparaître que si tu LIS un état.
 5. Tu n'utilises QUE ce que le manifeste composé et les exemples PROUVENT : champs du modèle
    (facettes processing.model_spec + params), modèles IA (requires kind=model, leurs
-   manifestes donnent hf_id/chemins/VRAM), librairies (requires kind=library). Ce qui
+   manifestes donnent platform_ref/chemins/VRAM), librairies (requires kind=library). Ce qui
    manque pour finir : raise NotImplementedError('<ce qui manque, précisément>') — une
    invention plausible est pire qu'un trou déclaré.
    Les clés de `fields` du retour appartiennent OBLIGATOIREMENT à la liste « CHAMPS DU

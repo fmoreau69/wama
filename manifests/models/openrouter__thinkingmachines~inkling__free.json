@@ -35,7 +35,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (image-text-to-text)",
-      "hf_id": "thinkingmachines/Inkling",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:thinkingmachines/Inkling",

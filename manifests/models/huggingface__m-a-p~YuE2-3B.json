@@ -48,7 +48,6 @@
     "identity": {
       "author": "m-a-p",
       "description_short": "Snapshot HF YuE2-3B",
-      "hf_id": "m-a-p/YuE2-3B",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:m-a-p/YuE2-3B",

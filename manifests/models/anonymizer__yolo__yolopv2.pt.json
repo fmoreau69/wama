@@ -33,7 +33,6 @@
     "identity": {
       "author": "CAIC-AD",
       "description_short": "YOLO segment",
-      "hf_id": null,
       "license": "mit",
       "model_type": "vision",
       "platform_ref": "github:CAIC-AD/YOLOPv2",

@@ -49,7 +49,6 @@
       "author": "Panoramax",
       "description_short": "YOLO detect (faces&plates)",
       "gated": "no",
-      "hf_id": "Panoramax/detect_face_plate_sign",
       "license": "etalab-2.0",
       "model_type": "vision",
       "platform_ref": "huggingface:Panoramax/detect_face_plate_sign",

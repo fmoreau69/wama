@@ -51,7 +51,6 @@
       "author": "jags",
       "description_short": "YOLO segment (faces)",
       "gated": "no",
-      "hf_id": "jags/yolov8_model_segmentation-set",
       "license": "apache-2.0",
       "model_type": "vision",
       "platform_ref": "huggingface:jags/yolov8_model_segmentation-set",

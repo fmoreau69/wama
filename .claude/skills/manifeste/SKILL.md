@@ -107,7 +107,7 @@ Un round-trip qui diverge sur un champ **déclaratif** est un bug ; sur un champ
     fantôme, sans poids sur le disque, que la sélection pourrait pourtant retenir. Cible absente →
     on le dit, on ne fait rien (« lancer `sync_models` d'abord »).
   - Le manifeste a autorité sur les champs **déclaratifs** (`license`, `author`, `platform_ref`,
-    `hf_id`, `prompts.contract`, `composition`, `gated` s'il est déclaré) et projette
+    `prompts.contract`, `composition`, `gated` s'il est déclaré) et projette
     `capabilities` par **fusion clé par clé** (`merged_capabilities`, 2026-09-18) : ligne servie
     par une app → la découverte garde ses valeurs, le manifeste comble ; ligne orpheline → le
     manifeste tranche clé par clé. `is_downloaded`, `is_loaded`, `local_path`, `vram_gb` restent

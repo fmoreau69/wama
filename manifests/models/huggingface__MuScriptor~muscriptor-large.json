@@ -71,7 +71,6 @@
     "identity": {
       "author": "MuScriptor (Kyutai x Mirelo)",
       "description_short": "Transcription multi-instrument audio → MIDI",
-      "hf_id": "MuScriptor/muscriptor-large",
       "license": "cc-by-nc-4.0",
       "model_type": "music",
       "platform_ref": "huggingface:MuScriptor/muscriptor-large",

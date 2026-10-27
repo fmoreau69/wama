@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:nvidia/NVIDIA-Nemotron-3-Ultra-550B-A55B-BF16",

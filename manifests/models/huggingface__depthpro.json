@@ -27,7 +27,6 @@
       "author": "apple",
       "description_short": "Profondeur monoculaire métrique + focale estimée, natif transformers (Apache-2.0)",
       "gated": "no",
-      "hf_id": "apple/DepthPro-hf",
       "license": "apple-amlr",
       "model_type": "vision",
       "platform_ref": "huggingface:apple/DepthPro-hf",

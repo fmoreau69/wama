@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "LiquidAI/LFM2.5-24B-A2B",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:LiquidAI/LFM2.5-24B-A2B",

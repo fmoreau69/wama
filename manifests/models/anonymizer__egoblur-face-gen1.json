@@ -32,7 +32,6 @@
     "identity": {
       "author": null,
       "description_short": "EgoBlur (Meta) — visages, vidéo embarquée.",
-      "hf_id": null,
       "license": null,
       "model_type": "vision",
       "platform_ref": null,

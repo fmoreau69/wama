@@ -36,7 +36,6 @@
     "identity": {
       "author": null,
       "description_short": "Repères du visage (478 points) — API « tasks » de MediaPipe, sur le processeur ; la géométrie que le Face Analyzer mesure image par image.",
-      "hf_id": null,
       "license": null,
       "model_type": "vision",
       "platform_ref": null,

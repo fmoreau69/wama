@@ -33,7 +33,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "NousResearch/Hermes-3-Llama-3.1-70B",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:NousResearch/Hermes-3-Llama-3.1-70B",

@@ -30,7 +30,6 @@
     "identity": {
       "author": null,
       "description_short": "Le modèle que Claude Code choisit lui-même pour votre abonnement.",
-      "hf_id": null,
       "license": null,
       "model_type": "llm",
       "platform_ref": null,

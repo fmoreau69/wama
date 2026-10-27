@@ -53,7 +53,6 @@
       "author": "onnx-community",
       "description_short": "Snapshot HF Kokoro-82M-v1.0-ONNX",
       "gated": "no",
-      "hf_id": "onnx-community/Kokoro-82M-v1.0-ONNX",
       "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:onnx-community/Kokoro-82M-v1.0-ONNX",

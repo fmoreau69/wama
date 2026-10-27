@@ -34,7 +34,6 @@
     "identity": {
       "author": null,
       "description_short": "Albert API (DINUM) — modèle distant (text-generation)",
-      "hf_id": "openai/gpt-oss-120b",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:openai/gpt-oss-120b",

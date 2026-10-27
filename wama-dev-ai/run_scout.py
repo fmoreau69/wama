@@ -46,9 +46,10 @@ django.setup()
 from wama.common.external_sources import hf_platform_ref  # noqa: E402
 
 from role_utils import (  # noqa: E402
-    REPO_ROOT, add_llm_arguments, call_llm, enforce_category_facts, enforce_component_facts,
-    enforce_engine_facts, enforce_resolution_facts, enforce_task_facts, extract_json, fetch,
-    local_llm_guard, manifest_examples, model_vocabularies, resolve_model, write_output)
+    REPO_ROOT, add_llm_arguments, call_llm, drop_retired_identity, enforce_category_facts,
+    enforce_component_facts, enforce_engine_facts, enforce_resolution_facts, enforce_task_facts,
+    extract_json, fetch, local_llm_guard, manifest_examples, model_vocabularies, resolve_model,
+    write_output)
 
 PROMPT = (Path(__file__).parent / 'prompts' / 'scout.txt').read_text(encoding='utf-8')
 EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
@@ -100,7 +101,6 @@ def squelette(repo_id: str) -> tuple[dict, str]:
             'identity': {
                 'model_type': None,          # ← jugement LLM (taxonomie fermée)
                 'source': 'huggingface',
-                'hf_id': repo_id,
                 'license': str(licence)[:64] or None,
                 'author': str(auteur)[:200] or None,
                 'platform_ref': hf_platform_ref(repo_id),
@@ -283,13 +283,12 @@ def main():
         if base['body']['capabilities'].get('scale'):
             facts.append((('body', 'capabilities', 'scale'),
                           base['body']['capabilities']['scale']))
-    else:
-        facts.append((('body', 'identity', 'hf_id'), ident['hf_id']))
     for chemin, valeur in facts:
         cible = manifest
         for k in chemin[:-1]:
             cible = cible.setdefault(k, {})
         cible[chemin[-1]] = valeur
+    drop_retired_identity(manifest)
     if not args.github:
         enforce_task_facts(manifest, args.hf, concerns)
         enforce_engine_facts(manifest, args.hf, concerns)

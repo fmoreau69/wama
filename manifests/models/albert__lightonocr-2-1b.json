@@ -45,7 +45,6 @@
     "identity": {
       "author": null,
       "description_short": "Albert API (DINUM) — modèle distant (image-text-to-text)",
-      "hf_id": "lightonai/LightOnOCR-2-1B",
       "license": null,
       "model_type": "ocr",
       "platform_ref": "huggingface:lightonai/LightOnOCR-2-1B",

@@ -43,7 +43,6 @@
     "identity": {
       "author": null,
       "description_short": "Ollama LLM (2.2 GB)",
-      "hf_id": null,
       "license": null,
       "model_type": "ocr",
       "platform_ref": "ollama:glm-ocr",

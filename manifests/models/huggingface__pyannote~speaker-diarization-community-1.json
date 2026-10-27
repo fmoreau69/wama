@@ -15,7 +15,6 @@
     "identity": {
       "author": null,
       "description_short": "Snapshot HF speaker-diarization-community-1",
-      "hf_id": "pyannote/speaker-diarization-community-1",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:pyannote/speaker-diarization-community-1",

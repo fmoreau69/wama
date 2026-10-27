@@ -40,7 +40,6 @@
     "identity": {
       "author": "Kai Zhang (cszn), ETH Zurich",
       "description_short": "BSRGAN ×4 — robuste aux dégradations réelles.",
-      "hf_id": null,
       "license": "apache-2.0",
       "model_type": "upscaling",
       "platform_ref": "github:cszn/BSRGAN",

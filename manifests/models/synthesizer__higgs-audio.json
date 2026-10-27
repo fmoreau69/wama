@@ -44,7 +44,6 @@
       }
     },
     "extra_info": {
-      "hf_id": "bosonai/higgs-audio-v2-generation-3B-base",
       "vram_provenance": "declared"
     },
     "formats": {
@@ -56,7 +55,6 @@
       "author": "Boson AI",
       "description_short": "Higgs Audio v2 — multi-locuteurs avec clonage de voix.",
       "gated": "no",
-      "hf_id": "bosonai/higgs-audio-v2-generation-3B-base",
       "license": "higgs-community",
       "model_type": "speech",
       "platform_ref": "huggingface:bosonai/higgs-audio-v2-generation-3B-base",

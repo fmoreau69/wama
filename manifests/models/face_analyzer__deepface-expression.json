@@ -34,7 +34,6 @@
     "identity": {
       "author": "Sefik Ilkin Serengil",
       "description_short": "Reconnaissance d'expressions faciales (7 émotions) — backend DeepFace",
-      "hf_id": null,
       "license": "mit",
       "model_type": "vision",
       "platform_ref": "github:serengil/deepface_models",

@@ -12,8 +12,10 @@ Gardé ici :
     Hub) — lu par le banc et la prospection, jamais pris pour la dorsale d'un adaptateur ;
   • la synchro écrit `platform_ref`, et la paire `base_model` survit à une découverte muette ;
   • le manifeste porte la paire et la projette ;
-  • aucun LECTEUR de `hf_id` ne revient (relevé par AST, budget qui ne peut que descendre) ;
-  • la migration `0029`.
+  • `hf_id` ne revient pas : ni colonne, ni clé de manifeste, ni site dans le code (relevé par AST) ;
+  • la migration `0031` (retrait de la copie `extra_info['hf_id']`, puis de la colonne).
+  La `0029` n'a plus de test : appliquée le 2026-10-27, elle lisait la colonne que la `0031` retire,
+  et une base de test migrée jusqu'au bout ne peut plus en recevoir une ligne.
 """
 import ast
 import importlib
@@ -52,10 +54,9 @@ class HubRepositoryAccessorTest(SimpleTestCase):
         self.assertEqual('', hf_platform_ref(''))
         self.assertEqual('Org/Name', hf_repo(hf_platform_ref('Org/Name')))
 
-    def test_a_catalogue_row_derives_its_repository_and_ignores_the_residual_column(self):
+    def test_a_catalogue_row_derives_its_repository_and_has_no_hf_id_column(self):
         self.assertEqual('Org/Name', AIModel(platform_ref='huggingface:Org/Name').hf_repo)
-        # The column is a residue nobody reads: a row carrying only it has no repository.
-        self.assertEqual('', AIModel(hf_id='Org/Name').hf_repo)
+        self.assertNotIn('hf_id', {f.name for f in AIModel._meta.get_fields()})
 
     def test_a_discovery_record_derives_its_repository(self):
         from wama.model_manager.models import ModelSource, ModelType
@@ -86,12 +87,9 @@ class QuantizedBaseTest(TestCase):
     def test_prospection_counts_the_canonical_model_of_an_installed_gguf_as_ours(self):
         from wama.model_manager.services.prospector import catalogue_repos
         _gguf_row()
-        AIModel.objects.create(model_key='imager:residue', name='r', model_type='diffusion',
-                               source='imager', hf_id='Org/OnlyTheColumn')
         have = catalogue_repos(AIModel.objects.all())
         self.assertIn('org/canon-4b', have)
         self.assertIn('repack/canon-4b-gguf', have)
-        self.assertNotIn('org/onlythecolumn', have, 'the residual column is read by nobody')
 
     def test_a_quantization_carries_no_backbone_footprint(self):
         from wama.model_manager.services.memory_manager import backbone_row
@@ -128,11 +126,11 @@ class SyncWritesThePlatformRefTest(TestCase):
         return ModelInfo(id='m', name='M', model_type=ModelType.SPEECH,
                          source=ModelSource.WAMA_TRANSCRIBER, **kw)
 
-    def test_the_declared_platform_ref_reaches_the_row_and_the_column_is_not_written(self):
+    def test_the_declared_platform_ref_reaches_the_row(self):
         from wama.model_manager.services.model_sync import ModelSyncService
         ModelSyncService()._sync_model('transcriber:m', self._info(platform_ref='huggingface:Org/M'))
-        row = AIModel.objects.get(model_key='transcriber:m')
-        self.assertEqual(('huggingface:Org/M', ''), (row.platform_ref, row.hf_id))
+        self.assertEqual('huggingface:Org/M',
+                         AIModel.objects.get(model_key='transcriber:m').platform_ref)
 
     def test_a_silent_discovery_does_not_erase_a_known_platform_ref(self):
         from wama.model_manager.services.model_sync import ModelSyncService
@@ -197,18 +195,12 @@ class ManifestCarriesTheBasePairTest(TestCase):
 
 
 #: Les sites STRUCTURELS de `hf_id` qui restent, par fichier — attribut, argument nommé ou chaîne,
-#: relevés par AST hors tests, migrations et jumelles. Tous appartiennent à la couche MANIFESTE
-#: (`identity.hf_id` du corpus, son extraction, sa projection, ses producteurs wama-dev-ai, et la
-#: copie `extra_info['hf_id']` que les manifestes portent) : ils partent avec elle, dans la session
-#: des manifestes (décision de Fabien, 2026-10-27). Ce budget ne peut que DESCENDRE, et il ne garde
-#: pas de marge — une marge est une autorisation d'en ajouter.
+#: relevés par AST hors tests, migrations et jumelles. Un seul depuis le retrait de la colonne et de
+#: `identity.hf_id` (2026-10-27) : la liste des champs RETIRÉS que le validateur du kind refuse et que
+#: les rôles wama-dev-ai ôtent (`builtin.model.RETIRED_IDENTITY_FIELDS`). Ce budget ne peut que
+#: DESCENDRE, et il ne garde pas de marge — une marge est une autorisation d'en ajouter.
 HF_ID_BUDGET = {
-    'wama-dev-ai/role_utils.py': 3,
-    'wama-dev-ai/run_model_manifest.py': 1,
-    'wama-dev-ai/run_scout.py': 3,
-    'wama/common/manifests/builtin/model.py': 4,
-    'wama/model_manager/models.py': 1,
-    'wama/model_manager/services/model_registry.py': 3,
+    'wama/common/manifests/builtin/model.py': 1,
 }
 
 _TWIN = re.compile(r'^[a-z_]+_\d\d$')
@@ -241,7 +233,7 @@ def hf_id_sites(root: Path) -> dict:
 
 class NoReaderOfHfIdComesBackTest(SimpleTestCase):
 
-    def test_hf_id_lives_only_in_the_manifest_layer_and_the_budget_has_no_slack(self):
+    def test_hf_id_is_gone_from_the_code_and_the_budget_has_no_slack(self):
         measured = hf_id_sites(Path(settings.BASE_DIR))
         over = {f: n for f, n in measured.items() if n > HF_ID_BUDGET.get(f, 0)}
         self.assertEqual({}, over, "`hf_id` is back: read `platform_ref` (`hf_repo`) or "
@@ -251,45 +243,65 @@ class NoReaderOfHfIdComesBackTest(SimpleTestCase):
         self.assertEqual({}, slack, 'lower HF_ID_BUDGET to the measure')
 
 
-class MigrationNamesTheFactsTest(TestCase):
-    """`model_manager/0029` : le canonique d'un GGUF et la clé des variantes des candidats."""
+class NoManifestCarriesHfIdTest(SimpleTestCase):
+    """Le corpus `manifests/models/` ne porte plus `identity.hf_id` ni sa copie `extra_info.hf_id`
+    (retirés le 2026-10-27), et l'extraction du kind ne les écrit plus."""
 
-    def _module(self):
-        return importlib.import_module('wama.model_manager.migrations.0029_hf_id_facts_to_their_names')
+    def test_no_model_manifest_of_the_corpus_carries_hf_id(self):
+        import json
+        carriers = []
+        for path in sorted((Path(settings.BASE_DIR) / 'manifests' / 'models').glob('*.json')):
+            body = json.loads(path.read_text(encoding='utf-8')).get('body') or {}
+            if 'hf_id' in (body.get('identity') or {}) or 'hf_id' in (body.get('extra_info') or {}):
+                carriers.append(path.name)
+        self.assertEqual([], carriers)
 
-    def test_a_gguf_whose_hf_id_differs_gets_its_base_model_pair(self):
-        row = AIModel.objects.create(model_key=GGUF_KEY, name='g', model_type='ocr', source='ollama',
-                                     platform_ref='huggingface:Repack/Canon-4B-GGUF',
-                                     hf_id='Org/Canon-4B', extra_info={'ollama_id': 'abc'})
-        self._module().facts_under_their_names(django_apps, None)
-        row.refresh_from_db()
-        self.assertEqual({'ollama_id': 'abc', **GGUF_INFO}, row.extra_info)
-        self._module().facts_back_to_hf_id(django_apps, None)
-        row.refresh_from_db()
-        self.assertEqual({'ollama_id': 'abc'}, row.extra_info)
 
-    def test_rows_that_are_not_a_hub_gguf_are_left_alone(self):
-        same = AIModel.objects.create(model_key='ollama:hf.co/Org/Same-GGUF:Q4', name='s',
-                                      model_type='ocr', source='ollama',
-                                      platform_ref='huggingface:Org/Same-GGUF', hf_id='org/same-gguf')
-        other = AIModel.objects.create(model_key='imager:other', name='o', model_type='diffusion',
-                                       source='imager', platform_ref='huggingface:Org/A',
-                                       hf_id='Org/B')
-        self._module().facts_under_their_names(django_apps, None)
-        for row in (same, other):
-            row.refresh_from_db()
-            self.assertNotIn('base_model', row.extra_info or {}, row.model_key)
+class ExtractionWritesNoHfIdTest(TestCase):
 
-    def test_the_variants_of_a_candidate_are_keyed_by_repo_id_and_back(self):
-        cand = AIModel.objects.create(
-            model_key='proposed:hf:Org/Big', name='Big', model_type='llm', source='huggingface',
-            is_proposed=True, extra_info={'prospect': {'quant_variants': [
-                {'hf_id': 'Repack/Big-GGUF', 'disk_gb': 4.0}]}})
-        self._module().facts_under_their_names(django_apps, None)
-        cand.refresh_from_db()
-        self.assertEqual([{'repo_id': 'Repack/Big-GGUF', 'disk_gb': 4.0}],
-                         cand.extra_info['prospect']['quant_variants'])
-        self._module().facts_back_to_hf_id(django_apps, None)
-        cand.refresh_from_db()
-        self.assertEqual([{'hf_id': 'Repack/Big-GGUF', 'disk_gb': 4.0}],
-                         cand.extra_info['prospect']['quant_variants'])
+    def test_a_manifest_declaring_hf_id_is_refused(self):
+        from wama.common.manifests.builtin.model import validate_model_body
+        self.assertTrue(validate_model_body({'identity': {'hf_id': 'Org/M',
+                                                          'platform_ref': 'huggingface:Org/M'}}))
+        self.assertEqual([], validate_model_body({'identity': {'platform_ref': 'huggingface:Org/M'}}))
+
+    def test_an_extracted_manifest_has_no_hf_id(self):
+        from wama.common.manifests.builtin.model import extract_model
+        _gguf_row()
+        body = extract_model(GGUF_KEY)['body']
+        self.assertNotIn('hf_id', body['identity'])
+        self.assertNotIn('hf_id', body['extra_info'])
+
+
+class MigrationRemovesTheColumnTest(TestCase):
+    """`model_manager/0031` : la copie `extra_info['hf_id']` part des lignes et des manifestes
+    stockés, le reste est gardé."""
+
+    def _strip(self):
+        importlib.import_module('wama.model_manager.migrations.0031_remove_aimodel_hf_id')             .strip_hf_id_copies(django_apps, None)
+
+    def test_the_extra_info_copy_is_stripped_and_nothing_else(self):
+        carrier = AIModel.objects.create(model_key='transcriber:m', name='M', model_type='speech',
+                                         source='transcriber',
+                                         extra_info={'hf_id': 'Org/M', 'path': '/p'})
+        other = AIModel.objects.create(model_key='transcriber:n', name='N', model_type='speech',
+                                       source='transcriber', extra_info={'path': '/q'})
+        self._strip()
+        carrier.refresh_from_db()
+        other.refresh_from_db()
+        self.assertEqual(({'path': '/p'}, {'path': '/q'}), (carrier.extra_info, other.extra_info))
+
+    def test_a_stored_model_manifest_loses_hf_id_and_keeps_the_rest(self):
+        from wama.common.models import Manifest
+        stored = Manifest.objects.create(
+            manifest_kind='model', key='transcriber:m', name='M', body={
+                'identity': {'hf_id': 'Org/M', 'platform_ref': 'huggingface:Org/M'},
+                'extra_info': {'hf_id': 'Org/M', 'path': '/p'}})
+        app = Manifest.objects.create(manifest_kind='app', key='transcriber', name='T',
+                                      body={'identity': {'hf_id': 'kept'}})
+        self._strip()
+        stored.refresh_from_db()
+        app.refresh_from_db()
+        self.assertEqual({'identity': {'platform_ref': 'huggingface:Org/M'},
+                          'extra_info': {'path': '/p'}}, stored.body)
+        self.assertEqual({'identity': {'hf_id': 'kept'}}, app.body, 'only the model kind')

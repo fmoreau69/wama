@@ -38,7 +38,6 @@
     "identity": {
       "author": "Kai Zhang (cszn), ETH Zurich",
       "description_short": "IRCNN M ×1 — débruitage sans agrandissement (variante M).",
-      "hf_id": null,
       "license": "mit",
       "model_type": "upscaling",
       "platform_ref": "github:cszn/KAIR",

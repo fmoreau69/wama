@@ -35,7 +35,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (image-text-to-text)",
-      "hf_id": "stepfun-ai/Step-5-Preview",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:stepfun-ai/Step-5-Preview",

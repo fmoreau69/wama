@@ -46,7 +46,6 @@
     "identity": {
       "author": "Kyutai",
       "description_short": "Snapshot HF stt-1b-en_fr-trfs",
-      "hf_id": "kyutai/stt-1b-en_fr-trfs",
       "license": "cc-by-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:kyutai/stt-1b-en_fr-trfs",

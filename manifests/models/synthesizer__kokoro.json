@@ -60,7 +60,6 @@
       }
     },
     "extra_info": {
-      "hf_id": "hexgrad/Kokoro-82M",
       "vram_provenance": "declared"
     },
     "formats": {
@@ -74,7 +73,6 @@
       "author": "hexgrad",
       "description_short": "Kokoro 82M — TTS multilingue ultra-léger.",
       "gated": "no",
-      "hf_id": "hexgrad/Kokoro-82M",
       "license": "apache-2.0",
       "model_type": "speech",
       "platform_ref": "huggingface:hexgrad/Kokoro-82M",

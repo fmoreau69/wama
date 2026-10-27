@@ -35,7 +35,6 @@
     "identity": {
       "author": null,
       "description_short": "Albert API (DINUM) — modèle distant (image-text-to-text)",
-      "hf_id": "google/gemma-4-31B-it",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:google/gemma-4-31B-it",

@@ -43,7 +43,6 @@
     "identity": {
       "author": "aihpi",
       "description_short": "Snapshot HF FrWhisper",
-      "hf_id": "aihpi/FrWhisper",
       "license": "cc-by-nc-sa-4.0",
       "model_type": "speech",
       "platform_ref": "huggingface:aihpi/FrWhisper",

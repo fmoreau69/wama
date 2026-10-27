@@ -30,7 +30,6 @@
     "identity": {
       "author": null,
       "description_short": "Albert API (DINUM) — modèle distant (text-embeddings-inference)",
-      "hf_id": "Qwen/Qwen3-VL-Embedding-8B",
       "license": null,
       "model_type": "embedding",
       "platform_ref": "huggingface:Qwen/Qwen3-VL-Embedding-8B",

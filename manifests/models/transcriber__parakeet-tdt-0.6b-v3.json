@@ -45,7 +45,6 @@
       }
     },
     "extra_info": {
-      "hf_id": "nvidia/parakeet-tdt-0.6b-v3",
       "vram_provenance": "declared"
     },
     "formats": {
@@ -56,7 +55,6 @@
     "identity": {
       "author": null,
       "description_short": "Parakeet TDT 0.6B v3 (NVIDIA) — très rapide, 25 langues, langue détectée",
-      "hf_id": "nvidia/parakeet-tdt-0.6b-v3",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:nvidia/parakeet-tdt-0.6b-v3",

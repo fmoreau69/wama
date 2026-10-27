@@ -31,7 +31,6 @@
     "identity": {
       "author": null,
       "description_short": "Albert API (DINUM) — modèle distant (text-embeddings-inference)",
-      "hf_id": "BAAI/bge-m3",
       "license": null,
       "model_type": "embedding",
       "platform_ref": "huggingface:BAAI/bge-m3",

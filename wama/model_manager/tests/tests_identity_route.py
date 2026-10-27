@@ -59,12 +59,12 @@ class BackfillGoesThroughTheManifestTest(TestCase):
         return mock.patch.object(provenance, 'set_identity', wraps=provenance.set_identity)
 
     def test_a_derived_platform_ref_is_set_by_the_manifest_and_a_candidate_is_not_exported(self):
-        # The derivation left is the Ollama one (`hf_id` → `platform_ref` went with the column's
-        # readers, 2026-10-27: no row carried `hf_id` without `platform_ref`).
+        # The derivation left is the Ollama one (`hf_id` → `platform_ref` went with the column,
+        # 2026-10-27: no row carried `hf_id` without `platform_ref`).
         _row('ollama:qwen3.8:latest', name='qwen3.8:latest', source='ollama')
         _row('proposed:ollama:gemma4:12b', name='gemma4:12b', source='ollama', is_proposed=True)
         _row('transcriber:canary-test', platform_ref='huggingface:nvidia/canary-test',
-             hf_id='nvidia/other', source='transcriber')
+             source='transcriber')
         with self._spy() as spy:
             call_command('backfill_platform_refs', '--ecrire', stdout=mock.MagicMock())
         calls = {c.args[0]: c for c in spy.call_args_list}
@@ -74,7 +74,7 @@ class BackfillGoesThroughTheManifestTest(TestCase):
                          AIModel.objects.get(model_key='proposed:ollama:gemma4:12b').platform_ref)
         self.assertIs(True, calls['ollama:qwen3.8:latest'].kwargs['export'])
         self.assertIs(False, calls['proposed:ollama:gemma4:12b'].kwargs['export'])
-        # A known platform_ref is never re-derived — least of all from the residual column.
+        # A known platform_ref is never re-derived.
         self.assertNotIn('transcriber:canary-test', calls)
         self.assertEqual('huggingface:nvidia/canary-test',
                          AIModel.objects.get(model_key='transcriber:canary-test').platform_ref)

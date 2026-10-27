@@ -131,7 +131,6 @@
     "identity": {
       "author": null,
       "description_short": "Albert API (DINUM) — modèle distant (automatic-speech-recognition)",
-      "hf_id": "openai/whisper-large-v3",
       "license": null,
       "model_type": "speech",
       "platform_ref": "huggingface:openai/whisper-large-v3",

@@ -32,7 +32,6 @@
       "author": "PaddlePaddle",
       "description_short": "Snapshot HF PP-DocLayoutV3_safetensors",
       "gated": "no",
-      "hf_id": "PaddlePaddle/PP-DocLayoutV3_safetensors",
       "license": "apache-2.0",
       "model_type": "vision",
       "platform_ref": "huggingface:PaddlePaddle/PP-DocLayoutV3_safetensors",

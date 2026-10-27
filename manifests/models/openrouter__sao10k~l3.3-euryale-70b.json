@@ -30,7 +30,6 @@
     "identity": {
       "author": null,
       "description_short": "OpenRouter — modèle distant (text-generation)",
-      "hf_id": "Sao10K/L3.3-70B-Euryale-v2.3",
       "license": null,
       "model_type": "llm",
       "platform_ref": "huggingface:Sao10K/L3.3-70B-Euryale-v2.3",

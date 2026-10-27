@@ -38,7 +38,6 @@
     "identity": {
       "author": null,
       "description_short": "Ollama LLM (2.5 GB)",
-      "hf_id": null,
       "license": null,
       "model_type": "embedding",
       "platform_ref": "ollama:qwen3-embedding",
