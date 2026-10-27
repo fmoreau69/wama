@@ -414,6 +414,25 @@ def launch_eta(item) -> float | None:
 
 # ── Péremption (point 4.3) ───────────────────────────────────────────────────────────────────
 
+MISSING_FINGERPRINT = 'missing:'
+
+
+def _fingerprints_changed(taken, now) -> bool:
+    """Les empreintes d'amont ont-elles changé ? Une sortie ABSENTE aujourd'hui (empreinte
+    `missing:…`, `process_pipeline.output_fingerprint`) n'a pas d'empreinte : elle ne compte pas
+    comme un changement. Seule une empreinte DIFFÉRENTE périme (décision de Fabien, 2026-10-27,
+    après la perte de `media/` : 79 process étaient passés périmés pendant que leurs fichiers
+    manquaient, et le restaurer à l'identique ne les rendait pas). Une sortie perdue se rejoue
+    par `steps_to_run` (`_output_lost`), pas par la péremption. Un amont qui n'est plus DANS la
+    photo (process qui n'a plus lieu) reste un changement."""
+    if not isinstance(taken, dict) or not isinstance(now, dict):
+        return taken != now
+    return any(
+        not (isinstance(now.get(k), str) and now[k].startswith(MISSING_FINGERPRINT) and k in taken)
+        and taken.get(k) != now.get(k)
+        for k in set(taken) | set(now))
+
+
 def _watched_changed(taken: dict, now: dict) -> bool:
     """Un réglage surveillé a-t-il changé entre la photo du lancement et aujourd'hui ?
 
@@ -421,12 +440,14 @@ def _watched_changed(taken: dict, now: dict) -> bool:
     lancement (ou retiré) ne périme rien — il n'a pas changé, c'est la surveillance qui a changé.
     Sans cela, ajouter un réglage surveillé périmait d'un coup TOUTES les cards déjà rendues de
     l'app (2026-10-04 : la voix et les paroles du composer). Les clés en `@` (empreintes d'amont,
-    `process_pipeline.UPSTREAM_KEY`) ne sont pas des réglages : elles se comparent toujours. Une
-    photo VIDE (ligne d'avant les photos) garde la règle d'origine."""
+    `process_pipeline.UPSTREAM_KEY`) ne sont pas des réglages : elles se comparent toujours, une
+    sortie absente exceptée (`_fingerprints_changed`). Une photo VIDE (ligne d'avant les photos)
+    garde la règle d'origine."""
     if not taken:
         return taken != now
     keys = (set(taken) & set(now)) | {k for k in set(taken) | set(now) if k.startswith('@')}
-    return any(taken.get(k) != now.get(k) for k in keys)
+    return any(_fingerprints_changed(taken.get(k), now.get(k)) if k.startswith('@')
+               else taken.get(k) != now.get(k) for k in keys)
 
 
 def stale_nodes(states: dict, depends_on: dict, snapshots: dict | None = None,

@@ -219,7 +219,8 @@ def output_fingerprint(ref: str) -> str:
     """Empreinte de la sortie d'un process (chemin relatif à MEDIA_ROOT) : celle de la brique
     commune `provenance.sha256_of` — la même que la RÉVISION garde de chaque sortie
     (`revisions.output_references`). Un fichier trop gros pour être lu est suivi par sa taille ;
-    une sortie disparue a une empreinte à elle — son aval devient périmé."""
+    une sortie disparue n'a pas d'empreinte (`missing:`) — elle ne périme pas son aval
+    (`process_runs._fingerprints_changed`), elle se rejoue (`_output_lost`)."""
     if not ref:
         return ''
     from django.conf import settings
@@ -231,7 +232,7 @@ def output_fingerprint(ref: str) -> str:
     try:
         return f'size:{os.path.getsize(path)}'
     except OSError:
-        return f'missing:{ref}'
+        return f'{process_runs.MISSING_FINGERPRINT}{ref}'
 
 
 def _fingerprint_of(row) -> str:

@@ -193,6 +193,22 @@ class WhatALaunchReplaysTest(TestCase):
         self.assertEqual({'render'}, pipeline.refresh(item))
         self.assertEqual(['render'], _keys(pipeline.steps_to_run(item)))
 
+    def test_an_upstream_output_gone_then_restored_identical_stales_nothing(self):
+        """2026-10-27 : `media/` lost then restored — an absent file has no fingerprint, it is not
+        a change ; only a DIFFERENT fingerprint stales. The lost output is replayed, not staled."""
+        pipeline, item = _two_steps(), _Element()
+        self._both_played(pipeline, item)
+        score = Path(self.tmp) / f'score{item.pk}.abc'
+        score.unlink()
+        self.assertEqual(set(), pipeline.refresh(item), 'a missing file is not a new fingerprint')
+        self.assertEqual(JOB_SUCCESS, pipeline.card_state(item))
+        self.assertEqual(['plan', 'render'], _keys(pipeline.steps_to_run(item, only='render')),
+                         'the lost score is replayed before its downstream')
+        self._output(score.name)
+        self.assertEqual(set(), pipeline.refresh(item), 'restored identical: still up to date')
+        self._output(score.name, 'X:1 another score')
+        self.assertEqual({'render'}, pipeline.refresh(item))
+
     def test_a_valid_card_relaunched_replays_everything(self):
         pipeline, item = _two_steps(), _Element()
         self._both_played(pipeline, item)

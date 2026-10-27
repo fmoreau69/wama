@@ -169,6 +169,21 @@ class StaleNodesTest(SimpleTestCase):
             states, self.GRAPH, snapshots={'render': {'prompt': 'jazz'}},
             current={'render': {'prompt': 'jazz', '@upstream': {'plan': 'f1'}}}), {'render'})
 
+    def test_an_upstream_output_gone_missing_is_not_a_change(self):
+        # 2026-10-27 : `media/` lost, then restored identical — 79 processes had turned stale
+        # while their files were missing, and nothing brought them back.
+        states = {'plan': JOB_SUCCESS, 'render': JOB_SUCCESS}
+        taken = {'render': {'@upstream': {'plan': 'f1'}}}
+        self.assertEqual(process_runs.stale_nodes(
+            states, self.GRAPH, snapshots=taken,
+            current={'render': {'@upstream': {'plan': 'missing:users/1/plan.txt'}}}), set())
+        self.assertEqual(process_runs.stale_nodes(
+            states, self.GRAPH, snapshots=taken,
+            current={'render': {'@upstream': {'plan': 'f2'}}}), {'render'})
+        self.assertEqual(process_runs.stale_nodes(
+            states, self.GRAPH, snapshots=taken, current={'render': {}}), {'render'},
+            'an upstream that left the photo (no longer takes place) is still a change')
+
 
 class AggregateTest(SimpleTestCase):
     """Point 4.4 — the rule validated as is on 2026-09-17."""
