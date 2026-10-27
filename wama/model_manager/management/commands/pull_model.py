@@ -50,23 +50,25 @@ class Command(BaseCommand):
     def _hf_repo(self, repo):
         """Le depot designe : sa ligne du catalogue, sinon sa proposition — ecrite au besoin par
         la recherche nommee —, puis la demande. Jamais de telechargement hors de la route."""
+        from wama.common.external_sources import hf_platform_ref
         from wama.model_manager.models import EXECUTION_CLOUD, AIModel
         from wama.model_manager.services.prospect_ollama import PROPOSED_PREFIX
         from wama.model_manager.services.prospector import seed_hf_search
 
-        # Une ligne servie par un FOURNISSEUR porte le `hf_id` du modèle qu'elle sert : ce n'est
-        # pas ce dépôt chez nous (2026-10-22, `openrouter:qwen/qwen-2.5-7b-instruct`).
-        row = (AIModel.objects.filter(hf_id__iexact=repo, is_proposed=False)
+        # Une ligne servie par un FOURNISSEUR porte le `platform_ref` du modèle qu'elle sert : ce
+        # n'est pas ce dépôt chez nous (2026-10-22, `openrouter:qwen/qwen-2.5-7b-instruct`).
+        ref = hf_platform_ref(repo)
+        row = (AIModel.objects.filter(platform_ref__iexact=ref, is_proposed=False)
                .exclude(execution=EXECUTION_CLOUD).order_by('-is_downloaded').first())
         if row is not None:
             return self._request_install(row.model_key)
-        cand = AIModel.objects.filter(hf_id__iexact=repo, is_proposed=True).first()
+        cand = AIModel.objects.filter(platform_ref__iexact=ref, is_proposed=True).first()
         if cand is None:
             self.stdout.write(f"Proposition du depot {repo} (recherche nommee) …")
             res = seed_hf_search(repo, max_retenus=1)
             if not res.get('ok'):
                 raise CommandError(f"✗ {repo} : {res.get('error')}")
-            cand = AIModel.objects.filter(hf_id__iexact=repo, is_proposed=True).first()
+            cand = AIModel.objects.filter(platform_ref__iexact=ref, is_proposed=True).first()
             if cand is None:
                 raise CommandError(
                     f"« {repo} » n'a pas ete propose ({res}) : sa tache n'entre pas dans le "

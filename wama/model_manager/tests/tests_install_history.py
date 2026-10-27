@@ -229,12 +229,13 @@ class PullModelTakesTheRouteTest(TestCase):
 
     def _seed(self, repo, **kw):
         if repo == 'org/proposable':
-            AIModel.objects.create(model_key='proposed:hf:org/proposable', name='p', hf_id=repo,
+            AIModel.objects.create(model_key='proposed:hf:org/proposable', name='p',
+                                   platform_ref=f'huggingface:{repo}',
                                    model_type='vision', source='huggingface', is_proposed=True)
         return {'ok': True, 'refs': [repo]}
 
     def test_a_catalogue_repo_is_requested_by_its_key(self):
-        AIModel.objects.create(model_key='huggingface:depthpro', name='d', hf_id='apple/DepthPro-hf',
+        AIModel.objects.create(model_key='huggingface:depthpro', name='d', platform_ref='huggingface:apple/DepthPro-hf',
                                model_type='vision', source='huggingface')
         req, seed = self._run('https://huggingface.co/apple/DepthPro-hf')
         req.assert_called_once_with('huggingface:depthpro', via='cli')
@@ -383,9 +384,10 @@ class DepthModelsAreInstallableByTheRouteTest(SimpleTestCase):
             with self.subTest(key=key):
                 info = registry._models[f'huggingface:{key}']
                 spec = spec_for_catalog_row(AIModel(model_key=f'huggingface:{key}',
-                                                    hf_id=info.hf_id, extra_info=info.extra_info))
+                                                    platform_ref=info.platform_ref or '',
+                                                    extra_info=info.extra_info))
                 self.assertIsNotNone(spec, 'la ligne doit être installable par la route')
-                self.assertEqual(declared['hf_id'], spec['ref'])
+                self.assertEqual(declared['platform_ref'], f"huggingface:{spec['ref']}")
                 self.assertEqual(Path(declared['dir']).resolve(),
                                  Path(model_dir(spec['category'], spec['family'])).resolve())
 
@@ -399,16 +401,16 @@ class ThePageReadsTheServerRulesTest(SimpleTestCase):
 
     def test_installable_is_the_route_rule(self):
         root = Path(settings.AI_MODELS_DIR) / 'models'
-        hf_row = self._row(hf_id='o/x', extra_info={'install_dir': str(root / 'vision' / 'x')})
+        hf_row = self._row(platform_ref='huggingface:o/x', extra_info={'install_dir': str(root / 'vision' / 'x')})
         declared = [{'path': 'a.pth', 'size': 1, 'sha256': 'a' * 64,
                      'origin': {'source': 'github', 'release': 'o/r:v1', 'file': 'a.pth'}}]
         files_row = self._row(extra_info={'install_dir': str(root / 'lipsync' / 'cf'),
                                           'declared_files': declared})
         self.assertTrue(hf_row.to_dict()['installable'])
         self.assertTrue(files_row.to_dict()['installable'],
-                        'a row with DECLARED files has no hf_id — and is installable')
-        self.assertFalse(self._row(hf_id='o/x').to_dict()['installable'], 'no install_dir')
-        downloaded = self._row(hf_id='o/x', is_downloaded=True,
+                        'a row with DECLARED files has no platform_ref — and is installable')
+        self.assertFalse(self._row(platform_ref='huggingface:o/x').to_dict()['installable'], 'no install_dir')
+        downloaded = self._row(platform_ref='huggingface:o/x', is_downloaded=True,
                                extra_info={'install_dir': str(root / 'vision' / 'x')})
         self.assertFalse(downloaded.to_dict()['installable'])
 

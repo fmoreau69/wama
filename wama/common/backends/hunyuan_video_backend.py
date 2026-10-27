@@ -37,6 +37,8 @@ _HUNYUAN_MODELS_DIR = _resoudre_dossier_hunyuan()
 
 from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 logger.info(f"[HunyuanVideo] Module loaded - HF cache directory: {_HUNYUAN_MODELS_DIR}")
@@ -69,7 +71,7 @@ SUPPORTED_MODELS = {
     "hunyuan-t2v-480p": {
         "name": "HunyuanVideo 1.5 T2V 480p",
         "description": "Text-to-Video 480p - 14GB VRAM avec offload",
-        "hf_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v",
+        "platform_ref": "huggingface:hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_t2v",
         "type": "t2v",
         "resolution": "480p",
         "vram": "14GB",
@@ -79,7 +81,7 @@ SUPPORTED_MODELS = {
     "hunyuan-t2v-720p": {
         "name": "HunyuanVideo 1.5 T2V 720p",
         "description": "Text-to-Video 720p - 24GB VRAM recommandé",
-        "hf_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_t2v",
+        "platform_ref": "huggingface:hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-720p_t2v",
         "type": "t2v",
         "resolution": "720p",
         "vram": "24GB",
@@ -89,7 +91,7 @@ SUPPORTED_MODELS = {
     "hunyuan-i2v-480p": {
         "name": "HunyuanVideo 1.5 I2V 480p",
         "description": "Image-to-Video 480p - 14GB VRAM avec offload",
-        "hf_id": "hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v",
+        "platform_ref": "huggingface:hunyuanvideo-community/HunyuanVideo-1.5-Diffusers-480p_i2v",
         "type": "i2v",
         "resolution": "480p",
         "vram": "14GB",
@@ -206,7 +208,7 @@ class HunyuanVideoBackend(ImageGenerationBackend):
                 return False
 
             model_config = SUPPORTED_MODELS[model_name]
-            model_id = model_config["hf_id"]
+            model_id = hf_repo(model_config["platform_ref"])
             cache_dir = get_hunyuan_models_dir()
 
             logger.info(f"[HunyuanVideo] ========================================")

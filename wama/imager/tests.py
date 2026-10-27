@@ -352,7 +352,7 @@ class DeclaredCompositionTest(TestCase):
         registry._discover_imager_models()
         for key, info in registry._models.items():
             with self.subTest(key=key):
-                row = SimpleNamespace(model_key=key, hf_id=info.hf_id, extra_info=info.extra_info,
+                row = SimpleNamespace(model_key=key, hf_repo=info.hf_repo, extra_info=info.extra_info,
                                       composition=info.composition)
                 spec = spec_for_catalog_row(row)
                 self.assertEqual('hf', (spec or {}).get('kind'), f'{key} : pas installable par la route')
@@ -375,7 +375,8 @@ class DeclaredCompositionTest(TestCase):
         for name in adapters:
             with self.subTest(name=name):
                 pipe = mock.MagicMock()
-                DiffusersBackend._apply_flux_lora(None, pipe, IMAGER_MODELS[name]['hf_id'], 0.8)
+                DiffusersBackend._apply_flux_lora(
+                    None, pipe, IMAGER_MODELS[name]['platform_ref'].partition(':')[2], 0.8)
                 self.assertEqual(Path(get_model_info(name)['cache_dir']).resolve(),
                                  Path(pipe.load_lora_weights.call_args.kwargs['cache_dir']).resolve())
 

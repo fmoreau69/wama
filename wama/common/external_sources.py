@@ -960,6 +960,27 @@ def model_page_url(platform_ref: str) -> str | None:
     return f"{base_url(source.key)}/{source.model_page.format(id=ident)}"
 
 
+#: La plateforme du Hub Hugging Face dans `platform_ref` — la clé de sa source ci-dessus.
+HUGGINGFACE = 'huggingface'
+
+
+def hf_repo(platform_ref) -> str:
+    """Le dépôt du Hub (`org/nom`) qu'un `platform_ref` désigne, '' pour une autre plateforme.
+
+    LA lecture du dépôt d'un modèle (2026-10-27, décision de Fabien : « ne garder que
+    `platform_ref` »). `AIModel.hf_id` était le même fait écrit à part, né avant les autres
+    plateformes : mesuré ce jour, 397 lignes sur 398 portaient la même valeur des deux côtés. Une
+    déclaration d'app ou de moteur dit `platform_ref`, et qui doit appeler le Hub lit ceci."""
+    platform, _, ident = str(platform_ref or '').strip().partition(':')
+    return ident.strip() if platform == HUGGINGFACE else ''
+
+
+def hf_platform_ref(repo) -> str:
+    """Le `platform_ref` d'un dépôt du Hub (`org/nom` → `huggingface:org/nom`), '' sans dépôt."""
+    repo = str(repo or '').strip()
+    return f'{HUGGINGFACE}:{repo}' if repo else ''
+
+
 class _RemoteEngine:
     """Porteur d'inventaire d'un fournisseur DISTANT — pas un backend Python (patron
     `ollama_host._MoteurOllama` : un moteur qui n'est pas du code qu'on charge).

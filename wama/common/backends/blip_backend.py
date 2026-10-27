@@ -55,10 +55,11 @@ class BlipBackend(BaseModelBackend):
         from wama.model_manager.services.memory_manager import MemoryManager, MemoryStrategy
         # Passe-plat COMMUN (étape 2) — préserve la signature ORM-free de ce backend :
         # il lit une DÉCLARATION, jamais le catalogue (qui exigerait Django).
+        from wama.common.external_sources import hf_repo
         from wama.common.utils.model_declarations import declaration
 
         model_info = declaration('describer', 'blip') or {}
-        model_name = model_info['model_id']
+        model_name = hf_repo(model_info.get('platform_ref'))
         cache_dir = str(model_info['local_dir'])
 
         # Env NON muté (ROADMAP §5b, 2026-09-04) : `BlipProcessor.from_pretrained` et

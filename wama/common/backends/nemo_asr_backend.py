@@ -25,6 +25,8 @@ from typing import List, Optional
 from .speech_to_text_base import (MAX_SEGMENT_SECONDS, SpeechToTextBackend, TranscriptionResult,
                                   TranscriptionSegment, segments_from_words)
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = 'parakeet-tdt-0.6b-v3'
@@ -46,9 +48,9 @@ class NemoASRBackend(SpeechToTextBackend):
     #: langue (Canary) ; `max_audio_seconds` = une passe sûre (Canary est entraîné sur des
     #: segments ≤ 40 s ; Parakeet tient ~24 min en attention pleine, 10 min laisse de la marge).
     SUPPORTED_MODELS = {
-        'canary-1b-v2': {'hf_id': 'nvidia/canary-1b-v2', 'settings_key': 'canary',
+        'canary-1b-v2': {'platform_ref': 'huggingface:nvidia/canary-1b-v2', 'settings_key': 'canary',
                          'multitask': True, 'max_audio_seconds': 30},
-        'parakeet-tdt-0.6b-v3': {'hf_id': 'nvidia/parakeet-tdt-0.6b-v3', 'settings_key': 'parakeet',
+        'parakeet-tdt-0.6b-v3': {'platform_ref': 'huggingface:nvidia/parakeet-tdt-0.6b-v3', 'settings_key': 'parakeet',
                                  'multitask': False, 'max_audio_seconds': 600},
         # LinTO STT FR FastConformer (Linagora, CC-BY 4.0, 2026-10-01) — installé par la
         # prospection, intégré par la chaîne (rôle `model` : moteur `nemo` prouvé par le `.nemo`).
@@ -61,7 +63,7 @@ class NemoASRBackend(SpeechToTextBackend):
         # coupées dans une pause, 948 mots, WER 39 %. Les 600 s de Parakeet, recopiées le 01/10,
         # n'avaient pas été mesurées sur lui.
         'linagora/linto_stt_fr_fastconformer_pc': {
-            'hf_id': 'linagora/linto_stt_fr_fastconformer_pc',
+            'platform_ref': 'huggingface:linagora/linto_stt_fr_fastconformer_pc',
             'model_key': 'huggingface:linagora/linto_stt_fr_fastconformer_pc',
             'multitask': False, 'max_audio_seconds': 30},
     }
@@ -122,7 +124,7 @@ class NemoASRBackend(SpeechToTextBackend):
         if name in cls.SUPPORTED_MODELS:
             return name
         for model_id, spec in cls.SUPPORTED_MODELS.items():
-            if spec['hf_id'].lower() == name:
+            if hf_repo(spec['platform_ref']).lower() == name:
                 return model_id
         return DEFAULT_MODEL
 
@@ -177,7 +179,7 @@ class NemoASRBackend(SpeechToTextBackend):
             # le dossier de famille (motif : l'archive seule, pas le reste du dépôt).
             if spec.get('settings_key'):
                 from wama.common.utils.hf_weights import poids_locaux
-                snapshot = Path(poids_locaux(spec['hf_id'], self._family_dir(spec['settings_key']),
+                snapshot = Path(poids_locaux(hf_repo(spec['platform_ref']), self._family_dir(spec['settings_key']),
                                              patterns=['*.nemo']))
             else:
                 # Modèle installé par la prospection : ses poids se désignent par la CLÉ.
@@ -196,7 +198,7 @@ class NemoASRBackend(SpeechToTextBackend):
 
             self._model_id = model_id
             self._loaded = True
-            self._current_model = spec['hf_id']            # lu par `catalogue_key_for`
+            self._current_model = hf_repo(spec['platform_ref'])   # lu par `catalogue_key_for`
             self.max_audio_seconds = spec['max_audio_seconds']
             logger.info(f"[NeMo] '{model_id}' loaded ✓ ({type(self._model).__name__})")
             return True

@@ -30,13 +30,13 @@ Path(DOCTR_DIR).mkdir(parents=True, exist_ok=True)
 # (`WamaModelCaps`, même geste que les moteurs audio de l'enhancer). MESURÉ dans chaque backend :
 # olmOCR met le mode ET la langue dans sa consigne (`_build_prompt`) ; GLM-OCR ne passe que la
 # langue (`_ocr_image(model, img_path, language)`) ; docTR reçoit les deux et n'en lit aucun.
-# NOTE : pour olmOCR-2, vérifier le HF ID exact sur https://huggingface.co/allenai
+# NOTE : pour olmOCR-2, vérifier le dépôt exact sur https://huggingface.co/allenai
 # Candidats connus : allenai/olmOCR-7B-0225-preview, allenai/olmOCR-2-0328
 READER_MODELS = {
     'olmocr': {
         'model_id':    'olmocr',
         'engine': 'transformers',
-        'hf_model_id': 'allenai/olmOCR-7B-0225-preview',  # à ajuster si nécessaire
+        'platform_ref': 'huggingface:allenai/olmOCR-7B-0225-preview',  # à ajuster si nécessaire
         'type':        'ocr-vlm',
         'vram_gb':     14.0,
         'description': 'olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules',
@@ -55,7 +55,7 @@ READER_MODELS = {
     'doctr': {
         'model_id':    'doctr',
         'engine': 'doctr',
-        'hf_model_id': '',   # modèles embarqués dans le package
+        # Pas de `platform_ref` : les modèles sont embarqués dans le paquet docTR.
         'type':        'ocr-pipeline',
         'vram_gb':     0.0,  # CPU
         'description': 'docTR (Mindee) — pipeline CPU, imprimé, bonne gestion des formulaires',

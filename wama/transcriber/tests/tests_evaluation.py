@@ -154,8 +154,8 @@ class ACatalogueModelNameSelectsItsEngineTest(TestCase):
         self.assertEqual('qwen3-asr-0.6b', M.model_for_request(qwen, 'transcriber:qwen3-asr-0.6b'))
         self.assertIsNone(M.model_for_request(qwen, 'qwen_asr'), 'an engine name keeps the default')
         self.assertIsNone(M.model_for_request(qwen, None))
-        self.assertEqual('Qwen/Qwen3-ASR-0.6B', QwenASRBackend.hf_id_for('qwen3-asr-0.6b'))
-        self.assertEqual('Qwen/Qwen3-ASR-1.7B', QwenASRBackend.hf_id_for(None))
+        self.assertEqual('Qwen/Qwen3-ASR-0.6B', QwenASRBackend.repo_id_for('qwen3-asr-0.6b'))
+        self.assertEqual('Qwen/Qwen3-ASR-1.7B', QwenASRBackend.repo_id_for(None))
 
     def test_a_catalogue_request_served_by_its_engine_is_not_reported_as_a_fallback(self):
         """Item 737 (2026-09-28) was told « indisponible — repli sur Qwen3-ASR » while Qwen3-ASR
@@ -482,7 +482,7 @@ class TranscriberEvaluationTest(TestCase):
         from wama.model_manager.models import AIModel
         return AIModel.objects.create(
             model_key='transcriber:wav2vec2-fr-aligner', name='aligneur', source='transcriber',
-            hf_id='org/aligneur', capabilities={'task': 'alignment', 'languages': list(languages)},
+            platform_ref='huggingface:org/aligneur', capabilities={'task': 'alignment', 'languages': list(languages)},
             composition={'runtime': {'engine': 'transformers'}})
 
     def _anchored_import(self):

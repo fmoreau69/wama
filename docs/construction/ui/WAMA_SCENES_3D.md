@@ -194,7 +194,8 @@ il vaut mieux déjà centraliser qu'ajouter des boutons dans toutes les scènes 
   rapprochent la caméra ; une main ouverte lâche ; un poing ne se déclare qu'après deux images et ne
   se relâche qu'après quatre (une image mal lue ne fait ni saisir ni lâcher), la paume est lissée ;
 - le MODÈLE (`gesture_recognizer.task`, 8 Mo) est une ligne du catalogue
-  (`custom:mediapipe-gesture-recognizer`, tâche `hand-gesture`), déclarée par `common/hand_gestures.py`,
+  (`mediapipe_models:gesture-recognizer` — `custom:…` jusqu'au 2026-10-27, rangée depuis sous la
+  source de son fichier déclaré —, tâche `hand-gesture`), déclarée par `common/hand_gestures.py`,
   installée par la route (pilote `files`, origine `mediapipe_models`, comme le Face Landmarker) et
   servie au navigateur par `common:hand_model` ; absent, la vignette le dit et renvoie à la gestion
   des modèles ;

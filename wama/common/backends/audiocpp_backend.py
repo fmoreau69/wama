@@ -82,12 +82,12 @@ def get_audiocpp_binary() -> str:
                / 'bin' / 'audiocpp_cli')
 
 
-def _snapshot_root(cache_dir, hf_id: str) -> Optional[Path]:
+def _snapshot_root(cache_dir, repo_id: str) -> Optional[Path]:
     """
     Racine du PACKAGE (= dossier snapshot HF courant) : c'est elle que `--model` attend —
     composants GGUF à la racine + `config/` + `tokenizer/`.
     """
-    depot = Path(cache_dir) / f"models--{hf_id.replace('/', '--')}"
+    depot = Path(cache_dir) / f"models--{repo_id.replace('/', '--')}"
     ref = depot / 'refs' / 'main'
     try:
         rev = ref.read_text().strip()
@@ -170,6 +170,7 @@ class AudioCppBackend(MusicGenerationBackend):
         # Passe-plat COMMUN : le backend lit la déclaration sans importer l'app.
         # Le jour où il rejoint le substrat, cette ligne ne change pas — c'est
         # tout l'objet de l'étape 2.
+        from wama.common.external_sources import hf_repo
         from wama.common.utils.model_declarations import declaration
 
         config = declaration('composer', model_id)
@@ -184,10 +185,11 @@ class AudioCppBackend(MusicGenerationBackend):
                 f"binaire audio.cpp introuvable ({binaire}) — compiler audio.cpp ou poser "
                 "AUDIOCPP_BINARY.")
         famille = (compo.get('runtime') or {}).get('family') or 'minimax_music3'
-        racine = _snapshot_root(config['cache_dir'], config['hf_id'])
+        repo_id = hf_repo(config.get('platform_ref'))
+        racine = _snapshot_root(config['cache_dir'], repo_id)
         if racine is None:
             raise RuntimeError(
-                f"package {config['hf_id']} absent de {config['cache_dir']} — installer le "
+                f"package {repo_id} absent de {config['cache_dir']} — installer le "
                 "modèle (model manager) d'abord.")
         ensure_engine_default_aliases(racine, famille, compo)
 

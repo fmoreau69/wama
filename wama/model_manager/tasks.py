@@ -331,7 +331,7 @@ def install_proposed_task(self, model_key: str, user_id=None):
 @shared_task(bind=True, name='model_manager.install_catalog')
 def install_catalog_task(self, model_key: str, user_id=None):
     """
-    Installe un modèle DU CATALOGUE (non téléchargé, hf_id + install_dir déclarés) — le
+    Installe un modèle DU CATALOGUE (non téléchargé, platform_ref + install_dir déclarés) — le
     pendant de `install_proposed_task` pour les modèles d'app (2026-08-27, cas
     musicgen-melody). Spec dérivé côté serveur (`spec_for_catalog_row`), même cache de
     progression que les candidats → l'UI réutilise le même suivi.
@@ -357,7 +357,7 @@ def install_catalog_task(self, model_key: str, user_id=None):
         spec = spec_for_catalog_row(model)
         if spec is None:
             publier('FAILURE', {'error': "Ce modèle ne déclare pas d'emplacement d'installation "
-                                         "(hf_id/install_dir) — installation au premier usage "
+                                         "(platform_ref/install_dir) — installation au premier usage "
                                          "seulement.", 'name': model.name})
             outcome.update({'ok': False, 'error': 'spec non dérivable'})
             return {'ok': False, 'error': 'spec non dérivable'}

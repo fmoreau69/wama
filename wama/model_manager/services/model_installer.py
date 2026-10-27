@@ -123,7 +123,7 @@ def _is_access_refusal(exc) -> bool:
     return status in (401, 403)
 
 
-def pull_hf_model(hf_id: str, category: str, family: str | None = None,
+def pull_hf_model(repo_id: str, category: str, family: str | None = None,
                   dry_run: bool = False, allow_patterns=None, progress=None, token=None):
     """
     Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -141,7 +141,7 @@ def pull_hf_model(hf_id: str, category: str, family: str | None = None,
     import os
     try:
         from wama.common.utils.model_locations import model_dir
-        target = str(model_dir(category, family or hf_id.split('/')[-1]))
+        target = str(model_dir(category, family or repo_id.split('/')[-1]))
     except Exception as e:
         return {'ok': False, 'error': f"résolution dossier: {type(e).__name__}: {e}"}
 
@@ -151,8 +151,8 @@ def pull_hf_model(hf_id: str, category: str, family: str | None = None,
     os.makedirs(target, exist_ok=True)
     try:
         from huggingface_hub import snapshot_download
-        ignore = None if allow_patterns else format_duplicates(hf_id)
-        path = snapshot_download(repo_id=hf_id, cache_dir=target, allow_patterns=allow_patterns,
+        ignore = None if allow_patterns else format_duplicates(repo_id)
+        path = snapshot_download(repo_id=repo_id, cache_dir=target, allow_patterns=allow_patterns,
                                  ignore_patterns=ignore or None, token=token)
         return {'ok': True, 'path': path, 'target': target,
                 **({'ignores': ignore} if ignore else {})}
@@ -199,14 +199,14 @@ def duplicate_weight_files(files) -> list:
     return sorted(duplicates)
 
 
-def format_duplicates(hf_id: str) -> list:
+def format_duplicates(repo_id: str) -> list:
     """Les jumeaux de format d'un dépôt HF — un appel HTTP, la règle vient de
     `duplicate_weight_files`. S'appelait `doublons_de_format` jusqu'au 2026-09-19 (bascule de
     la langue du code). Best-effort : si le listing échoue, on ne filtre rien (le doublon
     coûte du disque, pas l'installation)."""
     try:
         from huggingface_hub import HfApi
-        return duplicate_weight_files(HfApi().list_repo_files(hf_id))
+        return duplicate_weight_files(HfApi().list_repo_files(repo_id))
     except Exception:
         return []
 
@@ -511,7 +511,7 @@ def _local_repo_weight_gb(repo: str):
     rendait `unresolved` sur ses DEUX composants alors que les deux dépôts frères sont installés
     ici — la pesée ne savait aller qu'à distance, et `pyannote/segmentation-3.0` est GATED (l'API
     rend 401). *Un dépôt qu'on a sous la main n'a pas à être demandé à un serveur qui le refuse.*
-    Réutilise les deux briques existantes : l'index `hf_id → snapshot` et l'inventaire local.
+    Réutilise les deux briques existantes : l'index `dépôt → snapshot` et l'inventaire local.
     """
     try:
         from wama.common.utils.model_locations import installed_snapshots
@@ -627,7 +627,7 @@ def components_for_spec(spec: dict, *, files=None) -> dict:
     kind, ref = spec.get('kind'), (spec.get('ref') or '').strip()
     if not ref:
         # Un modèle SANS dépôt principal peut n'exister que par ses dépôts frères — les trois
-        # DeepFace n'ont pas de `hf_id` du tout, leur anatomie est entièrement déportée.
+        # DeepFace n'ont pas de dépôt du Hub du tout, leur anatomie est entièrement déportée.
         return _with_sibling_repos({}, restriction['composition'])
     if kind == 'hf':
         from .prospector import _siblings
@@ -1270,14 +1270,14 @@ def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
     cand.save(update_fields=['extra_info'])
 
     # La garde d'espace se calcule sur le POIDS DU CHOIX, pas sur les poids pleins.
-    variantes = {v['hf_id']: v for v in (prospect.get('quant_variants') or [])}
+    variantes = {v['repo_id']: v for v in (prospect.get('quant_variants') or [])}
     if variant_file:
         # Un fichier du dépôt du candidat lui-même (dépôt GGUF) ou d'une variante.
-        chosen_files = (prospect.get('own_gguf') if variant_ref == cand.hf_id
+        chosen_files = (prospect.get('own_gguf') if variant_ref == cand.hf_repo
                         else variantes.get(variant_ref, {}).get('files'))
         tailles = {f['file']: f['gb'] for f in (chosen_files or [])}
         return tailles.get(variant_file) or None
-    if variant_ref != cand.hf_id:
+    if variant_ref != cand.hf_repo:
         return (variantes.get(variant_ref) or {}).get('disk_gb') or None
     return cand.disk_gb or None
 
@@ -1285,13 +1285,15 @@ def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
 def similar_model_keys(key: str, limit: int = 3) -> list[str]:
     """Les clés du catalogue (propositions comprises) qui désignent le MÊME dépôt ou le même nom
     qu'une clé introuvable : la partie après le dernier `:` (`org/dépôt`, ou un nom), comparée au
-    `hf_id`, à la fin de la clé et au nom. Vide quand rien ne correspond."""
+    dépôt du Hub (`platform_ref`), à la fin de la clé et au nom. Vide quand rien ne correspond."""
     from ..models import AIModel
     tail = (key or '').rsplit(':', 1)[-1].strip()
     if not tail:
         return []
     from django.db.models import Q
-    match = Q(hf_id__iexact=tail) | Q(model_key__iendswith=f':{tail}') | Q(name__iexact=tail)
+    from wama.common.external_sources import hf_platform_ref
+    match = (Q(platform_ref__iexact=hf_platform_ref(tail)) | Q(model_key__iendswith=f':{tail}')
+             | Q(name__iexact=tail))
     near = list(AIModel.objects.filter(match).exclude(model_key=key)
                 .order_by('-is_proposed', 'model_key')
                 .values_list('model_key', flat=True)[:limit])
@@ -1307,7 +1309,7 @@ def variant_owner_keys(repo: str) -> list[str]:
     if '/' not in (repo or ''):
         return []
     rows = AIModel.objects.filter(is_proposed=True,
-                                  extra_info__prospect__quant_variants__contains=[{'hf_id': repo}])
+                                  extra_info__prospect__quant_variants__contains=[{'repo_id': repo}])
     return list(rows.order_by('model_key').values_list('model_key', flat=True))
 
 
@@ -1424,8 +1426,8 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
         if spec_for_catalog_row(row) is None:
             return {'ok': False, 'reason': 'no_install_location',
                     'error': "Ce modèle ne déclare pas d'emplacement d'installation "
-                             "(hf_id/install_dir) — il se téléchargera au premier usage."}
-        ref = row.hf_id or row.name
+                             "(platform_ref/install_dir) — il se téléchargera au premier usage."}
+        ref = row.hf_repo or row.name
         needed = row.disk_gb or weight_for_spec(spec_for_catalog_row(row))
         task, target = install_catalog_task, row
 
@@ -1537,11 +1539,11 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
     # la porte depuis sa découverte par RÔLE (`prospect_ollama`, `capabilities={'task': …}`) ;
     # sans ce transport, seule la branche HF (`spec.task`) en bénéficiait, et un modèle Ollama
     # installé repartait de ce que la découverte générique sait deviner de son nom.
-    # `base_hf_id` (le modèle canonique d'un GGUF du Hub) n'entre que s'il est connu : un
-    # candidat de la bibliothèque Ollama garde exactement son descripteur d'avant.
-    base_hf_id = (spec or {}).get('base_hf_id') or ''
+    # `base_model` (le modèle canonique d'un GGUF du Hub, vocabulaire de la carte) n'entre que
+    # s'il est connu : un candidat de la bibliothèque Ollama garde exactement son descripteur d'avant.
+    base_model = (spec or {}).get('base_model') or ''
     record_provenance({'kind': 'ollama', 'ref': pull_name,
-                       **({'base_hf_id': base_hf_id} if base_hf_id else {}),
+                       **({'base_model': base_model} if base_model else {}),
                        'task': ((spec or {}).get('task')
                                 or (cand.capabilities or {}).get('task') or '')}, {},
                       owner=owner)
@@ -1572,7 +1574,7 @@ def weights_dir_of(model, index: dict | None = None) -> Path | None:
 
     Même lien que `model_sync.persist_weights` — aucune règle de plus : `local_path` (ou
     `extra_info['path']`) s'il nomme un dépôt `models--*`, sinon l'index des snapshots
-    installés par `hf_id` (`model_locations.installed_snapshots`). C'est ce qui rend
+    installés par dépôt (`model_locations.installed_snapshots`). C'est ce qui rend
     désinstallables les modèles d'APP, qui ne portent pas leur chemin (l'imager retrouve le
     sien dans sa propre découverte : `local_path` vide).
 
@@ -1590,11 +1592,11 @@ def weights_dir_of(model, index: dict | None = None) -> Path | None:
     path = Path(declared) if declared else None
     if path is not None and path.name.startswith('models--'):
         return path
-    hf_id = (model.hf_id or '').strip().lower()
-    if hf_id:
+    repo_id = model.hf_repo.lower()
+    if repo_id:
         index = installed_snapshots() if index is None else index
-        if hf_id in index:
-            return index[hf_id]
+        if repo_id in index:
+            return index[repo_id]
     if path is not None:
         try:
             relative = path.resolve().relative_to(models_root().resolve())
@@ -1632,7 +1634,7 @@ def rows_depending_on(model, target: Path, index: dict | None = None) -> tuple[l
     from ..models import AIModel, EXECUTION_LOCAL
 
     index = installed_snapshots() if index is None else index
-    hf_id = (model.hf_id or '').strip().lower()
+    repo_id = model.hf_repo.lower()
     sharing, dependents = [], []
     others = (AIModel.objects.filter(is_downloaded=True, is_proposed=False,
                                      execution=EXECUTION_LOCAL)
@@ -1641,7 +1643,9 @@ def rows_depending_on(model, target: Path, index: dict | None = None) -> tuple[l
         other_dir = weights_dir_of(other, index)
         if other_dir is not None and _same_or_nested(other_dir, target):
             sharing.append(other)
-        elif hf_id and str((other.extra_info or {}).get('base_model') or '').strip().lower() == hf_id:
+        elif (repo_id and str((other.extra_info or {}).get('base_model') or '').strip().lower() == repo_id
+              and (other.extra_info or {}).get('base_model_relation') != 'quantized'):
+            # Une QUANTIFICATION de ce modèle n'en dépend pas : elle porte ses propres poids.
             dependents.append(other)
     return sharing, dependents
 
@@ -1719,7 +1723,7 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
         # GARDE-FOUS avant tout rm -rf : le dossier doit être SOUS la racine canonique —
         # jamais de suppression hors de `AI-models/models/`, quoi que dise la base. Le cache HF
         # PARTAGÉ (`AI-models/cache/…`, sous-dépendances de plusieurs modèles) est donc hors
-        # d'atteinte même quand l'index y résout un `hf_id`.
+        # d'atteinte même quand l'index y résout un dépôt.
         from wama.common.utils.model_locations import installed_snapshots, models_root
         index = installed_snapshots()
         declared = weights_dir_of(model, index)
@@ -1833,7 +1837,8 @@ def spec_for_catalog_row(model) -> dict | None:
     des modèles d'app (2026-08-27, cas musicgen-melody : affiché « Not downloaded » sans aucun
     bouton ; l'affichage est voulu — découvrabilité —, le geste manquait).
 
-    Conditions : un `hf_id` (la référence à tirer) ET un `extra_info['install_dir']` déclaré
+    Conditions : un dépôt du Hub (`platform_ref`, la référence à tirer) ET un
+    `extra_info['install_dir']` déclaré
     par la DÉCOUVERTE de l'app (le registre ne connaît pas ses producteurs : c'est l'app qui
     dit où ses poids vivent). `category`/`family` se dérivent du chemin relatif à la racine
     canonique. La `composition` déclarée voyage dans le spec (jeu cohérent). None si la ligne
@@ -1841,10 +1846,10 @@ def spec_for_catalog_row(model) -> dict | None:
     """
     from wama.common.utils.model_locations import models_root
 
-    hf_id = (model.hf_id or '').strip()
+    repo_id = model.hf_repo
     install_dir = ((model.extra_info or {}).get('install_dir') or '').strip()
     # Les fichiers que l'app DÉCLARE, chacun avec son origine (pilote `files`, 2026-10-11 ;
-    # CodeFormer depuis le 10/10) : ils priment sur le `hf_id`, qui peut nommer un dépôt sans
+    # CodeFormer depuis le 10/10) : ils priment sur le `platform_ref`, qui peut nommer un dépôt sans
     # rapport avec les poids réellement lus — ou n'en nommer qu'un parmi plusieurs (MuseTalk).
     declared = (model.extra_info or {}).get('declared_files')
     if declared and install_dir:
@@ -1855,7 +1860,7 @@ def spec_for_catalog_row(model) -> dict | None:
         return {'kind': 'files', 'ref': model.model_key, 'files': list(declared),
                 'target_dir': install_dir,
                 'note': f"installation explicite depuis le catalogue ({model.model_key})"}
-    if not hf_id or not install_dir:
+    if not repo_id or not install_dir:
         return None
     try:
         rel = Path(install_dir).resolve().relative_to(models_root().resolve())
@@ -1865,7 +1870,7 @@ def spec_for_catalog_row(model) -> dict | None:
     if not parts:
         return None
     spec = {
-        'kind': 'hf', 'ref': hf_id,
+        'kind': 'hf', 'ref': repo_id,
         'category': parts[0],
         **({'family': parts[1]} if len(parts) > 1 else {}),
         'note': f"installation explicite depuis le catalogue ({model.model_key})",
@@ -2026,7 +2031,7 @@ def queue_benchmarks(res: dict, appeared_keys) -> None:
     Avant, un modèle installé n'avait de banc qu'à la synchro COMPLÈTE suivante — au bouton
     « Mesurer la performance », ou après une prospection —, donc souvent jamais : son a priori
     restait vide et le tirage le classait mal. Les lignes visées sont celles qui ont reçu leur
-    identité (c'est d'elle que dépend l'appariement : `hf_id`, `platform_ref`), sinon ce que le
+    identité (c'est d'elle que dépend l'appariement : `platform_ref`, `base_model`), sinon ce que le
     sync a créé. Asynchrone (file `default`, purement réseau) et lu sur le cache des sources
     (`cache='read'`) : une installation n'attend pas les leaderboards, et ne vide pas un quota.
     Best-effort, comme la provenance : un banc manqué ne fait jamais échouer une installation."""

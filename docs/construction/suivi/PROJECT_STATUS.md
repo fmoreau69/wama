@@ -26203,7 +26203,7 @@ conformes au niveau pour chaque compte ; `administrators()` = les 3 admin ; en b
 groupes sont les quatre rôles métier. Domicile : `PROFILES_PERMISSIONS §1.10`. Aucun code touché.
 Restent de cette session (inchangés) : pousser, et les limites du bloc précédent.
 
-## §CLÔTURE — 2026-10-20→26, « ROUTAGE DES MODÈLES : PROVENANCE EXACTE, VOCABULAIRE DES SOURCES, IDENTITÉ PAR LE MANIFESTE » — ✅ LIVRÉ, ETA d'un distant comprise — 🔚 `hf_id` → `platform_ref` (plan à valider)
+## §CLÔTURE — 2026-10-20→26, « ROUTAGE DES MODÈLES : PROVENANCE EXACTE, VOCABULAIRE DES SOURCES, IDENTITÉ PAR LE MANIFESTE » — ✅ LIVRÉ, ETA d'un distant comprise, `platform_ref` seul (étapes 1-3, 27/10) — 🔚 étape 4 avec les manifestes
 
 Demande de Fabien : connaître la provenance EXACTE d'un modèle (« Claude API ou Claude
 abonnement »), le moins de choses écrites à la main, alignement parfait. Commits sur `dev`, non
@@ -26219,8 +26219,8 @@ fantômes Albert supprimés par la route, après vérification en direct). Domic
 — ✅ tranché et livré le même jour (§10 ci-dessus : sous sa source, et aucun chargement pour un
 modèle chaud ; migration `model_manager/0028`). ⚠ « Latent : 0 statistique de distant en base »
 était FAUX : la mesure ne lisait que les clés de catalogue exactes, il y en avait 5 (§10).
-Reste à décider : l'asymétrie inverse des appelants « chargé par défaut » (§10), et `hf_id`
-(ci-dessous).
+Reste à décider : l'asymétrie inverse des appelants « chargé par défaut » (§10). `hf_id` : étapes 1 à 3
+livrées le 27/10 (« Suite, 2026-10-27 » ci-dessous), la 4ᵉ part avec la session des manifestes.
 
 **Pendings système** : relancer gunicorn + workers — la relance de 16:23 sert `29b9fd28` et
 `27de71c7`, PAS le Python de `2e0a9533` et `699d5786` (règle des renommages, dérivation commune
@@ -26230,9 +26230,11 @@ gitignorée comme toutes. Données posées par la route : 26 identités (`backfi
 
 **Laissé de côté — limites de CETTE session** :
 - ~~l'ETA des modèles distants (ci-dessus)~~ — livrée (§10) ;
-- `hf_id` et `platform_ref` disent encore le même fait pour un modèle du Hub (deux champs) —
-  non touché, la dérivation est unique (`AIModel.platform_refs`) ;
-- `custom` reste la seule source qu'aucune déclaration ne nomme (briques LPIPS, gestes de la main) ;
+- ~~`hf_id` et `platform_ref` disent encore le même fait~~ — étapes 1-3 livrées le 27/10 (ci-dessous) ;
+- ~~`custom` reste la seule source qu'aucune déclaration ne nomme~~ — ✅ RANGÉ le 27/10 (Fabien :
+  « il faut corriger le rangement ») : leurs fichiers déclaraient une origine du registre ; LPIPS
+  passe sous `pytorch_download`, les gestes sous `mediapipe_models` (patron de YOLOPv2), `custom`
+  sort du vocabulaire (migration `0030`, R180) ;
 - quatre manifestes laissés MODIFIÉS dans l'arbre, non commités : `huggingface__triposr`,
   `transcriber__parakeet-…`, `imager__fastwan-…`, `albert__qwen3-coder-…` — ce sont des
   PROJECTIONS du catalogue (fichiers déclarés, VRAM mesurée, graine / `top_p` de la session des
@@ -26270,6 +26272,23 @@ avant la relance, « Enregistrer » répond par une erreur.
 Puis l'**ajout** d'un compte est aligné sur les mêmes validateurs de mot de passe (`_password_refusal`,
 partagé avec le stylo) — il n'en appliquait aucun. Mesuré : `wama.accounts` 202 tests OK (base de
 test privée) ; contre-épreuve rouge (validateurs neutralisés → 3 tests rougissent).
+
+**Suite, 2026-10-27 — `platform_ref` SEUL, étapes 1 à 3** (Fabien : « ok pour 1 à 3 maintenant, le 4
+avec les manifestes »).
+Mesuré avant : 266 sites structurels de `hf_id` (142 clés, 69 filtres, 55 attributs) ; 397 lignes
+sur 398 identiques des deux côtés ; le même dépôt déclaré sous trois noms (`hf_id`, `hf_model_id`,
+`model_id` du describer). ① un accesseur, `external_sources.hf_repo` / `hf_platform_ref` (+
+`AIModel.hf_repo`, `ModelInfo.hf_repo`), lu partout ; ② le canonique d'un GGUF en `base_model` +
+`base_model_relation: quantized` (vocabulaire du Hub, `AIModel.quantized_base`, paire collante,
+portée par le manifeste) — une quantification n'a pas de dorsale ; ③ les déclarations d'app et de
+moteur en `platform_ref` (`AGENTS.md` §4), `ModelInfo.platform_ref` écrit par la synchro, `repo_id`
+pour un dépôt en paramètre. Migration `model_manager/0029` (données, réversible) **appliquée par la
+relance du parc de 01:26-01:30** (migrate + gunicorn + workers, pendant la session) : le parc sert
+déjà ce code. Lu après coup, sur la base vivante : la découverte neuve rend le `platform_ref` en base
+pour 255 lignes, 0 différente ; installables par la route 8 → 8 ; le GGUF apparie son canonique.
+Reste ⏳ (étape 4) : 15 sites dans 6 fichiers, tous de la couche
+manifeste, figés par `tests_platform_ref_only.HF_ID_BUDGET`. Domiciles : `WAMA_MANIFEST_SPEC §7.1
+bis`, `PROSPECTION_PIPELINE §Session du 2026-10-27`, R179.
 
 ## §PALIER 2026-10-26 (soir) — EMPILER des briques en un panneau, ÉPINGLER à QUATRE bords — non poussé — 🔴 relancer gunicorn, puis Ctrl+F5
 

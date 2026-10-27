@@ -91,12 +91,12 @@ def diffusers_class_known(class_name) -> bool:
     return str(class_name) in dir(diffusers)
 
 
-def diffusers_pipeline_class(hf_id):
+def diffusers_pipeline_class(repo_id):
     """(`_class_name` du `model_index.json` racine, ou None ; raison lisible) — fait MÉCANIQUE."""
     import json as _json
     from huggingface_hub import hf_hub_download
     try:
-        path = hf_hub_download(hf_id, 'model_index.json')
+        path = hf_hub_download(repo_id, 'model_index.json')
     except Exception:
         return None, "aucun model_index.json à la racine du dépôt"
     with open(path, encoding='utf-8') as f:
@@ -115,7 +115,7 @@ def transformers_class_known(class_name) -> bool:
     return str(class_name) in dir(transformers)
 
 
-def transformers_architectures(hf_id):
+def transformers_architectures(repo_id):
     """(`architectures` du `config.json` racine, ou [] ; raison lisible) — fait MÉCANIQUE.
 
     `auto_map` y est signalé : un modèle à code DISTANT ne s'exécute pas par les classes de
@@ -123,7 +123,7 @@ def transformers_architectures(hf_id):
     import json as _json
     from huggingface_hub import hf_hub_download
     try:
-        path = hf_hub_download(hf_id, 'config.json')
+        path = hf_hub_download(repo_id, 'config.json')
     except Exception:
         return [], "aucun config.json à la racine du dépôt"
     with open(path, encoding='utf-8') as f:
@@ -152,16 +152,16 @@ ENGINE_PROOFS = {
 }
 
 
-def repo_files(hf_id) -> list:
+def repo_files(repo_id) -> list:
     """Chemins des fichiers du dépôt HF ([] s'il est illisible — réseau, dépôt restreint)."""
     try:
         from huggingface_hub import HfApi
-        return list(HfApi().list_repo_files(hf_id))
+        return list(HfApi().list_repo_files(repo_id))
     except Exception:
         return []
 
 
-def signal_weight_formats(hf_id, concerns, lister=repo_files):
+def signal_weight_formats(repo_id, concerns, lister=repo_files):
     """Signale les FORMATS de poids du dépôt quand il en porte plusieurs.
 
     Vécu le 2026-09-30 (LinTO FastConformer) : le rôle a proposé `transformers` sur la foi d'un
@@ -170,7 +170,7 @@ def signal_weight_formats(hf_id, concerns, lister=repo_files):
     reconnaît déjà comme des poids (`prospector._WEIGHT_EXTS`) — aucune liste de plus."""
     from wama.model_manager.services.prospector import _WEIGHT_EXTS
     by_ext = {}
-    for path in lister(hf_id):
+    for path in lister(repo_id):
         ext = next((e for e in _WEIGHT_EXTS if path.lower().endswith(e)), None)
         if ext:
             by_ext.setdefault(ext, []).append(path)
@@ -183,7 +183,7 @@ def signal_weight_formats(hf_id, concerns, lister=repo_files):
     return by_ext
 
 
-def enforce_identity(manifest, key, hf_id, concerns, platform_ref=None):
+def enforce_identity(manifest, key, repo_id, concerns, platform_ref=None):
     """La clé et l'identité du manifeste sont celles du modèle DEMANDÉ — jamais celles que le LLM
     a écrites.
 
@@ -198,21 +198,21 @@ def enforce_identity(manifest, key, hf_id, concerns, platform_ref=None):
     identity = body.setdefault('identity', {})
     ref = platform_ref or key
     wrong = [f"{name} {value!r}" for name, value, expected in (
-        ('clé', manifest.get('key'), key), ('hf_id', identity.get('hf_id'), hf_id),
+        ('clé', manifest.get('key'), key), ('hf_id', identity.get('hf_id'), repo_id),
         ('platform_ref', identity.get('platform_ref'), ref)) if value and value != expected]
     manifest['key'] = key
-    identity['hf_id'] = hf_id
+    identity['hf_id'] = repo_id
     identity['platform_ref'] = ref
     if wrong:
         # Le NOM suit l'identité fautive (« stt-2.6b-en » pour stt-1b-en_fr-trfs, même run) :
         # il redevient celui du dépôt demandé.
-        manifest['name'] = hf_id.rsplit('/', 1)[-1]
+        manifest['name'] = repo_id.rsplit('/', 1)[-1]
         concerns.append(f"identité CORRIGÉE (fait mécanique) : le LLM avait écrit {', '.join(wrong)} "
                         f"pour {key!r} — le manifeste a pu décrire un autre modèle, à relire")
     return manifest
 
 
-def card_languages(hf_id, snapshot=None) -> list:
+def card_languages(repo_id, snapshot=None) -> list:
     """Langues DÉCLARÉES par la fiche du modèle (en-tête YAML `language`) ; [] si la fiche n'en
     dit rien. Lue dans le snapshot installé, sinon sur le Hub. La traduction en vocabulaire WAMA
     (codes courts, `multilingual` → `['*']`) est celle de la prospection, `card_facts` : un
@@ -223,7 +223,7 @@ def card_languages(hf_id, snapshot=None) -> list:
         readme = Path(snapshot) / 'README.md' if snapshot else None
         if readme is None or not readme.is_file():
             from huggingface_hub import hf_hub_download
-            readme = hf_hub_download(hf_id, 'README.md')
+            readme = hf_hub_download(repo_id, 'README.md')
         meta = metadata_load(readme) or {}
     except Exception:
         return []
@@ -276,7 +276,7 @@ def _engine_from_format(manifest, by_ext, concerns):
             return
 
 
-def enforce_component_facts(manifest, hf_id, concerns, lister=repo_files):
+def enforce_component_facts(manifest, repo_id, concerns, lister=repo_files):
     """Pose l'ANATOMIE d'un modèle SIMPLE quand le manifeste n'en déclare aucune.
 
     Vécu le 2026-10-01 (FrWhisper, Kyutai, LinTO) : le rôle `backend` exige
@@ -291,7 +291,7 @@ def enforce_component_facts(manifest, hf_id, concerns, lister=repo_files):
     if composition.get('components'):
         return manifest
     by_ext = {}
-    paths = list(lister(hf_id))
+    paths = list(lister(repo_id))
     for path in paths:
         ext = next((e for e in _WEIGHT_EXTS if path.lower().endswith(e)), None)
         if ext and '/' not in path:                      # les poids du modèle, à la racine
@@ -328,33 +328,33 @@ def enforce_component_facts(manifest, hf_id, concerns, lister=repo_files):
     return manifest
 
 
-def adapter_parent(hf_id, loader=None):
+def adapter_parent(repo_id, loader=None):
     """`(dépôt parent, révision)` qu'un `config.json` racine nomme par `base_model_name_or_path`,
     ou `(None, None)` — un adaptateur ne s'exécute pas sans son parent."""
     import json as _json
 
     def _load():
         from huggingface_hub import hf_hub_download
-        with open(hf_hub_download(hf_id, 'config.json'), encoding='utf-8') as f:
+        with open(hf_hub_download(repo_id, 'config.json'), encoding='utf-8') as f:
             return _json.load(f)
     try:
         config = (loader or _load)() or {}
     except Exception:
         return None, None
     parent = config.get('base_model_name_or_path') if isinstance(config, dict) else None
-    if not isinstance(parent, str) or not _HF_REPO_ID.match(parent) or parent.lower() == hf_id.lower():
+    if not isinstance(parent, str) or not _HF_REPO_ID.match(parent) or parent.lower() == repo_id.lower():
         return None, None
     return parent, config.get('base_model_revision')
 
 
-def enforce_adapter_parent(manifest, hf_id, concerns, loader=None):
+def enforce_adapter_parent(manifest, repo_id, concerns, loader=None):
     """Ajoute le PARENT d'un adaptateur à l'anatomie — un composant `base` = son dépôt.
 
     Vécu le 2026-10-03 (SheetSage2) : le dépôt ne porte qu'un adaptateur ; son `config.json` nomme
     `base_model_name_or_path: m-a-p/MERT-v2-FullSong` (2,5 Go, chargé par le code du modèle).
     Le rôle rendait un seul composant `model` : le poids réel était sous-estimé et le parent
     jamais téléchargé par `request_install`. Fait mécanique : le fichier le dit, on le pose."""
-    parent, revision = adapter_parent(hf_id, loader=loader)
+    parent, revision = adapter_parent(repo_id, loader=loader)
     if not parent:
         return manifest
     body = manifest.setdefault('body', {})
@@ -373,7 +373,7 @@ def enforce_adapter_parent(manifest, hf_id, concerns, loader=None):
     return manifest
 
 
-def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_files):
+def enforce_engine_facts(manifest, repo_id, concerns, reader=None, lister=repo_files):
     """Retire `composition.runtime.engine` quand le dépôt ne le PROUVE pas, et dit ce qu'il porte.
 
     Vécu le 2026-09-30 (qwen3.8, avatars) : LongCat-Video-Avatar-1.5 et SoulX-FlashHead portent
@@ -391,7 +391,7 @@ def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_fil
     Les faits mécaniques priment sur le jugement du LLM, comme la licence ou la taille.
     `reader` remplace le lecteur du fait (tests) ; `lister`, l'inventaire du dépôt.
     """
-    by_ext = signal_weight_formats(hf_id, concerns, lister=lister)
+    by_ext = signal_weight_formats(repo_id, concerns, lister=lister)
     runtime = (((manifest.get('body') or {}).get('composition') or {}).get('runtime') or {})
     engine = runtime.get('engine')
     if not engine:
@@ -405,7 +405,7 @@ def enforce_engine_facts(manifest, hf_id, concerns, reader=None, lister=repo_fil
                             f"grisé jusqu'à ce qu'un backend le serve")
         return manifest
     read, known, failure = proof
-    names, reason = (reader or read)(hf_id)
+    names, reason = (reader or read)(repo_id)
     names = [names] if isinstance(names, str) else list(names or [])
     if any(known(n) for n in names):
         return manifest
@@ -613,7 +613,7 @@ def vendored_libraries() -> list:
             for lib in Library.objects.exclude(vendor={}) if lib.vendor]
 
 
-def vendor_loader_defaults(engine_dir, hf_id) -> list:
+def vendor_loader_defaults(engine_dir, repo_id) -> list:
     """`[(argument, dépôt HF)]` lus par AST dans le `from_pretrained` du code vendorisé qui charge
     `hf_id` par DÉFAUT — c'est le code lui-même qui dit de quels dépôts le modèle se compose
     (YuE : `from_pretrained(model="m-a-p/YuE2-3B", *, vae="m-a-p/YuE2-Vae")`). Les tests sont ignorés."""
@@ -635,12 +635,12 @@ def vendor_loader_defaults(engine_dir, hf_id) -> list:
             repos = [(a.arg, d.value) for a, d in pairs
                      if isinstance(d, ast.Constant) and isinstance(d.value, str)
                      and _HF_REPO_ID.match(d.value)]
-            if any(repo.lower() == hf_id.lower() for _, repo in repos):
+            if any(repo.lower() == repo_id.lower() for _, repo in repos):
                 found += [r for r in repos if r not in found]
     return found
 
 
-def enforce_vendor_engine(manifest, hf_id, sources_text, concerns, libraries=None, vendor_root=None):
+def enforce_vendor_engine(manifest, repo_id, sources_text, concerns, libraries=None, vendor_root=None):
     """Moteur et composants d'un modèle servi par un moteur VENDORISÉ — posés par les FAITS.
 
     Vécu le 2026-10-01 (YuE2-3B) : la découverte devinait `transformers` (retiré à juste titre :
@@ -667,10 +667,10 @@ def enforce_vendor_engine(manifest, hf_id, sources_text, concerns, libraries=Non
     lib = matches[0]
     from django.conf import settings
     root = Path(vendor_root or settings.BACKEND_VENDOR_DIR) / lib['engine']
-    defaults = vendor_loader_defaults(root, hf_id) if root.is_dir() else []
+    defaults = vendor_loader_defaults(root, repo_id) if root.is_dir() else []
     if not defaults:
         concerns.append(f"les sources citent le dépôt vendorisé {lib['repo']}, mais son code "
-                        f"ne charge pas {hf_id} (aucun from_pretrained par défaut sous {root}) — "
+                        f"ne charge pas {repo_id} (aucun from_pretrained par défaut sous {root}) — "
                         f"moteur {lib['engine']!r} NON posé")
         return manifest
     body = manifest.setdefault('body', {})
@@ -682,7 +682,7 @@ def enforce_vendor_engine(manifest, hf_id, sources_text, concerns, libraries=Non
     runtime['engine'] = lib['engine']
     if not compo.get('components'):
         compo['components'] = [
-            {'role': arg, 'pattern': '*.safetensors'} if repo.lower() == hf_id.lower()
+            {'role': arg, 'pattern': '*.safetensors'} if repo.lower() == repo_id.lower()
             else {'role': arg, 'repo': repo}
             for arg, repo in defaults]
         concerns.append(f"composants lus dans le code vendorisé ({lib['engine']}) : "
@@ -697,17 +697,17 @@ def enforce_vendor_engine(manifest, hf_id, sources_text, concerns, libraries=Non
 RESOLUTION_KEYS = ('image_size',)
 
 
-def root_config_values(hf_id, keys, lister=repo_files, loader=None) -> dict:
+def root_config_values(repo_id, keys, lister=repo_files, loader=None) -> dict:
     """`{fichier: {clé: valeur}}` des clés `keys` trouvées dans les .json à la RACINE du dépôt."""
     import json as _json
 
     def _load(name):
         from huggingface_hub import hf_hub_download
-        with open(hf_hub_download(hf_id, name), encoding='utf-8') as f:
+        with open(hf_hub_download(repo_id, name), encoding='utf-8') as f:
             return _json.load(f)
 
     out = {}
-    for name in lister(hf_id):
+    for name in lister(repo_id):
         if '/' in name or not name.endswith('.json'):
             continue
         try:
@@ -735,14 +735,14 @@ SCALE_KEYS = ('upscale',)
 SIZE_FOLLOWS_INPUT_TASKS = ('upscale', 'denoise', 'face-restoration')
 
 
-def enforce_task_facts(manifest, hf_id, concerns, reader=None, lister=repo_files, loader=None):
+def enforce_task_facts(manifest, repo_id, concerns, reader=None, lister=repo_files, loader=None):
     """Pose la TÂCHE (et la catégorie, le facteur) que les classes du `config.json` PROUVENT.
 
     Une tâche corrigée remet aussi les modalités et les entrées à celles que la tâche implique
     (`default_inputs_for`) : celles du LLM décrivaient l'AUTRE tâche. Le facteur d'un
     agrandisseur se lit dans la config (`SCALE_KEYS`). Rien n'est posé sans classe connue."""
     from wama.model_manager.models import default_inputs_for
-    names, _reason = (reader or transformers_architectures)(hf_id)
+    names, _reason = (reader or transformers_architectures)(repo_id)
     names = [names] if isinstance(names, str) else list(names or [])
     fact = next((ARCHITECTURE_TASKS[k] for n in names for k in ARCHITECTURE_TASKS if k in str(n)),
                 None)
@@ -765,7 +765,7 @@ def enforce_task_facts(manifest, hf_id, concerns, reader=None, lister=repo_files
         concerns.append(f"model_type {identity.get('model_type')!r} → {model_type!r} "
                         f"(suit la tâche {task!r})")
         identity['model_type'] = model_type
-    values = root_config_values(hf_id, SCALE_KEYS, lister=lister, loader=loader)
+    values = root_config_values(repo_id, SCALE_KEYS, lister=lister, loader=loader)
     scales = {int(v) for found in values.values() for v in found.values()
               if isinstance(v, int) and not isinstance(v, bool) and v > 0}
     if len(scales) == 1:
@@ -798,7 +798,7 @@ def enforce_category_facts(manifest, concerns):
     return manifest
 
 
-def enforce_resolution_facts(manifest, hf_id, concerns, lister=repo_files, loader=None):
+def enforce_resolution_facts(manifest, repo_id, concerns, lister=repo_files, loader=None):
     """Pose `capabilities.native_resolution` quand un fichier de config du dépôt la DIT.
 
     Vécu le 2026-09-30 : Supra2-IMG génère en 256×256 FIXE — `pipeline_config.json` le dit —,
@@ -815,7 +815,7 @@ def enforce_resolution_facts(manifest, hf_id, concerns, lister=repo_files, loade
             concerns.append(f"native_resolution RETIRÉE : la sortie d'un modèle "
                             f"{caps['task']!r} suit la taille de l'entrée")
         return manifest
-    values = root_config_values(hf_id, RESOLUTION_KEYS, lister=lister, loader=loader)
+    values = root_config_values(repo_id, RESOLUTION_KEYS, lister=lister, loader=loader)
     sizes = {int(v) for found in values.values() for v in found.values()
              if isinstance(v, int) and not isinstance(v, bool) and v > 0}
     if len(sizes) != 1:

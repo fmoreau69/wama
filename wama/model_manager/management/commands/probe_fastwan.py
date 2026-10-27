@@ -78,8 +78,8 @@ class Command(BaseCommand):
         if backend is None:
             raise CommandError(f"{CATALOG_KEY} : aucun backend résolu par le catalogue "
                                f"(modèle absent, sans moteur déclaré, ou base indisponible)")
-        hf_id = backend.SUPPORTED_MODELS[MODEL_ID][1]
-        racine = Path(backend.cache_dir_for(MODEL_ID)) / f"models--{hf_id.replace('/', '--')}"
+        repo_id = backend.SUPPORTED_MODELS[MODEL_ID][1]
+        racine = Path(backend.cache_dir_for(MODEL_ID)) / f"models--{repo_id.replace('/', '--')}"
         snaps = sorted((racine / 'snapshots').glob('*'))
         if not snaps:
             raise CommandError(f"aucun snapshot sous {racine}")

@@ -19,6 +19,8 @@ from django.conf import settings
 
 from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,7 @@ SUPPORTED_MODELS = {
     "mochi-1-preview": {
         "name": "Mochi-1 Preview",
         "description": "Text-to-Video 480p - 22GB VRAM (bf16) - High quality",
-        "hf_id": "genmo/mochi-1-preview",
+        "platform_ref": "huggingface:genmo/mochi-1-preview",
         "type": "t2v",
         "vram": "22GB",
         "disk_size": "~18GB",
@@ -155,7 +157,7 @@ class MochiBackend(ImageGenerationBackend):
                 return False
 
             model_config = SUPPORTED_MODELS[model_name]
-            model_id = model_config["hf_id"]
+            model_id = hf_repo(model_config["platform_ref"])
             variant = model_config.get("variant", "bf16")
 
             logger.info(f"[Mochi] ========================================")

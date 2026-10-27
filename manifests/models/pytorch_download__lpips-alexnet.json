@@ -1,0 +1,70 @@
+{
+  "body": {
+    "capabilities": {
+      "inputs_required": [
+        "work_file"
+      ],
+      "modalities": [
+        "image"
+      ],
+      "task": "quality-metric"
+    },
+    "composition": {},
+    "extra_info": {
+      "declared_files": [
+        {
+          "origin": {
+            "file": "models/alexnet-owt-7be5be79.pth",
+            "source": "pytorch_download"
+          },
+          "path": "alexnet-owt-7be5be79.pth",
+          "sha256": "7be5be791159472b1fbf3c69796f7cb30dca7ad8466c2df70058c37116cdee02",
+          "size": 244408911
+        }
+      ],
+      "vram_provenance": "declared"
+    },
+    "formats": {
+      "can_convert_to": [],
+      "format": "pth",
+      "preferred_format": "pth"
+    },
+    "identity": {
+      "author": null,
+      "description_short": "Distance perceptuelle (banc d'agrandissement)",
+      "hf_id": null,
+      "license": null,
+      "model_type": "vision",
+      "platform_ref": null,
+      "source": "pytorch_download"
+    },
+    "prompts": {
+      "contract": null
+    },
+    "provenance": {
+      "backend_ref": null,
+      "confidence": null,
+      "is_proposed": false,
+      "proposal_kind": null,
+      "update_complexity": null
+    },
+    "resources": {
+      "disk_gb": 0.22762353625148535,
+      "ram_gb": 0.0,
+      "vram_gb": 0.5
+    }
+  },
+  "description": "LPIPS : distance perceptuelle entre deux images (plus bas = plus proche), sur la dorsale AlexNet de torchvision. Instrument de MESURE du banc d'agrandissement (`WAMA_QUALITE §4`), il ne produit rien.",
+  "key": "pytorch_download:lpips-alexnet",
+  "manifest_kind": "model",
+  "name": "LPIPS (AlexNet)",
+  "projects": [],
+  "requires": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "AIModel:pytorch_download:lpips-alexnet",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

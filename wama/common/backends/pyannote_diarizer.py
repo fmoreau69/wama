@@ -32,6 +32,8 @@ from typing import List, Optional
 
 from wama.common.backends.base import BaseModelBackend
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 #: Pipeline servi quand rien n'est demandé — celui d'avant le 2026-09-30, tant que la mesure sur
@@ -60,12 +62,12 @@ class PyannoteDiarizerBackend(BaseModelBackend):
     #: se rangent les mesures de diarisation (`diarization_metrics`) — 3.1 a été déclaré par
     #: l'app, community-1 installé par la prospection, d'où deux formes de clé.
     SUPPORTED_MODELS = {
-        'speaker-diarization-3.1': {'hf_id': 'pyannote/speaker-diarization-3.1',
+        'speaker-diarization-3.1': {'platform_ref': 'huggingface:pyannote/speaker-diarization-3.1',
                                     'settings_key': 'diarization',
                                     'model_key': 'transcriber:pyannote-diarization',
                                     'label': 'pyannote 3.1'},
         'speaker-diarization-community-1': {
-            'hf_id': 'pyannote/speaker-diarization-community-1',
+            'platform_ref': 'huggingface:pyannote/speaker-diarization-community-1',
             'model_key':'huggingface:pyannote/speaker-diarization-community-1',
             'label': 'pyannote community-1'},
     }
@@ -99,7 +101,8 @@ class PyannoteDiarizerBackend(BaseModelBackend):
         if name in cls.SUPPORTED_MODELS:
             return name
         for model_id, spec in cls.SUPPORTED_MODELS.items():
-            if spec['hf_id'].lower() == name or spec['model_key'].lower() == str(model_name).lower():
+            if (hf_repo(spec['platform_ref']).lower() == name
+                    or spec['model_key'].lower() == str(model_name).lower()):
                 return model_id
         return DEFAULT_MODEL
 
@@ -155,9 +158,10 @@ class PyannoteDiarizerBackend(BaseModelBackend):
             except Exception:
                 pass
 
-        logger.info(f"[pyannote] Loading {spec['hf_id']} pipeline…")
+        repo_id = hf_repo(spec['platform_ref'])
+        logger.info(f"[pyannote] Loading {repo_id} pipeline…")
         pipeline = Pipeline.from_pretrained(
-            spec['hf_id'],
+            repo_id,
             token=token,
             **({'cache_dir': _cache} if _cache else {}),
         )

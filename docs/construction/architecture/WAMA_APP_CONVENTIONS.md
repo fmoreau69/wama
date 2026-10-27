@@ -2666,7 +2666,7 @@ const DETAIL = [
 ];
 // Actions (section Actions) — liens/boutons, when/href/onClick/expand
 const ACTIONS = [
-  { label:'HuggingFace', icon:'fas fa-external-link-alt', when:d=>!!d.hf_id, href:d=>'https://huggingface.co/'+d.hf_id },
+  { label:'Voir sur la plateforme', icon:'fas fa-external-link-alt', when:d=>!!d.platform_url, href:d=>d.platform_url },
   { expand: d => (d.can_convert_to||[]).map(f => ({ label:f, onClick:dd=>convert(dd.id,f) })) },
 ];
 

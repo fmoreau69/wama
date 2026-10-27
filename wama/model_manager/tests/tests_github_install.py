@@ -634,7 +634,7 @@ class DeclaredFilesTest(TestCase):
     def _row(self, **extra):
         from wama.model_manager.models import AIModel
         return AIModel(model_key='avatarizer:codeformer', name='CodeFormer', source='avatarizer',
-                       hf_id='sczhou/CodeFormer', extra_info=extra)
+                       platform_ref='huggingface:sczhou/CodeFormer', extra_info=extra)
 
     def _spec(self, **over):
         return {'kind': 'files', 'ref': 'avatarizer:codeformer', 'files': DECLARED,
@@ -643,10 +643,10 @@ class DeclaredFilesTest(TestCase):
     def _with_origin(self, **origin):
         return [{**DECLARED[0], 'origin': origin}]
 
-    def test_the_catalogue_row_derives_a_files_spec_before_its_hf_id(self):
+    def test_the_catalogue_row_derives_a_files_spec_before_its_platform_ref(self):
         spec = mi.spec_for_catalog_row(self._row(install_dir=self.app_dir,
                                                  declared_files=DECLARED))
-        self.assertEqual('files', spec['kind'], 'the declared files win over the hf_id')
+        self.assertEqual('files', spec['kind'], 'the declared files win over the platform_ref')
         self.assertEqual(('avatarizer:codeformer', DECLARED, self.app_dir),
                          (spec['ref'], spec['files'], spec['target_dir']))
         self.assertIsNone(mi.declared_files_error(spec))

@@ -138,7 +138,7 @@ class GateVramModeDepannageTest(TestCase):
         from django.test import override_settings
         with tempfile.TemporaryDirectory() as tmp:
             self._prepare(tmp)
-            config = {'cache_dir': tmp, 'hf_id': 'audio-cpp/MiniMax-Music3-GGUF',
+            config = {'cache_dir': tmp, 'platform_ref': 'huggingface:audio-cpp/MiniMax-Music3-GGUF',
                       'backend': 'audiocpp', 'vram_gb': 13.0}
             with override_settings(WAMA_GPU_SAFE_MODE=True), \
                  mock.patch.dict('wama.composer.utils.model_config.COMPOSER_MODELS',

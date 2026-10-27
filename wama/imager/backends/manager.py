@@ -277,7 +277,7 @@ class BackendManager:
                             'trigger_words': info.get('trigger_words', []),
                         })
                     else:
-                        # Old tuple format: (name, hf_id)
+                        # Old tuple format: (name, repo_id)
                         result.append({
                             'id': model_id,
                             'name': info[0] if isinstance(info, tuple) else str(info),

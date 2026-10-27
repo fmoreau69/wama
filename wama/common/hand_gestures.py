@@ -14,7 +14,8 @@ téléchargement « au premier usage » : absent, la scène le dit et renvoie à
 from pathlib import Path
 
 #: Clé de sa ligne au catalogue.
-GESTURE_KEY = 'custom:mediapipe-gesture-recognizer'
+#: Rangée sous la source de son fichier déclaré (`mediapipe_models`, 2026-10-27 — ex-`custom:`).
+GESTURE_KEY = 'mediapipe_models:gesture-recognizer'
 
 #: `gesture_recognizer.task`, version `float16/1`, à son adresse OFFICIELLE. Taille et empreinte
 #: MESURÉES le 2026-10-22 sur le fichier que sert Google.

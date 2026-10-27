@@ -38,7 +38,7 @@ class DeclaredPlatformsTest(SimpleTestCase):
                 self.assertEqual(url, AIModel(platform_ref=ref).platform_url)
 
     def test_a_row_without_platform_ref_falls_back_on_what_it_already_carries(self):
-        self.assertEqual('https://huggingface.co/org/m', AIModel(hf_id='org/m').platform_url)
+        self.assertEqual('https://huggingface.co/org/m', AIModel(platform_ref='huggingface:org/m').platform_url)
         self.assertEqual('https://ollama.com/library/gemma4',
                          AIModel(model_key='ollama:gemma4:12b', name='gemma4:12b').platform_url)
         self.assertIsNone(AIModel(model_key='custom:x', name='x').platform_url)
@@ -50,7 +50,7 @@ class DeclaredPlatformsTest(SimpleTestCase):
             with self.subTest(ref=ref):
                 self.assertEqual(source.label, AIModel(platform_ref=ref).platform_label)
         self.assertEqual(external_sources.get('huggingface').label,
-                         AIModel(hf_id='org/m').platform_label)
+                         AIModel(platform_ref='huggingface:org/m').platform_label)
         self.assertEqual('', AIModel(model_key='custom:x').platform_label)
 
     def test_the_model_manifest_accepts_the_declared_platforms_only(self):

@@ -36,7 +36,7 @@
       "license": null,
       "model_type": "vision",
       "platform_ref": null,
-      "source": "custom"
+      "source": "mediapipe_models"
     },
     "prompts": {
       "contract": null
@@ -55,14 +55,14 @@
     }
   },
   "description": "Reconnaissance des gestes de la main (21 repères par main, jusqu'à deux mains ; poing fermé, main ouverte, index levé…) — exécutée dans le navigateur, aucune image ne part au serveur. Pilote les scènes 3D à la webcam : poing pour tourner, deux poings pour zoomer.",
-  "key": "custom:mediapipe-gesture-recognizer",
+  "key": "mediapipe_models:gesture-recognizer",
   "manifest_kind": "model",
   "name": "MediaPipe Gesture Recognizer",
   "projects": [],
   "requires": [],
   "schema_version": "1.0",
   "source": {
-    "ref": "AIModel:custom:mediapipe-gesture-recognizer",
+    "ref": "AIModel:mediapipe_models:gesture-recognizer",
     "type": "extract"
   },
   "visibility": "public",

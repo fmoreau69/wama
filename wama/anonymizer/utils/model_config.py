@@ -141,20 +141,20 @@ YOLO_TYPES = {
 }
 
 # =============================================================================
-# PROVENANCE HF DES POIDS TIERS (déclarée, jamais inférée d'un nom de fichier)
+# PROVENANCE DES POIDS TIERS (déclarée, jamais inférée d'un nom de fichier)
 # =============================================================================
 
-# Clé = préfixe du nom de fichier du poids ; valeur = dépôt HuggingFace d'ORIGINE, vérifié
+# Clé = préfixe du nom de fichier du poids ; valeur = `platform_ref` du dépôt d'ORIGINE, vérifié
 # dépôt par dépôt (passe provenance/licences du 2026-08-12, `backfill_platform_refs`). La
-# découverte (model_registry) la pose sur ModelInfo.hf_id → catalogue AIModel →
+# découverte (model_registry) la pose sur ModelInfo.platform_ref → catalogue AIModel →
 # provenance/licences. Les poids ultralytics standard (yolo11*, yolov8n…) viennent des
 # releases GitHub, et la série yolov8*_face_plate_* n'a pas de dépôt établi : ils restent
-# SANS hf_id, à dessein — un vide ici est une provenance non établie, pas un oubli.
-# (yolopv2 / yolov12 ont une provenance GitHub, portée par AIModel.platform_ref, pas ici.)
-YOLO_WEIGHTS_HF_ID = {
-    'license-plate-finetune-v1': 'morsetechlab/yolov11-license-plate-detection',
-    'face_yolov8m-seg_60': 'jags/yolov8_model_segmentation-set',
-    'yolo11l_face_plate_signs': 'Panoramax/detect_face_plate_sign',
+# SANS provenance, à dessein — un vide ici est une provenance non établie, pas un oubli.
+# (yolopv2 / yolov12 ont une provenance GitHub, portée par leur manifeste, pas ici.)
+YOLO_WEIGHTS_PLATFORM_REF = {
+    'license-plate-finetune-v1': 'huggingface:morsetechlab/yolov11-license-plate-detection',
+    'face_yolov8m-seg_60': 'huggingface:jags/yolov8_model_segmentation-set',
+    'yolo11l_face_plate_signs': 'huggingface:Panoramax/detect_face_plate_sign',
 }
 
 
@@ -168,7 +168,7 @@ YOLO_WEIGHTS_HF_ID = {
 #: `wama/common/backends/egoblur_backend.py`) : les YOLO plaques installés y plafonnaient à 20 %
 #: de rappel, EgoBlur atteint 59,5 %, RT-DETR 40 %, et leur union 64,6 %.
 #:   `dir_key` : dossier de `MODEL_PATHS['vision']` ; `file` : poids posé à la main (EgoBlur,
-#:   distribué par formulaire) ; `hf_id` : dépôt tiré par le geste « Installer » du catalogue.
+#:   distribué par formulaire) ; `platform_ref` : dépôt tiré par le geste « Installer » du catalogue.
 FRAME_DETECTORS = {
     'egoblur-lp-gen1': {
         'name': 'EgoBlur plaques (gen1)',
@@ -201,7 +201,7 @@ FRAME_DETECTORS = {
         'name': 'RT-DETR v2 plaques',
         'engine': 'transformers',
         'classes': ['license_plate'],
-        'dir_key': 'object_detection', 'hf_id': 'justjuu/rtdetr-v2-license-plate-detection',
+        'dir_key': 'object_detection', 'platform_ref': 'huggingface:justjuu/rtdetr-v2-license-plate-detection',
         'vram_gb': 1.0,
         'short': "RT-DETR v2 — plaques d'immatriculation (transformers).",
         'long': "RT-DETR v2 affiné sur les plaques (Apache-2.0) : 40 % de rappel sur des caméras "
@@ -222,12 +222,12 @@ for _spec in FRAME_DETECTORS.values():
     frame_detector_dir(_spec).mkdir(parents=True, exist_ok=True)
 
 
-def hf_id_for_yolo_weight(filename: str) -> str:
-    """Dépôt HF d'origine d'un poids YOLO, ou '' si la provenance n'est pas établie."""
+def platform_ref_for_yolo_weight(filename: str) -> str:
+    """`platform_ref` du dépôt d'origine d'un poids YOLO, ou '' si la provenance n'est pas établie."""
     stem = Path(filename).stem
-    for prefix, hf_id in YOLO_WEIGHTS_HF_ID.items():
+    for prefix, platform_ref in YOLO_WEIGHTS_PLATFORM_REF.items():
         if stem.startswith(prefix):
-            return hf_id
+            return platform_ref
     return ''
 
 

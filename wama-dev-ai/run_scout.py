@@ -53,10 +53,10 @@ EXEMPLES_DIR = REPO_ROOT / 'manifests' / 'models'
 _EXT_POIDS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth', '.onnx')
 
 
-def squelette(hf_id: str) -> tuple[dict, str]:
+def squelette(repo_id: str) -> tuple[dict, str]:
     """(squelette mécanique du manifeste, inventaire texte des fichiers) — ZÉRO LLM ici."""
     from huggingface_hub import HfApi
-    info = HfApi().model_info(hf_id, files_metadata=True)
+    info = HfApi().model_info(repo_id, files_metadata=True)
 
     fichiers = [(s.rfilename, s.size or 0) for s in (info.siblings or [])]
     poids = [(n, t) for n, t in fichiers if n.lower().endswith(_EXT_POIDS)]
@@ -68,7 +68,7 @@ def squelette(hf_id: str) -> tuple[dict, str]:
         licence = (carte.to_dict().get('license') if carte else None) or ''
     except Exception:
         pass
-    auteur = getattr(info, 'author', '') or hf_id.partition('/')[0]
+    auteur = getattr(info, 'author', '') or repo_id.partition('/')[0]
 
     # ACCÈS au dépôt — fait MÉCANIQUE, pas un jugement (2026-09-07). HF distingue deux
     # régimes que la prose confondait (« nécessite un token HuggingFace ») :
@@ -86,22 +86,22 @@ def squelette(hf_id: str) -> tuple[dict, str]:
 
     manifeste = {
         'manifest_kind': 'model',
-        'key': f'huggingface:{hf_id}',
+        'key': f'huggingface:{repo_id}',
         'schema_version': '1.0',
-        'name': hf_id.split('/')[-1],
+        'name': repo_id.split('/')[-1],
         'description': '',
         'world': 'transverse',
         'visibility': 'public',
         'projects': [],
-        'source': {'type': 'extract', 'ref': f'scout:huggingface:{hf_id}'},
+        'source': {'type': 'extract', 'ref': f'scout:huggingface:{repo_id}'},
         'body': {
             'identity': {
                 'model_type': None,          # ← jugement LLM (taxonomie fermée)
                 'source': 'huggingface',
-                'hf_id': hf_id,
+                'hf_id': repo_id,
                 'license': str(licence)[:64] or None,
                 'author': str(auteur)[:200] or None,
-                'platform_ref': f'huggingface:{hf_id}',
+                'platform_ref': f'huggingface:{repo_id}',
                 'gated': gated,              # ← mécanique : 'no' | 'auto' | 'manual'
                 'description_short': None,   # ← jugement LLM
             },
@@ -188,9 +188,9 @@ def github_skeleton(ref: str, asset: str = '') -> tuple[dict, str, str]:
     return manifest, inventory, (release.get('body') or '(texte de version vide)')[:8000]
 
 
-def _readme(hf_id: str, limit: int = 8000) -> str:
+def _readme(repo_id: str, limit: int = 8000) -> str:
     try:
-        return fetch(f'https://huggingface.co/{hf_id}/raw/main/README.md')[:limit]
+        return fetch(f'https://huggingface.co/{repo_id}/raw/main/README.md')[:limit]
     except Exception:
         return '(README indisponible)'
 

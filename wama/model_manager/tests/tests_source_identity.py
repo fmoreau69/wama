@@ -72,10 +72,9 @@ class SourceIdentityTest(SimpleTestCase):
                                   'label': declared.label},
                                  source_identity(source))
 
-    def test_a_key_nothing_else_names_keeps_its_enumeration_label_outside_any_group(self):
-        self.assertEqual({'key': 'custom', 'group': '', 'label': ModelSource.CUSTOM.label},
-                         source_identity('custom'))
-        self.assertEqual('nowhere', source_identity('nowhere')['label'])
+    def test_a_key_nothing_names_is_shown_as_it_is_outside_any_group(self):
+        self.assertEqual({'key': 'nowhere', 'group': '', 'label': 'nowhere'},
+                         source_identity('nowhere'))
 
     def test_every_source_is_named_and_falls_in_a_declared_group(self):
         groups = {g['key'] for g in source_groups()}
@@ -83,8 +82,7 @@ class SourceIdentityTest(SimpleTestCase):
             identity = source_identity(source)
             with self.subTest(source=source):
                 self.assertNotEqual(source, identity['label'], 'the raw key is shown')
-                if source != 'custom':
-                    self.assertIn(identity['group'], groups)
+                self.assertIn(identity['group'], groups)
 
     def test_the_groups_are_the_worlds_then_the_source_families_and_nothing_written_here(self):
         worlds = sorted(WORLD_SECTIONS.values(), key=lambda s: s.get('order', 0))
@@ -103,10 +101,9 @@ class SourceVocabularyTest(SimpleTestCase):
             with self.subTest(member=member.name):
                 self.assertEqual(member.name.replace('_', ' ').title(), member.label)
 
-    def test_every_value_but_custom_is_the_key_of_an_existing_declaration(self):
+    def test_every_value_is_the_key_of_an_existing_declaration(self):
+        """No exception since 2026-10-27: `custom` hid a provenance its files declared."""
         for source in ModelSource.values:
-            if source == ModelSource.CUSTOM:
-                continue
             with self.subTest(source=source):
                 self.assertTrue(app_identity(source)['declared']
                                 or source in external_sources.by_key(),
@@ -228,7 +225,7 @@ class SourceFilterScriptTest(SimpleTestCase):
                  ".replace(/</g, '&lt;').replace(/\"/g, '&quot;'); }};"
                  "var document = {getElementById: function () { return {textContent: %s}; }};"
                  % json.dumps(json.dumps(source_groups())) + self._function('sourceOptions'))
-        keys = ('openrouter', 'imager', 'huggingface', 'claude_code', 'imager', 'custom')
+        keys = ('openrouter', 'imager', 'huggingface', 'claude_code', 'imager', 'legacy-source')
         models = [{'source': key, 'source_label': source_identity(key)['label'],
                    'source_group': source_identity(key)['group']} for key in keys]
         html = ctx.eval('sourceOptions(%s)' % json.dumps(models))
@@ -243,6 +240,82 @@ class SourceFilterScriptTest(SimpleTestCase):
                          sorted(key for key, _ in options[1]))
         self.assertEqual([('huggingface', source_identity('huggingface')['label'])], options[2])
         # A source no declaration ranges stays choosable, outside the groups.
-        self.assertTrue(html.endswith(f'<option value="custom">{ModelSource.CUSTOM.label}</option>'))
+        self.assertTrue(html.endswith('<option value="legacy-source">legacy-source</option>'))
         # Counter-check: a group no model carries opens no empty group.
         self.assertNotIn('optgroup', ctx.eval("sourceOptions([])"))
+
+
+class BrickModelsFiledUnderTheirWeightsSourceTest(TestCase):
+    """A model no app carries is filed under the registry source its DECLARED files come from
+    (2026-10-27, Fabien: « il faut corriger le rangement ») — the YOLOPv2 pattern, which `custom`
+    broke for LPIPS and the hand gestures."""
+
+    DISCOVERIES = ('_discover_quality_metric_models', '_discover_hand_gesture_models',
+                   '_discover_road_models', '_discover_image_to_3d_models',
+                   '_discover_midi_extraction_models')
+
+    def _brick_rows(self):
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry()
+        registry._models = {}
+        for name in self.DISCOVERIES:
+            getattr(registry, name)()
+        return registry._models
+
+    def test_a_model_whose_files_come_from_one_source_is_filed_under_it(self):
+        rows = self._brick_rows()
+        checked = 0
+        for key, info in rows.items():
+            origins = {f['origin']['source'] for f in (info.extra_info or {}).get('declared_files') or ()}
+            if len(origins) != 1:
+                continue                         # mixed origins (MuScriptor): no single source
+            checked += 1
+            with self.subTest(key=key):
+                self.assertEqual(origins, {info.source.value})
+                self.assertEqual(info.source.value, key.partition(':')[0])
+        self.assertGreaterEqual(checked, 4, 'the rule proves nothing on fewer rows')
+        self.assertIn('pytorch_download:lpips-alexnet', rows)
+        self.assertIn('mediapipe_models:gesture-recognizer', rows)
+
+    def test_the_weights_servers_are_named_in_their_family(self):
+        for source in ('pytorch_download', 'mediapipe_models'):
+            with self.subTest(source=source):
+                self.assertEqual({'key': source, 'group': 'kind:poids',
+                                  'label': external_sources.get(source).label},
+                                 source_identity(source))
+
+
+class GenericScanSourcesTest(SimpleTestCase):
+
+    def test_they_are_the_catalogue_and_weights_families_of_the_registry(self):
+        from wama.common.backends.manager import generic_scan_sources
+        sources = generic_scan_sources()
+        self.assertTrue({'huggingface', 'github', 'pytorch_download', 'mediapipe_models'} <= sources)
+        self.assertFalse({'ollama', 'albert', 'claude_code', 'custom'} & sources)
+
+
+class MigrationFilesTheBricksTest(TestCase):
+    """`model_manager/0030` : the two `custom` rows under their weights source, and back."""
+
+    def _module(self):
+        import importlib
+        return importlib.import_module(
+            'wama.model_manager.migrations.0030_brick_models_under_their_weights_source')
+
+    def test_the_rows_keep_their_history_under_the_new_key(self):
+        from django.apps import apps as django_apps
+        AIModel.objects.create(model_key='custom:lpips-alexnet', name='LPIPS', model_type='vision',
+                               source='custom', extra_info={'vram_measured': {'max_gb': 0.4}})
+        AIModel.objects.create(model_key='mediapipe_models:gesture-recognizer', name='fresh',
+                               model_type='vision', source='mediapipe_models')
+        AIModel.objects.create(model_key='custom:mediapipe-gesture-recognizer', name='Gestes',
+                               model_type='vision', source='custom')
+        self._module().bricks_under_their_source(django_apps, None)
+        lpips = AIModel.objects.get(model_key='pytorch_download:lpips-alexnet')
+        self.assertEqual(('pytorch_download', 0.4), (lpips.source, lpips.extra_info['vram_measured']['max_gb']))
+        gesture = AIModel.objects.get(model_key='mediapipe_models:gesture-recognizer')
+        self.assertEqual('Gestes', gesture.name, 'the row with history wins over a fresh one')
+        self.assertFalse(AIModel.objects.filter(source='custom').exists())
+        self._module().bricks_back_to_custom(django_apps, None)
+        self.assertEqual({'custom:lpips-alexnet', 'custom:mediapipe-gesture-recognizer'},
+                         set(AIModel.objects.filter(source='custom').values_list('model_key', flat=True)))

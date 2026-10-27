@@ -73,7 +73,7 @@ class Command(BaseCommand):
 
         results = []
         for c in new:
-            self.stdout.write(f"  … {c['hf_id']}")
+            self.stdout.write(f"  … {c['repo_id']}")
             results.append(assess_candidate(c, app_label, agents, timeout=options['timeout']))
 
         if options['json']:
@@ -85,11 +85,11 @@ class Command(BaseCommand):
             if cons:
                 verdict = '✅ RECOMMANDÉ' if cons['recommend'] else '❌ non'
                 self.stdout.write(
-                    f"\n{r['hf_id']}  → {verdict}  "
+                    f"\n{r['repo_id']}  → {verdict}  "
                     f"(confiance {cons['confidence_avg']}, accord {int(cons['agreement']*100)}%, "
                     f"{cons['n_agents']} agent(s))")
             else:
-                self.stdout.write(f"\n{r['hf_id']}  → (aucun avis exploitable)")
+                self.stdout.write(f"\n{r['repo_id']}  → (aucun avis exploitable)")
             for o in r['opinions']:
                 if 'error' in o:
                     self.stdout.write(f"    [{o['agent']}] erreur : {o['error']}")

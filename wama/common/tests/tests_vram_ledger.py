@@ -496,13 +496,13 @@ class ResolutionDeLaCleTest(SimpleTestCase):
         self.assertEqual(self.m.match_local_name(self.YOLO, 'yolov8n.pt'),
                          ['anonymizer:yolo:yolov8n.pt'])
 
-    def test_le_hf_id_designe_le_modele(self):
+    def test_the_repository_designates_the_model(self):
         rows = [('transcriber:qwen3-asr-0.6b', 'Qwen/Qwen3-ASR-0.6B'),
                 ('transcriber:qwen3-asr-1.7b', 'Qwen/Qwen3-ASR-1.7B')]
         self.assertEqual(self.m.match_local_name(rows, 'Qwen/Qwen3-ASR-1.7B'),
                          ['transcriber:qwen3-asr-1.7b'])
 
-    def test_whisper_se_resout_par_la_fin_de_son_hf_id(self):
+    def test_whisper_resolves_by_the_end_of_its_repository(self):
         self.assertEqual(self.m.match_local_name(self.WHISPER, 'large-v3'), ['transcriber:whisper'])
         self.assertEqual(self.m.match_local_name(self.WHISPER, 'base'), ['describer:whisper'])
 

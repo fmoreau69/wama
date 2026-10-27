@@ -52,7 +52,7 @@ class ManifestProposalTest(TestCase):
         self.addCleanup(export.stop)
         self.row = AIModel.objects.create(
             model_key=KEY, name='Img', model_type='diffusion', source='huggingface',
-            is_downloaded=True, hf_id='Org/Img', license='apache-2.0', author='Org',
+            is_downloaded=True, platform_ref='huggingface:Org/Img', license='apache-2.0', author='Org',
             capabilities={'task': 'text-to-image'})
 
     def test_proposing_projects_nothing(self):

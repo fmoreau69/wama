@@ -29,8 +29,8 @@ from .score_extraction_base import ScoreExtractionBackend
 
 logger = logging.getLogger(__name__)
 
-HF_ID = "m-a-p/SheetSage2"
-MODEL_KEY = f"huggingface:{HF_ID}"
+HF_REPO = "m-a-p/SheetSage2"
+MODEL_KEY = f"huggingface:{HF_REPO}"
 
 # Clé LITTÉRALE : l'inventaire la lit par AST — c'est elle qui départage ce backend d'Audio8, qui
 # partage le moteur `transformers-remote-code`.
@@ -65,13 +65,13 @@ class SheetSage2Backend(ScoreExtractionBackend):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         # float32 : la seule précision mesurée (la sonde du 2026-10-03), 2,7 Go sur GPU.
         self._model = AutoModel.from_pretrained(
-            HF_ID,
+            HF_REPO,
             revision=snapshot.name,
             cache_dir=str(snapshot.parent.parent.parent),
             trust_remote_code=True,
         ).to(device).eval()
         self._loaded = True
-        self._current_model = HF_ID
+        self._current_model = HF_REPO
         logger.info("[SheetSage2] chargé (révision %s, %s)", snapshot.name[:12], device)
         return True
 

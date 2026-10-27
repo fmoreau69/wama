@@ -139,7 +139,7 @@ class LpipsIsInstalledByTheRouteTest(TestCase):
                 mock.patch('wama.common.utils.model_readiness.install_and_wait',
                            return_value=False) as install, \
                 mock.patch('torch.hub.load_state_dict_from_url') as hub:
-            with self.assertRaisesMessage(RuntimeError, 'pull_model custom:lpips-alexnet'):
+            with self.assertRaisesMessage(RuntimeError, 'pull_model pytorch_download:lpips-alexnet'):
                 bench.lpips_metric('cpu')
         self.assertEqual(bench.LPIPS_KEY, install.call_args.args[0])
         hub.assert_not_called()

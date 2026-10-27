@@ -112,10 +112,11 @@ class OlmOCRBackend(OCRBackend):
         # poids vient de `settings`, une déclaration vient du passe-plat commun.
         from django.conf import settings
 
+        from wama.common.external_sources import hf_repo
         from wama.common.utils.model_declarations import declaration
 
         cache_dir = str(settings.MODEL_PATHS.get('ocr', {}).get('olmocr', ''))
-        hf_id = (declaration('reader', 'olmocr') or {}).get('hf_model_id')
+        repo_id = hf_repo((declaration('reader', 'olmocr') or {}).get('platform_ref'))
 
         # Env NON muté (ROADMAP §5b, 2026-09-04) : les deux `from_pretrained` ci-dessous
         # portent `cache_dir=`, qui route le modèle PRINCIPAL. La mutation n'ajoutait rien
@@ -135,16 +136,16 @@ class OlmOCRBackend(OCRBackend):
         except ImportError:
             from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VLForConditionalGeneration
 
-        logger.info(f"[olmOCR] Chargement {hf_id} depuis {cache_dir}")
+        logger.info(f"[olmOCR] Chargement {repo_id} depuis {cache_dir}")
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
         self._processor = AutoProcessor.from_pretrained(
-            hf_id,
+            repo_id,
             cache_dir=cache_dir,
             trust_remote_code=True,
         )
         self._model = Qwen2VLForConditionalGeneration.from_pretrained(
-            hf_id,
+            repo_id,
             cache_dir=cache_dir,
             torch_dtype=torch.bfloat16 if device == 'cuda' else torch.float32,
             device_map=device,

@@ -13,6 +13,8 @@ from typing import Optional, Callable, List
 
 from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
 
+from wama.common.external_sources import hf_platform_ref, hf_repo
+
 logger = logging.getLogger(__name__)
 
 # ── Dossiers de poids — lus à leur SOURCE (étape 2, 2026-09-06) ─────────────────────────
@@ -59,12 +61,12 @@ class DiffusersBackend(ImageGenerationBackend):
     display_name = "Diffusers (Hugging Face)"
 
     # Map generic model names to Hugging Face model IDs
-    # Format: dict with name, hf_id, description, vram, pipeline, min_resolution, max_resolution
+    # Format: dict with name, platform_ref, description, vram, pipeline, min_resolution, max_resolution
     SUPPORTED_MODELS = {
         # HunyuanImage 2.1 - High quality images (supports 1024-2048)
         "hunyuan-image-2.1": {
             "name": "HunyuanImage 2.1",
-            "hf_id": "hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
+            "platform_ref": "huggingface:hunyuanvideo-community/HunyuanImage-2.1-Diffusers",
             "description": "Haute qualité 1K-2K - 24GB VRAM - Support 16:9, 9:16, 21:9",
             "vram": "24GB",
             "pipeline": "hunyuan",
@@ -76,7 +78,7 @@ class DiffusersBackend(ImageGenerationBackend):
         # Stable Diffusion models
         "stable-diffusion-v1-5": {
             "name": "Stable Diffusion 1.5",
-            "hf_id": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+            "platform_ref": "huggingface:stable-diffusion-v1-5/stable-diffusion-v1-5",
             "description": "Modèle classique - 4GB VRAM - Rapide et polyvalent",
             "vram": "4GB",
             "pipeline": "sd",
@@ -87,7 +89,7 @@ class DiffusersBackend(ImageGenerationBackend):
         # 'stable-diffusion-2-1' RETIRÉ (2026-07-28) — cf. model_config.STABLE_DIFFUSION_MODELS.
         "stable-diffusion-xl": {
             "name": "Stable Diffusion XL",
-            "hf_id": "stabilityai/stable-diffusion-xl-base-1.0",
+            "platform_ref": "huggingface:stabilityai/stable-diffusion-xl-base-1.0",
             "description": "Haute résolution - 10GB VRAM - Images détaillées",
             "vram": "10GB",
             "pipeline": "sdxl",
@@ -113,7 +115,7 @@ class DiffusersBackend(ImageGenerationBackend):
         # steps: 24 recommended
         "flux-lora-logo-design": {
             "name": "FLUX Logo Design LoRA",
-            "hf_id": "Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
+            "platform_ref": "huggingface:Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design",
             "base_model": "black-forest-labs/FLUX.1-dev",
             # Max 768 px: at 1024×1024 the transformer (23 GB) + attention activations
             # (4096 tokens) exceed the 24 GB VRAM budget causing a silent CUDA OOM.
@@ -141,7 +143,7 @@ class DiffusersBackend(ImageGenerationBackend):
         # modèle nu est chargé quantifié ou en offload selon _get_flux_strategy().
         "flux-1-dev": {
             "name": "FLUX.1-dev",
-            "hf_id": "black-forest-labs/FLUX.1-dev",
+            "platform_ref": "huggingface:black-forest-labs/FLUX.1-dev",
             "base_model": "black-forest-labs/FLUX.1-dev",
             "description": "FLUX.1-dev 12B — adhérence au prompt de référence (16GB VRAM, non commercial)",
             "vram": "16GB",
@@ -162,7 +164,7 @@ class DiffusersBackend(ImageGenerationBackend):
 
         "flux2-klein-4b": {
             "name": "FLUX.2 Klein 4B",
-            "hf_id": "black-forest-labs/FLUX.2-klein-4B",
+            "platform_ref": "huggingface:black-forest-labs/FLUX.2-klein-4B",
             "description": "Ultra-rapide (<1s/image) - 13GB VRAM - 4 steps distillé - Apache 2.0",
             "vram": "13GB",
             "pipeline": "flux2_klein",
@@ -179,7 +181,7 @@ class DiffusersBackend(ImageGenerationBackend):
 
         "qwen-image-2": {
             "name": "Qwen Image 2 (20B)",
-            "hf_id": "Qwen/Qwen-Image-2512",
+            "platform_ref": "huggingface:Qwen/Qwen-Image-2512",
             "description": "#1 open-source (AI Arena) - 16GB VRAM - 2K natif, text rendering",
             "vram": "16GB",
             "pipeline": "qwen_image",
@@ -189,7 +191,7 @@ class DiffusersBackend(ImageGenerationBackend):
         },
         "qwen-image-edit": {
             "name": "Qwen Image Edit",
-            "hf_id": "Qwen/Qwen-Image-Edit-2511",
+            "platform_ref": "huggingface:Qwen/Qwen-Image-Edit-2511",
             "description": "Image editing - 12GB VRAM - multi-image, character consistency, 2K",
             "vram": "12GB",
             "pipeline": "qwen_image",
@@ -201,7 +203,7 @@ class DiffusersBackend(ImageGenerationBackend):
 
     # Backward-compatibility aliases for renamed models
     # ('deliberate-v2' -> 'deliberate-v6' retiré avec le modèle cible le 2026-07-28 : un alias
-    #  vers une entrée absente aurait renvoyé le fallback pipeline 'sd' sur un hf_id inexistant.)
+    #  vers une entrée absente aurait renvoyé le fallback pipeline 'sd' sur un dépôt inexistant.)
     _MODEL_ALIASES = {}
 
     @classmethod
@@ -216,8 +218,9 @@ class DiffusersBackend(ImageGenerationBackend):
         if model_info is None:
             return None
         if isinstance(model_info, tuple):
-            # Old format: (name, hf_id)
-            return {"name": model_info[0], "hf_id": model_info[1], "pipeline": "sd"}
+            # Old format: (name, repo_id)
+            return {"name": model_info[0], "platform_ref": hf_platform_ref(model_info[1]),
+                    "pipeline": "sd"}
         return model_info
 
     def __init__(self):
@@ -438,7 +441,7 @@ class DiffusersBackend(ImageGenerationBackend):
         from diffusers import FluxPipeline
 
         base_model = model_info.get('base_model', 'black-forest-labs/FLUX.1-dev')
-        lora_repo = model_info.get('hf_id')
+        lora_repo = hf_repo(model_info.get('platform_ref'))
         model_type = model_info.get('model_type', 'base')
         lora_scale = model_info.get('lora_scale', 0.8)
 
@@ -524,13 +527,13 @@ class DiffusersBackend(ImageGenerationBackend):
         Load SDXL pipeline with LoRA weights.
 
         Args:
-            model_info: Model configuration dictionary containing base_model, hf_id, etc.
+            model_info: Model configuration dictionary containing base_model, platform_ref, etc.
         """
         from diffusers import StableDiffusionXLPipeline
         from wama.model_manager.services.memory_manager import MemoryManager
 
         base_model = model_info.get('base_model', 'stabilityai/stable-diffusion-xl-base-1.0')
-        lora_repo = model_info.get('hf_id')
+        lora_repo = hf_repo(model_info.get('platform_ref'))
         lora_scale = model_info.get('lora_scale', 0.7)
 
         logger.info(f"[Diffusers] Loading SDXL with LoRA: {base_model}")
@@ -657,9 +660,10 @@ class DiffusersBackend(ImageGenerationBackend):
         model_info = self._get_model_info(model_name)
         if model_info is None:
             # Fallback: use model_name as HuggingFace ID
-            model_info = {"name": model_name, "hf_id": model_name, "pipeline": "sd"}
+            model_info = {"name": model_name, "platform_ref": hf_platform_ref(model_name),
+                          "pipeline": "sd"}
 
-        model_id = model_info["hf_id"]
+        model_id = hf_repo(model_info["platform_ref"])
         pipeline_type = model_info.get("pipeline", "sd")
         model_type = model_info.get("model_type", "base")  # base, lora, full_finetune
 

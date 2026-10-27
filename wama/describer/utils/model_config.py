@@ -39,7 +39,7 @@ DESCRIBER_MODELS = {
     # Image description
     'blip': {
         'engine': 'transformers',
-        'model_id': 'Salesforce/blip-image-captioning-large',
+        'platform_ref': 'huggingface:Salesforce/blip-image-captioning-large',
         'type': 'vision-language',
         'task': 'image-to-text',
         'local_dir': BLIP_DIR,

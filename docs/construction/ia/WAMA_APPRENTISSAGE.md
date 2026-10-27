@@ -21,7 +21,7 @@
 | statistiques dans `wama_data` | **zéro** — uniquement des méthodes de traitement (`core/`, `functions/`) |
 | MLflow | **rejeté** par `ROADMAP §16.2` sur la prémisse « pas d'entraînement » → **amendée le 2026-08-25**, voir §4 |
 | `RunOutcome` / `ModelRuntimeStat` | existent, tracent l'**exécution** et l'**inférence** — jamais un entraînement |
-| kind `model` | existe, décrit un modèle **pré-entraîné ailleurs** (`hf_id`, `vram_gb`, backend) — **aucune provenance** |
+| kind `model` | existe, décrit un modèle **pré-entraîné ailleurs** (`platform_ref`, `vram_gb`, backend) — **aucune provenance** |
 | la vision le prévoit | `docs/construction/mondes/WAMA_VISION_COMPLET.md` Partie 8 (Data Comprehender, « DeepMind labo », boucle de découverte) — classé **H3** |
 
 ---

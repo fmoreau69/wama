@@ -76,7 +76,7 @@ COMPOSER_MODELS = {
         'engine': 'audiocraft',
         # Releve 2026-09-19 sur la carte HF : state_dict 0,78 Go + compression 0,22 = 1,0 Go (le depot en porte 5,4).
         'composition': _audiocraft_composition(),
-        'hf_id': 'facebook/musicgen-small',
+        'platform_ref': 'huggingface:facebook/musicgen-small',
         'audiocraft_name': 'small',
         'type': 'music',
         'vram_gb': 4,
@@ -97,7 +97,7 @@ COMPOSER_MODELS = {
         'engine': 'audiocraft',
         # Releve 2026-09-19 sur la carte HF : state_dict 3,43 Go + compression 0,22 = 3,6 Go (le depot en porte 11,1).
         'composition': _audiocraft_composition(),
-        'hf_id': 'facebook/musicgen-medium',
+        'platform_ref': 'huggingface:facebook/musicgen-medium',
         'audiocraft_name': 'medium',
         'type': 'music',
         'vram_gb': 8,
@@ -116,7 +116,7 @@ COMPOSER_MODELS = {
         'engine': 'audiocraft',
         # Releve 2026-09-19 sur la carte HF : state_dict 2,58 Go + compression 0,22 = 2,8 Go (le depot en porte 8,6).
         'composition': _audiocraft_composition(),
-        'hf_id': 'facebook/musicgen-melody',
+        'platform_ref': 'huggingface:facebook/musicgen-melody',
         'audiocraft_name': 'melody',
         'type': 'music',
         'vram_gb': 8,
@@ -132,7 +132,7 @@ COMPOSER_MODELS = {
         'overhead_s': 22,
     },
     'minimax-music3': {
-        'hf_id': 'audio-cpp/MiniMax-Music3-GGUF',
+        'platform_ref': 'huggingface:audio-cpp/MiniMax-Music3-GGUF',
         # Discriminateur de MOTEUR (2026-08-27) : 'audiocpp' = binaire audio.cpp en
         # sous-processus (composants GGUF déclarés par le manifeste, AIModel.composition).
         # Les entrées sans 'backend' restent sur AudioCraft — défaut historique.
@@ -161,7 +161,7 @@ COMPOSER_MODELS = {
         # porte QUE la forme audiocraft — il n'y a rien a ecarter ici. La composition n'y sert
         # donc pas a corriger un poids, mais a dire les deux composants et leur moteur.
         'composition': _audiocraft_composition(),
-        'hf_id': 'facebook/audiogen-medium',
+        'platform_ref': 'huggingface:facebook/audiogen-medium',
         'audiocraft_name': 'facebook/audiogen-medium',
         'type': 'sfx',
         'vram_gb': 16,

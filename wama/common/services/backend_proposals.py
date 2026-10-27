@@ -159,7 +159,7 @@ def _vendored_import_errors(tree, engine: str) -> list:
 
 #: Ce qu'une entrée `SUPPORTED_MODELS` d'un modèle INSTALLÉ porte toujours sans justification : le
 #: nom de sa ligne de catalogue (le champ de `pyannote_diarizer`). Toute AUTRE valeur doit être LUE
-#: par le module — un paramètre d'exécution (`multitask` de NeMo, `hf_id` de pyannote) se garde ;
+#: par le module — un paramètre d'exécution (`multitask` de NeMo, `platform_ref` de pyannote) se garde ;
 #: une valeur que personne ne lit est une seconde vérité. Vécu le 2026-10-06 : la consigne du rôle
 #: exigeait `{'name', 'description', 'vram'}`, recopiés dans cinq backends (Supra2-IMG, FrWhisper,
 #: SheetSage2, Kyutai, YuE2) et lus par PERSONNE — l'inventaire ne lit que les clés, les faits sont

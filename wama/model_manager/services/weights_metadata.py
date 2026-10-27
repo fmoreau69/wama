@@ -2,7 +2,7 @@
 Lecture des FAITS inscrits DANS un fichier de poids — licence, classes, tâche, entraînement.
 
 POURQUOI ICI. Le catalogue ne savait renseigner `license` que par une requête HuggingFace, donc
-uniquement pour les modèles portant un `hf_id` : 22 sur 101 (mesuré le 2026-08-12). Les 70 autres
+uniquement pour les modèles portant un dépôt du Hub (`hf_id` à l'époque) : 22 sur 101 (mesuré le 2026-08-12). Les 70 autres
 sont découverts par scan disque et n'ont aucune identité de plateforme — alors que leurs poids
 PORTENT la licence. `.pt` ultralytics ≥ 8.3 et tout export `.onnx` inscrivent `license` en clair.
 

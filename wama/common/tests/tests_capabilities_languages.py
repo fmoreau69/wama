@@ -116,7 +116,7 @@ class DeclarationLanguesTest(TestCase):
             self.assertEqual(len(langues), len(set(langues)), f"{key} : doublon de langue")
 
     def test_la_decouverte_LIT_la_declaration_au_lieu_de_la_reecrire(self):
-        """Le registre DÉCOUVRE, il ne redéclare pas — même geste que `hf_id`.
+        """Le registre DÉCOUVRE, il ne redéclare pas — même geste que `platform_ref`.
 
         Contrôle par le TEXTE de la découverte : une liste de codes ISO réécrite en dur y
         serait le retour de la divergence. On vérifie qu'aucun `languages=[...]` littéral n'y

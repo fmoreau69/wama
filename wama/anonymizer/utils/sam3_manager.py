@@ -18,10 +18,10 @@ from wama.settings import AI_MODELS_DIR
 
 logger = logging.getLogger(__name__)
 
-# Dépôt HuggingFace d'ORIGINE des poids SAM3 — source unique : consommé par
-# get_sam3_requirements() ET par la découverte (model_registry → ModelInfo.hf_id →
+# Dépôt d'ORIGINE des poids SAM3 (`platform_ref`) — source unique : consommé par
+# get_sam3_requirements() ET par la découverte (model_registry → ModelInfo.platform_ref →
 # provenance/licences).
-SAM3_HF_REPO = 'facebook/sam3'
+SAM3_PLATFORM_REF = 'huggingface:facebook/sam3'
 
 # Import centralized model configuration
 try:
@@ -204,7 +204,7 @@ def get_sam3_requirements() -> Dict:
             "5. Poser son jeton HuggingFace au profil (Clés d'API), puis installer le modèle "
             "depuis le gestionnaire de modèles",
         ],
-        'hf_model_repo': SAM3_HF_REPO,
+        'platform_ref': SAM3_PLATFORM_REF,
         'hf_access_request_url': _repo_page(),
     }
 
@@ -213,7 +213,7 @@ def _repo_page() -> str:
     """La fiche du dépôt SAM3 sur le Hub, DÉRIVÉE de la fiche que la plateforme déclare au
     registre des sources (`external_sources.model_page_url`) — l'adresse ne s'écrit qu'une fois."""
     from wama.common.external_sources import model_page_url
-    return model_page_url(f'huggingface:{SAM3_HF_REPO}') or ''
+    return model_page_url(SAM3_PLATFORM_REF) or ''
 
 
 def ensure_sam3_models_dir() -> str:

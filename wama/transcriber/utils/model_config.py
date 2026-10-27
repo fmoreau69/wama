@@ -64,7 +64,7 @@ TRANSCRIBER_MODELS = {
     # (`WhisperBackend.description`/`description_long`) — source unique = ce qui s'affiche.
     'whisper': {
         'model_id': 'large-v3',
-        'hf_model_id': 'openai/whisper-large-v3',
+        'platform_ref': 'huggingface:openai/whisper-large-v3',
         # Moteur : `faster-whisper` (cf. `WhisperBackend.ENGINE`) — la réimplémentation
         # CTranslate2, PAS la lib `openai-whisper`. C'est le MÊME backend que le Describer
         # consomme via `common/utils/whisper_utils`, avec un modèle différent.
@@ -79,7 +79,7 @@ VIBEVOICE_MODELS = {
     'vibevoice-asr': {
         'model_id': 'vibevoice-asr',
         'engine': 'vibevoice',
-        'hf_model_id': 'microsoft/VibeVoice-ASR',
+        'platform_ref': 'huggingface:microsoft/VibeVoice-ASR',
         'type': 'speech-to-text',
         'size_gb': 18,
         'vram_gb': 16,
@@ -99,7 +99,7 @@ QWEN_ASR_MODELS = {
     'qwen3-asr-0.6b': {
         'engine': 'transformers',
         'model_id': 'Qwen/Qwen3-ASR-0.6B',
-        'hf_model_id': 'Qwen/Qwen3-ASR-0.6B',
+        'platform_ref': 'huggingface:Qwen/Qwen3-ASR-0.6B',
         'type': 'speech-to-text',
         'size_gb': 1.5,
         'vram_gb': 2,
@@ -114,7 +114,7 @@ QWEN_ASR_MODELS = {
     'qwen3-asr-1.7b': {
         'engine': 'transformers',
         'model_id': 'Qwen/Qwen3-ASR-1.7B',
-        'hf_model_id': 'Qwen/Qwen3-ASR-1.7B',
+        'platform_ref': 'huggingface:Qwen/Qwen3-ASR-1.7B',
         'type': 'speech-to-text',
         'size_gb': 3.5,
         'vram_gb': 4,
@@ -135,7 +135,7 @@ NEMO_ASR_MODELS = {
     'canary-1b-v2': {
         'engine': 'nemo',
         'model_id': 'nvidia/canary-1b-v2',
-        'hf_model_id': 'nvidia/canary-1b-v2',
+        'platform_ref': 'huggingface:nvidia/canary-1b-v2',
         'type': 'speech-to-text',
         'size_gb': 6.4,
         'vram_gb': 7.6,
@@ -146,7 +146,7 @@ NEMO_ASR_MODELS = {
     'parakeet-tdt-0.6b-v3': {
         'engine': 'nemo',
         'model_id': 'nvidia/parakeet-tdt-0.6b-v3',
-        'hf_model_id': 'nvidia/parakeet-tdt-0.6b-v3',
+        'platform_ref': 'huggingface:nvidia/parakeet-tdt-0.6b-v3',
         'type': 'speech-to-text',
         'size_gb': 2.5,
         'vram_gb': 3,
@@ -177,7 +177,7 @@ NEMO_ASR_MODELS = {
 DIARIZATION_MODELS = {
     'pyannote-diarization': {
         'model_id': 'pyannote/speaker-diarization-3.1',
-        'hf_model_id': 'pyannote/speaker-diarization-3.1',
+        'platform_ref': 'huggingface:pyannote/speaker-diarization-3.1',
         'type': 'diarization',
         'size_gb': 0.032,
         'description': "pyannote 3.1 — diarisation (qui parle, et quand)",
@@ -202,7 +202,7 @@ ALIGNMENT_MODELS = {
     'wav2vec2-fr-aligner': {
         'engine': 'transformers',
         'model_id': 'jonatasgrosman/wav2vec2-large-xlsr-53-french',
-        'hf_model_id': 'jonatasgrosman/wav2vec2-large-xlsr-53-french',
+        'platform_ref': 'huggingface:jonatasgrosman/wav2vec2-large-xlsr-53-french',
         'type': 'alignment',
         'size_gb': 1.26,
         'vram_gb': 2,

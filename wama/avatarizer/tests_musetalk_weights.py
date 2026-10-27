@@ -103,10 +103,11 @@ class TheCatalogueRowIsInstallableTest(SimpleTestCase):
         from wama.model_manager.services.model_installer import spec_for_catalog_row
         info = self._discover()
         spec = spec_for_catalog_row(AIModel(model_key='avatarizer:musetalk-v1.5',
-                                            hf_id=info.hf_id, extra_info=info.extra_info))
+                                            platform_ref=info.platform_ref or '',
+                                            extra_info=info.extra_info))
         self.assertEqual(('files', str(model_config.MUSETALK_MODELS_DIR)),
                          (spec['kind'], spec['target_dir']),
-                         'the declared files win over the hf_id (one repository of four)')
+                         'the declared files win over the platform_ref (one repository of four)')
 
     def test_presence_needs_every_file_inference_reads(self):
         with tempfile.TemporaryDirectory() as root:

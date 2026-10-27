@@ -454,7 +454,7 @@ en silence.
 | Kind | Possède | Ne possède PAS |
 |---|---|---|
 | `library` *(livré 2026-08-03, `builtin/library.py`)* | dépôt, licence, version, install, points d'entrée, capacités techniques, contraintes (GPU, OS) | l'usage qu'une app en fait |
-| `model` | poids, `hf_id`, **`license`**, **`platform_ref`**, VRAM/disque, format, capacités, provenance | le réglage utilisateur qui le pilote — **et tout ce que la DÉCOUVERTE établit** |
+| `model` | poids, **`license`**, **`platform_ref`**, modèle de base (`base_model` + `base_model_relation`), VRAM/disque, format, capacités, provenance — `hf_id` en RÉSIDU (ci-dessous) | le réglage utilisateur qui le pilote — **et tout ce que la DÉCOUVERTE établit** |
 | `app` | identité, ports, params, permissions, cycle de vie, **et les RÉFÉRENCES** vers `model`/`library` | tout ce qui précède — jamais recopié |
 
 #### 7.1 bis — `model` : deux champs ajoutés, et une frontière qui lui est propre (2026-08-05)
@@ -471,6 +471,23 @@ plateforme déclare au registre des sources (`ExternalSource.model_page`, lue pa
 `external_sources.model_page_url` — depuis le 2026-10-22 ; une table plateforme → gabarit vivait
 avant dans `AIModel`, en double du registre). Stocker 129 chaînes d'URL, ce serait 129 chaînes à
 corriger le jour où une plateforme change son schéma d'adresse.
+
+**2026-10-27 — `identity.hf_id` est un RÉSIDU, qui part dans la session des manifestes** (décision
+de Fabien : « ne garder que `platform_ref` »). Mesuré ce jour sur les 818 lignes du catalogue : 397
+portaient la même valeur des deux côtés (`hf_id` = le dépôt de `huggingface:<dépôt>`), aucune ne
+portait `hf_id` sans `platform_ref`, une seule différait — un GGUF du Hub tiré par Ollama, où `hf_id`
+disait le modèle qu'il EST et `platform_ref` le dépôt d'où viennent ses poids. Depuis :
+- plus AUCUN lecteur de `hf_id` dans le code : le dépôt du Hub se DÉRIVE de `platform_ref`
+  (`external_sources.hf_repo`, `AIModel.hf_repo`), et les déclarations d'app et de moteur disent
+  `platform_ref` (`AGENTS.md`, checklist §4) ;
+- le second fait a son nom, celui de la carte du Hub : **`identity.base_model` +
+  `identity.base_model_relation`** (`adapter`, `finetune`, `merge`, `quantized`), en PAIRE, projetés
+  dans `extra_info` au déclaré seulement (règle des publications) — `AIModel.quantized_base` les lit
+  pour une quantification ; le `base_model` d'une LoRA reste celui de la déclaration de l'app ;
+- ⏳ restent, avec le corpus (624 occurrences dans `manifests/models`) : `identity.hf_id` (extraction
+  et projection, `builtin/model.py`), ses producteurs (`wama-dev-ai` : scout, `model_manifest`), la
+  copie `extra_info['hf_id']` de 10 modèles du transcriber et du synthesizer, puis la colonne
+  (migration). Budget figé par AST : `model_manager/tests/tests_platform_ref_only.HF_ID_BUDGET`.
 
 > ⚠ **Frontière propre au kind `model`, à ne pas calquer sur `library`.**
 > Une librairie se **déclare** ; un modèle se **découvre** — il existe parce que des poids sont sur

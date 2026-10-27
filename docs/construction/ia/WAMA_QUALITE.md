@@ -69,8 +69,8 @@ STRUCTURELS, tous dans `benchmark_sync` (aucun chiffre ne manquait d'abord) :
    100 requêtes par jour) ;
 2. **l'identité** — l'appariement exigeait « famille + version », règle née pour les LLM : 21
    modèles média (`kokoro`, `canary-1b-v2`, `vibevoice-asr`…) étaient innommables alors que des
-   sources publient le dépôt exact. ✅ Appariement par **DÉPÔT exact** (`hf_id`, `platform_ref`,
-   clé `huggingface:` / `proposed:hf:`) avant la famille + version, source par source — inchangée
+   sources publient le dépôt exact. ✅ Appariement par **DÉPÔT exact** (`platform_ref`, modèle canonique
+   d'une quantification — `quantized_base` depuis le 2026-10-27, `hf_id` avant —, clé `huggingface:` / `proposed:hf:`) avant la famille + version, source par source — inchangée
    par ailleurs. Mesuré avant/après : **0 appariement déplacé ou perdu**, 3 gagnés (Canary,
    Parakeet sur Open ASR français ; bge-m3 d'Albert sur MTEB), innommables 21 → 8 ;
 3. **les sources** — ✅ les **classements des jeux de référence OFFICIELS du Hub**

@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
+from wama.common.external_sources import hf_platform_ref, hf_repo
 from wama.common.utils.model_capabilities import (SEED, TEMPERATURE, TOP_P, ollama_parameter,
                                                   ollama_recommended_temperature)
 from .model_quality import (
@@ -141,7 +142,7 @@ def is_ollama_runner_alias(name: str) -> bool:
     return bool(sep) and bool(_DIGEST_TAG_RE.match(tag))
 
 
-def _check_hf_model_downloaded(cache_dir: Path, hf_id: str, *, weights_required: bool = True) -> bool:
+def _check_hf_model_downloaded(cache_dir: Path, repo_id: str, *, weights_required: bool = True) -> bool:
     """
     Check if a HuggingFace model is downloaded in the cache directory.
 
@@ -152,7 +153,7 @@ def _check_hf_model_downloaded(cache_dir: Path, hf_id: str, *, weights_required:
     sa seule config). `weights_required=False` pour une RECETTE sans poids propres (pipeline
     pyannote) : le dossier suffit alors, comme avant.
     """
-    if not cache_dir or not hf_id:
+    if not cache_dir or not repo_id:
         return False
 
     def _complete(path: Path) -> bool:
@@ -166,8 +167,8 @@ def _check_hf_model_downloaded(cache_dir: Path, hf_id: str, *, weights_required:
         if not cache_dir.exists():
             return False
 
-        # Convert hf_id to cache folder name (e.g., "Wan-AI/Wan2.2-T2V" -> "models--Wan-AI--Wan2.2-T2V")
-        folder_name = f"models--{hf_id.replace('/', '--')}"
+        # Convert repo_id to cache folder name (e.g., "Wan-AI/Wan2.2-T2V" -> "models--Wan-AI--Wan2.2-T2V")
+        folder_name = f"models--{repo_id.replace('/', '--')}"
         model_path = cache_dir / folder_name
 
         if model_path.exists() and model_path.is_dir() and _complete(model_path):
@@ -182,7 +183,7 @@ def _check_hf_model_downloaded(cache_dir: Path, hf_id: str, *, weights_required:
             pass
 
     except Exception as e:
-        logger.debug(f"Error checking HF model {hf_id}: {e}")
+        logger.debug(f"Error checking HF model {repo_id}: {e}")
 
     return False
 
@@ -243,7 +244,10 @@ class ModelInfo:
     source: ModelSource
     description: str = ""
     description_short: str = ""   # une ligne pour l'aide sous le sélecteur (sinon dérivé du long)
-    hf_id: Optional[str] = None
+    #: D'où vient le modèle, sur SA plateforme (`huggingface:org/nom`, `github:…`) — le fait que la
+    #: déclaration porte et que la synchro écrit sur `AIModel.platform_ref`. Remplace `hf_id`
+    #: (2026-10-27) : le dépôt du Hub se DÉRIVE (`hf_repo`).
+    platform_ref: Optional[str] = None
     vram_gb: float = 0
     #: D'OÙ vient `vram_gb` (décision A de Fabien, 16/09 — « provenance marquée chez les
     #: rédacteurs ») : `declared` (l'app ou son manifeste), `heuristic` (2 × la taille d'un poids
@@ -280,6 +284,11 @@ class ModelInfo:
     #: (`_discover_cloud_models`), il doit donc pouvoir le dire. Défaut : local, sans coût.
     execution: str = 'local'
     cost_tier: str = ''
+
+    @property
+    def hf_repo(self) -> str:
+        """Le dépôt du Hub que `platform_ref` désigne, '' sinon (`external_sources.hf_repo`)."""
+        return hf_repo(self.platform_ref)
 
 
 def _estimated_vram(size_bytes: int, incomplete: bool) -> float:
@@ -373,12 +382,12 @@ class ModelRegistry:
         self._discover_hand_gesture_models()
 
         # EN DERNIER, après toutes les découvertes d'app : le balayage générique ne
-        # couvre que ce qu'AUCUNE app ne déclare (dédup par hf_id) — l'entrée déclarée
+        # couvre que ce qu'AUCUNE app ne déclare (dédup par `platform_ref`) — l'entrée déclarée
         # reste toujours l'autorité.
         self._discover_installed_hf_snapshots()
 
-        # APRÈS le balayage des snapshots : celui-ci dédoublonne par `hf_id`, et un modèle
-        # distant porte l'`hf_id` du dépôt que le fournisseur sert — passé avant, il aurait fait
+        # APRÈS le balayage des snapshots : celui-ci dédoublonne par `platform_ref`, et un modèle
+        # distant porte celui du dépôt que le fournisseur sert — passé avant, il aurait fait
         # taire le snapshot local du même modèle.
         self._discover_cloud_models()
 
@@ -543,7 +552,7 @@ class ModelRegistry:
 
         # ⚠ `extra_info['path']` n'existe QUE sur les lignes nées du balayage générique
         # (`_snapshot_to_model`) : une ligne déclarée par une app n'en porte pas. Mesuré le
-        # 2026-09-20 — sans l'index `hf_id → snapshot`, la dérivation ne couvrait que 1 modèle
+        # 2026-09-20 — sans l'index `dépôt → snapshot`, la dérivation ne couvrait que 1 modèle
         # sur les 81 installés. C'est le même mur que `model_sync.persist_weights`, et la même
         # brique qui le franchit : on ne réécrit pas une seconde résolution.
         try:
@@ -558,7 +567,7 @@ class ModelRegistry:
                 continue                                  # déjà déclaré : on ne touche pas
             path = (getattr(info, 'extra_info', None) or {}).get('path') or ''
             if not path:
-                root = index.get((getattr(info, 'hf_id', '') or '').strip().lower())
+                root = index.get(info.hf_repo.lower())
                 path = str(root) if root else ''
             if not path:
                 continue
@@ -744,7 +753,8 @@ class ModelRegistry:
 
             for model_id, config in IMAGER_MODELS.items():
                 is_loaded = model_id == loaded_model
-                hf_id = config.get('hf_id')
+                platform_ref = config.get('platform_ref') or ''
+                repo_id = hf_repo(platform_ref)
 
                 # Determine cache directory using centralized get_model_info()
                 try:
@@ -754,19 +764,19 @@ class ModelRegistry:
                     cache_dir = Path(STABLE_DIFFUSION_DIR)
 
                 # Check if model is downloaded
-                is_downloaded = _check_hf_model_downloaded(cache_dir, hf_id)
+                is_downloaded = _check_hf_model_downloaded(cache_dir, repo_id)
 
                 # Also check main HF cache if not found
                 if not is_downloaded and hf_cache:
-                    is_downloaded = _check_hf_model_downloaded(Path(hf_cache), hf_id)
+                    is_downloaded = _check_hf_model_downloaded(Path(hf_cache), repo_id)
 
                 name = config.get('description', model_id)
 
                 # Detect format from HuggingFace cache directory
                 model_format = ''
-                if is_downloaded and hf_id:
+                if is_downloaded and repo_id:
                     # Try to detect format from the model's specific cache folder
-                    hf_folder_name = f"models--{hf_id.replace('/', '--')}"
+                    hf_folder_name = f"models--{repo_id.replace('/', '--')}"
                     specific_cache = cache_dir / hf_folder_name
                     if specific_cache.exists():
                         model_format = self._detect_model_format(str(specific_cache))
@@ -854,7 +864,7 @@ class ModelRegistry:
                     # long autonome en overlay ⓘ (cf. model_config 'description_long').
                     description=config.get('description_long') or config.get('description', ''),
                     description_short=config.get('description', ''),
-                    hf_id=hf_id,
+                    platform_ref=platform_ref or None,
                     vram_gb=vram_gb,
                     is_loaded=is_loaded,
                     is_downloaded=is_downloaded,
@@ -878,7 +888,7 @@ class ModelRegistry:
                     # `imager:ltx-…-distilled-fp8` héritait du pic pleine précision (24,3 Go) de la
                     # ligne qui partage son dépôt — celui qu'elle existe pour éviter ; sans
                     # `base_model`, la LoRA logo annonçait 0,04 Go alors qu'elle exige les 22,2 Go de
-                    # sa dorsale FLUX.1-dev. ⚠ `base_model` est le `hf_id` de la dorsale, pas une clé
+                    # sa dorsale FLUX.1-dev. ⚠ `base_model` est le dépôt du Hub de la dorsale, pas une clé
                     # de catalogue : c'est au lecteur de la résoudre (l'empreinte d'un adaptateur est
                     # une décision en attente, cf. `ROADMAP §Gouvernance` item 5).
                     # `install_dir` (2026-10-18) : le dossier que l'imager lit (`cache_dir=`) rend la
@@ -886,7 +896,7 @@ class ModelRegistry:
                     # moment d'une génération s'installait jusque-là au chargement, à côté du
                     # catalogue. Mesuré : les 13 dossiers sont ceux où `pull_hf_model` installe.
                     extra_info={
-                        **({'install_dir': str(cache_dir)} if hf_id else {}),
+                        **({'install_dir': str(cache_dir)} if repo_id else {}),
                         **({'quantization': config['quantization']} if config.get('quantization') else {}),
                         **({'base_model': config['base_model']} if config.get('base_model') else {}),
                         **({'model_type': config['model_type']} if config.get('model_type') else {}),
@@ -961,7 +971,8 @@ class ModelRegistry:
                     model_type = ModelType.SPEECH
 
                 is_loaded = model_id == 'blip' and blip_loaded
-                hf_id = config.get('model_id')
+                platform_ref = config.get('platform_ref') or ''
+                repo_id = hf_repo(platform_ref)
 
                 # Check if model is downloaded
                 is_downloaded = False
@@ -987,15 +998,15 @@ class ModelRegistry:
                 # Check if model is downloaded in any of the directories
                 for cache_dir in cache_dirs:
                     if cache_dir and cache_dir.exists():
-                        if _check_hf_model_downloaded(cache_dir, hf_id):
+                        if _check_hf_model_downloaded(cache_dir, repo_id):
                             is_downloaded = True
                             break
 
                 # Detect format (for HF models it's typically safetensors or bin)
                 if is_downloaded and not model_format:
                     # Try specific HF cache folder first
-                    if hf_id:
-                        hf_folder_name = f"models--{hf_id.replace('/', '--')}"
+                    if repo_id:
+                        hf_folder_name = f"models--{repo_id.replace('/', '--')}"
                         for cache_dir in cache_dirs:
                             specific_cache = cache_dir / hf_folder_name
                             if specific_cache.exists():
@@ -1024,13 +1035,13 @@ class ModelRegistry:
 
                 self._models[f"describer:{model_id}"] = ModelInfo(
                     id=f"describer:{model_id}",
-                    name=config.get('model_id', model_id),
+                    name=repo_id or model_id,
                     model_type=model_type,
                     source=ModelSource.WAMA_DESCRIBER,
                     # Court/long séparés (format transcriber), cf. model_config 'description_long'.
                     description=config.get('description_long') or config.get('description', ''),
                     description_short=config.get('description', ''),
-                    hf_id=hf_id,
+                    platform_ref=platform_ref or None,
                     vram_gb=config.get('size_gb', 2),
                     is_loaded=is_loaded,
                     is_downloaded=is_downloaded,
@@ -1070,7 +1081,7 @@ class ModelRegistry:
         """Discover Anonymizer app models (YOLO, SAM3)."""
         try:
             from wama.anonymizer.utils.model_config import (
-                hf_id_for_yolo_weight, list_available_yolo_models,
+                platform_ref_for_yolo_weight, list_available_yolo_models,
             )
 
             yolo_models = list_available_yolo_models()
@@ -1128,9 +1139,9 @@ class ModelRegistry:
                         model_type=ModelType.VISION,
                         source=ModelSource.WAMA_ANONYMIZER,
                         description=desc,
-                        # Provenance DÉCLARÉE (YOLO_WEIGHTS_HF_ID) — '' pour un poids dont
+                        # Provenance DÉCLARÉE (YOLO_WEIGHTS_PLATFORM_REF) — '' pour un poids dont
                         # l'origine n'est pas établie, et None vaut mieux qu'une inférence.
-                        hf_id=hf_id_for_yolo_weight(model_name) or None,
+                        platform_ref=platform_ref_for_yolo_weight(model_name) or None,
                         vram_gb=round(size_gb * 2, 1),  # Estimate VRAM as 2x model size
                         vram_provenance='heuristic',
                         is_downloaded=True,
@@ -1159,7 +1170,7 @@ class ModelRegistry:
                         # relevé dira « indéterminable » — ce qui est exact — au lieu d'inventer.
                         composition={
                             **({'components': [{'role': 'model', 'pattern': model_name}]}
-                               if hf_id_for_yolo_weight(model_name) else {}),
+                               if platform_ref_for_yolo_weight(model_name) else {}),
                             'runtime': {'engine': 'ultralytics'},
                         },
                         format=model_format,
@@ -1180,7 +1191,7 @@ class ModelRegistry:
 
             # Add SAM3 if available
             try:
-                from wama.anonymizer.utils.sam3_manager import SAM3_HF_REPO, get_sam3_status
+                from wama.anonymizer.utils.sam3_manager import SAM3_PLATFORM_REF, get_sam3_status
                 # Description = source unique dans le model_config de l'app (R9) — plus de hardcode.
                 from wama.anonymizer.utils.model_config import REGISTRY_MODEL_DESCRIPTIONS as _ANON_DESC
                 status = get_sam3_status()
@@ -1195,9 +1206,9 @@ class ModelRegistry:
                     source=ModelSource.WAMA_ANONYMIZER,
                     description=_ANON_DESC.get('sam3', {}).get('long', ''),
                     description_short=_ANON_DESC.get('sam3', {}).get('short', ''),
-                    # Le dépôt d'origine est déclaré par sam3_manager (SAM3_HF_REPO) —
+                    # Le dépôt d'origine est déclaré par sam3_manager (SAM3_PLATFORM_REF) —
                     # on le LIT, on ne le redéclare pas.
-                    hf_id=SAM3_HF_REPO,
+                    platform_ref=SAM3_PLATFORM_REF,
                     vram_gb=3.0,
                     is_downloaded=status.get('models_cached', False),
                     extra_info=status,
@@ -1245,9 +1256,9 @@ class ModelRegistry:
             from .prospector import installed_weights_complete
             for key, spec in FRAME_DETECTORS.items():
                 folder = frame_detector_dir(spec)
-                hf_id = spec.get('hf_id')
-                if hf_id:
-                    path = folder / f"models--{hf_id.replace('/', '--')}"
+                repo_id = hf_repo(spec.get('platform_ref'))
+                if repo_id:
+                    path = folder / f"models--{repo_id.replace('/', '--')}"
                     downloaded = path.is_dir() and installed_weights_complete(path)
                 else:
                     path = folder / spec['file']
@@ -1259,13 +1270,13 @@ class ModelRegistry:
                     source=ModelSource.WAMA_ANONYMIZER,
                     description=spec.get('long', ''),
                     description_short=spec.get('short', ''),
-                    hf_id=hf_id or None,
+                    platform_ref=spec.get('platform_ref') or None,
                     vram_gb=spec.get('vram_gb', 0),
                     is_downloaded=downloaded,
                     backend_ref='anonymizer',
                     extra_info={
                         'path': str(path), 'model_id': key,
-                        **({'install_dir': str(folder)} if hf_id else {}),
+                        **({'install_dir': str(folder)} if repo_id else {}),
                         **({'repo': spec['repo']} if spec.get('repo') else {}),
                         **({'license': spec['license']} if spec.get('license') else {}),
                     },
@@ -1288,7 +1299,7 @@ class ModelRegistry:
         `$HOME/.deepface`, hors d'`AI-models`. Ni le balayage HF générique ni
         `check_model_layout` ne pouvaient les voir — DeepFace ne passe pas par HuggingFace, il
         télécharge depuis les GitHub Releases de `serengil/deepface_models` (source `github` du
-        registre des sources externes, famille « poids »). `hf_id` reste donc **vide** : une
+        registre des sources externes, famille « poids »). Aucun dépôt du Hub n'est donc posé : une
         provenance non établie sur HF vaut mieux qu'une inférence.
 
         ⚠ MODÈLE ≠ LIBRAIRIE. `deepface`, `fer` et `mediapipe` sont des LIBRAIRIES (registre
@@ -1406,7 +1417,7 @@ class ModelRegistry:
                 source=ModelSource.HUGGINGFACE,
                 description='Profondeur monoculaire métrique + focale estimée, natif transformers '
                             '(Apache-2.0). Candidat cam_analyzer (re-calage du plan de sol, §[E]).',
-                hf_id='apple/DepthPro-hf',
+                platform_ref='huggingface:apple/DepthPro-hf',
                 # Moteur : `transformers` — la description ci-dessus le dit déjà
                 # (« natif transformers », AutoModelForDepthEstimation).
                 composition={'runtime': {'engine': 'transformers'}},
@@ -1434,7 +1445,7 @@ class ModelRegistry:
                     description='Profondeur monoculaire entraînée sur de la conduite (KITTI), natif '
                                 'transformers (MIT). Échelle à ancrer par l\'appelant (hauteur de '
                                 'caméra) ; défaut de cam_analyzer §[E] depuis le 2026-09-28.',
-                    hf_id='Intel/zoedepth-kitti',
+                    platform_ref='huggingface:Intel/zoedepth-kitti',
                     composition={'runtime': {'engine': 'transformers'}},
                     vram_gb=2.0,
                     is_downloaded=zoe_root.exists() and any(zoe_root.rglob('*.safetensors')),
@@ -1491,7 +1502,7 @@ class ModelRegistry:
                 id='lpips-alexnet',
                 name='LPIPS (AlexNet)',
                 model_type=ModelType.VISION,
-                source=ModelSource.CUSTOM,
+                source=ModelSource.PYTORCH_DOWNLOAD,
                 description="LPIPS : distance perceptuelle entre deux images (plus bas = plus "
                             "proche), sur la dorsale AlexNet de torchvision. Instrument de MESURE du "
                             "banc d'agrandissement (`WAMA_QUALITE §4`), il ne produit rien.",
@@ -1524,7 +1535,7 @@ class ModelRegistry:
                 id=GESTURE_KEY,
                 name='MediaPipe Gesture Recognizer',
                 model_type=ModelType.VISION,
-                source=ModelSource.CUSTOM,
+                source=ModelSource.MEDIAPIPE_MODELS,
                 description="Reconnaissance des gestes de la main (21 repères par main, jusqu'à deux "
                             "mains ; poing fermé, main ouverte, index levé…) — exécutée dans le "
                             "navigateur, aucune image ne part au serveur. Pilote les scènes 3D à la "
@@ -1556,7 +1567,7 @@ class ModelRegistry:
         La déclaration vit à côté du moteur (`muscriptor_backend.MUSCRIPTOR_FILES`)."""
         try:
             from wama.common.backends.muscriptor_backend import (
-                HF_ID, MODEL_KEY, MUSCRIPTOR_FILES, model_folder,
+                HF_REPO, MODEL_KEY, MUSCRIPTOR_FILES, model_folder,
             )
             from wama.model_manager.services.model_installer import declared_files_present
             root = model_folder()
@@ -1570,7 +1581,7 @@ class ModelRegistry:
                             "sur la grille de temps de Beat This!. Poids CC BY-NC 4.0, dépôt à "
                             "accès contrôlé.",
                 description_short="Transcription multi-instrument audio → MIDI",
-                hf_id=HF_ID,
+                platform_ref=hf_platform_ref(HF_REPO),
                 # Pic MESURÉ le 2026-10-16 sur #754 (210 s, RTX 4090) : 9,77 Go ; 13,34 Go le
                 # 2026-10-22 sur #880 (215 s) depuis le passage de DÉTECTION des instruments, par
                 # lots de quatre tranches (`muscriptor_backend.DETECTION_BATCH`).
@@ -1615,7 +1626,7 @@ class ModelRegistry:
                             'sur GPU), MIT. ⚠ Reconstruction PLAUSIBLE, pas métrique : les faces '
                             'occultées sont hallucinées (§17ter) — props de simulation, jamais '
                             'une mesure.',
-                hf_id='stabilityai/TripoSR',
+                platform_ref='huggingface:stabilityai/TripoSR',
                 # Moteur : le code TripoSR vendorisé (`common/backends/vendor/triposr`, comme
                 # MuseTalk/CodeFormer) — la moitié backend est `TripoSRBackend.ENGINE`.
                 composition={'runtime': {'engine': 'triposr'},
@@ -1658,7 +1669,11 @@ class ModelRegistry:
                 'diarization', _s.AI_MODELS_DIR / 'models' / 'speech' / 'diarization'))
 
             for model_id, config in TRANSCRIBER_MODELS.items():
-                hf_id = config.get('hf_model_id', '')
+                platform_ref = config.get('platform_ref') or ''
+                repo_id = hf_repo(platform_ref)
+                # `extra_info['hf_id']` : copie du dépôt que les manifestes du corpus portent encore —
+                # elle part avec `identity.hf_id`, dans la session des manifestes (2026-10-27).
+                hf_copy = {'hf_id': repo_id}
                 size_gb = config.get('size_gb', 0.5)
                 vram_gb = config.get('vram_gb', size_gb)
 
@@ -1675,21 +1690,21 @@ class ModelRegistry:
 
                 if model_id.startswith('vibevoice-'):
                     # HuggingFace hub format in vibevoice/
-                    is_downloaded = _check_hf_model_downloaded(vibevoice_dir, hf_id)
+                    is_downloaded = _check_hf_model_downloaded(vibevoice_dir, repo_id)
                     name = "VibeVoice ASR"
                     fmt = 'safetensors'
                     # `install_dir` (2026-09-28) : ce que `spec_for_catalog_row` exige pour le geste
                     # « Installer » (bouton et outil `install_model` de l'assistant) — le transcriber
                     # ne le déclarait pas, essai de l'assistant du 28/09 : « no_install_location ».
-                    extra = {'hf_id': hf_id, 'path': str(vibevoice_dir),
+                    extra = {**hf_copy, 'path': str(vibevoice_dir),
                              'install_dir': str(vibevoice_dir)}
 
                 elif model_id.startswith('qwen3-asr-'):
                     # HuggingFace hub format in qwen_asr/
-                    is_downloaded = _check_hf_model_downloaded(qwen_asr_dir, hf_id)
-                    name = hf_id.split('/')[-1]   # "Qwen3-ASR-0.6B" / "Qwen3-ASR-1.7B"
+                    is_downloaded = _check_hf_model_downloaded(qwen_asr_dir, repo_id)
+                    name = repo_id.split('/')[-1]   # "Qwen3-ASR-0.6B" / "Qwen3-ASR-1.7B"
                     fmt = 'safetensors'
-                    extra = {'hf_id': hf_id, 'path': str(qwen_asr_dir),
+                    extra = {**hf_copy, 'path': str(qwen_asr_dir),
                              'install_dir': str(qwen_asr_dir)}
 
                 elif config.get('engine') == 'nemo':
@@ -1697,30 +1712,30 @@ class ModelRegistry:
                     # famille DÉCLARÉ par le modèle ; poids = une archive `.nemo` (comptée par
                     # `_WEIGHT_EXTS`, sinon le jugement commun les dirait « sans poids »).
                     nemo_dir = Path(config['dir'])
-                    is_downloaded = _check_hf_model_downloaded(nemo_dir, hf_id)
-                    name = hf_id.split('/')[-1]
+                    is_downloaded = _check_hf_model_downloaded(nemo_dir, repo_id)
+                    name = repo_id.split('/')[-1]
                     fmt = 'nemo'
-                    extra = {'hf_id': hf_id, 'path': str(nemo_dir), 'install_dir': str(nemo_dir)}
+                    extra = {**hf_copy, 'path': str(nemo_dir), 'install_dir': str(nemo_dir)}
 
                 elif model_id == 'pyannote-diarization':
                     # La RECETTE (config.yaml, 0 octet de poids) ; ses poids sont ses
                     # COMPONENTS déclarés. On CONSTATE sa présence par le helper commun,
                     # comme les autres — jamais en devinant un nom de dossier (§5b). Recette :
                     # aucun poids propre à exiger (`weights_required=False`, 2026-09-28).
-                    is_downloaded = _check_hf_model_downloaded(diarization_dir, hf_id,
+                    is_downloaded = _check_hf_model_downloaded(diarization_dir, repo_id,
                                                                weights_required=False)
                     name = "pyannote 3.1 (diarisation)"
                     fmt = 'pytorch'
-                    extra = {'hf_id': hf_id, 'path': str(diarization_dir),
+                    extra = {**hf_copy, 'path': str(diarization_dir),
                              'install_dir': str(diarization_dir)}
 
                 elif config.get('type') == 'alignment':
                     # Aligneur acoustique (étage B de l'alignement forcé) : même constat par le
                     # helper commun, dans le dossier de la famille.
-                    is_downloaded = _check_hf_model_downloaded(Path(ALIGNMENT_DIR), hf_id)
-                    name = f"{hf_id.split('/')[-1]} (alignement)"
+                    is_downloaded = _check_hf_model_downloaded(Path(ALIGNMENT_DIR), repo_id)
+                    name = f"{repo_id.split('/')[-1]} (alignement)"
                     fmt = 'safetensors'
-                    extra = {'hf_id': hf_id, 'path': str(ALIGNMENT_DIR),
+                    extra = {**hf_copy, 'path': str(ALIGNMENT_DIR),
                              'install_dir': str(ALIGNMENT_DIR)}
                 # ⚠ Whisper ne reçoit PAS d'`install_dir` : sa ligne déclare `openai/whisper-large-v3`
                 # quand le moteur charge `Systran/faster-whisper-*` — installer depuis la ligne
@@ -1729,10 +1744,10 @@ class ModelRegistry:
                 else:
                     # Whisper : plusieurs formats possibles sur disque. On CONSTATE le
                     # contenu (helper robuste) au lieu de DEVINER les noms de dossiers.
-                    # La variante réelle vient du hf_model_id ('openai/whisper-large-v3'
+                    # La variante réelle vient du dépôt déclaré ('openai/whisper-large-v3'
                     # → 'large-v3'), car model_id peut être abrégé ('large').
                     short_id = config.get('model_id', model_id.replace('whisper-', ''))
-                    variant = (hf_id.split('/')[-1].replace('whisper-', '') if hf_id else short_id)
+                    variant = (repo_id.split('/')[-1].replace('whisper-', '') if repo_id else short_id)
                     pt_file = whisper_dir / f"{short_id}.pt"          # openai-whisper .pt
                     pt_file_v = whisper_dir / f"{variant}.pt"
                     ct2_dir = whisper_dir / short_id                  # CTranslate2 direct
@@ -1742,7 +1757,7 @@ class ModelRegistry:
                     # 'faster-whisper-large' vs réel 'faster-whisper-large-v3'.
                     hf_ok = (
                         _check_hf_model_downloaded(whisper_dir, f"Systran/faster-whisper-{variant}")
-                        or _check_hf_model_downloaded(whisper_dir, hf_id)
+                        or _check_hf_model_downloaded(whisper_dir, repo_id)
                     )
                     is_downloaded = (
                         pt_file.exists() or pt_file_v.exists()
@@ -1757,7 +1772,7 @@ class ModelRegistry:
                             else str(whisper_dir / f"models--Systran--faster-whisper-{variant}") if hf_ok
                             else str(ct2_dir_v) if ct2_dir_v.exists()
                             else str(ct2_dir))
-                    extra = {'hf_id': hf_id, 'path': path if is_downloaded else ''}
+                    extra = {**hf_copy, 'path': path if is_downloaded else ''}
 
                 # Capacités CANONIQUES — LUES sur `_cls` (lot 4b, 2026-08-20), la même classe
                 # backend qui sert déjà de « SOURCE UNIQUE » aux descriptions 60 lignes plus haut.
@@ -1802,7 +1817,7 @@ class ModelRegistry:
                     source=ModelSource.WAMA_TRANSCRIBER,
                     description=description_long,
                     description_short=description_short,
-                    hf_id=hf_id or None,
+                    platform_ref=platform_ref or None,
                     vram_gb=vram_gb,
                     is_downloaded=is_downloaded,
                     backend_ref='transcriber',
@@ -1826,15 +1841,20 @@ class ModelRegistry:
         try:
             from django.conf import settings
             # Descriptions = source unique dans le model_config de l'app (R9) — plus de hardcode ici.
-            # Même règle pour la provenance HF : `hf_id` est DÉCLARÉ par SYNTHESIZER_MODELS,
+            # Même règle pour la provenance : `platform_ref` est DÉCLARÉ par SYNTHESIZER_MODELS,
             # plus aucun dépôt écrit en dur dans cette découverte.
             from wama.synthesizer.utils.model_config import (
                 REGISTRY_MODEL_DESCRIPTIONS as _SYNTH_DESC,
                 SYNTHESIZER_MODELS as _SYNTH_MODELS,
             )
 
-            def _synth_hf_id(key):
-                return _SYNTH_MODELS.get(key, {}).get('hf_id') or None
+            def _synth_ref(key):
+                return _SYNTH_MODELS.get(key, {}).get('platform_ref') or None
+
+            def _synth_hf_copy(key):
+                """`extra_info['hf_id']` : copie du dépôt que les manifestes du corpus portent
+                encore — elle part avec `identity.hf_id`, dans la session des manifestes."""
+                return hf_repo(_synth_ref(key)) or None
 
             def _synth_languages(key):
                 """Langues DÉCLARÉES par l'app, plus jamais réécrites ici (2026-08-29).
@@ -1843,7 +1863,7 @@ class ModelRegistry:
                 `SYNTHESIZER_MODELS[*]['languages']` en portait déjà une copie — et les deux
                 avaient divergé sur 2 moteurs (bark : `nl`/`cs` ici absents, `hi` là-bas absent ;
                 coqui-xtts : `hi`). Seule celle d'ici atteignait le catalogue : l'autre était
-                fausse SANS CONSOMMATEUR pour s'en apercevoir. Même geste que `hf_id` — le
+                fausse SANS CONSOMMATEUR pour s'en apercevoir. Même geste que `platform_ref` — le
                 registre DÉCOUVRE, il ne redéclare pas.
                 """
                 return list(_SYNTH_MODELS.get(key, {}).get('languages') or [])
@@ -1970,7 +1990,7 @@ class ModelRegistry:
                 source=ModelSource.WAMA_SYNTHESIZER,
                 description=_SYNTH_DESC.get('coqui-xtts', {}).get('long', ''),
                 description_short=_SYNTH_DESC.get('coqui-xtts', {}).get('short', ''),
-                hf_id=_synth_hf_id('coqui-xtts'),
+                platform_ref=_synth_ref('coqui-xtts'),
                 vram_gb=2.0,
                 ram_gb=4.0,
                 is_downloaded=coqui_downloaded,
@@ -2007,7 +2027,7 @@ class ModelRegistry:
                 source=ModelSource.WAMA_SYNTHESIZER,
                 description=_SYNTH_DESC.get('bark', {}).get('long', ''),
                 description_short=_SYNTH_DESC.get('bark', {}).get('short', ''),
-                hf_id=_synth_hf_id('bark'),
+                platform_ref=_synth_ref('bark'),
                 vram_gb=4.0,
                 ram_gb=8.0,
                 is_downloaded=bark_downloaded,
@@ -2030,7 +2050,7 @@ class ModelRegistry:
             higgs_dir = settings.MODEL_PATHS.get('speech', {}).get('higgs', speech_dir / 'higgs')
             higgs_dir = Path(higgs_dir)
             higgs_downloaded = _check_hf_model_downloaded(
-                higgs_dir, _synth_hf_id('higgs-audio') or '')
+                higgs_dir, hf_repo(_synth_ref('higgs-audio')))
 
             self._models["synthesizer:higgs-audio"] = ModelInfo(
                 id="synthesizer:higgs-audio",
@@ -2039,7 +2059,7 @@ class ModelRegistry:
                 source=ModelSource.WAMA_SYNTHESIZER,
                 description=_SYNTH_DESC.get('higgs-audio', {}).get('long', ''),
                 description_short=_SYNTH_DESC.get('higgs-audio', {}).get('short', ''),
-                hf_id=_synth_hf_id('higgs-audio'),
+                platform_ref=_synth_ref('higgs-audio'),
                 vram_gb=24.0,
                 ram_gb=8.0,
                 is_downloaded=higgs_downloaded,
@@ -2047,7 +2067,7 @@ class ModelRegistry:
                 format='safetensors',
                 preferred_format=preferred,
                 can_convert_to=[],
-                extra_info={'hf_id': _synth_hf_id('higgs-audio'),
+                extra_info={'hf_id': _synth_hf_copy('higgs-audio'),
                             'path': str(higgs_dir)},
                 capabilities=_tts_caps(
                     engine_key='higgs-audio',  # clonage LU sur HiggsAudioBackend
@@ -2060,7 +2080,7 @@ class ModelRegistry:
             kokoro_dir = settings.MODEL_PATHS.get('speech', {}).get('kokoro', speech_dir / 'kokoro')
             kokoro_dir = Path(kokoro_dir)
             kokoro_downloaded = _check_hf_model_downloaded(
-                kokoro_dir, _synth_hf_id('kokoro') or '')
+                kokoro_dir, hf_repo(_synth_ref('kokoro')))
 
             self._models["synthesizer:kokoro"] = ModelInfo(
                 id="synthesizer:kokoro",
@@ -2069,7 +2089,7 @@ class ModelRegistry:
                 source=ModelSource.WAMA_SYNTHESIZER,
                 description=_SYNTH_DESC.get('kokoro', {}).get('long', ''),
                 description_short=_SYNTH_DESC.get('kokoro', {}).get('short', ''),
-                hf_id=_synth_hf_id('kokoro'),
+                platform_ref=_synth_ref('kokoro'),
                 vram_gb=0.5,
                 ram_gb=1.0,
                 is_downloaded=kokoro_downloaded,
@@ -2081,7 +2101,7 @@ class ModelRegistry:
                 # il s'INSTALLE — onnx-community/Kokoro-82M-v1.0-ONNX via la prospection
                 # (l'export local d'un KPipeline n'est pas un geste générique).
                 can_convert_to=['safetensors'],
-                extra_info={'hf_id': _synth_hf_id('kokoro'), 'path': str(kokoro_dir)},
+                extra_info={'hf_id': _synth_hf_copy('kokoro'), 'path': str(kokoro_dir)},
                 capabilities=_tts_caps(
                     engine_key='kokoro',       # clonage + HORODATAGE lus sur KokoroBackend
                     languages=_synth_languages('kokoro'),
@@ -2238,8 +2258,8 @@ class ModelRegistry:
 
             for model_id, config in COMPOSER_MODELS.items():
                 cache_dir = config['cache_dir']
-                hf_id = config['hf_id']
-                is_downloaded = _check_hf_model_downloaded(cache_dir, hf_id)
+                platform_ref = config['platform_ref']
+                is_downloaded = _check_hf_model_downloaded(cache_dir, hf_repo(platform_ref))
 
                 model_info = ModelInfo(
                     id=model_id,
@@ -2250,7 +2270,7 @@ class ModelRegistry:
                     # long autonome en overlay ⓘ (cf. model_config 'description_long').
                     description=config.get('description_long') or config['description'],
                     description_short=config['description'],
-                    hf_id=hf_id,
+                    platform_ref=platform_ref,
                     vram_gb=config['vram_gb'],
                     is_downloaded=is_downloaded,
                     extra_info={
@@ -2315,16 +2335,16 @@ class ModelRegistry:
         déclarative par app et qu'aucune app ne le déclarait).
 
         Règles :
-          • DÉDUP par `hf_id` : un dépôt déjà déclaré par une app (composer, imager…) est
+          • DÉDUP par DÉPÔT (`platform_ref`) : un dépôt déjà déclaré par une app (composer, imager…) est
             IGNORÉ ici — l'entrée d'app porte backend, VRAM et capacités, elle fait autorité.
             Le balayage tourne donc EN DERNIER dans `discover_all_models`.
           • DÉDUP par FAMILLE : un snapshot dont le dossier de famille figure dans
             `settings.MODEL_PATHS` appartient déjà à une app (c'est l'étape 1 de la checklist
             d'ajout de modèle) — ses entrées de catalogue viennent de la découverte d'app.
             Ce critère reste NÉCESSAIRE même depuis que transcriber/synthesizer/anonymizer
-            posent leur `hf_id` (2026-08-27) : le dépôt déclaré n'est pas toujours celui du
+            posent leur dépôt (2026-08-27) : le dépôt déclaré n'est pas toujours celui du
             snapshot sur disque (transcriber déclare `openai/whisper-large-v3`, le disque
-            porte `Systran/faster-whisper-large-v3` — la dédup par hf_id ne les relie pas ;
+            porte `Systran/faster-whisper-large-v3` — la dédup par dépôt ne les relie pas ;
             16 doublons de fait mesurés le 2026-08-27 avant ce critère). Le balayage ne
             couvre que les familles qu'AUCUNE déclaration ne revendique.
           • La catégorie du dossier doit être un `ModelType` valide, sinon le dossier est
@@ -2342,7 +2362,7 @@ class ModelRegistry:
             root = models_root()
             if not root.exists():
                 return
-            deja_declares = {m.hf_id for m in self._models.values() if m.hf_id}
+            deja_declares = {m.hf_repo for m in self._models.values() if m.hf_repo}
             # Un dépôt déclaré COMPOSANT d'un autre modèle (VAE, encodeur parent) n'est pas un
             # modèle : il se range à côté de son parent, qui le porte (2026-10-03).
             from wama.common.utils.model_locations import declared_component_repos
@@ -2411,8 +2431,8 @@ class ModelRegistry:
         parts = snap.name[len('models--'):].split('--')
         if len(parts) < 2:
             return
-        hf_id = f"{parts[0]}/{'--'.join(parts[1:])}"
-        if hf_id in deja_declares:
+        repo_id = f"{parts[0]}/{'--'.join(parts[1:])}"
+        if repo_id in deja_declares:
             return
 
         blobs, snapshots = snap / 'blobs', snap / 'snapshots'
@@ -2431,9 +2451,9 @@ class ModelRegistry:
         fmt = _dominant_format(f for rev in snapshots.iterdir() if rev.is_dir()
                                for f in rev.rglob('*'))
 
-        nom_court = hf_id.split('/')[-1]
-        self._models[f"huggingface:{hf_id}"] = ModelInfo(
-            id=hf_id,
+        nom_court = repo_id.split('/')[-1]
+        self._models[f"huggingface:{repo_id}"] = ModelInfo(
+            id=repo_id,
             name=nom_court,
             model_type=mtype,
             source=ModelSource.HUGGINGFACE,
@@ -2445,7 +2465,7 @@ class ModelRegistry:
             description=(f"Snapshot HuggingFace installé ({mtype.value}/{fam_dir.name}), "
                          "catalogué par le balayage générique des modèles installés."),
             description_short=f"Snapshot HF {nom_court}",
-            hf_id=hf_id,
+            platform_ref=hf_platform_ref(repo_id),
             is_downloaded=not incomplets,
             format=fmt,
             vram_gb=vram_estimee,
@@ -2516,14 +2536,15 @@ class ModelRegistry:
             cache_dirs = {'olmocr': OLMOCR_DIR, 'doctr': DOCTR_DIR}
 
             for model_id, config in READER_MODELS.items():
-                hf_id = config.get('hf_model_id', '')
+                platform_ref = config.get('platform_ref') or ''
+                repo_id = hf_repo(platform_ref)
                 cache_dir = cache_dirs.get(model_id)
 
                 # Un moteur SERVI par Ollama n'a pas de ligne ici : il est découvert sous sa
                 # source (`ollama:glm-ocr:latest`, `FAMILLES_OLLAMA`) — la branche qui en faisait
                 # une seconde ligne `reader:` est partie avec ce doublon (2026-10-07).
-                if hf_id:
-                    is_downloaded = _check_hf_model_downloaded(str(cache_dir), hf_id)
+                if repo_id:
+                    is_downloaded = _check_hf_model_downloaded(str(cache_dir), repo_id)
                 else:
                     # docTR : les poids vivent dans DOCTR_DIR (DOCTR_CACHE_DIR, posé par le
                     # backend) — critère DISQUE d'abord ; l'import du paquet n'est qu'un
@@ -2546,7 +2567,7 @@ class ModelRegistry:
                     # Court/long séparés (format transcriber), cf. model_config 'description_long'.
                     description=config.get('description_long') or config['description'],
                     description_short=config['description'],
-                    hf_id=hf_id or None,
+                    platform_ref=platform_ref or None,
                     vram_gb=config['vram_gb'],
                     is_downloaded=is_downloaded,
                     extra_info={'type': config['type']},
@@ -3463,7 +3484,7 @@ class ModelRegistry:
                     source=ModelSource.WAMA_AVATARIZER,
                     description='Lip-sync pipeline v1.5 (UNet + Whisper + SD-VAE + DWPose + '
                                 'S3FD + BiSeNet)',
-                    hf_id=mt.get('hf_id') or None,
+                    platform_ref=mt.get('platform_ref') or None,
                     vram_gb=4.0,
                     is_downloaded=declared_files_present(MUSETALK_MODELS_DIR, files),
                     extra_info={
@@ -3501,7 +3522,7 @@ class ModelRegistry:
                     model_type=ModelType.VISION,
                     source=ModelSource.WAMA_AVATARIZER,
                     description=cf.get('description', ''),
-                    hf_id=cf.get('hf_id') or None,
+                    platform_ref=cf.get('platform_ref') or None,
                     vram_gb=cf.get('vram_gb'),
                     # Présent = ses QUATRE fichiers déclarés (`facelib`/`realesrgan` sont ses
                     # composants, déclarés comme tels, pas des modèles à part).

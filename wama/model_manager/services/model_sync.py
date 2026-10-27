@@ -130,11 +130,11 @@ class ModelSyncService:
                     delete_missing = remove_missing = False
 
                 # Un snapshot catalogué par le balayage GÉNÉRIQUE puis DÉCLARÉ par une app n'est
-                # plus produit par la découverte (la dédup par `hf_id`/famille l'écarte), mais sa
+                # plus produit par la découverte (la dédup par dépôt/famille l'écarte), mais sa
                 # ligne `huggingface:` restait : sans `--clean`, rien ne la retirait. Mêmes poids,
                 # deux cards — vécu deux fois sur FastWan (16/09 retiré à la main, revu le 23/09).
                 # Ce n'est pas une DISPARITION (les poids sont là) mais une SUPPRESSION PAR
-                # RELÈVE : on ne la fait donc que si une ligne découverte porte le même `hf_id`,
+                # RELÈVE : on ne la fait donc que si une ligne découverte porte le même dépôt,
                 # et seulement sur une découverte complète (même règle que ci-dessus).
                 if not echecs:
                     result.removed += self._drop_superseded_snapshots(discovered_models,
@@ -240,12 +240,12 @@ class ModelSyncService:
     @staticmethod
     def _drop_superseded_snapshots(discovered_models, seen_keys) -> int:
         """Supprime les lignes du balayage générique (`extra_info.hf_snapshot`) absentes de
-        cette découverte ET dont le `hf_id` est désormais porté par une ligne découverte —
+        cette découverte ET dont le dépôt est désormais porté par une ligne découverte —
         l'entrée d'app fait autorité (cf. `_discover_installed_hf_snapshots`). Rend le compte."""
         from ..models import AIModel
+        from wama.common.external_sources import hf_platform_ref
         from wama.common.utils.model_locations import declared_component_repos
-        claimed = {info.hf_id for info in discovered_models.values()
-                   if getattr(info, 'hf_id', None)}
+        claimed = {info.hf_repo for info in discovered_models.values() if info.hf_repo}
         # Relevé aussi par son PARENT : un dépôt déclaré composant d'un autre modèle (2026-10-03,
         # le VAE de YuE2 tiré comme générateur de musique) — même geste, même garde.
         claimed |= declared_component_repos()
@@ -253,7 +253,7 @@ class ModelSyncService:
             return 0
         stale = (AIModel.objects.filter(model_key__startswith='huggingface:',
                                         extra_info__hf_snapshot=True, is_proposed=False,
-                                        hf_id__in=claimed)
+                                        platform_ref__in={hf_platform_ref(r) for r in claimed})
                  .exclude(model_key__in=seen_keys))
         keys = list(stale.values_list('model_key', flat=True))
         if keys:
@@ -349,7 +349,7 @@ class ModelSyncService:
             # existante. Un `False` y est une DÉCISION HUMAINE (« ce modèle n'est pas adapté »,
             # cf. face_yolov8m-seg_60, modèle adetailer qui trouve 0 visage sur une scène de
             # rue), et la découverte n'a pas autorité pour l'écraser — même principe que
-            # `hf_id`/`quality_index` (2026-08-12). L'ABSENCE de fichier reste traitée par
+            # `platform_ref`/`quality_index` (2026-08-12). L'ABSENCE de fichier reste traitée par
             # `remove_missing`, qui pose False ; réactiver un modèle écarté est donc explicite.
             'format': model_info.format or '',
             'preferred_format': model_info.preferred_format or '',
@@ -378,9 +378,13 @@ class ModelSyncService:
         #     PRIME »), qui était vraie jusqu'au prochain `sync_models`.
         # On n'écrit donc QUE lorsque la découverte a réellement quelque chose à dire. Un modèle
         # dont l'amont perd son identité se corrige explicitement, pas par effet de bord.
-        # (`license` et `platform_ref` n'ont jamais été dans `defaults` — ils survivaient déjà.)
-        if model_info.hf_id:
-            defaults['hf_id'] = model_info.hf_id
+        # (`license` n'a jamais été dans `defaults` — il survivait déjà.)
+        # `platform_ref` remplace `hf_id` ici (2026-10-27, décision de Fabien : « ne garder que
+        # `platform_ref` ») : c'est le même fait, que la déclaration porte désormais sous ce nom —
+        # écrit quand la découverte le DIT, jamais effacé par son silence. La colonne `hf_id` n'est
+        # plus écrite que par la projection du manifeste, et part avec elle.
+        if model_info.platform_ref:
+            defaults['platform_ref'] = model_info.platform_ref
         # A priori DÉCLARÉ avec sa source (`model_quality.DECLARED_PRIORS`, 2026-10-03) quand la
         # découverte n'en dit rien — versionné, sourcé, au lieu d'une valeur posée à la main en base.
         from .model_quality import declared_prior
@@ -478,6 +482,15 @@ class ModelSyncService:
             for _k in _sticky:
                 if _k in _existing and _k not in _merged:
                     _merged[_k] = _existing[_k]
+            # Le modèle CANONIQUE d'une quantification (`base_model` + `base_model_relation`,
+            # vocabulaire du Hub, 2026-10-27) : posé par le manifeste à l'installation d'un GGUF,
+            # que la découverte d'Ollama ne connaît pas. Collant comme `publications`, mais par
+            # PAIRE et seulement s'il porte sa relation : le `base_model` d'une LoRA (sa dorsale)
+            # vient de la déclaration de l'app, qui garde l'autorité dessus.
+            if 'base_model_relation' in _existing and 'base_model_relation' not in _merged:
+                for _k in ('base_model', 'base_model_relation'):
+                    if _k in _existing:
+                        _merged[_k] = _existing[_k]
             defaults['extra_info'] = _merged
 
         obj, created = AIModel.objects.update_or_create(
@@ -768,16 +781,17 @@ class ModelSyncService:
         from datetime import datetime, timezone as dt_timezone
         from pathlib import Path
 
+        from wama.common.external_sources import HUGGINGFACE
         from wama.common.utils.model_locations import installed_snapshots
         from ..models import AIModel, EXECUTION_LOCAL
         from .model_installer import components_for_spec
         from .prospector import local_inventory, local_revision, precision_of_files
 
-        qs = (AIModel.objects.filter(is_downloaded=True, is_proposed=False, execution=EXECUTION_LOCAL)
-              .exclude(hf_id__isnull=True).exclude(hf_id=''))
+        qs = AIModel.objects.filter(is_downloaded=True, is_proposed=False, execution=EXECUTION_LOCAL,
+                                    platform_ref__startswith=f'{HUGGINGFACE}:')
         if keys is not None:
             qs = qs.filter(model_key__in=list(keys))
-        rows = list(qs.only('pk', 'model_key', 'hf_id', 'local_path', 'composition', 'extra_info'))
+        rows = list(qs.only('pk', 'model_key', 'platform_ref', 'local_path', 'composition', 'extra_info'))
         if not rows:
             return 0
         index = installed_snapshots()
@@ -787,7 +801,7 @@ class ModelSyncService:
             local = Path(obj.local_path) if obj.local_path else None
             if local is not None and local.name.startswith('models--') and local.is_dir():
                 root = local
-            root = root or index.get(obj.hf_id.strip().lower())
+            root = root or index.get(obj.hf_repo.lower())
             files = local_inventory(root) if root else None
             if not files:
                 continue
@@ -800,7 +814,7 @@ class ModelSyncService:
             previous = (obj.extra_info or {}).get('weights') or {}
             if previous.get('signature') == signature:
                 continue
-            spec = {'kind': 'hf', 'ref': obj.hf_id}
+            spec = {'kind': 'hf', 'ref': obj.hf_repo}
             if composition:
                 spec['composition'] = composition
             derived = components_for_spec(spec, files=files)
@@ -811,7 +825,7 @@ class ModelSyncService:
                 # sur les fichiers pleine précision. C'est le cas « variante installée ≠ anatomie
                 # déclarée » ; on pèse par la convention de dépôt et on le DIT, plutôt que de laisser
                 # un relevé périmé ou de se taire.
-                derived = components_for_spec({'kind': 'hf', 'ref': obj.hf_id}, files=files)
+                derived = components_for_spec({'kind': 'hf', 'ref': obj.hf_repo}, files=files)
                 declared_unmatched = bool(derived)
             if not derived:
                 continue

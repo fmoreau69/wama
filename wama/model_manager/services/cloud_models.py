@@ -253,7 +253,10 @@ def model_info_for(source: str, item: dict):
     if declared_task:
         task = declared_task
         model_type = model_type_for_task(task) or model_type
-    hf_id = next((a for a in (item.get('aliases') or []) if '/' in str(a)), '')
+    # Le dépôt du Hub que le fournisseur SERT, quand il le nomme : LA règle de `cloud_identity`
+    # (un alias `org/nom`), lue au lieu d'être réécrite ici.
+    from .provenance import cloud_identity
+    platform_ref = (cloud_identity(item) or {}).get('platform_ref')
     declared = bool(item.get('declared'))
     # Modalités et entrées : ce que la tâche IMPLIQUE (table commune), plus l'image quand le
     # modèle VOIT — la même dérivation que la découverte Ollama (`_capacites_canoniques`).
@@ -285,7 +288,7 @@ def model_info_for(source: str, item: dict):
         description=(item.get('description')
                      or (f"{src.label} — le modèle est choisi par le fournisseur" if declared
                          else f"{src.label} — modèle distant ({remote_type})")),
-        hf_id=hf_id or None, vram_gb=0, ram_gb=0, is_downloaded=False,
+        platform_ref=platform_ref, vram_gb=0, ram_gb=0, is_downloaded=False,
         backend_ref=source, execution=EXECUTION_CLOUD,
         cost_tier=item.get('cost_tier') or src.cost_tier,
         # Le MOTEUR est le fournisseur (inventaire `external_sources.llm_engine_inventory`).

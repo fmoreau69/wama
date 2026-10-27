@@ -19,6 +19,8 @@ import math
 import numpy as np
 from django.conf import settings
 
+from wama.common.external_sources import hf_platform_ref, hf_repo
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,11 +43,11 @@ DEPTH_MODEL_DIR = (settings.MODEL_PATHS.get('vision', {}).get('depth')
 #   • `fp16_on_cuda` : demi-précision sur GPU (Depth Pro : oui ; ZoeDepth, 345 M : inutile).
 DEPTH_MODELS = {
     'depthpro': {
-        'hf_id': DEPTH_MODEL_ID, 'dir': DEPTH_MODEL_DIR, 'label': 'Apple Depth Pro',
+        'platform_ref': hf_platform_ref(DEPTH_MODEL_ID), 'dir': DEPTH_MODEL_DIR, 'label': 'Apple Depth Pro',
         'metric_scale': True, 'estimates_focal': True, 'source_sizes': False, 'fp16_on_cuda': True,
     },
     'zoedepth-kitti': {
-        'hf_id': 'Intel/zoedepth-kitti', 'label': 'ZoeDepth (KITTI)',
+        'platform_ref': 'huggingface:Intel/zoedepth-kitti', 'label': 'ZoeDepth (KITTI)',
         'dir': (settings.MODEL_PATHS.get('vision', {}).get('zoedepth')
                 or settings.AI_MODELS_DIR / "models" / "vision" / "zoedepth"),
         'metric_scale': False, 'estimates_focal': False, 'source_sizes': True, 'fp16_on_cuda': False,
@@ -98,26 +100,26 @@ def load(device: str = 'cuda', model_key=None):
     emporterait les sous-dépendances du modèle hors du cache partagé (ROADMAP §5b).
     """
     spec = depth_model_spec(model_key)
-    hf_id, cache = spec['hf_id'], str(spec['dir'])
+    repo_id, cache = hf_repo(spec['platform_ref']), str(spec['dir'])
 
     import torch
     if device == 'cuda' and not torch.cuda.is_available():
         logger.warning("[profondeur] CUDA indisponible — repli CPU")
         device = 'cpu'
 
-    _key = (hf_id, device)
+    _key = (repo_id, device)
     cached = _MODEL_CACHE.get(_key)
     if cached is not None:
         return cached[0], cached[1], device
 
     from transformers import AutoModelForDepthEstimation, AutoImageProcessor
     dtype = torch.float16 if (device == 'cuda' and spec['fp16_on_cuda']) else torch.float32
-    processor = AutoImageProcessor.from_pretrained(hf_id, cache_dir=cache)
+    processor = AutoImageProcessor.from_pretrained(repo_id, cache_dir=cache)
     model = AutoModelForDepthEstimation.from_pretrained(
-        hf_id, cache_dir=cache, torch_dtype=dtype,
+        repo_id, cache_dir=cache, torch_dtype=dtype,
     ).to(device).eval()
     _MODEL_CACHE[_key] = (processor, model)
-    logger.info(f"[profondeur] Chargé (cache) : {hf_id} sur {device}")
+    logger.info(f"[profondeur] Chargé (cache) : {repo_id} sur {device}")
     return processor, model, device
 
 

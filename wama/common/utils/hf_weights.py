@@ -11,7 +11,7 @@ QUATRE LEVIERS la tiennent, et le choix n'est PAS une préférence — il est im
 Il se vérifie dans sa SIGNATURE, jamais par habitude (la contrainte de sam3, « n'accepte pas
 de `cache_dir=` », était vraie et a masqué pendant 3 semaines qu'il acceptait mieux) :
 
-    A. la lib accepte `cache_dir=`     →  `from_pretrained(hf_id, cache_dir=<dossier>)`
+    A. la lib accepte `cache_dir=`     →  `from_pretrained(repo_id, cache_dir=<dossier>)`
                                           transformers, diffusers, pyannote… : la MAJORITÉ
     B. elle accepte un CHEMIN local    →  CE MODULE : on télécharge nous-mêmes DANS le
                                           dossier, on donne le chemin (sam3, kokoro)
@@ -48,14 +48,14 @@ from typing import Optional, Sequence
 logger = logging.getLogger(__name__)
 
 
-def poids_locaux(hf_id: str, dossier: str | Path, *,
+def poids_locaux(repo_id: str, dossier: str | Path, *,
                  patterns: Optional[Sequence[str]] = None,
                  token: Optional[str] = None,
                  revision: Optional[str] = None) -> str:
-    """Chemin LOCAL des poids de `hf_id`, garantis présents sous `dossier`.
+    """Chemin LOCAL des poids de `repo_id`, garantis présents sous `dossier`.
 
     Args:
-        hf_id    : dépôt HuggingFace (`bosonai/higgs-audio-v2-...`).
+        repo_id  : dépôt HuggingFace (`bosonai/higgs-audio-v2-...`).
         dossier  : dossier de famille du modèle (`AI-models/models/speech/higgs`), celui-là
                    même qu'on passerait à `cache_dir=`.
         patterns : `allow_patterns` — ne tirer que ce dont on a besoin (un jeu cohérent,
@@ -80,7 +80,7 @@ def poids_locaux(hf_id: str, dossier: str | Path, *,
 
     dossier = str(dossier)
     Path(dossier).mkdir(parents=True, exist_ok=True)
-    commun = dict(repo_id=hf_id, cache_dir=dossier, revision=revision)
+    commun = dict(repo_id=repo_id, cache_dir=dossier, revision=revision)
     if patterns:
         commun['allow_patterns'] = list(patterns)
 
@@ -88,9 +88,9 @@ def poids_locaux(hf_id: str, dossier: str | Path, *,
         local = snapshot_download(local_files_only=True, **commun)
         if _holds(local, patterns):
             return local
-        logger.info('[hf_weights] %s incomplet dans %s — téléchargement du reste', hf_id, dossier)
+        logger.info('[hf_weights] %s incomplet dans %s — téléchargement du reste', repo_id, dossier)
     except Exception:
-        logger.info('[hf_weights] %s absent de %s — téléchargement', hf_id, dossier)
+        logger.info('[hf_weights] %s absent de %s — téléchargement', repo_id, dossier)
     return snapshot_download(token=token, **commun)
 
 

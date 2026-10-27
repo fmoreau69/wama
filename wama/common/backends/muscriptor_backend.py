@@ -35,8 +35,8 @@ from .midi_extraction_base import MidiExtractionBackend
 
 logger = logging.getLogger(__name__)
 
-HF_ID = "MuScriptor/muscriptor-large"
-MODEL_KEY = f"huggingface:{HF_ID}"
+HF_REPO = "MuScriptor/muscriptor-large"
+MODEL_KEY = f"huggingface:{HF_REPO}"
 #: La fréquence que le modèle attend (`muscriptor.transcription_model._SAMPLE_RATE`).
 SAMPLE_RATE = 16000
 
@@ -58,10 +58,10 @@ BEAT_CHECKPOINT = 'beat_this/final0.ckpt'
 MUSCRIPTOR_FILES = [
     {'path': WEIGHTS, 'size': 5465642136,
      'sha256': 'ac4eb6ea87dfc26b6ca6b954c6b967ab87ad4c7d08e078b25214f13ed051f397',
-     'origin': {'source': 'huggingface', 'repo': HF_ID, 'revision': HF_REVISION, 'file': WEIGHTS}},
+     'origin': {'source': 'huggingface', 'repo': HF_REPO, 'revision': HF_REVISION, 'file': WEIGHTS}},
     {'path': 'config.json', 'size': 125,
      'sha256': '16bedd02b18770e43740419b0d5777f231047e96e8987f498e8a1123c39c9852',
-     'origin': {'source': 'huggingface', 'repo': HF_ID, 'revision': HF_REVISION,
+     'origin': {'source': 'huggingface', 'repo': HF_REPO, 'revision': HF_REVISION,
                 'file': 'config.json'}},
     {'path': BEAT_CHECKPOINT, 'size': 81058141,
      'sha256': '8c328b45f59d8dd3dff219253ff6a8d6482be57d0133a29140e2febbf8eb8331',
@@ -228,7 +228,7 @@ class MuScriptorBackend(MidiExtractionBackend):
         # float32 + autocast fp16 sur CUDA : le choix par défaut de la librairie hors MPS.
         self._model = TranscriptionModel.load_model(weights_path=weights, device=device)
         self._loaded = True
-        self._current_model = HF_ID
+        self._current_model = HF_REPO
         logger.info("[MuScriptor] chargé (%s, %s)", HF_REVISION[:12], device)
         return True
 

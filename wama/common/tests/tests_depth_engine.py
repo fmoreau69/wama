@@ -13,7 +13,7 @@ from django.test import SimpleTestCase
 from wama.common.backends import depth_engine
 from wama.common.backends.depth_backend import DepthProBackend, ZoeDepthBackend
 
-KEYS = ('hf_id', 'dir', 'label', 'metric_scale', 'estimates_focal', 'source_sizes', 'fp16_on_cuda')
+KEYS = ('platform_ref', 'dir', 'label', 'metric_scale', 'estimates_focal', 'source_sizes', 'fp16_on_cuda')
 
 
 class DepthModelDeclarationTest(SimpleTestCase):
@@ -39,7 +39,7 @@ class DepthModelDeclarationTest(SimpleTestCase):
         for key, spec in depth_engine.DEPTH_MODELS.items():
             info = reg._models.get(f'huggingface:{key}')
             self.assertIsNotNone(info, key)
-            self.assertEqual(info.hf_id, spec['hf_id'])
+            self.assertEqual(info.platform_ref, spec['platform_ref'])
 
 
 class DepthModelLoadingTest(SimpleTestCase):
@@ -61,7 +61,7 @@ class DepthModelLoadingTest(SimpleTestCase):
     def test_each_model_is_loaded_from_its_own_folder(self):
         for key, spec in depth_engine.DEPTH_MODELS.items():
             p, m = self._load(key)
-            self.assertEqual(p.call_args.args[0], spec['hf_id'])
+            self.assertEqual(p.call_args.args[0], spec['platform_ref'].partition(':')[2])
             self.assertEqual(p.call_args.kwargs['cache_dir'], str(spec['dir']))
             self.assertEqual(m.call_args.kwargs['cache_dir'], str(spec['dir']))
 

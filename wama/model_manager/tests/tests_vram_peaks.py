@@ -162,12 +162,12 @@ class AdapterFootprintTest(TestCase):
         from wama.model_manager.models import AIModel
         backbone = AIModel.objects.create(
             model_key='imager:flux-base', name='FLUX base', model_type='diffusion',
-            source='imager', hf_id='org/flux', vram_gb=24,
+            source='imager', platform_ref='huggingface:org/flux', vram_gb=24,
             extra_info={'weights': {'total_gb': 31.42, 'largest_gb': 22.17},
                         'model_type': 'base', 'base_model': 'org/flux'})
         lora = AIModel.objects.create(
             model_key='imager:flux-lora', name='LoRA logo', model_type='diffusion',
-            source='imager', hf_id='org/lora',
+            source='imager', platform_ref='huggingface:org/lora',
             extra_info={'weights': {'total_gb': 0.036, 'largest_gb': 0.036},
                         'model_type': 'lora', 'base_model': 'org/flux'})
         return backbone, lora
@@ -188,7 +188,7 @@ class AdapterFootprintTest(TestCase):
         self.assertEqual(model_footprint_gb(lora, count_backbone=False), (0.04, 'source'))
 
     def test_a_base_model_does_not_count_itself_twice(self):
-        """`flux-1-dev` déclare `base_model` = son PROPRE `hf_id`. Sans la garde, un modèle de base
+        """`flux-1-dev` déclare `base_model` = son PROPRE dépôt. Sans la garde, un modèle de base
         additionnerait sa propre empreinte."""
         from wama.model_manager.services.memory_manager import backbone_row
         backbone, _ = self._pair()
@@ -201,7 +201,7 @@ class AdapterFootprintTest(TestCase):
         from wama.model_manager.models import AIModel
         orpheline = AIModel.objects.create(
             model_key='imager:lora-orpheline', name='LoRA sans dorsale',
-            model_type='diffusion', source='imager', hf_id='org/lora2',
+            model_type='diffusion', source='imager', platform_ref='huggingface:org/lora2',
             extra_info={'weights': {'total_gb': 0.04, 'largest_gb': 0.04},
                         'model_type': 'lora', 'base_model': 'org/jamais-installee'})
         self.assertEqual(model_footprint_gb(orpheline), (0.04, 'source'))

@@ -51,7 +51,7 @@ class LeModeleEtSonMoteurTest(TestCase):
         self.assertEqual(m.composition['runtime']['engine'], 'triposr')
         self.assertEqual(m.capabilities['task'], 'image-to-3d')
         self.assertEqual(m.capabilities['reconstruction'], 'plausible')
-        self.assertEqual(m.hf_id, 'stabilityai/TripoSR')
+        self.assertEqual(m.platform_ref, 'huggingface:stabilityai/TripoSR')
 
     def test_le_moteur_triposr_est_pilote_par_le_backend_sous_contrat(self):
         from wama.common.backends.base import BaseModelBackend

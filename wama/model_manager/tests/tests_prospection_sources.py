@@ -116,7 +116,7 @@ class LeaderboardCandidatesTest(TestCase):
     def test_an_installed_repository_is_skipped_and_the_next_one_taken(self, *_):
         AIModel.objects.create(model_key='albert:lightonocr', name='LightOnOCR', model_type='ocr',
                                source='albert', is_downloaded=True,
-                               hf_id='lightonai/LightOnOCR-2-1B')
+                               platform_ref='huggingface:lightonai/LightOnOCR-2-1B')
         r = self._seed([_entry('lightonai/LightOnOCR-2-1B', 1, 90.0),
                         _entry('datalab-to/chandra-ocr-2', 2, 85.8)],
                        {'datalab-to/chandra-ocr-2': _info('datalab-to/chandra-ocr-2')},
@@ -126,10 +126,10 @@ class LeaderboardCandidatesTest(TestCase):
             model_key='proposed:hf:datalab-to/chandra-ocr-2').exists())
 
     def test_a_model_only_served_by_a_provider_is_not_installed_here(self, *_):
-        """2026-10-22 : `openrouter:qwen/qwen-2.5-7b-instruct` carries the `hf_id` of the model it
+        """2026-10-22 : `openrouter:qwen/qwen-2.5-7b-instruct` carries the `platform_ref` of the model it
         SERVES ; counted as installed, the repository could never be installed here."""
         AIModel.objects.create(model_key='openrouter:org/served', name='Served', model_type='ocr',
-                               source='openrouter', execution='cloud', hf_id='org/Served')
+                               source='openrouter', execution='cloud', platform_ref='huggingface:org/Served')
         r = self._seed([_entry('org/Served', 1, 90.0)], {'org/served': _info('org/Served')})
         self.assertEqual(1, r['total'])
         self.assertTrue(AIModel.objects.filter(model_key='proposed:hf:org/Served').exists())
@@ -190,7 +190,7 @@ class SuccessorCandidatesTest(TestCase):
     def setUp(self):
         self.src = AIModel.objects.create(
             model_key='reader:olmocr', name='olmOCR', model_type='ocr', source='reader',
-            is_downloaded=True, hf_id='allenai/olmOCR-7B-0225-preview',
+            is_downloaded=True, platform_ref='huggingface:allenai/olmOCR-7B-0225-preview',
             capabilities={'task': 'ocr'})
         self.api = _FakeApi({
             'allenai/olmocr-7b-0225-preview': _info('allenai/olmOCR-7B-0225-preview',
@@ -216,7 +216,7 @@ class SuccessorCandidatesTest(TestCase):
     def test_an_installed_successor_is_not_proposed(self, *_):
         AIModel.objects.create(model_key='huggingface:allenai/olmOCR-2-7B-1025', name='olmOCR-2',
                                model_type='ocr', source='huggingface', is_downloaded=True,
-                               hf_id='allenai/olmOCR-2-7B-1025')
+                               platform_ref='huggingface:allenai/olmOCR-2-7B-1025')
         self.assertEqual(0, self._seed()['total'])
 
     def test_an_unreachable_hub_purges_nothing(self, *_):
@@ -352,9 +352,9 @@ class HubRateLimitTest(TestCase):
     def test_a_successor_that_could_not_be_read_again_keeps_its_candidate(self, *_):
         AIModel.objects.create(model_key='reader:olmocr', name='olmOCR', model_type='ocr',
                                source='reader', is_downloaded=True,
-                               hf_id='allenai/olmOCR-7B-0225-preview', capabilities={'task': 'ocr'})
+                               platform_ref='huggingface:allenai/olmOCR-7B-0225-preview', capabilities={'task': 'ocr'})
         AIModel.objects.create(model_key='transcriber:other', name='other', model_type='speech',
-                               source='transcriber', is_downloaded=True, hf_id='org/other')
+                               source='transcriber', is_downloaded=True, platform_ref='huggingface:org/other')
         infos = {'allenai/olmocr-7b-0225-preview': _info('allenai/olmOCR-7B-0225-preview',
                                                          new_version='allenai/olmOCR-2-7B-1025'),
                  'allenai/olmocr-2-7b-1025': _info('allenai/olmOCR-2-7B-1025'),

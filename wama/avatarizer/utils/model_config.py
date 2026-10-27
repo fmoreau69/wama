@@ -152,7 +152,7 @@ AVATARIZER_MODELS = {
     'musetalk-v1.5': {
         'model_id': 'musetalk-v1.5',
         'engine': 'musetalk',
-        'hf_id': 'TMElyralab/MuseTalk',
+        'platform_ref': 'huggingface:TMElyralab/MuseTalk',
         'type': 'lipsync',
         'vram_gb': MUSETALK_VRAM_GB,
         'version': 'v15',
@@ -177,7 +177,7 @@ AVATARIZER_MODELS = {
     },
     'codeformer': {
         'model_id': 'codeformer',
-        'hf_id': 'sczhou/CodeFormer',
+        'platform_ref': 'huggingface:sczhou/CodeFormer',
         'type': 'face-restoration',
         'vram_gb': CODEFORMER_VRAM_GB,
         'description': "CodeFormer — restauration de visage (option qualité supérieure, use_enhancer).",

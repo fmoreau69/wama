@@ -38,12 +38,12 @@ def _candidate(task='ocr'):
     return AIModel.objects.create(
         model_key='proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6', name='PaddleOCR-VL-1.6',
         model_type='ocr', source='huggingface', is_proposed=True, proposal_kind='new',
-        hf_id='PaddlePaddle/PaddleOCR-VL-1.6', disk_gb=1.8, capabilities={'task': task},
+        platform_ref='huggingface:PaddlePaddle/PaddleOCR-VL-1.6', disk_gb=1.8, capabilities={'task': task},
         extra_info={'prospect': {
             'spec': {'kind': 'hf', 'ref': 'PaddlePaddle/PaddleOCR-VL-1.6', 'category': 'ocr',
                      'task': task},
             'own_gguf': [],                    # the canonical repository holds no GGUF
-            'quant_variants': [{'hf_id': 'Mungert/PaddleOCR-VL-1.6-GGUF', 'disk_gb': 1.0,
+            'quant_variants': [{'repo_id': 'Mungert/PaddleOCR-VL-1.6-GGUF', 'disk_gb': 1.0,
                                 'files': files}]}})
 
 
@@ -53,8 +53,8 @@ class VariantChoiceTest(TestCase):
         cand = _candidate('ocr')
         spec = p.spec_for_choice(cand, 'Mungert/PaddleOCR-VL-1.6-GGUF', 'PaddleOCR-VL-1.6-q4_k_m.gguf')
         self.assertEqual({'kind': 'ollama', 'ref': 'hf.co/Mungert/PaddleOCR-VL-1.6-GGUF:Q4_K_M',
-                          'task': 'ocr', 'base_hf_id': 'PaddlePaddle/PaddleOCR-VL-1.6'},
-                         {k: spec[k] for k in ('kind', 'ref', 'task', 'base_hf_id')})
+                          'task': 'ocr', 'base_model': 'PaddlePaddle/PaddleOCR-VL-1.6'},
+                         {k: spec[k] for k in ('kind', 'ref', 'task', 'base_model')})
 
     def test_a_gguf_of_a_task_no_ollama_backend_runs_stays_a_hub_download(self):
         # Counter-check: MiniMax-Music3's GGUF is read by audio.cpp, not Ollama — unchanged.
@@ -89,7 +89,7 @@ class OllamaBranchPullsTheChosenNameTest(TestCase):
         self.assertEqual(('ollama', 'hf.co/Mungert/PaddleOCR-VL-1.6-GGUF:Q4_K_M', 'ocr',
                           'PaddlePaddle/PaddleOCR-VL-1.6'),
                          (recorded['kind'], recorded['ref'], recorded['task'],
-                          recorded['base_hf_id']))
+                          recorded['base_model']))
         self.assertTrue(res['ok'])
 
     def test_an_ollama_library_candidate_still_pulls_its_own_name(self):
@@ -110,9 +110,10 @@ class HubGgufIdentityTest(SimpleTestCase):
     def test_it_comes_from_the_gguf_repository_and_is_the_canonical_model(self):
         from wama.model_manager.services.provenance import identity_for_spec
         ident = identity_for_spec({'kind': 'ollama', 'ref': 'hf.co/Mungert/PaddleOCR-VL-1.6-GGUF:Q4_K_M',
-                                   'base_hf_id': 'PaddlePaddle/PaddleOCR-VL-1.6'})
+                                   'base_model': 'PaddlePaddle/PaddleOCR-VL-1.6'})
         self.assertEqual({'platform_ref': 'huggingface:Mungert/PaddleOCR-VL-1.6-GGUF',
-                          'hf_id': 'PaddlePaddle/PaddleOCR-VL-1.6'}, ident)
+                          'base_model': 'PaddlePaddle/PaddleOCR-VL-1.6',
+                          'base_model_relation': 'quantized'}, ident)
 
     def test_a_library_tag_keeps_its_ollama_identity(self):
         from wama.model_manager.services.provenance import identity_for_spec
@@ -220,7 +221,7 @@ def _gguf_repo_candidate(files=None, projector=True):
     return AIModel.objects.create(
         model_key='proposed:hf:mradermacher/PaddleOCR-VL-1.6-GGUF', name='PaddleOCR-VL-1.6-GGUF',
         model_type='ocr', source='huggingface', is_proposed=True, proposal_kind='new',
-        hf_id='mradermacher/PaddleOCR-VL-1.6-GGUF', disk_gb=4.1, capabilities={'task': 'ocr'},
+        platform_ref='huggingface:mradermacher/PaddleOCR-VL-1.6-GGUF', disk_gb=4.1, capabilities={'task': 'ocr'},
         extra_info={'prospect': prospect})
 
 
@@ -240,11 +241,11 @@ class GgufRepositoryCandidateTest(TestCase):
 
     def test_choosing_one_of_its_files_pulls_it_by_ollama(self):
         cand = _gguf_repo_candidate(TWO_FILES)
-        spec = p.spec_for_choice(cand, cand.hf_id, 'PaddleOCR-VL-1.6.Q8_0.gguf')
+        spec = p.spec_for_choice(cand, cand.hf_repo, 'PaddleOCR-VL-1.6.Q8_0.gguf')
         self.assertEqual(('ollama', 'hf.co/mradermacher/PaddleOCR-VL-1.6-GGUF:Q8_0'),
                          (spec['kind'], spec['ref']))
-        self.assertIsNone(p.spec_for_choice(cand, cand.hf_id, None))
-        self.assertIsNone(p.spec_for_choice(cand, cand.hf_id, 'not-listed.Q2_K.gguf'))
+        self.assertIsNone(p.spec_for_choice(cand, cand.hf_repo, None))
+        self.assertIsNone(p.spec_for_choice(cand, cand.hf_repo, 'not-listed.Q2_K.gguf'))
 
     def test_the_installed_row_is_the_canonical_model_its_card_states(self):
         # Thread n° 41: installed from the GGUF repository, the row carried the publisher's repo —
@@ -253,12 +254,12 @@ class GgufRepositoryCandidateTest(TestCase):
         info = dict(cand.extra_info)
         info['prospect'] = dict(info['prospect'], base_model='PaddlePaddle/PaddleOCR-VL-1.6')
         cand.extra_info = info
-        spec = p.spec_for_choice(cand, cand.hf_id, 'PaddleOCR-VL-1.6.Q8_0.gguf')
-        self.assertEqual('PaddlePaddle/PaddleOCR-VL-1.6', spec['base_hf_id'])
+        spec = p.spec_for_choice(cand, cand.hf_repo, 'PaddleOCR-VL-1.6.Q8_0.gguf')
+        self.assertEqual('PaddlePaddle/PaddleOCR-VL-1.6', spec['base_model'])
         # Counter-check: a merge of several bases is the canonical of none.
         info['prospect']['base_model'] = ['a/one', 'b/two']
-        spec = p.spec_for_choice(cand, cand.hf_id, 'PaddleOCR-VL-1.6.Q8_0.gguf')
-        self.assertEqual('mradermacher/PaddleOCR-VL-1.6-GGUF', spec['base_hf_id'])
+        spec = p.spec_for_choice(cand, cand.hf_repo, 'PaddleOCR-VL-1.6.Q8_0.gguf')
+        self.assertEqual('mradermacher/PaddleOCR-VL-1.6-GGUF', spec['base_model'])
 
     def test_the_files_are_read_once_from_the_hub_and_kept(self):
         cand = _gguf_repo_candidate(None)
@@ -280,7 +281,7 @@ class VisionProjectorTest(TestCase):
     def test_a_gguf_repository_without_projector_offers_nothing_for_an_image_task(self):
         cand = _gguf_repo_candidate(TWO_FILES, projector=False)
         self.assertEqual([], p.install_options(cand)['options'])
-        self.assertIsNone(p.spec_for_choice(cand, cand.hf_id, 'PaddleOCR-VL-1.6.Q8_0.gguf'))
+        self.assertIsNone(p.spec_for_choice(cand, cand.hf_repo, 'PaddleOCR-VL-1.6.Q8_0.gguf'))
 
     def test_installing_it_is_refused_with_the_reason(self):
         from wama.model_manager.services import model_installer as mi
@@ -296,7 +297,7 @@ class VisionProjectorTest(TestCase):
         info = dict(cand.extra_info)
         prospect = dict(info['prospect'])
         prospect['quant_variants'] = prospect['quant_variants'] + [
-            {'hf_id': 'someone/PaddleOCR-VL-1.6-blind-GGUF', 'disk_gb': 0.5,
+            {'repo_id': 'someone/PaddleOCR-VL-1.6-blind-GGUF', 'disk_gb': 0.5,
              'files': [{'file': 'PaddleOCR-VL-1.6.Q8_0.gguf', 'gb': 0.5}]}]
         info['prospect'] = prospect
         cand.extra_info = info

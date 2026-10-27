@@ -6,7 +6,7 @@ models had a benchmark. Three structural holes, each guarded here:
     or prospection), never scheduled: `queue_benchmarks`, the nightly entry, the source cache;
   • the IDENTITY — matching needed « family + version », an LLM rule: 20 media models (`kokoro`,
     `canary-1b-v2`, `vibevoice-asr`…) could never be named, though sources publish their exact
-    repository and our rows carry their `hf_id`;
+    repository and our rows carry their `platform_ref`;
   • the PROVENANCE — who produced a value (independent bench / verified / self-declared) and how
     it was attached to the model, now written with the benchmark.
 """
@@ -24,9 +24,9 @@ from wama.model_manager.services import benchmark_sync as bs
 from .tests import _SourcesFactices
 
 
-def _row(key, name, hf_id='', task='text-to-image', **extra):
+def _row(key, name, task='text-to-image', **extra):
     return AIModel.objects.create(model_key=key, name=name, model_type='diffusion',
-                                  source=key.split(':')[0], is_downloaded=True, hf_id=hf_id,
+                                  source=key.split(':')[0], is_downloaded=True,
                                   capabilities={'task': task}, **extra)
 
 
@@ -37,7 +37,7 @@ class RepositoryIdentityTest(_SourcesFactices, TestCase):
                 'value': value, 'scale': 'aa_elo_text_to_image'}
 
     def test_a_model_without_family_and_version_is_matched_by_its_repository(self):
-        _row('transcriber:canary-1b-v2', 'canary-1b-v2', hf_id='nvidia/canary-1b-v2')
+        _row('transcriber:canary-1b-v2', 'canary-1b-v2', platform_ref='huggingface:nvidia/canary-1b-v2')
         with self._sources({'text-to-image': [self._entry('nvidia/canary-1b-v2',
                                                           repo='nvidia/canary-1b-v2')]}):
             r = bs.synchronize(dry_run=False)
@@ -48,7 +48,7 @@ class RepositoryIdentityTest(_SourcesFactices, TestCase):
     def test_another_repository_is_not_ours(self):
         # Counter-check: equality, not resemblance — and a model named by its repository is
         # « absent from the benches », never « without identity ».
-        _row('transcriber:canary-1b-v2', 'canary-1b-v2', hf_id='nvidia/canary-1b-v2')
+        _row('transcriber:canary-1b-v2', 'canary-1b-v2', platform_ref='huggingface:nvidia/canary-1b-v2')
         with self._sources({'text-to-image': [self._entry('nvidia/canary-1b-flash',
                                                           repo='nvidia/canary-1b-flash')]}):
             r = bs.synchronize(dry_run=True)
@@ -57,7 +57,7 @@ class RepositoryIdentityTest(_SourcesFactices, TestCase):
         self.assertEqual([], r['without_identity'])
 
     def test_the_repository_wins_over_a_family_match_in_the_same_source(self):
-        _row('imager:hunyuan', 'HunyuanImage 2.1', hf_id='tencent/HunyuanImage-2.1')
+        _row('imager:hunyuan', 'HunyuanImage 2.1', platform_ref='huggingface:tencent/HunyuanImage-2.1')
         same_family = self._entry('HunyuanImage 2.1 Pro', ('hunyuanimage', (2, 1), None),
                                   value=1200.0)
         exact = self._entry('tencent/HunyuanImage-2.1', ('hunyuanimage', (2, 1), None),
@@ -76,8 +76,7 @@ class RepositoryIdentityTest(_SourcesFactices, TestCase):
                          AIModel.objects.get(model_key='imager:hunyuan').benchmark_meta['matched_by'])
 
     def test_the_repositories_a_row_states(self):
-        row = AIModel(model_key='proposed:hf:zai-org/GLM-OCR', hf_id='',
-                      platform_ref='huggingface:Org/Other')
+        row = AIModel(model_key='proposed:hf:zai-org/GLM-OCR', platform_ref='huggingface:Org/Other')
         self.assertEqual({'zai-org/glm-ocr', 'org/other'}, bs._local_repos(row))
         # A name is never a repository.
         self.assertEqual(set(), bs._local_repos(AIModel(model_key='synthesizer:kokoro')))
@@ -136,7 +135,7 @@ class HubBenchmarkLeaderboardsTest(TestCase):
         self.assertEqual('verified', entries['zai-org/glm-ocr']['provenance'])
 
     def test_an_ocr_model_gets_its_declared_value_without_a_percentile(self):
-        _row('albert:lightonocr-2-1b', 'LightOnOCR 2 1B', hf_id='lightonai/LightOnOCR-2-1B',
+        _row('albert:lightonocr-2-1b', 'LightOnOCR 2 1B', platform_ref='huggingface:lightonai/LightOnOCR-2-1B',
              task='ocr', execution='cloud', is_available=True)
         board = {'ocr-olmocr-bench': [
             {'name': 'lightonai/LightOnOCR-2-1B', 'slug': 'lightonai/LightOnOCR-2-1B',
@@ -254,7 +253,7 @@ class InstallationQueuesItsBenchmarkTest(TestCase):
                              return_value=SyncResult(success=True, added=1,
                                                      added_keys=['huggingface:Org/X'])), \
                 patch('wama.model_manager.services.provenance.record_after_install',
-                      return_value={'identity': {'hf_id': 'Org/X'},
+                      return_value={'identity': {'platform_ref': 'huggingface:Org/X'},
                                     'models': [{'model': 'huggingface:Org/X'}]}), \
                 patch('wama.model_manager.tasks.sync_benchmarks_task.delay') as delay:
             res = mi.install_from_spec({'kind': 'hf', 'ref': 'Org/X', 'category': 'vision'})

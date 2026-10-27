@@ -17,7 +17,7 @@ from django.test import SimpleTestCase, TestCase
 
 from wama.common.backends.base import BaseModelBackend
 from wama.common.backends.locate_anything_backend import (
-    HF_ID, TACHES, LocateAnythingBackend, _dossier_poids,
+    HF_REPO, TACHES, LocateAnythingBackend, _dossier_poids,
 )
 
 
@@ -30,11 +30,11 @@ class ContratLocateAnythingTest(SimpleTestCase):
 
     def test_declare_son_moteur_et_le_modele_qu_il_sert(self):
         self.assertEqual(LocateAnythingBackend.ENGINE, 'transformers')
-        self.assertIn(HF_ID, LocateAnythingBackend.SUPPORTED_MODELS)
+        self.assertIn(HF_REPO, LocateAnythingBackend.SUPPORTED_MODELS)
 
     def test_la_cle_servie_est_un_LITTERAL_lisible_par_AST(self):
         """L'inventaire lit `SUPPORTED_MODELS` sans importer le module : une clé portée par la
-        constante `HF_ID` y serait INVISIBLE (défaut mesuré le 07/09 sur table-transformer)."""
+        constante `HF_REPO` y serait INVISIBLE (défaut mesuré le 07/09 sur table-transformer)."""
         import ast
         from pathlib import Path
         from django.conf import settings
@@ -45,7 +45,7 @@ class ContratLocateAnythingTest(SimpleTestCase):
                 and getattr(noeud.targets[0], 'id', '') == 'SUPPORTED_MODELS'
                 and isinstance(noeud.value, ast.Dict)
                 for n in noeud.value.keys if isinstance(n, ast.Constant)]
-        self.assertIn(HF_ID, cles, 'clé non littérale : le vivier ne la verra pas')
+        self.assertIn(HF_REPO, cles, 'clé non littérale : le vivier ne la verra pas')
 
     def test_la_VRAM_est_declaree(self):
         """Sans elle, le gouverneur croit la place libre et laisse démarrer par-dessus."""
@@ -100,7 +100,7 @@ class ResolutionDepuisLeCatalogueTest(TestCase):
         from wama.common.backends.manager import backend_for_model
         from wama.model_manager.models import AIModel
         m = AIModel.objects.create(
-            model_key=f'huggingface:{HF_ID}', name='LocateAnything-3B', model_type='vision',
+            model_key=f'huggingface:{HF_REPO}', name='LocateAnything-3B', model_type='vision',
             source='huggingface', composition={'runtime': {'engine': 'transformers'}})
         classe = backend_for_model(m)
         self.assertIsNotNone(classe, 'le modèle ne résout aucun backend')

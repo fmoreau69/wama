@@ -1806,7 +1806,7 @@ def get_ai_model(user, model_key: str) -> dict:
         'description': m.description or m.description_short or '',
         'capabilities': m.capabilities or {},
         'vram_gb': m.vram_gb, 'ram_gb': m.ram_gb, 'disk_gb': m.disk_gb,
-        'hf_id': m.hf_id, 'platform_ref': m.platform_ref,
+        'platform_ref': m.platform_ref,
         'license': m.license, 'author': m.author,
         'quality_index': m.quality_index,
         'downloaded': m.is_downloaded, 'loaded': m.is_loaded,
@@ -1864,7 +1864,7 @@ def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> di
         max_results: how many proposals to keep at most (default 5).
 
     Returns:
-        {"query", "created", "updated", "already", "skipped", "total", "refs": [hf_id],
+        {"query", "created", "updated", "already", "skipped", "total", "refs": [repo],
          "catalog": [{"key","name","task","proposed","downloaded"}]} — `catalog` = the rows
         ALREADY in the catalogue that match the query (proposals and installed models, the ones
         just written included): use their `key` with get_install_options / install_model.
@@ -1901,12 +1901,13 @@ def _catalog_matches(query: str, refs: list, limit: int = 15, user=None) -> list
     (`reader:mradermacher/…`) puis renonçait."""
     from django.db.models import Q
 
+    from wama.common.external_sources import hf_platform_ref
     from wama.model_manager.models import AIModel
     def has(w):
-        return Q(hf_id__icontains=w) | Q(name__icontains=w) | Q(model_key__icontains=w)
+        return Q(platform_ref__icontains=w) | Q(name__icontains=w) | Q(model_key__icontains=w)
 
     words = [w for w in query.lower().replace('/', ' ').split() if w]
-    written = Q(hf_id__in=refs) if refs else Q(pk__in=[])
+    written = Q(platform_ref__in=[hf_platform_ref(r) for r in refs]) if refs else Q(pk__in=[])
     by_words = Q(pk__in=[])
     if words:
         by_words = Q()
@@ -2121,13 +2122,15 @@ def plan_model_integration(user, model: str) -> dict:
     served backend → runtime libraries) and what the next human gesture is.
 
     Args:
-        model: catalogue key ('huggingface:org/name', 'synthesizer:kokoro') or HF id.
+        model: catalogue key ('huggingface:org/name', 'synthesizer:kokoro') or a Hub repository
+            ('org/name').
     """
     from wama.common.backends.manager import backend_missing, engine_backends
+    from wama.common.external_sources import hf_platform_ref
     from wama.model_manager.models import AIModel
 
     row = (AIModel.objects.filter(model_key=model).first()
-           or AIModel.objects.filter(hf_id=model).first())
+           or AIModel.objects.filter(platform_ref=hf_platform_ref(model)).first())
     if row is None:
         return {'model': model, 'state': {'catalogued': False},
                 'next_step': "modèle inconnu du catalogue : un modèle se DÉCOUVRE (des poids "

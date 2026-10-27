@@ -310,7 +310,7 @@ def _with_prefix(word: str, segments: list, i: int) -> str:
     — cet appariement-là, correct, devait être PRÉSERVÉ.
 
     ⚠ Les mots de CONDITIONNEMENT sont écartés (2026-09-01) : `stable-diffusion-xl-base-1.0`
-    (notre `hf_id`) donnait « stablediffusionxlbase » là où AA dit « stablediffusionxl » —
+    (notre dépôt) donnait « stablediffusionxlbase » là où AA dit « stablediffusionxl » —
     un seul mot d'écart faisait rater un appariement juste. `base`, `instruct`, `chat` ne
     nomment pas un MODÈLE, ils nomment un tirage de ce modèle ; la famille ne doit pas en
     dépendre. Écarté seulement s'il RESTE un mot : « base » seul reste « base ».
@@ -503,7 +503,7 @@ def _match_alias(target: str, entries):
 # modèle média nommé sans version (`kokoro`, `doctr`, `vibevoice-asr`, `canary-1b-v2`…) n'en a
 # pas, et ne s'appariait JAMAIS — 20 modèles installés sur ~160 le 2026-10-10 — alors que des
 # sources publient l'identifiant EXACT de son dépôt (Open ASR : `nvidia/canary-1b-v2` ; MTEB :
-# `BAAI/bge-m3`) et que nos modèles portent leur `hf_id`. Une ÉGALITÉ d'identifiant n'est pas une
+# `BAAI/bge-m3`) et que nos modèles portent leur dépôt (`platform_ref`). Une ÉGALITÉ d'identifiant n'est pas une
 # heuristique : c'est le même artefact, comme un `ALIAS` confirmé. Elle passe donc AVANT la
 # famille + version, source par source ; celle-ci reste intacte pour les sources sans dépôt.
 
@@ -514,12 +514,10 @@ def _repo_id(text: str) -> str:
 
 
 def _local_repos(m) -> set:
-    """Dépôts que la ligne du catalogue DÉCLARE : `hf_id`, `platform_ref` Hugging Face, clé
+    """Dépôts que la ligne du catalogue DÉCLARE : son `platform_ref` Hugging Face, le modèle
+    canonique d'une quantification (`quantized_base` — un GGUF EST ce modèle, borne haute), clé
     d'une ligne découverte ou proposée sur le Hub. Jamais déduits d'un nom."""
-    out = {_repo_id(getattr(m, 'hf_id', '') or '')}
-    ref = getattr(m, 'platform_ref', '') or ''
-    if ref.startswith('huggingface:'):
-        out.add(_repo_id(ref.split(':', 1)[1]))
+    out = {_repo_id(m.hf_repo), _repo_id(m.quantized_base)}
     key = m.model_key or ''
     for prefix in ('huggingface:', 'proposed:hf:'):
         if key.startswith(prefix):
@@ -783,7 +781,7 @@ def _mteb_markers():
     from ..models import AIModel
     out = set()
     for m in AIModel.objects.filter(model_type='embedding'):
-        for raw_name in (m.hf_id or '', m.name or '', m.model_key.rsplit(':', 1)[0].rsplit(':', 1)[-1]):
+        for raw_name in (m.hf_repo, m.name or '', m.model_key.rsplit(':', 1)[0].rsplit(':', 1)[-1]):
             fragment = raw_name.rsplit('/', 1)[-1].split(':')[0].strip().lower()
             if len(fragment) >= 5:
                 out.add(fragment)
@@ -1015,9 +1013,9 @@ def _local_categories(m):
     # le mesure, et son nom porte celui du modèle de base — `FLUX.1-dev-LoRA-Logo-Design`
     # prenait l'Elo de FLUX.1 dès que la forme « FLUX.1 » est devenue lisible (02/09).
     # Hors catégorie, par nature — la même famille que `_NOISE_MARKERS` de la prospection.
-    # ⚠ Lu sur les IDENTIFIANTS (clé, `hf_id`), jamais sur `name` : le libellé descriptif de
+    # ⚠ Lu sur les IDENTIFIANTS (clé, dépôt), jamais sur `name` : le libellé descriptif de
     # SD 1.5 et de SDXL cite « LoRA » et les deux sortaient du banc (mesuré à la 1ʳᵉ passe).
-    identifiers = ' '.join((m.model_key or '', getattr(m, 'hf_id', '') or '')).lower()
+    identifiers = ' '.join((m.model_key or '', m.hf_repo)).lower()
     if any(marker in identifiers for marker in ADD_ONS):
         return []
 
@@ -1083,10 +1081,10 @@ def orderable_value(m):
 
 
 def _local_identities(m):
-    """Identités candidates d'une ligne AIModel : tag/nom/hf_id/platform_ref (hors ALIAS,
-    traité à part par égalité de slug — cf. `_match_alias`)."""
+    """Identités candidates d'une ligne AIModel : tag/nom/platform_ref/modèle canonique d'une
+    quantification (hors ALIAS, traité à part par égalité de slug — cf. `_match_alias`)."""
     raw_names = [m.model_key.split(':', 1)[1] if ':' in m.model_key else m.model_key,
-             m.name or '', (m.hf_id or '').rsplit('/', 1)[-1],
+             m.name or '', m.quantized_base.rsplit('/', 1)[-1],
              (m.platform_ref or '').rpartition(':')[2].rsplit('/', 1)[-1]]
     seen, out = set(), []
     for b in raw_names:
@@ -1485,7 +1483,7 @@ def synchronize(dry_run: bool = False, include_proposed: bool = True, keys=None,
             else:
                 # Aucune identité famille+version lisible : la question du banc ne s'est même
                 # pas posée. Distinct d'un « sans banc » — le remède n'est pas un ALIAS mais
-                # une identité (nom, `hf_id` ou `platform_ref` exploitable).
+                # une identité (nom, `platform_ref` ou modèle de base exploitable).
                 report['without_identity'].append(f'{m.model_key} [{cats[0]}]')
             continue
 

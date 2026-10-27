@@ -105,7 +105,7 @@ def _bench_depth(entry: AIModel, sample: str, **_) -> dict:
     # un candidat de banc comme pour le modèle retenu. Relevé par Fabien le 2026-09-14.
     from wama.common.backends.depth_engine import DEPTH_MODEL_DIR
 
-    src = entry.local_path or entry.hf_id
+    src = entry.local_path or entry.hf_repo
     cache = str(DEPTH_MODEL_DIR)
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -678,7 +678,8 @@ _LPIPS = {}
 #: L'instrument LPIPS au catalogue (2026-10-16) : une ligne de tâche `quality-metric`, que le
 #: model manager installe, vérifie et désinstalle comme tout modèle — la dorsale AlexNet de
 #: torchvision était tirée par `torch.hub` au premier banc, à côté de la route d'installation.
-LPIPS_KEY = 'custom:lpips-alexnet'
+#: Rangée sous la source de son fichier déclaré (`pytorch_download`, 2026-10-27 — ex-`custom:`).
+LPIPS_KEY = 'pytorch_download:lpips-alexnet'
 LPIPS_WEIGHTS = 'alexnet-owt-7be5be79.pth'
 #: Le fichier DÉCLARÉ (pilote `files`) : la version officielle de torchvision (source déclarée
 #: `pytorch_download`), taille et empreinte MESURÉES le 2026-10-16 sur le fichier installé — son nom

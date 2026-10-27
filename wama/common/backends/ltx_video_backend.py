@@ -22,6 +22,8 @@ from django.conf import settings
 
 from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 
@@ -68,7 +70,7 @@ class LTXVideoParams:
 SUPPORTED_MODELS = {
     "ltx-video-13b-0.9.8-distilled": {
         "name": "LTX-Video 13B Distilled",
-        "hf_id": "Lightricks/LTX-Video-0.9.8-13B-distilled",
+        "platform_ref": "huggingface:Lightricks/LTX-Video-0.9.8-13B-distilled",
         "description": "Rapide, T2V + I2V (14GB VRAM)",
         "tasks": "t2v+i2v",
         "vram": "14GB",
@@ -76,7 +78,7 @@ SUPPORTED_MODELS = {
     },
     "ltx-video-13b-0.9.8-distilled-fp8": {
         "name": "LTX-Video 13B Distilled FP8",
-        "hf_id": "Lightricks/LTX-Video-0.9.8-13B-distilled",
+        "platform_ref": "huggingface:Lightricks/LTX-Video-0.9.8-13B-distilled",
         "description": "~8GB VRAM, T2V + I2V, quantification FP8",
         "tasks": "t2v+i2v",
         "vram": "8GB",
@@ -186,12 +188,12 @@ class LTXVideoBackend(ImageGenerationBackend):
                 return False
 
             cfg = SUPPORTED_MODELS[model_name]
-            hf_id = cfg["hf_id"]
+            repo_id = hf_repo(cfg["platform_ref"])
             quantization = cfg.get("quantization")
 
             logger.info(f"[LTX-Video] ========================================")
             logger.info(f"[LTX-Video] Loading: {model_name}")
-            logger.info(f"[LTX-Video] HF ID:   {hf_id}")
+            logger.info(f"[LTX-Video] HF ID:   {repo_id}")
             logger.info(f"[LTX-Video] Cache:   {self._cache_dir}")
             if quantization:
                 logger.info(f"[LTX-Video] Quantization: {quantization}")
@@ -201,7 +203,7 @@ class LTXVideoBackend(ImageGenerationBackend):
                 self.unload()
 
             self._pipe = LTXConditionPipeline.from_pretrained(
-                hf_id,
+                repo_id,
                 torch_dtype=torch.bfloat16,
                 cache_dir=self._cache_dir,
             )

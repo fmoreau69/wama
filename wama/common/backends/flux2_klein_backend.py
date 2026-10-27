@@ -22,6 +22,8 @@ from django.conf import settings
 
 from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 
@@ -48,7 +50,7 @@ _PIPELINE_CACHE: dict = {}  # {model_name: pipeline}
 SUPPORTED_MODELS = {
     "flux2-klein-4b": {
         "name": "FLUX.2 Klein 4B",
-        "hf_id": "black-forest-labs/FLUX.2-klein-4B",
+        "platform_ref": "huggingface:black-forest-labs/FLUX.2-klein-4B",
         "description": "Ultra-rapide (<1s), 4 steps distillé, 13GB VRAM, Apache 2.0",
         "vram": "13GB",
         "default_guidance_scale": 1.0,
@@ -125,9 +127,9 @@ class Flux2KleinBackend(ImageGenerationBackend):
         self._device = self._get_device()
 
         model_info = SUPPORTED_MODELS[model_name]
-        hf_id = model_info["hf_id"]
+        repo_id = hf_repo(model_info["platform_ref"])
 
-        logger.info(f"[Flux2Klein] Loading {hf_id} → {cache_dir}")
+        logger.info(f"[Flux2Klein] Loading {repo_id} → {cache_dir}")
 
         # Evict previous cached model to free VRAM
         if _PIPELINE_CACHE:
@@ -141,7 +143,7 @@ class Flux2KleinBackend(ImageGenerationBackend):
 
         try:
             pipe = Flux2KleinPipeline.from_pretrained(
-                hf_id,
+                repo_id,
                 torch_dtype=torch.bfloat16,
                 cache_dir=cache_dir,
             )

@@ -5,7 +5,7 @@ publications) se pose par `set_identity` : projection au catalogue et, pour un m
 export au corpus. Trois écarts mesurés le 2026-10-22 :
 - le régime d'accès (`gated`), lu à l'installation par `huggingface_identity`, n'était recopié par
   personne — seule la passe `backfill_platform_refs --licenses` l'écrivait, en base ;
-- `backfill_platform_refs` écrivait `platform_ref`, `hf_id` et les licences en base, à côté du
+- `backfill_platform_refs` écrivait `platform_ref`, `hf_id` (alors) et les licences en base, à côté du
   manifeste ;
 - un candidat Ollama naissait sans `platform_ref` (11 lignes), quand ceux du Hub, de GitHub et du
   scout la reçoivent de leur appelant.
@@ -27,9 +27,9 @@ def _row(key, **fields):
 class IdentitySetsTheAccessRegimeTest(TestCase):
 
     def test_an_installation_keeps_the_access_regime_read_on_the_card(self):
-        _row('huggingface:org/closed', hf_id='org/closed')
+        _row('huggingface:org/closed', platform_ref='huggingface:org/closed')
         card = {'license': 'mit', 'author': 'org', 'platform_ref': 'huggingface:org/closed',
-                'hf_id': 'org/closed', 'gated': 'manual', 'publications': [],
+                'gated': 'manual', 'publications': [],
                 'declared': {'capabilities': {}, 'engine': ''}}
         with mock.patch.object(provenance, 'huggingface_identity', return_value=card):
             provenance.record_after_install({'kind': 'hf', 'ref': 'org/closed'},
@@ -37,7 +37,7 @@ class IdentitySetsTheAccessRegimeTest(TestCase):
         self.assertEqual('manual', AIModel.objects.get(model_key='huggingface:org/closed').gated)
 
     def test_an_unknown_regime_is_never_written(self):
-        _row('huggingface:org/known', hf_id='org/known', gated='auto')
+        _row('huggingface:org/known', platform_ref='huggingface:org/known', gated='auto')
         for unknown in ('', None, False, 'oui'):
             with self.subTest(gated=unknown):
                 provenance.set_identity('huggingface:org/known',
@@ -45,8 +45,8 @@ class IdentitySetsTheAccessRegimeTest(TestCase):
                 self.assertEqual('auto', AIModel.objects.get(model_key='huggingface:org/known').gated)
 
     def test_the_hub_placeholder_never_overwrites_a_qualified_licence(self):
-        _row('huggingface:org/qualified', hf_id='org/qualified', license='cpml-1.0')
-        _row('huggingface:org/blank', hf_id='org/blank')
+        _row('huggingface:org/qualified', platform_ref='huggingface:org/qualified', license='cpml-1.0')
+        _row('huggingface:org/blank', platform_ref='huggingface:org/blank')
         for key in ('huggingface:org/qualified', 'huggingface:org/blank'):
             provenance.set_identity(key, {'license': 'other'}, export=False)
         self.assertEqual('cpml-1.0', AIModel.objects.get(model_key='huggingface:org/qualified').license)
@@ -59,22 +59,30 @@ class BackfillGoesThroughTheManifestTest(TestCase):
         return mock.patch.object(provenance, 'set_identity', wraps=provenance.set_identity)
 
     def test_a_derived_platform_ref_is_set_by_the_manifest_and_a_candidate_is_not_exported(self):
-        _row('transcriber:canary-test', hf_id='nvidia/canary-test', source='transcriber')
+        # The derivation left is the Ollama one (`hf_id` → `platform_ref` went with the column's
+        # readers, 2026-10-27: no row carried `hf_id` without `platform_ref`).
+        _row('ollama:qwen3.8:latest', name='qwen3.8:latest', source='ollama')
         _row('proposed:ollama:gemma4:12b', name='gemma4:12b', source='ollama', is_proposed=True)
+        _row('transcriber:canary-test', platform_ref='huggingface:nvidia/canary-test',
+             hf_id='nvidia/other', source='transcriber')
         with self._spy() as spy:
             call_command('backfill_platform_refs', '--ecrire', stdout=mock.MagicMock())
         calls = {c.args[0]: c for c in spy.call_args_list}
-        self.assertEqual('huggingface:nvidia/canary-test',
-                         AIModel.objects.get(model_key='transcriber:canary-test').platform_ref)
+        self.assertEqual('ollama:qwen3.8',
+                         AIModel.objects.get(model_key='ollama:qwen3.8:latest').platform_ref)
         self.assertEqual('ollama:gemma4',
                          AIModel.objects.get(model_key='proposed:ollama:gemma4:12b').platform_ref)
-        self.assertIs(True, calls['transcriber:canary-test'].kwargs['export'])
+        self.assertIs(True, calls['ollama:qwen3.8:latest'].kwargs['export'])
         self.assertIs(False, calls['proposed:ollama:gemma4:12b'].kwargs['export'])
+        # A known platform_ref is never re-derived — least of all from the residual column.
+        self.assertNotIn('transcriber:canary-test', calls)
+        self.assertEqual('huggingface:nvidia/canary-test',
+                         AIModel.objects.get(model_key='transcriber:canary-test').platform_ref)
 
     def test_the_licence_pass_writes_the_access_regime_by_the_manifest(self):
-        _row('huggingface:org/gate', hf_id='org/gate')
+        _row('huggingface:org/gate', platform_ref='huggingface:org/gate')
         card = {'license': 'apache-2.0', 'author': 'org', 'platform_ref': 'huggingface:org/gate',
-                'hf_id': 'org/gate', 'gated': 'auto', 'publications': ['2601.14251'],
+                'gated': 'auto', 'publications': ['2601.14251'],
                 'declared': {'capabilities': {}, 'engine': ''}}
         with mock.patch.object(provenance, 'huggingface_identity', return_value=card), \
                 self._spy() as spy:

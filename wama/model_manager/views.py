@@ -111,7 +111,7 @@ def api_models_list(request):
                 'type': m.model_type.value,
                 'source': m.source.value,
                 'description': m.description,
-                'hf_id': m.hf_id,
+                'platform_ref': m.platform_ref,
                 'vram_gb': m.vram_gb,
                 'ram_gb': m.ram_gb,
                 'is_loaded': m.is_loaded,

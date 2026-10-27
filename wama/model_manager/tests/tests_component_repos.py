@@ -20,12 +20,12 @@ class AComponentRepoIsNoModelTest(TestCase):
     def setUp(self):
         AIModel.objects.create(
             model_key='huggingface:org/Song-3B', name='Song', source='huggingface',
-            hf_id='org/Song-3B', composition={'components': [
+            platform_ref='huggingface:org/Song-3B', composition={'components': [
                 {'role': 'model', 'pattern': '*.safetensors'},
                 {'role': 'vae', 'repo': 'org/Song-Vae'}]})
         # A model that names ITS OWN repo as a component (codeformer) stays a model.
         AIModel.objects.create(
-            model_key='app:restorer', name='Restorer', source='avatarizer', hf_id='org/Restorer',
+            model_key='app:restorer', name='Restorer', source='avatarizer', platform_ref='huggingface:org/Restorer',
             composition={'components': [{'role': 'weights', 'repo': 'org/Restorer'}]})
 
     def test_the_declared_component_repos_are_read_from_the_catalogue(self):
@@ -33,12 +33,12 @@ class AComponentRepoIsNoModelTest(TestCase):
 
     def test_the_sync_drops_the_generic_row_of_a_component(self):
         AIModel.objects.create(model_key='huggingface:org/Song-Vae', name='Song-Vae',
-                               source='huggingface', hf_id='org/Song-Vae',
+                               source='huggingface', platform_ref='huggingface:org/Song-Vae',
                                extra_info={'hf_snapshot': True})
         AIModel.objects.create(model_key='huggingface:org/Other', name='Other',
-                               source='huggingface', hf_id='org/Other',
+                               source='huggingface', platform_ref='huggingface:org/Other',
                                extra_info={'hf_snapshot': True})
-        discovered = {'huggingface:org/Song-3B': SimpleNamespace(hf_id='org/Song-3B')}
+        discovered = {'huggingface:org/Song-3B': SimpleNamespace(hf_repo='org/Song-3B')}
         removed = ModelSyncService._drop_superseded_snapshots(
             discovered, seen_keys={'huggingface:org/Song-3B', 'huggingface:org/Other'})
         self.assertEqual(1, removed)

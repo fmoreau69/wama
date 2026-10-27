@@ -37,8 +37,8 @@ from wama.common.backends.base import BaseModelBackend
 
 logger = logging.getLogger(__name__)
 
-#: Dépôt HF servi — même graphie que la clé de catalogue (`huggingface:<hf_id>`).
-HF_ID = 'nvidia/LocateAnything-3B'
+#: Dépôt HF servi — même graphie que la clé de catalogue (`huggingface:<dépôt>`).
+HF_REPO = 'nvidia/LocateAnything-3B'
 
 #: Tâches du modèle, telles que la classe officielle les expose (`LocateAnythingWorker`).
 TACHES = ('detect', 'ground_single', 'ground_multi', 'ground_text', 'detect_text',
@@ -61,7 +61,7 @@ class LocateAnythingBackend(BaseModelBackend):
 
     #: Modèle SERVI — le DÉPARTAGE, puisque `transformers` est piloté par 6 backends désormais.
     #: ⚠ Clé en LITTÉRAL : l'inventaire lit par AST, sans importer (une clé portée par la
-    #: constante `HF_ID` serait invisible — défaut mesuré le 07/09 sur table-transformer).
+    #: constante `HF_REPO` serait invisible — défaut mesuré le 07/09 sur table-transformer).
     #: ⚠ Le segment attendu est celui qui suit `<source>:` dans `model_key`, donc `org/nom`
     #: entier pour un modèle prospecté (`huggingface:nvidia/LocateAnything-3B`).
     SUPPORTED_MODELS = {'nvidia/LocateAnything-3B': {}}
@@ -119,12 +119,12 @@ class LocateAnythingBackend(BaseModelBackend):
                 sys.path.insert(0, str(racine))
             from locate_anything_worker import LocateAnythingWorker
 
-            chemin = poids_locaux(HF_ID, _dossier_poids())
+            chemin = poids_locaux(HF_REPO, _dossier_poids())
             device = 'cuda' if torch.cuda.is_available() else 'cpu'
             dtype = torch.bfloat16 if device == 'cuda' else torch.float32
             logger.info('[LocateAnything] chargement depuis %s sur %s', chemin, device)
             self._worker = LocateAnythingWorker(chemin, device=device, dtype=dtype)
-            self._current_model = HF_ID
+            self._current_model = HF_REPO
             self._loaded = True
             return True
         except Exception as e:

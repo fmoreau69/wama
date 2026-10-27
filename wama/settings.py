@@ -99,7 +99,7 @@ MODEL_PATHS = {
         # LPIPS (distance perceptuelle, 2026-10-14) — un INSTRUMENT de mesure du banc
         # d'agrandissement (`model_manager/services/bench.py`), pas un modèle du catalogue : le
         # paquet `lpips` embarque ses couches linéaires, l'AlexNet de torchvision est INSTALLÉ ICI
-        # par le model manager (ligne `custom:lpips-alexnet`, tâche `quality-metric`, 2026-10-18) —
+        # par le model manager (ligne `pytorch_download:lpips-alexnet`, tâche `quality-metric`, 2026-10-18) —
         # il était tiré par `torch.hub` au premier banc. ⚠ « pas un modèle du catalogue » ci-dessus
         # était vrai jusque-là : il y a désormais sa ligne, que la route installe et désinstalle.
         'lpips': AI_MODELS_DIR / "models" / "vision" / "lpips",

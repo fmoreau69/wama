@@ -29,6 +29,8 @@ from typing import Optional
 
 from .speech_to_text_base import SpeechToTextBackend, TranscriptionResult, TranscriptionSegment
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL = 'Qwen/Qwen3-ASR-1.7B'
@@ -55,8 +57,8 @@ class QwenASRBackend(SpeechToTextBackend):
     #: le trou qu'on ferme.
     #: La valeur porte le dépôt HF : c'est ce que `load()` charge quand le worker lui passe l'id
     #: du catalogue (`TranscriberBackendManager.model_for_request`, 2026-09-28).
-    SUPPORTED_MODELS = {'qwen3-asr-0.6b': {'hf_id': 'Qwen/Qwen3-ASR-0.6B'},
-                        'qwen3-asr-1.7b': {'hf_id': 'Qwen/Qwen3-ASR-1.7B'}}
+    SUPPORTED_MODELS = {'qwen3-asr-0.6b': {'platform_ref': 'huggingface:Qwen/Qwen3-ASR-0.6B'},
+                        'qwen3-asr-1.7b': {'platform_ref': 'huggingface:Qwen/Qwen3-ASR-1.7B'}}
     name = "qwen_asr"
     display_name = "Qwen3-ASR (Alibaba)"
     description = "Qwen3-ASR — multilingue, context biasing des mots-clés. Diarisation via pyannote."
@@ -169,17 +171,17 @@ class QwenASRBackend(SpeechToTextBackend):
     # ------------------------------------------------------------------
 
     @classmethod
-    def hf_id_for(cls, model_name: Optional[str]) -> str:
+    def repo_id_for(cls, model_name: Optional[str]) -> str:
         """Dépôt HF d'une demande : id du catalogue (`qwen3-asr-0.6b`) → son dépôt déclaré ; un
         dépôt HF passe tel quel ; rien → le défaut."""
         if not model_name:
             return DEFAULT_MODEL
         declared = cls.SUPPORTED_MODELS.get(str(model_name).lower())
-        return declared['hf_id'] if declared else model_name
+        return hf_repo(declared['platform_ref']) if declared else model_name
 
     def load(self, model_name: str = None) -> bool:
         """Load a Qwen3-ASR model — catalogue id or HuggingFace id, default Qwen/Qwen3-ASR-1.7B."""
-        model_id = self.hf_id_for(model_name)
+        model_id = self.repo_id_for(model_name)
 
         if self._loaded and self._current_model == model_id:
             logger.info(f"[QwenASR] '{model_id}' already loaded — reusing")

@@ -178,14 +178,14 @@ class ComponentOverlayFillsOnlyTheVoidTest(SimpleTestCase):
     def test_a_declared_anatomy_is_never_overwritten(self):
         declared = {'components': [{'role': 'text_encoder', 'pattern': 'te/model-*-of-00004.x'}]}
         registry = self._registry(m={'composition': dict(declared), 'extra_info': {'path': '/p'},
-                                     'hf_id': 'org/m'})
+                                     'hf_repo': 'org/m'})
         derive = self._run(registry, {}, [{'role': 'vae', 'pattern': 'vae/x'}])
         self.assertEqual(registry._models['m'].composition, declared)
         derive.assert_not_called()
 
     def test_an_app_row_without_path_is_found_through_the_snapshot_index(self):
         registry = self._registry(m={'composition': {'runtime': {'engine': 'diffusers'}},
-                                     'extra_info': {}, 'hf_id': 'Org/M'})
+                                     'extra_info': {}, 'hf_repo': 'Org/M'})
         parts = [{'role': 'vae', 'pattern': 'vae/x.safetensors'}]
         derive = self._run(registry, {'org/m': '/snap/models--org--m'}, parts)
         derive.assert_called_once_with('/snap/models--org--m')
@@ -194,10 +194,10 @@ class ComponentOverlayFillsOnlyTheVoidTest(SimpleTestCase):
                          {'runtime': {'engine': 'diffusers'}, 'components': parts})
 
     def test_nothing_derivable_leaves_the_row_untouched(self):
-        registry = self._registry(m={'composition': {}, 'extra_info': {}, 'hf_id': 'org/absent'})
+        registry = self._registry(m={'composition': {}, 'extra_info': {}, 'hf_repo': 'org/absent'})
         self._run(registry, {}, [{'role': 'vae', 'pattern': 'x'}])
         self.assertEqual(registry._models['m'].composition, {})
         registry = self._registry(m={'composition': {}, 'extra_info': {'path': '/mono'},
-                                     'hf_id': 'org/mono'})
+                                     'hf_repo': 'org/mono'})
         self._run(registry, {}, [])                    # monobloc : `[]`, jamais `{'components': []}`
         self.assertEqual(registry._models['m'].composition, {})

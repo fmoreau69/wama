@@ -20,6 +20,8 @@ from django.conf import settings
 
 from .image_generation_base import ImageGenerationBackend, GenerationParams, GenerationResult
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 
@@ -65,7 +67,7 @@ SUPPORTED_MODELS = {
     "cogvideox-5b": {
         "name": "CogVideoX 5B",
         "description": "Text-to-Video - 5GB VRAM - Higher quality",
-        "hf_id": "THUDM/CogVideoX-5b",
+        "platform_ref": "huggingface:THUDM/CogVideoX-5b",
         "type": "t2v",
         "vram": "5GB",
         "precision": "bf16",
@@ -74,7 +76,7 @@ SUPPORTED_MODELS = {
     "cogvideox-5b-i2v": {
         "name": "CogVideoX 5B I2V",
         "description": "Image-to-Video - 5GB VRAM - Animate images",
-        "hf_id": "THUDM/CogVideoX-5b-I2V",
+        "platform_ref": "huggingface:THUDM/CogVideoX-5b-I2V",
         "type": "i2v",
         "vram": "5GB",
         "precision": "bf16",
@@ -166,7 +168,7 @@ class CogVideoXBackend(ImageGenerationBackend):
                 return False
 
             model_config = SUPPORTED_MODELS[model_name]
-            model_id = model_config["hf_id"]
+            model_id = hf_repo(model_config["platform_ref"])
             model_type = model_config["type"]
             precision = model_config["precision"]
 

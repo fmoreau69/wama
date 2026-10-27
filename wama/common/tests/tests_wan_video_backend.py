@@ -26,7 +26,8 @@ class FastWanDeclarationTest(SimpleTestCase):
         from wama.common.backends.wan_video_backend import WanVideoBackend
         from wama.imager.utils.model_config import IMAGER_MODELS, get_video_models
         declaration = IMAGER_MODELS[MODEL_ID]
-        self.assertEqual(declaration['hf_id'], WanVideoBackend.SUPPORTED_MODELS[MODEL_ID][1])
+        self.assertEqual(declaration['platform_ref'],
+                         f'huggingface:{WanVideoBackend.SUPPORTED_MODELS[MODEL_ID][1]}')
         self.assertEqual(declaration['engine'], WanVideoBackend.ENGINE)
         self.assertEqual(declaration['type'], 'video')
         self.assertIn(MODEL_ID, get_video_models())
@@ -119,9 +120,9 @@ class FastWanImageToVideoTest(SimpleTestCase):
         import json
         from pathlib import Path
         from wama.common.backends.wan_video_backend import WanVideoBackend
-        hf_id = WanVideoBackend.SUPPORTED_MODELS[MODEL_ID][1]
+        repo_id = WanVideoBackend.SUPPORTED_MODELS[MODEL_ID][1]
         root = (Path(WanVideoBackend.cache_dir_for(MODEL_ID))
-                / f"models--{hf_id.replace('/', '--')}")
+                / f"models--{repo_id.replace('/', '--')}")
         snapshots = sorted((root / 'snapshots').glob('*'))
         if not snapshots:
             self.skipTest('snapshot FastWan absent de cet hôte')

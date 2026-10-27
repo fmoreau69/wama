@@ -288,26 +288,29 @@ def backbone_row(row):
 
     Un adaptateur (LoRA) ne s'exécute pas seul : il se pose SUR un modèle complet, et son fichier
     ne pèse presque rien (la LoRA logo du parc : 0,036 Go pour une dorsale de 22,2). L'app le
-    déclare déjà — `model_type: 'lora'` + `base_model: '<hf_id>'` — et ces deux clés atteignent le
+    déclare déjà — `model_type: 'lora'` + `base_model: '<org/nom>'` — et ces deux clés atteignent le
     catalogue depuis le 2026-09-21.
 
-    ⚠ `base_model` est un `hf_id`, pas une clé de catalogue : la dorsale se RÉSOUT (elle a sa
+    ⚠ `base_model` est un dépôt du Hub, pas une clé de catalogue : la dorsale se RÉSOUT (elle a sa
     propre ligne, et c'est tout l'intérêt de l'option B retenue par Fabien — pas de duplication du
     poids). Une dorsale absente du catalogue rend None : on ne fabrique pas une empreinte à partir
     d'un modèle qu'on n'a pas.
     ⚠ `flux-1-dev` déclare aussi `base_model`, mais c'est LUI-MÊME : le test exclut ce cas, sinon
     un modèle de base se compterait deux fois.
+    ⚠ Une QUANTIFICATION porte aussi `base_model` (relation `quantized`, 2026-10-27 : un GGUF du
+    Hub tiré par Ollama) : elle EST ce modèle, elle ne se pose pas dessus — aucune dorsale.
     """
     info = getattr(row, 'extra_info', None) or {}
     base = (info.get('base_model') or '').strip()
-    if not base:
+    if not base or info.get('base_model_relation') == 'quantized':
         return None
-    own = (getattr(row, 'hf_id', '') or '').strip()
+    own = getattr(row, 'hf_repo', '')
     if base == own and info.get('model_type') != 'lora':
         return None                                      # un modèle de base, pas un adaptateur
     try:
+        from wama.common.external_sources import hf_platform_ref
         from wama.model_manager.models import AIModel
-        return AIModel.objects.filter(hf_id=base).exclude(
+        return AIModel.objects.filter(platform_ref=hf_platform_ref(base)).exclude(
             model_key=getattr(row, 'model_key', '')).first()
     except Exception as e:                               # hors Django / base absente
         logger.debug('[footprint] dorsale %s non résolue : %s', base, e)

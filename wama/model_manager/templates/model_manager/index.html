@@ -1302,16 +1302,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     </div>
 
                     {% comment %} Le lien de la carte = `platform_url`, la page du modèle sur SA
-                    plateforme (HuggingFace, GitHub, Ollama…), repli `hf_id` compris — la même
-                    que l'action « Voir sur la plateforme ». Il était écrit vers HuggingFace
-                    depuis `hf_id` seul (2026-10-10). {% endcomment %}
+                    plateforme (HuggingFace, GitHub, Ollama…) — la même que l'action « Voir sur
+                    la plateforme ». Il était écrit vers HuggingFace depuis `hf_id` seul
+                    (2026-10-10) ; il se lit sur `platform_ref` seul depuis le 2026-10-27. {% endcomment %}
                     ${model.platform_url ? `
                         <div class="model-meta mt-2">
                             <i class="fas fa-link me-1"></i>
                             <a href="${WamaApp.escapeHtml(model.platform_url)}" target="_blank" rel="noopener" class="text-info text-decoration-none"
                                style="overflow-wrap: anywhere;" title="${WamaApp.escapeHtml(model.platform_label || '')}">
-                                ${WamaApp.escapeHtml(truncate(model.hf_id
-                                    || (model.platform_ref || '').split(':').slice(1).join(':')
+                                ${WamaApp.escapeHtml(truncate(
+                                    (model.platform_ref || '').split(':').slice(1).join(':')
                                     || model.name, 35))}
                             </a>
                         </div>
@@ -1688,14 +1688,14 @@ document.addEventListener('DOMContentLoaded', function() {
             { k: 'Origine', field: 'origin' },
             { k: 'Plateforme', get: function (m) {
                 if (!m.platform_label) return '';
-                const ident = (m.platform_ref || '').split(':').slice(1).join(':') || m.hf_id || '';
+                const ident = (m.platform_ref || '').split(':').slice(1).join(':');
                 return ident ? m.platform_label + ' — ' + ident : m.platform_label;
             } },
             { k: 'Auteur', field: 'author' },
             { k: 'Licence', field: 'license' },
             { k: 'Clé', get: function (m) { return m.model_key || m.id; }, code: true },
             { k: 'Backend', field: 'backend_ref' },
-            { k: 'HF id', field: 'hf_id', code: true },
+            { k: 'Modèle de base', field: 'quantized_base', code: true },
         ] },
         { section: 'Format', rows: [
             { k: 'Actuel → préféré', get: function (m) { return m.format || '—'; },

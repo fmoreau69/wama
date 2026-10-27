@@ -14,7 +14,7 @@ from pathlib import Path
 
 from django.test import TestCase, override_settings
 
-from wama.common.utils.model_locations import hf_folder_name, hf_id_of_folder, installed_snapshots
+from wama.common.utils.model_locations import hf_folder_name, hf_repo_of_folder, installed_snapshots
 from wama.model_manager.models import AIModel
 from wama.model_manager.services.model_registry import ModelInfo, ModelSource, ModelType
 from wama.model_manager.services.model_sync import ModelSyncService
@@ -41,10 +41,10 @@ class _FakeModelsRoot(TestCase):
         self._settings.enable()
         self.addCleanup(self._settings.disable)
 
-    def snapshot(self, hf_id: str, files: dict, *, category='diffusion', family='fam',
+    def snapshot(self, repo_id: str, files: dict, *, category='diffusion', family='fam',
                  base: Path = None) -> Path:
         """Un `models--org--nom/snapshots/rev/` avec `files` = {chemin relatif: octets}."""
-        root = (base or (self.ai / 'models' / category / family)) / hf_folder_name(hf_id)
+        root = (base or (self.ai / 'models' / category / family)) / hf_folder_name(repo_id)
         rev = root / 'snapshots' / 'rev0'
         for rel, size in files.items():
             _sparse(rev / rel, size)
@@ -57,10 +57,10 @@ class InstalledSnapshotsIndexTest(_FakeModelsRoot):
     def test_the_folder_name_round_trips_with_double_dashes_intact(self):
         self.assertEqual(hf_folder_name('Lightricks/LTX-Video-0.9.8-13B-distilled'),
                          'models--Lightricks--LTX-Video-0.9.8-13B-distilled')
-        self.assertEqual(hf_id_of_folder('models--Lightricks--LTX-Video-0.9.8-13B-distilled'),
+        self.assertEqual(hf_repo_of_folder('models--Lightricks--LTX-Video-0.9.8-13B-distilled'),
                          'Lightricks/LTX-Video-0.9.8-13B-distilled')
-        self.assertIsNone(hf_id_of_folder('blobs'))
-        self.assertIsNone(hf_id_of_folder('models--sans-org'))
+        self.assertIsNone(hf_repo_of_folder('blobs'))
+        self.assertIsNone(hf_repo_of_folder('models--sans-org'))
 
     def test_the_index_walks_category_family_and_keeps_only_real_snapshots(self):
         root = self.snapshot('Org/One', {'model.safetensors': 10})
@@ -93,8 +93,9 @@ _DECLARED = {'components': [{'role': 'transformer', 'pattern': 'transformer/*.sa
 
 class PersistWeightsTest(_FakeModelsRoot):
 
-    def _row(self, key, hf_id, **kw):
-        base = dict(model_key=key, name=key, model_type='image', source='imager', hf_id=hf_id,
+    def _row(self, key, repo_id, **kw):
+        base = dict(model_key=key, name=key, model_type='image', source='imager',
+                    platform_ref=f'huggingface:{repo_id}',
                     vram_gb=16.0, is_downloaded=True)
         base.update(kw)
         return AIModel.objects.create(**base)
@@ -221,7 +222,7 @@ class PersistWeightsTest(_FakeModelsRoot):
         svc = ModelSyncService()
         svc.persist_weights()
         info = ModelInfo(id='imager:sticky', name='sticky', model_type=ModelType.DIFFUSION,
-                         source=ModelSource.WAMA_IMAGER, hf_id='Org/Sticky', vram_gb=16.0,
+                         source=ModelSource.WAMA_IMAGER, platform_ref='huggingface:Org/Sticky', vram_gb=16.0,
                          is_downloaded=True, composition=_DECLARED)
         svc._sync_model('imager:sticky', info)
         self.assertEqual(self._weights('imager:sticky')['largest_gb'], 0.008)

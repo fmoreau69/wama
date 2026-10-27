@@ -263,7 +263,7 @@ class InstrumentsAreNamedToTheModelTest(SimpleTestCase):
                         return_value=(np.zeros(16000, dtype=np.float32), mb.SAMPLE_RATE)), \
                 mock.patch.object(mb, 'installed_file', return_value='ckpt'), \
                 mock.patch.object(mb, 'beat_grid', return_value=None):
-            self.assertEqual(b'MThd', backend.extract_midi(model_id=mb.HF_ID, audio_path='song.wav'))
+            self.assertEqual(b'MThd', backend.extract_midi(model_id=mb.HF_REPO, audio_path='song.wav'))
         detection, transcription = calls
         self.assertEqual({'prelude_forcing': False, 'batch_size': mb.DETECTION_BATCH}, detection,
                          'the first pass is the quick one')
@@ -300,7 +300,7 @@ class TheDownbeatReachesTheNotationTest(SimpleTestCase):
                         return_value=(np.zeros(16000, dtype=np.float32), mb.SAMPLE_RATE)), \
                 mock.patch.object(mb, 'installed_file', return_value='ckpt'), \
                 mock.patch.object(mb, 'beat_grid', side_effect=refused):
-            midi = backend.extract_midi(model_id=mb.HF_ID, audio_path='song.wav')
+            midi = backend.extract_midi(model_id=mb.HF_REPO, audio_path='song.wav')
         self.assertEqual(1.6, downbeat_of(read_midi(midi).markers))
 
 

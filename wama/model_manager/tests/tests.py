@@ -105,17 +105,18 @@ class SupersededSnapshotTest(TestCase):
     `imager:` — mêmes poids, deux cards, la seconde sans capacités donc hors de tout banc.
     """
 
-    HF_ID = 'org/relayed-model'
+    HF_REPO = 'org/relayed-model'
 
     def setUp(self):
         from ..services.model_registry import ModelInfo, ModelSource, ModelType
         self.snapshot = AIModel.objects.create(
-            model_key=f'huggingface:{self.HF_ID}', name='relayed-model', model_type='diffusion',
-            source='huggingface', hf_id=self.HF_ID, is_downloaded=True,
+            model_key=f'huggingface:{self.HF_REPO}', name='relayed-model', model_type='diffusion',
+            source='huggingface', platform_ref=f'huggingface:{self.HF_REPO}', is_downloaded=True,
             extra_info={'hf_snapshot': True})
         self.app_row = {'imager:relayed': ModelInfo(
             id='relayed', name='Relayed', model_type=ModelType.DIFFUSION,
-            source=ModelSource.WAMA_IMAGER, hf_id=self.HF_ID, is_downloaded=True)}
+            source=ModelSource.WAMA_IMAGER, platform_ref=f'huggingface:{self.HF_REPO}',
+            is_downloaded=True)}
 
     def test_a_snapshot_claimed_by_an_app_is_dropped_without_clean(self):
         with patch.object(ModelRegistry, 'discover_all_models',
@@ -126,7 +127,7 @@ class SupersededSnapshotTest(TestCase):
         self.assertEqual(result.removed, 1)
 
     def test_an_unclaimed_snapshot_stays(self):
-        # Counter-test: without a declaration carrying its hf_id, nothing relays it.
+        # Counter-test: without a declaration carrying its repository, nothing relays it.
         with patch.object(ModelRegistry, 'discover_all_models', _decouverte()):
             ModelSyncService().full_sync()
         self.assertTrue(AIModel.objects.filter(pk=self.snapshot.pk).exists())
@@ -211,7 +212,7 @@ class SnapshotsInstallesTest(TestCase):
         self.assertIn(cle, modeles)
         m = modeles[cle]
         self.assertEqual(m.model_type.value, 'music')
-        self.assertEqual(m.hf_id, 'MiniMaxAI/MiniMax-Music3')
+        self.assertEqual(m.platform_ref, 'huggingface:MiniMaxAI/MiniMax-Music3')
         self.assertTrue(m.is_downloaded)
         self.assertEqual(m.format, 'safetensors')
         self.assertFalse(m.backend_ref, "catalogué ≠ utilisable : pas de backend inventé")
@@ -237,7 +238,7 @@ class SnapshotsInstallesTest(TestCase):
         from ..models import ModelSource, ModelType
         from ..services.model_registry import ModelInfo
         declare = ModelInfo(id='musicgen-small', name='MusicGen', model_type=ModelType.MUSIC,
-                            source=ModelSource.WAMA_COMPOSER, hf_id='facebook/musicgen-small')
+                            source=ModelSource.WAMA_COMPOSER, platform_ref='huggingface:facebook/musicgen-small')
         with tempfile.TemporaryDirectory() as tmp:
             racine = Path(tmp)
             _faux_snapshot(racine, 'music', 'musicgen', 'facebook', 'musicgen-small')
@@ -305,7 +306,8 @@ class SnapshotsInstallesTest(TestCase):
         rows = {k: m for k, m in registry._models.items() if k.startswith('transcriber:')}
         self.assertIn('transcriber:qwen3-asr-1.7b', rows)
         for key, info in rows.items():
-            row = AIModel(model_key=key, hf_id=info.hf_id, extra_info=info.extra_info)
+            row = AIModel(model_key=key, platform_ref=info.platform_ref or '',
+                          extra_info=info.extra_info)
             if key == 'transcriber:whisper':
                 self.assertIsNone(spec_for_catalog_row(row), 'whisper would pull the wrong repo')
                 continue
@@ -340,9 +342,9 @@ class SnapshotsInstallesTest(TestCase):
 
     def test_une_famille_declaree_dans_MODEL_PATHS_appartient_a_son_app(self):
         """Le critère famille reste nécessaire même depuis que transcriber/synthesizer/
-        anonymizer posent leur hf_id (2026-08-27) : le dépôt DÉCLARÉ n'est pas toujours celui
+        anonymizer posent leur dépôt (2026-08-27) : le dépôt DÉCLARÉ n'est pas toujours celui
         du SNAPSHOT sur disque (déclaré `openai/whisper-large-v3`, disque
-        `Systran/faster-whisper-large-v3` — la dédup par hf_id ne les relie pas ; 16 doublons
+        `Systran/faster-whisper-large-v3` — la dédup par dépôt ne les relie pas ; 16 doublons
         mesurés sans ce critère). MODEL_PATHS est LA déclaration « ce dossier appartient à
         une app » (checklist étape 1)."""
         import tempfile
@@ -372,8 +374,9 @@ class SnapshotsInstallesTest(TestCase):
 class ProvenanceDeclareeTest(TestCase):
     """La provenance HF est DÉCLARÉE par l'app et POSÉE par sa découverte (2026-08-27).
 
-    Avant cela, transcriber/synthesizer/anonymizer n'alimentaient jamais `ModelInfo.hf_id` :
-    le catalogue (AIModel.hf_id) restait vide pour leurs modèles, la chaîne
+    Avant cela, transcriber/synthesizer/anonymizer n'alimentaient jamais le dépôt de `ModelInfo`
+    (alors `hf_id`, `platform_ref` depuis le 2026-10-27) : le catalogue restait vide pour leurs
+    modèles, la chaîne
     provenance/licences n'avait rien à lire, et le balayage snapshots ne pouvait pas les
     dédupliquer par dépôt (d'où le critère famille, qui reste).
     """
@@ -384,28 +387,29 @@ class ProvenanceDeclareeTest(TestCase):
         getattr(registre, methode)()
         return registre._models
 
-    def test_la_decouverte_transcriber_pose_le_hf_id_declare_par_l_app(self):
+    def test_transcriber_discovery_carries_the_platform_ref_of_its_app(self):
         modeles = self._decouvrir('_discover_transcriber_models')
-        self.assertEqual(modeles['transcriber:whisper'].hf_id, 'openai/whisper-large-v3')
-        self.assertEqual(modeles['transcriber:qwen3-asr-0.6b'].hf_id, 'Qwen/Qwen3-ASR-0.6B')
+        self.assertEqual(modeles['transcriber:whisper'].platform_ref,
+                         'huggingface:openai/whisper-large-v3')
+        self.assertEqual(modeles['transcriber:qwen3-asr-0.6b'].hf_repo, 'Qwen/Qwen3-ASR-0.6B')
 
-    def test_la_decouverte_synthesizer_pose_le_hf_id_declare_par_l_app(self):
+    def test_synthesizer_discovery_carries_the_platform_ref_of_its_app(self):
         from wama.synthesizer.utils.model_config import SYNTHESIZER_MODELS
         modeles = self._decouvrir('_discover_synthesizer_models')
         for cle in ('coqui-xtts', 'bark', 'higgs-audio', 'kokoro'):
-            self.assertEqual(modeles[f'synthesizer:{cle}'].hf_id,
-                             SYNTHESIZER_MODELS[cle]['hf_id'], cle)
+            self.assertEqual(modeles[f'synthesizer:{cle}'].platform_ref,
+                             SYNTHESIZER_MODELS[cle]['platform_ref'], cle)
 
-    def test_un_poids_yolo_sans_provenance_etablie_reste_sans_hf_id(self):
-        # La provenance se DÉCLARE (YOLO_WEIGHTS_HF_ID), elle ne s'infère pas d'un nom de
+    def test_a_yolo_weight_without_established_provenance_stays_without_platform_ref(self):
+        # La provenance se DÉCLARE (YOLO_WEIGHTS_PLATFORM_REF), elle ne s'infère pas d'un nom de
         # fichier : un poids hors mapping rend '' — y compris les finetunes maison.
-        from wama.anonymizer.utils.model_config import hf_id_for_yolo_weight
-        self.assertEqual(hf_id_for_yolo_weight('license-plate-finetune-v1n.onnx'),
-                         'morsetechlab/yolov11-license-plate-detection')
-        self.assertEqual(hf_id_for_yolo_weight('face_yolov8m-seg_60.pt'),
-                         'jags/yolov8_model_segmentation-set')
-        self.assertEqual(hf_id_for_yolo_weight('yolo11n.pt'), '')
-        self.assertEqual(hf_id_for_yolo_weight('yolov8n_face_plate_720p.pt'), '')
+        from wama.anonymizer.utils.model_config import platform_ref_for_yolo_weight
+        self.assertEqual(platform_ref_for_yolo_weight('license-plate-finetune-v1n.onnx'),
+                         'huggingface:morsetechlab/yolov11-license-plate-detection')
+        self.assertEqual(platform_ref_for_yolo_weight('face_yolov8m-seg_60.pt'),
+                         'huggingface:jags/yolov8_model_segmentation-set')
+        self.assertEqual(platform_ref_for_yolo_weight('yolo11n.pt'), '')
+        self.assertEqual(platform_ref_for_yolo_weight('yolov8n_face_plate_720p.pt'), '')
 
     def test_la_decouverte_anonymizer_pose_la_provenance_declaree(self):
         fausse_liste = {'detect': [
@@ -416,11 +420,11 @@ class ProvenanceDeclareeTest(TestCase):
         with patch('wama.anonymizer.utils.model_config.list_available_yolo_models',
                    return_value=fausse_liste):
             modeles = self._decouvrir('_discover_anonymizer_models')
-        self.assertEqual(modeles['anonymizer:yolo:license-plate-finetune-v1n.onnx'].hf_id,
-                         'morsetechlab/yolov11-license-plate-detection')
-        self.assertIsNone(modeles['anonymizer:yolo:yolo11n.pt'].hf_id)
-        # SAM3 : dépôt lu sur sam3_manager (SAM3_HF_REPO), source unique.
-        self.assertEqual(modeles['anonymizer:sam3'].hf_id, 'facebook/sam3')
+        self.assertEqual(modeles['anonymizer:yolo:license-plate-finetune-v1n.onnx'].platform_ref,
+                         'huggingface:morsetechlab/yolov11-license-plate-detection')
+        self.assertIsNone(modeles['anonymizer:yolo:yolo11n.pt'].platform_ref)
+        # SAM3 : dépôt lu sur sam3_manager (SAM3_PLATFORM_REF), source unique.
+        self.assertEqual(modeles['anonymizer:sam3'].hf_repo, 'facebook/sam3')
 
 
 class GardeAuteurTest(TestCase):
@@ -432,14 +436,14 @@ class GardeAuteurTest(TestCase):
 
     def _modele(self, cle, **champs):
         return AIModel.objects.create(model_key=cle, name=cle, model_type='music',
-                                      source='composer', hf_id='org/depot', **champs)
+                                      source='composer', platform_ref='huggingface:org/depot', **champs)
 
     def test_le_backfill_complete_un_auteur_vide_mais_n_ecrase_jamais_un_auteur_pose(self):
         from django.core.management import call_command
         cure = self._modele('composer:cure', author='Auteur Curé')
         vide = self._modele('composer:vide', author='')
         ident = {'license': 'mit', 'author': 'slug-org',
-                 'platform_ref': 'huggingface:org/depot', 'hf_id': 'org/depot'}
+                 'platform_ref': 'huggingface:org/depot'}
         with patch('wama.model_manager.services.provenance.huggingface_identity',
                    return_value=ident):
             call_command('backfill_platform_refs', '--licenses', '--ecrire')
@@ -454,8 +458,7 @@ class GardeAuteurTest(TestCase):
         self._modele('composer:cure2', author='Auteur Curé', license='mit')
         resultat = set_identity(
             'composer:cure2',
-            {'author': 'slug-org', 'hf_id': 'org/depot',
-             'platform_ref': 'huggingface:org/depot'},
+            {'author': 'slug-org', 'platform_ref': 'huggingface:org/depot'},
             apply=False, export=False)
         self.assertNotIn('author', resultat.get('posed', ()),
                          "set_identity ne doit compléter l'auteur que s'il est vide")
@@ -557,13 +560,14 @@ class DesinstallationTest(TestCase):
         with override_settings(AI_MODELS_DIR=root):
             return uninstall_model(key, **kwargs)
 
-    def _app_row(self, key, hf_id, **extra):
+    def _app_row(self, key, repo_id, **extra):
         return AIModel.objects.create(model_key=key, name=key.split(':', 1)[1],
-                                      model_type='diffusion', source='imager', hf_id=hf_id,
+                                      model_type='diffusion', source='imager',
+                                      platform_ref=f'huggingface:{repo_id}',
                                       is_downloaded=True, local_path='', **extra)
 
-    def test_an_app_model_without_a_path_is_found_by_its_hf_id_and_uninstalled(self):
-        """The imager case: `local_path` empty, the snapshot is found by `hf_id` — as
+    def test_an_app_model_without_a_path_is_found_by_its_repository_and_uninstalled(self):
+        """The imager case: `local_path` empty, the snapshot is found by its repository — as
         `persist_weights` finds it. Before 2026-09-28 this was refused outright."""
         import tempfile
         with tempfile.TemporaryDirectory() as tmp:
@@ -626,7 +630,7 @@ class DesinstallationTest(TestCase):
             weights.mkdir(parents=True)
             (weights / 'text_2.pt').write_bytes(b'0' * 1024)
             AIModel.objects.create(model_key='synthesizer:bark', name='Bark', model_type='speech',
-                                   source='synthesizer', hf_id='suno/bark', is_downloaded=True,
+                                   source='synthesizer', platform_ref='huggingface:suno/bark', is_downloaded=True,
                                    local_path=str(weights))
             res = self._uninstall(root, 'synthesizer:bark')
             self.assertTrue(res['ok'], res)
@@ -645,7 +649,7 @@ class DesinstallationTest(TestCase):
             family.mkdir(parents=True)
             row = AIModel.objects.create(
                 model_key='huggingface:Org/Gone', name='Gone', model_type='ocr',
-                source='huggingface', hf_id='Org/Gone', is_downloaded=True,
+                source='huggingface', platform_ref='huggingface:Org/Gone', is_downloaded=True,
                 local_path=str(family / 'models--Org--Gone'))
             res = self._uninstall(root, 'huggingface:Org/Gone')
             self.assertTrue(res['ok'], res)
@@ -666,7 +670,7 @@ class DesinstallationTest(TestCase):
             family.mkdir(parents=True)
             (family / 'config.json').write_text('{}')
             AIModel.objects.create(model_key='transcriber:asr', name='ASR', model_type='speech',
-                                   source='transcriber', hf_id='Org/Absent', is_downloaded=True,
+                                   source='transcriber', platform_ref='huggingface:Org/Absent', is_downloaded=True,
                                    local_path=str(family))
             res = self._uninstall(root, 'transcriber:asr')
             self.assertFalse(res['ok'])
@@ -813,7 +817,7 @@ class RegimeDAccesTest(TestCase):
         sur un dépôt jamais interrogé."""
         from wama.common.manifests.builtin.model import extract_model
         AIModel.objects.create(model_key='huggingface:Org/Jamais', name='Jamais',
-                               model_type='vision', source='huggingface', hf_id='Org/Jamais')
+                               model_type='vision', source='huggingface', platform_ref='huggingface:Org/Jamais')
         muet = extract_model('huggingface:Org/Jamais')
         self.assertNotIn('gated', muet['body']['identity'])
 
@@ -835,7 +839,7 @@ class RegimeDAccesTest(TestCase):
 class InstallDepuisLeCatalogueTest(TestCase):
     """Un modèle d'app « Not downloaded » doit s'installer EXPLICITEMENT (2026-08-27, cas
     musicgen-melody : affiché sans aucun geste — l'affichage est voulu, le geste manquait).
-    Le spec se dérive de ce que l'APP déclare (hf_id + extra_info.install_dir) — le registre
+    Le spec se dérive de ce que l'APP déclare (platform_ref + extra_info.install_dir) — le registre
     n'invente jamais d'emplacement."""
 
     def test_le_spec_se_derive_de_l_emplacement_declare_par_l_app(self):
@@ -849,7 +853,7 @@ class InstallDepuisLeCatalogueTest(TestCase):
             (racine / 'models' / 'music' / 'musicgen').mkdir(parents=True)
             m = AIModel.objects.create(
                 model_key='composer:musicgen-melody', name='MusicGen Melody',
-                model_type='music', source='composer', hf_id='facebook/musicgen-melody',
+                model_type='music', source='composer', platform_ref='huggingface:facebook/musicgen-melody',
                 extra_info={'install_dir': str(racine / 'models' / 'music' / 'musicgen')})
             with override_settings(AI_MODELS_DIR=racine):
                 spec = spec_for_catalog_row(m)
@@ -864,7 +868,7 @@ class InstallDepuisLeCatalogueTest(TestCase):
         from ..services.model_installer import spec_for_catalog_row
         sans_dir = AIModel.objects.create(
             model_key='composer:x', name='X', model_type='music', source='composer',
-            hf_id='org/x')
+            platform_ref='huggingface:org/x')
         sans_hf = AIModel.objects.create(
             model_key='composer:y', name='Y', model_type='music', source='composer',
             extra_info={'install_dir': '/quelque/part'})
@@ -882,7 +886,7 @@ class InstallDepuisLeCatalogueTest(TestCase):
             (racine / 'models').mkdir()
             m = AIModel.objects.create(
                 model_key='composer:z', name='Z', model_type='music', source='composer',
-                hf_id='org/z', extra_info={'install_dir': str(racine / 'ailleurs')})
+                platform_ref='huggingface:org/z', extra_info={'install_dir': str(racine / 'ailleurs')})
             with override_settings(AI_MODELS_DIR=racine):
                 self.assertIsNone(spec_for_catalog_row(m))
 
@@ -899,7 +903,7 @@ class InstallDepuisLeCatalogueTest(TestCase):
             (racine / 'models' / 'music' / 'Fam').mkdir(parents=True)
             m = AIModel.objects.create(
                 model_key='composer:c', name='C', model_type='music', source='composer',
-                hf_id='org/c', composition=compo,
+                platform_ref='huggingface:org/c', composition=compo,
                 extra_info={'install_dir': str(racine / 'models' / 'music' / 'Fam')})
             with override_settings(AI_MODELS_DIR=racine):
                 spec = spec_for_catalog_row(m)
@@ -912,11 +916,11 @@ class ChoixDeVarianteTest(TestCase):
     def _candidat(self):
         return AIModel.objects.create(
             model_key='proposed:hf:Org/Grand', name='Grand', model_type='music',
-            source='huggingface', is_proposed=True, hf_id='Org/Grand', disk_gb=53.4,
+            source='huggingface', is_proposed=True, platform_ref='huggingface:Org/Grand', disk_gb=53.4,
             extra_info={'prospect': {
                 'spec': {'kind': 'hf', 'ref': 'Org/Grand', 'category': 'music'},
                 'quant_variants': [
-                    {'hf_id': 'Repack/Grand-GGUF', 'downloads': 551000, 'disk_gb': 60.0,
+                    {'repo_id': 'Repack/Grand-GGUF', 'downloads': 551000, 'disk_gb': 60.0,
                      'files': [{'file': 'grand-q4.gguf', 'gb': 12.5},
                                {'file': 'grand-q8.gguf', 'gb': 24.0}]},
                 ],
@@ -1117,16 +1121,16 @@ class EntreesParDefautDeLaTacheTest(TestCase):
         from ..services import provenance as pv
         nu = AIModel.objects.create(
             model_key='huggingface:Org/Asr', name='Asr', model_type='speech', source='huggingface',
-            is_downloaded=True, hf_id='Org/Asr', capabilities={})
+            is_downloaded=True, platform_ref='huggingface:Org/Asr', capabilities={})
         declare = AIModel.objects.create(
             model_key='huggingface:Org/Seg', name='Seg', model_type='vision', source='huggingface',
-            is_downloaded=True, hf_id='Org/Seg',
+            is_downloaded=True, platform_ref='huggingface:Org/Seg',
             capabilities={'inputs_required': ['work_file', 'prompt'], 'text_promptable': True})
-        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Asr'}), \
+        with patch.object(pv, 'identity_for_spec', return_value={'platform_ref': 'huggingface:Org/Asr'}), \
                 patch('django.core.management.call_command'):
             pv.record_after_install({'kind': 'hf', 'ref': 'Org/Asr', 'task': 'transcription'},
                                     ['huggingface:Org/Asr'])
-        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Seg'}), \
+        with patch.object(pv, 'identity_for_spec', return_value={'platform_ref': 'huggingface:Org/Seg'}), \
                 patch('django.core.management.call_command'):
             pv.record_after_install({'kind': 'hf', 'ref': 'Org/Seg', 'task': 'segment'},
                                     ['huggingface:Org/Seg'])
@@ -1216,16 +1220,17 @@ class FaitsDeLaCarteTest(TestCase):
         from ..services import provenance as pv
         blank = AIModel.objects.create(
             model_key='huggingface:Org/Asr', name='Asr', model_type='speech', source='huggingface',
-            is_downloaded=True, hf_id='Org/Asr', capabilities={})
+            is_downloaded=True, platform_ref='huggingface:Org/Asr', capabilities={})
         rich = AIModel.objects.create(
             model_key='huggingface:Org/Tts', name='Tts', model_type='speech', source='huggingface',
-            is_downloaded=True, hf_id='Org/Tts', capabilities={'task': 'text-to-speech',
+            is_downloaded=True, platform_ref='huggingface:Org/Tts', capabilities={'task': 'text-to-speech',
                                                               'languages': ['fr']},
             composition={'runtime': {'engine': 'qwen3-tts'}})
         declared = {'capabilities': {'task': 'transcription', 'languages': ['en', 'de']},
                     'engine': 'transformers'}
         with patch.object(pv, 'identity_for_spec',
-                          return_value={'hf_id': 'Org/Asr', 'declared': dict(declared)}), \
+                          return_value={'platform_ref': 'huggingface:Org/Asr',
+                                        'declared': dict(declared)}), \
                 patch('django.core.management.call_command'):
             r = pv.record_after_install({'kind': 'hf', 'ref': 'Org/Asr'}, ['huggingface:Org/Asr'])
         blank.refresh_from_db()
@@ -1236,7 +1241,8 @@ class FaitsDeLaCarteTest(TestCase):
         self.assertEqual('transformers', blank.composition['runtime']['engine'])
         # Le spec (candidat jugé) prime sur la carte ; l'existant prime sur les deux.
         with patch.object(pv, 'identity_for_spec',
-                          return_value={'hf_id': 'Org/Tts', 'declared': dict(declared)}), \
+                          return_value={'platform_ref': 'huggingface:Org/Tts',
+                                        'declared': dict(declared)}), \
                 patch('django.core.management.call_command'):
             pv.record_after_install({'kind': 'hf', 'ref': 'Org/Tts', 'task': 'text-to-speech'},
                                     ['huggingface:Org/Tts'])
@@ -1254,9 +1260,9 @@ class FaitsDeLaCarteTest(TestCase):
                   'runtime': {'engine': 'onnxruntime'}}
         blank = AIModel.objects.create(
             model_key='huggingface:Org/Img', name='Img', model_type='diffusion',
-            source='huggingface', is_downloaded=True, hf_id='Org/Img', capabilities={})
+            source='huggingface', is_downloaded=True, platform_ref='huggingface:Org/Img', capabilities={})
         with patch.object(pv, 'identity_for_spec',
-                          return_value={'hf_id': 'Org/Img',
+                          return_value={'platform_ref': 'huggingface:Org/Img',
                                         'declared': {'capabilities': {}, 'engine': 'transformers'}}), \
                 patch('django.core.management.call_command'):
             pv.record_after_install({'kind': 'hf', 'ref': 'Org/Img', 'composition': judged},
@@ -1268,7 +1274,8 @@ class FaitsDeLaCarteTest(TestCase):
         established = [{'role': 'unet', 'pattern': 'unet/*.onnx', 'format': 'onnx'}]
         blank.composition = {'components': established, 'runtime': {'engine': 'onnxruntime'}}
         blank.save()
-        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Img'}), \
+        with patch.object(pv, 'identity_for_spec',
+                          return_value={'platform_ref': 'huggingface:Org/Img'}), \
                 patch('django.core.management.call_command'):
             pv.record_after_install({'kind': 'hf', 'ref': 'Org/Img', 'composition': judged},
                                     ['huggingface:Org/Img'])
@@ -1281,10 +1288,11 @@ class FaitsDeLaCarteTest(TestCase):
         from ..services import provenance as pv
         row = AIModel.objects.create(
             model_key='huggingface:Org/Sr', name='Sr', model_type='upscaling',
-            source='huggingface', is_downloaded=True, hf_id='Org/Sr', capabilities={})
+            source='huggingface', is_downloaded=True, platform_ref='huggingface:Org/Sr', capabilities={})
         spec = {'kind': 'hf', 'ref': 'Org/Sr', 'task': 'upscale',
                 'capabilities': {'task': 'image-to-image', 'scale': 4}}
-        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Sr'}), \
+        with patch.object(pv, 'identity_for_spec',
+                          return_value={'platform_ref': 'huggingface:Org/Sr'}), \
                 patch('django.core.management.call_command'):
             pv.record_after_install(spec, ['huggingface:Org/Sr'])
         row.refresh_from_db()
@@ -1293,7 +1301,8 @@ class FaitsDeLaCarteTest(TestCase):
         # Counter-case: an established capability is not overwritten by the judged one.
         row.capabilities = {**row.capabilities, 'scale': 2}
         row.save()
-        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Sr'}), \
+        with patch.object(pv, 'identity_for_spec',
+                          return_value={'platform_ref': 'huggingface:Org/Sr'}), \
                 patch('django.core.management.call_command'):
             pv.record_after_install(spec, ['huggingface:Org/Sr'])
         row.refresh_from_db()
@@ -1302,7 +1311,8 @@ class FaitsDeLaCarteTest(TestCase):
     def test_the_scout_candidate_spec_carries_its_judged_capabilities(self):
         from ..services.prospector import seed_candidate_from_manifest
         manifest = {'manifest_kind': 'model', 'name': 'sr',
-                    'body': {'identity': {'hf_id': 'Org/Sr2', 'source': 'huggingface',
+                    'body': {'identity': {'platform_ref': 'huggingface:Org/Sr2',
+                                          'source': 'huggingface',
                                           'model_type': 'upscaling'},
                              'capabilities': {'task': 'upscale', 'scale': 4}}}
         key = seed_candidate_from_manifest(manifest)['model_key']
@@ -1492,7 +1502,7 @@ class RestesTechniquesDuSoirTest(TestCase):
         self.assertEqual(r['unresolved'], ['code'])
         self.assertIsNone(r.get('total_gb'), "un total incomplet ne doit pas être inventé")
         self.assertNotIn('components', r)
-        # un modèle SANS dépôt principal existe (les 3 DeepFace n'ont pas de `hf_id`) :
+        # un modèle SANS dépôt principal existe (les 3 DeepFace n'ont pas de dépôt du Hub) :
         # son anatomie est entièrement déportée, et la porte doit quand même répondre
         with patch('wama.model_manager.services.prospector._repo_weight_gb', return_value=1.0):
             sans_depot = mi.components_for_spec({'kind': 'hf', 'ref': '', 'composition': {
@@ -1577,11 +1587,11 @@ class LicenceHeriteeTest(TestCase):
     « Model Derivative » reste soumis à l'accord amont : le verdict s'HÉRITE, en le disant.
     """
 
-    def _texte(self, hf_id, lid):
-        if hf_id == 'MiniMaxAI/MiniMax-H3':
+    def _texte(self, repo_id, lid):
+        if repo_id == 'MiniMaxAI/MiniMax-H3':
             return {'verdict': 'exclusion_ue', 'label': 'UE EXCLUE par la licence',
                     'detail': '« excluded territories means the european union… »'}
-        if hf_id == 'Org/Flou':
+        if repo_id == 'Org/Flou':
             return {'verdict': 'a_verifier', 'label': 'licence à vérifier', 'detail': 'sans LICENSE'}
         return None
 
@@ -1624,12 +1634,12 @@ class TacheHeriteeALInstallationTest(TestCase):
     capacités derrière elle, et le manifeste du corpus naissait sans tâche.
     """
 
-    IDENTITE = {'hf_id': 'Org/Detecteur', 'platform_ref': 'huggingface:Org/Detecteur'}
+    IDENTITE = {'platform_ref': 'huggingface:Org/Detecteur'}
 
     def _vierge(self):
         return AIModel.objects.create(
             model_key='huggingface:Org/Detecteur', name='Detecteur', model_type='vision',
-            source='huggingface', is_downloaded=True, hf_id='Org/Detecteur', capabilities={})
+            source='huggingface', is_downloaded=True, platform_ref='huggingface:Org/Detecteur', capabilities={})
 
     def test_la_tache_du_spec_entre_par_le_manifeste_avant_l_export(self):
         """La chaîne RÉELLE (extract → validate → write_back) tourne ; seuls le réseau (identité
@@ -1670,9 +1680,10 @@ class TacheHeriteeALInstallationTest(TestCase):
         from ..services import provenance as pv
         etabli = AIModel.objects.create(
             model_key='huggingface:Org/Segmenteur', name='Segmenteur', model_type='vision',
-            source='huggingface', is_downloaded=True, hf_id='Org/Segmenteur',
+            source='huggingface', is_downloaded=True, platform_ref='huggingface:Org/Segmenteur',
             capabilities={'task': 'segment'})
-        with patch.object(pv, 'identity_for_spec', return_value={'hf_id': 'Org/Segmenteur'}), \
+        with patch.object(pv, 'identity_for_spec',
+                          return_value={'platform_ref': 'huggingface:Org/Segmenteur'}), \
                 patch('django.core.management.call_command'):
             r = pv.record_after_install({'kind': 'hf', 'ref': 'Org/Segmenteur', 'task': 'detect'},
                                         ['huggingface:Org/Segmenteur'])
@@ -1764,11 +1775,11 @@ class ProvenanceSurTousLesCheminsTest(TestCase):
                 patch.object(mi, 'register_after_install',
                              return_value=self._sync('huggingface:Org/X')), \
                 patch('wama.model_manager.services.provenance.record_after_install',
-                      return_value={'identity': {'hf_id': 'Org/X'}}) as prov:
+                      return_value={'identity': {'platform_ref': 'huggingface:Org/X'}}) as prov:
             res = mi.install_from_spec({'kind': 'hf', 'ref': 'Org/X', 'category': 'vision',
                                         'task': 'detect'})
         self.assertTrue(res['ok'])
-        self.assertEqual(res['provenance'], {'identity': {'hf_id': 'Org/X'}})
+        self.assertEqual(res['provenance'], {'identity': {'platform_ref': 'huggingface:Org/X'}})
         prov.assert_called_once_with({'kind': 'hf', 'ref': 'Org/X', 'category': 'vision',
                                       'task': 'detect'}, ['huggingface:Org/X'], owner=None)
 
@@ -1808,7 +1819,7 @@ class RouteUniqueDInstallationTest(TestCase):
     def _candidat_hf(self, **extra):
         return AIModel.objects.create(
             model_key='proposed:hf:Org/Petit', name='Petit', model_type='vision',
-            source='huggingface', is_proposed=True, proposal_kind='new', hf_id='Org/Petit',
+            source='huggingface', is_proposed=True, proposal_kind='new', platform_ref='huggingface:Org/Petit',
             disk_gb=0.4, extra_info={'prospect': {
                 'spec': {'kind': 'hf', 'ref': 'Org/Petit', 'category': 'vision',
                          'task': 'detect'}}}, **extra)
@@ -2014,7 +2025,8 @@ class RouteUniqueDInstallationTest(TestCase):
 
     def _manifeste_scout(self, **identite):
         return {'manifest_kind': 'model', 'key': 'huggingface:Org/Juge', 'name': 'Juge',
-                'body': {'identity': {'source': 'huggingface', 'hf_id': 'Org/Juge',
+                'body': {'identity': {'source': 'huggingface',
+                                      'platform_ref': 'huggingface:Org/Juge',
                                       'model_type': 'speech', 'license': 'mit',
                                       **identite},
                          'resources': {'disk_gb': 1.3},
@@ -2405,9 +2417,9 @@ class RangCentileTest(TestCase):
 class FamilleSansConditionnementTest(TestCase):
     """`base`/`instruct`/`chat` nomment un TIRAGE, pas un modèle — hors de la famille."""
 
-    def test_le_mot_base_du_hf_id_ne_change_plus_la_famille(self):
+    def test_the_word_base_in_a_repository_no_longer_changes_the_family(self):
         from ..services.benchmark_sync import _identity
-        # Notre `hf_id` dit `...-xl-base-1.0`, AA dit « Stable Diffusion XL 1.0 » : un seul
+        # Notre dépôt dit `...-xl-base-1.0`, AA dit « Stable Diffusion XL 1.0 » : un seul
         # mot d'écart faisait rater un appariement juste (882 sur aa_elo_text_to_image).
         self.assertEqual(_identity('stable-diffusion-xl-base-1.0'),
                          _identity('Stable Diffusion XL 1.0'))
@@ -2461,12 +2473,12 @@ class FamilleSansConditionnementTest(TestCase):
         from ..services.benchmark_sync import _local_categories
         lora = AIModel.objects.create(
             model_key='imager:flux-lora-logo-design', name='FLUX LoRA Logo', model_type='diffusion',
-            source='imager', is_downloaded=True, hf_id='Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
+            source='imager', is_downloaded=True, platform_ref='huggingface:Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
             capabilities={'task': 'text-to-image'})
         self.assertEqual(_local_categories(lora), [])
         plein = AIModel.objects.create(
             model_key='imager:flux-1-dev', name='FLUX.1 dev', model_type='diffusion',
-            source='imager', is_downloaded=True, hf_id='black-forest-labs/FLUX.1-dev',
+            source='imager', is_downloaded=True, platform_ref='huggingface:black-forest-labs/FLUX.1-dev',
             capabilities={'task': 'text-to-image'})
         self.assertEqual(_local_categories(plein), ['text-to-image'])
 
@@ -3152,7 +3164,7 @@ class BancDeGenerationTest(TestCase):
         candidat = AIModel.objects.create(
             model_key='huggingface:org/depth-candidat', name='org/depth-candidat',
             model_type='vision', source='huggingface', is_downloaded=True, local_path='',
-            hf_id='org/depth-candidat', capabilities={'task': 'depth-estimation'})
+            platform_ref='huggingface:org/depth-candidat', capabilities={'task': 'depth-estimation'})
 
         processor = MagicMock()
         processor.return_value.to.return_value = {}
@@ -3331,7 +3343,7 @@ class RejudgeOnNewFactsTest(TestCase):
         self.pa = prospect_agents
         self.cand = AIModel.objects.create(
             model_key='proposed:hf:org/video-5b', name='video-5b', model_type='diffusion',
-            source='huggingface', hf_id='org/video-5b', is_proposed=True, proposal_kind='new',
+            source='huggingface', platform_ref='huggingface:org/video-5b', is_proposed=True, proposal_kind='new',
             extra_info={'prospect': {'spec': {'kind': 'hf', 'ref': 'org/video-5b'},
                                      'quant_variants': []}})
         patcher = patch.object(prospect_agents, '_vram_totale_gb', return_value=24.0)
@@ -3397,7 +3409,7 @@ class RejudgeOnNewFactsTest(TestCase):
         prospect = dict(self.cand.extra_info['prospect'])
         write_candidate(self.cand.model_key, nom='video-5b', model_type='diffusion',
                         source='huggingface', description='refreshed', kind='new',
-                        confidence=None, extra={'spec': prospect['spec']}, hf_id='org/video-5b')
+                        confidence=None, extra={'spec': prospect['spec']}, platform_ref='huggingface:org/video-5b')
         self.cand.refresh_from_db()
         self.assertEqual(self.cand.extra_info['weights']['total_gb'], 22.5)
         self.assertIn('quant_variants', self.cand.extra_info['prospect'])

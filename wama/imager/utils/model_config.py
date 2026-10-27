@@ -25,7 +25,7 @@ Uses the centralized AI-models directory structure from settings.py.
 #     retirée d'AGENTS.md le 2026-09-03, ce commentaire était resté en retard.)
 #
 #  4. Ajouter l'entrée dans IMAGER_MODELS (ou le groupe approprié) avec
-#     au minimum : model_id, hf_id, type, mode, vram_gb, description.
+#     au minimum : model_id, platform_ref, type, mode, vram_gb, description.
 #
 #  5. Mettre à jour _discover_imager_models() dans model_registry.py.
 #
@@ -149,7 +149,7 @@ HUNYUAN_MODELS = {
     'hunyuan-image-2.1': {
         'model_id': 'hunyuan-image-2.1',
         'engine': 'diffusers',
-        'hf_id': 'hunyuanvideo-community/HunyuanImage-2.1-Diffusers',
+        'platform_ref': 'huggingface:hunyuanvideo-community/HunyuanImage-2.1-Diffusers',
         'type': 'image',
         'tasks': 't2i',
         'vram_gb': 16,
@@ -178,7 +178,7 @@ COGVIDEOX_MODELS = {
     'cogvideox-5b-i2v': {
         'model_id': 'cogvideox-5b-i2v',
         'engine': 'diffusers',
-        'hf_id': 'THUDM/CogVideoX-5b-I2V',
+        'platform_ref': 'huggingface:THUDM/CogVideoX-5b-I2V',
         'type': 'video',
         'tasks': 'i2v',
         'vram_gb': 21,
@@ -211,7 +211,7 @@ LTX_MODELS = {
     'ltx-video-13b-0.9.8-distilled': {
         'model_id': 'ltx-video-13b-0.9.8-distilled',
         'engine': 'diffusers',
-        'hf_id': 'Lightricks/LTX-Video-0.9.8-13B-distilled',
+        'platform_ref': 'huggingface:Lightricks/LTX-Video-0.9.8-13B-distilled',
         'type': 'video',
         'tasks': 't2v+i2v',
         'vram_gb': 14,
@@ -245,7 +245,7 @@ LTX_MODELS = {
     'ltx-video-13b-0.9.8-distilled-fp8': {
         'model_id': 'ltx-video-13b-0.9.8-distilled-fp8',
         'engine': 'diffusers',
-        'hf_id': 'Lightricks/LTX-Video-0.9.8-13B-distilled',
+        'platform_ref': 'huggingface:Lightricks/LTX-Video-0.9.8-13B-distilled',
         'type': 'video',
         'tasks': 't2v+i2v',
         'vram_gb': 8,
@@ -277,7 +277,7 @@ MOCHI_MODELS = {
     'mochi-1-preview': {
         'model_id': 'mochi-1-preview',
         'engine': 'diffusers',
-        'hf_id': 'genmo/mochi-1-preview',
+        'platform_ref': 'huggingface:genmo/mochi-1-preview',
         'type': 'video',
         'tasks': 't2v',
         'vram_gb': 22,
@@ -318,7 +318,7 @@ WAN_MODELS = {
     'fastwan-2.2-ti2v-5b': {
         'model_id': 'fastwan-2.2-ti2v-5b',
         'engine': 'diffusers',
-        'hf_id': 'FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers',
+        'platform_ref': 'huggingface:FastVideo/FastWan2.2-TI2V-5B-FullAttn-Diffusers',
         'type': 'video',
         'tasks': 't2v+i2v',
         'vram_gb': 23,
@@ -369,7 +369,7 @@ STABLE_DIFFUSION_MODELS = {
         # obsolètes (cf. AGENTS.md §Supprimés). Sa liste `SUPPORTED_MODELS` est donc périmée
         # aux trois quarts — signalé, pas corrigé : retirer un backend est une décision.
         'engine': 'diffusers',
-        'hf_id': 'stable-diffusion-v1-5/stable-diffusion-v1-5',
+        'platform_ref': 'huggingface:stable-diffusion-v1-5/stable-diffusion-v1-5',
         'type': 'image',
         'pipeline': 'sd',
         # t2i + image de référence OPTIONNELLE (StableDiffusionImg2ImgPipeline,
@@ -395,7 +395,7 @@ STABLE_DIFFUSION_MODELS = {
     'stable-diffusion-xl': {
         'model_id': 'stable-diffusion-xl',
         'engine': 'diffusers',
-        'hf_id': 'stabilityai/stable-diffusion-xl-base-1.0',
+        'platform_ref': 'huggingface:stabilityai/stable-diffusion-xl-base-1.0',
         'type': 'image',
         'pipeline': 'sdxl',
         # t2i + image de référence OPTIONNELLE (StableDiffusionXLImg2ImgPipeline).
@@ -446,7 +446,7 @@ QWEN_IMAGE_MODELS = {
     'qwen-image-2': {
         'model_id': 'qwen-image-2',
         'engine': 'diffusers',
-        'hf_id': 'Qwen/Qwen-Image-2512',
+        'platform_ref': 'huggingface:Qwen/Qwen-Image-2512',
         'type': 'image',
         'tasks': 't2i',
         'pipeline': 'qwen_image',
@@ -477,7 +477,7 @@ QWEN_IMAGE_MODELS = {
     'qwen-image-edit': {
         'model_id': 'qwen-image-edit',
         'engine': 'diffusers',
-        'hf_id': 'Qwen/Qwen-Image-Edit-2511',
+        'platform_ref': 'huggingface:Qwen/Qwen-Image-Edit-2511',
         'type': 'image',
         'tasks': 'edit',
         'pipeline': 'qwen_image',
@@ -511,7 +511,7 @@ FLUX2_KLEIN_MODELS = {
     'flux2-klein-4b': {
         'model_id': 'flux2-klein-4b',
         'engine': 'diffusers',
-        'hf_id': 'black-forest-labs/FLUX.2-klein-4B',
+        'platform_ref': 'huggingface:black-forest-labs/FLUX.2-klein-4B',
         'type': 'image',
         'tasks': 't2i',
         'pipeline': 'flux2_klein',
@@ -543,7 +543,7 @@ LOGO_MODELS = {
     'flux-lora-logo-design': {
         'model_id': 'flux-lora-logo-design',
         'engine': 'diffusers',
-        'hf_id': 'Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
+        'platform_ref': 'huggingface:Shakker-Labs/FLUX.1-dev-LoRA-Logo-Design',
         'base_model': 'black-forest-labs/FLUX.1-dev',
         'type': 'image',
         'pipeline': 'flux',
@@ -595,7 +595,7 @@ FLUX_MODELS = {
     'flux-1-dev': {
         'model_id': 'flux-1-dev',
         'engine': 'diffusers',
-        'hf_id': 'black-forest-labs/FLUX.1-dev',
+        'platform_ref': 'huggingface:black-forest-labs/FLUX.1-dev',
         'base_model': 'black-forest-labs/FLUX.1-dev',
         'type': 'image',
         'tasks': 'text-to-image',

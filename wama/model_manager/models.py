@@ -491,8 +491,8 @@ class ModelAbility(models.TextChoices):
 class ModelSource(models.TextChoices):
     """Le VOCABULAIRE des sources de modèle — le premier segment de `AIModel.model_key`
     (`model_keys.split_key`), que la découverte écrit et que la validation du manifeste `model`
-    lit. Chaque valeur est la clé d'une déclaration existante : une app (`app_registry`), une
-    source du registre (`external_sources` : fournisseur distant, plateforme) ou `custom`.
+    lit. Chaque valeur est la clé d'une déclaration existante : une app (`app_registry`) ou une
+    source du registre (`external_sources` : fournisseur distant, plateforme, serveur de poids).
 
     AUCUN LIBELLÉ ici (2026-10-22, Fabien : « le moins de choses écrites à la main possible ») :
     une source se NOMME par `source_identity` — l'identité de l'app, la phrase de coût d'un
@@ -530,9 +530,13 @@ class ModelSource(models.TextChoices):
     # le pendant de HUGGINGFACE pour le balayage générique — même valeur que la plateforme et que
     # la source déclarée (`external_sources`, qui déclare aussi sa fiche : `model_platforms`).
     GITHUB = 'github'
-    # Ce qu'aucune déclaration ne porte : les modèles d'une brique commune (LPIPS du banc, gestes
-    # de la main) — la seule clé qui se nomme par l'énumération (`source_identity`).
-    CUSTOM = 'custom'
+    # Serveurs de poids OFFICIELS du registre (famille « poids », 2026-10-27) : le modèle d'une
+    # BRIQUE commune, qu'aucune app ne porte, se range sous la source d'où viennent ses fichiers
+    # DÉCLARÉS — le patron de YOLOPv2 (`github:`). Remplace `custom` (« ajouts manuels »), qui
+    # cachait une provenance pourtant déclarée fichier par fichier (Fabien : « il faut corriger
+    # le rangement ») : LPIPS (dorsale AlexNet de torchvision) et les gestes de la main.
+    PYTORCH_DOWNLOAD = 'pytorch_download'
+    MEDIAPIPE_MODELS = 'mediapipe_models'
 
 
 def source_groups() -> list:
@@ -556,16 +560,17 @@ def source_groups() -> list:
 def source_identity(source: str) -> dict:
     """LE nom d'une source de modèle (`AIModel.source`) — `{'key', 'group', 'label'}`.
 
-    La clé a trois natures, et chacune est déjà NOMMÉE ailleurs : rien n'est redit ici.
+    La clé a deux natures, et chacune est déjà NOMMÉE ailleurs : rien n'est redit ici.
     • une app → son identité commune (`app_registry.app_identity`), rangée dans son monde ;
     • un FOURNISSEUR distant (famille `llm` du registre) → `remote_origin_label`, la phrase des
       sélecteurs de modèle : hébergement · fournisseur · COÛT. « Claude Code » seul ne dit pas
       l'abonnement — Claude Code peut aussi tourner sur l'API ; « Cloud commercial · Claude Code ·
       abonnement » et « Cloud commercial · API Anthropic (Claude) · facturé à l'usage », si ;
-    • une autre source du registre (Hugging Face Hub, Ollama, GitHub) → son nom déclaré ;
-    • sinon (`custom`) → le nom du membre de l'énumération (« Custom »), seule déclaration de
-      cette clé, hors groupe.
-    `group` est une clé de `source_groups()`, '' pour une source qu'aucune déclaration ne range.
+    • une autre source du registre (Hugging Face Hub, Ollama, GitHub, un serveur de poids) → son
+      nom déclaré.
+    Une valeur que rien ne déclare (une ligne d'avant un renommage) se rend telle quelle, hors
+    groupe : `group` est une clé de `source_groups()`, '' pour elle. Il n'y en a plus aucune
+    dans l'énumération depuis le 2026-10-27 (`custom` retiré, R180).
 
     ⚠ Corrigé le 2026-10-22 (Fabien : « je dois connaître la provenance exacte des modèles, donc
     savoir si c'est Claude API ou Claude abonnement »). La version du 20/10 nommait un fournisseur
@@ -585,7 +590,7 @@ def source_identity(source: str) -> dict:
         label = (external_sources.remote_origin_label(source) if declared.kind == 'llm'
                  else declared.label)
         return {'key': source, 'group': f'kind:{declared.kind}', 'label': label}
-    return {'key': source, 'group': '', 'label': dict(ModelSource.choices).get(source) or source}
+    return {'key': source, 'group': '', 'label': source}
 
 
 EXECUTION_LOCAL = 'local'
@@ -652,7 +657,11 @@ class AIModel(ScopedVisibility):
     description = models.TextField(blank=True, default='')
     description_short = models.CharField(max_length=255, blank=True, default='')
 
-    # External references
+    # RÉSIDU (2026-10-27) : le dépôt du Hub écrit à part, né avant `platform_ref`, qui le généralise
+    # à toutes les plateformes. Plus AUCUN lecteur : le dépôt se lit par `hf_repo`, le modèle
+    # canonique d'une quantification par `quantized_base`. Seuls l'écrivent encore la projection du
+    # manifeste (`identity.hf_id`, 624 occurrences au corpus) et l'extraction ; la colonne part avec
+    # eux, dans la session des manifestes (décision de Fabien).
     hf_id = models.CharField(
         max_length=255,
         blank=True,
@@ -923,14 +932,36 @@ class AIModel(ScopedVisibility):
                                    help_text="Composants + runtime d'un modele compose "
                                              "(declare par son manifeste, vide sinon).")
 
+    @property
+    def hf_repo(self) -> str:
+        """Le dépôt du Hub (`org/nom`) d'où vient le modèle — DÉRIVÉ de `platform_ref`, '' pour une
+        autre plateforme (`external_sources.hf_repo`). Ce qu'on passe à `from_pretrained`, ce qu'on
+        cherche dans les snapshots installés, ce qu'on interroge sur le Hub."""
+        from wama.common.external_sources import hf_repo
+        return hf_repo(self.platform_ref)
+
+    @property
+    def quantized_base(self) -> str:
+        """Le modèle CANONIQUE dont cette ligne est une QUANTIFICATION (un GGUF du Hub tiré par
+        Ollama), '' sinon — `extra_info['base_model']` quand la relation déclarée est `quantized`.
+
+        Le vocabulaire est celui du Hub (`base_model` + `base_model_relation` de la carte d'un
+        modèle). Il sépare deux faits que `hf_id` confondait jusqu'au 2026-10-27 : d'où viennent les
+        poids (`platform_ref`, le dépôt GGUF) et quel modèle ils SONT (`base_model`, ce qu'un banc
+        publie). Une LoRA porte aussi `base_model`, sa DORSALE : sans la relation `quantized`, elle
+        n'est pas sa dorsale, et ce n'est pas ici qu'elle se lit."""
+        info = self.extra_info or {}
+        if info.get('base_model_relation') != 'quantized':
+            return ''
+        return str(info.get('base_model') or '').strip()
+
     def platform_refs(self):
         """`platform_ref`, puis ce que la ligne porte déjà du même fait tant qu'il n'est pas
-        renseigné partout (il vient du manifeste) : `hf_id` → `huggingface:<hf_id>`, une clé
-        `ollama:` → `ollama:<famille>`. LA règle de dérivation : le lien de la card la lit, et
-        `backfill_platform_refs` pose la première référence d'une ligne qui n'en a pas."""
+        renseigné partout (il vient du manifeste) : une clé `ollama:` → `ollama:<famille>`. LA
+        règle de dérivation : le lien de la card la lit, et `backfill_platform_refs` pose la
+        première référence d'une ligne qui n'en a pas. (`hf_id` n'y entre plus depuis le
+        2026-10-27 : mesuré ce jour, aucune ligne ne le portait sans `platform_ref`.)"""
         refs = [self.platform_ref] if self.platform_ref else []
-        if self.hf_id:
-            refs.append(f'huggingface:{self.hf_id}')
         if 'ollama:' in (self.model_key or ''):
             # L'identité d'un tag Ollama a SA fonction (`provenance.ollama_identity`).
             from .services.provenance import ollama_identity
@@ -1085,7 +1116,9 @@ class AIModel(ScopedVisibility):
             'source': self.source,
             'description': self.description,
             'description_short': self.description_short,
-            'hf_id': self.hf_id,
+            # Le modèle canonique d'une quantification (l'inspecteur le nomme) — le dépôt d'où
+            # viennent les poids se lit dans `platform_ref`, juste en dessous.
+            'quantized_base': self.quantized_base,
             'license': self.license,
             'author': self.author,
             'platform_ref': self.platform_ref,

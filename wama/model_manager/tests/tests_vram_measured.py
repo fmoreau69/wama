@@ -75,7 +75,7 @@ class PersistanceDeLaMesureTest(TestCase):
             source=SimpleNamespace(value='imager'), description='', description_short='',
             vram_gb=16.0, ram_gb=0, is_downloaded=True, is_loaded=False, format='',
             preferred_format='', can_convert_to=[], backend_ref='', extra_info={},
-            hf_id='', quality_index=None, capabilities={}, composition={})
+            platform_ref='', quality_index=None, capabilities={}, composition={})
         ModelSyncService()._sync_model(CLE, decouverte)
         m = AIModel.objects.get(model_key=CLE)
         self.assertEqual(m.extra_info['vram_measured']['max_gb'], 38.1)

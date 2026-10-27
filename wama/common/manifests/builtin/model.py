@@ -67,6 +67,19 @@ def validate_model_body(body: dict) -> list[str]:
                                  or not all(isinstance(p, str) and p for p in pubs)):
             errs.append("identity.publications doit être une liste d'identifiants arXiv "
                         "(chaînes, ex. « 2601.14251 »)")
+        # Modèle de BASE (2026-10-27) : le vocabulaire du Hub, en paire — sans sa relation, un
+        # `base_model` ne dit pas si la ligne EST ce modèle (quantification) ou s'appuie dessus.
+        base, relation = ident.get(_BASE_MODEL_KEY), ident.get(_BASE_RELATION_KEY)
+        if (base is None) != (relation is None):
+            errs.append(f"identity.{_BASE_MODEL_KEY} et identity.{_BASE_RELATION_KEY} vont "
+                        "ensemble (le dépôt de base et ce que la ligne en est)")
+        elif base is not None:
+            if not isinstance(base, str) or base.strip().count('/') != 1:
+                errs.append(f"identity.{_BASE_MODEL_KEY} {base!r} doit être un dépôt du Hub "
+                            "« org/nom »")
+            if relation not in BASE_MODEL_RELATIONS:
+                errs.append(f"identity.{_BASE_RELATION_KEY} {relation!r} hors du vocabulaire du "
+                            f"Hub ({', '.join(BASE_MODEL_RELATIONS)})")
         gated = ident.get('gated')
         if gated is not None and gated not in ('no', 'auto', 'manual'):
             errs.append(f"identity.gated {gated!r} invalide — 'no' (verifie libre), 'auto' "
@@ -216,6 +229,10 @@ def extract_model(key: str) -> Optional[dict]:
             # DÉCLARÉ comme la licence, absent tant qu'aucune carte ne l'a dit.
             **({_PUBLICATIONS_KEY: list((m.extra_info or {})[_PUBLICATIONS_KEY])}
                if (m.extra_info or {}).get(_PUBLICATIONS_KEY) else {}),
+            # Modèle de BASE d'une ligne qui DÉCLARE sa relation (2026-10-27 : le canonique d'un
+            # GGUF, `quantized`) — fait de même nature que les publications, absent sinon. Le
+            # `base_model` d'une LoRA reste dans `extra_info` : il vient de la déclaration d'app.
+            **_base_model_identity(m.extra_info or {}),
             'description_short': m.description_short or None,
         },
         # besoins (pilotent select_model VRAM-aware)
@@ -248,8 +265,10 @@ def extract_model(key: str) -> Optional[dict]:
             'confidence': getattr(m, 'confidence', None),
             'update_complexity': getattr(m, 'update_complexity', '') or None,
         },
-        # Les publications sont portées par `identity` : pas une seconde fois ici.
-        'extra_info': {k: v for k, v in (m.extra_info or {}).items() if k != _PUBLICATIONS_KEY},
+        # Les publications (et le modèle de base déclaré) sont portés par `identity` : pas une
+        # seconde fois ici.
+        'extra_info': {k: v for k, v in (m.extra_info or {}).items()
+                       if k != _PUBLICATIONS_KEY and k not in _base_model_identity(m.extra_info or {})},
     }
 
     # Provenance LUE sur la ligne (`ROADMAP §29` étape 3) — elle y naît, au geste d'installation.
@@ -369,6 +388,23 @@ _COMPOSITION_FIELD = ('composition', lambda m, b: b.get('composition') or {})
 #: dédiée : un champ ajouté au modèle est servi par gunicorn avant que sa migration passe.
 _PUBLICATIONS_KEY = 'publications'
 
+#: Modèle de BASE (2026-10-27) — le vocabulaire de la carte d'un modèle du Hub (`base_model` +
+#: `base_model_relation`), projeté dans `extra_info` comme les publications : au déclaré, en paire.
+#: C'est le second fait que `hf_id` portait (le modèle canonique d'un GGUF tiré par Ollama, que le
+#: banc apparie), séparé de `platform_ref` (d'où viennent les poids).
+_BASE_MODEL_KEY = 'base_model'
+_BASE_RELATION_KEY = 'base_model_relation'
+#: Les relations que le Hub nomme. `quantized` seule fait de la ligne CE modèle (`AIModel.quantized_base`).
+BASE_MODEL_RELATIONS = ('adapter', 'finetune', 'merge', 'quantized')
+
+
+def _base_model_identity(extra_info: dict) -> dict:
+    """`{base_model, base_model_relation}` d'une ligne qui DÉCLARE sa relation, `{}` sinon."""
+    if not extra_info.get(_BASE_RELATION_KEY):
+        return {}
+    return {_BASE_MODEL_KEY: extra_info.get(_BASE_MODEL_KEY),
+            _BASE_RELATION_KEY: extra_info[_BASE_RELATION_KEY]}
+
 
 def merged_capabilities(target, declared: dict) -> dict:
     """`capabilities` de la ligne APRÈS projection du manifeste — fusion CLÉ PAR CLÉ.
@@ -408,8 +444,9 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     pourrait retenir. Si la cible est absente, on le DIT et on ne fait rien.
 
     Projette les champs DECLARATIFS (`_CHAMPS_PROJETES` : licence, auteur, plateforme, hf_id,
-    contrat de prompt), `gated` ET `composition` seulement s'ils sont DECLARES (leur vide est une
-    absence de mesure, pas une valeur), et `capabilities` par FUSION clé par clé
+    contrat de prompt), `gated`, `composition`, les publications et le modèle de base seulement
+    s'ils sont DECLARES (leur vide est une absence de mesure, pas une valeur), et `capabilities`
+    par FUSION clé par clé
     (`merged_capabilities`). Le releve d'origine (2026-08-05) ne projetait que `license`
     et `platform_ref` : 0/129 modeles portaient une licence, et le lien plateforme etait
     conditionne a `hf_id`, absent sur les 70 modeles decouverts par scan disque.
@@ -456,6 +493,12 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     if pubs:
         champs.append('extra_info')
         voulu['extra_info'] = {**(cible.extra_info or {}), _PUBLICATIONS_KEY: list(pubs)}
+    # Modèle de base : même règle — au déclaré seulement, la paire fusionnée dans `extra_info`.
+    base = {k: (body.get('identity') or {}).get(k) for k in (_BASE_MODEL_KEY, _BASE_RELATION_KEY)}
+    if all(base.values()):
+        if 'extra_info' not in champs:
+            champs.append('extra_info')
+        voulu['extra_info'] = {**voulu.get('extra_info', cible.extra_info or {}), **base}
 
     actuel = {champ: getattr(cible, champ) for champ in champs}
     deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}

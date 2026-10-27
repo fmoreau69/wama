@@ -56,13 +56,13 @@ def _system_agent() -> str:
 _AGENTS_DEFAUT = 'ollama'
 
 
-def _hf_card_excerpt(hf_id: str, max_chars: int = 2500) -> str:
+def _hf_card_excerpt(repo_id: str, max_chars: int = 2500) -> str:
     """Extrait de la carte de modèle HF (API officielle), ou '' si indisponible."""
     try:
         from huggingface_hub import ModelCard
-        return (ModelCard.load(hf_id).text or '')[:max_chars]
+        return (ModelCard.load(repo_id).text or '')[:max_chars]
     except Exception as e:
-        logger.debug(f"[prospect_agents] carte {hf_id} indisponible: {e}")
+        logger.debug(f"[prospect_agents] carte {repo_id} indisponible: {e}")
         return ''
 
 
@@ -122,7 +122,7 @@ def _assess_one(candidate, app, card, provider, model, timeout=120):
     """Un agent évalue un candidat HF → dict de verdict (ou {'agent','error'})."""
     contexte = (
         f"App WAMA cible : {app}.\n"
-        f"Modèle HF candidat : {candidate['hf_id']}\n"
+        f"Modèle HF candidat : {candidate['repo_id']}\n"
         f"Téléchargements : {candidate.get('downloads')} | Likes : {candidate.get('likes')} | "
         f"Tâche : {candidate.get('pipeline_tag')}\n"
         f"Carte (extrait) :\n{card or '(non disponible)'}"
@@ -132,13 +132,13 @@ def _assess_one(candidate, app, card, provider, model, timeout=120):
 
 def assess_candidate(candidate, app, agents, timeout=120):
     """
-    `agents` : liste de (provider, model). Retourne {hf_id, downloads, consensus, opinions}.
+    `agents` : liste de (provider, model). Retourne {repo_id, downloads, consensus, opinions}.
     consensus = consolidation déterministe des avis valides (None si aucun avis exploitable).
     """
-    card = _hf_card_excerpt(candidate['hf_id'])
+    card = _hf_card_excerpt(candidate['repo_id'])
     opinions = [_assess_one(candidate, app, card, p, m, timeout) for (p, m) in agents]
     return {
-        'hf_id': candidate['hf_id'],
+        'repo_id': candidate['repo_id'],
         'downloads': candidate.get('downloads'),
         'consensus': _consolider(opinions),
         'opinions': opinions,
@@ -252,9 +252,9 @@ def _hf_context(cand) -> str:
     + variantes quantisées si `_attach_quantized_variants` les a relevées.
     """
     p = (cand.extra_info or {}).get('prospect', {})
-    carte = _hf_card_excerpt(cand.hf_id)
+    carte = _hf_card_excerpt(cand.hf_repo)
     return (
-        f"Modèle HF candidat : {cand.hf_id}\n"
+        f"Modèle HF candidat : {cand.hf_repo}\n"
         f"Rôle WAMA visé : {p.get('role') or cand.model_type} — {p.get('reason', '')}\n"
         f"Téléchargements : {p.get('downloads')} | Likes : {p.get('likes')} | "
         f"Poids : {cand.disk_gb or '?'} Go\n"
@@ -280,15 +280,15 @@ def _attach_weights(cand) -> None:
 
     from .model_installer import components_for_spec
     info = dict(cand.extra_info or {})
-    if 'weights' in info or not cand.hf_id:
+    if 'weights' in info or not cand.hf_repo:
         return
-    spec = dict((info.get('prospect') or {}).get('spec') or {}) or {'kind': 'hf', 'ref': cand.hf_id}
+    spec = dict((info.get('prospect') or {}).get('spec') or {}) or {'kind': 'hf', 'ref': cand.hf_repo}
     derived = components_for_spec(spec)
     if 'unreachable' in derived:
         return
     record = {k: v for k, v in derived.items() if k != 'files'} or {'empty': True}
     from .prospector import remote_precision
-    precision = remote_precision(spec.get('ref') or cand.hf_id, derived.get('files'))
+    precision = remote_precision(spec.get('ref') or cand.hf_repo, derived.get('files'))
     if precision:
         record['precision'] = precision
     record.update(origin='remote', at=datetime.now(dt_timezone.utc).isoformat())
@@ -329,7 +329,7 @@ def _signal_of(cand) -> str:
     facts = {
         'bench': [cand.benchmark_index, (cand.benchmark_meta or {}).get('scale')],
         'weights': [weights.get('total_gb'), weights.get('largest_gb'), bool(weights)],
-        'variants': sorted(v.get('hf_id', '') for v in (prospect.get('quant_variants') or [])),
+        'variants': sorted(v.get('repo_id', '') for v in (prospect.get('quant_variants') or [])),
         'competitors': prospect.get('concurrence') or [],
         'card_gb': _vram_totale_gb(),
     }
@@ -351,7 +351,7 @@ def _variants_line(p: dict) -> str:
     variantes = p.get('quant_variants') or []
     if not variantes:
         return ""
-    lignes = "\n".join(f"  - {v['hf_id']} ({v['downloads']} téléchargements)"
+    lignes = "\n".join(f"  - {v['repo_id']} ({v['downloads']} téléchargements)"
                        for v in variantes)
     return ("⚠ Le poids ci-dessus est celui des poids PLEINS. Variantes quantisées "
             f"disponibles (la faisabilité VRAM se juge sur elles) :\n{lignes}\n")
@@ -369,7 +369,7 @@ def _attach_quantized_variants(cand) -> None:
     if 'quant_variants' in prospect:
         return
     from .prospector import quantized_variants
-    prospect['quant_variants'] = quantized_variants(cand.hf_id)
+    prospect['quant_variants'] = quantized_variants(cand.hf_repo)
     info['prospect'] = prospect
     cand.extra_info = info
     cand.save(update_fields=['extra_info'])

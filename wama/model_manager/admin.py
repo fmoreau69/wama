@@ -33,7 +33,7 @@ class AIModelAdmin(admin.ModelAdmin):
         SourceFilter, 'model_type', 'is_downloaded',
         'is_loaded', 'is_available', 'format'
     ]
-    search_fields = ['name', 'model_key', 'hf_id', 'description']
+    search_fields = ['name', 'model_key', 'platform_ref', 'description']
     # `source` en lecture seule (2026-10-22) : c'est le premier segment de `model_key`, lui aussi
     # en lecture seule — la changer seule désaccorderait la ligne de sa clé. Le champ n'a plus de
     # `choices=` (vocabulaire `ModelSource`, noms par `source_identity`).
@@ -48,7 +48,7 @@ class AIModelAdmin(admin.ModelAdmin):
             'fields': ('model_type', 'source', 'backend_ref')
         }),
         ('External References', {
-            'fields': ('hf_id', 'local_path')
+            'fields': ('platform_ref', 'local_path')
         }),
         ('Resource Requirements', {
             'fields': ('vram_gb', 'ram_gb', 'disk_gb')

@@ -29,20 +29,22 @@ import logging
 import re
 from typing import Optional
 
+from wama.common.external_sources import hf_platform_ref
+
 logger = logging.getLogger(__name__)
 
 
-def huggingface_identity(hf_id: str) -> Optional[dict]:
+def huggingface_identity(repo_id: str) -> Optional[dict]:
     """
-    `{license, author, platform_ref, hf_id, gated}` lu sur la carte du dépôt, ou None si injoignable.
+    `{license, author, platform_ref, gated}` lu sur la carte du dépôt, ou None si injoignable.
 
     L'auteur et la licence viennent de la MÊME requête : les séparer coûterait un aller-retour
     par modèle pour deux faits posés sur la même table. `gated` a rejoint le lot pour cette
     raison exacte (2026-09-07) — `model_info()` le rend dans la réponse déjà demandée, donc
     l'ignorer coûtait un fait, pas une requête.
     """
-    hf_id = (hf_id or '').strip()
-    if not hf_id:
+    repo_id = (repo_id or '').strip()
+    if not repo_id:
         return None
     try:
         from huggingface_hub import HfApi
@@ -50,9 +52,9 @@ def huggingface_identity(hf_id: str) -> Optional[dict]:
         logger.debug("[provenance] huggingface_hub absent")
         return None
     try:
-        info = HfApi().model_info(hf_id)
+        info = HfApi().model_info(repo_id)
     except Exception as e:
-        logger.info(f"[provenance] {hf_id} injoignable : {type(e).__name__}")
+        logger.info(f"[provenance] {repo_id} injoignable : {type(e).__name__}")
         return None
 
     license_id = ''
@@ -63,7 +65,7 @@ def huggingface_identity(hf_id: str) -> Optional[dict]:
         license_id = ''
     # À défaut du champ `author`, le namespace du dépôt : sur HuggingFace, `org/repo` EST
     # l'éditeur — ce n'est pas une déduction, c'est la façon dont la plateforme nomme.
-    author = (getattr(info, 'author', '') or hf_id.partition('/')[0] or '')
+    author = (getattr(info, 'author', '') or repo_id.partition('/')[0] or '')
 
     # Régime d'ACCÈS au dépôt (`AIModel.GATED_*`). HuggingFace rend `False` / 'auto' / 'manual' ;
     # WAMA écrit 'no' pour le libre VÉRIFIÉ, afin que le vide reste disponible pour « inconnu ».
@@ -83,8 +85,7 @@ def huggingface_identity(hf_id: str) -> Optional[dict]:
     return {
         'license': str(license_id)[:64],
         'author': str(author)[:200],
-        'platform_ref': f"huggingface:{hf_id}",
-        'hf_id': hf_id,
+        'platform_ref': hf_platform_ref(repo_id),
         'gated': gated,
         # Les PUBLICATIONS que l'auteur rattache à son modèle (2026-10-10) — même requête.
         'publications': arxiv_ids(getattr(info, 'tags', None) or ()),
@@ -131,10 +132,10 @@ def cloud_identity(item: dict) -> Optional[dict]:
     None quand aucun dépôt n'est nommé (Anthropic). C'est ce `platform_ref` qui relie
     `albert:bge-m3` à `ollama:bge-m3` ou à un snapshot local du même modèle.
     """
-    hf_id = next((str(a) for a in ((item or {}).get('aliases') or []) if '/' in str(a)), '')
-    if not hf_id:
+    repo_id = next((str(a) for a in ((item or {}).get('aliases') or []) if '/' in str(a)), '')
+    if not repo_id:
         return None
-    return {'platform_ref': f'huggingface:{hf_id}', 'hf_id': hf_id}
+    return {'platform_ref': hf_platform_ref(repo_id)}
 
 
 def identity_for_spec(spec: dict) -> Optional[dict]:
@@ -149,11 +150,15 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
         if ref.lower().startswith('hf.co/'):
             # Un GGUF du Hub tiré par Ollama (`spec_for_choice`, 2026-10-10) : il VIENT du dépôt
             # GGUF (`platform_ref`) et il EST, quantifié, le modèle canonique du candidat
-            # (`hf_id`, porté par le descripteur) — c'est par lui que le banc l'apparie, en borne
-            # haute comme tout GGUF (`benchmark_sync`, garde « local souvent Q4 »).
+            # (`base_model`, porté par le descripteur, relation `quantized` — le vocabulaire de la
+            # carte du Hub) — c'est par lui que le banc l'apparie, en borne haute comme tout GGUF
+            # (`benchmark_sync`, garde « local souvent Q4 »). Jusqu'au 2026-10-27 ce second fait
+            # vivait dans `hf_id`, que `platform_ref` répétait partout ailleurs.
             repo = ref[len('hf.co/'):].split(':', 1)[0]
-            return {'platform_ref': f'huggingface:{repo}',
-                    'hf_id': (spec.get('base_hf_id') or repo)}
+            base = (spec.get('base_model') or '').strip()
+            return {'platform_ref': hf_platform_ref(repo),
+                    **({'base_model': base, 'base_model_relation': 'quantized'}
+                       if base and base.lower() != repo.lower() else {})}
         return ollama_identity(ref)
     if kind == 'yolo':
         # Poids officiels ultralytics : le dépôt est connu (c'est l'URL que `pull_yolo_weights`
@@ -235,7 +240,7 @@ def set_identity(model_key: str, identity: dict, *, capabilities: dict = None,
     # un champ vide (défaut vécu le 2026-08-27 : 6 auteurs curés écrasés par un backfill).
     ident = manifest.setdefault('body', {}).setdefault('identity', {})
     posed = []
-    for field in ('license', 'author', 'platform_ref', 'hf_id'):
+    for field in ('license', 'author', 'platform_ref', 'base_model', 'base_model_relation'):
         value = (identity.get(field) or '').strip()
         if field == 'author' and ident.get('author'):
             continue
@@ -369,16 +374,17 @@ def record_after_install(spec: dict, appeared_keys, owner=None) -> dict:
     # pas ce que CETTE installation a installé. Trois installs HF concurrentes l'ont prouvé :
     # la première finie (Kokoro-ONNX) a synchronisé pendant que les deux autres téléchargeaient,
     # son sync a découvert LEURS snapshots partiels (added_keys = les 3), et elle a posé SON
-    # identité sur les trois lignes — corpus avec hf_id/author croisés. On ne pose l'identité
-    # que sur une ligne qui la revendique déjà (hf_id posé par la découverte) ou qui n'en a pas.
-    expected_hf = (identity.get('hf_id') or '').lower()
-    if expected_hf:
+    # identité sur les trois lignes — corpus avec dépôt/author croisés. On ne pose l'identité
+    # que sur une ligne qui la revendique déjà (`platform_ref` posé par la découverte) ou qui
+    # n'en a pas.
+    expected_ref = (identity.get('platform_ref') or '').lower()
+    if expected_ref:
         discarded = [c for c in targets
                     if (AIModel.objects.filter(model_key=c)
-                        .values_list('hf_id', flat=True).first() or '').lower()
-                    not in ('', expected_hf)]
+                        .values_list('platform_ref', flat=True).first() or '').lower()
+                    not in ('', expected_ref)]
         if discarded:
-            logger.info("[provenance] %d ligne(s) écartée(s) (hf_id étranger — install "
+            logger.info("[provenance] %d ligne(s) écartée(s) (dépôt étranger — install "
                         "concurrente probable) : %s", len(discarded), discarded)
             targets = [c for c in targets if c not in discarded]
 

@@ -565,9 +565,9 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 - **API publique** (52) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
-  - `pull_hf_model(hf_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
+  - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
   - `duplicate_weight_files(files) -> list` — Fichiers de poids à NE PAS tirer parce que leur jumeau `.safetensors` existe — même
-  - `format_duplicates(hf_id: str) -> list` — Les jumeaux de format d'un dépôt HF — un appel HTTP, la règle vient de
+  - `format_duplicates(repo_id: str) -> list` — Les jumeaux de format d'un dépôt HF — un appel HTTP, la règle vient de
   - `weight_for_spec(spec: dict)` — Poids en Go de ce qu'un descripteur d'installation va TIRER, ou None si indéterminable.
   - `components_of_files(files, *, composition=None, allow_patterns=None) -> dict` — Poids PAR COMPOSANT d'un inventaire de fichiers — dérivation PURE, aucun réseau.
   - `components_for_spec(spec: dict, *, files=None) -> dict` — Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
@@ -679,12 +679,13 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
   - `installed_weights_complete(snapshot_root) -> bool` — Un modèle installé porte-t-il des POIDS complets ? — LE jugement « téléchargé » (2026-09-28).
   - `safetensors_facts(path)` — `{'params': nombre de paramètres, 'dtypes': [...]}` lus dans l'EN-TÊTE seul d'un
   - `precision_of_files(revision, files_by_role) -> dict` — `{rôle: {'params', 'dtypes'}}` — la PRÉCISION de chaque composant, lue dans les en-têtes
-  - `remote_precision(hf_id: str, files_by_role) -> dict` — JUMEAU DISTANT de `precision_of_files`, même forme `{rôle: {params, dtypes,
-  - `quantized_variants(hf_id: str, limit: int=5) -> list[dict]` — Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
-  - `analyze_license(hf_id: str, license_id: str='', base_model=None, _profondeur: int=0)` — Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
+  - `remote_precision(repo_id: str, files_by_role) -> dict` — JUMEAU DISTANT de `precision_of_files`, même forme `{rôle: {params, dtypes,
+  - `quantized_variants(repo_id: str, limit: int=5) -> list[dict]` — Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
+  - `analyze_license(repo_id: str, license_id: str='', base_model=None, _profondeur: int=0)` — Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
   - `install_options(cand) -> dict` — Options d'installation EXPLICITES d'un candidat HF : poids pleins + variantes quantisées,
   - `needs_variant_choice(cand) -> bool` — Le candidat n'a-t-il AUCUN choix par défaut ? — vrai quand ses options ne portent pas de
   - `spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | None` — Le SPEC d'installation qui respecte le choix validé par l'utilisateur, ou None si le choix
+  - `catalogue_repos(rows) -> set` — Dépôts du Hub que des lignes de catalogue PORTENT, en minuscules : celui d'où viennent
   - `seed_hf_candidates(limit: int=12, min_downloads: int=1000, tasks=None) -> dict` — Candidats `is_proposed` depuis la bibliothèque HuggingFace — pendant HF de la découverte
   - `class HubRateLimited(Exception)` — Le Hub refuse encore (429) après l'attente qu'il demande : la passe s'arrête, et ce qu'elle
   - `seed_benchmark_candidates(per_category: int=BENCH_CANDIDATES_PER_CATEGORY, tasks=None, cache: str='read') -> dict` — Candidats `is_proposed` tirés des CLASSEMENTS (2026-10-10, demande de Fabien) : pour chaque
@@ -711,7 +712,7 @@ Identité chez l'éditeur (licence, auteur, plateforme, publications arXiv de la
 - **Domicile** : `wama/model_manager/services/provenance.py`
 - **Module** : Identité d'un modèle chez son éditeur — et pose de cette identité PAR LE MANIFESTE.
 - **API publique** (7) :
-  - `huggingface_identity(hf_id: str) -> Optional[dict]` — `{license, author, platform_ref, hf_id, gated}` lu sur la carte du dépôt, ou None si injoignable.
+  - `huggingface_identity(repo_id: str) -> Optional[dict]` — `{license, author, platform_ref, gated}` lu sur la carte du dépôt, ou None si injoignable.
   - `arxiv_ids(tags) -> list` — Les identifiants arXiv qu'une carte Hugging Face rattache au modèle, dans son ordre.
   - `ollama_identity(name: str) -> Optional[dict]` — Identité d'un modèle Ollama. La plateforme n'expose ni licence ni auteur exploitables par
   - `cloud_identity(item: dict) -> Optional[dict]` — Identité d'un modèle DISTANT : le dépôt HuggingFace que le fournisseur sert, quand il le
@@ -1959,7 +1960,7 @@ QUATRE leviers pour tenir la règle « modèle principal catégorisé, sous-dép
 - **Domicile** : `wama/common/utils/hf_weights.py` · **doc** : [docs/construction/suivi/ROADMAP.md](../construction/suivi/ROADMAP.md)
 - **Module** : Poids d'un modèle rangés dans SON dossier — pour les libs qui n'acceptent pas `cache_dir=`.
 - **API publique** (1) :
-  - `poids_locaux(hf_id: str, dossier: str | Path, *, patterns: Optional[Sequence[str]]=None, token: Optional[str]=None, revision: Optional[str]=None) -> str` — Chemin LOCAL des poids de `hf_id`, garantis présents sous `dossier`.
+  - `poids_locaux(repo_id: str, dossier: str | Path, *, patterns: Optional[Sequence[str]]=None, token: Optional[str]=None, revision: Optional[str]=None) -> str` — Chemin LOCAL des poids de `repo_id`, garantis présents sous `dossier`.
 
 ### Réglages de sortie (formats, agrandissement)
 
@@ -2007,9 +2008,10 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
   - `route_for_nature(package: str, nature: str, routes: dict=None)` — La porte par NATURE d'entrée : le callable que les `ROUTES` d'une app déclarent pour
   - `invalidate_catalog_index() -> None` — Le prochain `catalog_keys_for_owner` relit le catalogue (après une synchro, un test).
   - `prime_catalog_index() -> int` — Remplit l'index du catalogue (et, par lui, importe les modules de backends) — rend le
-  - `match_local_name(rows, name: str) -> list` — Clés, parmi les lignes `(clé, hf_id)` d'une classe, que désigne le nom local `name`.
+  - `match_local_name(rows, name: str) -> list` — Clés, parmi les lignes `(clé, dépôt)` d'une classe, que désigne le nom local `name`.
   - `catalog_keys_for_owner(owner: str) -> list` — Clés catalogue désignées par une clé d'owner du registre VRAM — [] si rien ne se résout.
   - `backend_missing(model) -> Optional[str]` — Raison si `model` est POSITIVEMENT sans backend, sinon None.
+  - `generic_scan_sources() -> frozenset` — Les sources des lignes « catalogué ≠ utilisable » : les familles « catalogue » et « poids » du
   - `class BackendManager` — Registre + cycle de vie de backends `BaseModelBackend` (singletons keep_loaded).
 
 ### Vivier des backends (registre DÉRIVÉ)
@@ -3258,7 +3260,7 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 
 ### Sources externes
 
-Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur. Depuis le 2026-10-07 (décision de Fabien), la clé d'INSTANCE se pose par un admin sur la page « Sources externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ de saisie est UNE brique (`WamaKeyField`) pour le profil et la page. Une clé FACULTATIVE (`api_key_optional`, 2026-10-12 : le jeton de `github_api`) relève un quota sans rendre la source « non configurée » quand elle manque. Une PLATEFORME de modèles déclare la fiche d'un modèle (`model_page`, 2026-10-22) : `model_platforms()` est le vocabulaire de `AIModel.platform_ref`, `model_page_url()` en rend la page (lien de card, validation du manifeste `model`) ; un fournisseur distant se DIT par `remote_origin_label` — hébergement · fournisseur · coût — partout où il est nommé
+Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur. Depuis le 2026-10-07 (décision de Fabien), la clé d'INSTANCE se pose par un admin sur la page « Sources externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ de saisie est UNE brique (`WamaKeyField`) pour le profil et la page. Une clé FACULTATIVE (`api_key_optional`, 2026-10-12 : le jeton de `github_api`) relève un quota sans rendre la source « non configurée » quand elle manque. Une PLATEFORME de modèles déclare la fiche d'un modèle (`model_page`, 2026-10-22) : `model_platforms()` est le vocabulaire de `AIModel.platform_ref`, `model_page_url()` en rend la page (lien de card, validation du manifeste `model`), `hf_repo()` en tire le dépôt du Hub — la seule lecture du dépôt d'un modèle depuis le 2026-10-27 (`hf_id` ne se lit plus) ; un fournisseur distant se DIT par `remote_origin_label` — hébergement · fournisseur · coût — partout où il est nommé
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
@@ -3274,6 +3276,8 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
   - `by_key() -> dict[str, ExternalSource]`
   - `model_platforms() -> dict[str, ExternalSource]` — Les PLATEFORMES de modèles, par préfixe de `AIModel.platform_ref` — les sources qui déclarent
   - `model_page_url(platform_ref: str) -> str | None` — L'adresse de la fiche publique d'un modèle, DÉRIVÉE de son `platform_ref`
+  - `hf_repo(platform_ref) -> str` — Le dépôt du Hub (`org/nom`) qu'un `platform_ref` désigne, '' pour une autre plateforme.
+  - `hf_platform_ref(repo) -> str` — Le `platform_ref` d'un dépôt du Hub (`org/nom` → `huggingface:org/nom`), '' sans dépôt.
   - `serves_many_tasks(key: str) -> bool` — La source `key` sert-elle des modèles de plusieurs tâches sous un même moteur, hors du
   - `llm_engine_inventory() -> dict` — {moteur: porteur} des fournisseurs LLM distants — un par source `llm` (2026-09-15).
   - `get(key: str) -> ExternalSource` — La source déclarée. `KeyError` explicite : une clé inconnue est un défaut de code.

@@ -754,13 +754,18 @@ def load(self, ...):
 MON_APP_MODELS = {
     'mon-modele': {
         'model_id': 'mon-modele',
-        'hf_id': 'org/model-name',
+        'platform_ref': 'huggingface:org/model-name',
         'type': 'image|video|speech|...',
         'vram_gb': X,
         'description': '...',
     }
 }
 ```
+> La provenance se déclare par `platform_ref` (`<plateforme>:<identifiant>`, la même clé pour le
+> Hub, GitHub, Ollama…) ; le moteur en tire le dépôt du Hub par `external_sources.hf_repo`. Cette
+> ligne prescrivait `hf_id` jusqu'au 2026-10-27 — le même fait sous un second nom, et un troisième
+> chez le transcriber et le reader (`hf_model_id`) : décision de Fabien, « ne garder que
+> `platform_ref` ».
 
 #### 5. `wama/model_manager/services/model_registry.py` — Mettre à jour la découverte
 Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondante.

@@ -93,7 +93,7 @@ def write_candidate(cand_key, *, nom, model_type, description, kind, confidence,
     Writer UNIQUE, toutes sources (généralisé le 2026-08-18 pour la prospection
     génération HF — `prospector.seed_hf_candidates`) : c'est lui qui porte la
     garde de préservation des évaluations LLM, elle doit valoir partout.
-    `champs` : colonnes additionnelles (hf_id, license, platform_ref, disk_gb…).
+    `champs` : colonnes additionnelles (license, platform_ref, disk_gb…).
     """
     from wama.model_manager.models import AIModel
     defaults = dict(
@@ -101,7 +101,7 @@ def write_candidate(cand_key, *, nom, model_type, description, kind, confidence,
         description=description, is_proposed=True, proposal_kind=kind,
         confidence=confidence,
         update_complexity=complexite,    # ollama pull / snapshot HF : install en place
-        is_downloaded=False, is_loaded=False, is_available=False, hf_id='',
+        is_downloaded=False, is_loaded=False, is_available=False,
         extra_info={'prospect': extra},
     )
     defaults.update(champs)

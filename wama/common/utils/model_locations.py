@@ -126,10 +126,10 @@ def declared_component_repos() -> set:
     repos = set()
     try:
         from wama.model_manager.models import AIModel
-        for m in AIModel.objects.exclude(composition={}).only('hf_id', 'composition'):
+        for m in AIModel.objects.exclude(composition={}).only('platform_ref', 'composition'):
             for c in ((m.composition or {}).get('components') or []):
                 repo = (c or {}).get('repo') if isinstance(c, dict) else None
-                if repo and not c.get('pattern') and repo != m.hf_id:
+                if repo and not c.get('pattern') and repo != m.hf_repo:
                     repos.add(repo)
     except Exception as e:
         logger.debug('[model_locations] composants non relevés : %s', e)
@@ -137,15 +137,15 @@ def declared_component_repos() -> set:
 
 
 # =============================================================================
-# OÙ SONT LES POIDS D'UN `hf_id` INSTALLÉ — l'index qu'aucune ligne d'app ne porte
+# OÙ SONT LES POIDS D'UN DÉPÔT DU HUB INSTALLÉ — l'index qu'aucune ligne d'app ne porte
 # =============================================================================
 
-def hf_folder_name(hf_id: str) -> str:
+def hf_folder_name(repo_id: str) -> str:
     """`org/nom` → `models--org--nom` (convention huggingface_hub : `repo_id.replace('/', '--')`)."""
-    return 'models--' + str(hf_id or '').strip().replace('/', '--')
+    return 'models--' + str(repo_id or '').strip().replace('/', '--')
 
 
-def hf_id_of_folder(name: str):
+def hf_repo_of_folder(name: str):
     """`models--org--nom` → `org/nom`, ou None si ce n'est pas un dossier de dépôt HF. Le
     séparateur est le DOUBLE tiret : les tirets simples d'un nom restent intacts (règle de
     `_snapshot_to_model`)."""
@@ -166,7 +166,7 @@ def github_folder_name(repo: str) -> str:
 
 
 def github_repo_of_folder(name: str):
-    """`github--owner--repo` → `owner/repo`, ou None. Même lecture que `hf_id_of_folder` : le
+    """`github--owner--repo` → `owner/repo`, ou None. Même lecture que `hf_repo_of_folder` : le
     séparateur est le DOUBLE tiret (GitHub refuse deux tirets consécutifs dans un nom de compte ;
     un nom de dépôt qui en porte les garde, comme un nom HF)."""
     if not str(name).startswith(GITHUB_FOLDER_PREFIX):
@@ -176,28 +176,28 @@ def github_repo_of_folder(name: str):
 
 
 def installed_snapshots() -> dict:
-    """`hf_id` (minuscules) → racine `models--org--nom` INSTALLÉE, en UN parcours (2026-09-19).
+    """Dépôt du Hub (minuscules) → racine `models--org--nom` INSTALLÉE, en UN parcours (2026-09-19).
 
     POURQUOI. Une ligne de catalogue ne porte pas son snapshot : seul le composer déclare
     `extra_info['install_dir']`, l'imager retrouve le sien dans sa propre découverte, le balayage
     générique pose `local_path`. Pour PESER les poids d'un modèle installé (décision A — le poids
-    par composant lu dans les fichiers), il faut relier un `hf_id` à son dossier sans redemander
+    par composant lu dans les fichiers), il faut relier un dépôt à son dossier sans redemander
     à chaque app : c'est cet index. Même parcours que `_discover_installed_hf_snapshots`
     (`<catégorie>/<famille>/models--*` sous `models_root()`), puis le cache HF PARTAGÉ en repli
     (là où les sous-dépendances vivent — et où un modèle atterrit quand un backend oublie
     `cache_dir=`). Le chemin canonique PRIME sur le cache partagé. Seul un dossier qui porte
     `snapshots/` compte : un `models--` sans révision n'est pas un modèle installé.
 
-    ⚠ L'index ne DEVINE pas : un `hf_id` déclaré qui n'est pas le dépôt sur disque (transcriber
+    ⚠ L'index ne DEVINE pas : un dépôt déclaré qui n'est pas celui sur disque (transcriber
     déclare `openai/whisper-large-v3`, le disque porte `Systran/faster-whisper-large-v3`) reste
     sans entrée. Hors Django / disque absent : dict vide.
     """
     index = {}
 
     def _take(snap: Path):
-        hf_id = hf_id_of_folder(snap.name)
-        if hf_id and snap.is_dir() and (snap / 'snapshots').is_dir():
-            index.setdefault(hf_id.lower(), snap)
+        repo_id = hf_repo_of_folder(snap.name)
+        if repo_id and snap.is_dir() and (snap / 'snapshots').is_dir():
+            index.setdefault(repo_id.lower(), snap)
 
     try:
         root = models_root()

@@ -31,7 +31,7 @@ class PublicationsThroughTheManifestTest(TestCase):
     def setUp(self):
         self.row = AIModel.objects.create(
             model_key='huggingface:lightonai/LightOnOCR-3-1B', name='LightOnOCR-3-1B',
-            model_type='ocr', source='huggingface', hf_id='lightonai/LightOnOCR-3-1B',
+            model_type='ocr', source='huggingface', platform_ref='huggingface:lightonai/LightOnOCR-3-1B',
             extra_info={'weights': {'total_gb': 2.0}})
 
     def test_set_identity_projects_the_publications_and_keeps_the_rest_of_extra_info(self):
@@ -69,8 +69,7 @@ class AppModelsTest(TestCase):
 
     def setUp(self):
         AIModel.objects.create(model_key='reader:lighton', name='LightOnOCR', model_type='ocr',
-                               source='reader', hf_id='lightonai/LightOnOCR-3-1B',
-                               platform_ref='huggingface:lightonai/LightOnOCR-3-1B',
+                               source='reader', platform_ref='huggingface:lightonai/LightOnOCR-3-1B',
                                extra_info={'publications': ['2601.14251']})
         AIModel.objects.create(model_key='reader:doctr', name='docTR', model_type='ocr',
                                source='reader')

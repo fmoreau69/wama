@@ -101,12 +101,12 @@ class DesignatedRepoOutsideTheSweepTest(TestCase):
         from wama.model_manager.models import AIModel
         AIModel.objects.create(model_key='ollama:hf.co/x/LightOnOCR-3-4B-GGUF:Q6_K', name='q6',
                                model_type='ocr', source='ollama', is_downloaded=False,
-                               hf_id='lightonai/LightOnOCR-3-4B',
+                               platform_ref='huggingface:lightonai/LightOnOCR-3-4B',
                                extra_info={'uninstalled_at': '2026-10-11T01:41:46'})
         repo = _vlm('lightonai/LightOnOCR-3-4B', ['ocr'])
         res, written, _ = self._search('lightonai/LightOnOCR-3-4B', [repo], info=repo)
         self.assertEqual(['proposed:hf:lightonai/LightOnOCR-3-4B'], written)
-        AIModel.objects.filter(hf_id='lightonai/LightOnOCR-3-4B').update(is_downloaded=True)
+        AIModel.objects.filter(platform_ref='huggingface:lightonai/LightOnOCR-3-4B').update(is_downloaded=True)
         res, written, _ = self._search('lightonai/LightOnOCR-3-4B', [repo], info=repo)
         self.assertEqual([], written)
         self.assertEqual(1, res['already'])

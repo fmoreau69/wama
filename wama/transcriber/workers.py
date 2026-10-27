@@ -1263,7 +1263,7 @@ def _align_document(t: Transcript, ctx=None) -> dict:
     if aligner_class is None:
         raise RuntimeError(f"aucun moteur installé ne sert {model.name}")
     aligner = aligner_class()
-    if not aligner.load(model.hf_id):
+    if not aligner.load(model.hf_repo):
         raise RuntimeError(f"{model.name} indisponible")
     try:
         def align_window(start, end, words):

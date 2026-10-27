@@ -403,7 +403,7 @@ def invalidate_catalog_index() -> None:
 
 
 def _catalog_index() -> dict:
-    """{`module.Classe`: [(clé, hf_id)]} — mémoïsé une minute : le catalogue ne bouge qu'à la
+    """{`module.Classe`: [(clé, dépôt du Hub)]} — mémoïsé une minute : le catalogue ne bouge qu'à la
     synchro, et les lecteurs de résidence (sélecteur, model_manager) l'interrogent souvent."""
     import time
     now = time.monotonic()
@@ -414,11 +414,11 @@ def _catalog_index() -> dict:
     from wama.common.services.backend_inventory import resolvable_entries
     entries = resolvable_entries()
     index: dict = {}
-    for ligne in AIModel.objects.only('model_key', 'hf_id', 'composition'):
+    for ligne in AIModel.objects.only('model_key', 'platform_ref', 'composition'):
         classe = backend_for_model(ligne, entries)
         if classe is not None:
             index.setdefault(f"{classe.__module__}.{classe.__name__}", []).append(
-                (ligne.model_key, ligne.hf_id or ''))
+                (ligne.model_key, ligne.hf_repo))
     _CATALOG_INDEX['index'] = (now, index)
     return index
 
@@ -431,12 +431,12 @@ def prime_catalog_index() -> int:
 
 
 def match_local_name(rows, name: str) -> list:
-    """Clés, parmi les lignes `(clé, hf_id)` d'une classe, que désigne le nom local `name`.
+    """Clés, parmi les lignes `(clé, dépôt)` d'une classe, que désigne le nom local `name`.
 
     La première règle qui trouve l'emporte :
-      1. égalité avec la clé, l'identifiant (après la source), le dernier segment ou le `hf_id`
+      1. égalité avec la clé, l'identifiant (après la source), le dernier segment ou le dépôt
          (`yolov8n.pt` → `anonymizer:yolo:yolov8n.pt` ; `Qwen/Qwen3-ASR-1.7B`) ;
-      2. dernier composant du `hf_id` égal au nom, ou finissant par `-<nom>` (Whisper :
+      2. dernier composant du dépôt égal au nom, ou finissant par `-<nom>` (Whisper :
          `large-v3` → `openai/whisper-large-v3`, `base` → `openai/whisper-base`) ;
       3. la classe n'exécute qu'UN modèle du catalogue → c'est lui (Kokoro-onnx, Audio8…).
     Sinon [] : entre plusieurs modèles, on ne devine pas. Un nom qui en désigne plusieurs les
@@ -517,11 +517,11 @@ def backend_missing(model) -> Optional[str]:
     # lancement. *Une permissivité justifiée par un compte se remesure quand le compte change.*
     #
     # Le critère est la SOURCE, pas `backend_ref` (qui n'atteste qu'une appartenance — cf. plus
-    # haut) : seule une ligne du BALAYAGE GÉNÉRIQUE (`GENERIC_SCAN_SOURCES`) n'a, sans moteur,
+    # haut) : seule une ligne du BALAYAGE GÉNÉRIQUE (`generic_scan_sources`) n'a, sans moteur,
     # aucune route. Une ligne d'app est routée par le gestionnaire de son app ; une ligne Ollama
     # a son moteur par nature ; un candidat n'est pas proposé à l'exécution ; un distant est
     # exécuté par son fournisseur.
-    if (getattr(model, 'source', '') not in GENERIC_SCAN_SOURCES
+    if (getattr(model, 'source', '') not in generic_scan_sources()
             or getattr(model, 'is_proposed', False)
             or getattr(model, 'execution', '') == 'cloud'):
         return None
@@ -579,7 +579,13 @@ _CONTRACT_VERDICT_CACHE: dict = {}
 #: qui exécutent elles-mêmes (Ollama, fournisseurs distants).
 #: `github` (2026-10-07) : une version GitHub installée est cataloguée par la même passe que les
 #: snapshots HF (`_github_release_to_model`) — même statut, « catalogué ≠ utilisable ».
-GENERIC_SCAN_SOURCES = ('huggingface', 'github', 'custom')
+def generic_scan_sources() -> frozenset:
+    """Les sources des lignes « catalogué ≠ utilisable » : les familles « catalogue » et « poids » du
+    registre des sources (Hugging Face, GitHub, les serveurs de poids officiels). DÉRIVÉES depuis le
+    2026-10-27, au lieu d'une liste écrite ici qui portait `custom` et aurait dû apprendre chaque
+    serveur de poids un par un."""
+    from wama.common.external_sources import SOURCES
+    return frozenset(s.key for s in SOURCES if s.kind in ('catalogue', 'poids'))
 
 
 class BackendManager:

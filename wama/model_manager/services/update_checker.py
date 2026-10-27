@@ -5,7 +5,7 @@ Deux signaux, via les API OFFICIELLES uniquement :
   • Ollama : API LOCALE `/api/tags` → date d'installation (`modified_at`) → heuristique d'âge
              (`review_candidate`). La vraie comparaison de version distante est DÉLÉGUÉE à la
              couche prospection (agents), pas à du scraping du registre Ollama.
-  • HF     : `huggingface_hub.HfApi().model_info(hf_id).last_modified` comparé au mtime local
+  • HF     : `huggingface_hub.HfApi().model_info(<dépôt>).last_modified` comparé au mtime local
              → `update_available` si l'amont est plus récent que les fichiers téléchargés.
 
 Produit un rapport. Persiste optionnellement les drapeaux dans `AIModel.extra_info['update_check']`
@@ -17,6 +17,8 @@ import logging
 import os
 import re
 from datetime import datetime, timezone
+
+from wama.common.external_sources import HUGGINGFACE
 
 logger = logging.getLogger(__name__)
 
@@ -132,17 +134,18 @@ def check_updates(age_days_threshold=120, hf_grace_days=7, do_hf=True):
         except Exception as e:
             logger.info(f"[update_checker] huggingface_hub indisponible: {e}")
         if api is not None:
-            qs = AIModel.objects.exclude(source='ollama').filter(is_downloaded=True).exclude(hf_id='')
+            qs = AIModel.objects.exclude(source='ollama').filter(
+                is_downloaded=True, platform_ref__startswith=f'{HUGGINGFACE}:')
             for m in qs:
                 local_dt = _local_mtime(m.local_path)
                 remote_dt = None
                 try:
-                    info = api.model_info(m.hf_id, timeout=8)
+                    info = api.model_info(m.hf_repo, timeout=8)
                     remote_dt = getattr(info, 'last_modified', None)
                     if remote_dt and remote_dt.tzinfo is None:
                         remote_dt = remote_dt.replace(tzinfo=timezone.utc)
                 except Exception as e:
-                    logger.debug(f"[update_checker] HF model_info {m.hf_id}: {e}")
+                    logger.debug(f"[update_checker] HF model_info {m.hf_repo}: {e}")
                 upd, reason = None, ''
                 if remote_dt and local_dt:
                     delta = (remote_dt - local_dt).days
@@ -155,7 +158,7 @@ def check_updates(age_days_threshold=120, hf_grace_days=7, do_hf=True):
                 results.append({
                     'model_key': m.model_key,
                     'source': m.source,
-                    'hf_id': m.hf_id,
+                    'platform_ref': m.platform_ref,
                     'local_mtime': local_dt.isoformat() if local_dt else None,
                     'remote_last_modified': remote_dt.isoformat() if remote_dt else None,
                     'update_available': upd,

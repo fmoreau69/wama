@@ -105,7 +105,7 @@ class UninstallForgetsInCorpusTest(TestCase):
             root = Path(tmp)
             family = root / 'models' / 'ocr' / 'Fam'
             family.mkdir(parents=True)
-            _row('huggingface:Org/Gone', hf_id='Org/Gone',
+            _row('huggingface:Org/Gone', platform_ref='huggingface:Org/Gone',
                  local_path=str(family / 'models--Org--Gone'))
             with override_settings(AI_MODELS_DIR=root), mock.patch(
                     'wama.model_manager.services.model_installer.forget_in_corpus') as forget:

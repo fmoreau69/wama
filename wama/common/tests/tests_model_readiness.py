@@ -194,10 +194,10 @@ class AnAdapterBringsItsBackboneTest(TestCase):
     def setUp(self):
         from unittest import mock
         from wama.model_manager.models import AIModel
-        self.base = AIModel.objects.create(model_key='imager:test-base', name='Base', hf_id='Org/Base',
+        self.base = AIModel.objects.create(model_key='imager:test-base', name='Base', platform_ref='huggingface:Org/Base',
                                            model_type='image', source='imager', is_downloaded=False)
         self.lora = AIModel.objects.create(
-            model_key='imager:test-lora', name='Lora', hf_id='Org/Lora', model_type='image',
+            model_key='imager:test-lora', name='Lora', platform_ref='huggingface:Org/Lora', model_type='image',
             source='imager', is_downloaded=True,
             extra_info={'base_model': 'Org/Base', 'model_type': 'lora'})
         for target, value in (('wama.model_manager.services.model_installer.spec_for_catalog_row',
@@ -233,7 +233,7 @@ class AnAdapterBringsItsBackboneTest(TestCase):
         self.assertEqual((True, ['imager:test-lora']), self._ensure('imager:test-lora'))
 
     def test_a_base_model_does_not_ask_for_itself(self):
-        """`flux-1-dev` declares `base_model` = its OWN hf_id : not an adapter."""
+        """`flux-1-dev` declares `base_model` = its OWN repository : not an adapter."""
         type(self.base).objects.filter(pk=self.base.pk).update(
             is_downloaded=True, extra_info={'base_model': 'Org/Base', 'model_type': 'base'})
         self.assertEqual((False, []), self._ensure('imager:test-base'))

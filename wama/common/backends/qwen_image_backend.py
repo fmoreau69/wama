@@ -29,6 +29,8 @@ from typing import Callable, List, Optional
 
 from .image_generation_base import GenerationResult, ImageGenerationBackend
 
+from wama.common.external_sources import hf_repo
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -65,7 +67,7 @@ def _get_cache_dir() -> str:
 SUPPORTED_MODELS = {
     "qwen-image-2": {
         "name": "Qwen Image 2",
-        "hf_id": "Qwen/Qwen-Image-2512",
+        "platform_ref": "huggingface:Qwen/Qwen-Image-2512",
         "description": "Text-to-Image 2K — 16 GB VRAM — #1 open-source (AI Arena)",
         "type": "t2i",
         "vram": "16GB",
@@ -76,7 +78,7 @@ SUPPORTED_MODELS = {
     },
     "qwen-image-edit": {
         "name": "Qwen Image Edit",
-        "hf_id": "Qwen/Qwen-Image-Edit-2511",
+        "platform_ref": "huggingface:Qwen/Qwen-Image-Edit-2511",
         "description": "Image Editing 2K — 12 GB VRAM — multi-image, character consistency",
         "type": "edit",
         "vram": "12GB",
@@ -189,9 +191,9 @@ class QwenImageBackend(ImageGenerationBackend):
             if self._pipe is not None:
                 self.unload()
 
-            hf_id = SUPPORTED_MODELS[model_name]["hf_id"]
+            repo_id = hf_repo(SUPPORTED_MODELS[model_name]["platform_ref"])
             model_type = SUPPORTED_MODELS[model_name]["type"]
-            logger.info(f"[QwenImage] Loading '{model_name}' ({model_type}) from '{hf_id}'")
+            logger.info(f"[QwenImage] Loading '{model_name}' ({model_type}) from '{repo_id}'")
             logger.info(f"[QwenImage] Cache dir: {self._cache_dir}")
 
             # Free VRAM
@@ -230,7 +232,7 @@ class QwenImageBackend(ImageGenerationBackend):
                 )
                 try:
                     self._pipe = PipelineClass.from_pretrained(
-                        hf_id,
+                        repo_id,
                         torch_dtype=torch.bfloat16,
                         cache_dir=self._cache_dir,
                         device_map="auto",
@@ -251,7 +253,7 @@ class QwenImageBackend(ImageGenerationBackend):
                 # Falls back to enable_model_cpu_offload() if VRAM is insufficient.
                 logger.info("[QwenImage] Loading pipeline to CPU first…")
                 self._pipe = PipelineClass.from_pretrained(
-                    hf_id,
+                    repo_id,
                     torch_dtype=torch.bfloat16,
                     cache_dir=self._cache_dir,
                 )

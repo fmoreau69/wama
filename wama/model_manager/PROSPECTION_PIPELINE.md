@@ -2623,7 +2623,8 @@ variante GGUF d'une proposition Hugging Face téléchargeait le fichier seul (`a
 rien ne le lisait.
 
 - **`prospector.spec_for_choice`.** Un fichier `.gguf` dont la tâche est servie par un backend au
-  moteur `ollama` devient `{'kind': 'ollama', 'ref': 'hf.co/<dépôt>:<quant>', 'task', 'base_hf_id'}`.
+  moteur `ollama` devient `{'kind': 'ollama', 'ref': 'hf.co/<dépôt>:<quant>', 'task', 'base_model'}`
+  (clé `base_hf_id` jusqu'au 2026-10-27, renommée au vocabulaire de la carte du Hub).
   - La tâche se résout par `backend_for_engine('ollama', '', task=…)`, la résolution commune, et non
     par une liste tenue dans le prospecteur.
   - La quantification est lue dans le nom du fichier (`_gguf_quant`, convention llama.cpp). Un dépôt
@@ -2636,7 +2637,9 @@ rien ne le lisait.
   La provenance transporte la tâche et le modèle canonique.
 - **`provenance.identity_for_spec`**, pour une référence `hf.co/…`, rend :
   - `platform_ref` = le dépôt GGUF, d'où le modèle vient ;
-  - `hf_id` = le modèle canonique, c'est-à-dire ce qu'il est, par lequel le banc l'apparie.
+  - ~~`hf_id`~~ **`base_model` + `base_model_relation: quantized`** (depuis le 2026-10-27) = le
+    modèle canonique, c'est-à-dire ce qu'il est, par lequel le banc l'apparie — lu par
+    `AIModel.quantized_base` ; voir §« Session du 2026-10-27 ».
 - **`FAMILLES_OLLAMA`** déclare `paddleocr-vl`, `chandra-ocr`, `lightonocr` et `dots.mocr` (tâche
   `ocr`, réglage langue). La famille se lit sur le **nom du dépôt** (`_ollama_family`), parce que le
   publieur d'une quantification ne dit rien du modèle. Un GGUF non déclaré reste un modèle de chat,
@@ -3317,3 +3320,49 @@ Sources : [P-MUSE](https://arxiv.org/abs/2608.01920) ·
 [Muse](https://arxiv.org/abs/2601.03973) · [MIDI-GPT](https://arxiv.org/abs/2501.17011) ·
 [AirLLM](https://github.com/lyogavin/airllm) ·
 [AirLLM, vitesse réelle](https://runaihome.com/blog/airllm-70b-4gb-vram-inference-guide-2026/).
+
+## Session du 2026-10-27 : `platform_ref` seul — `hf_id` n'est plus lu, le canonique d'un GGUF a son nom
+
+Décision de Fabien : *« si `hf_id` est un résidu historique, il faut aligner et ne garder que
+`platform_ref` »* (étapes 1 à 3 maintenant, la 4ᵉ avec les manifestes).
+
+**Mesuré avant d'écrire** (818 lignes du catalogue) : 397 portaient la même valeur des deux côtés,
+aucune ne portait `hf_id` sans `platform_ref`, une seule différait — un GGUF du Hub tiré par Ollama
+(`ollama:hf.co/mradermacher/LightOnOCR-3-4B-i1-GGUF:Q6_K`), où `hf_id` disait le modèle qu'il EST et
+`platform_ref` le dépôt de ses poids. Dans les déclarations, le même fait vivait sous **trois
+noms** : `hf_id` (imager, synthesizer, composer, avatarizer, anonymizer et les tables des moteurs),
+`hf_model_id` (transcriber, reader) et `model_id` (describer).
+
+1. **Un accesseur** : `external_sources.hf_repo(platform_ref)` / `hf_platform_ref(dépôt)`, et
+   `AIModel.hf_repo`, `ModelInfo.hf_repo`. Relevé avant : 266 sites structurels (142 clés `'hf_id'`,
+   69 filtres, 55 lectures d'attribut) ; les lecteurs (prospection, installation, banc, synchro,
+   gouverneur, moteurs, outils de l'assistant, commandes, wama-dev-ai) passent par lui, les filtres
+   `hf_id=` deviennent `platform_ref=hf_platform_ref(…)`.
+2. **Le canonique d'un GGUF** prend le vocabulaire de la carte du Hub : `base_model` +
+   `base_model_relation: quantized`, dans `extra_info` (clé collante PAR PAIRE, projetée par le
+   manifeste comme les publications), lu par `AIModel.quantized_base` — par le banc
+   (`_local_repos`, `_local_identities`) et par « déjà chez nous » (`prospector.catalogue_repos`,
+   une règle pour les deux lectures qui recopiaient la même union). Une quantification n'a pas de
+   dorsale (`memory_manager.backbone_row`, `rows_depending_on`) : le `base_model` d'une LoRA reste la
+   sienne, sans relation. La clé de descripteur `base_hf_id` devient `base_model`.
+3. **Les déclarations** disent `platform_ref` (`huggingface:org/nom`), checklist d'`AGENTS.md` §4
+   comprise ; `ModelInfo.hf_id` devient `ModelInfo.platform_ref`, et la synchro écrit `platform_ref`
+   quand la découverte le dit (jamais effacé par son silence). Les paramètres qui tiennent un dépôt
+   s'appellent `repo_id`, le vocabulaire de `huggingface_hub` (`HF_ID` → `HF_REPO` dans trois
+   moteurs). Les variantes quantisées d'un candidat sont clées `repo_id`.
+
+Migration `model_manager/0029` (données, réversible) : la paire `base_model` posée sur le GGUF, la
+clé des variantes de 62 candidats. ⚠ À appliquer AVEC la relance du parc (le code d'avant lit
+`quant_variants[*]['hf_id']`).
+
+⏳ **Reste, avec la session des manifestes** : `identity.hf_id` (624 occurrences au corpus), son
+extraction et sa projection, ses producteurs (scout, `model_manifest`), la copie
+`extra_info['hf_id']` de 10 modèles, puis la colonne. Mesuré et figé par AST :
+`tests_platform_ref_only.HF_ID_BUDGET` (15 sites dans 6 fichiers, budget qui ne peut que
+descendre). Doctrine : `WAMA_MANIFEST_SPEC §7.1 bis`.
+
+**Même jour — `custom` rangé** (Fabien : « il faut corriger le rangement ») : LPIPS et les gestes de
+la main, modèles de briques communes, passent sous la source de leurs fichiers déclarés
+(`pytorch_download:lpips-alexnet`, `mediapipe_models:gesture-recognizer`), le patron de YOLOPv2 ;
+`custom` sort du vocabulaire, et les sources du balayage générique se dérivent du registre
+(`generic_scan_sources`). Migration `model_manager/0030`, R180.

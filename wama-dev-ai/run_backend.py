@@ -118,7 +118,7 @@ def neighbours(engine: str, contract: tuple, task: str = '', limit: int = 2) -> 
 VENDOR_CHARS = 14000
 
 
-def vendor_material(engine: str, hf_id: str) -> str:
+def vendor_material(engine: str, repo_id: str) -> str:
     """La recette d'un moteur VENDORISÉ (route library, voie vendor) : le fichier qui charge le
     modèle par défaut (`from_pretrained`) et l'usage du README du clone. Sans elle, le rôle ne
     voyait que le snapshot des POIDS — et devait inventer l'API du moteur (2026-10-01, YuE2)."""
@@ -147,12 +147,12 @@ def vendor_material(engine: str, hf_id: str) -> str:
                 "(`torch.cuda.set_per_process_memory_fraction`) : la rendre par "
                 "`torch.cuda.set_per_process_memory_fraction(1.0)` dans unload()."
                 if _vendored_code_caps_process_vram(engine) else '')]
-    if vendor_loader_defaults(root, hf_id):
+    if vendor_loader_defaults(root, repo_id):
         for path in sorted(root.rglob('*.py')):
             if 'tests' in path.parts:
                 continue
             text = _read(path, VENDOR_CHARS)
-            if 'def from_pretrained' in text and hf_id in text:
+            if 'def from_pretrained' in text and repo_id in text:
                 parts.append(f'===== CODE VENDORISÉ : {path.relative_to(root)} =====\n{text}')
                 break
     readme = root / 'README.md'
@@ -220,7 +220,7 @@ def main():
           f'{contract[1]} | module {module} | voisins {[p.name for p in near]}')
 
     material = model_material(row)
-    vendored = vendor_material(engine, row.hf_id or '')
+    vendored = vendor_material(engine, row.hf_repo)
     if vendored:
         print(f'[backend] moteur VENDORISÉ : {len(vendored)} caractères de code/README du clone')
     user_msg = '\n\n'.join([

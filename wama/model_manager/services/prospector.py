@@ -15,6 +15,8 @@ import os
 import re
 from functools import lru_cache
 
+from wama.common.external_sources import HUGGINGFACE, hf_platform_ref, hf_repo
+
 logger = logging.getLogger(__name__)
 
 # Tâche HuggingFace par défaut pour chaque app WAMA (point de départ de la prospection).
@@ -205,12 +207,12 @@ def _metrique_declaree(card_data):
     return None
 
 
-def _sans_suffixe_date(hf_id: str) -> str:
+def _sans_suffixe_date(repo_id: str) -> str:
     """`qwen/qwen-image-edit-2511` → `qwen/qwen-image-edit` : le suffixe `-AAMM` (4 chiffres,
     mois plausible) que Qwen, Kimi… accolent à leurs versions. Un nombre qui n'est pas un
     mois (`-1024`, `-7000`) ou une taille (`-8b`) reste en place."""
     import re
-    return re.sub(r'-(2[3-9])(0[1-9]|1[0-2])$', '', (hf_id or '').lower())
+    return re.sub(r'-(2[3-9])(0[1-9]|1[0-2])$', '', (repo_id or '').lower())
 
 
 def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_downloads: int = 0,
@@ -231,16 +233,11 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
 
     from wama.common.external_sources import model_page_url
     from wama.model_manager.models import AIModel
-    # « Déjà chez nous » s'indexe sur les DEUX identités de plateforme, pas sur `hf_id` seul :
-    # les modèles découverts par scan disque n'ont pas de `hf_id`, mais peuvent porter un
-    # `platform_ref` posé par la provenance vérifiée (backfill_platform_refs / manifeste).
-    # Sans ça, morsetechlab/yolov11-license-plate-detection ressortait « ★ NOUVEAU » alors que
-    # ses 5 fichiers sont installés — la veille proposait de télécharger l'existant (2026-08-12).
-    have = {(m.hf_id or '').lower() for m in AIModel.objects.exclude(hf_id='')}
-    have |= {ref.partition(':')[2].lower()
-             for ref in AIModel.objects.filter(platform_ref__startswith='huggingface:')
-                                       .values_list('platform_ref', flat=True)}
-    have.discard('')
+    # « Déjà chez nous » s'indexe sur `platform_ref`, que la provenance vérifiée pose aussi
+    # (backfill_platform_refs / manifeste) sur les modèles découverts par scan disque. Sans ça,
+    # morsetechlab/yolov11-license-plate-detection ressortait « ★ NOUVEAU » alors que ses 5
+    # fichiers sont installés — la veille proposait de télécharger l'existant (2026-08-12).
+    have = catalogue_repos(AIModel.objects.all())
     # 2026-09-02 : un dépôt qui ne diffère d'un déclaré que par un SUFFIXE DATÉ est la même
     # famille — `Qwen/Qwen-Image-Edit-2509` proposé alors que l'imager déclare `…-2511`
     # (mesuré : la proposition d'une VERSION ANTÉRIEURE passait le dédoublonnage). On compare
@@ -293,7 +290,7 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
                 licence = None
         candidates.append({
             'language': language,
-            'hf_id': m.id,
+            'repo_id': m.id,
             'downloads': dl,
             'likes': getattr(m, 'likes', 0) or 0,
             'pipeline_tag': getattr(m, 'pipeline_tag', None) or task,
@@ -305,7 +302,7 @@ def prospect_hf(task: str, limit: int = 15, library: str | None = None, min_down
             'metrique': _metrique_declaree(carte),
             'license': licence,
             # La fiche, lue au registre des sources (`model_page_url`, 2026-10-22).
-            'url': model_page_url(f"huggingface:{m.id}"),
+            'url': model_page_url(hf_platform_ref(m.id)),
         })
     return {'ok': True, 'task': task, 'candidates': candidates}
 
@@ -392,7 +389,7 @@ _WEIGHT_EXTS = ('.gguf', '.safetensors', '.bin', '.pt', '.pth', '.onnx', '.nemo'
 WEIGHT_FORMAT_ENGINES = {'.nemo': 'nemo', '.onnx': 'onnxruntime'}
 
 
-def _siblings(hf_id: str):
+def _siblings(repo_id: str):
     """`[(nom, taille_octets)]` de TOUS les fichiers d'un dépôt — la SEULE requête HTTP de
     l'inventaire (2026-09-07).
 
@@ -408,10 +405,10 @@ def _siblings(hf_id: str):
     """
     try:
         from huggingface_hub import HfApi
-        info = HfApi().model_info(hf_id, files_metadata=True)
+        info = HfApi().model_info(repo_id, files_metadata=True)
         return [(s.rfilename, s.size or 0) for s in (info.siblings or [])]
     except Exception as e:
-        logger.debug("[prospect_hf_seed] inventaire de %s indéterminable : %s", hf_id, e)
+        logger.debug("[prospect_hf_seed] inventaire de %s indéterminable : %s", repo_id, e)
         return None
 
 
@@ -427,11 +424,11 @@ def _fichiers_de_poids(fichiers):
     return [(n, t) for n, t in (fichiers or []) if n.lower().endswith(_WEIGHT_EXTS)]
 
 
-def _repo_weight_gb(hf_id: str):
+def _repo_weight_gb(repo_id: str):
     """Poids total d'un dépôt HF en Go, ou None si indéterminable. Un appel HTTP par dépôt.
     Conservée : trois appelants ne veulent QUE cette valeur (`prospect_hf_seed` ×2,
     `views.install` pour sa garde d'espace) et n'ont pas à connaître l'inventaire."""
-    return _poids_total_gb(_siblings(hf_id))
+    return _poids_total_gb(_siblings(repo_id))
 
 
 def local_revision(snapshot_root):
@@ -597,7 +594,7 @@ def precision_of_files(revision, files_by_role) -> dict:
     return out
 
 
-def remote_precision(hf_id: str, files_by_role) -> dict:
+def remote_precision(repo_id: str, files_by_role) -> dict:
     """JUMEAU DISTANT de `precision_of_files`, même forme `{rôle: {params, dtypes,
     params_by_dtype}}` — pour un CANDIDAT, dont aucun fichier n'est sur disque (2026-09-23).
     `parse_safetensors_file_metadata` ne lit que l'EN-TÊTE de chaque fichier retenu (requête de
@@ -606,7 +603,7 @@ def remote_precision(hf_id: str, files_by_role) -> dict:
     `{}` si rien n'est lisible : l'absence se lit, elle ne vaut pas zéro. Sans cette lecture, le
     pic d'un encodeur stocké en F32 (UMT5 de Wan : 21 Go) passait pour celui qu'il aura chargé
     en bf16 (10,6)."""
-    if not hf_id or not files_by_role:
+    if not repo_id or not files_by_role:
         return {}
     try:
         from huggingface_hub import HfApi
@@ -621,9 +618,9 @@ def remote_precision(hf_id: str, files_by_role) -> dict:
             if not rel.lower().endswith('.safetensors'):
                 continue
             try:
-                counts = api.parse_safetensors_file_metadata(hf_id, rel).parameter_count or {}
+                counts = api.parse_safetensors_file_metadata(repo_id, rel).parameter_count or {}
             except Exception as e:
-                logger.debug("[prospect_hf] en-tête %s:%s illisible : %s", hf_id, rel, e)
+                logger.debug("[prospect_hf] en-tête %s:%s illisible : %s", repo_id, rel, e)
                 continue
             for dtype, n in counts.items():
                 by_dtype[dtype] = by_dtype.get(dtype, 0) + n
@@ -643,7 +640,7 @@ _QUANT_MARKERS = ('gguf', 'fp8', 'bnb', 'int4', 'int8', 'fp4', 'nvfp4',
                  '4bit', '8bit', 'awq', 'gptq', 'quant', 'comfy')
 
 
-def quantized_variants(hf_id: str, limit: int = 5) -> list[dict]:
+def quantized_variants(repo_id: str, limit: int = 5) -> list[dict]:
     """
     Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
 
@@ -663,12 +660,12 @@ def quantized_variants(hf_id: str, limit: int = 5) -> list[dict]:
     except ImportError:
         return []
 
-    nom_court = hf_id.split('/')[-1]
+    nom_court = repo_id.split('/')[-1]
     normaliser = lambda s: re.sub(r'[^a-z0-9]', '', s.lower())  # noqa: E731
     cible = normaliser(nom_court)
     radical = re.sub(r'[-_ ]?\d+(\.\d+)?$', '', nom_court) or nom_court
 
-    vus, variantes = {hf_id.lower()}, []
+    vus, variantes = {repo_id.lower()}, []
     api = HfApi()
     for terme in dict.fromkeys((nom_court, radical)):        # dédupliqué, ordre stable
         try:
@@ -684,7 +681,7 @@ def quantized_variants(hf_id: str, limit: int = 5) -> list[dict]:
             if not any(m in did for m in _QUANT_MARKERS):
                 continue
             vus.add(did)
-            variantes.append({'hf_id': d.id,
+            variantes.append({'repo_id': d.id,
                               'downloads': getattr(d, 'downloads', 0) or 0,
                               'likes': getattr(d, 'likes', 0) or 0})
     variantes.sort(key=lambda v: v['downloads'], reverse=True)
@@ -696,7 +693,7 @@ _SAFE_LICENSES = {'apache-2.0', 'mit', 'bsd-2-clause', 'bsd-3-clause', 'cc0-1.0'
                    'cc-by-4.0', 'openrail', 'openrail++', 'bigscience-openrail-m'}
 
 
-def analyze_license(hf_id: str, license_id: str = '', base_model=None, _profondeur: int = 0):
+def analyze_license(repo_id: str, license_id: str = '', base_model=None, _profondeur: int = 0):
     """
     Verdict de COMPATIBILITÉ de licence d'un candidat, pour AFFICHAGE sur la card —
     JAMAIS pour éliminer (décision Fabien 2026-08-29 : le choix reste à l'utilisateur).
@@ -721,14 +718,14 @@ def analyze_license(hf_id: str, license_id: str = '', base_model=None, _profonde
     tri tendance renouvelle la liste à chaque clic, le texte d'une licence ne change pas.
     """
     lid = (license_id or '').strip().lower()
-    propre = None if lid in _SAFE_LICENSES else _analyze_license_text(hf_id, lid)
+    propre = None if lid in _SAFE_LICENSES else _analyze_license_text(repo_id, lid)
     if propre and propre['verdict'] != 'a_verifier':
         return propre          # un verdict territorial PROPRE prime sur l'héritage
     bases = base_model if isinstance(base_model, (list, tuple)) else ([base_model] if base_model else [])
     if _profondeur < 2:        # un dérivé de dérivé remonte d'un cran, pas à l'infini
         for base in bases:
             base = str(base or '').strip()
-            if not base or base.lower() == (hf_id or '').lower():
+            if not base or base.lower() == (repo_id or '').lower():
                 continue
             # La licence du modèle de base n'est pas connue ici : son texte est lu.
             v = analyze_license(base, '', None, _profondeur + 1)
@@ -743,20 +740,20 @@ def analyze_license(hf_id: str, license_id: str = '', base_model=None, _profonde
 
 
 @lru_cache(maxsize=256)
-def _analyze_license_text(hf_id: str, lid: str):
+def _analyze_license_text(repo_id: str, lid: str):
     import re
 
     import requests
     try:
         from huggingface_hub import HfApi, hf_hub_url
-        siblings = HfApi().model_info(hf_id).siblings or []
+        siblings = HfApi().model_info(repo_id).siblings or []
         fichiers = [s.rfilename for s in siblings
                     if 'licen' in s.rfilename.lower() and '/' not in s.rfilename]
         if not fichiers:
             return {'verdict': 'a_verifier', 'label': 'licence à vérifier',
                     'detail': f"licence « {lid or '?'} » sans fichier LICENSE lisible "
                               "dans le dépôt — lire la card avant d'installer"}
-        texte = requests.get(hf_hub_url(hf_id, fichiers[0]),
+        texte = requests.get(hf_hub_url(repo_id, fichiers[0]),
                              timeout=(5, 20)).text.lower()
         m = re.search(r'excluded\s+territor|restricted\s+territor', texte)
         if not m:
@@ -780,7 +777,7 @@ def _analyze_license_text(hf_id: str, lid: str):
                 'detail': f"licence non standard ({lid or '?'}) — aucun marqueur "
                           "territorial détecté ; lire le texte avant d'installer"}
     except Exception as e:
-        logger.debug("[analyze_license] %s illisible : %s", hf_id, e)
+        logger.debug("[analyze_license] %s illisible : %s", repo_id, e)
         return {'verdict': 'a_verifier', 'label': 'licence à vérifier',
                 'detail': f"texte de licence illisible ({lid or '?'})"}
 
@@ -814,7 +811,7 @@ def install_options(cand) -> dict:
     own_gguf = prospect.get('own_gguf') if by_ollama else []
     a_persister = False
     if by_ollama and (own_gguf is None or (own_gguf and 'own_projector' not in prospect)):
-        repo_files = _siblings(cand.hf_id)
+        repo_files = _siblings(cand.hf_repo)
         own_gguf = _gguf_files(repo_files)
         if repo_files is not None:          # injoignable : on réessaiera, rien n'est figé
             prospect['own_gguf'] = own_gguf
@@ -829,7 +826,7 @@ def install_options(cand) -> dict:
     variants = prospect.get('quant_variants')
     if variants is None:
         a_persister = True
-        variants = quantized_variants(cand.hf_id)
+        variants = quantized_variants(cand.hf_repo)
     enrichies = []
     for v in variants:
         v = dict(v)
@@ -838,7 +835,7 @@ def install_options(cand) -> dict:
         # UNE requête pour les deux besoins : ils portaient sur le MÊME dépôt et partaient
         # chacun en HTTP (2 allers-retours PAR VARIANTE, sur une boucle). Les deux gardes
         # restent DISTINCTES — une variante peut n'avoir besoin que de l'une des deux.
-        fichiers = _siblings(v['hf_id']) if (besoin_taille or besoin_fichiers) else None
+        fichiers = _siblings(v['repo_id']) if (besoin_taille or besoin_fichiers) else None
         if besoin_taille:
             v['disk_gb'] = _poids_total_gb(fichiers)
             a_persister = True
@@ -857,12 +854,12 @@ def install_options(cand) -> dict:
     if own_gguf:
         # Un dépôt GGUF n'a jamais de « poids pleins » ; sans projecteur exigé, aucune option.
         own_ok = prospect.get('own_projector') or not needs_projector
-        options = [_gguf_option(cand.hf_id, f, by_ollama, None)
+        options = [_gguf_option(cand.hf_repo, f, by_ollama, None)
                    for f in sorted(own_gguf, key=lambda x: x['gb'], reverse=True)] if own_ok else []
     else:
         options = [{
-            'ref': cand.hf_id, 'file': None,
-            'label': f"Poids pleins — {cand.hf_id}",
+            'ref': cand.hf_repo, 'file': None,
+            'label': f"Poids pleins — {cand.hf_repo}",
             'disk_gb': cand.disk_gb or None,
             'vram_note': "ne tient pas en VRAM sans quantisation/offload"
                          if (cand.disk_gb or 0) > 24 else "",
@@ -876,11 +873,11 @@ def install_options(cand) -> dict:
         if ggufs:
             # Une ligne PAR fichier gguf : c'est le fichier qu'on installe, pas le dépôt.
             for f in sorted(ggufs, key=lambda x: x['gb'], reverse=True):
-                options.append(_gguf_option(v['hf_id'], f, by_ollama, v.get('downloads')))
+                options.append(_gguf_option(v['repo_id'], f, by_ollama, v.get('downloads')))
         else:
             options.append({
-                'ref': v['hf_id'], 'file': None,
-                'label': v['hf_id'],
+                'ref': v['repo_id'], 'file': None,
+                'label': v['repo_id'],
                 'disk_gb': v.get('disk_gb'),
                 'vram_note': "",
                 'downloads': v.get('downloads'), 'kind': 'variant',
@@ -957,15 +954,15 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
     if base.get('kind') != 'hf' or not variant_ref:
         return None
     own_gguf = {f['file'] for f in (prospect.get('own_gguf') or [])}
-    if variant_ref == cand.hf_id and not variant_file:
+    if variant_ref == cand.hf_repo and not variant_file:
         # Poids pleins : le spec d'origine, inchangé — sauf pour un dépôt GGUF servi par Ollama,
         # qui n'en a pas (`install_options` ne les propose pas).
         return None if own_gguf else dict(base)
-    if variant_ref == cand.hf_id:
+    if variant_ref == cand.hf_repo:
         files = own_gguf                       # un fichier du dépôt du candidat lui-même
         projector = bool(prospect.get('own_projector'))
     else:
-        v = {x['hf_id']: x for x in (prospect.get('quant_variants') or [])}.get(variant_ref)
+        v = {x['repo_id']: x for x in (prospect.get('quant_variants') or [])}.get(variant_ref)
         if v is None:
             return None
         files = {f['file'] for f in (v.get('files') or [])}
@@ -986,7 +983,7 @@ def spec_for_choice(cand, variant_ref: str, variant_file: str | None) -> dict | 
         quant = _gguf_quant(variant_file)
         return {'kind': 'ollama', 'ref': f"hf.co/{variant_ref}" + (f":{quant}" if quant else ''),
                 'task': base.get('task') or _candidate_task(cand),
-                'base_hf_id': _canonical_repo(cand),
+                'base_model': _canonical_repo(cand),
                 'note': f"variante GGUF par Ollama, choisie par l'utilisateur : {variant_ref} / "
                         f"{variant_file}"}
     spec = dict(base)
@@ -1012,7 +1009,7 @@ def _canonical_repo(cand) -> str:
         base = base[0] if len(base) == 1 else None
     if prospect.get('own_gguf') and isinstance(base, str) and '/' in base:
         return base
-    return cand.hf_id or ''
+    return cand.hf_repo
 
 
 def _candidate_task(cand) -> str:
@@ -1052,10 +1049,23 @@ def _card_dict(card) -> dict:
         return {}
 
 
+def catalogue_repos(rows) -> set:
+    """Dépôts du Hub que des lignes de catalogue PORTENT, en minuscules : celui d'où viennent
+    leurs poids (`AIModel.hf_repo`, dérivé de `platform_ref`) et le modèle canonique d'une
+    quantification (`AIModel.quantized_base` : un GGUF tiré par Ollama EST ce modèle). Ces deux
+    faits vivaient dans `hf_id` et `platform_ref` jusqu'au 2026-10-27 ; la règle est ici, une
+    fois, pour « déjà chez nous » et « déjà installé »."""
+    out = set()
+    for m in rows.only('platform_ref', 'extra_info'):
+        out.update({m.hf_repo.lower(), m.quantized_base.lower()})
+    out.discard('')
+    return out
+
+
 def _installed_repos() -> set:
-    """Dépôts Hugging Face des lignes INSTALLÉES (non proposées), en minuscules — par les DEUX
-    identités de plateforme (`hf_id`, `platform_ref`) : un modèle découvert par scan disque n'a
-    pas de `hf_id` mais peut porter un `platform_ref` posé par la provenance vérifiée.
+    """Dépôts Hugging Face des lignes INSTALLÉES (non proposées), en minuscules — par
+    `catalogue_repos` : un modèle découvert par scan disque porte un `platform_ref` dès que la
+    provenance vérifiée l'a posé.
 
     Une ligne DÉSINSTALLÉE n'en est plus (2026-10-11) : `uninstall_model` la garde pour son
     historique, marquée `uninstalled_at` — comptée ici, elle interdisait de reproposer le dépôt
@@ -1063,21 +1073,15 @@ def _installed_repos() -> set:
     leur retrait).
 
     Une ligne servie par un FOURNISSEUR (`execution` cloud) n'en est pas une non plus
-    (2026-10-22) : `openrouter:qwen/qwen-2.5-7b-instruct` porte `hf_id = Qwen/Qwen2.5-7B-Instruct`
-    — le modèle qu'il SERT à distance — et rendait le dépôt « already » : impossible de
-    l'installer ici (essai d'AirLLM)."""
+    (2026-10-22) : `openrouter:qwen/qwen-2.5-7b-instruct` porte
+    `platform_ref = huggingface:Qwen/Qwen2.5-7B-Instruct` — le modèle qu'il SERT à distance — et
+    rendait le dépôt « already » : impossible de l'installer ici (essai d'AirLLM)."""
     from wama.model_manager.models import EXECUTION_CLOUD, AIModel, uninstalled_q
-    rows = (AIModel.objects.filter(is_proposed=False).exclude(uninstalled_q())
-            .exclude(execution=EXECUTION_CLOUD))
-    have = {(h or '').lower() for h in rows.exclude(hf_id='').values_list('hf_id', flat=True)}
-    have |= {ref.partition(':')[2].lower()
-             for ref in rows.filter(platform_ref__startswith='huggingface:')
-                            .values_list('platform_ref', flat=True)}
-    have.discard('')
-    return have
+    return catalogue_repos(AIModel.objects.filter(is_proposed=False).exclude(uninstalled_q())
+                           .exclude(execution=EXECUTION_CLOUD))
 
 
-def _write_hf_candidate(hf_id, *, facts, refs_type, role, reason, description, note,
+def _write_hf_candidate(repo_id, *, facts, refs_type, role, reason, description, note,
                         weight_gb=None, license=None, base_model=None, downloads=0, likes=0,
                         metric=None, kind='new', confidence=None, key=None, name=None,
                         extra=None) -> bool:
@@ -1101,27 +1105,27 @@ def _write_hf_candidate(hf_id, *, facts, refs_type, role, reason, description, n
         refs_type[(model_type, task)] = [
             (m.name or '').split('—')[0].strip()
             for m in AIModel.best_installed(model_type, task=task)]
-    prospect = {'kind': kind, 'role': role, 'name': hf_id, 'reason': reason,
+    prospect = {'kind': kind, 'role': role, 'name': repo_id, 'reason': reason,
                 'concurrence': refs_type[(model_type, task)],
                 'downloads': downloads, 'likes': likes, 'metrique': metric,
                 # Verdict de licence AFFICHÉ, jamais éliminatoire (Fabien 29/08) — None pour un
                 # SPDX permissif ; mémoïsé, licences non standard seules. Hérité du
                 # `base_model` déclaré quand le dérivé se dit permissif.
-                'license_flag': analyze_license(hf_id, str(license or ''), base_model),
+                'license_flag': analyze_license(repo_id, str(license or ''), base_model),
                 # `task` dans le spec : la ligne INSTALLÉE en hérite (provenance) — la
                 # découverte générique d'un snapshot HF ne sait pas la dire.
-                'spec': {'kind': 'hf', 'ref': hf_id, 'category': model_type,
+                'spec': {'kind': 'hf', 'ref': repo_id, 'category': model_type,
                          'task': task, 'note': note},
                 # Le modèle CANONIQUE que la carte déclare (2026-10-11) : pour un dépôt de
                 # quantification, c'est par lui que le banc apparie la ligne installée
-                # (`spec_for_choice` → `base_hf_id`), pas par le dépôt du publieur.
+                # (`spec_for_choice` → `base_model`), pas par le dépôt du publieur.
                 **({'base_model': base_model} if base_model else {}),
                 **(extra or {})}
     return write_candidate(
-        key or PROPOSED_PREFIX + f"hf:{hf_id}", nom=name or hf_id.split('/')[-1],
+        key or PROPOSED_PREFIX + f"hf:{repo_id}", nom=name or repo_id.split('/')[-1],
         model_type=model_type, source='huggingface', description=description,
         kind=kind, confidence=confidence, extra=prospect,
-        hf_id=hf_id, license=str(license or '')[:64], platform_ref=f"huggingface:{hf_id}",
+        license=str(license or '')[:64], platform_ref=hf_platform_ref(repo_id),
         disk_gb=weight_gb or 0.0,      # 0.0 = inconnu → la garde d'espace refusera (forçable)
         # La TÂCHE écrite sur la ligne : c'est elle qui donne un banc à un candidat
         # (`benchmark_sync._local_categories`) — sans elle, « hors catégorie ». Et les LANGUES
@@ -1151,7 +1155,7 @@ def _purge_hf_candidates(roles_ok, seen, kind: str = 'new'):
         # purge MÊME évalué — la garde d'évaluation protège un travail encore utile, jamais une
         # proposition devenue sans objet (vécu Qwen3-ASR-1.7B, 2026-08-31 : installé côté
         # transcriber, la card « Nouveau » préservée continuait de proposer l'existant).
-        if (m.hf_id or '').lower() in installed:
+        if m.hf_repo.lower() in installed:
             m.delete()
             removed += 1
             continue
@@ -1213,13 +1217,13 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
         for c in candidats:
             if retenus >= regle['max']:
                 break
-            hf_id = c['hf_id']
-            cand_key = PROPOSED_PREFIX + f"hf:{hf_id}"
+            repo_id = c['repo_id']
+            cand_key = PROPOSED_PREFIX + f"hf:{repo_id}"
             if c['have'] or cand_key in vus:
                 continue
-            if any(motif in hf_id.lower() for motif in _NOISE_MARKERS):
+            if any(motif in repo_id.lower() for motif in _NOISE_MARKERS):
                 continue    # dérivé (LoRA/quantif/repack), pas un modèle canonique
-            poids = _repo_weight_gb(hf_id)   # un appel HTTP — candidats retenus seulement
+            poids = _repo_weight_gb(repo_id)   # un appel HTTP — candidats retenus seulement
             if poids is not None and poids < regle['poids_min_go']:
                 continue    # sous le plancher de la tâche : LoRA/config, pas un modèle
             vus.add(cand_key)
@@ -1229,7 +1233,7 @@ def seed_hf_candidates(limit: int = 12, min_downloads: int = 1000, tasks=None) -
             facts = card_facts(c.get('pipeline_tag') or tache, c.get('tags'),
                                {'language': c.get('language')})
             cree = _write_hf_candidate(
-                hf_id, facts=facts, refs_type=refs_type, role=f"hf:{tache}",
+                repo_id, facts=facts, refs_type=refs_type, role=f"hf:{tache}",
                 reason=f"tâche {tache} — non installé",
                 description=(f"[{tache}] {c['downloads']} téléchargements, "
                              f"{c['likes']} ♥ — proposé par la bibliothèque HuggingFace."),
@@ -1352,8 +1356,9 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
 
     boards, reasons = leaderboard_repos(cache=cache)
     have = _installed_repos() | {
-        (m.hf_id or '').lower() for m in AIModel.objects.filter(
-            is_proposed=True, source='huggingface', proposal_kind='update').exclude(hf_id='')}
+        m.hf_repo.lower() for m in AIModel.objects.filter(
+            is_proposed=True, source='huggingface', proposal_kind='update',
+            platform_ref__startswith=f'{HUGGINGFACE}:').only('platform_ref')}
     have_family = {_sans_suffixe_date(h) for h in have}
     api = HfApi()
     created = updated = 0
@@ -1384,12 +1389,12 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
             except Exception as exc:
                 logger.info("[seed_benchmark] %s injoignable : %s", repo, exc)
                 continue
-            hf_id = info.id
-            key = PROPOSED_PREFIX + f"hf:{hf_id}"
+            repo_id = info.id
+            key = PROPOSED_PREFIX + f"hf:{repo_id}"
             if key in seen:
                 kept += 1
                 continue    # déjà proposé par un autre banc de la même tâche ce passage
-            weight = _repo_weight_gb(hf_id)
+            weight = _repo_weight_gb(repo_id)
             q4_gb = _q4_size_gb(info, weight)
             if q4_gb and q4_gb > _gpu_total_gb():
                 continue    # même quantifié, ne tient pas sur le GPU de l'hôte
@@ -1406,7 +1411,7 @@ def seed_benchmark_candidates(per_category: int = BENCH_CANDIDATES_PER_CATEGORY,
                          capabilities=_task_capabilities(facts['capabilities'], task))
             label = _board_label(e)
             created_now = _write_hf_candidate(
-                hf_id, facts=facts, refs_type=refs_type, role=f"bench:{cat}",
+                repo_id, facts=facts, refs_type=refs_type, role=f"bench:{cat}",
                 reason=f"{e['rank']}ᵉ sur {e['population']} au classement {label} — non installé",
                 description=(f"[{label}] {e['rank']}ᵉ sur {e['population']} "
                              f"({e['value']:g}) — proposé par le classement."),
@@ -1487,8 +1492,7 @@ def seed_hf_successors(workers: int = 8) -> dict:
 
     rows = []
     for m in AIModel.objects.filter(is_proposed=False, is_downloaded=True).exclude(source='ollama'):
-        ref = m.platform_ref or ''
-        repo = m.hf_id or (ref.split(':', 1)[1] if ref.startswith('huggingface:') else '')
+        repo = m.hf_repo
         if repo and '/' in repo:
             rows.append((m, repo))
 
@@ -1650,13 +1654,13 @@ def seed_candidate_from_manifest(manifest: dict) -> dict:
         return {'ok': False, 'error': f"kind {manifest.get('manifest_kind')!r}, attendu 'model'"}
     body = manifest.get('body') or {}
     identity = body.get('identity') or {}
-    hf_id = (identity.get('hf_id') or '').strip()
+    repo_id = hf_repo(identity.get('platform_ref'))
     source = identity.get('source')
-    # Deux sources savent se proposer ainsi : un dépôt HuggingFace (`hf_id`) et une VERSION
-    # GitHub (`platform_ref` github:…/releases/tag/…, 2026-10-07 — pilote `github`).
-    if not ((source == 'huggingface' and hf_id) or source == 'github'):
+    # Deux sources savent se proposer ainsi : un dépôt HuggingFace (`platform_ref`
+    # huggingface:…) et une VERSION GitHub (github:…/releases/tag/…, 2026-10-07 — pilote `github`).
+    if not ((source == 'huggingface' and repo_id) or source == 'github'):
         return {'ok': False,
-                'error': "seul un manifeste de modèle HuggingFace (identity.hf_id + "
+                'error': "seul un manifeste de modèle HuggingFace (identity.platform_ref + "
                          "source='huggingface') ou d'une version GitHub (source='github') "
                          "se propose ainsi"}
     model_type = (identity.get('model_type') or '').strip()
@@ -1684,11 +1688,11 @@ def seed_candidate_from_manifest(manifest: dict) -> dict:
         disk_gb = disk_gb or round(driver['size'] / 1024 ** 3, 4)
         name = ref.partition(':')[2]
     else:
-        ref = hf_id
-        cand_key = PROPOSED_PREFIX + f"hf:{hf_id}"
-        spec_head = (('kind', 'hf'), ('ref', hf_id))
-        platform_ref = identity.get('platform_ref') or f"huggingface:{hf_id}"
-        name = hf_id.split('/')[-1]
+        ref = repo_id
+        cand_key = PROPOSED_PREFIX + f"hf:{repo_id}"
+        spec_head = (('kind', 'hf'), ('ref', repo_id))
+        platform_ref = identity.get('platform_ref')
+        name = repo_id.split('/')[-1]
     license_ = str(identity.get('license') or '')[:64]
     created = write_candidate(
         cand_key, nom=manifest.get('name') or name, model_type=model_type,
@@ -1712,7 +1716,7 @@ def seed_candidate_from_manifest(manifest: dict) -> dict:
                    ('license', license_ if source == 'github' else ''),
                    ('note', 'manifeste scout')) if v}},
         capabilities=caps,
-        hf_id=hf_id, license=license_,
+        license=license_,
         platform_ref=platform_ref,
         disk_gb=disk_gb,
     )
@@ -2103,20 +2107,19 @@ def apply_recommendations(candidates, source: str, task: str):
     for c in candidates:
         if c.get('have'):
             continue
-        hf_id = c['hf_id']
-        model_id = 'rec-' + re.sub(r'[^a-z0-9.-]+', '-', hf_id.lower()).strip('-')
+        repo_id = c['repo_id']
+        model_id = 'rec-' + re.sub(r'[^a-z0-9.-]+', '-', repo_id.lower()).strip('-')
         AIModel.objects.update_or_create(
             model_key=f"{source}:{model_id}",
             defaults={
-                'name': hf_id.split('/')[-1],
+                'name': repo_id.split('/')[-1],
                 'source': source,
                 'model_type': mt,
-                'hf_id': hf_id,
                 # La prospection LIT déjà la licence sur la carte HF (prospect_hf) : la jeter ici
                 # obligeait à repasser par backfill_platform_refs --licenses pour la retrouver.
                 # `platform_ref` se dérive du même fait, sans requête supplémentaire.
                 'license': str(c.get('license') or '')[:64],
-                'platform_ref': f"huggingface:{hf_id}",
+                'platform_ref': hf_platform_ref(repo_id),
                 'description': f"(Recommandé · prospection) {task} — {c['downloads']} téléchargements, {c['likes']} ♥",
                 'is_downloaded': False,
                 'is_available': False,

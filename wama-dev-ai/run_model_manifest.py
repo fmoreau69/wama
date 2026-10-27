@@ -116,18 +116,18 @@ def sources_catalog(model_key):
     return f'snapshot:{depot}', '\n\n'.join(parts)
 
 
-def sources_hf(hf_id):
+def sources_hf(repo_id):
     """Dépôt HuggingFace non installé : README + config.json depuis le Hub (via proxy)."""
     parts = []
     for nom in ('config.json', 'generation_config.json', 'README.md'):   # README EN DERNIER
         try:
-            txt = _fetch(f'https://huggingface.co/{hf_id}/raw/main/{nom}')
+            txt = _fetch(f'https://huggingface.co/{repo_id}/raw/main/{nom}')
             parts.append(f'===== {nom} =====\n{txt}')
         except Exception:
             continue
     if not parts:
-        raise SystemExit(f"Aucune source récupérable pour {hf_id} (réseau/proxy ? dépôt gated ?).")
-    return f'https://huggingface.co/{hf_id}', '\n\n'.join(parts)
+        raise SystemExit(f"Aucune source récupérable pour {repo_id} (réseau/proxy ? dépôt gated ?).")
+    return f'https://huggingface.co/{repo_id}', '\n\n'.join(parts)
 
 
 # Vocabulaires SERVIS par le code : `role_utils.model_vocabularies` (partagé avec le scout).
@@ -197,27 +197,29 @@ def main():
         from wama.model_manager.models import AIModel
         row = AIModel.objects.get(model_key=args.catalog)
         enforce_identity(manifest, args.catalog,
-                         row.hf_id or args.catalog.split(':', 1)[-1], concerns, row.platform_ref)
+                         row.hf_repo or args.catalog.split(':', 1)[-1], concerns, row.platform_ref)
     else:
         enforce_identity(manifest, f'huggingface:{args.hf}', args.hf, concerns)
     # Fait mécanique sur le moteur (partagé avec le scout) : `diffusers` doit être PROUVÉ.
-    hf_id = _lire(manifest, ('body', 'identity', 'hf_id'))
+    # Le dépôt se lit sur `platform_ref` (2026-10-27) : `identity.hf_id` part avec les manifestes.
+    from wama.common.external_sources import hf_repo
+    repo_id = hf_repo(_lire(manifest, ('body', 'identity', 'platform_ref')))
     # Les langues que la FICHE déclare (le snapshot installé d'abord) — 2026-10-01, Kyutai.
     snapshot = provenance.split('snapshot:', 1)[1] if provenance.startswith('snapshot:') else None
-    enforce_language_facts(manifest, card_languages(hf_id, snapshot), concerns)
-    if hf_id:
+    enforce_language_facts(manifest, card_languages(repo_id, snapshot), concerns)
+    if repo_id:
         # La TÂCHE que la classe du config.json prouve (2026-10-06, Swin2SR) : AVANT la
         # résolution, qui ne s'applique pas à une tâche dont la sortie suit l'entrée.
-        enforce_task_facts(manifest, hf_id, concerns)
-        enforce_engine_facts(manifest, hf_id, concerns)
-        enforce_resolution_facts(manifest, hf_id, concerns)
+        enforce_task_facts(manifest, repo_id, concerns)
+        enforce_engine_facts(manifest, repo_id, concerns)
+        enforce_resolution_facts(manifest, repo_id, concerns)
         # Moteur VENDORISÉ cité par les sources (2026-10-01, YuE2) : APRÈS le retrait d'un
         # moteur non prouvé, pour que le fait remplace la conjecture.
-        enforce_vendor_engine(manifest, hf_id, full_sources, concerns)
+        enforce_vendor_engine(manifest, repo_id, full_sources, concerns)
         # L'anatomie d'un modèle SIMPLE, APRÈS le moteur (le format retenu peut en dépendre).
-        enforce_component_facts(manifest, hf_id, concerns)
+        enforce_component_facts(manifest, repo_id, concerns)
         # Le PARENT d'un adaptateur (2026-10-03, SheetSage2) : APRÈS l'anatomie, qu'il complète.
-        enforce_adapter_parent(manifest, hf_id, concerns)
+        enforce_adapter_parent(manifest, repo_id, concerns)
     # La catégorie suit la tâche, quelle que soit la source (2026-10-07, garde partagée avec le
     # scout) — APRÈS `enforce_task_facts`, qui peut avoir corrigé la tâche.
     enforce_category_facts(manifest, concerns)

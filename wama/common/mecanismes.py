@@ -2453,7 +2453,9 @@ MECHANISMS = (
               "PLATEFORME de modèles déclare la fiche d'un modèle (`model_page`, 2026-10-22) : "
               "`model_platforms()` est le vocabulaire de `AIModel.platform_ref`, "
               "`model_page_url()` en rend la page (lien de card, validation du manifeste "
-              "`model`) ; un fournisseur distant se DIT par `remote_origin_label` — "
+              "`model`), `hf_repo()` en tire le dépôt du Hub — la seule lecture du dépôt "
+              "d'un modèle depuis le 2026-10-27 (`hf_id` ne se lit plus) ; un fournisseur "
+              "distant se DIT par `remote_origin_label` — "
               "hébergement · fournisseur · coût — partout où il est nommé",
               'wama/common/external_sources.py', 'docs/construction/suivi/PROJECT_STATUS.md',
               annexes=('wama/common/utils/http_proxy.py',

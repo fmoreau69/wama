@@ -15,7 +15,7 @@ déclare comme option (`extract_tables`, à câbler au schéma), jamais comme mo
 CENTRALISÉ (la manière demandée) :
 - contrat `BaseModelBackend` commun (is_available/missing_packages/load/unload,
   comptabilité VRAM héritée) ;
-- le CHEMIN des poids vient du CATALOGUE (`AIModel.local_path` par hf_id — la source que
+- le CHEMIN des poids vient du CATALOGUE (`AIModel.local_path` par dépôt — la source que
   l'installeur peuple), repli sur la convention `AI-models/models/vision/<nom>` ;
 - CPU explicite : deux DETR ~110M tournent en secondes sur CPU — et aucune charge GPU
   n'est prise sans passer par le gouverneur (les crashs du 02/09 imposent la prudence).
@@ -34,12 +34,13 @@ HF_DETECTION = 'microsoft/table-transformer-detection'
 HF_STRUCTURE = 'microsoft/table-transformer-structure-recognition'
 
 
-def _cache_dir_for(hf_id: str) -> Optional[str]:
+def _cache_dir_for(repo_id: str) -> Optional[str]:
     """Racine de cache HF du modèle — le CATALOGUE d'abord (local_path posé par
     l'installeur, format `…/<nom>/models--org--repo`), la convention en repli."""
     try:
+        from wama.common.external_sources import hf_platform_ref
         from wama.model_manager.models import AIModel
-        m = AIModel.objects.filter(hf_id=hf_id).exclude(local_path='').first()
+        m = AIModel.objects.filter(platform_ref=hf_platform_ref(repo_id)).exclude(local_path='').first()
         if m and m.local_path:
             p = Path(m.local_path)
             racine = p.parent if p.name.startswith('models--') else p
@@ -48,7 +49,7 @@ def _cache_dir_for(hf_id: str) -> Optional[str]:
     except Exception:                      # catalogue indisponible (script hors Django…)
         pass
     from django.conf import settings
-    conv = Path(settings.AI_MODELS_DIR) / 'models' / 'vision' / hf_id.split('/')[-1]
+    conv = Path(settings.AI_MODELS_DIR) / 'models' / 'vision' / repo_id.split('/')[-1]
     return str(conv) if conv.is_dir() else None
 
 

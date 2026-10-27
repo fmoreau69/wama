@@ -120,7 +120,7 @@ class DecouverteTest(TestCase):
         m = AIModel.objects.get(model_key='albert:bge-m3')
         self.assertTrue(m.capabilities.get('embedding'))
         self.assertNotIn('completion', m.capabilities)
-        self.assertEqual(('BAAI/bge-m3', 'huggingface:BAAI/bge-m3'), (m.hf_id, m.platform_ref))
+        self.assertEqual(('BAAI/bge-m3', 'huggingface:BAAI/bge-m3'), (m.hf_repo, m.platform_ref))
 
     def test_renamed_identifier_marks_old_row_unavailable_without_deleting(self):
         """Albert a renommé `openai/gpt-oss-120b` en `gpt-oss-120b` (18/09) : la ligne d'avant
@@ -1071,11 +1071,11 @@ class OpenRouterListingTest(TestCase):
         free = models['meta-llama/llama-3.3-70b-instruct:free']
         self.assertEqual(['meta-llama/Llama-3.3-70B-Instruct'], free['aliases'])
         info = cloud_models.model_info_for('openrouter', free)
-        self.assertEqual(('free', 'meta-llama/Llama-3.3-70B-Instruct'), (info.cost_tier, info.hf_id))
+        self.assertEqual(('free', 'meta-llama/Llama-3.3-70B-Instruct'), (info.cost_tier, info.hf_repo))
         paid = cloud_models.model_info_for('openrouter', models['google/gemini-x'])
         # Counter-check: an id with a « / » is not a repository, and a paid model keeps the
         # source's tier.
-        self.assertEqual(('metered', None), (paid.cost_tier, paid.hf_id))
+        self.assertEqual(('metered', None), (paid.cost_tier, paid.platform_ref))
 
     def test_a_listing_without_modalities_still_reads_its_type(self):
         # Counter-check: Albert's shape (a `type`, no `architecture`) is unchanged.

@@ -93,12 +93,12 @@ from wama.common.backends.tts_base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  #
 # MODEL DEFINITIONS
 # =============================================================================
 
-# `hf_id` = provenance HuggingFace DÉCLARÉE (dépôt d'origine des poids) — consommée par la
-# découverte (model_registry) qui la pose sur ModelInfo.hf_id, d'où elle nourrit le catalogue
+# `platform_ref` = provenance DÉCLARÉE (dépôt d'origine des poids, `huggingface:org/nom`) — consommée
+# par la découverte (model_registry) qui la pose sur ModelInfo.platform_ref, d'où elle nourrit le catalogue
 # AIModel puis provenance/licences (backfill_platform_refs). Distincte de `model_id`, qui est
 # ce que le MOTEUR charge (chemin hub Coqui pour l'engine coqui, dépôt HF pour bark/higgs/
 # kokoro — la coïncidence des deux valeurs n'en fait pas un seul fait). Un modèle servi par le
-# hub Coqui seul, sans dépôt HF d'origine, se déclare sans clé `hf_id`.
+# hub Coqui seul, sans dépôt HF d'origine, se déclare sans clé `platform_ref`.
 # ⚠ `languages` est la DÉCLARATION UNIQUE des langues d'un moteur TTS depuis le 2026-08-29
 # (demande de Fabien : « réaligner le registre en fonction des capacités des modèles »).
 # Avant : la même liste vivait ICI **et** en dur dans `model_registry._discover_synthesizer_models`,
@@ -106,7 +106,7 @@ from wama.common.backends.tts_base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  #
 # omettait `hi` ; `coqui-xtts` omettait `hi`. Seule la copie du registre alimentait le catalogue,
 # donc **celle d'ici n'avait AUCUN consommateur** : elle était fausse sans que rien ne le dise.
 # *Un doublon inerte ne se contente pas de vieillir — il vieillit en silence.* La découverte lit
-# désormais cette table (`_synth_languages`), comme elle le fait déjà pour `hf_id`.
+# désormais cette table (`_synth_languages`), comme elle le fait déjà pour `platform_ref`.
 # ─── Anatomie déclarée des moteurs TTS (2026-09-19, chantier VRAM décision A) ───────────────
 # Chaque dépôt TTS porte PLUS que son modèle, et aucun ne le dit. Les motifs ci-dessous sont
 # ceux que le backend charge RÉELLEMENT, établis en suivant l'appel de chargement jusqu'à la
@@ -127,7 +127,7 @@ from wama.common.backends.tts_base import CATALOG_KEYS as ENGINE_CATALOG_KEYS  #
 SYNTHESIZER_MODELS = {
     'coqui-xtts': {
         'model_id': 'tts_models/multilingual/multi-dataset/xtts_v2',
-        'hf_id': 'coqui/XTTS-v2',
+        'platform_ref': 'huggingface:coqui/XTTS-v2',
         'type': 'tts',
         'engine': 'coqui',
         # 1,74 + 0,007 Go. Le dépôt en porte 1,94 : `dvae.pth` (0,196) n'est pas chargé.
@@ -143,7 +143,7 @@ SYNTHESIZER_MODELS = {
     },
     'bark': {
         'model_id': 'suno/bark',
-        'hf_id': 'suno/bark',
+        'platform_ref': 'huggingface:suno/bark',
         'type': 'tts',
         'engine': 'bark',
         # 4,99 + 3,66 + 3,49 = 12,1 Go. Le dépôt en porte 20,7 : la forme transformers
@@ -166,7 +166,7 @@ SYNTHESIZER_MODELS = {
     },
     'higgs-audio': {
         'model_id': 'bosonai/higgs-audio-v2-generation-3B-base',
-        'hf_id': 'bosonai/higgs-audio-v2-generation-3B-base',
+        'platform_ref': 'huggingface:bosonai/higgs-audio-v2-generation-3B-base',
         'tokenizer_id': 'bosonai/higgs-audio-v2-tokenizer',
         'type': 'tts',
         'engine': 'higgs',
@@ -188,7 +188,7 @@ SYNTHESIZER_MODELS = {
     },
     'kokoro': {
         'model_id': 'hexgrad/Kokoro-82M',
-        'hf_id': 'hexgrad/Kokoro-82M',
+        'platform_ref': 'huggingface:hexgrad/Kokoro-82M',
         'type': 'tts',
         'engine': 'kokoro',
         # 0,30 Go de modèle + 0,026 Go pour les 54 voix. Les voix sont un composant à part

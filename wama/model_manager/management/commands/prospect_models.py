@@ -62,7 +62,7 @@ class Command(BaseCommand):
             mark = '✓ déjà' if c['have'] else '★ NOUVEAU'
             dl = c['downloads']
             dls = f"{dl/1e6:.1f}M" if dl >= 1e6 else (f"{dl/1e3:.0f}k" if dl >= 1e3 else str(dl))
-            self.stdout.write(f"  [{mark:9s}] {c['hf_id']:55s} ⬇{dls:>6s}  ♥{c['likes']}"
+            self.stdout.write(f"  [{mark:9s}] {c['repo_id']:55s} ⬇{dls:>6s}  ♥{c['likes']}"
                               f"  {c.get('license') or '—'}")
             self.stdout.write(f"              {c['url']}")
             m = c.get('metrique')

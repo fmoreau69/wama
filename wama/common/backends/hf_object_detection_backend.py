@@ -34,7 +34,7 @@ class HFObjectDetectionBackend(FrameDetectionBackend):
     ENGINE = 'transformers'
     #: ⚠ En LITTÉRAL (l'inventaire lit par AST) ; clé = dernier segment de la clé de catalogue
     #: (`anonymizer:rtdetr-v2-license-plate`). Le DÉPÔT se lit sur la ligne du catalogue
-    #: (`hf_id`, déclaré dans `anonymizer/utils/model_config.FRAME_DETECTORS`) — une seule source.
+    #: (`platform_ref`, déclaré dans `anonymizer/utils/model_config.FRAME_DETECTORS`) — une seule source.
     SUPPORTED_MODELS = {'rtdetr-v2-license-plate': {}}
     REQUIRED_PACKAGES = ['transformers', 'torch']
     name = 'hf_object_detection'
@@ -54,28 +54,29 @@ class HFObjectDetectionBackend(FrameDetectionBackend):
     def is_loaded(self) -> bool:
         return self._model is not None
 
-    def _hf_id(self) -> str:
-        """Le dépôt du modèle choisi, lu sur sa ligne de catalogue."""
+    def _repo_id(self) -> str:
+        """Le dépôt du modèle choisi, lu sur sa ligne de catalogue (`AIModel.hf_repo`)."""
         from wama.model_manager.models import AIModel
-        hf_id = (AIModel.objects.filter(model_key=self.catalogue_key)
-                 .values_list('hf_id', flat=True).first()) if self.catalogue_key else ''
-        if not hf_id:
+        row = (AIModel.objects.filter(model_key=self.catalogue_key).only('platform_ref').first()
+               if self.catalogue_key else None)
+        repo_id = row.hf_repo if row is not None else ''
+        if not repo_id:
             raise ValueError(f"Détecteur transformers : aucun dépôt pour « {self.catalogue_key} »")
-        return hf_id
+        return repo_id
 
     def load(self, model: str = None, **kwargs) -> bool:
-        hf_id = model or self._hf_id()
-        if self._model is not None and self._loaded_id == hf_id:
+        repo_id = model or self._repo_id()
+        if self._model is not None and self._loaded_id == repo_id:
             return True
         import torch
         from transformers import AutoImageProcessor, AutoModelForObjectDetection
         cache_dir = str(weights_dir())
-        self._processor = AutoImageProcessor.from_pretrained(hf_id, cache_dir=cache_dir)
+        self._processor = AutoImageProcessor.from_pretrained(repo_id, cache_dir=cache_dir)
         self._device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self._model = AutoModelForObjectDetection.from_pretrained(
-            hf_id, cache_dir=cache_dir).to(self._device).eval()
-        self._loaded_id = hf_id
-        logger.info('[HF detection] %s chargé sur %s', hf_id, self._device)
+            repo_id, cache_dir=cache_dir).to(self._device).eval()
+        self._loaded_id = repo_id
+        logger.info('[HF detection] %s chargé sur %s', repo_id, self._device)
         return True
 
     def unload(self) -> None:

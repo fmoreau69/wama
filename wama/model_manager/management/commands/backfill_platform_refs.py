@@ -3,7 +3,7 @@
 Renseigne `platform_ref` et `license` sur les modeles deja au catalogue.
 
 Ne DEDUIT rien d'un nom de fichier : `platform_ref` se reecrit depuis des faits deja portes
-(`hf_id`, ou une cle `ollama:`), et la licence se lit sur la plateforme. Un modele dont
+(une cle `ollama:`), et la licence se lit sur la plateforme. Un modele dont
 l'origine n'est pas etablie est laisse VIDE et compte dans les indetermines -- le silence vaut
 mieux qu'une correspondance inventee.
 
@@ -13,12 +13,13 @@ distantes ; passer --ecrire pour appliquer.
 TROIS SOURCES DE FAIT, par ordre de cout croissant -- aucune ne DEDUIT quoi que ce soit :
   1. `--depuis-poids` : la licence ecrite DANS le fichier de poids (hors ligne, aucune requete).
      Couvre les modeles decouverts par scan disque, qui n'ont pas d'identite de plateforme.
-  2. `--licenses`     : la carte HuggingFace, pour les modeles portant deja un `hf_id`.
+  2. `--licenses`     : la carte HuggingFace, pour les modeles portant deja un `platform_ref`
+                        du Hub.
   3. `--poser`        : une provenance VERIFIEE par un humain (appariement nom+taille d'octets
      contre le depot amont). C'est la porte d'entree qui manquait : le rattachement des 70
      modeles indetermines etait impossible, faute d'un endroit ou deposer le fait etabli.
 
-L'identite de plateforme (`platform_ref`, `hf_id` des provenances verifiees) se pose PAR LE
+L'identite de plateforme (`platform_ref`, provenances verifiees comprises) se pose PAR LE
 MANIFESTE (`provenance.set_identity`, 2026-10-22) : projection au catalogue ET export au corpus
 d'un modele installe, dans le meme geste ; la licence lue DANS les poids (`--depuis-poids`) aussi.
 La passe `--licenses` (licence, auteur, regime d'acces, publications) suit la meme voie, sans
@@ -54,8 +55,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         ecrire = options['ecrire']
 
-        # La provenance verifiee s'enregistre AVANT la derivation : une fois `hf_id` pose, la
-        # boucle ci-dessous en derive `platform_ref` par le chemin normal, sans cas particulier.
+        # La provenance verifiee s'enregistre AVANT la derivation : une fois `platform_ref` pose,
+        # la boucle ci-dessous la compte parmi les references deja renseignees.
         if options['poser']:
             self._set_verified(options['poser'], ecrire)
 
@@ -95,7 +96,7 @@ class Command(BaseCommand):
 
         if indetermines:
             self.stdout.write(self.style.WARNING(
-                f"\n{len(indetermines)} modeles sans origine etablie -- ils n'ont ni hf_id ni cle "
+                f"\n{len(indetermines)} modeles sans origine etablie -- ils n'ont ni platform_ref ni cle "
                 f"ollama. Les rattacher demande de VERIFIER le depot d'origine, pas de le deduire "
                 f"d'un nom de fichier. Exemples : "
                 + ', '.join(indetermines[:5])))
@@ -133,11 +134,9 @@ class Command(BaseCommand):
                 self.stderr.write(self.style.ERROR(f"  aucun modele de cle {cle!r} au catalogue"))
                 continue
 
+            # `platform_ref` suffit (2026-10-27) : `--licenses` et le filtre « deja chez nous » de
+            # la prospection en derivent le depot du Hub, `hf_id` ne s'ecrit plus.
             champs = {'platform_ref': ref}
-            # `hf_id` est le champ historique : le renseigner rend le modele visible a
-            # `--licenses` et au filtre « deja chez nous » de la prospection.
-            if plateforme == 'huggingface':
-                champs['hf_id'] = identifiant
             avant = {c: getattr(m, c) for c in champs}
             if avant == champs:
                 self.stdout.write(f"  = {cle}  (deja pose)")
@@ -177,7 +176,7 @@ class Command(BaseCommand):
 
         from wama.model_manager.services.provenance import set_identity
 
-        candidats = [m for m in AIModel.objects.filter(platform_ref='', hf_id='')
+        candidats = [m for m in AIModel.objects.filter(platform_ref='')
                      .exclude(local_path='')
                      if m.model_key.startswith('anonymizer:yolo:')]
         if not candidats:
@@ -299,13 +298,14 @@ class Command(BaseCommand):
         # ultralytics). Rester sur les seuls champs vides rendait l'outil dependant de l'ORDRE
         # des passes — il converge desormais quel que soit l'ordre, et reste idempotent puisqu'on
         # n'ecrit que sur difference.
-        for m in AIModel.objects.exclude(hf_id='').exclude(hf_id__isnull=True):
+        from wama.common.external_sources import HUGGINGFACE
+        for m in AIModel.objects.filter(platform_ref__startswith=f'{HUGGINGFACE}:'):
             # Lecture de la carte MUTUALISEE avec l'installation par URL (services/provenance) :
             # c'etait le troisieme endroit du depot a interroger HuggingFace pour les memes faits.
-            ident = huggingface_identity(m.hf_id)
+            ident = huggingface_identity(m.hf_repo)
             if ident is None:
                 echecs += 1
-                self.stderr.write(f"  {m.hf_id} : depot injoignable")
+                self.stderr.write(f"  {m.hf_repo} : depot injoignable")
                 continue
             # TOUT ce que la carte dit passe par le MANIFESTE (`set_identity`, 2026-10-22), comme
             # à l'installation : licence, auteur, régime d'accès, publications — une seule voie et
