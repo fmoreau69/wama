@@ -1496,13 +1496,14 @@ class ModelRegistry:
         déclaration vit à côté de l'instrument (`bench.LPIPS_FILES`)."""
         try:
             from wama.model_manager.services.bench import LPIPS_FILES, LPIPS_KEY, lpips_folder
+            from wama.common.utils.model_keys import split_key
             from wama.model_manager.services.model_installer import declared_files_present
             root = lpips_folder()
             self._models[LPIPS_KEY] = ModelInfo(
                 id='lpips-alexnet',
                 name='LPIPS (AlexNet)',
                 model_type=ModelType.VISION,
-                source=ModelSource.PYTORCH_DOWNLOAD,
+                source=ModelSource(split_key(LPIPS_KEY)[0]),   # la clé dit la source
                 description="LPIPS : distance perceptuelle entre deux images (plus bas = plus "
                             "proche), sur la dorsale AlexNet de torchvision. Instrument de MESURE du "
                             "banc d'agrandissement (`WAMA_QUALITE §4`), il ne produit rien.",
@@ -1528,6 +1529,7 @@ class ModelRegistry:
         (`common/hand_gestures.py`) ; la ligne existe absente, installable par le pilote `files`
         depuis l'origine officielle (`mediapipe_models`, comme le Face Landmarker)."""
         try:
+            from wama.common.utils.model_keys import split_key
             from wama.common.hand_gestures import (
                 GESTURE_FILES, GESTURE_KEY, gesture_folder, gesture_model_installed, gesture_model_path,
             )
@@ -1535,7 +1537,7 @@ class ModelRegistry:
                 id=GESTURE_KEY,
                 name='MediaPipe Gesture Recognizer',
                 model_type=ModelType.VISION,
-                source=ModelSource.MEDIAPIPE_MODELS,
+                source=ModelSource(split_key(GESTURE_KEY)[0]),   # la clé dit la source
                 description="Reconnaissance des gestes de la main (21 repères par main, jusqu'à deux "
                             "mains ; poing fermé, main ouverte, index levé…) — exécutée dans le "
                             "navigateur, aucune image ne part au serveur. Pilote les scènes 3D à la "

@@ -26289,6 +26289,19 @@ pour 255 lignes, 0 différente ; installables par la route 8 → 8 ; le GGUF app
 Reste ⏳ (étape 4) : 15 sites dans 6 fichiers, tous de la couche
 manifeste, figés par `tests_platform_ref_only.HF_ID_BUDGET`. Domiciles : `WAMA_MANIFEST_SPEC §7.1
 bis`, `PROSPECTION_PIPELINE §Session du 2026-10-27`, R179.
+Commité `4e251275` (avec le rangement de `custom`, R180 ; migration `0030` appliquée, `sync_models`
+refait avec le code neuf après qu'un worker MIXTE — registre de l'ancien code déjà chargé, clé du
+nouveau lue sur le disque — a réécrit la ligne des gestes en `custom`). Suite complète sur HEAD + mes
+seuls fichiers (worktree) : 8734 tests, 29 échecs + 4 erreurs, TOUS rejoués à l'identique sur HEAD nu
+sauf `TheOldCopiesDelegateTest` (vert isolé : dépendance d'ordre). 13 contre-épreuves rouges.
+🔎 **Revérification (`/reverif`) — trois recopies de ma main, ramenées** : l'union « dépôts qu'une
+ligne EST » écrite deux fois (prospection, banc) → `AIModel.hub_repos()` ; la relation `quantized`
+écrite en dur dans quatre modules → `models.BASE_RELATION_QUANTIZED` / `BASE_MODEL_RELATIONS` (lus
+aussi par la validation du manifeste) ; la source des deux briques écrite trois fois (origine du
+fichier, clé, découverte) → la clé se DÉRIVE de l'origine, la source de la clé (`split_key`).
+Consigné sans geste : la paire GitHub `github_platform_ref` / `github_ref_of_platform` vit dans
+`model_installer`, la paire HF dans `external_sources` — même nature, deux modules (antérieure ;
+la regrouper déplacerait la logique des versions).
 
 ## §PALIER 2026-10-26 (soir) — EMPILER des briques en un panneau, ÉPINGLER à QUATRE bords — non poussé — 🔴 relancer gunicorn, puis Ctrl+F5
 

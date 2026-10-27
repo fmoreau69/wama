@@ -517,7 +517,7 @@ def _local_repos(m) -> set:
     """Dépôts que la ligne du catalogue DÉCLARE : son `platform_ref` Hugging Face, le modèle
     canonique d'une quantification (`quantized_base` — un GGUF EST ce modèle, borne haute), clé
     d'une ligne découverte ou proposée sur le Hub. Jamais déduits d'un nom."""
-    out = {_repo_id(m.hf_repo), _repo_id(m.quantized_base)}
+    out = {_repo_id(r) for r in m.hub_repos()}
     key = m.model_key or ''
     for prefix in ('huggingface:', 'proposed:hf:'):
         if key.startswith(prefix):

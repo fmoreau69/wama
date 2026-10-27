@@ -43,6 +43,8 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
 
+from wama.common.external_sources import hf_platform_ref  # noqa: E402
+
 from role_utils import (  # noqa: E402
     REPO_ROOT, add_llm_arguments, call_llm, enforce_category_facts, enforce_component_facts,
     enforce_engine_facts, enforce_resolution_facts, enforce_task_facts, extract_json, fetch,
@@ -101,7 +103,7 @@ def squelette(repo_id: str) -> tuple[dict, str]:
                 'hf_id': repo_id,
                 'license': str(licence)[:64] or None,
                 'author': str(auteur)[:200] or None,
-                'platform_ref': f'huggingface:{repo_id}',
+                'platform_ref': hf_platform_ref(repo_id),
                 'gated': gated,              # ← mécanique : 'no' | 'auto' | 'manual'
                 'description_short': None,   # ← jugement LLM
             },

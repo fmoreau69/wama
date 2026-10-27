@@ -678,8 +678,6 @@ _LPIPS = {}
 #: L'instrument LPIPS au catalogue (2026-10-16) : une ligne de tâche `quality-metric`, que le
 #: model manager installe, vérifie et désinstalle comme tout modèle — la dorsale AlexNet de
 #: torchvision était tirée par `torch.hub` au premier banc, à côté de la route d'installation.
-#: Rangée sous la source de son fichier déclaré (`pytorch_download`, 2026-10-27 — ex-`custom:`).
-LPIPS_KEY = 'pytorch_download:lpips-alexnet'
 LPIPS_WEIGHTS = 'alexnet-owt-7be5be79.pth'
 #: Le fichier DÉCLARÉ (pilote `files`) : la version officielle de torchvision (source déclarée
 #: `pytorch_download`), taille et empreinte MESURÉES le 2026-10-16 sur le fichier installé — son nom
@@ -689,6 +687,9 @@ LPIPS_FILES = [
      'sha256': '7be5be791159472b1fbf3c69796f7cb30dca7ad8466c2df70058c37116cdee02',
      'origin': {'source': 'pytorch_download', 'file': f'models/{LPIPS_WEIGHTS}'}},
 ]
+#: Rangée sous la source d'où vient son fichier déclaré (2026-10-27 — ex-`custom:`) : la source se
+#: lit sur l'ORIGINE du fichier, elle n'est pas écrite une seconde fois.
+LPIPS_KEY = f"{LPIPS_FILES[0]['origin']['source']}:lpips-alexnet"
 
 
 def lpips_folder() -> Path:

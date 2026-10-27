@@ -14,8 +14,6 @@ téléchargement « au premier usage » : absent, la scène le dit et renvoie à
 from pathlib import Path
 
 #: Clé de sa ligne au catalogue.
-#: Rangée sous la source de son fichier déclaré (`mediapipe_models`, 2026-10-27 — ex-`custom:`).
-GESTURE_KEY = 'mediapipe_models:gesture-recognizer'
 
 #: `gesture_recognizer.task`, version `float16/1`, à son adresse OFFICIELLE. Taille et empreinte
 #: MESURÉES le 2026-10-22 sur le fichier que sert Google.
@@ -25,6 +23,9 @@ GESTURE_FILES = [
      'origin': {'source': 'mediapipe_models',
                 'file': 'gesture_recognizer/gesture_recognizer/float16/1/gesture_recognizer.task'}},
 ]
+#: Rangée sous la source d'où vient son fichier déclaré (2026-10-27 — ex-`custom:`) : la source se
+#: lit sur l'ORIGINE du fichier, elle n'est pas écrite une seconde fois.
+GESTURE_KEY = f"{GESTURE_FILES[0]['origin']['source']}:gesture-recognizer"
 
 
 def gesture_folder() -> Path:

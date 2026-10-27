@@ -302,7 +302,8 @@ def backbone_row(row):
     """
     info = getattr(row, 'extra_info', None) or {}
     base = (info.get('base_model') or '').strip()
-    if not base or info.get('base_model_relation') == 'quantized':
+    from wama.model_manager.models import BASE_RELATION_QUANTIZED
+    if not base or info.get('base_model_relation') == BASE_RELATION_QUANTIZED:
         return None
     own = getattr(row, 'hf_repo', '')
     if base == own and info.get('model_type') != 'lora':

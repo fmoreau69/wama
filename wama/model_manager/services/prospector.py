@@ -1057,8 +1057,7 @@ def catalogue_repos(rows) -> set:
     fois, pour « déjà chez nous » et « déjà installé »."""
     out = set()
     for m in rows.only('platform_ref', 'extra_info'):
-        out.update({m.hf_repo.lower(), m.quantized_base.lower()})
-    out.discard('')
+        out |= m.hub_repos()
     return out
 
 

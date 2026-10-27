@@ -155,9 +155,10 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
             # (`benchmark_sync`, garde « local souvent Q4 »). Jusqu'au 2026-10-27 ce second fait
             # vivait dans `hf_id`, que `platform_ref` répétait partout ailleurs.
             repo = ref[len('hf.co/'):].split(':', 1)[0]
+            from wama.model_manager.models import BASE_RELATION_QUANTIZED
             base = (spec.get('base_model') or '').strip()
             return {'platform_ref': hf_platform_ref(repo),
-                    **({'base_model': base, 'base_model_relation': 'quantized'}
+                    **({'base_model': base, 'base_model_relation': BASE_RELATION_QUANTIZED}
                        if base and base.lower() != repo.lower() else {})}
         return ollama_identity(ref)
     if kind == 'yolo':

@@ -1644,7 +1644,7 @@ def rows_depending_on(model, target: Path, index: dict | None = None) -> tuple[l
         if other_dir is not None and _same_or_nested(other_dir, target):
             sharing.append(other)
         elif (repo_id and str((other.extra_info or {}).get('base_model') or '').strip().lower() == repo_id
-              and (other.extra_info or {}).get('base_model_relation') != 'quantized'):
+              and not other.quantized_base):
             # Une QUANTIFICATION de ce modèle n'en dépend pas : elle porte ses propres poids.
             dependents.append(other)
     return sharing, dependents

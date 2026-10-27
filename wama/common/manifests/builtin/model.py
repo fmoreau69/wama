@@ -77,6 +77,7 @@ def validate_model_body(body: dict) -> list[str]:
             if not isinstance(base, str) or base.strip().count('/') != 1:
                 errs.append(f"identity.{_BASE_MODEL_KEY} {base!r} doit être un dépôt du Hub "
                             "« org/nom »")
+            from wama.model_manager.models import BASE_MODEL_RELATIONS
             if relation not in BASE_MODEL_RELATIONS:
                 errs.append(f"identity.{_BASE_RELATION_KEY} {relation!r} hors du vocabulaire du "
                             f"Hub ({', '.join(BASE_MODEL_RELATIONS)})")
@@ -394,8 +395,6 @@ _PUBLICATIONS_KEY = 'publications'
 #: banc apparie), séparé de `platform_ref` (d'où viennent les poids).
 _BASE_MODEL_KEY = 'base_model'
 _BASE_RELATION_KEY = 'base_model_relation'
-#: Les relations que le Hub nomme. `quantized` seule fait de la ligne CE modèle (`AIModel.quantized_base`).
-BASE_MODEL_RELATIONS = ('adapter', 'finetune', 'merge', 'quantized')
 
 
 def _base_model_identity(extra_info: dict) -> dict:

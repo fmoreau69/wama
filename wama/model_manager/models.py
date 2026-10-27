@@ -539,6 +539,13 @@ class ModelSource(models.TextChoices):
     MEDIAPIPE_MODELS = 'mediapipe_models'
 
 
+#: Les relations qu'une carte du Hub nomme entre un modèle et son `base_model` — vocabulaire repris
+#: tel quel (2026-10-27). `quantized` seule fait de la ligne CE modèle (`AIModel.quantized_base`) ;
+#: le manifeste `model` valide sa paire contre cette liste.
+BASE_RELATION_QUANTIZED = 'quantized'
+BASE_MODEL_RELATIONS = ('adapter', 'finetune', 'merge', BASE_RELATION_QUANTIZED)
+
+
 def source_groups() -> list:
     """Les GROUPES du filtre « Source » du model manager, dans leur ordre — `[{'key', 'label'}]`.
 
@@ -951,9 +958,16 @@ class AIModel(ScopedVisibility):
         publie). Une LoRA porte aussi `base_model`, sa DORSALE : sans la relation `quantized`, elle
         n'est pas sa dorsale, et ce n'est pas ici qu'elle se lit."""
         info = self.extra_info or {}
-        if info.get('base_model_relation') != 'quantized':
+        if info.get('base_model_relation') != BASE_RELATION_QUANTIZED:
             return ''
         return str(info.get('base_model') or '').strip()
+
+    def hub_repos(self) -> set:
+        """Les dépôts du Hub que cette ligne EST, en minuscules : celui de ses poids (`hf_repo`) et,
+        pour une quantification, son modèle canonique (`quantized_base`). LA règle par ligne de
+        « déjà chez nous » (`prospector.catalogue_repos`) et de l'appariement du banc
+        (`benchmark_sync._local_repos`), qui la recopiaient chacun."""
+        return {r.lower() for r in (self.hf_repo, self.quantized_base) if r}
 
     def platform_refs(self):
         """`platform_ref`, puis ce que la ligne porte déjà du même fait tant qu'il n'est pas
