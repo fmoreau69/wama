@@ -1942,7 +1942,8 @@ Analyzer. Ce que la brique porte, pour tous :
   (`fallback`), la page en étant prévenue pour oublier son choix ;
 - la **liste des périphériques avec leurs noms**, la demande d'autorisation qu'elle exige étant
   REFERMÉE aussitôt (le Face Analyzer ouvrait la caméra deux fois) ;
-- ce que la piste a **réellement accordé** (taille, annulation d'écho), le **zoom matériel** ;
+- ce que la piste a **réellement accordé** (taille, annulation d'écho), le **nom du périphérique ouvert** (2026-10-27 :
+  l'écoute de l'assistant le dit — ce n'est pas toujours le micro où l'on parle), le **zoom matériel** ;
 - l'**enregistrement** (`MediaRecorder`) et la **permission** lue sans rien demander ;
 - les pistes **rendues** à l'arrêt et en quittant la page (`pagehide`).
 

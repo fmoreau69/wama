@@ -492,6 +492,15 @@ class ListenBrickTest(SimpleTestCase):
         self.assertEqual('normal', ctx.eval("c.frameMode()"),
                          "pendant qu'il réfléchit, rien ne joue : l'écoute reste ordinaire (2026-10-27)")
 
+    def test_the_listening_button_names_the_microphone_the_browser_opened(self):
+        ctx = self._ctx()
+        self._controller(ctx, echo_cancelled=True)
+        ctx.eval("c.phase = 'listening'; c.mic.label = 'Casque USB'; c.mic.ctx = { state: 'running' };"
+                 "c.render();")
+        self.assertIn('micro : Casque USB', ctx.eval("c.talkBtn.title"))
+        ctx.eval("c.mic.label = ''; c.render();")
+        self.assertNotIn('micro :', ctx.eval("c.talkBtn.title"), 'sans nom, rien de plus')
+
     def test_a_phrase_said_while_it_thinks_replaces_the_question(self):
         """2026-10-27, décision de Fabien : l'écoute était sourde (ou durcie) pendant toute la
         réflexion, alors qu'aucun son ne sortait — « ma parole ne semble pas reçue »."""

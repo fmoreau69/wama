@@ -223,6 +223,18 @@ class CaptureBrickTest(SimpleTestCase):
                          'borné à la plage ; sans valeur, le plus large')
         self.assertEqual({}, self._js(ctx, 'WamaCapture.trackSettings(null)'))
 
+    def test_the_opened_device_is_named(self):
+        """2026-10-27 : l'écoute de l'assistant dit QUEL micro le navigateur a ouvert — ce n'est
+        pas toujours celui où l'on parle (périphérique par défaut, casque branché après coup)."""
+        ctx = self._ctx()
+        ctx.eval("WamaCapture.open({ audio: true }).then(keep('s'));")
+        self.assertEqual('', self._js(ctx, "WamaCapture.trackLabel(out.s, 'microphone')"),
+                         'un navigateur qui tait le nom rend une chaîne vide')
+        ctx.eval("out.s.getAudioTracks()[0].label = 'Casque USB';")
+        self.assertEqual('Casque USB', self._js(ctx, "WamaCapture.trackLabel(out.s, 'microphone')"))
+        self.assertEqual('', self._js(ctx, "WamaCapture.trackLabel(out.s, 'camera')"), 'aucune caméra ouverte')
+        self.assertEqual('', self._js(ctx, 'WamaCapture.trackLabel(null)'))
+
     def test_a_recording_ends_once_with_the_recorder_type(self):
         ctx = self._ctx()
         ctx.eval("""
