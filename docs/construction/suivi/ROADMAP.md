@@ -1932,7 +1932,7 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
   **B — réponses (Fabien, 15/09)** : ① ce n'est pas qu'une question de voix — quand la tâche libère
   TOUS les modèles de la VRAM, l'assistant MET L'UTILISATEUR EN ATTENTE avec un message d'attente.
   ÉTAT MESURÉ : un mot d'attente GÉNÉRIQUE existe, affiché après un délai sur l'accueil seulement
-  (`assistant_skills.py:220-237` → `home.html:467-476`) ; Discord n'a que l'indicateur « écrit… »
+  (`assistant_skills.py:220-237` → `home.html`) ; Discord n'a que l'indicateur « écrit… »
   (`discord_bot.py:132`). Rien ne relie ce message au déchargement décidé par le gouverneur ⏳.
   ② toutes les apps passent au squelette de tâche commun, de toute façon : l'attente s'active avec
   ce portage. ③ une tâche NON DÉMARRÉE ne consomme aucun délai : le délai ne court qu'une fois le job

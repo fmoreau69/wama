@@ -168,6 +168,15 @@ def _donnees(manifest: dict) -> dict:
         if p.get('id') and p.get('group') in ('travail', 'reference')
         and p['id'] != d['input_field'] and p['id'] in champs]
     d['a_output'] = 'output_file' in champs
+    # Le champ de PROGRESSION enregistrée de l'élément (2026-10-27) : `progress` par convention,
+    # sinon celui que l'app DÉCLARE à son statut (`tool_api.triad_spec.status_fields.progress` —
+    # l'anonymizer : `blur_progress`). Le gabarit écrivait `progress` en dur à quatre endroits : la
+    # jumelle `anonymizer_01` rendait une FieldError sur `global_progress` (`tests_endpoints`).
+    _declared = ((((body.get('tool_api') or {}).get('triad_spec') or {}).get('status_fields') or {})
+                 .get('progress'))
+    d['progress_field'] = ('progress' if 'progress' in champs
+                           else _declared if isinstance(_declared, str) and _declared in champs
+                           else 'progress')
     d['file_fields'] = [n for n, f in champs.items()
                         if str(f.get('class', '')).rsplit('.', 1)[-1] in ('FileField', 'ImageField')]
     d['name_field'] = ('input_filename' if 'input_filename' in champs
@@ -276,6 +285,7 @@ def render_views(manifest: dict) -> tuple:
                       'item→Batch + batch_row_index')
 
     app, item, batch = d['app_id'], d['item'], d['batch']
+    progress = d['progress_field']
     fk, row, task = d['batch_fk'], d['row_field'], d['tasks'][0]
     is_link, link, link_fk = d['form'] == 'link', d['link'], d['link_fk']
     link_batch, items_related = d['link_batch'], d['items_related']
@@ -847,7 +857,7 @@ def {_nom_bc}(request):
     """Remise à zéro d'un ▶ borné, sous le verrou (`begin_processing`)."""
     from .function_specs import PIPELINE
     PIPELINE.reset_outputs(item, (process,))
-    item.progress = 0
+    item.{progress} = 0
     item.error_message = ''
 
 
@@ -859,7 +869,7 @@ start_process = make_process_start_view(
 def start(request, pk):
     user = _user(request)
     item, err = begin_processing({item}, pk, user=user,
-                                 reset={{'progress': 0, 'error_message': ''}})
+                                 reset={{'{progress}': 0, 'error_message': ''}})
     if err:
         return JsonResponse({{'error': err}}, status=400)
     t = {task}.delay(item.id)
@@ -1094,7 +1104,7 @@ def duplicate(request, pk):
     new = duplicate_instance(
         instance=item,
         for_user=user,
-        reset_fields={{'status': 'PENDING', 'progress': 0, 'task_id': '', 'error_message': ''}},
+        reset_fields={{'status': 'PENDING', '{progress}': 0, 'task_id': '', 'error_message': ''}},
         clear_fields={champs_sortie!r},
     )
     return JsonResponse({{'success': True, 'id': new.id}})'''
@@ -1386,6 +1396,8 @@ from wama.common.utils.queue_manipulation import make_queue_manipulation_views_d
     # rafraîchissement généré) — la seule clé propre d'une app conventionnelle.
     pv_extra = (",\n                          extra=lambda item: ({'output_url': item.output_file.url}"
                 " if item.output_file else {})" if d['a_output'] else '')
+    if progress != 'progress':
+        pv_extra = f",\n                          progress_field='{progress}'" + pv_extra
     tete = f'''"""
 {mark} — views.py GÉNÉRÉ par le gabarit A (views_gen, marche S2).
 

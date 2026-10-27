@@ -1151,3 +1151,23 @@ class AttachUploadWithoutPromptFieldTest(SimpleTestCase):
         self.assertEqual('consigne', card_entry(body, fields={'text', 'consigne'})['prompt_field'])
         self.assertEqual('', card_entry({'ports': {'inputs': [
             {'id': 'text', 'group': 'prompt'}]}}, fields={'other'})['prompt_field'])
+
+class GeneratedProgressFieldTest(SimpleTestCase):
+    """Le champ de PROGRESSION de l'élément (2026-10-27) : `progress` par convention, sinon celui
+    que l'app DÉCLARE à son statut (`tool_api.triad_spec.status_fields.progress`). Le gabarit
+    l'écrivait en dur : la jumelle `anonymizer_01` (`blur_progress`) rendait une FieldError sur
+    `global_progress`, vue par `tests_endpoints`."""
+
+    def test_the_declared_progress_field_reaches_every_generated_use(self):
+        from wama.common.manifests.ingest import extract
+        src, raison = render_views(extract('app', 'anonymizer'))
+        self.assertIsNotNone(src, raison)
+        ast.parse(src)
+        self.assertIn("progress_field='blur_progress'", src)
+        for written in ("'progress': 0", 'item.progress = 0'):
+            self.assertNotIn(written, src, 'the conventional name, written for a model without it')
+
+    def test_a_conventional_app_keeps_the_default(self):
+        src, raison = _vues_generees(SOURCE)
+        self.assertIsNotNone(src, raison)
+        self.assertNotIn('progress_field=', src)

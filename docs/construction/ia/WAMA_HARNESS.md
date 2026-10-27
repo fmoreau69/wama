@@ -349,7 +349,7 @@ risque ; avec l'approbation, ça redevient un confort.
 
 **Mesuré** : aucune réponse en flux côté assistant (aucun `StreamingHttpResponse` ni
 `text/event-stream` dans `wama/` hors la sonde MCP) ; les étapes d'outils sont affichées **après**
-le tour (`home.html:543-546`). Avec un modèle local et jusqu'à 5 tours d'outils, l'utilisateur
+le tour (`home.html`, alors). Avec un modèle local et jusqu'à 5 tours d'outils, l'utilisateur
 attend sans rien voir. Tous les harnais de la carte streament tokens **et** étapes.
 C'est l'écart le moins profond et le plus visible.
 

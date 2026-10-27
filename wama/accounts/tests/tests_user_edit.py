@@ -74,12 +74,12 @@ class UserEditTest(TestCase):
         self.post(self.admin, password='Aile-de-martinet-77')
         self.assertEqual(self.client.get('/accounts/users/').status_code, 200)
 
-    def test_adding_an_account_refuses_a_weak_password(self):
+    def test_adding_an_account_rejects_a_weak_password(self):
         response = self.client.post('/accounts/users/new/', {'username': 'edit_new', 'password': '123'})
         self.assertFalse(response.json()['success'])
         self.assertFalse(User.objects.filter(username='edit_new').exists())
 
-    def test_adding_an_account_refuses_a_password_resembling_its_username(self):
+    def test_adding_an_account_rejects_a_password_resembling_its_username(self):
         response = self.client.post('/accounts/users/new/',
                                     {'username': 'heronplume', 'password': 'heronplume1'})
         self.assertFalse(response.json()['success'])
@@ -91,7 +91,7 @@ class UserEditTest(TestCase):
         self.client.post('/accounts/users/new/', {'username': 'edit_nopw'})
         self.assertFalse(User.objects.get(username='edit_nopw').has_usable_password())
 
-    def test_editing_ones_own_profile_refuses_an_email_held_by_another_account(self):
+    def test_editing_ones_own_profile_rejects_an_email_held_by_another_account(self):
         self.client.force_login(self.local)
         response = self.client.post('/accounts/user/edit', {'first_name': 'Ancien',
                                                             'email': 'dir@example.org'})

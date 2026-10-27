@@ -20004,7 +20004,7 @@ après P3 (n°8), une seule déclaration poussée remplace les `extra_links`.
   `docs/dev/briques.md` sont à régénérer (`doc_facts`) — non fait ici : ces deux fichiers portent
   le travail en cours d'autres instances dans l'arbre.
 - ⏳ **Reste de P1** : `category` réduit à ses trois sous-groupes du monde Médias, surfaces
-  regroupées par monde — menu, accueil (blocs Studio et Lab écrits en dur, `home.html:502-585`),
+  regroupées par monde — menu, accueil (blocs Studio et Lab écrits en dur, `home.html`, alors),
   `/apps/`, catalogue du studio, explorateur de fichiers. Validation au navigateur requise.
 - **Entrées de conception pour P3** consignées au brief de `ROUTE §10.6` (relevées par l'instance
   « portage » en portant le composer sur le squelette, `30cd431e`) : ordre modèle / entrée,
