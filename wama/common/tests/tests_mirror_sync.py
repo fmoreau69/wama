@@ -138,6 +138,51 @@ class InternalLinksTest(SimpleTestCase):
         self.assertEqual([], [p for p in self.dest.iterdir() if p.name != '.wama_test'])
 
 
+class PartialLossRestoreTest(SimpleTestCase):
+    """The pull of a PARTIAL loss (2026-10-27, `media/` wiped then restored) : a local file
+    changed since the backup must never be replaced by its older version."""
+
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        base = Path(self._tmp.name)
+        self.remote, self.local = base / 'remote', base / 'local'
+        for rel, data in (('users/1/kept.abc', b'X:1'), ('users/1/edited.abc', b'X:1'),
+                          ('users/1/lost.wav', b'RIFF')):
+            (self.remote / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.remote / rel).write_bytes(data)
+        (self.local / 'users/1').mkdir(parents=True)
+        (self.local / 'users/1/kept.abc').write_bytes(b'X:1')
+        (self.local / 'users/1/edited.abc').write_bytes(b'X:1 corrected by hand since')
+
+    def test_missing_only_brings_back_the_lost_and_never_touches_what_is_there(self):
+        summary = mirror_tree(self.remote, self.local, keep_existing=True)
+        self.assertEqual(b'RIFF', (self.local / 'users/1/lost.wav').read_bytes())
+        self.assertEqual(b'X:1 corrected by hand since',
+                         (self.local / 'users/1/edited.abc').read_bytes())
+        self.assertEqual((1, 2), (summary['copied'], summary['skipped']))
+
+    def test_counter_proof_the_default_pull_replaces_a_file_changed_since_the_backup(self):
+        mirror_tree(self.remote, self.local)
+        self.assertEqual(b'X:1', (self.local / 'users/1/edited.abc').read_bytes())
+
+    def test_overwrite_and_keep_existing_exclude_each_other(self):
+        with self.assertRaises(ValueError):
+            mirror_tree(self.remote, self.local, overwrite=True, keep_existing=True)
+
+    def test_the_command_pulls_the_missing_only_without_asking_for_yes(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.test import override_settings
+        with patch.dict(os.environ, {'WAMA_MEDIA_BACKUP_PATH': str(self.remote)}), \
+                override_settings(MEDIA_ROOT=str(self.local)):
+            call_command('restore_backup', domain='media', missing_only=True, stdout=StringIO())
+        self.assertTrue((self.local / 'users/1/lost.wav').is_file())
+        self.assertEqual(b'X:1 corrected by hand since',
+                         (self.local / 'users/1/edited.abc').read_bytes())
+
+
 class LastRunKeptTest(SimpleTestCase):
     """The last FINISHED run of a mirror is kept without expiry (2026-09-30): progress lives 24 h,
     and the « Backup models » line vanished a day after a manual run while the nightly media

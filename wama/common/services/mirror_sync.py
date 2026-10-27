@@ -221,7 +221,7 @@ def new_summary(remote_path) -> dict:
 
 def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None,
                 dry_run: bool = False, progress_cb=None, on_file=None,
-                progress_every: int = PROGRESS_EVERY) -> dict:
+                progress_every: int = PROGRESS_EVERY, keep_existing: bool = False) -> dict:
     """
     Réplique `source_root` vers `dest_root` en conservant l'arborescence relative.
 
@@ -236,6 +236,10 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
         source_root: racine à lire.
         dest_root:   racine à écrire (doit exister — voir `remote_is_available`).
         overwrite:   si True, recopie même les fichiers déjà présents (resync complet).
+        keep_existing: si True, un fichier déjà présent à la destination n'est JAMAIS recopié,
+                     quelle que soit sa taille — le TIRAGE d'une perte PARTIELLE (2026-10-27) :
+                     sans lui, un fichier modifié depuis la sauvegarde (taille différente) serait
+                     écrasé par sa version ancienne. Incompatible avec `overwrite`.
         exclude:     noms de dossiers/fichiers à ignorer, comparés à CHAQUE segment du
                      chemin relatif. Sert au TIRAGE (`~Archives` ne doit pas revenir dans
                      `media/`) ; inutile au sens sauvegarde, où le dossier n'existe pas en
@@ -254,6 +258,8 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
 
     Returns: dict de synthèse (clés de `new_summary`).
     """
+    if overwrite and keep_existing:
+        raise ValueError("`overwrite` et `keep_existing` s'excluent")
     summary = new_summary(dest_root)
     source_root = Path(source_root)
     dest_root = Path(dest_root)
@@ -302,7 +308,8 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
         dest = None
         try:
             dest = dest_root / source.relative_to(source_root)
-            if not overwrite and dest.exists() and dest.stat().st_size == source.stat().st_size:
+            if not overwrite and dest.exists() and (
+                    keep_existing or dest.stat().st_size == source.stat().st_size):
                 summary['skipped'] += 1
                 if on_file:
                     on_file(source, dest, 'skipped', dest.stat().st_size / (1024 * 1024), None)

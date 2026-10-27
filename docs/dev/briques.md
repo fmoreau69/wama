@@ -253,11 +253,11 @@ Le registre `IMPORTERS` EST le dispatch ET la source du résolveur SERVEUR « En
 
 ### Lignes d'exécution des process
 
-UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process sur les six états communs, photo des réglages surveillés, modèle EMPLOYÉ (lisible pendant un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage surveillé changé, puis cascade) et déduit l'état d'une card de ses process (`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte `status` ; l'arrêt et la réconciliation referment les lignes ouvertes. Le lancement y écrit son PLAN (`plan` : ses process `PENDING`, avec sa tâche) ; l'ETA d'un process (`step_eta_seconds`, règle des passes du cam_analyzer) et celle d'une card, la somme de ce que joue son lancement (`launch_eta`, 2026-10-05)
+UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process sur les six états communs, photo des réglages surveillés, modèle EMPLOYÉ (lisible pendant un « auto »), sortie, durée. Dit ce qui est périmé (`stale_nodes` : réglage surveillé changé, puis cascade) et déduit l'état d'une card de ses process (`aggregate`). L'élément reste la vérité lue par l'interface tant qu'il porte `status` ; l'arrêt et la réconciliation referment les lignes ouvertes. Le lancement y écrit son PLAN (`plan` : ses process `PENDING`, avec sa tâche) ; l'ETA d'un process (`step_eta_seconds`, règle des passes du cam_analyzer) et celle d'une card, la somme de ce que joue son lancement (`launch_eta`, 2026-10-05). 2026-10-27 : une sortie PERDUE (fichier désigné, absent du disque, `output_lost`) ne périme pas son aval — seule une empreinte DIFFÉRENTE périme — : elle se dit (bande des process, résultats du studio) et se rejoue
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (23) :
+- **API publique** (24) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
@@ -268,6 +268,7 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
   - `start(item, node_id: str=MAIN_NODE, *, process_key: str='', kind: str='app', version: str='', instance_key: str='', settings_snapshot: dict | None=None, model_…` — Le process PART : la ligne passe `RUNNING`, sa photo de réglages est prise, l'erreur et
   - `await_resources(item, node_id: str=MAIN_NODE, *, process_key: str='', instance_key: str='', task_id: str='')` — Le tour du process est venu, la VRAM libre ne suffit pas : la ligne le dit, sans effacer
   - `succeed(item, node_id: str=MAIN_NODE, *, instance_key: str='', output_ref: str='', output_summary: dict | None=None, model_key: str | None=None, process_key: s…` — Le process a RENDU son résultat : `SUCCESS`, durée mesurée depuis `start`.
+  - `output_lost(row) -> bool` — La ligne désigne une sortie FICHIER (`output_ref`, relatif à `MEDIA_ROOT`) que le disque ne
   - `annotate(item, node_id: str=MAIN_NODE, *, instance_key: str='', **values)` — Ajoute `values` à ce que la ligne retient de sa sortie (`output_summary`), sans toucher à
   - `fail(item, node_id: str=MAIN_NODE, message: str='', *, instance_key: str='', process_key: str='')` — Le process a ÉCHOUÉ — le message est gardé sur la ligne ; la sortie précédente, elle,
   - `close_open(item, to_status: str=JOB_FAILURE, message: str='') -> int` — Referme les lignes OUVERTES d'un élément qu'on arrête ou qu'on réconcilie : une tâche
@@ -2929,13 +2930,14 @@ Profils DÉCLARÉS (bruit rose à un rapport signal/bruit donné, champ lointain
 
 ### Garde-fou des médias (processus)
 
-Posé par `CommonConfig.ready()` dans TOUT processus Django (gunicorn, Celery, commandes, scripts `django.setup()`, tests) : `shutil.rmtree` refuse, par `PermissionError` que `ignore_errors` n'avale pas, d'effacer la racine des médias lue au démarrage, `users/`, `media_library/` ou un dossier qui les contient. Né de la perte TOTALE du 2026-10-27 (un `setUp` qui effaçait `settings.MEDIA_ROOT`, lancé hors du lanceur de tests). Le pendant AST, dans les tests d'hygiène, interdit de passer `MEDIA_ROOT` à un `rmtree`
+Posé par `CommonConfig.ready()` dans TOUT processus Django (gunicorn, Celery, commandes, scripts `django.setup()`, tests) : `shutil.rmtree` refuse, par `PermissionError` que `ignore_errors` n'avale pas, d'effacer la racine des médias lue au démarrage, `users/`, `media_library/` ou un dossier qui les contient. Né de la perte TOTALE du 2026-10-27 (un `setUp` qui effaçait `settings.MEDIA_ROOT`, lancé hors du lanceur de tests). Et la CAUSE : un test de Django refuse de démarrer hors de `manage.py test` — sur les vrais médias, la vraie base, ou dans un processus dont le cache et le broker Celery sont les vrais (`runtime_side`). Les pendants AST, dans les tests d'hygiène, interdisent de passer `MEDIA_ROOT` à un `rmtree`, d'importer `rmtree` par son nom et de jouer une suite hors de `manage.py test`
 
 - **Domicile** : `wama/common/utils/media_guard.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §10](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Garde-fou PROCESSUS : aucun `shutil.rmtree` ne peut effacer `media/` en bloc.
-- **API publique** (2) :
+- **API publique** (3) :
   - `refusal(path, roots=None) -> str` — La raison de refuser d'effacer `path` en bloc, ou '' s'il peut l'être.
-  - `install(media_root) -> bool` — Protège `media_root` dans ce processus. Idempotent ; rend True si la garde est en place.
+  - `test_refusal(test, media_root, database: str, test_process: bool=True) -> str` — La raison de refuser de JOUER `test` maintenant, ou '' : un test de Django (`SimpleTestCase`)
+  - `install(media_root, database: str='') -> bool` — Protège `media_root` (et la base `database`) dans ce processus. Idempotent ; rend True si
 
 ### Grille des temps d'un audio
 
@@ -3214,7 +3216,7 @@ Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (F
 
 ### Sauvegarde & tirage
 
-Moteur unique de miroir (modèles, base, médias, secrets) et restauration
+Moteur unique de miroir (modèles, base, médias, secrets) et restauration (`restore_backup`). 2026-10-27 : le tirage d'une perte PARTIELLE ne recopie que les fichiers absents (`keep_existing`, `--missing-only`) — un fichier modifié depuis la sauvegarde n'est plus remplacé par sa version ancienne ; procédure : skill `restauration`
 
 - **Domicile** : `wama/common/services/mirror_sync.py`
 - **Module** : Miroir incrémental d'une arborescence locale vers un espace distant — brique COMMUNE.

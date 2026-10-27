@@ -23,7 +23,12 @@ RÉINSTALLATION COMPLÈTE — ORDRE IMPOSÉ
     4. `restore_backup --domain media`
     5. `manage.py sync_models`            → réconcilie catalogue ↔ disque
 
+PERTE PARTIELLE (2026-10-27, `media/` effacé puis restauré) : `--missing-only` ne copie que les
+fichiers ABSENTS en local — sans lui, un fichier modifié depuis la sauvegarde (taille différente)
+serait écrasé par sa version ancienne. Procédure complète : skill `restauration`.
+
 Exemples :
+    python manage.py restore_backup --domain media --dry-run --missing-only
     python manage.py restore_backup --domain media --dry-run
     python manage.py restore_backup --domain models --yes
     python manage.py restore_backup --domain config --force
@@ -78,6 +83,9 @@ class Command(BaseCommand):
                             help="[config] écrase un `.env` local existant.")
         parser.add_argument('--overwrite', action='store_true',
                             help="Recopie même les fichiers déjà présents à l'identique.")
+        parser.add_argument('--missing-only', action='store_true',
+                            help="Ne copie QUE les fichiers absents en local : un fichier présent "
+                                 "n'est jamais écrasé, même de taille différente (perte partielle).")
 
     # ------------------------------------------------------------------ config
     def _restore_config(self, opts):
@@ -122,17 +130,22 @@ class Command(BaseCommand):
 
         # Garde-fou : sur une installation NEUVE la destination est vide et il n'y a rien à
         # protéger. Sur une installation VIVANTE, un fichier local de taille différente serait
-        # écrasé par la version sauvegardée — donc confirmation explicite.
+        # écrasé par la version sauvegardée — donc confirmation explicite, sauf `--missing-only`
+        # (perte PARTIELLE, 2026-10-27) : alors rien de local n'est jamais écrasé.
+        if opts['overwrite'] and opts['missing_only']:
+            raise CommandError("--overwrite et --missing-only s'excluent.")
         deja = any(local.rglob('*'))
-        if deja and not (opts['dry_run'] or opts['yes']):
+        if deja and not (opts['dry_run'] or opts['yes'] or opts['missing_only']):
             raise CommandError(
                 f"{local} n'est pas vide : un tirage peut y écraser des fichiers.\n"
-                f"Mesurer d'abord avec --dry-run, puis confirmer avec --yes."
+                f"Mesurer d'abord avec --dry-run, puis confirmer avec --yes "
+                f"(ou --missing-only : ne copier que les fichiers absents)."
             )
 
         result = mirror_tree(
             remote, local,
             overwrite=opts['overwrite'],
+            keep_existing=opts['missing_only'],
             exclude=spec['exclude'],
             dry_run=opts['dry_run'],
         )
