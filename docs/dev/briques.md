@@ -2177,7 +2177,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/ui/CARD_DESIGN.md §3bis](../construction/ui/CARD_DESIGN.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (46) :
+- **API publique** (47) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -2207,6 +2207,7 @@ Position de l'entrée de file décidée par l'utilisateur (`QueueOrderMixin.queu
   - `class UserFunction(ScopedVisibility)` — Fonction de traitement CRÉÉE PAR UN UTILISATEUR (WAMA Data), stockée en BDD, avec
   - `class UserTheme(ScopedVisibility)` — Un thème tiré d'une CHARTE graphique (PDF) — pour un labo, une équipe, un établissement
   - `class PromptSkill(ScopedVisibility)` — Un SKILL de prompt qui a un AUTEUR (`ROADMAP §29`, décision de Fabien du 2026-10-20 :
+  - `class Pronunciation(ScopedVisibility)` — Comment la VOIX dit un terme — une entrée du lexique de prononciation qui a un AUTEUR
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration
@@ -3048,11 +3049,16 @@ La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr =
 
 ### Le texte À DIRE (préparation avant vocalisation)
 
-`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et `make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, point en fin de ligne non ponctuée, tiret d'incise → virgule, `/` → « ou »). ⚠ Le domaine était écrit DEUX FOIS, sous le MÊME NOM de fonction : la vue de vocalisation avait les emojis, le Markdown et les respirations, `synthesizer/utils/text_extractor.py` avait les URL et les e-mails — donc le synthesizer, dont le métier est de lire un document à voix haute, lisait les listes d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc toute surface qui vocalise — accueil, volet, canaux) et le synthesizer. Depuis le 2026-10-18 (défauts entendus, mesurés par aller-retour voix → transcription) : parenthèses dites en incises (`say_incises`), emphase courte en majuscules et LEXIQUE de prononciation (`say_emphasis`, `SPOKEN_FORMS`), code en ligne dit, et `pause_segments` — où la voix respire, et combien : les réglages de pauses (déclarés une fois, `common/tts/constants.VOICE_PAUSE_SETTINGS`) de l'assistant et du synthesizer, posés pour TOUT moteur par leur contrat commun (`tts_base.TTSBackend.synthesize`). Le second nettoyage du navigateur est RETIRÉ
+`text_for_speech` (la chaîne, dans un ordre dont chaque place se justifie) et `make_audible` (la mise en forme visuelle traduite en respirations : puce de tête, point en fin de ligne non ponctuée, tiret d'incise → virgule, `/` → « ou »). ⚠ Le domaine était écrit DEUX FOIS, sous le MÊME NOM de fonction : la vue de vocalisation avait les emojis, le Markdown et les respirations, `synthesizer/utils/text_extractor.py` avait les URL et les e-mails — donc le synthesizer, dont le métier est de lire un document à voix haute, lisait les listes d'un trait. Unifié le 2026-09-26 (demande de Fabien) ; le nom du synthesizer DÉLÈGUE, ses six appelants sont intacts. Consommateurs : la vue `kokoro_tts` (donc toute surface qui vocalise — accueil, volet, canaux) et le synthesizer. Depuis le 2026-10-18 (défauts entendus, mesurés par aller-retour voix → transcription) : parenthèses dites en incises (`say_incises`), emphase courte en majuscules (`say_emphasis`), code en ligne dit, et `pause_segments` — où la voix respire, et combien : les réglages de pauses (déclarés une fois, `common/tts/constants.VOICE_PAUSE_SETTINGS`) de l'assistant et du synthesizer, posés pour TOUT moteur par leur contrat commun (`tts_base.TTSBackend.synthesize`). Le second nettoyage du navigateur est RETIRÉ. Depuis le 2026-10-27, le LEXIQUE de prononciation (`lexicon`) : le fichier système `common/tts/pronunciations.json` et les lignes d'un compte (registre `pronunciations`), qu'un moteur dit par l'orthographe (`respell_with_lexicon`, au contrat commun) ou par les phonèmes (`phonemes_with_lexicon`, Kokoro) — joint à la demande par `tts_via_service(user=)`, le service vocal n'ayant pas Django
 
 - **Domicile** : `wama/common/utils/tts_text.py` · **doc** : [docs/construction/ia/WAMA_LLM.md §1bis](../construction/ia/WAMA_LLM.md)
 - **Module** : Le texte À DIRE — brique commune de préparation d'un texte pour la synthèse vocale.
-- **API publique** (5) :
+- **API publique** (10) :
+  - `pronunciations(language: str) -> dict` — Le lexique SYSTÈME de `language` (code WAMA, `fr`), celui du fichier : {graphie : entrée}.
+  - `system_lexicons() -> dict` — Tout le fichier : {langue : {graphie : entrée}} — le registre `pronunciations` le lit.
+  - `lexicon(language: str, extra=None) -> dict` — Le lexique que dit la voix : le fichier, puis `extra` ({graphie : entrée}, les lignes que
+  - `respell_with_lexicon(text: str, language: str, extra=None) -> str` — Le texte À DIRE, chaque terme qui a une ORTHOGRAPHE (`spelling`) remplacé par elle — pour
+  - `phonemes_with_lexicon(text: str, language: str, phonemize, finish=None, extra=None) -> str` — Les phonèmes de `text`, ceux du LEXIQUE à la place de ce que dirait le phonémiseur.
   - `make_audible(text: str) -> str` — Traduit la MISE EN FORME VISUELLE en respirations audibles.
   - `say_incises(text: str) -> str` — Parenthèses et crochets dits comme des INCISES — entre deux virgules (voir
   - `say_emphasis(text: str) -> str` — Les mots courts d'EMPHASE en majuscules (`_SHORT_EMPHASIS_WORDS`) passent en minuscules ;
@@ -3433,7 +3439,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
 
 - **Domicile** : `wama/common/models.py` · **doc** : [docs/construction/exploitation/PROFILES_PERMISSIONS.md](../construction/exploitation/PROFILES_PERMISSIONS.md)
 - **Module** : Briques de modèles COMMUNES (cf. BATCH_MODEL_AUDIT.md).
-- **API publique** (46) :
+- **API publique** (47) :
   - `job_status_values() -> list` — Les VALEURS des cinq états de FILE, dans l'ordre du vocabulaire.
   - `normalize_job_status(value) -> str` — Un état QUELCONQUE (base, JSON, littéral d'app) → le vocabulaire commun.
   - `class ProcessingTimeMixin(models.Model)` — Durée RÉELLE de traitement, en secondes. Le worker la CALCULE déjà (il la passe au learner
@@ -3463,6 +3469,7 @@ Privé / unité / public : filtrage des lectures, mutations inchangées. Depuis 
   - `class UserFunction(ScopedVisibility)` — Fonction de traitement CRÉÉE PAR UN UTILISATEUR (WAMA Data), stockée en BDD, avec
   - `class UserTheme(ScopedVisibility)` — Un thème tiré d'une CHARTE graphique (PDF) — pour un labo, une équipe, un établissement
   - `class PromptSkill(ScopedVisibility)` — Un SKILL de prompt qui a un AUTEUR (`ROADMAP §29`, décision de Fabien du 2026-10-20 :
+  - `class Pronunciation(ScopedVisibility)` — Comment la VOIX dit un terme — une entrée du lexique de prononciation qui a un AUTEUR
   - `class Manifest(models.Model)` — Store des MANIFESTES (union discriminée par `manifest_kind`) — cf. WAMA_MANIFEST_SPEC.md.
   - `class Library(models.Model)` — Registre des librairies externes — **NÉ de la projection** du manifeste `library`.
   - `class RunOutcome(models.Model)` — Journal des FAITS observés sur un résultat produit — préalable de toute auto-amélioration

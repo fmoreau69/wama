@@ -65,7 +65,7 @@ la réponse n'est pas « tout en registre ».
 
 ## Les registres, un par un
 
-**19 registres**, par ordre alphabétique de libellé.
+**21 registres**, par ordre alphabétique de libellé.
 
 ### Applications
 
@@ -204,6 +204,16 @@ Réconcilie le catalogue avec ce qui est réellement présent sur le disque. Une
 
 Liste ce que CE compte a ajouté, lu en base à chaque affichage. L'entrée au RAG est un geste explicite : rien ne s'y ajoute par balayage, donc rien à réconcilier.
 
+### Mots-clés de prompt
+
+- **Clé** : `prompt_keywords` — Dérivé à chaque affichage — toujours à jour
+- **Source** : Lignes `media_library.PromptKeyword` : le tronc commun (système, `seed_prompt_keywords`) et les mots-clés d'auteur (une portée ; système une fois promus)
+- **Provenance des éléments** : Système et auteurs — des éléments système et des éléments d'utilisateurs — portée par `media_library.PromptKeyword`
+- **Page dans WAMA** : `/media-library/`
+- **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+
+Les mots-clés cliquables sous un champ-prompt (palette `WamaPromptChips`), gardés VERBATIM à l'enrichissement. Le tronc commun est système ; un mot-clé d'auteur naît privé, se partage, se copie, et un administrateur le rend système.
+
 ### Nœuds intégrés du pipeline
 
 - **Clé** : `pipeline_nodes` — Registre en mémoire, peuplé par import
@@ -224,6 +234,17 @@ Les cards d'ENTRÉE et de SORTIE d'un pipeline (ni l'une ni l'autre n'est un pro
 - **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
 
 La DÉCLARATION que la pipeline de prompts consomme : quel champ est un prompt, de quel KIND, vers quel modèle. Figé dans le code, donc toujours à jour. Partage sa page avec les skills : c'est le même écran qui montre la déclaration, la consigne, et le lien calculé entre les deux.
+
+### Prononciations
+
+- **Clé** : `pronunciations` — Dérivé à chaque affichage — toujours à jour
+- **Source** : Fichier `wama/common/tts/pronunciations.json` (système) et lignes `common.Pronunciation` (un auteur et une portée ; système une fois promues)
+- **Provenance des éléments** : Système et auteurs — des éléments système et des éléments d'utilisateurs — portée par `common.Pronunciation`
+- **Page dans WAMA** : `/common/pronunciations/`
+- **Doc** : [docs/construction/ia/WAMA_LLM.md](../construction/ia/WAMA_LLM.md)
+- **Citable dans une doc** : `WAMA:FAIT(pronunciations/<clé>/<champ>)`
+
+Comment la voix dit un terme : une orthographe à dire (tout moteur), ou des phonèmes (Kokoro). Le texte affiché n'est jamais touché. Le fichier du dépôt est le lexique système ; l'entrée d'un compte passe devant pour lui, se partage, se copie, et un administrateur la rend système.
 
 ### Schémas de conteneur (WAMA Data)
 
