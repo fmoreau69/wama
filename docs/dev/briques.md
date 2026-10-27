@@ -96,16 +96,20 @@ Monte un stockage distant comme un dossier du filemanager : nuage WebDAV, partag
 
 ### ETA auto-apprenante
 
-Estimation de durée par a-priori puis moyenne mobile, bucketisée par matériel ; sous la clé de catalogue d'un modèle, c'est aussi sa VITESSE D'INFÉRENCE, que le banc calibre et que le curseur rapide/qualité de toutes les apps compare (`comparable_speeds` → `model_selector.intent_choice`, 2026-10-11)
+Estimation de durée par a-priori puis moyenne mobile, rangée par LIEU DE CALCUL (le matériel, ou la source d'un modèle distant : `compute_place`, 2026-10-26) ; un modèle CHAUD — distant, ou résident selon le gouverneur (`is_warm`) — ne paie pas de chargement, et quand l'appelant ne sait pas, c'est le gouverneur qui tranche (`pays_load`, 2026-10-27 : il était supposé chargé) ; sous la clé de catalogue d'un modèle, c'est aussi sa VITESSE D'INFÉRENCE, que le banc calibre et que le curseur rapide/qualité de toutes les apps compare (`comparable_speeds` → `model_selector.intent_choice`, 2026-10-11)
 
 - **Domicile** : `wama/model_manager/services/eta_estimator.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md §10](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : Estimateur d'ETA WAMA — *seeding* auto-apprenant et hardware-aware. ================================================================================
-- **API publique** (7) :
+- **API publique** (11) :
   - `hardware_fingerprint() -> str` — Identifiant court du matériel de calcul (GPU + VRAM) ; 'cpu' à défaut.
+  - `compute_place(model_key: str) -> str` — OÙ tourne le calcul mesuré sous cette clé — la valeur sous laquelle l'ETA le range
+  - `is_warm(model_key: str) -> bool` — Le modèle derrière cette clé est-il CHAUD — aucun chargement à payer avant de calculer ?
+  - `names_catalogue_model(model_key: str) -> bool` — La clé d'ETA nomme-t-elle un modèle du CATALOGUE (elle-même ou après un préfixe d'usage) —
+  - `pays_load(model_key: str, model_loaded: Optional[bool]=None) -> bool` — Le chargement du modèle entre-t-il dans l'estimation ? (2026-10-27, Fabien : « le gouverneur
   - `make_key(source: str, model_id: str) -> str` — Construit le model_key du registre : '{source}:{model_id}'.
-  - `learned_speed(model_key: str) -> Optional[Tuple[str, float, int]]` — (unité, secondes par unité, échantillons) APPRIS pour ce modèle sur ce matériel, ou None.
+  - `learned_speed(model_key: str) -> Optional[Tuple[str, float, int]]` — (unité, secondes par unité, échantillons) APPRIS pour ce modèle à son lieu de calcul
   - `comparable_speeds(model_keys) -> dict` — `{model_key: secondes par unité}` APPRISES sur ce matériel pour TOUT le lot, ou {} s'il
-  - `estimate(model_key: str, size: float=1.0, unit: str='item', model_loaded: bool=False, fallback_seconds: Optional[float]=None) -> float` — Estimation (secondes) du temps TOTAL de traitement d'un item.
+  - `estimate(model_key: str, size: float=1.0, unit: str='item', model_loaded: Optional[bool]=False, fallback_seconds: Optional[float]=None) -> float` — Estimation (secondes) du temps TOTAL de traitement d'un item.
   - `record_run(model_key: str, size: float, unit: str='item', process_seconds: float=0.0, load_seconds: Optional[float]=None, user=None) -> None` — Enregistre une exécution RÉELLE pour affiner l'estimation (EMA, par hardware).
   - `relearn_lines_from_runs(apply: bool=False) -> dict` — Amorce la droite (`_line`) des clés de PROCESS qui n'en ont pas encore, depuis les lignes
 
@@ -562,7 +566,7 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
 
 - **Domicile** : `wama/model_manager/services/model_installer.py`
 - **Module** : Pipeline accept→download→register — installation de modèles dans WAMA.
-- **API publique** (52) :
+- **API publique** (49) :
   - `pull_ollama_model(name: str, timeout: int=1800, progress=None)` — Télécharge un modèle Ollama via le démon LOCAL (`POST /api/pull`, stream).
   - `delete_ollama_model(name: str, timeout: int=60) -> dict` — Désinstalle un modèle Ollama (`DELETE /api/delete`) — libère sa place sur le volume.
   - `pull_hf_model(repo_id: str, category: str, family: str | None=None, dry_run: bool=False, allow_patterns=None, progress=None, token=None)` — Télécharge un modèle HuggingFace DANS LE BON DOSSIER (catégorie WAMA) via l'API officielle
@@ -573,9 +577,6 @@ Pipeline accept→download→register : télécharge au bon endroit puis enregis
   - `components_for_spec(spec: dict, *, files=None) -> dict` — Poids par composant de ce qu'un descripteur désigne — `{}` si indéterminable.
   - `yolo_task_of(name: str) -> str` — Tâche (`ModelTask`) d'un poids YOLO, déduite du suffixe de son nom — `detect` par défaut.
   - `pull_yolo_weights(name: str, timeout: int=600, dry_run: bool=False)` — Télécharge des poids YOLO OFFICIELS (assets GitHub Ultralytics, URL stable
-  - `github_release_of(ref: str) -> tuple` — `owner/repo:tag` → (`owner/repo`, `tag`) ; ('', '') si la forme n'y est pas.
-  - `github_platform_ref(ref: str) -> str` — `owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas).
-  - `github_ref_of_platform(platform_ref: str) -> str` — L'inverse : `github:owner/repo/releases/tag/<tag>` → `owner/repo:tag`, sinon ''.
   - `github_release_error(ref) -> str | None` — Motif de refus d'une version désignée `owner/repo:tag`, ou None (pur, aucune I/O).
   - `github_spec_error(spec: dict)` — Motif de refus d'un descripteur `github`, ou None — pendant de `vendor_spec_error`.
   - `github_asset_url(spec: dict) -> str` — Adresse de téléchargement de l'asset, dérivée de la source déclarée `github` (comme
@@ -670,7 +671,7 @@ Veille déterministe HuggingFace/Ollama + évaluation multi-agents (dry-run) ; v
 
 - **Domicile** : `wama/model_manager/services/prospector.py` · **doc** : [wama/model_manager/PROSPECTION_PIPELINE.md](../../wama/model_manager/PROSPECTION_PIPELINE.md)
 - **Module** : Prospection de modèles — version DÉTERMINISTE (sans LLM, sans scraping).
-- **API publique** (32) :
+- **API publique** (33) :
   - `hf_task_to_wama(pipeline_tag: str, tags=())` — (tâche NÔTRE, model_type) d'un dépôt HF, d'après son tag de pipeline ET les tags de sa
   - `card_facts(pipeline_tag: str, tags=(), card_data=None, library_name: str='') -> dict` — Ce que la CARTE HuggingFace dit d'un modèle, traduit en faits WAMA — MÉCANIQUEMENT, jamais
   - `prospect_hf(task: str, limit: int=15, library: str | None=None, min_downloads: int=0, search: str | None=None, sort: str='downloads')` — Top modèles HF d'une `task` (par téléchargements), avec flag « déjà dans WAMA ».
@@ -1102,7 +1103,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
 
 - **Domicile** : `wama/model_manager/services/cloud_models.py` · **doc** : [docs/construction/suivi/ROADMAP.md §8d](../construction/suivi/ROADMAP.md)
 - **Module** : Modèles DISTANTS au catalogue — découverte par la clé d'un UTILISATEUR (ROADMAP §8d Phase 3, 4b).
-- **API publique** (21) :
+- **API publique** (22) :
   - `abilities_for(task: str, remote_type: str='') -> dict` — Drapeaux `ModelAbility` qu'une TÂCHE distante garantit — ceux que `select_model(requires=…)`
   - `class CloudDiscoveryError(RuntimeError)` — Découverte impossible — message lisible par l'utilisateur, jamais la clé.
   - `task_and_type(remote_type: str)` — (tâche NÔTRE, model_type) d'un type annoncé par le fournisseur, ou (None, None).
@@ -1113,6 +1114,7 @@ Un modèle servi par une clé d'API entre au catalogue comme les autres (ligne `
   - `cloud_model_infos() -> dict` — `{model_key: ModelInfo}` de TOUS les modèles distants qu'une clé posée ouvre — la
   - `keys_for(source: str, listing: list) -> list` — Clés de catalogue des modèles rangeables d'une liste — ce que `UserApiKey.open_models` garde.
   - `retire_unlisted(source: str) -> int` — Marque indisponibles les lignes distantes de `source` qu'AUCUNE clé n'ouvre plus, et remet
+  - `drop_renamed(source: str) -> list` — SUPPRIME les lignes retirées de `source` qui ne sont qu'un ANCIEN NOM d'une ligne vivante —
   - `refresh_key(row, background: bool=False) -> tuple` — Relit chez le fournisseur les modèles ouverts à la clé `row` (`accounts.UserApiKey`), puis
   - `refresh_all_keys() -> dict` — Relit chez CHAQUE fournisseur les modèles ouverts à CHAQUE clé posée — la sonde nocturne.
   - `register_open_models(row) -> None` — Le CATALOGUE suit la liste gardée sur la clé `row` : la partie LONGUE de `refresh_key`
@@ -1991,7 +1993,7 @@ Une app ne demande plus un MODULE, elle demande « le backend qui sait exécuter
 
 - **Domicile** : `wama/common/backends/manager.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Manager de backends COMMUN — extrait du pattern Transcriber/Imager.
-- **API publique** (20) :
+- **API publique** (21) :
   - `register_engine_inventory(fn) -> None` — Enregistre un inventaire de moteurs. Le callable rend soit un MAPPING
   - `engine_backends() -> dict` — {moteur: classe de backend} pour tous les inventaires qui exposent leurs classes.
   - `invalidate_engine_cache() -> None` — À appeler après une installation de librairie : le prochain `known_engines()`
@@ -3260,11 +3262,11 @@ Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffm
 
 ### Sources externes
 
-Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur. Depuis le 2026-10-07 (décision de Fabien), la clé d'INSTANCE se pose par un admin sur la page « Sources externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ de saisie est UNE brique (`WamaKeyField`) pour le profil et la page. Une clé FACULTATIVE (`api_key_optional`, 2026-10-12 : le jeton de `github_api`) relève un quota sans rendre la source « non configurée » quand elle manque. Une PLATEFORME de modèles déclare la fiche d'un modèle (`model_page`, 2026-10-22) : `model_platforms()` est le vocabulaire de `AIModel.platform_ref`, `model_page_url()` en rend la page (lien de card, validation du manifeste `model`), `hf_repo()` en tire le dépôt du Hub — la seule lecture du dépôt d'un modèle depuis le 2026-10-27 (`hf_id` ne se lit plus) ; un fournisseur distant se DIT par `remote_origin_label` — hébergement · fournisseur · coût — partout où il est nommé
+Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la surcharge, variable portant la clé d'API, attribution exigée par la licence, et surtout la PORTÉE (service local ou Internet) — d'où le traitement du proxy est DÉRIVÉ au lieu d'être choisi à la main par chaque appelant. Ajouter une plateforme = une entrée. ⚠ Ne déclare JAMAIS le client : chaque source a sa forme (JSON authentifié, parquet, HTML scrapé), le parseur reste chez le consommateur. La CLÉ peut être celle de l'instance (`api_key_env`) ou celle de CHACUN, posée au profil (`user_key`) : depuis le 2026-09-22 (décision de Fabien) les connecteurs de la médiathèque y sont déclarés (famille `media`) — adresse, proxy et sonde d'ici, clé de chaque utilisateur. Depuis le 2026-10-07 (décision de Fabien), la clé d'INSTANCE se pose par un admin sur la page « Sources externes » (`accounts.InstanceApiKey`, chiffrée) et prime sur le `.env`, qui reste le repli ; une source `shareable` (clés d'application : ILaaS) peut la PARTAGER avec les comptes sans clé — la clé personnelle prime toujours. Le champ de saisie est UNE brique (`WamaKeyField`) pour le profil et la page. Une clé FACULTATIVE (`api_key_optional`, 2026-10-12 : le jeton de `github_api`) relève un quota sans rendre la source « non configurée » quand elle manque. La FORME des clés se déclare aussi (`api_key_prefix`, 2026-10-26, mesurée sur des clés réelles) : une clé tronquée est refusée au dépôt (`api_keys.key_shape_error`, dans `store_key`, le geste des deux écrans). Une PLATEFORME de modèles déclare la fiche d'un modèle (`model_page`, 2026-10-22) : `model_platforms()` est le vocabulaire de `AIModel.platform_ref`, `model_page_url()` en rend la page (lien de card, validation du manifeste `model`), `hf_repo()` en tire le dépôt du Hub — la seule lecture du dépôt d'un modèle depuis le 2026-10-27 (`hf_id` ne se lit plus) ; un fournisseur distant se DIT par `remote_origin_label` — hébergement · fournisseur · coût — partout où il est nommé
 
 - **Domicile** : `wama/common/external_sources.py` · **doc** : [docs/construction/suivi/PROJECT_STATUS.md](../construction/suivi/PROJECT_STATUS.md)
 - **Module** : external_sources — registre DÉCLARATIF des sources externes joignables par WAMA.
-- **API publique** (29) :
+- **API publique** (34) :
   - `cost_label(tier: str) -> str` — « gratuit (quota) », « facturé à l'usage », « abonnement » — '' pour un coût inconnu.
   - `remote_origin_label(source: str, cost_tier: str='') -> str` — LE libellé d'un modèle distant, calculé de ce qui est DÉCLARÉ : hébergement · fournisseur ·
   - `source_origin_label(source: str) -> str` — Où partent les données d'un FOURNISSEUR et ce qu'il coûte, sans son nom (que l'écran
@@ -3278,6 +3280,9 @@ Registre DÉCLARATIF de ce que WAMA joint au dehors : adresse, réglage qui la s
   - `model_page_url(platform_ref: str) -> str | None` — L'adresse de la fiche publique d'un modèle, DÉRIVÉE de son `platform_ref`
   - `hf_repo(platform_ref) -> str` — Le dépôt du Hub (`org/nom`) qu'un `platform_ref` désigne, '' pour une autre plateforme.
   - `hf_platform_ref(repo) -> str` — Le `platform_ref` d'un dépôt du Hub (`org/nom` → `huggingface:org/nom`), '' sans dépôt.
+  - `github_release_of(ref) -> tuple` — `owner/repo:tag` → (`owner/repo`, `tag`) ; ('', '') si la forme n'y est pas.
+  - `github_platform_ref(ref) -> str` — `owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas).
+  - `github_ref_of_platform(platform_ref) -> str` — L'inverse : `github:owner/repo/releases/tag/<tag>` → `owner/repo:tag`, sinon ''.
   - `serves_many_tasks(key: str) -> bool` — La source `key` sert-elle des modèles de plusieurs tâches sous un même moteur, hors du
   - `llm_engine_inventory() -> dict` — {moteur: porteur} des fournisseurs LLM distants — un par source `llm` (2026-09-15).
   - `get(key: str) -> ExternalSource` — La source déclarée. `KeyError` explicite : une clé inconnue est un défaut de code.

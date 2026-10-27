@@ -61,6 +61,7 @@ class HubRepositoryAccessorTest(SimpleTestCase):
         self.assertEqual('Org/Repo:v1.0', github_ref_of_platform(ref))
         self.assertEqual('', github_platform_ref('Org/Repo'))
         self.assertEqual('', github_ref_of_platform('huggingface:Org/Repo'))
+        self.assertEqual('', github_ref_of_platform('gitlab:Org/Repo/releases/tag/v1.0'))
 
     def test_both_platform_pairs_live_in_external_sources_only(self):
         """The GitHub pair lived in `model_installer`, apart from its Hub twin (until 2026-10-27)."""
