@@ -318,7 +318,8 @@ class Surface:
     #: résolues avec l'élément : un calcul que seul le serveur de l'app sait faire (recaler une
     #: borne sur les mots de la sortie ASR, transcrire une plage jouée, proposer des noms).
     routes: dict = field(default_factory=dict)
-    #: Le RÉGLAGE de l'élément (l'un de `settings`, type `mapping`) où la page GARDE la version
+    #: Le RÉGLAGE de l'élément (type `mapping`, lu et écrit avec `settings` sans y être redit —
+    #: `page_settings`) où la page GARDE la version
     #: écoutée de chaque média lu — `{rôle: clé de version}` (`sources_of`), l'original quand rien
     #: n'est noté (2026-10-22, demande de Fabien : « persister le choix de version de l'audio dans
     #: la card »). La page le lit à l'ouverture et l'écrit au choix, par la route commune des
@@ -329,6 +330,13 @@ class Surface:
     #: (le bouton ✎ en contour pointillé ou plein, `edit-btn`) — une fonction de l'élément. Défaut :
     #: « corrigé » dès qu'une couche de corrections n'est pas vide.
     edit_state: Optional[Callable] = None
+
+    def page_settings(self) -> tuple:
+        """Les réglages que la page lit et écrit : `settings`, puis `sources_setting` — déclaré
+        une fois, à sa place (revérification du 2026-10-27 : la surface le redisait dans
+        `settings`, et l'enregistrement l'exigeait)."""
+        extra = (self.sources_setting,) if self.sources_setting else ()
+        return tuple(dict.fromkeys(tuple(self.settings) + extra))
 
     def witness_problems(self) -> list:
         """Ce qui empêche de fabriquer le témoin déclaré — [] s'il se fabrique."""
@@ -496,7 +504,7 @@ class Surface:
                 # Les bornes que `clean_layout` applique, lues par le noyau plutôt que recopiées.
                 'max_rows': MAX_LAYOUT_ROWS, 'dock_edges': list(DOCK_EDGES),
                 'autosave': self.autosave, 'finish': self.finish,
-                'settings': list(self.settings),
+                'settings': list(self.page_settings()),
                 'sources_setting': self.sources_setting,
                 'bricks': {b.key: b.to_dict() for b in self.bricks()}}
 
@@ -618,10 +626,6 @@ def register_surface(surface: Surface) -> Surface:
         if slot.zone not in ZONES or slot.x < 0 or slot.w < 1 or slot.x + slot.w > columns:
             raise ValueError(f"surface {surface.id} : emplacement « {slot.id} » hors de sa zone "
                              f"({slot.zone}, x={slot.x}, w={slot.w})")
-    if surface.sources_setting and surface.sources_setting not in surface.settings:
-        # La page écrit ce réglage par la route commune, qui n'écrit que les `settings` déclarés.
-        raise ValueError(f"surface {surface.id} : `sources_setting` « {surface.sources_setting} » "
-                         "doit être l'un de ses `settings`")
     SURFACES[surface.id] = surface
     return surface
 

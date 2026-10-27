@@ -73,13 +73,13 @@ def _settings_url(app: str, pk: int) -> str:
 
 
 def _settings_of(found, item) -> dict:
-    """Les réglages que la page lit (`Surface.settings`) : leur schéma — celui de l'app, réduit aux
-    noms déclarés — et leurs valeurs sur l'élément."""
+    """Les réglages que la page lit (`Surface.page_settings`) : leur schéma — celui de l'app,
+    réduit aux noms déclarés — et leurs valeurs sur l'élément."""
     from wama.common.utils.param_schema import schema_for_app
-    names = set(found.settings)
+    names = found.page_settings()
     schema = [p for p in schema_for_app(found.app) if p.get('name') in names]
     values = {}
-    for name in found.settings:
+    for name in names:
         value = getattr(item, name, None)
         values[name] = value.isoformat() if hasattr(value, 'isoformat') else value
     return {'schema': schema, 'values': values}
@@ -154,7 +154,7 @@ def surface_page(request, app: str, key: str, pk: int):
             'layout_url': reverse('common:surface_layout', args=[app, key]),
             # Les routes de geste de l'app (`Surface.routes`) et celle de ses réglages.
             'routes': {gesture: _url(f'{app}:{name}', pk) for gesture, name in found.routes.items()},
-            'settings_url': _settings_url(app, pk) if found.settings else '',
+            'settings_url': _settings_url(app, pk) if found.page_settings() else '',
         },
         'scripts': found.scripts(),
     })
@@ -218,7 +218,7 @@ def surface_data(request, app: str, key: str, pk: int):
         'sources': sources,
         'value': value,
         'context': found.context_of(item),
-        'settings': _settings_of(found, item) if found.settings else None,
+        'settings': _settings_of(found, item) if found.page_settings() else None,
         'can_edit': _can_edit(request.user, item),
         'token': state_token(value),
         'field': field,

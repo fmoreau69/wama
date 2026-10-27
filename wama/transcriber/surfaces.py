@@ -94,7 +94,7 @@ register_surface(Surface(
     edits='corrected_segments_json', validate=validate_segments,
     value=_segments, autosave=True,
     finish='Terminer la correction', saved=_saved,
-    settings=('title', 'meeting_date', 'speaker_map', 'listened_sources'),
+    settings=('title', 'meeting_date', 'speaker_map'),
     # « Écouter » (original, nivellement, débruitage) se retrouve à la prochaine ouverture.
     sources_setting='listened_sources',
     routes={'retime': 'retime_segments', 'write_cursor': 'write_cursor',

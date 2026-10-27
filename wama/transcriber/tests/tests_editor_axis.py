@@ -57,9 +57,10 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
                          'the transport carries the commands of the time, nothing else')
         self.assertTrue(found.autosave)
         self.assertEqual('Terminer la correction', found.finish)
-        # + the version listened to, kept on the card (`sources_setting`, 2026-10-22).
-        self.assertEqual(('title', 'meeting_date', 'speaker_map', 'listened_sources'),
-                         found.settings)
+        # + the version listened to, kept on the card (`sources_setting`, 2026-10-22), read and
+        # written with them without being said twice (`page_settings`, 2026-10-27).
+        self.assertEqual(('title', 'meeting_date', 'speaker_map'), found.settings)
+        self.assertEqual(found.settings + ('listened_sources',), found.page_settings())
         self.assertEqual({'retime', 'write_cursor', 'write_results', 'suggest_speakers'}, set(found.routes))
 
     def test_one_transport_drives_the_common_axis_and_player(self):

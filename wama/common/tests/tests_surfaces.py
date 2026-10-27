@@ -61,16 +61,20 @@ class RegistryTest(SimpleTestCase):
         self.assertEqual('common/js/wama-detections.js', review.scripts()[0],
                          'a dependency loads before the bricks that need it')
 
-    def test_the_kept_version_setting_must_be_one_the_page_writes(self):
-        """`Surface.sources_setting` (2026-10-22) is written through the common settings route,
-        which writes only the declared `settings` : anything else is refused at registration."""
+    def test_the_kept_version_setting_is_read_and_written_without_being_said_twice(self):
+        """`Surface.sources_setting` (2026-10-22) is one of the settings the page reads and
+        writes (`page_settings`), declared once at its place — the 2026-10-27 reverification:
+        the surface repeated it in `settings`, and registration demanded it."""
         import dataclasses
-        from wama.common.surfaces import SURFACES, register_surface, surface
-        probe = dataclasses.replace(surface('transcriber', 'correct'), key='probe_kept_version',
-                                    settings=('title',))
-        with self.assertRaises(ValueError):
-            register_surface(probe)
-        self.assertNotIn(probe.id, SURFACES)
+        from wama.common.surfaces import surface
+        found = surface('transcriber', 'correct')
+        self.assertNotIn(found.sources_setting, found.settings, 'declared once')
+        self.assertEqual(found.settings + (found.sources_setting,), found.page_settings())
+        self.assertEqual(list(found.page_settings()), found.to_dict()['settings'])
+        probe = dataclasses.replace(found, settings=('title', 'listened_sources'))
+        self.assertEqual(('title', 'listened_sources'), probe.page_settings(), 'never twice')
+        silent = dataclasses.replace(found, settings=(), sources_setting='')
+        self.assertEqual((), silent.page_settings())
 
     def test_the_kept_version_is_one_the_page_still_offers(self):
         """`WamaSurface.keptSources`, run in V8 on the SERVED file : the version kept on the card
