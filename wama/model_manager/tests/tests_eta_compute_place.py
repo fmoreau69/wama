@@ -116,6 +116,42 @@ class WarmModelsPayNoLoadTest(TestCase):
             self.assertFalse(is_warm(''))
 
 
+class UnknownResidencyIsDecidedByTheGovernorTest(TestCase):
+    """`model_loaded=None` — l'appelant ne sait pas (2026-10-27, Fabien : « le gouverneur sait quels
+    modèles sont chargés en vram »). Les vues de progression et les ETA de process supposaient le
+    modèle CHARGÉ : un modèle froid s'annonçait sans son chargement."""
+
+    SIZE = WarmModelsPayNoLoadTest.SIZE
+    COMPUTE = WarmModelsPayNoLoadTest.COMPUTE
+    LOAD = WarmModelsPayNoLoadTest.LOAD
+    MODEL = 'transcriber:eta-guard-asr'
+
+    def setUp(self):
+        from wama.model_manager.models import AIModel
+        AIModel.objects.create(model_key=self.MODEL, name='guard', model_type='speech',
+                               source='transcriber')
+
+    def _estimate(self, key, resident=None):
+        with _on_this_machine(), mock.patch(RESIDENT, return_value=resident or {}):
+            return estimate(key, size=self.SIZE, unit='audio_sec', model_loaded=None)
+
+    def test_a_catalogue_model_the_governor_does_not_hold_pays_its_load(self):
+        self.assertAlmostEqual(self._estimate(self.MODEL), self.COMPUTE + self.LOAD)
+        self.assertAlmostEqual(self._estimate('eta-guard-usage:' + self.MODEL),
+                               self.COMPUTE + self.LOAD)
+
+    def test_counter_proof_a_resident_model_pays_none(self):
+        self.assertAlmostEqual(self._estimate(self.MODEL, {self.MODEL: 3.0}), self.COMPUTE)
+
+    def test_an_operation_key_names_no_model_and_pays_no_load(self):
+        self.assertAlmostEqual(self._estimate('eta-guard:convert:video'), self.COMPUTE)
+
+    def test_a_declaration_without_its_loaded_flag_lets_the_governor_decide(self):
+        from wama.common.services.process_runs import process_eta
+        spec = SimpleNamespace(key='p', eta=lambda item: (self.MODEL, 1.0, 'item'))
+        self.assertIsNone(process_eta(spec, object())[3])
+
+
 class TranscribeEtaReadsWarmthTest(TestCase):
     """`transcribe_eta` (le process `transcribe`) disait « non chargé » quel que soit l'état."""
 

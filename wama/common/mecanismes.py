@@ -280,7 +280,8 @@ MECHANISMS = (
               "Estimation de durée par a-priori puis moyenne mobile, rangée par LIEU DE CALCUL "
               "(le matériel, ou la source d'un modèle distant : `compute_place`, 2026-10-26) ; "
               "un modèle CHAUD — distant, ou résident selon le gouverneur (`is_warm`) — ne paie "
-              "pas de chargement ; "
+              "pas de chargement, et quand l'appelant ne sait pas, c'est le gouverneur qui tranche "
+              "(`pays_load`, 2026-10-27 : il était supposé chargé) ; "
               "sous la clé de catalogue d'un modèle, c'est aussi sa VITESSE D'INFÉRENCE, que le "
               "banc calibre et que le curseur rapide/qualité de toutes les apps compare "
               "(`comparable_speeds` → `model_selector.intent_choice`, 2026-10-11)",

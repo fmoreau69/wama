@@ -98,11 +98,11 @@ def _duration(item) -> float:
 
 
 def transcribe_eta(item):
-    return ('describer:transcribe', _duration(item), 'audio_sec', True, 0.0) if _duration(item) else None
+    return ('describer:transcribe', _duration(item), 'audio_sec', None, 0.0) if _duration(item) else None
 
 
 def frames_eta(item):
-    return ('describer:frames', _duration(item), 'video_sec', True, 0.0) if _duration(item) else None
+    return ('describer:frames', _duration(item), 'video_sec', None, 0.0) if _duration(item) else None
 
 
 def describe_eta(item):
@@ -110,17 +110,17 @@ def describe_eta(item):
     from .function_specs import nature_of
     nature = nature_of(item)
     size, unit = eta_size_unit(nature, item)
-    return f'describer:{nature}', size, unit, True
+    return f'describer:{nature}', size, unit
 
 
 def summarize_eta(item):
     # Un compte-rendu (modèle lourd, parole entière) n'a pas la durée d'un résumé structuré.
     kind = ':meeting' if getattr(item, 'summary_type', '') == 'meeting' else ''
-    return f'describer:summarize{kind}', 1.0, 'item', True, 0.0
+    return f'describer:summarize{kind}', 1.0, 'item', None, 0.0
 
 
 def coherence_eta(item):
-    return 'describer:coherence', 1.0, 'item', True, 0.0
+    return 'describer:coherence', 1.0, 'item', None, 0.0
 
 
 # ── LES GLUES : une par process (contrat `task_skeleton`) ─────────────────────────────────────

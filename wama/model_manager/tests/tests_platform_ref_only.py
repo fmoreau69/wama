@@ -54,6 +54,20 @@ class HubRepositoryAccessorTest(SimpleTestCase):
         self.assertEqual('', hf_platform_ref(''))
         self.assertEqual('Org/Name', hf_repo(hf_platform_ref('Org/Name')))
 
+    def test_a_github_release_writes_and_reads_its_platform_ref(self):
+        from wama.common.external_sources import github_platform_ref, github_ref_of_platform
+        ref = github_platform_ref('Org/Repo:v1.0')
+        self.assertEqual('github:Org/Repo/releases/tag/v1.0', ref)
+        self.assertEqual('Org/Repo:v1.0', github_ref_of_platform(ref))
+        self.assertEqual('', github_platform_ref('Org/Repo'))
+        self.assertEqual('', github_ref_of_platform('huggingface:Org/Repo'))
+
+    def test_both_platform_pairs_live_in_external_sources_only(self):
+        """The GitHub pair lived in `model_installer`, apart from its Hub twin (until 2026-10-27)."""
+        from wama.model_manager.services import model_installer
+        for name in ('github_platform_ref', 'github_ref_of_platform', 'hf_repo', 'hf_platform_ref'):
+            self.assertNotIn(name, vars(model_installer), name)
+
     def test_a_catalogue_row_derives_its_repository_and_has_no_hf_id_column(self):
         self.assertEqual('Org/Name', AIModel(platform_ref='huggingface:Org/Name').hf_repo)
         self.assertNotIn('hf_id', {f.name for f in AIModel._meta.get_fields()})

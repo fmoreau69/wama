@@ -334,8 +334,10 @@ def process_eta(spec, item):
     illisible (dite au journal, jamais levée : une estimation ne casse pas une vue).
 
     La fonction déclarée rend `(clé, taille, unité[, modèle chargé[, a priori]])` : les trois
-    premiers sont ceux que la glu apprend (`record_run`) ; « modèle chargé » vaut vrai par défaut
-    (celui de la fabrique des vues de progression) ; l'a priori est le `fallback_seconds` de
+    premiers sont ceux que la glu apprend (`record_run`) ; « modèle chargé » est ce que l'app SAIT
+    de la résidence du modèle — absent ou None, le gouverneur tranche (`eta_estimator.pays_load`,
+    2026-10-27 : il valait vrai par défaut, un modèle froid s'annonçait sans son chargement) ;
+    l'a priori est le `fallback_seconds` de
     `eta_estimator.estimate` — l'estimation PROPRE à l'app avant tout apprentissage."""
     declared = getattr(spec, 'eta', None)
     if not declared:
@@ -351,7 +353,7 @@ def process_eta(spec, item):
     if not triplet:
         return None
     key, size, unit = triplet[:3]
-    return (key, size, unit, triplet[3] if len(triplet) > 3 else True,
+    return (key, size, unit, triplet[3] if len(triplet) > 3 else None,
             triplet[4] if len(triplet) > 4 else None)
 
 

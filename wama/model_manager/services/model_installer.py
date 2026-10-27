@@ -16,6 +16,8 @@ import os
 import re
 from pathlib import Path
 
+from wama.common.external_sources import github_release_of
+
 logger = logging.getLogger(__name__)
 
 
@@ -725,28 +727,8 @@ _SHA256_RE = re.compile(r'^[0-9a-fA-F]{64}$')
 GITHUB_SPEC_FIELDS = ('ref', 'asset', 'sha256')
 
 
-def github_release_of(ref: str) -> tuple:
-    """`owner/repo:tag` → (`owner/repo`, `tag`) ; ('', '') si la forme n'y est pas."""
-    repo, sep, tag = str(ref or '').strip().partition(':')
-    return (repo, tag) if sep else ('', '')
-
-
-#: `platform_ref` d'une version : la page de la version, que la fiche déclarée de la plateforme
-#: `github` (`external_sources.model_page_url`) rend telle quelle.
-_GITHUB_RELEASE_PAGE = '{repo}/releases/tag/{tag}'
-
-
-def github_platform_ref(ref: str) -> str:
-    """`owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas)."""
-    repo, tag = github_release_of(ref)
-    return f"github:{_GITHUB_RELEASE_PAGE.format(repo=repo, tag=tag)}" if repo and tag else ''
-
-
-def github_ref_of_platform(platform_ref: str) -> str:
-    """L'inverse : `github:owner/repo/releases/tag/<tag>` → `owner/repo:tag`, sinon ''."""
-    platform, _, ident = str(platform_ref or '').partition(':')
-    repo, sep, tag = ident.partition('/releases/tag/')
-    return f"{repo}:{tag}" if platform == 'github' and sep and repo and tag else ''
+# La forme `owner/repo:tag` et sa paire `platform_ref` vivent avec celle du Hub
+# (`external_sources.github_release_of` / `github_platform_ref` / `github_ref_of_platform`).
 
 
 def github_release_error(ref) -> str | None:

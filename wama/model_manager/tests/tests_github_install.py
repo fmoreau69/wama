@@ -357,7 +357,7 @@ SPAN_RELEASE = {
 
 
 def _span_manifest(**identity):
-    from wama.model_manager.services.model_installer import github_platform_ref
+    from wama.common.external_sources import github_platform_ref
     return {'manifest_kind': 'model', 'key': 'github:Phhofm/models:4xNomosUni_span_multijpg',
             'name': '4xNomosUni_span_multijpg',
             'body': {'identity': {'source': 'github', 'model_type': 'upscaling',

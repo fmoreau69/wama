@@ -153,7 +153,9 @@ def make_progress_views(*, work_model, app_id: str, get_user=request_user,
             if triplet:
                 from wama.model_manager.services.eta_estimator import estimate
                 key, size, unit = triplet[:3]
-                loaded = triplet[3] if len(triplet) > 3 else True
+                # Sans 4ᵉ élément, l'app ne SAIT pas si le modèle est chargé : le gouverneur tranche
+                # (`eta_estimator.pays_load`, 2026-10-27) — il le supposait chargé.
+                loaded = triplet[3] if len(triplet) > 3 else None
                 try:
                     seconds = float(estimate(key, size=size, unit=unit, model_loaded=loaded) or 0)
                 except Exception:

@@ -536,10 +536,24 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
   Migration `model_manager/0028` (appliquée) : les 5 rangées sous leur source, les deux
   `transcriber:albert` réunies (la ligne de 22 mesures gardée, celle d'une seule retirée).
   Gardes : `model_manager/tests/tests_eta_compute_place.py` (16, six mutations toutes rouges).
-  ⏳ **Reste, non tranché** : l'asymétrie inverse — les appelants qui passent `model_loaded=True`
+  ~~⏳ **Reste, non tranché** : l'asymétrie inverse — les appelants qui passent `model_loaded=True`
   par défaut (`progress_views._estimate`, `process_runs.process_eta` sans 4ᵉ élément, l'assistant)
-  omettent le chargement même quand le modèle n'est PAS résident. Les laisser lire `is_warm` à la
-  place serait plus juste, mais change des ETA affichées partout : décision de Fabien. Et deux
+  omettent le chargement même quand le modèle n'est PAS résident.~~ — ✅ **tranché le 2026-10-27**
+  (Fabien : *« le gouverneur sait quels modèles sont chargés en vram. ça me semble juste du
+  câblage »*) : la
+  règle commune `eta_estimator.pays_load`. `model_loaded` dit ce que l'appelant SAIT — `True`
+  résident, `False` à charger, `None` il ne sait pas et le GOUVERNEUR tranche : un modèle du
+  catalogue qu'il ne tient pas paie son chargement, une clé d'opération (`converter:video:gif`,
+  `describer:summarize`) n'en paie aucun (rien ne se charge sous elle, `names_catalogue_model`).
+  Les deux défauts `True` (vues de progression, ETA de process) deviennent `None` ; dix
+  déclarations d'app qui écrivaient `True` sans le savoir (reader `read`/`format`/`analyze`,
+  converter `convert`/`enhance`, describer ×5) ne le disent plus. L'assistant garde `True` : son
+  attente apprise CONTIENT déjà les tours à froid (`_learn_wait` ne sépare pas le chargement).
+  ⚠ Limite, consignée : la glu commune (`task_skeleton._record_eta`) apprend la durée ENTIÈRE d'un
+  process, chargement compris quand il a eu lieu — seuls le transcriber et l'imager le mesurent à
+  part. Pour les autres, l'a priori de chargement ajouté à froid s'ajoute à une moyenne qui mêle
+  déjà des lancements froids : mesurer le chargement à part dans le squelette est le pas suivant.
+  Gardes : `tests_eta_compute_place.UnknownResidencyIsDecidedByTheGovernorTest`. Et deux
   clés d'opération LOCALES (`anonymizer:blur:img`, `converter:video:gif`) existent aussi sous
   `cpu` et sous la RTX — cause non établie (aucun worker ne masque CUDA dans les configurations).
 
@@ -26223,19 +26237,18 @@ Reste à décider : l'asymétrie inverse des appelants « chargé par défaut »
 livrées le 27/10 (« Suite, 2026-10-27 » ci-dessous), la 4ᵉ part avec la session des manifestes.
 
 **🔚 POINT D'ENTRÉE (mis à jour le 27/10, après l'étape 4)** : ~~l'étape 4 de `hf_id`~~ — ✅ livrée
-(« Suite, étape 4 » ci-dessous). 🔴 La relance du parc applique la migration `model_manager/0031`
-(colonne retirée) : à faire VITE — tant qu'elle n'a pas tourné, un processus du code neuf qui CRÉE
-une ligne `AIModel` échoue (colonne NOT NULL sans défaut en base). Après la relance : revérifier
-`manifest_export --check --kind model` (les 10 lignes transcriber / synthesizer ne doivent plus être
-périmées) et la page servie.
-Décisions ouvertes : appelants « chargé par défaut » de l'ETA (§10) ; regrouper la paire GitHub
-`github_platform_ref` / `github_ref_of_platform` à côté de la paire HF (`external_sources`).
+(« Suite, étape 4 » ci-dessous). ✅ Relance de Fabien : `0031` appliquée (13:38 UTC), colonne
+partie, aucune copie ni manifeste stocké porteur ; `manifest_export --check --kind model` ne montre
+plus les 10 lignes transcriber / synthesizer (restent 2 mesures de VRAM Ollama et 19 refus OpenRouter
+à clé `~`, antérieurs). ~~Décisions ouvertes~~ — ✅ tranchées le même jour (« Suite, ETA et paire
+GitHub » ci-dessous). Reste : pousser ; mesurer le chargement à part dans le squelette (§10).
 
 **Pendings système** : 🔴 relancer gunicorn + workers — le Python de `4e251275` et `25b88679` (et,
 avant eux, `2e0a9533`, `699d5786`, `cf43dcbc`) n'est servi qu'à moitié : la relance de 01:26 a pris
 l'arbre au milieu du chantier, et des modules importés plus tard viennent du code neuf (worker MIXTE,
-constaté à 02:08). Migrations `model_manager/0029` et `0030` APPLIQUÉES ; `0031` (étape 4) À
-APPLIQUER par la relance. Pousser. Migration `model_manager/0027` (sans SQL) APPLIQUÉE,
+constaté à 02:08). Migrations `model_manager/0029`, `0030` et `0031` APPLIQUÉES (relance de
+Fabien, 27/10 après-midi). 🔴 relancer gunicorn + workers pour l'ETA et la paire GitHub (« Suite »
+ci-dessous). Pousser. Migration `model_manager/0027` (sans SQL) APPLIQUÉE,
 gitignorée comme toutes. Données posées par la route : 26 identités (`backfill_platform_refs
 --ecrire`, par le manifeste) ; 2 lignes supprimées (`retire_unlisted('albert')`).
 
@@ -26310,9 +26323,10 @@ ligne EST » écrite deux fois (prospection, banc) → `AIModel.hub_repos()` ; l
 écrite en dur dans quatre modules → `models.BASE_RELATION_QUANTIZED` / `BASE_MODEL_RELATIONS` (lus
 aussi par la validation du manifeste) ; la source des deux briques écrite trois fois (origine du
 fichier, clé, découverte) → la clé se DÉRIVE de l'origine, la source de la clé (`split_key`).
-Consigné sans geste : la paire GitHub `github_platform_ref` / `github_ref_of_platform` vit dans
+~~Consigné sans geste : la paire GitHub `github_platform_ref` / `github_ref_of_platform` vit dans
 `model_installer`, la paire HF dans `external_sources` — même nature, deux modules (antérieure ;
-la regrouper déplacerait la logique des versions).
+la regrouper déplacerait la logique des versions).~~ — ✅ regroupée le même jour, la lecture de
+`owner/repo:tag` avec elle (« Suite, ETA et paire GitHub »).
 
 **Suite, 2026-10-27 — étape 4 : `hf_id` RETIRÉ, avec les manifestes** (Fabien : « terminer l'étape
 4 puis on clôture »). `identity.hf_id` n'est plus extrait ni projeté (`builtin/model.py`) ; le
@@ -26336,6 +26350,14 @@ dans l'arbre, 1292 sur HEAD seul : identique avec les versions d'avant de mes fi
 part est nulle) et `tests_test_layout` (`wama/common/privacy/`, non suivi) ; puis 235 après le refus
 au validateur, 0 rouge. 8 contre-épreuves dans un worktree de HEAD, 8 rouges, fichiers restaurés à
 l'octet. `check_redundancy` : 89, aucune dans mes fichiers. `check_docs` : 0 cassée.
+
+**Suite, 2026-10-27 — ETA et paire GitHub** (Fabien : « le gouverneur sait quels modèles sont
+chargés en vram. ça me semble juste du câblage pour que l'ETA suive l'état des modèles chargés » ;
+« On termine d'aligner les 2 fonctions github aussi »). ① ETA : règle commune `eta_estimator.pays_load` — détail et
+limite au §10. ② La forme `owner/repo:tag` et sa paire `platform_ref` (`github_release_of`,
+`github_platform_ref`, `github_ref_of_platform`, constante `GITHUB`) quittent `model_installer` pour
+`external_sources`, à côté de la paire du Hub ; prospection, provenance, scout et test lisent
+là. Aucun alias laissé.
 
 ## §PALIER 2026-10-26 (soir) — EMPILER des briques en un panneau, ÉPINGLER à QUATRE bords — non poussé — 🔴 relancer gunicorn, puis Ctrl+F5
 

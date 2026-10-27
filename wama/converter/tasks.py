@@ -251,7 +251,7 @@ def _enhance(job, ctx):
 # historique appris) ; le post-traitement est estimé appris seulement, par nature.
 
 def convert_eta(job):
-    return (*converter_eta_key_size(job), True)
+    return converter_eta_key_size(job)
 
 
 def enhance_eta(job):
@@ -259,7 +259,7 @@ def enhance_eta(job):
         size = (job.input_file.size or 0) if job.input_file else 0
     except OSError:                       # fichier d'entrée absent : la taille ne se lit pas
         size = 0
-    return f'converter:enhance:{job.media_type}', max(size / 1e6, 0.01), 'mb', True, 0.0
+    return f'converter:enhance:{job.media_type}', max(size / 1e6, 0.01), 'mb', None, 0.0
 
 
 #: La glu de chaque process du pipeline (`function_specs.PIPELINE`).

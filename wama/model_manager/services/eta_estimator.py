@@ -106,13 +106,22 @@ def compute_place(model_key: str) -> str:
     return _remote_source(model_key) or hardware_fingerprint()
 
 
+def _key_suffixes(model_key: str) -> list:
+    """La clé, puis ce qu'elle porte après chaque préfixe d'usage (`assistant-turn:ollama:x` →
+    `ollama:x` → `x`) : les formes sous lesquelles une clé d'ETA peut nommer un modèle du catalogue."""
+    suffixes, key = [], str(model_key or '')
+    while key:
+        suffixes.append(key)
+        key = key.partition(':')[2]
+    return suffixes
+
+
 def is_warm(model_key: str) -> bool:
     """Le modèle derrière cette clé est-il CHAUD — aucun chargement à payer avant de calculer ?
     Un modèle distant l'est toujours (son fournisseur le tient). Un modèle local l'est s'il est
     RÉSIDENT selon le gouverneur (`resource_governor.resident_models`, tous process confondus),
     sous sa clé de catalogue : la clé elle-même, ou la clé qu'elle porte après un préfixe
-    d'usage. Une clé d'opération ou de moteur que le gouverneur ne connaît pas n'est pas chaude :
-    l'appelant décide alors (`estimate(model_loaded=…)`)."""
+    d'usage. Une clé d'opération ou de moteur que le gouverneur ne connaît pas n'est pas chaude."""
     if _remote_source(model_key):
         return True
     try:
@@ -120,12 +129,41 @@ def is_warm(model_key: str) -> bool:
         resident = resident_models()
     except Exception:
         return False
-    key = str(model_key or '')
-    while key:
-        if key in resident:
-            return True
-        key = key.partition(':')[2]
-    return False
+    return any(key in resident for key in _key_suffixes(model_key))
+
+
+def names_catalogue_model(model_key: str) -> bool:
+    """La clé d'ETA nomme-t-elle un modèle du CATALOGUE (elle-même ou après un préfixe d'usage) —
+    donc un modèle dont le gouverneur sait dire s'il est résident ? Une clé d'opération
+    (`converter:video:gif`, `describer:summarize`) n'en nomme aucun : rien ne se charge sous elle."""
+    suffixes = _key_suffixes(model_key)
+    if not suffixes:
+        return False
+    try:
+        from wama.model_manager.models import AIModel
+        return AIModel.objects.filter(model_key__in=suffixes).exists()
+    except Exception:
+        return False
+
+
+def pays_load(model_key: str, model_loaded: Optional[bool] = None) -> bool:
+    """Le chargement du modèle entre-t-il dans l'estimation ? (2026-10-27, Fabien : « le gouverneur
+    sait quels modèles sont chargés en vram. ça me semble juste du câblage pour que l'ETA suive
+    l'état des modèles chargés »).
+
+    - `model_loaded=True` : l'appelant SAIT le modèle résident (il vient de le mesurer) → non ;
+    - un modèle CHAUD (`is_warm` : distant, ou résident selon le gouverneur) → non, quoi que
+      l'appelant suppose ;
+    - `model_loaded=None` : l'appelant ne sait pas — oui pour un modèle du catalogue que le
+      gouverneur ne tient pas, non pour une clé d'opération, sous laquelle rien ne se charge ;
+    - `model_loaded=False` : l'appelant sait qu'il faudra charger → oui.
+    Jusqu'à ce jour, les vues de progression et les ETA de process SUPPOSAIENT le modèle chargé
+    (`True` par défaut) : un modèle froid s'annonçait sans son chargement."""
+    if model_loaded or is_warm(model_key):
+        return False
+    if model_loaded is None:
+        return names_catalogue_model(model_key)
+    return True
 
 
 def make_key(source: str, model_id: str) -> str:
@@ -284,7 +322,8 @@ def comparable_speeds(model_keys) -> dict:
 
 # ── API publique ─────────────────────────────────────────────────────────────
 def estimate(model_key: str, size: float = 1.0, unit: str = 'item',
-             model_loaded: bool = False, fallback_seconds: Optional[float] = None) -> float:
+             model_loaded: Optional[bool] = False,
+             fallback_seconds: Optional[float] = None) -> float:
     """
     Estimation (secondes) du temps TOTAL de traitement d'un item.
 
@@ -292,9 +331,9 @@ def estimate(model_key: str, size: float = 1.0, unit: str = 'item',
         model_key        : "{source}:{model_id}" (cf. make_key).
         size             : grandeur du domaine (s d'audio/vidéo, mégapixels, steps, tokens…). 1 par défaut.
         unit             : nom de la grandeur (clé de _DEFAULT_*). Cohérent avec record_run.
-        model_loaded     : True si l'appelant SAIT le modèle déjà résident → on omet le chargement.
-                           Faux n'impose rien : un modèle CHAUD (`is_warm` — distant, ou résident
-                           selon le gouverneur) ne paie jamais de chargement.
+        model_loaded     : ce que l'appelant SAIT de la résidence du modèle — True (résident),
+                           False (à charger), None (il ne sait pas : le gouverneur tranche). Un
+                           modèle CHAUD ne paie jamais de chargement — règle `pays_load`.
         fallback_seconds : estimation a priori PROPRE à l'app (heuristique statique) utilisée au
                            démarrage à froid — AVANT tout apprentissage — à la place de l'a-priori
                            générique par domaine. Dès qu'un run réel est enregistré, l'appris prime.
@@ -320,7 +359,7 @@ def estimate(model_key: str, size: float = 1.0, unit: str = 'item',
             load, per_unit = _apriori(model_key, unit)
 
         secs = fixed + per_unit * s
-        if not model_loaded and load and not is_warm(model_key):
+        if load and pays_load(model_key, model_loaded):
             secs += load
         return max(secs, 0.0)
     except Exception:

@@ -981,6 +981,34 @@ def hf_platform_ref(repo) -> str:
     return f'{HUGGINGFACE}:{repo}' if repo else ''
 
 
+#: La plateforme GitHub dans `platform_ref` — la clé de sa source ci-dessus. Même paire que celle
+#: du Hub (2026-10-27 : elle vivait dans `model_installer`, à part de sa jumelle).
+GITHUB = 'github'
+
+#: `platform_ref` d'une version : la page de la version, que la fiche déclarée de la plateforme
+#: `github` (`model_page_url`) rend telle quelle.
+_GITHUB_RELEASE_PAGE = '{repo}/releases/tag/{tag}'
+
+
+def github_release_of(ref) -> tuple:
+    """`owner/repo:tag` → (`owner/repo`, `tag`) ; ('', '') si la forme n'y est pas."""
+    repo, sep, tag = str(ref or '').strip().partition(':')
+    return (repo, tag) if sep else ('', '')
+
+
+def github_platform_ref(ref) -> str:
+    """`owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas)."""
+    repo, tag = github_release_of(ref)
+    return f"{GITHUB}:{_GITHUB_RELEASE_PAGE.format(repo=repo, tag=tag)}" if repo and tag else ''
+
+
+def github_ref_of_platform(platform_ref) -> str:
+    """L'inverse : `github:owner/repo/releases/tag/<tag>` → `owner/repo:tag`, sinon ''."""
+    platform, _, ident = str(platform_ref or '').partition(':')
+    repo, sep, tag = ident.partition('/releases/tag/')
+    return f"{repo}:{tag}" if platform == GITHUB and sep and repo and tag else ''
+
+
 class _RemoteEngine:
     """Porteur d'inventaire d'un fournisseur DISTANT — pas un backend Python (patron
     `ollama_host._MoteurOllama` : un moteur qui n'est pas du code qu'on charge).

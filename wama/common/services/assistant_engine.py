@@ -244,6 +244,9 @@ def expected_wait(model_key: str) -> float:
         return 0.0
     try:
         from wama.model_manager.services.eta_estimator import estimate
+        # `model_loaded=True` est ici un SAVOIR, pas une supposition : l'attente apprise d'un tour
+        # contient déjà le chargement des tours à froid (`_learn_wait` ne le sépare pas) — l'ajouter
+        # selon le gouverneur le compterait deux fois.
         seconds = estimate(TURN_ETA_PREFIX + model_key, size=1, unit='item',
                            model_loaded=True, fallback_seconds=0)
     except Exception:

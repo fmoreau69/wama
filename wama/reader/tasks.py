@@ -318,18 +318,19 @@ def _llm(item, auto=None):
 
 
 # ── ETA par process (`ProcessSpec.eta`) — `read` garde sa clé par moteur (son historique appris) ;
-# les deux process LLM sont estimés appris seulement.
+# les deux process LLM sont estimés appris seulement. Aucune ne dit si le modèle est chargé : le
+# gouverneur le sait (`eta_estimator.pays_load`) — `read` le supposait chargé (2026-10-27).
 
 def read_eta(item):
-    return (*reader_eta_key_size(item), True)
+    return reader_eta_key_size(item)
 
 
 def format_eta(item):
-    return 'reader:format', max(int(item.page_count or 0), 1), 'page', True, 0.0
+    return 'reader:format', max(int(item.page_count or 0), 1), 'page', None, 0.0
 
 
 def analyze_eta(item):
-    return 'reader:analyze', 1.0, 'item', True, 0.0
+    return 'reader:analyze', 1.0, 'item', None, 0.0
 
 
 def _format(item, ctx):

@@ -151,8 +151,9 @@ class FactoryViewsTest(TestCase):
                         return_value=12.5) as estimate:
             data = self._get(views['progress'], self.item.pk)
         self.assertEqual(12.5, data['estimated_seconds'])
+        # No 4th element: the app does not know whether the model is loaded, the governor decides.
         estimate.assert_called_once_with('progress_test:key', size=2, unit='item',
-                                         model_loaded=True)
+                                         model_loaded=None)
         self.model.objects.filter(pk=self.item.pk).update(status='SUCCESS')
         self.assertNotIn('estimated_seconds', self._get(views['progress'], self.item.pk))
 

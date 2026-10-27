@@ -43,7 +43,8 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'wama.settings')
 import django
 django.setup()
 
-from wama.common.external_sources import hf_platform_ref  # noqa: E402
+from wama.common.external_sources import (  # noqa: E402
+    github_platform_ref, github_release_of, hf_platform_ref)
 
 from role_utils import (  # noqa: E402
     REPO_ROOT, add_llm_arguments, call_llm, drop_retired_identity, enforce_category_facts,
@@ -132,7 +133,6 @@ def github_skeleton(ref: str, asset: str = '') -> tuple[dict, str, str]:
     le dit, sinon l'inventaire est rendu et rien n'est écrit. L'empreinte n'est PAS dans le
     manifeste (le formalisme n'en a pas) : le semis du candidat la relit ou la mesure.
     """
-    from wama.model_manager.services.model_installer import github_platform_ref, github_release_of
     from wama.model_manager.services.prospector import (
         github_release, github_release_license, github_release_scale)
 

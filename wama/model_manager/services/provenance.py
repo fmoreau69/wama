@@ -172,7 +172,7 @@ def identity_for_spec(spec: dict) -> Optional[dict]:
         # quelle.
         # La licence vient du spec quand la prospection l'a relevée sur la version — jamais
         # supposée ici.
-        from .model_installer import github_platform_ref, github_release_of
+        from wama.common.external_sources import github_platform_ref, github_release_of
         platform_ref = github_platform_ref(ref)
         if not platform_ref:
             return None

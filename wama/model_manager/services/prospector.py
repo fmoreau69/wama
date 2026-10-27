@@ -1851,7 +1851,7 @@ def github_release(ref: str):
 
     from wama.common.external_sources import api_key, base_url, proxies_for
 
-    from .model_installer import github_release_of
+    from wama.common.external_sources import github_release_of
     repo, tag = github_release_of(ref)
     if not (repo and tag):
         return {}
@@ -1935,7 +1935,9 @@ def github_spec_from_manifest(manifest: dict) -> dict:
     """Descripteur `github` d'un manifeste `model` de source `github`, empreinte ÉPINGLÉE —
     ou {'error'}. La version se lit dans `identity.platform_ref`, le fichier dans le composant
     `model` (un NOM, pas un motif : une version publie des variantes fp32/fp16, on en tire une)."""
-    from .model_installer import github_ref_of_platform, github_spec_error
+    from wama.common.external_sources import github_ref_of_platform
+
+    from .model_installer import github_spec_error
     body = (manifest or {}).get('body') or {}
     identity = body.get('identity') or {}
     ref = github_ref_of_platform(identity.get('platform_ref'))
