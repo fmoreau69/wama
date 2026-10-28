@@ -5029,12 +5029,15 @@ def get_converter_status_view(request):
     return _vue_outil(request, 'get_converter_status')
 
 
-def build_tools_list() -> str:
+def build_tools_list(names=None) -> str:
     """Génère la liste des outils (nom + args + description) pour le prompt de l'assistant.
 
     Itère `tool_descriptions()`, donc `TOOL_REGISTRY` — exhaustif PAR CONSTRUCTION. La version
     précédente itérait le dict manuel `TOOL_DESCRIPTIONS` tout en annonçant l'exhaustivité :
     elle en montrait 40 sur 43, et privait le composer de tout outil de démarrage visible.
+
+    `names` : les seuls outils à annoncer (un sous-agent, `WAMA_HARNESS §7.4` étape 1) — tirés des
+    lignes déjà construites, sans recalcul ; None = tous.
     """
     # UNE FOIS PAR PROCESSUS, pas une fois par tour (2026-10-05, question de Fabien : « est-ce
     # suffisant de lui donner une fois au démarrage ? »). Le MODÈLE, lui, doit recevoir la liste
@@ -5044,18 +5047,19 @@ def build_tools_list() -> str:
     # (noms ET fonctions) : un outil ajouté, retiré ou remplacé la change, donc aucune durée de
     # validité à régler.
     signature = tuple((name, id(fn)) for name, fn in sorted(TOOL_REGISTRY.items()))
-    if _TOOLS_LIST_CACHE.get('signature') == signature:
+    if _TOOLS_LIST_CACHE.get('signature') != signature:
+        # Ordre alphabétique systématique (convention WAMA : applications listées par ordre
+        # alphabétique) — l'ordre de définition reflétait l'ordre d'implémentation, sans logique.
+        lines = {}
+        for name, meta in sorted(tool_descriptions().items()):
+            args = ', '.join((meta.get('args') or {}).keys())
+            lines[name] = f"- {name}({args}): {meta.get('description', '')}"
+        _TOOLS_LIST_CACHE.update(signature=signature, lines=lines,
+                                 text='\n'.join(['Available tools:', *lines.values()]))
+    if names is None:
         return _TOOLS_LIST_CACHE['text']
-    # Ordre alphabétique systématique (convention WAMA : applications listées par ordre
-    # alphabétique) — l'ordre de définition reflétait l'ordre d'implémentation, sans logique.
-    lines = ['Available tools:']
-    for name, meta in sorted(tool_descriptions().items()):
-        args = ', '.join((meta.get('args') or {}).keys())
-        desc = meta.get('description', '')
-        lines.append(f'- {name}({args}): {desc}')
-    text = '\n'.join(lines)
-    _TOOLS_LIST_CACHE.update(signature=signature, text=text)
-    return text
+    lines = _TOOLS_LIST_CACHE['lines']
+    return '\n'.join(['Available tools:', *(lines[n] for n in sorted(names) if n in lines)])
 
 
 #: Mémoire de `build_tools_list` — par processus, invalidée par un changement du registre.

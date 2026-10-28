@@ -32,6 +32,7 @@ import json
 import logging
 import os
 import re
+import time
 
 from django.conf import settings
 
@@ -884,7 +885,8 @@ def _accepts_native_tools(source, model: str | None) -> bool:
     return bool(model_id) and model_id in (source.native_tools or ())
 
 
-def _native_tool_specs(user, provider: str, dev_tools: list, model: str | None = None) -> list | None:
+def _native_tool_specs(user, provider: str, dev_tools: list, model: str | None = None,
+                       names=None) -> list | None:
     """Les outils de l'assistant au format standard (`tools=`), pour un modèle d'un fournisseur
     DÉCLARÉ qui les accepte (`ExternalSource.native_tools`, liste de modèles MESURÉS) — None
     sinon, et le modèle lit la liste du prompt seule, comme avant.
@@ -894,23 +896,24 @@ def _native_tool_specs(user, provider: str, dev_tools: list, model: str | None =
     sur 3 au premier appel (rejeu du fil n° 37). Déclarés, l'appel revient nommé.
     La liste est CELLE du serveur MCP (`mcp_server.tools_for` : le registre filtré par les droits
     du compte, schémas dérivés des signatures) ; les outils de développement relayés n'y portent
-    que leurs noms d'arguments. La liste texte du prompt reste en place, pour tout fournisseur."""
+    que leurs noms d'arguments. La liste texte du prompt reste en place, pour tout fournisseur.
+    `names` : les seuls outils permis au tour (un sous-agent) ; None = tous."""
     from wama.common import external_sources
     source = external_sources.by_key().get(_PROVIDER_ALIAS.get(provider, provider))
     if user is None or source is None or not _accepts_native_tools(source, model):
         return None
-    return native_tool_list(user, dev_tools)
+    return native_tool_list(user, dev_tools, names=names)
 
 
-def native_tool_list(user, dev_tools: list = ()) -> list:
+def native_tool_list(user, dev_tools: list = (), names=None) -> list:
     """La liste des outils au format standard (`tools=`) que reçoit un modèle déclaré
     `native_tools` — celle du serveur MCP pour `user`, plus les outils de développement relayés.
     Publique pour la MESURE (`llm_gateway_check --tools`, 2026-10-23) : on éprouve un modèle avec la
-    liste même qu'il recevra, avant de le déclarer."""
+    liste même qu'il recevra, avant de le déclarer. `names` : comme `build_tools_list`."""
     from wama.common.services.mcp_server import tools_for
     specs = [{'type': 'function', 'function': {'name': t.name, 'description': t.description,
                                                'parameters': t.inputSchema}}
-             for t in tools_for(user)]
+             for t in tools_for(user) if names is None or t.name in names]
     specs += [{'type': 'function', 'function': {
         'name': t['name'], 'description': t.get('description') or '',
         'parameters': {'type': 'object', 'properties': {a: {} for a in t.get('args') or []}}}}
@@ -1098,7 +1101,7 @@ _INVENTED_TURN_NOTICE = (
 
 
 def _invented_turn(user, message, *, provider, llm_model, local, etiquette, total_usage,
-                   history, domain, surface, on_event, escalated_from):
+                   history, domain, surface, on_event, escalated_from, bounds):
     """Un tour SANS AUCUN appel d'outil dont la réponse citait un résultat (lien retiré par
     `_strip_unsourced_urls`) : le modèle a INVENTÉ une action. Contrôle, pas consigne (29/09).
 
@@ -1114,6 +1117,9 @@ def _invented_turn(user, message, *, provider, llm_model, local, etiquette, tota
     Remède, dans cet ordre : reprendre UNE fois le tour avec un modèle plus fort
     (`development_models.escalation_model`) ; sans lui, ou si la reprise invente aussi,
     dire qu'aucune action n'a été exécutée — jamais relayer la fabrication.
+
+    `bounds` : les bornes du tour repris (outils permis, itérations, échéance, profondeur) — la
+    reprise d'un sous-agent reste un sous-agent, avec les mêmes outils.
     """
     from wama.common.services.development_models import escalation_model
 
@@ -1132,7 +1138,8 @@ def _invented_turn(user, message, *, provider, llm_model, local, etiquette, tota
                       'text': f"\n\n_⟳ Réponse sans source — reprise avec {model_id}…_\n\n"})
         retry = run_assistant_turn(user, message, provider=SOURCE_PROVIDERS.get(src, 'wama-dev-ai'),
                                    model=model_id or None, history=history, domain=domain,
-                                   surface=surface, on_event=on_event, escalated_from=etiquette)
+                                   surface=surface, on_event=on_event, escalated_from=etiquette,
+                                   **bounds)
         if 'error' not in retry:
             usage = retry.setdefault('usage', {})
             for k, v in total_usage.items():
@@ -1222,6 +1229,15 @@ _TOOL_LIMIT_PROMPT = (
     "Limite d'appels d'outils atteinte pour ce tour. N'appelle plus aucun outil : réponds "
     "maintenant à l'utilisateur à partir des résultats ci-dessus — ce qui a été fait, ce qui "
     "reste en cours.")
+#: Le dernier tour, quand l'ÉCHÉANCE du tour est passée (`deadline`, un sous-agent) : même geste.
+_DEADLINE_PROMPT = (
+    "Temps imparti à ce tour écoulé. N'appelle plus aucun outil : réponds maintenant à partir des "
+    "résultats ci-dessus — ce qui a été trouvé, ce qui reste à vérifier.")
+#: Profondeur d'agents, FIXÉE dans le code (`WAMA_HARNESS §7.4`, comme Codex et OpenCode) : le
+#: tour de l'utilisateur est à 0, un sous-agent à 1, et un sous-agent ne délègue pas.
+MAX_AGENT_DEPTH = 1
+#: Le résultat d'un outil qu'un tour borné n'a pas reçu : refusé avant la porte, sans rien exécuter.
+_TOOL_NOT_ALLOWED = "Outil non permis à ce tour : {tool}. Outils permis : ceux de la liste ci-dessus."
 #: Si le modèle veut ENCORE un outil : la trace de ce qui a été exécuté, jamais l'appel brut.
 _TOOL_LIMIT_NOTICE = (
     "⚠ J'ai atteint la limite d'actions pour ce tour sans pouvoir conclure. Actions exécutées : "
@@ -1490,7 +1506,9 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
 def run_assistant_turn(user, message: str, provider: str = None,
                        model: str = None, history: list = None,
                        domain: str = None, surface: str = 'web', on_event=None,
-                       escalated_from: str = None) -> dict:
+                       escalated_from: str = None, *, allowed_tools=None,
+                       max_iterations: int = MAX_TOOL_ITERATIONS, deadline: float = None,
+                       depth: int = 0) -> dict:
     """
     UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
     surfaces (vue web `ai_chat`, API v1 `assistant/chat/`, adaptateurs de canaux).
@@ -1522,11 +1540,37 @@ def run_assistant_turn(user, message: str, provider: str = None,
         escalated_from: INTERNE — étiquette du tour inventé que celui-ci reprend
                   (`_invented_turn`) ; interdit une seconde reprise.
 
+    BORNES D'UN TOUR — le socle des sous-agents (`WAMA_HARNESS §7.4` étape 1, 2026-10-29). Leurs
+    défauts laissent le tour de l'utilisateur tel qu'il était ; un sous-agent est un tour de
+    CETTE boucle, synchrone, dont l'appelant attend la réponse.
+        allowed_tools:  les seuls outils annoncés (liste du prompt et déclaration native) et
+                  exécutés — un autre est refusé sans passer la porte. None = tous, outils de
+                  développement relayés compris ; borné, aucun outil `dev_*`.
+        max_iterations: appels d'outils avant le dernier appel sans outil.
+        deadline: échéance en `time.monotonic()` ; passée, plus d'outil, le tour répond. Elle
+                  borne la boucle, pas l'appel au modèle en cours (qui a son propre délai).
+        depth:    0 pour le tour de l'utilisateur. Au-delà, un SOUS-AGENT : ses outils sont
+                  ramenés à `sub_agent_tools()` (lecture seule, quels que soient ceux demandés),
+                  et `MAX_AGENT_DEPTH` le borne.
+
     Returns:
         dict succès : {success, response, model, usage, tool_steps}
         dict erreur : {error, status}
     """
     from wama.tool_api import execute_tool, build_tools_list
+
+    # Un sous-agent est en LECTURE SEULE par construction (décision de Fabien du 28/10) : ses
+    # outils sont ceux que les marques lui ouvrent, jamais plus, quoi que l'appelant demande.
+    if depth > MAX_AGENT_DEPTH:
+        raise ValueError(f"profondeur d'agent {depth} au-delà de {MAX_AGENT_DEPTH}")
+    if depth:
+        from wama.tool_api import sub_agent_tools
+        readable = sub_agent_tools()
+        allowed_tools = readable if allowed_tools is None else readable & frozenset(allowed_tools)
+    elif allowed_tools is not None:
+        allowed_tools = frozenset(allowed_tools)
+    bounds = {'allowed_tools': allowed_tools, 'max_iterations': max_iterations,
+              'deadline': deadline, 'depth': depth}
 
     # Le fournisseur se DÉRIVE du modèle (réglage durable de l'utilisateur, sinon tirage « auto »)
     # quand la surface n'impose rien : c'est ce qui donne le MÊME choix au web, à l'API et aux
@@ -1557,16 +1601,18 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # compte ou sans serveur dev. Le nom est le seul lien : `dev_*` part au relais, le reste à
     # la porte `execute_tool`. Un nom `dev_*` que personne n'a annoncé arrive à la porte, qui le
     # refuse comme inconnu : un non-développeur ne peut pas y appeler quoi que ce soit.
+    # Un tour BORNÉ (`allowed_tools`) n'en reçoit aucun : le relais dev n'est pas une lecture.
     dev_tools = []
     if user:
         from wama.common.services import mcp_client
-        dev_tools = mcp_client.dev_tools_for(user)
+        if allowed_tools is None:
+            dev_tools = mcp_client.dev_tools_for(user)
     dev_names = {t['name'] for t in dev_tools}
-    tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list()
+    tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list(allowed_tools)
                                               + mcp_client.tools_block(dev_tools))
                     if user else "")
     # Déclaration NATIVE en plus, pour les seuls modèles mesurés qui l'acceptent (`native_tools`).
-    native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
+    native_tools = _native_tool_specs(user, provider, dev_tools, llm_model, names=allowed_tools)
     native_kwargs = {'tools': native_tools} if native_tools else {}
     # Langue de réponse = profil utilisateur (plus de « in French » en dur).
     # ⚠ La consigne est posée sur les DEUX prompts : ils sont concaténés, et le prompt d'outils
@@ -1594,7 +1640,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
         # fenêtre étroite, et noieraient la question. L'assistant charge celle dont il a
         # besoin via l'outil `charger_competence` — c'est LUI qui décide, pas la surface qui
         # l'appelle (un adaptateur de canal ne connaît que son protocole).
-        annonce = competences_announcement(sauf=domain) if user else ''
+        # (Pas d'annonce à un tour qui n'a pas l'outil qui charge.)
+        annonce = (competences_announcement(sauf=domain)
+                   if user and (allowed_tools is None or 'charger_competence' in allowed_tools)
+                   else '')
     except Exception:
         logger.debug("[ai_chat] skill de rôle indisponible", exc_info=True)
 
@@ -1680,7 +1729,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
             llm_model = _prepare_local_model(llm_model, messages, user, asked_index)
         think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
         tried.add(_provider_source(provider))
-        native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
+        native_tools = _native_tool_specs(user, provider, dev_tools, llm_model, names=allowed_tools)
         native_kwargs = {'tools': native_tools} if native_tools else {}
         etiquette = f"{_label(provider, llm_model, local)} · relais ({', '.join(relays)})"
         logger.warning("[ai_chat] %s — relais : %s", relays[-1], etiquette)
@@ -1690,7 +1739,11 @@ def run_assistant_turn(user, message: str, provider: str = None,
             on_event({'type': 'model', 'model_key': turn_model_key(provider, llm_model),
                       'label': etiquette})
 
-    for _ in range(MAX_TOOL_ITERATIONS):
+    stop_prompt = _TOOL_LIMIT_PROMPT
+    for _ in range(max_iterations):
+        if deadline is not None and time.monotonic() >= deadline:
+            stop_prompt = _DEADLINE_PROMPT
+            break
         # FLUX (levier 5) : un portier par itération — il ne laisse passer ni la réflexion du
         # modèle ni un appel d'outil, qui arrivent par le même canal que la réponse.
         # Le portier vaut pour TOUT fournisseur qui diffuse (local et distant déclaré) : un
@@ -1749,7 +1802,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 return _invented_turn(user, message, provider=provider, llm_model=llm_model,
                                       local=local, etiquette=etiquette, total_usage=total_usage,
                                       history=history, domain=domain, surface=surface,
-                                      on_event=on_event, escalated_from=escalated_from)
+                                      on_event=on_event, escalated_from=escalated_from,
+                                      bounds=bounds)
             if not clean_text.strip():
                 # RÉPONSE VIDE (2026-10-10, fil web n° 37) : la prospection avait tourné, et le tour
                 # rendait '' comme un succès — l'utilisateur ne voyait rien, pas même ce qui avait
@@ -1785,7 +1839,11 @@ def run_assistant_turn(user, message: str, provider: str = None,
         tool_args  = tool_call.get('args', {})
         logger.info(f"[ai_chat] tool_call: {tool_name}({tool_args})")
 
-        if tool_name in dev_names and _already_polled(tool_steps, tool_name, tool_args):
+        if allowed_tools is not None and tool_name not in allowed_tools:
+            # Un tour BORNÉ ne passe pas la porte avec un outil qu'on ne lui a pas annoncé : le refus
+            # entre à la trace comme tout refus (`_refusals_notice`), et le modèle continue.
+            tool_result = {'error': _TOOL_NOT_ALLOWED.format(tool=tool_name)}
+        elif tool_name in dev_names and _already_polled(tool_steps, tool_name, tool_args):
             # Le SUIVI d'une tâche de fond dans le tour, CONTRÔLÉ (2026-10-12, fil Discord #43 :
             # cinq `dev_job_status` d'affilée, six minutes sans répondre à personne). Un second
             # statut d'une tâche encore en cours n'est pas relayé : la boucle répond à sa place,
@@ -1840,7 +1898,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 routed = _route_model_by_context(llm_model, messages)
                 if routed != llm_model and _safe_char_limit(routed) > window:
                     llm_model = routed
-                    native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
+                    native_tools = _native_tool_specs(user, provider, dev_tools, llm_model,
+                                                      names=allowed_tools)
                     native_kwargs = {'tools': native_tools} if native_tools else {}
                     etiquette = _label(provider, llm_model, local) + (
                         f" · relais ({', '.join(relays)})" if relays else '')
@@ -1853,8 +1912,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # venait d'APPELER un outil, c'est-à-dire l'appel brut : Discord a affiché
     # `{"tool": "get_anonymizer_status", "args": {}}` comme réponse (inspection → ajout refusé
     # par le schéma → ajout → lancement → statut : cinq outils, plus de tour pour répondre).
-    logger.warning("[ai_chat] tool-calling iteration limit reached")
-    messages.append({"role": "user", "content": _TOOL_LIMIT_PROMPT})
+    logger.warning("[ai_chat] %s", "deadline reached" if stop_prompt is _DEADLINE_PROMPT
+                   else "tool-calling iteration limit reached")
+    messages.append({"role": "user", "content": stop_prompt})
     while True:
         gate = None
         if on_event is not None:
