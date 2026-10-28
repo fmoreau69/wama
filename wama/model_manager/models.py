@@ -82,6 +82,10 @@ class ModelTask(models.TextChoices):
     # transcription (il ne produit aucun texte) ni une diarisation (il ne dit pas qui parle).
     ALIGNMENT = 'alignment', 'Alignement forcé'
     TEXT_TO_SPEECH = 'text-to-speech', 'Synthèse vocale'
+    # Fin de TOUR de parole (2026-10-28) : la personne a-t-elle fini sa phrase ? (Smart Turn,
+    # conversation vocale de l'assistant). Ni une transcription (aucun texte), ni un filtre de
+    # parole (il ne dit pas OÙ l'on parle, mais si l'on a FINI).
+    END_OF_TURN = 'end-of-turn', 'Fin de tour de parole'
     AUDIO_ENHANCE = 'audio-enhance', 'Débruitage audio'
     DENOISE = 'denoise', 'Débruitage'
     # texte / multimodal
@@ -210,6 +214,10 @@ TASK_TO_PLATFORM_TAGS = {
     # Repères de main + geste nommé : aucune tâche de pipeline ne le dit (`keypoint-detection` de HF
     # ne nomme pas le geste, `pose` d'Ultralytics est le corps entier).
     ModelTask.HAND_GESTURE:       (None,                           None,        None,        None),
+    # HuggingFace range Smart Turn sous `voice-activity-detection`, qui nomme aussi les filtres de
+    # parole ordinaires (Silero) : projeter ce tag sur la fin de tour ferait de tout VAD un juge
+    # de fin de phrase.
+    ModelTask.END_OF_TURN:        (None,                           None,        None,        None),
     ModelTask.LIP_SYNC:           (None,                           None,        None,        None),
 }
 REFERENCE_PLATFORMS = ('huggingface', 'ultralytics', 'ollama', 'roboflow')
@@ -261,6 +269,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.ROAD_SEGMENTATION:  ModelType.VISION,
     ModelTask.QUALITY_METRIC:     ModelType.VISION,
     ModelTask.HAND_GESTURE:       ModelType.VISION,
+    ModelTask.END_OF_TURN:        ModelType.SPEECH,
     ModelTask.LIP_SYNC:           ModelType.LIPSYNC,
 }
 
@@ -354,7 +363,9 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.QUALITY_METRIC:     (('image',),                     ('work_file',),            ()),
     # Le flux de la webcam, lu image par image dans le navigateur.
     ModelTask.HAND_GESTURE:       (('image', 'video'),             ('work_file',),            ()),
-    ModelTask.LIP_SYNC:           (('image', 'audio', 'video'),    ('work_image', 'work_audio'), ()),
+    # La phrase en cours, captée au micro par l'écoute de l'assistant.
+    ModelTask.END_OF_TURN:        (('audio',),                     ('work_audio',),           ()),
+    ModelTask.LIP_SYNC:          (('image', 'audio', 'video'),    ('work_image', 'work_audio'), ()),
 }
 
 

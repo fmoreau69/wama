@@ -23,13 +23,14 @@ L'appel POST /tts UNIQUE vers le microservice TTS (payload contractuel, 503 « l
 
 - **Domicile** : `wama/common/tts/service_client.py` · **doc** : [docs/construction/ui/MODES_QUEUE_UX.md §2bis](../construction/ui/MODES_QUEUE_UX.md)
 - **Module** : Client COMMUN du microservice TTS (`tts_service.py`, FastAPI, uvicorn :8001).
-- **API publique** (6) :
+- **API publique** (7) :
   - `class TTSServiceLoadingError(Exception)` — Le service TTS répond 503 « loading » (démarrage/chargement d'un moteur) —
   - `service_url() -> str` — URL du service TTS : settings Django si disponibles, sinon env, sinon défaut.
   - `tts_eta_key_size(text, model)` — (clé, taille, unité) de l'ETA d'une synthèse par le service : durée ∝ longueur du texte,
   - `tts_via_service(text, model, *, language='fr', voice_preset='default', speaker_wav=None, multi_speaker=False, scene_description='', options=None, read_timeout=…` — Synthétise `text` via le microservice TTS et renvoie le chemin d'un WAV TEMPORAIRE
   - `stt_via_service(audio, *, content_type='audio/wav', language='', model=None, read_timeout=90)` — Transcrit un extrait COURT (octets audio) par le même service — la conversation vocale de
   - `speech_only_via_service(audio, *, content_type='audio/wav', read_timeout=90)` — Les seuls passages PARLÉS d'un extrait (WAV 16 kHz mono), b'' s'il n'y en a aucun — le
+  - `end_of_turn_via_service(audio, *, model_path, read_timeout=1.5)` — Probabilité que la personne ait FINI sa phrase (0 à 1), d'après les 8 dernières
 
 ### Contrat de backend
 

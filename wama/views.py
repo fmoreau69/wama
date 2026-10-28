@@ -849,3 +849,26 @@ def speech_to_text(request):
     return JsonResponse({'text': (result.get('text') or '').strip(),
                          'language': result.get('language') or language,
                          'engine': result.get('engine', 'local')})
+
+
+@require_http_methods(["POST"])
+@csrf_protect
+def end_of_turn(request):
+    """
+    La personne a-t-elle FINI sa phrase ? (corps : la phrase dite jusqu'ici, WAV 16 kHz) →
+    `{available, complete, probability}`. L'écoute de la conversation le demande après une pause
+    courte (2026-10-28, `common/tts/end_of_turn.py`). `complete: null` = pas d'avis : l'écoute
+    garde le silence d'avant ; `available: false` = aucun modèle installé, elle cesse de demander.
+    """
+    if not request.user.is_authenticated:
+        return JsonResponse({'error': 'Authentification requise'}, status=401)
+    try:
+        announced = int(request.META.get('CONTENT_LENGTH') or 0)
+    except ValueError:
+        announced = 0
+    if announced > _STT_MAX_BYTES or len(request.body) > _STT_MAX_BYTES:
+        return JsonResponse({'error': 'extrait trop long pour une réplique'}, status=413)
+    if not request.body:
+        return JsonResponse({'error': 'audio vide'}, status=400)
+    from wama.common.tts.end_of_turn import judge
+    return JsonResponse(judge(request.body))

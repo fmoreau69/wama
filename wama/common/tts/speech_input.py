@@ -25,6 +25,7 @@ import logging
 import os
 import re
 import tempfile
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -119,17 +120,38 @@ def transcribe_utterance(user, audio: bytes, *, content_type: str = 'audio/wav',
     Les erreurs du LOCAL remontent telles quelles (`TTSServiceLoadingError`, `RuntimeError`).
     """
     content_type = (content_type or 'audio/wav').lower()
+    started = time.monotonic()
     key = remote_stt_key(user)
     if key:
         if warm_up:
             return {'text': '', 'language': language, 'engine': key}
         try:
             result = _transcribe_remote(user, key, audio, content_type)
+            _log_timing(key, started, audio)
             return {'text': drop_phantom_phrases(result.get('text')),
                     'language': result.get('language') or language, 'engine': key}
         except Exception as exc:
-            logger.warning(f"[speech_input] {key} indisponible, le local écoute : {exc}")
+            logger.warning(f"[speech_input] {key} indisponible après "
+                           f"{time.monotonic() - started:.2f} s, le local écoute : {exc}")
     from wama.common.tts.service_client import stt_via_service
+    local_started = time.monotonic()
     result = stt_via_service(audio, content_type=content_type, language=language)
+    if not warm_up:
+        _log_timing('local', started, audio, local_started)
     return {'text': drop_phantom_phrases(result.get('text')),
             'language': result.get('language') or language, 'engine': 'local'}
+
+
+def _log_timing(engine: str, started: float, audio: bytes, local_started: float = None):
+    """Une ligne par réplique : quel moteur, combien de temps (2026-10-28, Fabien : « je
+    suspecte plutôt des process qui pourraient interférer avec l'assistant »). Une phrase lente
+    se lit alors au journal, avec la part du repli local quand le distant a d'abord échoué."""
+    total = time.monotonic() - started
+    # Durée dite : le WAV de l'écoute (16 kHz, 16 bits, mono) ; un autre format, sa taille.
+    spoken = (f"{max(0, len(audio) - 44) / 32000:.1f} s" if audio[:4] == b'RIFF'
+              else f"{len(audio)} octets")
+    detail = ''
+    if local_started is not None and local_started - started > 0.05:
+        detail = f" (dont {local_started - started:.2f} s avant le repli local)"
+    logger.info(f"[speech_input] réplique de {spoken} transcrite par {engine} "
+                f"en {total:.2f} s{detail}")

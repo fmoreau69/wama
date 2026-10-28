@@ -134,6 +134,8 @@ MODEL_PATHS = {
         'resemble_enhance': AI_MODELS_DIR / "models" / "speech" / "resemble-enhance",
         'deepfilternet': AI_MODELS_DIR / "models" / "speech" / "deepfilternet",
         'kokoro': AI_MODELS_DIR / "models" / "speech" / "kokoro",
+        # Fin de tour de la conversation vocale (Smart Turn, `common/tts/end_of_turn.py`).
+        'smart_turn': AI_MODELS_DIR / "models" / "speech" / "smart-turn",
     },
     # Lip-sync / face restoration (avatarizer)
     'lipsync': {

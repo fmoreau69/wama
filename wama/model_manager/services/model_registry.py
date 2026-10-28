@@ -380,6 +380,7 @@ class ModelRegistry:
         self._discover_image_to_3d_models()
         self._discover_face_analyzer_models()
         self._discover_hand_gesture_models()
+        self._discover_turn_end_models()
 
         # EN DERNIER, après toutes les découvertes d'app : le balayage générique ne
         # couvre que ce qu'AUCUNE app ne déclare (dédup par `platform_ref`) — l'entrée déclarée
@@ -1557,6 +1558,47 @@ class ModelRegistry:
             )
         except Exception as e:
             self.discovery_errors.append(f'hand-gesture: {e}')
+
+    def _discover_turn_end_models(self):
+        """Fin de tour de parole (task=end-of-turn, 2026-10-28) — Smart Turn, que l'écoute de
+        l'assistant consulte après une pause courte (`common/tts/end_of_turn.py`). Même patron que
+        les gestes de la main : le consommateur est une brique commune, la déclaration vit à côté
+        d'elle ; la ligne existe absente, installable par le pilote `files` depuis le Hub à un
+        commit figé."""
+        try:
+            from wama.common.tts.end_of_turn import (
+                HF_REPO, MODEL_KEY, TURN_FILES, model_folder, model_installed, model_path,
+            )
+            self._models[MODEL_KEY] = ModelInfo(
+                id=MODEL_KEY,
+                name='Smart Turn v3.2',
+                model_type=ModelType.SPEECH,
+                source=ModelSource.HUGGINGFACE,
+                description="Smart Turn (pipecat-ai, BSD-2) : juge sur le son seul — intonation, fin "
+                            "de mot — si la personne a fini sa phrase ou reprend son souffle. "
+                            "L'écoute de l'assistant le consulte après une pause courte : la "
+                            "réponse part plus tôt, une pause au milieu d'une idée ne coupe plus "
+                            "la phrase. 23 langues dont le français ; processeur, aucune VRAM.",
+                description_short="Fin de tour de parole (conversation vocale)",
+                platform_ref=hf_platform_ref(HF_REPO),
+                vram_gb=0.0,
+                format='onnx',
+                preferred_format='onnx',
+                is_downloaded=model_installed(),
+                extra_info={'path': str(model_path()),
+                            'size_bytes': sum(f['size'] for f in TURN_FILES),
+                            'install_dir': str(model_folder()),
+                            'declared_files': TURN_FILES},
+                # Pas de `composition.runtime` : aucun backend ne le charge, le service vocal oui.
+                capabilities={'task': 'end-of-turn', 'modalities': ['audio'],
+                              'inputs_required': ['work_audio'],
+                              # Les 23 langues du banc de l'éditeur (v3.2, 2026-01-07).
+                              'languages': ['ar', 'bn', 'da', 'de', 'en', 'es', 'fi', 'fr', 'hi',
+                                            'id', 'it', 'ja', 'ko', 'mr', 'nl', 'no', 'pl', 'pt',
+                                            'ru', 'tr', 'uk', 'vi', 'zh']},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'end-of-turn: {e}')
 
     def _discover_midi_extraction_models(self):
         """Transcription audio → MIDI multi-instrument (task=audio-to-midi, 2026-10-16) — la

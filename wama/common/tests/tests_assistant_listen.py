@@ -612,7 +612,9 @@ class ListenBrickTest(SimpleTestCase):
         """)
         self.assertIn('rien ne sort de WAMA', ctx.eval("WamaAssistantListen._listenerLabel()"))
         ctx.eval("WamaAssistantListen._warmUp();")
-        self.assertEqual(['/api/stt/?warmup=1'], json.loads(ctx.eval("JSON.stringify(fetched)")))
+        self.assertEqual(['/api/stt/?warmup=1', '/api/end-of-turn/'],
+                         json.loads(ctx.eval("JSON.stringify(fetched)")),
+                         'le juge de fin de tour se charge d’avance, lui aussi')
         label = ctx.eval("WamaAssistantListen._listenerLabel()")
         self.assertIn('albert', label)
         self.assertNotIn('rien ne sort', label, "l'info-bulle ne dit plus « local » à tort")
@@ -684,6 +686,188 @@ class ListenBrickTest(SimpleTestCase):
                   / 'wama-assistant-chat.js').read_text(encoding='utf-8')
         for needed in ('Chat.prototype.abort', 'Chat.prototype.isBusy', 'signal: this.signal()'):
             self.assertIn(needed, source)
+
+
+class EndOfTurnViewTest(TestCase):
+    """`/api/end-of-turn/` (2026-10-28) : un avis manqué ne coûte rien — l'écoute garde alors
+    le silence d'avant —, et sans modèle installé elle cesse de demander."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('turn_tester', password='x')
+        self.client.force_login(self.user)
+        self.url = reverse('end_of_turn')
+
+    def _post(self, body=b'RIFF....WAVE'):
+        return self.client.post(self.url, data=body, content_type='audio/wav')
+
+    def test_an_anonymous_visitor_is_refused(self):
+        self.client.logout()
+        self.assertEqual(401, self._post().status_code)
+
+    def test_without_the_model_the_listener_is_told_to_stop_asking(self):
+        with mock.patch('wama.common.tts.end_of_turn.model_installed', return_value=False), \
+             mock.patch('wama.common.tts.service_client.end_of_turn_via_service') as service:
+            data = self._post().json()
+        self.assertEqual({'available': False, 'complete': None, 'probability': None}, data)
+        service.assert_not_called()
+
+    def test_only_a_clear_probability_becomes_a_verdict(self):
+        """2026-10-28 : au seuil de 0,5 de l'éditeur, deux hésitations sur trois de la sonde
+        (0,82 et 0,94) auraient coupé la phrase. Entre les deux seuils, le silence décide."""
+        with mock.patch('wama.common.tts.end_of_turn.model_installed', return_value=True), \
+             mock.patch('wama.common.tts.service_client.end_of_turn_via_service',
+                        side_effect=[0.97, 0.12, 0.82]) as service:
+            finished, unfinished, unsure = self._post().json(), self._post().json(), self._post().json()
+        self.assertEqual({'available': True, 'complete': True, 'probability': 0.97}, finished)
+        self.assertIs(False, unfinished['complete'])
+        self.assertIsNone(unsure['complete'], "une hésitation à 0,82 ne coupe pas la phrase")
+        from wama.common.tts.end_of_turn import model_path
+        self.assertEqual(model_path(), service.call_args.kwargs['model_path'],
+                         'Django donne le chemin : le service ne cherche dans aucun dossier')
+
+    def test_a_silent_service_gives_no_verdict_rather_than_an_error(self):
+        with mock.patch('wama.common.tts.end_of_turn.model_installed', return_value=True), \
+             mock.patch('wama.common.tts.service_client.end_of_turn_via_service',
+                        side_effect=RuntimeError('Service TTS inaccessible')):
+            response = self._post()
+        self.assertEqual(200, response.status_code)
+        self.assertEqual({'available': True, 'complete': None, 'probability': None}, response.json())
+
+    def test_an_empty_or_oversized_body_is_refused(self):
+        self.assertEqual(400, self._post(b'').status_code)
+        from wama.views import _STT_MAX_BYTES
+        self.assertEqual(413, self._post(b'x' * (_STT_MAX_BYTES + 1)).status_code)
+
+    def test_the_client_posts_the_clip_and_the_model_path(self):
+        from wama.common.tts import service_client
+        ok = SttServiceClientTest._response(None, 200, {'probability': 0.7})
+        with mock.patch('requests.post', return_value=ok) as post:
+            self.assertEqual(0.7, service_client.end_of_turn_via_service(b'WAV', model_path='/m.onnx'))
+        self.assertTrue(post.call_args.args[0].endswith('/end-of-turn'))
+        self.assertEqual({'model_path': '/m.onnx'}, post.call_args.kwargs['params'])
+        self.assertEqual(b'WAV', post.call_args.kwargs['data'])
+
+
+class EndOfTurnModelLineTest(SimpleTestCase):
+    """Le modèle est une ligne du catalogue, installée par la route (pilote `files`, Hub à un
+    commit figé) — jamais un téléchargement au premier usage."""
+
+    def test_the_catalogue_line_declares_its_file_from_a_pinned_hub_commit(self):
+        from wama.common.tts.end_of_turn import MODEL_KEY, TURN_FILES, model_folder
+        from wama.model_manager.services.model_registry import ModelRegistry
+        registry = ModelRegistry.__new__(ModelRegistry)
+        registry._models, registry.discovery_errors = {}, []
+        registry._discover_turn_end_models()
+        self.assertEqual([], registry.discovery_errors)
+        line = registry._models[MODEL_KEY]
+        self.assertEqual('end-of-turn', line.capabilities['task'])
+        self.assertEqual(TURN_FILES, line.extra_info['declared_files'])
+        self.assertEqual(str(model_folder()), line.extra_info['install_dir'])
+        self.assertEqual(0.0, line.vram_gb)
+        origin = TURN_FILES[0]['origin']
+        self.assertEqual('huggingface', origin['source'])
+        self.assertRegex(origin['revision'], r'^[0-9a-f]{40}$')
+
+    def test_the_task_has_its_category_and_its_inputs(self):
+        from wama.model_manager.models import (
+            ModelTask, ModelType, TASK_DEFAULT_INPUTS, TASK_TO_MODEL_TYPE, TASK_TO_PLATFORM_TAGS,
+        )
+        self.assertEqual(ModelType.SPEECH, TASK_TO_MODEL_TYPE[ModelTask.END_OF_TURN])
+        self.assertIn(ModelTask.END_OF_TURN, TASK_DEFAULT_INPUTS)
+        self.assertIsNone(TASK_TO_PLATFORM_TAGS[ModelTask.END_OF_TURN][0],
+                          'le tag HF voice-activity-detection nomme aussi les VAD ordinaires')
+
+
+class EndOfTurnBrickTest(SimpleTestCase):
+    """Le découpage de la brique servie, avec un juge de fin de tour simulé (V8). Le silence
+    garde ses bornes : l'avis ne fait que déplacer la décision entre elles."""
+
+    _ctx = ListenBrickTest._ctx
+
+    def _feed(self, ctx, pattern):
+        """Nourrit le découpage `seg` (déjà créé) de [(amplitude, durée ms)] à 48 kHz."""
+        ctx.eval("""
+            %s.forEach(function (p) {
+              var n = Math.round(p[1] / (len / rate * 1000));
+              for (var i = 0; i < n; i++, k++) {
+                var f = new Float32Array(len);
+                for (var j = 0; j < len; j++) {
+                  f[j] = 0.001 * Math.sin(j * 7.3 + k)
+                       + p[0] * Math.sin(2 * Math.PI * 220 * (j + k * len) / rate);
+                }
+                seg.feed(f, 'normal');
+              }
+            });
+        """ % json.dumps(pattern))
+
+    def _start(self, ctx, verdict='deferred'):
+        """Un découpage de conversation (900 ms) dont le juge rend `verdict` — ou, par défaut,
+        une promesse que le test résout lui-même (`answer(...)`)."""
+        ctx.eval("""
+            var events = [], asked = 0, pending = [], rate = 48000, len = 2048, k = 0;
+            function answer(v) { pending.shift()(v); }
+            var seg = new WamaAssistantListen._Segmenter(rate, 900, function (evt) { events.push(evt); },
+              function (samples) {
+                asked++;
+                var v = %s;
+                return v === 'deferred' ? new Promise(function (r) { pending.push(r); }) : Promise.resolve(v);
+              });
+        """ % json.dumps(verdict))
+
+    def _events(self, ctx):
+        return json.loads(ctx.eval("JSON.stringify(events)"))
+
+    def test_a_finished_phrase_leaves_without_waiting_for_the_silence(self):
+        ctx = self._ctx()
+        self._start(ctx, {'complete': True})
+        self._feed(ctx, [[0, 1000], [0.1, 1500], [0, 400]])
+        self.assertEqual(['start', 'end'], self._events(ctx), 'partie à 400 ms, pas à 900')
+        self.assertEqual(1, ctx.eval("asked"))
+
+    def test_an_unfinished_phrase_may_pause_longer(self):
+        ctx = self._ctx()
+        self._start(ctx, {'complete': False})
+        self._feed(ctx, [[0, 1000], [0.1, 1500], [0, 400]])
+        self._feed(ctx, [[0, 900]])
+        self.assertEqual(['start'], self._events(ctx), 'une pause de 1,3 s ne coupe plus la phrase')
+        self._feed(ctx, [[0, 800]])
+        self.assertEqual(['start', 'end'], self._events(ctx), 'la borne longue tient')
+
+    def test_without_a_verdict_the_silence_decides_as_before(self):
+        """Contre-épreuve : modèle absent ou service muet → les 900 ms d'avant, à l'identique."""
+        ctx = self._ctx()
+        self._start(ctx, None)
+        self._feed(ctx, [[0, 1000], [0.1, 1500], [0, 400]])
+        self.assertEqual(['start'], self._events(ctx))
+        self._feed(ctx, [[0, 600]])
+        self.assertEqual(['start', 'end'], self._events(ctx))
+
+    def test_a_late_verdict_does_not_cut_a_voice_that_resumed(self):
+        ctx = self._ctx()
+        self._start(ctx)
+        self._feed(ctx, [[0, 1000], [0.1, 1500], [0, 400], [0.1, 600]])
+        ctx.eval("answer({complete: true});")
+        self.assertEqual(['start'], self._events(ctx), "l'avis valait pour la pause d'avant")
+        self._feed(ctx, [[0, 400]])
+        self.assertEqual(2, ctx.eval("asked"), 'chaque pause a son avis')
+        ctx.eval("answer({complete: true});")
+        self.assertEqual(['start', 'end'], self._events(ctx))
+
+    def test_the_judge_hears_the_last_seconds_and_a_missing_route_stops_the_asking(self):
+        ctx = self._ctx()
+        ctx.eval("""
+            var Blob = function (parts) { this.size = parts[0].byteLength; };
+            var posted = [];
+            var fetch = function (url, opts) {
+              posted.push([url, opts.body.size]);
+              return Promise.resolve({ status: 404, ok: false });
+            };
+            WamaAssistantListen._judgeTurn(new Float32Array(48000 * 12), 48000);
+        """)
+        ctx.eval("WamaAssistantListen._judgeTurn(new Float32Array(48000), 48000);")
+        posted = json.loads(ctx.eval("JSON.stringify(posted)"))
+        self.assertEqual([['/api/end-of-turn/', 44 + 8 * 16000 * 2]], posted,
+                         '8 s gardées à 16 kHz, puis plus aucune demande après le 404')
 
 
 class ListenBrickIsMountedEverywhereTest(TestCase):

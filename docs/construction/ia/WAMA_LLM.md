@@ -699,6 +699,41 @@ avait tiré `ollama:gemma4:12b` (résident, donc préféré par `prefer_loaded`)
   serveur finit l'ancien tour et l'enregistre au fil, comme pour une interruption à la voix.
   Garde : `tests_assistant_voice_js.TypingWhileItThinksTest` — brique servie remise à HEAD,
   2 rouges, le contre-cas « message après la réponse » reste vert.
+- 🔄 **2026-10-28 — la FIN DE TOUR, et une ligne de journal par réplique** (Fabien : *« On
+  commence par les quick wins »* après la veille « voix rapides » ; *« attention aux benchmarks
+  qui sur-estiment souvent les modèles »* ; puis *« mes derniers essais n'ont pas montré de souci
+  sur la détection de ma voix […] je suspecte plutôt des process qui pourraient interférer avec
+  l'assistant »*). Trois pistes de la veille tombées À LA LECTURE avant d'écrire : la prospection
+  trie DÉJÀ par tendance (`prospector.seed_hf_candidates`, tris `downloads` et `trendingScore`) ;
+  le filtre de parole ne jette aucun segment court (`VadOptions.min_speech_duration_ms = 0`) ;
+  l'audio du navigateur, déjà en WAV 16 kHz mono, n'est pas transcodé (`_upload_path`).
+  1. ✅ **Fin de tour** (`common/tts/end_of_turn.py`) : après **300 ms** de pause, l'écoute de la
+     CONVERSATION demande l'avis de Smart Turn v3.2 (pipecat-ai, BSD-2, 8,7 Mo, processeur) —
+     route `/api/end-of-turn/` → `/end-of-turn` du service vocal, chemin du modèle donné par
+     Django. **Trois zones, pas le seuil 0,5 de l'éditeur** : ≥ 0,95 la phrase part sans attendre
+     les 900 ms ; ≤ 0,2 la pause peut durer **2 s** ; entre les deux, rien ne change. Sonde
+     (voix Kokoro, 13 extraits — synthétiques, une ALERTE et pas une mesure) : au seuil de
+     l'éditeur, deux hésitations sur trois (0,82 ; 0,94) auraient coupé une phrase que le silence
+     laisse entière ; phrases entières 0,96–0,99 pour 7 sur 10, une à 0,07. Avis : **21 à 33 ms**
+     à chaud ; ~35 s au premier appel d'un processus froid, d'où un avis à blanc au préchauffage
+     et un délai de 1,5 s (la place gunicorn est rendue). Pas de modèle, route absente (404) ou
+     service muet : l'écoute se tait et les 900 ms d'avant décident. Modèle INSTALLÉ par la route
+     le 28/10 (`pull_model`, pilote `files`, Hub au commit `f766f81d`, empreinte vérifiée), tâche
+     neuve `end-of-turn` (`ModelTask`, type `speech`, sans projection HF : `voice-activity-
+     detection` nomme aussi les VAD ordinaires). Gardes : `tests_assistant_listen`
+     (`EndOfTurnViewTest`, `EndOfTurnModelLineTest`, `EndOfTurnBrickTest`) — contre-épreuve sur la
+     brique servie, quatre mutations (avis « finie » ignoré, patience ignorée, avis d'une pause
+     passée appliqué, 404 non entendu) : chacune rouge sur sa garde.
+  2. ✅ **Une ligne de journal par réplique** (`speech_input._log_timing`) : moteur, durée dite,
+     durée de transcription, et la part perdue avant le repli local quand le distant a échoué ;
+     une ligne par avis de fin de tour (`[end_of_turn] p=…`). Une phrase lente se départage
+     désormais au journal (gouverneur, préchauffage d'un worker, Whisper froid, limite d'Albert),
+     au lieu d'être reconstituée.
+  ⏳ Juger les seuils à la voix RÉELLE, au casque (les avis sont au journal) ; relancer gunicorn
+  et le SERVICE VOCAL pour que la route et `/end-of-turn` soient servies. Parakeet-v3 et
+  Canary-1B-v2 NE sont PAS branchés sur l'écoute : sur entretiens réels, WAMA les a mesurés
+  derrière Whisper (SUMM-RE, 29/09 : 28 % contre 38,7 %, Parakeet dérive vers l'anglais) — une
+  phrase au casque est un autre cas, qui se mesurera sur des répliques réelles, pas sur un banc.
 
 **Remesuré le 2026-10-04 — « encore lent, même par Albert » (Fabien). RIEN de câblé, cinq
 constats.** Mesures faites dans un processus neuf (script de mesure du scratchpad de session :

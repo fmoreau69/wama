@@ -42,8 +42,9 @@
  *
  * CONTRAT.
  *   mount()                : câble les boutons de chaque `[data-wama-chat]` (automatique).
- *   configure({sttUrl})    : route de transcription (défaut : `data-stt-url` du chat, sinon
- *                            `/api/stt/`).
+ *   configure({sttUrl, turnUrl}) : route de transcription (défaut : `data-stt-url` du chat,
+ *                            sinon `/api/stt/`) et de l'avis de fin de tour (`data-turn-url`,
+ *                            sinon `/api/end-of-turn/`).
  *   capture(opts)          : Promise<{stop()}> — écoute continue hors chat. `opts` :
  *                            onText(phrase, engine), onPhase('listening'|'hearing'|
  *                            'transcribing'|'idle'), onError(message), record (bool),
@@ -88,8 +89,14 @@
   //: plus, jusqu'au plafond de 30 s — le bouton pulsait, aucun texte ne venait.
   var FLOOR_WINDOW_MS = 4000;
   var DIGITAL_SILENCE_DB = -100;          // trames nulles d'un périphérique qui s'ouvre : pas un fond
+  //: FIN DE TOUR (2026-10-28) : après une pause courte, la conversation demande au serveur si
+  //: la phrase est FINIE (Smart Turn, `common/tts/end_of_turn.py`). « Finie » → elle part sans
+  //: attendre `END_MS` ; « pas finie » → la pause peut durer `patientMs` ; pas d'avis (modèle
+  //: absent, service muet, réponse tardive) → `END_MS`, exactement comme avant. Le silence garde
+  //: ses bornes : l'avis ne fait que déplacer la décision entre elles.
+  var TURN = { askAfterMs: 300, patientMs: 2000, keepSeconds: 8 };
 
-  var cfg = { sttUrl: '' };
+  var cfg = { sttUrl: '', turnUrl: '' };
   var ctl = null;                         // le contrôleur ACTIF (un seul micro par page)
 
   function csrfToken() {
@@ -167,11 +174,14 @@
    * Découpe un flux de trames en PHRASES. `onEvent('start')` quand une voix commence,
    * `onEvent('end', samples)` quand elle s'arrête (avance comprise), `onEvent('discard')`
    * pour un bruit trop court. `mode(frame)` rend 'normal', 'interrupt' ou 'deaf'.
+   * `judge(samples)` (facultatif) : Promise<{complete: true|false|null}> — l'avis de fin de tour
+   * demandé après `TURN.askAfterMs` de pause, une fois par pause.
    */
-  function Segmenter(rate, endMs, onEvent) {
+  function Segmenter(rate, endMs, onEvent, judge) {
     this.rate = rate;
     this.endMs = endMs;
     this.onEvent = onEvent;
+    this.judge = judge || null;
     this.floor = null;                    // bruit de fond : le plus bas de `levels`, borné
     this.levels = [];                     // [dB, ms] des dernières trames (FLOOR_WINDOW_MS)
     this.levelsMs = 0;
@@ -200,6 +210,9 @@
     this.quietMs = 0;
     this.speechMs = 0;
     this.totalMs = 0;
+    this.pause = 0;                       // numéro de la pause en cours (l'avis lui est propre)
+    this.asked = false;                   // avis déjà demandé pour cette pause
+    this.patient = false;                 // « pas finie » : la pause peut durer `TURN.patientMs`
   };
 
   Segmenter.prototype.feed = function (frame, mode) {
@@ -232,9 +245,28 @@
 
     this.frames.push(frame);
     this.totalMs += ms;
-    if (db > this.floor + KEEP_DB) { this.quietMs = 0; this.speechMs += ms; }
-    else this.quietMs += ms;
-    if (this.quietMs >= this.endMs || this.totalMs >= MAX_UTTERANCE_MS) this.finish();
+    if (db > this.floor + KEEP_DB) {
+      if (this.quietMs > 0) { this.pause++; this.asked = false; this.patient = false; }
+      this.quietMs = 0;
+      this.speechMs += ms;
+    } else this.quietMs += ms;
+    if (this.judge && !this.asked && this.quietMs >= TURN.askAfterMs && this.speechMs >= MIN_SPEECH_MS) {
+      this.asked = true;
+      this.askJudge();
+    }
+    var endMs = this.patient ? TURN.patientMs : this.endMs;
+    if (this.quietMs >= endMs || this.totalMs >= MAX_UTTERANCE_MS) this.finish();
+  };
+
+  /** L'avis de fin de tour sur la phrase dite jusqu'ici. Il ne vaut que pour SA pause : si la
+   *  voix a repris, ou si la phrase est déjà partie, il arrive trop tard et ne change rien. */
+  Segmenter.prototype.askJudge = function () {
+    var self = this, frames = this.frames, pause = this.pause;
+    Promise.resolve().then(function () { return self.judge(concat(frames)); }).then(function (verdict) {
+      if (self.frames !== frames || self.pause !== pause || !verdict) return;
+      if (verdict.complete === true) self.finish();
+      else if (verdict.complete === false) self.patient = true;
+    }).catch(function () {});
   };
 
   /** Oublie l'AVANCE (et le début de voix en cours de mesure) — sans toucher une phrase ouverte. */
@@ -333,6 +365,27 @@
     return transcribeClip(samples, rate).then(function (data) { return (data.text || '').trim(); });
   }
 
+  // L'avis de fin de tour : les `TURN.keepSeconds` dernières secondes, en WAV 16 kHz. Le serveur
+  // qui répond `available: false` (aucun modèle installé) ou 404 (route pas encore servie : la
+  // brique est relue à chaud, les routes au redémarrage) n'est plus interrogé de la page.
+  var turnAvailable = true;
+  function judgeTurn(samples, rate) {
+    if (!turnAvailable) return Promise.resolve(null);
+    var keep = Math.floor(TURN.keepSeconds * rate);
+    var tail = samples.length > keep ? samples.subarray(samples.length - keep) : samples;
+    return fetch(cfg.turnUrl || '/api/end-of-turn/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'audio/wav', 'X-CSRFToken': csrfToken() },
+      body: toWav(downsample(tail, rate)),
+    }).then(function (r) {
+      if (r.status === 404) turnAvailable = false;
+      return r.ok ? r.json() : null;
+    }).then(function (data) {
+      if (data && data.available === false) turnAvailable = false;
+      return data;
+    }).catch(function () { return null; });
+  }
+
   // Le moteur qui a écouté la dernière fois, dit par le serveur ('' tant qu'il n'a rien dit).
   var heardBy = '';
   function listenerLabel() {
@@ -356,6 +409,9 @@
     }).then(function (r) { return r.json(); })
       .then(function (data) { if (data && data.engine) heardBy = data.engine; })
       .catch(function () {});
+    // Le juge de fin de tour se charge aussi d'avance (~35 s à froid) : son premier avis
+    // arriverait sinon après la pause, donc pour rien.
+    judgeTurn(new Float32Array(TARGET_RATE / 4), TARGET_RATE);
   }
 
   // ── Contrôleur : un chat, ses deux boutons ───────────────────────────────────
@@ -410,9 +466,11 @@
     return openMic(function (frame) { self.onFrame(frame); }).then(function (mic) {
       if (self.mode !== mode) { closeMic(mic); return; }    // arrêté pendant l'ouverture
       self.mic = mic;
+      // La fin de tour ne s'arbitre qu'en CONVERSATION : une dictée se relit avant l'envoi, et
+      // `capture()` transcrit au fil de la parole sans tour à rendre.
       self.segmenter = new Segmenter(mic.rate, END_MS[mode], function (evt, samples, how) {
         self.onSegment(evt, samples, how);
-      });
+      }, mode === 'conversation' ? function (samples) { return judgeTurn(samples, mic.rate); } : null);
       // Contexte audio créé hors d'un geste (reprise d'une conversation au changement de page) :
       // le navigateur le laisse suspendu jusqu'au premier clic ou à la première touche.
       if (mic.ctx.state === 'suspended') {
@@ -696,6 +754,7 @@
       if (root._wamaListen || !root._wamaChat) return;
       if (!root.querySelector('[data-assistant-mic], [data-assistant-talk]')) return;
       if (!cfg.sttUrl && root.dataset.sttUrl) cfg.sttUrl = root.dataset.sttUrl;
+      if (!cfg.turnUrl && root.dataset.turnUrl) cfg.turnUrl = root.dataset.turnUrl;
       root._wamaListen = new Controller(root._wamaChat, root);
       controllers.push(root._wamaListen);
     });
@@ -716,7 +775,10 @@
 
   global.WamaAssistantListen = {
     mount: mount,
-    configure: function (opts) { if (opts && opts.sttUrl) cfg.sttUrl = opts.sttUrl; },
+    configure: function (opts) {
+      if (opts && opts.sttUrl) cfg.sttUrl = opts.sttUrl;
+      if (opts && opts.turnUrl) cfg.turnUrl = opts.turnUrl;
+    },
     capture: capture,
     stop: function () { remember(false); if (ctl) ctl.stop(); },
     state: function () {
@@ -730,6 +792,8 @@
     _downsample: downsample,
     _wavBytes: wavBytes,
     _warmUp: warmUp,
+    _judgeTurn: judgeTurn,
+    _TURN: TURN,
     _listenerLabel: listenerLabel,
   };
 })(window);

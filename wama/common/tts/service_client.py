@@ -134,6 +134,19 @@ def speech_only_via_service(audio, *, content_type='audio/wav', read_timeout=90)
     return b'' if resp.status_code == 204 else resp.content
 
 
+def end_of_turn_via_service(audio, *, model_path, read_timeout=1.5):
+    """Probabilité que la personne ait FINI sa phrase (0 à 1), d'après les 8 dernières
+    secondes de l'extrait — Smart Turn, exécuté par le service (2026-10-28,
+    `common/tts/end_of_turn.py`). Le chemin du modèle vient de Django : le service ne cherche
+    dans aucun dossier. Délai COURT : l'avis est demandé à 300 ms de pause et ne sert plus à
+    rien après 900 ms ; mesuré 21 à 33 ms à chaud, ~35 s au premier appel d'un processus froid
+    (le service continue de charger, la place gunicorn, elle, est rendue). Mêmes erreurs que
+    `stt_via_service`."""
+    resp = _post('/end-of-turn', read_timeout, data=audio, params={'model_path': str(model_path)},
+                 headers={'Content-Type': 'audio/wav'})
+    return float(resp.json()['probability'])
+
+
 def _post(path, read_timeout, **kwargs):
     """UN appel au service et sa traduction d'erreurs — partagée par la voix et l'écoute."""
     import requests
