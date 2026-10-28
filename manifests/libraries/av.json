@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "PyAV contributors",
+      "license": "BSD-3-Clause",
+      "repository": "https://github.com/PyAV-Org/PyAV",
+      "summary": "Pythonic bindings for FFmpeg's libraries.",
+      "version": "16.0.1"
+    },
+    "install": {
+      "pip": "av==16.0.1",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Liaisons Python des bibliothèques de FFmpeg (module `av`, FFmpeg 8.0 embarqué dans la roue). Présente dans le venv HORS route jusqu'au 2026-10-28, tirée par faster-whisper, audiocraft, vibevoice et aiortc ; déclarée en propre ce jour (décision de Fabien) parce que WAMA l'emploie DIRECTEMENT : le rendu commun d'une vidéo réécrite image par image (`detections.rewrite_media`, Anonymizer et cam_analyzer) écrit chaque image à SON horodatage d'origine et recopie les paquets audio de la source — le son reste en phase même sur une vidéo à cadence variable, sans être réencodé ni étiré. Aucune dépendance (roue autonome). ⚠ `venv_win` porte la 14.2.0 : le WSL fait foi.",
+  "key": "av",
+  "manifest_kind": "library",
+  "name": "PyAV",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:av==16.0.1",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

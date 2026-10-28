@@ -50,38 +50,44 @@ _AUDIO_COPYABLE = {
     'avi':  {'mp3', 'ac3', 'pcm_s16le'},
 }
 
-#: Réglages d'encodage « visuellement sans perte » par codec vidéo — un rendu qui ne doit rien
-#: perdre de plus que le passage qu'il ne peut éviter.
+#: Options d'encodage « visuellement sans perte » par codec vidéo — un rendu ne doit rien perdre
+#: de plus que le passage qu'il ne peut éviter. `mpeg4` : le codec natif de la famille de
+#: `libxvid` (MPEG-4 Part 2), absent de la roue PyAV — un AVI rendu l'emploie.
 _VISUALLY_LOSSLESS = {
-    'libx264':    ['-crf', '18', '-preset', 'slow', '-pix_fmt', 'yuv420p'],
-    'libvpx-vp9': ['-crf', '18', '-b:v', '0', '-pix_fmt', 'yuv420p'],
-    'libxvid':    ['-q:v', '2'],
+    'libx264':    {'crf': '18', 'preset': 'slow'},
+    'libvpx-vp9': {'crf': '18', 'b': '0'},
+    'mpeg4':      {'qscale': '2'},
 }
+_RENDER_FALLBACK_VCODEC = {'libxvid': 'mpeg4'}
 
 
 def rendering_encoding(fmt: str, source_audio_codec: str = ''):
     """Comment ENCODER, en un seul passage, des images rendues par une app (un floutage) dans le
-    conteneur `fmt`, avec l'audio de la source : `{'container', 'video', 'audio', 'extra'}`
-    (listes d'arguments ffmpeg), ou None si `fmt` n'est pas un conteneur vidéo de cette table.
+    conteneur `fmt`, avec l'audio de la source — en DONNÉES, pour l'encodeur qui les emploie
+    (`detections.rewrite_media`, PyAV) : `{'format', 'vcodec', 'video_options', 'pix_fmt',
+    'acodec', 'audio_copy', 'muxer_options'}`, ou None si `fmt` n'est pas un conteneur vidéo de
+    cette table.
 
     La table est CELLE des conversions (`_FORMAT_PRESETS`) : un rendu dans le format d'origine
     emploie les codecs qu'emploierait une conversion vers ce format. L'audio est RECOPIÉ quand le
-    conteneur accepte son codec (`_AUDIO_COPYABLE`) — aucun réencodage —, sinon encodé au codec du
-    conteneur (2026-10-28, demande de Fabien : le moins de conversions possible, l'audio rendu
+    conteneur accepte son codec (`_AUDIO_COPYABLE`) — ni réencodé, ni étiré —, sinon encodé au codec
+    du conteneur (2026-10-28, demande de Fabien : le moins de conversions possible, l'audio rendu
     sans désynchronisation)."""
-    preset = _FORMAT_PRESETS.get((fmt or '').lower())
+    key = (fmt or '').lower()
+    preset = _FORMAT_PRESETS.get(key)
     if not preset or not preset['vcodec']:
         return None
-    key = (fmt or '').lower()
+    vcodec = _RENDER_FALLBACK_VCODEC.get(preset['vcodec'], preset['vcodec'])
     copyable = _AUDIO_COPYABLE.get(key, set())
     codec = (source_audio_codec or '').lower()
-    if codec and (copyable is None or codec in copyable):
-        audio = ['-c:a', 'copy']
-    else:
-        audio = ['-c:a', preset['acodec'], '-b:a', '192k']
-    return {'container': preset['container'],
-            'video': ['-c:v', preset['vcodec'], *_VISUALLY_LOSSLESS.get(preset['vcodec'], [])],
-            'audio': audio, 'extra': list(preset.get('extra') or [])}
+    extra = list(preset.get('extra') or [])
+    return {'format': preset['container'], 'vcodec': vcodec,
+            'video_options': dict(_VISUALLY_LOSSLESS.get(vcodec, {})),
+            'pix_fmt': 'yuv420p',
+            'acodec': preset['acodec'],
+            'audio_copy': bool(codec) and (copyable is None or codec in copyable),
+            # `-movflags +faststart` de la table : la même option, posée au multiplexeur.
+            'muxer_options': ({'movflags': 'faststart'} if '-movflags' in extra else {})}
 
 
 def convert_video(input_path: str, output_path: str, output_format: str,

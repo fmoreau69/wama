@@ -27151,7 +27151,12 @@ et Lab : au portage de leurs apps, alignés le moment venu).
   (« Mise en forme · Analyse », `processSections`, dérivé des `stales`). Une mesure en base :
   lecture 26,3 s, mise en forme 14,9 s (une seule exécution).
 - Tests : 517 verts (rendu, sortie, anonymizer, cam_analyzer) + 97 (sections, reader).
-- 🔚 ⚠ Restes : la cadence MOYENNE fait tomber la fin juste, pas chaque image d'une source très
-  irrégulière — l'exactitude demande d'écrire chaque image à son horodatage (PyAV, déjà présente
-  par faster-whisper, audiocraft et vibevoice, mais non déclarée en propre : décision de Fabien) ·
-  interrupteur « Mettre en forme par IA » activé par défaut (comme avant) — à confirmer.
+- ✅ **Puis, même nuit (décision de Fabien : PyAV par la route)** : `manifests/libraries/av.json`
+  (16.0.1, sans dépendance), `write_back` du seul manifeste, `install_library av --allow --apply`
+  (déjà satisfaite). Le rendu écrit CHAQUE image à son horodatage d'origine (temps OpenCV, mesurés
+  depuis le départ du CONTENEUR — un Opus qui démarre 7 ms avant l'image les décalait) et recopie
+  les paquets audio à leurs temps, entrelacés : ni étirement, ni rééchantillonnage en durée. Gardes :
+  images aux temps de la source à 2 ms près (MP4, MKV à cadence variable avec contre-épreuve), audio
+  PCM encodé en AAC sans changer de durée, AVI en `mpeg4` (la roue PyAV n'a pas `libxvid`). La
+  cadence moyenne (`media_probe.rendering_facts`) est retirée. 520 tests verts.
+- 🔚 Restes : interrupteur « Mettre en forme par IA » activé par défaut (comme avant) — recommandé.

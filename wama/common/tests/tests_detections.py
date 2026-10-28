@@ -487,30 +487,64 @@ class RewriteVideoKeepsItsSoundTest(SimpleTestCase):
         self.assertEqual('opus', streams['audio']['codec_name'])
         self._assert_in_phase(source, written)
 
-    def test_a_variable_frame_rate_keeps_the_sound_in_phase(self):
+    @staticmethod
+    def _frame_times(path):
+        """Le temps de présentation de CHAQUE image du flux vidéo, en secondes."""
+        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
+        out = subprocess.run([get_ffprobe_exe(), '-v', 'error', '-select_streams', 'v:0',
+                              '-show_entries', 'frame=best_effort_timestamp_time',
+                              '-of', 'csv=p=0', path], capture_output=True, text=True, check=True)
+        return [float(line.strip(',')) for line in out.stdout.split() if line.strip(',')]
+
+    def test_a_variable_frame_rate_keeps_EVERY_frame_at_its_time(self):
         """Measured 2026-10-28 : on a variable-rate MATROSKA, OpenCV and `avg_frame_rate` both say
-        20 frames/s for 45 frames in 3 s — rewritten at that rate, the video lasted 2.25 s for 3 s
-        of sound. (In MP4/MOV both read the right average : the case lives in MKV/WebM.)"""
-        # 3 s of picture and sound : 20 frames/s for 1.5 s, then every other frame (10 frames/s),
-        # timestamps kept — 45 frames.
+        20 frames/s for 45 frames in 3 s — rewritten at a constant rate, the video lasted 2.25 s
+        for 3 s of sound ; an AVERAGE rate fixes the end, not the middle. Each frame is now
+        written at ITS time (Fabien : « le son ne doit pas être étiré ») — compared frame by frame."""
+        # 3 s of picture and sound : 20 frames/s for 1.5 s, then every other frame (10 frames/s).
         source = self._source('phone.mkv', 'libopus',
                               video_filter="select='lt(n\\,30)+not(mod(n\\,2))'")
-        _, streams = self._streams(source)
-        duration = float(streams['video']['duration'])
+        before = self._frame_times(source)
+        self.assertEqual(45, len(before))
         capture = cv2.VideoCapture(source)
-        nominal, decoded = capture.get(cv2.CAP_PROP_FPS), 0
-        while capture.read()[0]:
-            decoded += 1
+        nominal = capture.get(cv2.CAP_PROP_FPS)
         capture.release()
-        self.assertEqual(45, decoded)
-        # Counter-proof : the rate read by OpenCV — the one the rendering used before — would
-        # make this very file a wrong length.
-        self.assertGreater(abs(decoded / nominal - duration), 0.4,
-                           'the fixture must defeat the nominal rate')
-        from wama.common.utils.media_probe import rendering_facts
-        self.assertAlmostEqual(decoded / duration, rendering_facts(source)['fps'], delta=0.05)
+        # Counter-proof : a constant rate — the one OpenCV reads — misplaces the middle frames.
+        self.assertGreater(max(abs(t - (before[0] + i / nominal)) for i, t in enumerate(before)),
+                           0.4, 'the fixture must defeat a constant rate')
         written = self._rewrite(source, 'phone_blurred.mkv')
+        after = self._frame_times(written)
+        self.assertEqual(len(before), len(after))
+        self.assertLess(max(abs(a - b) for a, b in zip(before, after)), 0.002,
+                        'every frame at its original time')
         self._assert_in_phase(source, written)
+
+    def test_the_frames_of_an_mp4_keep_their_times_and_the_audio_its_start(self):
+        source = self._source('cfr.mp4', 'aac')
+        written = self._rewrite(source, 'cfr_blurred.mp4')
+        before, after = self._frame_times(source), self._frame_times(written)
+        self.assertEqual(len(before), len(after))
+        self.assertLess(max(abs(a - b) for a, b in zip(before, after)), 0.002)
+
+    def test_an_audio_the_container_refuses_is_encoded_at_its_own_times(self):
+        """A `.mov` carries PCM audio ; rewritten into `.mp4` (a caller asking another container),
+        PCM is not accepted as is : it is ENCODED (AAC), never stretched — its length is kept."""
+        source = self._source('studio.mov', 'pcm_s16le')
+        written = self._rewrite(source, 'studio_blurred.mp4')
+        _, before = self._streams(source)
+        _, after = self._streams(written)
+        self.assertEqual('aac', after['audio']['codec_name'])
+        self.assertAlmostEqual(float(before['audio']['duration']),
+                               float(after['audio']['duration']), delta=0.05)
+        self._assert_in_phase(source, written)
+
+    def test_an_avi_is_written_with_the_mpeg4_codec_of_its_family(self):
+        source = self._source('old.avi', 'libmp3lame')
+        written = self._rewrite(source, 'old_blurred.avi')
+        container, streams = self._streams(written)
+        self.assertIn('avi', container)
+        self.assertEqual('mpeg4', streams['video']['codec_name'])
+        self.assertEqual('mp3', streams['audio']['codec_name'], 'its mp3 audio copied')
 
     def test_a_video_without_sound_stays_silent_and_does_not_fail(self):
         path = os.path.join(self.folder, 'mute.mp4')

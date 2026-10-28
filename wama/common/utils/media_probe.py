@@ -170,64 +170,6 @@ def probe_video_format(path: str, *, timeout: int = 20) -> dict:
             'pix_fmt': (stream.get("pix_fmt") or '').lower()}
 
 
-def _seconds(value) -> float:
-    """Une durée ffprobe — « 2.85 », ou l'étiquette Matroska « 00:00:02.950000000 » — en secondes."""
-    text = str(value or '').strip()
-    try:
-        if ':' in text:
-            h, m, s = text.split(':')
-            return int(h) * 3600 + int(m) * 60 + float(s)
-        return float(text) if text else 0.0
-    except ValueError:
-        return 0.0
-
-
-def rendering_facts(path: str, *, timeout: int = 60) -> dict:
-    """Ce qu'un RENDU image par image doit savoir d'une vidéo pour en garder le son en phase :
-    `{'fps': images RÉELLES / durée du flux vidéo, 'audio_codec': codec du 1ᵉʳ flux audio ou ''}`
-    — {} si ffprobe manque ou le fichier est illisible.
-
-    Ni la cadence nominale ni `avg_frame_rate` (2026-10-28, MESURÉ sur des sources à cadence
-    VARIABLE, 45 images en 3 s) : en MP4/MOV OpenCV et ffprobe lisent bien 15,79 i/s, mais en
-    MKV/WebM tous deux annoncent 20 i/s — la vidéo réécrite aurait duré 2,25 s pour 3 s de son. Le
-    compte des PAQUETS (sans décoder : 0,12 s) divisé par la durée du flux redonne la durée exacte
-    de la source dans les quatre conteneurs. ⚠ C'est une cadence MOYENNE : sur une source très
-    irrégulière, la fin tombe juste mais le milieu peut s'écarter ; l'exactitude image par image
-    demande d'écrire chaque image à son horodatage (décision de Fabien en attente)."""
-    from wama.common.utils.ffmpeg_utils import adapt_path_for_ffmpeg, get_ffprobe_exe
-    ffprobe = get_ffprobe_exe()
-    if not ffprobe:
-        return {}
-    try:
-        result = subprocess.run(
-            [ffprobe, "-v", "error", "-count_packets", "-show_entries",
-             "stream=codec_type,codec_name,avg_frame_rate,nb_read_packets,duration"
-             ":stream_tags=DURATION:format=duration",
-             "-of", "json", adapt_path_for_ffmpeg(path, ffprobe)],
-            capture_output=True, text=True, timeout=timeout)
-        data = json.loads(result.stdout or "{}")
-    except Exception:
-        return {}
-    facts = {'fps': 0.0, 'audio_codec': ''}
-    for stream in data.get("streams") or []:
-        if stream.get("codec_type") == "video" and not facts['fps']:
-            frames = int(stream.get("nb_read_packets") or 0)
-            duration = (_seconds(stream.get("duration"))
-                        or _seconds((stream.get("tags") or {}).get("DURATION"))
-                        or _seconds((data.get("format") or {}).get("duration")))
-            if frames > 1 and duration > 0:
-                facts['fps'] = frames / duration
-            else:
-                num, _, den = (stream.get("avg_frame_rate") or "").partition("/")
-                try:
-                    facts['fps'] = float(num) / float(den or 1) if float(den or 1) else 0.0
-                except ValueError:
-                    pass
-        elif stream.get("codec_type") == "audio" and not facts['audio_codec']:
-            facts['audio_codec'] = (stream.get("codec_name") or '').lower()
-    return facts
-
-
 def _gltf_document(path: str):
     """Le document JSON d'un glTF — lu dans le chunk JSON d'un GLB (en-tête binaire 12 octets,
     chunk 0 = JSON, spécification glTF 2.0) ou directement pour un `.gltf`. `None` si illisible.
