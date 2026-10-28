@@ -25314,8 +25314,8 @@ modèle tiré pour la partition, `tests_parts.py:31` — ni card ni aperçu ; fi
 cours dans l'arbre d'une autre session).
 
 🔚 **Restes, dans l'ordre de Fabien** : ② le CHAT de l'assistant qui rend les faces — CONFIÉ à la
-session « Portage apps » (décision de Fabien, 2026-10-21 : elle a le fichier en cours), passation
-ci-dessous ; puis le chantier TRANSCRIBER, confié à « Briques UI » ; ④ ensuite.
+session « assistant » (décision de Fabien, 2026-10-28 ; d'abord proposé à « Portage apps » le
+21/10), passation ci-dessous ; puis le chantier TRANSCRIBER, confié à « Briques UI » ; ④ ensuite.
 
 ### ➡ PASSATION — le chantier TRANSCRIBER, proposé à la session « Briques UI » (accord de Fabien)
 
@@ -25338,27 +25338,27 @@ régression. »*
   `static/transcriber/js/index.js` (le report vers Speak retiré, R158), `views.py` (`_progress_extra`
   sans `partial_text`), `_transcript_card.html` (l'hôte Pendant de la card). Rien dans `edit.*`.
 
-### ➡ PASSATION — ② le CHAT qui rend les faces, confié à la session « Portage apps » (décision de Fabien, 2026-10-21)
+### ➡ PASSATION — ② le CHAT qui rend les faces, confié à la session « assistant » (décision de Fabien, 2026-10-28)
 
 Le besoin : sous la réponse qui a lancé un traitement, la ligne de job de l'échange montre ce qui se
 construit (face Pendant), puis la sortie (face Sortie) — le même rendu que la card et le volet. Rien
 à écrire côté aperçu : le suiveur commun de `a8cc1a93` le fait déjà pour toute card, il suffit que la
-ligne de job SOIT lue comme une card. Relu au code le 2026-10-21 :
-- **Serveur** — `wama/tool_api.py:4063` `job_progress` : ajouter `preview_url` à la ligne rendue, par
+ligne de job SOIT lue comme une card. Relu au code le 2026-10-21, renvois de lignes revus le 2026-10-28 :
+- **Serveur** — `wama/tool_api.py:4086` `job_progress` : ajouter `preview_url` à la ligne rendue, par
   `DetailRegistry.preview_url(family, item.pk)` (`common/utils/detail_registry.py:77`, la route
-  commune `common:unified_preview` ; vide hors registre). Les clés de `TRIAD_SPECS` (`tool_api.py:3796`)
+  commune `common:unified_preview` ; vide hors registre). Les clés de `TRIAD_SPECS` (`tool_api.py:3819`)
   sont les noms d'apps, ceux de la route.
-- **Chat** — `wama/common/static/common/js/wama-assistant-chat.js:386` `jobRow` : un hôte
+- **Chat** — `wama/common/static/common/js/wama-assistant-chat.js:406` `jobRow` : un hôte
   `<div data-card-during="<preview_url>" data-preview-mode="excerpt">` dans la ligne (rien sans
-  `preview_url`) ; `:402` `paintJob` : `row.dataset.status = job.status` à chaque passe — c'est
+  `preview_url`) ; `:422` `paintJob` : `row.dataset.status = job.status` à chaque passe — c'est
   l'attribut que lit `isRunningCard` (`media-preview.js:806`, RUNNING/PROCESSING), et l'observateur
-  (`media-preview.js:614`) réagit à `data-status` comme à l'ajout du nœud. À la fin réussie
+  (`media-preview.js:615`) réagit à `data-status` comme à l'ajout du nœud. À la fin réussie
   (`job.terminal && job.ok`), poser `data-card-preview="<preview_url>"` sur l'hôte : `onEnd` de
   `followCard` rend alors la Sortie par `hydrateCardPreviews`.
 - **Ce que le suiveur garantit déjà** (gardé par `tests_cap_from_js` ×4) : arrêt à la fin ou quand
   l'hôte quitte la page (fil effacé), une seule requête pour une app qui ne publie rien
   (`sides.during_capable`, déclaré côté serveur), la sortie rendue à un élément relancé.
-  `media-preview.js` est monté par `base.html:358`, avant le chat (`:382`).
+  `media-preview.js` est monté par `base.html:365`, avant le chat (`:390`).
 - **Preuves attendues** : la clé `preview_url` gardée au test de `job_progress` ; le chat en V8 (une
   ligne RUNNING porte l'hôte et `data-status`) ; puis le geste sur la page servie — un job lancé
   par l'assistant montre son partiel dans l'échange (le geste `common.preview_during`,
