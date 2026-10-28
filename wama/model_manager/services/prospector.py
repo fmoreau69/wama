@@ -102,6 +102,17 @@ def hf_task_to_wama(pipeline_tag: str, tags=()):
         # lancer).
         if bag & {'object-detection', 'zero-shot-object-detection', 'grounding'}:
             return 'zero-shot-object-detection', 'vision'
+    if t == 'token-classification':
+        # 5ᵉ tag plus GROSSIER que nous (2026-10-28, ROADMAP §16.4bis) : HF y range la NER
+        # générale (`Jean-Baptiste/camembert-ner`), l'étiquetage ET les détecteurs de données
+        # personnelles. Mesuré sur les cartes ce jour-là : bardsai (`pii-detection`, `privacy`,
+        # `anonymization`), fastino GLiNER2 (`pii`, `redaction`), piiranha (`piidetection`),
+        # knowledgator (`PII`) le DÉCLARENT ; camembert-ner non. Sans tag, la catégorie reste
+        # `nlp` mais AUCUNE tâche n'est inventée.
+        if bag & {'pii', 'pii-detection', 'piidetection', 'privacy', 'anonymization',
+                  'anonymisation', 'redaction', 'gdpr', 'deidentification', 'de-identification'}:
+            return 'pii-detection', 'nlp'
+        return None, 'nlp'
     if t == 'text-to-audio':
         # HF n'a qu'un tag pour la musique et l'ambiance ; les tags de la carte, eux, le disent
         # (mesuré le 2026-09-19 : ACE-Step 1.5 taggé `music`, `text2music`, catalogué en

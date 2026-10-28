@@ -477,6 +477,19 @@ MECHANISMS = (
               annexes=('wama/common/backends/detection_base.py',
                        'wama/common/tests/tests_detection_ensemble.py'),
               depends_on=('detections_document',)),
+    Mechanism('pii_detection', 'Détection des DONNÉES PERSONNELLES d\'un texte (contrat)',
+              "Le contrat de la tâche `pii-detection` (2026-10-28) — `detect_entities(text, "
+              "language)` rend des passages {start, end, entity, score} au VOCABULAIRE COMMUN "
+              "(`privacy.entities` : clés de Presidio + identifiants français, libellé "
+              "d'occultation entre crochets dans la langue du texte). Écrit AVANT les détecteurs ; "
+              "LIANT dans `TASK_CONTRACTS` ; essayé par le smoke `PIIDetectionBackend`. Chaque "
+              "détecteur entre dans l'union que Presidio orchestre (`common/privacy`) par un "
+              "adaptateur — ROADMAP §16.4bis",
+              'wama/common/backends/pii_detection_base.py',
+              'docs/construction/suivi/ROADMAP.md §16.4bis',
+              annexes=('wama/common/privacy/__init__.py',
+                       'wama/common/privacy/entities.py',
+                       'wama/common/tests/tests_pii_detection_contract.py')),
     Mechanism('model_quality', 'Indice de qualité a priori',
               "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.). "
               "DÉFAUTS MESURÉS (2026-10-28) : une mesure sans référence qui prend un modèle en défaut (même entrée, "

@@ -25,6 +25,13 @@ class ModelType(models.TextChoices):
     LIPSYNC = 'lipsync', 'Lip Sync'
     MUSIC = 'music', 'Music / Audio'
     OCR = 'ocr', 'OCR / Document'
+    # Traitement du LANGAGE NATUREL hors génération et vectorisation (2026-10-28, décision de
+    # Fabien) : les encodeurs qui ANALYSENT un texte — reconnaissance d'entités, données
+    # personnelles. Le nom est la catégorie « Natural Language Processing » de HuggingFace, qui
+    # range `token-classification` ; aucun type existant ne convenait : `embedding` aurait fait
+    # entrer ces détecteurs dans le relevé des vectoriseurs (`benchmark_sync._mteb_markers`),
+    # `llm` produit du texte, ces modèles n'en produisent pas.
+    NLP = 'nlp', 'Langage naturel (NLP)'
 
     # `summarization` RETIRE le 2026-08-05 : zero modele l'a jamais porte, et resumer est un
     # USAGE d'un LLM, pas un type de modele. `embedding` ajoute : 5 modeles le portaient en base
@@ -91,6 +98,10 @@ class ModelTask(models.TextChoices):
     # texte / multimodal
     TEXT_GENERATION = 'text-generation', 'Génération de texte'
     FEATURE_EXTRACTION = 'feature-extraction', 'Extraction de traits'
+    # Les DONNÉES PERSONNELLES d'un texte (2026-10-28, ROADMAP §16.4bis) : noms, adresses,
+    # identifiants… repérés par passage (début, fin, type) pour être occultés. Plus fin que le
+    # `token-classification` de HuggingFace, qui couvre aussi la NER générale et l'étiquetage.
+    PII_DETECTION = 'pii-detection', 'Détection de données personnelles'
     CAPTIONING = 'captioning', 'Légendage'
     # generation visuelle
     TEXT_TO_IMAGE = 'text-to-image', 'Texte → image'
@@ -194,6 +205,7 @@ TASK_TO_PLATFORM_TAGS = {
     ModelTask.DENOISE:            ('image-to-image',               None,        None,        None),
     ModelTask.TEXT_GENERATION:    ('text-generation',              None,        'completion', None),
     ModelTask.FEATURE_EXTRACTION: ('feature-extraction',           None,        'embedding',  None),
+    ModelTask.PII_DETECTION:      ('token-classification',         None,        None,        None),
     ModelTask.CAPTIONING:         ('image-to-text',                None,        'vision',    'Multimodal'),
     ModelTask.TEXT_TO_IMAGE:      ('text-to-image',                None,        None,        None),
     ModelTask.IMAGE_TO_IMAGE:     ('image-to-image',               None,        None,        None),
@@ -257,6 +269,7 @@ TASK_TO_MODEL_TYPE = {
     ModelTask.DENOISE:            ModelType.UPSCALING,
     ModelTask.TEXT_GENERATION:    ModelType.LLM,
     ModelTask.FEATURE_EXTRACTION: ModelType.EMBEDDING,
+    ModelTask.PII_DETECTION:      ModelType.NLP,
     ModelTask.CAPTIONING:         ModelType.VLM,
     ModelTask.TEXT_TO_IMAGE:      ModelType.DIFFUSION,
     ModelTask.IMAGE_TO_IMAGE:     ModelType.DIFFUSION,
@@ -350,6 +363,8 @@ TASK_DEFAULT_INPUTS = {
     ModelTask.UPSCALE:            (('image', 'video'),             ('work_file',),            ()),
     ModelTask.TEXT_GENERATION:    (('text',),                      ('prompt',),               ()),
     ModelTask.FEATURE_EXTRACTION: (('text',),                      ('prompt',),               ()),
+    # Le document de l'Anonymizer (son texte extrait), ou le texte qu'un appel distant enverrait.
+    ModelTask.PII_DETECTION:      (('text', 'document'),           ('work_file',),            ('prompt',)),
     ModelTask.CAPTIONING:         (('image',),                     ('work_file',),            ()),
     ModelTask.TEXT_TO_IMAGE:      (('image',),                     ('prompt',),               ()),
     ModelTask.IMAGE_TO_IMAGE:     (('image',),                     ('prompt', 'work_image'),  ()),

@@ -589,9 +589,62 @@ def _smoke_score(code: str, *, module: str, model_key: str, out_dir: Path) -> di
     return out
 
 
+#: Le texte du smoke des DONNÉES PERSONNELLES (2026-10-28) : une phrase française et une anglaise,
+#: chacune avec une personne et une adresse électronique — ce qu'un détecteur multilingue doit
+#: voir au minimum. Garde-fou contre l'absurde, pas un critère de qualité : la mesure est la
+#: campagne d'évaluation (`WAMA_QUALITE`).
+SMOKE_PII_TEXT = ("Bonjour, je suis Marie Dubois, joignable à marie.dubois@exemple.fr. "
+                  "Hello, I am John Smith and my email is john.smith@example.com.")
+SMOKE_PII_EXPECTED = ('Marie Dubois', 'marie.dubois@exemple.fr', 'John Smith',
+                      'john.smith@example.com')
+
+
+def _smoke_pii(code: str, *, module: str, model_key: str, out_dir: Path) -> dict:
+    """Chargement, puis détection sur un texte connu : des passages DANS le texte, au vocabulaire
+    commun, qui couvrent au moins la moitié des données personnelles qu'il contient."""
+    import tempfile
+    from unittest import mock
+
+    from wama.common.privacy.entities import ENTITY_TYPES
+    started = time.time()
+    with tempfile.TemporaryDirectory() as tmp:
+        try:
+            backend = _proposed_backend(code, module, tmp, 'detect_entities')
+            if not type(backend).is_available():
+                return {'ran': False, 'reason': 'is_available() = False (paquets absents ?)'}
+            # CPU, comme les autres smokes : le rôle ne dispute jamais le GPU au worker.
+            with mock.patch('torch.cuda.is_available', return_value=False), \
+                    mock.patch('wama.common.utils.onnx_utils.onnx_providers',
+                               lambda *a, **k: ['CPUExecutionProvider']):
+                if not backend.load(model_id_of(model_key)):
+                    return {'ran': True, 'ok': False, 'error': 'load() a rendu False'}
+                found = backend.detect_entities(model_id=model_id_of(model_key),
+                                                text=SMOKE_PII_TEXT, language='fr')
+            backend.unload()
+        except Exception as e:
+            return {'ran': True, 'ok': False, 'error': f'{type(e).__name__}: {e}',
+                    'seconds': round(time.time() - started, 1)}
+    seconds = round(time.time() - started, 1)
+    bad = [f for f in found or [] if not (0 <= f.get('start', -1) < f.get('end', -1)
+                                          <= len(SMOKE_PII_TEXT))
+           or f.get('entity') not in ENTITY_TYPES]
+    if bad:
+        return {'ran': True, 'ok': False, 'seconds': seconds,
+                'error': f'passages hors du texte ou hors vocabulaire : {bad[:3]}'}
+    spans = [SMOKE_PII_TEXT[f['start']:f['end']] for f in found]
+    covered = [e for e in SMOKE_PII_EXPECTED if any(e in s or s in e and len(s) > 3
+                                                     for s in spans)]
+    out = {'ran': True, 'ok': True, 'seconds': seconds, 'found': len(found),
+           'covered': covered}
+    if len(covered) * 2 < len(SMOKE_PII_EXPECTED):
+        out.update(ok=False, error=f'{len(covered)}/{len(SMOKE_PII_EXPECTED)} données '
+                                   f'personnelles du texte connu retrouvées')
+    return out
+
+
 #: Un essai par CONTRAT — un contrat sans entrée le dit (`smoke`).
 SMOKES = {'ImageGenerationBackend': _smoke_image, 'SpeechToTextBackend': _smoke_speech,
-          'ScoreExtractionBackend': _smoke_score}
+          'ScoreExtractionBackend': _smoke_score, 'PIIDetectionBackend': _smoke_pii}
 
 
 # ── Le geste : lister, valider (ÉCRIRE), rejeter ─────────────────────────────────────────────

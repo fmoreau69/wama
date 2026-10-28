@@ -106,6 +106,7 @@ _TYPE_CATEGORY = {
     'llm':       'llm',
     'embedding': 'embedding',
     'lipsync':   'lipsync',
+    'nlp':       'nlp',
 }
 
 

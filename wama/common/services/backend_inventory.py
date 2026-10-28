@@ -691,6 +691,10 @@ TASK_CONTRACTS = {
     # (moteur `ollama`, qui sert aussi le chat) à sa tâche.
     'ocr': ('ocr_base', 'OCRBackend', True),
     'detect': ('detection_base', 'DetectionBackend', False),
+    # 2026-10-28 : les données personnelles d'un texte (ROADMAP §16.4bis). Écrit AVANT les
+    # backends, comme `audio-to-score`. LIANT, comme l'OCR : un modèle `pii-detection` n'est servi
+    # que par un détecteur du contrat — c'est par lui qu'il entre dans l'union de `common/privacy`.
+    'pii-detection': ('pii_detection_base', 'PIIDetectionBackend', True),
 }
 
 
