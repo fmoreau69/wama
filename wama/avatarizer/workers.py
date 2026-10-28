@@ -190,11 +190,11 @@ def _speak(job, ctx):
         tts_model = requested
         if is_auto(requested):
             quality = read_quality_intent(getattr(job, 'quality_intent', None))
-            # Voix clonée ⇒ le tirage exige `supports_cloning` (même règle que le synthesizer).
-            from wama.common.tts.voice_refs import is_cloned_voice
-            exigences = ['supports_cloning'] if is_cloned_voice(job.voice_preset) else None
+            # La voix choisie borne le tirage (`voice` : un moteur qui clone pour un
+            # enregistrement, un modèle qui la nomme pour une voix propre — même règle que le
+            # synthesizer).
             tts_model = resolve_model_choice(
-                requested, app_id='avatarizer', quality_intent=quality, requires=exigences,
+                requested, app_id='avatarizer', quality_intent=quality, voice=job.voice_preset,
                 fallback=AvatarJob._meta.get_field('tts_model').get_default())
             _console(job.user_id,
                      f"Choix automatique du moteur TTS → {tts_model} "

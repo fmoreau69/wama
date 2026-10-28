@@ -205,7 +205,12 @@ def declared_cloud_keys(app_id: str, user):
 #: la capacité à la valeur du champ (enhancer : `scale` = `upscale_factor`). Les deux autres sont
 #: des constantes du schéma ; celui-ci se LIT sur l'élément au lancement, dans le formulaire pour
 #: la prévision (le navigateur transmet `needs=<capacité>:<valeur>,…`).
-RESOLUTION_KEYS = ('priority', 'available_inputs', 'needs')
+#: `voice` (2026-10-28) : le CHAMP de voix de l'élément — la voix choisie borne le tirage aux
+#: modèles qui savent la dire (`voice_refs.voice_draw_constraint`), au lancement comme pour la
+#: prévision (le navigateur transmet `voice=<valeur>`).
+RESOLUTION_KEYS = ('priority', 'available_inputs', 'needs', 'voice')
+#: Les affinages qui nomment un CHAMP de l'élément : leur valeur se lit sur lui, jamais au schéma.
+FIELD_RESOLUTION_KEYS = ('needs', 'voice')
 
 
 def declared_resolution(app_id: str) -> dict:
@@ -215,7 +220,7 @@ def declared_resolution(app_id: str) -> dict:
     forme `{capacité: champ}`."""
     field = catalog_field(app_id) if app_id else None
     declared = (field or {}).get('options_resolution') or {}
-    return {k: (dict(v) if isinstance(v, dict) else list(v))
+    return {k: (dict(v) if isinstance(v, dict) else v if isinstance(v, str) else list(v))
             for k, v in declared.items() if k in RESOLUTION_KEYS and v}
 
 
@@ -223,6 +228,41 @@ def read_needs(text: str) -> dict:
     """`needs` tel que le navigateur le transmet (`scale:4,autre:x`) → `{capacité: valeur}`."""
     pairs = (part.split(':', 1) for part in str(text or '').split(',') if ':' in part)
     return {cap.strip(): value.strip() for cap, value in pairs if cap.strip() and value.strip()}
+
+
+def read_refinement(key: str, text: str):
+    """Un affinage du tirage tel que le navigateur le transmet à la prévision : `needs` en paires,
+    `voice` en valeur, les autres en liste (`a,b`)."""
+    if key == 'needs':
+        return read_needs(text)
+    if key == 'voice':
+        return str(text or '').strip()
+    return [v for v in str(text or '').split(',') if v]
+
+
+def narrow_by_voice(domain: dict, voice: str, fallback=None):
+    """Applique au domaine du tirage ce que la voix choisie impose (`voice_draw_constraint`) et rend
+    le repli à employer. Les capacités s'AJOUTENT, les candidats se CROISENT avec ceux de l'appelant
+    (l'assistant borne au temps réel) — un croisement vide garde ceux de la voix : la voix choisie
+    l'emporte sur la vitesse. Clés dans l'espace du domaine (id nu quand une source le borne)."""
+    if not voice:
+        return fallback
+    from wama.common.tts.voice_refs import voice_draw_constraint
+    constraint = voice_draw_constraint(voice)
+    if constraint.get('requires'):
+        domain['requires'] = list(dict.fromkeys(list(domain.get('requires') or [])
+                                                + constraint['requires']))
+    keys = constraint.get('candidates')
+    if keys:
+        prefix = f"{domain['source']}:" if domain.get('source') else ''
+        keys = [k[len(prefix):] if prefix and k.startswith(prefix) else k for k in keys]
+        mine = domain.get('candidates')
+        domain['candidates'] = ([k for k in mine if k in keys] or keys) if mine else keys
+        # Repli : un modèle qui DIT la voix. Si aucun ne tient au budget ou n'est installé, la tâche
+        # le prend quand même et la route l'installe (`ensure_model`), au lieu de tirer un moteur
+        # qui dirait une autre voix sans le dire.
+        fallback = keys[0]
+    return fallback
 
 
 def need_candidates(needs: dict, domain: dict):
@@ -324,6 +364,9 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
                 # Le besoin déclaré nomme des CHAMPS : au lancement, leurs valeurs sont l'élément.
                 value = ({cap: getattr(item, field, None) for cap, field in value.items()}
                          if item is not None else {})
+            elif key == 'voice':
+                # La voix aussi : le champ déclaré, lu sur l'élément.
+                value = getattr(item, value, None) if item is not None else None
             overrides.setdefault(key, value)
     # Distants DÉCLARÉS au schéma et autorisés par le profil (`declared_cloud_keys`) ; un
     # appelant qui passe lui-même `cloud_keys` (l'assistant) garde la main.
@@ -343,6 +386,9 @@ def resolve_model_choice(requested, *, app_id=None, spec=None, fallback=None, it
     if narrowed:
         domain['candidates'] = ([k for k in domain['candidates'] if k in narrowed]
                                 if domain.get('candidates') else narrowed)
+    # La VOIX choisie (2026-10-28) : un moteur qui clone pour un enregistrement, un modèle qui la
+    # nomme pour une voix propre — même geste au lancement et pour la prévision.
+    fallback = narrow_by_voice(domain, domain.pop('voice', None), fallback)
     source = domain.pop('source', None)
     from wama.model_manager.services import select_model_id
     return select_model_id(source, requested=AUTO, fallback=fallback, **domain)

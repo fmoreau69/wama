@@ -95,14 +95,18 @@ class UneVoixCloneeExigeUnMoteurQuiCloneTest(TestCase):
         from wama.synthesizer import workers
         from wama.synthesizer.utils import speech_render
         self.assertIs(workers.resolve_tts_model, speech_render.resolve_tts_model)
+        # Depuis le 2026-10-28 les deux passent la VOIX au tirage (clé `voice`), qui en tire
+        # l'exigence (`auto_model.narrow_by_voice`) — et la contrainte est la même pour tous.
         with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
                         return_value='synthesizer:tts-cloneur') as draw:
             speech_render.resolve_tts_model('auto', 'ua_1', 50, fallback='r')
-        self.assertEqual(['supports_cloning'], draw.call_args.kwargs['requires'])
+        self.assertEqual('ua_1', draw.call_args.kwargs['voice'])
+        self.assertEqual(resolve_model_choice('auto', app_id='synthesizer', quality_intent=0,
+                                              voice='ua_1', fallback='r'),
+                         'synthesizer:tts-cloneur')
         # Avatarizer : le tirage est encore écrit dans son worker.
         src = (Path(settings.BASE_DIR) / 'wama/avatarizer/workers.py').read_text(encoding='utf-8')
-        self.assertIn("['supports_cloning'] if is_cloned_voice(", src)
-        self.assertIn('requires=exigences', src)
+        self.assertIn('voice=job.voice_preset', src)
 
     def test_auto_n_est_jamais_grise_par_la_brique_d_appariement(self):
         from pathlib import Path
@@ -711,8 +715,10 @@ class PredicatDeVoixClonéeDéfiniUneFoisTest(TestCase):
         # La langue entre dans l'appariement par un prédicat de VALEUR — le crochet `accepts`.
         self.assertIn('typeof s.accepts === ', match_js,
                       'un slot doit pouvoir porter son propre prédicat de compatibilité')
-        # Et la brique d'appariement NE recopie PAS le prédicat : elle le LIT.
-        self.assertIn('mc.isClonedVoice(v)', match_js)
+        # Et la brique d'appariement NE recopie PAS les prédicats : elle les LIT (2026-10-28 : la
+        # voix de la médiathèque et la règle des voix de moteur, `voiceFits`).
+        self.assertIn('mc.isReferenceVoice(el.value)', match_js)
+        self.assertIn('mc.voiceFits(caps, ', match_js)
 
 
 def _upscaler(key, task, scale=None):

@@ -143,7 +143,9 @@ class Param:
                                                 # clé], "available_inputs": [entrées que l'élément
                                                 # FOURNIT], "needs": {capacité: champ de
                                                 # l'élément} — 2026-10-14, enhancer `scale` ←
-                                                # `upscale_factor`}. Lus par le LANCEMENT
+                                                # `upscale_factor`, "voice": champ de voix —
+                                                # 2026-10-28, la voix choisie borne le tirage aux
+                                                # modèles qui la disent}. Lus par le LANCEMENT
                                                 # (`auto_model.resolve_model_choice`) ET par la
                                                 # PRÉVISION (le navigateur les transmet à l'endpoint) :
                                                 # un seul lieu. Jusqu'au 2026-10-01 le transcriber les
@@ -466,9 +468,10 @@ def top_p_param(model_field: str, **overrides) -> dict:
 def voices_of(model_field: str) -> dict:
     """La liaison `cap_from` d'un select de VOIX (`options_source='voices'`) au choix de modèle
     `model_field` (2026-10-28) : il ne garde que les voix que ce modèle peut dire — pas de voix
-    clonée sous un moteur qui ne clone pas, la voix propre d'un moteur sous lui seul (Phonon,
-    Kokoro, Bark) — par la règle commune `WamaModelCaps.cloneVoiceFilter`. Toutes les surfaces
-    où les deux champs sont rendus : volet, modale d'élément, modale de lot."""
+    clonée sous un moteur qui ne clone pas, la voix propre d'un moteur sous ceux qui la nomment
+    (Phonon, Kokoro, Bark) — par la règle commune `WamaModelCaps.cloneVoiceFilter`. Sous « auto »,
+    toutes restent : le tirage reçoit la voix choisie (`options_resolution.voice`). Toutes les
+    surfaces où les deux champs sont rendus : volet, modale d'élément, modale de lot."""
     return {'field': model_field, 'capability': 'voices', 'mode': 'voices'}
 
 

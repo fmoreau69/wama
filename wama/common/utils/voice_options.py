@@ -18,13 +18,15 @@ Source COMMUNE des options de voix (TTS) — centralise ce qui était rendu en o
                                   miennes ; décision de Fabien : « une voix partagée doit être
                                   accessible en fonction des droits de chacun »). Le groupe
                                   n'apparaît pas s'il est vide
-  4. Voix propres des moteurs   → une par modèle du catalogue qui en déclare (`capabilities.voices`,
-                                  2026-10-28 : Bark, Kokoro, Phonon) ; chaque option porte son
-                                  modèle (`attributes.model` → `data-model`)
+  4. Voix propres des moteurs   → un groupe par jeu de modèles du catalogue qui les déclarent
+                                  (`capabilities.voices`, 2026-10-28 : Bark, Kokoro, Phonon) ;
+                                  chaque option porte les modèles qui la disent (`attributes.models`
+                                  → `data-models`)
 
-Le FILTRAGE par modèle (cacher le clonage `ua_` si supports_cloning=false, ne montrer une voix de
-moteur que sous SON modèle, restreindre les langues) est centralisé côté client par WamaModelCaps
-(lit AIModel.capabilities) — pas dupliqué ici.
+Le FILTRAGE par modèle (cacher un enregistrement `ua_`/`sa_` si supports_cloning=false, une voix de
+moteur sous un modèle qui ne la nomme pas, restreindre les langues) est centralisé côté client par
+WamaModelCaps (`voiceFits`, lit AIModel.capabilities) — pas dupliqué ici ; le tirage « auto » reçoit
+la même contrainte côté serveur (`voice_refs.voice_draw_constraint`).
 
 Consommé : par les vues (passage JSON au template) et par l'endpoint commun de voix → WamaParams
 résout `options_source='voices'` depuis ces groupes. Lève le verrou d'uniformisation du Synthesizer
@@ -94,17 +96,23 @@ def get_voice_groups(user) -> list[dict]:
     except Exception:
         pass
 
-    # 4. Les voix PROPRES des moteurs (2026-10-28) : un groupe par modèle du catalogue qui en
-    # déclare (`capabilities.voices`, posées par `apply_engine_flags` depuis la classe du moteur —
-    # Bark, Kokoro, Phonon). Chaque option porte son modèle (`data-model`) : le filtre commun ne la
-    # montre que sous LUI (`WamaModelCaps.cloneVoiceFilter`). Les préréglages Bark étaient ici une
-    # copie de `constants.VOICE_PRESET_CHOICES`, offerte sous TOUT moteur.
+    # 4. Les voix PROPRES des moteurs (2026-10-28) : posées par `apply_engine_flags` depuis la
+    # classe du moteur (Bark, Kokoro, Phonon). Chaque option porte les modèles qui la disent
+    # (`data-models`) : le filtre commun ne la montre que sous eux (`WamaModelCaps.voiceFits`). Les
+    # préréglages Bark étaient ici une copie de `constants.VOICE_PRESET_CHOICES`, offerte sous TOUT
+    # moteur.
     groups.extend(engine_voice_groups(user))
     return groups
 
 
 def engine_voice_groups(user) -> list[dict]:
-    """Les groupes de voix propres aux moteurs, un par modèle visible qui en déclare."""
+    """Les groupes de voix propres aux moteurs — un par JEU de modèles qui disent les mêmes voix.
+
+    Chaque option porte les modèles qui la NOMMENT (`attributes.models`, clés séparées par une
+    espace → `data-models`) : la compatibilité se lit au catalogue, sans liste à tenir. Deux
+    moteurs qui déclarent les mêmes voix (Kokoro 82M et sa version ONNX, `voices.kokoro_voices`)
+    partagent donc UN groupe — sous « auto », où toutes les voix restent offertes, deux groupes
+    identiques auraient mis deux fois la même valeur dans le select."""
     try:
         from wama.model_manager.models import AIModel
         rows = (AIModel.objects.catalogue_visible_to(user)
@@ -112,20 +120,24 @@ def engine_voice_groups(user) -> list[dict]:
                 .values_list("model_key", "name", "capabilities"))
     except Exception:
         return []
-    groups = []
+    names, voices = {}, {}
     for key, name, caps in rows:
-        voices = [v for v in ((caps or {}).get("voices") or []) if v.get("value")]
-        if not voices:
-            continue
-        groups.append({
-            "key": f"engine:{key}",
-            "group": f"Voix de {name}",
-            "options": [(v["value"], v.get("label") or v["value"]) for v in voices],
-            "attributes": {v["value"]: {"model": key,
-                                        **({"language": v["language"]} if v.get("language") else {})}
-                           for v in voices},
-        })
-    return groups
+        for v in ((caps or {}).get("voices") or []):
+            if isinstance(v, dict) and v.get("value"):
+                names[key] = name
+                entry = voices.setdefault(v["value"], {"voice": v, "models": []})
+                entry["models"].append(key)
+    by_models: dict[tuple, list] = {}
+    for value, entry in voices.items():
+        by_models.setdefault(tuple(entry["models"]), []).append(entry["voice"])
+    return [{
+        "key": "engine:" + " ".join(models),
+        "group": "Voix de " + " · ".join(names[k] for k in models),
+        "options": [(v["value"], v.get("label") or v["value"]) for v in group],
+        "attributes": {v["value"]: {"models": " ".join(models),
+                                    **({"language": v["language"]} if v.get("language") else {})}
+                       for v in group},
+    } for models, group in by_models.items()]
 
 
 def voice_groups_json(user) -> str:

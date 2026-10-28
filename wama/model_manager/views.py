@@ -1486,9 +1486,9 @@ def api_model_options(request):
         # le navigateur : sans eux la prévision ignorait la politique de l'app (2026-10-01 :
         # « Qwen3-ASR » annoncé, Whisper tiré au lancement). `needs` arrive en paires
         # `capacité:valeur` lues dans le formulaire (2026-10-14).
-        from wama.common.utils.auto_model import RESOLUTION_KEYS, read_needs
-        refine = {k: (read_needs(request.GET[k]) if k == 'needs' else
-                      [v for v in request.GET.get(k, '').split(',') if v])
+        # `voice` (2026-10-28) : la voix choisie, qui borne le tirage aux modèles qui la disent.
+        from wama.common.utils.auto_model import RESOLUTION_KEYS, read_refinement
+        refine = {k: read_refinement(k, request.GET[k])
                   for k in RESOLUTION_KEYS if request.GET.get(k)}
         # Pas de PRÉVISION pour une liste qui réunit plusieurs tâches (2026-09-27) : l'app y
         # tranche « auto » au lancement avec ce que le domaine ne dit pas (anonymizer : les

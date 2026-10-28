@@ -79,6 +79,8 @@ PARAMS = derive_from_model(
                              # « auto » + prévision (brique commune auto_model, 2026-09-02)
                              # — le lancement résout dans workers.py.
                              options_auto=True,
+                             # La voix choisie borne le tirage, prévision comprise (2026-10-28).
+                             options_resolution={"voice": "voice_preset"},
                              dom_id={"panel": "tts_model", "item": "settingsTtsModel",
                                      "batch": "batchSettingsTtsModel"},
                              # La VOIX (moteur, langue, voix) se règle au VOLET, dans la modale et

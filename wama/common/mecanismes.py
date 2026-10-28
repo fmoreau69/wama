@@ -2790,10 +2790,13 @@ MECHANISMS = (
               "ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, "
               "`voice_options` (menus), assistant. Depuis le 2026-10-28, les voix PROPRES d'un "
               "moteur (Phonon, Kokoro, Bark — `TTSBackend.VOICES`, portées par le catalogue) : un "
-              "groupe par modèle (`engine_voice_groups`), montré sous ce seul modèle par la règle "
-              "commune du navigateur (`WamaModelCaps.cloneVoiceFilter`, `cap_from` en mode "
-              "`voices`) ; et la voix de l'ASSISTANT — modèle choisi ou tiré « auto », le plus "
-              "rapide en temps réel (`assistant_voice`)",
+              "groupe par jeu de modèles qui les nomment (`engine_voice_groups`, `data-models`), "
+              "jugées dans les DEUX sens par une règle commune du navigateur "
+              "(`WamaModelCaps.voiceFits` : sous un modèle, ses voix ; une voix choisie grise les "
+              "autres modèles, `WamaInputMatch.voiceSlot`), et portées au tirage « auto » "
+              "(`voice_draw_constraint`, clé `voice` d'`options_resolution` — lancement et "
+              "prévision) ; et la voix de l'ASSISTANT — modèle choisi ou tiré « auto », le plus "
+              "rapide en temps réel sauf voix choisie (`assistant_voice`)",
               'wama/common/tts/voice_refs.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4',
               annexes=('wama/common/utils/voice_options.py',
                        'wama/common/tts/assistant_voice.py',

@@ -68,8 +68,14 @@
     const slots = cfg.slots || {};
     const status = cfg.statusId ? document.getElementById(cfg.statusId) : null;
 
-    // Un slot peut porter son propre libellé (slot de VALEUR, hors INPUT_TYPES : la langue).
-    const label = (id) => (slots[id] && slots[id].label) || labels[id] || id;
+    // Un slot peut porter son propre libellé (slot de VALEUR, hors INPUT_TYPES : la langue) — un
+    // texte, ou une fonction quand il dépend de la valeur (la voix choisie, 2026-10-28).
+    const label = (id) => {
+      const s = slots[id];
+      const own = s && (typeof s.label === 'function'
+        ? s.label(document.getElementById(s.inputId)) : s.label);
+      return own || labels[id] || id;
+    };
     const acceptsOf = (mid) => {
       const m = meta[mid] || {};
       return new Set([].concat(m.inputs_required || [], m.inputs_optional || []));
@@ -284,30 +290,52 @@
   }
 
   /*
-   * Slot VOIX CLONÉE prêt à l'emploi — direction voix → MODÈLE : une voix `ua_` choisie
-   * DÉSACTIVE les moteurs sans clonage (grisés avec raison, jamais cachés). Le prédicat est
-   * celui de `WamaModelCaps.isClonedVoice`, défini UNE fois : ce slot vivait recopié dans le
-   * synthesizer et l'avatarizer (isProvided/describe/clear, 12 lignes chacun).
+   * Slot VOIX prêt à l'emploi — direction voix → MODÈLE : une voix choisie DÉSACTIVE les moteurs
+   * qui ne la disent pas (grisés avec raison, jamais cachés ; « auto » jamais — le tirage reçoit
+   * la contrainte, `auto_model.narrow_by_voice`).
+   *   • un enregistrement de la médiathèque (`ua_`, et `sa_` depuis le 2026-10-28) → les moteurs
+   *     qui n'acceptent pas de voix de référence (entrée `reference_voice`, la règle d'avant) ;
+   *   • une voix propre de moteur (2026-10-28) → les modèles qui ne la NOMMENT pas
+   *     (`WamaModelCaps.voiceFits`, la règle du filtre de voix, lue dans l'autre sens).
+   * Les prédicats sont ceux de `wama-model-caps.js`, définis UNE fois : ce slot vivait recopié
+   * dans le synthesizer et l'avatarizer (isProvided/describe/clear, 12 lignes chacun).
    *
-   *   slots: { reference_voice: WamaInputMatch.voiceSlot('voice_preset', { chipId, zoneId }) }
+   *   slots: { reference_voice: WamaInputMatch.voiceSlot('voice_preset', { chipId, zoneId }) },
+   *   capsProvider: modelCaps.caps     // requis pour les voix des moteurs (`capabilities.voices`)
    */
   function voiceSlot(inputId, opts) {
     opts = opts || {};
-    const cloned = function (v) {
+    const brick = function () {
       const mc = global.WamaModelCaps;
       if (!mc || typeof mc.isClonedVoice !== 'function') {
         // Pas de repli local : ce serait la 2ᵉ copie du prédicat qu'on vient de retirer.
         console.error('[wama-input-match] voiceSlot exige wama-model-caps.js (isClonedVoice)');
-        return false;
+        return null;
       }
-      return mc.isClonedVoice(v);
+      return mc;
     };
+    const chosen = function (el) { return (el && el.selectedOptions && el.selectedOptions[0]) || null; };
+    const ownedByEngines = function (mc, el) { return mc.voiceModels(chosen(el)).length > 0; };
     return {
       inputId: inputId, chipId: opts.chipId, zoneId: opts.zoneId,
-      isProvided: function (el) { return cloned(el.value); },
+      label: function (el) {
+        const o = chosen(el);
+        return o ? 'Voix « ' + (o.dataset.capsLabel || o.textContent).trim() + ' »' : '';
+      },
+      isProvided: function (el) {
+        const mc = brick();
+        return !!mc && !!el && (mc.isReferenceVoice(el.value) || ownedByEngines(mc, el));
+      },
+      accepts: function (caps, el) {
+        const mc = brick();
+        if (!mc) return true;
+        if (ownedByEngines(mc, el)) return mc.voiceFits(caps, chosen(el)) !== false;
+        const entries = [].concat(caps.inputs_required || [], caps.inputs_optional || []);
+        return entries.indexOf('reference_voice') !== -1;
+      },
       describe: function (el) {
-        const o = el.selectedOptions && el.selectedOptions[0];
-        return o ? o.textContent.trim() : 'voix clonée';
+        const o = chosen(el);
+        return o ? (o.dataset.capsLabel || o.textContent).trim() : 'voix';
       },
       clear: function (el) {
         el.value = opts.reset || 'default';

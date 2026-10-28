@@ -37,14 +37,24 @@ def realtime_voices(language: str) -> list[str]:
     return [key for _, key in ranked]
 
 
-def voice_model_for(user, requested: str = '', language: str = 'fr') -> str | None:
+def voice_model_for(user, requested: str = '', language: str = 'fr',
+                    voice_preset: str = '') -> str | None:
     """Le modèle de voix de l'assistant : le choix du compte, sinon le tirage « auto » (le plus
     rapide en temps réel dans `language`). `None` : aucun modèle temps réel installé — l'appelant
-    garde son repli."""
+    garde son repli.
+
+    La VOIX choisie borne le tirage comme partout (`resolve_model_choice`, clé `voice`) : une voix
+    de Phonon prend Phonon même s'il est plus lent, une voix de la médiathèque un moteur qui clone
+    — elle l'emporte alors sur le temps réel, qui n'est plus exigé."""
     from wama.common.utils.auto_model import is_auto, resolve_model_choice
+    from wama.common.tts.voice_refs import voice_draw_constraint
     if requested and not is_auto(requested):
         return requested
     keys = realtime_voices(language)
+    if voice_draw_constraint(voice_preset):
+        return resolve_model_choice(requested, spec=TTS_DOMAIN, user=user, voice=voice_preset,
+                                    priority=keys or None, prefer_loaded=False,
+                                    fallback=keys[0] if keys else None)
     if not keys:
         return None
     return resolve_model_choice(requested, spec=TTS_DOMAIN, user=user, requires=['realtime'],
@@ -58,6 +68,7 @@ def assistant_voice(user) -> dict:
     from wama.common.services.assistant_engine import assistant_settings
     settings_ = assistant_settings(user)
     language = getattr(getattr(user, 'profile', None), 'preferred_language', None) or 'fr'
-    return {'model': voice_model_for(user, settings_.get('voice_model') or '', language),
-            'voice_preset': settings_.get('voice_preset') or 'default',
+    voice = settings_.get('voice_preset') or 'default'
+    return {'model': voice_model_for(user, settings_.get('voice_model') or '', language, voice),
+            'voice_preset': voice,
             'language': language}

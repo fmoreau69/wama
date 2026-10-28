@@ -53,6 +53,10 @@ PARAMS = derive_from_model(
             # « auto » en 1ʳᵉ option + prévision sous le select (brique commune
             # auto_model, 2026-09-02) — le lancement résout dans workers.py.
             options_auto=True,
+            # La VOIX choisie borne le tirage (2026-10-28) : la prévision la reçoit comme le
+            # lancement (`auto_model.narrow_by_voice`) — sans elle, « Prévu : Kokoro » pour une voix
+            # de Phonon.
+            options_resolution={"voice": "voice_preset"},
         ),
         # Curseur de QUALITÉ (échelle continue 0-100) — visible SEULEMENT quand le modèle
         # est « auto » (il pèse sur ce tirage-là et rien d'autre). Rendu/tricolore/

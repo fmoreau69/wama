@@ -968,7 +968,10 @@ l'intuition :
     (ses préréglages). La source commune des voix en fait un groupe par modèle, chaque option
     marquée de son modèle (`voice_options.engine_voice_groups`, `data-model`), et la règle commune
     ne la montre que sous LUI (`WamaModelCaps.cloneVoiceFilter`, appliquée par `applyOptionFilter`) ;
-    sous « auto », aucune. Le champ de voix la lit par `cap_from` en mode `voices`
+    sous « auto », aucune. *⚠ Corrigé le soir même (question de Fabien) : sous « auto » toutes
+    restent, une voix choisie grise les modèles qui ne la disent pas et borne le tirage — le double
+    sens des voix clonées, `INPUT_MODEL_MATCHING §6.7` (addendum du 28/10 soir) ; les modèles aux
+    mêmes voix partagent un groupe (`data-models`).* Le champ de voix la lit par `cap_from` en mode `voices`
     (`param_schema.voices_of`) — volet, modale d'élément et modale de lot du synthesizer et de
     l'avatarizer, réglages de l'assistant : jusque-là le filtre n'était câblé qu'au volet du
     synthesizer. La copie `voice_options.BARK_PRESETS`, offerte sous tout moteur, est retirée.

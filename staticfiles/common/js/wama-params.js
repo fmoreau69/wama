@@ -1024,7 +1024,8 @@
       // PRÉVISION annonçait un autre modèle que celui que le lancement retient.
       if (p.options_auto && p.options_resolution) {
         Object.keys(p.options_resolution).sort().forEach(function (k) {
-          if (k === 'needs') return;   // des CHAMPS, dont la valeur est lue plus bas (`needsQuery`)
+          // des CHAMPS, dont la valeur est lue plus bas (`needsQuery`)
+          if (k === 'needs' || k === 'voice') return;
           var v = p.options_resolution[k];
           if (v && v.length) url += (url.indexOf('?') >= 0 ? '&' : '?') +
             encodeURIComponent(k) + '=' + encodeURIComponent([].concat(v).join(','));
@@ -1071,12 +1072,24 @@
                          el: pf ? document.getElementById(perCtx(pf.dom_id, ctx) || ('wp-' + ctx + '-' + field)) : null });
         });
       }
+      // `options_resolution.voice` (2026-10-28) : le champ de VOIX — la voix choisie borne le tirage
+      // aux modèles qui la disent ; sa valeur part avec la requête, comme un besoin.
+      var voiceEl = null, voiceField = '';
+      if (p.options_auto && p.options_resolution && p.options_resolution.voice) {
+        voiceField = p.options_resolution.voice;
+        var pv = (schema || []).filter(function (x) { return x.name === voiceField; })[0];
+        voiceEl = pv ? document.getElementById(perCtx(pv.dom_id, ctx) || ('wp-' + ctx + '-' + voiceField)) : null;
+        needEls.push({ el: voiceEl });   // son changement rafraîchit la prévision (plus bas)
+      }
       var needsQuery = function () {
-        var pairs = needEls.map(function (n) {
+        var pairs = needEls.filter(function (n) { return n.cap; }).map(function (n) {
           var v = n.el ? n.el.value : _siblingValue(root, n.field);
           return v ? n.cap + ':' + v : '';
         }).filter(Boolean);
-        return pairs.length ? 'needs=' + encodeURIComponent(pairs.join(',')) : '';
+        var q = pairs.length ? 'needs=' + encodeURIComponent(pairs.join(',')) : '';
+        var voice = voiceField ? (voiceEl ? voiceEl.value : _siblingValue(root, voiceField)) : '';
+        if (voice) q += (q ? '&' : '') + 'voice=' + encodeURIComponent(voice);
+        return q;
       };
       var urlWithIntent = function () {
         var u = baseUrl + modeQuery();
@@ -1410,7 +1423,7 @@
           ' » : wama-model-caps.js absent — voix non filtrées');
         return;
       }
-      mc.applyOptionFilter(el, mc.cloneVoiceFilter(el.id), caps, key, true);
+      mc.applyOptionFilter(el, mc.cloneVoiceFilter(el.id), caps, key);
       return;
     }
     if (mode === 'note') {

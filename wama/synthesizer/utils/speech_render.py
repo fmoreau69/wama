@@ -43,17 +43,16 @@ PREVIEW_WORDS = 50
 def resolve_tts_model(model, voice_preset, quality_intent, fallback):
     """Le modèle RÉEL d'un rendu : « auto » est tiré ici (capacités + VRAM libre du moment).
 
-    Une voix CLONÉE exige un moteur qui clone : « auto » reste proposable dans l'UI (jamais
-    grisé), la contrainte est portée au tirage (décision du 13/09).
+    La VOIX choisie borne le tirage — un enregistrement exige un moteur qui clone, une voix propre
+    un modèle qui la nomme : « auto » reste proposable dans l'UI (jamais grisé), la contrainte est
+    portée au tirage (décision du 13/09, étendue aux voix des moteurs le 2026-10-28 — clé `voice`).
     """
     from wama.common.utils.auto_model import is_auto, read_quality_intent, resolve_model_choice
     if not is_auto(model):
         return model
-    from wama.common.tts.voice_refs import is_cloned_voice
-    requires = ['supports_cloning'] if is_cloned_voice(voice_preset) else None
     return resolve_model_choice(
         model, app_id='synthesizer', quality_intent=read_quality_intent(quality_intent),
-        requires=requires, fallback=fallback)
+        voice=voice_preset, fallback=fallback)
 
 
 def chunk_limit(model):

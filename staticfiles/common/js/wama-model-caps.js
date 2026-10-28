@@ -90,16 +90,11 @@
       });
     }
 
-    // `loaded` : le catalogue a répondu. Avant, « pas de capacités » veut dire « pas encore » —
-    // rien ne se juge ; après, il veut dire « ce choix n'a pas de fiche » (« auto ») : une voix
-    // propre à un moteur se cache alors (`hideWithoutCaps`), aucun moteur n'étant désigné.
-    let loaded = false;
-
     function render() {
       const key = resolveKey(sel.value);
       const caps = capsByKey[key] || null;
       filters.forEach(function (f) {
-        applyOptionFilter(document.getElementById(f.selectId), f, caps, key, loaded);
+        applyOptionFilter(document.getElementById(f.selectId), f, caps, key);
       });
       controls.forEach(function (c) { applyControl(c, caps); });
       sections.forEach(function (s) { applySection(s, caps); });
@@ -135,7 +130,6 @@
               {}, m.capabilities || {}, metaByKey[m.model_key] || {});
           }
         });
-        loaded = true;
         render();
         return capsByKey;
       })
@@ -148,15 +142,14 @@
    * Applique UN filtre d'options au <select> `target` pour le modèle `key` (capacités `caps`) —
    * la règle commune, partagée avec `WamaParams` (`cap_from` en mode `voices`, 2026-10-28). Une
    * option masquée est aussi désactivée ; la sélection passe à la 1re visible si la sienne l'est.
-   * `loaded` faux et `caps` absentes : rien ne se juge (le catalogue n'a pas encore répondu).
+   * `caps` absentes (« auto », catalogue pas encore là) : rien ne se masque.
    */
-  function applyOptionFilter(target, f, caps, key, loaded) {
+  function applyOptionFilter(target, f, caps, key) {
     if (!target || typeof f.hideOption !== 'function') return;
     let firstVisible = null;
     let selectedHidden = false;
     Array.prototype.forEach.call(target.options, function (opt) {
-      const hide = caps ? !!f.hideOption(caps, opt, key)
-        : (!!loaded && typeof f.hideWithoutCaps === 'function' && !!f.hideWithoutCaps(opt));
+      const hide = !!caps && !!f.hideOption(caps, opt, key);
       opt.hidden = hide;
       opt.disabled = hide;
       // Libellé d'origine mémorisé au 1er passage : `render()` rejoue à chaque changement de
@@ -228,6 +221,43 @@
   }
 
   /*
+   * Une voix de la MÉDIATHÈQUE — clonée (`ua_`) ou de référence (`sa_`) : un enregistrement que
+   * seul un moteur qui clone sait dire (le serveur ne le passe qu'à lui, `voice_refs.speaker_wav_for`).
+   * Jumeau de `voice_refs.is_reference_voice` (2026-10-28).
+   */
+  function isReferenceVoice(value) {
+    return isClonedVoice(value) || /^sa_/.test(String(value || ''));
+  }
+
+  /*
+   * Les modèles qui DISENT une voix propre de moteur — `data-models` de l'option (clés séparées par
+   * des espaces, `voice_options.engine_voice_groups`), [] pour une voix qui n'est à aucun moteur.
+   */
+  function voiceModels(opt) {
+    const raw = (opt && opt.dataset && opt.dataset.models) || '';
+    return raw ? raw.split(' ').filter(Boolean) : [];
+  }
+
+  /*
+   * LA règle de compatibilité voix ↔ modèle (2026-10-28), lue par les DEUX directions — le filtre
+   * de voix ci-dessous (modèle → voix) et le slot de voix de `WamaInputMatch` (voix → modèle).
+   * Elle se LIT au catalogue, aucune liste à tenir :
+   *   • une voix propre de moteur → le modèle la NOMME (`capabilities.voices`) — deux moteurs qui
+   *     déclarent les mêmes voix (les deux Kokoro) les disent tous les deux ;
+   *   • un enregistrement (`isReferenceVoice`) → le modèle ne refuse pas de cloner ;
+   *   • le reste (« par défaut », noms hérités) → toujours.
+   * `null` : rien n'est jugé (capacités absentes).
+   */
+  function voiceFits(caps, opt) {
+    if (!caps || !opt) return null;
+    if (voiceModels(opt).length) {
+      return (caps.voices || []).some(function (v) { return v && v.value === opt.value; });
+    }
+    if (isReferenceVoice(opt.value)) return caps.supports_cloning !== false;
+    return true;
+  }
+
+  /*
    * Filtre VOIX prêt à l'emploi — direction MODÈLE → voix : un moteur qui déclare ne pas
    * cloner (`supports_cloning === false` — un fait du CATALOGUE, réaligné sur la classe de
    * moteur à chaque synchro depuis le 2026-09-12) masque les voix clonées. `null`/absent ⇒
@@ -241,16 +271,16 @@
    * prononciation seule n'est pas garantie — c'est ce que la raison dit. Sans `data-language`,
    * rien n'est affirmé.
    *
-   * Et les voix PROPRES d'un moteur (2026-10-28, Phonon) : une option qui porte `data-model`
-   * (`voice_options.engine_voice_groups`) ne se montre que sous CE modèle — sous un autre, et sous
-   * « auto » (aucun moteur désigné), elle se cache : un moteur ne dit pas la voix d'un autre.
+   * Et les voix PROPRES des moteurs (2026-10-28, Phonon) et les voix de RÉFÉRENCE (`sa_`) : sous
+   * un modèle choisi, ne restent que celles qu'il sait dire (`voiceFits`) — une voix de Phonon
+   * sous Kokoro, un enregistrement sous un moteur qui ne clone pas (vu à l'écran le 2026-10-28 :
+   * 17 voix sans effet). Sous « auto », TOUTES restent : « auto » est le tirage, et c'est lui qui
+   * reçoit la contrainte de la voix choisie (`auto_model.narrow_by_voice`) — comme pour une voix
+   * clonée depuis le 13/09. Choisir une voix grise les modèles qui ne la disent pas
+   * (`WamaInputMatch.voiceSlot`, la même règle dans l'autre sens).
    *
    *   filters: [ WamaModelCaps.cloneVoiceFilter('voice_preset') ]
    */
-  function engineVoiceOf(opt) {
-    return (opt && opt.dataset && opt.dataset.model) || '';
-  }
-
   function cloneVoiceFilter(selectId, opts) {
     opts = opts || {};
     const raison = opts.languageReason
@@ -258,17 +288,7 @@
          + 'cloné, mais la prononciation de cette langue n\'est pas garantie.';
     return {
       selectId: selectId,
-      hideOption: function (caps, opt, key) {
-        const owner = engineVoiceOf(opt);
-        if (owner) return owner !== key;
-        // Une voix de RÉFÉRENCE (`sa_`, un enregistrement de la médiathèque) n'est dite que par
-        // un moteur qui clone, comme une voix clonée : le serveur ne la transmet à aucun autre
-        // (`voice_refs.speaker_wav_for`). L'offrir sous Kokoro ou Phonon promettait une voix et
-        // rendait celle de la langue (vu à l'écran le 2026-10-28, 17 voix sans effet).
-        return caps.supports_cloning === false
-               && (isClonedVoice(opt.value) || /^sa_/.test(String(opt.value || '')));
-      },
-      hideWithoutCaps: function (opt) { return !!engineVoiceOf(opt); },
+      hideOption: function (caps, opt) { return voiceFits(caps, opt) === false; },
       annotateOption: function (caps, opt) {
         const lang = opt.dataset ? opt.dataset.language : '';
         const langs = Array.isArray(caps.languages) ? caps.languages : [];
@@ -304,5 +324,6 @@
 
   global.WamaModelCaps = { init: init, langFilter: langFilter, applyOptionFilter: applyOptionFilter,
                            cloneVoiceFilter: cloneVoiceFilter, isClonedVoice: isClonedVoice,
-                           voiceOptionFor: voiceOptionFor };
+                           isReferenceVoice: isReferenceVoice, voiceModels: voiceModels,
+                           voiceFits: voiceFits, voiceOptionFor: voiceOptionFor };
 })(window);

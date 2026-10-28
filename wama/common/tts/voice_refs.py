@@ -324,6 +324,49 @@ def is_cloned_voice(voice_preset: str) -> bool:
     return str(voice_preset or '').startswith('ua_')
 
 
+def is_reference_voice(voice_preset: str) -> bool:
+    """Cette voix est-elle un ENREGISTREMENT que seul un moteur qui clone sait dire — une voix de la
+    médiathèque, `ua_<id>` (d'un utilisateur) ou `sa_<id>` (système) ? Jumeau SERVEUR de
+    `WamaModelCaps.isReferenceVoice` (2026-10-28) : `speaker_wav_for` ne passe ce fichier qu'à un
+    moteur qui clone, donc la voix n'a d'effet que sous lui. Les noms plats hérités (`female_1`…)
+    n'en sont pas : Kokoro en lit le GENRE (`voices.kokoro_voice`)."""
+    return str(voice_preset or '').startswith(('ua_', 'sa_'))
+
+
+def models_naming_voice(voice_preset: str) -> List[str]:
+    """Les clés des modèles dont les voix PROPRES comptent `voice_preset` (`capabilities.voices`,
+    posées par `apply_engine_flags` depuis `TTSBackend.VOICES`), les installés d'abord — [] pour
+    une voix qu'aucun moteur ne nomme. La compatibilité se LIT au catalogue : deux moteurs qui
+    déclarent les mêmes voix (les deux Kokoro) les disent tous les deux, sans liste à tenir."""
+    value = str(voice_preset or '').strip()
+    if not value or value == 'default' or is_reference_voice(value):
+        return []
+    try:
+        from wama.model_manager.models import AIModel
+        rows = (AIModel.objects.filter(capabilities__has_key='voices')
+                .order_by('-is_downloaded', 'model_key')
+                .values_list('model_key', 'capabilities'))
+    except Exception:                          # catalogue absent : aucune contrainte affirmée
+        return []
+    return [key for key, caps in rows
+            if any(isinstance(v, dict) and v.get('value') == value
+                   for v in ((caps or {}).get('voices') or []))]
+
+
+def voice_draw_constraint(voice_preset: str) -> Dict:
+    """Ce qu'une voix CHOISIE impose au tirage « auto » (2026-10-28) — `{}` quand elle n'impose
+    rien. « auto » n'est jamais grisé par une voix (décision du 13/09) : c'est le TIRAGE qui reçoit
+    la contrainte, et c'est ici qu'elle se dit, une fois, pour tous les lanceurs
+    (`auto_model.resolve_model_choice`, clé de résolution `voice`).
+      * un enregistrement (`is_reference_voice`) → un moteur qui clone (`requires`) ;
+      * une voix propre de moteur → les seuls modèles qui la nomment (`candidates`).
+    """
+    if is_reference_voice(voice_preset):
+        return {'requires': ['supports_cloning']}
+    keys = models_naming_voice(voice_preset)
+    return {'candidates': keys} if keys else {}
+
+
 def model_supports_cloning(model_key: str) -> Optional[bool]:
     """Le moteur du modèle `model_key` CLONE-t-il ? — `True`/`False` si quelque chose le dit,
     `None` si rien ne le dit.

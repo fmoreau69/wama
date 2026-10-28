@@ -317,6 +317,31 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
 > qu'après avoir choisi Phonon. *(Ceci n'est pas une ⚠ de masquage contraire à la doctrine « griser,
 > pas cacher » : une voix d'un autre moteur n'est pas un choix incompatible, c'est un choix qui
 > n'existe pas sous ce moteur.)*
+>
+> ⚠ *2026-10-28 (soir) — la note ci-dessus avait tort sur deux points, relevés par Fabien (« pourquoi
+> les voix Phonon ne s'affichent que quand on sélectionne Phonon ? »).* Elle cachait les voix des
+> moteurs sous « auto », ce que le 13/09 avait refusé pour les voix clonées (« auto » est le tirage,
+> il reçoit la contrainte), et elle laissait le sens voix → modèle ouvert alors qu'il existait déjà.
+> Les voix propres entrent désormais dans le MÊME double sens que les voix clonées :
+>
+> | sens | règle | brique |
+> |---|---|---|
+> | modèle → voix | sous un modèle, ne restent que les voix qu'il DIT : voix propre qu'il nomme (`capabilities.voices`), enregistrement (`ua_` **et `sa_`**) s'il ne refuse pas de cloner ; sous « auto », TOUT reste | `WamaModelCaps.voiceFits`, lu par `cloneVoiceFilter` |
+> | voix → modèle | une voix choisie GRISE les modèles qui ne la disent pas (raison : « Voix « Noémie » ») ; « auto » jamais | `WamaInputMatch.voiceSlot` (même `voiceFits`) |
+> | voix → tirage | la voix choisie borne « auto » : un moteur qui clone pour un enregistrement, les modèles qui la nomment pour une voix propre (repli : le premier d'entre eux, que la route installe s'il manque) — au LANCEMENT et dans la PRÉVISION « Prévu : … » | clé `voice` d'`options_resolution` → `auto_model.narrow_by_voice` → `voice_refs.voice_draw_constraint` |
+>
+> - **La compatibilité se LIT au catalogue, aucune liste à tenir** : une option de voix propre porte
+>   les modèles qui la nomment (`data-models`, `voice_options.engine_voice_groups`) ; deux moteurs
+>   qui déclarent les mêmes voix (Kokoro 82M et Kokoro ONNX) partagent UN groupe. Un enregistrement
+>   se reconnaît à sa nature (médiathèque, `ua_`/`sa_`) et ne vaut que pour un moteur qui clone.
+> - **La LANGUE ne filtre toujours pas les voix** (décision du 27/09 tenue) : la langue choisie
+>   réordonne les groupes (`voicesFollowLanguage`) et la langue d'une voix étrangère au moteur se
+>   marque ⚠ — une voix anglaise peut dire un texte français, et l'inverse.
+> - Ce qui n'est PAS jugé encore : les attributs d'un enregistrement (durée, transcription jointe).
+>   Le mécanisme existe (`input_attributes` + `media_probe`, §6.8) ; un moteur qui exigerait la
+>   transcription de sa référence (Audio8, Qwen3-TTS Base) n'aurait qu'à le déclarer — ⏳.
+> - Gardes : `tests_voice_choice` (règle dans V8 sur les fichiers servis, deux sens ; tirage,
+>   prévision, assistant ; regroupement), contre-épreuve : 15 rouges sur 6 mutations.
 
 - Le prédicat `/^(ua_|cv_)/` vit en **UN** endroit — `WamaModelCaps.isClonedVoice` — lu par les
   deux briques ; il était recopié sur 4 sites dans 2 apps. Une garde textuelle
