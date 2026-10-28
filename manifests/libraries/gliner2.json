@@ -1,0 +1,42 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [
+      "numpy",
+      "peft",
+      "pydantic",
+      "requests",
+      "safetensors",
+      "torch",
+      "tqdm",
+      "transformers",
+      "urllib3"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Fastino AI",
+      "license": "Apache-2.0",
+      "repository": "https://github.com/fastino-ai/GLiNER2",
+      "summary": "Unified schema-based information extraction (entities, classification, structured data) — GLiNER2",
+      "version": "2.1.0"
+    },
+    "install": {
+      "pip": "gliner2==2.1.0",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Runtime de GLiNER2 (Fastino) : extraction d'entités à vocabulaire OUVERT — on lui nomme les types à chercher. Moteur du détecteur `fastino/gliner2-privacy-filter-PII-multi` de la brique commune `wama/common/privacy/` (ROADMAP §16.4bis, décision D2 « le GLiNER le plus large »). Librairie DISTINCTE de `gliner`. Installée SANS dépendances (`no_deps`) : celles de son mode local (torch, transformers ≥4.43, peft, safetensors, numpy) et de sa base (pydantic, requests, tqdm, urllib3) sont toutes déjà dans le venv — mesuré le 2026-10-28. Les poids viennent d'une ligne du catalogue, chargés depuis leur dossier local.",
+  "key": "gliner2",
+  "manifest_kind": "library",
+  "name": "gliner2",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:gliner2==2.1.0",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

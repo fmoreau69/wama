@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "Artifex",
+      "license": "AGPL-3.0 OR Artifex Commercial License",
+      "repository": "https://github.com/pymupdf/PyMuPDF",
+      "summary": "A high performance Python library for data extraction, analysis, conversion & manipulation of PDF (and other) documents.",
+      "version": "1.27.2.2"
+    },
+    "install": {
+      "pip": "pymupdf==1.27.2.2",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Lecture et RÉÉCRITURE des PDF (module `fitz`). Présent dans le venv HORS route jusqu'au 2026-10-28 (relevé par la revue d'opus du 17/10) ; consommé par le Reader, le converter, le synthesizer, et désormais par la couche texte de document commune à l'Anonymizer et au Translator (occultation EN PLACE : `add_redact_annot` + `apply_redactions`, ROADMAP §16.4bis). FIGÉ en 1.27.x : la 2.0 dépend d'`onnxruntime` (mesuré sur PyPI le 2026-10-28), qui masquerait `onnxruntime-gpu` (patch n°10). Aucune dépendance (roue autonome).",
+  "key": "pymupdf",
+  "manifest_kind": "library",
+  "name": "PyMuPDF",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:pymupdf==1.27.2.2",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
