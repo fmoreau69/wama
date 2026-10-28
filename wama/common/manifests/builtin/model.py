@@ -15,6 +15,7 @@ d'enveloppe namespacée, cf. envelope._is_key).
 from __future__ import annotations
 
 import logging
+import re
 from typing import Optional
 
 from ..kinds import ManifestKind, register_kind
@@ -130,6 +131,30 @@ def validate_model_body(body: dict) -> list[str]:
             errs.append("prompts.contract doit être une chaîne (markdown, anglais)")
 
     errs += _validate_composition(body.get('composition'))
+    errs += _validate_quality(body.get('quality'))
+    return errs
+
+
+def _validate_quality(quality) -> list[str]:
+    """`quality.defect` = {label, reason, source} — un DÉFAUT MESURÉ, validé par un administrateur
+    (2026-10-28). Les trois sont des chaînes non vides, et la source porte sa DATE : un constat sans
+    date vieillit en silence."""
+    if quality is None or quality == {}:
+        return []
+    if not isinstance(quality, dict):
+        return ["quality doit être un dict {defect}"]
+    errs = [f"quality : clés inconnues {sorted(set(quality) - {'defect'})} (defect)"] \
+        if set(quality) - {'defect'} else []
+    defect = quality.get('defect')
+    if defect is None:
+        return errs
+    if not isinstance(defect, dict):
+        return errs + ["quality.defect doit être un dict {label, reason, source}"]
+    for key in ('label', 'reason', 'source'):
+        if not isinstance(defect.get(key), str) or not defect[key].strip():
+            errs.append(f"quality.defect.{key} requis (chaîne non vide)")
+    if isinstance(defect.get('source'), str) and not re.search(r'20\d\d-\d\d-\d\d', defect['source']):
+        errs.append("quality.defect.source doit porter sa date (AAAA-MM-JJ)")
     return errs
 
 
@@ -266,6 +291,9 @@ def extract_model(key: str) -> Optional[dict]:
         # anatomie d'un modèle composé + moteur d'exécution (fait DÉCLARÉ, 2026-08-27) —
         # {} pour un modèle mono-fichier, le cas général.
         'composition': getattr(m, 'composition', None) or {},
+        # Défaut MESURÉ validé par un administrateur (2026-10-28) — absent tant qu'aucun ne l'est.
+        **({'quality': {'defect': dict((m.extra_info or {})[_QUALITY_DEFECT_KEY])}}
+           if (m.extra_info or {}).get(_QUALITY_DEFECT_KEY) else {}),
         # provenance / proposition (méta déclarative, pas de l'état de charge)
         'provenance': {
             'backend_ref': getattr(m, 'backend_ref', '') or None,
@@ -277,7 +305,8 @@ def extract_model(key: str) -> Optional[dict]:
         # Les publications (et le modèle de base déclaré) sont portés par `identity` : pas une
         # seconde fois ici.
         'extra_info': {k: v for k, v in (m.extra_info or {}).items()
-                       if k != _PUBLICATIONS_KEY and k not in _base_model_identity(m.extra_info or {})},
+                       if k not in (_PUBLICATIONS_KEY, _QUALITY_DEFECT_KEY)
+                       and k not in _base_model_identity(m.extra_info or {})},
     }
 
     # Provenance LUE sur la ligne (`ROADMAP §29` étape 3) — elle y naît, au geste d'installation.
@@ -399,6 +428,13 @@ _PUBLICATIONS_KEY = 'publications'
 _BASE_MODEL_KEY = 'base_model'
 _BASE_RELATION_KEY = 'base_model_relation'
 
+#: Défaut MESURÉ validé par un administrateur (2026-10-28) — `body.quality.defect`, projeté dans
+#: `extra_info` (clé collante de `model_sync`) et seulement s'il est DÉCLARÉ, comme les publications.
+#: Sœur de `exclusion` (une décision humaine qui ÉCARTE un modèle, `is_available=False`, masqué
+#: partout) : un défaut GRISE le modèle avec sa raison et le sort du tirage automatique, il reste
+#: listé. Lu par `model_quality.declared_defect`.
+_QUALITY_DEFECT_KEY = 'quality_defect'
+
 
 def _base_model_identity(extra_info: dict) -> dict:
     """`{base_model, base_model_relation}` d'une ligne qui DÉCLARE sa relation, `{}` sinon."""
@@ -501,6 +537,13 @@ def write_back_model(manifest: dict, *, apply: bool = False) -> dict:
         if 'extra_info' not in champs:
             champs.append('extra_info')
         voulu['extra_info'] = {**voulu.get('extra_info', cible.extra_info or {}), **base}
+    # Défaut mesuré : même règle — au déclaré seulement (un manifeste muet ne dégrise rien).
+    defect = (body.get('quality') or {}).get('defect')
+    if defect:
+        if 'extra_info' not in champs:
+            champs.append('extra_info')
+        voulu['extra_info'] = {**voulu.get('extra_info', cible.extra_info or {}),
+                               _QUALITY_DEFECT_KEY: dict(defect)}
 
     actuel = {champ: getattr(cible, champ) for champ in champs}
     deltas = {c: {'de': actuel.get(c), 'vers': v} for c, v in voulu.items() if actuel.get(c) != v}
@@ -544,6 +587,9 @@ def un_write_back_model(manifest: dict, *, apply: bool = False) -> dict:
     # droit de le faire. L'oublier ici aurait laissé une anatomie derrière une révocation.
     vides = {champ: '' for champ, _ in _CHAMPS_PROJETES}
     vides[_COMPOSITION_FIELD[0]] = {}
+    # Le défaut mesuré aussi (2026-10-28) : la révocation est le geste qui DÉGRISE.
+    if _QUALITY_DEFECT_KEY in (cible.extra_info or {}):
+        vides['extra_info'] = {k: v for k, v in cible.extra_info.items() if k != _QUALITY_DEFECT_KEY}
     portes = sorted(c for c in vides if getattr(cible, c))
     if not apply:
         return {'model': key, 'would_clear': portes, 'preserved': ['la ligne AIModel elle-même']}

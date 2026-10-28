@@ -2110,9 +2110,19 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    des process et la face « Évaluation », avec « Relancer avec » le modèle local quand la sortie
    venait d'un distant (`WAMA_QUALITE` M4 et bloc « pourquoi Albert ne rend pas tout le texte »).
    ✅ **Albert `whisper-large-v3` GRISÉ** (2026-10-28, décision de Fabien) : listé avec sa raison,
-   hors du tirage automatique — défaut MESURÉ déclaré, mécanisme commun
-   (`model_quality.DECLARED_DEFECTS`, `WAMA_QUALITE` bloc « pourquoi Albert ne rend pas tout le
-   texte »). ⏳ (c) signaler le défaut à la DINUM (message prêt, gardé par Fabien).
+   hors du tirage automatique. ✅ **Version SYSTÈME le soir même, pour TOUT modèle et toute app** :
+   une mesure sans référence qui prend un modèle en défaut (même entrée, mêmes réglages qu'un
+   autre modèle qui la couvre) le PROPOSE ; un administrateur valide ; le défaut vit sur la ligne
+   du catalogue (manifeste `model`, `quality.defect`) — `ROUTE §F4b`, `WAMA_QUALITE` bloc
+   « pourquoi Albert ne rend pas tout le texte ». ⚠ Aucune mesure n'est encore comparable d'un
+   modèle à l'autre (mesuré sur 462 transcriptions : six propositions fausses, défaites) — elle
+   attend la catégorisation de l'entrée. ⏳ (c) signaler le défaut à la DINUM (message prêt,
+   gardé par Fabien).
+   ⏳ **CHANTIER À PART — la catégorie de l'entrée fait la population** (Fabien, 2026-10-28) : un
+   même modèle ne rend pas la même qualité sur un livre audio, une réunion, une conférence, un
+   entretien. Registre déclaré (lié aux profils, §22.5) + condition acoustique mesurée ; corpus
+   d'évaluation, tirage et défauts par catégorie ; commun à toutes les tâches. Domicile :
+   `WAMA_QUALITE §4.4`.
    🔄 **DIRE quand une donnée part dans le cloud** (idée de Fabien, 2026-10-02 — ✅ (a) la prévision
    dit l'origine, 13/10, `786ce901` ; ⏳ (b) la console de la card et la raison d'une bascule) : le cloud reste un choix de l'utilisateur, WAMA le rend VISIBLE. (a) La prévision
    « Automatique → … » sous le select signale un modèle distant (« ☁ Albert (DINUM) — l'audio
@@ -5301,6 +5311,10 @@ que le chantier reprendra.
 - Le geste client : une ligne « Profil ▾ · 💾 · 🗑 » en tête de la section Réglages (§22.3),
   greffée par `WamaParams.settingsModal` — profils système puis « mes profils » (et partagés) ;
   choisir écrit dans le formulaire, Enregistrer écrit sur l'élément (§23.2quater).
+- ⏳ **Un profil nomme une CATÉGORIE d'entrée** (Fabien, 2026-10-28) : « Entretien », « Réunion »,
+  « Sous-titrage » disent aussi la population où les modèles se comparent — à décider avec le
+  chantier de la catégorie (`WAMA_QUALITE §4.4`) : le profil POSE la catégorie, ou elle est un
+  réglage à part.
 - Les trois profils d'usage du transcriber, en réglages qui EXISTENT : *Entretien (verbatim)* —
   pas de prétraitement, filtre de parole `auto`, diarisation, ni résumé ni cohérence ; *Réunion
   (compte rendu)* — diarisation, résumé `meeting`, cohérence ; *Sous-titrage* — filtre de parole

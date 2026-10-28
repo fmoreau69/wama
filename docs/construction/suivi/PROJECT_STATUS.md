@@ -26972,3 +26972,40 @@ le commit de la session « preview universelle » (`fac8c37f`). Détail : `ROUTE
   `tests_test_layout` (dossier non suivi « privacy (1) »), tous deux antérieurs.
 - 🔚 Restes : les canaux (Discord) ne montrent pas de face ; le chantier TRANSCRIBER (confié à
   « Briques UI »), puis ④.
+
+## §CLÔTURE — 2026-10-28 (fin d'après-midi), « DÉFAUT MESURÉ : VERSION SYSTÈME (proposer → valider) + LA CATÉGORIE DE L'ENTRÉE FAIT LA POPULATION » — clos
+
+Suite de `§CLÔTURE 2026-10-28 (fin de matinée)`.
+- ✅ **Grisage d'Albert vérifié au navigateur** sur le serveur en service (compte `wama_evaluation`,
+  rien de modifié) : grisé « omet la parole lointaine » sous « Cloud souverain · Albert API
+  (DINUM) », raison au survol, prévision « Automatique » sur un Whisper local, zéro erreur JS.
+- ✅ **Version SYSTÈME, pour TOUT modèle et toute app** (décision de Fabien : la mesure propose, un
+  administrateur valide — `ROADMAP §16.5`) : `quality.defect` au manifeste `model` (libellé, raison,
+  source datée) → `extra_info['quality_defect']`, clé collante du sync, dégrisé par la révocation ;
+  `model_quality.declared_defect` lit la ligne ; `defect_evidence` / `propose_defect` (même entrée,
+  mêmes réglages, TOUS les sélecteurs de modèle de l'app mis à part — `auto_model.catalog_fields`,
+  cinq apps en ont plusieurs) ; « Propositions à valider » ; `manage.py measure_checks` mesure les
+  résultats passés par `run_checks`. La table `DECLARED_DEFECTS` est retirée ; le défaut d'Albert
+  est sur sa ligne, projeté par la route (`write_back_model`), corpus régénéré. Gardes :
+  `model_manager/tests/tests_measured_defects.py` (15, contre-épreuves rouges).
+- ⚠⚠ **Mesuré : aucune mesure n'est encore comparable d'un modèle à l'autre.** 462 transcriptions
+  mesurées → six propositions FAUSSES (Whisper, Canary, Parakeet, Kyutai, LinTO, VibeVoice), aucune
+  pour Albert ; défaites (quatre rejetées, Kyutai et LinTO rétablis colonne par colonne depuis le
+  dump de 03:30). Garde posée : une mesure doit se DÉCLARER comparable (`Check.compares_models`) —
+  `speech_coverage` ne l'est pas. Le système ne propose donc rien aujourd'hui.
+- ⭐ **Fabien : la qualité dépend de la CATÉGORIE de l'audio** (livre audio, réunion, conférence,
+  entretien, interview) — **chantier à part**, consigné : `WAMA_QUALITE §4.4` (registre déclaré +
+  condition acoustique mesurée ; corpus, tirage et défauts par catégorie ; commun à toutes les
+  tâches), liens `ROADMAP §22.5`, `TRANSCRIBER_CORRECTION §8.4`. Mesures déjà au dossier : Whisper
+  1ᵉʳ sur les réunions, 4ᵉ sur le multilingue où Qwen3-ASR est 1ᵉʳ.
+- Mesuré (WSL) : 1310 tests (model_manager, transcriber, pipeline, manifestes, langue, disposition) —
+  un seul rouge, `tests_test_layout` (`wama/common/privacy/` non suivi, autrui). `check_docs` 0
+  cassée ; `check_redundancy` 89, rien dans mes fichiers.
+- Effets sur la base : 462 lignes de transcription portent désormais leur mesure de couverture
+  (`output_summary.checks`, la même écriture qu'à la fin d'un lancement) ; la ligne d'Albert porte
+  son défaut.
+- 🔚 **Décisions ouvertes (Fabien)** : catégorie de l'entrée — vocabulaire, déclarée ou sondée, lien
+  avec les profils, domicile sur la card (`WAMA_QUALITE §4.4`) · DINUM (c) · « ⋯ » / fenêtre détachée
+  (session briques UI).
+- Pendings système : relancer gunicorn + workers (le code du défaut sur la ligne ne sert qu'après) ·
+  pousser `dev`.

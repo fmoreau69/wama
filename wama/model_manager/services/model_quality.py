@@ -147,30 +147,128 @@ def declared_prior(model_key: str) -> float | None:
     return entry[0] if entry else None
 
 
-#: DÉFAUTS MESURÉS, AVEC LEUR SOURCE (2026-10-28, décision de Fabien) — un modèle dont une mesure
-#: de WAMA a établi qu'il rend un résultat FAUX sans le dire. Il reste AFFICHÉ dans les selects,
-#: GRISÉ avec sa raison (lister n'est pas pouvoir choisir, `INPUT_MODEL_MATCHING §2`), et sort du
-#: tirage automatique — exactement comme un modèle sans backend (`backend_missing`), lu aux deux
-#: mêmes endroits (`model_selector.select_model`, `get_registry_models`).
-#: ⚠ Seule une MESURE de WAMA entre ici, jamais un banc tiers ni une réputation, et l'entrée se
-#: retire le jour où la mesure change (un fournisseur corrige son service) : c'est un constat daté.
-#: Clé = `model_key` du catalogue ; valeur = (libellé court du select, raison affichée, source DATÉE).
-DECLARED_DEFECTS = {
-    'albert:whisper-large-v3': (
-        "omet la parole lointaine",
-        "Écarté : sur un enregistrement fait loin du micro, Albert rend moins de la moitié du "
-        "texte, sans le signaler (au plus un passage par fenêtre de 30 s, des fenêtres entières "
-        "vides). Les modèles locaux n'ont pas ce défaut.",
-        "WAMA_QUALITE « pourquoi Albert ne rend pas tout le texte », mesuré le 2026-10-22 : 10 min "
-        "d'un entretien lointain, 484 mots contre 1 287 pour Whisper large-v3 local ; aucun réglage "
-        "de l'API ne l'atteint. Grisé le 2026-10-28 (Fabien)"),
-}
+# ── DÉFAUTS MESURÉS (2026-10-28, décision de Fabien) ──────────────────────────────────────────
+# Un modèle dont une mesure de WAMA établit qu'il rend un résultat FAUX sans le dire reste AFFICHÉ
+# dans les selects, GRISÉ avec sa raison (lister n'est pas pouvoir choisir, `INPUT_MODEL_MATCHING
+# §2`), et sort du tirage automatique — comme un modèle sans backend (`backend_missing`), lu aux
+# deux mêmes endroits (`model_selector.select_model`, `get_registry_models`).
+#
+# LA MESURE PROPOSE, UN ADMINISTRATEUR VALIDE (`ROADMAP §16.5`, garde-fou n°2 : un score de
+# qualité est un signal RELATIF à escalader vers l'humain, jamais un gate automatique). Chaîne :
+# une mesure sans référence (`result_evaluation.run_checks`) prend un modèle en défaut sur un audio
+# qu'un autre a bien couvert (`defect_evidence`) → un manifeste `model` portant `quality.defect`
+# entre dans « Propositions à valider » (`propose_defect`) → l'administrateur valide → le défaut
+# est projeté sur la ligne du catalogue (`extra_info['quality_defect']`, clé collante du sync) et
+# lu ici. Le DÉGRISAGE est la révocation du manifeste (`un_write_back_model`).
+
+#: Avance minimale de l'autre modèle, sur le même audio, pour qu'une mesure en prenne un en défaut :
+#: sous elle, l'écart tient de la mesure (le même audio couvert à 0,72 et à 0,78 ne dit rien).
+DEFECT_MARGIN = 0.15
 
 
-def declared_defect(model_key: str) -> tuple[str, str] | None:
-    """(libellé court, raison) du défaut MESURÉ de ce modèle (`DECLARED_DEFECTS`), None sinon."""
-    entry = DECLARED_DEFECTS.get(model_key or '')
-    return (entry[0], entry[1]) if entry else None
+def declared_defect(model) -> tuple[str, str] | None:
+    """(libellé court, raison) du défaut MESURÉ et VALIDÉ que la ligne du catalogue porte
+    (`extra_info['quality_defect']`, projeté par le manifeste `model`), None sinon."""
+    defect = (getattr(model, 'extra_info', None) or {}).get('quality_defect') or {}
+    if defect.get('label') and defect.get('reason'):
+        return defect['label'], defect['reason']
+    return None
+
+
+def defect_evidence(model_key: str) -> list:
+    """Les cas où une mesure sans référence prend `model_key` en défaut : sur le MÊME audio (son
+    empreinte, `input` de la mesure) et avec les MÊMES réglages (la photo de la ligne, le champ du
+    modèle mis à part), il passe sous le seuil quand un autre modèle le franchit avec au moins
+    `DEFECT_MARGIN` d'avance. Le modèle seul change : l'écart est le sien, pas celui d'un filtre ou
+    d'un prétraitement de notre côté. Lu sur les lignes d'exécution (la dernière mesure de chaque
+    card). Ne comptent que les mesures qui se DÉCLARENT comparables d'un modèle à l'autre
+    (`Check.compares_models`) et portent un `defect_label`, et que des modèles du catalogue (une
+    ligne ancienne porte « auto », pas le modèle tiré)."""
+    import json
+
+    from wama.common.models import JOB_SUCCESS, ProcessRun
+    from wama.common.services.result_evaluation import CHECKS
+    from wama.common.utils.auto_model import catalog_fields
+    from wama.model_manager.models import AIModel
+
+    comparable = [k for k, c in CHECKS.items() if c.compares_models and c.defect_label]
+    if not comparable:
+        return []
+    groups: dict = {}
+    model_fields: dict = {}
+    rows = list(ProcessRun.objects.filter(status=JOB_SUCCESS, output_summary__has_key='checks')
+                .exclude(model_key='')
+                .only('app', 'object_id', 'model_key', 'settings_snapshot', 'output_summary'))
+    known = set(AIModel.objects.filter(model_key__in={r.model_key for r in rows})
+                .values_list('model_key', flat=True))
+    for row in rows:
+        if row.model_key not in known:
+            continue
+        if row.app not in model_fields:
+            model_fields[row.app] = {f.get('name') for f in catalog_fields(row.app)}
+        settings = {k: v for k, v in (row.settings_snapshot or {}).items()
+                    if k not in model_fields[row.app]}
+        signature = json.dumps(settings, sort_keys=True, default=str)
+        for check in (row.output_summary or {}).get('checks') or []:
+            if not (check.get('key') in comparable and check.get('input')
+                    and isinstance(check.get('value'), (int, float))):
+                continue
+            groups.setdefault((row.app, check['key'], check['input'], signature), []).append(
+                (row, check))
+    evidence = []
+    for (app, key, _input, _signature), runs in groups.items():
+        others = [(r, c) for r, c in runs if r.model_key != model_key and not c.get('short')]
+        if not others:
+            continue
+        best_row, best = max(others, key=lambda rc: rc[1]['value'])
+        for row, check in runs:
+            if (row.model_key == model_key and check.get('short')
+                    and best['value'] - check['value'] >= DEFECT_MARGIN):
+                evidence.append({'check': key, 'app': app, 'object_id': row.object_id,
+                                 'value': check['value'], 'other_model': best_row.model_key,
+                                 'other_object_id': best_row.object_id,
+                                 'other_value': best['value']})
+    return evidence
+
+
+def propose_defect(model_key: str):
+    """PROPOSE à un administrateur le défaut que les mesures établissent pour `model_key` — un
+    manifeste `model` portant `quality.defect`, dans « Propositions à valider » — et rend la
+    proposition, ou None : aucune preuve, défaut déjà validé, ou une AUTRE proposition en attente
+    pour ce modèle (celle d'un rôle, qu'on n'écrase pas). La sienne en attente est RAFRAÎCHIE avec
+    toutes les preuves du moment. Appelé par `run_checks` à chaque mesure sous le seuil : une
+    proposition rejetée ne revient qu'avec une NOUVELLE mesure qui prend le modèle en défaut."""
+    from django.utils import timezone
+
+    from wama.common.manifests import proposals
+    from wama.common.manifests.builtin.model import extract_model
+    from wama.common.services.result_evaluation import CHECKS
+    from wama.model_manager.models import AIModel
+
+    row = AIModel.objects.filter(model_key=model_key).first()
+    other = proposals.pending('model').filter(key=model_key).exclude(source__ref__startswith='mesure:')
+    if row is None or declared_defect(row) or other.exists():
+        return None
+    evidence = defect_evidence(model_key)
+    if not evidence:
+        return None
+    check = CHECKS[evidence[0]['check']]
+    names = dict(AIModel.objects.filter(model_key__in={e['other_model'] for e in evidence})
+                 .values_list('model_key', 'name'))
+    pct = lambda v: round(v * 100)  # noqa: E731
+    cases = '; '.join(f"#{e['object_id']} {pct(e['value'])} % contre {pct(e['other_value'])} % pour "
+                      f"{names.get(e['other_model'], e['other_model'])} (#{e['other_object_id']})"
+                      for e in evidence[:5])
+    manifest = extract_model(model_key)
+    manifest['body']['quality'] = {'defect': {
+        'label': check.defect_label,
+        'reason': (f"Écarté : {check.label.lower()} — {pct(evidence[0]['value'])} % seulement sur un "
+                   f"audio qu'un autre modèle couvre à {pct(evidence[0]['other_value'])} %, avec les "
+                   f"mêmes réglages ({len(evidence)} cas)."),
+        'source': (f"mesure « {check.label} » sur les lignes d'exécution, "
+                   f"{timezone.now():%Y-%m-%d} : {cases}"),
+    }}
+    return proposals.propose(manifest, origin=f"mesure:{check.key}")
 
 
 def active_params_b(params_b: float | None, total_experts, active_experts) -> float | None:

@@ -149,6 +149,13 @@
       "proposal_kind": null,
       "update_complexity": null
     },
+    "quality": {
+      "defect": {
+        "label": "omet la parole lointaine",
+        "reason": "Écarté : sur un enregistrement fait loin du micro, Albert rend moins de la moitié du texte, sans le signaler (au plus un passage par fenêtre de 30 s, des fenêtres entières vides). Les modèles locaux n'ont pas ce défaut.",
+        "source": "WAMA_QUALITE « pourquoi Albert ne rend pas tout le texte », mesuré le 2026-10-22 : 10 min d'un entretien lointain, 484 mots contre 1 287 pour Whisper large-v3 local ; aucun réglage de l'API ne l'atteint. Validé par Fabien le 2026-10-28"
+      }
+    },
     "resources": {
       "disk_gb": 0.0,
       "ram_gb": 0.0,

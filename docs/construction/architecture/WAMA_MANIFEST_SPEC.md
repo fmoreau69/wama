@@ -492,6 +492,19 @@ disait le modèle qu'il EST et `platform_ref` le dépôt d'où viennent ses poid
   puis la colonne (migration `model_manager/0031`, `REMOVAL_LEDGER` R181). Gardes :
   `model_manager/tests/tests_platform_ref_only.py` (budget AST `HF_ID_BUDGET`, corpus, extraction).
 
+**2026-10-28 — `body.quality.defect` : un DÉFAUT MESURÉ, validé par un administrateur** (décisions
+de Fabien). `{label, reason, source}` — trois chaînes, la source DATÉE (le validateur refuse un
+constat sans date). Projeté dans `extra_info['quality_defect']` au déclaré seulement (règle des
+publications : un manifeste muet ne dégrise rien ; la révocation, `un_write_back_model`, dégrise),
+clé collante du sync — sœur d'`exclusion` (une décision qui ÉCARTE, `is_available=False`) : un
+défaut GRISE le modèle dans tout select de modèle avec sa raison et le sort du tirage
+automatique, il reste listé. Il n'est jamais écrit d'office : une mesure sans référence qui prend
+un modèle en défaut sur la même entrée et avec les mêmes réglages qu'un autre modèle le PROPOSE
+(« Propositions à valider »), un administrateur valide (`ROADMAP §16.5`). Chaîne et gardes :
+`WAMA_QUALITE` (bloc « pourquoi Albert ne rend pas tout le texte »),
+`model_manager/tests/tests_measured_defects.py`. 1ʳᵉ entrée : `albert:whisper-large-v3`.
+⏳ Un défaut devra porter la CATÉGORIE d'entrée où il a été mesuré (`WAMA_QUALITE §4.4`).
+
 > ⚠ **Frontière propre au kind `model`, à ne pas calquer sur `library`.**
 > Une librairie se **déclare** ; un modèle se **découvre** — il existe parce que des poids sont sur
 > le disque. Le manifeste ne crée donc jamais de ligne, et n'a pas autorité sur l'état runtime ni

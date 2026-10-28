@@ -428,7 +428,7 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
 
 - **Domicile** : `wama/common/utils/auto_model.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Auto-sélection de modèle — brique COMMUNE (valeur « auto » d'un select de modèle).
-- **API publique** (17) :
+- **API publique** (18) :
   - `read_quality_intent(value) -> int` — Valeur 0-100 SÛRE depuis un POST/JSON : bornée, défaut équilibré, ne lève jamais.
   - `posted_quality_intent(source)` — Curseur POSTÉ (POST ou dict JSON) → entier borné, ou **None** s'il n'est pas posté ou
   - `preset_key_for_intent(intent) -> str` — La POSITION NOMMÉE la plus proche d'une valeur de curseur (`QUALITY_PRESETS` du sélecteur :
@@ -437,6 +437,7 @@ Valeur « auto » d'un select de modèle : résolution AU LANCEMENT sur le domai
   - `candidates_with(capability: str, value, q=None, **filters) -> list` — Clés catalogue des modèles du domaine `filters` (champs d'`AIModel` ou `capabilities__…`,
   - `catalog_domain(app_id: str)` — DOMAINE déclaré au schéma de l'app pour son select de modèle, ou None.
   - `catalog_field(app_id: str)` — Le paramètre `options_source='catalog'` du schéma de l'app (le premier), ou None — le
+  - `catalog_fields(app_id: str) -> list` — TOUS les paramètres `options_source='catalog'` de l'app — ceux de chacun de ses schémas
   - `declared_cloud_keys(app_id: str, user)` — Les modèles DISTANTS que le tirage AUTOMATIQUE de `app_id` peut retenir pour `user`, ou
   - `declared_resolution(app_id: str) -> dict` — Les affinages du tirage « auto » DÉCLARÉS au schéma de `app_id` (`options_resolution`),
   - `read_needs(text: str) -> dict` — `needs` tel que le navigateur le transmet (`scale:4,autre:x`) → `{capacité: valeur}`.
@@ -553,15 +554,17 @@ L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leu
 
 ### Indice de qualité a priori
 
-Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.). DÉFAUTS MESURÉS déclarés (`DECLARED_DEFECTS`, 2026-10-28) : un modèle qui rend un résultat faux sans le dire est GRISÉ au select avec sa raison et sorti du tirage automatique, comme un modèle sans backend
+Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.). DÉFAUTS MESURÉS (2026-10-28) : une mesure sans référence qui prend un modèle en défaut (même entrée, mêmes réglages qu'un autre modèle) le PROPOSE (`propose_defect`), un administrateur valide, le défaut vit sur la ligne du catalogue (manifeste `model`, `quality.defect`) — GRISÉ au select avec sa raison et sorti du tirage automatique, comme un modèle sans backend
 
 - **Domicile** : `wama/model_manager/services/model_quality.py`
 - **Module** : Indice de qualité A PRIORI d'un modèle — pour choisir autrement que « le plus gros qui tient ».
-- **API publique** (5) :
+- **API publique** (7) :
   - `params_in_billions(label: str) -> float | None` — '36.0B' → 36.0 · '8.0B' → 8.0 · '' → None. Tolère 'M' (millions).
   - `apriori_quality_index(*, params_b: float | None, context_length: int | None=None, quantization: str='', params_active_b: float | None=None) -> float | None` — Indice a priori, croissant avec la capacité. None si le signal principal manque.
   - `declared_prior(model_key: str) -> float | None` — L'indice a priori DÉCLARÉ pour ce modèle (`DECLARED_PRIORS`), None sinon.
-  - `declared_defect(model_key: str) -> tuple[str, str] | None` — (libellé court, raison) du défaut MESURÉ de ce modèle (`DECLARED_DEFECTS`), None sinon.
+  - `declared_defect(model) -> tuple[str, str] | None` — (libellé court, raison) du défaut MESURÉ et VALIDÉ que la ligne du catalogue porte
+  - `defect_evidence(model_key: str) -> list` — Les cas où une mesure sans référence prend `model_key` en défaut : sur le MÊME audio (son
+  - `propose_defect(model_key: str)` — PROPOSE à un administrateur le défaut que les mesures établissent pour `model_key` — un
   - `active_params_b(params_b: float | None, total_experts, active_experts) -> float | None` — Paramètres réellement activés par jeton, en milliards — axe de COÛT, pas de qualité.
 
 ### Installation de modèles

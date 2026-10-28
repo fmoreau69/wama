@@ -576,6 +576,76 @@ nouveau. Ce que la boucle qualité y apporte, et rien d'autre :
 - **la mesure après réingestion** est la même qu'avant : le modèle finetuné entre dans le lot et se
   confronte (M3 sur un **split** tenu à l'écart de l'entraînement — c'est le champ `split` d'A3).
 
+### 4.4 ⏳ La CATÉGORIE de l'entrée fait la population — chantier à part (Fabien, 2026-10-28)
+
+> *« La qualité du résultat des modèles est dépendante du contenu de l'audio d'entrée : un livre
+> audio, une réunion, une conférence, un entretien, une interview, ne donneront pas le même résultat
+> pour un même modèle. On ne peut pas généraliser la qualité de la transcription audio quel que soit
+> le contenu de l'audio d'entrée. Il faut catégoriser l'audio d'entrée pour pouvoir comparer les
+> modèles correctement. C'est un chantier à part. »*
+
+C'est la règle de population du §4.1 (« l'indice n'est comparable qu'à l'intérieur d'elle »)
+appliquée à l'ENTRÉE : deux modèles ne se comparent que sur des entrées de la même catégorie, et le
+modèle à tirer pour une card dépend de la catégorie de SON entrée.
+
+**Déjà mesuré — le classement s'inverse d'une catégorie à l'autre, sur les mêmes modèles :**
+- **registre** — campagne du 2026-10-02 (plus bas) : sur les réunions SUMM-RE, Whisper est 1ᵉʳ
+  (28,8 %) et Kyutai 4ᵉ (45,4 %) ; sur l'audio multilingue FLEURS-CS nivelé, Qwen3-ASR est 1ᵉʳ
+  (21,1 %), Kyutai 2ᵉ (27,5 %), Whisper 4ᵉ (37,4 %) ;
+- **condition acoustique** — banc des prétraitements (§9bis) : le meilleur prétraitement n'est pas
+  le même en champ lointain (nivellement 36,5 %), sous bruit (rien, 33,2 %) et sur l'audio propre
+  (rien, 28,9 %) ; et l'amélioration Resemble est neutre sur l'audio propre mais détruit le champ
+  lointain (87 %) ;
+- **un défaut n'est pas universel** — Albert couvre 92 à 99 % de la parole d'une réunion proche du
+  micro (SUMM-RE) et 56 % d'un entretien lointain (#2522) : « omet la parole lointaine » est un
+  défaut de CETTE catégorie ;
+- **une mesure sans catégorie compare mal** — le 2026-10-28, la couverture de la parole mesurée
+  sur 462 transcriptions passées (`manage.py measure_checks`) aurait proposé de griser Whisper,
+  Canary, Parakeet, Kyutai et LinTO, et pas Albert (bloc « pourquoi Albert ne rend pas tout le
+  texte ») ; elle compare des entretiens à des réunions et à des livres, en plus de ses biais de
+  moteur (filtre de parole propre à Whisper et Albert, segments NeMo plus courts).
+
+**Deux dimensions, pas une** : le **registre** (entretien, interview, réunion, conférence/cours,
+livre audio, sous-titrage… — ce que nomment les profils de `TRANSCRIBER_CORRECTION §8.4`) et la
+**condition acoustique** (proche ou lointain, niveau, bruit, plusieurs langues). Le registre se
+DÉCLARE (l'utilisateur sait ce qu'il dépose) ; la condition se MESURE en grande partie (la sonde
+d'activité `speech_activity`, la sonde du VAD « auto » qui détecte une parole lointaine
+— `workers._vad_filter_for` —, le niveau en dBFS du nivellement).
+
+**Ce qui existe et se reprend — rien à réinventer** :
+- la **population** de l'indice interne : `internal_quality.reference_set`, et
+  `model_selector._internal_values`, qui s'ABSTIENT dès que le lot se compare sur plus d'un groupe
+  — c'est ce qui arrivera quand le corpus d'évaluation mêlera les catégories, faute de savoir
+  laquelle vaut pour la card ;
+- les **corpus déclarés** en manifestes `dataset` (`manifests/datasets/`, SUMM-RE, CFPP,
+  FLEURS-CS) avec leurs AXES (plan d'expérience, `WAMA_APPRENTISSAGE` A1/A5) — la dégradation
+  acoustique y est déjà un axe ; le registre n'y est déclaré nulle part ;
+- les **profils de réglages** (`ROADMAP §22.5`, `TRANSCRIBER_CORRECTION §8.4`) : un profil nomme
+  déjà un registre (« Entretien (verbatim) », « Réunion (compte rendu) », « Sous-titrage ») ;
+- le **défaut mesuré** (`quality.defect` du manifeste `model`, 2026-10-28) et sa chaîne
+  proposer → valider : un défaut devra porter la catégorie où il a été mesuré ;
+- la garde « une mesure doit se DÉCLARER comparable d'un modèle à l'autre »
+  (`Check.compares_models`) : une mesure comparable l'est à catégorie égale.
+
+**Ce qui manque — le chantier** :
+1. un **vocabulaire** de catégories par tâche (registre déclaré, condition mesurée), dans un
+   registre commun — la transcription d'abord ;
+2. la catégorie **d'une card** : déclarée (choisie avec le profil, ou à part) et complétée par les
+   sondes ; son domicile sur l'élément ;
+3. les **corpus d'évaluation catégorisés** (un axe ou un champ du manifeste `dataset`), pour que
+   la population d'un indice soit (échelle, références, CATÉGORIE) ;
+4. le **tirage par catégorie** : `_internal_values` prend le groupe de la catégorie de la card au
+   lieu de s'abstenir ;
+5. le **défaut par catégorie** : `quality.defect` porte ses catégories ; grisé seulement pour elles
+   (Albert : parole lointaine) ;
+6. l'**universel** : toute tâche a des catégories d'entrée (OCR imprimé / manuscrit ; détection
+   caméra 360° / embarquée ; agrandissement photo / scan). Le mécanisme est commun — une propriété
+   DÉCLARÉE de l'entrée, par famille de tâches —, le vocabulaire est propre à chaque tâche.
+
+**Décisions ouvertes (Fabien)** : le vocabulaire des registres ; catégorie déclarée seule, ou
+complétée par les sondes ; son lien avec les profils (§22.5 : un profil POSE la catégorie, ou la
+catégorie est un réglage à part) ; où la catégorie vit sur la card.
+
 ---
 
 ## 5. La chaîne fonctionnelle complète — douze chaînons, et l'état de chacun
@@ -1197,16 +1267,32 @@ cards diffèrent de QUATRE choses à la fois :
   ✅ **GRISÉ le 2026-10-28** (Fabien : « griser avec la vraie raison, dans le commun, et bien sûr
   ne peut plus être sélectionné automatiquement ») — au-delà de (a) : `albert:whisper-large-v3`
   reste listé au select du Transcriber, grisé « omet la parole lointaine », l'explication au
-  survol, et ne sort plus du tirage automatique. Mécanisme COMMUN à tout modèle et toute app :
-  `model_quality.DECLARED_DEFECTS` (à côté de `DECLARED_PRIORS` : libellé, raison, source datée),
-  lu aux deux endroits où `backend_missing` grise et exclut déjà (`select_model`,
-  `get_registry_models` → `api_model_options`). Vérifié sur la vraie base : Albert autorisé ET
-  placé en tête de priorité, le tirage rend `transcriber:parakeet-tdt-0.6b-v3`. Garde
-  `tests_declared_priors` (tirage, grisage, contre-épreuve sans déclaration). Hypothèse de Fabien
-  à poser à la DINUM : le saut de fenêtre de Whisper (`no_speech_threshold`) plutôt qu'un filtre
-  Silero — mesuré, Silero ne garderait que 2 s des 10 min, Albert en couvre 258 s. L'entrée se
-  RETIRE quand une nouvelle mesure montre le défaut corrigé. Une card qui porte déjà Albert n'est
-  pas relancée d'office : son lancement n'est pas refusé.
+  survol, et ne sort plus du tirage automatique ; lu aux deux endroits où `backend_missing` grise
+  et exclut déjà (`select_model`, `get_registry_models` → `api_model_options`), donc pour TOUT
+  modèle et toute app. Vu au navigateur sur le serveur en service le même jour (compte
+  `wama_evaluation`) : option grisée sous « Cloud souverain · Albert API (DINUM) », la prévision
+  « Automatique » sur un Whisper local. Une card qui porte déjà Albert n'est pas refusée au lancement.
+  Hypothèse de Fabien à poser à la DINUM : le saut de fenêtre de Whisper (`no_speech_threshold`)
+  plutôt qu'un filtre Silero — mesuré, Silero ne garderait que 2 s des 10 min, Albert en couvre 258 s.
+  ✅ **Version SYSTÈME le soir même** (Fabien : « fais la version système », puis « la mesure
+  propose, l'admin valide ») : le défaut ne vit plus dans le code (`DECLARED_DEFECTS`, retiré) mais
+  sur la ligne du catalogue, porté par le manifeste `model` (`quality.defect` : libellé, raison,
+  source datée → `extra_info['quality_defect']`, collant au sync ; dégrisé par la révocation) — celui
+  d'Albert y a été projeté par la route (`write_back_model`), corpus régénéré. Une mesure sans
+  référence qui se DÉCLARE comparable d'un modèle à l'autre (`Check.compares_models`) PROPOSE le
+  défaut (« Propositions à valider », `model_quality.propose_defect`) quand, sur la même entrée et
+  avec les mêmes réglages, un autre modèle passe le seuil ; un administrateur valide. Gardes :
+  `model_manager/tests/tests_measured_defects.py` (15 tests, contre-épreuves rouges).
+  ⚠⚠ **Mesuré le jour même : aucune mesure n'est encore comparable.** Les 462 transcriptions
+  passées mesurées (`manage.py measure_checks`) ont déposé six propositions FAUSSES — Whisper,
+  Canary, Parakeet, Kyutai, LinTO, VibeVoice — et aucune pour Albert ; un seuil plus strict n'y
+  change rien (écart de 30 points : Whisper 12 cards, Canary 36). Causes : la couverture compare
+  des CATÉGORIES d'audio différentes (§4.4) et porte des biais de moteur (filtre propre à Whisper et
+  Albert, segments NeMo courts, un modèle qui couvre tout l'audio vaut 100 %), et des lignes
+  anciennes portent « auto » au lieu du modèle tiré. Les six propositions ont été défaites (quatre
+  rejetées, Kyutai et LinTO rétablis depuis le dump de 03:30) ; `speech_coverage` ne se déclare
+  pas comparable ; le mécanisme attend la catégorisation de l'entrée (**§4.4, chantier à part**).
+  Le défaut d'Albert reste, validé par Fabien.
 - **Niveau mesuré avant / après nivellement** (hypothèse de Fabien : « le nivellement baisse peut-être
   le niveau global, faut-il normaliser vers 0 dB ? ») : parole active −25,8 → **−20,1 dBFS**, RMS
   −27,3 → −21,8 dBFS, crête +0,4 (l'original écrête déjà) → −0,2 dBFS. Le nivellement RELÈVE le

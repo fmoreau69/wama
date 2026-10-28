@@ -160,6 +160,24 @@ def catalog_field(app_id: str):
     return None
 
 
+def catalog_fields(app_id: str) -> list:
+    """TOUS les paramètres `options_source='catalog'` de l'app — ceux de chacun de ses schémas
+    (`declared_param_schemas` : l'imager IMAGE+VIDÉO, l'enhancer MÉDIA+AUDIO), le principal à défaut.
+    Pour qui doit savoir quels réglages CHOISISSENT un modèle, pas seulement le premier (2026-10-28 :
+    comparer deux lignes d'exécution « le modèle seul changé », `model_quality.defect_evidence`)."""
+    from wama.common.utils.param_schema import declared_param_schemas, schema_for_app
+    declared = declared_param_schemas(app_id)
+    schemas = list((declared or {}).get('schemas', {}).values()) or [schema_for_app(app_id) or []]
+    seen, fields = set(), []
+    for schema in schemas:
+        for field in schema or []:
+            if (isinstance(field, dict) and field.get('options_source') == 'catalog'
+                    and field.get('name') not in seen):
+                seen.add(field.get('name'))
+                fields.append(field)
+    return fields
+
+
 def declared_cloud_keys(app_id: str, user):
     """Les modèles DISTANTS que le tirage AUTOMATIQUE de `app_id` peut retenir pour `user`, ou
     None (aucun : le tirage reste local, comme avant le 2026-09-30).

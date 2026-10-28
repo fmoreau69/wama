@@ -411,11 +411,21 @@ class Check:
     """Une mesure sans référence de la sortie d'un process. `measure(app_id, item, pipeline,
     spec, model_key)` rend `{value, short, message, detail?, suggest?}` ou None (rien à juger).
     `suggest` : `{field, value, label}` — le réglage de la card qui la corrigerait, posé par la
-    bande des process avant de relancer le process (« Relancer avec … »)."""
+    bande des process avant de relancer le process (« Relancer avec … »). `input` : l'empreinte de
+    l'entrée mesurée. `defect_label` : le libellé court d'un modèle que cette mesure prend en
+    défaut. `compares_models` : la valeur se COMPARE d'un modèle à l'autre sur la même entrée —
+    sans cette déclaration, la mesure reste un signal de la card et ne propose aucun défaut
+    (`model_quality.defect_evidence`, 2026-10-28).
+    ⚠ Mesuré le 2026-10-28 sur 462 transcriptions : `speech_coverage` ne se compare PAS entre
+    moteurs — le filtre de parole ne s'applique qu'à Whisper et Albert, les moteurs NeMo rendent des
+    segments plus courts, un modèle qui couvre tout l'audio de segments obtient 100 %. Elle aurait
+    proposé de griser Whisper, Canary, Parakeet, Kyutai et LinTO, et pas Albert."""
 
     key: str
     label: str
     measure: Callable
+    defect_label: str = ''
+    compares_models: bool = False
 
 
 CHECKS: Dict[str, Check] = {}
@@ -457,6 +467,16 @@ def run_checks(app_id: str, item, task_id: str = '') -> list:
         process_runs.safely(process_runs.annotate, item, spec.key, checks=results)
         written += [dict(r, process=spec.key, process_label=spec.label or spec.key)
                     for r in results]
+        if row.model_key and any(r.get('short') and getattr(CHECKS.get(r.get('key')), 'compares_models', False)
+                                 for r in results):
+            # Un modèle pris en défaut sur un audio qu'un autre a bien couvert : le défaut est
+            # PROPOSÉ à un administrateur, jamais posé d'office (`ROADMAP §16.5`, 2026-10-28).
+            try:
+                from wama.model_manager.services.model_quality import propose_defect
+                propose_defect(row.model_key)
+            except Exception as exc:
+                logger.warning("[%s] proposition de défaut pour %s impossible : %s",
+                               app_id, row.model_key, exc)
     return written
 
 
@@ -517,8 +537,11 @@ def _speech_coverage(app_id: str, item, pipeline, spec, model_key: str) -> Optio
     if measured['ratio'] is None:
         return None
     percent = round(measured['ratio'] * 100)
+    from wama.common.utils.provenance import sha256_of
+    # `input` : l'empreinte de l'audio ÉCOUTÉ — deux cards qui le partagent se comparent
+    # (`model_quality.defect_evidence`, 2026-10-28).
     found = {'value': measured['ratio'], 'floor': COVERAGE_FLOOR, 'short': measured['short'],
-             'message': f"{percent} % de la parole transcrite",
+             'message': f"{percent} % de la parole transcrite", 'input': sha256_of(path),
              'detail': {k: measured[k] for k in ('active_s', 'covered_s', 'windows')}}
     if measured['short']:
         found['message'] = f"{percent} % seulement de la parole transcrite : du texte manque"
@@ -528,7 +551,8 @@ def _speech_coverage(app_id: str, item, pipeline, spec, model_key: str) -> Optio
     return found
 
 
-register_check(Check('speech_coverage', 'Parole transcrite', _speech_coverage))
+register_check(Check('speech_coverage', 'Parole transcrite', _speech_coverage,
+                     defect_label='omet de la parole'))
 
 
 def batch_evaluation(surface: str, items: Iterable) -> Optional[dict]:

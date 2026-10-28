@@ -1600,15 +1600,21 @@ verdict — déclarer son `composition.runtime.engine` (manifeste) le fait entre
 modèles sur tout le catalogue n'ont pas de moteur, les deux inexécutables — un modèle sans moteur
 qu'aucune app ne porte est désormais GRISÉ (`backend_missing`, critère = la source, jamais
 `backend_ref`).
-⚠ **Un second verdict, DÉCLARÉ, le 2026-10-28 (décision de Fabien)** : un DÉFAUT MESURÉ —
-`model_quality.DECLARED_DEFECTS`, libellé, raison, source datée — grise et exclut du tirage
-aux deux mêmes endroits, avec SA raison (1ʳᵉ entrée : `albert:whisper-large-v3`, « omet la
-parole lointaine », `WAMA_QUALITE`). Ce n'est pas le « grisage à la main » écarté le 02/09 :
-celui-là jugeait une EXÉCUTABILITÉ que le système sait vérifier ; ici le système ne sait pas
-encore juger la QUALITÉ d'un modèle sur la durée, et l'entrée ne vaut que par une mesure de
-WAMA, datée, retirée quand une nouvelle mesure la contredit. ⏳ La version « système » : dériver
-le verdict des taux de couverture que la garde (b) mesure déjà sur chaque card
-(`speech_coverage`), au lieu de le déclarer.
+⚠ **Un second verdict le 2026-10-28 (décisions de Fabien) : un DÉFAUT MESURÉ**, qui grise et
+exclut du tirage aux deux mêmes endroits, avec SA raison (1ʳᵉ entrée : `albert:whisper-large-v3`,
+« omet la parole lointaine », `WAMA_QUALITE`). Le matin, une table du code
+(`model_quality.DECLARED_DEFECTS`) ; ✅ **le soir, la version SYSTÈME** — et c'est la réponse à
+« pas de grisage à la main » : le système MESURE et PROPOSE, un administrateur VALIDE, parce
+qu'un score de qualité ne fait jamais un gate automatique (`ROADMAP §16.5`, garde-fou n°2). Une
+mesure sans référence d'un process (`ProcessSpec.checks`, toute app) qui déclare un `defect_label`
+prend un modèle en défaut quand, sur la MÊME entrée et avec les MÊMES réglages (tous les sélecteurs
+de modèle de l'app mis à part, `auto_model.catalog_fields`), un autre modèle franchit le seuil avec
+`DEFECT_MARGIN` d'avance (`model_quality.defect_evidence`, lu sur les lignes d'exécution) → un
+manifeste `model` portant `quality.defect` entre dans « Propositions à valider »
+(`propose_defect`, appelé par `run_checks`) → validé, il se projette sur la ligne du catalogue
+(`extra_info['quality_defect']`, collant au sync) que lit `declared_defect`. La table du code est
+partie ; le défaut d'Albert vit sur sa ligne, porté par son manifeste. Les résultats d'avant les
+mesures se mesurent par la même route (`manage.py measure_checks`).
 
 > ### ✅ SUITE DU 2026-09-04→07 — le lien est passé du DÉCLARATIF au RÉSOLU
 >

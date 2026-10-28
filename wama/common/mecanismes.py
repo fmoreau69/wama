@@ -476,8 +476,10 @@ MECHANISMS = (
               depends_on=('detections_document',)),
     Mechanism('model_quality', 'Indice de qualité a priori',
               "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.). "
-              "DÉFAUTS MESURÉS déclarés (`DECLARED_DEFECTS`, 2026-10-28) : un modèle qui rend un résultat faux sans le dire "
-              "est GRISÉ au select avec sa raison et sorti du tirage automatique, comme un modèle sans backend",
+              "DÉFAUTS MESURÉS (2026-10-28) : une mesure sans référence qui prend un modèle en défaut (même entrée, "
+              "mêmes réglages qu'un autre modèle) le PROPOSE (`propose_defect`), un administrateur valide, le défaut vit "
+              "sur la ligne du catalogue (manifeste `model`, `quality.defect`) — GRISÉ au select avec sa raison et sorti "
+              "du tirage automatique, comme un modèle sans backend",
               'wama/model_manager/services/model_quality.py', ''),
     Mechanism('benchmark_sync', 'Benchmark tiers confronté',
               "Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') + MTEB (embeddings, jeu FRANÇAIS déclaré) appariés au catalogue, prospection incluse. "

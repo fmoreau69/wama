@@ -483,6 +483,12 @@ version du 26/09 les rangeait dans la médiathèque, ce que Fabien n'a jamais d�
 profils du transcriber y sont écrits en réglages existants : *Entretien (verbatim)*, *Réunion
 (compte rendu)*, *Sous-titrage* ; la conférence/cours n'en a pas (rien qui la distingue encore
 en réglages). La politique de réécriture par usage reste sans réglage.
+⏳ **Un profil nomme aussi une CATÉGORIE d'audio, et elle fait la population de comparaison des
+modèles** (Fabien, 2026-10-28 : *« un livre audio, une réunion, une conférence, un entretien, une
+interview, ne donneront pas le même résultat pour un même modèle »*) — mesuré : Whisper 1ᵉʳ sur
+les réunions, 4ᵉ sur l'audio multilingue, où Qwen3-ASR est 1ᵉʳ. Chantier à part :
+`WAMA_QUALITE §4.4` (registre déclaré + condition acoustique mesurée ; corpus, tirage et défauts
+par catégorie).
 ⚠ Le contrat de `common/prompt_skills/` est explicitement « enrichissement de prompt génératif,
 sortie = le prompt enrichi seul » : un skill de contrôle qualité **n'y entre pas tel quel** — le
 traiter comme un `kind` distinct plutôt que de le faire rentrer au chausse-pied.
