@@ -335,6 +335,12 @@ commité d'une autre instance).
 **worktree de HEAD** (après le commit du registre) — il ne projette que du code COMMITÉ — puis
 poser ces fichiers dans un index temporaire (`git hash-object -w --path=<f> <worktree>/<f>` +
 `update-index --cacheinfo`) et commiter.
+⚠ **`git hash-object` d'un FICHIER normalise les fins de ligne** (vécu le 2026-10-28) : un contenu
+recomposé « HEAD + mes lignes » perdait le `\r` d'une ligne CRLF que HEAD portait — un hunk de plus,
+qui n'était à personne, sur une ligne au contenu identique. ✅ `git hash-object -w --no-filters
+<fichier>` pour poser les octets exacts (`--stdin` sans `--path` les garde déjà : c'est la forme de
+`stage_by_oldlines.py`). Le contrôle qui l'a vu : exiger le `--numstat` attendu de chaque fichier
+recomposé avant le `commit-tree`.
 ⚠⚠ **Mais un worktree n'a pas ce qui est NON VERSIONNÉ, et deux docs générées le lisent**
 (vécu le 2026-10-14, deux fois de suite) : la table de `WAMA_MECANISMES.md` y sortait des
 DÉCOMPTES de consommateurs différents sur toute la table (22 au lieu de 33, 362 au lieu de 419 —
