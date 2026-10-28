@@ -162,8 +162,9 @@ def consumers(mechanism, sources: dict[str, str]) -> list[str]:
             dotted = path[:-3].replace('/', '.')       # wama/common/x.py → wama.common.x
             parent, _, leaf = dotted.rpartition('.')   # → wama.common, x
             own_py.add(path)
-            # Un module de PREMIER NIVEAU (2026-10-19 : `vector_service.py`, le service uvicorn à
-            # la racine) n'a pas de paquet : seul son nom l'importe.
+            # Un module de PREMIER NIVEAU n'a pas de paquet : seul son nom l'importe (né le
+            # 2026-10-19 pour `vector_service.py`, le service uvicorn alors à la racine ; il vit
+            # dans `wama/common/vectors/` depuis le 2026-10-28, la règle reste générale).
             if not parent:
                 patterns.append((leaf, re.compile(
                     rf'(?:from\s+{re.escape(leaf)}\s+import|import\s+{re.escape(leaf)}\b)')))

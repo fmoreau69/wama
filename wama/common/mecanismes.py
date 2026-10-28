@@ -367,8 +367,10 @@ MECHANISMS = (
               "4 exemplaires vivaient dans le dépôt, un seul détectait le 503. Depuis le "
               "2026-10-10 le service ÉCOUTE aussi : `stt_via_service` (POST /stt, Whisper "
               "chaud, conversation vocale de l'assistant) partage le même appel et la même "
-              "traduction d'erreurs (`_post`)",
-              'wama/common/tts/service_client.py', 'docs/construction/ui/MODES_QUEUE_UX.md §2bis'),
+              "traduction d'erreurs (`_post`). Le service lui-même (uvicorn :8001) vit à côté "
+              "du client depuis le 2026-10-28 (`service.py`, ex-`tts_service.py` à la racine)",
+              'wama/common/tts/service_client.py', 'docs/construction/ui/MODES_QUEUE_UX.md §2bis',
+              annexes=('wama/common/tts/service.py',)),
     Mechanism('tts_vocabulary', 'Vocabulaire TTS partagé',
               "Le JEU DE CHOIX unique de la parole synthétique — moteurs, langues, presets de "
               "voix, cartes moteur↔langue — et sa résolution (voix pour une langue, langue "
@@ -637,7 +639,8 @@ MECHANISMS = (
               "et `media` (EmbeddingGemma-2, texte ET image : une requête écrite retrouve une "
               "image) —, un moteur UNIQUE (préparation des entrées, appel au fournisseur, "
               "contrôle des dimensions) exécuté par un service uvicorn 127.0.0.1:8002 "
-              "(`vector_service.py`, à la racine comme `tts_service.py`) et son client ; "
+              "(`service.py`, dans son paquet comme le service TTS depuis le 2026-10-28 — "
+              "ex-`vector_service.py` à la racine) et son client ; "
               "service éteint, le même moteur tourne dans le process appelant. Deux "
               "espaces ne se comparent jamais ; un fournisseur distant n'entre que s'il sert le "
               "MÊME espace ; le modèle local manquant s'installe par la route (`model_key`) ; la "
@@ -647,11 +650,11 @@ MECHANISMS = (
               "(`ollama_host.measured_load`, 2026-10-20, qui mesure aussi les conversations)",
               'wama/common/vectors/service_client.py',
               'docs/construction/ia/WAMA_MEMORY.md §7sexies',
-              # `vector_service.py` n'est pas une annexe : le relevé des consommateurs lit un
-              # chemin de PAQUET (`mecanismes_scan.consumers`), un module de la racine le fait
-              # échouer — même place que `tts_service.py`, nommé dans le rôle.
+              # Le service est une annexe depuis qu'il vit dans son paquet (2026-10-28) : à la
+              # racine (`vector_service.py`), il n'était que nommé dans le rôle.
               annexes=('wama/common/vectors/spaces.py',
-                       'wama/common/vectors/engine.py'),
+                       'wama/common/vectors/engine.py',
+                       'wama/common/vectors/service.py'),
               depends_on=('resource_governor', 'external_sources')),
     Mechanism('media_index', 'Recherche de la file par contenu',
               "« voiture » retrouve l'élément dont l'IMAGE montre une voiture, sans que son nom le "
@@ -2735,7 +2738,7 @@ MECHANISMS = (
               "`describe_voice`, `voice_reference_groups` (optgroups dérivés d'une REQUÊTE sur "
               "`SystemAsset(voice)` + `attributes`), `ingest_voice_file` (le seul point d'entrée, "
               "ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le "
-              "2026-09-13 (28 versées, dossier `voice_references/` retiré) ; `tts_service.py` "
+              "2026-09-13 (28 versées, dossier `voice_references/` retiré) ; le service TTS "
               "ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, "
               "`voice_options` (menus), assistant",
               'wama/common/tts/voice_refs.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4',

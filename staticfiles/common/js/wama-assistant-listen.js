@@ -14,7 +14,7 @@
  *      parole par l'ÉNERGIE du signal (début : la voix dépasse le bruit de fond ; fin : un
  *      silence qui dure), garde une avance de 400 ms pour ne pas couper la première syllabe.
  *   2. Transcrit : la phrase part en WAV 16 kHz à `/api/stt/`. LOCALEMENT par défaut (Whisper
- *      dans le service vocal, `tts_service.py`) — rien ne sort de WAMA ; chez Albert quand le
+ *      dans le service vocal, `common/tts/service.py`) — rien ne sort de WAMA ; chez Albert quand le
  *      profil autorise le cloud (`common/tts/speech_input.py`, 2026-10-11). Le serveur dit
  *      quel moteur a écouté (`engine`) et l'info-bulle de la dictée le répète.
  *   3. Deux gestes, deux boutons déclarés dans le chat :
@@ -95,7 +95,7 @@
   //: absent, service muet, réponse tardive) → `END_MS`, exactement comme avant. Le silence garde
   //: ses bornes : l'avis ne fait que déplacer la décision entre elles.
   //: `keepSeconds` n'allège que l'envoi : la fenêtre du modèle est celle du service
-  //: (`tts_service.TURN_SECONDS`), qui tronque de toute façon.
+  //: (`wama.common.tts.service.TURN_SECONDS`), qui tronque de toute façon.
   var TURN = { askAfterMs: 300, patientMs: 2000, keepSeconds: 8 };
 
   var cfg = { sttUrl: '', turnUrl: '' };

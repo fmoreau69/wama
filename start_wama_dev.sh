@@ -9,8 +9,12 @@ pkill -f "manage.py runserver" || true
 # La surveillance des workers d'abord : laissée en vie, elle relancerait ceux qu'on arrête.
 pkill -f "scripts/[w]orker_watchdog.sh" || true
 pkill -f "celery" || true
-pkill -f "uvicorn tts_service" || true
-pkill -f "uvicorn vector_service" || true
+# Services dans leur paquet depuis le 2026-10-28 ; les motifs reconnaissent aussi l'ancienne
+# ligne de commande (modules de la racine), comme dans start_wama_prod.sh.
+TTS_SERVICE_PATTERN="uvicorn (wama\.common\.tts\.service|tts_service):app"
+VECTOR_SERVICE_PATTERN="uvicorn (wama\.common\.vectors\.service|vector_service):app"
+pkill -f "$TTS_SERVICE_PATTERN" || true
+pkill -f "$VECTOR_SERVICE_PATTERN" || true
 pkill -f "redis-server" || true
 
 sleep 2
@@ -127,9 +131,9 @@ else:
 # ------------------------------------------------------
 # TTS SERVICE (FastAPI, preloads XTTS v2)
 # ------------------------------------------------------
-if ! pgrep -f "uvicorn tts_service" > /dev/null; then
+if ! pgrep -f "$TTS_SERVICE_PATTERN" > /dev/null; then
     echo "=== Starting TTS Service (port 8001) ==="
-    python -m uvicorn tts_service:app \
+    python -m uvicorn wama.common.tts.service:app \
         --host 0.0.0.0 \
         --port 8001 \
         --workers 1 \
@@ -147,9 +151,9 @@ else
 fi
 
 # Service de vectorisation (WAMA_MEMORY.md §7sexies) — boucle locale seule, rien à précharger.
-if ! pgrep -f "uvicorn vector_service" > /dev/null; then
+if ! pgrep -f "$VECTOR_SERVICE_PATTERN" > /dev/null; then
     echo "=== Starting Vector Service (port 8002) ==="
-    python -m uvicorn vector_service:app --host 127.0.0.1 --port 8002 --workers 1 --log-level info &
+    python -m uvicorn wama.common.vectors.service:app --host 127.0.0.1 --port 8002 --workers 1 --log-level info &
 else
     echo "Vector Service is already running."
 fi
@@ -190,6 +194,6 @@ python manage.py runserver 0.0.0.0:$DJANGO_PORT --settings=$DJANGO_SETTINGS_MODU
 echo ""
 echo "=== Shutting down... ==="
 pkill -f "celery" || true
-pkill -f "uvicorn tts_service" || true
-pkill -f "uvicorn vector_service" || true
+pkill -f "$TTS_SERVICE_PATTERN" || true
+pkill -f "$VECTOR_SERVICE_PATTERN" || true
 echo "=== WAMA development stack stopped ==="

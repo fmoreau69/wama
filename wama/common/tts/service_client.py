@@ -1,5 +1,5 @@
 """
-Client COMMUN du microservice TTS (`tts_service.py`, FastAPI, uvicorn :8001).
+Client COMMUN du microservice TTS (`common/tts/service.py`, FastAPI, uvicorn :8001).
 
 Extrait le 2026-08-28 (chantier « pipeline avatarizer ») : QUATRE exemplaires du même
 `POST /tts` vivaient dans le dépôt — `synthesizer/workers._tts_via_service` (seul à
@@ -168,7 +168,7 @@ def _post(path, read_timeout, **kwargs):
     except requests.ConnectionError:
         raise RuntimeError(
             f"Service TTS inaccessible à {url}. "
-            "Démarrage : python -m uvicorn tts_service:app --port 8001"
+            "Démarrage : python -m uvicorn wama.common.tts.service:app --port 8001"
         )
     except requests.Timeout:
         raise RuntimeError(f"Service TTS : délai dépassé après {read_timeout}s")

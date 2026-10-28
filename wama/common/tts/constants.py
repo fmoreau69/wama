@@ -4,7 +4,7 @@ WAMA Common TTS Constants
 Source unique des constantes TTS partagées entre :
   - wama.avatarizer  (AvatarJob)
   - wama.synthesizer (VoiceSynthesis)
-  - tts_service.py   (service FastAPI)
+  - common/tts/service.py   (service FastAPI)
 
 Pour ajouter un modèle, une langue ou un preset, modifiez uniquement ce fichier.
 """
@@ -148,19 +148,19 @@ VOICE_PRESET_CHOICES = [
 ]
 
 # ---------------------------------------------------------------------------
-# Coqui TTS — mapping modèle → chemin HuggingFace (utilisé par tts_service.py)
+# Coqui TTS — mapping modèle → chemin HuggingFace (utilisé par common/tts/service.py)
 # ---------------------------------------------------------------------------
 
 # La table ne porte plus qu'une entrée depuis le retrait des trois moteurs EN-only (R32) :
 # elle est CONSERVÉE parce qu'elle est le point d'accroche d'un id Coqui — un second modèle
-# Coqui se déclarerait ICI, et nulle part ailleurs (`tts_service.py` et `coqui_backend.py`
+# Coqui se déclarerait ICI, et nulle part ailleurs (`common/tts/service.py` et `coqui_backend.py`
 # la lisent tous deux, aucun ne connaît d'id en dur).
 COQUI_MODEL_MAPPING = {  # wama:redondance-ok — mapping keyé par le vocabulaire, porte les ids Coqui (info nouvelle)
     "coqui-xtts":       "tts_models/multilingual/multi-dataset/xtts_v2",
 }
 
 # ---------------------------------------------------------------------------
-# Bark — speaker par défaut par langue (utilisé par tts_service.py)
+# Bark — speaker par défaut par langue (utilisé par common/tts/service.py)
 # ---------------------------------------------------------------------------
 
 # ⚠ `nl` et `cs` RETIRÉS le 2026-08-29 : ils pointaient sur `v2/nl_speaker_0` et

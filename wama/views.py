@@ -632,7 +632,7 @@ def _get_kokoro(lang_code: str):
 # NB : plus de thread de préchargement Kokoro ici. Il causait (a) une course d'imports
 # accelerate et (b) le dump de modèles dans speech/kokoro (os.environ['HF_HUB_CACHE']
 # global muté en concurrence). Le warm-loading est désormais assuré par le MICROSERVICE
-# TTS dédié (tts_service.py, port 8001), que kokoro_tts() appelle ; `_get_kokoro` ci-dessus
+# TTS dédié (common/tts/service.py, port 8001), que kokoro_tts() appelle ; `_get_kokoro` ci-dessus
 # ne sert plus que de repli en-process si le service est indisponible.
 
 

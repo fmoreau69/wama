@@ -538,7 +538,7 @@ chez Google, il fallait envoyer soi-même, et elle n'existait que sur l'accueil.
   début à +10 dB pendant 120 ms, fin après 900 ms de silence (1,3 s en dictée), 400 ms d'avance
   gardées. Envoi en WAV 16 kHz mono.
 - **Transcription LOCALE** : `views.speech_to_text` (`/api/stt/`) → `service_client.stt_via_service`
-  → `/stt` du service vocal (`tts_service.py`, Whisper `ASSISTANT_STT_MODEL` = `large-v3`, filtre
+  → `/stt` du service vocal (`wama/common/tts/service.py`, ex-`tts_service.py`, Whisper `ASSISTANT_STT_MODEL` = `large-v3`, filtre
   de parole actif). Pas une tâche Celery (elle attendrait derrière le traitement GPU en cours),
   pas un chargement dans gunicorn (un Whisper par worker). **Mesuré** sur la pile réelle : phrase
   dite par la voix de l'assistant, rendue mot pour mot ; **1,2 s** à chaud pour 5 s de parole,

@@ -11,8 +11,14 @@ unloaders. Ce fichier ne garde que la POLITIQUE : bascule de moteur courant,
 résidence de Kokoro, file HTTP. (La résolution des presets de voix l'a quitté le
 2026-09-13 : elle est à Django, `common/tts/voice_refs.speaker_wav_for`.)
 
-Usage:
-    python -m uvicorn tts_service:app --host 0.0.0.0 --port 8001 --workers 1
+Usage (depuis la racine du dépôt) :
+    python -m uvicorn wama.common.tts.service:app --host 0.0.0.0 --port 8001 --workers 1
+
+Domicile depuis le 2026-10-28 : ce fichier était `tts_service.py`, à la racine du dépôt (module
+`tts_service:app`). Il a rejoint son paquet de domaine, à côté de son client
+(`service_client.py`) — demande de Fabien. Les motifs d'arrêt des scripts de démarrage
+reconnaissent encore l'ancienne ligne de commande, le temps qu'aucun service lancé sous
+l'ancien nom ne survive.
 """
 
 import os
@@ -29,7 +35,9 @@ logger = logging.getLogger("tts_service")
 # ---------------------------------------------------------------------------
 # Project paths (sans importer Django — les chemins de POIDS vivent dans les backends)
 # ---------------------------------------------------------------------------
-PROJECT_DIR = Path(__file__).parent
+#: Racine du dépôt (wama/common/tts/service.py → ../../..) : `sys.path` ci-dessous, pour que
+#: `wama` s'importe même lancé hors de la racine.
+PROJECT_DIR = Path(__file__).resolve().parents[3]
 
 # ⚠ Le service ne connaît plus AUCUN dossier de voix (2026-09-13, MEDIA_STORAGE_TIERING §9.4
 # marche 3) : `speaker_wav` arrive TOUJOURS résolu de Django (`common/tts/voice_refs.
@@ -213,12 +221,12 @@ def _keep_resident(engine: str) -> bool:
 
 def _resident_engines() -> list:
     """Moteurs déclarés résidents ET effectivement chargés (pour /health)."""
-    vivants = []
-    for cle in ENGINE_BACKENDS:
-        be = _manager.get_backend(cle)
+    loaded = []
+    for key in ENGINE_BACKENDS:
+        be = _manager.get_backend(key)
         if be is not None and getattr(be, "keep_resident", False) and be.is_loaded:
-            vivants.append(cle)
-    return vivants
+            loaded.append(key)
+    return loaded
 
 
 def _unload_current():
@@ -245,7 +253,7 @@ def _unload_current():
         logger.info("GPU cache cleared")
 
 
-def _switch_model(model_name: str, engine_declare: str | None = None):
+def _switch_model(model_name: str, declared_engine: str | None = None):
     """Switch to the requested model, unloading the current one first."""
     global _current_engine, _current_model_name
 
@@ -255,7 +263,7 @@ def _switch_model(model_name: str, engine_declare: str | None = None):
 
     _unload_current()
 
-    engine = engine_for_model(model_name, engine_declare)
+    engine = engine_for_model(model_name, declared_engine)
     # Le backend reçoit le nom LOCAL (sans le préfixe de source) : depuis la route F4b ②
     # (2026-09-01) l'app envoie la clé catalogue entière (`synthesizer:coqui-xtts`), que
     # `COQUI_MODEL_MAPPING` ne connaît pas — elle serait tombée dans le repli et Coqui aurait

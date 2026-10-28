@@ -17,7 +17,7 @@ Ce que ce module SAIT, et d'où :
     verse dans la médiathèque (jamais un fichier nu).
 
 ⚠ PORTÉ AU COMMUN le 2026-09-12 depuis `synthesizer/utils/voice_utils.py` (quatre
-consommateurs : synthesizer, avatarizer, `voice_options`, et — hors Django — `tts_service.py`,
+consommateurs : synthesizer, avatarizer, `voice_options`, et — hors Django — `common/tts/service.py`,
 qui ne résout plus rien depuis le 13/09). Constat de Fabien : *« ça n'a pas de sens de laisser
 les voix dans le synthesizer »* — vrai des fichiers, vrai du code qui les cherche.
 
@@ -371,7 +371,7 @@ def speaker_wav_for(model_key: str, voice_preset: str, user=None,
     `language` ne sert QUE pour la valeur « par défaut » : elle la résout vers la voix de
     référence de cette langue (27/09). Un choix explicite n'en dépend jamais.
 
-    Le service (`tts_service.py`) ne résout plus rien : tout `speaker_wav` vient d'ici (D6).
+    Le service (`common/tts/service.py`) ne résout plus rien : tout `speaker_wav` vient d'ici (D6).
     """
     if model_supports_cloning(model_key) is False:
         return None

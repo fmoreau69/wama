@@ -265,8 +265,9 @@ class SpeechOnlyRouteTest(SimpleTestCase):
     """`/speech-only` du service vocal : le filtre de parole de l'écoute distante."""
 
     def setUp(self):
-        import tts_service
         from fastapi.testclient import TestClient
+
+        from wama.common.tts import service as tts_service
         self.service = tts_service
         self.client = TestClient(tts_service.app)      # hors `with` : pas de démarrage réel
 
@@ -755,8 +756,9 @@ class EndOfTurnServiceRecipeTest(SimpleTestCase):
 
     def setUp(self):
         import numpy as np
-        import tts_service
         from fastapi.testclient import TestClient
+
+        from wama.common.tts import service as tts_service
         self.np, self.service = np, tts_service
         self.client = TestClient(tts_service.app)
         self.heard = []

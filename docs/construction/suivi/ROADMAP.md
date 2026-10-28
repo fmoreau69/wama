@@ -953,7 +953,7 @@ Kokoro ONNX porte 8 précisions dont 7 inatteignables) — plan validé, à cons
 un **service d'inférence dédié persistant**, JAMAIS dans un thread du process Django/Celery
 (fork, CUDA par process, course env = nos bugs). WAMA est **déjà à mi-chemin** :
 - **Ollama** (LLM) tient déjà les LLM chauds (régler `keep_alive`).
-- **Microservice TTS** (`tts_service.py`, port 8001) tient déjà Kokoro/XTTS/Bark préchargés.
+- **Microservice TTS** (`wama/common/tts/service.py` — ex-`tts_service.py` à la racine jusqu'au 2026-10-28 —, port 8001) tient déjà Kokoro/XTTS/Bark préchargés.
 
 **Fix Kokoro (⏳, avec soin — ne pas casser AI-assistant/synthesizer)** : le thread Kokoro de
 `wama/views.py` est un **bug d'archi** (la vocalisation AI-assistant recharge Kokoro dans

@@ -1,7 +1,7 @@
 """
 Registre des backends TTS du synthesizer (contrat commun `BaseModelBackend`).
 
-Consommé par `tts_service.py` (le process qui charge réellement) et par les
+Consommé par `common/tts/service.py` (le process qui charge réellement) et par les
 outils transverses (model_installer, tests nocturnes) via `is_available()` /
 `missing_packages()` — SANS charger de modèle.
 """

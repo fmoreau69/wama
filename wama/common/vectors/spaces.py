@@ -6,7 +6,7 @@ la même manière de poser une requête. Deux espaces ne se comparent jamais (la
 généralisée) : une recherche qui porte sur plusieurs natures de média vectorise sa requête dans
 chaque espace concerné et fusionne les classements par rang.
 
-Importable sans Django : le service de vectorisation (`vector_service.py`) le lit aussi.
+Importable sans Django : le service de vectorisation (`common/vectors/service.py`) le lit aussi.
 """
 from __future__ import annotations
 

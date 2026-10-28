@@ -317,7 +317,7 @@ une corruption silencieuse. Index HNSW (dispo depuis pgvector 0.5 ; plafond 2000
 |---|---|---|
 | les ESPACES déclarés | `wama/common/vectors/spaces.py` | un espace = (modèle, dimensions, fenêtre, préfixe de requête, fournisseurs) ; sa VRAM est celle de la ligne de catalogue de son modèle (depuis le 2026-10-20, ci-dessous). `text` = `qwen3-embedding:4b` en 1024 (le RAG) ; `media` = `embeddinggemma-2` en 768 (texte + image). La nature de média CHOISIT l'espace (`space_for`) |
 | le MOTEUR | `wama/common/vectors/engine.py` | sans Django : prépare les entrées (image → JPEG ≤ 768 px en base64), appelle le fournisseur (`/api/embed`), contrôle nombre et dimensions — **une seule** écriture de l'appel |
-| le SERVICE | `vector_service.py` (uvicorn, **127.0.0.1:8002**, lancé par `start_wama_prod.sh`) + client `wama/common/vectors/service_client.py` | tout le monde l'appelle par le client ; service éteint ⇒ le client exécute le MÊME moteur dans son process (rien ne casse avant une relance) |
+| le SERVICE | `wama/common/vectors/service.py` (ex-`vector_service.py` à la racine jusqu'au 2026-10-28 ; uvicorn, **127.0.0.1:8002**, lancé par `start_wama_prod.sh`) + client `wama/common/vectors/service_client.py` | tout le monde l'appelle par le client ; service éteint ⇒ le client exécute le MÊME moteur dans son process (rien ne casse avant une relance) |
 
 - **Deux espaces ne se comparent jamais** — la règle du §7 généralisée. Une recherche qui porte
   sur plusieurs natures vectorise la REQUÊTE dans chaque espace concerné, puis fusionne les

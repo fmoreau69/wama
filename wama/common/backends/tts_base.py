@@ -2,7 +2,7 @@
 Backends TTS du synthesizer — contrat commun (`BaseModelBackend`), Django-FREE.
 
 Django-free est une CONTRAINTE, pas un style : ces classes sont chargées par le
-service TTS (`tts_service.py`, uvicorn:8001), un process qui n'initialise pas
+service TTS (`common/tts/service.py`, uvicorn:8001), un process qui n'initialise pas
 Django. Ne rien importer ici qui tire `django.conf.settings` au niveau module —
 les chemins passent par `speech_dir()` (repli repo-relatif identique aux
 constantes historiques du service).
@@ -10,7 +10,7 @@ constantes historiques du service).
 Le MÉCANISME (charger / générer / décharger, comptabilité VRAM au gouverneur via
 les enveloppes du contrat) vit ici ; la POLITIQUE (quel moteur est résident, la
 résolution des presets de voix vers un fichier de référence, la file HTTP) reste
-dans `tts_service.py` — même partage que l'anonymizer (brique = mécanisme,
+dans `common/tts/service.py` — même partage que l'anonymizer (brique = mécanisme,
 app = politique).
 
 ⚠ Deux préparations PROCESS restent dans le service, PAS ici : le patch
@@ -122,7 +122,7 @@ class TTSBackend(BaseModelBackend):
     #: Le moteur sert le TEMPS RÉEL (vocalisation assistant, preview) → le service TTS
     #: le garde chaud : il n'est jamais déchargé à une bascule de moteur, et un
     #: `TTS_PRELOAD` qui le nomme le charge SANS en faire le « moteur courant ».
-    #: DÉCLARÉ ici depuis le 2026-08-31 : la politique vivait dans `tts_service.py`
+    #: DÉCLARÉ ici depuis le 2026-08-31 : la politique vivait dans `common/tts/service.py`
     #: sous la forme d'un `if _current_engine == "kokoro"` — un littéral que le moteur
     #: concerné ne pouvait ni déclarer ni hériter. Conséquence mesurée : `kokoro-onnx`,
     #: qui sert exactement le même rôle temps réel, aurait été déchargé à chaque

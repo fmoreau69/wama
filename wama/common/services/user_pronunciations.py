@@ -12,7 +12,7 @@ que les skills de prompt (`services/user_skills`) et les thèmes de charte :
 - un ADMINISTRATEUR seul la rend SYSTÈME (`ownership.promote_element`), jamais par-dessus une
   entrée du fichier : corriger le fichier est un geste de développement.
 
-La voix tourne dans un AUTRE processus, sans Django (`tts_service.py`) : `lexicon_for` résout ici
+La voix tourne dans un AUTRE processus, sans Django (`common/tts/service.py`) : `lexicon_for` résout ici
 ce qu'elle doit dire en plus du fichier, et le client du service le joint à la demande
 (`tts.service_client.tts_via_service`, `options['lexicon']`).
 """

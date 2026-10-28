@@ -1,5 +1,5 @@
 """
-Client COMMUN du service de vectorisation (`vector_service.py`, FastAPI, uvicorn 127.0.0.1:8002).
+Client COMMUN du service de vectorisation (`common/vectors/service.py`, FastAPI, uvicorn 127.0.0.1:8002).
 Doc : `WAMA_MEMORY.md §7sexies`. Même patron que `common/tts/service_client.py` : tout le monde
 vectorise par ici — le RAG (`memory/embed.py`), l'indexation des médias, le Describer.
 

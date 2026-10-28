@@ -2,7 +2,7 @@
 Le MOTEUR de vectorisation — la seule écriture de l'appel au modèle d'embedding.
 Doc : `WAMA_MEMORY.md §7sexies`.
 
-Sans Django : le service (`vector_service.py`) l'exécute, et le client (`service_client.py`)
+Sans Django : le service (`common/vectors/service.py`) l'exécute, et le client (`service_client.py`)
 l'exécute lui-même quand le service n'est pas joignable. Un seul chemin de code dans les deux cas.
 
 RÈGLE D'INTÉGRATION — DÉGRADATION, JAMAIS ÉCHEC (celle du RAG, `memory/embed.py`) : fournisseur

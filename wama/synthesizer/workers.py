@@ -2,7 +2,7 @@
 WAMA Synthesizer - Celery Workers
 Tâches de synthèse vocale avec TTS
 
-All TTS generation is delegated to the TTS microservice (tts_service.py)
+All TTS generation is delegated to the TTS microservice (common/tts/service.py)
 running on TTS_SERVICE_URL (default: http://localhost:8001).
 """
 

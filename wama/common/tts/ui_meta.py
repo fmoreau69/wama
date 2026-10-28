@@ -23,7 +23,7 @@ FAUX — mesuré le 2026-08-28, les 7 moteurs répondaient en identité à `synt
 indépendamment d'eux : c'est le raisonnement qui était faux, pas seulement son résultat.)
 
 Django est importé PARESSEUSEMENT (dans les fonctions) : `common/tts/` est aussi consommé par
-`tts_service.py`, service FastAPI qui n'a pas Django.
+`common/tts/service.py`, service FastAPI qui n'a pas Django.
 """
 
 from __future__ import annotations

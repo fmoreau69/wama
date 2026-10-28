@@ -1,4 +1,4 @@
-"""Garde du VERROU DES MOTEURS du service TTS (`tts_service.py`, 2026-09-14).
+"""Garde du VERROU DES MOTEURS du service TTS (`wama/common/tts/service.py`, 2026-09-14).
 
 LE DÉFAUT GARDÉ. `/tts` est une fonction synchrone qu'uvicorn exécute dans un pool de threads.
 Sans verrou, une requête qui basculait de moteur déchargeait celui qu'une autre requête était
@@ -11,7 +11,7 @@ CE QUI EST VÉRIFIÉ — sans aucun modèle ni GPU (backends factices, `empty_ca
   2. deux moteurs lourds se SÉRIALISENT (le second attend la fin du premier) ;
   3. au repos, un résident garde le comportement HISTORIQUE (la bascule décharge le lourd).
 
-⚠ Importer `tts_service` remplace `torch.load` pour tout le process (bootstrap du service) :
+⚠ Importer le service remplace `torch.load` pour tout le process (bootstrap du service) :
 on le restaure en fin de classe, pour ne pas changer le comportement des autres tests.
 """
 import os
@@ -55,7 +55,7 @@ class VerrouDesMoteursTest(SimpleTestCase):
         import torch
         cls._torch_load = torch.load
         cls._env_weights = os.environ.get('TORCH_FORCE_WEIGHTS_ONLY_LOAD')
-        import tts_service
+        from wama.common.tts import service as tts_service
         cls.s = tts_service
 
     @classmethod

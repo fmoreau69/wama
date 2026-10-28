@@ -25,11 +25,17 @@ pkill -f "gunicorn wama.wsgi" || true
 pkill -f "scripts/[w]orker_watchdog.sh" || true
 pkill -f "celery" || true
 # Graceful stop: SIGTERM first, then wait, then SIGKILL
-if pkill -f "uvicorn tts_service" 2>/dev/null; then
+# Les deux services vivent dans leur paquet depuis le 2026-10-28 (`wama.common.tts.service`,
+# `wama.common.vectors.service`) ; les motifs reconnaissent AUSSI l'ancienne ligne de commande
+# (`tts_service:app`, `vector_service:app`, modules de la racine) : sans elle, un service lancé
+# avant le déplacement survivrait à l'arrêt et garderait son port.
+TTS_SERVICE_PATTERN="uvicorn (wama\.common\.tts\.service|tts_service):app"
+VECTOR_SERVICE_PATTERN="uvicorn (wama\.common\.vectors\.service|vector_service):app"
+if pkill -f "$TTS_SERVICE_PATTERN" 2>/dev/null; then
     sleep 3
-    pkill -9 -f "uvicorn tts_service" 2>/dev/null || true
+    pkill -9 -f "$TTS_SERVICE_PATTERN" 2>/dev/null || true
 fi
-pkill -f "uvicorn vector_service" || true
+pkill -f "$VECTOR_SERVICE_PATTERN" || true
 # Passerelle de canaux : on l'arrête ICI comme les autres, pour deux raisons —
 #   • elle doit repartir sur le code du run courant (elle a l'ORM et les settings) ;
 #   • la rotation des journaux plus bas exige les services ARRÊTÉS (renommer un fichier
@@ -264,21 +270,21 @@ fi
 # ⚠ MESURE qui motive la bascule — le démarrage ATTEND ce préchargement (boucle sur
 # /health ci-dessous) : le `.pt` a mis **87,9 s** le 2026-08-31 (journal du service :
 # 15:39:49,918 → 15:41:17,844), alors que le commentaire d'origine ici et dans
-# tts_service.py affirmait « quasi instantané, sans allonger le démarrage » — jamais
+# le service TTS (alors `tts_service.py`) affirmait « quasi instantané, sans allonger le démarrage » — jamais
 # mesuré. Chargement ONNX mesuré : **3,3 s** (session + voix, imports compris).
 # Revenir au .pt = `export TTS_PRELOAD=kokoro` (et WAMA_ASSISTANT_TTS_ENGINE=kokoro
 # pour la vocalisation de l'assistant, cf. common/tts/constants.py).
 # Auparavant TTS_SKIP_PRELOAD=1 : le drapeau, documenté « useful in development »,
 # faisait un return AVANT tout préchargement → Kokoro n'était JAMAIS chaud en prod,
-# et le warm écrit dans tts_service.py était du code mort.
+# et le warm écrit dans le service TTS était du code mort.
 #
 # ⚠ --workers 1 est STRUCTURANT, pas un réglage de performance (raisons re-vérifiées
-# le 2026-09-14, cf. tts_service.py, bloc « Préchargement SÉLECTIF ») : le « moteur
+# le 2026-09-14, cf. wama/common/tts/service.py, bloc « Préchargement SÉLECTIF ») : le « moteur
 # courant » et sa bascule n'existent qu'à l'intérieur d'UN process — N workers
 # pourraient tenir N moteurs lourds sur la même carte ; Kokoro serait préchargé N fois ;
 # et les verrous de bascule/génération ne sérialisent rien entre process. La cause
 # autrefois citée ici (mutation concurrente de HF_HUB_CACHE) n'existe plus.
-if ! pgrep -f "uvicorn tts_service" > /dev/null; then
+if ! pgrep -f "$TTS_SERVICE_PATTERN" > /dev/null; then
     echo "=== Starting TTS Service (port 8001) ==="
     # --fast = redémarrage de développement : on ne veut RIEN charger sur le GPU.
     # ATTENTION : --fast ne rendait le TTS que « fire & forget » (il sautait l'ATTENTE
@@ -291,7 +297,7 @@ if ! pgrep -f "uvicorn tts_service" > /dev/null; then
         export TTS_PRELOAD=kokoro-onnx
     fi
     export HIGGS_DISABLE_CUDA_GRAPHS=1
-    nohup python -m uvicorn tts_service:app \
+    nohup python -m uvicorn wama.common.tts.service:app \
         --host 0.0.0.0 \
         --port 8001 \
         --workers 1 \
@@ -335,9 +341,9 @@ fi
 # Rien à précharger : les modèles vivent dans Ollama, qui les charge à l'appel ; /health
 # répond aussitôt. Boucle locale SEULE (127.0.0.1) : le service n'a pas d'authentification.
 # Éteint, rien ne casse — le client exécute le même moteur dans son propre process.
-if ! pgrep -f "uvicorn vector_service" > /dev/null; then
+if ! pgrep -f "$VECTOR_SERVICE_PATTERN" > /dev/null; then
     echo "=== Starting Vector Service (port 8002) ==="
-    nohup python -m uvicorn vector_service:app \
+    nohup python -m uvicorn wama.common.vectors.service:app \
         --host 127.0.0.1 \
         --port 8002 \
         --workers 1 \

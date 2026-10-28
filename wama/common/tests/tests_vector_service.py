@@ -221,7 +221,7 @@ class ServiceTest(SimpleTestCase):
         super().setUpClass()
         from fastapi.testclient import TestClient
 
-        import vector_service
+        from wama.common.vectors import service as vector_service
         cls.api = TestClient(vector_service.app)
 
     def test_health_and_declared_spaces(self):
