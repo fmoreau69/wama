@@ -246,7 +246,7 @@ function fakeChat(name, url) {
 """
 
 
-class ChatListensToTheBellTest(SimpleTestCase):
+class ChatListensToTheBellTest(TestCase):
     """La cloche annonce chaque relève (`wama:notifications`) ; le chat y poste les fins de tâche,
     UNE fois par relève, et les fait raconter par tous ses chats — un seul les dit (V8, fichier
     SERVI)."""
@@ -309,6 +309,22 @@ class ChatListensToTheBellTest(SimpleTestCase):
             chat.sendBlocking('x', null);
         """)
         self.assertEqual([['erreur', '✅ fini', False]], self._read(ctx, 'told'))
+
+    def test_the_bell_payload_is_what_the_chat_listens_to(self):
+        """La VRAIE route de la cloche porte le `kind` que le chat filtre : sans lui, la liste des
+        fins de tâche est vide et rien n'est jamais raconté sur le web."""
+        from wama.common.models import Notification
+        from wama.common.utils.notifications import DEV_JOB_APP
+        user = User.objects.create_user('bell_payload', password='x')
+        self.client.force_login(user)
+        Notification.objects.create(recipient=user, kind='job_done', app=DEV_JOB_APP,
+                                    title='Job dev fini', body='ok')
+        items = self.client.get('/common/api/notifications/recent/', {'after': 0}).json()['items']
+        self.assertEqual('job_done', items[0]['kind'])
+        ctx = self._ctx()
+        self._ring(ctx, items)
+        self.assertEqual([{'url': '/api/ai-chat/follow-ups/', 'body': {'ids': [items[0]['id']]}}],
+                         self._read(ctx, 'posted'))
 
     def test_a_relay_without_any_end_of_task_asks_nothing(self):
         """Contre-épreuve : un partage, une alerte — rien à demander au serveur."""

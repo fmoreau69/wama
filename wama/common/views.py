@@ -2406,7 +2406,7 @@ def api_notifications_recent(request):
     after = request.GET.get('after')
     items = []
     if str(after or '').isdigit():
-        items = [{'id': n.pk, 'title': n.title, 'body': n.body, 'url': n.url,
+        items = [{'id': n.pk, 'kind': n.kind, 'title': n.title, 'body': n.body, 'url': n.url,
                   'sound': notification_sound(n, request.user)}
                  for n in unread.filter(pk__gt=int(after)).order_by('pk')[:5]]
     return JsonResponse({'unread': unread.count(), 'last_id': last, 'items': items})
