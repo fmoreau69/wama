@@ -143,8 +143,16 @@
         });
 
         // ── L'abonnement à l'axe ────────────────────────────────────────────────────────────
+        // L'icône du bouton lecture change de CLASSE, et seulement quand l'état change (2026-10-28,
+        // relevé par Fabien : un clic sur « pause » pendant la lecture était perdu). L'axe parle à
+        // chaque image : réécrire le bouton remplaçait l'icône sous le pointeur entre l'appui et le
+        // relâché, et le navigateur ne reconnaissait plus un clic.
+        var playIcon = play.querySelector('i'), shownPlaying = null;
         if (axis) axis.subscribe(function (st) {
-            play.innerHTML = '<i class="fas ' + (st.playing ? 'fa-pause' : 'fa-play') + '"></i>';
+            if (st.playing !== shownPlaying) {
+                shownPlaying = st.playing;
+                playIcon.className = 'fas ' + (st.playing ? 'fa-pause' : 'fa-play');
+            }
             clock.textContent = Axis.formatTime(st.time, true) + ' / ' + (st.duration ? Axis.formatTime(st.duration) : '--:--');
             if (speedLabelEl) speedLabelEl.textContent = speedLabel(st);
             if (rate) {

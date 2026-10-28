@@ -851,7 +851,9 @@ def check_panel_layout(page_hook=None):
     et revient à son rang quel que soit l'ordre où la page les montre ; une card cliquée montre
     l'aperçu ; un panneau épinglé en bas tient entre le pied et le volet, et le reste au
     rechargement ; « Disposition par défaut » garde l'épinglage ; « Dans la page » le rend à la
-    colonne ; figé puis rechargé, le volet redevient celui d'avant. Le réglage du compte est rendu
+    colonne ; ouvert DANS UNE AUTRE FENÊTRE, il y part, la page le retrouve, une touche y est relayée
+    à la page (pas une frappe de champ), et il revient à son rang à la fermeture ; figé puis
+    rechargé, le volet redevient celui d'avant. Le réglage du compte est rendu
     tel qu'il était en sortie. `page_hook(page)` : posé avant l'ouverture (contre-épreuve)."""
     from django.urls import reverse
     from playwright.sync_api import sync_playwright
@@ -1016,6 +1018,7 @@ def _panel_gestures(page, url, stored, verdict, errors):
     pin_menu(target, 'Dans la page')
     s = state()
     verdict(target in s['panels'] and not s['docked'], f"« Dans la page » le rend à la colonne ({s})")
+    _window_gestures(page, target, state, verdict, errors)
     lock()
     page.wait_for_timeout(500)
     kept = _in_plain_thread(stored) or {}
@@ -1025,6 +1028,41 @@ def _panel_gestures(page, url, stored, verdict, errors):
             f"figé puis rechargé : le volet d'avant ({kept}, {s})")
     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
     verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+
+
+def _window_gestures(page, target, state, verdict, errors):
+    """Un panneau DANS UNE AUTRE FENÊTRE (2026-10-28) : il y part (déplacé, pas recréé) et quitte
+    la colonne ; la page le retrouve par l'identifiant de sa section ; une touche frappée dans la
+    fenêtre est rejouée sur la page, pas une frappe dans un champ ; fermée, la fenêtre le rend à la
+    colonne, à son rang."""
+    first_section = page.evaluate(
+        f"() => document.querySelector('.grid-stack-item[data-panel=\"{target}\"] .wama-panel-body > [id]').id")
+    page.locator(f'.grid-stack-item[data-panel="{target}"] .wama-brick-dock').first.click()
+    page.wait_for_timeout(300)
+    with page.context.expect_page() as opened:
+        page.get_by_text('Dans une autre fenêtre').first.click()
+    popup = opened.value
+    popup.on('pageerror', lambda e: errors.append(f'fenêtre : {e}'))
+    page.wait_for_timeout(900)
+    moved = popup.evaluate(f"() => !!document.getElementById('{first_section}')")
+    found = page.evaluate(f"() => {{ const el = document.getElementById('{first_section}'); "
+                          "return !!el && el.ownerDocument !== document; }")
+    verdict(moved and found and target not in state()['panels'],
+            f"« {target} » dans une autre fenêtre, retrouvé par la page ({moved}, {found})")
+    page.evaluate("() => { window.__relayed = []; document.addEventListener('keydown', "
+                  "e => window.__relayed.push(e.key)); }")
+    popup.evaluate("() => document.body.dispatchEvent(new KeyboardEvent('keydown', "
+                   "{key: 'F9', bubbles: true}))")
+    popup.evaluate("() => { const f = document.querySelector('textarea, input'); if (f) "
+                   "f.dispatchEvent(new KeyboardEvent('keydown', {key: 'F8', bubbles: true})); }")
+    relayed = page.evaluate('() => window.__relayed')
+    verdict(relayed == ['F9'], f"une touche de la fenêtre passe à la page, pas une frappe de champ ({relayed})")
+    popup.close()
+    page.wait_for_timeout(900)
+    s = state()
+    verdict(s['panels'][:1] == [target] and page.evaluate(
+        f"() => document.getElementById('{first_section}').ownerDocument === document"),
+        f"fenêtre fermée : « {target} » revient à son rang dans la colonne ({s['panels']})")
 
 
 def register_surface_scenarios():
@@ -1070,7 +1108,8 @@ def register_surface_scenarios():
                      "section masquée retire son panneau sans quitter la page et revient à son rang "
                      "(aperçu puis infos, dans les deux ordres) ; épinglé en bas entre le pied et le "
                      "volet, gardé au rechargement et par « Disposition par défaut » ; « Dans la "
-                     "page » le rend ; figé puis rechargé, le volet d'avant"),
+                     "page » le rend ; dans une AUTRE FENÊTRE puis de retour à son rang ; figé "
+                     "puis rechargé, le volet d'avant"),
         run=lambda ctx: check_panel_layout(),
         timeout_s=240, vram_gb=0.0,
     )

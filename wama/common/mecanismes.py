@@ -441,7 +441,8 @@ MECHANISMS = (
               "fenêtre (haut, bas, gauche, droite : la page se referme derrière lui), gardés avec "
               "la disposition — `WAMA_VOLETS §3-ter`, scénario `common.surface_stack`. 2026-10-28 : "
               "la DISPOSITION sort du noyau en brique commune (`wama-brick-layout.js`), pour que "
-              "les pages d'apps la montent sans le noyau d'édition",
+              "les pages d'apps la montent sans le noyau d'édition ; tout panneau s'ouvre DANS UNE "
+              "AUTRE FENÊTRE (déplacé, pas recréé ; gestes relayés à la page)",
               'wama/common/surfaces.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §F3b',
               annexes=('wama/common/surface_views.py',

@@ -127,6 +127,15 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
         self.assertIn('transcriber.editor_parity', {s.id for s in nightly_tests.REGISTRY})
         self.assertEqual('surface', ui_smoke_editor.FORM)
 
+    def test_the_play_button_is_not_rewritten_at_each_frame(self):
+        # 2026-10-28 (Fabien) : un clic sur « pause » pendant la lecture était perdu — l'abonné à
+        # l'axe, appelé à chaque image, réécrivait le bouton et remplaçait l'icône sous le pointeur.
+        source = _read(TRANSPORT)
+        subscriber = source[source.index('axis.subscribe(function (st)'):]
+        subscriber = subscriber[:subscriber.index('});')]
+        self.assertNotIn('play.innerHTML', subscriber)
+        self.assertIn('if (st.playing !== shownPlaying)', subscriber)
+
     def test_the_served_copies_are_the_sources(self):
         surfaces = COMMON_JS / 'surfaces'
         pairs = [(COMMON_JS / name, SERVED / 'common' / 'js' / name)

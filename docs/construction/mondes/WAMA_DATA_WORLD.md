@@ -806,7 +806,11 @@ temporelle et la couche plugins ne le sont pas. Elles se rebâtissent, elles ne 
    > dessous), des LIGNES de panneaux côte à côte à chaque bord, et le GLISSER-DÉPOSER d'un panneau
    > vers un bord ou sur un autre (empiler, à côté) — au noyau commun, donc aussi pour les fenêtres
    > synchronisées du monde Data.
-   > ⏳ Reste le détachement en vraie fenêtre.
+   > ✅ **2026-10-28 — le détachement en vraie fenêtre** : tout panneau s'ouvre « dans une autre
+   > fenêtre » (menu de l'épingle), au noyau commun, donc aussi pour les vues du monde Data quand
+   > elles existeront. Le panneau y est DÉPLACÉ, pas recréé : il garde son état et l'axe partagé,
+   > sans canal entre fenêtres ; les gestes de la fenêtre sont relayés à la page. Détail et limites :
+   > `WAMA_VOLETS §3-ter`.
 
 ### 8.3 Plan d'intégration ordonné
 
@@ -824,7 +828,8 @@ temporelle et la couche plugins ne le sont pas. Elles se rebâtissent, elles ne 
 | **H** | Segmenter, Calculator, Visualizer, Analyzer | deviennent minces une fois A→D en place | A, C |
 
 **Non planifié, à trancher avant d'y toucher** : Recorder temps réel (LSL/RTMaps/ROS) — **D5** ;
-conteneur de vues détachables — après F.
+conteneur de vues détachables — après F (~~détacher en vraie fenêtre~~ : fait au noyau commun le
+2026-10-28, `§8.2 ⑤`).
 
 ---
 

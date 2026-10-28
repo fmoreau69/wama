@@ -248,10 +248,11 @@
             }
             return null;
         }
-        /** Les panneaux de la page : une brique seule, ou la tête d'une pile. */
+        /** Les panneaux de la page : une brique seule, ou la tête d'une pile — hors de ceux qui sont
+         *  partis dans une autre fenêtre (`windows`), que la page ne range plus. */
         function containers() {
             return slots.map(function (s) { return s.id; }).filter(function (id) {
-                if (!frames[id]) return false;
+                if (!frames[id] || windows[id]) return false;
                 var key = groupOf(id);
                 return !key || key === id;
             });
@@ -263,11 +264,13 @@
         // Un panneau dont le contenu s'est RETIRÉ (`setShown`) sort de sa zone, comme épinglé, et y
         // revient à SA place : la grille se referme derrière lui, rien ne se garde.
         var hiddenPlaces = {};              // panneau → {x, y, w, h, grid}
-        /** La place d'un panneau dans sa zone, qu'il y soit ou qu'il en soit sorti, épinglé ou
-         *  retiré. */
+        var windows = {};                   // panneau → {win, place} (`openWindow`)
+        /** La place d'un panneau dans sa zone, qu'il y soit ou qu'il en soit sorti, épinglé, retiré
+         *  ou parti dans une autre fenêtre. */
         function placeOf(key) {
             if (dockPlaces[key]) return dockPlaces[key];
             if (hiddenPlaces[key]) return hiddenPlaces[key];
+            if (windows[key] && windows[key].place) return windows[key].place;
             var node = containerEl(key).gridstackNode;
             return node ? { x: node.x, y: node.y, w: node.w, h: node.h, grid: node.grid } : null;
         }
@@ -495,6 +498,11 @@
                     },
                 };
             });
+            // Dans une AUTRE FENÊTRE (2026-10-28) — un second écran ; pas sur un téléphone.
+            entries.push({
+                icone: 'fas fa-up-right-from-square', libelle: 'Dans une autre fenêtre',
+                desactive: narrow, agir: function () { openWindow(key); },
+            });
             // À CÔTÉ d'un panneau déjà épinglé (2026-10-27) : dans sa ligne — une bande en haut ou
             // en bas, sa colonne à gauche ou à droite.
             containers().forEach(function (other) {
@@ -574,20 +582,25 @@
                         parking.appendChild(el);
                         moved = true;
                     } else if (on && hiddenPlaces[key]) {
-                        var place = hiddenPlaces[key], at = fit(place, place.grid);
-                        at.y = backAt(key, place);
+                        var place = hiddenPlaces[key];
                         delete hiddenPlaces[key];
-                        at.id = key;
-                        place.grid.el.appendChild(el);
-                        place.grid.makeWidget(el, at);
-                        // Une place occupée, la grille pose le nouveau venu DESSOUS : on l'y remonte,
-                        // et c'est alors l'occupant qu'elle écarte.
-                        if (el.gridstackNode && el.gridstackNode.y > at.y) place.grid.update(el, { y: at.y });
+                        bringBack(key, place);
                         moved = true;
                     }
                 });
             } finally { resetting = was; }
             return moved;
+        }
+        /** Rend un panneau à sa zone, à son RANG (`backAt`). */
+        function bringBack(key, place) {
+            var el = containerEl(key), at = fit(place, place.grid);
+            at.y = backAt(key, place);
+            at.id = key;
+            place.grid.el.appendChild(el);
+            place.grid.makeWidget(el, at);
+            // Une place occupée, la grille pose le nouveau venu DESSOUS : on l'y remonte, et c'est
+            // alors l'occupant qu'elle écarte.
+            if (el.gridstackNode && el.gridstackNode.y > at.y) place.grid.update(el, { y: at.y });
         }
         /** Le contenu de la brique `id` s'est retiré (`on` faux) ou est revenu. */
         function setShown(id, on) {
@@ -1041,9 +1054,13 @@
                     if (n && n.id) out[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h, zone: zone };
                 });
             });
-            // Un panneau épinglé ou retiré a quitté la grille, pas la disposition : sa place reste
-            // la sienne.
-            [dockPlaces, hiddenPlaces].forEach(function (away) {
+            // Un panneau épinglé, retiré ou parti dans une autre fenêtre a quitté la grille, pas la
+            // disposition : sa place reste la sienne.
+            var inWindows = {};
+            Object.keys(windows).forEach(function (key) {
+                if (windows[key].place) inWindows[key] = windows[key].place;
+            });
+            [dockPlaces, hiddenPlaces, inWindows].forEach(function (away) {
                 Object.keys(away).forEach(function (key) {
                     var p = away[key];
                     out[key] = { x: p.x, y: p.y, w: p.w, h: p.h, zone: p.grid === panel ? 'panel' : 'grid' };
@@ -1051,6 +1068,126 @@
             });
             return out;
         }
+
+        // ── Ouvrir un panneau dans une AUTRE FENÊTRE (2026-10-28, `WAMA_DATA_WORLD §8.2 ⑤`, demande
+        // de Fabien) : un second écran porte le transport, l'aperçu ou une vue pendant que la page
+        // reste sur le premier. Le panneau y est DÉPLACÉ, pas recréé : la brique garde son code, son
+        // état et l'axe partagé — rien à synchroniser. Deux relais le permettent : un geste fait dans
+        // la fenêtre (pointeur, clavier hors d'une saisie) est rejoué sur la page, où les briques
+        // l'écoutent ; et la page retrouve par son identifiant un élément parti dans la fenêtre
+        // (l'inspecteur remplit l'aperçu du volet). Fermer la fenêtre — ou « Remettre dans la page » —
+        // rend le panneau à sa place ; quitter la page ferme ses fenêtres. Rien ne se garde : un
+        // navigateur n'ouvre une fenêtre qu'au geste de l'utilisateur.
+        var RELAYED = ['pointermove', 'pointerup', 'pointercancel', 'mousemove', 'mouseup',
+                       'keydown', 'keyup'];
+        function editable(el) {
+            return !!(el && el.closest && el.closest('input, textarea, select, [contenteditable]'));
+        }
+        /** Les gestes faits dans la fenêtre, rejoués sur la page (les briques y écoutent `document`
+         *  et `window`) ; une frappe dans un champ reste au champ. Rejoués sur le CORPS : un élément,
+         *  comme le lit une écoute (`e.target.closest`), d'où ils remontent au document et à la
+         *  fenêtre. */
+        function relay(win) {
+            RELAYED.forEach(function (type) {
+                win.document.addEventListener(type, function (e) {
+                    if (type.indexOf('key') === 0 && editable(e.target)) return;
+                    var Kind = global[e.constructor.name] || global.Event;
+                    document.body.dispatchEvent(new Kind(type, e));
+                });
+            });
+        }
+        /** La page retrouve par son identifiant un élément parti dans une fenêtre. Posé une fois, au
+         *  premier panneau ouvert ; la page cherche d'abord chez elle. */
+        var ownById = null;
+        function findInWindows() {
+            if (ownById) return;
+            ownById = document.getElementById;
+            document.getElementById = function (id) {
+                var found = ownById.call(document, id);
+                for (var key in windows) {
+                    if (found) break;
+                    var doc = windows[key].win.document;
+                    found = doc ? doc.getElementById(id) : null;
+                }
+                return found || null;
+            };
+        }
+        function openWindow(key) {
+            var el = containerEl(key);
+            if (windows[key] || !el) return;
+            var r = el.getBoundingClientRect();
+            var win = global.open('', 'wama-panel-' + key, 'popup,width=' + Math.max(420, Math.round(r.width))
+                                  + ',height=' + Math.max(280, Math.round(r.height) + 40));
+            if (!win) {
+                if (App.toast) App.toast('Le navigateur a bloqué la fenêtre : autorisez les fenêtres de WAMA', 'warning');
+                return;
+            }
+            var doc = win.document;
+            doc.open();
+            doc.write('<!doctype html><html><head><meta charset="utf-8"><title></title></head><body></body></html>');
+            doc.close();
+            // Le thème et les feuilles de la page : la fenêtre a l'allure de WAMA.
+            Array.prototype.forEach.call(document.documentElement.attributes, function (a) {
+                doc.documentElement.setAttribute(a.name, a.value);
+            });
+            doc.title = labelOf(key) + ' — WAMA';
+            document.querySelectorAll('link[rel="stylesheet"], style').forEach(function (sheet) {
+                doc.head.appendChild(doc.importNode(sheet, true));
+            });
+            doc.body.className = 'wama-panel-window';
+            var bar = doc.createElement('div');
+            bar.className = 'wama-window-bar';
+            var name = doc.createElement('span');
+            name.textContent = labelOf(key);
+            var back = doc.createElement('button');
+            back.type = 'button';
+            back.className = 'btn btn-sm btn-outline-secondary';
+            back.innerHTML = '<i class="fas fa-arrow-right-to-bracket me-1"></i> Remettre dans la page';
+            back.addEventListener('click', function () { win.close(); });
+            bar.appendChild(name);
+            bar.appendChild(back);
+            doc.body.appendChild(bar);
+            // Sa place dans la page, gardée pour son retour ; épinglé, il retrouvera son bord.
+            var node = el.gridstackNode, place = null, was = resetting;
+            resetting = true;
+            try {
+                if (!dockPlaces[key] && node && node.grid) {
+                    place = { x: node.x, y: node.y, w: node.w, h: node.h, grid: node.grid };
+                    node.grid.removeWidget(el, false, false);
+                }
+                windows[key] = { win: win, place: place };
+                el.hidden = false;
+                el.classList.add('is-windowed');
+                doc.body.appendChild(el);
+            } finally { resetting = was; }
+            findInWindows();
+            relay(win);
+            win.addEventListener('resize', function () { emit('resize'); });
+            win.addEventListener('pagehide', function () { closeWindow(key); });
+            syncLayoutTools();
+            applyDocks();
+        }
+        /** Le panneau revient à sa place (son bord, s'il était épinglé) ; la fenêtre se ferme. */
+        function closeWindow(key) {
+            var w = windows[key];
+            if (!w) return;
+            delete windows[key];
+            var el = containerEl(key), was = resetting;
+            el.classList.remove('is-windowed');
+            resetting = true;
+            try {
+                if (!dockPlaces[key] && w.place) bringBack(key, w.place);
+            } finally { resetting = was; }
+            syncShown();
+            applyDocks();
+            syncLayoutTools();
+            try { if (!w.win.closed) w.win.close(); } catch (e) { /* déjà fermée */ }
+        }
+        global.addEventListener('pagehide', function () {
+            Object.keys(windows).forEach(function (key) {
+                try { windows[key].win.close(); } catch (e) { /* déjà fermée */ }
+            });
+        });
 
         // La disposition part au serveur une fois le geste posé (un glisser émet plusieurs
         // `change`) ; refusée ou injoignable, elle reste dans ce navigateur, en secours.
@@ -1083,6 +1220,7 @@
         function resetLayout() {
             if (layout.frozen || !onFullGrid()) return;
             layout.slots = null;                 // la disposition DÉCLARÉE, qui suit la page
+            Object.keys(windows).forEach(closeWindow);   // chacun revient dans la page
             resetting = true;
             restoreHidden();                     // un panneau retiré se range aussi, puis se retire
             undockAll();                         // chacun reprend place dans la grille, pour s'y ranger
@@ -1185,6 +1323,9 @@
             help: LAYOUT_HELP,
             /** Le contenu de la brique `id` s'est retiré ou est revenu : son panneau suit. */
             setShown: setShown,
+            /** Le panneau `key` dans une autre fenêtre (geste de l'utilisateur), puis de retour. */
+            openWindow: openWindow,
+            closeWindow: closeWindow,
         };
     }
 

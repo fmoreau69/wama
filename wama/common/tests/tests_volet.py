@@ -615,3 +615,26 @@ class PanelBricksTest(TestCase):
         # Le volet seul : la grille du centre est facultative, la colonne suffit.
         self.assertIn('var grid = root ? global.GridStack.init(', engine)
         self.assertIn('opts.frameHost ||', engine)
+
+    def test_a_panel_opens_in_another_window_and_keeps_working(self):
+        """Un panneau DANS UNE AUTRE FENÊTRE (2026-10-28, `WAMA_DATA_WORLD §8.2 ⑤`) : déplacé, pas
+        recréé ; les gestes faits dans la fenêtre rejoués sur la page, sauf une frappe de champ ; la
+        page retrouve par son identifiant ce qui est parti ; fermée, la fenêtre le rend à sa place.
+        Les gestes eux-mêmes : `common.panel_layout` (fenêtre ouverte, relais, retour au rang)."""
+        from pathlib import Path
+
+        from django.conf import settings
+        served = Path(settings.BASE_DIR) / 'staticfiles' / 'common'
+        engine = (served / 'js' / 'wama-brick-layout.js').read_text(encoding='utf-8')
+        sheet = (served / 'css' / 'wama-surface.css').read_text(encoding='utf-8')
+        self.assertIn("libelle: 'Dans une autre fenêtre'", engine)
+        self.assertIn('doc.body.appendChild(el);', engine, 'déplacé, jamais recréé')
+        self.assertIn("if (type.indexOf('key') === 0 && editable(e.target)) return;", engine)
+        self.assertIn('document.body.dispatchEvent(new Kind(type, e));', engine)
+        self.assertIn('document.getElementById = function (id)', engine)
+        self.assertIn("win.addEventListener('pagehide', function () { closeWindow(key); });", engine)
+        self.assertIn('if (!dockPlaces[key] && w.place) bringBack(key, w.place);', engine)
+        # La fenêtre a l'allure de WAMA : la barre, le panneau qui l'occupe, ses menus de page absents.
+        for rule in ('body.wama-panel-window {', '.wama-window-bar {',
+                     'body.wama-panel-window .wama-brick-dock'):
+            self.assertIn(rule, sheet)

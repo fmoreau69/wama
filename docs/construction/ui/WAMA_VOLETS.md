@@ -384,8 +384,8 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   (gardé pour la disposition figée, le clavier, le tactile et les scénarios) — **après** que Fabien
   a essayé le glisser-déposer : « si on arrive à gérer tout ça en drag&drop, es-tu ok pour retirer
   les boutons qui feraient doublon ? ».
-- ⏳ Reste de `WAMA_DATA_WORLD §8.2 ⑤` (« layout dockable + détachement en vraie fenêtre ») : le
-  DÉTACHEMENT d'un panneau dans une autre fenêtre.
+- ✅ Reste de `WAMA_DATA_WORLD §8.2 ⑤` (« layout dockable + détachement en vraie fenêtre ») : un
+  panneau DANS UNE AUTRE FENÊTRE — fait le 2026-10-28, voir plus bas.
 - **Étape ②, 1ᵉʳ geste — la DISPOSITION devient une brique commune ✅ 2026-10-28.** Les pages
   d'apps ne sont pas des surfaces (on n'y édite pas un élément) mais leur volet doit prendre les
   mêmes gestes : grille et colonne du volet, figer, empiler, épingler, glisser vers les bords,
@@ -459,10 +459,43 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     un panneau de hauteur fixe — on retaille le panneau) ; ouvrir un panneau dans une autre
     fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`, la suite prévue).
 
+- **Un panneau DANS UNE AUTRE FENÊTRE ✅ 2026-10-28** (`WAMA_DATA_WORLD §8.2 ⑤` ; Fabien : « on
+  passe à l'ouverture d'un panneau dans une autre fenêtre ») — un second écran porte le transport,
+  l'aperçu ou une vue pendant que la page reste sur le premier. Menu de l'épingle, « Dans une autre
+  fenêtre » (pas sur un téléphone), pour tout panneau : d'une surface comme du volet.
+  - **Le panneau est DÉPLACÉ, pas recréé** : la brique garde son code, son état et l'axe partagé ;
+    rien n'est à synchroniser, d'où aucun canal entre fenêtres (le `BroadcastChannel` qu'envisageait
+    `WAMA_DATA_WORLD §8.1` n°11 n'a pas servi). La fenêtre reprend le thème et les feuilles de la
+    page, une barre la nomme et porte « Remettre dans la page ».
+  - **Deux relais** : un geste fait dans la fenêtre (pointeur, clavier) est rejoué sur la page, où
+    les briques l'écoutent — sauf une frappe dans un champ, qui reste au champ ; et la page retrouve
+    par son identifiant un élément parti dans la fenêtre (l'inspecteur remplit l'aperçu du volet).
+  - **Le retour** : fermer la fenêtre, ou « Remettre dans la page », rend le panneau à sa place —
+    son rang dans la colonne, son bord s'il était épinglé ; « Disposition par défaut » rappelle
+    toutes les fenêtres ; quitter la page les ferme. **Rien ne se garde** : un navigateur n'ouvre une
+    fenêtre qu'au geste de l'utilisateur, une fenêtre ne peut donc pas se rouvrir au rechargement.
+  - **Code** : `wama-brick-layout.js` (`openWindow`, `closeWindow`, `relay`, `findInWindows`),
+    `wama-surface.css` (`body.wama-panel-window`).
+  - **Vu au navigateur** : le transport de l'éditeur du transcriber dans une fenêtre — Espace frappé
+    dans la fenêtre lance la lecture (horloge 0:01 / 1:00), il revient à la fermeture ; l'aperçu du
+    volet du journal dans une fenêtre suit la card cliquée dans la page (un fichier puis l'autre),
+    disparaît quand rien n'est sélectionné, revient à son rang (assistant, aperçu, infos).
+  - **Gardes** : `PanelBricksTest.test_a_panel_opens_in_another_window_and_keeps_working` ;
+    `common.panel_layout` **16/16** (fenêtre ouverte et panneau retrouvé, touche relayée mais pas
+    une frappe de champ, retour au rang) ; trois contre-épreuves rouges dans le navigateur (relais
+    retiré, identifiant non retrouvé, panneau non rendu). Non-recul : surfaces 9/9 et 22/22, parité
+    de l'éditeur intacte.
+  - ⚠ **Limites, connues** : un menu ouvert depuis la fenêtre (vitesse, choix d'une brique)
+    s'ouvrirait dans la page — les outils de disposition y sont masqués, les menus propres d'une
+    brique non ; une brique qui regarde où est le FOCUS dans la page (la liste des segments au
+    clavier) ne suit pas le clavier de la fenêtre ; les animations de la fenêtre battent au rythme
+    de la page — page réduite ou cachée, le navigateur les ralentit ; sur un écran d'une autre
+    densité de pixels, un canevas dessiné pour la page peut paraître flou.
+
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
 déclare, il n'hérite pas) ; ④ le centre des pages d'apps (card d'entrée, file) sur la même grille ;
-puis ouvrir un panneau dans une autre fenêtre (le temps partagé par `BroadcastChannel`).
+~~ouvrir un panneau dans une autre fenêtre~~ (✅ ci-dessus).
 
 ---
 

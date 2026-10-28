@@ -1170,7 +1170,12 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       sauts, lecture, vitesse (liste ou par pas), horloge, aller à, shuttle, clavier. Aucun média,
       aucune vue, aucune donnée. L'enveloppe `media_transport` y ajoute la SOURCE (le lecteur
       commun attaché à l'axe, son onde montrable ou tue : `options.wave`) et l'état du process
-      rejoué.
+      rejoué. ⚠ 2026-10-28 (relevé par Fabien) : un clic « pause » pendant la lecture était PERDU —
+      l'abonné à l'axe, appelé à chaque image, réécrivait le bouton lecture et remplaçait l'icône
+      sous le pointeur entre l'appui et le relâché ; l'icône ne change plus que de classe, au
+      changement d'état (garde `tests_editor_axis.test_the_play_button_is_not_rewritten_at_each_frame`,
+      reproduit puis corrigé au navigateur par un clic de 120 ms, 3/3 de chaque côté). Un abonné à
+      l'axe ne réécrit jamais un élément qu'on clique.
     - **une VUE, la ligne de temps** (`wama-timeline.js`, brique `media_timeline`) : onde fenêtrée
       sur pics fins, zoom, couches des segments, bande de qualité, minimap, et l'outil Bornes comme
       outil de la vue sur les segments (le calcul restait commun, `WamaSegments`). Ses outils (zoom,
