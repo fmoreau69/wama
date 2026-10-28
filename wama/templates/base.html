@@ -259,10 +259,15 @@
             {% block right_panel_top %}{% endblock %}
 
             {% if volet.medias %}
-            <!-- Médias Section (drop zone app ou aperçu filemanager) -->
+            {% comment %}Section APERÇU — l'hôte où l'inspecteur montre l'élément sélectionné ; MASQUÉE
+              tant que rien ne l'est (`wama-inspector.js`, `setMediaSection`). Elle s'appelait
+              « Médias » : renommée le 2026-10-28 (Fabien : « la section Médias n'a plus de sens,
+              c'est la preview qui a pris sa place »). Identifiants inchangés : l'inspecteur et
+              les gardes les lisent. Une page qui y loge un contenu PERMANENT le déclare
+              (cam_analyzer, model_manager) et nomme son titre.{% endcomment %}
             <div class="right-panel-section" id="media-section">
                 <div class="right-panel-section-title" id="rightPanelMediaTitle">
-                    {% block right_panel_media_title %}<i class="fas fa-photo-video me-1"></i> Médias{% endblock %}
+                    {% block right_panel_media_title %}<i class="fas fa-eye me-1"></i> Aperçu{% endblock %}
                 </div>
                 <div id="global-media-container">
                     {% block right_panel_media %}

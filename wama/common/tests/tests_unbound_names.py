@@ -17,6 +17,9 @@ on the tracked code (qualified on 2026-09-27: on the tree before the fix it foun
 defects above, and nothing else once the module dunders are counted as bound).
 Vendored third-party code (`vendor/` directories) is out of scope: it is not ours to fix, and it
 does carry such names (musetalk's demo app, 13 of them).
+
+Second check, same family (2026-10-28): a method a class defines TWICE — the first is dropped in
+silence (`MethodDefinedTwiceTest`).
 """
 import ast
 import builtins
@@ -88,3 +91,52 @@ class UnboundNamesTest(SimpleTestCase):
         self.assertEqual([('_use_sam3_fallback', 3)], unbound_names(
             'def task(windows, t):\n    inside = any(a <= t <= b for a, b in windows)\n'
             '    if inside or _use_sam3_fallback:\n        pass\n'))
+
+
+def methods_defined_twice(source):
+    """(class, method, lines) of every method a class body defines more than once.
+
+    Same family as `unbound_names`, the other half of what pyflakes would say (F811): Python keeps
+    the LAST definition and drops the first without a word. Lived on 2026-10-28: `UserEdit` got a
+    `get_context_data` declaring its side panel (2026-10-20) ABOVE the one it already had — the
+    later one won, and the page rendered the three empty default sections for eight days.
+    A property's setter / deleter, an `@overload` and a `singledispatch` `.register` legitimately
+    reuse the name: they are not counted."""
+    found = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.ClassDef):
+            continue
+        lines = {}
+        for item in node.body:
+            if not isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            decorators = [ast.unparse(d) for d in item.decorator_list]
+            if any(d.endswith(('.setter', '.deleter', '.getter', '.register')) or 'overload' in d
+                   for d in decorators):
+                continue
+            lines.setdefault(item.name, []).append(item.lineno)
+        found += [(node.name, name, at) for name, at in lines.items() if len(at) > 1]
+    return found
+
+
+class MethodDefinedTwiceTest(SimpleTestCase):
+    maxDiff = None
+
+    def test_no_class_defines_a_method_twice(self):
+        found = []
+        for path in project_modules():
+            try:
+                twice = methods_defined_twice(path.read_text(encoding='utf-8'))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            found += [f'{path.relative_to(settings.BASE_DIR)}:{at} {cls}.{name}' for cls, name, at in twice]
+        self.assertEqual([], found, 'the first definition is silently dropped — merge them')
+
+    def test_the_check_sees_the_shape_it_was_written_for(self):
+        """Counter-check: the `UserEdit` shape is caught, a property with its setter is not."""
+        self.assertEqual([('UserEdit', 'get_context_data', [2, 4])], methods_defined_twice(
+            'class UserEdit:\n    def get_context_data(self):\n        return {"volet": 0}\n'
+            '    def get_context_data(self):\n        return {"title": 1}\n'))
+        self.assertEqual([], methods_defined_twice(
+            'class A:\n    @property\n    def x(self):\n        return 1\n'
+            '    @x.setter\n    def x(self, v):\n        pass\n'))

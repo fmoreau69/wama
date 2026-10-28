@@ -114,6 +114,27 @@ contextualiser. Constat qui corrige une intuition naturelle (« aligner sur les 
 **identifiants** (`#media-section`, `#inspectorActions`, `#inspectorInfo`) et aux options de
 `init`. Toute évolution doit laisser ids, blocs et JS intacts.
 
+**« Médias » devient « Aperçu » — ✅ 2026-10-28** (Fabien : *« la section Médias n'a plus de
+sens […] c'est la preview qui a pris sa place […] une section qui ne charge rien »*). Mesuré
+avant d'y toucher — 118 pages sans argument rendues dans la base de test, puis 16 dans le
+navigateur sans sélection : dans les 10 apps la section n'était PAS inerte, c'est l'hôte de
+l'aperçu de l'inspecteur, déjà masquée hors sélection (état ①) ; trois cadres l'étaient :
+- le **journal** et le **calendrier** la gardaient visible sans sélection (`keepMediaSection:
+  true`) : 258 px pour une invite. Retiré — l'aperçu s'y montre au clic, comme dans les apps
+  (vu à l'écran : masquée avant, l'aperçu du témoin après le clic) ;
+- **« Modifier mon compte »** (`accounts:user-edit`) rendait les TROIS cadres vides de
+  `base.html` : sa déclaration `VOLET_AUCUN` (2026-10-20) vivait dans une seconde
+  `get_context_data` que la suivante remplaçait. Fusionnées ; le défaut (une méthode définie deux
+  fois, la première perdue en silence) n'existait nulle part ailleurs — garde générique
+  `tests_unbound_names.MethodDefinedTwiceTest`, la page ajoutée à `PagesDeclarantesTest.PAGES`.
+
+Le titre par défaut dit ce qu'est la section : **Aperçu** (`base.html`), identifiants inchangés.
+Restent DÉCLARÉS, parce qu'ils y logent un contenu PERMANENT : le cam_analyzer (« Carte &
+passages ») et le model manager (ressources système hors sélection, `'no-selection'`). Garde :
+`test_the_preview_section_shows_only_what_is_selected` (aucun `keepMediaSection: true` ;
+contre-épreuve rouge par un fichier fautif jetable). ⏳ La branche `keepMediaSection === true` de
+`wama-inspector.js` n'a plus d'appelant : à retirer quand ce fichier, en cours ailleurs, sera libre.
+
 ---
 
 ## 3-bis. Le volet est DÉCLARATIF — contrat (livré 2026-08-22)

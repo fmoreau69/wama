@@ -145,8 +145,9 @@ les ré-inclure ici. Seule cette feuille de style reste locale : elle n'est pas 
     window.WamaInspector.init({
       queueContainer: liste,
       cardSelector: '.journal-card',
-      // Le volet n'a que Médias (et sa fiche) : visible sans sélection, il porte l'invite.
-      keepMediaSection: true,
+      // L'aperçu se montre quand une card est cliquée, comme dans les apps. Il restait visible
+      // sans sélection jusqu'au 2026-10-28 (`keepMediaSection`) : un cadre de 258 px qui ne
+      // portait qu'une invite (Fabien : « elle est inerte »).
       itemLabel: function (id) { return "l'élément #" + id; },
     });
   }

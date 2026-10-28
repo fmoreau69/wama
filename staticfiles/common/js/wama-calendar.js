@@ -169,7 +169,8 @@
     var inspector = window.WamaInspector ? WamaInspector.init({
         queueContainer: host,
         cardSelector: '.' + ITEM_CLASS,
-        keepMediaSection: true,                      // l'invite tant que rien n'est cliqué
+        // L'aperçu se montre au clic, comme dans les apps (son invite permanente, retirée le
+        // 2026-10-28, occupait 258 px sans rien charger).
         showOnInspect: ['actions-section'],          // aucune action sans élément
         itemLabel: function (id) { return "l'élément #" + id; },
         renderItemActions: function (actionsHost, card) {

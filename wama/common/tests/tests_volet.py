@@ -32,8 +32,9 @@ MARQUEURS = {
 #: 2026-08-22 a supprimé — c'est ce couple (section rendue + contenu par défaut) qui se
 #: mesure, jamais la présence de la section seule : une page peut légitimement rouvrir une
 #: section POUR LA REMPLIR (cf. `PagesDeclarantesTest`).
-#: ⚠ Médias se reconnaît à son INVITE par défaut, plus à son conteneur d'aperçu (2026-10-18) : ce
-#: conteneur est aussi l'hôte de l'inspecteur, qui y montre la card cliquée (journal, calendrier).
+#: ⚠ Médias (« Aperçu » depuis le 2026-10-28) se reconnaît à son INVITE par défaut, plus à son
+#: conteneur d'aperçu (2026-10-18) : ce conteneur est aussi l'hôte de l'inspecteur, qui y montre la
+#: card cliquée (journal, calendrier) — masqué tant que rien n'est sélectionné.
 #: Une page qui l'héberge dit SA propre invite (`right_panel_media_hint`) ; l'invite de `base.html`
 #: (« Sélectionnez un fichier ») n'a de sens que là où un fichier se sélectionne.
 DEFAUTS = {
@@ -169,6 +170,9 @@ class PagesDeclarantesTest(TestCase):
         ('catalogue de fonctions', 'model_manager:functions_catalog'),
         ('catalogue de librairies', 'model_manager:libraries_catalog'),
         ('profil', 'accounts:profile'),
+        # 2026-10-28 : déclarait « aucun volet » depuis le 20/10 dans une méthode que la suivante
+        # remplaçait — trois cadres vides, que cette liste ne mesurait pas.
+        ('modifier mon compte', 'accounts:user-edit'),
         ('gestion des utilisateurs', 'accounts:user-management'),
         ("matrice d'accès", 'accounts:app-access-matrix'),
         ('connexion', 'accounts:login'),
@@ -275,6 +279,31 @@ class PagesDeclarantesTest(TestCase):
             self.assertNotIn(MARQUEURS[cle], html,
                              f"accueil : cadre '{cle}' sous l'avatar — c'est ce que la "
                              "déclaration `tete=True` doit retirer (WAMA_VOLETS §5)")
+
+    def test_the_preview_section_shows_only_what_is_selected(self):
+        """2026-10-28, Fabien : « la section Médias n'a plus de sens, c'est la preview qui a pris
+        sa place […] une section qui ne charge rien ». It is the PREVIEW (its title says so), and
+        no page keeps it shown while nothing is selected: the journal and the calendar did
+        (`keepMediaSection: true`), a 258 px frame holding an invitation. Only a page that lodges
+        PERMANENT content there declares it — the model manager's system resources, shown while
+        nothing is selected (`'no-selection'`)."""
+        import re
+        from pathlib import Path
+
+        from django.conf import settings
+        base = Path(settings.BASE_DIR)
+        kept = []
+        for root in ('wama', 'wama_lab'):
+            for path in (base / root).rglob('*'):
+                if path.suffix not in ('.js', '.html') or 'staticfiles' in path.parts:
+                    continue
+                text = path.read_text(encoding='utf-8', errors='replace')
+                if re.search(r'keepMediaSection\s*:\s*true', text):
+                    kept.append(str(path.relative_to(base)))
+        self.assertEqual([], kept, 'the preview stays shown with nothing selected — an inert frame')
+        page = (base / 'wama' / 'templates' / 'base.html').read_text(encoding='utf-8')
+        self.assertIn('<i class="fas fa-eye me-1"></i> Aperçu{% endblock %}', page)
+        self.assertNotIn('> Médias{% endblock %}', page)
 
     def test_cam_analyzer_garde_son_panneau_de_travail(self):
         from django.urls import NoReverseMatch, reverse

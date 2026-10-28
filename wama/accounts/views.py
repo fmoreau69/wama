@@ -151,11 +151,6 @@ class UserEdit(UpdateView):
     def get_object(self):
         return self.request.user
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        context['volet'] = VOLET_AUCUN          # formulaire de compte, cf. UserPage
-        return context
-
     def get_form(self, form_class=None):
         form = super().get_form(form_class)
         # Apply dark theme styling to all form fields
@@ -185,6 +180,11 @@ class UserEdit(UpdateView):
         user = self.object
         context['title'] = f'{user.first_name} {user.last_name}' if user.first_name else user.username
         context['subtitle'] = 'Modifier les informations du profil'
+        # Formulaire de compte, cf. UserPage. ⚠ Posé le 2026-10-20 dans une seconde
+        # `get_context_data` écrite au-dessus de celle-ci — définie après, celle-ci la remplaçait :
+        # la page rendait les trois cadres vides de `base.html` jusqu'au 2026-10-28
+        # (`tests_unbound_names.MethodDefinedTwiceTest`).
+        context['volet'] = VOLET_AUCUN
         return context
 
 
