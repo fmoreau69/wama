@@ -40,15 +40,9 @@
     return m ? decodeURIComponent(m[1]) : '';
   }
 
+  /** L'import commun, chargé à la demande par la plomberie commune (`WamaApp.loadScript`). */
   function loadScript(src) {
-    return new Promise(function (resolve, reject) {
-      if (global.WamaImport) { resolve(); return; }
-      var s = document.createElement('script');
-      s.src = src;
-      s.onload = function () { resolve(); };
-      s.onerror = function () { reject(new Error('script introuvable : ' + src)); };
-      document.head.appendChild(s);
-    });
+    return global.WamaApp.loadScript(src, function () { return !!global.WamaImport; });
   }
 
   function stamp() {

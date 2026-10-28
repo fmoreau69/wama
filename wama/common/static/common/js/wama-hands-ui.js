@@ -38,9 +38,7 @@ export function registerHandTarget(target) {
 function ensureDom() {
   if (box) return;
   // La feuille du composant, à côté de lui (`common/css/wama-hands.css`) : chargée avec lui seulement.
-  const link = document.createElement('link');
-  link.rel = 'stylesheet'; link.href = new URL('../css/wama-hands.css', import.meta.url).href;
-  document.head.appendChild(link);
+  window.WamaApp.loadStyle(new URL('../css/wama-hands.css', import.meta.url).href);
   box = document.createElement('div');
   box.className = 'wama-hands'; box.hidden = true;
   box.innerHTML = '<video muted playsinline></video><canvas></canvas><div class="wc-hands-status"></div>';

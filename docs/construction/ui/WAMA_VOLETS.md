@@ -448,6 +448,13 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     sortait du document, et l'inspecteur ne retrouvait plus l'aperçu pour le remontrer ; et les
     infos revenaient AU-DESSUS de l'aperçu (l'inspecteur montre l'un puis l'autre, la grille posait
     le second sous le premier arrivé).
+  - **Revérification du même jour** : le module chargeait la grille par son propre `loadScript`,
+    la TROISIÈME copie privée du geste (après le chat de l'assistant et l'ajout à la
+    médiathèque), et sa feuille comme la main virtuelle. Réunis dans la plomberie commune,
+    `WamaApp.loadScript` / `WamaApp.loadStyle` (`wama-app-base.js`), les quatre appelants passés
+    par eux, vérifiés au navigateur (le ⚙ du chat sur le journal, l'import de la médiathèque, la
+    grille du volet) ; garde `tests_script_loader` (aucun JS de WAMA ne crée sa balise `<script>`
+    ou `<link>`), contre-épreuve rouge par un fichier jetable.
   - **Pas fait** : replier une section (l'avatar a son propre repli, qui laisse alors un vide dans
     un panneau de hauteur fixe — on retaille le panneau) ; ouvrir un panneau dans une autre
     fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`, la suite prévue).

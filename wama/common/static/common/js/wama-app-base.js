@@ -1280,7 +1280,39 @@
     return alpha === undefined ? value : 'rgba(' + value + ', ' + alpha + ')';
   }
 
+  /** Charger un SCRIPT À LA DEMANDE (2026-10-28) — un module que la page ne charge pas d'office
+   *  (le moteur des réglages, l'import de la médiathèque, la grille du volet en briques) : trois
+   *  briques en recopiaient chacune sa version privée. `ready()`, s'il est donné, dit que le module
+   *  est déjà là ; deux demandes du même fichier partagent le même chargement. */
+  const loadingScripts = {};
+  function loadScript(src, ready) {
+    if (ready && ready()) return Promise.resolve();
+    if (!loadingScripts[src]) {
+      loadingScripts[src] = new Promise(function (resolve, reject) {
+        const tag = document.createElement('script');
+        tag.src = src;
+        tag.onload = function () { resolve(); };
+        tag.onerror = function () {
+          delete loadingScripts[src];
+          reject(new Error('script introuvable : ' + src));
+        };
+        document.head.appendChild(tag);
+      });
+    }
+    return loadingScripts[src];
+  }
+  /** Et sa FEUILLE DE STYLE, une seule fois par page. */
+  function loadStyle(href) {
+    if (!href || document.querySelector('link[rel="stylesheet"][href="' + href + '"]')) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = href;
+    document.head.appendChild(link);
+  }
+
   global.WamaApp = {
+    loadScript: loadScript,
+    loadStyle: loadStyle,
     themeColor: themeColor,
     formatSize: formatSize,
     formatDuration: formatDuration,

@@ -133,22 +133,14 @@
   // valeurs) et enregistré par elle (POST du formulaire de `WamaParams.settingsModal`). C'est le
   // chemin du mode simplifié — volets masqués — et du mini-chat des autres pages, qui n'avait
   // aucun accès aux réglages. `wama-params.js` n'est pas global (chaque surface qui rend un
-  // schéma le charge) : chargé ici à la première ouverture.
-  function loadScript(src) {
-    return new Promise(function (resolve, reject) {
-      var tag = document.createElement('script');
-      tag.src = src;
-      tag.onload = resolve;
-      tag.onerror = function () { reject(new Error('script ' + src)); };
-      document.head.appendChild(tag);
-    });
-  }
-
+  // schéma le charge) : chargé ici à la première ouverture, par la plomberie commune
+  // (`WamaApp.loadScript`).
   Chat.prototype.openSettings = function () {
     var url = this.cfg.settingsUrl;
     if (!url) return Promise.resolve(null);
     var ready = global.WamaParams ? Promise.resolve()
-      : (this.cfg.paramsScript ? loadScript(this.cfg.paramsScript) : Promise.reject(new Error('WamaParams')));
+      : (this.cfg.paramsScript ? global.WamaApp.loadScript(this.cfg.paramsScript)
+                               : Promise.reject(new Error('WamaParams')));
     return ready.then(function () {
       return fetch(url, { headers: { 'Accept': 'application/json' } });
     }).then(function (r) { return r.json(); }).then(function (d) {

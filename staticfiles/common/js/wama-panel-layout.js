@@ -31,30 +31,15 @@
     var layout = null;              // la disposition commune, une fois montée
     var lockBtn = null, resetBtn = null;
 
-    // ── Les fichiers de la grille, chargés au premier geste (une page disposée les a déjà) ──
-    function loadStyle(href) {
-        if (!href || document.querySelector('link[href="' + href + '"]')) return;
-        var link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = href;
-        document.head.appendChild(link);
-    }
-    function loadScript(src, ready) {
-        if (ready()) return Promise.resolve();
-        return new Promise(function (resolve, reject) {
-            var s = document.createElement('script');
-            s.src = src;
-            s.onload = resolve;
-            s.onerror = function () { reject(new Error(src)); };
-            document.body.appendChild(s);
-        });
-    }
+    // ── Les fichiers de la grille, chargés au premier geste (une page disposée les a déjà),
+    // par la plomberie commune (`WamaApp.loadScript`, `loadStyle`).
     function loadGrid() {
-        loadStyle(me.dataset.gridstackCss);
-        loadStyle(me.dataset.surfaceCss);
-        return loadScript(me.dataset.gridstackJs, function () { return !!global.GridStack; })
+        var App = global.WamaApp;
+        App.loadStyle(me.dataset.gridstackCss);
+        App.loadStyle(me.dataset.surfaceCss);
+        return App.loadScript(me.dataset.gridstackJs, function () { return !!global.GridStack; })
             .then(function () {
-                return loadScript(me.dataset.layoutJs, function () { return !!global.WamaBrickLayout; });
+                return App.loadScript(me.dataset.layoutJs, function () { return !!global.WamaBrickLayout; });
             });
     }
 
