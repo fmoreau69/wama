@@ -220,6 +220,9 @@ class KnownOnlyRestoreTest(TestCase):
             'legacyapp/2/output/witness.png': False,
             'legacyapp/1/output/unreferenced.png': False,
             '~Archives/old.txt': False,
+            # A file at the ROOT belongs to no app and no account : the user put it there (the
+            # two `WAMA_Presentation*.wav` of 2026-10-27 — the unreferenced one had been missed).
+            'Presentation_voice.wav': True,
         }
         for rel in self.files:
             (self.remote / rel).parent.mkdir(parents=True, exist_ok=True)

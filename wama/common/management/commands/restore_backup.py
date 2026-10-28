@@ -81,7 +81,10 @@ def known_media():
     (`media_guard.DATA_HOMES`) — `users/<id>/` d'un compte réel encore en base, la médiathèque —
     et, ailleurs, ce qu'une card référence encore (`file_references.referenced_paths`), sauf la
     card d'un compte de TEST : ce qu'il porte, ce sont ses témoins, où qu'ils soient rangés
-    (mesuré le 2026-10-28 : un témoin `imager/54/output/…` de l'ancienne disposition)."""
+    (mesuré le 2026-10-28 : un témoin `imager/54/output/…` de l'ancienne disposition). Et un
+    FICHIER posé à la racine de `media/` : il n'appartient à aucune app ni à aucun compte, seul
+    l'utilisateur l'y a mis (`MEDIA_STORAGE_TIERING §8bis` : les deux `WAMA_Presentation*.wav` de
+    Fabien) — la restauration du 27/10 avait manqué celui qu'aucune card ne référence."""
     from collections import defaultdict
 
     from django.apps import apps
@@ -109,6 +112,8 @@ def known_media():
 
     def keep(rel: str) -> bool:
         head, _, rest = rel.partition('/')
+        if not rest:                    # un fichier à la racine : à l'utilisateur, il voyage
+            return True
         if head == users_home:
             owner = rest.split('/', 1)[0]
             return owner in real or (owner not in test and rel in referenced)

@@ -34,7 +34,9 @@ python manage.py check_media_integrity                                          
 - `~Archives` est exclu par la route (`wama/common/management/commands/restore_backup.py`) —
   décision de Fabien, ne pas le réintégrer.
 - `--known-only` : seul revient ce que la base connaît encore — dossiers des comptes réels, la
-  médiathèque, et ailleurs les fichiers qu'une card hors compte de test référence. La sauvegarde
+  médiathèque, les fichiers posés à la RACINE de `media/` (à l'utilisateur : le 27/10, un
+  `WAMA_Presentation_VoixFab.wav` qu'aucune card ne référence avait été manqué), et ailleurs les
+  fichiers qu'une card hors compte de test référence. La sauvegarde
   NE SUPPRIME JAMAIS : sans lui, le tirage ramène aussi les dossiers de comptes de test, de comptes
   supprimés et d'anciennes apps (mesuré le 2026-10-28 : 1 826 fichiers, 18,45 Go d'encombrement ;
   avec lui, exactement les 2 309 fichiers que la restauration du 27/10 avait retenus). Le 27/10,
