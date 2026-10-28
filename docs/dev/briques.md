@@ -3575,11 +3575,15 @@ Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique
 
 ### Surface d'outils
 
-Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas
+Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas. Chaque outil DÉCLARE son effet sur sa fonction (`tool_effect` : lecture / écriture / destruction, 2026-10-28) — les outils d'un sous-agent (`sub_agent_tools`) et les annotations MCP en DÉRIVENT
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (89) :
+- **API publique** (93) :
+  - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
+  - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
+  - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
+  - `tool_annotations(tool_name: str) -> dict` — Les annotations MCP d'un outil, tirées de sa marque — UNE déclaration, deux lecteurs : notre
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.

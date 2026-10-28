@@ -352,7 +352,7 @@ assumé ET déclaré, ou assumé dont le fichier a disparu, sort en ❌.
 |---|---|---|---|---|
 | **API REST v1** | Passerelle générique (token+session) sur TOOL_REGISTRY : lister/exécuter, gating F7 à l'annonce ET à l'exécution | `wama/api/v1/views.py` | — | 3 |
 | **Runner générique du studio** | Exécute une app par son CONTRAT (triade tool_api normalisée) — zéro logique par app | `wama/studio/services/generic_runner.py` | `docs/construction/mondes/STUDIO_VISION.md` | 21 |
-| **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas | `wama/tool_api.py` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 61 |
+| **Surface d'outils** | Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas. Chaque outil DÉCLARE son effet sur sa fonction (`tool_effect` : lecture / écriture / destruction, 2026-10-28) — les outils d'un sous-agent (`sub_agent_tools`) et les annotations MCP en DÉRIVENT | `wama/tool_api.py` | `docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md` | 61 |
 
 **Mécanismes déclarés : 214** · domiciles absents : 0 · sans consommateur : 0 (+ 1 autonomes DÉCLARÉS) · assumés locaux : 13 · modules balayés non rattachés : 125 · **de niveau app sans critère de grille : 55**
 - ❌ **Assumé ET déclaré** (contradiction, retirer d'un des deux) : `wama/common/utils/voice_options.py`
