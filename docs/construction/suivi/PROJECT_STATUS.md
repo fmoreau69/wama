@@ -26913,3 +26913,38 @@ portage du monde Lab. »*
   propriétaire par `getattr(instance, 'user')` et tient un objet sans propriétaire pour OUVERT
   (`common/utils/scoping.py:65-67`) — `CameraView` n'a pas de `user` : tout branchement d'une
   caméra sur une brique commune doit d'abord lui faire dire son propriétaire.
+
+## §CLÔTURE 2026-10-28, « APERÇU » — session close — non poussé — 🔚 rien à reprendre ici : les restes ont leur session
+
+Session ouverte le 2026-10-20 (`PROJECT_STATUS §PALIER 2026-10-20 (nuit) « APERÇU… »`), close sur
+`§PALIER 2026-10-28 « APERÇU ④ : la vignette commune »`. Commits de la session depuis le 20/10 :
+`a8cc1a93` (③ code mort, ① la card suit Pendant), `6948529d` + `e8695e57` (② passé à la session
+assistant), `fac8c37f` + `d41652d1` + `5664ace6` (④ vignette commune, R183, geste
+`media_library.thumbnails`, `natures_3d` réparé), `b16b4a47` + `13190820` (cadre isolé → Briques UI ;
+vidéos du Lab sorties du ④), plus le commit de cette clôture (skill `/commit-partiel` : la pose
+d'UNE ligne de doc générée quand le hunk `-U0` mêle deux auteurs).
+
+**Où vivent les restes (aucun n'est à cette session)** :
+- ② le chat rend les faces → session **assistant** : étape serveur faite (`696930ce`, `preview_url`
+  dans `job_progress`), l'étape chat est son WIP (`media-preview.js`, `wama-assistant-chat.js`).
+- cadre isolé du document rendu (trois écritures) → session **Briques UI** (passation au palier
+  du 28/10 ; ⚠ `media-preview.js` est co-édité par la session assistant).
+- vidéos du cam_analyzer et du face_analyzer → **monde Data** (plugins graphiques, dont la
+  visionneuse vidéo, sur le contrat de synchronisation du magnéto) puis **portage du Lab** sur les
+  briques communes (décision de Fabien, constats relus au code au même palier).
+
+**Contrôles mesurés à la clôture** : 387 tests verts sous WSL, 0 ignoré (`tests_media_tile`,
+`media_library` entier, `tests_preview_dead_code`, `tests_card_pending_face`, `tests_cap_from_js`,
+`tests_nightly_modes`, `tests_preview_navigation`, `tests_preview_entry`, `tests_preview_faces`,
+`tests_designation_js`) ; gestes `media_library.thumbnails`, `natures_3d`, `card_menu_state`,
+`card_menu_late_binding`, `filter_bar`, `common.preview_navigation`, `preview_layout`,
+`preview_during` verts sur la prod ; `check_docs` 0 cassée, 1 périmée hors de cette session ;
+`check_redundancy` 89 trouvailles, aucune dans les fichiers de la session ; `doc_facts --check` :
+le bloc `mecanismes` périmé par le WIP de la session assistant (une phrase ajoutée au même
+mécanisme), la part de cette session identique à HEAD. Rouges hors de ce travail : budgets de
+langue (code 2650 > 2645), `tests_touch` (`wama-constellation.css`).
+
+**Écart consigné, non ramené** : deux tables d'icônes par nature de fichier coexistent, de rôles
+différents — `detail_registry._PROPS_ICON` (serveur, catégorie de média → icône de la ligne de
+propriétés) et `WamaMediaPreview.tileIcon` (client, type MIME → icône d'une vignette, l'ex-`_iconOf`
+du sélecteur déplacé, pas une écriture neuve).

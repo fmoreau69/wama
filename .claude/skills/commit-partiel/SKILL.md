@@ -361,6 +361,16 @@ tel quel, rattrapé au commit suivant par un ré-export WSL. Le signe : des lign
 "library"` SUPPRIMÉES dans `git show --stat` d'un commit de régénération. Les docs (`doc_facts`)
 ne sont pas concernées ; tout ce qui lit `importlib.metadata` l'est.
 
+✅ **Une seule LIGNE de doc générée, quand le hunk `-U0` mêle la tienne à celle d'autrui**
+(2026-10-28). Dans une table générée, deux lignes VOISINES changées par deux sessions forment un
+seul hunk `-U0` (`@@ -282,2 +282,2 @@` : la ligne « Panneau de la cloche » d'une autre session au-dessus
+de ma ligne « Preview unifiée ») — `pick_hunks.py` ne sait prendre que le hunk ENTIER. Le geste :
+`stage_line.py <doc> "<préfixe unique de MA ligne>"`, à côté de ce skill — le blob de HEAD dont
+cette seule ligne prend la valeur de l'arbre, posé par `hash-object` + `update-index --cacheinfo`
+(dans l'index temporaire de l'appelant). Il échoue si le préfixe n'est pas unique des deux côtés ou
+si la ligne n'a pas changé ; la garde du script de commit exige ensuite `1	1	<doc>` au `numstat`
+et la présence de son ancre (`R<n>`, symbole) dans le diff indexé.
+
 ## 5. Avant de livrer le commit
 
 - `git diff --cached --stat` relu **à voix haute** : chaque fichier, chaque nombre de lignes, est
