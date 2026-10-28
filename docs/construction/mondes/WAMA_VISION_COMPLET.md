@@ -509,6 +509,14 @@ soit offert. Qu'un modèle sache vraiment appeler un outil se MESURE avant de le
 (`llm_gateway_check --tools`) ⏳ — ILaaS, le principal cloud souverain, à mesurer sur ses six
 modèles à la sortie de sa maintenance.
 
+**Plusieurs agents pour une demande, une réflexion de RECHERCHE 🔄 (Fabien, 2026-10-29).** Au-delà
+de l'assistant de laboratoire : mener ensemble plusieurs travaux (un audit, une recherche sur le web,
+un diagnostic, un plan d'implémentation), réfléchir en profondeur à une question de recherche — un
+**council** de plusieurs modèles —, jusqu'à la bibliographie. ✅ le socle : un sous-agent est un tour
+de la même boucle, borné et en lecture seule (`WAMA_HARNESS §7.4`, étape 1). ⏳ la délégation par
+l'assistant, le council, et une source SAVANTE parmi les outils — aujourd'hui seuls le web et les
+documents de WAMA (bibliographie en pipeline : `ROADMAP §21.5`).
+
 ---
 
 # Partie 6 — Création multimédia
