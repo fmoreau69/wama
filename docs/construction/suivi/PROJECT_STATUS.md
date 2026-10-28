@@ -26881,46 +26881,35 @@ autre chose (« Périmé — Appliquer le refait ») qu'il faut garder ? Preuves
 fonction, une garde « la règle vit à un endroit », un geste sur la page servie d'une surface qui
 monte `html_preview` (le Writer) et `common.preview_layout`, avec leur contre-épreuve.
 
-### ⏳ DÉCISION DE FABIEN — les vidéos des apps du Lab
+### 📌 TRANCHÉ PAR FABIEN (2026-10-28) — les vidéos du Lab SORTENT du ④ de l'aperçu
 
-Ce que l'utilisateur voit aujourd'hui (relu au code le 2026-10-28) :
-- **cam_analyzer** : à la fin d'une analyse, les vidéos ANNOTÉES d'une caméra sont des boutons
-  « lien » qui ouvrent le fichier brut dans un nouvel onglet
-  (`wama_lab/cam_analyzer/static/cam_analyzer/js/index.js:2291-2296`, chemin lu dans
-  `results_summary['annotated_videos'][position]`, écrit par `tasks.py:1518`) ; ni la visionneuse
-  commune, ni Comparer avec la vidéo d'origine ou sa version anonymisée (`views.py:276`).
-- **face_analyzer** : la page vidéo remplace elle-même la source de son lecteur par la vidéo de
-  sortie à la fin (`templates/face_analyzer/video.html:749-761`) ; ce lecteur porte la surcouche
-  d'analyse synchronisée (courbes, image par image) — c'est une page d'ÉDITION, pas un aperçu.
+*« Là on parle du portage des apps Lab sur le commun en briques communes. […] L'idée est de
+transposer tout le travail de briques communes au monde Lab, pas seulement de gérer les vidéos.
+[…] J'imaginais plutôt de commencer par les plugins graphiques du monde Data, dont la visionneuse
+vidéo. […] Il faut d'abord préparer le monde Data pour que le monde Lab hérite parfaitement des
+mondes Médias et Data sur tous ses aspects. Là ça ressemble à un pansement temporaire avant le
+portage du monde Lab. »*
 
-Pourquoi ce n'est pas un portage simple :
-1. Les adresses communes ne prennent qu'une clé ENTIÈRE (`common/urls.py:22`
-   `preview/<str:app_name>/<int:pk>/`, et de même le détail `:24`, les surfaces `:27-35`, le
-   partage `:105`, « Envoyer vers » `:162`…), et `DetailRegistry.preview_url` rend vide une clé
-   non entière (`common/utils/detail_registry.py:83`). Les SESSIONS du Lab sont en UUID
-   (`cam_analyzer/models.py:244`, `face_analyzer/models.py:90`).
-2. ⚠ Correction du 28/10 : la CAMÉRA du cam_analyzer (`CameraView`, `models.py:321`) a, elle, une
-   clé ENTIÈRE — c'est elle qui porte la vidéo d'entrée, et chaque vidéo annotée est celle d'une
-   caméra. Le cam_analyzer peut donc rejoindre l'aperçu commun SANS toucher aux adresses, une
-   face par caméra (Entrée = `video_file`, Sortie = la vidéo annotée, et l'anonymisée).
-3. ⚠ Mais la règle de droits de l'aperçu lit le propriétaire par `getattr(instance, 'user')`
-   (`common/utils/scoping.py:65`) et tient un objet SANS propriétaire pour ouvert (`:66-67`) :
-   `CameraView` n'a pas de `user` (il est sur sa session). L'enregistrer tel quel rendrait les
-   vidéos de toute caméra lisibles par tout compte. Il faut d'abord que la caméra DISE son
-   propriétaire (une propriété `user` qui rend `session.user`, sans migration) — et une garde qui
-   le prouve (un autre compte reçoit 403).
-
-Les choix, du plus petit au plus large :
-- **A — cam_analyzer par la caméra** (aucune adresse commune touchée) : propriétaire de la caméra,
-  adaptateur d'aperçu de `CameraView` (entrée, annotée, anonymisée), les boutons « lien » remplacés
-  par la visionneuse commune (Comparer compris). Le face_analyzer reste tel quel.
-- **B — A, plus le face_analyzer au chantier TRANSPORT** : sa page rejoint l'axe commun
-  (`media_axis`) comme l'éditeur du Transcriber, et sa sortie s'ouvre dans la visionneuse ; c'est
-  le chantier de la page d'édition, pas de l'aperçu.
-- **C — les adresses communes acceptent aussi un UUID** : décision de SUBSTRAT, toute la famille
-  des routes `<int:pk>` (aperçu, détail, surfaces, partage, envoi), les lecteurs qui en dérivent
-  l'adresse (`preview_url`, `elementOf` de `media-preview.js`, qui ne lit que des chiffres) ; le
-  Lab entier y gagnerait (sessions, partage, journal), mais c'est un chantier à part entière.
-Recommandation de cette session : **A maintenant** (petit, sans risque pour les autres apps une
-fois le propriétaire posé), B avec le chantier transport, C seulement si un besoin du Lab au-delà
-de l'aperçu le demande.
+- **Ce que cette session avait proposé, et pourquoi c'était à côté** : brancher les vidéos du
+  cam_analyzer sur l'aperçu commun (et donc faire de la visionneuse d'aperçu le lecteur vidéo du
+  Lab). Or le lecteur vidéo d'une analyse est un PLUGIN GRAPHIQUE du monde Data, synchronisé par
+  le magnéto avec les autres vues (`WAMA_DATA_WORLD.md §9ter.4` — la session de codage ouvre
+  « Magneto + VideoPlayer » ; `⑥ Le Visualizer` — le CONTRAT de synchronisation se fixe en
+  premier). L'aperçu (cards, volet, visionneuse) montre un résultat ; il ne porte ni bus de temps
+  ni surcouche synchronisée. Le face_analyzer le montrait déjà : son lecteur porte la surcouche
+  d'analyse image par image.
+- **L'ordre** : préparer le monde Data (ses plugins graphiques, dont la visionneuse vidéo, sur le
+  contrat de synchronisation) → porter le monde Lab sur les briques communes, pour qu'il HÉRITE
+  des mondes Médias ET Data sur tous ses aspects (`ROUTE §10.6`, mondes déclarés), pas seulement
+  ses vidéos. Domicile : `WAMA_DATA_WORLD.md` (Visualizer, plugins) puis le portage du Lab.
+- **Constats relus au code le 28/10, à reprendre par ces chantiers (aucun n'est une décision)** :
+  le cam_analyzer donne ses vidéos annotées en liens bruts
+  (`wama_lab/cam_analyzer/static/cam_analyzer/js/index.js:2291-2296`) et le face_analyzer
+  remplace la source de son lecteur à la main (`templates/face_analyzer/video.html:749-761`) ;
+  les adresses communes ne prennent qu'une clé entière (`common/urls.py:22` et toute la famille
+  `<int:pk>` : détail, surfaces, partage, « Envoyer vers »), les SESSIONS du Lab sont en UUID
+  (`cam_analyzer/models.py:244`, `face_analyzer/models.py:90`) quand la CAMÉRA du cam_analyzer a
+  une clé entière (`CameraView`, `models.py:321`) ; ⚠ la règle de droits commune lit le
+  propriétaire par `getattr(instance, 'user')` et tient un objet sans propriétaire pour OUVERT
+  (`common/utils/scoping.py:65-67`) — `CameraView` n'a pas de `user` : tout branchement d'une
+  caméra sur une brique commune doit d'abord lui faire dire son propriétaire.
