@@ -187,30 +187,70 @@ class _FramesWithOutside(dict):
         return super().get(index, default)
 
 
-def confident(doc: dict, min_confidence: float) -> dict:
-    """Le document sans les détections sous `min_confidence` (une détection sans confiance est
-    gardée). Filtré AVANT l'interpolation : une fausse détection écartée n'est plus prolongée en
-    bande floutée, et un objet réel dont la confiance faiblit une image est comblé par ses
-    voisines. Le réglage du profil `anonymize_min_confidence` ; l'aperçu du volet trace la même
-    règle (`index.js`, panneau « Anonymisé »)."""
-    floor = float(min_confidence or 0.0)
+def class_floors(profile) -> dict:
+    """{classe: seuil} du floutage pour chaque classe floutée du profil : son seuil propre
+    (`anonymize_class_min_confidence`), sinon le seuil commun (`anonymize_min_confidence`)."""
+    default = float(getattr(profile, 'anonymize_min_confidence', 0.0) or 0.0)
+    own = getattr(profile, 'anonymize_class_min_confidence', None) or {}
+    return {c: float(own.get(c, default)) for c in (getattr(profile, 'anonymize_classes', None) or [])}
+
+
+def clean_class_floors(value) -> dict:
+    """{classe: seuil} reçu d'un formulaire → seuils bornés à [0, 1] (3 décimales). Lève
+    `ValueError` si ce n'est pas un objet de nombres."""
+    if not isinstance(value, dict):
+        raise ValueError('seuils par classe : objet attendu')
+    return {str(c).strip(): round(max(0.0, min(1.0, float(v))), 3)
+            for c, v in value.items() if str(c).strip()}
+
+
+def profile_fields(profile) -> dict:
+    """Les réglages d'anonymisation d'un profil tels que le volet les lit — avec les écritures
+    équivalentes de chaque classe, pour que l'aperçu range une détection sous sa classe."""
+    classes = getattr(profile, 'anonymize_classes', None) or []
+    return {'anonymize_classes': classes,
+            'anonymize_quality': profile.anonymize_quality,
+            'anonymize_min_confidence': profile.anonymize_min_confidence,
+            'anonymize_class_min_confidence': profile.anonymize_class_min_confidence or {},
+            'anonymize_class_forms': class_forms(classes)}
+
+
+def class_forms(classes) -> dict:
+    """{classe: [écritures équivalentes, normalisées]} — une détection se nomme comme son jeu de
+    poids (`license_plate`), le profil comme l'Anonymizer (`plate`) : la table d'équivalence est
+    celle de la couverture des modèles (`model_coverage.formes_equivalentes`), servie aussi à
+    l'aperçu du volet pour qu'il ne la recopie pas."""
+    from wama.common.services.model_coverage import formes_equivalentes
+    return {c: sorted(formes_equivalentes(c)) for c in classes or []}
+
+
+def confident(doc: dict, min_confidence: float, floors: dict | None = None) -> dict:
+    """Le document sans les détections sous leur seuil (une détection sans confiance est gardée) :
+    le seuil de sa classe dans `floors` ({classe: seuil}, `class_floors`), sinon `min_confidence`.
+    Filtré AVANT l'interpolation : une fausse détection écartée n'est plus prolongée en bande
+    floutée, et un objet réel dont la confiance faiblit une image est comblé par ses voisines.
+    L'aperçu du volet trace la même règle (`index.js`, panneau « Anonymisé »)."""
+    from wama.common.services.model_coverage import normaliser_classe
+    default = float(min_confidence or 0.0)
+    by_form = {f: float(v) for c, v in (floors or {}).items() for f in class_forms([c])[c]}
     frames = []
     for frame in doc.get('frames') or []:
-        kept = [d for d in frame.get('d') or [] if float(d.get('conf', 1.0)) >= floor]
+        kept = [d for d in frame.get('d') or []
+                if float(d.get('conf', 1.0)) >= by_form.get(normaliser_classe(d.get('label')), default)]
         if kept:
             frames.append(dict(frame, d=kept))
     return dict(doc, frames=frames)
 
 
 def blur_camera(camera, doc, settings_: dict, target: str, progress=None,
-                min_confidence: float = 0.0) -> str:
+                min_confidence: float = 0.0, floors: dict | None = None) -> str:
     """Réécrit la vidéo de `camera` floutée selon `doc` — le process « Floutage » de
     l'Anonymizer (interpolation des trous, extrapolation aux bords, flou à la forme ou au
     rectangle) — et l'image entière hors des plages anonymisées. Rend le chemin écrit.
-    `min_confidence` : les détections plus faibles ne sont pas floutées (`confident`)."""
+    Les détections sous le seuil de leur classe ne sont pas floutées (`confident`)."""
     from wama.common.utils import detections as dets
     from wama.common.utils.blur_utils import blur_detections
-    doc = confident(doc, min_confidence)
+    doc = confident(doc, min_confidence, floors)
     frames = dets.by_frame(
         doc, interpolate=bool(settings_.get('interpolate_detections', True)),
         max_gap=dets.max_gap_for(doc.get('fps'), settings_.get('max_interpolation_frames') or 0),

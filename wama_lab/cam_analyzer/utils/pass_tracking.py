@@ -109,9 +109,11 @@ PASSES: tuple = (
          depends_on=('extraction', 'intersection_windows'),
          watched=('anonymize_classes', 'anonymize_quality'), per_camera=True,
          task='compute_anonymize_detect_task', gpu=True, eta_size='windows', on_demand=True),
-    # Le seuil du floutage (2026-10-26) ne périme que le floutage : la détection garde tout.
+    # Le seuil du floutage (2026-10-26), par classe depuis le 2026-10-28 (`anonymize_floors`,
+    # dérivé), ne périme que le floutage : la détection garde tout.
     Pass('anonymize_blur', label='Anonymisation — floutage (affichage)', stage='analyse',
-         depends_on=('anonymize_detect',), watched=('anonymize_min_confidence',), per_camera=True,
+         depends_on=('anonymize_detect',), watched=('anonymize_min_confidence', 'anonymize_floors'),
+         per_camera=True,
          task='compute_anonymize_blur_task', eta_size='video', on_demand=True),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
     Pass('lane_events', label='Évènements de voie', stage='calcul', depends_on=('yolo_detect', 'yolopv2_lanes'),
@@ -288,12 +290,25 @@ def _parked_zones(profile, legacy=False):
             for i in (getattr(profile, 'intersections', None) or []) if isinstance(i, dict)]
 
 
+def _anonymize_floors(profile, legacy=False):
+    """Seuil du floutage de chaque classe floutée (`display_anonymization.class_floors`).
+    `legacy` : la règle d'avant le 2026-10-28, le seuil commun pour toutes les classes — un
+    floutage plus ancien n'a connu que lui (et sa valeur est déjà dans la photo)."""
+    from .display_anonymization import class_floors
+    if legacy:
+        default = float(getattr(profile, 'anonymize_min_confidence', 0.0) or 0.0)
+        return {c: default for c in (getattr(profile, 'anonymize_classes', None) or [])}
+    return class_floors(profile)
+
+
 #: Réglages surveillés DÉRIVÉS du profil : une passe ne surveille que la part d'un champ qu'elle lit.
-_DERIVED_SETTINGS = {'intersections': _intersections_for_windows, 'parked_zones': _parked_zones}
+_DERIVED_SETTINGS = {'intersections': _intersections_for_windows, 'parked_zones': _parked_zones,
+                     'anonymize_floors': _anonymize_floors}
 #: Valeur qu'avait un réglage surveillé pour un calcul lancé AVANT qu'on le surveille. Sans elle, il
 #: est absent de la photo, donc « inchangé » : le rayon garés posé à 15 m le 2026-10-13 ne périmait
 #: pas un tracking du matin, et « Compléter les passes » ne l'aurait pas refait.
-_LEGACY_SETTINGS = {'parked_zones': lambda profile: _parked_zones(profile, legacy=True)}
+_LEGACY_SETTINGS = {'parked_zones': lambda profile: _parked_zones(profile, legacy=True),
+                    'anonymize_floors': lambda profile: _anonymize_floors(profile, legacy=True)}
 
 
 def _profile_snapshot(profile, watched_keys: list[str]) -> dict:

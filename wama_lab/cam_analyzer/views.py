@@ -1362,9 +1362,7 @@ def list_profiles(request):
         'sam3_fps': p.sam3_fps,
         'restrict_to_intersection_windows': p.restrict_to_intersection_windows,
         'analyzed_positions': p.analyzed_positions or ['front', 'rear'],
-        'anonymize_classes': p.anonymize_classes,
-        'anonymize_quality': p.anonymize_quality,
-        'anonymize_min_confidence': p.anonymize_min_confidence,
+        **_anonymize_fields(p),
         'model_path': p.model_path,
         'task_type': p.task_type,
         'target_classes': p.target_classes,
@@ -1426,6 +1424,13 @@ def save_profile(request):
             try:
                 anonymize_settings['anonymize_min_confidence'] = round(max(0.0, min(1.0, float(
                     data.get('anonymize_min_confidence')))), 3)
+            except (TypeError, ValueError):
+                pass
+        if 'anonymize_class_min_confidence' in data:
+            from .utils.display_anonymization import clean_class_floors
+            try:
+                anonymize_settings['anonymize_class_min_confidence'] = clean_class_floors(
+                    data.get('anonymize_class_min_confidence'))
             except (TypeError, ValueError):
                 pass
         model_path = data.get('model_path', '')
@@ -1534,9 +1539,7 @@ def save_profile(request):
                 'sam3_fps': profile.sam3_fps,
                 'restrict_to_intersection_windows': profile.restrict_to_intersection_windows,
                 'analyzed_positions': profile.analyzed_positions or ['front', 'rear'],
-                'anonymize_classes': profile.anonymize_classes,
-                'anonymize_quality': profile.anonymize_quality,
-                'anonymize_min_confidence': profile.anonymize_min_confidence,
+                **_anonymize_fields(profile),
                 'model_path': profile.model_path,
                 'task_type': profile.task_type,
                 'target_classes': profile.target_classes,
@@ -1554,24 +1557,40 @@ def save_profile(request):
 @login_required
 @require_http_methods(["POST"])
 def save_anonymize_threshold(request, profile_id):
-    """Le seuil du floutage SEUL, depuis le panneau du bouton « Anonymisé » (2026-10-26) —
-    `save_profile` réécrit tout le profil, il lui faut le formulaire entier. Le seuil ne périme
-    que le floutage (`pass_tracking`, réglage surveillé de `anonymize_blur`) des sessions du
-    profil : la détection garde tout."""
+    """Les seuils du floutage SEULS, depuis le panneau du bouton « Anonymisé » (2026-10-26) —
+    `save_profile` réécrit tout le profil, il lui faut le formulaire entier. Reçoit le seuil commun
+    (`anonymize_min_confidence`) et/ou les seuils par classe (`anonymize_class_min_confidence`,
+    2026-10-28) ; ils ne périment que le floutage (`pass_tracking`, réglages surveillés de
+    `anonymize_blur`) des sessions du profil : la détection garde tout."""
+    from .utils.display_anonymization import clean_class_floors
     profile = get_object_or_404(AnalysisProfile, pk=profile_id, user=request.user)
+    fields = []
     try:
-        value = float(json.loads(request.body or b'{}').get('anonymize_min_confidence'))
-    except (TypeError, ValueError):
+        data = json.loads(request.body or b'{}')
+        if 'anonymize_min_confidence' in data:
+            profile.anonymize_min_confidence = round(max(0.0, min(1.0, float(
+                data['anonymize_min_confidence']))), 3)
+            fields.append('anonymize_min_confidence')
+        if 'anonymize_class_min_confidence' in data:
+            profile.anonymize_class_min_confidence = clean_class_floors(data['anonymize_class_min_confidence'])
+            fields.append('anonymize_class_min_confidence')
+    except (TypeError, ValueError, AttributeError):
         return JsonResponse({'success': False, 'error': 'Seuil invalide'}, status=400)
-    profile.anonymize_min_confidence = round(max(0.0, min(1.0, value)), 3)
-    profile.save(update_fields=['anonymize_min_confidence'])
+    if not fields:
+        return JsonResponse({'success': False, 'error': 'Seuil invalide'}, status=400)
+    profile.save(update_fields=fields)
     from .utils.pass_tracking import recompute_stale
     for s in profile.sessions.filter(user=request.user):
         try:
             recompute_stale(s)
         except Exception:
             logger.debug('recompute_stale', exc_info=True)
-    return JsonResponse({'success': True, 'anonymize_min_confidence': profile.anonymize_min_confidence})
+    return JsonResponse({'success': True, **_anonymize_fields(profile)})
+
+
+def _anonymize_fields(profile):
+    from .utils.display_anonymization import profile_fields
+    return profile_fields(profile)
 
 
 @login_required

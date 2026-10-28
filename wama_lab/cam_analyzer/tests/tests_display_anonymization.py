@@ -66,6 +66,33 @@ class ConfidenceFloorTest(unittest.TestCase):
         doc = {'frames': [{'i': 1, 'd': [{'conf': 0.0}, {'conf': 0.10}]}]}
         self.assertEqual(anon.confident(doc, 0.0), doc)
 
+    def test_each_class_has_its_own_floor_under_the_detector_name(self):
+        """Un seuil par classe (2026-10-28) : relever les plaques ne touche pas aux visages. La
+        détection se nomme comme son jeu de poids (`license_plate`), le seuil comme le profil
+        (`plate`) ; une classe sans seuil propre prend le seuil commun."""
+        doc = {'frames': [{'i': 1, 'd': [{'label': 'license_plate', 'conf': 0.40},
+                                         {'label': 'face', 'conf': 0.30},
+                                         {'label': 'person', 'conf': 0.30}]}]}
+        kept = anon.confident(doc, 0.35, {'plate': 0.50, 'face': 0.25})
+        self.assertEqual([d['label'] for d in kept['frames'][0]['d']], ['face'])
+
+    def test_counterproof_without_class_floors_the_common_floor_applies_to_all(self):
+        doc = {'frames': [{'i': 1, 'd': [{'label': 'license_plate', 'conf': 0.40},
+                                         {'label': 'face', 'conf': 0.30}]}]}
+        self.assertEqual([d['label'] for d in anon.confident(doc, 0.35)['frames'][0]['d']],
+                         ['license_plate'])
+
+    def test_class_floors_fall_back_on_the_common_floor(self):
+        profile = SimpleNamespace(anonymize_min_confidence=0.25, anonymize_classes=['face', 'plate'],
+                                  anonymize_class_min_confidence={'plate': 0.5})
+        self.assertEqual(anon.class_floors(profile), {'face': 0.25, 'plate': 0.5})
+
+    def test_class_floors_from_a_form_are_clamped_and_must_be_an_object(self):
+        self.assertEqual(anon.clean_class_floors({'plate': 1.7, 'face': '0.3', ' ': 0.1}),
+                         {'plate': 1.0, 'face': 0.3})
+        with self.assertRaises(ValueError):
+            anon.clean_class_floors(0.3)
+
 
 class OnDemandPassesTest(unittest.TestCase):
 
@@ -79,8 +106,21 @@ class OnDemandPassesTest(unittest.TestCase):
         self.assertEqual(pt._WATCHED['anonymize_detect'], ['anonymize_classes', 'anonymize_quality'])
 
     def test_the_blur_threshold_stales_the_blur_and_never_the_detection(self):
-        self.assertEqual(pt._WATCHED['anonymize_blur'], ['anonymize_min_confidence'])
+        self.assertEqual(pt._WATCHED['anonymize_blur'], ['anonymize_min_confidence', 'anonymize_floors'])
         self.assertNotIn('anonymize_min_confidence', pt._WATCHED['anonymize_detect'])
+        self.assertNotIn('anonymize_floors', pt._WATCHED['anonymize_detect'])
+
+    def test_a_class_floor_stales_a_blur_made_with_the_single_threshold(self):
+        """Un floutage du 26/10 n'a photographié que le seuil commun : son état par classe est ce
+        seuil pour toutes (`_LEGACY_SETTINGS`). Poser un seuil propre aux plaques le rend différent
+        de la photo courante — périmé ; sans seuil propre, rien ne change."""
+        plain = SimpleNamespace(anonymize_min_confidence=0.25, anonymize_classes=['face', 'plate'],
+                                anonymize_class_min_confidence={})
+        own = SimpleNamespace(**{**vars(plain), 'anonymize_class_min_confidence': {'plate': 0.5}})
+        for profile, stale in ((plain, False), (own, True)):
+            legacy = pt._LEGACY_SETTINGS['anonymize_floors'](profile)
+            current = pt._profile_snapshot(profile, ['anonymize_floors'])['anonymize_floors']
+            self.assertEqual(legacy != current, stale)
 
     def test_a_panel_row_says_whether_its_pass_is_on_demand(self):
         row = pt._panel_row(pt._BY_KEY['anonymize_detect'], 'front')
@@ -160,7 +200,7 @@ class VideoRoundTripTest(unittest.TestCase):
         self.assertGreater(stripes(frames[3]), 3 * stripes(frames[8]),
                            "dans la fenêtre l'image reste nette, hors fenêtre elle est floutée")
 
-    def _blurred_frame_3(self, min_confidence):
+    def _blurred_frame_3(self, min_confidence, floors=None):
         """Image 3 (dans la fenêtre) floutée selon une détection FAIBLE qui couvre toute l'image."""
         import cv2
         from wama.common.utils import detections as dets
@@ -168,9 +208,9 @@ class VideoRoundTripTest(unittest.TestCase):
         doc['scope'] = [[2, 4]]
         dets.add(doc, 3, [{'label': 'license_plate', 'conf': 0.12, 'box': [0, 0, 64, 48]}])
         doc.pop('_index', None)
-        target = os.path.join(self.tmp, f'out_{min_confidence}', 'front.mp4')
+        target = os.path.join(self.tmp, f'out_{min_confidence}_{sorted((floors or {}).items())}', 'front.mp4')
         written = anon.blur_camera(self.camera, doc, {'blur_ratio': 25, 'interpolate_detections': False},
-                                   target, min_confidence=min_confidence)
+                                   target, min_confidence=min_confidence, floors=floors)
         capture = cv2.VideoCapture(written)
         frames = [capture.read()[1] for _ in range(4)]
         capture.release()
@@ -179,6 +219,11 @@ class VideoRoundTripTest(unittest.TestCase):
     def test_a_detection_under_the_threshold_is_left_sharp(self):
         self.assertGreater(self._blurred_frame_3(0.25), 3 * self._blurred_frame_3(0.10),
                            "à 0,25 la détection à 0,12 reste nette ; à 0,10 elle est floutée")
+
+    def test_the_plate_floor_decides_for_a_plate_not_the_common_one(self):
+        self.assertGreater(self._blurred_frame_3(0.10, {'plate': 0.25}),
+                           3 * self._blurred_frame_3(0.25, {'plate': 0.10}),
+                           "le seuil des plaques l'emporte sur le seuil commun, dans les deux sens")
 
 
 class ThresholdViewsTest(django_test.TestCase):
@@ -214,6 +259,24 @@ class ThresholdViewsTest(django_test.TestCase):
         self.assertEqual(self.profile.anonymize_min_confidence, 1.0)
         self.assertEqual(self.profile.intersections, [{'lat': 1.0, 'lon': 2.0}],
                          "le reste du profil n'est pas touché")
+
+    def test_class_floors_are_saved_alone_and_served_with_the_class_forms(self):
+        import json
+        res = json.loads(self._call('save_anonymize_threshold', self.user, self.profile.id,
+                                    body={'anonymize_class_min_confidence': {'plate': 0.45, 'face': 0.2}}).content)
+        self.assertEqual(res['anonymize_class_min_confidence'], {'plate': 0.45, 'face': 0.2})
+        self.assertIn('license plate', res['anonymize_class_forms']['plate'],
+                      "l'aperçu range `license_plate` sous les plaques sans recopier la table")
+        self.profile.refresh_from_db()
+        self.assertEqual(self.profile.anonymize_class_min_confidence, {'plate': 0.45, 'face': 0.2})
+        self.assertEqual(self.profile.anonymize_min_confidence, 0.25, "le seuil commun n'est pas touché")
+
+    def test_class_floors_that_are_not_an_object_are_refused(self):
+        res = self._call('save_anonymize_threshold', self.user, self.profile.id,
+                         body={'anonymize_class_min_confidence': [0.3]})
+        self.assertEqual(res.status_code, 400)
+        res = self._call('save_anonymize_threshold', self.user, self.profile.id, body={})
+        self.assertEqual(res.status_code, 400)
 
     def test_a_threshold_that_is_not_a_number_is_refused(self):
         res = self._call('save_anonymize_threshold', self.user, self.profile.id,

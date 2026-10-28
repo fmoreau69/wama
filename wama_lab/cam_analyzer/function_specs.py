@@ -126,7 +126,11 @@ _spec('anonymize_blur', 'Anonymisation — floutage (affichage)',
       outputs=[PortSpec('video', DT.TABLE, produced_fields=['position', 'path'],
                         description="Une vidéo floutée par caméra, pour l'affichage seul.")],
       params=[ParamSpec('anonymize_min_confidence', 'float', 0.25, 0.0, 1.0, unit='',
-                        description="Confiance minimale d'une détection pour être floutée.")],
+                        description="Confiance minimale d'une détection pour être floutée (classes "
+                                    "sans seuil propre)."),
+              ParamSpec('anonymize_class_min_confidence', 'json', {},
+                        description="Seuil propre à une classe, {classe: confiance} — une plaque et un "
+                                    "visage n'ont pas le même coût d'oubli.")],
       cost={'cpu_bound': True})
 
 # ── Positionnement / géométrie ────────────────────────────────────────────────

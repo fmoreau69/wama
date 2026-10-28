@@ -615,11 +615,15 @@ window.CAM_ANALYZER = {
                         </div>
                     </div>
                     {% include 'common/_intent_slider.html' with dom_id='anonymizeQualitySlider' name='anonymize_quality' value=50 step=5 %}
-                    <div class="mt-2 d-flex align-items-center gap-2">
-                        <label class="small text-secondary mb-0" for="anonymizeMinConfInput"
-                               title="Une détection plus faible reste nette. Ne refait que le floutage (processeur), pas la détection. Se règle aussi, avec un aperçu sur la vidéo, depuis le ▾ du bouton « Anonymisé ».">Confiance minimale pour flouter</label>
-                        <input type="number" id="anonymizeMinConfInput" class="form-control form-control-sm"
-                               min="0" max="1" step="0.05" value="0.25" style="width:70px;">
+                    <div class="mt-2 d-flex align-items-center gap-3 flex-wrap"
+                         title="Une détection plus faible que le seuil de sa classe reste nette. Ne refait que le floutage (processeur, une seule passe), pas la détection. Se règle aussi, avec un aperçu sur la vidéo, depuis le ▾ du bouton « Anonymisé ».">
+                        <span class="small text-secondary">Confiance minimale pour flouter :</span>
+                        <label class="small text-secondary mb-0 d-flex align-items-center gap-1">plaques
+                            <input type="number" class="form-control form-control-sm anonymize-class-floor" data-anon-class="plate"
+                                   min="0" max="1" step="0.05" value="0.25" style="width:70px;"></label>
+                        <label class="small text-secondary mb-0 d-flex align-items-center gap-1">visages
+                            <input type="number" class="form-control form-control-sm anonymize-class-floor" data-anon-class="face"
+                                   min="0" max="1" step="0.05" value="0.25" style="width:70px;"></label>
                     </div>
                     <div class="form-text text-secondary small">
                         Les détecteurs de l'Anonymizer pour ce cran, sur les fenêtres d'intersection seules ;

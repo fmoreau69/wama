@@ -700,6 +700,13 @@ l'analyse ne les lit (la vidéo floutée ne sert qu'au bouton « Anonymisé »).
 le floutage écarte les détections sous `anonymize_min_confidence` (profil, défaut 0,25), réglage
 surveillé du floutage seul : le détecteur de plaques garde son propre seuil (0,10), d'où des
 bandes floutées sur zébras et reflets. Le seuil se règle sous le ▾ du bouton, avec un aperçu.
+Depuis le 2026-10-28, un seuil PAR CLASSE (`anonymize_class_min_confidence`, {classe: seuil} ; une
+classe sans le sien prend le seuil commun) : une plaque et un visage oubliés n'ont pas le même coût,
+et les fausses détections viennent des plaques. La détection se nomme comme son jeu de poids
+(`license_plate`), le seuil comme le profil (`plate`) : la correspondance est la table commune
+`model_coverage.formes_equivalentes`, servie aussi à l'aperçu. Toujours UNE passe de floutage — le
+filtre porte sur la liste des détections, la vidéo n'est réécrite qu'une fois. Réglage surveillé
+dérivé `anonymize_floors` ; un floutage antérieur compte pour le seuil commun sur toutes les classes.
 
 **Recalage ortho 2b — PASSES depuis le 2026-09-28** (ils n'étaient que deux boutons du panneau
 Calibration, qui restent) : `ortho_recalage` (étage ANALYSE, GPU : SAM3 sur l'orthophoto ; amonts

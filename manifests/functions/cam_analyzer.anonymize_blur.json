@@ -48,11 +48,21 @@
       {
         "choices": null,
         "default": 0.25,
-        "description": "Confiance minimale d'une détection pour être floutée.",
+        "description": "Confiance minimale d'une détection pour être floutée (classes sans seuil propre).",
         "key": "anonymize_min_confidence",
         "max": 1.0,
         "min": 0.0,
         "type": "float",
+        "unit": ""
+      },
+      {
+        "choices": null,
+        "default": {},
+        "description": "Seuil propre à une classe, {classe: confiance} — une plaque et un visage n'ont pas le même coût d'oubli.",
+        "key": "anonymize_class_min_confidence",
+        "max": null,
+        "min": null,
+        "type": "json",
         "unit": ""
       }
     ],

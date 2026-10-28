@@ -156,7 +156,17 @@ class AnalysisProfile(models.Model):
     anonymize_min_confidence = models.FloatField(
         default=0.25, db_default=0.25,
         help_text="Confiance minimale d'une détection pour être floutée dans les vidéos "
-                  "d'affichage (passe de floutage seule, sans nouvelle détection).",
+                  "d'affichage (passe de floutage seule, sans nouvelle détection) — le seuil des "
+                  "classes qui n'ont pas le leur.",
+    )
+    # Un seuil PAR CLASSE (2026-10-28, demande de Fabien) : une plaque oubliée et un visage oublié
+    # n'ont pas le même coût, et les fausses détections viennent des plaques — relever leur seuil
+    # ne doit pas toucher aux visages. Même passe de floutage, même coût : le filtre porte sur la
+    # liste des détections, la vidéo n'est réécrite qu'une fois.
+    anonymize_class_min_confidence = models.JSONField(
+        default=dict, db_default=models.Value({}, output_field=models.JSONField()), blank=True,
+        help_text="Seuil de floutage propre à une classe ({classe: confiance}, vocabulaire de "
+                  "`anonymize_classes`) ; une classe absente prend `anonymize_min_confidence`.",
     )
     analyzed_positions = models.JSONField(
         default=_default_analyzed_positions,

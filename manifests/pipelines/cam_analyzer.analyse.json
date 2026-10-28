@@ -198,7 +198,8 @@
           "stage": "analyse",
           "task": "compute_anonymize_blur_task",
           "watched": [
-            "anonymize_min_confidence"
+            "anonymize_min_confidence",
+            "anonymize_floors"
           ]
         }
       }
