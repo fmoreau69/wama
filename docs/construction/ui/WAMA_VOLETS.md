@@ -132,8 +132,13 @@ Le titre par défaut dit ce qu'est la section : **Aperçu** (`base.html`), ident
 Restent DÉCLARÉS, parce qu'ils y logent un contenu PERMANENT : le cam_analyzer (« Carte &
 passages ») et le model manager (ressources système hors sélection, `'no-selection'`). Garde :
 `test_the_preview_section_shows_only_what_is_selected` (aucun `keepMediaSection: true` ;
-contre-épreuve rouge par un fichier fautif jetable). ⏳ La branche `keepMediaSection === true` de
-`wama-inspector.js` n'a plus d'appelant : à retirer quand ce fichier, en cours ailleurs, sera libre.
+contre-épreuve rouge par un fichier fautif jetable). ⏳ Deux restes dans `wama-inspector.js`, à
+solder quand ce fichier, en cours ailleurs, sera libre (relevés à la revérification du même
+jour) : la branche `keepMediaSection === true` n'a plus d'appelant ; et le libellé « Aperçu » y est
+écrit une seconde fois (`fillPreview(card, 'Aperçu')`, l. 873) — le titre par défaut de la
+section le porte déjà (`base.html`), que `_setPreviewTitle(null)` sait reprendre. ⚠ La clé de
+déclaration reste `volet(medias=…)` : un identifiant français de l'API du volet (`SECTIONS`), qui
+se renommera avec ses ~20 appelants, pas au détour d'un libellé.
 
 ---
 
