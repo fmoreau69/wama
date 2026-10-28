@@ -1,0 +1,34 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [
+      "numpy"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Gradium",
+      "license": "MIT OR Apache-2.0",
+      "repository": "https://github.com/gradium-ai/xn-ptts",
+      "summary": "Text to 24 kHz speech, on device. No PyTorch.",
+      "version": "0.5.0"
+    },
+    "install": {
+      "pip": "ptts==0.5.0",
+      "requires_python": ">=3.9"
+    }
+  },
+  "description": "Runtime de Phonon (Gradium, sur Pocket TTS de Kyutai) : synthèse vocale 24 kHz sur le processeur, en flux, sans PyTorch — roue binaire (Rust) pour x86-64-v3. Lit un dossier de poids LOCAL installé par la route (aucun téléchargement : `hf://` jamais employé). Sans dépendances : numpy est déjà dans le venv. Évalué contre Kokoro le 2026-10-28 (demande de Fabien).",
+  "key": "ptts",
+  "manifest_kind": "library",
+  "name": "ptts",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:ptts==0.5.0",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
