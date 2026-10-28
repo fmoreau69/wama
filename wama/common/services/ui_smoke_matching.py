@@ -735,7 +735,7 @@ def check_media_library_natures_3d(url_path: str = '/media-library/'):
                     statut = page.evaluate("() => { const s = document.querySelector('#wamaMediaPreviewModal [data-wama-3d]');"
                                            " return s ? s.textContent.trim().slice(0, 100) : ''; }")
                     verdicts.append((monte, f'canvas WebGL monté (statut « {statut} »)'))
-                    page.click('#wamaMediaPreviewModal .btn-close')
+                    page.click('#wamaMediaPreviewModal [data-bs-dismiss="modal"]')
                     page.wait_for_timeout(900)
                     verdicts.append((page.evaluate("() => !document.querySelector('#wamaMediaPreviewModal [data-wama-3d] canvas')"),
                                      'canvas retiré à la fermeture'))
@@ -748,9 +748,106 @@ def check_media_library_natures_3d(url_path: str = '/media-library/'):
     return _bilan(verdicts, 'constats')
 
 
+def _png_sample() -> bytes:
+    """Un PNG 1×1 VALIDE, fabriqué octet par octet — aucune dépendance."""
+    import struct
+    import zlib
+
+    def chunk(kind, data):
+        return (struct.pack('>I', len(data)) + kind + data
+                + struct.pack('>I', zlib.crc32(kind + data) & 0xffffffff))
+    return (b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', 1, 1, 8, 2, 0, 0, 0))
+            + chunk(b'IDAT', zlib.compress(b'\x00\x99\x66\xcc')) + chunk(b'IEND', b''))
+
+
+def check_media_library_thumbnails(url_path: str = '/media-library/'):
+    """La VIGNETTE d'un asset est la brique commune, décidée par le TYPE du fichier (2026-10-28,
+    `WamaMediaPreview.tileHtml`, R183). (ok, detail).
+
+    Deux assets semés chez le compte de test : une image PNG, et un AVATAR qui est un objet glTF —
+    le cas que la page ratait quand elle décidait par l'onglet (une image cassée). La médiathèque
+    montre l'image et l'icône ; l'aperçu de l'image ouvre la visionneuse sur une image ; la fenêtre
+    de sélection montre la même vignette. 0 erreur console — et un 404 se NOMME.
+    """
+    from playwright.sync_api import sync_playwright
+    from django.core.files.base import ContentFile
+    from wama.common.services.nightly_tests import SkipScenario, get_test_user
+    from wama.media_library.models import UserAsset
+
+    token = _test_session_key('media_library')
+    if not token:
+        raise SkipScenario('aucun compte de test disponible')
+    user = get_test_user()
+    names = {'image': 'wama_temoin_vignette_image', 'avatar': 'wama_temoin_vignette_avatar_3d'}
+    for old in UserAsset.objects.filter(user=user, name__in=names.values()):
+        _retirer(old)
+    image = UserAsset(user=user, name=names['image'], asset_type='image', mime_type='')
+    image.file.save('wama_temoin_vignette.png', ContentFile(_png_sample()), save=False)
+    image.save()
+    avatar = UserAsset(user=user, name=names['avatar'], asset_type='avatar', mime_type='')
+    avatar.file.save('wama_temoin_vignette_avatar.glb', ContentFile(_glb_temoin(animated=False)),
+                     save=False)
+    avatar.save()
+    verdicts = []
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                ctx = browser.new_context(viewport={'width': 1400, 'height': 1000})
+                ctx.add_cookies(_cookie(token))
+                page = ctx.new_page()
+                errors = []
+                page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+                page.on('response', lambda r: errors.append(f'404 {r.url}') if r.status == 404 else None)
+                resp = page.goto(BASE_URL + url_path + '?tab=image', wait_until='networkidle')
+                v = _verdict_d_arrivee(page.url, _messages_a_l_ecran(page),
+                                       resp.status if resp else None, url_path)
+                if v is not None:
+                    return v
+                verdicts.append((page.evaluate("() => !!(window.WamaMediaPreview && WamaMediaPreview.tileHtml)"),
+                                 'brique de vignette servie (`WamaMediaPreview.tileHtml`)'))
+                card = page.wait_for_selector(f'.asset-card[data-id="{image.pk}"]', timeout=10000)
+                src = card.eval_on_selector('.asset-preview-wrap img.asset-preview-img',
+                                            'el => el.getAttribute("src")') if card.query_selector(
+                    '.asset-preview-wrap img.asset-preview-img') else ''
+                verdicts.append((src.endswith('.png'), f'la card de l’image montre l’image ({src or "rien"})'))
+                card.hover()
+                card.query_selector('.preview-btn').click()
+                page.wait_for_selector('#wamaMediaPreviewModal.show', timeout=8000)
+                shown = page.evaluate("() => { const m = document.querySelector('#wamaMediaPreviewModal');"
+                                      " const im = m && m.querySelector('img'); return im ? im.src : ''; }")
+                verdicts.append((shown.endswith('.png'), 'la visionneuse ouvre l’image'))
+                page.click('#wamaMediaPreviewModal [data-bs-dismiss="modal"]')
+                page.wait_for_timeout(500)
+
+                page.goto(BASE_URL + url_path + '?tab=avatar', wait_until='networkidle')
+                card = page.wait_for_selector(f'.asset-card[data-id="{avatar.pk}"]', timeout=10000)
+                verdicts.append((card.query_selector('.asset-preview-wrap img') is None
+                                 and card.query_selector('.asset-preview-wrap i.asset-preview-icon') is not None,
+                                 'un avatar glTF a son icône, pas une image cassée'))
+
+                page.evaluate("() => MediaPicker.open({type: 'image'})")
+                tile = page.wait_for_selector(f'#mp-grid img.card-img-top[src$="wama_temoin_vignette.png"], '
+                                              f'#mp-grid img.card-img-top[src*="wama_temoin_vignette"]',
+                                              timeout=10000)
+                verdicts.append((tile is not None, 'la fenêtre de sélection montre la même vignette'))
+                keep = [x for x in errors if not any(tok in x for tok in IGNORED_CONSOLE)]
+                verdicts.append((not keep, f'console : {len(keep)} erreur(s) {keep[:1]}'))
+            finally:
+                browser.close()
+    finally:
+        _retirer(image)
+        _retirer(avatar)
+    return _bilan(verdicts, 'constats')
+
+
 def register_media_library_scenarios():
     from wama.common.services.nightly_tests import register
     register(id='media_library.natures_3d', app='media_library', stage='ui',
              description='Médiathèque : les natures DÉRIVENT (A′) et un objet 3D se rend '
                          '(sonde glTF, visionneuse three, canvas libéré)',
              run=lambda ctx: check_media_library_natures_3d(), timeout_s=180)
+    register(id='media_library.thumbnails', app='media_library', stage='ui',
+             description='Médiathèque : la vignette est la brique commune, décidée par le TYPE '
+                         'du fichier (une image, un avatar glTF), la même dans la fenêtre de sélection',
+             run=lambda ctx: check_media_library_thumbnails(), timeout_s=180)
