@@ -846,7 +846,7 @@ class EndOfTurnModelLineTest(SimpleTestCase):
     """Le modèle est une ligne du catalogue, installée par la route (pilote `files`, Hub à un
     commit figé) — jamais un téléchargement au premier usage."""
 
-    def test_the_catalogue_line_declares_its_file_from_a_pinned_hub_commit(self):
+    def test_the_catalog_line_names_its_file_from_a_pinned_hub_commit(self):
         from wama.common.tts.end_of_turn import MODEL_KEY, TURN_FILES, model_folder
         from wama.model_manager.services.model_registry import ModelRegistry
         registry = ModelRegistry.__new__(ModelRegistry)
