@@ -26714,3 +26714,20 @@ la généraliser aux sorties intermédiaires ? »
   `~Archives` : dossiers de comptes de test, de comptes supprimés, anciens dossiers d'app. Options :
   (a) une option qui écarte ce que la base ne connaît plus (comptes réels seulement) ; (b) rien — de
   l'encombrement, jamais une casse.
+
+### §CLÔTURE 2026-10-28 (fin) — décisions 1 (a) et 2 (a) FAITES (`e80303c6`) — 🔚 relancer gunicorn (WAMA relancé à 00:39, AVANT ce commit) puis pousser
+
+- ✅ 1 (a), « un comportement universel » : `file_references.repoint` fait suivre les lignes
+  d'exécution (`ProcessRun.output_ref`) de tous les mondes, fichier et dossier — la « conséquence
+  assumée » de `ROUTE §10.6` est levée. Les lignes ne comptent pas comme des cards qui utilisent le
+  fichier ; une suppression les laisse dire « sortie perdue ». Garde sur les 21 apps du parc
+  (`tests_file_references`), contre-épreuve 21 rouges.
+- ✅ 2 (a) : `restore_backup --known-only` (`known_media`, moteur unique `mirror_tree(keep=…)`) ;
+  `file_references.referenced_paths` devient LA lecture de ce que la base désigne, empruntée par
+  `check_media_integrity` (mesure identique, 654). Sur la vraie sauvegarde : 2 309 fichiers, rien à
+  copier (sans borne : 1 826 fichiers, 18,45 Go d'encombrement). Garde `KnownOnlyRestoreTest`
+  (cards réelles, ancienne disposition comprise), contre-épreuve rouge.
+- Mesuré : 521 tests ; rouges hors session seuls (`writer_01` ×7, `wama/common/privacy/` non
+  suivi, budget des noms de méthodes 1292 > 1291 : aucun nom de mes fichiers — `tests_dev_inspect`
+  non suivi en porte deux en « refuses »). `check_docs` 0 cassée.
+- Pendings système : relancer gunicorn (+ workers) pour `repoint` ; pousser (rien n'est poussé).
