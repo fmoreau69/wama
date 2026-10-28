@@ -1690,11 +1690,13 @@ def get_studio_run_status(user, run_id: int = None) -> dict:
 
 def list_ai_models(user, app: str = None, task: str = None, modality: str = None,
                    downloaded_only: bool = False, include_proposed: bool = False,
-                   limit: int = 50) -> dict:
+                   limit: int = 50, query: str = None) -> dict:
     """
     List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
 
     Args:
+        query: words of the model's name or key (e.g. 'phonon', 'whisper large'): every word
+               must appear in one of them, case-insensitive.
         app: models an app can use (e.g. 'reader', 'imager'): its own models plus every model
              of the task(s) its model selector covers — proposals and other producers
              (Ollama, Hugging Face) included when include_proposed is true.
@@ -1749,6 +1751,12 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
                           & Q(capabilities__task__in=implied)))
     if downloaded_only:
         qs = qs.filter(is_downloaded=True)
+    # Par le NOM (2026-10-28, épreuve « installe Phonon » par l'assistant) : le paramètre n'existait
+    # pas, l'argument `query` qu'il envoyait était ignoré et il recevait tout le catalogue — il n'a
+    # trouvé la clé qu'en relistant les modèles du synthesizer.
+    for word in str(query or '').split():
+        from django.db.models import Q
+        qs = qs.filter(Q(name__icontains=word) | Q(model_key__icontains=word))
 
     total = qs.count()
     models = [{

@@ -405,6 +405,22 @@ class ModelsOfAnAppTest(TestCase):
         self.assertIn('proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6', image)
         self.assertNotIn('proposed:hf:PaddlePaddle/PaddleOCR-VL-1.6', audio)   # counter-check
 
+    def test_a_model_is_found_by_the_words_of_its_name_or_key(self):
+        """2026-10-28, « installe Phonon » played by the assistant : it sent `query='phonon'`, the
+        tool had no such argument, and it received the whole catalogue in key order."""
+        from django.contrib.auth import get_user_model
+        from wama import tool_api
+        AIModel.objects.create(model_key='huggingface:gradium/phonon-40m-fr', name='Phonon 40m (français)',
+                               model_type='speech', source='huggingface', is_downloaded=False)
+        AIModel.objects.create(model_key='synthesizer:kokoro-onnx', name='Kokoro ONNX',
+                               model_type='speech', source='synthesizer', is_downloaded=True)
+        user = get_user_model().objects.create_user('models_by_name', password='x')
+        by_name = [m['key'] for m in tool_api.list_ai_models(user, query='Phonon fr')['models']]
+        by_key = [m['key'] for m in tool_api.list_ai_models(user, query='gradium')['models']]
+        self.assertEqual(['huggingface:gradium/phonon-40m-fr'], by_name, 'every word must appear')
+        self.assertEqual(['huggingface:gradium/phonon-40m-fr'], by_key)
+        self.assertEqual([], tool_api.list_ai_models(user, query='phonon kokoro')['models'])
+
 
 class ProposalCapabilitiesTest(SimpleTestCase):
 
