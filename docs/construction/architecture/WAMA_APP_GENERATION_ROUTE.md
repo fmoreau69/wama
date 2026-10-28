@@ -1576,6 +1576,15 @@ verdict — déclarer son `composition.runtime.engine` (manifeste) le fait entre
 modèles sur tout le catalogue n'ont pas de moteur, les deux inexécutables — un modèle sans moteur
 qu'aucune app ne porte est désormais GRISÉ (`backend_missing`, critère = la source, jamais
 `backend_ref`).
+⚠ **Un second verdict, DÉCLARÉ, le 2026-10-28 (décision de Fabien)** : un DÉFAUT MESURÉ —
+`model_quality.DECLARED_DEFECTS`, libellé, raison, source datée — grise et exclut du tirage
+aux deux mêmes endroits, avec SA raison (1ʳᵉ entrée : `albert:whisper-large-v3`, « omet la
+parole lointaine », `WAMA_QUALITE`). Ce n'est pas le « grisage à la main » écarté le 02/09 :
+celui-là jugeait une EXÉCUTABILITÉ que le système sait vérifier ; ici le système ne sait pas
+encore juger la QUALITÉ d'un modèle sur la durée, et l'entrée ne vaut que par une mesure de
+WAMA, datée, retirée quand une nouvelle mesure la contredit. ⏳ La version « système » : dériver
+le verdict des taux de couverture que la garde (b) mesure déjà sur chaque card
+(`speech_coverage`), au lieu de le déclarer.
 
 > ### ✅ SUITE DU 2026-09-04→07 — le lien est passé du DÉCLARATIF au RÉSOLU
 >

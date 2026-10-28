@@ -120,16 +120,23 @@ class TheSelectGreysItWithItsReasonTest(TestCase):
     """Listing is not choosing (`INPUT_MODEL_MATCHING §2`) : the option STAYS, greyed, its short
     label in the select and its reason on hover — never the « backend absent » of another verdict."""
 
-    def test_the_option_is_listed_disabled_with_its_own_reason(self):
-        _asr('transcriber:flawed-asr')
-        _asr('transcriber:sound-asr')
+    def _options(self, declared):
         user = get_user_model().objects.create_user(username='defect_select', password='x')
         client = Client()
         client.force_login(user)
-        entry = ('drops distant speech', 'Measured on a distant interview.', '2026-10-28 test')
-        with mock.patch.dict(model_quality.DECLARED_DEFECTS, {'transcriber:flawed-asr': entry}):
+        with mock.patch.dict(model_quality.DECLARED_DEFECTS, declared, clear=True):
             data = client.get('/model-manager/api/models/options/', {'task': 'transcription'}).json()
-        options = [o for g in data['groups'] for o in g['options']]
+        return [o for g in data['groups'] for o in g['options']]
+
+    def test_without_a_declaration_the_same_model_is_selectable(self):
+        _asr('transcriber:flawed-asr')
+        self.assertIn(['transcriber:flawed-asr', 'flawed-asr'], self._options({}))
+
+    def test_the_option_is_listed_disabled_with_its_own_reason(self):
+        _asr('transcriber:flawed-asr')
+        _asr('transcriber:sound-asr')
+        entry = ('drops distant speech', 'Measured on a distant interview.', '2026-10-28 test')
+        options = self._options({'transcriber:flawed-asr': entry})
         flawed = next(o for o in options if isinstance(o, dict) and o.get('value') == 'transcriber:flawed-asr')
         self.assertTrue(flawed['disabled'])
         self.assertIn('drops distant speech', flawed['label'])

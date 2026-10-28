@@ -26821,3 +26821,29 @@ fichier a été raccourci par une autre session).
   répliques réelles.
 - Pendings système : relancer le service vocal pour que `4bb0f165` (fournisseurs ONNX communs)
   y soit chargé — comportement identique ; pousser `dev`.
+
+## §CLÔTURE — 2026-10-28 (fin de matinée), « ALBERT `whisper-large-v3` GRISÉ : DÉFAUT MESURÉ DÉCLARÉ » — clos
+
+Suite de `§CLÔTURE 2026-10-28 (matin)`. Commits : `9826af53` (le mécanisme), plus celui de cette
+clôture (revérification : contre-épreuve du grisage, note de doctrine en `ROUTE §F4b`).
+- ✅ **Décision (Fabien)** : « griser avec la vraie raison, dans le commun, et bien sûr ne peut plus
+  être sélectionné automatiquement ». `model_quality.DECLARED_DEFECTS` (libellé, raison, source
+  datée), lu là où `backend_missing` grise et exclut déjà : `select_model` et
+  `get_registry_models` → `api_model_options`. Le marqueur client du verdict serveur
+  (`data-backend-missing`, posé sur toute option désactivée avec une raison) le protège déjà de
+  `wama-input-match`. Vérifié sur la vraie base : Albert autorisé et prioritaire, le tirage rend
+  `transcriber:parakeet-tdt-0.6b-v3`. Une card qui porte déjà Albert se lance encore (clé
+  distante explicite).
+- ⚠ **Doctrine** : `ROUTE §F4b` disait « pas de grisage à la main » (02/09, exécutabilité) ; la note
+  ajoutée dit pourquoi un défaut de QUALITÉ mesuré se déclare, et la version système (dériver le
+  verdict des couvertures que mesure la garde (b)) reste ⏳.
+- Hypothèse de Fabien sur un filtre de parole : consignée avec la mesure (`WAMA_QUALITE`) — plutôt
+  le saut de fenêtre de Whisper (`no_speech_threshold`) qu'un Silero. Message à la DINUM rédigé,
+  gardé par Fabien : (c) reste ⏳.
+- Mesuré (WSL) : `tests_declared_priors` + `tests_auto_model` + `tests_model_options_catalog`
+  105/105 ; model_manager + routage + Transcriber 899 (3 erreurs d'import pendant l'édition de
+  `volet.py` par une autre session, vertes rejouées). Budget de langue du code 2650 > 2645 : les
+  ajouts sont dans `volet.py` / `context_processors.py` (travail en cours d'autrui), rien dans mes
+  fichiers (liste filtrée). `tests_test_layout` : `wama/common/privacy/` (autrui).
+- ⚠ Non vu à l'écran : le select de la modale d'une card dont la valeur est l'option grisée.
+- Pendings : relancer gunicorn (le grisage ne s'affiche qu'après) · pousser `dev`.
