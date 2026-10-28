@@ -100,6 +100,71 @@ class FirstLoginModerationTests(TestCase):
         moderation.pending_login(user)
         self.assertEqual(2, self._pending(user).filter(read_at__isnull=True).count())
 
+    def test_the_real_ldap_library_path_from_first_login_to_entry(self):
+        """De bout en bout par le VRAI chemin de django_auth_ldap (2026-10-28, Fabien : « il faut
+        qu'on soit sûr que ça fonctionne correctement ») : seul l'ANNUAIRE est simulé — son nom
+        distingué, son contrôle du mot de passe, ses attributs. La bibliothèque construit le
+        compte, le remplit, émet `populate_user` et l'enregistre elle-même ; les gardes
+        ci-dessus remplaçaient cette étape et l'enregistraient à sa place."""
+        import ldap
+        from django_auth_ldap.backend import _LDAPUser
+
+        def load_dn(ldap_user):
+            ldap_user._user_dn = f'uid={ldap_user._username},ou=people,dc=test'
+
+        def bind_as(ldap_user, dn, password, sticky=False):
+            if password != 'directory-password':
+                raise ldap.INVALID_CREDENTIALS()
+
+        def load_attrs(ldap_user):
+            ldap_user._user_attrs = {'givenName': ['Nouvelle'], 'sn': ['Collègue'],
+                                     'mail': ['nouvelle.collegue@univ.test'],
+                                     'uid': [ldap_user._username]}
+
+        def post_login(password):
+            return self.client.post(reverse('accounts:login'),
+                                    {'username': 'nouvelle.collegue', 'password': password}, **BROWSER)
+
+        directory = mock.patch.multiple(_LDAPUser, _load_user_dn=load_dn, _bind_as=bind_as,
+                                        _load_user_attrs=load_attrs)
+        attributes = override_settings(AUTH_LDAP_USER_ATTR_MAP={
+            'first_name': 'givenName', 'last_name': 'sn', 'email': 'mail'})
+        with directory, attributes:
+            # Un mot de passe que l'annuaire refuse : aucun compte, « mauvais identifiants ».
+            page = post_login('typo')
+            self.assertContains(page, 'Wrong ID or password')
+            self.assertFalse(User.objects.filter(username='nouvelle.collegue').exists())
+            # Le bon : le compte naît INACTIF, rempli par l'annuaire, et la personne lit qu'elle
+            # attend — DÈS cette première tentative, c'était le défaut du 20/10.
+            page = post_login('directory-password')
+            self.assertContains(page, 'en attente de validation par un administrateur')
+            self.assertNotContains(page, 'Wrong ID or password')
+            newcomer = User.objects.get(username='nouvelle.collegue')
+            self.assertFalse(newcomer.is_active)
+            self.assertEqual(('Nouvelle', 'nouvelle.collegue@univ.test'),
+                             (newcomer.first_name, newcomer.email))
+            self.assertFalse(newcomer.has_usable_password(), "le mot de passe reste à l'annuaire")
+            # La demande : dans WAMA à ceux qui peuvent activer, une fois ; un email aux modérateurs.
+            self.assertEqual({self.admin, self.root},
+                             {n.recipient for n in self._pending(newcomer).filter(read_at__isnull=True)})
+            self.assertEqual(['moderation@test.local'], mail.outbox[0].to)
+            self.assertIn('nouvelle.collegue@univ.test', mail.outbox[0].body)
+            # Une seconde tentative ne relance personne, mais elle se lit au journal.
+            post_login('directory-password')
+            self.assertEqual(2, self._pending(newcomer).count())
+            self.assertEqual(1, len(mail.outbox))
+            self.assertEqual(2, AccessLog.objects.filter(username='nouvelle.collegue',
+                                                         event='login_denied', reason='inactive').count())
+            # L'administrateur active depuis la page Utilisateurs : bienvenue, puis la personne entre.
+            self.client.force_login(self.admin)
+            done = self.client.post(reverse('accounts:user-toggle-active', args=[newcomer.pk]))
+            self.assertTrue(done.json()['is_active'])
+            self.assertEqual(['nouvelle.collegue@univ.test'], mail.outbox[1].to)
+            self.client.logout()
+            entered = post_login('directory-password')
+            self.assertEqual(302, entered.status_code)
+            self.assertTrue(User.objects.get(pk=newcomer.pk).is_active)
+
     def test_an_account_created_before_the_fix_is_asked_for_at_its_next_attempt(self):
         """Les comptes qui attendaient sans que personne le sache (13 et 15/10) : leur prochaine
         tentative repose la demande, qu'aucune notification n'attendait."""
