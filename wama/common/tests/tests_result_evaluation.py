@@ -523,6 +523,37 @@ class MeasuresWithoutReferenceTest(TestCase):
         self.assertIn('data-value="transcriber:whisper"', html)
         self.assertIn('data-field="backend"', html)
 
+    def test_a_finished_process_has_one_cycle_button_and_it_says_relaunch(self):
+        """2026-10-28, card #2522 (Fabien) : « Transcription » terminée montrait un gros ↻
+        « Relancer avec … » à côté de son ▶ « Lancer », resté ▶ quel que soit le statut — deux
+        boutons de cycle sur la même étape. Le ▶ d'un process est LE bouton de cycle commun, qui
+        suit le statut du process ; la suggestion garde son geste sous une autre icône.
+        Contre-épreuve : un process jamais lancé garde son ▶."""
+        import re
+        from django.template.loader import render_to_string
+        from wama.transcriber.function_specs import PIPELINE
+        self._run()
+        rows = PIPELINE.card_rows(self.item, 'albert:whisper-large-v3')
+        row = next(r for r in rows if r['key'] == 'transcribe')
+        html = render_to_string('common/_card_processes.html', {
+            'processes': [row, dict(row, key='fresh', status='PENDING', checks=[])],
+            'card_id': self.item.pk, 'settings_url': '/transcriber/settings/1/', 'elem': self.item})
+
+        def strip(key):
+            start = html.index(f'data-process="{key}"')
+            following = re.search(r'<span class="wcv3-proc[" ]', html[start:])
+            return html[start:start + following.start()] if following else html[start:]
+
+        done = strip('transcribe')
+        (cycle,) = re.findall(r'<button[^>]*wama-cycle-btn[^>]*>', done)
+        self.assertIn('data-cycle-action="restart"', cycle)
+        self.assertIn('data-process="transcribe"', cycle)
+        self.assertEqual(1, done.count('fa-rotate-right'), 'the ↻ belongs to the cycle button only')
+        self.assertIn('fa-wand-magic-sparkles', done)
+        (fresh,) = re.findall(r'<button[^>]*wama-cycle-btn[^>]*>', strip('fresh'))
+        self.assertIn('data-cycle-action="start"', fresh)
+        self.assertIn('fa-play', strip('fresh'))
+
     def test_the_served_card_and_face_carry_it(self):
         """On the SERVED surfaces, not the partial: the card route renders the measure and its
         relaunch on the card's own settings route; the evaluation route returns it."""
