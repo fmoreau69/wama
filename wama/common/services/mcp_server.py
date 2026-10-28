@@ -135,12 +135,15 @@ def tools_for(user) -> list:
     prend un refus."""
     import mcp.types as types
     from wama.accounts.permissions import tool_accessible
-    from wama.tool_api import TOOL_REGISTRY, tool_descriptions, tool_input_schema
+    from wama.tool_api import TOOL_REGISTRY, tool_annotations, tool_descriptions, tool_input_schema
 
     descriptions = tool_descriptions()
+    # L'EFFET déclaré sur la fonction (`tool_effect`) part en annotations MCP : un client
+    # (Codex, Claude Code) demande l'approbation sur `destructiveHint` (2026-10-28).
     return [types.Tool(name=name,
                        description=(descriptions.get(name) or {}).get('description') or '',
-                       inputSchema=tool_input_schema(name))
+                       inputSchema=tool_input_schema(name),
+                       annotations=types.ToolAnnotations(**tool_annotations(name)))
             for name in sorted(TOOL_REGISTRY) if tool_accessible(user, name)]
 
 

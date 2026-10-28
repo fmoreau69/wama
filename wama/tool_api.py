@@ -75,10 +75,65 @@ def _signed_in_refusal(user, action: str = 'Lecture') -> dict | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# EFFET d'un outil — DÉCLARÉ SUR SA FONCTION (`WAMA_HARNESS §9` chantier 2, sa moitié déclarative,
+# 2026-10-28). ⚠ Surtout pas une table à côté du registre : un outil ne peut pas exister sans dire
+# ce qu'il fait — `tests_tool_effects` refuse un outil non marqué. Trois effets, ceux que Codex
+# calcule hors de l'outil et que MCP publie (`readOnlyHint` / `destructiveHint`) :
+#   READ    — rien ne change pour l'utilisateur (une lecture, une recherche, une traduction) ;
+#   WRITE   — crée, lance, range ou propose : défaire est possible, ou rien n'est perdu ;
+#   DESTROY — retire ce que l'utilisateur possède, sans retour.
+# L'effet dit la NATURE de l'outil, pas sa garde : les droits restent ceux du registre et des
+# corps (`tool_accessible`, `_refus_app`). Ce qu'il porte : la liste des outils d'un sous-agent
+# (`sub_agent_tools`), les annotations MCP, et demain l'approbation de la boucle.
+# ---------------------------------------------------------------------------
+READ, WRITE, DESTROY = 'read', 'write', 'destroy'
+TOOL_EFFECTS = (READ, WRITE, DESTROY)
+
+
+def tool_effect(effect: str, *, sub_agent: bool = True, reason: str = ''):
+    """Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
+    sous-agent peut appeler, et `reason` le justifie (obligatoire) ; une écriture n'y entre de
+    toute façon jamais (sous-agents en lecture seule, décision de Fabien du 28/10)."""
+    if effect not in TOOL_EFFECTS:
+        raise ValueError(f"effet d'outil inconnu : {effect!r} (connus : {', '.join(TOOL_EFFECTS)})")
+    if not sub_agent and not reason:
+        raise ValueError("un outil retiré aux sous-agents dit pourquoi (`reason`)")
+
+    def mark(fn):
+        fn.wama_effect = {'effect': effect, 'sub_agent': sub_agent, 'reason': reason}
+        return fn
+    return mark
+
+
+def effect_of(tool_name: str) -> dict | None:
+    """L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas)."""
+    return getattr(TOOL_REGISTRY.get(tool_name), 'wama_effect', None)
+
+
+def sub_agent_tools() -> frozenset:
+    """Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
+    LECTURES, hors celles retirées avec leur raison."""
+    return frozenset(name for name in TOOL_REGISTRY
+                     if (effect_of(name) or {}).get('effect') == READ
+                     and effect_of(name).get('sub_agent'))
+
+
+def tool_annotations(tool_name: str) -> dict:
+    """Les annotations MCP d'un outil, tirées de sa marque — UNE déclaration, deux lecteurs : notre
+    boucle et tout client MCP (Codex, Claude Code demandent l'approbation sur `destructiveHint`).
+    MCP tient un outil non lecture pour destructif par défaut : on le dit donc toujours."""
+    effect = (effect_of(tool_name) or {}).get('effect')
+    if effect is None:
+        return {}
+    return {'readOnlyHint': effect == READ, 'destructiveHint': effect == DESTROY}
+
+
 # ===========================================================================
 # Python tool functions (called directly from the agentic loop)
 # ===========================================================================
 
+@tool_effect(READ)
 def list_user_files(user, folder: str = 'temp') -> dict:
     """
     List ALL files in one of the user's folders (any extension).
@@ -117,6 +172,7 @@ def list_user_files(user, folder: str = 'temp') -> dict:
     return {'files': files, 'folder': folder, 'count': len(files)}
 
 
+@tool_effect(READ)
 def find_user_files(user, query: str, limit: int = 20) -> dict:
     """
     Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
@@ -150,6 +206,7 @@ def find_user_files(user, query: str, limit: int = 20) -> dict:
         return {'error': f'Recherche impossible : {e}'}
 
 
+@tool_effect(WRITE)
 def add_to_anonymizer(
     user,
     file_path: str,
@@ -248,6 +305,7 @@ def add_to_anonymizer(
 # `start_anonymizer` / `get_anonymizer_status` : construits depuis TRIAD_SPECS['anonymizer'] (marche A4).
 
 
+@tool_effect(READ)
 def sam3_examples() -> dict:
     """
     Return recommended SAM3 text prompt examples.
@@ -271,6 +329,7 @@ def sam3_examples() -> dict:
 # Imager tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def create_image(
     user,
     prompt: str,
@@ -351,6 +410,7 @@ def create_image(
 # Enhancer tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def add_to_enhancer(
     user,
     file_path: str,
@@ -447,6 +507,7 @@ def add_to_enhancer(
 # Audio Enhancer tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def add_to_audio_enhancer(
     user,
     file_path: str,
@@ -544,6 +605,7 @@ def add_to_audio_enhancer(
 # Synthesizer tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def synthesize_text(
     user,
     text: str = '',
@@ -620,6 +682,7 @@ def synthesize_text(
 # Composer tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def compose_music(
     user,
     prompt: str,
@@ -735,6 +798,7 @@ def compose_music(
 # Describer tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def add_to_describer(
     user,
     file_path: str,
@@ -820,6 +884,7 @@ def add_to_describer(
 # Transcriber tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def add_to_transcriber(
     user,
     file_path: str,
@@ -904,6 +969,7 @@ def add_to_transcriber(
 # Reader tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def add_to_reader(
     user,
     file_path: str,
@@ -989,6 +1055,7 @@ def add_to_reader(
 # Converter tools
 # ===========================================================================
 
+@tool_effect(WRITE)
 def convert_file(
     user,
     file_path: str,
@@ -1090,6 +1157,7 @@ def convert_file(
 # Media Library tools
 # ===========================================================================
 
+@tool_effect(READ)
 def list_media_assets(user, asset_type: str = '', q: str = '') -> dict:
     """
     List the user's personal media library assets.
@@ -1132,6 +1200,8 @@ def list_media_assets(user, asset_type: str = '', q: str = '') -> dict:
         return {'error': f'Erreur lecture médiathèque : {e}', 'assets': [], 'total': 0}
 
 
+@tool_effect(READ, sub_agent=False,
+             reason="une action que le chat du PARENT exécute ; l'étape d'un sous-agent n'y arrive pas")
 def fold_side_panels(user, folded: bool = True) -> dict:
     """
     Fold or unfold the two side panels of the page (file explorer on the left, panel on the
@@ -1155,6 +1225,8 @@ def fold_side_panels(user, folded: bool = True) -> dict:
             'message': 'Volets repliés.' if folded else 'Volets déployés.'}
 
 
+@tool_effect(READ, sub_agent=False,
+             reason="une action que le chat du PARENT exécute ; l'étape d'un sous-agent n'y arrive pas")
 def open_page(user, page: str) -> dict:
     """
     Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
@@ -1188,6 +1260,7 @@ def open_page(user, page: str) -> dict:
             'label': entry['label'], 'message': f"Ouverture de la page {entry['label']}."}
 
 
+@tool_effect(READ)
 def get_media_asset_url(user, asset_id: int) -> dict:
     """
     Get the file URL of a specific media library asset.
@@ -1255,6 +1328,7 @@ def _resolve_user_path(user, file_path: str):
     return src, None
 
 
+@tool_effect(READ)
 def inspect_user_file(user, file_path: str) -> dict:
     """
     Ask WAMA what it can do with one of the user's files: which app PORT can take it
@@ -1285,6 +1359,7 @@ def inspect_user_file(user, file_path: str) -> dict:
         return {'error': f'Inspection impossible : {e}'}
 
 
+@tool_effect(READ)
 def look_at_image(user, file_path: str, question: str = '') -> dict:
     """
     Look at ONE of the user's images with a vision model and return what it shows.
@@ -1330,6 +1405,7 @@ def _vision_of(path: str, question: str = '') -> dict:
     return {'description': answer.get('description', ''), 'model': answer.get('model', '')}
 
 
+@tool_effect(WRITE)
 def add_to_media_library(user, file_path: str, asset_type: str,
                          name: str = '', description: str = '') -> dict:
     """
@@ -1379,6 +1455,7 @@ def add_to_media_library(user, file_path: str, asset_type: str,
 # Web investigation tools (WAMA_LLM.md §Investigation web)
 # ===========================================================================
 
+@tool_effect(READ)
 def search_web(user, query: str, max_results: int = 5) -> dict:
     """
     Search the public web (no API key) and return result links with snippets.
@@ -1409,6 +1486,7 @@ def search_web(user, query: str, max_results: int = 5) -> dict:
         return {'error': f'Recherche indisponible : {e}'}
 
 
+@tool_effect(READ)
 def read_web_page(user, url: str, max_chars: int = 8000) -> dict:
     """
     Fetch ONE public web page and return its readable text (SSRF-guarded, size-capped).
@@ -1440,6 +1518,7 @@ def read_web_page(user, url: str, max_chars: int = 8000) -> dict:
 _AVATAR_DERIVED = ('mode', 'avatar_source')
 
 
+@tool_effect(WRITE)
 def add_to_avatarizer(
     user,
     mode: str = 'pipeline',
@@ -1563,6 +1642,7 @@ def add_to_avatarizer(
 # Tool dispatcher (used by the agentic loop in views.py)
 # ===========================================================================
 
+@tool_effect(READ)
 def translate_text(user, text, source_lang='fr', target_lang='en', glossary=None):
     """Traduit un texte via translategemma (TranslatorService). Passthrough si source==target."""
     from wama.common.utils.translator import TranslatorService
@@ -1584,16 +1664,19 @@ def translate_text(user, text, source_lang='fr', target_lang='en', glossary=None
 import functools
 
 
+@tool_effect(WRITE)
 @functools.wraps(synthesize_text)
 def add_to_synthesizer(user, *args, **kwargs):
     return synthesize_text(user, *args, **kwargs)
 
 
+@tool_effect(WRITE)
 @functools.wraps(compose_music)
 def add_to_composer(user, *args, **kwargs):
     return compose_music(user, *args, **kwargs)
 
 
+@tool_effect(WRITE)
 @functools.wraps(convert_file)
 def add_to_converter(user, *args, **kwargs):
     # NB : convert_file DISPATCHE immédiatement (auto_start déclaré au manifeste studio).
@@ -1603,6 +1686,7 @@ def add_to_converter(user, *args, **kwargs):
 # `start_converter` : construit depuis TRIAD_SPECS['converter'] (marche A4).
 
 
+@tool_effect(WRITE)
 @functools.wraps(create_image)
 def add_to_imager(user, *args, **kwargs):
     return create_image(user, *args, **kwargs)
@@ -1614,6 +1698,7 @@ def add_to_imager(user, *args, **kwargs):
 # via TOOL_APP_OVERRIDE. Validation + dispatch = brique PARTAGÉE avec la vue `api_run`
 # (`studio/services/launch.py::launch_graph`) — jamais deux contrats divergents.
 
+@tool_effect(READ)
 def list_studio_pipelines(user) -> dict:
     """
     List the user's saved studio pipelines (méta-app graphs), most recent first.
@@ -1639,6 +1724,7 @@ def list_studio_pipelines(user) -> dict:
     return {'pipelines': out}
 
 
+@tool_effect(WRITE)
 def run_studio_pipeline(user, pipeline_id: int = None, pipeline_name: str = None) -> dict:
     """
     Run a SAVED studio pipeline, by id or exact name. Validates the graph
@@ -1677,6 +1763,7 @@ def run_studio_pipeline(user, pipeline_id: int = None, pipeline_name: str = None
     return {'run_id': run.pk, 'item_id': run.pk, 'status': 'started', 'pipeline': pipe.name}
 
 
+@tool_effect(READ)
 def get_studio_run_status(user, run_id: int = None) -> dict:
     """
     Return the status of a studio run (or the last 5 runs if run_id is omitted).
@@ -1703,6 +1790,7 @@ def get_studio_run_status(user, run_id: int = None) -> dict:
 
 
 
+@tool_effect(READ)
 def list_ai_models(user, app: str = None, task: str = None, modality: str = None,
                    downloaded_only: bool = False, include_proposed: bool = False,
                    limit: int = 50, query: str = None) -> dict:
@@ -1808,6 +1896,7 @@ def _benchmark_summary(m):
             'provenance': meta.get('provenance')}
 
 
+@tool_effect(READ)
 def get_ai_model(user, model_key: str) -> dict:
     """
     Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
@@ -1875,6 +1964,7 @@ def _registry_management_refusal(user):
     return {'error': 'forbidden',
             'detail': "Gérer les modèles (chercher, prospecter, installer) est réservé aux développeurs."}
 
+@tool_effect(WRITE)
 def search_models(user, query: str, limit: int = 10, max_results: int = 5) -> dict:
     """
     SEARCH HuggingFace for models matching `query` and record them as prospection
@@ -1953,6 +2043,7 @@ def _catalog_matches(query: str, refs: list, limit: int = 15, user=None) -> list
             for m in rows[:limit]]
 
 
+@tool_effect(WRITE)
 def prospect_models(user) -> dict:
     """
     PROSPECT for new models and record them as PROPOSALS — same verb as the page's
@@ -1993,6 +2084,7 @@ def prospect_models(user) -> dict:
             'assess_enqueued': summary.get('assess_enqueued')}
 
 
+@tool_effect(WRITE)
 def get_install_options(user, model_key: str) -> dict:
     """
     INSTALL CHOICES of a proposal — same verb as the options the page shows before « Installer »
@@ -2027,6 +2119,7 @@ def get_install_options(user, model_key: str) -> dict:
                         for o in (res.get('options') or [])]}
 
 
+@tool_effect(WRITE)
 def install_model(user, model_key: str, force: bool = False,
                   variant_ref: str = '', variant_file: str = '') -> dict:
     """
@@ -2115,6 +2208,7 @@ def _etat_librairie(dist: str) -> dict:
             'installed_version': version, 'in_registry': au_registre}
 
 
+@tool_effect(READ)
 def plan_library_integration(user, dist: str) -> dict:
     """
     PLAN for integrating a Python library (pip distribution) — read-only, executes nothing.
@@ -2140,6 +2234,7 @@ def plan_library_integration(user, dist: str) -> dict:
     return {'dist': dist, 'state': etat, 'next_step': etape, 'human_gesture': geste}
 
 
+@tool_effect(READ)
 def plan_model_integration(user, model: str) -> dict:
     """
     PLAN for integrating an AI model — read-only, executes nothing.
@@ -2199,6 +2294,7 @@ def plan_model_integration(user, model: str) -> dict:
     return {'model': row.model_key, 'state': etat, 'next_step': etape, 'human_gesture': geste}
 
 
+@tool_effect(READ)
 def plan_app_integration(user, target: str) -> dict:
     """
     PLAN for integrating a GitHub project as a WAMA app (UI + models + libraries).
@@ -2282,6 +2378,7 @@ def plan_app_integration(user, target: str) -> dict:
     }
 
 
+@tool_effect(READ)
 def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
                   include_memory: bool = True, niveaux: list = None) -> dict:
     """
@@ -2354,6 +2451,7 @@ def memory_recall(user, query: str, k: int = 5, include_rag: bool = True,
     return {"results": resultats, "count": len(resultats)}
 
 
+@tool_effect(READ)
 def search_docs(user, query: str, k: int = 5) -> dict:
     """
     Search WAMA's OWN documentation — how an app is used, what a setting means, and (for
@@ -2397,6 +2495,7 @@ def search_docs(user, query: str, k: int = 5) -> dict:
     return {'results': results, 'count': len(results)}
 
 
+@tool_effect(READ)
 def read_doc(user, doc: str, section: str = '') -> dict:
     """
     Read one of WAMA's documents: its outline, or one section with its sub-sections.
@@ -2418,6 +2517,7 @@ def read_doc(user, doc: str, section: str = '') -> dict:
     return read(user, doc, section)
 
 
+@tool_effect(READ)
 def charger_competence(user, domaine: str, question: str = '') -> dict:
     """
     Load a specialised competence (role skill) and the matching laboratory context.
@@ -2465,6 +2565,8 @@ def charger_competence(user, domaine: str, question: str = '') -> dict:
     }
 
 
+@tool_effect(READ, sub_agent=False,
+             reason="synchrone jusqu'à 900 s, sur l'abonnement du titulaire")
 def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300,
                     model: str = '') -> dict:
     """
@@ -2556,6 +2658,7 @@ def ask_claude_code(user, task: str, write: bool = False, timeout: int = 300,
 # gardent l'OWNERSHIP et non le droit d'app (vérifié : `views.py:689` n'ajoute aucun filtre de
 # droit). Les rendre plus stricts créerait une divergence entre l'assistant et la page que
 # l'utilisateur peut déjà ouvrir — c'est la divergence qu'on cherche à éviter, pas à créer.
+@tool_effect(READ)
 def list_my_items(user, app: str = '', limite: int = 25, statut: str = 'all', q: str = '') -> dict:
     """
     List what the user has produced across ALL apps — one vocabulary instead of ten.
@@ -2631,6 +2734,7 @@ def _queue_places(viewer, items) -> dict:
     return {pk: place for pk, place in places.items() if place}
 
 
+@tool_effect(READ)
 def get_item_detail(user, app: str, pk: int) -> dict:
     """
     Everything known about ONE item, in the canonical schema — exactly what the user sees in
@@ -2715,6 +2819,7 @@ def _url_relative(valeur):
     return valeur
 
 
+@tool_effect(READ)
 def get_item_preview(user, app: str, pk: int, side: str = 'input', variant: str = '',
                      look: bool = False, question: str = '') -> dict:
     """
@@ -2864,6 +2969,7 @@ def _look_at_face(face: dict, question: str = '') -> dict:
 RESULT_TEXT_LIMIT = 20000
 
 
+@tool_effect(READ)
 def get_item_result(user, app: str, pk: int, output_format: str = '') -> dict:
     """
     Read the RESULT of a finished item — the extracted text of an OCR, a transcript, a
@@ -3016,6 +3122,7 @@ def _verdict(statut, charge, quoi):
     return {'error': f"{quoi} : {detail}"}
 
 
+@tool_effect(DESTROY)
 def delete_item(user, app: str, pk: int) -> dict:
     """
     Delete ONE of the user's items from an app queue.
@@ -3048,6 +3155,7 @@ def delete_item(user, app: str, pk: int) -> dict:
     return mauvais or {'deleted': True, 'app': app, 'id': pk}
 
 
+@tool_effect(WRITE)
 def duplicate_item(user, app: str, pk: int) -> dict:
     """
     Duplicate ONE of the user's items, so it can be re-run with different settings.
@@ -3081,6 +3189,7 @@ def duplicate_item(user, app: str, pk: int) -> dict:
     return {'duplicated': True, 'app': app, 'source_id': pk, 'new_id': nouveau}
 
 
+@tool_effect(DESTROY)
 def clear_my_queue(user, app: str, confirm: bool = False) -> dict:
     """
     Empty the user's WHOLE queue for one app — every item, at once.
@@ -3118,6 +3227,7 @@ def clear_my_queue(user, app: str, confirm: bool = False) -> dict:
     return mauvais or {'cleared': True, 'app': app, 'items_before': avant}
 
 
+@tool_effect(WRITE)
 def add_item_to_media_library(user, app: str, pk: int, asset_type: str = '',
                               name: str = '', output_format: str = '') -> dict:
     """
@@ -3165,6 +3275,7 @@ def _rag_answer(res: dict) -> dict:
     return res
 
 
+@tool_effect(WRITE)
 def add_file_to_rag(user, path: str, level: str = '', org_unit: str = '') -> dict:
     """
     Add one of the user's FILES to their RAG, so `memory_recall` (and the lab context of every
@@ -3193,6 +3304,7 @@ def add_file_to_rag(user, path: str, level: str = '', org_unit: str = '') -> dic
     return _rag_answer(rag_index.add_file_to_rag(user, path, level=level, org_unit=org_unit))
 
 
+@tool_effect(WRITE)
 def add_item_to_rag(user, app: str, pk: int, level: str = '', org_unit: str = '') -> dict:
     """
     Add the TEXT of one of the user's items (a transcription, an OCR, a description…) to their
@@ -3218,6 +3330,7 @@ def add_item_to_rag(user, app: str, pk: int, level: str = '', org_unit: str = ''
     return _rag_answer(rag_index.add_item_to_rag(user, app, pk, level=level, org_unit=org_unit))
 
 
+@tool_effect(READ)
 def list_registries(user) -> dict:
     """
     List what WAMA knows how to NAME: its registries (apps, models, backends, functions,
@@ -3250,6 +3363,7 @@ def list_registries(user) -> dict:
     return {'registries': lignes, 'count': len(lignes)}
 
 
+@tool_effect(READ)
 def get_my_access(user) -> dict:
     """
     What the current user is allowed to do: account tier, business roles, and which apps they
@@ -3282,6 +3396,7 @@ def get_my_access(user) -> dict:
     }
 
 
+@tool_effect(READ)
 def list_my_memories(user, kind: str = '', limite: int = 25) -> dict:
     """
     List what WAMA remembers for this user — facts, events and procedures it has kept.
@@ -3342,6 +3457,7 @@ def list_my_memories(user, kind: str = '', limite: int = 25) -> dict:
 # droits (`get_my_access`), les registres (`list_registries`) et la documentation
 # (`search_docs`, `read_doc`). Pour EMMENER l'utilisateur sur une de ces pages : `open_page`.
 
+@tool_effect(READ)
 def get_my_calendar(user, start: str = '', end: str = '', with_instance: bool = False,
                     limit: int = 100) -> dict:
     """
@@ -3393,6 +3509,7 @@ def get_my_calendar(user, start: str = '', end: str = '', with_instance: bool = 
             'total': len(events), 'returned': len(rows)}
 
 
+@tool_effect(READ)
 def list_my_notifications(user, unread_only: bool = False, limit: int = 20) -> dict:
     """
     List the user's notifications in WAMA (the bell): finished or failed tasks, access
@@ -3425,6 +3542,7 @@ def list_my_notifications(user, unread_only: bool = False, limit: int = 20) -> d
             'returned': len(rows)}
 
 
+@tool_effect(READ)
 def list_my_shares(user) -> dict:
     """
     What the user shared and what was shared with them ("Mes partages"): for each entry its
@@ -3449,6 +3567,7 @@ def list_my_shares(user) -> dict:
                       'outgoing_requests': overview['outgoing']})
 
 
+@tool_effect(READ)
 def list_my_rag(user, level: str = '', query: str = '', limit: int = 50) -> dict:
     """
     List the documents the user has entrusted to the RAG ("Mon RAG"): each source, at which
@@ -3485,6 +3604,7 @@ def list_my_rag(user, level: str = '', query: str = '', limit: int = 50) -> dict
     return {'documents': rows, 'total': len(docs), 'returned': len(rows)}
 
 
+@tool_effect(READ)
 def get_my_profile(user) -> dict:
     """
     Read the user's profile ("Profil"): identity, preferences (language, interface mode,
@@ -3540,6 +3660,7 @@ def _memory_kinds() -> tuple:
     return tuple(k for k, _ in MemoryItem.KIND_CHOICES)
 
 
+@tool_effect(WRITE)
 def remember_fact(user, content: str, kind: str = 'semantic', subject: str = '') -> dict:
     """
     Save something the user wants WAMA to remember — a fact, a correction, a preference, the
@@ -4268,7 +4389,9 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
     _status.__doc__ = (f"État des 10 derniers travaux {app_id} de l'utilisateur, et pour ceux qui "
                        f"attendent leur place dans la file GPU (`queue`). "
                        f"(Construit depuis TRIAD_SPECS['{app_id}'].)")
-    return _start, _status
+    # L'effet, comme tout outil (`tool_effect`) : lancer ÉCRIT — une relance remplace l'ancien
+    # résultat de l'élément, mais l'élément reste : écriture, pas destruction.
+    return tool_effect(WRITE)(_start), tool_effect(READ)(_status)
 
 
 def _register_triads():

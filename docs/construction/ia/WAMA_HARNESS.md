@@ -693,7 +693,7 @@ déterministe** (consensus, confiance moyenne, accord), sans juge LLM.
 | étape | contenu | état |
 |---|---|---|
 | 0 | chantier 1 : borne **24 000** + bascule réévaluée dans la boucle | ✅ `61e3e947` |
-| 0 bis | la **marque d'écriture seule**, sur la fonction (`tool_api.py`), tenue par un test AST, publiée en annotation MCP ; `sub_agent_tools()` en DÉRIVE (lecture seule, exclusions déclarées avec leur raison : `ask_claude_code`, `open_page`, `fold_side_panels`, `look_at_image`, l'outil de délégation lui-même) | ⏳ |
+| 0 bis | la **marque d'écriture seule**, sur la fonction (`tool_api.py`) : `@tool_effect(READ / WRITE / DESTROY)`, tout outil marqué (test), filet AST, publiée en annotation MCP ; `sub_agent_tools()` en DÉRIVE (lectures, moins `ask_claude_code`, `open_page`, `fold_side_panels`, chacun avec sa raison ; l'outil de délégation s'y ajoutera). ⚠ `look_at_image` n'est **pas** exclu : la raison avancée (« hors gouverneur ») vaut pour tout appel local de l'assistant (`measured_load`, `vision_probe.py:28`) | ✅ voir §9 chantier 2 |
 | 1 | socle : `run_assistant_turn` gagne outils autorisés, nombre d'itérations, échéance, profondeur — **défauts qui laissent le comportement actuel inchangé** ; propagés au jumeau `_invented_turn` ; aucun outil `dev_*` ; exécution **synchrone et séquentielle** d'abord (le parent attend de toute façon ; un seul GPU ; broker `memory://` hors côté autorisé) | ⏳ |
 | 2 | l'outil de délégation. ⚠ Tout ce qui entre dans `TOOL_REGISTRY` est aussi servi par MCP et `/api/v1/tools/` : l'appel doit être **impossible** hors d'un tour d'assistant — de préférence par construction (un verbe de la boucle, aiguillé par son nom comme les `dev_*`), sinon par une garde de contexte du tour | ⏳ |
 | 3 | garde-fous : interrupteur déclaré (l'outil n'est alors pas annoncé), qui peut déléguer, plafond d'**appels au modèle** (un coût en dollars n'est pas mesurable : le chemin cloud ne rapporte pas de coût), journal par sous-agent | ⏳ |
@@ -813,6 +813,25 @@ bascule est appelée **3 fois**, en local et sur un chemin cloud. Ampleur : ~40 
 aucune migration, aucun changement de contrat de surface.
 
 ### Chantier 2 — La marque d'ÉCRITURE, et l'approbation qu'elle déclenche *(écart 1b)*
+
+> 🔄 **LA MARQUE est livrée le 2026-10-28** (étape 0 bis du §7.4) ; **l'approbation ne l'est pas.**
+> - Chaque outil déclare son **effet** sur sa fonction : `@tool_effect(READ | WRITE | DESTROY)`
+>   (`tool_api.py`, bloc « EFFET d'un outil »). Trois effets et non un booléen « écrit » : c'est la
+>   distinction que Codex calcule hors de l'outil et que MCP publie (`readOnlyHint`,
+>   `destructiveHint`). Relevé du jour, à la lecture des corps : **2 destructions**
+>   (`delete_item`, `clear_my_queue`), les ajouts, lancements, rangements et propositions en
+>   écriture (`start_<app>` compris : une relance remplace un résultat, l'élément reste), le reste
+>   en lecture.
+> - **Le contrôle n'est pas l'AST seul** : un relevé du jour a montré que la moitié des écritures
+>   passent par un autre module (`synthesize_text`, `run_studio_pipeline`, `add_file_to_rag`,
+>   `search_models`…), invisibles à une analyse du corps. Donc `tests_tool_effects` refuse
+>   **tout outil non marqué**, et l'AST n'est qu'un filet : une « lecture » qui écrit dans son
+>   corps (ou dans une fonction du même fichier), ou qui POSTe la vue d'une app, rougit.
+>   Contre-épreuve faite (marque retirée → l'outil est nommé ; `delete_item` déclaré lecture → rouge).
+> - **Ce qu'elle porte déjà** : `sub_agent_tools()` (les lectures, moins trois exclusions dites :
+>   `ask_claude_code`, `open_page`, `fold_side_panels`) et les annotations du serveur MCP.
+> - **Reste** : l'action en attente et sa confirmation (le tableau ci-dessous, inchangé), et
+>   `clear_my_queue(confirm)`, qui n'est pas une approbation (c'est le modèle qui remplit l'argument).
 
 | | |
 |---|---|

@@ -3116,8 +3116,11 @@ MECHANISMS = (
                        'wama/studio/services/entries.py',
                        'wama/studio/static/studio/js/wama-studio-entry.js')),
     Mechanism('tool_api', "Surface d'outils",
-              "Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas",
-              'wama/tool_api.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md'),
+              "Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via execute_tool, descriptions dérivées des schémas. "
+              "Chaque outil DÉCLARE son effet sur sa fonction (`tool_effect` : lecture / écriture / destruction, 2026-10-28) — "
+              "les outils d'un sous-agent (`sub_agent_tools`) et les annotations MCP en DÉRIVENT",
+              'wama/tool_api.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
+              annexes=('wama/common/tests/tests_tool_effects.py',)),
     Mechanism('api_v1', 'API REST v1',
               "Passerelle générique (token+session) sur TOOL_REGISTRY : lister/exécuter, gating F7 à l'annonce ET à l'exécution",
               'wama/api/v1/views.py', '',
