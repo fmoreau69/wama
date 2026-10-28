@@ -26731,3 +26731,9 @@ la généraliser aux sorties intermédiaires ? »
   suivi, budget des noms de méthodes 1292 > 1291 : aucun nom de mes fichiers — `tests_dev_inspect`
   non suivi en porte deux en « refuses »). `check_docs` 0 cassée.
 - Pendings système : relancer gunicorn (+ workers) pour `repoint` ; pousser (rien n'est poussé).
+
+- Complément (`a159a5b4`) : la restauration du 27/10 avait MANQUÉ `WAMA_Presentation_VoixFab.wav`,
+  posé par Fabien à la racine de `media/` et référencé par aucune card (l'un des deux « hors
+  domicile » connus) — réapparu le 28/10 vers 05:58, remis hors de cette session. `--known-only`
+  garde désormais tout fichier posé à la RACINE (2 310 fichiers connus sur la vraie sauvegarde,
+  rien à copier) ; budget de langue du code verrouillé à 2645.
