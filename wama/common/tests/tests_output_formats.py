@@ -425,8 +425,8 @@ class OneOutputRuleTest(SimpleTestCase):
             with self.subTest(app=app):
                 offered = set(self._values(self._by_name(_output_schemas()[app])['output_format']))
                 self.assertEqual(set(), expected - offered, 'a format of the brick is missing')
-                self.assertEqual({'input'} if app == 'anonymizer' else set(), offered - expected,
-                                 'only the DECLARED specific choices are added')
+                self.assertEqual(set(), offered - expected,
+                                 'nothing of its own : « Original » is the deposited format')
 
     def test_the_rule_reads_the_same_on_an_element(self):
         item = SimpleNamespace(output_format='original', output_keep_size=False)

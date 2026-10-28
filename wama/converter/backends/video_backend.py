@@ -40,6 +40,50 @@ _FORMAT_PRESETS = {  # wama:redondance-ok — mapping keyé par le vocabulaire q
 }
 
 
+#: Les codecs audio qu'un conteneur accepte TELS QUELS — l'audio de la source y est recopié sans
+#: réencodage (2026-10-28). `None` : le conteneur prend tout (Matroska).
+_AUDIO_COPYABLE = {
+    'mp4':  {'aac', 'mp3', 'alac', 'ac3', 'eac3', 'opus', 'flac'},
+    'mov':  {'aac', 'mp3', 'alac', 'pcm_s16le', 'pcm_s24le', 'ac3'},
+    'mkv':  None,
+    'webm': {'opus', 'vorbis'},
+    'avi':  {'mp3', 'ac3', 'pcm_s16le'},
+}
+
+#: Réglages d'encodage « visuellement sans perte » par codec vidéo — un rendu qui ne doit rien
+#: perdre de plus que le passage qu'il ne peut éviter.
+_VISUALLY_LOSSLESS = {
+    'libx264':    ['-crf', '18', '-preset', 'slow', '-pix_fmt', 'yuv420p'],
+    'libvpx-vp9': ['-crf', '18', '-b:v', '0', '-pix_fmt', 'yuv420p'],
+    'libxvid':    ['-q:v', '2'],
+}
+
+
+def rendering_encoding(fmt: str, source_audio_codec: str = ''):
+    """Comment ENCODER, en un seul passage, des images rendues par une app (un floutage) dans le
+    conteneur `fmt`, avec l'audio de la source : `{'container', 'video', 'audio', 'extra'}`
+    (listes d'arguments ffmpeg), ou None si `fmt` n'est pas un conteneur vidéo de cette table.
+
+    La table est CELLE des conversions (`_FORMAT_PRESETS`) : un rendu dans le format d'origine
+    emploie les codecs qu'emploierait une conversion vers ce format. L'audio est RECOPIÉ quand le
+    conteneur accepte son codec (`_AUDIO_COPYABLE`) — aucun réencodage —, sinon encodé au codec du
+    conteneur (2026-10-28, demande de Fabien : le moins de conversions possible, l'audio rendu
+    sans désynchronisation)."""
+    preset = _FORMAT_PRESETS.get((fmt or '').lower())
+    if not preset or not preset['vcodec']:
+        return None
+    key = (fmt or '').lower()
+    copyable = _AUDIO_COPYABLE.get(key, set())
+    codec = (source_audio_codec or '').lower()
+    if codec and (copyable is None or codec in copyable):
+        audio = ['-c:a', 'copy']
+    else:
+        audio = ['-c:a', preset['acodec'], '-b:a', '192k']
+    return {'container': preset['container'],
+            'video': ['-c:v', preset['vcodec'], *_VISUALLY_LOSSLESS.get(preset['vcodec'], [])],
+            'audio': audio, 'extra': list(preset.get('extra') or [])}
+
+
 def convert_video(input_path: str, output_path: str, output_format: str,
                   options: dict = None,
                   progress_callback: Optional[Callable[[int], None]] = None) -> None:

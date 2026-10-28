@@ -804,21 +804,34 @@
   // SEUL process qu'il périme (`stales`) ; s'il en périme plusieurs, en tête (la consigne, le
   // modèle) — sauf s'ils sont tous OPTIONNELS : le premier d'entre eux (le modèle des deux
   // partitions complètes du composer). Sans `stales` : en tête.
+  // Une section SERT aussi les process optionnels de ses réglages partagés qui n'ont pas de section
+  // à eux : son titre les nomme tous (2026-10-28, Fabien — le modèle de langage du reader sert la
+  // mise en forme ET l'analyse : « Mise en forme · Analyse »). Dérivé des `stales`, rien à déclarer.
   function processSections(params, processes) {
-    const order = {}, optional = {};
-    (processes || []).forEach(function (p, i) { order[p.key] = i; optional[p.key] = !!p.optional; });
-    const buckets = {}, general = [];
+    const order = {}, optional = {}, label = {};
+    (processes || []).forEach(function (p, i) {
+      order[p.key] = i; optional[p.key] = !!p.optional; label[p.key] = p.label;
+    });
+    const buckets = {}, served = {}, general = [];
     (params || []).forEach(function (p) {
       const keys = (p.stales || []).filter(function (k) { return k in order; })
         .sort(function (a, b) { return order[a] - order[b]; });
       let target = null;
       if (keys.length === 1) target = keys[0];
       else if (keys.length > 1 && keys.every(function (k) { return optional[k]; })) target = keys[0];
-      if (target) (buckets[target] = buckets[target] || []).push(p.name);
-      else general.push(p.name);
+      if (target) {
+        (buckets[target] = buckets[target] || []).push(p.name);
+        served[target] = (served[target] || []).concat(keys);
+      } else general.push(p.name);
     });
+    const title = function (key) {
+      const also = (served[key] || []).filter(function (k, i, all) {
+        return k !== key && !buckets[k] && all.indexOf(k) === i;
+      });
+      return [key].concat(also).map(function (k) { return label[k]; }).join(' · ');
+    };
     const sections = (processes || []).filter(function (p) { return buckets[p.key]; })
-      .map(function (p) { return { key: p.key, label: p.label, names: buckets[p.key] }; });
+      .map(function (p) { return { key: p.key, label: title(p.key), names: buckets[p.key] }; });
     const visible = general.length ? 1 : 0;
     return sections.length + visible >= 2 ? { general: general, sections: sections } : null;
   }

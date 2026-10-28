@@ -418,6 +418,23 @@ class ProcessSectionsTest(SimpleTestCase):
                          [(s['key'], s['names']) for s in out['sections']],
                          'pipeline order ; the model of the two optional ones with the first')
 
+    def test_a_section_names_the_optional_processes_its_shared_settings_also_serve(self):
+        """The reader (2026-10-28, Fabien) : its language model serves the formatting AND the
+        analysis — the analysis has no section of its own, so the section says both. The composer's
+        « Partition de sortie » HAS its own section : it is not named twice."""
+        reader = json.dumps([{'key': 'read', 'label': 'Lecture', 'optional': False},
+                             {'key': 'format', 'label': 'Mise en forme', 'optional': True},
+                             {'key': 'analyze', 'label': 'Analyse', 'optional': True}])
+        out = self._sections([{'name': 'mode', 'stales': ['read']},
+                              {'name': 'llm_model', 'stales': ['format', 'analyze']}], reader)
+        self.assertEqual([('read', 'Lecture'), ('format', 'Mise en forme · Analyse')],
+                         [(s['key'], s['label']) for s in out['sections']])
+        composer = self._sections([{'name': 'extract_parts', 'stales': ['parts']},
+                                   {'name': 'extract_rendered_parts', 'stales': ['rendered_parts']},
+                                   {'name': 'parts_model', 'stales': ['parts', 'rendered_parts']}])
+        self.assertEqual(['Partition complète', 'Partition de sortie'],
+                         [s['label'] for s in composer['sections']])
+
     def test_nothing_to_structure_stays_flat(self):
         self.assertIsNone(self._sections([{'name': 'a', 'stales': ['render']},
                                           {'name': 'b', 'stales': ['render']}]),

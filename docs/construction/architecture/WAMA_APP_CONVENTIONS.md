@@ -840,9 +840,13 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
   - **une liste de formats** : celle de la nature (table du converter, sans les formats audio
     pour une sortie image ou vidéo) ; pour une app dont l'élément est l'une OU l'autre nature
     (enhancer, anonymizer : image ou vidéo), un TUPLE de natures → des groupes par nature
-    (`format_option_groups`), plus les choix propres DÉCLARÉS de l'app (`extra_formats` —
-    l'anonymizer : « Format du fichier source »). Un format d'une autre nature que l'élément est
-    refusé EN LE DISANT au rendu (`apply_output_settings`), le fichier garde son format ;
+    (`format_option_groups`), plus d'éventuels choix propres DÉCLARÉS de l'app (`extra_formats`
+    — aucun aujourd'hui : le « Format du fichier source » de l'anonymizer est retiré, R186).
+    « Original » est le format que la tâche a écrit ; une app qui RÉÉCRIT un fichier déposé
+    l'écrit dans le format déposé (`detections.rewrite_media` : un encodage, audio recopié, son
+    en phase) — « Original » y est donc le format d'origine. Un format d'une autre nature que
+    l'élément est refusé EN LE DISANT au rendu (`apply_output_settings`), le fichier garde son
+    format ;
   - **un vocabulaire de qualité** : celui de la table qui l'applique (`converter/utils/
     quality_presets`, « Rapide (web) / Équilibré / Qualité ») — la brique recopiait « Web (léger)
     / Équilibré / Maximum » ;

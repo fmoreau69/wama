@@ -161,10 +161,10 @@ class Media(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         help_text='URL to download from (batch import) — populated only when file is not yet downloaded'
     )
 
-    # Format de sortie (Phase 3 élargie) :
-    #   'original' = format produit par le pipeline (par défaut)
-    #   'input'    = reconvertir vers le format du fichier source
-    #   '<fmt>'    = format explicite (mp4, webp, …)
+    # Format de sortie — les réglages COMMUNS de toute app qui rend un fichier (`output_formats`) :
+    #   'original' = le format du fichier DÉPOSÉ, que le floutage écrit lui-même (2026-10-28)
+    #   '<fmt>'    = format explicite (mp4, webp, …), converti au process « Sortie »
+    # ('input', « Format du fichier source », retiré le 2026-10-28 : il valait désormais 'original'.)
     output_format = models.CharField(max_length=20, default='original')
     output_quality = models.CharField(max_length=20, default='balanced')
 

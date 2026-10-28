@@ -119,6 +119,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-10-28
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| (ce commit — rendu vidéo commun en UN encodage, Portage Apps) | **Floutage d'affichage** (`display_anonymization.blur_camera` → `detections.rewrite_media`, brique commune avec l'Anonymizer) : les images floutées vont DIRECTEMENT à ffmpeg (plus d'intermédiaire MJPEG puis second encodage H.264) ; le conteneur reste celui demandé (`<position>.mp4`), codecs de la table du converter (`video_backend.rendering_encoding`, H.264 « visuellement sans perte » CRF 18) ; l'audio de la source est RECOPIÉ quand le conteneur l'accepte ; la cadence est images réelles / durée du flux (`media_probe.rendering_facts`). Aucun calcul de détection ni de floutage ne change | Demande de Fabien (Anonymizer, D3) : le moins de conversions possible, audio rendu sans désynchronisation — la brique étant commune, le Lab en hérite | `tests_detections` (rendu : conteneur gardé, rien d'intermédiaire, 10 images ; son gardé en phase MP4/AAC et MKV/Opus, cadence variable avec contre-épreuve : la cadence lue par OpenCV aurait donné 2,25 s pour 3 s de son) ; suite `wama_lab.cam_analyzer` verte. Les vidéos floutées existantes ne changent pas (refaire le floutage pour en profiter). Annulation : revert |
+
 ## 2026-10-26
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

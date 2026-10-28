@@ -35,10 +35,6 @@ from wama.anonymizer.models import Media
 from wama.anonymizer.utils.model_config import MODEL_SPEC
 
 
-#: Le choix de format PROPRE à l'anonymizer (voir le bloc « Format et qualité de SORTIE »).
-INPUT_FORMAT_CHOICE = ("input", "Format du fichier source")
-
-
 # Groupes de la modale ⚙ — CALQUÉS sur les sections du volet droit (la « bonne représentation ») :
 # Mode de détection → Quoi flouter (YOLO) | SAM3 → Comment flouter → Quoi afficher → Sortie.
 # Les champs advanced SANS groupe tombent dans le groupe implicite « Avancé » replié (WamaParams).
@@ -211,15 +207,17 @@ PARAMS = derive_from_model(
 # qualité affichée seulement quand le fichier est réencodé — comme dans toutes les apps. Ils étaient
 # déclarés ici à la main (union recopiée, qualité toujours affichée), et le volet les écrivait une
 # TROISIÈME fois en HTML (8 formats sur 13, valeur figée : le choix retenu n'était jamais réaffiché).
-# Spécificité DÉCLARÉE de l'app : « Format du fichier source » — le moteur écrit sa vidéo en MP4
-# même d'un MOV déposé, ce choix la rend dans le format déposé (`tasks._output_format_for`).
+# « Original » est le format du fichier DÉPOSÉ : le floutage l'écrit dans ce format, en un seul
+# encodage, audio d'origine recopié (`detections.rewrite_media`, 2026-10-28, décision de Fabien —
+# « je ne vois pas la différence avec les autres »). Le choix « Format du fichier source » qui
+# existait ici est retiré : le floutage imposait le MP4, il fallait reconvertir pour retrouver
+# le format déposé.
 # Volet : `dom_id` `output_format` / `output_quality`, les ids que lit le dépôt (`upload.js`).
 PARAMS += output_format_params(
     ("video", "image"), contexts=("item", "batch", "panel"), group="sortie",
     dom_id_format={"panel": "output_format"}, dom_id_quality={"panel": "output_quality"},
-    extra_formats=[INPUT_FORMAT_CHOICE], advanced=True,
-    format_extra=dict(help="« Original » : le format que le floutage a écrit. « Format du fichier "
-                           "source » : celui du fichier déposé."),
+    advanced=True,
+    format_extra=dict(help="« Original » : le format du fichier déposé."),
 )
 
 

@@ -126,12 +126,16 @@ PARAMS = derive_from_model(
         ),
         # Les INTERRUPTEURS des process optionnels : ils sont le `toggle` de leur process, ils ne
         # périment rien. La mise en forme est COCHÉE par défaut : elle avait toujours lieu.
+        # Rebaptisé le 2026-10-28 (Fabien, D4) : « Mettre en forme (Markdown) » se lisait comme un
+        # FORMAT de sortie. C'est une ÉTAPE (le process `format`), qui se rejoue seule sans refaire
+        # la lecture ; le format, lui, se choisit au téléchargement.
         "format_markdown": dict(
-            type="toggle", label="Mettre en forme (Markdown)", icon="fa-heading",
+            type="toggle", label="Mettre en forme par IA", icon="fa-heading",
             dom_id={"panel": "formatMarkdownToggle", "batch": "batchSettingsFormatMarkdown",
                     "item": "rSettings_format_markdown"},
-            help="Titres, listes et tableaux remis en Markdown par un LLM, sans rien retrancher. "
-                 "Le texte natif d'un PDF reste tel quel.",
+            help="Une étape : un modèle de langage restructure le texte lu (titres, listes, "
+                 "tableaux) sans rien en retrancher. Le format du fichier se choisit au "
+                 "téléchargement. Le texte natif d'un PDF reste tel quel.",
         ),
         "generate_analysis": dict(
             type="toggle", label="Analyser (résumé, points clés)", icon="fa-magnifying-glass-chart",

@@ -234,16 +234,14 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertTrue(self.media.output_file.name.endswith('.png'))
         self.assertEqual([], self.media.native_outputs)
 
-    def test_the_format_of_the_input_is_resolved_by_the_app(self):
-        """« input » is not a format : the app resolves it — here the blur already wrote a PNG
-        for a PNG source, so nothing is transformed and nothing is kept twice."""
+    def test_the_original_format_is_the_deposited_one_and_nothing_is_kept_twice(self):
+        """« Original » is the format of the DEPOSITED file, which the blur writes itself
+        (2026-10-28) : nothing to convert, no original kept twice — the rule of every app."""
         self._run()
-        outcome, detected = self._run(output_format='input')
-        detected.assert_not_called()
         self.assertTrue(self.media.output_file.name.endswith('.png'))
         self.assertEqual([], self.media.native_outputs)
-        self.assertEqual('webp', tasks._output_format_for(
-            mock.Mock(output_format='input', file_ext='.webp'), '/x/street_blurred.png'))
+        self.assertFalse(hasattr(tasks, '_output_format_for'),
+                         'no resolution of its own : the common output settings')
 
     def test_a_lost_detection_document_detects_again(self):
         self._run()

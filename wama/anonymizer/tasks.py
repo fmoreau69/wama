@@ -90,32 +90,17 @@ def _console(user_id: int, message: str, level: str = None) -> None:
         pass
 
 
-def _output_format_for(media, source) -> str:
-    """Le format de sortie DEMANDÉ pour ce média — résolu ici parce que le réglage de
-    l'anonymizer n'est pas toujours un format :
-        'original' → ce que le moteur a écrit (rien à faire) ;
-        'input'    → le format du fichier SOURCE (le moteur a écrit du .mp4, l'utilisateur avait
-                     déposé du .mov → retour au .mov) ;
-        '<fmt>'    → ce format.
-    Un format égal à celui du fichier d'origine ne demande rien non plus."""
-    fmt = (getattr(media, 'output_format', '') or 'original').lower()
-    if fmt in ('', 'original'):
-        return 'original'
-    wanted = (media.file_ext or '').lower().lstrip('.') if fmt == 'input' else fmt
-    if not wanted or os.path.splitext(str(source))[1].lower().lstrip('.') == wanted:
-        return 'original'
-    return wanted
-
-
 def _output(media, ctx):
     """GLU du process `output` : format et qualité de sortie, par la glu COMMUNE
     (`output_process.output_step`) — le fichier flouté d'origine est gardé tant que la sortie le
-    transforme."""
+    transforme. « Original » est le format du fichier DÉPOSÉ, que le floutage écrit lui-même
+    (`detections.rewrite_media`, 2026-10-28) : rien à convertir. La résolution propre à l'app
+    (`_output_format_for` et sa valeur `input`, « Format du fichier source ») est retirée le même
+    jour — l'anonymizer suit la règle de toutes les apps."""
     from wama.common.services.output_process import output_step
     video = normalize_types([media.file_ext]) == ['video']
     return output_step('output_file', domain='video' if video else 'image', app_id='anonymizer',
-                       console=lambda item, message: _console(item.user_id, message),
-                       format_of=_output_format_for)(media, ctx)
+                       console=lambda item, message: _console(item.user_id, message))(media, ctx)
 
 
 # ----------------------------------------------------------------------

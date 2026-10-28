@@ -560,7 +560,17 @@ def rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_fram
                   progress=None) -> str:
     """Réécrit le média `source` en peignant chaque frame avec SES détections :
     `apply(image, détections) -> image` (le floutage, ou le dessin d'aperçu). Rend le chemin
-    RÉELLEMENT écrit — une vidéo sort toujours en `.mp4`, audio d'origine recollé.
+    RÉELLEMENT écrit.
+
+    Une VIDÉO sort dans le conteneur de `output_path` — le format d'origine quand l'appelant y met
+    l'extension de la source (l'anonymizer) — en UN seul encodage (2026-10-28, demande de Fabien :
+    le moins de conversions possible) : les images peintes vont directement à ffmpeg, avec les
+    codecs qu'emploierait une conversion vers ce format (`converter.video_backend.
+    rendering_encoding`), et l'audio de la source y est RECOPIÉ quand le conteneur l'accepte. La
+    cadence est la cadence MOYENNE de la source (`media_probe.rendering_facts`) : la vidéo réécrite
+    a la durée de son audio, même tournée à cadence variable. Jusque-là : une vidéo MJPEG
+    intermédiaire, puis un second encodage H.264 en `.mp4` imposé, l'audio réencodé.
+    Un conteneur hors de la table sort en `.mp4`.
 
     `frames`   : {indice: [détections]} (`by_frame`) ;
     `on_frame` : `callback(indice, image d'origine, image peinte, détections)` — l'aperçu
@@ -569,7 +579,7 @@ def rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_fram
 
     Une frame sans détection est écrite telle quelle (aucun calcul)."""
     import cv2
-    from .video_utils import copy_audio_to_video, is_image
+    from .video_utils import is_image
     if is_image(source):
         image = cv2.imread(source)
         if image is None:
@@ -588,44 +598,89 @@ def rewrite_media(source: str, frames: dict, apply, output_path: str, *, on_fram
             progress(1, 1)
         return output_path
 
+    import subprocess
+    import tempfile
+    from wama.converter.backends.video_backend import rendering_encoding
+    from .ffmpeg_utils import adapt_path_for_ffmpeg, get_ffmpeg_exe
+    from .media_probe import rendering_facts
+
+    ffmpeg = get_ffmpeg_exe()
+    if not ffmpeg:
+        raise RuntimeError("ffmpeg introuvable — la vidéo ne peut pas être réécrite")
+    facts = rendering_facts(source)
+    stem, ext = os.path.splitext(output_path)
+    encoding = rendering_encoding(ext.lstrip('.'), facts.get('audio_codec', ''))
+    if encoding is None:
+        ext = '.mp4'
+        encoding = rendering_encoding('mp4', facts.get('audio_codec', ''))
+    final = stem + ext
+    os.makedirs(os.path.dirname(os.path.abspath(final)), exist_ok=True)
+    # Écrit à côté puis substitué : une coupure ne laisse pas un fichier à moitié écrit.
+    writing = f'{stem}.writing{ext}'
+
     capture = cv2.VideoCapture(source)
     if not capture.isOpened():
         raise RuntimeError(f"Vidéo illisible : {os.path.basename(source)}")
-    fps = capture.get(cv2.CAP_PROP_FPS) or 25.0
-    size = (int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)), int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+    fps = facts.get('fps') or capture.get(cv2.CAP_PROP_FPS) or 25.0
     total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT)) or 0
-    # Intermédiaire MJPEG (qualité haute, codec partout disponible) : ffmpeg ré-encode en H.264
-    # et recolle l'audio ensuite (`copy_audio_to_video`).
-    temp = os.path.splitext(output_path)[0] + '.avi'
-    os.makedirs(os.path.dirname(os.path.abspath(temp)), exist_ok=True)
-    writer = cv2.VideoWriter(temp, cv2.VideoWriter_fourcc(*'MJPG'), fps, size, True)
-    if not writer.isOpened():
-        temp = os.path.splitext(output_path)[0] + '_raw.mp4'
-        writer = cv2.VideoWriter(temp, cv2.VideoWriter_fourcc(*'mp4v'), fps, size, True)
-    index = 0
+    process, log, index = None, tempfile.TemporaryFile(), 0
     try:
         while True:
             ok, image = capture.read()
             if not ok:
                 break
+            if process is None:
+                # La taille se lit sur l'image DÉCODÉE (OpenCV applique la rotation déclarée).
+                height, width = image.shape[:2]
+                process = subprocess.Popen(
+                    [ffmpeg, '-y', '-loglevel', 'error',
+                     '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-s', f'{width}x{height}',
+                     '-r', f'{fps:.6f}', '-i', '-',
+                     '-i', adapt_path_for_ffmpeg(source, ffmpeg),
+                     '-map', '0:v:0', '-map', '1:a:0?',
+                     *encoding['video'], *encoding['audio'], *encoding['extra'],
+                     '-shortest', '-f', encoding['container'],
+                     adapt_path_for_ffmpeg(writing, ffmpeg)],
+                    stdin=subprocess.PIPE, stderr=log)
             found = frames.get(index, [])
             painted = apply(image.copy(), found) if found else image
-            writer.write(painted)
+            process.stdin.write(painted.tobytes())
             if on_frame:
                 on_frame(index, image, painted, found)
             index += 1
             if progress:
                 progress(index, total or index)
+    except Exception as exc:
+        if process is not None:
+            process.kill()
+            process.wait()
+        if os.path.exists(writing):
+            os.remove(writing)
+        if isinstance(exc, BrokenPipeError):
+            # ffmpeg s'est arrêté en route : c'est SA raison qu'il faut dire, pas le tube cassé.
+            log.seek(0)
+            raise RuntimeError("ffmpeg s'est arrêté pendant l'écriture : "
+                               + log.read().decode('utf-8', 'replace').strip()[-600:]) from exc
+        raise
     finally:
         capture.release()
-        writer.release()
-    final = os.path.splitext(output_path)[0] + '.mp4'
-    copy_audio_to_video(source, temp, final)
-    if os.path.exists(temp) and os.path.abspath(temp) != os.path.abspath(final):
-        try:
-            os.remove(temp)
-        except OSError:
-            pass
+        if process is not None and process.stdin and not process.stdin.closed:
+            try:
+                process.stdin.close()
+            except OSError:
+                pass
+    if process is None:
+        log.close()
+        raise RuntimeError(f"Vidéo sans aucune image : {os.path.basename(source)}")
+    returncode = process.wait()
+    log.seek(0)
+    message = log.read().decode('utf-8', 'replace').strip()
+    log.close()
+    if returncode != 0 or not os.path.isfile(writing):
+        if os.path.exists(writing):
+            os.remove(writing)
+        raise RuntimeError(f"ffmpeg a échoué ({returncode}) : {message[-600:]}")
+    os.replace(writing, final)
     return final
 
 

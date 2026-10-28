@@ -27132,3 +27132,26 @@ Règle consignée : `WAMA_APP_CONVENTIONS §6.4` (deux puces du 2026-10-28) ; re
   l'anonymizer seul) · manifestes `pipeline` non régénérés (co-édités) · jumelles à la régénération
   (générateur) · étape suivante : la clé commune `<domaine>.<nom>` (noms de domaine acceptés par
   Fabien) · domaine `document` de l'Anonymizer (relevé de la session privacy) : après confirmation.
+
+## §PALIER 2026-10-28 (nuit), « ÉTAPE 1, suite : l'Anonymizer rend le FORMAT D'ORIGINE en UN encodage, son gardé en phase ; reader : l'étape « Mettre en forme par IA », sections nommées par tous leurs process » — non poussé — 🔴 appliquer `anonymizer/0038` avec `reader/0016` + `avatarizer/0025`, puis relancer gunicorn + workers
+
+Décisions de Fabien : D3 (l'Anonymizer suit la règle commune, « Original » = le format déposé, le
+moins de conversions, audio sans désynchronisation), D4 (interrupteur gardé, rebaptisé), D6 (Data
+et Lab : au portage de leurs apps, alignés le moment venu).
+- **Rendu vidéo commun** (`detections.rewrite_media`, Anonymizer ET cam_analyzer) : UN encodage,
+  dans le conteneur de la sortie, codecs de la table du converter (`video_backend.
+  rendering_encoding`), audio RECOPIÉ quand le conteneur l'accepte. Cadence = images réelles /
+  durée du flux (`media_probe.rendering_facts`) — MESURÉ sur des sources à cadence variable : en
+  MKV/WebM OpenCV ET `avg_frame_rate` annoncent 20 i/s pour 45 images en 3 s (2,25 s de vidéo pour
+  3 s de son) ; en MP4/MOV les deux lisaient juste. `copy_audio_to_video` retiré (R186).
+- **Anonymizer** : « Format du fichier source » retiré, sa résolution propre aussi (R186) — sortie
+  commune ; migration locale `0038` (`input` → `original`, 1 ligne).
+- **Reader** : « Mettre en forme par IA » (une étape, pas un format) ; les sections du volet et des
+  modales se nomment par TOUS les process qu'elles servent quand l'un n'a pas de section à lui
+  (« Mise en forme · Analyse », `processSections`, dérivé des `stales`). Une mesure en base :
+  lecture 26,3 s, mise en forme 14,9 s (une seule exécution).
+- Tests : 517 verts (rendu, sortie, anonymizer, cam_analyzer) + 97 (sections, reader).
+- 🔚 ⚠ Restes : la cadence MOYENNE fait tomber la fin juste, pas chaque image d'une source très
+  irrégulière — l'exactitude demande d'écrire chaque image à son horodatage (PyAV, déjà présente
+  par faster-whisper, audiocraft et vibevoice, mais non déclarée en propre : décision de Fabien) ·
+  interrupteur « Mettre en forme par IA » activé par défaut (comme avant) — à confirmer.

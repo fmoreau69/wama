@@ -7,8 +7,10 @@ segmentation mask survives as polygons ; the gaps of a TRACK are interpolated be
 detections only, within the ceiling, never beyond the last one ; the drawing and the blur touch
 the detected zone and nothing else ; a media is re-rendered frame by frame.
 """
+import json
 import os
 import shutil
+import subprocess
 import tempfile
 
 import cv2
@@ -368,8 +370,9 @@ class RewriteMediaTest(SimpleTestCase):
 
 
 class RewriteVideoTest(SimpleTestCase):
-    """A VIDEO is re-written frame by frame (MJPEG intermediate, then ffmpeg : H.264 + the
-    source's audio when it has one) — only the frames that carry detections are painted."""
+    """A VIDEO is re-written frame by frame, in ONE encoding into the container of the output
+    path (2026-10-28 — it was an MJPEG intermediate, then H.264 into a forced `.mp4`) — only the
+    frames that carry detections are painted."""
 
     def setUp(self):
         import shutil as _shutil
@@ -383,7 +386,7 @@ class RewriteVideoTest(SimpleTestCase):
             writer.write(_stripes())
         writer.release()
 
-    def test_each_frame_is_painted_with_ITS_detections_and_the_result_is_an_mp4(self):
+    def test_each_frame_is_painted_with_ITS_detections_in_the_container_asked(self):
         painted, seen = [], []
         frames = {3: [dets.detection(box=[8, 8, 40, 40], label='face')]}
 
@@ -392,17 +395,130 @@ class RewriteVideoTest(SimpleTestCase):
             return blur_detections(image, found, blur_ratio=15)
 
         written = dets.rewrite_media(
-            self.source, frames, paint, os.path.join(self.folder, 'out', 'clip_blurred.avi'),
+            self.source, frames, paint, os.path.join(self.folder, 'out', 'clip_blurred.mp4'),
             on_frame=lambda i, original, out, found: seen.append(i),
             progress=lambda done, total: None)
         self.assertTrue(written.endswith('clip_blurred.mp4') and os.path.isfile(written))
         self.assertEqual([1], painted, 'only frame 3 carries a detection')
         self.assertEqual(list(range(10)), seen)
-        self.assertFalse(os.path.exists(os.path.join(self.folder, 'out', 'clip_blurred.avi')),
-                         'the intermediate is removed')
+        self.assertEqual(['clip_blurred.mp4'], os.listdir(os.path.join(self.folder, 'out')),
+                         'no intermediate left behind')
         capture = cv2.VideoCapture(written)
-        self.assertGreaterEqual(int(capture.get(cv2.CAP_PROP_FRAME_COUNT)), 9)
+        self.assertEqual(10, int(capture.get(cv2.CAP_PROP_FRAME_COUNT)))
         capture.release()
+
+    def test_a_container_outside_the_table_comes_out_as_mp4(self):
+        written = dets.rewrite_media(self.source, {}, lambda image, found: image,
+                                     os.path.join(self.folder, 'clip_blurred.flv'))
+        self.assertTrue(written.endswith('clip_blurred.mp4') and os.path.isfile(written))
+
+
+class RewriteVideoKeepsItsSoundTest(SimpleTestCase):
+    """The blurred video keeps the ORIGINAL format and its sound IN PHASE (2026-10-28, Fabien :
+    « un fichier vidéo avec un audio doit bien être rendu avec son audio en sortie sans désynchro »).
+    Real ffmpeg, real streams : the container of the deposited file, its audio stream COPIED (no
+    re-encoding), and an audio as long as the video — a variable frame rate included, which the
+    nominal rate read by OpenCV used to stretch or shrink."""
+
+    def setUp(self):
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+        self.ffmpeg = get_ffmpeg_exe()
+        if not self.ffmpeg:
+            self.skipTest('ffmpeg absent')
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, True)
+
+    def _source(self, name, audio_codec, video_filter=None):
+        path = os.path.join(self.folder, name)
+        command = [self.ffmpeg, '-y', '-loglevel', 'error',
+                   '-f', 'lavfi', '-i', 'testsrc=size=64x48:rate=20:duration=3',
+                   '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=3']
+        if video_filter:
+            command += ['-vf', video_filter, '-fps_mode', 'vfr']
+        command += ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', audio_codec, path]
+        subprocess.run(command, check=True)
+        return path
+
+    @staticmethod
+    def _streams(path):
+        """`(conteneur, {type: flux})`, chaque flux avec sa `duration` — Matroska ne la porte que
+        dans ses étiquettes (`DURATION` = « 00:00:03.000000000 »)."""
+        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
+        out = subprocess.run([get_ffprobe_exe(), '-v', 'error', '-show_entries',
+                              'stream=codec_type,codec_name,duration:stream_tags=DURATION'
+                              ':format=format_name', '-of', 'json', path],
+                             capture_output=True, text=True, check=True)
+        data = json.loads(out.stdout)
+        streams = {}
+        for stream in data['streams']:
+            if 'duration' not in stream and (stream.get('tags') or {}).get('DURATION'):
+                h, m, s = stream['tags']['DURATION'].split(':')
+                stream['duration'] = str(int(h) * 3600 + int(m) * 60 + float(s))
+            streams[stream['codec_type']] = stream
+        return data['format']['format_name'], streams
+
+    def _rewrite(self, source, name):
+        return dets.rewrite_media(source, {5: [dets.detection(box=[4, 4, 30, 30], label='face')]},
+                                  lambda image, found: blur_detections(image, found, blur_ratio=9),
+                                  os.path.join(self.folder, 'out', name))
+
+    def _assert_in_phase(self, source, written):
+        _, before = self._streams(source)
+        _, after = self._streams(written)
+        self.assertAlmostEqual(float(before['video']['duration']),
+                               float(after['video']['duration']), delta=0.12)
+        self.assertAlmostEqual(float(after['video']['duration']),
+                               float(after['audio']['duration']), delta=0.12,
+                               msg='the sound lasts as long as the picture')
+
+    def test_an_mp4_stays_an_mp4_and_its_aac_audio_is_copied(self):
+        source = self._source('talk.mp4', 'aac')
+        written = self._rewrite(source, 'talk_blurred.mp4')
+        container, streams = self._streams(written)
+        self.assertIn('mp4', container)
+        self.assertEqual('aac', streams['audio']['codec_name'])
+        self._assert_in_phase(source, written)
+
+    def test_a_matroska_keeps_its_container_and_its_opus_audio(self):
+        source = self._source('talk.mkv', 'libopus')
+        written = self._rewrite(source, 'talk_blurred.mkv')
+        container, streams = self._streams(written)
+        self.assertIn('matroska', container)
+        self.assertEqual('opus', streams['audio']['codec_name'])
+        self._assert_in_phase(source, written)
+
+    def test_a_variable_frame_rate_keeps_the_sound_in_phase(self):
+        """Measured 2026-10-28 : on a variable-rate MATROSKA, OpenCV and `avg_frame_rate` both say
+        20 frames/s for 45 frames in 3 s — rewritten at that rate, the video lasted 2.25 s for 3 s
+        of sound. (In MP4/MOV both read the right average : the case lives in MKV/WebM.)"""
+        # 3 s of picture and sound : 20 frames/s for 1.5 s, then every other frame (10 frames/s),
+        # timestamps kept — 45 frames.
+        source = self._source('phone.mkv', 'libopus',
+                              video_filter="select='lt(n\\,30)+not(mod(n\\,2))'")
+        _, streams = self._streams(source)
+        duration = float(streams['video']['duration'])
+        capture = cv2.VideoCapture(source)
+        nominal, decoded = capture.get(cv2.CAP_PROP_FPS), 0
+        while capture.read()[0]:
+            decoded += 1
+        capture.release()
+        self.assertEqual(45, decoded)
+        # Counter-proof : the rate read by OpenCV — the one the rendering used before — would
+        # make this very file a wrong length.
+        self.assertGreater(abs(decoded / nominal - duration), 0.4,
+                           'the fixture must defeat the nominal rate')
+        from wama.common.utils.media_probe import rendering_facts
+        self.assertAlmostEqual(decoded / duration, rendering_facts(source)['fps'], delta=0.05)
+        written = self._rewrite(source, 'phone_blurred.mkv')
+        self._assert_in_phase(source, written)
+
+    def test_a_video_without_sound_stays_silent_and_does_not_fail(self):
+        path = os.path.join(self.folder, 'mute.mp4')
+        subprocess.run([self.ffmpeg, '-y', '-loglevel', 'error', '-f', 'lavfi',
+                        '-i', 'testsrc=size=64x48:rate=20:duration=1', '-c:v', 'libx264',
+                        '-pix_fmt', 'yuv420p', path], check=True)
+        written = self._rewrite(path, 'mute_blurred.mp4')
+        self.assertNotIn('audio', self._streams(written)[1])
 
 
 class CorrectionsTest(SimpleTestCase):
