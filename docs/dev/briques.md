@@ -1635,7 +1635,7 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
-  - `native_tool_list(user, dev_tools: list=()) -> list` — La liste des outils au format standard (`tools=`) que reçoit un modèle déclaré
+  - `native_tool_list(user, dev_tools: list=(), names=None) -> list` — La liste des outils au format standard (`tools=`) que reçoit un modèle déclaré
   - `warm_up() -> dict` — Remplit les caches de processus du tour d'assistant — `{étape: secondes | 'erreur : …'}`.
   - `message_with_deposits(text: str, paths) -> str` — Le message d'un tour qui DÉPOSE des fichiers dans l'espace de l'utilisateur — UNE graphie
   - `conversation_turn(user, message: str, *, surface: str='web', thread_key: str='', provider: str=None, model: str=None, domain: str=None, on_event=None) -> dict` — UN tour, avec historique PERSISTÉ côté serveur — la voie normale pour une surface.
@@ -3672,4 +3672,4 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_reader_status_view(request)`
   - `convert_file_view(request)`
   - `get_converter_status_view(request)`
-  - `build_tools_list() -> str` — Génère la liste des outils (nom + args + description) pour le prompt de l'assistant.
+  - `build_tools_list(names=None) -> str` — Génère la liste des outils (nom + args + description) pour le prompt de l'assistant.
