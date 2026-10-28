@@ -1769,6 +1769,14 @@ d'annoncer un modèle que le lancement ne retiendrait pas (règle du 27/09).
   rendait son REPLI quel que soit le curseur depuis le 06/10 ; la règle du listage est remontée
   (`models.model_type_for_tasks`, un seul lieu). Gardes : `tests_auto_model.DeclaredNeedsTest`,
   `MultiTaskDomainDrawTest` (contre-épreuves rouges).
+  ✅ **2026-10-28 — la SPÉCIALITÉ, 5ᵉ clé (`specialization`)** : `select_model(specialization=…)`
+  écarte d'un lot généraliste un spécialiste (translategemma) et ne retient que lui quand on la
+  demande. La glu écrite à la main du Translator la passait en argument — sous une graphie
+  (`specialisation`) que le sélecteur ne connaît pas. Elle se DÉCLARE au schéma, valeur unique
+  (`SCALAR_RESOLUTION_KEYS`, avec `voice`), et dit au rôle `codegen` le MÉTIER de l'app : une
+  spécialité déclarée lui montre la brique de ce métier à la place de l'appel LLM nu
+  (`run_codegen.BRICKS_BY_TRIGGER`, `translation` → `translator.translate_text` /
+  `translate_document`). Garde : `tests_translator.TranslationIsDeclaredNotWrittenTest`.
 - **Retirés** : l'endpoint `/transcriber/backends/` et `get_backends_info`, `loadBackendsAsync`,
   les deux recopies d'options vers les modales, `#backendHelp` et son pont `data-selected`, et le
   grisage de la diarisation par `WamaModelCaps` — il la désactivait pour WHISPER (le catalogue dit

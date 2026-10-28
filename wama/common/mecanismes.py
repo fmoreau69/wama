@@ -1210,10 +1210,15 @@ MECHANISMS = (
               "une CLÉ DE CATALOGUE (défaut `ollama:translategemma:12b`) : locale par la voie "
               "Ollama gouvernée, distante par `chat_with_catalog_model` avec la clé de "
               "l'utilisateur. `lang_routing` DÉCIDE quand traduire une consigne avant un modèle "
-              "qui ne parle pas sa langue ; le service EXÉCUTE",
+              "qui ne parle pas sa langue ; le service EXÉCUTE. API ÉTROITE d'une app (2026-10-28) : "
+              "`translate_text` et `translate_document` — un document TRADUIT EN GARDANT SA FORME, "
+              "bloc par bloc, réécrit à sa place par la couche texte commune (`document_text`, "
+              "unité `block`) ; c'est elle que le rôle `codegen` reçoit quand le schéma d'une app "
+              "déclare la spécialité `translation` (`options_resolution`)",
               'wama/common/utils/translator.py', 'docs/construction/suivi/ROADMAP.md §10',
-              annexes=('wama/common/utils/lang_routing.py',),
-              depends_on=('llm',)),
+              annexes=('wama/common/utils/lang_routing.py',
+                       'wama/common/tests/tests_translator.py'),
+              depends_on=('llm', 'document_text')),
     Mechanism('llm', 'Accès LLM',
               "Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama local). "
               "`chat_with_catalog_model` (2026-09-30) : un appel désigné par une CLÉ DE CATALOGUE "

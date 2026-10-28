@@ -154,6 +154,11 @@ BRICKS_BY_TRIGGER = {
     # (`full_layout_instruction`), deux glus de suite n'envoyaient pas le fond au modèle.
     ('surface_rerun', None): ('document_layout', ('adjustment_basis', 'adjust_layout',
                                                   'full_layout_messages', 'finish_document')),
+    # La SPÉCIALITÉ que le schéma déclare au tirage (`options_resolution.specialization`,
+    # 2026-10-28) dit le MÉTIER de l'app : une app de traduction emploie la brique de traduction —
+    # document compris, forme conservée —, pas l'appel LLM nu (la 1ʳᵉ glu du Translator, écrite à
+    # la main, relisait le document en texte brut et rendait un `.md`).
+    ('specialization', 'translation'): ('translator', ('translate_text', 'translate_document')),
 }
 
 
@@ -176,13 +181,21 @@ def _triggered(resolus: list, man: dict, process: str = None) -> list:
                    for m in resolus if m.get('manifest_kind') == 'model'}
     body = (man or {}).get('body') or {}
     facets = set(body)
-    param_flags = {flag for schema in ((body.get('params') or {}).get('schemas') or {}).values()
-                   for field in schema or [] for flag, on in field.items() if on is True}
+    fields = [field for schema in ((body.get('params') or {}).get('schemas') or {}).values()
+              for field in schema or [] if isinstance(field, dict)]
+    param_flags = {flag for field in fields for flag, on in field.items() if on is True}
+    specializations = {(field.get('options_resolution') or {}).get('specialization')
+                       for field in fields}
     reruns = {s.get('reruns') for s in body.get('surfaces') or [] if isinstance(s, dict)}
+    # Une brique de MÉTIER appelle elle-même le LLM : la montrer avec l'appel nu inviterait la glu
+    # à contourner la brique (et le juge réclamerait l'appel nu « non appelé »).
+    if specializations & {value for kind, value in BRICKS_BY_TRIGGER if kind == 'specialization'}:
+        model_types = model_types - {'llm'}
     return [v for (kind, value), v in BRICKS_BY_TRIGGER.items()
             if (kind == 'model_type' and value in model_types)
             or (kind == 'facet' and value in facets)
             or (kind == 'param_flag' and value in param_flags)
+            or (kind == 'specialization' and value in specializations)
             or (kind == 'surface_rerun' and process and process in reruns)]
 
 
@@ -270,15 +283,97 @@ def extract_code(text: str) -> str:
 
 
 def _returned_field_keys(fn_node) -> set:
-    """Clés littérales des dicts `'fields': {…}` construits dans la fonction (retours compris)."""
+    """Clés littérales des dicts `'fields': {…}` construits dans la fonction (retours compris) —
+    y compris quand `fields` est une VARIABLE (`fields = {…}` puis `{'fields': fields}`) : la 1ʳᵉ
+    glu du Translator générée le 2026-10-28 passait ainsi ses clés inventées sous le contrôle."""
+    assigned = {}
+    for n in ast.walk(fn_node):
+        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Dict):
+            for target in n.targets:
+                if isinstance(target, ast.Name):
+                    assigned.setdefault(target.id, []).append(n.value)
     keys = set()
     for n in ast.walk(fn_node):
         if not isinstance(n, ast.Dict):
             continue
         for k, v in zip(n.keys, n.values):
-            if isinstance(k, ast.Constant) and k.value == 'fields' and isinstance(v, ast.Dict):
-                keys |= {kk.value for kk in v.keys if isinstance(kk, ast.Constant)}
+            if not (isinstance(k, ast.Constant) and k.value == 'fields'):
+                continue
+            dicts = [v] if isinstance(v, ast.Dict) else assigned.get(getattr(v, 'id', None), [])
+            for d in dicts:
+                keys |= {kk.value for kk in d.keys if isinstance(kk, ast.Constant)}
     return keys
+
+
+def _module_names(path: Path):
+    """Les noms qu'un module définit au niveau supérieur (fonctions, classes, affectations,
+    imports) — None s'il ne se lit pas (on ne juge pas alors)."""
+    try:
+        tree = ast.parse(path.read_text(encoding='utf-8'))
+    except (OSError, SyntaxError, UnicodeDecodeError):
+        return None
+    names = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            for target in (node.targets if isinstance(node, ast.Assign) else [node.target]):
+                names.update(t.id for t in ast.walk(target) if isinstance(t, ast.Name))
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            names.update((a.asname or a.name).split('.')[0] for a in node.names)
+        elif isinstance(node, (ast.If, ast.Try)):
+            for sub in ast.walk(node):
+                if isinstance(sub, (ast.FunctionDef, ast.ClassDef)):
+                    names.add(sub.name)
+                elif isinstance(sub, (ast.Import, ast.ImportFrom)):
+                    names.update((a.asname or a.name).split('.')[0] for a in sub.names)
+                elif isinstance(sub, ast.Assign):
+                    names.update(t.id for t in sub.targets if isinstance(t, ast.Name))
+    return names
+
+
+def context_call_warnings(tree) -> list:
+    """Les appels `ctx.<méthode>(…)` qui ne tiennent pas sur `task_skeleton.TaskContext` : méthode
+    absente, argument nommé qu'elle ne prend pas, et `output_place` déballé autrement qu'en DEUX
+    valeurs (chemin relatif, chemin absolu)."""
+    import inspect
+
+    from wama.common.utils.task_skeleton import TaskContext
+    warnings = []
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Call):
+            func = n.value.func
+            if (isinstance(func, ast.Attribute) and func.attr == 'output_place'
+                    and isinstance(getattr(func, 'value', None), ast.Name)
+                    and func.value.id == 'ctx'):
+                for target in n.targets:
+                    if isinstance(target, ast.Tuple) and len(target.elts) != 2:
+                        warnings.append(f'ctx.output_place rend DEUX valeurs (relatif, absolu), '
+                                        f'déballées ici en {len(target.elts)}')
+        if not (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
+                and isinstance(n.func.value, ast.Name) and n.func.value.id == 'ctx'):
+            continue
+        member = getattr(TaskContext, n.func.attr, None)
+        if member is None:
+            warnings.append(f'ctx.{n.func.attr} n\'existe pas (TaskContext)')
+            continue
+        if not callable(member):
+            continue
+        params = inspect.signature(member).parameters
+        if any(p.kind is p.VAR_KEYWORD for p in params.values()):
+            continue
+        unknown = sorted(k.arg for k in n.keywords if k.arg and k.arg not in params)
+        if unknown:
+            warnings.append(f'argument(s) inconnu(s) de ctx.{n.func.attr} : {unknown} '
+                            f'(acceptés : {sorted(p for p in params if p != "self")})')
+    return warnings
+
+
+def _item_attributes_read(fn_node) -> set:
+    """Les attributs lus sur `item` (`item.x`), hors noms privés (`item._meta`)."""
+    return {n.attr for n in ast.walk(fn_node)
+            if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)
+            and n.value.id == 'item' and not n.attr.startswith('_')}
 
 
 def module_level_names(source: str) -> set:
@@ -330,8 +425,15 @@ def undefined_names(func: ast.AST, allowed=()) -> list:
     return sorted(read - bound)
 
 
+#: Les trous de glu qui ne sont pas un corps de tâche — fonction → arguments imposés. Le corps de
+#: tâche (`_process_<tâche>`) prend `(item, ctx)` ; le résultat INSTANTANÉ de la saisie
+#: (`tasks_gen._instant_hole`, 2026-10-28) prend l'élément seul, non enregistré.
+OTHER_HOLES = {'instant_result': ('item',)}
+
+
 def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
-              settings_fields=None, module_names=()) -> dict:
+              settings_fields=None, module_names=(), expected_args=('item', 'ctx'),
+              item_properties=()) -> dict:
     """Contrôles mécaniques du bloc généré — le LLM propose, la chaîne juge. `item_fields` = les
     champs du modèle d'item : la règle 5 du prompt n'admet qu'eux comme clés de `fields`, et ce
     contrôle la rend mécanique (elle n'était qu'une consigne)."""
@@ -358,6 +460,20 @@ def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
                 if not (base.with_suffix('.py').exists() or (base / '__init__.py').exists()):
                     out['warnings'].append(
                         f"import WAMA INEXISTANT : {'.' * n.level}{n.module or ''} (règle 6)")
+                    continue
+                # Le MODULE existe, le NOM aussi ? (2026-10-28 : `ensure_text_file` importé de
+                # `document_text`, `ensure_local_file` de `backends.manager` — modules réels,
+                # fonctions inventées : le contrôle ne regardait que le module.)
+                defined = _module_names(base.with_suffix('.py') if base.with_suffix('.py').exists()
+                                        else base / '__init__.py')
+                missing = sorted(a.name for a in n.names
+                                 if a.name != '*' and defined is not None and a.name not in defined
+                                 and not (base / a.name).with_suffix('.py').exists()
+                                 and not (base / a.name / '__init__.py').exists())
+                if missing:
+                    out['warnings'].append(
+                        f"nom(s) INEXISTANT(S) dans {'.' * n.level}{n.module or ''} : {missing} "
+                        "(règle 6)")
 
     fonctions = [n for n in arbre.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))]
     cible = next((f for f in fonctions if f.name == nom_impose), None)
@@ -366,9 +482,9 @@ def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
                                f"(reçues : {[f.name for f in fonctions]})")
     else:
         args = [a.arg for a in cible.args.args]
-        out['signature_ok'] = args[:2] == ['item', 'ctx']
+        out['signature_ok'] = args[:len(expected_args)] == list(expected_args)
         if not out['signature_ok']:
-            out['warnings'].append(f'signature {args} ≠ (item, ctx)')
+            out['warnings'].append(f"signature {args} ≠ ({', '.join(expected_args)})")
         missing = undefined_names(cible, module_names)
         if missing:
             out['warnings'].append(f'nom(s) jamais défini(s) ni importé(s) dans la glu : {missing} '
@@ -377,12 +493,26 @@ def controles(code: str, nom_impose: str, app_id: str = None, item_fields=None,
             hors = sorted(_returned_field_keys(cible) - set(item_fields))
             if hors:
                 out['warnings'].append(f'clés de fields hors des champs du modèle (règle 5) : {hors}')
+            # Un attribut d'élément INVENTÉ (2026-10-28 : `item.options`) : la matière dit « tout
+            # autre attribut d'item est INTERDIT », aucun contrôle ne le tenait. Licites : les
+            # champs, leur `<nom>_id`, les propriétés du modèle, `pk`/`id`.
+            known = (set(item_fields) | {f'{f}_id' for f in item_fields}
+                     | set(item_properties or ()) | {'pk', 'id'})
+            invented = sorted(_item_attributes_read(cible) - known)
+            if invented:
+                out['warnings'].append(f"attribut(s) d'élément inexistant(s) : {invented} "
+                                       f"(champs : {sorted(item_fields)})")
         # Un RÉGLAGE réécrit au succès (2026-10-01 : `'model': <modèle tiré>` — le choix « auto »
         # de l'utilisateur perdu à la première génération). `fields` porte des résultats.
         overwritten = sorted(_returned_field_keys(cible) & set(settings_fields or ()))
         if overwritten:
             out['warnings'].append(f'fields réécrit un RÉGLAGE de l\'utilisateur : {overwritten} '
                                    f'(le modèle employé va dans `models`)')
+    # Le CONTEXTE de tâche jugé sur sa classe réelle (2026-10-28 : `ctx.output_place(ext,
+    # nature=…, model=…)` déballé en TROIS valeurs — il en rend deux —, et une méthode inventée
+    # aurait levé `AttributeError` au premier lancement). Seule la glu d'une tâche a un `ctx`.
+    if 'ctx' in expected_args:
+        out['warnings'] += context_call_warnings(arbre)
     # Arguments DEVINÉS d'une brique commune (2026-10-01 : `max_tokens`, `max_new_tokens` passés
     # à la brique LLM — `TypeError` au premier lancement, invisible sans ce contrôle).
     signatures = signatures_briques()
@@ -597,6 +727,9 @@ def main():
     ap.add_argument('--process', default=None,
                     help="Process du PIPELINE de l'app (app à plusieurs process, décision n°11) : "
                          "vise le trou `_process_<tâche>_<process>`.")
+    ap.add_argument('--function', default=None, choices=sorted(OTHER_HOLES),
+                    help="Un trou qui n'est pas un corps de tâche : `instant_result` (le résultat "
+                         "instantané de la saisie, route `instant`).")
     add_llm_arguments(ap, role='codegen')
     ap.add_argument('--repair-rounds', type=int, default=1,
                     help="Tours de réparation quand les contrôles relèvent un défaut (0 = aucun).")
@@ -627,6 +760,15 @@ def main():
         process_matter = matiere_process(man, pipeline, functions, process_spec, all_specs)
     elif args.process:
         raise SystemExit(f"--process {args.process} : aucun pipeline à plusieurs process déclaré")
+    expected_args = ('item', 'ctx')
+    if args.function:
+        if args.process:
+            raise SystemExit('--function et --process visent deux trous différents : un seul')
+        if args.function == 'instant_result' and 'instant' not in (proc.get('endpoints') or []):
+            raise SystemExit("--function instant_result : le manifeste ne déclare pas la route "
+                             "`instant`")
+        nom_impose, expected_args = args.function, OTHER_HOLES[args.function]
+    signature = ', '.join(expected_args)
 
     # Fichier mince du gabarit A2b : montre au modèle le wrapper et le trou EXACTS.
     from wama.common.manifests.codegen.tasks_gen import render_tasks
@@ -666,7 +808,7 @@ def main():
         f'attribut d\'item est INTERDIT.\n\n'
         f'FICHIER MINCE généré (le wrapper appelle ta glu) :\n{mince}\n\n'
         + (f'{process_matter}\n\n' if process_matter else '') +
-        f'Écris la fonction `{nom_impose}(item, ctx)` qui remplit ce trou — et lui SEUL '
+        f'Écris la fonction `{nom_impose}({signature})` qui remplit ce trou — et lui SEUL '
         f'(bloc ```python seul).')[:MAX_MATTER_CHARS]
 
     model = resolve_model(args.provider, 'codegen', args.model)
@@ -679,7 +821,8 @@ def main():
                           item_fields=[c.split(' (')[0] for c in champs],
                           settings_fields=((proc.get('model_spec') or {}).get('item') or {})
                           .get('params_fields'),
-                          module_names=module_level_names(mince))
+                          module_names=module_level_names(mince), expected_args=expected_args,
+                          item_properties=props)
         if process_spec and verif['compile_ok']:
             verif['warnings'] += process_checks(
                 code, nom_impose, process_spec, all_specs, read_by_bricks(man),
@@ -691,6 +834,10 @@ def main():
             called = {getattr(n.func, 'id', None) or getattr(n.func, 'attr', None)
                       for n in ast.walk(ast.parse(code)) if isinstance(n, ast.Call)}
             for _key, names in _triggered(resolus, man, args.process):
+                # Un trou qui n'est pas un corps de tâche (`instant_result` : la SAISIE seule) n'a
+                # qu'une part du métier : une fonction de la brique suffit.
+                if args.function and called & set(names):
+                    continue
                 verif['warnings'] += [f'brique déclenchée par le manifeste non appelée : {name}'
                                       for name in names if name not in called]
         return verif
@@ -714,7 +861,7 @@ def main():
         tail = (f"\n\nTA PROPOSITION PRÉCÉDENTE :\n```python\n{code}\n```\n\n"
                 f"Les CONTRÔLES MÉCANIQUES y ont relevé :\n"
                 + '\n'.join(f'- {w}' for w in verif['warnings'] or ['(ne compile pas)'])
-                + f"\n\nRends la fonction `{nom_impose}(item, ctx)` corrigée, ENTIÈRE "
+                + f"\n\nRends la fonction `{nom_impose}({signature})` corrigée, ENTIÈRE "
                   f"(bloc ```python seul).")
         repair_msg = user_msg[:max(0, MAX_MATTER_CHARS - len(tail))] + tail
         response = call_llm(args.provider, model, PROMPT, repair_msg, num_ctx=CODEGEN_NUM_CTX,
@@ -733,7 +880,8 @@ def main():
     # `{role}_{slug}_{horodatage}.json`, donc `codegen_{app}_{task}_{horodatage}.json` avec
     # ce slug, et l'enveloppe pose les mêmes `status`/`role` en tête. Vérifié avant bascule.
     sortie = write_output('codegen', f'{args.app}_{task}' + (f'_{args.process}' if process_spec
-                                                              else ''), {
+                                                              else '')
+                          + (f'_{args.function}' if args.function else ''), {
         'provider': args.provider,
         'model': model,
         'app': args.app, 'task': task, 'function': nom_impose,

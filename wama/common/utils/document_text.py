@@ -1,8 +1,8 @@
 """La COUCHE TEXTE d'un document — lire ses passages, puis les réécrire SUR PLACE en conservant tout
 le reste (2026-10-28, ROADMAP §16.4bis, vision §5.4).
 
-    read_segments(path)                               → [texte du segment 0, texte du segment 1, …]
-    write_replacements(path, out_path, replacements)  → out_path
+    read_segments(path, unit='')                              → [texte du segment 0, …]
+    write_replacements(path, out_path, replacements, unit='') → out_path
 
 `replacements` = `{segment: [(start, end, nouveau_texte), …]}`, en index de caractères du texte
 que `read_segments` a rendu pour ce segment. Deux consommateurs, une brique : l'Anonymizer (domaine
@@ -25,6 +25,15 @@ FORMATS (v1) — un segment est :
     (`scrub`), fichier réécrit en entier (`garbage=4`, jamais en incrémental : les anciens objets
     resteraient dans le fichier). Un PDF scanné n'a pas de texte : c'est l'Anonymizer image (OCR,
     boîtes) qui le traite.
+
+UNITÉ `block` (le Translator, 2026-10-28) : un segment PDF est alors un BLOC de texte (un
+paragraphe de la page, ses lignes réunies), réécrit EN ENTIER dans son cadre — le texte dessous
+supprimé sans toucher au fond ni aux images, le nouveau texte posé dans le même cadre à la taille
+d'origine, réduite s'il le faut pour tenir (`insert_htmlbox`, toutes écritures). Remplacer un
+passage dans une page entière ne vaut que pour un passage court ; une traduction remplace tout.
+Les autres formats ont déjà le grain d'un paragraphe : l'unité ne les change pas.
+Un texte brut garde son encodage d'origine, sauf s'il ne peut pas porter le nouveau texte (une
+traduction en polonais dans un fichier cp1252) : il passe alors en UTF-8.
 """
 from __future__ import annotations
 
@@ -169,25 +178,82 @@ def _rewrite_pdf(path, out_path, replacements, segments) -> None:
         pdf.save(str(out_path), garbage=4, deflate=True)
 
 
+def _pdf_blocks(page) -> list:
+    """`[(cadre, texte, taille)]` des blocs de texte d'une page, dans l'ordre du fichier — les
+    lignes d'un bloc réunies par une espace (elles ne sont que le retour à la ligne du cadre)."""
+    import fitz
+    blocks = []
+    for block in page.get_text('dict')['blocks']:
+        if block.get('type') != 0:
+            continue
+        spans = [span for line in block['lines'] for span in line['spans']]
+        text = ' '.join(''.join(span['text'] for span in line['spans']).strip()
+                        for line in block['lines']).strip()
+        if text:
+            sizes = sorted(span['size'] for span in spans if span['text'].strip())
+            blocks.append((fitz.Rect(block['bbox']), text, sizes[len(sizes) // 2] if sizes else 11))
+    return blocks
+
+
+def _read_pdf_blocks(path) -> list:
+    import fitz
+    with fitz.open(str(path)) as pdf:
+        return [text for page in pdf for _, text, _ in _pdf_blocks(page)]
+
+
+def _rewrite_pdf_blocks(path, out_path, replacements) -> None:
+    import html
+
+    import fitz
+    with fitz.open(str(path)) as pdf:
+        index = 0
+        for page in pdf:
+            todo = []
+            for rect, text, size in _pdf_blocks(page):
+                if index in replacements:
+                    todo.append((rect, _splice(text, replacements[index]), size))
+                index += 1
+            if not todo:
+                continue
+            for rect, _, _ in todo:
+                page.add_redact_annot(rect, fill=False)
+            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
+                                  graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+            for rect, new, size in todo:
+                page.insert_htmlbox(rect, html.escape(new),
+                                    css=f'* {{font-family: sans-serif; font-size: {size:.1f}pt;}}',
+                                    scale_low=0)
+        pdf.save(str(out_path), garbage=4, deflate=True)
+
+
 # ── Les deux gestes ───────────────────────────────────────────────────────────────────────────
-def read_segments(path) -> list:
-    """Le texte de chaque segment du document (voir l'en-tête pour ce qu'est un segment)."""
+def read_segments(path, unit: str = '') -> list:
+    """Le texte de chaque segment du document (voir l'en-tête pour ce qu'est un segment ;
+    `unit='block'` : un PDF par blocs)."""
     ext = _ext(path)
     if ext in TEXT_EXTS:
         return [_read_plain(path)[0]]
     if ext == '.docx':
         return [_paragraph_text(p) for p in _docx_paragraphs(_open_docx(path))]
-    return _read_pdf(path)
+    return _read_pdf_blocks(path) if unit == 'block' else _read_pdf(path)
 
 
-def write_replacements(path, out_path, replacements: dict) -> str:
-    """Le document `path` réécrit dans `out_path`, chaque passage remplacé SUR PLACE."""
+def write_replacements(path, out_path, replacements: dict, unit: str = '') -> str:
+    """Le document `path` réécrit dans `out_path`, chaque passage remplacé SUR PLACE — les index
+    sont ceux de `read_segments(path, unit)`."""
     ext = _ext(path)
     os.makedirs(os.path.dirname(os.path.abspath(str(out_path))), exist_ok=True)
     changes = {int(k): list(v) for k, v in (replacements or {}).items() if v}
     if ext in TEXT_EXTS:
         text, encoding = _read_plain(path)
-        Path(out_path).write_bytes(_splice(text, changes.get(0, [])).encode(encoding))
+        new = _splice(text, changes.get(0, []))
+        try:
+            data = new.encode(encoding)
+        except UnicodeEncodeError:
+            data = new.encode('utf-8')
+        Path(out_path).write_bytes(data)
+    elif ext == '.pdf' and unit == 'block':
+        _rewrite_pdf_blocks(path, out_path, changes)
     elif ext == '.docx':
         document = _open_docx(path)
         paragraphs = _docx_paragraphs(document)

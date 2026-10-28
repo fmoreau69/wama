@@ -186,3 +186,69 @@ class TranslatorService:
             cache.set(key, value, ttl)
         except Exception:
             pass
+
+
+# ── L'API ÉTROITE de la brique (2026-10-28) ──────────────────────────────────────────────────
+# Ce qu'une app appelle — et ce que le rôle `codegen` voit quand le modèle requis est un
+# spécialiste de la traduction (`run_codegen.BRICKS_BY_TRIGGER`). Deux fonctions à signature
+# explicite (le rôle juge ses appels par elle), qui LÈVENT avec le motif : une traduction ratée
+# fait échouer l'élément en le disant, jamais un texte rendu à moitié.
+
+def glossary_terms(glossary) -> list:
+    """Les termes d'un glossaire : une liste telle quelle, un TEXTE un terme par ligne (la forme
+    du champ « Glossaire » d'une card). Sans cette lecture, un texte passé tel quel devenait une
+    liste de CARACTÈRES à ne pas traduire."""
+    if isinstance(glossary, str):
+        return [line.strip() for line in glossary.splitlines() if line.strip()]
+    return [str(term).strip() for term in glossary or [] if str(term).strip()]
+
+
+def translate_text(text: str, source_language: str, target_language: str, *,
+                   model: str = DEFAULT_MODEL, user=None, glossary=None, on_chunk=None,
+                   timeout: int = 120) -> str:
+    """La traduction de `text`. `model` : une clé de catalogue (vide = `DEFAULT_MODEL`) ;
+    `source_language` « auto » ou vide : la langue d'origine se détecte ; `glossary` : les termes
+    à garder tels quels (liste, ou texte un terme par ligne) ; `on_chunk(texte traduit jusqu'ici)`
+    après chaque morceau."""
+    result = TranslatorService(model=model or DEFAULT_MODEL, user=user).translate(
+        text or '', source_language, target_language, glossary=glossary_terms(glossary),
+        timeout=timeout, on_chunk=on_chunk)
+    if not result.get('ok'):
+        raise RuntimeError(f"Traduction impossible : {result.get('error') or 'réponse vide'}")
+    return result['text']
+
+
+def translate_document(path, out_path, source_language: str, target_language: str, *,
+                       model: str = DEFAULT_MODEL, user=None, glossary=None, on_chunk=None,
+                       progress_callback=None, timeout: int = 120) -> str:
+    """Le document `path` TRADUIT dans `out_path`, sa forme d'origine conservée (même format :
+    TXT, MD, DOCX, PDF à texte natif) — chaque bloc traduit et réécrit à sa place par la couche
+    texte commune (`document_text`, unité `block`). Rend `out_path`.
+
+    `on_chunk(texte traduit jusqu'ici)` : l'aperçu « pendant » ; `progress_callback(pourcent)`
+    après chaque bloc. Un document sans texte (PDF scanné) LÈVE : c'est l'OCR qu'il lui faut."""
+    from wama.common.utils.document_text import read_segments, write_replacements
+    service = TranslatorService(model=model or DEFAULT_MODEL, user=user)
+    glossary = glossary_terms(glossary)
+    segments = read_segments(path, unit='block')
+    todo = [i for i, segment in enumerate(segments) if any(c.isalpha() for c in segment)]
+    if not todo:
+        raise ValueError("Rien à traduire : le document n'a pas de texte lisible (PDF scanné ?)")
+    replacements, done = {}, []
+    for count, index in enumerate(todo, 1):
+        segment = segments[index]
+        core = segment.strip()
+        start = len(segment) - len(segment.lstrip())
+        relay = (None if on_chunk is None
+                 else lambda partial: on_chunk('\n\n'.join(done + [partial])))
+        result = service.translate(core, source_language, target_language, glossary=glossary,
+                                   timeout=timeout, on_chunk=relay)
+        if not result.get('ok'):
+            raise RuntimeError(f"Traduction impossible : {result.get('error') or 'réponse vide'}")
+        replacements[index] = [(start, start + len(core), result['text'])]
+        done.append(result['text'])
+        if on_chunk is not None:
+            on_chunk('\n\n'.join(done))
+        if progress_callback is not None:
+            progress_callback(count * 100 // len(todo))
+    return write_replacements(path, out_path, replacements, unit='block')

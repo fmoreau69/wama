@@ -208,7 +208,12 @@ def declared_cloud_keys(app_id: str, user):
 #: `voice` (2026-10-28) : le CHAMP de voix de l'élément — la voix choisie borne le tirage aux
 #: modèles qui savent la dire (`voice_refs.voice_draw_constraint`), au lancement comme pour la
 #: prévision (le navigateur transmet `voice=<valeur>`).
-RESOLUTION_KEYS = ('priority', 'available_inputs', 'needs', 'voice')
+#: `specialization` (2026-10-28, le Translator) : la SPÉCIALITÉ exigée au tirage
+#: (`select_model(specialization=…)`) — un spécialiste n'entre jamais seul dans un lot
+#: généraliste ; la déclarer au schéma remplace l'argument qu'une glu passait à la main.
+RESOLUTION_KEYS = ('priority', 'available_inputs', 'needs', 'voice', 'specialization')
+#: Les affinages à valeur UNIQUE (les autres sont des listes).
+SCALAR_RESOLUTION_KEYS = ('voice', 'specialization')
 #: Les affinages qui nomment un CHAMP de l'élément : leur valeur se lit sur lui, jamais au schéma.
 FIELD_RESOLUTION_KEYS = ('needs', 'voice')
 
@@ -232,10 +237,10 @@ def read_needs(text: str) -> dict:
 
 def read_refinement(key: str, text: str):
     """Un affinage du tirage tel que le navigateur le transmet à la prévision : `needs` en paires,
-    `voice` en valeur, les autres en liste (`a,b`)."""
+    `voice` et `specialization` en valeur, les autres en liste (`a,b`)."""
     if key == 'needs':
         return read_needs(text)
-    if key == 'voice':
+    if key in SCALAR_RESOLUTION_KEYS:
         return str(text or '').strip()
     return [v for v in str(text or '').split(',') if v]
 

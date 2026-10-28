@@ -2759,6 +2759,35 @@ Deux voies, complémentaires :
    (`patch_section` pour le texte ; DOCX par pandoc ; PDF par HTML + Chromium) ; les figures par
    OCR → traduction → réédition d'image. Plus fidèle, plus long : à construire maillon par maillon,
    chaque maillon jugé sur un document réel.
+   ✅ **Texte des documents, 2026-10-28** — sur la couche texte COMMUNE avec l'Anonymizer
+   (`document_text`, `ROADMAP §16.4bis`), pas par pandoc ni Chromium : `translator.translate_document`
+   traduit bloc par bloc et réécrit chaque bloc À SA PLACE, même format — DOCX par paragraphe (la
+   mise en forme du premier morceau gardée, tableaux, en-têtes, notes), PDF à texte natif par bloc
+   (`unit='block'` : texte retiré du cadre sans toucher au fond, aux images ni aux tracés, traduction
+   posée dans le même cadre, taille d'origine réduite pour tenir), TXT/MD (UTF-8 si l'encodage
+   d'origine ne porte pas la langue cible). ⏳ Restent : le juger sur de VRAIS documents (débord
+   d'un texte plus long, mise en forme à l'intérieur d'un paragraphe — gras d'un mot — perdue), les
+   figures (OCR → traduction → réédition), un PDF scanné (refusé en le disant).
+   **Par la chaîne de génération, jamais dans la jumelle** (consigne de Fabien, 28/10 : *« on
+   améliore la chaîne de génération d'applications, on ne corrige jamais une jumelle dans le
+   code »*) : le manifeste du Translator déclare la spécialité au tirage
+   (`options_resolution.specialization`) et sa sortie (document traduit, forme d'origine) ; le
+   rôle `codegen` voit alors la brique de traduction (déclencheur `specialization`) et sait remplir
+   aussi le trou `instant_result` (`--function`) ; `translator_01` régénérée (`substitute
+   params+tasks`) : la glu du superviseur du 16/10, écrite à la main et non versionnée (elle
+   relisait le document en texte brut et rendait un `.md`), est retirée. ✅ `instant_result` :
+   glu du rôle (ILaaS, mistral-small-4-119b), juge vert, INJECTÉE (`app_sandbox glue`).
+   🔴 **Le corps de la tâche n'a PAS convergé** : trois propositions du rôle refusées à la
+   lecture. La 1ʳᵉ passait le juge avec 1 avertissement sur 5 défauts — d'où quatre contrôles
+   ajoutés au juge (`run_codegen.controles`) : clés de `fields` construites dans une VARIABLE,
+   attributs d'élément inventés (`item.options`), appels au contexte de tâche jugés sur
+   `TaskContext` (`output_place` déballé en trois), NOMS importés absents d'un module réel
+   (`ensure_text_file`). Les deux suivantes gardaient des défauts de SENS que nul contrôle ne
+   tient : en mode texte, la traduction n'était écrite nulle part ; `source_document` remis à
+   vide ; un domaine de tirage inventé. Le trou reste donc OUVERT dans la jumelle (un document
+   déposé échoue en le disant) — ⏳ **décision de Fabien** : composer ce corps par le générateur
+   (une saveur « brique déclarée » de `tasks_gen`, comme la saveur MODÈLE compose un appel de
+   contrat), ou poursuivre le rôle `codegen` avec une matière plus précise.
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄
 
@@ -3283,10 +3312,16 @@ contrat (`437f6b78`) · ✅ détecteurs bardsai v3 (ONNX) et GLiNER2-PII install
 orchestrée par Presidio, document de détections en forme texte, service :8003 (`87911aa4`) ·
 ✅ couche texte de document, occultation de fichiers et contre-épreuve par relecture (`bbb0a162`) ·
 🔄 domaine `document` de l'Anonymizer : relevé des trous transmis à Portage Apps (à confronter par
-elle) · ✅ porte avant un modèle distant — décidée et livrée, ci-dessous · ⏳ Translator : brancher `document_text`
-(traduire en gardant la forme) · ⏳ mesure WAMA (petit jeu relu à la main, `WAMA_QUALITE`) : seuils
+elle) · ✅ porte avant un modèle distant — décidée et livrée, ci-dessous · ✅ Translator sur
+`document_text` (traduire en gardant la forme, `§10.B` « Traduction en place ») · ⏳ mesure WAMA (petit jeu relu à la main, `WAMA_QUALITE`) : seuils
 par type, détecteurs suivants (urchade en référence, knowledgator EN, piiranha, camembert-ner,
 eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
+- **Vidéo : l'image ET le son (décision de Fabien, 2026-10-28)** — une option « piste audio » du
+  domaine vidéo de l'Anonymizer, qui appelle la brique du futur domaine audio (voix du locuteur,
+  données dites — transcription mot à mot → union de détecteurs → bip sur leurs instants), plutôt
+  qu'un chaînage image → audio (deux cards, deux ré-encodages). Précédent : `converter`
+  `audio_enhance` (extraire la piste, la traiter par la brique commune, la remettre). À construire
+  avec le domaine audio.
 - Mesuré à l'essai réel (fr + en) : personne, date de naissance, adresse, téléphone, email, NIR,
   organisation, SIREN, IBAN occultés ; 1ᵉʳ appel ~30 s (chargement des deux modèles), suivants
   ~0,2 s. ⚠ Non vu : une donnée de santé (« diabète ») — à mesurer, pas à corriger au jugé.
