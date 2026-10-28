@@ -368,9 +368,12 @@ MECHANISMS = (
               "2026-10-10 le service ÉCOUTE aussi : `stt_via_service` (POST /stt, Whisper "
               "chaud, conversation vocale de l'assistant) partage le même appel et la même "
               "traduction d'erreurs (`_post`). Le service lui-même (uvicorn :8001) vit à côté "
-              "du client depuis le 2026-10-28 (`service.py`, ex-`tts_service.py` à la racine)",
+              "du client depuis le 2026-10-28 (`service.py`, ex-`tts_service.py` à la racine). "
+              "Et la voix AU FIL DE L'EAU (2026-10-28) : `tts_stream_via_service` → POST "
+              "/tts/stream (PCM 16 bits, `TTSBackend.synthesize_stream`), joué par le canal "
+              "commun (`WamaApp.Speech.stream`) ou l'avatar (`WamaAvatar.streamPlayer`)",
               'wama/common/tts/service_client.py', 'docs/construction/ui/MODES_QUEUE_UX.md §2bis',
-              annexes=('wama/common/tts/service.py',)),
+              annexes=('wama/common/tts/service.py', 'wama/common/tests/tests_tts_stream.py')),
     Mechanism('tts_vocabulary', 'Vocabulaire TTS partagé',
               "Le JEU DE CHOIX unique de la parole synthétique — moteurs, langues, presets de "
               "voix, cartes moteur↔langue — et sa résolution (voix pour une langue, langue "

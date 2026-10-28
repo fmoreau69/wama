@@ -646,6 +646,121 @@
     if (speechAudio) { try { speechAudio.pause(); } catch (_) {} speechAudio = null; }
     if (speechUrl) { try { URL.revokeObjectURL(speechUrl); } catch (_) {} speechUrl = null; }
   }
+
+  // ── La voix AU FIL DE L'EAU (2026-10-28) ────────────────────────────────────────────────
+  // Le service rend du PCM 16 bits à mesure qu'il le calcule (`/tts/stream`) : le premier son
+  // part en ~0,15 s au lieu d'attendre la phrase entière. Un `Audio` ne sait pas jouer un flux
+  // PCM ; WebAudio, si. Le lecteur ci-dessous a la FORME d'un `Audio` — `pause()`, `paused`,
+  // `ended`, événements `ended`/`error`/`pause` — : le canal (`play`, `stop`, `isSpeaking`) et ses
+  // consommateurs le traitent comme tel, rien d'autre n'a à l'apprendre.
+  // Il lit sa réponse DÈS sa création (`received` se résout au dernier octet) et ne JOUE qu'à
+  // `start()` : la demande de la phrase suivante attend la fin de la RÉCEPTION, pas de la lecture
+  // — le service ne calcule qu'une phrase à la fois, la lecture enchaîne sans trou.
+  let speechContext = null;
+  function audioContext() {
+    const Ctx = global.AudioContext || global.webkitAudioContext;
+    if (!Ctx) return null;
+    if (!speechContext || speechContext.state === 'closed') speechContext = new Ctx();
+    if (speechContext.state === 'suspended') speechContext.resume().catch(function () {});
+    return speechContext;
+  }
+
+  /** Peut-on jouer une voix en flux ici ? (WebAudio + corps de réponse lisible) */
+  function canStreamSpeech() {
+    return !!((global.AudioContext || global.webkitAudioContext) && global.ReadableStream
+              && global.Response && 'body' in global.Response.prototype);
+  }
+
+  /** Lit une réponse PCM 16 bits mono little-endian au fil de l'eau : `onChunk(ArrayBuffer)` reçoit
+   *  des blocs d'échantillons ENTIERS (le réseau, lui, coupe n'importe où : l'octet impair d'un bloc
+   *  passe au suivant). Rend `{done, cancel}` — `done` se résout à la fin, rejette sur une coupure.
+   *  Partagée par le lecteur ci-dessous et par l'avatar (`WamaAvatar.streamPlayer`). */
+  function readPcm16(response, onChunk) {
+    const reader = response.body.getReader();
+    let carry = null;
+    const done = (function pump() {
+      return reader.read().then(function (r) {
+        if (r.done) return;
+        let bytes = r.value;
+        if (carry !== null) {
+          const joined = new Uint8Array(bytes.length + 1);
+          joined[0] = carry; joined.set(bytes, 1); bytes = joined; carry = null;
+        }
+        if (bytes.length % 2) { carry = bytes[bytes.length - 1]; bytes = bytes.subarray(0, bytes.length - 1); }
+        if (bytes.length) onChunk(bytes.slice().buffer);   // copie alignée, à l'offset 0
+        return pump();
+      });
+    })();
+    return { done: done, cancel: function () { try { reader.cancel(); } catch (_) {} } };
+  }
+
+  function pcmStreamPlayer(response, rate) {
+    const listeners = { ended: [], error: [], pause: [] };
+    const fire = function (type) { (listeners[type] || []).forEach(function (fn) { try { fn(); } catch (_) {} }); };
+    const pending = [];          // morceaux reçus avant `start()`
+    let ctx = null, gain = null, at = 0, live = [], started = false, finished = false;
+    const player = {
+      paused: false, ended: false,
+      addEventListener: function (type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+      start: function () {
+        ctx = audioContext();
+        if (!ctx) { player.ended = true; fire('error'); return; }
+        gain = ctx.createGain();
+        gain.connect(ctx.destination);
+        at = ctx.currentTime + 0.03;
+        started = true;
+        pending.splice(0).forEach(schedule);
+        maybeEnd();
+      },
+      pause: function () {
+        if (player.paused || player.ended) return;
+        player.paused = true;
+        live.forEach(function (s) { try { s.stop(); } catch (_) {} });
+        live = [];
+        if (gain) { try { gain.disconnect(); } catch (_) {} }
+        reading.cancel();
+        fire('pause');
+      },
+    };
+    function schedule(samples) {
+      if (player.paused) return;
+      const buffer = ctx.createBuffer(1, samples.length, rate);
+      buffer.getChannelData(0).set(samples);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(gain);
+      // Un morceau arrivé en retard part tout de suite : un trou plutôt qu'un chevauchement.
+      at = Math.max(at, ctx.currentTime);
+      source.start(at);
+      at += buffer.duration;
+      live.push(source);
+      source.onended = function () {
+        live = live.filter(function (s) { return s !== source; });
+        maybeEnd();
+      };
+    }
+    function maybeEnd() {
+      if (started && finished && !live.length && !pending.length && !player.paused && !player.ended) {
+        player.ended = true;
+        fire('ended');
+      }
+    }
+    function decode(buffer) {
+      const view = new DataView(buffer);
+      const out = new Float32Array(buffer.byteLength / 2);
+      for (let i = 0; i < out.length; i++) out[i] = view.getInt16(2 * i, true) / 32768;
+      return out;
+    }
+    const reading = readPcm16(response, function (buffer) {
+      const samples = decode(buffer);
+      if (started) schedule(samples); else pending.push(samples);
+    });
+    player.received = reading.done.then(function () { finished = true; maybeEnd(); }, function () {
+      finished = true;
+      if (!player.paused && !player.ended) { player.ended = true; fire('error'); }
+    });
+    return player;
+  }
   function stopSpeech() {
     stopSpeechPlayback();
     if (speechAbort) { try { speechAbort.abort(); } catch (_) {} speechAbort = null; }
@@ -669,11 +784,28 @@
       };
     },
 
-    /** Joue un Blob (ou une URL) sur le canal de parole, en coupant le reste de
-     *  la page. Renvoie l'Audio, ou null si la source est vide. */
+    /** Un lecteur de voix EN FLUX sur une réponse PCM 16 bits (`/tts/stream`) — il lit tout de
+     *  suite, ne joue qu'à `play(lecteur)`. `received` se résout à la fin de la réception. */
+    stream: pcmStreamPlayer,
+    canStream: canStreamSpeech,
+    readPcm16: readPcm16,
+
+    /** Joue un Blob (ou une URL, ou un lecteur EN FLUX de `stream`) sur le canal de parole, en
+     *  coupant le reste de la page. Renvoie l'Audio (ou le lecteur), ou null si la source est vide. */
     play: function (src) {
       if (!src) return null;
       stopSpeechPlayback();
+      if (typeof src.start === 'function') {
+        pauseDomMedia(null);
+        if (global.WamaAudioPlayer) WamaAudioPlayer.pauseAll();
+        claimAudioChannel();
+        speechAudio = src;
+        const finish = function () { if (speechAudio === src) speechAudio = null; };
+        src.addEventListener('ended', finish);
+        src.addEventListener('error', finish);
+        src.start();
+        return src;
+      }
       let url = src;
       if (typeof Blob !== 'undefined' && src instanceof Blob) {
         url = URL.createObjectURL(src);

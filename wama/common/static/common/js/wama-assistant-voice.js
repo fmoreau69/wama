@@ -152,15 +152,42 @@
     return { chunk: '', rest: text };
   }
 
+  // AU FIL DE L'EAU (2026-10-28) : la voix se joue pendant que le service la calcule — par le canal
+  // commun (`WamaApp.Speech.stream`) ou par l'avatar (`WamaAvatar.streamPlayer`, lèvres calées sur
+  // un débit de parole appris). Le serveur rend du PCM (`audio/L16`) ou, s'il ne peut pas, la
+  // réponse entière d'avant : les deux se lisent ici.
+  function wantsStream() {
+    var speech = global.WamaApp && global.WamaApp.Speech;
+    if (!(speech && speech.canStream && speech.canStream())) return false;
+    return !avatarReady() || typeof global.WamaAvatar.streamPlayer === 'function';
+  }
+
+  function streamPlayer(resp, rate, spoken) {
+    return avatarReady() ? global.WamaAvatar.streamPlayer(resp, rate, spoken, state.lang)
+                         : global.WamaApp.Speech.stream(resp, rate);
+  }
+
   function fetchSpeech(text, signal) {
     // Le modèle et la voix sont les réglages DURABLES du compte, lus par le serveur (2026-10-28) :
     // le navigateur n'envoie que le texte.
     var body = { text: text };
+    var stream = wantsStream();
+    if (stream) body.stream = true;
     return fetch('/api/tts-kokoro/', {
       method: 'POST', signal: signal,
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
       body: JSON.stringify(body),
-    }).then(function (resp) { return resp.json(); }).then(function (data) {
+    }).then(function (resp) {
+      var type = (stream && resp.ok && resp.headers) ? (resp.headers.get('Content-Type') || '') : '';
+      if (type.indexOf('audio/L16') === 0) {
+        var rate = parseInt(resp.headers.get('X-Sample-Rate'), 10) || 24000;
+        var header = resp.headers.get('X-Spoken');
+        var spoken = header ? decodeURIComponent(header) : text;
+        return { player: streamPlayer(resp, rate, spoken), spoken: spoken };
+      }
+      return resp.json().then(readWhole);
+    });
+    function readWhole(data) {
       if (!data.audio_b64) return null;
       var binStr = atob(data.audio_b64);
       var bytes = new Uint8Array(binStr.length);
@@ -168,7 +195,7 @@
       // `spoken` : ce que le serveur a DIT après sa préparation (`tts_text`) — repli sur le
       // texte envoyé pour un serveur d'avant le 2026-10-18.
       return { blob: new Blob([bytes], { type: 'audio/wav' }), spoken: data.spoken || text };
-    });
+    }
   }
 
   function avatarReady() {
@@ -187,6 +214,7 @@
     return playOnChannel(blob, turn, owns);
   }
 
+  // `audio` : un `Audio`, ou le lecteur EN FLUX du canal (`WamaApp.Speech.stream`), qui en a la forme.
   // ⚠ Une lecture COUPÉE par un autre son (média de la page, autre onglet : `silenceLocal`) est
   // mise en pause, et une pause ne déclenche jamais `ended` : la file attendait pour toujours,
   // le tour ne finissait pas et la voix restait audible (2026-10-27). Coupée, la voix s'arrête —
@@ -303,12 +331,17 @@
         if (!owns()) return null;
         return fetchSpeech(sentence, turn.signal);
       }).catch(function (e) { report(e); return null; });
-      requests = audio;
+      // La demande suivante attend la fin de la RÉCEPTION d'une voix en flux (`received`) : le
+      // service dit une phrase à la fois, et sa lecture, elle, se fait pendant.
+      requests = audio.then(function (speech) {
+        return speech && speech.player ? speech.player.received : null;
+      });
       playback = playback.then(function () {
         return audio.then(function (speech) {
           if (!owns() || !speech) return;
           // Audible dès le premier son, jusqu'à la fin du tour (`end()` la date).
           if (said.audibleUntil !== Infinity) { said.audibleUntil = Infinity; notify(); }
+          if (speech.player) return playOnChannel(speech.player, turn, owns);
           return playChunk(speech.blob, speech.spoken, turn, owns);
         });
       }).catch(report);

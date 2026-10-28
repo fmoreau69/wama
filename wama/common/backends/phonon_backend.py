@@ -115,8 +115,8 @@ class PhononBackend(TTSBackend):
                    "le processeur, sans PyTorch ; quatre voix.")
 
     supports_cloning = False
-    #: Il sait rendre l'audio pendant qu'il le calcule (`TTS.stream`) — le service ne le diffuse pas
-    #: encore : il rend un fichier par demande.
+    #: Il rend l'audio pendant qu'il le calcule (`TTS.stream`, `process_stream`) — le service le
+    #: diffuse à la voix de l'assistant depuis le 2026-10-28 (`/tts/stream`).
     supports_streaming = True
     supports_timestamps = False
     #: Il TIRE : température 0,3 (le défaut de `ptts`), graine lue — même graine, même son (mesuré
@@ -127,10 +127,14 @@ class PhononBackend(TTSBackend):
     #: Le TEMPS RÉEL (voix de l'assistant, aperçus) : gardé chaud par le service. 0,5 s de
     #: chargement, 140 Mo de mémoire, aucune VRAM.
     keep_resident = True
-    #: Premier son, MESURÉ le 2026-10-28 (mêmes dix phrases que Kokoro) DANS LE MODE DU SERVICE —
-    #: une phrase rendue en un fichier : 1,1 s de médiane (Noémie ; 1,2 s Augustin), le temps de
-    #: la synthèse entière. En flux, il serait de 0,14 s : le service ne diffuse pas encore.
-    first_audio_s = 1.1
+    #: Premier son, MESURÉ le 2026-10-28 EN FLUX (`/tts/stream`, la voix de l'assistant) : 0,13 à
+    #: 0,16 s sur cinq phrases et deux voix. Rendu en un fichier (le synthesizer, l'avatar), il est
+    #: le temps de la synthèse entière : 1,1 s de médiane sur dix phrases.
+    first_audio_s = 0.15
+    #: Niveau de sortie, FIXE (2026-10-28) : un flux ne peut pas se normaliser à sa crête, qu'il ne
+    #: connaît qu'à la fin. Crêtes brutes mesurées : 0,41 à 0,66 (dix phrases, deux voix) — ×1,5
+    #: les porte sous 1 sans écrêter, et le fichier reçoit le même gain : un réglage, un niveau.
+    OUTPUT_GAIN = 1.5
     recommended_vram_gb = 0
     VOICES = VOICES
 
@@ -165,9 +169,8 @@ class PhononBackend(TTSBackend):
         self._tts = None
         self.loaded_model = self._current_model = None
 
-    def process(self, text: str = "", language: str = "fr", voice_preset: str = "default",
-                options: dict | None = None, **_ignored) -> str:
-        """Dit `text` d'un trait (le contrat commun le découpe là où il respire)."""
+    def _call(self, language: str, voice_preset: str, options: dict | None) -> dict:
+        """Les arguments de `ptts` pour une demande — voix, température, graine."""
         if self._tts is None:
             self.load()
         if language and language != 'fr':
@@ -180,8 +183,39 @@ class PhononBackend(TTSBackend):
         seed = self.sampling_seed(kwargs)
         if seed is not None:
             call['seed'] = seed
+        return call
+
+    def _level(self, pcm) -> np.ndarray:
+        return (np.asarray(pcm, dtype=np.float32) * self.OUTPUT_GAIN).clip(-1.0, 1.0)
+
+    def process(self, text: str = "", language: str = "fr", voice_preset: str = "default",
+                options: dict | None = None, **_ignored) -> str:
+        """Dit `text` d'un trait (le contrat commun le découpe là où il respire)."""
+        call = self._call(language, voice_preset, options)
         with self._lock:
             pcm = self._tts.synth(text, **call)
         if pcm is None or not len(pcm):
             raise RuntimeError("Phonon : aucun audio généré")
-        return write_wav_int16(np.asarray(pcm, dtype=np.float32), self._tts.sample_rate)
+        return write_wav_int16(self._level(pcm), self._tts.sample_rate, normalize=False)
+
+    def process_stream(self, text: str = "", language: str = "fr", voice_preset: str = "default",
+                       options: dict | None = None, **_ignored):
+        """Dit `text` en FLUX : les morceaux du décodeur, au fil du calcul (`TTS.stream`). Le verrou
+        du moteur est tenu jusqu'au dernier morceau — ou jusqu'à l'abandon du flux, qui arrête le
+        calcul (`AudioStream.close`)."""
+        call = self._call(language, voice_preset, options)
+
+        def chunks():
+            with self._lock:
+                stream = self._tts.stream(text, **call)
+                try:
+                    produced = False
+                    for chunk in stream:
+                        if len(chunk):
+                            produced = True
+                            yield self._level(chunk)
+                    if not produced:
+                        raise RuntimeError("Phonon : aucun audio généré")
+                finally:
+                    stream.close()
+        return self._tts.sample_rate, chunks()

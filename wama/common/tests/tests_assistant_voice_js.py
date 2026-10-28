@@ -480,3 +480,164 @@ class ChatScriptParsesTest(SimpleTestCase):
         MiniRacer().eval('(function(){' + source + '\n})')
         self.assertIn("evt.type === 'eta'", source)
         self.assertIn('showCountdown', source)
+
+
+# ── La voix AU FIL DE L'EAU (2026-10-28) ──────────────────────────────────────────────────────
+
+def _js_function(source, name):
+    """Le texte de la fonction `name` d'un fichier servi (accolades équilibrées) — pour exécuter
+    dans V8 une brique d'un fichier qui touche au DOM au chargement (`wama-app-base.js`)."""
+    start = source.index('function %s(' % name)
+    depth, i = 0, source.index('{', start)
+    while True:
+        depth += {'{': 1, '}': -1}.get(source[i], 0)
+        i += 1
+        if depth == 0:
+            return source[start:i]
+
+
+class Pcm16ReadingTest(SimpleTestCase):
+    """`WamaApp.Speech.readPcm16` : le réseau coupe le PCM n'importe où, un échantillon (2 octets)
+    peut être à cheval sur deux blocs — l'octet impair doit passer au bloc suivant, sinon tout ce
+    qui suit est décalé d'un octet (un souffle, jamais une erreur)."""
+
+    def test_samples_cut_across_network_blocks_are_rejoined(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-app-base.js').read_text(encoding='utf-8')
+        ctx = MiniRacer()
+        ctx.eval(_js_function(source, 'readPcm16') + r"""
+            var blocks = [[1], [0, 2, 0], [3], [0]];       // 1, 2, 3 en int16 LE, coupés au hasard
+            var got = [], finished = false;
+            var response = { body: { getReader: function () { return {
+              read: function () { var b = blocks.shift();
+                return Promise.resolve(b ? { done: false, value: new Uint8Array(b) } : { done: true }); },
+              cancel: function () {} }; } } };
+            readPcm16(response, function (buffer) {
+              Array.prototype.push.apply(got, Array.from(new Int16Array(buffer)));
+            }).done.then(function () { finished = true; });
+        """)
+        self.assertTrue(ctx.eval("finished"))
+        self.assertEqual([1, 2, 3], list(ctx.eval("got")))
+
+
+FAKE_STREAM_HEAD = r"""
+var calls = [];
+TalkingHead.prototype.streamStart = function (opt, onStart, onEnd) {
+  calls.push(['start', opt.sampleRate, opt.lipsyncType]); this.onEnd = onEnd; this.isStreaming = true;
+  return Promise.resolve(); };
+TalkingHead.prototype.streamAudio = function (r) {
+  calls.push(['audio', r.audio.byteLength, r.words ? r.words.length : 0,
+              r.wtimes ? r.wtimes[r.wtimes.length - 1] : null]); };
+TalkingHead.prototype.streamNotifyEnd = function () { calls.push(['end']); };
+TalkingHead.prototype.streamInterrupt = function () { calls.push(['interrupt']); };
+var feed = null, finishReading = null;
+window.WamaApp = { Speech: { readPcm16: function (response, onChunk) {
+  feed = onChunk;
+  return { done: new Promise(function (resolve) { finishReading = resolve; }),
+           cancel: function () { calls.push(['cancel']); } };
+} } };
+"""
+
+
+class AvatarStreamTest(SimpleTestCase):
+    """`WamaAvatar.streamPlayer` : l'avatar parle EN FLUX — les mots partent avec le premier
+    morceau sur une durée PRÉDITE, la fin est notifiée une fois tout reçu, le débit se RECALE sur la
+    durée réellement dite, et l'arrêt interrompt le flux."""
+
+    TEXT = 'Bonjour, je suis votre assistant.'
+
+    def _ctx(self):
+        ctx = AvatarLipTimingTest._ctx(self)
+        ctx.eval(FAKE_STREAM_HEAD)
+        return ctx
+
+    def _play(self, ctx, seconds):
+        import json
+        ctx.eval("var p = WamaAvatar.streamPlayer({}, 24000, %r, 'fr'); var ended = 0;"
+                 "p.addEventListener('ended', function () { ended++; });"
+                 "feed(new ArrayBuffer(4800)); p.start();" % self.TEXT)
+        ctx.eval("feed(new ArrayBuffer(%d)); finishReading();" % (int(seconds * 24000) * 2 - 4800))
+        ctx.eval("WamaAvatar.instance().onEnd();")
+        return json.loads(ctx.eval("JSON.stringify(calls)")), ctx.eval("ended")
+
+    def test_words_go_with_the_first_chunk_and_the_end_follows_the_last(self):
+        calls, ended = self._play(self._ctx(), 2.0)
+        self.assertEqual(['start', 24000, 'words'], calls[0])
+        self.assertEqual(5, calls[1][2], "les cinq mots partent avec le premier morceau")
+        self.assertEqual(0, calls[2][2], "les morceaux suivants n'en portent plus")
+        self.assertEqual(['end'], calls[-1])
+        self.assertEqual(1, ended)
+
+    def test_the_speaking_rate_learns_from_what_was_really_said(self):
+        """Un débit faux de départ fait dériver les lèvres ; le morceau suivant se cale sur la voix."""
+        ctx = self._ctx()
+        first, _ = self._play(ctx, 4.0)                  # voix bien plus lente que prévu
+        ctx.eval("calls = [];")
+        second, _ = self._play(ctx, 4.0)
+        self.assertGreater(second[1][3], first[1][3] * 1.3,
+                           "le dernier mot du second morceau doit partir plus tard : débit appris")
+
+    def test_stopping_interrupts_the_stream(self):
+        import json
+        ctx = self._ctx()
+        ctx.eval("var p = WamaAvatar.streamPlayer({}, 24000, %r, 'fr'); var paused = 0;"
+                 "p.addEventListener('pause', function () { paused++; });"
+                 "feed(new ArrayBuffer(4800)); p.start();" % self.TEXT)
+        ctx.eval("p.pause();")
+        calls = json.loads(ctx.eval("JSON.stringify(calls)"))
+        self.assertIn(['cancel'], calls)
+        self.assertIn(['interrupt'], calls)
+        self.assertEqual(1, ctx.eval("paused"))
+
+
+class VoiceAsksForTheStreamTest(SimpleTestCase):
+    """`wama-assistant-voice.js` : la voix demande le flux quand le navigateur sait le jouer, retombe
+    sur la réponse entière sinon, et ne demande la phrase suivante qu'une fois la précédente REÇUE."""
+
+    STREAMING = r"""
+        var created = [];
+        WamaApp.Speech.canStream = function () { return true; };
+        WamaApp.Speech.stream = function (resp, rate) {
+          var p = { rate: rate, addEventListener: function () {}, start: function () {} };
+          p.received = new Promise(function (r) { p.done = r; });
+          created.push(p); return p; };
+        var bodies = [];
+        fetch = function (url, options) {
+          bodies.push(JSON.parse(options.body)); asked.push(JSON.parse(options.body).text);
+          return Promise.resolve({ ok: true,
+            headers: { get: function (h) { return { 'Content-Type': 'audio/L16', 'X-Sample-Rate': '24000',
+                                                    'X-Spoken': 'Dit%20ainsi.' }[h] || null; } },
+            json: function () { return Promise.resolve({ audio_b64: 'AA==' }); } });
+        };
+    """
+
+    def _ctx(self):
+        ctx = NextSentenceIsRequestedDuringPlaybackTest._ctx(self)
+        ctx.eval(self.STREAMING)
+        return ctx
+
+    def test_the_stream_is_asked_and_played_by_the_common_channel(self):
+        ctx = self._ctx()
+        ctx.eval("turn.push(%r); turn.end();" % FIRST)
+        self.assertTrue(ctx.eval("bodies[0].stream"))
+        self.assertEqual(24000, ctx.eval("created[0].rate"))
+        self.assertEqual(1, ctx.eval("playing.length"), "le lecteur en flux passe par le canal")
+
+    def test_the_next_sentence_waits_for_the_reception_not_the_playback(self):
+        ctx = self._ctx()
+        ctx.eval("turn.push(%r); turn.push(%r);" % (FIRST, SECOND))
+        self.assertEqual(1, ctx.eval("asked.length"), "le service dit une phrase à la fois")
+        ctx.eval("created[0].done();")
+        self.assertEqual(2, ctx.eval("asked.length"),
+                         "la phrase suivante part dès la RÉCEPTION de la première")
+
+    def test_a_browser_that_cannot_stream_keeps_the_whole_answer(self):
+        ctx = self._ctx()
+        ctx.eval("WamaApp.Speech.canStream = function () { return false; };"
+                 "turn.push(%r); turn.end();" % FIRST)
+        self.assertFalse(ctx.eval("!!bodies[0].stream"))
+        self.assertEqual(0, ctx.eval("created.length"))

@@ -131,10 +131,11 @@ class KokoroOnnxBackend(TTSBackend):
     default_top_p = None
     #: Même rôle TEMPS RÉEL que le jumeau .pt (vocalisation assistant, preview) → chaud.
     keep_resident = True
-    #: Premier son, MESURÉ le 2026-10-28 par le service vocal (dix phrases d'assistant, une phrase
-    #: rendue en un fichier) : 0,26 s de médiane (pire 0,46 s) — lu par le choix automatique de
-    #: la voix de l'assistant.
-    first_audio_s = 0.26
+    #: Premier son, MESURÉ le 2026-10-28 par le service vocal EN FLUX (`/tts/stream`, la voix de
+    #: l'assistant ; le contrat le coupe aux pauses) : 0,20 s de médiane sur quatre phrases (0,16 à
+    #: 0,23) — lu par le choix automatique de la voix de l'assistant. Une phrase rendue en un
+    #: fichier : 0,26 s de médiane sur dix phrases (pire 0,46 s), 0,42 s sur ces quatre-là.
+    first_audio_s = 0.2
     #: Ses voix propres (2026-10-28) : celles de la table commune, une par langue et par genre.
     VOICES = kokoro_voices()
     #: kokoro_onnx expose des timings, non câblés ici — on ne promet rien d'invérifié.

@@ -202,3 +202,64 @@ class TTSBackend(BaseModelBackend):
             return self.process(**kwargs)      # rien de dicible : le moteur en décide, comme avant
         # Chaque segment est déjà au niveau du moteur : l'assemblage ne renormalise pas.
         return write_wav_int16(np.concatenate(parts), rate, normalize=False)
+
+    def synthesize_stream(self, **kwargs):
+        """Le même verbe, AU FIL DE L'EAU (2026-10-28, voix de l'assistant) : rend `(rate, chunks)`,
+        `chunks` un itérateur de morceaux float32 mono à `rate` Hz, le premier déjà calculé.
+
+        Mêmes règles que `synthesize`, et lues au même endroit — le lexique réécrit le texte, les
+        PAUSES le découpent là où il respire et posent leur silence. Ce qui change : chaque segment
+        part dès qu'il est dit, et un moteur qui sait rendre l'audio PENDANT qu'il le calcule
+        (`supports_streaming`, `process_stream`) le rend morceau par morceau — le premier son
+        n'attend plus la phrase entière (Phonon : 0,14 s au lieu de 1,1 s, mesuré le 28/10).
+        Les autres rendent chaque segment d'un bloc (`process_stream` par défaut) : rien ne
+        change pour eux, sinon que le segment suivant suit sans attendre la fin du texte."""
+        from wama.common.utils.tts_text import pause_segments, respell_with_lexicon
+        options = kwargs.get('options') or {}
+        language = kwargs.get('language') or ''
+        if not self.takes_lexicon_phonemes(language):
+            kwargs = {**kwargs, 'text': respell_with_lexicon(kwargs.get('text') or '', language,
+                                                             options.get('lexicon'))}
+        segments = [] if kwargs.get('multi_speaker') else pause_segments(
+            kwargs.get('text') or '', bounded_pause(options.get('sentence_pause')),
+            bounded_pause(options.get('clause_pause')))
+        if not any(any(c.isalnum() for c in segment) for segment, _ in segments):
+            segments = [(kwargs.get('text') or '', 0.0)]   # rien de dicible : le moteur en décide
+
+        def parts():
+            rate = None
+            for segment, pause in segments:
+                if any(c.isalnum() for c in segment):
+                    rate, chunks = self.process_stream(**{
+                        **kwargs, 'text': segment,
+                        'scene_description': '' if rate else kwargs.get('scene_description', '')})
+                    for chunk in chunks:
+                        yield rate, chunk
+                # Rien à DIRE (« … » seul entre deux phrases) : son silence seul, comme `synthesize`.
+                if pause and rate:
+                    yield rate, np.zeros(int(pause * rate), dtype=np.float32)
+
+        stream = parts()
+        rate, first = next(stream)             # le premier son est calculé AVANT de répondre
+
+        def chunks():
+            yield first
+            for segment_rate, chunk in stream:
+                if segment_rate != rate:
+                    raise RuntimeError(f"{self.engine} : fréquence d'échantillonnage variable entre "
+                                       f"segments ({rate} puis {segment_rate} Hz)")
+                yield chunk
+        return rate, chunks()
+
+    def process_stream(self, **kwargs):
+        """UN segment rendu en flux — `(rate, itérateur de morceaux float32 mono)`. Par défaut d'un
+        bloc : le fichier de `process`, décodé par le décodeur commun. Un moteur qui déclare
+        `supports_streaming` le remplace par son propre flux."""
+        import os
+        from wama.common.utils.audio_decode import decode_audio
+        path = self.process(**kwargs)
+        try:
+            audio, rate = decode_audio(path, mono=True)
+        finally:
+            os.remove(path)
+        return rate, iter([np.asarray(audio, dtype=np.float32).reshape(-1)])

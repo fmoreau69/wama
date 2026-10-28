@@ -697,6 +697,35 @@ def _tts_via_service(text: str, voice: dict, options: dict = None, user=None):
     return None
 
 
+def _tts_stream_response(text: str, voice: dict, options: dict, user):
+    """La voix rendue AU FIL DE L'EAU par le service (`tts_stream_via_service`), en
+    `StreamingHttpResponse` — ou None si le service ne répond pas (l'appelant rend la réponse
+    entière). `X-Spoken` : le texte EFFECTIVEMENT dit, encodé pour un en-tête (l'écho de la voix se
+    reconnaît sur lui)."""
+    try:
+        from urllib.parse import quote
+
+        from django.http import StreamingHttpResponse
+
+        from wama.common.tts.service_client import tts_stream_via_service
+        from wama.common.tts.voice_refs import speaker_wav_for
+        rate, chunks = tts_stream_via_service(
+            text, voice['model'], language=voice['language'], voice_preset=voice['voice_preset'],
+            speaker_wav=speaker_wav_for(voice['model'], voice['voice_preset'], user,
+                                        language=voice['language']),
+            options=options, user=user)
+    except Exception as e:
+        logger.info(f"[kokoro_tts] flux indisponible ({e}) → réponse entière")
+        return None
+    response = StreamingHttpResponse(chunks, content_type='audio/L16')
+    response['X-Sample-Rate'] = str(rate)
+    response['X-Spoken'] = quote(text)
+    # Aucun tampon entre le service et le navigateur (proxy frontal compris) : c'est tout l'objet.
+    response['X-Accel-Buffering'] = 'no'
+    response['Cache-Control'] = 'no-cache'
+    return response
+
+
 @require_http_methods(["POST"])
 @csrf_protect
 def kokoro_tts(request):
@@ -738,6 +767,13 @@ def kokoro_tts(request):
         from wama.common.services.user_pronunciations import tried_entry
         tried = tried_entry(request.user, data.get('pronunciation'))
         options = {**_voice_options(request.user), **({'lexicon': tried} if tried else {})}
+        # 1 bis) AU FIL DE L'EAU (`stream`, 2026-10-28) : le navigateur joue le premier son pendant
+        # que le reste se calcule — PCM 16 bits, la fréquence et le texte dit en en-têtes. Tout
+        # échec avant le premier son retombe sur la réponse entière ci-dessous.
+        if data.get('stream') and voice.get('model'):
+            streamed = _tts_stream_response(text, voice, options, request.user)
+            if streamed is not None:
+                return streamed
         audio_b64 = _tts_via_service(text, voice, options, user=request.user)
         if audio_b64 is not None:
             return JsonResponse({'audio_b64': audio_b64, 'spoken': text})

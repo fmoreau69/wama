@@ -173,9 +173,103 @@ export async function speak(blob, text, lang, timings, options = {}) {
   }
 }
 
-/** Coupe la parole en cours (l'utilisateur a relancé une requête). */
+// ── La voix AU FIL DE L'EAU (2026-10-28) ──────────────────────────────────────────────────
+// Le service rend le PCM à mesure qu'il le calcule (`/tts/stream`) ; TalkingHead sait le jouer
+// en flux (`streamStart` / `streamAudio` / `streamNotifyEnd`, son module `playback-worklet.js`).
+// Ce qui manque au flux, c'est la DURÉE : les lèvres se calent sur les mots, et l'estimation
+// d'`estimateTimings` répartit les mots sur la durée de l'audio, inconnue avant la fin. Elle est
+// donc PRÉDITE au débit de parole APPRIS : millisecondes par unité de poids parlé
+// (`spokenWeight`), recalées à la fin de chaque morceau sur la durée réellement reçue — la
+// suivante se cale sur la voix du moment. Départ : 75 ms, mesuré sur Phonon et Kokoro
+// (« Bonjour, je suis l'assistant de WAMA. » : 2,56 s pour 29 lettres et deux pauses).
+let msPerWeight = 75;
+const LEARN = 0.5;          // part de la dernière mesure dans le débit appris
+
+function predictedMs(text) {
+  const words = String(text || '').trim().split(/\s+/).filter(Boolean);
+  const pauses = words.reduce((n, w, i) => n + (i < words.length - 1 ? PAUSE_AFTER_MS[w.slice(-1)] || 0 : 0), 0);
+  return { weight: words.reduce((n, w) => n + spokenWeight(w), 0), pauses };
+}
+
+/**
+ * Un lecteur EN FLUX qui fait parler l'avatar — la forme d'un `Audio` (`start`, `pause`, `paused`,
+ * `ended`, événements `ended`/`error`/`pause`, `received`), comme celui du canal commun
+ * (`WamaApp.Speech.stream`) : la voix de l'assistant le joue par le même canal, et l'arrêt passe
+ * par le même chemin. Il lit sa réponse dès sa création ; il ne parle qu'à `start()`.
+ */
+export function streamPlayer(response, rate, text, lang) {
+  const listeners = { ended: [], error: [], pause: [] };
+  const fire = (type) => (listeners[type] || []).forEach((fn) => { try { fn(); } catch (_) {} });
+  const pending = [];
+  let started = false, finished = false, first = true, samples = 0;
+  const shape = predictedMs(text);
+  const player = {
+    paused: false, ended: false,
+    addEventListener(type, fn) { (listeners[type] = listeners[type] || []).push(fn); },
+    async start() {
+      if (!isReady()) { player.ended = true; fire('error'); return; }
+      try {
+        await head.streamStart({ sampleRate: rate, lipsyncLang: visemeLanguage(lang),
+                                 lipsyncType: 'words', waitForAudioChunks: true },
+                               null, () => finish());
+      } catch (e) {
+        console.error('[WamaAvatar] flux refusé', e);
+        player.ended = true; fire('error'); return;
+      }
+      if (player.paused) return;
+      started = true;
+      pending.splice(0).forEach(send);
+      if (finished) head.streamNotifyEnd();
+    },
+    pause() {
+      if (player.paused || player.ended) return;
+      player.paused = true;
+      reading.cancel();
+      if (started) { try { head.streamInterrupt(); } catch (_) {} }
+      fire('pause');
+    },
+  };
+  function send(buffer) {
+    if (player.paused) return;
+    const r = { audio: buffer };
+    if (first) {
+      // Les mots partent avec le premier morceau, sur la durée PRÉDITE (voir `msPerWeight`).
+      Object.assign(r, estimateTimings(text, shape.weight * msPerWeight + shape.pauses,
+                                       outputLatencyMs()) || {});
+      first = false;
+    }
+    head.streamAudio(r);
+  }
+  function finish() {
+    if (player.ended || player.paused) return;
+    // Le débit APPRIS : la durée réellement dite, contre celle qu'on avait prédite.
+    const spokenMs = (1000 * samples) / rate - shape.pauses;
+    if (shape.weight > 3 && spokenMs > 0) {
+      msPerWeight = (1 - LEARN) * msPerWeight + LEARN * (spokenMs / shape.weight);
+    }
+    player.ended = true;
+    fire('ended');
+  }
+  const reading = window.WamaApp.Speech.readPcm16(response, (buffer) => {
+    samples += buffer.byteLength / 2;
+    if (started) send(buffer); else pending.push(buffer);
+  });
+  player.received = reading.done.then(() => {
+    finished = true;
+    if (started && !player.paused) head.streamNotifyEnd();
+  }, () => {
+    finished = true;
+    if (!player.paused && !player.ended) { player.ended = true; fire('error'); }
+  });
+  return player;
+}
+
+/** Coupe la parole en cours (l'utilisateur a relancé une requête) — flux compris. */
 export function stop() {
-  if (head) { try { head.stopSpeaking(); } catch (_) {} }
+  if (head) {
+    try { if (head.isStreaming) head.streamInterrupt(); } catch (_) {}
+    try { head.stopSpeaking(); } catch (_) {}
+  }
 }
 
 // Monté en global : le JS de l'assistant est un script CLASSIQUE (pas un module) et ne peut
@@ -188,4 +282,4 @@ export function instance() {
 
 // `outputLatencyMs` : la voix s'en sert pour savoir jusqu'à quand elle est encore AUDIBLE — c'est
 // là que l'écoute de la conversation doit encore la tenir pour la sienne (écho, 2026-10-13).
-window.WamaAvatar = { init, speak, isReady, stop, instance, outputLatencyMs };
+window.WamaAvatar = { init, speak, streamPlayer, isReady, stop, instance, outputLatencyMs };

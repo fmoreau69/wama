@@ -27055,6 +27055,18 @@ choisir son modèle de vocalisation ? »*. Détail : `WAMA_LLM.md` (bloc « Phon
   choisie l'emporte sur la vitesse). La langue ne filtre toujours pas (27/09, tenu). Détail :
   `INPUT_MODEL_MATCHING §6.7` (addendum du 28/10 soir). Gardes : `tests_voice_choice` (21) ;
   contre-épreuve 15 rouges / 6 mutations.
+- ✅ *Puis la voix AU FIL DE L'EAU (« ok pour le chantier audio au fil de l'eau »)* : contrat
+  `TTSBackend.synthesize_stream` (Phonon natif, les autres segment par segment), service
+  `/tts/stream` (PCM 16 bits), vue `kokoro_tts` `stream` avec repli sur la réponse entière, deux
+  lecteurs à la forme d'un `Audio` (canal commun WebAudio, avatar TalkingHead en mode flux — lèvres
+  au débit appris). Mesuré au navigateur par Django avec l'avatar : premier son Phonon 4,0 s →
+  **0,26-0,31 s**, Kokoro ONNX 1,3 s → **0,30-0,51 s** ; arrêt net ; « auto » prend désormais Phonon
+  (0,15 s déclaré) pour un profil français. Route de vendorisation : TalkingHead épinglé `v1.8.2`
+  (identique à l'octet à la copie du 21/08) + `playback-worklet.js`, qui manquait. Gardes :
+  `tests_tts_stream`, `tests_assistant_voice_js` (6 nouvelles) ; contre-épreuve 10/10 rouges.
+  Détail : `WAMA_LLM.md` (bloc « Phonon partout », ✅ du 28/10 soir). 🔴 relancer le SERVICE VOCAL
+  et gunicorn, Ctrl+F5 (nouveaux JS, `/tts/stream`). ⏳ synthesizer et aperçu en rendu entier ;
+  Apache non mesuré ; manifestes du corpus à régénérer (déjà périmés pour 27, autrui compris).
 
 ## §PALIER 2026-10-28 (soir), « PRIVACY : l'union de détecteurs de données personnelles, couche texte de document, services dans leur paquet » — non poussé — 🔴 relancer (`start_wama_prod.sh`) : workers (famille `nlp`, découverte `_discover_pii_models`), gunicorn, et le nouveau service de confidentialité :8003
 

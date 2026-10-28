@@ -991,8 +991,32 @@ l'intuition :
   - Gardes : `tests_phonon` (voix, appel au moteur, pauses et lexique du contrat, ligne de
     catalogue, moteur découvert), `tests_voice_choice` (groupes par modèle, règle V8 sur le fichier
     servi, tirage « auto », validation des réglages, vocalisation), `tests_tts_text.ExactCaseTest`.
-  - ⏳ La voix en FLUX par le service (le premier son de Phonon à 0,14 s) ; l'écoute des 50
-    orthographes par Fabien.
+  - ✅ *(28/10, soir — « ok pour le chantier audio au fil de l'eau », Fabien)* La voix en FLUX.
+    **Contrat** : `TTSBackend.synthesize_stream` (mêmes règles que `synthesize` — lexique, pauses —,
+    premier son calculé AVANT de rendre la main, chaque segment dès qu'il est dit) ;
+    `process_stream`, d'un bloc par défaut, natif pour un moteur qui déclare `supports_streaming`
+    (Phonon : `TTS.stream`, gain fixe ×1,5 mesuré — un flux ne se normalise pas à sa crête, le fichier
+    reçoit le même). **Service** : `/tts/stream`, PCM 16 bits, `X-Sample-Rate` ; verrou du moteur et
+    « occupé » tenus jusqu'au dernier morceau ou à l'abandon. **Client** :
+    `service_client.tts_stream_via_service`. **Vue** : `kokoro_tts` diffuse quand le navigateur
+    demande `stream`, et rend la réponse entière d'avant si le service ne peut pas. **Navigateur** :
+    deux lecteurs à la forme d'un `Audio`, lus par le canal commun — `WamaApp.Speech.stream` (WebAudio)
+    et `WamaAvatar.streamPlayer` (le mode flux de TalkingHead ; les lèvres sur une durée PRÉDITE au
+    débit de parole appris, recalé à chaque morceau) ; la phrase suivante est demandée à la RÉCEPTION
+    de la précédente, pas à sa lecture. La route de vendorisation tire désormais TalkingHead à une
+    ÉTIQUETTE (`v1.8.2`, identique à l'octet à notre copie du 21/08, qui n'était pas une 1.7 malgré
+    le nom de son dossier) et le module `playback-worklet.js`, qui manquait.
+    **Mesuré** (service jetable, puis navigateur par Django avec l'avatar) : premier son Phonon
+    1,60 s → **0,14 s** au service, 4,0 s → **0,26 à 0,31 s** au navigateur (deux phrases) ; Kokoro
+    ONNX 0,42 → 0,20 s au service, 1,3 → 0,30 à 0,51 s au navigateur ; arrêt en pleine phrase net,
+    aucune erreur. Le premier son DÉCLARÉ suit (Phonon 0,15 s, Kokoro ONNX 0,20 s) : « auto » prend
+    donc **Phonon** pour un profil français. Gardes : `tests_tts_stream` (contrat, Phonon, service,
+    vue), `tests_assistant_voice_js` (découpage des octets, avatar en flux, demande et repli) ;
+    contre-épreuve : 10 mutations, toutes rouges.
+    ⏳ Le synthesizer et l'aperçu de voix restent en rendu entier (ils assemblent un fichier) ;
+    Apache devant gunicorn n'a pas été mesuré (le navigateur passait par Django en direct) ; le
+    minutage exact des mots (un moteur qui le rendrait) remplacerait la durée prédite.
+  - ⏳ L'écoute des 50 orthographes par Fabien.
 - **Les pauses** : `kokoro_onnx` sait allonger la pause après chaque marque (`sentence_pause`,
   `clause_pause`), mais seulement avec un modèle qui rend la durée de ses phonèmes ; le nôtre ne la
   rend pas (`has_timings` faux — mesuré : 3,58 s de son pour des pauses de 0, 0,25 et 0,8 s). Le

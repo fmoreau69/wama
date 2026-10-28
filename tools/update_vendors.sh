@@ -31,6 +31,11 @@ JSTREE_VER=3.3.16
 # PAS garantie compatible : ne pas la monter sans revérifier l'exemple en amont.
 THREE_VER=0.180.0
 TALKINGHEAD_VER=1.7
+# L'ÉTIQUETTE amont d'où se tirent les modules (2026-10-28). La branche `main` était lue jusque-là :
+# une montée de version pouvait passer sans qu'on la décide. Mesuré le jour même : les huit modules
+# vendorisés le 2026-08-21 sont identiques à l'octet à `v1.8.2` (et à `v1.8.0`) — le dossier garde
+# son nom `1.7`, que l'importmap commune cite.
+TALKINGHEAD_TAG=v1.8.2
 # FullCalendar (MIT) — le calendrier de WAMA (WAMA_MEMORY §9bis.1). Le paquet `fullcalendar`
 # regroupe cœur + daygrid + timegrid + list + interaction ; ses plugins PREMIUM (resource,
 # timeline) sont sous licence commerciale : ne pas les ajouter.
@@ -147,10 +152,14 @@ echo "== TalkingHead $TALKINGHEAD_VER (modules ES6) =="
 # invisibles d'une analyse des imports statiques, et leur absence ne casse rien au chargement :
 # elle casse À LA PREMIÈRE PHRASE PRONONCÉE. Le module `fr` est justement ce qui rend cette
 # voie intéressante pour un labo français (lip-sync à visèmes avec règles françaises).
+# ⚠ `playback-worklet.js` non plus (2026-10-28) : le MODE FLUX (`streamStart`, la voix de
+# l'assistant au fil de l'eau) le charge par `audioWorklet.addModule(new URL('./playback-worklet.js',
+# import.meta.url))` — absent, la voix en flux échoue au premier mot (« Failed to initialize
+# streaming speech »), et rien d'autre ne le dit.
 mkdir -p "$V/talkinghead-$TALKINGHEAD_VER"
-for m in talkinghead.mjs retargeter.mjs dynamicbones.mjs \
+for m in talkinghead.mjs retargeter.mjs dynamicbones.mjs playback-worklet.js \
          lipsync-fr.mjs lipsync-en.mjs lipsync-de.mjs lipsync-fi.mjs lipsync-lt.mjs; do
-  dl "https://raw.githubusercontent.com/met4citizen/TalkingHead/main/modules/$m" "$V/talkinghead-$TALKINGHEAD_VER/$m"
+  dl "https://raw.githubusercontent.com/met4citizen/TalkingHead/$TALKINGHEAD_TAG/modules/$m" "$V/talkinghead-$TALKINGHEAD_VER/$m"
 done
 fi
 

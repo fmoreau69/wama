@@ -71,6 +71,42 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
     Lève `TTSServiceLoadingError` sur 503 « loading » (service pas encore chaud) et
     `RuntimeError` pour toute autre indisponibilité (connexion, délai, erreur moteur).
     """
+    payload = _tts_payload(text, model, language=language, voice_preset=voice_preset,
+                           speaker_wav=speaker_wav, multi_speaker=multi_speaker,
+                           scene_description=scene_description, options=options, user=user)
+    resp = _post('/tts', read_timeout, json=payload)
+    if raw:
+        return resp.content
+    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    tmp.write(resp.content)
+    tmp.close()
+    return tmp.name
+
+
+def tts_stream_via_service(text, model, *, language='fr', voice_preset='default',
+                           speaker_wav=None, options=None, read_timeout=30, user=None):
+    """La même demande AU FIL DE L'EAU (2026-10-28, voix de l'assistant) : rend `(rate, morceaux)`,
+    des octets PCM 16 bits mono little-endian à `rate` Hz, lus à mesure que le service les calcule
+    (`/tts/stream`). Le premier son est déjà calculé au retour ; fermer l'itérateur abandonne la
+    réponse et arrête le calcul. Mêmes erreurs que `tts_via_service`."""
+    payload = _tts_payload(text, model, language=language, voice_preset=voice_preset,
+                           speaker_wav=speaker_wav, options=options, user=user)
+    resp = _post('/tts/stream', read_timeout, json=payload, stream=True)
+    rate = int(resp.headers.get('X-Sample-Rate') or 24000)
+
+    def chunks():
+        try:
+            for block in resp.iter_content(chunk_size=None):
+                if block:
+                    yield block
+        finally:
+            resp.close()
+    return rate, chunks()
+
+
+def _tts_payload(text, model, *, language, voice_preset, speaker_wav, options, user,
+                 multi_speaker=False, scene_description=''):
+    """Le corps d'une demande de voix — le contrat d'appel uniforme des moteurs."""
     # Moteur DÉCLARÉ du modèle, résolu au catalogue et PASSÉ au service (route F4b ②,
     # 2026-09-01) : le service n'a pas Django et ne peut pas aller le chercher. Sans lui, un
     # modèle installé par la prospection est proposable mais pas exécutable — son nom ne dit
@@ -84,7 +120,7 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
     lexicon = {**lexicon_for(user, language), **(options.get('lexicon') or {})}
     if lexicon:
         options['lexicon'] = lexicon
-    payload = {
+    return {
         'text': text,
         'model': model,
         'engine': tts_engine_declared(model),
@@ -95,13 +131,6 @@ def tts_via_service(text, model, *, language='fr', voice_preset='default',
         'scene_description': scene_description,
         'options': options or {},
     }
-    resp = _post('/tts', read_timeout, json=payload)
-    if raw:
-        return resp.content
-    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
-    tmp.write(resp.content)
-    tmp.close()
-    return tmp.name
 
 
 def stt_via_service(audio, *, content_type='audio/wav', language='', model=None,

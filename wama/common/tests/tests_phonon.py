@@ -102,7 +102,8 @@ class PhononCatalogTest(SimpleTestCase):
         self.assertEqual(['phonon_noemie', 'phonon_tiphaine', 'phonon_augustin', 'phonon_lucien'],
                          [v['value'] for v in caps['voices']])
         self.assertIs(True, caps['realtime'])
-        self.assertEqual(1.1, caps['first_audio_s'])
+        # Le premier son EN FLUX (2026-10-28, `/tts/stream`), celui de la voix de l'assistant.
+        self.assertEqual(0.15, caps['first_audio_s'])
         self.assertIs(False, caps['supports_cloning'])
         self.assertIn('seed', caps['params'])
         self.assertIn('temperature', caps['params'])

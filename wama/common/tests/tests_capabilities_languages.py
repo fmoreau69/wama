@@ -303,7 +303,10 @@ class VendoringTest(TestCase):
                     'three-0.180.0/addons/libs/fflate.module.js',   # dépendance TRANSITIVE
                     'talkinghead-1.7/talkinghead.mjs',
                     'talkinghead-1.7/lipsync-fr.mjs',
-                    'talkinghead-1.7/lipsync-en.mjs'):
+                    'talkinghead-1.7/lipsync-en.mjs',
+                    # Chargé par `audioWorklet.addModule` en MODE FLUX (2026-10-28) : absent, la
+                    # voix de l'avatar au fil de l'eau échoue au premier mot.
+                    'talkinghead-1.7/playback-worklet.js'):
             self.assertTrue((base / rel).exists(), f"{rel} manquant — relancer update_vendors.sh")
 
 

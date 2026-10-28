@@ -70,7 +70,7 @@ torch.load = _patched_torch_load
 # FastAPI app
 # ---------------------------------------------------------------------------
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from starlette.concurrency import run_in_threadpool
 from pydantic import BaseModel
 from typing import Optional
@@ -404,6 +404,66 @@ def tts_endpoint(req: TTSRequest):
     except Exception as e:
         logger.error(f"TTS generation error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/tts/stream")
+def tts_stream_endpoint(req: TTSRequest):
+    """La même demande, rendue AU FIL DE L'EAU (2026-10-28, voix de l'assistant) : PCM 16 bits mono
+    little-endian, la fréquence dans l'en-tête `X-Sample-Rate`. Le premier son est calculé AVANT
+    la réponse (`TTSBackend.synthesize_stream`) — une erreur du moteur reste donc une erreur HTTP ;
+    la suite part à mesure. Mêmes règles d'occupation que `/tts` : le verrou du moteur et l'état
+    « occupé » déclaré au gouverneur sont tenus jusqu'au dernier morceau, ou jusqu'à l'abandon du
+    flux par l'appelant (qui arrête le calcul)."""
+    import numpy as np
+    with _service_ready_lock:
+        ready = _service_ready
+    if not ready:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "loading", "message": "TTS service is still loading, retry shortly"},
+        )
+    engine = engine_for_model(req.model, req.engine)
+    _synth_begin()
+    tient = False
+    try:
+        tient = _engine_lock.acquire(blocking=not _keep_resident(engine))
+        if tient:
+            _switch_model(req.model, req.engine)
+            be = _backend(_current_engine)
+        else:
+            be = _backend(engine)
+            if not be.is_loaded:
+                be.load(local_model_name(req.model))
+            logger.info(f"{engine} diffusé pendant une synthèse lourde — moteur courant intact")
+        rate, chunks = be.synthesize_stream(
+            text=req.text, model=local_model_name(req.model), language=req.language,
+            voice_preset=req.voice_preset, speaker_wav=req.speaker_wav or None,
+            multi_speaker=req.multi_speaker, scene_description=req.scene_description,
+            options=req.options)
+    except Exception as e:
+        if tient:
+            _engine_lock.release()
+        _synth_end()
+        logger.error(f"TTS stream error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+    def pcm16():
+        try:
+            for chunk in chunks:
+                yield (np.asarray(chunk, dtype=np.float32) * 32767).clip(-32768, 32767) \
+                    .astype("<i2").tobytes()
+        except Exception as e:                # la réponse est partie : le flux s'arrête, dit ici
+            logger.error(f"TTS stream interrompu : {e}", exc_info=True)
+        finally:
+            close = getattr(chunks, "close", None)
+            if close:
+                close()
+            if tient:
+                _engine_lock.release()
+            _synth_end()
+
+    return StreamingResponse(pcm16(), media_type="audio/L16",
+                             headers={"X-Sample-Rate": str(rate)})
 
 
 # ---------------------------------------------------------------------------
