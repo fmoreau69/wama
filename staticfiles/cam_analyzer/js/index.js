@@ -890,8 +890,12 @@ document.addEventListener('DOMContentLoaded', function () {
     // comblement entre images n'est pas tracé.
     const anonPreview = { session: null, docs: {}, loading: null, active: false, floors: null, dirty: false };
     const _fmtConf = v => Number(v).toFixed(2).replace('.', ',');
-    const _anonLabel = l => (/plate/i.test(l) ? 'plaque' : /face/i.test(l) ? 'visage' : String(l || '?'));
-    const _anonClassName = c => ({ face: 'visages', plate: 'plaques' }[c] || c);
+    // Noms affichés des classes de l'Anonymizer [singulier, pluriel] — il ne les déclare nulle part (ses
+    // gabarits les écrivent) : à porter avec ses réglages.
+    const _ANON_CLASS_NAMES = { face: ['visage', 'visages'], plate: ['plaque', 'plaques'] };
+    const _anonClassName = c => (_ANON_CLASS_NAMES[c] || [c, c])[1];
+    // Libellé d'une détection : le nom de sa classe du profil, sinon son étiquette brute.
+    const _anonLabel = l => { const c = _anonClassOf(l); return c ? (_ANON_CLASS_NAMES[c] || [c])[0] : String(l || '?'); };
     // Classe du profil d'une détection : les écritures équivalentes viennent du serveur
     // (`anonymize_class_forms`, table commune `model_coverage`) — jamais recopiées ici.
     function _anonClassOf(label) {

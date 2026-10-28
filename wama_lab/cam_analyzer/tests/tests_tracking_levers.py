@@ -429,8 +429,8 @@ class ParkedTwinMergeTest(SimpleTestCase):
         src = inspect.getsource(mt.annotate_global_tracks)
         self.assertIn("if _feat.get('parked_twin_merge', False) and stationary_gids:", src)
         # après la décision des garés (porte par porte), avant leurs positions fixes et le cap
-        self.assertLess(src.index("_gate_by_gid[gid] = compact"), src.index('parked_twin_groups(_objs, _two)'))
-        self.assertLess(src.index('parked_twin_groups(_objs, _two)'), src.index('_anchor_tmp = {}'))
+        self.assertLess(src.index("_gate_by_gid[gid] = compact"), src.index('parked_twin_groups(_objs, _two, twin_m=PARKED_TWIN_M)'))
+        self.assertLess(src.index('parked_twin_groups(_objs, _two, twin_m=PARKED_TWIN_M)'), src.index('_anchor_tmp = {}'))
         self.assertIn("'parked_twin_merge': _ptm", src)
         # la racine d'un groupe n'entre pas dans la référence de calibration (compacité non jugée)
         self.assertIn('calibration_reference = [g for g in calibration_reference if g not in _pt]', src)

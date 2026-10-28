@@ -169,9 +169,7 @@ def long_exposure_candidates(track_hist, cls_votes, footprint, edge, *, margin_m
         if fam not in PARKABLE_FAMILIES:
             continue
         hs = sorted(hist, key=lambda h: h[1])
-        es = sorted(h[2] for h in hs)
-        ns = sorted(h[3] for h in hs)
-        me, mn = es[len(es) // 2], ns[len(ns) // 2]
+        me, mn = median_position(hs)
         if road_side_m(me, mn, footprint, edge) < margin_m:
             continue
         if moving is not None:
@@ -183,6 +181,13 @@ def long_exposure_candidates(track_hist, cls_votes, footprint, edge, *, margin_m
                 continue
         out.append((gid, me, mn, len(hs), fam))
     return out
+
+
+def median_position(hs):
+    """Position MÉDIANE (e, n), composante par composante, des observations `hs` = [(fn, t, e, n, …)] —
+    la position fixe d'un garé (son ancre) et celle que jugent ses portes."""
+    es, ns = sorted(h[2] for h in hs), sorted(h[3] for h in hs)
+    return es[len(es) // 2], ns[len(ns) // 2]
 
 
 def distinct_box_conflicts(observations, candidates, root):
@@ -211,9 +216,7 @@ def off_road_gate(hs, votes, footprint, edge, margin_m=OFF_ROAD_MARGIN_M):
     plus de `margin_m` → garé ; entre les deux → doute, pas garé."""
     if dominant_family(votes) not in PARKABLE_FAMILIES:
         return 'pas_un_vehicule'
-    es = sorted(h[2] for h in hs)
-    ns = sorted(h[3] for h in hs)
-    signed = road_side_m(es[len(es) // 2], ns[len(ns) // 2], footprint, edge)   # > 0 : hors chaussée
+    signed = road_side_m(*median_position(hs), footprint, edge)   # > 0 : hors chaussée
     if signed <= -margin_m:
         return 'sur_voie'
     if signed < margin_m:
@@ -228,8 +231,7 @@ def near_intersection(hs, centers, *, on_median=False):
     l'ancre d'un garé — avec la dérive de placement, un garé voisin du cercle y entrait par un
     seul point, et la zone réellement exclue dépassait le cercle dessiné."""
     if on_median and hs:
-        es, ns = sorted(h[2] for h in hs), sorted(h[3] for h in hs)
-        points = [(es[len(es) // 2], ns[len(ns) // 2])]
+        points = [median_position(hs)]
     else:
         points = [(h[2], h[3]) for h in hs]
     return any(math.hypot(e - we, n - wn) <= wr for e, n in points for we, wn, wr in centers)
@@ -1658,12 +1660,12 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             hs = track_hist.get(gid) or []
             if not hs:
                 continue
-            es, ns = sorted(h[2] for h in hs), sorted(h[3] for h in hs)
-            _objs.append((gid, es[len(es) // 2], ns[len(ns) // 2], sorted(h[1] for h in hs),
+            _objs.append((gid, *median_position(hs), sorted(h[1] for h in hs),
                           dominant_family(cls_votes.get(gid) or {}, min_weight=0.0, min_share=0.5)))
         _two = distinct_box_conflicts(_continuity_obs, set(stationary_gids), _root)
-        _pt = parked_twin_groups(_objs, _two)
-        _ptm = {'before': twin_pair_counts(parked_twin_pairs(_objs, _two)), 'merged': len(_pt),
+        _pt = parked_twin_groups(_objs, _two, twin_m=PARKED_TWIN_M)
+        _ptm = {'before': twin_pair_counts(parked_twin_pairs(_objs, _two, twin_m=PARKED_TWIN_M)),
+                'merged': len(_pt),
                 'objects': len(set(_pt.values()))}
         if _pt:
             alias.update(_pt)
@@ -1731,9 +1733,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         hs = track_hist.get(gid) or []
         if not hs:
             continue
-        es = sorted(h[2] for h in hs)
-        ns = sorted(h[3] for h in hs)
-        me, mn = es[len(es) // 2], ns[len(ns) // 2]
+        me, mn = median_position(hs)
         cands = []
         _v = cls_votes.get(gid)
         _cls = max(_v, key=_v.get) if _v else 'car'
@@ -1764,19 +1764,17 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
 
     # GARÉS EN DOUBLE (2026-10-06) : deux ancres de garés à moins de 2 m sont un même objet compté deux fois
     # (deux voitures garées sont à ≈ 2,3 m centre à centre de profil) — la mesure de ⚑ parked_long_exposure.
-    _anc = [(me, mn) for (me, mn, _hd) in _anchor_tmp.values()]
-    parked_twins = sum(1 for i in range(len(_anc)) for j in range(i + 1, len(_anc))
-                       if math.hypot(_anc[i][0] - _anc[j][0], _anc[i][1] - _anc[j][1]) < PARKED_TWIN_M)
     # Ces paires par NATURE (2026-10-28) : seules les « suspects » sont un objet compté deux fois — les deux
     # boîtes d'une même image sont deux voitures, deux passages distincts ne s'affichent jamais ensemble
-    # (165 et 58 des 333 paires mesurées le 2026-10-14). `parked_twins` reste le compte brut, comparable
-    # aux mesures consignées depuis le 2026-10-06.
+    # (146 et 155 des 336 paires rejouées le 2026-10-28). `parked_twins` reste le compte brut (toutes les
+    # paires), comparable aux mesures consignées depuis le 2026-10-06.
     from wama_data.functions.kinematics.parked_twins import parked_twin_pairs, twin_pair_counts
     parked_twin_kinds = twin_pair_counts(parked_twin_pairs(
         [(g, me, mn, sorted(h[1] for h in track_hist.get(g) or [])) for g, (me, mn, _hd) in _anchor_tmp.items()],
         distinct_box_conflicts(_continuity_obs, set(_anchor_tmp), _root), twin_m=PARKED_TWIN_M))
-    logger.info('[garés] %s ancres, %s paires à moins de %s m : %s', len(_anc), parked_twins, PARKED_TWIN_M,
-                parked_twin_kinds)
+    parked_twins = parked_twin_kinds['pairs']
+    logger.info('[garés] %s ancres, %s paires à moins de %s m : %s', len(_anchor_tmp), parked_twins,
+                PARKED_TWIN_M, parked_twin_kinds)
 
     stationary_anchors = {}
     for gid, (me, mn, hd) in _anchor_tmp.items():
