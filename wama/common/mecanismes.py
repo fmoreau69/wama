@@ -510,7 +510,21 @@ MECHANISMS = (
                        'wama/common/privacy/service.py',
                        'wama/common/privacy/service_client.py',
                        'wama/common/tests/tests_privacy.py'),
-              depends_on=('pii_detection', 'detections_document', 'external_sources')),
+              depends_on=('pii_detection', 'detections_document', 'external_sources',
+                          'document_text')),
+    Mechanism('document_text', 'Couche TEXTE d\'un document — lire, réécrire sur place',
+              "Lire les passages d'un document (segments : page d'un PDF natif, paragraphe `w:p` "
+              "d'un DOCX — corps, tableaux, zones de texte, en-têtes, pieds, commentaires, notes —, "
+              "TXT entier) puis les RÉÉCRIRE SUR PLACE en conservant tout le reste (2026-10-28) : "
+              "PDF par caviardage réel (`apply_redactions`, texte supprimé, métadonnées effacées, "
+              "fichier réécrit en entier), DOCX au niveau du XML (premier morceau touché, "
+              "suppressions du suivi des modifications retirées), TXT dans son encodage. Commune à "
+              "l'occultation de `privacy` (Anonymizer, domaine document) et au Translator (traduire "
+              "en gardant la forme — à brancher). Le Writer reste le geste de qui veut REVOIR la "
+              "mise en forme — ROADMAP §16.4bis, vision §5.4",
+              'wama/common/utils/document_text.py',
+              'docs/construction/suivi/ROADMAP.md §16.4bis',
+              annexes=('wama/common/tests/tests_document_text.py',)),
     Mechanism('model_quality', 'Indice de qualité a priori',
               "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.). "
               "DÉFAUTS MESURÉS (2026-10-28) : une mesure sans référence qui prend un modèle en défaut (même entrée, "

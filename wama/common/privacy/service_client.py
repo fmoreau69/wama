@@ -6,6 +6,7 @@ Même patron que les clients TTS et de vectorisation : tout le monde passe par i
     detect_segments([texte, …], language='') → document `detections` (forme texte)
     detect(text, language='')                 → le même, un segment
     occult(text, doc, language='', segment=0) → le texte, passages remplacés par `[LIBELLÉ]`
+    detect_file(path) / occult_file(path, out, doc) → les mêmes gestes sur un PDF natif, DOCX, TXT
 
 Service éteint (pas encore relancé, arrêté) ⇒ le MÊME moteur s'exécute dans ce process : rien ne
 casse, on perd seulement le déport. ⚠ Une différence VOULUE avec la vectorisation, qui se dégrade
@@ -66,3 +67,15 @@ def detect(text: str, language: str = '', **kwargs) -> dict:
 
 def occult(text: str, doc: dict, language: str = '', segment: int = 0) -> str:
     return engine.occult(text, doc, language, segment)
+
+
+def detect_file(path, language: str = '', **kwargs) -> dict:
+    """Le document de détections d'un fichier : segments lus ICI (couche texte commune), détection
+    par le service."""
+    from wama.common.utils.document_text import read_segments
+    return detect_segments(read_segments(path), language, **kwargs)
+
+
+def occult_file(path, out_path, doc: dict, language: str = '') -> dict:
+    """Le fichier occulté sur place, et sa contre-épreuve (`engine.occult_file`) — aucun modèle."""
+    return engine.occult_file(path, out_path, doc, language)

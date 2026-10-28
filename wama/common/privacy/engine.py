@@ -167,6 +167,40 @@ def occult_segment(text: str, spans: list, language: str = DEFAULT_LANGUAGE) -> 
                                         operators=operators).text
 
 
+def detect_file(path, language: str = '', **kwargs) -> dict:
+    """Le document de détections d'un FICHIER (PDF natif, DOCX, TXT) : ses segments lus par la
+    couche texte commune (`common/utils/document_text`), un segment par « frame »."""
+    from wama.common.utils.document_text import read_segments
+    return detect_segments(read_segments(path), language, **kwargs)
+
+
+def occult_file(path, out_path, doc: dict, language: str = '') -> dict:
+    """Le fichier réécrit SUR PLACE, chaque passage du document (corrigé ou non) remplacé par son
+    libellé — la forme d'origine conservée (`document_text.write_replacements`).
+
+    Puis la CONTRE-ÉPREUVE (revue d'opus du 2026-10-17) : le fichier produit est RELU, et tout
+    passage d'origine qui s'y trouve encore est rendu dans `remaining` — le même nom ailleurs, non
+    détecté, ou un passage que le format n'a pas su atteindre. Rend `{'path', 'remaining'}` ;
+    à l'appelant de ne pas livrer un fichier dont `remaining` n'est pas vide sans le dire."""
+    from wama.common.utils.document_text import read_segments, write_replacements
+    segments = read_segments(path)
+    language = language or doc.get('language') or DEFAULT_LANGUAGE
+    replacements, passages = {}, set()
+    for frame in doc.get('frames') or []:
+        index = int(frame['i'])
+        for d in frame.get('d') or []:
+            if 'span' not in d:
+                continue
+            start, end = d['span']
+            replacements.setdefault(index, []).append((start, end, label_for(d['label'], language)))
+            passage = segments[index][start:end].strip()
+            if len(passage) >= 3:
+                passages.add(passage)
+    write_replacements(path, out_path, replacements)
+    produced = '\n'.join(read_segments(out_path))
+    return {'path': str(out_path), 'remaining': sorted(p for p in passages if p in produced)}
+
+
 def occult(text: str, doc: dict, language: str = '', segment: int = 0) -> str:
     """Le texte occulté d'après le document (corrigé ou non) : les passages de son segment."""
     language = language or doc.get('language') or DEFAULT_LANGUAGE
