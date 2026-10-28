@@ -4112,9 +4112,13 @@ def job_progress(user, family: str, pk) -> dict | None:
     # Le libellé : le nom que la ligne déclare, sinon la règle commune du nom lisible d'un élément
     # (`batch_views.element_label`, celle du statut de lot et du ZIP), sinon la famille et l'id.
     from wama.common.utils.batch_views import element_label
+    # L'aperçu COMMUN de l'élément (`common:unified_preview`, celui du volet et de la card) : la
+    # ligne de l'échange y montre ses faces (2026-10-28, chantier ② de l'aperçu). Vide hors registre.
+    from wama.common.utils.detail_registry import DetailRegistry
     row.update(family=family, id=item.pk, status=status, progress=progress,
                terminal=status in JOB_STATUS_TERMINAL, ok=status == 'SUCCESS',
-               label=str(row.get('name') or element_label(item) or f'{family} #{item.pk}'))
+               label=str(row.get('name') or element_label(item) or f'{family} #{item.pk}'),
+               preview_url=DetailRegistry.preview_url(family, item.pk))
     if not row['terminal']:
         try:
             from wama.common.services.process_runs import launch_eta

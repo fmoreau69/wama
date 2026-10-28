@@ -60,6 +60,21 @@ class JobProgressTest(TestCase):
                           row['terminal'], row['ok']))
         self.assertTrue(row['label'])
 
+    def test_the_line_carries_the_common_preview_address_of_its_item(self):
+        """2026-10-28, chantier ② de l'aperçu : la ligne de l'échange montre les faces de l'élément
+        par l'aperçu COMMUN — celui du volet et de la card, jamais une adresse propre au chat."""
+        from wama.tool_api import job_progress
+        row = job_progress(self.user, 'describer', self.card.pk)
+        self.assertEqual(reverse('common:unified_preview', args=['describer', self.card.pk]),
+                         row['preview_url'])
+
+    def test_every_followed_family_has_its_common_preview(self):
+        """Les familles que l'échange suit (`TRIAD_SPECS`) sont des surfaces de l'aperçu commun :
+        une famille hors registre rendrait une adresse vide, et sa ligne n'aurait aucune face."""
+        from wama.common.utils.detail_registry import DetailRegistry
+        from wama.tool_api import TRIAD_SPECS
+        self.assertEqual([], sorted(set(TRIAD_SPECS) - set(DetailRegistry.registered_apps())))
+
     def test_without_a_declared_name_the_label_is_the_common_readable_name(self):
         """A line that declares no `name` (most declare `filename` or `prompt`): the label is the
         common rule of an element's readable name (`batch_views.element_label`)."""
