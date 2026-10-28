@@ -3278,6 +3278,33 @@ Ordre : librairies par la route → catalogue (`nlp`, `pii-detection`, lignes) �
 texte de document (occultation en place, contre-épreuve par ré-extraction) → porte de l'assistant
 avant les appels distants (quand l'activer : décision à part) ; domaine `document` → Portage Apps.
 
+**État au 2026-10-28 (soir)** — ✅ librairies (`4828335d`) · ✅ catalogue `nlp` / `pii-detection` et
+contrat (`437f6b78`) · ✅ détecteurs bardsai v3 (ONNX) et GLiNER2-PII installés par la route, union
+orchestrée par Presidio, document de détections en forme texte, service :8003 (`87911aa4`) ·
+✅ couche texte de document, occultation de fichiers et contre-épreuve par relecture (`bbb0a162`) ·
+🔄 domaine `document` de l'Anonymizer : relevé des trous transmis à Portage Apps (à confronter par
+elle) · ⏳ porte de l'assistant — décision ci-dessous · ⏳ Translator : brancher `document_text`
+(traduire en gardant la forme) · ⏳ mesure WAMA (petit jeu relu à la main, `WAMA_QUALITE`) : seuils
+par type, détecteurs suivants (urchade en référence, knowledgator EN, piiranha, camembert-ner,
+eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
+- Mesuré à l'essai réel (fr + en) : personne, date de naissance, adresse, téléphone, email, NIR,
+  organisation, SIREN, IBAN occultés ; 1ᵉʳ appel ~30 s (chargement des deux modèles), suivants
+  ~0,2 s. ⚠ Non vu : une donnée de santé (« diabète ») — à mesurer, pas à corriger au jugé.
+- Trouvé en route : le dépôt bardsai déclare `TokenizersBackend` (classe de transformers 5) —
+  découpeur construit sur `tokenizer.json` ; un détecteur qui ne se charge pas était écarté EN
+  SILENCE (l'union retombait sur les motifs) — désormais nommé (`unavailable`) ; `pip check`
+  signale `inference` (tldextract~=5.1.2) : conflit déclaratif seul, vérifié à l'exécution.
+
+**⏳ Décision à prendre (Fabien) — la porte de l'assistant.** Point d'insertion unique :
+`llm_utils.chat_with_source` (tous les messages, l'utilisateur, la source), après `cloud_access`.
+Trois questions : (1) QUELS fournisseurs — tous les distants, ou seulement ceux qui ne sont pas
+souverains (`hosting`, Albert/ILaaS ; `WAMA_LLM` laissait « Albert compte-t-il comme local ? » non
+tranché, §8d ③) ; (2) QUEL geste — occulter (libellés), pseudonymiser de façon RÉVERSIBLE
+(`[PERSONNE_1]` envoyé, le vrai nom remis dans la réponse — la pratique des passerelles LLM), ou
+refuser l'envoi ; (3) service indisponible ⇒ refus (jamais l'envoi en clair). Proposé : non
+souverains toujours, souverains par option du profil ; pseudonymisation réversible ; refus si la
+détection n'a pas pu se faire.
+
 ### Transcriber — exports + archétype d'export (2026-06-19)
 - **Bugs export corrigés** : DOCX (`HttpResponse` non importé dans `views.py`), PDF (curseur `multi_cell` qui dérive → `new_x="LMARGIN"` ; texte FR), diarisation rendue conditionnellement (labels si `speaker_id`, sinon timecode seul).
 - **PDF = police Unicode DejaVuSans** bundlée (`wama/common/assets/fonts/`) enregistrée dans `_make_pdf` → français préservé (fini le `_sanitize_for_latin1` lossy, désormais passthrough quand DejaVu actif). Fallback Helvetica+sanitize si police absente.
