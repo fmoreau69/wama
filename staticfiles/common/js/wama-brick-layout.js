@@ -323,8 +323,10 @@
             applyDocks();
             persistLayout();
         }
-        /** Le panneau `other` (brique ou pile) rejoint celui de `own`, sous ses briques. */
-        function join(own, other) {
+        /** Le panneau `other` (brique ou pile) rejoint celui de `own`, sous ses briques — à la place
+         *  `at` de `own` quand on la donne (celle qu'il avait quand un glisser l'a visé, avant que
+         *  la grille ne l'écarte), sinon à sa place du moment. */
+        function join(own, other, at) {
             restack(function () {
                 var a = entriesOf(own), b = entriesOf(other);
                 var ta = take(own), tb = take(other);
@@ -332,7 +334,8 @@
                 layout.docked = Docks.without(layout.docked, other);
                 var list = a.concat(b);
                 layout.stacks[list[0].id] = list;
-                buildShell(list, { x: ta.at.x, y: ta.at.y, w: ta.at.w,
+                var where = at && at.grid === ta.grid ? at : ta.at;
+                buildShell(list, { x: where.x, y: where.y, w: ta.at.w,
                                    h: Math.min(ta.at.h + tb.at.h, MAX_ROWS) }, ta.grid);
             });
         }
@@ -785,8 +788,51 @@
                 return { kind: 'beside', other: other, edge: el.dataset.docked, before: before, rect: box,
                          said: 'À côté de « ' + labelOf(other) + ' »' };
             }
+            var title = pageTitleUnder(x, y, key);
+            if (title) {
+                var tr = title.rect;
+                var tl = Math.max(0, tr.left - f.left), tt = Math.max(0, tr.top - f.top);
+                return { kind: 'stack', other: title.key, page: true,
+                         rect: { left: tl, top: tt, width: Math.min(tr.right - f.left, f.width) - tl,
+                                 height: Math.min(tr.bottom - f.top, f.height) - tt },
+                         said: 'Empiler dans « ' + labelOf(title.key) + ' »' };
+            }
             return near ? edgeTarget() : null;
         }
+        /** Le TITRE d'un panneau de la PAGE sous le pointeur (2026-10-28, Fabien : empiler dans la
+         *  page d'un glisser, puis épingler la pile d'un seul geste). Le titre et non le corps : la
+         *  grille écarte le panneau qu'on survole, son corps se déroberait sous le pointeur. */
+        function pageTitles(key) {
+            var out = [];
+            zones.forEach(function (g) {
+                g.getGridItems().forEach(function (item) {
+                    var other = item.dataset.panel;
+                    if (!other || other === key || item.classList.contains('ui-draggable-dragging')) return;
+                    item.querySelectorAll('.wama-brick-head').forEach(function (head) {
+                        out.push({ key: other, head: head, rect: head.getBoundingClientRect() });
+                    });
+                });
+            });
+            return out;
+        }
+        function pageTitleUnder(x, y, key) {
+            function within(r) { return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
+            var live = pageTitles(key);
+            for (var i = 0; i < live.length; i++) if (within(live[i].rect)) return live[i];
+            // …ou là où le titre ÉTAIT au début du geste (`dropping.titles`) : c'est là que
+            // l'utilisateur vise, et la grille a pu écarter le panneau entre-temps. Le repère se
+            // dessine sur le titre RÉEL.
+            var then = (dropping && dropping.titles) || [];
+            for (var j = 0; j < then.length; j++) {
+                if (then[j].key !== key && within(then[j].rect)) {
+                    return { key: then[j].key, rect: then[j].head.getBoundingClientRect() };
+                }
+            }
+            return null;
+        }
+        // px : une cible saisie sur un titre de la page le RESTE tant que le pointeur ne s'en
+        // éloigne pas davantage — la grille déplace le panneau visé pendant qu'on le survole.
+        var STACK_HOLD = 24;
         function showDrop(x, y) {
             var t = dropping.target;
             Object.keys(dropZones).forEach(function (edge) {
@@ -813,12 +859,28 @@
         }
         function startDrop(key, fromDock) {
             if (layout.frozen || !key) return;
-            dropping = { key: key, fromDock: fromDock, target: null };
+            dropping = { key: key, fromDock: fromDock, target: null, titles: pageTitles(key),
+                         places: {} };
+            // La place de chaque panneau de la page AU DÉBUT du geste : une pile s'y posera.
+            dropping.titles.forEach(function (t) {
+                if (!dropping.places[t.key]) dropping.places[t.key] = placeOf(t.key);
+            });
             dockFrame.classList.add('is-dropping');
         }
         function moveDrop(x, y) {
             if (!dropping) return;
-            dropping.target = dropTarget(x, y, dropping.key);
+            var t = dropTarget(x, y, dropping.key), lock = dropping.lock;
+            if (t && t.page) {
+                // La place de la cible au moment où on la SAISIT : la pile s'y posera, pas là où la
+                // grille l'aura poussée pendant le survol.
+                t.place = dropping.places[t.other] || placeOf(t.other);
+                dropping.lock = { x: x, y: y, target: t };
+            } else if (!t && lock && Math.hypot(x - lock.x, y - lock.y) <= STACK_HOLD) {
+                t = lock.target;
+            } else {
+                dropping.lock = null;
+            }
+            dropping.target = t;
             showDrop(x, y);
         }
         function endDrop() {
@@ -829,7 +891,7 @@
             var t = d.target;
             if (!t) { if (d.fromDock) redock(Docks.without(layout.docked, d.key)); return; }
             if (t.kind === 'stay') return;
-            if (t.kind === 'stack') join(t.other, d.key);
+            if (t.kind === 'stack') join(t.other, d.key, t.place);
             else if (t.kind === 'beside') redock(Docks.put(layout.docked, d.key, t.edge, t.other, t.before));
             else redock(Docks.put(layout.docked, d.key, t.edge));
         }

@@ -367,6 +367,17 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   `common.surface_stack` **21/21** sur le live (retailler par la poignée ; à côté d'un panneau plus
   bas) ; deux contre-épreuves rouges dans le navigateur (taille du plus grand, poignée qui ne
   garde rien).
+- **Empiler DANS LA PAGE par le titre — ✅ 2026-10-28** (Fabien : « créer un empilement de briques
+  UI […] au lieu de figer puis empiler ») : glisser le titre d'un panneau sur celui d'un autre les
+  empile dans la page, à la place qu'avait la cible au début du geste ; la pile s'épingle ensuite
+  d'un seul geste (vers un bord). Le TITRE et non le corps : la grille écarte le panneau qu'on
+  survole. La cible se trouve là où est le titre OU là où il était au début du geste, et reste
+  saisie à quelques pixels près (`pageTitleUnder`, `STACK_HOLD`). Ailleurs, la grille garde son
+  magnétisme et ses espaces (la limite « à côté seulement dans une bande » est un comportement
+  voulu, décision du même jour). Gardes : assertions du noyau (`tests_surfaces`) ;
+  `common.surface_stack` **22/22**, cinq passages verts d'affilée ; contre-épreuve rouge (titre
+  neutralisé). ⚠ La première version ne visait que le titre à sa position du moment : rouge un
+  passage sur deux, la grille poussant la cible avant que le pointeur ne l'atteigne.
 - ✅ **Le mode simplifié RETIRÉ — 2026-10-27** : bouton des volets dans l'en-tête, « Joindre »
   dans le chat, accueil à largeur de téléphone mesuré (§7).
 - ⏳ **Suite décidée le 2026-10-27** (Fabien) : ④ les boutons d'atelier remplacés par UN menu « ⋯ »

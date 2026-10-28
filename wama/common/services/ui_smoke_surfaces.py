@@ -587,9 +587,28 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
     try:
         open_page()
         page.click('[data-act="freeze"]')            # disposition modifiable
-        settle()
+        before = settle()
         page.evaluate(_MARK_SECTION_JS, first)
         title = page.evaluate(_MARK_SECTION_JS, second)
+
+        # EMPILER DANS LA PAGE par le TITRE (2026-10-28, Fabien : « créer un empilement de briques
+        # […] au lieu de figer puis empiler ») : glisser le titre d'un panneau sur celui d'un autre
+        # les empile là, à la place qu'avait la cible quand on l'a visée — la pile s'épingle
+        # ensuite d'un seul geste. Puis « Détacher » rend l'état d'avant au reste du scénario.
+        head = page.locator(f'.wama-brick-section[data-slot="{first}"] > .wama-brick-head').first.bounding_box()
+        shown = drag(second, (head['x'] + head['width'] * 0.4, head['y'] + head['height'] / 2))
+        kept, now = settle('empiler par le titre'), state()
+        origin = ((before.get('slots') or {}).get(first)
+                  or next({'x': s.x, 'y': s.y} for s in surface.slots if s.id == first))
+        place = (kept.get('slots') or {}).get(first) or {}
+        verdict(shown.get('hint') and 'Empiler' in shown.get('chip', '')
+                and (now['panels'].get(first) or {}).get('sections') == [first, second]
+                and [e['id'] for e in (kept.get('stacks') or {}).get(first, [])] == [first, second]
+                and (place.get('x'), place.get('y')) == (origin['x'], origin['y']),
+                f"glisser un titre sur un titre de la page : empilés à la place de la cible "
+                f"({shown}, {kept.get('stacks')}, place {place} / {origin})")
+        press(second, 'fa-object-ungroup')
+        settle('détacher')
         press(first, 'fa-layer-group')
         pick(title)
         kept, now = settle(), state()

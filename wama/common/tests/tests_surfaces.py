@@ -441,7 +441,7 @@ class SurfaceLayoutTest(TestCase):
                     'dockFrame.appendChild(dropChip)'):
             self.assertIn(cue, engine, 'a cue never goes under the header, the footer or a panel')
         drop = engine.split('function endDrop()', 1)[1].split('\n        }\n', 1)[0]
-        for gesture in ('join(t.other, d.key)', 'Docks.put(layout.docked, d.key, t.edge, t.other, t.before)',
+        for gesture in ('join(t.other, d.key, t.place)', 'Docks.put(layout.docked, d.key, t.edge, t.other, t.before)',
                         'Docks.put(layout.docked, d.key, t.edge)', 'Docks.without(layout.docked, d.key)'):
             self.assertIn(gesture, drop)
         self.assertIn("g.on('dragstart'", engine)
@@ -451,6 +451,13 @@ class SurfaceLayoutTest(TestCase):
         self.assertIn('.wama-dock-row.is-shared > .grid-stack-item.is-fit { flex: 0 0 var(--wama-fit-width); }',
                       css, 'alone on its row, it fills it')
         self.assertIn("row.classList.toggle('is-shared', count > 1)", engine)
+        # 2026-10-28, Fabien: stack IN THE PAGE by dragging a title onto a title, then pin the pile
+        # in one gesture. The target is the TITLE (the grid pushes the hovered panel aside), found
+        # where it is or where it WAS when the gesture began, and the pile lands at that place.
+        self.assertIn('var title = pageTitleUnder(x, y, key);', engine)
+        self.assertIn('var then = (dropping && dropping.titles) || [];', engine)
+        self.assertIn('join(t.other, d.key, t.place)', engine)
+        self.assertIn('var where = at && at.grid === ta.grid ? at : ta.at;', engine)
 
     def test_a_pinned_row_takes_its_first_panel_size_and_resizes_in_place(self):
         """2026-10-28, Fabien: the size of the TALLEST panel left an empty band under the
