@@ -374,6 +374,28 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   TRANSCRIBER — son transport sur le transport commun et sa page d'édition sur les briques UI,
   sans aucune perte de fonction (passation : `PROJECT_STATUS §PALIER 2026-10-20 (nuit), « APERÇU :
   le code mort retiré, la CARD suit la face Pendant »`) — puis ④.
+  ✅ **② SOLDÉ le 2026-10-28, plus large que sa passation** (Fabien : *« l'idée est d'intégrer la
+  preview dans l'échange avec l'assistant pour avoir le rendu preview — entrée/during/comparaison/
+  sortie/etc »* ; la passation ne prévoyait que Pendant puis Sortie, comme une card). Ce que le
+  volet faisait SEUL pour son hôte unique — face par défaut, Pendant suivi puis Sortie, onglets
+  (`sidesBar`), Comparer, reprise de lecture, double-clic vers la visionneuse — devient
+  l'AFFICHEUR DE FACES commun `WamaMediaPreview.faceViewer(hôte, adresse, {status, card,
+  compact…})` : le volet l'emprunte (`wama-inspector.js fillPreview`, sept fonctions locales
+  retirées), et chaque ligne de job de l'échange le monte sous sa barre (`wama-assistant-chat.js
+  mountFaces`), à l'adresse d'aperçu COMMUNE que le serveur joint à la ligne
+  (`tool_api.job_progress` → `preview_url`, `DetailRegistry.preview_url`). Tout changement d'état
+  peint par le chat rejoue la face par défaut — la Sortie s'affiche donc aussi pour une app qui ne
+  publie rien pendant le calcul (son suiveur s'arrête sans annoncer de fin : le trou de la
+  passation, qui misait sur `data-card-preview` + `onEnd`). Un hôte sorti de la page (fil effacé)
+  ne suit plus rien. ⚠ Le geste sur la page servie a trouvé ce que V8 ne voyait pas : la ligne est
+  bâtie AVANT d'entrer dans l'échange, l'afficheur démarré là ne suivait jamais Pendant — il
+  démarre au tour suivant. Preuves : gardes `tests_assistant_job_progress` (adresse portée, toute
+  famille suivie a son aperçu commun, ligne bâtie qui monte les faces, changement d'état),
+  `tests_cap_from_js.FaceViewerTest` (Entrée → Pendant → Sortie, onglet qui coupe le suivi, hôte
+  parti) — six neutralisations, toutes rouges ; geste `common.preview_chat_job` (`ui_smoke_preview`)
+  vert sur la prod, rouge à sa contre-épreuve (brique du chat servie sans le montage des faces) ;
+  `common.preview_during`, `describer.preview`, `imager.preview` verts après l'adoption par le volet.
+  Restent le chantier TRANSCRIBER, puis ④.
 - **Filemanager** : **unifié** (réutilise `media-preview.js`), mais endpoint de données distinct —
   qui construit sa réponse par la MÊME fabrique de face fichier que les cards (`file_face`,
   2026-10-12 ; il en avait sa copie, seule à extraire le texte d'un .docx).

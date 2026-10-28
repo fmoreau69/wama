@@ -1942,7 +1942,11 @@ MECHANISMS = (
               "(`tileHtml` : l'image, la 1ʳᵉ image d'une vidéo, sinon l'icône de la famille du "
               "type), décidée par le type que le serveur résout — lue par la grille d'une sortie "
               "multiple, la fenêtre de sélection et la médiathèque, qui l'écrivaient chacune et "
-              "dont la dernière décidait par la nature de l'onglet (R183)",
+              "dont la dernière décidait par la nature de l'onglet (R183). Le même jour, "
+              "l'AFFICHEUR DE FACES d'un élément devient commun (`faceViewer` : face par défaut, "
+              "Pendant suivi puis Sortie, onglets, Comparer, double-clic vers la visionneuse) — le "
+              "volet le portait seul pour son hôte unique ; il l'emprunte, et chaque ligne de job "
+              "de l'échange de l'assistant le monte sous sa barre (geste `common.preview_chat_job`)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',

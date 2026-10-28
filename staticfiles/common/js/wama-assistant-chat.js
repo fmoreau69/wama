@@ -416,7 +416,30 @@
       '<span class="wama-eta d-block small"></span>';
     row.querySelector('.wama-assistant-job-name').textContent = job.label || jobKey(job);
     this.paintJob(row, job);
+    this.mountFaces(row, job);
     return row;
+  };
+
+  // LES FACES de l'élément sous sa barre (2026-10-28, Fabien : « intégrer la preview dans l'échange
+  // avec l'assistant pour avoir le rendu preview — entrée/during/comparaison/sortie ») : l'afficheur
+  // COMMUN du volet (`WamaMediaPreview.faceViewer`), à l'adresse d'aperçu commune que le serveur
+  // joint à la ligne (`job_progress.preview_url`). Pendant le calcul, la face qui se construit ;
+  // à la fin, la Sortie ; les onglets pour l'Entrée, Comparer, l'Évaluation ; double-clic : la
+  // visionneuse. Rien sans adresse (famille hors de l'aperçu commun) ni sans la brique.
+  Chat.prototype.mountFaces = function (row, job) {
+    var P = global.WamaMediaPreview;
+    if (!job.preview_url || !P || !P.faceViewer) return;
+    var host = document.createElement('div');
+    host.className = 'wcv3-preview wama-assistant-job-preview';
+    row.appendChild(host);
+    var faces = row._faces = P.faceViewer(host, job.preview_url, {
+      compact: true,
+      status: function () { return row.dataset.jobStatus || ''; },
+    });
+    // Au tour suivant : la ligne est bâtie AVANT d'entrer dans l'échange (`appendJobs`, fil
+    // rechargé), et l'afficheur ne suit pas un hôte hors de la page — démarré ici, il montrait
+    // l'Entrée sans jamais suivre la face Pendant (vu au geste sur la page servie, 2026-10-28).
+    setTimeout(function () { faces.refresh(); }, 0);
   };
 
   Chat.prototype.paintJob = function (row, job) {
@@ -446,6 +469,12 @@
       if (job.terminal) global.WamaEta.reset(id);
     }
     row.dataset.terminal = job.terminal ? '1' : '';
+    // L'état que lisent les faces ; tout CHANGEMENT d'état rejoue leur face par défaut — en cours :
+    // Pendant suivi ; fini : la Sortie, même pour une app qui ne publie rien pendant le calcul (son
+    // suiveur s'arrête alors sans annoncer de fin). `refresh` arrête d'abord le suiveur : une fois.
+    var before = row.dataset.jobStatus;
+    row.dataset.jobStatus = job.status || '';
+    if (row._faces && before !== undefined && before !== row.dataset.jobStatus) row._faces.refresh();
   };
 
   /** Le bloc de suivi d'une réponse : une ligne par élément lancé et encore en cours. Rendu vide

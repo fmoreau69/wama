@@ -463,38 +463,18 @@
         if (db) db.addEventListener('click', deselect);
       }).catch(hideDetail);
     }
-    var _during = null;
-    var _panelCard = null;     // la card dont le volet montre l'aperçu (Pendant, visionneuse)
-    function _stopDuring() { if (_during) { _during.stop(); _during = null; } }
-
-    // Double-clic sur l'aperçu → la VISIONNEUSE commune sur l'élément (ses faces, son plein écran,
-    // et les cards voisines au clavier). Le payload passe TEL QUEL : la modale lit le texte inline
-    // sous `content`, comme le serveur le rend.
-    // Et un BOUTON qui fait la même chose, dans le TITRE de la section (le motif de l'outil de
-    // l'Assistant), hors de la zone qui défile. Jusqu'au 2026-10-13 c'était une icône posée en
+    // L'aperçu du volet = l'AFFICHEUR DE FACES commun (`WamaMediaPreview.faceViewer`, 2026-10-28),
+    // celui des lignes de job de l'échange de l'assistant : face par défaut, Pendant suivi puis
+    // Sortie, onglets des faces, Comparer, double-clic vers la VISIONNEUSE (les cards voisines au
+    // clavier). Le volet le portait seul jusque-là ; il n'y ajoute que son titre et le bouton
+    // d'agrandissement de ce titre.
+    // Ce BOUTON fait ce que fait le double-clic, dans le TITRE de la section (le motif de l'outil
+    // de l'Assistant), hors de la zone qui défile. Jusqu'au 2026-10-13 c'était une icône posée en
     // absolu SUR l'aperçu, en simple décor (`pointer-events:none`) : visible mais inerte, et
     // par-dessus l'ascenseur d'un texte long ou d'un PDF (relevé par Fabien).
+    var _viewer = null;
     var _openViewer = null;
-    function _attachFullscreen(d, baseUrl) {
-      var P = _P();
-      if (!previewHost || !P.openForCard) return;
-      _openViewer = function () {
-        try {
-          var m = Object.assign({}, d);
-          m._baseUrl = baseUrl; m.sides = d.sides; m.side = d.side;
-          P.openForCard(m, _panelCard, 0);
-        } catch (err) { /* no-op */ }
-      };
-      previewHost.title = 'Double-clic : plein écran';
-      previewHost.ondblclick = function (e) {
-        // Une vignette de la grille ouvre déjà la visionneuse sur SON fichier (au clic).
-        // Et un double-clic sur les onglets des faces change de face, il n'agrandit pas.
-        if (e && e.target && e.target.closest
-            && e.target.closest('.wama-preview-tile, .wama-face-tabs, .wama-preview-variants')) return;
-        _openViewer();
-      };
-      _showExpandButton();
-    }
+    function _stopViewer() { if (_viewer) { _viewer.stop(); _viewer = null; } }
 
     function _showExpandButton() {
       if (!previewTitleEl || !_openViewer) return;
@@ -523,118 +503,40 @@
     }
 
     function restorePreview() {
-      _stopDuring();
+      _stopViewer();
       _openViewer = null;
-      _clock = null;
       // Ce qui jouait s'arrête : un lecteur audio commun vit hors du DOM (2026-10-15).
       if (previewHost && _P().releaseMedia) _P().releaseMedia(previewHost);
       if (previewHost) previewHost.innerHTML = previewPlaceholder;
       _setPreviewTitle(null);
     }
     function fillPreview(card, title) {
-      _stopDuring();
-      if (!previewHost || !card) return;
-      _panelCard = card;
-      _clock = null;                     // une autre card : sa lecture part de son début
+      _stopViewer();
+      var P = _P();
+      if (!previewHost || !card || !P.faceViewer) return;
       var link = (card.matches && card.matches('[data-preview-url]')) ? card : card.querySelector('[data-preview-url]');
       var url = link && link.getAttribute('data-preview-url');
       if (!url) { restorePreview(); return; }
       // L'adresse de l'ÉLÉMENT, sans la face que porte le lien (`?side=input` du nom d'entrée).
-      if (_P().itemAddress) url = _P().itemAddress(url);
-      // Défaut INTELLIGENT (2026-07-12) : item terminé → on demande la SORTIE (le serveur
-      // replie sur l'entrée si l'app n'a pas de result_file). Sinon : entrée.
-      var status = (card.dataset && card.dataset.status) || '';
-      var side = (status === 'SUCCESS') ? 'output' : 'input';
-      _fetchPreviewSide(url, side, title);
-      // Phase PENDANT (COMMUN, toute app) : item en cours + app qui streame (during_capable) →
-      // on suit l'aperçu partiel qui se CONSTRUIT. Auto-arrêt si l'app ne streame pas.
-      if (status === 'RUNNING' || status === 'PROCESSING') _startDuring(url, card, title);
-    }
-
-    function _startDuring(baseUrl, card, title) {
-      _stopDuring();
-      var P = _P();
-      // VARIANTES (2026-10-04) : plusieurs vues du même instant publiées par le worker
-      // (`preview_utils.publish_partial(variant=)` — l'anonymizer : détections dessinées /
-      // frame floutée). La vue CHOISIE est gardée par le suiveur commun d'un tick à l'autre.
-      var follower = P.followDuring(baseUrl, {
-        isRunning: function () { return P.isRunningCard(card); },
-        onEnd: function () { _fetchPreviewSide(baseUrl, 'output', title); },   // → la SORTIE
-        host: function () { return previewHost; },   // la lecture reprend d'un partiel au suivant
-        onFrame: function (d) {
-          d._baseUrl = baseUrl;
-          P.renderInline(previewHost, d, false);
-          // Double-clic → la modale commune, sur CETTE face suivie en direct (2026-10-05 : seule
-          // face du volet sans plein écran — le double-clic rouvrait la face précédente).
-          _attachFullscreen(d, baseUrl);
-          // La bascule des faces, comme sur toute autre face (2026-10-13 : le volet n'en avait
-          // pas pendant le traitement), PUIS les vues de cet instant.
-          _renderSides(baseUrl, d, title);
-          if (d.variants && d.variants.length > 1) {
-            previewHost.appendChild(P.variantToggle(d.variants, d.variant, function (key) {
-              follower.choose(key);
-            }));
-          }
-        },
-      });
-      _during = follower;
-    }
-
-    // L'horloge de lecture de la card montrée (`WamaMediaPreview.takeClock`, 2026-10-15) : changer
-    // de face garde la position et la lecture d'une vidéo ou d'un son, au lieu de repartir de 0.
-    var _clock = null;
-
-    function _fetchPreviewSide(baseUrl, side, title) {
-      var P = _P();
-      fetch(P.faceUrl(baseUrl, side)).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
-        // accepte une face à URL (média), à CONTENU inline (prompt texte) OU à PICS (streaming)
-        if (!d || (!d.url && !d.content && !(d.peaks && d.peaks.length))) { restorePreview(); return; }
-        var autoplay = (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY;
-        d._baseUrl = baseUrl;          // une vignette de la grille ouvre l'élément sur son fichier
-        P.renderInline(previewHost, d, !!autoplay);
-        if (P.giveClock) P.giveClock(previewHost, _clock, baseUrl);
-        _attachFullscreen(d, baseUrl);
-        _renderSides(baseUrl, d, title);
-        if (title) _setPreviewTitle(title);
-      }).catch(restorePreview);
-    }
-
-    // La bascule des faces du volet = LA bascule commune (`WamaMediaPreview.sidesBar`, en densité
-    // de volet) : la même que la visionneuse, Pendant compris. Le volet la recopiait jusqu'au
-    // 2026-10-13 (sans la face Pendant). Changer de face arrête le suivi en direct.
-    function _renderSides(baseUrl, d, title) {
-      var P = _P();
-      var bar = P.sidesBar && P.sidesBar(d, {
+      if (P.itemAddress) url = P.itemAddress(url);
+      // Défaut INTELLIGENT (2026-07-12) : item terminé → la SORTIE (le serveur replie sur
+      // l'entrée si l'app n'a pas de result_file), sinon l'entrée ; en cours, la face PENDANT
+      // suivie (auto-arrêt si l'app ne publie rien) — la règle de l'afficheur commun.
+      // Une autre card : sa lecture part de son début (un afficheur neuf, une horloge neuve).
+      var viewer = P.faceViewer(previewHost, url, {
         compact: true,
-        go: function (side) {
-          _stopDuring();
-          if (P.takeClock) _clock = P.takeClock(previewHost, baseUrl, _clock);
-          if (side === 'during') _startDuring(baseUrl, _panelCard, title);
-          else _fetchPreviewSide(baseUrl, side, title);
+        card: card,
+        status: function () { return (card.dataset && card.dataset.status) || ''; },
+        autoplay: (cfg.autoplay != null) ? cfg.autoplay : global.WAMA_INSPECTOR_AUTOPLAY,
+        onShown: function (d) {
+          _openViewer = viewer.open;
+          if (title && d.side !== 'during') _setPreviewTitle(title);
+          else _showExpandButton();
         },
-        compare: function () {
-          _stopDuring();
-          if (P.takeClock) _clock = P.takeClock(previewHost, baseUrl, _clock);
-          _renderCompare(baseUrl, title, d.sides);
-        },
+        onEmpty: restorePreview,
       });
-      // Des onglets AU-DESSUS de l'aperçu (2026-10-14), comme dans la visionneuse.
-      if (bar) previewHost.insertBefore(bar, previewHost.firstChild);
-    }
-
-    // Comparer dans le volet : les faces de `compareFaces`, la vue `compareView` — celles de la
-    // visionneuse (la SORTIE rognée par le curseur, superposée à la référence).
-    function _renderCompare(baseUrl, title, sides) {
-      var P = _P();
-      var s = sides || { has_input: true, has_output: true, comparable: true };
-      P.compareFaces(baseUrl, s).then(function (pair) {
-        if (!pair) return;
-        if (P.releaseMedia) P.releaseMedia(previewHost);
-        previewHost.innerHTML = '';
-        previewHost.appendChild(P.compareView(pair.din, pair.dout, pair.baseLabel));
-        if (P.giveClock) P.giveClock(previewHost, _clock, baseUrl);
-        _renderSides(baseUrl, { side: 'compare', sides: s }, title);
-      });
+      _viewer = viewer;
+      viewer.refresh();
     }
 
     // Agrégats (file / batch) affichés dans la section Infos quand rien / un batch est sélectionné.

@@ -1120,6 +1120,124 @@ def check_preview_during():
                   "d'elle-même à la fin")
 
 
+#: La ligne de job FICTIVE de l'échange, celle que la brique du chat bâtit d'un `job_progress`.
+JS_CHAT_JOB = """(item) => {
+    const root = document.querySelector('[data-wama-chat]');
+    const chat = root && root._wamaChat;
+    if (!chat || !chat.appendJobs) return false;
+    chat.appendJobs([{family: 'during_probe', id: 1, status: 'RUNNING', progress: 12,
+                      terminal: false, ok: false, label: 'élément témoin', preview_url: item}]);
+    return true;
+}"""
+
+JS_CHAT_JOB_FACES = """() => {
+    const host = document.querySelector('.wama-assistant-job .wama-assistant-job-preview');
+    if (!host) return null;
+    const img = host.querySelector('img');
+    const tabs = Array.from(host.querySelectorAll('.wama-face-tab')).map(b => b.getAttribute('data-side'));
+    return {src: img ? img.src : '', tabs: tabs};
+}"""
+
+
+def check_chat_job_faces(neutralize: bool = False):
+    """Les FACES d'un élément dans l'ÉCHANGE de l'assistant (2026-10-28, Fabien : « intégrer la
+    preview dans l'échange avec l'assistant pour avoir le rendu preview — entrée/during/
+    comparaison/sortie »). Sur l'accueil, la brique du chat bâtit la ligne d'un job fictif EN COURS
+    (`appendJobs`, la même que pour un vrai tour) ; son aperçu et son suivi sont servis par la page.
+    La ligne doit montrer la face Pendant avec ses onglets, sans geste, puis la Sortie quand le
+    suivi dit l'élément terminé. `neutralize` : la brique du chat servie SANS le montage des faces
+    — la contre-épreuve, qui doit échouer. (ok, détail)."""
+    import json
+    import shutil
+
+    from django.conf import settings
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    apps = list(discoverable_apps())
+    token = _test_session_key(apps[0][0]) if apps else None
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    folder = os.path.join(str(settings.MEDIA_ROOT), 'smoke_preview_during')
+    base = settings.MEDIA_URL + 'smoke_preview_during/'
+    _in_plain_thread(_during_witnesses, folder)
+    state = {'running': True, 'turns': 0}
+    faults, seen = [], []
+
+    def jobs(route):
+        done = not state['running']
+        route.fulfill(content_type='application/json', body=json.dumps({'jobs': [{
+            'family': 'during_probe', 'id': 1, 'status': 'SUCCESS' if done else 'RUNNING',
+            'progress': 100 if done else 40, 'terminal': done, 'ok': done,
+            'label': 'élément témoin', 'preview_url': _DURING_ITEM}]}))
+
+    def chat_script(route):
+        response = route.fetch()
+        body = response.text()
+        if neutralize:
+            body = body.replace('this.mountFaces(row, job);', '')
+        route.fulfill(response=response, body=body)
+
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1400, 'height': 900})
+                context.add_cookies(_cookie(token))
+                page = context.new_page()
+                js_errors = []
+                page.on('pageerror', lambda e: js_errors.append(str(e)[:160]))
+                page.route(f'**{_DURING_ITEM}**', lambda route: route.fulfill(
+                    content_type='application/json',
+                    body=json.dumps(_during_payload(route.request.url, base, state))))
+                page.route('**/api/ai-chat/jobs/**', jobs)
+                page.route('**/wama-assistant-chat.js*', chat_script)
+                page.goto(f"{BASE_URL.rstrip('/')}/", wait_until='networkidle', timeout=PAGE_TIMEOUT_MS)
+                if not page.evaluate(JS_CHAT_JOB, _DURING_ITEM):
+                    faults.append("l'accueil n'a pas de chat de l'assistant monté")
+                else:
+                    try:
+                        page.wait_for_function(
+                            "() => { const h = document.querySelector('.wama-assistant-job-preview');"
+                            " const img = h && h.querySelector('img');"
+                            " return !!(img && img.src.indexOf('/smoke_preview_during/p') >= 0); }",
+                            timeout=8000)
+                        now = page.evaluate(JS_CHAT_JOB_FACES)
+                        seen.append(f"Pendant {now['tabs']}")
+                        if 'input' not in now['tabs'] or 'during' not in now['tabs']:
+                            faults.append(f"la face Pendant de l'échange n'a pas ses onglets ({now})")
+                    except Exception:
+                        faults.append(f"la ligne de job ne montre pas sa face Pendant "
+                                      f"(vu {page.evaluate(JS_CHAT_JOB_FACES)})")
+                    if not faults:
+                        state['running'] = False
+                        try:
+                            page.wait_for_function(
+                                "() => { const h = document.querySelector('.wama-assistant-job-preview');"
+                                " const img = h && h.querySelector('img');"
+                                " return !!(img && img.src.indexOf('/smoke_preview_during/o.png') >= 0); }",
+                                timeout=12000)
+                            now = page.evaluate(JS_CHAT_JOB_FACES)
+                            seen.append(f"Sortie {now['tabs']}")
+                            if 'output' not in now['tabs']:
+                                faults.append(f"la Sortie de l'échange n'a pas son onglet ({now})")
+                        except Exception:
+                            faults.append(f"l'élément terminé, la ligne ne passe pas à sa Sortie "
+                                          f"(vu {page.evaluate(JS_CHAT_JOB_FACES)})")
+                if js_errors:
+                    faults.append(f"JS en erreur : {' | '.join(js_errors)}")
+                context.close()
+            finally:
+                browser.close()
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    if faults:
+        return False, ' ; '.join(faults)
+    return True, (f"la ligne de job de l'échange montre les faces de son élément : "
+                  f"{' → '.join(seen)}, {state['turns']} tours servis")
+
+
 def register_preview_scenarios():
     """Enregistre un scénario `<app>.preview` par app disposant d'un index, la matrice de mise
     en page de la visionneuse (`common.preview_layout`) et ses gestes de navigation
@@ -1150,6 +1268,14 @@ def register_preview_scenarios():
                      "partiel s'y affiche sans geste, et l'élément terminé elle passe d'elle-même à "
                      "sa Sortie — élément fictif servi par la page, aucun traitement"),
         run=lambda ctx: check_preview_during(),
+        timeout_s=180, vram_gb=0.0,
+    )
+    register(
+        id="common.preview_chat_job", app="common", stage="ui",
+        description=("Échange de l'assistant : la ligne d'un job EN COURS montre la face Pendant de son "
+                     "élément avec ses onglets, sans geste, puis sa Sortie quand il se termine — "
+                     "job et élément fictifs servis par la page, aucun traitement"),
+        run=lambda ctx: check_chat_job_faces(),
         timeout_s=180, vram_gb=0.0,
     )
 

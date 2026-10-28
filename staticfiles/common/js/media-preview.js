@@ -903,6 +903,126 @@
         };
     }
 
+    // ── L'AFFICHEUR DE FACES d'un élément, dans N'IMPORTE QUEL hôte (2026-10-28) ─────────────────
+    // Ce que le volet faisait seul, pour son hôte unique (`wama-inspector.js` jusqu'au 2026-10-28) :
+    // la face par défaut (Sortie d'un élément fini, Entrée sinon), la face Pendant suivie tant qu'il
+    // tourne puis la Sortie, la bascule des faces (`sidesBar`), Comparer (`compareFaces` +
+    // `compareView`), la lecture reprise d'une face à l'autre (`takeClock`/`giveClock`) et le
+    // double-clic vers la visionneuse (`openForCard`). Extrait pour l'échange de l'assistant
+    // (Fabien : « intégrer la preview dans l'échange […] entrée/during/comparaison/sortie »), où
+    // chaque ligne de job a le sien ; le volet l'emprunte — une seule construction.
+    //   opts = { compact, status() → l'état de l'élément ('RUNNING'…), card (les voisines de la
+    //            visionneuse), autoplay, onShown(données), onEmpty() }
+    //   rend { refresh(), show(face), open(), stop() } — `refresh` rejoue la face par défaut, à
+    //   appeler quand l'élément CHANGE d'état (un élément en attente qui démarre, ou qui finit).
+    function faceViewer(host, baseUrl, opts) {
+        opts = opts || {};
+        let during = null, clock = null, last = null;
+        function status() { return (opts.status && opts.status()) || ''; }
+        // Un hôte qui a quitté la page (fil de l'échange effacé) ne suit plus rien.
+        function running() {
+            const st = status();
+            return host.isConnected !== false && (st === 'RUNNING' || st === 'PROCESSING');
+        }
+        function stopDuring() { if (during) { during.stop(); during = null; } }
+        function open() {
+            if (!last) return;
+            try {
+                const m = Object.assign({}, last);
+                m._baseUrl = baseUrl; m.sides = last.sides; m.side = last.side;
+                openForCard(m, opts.card || null, 0);
+            } catch (err) { /* no-op */ }
+        }
+        // Double-clic sur l'aperçu → la visionneuse, sur la face montrée. Une vignette de la grille
+        // l'ouvre déjà sur SON fichier (au clic), et un double-clic sur les onglets change de face.
+        function attach(d) {
+            last = d;
+            host.title = 'Double-clic : plein écran';
+            host.ondblclick = function (e) {
+                if (e && e.target && e.target.closest
+                    && e.target.closest('.wama-preview-tile, .wama-face-tabs, .wama-preview-variants')) return;
+                open();
+            };
+            if (opts.onShown) opts.onShown(d);
+        }
+        // Les onglets des faces AU-DESSUS de l'aperçu ; changer de face arrête le suivi en direct.
+        function sides(d) {
+            const bar = sidesBar(d, {
+                compact: !!opts.compact,
+                go: function (side) {
+                    stopDuring();
+                    clock = takeClock(host, baseUrl, clock);
+                    show(side);
+                },
+                compare: function () {
+                    stopDuring();
+                    clock = takeClock(host, baseUrl, clock);
+                    compare(d.sides);
+                },
+            });
+            if (bar) host.insertBefore(bar, host.firstChild);
+        }
+        function fetchSide(side) {
+            _json(faceUrl(baseUrl, side)).then(function (d) {
+                // une face à URL (média), à CONTENU inline (texte) OU à PICS (son en cours)
+                if (!d || (!d.url && !d.content && !(d.peaks && d.peaks.length))) {
+                    if (opts.onEmpty) opts.onEmpty();
+                    return;
+                }
+                d._baseUrl = baseUrl;      // une vignette de la grille ouvre l'élément sur son fichier
+                renderInline(host, d, !!opts.autoplay);
+                giveClock(host, clock, baseUrl);
+                sides(d);
+                attach(d);
+            }).catch(function () { if (opts.onEmpty) opts.onEmpty(); });
+        }
+        // La face PENDANT : le suiveur commun ; à la fin du calcul, la SORTIE. Les VUES d'un même
+        // instant (détections / floutage de l'anonymizer) sous l'aperçu, la vue choisie gardée.
+        function follow() {
+            stopDuring();
+            const follower = followDuring(baseUrl, {
+                isRunning: running,
+                onEnd: function () { if (host.isConnected !== false) fetchSide('output'); },
+                host: function () { return host; },   // la lecture reprend d'un partiel au suivant
+                onFrame: function (d) {
+                    d._baseUrl = baseUrl;
+                    renderInline(host, d, false);
+                    sides(d);
+                    if (d.variants && d.variants.length > 1) {
+                        host.appendChild(variantToggle(d.variants, d.variant, function (key) {
+                            follower.choose(key);
+                        }));
+                    }
+                    attach(d);
+                },
+            });
+            during = follower;
+        }
+        // Comparer : la SORTIE rognée par le curseur, superposée à la référence.
+        function compare(s) {
+            s = s || { has_input: true, has_output: true, comparable: true };
+            compareFaces(baseUrl, s).then(function (pair) {
+                if (!pair) return;
+                _releaseHost(host);
+                host.innerHTML = '';
+                host.appendChild(compareView(pair.din, pair.dout, pair.baseLabel));
+                giveClock(host, clock, baseUrl);
+                sides({ side: 'compare', sides: s });
+            });
+        }
+        function show(side) {
+            if (side === 'during') follow(); else fetchSide(side);
+        }
+        // La face par défaut, et la face Pendant suivie si l'élément tourne (elle remplace l'Entrée
+        // dès son premier partiel ; une app qui ne publie rien garde l'Entrée).
+        function refresh() {
+            stopDuring();
+            fetchSide(status() === 'SUCCESS' ? 'output' : 'input');
+            if (running()) follow();
+        }
+        return { refresh: refresh, show: show, open: open, stop: stopDuring };
+    }
+
     // ════════════════════════════════════════════════════════════════════════════════════════
     // GESTES qui ouvrent la visionneuse
     // ════════════════════════════════════════════════════════════════════════════════════════
@@ -2036,6 +2156,7 @@
         // faces
         sidesBar: sidesBar, viewerKind: viewerKind, compareFaces: compareFaces, compareView: compareView,
         variantToggle: variantToggle, followDuring: followDuring, followCard: followCard,
+        faceViewer: faceViewer,
         takeClock: takeClock, giveClock: giveClock, releaseMedia: _releaseHost,
         isRunningCard: isRunningCard, cardOfPreview: cardOfPreview, cardElement: cardElement,
         // visionneuse et navigation

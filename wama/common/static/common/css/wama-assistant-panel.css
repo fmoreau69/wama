@@ -60,6 +60,10 @@
 [data-wama-chat] .wama-assistant-job + .wama-assistant-job { margin-top: 6px; }
 [data-wama-chat] .wama-assistant-job-name { min-width: 0; }
 [data-wama-chat] .wama-assistant-job .wama-eta { color: var(--wama-text-label); }
+/* Les FACES de l'élément sous sa barre (2026-10-28) : la zone d'aperçu des cards (`.wcv3-preview`),
+   plus haute — elle porte en plus les onglets des faces. */
+[data-wama-chat] .wama-assistant-job-preview { max-height: 240px; overflow: auto; }
+[data-wama-chat] .wama-assistant-job-preview:empty { display: none; }
 
 [data-wama-chat] .wama-assistant-empty { color: var(--wama-text-label); text-align: center; padding: 6px 0; }
 [data-wama-chat][data-density="full"] .wama-assistant-empty { padding: 1.5rem 0; }

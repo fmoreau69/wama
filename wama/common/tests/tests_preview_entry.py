@@ -441,7 +441,9 @@ class SidePanelExpandIsARealButtonTest(SimpleTestCase):
 
     def test_the_button_lives_in_the_section_title_and_opens_the_viewer(self):
         source = self._inspector()
-        block = source[source.index('function _attachFullscreen'):source.index('function restorePreview')]
+        # The double-click is the common face viewer's since 2026-10-28 ; the panel keeps the button
+        # of its section title.
+        block = source[source.index('function _showExpandButton'):source.index('function restorePreview')]
         self.assertNotIn('pointer-events:none', block)
         self.assertNotIn('previewHost.appendChild', block)
         self.assertIn("createElement('button')", block)

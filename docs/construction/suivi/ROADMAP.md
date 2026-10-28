@@ -4596,6 +4596,13 @@ déclarant leur ETA a une barre sans ETA d'amorce dans l'échange. Le remède es
 `eta_for` sont déclarés à leur `make_progress_views`) : un chantier, pas un correctif.
 *(Un visiteur sans compte reçoit 200 et une liste vide : l'assistant est une app PUBLIQUE, le
 middleware lui donne une identité éphémère — la règle d'`ai_chat`, pas une fuite.)*
+✅ **Et les FACES de l'élément sous sa barre, le 2026-10-28** (Fabien : *« intégrer la preview dans
+l'échange avec l'assistant pour avoir le rendu preview — entrée/during/comparaison/sortie »*) : la
+ligne porte l'adresse d'aperçu commune (`job_progress.preview_url`) et monte l'afficheur de faces
+du volet, devenu commun (`WamaMediaPreview.faceViewer`) — Pendant pendant le calcul, la Sortie à la
+fin, les onglets et Comparer, le double-clic vers la visionneuse. Détail et preuves :
+`WAMA_APP_GENERATION_ROUTE.md §F3b` (« ② SOLDÉ »). ⏳ Les canaux (Discord) ne montrent pas de face
+non plus.
 
 ### 19.3 Canal DÉVELOPPEUR (surface séparée, verrouillée) 🔄 *(relevé du 2026-10-26)*
 

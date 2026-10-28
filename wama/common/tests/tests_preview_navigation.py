@@ -331,7 +331,8 @@ class OnePreviewBrickTest(SimpleTestCase):
     """The preview lives in ONE brick ; the panel, the file manager and the pages consume it."""
 
     MOVED = ('renderInline', 'compareView', 'followDuring', 'variantToggle', 'duringUrl',
-             'hydrateCardPreviews', 'sidesBar', 'compareFaces', 'cardOfPreview', 'isRunningCard')
+             'hydrateCardPreviews', 'sidesBar', 'compareFaces', 'cardOfPreview', 'isRunningCard',
+             'faceViewer')
 
     def test_each_preview_function_is_defined_once_in_the_common_js(self):
         sources = {path.name: path.read_text(encoding='utf-8') for path in JS.glob('*.js')}
@@ -343,7 +344,11 @@ class OnePreviewBrickTest(SimpleTestCase):
 
     def test_the_panel_builds_no_switch_of_its_own(self):
         panel = (JS / 'wama-inspector.js').read_text(encoding='utf-8')
-        self.assertIn('P.sidesBar(', panel)
+        # Its faces are the common face viewer (2026-10-28), whose tabs are `sidesBar`.
+        self.assertIn('P.faceViewer(', panel)
+        brick = (JS / 'media-preview.js').read_text(encoding='utf-8')
+        viewer = brick[brick.index('function faceViewer('):]
+        self.assertIn('sidesBar(d,', viewer[:viewer.index('\n    }\n')])
         # The icon of the Entry face is drawn by the brick only.
         self.assertNotIn('fa-right-to-bracket', panel)
         self.assertNotIn('_renderSideToggle', panel)
@@ -370,7 +375,10 @@ class OnePreviewBrickTest(SimpleTestCase):
     def test_the_panel_hands_the_viewer_its_card(self):
         """Double-click on the panel's preview : the viewer of the ITEM, with the cards around it."""
         panel = (JS / 'wama-inspector.js').read_text(encoding='utf-8')
-        self.assertIn('P.openForCard(m, _panelCard, 0)', panel)
+        fill = panel[panel.index('function fillPreview'):]
+        self.assertIn('card: card,', fill[:fill.index('\n    }\n')], 'the panel gives its card to the viewer')
+        brick = (JS / 'media-preview.js').read_text(encoding='utf-8')
+        self.assertIn('openForCard(m, opts.card || null, 0)', brick)
         self.assertIn("addEventListener('wama:preview-card'", panel,
                       'closed on another card, the viewer has the panel select it')
 

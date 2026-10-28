@@ -718,8 +718,10 @@ class PreviewModalTest(SimpleTestCase):
         self.assertIn('_fetchItem(endpoint)', self._body('media-preview.js', 'function openPreview'))
         self.assertIn('data._baseUrl = base', self._body('media-preview.js', 'function _fetchItem'),
                       'a card thumbnail opens the modal WITH its faces')
-        self.assertIn('_attachFullscreen(d, baseUrl)', self._body('wama-inspector.js',
-                                                                 'function _startDuring'),
+        # The side panel's faces are the common face viewer since 2026-10-28 (the assistant's job
+        # lines mount it too) : its PENDING face opens the modal like any other face.
+        self.assertIn('P.faceViewer(previewHost', self._body('wama-inspector.js', 'function fillPreview'))
+        self.assertIn('attach(d)', self._body('media-preview.js', 'function follow()'),
                       'the PENDING face of the side panel opens the modal too')
         self.assertIn('_startModalDuring(modal, data)', self._body('media-preview.js',
                                                                   'function _display('),
@@ -733,7 +735,8 @@ class PreviewModalTest(SimpleTestCase):
     def test_one_follower_of_the_pending_face_for_the_panel_and_the_modal(self):
         """The modal had its own copy of the panel's follower (2026-10-05, removed the next day
         at Fabien's « rien réinventé ? ») : both go through `WamaMediaPreview.followDuring`."""
-        self.assertIn('P.followDuring(', self._body('wama-inspector.js', 'function _startDuring'))
+        self.assertIn('followDuring(', self._body('media-preview.js', 'function follow()'),
+                      'the face viewer of the side panel and of the job lines')
         modal = self._body('media-preview.js', 'function _startModalDuring')
         self.assertIn('followDuring(', modal)
         self.assertNotIn('setInterval', modal)
@@ -916,8 +919,8 @@ class PreviewModalTest(SimpleTestCase):
                           '/common/preview/transcriber/9/?side=output'], list(out[2]))
 
     def test_both_consumers_hand_their_host_to_the_follower(self):
-        self.assertIn('host: function () { return previewHost; }',
-                      self._body('wama-inspector.js', 'function _startDuring'))
+        self.assertIn('host: function () { return host; }',
+                      self._body('media-preview.js', 'function follow()'))
         modal = self._body('media-preview.js', 'function _startModalDuring')
         self.assertIn('host: _modalContainer', modal)
         self.assertNotIn('takeClock', modal, 'the clock is kept by the follower, not copied per consumer')
@@ -931,6 +934,128 @@ class PreviewModalTest(SimpleTestCase):
 
 
 @skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+@skipUnless(HAS_V8, 'py_mini_racer absent de ce venv')
+class FaceViewerTest(SimpleTestCase):
+    """THE face viewer of an item in any host (2026-10-28, Fabien : « intégrer la preview dans
+    l'échange avec l'assistant pour avoir le rendu preview — entrée/during/comparaison/sortie ») :
+    what the side panel did alone for its single host, now mounted by every job line of the
+    assistant's exchange too — the default face, the PENDING face followed then the OUTPUT, the face
+    tabs, the double-click to the viewer."""
+
+    _follower_v8 = PreviewModalTest._follower_v8
+
+    ELEMENT = """
+        function el(tag) {
+          var e = {tagName: (tag || 'div').toUpperCase(), children: [], dataset: {}, style: {},
+                   attrs: {}, classList: classList(), title: '', isConnected: true,
+                   setAttribute: function (k, v) { this.attrs[k] = String(v); },
+                   getAttribute: function (k) { return k in this.attrs ? this.attrs[k] : null; },
+                   hasAttribute: function (k) { return k in this.attrs; },
+                   removeAttribute: function (k) { delete this.attrs[k]; },
+                   appendChild: function (c) { this.children.push(c); c.parentNode = this; return c; },
+                   insertBefore: function (c) { this.children.unshift(c); c.parentNode = this; return c; },
+                   addEventListener: function (t, f) { (this.on = this.on || {})[t] = f; },
+                   querySelector: function () { return null; },
+                   querySelectorAll: function () { return []; },
+                   closest: function () { return null; }};
+          Object.defineProperty(e, 'firstChild', {get: function () { return e.children[0] || null; }});
+          Object.defineProperty(e, 'innerHTML', {get: function () { return e._html || ''; },
+                                                 set: function (v) { e._html = v; e.children = []; }});
+          return e;
+        }
+        document.createElement = el;
+        function tabs(host) {
+          var bar = host.children.filter(function (c) { return c.className && c.className.indexOf('wama-face-tabs') >= 0; })[0];
+          return bar ? bar.children.map(function (b) { return b.attrs['data-side']; }) : [];
+        }
+        function face(side, url, sides) {
+          return {side: side, url: url, mime_type: 'image/jpeg', sides: sides};
+        }
+        var SIDES = {has_input: true, has_output: true, comparable: true, during_capable: true};
+    """
+
+    def _v8(self):
+        v8 = self._follower_v8()
+        v8.eval(self.ELEMENT)
+        return v8
+
+    def test_a_running_item_shows_its_input_then_the_pending_face_then_its_output(self):
+        v8 = self._v8()
+        out = json.loads(v8.eval("""JSON.stringify((function () {
+            var status = 'RUNNING', host = el('div');
+            var during = Object.assign({}, SIDES, {has_output: false, has_during: true});
+            payloads = [face('input', 'in.jpg', during), face('during', 'part.jpg', during)];
+            var viewer = window.WamaMediaPreview.faceViewer(host, '/common/preview/imager/4/', {
+              compact: true, status: function () { return status; }});
+            viewer.refresh();
+            var shown = [host.innerHTML.indexOf('part.jpg') >= 0, tabs(host)];
+            payloads = [face('output', 'out.jpg', SIDES)];
+            status = 'SUCCESS'; tick();                       // the item is done → its output
+            return [shown, host.innerHTML.indexOf('out.jpg') >= 0, tabs(host), calls.slice(),
+                    typeof host.ondblclick, host.title];
+        })())"""))
+        self.assertEqual([True, ['input', 'during']], out[0], 'the face being built, with its tabs')
+        self.assertTrue(out[1], 'the output once done')
+        self.assertEqual(['input', 'compare', 'output'], out[2])
+        self.assertEqual(['/common/preview/imager/4/?side=input', '/common/preview/imager/4/?side=during',
+                          '/common/preview/imager/4/?side=output'], list(out[3]))
+        self.assertEqual(['function', 'Double-clic : plein écran'], [out[4], out[5]],
+                         'a double-click opens the viewer, as in the side panel')
+
+    def test_a_finished_item_opens_on_its_output_and_a_tab_on_its_face(self):
+        v8 = self._v8()
+        out = json.loads(v8.eval("""JSON.stringify((function () {
+            var host = el('div');
+            payloads = [face('output', 'out.jpg', SIDES)];
+            var viewer = window.WamaMediaPreview.faceViewer(host, '/common/preview/imager/4/', {
+              status: function () { return 'SUCCESS'; }});
+            viewer.refresh();
+            var bar = host.children[0];
+            payloads = [face('input', 'in.jpg', SIDES)];
+            bar.children[0].on.click();                       // « Entrée »
+            return [host.innerHTML.indexOf('in.jpg') >= 0, calls.slice()];
+        })())"""))
+        self.assertTrue(out[0])
+        self.assertEqual(['/common/preview/imager/4/?side=output', '/common/preview/imager/4/?side=input'],
+                         list(out[1]))
+
+    def test_a_tab_chosen_while_it_runs_stops_the_live_follow(self):
+        """The Pending face is followed live ; choosing another face stops it — the next partial
+        would otherwise cover the face the user asked for."""
+        v8 = self._v8()
+        out = json.loads(v8.eval("""JSON.stringify((function () {
+            var host = el('div');
+            var during = Object.assign({}, SIDES, {has_output: false, has_during: true});
+            payloads = [face('input', 'in.jpg', during), face('during', 'part.jpg', during)];
+            window.WamaMediaPreview.faceViewer(host, '/common/preview/imager/4/', {
+              status: function () { return 'RUNNING'; }}).refresh();
+            var followed = pending !== null;
+            payloads = [face('input', 'in.jpg', during)];
+            host.children[0].children[0].on.click();          // « Entrée »
+            tick();
+            return [followed, host.innerHTML.indexOf('in.jpg') >= 0, calls.length];
+        })())"""))
+        self.assertTrue(out[0], 'the Pending face was followed')
+        self.assertEqual([True, 3], out[1:], 'the input stays : no partial asked after the choice')
+
+    def test_a_host_gone_from_the_page_follows_nothing(self):
+        """The assistant's thread cleared : its job lines leave the page — their follow ends."""
+        v8 = self._v8()
+        out = json.loads(v8.eval("""JSON.stringify((function () {
+            var host = el('div');
+            var during = Object.assign({}, SIDES, {has_output: false, has_during: true});
+            payloads = [face('input', 'in.jpg', during), face('during', 'part.jpg', during)];
+            window.WamaMediaPreview.faceViewer(host, '/common/preview/imager/4/', {
+              status: function () { return 'RUNNING'; }}).refresh();
+            host.isConnected = false;
+            payloads = [face('output', 'out.jpg', SIDES)];
+            tick(); tick();
+            return calls.slice();
+        })())"""))
+        self.assertEqual(['/common/preview/imager/4/?side=input', '/common/preview/imager/4/?side=during'],
+                         list(out), 'no request once its host has left the page')
+
+
 class GearValuesReadsTheCardsGearTest(SimpleTestCase):
     """`WamaInspector.gearValues` — the ONE reader of a card's settings (right panel and modal).
     2026-10-21, transcriber #2522: while RUNNING the card's ⚙ was missing, and the first

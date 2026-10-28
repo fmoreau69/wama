@@ -259,6 +259,69 @@ class ChatFollowsTheJobsTest(SimpleTestCase):
             ctx, "[a.parts['.status-badge'].textContent, a.parts['.progress-text'].textContent,"
                  " b.parts['.status-badge'].textContent]"))
 
+    def test_a_job_line_mounts_the_common_face_viewer_at_its_preview_address(self):
+        """2026-10-28 (Fabien : « intégrer la preview dans l'échange […] entrée/during/comparaison/
+        sortie ») : the line mounts THE face viewer of the side panel (`WamaMediaPreview.faceViewer`),
+        never a renderer of its own, and nothing without an address."""
+        ctx = self._ctx()
+        out = self._read(ctx, """(function () {
+            var mounted = [];
+            window.WamaMediaPreview = {faceViewer: function (host, url, opts) {
+              var v = {host: host, url: url, opts: opts, refreshed: 0};
+              v.refresh = function () { v.refreshed++; };
+              mounted.push(v); return v; }};
+            var row = el(); row.children = [];
+            row.appendChild = function (c) { row.children.push(c); };
+            row.dataset.jobStatus = 'RUNNING';
+            chat.mountFaces(row, {preview_url: '/common/preview/describer/1/'});
+            var bare = el(); bare.children = [];
+            bare.appendChild = function (c) { bare.children.push(c); };
+            chat.mountFaces(bare, {});
+            var v = mounted[0];
+            return [mounted.length, v.url, v.host.className, row.children.length, v.refreshed,
+                    v.opts.compact, v.opts.status(), bare.children.length];
+        })()""")
+        self.assertEqual([1, '/common/preview/describer/1/', 'wcv3-preview wama-assistant-job-preview',
+                          1, 1, True, 'RUNNING', 0], out)
+
+    def test_a_new_job_line_carries_its_faces(self):
+        """The line the chat BUILDS for a job mounts the faces (not only the helper called alone)."""
+        ctx = self._ctx()
+        out = self._read(ctx, """(function () {
+            var mounted = [];
+            window.WamaMediaPreview = {faceViewer: function (host, url) {
+              mounted.push(url); return {refresh: function () {}}; }};
+            function part() { var p = el(); p.remove = function () {}; return p; }
+            document.createElement = function () {
+              var r = el(); r.children = [];
+              r.appendChild = function (c) { r.children.push(c); };
+              r.querySelector = function () { return part(); };
+              return r; };
+            var row = chat.jobRow({family: 'describer', id: 3, status: 'RUNNING', progress: 0,
+                                   terminal: false, label: 'photo.png',
+                                   preview_url: '/common/preview/describer/3/'});
+            return [mounted, row.children.length, row.dataset.jobStatus];
+        })()""")
+        self.assertEqual([['/common/preview/describer/3/'], 1, 'RUNNING'], out)
+
+    def test_every_change_of_state_replays_the_default_face(self):
+        """Waiting → running : the PENDING face is followed ; running → done : the output — also for
+        an app that publishes nothing while it computes (its follower stops without an end)."""
+        ctx = self._ctx()
+        out = self._read(ctx, """(function () {
+            var refreshed = 0;
+            a._faces = {refresh: function () { refreshed++; }};
+            var seen = [];
+            [['PENDING', false], ['PENDING', false], ['RUNNING', false], ['RUNNING', false],
+             ['SUCCESS', true]].forEach(function (s) {
+              chat.paintJob(a, {family: 'describer', id: 1, status: s[0], progress: 0,
+                                terminal: s[1], ok: s[1]});
+              seen.push(refreshed);
+            });
+            return seen;
+        })()""")
+        self.assertEqual([0, 0, 1, 1, 2], out, 'the first paint and an unchanged state replay nothing')
+
     def test_an_item_no_longer_served_stops_and_says_so(self):
         ctx = self._ctx()
         ctx.eval("""chat.updateJobs('1', [

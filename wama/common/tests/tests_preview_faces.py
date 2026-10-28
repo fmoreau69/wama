@@ -144,7 +144,10 @@ class CompareLetsBothVideosPlayTest(TestCase):
                          'the layer hid the reference controls over the clipped part')
 
     def test_the_panel_and_the_modal_build_compare_with_the_common_view(self):
-        panel = self._body('wama-inspector.js', 'function _renderCompare')
+        # The panel's Compare is the common face viewer's since 2026-10-28 (the assistant's job lines
+        # mount the same viewer).
+        self.assertIn('P.faceViewer(previewHost', self._body('wama-inspector.js', 'function fillPreview'))
+        panel = self._body('media-preview.js', 'function compare(s)', indent='        ')
         # La modale charge (`_modalCompare`) puis rend, fichier par fichier (`_showCompare`).
         modal = (self._body('media-preview.js', 'function _modalCompare')
                  + self._body('media-preview.js', 'function _showCompare'))
