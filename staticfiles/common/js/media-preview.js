@@ -251,6 +251,44 @@
             .trim();
     }
 
+    // ── VIGNETTE d'un fichier (2026-10-28) ────────────────────────────────────────────────
+    // Ce qu'un fichier MONTRE en petit — l'image, la 1ʳᵉ image d'une vidéo (`#t=0.1`, métadonnées
+    // seules) —, sinon une ICÔNE. Décidée par son TYPE (`mime_type`, celui que le serveur résout),
+    // jamais par un nom ni par une nature : la médiathèque montrait une image pour tout asset de
+    // nature « avatar », même un objet 3D. Trois surfaces l'écrivaient à leur main : la grille d'une
+    // sortie multiple (ci-dessous), la fenêtre de sélection (`media-picker.js`) et la médiathèque
+    // (`media-library.js`). Rend un BALISAGE, la surface y met son cadre : `className` / `style`
+    // sur l'image ou la vidéo, `icon` (repli : l'icône de la famille du type) et `iconClass` sur
+    // l'icône, `iconBox` ({className, style}) pour l'envelopper. Pure (gardée en V8).
+    function tileIcon(mime) {
+        const m = String(mime || '').toLowerCase();
+        if (m.indexOf('audio/') === 0) return 'fa-music';
+        if (m === 'application/pdf') return 'fa-file-pdf';
+        if (m.indexOf('text/') === 0) return 'fa-file-lines';
+        if (m.indexOf('model/') === 0) return 'fa-cube';
+        return 'fa-file';
+    }
+
+    function tileHtml(data, opts) {
+        const o = opts || {};
+        const mime = String((data && data.mime_type) || '').toLowerCase();
+        const u = escapeHtml((data && data.url) || '');
+        const frame = (o.className ? ' class="' + escapeHtml(o.className) + '"' : '') +
+            (o.style ? ' style="' + escapeHtml(o.style) + '"' : '');
+        if (u && mime.indexOf('image/') === 0) {
+            return '<img src="' + u + '"' + frame + ' alt="' + escapeHtml(o.alt || '') + '" loading="lazy">';
+        }
+        if (u && mime.indexOf('video/') === 0) {
+            return '<video src="' + u + '#t=0.1" preload="metadata" muted playsinline' + frame + '></video>';
+        }
+        const icon = '<i class="fas ' + escapeHtml(o.icon || tileIcon(mime)) +
+            (o.iconClass ? ' ' + escapeHtml(o.iconClass) : '') + '"></i>';
+        const box = o.iconBox;
+        if (!box) return icon;
+        return '<div' + (box.className ? ' class="' + escapeHtml(box.className) + '"' : '') +
+            (box.style ? ' style="' + escapeHtml(box.style) + '"' : '') + '>' + icon + '</div>';
+    }
+
     // ── Sortie MULTIPLE : grille de vignettes (2026-08-22) ────────────────────────────────
     // Rend la clé canonique `result_files` (N fichiers issus d'UN traitement — imager génère N
     // images). Remplace les boucles d'<img> écrites par app. La liste vient de la DONNÉE, jamais
@@ -262,19 +300,15 @@
         host.innerHTML = '';
         const grid = document.createElement('div');
         grid.className = 'wama-preview-grid d-flex flex-wrap gap-2';
+        const TILE = 'wama-preview-tile img-thumbnail bg-body border-secondary';
         files.forEach(function (f, i) {
-            const mime = (f.mime_type || '').toLowerCase();
-            let tile;
-            if (mime.indexOf('video/') === 0) {
-                tile = document.createElement('video');
-                tile.src = f.url;
-                tile.preload = 'metadata';
-            } else {
-                tile = document.createElement('img');
-                tile.src = f.url;
-                tile.alt = f.name || '';
-            }
-            tile.className = 'wama-preview-tile img-thumbnail bg-body border-secondary';
+            // La vignette commune ; un fichier qui ne se montre pas (ni image ni vidéo) a son
+            // icône dans le même cadre, au lieu d'une image cassée.
+            const holder = document.createElement('div');
+            holder.innerHTML = tileHtml(f, { className: TILE, alt: f.name || '',
+                                             iconClass: 'fa-2x text-secondary',
+                                             iconBox: { className: TILE + ' d-flex align-items-center justify-content-center' } });
+            const tile = holder.firstElementChild;
             tile.title = f.name || '';
             tile.setAttribute('data-file-index', String(i));
             tile.addEventListener('click', function (e) {
@@ -1998,6 +2032,7 @@
         stepTarget: stepTarget, duringUrl: duringUrl, faceUrl: faceUrl,
         // rendu en ligne
         renderInline: renderInline, hydrateCardPreviews: hydrateCardPreviews,
+        tileHtml: tileHtml, tileIcon: tileIcon,
         // faces
         sidesBar: sidesBar, viewerKind: viewerKind, compareFaces: compareFaces, compareView: compareView,
         variantToggle: variantToggle, followDuring: followDuring, followCard: followCard,

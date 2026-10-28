@@ -371,9 +371,9 @@
             // Assets système en premier (seulement page 1)
             if (currentPage === 1) {
                 systemAssets.forEach(a => assetGrid.appendChild(buildCard(a, true)));
-                currentAssets = [...systemAssets, ...userAssets].map(a => ({...a, _assetType: currentType}));
+                currentAssets = [...systemAssets, ...userAssets];
             } else {
-                currentAssets = [...currentAssets, ...userAssets.map(a => ({...a, _assetType: currentType}))];
+                currentAssets = [...currentAssets, ...userAssets];
             }
             userAssets.forEach(a => assetGrid.appendChild(buildCard(a, false)));
 
@@ -441,30 +441,25 @@
         card.className = `asset-card wama-reveal-host${isSystem ? ' system-asset' : ''}`;
         card.dataset.id = asset.id;
 
-        // Preview
-        let previewHtml = '';
-        let audioPlayerHtml = '';
-        if (AUDIO_TYPES.includes(currentType) && asset.file_url) {
-            // Audio : icône en zone preview (permet l'overlay), player dans le body
-            const icon = TYPE_ICONS[currentType] || 'fa-music';
-            previewHtml = `<div class="asset-preview-wrap" style="min-height:60px;">
-                <i class="fas ${icon} asset-preview-icon"></i>
+        // Preview — la vignette COMMUNE (`WamaMediaPreview.tileHtml`), décidée par le TYPE que le
+        // serveur résout (`preview_mime`), plus par la nature de l'onglet : un avatar qui n'est
+        // pas une image ne s'affiche plus en image cassée, une vidéo montre sa 1ʳᵉ image.
+        // L'icône de repli reste celle de la NATURE (voix, bruitage…), plus parlante que la famille.
+        const isAudio = AUDIO_TYPES.includes(currentType) && asset.file_url;
+        const tile = { url: asset.file_url || '', mime_type: isAudio ? '' : assetToPreviewData(asset).mime_type };
+        const tileOpts = { alt: asset.name || '', icon: TYPE_ICONS[currentType] || 'fa-file',
+                           iconClass: 'asset-preview-icon' };
+        if (/^video\//.test(tile.mime_type)) tileOpts.className = 'asset-preview-video';
+        else if (/^image\//.test(tile.mime_type)) tileOpts.className = 'asset-preview-img';
+        // Audio : icône en zone preview (permet l'overlay), player dans le body
+        const previewHtml = `<div class="asset-preview-wrap"${isAudio ? ' style="min-height:60px;"' : ''}>
+                ${window.WamaMediaPreview && WamaMediaPreview.tileHtml
+                    ? WamaMediaPreview.tileHtml(tile, tileOpts)
+                    : `<i class="fas ${tileOpts.icon} asset-preview-icon"></i>`}
             </div>`;
-            audioPlayerHtml = `<audio class="asset-preview-audio mt-1" controls src="${asset.file_url}" preload="none"></audio>`;
-        } else if (['image', 'avatar'].includes(currentType) && asset.file_url) {
-            previewHtml = `<div class="asset-preview-wrap">
-                <img class="asset-preview-img" src="${asset.file_url}" alt="${esc(asset.name)}" loading="lazy">
-            </div>`;
-        } else if (currentType === 'video' && asset.file_url) {
-            previewHtml = `<div class="asset-preview-wrap">
-                <video class="asset-preview-video" src="${asset.file_url}" preload="none" muted></video>
-            </div>`;
-        } else {
-            const icon = TYPE_ICONS[currentType] || 'fa-file';
-            previewHtml = `<div class="asset-preview-wrap">
-                <i class="fas ${icon} asset-preview-icon"></i>
-            </div>`;
-        }
+        const audioPlayerHtml = isAudio
+            ? `<audio class="asset-preview-audio mt-1" controls src="${asset.file_url}" preload="none"></audio>`
+            : '';
 
         // Attributs déclarés par la NATURE (langue, âge, genre pour une voix ; bpm/tonalité pour
         // une musique ; format/rigged pour un objet 3D…). Ils étaient sérialisés depuis A′ et
@@ -562,47 +557,19 @@
 
     // ── Preview modal ─────────────────────────────────────────────────────────
 
-    // L'extension se lit sur le FICHIER servi, jamais sur le NOM d'asset : un nom est un
-    // libellé et peut n'en porter aucune. Constat du 2026-09-21 : « smoke-0802-desc-text »,
-    // `text/plain` bien posé en base, affichait « Preview not available » parce que l'aperçu
-    // devinait le type depuis le libellé et jetait celui que le serveur envoie.
-    function fileExtension(asset) {
-        const last = (asset.file_url || asset.name || '').split('?')[0].split('/').pop();
-        return last.includes('.') ? last.split('.').pop().toLowerCase() : '';
-    }
-
-    // Le MIME posé par le serveur fait foi ; un MIME absent ou générique n'en est pas un, on
-    // retombe alors sur l'extension du fichier. Mesuré avant d'y toucher : sur les 35 assets
-    // audio/document de la base, ce choix répare les 2 cassés et n'en change aucun autre.
-    function storedMime(asset) {
-        const m = asset.mime_type || '';
-        return (m && m !== 'application/octet-stream') ? m : '';
-    }
-
+    // Le type d'aperçu est celui que le SERVEUR résout (`preview_mime`,
+    // `media_library/views.py::_preview_mime` : le type stocké, sinon celui du FICHIER), que la
+    // fenêtre de sélection lit déjà. Tous les chemins de cette page le reçoivent (listes, envoi,
+    // modification). Jusqu'au 2026-10-28 la page le devinait elle-même par la NATURE : toute image
+    // en `image/jpeg`, toute vidéo en `video/mp4`, rien pour une partition ; et avant le 21/09 par
+    // le NOM d'asset (« smoke-0802-desc-text » affichait « Preview not available »). Mesuré sur la
+    // base le 28/10 avant de retirer cette règle : aucune famille d'aperçu ne change sur les 139
+    // assets (2 avatars passent de `image/jpeg` à `image/png`, leur vrai type).
     function assetToPreviewData(asset) {
-        const assetType = asset._assetType || currentType;
-        const ext = fileExtension(asset);
-        let mime = '';
-        if (AUDIO_TYPES.includes(assetType)) {
-            mime = storedMime(asset)
-                || ({ mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav' }[ext]) || 'audio/wav';
-        } else if (assetType === 'image' || assetType === 'avatar') {
-            mime = 'image/jpeg';
-        } else if (assetType === 'video') {
-            mime = 'video/mp4';
-        } else if (assetType === 'document') {
-            mime = storedMime(asset)
-                || ({ pdf: 'application/pdf', txt: 'text/plain', md: 'text/plain', csv: 'text/plain' }[ext])
-                || 'application/octet-stream';
-        } else if (assetType === 'object3d') {
-            // La branche qui avait déjà la bonne règle — les deux autres l'ont rejointe le 21/09.
-            mime = storedMime(asset)
-                || ({ glb: 'model/gltf-binary', gltf: 'model/gltf+json', fbx: 'model/fbx' }[ext]) || 'model/unknown';
-        }
         return {
             url:        asset.file_url || '',
             name:       asset.name || '',
-            mime_type:  mime,
+            mime_type:  asset.preview_mime || '',
             duration:   asset.duration || '',
             properties: asset.file_size || '',
         };

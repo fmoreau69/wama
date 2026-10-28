@@ -193,14 +193,12 @@ const MediaPicker = (() => {
 
   // ── Aperçu (volet de la fenêtre) ───────────────────────────────────────────
 
-  /** Le type pour l'aperçu : `preview_mime` (résolu par le SERVEUR, du fichier quand le type
-   *  stocké manque — `media_library/views.py::_preview_mime`), sinon celui de la nature. */
+  /** Le type pour l'aperçu : `preview_mime`, résolu par le SERVEUR (du fichier quand le type
+   *  stocké manque — `media_library/views.py::_preview_mime`), que reçoit tout asset listé.
+   *  Plus de repli sur la NATURE (2026-10-28) : il décidait par l'onglet, pas par le fichier ;
+   *  mesuré ce jour-là, aucun asset de la base ne s'en servait. */
   function _mimeOf(asset) {
-    if (asset.preview_mime) return asset.preview_mime;
-    if (asset.mime_type) return asset.mime_type;
-    if (['image', 'avatar'].includes(asset.asset_type)) return 'image/*';
-    if (asset.asset_type === 'video') return 'video/*';
-    return '';
+    return asset.preview_mime || asset.mime_type || '';
   }
 
   function _clearPreview() {
@@ -380,29 +378,21 @@ const MediaPicker = (() => {
 
   // ── Build a card ───────────────────────────────────────────────────────────
 
-  /** L'icône d'un asset sans vignette, par la famille de son type. */
-  function _iconOf(mime) {
-    if (mime.indexOf('audio/') === 0) return 'fa-music';
-    if (mime === 'application/pdf') return 'fa-file-pdf';
-    if (mime.indexOf('text/') === 0) return 'fa-file-lines';
-    if (mime.indexOf('model/') === 0) return 'fa-cube';
-    return 'fa-file';
-  }
-
+  /** La vignette d'un asset : la brique commune (`WamaMediaPreview.tileHtml`, image, 1ʳᵉ image
+   *  d'une vidéo, sinon l'icône de la famille du type), dans le cadre de cette fenêtre. */
   function _thumb(asset) {
-    const mime = _mimeOf(asset);
-    const url = _esc(asset.file_url);
     const box = 'height:80px;border-radius:4px 4px 0 0';
-    if (mime.indexOf('image/') === 0) {
-      return `<img src="${url}" class="card-img-top" style="${box};object-fit:cover" alt="" loading="lazy">`;
+    const iconBox = { className: 'd-flex align-items-center justify-content-center bg-secondary bg-opacity-25',
+                      style: box };
+    const data = { url: asset.file_url, mime_type: _mimeOf(asset) };
+    if (!window.WamaMediaPreview || !WamaMediaPreview.tileHtml) {
+      return `<div class="${iconBox.className}" style="${box}"><i class="fas fa-file fa-2x text-secondary"></i></div>`;
     }
-    if (mime.indexOf('video/') === 0) {
-      // La 1ʳᵉ image de la vidéo (`#t=0.1`, métadonnées seules) : ce qu'elle montre, pas une icône.
-      return `<video src="${url}#t=0.1" preload="metadata" muted playsinline
-                     class="card-img-top bg-black" style="${box};object-fit:cover"></video>`;
-    }
-    return `<div class="d-flex align-items-center justify-content-center bg-secondary bg-opacity-25"
-                 style="${box}"><i class="fas ${_iconOf(mime)} fa-2x text-secondary"></i></div>`;
+    const isVideo = data.mime_type.indexOf('video/') === 0;
+    return WamaMediaPreview.tileHtml(data, {
+      className: 'card-img-top' + (isVideo ? ' bg-black' : ''), style: box + ';object-fit:cover',
+      iconClass: 'fa-2x text-secondary', iconBox: iconBox,
+    });
   }
 
   function _buildCard(asset) {
