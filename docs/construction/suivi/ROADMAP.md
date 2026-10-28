@@ -31,7 +31,7 @@
 | 2026-10 | ✅ | Dix apps en pipeline, assistant vocal | Toutes les apps décrites dans le même modèle ; on parle à WAMA. |
 | 2026-10 | ✅ | Thèmes, tablette, scènes 3D | Chacun choisit son thème ou le tire d'une charte ; les gestes valent au doigt et aux mains devant la webcam. |
 | 2026-10 | ✅ | Chercher par le contenu | Un service de vecteurs commun : « voiture » retrouve l'image d'une voiture dans la file. |
-| 2026-10 | ✅ | Pages d'édition en briques | Fond du Writer, partition du composer, correction du transcriber : une même mécanique. |
+| 2026-10 | ✅ | Pages d'édition en briques | Fond du Writer, partition du composer, correction du transcriber : une même mécanique ; le volet des pages se dispose de même. |
 | 2026-10 | ✅ | Tout cerveau a les outils de WAMA | Local, cloud souverain ou commercial, abonnement Claude Code : les mêmes outils, sous la garde du profil. |
 | 2026-10 | 🔄 | Writer, née d'une fiche | Une fiche écrite à la main, le reste généré dans le bac à sable ; puis le Translator et deux jumelles régénérées. |
 | 2026-10 | 🔄 | Droits sur modèles et fonctions | Modèles, fonctions et skills sont privés à leur auteur ou « Système » ; une promotion se valide par un administrateur. |

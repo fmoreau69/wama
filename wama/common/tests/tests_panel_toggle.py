@@ -244,6 +244,10 @@ class HeaderAndFooterDoNotOverlapTest(SimpleTestCase):
         stats = base[base.index('id="systemStats"'):]
         self.assertNotIn('position-absolute', stats[:stats.index('>')])
         self.assertIn('wama-footer-row', base)
+        # 2026-10-28 : `container-fluid` (défilement + 20 px de marge basse pour TOUTE `.container-fluid`,
+        # `app_modern.css`) faisait défiler le pied pour quelques pixels.
+        row = base[base.index('wama-footer-row') - 80:base.index('wama-footer-row')]
+        self.assertNotIn('container-fluid', row[row.rindex('<div'):], 'the footer row scrolls')
         css = _read(BASE / 'wama' / 'filemanager' / 'static' / 'filemanager' / 'css' / 'filemanager.css')
         self.assertIn('grid-template-columns: 1fr minmax(0, auto) 1fr;', css)
 

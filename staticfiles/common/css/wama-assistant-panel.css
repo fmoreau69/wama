@@ -79,7 +79,12 @@
 [data-wama-chat][data-density="full"] textarea { min-height: 38px; padding: .375rem .75rem; }
 /* Au DOIGT, les quatre boutons atteignent la cible tactile commune (wama-touch.css) : sur une
    ligne, ils écrasaient la saisie (18 px de large dans le volet, mesuré le 2026-10-12). La saisie
-   prend sa ligne, les boutons passent dessous, l'envoi au bout. */
+   prend sa ligne, les boutons passent dessous, l'envoi au bout. Dans le VOLET (densité compacte),
+   de même à la souris (2026-10-28, relevé par Fabien) : six boutons sur la ligne laissaient une
+   saisie étroite, qui passait à la ligne tous les deux mots. */
+[data-wama-chat][data-density="compact"] .wama-assistant-row { flex-wrap: wrap; }
+[data-wama-chat][data-density="compact"] textarea { flex: 1 1 100%; order: -1; }
+[data-wama-chat][data-density="compact"] [data-assistant-send] { margin-left: auto; }
 @media (pointer: coarse) {
   [data-wama-chat] .wama-assistant-row { flex-wrap: wrap; }
   [data-wama-chat] textarea { flex: 1 1 100%; order: -1; min-height: var(--wama-touch-target, 44px); }

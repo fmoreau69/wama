@@ -159,8 +159,11 @@
         {% comment %}Trois colonnes, comme la barre du haut (2026-10-12, ROADMAP §27 étape 2) : les
         ressources système étaient posées en ABSOLU par-dessus le titre centré, qu'elles
         recouvraient dès 834 px (tablette en portrait). En grille, le titre reste centré tant
-        qu'il tient, se décale sinon, et s'abrège plutôt que d'être recouvert (filemanager.css).{% endcomment %}
-        <div class="container-fluid px-3 wama-footer-row">
+        qu'il tient, se décale sinon, et s'abrège plutôt que d'être recouvert (filemanager.css).
+        PAS `container-fluid` (2026-10-28, relevé par Fabien : le pied défilait) : `app_modern.css`
+        donne à TOUTE `.container-fluid` un défilement et 20 px de marge basse, qui débordaient de la
+        rangée à 100 % de la hauteur du pied.{% endcomment %}
+        <div class="px-3 wama-footer-row">
             <span aria-hidden="true"></span>
             <!-- Center: App name -->
             {% comment %}Un `span`, pas un `small` : la règle `small` d'app_modern.css impose sa couleur
