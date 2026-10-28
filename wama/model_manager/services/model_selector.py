@@ -631,6 +631,14 @@ def select_model(
             models = [m for m in models if m not in exclus]
     except Exception as e:
         logger.debug(f"[model_selector] inventaire de backends indisponible : {e}")
+    # Un DÉFAUT MESURÉ déclaré (`model_quality.DECLARED_DEFECTS`, 2026-10-28) sort aussi du tirage :
+    # un résultat faux sans le dire est pire qu'un refus. Grisé au select, comme le sans-backend.
+    from .model_quality import declared_defect
+    flawed = [m for m in models if declared_defect(m.model_key)]
+    if flawed:
+        logger.info("[model_selector] exclus du tirage (défaut mesuré) : %s",
+                    [m.model_key for m in flawed])
+        models = [m for m in models if m not in flawed]
 
     # Disponibilité runtime (au-delà du catalogue) : ex. l'import Python du backend.
     if availability_probe:
@@ -996,6 +1004,7 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
             sans_backend = backend_missing(m) or ''
         except Exception:
             sans_backend = ''
+        from .model_quality import declared_defect
         info.append({
             'id': mid,
             'name': m.name,
@@ -1010,6 +1019,9 @@ def get_registry_models(source: Optional[str] = None, allowed_ids=None,
             'capabilities': m.capabilities or {},
             'downloaded': m.is_downloaded,
             'backend_missing': sans_backend,
+            # (libellé court, raison) d'un défaut MESURÉ déclaré, None sinon : grisé comme le
+            # sans-backend, avec SA raison (`model_quality.DECLARED_DEFECTS`, 2026-10-28).
+            'defect': declared_defect(m.model_key),
         })
     return choices, info
 

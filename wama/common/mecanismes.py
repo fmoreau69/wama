@@ -475,7 +475,9 @@ MECHANISMS = (
                        'wama/common/tests/tests_detection_ensemble.py'),
               depends_on=('detections_document',)),
     Mechanism('model_quality', 'Indice de qualité a priori',
-              "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.)",
+              "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.). "
+              "DÉFAUTS MESURÉS déclarés (`DECLARED_DEFECTS`, 2026-10-28) : un modèle qui rend un résultat faux sans le dire "
+              "est GRISÉ au select avec sa raison et sorti du tirage automatique, comme un modèle sans backend",
               'wama/model_manager/services/model_quality.py', ''),
     Mechanism('benchmark_sync', 'Benchmark tiers confronté',
               "Étage 2 qualité (a priori < benchmark < mesure) : AA + Elo Arena (texte, image, vidéo, VISION, document) + Open ASR (WER, sens 'bas') + MTEB (embeddings, jeu FRANÇAIS déclaré) appariés au catalogue, prospection incluse. "

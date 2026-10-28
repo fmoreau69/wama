@@ -1194,6 +1194,19 @@ cards diffèrent de QUATRE choses à la fois :
   « Évaluation », même sans référence. Mesurée en lecture seule sur les cards réelles : #2522
   0,558 (signalée, Whisper Large-v3 proposé), #724 0,90, #1072 1,00. ⏳ (c) reste à faire ;
   les cards transcrites avant le 2026-10-22 ne sont mesurées qu'à leur prochaine transcription.
+  ✅ **GRISÉ le 2026-10-28** (Fabien : « griser avec la vraie raison, dans le commun, et bien sûr
+  ne peut plus être sélectionné automatiquement ») — au-delà de (a) : `albert:whisper-large-v3`
+  reste listé au select du Transcriber, grisé « omet la parole lointaine », l'explication au
+  survol, et ne sort plus du tirage automatique. Mécanisme COMMUN à tout modèle et toute app :
+  `model_quality.DECLARED_DEFECTS` (à côté de `DECLARED_PRIORS` : libellé, raison, source datée),
+  lu aux deux endroits où `backend_missing` grise et exclut déjà (`select_model`,
+  `get_registry_models` → `api_model_options`). Vérifié sur la vraie base : Albert autorisé ET
+  placé en tête de priorité, le tirage rend `transcriber:parakeet-tdt-0.6b-v3`. Garde
+  `tests_declared_priors` (tirage, grisage, contre-épreuve sans déclaration). Hypothèse de Fabien
+  à poser à la DINUM : le saut de fenêtre de Whisper (`no_speech_threshold`) plutôt qu'un filtre
+  Silero — mesuré, Silero ne garderait que 2 s des 10 min, Albert en couvre 258 s. L'entrée se
+  RETIRE quand une nouvelle mesure montre le défaut corrigé. Une card qui porte déjà Albert n'est
+  pas relancée d'office : son lancement n'est pas refusé.
 - **Niveau mesuré avant / après nivellement** (hypothèse de Fabien : « le nivellement baisse peut-être
   le niveau global, faut-il normaliser vers 0 dB ? ») : parole active −25,8 → **−20,1 dBFS**, RMS
   −27,3 → −21,8 dBFS, crête +0,4 (l'original écrête déjà) → −0,2 dBFS. Le nivellement RELÈVE le

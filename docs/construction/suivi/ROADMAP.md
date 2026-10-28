@@ -2109,7 +2109,10 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    Fabien) : la part de la parole que couvre une transcription, pour TOUT moteur, dans la bande
    des process et la face « Évaluation », avec « Relancer avec » le modèle local quand la sortie
    venait d'un distant (`WAMA_QUALITE` M4 et bloc « pourquoi Albert ne rend pas tout le texte »).
-   ⏳ (c) signaler le défaut à la DINUM.
+   ✅ **Albert `whisper-large-v3` GRISÉ** (2026-10-28, décision de Fabien) : listé avec sa raison,
+   hors du tirage automatique — défaut MESURÉ déclaré, mécanisme commun
+   (`model_quality.DECLARED_DEFECTS`, `WAMA_QUALITE` bloc « pourquoi Albert ne rend pas tout le
+   texte »). ⏳ (c) signaler le défaut à la DINUM (message prêt, gardé par Fabien).
    🔄 **DIRE quand une donnée part dans le cloud** (idée de Fabien, 2026-10-02 — ✅ (a) la prévision
    dit l'origine, 13/10, `786ce901` ; ⏳ (b) la console de la card et la raison d'une bascule) : le cloud reste un choix de l'utilisateur, WAMA le rend VISIBLE. (a) La prévision
    « Automatique → … » sous le select signale un modèle distant (« ☁ Albert (DINUM) — l'audio

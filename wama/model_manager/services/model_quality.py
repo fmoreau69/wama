@@ -147,6 +147,32 @@ def declared_prior(model_key: str) -> float | None:
     return entry[0] if entry else None
 
 
+#: DÉFAUTS MESURÉS, AVEC LEUR SOURCE (2026-10-28, décision de Fabien) — un modèle dont une mesure
+#: de WAMA a établi qu'il rend un résultat FAUX sans le dire. Il reste AFFICHÉ dans les selects,
+#: GRISÉ avec sa raison (lister n'est pas pouvoir choisir, `INPUT_MODEL_MATCHING §2`), et sort du
+#: tirage automatique — exactement comme un modèle sans backend (`backend_missing`), lu aux deux
+#: mêmes endroits (`model_selector.select_model`, `get_registry_models`).
+#: ⚠ Seule une MESURE de WAMA entre ici, jamais un banc tiers ni une réputation, et l'entrée se
+#: retire le jour où la mesure change (un fournisseur corrige son service) : c'est un constat daté.
+#: Clé = `model_key` du catalogue ; valeur = (libellé court du select, raison affichée, source DATÉE).
+DECLARED_DEFECTS = {
+    'albert:whisper-large-v3': (
+        "omet la parole lointaine",
+        "Écarté : sur un enregistrement fait loin du micro, Albert rend moins de la moitié du "
+        "texte, sans le signaler (au plus un passage par fenêtre de 30 s, des fenêtres entières "
+        "vides). Les modèles locaux n'ont pas ce défaut.",
+        "WAMA_QUALITE « pourquoi Albert ne rend pas tout le texte », mesuré le 2026-10-22 : 10 min "
+        "d'un entretien lointain, 484 mots contre 1 287 pour Whisper large-v3 local ; aucun réglage "
+        "de l'API ne l'atteint. Grisé le 2026-10-28 (Fabien)"),
+}
+
+
+def declared_defect(model_key: str) -> tuple[str, str] | None:
+    """(libellé court, raison) du défaut MESURÉ de ce modèle (`DECLARED_DEFECTS`), None sinon."""
+    entry = DECLARED_DEFECTS.get(model_key or '')
+    return (entry[0], entry[1]) if entry else None
+
+
 def active_params_b(params_b: float | None, total_experts, active_experts) -> float | None:
     """
     Paramètres réellement activés par jeton, en milliards — axe de COÛT, pas de qualité.

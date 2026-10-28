@@ -553,14 +553,15 @@ L'UNION des documents `detections` de plusieurs détecteurs, quelle que soit leu
 
 ### Indice de qualité a priori
 
-Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.)
+Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.). DÉFAUTS MESURÉS déclarés (`DECLARED_DEFECTS`, 2026-10-28) : un modèle qui rend un résultat faux sans le dire est GRISÉ au select avec sa raison et sorti du tirage automatique, comme un modèle sans backend
 
 - **Domicile** : `wama/model_manager/services/model_quality.py`
 - **Module** : Indice de qualité A PRIORI d'un modèle — pour choisir autrement que « le plus gros qui tient ».
-- **API publique** (4) :
+- **API publique** (5) :
   - `params_in_billions(label: str) -> float | None` — '36.0B' → 36.0 · '8.0B' → 8.0 · '' → None. Tolère 'M' (millions).
   - `apriori_quality_index(*, params_b: float | None, context_length: int | None=None, quantization: str='', params_active_b: float | None=None) -> float | None` — Indice a priori, croissant avec la capacité. None si le signal principal manque.
   - `declared_prior(model_key: str) -> float | None` — L'indice a priori DÉCLARÉ pour ce modèle (`DECLARED_PRIORS`), None sinon.
+  - `declared_defect(model_key: str) -> tuple[str, str] | None` — (libellé court, raison) du défaut MESURÉ de ce modèle (`DECLARED_DEFECTS`), None sinon.
   - `active_params_b(params_b: float | None, total_experts, active_experts) -> float | None` — Paramètres réellement activés par jeton, en milliards — axe de COÛT, pas de qualité.
 
 ### Installation de modèles

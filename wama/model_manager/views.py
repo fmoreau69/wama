@@ -1413,6 +1413,12 @@ def api_model_options(request):
         if raison:
             options.append({'value': mid, 'label': f"{libelle} — backend absent",
                             'disabled': True, 'title': raison})
+        elif d.get('defect'):
+            # Un défaut MESURÉ (`model_quality.DECLARED_DEFECTS`, 2026-10-28) : même grisage, SA
+            # raison — le libellé court au select, l'explication au survol.
+            short, why = d['defect']
+            options.append({'value': mid, 'label': f"{libelle} — {short}",
+                            'disabled': True, 'title': why})
         else:
             options.append([mid, libelle])
 
