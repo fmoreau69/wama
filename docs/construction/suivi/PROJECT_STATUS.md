@@ -27043,3 +27043,43 @@ choisir son modèle de vocalisation ? »*. Détail : `WAMA_LLM.md` (bloc « Phon
 - 🔚 Restes : la voix en FLUX par le service ; l'écoute des 50 orthographes ; les rouges laissés à
   leurs auteurs (dépôt de fichiers du chat et relais `files: []`, 27/10 ; jumelles `synthesizer_01` /
   `avatarizer_01` hors de la porte des voix ; `tests_test_layout`, dossier « privacy (1) »).
+- ⚠ *Suite du soir, même jour — question de Fabien : « pourquoi les voix Phonon ne s'affichent que
+  quand on sélectionne le modèle Phonon ? […] un système qui reconnaîtrait automatiquement la
+  compatibilité d'une voix avec les différents moteurs ».* Revérifié : le double sens voix ↔ modèle
+  existait (13/09, voix clonées), les voix propres n'y étaient pas branchées — cachées sous « auto »,
+  sans effet sur le choix du modèle ni sur le tirage. Désormais : la compatibilité se lit au catalogue
+  (`WamaModelCaps.voiceFits`, les deux sens ; `data-models`, un groupe par jeu de modèles — les deux
+  Kokoro partagent le leur) ; sous « auto » tout reste ; une voix choisie grise les modèles qui ne la
+  disent pas et borne le tirage, lancement ET prévision (`options_resolution.voice` →
+  `auto_model.narrow_by_voice` → `voice_refs.voice_draw_constraint`), assistant compris (la voix
+  choisie l'emporte sur la vitesse). La langue ne filtre toujours pas (27/09, tenu). Détail :
+  `INPUT_MODEL_MATCHING §6.7` (addendum du 28/10 soir). Gardes : `tests_voice_choice` (21) ;
+  contre-épreuve 15 rouges / 6 mutations.
+
+## §PALIER 2026-10-28 (soir), « PRIVACY : l'union de détecteurs de données personnelles, couche texte de document, services dans leur paquet » — non poussé — 🔴 relancer (`start_wama_prod.sh`) : workers (famille `nlp`, découverte `_discover_pii_models`), gunicorn, et le nouveau service de confidentialité :8003
+
+Demande de Fabien : reprendre Presidio + GLiNER comme OBJECTIF (`ROADMAP §16.4bis`, décisions
+D1–D5 du 17/10 retrouvées dans le fil de l'assistant n° 46, jamais consignées, et celles du 28/10).
+- **Services déplacés** (`cdba81d2`) : `tts_service.py` → `wama/common/tts/service.py`,
+  `vector_service.py` → `wama/common/vectors/service.py` ; motifs d'arrêt communs aux deux formes ;
+  vérifié sur HEAD (worktree) et sur la relance de Fabien (PID sous le nouveau nom).
+- **Librairies** (`4828335d`) : Presidio 2.2.363 (cryptography 46.x), GLiNER2 2.1.0 (no_deps),
+  PyMuPDF figé 1.27.2.2 (sa 2.0 tire `onnxruntime`) ; `inference`/tldextract : conflit déclaratif.
+- **Catalogue + contrat** (`437f6b78`) : `ModelType.NLP` (migration locale `0032`, choix seuls),
+  tâche `pii-detection`, prospection tranchée par la carte ; `PIIDetectionBackend` écrit AVANT les
+  détecteurs, `TASK_CONTRACTS` liant, smoke.
+- **Union** (`87911aa4`) : bardsai EU PII v3 (ONNX) et GLiNER2-PII installés par la route (pilote
+  `files`), Presidio orchestre motifs + identifiants français + modèles installés ; occultation
+  `[PERSONNE]`/`[PERSON]` ; document `detections` en forme texte (`span`) ; service :8003 + client
+  (repli en process, refus sur délai) ; un détecteur indisponible est NOMMÉ.
+- **Couche texte de document** (`bbb0a162`) : PDF natif (caviardage réel), DOCX au niveau du XML,
+  TXT ; `occult_file` relit sa sortie (`remaining`). Commune avec le Translator.
+- Le dossier `wama/common/privacy/` écrit le 17/10 (jamais versionné) est REMPLACÉ ; copie gardée
+  hors dépôt.
+- 🔚 Restes : décision de Fabien sur la porte de l'assistant (`§16.4bis`) · domaine `document` de
+  l'Anonymizer → Portage Apps (relevé des 16 trous transmis, à confronter par elle) · brancher le
+  Translator sur `document_text` · mesure WAMA (jeu relu à la main, seuils) · `WAMA_MECANISMES.md`
+  et `docs/dev/briques.md` à régénérer (co-édités : une même ligne mêle mon texte et celui de la
+  session des voix) · ce que l'assistant écrit n'est consigné nulle part (sa consigne à Claude Code
+  interdisait de toucher la doc ; ses « spécifications » vivent dans `logs/`, non versionné) —
+  chantier à part.
