@@ -423,6 +423,12 @@ de Fabien : « purement amélioratif »), **5 ✅ le 26/09** ; seul 3 reste une 
    à la demande (le modèle demande « les outils de l'app X »), et un 2ᵉ tour LLM quand il se
    trompe de domaine. Gain : ~2 600 jetons de prompt par tour, c'est-à-dire du temps d'évaluation
    de prompt SEULEMENT quand le cache KV est froid (le levier 2 rend ce cas rare).
+   ⚠ **Remesuré le 2026-10-28 — le déclencheur est ATTEINT** : **90 outils**, la liste seule pèse
+   18 206 caractères (~4 500 jetons) sur 24 676 de prompt fixe, soit environ les deux tiers de
+   chaque appel (203 tours réels, détail `WAMA_HARNESS §9`). Le levier 2 traite le CALCUL en
+   local ; il ne traite ni la place prise dans la fenêtre, ni le coût cloud (aucun cache de
+   prompt). Ce levier reste ⏳ ; le multi-agents ouvert le même jour en est l'une des réponses,
+   et la recherche d'outils par le modèle (`tool_search` de Codex) l'autre — `WAMA_HARNESS §7.4`.
 4. ✅ **TTS par phrases** : la première phrase part au service dès qu'elle est complète, la
    suivante est demandée PENDANT la lecture ; l'avatar met les morceaux en file (TalkingHead), le
    canal commun attend la fin d'un morceau avant le suivant. L'attente avant la première parole
