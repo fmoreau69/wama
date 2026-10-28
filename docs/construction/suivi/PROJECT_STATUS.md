@@ -495,6 +495,7 @@ Docs (3 piliers, 2026-07-21) : `wama_lab/cam_analyzer/README.md` (carte) + `CAM_
 
 ## 7. Anonymisation multimodale (§16.4) — décidé, non construit
 - ⏳ Presidio + GLiNER FR ; mode « texte » = porte privacy avant-cloud (même composant) ; audio (PII + biométrie) ; dispatcher par modalité
+- 🔄 *2026-10-28* : repris (un objectif) — décisions D1–D5 du 17/10 et du 28/10, recherche et ordre au `ROADMAP §16.4bis`
 
 ## 8. Translator (§10)
 - ✅ 10.B runtime (via PromptPipeline)

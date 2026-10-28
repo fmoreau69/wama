@@ -131,6 +131,8 @@
 4. Anonymisation multimodale (Presidio + GLiNER) = porte privacy avant tout routage cloud.
    ⏳ *2026-10-26* : non construite alors que le routage cloud est ouvert par le profil ; **reportée
    par Fabien** (« on fera plus tard ») — l'intention reste, d'ici là la seule garde est le choix
+   🔄 *2026-10-28* : **reprise** — un objectif, plus une intention (Fabien) ; décisions et ordre au
+   `§16.4bis`.
    d'exposition du profil (`cloud_models.cloud_refusal`).
 5. Évaluation continue : jeux de test par capacité + QC câblé ; la veille ne propose un modèle
    qu'avec delta mesuré. Prospection suites (multi-agents, routing capacité→app Phase A).
@@ -3218,6 +3220,63 @@ les candidats sur nos propres clips (`WAMA_QUALITE`) avant de choisir.
   - **Audio — DEUX axes distincts (ne pas confondre)** : (a) **PII de contenu** (noms/numéros prononcés) = Transcriber existant → Presidio texte → bip/mute par timestamps (grosse synergie) ; (b) **identité vocale** (voix = biométrie) = anonymisation de locuteur **VoicePAT / VoicePrivacy** (DigitalPhonetics), conversion de voix — NOUVEL axe.
   - Texte (chat, docs RAG) : Presidio + GLiNER FR — mask/replace/cipher réversible.
 - **CONVERGENCE Q1↔Q2** : le **mode « texte » de l'Anonymizer** ET la **porte privacy avant-cloud** (§16.3 / §16.2 routage cloud) = **LE MÊME composant** → construire une fois (Presidio + GLiNER FR), utiliser aux deux endroits.
+
+#### 16.4bis Reprise — un OBJECTIF, plus une intention (décisions de Fabien, 2026-10-17 et 2026-10-28) 🔄
+
+> Le report du 2026-10-26 (§1 point 4, vision §12.1) est levé le 2026-10-28 : *« ce n'est pas juste
+> une intention, c'est un objectif »*. Les décisions D1–D5 ont été prises le 2026-10-17 dans le fil
+> de l'assistant (conversation n° 46, deux revues d'opus en lecture seule) et n'avaient été
+> consignées NULLE PART — elles le sont ici, avec celles du 28/10 qui les précisent.
+
+| | décision | précisée le 28/10 |
+|---|---|---|
+| D1 | Presidio = colonne vertébrale | **Presidio ORCHESTRE l'union** des détecteurs : chaque détecteur est un BACKEND du contrat `pii-detection` (catalogue, `select_model`, gouverneur), branché dans l'analyseur par un fin ADAPTATEUR de recognizer (réconciliation proposée par opus le 17/10) — on en ajoute sans toucher au reste |
+| D2 | le GLiNER le plus large | `fastino/gliner2-privacy-filter-PII-multi` (librairie `gliner2`) ; recherche complète du 28/10 ci-dessous |
+| D3 | sortie = texte portable, rendu par le Writer | **corrigée** : anonymiser CONSERVE EXACTEMENT la forme d'origine — on ne fait que détecter et occulter, dans le fichier même. Le Writer ne vient qu'en DERNIER, par chaînage (Studio, « Envoyer vers »), si l'utilisateur veut REVOIR la mise en forme. Un export du TEXTE anonymisé s'ajoute en late binding multi-format (`document_export`) |
+| D4 | `Media` + `media_type='document'` | domaine et intégration à l'Anonymizer confiés à l'instance Portage Apps |
+| D5 | v1 sans modèle (motifs), modèles ensuite | les motifs (Presidio + détecteurs FRANÇAIS à écrire : NIR, SIREN/SIRET, téléphone) restent le plancher déterministe ; les modèles s'y ajoutent dans la même union |
+
+Décidé le 28/10, en plus :
+- **Multilingue** dès le départ (anglais ET français au minimum) : chaque détecteur DÉCLARE ses
+  langues au catalogue, l'union retient ceux qui couvrent la langue du texte.
+- **Occultation = pseudonymisation par libellé entre crochets** (`[PERSONNE]`, `[EMAIL]`…), le texte
+  d'origine SUPPRIMÉ du fichier (un PDF caviardé par simple rectangle garde son texte extractible :
+  une fuite). La pseudonymisation cohérente (`[PERSONNE_1]`) viendra en réglage.
+- **L'humain dans la boucle** : détection → page de correction (`detection_corrections`, comme pour
+  l'image) → occultation ; corriger ne redétecte rien.
+- **Couche texte d'un document COMMUNE à l'Anonymizer et au Translator** (vision §5.4) : extraire
+  les passages avec leur emplacement, les réécrire SUR PLACE. v1 : PDF natif, DOCX, TXT ; le scan
+  passera par l'Anonymizer image (OCR, boîtes).
+- **Catégorie de modèle** : `ModelType` gagne `nlp` (la catégorie « Natural Language Processing » de
+  Hugging Face — aucun type existant ne convenait : `embedding` aurait fait entrer les détecteurs
+  dans le relevé des vectoriseurs) ; tâche `pii-detection` ↔ tag HF `token-classification`.
+- **Brique et service** : `wama/common/privacy/` (le dossier écrit le 17/10 est REMANIÉ, pas gardé :
+  moteur anglais seul par défaut, modèle spaCy tiré au premier usage, détecteurs neuronaux vides) ;
+  service uvicorn DANS le paquet (`privacy/service.py`), sur le patron des services TTS et de
+  vectorisation, déplacés dans leur paquet le même jour (`cdba81d2`) ; client et repli en processus.
+- **Licences** : une colonne factuelle, jamais un critère d'exclusion — leur acceptation revient à
+  Fabien.
+
+Recherche complète du 28/10 (Hub, PyPI, GitHub ; chiffres d'éditeurs, une mesure WAMA fera foi) :
+- Presidio 2.2.363 (MIT) — dernière version dont l'anonymiseur garde `cryptography` en 46.x (les
+  suivantes exigent 48 puis 50) ; aucun détecteur français fourni ; extra `gliner` à proscrire
+  (il tire `onnxruntime` processeur à côté d'`onnxruntime-gpu`, patch n°10).
+- v1 : `bardsai/eu-pii-anonimization-multilang-v3` (24 langues UE, ONNX ; créé le 2026-10-27) ;
+  `fastino/gliner2-privacy-filter-PII-multi` (types ouverts). À mesurer ensuite :
+  `urchade/gliner_multi_pii-v1` (référence), `knowledgator/gliner-pii-*` (anglais seul),
+  `iiiorg/piiranha-v1-detect-personal-information`, `Jean-Baptiste/camembert-ner`, `AP-HP/eds-pseudo-public`
+  (médical FR). `openai/privacy-filter` et ses ré-affinages OpenMed exigent transformers 5.6 :
+  second temps (voie ONNX ou patch à étudier).
+- Aucun corpus public de VRAIS textes français annotés en données personnelles : un petit jeu WAMA
+  relu à la main fera foi (`WAMA_QUALITE`).
+- PyMuPDF 1.27.2.2 est dans le venv HORS route ; sa 2.0 dépend d'`onnxruntime` — à figer en 1.27.x
+  par un manifeste `library`.
+
+Ordre : librairies par la route → catalogue (`nlp`, `pii-detection`, lignes) → contrat
+`pii_detection_base` (+ `TASK_CONTRACTS`, `SMOKES`) AVANT les backends → détecteurs → brique
+`privacy` (orchestration, document de détections en forme texte, occultation, service) → couche
+texte de document (occultation en place, contre-épreuve par ré-extraction) → porte de l'assistant
+avant les appels distants (quand l'activer : décision à part) ; domaine `document` → Portage Apps.
 
 ### Transcriber — exports + archétype d'export (2026-06-19)
 - **Bugs export corrigés** : DOCX (`HttpResponse` non importé dans `views.py`), PDF (curseur `multi_cell` qui dérive → `new_x="LMARGIN"` ; texte FR), diarisation rendue conditionnellement (labels si `speaker_id`, sinon timecode seul).

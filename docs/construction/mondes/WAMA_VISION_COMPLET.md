@@ -457,6 +457,11 @@ des documents composites) : `document → parseur (texte / figures / images-text
 ciblé → réassemblage, mise en page conservée`. Le texte intégré aux images suit OCR → traduction
 → réinsertion.
 
+🔄 *2026-10-28* : premier maillon décidé — la **couche texte** d'un document (extraire les passages
+avec leur emplacement, les réécrire sur place), commune à l'Anonymizer (domaine document : occulter
+en conservant exactement la forme) et au Translator (`ROADMAP §16.4bis`). Le Writer reste le geste
+de qui veut REVOIR la mise en forme, par chaînage, jamais celui qui la conserve.
+
 ## 5.5 Mémoire et RAG : livrés sur Postgres + pgvector, extension par l'usage ✅🔄
 
 > ⚠ Cette section remplace le plan antérieur (« ChromaDB, zéro code ») : la brique a été
@@ -827,6 +832,11 @@ ILaaS ; commercial : OpenRouter, Anthropic), modèle facturé jamais tiré d'off
 avant-cloud reste NON construite dans le code versionné : le routage cloud existe donc sans elle,
 sous le seul consentement du profil. Ce report est une décision de Fabien du 2026-10-26 (« on
 fera plus tard ») : l'intention est gardée ⏳.
+
+🔄 *Repris le 2026-10-28* (Fabien : « un objectif ») : la même brique sert le domaine document de
+l'Anonymizer et cette porte — union de détecteurs multilingues orchestrée par Presidio,
+occultation par libellé entre crochets, forme d'origine conservée ; décisions et ordre au
+`ROADMAP §16.4bis`.
 
 ## 12.2 Priorité aux solutions ouvertes ✅
 
