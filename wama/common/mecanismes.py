@@ -489,7 +489,28 @@ MECHANISMS = (
               'docs/construction/suivi/ROADMAP.md §16.4bis',
               annexes=('wama/common/privacy/__init__.py',
                        'wama/common/privacy/entities.py',
+                       'wama/common/backends/bardsai_pii_backend.py',
+                       'wama/common/backends/gliner2_pii_backend.py',
                        'wama/common/tests/tests_pii_detection_contract.py')),
+    Mechanism('privacy', 'Confidentialité — détecter puis OCCULTER les données personnelles',
+              "La brique commune (2026-10-28, ROADMAP §16.4bis) : Presidio ORCHESTRE une union de "
+              "détecteurs — ses motifs à chiffre de contrôle, les identifiants français (NIR clé 97, "
+              "SIREN/SIRET Luhn) et chaque modèle `pii-detection` INSTALLÉ qui couvre la langue du "
+              "texte, par son backend (adaptateur `BackendRecognizer`, porte commune) ; moteur de "
+              "langue SANS modèle (`spacy.blank`), adresses validées hors ligne. Rend un document "
+              "`detections` en forme TEXTE (`span`), corrigeable par l'humain ; occulte par libellé "
+              "entre crochets dans la langue du texte. Un détecteur qui ne se charge pas est NOMMÉ "
+              "(`unavailable`). Service uvicorn 127.0.0.1:8003 dans le paquet, client qui retombe "
+              "sur le moteur en process service éteint et REFUSE sur délai (jamais « rien trouvé »). "
+              "Consommateurs prévus : domaine document de l'Anonymizer, porte de l'assistant avant "
+              "un modèle distant, mémoire",
+              'wama/common/privacy/engine.py',
+              'docs/construction/suivi/ROADMAP.md §16.4bis',
+              annexes=('wama/common/privacy/recognizers.py',
+                       'wama/common/privacy/service.py',
+                       'wama/common/privacy/service_client.py',
+                       'wama/common/tests/tests_privacy.py'),
+              depends_on=('pii_detection', 'detections_document', 'external_sources')),
     Mechanism('model_quality', 'Indice de qualité a priori',
               "Ordonne les modèles autrement que par la taille (params EFFECTIFS √(totaux×actifs), contexte, quantif.). "
               "DÉFAUTS MESURÉS (2026-10-28) : une mesure sans référence qui prend un modèle en défaut (même entrée, "

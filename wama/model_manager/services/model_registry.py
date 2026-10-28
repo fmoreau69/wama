@@ -382,6 +382,7 @@ class ModelRegistry:
         self._discover_hand_gesture_models()
         self._discover_turn_end_models()
         self._discover_phonon_models()
+        self._discover_pii_models()
 
         # EN DERNIER, après toutes les découvertes d'app : le balayage générique ne
         # couvre que ce qu'AUCUNE app ne déclare (dédup par `platform_ref`) — l'entrée déclarée
@@ -1642,6 +1643,63 @@ class ModelRegistry:
             )
         except Exception as e:
             self.discovery_errors.append(f'phonon: {e}')
+
+    def _discover_pii_models(self):
+        """Détecteurs de DONNÉES PERSONNELLES (task=pii-detection, 2026-10-28, ROADMAP §16.4bis)
+        — l'union que Presidio orchestre dans `common/privacy`. Même patron que MuScriptor : le
+        consommateur est une brique COMMUNE, la déclaration (fichiers figés à un commit, langues)
+        vit à côté de chaque backend ; la ligne existe absente, installable et désinstallable par
+        le pilote `files`. Langues = celles que la carte du modèle DÉCLARE pour ses données."""
+        from wama.model_manager.services.model_installer import declared_files_present
+        detectors = (
+            ('bardsai_pii_backend', 'BARDSAI_FILES', 'bardsai EU PII v3',
+             "Détecteur de données personnelles des 24 langues de l'UE (bardsai, ModernBERT "
+             "mmBERT-base, 307 M) : 37 types — personnes, contacts, adresses, identifiants, "
+             "comptes, secrets, et les catégories particulières du RGPD. Servi en ONNX (FP32 sur "
+             "la carte, INT8 sur le processeur) avec le décodeur par mot de l'auteur. Chiffres "
+             "de l'éditeur (F1 strict 0,980 sur 455 passages réels) — une mesure WAMA fera foi.",
+             "Données personnelles, 24 langues de l'UE (ONNX)",
+             'onnxruntime', 'onnx', 1.5,
+             [{'role': 'model', 'pattern': 'onnx/model.onnx', 'format': 'onnx'},
+              {'role': 'model_cpu', 'pattern': 'onnx/model_quantized.onnx', 'format': 'onnx'}]),
+            ('gliner2_pii_backend', 'GLINER2_FILES', 'GLiNER2-PII (multilingue)',
+             "Détecteur de données personnelles à vocabulaire OUVERT (Fastino, GLiNER2 205 M) : "
+             "42 types qu'on lui nomme, 7 langues (en, fr, es, de, it, pt, nl). Rappel élevé, "
+             "précision faible selon l'éditeur (il sur-détecte les noms) : il complète les autres "
+             "détecteurs de l'union. Entraîné sur des textes synthétiques.",
+             "Données personnelles à types ouverts, 7 langues",
+             'gliner2', 'safetensors', 1.5,
+             [{'role': 'model', 'pattern': 'model.safetensors', 'format': 'safetensors'}]),
+        )
+        for module, files_attr, name, description, short, engine, fmt, vram, components in detectors:
+            try:
+                backend = __import__(f'wama.common.backends.{module}', fromlist=['x'])
+                files = getattr(backend, files_attr)
+                root = backend.model_folder()
+                self._models[backend.MODEL_KEY] = ModelInfo(
+                    id=backend.MODEL_KEY,
+                    name=name,
+                    model_type=ModelType.NLP,
+                    source=ModelSource.HUGGINGFACE,
+                    description=description,
+                    description_short=short,
+                    platform_ref=hf_platform_ref(backend.HF_REPO),
+                    vram_gb=vram,
+                    format=fmt,
+                    preferred_format=fmt,
+                    is_downloaded=declared_files_present(root, files),
+                    extra_info={'path': str(root),
+                                'size_bytes': sum(f['size'] for f in files),
+                                'install_dir': str(root),
+                                'declared_files': files,
+                                'license': 'apache-2.0'},
+                    capabilities={'task': 'pii-detection', 'modalities': ['text', 'document'],
+                                  'inputs_required': ['work_file'],
+                                  'languages': list(backend.LANGUAGES)},
+                    composition={'runtime': {'engine': engine}, 'components': components},
+                )
+            except Exception as e:
+                self.discovery_errors.append(f'pii-detection ({module}): {e}')
 
     def _discover_midi_extraction_models(self):
         """Transcription audio → MIDI multi-instrument (task=audio-to-midi, 2026-10-16) — la

@@ -31,11 +31,13 @@ pkill -f "celery" || true
 # avant le déplacement survivrait à l'arrêt et garderait son port.
 TTS_SERVICE_PATTERN="uvicorn (wama\.common\.tts\.service|tts_service):app"
 VECTOR_SERVICE_PATTERN="uvicorn (wama\.common\.vectors\.service|vector_service):app"
+PRIVACY_SERVICE_PATTERN="uvicorn wama\.common\.privacy\.service:app"
 if pkill -f "$TTS_SERVICE_PATTERN" 2>/dev/null; then
     sleep 3
     pkill -9 -f "$TTS_SERVICE_PATTERN" 2>/dev/null || true
 fi
 pkill -f "$VECTOR_SERVICE_PATTERN" || true
+pkill -f "$PRIVACY_SERVICE_PATTERN" || true
 # Passerelle de canaux : on l'arrête ICI comme les autres, pour deux raisons —
 #   • elle doit repartir sur le code du run courant (elle a l'ORM et les settings) ;
 #   • la rotation des journaux plus bas exige les services ARRÊTÉS (renommer un fichier
@@ -354,6 +356,29 @@ if ! pgrep -f "$VECTOR_SERVICE_PATTERN" > /dev/null; then
     echo "Vector Service started (PID $VECTOR_PID)"
 else
     echo "Vector Service is already running."
+fi
+
+# ------------------------------------------------------
+# SERVICE DE CONFIDENTIALITÉ (FastAPI) — ROADMAP §16.4bis
+# ------------------------------------------------------
+# Détection des données personnelles d'un texte (union de détecteurs orchestrée par Presidio) :
+# les modèles restent chargés dans CE process au lieu de l'être dans chaque gunicorn. Le premier
+# appel paie le chargement ; rien n'est préchargé au démarrage. Boucle locale SEULE (aucune
+# authentification, il voit des textes personnels). Éteint, rien ne casse — le client exécute le
+# même moteur dans son propre process.
+if ! pgrep -f "$PRIVACY_SERVICE_PATTERN" > /dev/null; then
+    echo "=== Starting Privacy Service (port 8003) ==="
+    nohup python -m uvicorn wama.common.privacy.service:app \
+        --host 127.0.0.1 \
+        --port 8003 \
+        --workers 1 \
+        --log-level warning \
+        >> $LOG_DIR/privacy-service.log 2>&1 &
+    PRIVACY_PID=$!
+    disown $PRIVACY_PID
+    echo "Privacy Service started (PID $PRIVACY_PID)"
+else
+    echo "Privacy Service is already running."
 fi
 
 # ------------------------------------------------------

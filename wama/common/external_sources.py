@@ -465,6 +465,12 @@ SOURCES: tuple[ExternalSource, ...] = (
         kind='service', scope=LOCAL, setting='VECTOR_SERVICE_URL', env='VECTOR_SERVICE_URL',
         doc='docs/construction/ia/WAMA_MEMORY.md'),
     ExternalSource(
+        'privacy_service', 'Service de confidentialité WAMA', 'http://127.0.0.1:8003',
+        "Détection des données personnelles d'un texte hors des process web et workers (union "
+        "de détecteurs orchestrée par Presidio, modèles gardés chargés)",
+        kind='service', scope=LOCAL, setting='PRIVACY_SERVICE_URL', env='PRIVACY_SERVICE_URL',
+        doc='docs/construction/suivi/ROADMAP.md'),
+    ExternalSource(
         'wama_self', 'WAMA (cette instance)', 'http://127.0.0.1:8000',
         "WAMA s'interroge lui-même : smoke navigateur, matrice de droits",
         kind='service', scope=LOCAL, env='WAMA_UI_SMOKE_BASE'),

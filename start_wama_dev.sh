@@ -13,8 +13,10 @@ pkill -f "celery" || true
 # ligne de commande (modules de la racine), comme dans start_wama_prod.sh.
 TTS_SERVICE_PATTERN="uvicorn (wama\.common\.tts\.service|tts_service):app"
 VECTOR_SERVICE_PATTERN="uvicorn (wama\.common\.vectors\.service|vector_service):app"
+PRIVACY_SERVICE_PATTERN="uvicorn wama\.common\.privacy\.service:app"
 pkill -f "$TTS_SERVICE_PATTERN" || true
 pkill -f "$VECTOR_SERVICE_PATTERN" || true
+pkill -f "$PRIVACY_SERVICE_PATTERN" || true
 pkill -f "redis-server" || true
 
 sleep 2
@@ -158,6 +160,14 @@ else
     echo "Vector Service is already running."
 fi
 
+# Service de confidentialité (ROADMAP §16.4bis) — boucle locale seule, rien de préchargé.
+if ! pgrep -f "$PRIVACY_SERVICE_PATTERN" > /dev/null; then
+    echo "=== Starting Privacy Service (port 8003) ==="
+    python -m uvicorn wama.common.privacy.service:app --host 127.0.0.1 --port 8003 --workers 1 --log-level info &
+else
+    echo "Privacy Service is already running."
+fi
+
 # ------------------------------------------------------
 # CELERY WORKERS (2 workers: gpu + default)
 # ------------------------------------------------------
@@ -196,4 +206,5 @@ echo "=== Shutting down... ==="
 pkill -f "celery" || true
 pkill -f "$TTS_SERVICE_PATTERN" || true
 pkill -f "$VECTOR_SERVICE_PATTERN" || true
+pkill -f "$PRIVACY_SERVICE_PATTERN" || true
 echo "=== WAMA development stack stopped ==="

@@ -54,6 +54,19 @@ def detection(*, box, label: str = '', conf: float = 1.0, track=None, polygons=N
     return entry
 
 
+def text_span(*, start: int, end: int, label: str, conf: float = 1.0, sources=()) -> dict:
+    """Une détection dans un TEXTE (2026-10-28, ROADMAP §16.4bis) : le passage `[start, end[` en
+    index de caractères du segment, à la place de la boîte d'une image. Même document, même
+    lecture, mêmes corrections : `media` vaut `text`, et la « frame » est le SEGMENT de texte (le
+    texte entier, ou une page / un paragraphe d'un document). `sources` nomme les détecteurs qui
+    l'ont vu (l'union les réunit)."""
+    entry = {'label': str(label or ''), 'conf': round(float(conf), 3),
+             'span': [int(start), int(end)]}
+    if sources:
+        entry['sources'] = sorted(set(sources))
+    return entry
+
+
 def add(doc: dict, frame_index: int, detections) -> None:
     """Range les détections d'UNE frame (rien n'est écrit pour une frame vide). Deux appels
     pour la même frame (deux modèles) se réunissent."""
@@ -108,6 +121,21 @@ def _iou(a, b) -> float:
     return inter / union if union > 0 else 0.0
 
 
+def _span_iou(a, b) -> float:
+    """Le recouvrement de deux passages `[start, end]` — l'IoU d'une boîte, sur une dimension."""
+    inter = max(0, min(a[1], b[1]) - max(a[0], b[0]))
+    union = (a[1] - a[0]) + (b[1] - b[0]) - inter
+    return inter / union if union > 0 else 0.0
+
+
+def _same_place(entry: dict, removal: dict) -> bool:
+    """Un retrait désigne-t-il cette détection ? Passage contre passage (texte), boîte contre
+    boîte (image) — jamais l'un contre l'autre."""
+    if 'span' in removal:
+        return 'span' in entry and _span_iou(entry['span'], removal['span']) >= CORRECTION_MIN_IOU
+    return 'box' in entry and _iou(entry['box'], removal['box']) >= CORRECTION_MIN_IOU
+
+
 def apply_corrections(doc: dict, corrections) -> dict:
     """Le document CORRIGÉ par l'humain (2026-10-10, chantier SURFACES) — une copie, l'original
     reste celui du détecteur. Les corrections vivent À PART (décision de Fabien) pour survivre à
@@ -118,7 +146,8 @@ def apply_corrections(doc: dict, corrections) -> dict:
 
     Un retrait ôte, sur sa frame, les détections qui le recouvrent à `CORRECTION_MIN_IOU` ; un
     ajout entre avec `manual: True` et une confiance de 1. Déplacer une boîte = la retirer et
-    l'ajouter ailleurs."""
+    l'ajouter ailleurs. Un document de TEXTE (2026-10-28) se corrige pareil, par `span` au lieu de
+    `box` : `{"i": segment, "span": [start, end], "label": "PERSON"}`."""
     corrections = corrections or {}
     removed, added = corrections.get('removed') or [], corrections.get('added') or []
     if not removed and not added:
@@ -127,14 +156,17 @@ def apply_corrections(doc: dict, corrections) -> dict:
     fixed['frames'] = []
     gone = {}
     for r in removed:
-        gone.setdefault(int(r['i']), []).append(r['box'])
+        gone.setdefault(int(r['i']), []).append(r)
     for frame in doc.get('frames') or []:
         kept = [d for d in frame.get('d') or []
-                if not any(_iou(d['box'], box) >= CORRECTION_MIN_IOU
-                           for box in gone.get(int(frame['i']), ()))]
+                if not any(_same_place(d, r) for r in gone.get(int(frame['i']), ()))]
         add(fixed, frame['i'], [dict(d) for d in kept])
     for a in added:
-        entry = detection(box=a['box'], label=a.get('label') or 'face', conf=1.0)
+        if 'span' in a:
+            entry = text_span(start=a['span'][0], end=a['span'][1],
+                              label=a.get('label') or 'PERSON')
+        else:
+            entry = detection(box=a['box'], label=a.get('label') or 'face', conf=1.0)
         entry['manual'] = True
         add(fixed, int(a['i']), [entry])
     fixed['corrected'] = {'added': len(added), 'removed': len(removed)}

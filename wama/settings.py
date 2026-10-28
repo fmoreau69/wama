@@ -191,6 +191,14 @@ MODEL_PATHS = {
         # balayage générique : la découverte `_discover_midi_extraction_models` en est l'autorité.
         'muscriptor': AI_MODELS_DIR / "models" / "music" / "muscriptor-large",
     },
+    # Langage naturel hors génération (ModelType.NLP, 2026-10-28) — détecteurs de DONNÉES
+    # PERSONNELLES de `common/privacy` (ROADMAP §16.4bis). Fichiers DÉCLARÉS dans leur backend,
+    # posés par le pilote `files` ; déclarer la famille la sort du balayage générique.
+    'nlp': {
+        'root': AI_MODELS_DIR / "models" / "nlp",
+        'bardsai_pii': AI_MODELS_DIR / "models" / "nlp" / "eu-pii-anonimization-multilang-v3",
+        'gliner2_pii': AI_MODELS_DIR / "models" / "nlp" / "gliner2-privacy-filter-PII-multi",
+    },
     # LLM models (reference to Ollama)
     'llm': {
         'root': AI_MODELS_DIR / "models" / "llm",
