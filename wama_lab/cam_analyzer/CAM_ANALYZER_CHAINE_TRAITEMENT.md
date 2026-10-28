@@ -1165,6 +1165,11 @@ objets (pose longue : 491 objets, 1246 fragments réunis) — **mais garés en d
 c'est le défaut suivant (des morceaux d'un même garé laissés à 1,5-2 m, ou vus ensemble comme
 deux boîtes). ⚠ Le test « près d'une intersection » porte sur CHAQUE position du track, pas sur
 sa médiane : avec la dérive, la zone réellement exclue dépasse le cercle dessiné.
+→ **Tranché le 2026-10-28 (décision de Fabien)** : ⚑ `parked_intersection_median` (ON, un tracking
+antérieur compte pour l'ancienne règle) juge sur la position MÉDIANE, celle où le garé est dessiné —
+la zone exclue est le cercle. Rejeu sans écriture : près d'une intersection 140 → **50**, garés
+661 → **703**, en mouvement 439 → 487 (la garde suivante reprend 48 des 90 libérés), référence de
+calibration inchangée (116), suspects de doublon 35 → 41.
 
 **Garés en double, par nature (2026-10-28, GO de Fabien).** Une paire de garés à moins de 2 m n'est
 pas forcément un objet compté deux fois. Rejeu sans écriture sur `4da52df3`, 336 paires :

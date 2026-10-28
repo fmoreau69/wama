@@ -344,6 +344,15 @@ FEATURES = [
             "Tracking à rejouer.",
             default=True, scope='compute',
             processes=TRACKING, legacy=False),
+    Feature('parked_intersection_median', 'Garés : « près d\'une intersection » jugé sur la position médiane',
+            "Un véhicule près d'une intersection n'est jamais garé (il peut y attendre et repartir). Le test "
+            "portait sur CHAQUE position calculée du véhicule : avec la dérive de placement quand la navette "
+            "passe, un garé voisin du cercle y entrait par un seul point, et la zone réellement exclue "
+            "dépassait le cercle dessiné. Il porte désormais sur sa position médiane, celle où le garé est "
+            "dessiné : la zone exclue est le cercle « Garés » de l'intersection. Décision de Fabien "
+            "(2026-10-28). OFF = chaque position. Tracking à rejouer.",
+            default=True, scope='compute',
+            processes=TRACKING, legacy=False),
     Feature('parked_motion_vs_shuttle', 'Garés : mouvement jugé contre la navette',
             "Une voiture garée « bouge » dans nos calculs quand la navette passe : l'angle de vue change "
             "et sa position calculée glisse de plusieurs mètres. La garde « trajectoire immobile » la "

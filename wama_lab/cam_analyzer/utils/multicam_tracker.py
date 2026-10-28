@@ -221,6 +221,20 @@ def off_road_gate(hs, votes, footprint, edge, margin_m=OFF_ROAD_MARGIN_M):
     return 'retenu'
 
 
+def near_intersection(hs, centers, *, on_median=False):
+    """Le track `hs` = [(fn, t, e, n, classe)] est-il près d'une intersection — à moins de son rayon
+    de l'un des `centers` = [(e, n, rayon)] ? Historiquement par CHAQUE position ; `on_median`
+    (⚑ parked_intersection_median) : par la position MÉDIANE, composante par composante comme
+    l'ancre d'un garé — avec la dérive de placement, un garé voisin du cercle y entrait par un
+    seul point, et la zone réellement exclue dépassait le cercle dessiné."""
+    if on_median and hs:
+        es, ns = sorted(h[2] for h in hs), sorted(h[3] for h in hs)
+        points = [(es[len(es) // 2], ns[len(ns) // 2])]
+    else:
+        points = [(h[2], h[3]) for h in hs]
+    return any(math.hypot(e - we, n - wn) <= wr for e, n in points for we, wn, wr in centers)
+
+
 def thirds_motion(hs):
     """(distance m, t_a, t_b) entre la position MÉDIANE du premier tiers et celle du dernier tiers
     d'un track `[(fn, t, e, n, classe)]` trié, et les instants médians de ces deux tiers."""
@@ -1457,12 +1471,12 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             we, wn = to_local(w['lat'], w['lon'])
             win_local.append((we, wn, parked_radius_m(w, 30.0)))
 
+    # ⚑ parked_intersection_median (Fabien, 2026-10-28) : jugé sur la position MÉDIANE du track — la
+    # zone exclue est alors le cercle dessiné (`near_intersection`).
+    _on_median = _feat.get('parked_intersection_median', True)
+
     def _near_intersection(hs):
-        for (_, _, e, n, _) in hs:
-            for we, wn, wr in win_local:
-                if math.hypot(e - we, n - wn) <= wr:
-                    return True
-        return False
+        return near_intersection(hs, win_local, on_median=_on_median)
 
     # Descripteurs par track — extraits en fonction PURE le 2026-09-11 pour que le chantier
     # de refonte du filtre (§D.3, verdict Fabien : « à REFAIRE, pas à régler ») puisse MESURER

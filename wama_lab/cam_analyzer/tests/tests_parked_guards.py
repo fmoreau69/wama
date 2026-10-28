@@ -101,6 +101,38 @@ class MotionAgainstShuttleTest(SimpleTestCase):
         self.assertIn("moving=_moving if (_vs_shuttle or _min_speed != PARKED_MOVE_MPS)", src)
 
 
+class IntersectionOnMedianTest(SimpleTestCase):
+    """⚑ parked_intersection_median (2026-10-28, décision de Fabien) : « près d'une intersection » se juge
+    sur la position médiane du track — la zone exclue est le cercle dessiné, pas le cercle élargi de la
+    dérive de placement."""
+    CENTER = [(0.0, 0.0, 15.0)]
+
+    def test_a_parked_car_whose_drift_grazes_the_circle_is_not_near(self):
+        """Garé à 18 m du centre ; trois positions dérivent à 14 m — il entrait par elles."""
+        hs = track(60, 0.0, 0.1, 18.0, 0.0, 0, 0, noise=0.2)
+        hs += [(60 + i, 6.0 + i * 0.1, 14.0, 0.0, 'car') for i in range(3)]
+        self.assertTrue(mt.near_intersection(hs, self.CENTER), "la règle historique : un seul point suffit")
+        self.assertFalse(mt.near_intersection(hs, self.CENTER, on_median=True))
+
+    def test_a_car_waiting_inside_the_circle_is_still_near(self):
+        """Contre-épreuve : arrêté à 8 m du centre, quelques positions dérivées au-dehors."""
+        hs = track(60, 0.0, 0.1, 8.0, 0.0, 0, 0, noise=0.5)
+        hs += [(60 + i, 6.0 + i * 0.1, 20.0, 0.0, 'car') for i in range(3)]
+        self.assertTrue(mt.near_intersection(hs, self.CENTER, on_median=True))
+
+    def test_no_intersection_no_exclusion(self):
+        self.assertFalse(mt.near_intersection(track(10, 0, 0.1, 0, 0, 0, 0, 0), [], on_median=True))
+
+    def test_the_toggle_is_on_by_default_and_reads_as_the_old_rule_for_older_runs(self):
+        from wama_lab.cam_analyzer.utils.features import FEATURES
+        f = next(f for f in FEATURES if f.key == 'parked_intersection_median')
+        self.assertTrue(f.default)
+        self.assertIs(f.legacy, False, "un tracking antérieur a jugé chaque position : il est périmé")
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertIn("_feat.get('parked_intersection_median', True)", src)
+        self.assertIn('near_intersection(hs, win_local, on_median=_on_median)', src)
+
+
 class SpeedFloorTest(SimpleTestCase):
     """⚑ parked_speed_floor (2026-10-13) : 5 m de dérive sur le passage de la navette, hors voie, c'est un
     garé ; un véhicule qui roule va à plus de 2 m/s."""
