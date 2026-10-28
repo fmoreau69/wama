@@ -410,12 +410,18 @@ def _build_wama_context(user) -> str:
         return ""
 
 
+def _context_chars(messages: list) -> int:
+    """La taille d'une conversation en caractères — l'estimation que la bascule compare à la
+    fenêtre (~4 caractères par jeton)."""
+    return sum(len(m.get('content', '')) for m in messages)
+
+
 def _route_model_by_context(ollama_model: str, messages: list) -> str:
     """
     Upgrade the Ollama model if the conversation context is too long for it.
     Uses a conservative char-based estimate (~4 chars per token).
     """
-    total_chars = sum(len(m.get('content', '')) for m in messages)
+    total_chars = _context_chars(messages)
     if total_chars <= _safe_char_limit(ollama_model):
         return ollama_model
 
@@ -1236,6 +1242,16 @@ _REFUSALS_NOTICE = "⚠ Refusé par WAMA pendant ce tour — rien n'a été fait
 #: Longueur d'un résultat d'outil d'un tour PASSÉ dans l'historique resservi : assez pour que le
 #: modèle voie que la réponse venait d'un outil, pas assez pour noyer la fenêtre.
 _HISTORY_RESULT_CHARS = 600
+#: Budget d'UN résultat d'outil renvoyé au MODÈLE pendant le tour (`WAMA_HARNESS §9` chantier 1).
+#: Jusqu'au 2026-10-28 la boucle le réinjectait ENTIER : `get_item_detail` d'une transcription
+#: pèse 61 642 caractères (mesuré le 22/09), renvoyés à CHAQUE itération suivante. Un FILET
+#: au-dessus des bornes que les outils posent eux-mêmes (`get_item_result` 20 000, +20 % pour
+#: l'enveloppe JSON, comme Codex) — 8 000 aurait coupé `read_web_page` à chaque appel (Fabien,
+#: 28/10). Vaut en local comme sur le cloud ; la trace `tool_steps` garde tout (tranché le 23/09).
+TOOL_RESULT_CHARS = 24_000
+#: Fin conservée d'un résultat borné : `get_item_result` y range `truncated` et `total_chars`, qu'une
+#: coupe du seul début ferait disparaître.
+_TOOL_RESULT_TAIL = 4_000
 
 
 def _refusals_notice(tool_steps: list) -> str:
@@ -1266,11 +1282,30 @@ _HISTORY_INVENTED_PLACEHOLDER = (
     "n'avait été appelé.)")
 
 
-def _tool_result_message(tool_name: str, tool_result, limit: int = None) -> dict:
+def _bounded_payload(payload: str, limit: int) -> str:
+    """Un résultat trop long, borné en le DISANT : la taille d'origine en tête, puis le début et la
+    fin. Le modèle sait qu'il ne voit qu'une partie et peut rappeler l'outil plus étroitement —
+    une coupe muette le laisserait conclure sur un texte qu'il croit complet."""
+    if len(payload) <= limit:
+        return payload
+    head, tail = payload[:limit - _TOOL_RESULT_TAIL], payload[-_TOOL_RESULT_TAIL:]
+    return (f"[Résultat tronqué : {limit} caractères montrés sur {len(payload)}, le début et la "
+            f"fin. Pour le reste, rappelle l'outil avec un filtre, une limite ou un identifiant.]\n"
+            f"{head}\n[… {len(payload) - limit} caractères omis …]\n{tail}")
+
+
+def _tool_result_message(tool_name: str, tool_result, limit: int = None, *,
+                         announce: bool = False) -> dict:
     """Le résultat d'un outil tel que le modèle le lit — UNE forme, dans la boucle du tour comme
-    dans l'historique resservi (une forme différente ne serait pas reconnue comme un exemple)."""
+    dans l'historique resservi (une forme différente ne serait pas reconnue comme un exemple).
+
+    `announce` : la borne de la BOUCLE (`TOOL_RESULT_CHARS`), dite au modèle par
+    `_bounded_payload`. L'historique garde sa coupe brute : à 600 caractères, l'en-tête en
+    mangerait le tiers, et le modèle ne peut plus rappeler l'outil d'un tour passé."""
     payload = json.dumps(tool_result, ensure_ascii=False, default=str)
-    if limit and len(payload) > limit:
+    if limit and announce:
+        payload = _bounded_payload(payload, limit)
+    elif limit and len(payload) > limit:
         payload = payload[:limit] + '…'
     return {"role": "user", "content": f"Résultat du tool {tool_name} : {payload}"}
 
@@ -1629,6 +1664,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # là, l'appel d'un modèle choisi garde sa forme d'avant.
     tried, relays = {_provider_source(provider)}, []
     no_wait = {'rate_limit_wait': False} if drawn else {}
+    # La fenêtre de chaque modèle local du tour, lue une fois (bascule réévaluée dans la boucle).
+    context_windows = {}
 
     def _take_relay(relay):
         # Le tour PASSE au relais : mêmes `messages` — prompt système, skill de rôle, contexte du
@@ -1783,9 +1820,33 @@ def run_assistant_turn(user, message: str, provider: str = None,
             # c'est d'attendre sans savoir » (`WAMA_HARNESS §9 chantier 4`).
             on_event({'type': 'step', 'step': tool_steps[-1]})
 
-        # Add assistant tool-call turn + tool result to conversation
+        # Add assistant tool-call turn + tool result to conversation — BORNÉ pour le modèle, la
+        # trace et l'étape diffusée ci-dessus gardant l'intégral (`TOOL_RESULT_CHARS`).
         messages.append({"role": "assistant", "content": text})
-        messages.append(_tool_result_message(tool_name, tool_result))
+        messages.append(_tool_result_message(tool_name, tool_result, limit=TOOL_RESULT_CHARS,
+                                             announce=True))
+
+        # BASCULE RÉÉVALUÉE DANS LA BOUCLE (`WAMA_HARNESS §9` chantier 1 b) : jusqu'au 2026-10-28
+        # la fenêtre n'était jugée qu'au départ et au relais, et ce que la boucle ajoutait pouvait
+        # la dépasser sans qu'aucune bascule ne joue. Jugée ici, après le seul ajout qui grossit le
+        # contexte. Coût d'une itération ordinaire : une somme de longueurs — la fenêtre est lue
+        # UNE fois par modèle et par tour, la sélection ne tourne qu'au dépassement. Jamais vers
+        # une fenêtre plus petite : le tour ne change pas de voix pour en perdre.
+        if local and llm_model:
+            window = context_windows.get(llm_model)
+            if window is None:
+                window = context_windows[llm_model] = _safe_char_limit(llm_model)
+            if _context_chars(messages) > window:
+                routed = _route_model_by_context(llm_model, messages)
+                if routed != llm_model and _safe_char_limit(routed) > window:
+                    llm_model = routed
+                    native_tools = _native_tool_specs(user, provider, dev_tools, llm_model)
+                    native_kwargs = {'tools': native_tools} if native_tools else {}
+                    etiquette = _label(provider, llm_model, local) + (
+                        f" · relais ({', '.join(relays)})" if relays else '')
+                    if on_event is not None:
+                        on_event({'type': 'model', 'model_key': turn_model_key(provider, llm_model),
+                                  'label': etiquette})
 
     # LIMITE ATTEINTE : un dernier tour SANS outil, pour répondre de ce qui a été fait.
     # ⚠ Jusqu'au 2026-10-05 la boucle rendait ici `messages[-2]` — le texte de l'assistant qui
