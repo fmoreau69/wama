@@ -135,7 +135,8 @@ class OllamaErrorIsNotAnEmptySuccessTests(SimpleTestCase):
 
     def test_a_loop_with_varying_headers_is_cut_at_the_first_return(self):
         """La forme exacte relevée sur la card #1335 redressée : des en-têtes qui varient entre
-        les copies (```markdown, « I24 Rotation ») — une période exacte gardait 2,5 copies."""
+        les copies — une période exacte gardait 2,5 copies. (« I24 Rotation » et « WAMA » sont les
+        titres manuscrits de la note, pas des inventions du modèle : corrigé le 2026-10-28.)"""
         note = ("- Personnalisation du pipeline par utilisation. Chaque\n"
                 "utilisateur peut personnaliser / créer son propre\n"
                 "pipeline et l'utiliser dans les apps.\n"
@@ -144,6 +145,22 @@ class OllamaErrorIsNotAnEmptySuccessTests(SimpleTestCase):
         noisy = note + "WAMA\n```markdown\nI24 Rotation\n\n" + (note + "```\n```\nI24 Rotation\n") * 20
         result, _ = self._ocr([(noisy, None)])
         self.assertEqual(1, result.count('Personnalisation du pipeline'))
+
+    def test_a_format_fence_added_by_the_model_is_removed_and_its_text_kept(self):
+        """Card #1485 (2026-10-28, relevé par Fabien) : la sortie STOCKÉE de GLM-OCR — les deux
+        titres manuscrits de la note rendus dans un bloc « ```markdown » jamais refermé."""
+        stored = ("- Personnalisation du pipeline par utilisation. Chaque\n"
+                  "propres données.\nWAMA\n```markdown\nI24 Rotation\nWAMA")
+        result, _ = self._ocr([(stored, None)])
+        self.assertEqual("- Personnalisation du pipeline par utilisation. Chaque\n"
+                         "propres données.\nWAMA\nI24 Rotation\nWAMA", result)
+        closed, _ = self._ocr([("```md\nI24 Rotation\n```\nsuite", None)])
+        self.assertEqual("I24 Rotation\nsuite", closed, "the closing fence goes with its opening")
+
+    def test_a_code_block_of_the_page_is_kept(self):
+        """Contre-épreuve : un bloc de CODE annoncé peut rendre la structure d'une page imprimée."""
+        page = "Exemple :\n```python\nprint('x')\n```\nFin."
+        self.assertEqual(page, self._ocr([(page, None)])[0])
 
 
 class UprightImageTests(SimpleTestCase):

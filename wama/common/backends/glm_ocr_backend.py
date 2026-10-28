@@ -122,7 +122,8 @@ def _ocr_image(model: str, image_path: str, language_hint: str = '') -> str:
     if error:
         raise RuntimeError(f"OCR {model} en échec : {error} — essayer un autre moteur.")
     text = (text or '').strip()
-    from wama.common.backends.ocr_base import is_degenerate_output, trim_repetition
+    from wama.common.backends.ocr_base import (is_degenerate_output, trim_repetition,
+                                               unwrap_format_fences)
     if is_degenerate_output(text):
         # Une boucle APRÈS une lecture juste est le cas mesuré : on garde le premier passage, et
         # on ne déclare l'échec que si ce qui reste tourne encore en boucle.
@@ -134,7 +135,7 @@ def _ocr_image(model: str, image_path: str, language_hint: str = '') -> str:
             raise RuntimeError(f"OCR {model} : la sortie tourne en boucle (le même passage "
                                f"répété) — le modèle ne lit pas ce document ; essayer un autre "
                                f"moteur.")
-    return text
+    return unwrap_format_fences(text)
 
 
 class GlmOcrBackend(OCRBackend):

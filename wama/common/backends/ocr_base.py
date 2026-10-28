@@ -22,6 +22,7 @@ Ce que le contrat NE fait pas : choisir le modèle. La clé de catalogue choisie
 `catalogue_key` (contrat commun) ; un moteur qui sert plusieurs modèles la lit.
 """
 import logging
+import re
 import zlib
 from abc import abstractmethod
 from typing import Callable, Optional
@@ -125,9 +126,12 @@ def trim_repetition(text: str) -> tuple[str, bool]:
     Mesuré le 2026-10-12 (card #1335, image redressée) : GLM-OCR lit la note JUSTE une fois —
     « Personnalisation du pipeline par utilisation. Chaque utilisateur peut personnaliser / créer
     son propre pipeline… » — puis, faute de s'arrêter, la recopie jusqu'au plafond de jetons, en
-    intercalant des en-têtes (```markdown, « I24 Rotation ») qui varient d'une copie à l'autre :
-    une période EXACTE ne s'y voit que tard (deux copies et demie gardées, mesuré). Le premier
-    passage est la lecture ; la suite n'ajoute rien. Lignes comparées sans les espaces de bord."""
+    intercalant des en-têtes qui varient d'une copie à l'autre : une période EXACTE ne s'y voit
+    que tard (deux copies et demie gardées, mesuré). Le premier passage est la lecture ; la suite
+    n'ajoute rien. Lignes comparées sans les espaces de bord.
+    ⚠ Corrigé le 2026-10-28 (question de Fabien, card #1485) : « I24 Rotation » et « WAMA » ne sont
+    PAS inventés par le modèle — ce sont les deux titres manuscrits soulignés en haut de la note.
+    Seule la balise « ```markdown » l'est (`unwrap_format_fences`)."""
     lines = (text or '').splitlines()
     filled = [(index, line.strip()) for index, line in enumerate(lines) if line.strip()]
     seen = set()
@@ -137,6 +141,33 @@ def trim_repetition(text: str) -> tuple[str, bool]:
             return '\n'.join(lines[:filled[position][0]]).rstrip(), True
         seen.add(window)
     return text, False
+
+
+#: Une balise de bloc qui annonce du TEXTE (« ```markdown », « ```text ») : un modèle de vision
+#: l'ajoute par habitude de format, aucune page ne la porte à l'encre. Un bloc de CODE annoncé
+#: (« ```python ») est gardé — il peut rendre la structure d'une page imprimée.
+_FORMAT_FENCE = re.compile(r'^\s*```\s*(markdown|md|text|plaintext|plain)\s*$', re.I)
+_BARE_FENCE = re.compile(r'^\s*```\s*$')
+
+
+def unwrap_format_fences(text: str) -> str:
+    """Retire d'une lecture d'OCR les balises de format qu'un modèle de vision y glisse, en gardant
+    ce qu'elles entourent : l'ouvrante « ```markdown » (ou `md`, `text`…) et la clôture nue qui lui
+    répond, s'il y en a une — une boucle coupée (`trim_repetition`) la laisse souvent sans clôture.
+
+    Card reader #1485 (2026-10-28, relevé par Fabien) : GLM-OCR a rendu les deux titres de la note
+    dans un bloc « ```markdown » ; la mise en forme l'a refermé, et la page de lecture montrait un
+    bloc de code là où la feuille porte deux titres soulignés."""
+    lines, kept, open_wrapper = (text or '').split('\n'), [], False
+    for line in lines:
+        if _FORMAT_FENCE.match(line):
+            open_wrapper = True
+            continue
+        if open_wrapper and _BARE_FENCE.match(line):
+            open_wrapper = False
+            continue
+        kept.append(line)
+    return '\n'.join(kept).strip() if len(kept) != len(lines) else text
 
 
 class OCRBackend(BaseModelBackend):
