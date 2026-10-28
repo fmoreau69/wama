@@ -6261,6 +6261,25 @@ l'éditeur du transcriber a été lu, pas joué.
 s'il démarre, est écarté pendant un appui suivi par la brique — deux glisser du même élément se
 marcheraient dessus ; l'essai sur un vrai iPad reste le seul juge de ce point.)*
 
+**Relevé du 2026-10-28 — DE L'ÉCRAN 21:9 AU TÉLÉPHONE** (question de Fabien : « toute l'UI de
+WAMA sera bien propre quel que soit l'écran : grand écran incurvé, plusieurs écrans juxtaposés,
+tablette, smartphone ? »). 8 pages (accueil, transcriber, imager, anonymizer, journal, calendrier,
+médiathèque, studio) × 8 écrans émulés (3 440 × 1 440 et 2 560 × 1 080 en 21:9, 2 560 × 1 440 à
+l'échelle 1,5, 1 920 × 1 080, portable 1 366 × 768, tablette paysage et portrait, téléphone
+390 × 844), mesures de `common.layout.tablet` plus les éléments qui sortent de la fenêtre :
+- **du portable au 21:9 : rien à reprendre** — ni chevauchement de la barre ou du pied, ni
+  défilement horizontal, ni élément hors de la fenêtre ; le centre s'élargit (2 800 px en 21:9).
+- **tablette** : propre (un libellé de 10 px hors du cadre à l'anonymizer en paysage, non élucidé).
+- **téléphone** : aucun défilement horizontal, mais trois débordements : le pied (« Disque »
+  coupé de 66 px) — ✅ corrigé le jour même, sous 576 px le titre laisse sa place et les jauges ne
+  gardent que leur pourcentage ; ⏳ les boutons du chat de l'accueil (réglages, avatar : jusqu'à
+  140 px hors de l'écran) ; ⏳ la barre du calendrier (FullCalendar : vues semaine et jour, 150 px).
+- **plusieurs écrans** : une fenêtre par écran, et depuis le même jour un panneau s'ouvre « dans une
+  autre fenêtre » (`WAMA_VOLETS §3-ter`). ⚠ Un canevas dessiné pour la densité de pixels de la page
+  peut paraître flou sur un écran d'une autre densité.
+- ⏳ **Ce relevé n'est pas un scénario nocturne** : le garder chaque nuit sur ces écrans est à
+  décider ; un vrai téléphone et un vrai écran incurvé restent les seuls juges de leur rendu.
+
 ---
 
 ## 28. THÈMES — sombre, clair, UGE… (ouvert le 2026-10-17, demande de Fabien)

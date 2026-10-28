@@ -606,6 +606,13 @@ body > footer {
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* Téléphone (2026-10-28, mesuré à 390 px : « Disque » coupé de 66 px) : le titre, déjà abrégé à
+   rien, laisse sa place, et les ressources ne gardent que leur pourcentage. */
+@media (max-width: 575.98px) {
+    .wama-footer-row { grid-template-columns: 0 0 1fr; column-gap: 0; }
+    #systemStats .progress { display: none; }
+    #systemStats { gap: .75rem !important; }
+}
 
 /* === FILE INFO === */
 .file-info-table {

@@ -250,6 +250,9 @@ class HeaderAndFooterDoNotOverlapTest(SimpleTestCase):
         self.assertNotIn('container-fluid', row[row.rindex('<div'):], 'the footer row scrolls')
         css = _read(BASE / 'wama' / 'filemanager' / 'static' / 'filemanager' / 'css' / 'filemanager.css')
         self.assertIn('grid-template-columns: 1fr minmax(0, auto) 1fr;', css)
+        # Téléphone (2026-10-28) : à 390 px, « Disque » sortait de 66 px — le titre laisse sa place.
+        phone = css[css.index('@media (max-width: 575.98px)', css.index('.wama-footer-text')):]
+        self.assertIn('.wama-footer-row { grid-template-columns: 0 0 1fr;', phone[:phone.index('}\n}')])
 
     def test_the_layout_is_measured_every_night(self):
         from wama.common.services import nightly_tests
