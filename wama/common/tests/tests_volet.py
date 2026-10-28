@@ -638,3 +638,143 @@ class PanelBricksTest(TestCase):
         for rule in ('body.wama-panel-window {', '.wama-window-bar {',
                      'body.wama-panel-window .wama-brick-dock'):
             self.assertIn(rule, sheet)
+
+
+class CentreBricksTest(TestCase):
+    """Le CENTRE d'une page d'app en briques (2026-10-28, `WAMA_VOLETS §3-ter` étape ④) : la card
+    d'entrée, la progression, la barre de la file et la file sont des briques de la même
+    disposition que le volet, gardée par compte et par page.
+
+    Ce qui est exigé : les briques se déclarent au serveur, un jeu par domaine pour une app à
+    onglets ; les pièces COMMUNES les marquent, donc toute page qui rend la file les a, sans rien
+    écrire ; une marque ne désigne jamais qu'un emplacement déclaré ; la carte du Studio et une
+    barre montrée hors d'une file ne sont pas des briques ; la règle des surfaces valide aussi
+    leurs places. Les gestes : `common.centre_layout`."""
+
+    KINDS = ['entry', 'progress', 'toolbar', 'queue']
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        cls.account = get_user_model().objects.create_superuser(
+            username='centre_bricks', email='centre-bricks@test.local', password='x')
+
+    def setUp(self):
+        from wama.common.utils.user_settings import clear_user_app_settings
+        from wama.common.utils.volet import LAYOUT_SETTING
+        clear_user_app_settings(self.account, 'describer', [LAYOUT_SETTING])
+        self.client.force_login(self.account)
+
+    @staticmethod
+    def _apps():
+        """Les apps en place qui ont une page d'index (les jumelles du bac à sable mises à part)."""
+        from django.apps import apps
+        from django.urls import NoReverseMatch, reverse
+        out = []
+        for cfg in apps.get_app_configs():
+            if not cfg.name.startswith('wama.') or cfg.label.rsplit('_', 1)[-1].isdigit():
+                continue
+            try:
+                out.append((cfg.label, reverse(f'{cfg.label}:index')))
+            except NoReverseMatch:
+                continue
+        return out
+
+    def test_the_centre_bricks_are_declared_once_per_domain(self):
+        from wama.common.surfaces import GRID_COLUMNS
+        from wama.common.utils.app_modes import APP_MODES, get_domains, has_domain_tabs
+        from wama.common.utils.volet import PANEL_SLOTS, centre_slots, declaration
+        self.assertEqual(self.KINDS, [s.id for s in centre_slots('describer')])
+        self.assertEqual(list(PANEL_SLOTS), list(declaration('describer').slots[:len(PANEL_SLOTS)]),
+                         'le volet, puis le centre')
+        tabbed = [app for app in APP_MODES if has_domain_tabs(app)]
+        self.assertTrue(tabbed, 'au moins une app à onglets de domaine')
+        for app in APP_MODES:
+            slots = centre_slots(app)
+            domains = [d['id'] for d in get_domains(app)] if app in tabbed else ['']
+            self.assertEqual([f'{k}-{d}' if d else k for d in domains for k in self.KINDS],
+                             [s.id for s in slots], app)
+            for slot in slots:
+                self.assertEqual(('grid', 0, GRID_COLUMNS), (slot.zone, slot.x, slot.w), slot.id)
+                self.assertEqual(slot.kind != 'queue', slot.fit, f'{slot.id} : à la hauteur de son contenu')
+
+    def test_every_app_page_marks_its_centre_bricks_with_declared_slots(self):
+        import re
+
+        from wama.common.utils.app_modes import get_domains, has_domain_tabs
+        mark = re.compile(r'data-wama-brick="(\w+)"(?:\s+data-wama-brick-domain="([\w-]+)")?')
+        seen = 0
+        for app, path in self._apps():
+            response = self.client.get(path)
+            if response.status_code != 200:
+                continue
+            html = response.content.decode()
+            if 'data-wama-queue' not in html:
+                continue
+            seen += 1
+            marks = mark.findall(html)
+            kinds = {kind for kind, _ in marks}
+            self.assertTrue({'entry', 'toolbar', 'queue'} <= kinds, f'{app} : {sorted(kinds)}')
+            domains = {d['id'] for d in get_domains(app)} if has_domain_tabs(app) else None
+            for kind, domain in marks:
+                self.assertIn(kind, self.KINDS, app)
+                if domains is not None and domain:
+                    self.assertIn(domain, domains, f'{app} : {kind}-{domain} non déclaré')
+        self.assertGreaterEqual(seen, 5, "les pages d'apps qui rendent la file commune")
+
+    def test_the_studio_card_and_a_toolbar_outside_a_queue_are_not_bricks(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        templates = Path(settings.BASE_DIR) / 'wama' / 'common' / 'templates' / 'common'
+        card = (templates / '_new_item_card_v4.html').read_text(encoding='utf-8')
+        bar = (templates / '_toolbar.html').read_text(encoding='utf-8')
+        queue = (templates / '_queue.html').read_text(encoding='utf-8')
+        self.assertIn('{% if not compose_only %}data-wama-brick="entry"', card)
+        self.assertIn('{% if centre_brick %}data-wama-brick="toolbar"', bar)
+        self.assertIn('centre_brick=True', queue)
+        self.assertIn('data-wama-brick="queue"', queue)
+
+    def test_a_centre_brick_and_a_panel_section_in_the_grid_are_kept(self):
+        import json
+
+        from django.urls import reverse
+
+        from wama.common.utils.volet import layout_of
+        payload = {'slots': {'queue': {'x': 0, 'y': 0, 'w': 12, 'h': 8, 'zone': 'grid'},
+                             'settings': {'x': 8, 'y': 0, 'w': 4, 'h': 4, 'zone': 'grid'},
+                             'queue-audio': {'x': 0, 'y': 9, 'w': 12, 'h': 4, 'zone': 'grid'}},
+                   'frozen': True}
+        response = self.client.post(reverse('common:panel_layout', args=['describer']),
+                                    json.dumps(payload), content_type='application/json')
+        self.assertEqual(200, response.status_code, response.content)
+        kept = layout_of(self.account, 'describer')['slots']
+        self.assertEqual({'queue', 'settings'}, set(kept), "un domaine que l'app n'a pas est oublié")
+        self.assertEqual('grid', kept['settings']['zone'], 'une section du volet posée au centre')
+        wide = self.client.post(reverse('common:panel_layout', args=['describer']),
+                                json.dumps({'slots': {'queue': {'x': 2, 'y': 0, 'w': 12, 'h': 8,
+                                                                'zone': 'grid'}}}),
+                                content_type='application/json')
+        self.assertEqual(400, wide.status_code, 'la grille du centre a douze colonnes')
+
+    def test_the_centre_is_mounted_by_the_panel_module_on_the_common_engine(self):
+        """Le module du volet monte aussi le centre (une seule disposition par page) ; la barre
+        garde sa file une fois séparée d'elle ; un titre part avec le bloc qu'il introduit ; un
+        onglet masqué retire ses briques ; une brique `fit` suit son contenu ; la visionneuse
+        navigue dans SA file, sortie de son onglet."""
+        from pathlib import Path
+
+        from django.conf import settings
+        served = Path(settings.BASE_DIR) / 'staticfiles' / 'common'
+        module = (served / 'js' / 'wama-panel-layout.js').read_text(encoding='utf-8')
+        engine = (served / 'js' / 'wama-brick-layout.js').read_text(encoding='utf-8')
+        viewer = (served / 'js' / 'media-preview.js').read_text(encoding='utf-8')
+        sheet = (served / 'css' / 'wama-surface.css').read_text(encoding='utf-8')
+        self.assertIn("b.el.setAttribute('data-cible-dans', '#' + next.id);", module)
+        self.assertIn('if (headings[rec.slot.id]) wrap.appendChild(headings[rec.slot.id]);', module)
+        self.assertIn("(!pane || pane.classList.contains('active'))", module)
+        self.assertIn('root: grid, panelRoot: column, page: grid || column', module)
+        self.assertIn("at.resizeToContentParent = '.wama-brick-body';", engine)
+        self.assertIn('node.grid.resizeToContent(rec.el);', engine)
+        self.assertIn("card.closest('[data-wama-queue]') || card.closest('.tab-pane')", viewer)
+        self.assertIn('.wama-centre-grid.is-frozen > .grid-stack-item > .grid-stack-item-content', sheet)

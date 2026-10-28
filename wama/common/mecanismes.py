@@ -2081,7 +2081,11 @@ MECHANISMS = (
               "reste celui d'avant tant que le compte n'a rien disposé, une section masquée retire "
               "son panneau (`setShown`) ; `arrangeable=False` pour une page qui a sa disposition "
               "(surface) ou la fera brique par brique (cam_analyzer) — scénario "
-              "`common.panel_layout`",
+              "`common.panel_layout`. Même jour, étape ④ : la card d'entrée, la progression, la "
+              "barre de la file et la file d'une page d'app sont les briques de la grille du "
+              "centre, dans la même disposition (`centre_slots`, un jeu par domaine, marques "
+              "`data-wama-brick` posées par les pièces communes ; à la hauteur de leur contenu "
+              "sauf la file) — scénario `common.centre_layout`",
               'wama/common/utils/volet.py', 'docs/construction/ui/WAMA_VOLETS.md §8',
               annexes=('wama/common/panel_views.py',
                        'wama/common/static/common/js/wama-panel-layout.js')),

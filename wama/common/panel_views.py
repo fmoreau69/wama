@@ -20,11 +20,11 @@ def panel_layout(request, page: str):
     LECTURE, comme la disposition d'une surface — rien d'autre ne change."""
     from wama.common.surfaces import clean_layout
     from wama.common.utils.user_settings import save_user_app_settings
-    from wama.common.utils.volet import LAYOUT_SETTING, PAGE_KEY, PANEL_DECLARATION
+    from wama.common.utils.volet import LAYOUT_SETTING, PAGE_KEY, declaration
     if not PAGE_KEY.match(page):
         raise Http404('page inconnue')
     try:
-        layout = clean_layout(PANEL_DECLARATION, json.loads(request.body or b'{}'))
+        layout = clean_layout(declaration(page), json.loads(request.body or b'{}'))
     except ValueError as error:
         return JsonResponse({'error': str(error)}, status=400)
     save_user_app_settings(request.user, page, {LAYOUT_SETTING: layout})

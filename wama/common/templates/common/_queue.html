@@ -42,8 +42,10 @@ source du markup), généralisé.
 {% endcomment %}
 {% load wama_actions %}
 {% queue_context app domain as q %}
-{% include 'common/_queue_toolbar.html' with start_id=queue_id|add:'-start-all' clear_id=queue_id|add:'-clear-all' download_id=queue_id|add:'-download-all' show_download=True start_url=q.start_url clear_url=q.clear_url download_url=q.download_url %}
+{% include 'common/_queue_toolbar.html' with start_id=queue_id|add:'-start-all' clear_id=queue_id|add:'-clear-all' download_id=queue_id|add:'-download-all' show_download=True start_url=q.start_url clear_url=q.clear_url download_url=q.download_url centre_brick=True %}
+{% comment %}La barre et la file sont deux briques du centre (`data-wama-brick`, 2026-10-28, étape ④).{% endcomment %}
 <div id="{{ queue_id }}" class="wama-queue-{{ card_layout|default:'list' }}" data-wama-queue
+     data-wama-brick="queue"{% if domain %} data-wama-brick-domain="{{ domain }}"{% endif %}
      {% queue_dnd_attrs app domain %}>
   {% for batch_info in batches %}
     {% include 'common/_queue_entry.html' with actions_communes=True %}

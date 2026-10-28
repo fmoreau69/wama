@@ -45,6 +45,12 @@ par défaut ne change pas : tant que le compte n'a rien disposé, le volet reste
 la grille ne se monte qu'au geste « Modifier la disposition ». Une page dont le volet a sa
 propre disposition (une surface) ou qui la fera brique par brique (le cam_analyzer, étape ③ :
 « il déclare, il n'hérite pas ») le dit : `arrangeable=False`.
+
+LE CENTRE AUSSI (2026-10-28, étape ④) : la card d'entrée, la progression globale, la barre de la
+file et la file d'une page d'app sont des briques de la MÊME disposition — la grille du centre,
+à côté de la colonne du volet, comme sur une surface. Les pièces communes qui les rendent les
+marquent (`data-wama-brick`) ; une app à plusieurs domaines (onglets) en a un jeu par domaine
+(`centre_slots`). Une seule disposition par page et par compte, donc une seule route.
 """
 from __future__ import annotations
 
@@ -82,10 +88,19 @@ class PanelSlot:
     x: int = 0
     w: int = 1
     zone: str = 'panel'
+    #: Une brique du CENTRE se trouve par sa marque (`data-wama-brick="<kind>"`) et son domaine,
+    #: pas par un identifiant : les pièces communes la rendent une fois par domaine.
+    kind: str = ''
+    domain: str = ''
+    title: str = ''
+    #: À la hauteur de son contenu (`wama-brick-layout.js`, `sized`) : on la déplace et on règle sa
+    #: largeur, sa hauteur suit ce qu'elle montre.
+    fit: bool = False
 
     def to_dict(self) -> dict:
         return {'id': self.id, 'element': self.element, 'x': self.x, 'y': self.y, 'w': self.w,
-                'h': self.h, 'zone': self.zone}
+                'h': self.h, 'zone': self.zone, 'kind': self.kind, 'domain': self.domain,
+                'title': self.title, 'fit': self.fit}
 
 
 def _stacked(*sections) -> tuple:
@@ -109,13 +124,47 @@ PANEL_SLOTS = _stacked(
 )
 
 
+#: Les briques du CENTRE d'une page d'app (étape ④), dans l'ordre où les pages les rendent le plus
+#: souvent — le module les empile dans l'ordre de LA page. Les trois premières sont à la hauteur
+#: de leur contenu (`fit`) ; la file a une hauteur qu'on règle (elle s'allonge sans fin). `kind` =
+#: la marque que pose la pièce commune : `_new_item_card_v4.html`, `_global_progress.html`,
+#: `_toolbar.html` (barre de file), `_queue.html`.
+CENTRE_BRICKS = (
+    ('entry', 'Nouvel élément', 3, True),
+    ('progress', 'Progression', 1, True),
+    ('toolbar', 'Outils de la file', 1, True),
+    ('queue', "File d'attente", 12, False),
+)
+
+
+def centre_slots(page: str) -> tuple:
+    """Les briques du centre de la page `page` : un jeu par domaine quand l'app en a plusieurs
+    (onglets de l'imager, de l'enhancer — `<kind>-<domaine>`), sinon un seul. Toute la largeur de
+    la grille, l'une sous l'autre."""
+    from wama.common.surfaces import GRID_COLUMNS
+    from wama.common.utils.app_modes import get_domains, has_domain_tabs
+    domains = get_domains(page) if page and has_domain_tabs(page) else [{}]
+    out, y = [], 0
+    for domain in domains:
+        key = domain.get('id', '')
+        label = domain.get('label') or key
+        for kind, title, h, fit in CENTRE_BRICKS:
+            out.append(PanelSlot(f'{kind}-{key}' if key else kind, '', y, h, x=0, w=GRID_COLUMNS,
+                                 zone='grid', kind=kind, domain=key, fit=fit,
+                                 title=f'{title} — {label}' if key else title))
+            y += h
+    return tuple(out)
+
+
 @dataclass(frozen=True)
 class _PanelDeclaration:
     """Ce que `surfaces.clean_layout` lit d'une page de briques : ses emplacements."""
     slots: tuple
 
 
-PANEL_DECLARATION = _PanelDeclaration(PANEL_SLOTS)
+def declaration(page: str) -> _PanelDeclaration:
+    """Les emplacements de la page `page` : les sections du volet, puis les briques du centre."""
+    return _PanelDeclaration(PANEL_SLOTS + centre_slots(page))
 
 #: Le nom du réglage utilisateur (`UserAppSetting`, sous la clé de la page) qui garde la disposition.
 LAYOUT_SETTING = 'panel_layout'
@@ -142,7 +191,7 @@ def layout_of(user, key: str) -> dict:
     stored = get_user_app_setting(user, key, LAYOUT_SETTING) if key else None
     if isinstance(stored, dict):
         try:
-            return dict(clean_layout(PANEL_DECLARATION, stored), stored=True)
+            return dict(clean_layout(declaration(key), stored), stored=True)
         except ValueError:
             pass
     return {'slots': None, 'frozen': True, 'docked': {}, 'stacks': {}, 'stored': False}
@@ -158,7 +207,7 @@ def layout_config(request) -> dict | None:
     """Ce que `wama-panel-layout.js` lit (`base.html`) ; None sans compte ou sans page nommée."""
     from django.urls import reverse
 
-    from wama.common.surfaces import DOCK_EDGES, MAX_LAYOUT_ROWS
+    from wama.common.surfaces import DOCK_EDGES, GRID_COLUMNS, MAX_LAYOUT_ROWS
     user = getattr(request, 'user', None)
     key = page_key(request)
     if user is None or not user.is_authenticated or not key:
@@ -166,7 +215,7 @@ def layout_config(request) -> dict | None:
     layout = layout_of(user, key)
     return {'page': key, 'url': reverse('common:panel_layout', args=[key]),
             'key': f'wama.panel.{key}', 'layout': layout, 'arranged': is_arranged(layout),
-            'slots': [s.to_dict() for s in PANEL_SLOTS],
+            'slots': [s.to_dict() for s in declaration(key).slots], 'columns': GRID_COLUMNS,
             'max_rows': MAX_LAYOUT_ROWS, 'dock_edges': list(DOCK_EDGES)}
 
 

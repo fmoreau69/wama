@@ -1219,6 +1219,10 @@ manifeste** (ce que le kind `app` capte + cible de projection).
     geste d'édition ; renommée, et `tests_surfaces` refuse désormais une fonction du noyau
     déclarée deux fois. ⏳ étapes ② sections du volet des pages d'apps, ③ cam_analyzer, ④ centre
     des pages d'apps (`WAMA_VOLETS §3-ter`).
+    ✅ *2026-10-28* : ② et ④ faits — les sections du volet, puis la card d'entrée, la progression,
+    la barre de la file et la file des pages d'apps sont des briques d'UNE disposition par page et
+    par compte (`volet.declaration`, marques posées par les pièces communes, donc héritées par le
+    générateur) ; reste ③.
 - 🔄 **FACES DU PIPELINE — la preview suit le pipeline (Fabien, 2026-10-12)**. *« Avant, une card
   portait tout le process sans distinction et la preview de même […]. Maintenant, la card porte un
   pipeline de process, les médias intermédiaires sont conservés. Le pipeline étant l'unité commune à

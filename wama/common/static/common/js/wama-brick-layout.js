@@ -36,7 +36,8 @@
  *     var layout = WamaBrickLayout.create({
  *         root, page, panelRoot,   // la grille, l'élément qui porte `.is-frozen`, la colonne du volet
  *         frameHost,               // où poser le cadre des bords (défaut : à côté de la grille)
- *         slots,                   // les emplacements DÉCLARÉS : [{id, x, y, w, h, zone?}]
+ *         slots,                   // les emplacements DÉCLARÉS : [{id, x, y, w, h, zone?, fit?}]
+ *                                  // (`fit` : à la hauteur de son contenu, `sized`)
  *         columns, maxRows, dockEdges,     // ce que le serveur applique — jamais recopié ici
  *         layout,                  // la disposition gardée : {slots, frozen, stored, stacks, docked}
  *         url, key,                // la route qui la garde ; la clé du secours du navigateur
@@ -229,8 +230,40 @@
         function mountBrick(rec) {
             if (opts.mount) opts.mount(rec);
             layoutTools(rec);
+            // Une brique qui suit son contenu le suit aussi quand il change (une card dépliée).
+            if (rec.slot.fit && global.ResizeObserver && rec.body.firstElementChild) {
+                new global.ResizeObserver(function () { refit(rec); }).observe(rec.body.firstElementChild);
+            }
             return rec;
         }
+
+        // ── Une brique À LA HAUTEUR DE SON CONTENU (2026-10-28, étape ④ : la card d'entrée, la
+        // progression, la barre de la file — une hauteur fixe y laissait un vide, ou faisait défiler
+        // une card dépliée dans sa brique). L'emplacement le déclare (`slot.fit`) ; `refit` la
+        // retaille par gridstack (`resizeToContent`, qui mesure le premier enfant du corps) au
+        // montage, quand son contenu change et quand la disposition se fige ; on la déplace et on
+        // règle sa largeur, pas sa hauteur (`gs-resize-handles`). Seule dans son panneau : une pile
+        // partage sa hauteur. ⚠ L'option `sizeToContent` de gridstack n'y ajoutait rien : la
+        // contre-épreuve qui la retirait restait verte, celle qui retirait `refit` rougissait.
+        function sized(key, at) {
+            var rec = frames[key];
+            if (rec && rec.slot.fit && !shells[key]) {
+                at.resizeToContentParent = '.wama-brick-body';
+                rec.el.setAttribute('gs-resize-handles', 'e,w');
+            }
+            return at;
+        }
+        /** Recalée sur son contenu — après un changement de contenu, ou de son titre (figé, il se
+         *  masque). */
+        function refit(rec) {
+            var node = rec.el.gridstackNode;
+            if (!rec.slot.fit || !node || !node.grid || rec.section.hidden) return;
+            // Ce n'est pas un geste : la hauteur suit le contenu, rien ne se garde pour autant.
+            var was = resetting;
+            resetting = true;
+            try { node.grid.resizeToContent(rec.el); } finally { resetting = was; }
+        }
+        function refitAll() { Object.keys(frames).forEach(function (id) { refit(frames[id]); }); }
 
         // ── EMPILER des briques en UN panneau (2026-10-26, Fabien : « empiler/imbriquer des
         // briques pour les compacter en une seule, uniquement en affichage » — le transport, la
@@ -292,7 +325,7 @@
             g.el.appendChild(rec.el);
             var place = fit(at, g);
             place.id = id;
-            g.makeWidget(rec.el, place);
+            g.makeWidget(rec.el, sized(id, place));
         }
         function buildShell(list, at, g) {
             var el = document.createElement('div');
@@ -597,7 +630,7 @@
             at.y = backAt(key, place);
             at.id = key;
             place.grid.el.appendChild(el);
-            place.grid.makeWidget(el, at);
+            place.grid.makeWidget(el, sized(key, at));
             // Une place occupée, la grille pose le nouveau venu DESSOUS : on l'y remonte, et c'est
             // alors l'occupant qu'elle écarte.
             if (el.gridstackNode && el.gridstackNode.y > at.y) place.grid.update(el, { y: at.y });
@@ -767,7 +800,7 @@
             var at = fit(place, place.grid);
             at.id = key;
             place.grid.el.appendChild(el);
-            place.grid.makeWidget(el, at);
+            place.grid.makeWidget(el, sized(key, at));
         }
         /** Tous les panneaux épinglés rendus à la grille (avant de la réordonner). */
         function undockAll() {
@@ -1237,7 +1270,7 @@
                     from.removeWidget(m.el, false, false);
                     target.el.appendChild(m.el);
                     at.id = slot.id;
-                    target.makeWidget(m.el, at);
+                    target.makeWidget(m.el, sized(slot.id, at));
                 } else {
                     target.update(m.el, at);
                 }
@@ -1256,7 +1289,7 @@
                 delete hiddenPlaces[key];
                 at.id = key;
                 place.grid.el.appendChild(el);
-                place.grid.makeWidget(el, at);
+                place.grid.makeWidget(el, sized(key, at));
             });
         }
 
@@ -1266,6 +1299,7 @@
             layout.frozen = !!on;
             zones.forEach(function (g) { g.setStatic(layout.frozen); });
             showFrozen(layout.frozen);
+            refitAll();                          // figée, un titre sans outils se masque
             applyDocks();                        // rendue modifiable, un panneau épinglé reste immobile
             persistLayout();
             emit('layout', { frozen: layout.frozen });
@@ -1312,6 +1346,7 @@
                 try { buildAll(); }
                 finally { building = false; }
                 syncLayoutTools();
+                refitAll();
                 applyDocks();
             },
             /** La disposition est-elle figée ? Une préférence du LECTEUR : vaut aussi en lecture seule. */
@@ -1329,5 +1364,6 @@
         };
     }
 
-    global.WamaBrickLayout = { create: create, docks: Docks, scaleWeights: scaleWeights };
+    global.WamaBrickLayout = { create: create, docks: Docks, scaleWeights: scaleWeights,
+                               cellHeight: CELL_HEIGHT };
 })(window);

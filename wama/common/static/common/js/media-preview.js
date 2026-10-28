@@ -1234,9 +1234,11 @@
     /** Les cards entre lesquelles navigue la visionneuse ouverte depuis `card` : celles de sa file,
      *  dans l'ordre de la page, qui ont un aperçu — ni celles qu'un FILTRE écarte
      *  (`.wama-f-hors-filtre`, comme les flèches du volet), ni celles d'un autre ONGLET (l'imager
-     *  et l'enhancer ont une file par domaine). Une card d'un lot REPLIÉ reste joignable. */
+     *  et l'enhancer ont une file par domaine). Une card d'un lot REPLIÉ reste joignable.
+     *  Sa FILE d'abord (`[data-wama-queue]`) : disposée en briques (étape ④), elle a quitté son
+     *  onglet pour la grille du centre. */
     function cardSequence(card) {
-        const pane = card.closest('.tab-pane');
+        const pane = card.closest('[data-wama-queue]') || card.closest('.tab-pane');
         const scope = pane || document;
         return Array.prototype.filter.call(scope.querySelectorAll(CARD_SEL), function (c) {
             if (c.closest('.wama-f-hors-filtre')) return false;

@@ -36,14 +36,15 @@
 
 /* Disposition FIGÉE (2026-10-21) : plus rien ne bouge, les panneaux perdent leur habit d'atelier.
    Un titre sans outils disparaît ; celui qui porte des outils devient une bande discrète. */
-.wama-surface-page.is-frozen .grid-stack-item-content,
+.wama-surface-page.is-frozen .grid-stack-item-content, .wama-centre-grid.is-frozen .grid-stack-item-content,
 .wama-surface-panel.is-frozen .grid-stack-item-content { border-color: transparent; border-radius: .6rem; }
-.wama-surface-page.is-frozen .wama-brick-head, .wama-surface-panel.is-frozen .wama-brick-head {
+.wama-surface-page.is-frozen .wama-brick-head, .wama-surface-panel.is-frozen .wama-brick-head,
+.wama-centre-grid.is-frozen .wama-brick-head {
   cursor: default; background: transparent; border-bottom-color: transparent; min-height: 1.7rem; padding: .1rem .5rem;
 }
-.wama-surface-page.is-frozen .wama-brick-head:not(.has-tools),
+.wama-surface-page.is-frozen .wama-brick-head:not(.has-tools), .wama-centre-grid.is-frozen .wama-brick-head:not(.has-tools),
 .wama-surface-panel.is-frozen .wama-brick-head:not(.has-tools) { display: none; }
-.wama-surface-page.is-frozen .wama-brick-title,
+.wama-surface-page.is-frozen .wama-brick-title, .wama-centre-grid.is-frozen .wama-brick-title,
 .wama-surface-panel.is-frozen .wama-brick-title { font-weight: 500; color: var(--wama-edit-muted); }
 
 /* Panneau ÉPINGLÉ en haut ou en bas de la fenêtre (2026-10-26) : il ne défile plus avec la page.
@@ -136,7 +137,7 @@
 .wama-brick-dock { margin-left: .15rem; }
 /* Figée, l'épingle ne reste que pour un panneau qui la DÉCLARE (le transport) ou déjà épinglé :
    le rendu fini ne se couvre pas d'épingles. */
-.wama-surface-page.is-frozen .wama-brick-dock.is-optional,
+.wama-surface-page.is-frozen .wama-brick-dock.is-optional, .wama-centre-grid.is-frozen .wama-brick-dock.is-optional,
 .wama-surface-panel.is-frozen .wama-brick-dock.is-optional { display: none; }
 
 /* Briques EMPILÉES en un panneau (2026-10-26) : chacune garde son titre, sa part de la hauteur
@@ -147,7 +148,7 @@
 .wama-brick-stack-shell .wama-brick-section + .wama-brick-section { border-top: 1px solid var(--wama-edit-border); }
 .wama-brick-stack-tools { display: inline-flex; align-items: center; gap: .15rem; }
 .wama-brick-stack-tools:empty { display: none; }
-.wama-surface-page.is-frozen .wama-brick-stack-tools,
+.wama-surface-page.is-frozen .wama-brick-stack-tools, .wama-centre-grid.is-frozen .wama-brick-stack-tools,
 .wama-surface-panel.is-frozen .wama-brick-stack-tools { display: none; }
 /* Une brique dont le contenu s'est RETIRÉ (`setShown`, 2026-10-28) : seule dans sa pile, ou son
    panneau épinglé dans sa ligne — une ligne sans panneau montré disparaît. */
@@ -173,6 +174,23 @@ body.wama-panel-window .wama-brick-dock, body.wama-panel-window .wama-brick-stac
 .wama-panel-body { padding: .5rem .6rem; color: inherit; }
 .wama-panel-body > .right-panel-section { margin-bottom: 0; }
 .wama-panel-column.is-frozen .grid-stack-item-content { background: transparent; }
+/* Le CENTRE d'une page d'app en briques (2026-10-28, étape ④) : la card d'entrée, la progression,
+   la barre de la file et la file, chacune déplacée telle quelle dans son panneau. Figée, la grille
+   garde l'allure de la page d'avant (ni fond ni cadre) ; modifiable, elle se dessine comme la
+   colonne du volet. */
+.wama-centre-grid { margin: 0 -6px .5rem; }
+.wama-centre-grid:not(.is-frozen) { outline: 1px dashed var(--wama-edit-border-strong); outline-offset: -2px; border-radius: .45rem; }
+.wama-centre-grid.is-frozen .grid-stack-item-content { background: transparent; }
+/* Figée, ni marge verticale ni cadre : une brique à la hauteur de son contenu y tient au plus juste
+   (mesuré : la marge de gridstack et le cadre coûtaient 14 px, la barre de la file passait sur
+   deux rangées). */
+.wama-centre-grid.is-frozen > .grid-stack-item > .grid-stack-item-content { inset: 0 3px; border-width: 0; }
+/* L'enveloppe d'une brique du centre, celle que mesure une brique à la hauteur de son contenu : une
+   marge mince — la hauteur se compte en rangées de 46 px, et la progression comme la barre de la
+   file doivent tenir dans une seule, figées. */
+.wama-centre-body { padding: .15rem .4rem; color: inherit; }
+.wama-centre-body > .wama-new-item-card, .wama-centre-body > .wama-global-progress,
+.wama-centre-body > .wama-queue-toolbar { margin-bottom: 0 !important; }
 /* La page s'écarte de ce que les bords occupent, comme la page d'une surface. */
 body.wama-panel-arranged > .container {
   padding-top: var(--wama-dock-top, 0px); padding-bottom: var(--wama-dock-bottom, 0px);

@@ -79,9 +79,14 @@ elle, taper dans l'une filtrerait l'autre.
 AUSSI une entrée par le CONTENU de ses images (« voiture » → la photo d'une voiture), demandé au
 serveur à la fin de la frappe. Posé ici, pour les douze files d'un coup. Forme `url … as` : une
 route absente (gunicorn pas encore relancé, gabarit relu à chaud) n'émet pas l'attribut au lieu
-de faire tomber les douze pages — la recherche par les noms reste.{% endcomment %}
+de faire tomber les douze pages — la recherche par les noms reste.
+
+`centre_brick` (2026-10-28, `WAMA_VOLETS §3-ter` étape ④) : la barre de la FILE d'une page d'app est
+une brique du centre, distincte de la file (`data-wama-brick`) — posé par `_queue.html`, pas par
+une page qui montre la barre ailleurs (le catalogue des briques UI).{% endcomment %}
 {% url 'common:api_queue_content_search' as tb_content_url %}
 <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap wama-queue-toolbar mb-2"
+     {% if centre_brick %}data-wama-brick="toolbar"{% if domain %} data-wama-brick-domain="{{ domain }}"{% endif %}{% endif %}
      data-wama-filter-bar data-mode="client"
      data-cible=".wama-queue-entry, .batch-group"
      data-cible-dans="file-suivante"{% if tb_content_url %}

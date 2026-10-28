@@ -492,10 +492,65 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     de la page — page réduite ou cachée, le navigateur les ralentit ; sur un écran d'une autre
     densité de pixels, un canevas dessiné pour la page peut paraître flou.
 
+- **Étape ④ — le CENTRE des pages d'apps en briques ✅ 2026-10-28** (Fabien : « lance ④ », et
+  « la barre de tri/filtrage/recherche/disposition » distinguée de la file : c'est déjà une brique
+  commune). Quatre briques, dans la MÊME disposition que le volet — une grille au centre, la
+  colonne à droite, une brique passe de l'une à l'autre en la glissant, comme sur une surface :
+  la **card d'entrée**, la **progression globale**, la **barre de la file**, la **file**.
+  - **Trouvées par leur pièce commune, sans rien écrire par app** : `_new_item_card_v4.html`,
+    `_global_progress.html`, `_toolbar.html` (enveloppe « file », posée par `_queue.html`) et
+    `_queue.html` posent `data-wama-brick` (et `data-wama-brick-domain`). Les jumelles générées
+    les ont donc aussi. Pas la card que le Studio rend dans un nœud (`compose_only`), ni une barre
+    montrée hors d'une file (le catalogue des briques UI).
+  - **Déclarées au serveur** (`volet.centre_slots`, `CENTRE_BRICKS`) : un jeu par DOMAINE pour une
+    app à onglets (imager, enhancer : `queue-image`, `queue-video`…), lu de `app_modes` ; une seule
+    disposition par page et par compte (`volet.declaration` = sections du volet + briques du
+    centre), donc la même route `common:panel_layout` et la même règle `clean_layout`. Une
+    disposition gardée avant ce jour reste valable : les briques du centre y prennent leur place
+    déclarée.
+  - **Sur la page** (`wama-panel-layout.js`) : la grille se pose à la place de la première brique,
+    ou sous les onglets ; chaque brique y est DÉPLACÉE telle quelle (mêmes identifiants, le JS des
+    apps n'en sait rien), dans l'ordre de LA page (l'avatarizer montre la progression avant la
+    card). Un onglet de domaine masqué retire ses briques, son retour les rend à leur rang
+    (`setShown`). Un titre posé juste avant une brique (« File d'attente images ») part avec elle.
+    La barre de la file, séparée de sa file, garde SA file (sa portée « frère suivant » est nommée
+    avant de les séparer) ; la visionneuse navigue dans la file de la card, plus dans son onglet
+    (`media-preview.js`).
+  - **À la hauteur du contenu** : la card, la progression et la barre suivent ce qu'elles montrent
+    (`PanelSlot.fit`, `wama-brick-layout.js` : `refit` par `resizeToContent` de gridstack, au
+    montage, quand le contenu change — une card dépliée — et quand la disposition se fige) ; on les
+    déplace et on règle leur largeur. La file garde une hauteur qu'on règle. Figée, la grille du
+    centre perd marges et cadres : la page a l'allure d'avant (mesuré : la marge de gridstack et le
+    cadre coûtaient 14 px, la barre de la file passait sur deux rangées de 46 px).
+  - **Le cadenas** du titre du volet dit désormais « Modifier la disposition de la page » là où il
+    y a un centre.
+  - **Gardes** : `tests_volet.CentreBricksTest` (5 tests : déclaration par domaine, marques posées
+    par les pages d'apps et toutes déclarées, ni le Studio ni une barre hors file, places gardées
+    et validées, montage) ; contre-épreuve rouge (`centre_slots` inerte → 2 rouges) ; scénario
+    nocturne **`common.centre_layout`** (26 gestes sur une app d'un domaine et une app à onglets :
+    ouvert tel qu'avant, panneaux dans l'ordre de la page, titres partis avec leur bloc, hauteurs
+    au contenu — modifiable et figée —, la barre garde sa file, la file en tête gardée et
+    rechargée, une section du volet au centre, l'autre onglet, « Disposition par défaut », figée →
+    la page d'avant) ; sept contre-épreuves rouges dans le navigateur (portée de la barre, onglet
+    suivi, ce que mesure `fit`, `refit`, titre, une retouche de hauteur comptée comme geste,
+    briques collées). Non-recul : `common.panel_layout` 16/16, surfaces 9/9 et 22/22, parité de
+    l'éditeur intacte.
+  - ⚠ **Défauts trouvés en le faisant**, corrigés avant le commit : la retouche de hauteur d'une
+    brique `fit` était gardée comme un geste (« Disposition par défaut » ne revenait plus au
+    déclaré) ; des briques déclarées collées se chevauchaient en grandissant et gridstack les
+    permutait (d'où des places espacées, que la grille remonte) ; l'option `sizeToContent` de
+    gridstack, d'abord posée, n'ajoutait rien à `refit` (sa contre-épreuve restait verte) : retirée.
+  - ⚠ **Limites, connues** : la progression AUDIO de l'enhancer est écrite à la main dans sa page
+    (pas `_global_progress.html`) : elle n'est pas une brique et reste au-dessus de la grille sous
+    son onglet ; le gabarit est en cours chez une autre session, à porter avec elle. La jumelle
+    `translator_01` (bac à sable, non versionnée) rend encore sa file à la main : régénérée, elle
+    prend `_queue.html`. Une page sans volet n'a pas de cadenas, donc pas de centre à disposer.
+
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
-déclare, il n'hérite pas) ; ④ le centre des pages d'apps (card d'entrée, file) sur la même grille ;
-~~ouvrir un panneau dans une autre fenêtre~~ (✅ ci-dessus).
+déclare, il n'hérite pas) ; ~~④ le centre des pages d'apps (card d'entrée, file) sur la même
+grille~~ (✅ ci-dessus) ; ~~ouvrir un panneau dans une autre fenêtre~~ (✅ ci-dessus) ; les
+raccourcis clavier attachés aux briques (en cours).
 
 ---
 
@@ -822,6 +877,8 @@ dépôt (14 pages), toute modification y est transverse par construction.
    `common.layout.tablet` plus tout élément VISIBLE hors de l'écran. Au téléphone, le pied ne
    garde que les pourcentages des ressources (son titre laisse sa place). Relevé, défauts trouvés
    et corrigés : `ROADMAP §27`.
+   ✅ *2026-10-28* : le CENTRE d'une page d'app en briques est rejoué chaque nuit —
+   **`common.centre_layout`** (`ui_smoke_surfaces.py`, §3-ter étape ④).
 
 ## Voir aussi
 - `WAMA_DATA_WORLD.md §11.8` — l'UI du monde Data hérite de la file Médias ; les évolutions ⑦ du

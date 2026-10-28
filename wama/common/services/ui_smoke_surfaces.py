@@ -1065,6 +1065,229 @@ def _window_gestures(page, target, state, verdict, errors):
         f"fenêtre fermée : « {target} » revient à son rang dans la colonne ({s['panels']})")
 
 
+def check_centre_layout(page_hook=None):
+    """Le CENTRE d'une page d'app en briques (2026-10-28, `WAMA_VOLETS §3-ter` étape ④) — (ok, détail).
+
+    Avec le compte de test, sur la première app d'un seul domaine qui rend la file commune, puis sur
+    la première app à onglets de domaine : la page s'ouvre telle qu'avant, sans grille ; le cadenas
+    fait de la card d'entrée, de la progression, de la barre de la file et de la file des panneaux
+    de la grille du centre, dans l'ordre de LA page, chacun le même élément ; la recherche de la
+    barre garde SA file ; la file passée en tête est gardée par compte et le reste au rechargement ;
+    une section du volet passe dans la grille ; « Disposition par défaut » remet chacun à sa place ;
+    sur une page à onglets, l'autre onglet montre les briques de son domaine et retire les autres ;
+    figée puis rechargée, la page d'avant. Les réglages du compte sont rendus en sortie.
+    `page_hook(page)` : posé avant l'ouverture (contre-épreuve)."""
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.app_modes import has_domain_tabs
+    from wama.common.utils.user_settings import (clear_user_app_settings, get_user_app_setting,
+                                                 save_user_app_settings)
+    from wama.common.utils.volet import LAYOUT_SETTING
+
+    from .ui_smoke import discoverable_apps
+
+    token, uid = _test_session_key(), _test_account_id()
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+    # Les jumelles du bac à sable (`<app>_NN`) rendent les mêmes pièces : les apps en place suffisent.
+    apps = [(label, path) for label, path in _in_plain_thread(discoverable_apps)
+            if not label.rsplit('_', 1)[-1].isdigit()]
+    tabs = {label: _in_plain_thread(has_domain_tabs, label) for label, _ in apps}
+
+    def account():
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.get(pk=uid)
+
+    def stored(key):
+        return get_user_app_setting(account(), key, LAYOUT_SETTING)
+
+    def restore(key, value):
+        if value is None:
+            clear_user_app_settings(account(), key, [LAYOUT_SETTING])
+        else:
+            save_user_app_settings(account(), key, {LAYOUT_SETTING: value})
+
+    before = {label: _in_plain_thread(stored, label) for label, _ in apps}
+    verdicts, done = [], {}
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    sessions_before = _session_keys()
+    try:
+        for label, _ in apps:
+            _in_plain_thread(restore, label, None)     # chaque page part jamais disposée
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                context.add_cookies(_cookie(token))
+                page = context.new_page()
+                page.set_default_timeout(10000)
+                errors = []
+                page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+                if page_hook:
+                    page_hook(page)
+                for label, path in apps:
+                    kind = 'tabs' if tabs[label] else 'single'
+                    if kind in done:
+                        continue
+                    url = BASE_URL.rstrip('/') + path
+                    page.goto(url, wait_until='load', timeout=45000)
+                    page.wait_for_timeout(1000)
+                    if len(page.evaluate(_CENTRE_STATE_JS)['marks']) < 3:
+                        continue                         # pas la file commune : l'app suivante
+                    done[kind] = label
+                    _centre_gestures(page, url, label, kind == 'tabs',
+                                     lambda key=label: _in_plain_thread(stored, key), verdict)
+                    if len(done) == 2:
+                        break
+                shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
+                verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+            finally:
+                browser.close()
+    finally:
+        for label, _ in apps:
+            _in_plain_thread(restore, label, before[label])
+        _drop_new_sessions(sessions_before)
+    verdict(len(done) == 2, f"une app d'un domaine et une app à onglets parcourues ({done})")
+    failed = [text for ok, text in verdicts if not ok]
+    detail = f"centre des pages d'apps ({', '.join(done.values())}) : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
+#: Le centre tel que la page le montre : ses panneaux montrés dans l'ordre de la grille, les marques
+#: des briques (hors du volet) dans l'ordre de la page, celles restées hors d'un panneau et visibles,
+#: la portée de la barre de file, les entrées de file visibles.
+_CENTRE_STATE_JS = """() => {
+    const grid = document.querySelector('.wama-centre-grid');
+    const items = grid ? [...grid.querySelectorAll(':scope > .grid-stack-item')]
+        .filter(e => e.gridstackNode && !e.hidden)
+        .sort((a, b) => a.gridstackNode.y - b.gridstackNode.y || a.gridstackNode.x - b.gridstackNode.x) : [];
+    const marks = [...document.querySelectorAll('[data-wama-brick]')].filter(e => !e.closest('#wama-right-panel'));
+    const bar = document.querySelector('[data-wama-brick="toolbar"]');
+    const queue = document.querySelector('[data-wama-brick="queue"]');
+    // Une brique à la hauteur de son contenu (toutes sauf la file) a le nombre de rangées que
+    // demande son contenu — celles qui s'en écartent.
+    const cell = window.WamaBrickLayout ? window.WamaBrickLayout.cellHeight : 46;
+    const unfit = items.filter(e => !e.dataset.panel.startsWith('queue') && e.querySelector('.wama-centre-body'))
+        .filter(e => { const b = e.querySelector('.wama-brick-body'), c = b.firstElementChild;
+                       const want = Math.ceil((c.getBoundingClientRect().height + e.clientHeight - b.clientHeight) / cell);
+                       return want !== e.gridstackNode.h; }).map(e => e.dataset.panel);
+    return {grid: !!grid, loaded: !!window.GridStack, panels: items.map(e => e.dataset.panel), unfit: unfit,
+            headed: marks.filter(e => e.offsetParent && e.previousElementSibling
+                                 && /^H[1-6]$/.test(e.previousElementSibling.tagName)).map(e => e.dataset.wamaBrick),
+            marks: marks.filter(e => e.offsetParent).map(e => e.dataset.wamaBrick),
+            loose: marks.filter(e => !e.closest('.grid-stack-item') && e.offsetParent).map(e => e.dataset.wamaBrick),
+            scope: bar ? bar.getAttribute('data-cible-dans') : null, queue: queue ? queue.id : null,
+            entries: queue ? queue.querySelectorAll('.wama-queue-entry:not(.wama-f-hors-filtre)').length : 0};
+}"""
+
+#: Un panneau du centre (ou du volet) passé à la place `place` de la grille du centre, par gridstack
+#: lui-même — ce que fait un glisser.
+_CENTRE_MOVE_JS = """([id, place]) => {
+    const grid = document.querySelector('.wama-centre-grid');
+    const el = document.querySelector('.grid-stack-item[data-panel="' + id + '"]');
+    if (!grid || !el || !el.gridstackNode) return false;
+    if (el.gridstackNode.grid === grid.gridstack) { grid.gridstack.update(el, place); return true; }
+    el.gridstackNode.grid.removeWidget(el, false);
+    grid.appendChild(el);
+    grid.gridstack.makeWidget(el, Object.assign({id: id}, place));
+    return true; }"""
+
+#: L'onglet de DOMAINE suivant — celui qui vise un volet des onglets d'où viennent les briques
+#: (posés juste avant la grille), ou un bouton de domaine de `WamaModes` ; jamais les onglets de
+#: l'app (« À propos », « Aide »).
+_OTHER_DOMAIN_JS = """() => {
+    const grid = document.querySelector('.wama-centre-grid');
+    const tabs = grid && grid.previousElementSibling;
+    const ids = tabs && tabs.classList.contains('tab-content') ? [...tabs.children].map(p => '#' + p.id) : [];
+    const t = [...document.querySelectorAll('[data-bs-toggle="tab"]:not(.active)')]
+        .find(b => ids.includes(b.getAttribute('data-bs-target'))) || document.querySelector('.wm-domain:not(.active)');
+    if (t) t.click();
+    return !!t; }"""
+
+
+def _centre_gestures(page, url, app, with_tabs, stored, verdict):
+    """Les gestes de `check_centre_layout` sur la page `url` ; un geste impossible est un verdict rouge."""
+
+    def state():
+        return page.evaluate(_CENTRE_STATE_JS)
+
+    def open_page():
+        page.goto(url, wait_until='load', timeout=45000)
+        page.wait_for_timeout(1200)
+
+    def lock():
+        page.click('.wama-panel-tools button[aria-pressed]')
+        page.wait_for_timeout(900)
+
+    try:
+        s = state()
+        order, headed = s['marks'], s['headed']
+        verdict(not s['grid'] and not s['loaded'] and s['loose'] == order,
+                f"{app} : ouvert tel qu'avant, sans grille ({s})")
+        lock()
+        s = state()
+        verdict(s['grid'] and not s['loose'] and [p.split('-')[0] for p in s['panels']] == order,
+                f"{app} : le cadenas fait des panneaux du centre, dans l'ordre de la page ({order} → {s})")
+        verdict(s['headed'] == headed, f"{app} : chaque titre part avec le bloc qu'il introduit ({headed} → {s['headed']})")
+        verdict(not s['unfit'], f"{app} : la card, la progression et la barre à la hauteur de leur contenu ({s['unfit']})")
+        verdict(s['scope'] == f"#{s['queue']}", f"{app} : la barre garde SA file ({s['scope']})")
+        if s['entries']:
+            page.fill('[data-wama-brick="toolbar"] [data-f-role="recherche"]', 'zz-aucune-entree-zz')
+            page.wait_for_timeout(600)
+            hidden = state()['entries']
+            page.fill('[data-wama-brick="toolbar"] [data-f-role="recherche"]', '')
+            page.wait_for_timeout(600)
+            verdict(hidden == 0 and state()['entries'] == s['entries'],
+                    f"{app} : la recherche filtre la file, dans sa brique ({s['entries']} → {hidden})")
+        queue = next(p for p in s['panels'] if p.startswith('queue'))
+        page.evaluate(_CENTRE_MOVE_JS, [queue, {'x': 0, 'y': 0}])
+        page.wait_for_timeout(900)
+        kept = stored() or {}
+        verdict(state()['panels'][:1] == [queue] and (kept.get('slots') or {}).get(queue, {}).get('y') == 0,
+                f"{app} : la file passée en tête, gardée au serveur ({kept.get('slots')})")
+        section = page.evaluate("() => { const el = document.querySelector('.wama-panel-column > .grid-stack-item');"
+                                " return el ? el.dataset.panel : null; }")
+        if section:
+            page.evaluate(_CENTRE_MOVE_JS, [section, {'x': 8, 'y': 0, 'w': 4, 'h': 4}])
+            page.wait_for_timeout(900)
+            kept = stored() or {}
+            verdict((kept.get('slots') or {}).get(section, {}).get('zone') == 'grid',
+                    f"{app} : la section « {section} » du volet passe dans la grille du centre ({kept.get('slots')})")
+        open_page()
+        s = state()
+        centre = [p for p in s['panels'] if p != section]
+        verdict(s['grid'] and centre[:1] == [queue], f"{app} : rechargé, la file toujours en tête ({s['panels']})")
+        if with_tabs:
+            switched = page.evaluate(_OTHER_DOMAIN_JS)
+            page.wait_for_timeout(1200)
+            other = [p for p in state()['panels'] if p != section]
+            verdict(switched and other and not set(other) & set(centre),
+                    f"{app} : l'autre onglet montre les briques de son domaine ({centre} → {other})")
+            page.evaluate(_OTHER_DOMAIN_JS)
+            page.wait_for_timeout(1200)
+            back = [p for p in state()['panels'] if p != section]
+            verdict(back == centre, f"{app} : de retour, chaque brique à son rang ({back})")
+        page.click('.wama-panel-tools button[title^="Disposition par"]')
+        page.wait_for_timeout(900)
+        s = state()
+        kept = stored() or {}
+        verdict([p.split('-')[0] for p in s['panels']] == order and kept.get('slots') is None,
+                f"{app} : « Disposition par défaut » remet chacun à sa place ({s['panels']})")
+        lock()
+        page.wait_for_timeout(500)
+        unfit = state()['unfit']
+        verdict(not unfit, f"{app} : figée (titres masqués), toujours à la hauteur de leur contenu ({unfit})")
+        open_page()
+        s = state()
+        verdict(not s['grid'] and s['loose'] == order, f"{app} : figée puis rechargée, la page d'avant ({s})")
+    except Exception as error:
+        verdict(False, f"{app} : geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
+
+
 def register_surface_scenarios():
     """Les scénarios communs des surfaces (vignettes de briques, disposition) — aucun GPU."""
     from wama.common.services.nightly_tests import register
@@ -1112,4 +1335,15 @@ def register_surface_scenarios():
                      "puis rechargé, le volet d'avant"),
         run=lambda ctx: check_panel_layout(),
         timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id='common.centre_layout', app='common', stage='ui',
+        description=("Centre des pages d'apps en briques : ouvert tel qu'avant, le cadenas fait de "
+                     "la card d'entrée, de la progression, de la barre de file et de la file des "
+                     "panneaux, dans l'ordre de la page ; la recherche garde sa file ; la file en "
+                     "tête gardée par compte et au rechargement ; une section du volet passe dans "
+                     "la grille ; l'autre onglet de domaine montre ses briques et rend les autres "
+                     "à leur rang ; « Disposition par défaut », puis figée : la page d'avant"),
+        run=lambda ctx: check_centre_layout(),
+        timeout_s=300, vram_gb=0.0,
     )

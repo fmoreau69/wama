@@ -44,7 +44,11 @@ ports (`ports.entry`, `app_registry.entry_form`).
 accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de page aurait fuité.{% endcomment %}
 {% input_slots app_id card_domain as ports %}
 {% lot_slot app_id as lot %}
+{% comment %}`data-wama-brick` (2026-10-28, `WAMA_VOLETS §3-ter` étape ④) : la card d'entrée est une
+brique du centre de la page, que l'utilisateur dispose (`wama-panel-layout.js`) — pas celle que le
+Studio rend dans un nœud (`compose_only`).{% endcomment %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}"
+     {% if not compose_only %}data-wama-brick="entry"{% if card_domain %} data-wama-brick-domain="{{ card_domain }}"{% endif %}{% endif %}
      data-wama-depot="{% if ports.entry.drop_creates and not compose_only %}cree{% else %}attache{% endif %}"
      data-wama-ports="{{ ports|length }}"
      {% if collapsible %}data-wama-nic{% if ports.entry.prompt %} data-nic-primary="{{ prompt_input_id|default:'promptInput' }}"{% endif %}{% endif %}>
