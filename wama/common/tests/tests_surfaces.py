@@ -1032,6 +1032,97 @@ class AxisTest(SimpleTestCase):
         self.assertEqual(0, out['level'])
 
 
+class TransportKeysOwnershipTest(SimpleTestCase):
+    """2026-10-29 (Fabien : « le transport doit être toujours actif avec J/K/L ») — the transport is
+    a PRIORITY brick. Measured in the browser the day before : after a click on « +5 s », L did
+    nothing and Space replayed « +5 s » (since the axis port of 20/10 ; the editor before kept them).
+    A control CLICKED keeps nothing ; reached by the KEYBOARD it keeps Space ; a text field keeps its
+    letters, but Ctrl+Space plays/pauses even there."""
+
+    SETUP = '''
+        var handlers = {};
+        var document = {addEventListener: function (k, fn) { (handlers[k] = handlers[k] || []).push(fn); },
+                        removeEventListener: function () {}};
+        var window = {document: document}; globalThis.document = document;
+        function el(kind) {
+            return {kind: kind, isContentEditable: false,
+                    matches: function (s) {
+                        if (s.indexOf('.modal') >= 0) return false;
+                        if (kind === 'text') return s.indexOf('textarea') === 0;
+                        if (kind === 'button') return s.indexOf('button') === 0;
+                        if (kind === 'select') return s.indexOf('button') === 0 || s.indexOf('select') === 0;
+                        return false; },
+                    closest: function (s) { return this.matches(s) ? this : null; }};
+        }
+        function fire(type, props) {
+            var e = Object.assign({prevented: false, preventDefault: function () { this.prevented = true; }}, props);
+            (handlers[type] || []).forEach(function (fn) { fn(e); });
+            return e;
+        }
+        function press(target, code, mods) { return fire('keydown', Object.assign({target: target, code: code}, mods || {})); }
+    '''
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.engine = MiniRacer()
+        self.engine.eval(self.SETUP + _js('common/js/wama-axis.js') + '''
+            var forwards = 0, toggles = 0, jumps = 0;
+            var axis = window.WamaAxis.create({duration: 60, now: function () { return 0; },
+                                               frame: function () { return 1; }, cancelFrame: function () {}});
+            axis.toggle = function () { toggles++; };
+            axis.jump = function () { jumps++; };
+            axis.bindKeys({shuttle: {forward: function () { forwards++; }, reverse: function () {},
+                                     stop: function () {}}});
+            function counts() { return {forwards: forwards, toggles: toggles, jumps: jumps}; }
+        ''')
+
+    def _eval(self, script):
+        return json.loads(self.engine.eval('JSON.stringify((function(){' + script + '})())'))
+
+    def test_a_clicked_button_keeps_no_transport_key(self):
+        out = self._eval('''
+            var b = el('button');
+            fire('pointerdown', {target: b}); fire('focusin', {target: b});
+            press(b, 'KeyL'); var space = press(b, 'Space'); var up = fire('keyup', {target: b, code: 'Space'});
+            return Object.assign(counts(), {spacePrevented: space.prevented, upPrevented: up.prevented});
+        ''')
+        self.assertEqual(1, out['forwards'], 'L reaches the shuttle after a click on a button')
+        self.assertEqual(1, out['toggles'], 'Space plays instead of re-clicking the button')
+        self.assertTrue(out['upPrevented'], "the button is not activated by Space's release")
+
+    def test_a_button_reached_by_keyboard_keeps_space_only(self):
+        out = self._eval('''
+            var b = el('button');
+            fire('pointerdown', {target: b}); fire('focusin', {target: b}); fire('focusout', {target: b});
+            fire('focusin', {target: b});         // clicked earlier, left, then reached with Tab
+            var space = press(b, 'Space'); press(b, 'KeyL');
+            return Object.assign(counts(), {spacePrevented: space.prevented});
+        ''')
+        self.assertEqual(0, out['toggles'], 'counterproof : Space activates a button reached with Tab')
+        self.assertFalse(out['spacePrevented'])
+        self.assertEqual(1, out['forwards'], 'J/K/L are never a button key')
+
+    def test_a_text_field_keeps_its_letters_but_ctrl_space_plays(self):
+        out = self._eval('''
+            var f = el('text');
+            press(f, 'KeyL'); press(f, 'Space'); var c = press(f, 'Space', {ctrlKey: true});
+            return Object.assign(counts(), {ctrlPrevented: c.prevented});
+        ''')
+        self.assertEqual(0, out['forwards'], 'L is a letter in a text field')
+        self.assertEqual(1, out['toggles'], 'only Ctrl+Space plays/pauses while typing')
+        self.assertTrue(out['ctrlPrevented'])
+
+    def test_a_clicked_list_keeps_its_arrows(self):
+        out = self._eval('''
+            var s = el('select');
+            fire('pointerdown', {target: s}); fire('focusin', {target: s});
+            press(s, 'ArrowLeft'); press(s, 'KeyL');
+            return counts();
+        ''')
+        self.assertEqual(0, out['jumps'], 'a list moves its own choice with the arrows')
+        self.assertEqual(1, out['forwards'])
+
+
 ABC = 'X:1\nM:4/4\nL:1/8\nQ:1/4=80\nK:C\nC2 D2 E2 F2|G8|\n'
 
 

@@ -253,6 +253,47 @@ def _shuttle(ed, checks):
     ed.ensure_paused()
 
 
+def _keys_after_click(ed, checks):
+    """Le transport est PRIORITAIRE (Fabien, 2026-10-29) : un bouton CLIQUÉ ne lui prend pas ses
+    touches — le geste que les autres parties ne jouent pas, puisqu'elles rendent le clavier à la
+    page après chaque clic (`release_focus`). Mesuré le 28/10 : L muet et Espace qui refaisait
+    « +5 s ». Atteint au clavier, un bouton garde Espace ; en saisie, Ctrl+Espace joue."""
+    ed.goto('0:10')
+    ed.ensure_paused()
+    ed.page.click(ed.sel('skip_fwd'))
+    ed.page.wait_for_timeout(SETTLE_MS)
+    s = ed.key('l')
+    checks.append((s['paused'] is False and s['speed'] == '▶▶ 1×',
+                   f"L après un clic sur « +5 s » = avant ×1 ({s['paused']}, « {s['speed']} »)"))
+    ed.key('k')
+    ed.page.click(ed.sel('skip_fwd'))
+    ed.page.wait_for_timeout(SETTLE_MS)
+    s0 = ed.state()
+    s = ed.key('Space', wait=600)
+    checks.append((s['paused'] is False and s0['t'] <= s['t'] < s0['t'] + 2,
+                   f"Espace après un clic = lecture, pas un second « +5 s » ({s0['t']} → {s['t']})"))
+    ed.ensure_paused()
+    ed.release_focus()
+    ed.page.focus(ed.sel('skip_fwd'))
+    s0 = ed.state()
+    s = ed.key('Space')
+    checks.append((s['paused'] is True and _near(s['t'], s0['t'] + 5),
+                   f"bouton atteint au clavier : Espace l'active ({s0['t']} → {s['t']})"))
+    ed.release_focus()
+    ed.ensure_paused()
+    ed.goto('0:25')
+    s0 = ed.key('Enter')
+    s = ed.key('Control+Space', wait=600)
+    s2 = ed.key('Control+Space')
+    checks.append((s0['editing'] == 1 and s['paused'] is False and s['editing'] == 1 and s2['paused'] is True
+                   and s2['texts'] == s0['texts'],
+                   f"en édition, Ctrl+Espace lance puis arrête sans rien écrire ({s['paused']}, {s2['paused']}, "
+                   f"édite {s['editing']})"))
+    ed.key('Escape')
+    ed.release_focus()
+    ed.ensure_paused()
+
+
 def _navigation(ed, checks):
     """Tab / Maj+Tab, ↑/↓, Navigation ↔ Édition, coupe, annuler/rétablir."""
     ed.goto('0:05')
@@ -604,9 +645,10 @@ def check_editor_parity(form=None):
                             _wait_player(page)
                             page.wait_for_timeout(800)
                             ed = _Editor(page, selectors)
-                            parts = (_transport, _shuttle, _navigation, _editing, _bornes, _toggles,
-                                     lambda e, c: _writing(e, c, seed), _panel, _views, _versions)
-                            labels = ('Transport', 'Shuttle', 'Navigation', 'Édition', 'Bornes', 'Bascules',
+                            parts = (_transport, _shuttle, _keys_after_click, _navigation, _editing, _bornes,
+                                     _toggles, lambda e, c: _writing(e, c, seed), _panel, _views, _versions)
+                            labels = ('Transport', 'Shuttle', 'Clavier après un clic', 'Navigation', 'Édition',
+                                      'Bornes', 'Bascules',
                                       "Modes d'écriture", 'Volet', 'Vues', 'Versions')
                             for part, label in zip(parts, labels):
                                 checks = []
@@ -648,7 +690,8 @@ def register_editor_scenarios():
     register(
         id="transcriber.editor_parity", app="transcriber", stage="ui",
         description=("Parité de l'éditeur du transcriber, geste par geste (ROUTE §F3b) : aller à, sauts, "
-                     "vitesse, shuttle J/K/L et arrière silencieux, Tab, modes Navigation/Édition, coupe, "
+                     "vitesse, shuttle J/K/L et arrière silencieux, clavier après un clic et Ctrl+Espace "
+                     "en saisie, Tab, modes Navigation/Édition, coupe, "
                      "fusions, compactage, locuteur, relecture, enregistrement, terminer, outil Bornes, "
                      "modes d'écriture et propositions, titre, intervenants, dernière transcription, "
                      "onde, minimap, carte de chaleur, ▶ de segment, surlignage — sondé par l'audio, "

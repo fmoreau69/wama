@@ -384,6 +384,18 @@ Clavier-first (Whispurge). Sauvegarde → texte/segments corrigés → ré-expor
    des intervenants), que la surface commune nomme (`Surface.sources_setting`), relit à l'ouverture
    et écrit au choix par la route commune des réglages ; une version qui n'existe plus laisse
    l'original.
+   **2h ✅ livrée (2026-10-29) — le transport est une brique PRIORITAIRE au clavier** (Fabien :
+   « le transport doit être toujours actif avec les touches JKL par défaut »). Mesuré au navigateur
+   le 28/10 : depuis le portage sur l'axe (20/10), un bouton cliqué gardait le clavier — L muet,
+   Espace qui refaisait « +5 s », Début/Fin muets — alors que l'éditeur d'avant ne le laissait
+   qu'aux champs ; le scénario ne le voyait pas, il rend le clavier à la page après chaque clic.
+   Règle (`wama-axis.js`, en tête) : un champ où l'on écrit garde ses lettres ; un contrôle CLIQUÉ
+   ne garde rien ; atteint au CLAVIER (Tab), il garde Espace ; une liste ou un curseur gardent leurs
+   flèches. Option décidée le même jour : **Ctrl+Espace = lecture/pause même en saisie** (Alt+J/K/L
+   écarté : Alt+L est déjà le verrou « suivre la lecture »). Parité : partie « Clavier après un
+   clic » (4 gestes, sans rendre le clavier à la page) — **75/75**, contre-épreuve rouge en servant
+   l'ancien axe au seul navigateur du scénario ; garde V8 `TransportKeysOwnershipTest`. Suite : les
+   raccourcis DÉCLARÉS par les briques, au registre (`WAMA_VOLETS §3-ter`).
 3. **Confiance** (mot/segment) — déjà la source de la heatmap 2a.
 4. **Guidage** (slider rigueur + hésitations/silences/redondances) en suggestions accept/reject
    (règles FR + gaps de segments + LLM).

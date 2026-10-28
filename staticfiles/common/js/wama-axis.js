@@ -67,6 +67,35 @@
         return total;
     }
 
+    // ── Le clavier du magnéto : à qui revient une touche (2026-10-29, décision de Fabien) ──────
+    // Le transport est une brique PRIORITAIRE : ses touches agissent partout sur la page, sauf
+    // dans un champ où l'on écrit. Un contrôle CLIQUÉ à la souris (bouton, liste, case) ne les
+    // garde pas — depuis le portage sur l'axe (20/10), un clic sur « +5 s » faisait refaire
+    // « +5 s » à Espace et rendait J/K/L muets, alors que l'éditeur d'avant les gardait. Un
+    // contrôle atteint au CLAVIER (Tab) garde Espace pour lui : on l'active sans souris.
+    var TEXT_ENTRY = 'textarea, input:not([type="button"]):not([type="submit"]):not([type="reset"])' +
+                     ':not([type="checkbox"]):not([type="radio"]):not([type="range"])';
+    var CONTROL = 'button, select, summary, a[href], [role="button"], input[type="button"], ' +
+                  'input[type="submit"], input[type="reset"], input[type="checkbox"], ' +
+                  'input[type="radio"], input[type="range"]';
+    /** Ces contrôles se servent eux-mêmes des flèches et de Début/Fin. */
+    var OWN_ARROWS = 'select, input[type="range"], input[type="radio"]';
+    var pointerFocus = null;
+    if (global.document) {
+        document.addEventListener('pointerdown', function (e) {
+            pointerFocus = e.target && e.target.closest ? e.target.closest(CONTROL) : null;
+        }, true);
+        document.addEventListener('focusin', function (e) {
+            if (e.target !== pointerFocus) pointerFocus = null;     // venu au clavier ou par script
+        }, true);
+        document.addEventListener('focusout', function (e) {
+            if (e.target === pointerFocus) pointerFocus = null;     // quitté : y revenir n'est plus un clic
+        }, true);
+    }
+    function typing(t) {
+        return !!(t && (t.isContentEditable || (t.matches && t.matches(TEXT_ENTRY))));
+    }
+
     function create(opts) {
         opts = opts || {};
         var now = opts.now || function () {
@@ -347,18 +376,27 @@
 
             /** Le clavier du magnéto (`WAMA_DATA_WORLD §5`) : Espace, ←/→ (±`jump` s), Début/Fin,
              *  et J/K/L si un shuttle est donné (`WamaShuttle.create`). Jamais pendant une saisie,
-             *  ni avec Ctrl/Alt/Méta (Ctrl+Z est à l'historique commun). Rend la fonction qui délie. */
+             *  ni avec Ctrl/Alt/Méta (Ctrl+Z est à l'historique commun) — sauf Ctrl+Espace,
+             *  lecture/pause MÊME en saisie (on écoute pendant qu'on corrige un texte). Un contrôle
+             *  cliqué ne garde rien ; atteint au clavier, il garde Espace (règle en tête du module).
+             *  Rend la fonction qui délie. */
             bindKeys: function (o) {
                 o = o || {};
                 var jump = Number(o.jump) || 5;
+                var spaceTarget = null;
                 function onKey(e) {
                     var t = e.target;
-                    if (e.ctrlKey || e.metaKey || e.altKey) return;
-                    if (t && ((t.matches && t.matches('input, textarea, select, button'))
-                              || t.isContentEditable
-                              || (t.closest && t.closest('.modal.show')))) {
-                        // Un bouton garde Espace/Entrée pour lui-même ; les flèches restent à l'axe.
-                        if (!(t.matches && t.matches('button') && /^Arrow/.test(e.code))) return;
+                    if (t && t.closest && t.closest('.modal.show')) return;
+                    if (e.code === 'Space' && e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey) {
+                        if (o.enabled && !o.enabled()) return;
+                        e.preventDefault();
+                        axis.toggle();
+                        return;
+                    }
+                    if (e.ctrlKey || e.metaKey || e.altKey || typing(t)) return;
+                    if (t && t.matches && t.matches(CONTROL)) {
+                        if (/^(Arrow|Home$|End$)/.test(e.code) && t.matches(OWN_ARROWS)) return;
+                        if (e.code === 'Space' && t !== pointerFocus) return;
                     }
                     if (o.enabled && !o.enabled()) return;
                     var handled = true;
@@ -373,9 +411,19 @@
                         case 'KeyK': if (o.shuttle) o.shuttle.stop(); else handled = false; break;
                         default: handled = false;
                     }
-                    if (handled) e.preventDefault();
+                    if (handled) {
+                        e.preventDefault();
+                        if (e.code === 'Space') spaceTarget = t;
+                    }
+                }
+                // Espace pris au transport sur un contrôle cliqué : son relâché ne l'active pas
+                // (un bouton s'active au relâché d'Espace).
+                function onKeyUp(e) {
+                    if (e.code === 'Space' && spaceTarget && e.target === spaceTarget) e.preventDefault();
+                    if (e.code === 'Space') spaceTarget = null;
                 }
                 document.addEventListener('keydown', onKey);
+                document.addEventListener('keyup', onKeyUp);
                 // Le shuttle RENDU par l'axe (Espace, arrivée au bord, lecture sur le média) : son
                 // échelle repart du stop, sinon le prochain L reprendrait au cran d'avant.
                 var unsubscribe = o.shuttle && o.shuttle.reset ? axis.subscribe(function (st) {
@@ -383,6 +431,7 @@
                 }) : null;
                 return function () {
                     document.removeEventListener('keydown', onKey);
+                    document.removeEventListener('keyup', onKeyUp);
                     if (unsubscribe) unsubscribe();
                 };
             },
