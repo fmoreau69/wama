@@ -746,6 +746,7 @@
         dockFrame.appendChild(dropChip);
         var dropping = null;                // {key, fromDock, target}
 
+        function pointIn(r, x, y) { return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
         function edgeAllowed(edge) {
             return DOCK_CHOICES.some(function (c) { return c[0] === edge; })
                 && !(SIDES.indexOf(edge) >= 0 && !onFullGrid());
@@ -767,7 +768,7 @@
             var items = dockFrame.querySelectorAll('.wama-dock-row > .grid-stack-item');
             for (var i = 0; i < items.length; i++) {
                 var el = items[i], other = el.dataset.panel, r = el.getBoundingClientRect();
-                if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue;
+                if (!pointIn(r, x, y)) continue;
                 // Relâché sur lui-même : il reste où il est (un titre à peine bougé ne désépingle pas).
                 if (other === key) return { kind: 'stay', said: labelOf(key) };
                 var column = SIDES.indexOf(el.dataset.docked) >= 0;
@@ -816,15 +817,14 @@
             return out;
         }
         function pageTitleUnder(x, y, key) {
-            function within(r) { return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom; }
             var live = pageTitles(key);
-            for (var i = 0; i < live.length; i++) if (within(live[i].rect)) return live[i];
+            for (var i = 0; i < live.length; i++) if (pointIn(live[i].rect, x, y)) return live[i];
             // …ou là où le titre ÉTAIT au début du geste (`dropping.titles`) : c'est là que
             // l'utilisateur vise, et la grille a pu écarter le panneau entre-temps. Le repère se
             // dessine sur le titre RÉEL.
             var then = (dropping && dropping.titles) || [];
             for (var j = 0; j < then.length; j++) {
-                if (then[j].key !== key && within(then[j].rect)) {
+                if (then[j].key !== key && pointIn(then[j].rect, x, y)) {
                     return { key: then[j].key, rect: then[j].head.getBoundingClientRect() };
                 }
             }

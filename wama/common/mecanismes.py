@@ -184,7 +184,9 @@ MECHANISMS = (
               "d'une card, la somme de ce que joue son lancement (`launch_eta`, 2026-10-05). "
               "2026-10-27 : une sortie PERDUE (fichier désigné, absent du disque, `output_lost`) "
               "ne périme pas son aval — seule une empreinte DIFFÉRENTE périme — : elle se dit "
-              "(bande des process, résultats du studio) et se rejoue",
+              "(bande des process, résultats du studio) et se rejoue. 2026-10-28 : une ligne dont "
+              "l'élément a disparu sans passer par son retrait (cascade, témoins du nocturne, "
+              "jumelle retirée) se balaie chaque nuit (`forget_orphans`)",
               'wama/common/services/process_runs.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/tests/tests_process_runs.py',
                        'wama/common/tests/tests_process_eta.py'),

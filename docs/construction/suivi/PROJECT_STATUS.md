@@ -26686,7 +26686,8 @@ chat de l'assistant ; aucun fichier du transcriber touché (il n'a servi que de 
   l'extraction en cours d'autrui dans l'arbre ; un rouge transitoire vu pendant qu'elle écrivait),
   `tests_panel_toggle` 25, `tests_codegen_lot` 55 ; périmètre + gardes transverses 803 tests, rouges d'autrui seuls
   (`tests_test_layout` : `wama/common/privacy`, non suivi depuis le 18/10) ; compte 225 OK ;
-  `check_docs` 0 cassée, 1 périmée (`views.py:1044`, antérieure) ; corpus de manifestes 0 à
+  `check_docs` 0 cassée, 1 périmée (le renvoi de ligne vers les vues de l'imager, antérieur — nommé
+  ici sans son chemin : l'écrire le compterait une fois de plus) ; corpus de manifestes 0 à
   régénérer (19 invalides `openrouter:`, pas de cette session) ; `check_skills` 0 défaut.
 
 ### §CLÔTURE 2026-10-28 (suite) — fichiers libérés et sorties intermédiaires : MESURÉ, et les deux décisions explicitées
