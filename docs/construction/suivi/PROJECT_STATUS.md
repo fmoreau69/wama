@@ -26948,3 +26948,27 @@ langue (code 2650 > 2645), `tests_touch` (`wama-constellation.css`).
 différents — `detail_registry._PROPS_ICON` (serveur, catégorie de média → icône de la ligne de
 propriétés) et `WamaMediaPreview.tileIcon` (client, type MIME → icône d'une vignette, l'ex-`_iconOf`
 du sélecteur déplacé, pas une écriture neuve).
+
+## §PALIER 2026-10-28 (matinée), « APERÇU ② : les FACES d'un élément dans l'échange de l'assistant » — `696930ce`, `8826ac57`, non poussés — 🔴 relancer gunicorn (`tool_api.job_progress`) ; les JS et la feuille servis le sont déjà
+
+Reprise de la passation « ② le CHAT qui rend les faces » (§PALIER 2026-10-20 (nuit), « APERÇU … »),
+élargie par Fabien : *« l'idée est d'intégrer la preview dans l'échange avec l'assistant pour avoir
+le rendu preview (entrée/during/comparaison/sortie/etc) »* — toutes les faces, l'extraction attendant
+le commit de la session « preview universelle » (`fac8c37f`). Détail : `ROUTE §F3b` (« ② SOLDÉ »),
+`ROADMAP §19.2`.
+- Serveur (`696930ce`) : `job_progress` joint `preview_url` (`DetailRegistry.preview_url`) ; toute
+  famille suivie par l'échange a son aperçu commun (gardé).
+- Brique (`8826ac57`) : `WamaMediaPreview.faceViewer` — l'afficheur de faces du volet, rendu commun ;
+  le volet l'emprunte (sept fonctions locales retirées), chaque ligne de job le monte
+  (`wama-assistant-chat.js mountFaces`). Le trou de la passation est fermé : une app qui ne publie
+  rien pendant le calcul a quand même sa Sortie (tout changement d'état rejoue la face par défaut).
+- ⚠ Trouvé par le geste sur la page servie, invisible en V8 : la ligne est bâtie avant d'entrer
+  dans l'échange, et l'afficheur ne suit pas un hôte hors de la page — il démarre au tour suivant.
+- Preuves : 7 gardes neuves, 6 neutralisations rouges ; geste `common.preview_chat_job` vert sur la
+  prod et rouge à sa contre-épreuve ; `common.preview_during`, `describer.preview`, `imager.preview`
+  verts après l'adoption par le volet ; 334 tests verts.
+- Laissés à leurs auteurs : le reste non commité du 21/10 dans `wama-inspector.js` (« Bug #1532 »,
+  remplissage des listes déroulantes) ; rouges `tests_touch` (`wama-constellation.css`, 22/10) et
+  `tests_test_layout` (dossier non suivi « privacy (1) »), tous deux antérieurs.
+- 🔚 Restes : les canaux (Discord) ne montrent pas de face ; le chantier TRANSCRIBER (confié à
+  « Briques UI »), puis ④.
