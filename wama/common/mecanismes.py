@@ -1938,7 +1938,11 @@ MECHANISMS = (
               "suiveur et le même rendu en ligne) : son hôte de sortie, ou l'hôte d'attente "
               "`data-card-during` que chaque card pose à l'adresse de son élément — le describer "
               "y écrivait seul son texte partiel, le transcriber le recopiait dans le panneau de "
-              "Speak (R158, R162)",
+              "Speak (R158, R162). Depuis le 2026-10-28, la VIGNETTE d'un fichier est une brique "
+              "(`tileHtml` : l'image, la 1ʳᵉ image d'une vidéo, sinon l'icône de la famille du "
+              "type), décidée par le type que le serveur résout — lue par la grille d'une sortie "
+              "multiple, la fenêtre de sélection et la médiathèque, qui l'écrivaient chacune et "
+              "dont la dernière décidait par la nature de l'onglet (R183)",
               'wama/common/utils/preview_registry.py', '',
               annexes=('wama/common/utils/preview_utils.py',
                        'wama/common/static/common/js/media-preview.js',
