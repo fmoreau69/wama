@@ -2007,6 +2007,14 @@ prompt pour Ollama/LiteLLM ; aucun outil WAMA pour `claude-abo`). MCP en fait un
    Le skill `assistant-dev` dit désormais au modèle comment s'en servir. ⏳ Reste de l'étape 5 :
    la moitié PROD (le moteur client de la surface `wama` au lieu de `execute_tool` en direct) et
    le rôle « améliorer » avec sa page de bac à sable (décisions à prendre, `WAMA_LLM §1ter`).
+   ✅ *Outils d'INSPECTION pour les administrateurs* (écrits le 2026-10-22 par l'assistant, rôle
+   `task`, revérifiés et commités le 2026-10-28) : `common/services/dev_inspect.py` ajoute à la
+   surface `dev_db_query`/`dev_db_schema` (tables `wama*` par l'ORM, ni SQL libre ni jointure,
+   comptes et clés refusés, colonnes `password|token|secret|key|hash` jamais rendues ni filtrables),
+   `dev_read_log` (`logs/`, jetons masqués), `dev_read_code`/`dev_list_code` (dépôt hors `.env`,
+   venvs, modèles, médias, logs). Garde `is_admin_tier` DOUBLE : `dev_tools.ADMIN_ONLY` à
+   l'annonce et à l'appel, `@admin_only` dans le corps. Gardes : `tests_dev_inspect`,
+   `tests_mcp_dev_tools`.
 4a. ✅ **Clés d'API personnelles + niveau cloud** (15/09) — `secret_crypto.EncryptedTextField`
    (chiffré au repos, clé dérivée de `SECRET_KEY`) ; `accounts.UserApiKey` (fournisseurs LLM =
    sources `external_sources` de type `llm`) et `accounts/api_keys.key_for` (un utilisateur n'a

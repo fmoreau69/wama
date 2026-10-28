@@ -522,9 +522,18 @@ def dev_read_output(user, path: str) -> dict:
             'content': json.loads(candidate.read_text(encoding='utf-8'))}
 
 
+from wama.common.services.dev_inspect import (  # noqa: E402 — après DevToolError/base_dir
+    dev_db_query, dev_db_schema, dev_list_code, dev_read_code, dev_read_log)
+
 DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_check, dev_reload_web,
                                          dev_claude_code, dev_job_status, dev_list_jobs,
-                                         dev_read_output)}
+                                         dev_read_output, dev_db_query, dev_db_schema,
+                                         dev_read_log, dev_read_code, dev_list_code)}
+
+#: Outils d'inspection (`dev_inspect`) réservés aux ADMINISTRATEURS : ni annoncés ni appelables
+#: par un développeur qui ne l'est pas — chacun double la garde dans son corps (`@admin_only`).
+ADMIN_ONLY = frozenset({'dev_db_query', 'dev_db_schema', 'dev_read_log', 'dev_read_code',
+                        'dev_list_code'})
 
 
 # ── L'interface qu'attend `mcp_server` : lister, appeler ────────────────────────────────────
@@ -532,23 +541,26 @@ DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_che
 def tools_for(user) -> list:
     """Outils de développement visibles par `user` — aucun pour un non-développeur."""
     import mcp.types as types
-    from wama.accounts.permissions import is_developer
+    from wama.accounts.permissions import is_admin_tier, is_developer
     from wama.tool_api import input_schema_for
 
     if not is_developer(user):
         return []
+    admin = is_admin_tier(user)
     return [types.Tool(name=name, description=inspect.getdoc(fn) or '',
                        inputSchema=input_schema_for(fn))
-            for name, fn in sorted(DEV_TOOLS.items())]
+            for name, fn in sorted(DEV_TOOLS.items()) if admin or name not in ADMIN_ONLY]
 
 
 def call(user, name: str, arguments) -> dict:
     """Un appel d'outil de développement — droits vérifiés ICI, à chaque appel."""
-    from wama.accounts.permissions import is_developer
+    from wama.accounts.permissions import is_admin_tier, is_developer
 
     if not is_developer(user):
         return {'error': 'forbidden',
                 'detail': "Outils de développement réservés aux développeurs et administrateurs."}
+    if name in ADMIN_ONLY and not is_admin_tier(user):
+        return {'error': 'forbidden', 'detail': "Outil réservé aux administrateurs."}
     fn = DEV_TOOLS.get(name)
     if fn is None:
         return {'error': f"Outil inconnu : {name!r}. Disponibles : {', '.join(sorted(DEV_TOOLS))}"}

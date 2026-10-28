@@ -1013,10 +1013,14 @@ MECHANISMS = (
               "(ROADMAP §16 : défense en profondeur > scope de jeton) — ni dans `TOOL_REGISTRY` ni "
               "importé par `tool_api` ; seul `run_mcp_server --surface dev` l'importe, et "
               "`tests_mcp_dev_tools` le garde. Les rôles écrivent une PROPOSITION dans "
-              "`wama-dev-ai/outputs/` et n'appliquent rien",
+              "`wama-dev-ai/outputs/` et n'appliquent rien. Outils d'INSPECTION réservés aux "
+              "administrateurs (`dev_inspect` : base en lecture, logs, code ; colonnes "
+              "sensibles jamais rendues)",
               'wama/common/services/dev_tools.py',
               'docs/construction/suivi/ROADMAP.md §8d',
-              annexes=('wama/common/tests/tests_mcp_dev_tools.py',)),
+              annexes=('wama/common/services/dev_inspect.py',
+                       'wama/common/tests/tests_mcp_dev_tools.py',
+                       'wama/common/tests/tests_dev_inspect.py')),
     Mechanism('development_models', 'Modèles de NIVEAU DÉVELOPPEMENT (bridage « qualité max »)',
               "UN domicile pour « quel modèle a le droit de travailler sur le code » : plancher "
               "sur le score coding du banc tiers (≥ 40) + déclaration explicite pour le seul "

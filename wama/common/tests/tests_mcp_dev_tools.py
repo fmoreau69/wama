@@ -155,7 +155,7 @@ class DroitsEtSurfaceTest(TestCase):
 
     def test_un_developpeur_voit_les_outils_de_dev(self):
         noms = sorted(t.name for t in dev_tools.tools_for(self.dev))
-        self.assertEqual(sorted(dev_tools.DEV_TOOLS), noms)
+        self.assertEqual(sorted(set(dev_tools.DEV_TOOLS) - dev_tools.ADMIN_ONLY), noms)
 
     def test_un_refus_d_argument_devient_une_erreur_lisible(self):
         res = dev_tools.call(self.dev, 'dev_run_role', {'role': 'librarian',
@@ -178,7 +178,7 @@ class DroitsEtSurfaceTest(TestCase):
                 mock.patch.dict(_os.environ, {'DJANGO_ALLOW_ASYNC_UNSAFE': 'true'}), \
                 mock.patch('wama.accounts.permissions.is_developer', return_value=True):
             noms = anyio.run(main)
-        self.assertEqual(sorted(dev_tools.DEV_TOOLS), noms)
+        self.assertEqual(sorted(set(dev_tools.DEV_TOOLS) - dev_tools.ADMIN_ONLY), noms)
         self.assertFalse(set(noms) & set(__import__('wama.tool_api', fromlist=['x']).TOOL_REGISTRY))
 
 
