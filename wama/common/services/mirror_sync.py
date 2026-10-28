@@ -221,7 +221,8 @@ def new_summary(remote_path) -> dict:
 
 def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None,
                 dry_run: bool = False, progress_cb=None, on_file=None,
-                progress_every: int = PROGRESS_EVERY, keep_existing: bool = False) -> dict:
+                progress_every: int = PROGRESS_EVERY, keep_existing: bool = False,
+                keep=None) -> dict:
     """
     Réplique `source_root` vers `dest_root` en conservant l'arborescence relative.
 
@@ -240,6 +241,9 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
                      quelle que soit sa taille — le TIRAGE d'une perte PARTIELLE (2026-10-27) :
                      sans lui, un fichier modifié depuis la sauvegarde (taille différente) serait
                      écrasé par sa version ancienne. Incompatible avec `overwrite`.
+        keep:        callable(chemin relatif POSIX) -> bool : seuls les fichiers qu'il retient
+                     voyagent — le tirage BORNÉ à ce que la base connaît encore
+                     (`restore_backup --known-only`, 2026-10-28). None : tout.
         exclude:     noms de dossiers/fichiers à ignorer, comparés à CHAQUE segment du
                      chemin relatif. Sert au TIRAGE (`~Archives` ne doit pas revenir dans
                      `media/`) ; inutile au sens sauvegarde, où le dossier n'existe pas en
@@ -278,6 +282,8 @@ def mirror_tree(source_root, dest_root, *, overwrite: bool = False, exclude=None
     for path in source_root.rglob('*'):
         relative = path.relative_to(source_root)
         if excluded and excluded.intersection(relative.parts):
+            continue
+        if keep is not None and path.is_file() and not keep(relative.as_posix()):
             continue
         if path.name == LINKS_MANIFEST:
             # Tirage : les liens décrits par une sauvegarde se RECRÉENT, relatifs au dossier

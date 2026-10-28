@@ -23,9 +23,9 @@ Vécu le 2026-10-27 : un test lancé hors du lanceur (`unittest.TextTestRunner` 
 ## 1. Les médias — par la ROUTE, jamais par une copie maison
 
 ```bash
-python manage.py restore_backup --domain media --dry-run --missing-only   # mesurer
-python manage.py restore_backup --domain media --missing-only             # tirer
-python manage.py check_media_integrity                                     # références présentes ?
+python manage.py restore_backup --domain media --dry-run --missing-only --known-only   # mesurer
+python manage.py restore_backup --domain media --missing-only --known-only             # tirer
+python manage.py check_media_integrity                                                 # références présentes ?
 ```
 
 - `--missing-only` : seuls les fichiers ABSENTS en local reviennent ; un fichier présent n'est
@@ -33,11 +33,13 @@ python manage.py check_media_integrity                                     # ré
   lui, le tirage remplace ce qui diffère par la version ancienne.
 - `~Archives` est exclu par la route (`wama/common/management/commands/restore_backup.py`) —
   décision de Fabien, ne pas le réintégrer.
-- ⚠ La sauvegarde NE SUPPRIME JAMAIS : le tirage ramène aussi les dossiers de comptes supprimés,
-  de comptes de test et d'anciennes apps. Le 27/10 ils ont été écartés à la main, par un `rsync`
-  sur une liste — un SECOND chemin de copie à côté de `mirror_sync.mirror_tree` : à ne pas
-  refaire. Si l'écart compte, le combler DANS la route (option de périmètre de
-  `restore_backup`), décision de Fabien.
+- `--known-only` : seul revient ce que la base connaît encore — dossiers des comptes réels, la
+  médiathèque, et ailleurs les fichiers qu'une card hors compte de test référence. La sauvegarde
+  NE SUPPRIME JAMAIS : sans lui, le tirage ramène aussi les dossiers de comptes de test, de comptes
+  supprimés et d'anciennes apps (mesuré le 2026-10-28 : 1 826 fichiers, 18,45 Go d'encombrement ;
+  avec lui, exactement les 2 309 fichiers que la restauration du 27/10 avait retenus). Le 27/10,
+  faute de cette option, le tri a été fait par un `rsync` sur une liste — un second chemin de copie,
+  à ne pas refaire.
 - Ce qui datait d'après la sauvegarde de la nuit est perdu ; un fichier retiré par l'utilisateur
   avant la nuit peut réapparaître. Le DIRE.
 

@@ -1258,23 +1258,24 @@ D'OÙ vient le fichier qu'une card consomme. La frontière était déjà tracée
 
 ### Qui désigne ce fichier ? (déplacer, supprimer sans casser)
 
-L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent à jour — `repoint` quand le fichier bouge, `detach` quand il disparaît. Décision de Fabien du 2026-09-22 (`MEDIA_STORAGE_TIERING §8.6` D20) : déplacer ou renommer met à jour le lien des cards SANS rien demander ; supprimer un fichier qu'une card utilise demande d'abord une confirmation qui dit COMBIEN de cards il touche, puis laisse les cards en place, détachées. Avant, le gestionnaire renommait, déplaçait et supprimait sans jamais regarder les cards : c'est ce geste qui fabrique les « référencés mais absents » comptés par `check_media_integrity`. ⚠ DEUX façons de désigner, une seule met la card en péril : par un `FileField` (elle perd son fichier) ou par sa PROVENANCE (elle a sa copie — information, jamais un blocage). Une entrée d'une LISTE DE CHEMINS déclarée (`path_list_fields`, les images d'une génération de l'imager) désigne au même titre qu'un `FileField` : chaque question et chaque geste lit les deux formes (D35, 2026-10-02). ⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même
+L'index des cards qui DÉSIGNENT un chemin, et les deux gestes qui le tiennent à jour — `repoint` quand le fichier bouge, `detach` quand il disparaît. Décision de Fabien du 2026-09-22 (`MEDIA_STORAGE_TIERING §8.6` D20) : déplacer ou renommer met à jour le lien des cards SANS rien demander ; supprimer un fichier qu'une card utilise demande d'abord une confirmation qui dit COMBIEN de cards il touche, puis laisse les cards en place, détachées. Avant, le gestionnaire renommait, déplaçait et supprimait sans jamais regarder les cards : c'est ce geste qui fabrique les « référencés mais absents » comptés par `check_media_integrity`. ⚠ DEUX façons de désigner, une seule met la card en péril : par un `FileField` (elle perd son fichier) ou par sa PROVENANCE (elle a sa copie — information, jamais un blocage). Une entrée d'une LISTE DE CHEMINS déclarée (`path_list_fields`, les images d'une génération de l'imager) désigne au même titre qu'un `FileField` : chaque question et chaque geste lit les deux formes (D35, 2026-10-02). 2026-10-28 : un déplacement fait aussi suivre les LIGNES D'EXÉCUTION (`ProcessRun.output_ref`, tous les mondes), qui ne comptent pas comme des cards qui utilisent le fichier ; `referenced_paths` est LA lecture de tout ce que la base désigne (audit des médias, tirage borné). ⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même
 
 - **Domicile** : `wama/common/utils/file_references.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : QUI DÉSIGNE CE FICHIER ? — l'index des cards qui utilisent un chemin, et les deux gestes qui le tiennent à jour quand le fichier bouge ou disparaît.
-- **API publique** (13) :
+- **API publique** (14) :
   - `file_field_models()` — `[(modèle, [FileField…])]` pour tout le dépôt — UNE énumération, plusieurs lecteurs
   - `path_list_fields()` — (modèle, champ) portant une LISTE de chemins (JSON) hors `FileField` — lus dans la
   - `relative_to_media(path) -> str` — Chemin relatif à MEDIA_ROOT (la forme que `owns_file` compare) ; '' s'il est HORS de
   - `listed_paths(instance) -> list` — `[(champ, chemin relatif à MEDIA_ROOT)]` pour chaque entrée des listes de chemins DÉCLARÉES
   - `card_files(instance) -> list` — `[(champ, chemin relatif à MEDIA_ROOT)]` de TOUT ce que la card porte : ses champs fichier
+  - `referenced_paths(*, lists: bool=True, excluded=EXCLUDED_MODELS, detail: bool=False) -> dict` — `{chemin relatif → 'app.Modèle.champ #pk'}` de TOUT ce que la base désigne : les champs
   - `relocated_list(value, mapping) -> list` — La liste `value` dont chaque entrée désignant un chemin de `mapping` (relatif → nouveau
   - `direct_references(path, *, folder=False) -> list` — Les cards dont un `FileField` — ou une entrée d'une liste de chemins déclarée — porte ce
   - `is_referenced_elsewhere(path, *, label='', pk=None, field='') -> bool` — Une AUTRE ligne, DE N'IMPORTE QUEL MODÈLE, désigne-t-elle ce fichier ?
   - `referenced_outside(paths, inside) -> set` — Parmi `paths`, ceux qu'une ligne HORS de `inside` (ensemble de `(label, pk)`) désigne.
   - `source_references(path, *, folder=False) -> list` — Les provenances dont la SOURCE est ce chemin (ou un chemin sous ce dossier).
   - `usage(path, *, folder=False) -> dict` — Ce que le gestionnaire de fichiers doit savoir AVANT de supprimer.
-  - `repoint(old_path, new_path, *, folder=False) -> dict` — Le fichier (ou le dossier) a bougé : chaque lien suit, directs et sources.
+  - `repoint(old_path, new_path, *, folder=False) -> dict` — Le fichier (ou le dossier) a bougé : chaque lien suit, directs, sources et lignes
   - `detach(path, *, folder=False) -> int` — Le fichier a été supprimé (après confirmation) : les cards qui le désignaient restent,
 
 ### Quotas des services externes
@@ -3217,7 +3218,7 @@ Purge automatique des sorties au-delà de la durée choisie par l'utilisateur (F
 
 ### Sauvegarde & tirage
 
-Moteur unique de miroir (modèles, base, médias, secrets) et restauration (`restore_backup`). 2026-10-27 : le tirage d'une perte PARTIELLE ne recopie que les fichiers absents (`keep_existing`, `--missing-only`) — un fichier modifié depuis la sauvegarde n'est plus remplacé par sa version ancienne ; procédure : skill `restauration`
+Moteur unique de miroir (modèles, base, médias, secrets) et restauration (`restore_backup`). 2026-10-27 : le tirage d'une perte PARTIELLE ne recopie que les fichiers absents (`keep_existing`, `--missing-only`) — un fichier modifié depuis la sauvegarde n'est plus remplacé par sa version ancienne ; 2026-10-28 : le tirage BORNÉ à ce que la base connaît encore (`keep`, `--known-only` : comptes réels, médiathèque, fichiers qu'une card hors compte de test référence) ; procédure : skill `restauration`
 
 - **Domicile** : `wama/common/services/mirror_sync.py`
 - **Module** : Miroir incrémental d'une arborescence locale vers un espace distant — brique COMMUNE.

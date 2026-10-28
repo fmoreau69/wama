@@ -5330,10 +5330,15 @@ panneau parle `JOB_*`).
 >   pic réel 8,0 Go.
 > - **Limites déclarées** : ① la card n'AFFICHE pas ses process (P5) : la partition écrite
 >   n'est visible que dans l'explorateur de fichiers ; ② « rapatrier les entrées avant de
->   résoudre modèle et VRAM » reste à faire dans le moteur. Et une conséquence assumée :
+>   résoudre modèle et VRAM » reste à faire dans le moteur. ~~Et une conséquence assumée :
 >   `ProcessRun.output_ref` n'est pas suivi par le gestionnaire de fichiers (`repoint`) — une
 >   partition DÉPLACÉE ou une card transférée fait rejouer le process (sortie lue comme
->   disparue), jamais reprendre un fichier qui n'est plus là. L'ETA du process `plan` n'est pas
+>   disparue), jamais reprendre un fichier qui n'est plus là.~~ **Levée le 2026-10-28 (décision
+>   de Fabien, « un comportement universel »)** : `repoint` fait suivre les lignes d'exécution
+>   de tous les mondes, comme les champs fichier — `output_ref` recopie le champ de la card
+>   (mesuré : 99 sur 99), le laisser derrière faisait dire « sortie perdue » à un fichier
+>   seulement déplacé. Une SUPPRESSION ne le touche pas : la ligne garde l'adresse, la bande dit
+>   « sortie perdue », la relance la refait. L'ETA du process `plan` n'est pas
 >   apprise (sa glu ne rend pas de taille).
 > ⏳ **Restent de P3** : les entrées rapatriées avant de résoudre modèle et VRAM, l'adoption par
 > le cam_analyzer (`Pass` → `ProcessSpec`, `AnalysisPass` → `ProcessRun`, coordonnée avec

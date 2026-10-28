@@ -91,19 +91,11 @@ def _est_legitime(rel: str) -> bool:
 
 
 def _references_vives():
-    """{chemin relatif -> 'app.Modele.champ #pk'} pour tous les FileField du dépôt."""
-    from wama.common.utils.file_references import file_field_models
-    refs = {}
-    for modele, champs in file_field_models():
-        try:
-            for ligne in modele.objects.all().only('pk', *[f.name for f in champs]).iterator():
-                for f in champs:
-                    nom = getattr(getattr(ligne, f.name, None), 'name', None)
-                    if nom:
-                        refs[nom.replace('\\', '/')] = f"{modele._meta.label}.{f.name} #{ligne.pk}"
-        except Exception:
-            continue
-    return refs
+    """{chemin relatif -> 'app.Modele.champ #pk'} pour tous les FileField du dépôt — la lecture
+    commune (`file_references.referenced_paths`, 2026-10-28), sur la mesure d'origine de cet
+    audit : champs fichier seuls, aucun modèle exclu."""
+    from wama.common.utils.file_references import referenced_paths
+    return referenced_paths(lists=False, excluded=())
 
 
 #: BUDGETS du contrôle nocturne (`nightly_scenarios`, stage `consistency`) — ils ne peuvent que

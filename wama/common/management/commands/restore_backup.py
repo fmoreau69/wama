@@ -27,7 +27,12 @@ PERTE PARTIELLE (2026-10-27, `media/` effacé puis restauré) : `--missing-only`
 fichiers ABSENTS en local — sans lui, un fichier modifié depuis la sauvegarde (taille différente)
 serait écrasé par sa version ancienne. Procédure complète : skill `restauration`.
 
+PÉRIMÈTRE (2026-10-28) : `--known-only` ne tire que ce que la base connaît encore — dossiers des
+comptes réels, médiathèque, et ailleurs ce qu'une card référence (`known_media`). Sans lui, le
+tirage ramène aussi les dossiers de comptes de test, de comptes supprimés et d'anciennes apps.
+
 Exemples :
+    python manage.py restore_backup --domain media --dry-run --missing-only --known-only
     python manage.py restore_backup --domain media --dry-run --missing-only
     python manage.py restore_backup --domain media --dry-run
     python manage.py restore_backup --domain models --yes
@@ -69,6 +74,48 @@ def _domains() -> dict:
     }
 
 
+def known_media():
+    """Le prédicat du tirage BORNÉ (`--known-only`, décision de Fabien du 2026-10-28) : la
+    sauvegarde ne supprime jamais rien, elle garde donc les dossiers de comptes de TEST, de comptes
+    SUPPRIMÉS et les anciens dossiers d'app. Voyagent : les domiciles des données réelles
+    (`media_guard.DATA_HOMES`) — `users/<id>/` d'un compte réel encore en base, la médiathèque —
+    et, ailleurs, ce qu'une card référence encore (`file_references.referenced_paths`), sauf la
+    card d'un compte de TEST : ce qu'il porte, ce sont ses témoins, où qu'ils soient rangés
+    (mesuré le 2026-10-28 : un témoin `imager/54/output/…` de l'ancienne disposition)."""
+    from collections import defaultdict
+
+    from django.apps import apps
+    from django.contrib.auth import get_user_model
+    from wama.common.services.nightly_tests import is_test_account
+    from wama.common.utils.file_references import referenced_paths
+    from wama.common.utils.media_guard import DATA_HOMES
+    users_home, library_home = DATA_HOMES
+    real, test = set(), set()
+    for user in get_user_model().objects.all():
+        (test if is_test_account(user) else real).add(str(user.pk))
+    refs = referenced_paths(detail=True)
+    cards = defaultdict(set)
+    for label, _field, pk in refs.values():
+        cards[label].add(pk)
+    witnesses = set()
+    for label, pks in cards.items():
+        model = apps.get_model(label)
+        if any(f.attname == 'user_id' for f in model._meta.concrete_fields):
+            witnesses |= {(label, pk) for pk, owner in
+                          model.objects.filter(pk__in=pks).values_list('pk', 'user_id')
+                          if str(owner) in test}
+    referenced = {path for path, (label, _field, pk) in refs.items()
+                  if (label, pk) not in witnesses}
+
+    def keep(rel: str) -> bool:
+        head, _, rest = rel.partition('/')
+        if head == users_home:
+            owner = rest.split('/', 1)[0]
+            return owner in real or (owner not in test and rel in referenced)
+        return head == library_home or rel in referenced
+    return keep
+
+
 class Command(BaseCommand):
     help = "Restaure modèles / médias / secrets depuis l'espace de sauvegarde distant."
 
@@ -86,6 +133,9 @@ class Command(BaseCommand):
         parser.add_argument('--missing-only', action='store_true',
                             help="Ne copie QUE les fichiers absents en local : un fichier présent "
                                  "n'est jamais écrasé, même de taille différente (perte partielle).")
+        parser.add_argument('--known-only', action='store_true',
+                            help="[media] Ne tire que ce que la base connaît encore : dossiers des "
+                                 "comptes réels, médiathèque, et ailleurs ce qu'une card référence.")
 
     # ------------------------------------------------------------------ config
     def _restore_config(self, opts):
@@ -146,6 +196,7 @@ class Command(BaseCommand):
             remote, local,
             overwrite=opts['overwrite'],
             keep_existing=opts['missing_only'],
+            keep=known_media() if opts['known_only'] else None,
             exclude=spec['exclude'],
             dry_run=opts['dry_run'],
         )
@@ -164,6 +215,8 @@ class Command(BaseCommand):
             raise CommandError("Tirage terminé AVEC des échecs (voir ci-dessus).")
 
     def handle(self, *args, **opts):
+        if opts['known_only'] and opts['domain'] != 'media':
+            raise CommandError("--known-only ne vaut que pour --domain media.")
         if opts['domain'] == 'config':
             self._restore_config(opts)
         else:

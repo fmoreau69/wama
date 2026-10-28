@@ -21,6 +21,13 @@ DEUX FAÇONS DE DÉSIGNER UN FICHIER, et une seule met la card en péril :
     (décision du 2026-09-11, `utils/provenance.py::referenced_by`). Déplacer la source, en
     revanche, doit suivre — sinon l'index inverse et la déduplication perdent leur adresse.
 
+LES LIGNES D'EXÉCUTION (`ProcessRun.output_ref`, 2026-10-28) SUIVENT un déplacement (`repoint`)
+mais ne COMPTENT PAS comme des cards qui utilisent le fichier : pour une card, la ligne recopie le
+champ qui le porte déjà (mesuré : 99 sur 99) — la compter ferait dire d'un fichier qu'une card
+retirée « l'utilise encore » (sa propre ligne), et il ne serait jamais libéré. Une suppression
+(`detach`) ne les touche pas : la ligne garde l'adresse, la bande dit « sortie perdue » et la
+relance la refait.
+
 ⚠ `filemanager.UserFile` est EXCLU : c'est l'index du gestionnaire lui-même, tenu par ses propres
 gestes (chaque vue le met à jour à côté). Le compter ferait dire « utilisé par une card » à tout
 fichier du temp.
@@ -130,6 +137,40 @@ def card_files(instance) -> list:
             if name:
                 out.append((f.name, name))
     return out + listed_paths(instance)
+
+
+def referenced_paths(*, lists: bool = True, excluded=EXCLUDED_MODELS, detail: bool = False) -> dict:
+    """`{chemin relatif → 'app.Modèle.champ #pk'}` de TOUT ce que la base désigne : les champs
+    fichier de tout le dépôt et, `lists=True`, les entrées des listes de chemins déclarées ;
+    `detail=True` rend `(label, champ, pk)` au lieu du libellé. Un modèle illisible (table d'une
+    jumelle) est sauté. Lecteurs (2026-10-28) : l'audit `check_media_integrity` (champs fichier
+    seuls, aucun modèle exclu — sa mesure d'origine) et le tirage BORNÉ de
+    `restore_backup --known-only` (ce que la base connaît encore)."""
+    refs = {}
+
+    def note(path, model, name, pk):
+        refs[path] = ((model._meta.label, name, pk) if detail
+                      else f'{model._meta.label}.{name} #{pk}')
+    for model, fields in file_field_models():
+        if model._meta.label in excluded:
+            continue
+        names = [f.name for f in fields]
+        rows = _tolerated(lambda: list(model.objects.values_list('pk', *names)), default=[])
+        for pk, *values in rows:
+            for name, value in zip(names, values):
+                if value:
+                    note(_normalized(value), model, name, pk)
+    if lists:
+        for model, name in path_list_fields():
+            if model._meta.label in excluded:
+                continue
+            rows = _tolerated(lambda: list(model.objects.values_list('pk', name)), default=[])
+            for pk, value in rows:
+                for entry in value if isinstance(value, list) else ():
+                    rel = _entry_rel(entry)
+                    if rel:
+                        note(rel, model, name, pk)
+    return refs
 
 
 def _entry_path(entry) -> str:
@@ -355,12 +396,14 @@ def usage(path, *, folder=False) -> dict:
 
 
 def repoint(old_path, new_path, *, folder=False) -> dict:
-    """Le fichier (ou le dossier) a bougé : chaque lien suit, directs et sources.
+    """Le fichier (ou le dossier) a bougé : chaque lien suit, directs, sources et lignes
+    d'exécution.
 
-    À appeler APRÈS le déplacement réussi sur le disque. Rend `{'direct': n, 'sources': m}`.
+    À appeler APRÈS le déplacement réussi sur le disque. Rend
+    `{'direct': n, 'sources': m, 'lines': k}`.
     """
     old, new = _normalized(old_path), _normalized(new_path)
-    counts = {'direct': 0, 'sources': 0}
+    counts = {'direct': 0, 'sources': 0, 'lines': 0}
     if not old or not new or old == new:
         return counts
 
@@ -401,6 +444,17 @@ def repoint(old_path, new_path, *, folder=False) -> dict:
         for row in rows:
             row.path = _moved(row.path)
             row.save(update_fields=['path'])
+        # Les LIGNES D'EXÉCUTION suivent aussi (2026-10-28, décision de Fabien) : `output_ref`
+        # désigne la sortie d'un process — pour une card, il RECOPIE le champ qui vient de suivre
+        # (mesuré : 99 lignes sur 99). Sans cela, déplacer une partition la faisait dire « sortie
+        # perdue » (`process_runs.output_lost`) et rejouer à la relance — un run du studio aussi.
+        # Toutes les lignes, de tous les mondes : la table est commune.
+        from wama.common.models import ProcessRun
+        rows = (ProcessRun.objects.filter(output_ref__startswith=old + '/') if folder
+                else ProcessRun.objects.filter(output_ref=old))
+        for row in rows:
+            ProcessRun.objects.filter(pk=row.pk).update(output_ref=_moved(row.output_ref))
+            counts['lines'] += 1
     return counts
 
 

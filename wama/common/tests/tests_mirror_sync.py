@@ -16,7 +16,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.services.mirror_sync import LINKS_MANIFEST, mirror_tree
 
@@ -181,6 +181,66 @@ class PartialLossRestoreTest(SimpleTestCase):
         self.assertTrue((self.local / 'users/1/lost.wav').is_file())
         self.assertEqual(b'X:1 corrected by hand since',
                          (self.local / 'users/1/edited.abc').read_bytes())
+
+
+class KnownOnlyRestoreTest(TestCase):
+    """The pull BOUNDED to what the database still knows (`restore_backup --known-only`, Fabien's
+    decision of 2026-10-28) : the backup never deletes, so it keeps test accounts, deleted
+    accounts and old app folders."""
+
+    def setUp(self):
+        from django.contrib.auth import get_user_model
+        from wama.common.services.nightly_tests import TEST_USERNAME
+        self._tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._tmp.cleanup)
+        base = Path(self._tmp.name)
+        self.remote, self.local = base / 'remote', base / 'local'
+        self.local.mkdir()
+        from django.db import models
+        from wama.common.tests.tests_queue_delete_contract import _instance
+        from wama.common.utils.preview_registry import PreviewRegistry
+        users = get_user_model().objects
+        real = users.create_user('known_only_real', password='x')
+        test = users.get_or_create(username=TEST_USERNAME)[0]
+        # Real cards, in the OLD layout `<app>/<id>/output/` : one of a real account (it travels),
+        # one of the test account (its witness never does, wherever it is stored).
+        model = PreviewRegistry.get_model('converter')
+        field = next(f.name for f in model._meta.concrete_fields if isinstance(f, models.FileField))
+        for account, rel in ((real, 'legacyapp/1/output/still_referenced.png'),
+                             (test, 'legacyapp/2/output/witness.png')):
+            card = _instance(model, account)
+            setattr(card, field, rel)
+            card.save()
+        self.files = {
+            f'users/{real.pk}/composer/output/score.abc': True,
+            f'users/{test.pk}/composer/output/witness.abc': False,
+            'users/999999/composer/output/gone_account.abc': False,
+            'media_library/system/voices/default.wav': True,
+            'legacyapp/1/output/still_referenced.png': True,
+            'legacyapp/2/output/witness.png': False,
+            'legacyapp/1/output/unreferenced.png': False,
+            '~Archives/old.txt': False,
+        }
+        for rel in self.files:
+            (self.remote / rel).parent.mkdir(parents=True, exist_ok=True)
+            (self.remote / rel).write_bytes(b'x')
+
+    def test_only_what_the_database_knows_comes_back(self):
+        from io import StringIO
+
+        from django.core.management import call_command
+        from django.test import override_settings
+        with patch.dict(os.environ, {'WAMA_MEDIA_BACKUP_PATH': str(self.remote)}), \
+                override_settings(MEDIA_ROOT=str(self.local)):
+            call_command('restore_backup', domain='media', known_only=True, missing_only=True,
+                         stdout=StringIO())
+        self.assertEqual({rel: kept for rel, kept in self.files.items()},
+                         {rel: (self.local / rel).is_file() for rel in self.files})
+
+    def test_known_only_is_refused_outside_the_media(self):
+        from django.core.management import CommandError, call_command
+        with self.assertRaises(CommandError):
+            call_command('restore_backup', domain='models', known_only=True, dry_run=True)
 
 
 class LastRunKeptTest(SimpleTestCase):

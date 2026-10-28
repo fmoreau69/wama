@@ -807,7 +807,10 @@ MECHANISMS = (
               "fichier) ou par sa PROVENANCE (elle a sa copie — information, jamais un blocage). "
               "Une entrée d'une LISTE DE CHEMINS déclarée (`path_list_fields`, les images d'une "
               "génération de l'imager) désigne au même titre qu'un `FileField` : chaque question et "
-              "chaque geste lit les deux formes (D35, 2026-10-02). "
+              "chaque geste lit les deux formes (D35, 2026-10-02). 2026-10-28 : un déplacement fait "
+              "aussi suivre les LIGNES D'EXÉCUTION (`ProcessRun.output_ref`, tous les mondes), qui "
+              "ne comptent pas comme des cards qui utilisent le fichier ; `referenced_paths` est LA "
+              "lecture de tout ce que la base désigne (audit des médias, tirage borné). "
               "⚠ `filemanager.UserFile` est exclu : c'est l'index du gestionnaire lui-même",
               'wama/common/utils/file_references.py',
               'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md',
@@ -2589,7 +2592,9 @@ MECHANISMS = (
               "Moteur unique de miroir (modèles, base, médias, secrets) et restauration "
               "(`restore_backup`). 2026-10-27 : le tirage d'une perte PARTIELLE ne recopie que "
               "les fichiers absents (`keep_existing`, `--missing-only`) — un fichier modifié "
-              "depuis la sauvegarde n'est plus remplacé par sa version ancienne ; procédure : "
+              "depuis la sauvegarde n'est plus remplacé par sa version ancienne ; 2026-10-28 : le "
+              "tirage BORNÉ à ce que la base connaît encore (`keep`, `--known-only` : comptes réels, "
+              "médiathèque, fichiers qu'une card hors compte de test référence) ; procédure : "
               "skill `restauration`",
               'wama/common/services/mirror_sync.py', '',
               annexes=('wama/common/services/config_backup.py',

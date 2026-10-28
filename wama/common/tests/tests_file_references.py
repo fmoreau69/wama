@@ -117,6 +117,58 @@ class FileReferencesBrickTest(_TempMediaMixin, TestCase):
                 self.assertEqual(self._temp(account, f'moved_{surface}/deep/f.bin'),
                                  getattr(el, field).name)
 
+    def test_moving_a_file_or_a_folder_carries_the_execution_lines_too(self):
+        """2026-10-28 (Fabien) : the line of a process RECOPIES the field of its card — moving the
+        file left it behind, and the band said « sortie perdue » for a file that had only moved."""
+        from wama.common.services import process_runs
+        from wama.common.utils.file_references import repoint
+        for surface, account, model in self._fleet():
+            with self.subTest(surface=surface):
+                old = self._write(self._temp(account, f'line_{surface}/out.bin'))
+                el, _field = self._card_pointing_at(model, account, old)
+                process_runs.succeed(el, 'render', output_ref=old)
+                bystander, _ = self._card_pointing_at(model, account, self._temp(account, 'b.bin'))
+                process_runs.succeed(bystander, 'render', output_ref=self._temp(account, 'b.bin'))
+                moved = self._temp(account, f'line_{surface}/renamed.bin')
+                (Path(self.tmp) / old).rename(Path(self.tmp) / moved)
+                self.assertEqual(1, repoint(old, moved)['lines'])
+                line = process_runs.line(el, 'render')
+                self.assertEqual(moved, line.output_ref)
+                self.assertFalse(process_runs.output_lost(line), 'a moved file is not lost')
+                self.assertEqual(self._temp(account, 'b.bin'),
+                                 process_runs.line(bystander, 'render').output_ref)
+                folder = self._temp(account, f'line_{surface}')
+                repoint(folder, self._temp(account, f'moved_line_{surface}'), folder=True)
+                self.assertEqual(self._temp(account, f'moved_line_{surface}/renamed.bin'),
+                                 process_runs.line(el, 'render').output_ref)
+
+    def test_referenced_paths_reads_every_card_of_the_fleet(self):
+        """The read shared by the media audit and the bounded pull (`referenced_paths`)."""
+        from wama.common.utils.file_references import referenced_paths
+        cards = []
+        for surface, account, model in self._fleet():
+            rel = self._temp(account, f'referenced_{surface}.bin')
+            el, field = self._card_pointing_at(model, account, rel)
+            cards.append((rel, f'{model._meta.label}.{field} #{el.pk}'))
+        found = referenced_paths()
+        for rel, origin in cards:
+            with self.subTest(path=rel):
+                self.assertEqual(origin, found.get(rel))
+        self.assertNotIn(self._temp(account, 'nobody.bin'), found)
+
+    def test_deleting_a_file_keeps_the_line_which_says_the_output_is_lost(self):
+        from wama.common.services import process_runs
+        from wama.common.utils.file_references import detach
+        surface, account, model = next(self._fleet())
+        rel = self._write(self._temp(account, f'deleted_{surface}.bin'))
+        el, _field = self._card_pointing_at(model, account, rel)
+        process_runs.succeed(el, 'render', output_ref=rel)
+        (Path(self.tmp) / rel).unlink()
+        detach(rel)
+        line = process_runs.line(el, 'render')
+        self.assertEqual(rel, line.output_ref, 'the line keeps the address it produced')
+        self.assertTrue(process_runs.output_lost(line))
+
     def test_detaching_empties_the_link_and_keeps_the_card(self):
         from wama.common.utils.file_references import detach, direct_references
         for surface, account, model in self._fleet():
