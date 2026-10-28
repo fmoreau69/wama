@@ -26,6 +26,8 @@ from pathlib import Path
 
 import numpy as np
 
+from wama.common.tts.voices import kokoro_voices
+
 from .tts_base import TTSBackend, ai_models_dir, write_wav_int16
 
 logger = logging.getLogger(__name__)
@@ -129,6 +131,12 @@ class KokoroOnnxBackend(TTSBackend):
     default_top_p = None
     #: Même rôle TEMPS RÉEL que le jumeau .pt (vocalisation assistant, preview) → chaud.
     keep_resident = True
+    #: Premier son, MESURÉ le 2026-10-28 par le service vocal (dix phrases d'assistant, une phrase
+    #: rendue en un fichier) : 0,26 s de médiane (pire 0,46 s) — lu par le choix automatique de
+    #: la voix de l'assistant.
+    first_audio_s = 0.26
+    #: Ses voix propres (2026-10-28) : celles de la table commune, une par langue et par genre.
+    VOICES = kokoro_voices()
     #: kokoro_onnx expose des timings, non câblés ici — on ne promet rien d'invérifié.
     supports_timestamps = False
     fallback_languages = sorted(ESPEAK_FALLBACK)
@@ -237,12 +245,12 @@ class KokoroOnnxBackend(TTSBackend):
         la durée de ses phonèmes, et le nôtre ne la rend pas (`has_timings` faux ; mesuré :
         3,58 s de son quelles que soient les valeurs passées). La boucle qui le faisait ICI est
         montée au contrat, pour tous les moteurs."""
-        # Même brique de résolution langue→voix que le jumeau .pt (zéro duplication) :
-        # les noms de voix du dépôt ONNX sont IDENTIQUES à ceux du dépôt .pt.
-        from wama.common.tts.voices import voix_pour
+        # Même brique de résolution que le jumeau .pt (zéro duplication) : les noms de voix du
+        # dépôt ONNX sont IDENTIQUES à ceux du dépôt .pt — une voix choisie, sinon celle de la langue.
+        from wama.common.tts.voices import kokoro_voice
         if self._kokoro is None:
             self.load()
-        voice = voix_pour(language, voice_preset in ('male_1', 'male_2'))
+        voice = kokoro_voice(language, voice_preset)
         from wama.common.utils.tts_text import phonemes_with_lexicon
         lang = ESPEAK_LANG.get(language) or ESPEAK_FALLBACK.get(language) or 'en-us'
         tokenizer = self._kokoro.tokenizer

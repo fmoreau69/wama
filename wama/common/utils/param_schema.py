@@ -207,6 +207,8 @@ class Param:
                                                 # raison dite, quand le modèle ne le LIT pas : capacité
                                                 # liste (`params`, appartenance du nom) ou booléenne
                                                 # (`supports_*`) ; inconnue ou « auto » → intact.
+                                                # "mode": "voices" (2026-10-28, `voices_of`) — un select
+                                                # de voix ne garde que celles du modèle choisi.
     display_format: str = ""                    # FORMAT d'affichage de la valeur (2026-10-04) : "duration"
                                                 # (secondes → « 3:30 ») | "size" (octets → « 3,8 Go »).
                                                 # Remplace le suffixe nu `unit` partout où la valeur se LIT :
@@ -459,6 +461,15 @@ def top_p_param(model_field: str, **overrides) -> dict:
     )
     base.update(overrides)
     return base
+
+
+def voices_of(model_field: str) -> dict:
+    """La liaison `cap_from` d'un select de VOIX (`options_source='voices'`) au choix de modèle
+    `model_field` (2026-10-28) : il ne garde que les voix que ce modèle peut dire — pas de voix
+    clonée sous un moteur qui ne clone pas, la voix propre d'un moteur sous lui seul (Phonon,
+    Kokoro, Bark) — par la règle commune `WamaModelCaps.cloneVoiceFilter`. Toutes les surfaces
+    où les deux champs sont rendus : volet, modale d'élément, modale de lot."""
+    return {'field': model_field, 'capability': 'voices', 'mode': 'voices'}
 
 
 #: Les réglages de TIRAGE d'un modèle — leur nom au schéma, sans préfixe, dans `options` et dans

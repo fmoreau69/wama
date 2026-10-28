@@ -72,12 +72,6 @@ def home(request):
     # droit (il n'ouvre que le site d'administration Django, posé par `set_account_tier`).
     from wama.accounts.views import is_admin as _predicat_admin
     est_admin = _predicat_admin(request.user)
-    # Voix de l'assistant DÉRIVÉES de la langue du profil (brique commune) au lieu des 3
-    # options écrites en dur dans le gabarit — qui ignoraient `preferred_language` et 13 des
-    # 16 voix disponibles. `preferred_language` vient déjà du context processor global, mais
-    # la LISTE doit être construite côté serveur : c'est là que vit la table des voix.
-    from wama.common.tts.voices import choix_voix
-    langue = getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'fr'
     # Accueil DÉCLARÉ, variant selon l'état de connexion : un visiteur non identifié doit
     # toujours s'entendre dire le parcours (s'identifier, puis attendre la modération). Voir
     # `assistant_skills.greeting()` pour le pourquoi du déclaratif plutôt que du généré.
@@ -107,7 +101,6 @@ def home(request):
         # Fil `web` de l'utilisateur, relu du store SERVEUR (plus du localStorage) : la même
         # conversation se retrouve sur tout appareil.
         'chat_thread': _chat_thread(request.user),
-        'voix_assistant': choix_voix(langue),
         # Volet = l'AVATAR SEUL, en bloc de tête (`right_panel_top`, home.html). Les trois
         # sections restaient rendues SOUS lui — « Sélectionnez un fichier pour l'aperçu » sur
         # l'accueil — parce que `base.html` les servait à toute page (WAMA_VOLETS §5).
@@ -481,6 +474,25 @@ def ai_chat_settings(request):
                                               "d'API, ou votre profil est en « 100 % local »."},
                                     status=403)
         valeurs['model'] = modele or USER_SETTINGS_DEFAULTS['model']
+    # Le modèle de VOIX et la voix (2026-10-28) : un modèle de synthèse que le compte voit, une
+    # voix que la source commune lui propose — jamais un choix que la vocalisation refuserait.
+    if 'voice_model' in data:
+        voice_model = (data.get('voice_model') or '').strip()
+        if not is_auto(voice_model):
+            # Le domaine du menu (`options_query` du schéma) : ce qui s'y choisit, rien d'autre.
+            from wama.model_manager.models import AIModel
+            from wama.model_manager.services.model_selector import domain_q
+            query = next(p['options_query'] for p in PARAMS_JSON if p['name'] == 'voice_model')
+            if not (AIModel.objects.catalogue_visible_to(request.user)
+                    .filter(domain_q(query), model_key=voice_model).exists()):
+                return JsonResponse({'error': f"Modèle de voix inconnu : {voice_model}"}, status=400)
+        valeurs['voice_model'] = voice_model or USER_SETTINGS_DEFAULTS['voice_model']
+    if 'voice_preset' in data:
+        from wama.common.utils.voice_options import voice_display_options
+        voice = (data.get('voice_preset') or '').strip() or USER_SETTINGS_DEFAULTS['voice_preset']
+        if voice not in {v for v, _ in voice_display_options(request.user)}:
+            return JsonResponse({'error': f"Voix inconnue : {voice}"}, status=400)
+        valeurs['voice_preset'] = voice
     if not valeurs:
         return JsonResponse({'error': 'Aucun réglage connu dans la requête'}, status=400)
     save_user_app_settings(request.user, 'assistant', valeurs)
@@ -652,37 +664,33 @@ def _voice_options(user) -> dict:
             'clause_pause': settings_.get('voice_clause_pause')}
 
 
-def _tts_via_service(text: str, voice: str, options: dict = None, user=None):
+def _tts_via_service(text: str, voice: dict, options: dict = None, user=None):
     """
     Génère la vocalisation via le microservice TTS (modèle chaud, process dédié → pas de
     course env dans Django). Renvoie le WAV en base64, ou None si le service est indisponible
     (→ l'appelant retombe sur Kokoro en-process).
 
-    Mapping exact voix brute → (language, voice_preset) : le service TTS RECALCULE la même
-    voix de son côté, il faut donc lui passer la langue qui redonne cette voix-là. La
-    convention de nommage Kokoro est encapsulée par `common/tts/voices.langue_de_voix()`
-    (elle était dépliée ici, en miroir du calcul aller du backend).
+    `voice` : `{model, voice_preset, language}` (`common/tts/assistant_voice.assistant_voice`,
+    2026-10-28) — le modèle choisi ou tiré, la voix, la langue du profil. Le moteur se résout au
+    catalogue par le client commun (`tts_engine_declared`), comme pour le synthesizer ; la voix
+    clonée d'un moteur qui clone, par la même porte (`speaker_wav_for`). Jusque-là : une
+    constante d'environnement pour le moteur, et le nom d'une voix Kokoro relu à l'envers en
+    (langue, genre) — R184.
     """
     try:
         import base64
-        from wama.common.tts.constants import ASSISTANT_TTS_ENGINE
         from wama.common.tts.service_client import tts_via_service
-        from wama.common.tts.voices import langue_de_voix
+        from wama.common.tts.voice_refs import speaker_wav_for
 
-        # Sens RETOUR (voix → langue) : brique COMMUNE. Le calcul était écrit ici en miroir
-        # de celui du backend Kokoro — deux exemplaires d'une même table lue à l'envers.
-        language, is_male = langue_de_voix(voice)
-        voice_preset = 'male_1' if is_male else 'default'
-
+        if not voice.get('model'):
+            raise RuntimeError("aucun modèle de voix temps réel installé")
         # Client COMMUN du service (2026-08-28) ; ici TOUTE indisponibilité — 503
         # « loading » compris — vaut repli en-process, d'où le except large.
-        # Moteur DÉCLARÉ (constants.ASSISTANT_TTS_ENGINE — 'kokoro-onnx' par défaut
-        # depuis le 2026-08-31, bascule par WAMA_ASSISTANT_TTS_ENGINE), plus un
-        # littéral ici. Les NOMS DE VOIX sont identiques entre les deux moteurs
-        # (mêmes voix Kokoro), donc le calcul voix→langue ci-dessus vaut pour les deux.
-        wav = tts_via_service(text, ASSISTANT_TTS_ENGINE, language=language,
-                              voice_preset=voice_preset, options=options, read_timeout=30,
-                              raw=True, user=user)
+        wav = tts_via_service(
+            text, voice['model'], language=voice['language'], voice_preset=voice['voice_preset'],
+            speaker_wav=speaker_wav_for(voice['model'], voice['voice_preset'], user,
+                                        language=voice['language']),
+            options=options, read_timeout=30, raw=True, user=user)
         return base64.b64encode(wav).decode('utf-8')
     except Exception as e:
         logger.info(f"[kokoro_tts] TTS service indisponible ({e}) → repli en-process")
@@ -693,8 +701,10 @@ def _tts_via_service(text: str, voice: str, options: dict = None, user=None):
 @csrf_protect
 def kokoro_tts(request):
     """
-    Generate TTS audio with Kokoro and return a base64-encoded WAV.
-    Body: {"text": "...", "voice": "ff_siwis"}
+    La voix de l'assistant : le texte dit par son modèle de voix, en WAV base64.
+    Body: {"text": "..."} — le modèle et la voix sont les réglages DURABLES du compte
+    (`assistant/params.py` : `voice_model`, `voice_preset`, 2026-10-28), la langue celle de son
+    profil : une surface sans sélecteur (API, canal) parle comme l'accueil.
 
     `pronunciation` (facultatif, 2026-10-27) : la clé d'une prononciation que le compte VOIT —
     elle est dite pour cette demande, la sienne ou celle qu'on lui partage : on écoute une
@@ -705,14 +715,8 @@ def kokoro_tts(request):
     try:
         data = json.loads(request.body)
         text = (data.get('text') or '').strip()
-        # Défaut = la voix de la LANGUE DU PROFIL, plus `ff_siwis` en dur. Un utilisateur dont
-        # le profil dit `en` était vocalisé en français alors que le synthesizer, lui, respecte
-        # `preferred_language` depuis toujours. Le client reste maître : s'il envoie `voice`,
-        # c'est le sien qui prime — seul le DÉFAUT change. Vaut donc aussi pour une surface
-        # sans sélecteur (API, bot), qui n'en enverra jamais.
-        from wama.common.tts.voices import voix_pour
-        langue = getattr(getattr(request.user, 'profile', None), 'preferred_language', None) or 'fr'
-        voice = data.get('voice') or voix_pour(langue)
+        from wama.common.tts.assistant_voice import assistant_voice
+        voice = assistant_voice(request.user)
         if not text:
             return JsonResponse({'error': 'text requis'}, status=400)
 
@@ -738,15 +742,15 @@ def kokoro_tts(request):
         if audio_b64 is not None:
             return JsonResponse({'audio_b64': audio_b64, 'spoken': text})
 
-        # 2) Repli en-process (service indisponible) — comportement historique, même voix.
-        # Derive lang_code from voice prefix (ff_siwis → 'f', am_adam → 'a')
-        lang_code = voice[0] if voice else 'f'
+        # 2) Repli en-process (service indisponible) : Kokoro .pt, la voix choisie si c'en est
+        # une de Kokoro, sinon celle de la langue (`kokoro_voice`).
+        from wama.common.tts.voices import code_langue, kokoro_voice
+        voice_language = voice['language']
+        lang_code = code_langue(voice_language)
         pipeline = _get_kokoro(lang_code)
         # Le lexique de prononciation (fichier + lignes du compte), comme par le service (27/10).
         from wama.common.backends.kokoro_backend import say_lexicon_through
         from wama.common.services.user_pronunciations import lexicon_for
-        from wama.common.tts.voices import langue_de_voix
-        voice_language = langue_de_voix(voice)[0]
         said = say_lexicon_through(pipeline, lang_code, voice_language, text,
                                    {**lexicon_for(request.user, voice_language), **tried})
 
@@ -756,7 +760,8 @@ def kokoro_tts(request):
         import numpy as np
 
         samples = []
-        for _, _, audio in pipeline(said, voice=voice, speed=1.0):
+        for _, _, audio in pipeline(said, voice=kokoro_voice(voice_language, voice['voice_preset']),
+                                    speed=1.0):
             if audio is not None:
                 arr = audio.numpy() if hasattr(audio, 'numpy') else np.array(audio)
                 samples.append(arr)

@@ -2740,9 +2740,16 @@ MECHANISMS = (
               "ingest initial ET téléchargements). Les voix VIVENT en médiathèque depuis le "
               "2026-09-13 (28 versées, dossier `voice_references/` retiré) ; le service TTS "
               "ne résout plus rien. Quatre consommateurs : synthesizer, avatarizer, "
-              "`voice_options` (menus), assistant",
+              "`voice_options` (menus), assistant. Depuis le 2026-10-28, les voix PROPRES d'un "
+              "moteur (Phonon, Kokoro, Bark — `TTSBackend.VOICES`, portées par le catalogue) : un "
+              "groupe par modèle (`engine_voice_groups`), montré sous ce seul modèle par la règle "
+              "commune du navigateur (`WamaModelCaps.cloneVoiceFilter`, `cap_from` en mode "
+              "`voices`) ; et la voix de l'ASSISTANT — modèle choisi ou tiré « auto », le plus "
+              "rapide en temps réel (`assistant_voice`)",
               'wama/common/tts/voice_refs.py', 'docs/construction/exploitation/MEDIA_STORAGE_TIERING.md §9.4',
               annexes=('wama/common/utils/voice_options.py',
+                       'wama/common/tts/assistant_voice.py',
+                       'wama/common/tests/tests_voice_choice.py',
                        'wama/media_library/management/commands/ingest_voice_refs.py',
                        'wama/common/tests/tests_voice_refs.py')),
     Mechanism('tts_text', 'Le texte À DIRE (préparation avant vocalisation)',
@@ -2767,7 +2774,8 @@ MECHANISMS = (
               "`common/tts/pronunciations.json` et les lignes d'un compte (registre "
               "`pronunciations`), qu'un moteur dit par l'orthographe (`respell_with_lexicon`, au "
               "contrat commun) ou par les phonèmes (`phonemes_with_lexicon`, Kokoro) — joint à la "
-              "demande par `tts_via_service(user=)`, le service vocal n'ayant pas Django",
+              "demande par `tts_via_service(user=)`, le service vocal n'ayant pas Django ; une "
+              "entrée `exact_case` ne vaut que dans sa casse (les unités, « 8 Go », 2026-10-28)",
               'wama/common/utils/tts_text.py', 'docs/construction/ia/WAMA_LLM.md §1bis',
               annexes=('wama/common/tests/tests_tts_text.py',
                        'wama/synthesizer/utils/text_extractor.py',

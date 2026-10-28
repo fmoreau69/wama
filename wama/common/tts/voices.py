@@ -66,29 +66,30 @@ def langue_de_voix(voix: str) -> tuple[str, bool]:
     return langue, masculin
 
 
-def choix_voix(langue_preferee: str = 'fr') -> list[dict]:
-    """Voix proposables, la langue préférée EN TÊTE.
-
-    Rend des dicts (et non des tuples) parce que l'UI a besoin de plus que valeur/libellé :
-    `preferee` pour présélectionner, `repli` pour avertir. Le sélecteur de l'assistant était
-    jusqu'ici une liste de 3 options ÉCRITE EN DUR, ignorant `preferred_language` et 13 des
-    16 voix de la table.
-    """
-    vues: set[str] = set()
-    choix: list[dict] = []
-    langues = sorted(_LANGUES_PROPRES, key=lambda l: (l != langue_preferee, l))
-    for langue in langues:
-        for masculin in (False, True):
-            voix = voix_pour(langue, masculin)
-            if voix in vues:
+def kokoro_voices() -> tuple[dict, ...]:
+    """Les voix PROPRES de Kokoro — une par langue servie et par genre (le FR n'a qu'une voix) —
+    au format des voix de moteur (`TTSBackend.VOICES`, 2026-10-28) : `{value, label, language,
+    gender}`. Les deux moteurs Kokoro les déclarent ; le catalogue les porte (`apply_engine_flags`),
+    d'où la source commune des voix les propose sous eux seuls — l'assistant comme le synthesizer.
+    Remplace `choix_voix`, la liste que l'accueil était seul à proposer (REMOVAL_LEDGER R184)."""
+    seen: set[str] = set()
+    voices: list[dict] = []
+    for language, label in _LANGUES_PROPRES.items():
+        for male in (False, True):
+            voice = voix_pour(language, male)
+            if voice in seen:
                 continue          # ex. le FR n'a pas de voix masculine → une seule entrée
-            vues.add(voix)
-            genre = 'Masculin' if masculin else 'Féminin'
-            choix.append({
-                'valeur': voix,
-                'libelle': f"{_LANGUES_PROPRES[langue]} {genre}",
-                'langue': langue,
-                'preferee': langue == langue_preferee,
-                'repli': False,
-            })
-    return choix
+            seen.add(voice)
+            voices.append({'value': voice, 'label': f"{label} {'masculin' if male else 'féminin'}",
+                           'language': language, 'gender': 'male' if male else 'female'})
+    return tuple(voices)
+
+
+def kokoro_voice(language: str, voice_preset: str = 'default') -> str:
+    """La voix Kokoro que désigne `voice_preset` : la sienne (un nom de la table, `ff_siwis`), sinon
+    celle de la langue au genre du préréglage commun (`male_1`…). Une voix d'un autre moteur ne se
+    dit pas ici : la voix de la langue."""
+    preset = (voice_preset or 'default').strip()
+    if preset in KOKORO_VOICE_MAP.values():
+        return preset
+    return voix_pour(language, preset in ('male_1', 'male_2'))

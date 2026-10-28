@@ -9,7 +9,7 @@ optgroups server-rendered pour l'instant). cardSettings (côté JS) lit les data
 """
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import (derive_from_model, schema_to_dicts, seed_param,
-                                            temperature_param, top_p_param)
+                                            temperature_param, top_p_param, voices_of)
 from wama.avatarizer.models import AvatarJob
 from wama.avatarizer.utils.model_config import ANIMATION_SPEC
 
@@ -103,6 +103,7 @@ PARAMS = derive_from_model(
                              remember=True, stales=("speak",)),
         "voice_preset": dict(type="select", label="Voix", icon="fa-user", chip=True,
                              show_if="text_content", options_source="voices",
+                             cap_from=voices_of("tts_model"),
                              dom_id={"panel": "voice_preset", "item": "settingsVoicePreset",
                                      "batch": "batchSettingsVoicePreset"}, contexts=PANEL_ITEM_BATCH,
                              remember=True, stales=("speak",)),

@@ -18,10 +18,13 @@ Source COMMUNE des options de voix (TTS) — centralise ce qui était rendu en o
                                   miennes ; décision de Fabien : « une voix partagée doit être
                                   accessible en fonction des droits de chacun »). Le groupe
                                   n'apparaît pas s'il est vide
-  4. Bark (presets)             → constantes BARK_PRESETS
+  4. Voix propres des moteurs   → une par modèle du catalogue qui en déclare (`capabilities.voices`,
+                                  2026-10-28 : Bark, Kokoro, Phonon) ; chaque option porte son
+                                  modèle (`attributes.model` → `data-model`)
 
-Le FILTRAGE par modèle (cacher le clonage `ua_` si supports_cloning=false, restreindre les langues)
-est déjà centralisé côté client par WamaModelCaps (lit AIModel.capabilities) — pas dupliqué ici.
+Le FILTRAGE par modèle (cacher le clonage `ua_` si supports_cloning=false, ne montrer une voix de
+moteur que sous SON modèle, restreindre les langues) est centralisé côté client par WamaModelCaps
+(lit AIModel.capabilities) — pas dupliqué ici.
 
 Consommé : par les vues (passage JSON au template) et par l'endpoint commun de voix → WamaParams
 résout `options_source='voices'` depuis ces groupes. Lève le verrou d'uniformisation du Synthesizer
@@ -30,15 +33,6 @@ résout `options_source='voices'` depuis ces groupes. Lève le verrou d'uniformi
 from __future__ import annotations
 
 import json
-
-# Presets Bark statiques (indépendants de l'utilisateur).
-BARK_PRESETS = [
-    ("bark_v2_en_0", "Bark EN Speaker 0"), ("bark_v2_en_1", "Bark EN Speaker 1"),
-    ("bark_v2_en_2", "Bark EN Speaker 2"), ("bark_v2_en_3", "Bark EN Speaker 3"),
-    ("bark_v2_en_4", "Bark EN Speaker 4"), ("bark_v2_en_5", "Bark EN Speaker 5"),
-    ("bark_v2_fr_0", "Bark FR Speaker 0"), ("bark_v2_fr_1", "Bark FR Speaker 1"),
-    ("bark_v2_es_0", "Bark ES Speaker 0"), ("bark_v2_de_0", "Bark DE Speaker 0"),
-]
 
 def get_voice_groups(user) -> list[dict]:
     """Groupes de voix (optgroups) pour l'utilisateur, format WamaParams option_groups."""
@@ -100,8 +94,37 @@ def get_voice_groups(user) -> list[dict]:
     except Exception:
         pass
 
-    # 4. Bark presets.
-    groups.append({"key": "bark", "group": "Bark (presets)", "options": list(BARK_PRESETS)})
+    # 4. Les voix PROPRES des moteurs (2026-10-28) : un groupe par modèle du catalogue qui en
+    # déclare (`capabilities.voices`, posées par `apply_engine_flags` depuis la classe du moteur —
+    # Bark, Kokoro, Phonon). Chaque option porte son modèle (`data-model`) : le filtre commun ne la
+    # montre que sous LUI (`WamaModelCaps.cloneVoiceFilter`). Les préréglages Bark étaient ici une
+    # copie de `constants.VOICE_PRESET_CHOICES`, offerte sous TOUT moteur.
+    groups.extend(engine_voice_groups(user))
+    return groups
+
+
+def engine_voice_groups(user) -> list[dict]:
+    """Les groupes de voix propres aux moteurs, un par modèle visible qui en déclare."""
+    try:
+        from wama.model_manager.models import AIModel
+        rows = (AIModel.objects.catalogue_visible_to(user)
+                .filter(capabilities__has_key="voices").order_by("name")
+                .values_list("model_key", "name", "capabilities"))
+    except Exception:
+        return []
+    groups = []
+    for key, name, caps in rows:
+        voices = [v for v in ((caps or {}).get("voices") or []) if v.get("value")]
+        if not voices:
+            continue
+        groups.append({
+            "key": f"engine:{key}",
+            "group": f"Voix de {name}",
+            "options": [(v["value"], v.get("label") or v["value"]) for v in voices],
+            "attributes": {v["value"]: {"model": key,
+                                        **({"language": v["language"]} if v.get("language") else {})}
+                           for v in voices},
+        })
     return groups
 
 

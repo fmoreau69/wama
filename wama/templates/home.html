@@ -24,7 +24,10 @@
 {% block javascript %}
 {{ block.super }}
 {% comment %}`wama-params.js` n'est PAS une brique globale de `base.html` (cf. `_app_scripts.html`) :
-chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2026-09-16.{% endcomment %}
+chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2026-09-16.
+`wama-model-caps.js` (2026-10-28) : la règle des voix que son champ « Voix » lit (`cap_from` en mode
+`voices`) — les voix du modèle de voix choisi.{% endcomment %}
+<script src="{% static_v 'common/js/wama-model-caps.js' %}"></script>
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
 <script>
   window.WAMA_IS_HOME = true;
@@ -57,7 +60,6 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       // une clé de localStorage — on efface l'ancienne, qui n'a plus de lecteur.
       try { localStorage.removeItem('wama_ai_voice_{{ request.user.username }}'); } catch(e) {}
       const voiceToggleBtn = document.getElementById('ai-voice-toggle');
-      const voiceSelect = document.getElementById('ai-voice-select');
 
       {% comment %}« Effacer » est un geste de la BRIQUE (`data-clear-url`) : elle supprime le
       fil côté serveur puis réaffiche l'accueil déclaré. Ce gabarit ne fait que lui câbler son
@@ -105,17 +107,11 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
       }
 
       // ── Voix : bouton commun 🔊/🔇/⏹ (arrête une lecture en cours, sinon muet/actif) ──
-      // L'état initial (préférence durable) et la langue viennent du volet (base.html) ; cette
-      // page n'ajoute que le CHOIX de la voix Kokoro, qu'elle est seule à proposer.
-      WamaAssistantVoice.configure({ voice: voiceSelect.value, lang: VOICE_LANG });
-      voiceSelect.addEventListener('change', function () {
-        WamaAssistantVoice.configure({ voice: voiceSelect.value });
-      });
-      WamaAssistantVoice.onChange(function (state) {
-        voiceSelect.style.display = state.enabled ? 'inline-block' : 'none';
-      });
+      // L'état initial (préférence durable) et la langue viennent du volet (base.html). Le
+      // modèle de voix et la voix sont des réglages du schéma (groupe « Voix », 2026-10-28) :
+      // le sélecteur Kokoro que cette page était seule à proposer, sans le retenir, est retiré.
+      WamaAssistantVoice.configure({ lang: VOICE_LANG });
       WamaAssistantVoice.bindButton(voiceToggleBtn);
-      voiceSelect.style.display = WamaAssistantVoice.isEnabled() ? 'inline-block' : 'none';
 
       // ── Avatar parlant : brique COMMUNE `WamaAvatarPanel` (base.html) ─────────
       // Conteneur, chargement à la demande, repli et PERSISTANCE de la préférence vivent
@@ -179,16 +175,6 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h4 class="mb-0"><i class="fas fa-comments"></i> AI Assistant</h4>
           <div class="d-flex gap-2 align-items-center">
-            {% comment %}
-              Voix GÉNÉRÉES depuis la langue du profil (vue home → common/tts/voices.choix_voix).
-              Trois options étaient écrites en dur ici — elles ignoraient `preferred_language`
-              et 13 des 16 voix de la table. La première est celle de la langue préférée.
-            {% endcomment %}
-            <select id="ai-voice-select" class="form-select form-select-sm" style="background:var(--wama-chat-bg);border:1px solid var(--wama-border-strong);color:var(--wama-text-bright);width:auto;">
-              {% for v in voix_assistant %}
-              <option value="{{ v.valeur }}"{% if forloop.first %} selected{% endif %}>{{ v.libelle }}</option>
-              {% endfor %}
-            </select>
             <button id="ai-voice-toggle" class="btn btn-outline-secondary btn-sm" title="Activer la vocalisation">
               <i class="fas fa-volume-mute"></i>
             </button>
@@ -243,6 +229,7 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
                  data-jobs-url="{% url 'ai_chat_jobs' %}"
                  data-settings-url="{% url 'ai_chat_settings' %}"
                  data-params-script="{% static_v 'common/js/wama-params.js' %}"
+                 data-caps-script="{% static_v 'common/js/wama-model-caps.js' %}"
                  data-thread-el="ai-chat-thread"
                  data-waiting="{{ accueil_assistant.attente }}"
                  data-waiting-after-ms="{{ accueil_assistant.attente_apres_ms }}">

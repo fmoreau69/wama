@@ -27009,3 +27009,36 @@ Suite de `§CLÔTURE 2026-10-28 (fin de matinée)`.
   (session briques UI).
 - Pendings système : relancer gunicorn + workers (le code du défaut sur la ligne ne sert qu'après) ·
   pousser `dev`.
+
+## §PALIER 2026-10-28 (soir), « PHONON PARTOUT + LES UNITÉS DITES + LE MODÈLE DE VOIX DE L'ASSISTANT » — non poussé — 🔴 relancer gunicorn ET le SERVICE VOCAL (il découvre `PhononBackend` à l'import) ; la relance synchronise le catalogue (`model_manager/apps.py`), Ctrl+F5
+
+Demandes de Fabien : *« Phonon me semble très bien. On l'intègre proprement partout où il a du sens
+(service TTS aussi […]) et câblé à tout ce qui est TTS comme les durées de silences »*, *« Pour la
+diction […] C'est ce qu'il faut réutiliser pour gérer les termes comme GO »*, *« peut-on remettre le
+bouton d'envoi d'un message au bout de la ligne du message »*, puis *« ne faut-il pas permettre de
+choisir son modèle de vocalisation ? »*. Détail : `WAMA_LLM.md` (bloc « Phonon partout »),
+`INPUT_MODEL_MATCHING` (addendum du 28/10), `REMOVAL_LEDGER R184`.
+- **Phonon** : `PhononBackend` (moteur `phonon`, processeur, `ptts`), ligne du catalogue avec son
+  moteur et ce qu'il déclare (voix, temps réel, premier son 1,1 s mesuré, température, graine) ; le
+  contrat commun lui donne pauses et lexique. Le synthesizer et l'avatarizer l'ont par le catalogue.
+- **Les voix propres d'un moteur** (Phonon, Kokoro, Bark) : déclarées par la classe, portées par le
+  catalogue, un groupe par modèle dans la source commune, montrées sous leur seul modèle par la règle
+  commune — sur toutes les surfaces du champ de voix (`cap_from` mode `voices`), plus seulement au
+  volet du synthesizer.
+- **Les unités** : entrées `exact_case` du lexique (Go, GO, Mo, To, GB… → « gigaoctets ») ; chaque
+  terme du fichier porte une orthographe pour les moteurs qui lisent du texte.
+- **L'assistant** : réglages durables `voice_model` / `voice_preset` (groupe « Voix »), « auto » =
+  le plus rapide en temps réel dans la langue du profil (Kokoro ONNX aujourd'hui) ; retirés : la
+  constante `ASSISTANT_TTS_ENGINE`, le sélecteur Kokoro de l'accueil. Barre du chat du volet : la
+  saisie et l'envoi sur une ligne, micro / conversation / joindre à gauche, voix et réglages à droite.
+- Preuves : `tests_phonon` (7), `tests_voice_choice` (11), `tests_tts_text.ExactCaseTest` ;
+  contre-épreuves : 6 neutralisations, toutes rouges ; parse V8 des quatre JS servis.
+- ⚠ Vu à l'écran (serveur jetable 8011), corrigé : sous Kokoro ou Phonon, les 17 voix de RÉFÉRENCE
+  (`sa_…`) restaient offertes alors que le serveur ne les passe qu'à un moteur qui clone
+  (`speaker_wav_for`) — la règle commune les cache désormais sous un moteur sans clonage.
+- ⚠ Mesuré, dit à Fabien : dans le mode du service (une phrase rendue en un fichier), Phonon donne
+  son premier son en 1,1 s contre 0,26 s pour Kokoro — « auto » garde Kokoro tant que le service ne
+  diffuse pas en flux (Phonon y serait à 0,14 s).
+- 🔚 Restes : la voix en FLUX par le service ; l'écoute des 50 orthographes ; les rouges laissés à
+  leurs auteurs (dépôt de fichiers du chat et relais `files: []`, 27/10 ; jumelles `synthesizer_01` /
+  `avatarizer_01` hors de la porte des voix ; `tests_test_layout`, dossier « privacy (1) »).

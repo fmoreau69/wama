@@ -21,7 +21,7 @@ menu, selon son niveau cloud — jamais ceux d'un autre, jamais sans autorisatio
 from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
 from wama.common.utils.auto_model import AUTO, intent_param
 from wama.common.utils.param_schema import (Param, ParamGroup, groups_to_dicts, schema_to_dicts,
-                                            seed_param, temperature_param, top_p_param)
+                                            seed_param, temperature_param, top_p_param, voices_of)
 
 #: Deux SURFACES pour un schéma, comme les apps (2026-10-18, décision de Fabien) : la section
 #: « Paramètres » du VOLET droit de l'accueil (`panel`) et la modale ⚙ du chat (`item`), chemin du
@@ -76,6 +76,24 @@ PARAMS = [
     # qu'une clé de `localStorage` de l'accueil, et le mini-chat du volet (toutes les pages) doit
     # parler pareil. Surface = le bouton 🔊/🔇/⏹ commun (`wama-assistant-voice.js`).
     Param(name='voice', type='toggle', label="Voix de l'assistant", default=True, contexts=()),
+    # Le MODÈLE qui dit les réponses et sa VOIX (2026-10-28, Fabien : « en plus du choix du modèle
+    # de réflexion, ne faut-il pas permettre de choisir son modèle de vocalisation ? »). Le geste
+    # commun des apps : « auto » en tête, puis tout modèle de synthèse du catalogue. « Auto » tire
+    # celui qui répond le plus vite dans la langue du profil (`assistant_voice.voice_model_for`) —
+    # sans prévision : ce tirage ne dépend pas du curseur. La voix vient de la source COMMUNE des
+    # voix, bornée au modèle choisi (`voices_of`) : sous « auto », celle de la langue. Remplace le
+    # sélecteur de voix Kokoro que la seule page d'accueil proposait, sans le retenir.
+    Param(name='voice_model', type='select', label='Modèle de voix', icon='fa-microphone-lines',
+          default=AUTO, dom_id={'panel': 'ai-voice-model', 'item': 'ai-voice-model-modal'},
+          contexts=SURFACES, group='voice',
+          options_source='catalog', options_query={'task': 'text-to-speech'},
+          options_auto='silent', help_source='assistant',
+          help_fallback={AUTO: "Le modèle de voix installé qui répond le plus vite dans votre langue."},
+          help="Le modèle qui dit les réponses de l'assistant à voix haute."),
+    Param(name='voice_preset', type='select', label='Voix', icon='fa-user', default='default',
+          dom_id={'panel': 'ai-voice', 'item': 'ai-voice-modal'}, contexts=SURFACES, group='voice',
+          options_source='voices', cap_from=voices_of('voice_model'),
+          help="Les voix que le modèle choisi sait dire ; « Voix par défaut » : celle de votre langue."),
     # Les PAUSES de la voix (2026-10-18, demande de Fabien : « la voix pourrait prendre un peu
     # plus son temps sur les ponctuations »). Deux réglages parce que le moteur connaît DEUX
     # marques : fin de phrase (`. ! ? …`) et fin de proposition (`, ; :`) — parenthèses et tirets

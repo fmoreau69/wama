@@ -81,10 +81,15 @@
    ligne, ils écrasaient la saisie (18 px de large dans le volet, mesuré le 2026-10-12). La saisie
    prend sa ligne, les boutons passent dessous, l'envoi au bout. Dans le VOLET (densité compacte),
    de même à la souris (2026-10-28, relevé par Fabien) : six boutons sur la ligne laissaient une
-   saisie étroite, qui passait à la ligne tous les deux mots. */
+   saisie étroite, qui passait à la ligne tous les deux mots.
+   Puis, le même jour (Fabien : « remettre le bouton d'envoi au bout de la ligne du message […]
+   comme sur la page d'accueil les 3 premiers boutons à gauche, les boutons speaker et paramètres
+   à droite ») : l'ENVOI reste au bout de la saisie, sur sa ligne ; dessous, micro, conversation et
+   pièce jointe à gauche, voix et réglages à droite. L'ordre du gabarit ne change pas. */
 [data-wama-chat][data-density="compact"] .wama-assistant-row { flex-wrap: wrap; }
-[data-wama-chat][data-density="compact"] textarea { flex: 1 1 100%; order: -1; }
-[data-wama-chat][data-density="compact"] [data-assistant-send] { margin-left: auto; }
+[data-wama-chat][data-density="compact"] textarea { flex: 1 1 calc(100% - 52px); min-width: 0; order: -2; }
+[data-wama-chat][data-density="compact"] [data-assistant-send] { order: -1; }
+[data-wama-chat][data-density="compact"] [data-assistant-voice] { margin-left: auto; }
 @media (pointer: coarse) {
   [data-wama-chat] .wama-assistant-row { flex-wrap: wrap; }
   [data-wama-chat] textarea { flex: 1 1 100%; order: -1; min-height: var(--wama-touch-target, 44px); }

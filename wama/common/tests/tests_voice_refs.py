@@ -813,7 +813,9 @@ class VoiceGroupKeysTest(TestCase):
     def test_every_group_carries_a_stable_key(self):
         keys = [g.get('key') for g in self._groups()]
         self.assertNotIn(None, keys, "un groupe sans clé est introuvable pour le JS d'app")
-        self.assertEqual(['default', 'mine', 'bark'], [k for k in keys if k != 'reference'])
+        # Les voix PROPRES d'un moteur viennent de sa ligne de catalogue (`engine:<clé>`,
+        # 2026-10-28) : sans catalogue, aucune — `tests_voice_choice`.
+        self.assertEqual(['default', 'mine'], [k for k in keys if k != 'reference'])
 
     def test_the_own_voices_group_is_emitted_even_when_empty(self):
         """Sans voix clonée, le groupe doit EXISTER : son absence ferait recréer par le JS un

@@ -10,7 +10,7 @@ import logging
 
 import numpy as np
 
-from wama.common.tts.constants import BARK_LANG_DEFAULTS
+from wama.common.tts.constants import BARK_LANG_DEFAULTS, VOICE_PRESET_CHOICES
 
 from .tts_base import CATALOG_KEYS, TTSBackend, speech_dir, write_wav_int16
 
@@ -79,6 +79,12 @@ class BarkBackend(TTSBackend):
     #: `generate_audio` ne prend pas de top_p.
     reads_seed = True
     default_top_p = None
+    #: Ses voix PROPRES (2026-10-28) : les préréglages `bark_v2_<langue>_<n>` des préréglages
+    #: communs (`constants.VOICE_PRESET_CHOICES`), la langue lue dans leur nom. La source commune
+    #: des voix les proposait sous TOUT moteur (`voice_options.BARK_PRESETS`, copie retirée) ; le
+    #: catalogue les porte désormais (`apply_engine_flags`), et elles ne s'offrent que sous Bark.
+    VOICES = tuple({'value': value, 'label': label, 'language': value.split('_')[2]}
+                   for value, label in VOICE_PRESET_CHOICES if value.startswith('bark_v2_'))
 
     REQUIRED_PACKAGES = ['bark', 'scipy']
     # ⚠ `pip install bark` installe un paquet HOMONYME sans rapport — l'installation

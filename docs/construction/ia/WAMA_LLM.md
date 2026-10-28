@@ -523,6 +523,8 @@ n'y en avait **aucune** — le défaut ne se voit qu'à l'oreille, le serveur r�
    mesurés le 03/10 : Qwen3-TTS 1.7B est INSTALLÉ et exécutable (le pin `transformers==4.57.3`
    de `qwen-tts` n'est qu'un avertissement de `pip check`) ; Kyutai TTS 1.6B (EN/FR, entrée
    texte en flux) et Voxtral TTS (CC BY-NC) sont hors catalogue.
+   *(2026-10-28 : ✅ TIRÉ — réglage `voice_model` de l'assistant, « auto » par le tirage commun,
+   le plus rapide en temps réel dans la langue du profil ; bloc « Phonon partout » plus bas.)*
 
 **L'ÉCOUTE — conversation vocale avec l'assistant (2026-10-10, demande de Fabien).** Le HTTPS
 venait de rendre le micro utilisable (`INFRA_WSL_VS_WINDOWS §HTTPS`) ; Fabien voulait « une
@@ -944,6 +946,50 @@ l'intuition :
   - ⏳ Écrire une orthographe aux termes du fichier pour les moteurs qui lisent du texte (après
     écoute) ; un outil de l'assistant pour ajouter une prononciation (« dis git comme guite ») ; la
     scène et l'accès par profil (`access_kind`) des deux familles, si un besoin apparaît.
+    *(2026-10-28 : la 1ʳᵉ est ✅ — bloc suivant.)*
+- ✅ **2026-10-28 — Phonon partout où une voix se dit, les unités, et le modèle de voix de
+  l'assistant** (Fabien : *« Phonon me semble très bien. On l'intègre proprement partout où il a du
+  sens (service TTS aussi […]) et câblé à tout ce qui est TTS comme les durées de silences »*, *« Pour
+  la diction, on a mis en place un système pour forcer la diction sur certains termes. C'est ce
+  qu'il faut réutiliser pour gérer les termes comme GO »*, puis *« ne faut-il pas permettre de
+  choisir son modèle de vocalisation ? »*).
+  - **Phonon** (Gradium, 40 M, français, sur le PROCESSEUR, runtime `ptts` installé par la route —
+    `manifests/libraries/ptts.json` ; modèle et quatre voix par le pilote `files`, installés par
+    l'assistant le 28/10) : `common/backends/phonon_backend.PhononBackend`, moteur `phonon`,
+    découvert par le service vocal comme tout moteur du contrat. Le contrat commun lui donne les
+    PAUSES (`synthesize` découpe et pose les silences) et le LEXIQUE (il lit du texte : « 8 Go » lui
+    arrive « 8 gigaoctets »). Température 0,3, graine lue (même graine, même son — mesuré).
+    Mesuré contre Kokoro sur dix phrases : même intelligibilité, premier son **1,1 s** dans le mode
+    du service (une phrase rendue en un fichier) contre 0,26 s — il ne serait de 0,14 s qu'en flux,
+    que le service ne fait pas encore (⏳). Licence des poids CC BY-NC 4.0.
+  - **Les voix PROPRES d'un moteur** sont une déclaration de sa classe (`TTSBackend.VOICES`) que le
+    catalogue porte (`apply_engine_flags` → capacité `voices`, avec `realtime` et `first_audio_s`) :
+    Phonon (ses quatre voix), Kokoro (une par langue et par genre, `voices.kokoro_voices`), Bark
+    (ses préréglages). La source commune des voix en fait un groupe par modèle, chaque option
+    marquée de son modèle (`voice_options.engine_voice_groups`, `data-model`), et la règle commune
+    ne la montre que sous LUI (`WamaModelCaps.cloneVoiceFilter`, appliquée par `applyOptionFilter`) ;
+    sous « auto », aucune. Le champ de voix la lit par `cap_from` en mode `voices`
+    (`param_schema.voices_of`) — volet, modale d'élément et modale de lot du synthesizer et de
+    l'avatarizer, réglages de l'assistant : jusque-là le filtre n'était câblé qu'au volet du
+    synthesizer. La copie `voice_options.BARK_PRESETS`, offerte sous tout moteur, est retirée.
+  - **Les unités** : le lexique gagne une forme `exact_case` — l'entrée ne vaut que dans sa casse
+    (« Go », « GO », « Mo », « To », « GB »… → gigaoctets ; « go » reste le verbe). Et chaque terme
+    du fichier porte maintenant une ORTHOGRAPHE à côté de ses phonèmes : un moteur qui lit du texte
+    (Phonon, XTTS, Higgs…) dit les 50 termes, Kokoro garde ses phonèmes.
+  - **Le modèle de voix de l'assistant** : deux réglages durables du groupe « Voix »
+    (`assistant/params.py` : `voice_model`, `voice_preset`), le geste des apps — « auto » en tête,
+    puis tout modèle de synthèse du catalogue, et la voix bornée au modèle. « Auto » tire, par
+    `resolve_model_choice`, le modèle installé gardé chaud qui parle la langue du profil et dont le
+    premier son MESURÉ est le plus court (`common/tts/assistant_voice.py`) : Kokoro ONNX
+    aujourd'hui. La vue de vocalisation lit ces réglages pour toute surface ; le moteur se résout au
+    catalogue, la voix clonée d'un moteur qui clone par `speaker_wav_for` (R184 : la constante
+    `ASSISTANT_TTS_ENGINE` et le sélecteur Kokoro de l'accueil, que cette page était seule à
+    proposer sans le retenir).
+  - Gardes : `tests_phonon` (voix, appel au moteur, pauses et lexique du contrat, ligne de
+    catalogue, moteur découvert), `tests_voice_choice` (groupes par modèle, règle V8 sur le fichier
+    servi, tirage « auto », validation des réglages, vocalisation), `tests_tts_text.ExactCaseTest`.
+  - ⏳ La voix en FLUX par le service (le premier son de Phonon à 0,14 s) ; l'écoute des 50
+    orthographes par Fabien.
 - **Les pauses** : `kokoro_onnx` sait allonger la pause après chaque marque (`sentence_pause`,
   `clause_pause`), mais seulement avec un modèle qui rend la durée de ses phonèmes ; le nôtre ne la
   rend pas (`has_timings` faux — mesuré : 3,58 s de son pour des pauses de 0, 0,25 et 0,8 s). Le

@@ -1602,25 +1602,27 @@ class ModelRegistry:
             self.discovery_errors.append(f'end-of-turn: {e}')
 
     def _discover_phonon_models(self):
-        """Phonon 40m fr (Gradium, 2026-10-28) — en ÉVALUATION contre Kokoro (demande de Fabien).
-        Ligne à fichiers déclarés (`common/backends/phonon_backend.py`), installable par le pilote
-        `files`. Sans `composition.runtime` tant qu'aucun backend ne le charge : aucune sélection ne
-        le tire. Adopté, il entre dans la déclaration du synthesizer (`SYNTHESIZER_MODELS`, son
-        moteur) — un seul lieu, celui des autres voix."""
+        """Phonon 40m fr (Gradium, 2026-10-28, adopté par Fabien après écoute contre Kokoro). Ligne
+        à fichiers déclarés (`common/backends/phonon_backend.py`), installée par le pilote `files`,
+        exécutée par `PhononBackend` (`composition.runtime.engine`). Patron de MuScriptor : un
+        modèle qu'aucune app ne déclare se déclare à côté de son moteur — c'est aussi le cas de
+        Kokoro ONNX. Ses capacités sont celles que le moteur DÉCLARE (`apply_engine_flags` : voix
+        propres, temps réel, température, graine)."""
         try:
             from wama.common.backends.phonon_backend import (
-                HF_REPO, MODEL_KEY, PHONON_FILES, model_folder, model_installed,
+                HF_REPO, MODEL_KEY, PHONON_FILES, PhononBackend, model_folder, model_installed,
             )
+            from wama.common.utils.model_capabilities import apply_engine_flags
             self._models[MODEL_KEY] = ModelInfo(
                 id=MODEL_KEY,
                 name='Phonon 40m (français)',
                 model_type=ModelType.SPEECH,
                 source=ModelSource.HUGGINGFACE,
                 description="Phonon (Gradium, sur Pocket TTS de Kyutai) : synthèse vocale française "
-                            "24 kHz, 40 M de paramètres, sur le PROCESSEUR et en flux — aucune VRAM. "
-                            "Quatre voix (Noémie, Tiphaine, Augustin, Lucien). Poids CC BY-NC 4.0 ; "
-                            "en évaluation contre Kokoro.",
-                description_short="Synthèse vocale française sur processeur (évaluation)",
+                            "24 kHz, 40 M de paramètres, sur le PROCESSEUR — aucune VRAM. Quatre voix "
+                            "(Noémie, Tiphaine, Augustin, Lucien). Poids CC BY-NC 4.0 (usage non "
+                            "commercial).",
+                description_short="Synthèse vocale française sur processeur, quatre voix",
                 platform_ref=hf_platform_ref(HF_REPO),
                 vram_gb=0.0,
                 format='gguf',
@@ -1631,9 +1633,12 @@ class ModelRegistry:
                             'install_dir': str(model_folder()),
                             'declared_files': PHONON_FILES,
                             'license': 'cc-by-nc-4.0'},
-                capabilities={'task': 'text-to-speech', 'modalities': ['audio'],
-                              'inputs_required': ['prompt'], 'languages': ['fr'],
-                              'supports_cloning': False},
+                capabilities=apply_engine_flags(
+                    {'task': 'text-to-speech', 'modalities': ['audio'],
+                     'inputs_required': ['prompt'], 'languages': ['fr']}, PhononBackend),
+                composition={'runtime': {'engine': PhononBackend.ENGINE},
+                             'components': [{'role': 'model', 'pattern': 'model.q8.gguf',
+                                             'format': 'gguf'}]},
             )
         except Exception as e:
             self.discovery_errors.append(f'phonon: {e}')

@@ -31,7 +31,7 @@
   'use strict';
 
   var CHUNK_MIN_CHARS = 60;
-  var state = { enabled: true, speaking: false, voice: '', lang: 'fr', settingsUrl: '' };
+  var state = { enabled: true, speaking: false, lang: 'fr', settingsUrl: '' };
   var listeners = [];
   var avatarPoll = null;
 
@@ -153,8 +153,9 @@
   }
 
   function fetchSpeech(text, signal) {
+    // Le modèle et la voix sont les réglages DURABLES du compte, lus par le serveur (2026-10-28) :
+    // le navigateur n'envoie que le texte.
     var body = { text: text };
-    if (state.voice) body.voice = state.voice;
     return fetch('/api/tts-kokoro/', {
       method: 'POST', signal: signal,
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
@@ -374,7 +375,6 @@
   function configure(opts) {
     opts = opts || {};
     if (opts.enabled !== undefined) state.enabled = !!opts.enabled;
-    if (opts.voice !== undefined) state.voice = opts.voice || '';
     if (opts.lang) state.lang = opts.lang;
     if (opts.settingsUrl !== undefined) state.settingsUrl = opts.settingsUrl || '';
     notify();

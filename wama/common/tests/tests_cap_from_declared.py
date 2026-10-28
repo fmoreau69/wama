@@ -59,7 +59,20 @@ class EveryDeclaredBindingCanBeBoundTest(SimpleTestCase):
                 self.assertIn(cf.get('capability'), CANONICAL_CAPABILITIES)
                 if cf.get('extension'):
                     self.assertIn(cf['extension'], CANONICAL_CAPABILITIES)
-                self.assertIn(cf.get('mode', 'range'), ('range', 'fixed', 'note', 'reads', 'min'))
+                self.assertIn(cf.get('mode', 'range'),
+                              ('range', 'fixed', 'note', 'reads', 'min', 'voices'))
+
+    def test_a_voices_binding_filters_a_voice_select_by_the_voices_capability(self):
+        """« voices » (2026-10-28) keeps the voices the chosen model can say: it binds a select fed
+        by the common voice source, read on the `voices` capability — anything else would filter
+        nothing, silently."""
+        voices = [(app, p) for app, _attr, _schema, p in _declared_bindings()
+                  if p['cap_from'].get('mode') == 'voices']
+        self.assertEqual({'synthesizer', 'avatarizer'}, {app for app, _p in voices})
+        for app, p in voices:
+            with self.subTest(app=app, param=p['name']):
+                self.assertEqual('voices', p['cap_from']['capability'])
+                self.assertEqual(('select', 'voices'), (p['type'], p.get('options_source')))
 
     def test_a_reads_binding_reads_a_list_of_settings_or_a_boolean(self):
         """« reads » greys a setting the chosen model does not read: the capability must be the

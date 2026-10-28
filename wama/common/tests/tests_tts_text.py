@@ -229,8 +229,12 @@ class PronunciationLexiconTest(SimpleTestCase):
         """La voix ne fait pas confiance à la forme de ce qui lui arrive : une entrée sans forme
         connue est ignorée, jamais une erreur."""
         merged = lexicon('fr', {'git': 'ɡit', 'deploy': {'accent': 'x'}, '': {'spelling': 'y'}})
-        self.assertEqual({'phonemes': 'ɡˈit'}, merged['git'])
-        self.assertEqual({'phonemes': 'diplˈɔj'}, merged['deploy'])
+        # L'entrée du SYSTÈME reste, telle que le fichier la porte (orthographe comprise depuis
+        # le 2026-10-28) : l'entrée malformée ne l'a pas remplacée.
+        system = lexicon('fr')
+        self.assertEqual(system['git'], merged['git'])
+        self.assertEqual('ɡˈit', merged['git']['phonemes'])
+        self.assertEqual(system['deploy'], merged['deploy'])
 
 
 class RespellingTest(SimpleTestCase):
@@ -244,8 +248,17 @@ class RespellingTest(SimpleTestCase):
         self.assertEqual('wamadata', respell_with_lexicon('wamadata', 'fr'))
 
     def test_a_phonemes_only_entry_is_left_to_the_engine(self):
-        """Un moteur qui lit du texte ne saurait pas dire des phonèmes : « git » reste « git »."""
-        self.assertEqual('Un git.', respell_with_lexicon('Un git.', 'fr'))
+        """Un moteur qui lit du texte ne saurait pas dire des phonèmes : le terme reste écrit.
+        (Les 50 termes du fichier portent tous une orthographe depuis le 2026-10-28 — Phonon lit
+        du texte : l'entrée sans orthographe se garde par une ligne de compte.)"""
+        self.assertEqual('Un zorg.', respell_with_lexicon('Un zorg.', 'fr', {'zorg': {'phonemes': 'zɔʁɡ'}}))
+
+    def test_every_term_of_the_file_is_said_by_a_text_engine_too(self):
+        """Un moteur qui lit du TEXTE (Phonon, 2026-10-28) dit les termes techniques par leur
+        orthographe : chaque entrée du fichier en porte une."""
+        self.assertEqual('Un guite.', respell_with_lexicon('Un git.', 'fr'))
+        missing = [term for term, entry in lexicon('fr').items() if not entry.get('spelling')]
+        self.assertEqual([], missing)
 
     def test_the_plural_stays_glued_to_the_spelling(self):
         self.assertEqual('Deux guites.',
@@ -254,6 +267,23 @@ class RespellingTest(SimpleTestCase):
     def test_another_voice_language_keeps_its_text(self):
         """Contre-épreuve : le lexique est par langue de VOIX — une voix anglaise dit « WAMA »."""
         self.assertEqual('Welcome to WAMA.', respell_with_lexicon('Welcome to WAMA.', 'en'))
+
+
+class ExactCaseTest(SimpleTestCase):
+    """Une unité ne se dit que dans SA casse (`exact_case`, 2026-10-28) : « 8 Go » se dit
+    « 8 gigaoctets », le verbe anglais « go » et le « TO » d'un sigle ne bougent pas."""
+
+    def test_units_are_said_in_full(self):
+        self.assertEqual('Il faut 8 gigaoctets et 2 téraoctets, ou 500 mégaoctets.',
+                         respell_with_lexicon('Il faut 8 Go et 2 To, ou 500 Mo.', 'fr'))
+        self.assertEqual('12 gigaoctets.', respell_with_lexicon('12 GO.', 'fr'))
+
+    def test_another_case_is_another_word(self):
+        self.assertEqual("On dit go, puis to.", respell_with_lexicon("On dit go, puis to.", 'fr'))
+
+    def test_a_case_insensitive_entry_keeps_matching_any_case(self):
+        """Contre-épreuve : les autres entrées restent insensibles à la casse."""
+        self.assertEqual('Bienvenue dans Ouama.', respell_with_lexicon('Bienvenue dans wama.', 'fr'))
 
 
 class LexiconFileIsReadAgainWhenItChangesTest(SimpleTestCase):

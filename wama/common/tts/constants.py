@@ -14,21 +14,17 @@ import os
 # ---------------------------------------------------------------------------
 # Moteur de vocalisation de l'AI-Assistant
 # ---------------------------------------------------------------------------
-#: Moteur TTS demandé au service pour la VOCALISATION DE L'ASSISTANT (temps réel).
-#: `kokoro-onnx` depuis le 2026-08-31 (doctrine inférence-first : mêmes poids Kokoro,
-#: servis par onnxruntime — chargement mesuré 3,3 s contre 87,9 s pour le .pt).
-#: Le nom vivait en LITTÉRAL dans `wama/views.py` ; il est déclaré ici, avec un
-#: interrupteur d'environnement pour revenir au `.pt` sans toucher au code :
-#:     WAMA_ASSISTANT_TTS_ENGINE=kokoro
-#: ⚠ Le repli EN-PROCESS de `wama/views.py` (service indisponible) reste le `.pt` —
-#: c'est un chemin de secours qui ne dépend d'aucun service.
-ASSISTANT_TTS_ENGINE = os.environ.get('WAMA_ASSISTANT_TTS_ENGINE', 'kokoro-onnx')
+#: Le MOTEUR de la voix de l'assistant n'est plus déclaré ici (2026-10-28, REMOVAL_LEDGER R184) :
+#: c'est un réglage DURABLE du compte (`assistant/params.py` : `voice_model`), « auto » tirant le
+#: plus rapide en temps réel dans la langue du profil (`common/tts/assistant_voice`). La constante
+#: `ASSISTANT_TTS_ENGINE` et son interrupteur `WAMA_ASSISTANT_TTS_ENGINE` sont retirés.
 
 #: Modèle de RECONNAISSANCE DE LA PAROLE de l'assistant (conversation vocale, 2026-10-10) :
 #: transcrit, dans le même service que la voix, ce que l'utilisateur vient de dire. Local par
 #: défaut — la dictée passait jusque-là par la reconnaissance du NAVIGATEUR, qui envoie l'audio
 #: à Google. `large-v3` est le Whisper déjà installé pour le transcriber (aucun téléchargement).
-#: ⏳ Comme la voix ci-dessus, ce choix devrait être TIRÉ du catalogue (auto + curseur + manuel)
+#: ⏳ Comme l'est la voix depuis le 2026-10-28, ce choix devrait être TIRÉ du catalogue
+#: (auto + curseur + manuel)
 #: plutôt que déclaré ici ; l'interrupteur d'environnement n'est qu'un point d'accroche.
 ASSISTANT_STT_MODEL = os.environ.get('WAMA_ASSISTANT_STT_MODEL', 'large-v3')
 

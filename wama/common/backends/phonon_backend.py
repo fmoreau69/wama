@@ -14,7 +14,15 @@ conditions acceptées sur le Hub) ; `ptts` lit ce dossier LOCAL et ne téléchar
 ⚠ Licence des poids : CC BY-NC 4.0 (usage non commercial — celui d'un laboratoire public). Le
 runtime est MIT / Apache-2.0.
 """
+import logging
+import threading
 from pathlib import Path
+
+import numpy as np
+
+from .tts_base import TTSBackend, ai_models_dir, write_wav_int16
+
+logger = logging.getLogger(__name__)
 
 HF_REPO = 'gradium/phonon-40m-fr'
 #: Commit du dépôt au 2026-10-28.
@@ -53,10 +61,127 @@ PHONON_FILES = [
 
 
 def model_folder() -> Path:
-    from django.conf import settings
-    return Path(settings.MODEL_PATHS['speech']['phonon'])
+    """`MODEL_PATHS['speech']['phonon']` — et, sans Django (le service vocal), le même dossier
+    sous `AI-models` (`tts_base.ai_models_dir`)."""
+    try:
+        from django.conf import settings
+        return Path(settings.MODEL_PATHS['speech']['phonon'])
+    except Exception:
+        return ai_models_dir() / 'models' / 'speech' / 'phonon'
 
 
 def model_installed() -> bool:
     from wama.model_manager.services.model_installer import declared_files_present
     return declared_files_present(model_folder(), PHONON_FILES)
+
+
+#: Les voix DU MOTEUR (2026-10-28) : la valeur que porte le réglage de voix, son libellé, sa langue
+#: et son genre — lues par le catalogue (`apply_engine_flags` → capacité `voices`), d'où la source
+#: commune des voix les propose sous ce seul moteur. Le nom de fichier (`voices/<nom>.safetensors`)
+#: est le nom que `ptts` donne à la voix.
+VOICES = (
+    {'value': 'phonon_noemie', 'label': 'Noémie', 'file': 'Noemie', 'language': 'fr', 'gender': 'female'},
+    {'value': 'phonon_tiphaine', 'label': 'Tiphaine', 'file': 'Tiphaine', 'language': 'fr',
+     'gender': 'female'},
+    {'value': 'phonon_augustin', 'label': 'Augustin', 'file': 'Augustin', 'language': 'fr',
+     'gender': 'male'},
+    {'value': 'phonon_lucien', 'label': 'Lucien', 'file': 'Lucien', 'language': 'fr', 'gender': 'male'},
+)
+#: Les préréglages COMMUNS (`constants.VOICE_PRESET_CHOICES`) dits par ce moteur : la voix par
+#: défaut, et celles que demande une surface qui ne connaît que le genre (l'assistant : `male_1`).
+_PRESETS = {'default': 'Noemie', 'female_1': 'Noemie', 'female_2': 'Tiphaine',
+            'male_1': 'Augustin', 'male_2': 'Lucien'}
+
+
+def voice_file(voice_preset: str) -> str:
+    """Le nom `ptts` de la voix que désigne `voice_preset` — la sienne (`phonon_…`), un préréglage
+    commun, sinon la voix par défaut (une voix d'un autre moteur ne se dit pas ici)."""
+    preset = (voice_preset or 'default').strip()
+    for voice in VOICES:
+        if voice['value'] == preset:
+            return voice['file']
+    return _PRESETS.get(preset, _PRESETS['default'])
+
+
+class PhononBackend(TTSBackend):
+    """Phonon 40m (français) par `ptts`, sur le processeur. Le contrat commun
+    (`TTSBackend.synthesize`) lui donne les PAUSES et le LEXIQUE : il reçoit du texte, donc les
+    termes qui ont une orthographe à dire arrivent déjà réécrits (« 8 Go » → « 8 gigaoctets »)."""
+
+    #: Moteur piloté (contrat commun) — `composition.runtime.engine` de sa ligne.
+    ENGINE = 'phonon'
+    engine = 'phonon'
+    description = ("Phonon 40m (Gradium, sur Pocket TTS de Kyutai) — synthèse française 24 kHz sur "
+                   "le processeur, sans PyTorch ; quatre voix.")
+
+    supports_cloning = False
+    #: Il sait rendre l'audio pendant qu'il le calcule (`TTS.stream`) — le service ne le diffuse pas
+    #: encore : il rend un fichier par demande.
+    supports_streaming = True
+    supports_timestamps = False
+    #: Il TIRE : température 0,3 (le défaut de `ptts`), graine lue — même graine, même son (mesuré
+    #: le 2026-10-28) ; à 0 il tire encore (deux graines, deux sons) : pas de minimum qui le fige.
+    default_temperature = 0.3
+    reads_seed = True
+    default_top_p = None
+    #: Le TEMPS RÉEL (voix de l'assistant, aperçus) : gardé chaud par le service. 0,5 s de
+    #: chargement, 140 Mo de mémoire, aucune VRAM.
+    keep_resident = True
+    #: Premier son, MESURÉ le 2026-10-28 (mêmes dix phrases que Kokoro) DANS LE MODE DU SERVICE —
+    #: une phrase rendue en un fichier : 1,1 s de médiane (Noémie ; 1,2 s Augustin), le temps de
+    #: la synthèse entière. En flux, il serait de 0,14 s : le service ne diffuse pas encore.
+    first_audio_s = 1.1
+    recommended_vram_gb = 0
+    VOICES = VOICES
+
+    REQUIRED_PACKAGES = ['ptts']
+    PIP_PACKAGES = ['ptts']
+
+    def __init__(self):
+        super().__init__()
+        self._tts = None
+        self._lock = threading.Lock()
+
+    @property
+    def is_loaded(self) -> bool:
+        return self._tts is not None
+
+    def load(self, model: str | None = None) -> bool:
+        if self._tts is not None:
+            return True
+        folder = model_folder()
+        if not (folder / 'config.json').is_file():
+            raise RuntimeError(f"Phonon : modèle absent ({folder}) — l'installer d'abord par le "
+                               f"catalogue ({MODEL_KEY}).")
+        import ptts
+        # Un dossier LOCAL : `ptts` n'y télécharge rien (ni poids, ni voix tant qu'on ne lui
+        # demande que les siennes — `voice_file` ne rend qu'une voix installée).
+        self._tts = ptts.TTS(str(folder), lang='fr', quant='q8')
+        self.loaded_model = self._current_model = 'phonon-40m-fr'
+        logger.info("[Phonon] chargé : %s (%s)", folder, ', '.join(self._tts.voices))
+        return True
+
+    def unload(self) -> None:
+        self._tts = None
+        self.loaded_model = self._current_model = None
+
+    def process(self, text: str = "", language: str = "fr", voice_preset: str = "default",
+                options: dict | None = None, **_ignored) -> str:
+        """Dit `text` d'un trait (le contrat commun le découpe là où il respire)."""
+        if self._tts is None:
+            self.load()
+        if language and language != 'fr':
+            logger.warning("[Phonon] langue %s demandée : ce modèle ne parle que le français", language)
+        kwargs = {'options': options or {}}
+        call = {'voice': voice_file(voice_preset)}
+        temperature = self.sampling_temperature(kwargs)
+        if temperature is not None:
+            call['temperature'] = temperature
+        seed = self.sampling_seed(kwargs)
+        if seed is not None:
+            call['seed'] = seed
+        with self._lock:
+            pcm = self._tts.synth(text, **call)
+        if pcm is None or not len(pcm):
+            raise RuntimeError("Phonon : aucun audio généré")
+        return write_wav_int16(np.asarray(pcm, dtype=np.float32), self._tts.sample_rate)

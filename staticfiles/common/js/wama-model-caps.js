@@ -70,32 +70,6 @@
       capsByKey[k] = Object.assign({}, capsByKey[k], metaByKey[k]);
     });
 
-    function applyFilter(f, caps) {
-      const target = document.getElementById(f.selectId);
-      if (!target || typeof f.hideOption !== 'function') return;
-      let firstVisible = null;
-      let selectedHidden = false;
-      Array.prototype.forEach.call(target.options, function (opt) {
-        const hide = !!caps && f.hideOption(caps, opt);
-        opt.hidden = hide;
-        opt.disabled = hide;
-        // Libellé d'origine mémorisé au 1er passage : `render()` rejoue à chaque changement de
-        // modèle, et un marqueur réappliqué sur un libellé déjà marqué s'empilerait.
-        if (opt.dataset.capsLabel === undefined) opt.dataset.capsLabel = opt.textContent;
-        const raison = (!hide && !!caps && typeof f.annotateOption === 'function')
-                       ? f.annotateOption(caps, opt) : null;
-        opt.textContent = raison ? '⚠ ' + opt.dataset.capsLabel : opt.dataset.capsLabel;
-        opt.title = raison || '';
-        if (!hide && firstVisible === null) firstVisible = opt;
-        if (hide && opt.selected) selectedHidden = true;
-      });
-      // Si l'option sélectionnée vient d'être masquée → bascule sur la 1re visible.
-      if (selectedHidden && firstVisible) {
-        target.value = firstVisible.value;
-        target.dispatchEvent(new Event('change', { bubbles: true }));
-      }
-    }
-
     function applyControl(c, caps) {
       const els = c.selector ? document.querySelectorAll(c.selector)
                              : [document.getElementById(c.id)].filter(Boolean);
@@ -116,9 +90,17 @@
       });
     }
 
+    // `loaded` : le catalogue a répondu. Avant, « pas de capacités » veut dire « pas encore » —
+    // rien ne se juge ; après, il veut dire « ce choix n'a pas de fiche » (« auto ») : une voix
+    // propre à un moteur se cache alors (`hideWithoutCaps`), aucun moteur n'étant désigné.
+    let loaded = false;
+
     function render() {
-      const caps = capsByKey[resolveKey(sel.value)] || null;
-      filters.forEach(function (f) { applyFilter(f, caps); });
+      const key = resolveKey(sel.value);
+      const caps = capsByKey[key] || null;
+      filters.forEach(function (f) {
+        applyOptionFilter(document.getElementById(f.selectId), f, caps, key, loaded);
+      });
       controls.forEach(function (c) { applyControl(c, caps); });
       sections.forEach(function (s) { applySection(s, caps); });
     }
@@ -153,12 +135,45 @@
               {}, m.capabilities || {}, metaByKey[m.model_key] || {});
           }
         });
+        loaded = true;
         render();
         return capsByKey;
       })
       .catch(function () { return capsByKey; /* pas de catalogue → on ne filtre pas */ });
 
     return { render: render, caps: function () { return capsByKey; }, ready: ready };
+  }
+
+  /*
+   * Applique UN filtre d'options au <select> `target` pour le modèle `key` (capacités `caps`) —
+   * la règle commune, partagée avec `WamaParams` (`cap_from` en mode `voices`, 2026-10-28). Une
+   * option masquée est aussi désactivée ; la sélection passe à la 1re visible si la sienne l'est.
+   * `loaded` faux et `caps` absentes : rien ne se juge (le catalogue n'a pas encore répondu).
+   */
+  function applyOptionFilter(target, f, caps, key, loaded) {
+    if (!target || typeof f.hideOption !== 'function') return;
+    let firstVisible = null;
+    let selectedHidden = false;
+    Array.prototype.forEach.call(target.options, function (opt) {
+      const hide = caps ? !!f.hideOption(caps, opt, key)
+        : (!!loaded && typeof f.hideWithoutCaps === 'function' && !!f.hideWithoutCaps(opt));
+      opt.hidden = hide;
+      opt.disabled = hide;
+      // Libellé d'origine mémorisé au 1er passage : `render()` rejoue à chaque changement de
+      // modèle, et un marqueur réappliqué sur un libellé déjà marqué s'empilerait.
+      if (opt.dataset.capsLabel === undefined) opt.dataset.capsLabel = opt.textContent;
+      const raison = (!hide && !!caps && typeof f.annotateOption === 'function')
+                     ? f.annotateOption(caps, opt) : null;
+      opt.textContent = raison ? '⚠ ' + opt.dataset.capsLabel : opt.dataset.capsLabel;
+      opt.title = raison || '';
+      if (!hide && firstVisible === null) firstVisible = opt;
+      if (hide && opt.selected) selectedHidden = true;
+    });
+    // Si l'option sélectionnée vient d'être masquée → bascule sur la 1re visible.
+    if (selectedHidden && firstVisible) {
+      target.value = firstVisible.value;
+      target.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }
 
   /*
@@ -226,8 +241,16 @@
    * prononciation seule n'est pas garantie — c'est ce que la raison dit. Sans `data-language`,
    * rien n'est affirmé.
    *
+   * Et les voix PROPRES d'un moteur (2026-10-28, Phonon) : une option qui porte `data-model`
+   * (`voice_options.engine_voice_groups`) ne se montre que sous CE modèle — sous un autre, et sous
+   * « auto » (aucun moteur désigné), elle se cache : un moteur ne dit pas la voix d'un autre.
+   *
    *   filters: [ WamaModelCaps.cloneVoiceFilter('voice_preset') ]
    */
+  function engineVoiceOf(opt) {
+    return (opt && opt.dataset && opt.dataset.model) || '';
+  }
+
   function cloneVoiceFilter(selectId, opts) {
     opts = opts || {};
     const raison = opts.languageReason
@@ -235,9 +258,17 @@
          + 'cloné, mais la prononciation de cette langue n\'est pas garantie.';
     return {
       selectId: selectId,
-      hideOption: function (caps, opt) {
-        return caps.supports_cloning === false && isClonedVoice(opt.value);
+      hideOption: function (caps, opt, key) {
+        const owner = engineVoiceOf(opt);
+        if (owner) return owner !== key;
+        // Une voix de RÉFÉRENCE (`sa_`, un enregistrement de la médiathèque) n'est dite que par
+        // un moteur qui clone, comme une voix clonée : le serveur ne la transmet à aucun autre
+        // (`voice_refs.speaker_wav_for`). L'offrir sous Kokoro ou Phonon promettait une voix et
+        // rendait celle de la langue (vu à l'écran le 2026-10-28, 17 voix sans effet).
+        return caps.supports_cloning === false
+               && (isClonedVoice(opt.value) || /^sa_/.test(String(opt.value || '')));
       },
+      hideWithoutCaps: function (opt) { return !!engineVoiceOf(opt); },
       annotateOption: function (caps, opt) {
         const lang = opt.dataset ? opt.dataset.language : '';
         const langs = Array.isArray(caps.languages) ? caps.languages : [];
@@ -271,7 +302,7 @@
              language: (asset.attributes || {}).language || '' };
   }
 
-  global.WamaModelCaps = { init: init, langFilter: langFilter,
+  global.WamaModelCaps = { init: init, langFilter: langFilter, applyOptionFilter: applyOptionFilter,
                            cloneVoiceFilter: cloneVoiceFilter, isClonedVoice: isClonedVoice,
                            voiceOptionFor: voiceOptionFor };
 })(window);

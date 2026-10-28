@@ -309,6 +309,15 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
 | **voix** | ✅ `WamaModelCaps.cloneVoiceFilter` masque `ua_`/`cv_` si le moteur ne clone pas | ✅ `WamaInputMatch.voiceSlot` grise les moteurs sans clonage |
 | **langue** | ✅ `langFilter` restreint les langues (3 états) | ✅ **`WamaInputMatch.langSlot`** — choisir une langue d'abord grise les moteurs qui ne la parlent ni nativement ni en repli (raison : *« Incompatible avec : Langue — changez la valeur pour réactiver »*), jamais cachés |
 
+> *2026-10-28 — les voix PROPRES d'un moteur* (Phonon, Kokoro, Bark : `TTSBackend.VOICES`, portées
+> par le catalogue) suivent le sens modèle → choix seul : `cloneVoiceFilter` ne montre une option
+> marquée `data-model` que sous SON modèle, aucune sous « auto » — sur toutes les surfaces où le
+> champ de voix déclare `cap_from` en mode `voices` (`param_schema.voices_of`), plus seulement au
+> volet du synthesizer. Le sens inverse n'a pas lieu d'être : on n'atteint une voix de Phonon
+> qu'après avoir choisi Phonon. *(Ceci n'est pas une ⚠ de masquage contraire à la doctrine « griser,
+> pas cacher » : une voix d'un autre moteur n'est pas un choix incompatible, c'est un choix qui
+> n'existe pas sous ce moteur.)*
+
 - Le prédicat `/^(ua_|cv_)/` vit en **UN** endroit — `WamaModelCaps.isClonedVoice` — lu par les
   deux briques ; il était recopié sur 4 sites dans 2 apps. Une garde textuelle
   (`tests_auto_model.PredicatDeVoixClonéeDéfiniUneFoisTest`) refuse toute seconde copie, et

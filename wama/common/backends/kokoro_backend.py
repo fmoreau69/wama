@@ -16,6 +16,7 @@ import threading
 import numpy as np
 
 from wama.common.tts.constants import KOKORO_LANG_MAP
+from wama.common.tts.voices import kokoro_voices
 
 from .tts_base import CATALOG_KEYS, TTSBackend, speech_dir, write_wav_int16
 
@@ -91,6 +92,8 @@ class KokoroBackend(TTSBackend):
     #: C'était la règle `if _current_engine == "kokoro"` de `tts_service`, DÉCLARÉE
     #: depuis le 2026-08-31 (cf. `TTSBackend.keep_resident`) : comportement inchangé.
     keep_resident = True
+    #: Ses voix propres (2026-10-28) : celles de la table commune, une par langue et par genre.
+    VOICES = kokoro_voices()
     #: Kokoro calcule les timestamps mot PENDANT la synthèse — `KPipeline.join_timestamps()`
     #: les dérive de `pred_dur`, la durée prédite par le modèle qui a GÉNÉRÉ l'audio : ils sont
     #: donc exacts par construction, pas estimés après coup. WAMA les jetait faute de les
@@ -181,12 +184,11 @@ class KokoroBackend(TTSBackend):
 
     def process(self, text: str = "", language: str = "fr",
                 voice_preset: str = "default", options: dict | None = None, **_ignored) -> str:
-        # Résolution langue→voix : brique COMMUNE (le même calcul vivait ici et, en miroir,
-        # dans la vue TTS de l'assistant). `voice_preset` reste du vocabulaire synthesizer.
-        from wama.common.tts.voices import code_langue, voix_pour
+        # Résolution de la voix : brique COMMUNE (le même calcul vivait ici et, en miroir,
+        # dans la vue TTS de l'assistant) — une voix choisie (`VOICES`), sinon celle de la langue.
+        from wama.common.tts.voices import code_langue, kokoro_voice
         lang_code = code_langue(language)
-        is_male = voice_preset in ('male_1', 'male_2')
-        voice = voix_pour(language, is_male)
+        voice = kokoro_voice(language, voice_preset)
 
         pipeline = self._get_pipeline(lang_code)
         # Hors anglais, japonais et chinois, KPipeline phonémise par espeak (misaki `EspeakG2P`) :

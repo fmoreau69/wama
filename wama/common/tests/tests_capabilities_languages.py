@@ -18,7 +18,7 @@ from wama.common.backends.base import BaseModelBackend
 from wama.common.services.assistant_engine import WAMA_SYSTEM_PROMPT, _language_instruction
 from wama.common.tts.constants import KOKORO_LANG_MAP, KOKORO_VOICE_MAP, LANGUAGE_NAMES_EN
 from wama.common.tts.voices import (
-    choix_voix, code_langue, est_repli, langue_de_voix, voix_pour,
+    code_langue, est_repli, kokoro_voice, kokoro_voices, langue_de_voix, voix_pour,
 )
 from wama.common.utils.model_capabilities import (
     CANONICAL_CAPABILITIES, is_canonical_key, supports_timestamps_for,
@@ -222,15 +222,20 @@ class ResolutionVoixTest(TestCase):
         for langue in ('fr', 'en', 'es', 'it', 'pt', 'ja', 'zh-cn'):
             self.assertFalse(est_repli(langue))
 
-    def test_choix_voix_sans_doublon_preferee_en_tete(self):
-        for pref in ('fr', 'en', 'ja'):
-            choix = choix_voix(pref)
-            valeurs = [c['valeur'] for c in choix]
-            self.assertEqual(len(valeurs), len(set(valeurs)), 'doublon de voix')
-            self.assertEqual(choix[0]['langue'], pref)
-            self.assertTrue(choix[0]['preferee'])
-        # Le sélecteur en dur qu'on a remplacé n'en proposait que 3.
-        self.assertGreater(len(choix_voix('fr')), 3)
+    def test_kokoro_offers_one_voice_per_served_language_and_gender_without_duplicates(self):
+        voices = kokoro_voices()
+        values = [v['value'] for v in voices]
+        self.assertEqual(len(values), len(set(values)), 'doublon de voix')
+        self.assertEqual({'ff_siwis'}, {v['value'] for v in voices if v['language'] == 'fr'},
+                         "le français n'a qu'une voix")
+        self.assertTrue(all(v['gender'] in ('female', 'male') and v['label'] for v in voices))
+        self.assertGreater(len(voices), 3)
+
+    def test_a_chosen_kokoro_voice_is_said_and_a_common_preset_follows_the_language(self):
+        self.assertEqual('am_adam', kokoro_voice('fr', 'am_adam'), 'la voix choisie prime')
+        self.assertEqual(voix_pour('en', True), kokoro_voice('en', 'male_1'))
+        self.assertEqual(voix_pour('fr'), kokoro_voice('fr', 'phonon_noemie'),
+                         "la voix d'un autre moteur ne se dit pas : celle de la langue")
 
 
 class LangueAssistantTest(TestCase):

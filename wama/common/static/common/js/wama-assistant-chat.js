@@ -91,6 +91,7 @@
       jobsUrl: root.dataset.jobsUrl || '',
       settingsUrl: root.dataset.settingsUrl || '',
       paramsScript: root.dataset.paramsScript || '',
+      capsScript: root.dataset.capsScript || '',
       greeting: root.dataset.greeting || '',
       greetingHtml: root.dataset.greetingHtml || '',
       waiting: root.dataset.waiting || '',
@@ -141,7 +142,11 @@
     var ready = global.WamaParams ? Promise.resolve()
       : (this.cfg.paramsScript ? global.WamaApp.loadScript(this.cfg.paramsScript)
                                : Promise.reject(new Error('WamaParams')));
-    return ready.then(function () {
+    // La règle des voix du champ « Voix » (`cap_from` en mode `voices`, 2026-10-28) : sans elle,
+    // le champ offrirait la voix d'un moteur sous un autre. Son absence n'empêche pas la modale.
+    var caps = (global.WamaModelCaps || !this.cfg.capsScript) ? Promise.resolve()
+      : global.WamaApp.loadScript(this.cfg.capsScript).catch(function () {});
+    return Promise.all([ready, caps]).then(function () {
       return fetch(url, { headers: { 'Accept': 'application/json' } });
     }).then(function (r) { return r.json(); }).then(function (d) {
       return global.WamaParams.settingsModal({

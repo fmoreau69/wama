@@ -159,6 +159,9 @@ _PRONUNCIATIONS_FILE = Path(__file__).resolve().parents[1] / 'tts' / 'pronunciat
 _FILE_STATE = {'mtime': None, 'data': {}}
 #: Les deux formes d'une entrée, et rien d'autre.
 ENTRY_FORMS = ('spelling', 'phonemes')
+#: Une entrée peut se reconnaître dans SA casse seulement (2026-10-28, les unités pour Phonon :
+#: « Go » se dit « gigaoctets », « go » reste un mot, « To » ne prend pas « to-do »).
+EXACT_CASE = 'exact_case'
 
 
 def _file_lexicons() -> dict:
@@ -175,11 +178,15 @@ def _file_lexicons() -> dict:
 
 
 def _clean_entry(entry) -> dict:
-    """Une entrée réduite à ses formes posées (`ENTRY_FORMS`) ; {} si elle n'en a aucune."""
+    """Une entrée réduite à ses formes posées (`ENTRY_FORMS`) et à son drapeau de casse
+    (`EXACT_CASE`) ; {} si elle n'a aucune forme."""
     if not isinstance(entry, dict):
         return {}
-    return {form: str(entry[form]).strip() for form in ENTRY_FORMS
-            if isinstance(entry.get(form), str) and entry[form].strip()}
+    clean = {form: str(entry[form]).strip() for form in ENTRY_FORMS
+             if isinstance(entry.get(form), str) and entry[form].strip()}
+    if clean and entry.get(EXACT_CASE) is True:
+        clean[EXACT_CASE] = True
+    return clean
 
 
 def pronunciations(language: str) -> dict:
@@ -196,30 +203,49 @@ def system_lexicons() -> dict:
 def lexicon(language: str, extra=None) -> dict:
     """Le lexique que dit la voix : le fichier, puis `extra` ({graphie : entrée}, les lignes que
     le serveur web a résolues pour cette demande), qui passe devant à graphie égale, casse
-    indifférente — l'entrée d'un compte remplace, pour lui, celle du système."""
+    indifférente — l'entrée d'un compte remplace, pour lui, celle du système. Une entrée
+    `exact_case` ne se confond qu'avec sa propre graphie : « Go » et « GO » sont deux entrées."""
     merged = {}
     for source in (pronunciations(language), extra if isinstance(extra, dict) else {}):
         for term, raw in source.items():
             entry = _clean_entry(raw)
             if entry and isinstance(term, str) and term.strip():
-                merged[term.strip().lower()] = (term.strip(), entry)
+                key = term.strip() if entry.get(EXACT_CASE) else term.strip().lower()
+                merged[key] = (term.strip(), entry)
     return dict(merged.values())
 
 
 @functools.lru_cache(maxsize=64)
-def _terms_pattern(terms: tuple):
-    """Mot ENTIER, casse indifférente, pluriel en -s compris ; la graphie la plus longue d'abord
-    (« GitHub » avant « git »). Mis en cache par jeu de termes : un compte qui ajoute une entrée
-    a un autre motif, le système garde le sien."""
-    ordered = sorted(terms, key=len, reverse=True)
-    return re.compile(r'(?<![^\W_])(' + '|'.join(map(re.escape, ordered)) + r')s?(?![^\W_])',
-                      re.IGNORECASE)
+def _terms_pattern(terms: tuple, exact: tuple = ()):
+    """Mot ENTIER, pluriel en -s compris ; la graphie la plus longue d'abord (« GitHub » avant
+    « git »). Casse indifférente, sauf pour les termes `exact` (`EXACT_CASE`). Mis en cache par
+    jeu de termes : un compte qui ajoute une entrée a un autre motif, le système garde le sien."""
+    alternatives = sorted([(term, False) for term in terms] + [(term, True) for term in exact],
+                          key=lambda alternative: len(alternative[0]), reverse=True)
+    body = '|'.join(re.escape(term) if strict else '(?i:' + re.escape(term) + ')'
+                    for term, strict in alternatives)
+    return re.compile(r'(?<![^\W_])(' + body + r')[sS]?(?![^\W_])')
+
+
+class _Table(dict):
+    """Les entrées d'un motif : par graphie en minuscules, et par graphie EXACTE pour celles qui
+    se reconnaissent dans leur casse — `find` rend l'entrée d'un terme trouvé dans le texte."""
+
+    def __init__(self, entries: dict):
+        super().__init__((term.lower(), entry) for term, entry in entries.items()
+                         if not entry.get(EXACT_CASE))
+        self.exact = {term: entry for term, entry in entries.items() if entry.get(EXACT_CASE)}
+
+    def find(self, found: str) -> dict:
+        return self.exact.get(found) or self[found.lower()]
 
 
 def _lookup(entries: dict):
-    """(motif, table en minuscules) des entrées ; (None, {}) sans entrée."""
-    table = {term.lower(): entry for term, entry in entries.items()}
-    return (_terms_pattern(tuple(sorted(table))) if table else None), table
+    """(motif, table) des entrées ; (None, {}) sans entrée."""
+    table = _Table(entries)
+    if not table and not table.exact:
+        return None, table
+    return _terms_pattern(tuple(sorted(table)), tuple(sorted(table.exact))), table
 
 
 def respell_with_lexicon(text: str, language: str, extra=None) -> str:
@@ -236,7 +262,7 @@ def _respell(text: str, entries: dict) -> str:
     if pattern is None or not text:
         return text
     try:
-        return pattern.sub(lambda m: table[m.group(1).lower()]['spelling']
+        return pattern.sub(lambda m: table.find(m.group(1))['spelling']
                            + m.group(0)[len(m.group(1)):], text)
     except Exception:
         logger.warning('lexique de prononciation ignoré pour %r', text[:80], exc_info=True)
@@ -266,7 +292,7 @@ def phonemes_with_lexicon(text: str, language: str, phonemize, finish=None, extr
         pieces, start = [], 0
         for match in pattern.finditer(text):
             pieces.append(_phonemize_piece(text[start:match.start()], phonemize))
-            pieces.append(finish(table[match.group(1).lower()]['phonemes']))
+            pieces.append(finish(table.find(match.group(1))['phonemes']))
             start = match.end()
         pieces.append(_phonemize_piece(text[start:], phonemize))
         # Une marque de respiration se colle au mot qui la précède, comme le moteur l'écrit.

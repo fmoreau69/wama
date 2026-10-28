@@ -1296,6 +1296,9 @@
   //   • mode 'note'    : la capacité est seulement RAPPELÉE sous le champ (résolution native).
   //   • mode 'reads'   : le champ est GRISÉ, raison dite, quand le modèle ne le lit pas —
   //     capacité liste (`params`) ou booléenne (`supports_*`) (2026-10-13).
+  //   • mode 'voices'  : un select de VOIX (`options_source: 'voices'`) ne garde que celles que
+  //     le modèle choisi peut dire — la règle commune `WamaModelCaps.cloneVoiceFilter` (voix
+  //     clonées, voix propres d'un moteur), jamais une copie ici (2026-10-28).
   // Modèle « auto » ou sans la capacité → champ du schéma, intact (dégradation douce).
   var _capsBySource = {};
   // `query` (2026-09-29) : domaine d'un select peuplé du CATALOGUE (`_optionQuery` du param
@@ -1391,13 +1394,25 @@
     return p && p.display_format ? valueLabel(cap, p.display_format, unit) : _fmtNum(cap) + unit;
   }
 
-  function _applyCap(el, note, row, p, cf, caps) {
+  function _applyCap(el, note, row, p, cf, caps, key) {
     var cap = caps ? caps[cf.capability] : null;
     var unit = cf.unit || p.unit || '';
     var mode = cf.mode || 'range';
     note.textContent = '';
     note.classList.remove('is-extrapolated');
     if (row) row.classList.remove('is-extrapolated');
+    if (mode === 'voices') {
+      // Les voix que le modèle `key` peut dire : la règle de la brique des capacités, chargée par
+      // la surface (la page, ou le chat avant sa modale). Absente : options intactes, et on le dit.
+      var mc = global.WamaModelCaps;
+      if (!mc || typeof mc.applyOptionFilter !== 'function') {
+        if (global.console) console.warn('[WamaParams] cap_from « voices » de « ' + p.name +
+          ' » : wama-model-caps.js absent — voix non filtrées');
+        return;
+      }
+      mc.applyOptionFilter(el, mc.cloneVoiceFilter(el.id), caps, key, true);
+      return;
+    }
     if (mode === 'note') {
       // `cap != null` et non `cap` : une valeur NULLE est une valeur (température 0 de glm-ocr).
       var known = cap !== undefined && cap !== null && cap !== '';
@@ -1543,7 +1558,7 @@
           // La FICHE du modèle choisi, lisible par le champ (2026-10-21) : un champ composé (la
           // température) en tire ce qu'il dit sous lui, sans relire le catalogue.
           el.wamaModelCaps = capsByKey[sel.value] || null;
-          _applyCap(el, note, row, p, cf, capsByKey[sel.value] || null);
+          _applyCap(el, note, row, p, cf, capsByKey[sel.value] || null, sel.value);
           // Dit au champ que sa borne a bougé : un champ composé (la température) resynchronise
           // ses autres éléments sans que cette règle les connaisse.
           el.dispatchEvent(new Event('wama:cap-applied', { bubbles: true }));
@@ -1554,6 +1569,8 @@
         // Les options du select modèle arrivent souvent APRÈS le rendu (catalogue, décorateur
         // d'app) et sa valeur est posée par programme, sans `change` : on écoute le remplissage.
         sel.addEventListener('wama:options-filled', apply);
+        // … et celles du champ LUI-MÊME (un select de voix rechargé de la source commune).
+        el.addEventListener('wama:options-filled', apply);
         if (global.MutationObserver) {
           new MutationObserver(function () { apply(); }).observe(sel, { childList: true });
         }

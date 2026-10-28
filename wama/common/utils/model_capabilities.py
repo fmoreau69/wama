@@ -98,6 +98,16 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "supports_hotwords":    "bool — biais lexical / hotwords",
     "supports_streaming":   "bool — inférence en flux (temps réel)",
     "supports_cloning":     "bool — clonage de voix (TTS)",
+    #: Les VOIX PROPRES au moteur (2026-10-28, Phonon) : celles qu'il dit sans référence ni
+    #: clonage. Déclarées par la classe (`VOICES`), lues par `apply_engine_flags` ; la source
+    #: commune des voix les range en un groupe par modèle, montré sous CE modèle seulement.
+    "voices":              "list[{value, label, language, gender}] — voix propres au moteur (TTS)",
+    #: Le moteur sert le TEMPS RÉEL (voix de l'assistant, aperçus) : gardé chaud par le service
+    #: vocal (`TTSBackend.keep_resident`). Lu par le choix automatique de la voix de l'assistant.
+    "realtime":            "bool — gardé chaud pour le temps réel (TTS)",
+    #: Délai MESURÉ avant le premier son, en secondes, dans le mode où le service vocal le sert
+    #: (une phrase rendue en un fichier) — déclaré par la classe avec sa date (`first_audio_s`).
+    "first_audio_s":       "float — délai mesuré avant le premier son (TTS, service vocal)",
     "supports_vad_filter":  "bool — filtre de parole (VAD) avant de transcrire, réglage `vad_mode` (ASR)",
     "supports_score_planning": "bool — le moteur écrit une partition AVANT de la jouer (`plan_score`), en un process séparé du rendu (musique)",
     #: Fait du MODÈLE (pas du moteur : un même moteur peut servir un modèle qui chante et un qui
@@ -437,6 +447,28 @@ def _engine_seed_top_p(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     return caps
 
 
+def _engine_voice(caps: Dict[str, Any], cls) -> Dict[str, Any]:
+    """Ce que le moteur DÉCLARE de sa voix (2026-10-28) : ses voix propres (`VOICES`), le temps réel
+    (`keep_resident`) et le délai mesuré avant le premier son (`first_audio_s`). Rien de déclaré :
+    `caps` intact sur ce point — la règle des autres valeurs."""
+    declared, voices = declared_engine_value(cls, "VOICES")
+    if declared:
+        caps["voices"] = [{k: v[k] for k in ("value", "label", "language", "gender") if v.get(k)}
+                          for v in (voices or ())]
+    # `keep_resident` a un défaut dans le contrat des voix (`TTSBackend`, faux) : seul un moteur qui
+    # l'écrit lui-même dit quelque chose — le défaut n'affirme rien.
+    from wama.common.backends.tts_base import TTSBackend
+    resident = next((vars(k)["keep_resident"] for k in getattr(cls, "__mro__", ())
+                     if k is not TTSBackend and "keep_resident" in vars(k)
+                     and issubclass(k, TTSBackend)), None)
+    if resident is not None:
+        caps["realtime"] = bool(resident)
+    declared, first = declared_engine_value(cls, "first_audio_s")
+    if declared and first is not None:
+        caps["first_audio_s"] = float(first)
+    return caps
+
+
 def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     """Réaligne `caps` sur ce que la classe de moteur DÉCLARE — rend un NOUVEAU dict.
 
@@ -453,7 +485,7 @@ def apply_engine_flags(caps: Dict[str, Any], cls) -> Dict[str, Any]:
     Les autres flags (`supports_timestamps`…) restent posés « seulement s'ils sont vrais » par la
     découverte — sémantique différente, hors de cette règle.
     """
-    caps = _engine_seed_top_p(_engine_temperature(dict(caps or {}), cls), cls)
+    caps = _engine_voice(_engine_seed_top_p(_engine_temperature(dict(caps or {}), cls), cls), cls)
     declare = declared_engine_flag(cls, "supports_cloning")
     if declare is None:
         return caps                           # défaut de base seulement : on ne conteste rien

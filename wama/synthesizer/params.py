@@ -20,7 +20,7 @@ batch=batchSettings*) → JS de voix/clone/submit inchangé. Gabarit : reader/de
 from wama.common.tts.constants import VOICE_PAUSE_SETTINGS
 from wama.common.utils.auto_model import intent_param
 from wama.common.utils.param_schema import (derive_from_model, schema_to_dicts, seed_param,
-                                            temperature_param, top_p_param)
+                                            temperature_param, top_p_param, voices_of)
 from wama.common.utils.output_formats import output_format_params_for_app
 from wama.synthesizer.models import VoiceSynthesis
 
@@ -73,12 +73,16 @@ PARAMS = derive_from_model(
             # Source COMMUNE des voix (`get_voice_groups` → endpoint `/common/api/voices/`) :
             # elle sert les TROIS surfaces — volet généré, modale d'item, modale de lot.
             options_source="voices",
+            # Les voix que le modèle choisi peut dire, sur les trois surfaces (2026-10-28) : la
+            # page câblait le filtre au seul volet (`WamaModelCaps.init`), les modales en étaient
+            # privées — une voix de Phonon y restait offerte sous Kokoro.
+            cap_from=voices_of("tts_model"),
             # Aide RACCOURCIE : celle du modèle énumère la forme des valeurs entre accents
             # graves (« `default`, preset plat, `sa_<id>` (référence)… ») — lisible en base et
             # en admin, illisible sous un champ. Mesuré au rendu du volet généré : la ligne
             # d'identifiants s'affichait sous le select. Elle sert aussi de documentation à
             # `tool_api` : on garde donc les DEUX familles d'identifiants, en une phrase.
-            help="Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark",
+            help="Voix de référence (sa_…), voix clonée (ua_…) ou voix propre du moteur",
         ),
         "speed": dict(
             type="range", label="Vitesse", icon="fa-gauge", min=0.5, max=2.0, step=0.1, default=1.0,

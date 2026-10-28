@@ -300,7 +300,9 @@ class PanelVoiceFieldIsGeneratedTest(TestCase):
         # « mine » est TOUJOURS là, même sans voix clonée : c'est là qu'on insère la suivante.
         self.assertIn('default', keys)
         self.assertIn('mine', keys)
-        self.assertIn('bark', keys)
+        # Les voix PROPRES d'un moteur (Bark, Kokoro, Phonon) viennent de sa ligne de catalogue,
+        # un groupe par modèle (`engine:<clé>`, 2026-10-28) — la copie « bark » est retirée.
+        self.assertNotIn('bark', keys)
 
     def test_the_generated_field_points_at_the_common_voice_source(self):
         from wama.synthesizer.params import PARAMS_JSON
