@@ -381,6 +381,7 @@ class ModelRegistry:
         self._discover_face_analyzer_models()
         self._discover_hand_gesture_models()
         self._discover_turn_end_models()
+        self._discover_phonon_models()
 
         # EN DERNIER, après toutes les découvertes d'app : le balayage générique ne
         # couvre que ce qu'AUCUNE app ne déclare (dédup par `platform_ref`) — l'entrée déclarée
@@ -1599,6 +1600,43 @@ class ModelRegistry:
             )
         except Exception as e:
             self.discovery_errors.append(f'end-of-turn: {e}')
+
+    def _discover_phonon_models(self):
+        """Phonon 40m fr (Gradium, 2026-10-28) — en ÉVALUATION contre Kokoro (demande de Fabien).
+        Ligne à fichiers déclarés (`common/backends/phonon_backend.py`), installable par le pilote
+        `files`. Sans `composition.runtime` tant qu'aucun backend ne le charge : aucune sélection ne
+        le tire. Adopté, il entre dans la déclaration du synthesizer (`SYNTHESIZER_MODELS`, son
+        moteur) — un seul lieu, celui des autres voix."""
+        try:
+            from wama.common.backends.phonon_backend import (
+                HF_REPO, MODEL_KEY, PHONON_FILES, model_folder, model_installed,
+            )
+            self._models[MODEL_KEY] = ModelInfo(
+                id=MODEL_KEY,
+                name='Phonon 40m (français)',
+                model_type=ModelType.SPEECH,
+                source=ModelSource.HUGGINGFACE,
+                description="Phonon (Gradium, sur Pocket TTS de Kyutai) : synthèse vocale française "
+                            "24 kHz, 40 M de paramètres, sur le PROCESSEUR et en flux — aucune VRAM. "
+                            "Quatre voix (Noémie, Tiphaine, Augustin, Lucien). Poids CC BY-NC 4.0 ; "
+                            "en évaluation contre Kokoro.",
+                description_short="Synthèse vocale française sur processeur (évaluation)",
+                platform_ref=hf_platform_ref(HF_REPO),
+                vram_gb=0.0,
+                format='gguf',
+                preferred_format='gguf',
+                is_downloaded=model_installed(),
+                extra_info={'path': str(model_folder()),
+                            'size_bytes': sum(f['size'] for f in PHONON_FILES),
+                            'install_dir': str(model_folder()),
+                            'declared_files': PHONON_FILES,
+                            'license': 'cc-by-nc-4.0'},
+                capabilities={'task': 'text-to-speech', 'modalities': ['audio'],
+                              'inputs_required': ['prompt'], 'languages': ['fr'],
+                              'supports_cloning': False},
+            )
+        except Exception as e:
+            self.discovery_errors.append(f'phonon: {e}')
 
     def _discover_midi_extraction_models(self):
         """Transcription audio → MIDI multi-instrument (task=audio-to-midi, 2026-10-16) — la

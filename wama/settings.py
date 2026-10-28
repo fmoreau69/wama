@@ -136,6 +136,8 @@ MODEL_PATHS = {
         'kokoro': AI_MODELS_DIR / "models" / "speech" / "kokoro",
         # Fin de tour de la conversation vocale (Smart Turn, `common/tts/end_of_turn.py`).
         'smart_turn': AI_MODELS_DIR / "models" / "speech" / "smart-turn",
+        # Phonon (Gradium), synthèse vocale sur le processeur (`common/backends/phonon_backend.py`).
+        'phonon': AI_MODELS_DIR / "models" / "speech" / "phonon",
     },
     # Lip-sync / face restoration (avatarizer)
     'lipsync': {
