@@ -35,16 +35,23 @@ document.addEventListener('DOMContentLoaded', function () {
   // réglages Resemble sur Resemble — les bascules écrites ici (`#audioAutoOptions`,
   // `#audioStrengthValue`) sont parties avec le markup.
 
-  // Ce que le VOLET dit — la surface de réglage vivante de cette file, appliquée à CHAQUE
-  // lancement depuis le volet (▶ de card, « tout démarrer », lot). Un seul lecteur.
+  // Ce que le VOLET dit, lu par le SCHÉMA (`WamaParams.read` de l'hôte généré) — le modèle
+  // commun depuis le 2026-10-28, comme le domaine image/vidéo : il part avec le DÉPÔT (l'élément
+  // naît complet, le serveur retient le volet) et avec « Tout démarrer » (appliqué à toute la
+  // file). Le ▶ d'une card ou d'un lot lance avec les réglages STOCKÉS. Il était lu champ par
+  // champ, à cinq valeurs, et réappliqué à chaque lancement.
   function panelAudioBody() {
-    return {
-      engine: document.getElementById('audioEngine')?.value || 'auto',
-      mode: document.getElementById('audioMode')?.value || 'both',
-      denoising_strength: parseFloat(document.getElementById('audioDenoisingStrength')?.value || '0.5'),
-      quality: parseInt(document.getElementById('audioQuality')?.value || '64'),
-      quality_intent: document.getElementById('audioQualityIntent')?.value || '',
-    };
+    const host = document.getElementById('audioPanelFields');
+    return (host && window.WamaParams) ? WamaParams.read(host) : {};
+  }
+
+  // Le volet dans un FormData de dépôt (une valeur par réglage du schéma).
+  function appendPanel(fd) {
+    const values = panelAudioBody();
+    Object.keys(values).forEach(function (name) {
+      const value = values[name];
+      if (value !== undefined && value !== null) fd.append(name, value);
+    });
   }
 
   // ── Voie d'import AUDIO : les DEUX briques communes (portage 2026-09-08) ───────────
@@ -67,6 +74,9 @@ document.addEventListener('DOMContentLoaded', function () {
     batchPreviewUrl: cfg.audioBatchPreviewUrl,
     batchCreateUrl:  cfg.audioBatchCreateUrl,
     csrfToken:       csrfToken,
+    // Les filles naissent avec le volet (`audio_batch_create`, cascade commune) : le lancement
+    // part sans corps, sur leurs réglages stockés.
+    formDataBuilder: function (fd) { appendPanel(fd); },
     afterCreate: async function (data, autoStart) {
       if (autoStart && data && data.batch_id && cfg.audioBatchStartUrlTemplate) {
         const startUrl = cfg.audioBatchStartUrlTemplate.replace('/0/', `/${data.batch_id}/`);
@@ -74,7 +84,7 @@ document.addEventListener('DOMContentLoaded', function () {
           await fetch(startUrl, {
             method: 'POST',
             headers: csrfHeaders({ 'Content-Type': 'application/json' }),
-            body: JSON.stringify(panelAudioBody()),
+            body: JSON.stringify({}),
           });
         } catch (_e) { /* la création est faite ; le lancement se rejoue depuis la card */ }
       }
@@ -97,6 +107,8 @@ document.addEventListener('DOMContentLoaded', function () {
       fileInputId:      'audio-enhancer-file',
       folderInputId:    'audioEnhFolderInput',
       batch:            _audioBatch,
+      // Le volet part avec le dépôt : l'élément naît complet, le serveur le retient (2026-10-28).
+      extraFields:      function (fd) { appendPanel(fd); },
       beforeFile:       function (f) {
         if (/\.(mp3|wav|flac|ogg|m4a|aac|opus|wma)$/i.test(f.name)) return true;
         WamaApp.toast('Formats acceptés : MP3, WAV, FLAC, OGG, M4A, AAC, OPUS, WMA (ou fichier batch .txt/.csv/.md)');
@@ -228,13 +240,12 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Start / polling (also called from modal "Save and Start") ────────────
 
   async function startAudio(id, opts) {
-    // ▶ depuis la card / le volet : les réglages du VOLET s'appliquent (surface vivante de
-    // cette file). `useStored` (« Sauvegarder et lancer » de la modale) : corps vide, le
-    // lancement lit les réglages STOCKÉS de l'item que la modale vient d'enregistrer.
-    // Le format de sortie est PER-ITEM et vit désormais en base (audio/update) : plus rien à
-    // relire sur le gear. La card se re-rend du serveur au passage RUNNING (updateRow).
+    // Corps VIDE : le lancement lit les réglages STOCKÉS de l'élément (né avec le volet, réglé
+    // ensuite par sa ⚙ ou l'inspecteur) — le modèle commun, comme le domaine image/vidéo
+    // (2026-10-28). Il réappliquait le volet à chaque ▶ : changer le volet changeait en silence
+    // un élément déjà réglé. La card se re-rend du serveur au passage RUNNING (updateRow).
     try {
-      const body = (opts && opts.useStored) ? {} : panelAudioBody();
+      const body = {};
       const resp = await fetch(WamaCycleButton.processUrl(
         getUrl(cfg.audioStartUrlTemplate, id), opts && opts.process), {
         method: 'POST',
@@ -313,15 +324,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // l'include : un seul geste (sinon double POST). Les URLs `audio_batch_*` sont résolues par
     // la card mère via `domain_route_prefix` — plus aucun `cfg.audioBatch*UrlTemplate` recollé ici.
     //
-    // DEUX spécificités déclarées, parce qu'elles ne sont PAS décoratives :
-    //  • le CORPS — le volet gauche audio est la surface de réglage vivante de cette file, et
-    //    elle est appliquée à CHAQUE lancement, item (`startAudio`) comme lot. Lancer avec un
-    //    corps vide aurait relancé le lot avec les valeurs stockées à la création : régression
-    //    muette, et incohérente avec le ▶ de la card fille juste à côté ;
+    // Spécificités déclarées, les MÊMES que la file image/vidéo (2026-10-28) :
+    //  • le ▶ de LOT part sans corps — les filles sont nées avec le volet, réglées ensuite ;
+    //  • le ▶ de FILE (« Tout démarrer ») applique le volet à toute la file ;
     //  • la SUITE — l'audio insère et POLLE (comme la file média), il ne recharge pas.
     if (window.WamaQueueActions) {
-      WamaQueueActions.onBatchStartBody(function () { return panelAudioBody(); }, { domain: 'audio' });
-
       WamaQueueActions.onBatchStarted(function (data) {
         (data.started || []).forEach(id => {
           updateRow(id, { status: 'RUNNING', progress: 0 });

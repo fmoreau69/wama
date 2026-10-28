@@ -71,6 +71,10 @@ urlpatterns = [
     path('audio/batch/preview/', views.audio_batch_preview, name='audio_batch_preview'),
     path('audio/batch/create/', views.audio_batch_create, name='audio_batch_create'),
     path('audio/batch/<int:pk>/start/', views.audio_batch_start, name='audio_batch_start'),
+    # Réglages, promotion, réalignement du lot AUDIO (2026-10-28) — ceux du lot image/vidéo.
+    path('audio/batch/<int:pk>/update/', views.audio_batch_update, name='audio_batch_update'),
+    path('audio/batch/<int:pk>/promote/', views.audio_batch_promote, name='audio_batch_promote'),
+    path('audio/batch/<int:pk>/realign/', views.audio_batch_realign, name='audio_batch_realign'),
     path('audio/batch/<int:pk>/status/', views.audio_batch_status, name='audio_batch_status'),
     path('audio/batch/<int:pk>/download/', views.audio_batch_download, name='audio_batch_download'),
     path('audio/batch/<int:pk>/delete/', views.audio_batch_delete, name='audio_batch_delete'),

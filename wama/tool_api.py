@@ -447,17 +447,14 @@ def add_to_enhancer(
 # Audio Enhancer tools
 # ===========================================================================
 
-_AUDIO_ENHANCER_ENGINES = {'resemble', 'deepfilternet'}
-_AUDIO_ENHANCER_MODES = {'both', 'denoise', 'enhance'}
-
-
 def add_to_audio_enhancer(
     user,
     file_path: str,
-    engine: str = 'resemble',
-    mode: str = 'both',
-    denoising_strength: float = 0.5,
-    quality: int = 64,
+    engine: str = '',
+    mode: str = '',
+    denoising_strength: float = None,
+    quality: int = None,
+    **params,
 ) -> dict:
     """
     Register an audio file for speech enhancement.
@@ -465,21 +462,41 @@ def add_to_audio_enhancer(
     Args:
         user:               Django User instance
         file_path:          Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
-        engine:             'resemble' (quality) | 'deepfilternet' (speed)
+        engine:             'auto' or the catalog key of an audio engine (`list_ai_models`) —
+                            e.g. 'enhancer:resemble' (quality), 'enhancer:deepfilternet' (speed)
         mode:               'both' | 'denoise' | 'enhance'  (Resemble only)
-        denoising_strength: 0.0–1.0 denoising amount (Resemble only, default 0.5)
-        quality:            NFE steps 32/64/128 (Resemble only, default 64)
+        denoising_strength: 0.0–1.0 denoising amount (Resemble only)
+        quality:            NFE steps 32/64/128 (Resemble only)
+        **params:           Any other setting DECLARED by the audio schema (`enhancer/params.py`,
+                            `AUDIO_PARAMS`) — `quality_intent`, `output_format`, `output_quality`…
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the element is born like a card deposit (2026-10-28 : it took fixed defaults here,
+        `engine='resemble'`, against the schema's « auto »).
 
     Returns:
         {"audio_enhancement_id": int, "item_id": int, "name": str, "status": "pending"}
     """
-    if engine not in _AUDIO_ENHANCER_ENGINES:
-        return {'error': f"Moteur inconnu : '{engine}'. Disponibles : resemble, deepfilternet"}
-    if mode not in _AUDIO_ENHANCER_MODES:
-        return {'error': f"Mode inconnu : '{mode}'. Disponibles : both, denoise, enhance"}
+    from wama.common.utils.model_keys import catalog_key
+    from wama.common.utils.param_schema import catalog_options, choice_values
+    from wama.enhancer.params import AUDIO_PARAMS
 
-    denoising_strength = max(0.0, min(1.0, float(denoising_strength)))
-    quality = max(32, min(128, int(quality)))
+    # Les valeurs valides se LISENT : le domaine du select de moteur (catalogue) et les choix du
+    # schéma — deux listes recopiées ici (`resemble`, `deepfilternet` ; les trois modes) jusqu'au
+    # 2026-10-28.
+    declared = {p.name: p for p in AUDIO_PARAMS}
+    if engine:
+        engine = catalog_key(engine, 'enhancer')
+        engines = {value for value, _ in catalog_options(declared['engine'])}
+        if engines and engine not in engines:
+            return {'error': f"Moteur inconnu : '{engine}'. Disponibles : "
+                             f"{', '.join(sorted(engines))}"}
+    modes = set(choice_values(declared['mode']))
+    if mode and mode not in modes:
+        return {'error': f"Mode inconnu : '{mode}'. Disponibles : {', '.join(sorted(modes))}"}
+    posted = {name: value for name, value in
+              {'engine': engine, 'mode': mode, 'denoising_strength': denoising_strength,
+               'quality': quality, **params}.items()
+              if value not in (None, '') and name in declared}
 
     # Désigné, pointé, nature lue au catalogue (2026-09-28) — cf. `add_to_enhancer`.
     from wama.common.app_registry import accepts_file, category_of_path
@@ -493,16 +510,16 @@ def add_to_audio_enhancer(
 
     try:
         from wama.enhancer.models import AudioEnhancement
+        from wama.enhancer.views import new_audio_settings
 
+        # Naissance COMMUNE (2026-10-28) : défauts du schéma ← réglages retenus de l'auteur ← ce
+        # que l'outil a reçu — comme un dépôt de la card audio.
         ae = AudioEnhancement.objects.create(
             user=user,
             input_file=received.value,
             file_size=received.size,
-            engine=engine,
-            mode=mode,
-            denoising_strength=denoising_strength,
-            quality=quality,
             status='PENDING',
+            **new_audio_settings(user, post=posted),
         )
         received.record(ae, 'input_file')
     except Exception as e:
@@ -514,8 +531,8 @@ def add_to_audio_enhancer(
         # la rendait pas (2026-10-06) : la passerelle retrouve par elle le fil d'où vient une tâche.
         'item_id': ae.id,
         'name': received.name,
-        'engine': engine,
-        'mode': mode,
+        'engine': ae.engine,
+        'mode': ae.mode,
         'status': 'pending',
     }
 

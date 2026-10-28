@@ -95,9 +95,11 @@ class OutputSettingsCriterionTest(SimpleTestCase):
 
     def test_on_the_ten_apps_it_agrees_with_what_was_declared_except_the_converter(self):
         """Le déclaré disait vrai pour cinq apps ; le converter était déclaré vrai alors que son
-        format de sortie EST son process (« devrait être N/A », relevé le 2026-08-17)."""
+        format de sortie EST son process (« devrait être N/A », relevé le 2026-08-17). L'avatarizer
+        est passé de « sans objet » à VRAI le 2026-10-28 (D5 : format et qualité de sortie, au
+        process « Visage et sortie » déclaré par `output_spec`)."""
         states = {a: checker._output_settings(checker._AppFiles(a))[0] for a in REAL_APPS}
-        self.assertEqual({'anonymizer': True, 'avatarizer': None, 'composer': True, 'converter': None,
+        self.assertEqual({'anonymizer': True, 'avatarizer': True, 'composer': True, 'converter': None,
                           'describer': None, 'enhancer': True, 'imager': True, 'reader': None,
                           'synthesizer': True, 'transcriber': None}, states)
 

@@ -1431,7 +1431,12 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
         except Exception:
             pass
 
-        ae = AudioEnhancement.objects.create(user=user, duration=duration, file_size=file_size)
+        # Réglages de l'auteur, comme au dépôt de la card audio (`new_audio_settings`, 2026-10-28 :
+        # le domaine audio suit le modèle commun — l'élément naissait sur les défauts du modèle).
+        from wama.enhancer.views import new_audio_settings
+        ae = AudioEnhancement.objects.create(
+            user=user, duration=duration, file_size=file_size,
+            **new_audio_settings(user, model=AudioEnhancement, app=app_label))
         ae.input_file.name = relative_path
         ae.save()
         return {
@@ -1444,7 +1449,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
     elif ext in image_extensions or ext in video_extensions:
         # ── Image / Video ─────────────────────────────────────────────────────
         # Réglages de l'auteur, comme au dépôt de la card (`new_enhancement_settings`,
-        # 2026-10-13). La branche audio n'en a pas à reprendre : son dépôt n'en lit aucun.
+        # 2026-10-13) — la branche audio aussi depuis le 2026-10-28 (`new_audio_settings`).
         from wama.common.utils.video_utils import get_media_info
         from wama.enhancer.views import new_enhancement_settings
 

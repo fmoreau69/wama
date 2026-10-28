@@ -56,8 +56,8 @@ Format, qualité et résolution d'origine sont déclarés par la brique COMMUNE
 (`output_formats.output_format_params(('image', 'video'), keep_size=True)`, 2026-10-28) : formats
 groupés par nature, qualité affichée seulement quand le fichier est réencodé — un format choisi,
 OU la résolution d'origine gardée (Fabien : « on peut vouloir garder la résolution d'origine et
-changer le format et la qualité »). Le domaine audio garde son format à la modale seule : il ne
-suit pas encore le modèle commun du volet (`WAMA_APP_CONVENTIONS §6.4`).
+changer le format et la qualité »). Le domaine audio a sa section Sortie au volet depuis le même
+jour (ci-dessous).
 
 ### Audio (branche dédiée)
 
@@ -65,6 +65,20 @@ L'app porte aussi une **amélioration audio** complète (modèle `AudioEnhanceme
 `backends/audio_enhancer.py`, ~20 routes `audio/*` dans `urls.py`) : débruitage DeepFilterNet et
 resemble-enhance, avec sa propre file. Les batchs (import multi-fichiers, actions de lot) sont
 câblés sur les deux branches.
+
+**Même modèle de réglages que l'image/vidéo (2026-10-28, porté d'un bloc)** : l'élément audio
+NAÎT avec le volet — dépôt de card ou de lot, « Envoyer vers » du gestionnaire de fichiers, outil
+`add_to_audio_enhancer` de l'assistant, tous par `views.new_audio_settings` (défauts du schéma ←
+volet retenu de l'auteur ← ce qui est posté) ; ce qui est posté devient la mémoire du volet
+(`save_panel_settings`), réaffichée à la page ; ▶ d'une card ou d'un lot lance avec les réglages
+STOCKÉS de l'élément (avant : le volet était réappliqué en silence à chaque ▶) ; « Tout démarrer »
+applique le volet entier, des deux domaines. Une seule fonction applique les réglages
+(`_apply_audio_settings`, au lieu de quatre listes recopiées). Le réglage de force du débruitage
+porte le nom de sa colonne (`denoising_strength`, ex-`strength` ; le catalogue de Resemble suit,
+`model_registry`). La ⚙ de lot des deux domaines est remplie (contextes `panel`/`item`/`batch`) et
+le lot audio a ses routes `audio/batch/<pk>/update|promote|realign` (fabrique commune
+`make_batch_views`). L'outil de l'assistant lit moteurs et modes au catalogue et au schéma au lieu
+de deux listes figées. Garde : `tests_panel_memory.AudioPanelMemoryTest`.
 
 ### Formats Supportés
 

@@ -187,12 +187,16 @@ class IndexView(View):
         # `ROADMAP §23.3bis`). La table `UserSettings` propre à l'enhancer n'était jamais ÉCRITE
         # (seulement `get_or_create`) : ses « défauts » étaient ceux du modèle, pour tout le monde.
         from wama.common.utils.user_settings import read_panel_settings
-        from wama.enhancer.params import MEDIA_PARAMS
+        from wama.enhancer.params import AUDIO_PARAMS, MEDIA_PARAMS
         panel = read_panel_settings(user, 'enhancer', MEDIA_PARAMS)
+        # Le volet AUDIO retient aussi les siens depuis le 2026-10-28 (même brique, même clé de
+        # volet : ses `dom_id` sont distincts de ceux du domaine image/vidéo).
+        audio_panel = read_panel_settings(user, 'enhancer', AUDIO_PARAMS)
         # Le volet parle en CLÉS de catalogue (route F4b ⑤, 2026-10-06) : une préférence
         # mémorisée avant la bascule (identifiant nu) est lue dans l'espace de l'enhancer.
         from wama.common.utils.model_keys import catalog_key
         panel['ai_model'] = catalog_key(panel.get('ai_model') or 'auto', 'enhancer')
+        audio_panel['engine'] = catalog_key(audio_panel.get('engine') or 'auto', 'enhancer')
 
         import json as _json
         from wama.enhancer.params import MEDIA_PARAMS_JSON, AUDIO_PARAMS_JSON
@@ -207,7 +211,8 @@ class IndexView(View):
             # Valeurs du VOLET GÉNÉRÉ (domaine image/vidéo, 2026-10-11) — par NOM de param, ce
             # qu'attend `WamaParams.render`. Plus de pré-rendu des options (modèle, moteur audio,
             # formats) : le volet les reçoit du schéma et du catalogue, comme la modale.
-            'panel_values_json': _json.dumps(panel),
+            'panel_values_json': _json.dumps(panel).replace('<', '\\u003c'),
+            'audio_panel_values_json': _json.dumps(audio_panel).replace('<', '\\u003c'),
             # Schémas déclaratifs par domaine → inspecteur contextuel (WamaInspector.initFromSchema).
             'media_params_json': _json.dumps(MEDIA_PARAMS_JSON),
             'audio_params_json': _json.dumps(AUDIO_PARAMS_JSON),
@@ -244,6 +249,54 @@ def _deposit_settings(user, post):
     values = new_enhancement_settings(user, post=post)
     save_panel_settings(user, 'enhancer', MEDIA_PARAMS_JSON, post)
     return values
+
+
+# ── Domaine AUDIO : le MÊME modèle que le domaine image/vidéo (portage du 2026-10-28) ─────────
+# Jusque-là le dépôt audio créait l'élément sur les défauts du modèle, le volet ne s'appliquait
+# qu'au LANCEMENT (chaque ▶ reprenait le volet), rien n'était retenu, et quatre vues recopiaient
+# chacune leur liste de réglages (fiche d'élément, ▶, « Tout démarrer », ▶ de lot).
+
+def new_audio_settings(user, model=None, app='enhancer', post=None):
+    """Les colonnes de réglage d'une amélioration AUDIO naissante, par la cascade COMMUNE
+    (défauts du schéma ← réglages retenus au volet ← ce que le dépôt poste). Le dépôt de la card,
+    le lot, « Envoyer vers » et l'outil de l'assistant passent ici ; `model`/`app` : une jumelle
+    de bac à sable passe les siens."""
+    from wama.common.utils.user_settings import new_element_settings
+    from wama.enhancer.params import AUDIO_PARAMS_JSON
+    return new_element_settings(user, app, AUDIO_PARAMS_JSON, model or AudioEnhancement, post=post,
+                                empty_is_value=SETTINGS_EMPTY_IS_VALUE)
+
+
+def _audio_deposit_settings(user, post):
+    """Réglages d'un DÉPÔT audio (`new_audio_settings`) ; ce qui a été posté devient la mémoire du
+    volet audio (`save_panel_settings`), comme au domaine image/vidéo."""
+    from wama.common.utils.user_settings import save_panel_settings
+    from wama.enhancer.params import AUDIO_PARAMS_JSON
+    values = new_audio_settings(user, post=post)
+    save_panel_settings(user, 'enhancer', AUDIO_PARAMS_JSON, post or {})
+    return values
+
+
+def _apply_audio_settings(ae, data):
+    """LES réglages d'une amélioration audio, posés sans sauver — la route de l'élément, « Tout
+    démarrer » et le ▶ de lot passent ici. Les colonnes par la brique COMMUNE (valeur hors choix
+    ignorée) ; le curseur à part : clé ABSENTE = inchangé, posée vide = curseur effacé."""
+    from wama.common.utils.batch_views import apply_item_settings
+    from wama.enhancer.params import AUDIO_PARAMS
+    apply_item_settings(ae, {k: v for k, v in (data or {}).items() if v not in (None, '')},
+                        params_fields=tuple(p.name for p in AUDIO_PARAMS
+                                            if p.name != 'quality_intent'))
+    if 'quality_intent' in (data or {}):
+        ae.quality_intent = _intent_posted(data)
+
+
+def _read_audio_settings(request):
+    """Les réglages audio postés — JSON (inspecteur) OU FormData (modale ⚙), lecteur COMMUN."""
+    from wama.common.utils.batch_views import read_settings_payload
+    from wama.enhancer.params import AUDIO_PARAMS_JSON
+    return read_settings_payload(request, AUDIO_PARAMS_JSON,
+                                 [p['name'] for p in AUDIO_PARAMS_JSON],
+                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
 
 
 @require_POST
@@ -535,13 +588,6 @@ def start_all(request):
     except (json.JSONDecodeError, ValueError):
         data = request.POST
 
-    # Extract global settings if provided
-    global_ai_model = data.get('ai_model')
-    global_denoise = data.get('denoise')
-    global_blend_factor = data.get('blend_factor')
-
-    logger.info(f"start_all with global settings: model={global_ai_model}, denoise={global_denoise}, blend={global_blend_factor}")
-
     from .tasks import enhance_media
     from wama.common.utils.process_control import begin_processing
 
@@ -549,19 +595,9 @@ def start_all(request):
     errors = []
 
     def _apply_globals(enh):
-        # Apply global settings if provided (reset callback de begin_processing)
-        if global_ai_model:
-            enh.ai_model = global_ai_model
-        if global_denoise is not None:
-            if isinstance(global_denoise, str):
-                enh.denoise = global_denoise.lower() in ('1', 'true', 'on')
-            else:
-                enh.denoise = bool(global_denoise)
-        if global_blend_factor is not None:
-            enh.blend_factor = float(global_blend_factor)
-        enh.upscale_factor = _factor_posted(data, enh.upscale_factor)
-        if 'quality_intent' in data:
-            enh.quality_intent = _intent_posted(data)
+        # Le volet posté s'applique à toute la file par LA fonction des réglages d'un élément
+        # (2026-10-28) — sa liste de cinq réglages écrite ici en était une recopie, sans la sortie.
+        _apply_enhancement_settings(enh, data)
         enh.progress = 0
         enh.error_message = ''
 
@@ -910,7 +946,9 @@ def audio_upload(request):
                     user=user,
                     input_file=django_file,
                     file_size=src.stat().st_size,
-                    quality_intent=_intent_posted(body),
+                    # Naissance COMMUNE (2026-10-28) : défauts ← volet retenu ← ce qui est posté.
+                    **_audio_deposit_settings(user, {k: v for k, v in body.items()
+                                                     if k != 'file_path'}),
                 )
         except Exception as e:
             return JsonResponse({'error': str(e)}, status=500)
@@ -944,7 +982,9 @@ def audio_upload(request):
             user=user,
             input_file=file.value,
             file_size=getattr(file.value, 'size', 0) or 0,
-            quality_intent=_intent_posted(request.POST),
+            # Naissance COMMUNE (2026-10-28) : défauts ← volet retenu ← ce que le dépôt poste ;
+            # ce qui est posté devient la mémoire du volet audio.
+            **_audio_deposit_settings(user, request.POST),
         )
         file.record(ae, 'input_file')
         if not ae.file_size:
@@ -997,29 +1037,9 @@ def audio_update(request, pk: int):
     ae = editable_or_404(AudioEnhancement, user, pk=pk)
     from wama.common.utils.batch_views import columns_changed, columns_snapshot
     before = columns_snapshot(ae)      # en cours compris : seules les colonnes changées s'écrivent
-    P = request.POST
-    if P.get('engine'):
-        ae.engine = P['engine']
-    if P.get('mode'):
-        ae.mode = P['mode']
-    if P.get('strength') not in (None, ''):
-        try:
-            ae.denoising_strength = float(P['strength'])
-        except (TypeError, ValueError):
-            pass
-    if P.get('quality') not in (None, ''):
-        try:
-            ae.quality = int(P['quality'])
-        except (TypeError, ValueError):
-            pass
-    # Curseur (chantier C) : clé absente = inchangé ; posée vide = effacé. Format/qualité de
-    # sortie : la modale générée les poste désormais ICI (avant : gear → payload de start).
-    if 'quality_intent' in P:
-        ae.quality_intent = _intent_posted(P)
-    if P.get('output_format'):
-        ae.output_format = P['output_format']
-    if P.get('output_quality'):
-        ae.output_quality = P['output_quality']
+    # Les réglages par LE schéma audio (JSON de l'inspecteur ou formulaire de la modale), posés par
+    # la fonction unique du domaine (2026-10-28) — la liste écrite ici en était une recopie.
+    _apply_audio_settings(ae, _read_audio_settings(request))
     ae.save(update_fields=columns_changed(ae, before))
     return JsonResponse({'id': ae.id, 'engine': ae.engine, 'mode': ae.mode,
                          'denoising_strength': ae.denoising_strength, 'quality': ae.quality,
@@ -1040,15 +1060,9 @@ def audio_start(request, pk: int):
         data = {}
 
     def _apply_settings(a):
-        a.engine = data.get('engine', a.engine)
-        a.mode = data.get('mode', a.mode)
-        a.denoising_strength = float(data.get('denoising_strength', a.denoising_strength))
-        a.quality = int(data.get('quality', a.quality))
-        if 'quality_intent' in data:
-            a.quality_intent = _intent_posted(data)
-        # Format/qualité de sortie PER-ITEM (modale → gear → payload, 18/08).
-        a.output_format = data.get('output_format', a.output_format)
-        a.output_quality = data.get('output_quality', a.output_quality)
+        # Le ▶ de la card lance avec les réglages STOCKÉS (corps vide, comme le domaine
+        # image/vidéo) ; un appelant qui en poste passe par la fonction unique du domaine.
+        _apply_audio_settings(a, data)
         a.progress = 0
         a.error_message = ''
 
@@ -1148,11 +1162,6 @@ def audio_start_all(request):
     except Exception:
         data = {}
 
-    global_engine = data.get('engine')
-    global_mode = data.get('mode')
-    global_strength = data.get('denoising_strength')
-    global_quality = data.get('quality')
-
     from .tasks import enhance_audio
     from wama.common.utils.process_control import begin_processing
 
@@ -1160,16 +1169,9 @@ def audio_start_all(request):
     started, errors = [], []
 
     def _apply_globals(ae):
-        if global_engine:
-            ae.engine = global_engine
-        if global_mode:
-            ae.mode = global_mode
-        if global_strength is not None:
-            ae.denoising_strength = float(global_strength)
-        if global_quality is not None:
-            ae.quality = int(global_quality)
-        if 'quality_intent' in data:
-            ae.quality_intent = _intent_posted(data)
+        # « Tout démarrer » applique le volet à toute la file (comme le domaine image/vidéo), par
+        # la fonction unique du domaine — sa liste de quatre réglages en était une recopie.
+        _apply_audio_settings(ae, data)
 
     for ae in pending:
         try:
@@ -1236,69 +1238,22 @@ def audio_batch_template(request):
 
 @require_POST
 def audio_batch_preview(request):
-    """Parse a batch file (one audio URL/path per line) and return the list for preview."""
-    import tempfile as _tempfile
-    batch_file = request.FILES.get('batch_file')
-    if not batch_file:
-        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
-
-    ext = os.path.splitext(batch_file.name)[1][1:].lower()
-    from wama.common.utils.batch_parsers import parse_media_list_batch, SUPPORTED_BATCH_EXTENSIONS
-    if ext not in SUPPORTED_BATCH_EXTENSIONS:
-        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
-
-    tmp_path = None
-    try:
-        with _tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
-            for chunk in batch_file.chunks():
-                tmp.write(chunk)
-            tmp_path = tmp.name
-        items, warnings = parse_media_list_batch(tmp_path)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=400)
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
-
-    for item in items:
-        path = item['path']
-        item['filename'] = path.split('/')[-1].split('\\')[-1] or path
-
-    return JsonResponse({'items': items, 'warnings': warnings, 'count': len(items)})
+    """Parse a batch file (one audio URL/path per line) and return the list for preview — the
+    COMMON helper of the image/video batch (2026-10-28 : the file's reading was copied here)."""
+    from wama.common.utils.batch_parsers import batch_media_list_preview_response
+    return batch_media_list_preview_response(request)
 
 
 @require_POST
 def audio_batch_create(request):
-    """Parse batch file, create BatchAudioEnhancement + AudioEnhancement entries."""
-    import tempfile as _tempfile
+    """Parse batch file, create BatchAudioEnhancement + AudioEnhancement entries — the batch file
+    is read by the COMMON helper, as the image/video batch does (2026-10-28)."""
+    from wama.common.utils.batch_parsers import parse_batch_file_from_request
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    batch_file = request.FILES.get('batch_file')
-    if not batch_file:
-        return JsonResponse({'error': 'Aucun fichier fourni'}, status=400)
-
-    ext = os.path.splitext(batch_file.name)[1][1:].lower()
-    from wama.common.utils.batch_parsers import parse_media_list_batch, SUPPORTED_BATCH_EXTENSIONS
-    if ext not in SUPPORTED_BATCH_EXTENSIONS:
-        return JsonResponse({'error': f'Format non supporté : {ext}'}, status=400)
-
-    tmp_path = None
     try:
-        with _tempfile.NamedTemporaryFile(delete=False, suffix=f'.{ext}') as tmp:
-            for chunk in batch_file.chunks():
-                tmp.write(chunk)
-            tmp_path = tmp.name
-        items, warnings = parse_media_list_batch(tmp_path)
-    except Exception as e:
+        items, warnings = parse_batch_file_from_request(request)
+    except ValueError as e:
         return JsonResponse({'error': str(e)}, status=400)
-    finally:
-        if tmp_path:
-            try:
-                os.unlink(tmp_path)
-            except OSError:
-                pass
 
     if not items:
         return JsonResponse({'error': 'Aucun élément valide trouvé dans le fichier'}, status=400)
@@ -1308,10 +1263,13 @@ def audio_batch_create(request):
         batch_file.seek(0)
     batch = BatchAudioEnhancement.objects.create(user=user, total=len(items), batch_file=batch_file)
 
+    # Chaque fille naît par la cascade COMMUNE d'un dépôt (2026-10-28) : elle naissait sur les
+    # défauts du modèle, et le ▶ du lot devait lui reposter le volet.
+    settings_values = _audio_deposit_settings(user, request.POST)
     created_ids = []
     for i, item in enumerate(items):
         url_or_path = item['path']
-        ae = AudioEnhancement.objects.create(user=user, source_url=url_or_path)
+        ae = AudioEnhancement.objects.create(**settings_values, user=user, source_url=url_or_path)
         BatchAudioEnhancementItem.objects.create(batch=batch, audio_enhancement=ae, row_index=i)
         created_ids.append(ae.id)
 
@@ -1342,19 +1300,17 @@ def _audio_reset_for(request):
     def _reset(ae):
         ae.progress = 0
         ae.error_message = ''
-        if data.get('engine'):
-            ae.engine = data['engine']
-        if data.get('mode'):
-            ae.mode = data['mode']
-        if data.get('denoising_strength') is not None:
-            ae.denoising_strength = float(data['denoising_strength'])
-        if data.get('quality') is not None:
-            ae.quality = int(data['quality'])
-        if 'quality_intent' in data:
-            ae.quality_intent = _intent_posted(data)
+        # Un ▶ de lot qui POSTE des réglages les pose par la fonction unique du domaine ; sans
+        # corps (les filles sont nées complètes depuis le 2026-10-28), il lance tel quel.
+        _apply_audio_settings(ae, data)
     return _reset
 
 
+from wama.enhancer.params import AUDIO_PARAMS_JSON as _AUDIO_SCHEMA  # noqa: E402
+
+# Le schéma et LA fonction de réglage du domaine (2026-10-28) : la fabrique en tire les réglages de
+# LOT (`batch_update` — le ⚙ de la card mère audio était rendu sans que rien ne l'écoute), la
+# promotion d'une fille au lot et le réalignement, comme au domaine image/vidéo.
 _abv = make_batch_views(
     work_model=AudioEnhancement, batch_model=BatchAudioEnhancement, get_user=_get_user,
     task_for=_audio_task, start_reset_for=_audio_reset_for,
@@ -1366,12 +1322,17 @@ _abv = make_batch_views(
     progress_of=lambda ae: cache.get(f"audio_enhancer_progress_{ae.id}", ae.progress or 0),
     item_label=lambda ae: ae.get_input_filename() or ae.source_url,
     on_delete=lambda ae: cache.delete(f"audio_enhancer_progress_{ae.id}"),
+    schema=_AUDIO_SCHEMA, empty_is_value=SETTINGS_EMPTY_IS_VALUE,
+    apply_settings=_apply_audio_settings,
 )
 audio_batch_start = _abv['batch_start']
+audio_batch_update = _abv['batch_update']
 audio_batch_status = _abv['batch_status']
 audio_batch_download = _abv['batch_download']
 audio_batch_delete = _abv['batch_delete']
 audio_batch_duplicate = _abv['batch_duplicate']
+audio_batch_promote = _abv['batch_promote']
+audio_batch_realign = _abv['batch_realign']
 
 
 def console_content(request):

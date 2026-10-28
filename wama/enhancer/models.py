@@ -230,11 +230,10 @@ class AudioEnhancement(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility
     @property
     def gear_data(self):
         """data-* du bouton ⚙ (reflet dans le volet inspecteur) — brique COMMUNE card_gear
-        dérivée du schéma AUDIO. Mapping DÉCLARÉ (params.py:76) : le param 'strength' du
-        schéma correspond au champ modèle denoising_strength."""
+        dérivée du schéma AUDIO, dont chaque réglage porte le nom de sa colonne (2026-10-28)."""
         from wama.common.utils.card_gear import gear_data
         from .params import AUDIO_PARAMS
-        return gear_data(self, AUDIO_PARAMS, values={'strength': self.denoising_strength})
+        return gear_data(self, AUDIO_PARAMS)
 
     def get_input_filename(self):
         import os

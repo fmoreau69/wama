@@ -2350,7 +2350,10 @@ class ModelRegistry:
                          'hautes fréquences (super-résolution audio). Qualité supérieure mais plus lent ; '
                          'les réglages Mode / Force / Qualité (NFE) s\'appliquent.'),
                 'vram': 4.0,
-                'params': ['mode', 'strength', 'quality'],
+                # Les NOMS des réglages que le moteur lit — ceux du schéma audio (`cap_from`
+                # « reads »). `strength` → `denoising_strength` le 2026-10-28, quand le réglage a
+                # pris le nom de sa colonne.
+                'params': ['mode', 'denoising_strength', 'quality'],
                 # Moteur PILOTE — meme graphie que `ResembleEnhanceBackend.ENGINE`.
                 'engine': 'resemble-enhance',
             },

@@ -67,6 +67,11 @@ AUDIO_ENGINE_HELP = {
     },
 }
 
+#: Les surfaces de chaque réglage : le volet, la ⚙ d'un élément, et la ⚙ d'un LOT (2026-10-28) —
+#: aucun réglage ne déclarait le lot : sa modale s'ouvrait VIDE dans les deux domaines, alors que
+#: la route de lot (`batch_update`) sait les appliquer. Le converter les déclarait déjà ainsi.
+PANEL_ITEM_BATCH = ('panel', 'item', 'batch')
+
 # ── Domaine MEDIA (image / vidéo) — modèle Enhancement ────────────────────────
 # name = clé POST (update_settings) ET data-attr de la card ; dom_id.panel/item = ids des champs volet/modale.
 MEDIA_PARAMS = [
@@ -75,7 +80,7 @@ MEDIA_PARAMS = [
     # 0,5 et 64 côté audio), et « Réinitialiser » vidait le select.
     Param(name='ai_model', type='select', label='Modèle AI', icon='fa-brain', chip=True,
           default='auto',
-          dom_id={'panel': 'defaultAiModel', 'item': 'settingsAiModel'}, contexts=('panel', 'item'),
+          dom_id={'panel': 'defaultAiModel', 'item': 'settingsAiModel'}, contexts=PANEL_ITEM_BATCH,
           # ── Route F4b, étape ⑤ (2026-10-06) — options par TÂCHE, clés ENTIÈRES ──────
           # Le domaine était `source='enhancer'` + `model_type` (2026-09-08) : un agrandisseur
           # installé depuis le model manager (Swin2SR, `huggingface:…`) n'y entrait pas, et les
@@ -110,30 +115,33 @@ MEDIA_PARAMS = [
     Param(name='upscale_factor', type='select', label="Facteur d'agrandissement", icon='fa-expand',
           choices=[('2', '×2'), ('4', '×4')], default='4',
           dom_id={'panel': 'mediaUpscaleFactor', 'item': 'settingsUpscaleFactor'},
-          contexts=('panel', 'item'),
+          contexts=PANEL_ITEM_BATCH,
           show_if={'field': 'ai_model', 'equals': 'auto'}, stales=('generate',)),
     # Curseur rapide ↔ qualité (chantier C) — visible SEULEMENT sur « auto » : il pèse sur ce
     # tirage-là et rien d'autre. Rendu/tricolore : renderer commun `type='intent'` ; volet :
     # partial `common/_intent_slider.html`.
     Param(name='quality_intent',
           dom_id={'panel': 'mediaQualityIntent', 'item': 'settingsQualityIntent'},
-          contexts=('panel', 'item'), stales=('generate',),
+          contexts=PANEL_ITEM_BATCH, stales=('generate',),
           **intent_param(show_if={'field': 'ai_model', 'equals': 'auto'})),
     Param(name='denoise', type='toggle', label='Débruitage', icon='fa-broom',
           chip=True, chip_label='Débruitage', default=False, help='Appliqué avant l’agrandissement',
-          dom_id={'panel': 'defaultDenoise', 'item': 'settingsDenoise'}, contexts=('panel', 'item'),
+          dom_id={'panel': 'defaultDenoise', 'item': 'settingsDenoise'}, contexts=PANEL_ITEM_BATCH,
           stales=('generate',)),
     Param(name='blend_factor', type='range', label='Blend', icon='fa-sliders-h', chip=True,
           dom_id={'panel': 'defaultBlendFactor', 'item': 'settingsBlendFactor'},
           min=0, max=1, step=0.1, default=0.0, min_label='100 % IA', max_label='100 % original',
-          contexts=('panel', 'item'), stales=('generate',)),
+          contexts=PANEL_ITEM_BATCH, stales=('generate',)),
 ]
 
 # ── Domaine AUDIO — modèle AudioEnhancement ───────────────────────────────────
-# 'strength' colle à la card data-strength (le champ modèle est denoising_strength, mappé côté vue).
+# Chaque réglage porte le NOM de sa colonne (2026-10-28, portage du domaine audio sur le modèle
+# commun) : la force du débruitage s'appelait `strength` pour une colonne `denoising_strength`, et
+# quatre vues recopiaient la correspondance à la main — la naissance commune d'un élément
+# (`new_element_settings`) ne pouvait pas la poser.
 AUDIO_PARAMS = [
     Param(name='engine', type='select', label='Moteur', icon='fa-cogs', chip=True, default='auto',
-          dom_id={'panel': 'audioEngine', 'item': 'settingsAudioEngine'}, contexts=('panel', 'item'),
+          dom_id={'panel': 'audioEngine', 'item': 'settingsAudioEngine'}, contexts=PANEL_ITEM_BATCH,
           # ── Route F4b, étape ⑤ (2026-10-07) — options par TÂCHE, clés ENTIÈRES ──────
           # Le domaine était `source='enhancer'` + `task` (2026-09-08) : un moteur de
           # restauration installé depuis le model manager n'y entrait pas, et les valeurs
@@ -152,7 +160,7 @@ AUDIO_PARAMS = [
           help_fallback=AUDIO_ENGINE_HELP, stales=('generate',)),
     Param(name='quality_intent',
           dom_id={'panel': 'audioQualityIntent', 'item': 'settingsAudioQualityIntent'},
-          contexts=('panel', 'item'), stales=('generate',),
+          contexts=PANEL_ITEM_BATCH, stales=('generate',),
           **intent_param(show_if={'field': 'engine', 'equals': 'auto'})),
     # mode/force/qualité : les réglages que le MOTEUR lit — sa capacité `params` (catalogue,
     # `model_registry`, Resemble les trois, DeepFilterNet aucun) les GRISE, raison dite, pour un
@@ -161,25 +169,22 @@ AUDIO_PARAMS = [
     # Cachés sous « auto » : le tirage choisit le moteur au lancement et le NFE se décline alors
     # du curseur (`utils/auto_model.audio_nfe`) — rien à régler ici.
     Param(name='mode', type='select', label='Mode', icon='fa-sliders-h', chip=True, default='both',
-          dom_id={'panel': 'audioMode', 'item': 'settingsAudioMode'}, contexts=('panel', 'item'),
+          dom_id={'panel': 'audioMode', 'item': 'settingsAudioMode'}, contexts=PANEL_ITEM_BATCH,
           choices=[('both', 'Débruitage + Amélioration (Recommandé)'),
                    ('denoise', 'Débruitage seul (Rapide)'),
                    ('enhance', 'Amélioration seule')],
           show_if={'field': 'engine', 'not_equals': 'auto'},
           cap_from={'field': 'engine', 'capability': 'params', 'mode': 'reads'},
           stales=('generate',)),
-    Param(name='strength', type='range', label='Force débruitage', icon='fa-wind',
+    Param(name='denoising_strength', type='range', label='Force débruitage', icon='fa-wind',
           dom_id={'panel': 'audioDenoisingStrength', 'item': 'settingsAudioStrength'},
           min=0, max=1, step=0.1, default=0.5, min_label='Doux', max_label='Fort',
-          contexts=('panel', 'item'),
+          contexts=PANEL_ITEM_BATCH,
           show_if={'field': 'engine', 'not_equals': 'auto'},
           cap_from={'field': 'engine', 'capability': 'params', 'mode': 'reads'},
-          # Le champ est `denoising_strength` (mappé côté vue) : c'est LUI que la photo lit,
-          # déclaré hors schéma dans function_specs.py — `strength`, absent de l'élément, y
-          # reste constant (lu vide) et ne périme rien à lui seul.
           stales=('generate',)),
     Param(name='quality', type='select', label='Qualité (NFE)', icon='fa-star', default='64',
-          dom_id={'panel': 'audioQuality', 'item': 'settingsAudioQuality'}, contexts=('panel', 'item'),
+          dom_id={'panel': 'audioQuality', 'item': 'settingsAudioQuality'}, contexts=PANEL_ITEM_BATCH,
           choices=[('32', 'Rapide (32 étapes)'),
                    ('64', 'Équilibré (64 étapes)'),
                    ('128', 'Meilleur (128 étapes)')],
@@ -196,7 +201,7 @@ AUDIO_PARAMS = [
 # aux dimensions de l'entrée au process « Sortie » ; la qualité vaut alors aussi au format
 # d'origine (`quality_applies`). Les `dom_id` sont ceux d'avant : le JS d'app les lit inchangés.
 MEDIA_PARAMS += output_format_params(
-    ('image', 'video'), contexts=('panel', 'item'),
+    ('image', 'video'), contexts=PANEL_ITEM_BATCH,
     dom_id_format={'panel': 'output_format', 'item': 'settingsOutputFormat'},
     dom_id_quality={'panel': 'output_quality', 'item': 'settingsOutputQuality'},
     keep_size=True, dom_id_keep_size={'panel': 'outputKeepSize', 'item': 'settingsOutputKeepSize'},
@@ -204,16 +209,13 @@ MEDIA_PARAMS += output_format_params(
     format_extra=dict(chip=True, help='Doit correspondre au type du média (image ou vidéo).'),
 )
 
-# AUDIO : une seule nature → la brique telle quelle (item seulement). ⚠ Le domaine audio ne suit
-# pas encore le modèle commun du volet (mesuré le 2026-10-28) : son dépôt crée l'élément sans les
-# réglages du volet (`views.audio_upload`), qui ne s'appliquent qu'au LANCEMENT
-# (`audio-enhancer.js::panelAudioBody`), et rien n'y est retenu. Y greffer le format de sortie
-# ajouterait une pièce à ce mécanisme à part : le domaine se porte d'un bloc (naissance commune,
-# mémoire du volet), et la section Sortie du volet vient avec.
+# AUDIO : une seule nature → la brique telle quelle, au VOLET aussi depuis le portage du domaine
+# sur le modèle commun (2026-10-28) : le dépôt fait naître l'élément avec les réglages du volet,
+# que le volet retient ; format et qualité de sortie en sont, comme au domaine image/vidéo.
 AUDIO_PARAMS += output_format_params(
-    'audio', contexts=('item',),
-    dom_id_format={'item': 'settingsAudioOutputFormat'},
-    dom_id_quality={'item': 'settingsAudioOutputQuality'},
+    'audio', contexts=PANEL_ITEM_BATCH,
+    dom_id_format={'panel': 'audioOutputFormat', 'item': 'settingsAudioOutputFormat'},
+    dom_id_quality={'panel': 'audioOutputQuality', 'item': 'settingsAudioOutputQuality'},
 )
 
 MEDIA_PARAMS_JSON = schema_to_dicts(MEDIA_PARAMS)

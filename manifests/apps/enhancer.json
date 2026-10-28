@@ -1287,7 +1287,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": "auto",
             "default_from": null,
@@ -1352,7 +1353,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": 50,
             "default_from": null,
@@ -1424,7 +1426,8 @@
             ],
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": "both",
             "default_from": null,
@@ -1483,7 +1486,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": 0.5,
             "default_from": null,
@@ -1504,7 +1508,7 @@
             "max_label": "Fort",
             "min": 0,
             "min_label": "Doux",
-            "name": "strength",
+            "name": "denoising_strength",
             "option_groups": null,
             "options_abilities": false,
             "options_auto": false,
@@ -1555,7 +1559,8 @@
             ],
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": "64",
             "default_from": null,
@@ -1642,13 +1647,16 @@
               ]
             ],
             "contexts": [
-              "item"
+              "panel",
+              "item",
+              "batch"
             ],
             "default": "original",
             "default_from": null,
             "display_format": "",
             "dom_id": {
-              "item": "settingsAudioOutputFormat"
+              "item": "settingsAudioOutputFormat",
+              "panel": "audioOutputFormat"
             },
             "group": null,
             "help": "",
@@ -1703,13 +1711,16 @@
               ]
             ],
             "contexts": [
-              "item"
+              "panel",
+              "item",
+              "batch"
             ],
             "default": "balanced",
             "default_from": null,
             "display_format": "",
             "dom_id": {
-              "item": "settingsAudioOutputQuality"
+              "item": "settingsAudioOutputQuality",
+              "panel": "audioOutputQuality"
             },
             "group": null,
             "help": "Appliquée à la conversion vers le format choisi.",
@@ -1765,7 +1776,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": "auto",
             "default_from": null,
@@ -1868,7 +1880,8 @@
             ],
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": "4",
             "default_from": null,
@@ -1923,7 +1936,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": 50,
             "default_from": null,
@@ -1978,7 +1992,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": false,
             "default_from": null,
@@ -2030,7 +2045,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": 0.0,
             "default_from": null,
@@ -2082,7 +2098,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": false,
             "default_from": null,
@@ -2134,7 +2151,8 @@
             "choices": null,
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": "original",
             "default_from": null,
@@ -2273,7 +2291,8 @@
             ],
             "contexts": [
               "panel",
-              "item"
+              "item",
+              "batch"
             ],
             "default": "balanced",
             "default_from": null,
@@ -2404,9 +2423,12 @@
         "audio_batch_download",
         "audio_batch_duplicate",
         "audio_batch_preview",
+        "audio_batch_promote",
+        "audio_batch_realign",
         "audio_batch_start",
         "audio_batch_status",
         "audio_batch_template",
+        "audio_batch_update",
         "audio_card_html",
         "audio_clear_all",
         "audio_consolidate",
@@ -2648,6 +2670,21 @@
           "name": "audio_batch_start",
           "pattern": "audio/batch/<int:pk>/start/",
           "view": "views.audio_batch_start"
+        },
+        {
+          "name": "audio_batch_update",
+          "pattern": "audio/batch/<int:pk>/update/",
+          "view": "views.audio_batch_update"
+        },
+        {
+          "name": "audio_batch_promote",
+          "pattern": "audio/batch/<int:pk>/promote/",
+          "view": "views.audio_batch_promote"
+        },
+        {
+          "name": "audio_batch_realign",
+          "pattern": "audio/batch/<int:pk>/realign/",
+          "view": "views.audio_batch_realign"
         },
         {
           "name": "audio_batch_status",

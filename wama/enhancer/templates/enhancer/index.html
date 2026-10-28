@@ -22,8 +22,8 @@ JS), débruitage, blend, format et qualité de sortie ; côté audio, moteur, cu
 NFE. Les `dom_id` reprennent les ids d'avant (`#defaultAiModel`, `#mediaUpscaleFactor`,
 `#audioEngine`, `#audioQuality`…) : le JS d'app les lit inchangé. Les `show_if` du schéma
 montrent le facteur et le curseur sur « auto », les réglages Resemble sur Resemble — comme la
-modale. Le format et la qualité de sortie ne valent qu'au domaine image/vidéo (le schéma audio
-les déclare à la modale seule) : ils vivent désormais dans son hôte.
+modale. Le format et la qualité de sortie sont dans les DEUX hôtes depuis le 2026-10-28 (le domaine
+audio porté sur le modèle commun : naissance avec le volet, volet retenu).
 Reste écrit ici ce qui n'est pas au schéma : les lignes d'appariement (greffées sous le
 modèle) et les encadrés d'information.{% endcomment %}
 <!-- === Image/Video settings === -->
@@ -188,6 +188,10 @@ modèle) et les encadrés d'information.{% endcomment %}
       audioBatchCreateUrl: '{% url "enhancer:audio_batch_create" %}',
       audioBatchTemplateUrl: '{% url "enhancer:audio_batch_template" %}',
       audioBatchStartUrlTemplate: '{% url "enhancer:audio_batch_start" 0 %}',
+      {% comment %}Forme `as` (route du 2026-10-28) : le gabarit est relu à chaud, les routes à la
+      relance seulement — un `{% url %}` nu ferait une 500 entre les deux.{% endcomment %}
+      {% url "enhancer:audio_batch_update" 0 as audio_batch_update_url %}
+      audioBatchUpdateUrlTemplate: '{{ audio_batch_update_url }}',
       audioBatchStatusUrlTemplate: '{% url "enhancer:audio_batch_status" 0 %}',
       audioBatchDownloadUrlTemplate: '{% url "enhancer:audio_batch_download" 0 %}',
       {% comment %}audioBatchDelete/audioBatchDuplicate RETIRÉS le 2026-08-27 : la card mère audio
@@ -224,13 +228,14 @@ window.ENHANCER_AUDIO_SCHEMA = {{ audio_params_json|safe }};
 // ── VOLET : GÉNÉRÉ du schéma, un hôte par domaine (2026-10-11) ────────────────────────────────
 // Script EN LIGNE, donc exécuté à l'analyse : les champs existent avant index.js et
 // audio-enhancer.js (tous deux dans un DOMContentLoaded), qui les lisent par leurs ids.
-// Valeurs du domaine image/vidéo = les réglages MÉMORISÉS de l'utilisateur (`read_panel_settings`,
-// la mémoire que le dépôt écrit) ; le domaine audio n'en mémorise pas : défauts du schéma.
+// Valeurs des DEUX domaines = les réglages MÉMORISÉS de l'utilisateur (`read_panel_settings`, la
+// mémoire que le dépôt écrit) — le domaine audio aussi depuis le 2026-10-28.
 (function renderPanels() {
     if (!window.WamaParams) { console.warn('[enhancer] WamaParams absent — volet non généré'); return; }
     [['mediaPanelFields', window.ENHANCER_MEDIA_SCHEMA, {{ panel_values_json|default:"{}"|safe }},
       'ai_model', 'mediaMatchStatus'],
-     ['audioPanelFields', window.ENHANCER_AUDIO_SCHEMA, {}, 'engine', 'audioMatchStatus']
+     ['audioPanelFields', window.ENHANCER_AUDIO_SCHEMA, {{ audio_panel_values_json|default:"{}"|safe }},
+      'engine', 'audioMatchStatus']
     ].forEach(function (spec) {
         var host = document.getElementById(spec[0]);
         if (!host) return;
@@ -408,6 +413,9 @@ window._batchImport = WamaBatchImport({
     batchPreviewUrl: window.ENHANCER_APP.batchPreviewUrl,
     batchCreateUrl:  window.ENHANCER_APP.batchCreateUrl,
     csrfToken:       window.ENHANCER_APP.csrfToken,
+    // Le volet part avec le lot, comme avec un dépôt (2026-10-28) : les filles naissent avec lui
+    // (`batch_create`, cascade commune). Elles naissaient sur la seule mémoire du volet.
+    formDataBuilder: function(fd) { if (window.EnhancerPanel) window.EnhancerPanel.appendMedia(fd); },
     afterCreate: function(data, autoStart) {
         if (autoStart && data.batch_id) {
             fetch(window.ENHANCER_APP.batchStartUrlTemplate.replace('/0/', '/' + data.batch_id + '/'), {

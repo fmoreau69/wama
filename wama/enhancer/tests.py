@@ -324,7 +324,7 @@ class AudioCatalogueKeysTest(TestCase):
         registry._discover_enhancer_models()
         reads = {key: registry._models[key].capabilities['params']
                  for key in ('enhancer:resemble', 'enhancer:deepfilternet')}
-        for name in ('mode', 'strength', 'quality'):
+        for name in ('mode', 'denoising_strength', 'quality'):
             with self.subTest(setting=name):
                 p = next(p for p in AUDIO_PARAMS if p.name == name)
                 self.assertEqual({'field': 'engine', 'capability': 'params', 'mode': 'reads'},
@@ -512,9 +512,11 @@ class OutputKeepSizeTest(TestCase):
         self.user = get_user_model().objects.create_user('enh_keep', password='x')
 
     def test_the_setting_is_offered_by_the_panel_and_the_modal_and_born_unchecked(self):
+        """Volet, ⚙ d'un élément — et ⚙ d'un LOT depuis le 2026-10-28 (aucun réglage de
+        l'enhancer ne déclarait le lot : sa modale s'ouvrait vide)."""
         from wama.enhancer.params import MEDIA_PARAMS
         param = next(p for p in MEDIA_PARAMS if p.name == 'output_keep_size')
-        self.assertEqual({'panel', 'item'}, set(param.contexts))
+        self.assertEqual({'panel', 'item', 'batch'}, set(param.contexts))
         self.assertFalse(Enhancement._meta.get_field('output_keep_size').get_default())
 
     def test_changing_it_stales_the_output_not_the_enhancement(self):

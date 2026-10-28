@@ -85,3 +85,142 @@ class PanelMemoryTest(TestCase):
         memory = read_panel_settings(other, 'enhancer', MEDIA_PARAMS)
         self.assertNotEqual('BSRGANx2', memory['ai_model'])
         self.assertFalse(memory['denoise'])
+
+
+class AudioPanelMemoryTest(TestCase):
+    """The AUDIO tab follows the SAME model as the image/video one (2026-10-28, Fabien : « il faut
+    aligner l'onglet audio […] d'un bloc »). Before : the audio deposit created the element on the
+    model's defaults, the panel was re-applied at EVERY ▶, nothing was retained, four views copied
+    their own list of settings, and the force of the denoising was named `strength` for a column
+    `denoising_strength`. Now : born with the panel, panel retained and shown again, ▶ launches
+    with the STORED settings, one function applies them — and every way in (card, batch, « Envoyer
+    vers », the assistant's tool) is born the same."""
+
+    ENGINE = 'enhancer:resemble'
+
+    _user = PanelMemoryTest._user
+
+    def setUp(self):
+        self.me = self._user('enhancer_audio_me')
+        self.client.force_login(self.me)
+        from wama.model_manager.models import AIModel
+        for key in (self.ENGINE, 'enhancer:deepfilternet'):
+            AIModel.objects.create(model_key=key, name=key.split(':')[1], model_type='audio',
+                                   source='enhancer', is_downloaded=True, is_available=True,
+                                   capabilities={'task': 'audio-enhance'},
+                                   composition={'runtime': {'engine': 'torch'}})
+
+    def _deposit(self, **panel):
+        ext, content = _WITNESSES['audio']
+        data = {'file': SimpleUploadedFile('voice' + ext, content(), content_type='audio/wav'),
+                **panel}
+        return self.client.post(reverse('enhancer:audio_upload'), data)
+
+    def _latest(self):
+        from wama.enhancer.models import AudioEnhancement
+        return AudioEnhancement.objects.filter(user=self.me).latest('id')
+
+    PANEL = {'engine': ENGINE, 'mode': 'denoise', 'denoising_strength': '0.8', 'quality': '128',
+             'output_format': 'flac', 'output_quality': 'max'}
+
+    def test_the_setting_has_the_name_of_its_column(self):
+        from wama.enhancer.models import AudioEnhancement
+        from wama.enhancer.params import AUDIO_PARAMS
+        columns = {f.name for f in AudioEnhancement._meta.concrete_fields}
+        self.assertEqual(set(), {p.name for p in AUDIO_PARAMS} - columns,
+                         'a setting the birth cascade cannot pose is a setting lost')
+
+    def test_the_audio_element_is_born_with_the_panel_and_it_is_remembered(self):
+        response = self._deposit(**self.PANEL)
+        self.assertLess(response.status_code, 400, response.content[:300])
+        item = self._latest()
+        self.assertEqual((self.ENGINE, 'denoise', 0.8, 128, 'flac', 'max'),
+                         (item.engine, item.mode, item.denoising_strength, item.quality,
+                          item.output_format, item.output_quality))
+        import json
+        shown = json.loads(self.client.get(reverse('enhancer:index'))
+                           .context['audio_panel_values_json'])
+        self.assertEqual(('denoise', 0.8, 'flac'),
+                         (shown['mode'], shown['denoising_strength'], shown['output_format']))
+
+    def test_a_deposit_without_panel_takes_the_remembered_one(self):
+        self._deposit(**self.PANEL)
+        self._deposit()
+        item = self._latest()
+        self.assertEqual(('denoise', 0.8, 'flac'),
+                         (item.mode, item.denoising_strength, item.output_format))
+
+    def test_the_card_start_launches_with_the_STORED_settings(self):
+        """▶ of a card : empty body, the element keeps what it was set to — the panel changed
+        meanwhile no longer rewrites it in silence."""
+        from unittest import mock
+        self._deposit(**self.PANEL)
+        item = self._latest()
+        with mock.patch('wama.enhancer.tasks.enhance_audio.delay',
+                        return_value=mock.Mock(id='task-1')):
+            response = self.client.post(reverse('enhancer:audio_start', args=[item.pk]),
+                                        data='{}', content_type='application/json')
+        self.assertLess(response.status_code, 400, response.content[:300])
+        item.refresh_from_db()
+        self.assertEqual(('denoise', 0.8), (item.mode, item.denoising_strength))
+
+    def test_the_item_settings_route_writes_by_the_schema(self):
+        self._deposit()
+        item = self._latest()
+        response = self.client.post(reverse('enhancer:audio_update', args=[item.pk]),
+                                    {'denoising_strength': '0.2', 'mode': 'enhance',
+                                     'output_format': 'mp3'})
+        self.assertLess(response.status_code, 400, response.content[:300])
+        item.refresh_from_db()
+        self.assertEqual((0.2, 'enhance', 'mp3'),
+                         (item.denoising_strength, item.mode, item.output_format))
+
+    def test_sent_to_the_enhancer_an_audio_carries_the_author_settings(self):
+        """« Envoyer vers » (filemanager) : born like a deposit — it took the model's defaults."""
+        import tempfile
+        from pathlib import Path
+        from wama.filemanager.views import import_to_enhancer
+        self._deposit(**self.PANEL)
+        ext, content = _WITNESSES['audio']
+        folder = Path(tempfile.mkdtemp())
+        self.addCleanup(__import__('shutil').rmtree, folder, True)
+        source = folder / ('sent' + ext)
+        source.write_bytes(content())
+        with self.settings(MEDIA_ROOT=str(folder)):
+            result = import_to_enhancer(source, self.me)
+        from wama.enhancer.models import AudioEnhancement
+        sent = AudioEnhancement.objects.get(pk=result['id'])
+        self.assertEqual(('denoise', 0.8, 'flac'),
+                         (sent.mode, sent.denoising_strength, sent.output_format))
+
+    def test_the_batch_modal_of_each_domain_has_its_settings(self):
+        """No setting declared the BATCH context : the batch ⚙ opened EMPTY in both domains
+        (measured 2026-10-28 : 0 of 8, 0 of 7)."""
+        from wama.enhancer.params import AUDIO_PARAMS_JSON, MEDIA_PARAMS_JSON
+        for schema in (MEDIA_PARAMS_JSON, AUDIO_PARAMS_JSON):
+            self.assertEqual([p['name'] for p in schema],
+                             [p['name'] for p in schema if 'batch' in p['contexts']])
+
+    def test_the_audio_batch_settings_reach_every_child(self):
+        """The audio batch had no settings route : its ⚙ was rendered, nothing listened."""
+        from wama.enhancer.models import (AudioEnhancement, BatchAudioEnhancement,
+                                          BatchAudioEnhancementItem)
+        batch = BatchAudioEnhancement.objects.create(user=self.me, total=2)
+        children = [AudioEnhancement.objects.create(user=self.me) for _ in range(2)]
+        for index, child in enumerate(children):
+            BatchAudioEnhancementItem.objects.create(batch=batch, audio_enhancement=child,
+                                                     row_index=index)
+        response = self.client.post(reverse('enhancer:audio_batch_update', args=[batch.pk]),
+                                    {'mode': 'enhance', 'denoising_strength': '0.3'})
+        self.assertLess(response.status_code, 400, response.content[:300])
+        for child in children:
+            child.refresh_from_db()
+            self.assertEqual(('enhance', 0.3), (child.mode, child.denoising_strength))
+
+    def test_another_user_does_not_inherit_the_audio_panel(self):
+        self._deposit(**self.PANEL)
+        other = self._user('enhancer_audio_other')
+        from wama.enhancer.params import AUDIO_PARAMS
+        memory = read_panel_settings(other, 'enhancer', AUDIO_PARAMS)
+        self.assertEqual(('both', 0.5, 'original'),
+                         (memory['mode'], memory['denoising_strength'], memory['output_format']))

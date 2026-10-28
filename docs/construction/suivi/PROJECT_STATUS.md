@@ -27159,4 +27159,13 @@ et Lab : au portage de leurs apps, alignés le moment venu).
   images aux temps de la source à 2 ms près (MP4, MKV à cadence variable avec contre-épreuve), audio
   PCM encodé en AAC sans changer de durée, AVI en `mpeg4` (la roue PyAV n'a pas `libxvid`). La
   cadence moyenne (`media_probe.rendering_facts`) est retirée. 520 tests verts.
+- ✅ **Puis l'onglet AUDIO de l'Enhancer, porté d'un bloc** (Fabien : « il faut aligner l'onglet
+  audio de l'enhancer ») : l'élément naît avec le volet par TOUTES les entrées (card, lot,
+  « Envoyer vers », outil de l'assistant — `views.new_audio_settings`), le volet est retenu et
+  réaffiché, ▶ lance avec les réglages STOCKÉS, « Tout démarrer » applique le volet des deux
+  domaines ; `strength` → `denoising_strength` (nom de sa colonne, catalogue de Resemble suivi) ;
+  ⚙ de lot remplie dans les deux domaines, routes de réglages du lot audio. Doc :
+  `WAMA_APP_CONVENTIONS §6.4`, `wama/enhancer/README.md`. Garde `AudioPanelMemoryTest` ; 339 tests
+  du périmètre verts (le seul rouge : 3 noms de tests d'une autre session, renommés depuis par
+  elle). 🔴 Relance : la ligne de catalogue de Resemble se resynchronise (`params`).
 - 🔚 Restes : interrupteur « Mettre en forme par IA » activé par défaut (comme avant) — recommandé.

@@ -49,26 +49,10 @@ document.addEventListener('DOMContentLoaded', function () {
       folderInputId:    'enhancerFolderInput',
       batch:            window._batchImport,
       batchScope:       'each',
-      extraFields:      function (fd) {
-        fd.append('output_format', (document.getElementById('output_format') || {}).value || 'original');
-        fd.append('output_quality', (document.getElementById('output_quality') || {}).value || 'balanced');
-        // « Garder la résolution d'origine » (2026-10-16) : appliqué au process « Sortie ».
-        const keepSize = document.getElementById('outputKeepSize');
-        if (keepSize) fd.append('output_keep_size', keepSize.checked ? 'true' : 'false');
-        // Tirage auto : facteur + curseur du volet voyagent avec le dépôt (curseur C, 21/09).
-        const auto = panelAutoValues();
-        fd.append('upscale_factor', auto.upscale_factor);
-        fd.append('quality_intent', auto.quality_intent);
-        // Modèle, débruitage, blend du volet (2026-09-29) : ils ne partaient qu'avec « Tout
-        // démarrer » — l'élément naissait sur les défauts. Il naît désormais COMPLET, et le
-        // serveur MÉMORISE ce que le volet poste (brique commune `save_panel_settings`).
-        const model = document.getElementById('defaultAiModel');
-        const denoise = document.getElementById('defaultDenoise');
-        const blend = document.getElementById('defaultBlendFactor');
-        if (model && model.value) fd.append('ai_model', model.value);
-        if (denoise) fd.append('denoise', denoise.checked ? 'true' : 'false');
-        if (blend) fd.append('blend_factor', blend.value);
-      },
+      // Le volet part avec le dépôt, lu par le SCHÉMA (2026-10-28 — il était relu champ par champ,
+      // huit ids écrits ici) : l'élément naît COMPLET, le serveur MÉMORISE ce que le volet poste
+      // (brique commune `save_panel_settings`). La même lecture que le domaine audio.
+      extraFields:      function (fd) { appendMediaPanel(fd); },
       afterImport:      function (ids, reponses) {
         if (ids.length !== 1) { location.reload(); return; }
         const data = reponses[0] || { id: ids[0] };
@@ -277,13 +261,22 @@ document.addEventListener('DOMContentLoaded', function () {
   // ── Volet : réglages du tirage « auto » (facteur + curseur) ──
   // Visibles sur « auto » seulement : depuis que le volet est GÉNÉRÉ (2026-10-11), c'est le
   // `show_if` du schéma qui les montre — la bascule écrite ici (`#mediaAutoOptions`) est partie.
-  function panelAutoValues() {
-    // Ce que le volet dit du tirage auto — posté avec les autres défauts du volet.
-    return {
-      upscale_factor: document.getElementById('mediaUpscaleFactor')?.value || '4',
-      quality_intent: document.getElementById('mediaQualityIntent')?.value || '',
-    };
+  // Ce que le VOLET image/vidéo dit, lu par le SCHÉMA (`WamaParams.read` de l'hôte généré) — il
+  // part avec le dépôt, le lot et « Tout démarrer » (2026-10-28 : la même lecture que l'audio ;
+  // elle se faisait champ par champ, à des listes différentes selon le geste).
+  function mediaPanelValues() {
+    const host = document.getElementById('mediaPanelFields');
+    return (host && window.WamaParams) ? WamaParams.read(host) : {};
   }
+
+  function appendMediaPanel(fd) {
+    const values = mediaPanelValues();
+    Object.keys(values).forEach(function (name) {
+      const value = values[name];
+      if (value !== undefined && value !== null) fd.append(name, value);
+    });
+  }
+  window.EnhancerPanel = { appendMedia: appendMediaPanel };
 
   function initExistingRows() {
     if (!queueTable) return;
@@ -372,15 +365,10 @@ document.addEventListener('DOMContentLoaded', function () {
     }, { domain: 'image_video' });
 
     // ▶ de FILE (2026-10-17, ex-`handleStartAll`) — mêmes deux spécificités qu'au lot : le CORPS
-    // porte les réglages par défaut du volet (la vue `start_all` les applique à tout l'élément),
-    // et la SUITE polle au lieu de recharger.
-    WamaQueueActions.onQueueStartBody(function () {
-      return Object.assign({
-        ai_model: document.getElementById('defaultAiModel')?.value,
-        denoise: document.getElementById('defaultDenoise')?.checked,
-        blend_factor: document.getElementById('defaultBlendFactor')?.value,
-      }, panelAutoValues());
-    }, { domain: 'image_video' });
+    // porte le volet (la vue `start_all` l'applique à toute la file), et la SUITE polle au lieu de
+    // recharger. Le volet ENTIER, lu par le schéma (2026-10-28 : il en partait cinq réglages).
+    WamaQueueActions.onQueueStartBody(function () { return mediaPanelValues(); },
+                                      { domain: 'image_video' });
     WamaQueueActions.onQueueStarted(function (data) {
       const started = data.started_ids || [];
       const errors = data.errors || [];
@@ -397,17 +385,29 @@ document.addEventListener('DOMContentLoaded', function () {
   // globalement par base.html) — le handler local dupliquait la requête.
 
   // ── ⚙ Batch settings : modale BATCH commune (WamaParams context:'batch') ──
-  let _batchParamsRendered = false;
+  // Pour les DEUX files (2026-10-28) : le ⚙ de la card mère AUDIO était rendu sans que rien ne
+  // l'écoute. La modale rend le schéma du domaine de la card cliquée et poste vers SA route de lot.
+  const BATCH_DOMAINS = {
+    'enhancer-queue':       { schema: () => window.ENHANCER_MEDIA_SCHEMA,
+                              update: () => config.batchUpdateUrlTemplate,
+                              start: () => config.batchStartUrlTemplate },
+    'audio-enhancer-queue': { schema: () => window.ENHANCER_AUDIO_SCHEMA,
+                              update: () => (window.AUDIO_ENHANCER_APP || {}).audioBatchUpdateUrlTemplate,
+                              start: () => (window.AUDIO_ENHANCER_APP || {}).audioBatchStartUrlTemplate },
+  };
+  let _batchParamsRenderedFor = '';
   document.addEventListener('click', function(e) {
     const bs = e.target.closest('.batch-settings-btn');
-    if (!bs || !bs.closest('#enhancer-queue')) return;
+    const queue = bs && bs.closest('#enhancer-queue, #audio-enhancer-queue');
+    if (!queue) return;
     const modal = document.getElementById('batchSettingsModal');
     if (!modal || !window.WamaParams) return;
-    if (!_batchParamsRendered) {
+    if (_batchParamsRenderedFor !== queue.id) {
       WamaParams.render(document.getElementById('enhancerBatchParams'),
-                        window.ENHANCER_MEDIA_SCHEMA || [], { context: 'batch', values: {} });
-      _batchParamsRendered = true;
+                        BATCH_DOMAINS[queue.id].schema() || [], { context: 'batch', values: {} });
+      _batchParamsRenderedFor = queue.id;
     }
+    modal.dataset.queue = queue.id;
     modal.dataset.batchId = bs.dataset.batchId;
     const idBadge = document.getElementById('batchSettingsBatchId');
     if (idBadge) idBadge.textContent = '#' + bs.dataset.batchId;
@@ -421,12 +421,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const vals = WamaParams.read(document.getElementById('enhancerBatchParams'));
     const fd = new FormData();
     Object.keys(vals).forEach(k => fd.append(k, vals[k]));
+    const domain = BATCH_DOMAINS[modal.dataset.queue] || BATCH_DOMAINS['enhancer-queue'];
     try {
-      await fetch(getUrl(config.batchUpdateUrlTemplate, bid), {
+      await fetch(getUrl(domain.update(), bid), {
         method: 'POST', headers: csrfHeaders(), body: fd,
       });
       if (andStart) {
-        await fetch(getUrl(config.batchStartUrlTemplate, bid), {
+        await fetch(getUrl(domain.start(), bid), {
           method: 'POST', headers: csrfHeaders(),
         });
       }

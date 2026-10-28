@@ -526,7 +526,7 @@ class RewriteVideoKeepsItsSoundTest(SimpleTestCase):
         self.assertEqual(len(before), len(after))
         self.assertLess(max(abs(a - b) for a, b in zip(before, after)), 0.002)
 
-    def test_an_audio_the_container_refuses_is_encoded_at_its_own_times(self):
+    def test_an_audio_the_container_cannot_hold_is_encoded_at_its_own_times(self):
         """A `.mov` carries PCM audio ; rewritten into `.mp4` (a caller asking another container),
         PCM is not accepted as is : it is ENCODED (AAC), never stretched — its length is kept."""
         source = self._source('studio.mov', 'pcm_s16le')

@@ -856,9 +856,16 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
     l'inspecteur (`detail_registry.build_detail`).
   Écarts soldés ce jour : les unions recopiées de l'enhancer et de l'anonymizer (qualité toujours
   affichée), la section Sortie du volet de l'anonymizer écrite à la main (8 formats sur 13, valeur
-  retenue jamais réaffichée — générée du schéma depuis). ⏳ Restes : le domaine AUDIO de
-  l'enhancer ne suit pas le modèle commun du volet (son dépôt ignore le volet, qui ne vaut qu'au
-  lancement) — il se porte d'un bloc, sa section Sortie avec.
+  retenue jamais réaffichée — générée du schéma depuis). Le domaine AUDIO de l'enhancer suit le
+  modèle commun depuis le soir même, porté d'un bloc (Fabien : « il faut aligner l'onglet audio ») :
+  l'élément NAÎT avec le volet (dépôt de card, de lot, « Envoyer vers », outil de l'assistant — une
+  seule naissance, `enhancer.views.new_audio_settings`), le volet est RETENU et réaffiché
+  (`save_panel_settings`/`read_panel_settings`), ▶ lance avec les réglages STOCKÉS de l'élément, et
+  sa section Sortie (format + qualité) est au volet. Le réglage `strength` a pris le nom de sa
+  colonne (`denoising_strength`), ce qui retire le mapping de la card et l'exception de
+  `GENERATE_WATCHED` ; la ⚙ de lot des deux domaines est remplie (aucun réglage ne déclarait le
+  contexte `batch`) et le lot audio a ses routes de réglages. Garde :
+  `enhancer.tests_panel_memory.AudioPanelMemoryTest`.
   L'avatarizer a reçu format et qualité (D5) : sa transformation propre (le visage) PUIS les
   réglages communs, au même process de sortie (`output_step(..., apply=, then_settings=True)`, un
   seul original gardé) — process « Visage et sortie », déclaré par la brique (`output_spec(
