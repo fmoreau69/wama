@@ -45,6 +45,9 @@ from .ui_smoke_matching import _cookie
 
 IPAD_UA = ('Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 '
            '(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1')
+#: L'iPad Pro 11 en portrait (le paysage en échange les côtés) — lu par la tablette et les écrans.
+IPAD_PORTRAIT = {'width': 834, 'height': 1194}
+IPAD_LANDSCAPE = {'width': IPAD_PORTRAIT['height'], 'height': IPAD_PORTRAIT['width']}
 PAGE_TIMEOUT_MS = 90000
 ANIM_MS = 600            # repli animé (.22 s) + annonce `wama:panels` (.24 s), avec de la marge
 
@@ -97,7 +100,7 @@ def _clean_layout(state, where):
 
 def _ipad_context(browser, token):
     """UN profil tablette pour les deux scénarios : iPad Pro 11 en portrait, doigt, compte de test."""
-    ctx = browser.new_context(viewport={'width': 834, 'height': 1194}, device_scale_factor=2,
+    ctx = browser.new_context(viewport=dict(IPAD_PORTRAIT), device_scale_factor=2,
                               is_mobile=True, has_touch=True, user_agent=IPAD_UA)
     ctx.add_cookies(_cookie(token))
     return ctx
@@ -165,7 +168,7 @@ def check_tablet_layout(app: str, url_path: str):
                     faults.append(f"portrait : le choix fait EN GRAND a été écrit ({s['store']})")
                 steps.append(f"un seul volet à la fois (centre {s['center']} px, panneau ouvert)")
 
-                page.set_viewport_size({'width': 1194, 'height': 834})
+                page.set_viewport_size(dict(IPAD_LANDSCAPE))
                 page.wait_for_timeout(ANIM_MS)
                 s = page.evaluate(JS_LAYOUT)
                 faults += _clean_layout(s, 'paysage')
@@ -174,7 +177,7 @@ def check_tablet_layout(app: str, url_path: str):
                                   f"{s['narrow']}, gauche {s['leftOpen']}, droite {s['rightOpen']})")
                 steps.append(f"paysage : volets ouverts, centre {s['center']} px")
 
-                page.set_viewport_size({'width': 834, 'height': 1194})
+                page.set_viewport_size(dict(IPAD_PORTRAIT))
                 page.wait_for_timeout(ANIM_MS)
                 s = page.evaluate(JS_LAYOUT)
                 if not s['narrow'] or s['leftOpen'] or not s['rightOpen']:
@@ -1335,8 +1338,8 @@ SCREENS = (
     ('4K à 150 %', 2560, 1440, 1.5, False),
     ('Full HD', 1920, 1080, 1, False),
     ('portable', 1366, 768, 1, False),
-    ('tablette paysage', 1194, 834, 2, True),
-    ('tablette portrait', 834, 1194, 2, True),
+    ('tablette paysage', IPAD_LANDSCAPE['width'], IPAD_LANDSCAPE['height'], 2, True),
+    ('tablette portrait', IPAD_PORTRAIT['width'], IPAD_PORTRAIT['height'], 2, True),
     ('téléphone', 390, 844, 3, True),
 )
 

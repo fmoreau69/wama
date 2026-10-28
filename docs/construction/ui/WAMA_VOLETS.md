@@ -816,6 +816,12 @@ dépôt (14 pages), toute modification y est transverse par construction.
    pied 170 px).
    ⏳ Ce qui reste hors de cette étape : un téléphone (sous ~600 px, un volet ouvert laisse peu
    au centre — hors du périmètre tablette), et les gestes (`ROADMAP §27` étape 3).
+   ✅ *2026-10-28* : le téléphone et les grands écrans sont mesurés chaque nuit —
+   **`common.layout.screens`** (`ui_smoke_layout.py`, 8 écrans de 3 440 px en 21:9 à 390 px ×
+   l'accueil, le journal, le calendrier et chaque app découverte), les mesures de
+   `common.layout.tablet` plus tout élément VISIBLE hors de l'écran. Au téléphone, le pied ne
+   garde que les pourcentages des ressources (son titre laisse sa place). Relevé, défauts trouvés
+   et corrigés : `ROADMAP §27`.
 
 ## Voir aussi
 - `WAMA_DATA_WORLD.md §11.8` — l'UI du monde Data hérite de la file Médias ; les évolutions ⑦ du
