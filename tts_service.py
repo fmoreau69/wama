@@ -552,12 +552,14 @@ def _turn_session(model_path: str):
         session = _turn_sessions.get(model_path)
         if session is None:
             import onnxruntime as ort
+            from wama.common.utils.onnx_utils import onnx_providers
             options = ort.SessionOptions()
             options.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
             options.inter_op_num_threads = 1
             options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            # Processeur SEUL : la variante int8 est faite pour lui, et la carte reste à la voix.
             session = ort.InferenceSession(model_path, sess_options=options,
-                                           providers=["CPUExecutionProvider"])
+                                           providers=onnx_providers(cpu_only=True))
             _turn_sessions[model_path] = session
         return session
 

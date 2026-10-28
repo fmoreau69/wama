@@ -723,7 +723,12 @@ avait tiré `ollama:gemma4:12b` (résident, donc préféré par `prefer_loaded`)
      detection` nomme aussi les VAD ordinaires). Gardes : `tests_assistant_listen`
      (`EndOfTurnViewTest`, `EndOfTurnModelLineTest`, `EndOfTurnBrickTest`) — contre-épreuve sur la
      brique servie, quatre mutations (avis « finie » ignoré, patience ignorée, avis d'une pause
-     passée appliqué, 404 non entendu) : chacune rouge sur sa garde.
+     passée appliqué, 404 non entendu) : chacune rouge sur sa garde. Revérifié le jour même sur
+     le service EN MARCHE (relancé à 01:35) : 30 ms par avis ; phrase entière 0,977 → partie,
+     la même coupée à mi-course 0,743 → aucun avis, le silence décide (au seuil 0,5 elle était
+     coupée). La session ONNX prend les fournisseurs de la brique commune
+     (`onnx_utils.onnx_providers(cpu_only=True)`), et le geste nocturne de capture simule la
+     route comme il simule `/api/stt/` (`ui_smoke_capture`).
   2. ✅ **Une ligne de journal par réplique** (`speech_input._log_timing`) : moteur, durée dite,
      durée de transcription, et la part perdue avant le repli local quand le distant a échoué ;
      une ligne par avis de fin de tour (`[end_of_turn] p=…`). Une phrase lente se départage

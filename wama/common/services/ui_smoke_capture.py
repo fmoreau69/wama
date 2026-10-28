@@ -55,6 +55,10 @@ def check_capture():
                 ctx.add_cookies(_cookie(session.session_key))
                 ctx.add_init_script(JS_COUNT_STREAMS)
                 ctx.route('**/api/stt/**', lambda r: r.fulfill(json={'text': '', 'engine': 'local'}))
+                # L'avis de fin de tour (2026-10-28), demandé dès le préchauffage : simulé comme la
+                # transcription — le geste ne dépend pas du service vocal.
+                ctx.route('**/api/end-of-turn/**', lambda r: r.fulfill(
+                    json={'available': False, 'complete': None, 'probability': None}))
                 ctx.route('**' + save_realtime,
                           lambda r: (saved.append(len(r.request.post_data_buffer or b'')),
                                      r.fulfill(json={'ok': False})))

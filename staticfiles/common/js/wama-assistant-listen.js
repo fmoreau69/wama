@@ -94,6 +94,8 @@
   //: attendre `END_MS` ; « pas finie » → la pause peut durer `patientMs` ; pas d'avis (modèle
   //: absent, service muet, réponse tardive) → `END_MS`, exactement comme avant. Le silence garde
   //: ses bornes : l'avis ne fait que déplacer la décision entre elles.
+  //: `keepSeconds` n'allège que l'envoi : la fenêtre du modèle est celle du service
+  //: (`tts_service.TURN_SECONDS`), qui tronque de toute façon.
   var TURN = { askAfterMs: 300, patientMs: 2000, keepSeconds: 8 };
 
   var cfg = { sttUrl: '', turnUrl: '' };
@@ -345,14 +347,18 @@
   // reçoit le même message de repli « Micro indisponible : … ».
   function explainMicError(e) { return global.WamaCapture.explain(e, 'microphone'); }
 
-  // La réponse ENTIÈRE du serveur ({text, language, engine}) ; `transcribe` n'en garde que le texte.
-  function transcribeClip(samples, rate) {
-    var wav = toWav(downsample(samples, rate));
-    return fetch(cfg.sttUrl || '/api/stt/', {
+  // UN envoi de WAV au serveur, le même pour la transcription, le préchauffage et la fin de tour.
+  function postWav(url, wav) {
+    return fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'audio/wav', 'X-CSRFToken': csrfToken() },
       body: wav,
-    }).then(function (r) {
+    });
+  }
+
+  // La réponse ENTIÈRE du serveur ({text, language, engine}) ; `transcribe` n'en garde que le texte.
+  function transcribeClip(samples, rate) {
+    return postWav(cfg.sttUrl || '/api/stt/', toWav(downsample(samples, rate))).then(function (r) {
       return r.json().catch(function () { return { error: 'réponse illisible (' + r.status + ')' }; });
     }).then(function (data) {
       if (data.error) throw new Error(data.error);
@@ -373,11 +379,7 @@
     if (!turnAvailable) return Promise.resolve(null);
     var keep = Math.floor(TURN.keepSeconds * rate);
     var tail = samples.length > keep ? samples.subarray(samples.length - keep) : samples;
-    return fetch(cfg.turnUrl || '/api/end-of-turn/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'audio/wav', 'X-CSRFToken': csrfToken() },
-      body: toWav(downsample(tail, rate)),
-    }).then(function (r) {
+    return postWav(cfg.turnUrl || '/api/end-of-turn/', toWav(downsample(tail, rate))).then(function (r) {
       if (r.status === 404) turnAvailable = false;
       return r.ok ? r.json() : null;
     }).then(function (data) {
@@ -402,11 +404,8 @@
     if (Date.now() - warmedAt < 5 * 60 * 1000) return;
     warmedAt = Date.now();
     var url = cfg.sttUrl || '/api/stt/';
-    fetch(url + (url.indexOf('?') < 0 ? '?' : '&') + 'warmup=1', {
-      method: 'POST',
-      headers: { 'Content-Type': 'audio/wav', 'X-CSRFToken': csrfToken() },
-      body: new Blob([wavBytes(new Float32Array(TARGET_RATE / 4))], { type: 'audio/wav' }),
-    }).then(function (r) { return r.json(); })
+    postWav(url + (url.indexOf('?') < 0 ? '?' : '&') + 'warmup=1', toWav(new Float32Array(TARGET_RATE / 4)))
+      .then(function (r) { return r.json(); })
       .then(function (data) { if (data && data.engine) heardBy = data.engine; })
       .catch(function () {});
     // Le juge de fin de tour se charge aussi d'avance (~35 s à froid) : son premier avis
