@@ -2808,10 +2808,18 @@ def _run_global_tracking(session):
         # Garés comptés deux fois (ancres < 2 m) et bilans des leviers ⚑ parked_long_exposure / ⚑
         # trajectory_twin_merge (2026-10-07) : calculés par le tracker, jusque-là ni au résumé ni en console.
         rs['parked_twins'] = _gt.get('parked_twins')
+        # Les mêmes paires par NATURE (2026-10-28) : seules les « suspects » sont un garé compté deux fois.
+        rs['parked_twin_kinds'] = _gt.get('parked_twin_kinds')
+        rs['parked_twin_merge'] = _gt.get('parked_twin_merge')
         rs['parked_long_exposure'] = _gt.get('parked_long_exposure')
         rs['trajectory_twins'] = _gt.get('trajectory_twins')
+        _ptk = _gt.get('parked_twin_kinds') or {}
+        _ptm = _gt.get('parked_twin_merge')
         _console(session.user_id, f"Garés : {len(_gt.get('stationary_gids') or [])} — "
-                 f"{_gt.get('parked_twins')} paires à moins de 2 m (comptés deux fois)"
+                 f"en double : {_ptk.get('suspects', '?')} suspects (paires à moins de 2 m : "
+                 f"{_gt.get('parked_twins')}, dont {_ptk.get('same_image', 0)} vues dans une même image = deux "
+                 f"voitures, {_ptk.get('distinct_passes', 0)} passages distincts)"
+                 + (f" · réunis : {_ptm['merged']} en {_ptm['objects']} garés" if _ptm else '')
                  + (f" · pose longue : {_gt['parked_long_exposure']}" if _gt.get('parked_long_exposure') else '')
                  + (f" · trajectoires jumelles : {_gt['trajectory_twins']}" if _gt.get('trajectory_twins') else ''))
         _po = (_ca.get('parked_offsets') or {}).get('gaps') or {}

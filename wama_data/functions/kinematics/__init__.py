@@ -8,3 +8,5 @@ from . import static_fusion  # noqa: F401  (auto-enregistre la FunctionSpec)
 from .static_fusion import long_exposure_groups  # noqa: F401
 from . import twin_tracks  # noqa: F401  (auto-enregistre la FunctionSpec)
 from .twin_tracks import trajectory_twins  # noqa: F401
+from . import parked_twins  # noqa: F401  (auto-enregistre la FunctionSpec)
+from .parked_twins import parked_twin_groups  # noqa: F401

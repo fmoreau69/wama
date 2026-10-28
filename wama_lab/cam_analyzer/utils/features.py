@@ -206,6 +206,17 @@ FEATURES = [
             "hors des voies ». Mesure : « garés en double » (ancres à moins de 2 m). Tracking à rejouer.",
             default=False, scope='compute',
             processes=TRACKING),
+    Feature('parked_twin_merge', 'Garés en double réunis',
+            "Deux garés retenus à moins de 2 m peuvent être UN objet compté deux fois : le suivi a changé "
+            "d'identifiant en cours de route, ou deux caméras ne l'ont pas recollé — il s'affiche alors en "
+            "deux positions fixes voisines. Sont réunis les garés de même famille vus en même temps par deux "
+            "caméras, ou au cours d'un même passage de la navette (observations à moins d'une minute) ; "
+            "jamais deux boîtes d'une même image (deux voitures côte à côte), jamais deux garés vus seulement "
+            "à des passages différents. Chaque membre d'un groupe doit être proche de tous les autres : une file "
+            "de garés ne s'enchaîne pas. Mesuré le 2026-10-14 sur ENA_CASA : 109 suspects sur 333 paires. "
+            "Mesure : « garés en double » (suspects). Tracking à rejouer.",
+            default=False, scope='compute',
+            processes=TRACKING),
     Feature('trajectory_twin_merge', 'Trajectoires jumelles réunies (doublons)',
             "Un même véhicule vu par deux caméras (recouvrement avant ↔ latérale, au bord des images) peut "
             "recevoir deux identifiants qui roulent côte à côte : affiché deux fois, avec des fantômes qui ne "

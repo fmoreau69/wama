@@ -1,0 +1,78 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par observation d'un garé : identifiant, instant (s), position (m), famille.",
+        "group": "travail",
+        "key": "observations",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "id",
+          "t",
+          "e",
+          "n",
+          "family"
+        ]
+      }
+    ],
+    "key": "parked_twin_groups",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Garés absorbés et leur racine (le plus observé) ; le bilan des paires par nature est dans meta.",
+        "key": "groups",
+        "optional": false,
+        "produced_fields": [
+          "id",
+          "root"
+        ],
+        "required_fields": []
+      }
+    ],
+    "params": [
+      {
+        "choices": null,
+        "default": 2.0,
+        "description": "Distance maximale entre deux positions fixes pour juger une paire.",
+        "key": "twin_m",
+        "max": 5.0,
+        "min": 0.5,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "tracking",
+      "parked",
+      "duplicates",
+      "fusion"
+    ]
+  },
+  "description": "Classe les paires de garés à moins de 2 m — vus ensemble dans une image (deux voitures), jamais vus au même passage (observations les plus proches à plus d'une minute), ou suspects : vus au même instant par deux caméras, ou au même passage sans jamais d'image commune — et réunit les suspects de même famille. Chaque membre d'un groupe est un suspect de tous les autres : une file de garés ne s'enchaîne pas.",
+  "key": "parked_twin_groups",
+  "manifest_kind": "function",
+  "name": "Garés en double",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:parked_twin_groups",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

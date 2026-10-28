@@ -1630,6 +1630,44 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
         _gate_by_gid[gid] = compact
         if compact == 'retenu':
             stationary_gids.append(gid)
+    # ⚑ parked_twin_merge (Fabien, 2026-10-28) : des garés RETENUS à moins de 2 m, un même objet compté deux
+    # fois — identifiant changé en cours de suivi, ou deux caméras non recollées — sont réunis APRÈS les
+    # portes : la pose longue réunit des fragments à 1,5 m avant de juger, ces suspects-là (1,6 m médian,
+    # mesuré le 2026-10-14) lui échappent. Jamais deux boîtes d'une même image ni deux passages distincts
+    # (`parked_twins`). Les absorbés sortent par la porte « reuni ».
+    _ptm = None
+    if _feat.get('parked_twin_merge', False) and stationary_gids:
+        from wama_data.functions.kinematics.parked_twins import (parked_twin_groups, parked_twin_pairs,
+                                                                 twin_pair_counts)
+        _objs = []
+        for gid in stationary_gids:
+            hs = track_hist.get(gid) or []
+            if not hs:
+                continue
+            es, ns = sorted(h[2] for h in hs), sorted(h[3] for h in hs)
+            _objs.append((gid, es[len(es) // 2], ns[len(ns) // 2], sorted(h[1] for h in hs),
+                          dominant_family(cls_votes.get(gid) or {}, min_weight=0.0, min_share=0.5)))
+        _two = distinct_box_conflicts(_continuity_obs, set(stationary_gids), _root)
+        _pt = parked_twin_groups(_objs, _two)
+        _ptm = {'before': twin_pair_counts(parked_twin_pairs(_objs, _two)), 'merged': len(_pt),
+                'objects': len(set(_pt.values()))}
+        if _pt:
+            alias.update(_pt)
+            track_hist, cls_votes = remap_by_alias(track_hist, cls_votes, _root, dirty)
+            _ho = defaultdict(list)                      # le cap aussi se prend sur toutes les vues
+            for gid, obs in _head_obs.items():
+                _ho[_root(gid)].extend(obs)
+            _head_obs = _ho
+            stationary_gids = [g for g in stationary_gids if g not in _pt]
+            # Un absorbé QUITTE la référence de calibration sans y faire entrer sa racine : elle n'a pas
+            # passé les portes de compacité (rejeu du 2026-10-28 : racines à 4-6 m d'étalement, moyenne
+            # de la référence 1,17 → 1,32 m quand on les y faisait entrer).
+            calibration_reference = [g for g in calibration_reference if g not in _pt]
+            for gid in _pt:
+                _gate_by_gid[gid] = 'reuni'
+            _rejets['retenu'] -= len(_pt)
+            _rejets['reuni'] = len(_pt)
+        logger.info('[garés en double réunis] %s', _ptm)
     _stat_set = set(stationary_gids)
     logger.info('[référence de calibration] %s immobiles compacts (garés retenus : %s, règle %s)',
                 len(calibration_reference), len(stationary_gids), _stationary_rule)
@@ -1715,7 +1753,16 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
     _anc = [(me, mn) for (me, mn, _hd) in _anchor_tmp.values()]
     parked_twins = sum(1 for i in range(len(_anc)) for j in range(i + 1, len(_anc))
                        if math.hypot(_anc[i][0] - _anc[j][0], _anc[i][1] - _anc[j][1]) < PARKED_TWIN_M)
-    logger.info('[garés] %s ancres, %s paires à moins de %s m', len(_anc), parked_twins, PARKED_TWIN_M)
+    # Ces paires par NATURE (2026-10-28) : seules les « suspects » sont un objet compté deux fois — les deux
+    # boîtes d'une même image sont deux voitures, deux passages distincts ne s'affichent jamais ensemble
+    # (165 et 58 des 333 paires mesurées le 2026-10-14). `parked_twins` reste le compte brut, comparable
+    # aux mesures consignées depuis le 2026-10-06.
+    from wama_data.functions.kinematics.parked_twins import parked_twin_pairs, twin_pair_counts
+    parked_twin_kinds = twin_pair_counts(parked_twin_pairs(
+        [(g, me, mn, sorted(h[1] for h in track_hist.get(g) or [])) for g, (me, mn, _hd) in _anchor_tmp.items()],
+        distinct_box_conflicts(_continuity_obs, set(_anchor_tmp), _root), twin_m=PARKED_TWIN_M))
+    logger.info('[garés] %s ancres, %s paires à moins de %s m : %s', len(_anc), parked_twins, PARKED_TWIN_M,
+                parked_twin_kinds)
 
     stationary_anchors = {}
     for gid, (me, mn, hd) in _anchor_tmp.items():
@@ -2013,6 +2060,8 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'stationary_anchors': stationary_anchors,
             # garés comptés deux fois (ancres < 2 m) et bilan de ⚑ parked_long_exposure
             'parked_twins': parked_twins,
+            'parked_twin_kinds': parked_twin_kinds,   # les mêmes paires par nature ; 'suspects' = la mesure
+            'parked_twin_merge': _ptm,                # bilan de ⚑ parked_twin_merge
             'parked_long_exposure': _lexp,
             'trajectory_twins': _twins,      # bilan de ⚑ trajectory_twin_merge (portes, fusions)
             'calibration_reference_gids': calibration_reference,

@@ -1159,6 +1159,19 @@ c'est le défaut suivant (des morceaux d'un même garé laissés à 1,5-2 m, ou 
 deux boîtes). ⚠ Le test « près d'une intersection » porte sur CHAQUE position du track, pas sur
 sa médiane : avec la dérive, la zone réellement exclue dépasse le cercle dessiné.
 
+**Garés en double, par nature (2026-10-28, GO de Fabien).** Une paire de garés à moins de 2 m n'est
+pas forcément un objet compté deux fois. Rejeu sans écriture sur `4da52df3`, 336 paires :
+146 vues comme deux boîtes d'une même image (deux voitures côte à côte, rapprochées par le placement),
+155 jamais vues au même passage (observations les plus proches à plus d'une minute ; un garé n'est
+dessiné qu'aux images où il est détecté : jamais affichés ensemble), et **35 suspects** — vus au même
+instant par deux caméras (5), ou au même passage sans jamais d'image commune (30) : un identifiant
+changé en cours de suivi, ou deux caméras non recollées. La mesure (`parked_twin_kinds`) ne compte
+plus que ceux-là ; ⚑ `parked_twin_merge` (OFF) les réunit après les portes, avant la position fixe
+et le cap (brique `kinematics/parked_twins`) : 31 réunis, 3 suspects restants, référence de
+calibration inchangée. ⚠ Le passage se juge sur les observations les PLUS PROCHES : la pose longue
+réunit les passages d'un garé, dont la période couvre alors des heures — juger sur le chevauchement
+des périodes (ventilation du 14/10) prenait 86 paires de passages distincts pour des suspects.
+
 ⚠ Ce qui n'a PAS été joué : les bascules ⚑ elles-mêmes (`display_ema` OFF, `shuttle_filter` ON)
 et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les
 données lues datent d'un run antérieur au 2026-09-05 : `placement_spread` et `placement_sources`

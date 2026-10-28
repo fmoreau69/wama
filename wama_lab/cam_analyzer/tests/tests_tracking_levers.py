@@ -419,6 +419,28 @@ class TrajectoryTwinMergeTest(SimpleTestCase):
         self.assertIn("'trajectory_twins': _twins", src)
 
 
+class ParkedTwinMergeTest(SimpleTestCase):
+    """⚑ parked_twin_merge (2026-10-28) : les garés en double SUSPECTS réunis, après les portes."""
+
+    def test_declared_off_and_wired_after_the_gates_before_the_anchors(self):
+        f = {x.key: x for x in FEATURES}['parked_twin_merge']
+        self.assertFalse(f.default)
+        self.assertEqual(f.scope, 'compute')
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertIn("if _feat.get('parked_twin_merge', False) and stationary_gids:", src)
+        # après la décision des garés (porte par porte), avant leurs positions fixes et le cap
+        self.assertLess(src.index("_gate_by_gid[gid] = compact"), src.index('parked_twin_groups(_objs, _two)'))
+        self.assertLess(src.index('parked_twin_groups(_objs, _two)'), src.index('_anchor_tmp = {}'))
+        self.assertIn("'parked_twin_merge': _ptm", src)
+        # la racine d'un groupe n'entre pas dans la référence de calibration (compacité non jugée)
+        self.assertIn('calibration_reference = [g for g in calibration_reference if g not in _pt]', src)
+
+    def test_the_measure_counts_the_pairs_by_kind_on_the_final_anchors(self):
+        src = inspect.getsource(mt.annotate_global_tracks)
+        self.assertLess(src.index('_anchor_tmp[gid] = (me, mn, hd)'), src.index('parked_twin_kinds = '))
+        self.assertIn("'parked_twin_kinds': parked_twin_kinds", src)
+
+
 class ParkedAndTwinsReportTest(SimpleTestCase):
     """Les bilans des garés et des jumelles arrivent au RÉSUMÉ et en console (2026-10-07 : calculés par le
     tracker, ils n'étaient ni l'un ni l'autre — un premier tracking réel ne les montrait pas)."""
@@ -426,5 +448,6 @@ class ParkedAndTwinsReportTest(SimpleTestCase):
     def test_the_task_reports_the_parked_twins_and_the_levers(self):
         from wama_lab.cam_analyzer import tasks
         src = inspect.getsource(tasks._run_global_tracking)
-        for key in ("rs['parked_twins']", "rs['parked_long_exposure']", "rs['trajectory_twins']"):
+        for key in ("rs['parked_twins']", "rs['parked_twin_kinds']", "rs['parked_twin_merge']",
+                    "rs['parked_long_exposure']", "rs['trajectory_twins']"):
             self.assertIn(key, src)
