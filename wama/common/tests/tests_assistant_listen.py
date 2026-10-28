@@ -748,6 +748,100 @@ class EndOfTurnViewTest(TestCase):
         self.assertEqual(b'WAV', post.call_args.kwargs['data'])
 
 
+class EndOfTurnServiceRecipeTest(SimpleTestCase):
+    """`/end-of-turn` du service vocal suit la recette de l'éditeur : la FIN de la phrase, sur
+    8 s, complétée par du silence AU DÉBUT. Un écart rendrait des avis plausibles et faux, que
+    rien ne montrerait à l'usage — d'où cette garde, sans modèle ni extracteur réels."""
+
+    def setUp(self):
+        import numpy as np
+        import tts_service
+        from fastapi.testclient import TestClient
+        self.np, self.service = np, tts_service
+        self.client = TestClient(tts_service.app)
+        self.heard = []
+
+        class Extractor:
+            def __call__(inner, wave, **kwargs):
+                self.heard.append((wave, kwargs))
+                return mock.Mock(input_features=np.zeros((1, 80, 800), dtype='float32'))
+
+        class Session:
+            def run(inner, outputs, feeds):
+                self.heard.append(feeds)
+                return [np.array([[0.91]], dtype='float32')]
+
+        for name, fake in (('_turn_features', Extractor()), ('_turn_session', Session())):
+            patcher = mock.patch.object(tts_service, name, lambda *a, _f=fake: _f)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def _wav(self, samples, rate=16000):
+        import soundfile as sf
+        buf = io.BytesIO()
+        sf.write(buf, samples, rate, format='WAV', subtype='FLOAT')
+        return buf.getvalue()
+
+    def test_a_short_phrase_is_padded_with_silence_before_it(self):
+        np = self.np
+        phrase = np.full(16000, 0.5, dtype='float32')
+        with mock.patch('os.path.isfile', return_value=True):
+            response = self.client.post('/end-of-turn', params={'model_path': '/m.onnx'},
+                                        content=self._wav(phrase))
+        self.assertEqual({'probability': 0.91}, {k: round(v, 2) for k, v in response.json().items()})
+        wave, kwargs = self.heard[0]
+        self.assertEqual(8 * 16000, len(wave))
+        self.assertTrue(np.all(wave[:7 * 16000] == 0) and np.allclose(wave[-16000:], 0.5),
+                        'le silence AVANT la phrase, la phrase à la fin')
+        self.assertEqual((16000, 'max_length'), (kwargs['sampling_rate'], kwargs['padding']))
+        self.assertIn('input_features', self.heard[1])
+
+    def test_a_long_phrase_keeps_its_last_eight_seconds(self):
+        np = self.np
+        phrase = np.concatenate([np.full(5 * 16000, 0.1), np.full(8 * 16000, 0.7)]).astype('float32')
+        with mock.patch('os.path.isfile', return_value=True):
+            self.client.post('/end-of-turn', params={'model_path': '/m.onnx'}, content=self._wav(phrase))
+        self.assertTrue(np.allclose(self.heard[0][0], 0.7), 'la FIN est gardée, pas le début')
+
+    def test_a_missing_model_or_a_wrong_rate_is_refused(self):
+        with mock.patch('os.path.isfile', return_value=False):
+            self.assertEqual(404, self.client.post('/end-of-turn', params={'model_path': '/m.onnx'},
+                                                   content=b'RIFF').status_code)
+        with mock.patch('os.path.isfile', return_value=True):
+            wrong = self.client.post('/end-of-turn', params={'model_path': '/m.onnx'},
+                                     content=self._wav(self.np.zeros(4800, dtype='float32'), 48000))
+        self.assertEqual(500, wrong.status_code)
+        self.assertIn('16 000', wrong.json()['detail'])
+
+
+class ReplyTimingLogTest(TestCase):
+    """Une ligne de journal par réplique (2026-10-28) : départager une phrase lente (gouverneur,
+    préchauffage, Whisper froid, limite d'Albert) au lieu de la reconstituer."""
+
+    def test_each_reply_says_who_heard_it_and_how_long_it_took(self):
+        from wama.common.tts import speech_input
+        user = User.objects.create_user('timing_tester', password='x')
+        wav = b'RIFF' + b'\0' * (44 - 4 + 32000)              # 1 s à 16 kHz, 16 bits, mono
+        with mock.patch.object(speech_input, 'remote_stt_key', return_value=''), \
+             mock.patch('wama.common.tts.service_client.stt_via_service',
+                        return_value={'text': 'bonjour', 'language': 'fr'}), \
+             self.assertLogs('wama.common.tts.speech_input', level='INFO') as logs:
+            speech_input.transcribe_utterance(user, wav, language='fr')
+        self.assertTrue(any('réplique de 1.0 s transcrite par local en' in line for line in logs.output),
+                        logs.output)
+
+    def test_a_remote_failure_says_what_it_cost_before_the_local_took_over(self):
+        from wama.common.tts import speech_input
+        user = User.objects.create_user('timing_fallback', password='x')
+        with mock.patch.object(speech_input, 'remote_stt_key', return_value='albert:whisper-large-v3'), \
+             mock.patch.object(speech_input, '_transcribe_remote', side_effect=RuntimeError('429')), \
+             mock.patch('wama.common.tts.service_client.stt_via_service',
+                        return_value={'text': 'bonjour', 'language': 'fr'}), \
+             self.assertLogs('wama.common.tts.speech_input', level='INFO') as logs:
+            speech_input.transcribe_utterance(user, b'RIFF' + b'\0' * 100, language='fr')
+        self.assertTrue(any('indisponible après' in line for line in logs.output), logs.output)
+
+
 class EndOfTurnModelLineTest(SimpleTestCase):
     """Le modèle est une ligne du catalogue, installée par la route (pilote `files`, Hub à un
     commit figé) — jamais un téléchargement au premier usage."""
