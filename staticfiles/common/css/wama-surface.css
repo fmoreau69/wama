@@ -80,7 +80,7 @@
    (`--wama-row-size`, lue dans la grille) ; à gauche et à droite, une colonne de panneaux, de la
    largeur du plus large. Un panneau dont les briques DÉCLARENT leur largeur (`rowWidth`) la
    prend quand il partage sa ligne ; seul, il la remplit. */
-.wama-dock-row { display: flex; flex: 0 0 auto; min-width: 0; min-height: 0; }
+.wama-dock-row { display: flex; flex: 0 0 auto; min-width: 0; min-height: 0; position: relative; }
 .wama-dock-region[data-edge="top"] > .wama-dock-row,
 .wama-dock-region[data-edge="bottom"] > .wama-dock-row {
   flex-direction: row; height: var(--wama-row-size, auto); max-height: 45vh; }
@@ -95,7 +95,16 @@
   transition: none !important;          /* il gagne son bord, il n'y glisse pas depuis la grille */
   width: auto !important; height: auto !important; flex: 1 1 0; min-width: 0; min-height: 0;
 }
-.wama-dock-row > .grid-stack-item.is-fit:not(:only-child) { flex: 0 0 var(--wama-fit-width); }
+.wama-dock-row.is-shared > .grid-stack-item.is-fit { flex: 0 0 var(--wama-fit-width); }
+/* La POIGNÉE d'une ligne (2026-10-28) : au bord INTÉRIEUR, côté page — on la tire pour retailler
+   la ligne sur place. Discrète au repos, soulignée au survol ; absente d'une disposition figée. */
+.wama-dock-resize { position: absolute; z-index: 5; touch-action: none; }
+.wama-dock-region[data-edge="bottom"] .wama-dock-resize { top: -3px; left: 0; right: 0; height: 7px; cursor: ns-resize; }
+.wama-dock-region[data-edge="top"] .wama-dock-resize { bottom: -3px; left: 0; right: 0; height: 7px; cursor: ns-resize; }
+.wama-dock-region[data-edge="left"] .wama-dock-resize { right: -3px; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.wama-dock-region[data-edge="right"] .wama-dock-resize { left: -3px; top: 0; bottom: 0; width: 7px; cursor: ew-resize; }
+.wama-dock-resize:hover { background: rgba(var(--wama-accent-rgb), .45); }
+.is-frozen .wama-dock-resize { display: none; }
 /* Hors de la grille, les règles de gridstack (`.grid-stack > .grid-stack-item > …`) ne
    s'appliquent plus : le contenu se pose lui-même sur tout le panneau. */
 .wama-dock-row > .grid-stack-item > .grid-stack-item-content {

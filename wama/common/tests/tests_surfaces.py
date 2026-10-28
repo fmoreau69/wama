@@ -431,7 +431,8 @@ class SurfaceLayoutTest(TestCase):
         ours), never by listeners of the kernel's own; every cue is drawn INSIDE the frame; a drop
         goes through the very gestures of the menus."""
         engine = _js(LAYOUT_JS)
-        self.assertEqual(2, engine.count('global.WamaGestures.track('))
+        # the page panel's pointer, the pinned panel's drag, the row grip (2026-10-28)
+        self.assertEqual(3, engine.count('global.WamaGestures.track('))
         # (`toolButton` keeps its `mousedown` stopper: a press on a title button is not a drag.)
         for raw in ("addEventListener('pointermove'", "addEventListener('mousemove'",
                     "addEventListener('touchmove'", "addEventListener('touchstart'"):
@@ -447,8 +448,28 @@ class SurfaceLayoutTest(TestCase):
         self.assertIn('if (layout.frozen || !key) return;', engine, 'a frozen layout does not move')
         css = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'css'
                / 'wama-surface.css').read_text(encoding='utf-8')
-        self.assertIn('.is-fit:not(:only-child) { flex: 0 0 var(--wama-fit-width); }', css,
-                      'alone on its row, it fills it')
+        self.assertIn('.wama-dock-row.is-shared > .grid-stack-item.is-fit { flex: 0 0 var(--wama-fit-width); }',
+                      css, 'alone on its row, it fills it')
+        self.assertIn("row.classList.toggle('is-shared', count > 1)", engine)
+
+    def test_a_pinned_row_takes_its_first_panel_size_and_resizes_in_place(self):
+        """2026-10-28, Fabien: the size of the TALLEST panel left an empty band under the
+        transport; and a pinned panel could only be resized back in the page. A row takes its
+        FIRST panel's size, read from its grid place; its grip resizes it in place, snapped to the
+        grid and kept in that same place (what it finds again back in the page). Behaviour is
+        played by `common.surface_stack` (« à côté », « retailler »)."""
+        from pathlib import Path
+        engine = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-brick-layout.js').read_text(encoding='utf-8')
+        self.assertIn("row.style.setProperty('--wama-row-size', dockSize(dockPlaces[head], edge) + 'px')",
+                      engine)
+        self.assertNotIn('size = Math.max(size, dockSize(', engine, 'not the tallest panel any more')
+        resize = engine.split('function resizeRow(row, px) {', 1)[1].split('\n        }\n', 1)[0]
+        self.assertIn('place.h = Math.max(1, Math.min(MAX_ROWS, Math.round(px / CELL_HEIGHT)))', resize)
+        self.assertIn('persistLayout();', resize)
+        css = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'css'
+               / 'wama-surface.css').read_text(encoding='utf-8')
+        self.assertIn('.is-frozen .wama-dock-resize { display: none; }', css)
 
     def test_stacked_panels_are_kept_as_one_panel(self):
         """2026-10-26, Fabien: « empiler/imbriquer des briques pour les compacter en une seule,

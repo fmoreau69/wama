@@ -725,6 +725,44 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
                 and kept.get('docked') == {'bottom': [[first, third]]},
                 f"à côté : la même ligne de la bande, collé à droite ({a.get('rect')}, "
                 f"{b.get('rect')}, {kept.get('docked')})")
+
+        # RETAILLER sur place (2026-10-28, Fabien) : la poignée de la ligne, tirée de deux cellules
+        # vers le bas — la ligne rétrécit, s'aligne sur la grille, et la place de son PREMIER
+        # panneau garde la hauteur (celle qu'il retrouvera rendu à la page).
+        def row_height(box):
+            return box['rect'][3] - box['rect'][1]
+        grip = page.locator('.wama-dock-region[data-edge="bottom"] .wama-dock-resize').first.bounding_box()
+        gx, gy = grip['x'] + grip['width'] / 2, grip['y'] + grip['height'] / 2
+        page.mouse.move(gx, gy)
+        page.mouse.down()
+        page.mouse.move(gx, gy + 2 * 46, steps=8)
+        page.mouse.up()
+        want = round((row_height(a) - 2 * 46) / 46)
+        kept, now = settle('retailler la ligne'), state()
+        a, b = now['panels'].get(first) or {}, now['panels'].get(third) or {}
+        verdict(((kept.get('slots') or {}).get(first) or {}).get('h') == want
+                and abs(row_height(a) - want * 46) <= 2 and abs(row_height(b) - row_height(a)) <= 1,
+                f"retailler une ligne épinglée par sa poignée : alignée sur la grille, gardée "
+                f"({((kept.get('slots') or {}).get(first) or {}).get('h')} rangées, voulu {want} ; "
+                f"{row_height(a)} / {row_height(b)} px)")
+
+        # La taille du PREMIER panneau (2026-10-28, Fabien : la taille du plus grand laissait un
+        # vide sous le transport) : posé à côté d'un panneau plus BAS, un panneau prend sa hauteur.
+        press(third, 'fa-thumbtack')
+        pick('Dans la page')
+        settle('rendre à la page')
+        press(third, 'fa-thumbtack')
+        pick('En bas de la fenêtre')
+        settle('épingler seul')
+        press(first, 'fa-thumbtack')
+        pick(f'À côté de « {third_title}')
+        kept, now = settle('à côté d’un panneau plus bas'), state()
+        a, b = now['panels'].get(first) or {}, now['panels'].get(third) or {}
+        low = ((kept.get('slots') or {}).get(third) or {}).get('h', 0) * 46
+        verdict(kept.get('docked') == {'bottom': [[third, first]]} and low
+                and abs(row_height(b) - low) <= 2 and abs(row_height(a) - row_height(b)) <= 1,
+                f"la ligne prend la taille de son premier panneau, pas du plus grand "
+                f"({row_height(b)} / {row_height(a)} px, premier {low} px, {kept.get('docked')})")
         press(third, 'fa-thumbtack')
         pick('Dans la page')
         settle('rendre à la page')

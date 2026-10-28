@@ -329,6 +329,18 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   (au bord du haut, à côté, rendu à la page, empilé), chacun vérifié sur ce que la page MONTRAIT
   avant le lâcher puis sur ce qui est gardé ; deux contre-épreuves rouges (lâcher ignoré, pointeur
   non suivi). Vu à l'écran sur la correction du transcriber.
+- **Une ligne épinglée se retaille sur place, et prend la taille de son PREMIER panneau — ✅
+  2026-10-28** (Fabien : « règle les limites 1 et 3 »). La taille du plus GRAND laissait un vide
+  sous le transport quand l'écriture à la lecture, plus haute, se posait à côté : ce qu'on pose
+  « à côté » s'aligne désormais sur ce qui était là. Une POIGNÉE au bord intérieur de chaque ligne
+  (côté page) la retaille : la taille suit le pointeur, s'aligne au lâcher sur la grille (rangées
+  pour une bande, colonnes pour une colonne) et se garde dans la place du premier panneau — la
+  même source que sa taille, celle qu'il retrouve rendu à la page. Absente d'une disposition
+  figée. Code : `wama-brick-layout.js` (`resizeRow`), la brique commune de la disposition depuis
+  `4a96042b`. Gardes : `test_a_pinned_row_takes_its_first_panel_size_and_resizes_in_place` ;
+  `common.surface_stack` **21/21** sur le live (retailler par la poignée ; à côté d'un panneau plus
+  bas) ; deux contre-épreuves rouges dans le navigateur (taille du plus grand, poignée qui ne
+  garde rien).
 - ✅ **Le mode simplifié RETIRÉ — 2026-10-27** : bouton des volets dans l'en-tête, « Joindre »
   dans le chat, accueil à largeur de téléphone mesuré (§7).
 - ⏳ **Suite décidée le 2026-10-27** (Fabien) : ④ les boutons d'atelier remplacés par UN menu « ⋯ »

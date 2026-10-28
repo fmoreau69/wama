@@ -579,9 +579,12 @@
             if (!widths.every(Boolean)) return '';
             return widths.length === 1 ? widths[0] : 'max(' + widths.join(', ') + ')';
         }
-        /** Pose chaque panneau épinglé dans sa LIGNE, au bord gardé (`docked`), dans l'ordre gardé ;
-         *  une ligne prend la taille de son plus grand panneau. Une colonne n'a pas sa place sur
-         *  une fenêtre de téléphone : le panneau y reste dans la page. */
+        /** Pose chaque panneau épinglé dans sa LIGNE, au bord gardé (`docked`), dans l'ordre gardé.
+         *  Une ligne prend la taille de son PREMIER panneau (2026-10-28, Fabien : la taille du plus
+         *  grand laissait un vide sous le transport quand l'écriture à la lecture, plus haute, se
+         *  posait à côté) : ce qu'on pose « à côté » s'aligne sur ce qui était là. La poignée de la
+         *  ligne la retaille sur place (`resizeRow`). Une colonne n'a pas sa place sur une fenêtre
+         *  de téléphone : le panneau y reste dans la page. */
         function applyDocks() {
             var narrow = !onFullGrid();
             var was = resetting;
@@ -613,15 +616,26 @@
                 Object.keys(regions).forEach(function (edge) {
                     var region = regions[edge], rows = [];
                     (layout.docked[edge] || []).forEach(function (ids) {
-                        var row = document.createElement('div'), size = 0;
+                        var row = document.createElement('div'), head = '', count = 0;
                         row.className = 'wama-dock-row';
                         ids.forEach(function (key) {
                             if (placed[key] !== edge) return;
                             row.appendChild(containerEl(key));
-                            size = Math.max(size, dockSize(dockPlaces[key], edge));
+                            head = head || key;
+                            count += 1;
                         });
-                        if (!row.children.length) return;
-                        row.style.setProperty('--wama-row-size', size + 'px');
+                        if (!head) return;
+                        row.dataset.head = head;
+                        // Partagée : un panneau qui déclare sa largeur (`rowWidth`) la prend ; seul,
+                        // il remplit la ligne.
+                        row.classList.toggle('is-shared', count > 1);
+                        row.style.setProperty('--wama-row-size', dockSize(dockPlaces[head], edge) + 'px');
+                        // La POIGNÉE, au bord intérieur de la ligne (côté page) : on la tire pour
+                        // retailler la ligne sur place (2026-10-28).
+                        var grip = document.createElement('div');
+                        grip.className = 'wama-dock-resize';
+                        grip.title = 'Glisser pour retailler';
+                        row.appendChild(grip);
                         rows.push(row);
                     });
                     while (region.firstChild) region.removeChild(region.firstChild);
@@ -656,6 +670,50 @@
             });
         }
         global.addEventListener('resize', function () { if (Object.keys(frames).length) applyDocks(); });
+
+        /** RETAILLER une ligne épinglée sur place (2026-10-28, Fabien : un panneau épinglé ne se
+         *  retaillait qu'en le rendant à la page). La taille suit le pointeur pendant le geste ; au
+         *  lâcher elle s'aligne sur la grille (rangées pour une bande, colonnes pour une colonne) et
+         *  se garde dans la place du PREMIER panneau de la ligne — la même source que sa taille
+         *  (`dockSize`), et celle qu'il retrouve rendu à la page. */
+        function resizeRow(row, px) {
+            var key = row.dataset.head, place = dockPlaces[key];
+            if (!place) return;
+            if (SIDES.indexOf(Docks.edgeOf(layout.docked, key)) >= 0) {
+                var columns = place.grid === panel ? 1 : COLUMNS;
+                place.w = Math.max(1, Math.min(columns - place.x, Math.round(px / place.grid.cellWidth())));
+            } else {
+                place.h = Math.max(1, Math.min(MAX_ROWS, Math.round(px / CELL_HEIGHT)));
+            }
+            if (onFullGrid()) layout.slots = layoutNow();
+            applyDocks();
+            persistLayout();
+        }
+        if (global.WamaGestures) {
+            global.WamaGestures.track(dockFrame, {
+                touchAction: false, threshold: 2,
+                start: function (ev) {
+                    var grip = !layout.frozen && ev.target.closest('.wama-dock-resize');
+                    if (!grip) return false;
+                    var row = grip.parentNode, edge = Docks.edgeOf(layout.docked, row.dataset.head);
+                    var side = SIDES.indexOf(edge) >= 0;
+                    // Le sens du geste : une bande du BAS grandit vers le haut, une colonne de
+                    // DROITE vers la gauche.
+                    var sign = (edge === 'bottom' || edge === 'right') ? -1 : 1;
+                    return { row: row, side: side, sign: sign,
+                             from: side ? row.offsetWidth : row.offsetHeight, px: null };
+                },
+                move: function (ev, c, d) {
+                    c.px = Math.max(CELL_HEIGHT, c.from + c.sign * (c.side ? d.dx : d.dy));
+                    c.row.style.setProperty('--wama-row-size', c.px + 'px');
+                    dockMargins();
+                },
+                end: function (ev, c, how) {
+                    if (how.moved && !how.cancelled && c.px != null) resizeRow(c.row, c.px);
+                    else applyDocks();
+                },
+            });
+        }
 
         // ── GLISSER-DÉPOSER vers les bords (2026-10-27, Fabien : « par simple drag&drop aux
         // extrémités de la zone centrale, on visualise directement si l'élément va se fixer […]
