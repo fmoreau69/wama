@@ -26,9 +26,16 @@
  * Ce qu'elle ne fait pas : MONTER une brique (la page la monte, par `mount(rec)`), ni rien savoir
  * de ce que la page édite, de son bus ou de son enregistrement.
  *
+ * Le VOLET d'une page d'app (2026-10-28, `wama-panel-layout.js`) n'a pas de grille au centre : il
+ * passe la seule colonne (`panelRoot`, sans `root`) et l'endroit du cadre des bords (`frameHost`).
+ * Un panneau dont le contenu se RETIRE — l'aperçu masqué tant que rien n'est sélectionné — sort
+ * de sa zone sans laisser de trou et y revient à sa place (`setShown`) : ce n'est pas un geste,
+ * rien ne se garde.
+ *
  * Usage :
  *     var layout = WamaBrickLayout.create({
  *         root, page, panelRoot,   // la grille, l'élément qui porte `.is-frozen`, la colonne du volet
+ *         frameHost,               // où poser le cadre des bords (défaut : à côté de la grille)
  *         slots,                   // les emplacements DÉCLARÉS : [{id, x, y, w, h, zone?}]
  *         columns, maxRows, dockEdges,     // ce que le serveur applique — jamais recopié ici
  *         layout,                  // la disposition gardée : {slots, frozen, stored, stacks, docked}
@@ -41,11 +48,14 @@
  *     });
  *     layout.build();              // pose les cadres, monte les briques, épingle
  *     layout.frozen(); layout.setFrozen(on); layout.reset(); layout.help;
+ *     layout.setShown(id, on);     // le contenu d'une brique s'est retiré / est revenu
  */
 (function (global) {
     'use strict';
 
     var CELL_HEIGHT = 46;
+    /** px de fenêtre sous lesquels les panneaux s'empilent sur une colonne (rien ne se garde). */
+    var NARROW = 768;
 
     function readLayout(key) {
         try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch (e) { return null; }
@@ -124,7 +134,7 @@
 
     function create(opts) {
         var App = global.WamaApp || {};
-        var root = opts.root;
+        var root = opts.root || null;
         var slots = opts.slots || [];
         var emit = opts.emit || function () {};
 
@@ -134,24 +144,25 @@
         // (`surfaces.MAX_LAYOUT_ROWS`, `DOCK_EDGES`), passés par la page — jamais recopiés ici.
         var MAX_ROWS = opts.maxRows || Infinity;
         var layout = opts.layout || { slots: null, frozen: true, stored: false };
-        var page = opts.page || root;
         // La COLONNE du volet (2026-10-21, décision de Fabien) : une seconde zone, d'une colonne —
         // on y réordonne, on y règle la hauteur, une brique passe d'une zone à l'autre en la
-        // glissant. Absente (page sans volet), tout reste dans la grille.
+        // glissant. Absente (page sans volet), tout reste dans la grille. Sans grille (le volet
+        // d'une page d'app, 2026-10-28), tout est dans la colonne.
         var panelRoot = opts.panelRoot || null;
-        var grid = global.GridStack.init({
+        var page = opts.page || root || panelRoot;
+        var grid = root ? global.GridStack.init({
             column: COLUMNS, cellHeight: CELL_HEIGHT, margin: 6, float: false,
             handle: '.wama-brick-head', resizable: { handles: 'e, se, s, sw, w' },
             staticGrid: !!layout.frozen, acceptWidgets: !!panelRoot,
             // Téléphone : une colonne, les panneaux dans l'ordre de la grille (option de gridstack).
-            columnOpts: { breakpointForWindow: true, breakpoints: [{ w: 768, c: 1 }], layout: 'list' },
-        }, root);
+            columnOpts: { breakpointForWindow: true, breakpoints: [{ w: NARROW, c: 1 }], layout: 'list' },
+        }, root) : null;
         var panel = panelRoot ? global.GridStack.init({
             column: 1, cellHeight: CELL_HEIGHT, margin: 6, float: false, minRow: 2,
             handle: '.wama-brick-head', resizable: { handles: 's' },
             staticGrid: !!layout.frozen, acceptWidgets: true,
         }, panelRoot) : null;
-        var zones = panel ? [grid, panel] : [grid];
+        var zones = [grid, panel].filter(Boolean);
         function showFrozen(on) {
             page.classList.toggle('is-frozen', on);
             if (panelRoot) panelRoot.classList.toggle('is-frozen', on);
@@ -161,7 +172,7 @@
          *  déclare ; une place gardée sans zone date d'avant la colonne : la grille. */
         function zoneOf(slot, place) {
             var zone = place === slot ? (slot.zone || 'grid') : ((place && place.zone) || 'grid');
-            return zone === 'panel' && panel ? 'panel' : 'grid';
+            return (zone === 'panel' && panel) || !grid ? 'panel' : 'grid';
         }
         function gridOf(zone) { return zone === 'panel' ? panel : grid; }
         function placeIn(zone, place) {
@@ -249,9 +260,14 @@
         // Un panneau ÉPINGLÉ quitte la grille — la page se referme derrière lui — et y retrouve SA
         // place quand on le désépingle : elle est gardée ici, et dans la disposition du compte.
         var dockPlaces = {};                // panneau → {x, y, w, h, grid}
-        /** La place d'un panneau dans sa zone, qu'il y soit ou qu'il en soit sorti, épinglé. */
+        // Un panneau dont le contenu s'est RETIRÉ (`setShown`) sort de sa zone, comme épinglé, et y
+        // revient à SA place : la grille se referme derrière lui, rien ne se garde.
+        var hiddenPlaces = {};              // panneau → {x, y, w, h, grid}
+        /** La place d'un panneau dans sa zone, qu'il y soit ou qu'il en soit sorti, épinglé ou
+         *  retiré. */
         function placeOf(key) {
             if (dockPlaces[key]) return dockPlaces[key];
+            if (hiddenPlaces[key]) return hiddenPlaces[key];
             var node = containerEl(key).gridstackNode;
             return node ? { x: node.x, y: node.y, w: node.w, h: node.h, grid: node.grid } : null;
         }
@@ -297,13 +313,15 @@
         /** Retire un panneau de sa zone (sans détruire ses briques) : rend sa place et sa zone. */
         function take(key) {
             var el = containerEl(key), node = el.gridstackNode, place = placeOf(key);
-            var g = (place && place.grid) || grid;
+            var g = (place && place.grid) || zones[0];
             var at = place ? { x: place.x, y: place.y, w: place.w, h: place.h } : { x: 0, y: 0, w: 4, h: 4 };
             if (node && node.grid) node.grid.removeWidget(el, false, false);
             if (el.parentNode) el.parentNode.removeChild(el);
             clearDock(el);
+            el.hidden = false;
             delete shells[key];
             delete dockPlaces[key];
+            delete hiddenPlaces[key];
             return { at: at, grid: g };
         }
         /** Ses briques et leur poids, ramenés à sa hauteur actuelle (un panneau a pu être retaillé). */
@@ -320,6 +338,7 @@
             try { fn(); } finally { resetting = false; }
             if (onFullGrid()) layout.slots = layoutNow();
             syncLayoutTools();
+            syncShown();
             applyDocks();
             persistLayout();
         }
@@ -422,7 +441,7 @@
             dockFrame.appendChild(region);
             regions[edge] = region;
         });
-        (page === root ? root.parentNode : page).appendChild(dockFrame);
+        (opts.frameHost || (page === root ? root.parentNode : page)).appendChild(dockFrame);
         // La page s'écarte de ce que chaque bord occupe — relu quand une région change de taille
         // (une bande plafonnée à la hauteur de la fenêtre, une colonne bornée par sa largeur).
         if (global.ResizeObserver) {
@@ -480,7 +499,7 @@
             // en bas, sa colonne à gauche ou à droite.
             containers().forEach(function (other) {
                 var edge = Docks.edgeOf(layout.docked, other);
-                if (other === key || !edge || (narrow && SIDES.indexOf(edge) >= 0)) return;
+                if (other === key || !edge || !shownOf(other) || (narrow && SIDES.indexOf(edge) >= 0)) return;
                 entries.push({
                     icone: 'fas fa-table-columns',
                     libelle: (SIDES.indexOf(edge) >= 0 ? 'Dans la colonne de « ' : 'À côté de « ')
@@ -493,12 +512,90 @@
         }
 
         function openStackMenu(key, btn) {
-            var others = containers().filter(function (k) { return k !== key; });
+            var others = containers().filter(function (k) { return k !== key && shownOf(k); });
             openMenu(btn, others.length ? others.map(function (k) {
                 return { icone: 'fas fa-layer-group', libelle: labelOf(k),
                          agir: function () { join(key, k); } };
             }) : [{ vide: true, libelle: 'Aucun autre panneau sur la page' }],
             'Empiler dans ce panneau');
+        }
+
+        // ── Un panneau dont le contenu se RETIRE (2026-10-28, le volet des pages d'apps : l'aperçu
+        // est masqué tant que rien n'est sélectionné, les infos aussi) ne laisse pas de trou : il
+        // sort de sa zone — la grille se referme — et y revient à SA place. Épinglé, il se cache
+        // dans sa ligne. Une pile reste tant qu'une de ses briques a quelque chose à montrer. Ce
+        // n'est pas un geste de l'utilisateur : rien ne se garde.
+        /** Le panneau `key` (brique seule ou pile) a-t-il quelque chose à montrer ? */
+        function shownOf(key) {
+            return (layout.stacks[key] || [{ id: key }]).some(function (e) {
+                return !frames[e.id].section.hidden;
+            });
+        }
+        // Retiré, il reste DANS la page, garé à l'abri des zones : la page qui l'a masqué le
+        // retrouve par son identifiant pour le montrer de nouveau (l'inspecteur, `getElementById`).
+        var parking = document.createElement('div');
+        parking.className = 'wama-brick-parking';
+        parking.hidden = true;
+        dockFrame.parentNode.appendChild(parking);
+        /** Le RANG d'un panneau dans sa zone : sa rangée dans la disposition gardée, sinon dans la
+         *  déclarée, puis l'ordre de déclaration — ce qui ne bouge pas quand un panneau se retire. */
+        function rankOf(key) {
+            var place = (layout.slots && layout.slots[key]) || frames[key].slot;
+            return [place.y, slots.indexOf(frames[key].slot)];
+        }
+        function before(a, b) { return a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]); }
+        /** La rangée où un panneau retiré revient : à la place du premier panneau montré qui le SUIT
+         *  dans sa colonne (la grille écarte ce dernier), sinon sous le dernier. L'ordre ne dépend
+         *  donc pas de l'ordre dans lequel la page montre ses sections (l'aperçu, puis les infos). */
+        function backAt(key, place) {
+            var mine = rankOf(key), next = null, end = 0;
+            place.grid.getGridItems().forEach(function (item) {
+                var n = item.gridstackNode;
+                if (!n || !frames[n.id] || n.x >= place.x + place.w || n.x + n.w <= place.x) return;
+                if (before(mine, rankOf(n.id))) next = next === null ? n.y : Math.min(next, n.y);
+                else end = Math.max(end, n.y + n.h);
+            });
+            return next === null ? end : next;
+        }
+        /** Range chaque panneau selon ce qu'il montre ; rend vrai si l'un a changé de place. */
+        function syncShown() {
+            var was = resetting, moved = false;
+            resetting = true;               // la grille qui se referme n'est pas un geste à garder
+            try {
+                containers().forEach(function (key) {
+                    var el = containerEl(key), on = shownOf(key);
+                    if (dockPlaces[key]) { el.hidden = !on; return; }
+                    el.hidden = false;
+                    if (!on && !hiddenPlaces[key]) {
+                        var node = el.gridstackNode;
+                        if (!node || !node.grid) return;
+                        hiddenPlaces[key] = { x: node.x, y: node.y, w: node.w, h: node.h, grid: node.grid };
+                        node.grid.removeWidget(el, false, false);
+                        parking.appendChild(el);
+                        moved = true;
+                    } else if (on && hiddenPlaces[key]) {
+                        var place = hiddenPlaces[key], at = fit(place, place.grid);
+                        at.y = backAt(key, place);
+                        delete hiddenPlaces[key];
+                        at.id = key;
+                        place.grid.el.appendChild(el);
+                        place.grid.makeWidget(el, at);
+                        // Une place occupée, la grille pose le nouveau venu DESSOUS : on l'y remonte,
+                        // et c'est alors l'occupant qu'elle écarte.
+                        if (el.gridstackNode && el.gridstackNode.y > at.y) place.grid.update(el, { y: at.y });
+                        moved = true;
+                    }
+                });
+            } finally { resetting = was; }
+            return moved;
+        }
+        /** Le contenu de la brique `id` s'est retiré (`on` faux) ou est revenu. */
+        function setShown(id, on) {
+            var rec = frames[id];
+            if (!rec || rec.section.hidden === !on) return;
+            rec.section.hidden = !on;
+            syncShown();
+            applyDocks();                   // revenu, un panneau épinglé regagne son bord
         }
 
         /** Les outils de disposition de chaque titre, d'après les piles et les épinglages. */
@@ -944,10 +1041,13 @@
                     if (n && n.id) out[n.id] = { x: n.x, y: n.y, w: n.w, h: n.h, zone: zone };
                 });
             });
-            // Un panneau épinglé a quitté la grille, pas la disposition : sa place reste la sienne.
-            Object.keys(dockPlaces).forEach(function (key) {
-                var p = dockPlaces[key];
-                out[key] = { x: p.x, y: p.y, w: p.w, h: p.h, zone: p.grid === panel ? 'panel' : 'grid' };
+            // Un panneau épinglé ou retiré a quitté la grille, pas la disposition : sa place reste
+            // la sienne.
+            [dockPlaces, hiddenPlaces].forEach(function (away) {
+                Object.keys(away).forEach(function (key) {
+                    var p = away[key];
+                    out[key] = { x: p.x, y: p.y, w: p.w, h: p.h, zone: p.grid === panel ? 'panel' : 'grid' };
+                });
             });
             return out;
         }
@@ -972,8 +1072,11 @@
         }
         if (migrated) persistLayout();
 
-        /** Sur une colonne (téléphone), la grille n'est qu'un empilement : rien ne se garde. */
-        function onFullGrid() { return grid.getColumn() === COLUMNS; }
+        /** Sur une colonne (téléphone), la grille n'est qu'un empilement : rien ne se garde. Sans
+         *  grille (le volet seul), c'est la largeur de la fenêtre qui le dit. */
+        function onFullGrid() {
+            return grid ? grid.getColumn() === COLUMNS : global.innerWidth >= NARROW;
+        }
 
         // Le montage des briques ajoute leurs éléments aux zones (`added`) : ce n'est pas un geste.
         var resetting = false, building = false;
@@ -981,6 +1084,7 @@
             if (layout.frozen || !onFullGrid()) return;
             layout.slots = null;                 // la disposition DÉCLARÉE, qui suit la page
             resetting = true;
+            restoreHidden();                     // un panneau retiré se range aussi, puis se retire
             undockAll();                         // chacun reprend place dans la grille, pour s'y ranger
             dissolveAll();                       // une pile est un geste de disposition : défaite
             zones.forEach(function (g) { g.batchUpdate(); });
@@ -1003,8 +1107,19 @@
             zones.forEach(function (g) { g.batchUpdate(false); });
             resetting = false;
             syncLayoutTools();
+            syncShown();
             applyDocks();
             persistLayout();
+        }
+        /** Tous les panneaux retirés rendus à leur zone (avant de la réordonner). */
+        function restoreHidden() {
+            Object.keys(hiddenPlaces).forEach(function (key) {
+                var el = containerEl(key), place = hiddenPlaces[key], at = fit(place, place.grid);
+                delete hiddenPlaces[key];
+                at.id = key;
+                place.grid.el.appendChild(el);
+                place.grid.makeWidget(el, at);
+            });
         }
 
         /** FIGER : la grille ne bouge plus, les panneaux perdent leur habit d'atelier (CSS
@@ -1037,7 +1152,7 @@
         // Une brique venue du volet arrive dans la grille avec la largeur de la colonne (1) : on lui
         // donne celle de la colonne de droite d'une surface (un tiers), qu'on retaille ensuite.
         var FROM_PANEL_W = Math.round(COLUMNS / 3);
-        if (panel) {
+        if (panel && grid) {
             panel.on('removed', function (e, items) {
                 (items || []).forEach(function (n) { if (n.el) n.el.dataset.fromPanel = '1'; });
             });
@@ -1068,6 +1183,8 @@
             reset: resetLayout,
             /** Les gestes de disposition, pour l'aide de la page. */
             help: LAYOUT_HELP,
+            /** Le contenu de la brique `id` s'est retiré ou est revenu : son panneau suit. */
+            setShown: setShown,
         };
     }
 

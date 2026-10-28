@@ -525,8 +525,10 @@ class SurfaceLayoutTest(TestCase):
     def test_the_panel_of_a_surface_is_its_column_under_the_assistant(self):
         self.client.force_login(self.user)
         page = self.client.get(self.base)
+        # Sa colonne a SA disposition : celle du volet des pages ne s'y monte pas (2026-10-28).
         self.assertEqual({'tete': True, 'medias': False, 'parametres': False, 'actions': False,
-                          'actif': True}, page.context['volet'])
+                          'actif': True, 'arrangeable': False}, page.context['volet'])
+        self.assertNotContains(page, 'wama-panel-layout')
         self.assertContains(page, 'class="grid-stack wama-surface-panel"')
         self.assertNotContains(page, 'id="media-section"')
         self.assertNotContains(page, 'Aucun paramètre disponible')

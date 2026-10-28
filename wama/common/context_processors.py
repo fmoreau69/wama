@@ -20,11 +20,16 @@ def volet_defaut(request):
     déclaration elle n'en a aucune (Fabien, 2026-10-20 : « on met les champs en fonction du
     contenu de la page, pas de champ par défaut »). Les pages d'APP gardent les trois sections,
     que `app_modern_base.html` remplit : elles n'ont rien à écrire."""
+    from functools import partial
+
     from wama.common.app_registry import account_page_of
-    from wama.common.utils.volet import VOLET_AUCUN
+    from wama.common.utils.volet import VOLET_AUCUN, layout_config
     match = getattr(request, 'resolver_match', None)
     url_name = getattr(match, 'view_name', '') if match is not None else ''
-    return {'volet': VOLET_AUCUN if account_page_of(url_name) else VOLET_DEFAUT}
+    # La disposition du volet en briques (2026-10-28) : une fonction, que le gabarit n'appelle
+    # (et ne fait lire en base) que pour un volet rendu et disposable.
+    return {'volet': VOLET_AUCUN if account_page_of(url_name) else VOLET_DEFAUT,
+            'panel_layout': partial(layout_config, request)}
 
 
 def unread_notifications(request):

@@ -447,3 +447,171 @@ class PagesDAppTest(TestCase):
         self.assertGreaterEqual(len(vues), 10,
                                 f"trop peu d'apps réellement mesurées ({vues}) — "
                                 f"détournées : {detournees}")
+
+
+class PanelBricksTest(TestCase):
+    """Le volet d'une page en BRIQUES (2026-10-28, `WAMA_VOLETS §3-ter` étape ②) : ses sections
+    sont des panneaux de la disposition commune, gardée par compte et par page.
+
+    Ce qui est exigé : le rendu par défaut ne change pas (sans disposition gardée, ni la grille ni
+    ses fichiers ne sont servis) ; la déclaration des sections vit au serveur, une fois ; la
+    disposition est validée par la règle des surfaces (`clean_layout`), jamais par une seconde ;
+    une page qui a SA disposition (une surface) ou qui la fera brique par brique (cam_analyzer)
+    ne reçoit pas celle-ci. Les gestes eux-mêmes se jouent au navigateur (`common.panel_layout`)."""
+
+    #: La grille SERVIE — sa balise, pas son adresse : le module la porte aussi en attribut, pour la
+    #: charger au premier geste.
+    GRID_JS = 'vendors/gridstack-13.3.0/gridstack-all.js"></script>'
+    PANEL_JS = 'common/js/wama-panel-layout.js'
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        cls.account = get_user_model().objects.create_superuser(
+            username='volet_bricks', email='volet-bricks@test.local', password='x')
+
+    def setUp(self):
+        from wama.common.utils.user_settings import clear_user_app_settings
+        from wama.common.utils.volet import LAYOUT_SETTING
+        # Le réglage se lit aussi du CACHE, que l'annulation de la base entre deux tests ne vide pas.
+        for page in ('common', 'transcriber'):
+            clear_user_app_settings(self.account, page, [LAYOUT_SETTING])
+        self.client.force_login(self.account)
+
+    def _open_page(self):
+        from django.urls import reverse
+        return self.client.get(reverse('common:journal'))
+
+    def _post(self, page, payload):
+        import json
+
+        from django.urls import reverse
+        return self.client.post(reverse('common:panel_layout', args=[page]), json.dumps(payload),
+                                content_type='application/json')
+
+    def test_every_declared_section_is_an_element_the_panel_renders(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        from wama.common.utils.volet import PANEL_SLOTS
+        root = Path(settings.BASE_DIR) / 'wama'
+        source = ((root / 'templates' / 'base.html').read_text(encoding='utf-8')
+                  + (root / 'common' / 'templates' / 'common' / '_assistant_avatar.html')
+                  .read_text(encoding='utf-8'))
+        self.assertEqual(['assistant', 'top', 'preview', 'info', 'settings', 'actions'],
+                         [s.id for s in PANEL_SLOTS], "l'ordre des sections est celui de base.html")
+        for slot in PANEL_SLOTS:
+            self.assertIn(f'id="{slot.element}"', source, f'{slot.id} : élément absent du volet')
+            self.assertEqual(('panel', 0, 1), (slot.zone, slot.x, slot.w), 'la colonne du volet')
+        self.assertEqual([0] + [s.y + s.h for s in PANEL_SLOTS[:-1]], [s.y for s in PANEL_SLOTS],
+                         'chacune sous la précédente')
+
+    def test_the_sections_are_declared_once_on_the_server(self):
+        from pathlib import Path
+
+        from django.conf import settings
+
+        from wama.common.utils.volet import PANEL_SLOTS
+        script = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / self.PANEL_JS).read_text(
+            encoding='utf-8')
+        copied = [s.element for s in PANEL_SLOTS if s.element in script]
+        self.assertEqual([], copied, 'le module lit les sections du serveur, il ne les recopie pas')
+
+    def test_the_default_panel_is_unchanged_until_the_account_arranges_it(self):
+        page = self._open_page()
+        self.assertContains(page, self.PANEL_JS)
+        self.assertContains(page, 'id="wama-panel-layout"')
+        self.assertNotContains(page, self.GRID_JS)
+        self.assertNotContains(page, 'wama-panel-column')
+        config = page.context['panel_layout']()
+        self.assertEqual(('common', False), (config['page'], config['arranged']))
+
+    def test_an_arranged_panel_is_kept_for_this_account_and_this_page(self):
+        from django.contrib.auth import get_user_model
+
+        from wama.common.utils.volet import layout_of
+        response = self._post('common', {'slots': {'settings': {'x': 0, 'y': 0, 'w': 1, 'h': 6,
+                                                                'zone': 'panel'}},
+                                         'frozen': False, 'docked': {'bottom': [['actions']]}})
+        self.assertEqual(200, response.status_code, response.content)
+        page = self._open_page()
+        self.assertContains(page, self.GRID_JS)          # servie d'emblée : rien ne saute
+        config = page.context['panel_layout']()
+        self.assertTrue(config['arranged'])
+        self.assertEqual({'bottom': [['actions']]}, config['layout']['docked'])
+        self.assertEqual({'x': 0, 'y': 0, 'w': 1, 'h': 6, 'zone': 'panel'},
+                         config['layout']['slots']['settings'])
+        other = get_user_model().objects.create_user(username='volet_other', password='x')
+        self.assertFalse(layout_of(other, 'common')['stored'], 'un autre compte garde le sien')
+        self.assertFalse(layout_of(self.account, 'transcriber')['stored'], 'une autre page aussi')
+
+    def test_a_frozen_panel_without_gesture_is_the_panel_of_before(self):
+        self.assertEqual(200, self._post('common', {'slots': None, 'frozen': True}).status_code)
+        page = self._open_page()
+        self.assertFalse(page.context['panel_layout']()['arranged'])
+        self.assertNotContains(page, self.GRID_JS)
+
+    def test_the_rule_of_the_surfaces_validates_the_panel(self):
+        too_wide = self._post('common', {'slots': {'settings': {'x': 0, 'y': 0, 'w': 2, 'h': 3,
+                                                                'zone': 'panel'}}})
+        self.assertEqual(400, too_wide.status_code, 'la colonne du volet a une colonne')
+        unknown_edge = self._post('common', {'docked': {'side': [['actions']]}})
+        self.assertEqual(400, unknown_edge.status_code, 'un bord inconnu est refusé')
+        dropped = self._post('common', {'slots': {'nowhere': {'x': 0, 'y': 0, 'w': 1, 'h': 3,
+                                                              'zone': 'panel'}}})
+        self.assertEqual(200, dropped.status_code)
+        self.assertIsNone(dropped.json()['layout']['slots'], 'une section non déclarée est oubliée')
+        self.assertEqual(404, self._post('9-not-a-page', {}).status_code)
+        self.client.logout()
+        self.assertEqual(302, self._post('common', {}).status_code)
+
+    def test_a_page_key_names_the_closest_namespace(self):
+        from django.urls import NoReverseMatch, resolve, reverse
+
+        from wama.common.utils.volet import page_key
+        request = RequestFactory().get('/')
+        request.resolver_match = resolve(reverse('common:journal'))
+        self.assertEqual('common', page_key(request))
+        try:
+            request.resolver_match = resolve(reverse('wama_lab:cam_analyzer:index'))
+        except NoReverseMatch:
+            return
+        self.assertEqual('cam_analyzer', page_key(request))
+
+    def test_a_page_with_its_own_layout_does_not_get_this_one(self):
+        from django.urls import NoReverseMatch, reverse
+        self.assertFalse(volet(arrangeable=False)['arrangeable'])
+        self.assertTrue(volet()['arrangeable'] and VOLET_DEFAUT['arrangeable'])
+        try:
+            path = reverse('wama_lab:cam_analyzer:index')
+        except NoReverseMatch:
+            self.skipTest('cam_analyzer non installé')
+        page = self.client.get(path)
+        if page.status_code != 200:
+            self.skipTest(f'cam_analyzer inaccessible (HTTP {page.status_code})')
+        self.assertFalse(page.context['volet']['arrangeable'])
+        self.assertNotContains(page, self.PANEL_JS)
+
+    def test_the_panel_module_and_the_layout_parse_under_v8(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        from py_mini_racer import MiniRacer
+        served = Path(settings.BASE_DIR) / 'staticfiles'
+        for path in (self.PANEL_JS, 'common/js/wama-brick-layout.js'):
+            MiniRacer().eval('(function(){' + (served / path).read_text(encoding='utf-8') + '})')
+
+    def test_a_withdrawn_panel_stays_in_the_document_and_comes_back_at_its_rank(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        engine = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-brick-layout.js').read_text(encoding='utf-8')
+        self.assertIn('setShown: setShown', engine)
+        # Garé, jamais détaché : l'inspecteur le retrouve par `getElementById` pour le remontrer.
+        self.assertIn('parking.appendChild(el);', engine)
+        self.assertIn('at.y = backAt(key, place);', engine)
+        # Le volet seul : la grille du centre est facultative, la colonne suffit.
+        self.assertIn('var grid = root ? global.GridStack.init(', engine)
+        self.assertIn('opts.frameHost ||', engine)

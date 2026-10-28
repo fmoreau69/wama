@@ -403,12 +403,59 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   `common.surface_stack` 19/19, parité de l'éditeur 71/71. ⚠ À froid, le premier scénario peut
   échouer à l'attente de 20 s (le serveur jetable met ~45 s à servir sa première adresse) :
   rejoué à chaud, il passe — un artefact de démarrage, pas une régression.
+- **Étape ②, 2ᵉ geste — les SECTIONS DU VOLET des pages deviennent des panneaux ✅ 2026-10-28**
+  (Fabien : « tu peux poursuivre les sections du volet »). L'assistant, le bloc de tête, Aperçu,
+  Infos, Paramètres et Actions sont chacun un panneau de la disposition commune : on les réordonne,
+  on les retaille, on les empile, on les épingle à un bord de la zone centrale (Paramètres en bas,
+  sur toute la largeur, par exemple), et la disposition se garde par compte et PAR PAGE (la clé de
+  page est l'espace de noms le plus proche de sa route : l'app, ou `common` pour le journal et le
+  calendrier).
+  - **Le rendu par défaut ne change pas** : tant que le compte n'a rien disposé, le volet reste
+    celui d'avant et la grille n'est même pas chargée. Le cadenas du titre du volet (« Modifier la
+    disposition du volet ») la monte ; figée sans geste, la disposition redevient au rechargement
+    le volet d'avant. Une page disposée reçoit la grille tout de suite, pour ne pas sauter au
+    chargement.
+  - **La section est DÉPLACÉE telle quelle** dans son panneau : mêmes éléments, mêmes
+    identifiants. L'inspecteur et les apps qui la remplissent n'en savent rien
+    (`wama-inspector.js` n'est pas touché). Figée, la colonne garde l'allure du volet d'avant : ni
+    fond ni cadre, le titre de la section.
+  - **Hauteurs** : chaque section a une hauteur par défaut déclarée (`PANEL_SLOTS`, en rangées de
+    46 px) ; son contenu défile dans le panneau, et l'utilisateur le retaille (la règle de toutes
+    les briques, §3-ter : pas d'ajustement au contenu).
+  - **Une section que la page masque retire son panneau** sans laisser de trou (l'aperçu et les
+    infos, tant que rien n'est sélectionné), et il revient à son RANG, quel que soit l'ordre où la
+    page montre ses sections (`setShown`). Retiré, il reste dans le document : l'inspecteur le
+    retrouve par son identifiant.
+  - **Une page qui a sa propre disposition ne reçoit pas celle-ci** : une surface (sa colonne est
+    déjà une zone de sa grille) et le cam_analyzer (étape ③, « il déclare, il n'hérite pas »)
+    déclarent `volet(…, arrangeable=False)`.
+  - **Code** : `common/utils/volet.py` (`PANEL_SLOTS`, `page_key`, `layout_of`, `layout_config`),
+    route `common:panel_layout` (`common/panel_views.py`, validée par `surfaces.clean_layout`, la
+    règle des surfaces), `common/js/wama-panel-layout.js`. Le module de disposition gagne trois
+    choses, sans changer les surfaces : une page SANS grille au centre (la colonne seule), l'endroit
+    du cadre des bords (`frameHost`) et `setShown`.
+  - **Gardes** : `tests_volet.PanelBricksTest` (11 tests : sections déclarées une fois au serveur,
+    défaut sans grille, disposition par compte et par page, validation par la règle des surfaces,
+    clé de page, pages exclues, V8), cinq contre-épreuves rouges ; scénario nocturne
+    **`common.panel_layout`** (13 gestes sur le journal : ouvert tel qu'avant, colonne de panneaux,
+    aperçu et infos retirés puis remis dans l'ordre, card cliquée, épinglé en bas entre le pied et
+    le volet, gardé au rechargement et par « Disposition par défaut », rendu à la colonne, figé →
+    le volet d'avant), quatre contre-épreuves rouges dans le navigateur (panneau détaché du
+    document, rang ignoré, brique qui ne suit plus sa section, grille montée d'office). Non-recul
+    des surfaces mesuré après : `common.surface_layout` 9/9, `common.surface_stack` 22/22, parité de
+    l'éditeur 71/71.
+  - ⚠ **Défauts trouvés en le faisant**, tous deux corrigés avant le commit : un panneau retiré
+    sortait du document, et l'inspecteur ne retrouvait plus l'aperçu pour le remontrer ; et les
+    infos revenaient AU-DESSUS de l'aperçu (l'inspecteur montre l'un puis l'autre, la grille posait
+    le second sous le premier arrivé).
+  - **Pas fait** : replier une section (l'avatar a son propre repli, qui laisse alors un vide dans
+    un panneau de hauteur fixe — on retaille le panneau) ; ouvrir un panneau dans une autre
+    fenêtre (`WAMA_DATA_WORLD §8.2 ⑤`, la suite prévue).
 
-**À venir, dans cet ordre (le plus sûr d'abord)** : ② les sections du volet des PAGES D'APPS
-(assistant, aperçu, inspecteur, actions) en briques réordonnables et repliables par compte, rendu
-par défaut inchangé sur les 35 pages — l'inspecteur ENVELOPPÉ, jamais réécrit (§8, avertissement) ;
-③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il déclare, il n'hérite
-pas) ; ④ le centre des pages d'apps (card d'entrée, file) sur la même grille.
+**À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
+(✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
+déclare, il n'hérite pas) ; ④ le centre des pages d'apps (card d'entrée, file) sur la même grille ;
+puis ouvrir un panneau dans une autre fenêtre (le temps partagé par `BroadcastChannel`).
 
 ---
 

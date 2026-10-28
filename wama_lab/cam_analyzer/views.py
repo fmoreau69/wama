@@ -177,8 +177,10 @@ def index(request):
         # plus « Profil actif » et « Exports » —, pilotées par le JS métier et jamais par
         # WamaInspector. L'unité de sélection est une session/un passage, pas une card.
         # Hériter du défaut donnerait le même rendu AUJOURD'HUI ; le déclarer garantit qu'un
-        # changement de défaut ne détruira pas la carte demain.
-        'volet': volet(medias=True, parametres=True, actions=True),
+        # changement de défaut ne détruira pas la carte demain. Pour la même raison, ses sections
+        # ne passent pas en briques avec celles des autres pages (2026-10-28) : elles le feront
+        # élément par élément, chacune déclarée (`WAMA_VOLETS §3-ter`, étape ③).
+        'volet': volet(medias=True, parametres=True, actions=True, arrangeable=False),
     }
 
     return render(request, 'cam_analyzer/index.html', context)

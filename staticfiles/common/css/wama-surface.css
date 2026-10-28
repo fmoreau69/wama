@@ -149,6 +149,22 @@
 .wama-brick-stack-tools:empty { display: none; }
 .wama-surface-page.is-frozen .wama-brick-stack-tools,
 .wama-surface-panel.is-frozen .wama-brick-stack-tools { display: none; }
+/* Une brique dont le contenu s'est RETIRÉ (`setShown`, 2026-10-28) : seule dans sa pile, ou son
+   panneau épinglé dans sa ligne — une ligne sans panneau montré disparaît. */
+.wama-brick-section[hidden], .wama-dock-row > .grid-stack-item[hidden] { display: none; }
+.wama-dock-row:not(:has(> .grid-stack-item:not([hidden]))) { display: none; }
+
+/* Le VOLET d'une page en briques (2026-10-28, `wama-panel-layout.js`) : chaque section, déplacée
+   telle quelle, dans un panneau de la colonne. Figée, la colonne garde l'allure du volet d'avant
+   (ni fond ni cadre, le titre de la section) ; le contenu défile dans son panneau. */
+.wama-panel-body { padding: .5rem .6rem; color: inherit; }
+.wama-panel-body > .right-panel-section { margin-bottom: 0; }
+.wama-panel-column.is-frozen .grid-stack-item-content { background: transparent; }
+/* La page s'écarte de ce que les bords occupent, comme la page d'une surface. */
+body.wama-panel-arranged > .container {
+  padding-top: var(--wama-dock-top, 0px); padding-bottom: var(--wama-dock-bottom, 0px);
+  padding-left: calc(var(--bs-gutter-x, 1.5rem) * .5 + var(--wama-dock-left, 0px));
+  padding-right: calc(var(--bs-gutter-x, 1.5rem) * .5 + var(--wama-dock-right, 0px)); }
 
 .wama-brick-tools { display: flex; align-items: center; gap: .25rem; cursor: default; }
 .wama-brick-tools .btn-xs, .wama-surface-grid .btn-xs, .wama-surface-panel .btn-xs,

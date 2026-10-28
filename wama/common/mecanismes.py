@@ -2003,8 +2003,17 @@ MECHANISMS = (
     Mechanism('volet', 'Déclaration du volet par la page',
               "Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais "
               "ajout) ; sans déclaration, l'état d'avant — les apps n'écrivent rien "
-              "(context processor volet_defaut)",
-              'wama/common/utils/volet.py', 'docs/construction/ui/WAMA_VOLETS.md §8'),
+              "(context processor volet_defaut). 2026-10-28 : ses sections sont des panneaux de "
+              "la disposition COMMUNE (`wama-brick-layout.js`, sans grille au centre) — "
+              "réordonnées, retaillées, empilées, épinglées à un bord, gardées par compte et par "
+              "page (`PANEL_SLOTS`, route `panel_layout`, validées par `clean_layout`) ; le volet "
+              "reste celui d'avant tant que le compte n'a rien disposé, une section masquée retire "
+              "son panneau (`setShown`) ; `arrangeable=False` pour une page qui a sa disposition "
+              "(surface) ou la fera brique par brique (cam_analyzer) — scénario "
+              "`common.panel_layout`",
+              'wama/common/utils/volet.py', 'docs/construction/ui/WAMA_VOLETS.md §8',
+              annexes=('wama/common/panel_views.py',
+                       'wama/common/static/common/js/wama-panel-layout.js')),
     Mechanism('app_modes', 'Domaines → modes',
               "Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un domaine "
               "NOMME son schéma de réglages (`params_schema`), sa surface est la clé de son modèle "

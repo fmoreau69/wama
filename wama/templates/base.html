@@ -256,7 +256,9 @@
               `right_panel_top` de la seule page d'accueil : il disparaissait en la quittant.
             {% endcomment %}
             {% if assistant_avatar.available %}{% include 'common/_assistant_avatar.html' %}{% endif %}
-            {% block right_panel_top %}{% endblock %}
+            {% comment %}Le bloc libre dans un conteneur sans style (2026-10-28) : la disposition du
+              volet en fait un panneau quand il porte quelque chose (`wama-panel-layout.js`).{% endcomment %}
+            <div id="right-panel-top">{% block right_panel_top %}{% endblock %}</div>
 
             {% if volet.medias %}
             {% comment %}Section APERÇU — l'hôte où l'inspecteur montre l'élément sélectionné ; MASQUÉE
@@ -449,6 +451,25 @@
     si `WamaSchedule` existe. Pose aussi les pastilles des cards programmées.{% endcomment %}
     <script src="{% static_v 'common/js/wama-schedule.js' %}"></script>
     <script src="{% static_v 'common/js/wama-card-menu.js' %}"></script>
+    {% comment %}Le VOLET en briques (2026-10-28, `WAMA_VOLETS §3-ter` étape ②) : ses sections
+    deviennent des panneaux de la disposition commune quand le compte les dispose. Tant qu'il n'a
+    rien disposé, seul ce petit module est chargé — la grille ne l'est qu'au geste « Modifier la
+    disposition » ; une page disposée la reçoit tout de suite, pour ne pas sauter au chargement.
+    APRÈS le menu de card, dont l'épingle ouvre les choix.{% endcomment %}
+    {% if volet.actif and volet.arrangeable %}{% with layout_config=panel_layout %}{% if layout_config %}
+    {{ layout_config|json_script:"wama-panel-layout" }}
+    {% if layout_config.arranged %}
+    <link rel="stylesheet" href="{% static 'vendors/gridstack-13.3.0/gridstack.min.css' %}">
+    <link rel="stylesheet" href="{% static_v 'common/css/wama-surface.css' %}">
+    <script src="{% static 'vendors/gridstack-13.3.0/gridstack-all.js' %}"></script>
+    <script src="{% static_v 'common/js/wama-brick-layout.js' %}"></script>
+    {% endif %}
+    <script src="{% static_v 'common/js/wama-panel-layout.js' %}"
+            data-gridstack-css="{% static 'vendors/gridstack-13.3.0/gridstack.min.css' %}"
+            data-surface-css="{% static_v 'common/css/wama-surface.css' %}"
+            data-gridstack-js="{% static 'vendors/gridstack-13.3.0/gridstack-all.js' %}"
+            data-layout-js="{% static_v 'common/js/wama-brick-layout.js' %}"></script>
+    {% endif %}{% endwith %}{% endif %}
 
     {% block javascript %}
       <script src="{% static_v 'vendors/bootstrap-wysiwyg/js/bootstrap-wysiwyg.min.js' %}"></script>

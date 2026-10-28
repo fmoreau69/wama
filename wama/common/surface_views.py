@@ -141,8 +141,10 @@ def surface_page(request, app: str, key: str, pk: int):
         'reason': reason,
         # Le volet d'une surface (2026-10-21) : l'assistant en tête, puis la COLONNE de briques de
         # la surface (`zone='panel'`) — plus les sections par défaut, qui n'y montraient rien
-        # (« Sélectionnez un fichier pour l'aperçu », « Aucun paramètre disponible »).
-        'volet': volet(tete=True, medias=False, parametres=False, actions=False),
+        # (« Sélectionnez un fichier pour l'aperçu », « Aucun paramètre disponible »). Sa colonne
+        # a SA disposition (celle de la surface) : celle du volet des pages ne s'y monte pas.
+        'volet': volet(tete=True, medias=False, parametres=False, actions=False,
+                       arrangeable=False),
         'config': {
             'surface': found.to_dict(),
             'pk': pk,

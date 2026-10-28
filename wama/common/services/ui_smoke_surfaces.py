@@ -841,6 +841,192 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
     verdict(not shown, f"aucune erreur JS ({shown[:3]})")
 
 
+def check_panel_layout(page_hook=None):
+    """Le VOLET d'une page en briques (2026-10-28, `WAMA_VOLETS §3-ter` étape ②) — (ok, détail).
+
+    Sur la page du journal (une page commune : aucune app nommée), avec le compte de test : le
+    volet s'ouvre tel qu'avant, sans grille ni ses fichiers ; le cadenas en fait une colonne de
+    panneaux, chaque section dans le sien, gardée par compte ; une section que la page masque
+    (l'aperçu, les infos) retire son panneau SANS sortir du document — l'inspecteur la retrouve —
+    et revient à son rang quel que soit l'ordre où la page les montre ; une card cliquée montre
+    l'aperçu ; un panneau épinglé en bas tient entre le pied et le volet, et le reste au
+    rechargement ; « Disposition par défaut » garde l'épinglage ; « Dans la page » le rend à la
+    colonne ; figé puis rechargé, le volet redevient celui d'avant. Le réglage du compte est rendu
+    tel qu'il était en sortie. `page_hook(page)` : posé avant l'ouverture (contre-épreuve)."""
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.utils.user_settings import (clear_user_app_settings, get_user_app_setting,
+                                                 save_user_app_settings)
+    from wama.common.utils.volet import LAYOUT_SETTING
+
+    token, uid = _test_session_key(), _test_account_id()
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+    key = 'common'                       # la clé de page du journal (`volet.page_key`)
+
+    def account():
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.get(pk=uid)
+
+    def stored():
+        return get_user_app_setting(account(), key, LAYOUT_SETTING)
+
+    def restore(value):
+        if value is None:
+            clear_user_app_settings(account(), key, [LAYOUT_SETTING])
+        else:
+            save_user_app_settings(account(), key, {LAYOUT_SETTING: value})
+
+    before = _in_plain_thread(stored)
+    verdicts = []
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    sessions_before = _session_keys()
+    try:
+        _in_plain_thread(restore, None)          # le passage part du volet jamais disposé
+        url = BASE_URL.rstrip('/') + reverse('common:journal')
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                context.add_cookies(_cookie(token))
+                page = context.new_page()
+                page.set_default_timeout(10000)
+                errors = []
+                page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+                if page_hook:
+                    page_hook(page)
+                _panel_gestures(page, url, stored, verdict, errors)
+            finally:
+                browser.close()
+    finally:
+        _in_plain_thread(restore, before)
+        _drop_new_sessions(sessions_before)
+    failed = [text for ok, text in verdicts if not ok]
+    detail = f"volet du journal : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
+#: L'état du volet en briques tel que la page le montre : les panneaux de la colonne dans l'ordre
+#: de la grille, le panneau de chaque section et ce qui est épinglé.
+_PANEL_STATE_JS = """() => {
+    const col = document.querySelector('.wama-panel-column');
+    const ids = {preview: 'media-section', info: 'info-section'};
+    const panels = col ? Array.from(col.querySelectorAll(':scope > .grid-stack-item'))
+        .filter(el => el.gridstackNode).sort((a, b) => a.gridstackNode.y - b.gridstackNode.y)
+        .map(el => el.dataset.panel) : [];
+    const docked = Array.from(document.querySelectorAll('.wama-dock-row > .grid-stack-item:not([hidden])'))
+        .map(el => { const r = el.getBoundingClientRect();
+                     return {panel: el.dataset.panel, edge: el.dataset.docked, left: r.left, right: r.right,
+                             top: r.top, bottom: r.bottom}; });
+    const foot = document.querySelector('body > footer'), volet = document.getElementById('wama-right-panel');
+    return {column: !!col, grid: !!window.GridStack, lock: !!document.querySelector('.wama-panel-tools'),
+            panels: panels, docked: docked,
+            inDocument: Object.values(ids).every(id => !!document.getElementById(id)),
+            unwrapped: Array.from(document.querySelectorAll('#wama-right-panel .right-panel-section'))
+                .filter(s => !s.closest('.grid-stack-item') && s.offsetParent).map(s => s.id),
+            footerTop: foot ? foot.getBoundingClientRect().top : null,
+            voletLeft: volet ? volet.getBoundingClientRect().left : null};
+}"""
+
+
+def _panel_gestures(page, url, stored, verdict, errors):
+    """Les gestes de `check_panel_layout`, dans l'ordre ; un geste impossible est un verdict rouge."""
+
+    def state():
+        return page.evaluate(_PANEL_STATE_JS)
+
+    def open_page():
+        page.goto(url, wait_until='load', timeout=45000)
+        page.wait_for_timeout(1200)
+
+    def lock():
+        page.click('.wama-panel-tools button[aria-pressed]')
+        page.wait_for_timeout(900)
+
+    def show(ids, display):
+        for element in ids:
+            # Une section sortie du document n'est plus montrable : le verdict « toujours dans la
+            # page » l'a déjà dit, la suite continue.
+            page.evaluate("([id, d]) => { const el = document.getElementById(id); "
+                          "if (el) el.style.display = d; }", [element, display])
+            page.wait_for_timeout(120)
+
+    def pin_menu(panel, choice):
+        button = page.locator(f'.grid-stack-item[data-panel="{panel}"] .wama-brick-dock').first
+        button.click()
+        page.wait_for_timeout(300)
+        page.get_by_text(choice).first.click()
+        page.wait_for_timeout(900)
+
+    open_page()
+    s = state()
+    verdict(s['lock'] and not s['column'] and not s['grid'],
+            f"ouvert tel qu'avant : cadenas, ni colonne ni grille chargée ({s})")
+    lock()
+    s = state()
+    verdict(s['column'] and s['panels'] and not s['unwrapped'],
+            f"le cadenas fait une colonne de panneaux, chaque section dans le sien ({s})")
+    page.wait_for_timeout(500)
+    kept = _in_plain_thread(stored) or {}
+    verdict(kept.get('frozen') is False, f"rendu modifiable, gardé au serveur ({kept})")
+    verdict('preview' not in s['panels'] and 'info' not in s['panels'] and s['inDocument'],
+            f"aperçu et infos masqués : pas de panneau, mais toujours dans la page ({s['panels']})")
+    # L'ordre de l'inspecteur d'abord (l'aperçu, puis les infos) : retirés ensemble au montage,
+    # les deux avaient la même rangée — c'est leur RANG qui les remet dans l'ordre.
+    show(['media-section', 'info-section'], '')
+    first = state()['panels']
+    show(['media-section', 'info-section'], 'none')
+    show(['info-section', 'media-section'], '')
+    second = state()['panels']
+    ok = all('preview' in p and 'info' in p and p.index('preview') < p.index('info')
+             for p in (first, second))
+    verdict(ok, f"aperçu puis infos, quel que soit l'ordre où la page les montre ({first} / {second})")
+    show(['media-section', 'info-section'], 'none')
+    card = page.query_selector('[data-preview-url][data-id]')
+    if card:
+        card.click(position={'x': 30, 'y': 12})
+        page.wait_for_timeout(2000)
+        verdict('preview' in state()['panels'], f"une card cliquée montre l'aperçu ({state()['panels']})")
+        page.keyboard.press('Escape')
+        page.wait_for_timeout(800)
+    target = state()['panels'][0]
+    pin_menu(target, 'En bas de la fenêtre')
+    s = state()
+    dock = next((d for d in s['docked'] if d['panel'] == target), None)
+    verdict(dock and dock['edge'] == 'bottom' and dock['bottom'] <= s['footerTop'] + 1
+            and dock['right'] <= s['voletLeft'] + 1 and target not in s['panels'],
+            f"« {target} » épinglé en bas, entre le pied et le volet ({dock})")
+    page.wait_for_timeout(500)
+    kept = _in_plain_thread(stored) or {}
+    verdict(kept.get('docked') == {'bottom': [[target]]}, f"épinglage gardé au serveur ({kept})")
+    open_page()
+    s = state()
+    verdict(s['column'] and any(d['panel'] == target for d in s['docked']),
+            f"rechargé : disposé, toujours épinglé ({s['docked']})")
+    page.click('.wama-panel-tools button[title^="Disposition par"]')
+    page.wait_for_timeout(900)
+    s = state()
+    verdict(any(d['panel'] == target for d in s['docked']),
+            f"« Disposition par défaut » garde l'épinglage ({s['docked']})")
+    pin_menu(target, 'Dans la page')
+    s = state()
+    verdict(target in s['panels'] and not s['docked'], f"« Dans la page » le rend à la colonne ({s})")
+    lock()
+    page.wait_for_timeout(500)
+    kept = _in_plain_thread(stored) or {}
+    open_page()
+    s = state()
+    verdict(kept.get('frozen') is True and not s['column'] and not s['grid'],
+            f"figé puis rechargé : le volet d'avant ({kept}, {s})")
+    shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
+    verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+
+
 def register_surface_scenarios():
     """Les scénarios communs des surfaces (vignettes de briques, disposition) — aucun GPU."""
     from wama.common.services.nightly_tests import register
@@ -875,5 +1061,16 @@ def register_surface_scenarios():
                      "sa bande ; « à côté » sur une ligne ; GLISSER à la souris : au bord, à côté, "
                      "rendu à la page, empilé, chacun annoncé avant le lâcher"),
         run=lambda ctx: check_surface_stack(),
+        timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id='common.panel_layout', app='common', stage='ui',
+        description=("Volet d'une page en briques : ouvert tel qu'avant (ni grille ni ses "
+                     "fichiers), le cadenas en fait une colonne de panneaux gardée par compte ; une "
+                     "section masquée retire son panneau sans quitter la page et revient à son rang "
+                     "(aperçu puis infos, dans les deux ordres) ; épinglé en bas entre le pied et le "
+                     "volet, gardé au rechargement et par « Disposition par défaut » ; « Dans la "
+                     "page » le rend ; figé puis rechargé, le volet d'avant"),
+        run=lambda ctx: check_panel_layout(),
         timeout_s=240, vram_gb=0.0,
     )

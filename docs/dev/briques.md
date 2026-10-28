@@ -2401,12 +2401,17 @@ Schéma déclaratif des onglets-domaine et modes par app — scope la file ; un 
 
 ### Déclaration du volet par la page
 
-Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajout) ; sans déclaration, l'état d'avant — les apps n'écrivent rien (context processor volet_defaut)
+Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajout) ; sans déclaration, l'état d'avant — les apps n'écrivent rien (context processor volet_defaut). 2026-10-28 : ses sections sont des panneaux de la disposition COMMUNE (`wama-brick-layout.js`, sans grille au centre) — réordonnées, retaillées, empilées, épinglées à un bord, gardées par compte et par page (`PANEL_SLOTS`, route `panel_layout`, validées par `clean_layout`) ; le volet reste celui d'avant tant que le compte n'a rien disposé, une section masquée retire son panneau (`setShown`) ; `arrangeable=False` pour une page qui a sa disposition (surface) ou la fera brique par brique (cam_analyzer) — scénario `common.panel_layout`
 
 - **Domicile** : `wama/common/utils/volet.py` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §8](../construction/ui/WAMA_VOLETS.md)
 - **Module** : Déclaration du VOLET DROIT par la page — `WAMA_VOLETS.md §8 n°2`.
-- **API publique** (1) :
-  - `volet(*, tete: bool=False, medias: bool=True, parametres: bool=True, actions: bool=True) -> dict` — Déclaration de volet, toujours COMPLÈTE (cf. le pourquoi dans l'en-tête du module).
+- **API publique** (6) :
+  - `volet(*, tete: bool=False, medias: bool=True, parametres: bool=True, actions: bool=True, arrangeable: bool=True) -> dict` — Déclaration de volet, toujours COMPLÈTE (cf. le pourquoi dans l'en-tête du module).
+  - `class PanelSlot` — Une section du volet comme emplacement de la disposition commune : la COLONNE du volet
+  - `page_key(request) -> str` — La page dont on garde la disposition du volet : l'espace de noms de sa route — le plus
+  - `layout_of(user, key: str) -> dict` — La disposition du volet que `user` a gardée pour la page `key` (`clean_layout`), `stored` à
+  - `is_arranged(layout: dict) -> bool` — Le compte a-t-il disposé ce volet ? Sinon il reste celui d'avant, sans grille.
+  - `layout_config(request) -> dict | None` — Ce que `wama-panel-layout.js` lit (`base.html`) ; None sans compte ou sans page nommée.
 
 ### Entrée de file (card seule OU lot)
 
