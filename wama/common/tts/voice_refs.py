@@ -317,10 +317,11 @@ def resolve_speaker_wav(voice_preset: str, user=None, language: str = '') -> Opt
 
 def is_cloned_voice(voice_preset: str) -> bool:
     """Cette voix est-elle un CLONAGE (`ua_<id>`, voix de la médiathèque d'un utilisateur) ?
-    Jumeau SERVEUR de `WamaModelCaps.isClonedVoice` — même prédicat, deux langages ; c'est ce
-    que le tirage automatique lit pour exiger `supports_cloning` (décision Fabien 13/09).
-    ⚠ Une voix de RÉFÉRENCE (`sa_<id>`) n'est pas un clonage au sens de l'UI : tout moteur la
-    reçoit comme `speaker_wav` s'il clone, l'ignore sinon."""
+    Jumeau SERVEUR de `WamaModelCaps.isClonedVoice` — même prédicat, deux langages ; il ne sert
+    plus qu'au LIBELLÉ (« voix clonée » dans la console du synthesizer).
+    ⚠ Ce que la voix impose au tirage ne se lit PAS ici (c'était le cas du 13/09 au 2026-10-28) :
+    `voice_draw_constraint`, par `is_reference_voice` — une voix de référence `sa_<id>` n'a
+    d'effet, elle aussi, que sous un moteur qui clone."""
     return str(voice_preset or '').startswith('ua_')
 
 

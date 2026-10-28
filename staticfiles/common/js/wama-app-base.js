@@ -656,13 +656,17 @@
   // Il lit sa réponse DÈS sa création (`received` se résout au dernier octet) et ne JOUE qu'à
   // `start()` : la demande de la phrase suivante attend la fin de la RÉCEPTION, pas de la lecture
   // — le service ne calcule qu'une phrase à la fois, la lecture enchaîne sans trou.
-  let speechContext = null;
+  // UN contexte WebAudio pour la page : la voix en flux et les sons de notification (`playChime`)
+  // le partagent — le premier geste qui l'ouvre (`unlockChime`) vaut pour les deux.
+  let pageAudio = null;
   function audioContext() {
     const Ctx = global.AudioContext || global.webkitAudioContext;
     if (!Ctx) return null;
-    if (!speechContext || speechContext.state === 'closed') speechContext = new Ctx();
-    if (speechContext.state === 'suspended') speechContext.resume().catch(function () {});
-    return speechContext;
+    if (!pageAudio || pageAudio.state === 'closed') {
+      try { pageAudio = new Ctx(); } catch (e) { return null; }
+    }
+    if (pageAudio.state === 'suspended' && pageAudio.resume) pageAudio.resume().catch(function () {});
+    return pageAudio;
   }
 
   /** Peut-on jouer une voix en flux ici ? (WebAudio + corps de réponse lisible) */
@@ -1556,7 +1560,6 @@
   const CHIME_KEY = 'wama.notifications.lastChimed';
   // Deux notes : montantes pour « terminé », descendantes pour « échoué ».
   const CHIMES = { done: [660, 880], failed: [440, 330] };
-  let chimeAudio = null;
 
   function chimeFor(items) {
     let sound = '';
@@ -1578,19 +1581,10 @@
     return true;
   }
 
-  function chimeContext() {
-    if (chimeAudio) return chimeAudio;
-    const Ctx = global.AudioContext || global.webkitAudioContext;
-    if (!Ctx) return null;
-    try { chimeAudio = new Ctx(); } catch (e) { return null; }
-    return chimeAudio;
-  }
-
   function playChime(sound) {
     const notes = CHIMES[sound];
-    const ctx = notes ? chimeContext() : null;
+    const ctx = notes ? audioContext() : null;          // ouvert et repris s'il dormait
     if (!ctx) return false;
-    if (ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(function () {});
     const start = ctx.currentTime + 0.02;
     notes.forEach(function (freq, i) {
       const osc = ctx.createOscillator();
@@ -1618,8 +1612,7 @@
   }
 
   function unlockChime() {
-    const ctx = chimeContext();
-    if (ctx && ctx.state === 'suspended' && ctx.resume) ctx.resume().catch(function () {});
+    audioContext();
   }
 
   function readLastSeen() {

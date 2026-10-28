@@ -1019,6 +1019,13 @@ l'intuition :
     donc **Phonon** pour un profil français. Gardes : `tests_tts_stream` (contrat, Phonon, service,
     vue), `tests_assistant_voice_js` (découpage des octets, avatar en flux, demande et repli) ;
     contre-épreuve : 10 mutations, toutes rouges.
+    *Revérification du même soir* — trois recopies de ma main ramenées à un seul chemin : la
+    préparation des deux verbes (lexique puis pauses, `TTSBackend._prepared`) et le « dire puis
+    décoder » (`_process_decoded`) ; la prise du moteur et le contrôle « prêt » de `/tts` et
+    `/tts/stream` (`_take_engine`, `_require_ready`) avec la conversion 16 bits du fichier
+    (`tts_base.to_int16`) ; UN contexte WebAudio par page, partagé par la voix et les sons de
+    notification (`WamaApp`, `audioContext` — garde `tests_notification_sound_js`, rouge si un son
+    recrée le sien).
     ⏳ Le synthesizer et l'aperçu de voix restent en rendu entier (ils assemblent un fichier) ;
     Apache devant gunicorn n'a pas été mesuré (le navigateur passait par Django en direct) ; le
     minutage exact des mots (un moteur qui le rendrait) remplacerait la durée prédite.

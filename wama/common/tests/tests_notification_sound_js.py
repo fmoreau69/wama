@@ -60,10 +60,10 @@ class NotificationSoundPageTest(SimpleTestCase):
                   re.search(r'  const CHIMES = \{[^}]*\};', self.src)]
         self.assertTrue(all(consts), 'the sound constants disappeared')
         bodies = [_extract(self.src, name)
-                  for name in ('chimeFor', 'claimChime', 'chimeContext', 'playChime')]
+                  for name in ('chimeFor', 'claimChime', 'audioContext', 'playChime')]
         self.assertTrue(all(bodies), 'a sound function disappeared or changed shape')
         self.ctx.eval(FAKE_BROWSER + '\n'.join(m.group(0) for m in consts)
-                      + '\nvar chimeAudio = null;\n' + '\n'.join(bodies))
+                      + '\nvar pageAudio = null;\n' + '\n'.join(bodies))
 
     def test_failed_wins_and_only_sounding_items_count(self):
         pick = self.ctx.eval("""JSON.stringify(chimeFor([
@@ -92,8 +92,18 @@ class NotificationSoundPageTest(SimpleTestCase):
         self.assertGreater(falling[0], falling[1])
 
     def test_no_audio_context_means_silence_not_an_error(self):
-        self.ctx.eval('global = {}; chimeAudio = null;')
+        self.ctx.eval('global = {}; pageAudio = null;')
         self.assertFalse(self.ctx.eval("playChime('done')"))
+
+    def test_the_voice_and_the_chimes_share_one_audio_context(self):
+        """One WebAudio context per page (2026-10-28): the streamed voice opens it, a chime reuses
+        it — and the first gesture that unlocks it (`unlockChime`) unlocks both."""
+        self.ctx.eval("""var made = 0; var Plain = global.AudioContext;
+            global.AudioContext = function () { made++; Plain.call(this); };
+            global.AudioContext.prototype = Plain.prototype;""")
+        self.assertTrue(self.ctx.eval(
+            "var voice = audioContext(); playChime('done') && voice === pageAudio"))
+        self.assertEqual(1, self.ctx.eval('made'))
 
     def test_the_sound_does_not_take_the_speech_channel(self):
         body = _extract(self.src, 'playChime')

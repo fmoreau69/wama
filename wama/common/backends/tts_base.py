@@ -72,6 +72,12 @@ def _device() -> str:
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
+def to_int16(audio) -> np.ndarray:
+    """Un float mono (±1.0) en échantillons 16 bits, écrêté — la même conversion pour le fichier
+    entier (`write_wav_int16`) et pour la voix en flux (`/tts/stream`)."""
+    return (np.asarray(audio, dtype=np.float32) * 32767).clip(-32768, 32767).astype(np.int16)
+
+
 def write_wav_int16(audio: np.ndarray, sample_rate: int, normalize: bool = True) -> str:
     """Écrit un float32 mono en WAV int16 temporaire (logs/) et rend son chemin.
 
@@ -83,7 +89,7 @@ def write_wav_int16(audio: np.ndarray, sample_rate: int, normalize: bool = True)
         peak = np.abs(audio).max()
         if peak > 1e-6:
             audio = audio / peak
-    audio_int16 = (audio * 32767).clip(-32768, 32767).astype(np.int16)
+    audio_int16 = to_int16(audio)
 
     from scipy.io.wavfile import write as write_wav
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False,
@@ -91,6 +97,11 @@ def write_wav_int16(audio: np.ndarray, sample_rate: int, normalize: bool = True)
     tmp.close()
     write_wav(tmp.name, sample_rate, audio_int16)
     return tmp.name
+
+
+def _sayable(segment: str) -> bool:
+    """Un segment a-t-il quelque chose à DIRE ? (« … » seul entre deux phrases n'en a pas)"""
+    return any(c.isalnum() for c in segment)
 
 
 #: Plafond d'une PAUSE demandée (s) — une valeur aberrante postée ne fige pas la voix.
@@ -161,36 +172,21 @@ class TTSBackend(BaseModelBackend):
         fichier système et les lignes que le serveur web a jointes (`options['lexicon']`). Un
         moteur qui reçoit des phonèmes le dit lui-même (`takes_lexicon_phonemes`) ; pour les
         autres, chaque terme qui a une orthographe à dire est remplacé avant eux."""
-        from wama.common.utils.audio_decode import decode_audio
-        from wama.common.utils.tts_text import pause_segments, respell_with_lexicon
-        options = kwargs.get('options') or {}
-        language = kwargs.get('language') or ''
-        if not self.takes_lexicon_phonemes(language):
-            kwargs = {**kwargs, 'text': respell_with_lexicon(kwargs.get('text') or '', language,
-                                                             options.get('lexicon'))}
-        segments = [] if kwargs.get('multi_speaker') else pause_segments(
-            kwargs.get('text') or '', bounded_pause(options.get('sentence_pause')),
-            bounded_pause(options.get('clause_pause')))
+        kwargs, segments = self._prepared(kwargs)
         if len(segments) <= 1:
             return self.process(**kwargs)
-        import os
         parts, rate = [], None
         for segment, pause in segments:
-            if not any(c.isalnum() for c in segment):
+            if not _sayable(segment):
                 # Rien à DIRE (« … » seul entre deux phrases) : son silence, pas d'appel — un
                 # moteur sans phonème lèverait « aucun audio » pour tout le texte.
                 if parts and pause:
                     parts.append(np.zeros((int(pause * rate),) + parts[0].shape[1:],
                                           dtype=np.float32))
                 continue
-            path = self.process(**{**kwargs, 'text': segment,
-                                   'scene_description': '' if parts
-                                   else kwargs.get('scene_description', '')})
-            try:
-                # Le décodeur COMMUN (branche soundfile : fréquence native, float32, mono).
-                audio, segment_rate = decode_audio(path, mono=True)
-            finally:
-                os.remove(path)
+            audio, segment_rate = self._process_decoded(**{
+                **kwargs, 'text': segment,
+                'scene_description': '' if parts else kwargs.get('scene_description', '')})
             if rate is not None and segment_rate != rate:
                 raise RuntimeError(f"{self.engine} : fréquence d'échantillonnage variable entre "
                                    f"segments ({rate} puis {segment_rate} Hz)")
@@ -214,22 +210,14 @@ class TTSBackend(BaseModelBackend):
         n'attend plus la phrase entière (Phonon : 0,14 s au lieu de 1,1 s, mesuré le 28/10).
         Les autres rendent chaque segment d'un bloc (`process_stream` par défaut) : rien ne
         change pour eux, sinon que le segment suivant suit sans attendre la fin du texte."""
-        from wama.common.utils.tts_text import pause_segments, respell_with_lexicon
-        options = kwargs.get('options') or {}
-        language = kwargs.get('language') or ''
-        if not self.takes_lexicon_phonemes(language):
-            kwargs = {**kwargs, 'text': respell_with_lexicon(kwargs.get('text') or '', language,
-                                                             options.get('lexicon'))}
-        segments = [] if kwargs.get('multi_speaker') else pause_segments(
-            kwargs.get('text') or '', bounded_pause(options.get('sentence_pause')),
-            bounded_pause(options.get('clause_pause')))
-        if not any(any(c.isalnum() for c in segment) for segment, _ in segments):
+        kwargs, segments = self._prepared(kwargs)
+        if not any(_sayable(segment) for segment, _ in segments):
             segments = [(kwargs.get('text') or '', 0.0)]   # rien de dicible : le moteur en décide
 
         def parts():
             rate = None
             for segment, pause in segments:
-                if any(c.isalnum() for c in segment):
+                if _sayable(segment):
                     rate, chunks = self.process_stream(**{
                         **kwargs, 'text': segment,
                         'scene_description': '' if rate else kwargs.get('scene_description', '')})
@@ -255,11 +243,31 @@ class TTSBackend(BaseModelBackend):
         """UN segment rendu en flux — `(rate, itérateur de morceaux float32 mono)`. Par défaut d'un
         bloc : le fichier de `process`, décodé par le décodeur commun. Un moteur qui déclare
         `supports_streaming` le remplace par son propre flux."""
+        audio, rate = self._process_decoded(**kwargs)
+        return rate, iter([np.asarray(audio, dtype=np.float32).reshape(-1)])
+
+    def _prepared(self, kwargs: dict):
+        """Ce que les deux verbes lisent avant de dire : le LEXIQUE réécrit le texte (sauf pour un
+        moteur qui reçoit les phonèmes), puis les PAUSES le découpent — `(kwargs, segments)` ; aucun
+        segment en mode multi-voix."""
+        from wama.common.utils.tts_text import pause_segments, respell_with_lexicon
+        options = kwargs.get('options') or {}
+        language = kwargs.get('language') or ''
+        if not self.takes_lexicon_phonemes(language):
+            kwargs = {**kwargs, 'text': respell_with_lexicon(kwargs.get('text') or '', language,
+                                                             options.get('lexicon'))}
+        segments = [] if kwargs.get('multi_speaker') else pause_segments(
+            kwargs.get('text') or '', bounded_pause(options.get('sentence_pause')),
+            bounded_pause(options.get('clause_pause')))
+        return kwargs, segments
+
+    def _process_decoded(self, **kwargs):
+        """`process` puis son fichier lu par le décodeur COMMUN (branche soundfile : fréquence
+        native, float32, mono) et effacé — `(audio, rate)`."""
         import os
         from wama.common.utils.audio_decode import decode_audio
         path = self.process(**kwargs)
         try:
-            audio, rate = decode_audio(path, mono=True)
+            return decode_audio(path, mono=True)
         finally:
             os.remove(path)
-        return rate, iter([np.asarray(audio, dtype=np.float32).reshape(-1)])

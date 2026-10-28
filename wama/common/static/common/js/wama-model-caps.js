@@ -155,10 +155,10 @@
       // Libellé d'origine mémorisé au 1er passage : `render()` rejoue à chaque changement de
       // modèle, et un marqueur réappliqué sur un libellé déjà marqué s'empilerait.
       if (opt.dataset.capsLabel === undefined) opt.dataset.capsLabel = opt.textContent;
-      const raison = (!hide && !!caps && typeof f.annotateOption === 'function')
+      const reason = (!hide && !!caps && typeof f.annotateOption === 'function')
                      ? f.annotateOption(caps, opt) : null;
-      opt.textContent = raison ? '⚠ ' + opt.dataset.capsLabel : opt.dataset.capsLabel;
-      opt.title = raison || '';
+      opt.textContent = reason ? '⚠ ' + opt.dataset.capsLabel : opt.dataset.capsLabel;
+      opt.title = reason || '';
       if (!hide && firstVisible === null) firstVisible = opt;
       if (hide && opt.selected) selectedHidden = true;
     });
@@ -187,23 +187,23 @@
    */
   function langFilter(selectId, opts) {
     opts = opts || {};
-    const raison = opts.reason
+    const reason = opts.reason
       || 'Le moteur ne parle pas cette langue nativement : il la prononcera avec une voix '
          + 'd\'une autre langue. Un fichier sera produit, mais l\'accent ne sera pas natif.';
-    function connues(caps) {
+    function listsLanguages(caps) {
       return Array.isArray(caps.languages) && caps.languages.length > 0
              && caps.languages.indexOf('*') === -1;
     }
     return {
       selectId: selectId,
       hideOption: function (caps, opt) {
-        if (!connues(caps)) return false;
+        if (!listsLanguages(caps)) return false;
         if (caps.languages.indexOf(opt.value) !== -1) return false;
         return (caps.fallback_languages || []).indexOf(opt.value) === -1;
       },
       annotateOption: function (caps, opt) {
-        if (!connues(caps) || caps.languages.indexOf(opt.value) !== -1) return null;
-        return (caps.fallback_languages || []).indexOf(opt.value) !== -1 ? raison : null;
+        if (!listsLanguages(caps) || caps.languages.indexOf(opt.value) !== -1) return null;
+        return (caps.fallback_languages || []).indexOf(opt.value) !== -1 ? reason : null;
       },
     };
   }
@@ -283,7 +283,7 @@
    */
   function cloneVoiceFilter(selectId, opts) {
     opts = opts || {};
-    const raison = opts.languageReason
+    const reason = opts.languageReason
       || 'Cette voix est dans une langue que le moteur ne parle pas : le timbre sera '
          + 'cloné, mais la prononciation de cette langue n\'est pas garantie.';
     return {
@@ -295,7 +295,7 @@
         if (!lang || !langs.length || langs.indexOf('*') !== -1) return null;
         if (langs.indexOf(lang) !== -1) return null;
         if ((caps.fallback_languages || []).indexOf(lang) !== -1) return null;
-        return raison;
+        return reason;
       },
     };
   }

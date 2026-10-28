@@ -335,11 +335,11 @@ def health():
     }
 
 
-def _synthesize(be, req: "TTSRequest") -> str:
+def _synthesis_kwargs(req: "TTSRequest") -> dict:
     """Contrat d'appel uniforme : chaque backend consomme ce qui le concerne. La voix de
     référence vient RÉSOLUE de Django (voir l'en-tête) ; Bark n'en consomme pas — son mapping
-    preset → locuteur est dans son backend."""
-    return be.synthesize(
+    preset → locuteur est dans son backend. Le même pour le fichier entier et pour le flux."""
+    return dict(
         text=req.text,
         # Nom LOCAL, comme au chargement — `CoquiBackend.process` réindexe
         # `COQUI_MODEL_MAPPING` avec cette valeur.
@@ -353,12 +353,13 @@ def _synthesize(be, req: "TTSRequest") -> str:
     )
 
 
-@app.post("/tts")
-def tts_endpoint(req: TTSRequest):
-    """Generate audio from text. Returns raw WAV bytes."""
-    # Refuse requests while the service is still initialising so the caller
-    # can detect the "not ready" state and retry rather than blocking a GPU
-    # worker for the full model-loading time.
+def _synthesize(be, req: "TTSRequest") -> str:
+    return be.synthesize(**_synthesis_kwargs(req))
+
+
+def _require_ready() -> None:
+    """Refuse requests while the service is still initialising so the caller can detect the
+    "not ready" state and retry rather than blocking a GPU worker for the full model-loading time."""
     with _service_ready_lock:
         ready = _service_ready
     if not ready:
@@ -367,25 +368,43 @@ def tts_endpoint(req: TTSRequest):
             detail={"status": "loading", "message": "TTS service is still loading, retry shortly"},
         )
 
+
+def _take_engine(req: "TTSRequest"):
+    """Le moteur qui dira la demande, et si le verrou des moteurs est TENU (l'appelant le rend après
+    le dernier échantillon). Un moteur lourd ATTEND le verrou ; un résident le prend seulement s'il
+    est libre — sinon, une synthèse lourde est en cours et le temps réel est servi sans bascule ni
+    déchargement. Le même geste pour `/tts` et `/tts/stream`."""
+    engine = engine_for_model(req.model, req.engine)
+    holds_lock = _engine_lock.acquire(blocking=not _keep_resident(engine))
     try:
-        engine = engine_for_model(req.model, req.engine)
+        if holds_lock:
+            _switch_model(req.model, req.engine)
+            return _backend(_current_engine), True
+        be = _backend(engine)
+        if not be.is_loaded:
+            be.load(local_model_name(req.model))
+        logger.info(f"{engine} servi pendant une synthèse lourde — moteur courant intact")
+        return be, False
+    except Exception:
+        if holds_lock:
+            _engine_lock.release()
+        raise
+
+
+@app.post("/tts")
+def tts_endpoint(req: TTSRequest):
+    """Generate audio from text. Returns raw WAV bytes."""
+    _require_ready()
+
+    try:
         _synth_begin()                    # occupé, déclaré au gouverneur (B1)
         try:
-            # Un moteur lourd ATTEND le verrou ; un résident le prend seulement s'il est libre.
-            tient = _engine_lock.acquire(blocking=not _keep_resident(engine))
-            if tient:
-                try:
-                    _switch_model(req.model, req.engine)
-                    wav_path = _synthesize(_backend(_current_engine), req)
-                finally:
-                    _engine_lock.release()
-            else:
-                # Synthèse lourde en cours : le temps réel est servi sans bascule ni déchargement.
-                be = _backend(engine)
-                if not be.is_loaded:
-                    be.load(local_model_name(req.model))
-                logger.info(f"{engine} servi pendant une synthèse lourde — moteur courant intact")
+            be, holds_lock = _take_engine(req)
+            try:
                 wav_path = _synthesize(be, req)
+            finally:
+                if holds_lock:
+                    _engine_lock.release()
         finally:
             _synth_end()
 
@@ -414,34 +433,15 @@ def tts_stream_endpoint(req: TTSRequest):
     la suite part à mesure. Mêmes règles d'occupation que `/tts` : le verrou du moteur et l'état
     « occupé » déclaré au gouverneur sont tenus jusqu'au dernier morceau, ou jusqu'à l'abandon du
     flux par l'appelant (qui arrête le calcul)."""
-    import numpy as np
-    with _service_ready_lock:
-        ready = _service_ready
-    if not ready:
-        raise HTTPException(
-            status_code=503,
-            detail={"status": "loading", "message": "TTS service is still loading, retry shortly"},
-        )
-    engine = engine_for_model(req.model, req.engine)
+    from wama.common.backends.tts_base import to_int16
+    _require_ready()
     _synth_begin()
-    tient = False
+    holds_lock = False
     try:
-        tient = _engine_lock.acquire(blocking=not _keep_resident(engine))
-        if tient:
-            _switch_model(req.model, req.engine)
-            be = _backend(_current_engine)
-        else:
-            be = _backend(engine)
-            if not be.is_loaded:
-                be.load(local_model_name(req.model))
-            logger.info(f"{engine} diffusé pendant une synthèse lourde — moteur courant intact")
-        rate, chunks = be.synthesize_stream(
-            text=req.text, model=local_model_name(req.model), language=req.language,
-            voice_preset=req.voice_preset, speaker_wav=req.speaker_wav or None,
-            multi_speaker=req.multi_speaker, scene_description=req.scene_description,
-            options=req.options)
+        be, holds_lock = _take_engine(req)
+        rate, chunks = be.synthesize_stream(**_synthesis_kwargs(req))
     except Exception as e:
-        if tient:
+        if holds_lock:
             _engine_lock.release()
         _synth_end()
         logger.error(f"TTS stream error: {e}", exc_info=True)
@@ -450,15 +450,14 @@ def tts_stream_endpoint(req: TTSRequest):
     def pcm16():
         try:
             for chunk in chunks:
-                yield (np.asarray(chunk, dtype=np.float32) * 32767).clip(-32768, 32767) \
-                    .astype("<i2").tobytes()
+                yield to_int16(chunk).astype("<i2", copy=False).tobytes()
         except Exception as e:                # la réponse est partie : le flux s'arrête, dit ici
             logger.error(f"TTS stream interrompu : {e}", exc_info=True)
         finally:
             close = getattr(chunks, "close", None)
             if close:
                 close()
-            if tient:
+            if holds_lock:
                 _engine_lock.release()
             _synth_end()
 
