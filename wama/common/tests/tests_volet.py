@@ -651,7 +651,7 @@ class CentreBricksTest(TestCase):
     barre montrée hors d'une file ne sont pas des briques ; la règle des surfaces valide aussi
     leurs places. Les gestes : `common.centre_layout`."""
 
-    KINDS = ['entry', 'progress', 'toolbar', 'queue']
+    KINDS = ['entry_card', 'global_progress', 'toolbar', 'queue']
 
     @classmethod
     def setUpTestData(cls):
@@ -681,10 +681,13 @@ class CentreBricksTest(TestCase):
         return out
 
     def test_the_centre_bricks_are_declared_once_per_domain(self):
-        from wama.common.surfaces import GRID_COLUMNS
+        from wama.common.surfaces import BRICKS, GRID_COLUMNS
         from wama.common.utils.app_modes import APP_MODES, get_domains, has_domain_tabs
         from wama.common.utils.volet import PANEL_SLOTS, centre_slots, declaration
         self.assertEqual(self.KINDS, [s.id for s in centre_slots('describer')])
+        for slot in centre_slots('describer'):
+            self.assertTrue(BRICKS[slot.kind].is_page, f'{slot.kind} : une brique de page du registre')
+            self.assertEqual(BRICKS[slot.kind].name, slot.title, 'son nom vient du registre, une fois')
         self.assertEqual(list(PANEL_SLOTS), list(declaration('describer').slots[:len(PANEL_SLOTS)]),
                          'le volet, puis le centre')
         tabbed = [app for app in APP_MODES if has_domain_tabs(app)]
@@ -714,7 +717,7 @@ class CentreBricksTest(TestCase):
             seen += 1
             marks = mark.findall(html)
             kinds = {kind for kind, _ in marks}
-            self.assertTrue({'entry', 'toolbar', 'queue'} <= kinds, f'{app} : {sorted(kinds)}')
+            self.assertTrue({'entry_card', 'toolbar', 'queue'} <= kinds, f'{app} : {sorted(kinds)}')
             domains = {d['id'] for d in get_domains(app)} if has_domain_tabs(app) else None
             for kind, domain in marks:
                 self.assertIn(kind, self.KINDS, app)
@@ -730,7 +733,7 @@ class CentreBricksTest(TestCase):
         card = (templates / '_new_item_card_v4.html').read_text(encoding='utf-8')
         bar = (templates / '_toolbar.html').read_text(encoding='utf-8')
         queue = (templates / '_queue.html').read_text(encoding='utf-8')
-        self.assertIn('{% if not compose_only %}data-wama-brick="entry"', card)
+        self.assertIn('{% if not compose_only %}data-wama-brick="entry_card"', card)
         self.assertIn('{% if centre_brick %}data-wama-brick="toolbar"', bar)
         self.assertIn('centre_brick=True', queue)
         self.assertIn('data-wama-brick="queue"', queue)

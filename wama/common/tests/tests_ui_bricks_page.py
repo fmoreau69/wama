@@ -116,7 +116,8 @@ class PageBrickTest(TestCase):
     DECLARES (a facet of its manifest, or its pipeline) ; the apps that mount them are the measured
     adoption of the mechanism that holds that template."""
 
-    PAGE_BRICKS = ('entry_card', 'inspector_panel', 'media_viewer', 'queue')
+    PAGE_BRICKS = ('entry_card', 'global_progress', 'inspector_panel', 'media_viewer', 'queue',
+                   'toolbar')
 
     def setUp(self):
         self.client.force_login(get_user_model().objects.create_user('ui-page', password='x'))

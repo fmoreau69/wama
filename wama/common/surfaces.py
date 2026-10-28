@@ -858,14 +858,35 @@ register_brick(UIBrick(
 
 register_brick(UIBrick(
     key='queue', name='File',
-    description="La file d'attente d'une page : la barre (démarrer, télécharger, effacer, tri, "
-                "filtre, recherche, disposition), les entrées — card seule ou lot replié avec sa "
+    description="La file d'attente d'une page : les entrées — card seule ou lot replié avec sa "
                 "card mère —, la manipulation directe (glisser-déposer, sélection multiple) et "
-                "l'état vide. Ses routes, ses formats de téléchargement et l'icône de son état "
+                "l'état vide, sous sa barre d'outils (la brique « Barre d'outils », que la file "
+                "pose avant elle). Ses routes, ses formats de téléchargement et l'icône de son état "
                 "vide se lisent de ce que l'app déclare ; une file par domaine quand l'app en a "
                 "plusieurs.",
     mount='common/_queue.html',
     declarations=('app.modes', 'pipeline')))
+
+# 2026-10-28 (étape ④, `WAMA_VOLETS §3-ter`) : la barre et la progression deviennent des briques à
+# part dans le centre d'une page d'app — Fabien : « c'est déjà une brique commune qui sert aussi
+# les pages de registres ». Leur nom est celui que porte leur panneau (`volet.centre_slots`).
+register_brick(UIBrick(
+    key='toolbar', name="Barre d'outils",
+    description="La barre générale : tri, filtre par statut, recherche, disposition ligne ou "
+                "mosaïque, densité, pile et les actions globales (démarrer, télécharger, effacer), "
+                "tirés d'un registre d'outils par PROFIL (`common/toolbar.py`) — la barre d'une "
+                "file, celle des registres et des catalogues. Au-dessus d'une file, ses actions "
+                "suivent les routes que l'app déclare et sa recherche ne filtre que SA file.",
+    mount='common/_toolbar.html',
+    declarations=('app.processing',)))
+
+register_brick(UIBrick(
+    key='global_progress', name='Progression globale',
+    description="L'avancement de toute la file : éléments terminés sur le total, pourcentage et "
+                "temps restant estimé, toujours visible ; lu de la route de progression que l'app "
+                "déclare.",
+    mount='common/_global_progress.html',
+    declarations=('app.processing',)))
 
 register_brick(UIBrick(
     key='entry_card', name="Card d'entrée",

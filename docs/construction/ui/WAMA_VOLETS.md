@@ -507,7 +507,11 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     disposition par page et par compte (`volet.declaration` = sections du volet + briques du
     centre), donc la même route `common:panel_layout` et la même règle `clean_layout`. Une
     disposition gardée avant ce jour reste valable : les briques du centre y prennent leur place
-    déclarée.
+    déclarée. Chaque brique est nommée par sa clé au REGISTRE des briques (`surfaces.BRICKS`) —
+    `entry_card`, `global_progress`, `toolbar`, `queue` —, d'où vient aussi le titre de son
+    panneau ; la barre d'outils et la progression y sont entrées ce jour-là comme briques de page
+    (revérification : la première version recopiait leurs titres à côté du registre, et la barre,
+    commune aux files et aux registres, n'y figurait pas).
   - **Sur la page** (`wama-panel-layout.js`) : la grille se pose à la place de la première brique,
     ou sous les onglets ; chaque brique y est DÉPLACÉE telle quelle (mêmes identifiants, le JS des
     apps n'en sait rien), dans l'ordre de LA page (l'avatarizer montre la progression avant la

@@ -124,16 +124,16 @@ PANEL_SLOTS = _stacked(
 )
 
 
-#: Les briques du CENTRE d'une page d'app (étape ④), dans l'ordre où les pages les rendent le plus
-#: souvent — le module les empile dans l'ordre de LA page. Les trois premières sont à la hauteur
-#: de leur contenu (`fit`) ; la file a une hauteur qu'on règle (elle s'allonge sans fin). `kind` =
-#: la marque que pose la pièce commune : `_new_item_card_v4.html`, `_global_progress.html`,
-#: `_toolbar.html` (barre de file), `_queue.html`.
+#: Les briques du CENTRE d'une page d'app (étape ④), par leur clé au registre des briques
+#: (`surfaces.BRICKS`, qui porte leur nom et le gabarit qui les monte), dans l'ordre où les pages
+#: les rendent le plus souvent — le module les empile dans l'ordre de LA page. Les trois premières
+#: sont à la hauteur de leur contenu (`fit`) ; la file a une hauteur qu'on règle (elle s'allonge
+#: sans fin). La pièce commune qui monte chacune pose la marque `data-wama-brick="<clé>"`.
 CENTRE_BRICKS = (
-    ('entry', 'Nouvel élément', 3, True),
-    ('progress', 'Progression', 1, True),
-    ('toolbar', 'Outils de la file', 1, True),
-    ('queue', "File d'attente", 12, False),
+    ('entry_card', 3, True),
+    ('global_progress', 1, True),
+    ('toolbar', 1, True),
+    ('queue', 12, False),
 )
 
 
@@ -141,14 +141,15 @@ def centre_slots(page: str) -> tuple:
     """Les briques du centre de la page `page` : un jeu par domaine quand l'app en a plusieurs
     (onglets de l'imager, de l'enhancer — `<kind>-<domaine>`), sinon un seul. Toute la largeur de
     la grille, l'une sous l'autre."""
-    from wama.common.surfaces import GRID_COLUMNS
+    from wama.common.surfaces import BRICKS, GRID_COLUMNS
     from wama.common.utils.app_modes import get_domains, has_domain_tabs
     domains = get_domains(page) if page and has_domain_tabs(page) else [{}]
     out, y = [], 0
     for domain in domains:
         key = domain.get('id', '')
         label = domain.get('label') or key
-        for kind, title, h, fit in CENTRE_BRICKS:
+        for kind, h, fit in CENTRE_BRICKS:
+            title = BRICKS[kind].name
             out.append(PanelSlot(f'{kind}-{key}' if key else kind, '', y, h, x=0, w=GRID_COLUMNS,
                                  zone='grid', kind=kind, domain=key, fit=fit,
                                  title=f'{title} — {label}' if key else title))
