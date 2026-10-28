@@ -135,8 +135,8 @@ class OllamaErrorIsNotAnEmptySuccessTests(SimpleTestCase):
 
     def test_a_loop_with_varying_headers_is_cut_at_the_first_return(self):
         """La forme exacte relevée sur la card #1335 redressée : des en-têtes qui varient entre
-        les copies — une période exacte gardait 2,5 copies. (« I24 Rotation » et « WAMA » sont les
-        titres manuscrits de la note, pas des inventions du modèle : corrigé le 2026-10-28.)"""
+        les copies — une période exacte gardait 2,5 copies. (« I24 Rotation » est le titre manuscrit
+        « I24Motion » mal lu, pas une invention du modèle : corrigé le 2026-10-28.)"""
         note = ("- Personnalisation du pipeline par utilisation. Chaque\n"
                 "utilisateur peut personnaliser / créer son propre\n"
                 "pipeline et l'utiliser dans les apps.\n"
@@ -147,8 +147,9 @@ class OllamaErrorIsNotAnEmptySuccessTests(SimpleTestCase):
         self.assertEqual(1, result.count('Personnalisation du pipeline'))
 
     def test_a_format_fence_added_by_the_model_is_removed_and_its_text_kept(self):
-        """Card #1485 (2026-10-28, relevé par Fabien) : la sortie STOCKÉE de GLM-OCR — les deux
-        titres manuscrits de la note rendus dans un bloc « ```markdown » jamais refermé."""
+        """Card #1485 (2026-10-28, relevé par Fabien) : la sortie STOCKÉE de GLM-OCR — la première
+        ligne de la note (« I24Motion », lu « I24 Rotation », et « WAMA ») rendue dans un bloc
+        « ```markdown » jamais refermé."""
         stored = ("- Personnalisation du pipeline par utilisation. Chaque\n"
                   "propres données.\nWAMA\n```markdown\nI24 Rotation\nWAMA")
         result, _ = self._ocr([(stored, None)])

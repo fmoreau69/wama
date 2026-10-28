@@ -213,7 +213,7 @@ python patches/apply_patches.py
 |---|-------------|-------|-----|
 | 1 | `site-packages/boson_multimodal/.../modeling_higgs_audio.py` | `transformers 4.57+` API breaks (attention unpacking, inference_mode, cache_position…) | 7 targeted search-replace patches |
 | 2 | `site-packages/df/io.py` (deepfilternet) | `torchaudio.backend.common.AudioMetaData` removed in torchaudio 2.x | `try/except` + dataclass stub |
-| 3 | `wama/common/backends/higgs_backend.py` | In-repo safeguards of the Higgs Audio backend (CUDA graphs disabled, temperature, reference-audio trim, generation lock) — moved out of `tts_service.py` when TTS engines joined the common backend contract | Verified, not re-applied |
+| 3 | `wama/common/backends/higgs_backend.py` | In-repo safeguards of the Higgs Audio backend (CUDA graphs disabled, temperature, reference-audio trim, generation lock) — moved out of the TTS service (formerly `tts_service.py`, now `wama/common/tts/service.py`) when TTS engines joined the common backend contract | Verified, not re-applied |
 | 4 | `start_wama_prod.sh` | `HIGGS_DISABLE_CUDA_GRAPHS=1` must be exported | Verified, not re-applied |
 | 5 | `site-packages/xformers/ops/seqpar.py` | `GroupName` removed from `torch.distributed` in torch 2.9.x | `try/except` fallback import |
 | 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | `lm_head` int32 GEMM overflow on long audio (CUDA `cudaErrorUnknown`) | logits computed on last token only |

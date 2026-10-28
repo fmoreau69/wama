@@ -284,7 +284,7 @@ apply_patch(
 |---|---------|----------|
 | 1 | `site-packages/boson_multimodal/.../modeling_higgs_audio.py` | transformers 4.57+ (7 patches) |
 | 2 | `site-packages/df/io.py` | torchaudio 2.x — `AudioMetaData` supprimé |
-| 3 | `wama/common/backends/higgs_backend.py` | In-repo (vérification seulement) — garde-fous Higgs sortis de `tts_service.py` au passage des moteurs TTS sous contrat commun |
+| 3 | `wama/common/backends/higgs_backend.py` | In-repo (vérification seulement) — garde-fous Higgs sortis du service TTS (ex-`tts_service.py`, `wama/common/tts/service.py` depuis le 2026-10-28) au passage des moteurs TTS sous contrat commun |
 | 4 | `start_wama_prod.sh` | In-repo (vérification seulement) |
 | 5 | `site-packages/xformers/ops/seqpar.py` | torch 2.9.x — `GroupName` supprimé |
 | 6 | `site-packages/vibevoice/.../modeling_vibevoice_asr.py` | lm_head : overflow int32 du GEMM CUDA sur audio long → `cudaErrorUnknown` (logits sur dernier token seulement) |

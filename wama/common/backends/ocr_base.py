@@ -129,9 +129,10 @@ def trim_repetition(text: str) -> tuple[str, bool]:
     intercalant des en-têtes qui varient d'une copie à l'autre : une période EXACTE ne s'y voit
     que tard (deux copies et demie gardées, mesuré). Le premier passage est la lecture ; la suite
     n'ajoute rien. Lignes comparées sans les espaces de bord.
-    ⚠ Corrigé le 2026-10-28 (question de Fabien, card #1485) : « I24 Rotation » et « WAMA » ne sont
-    PAS inventés par le modèle — ce sont les deux titres manuscrits soulignés en haut de la note.
-    Seule la balise « ```markdown » l'est (`unwrap_format_fences`)."""
+    ⚠ Corrigé le 2026-10-28 (question de Fabien, card #1485) : « I24 Rotation » n'est PAS un
+    en-tête inventé — c'est le titre manuscrit « I24Motion », MAL LU, de la première ligne de la
+    note, à côté de « WAMA ». Seule la balise « ```markdown » est inventée
+    (`unwrap_format_fences`), et le modèle rend cette première ligne APRÈS le corps du texte."""
     lines = (text or '').splitlines()
     filled = [(index, line.strip()) for index, line in enumerate(lines) if line.strip()]
     seen = set()
@@ -155,9 +156,10 @@ def unwrap_format_fences(text: str) -> str:
     ce qu'elles entourent : l'ouvrante « ```markdown » (ou `md`, `text`…) et la clôture nue qui lui
     répond, s'il y en a une — une boucle coupée (`trim_repetition`) la laisse souvent sans clôture.
 
-    Card reader #1485 (2026-10-28, relevé par Fabien) : GLM-OCR a rendu les deux titres de la note
-    dans un bloc « ```markdown » ; la mise en forme l'a refermé, et la page de lecture montrait un
-    bloc de code là où la feuille porte deux titres soulignés."""
+    Card reader #1485 (2026-10-28, relevé par Fabien) : GLM-OCR a rendu la première ligne de la
+    note (« I24Motion », lu « I24 Rotation », et « WAMA ») dans un bloc « ```markdown » ; la mise en
+    forme l'a refermé, et la page de lecture montrait un bloc de code là où la feuille porte deux
+    titres soulignés."""
     lines, kept, open_wrapper = (text or '').split('\n'), [], False
     for line in lines:
         if _FORMAT_FENCE.match(line):

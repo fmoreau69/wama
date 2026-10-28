@@ -677,7 +677,7 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       l'historique, qu'elles atteignent par le contexte de la surface (`ctx.history`) et que seul
       un commentaire leur rattachait. Le balayage d'adoption compte encore la prose (en changer
       déplacerait tous les comptes de la carte : décision à part). Et le balayage lit désormais un
-      module de PREMIER NIVEAU (`vector_service.py`, déclaré le même soir) au lieu de planter.
+      module de PREMIER NIVEAU (ex-`vector_service.py`, déclaré le même soir ; `wama/common/vectors/service.py` depuis le 2026-10-28) au lieu de planter.
       Gardes : `tests_ui_bricks_page.PageBrickTest` (5), `tests_mecanismes_scan.CodeOnlyTest` (3)
       et le module de premier niveau — contre-épreuves rouges.
       Revérification du 20/10 : `code_only` était une SECONDE lecture du code sans sa prose, à côté

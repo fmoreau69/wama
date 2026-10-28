@@ -239,7 +239,8 @@ print()
 
 # =============================================================================
 # PATCH 3 — backend Higgs du synthesizer (in-repo, vérification seulement)
-#           Historique : ces garde-fous vivaient dans tts_service.py ; depuis le
+#           Historique : ces garde-fous vivaient dans le service TTS (ex-tts_service.py,
+#           wama/common/tts/service.py depuis le 2026-10-28) ; depuis le
 #           passage des moteurs TTS sous contrat commun (2026-08-14), la partie
 #           Higgs vit dans wama/common/backends/higgs_backend.py.
 #           (Les aiguilles 'completion_tokens' / 'trim_audio' d'une version

@@ -300,7 +300,7 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
   jamais un manifeste (`declared_engine_flag` remonte la MRO jusqu'au contrat).
 - **La résolution des voix est au commun** (`common/tts/voice_refs`, jadis
   `synthesizer/utils/voice_utils`) : quatre consommateurs — synthesizer, avatarizer, l'assistant,
-  `accounts` — plus `tts_service.py` hors Django, qui recompose le dossier des voix à la main.
+  `accounts` — plus le service vocal hors Django (ex-`tts_service.py`, `wama/common/tts/service.py`), qui recompose le dossier des voix à la main.
 
 **Le double sens — fait le 12/09 (soir), les deux axes, dans les deux apps :**
 
@@ -364,7 +364,7 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
 **Ce qui reste, nommé :**
 
 - ✅ **Les voix de référence SONT en médiathèque (13/09)** — `SystemAsset(voice)`, taxonomie en
-  `attributes` (construction A′), menu dérivé d'une requête, `tts_service.py` sans dossier :
+  `attributes` (construction A′), menu dérivé d'une requête, le service vocal (ex-`tts_service.py`) sans dossier :
   plan et bilan mesuré dans **`MEDIA_STORAGE_TIERING.md §9`** (9 décisions à ne plus reposer,
   7 marches, marches 1-5 faites).
 - ✅ **Marche 6 — le branchement voix ↔ langue (13/09)** : l'option de voix porte

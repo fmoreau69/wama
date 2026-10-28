@@ -4272,7 +4272,7 @@ son témoin retombait sur `.txt` pour les apps à images.
 > **F4 — les 4 moteurs TTS deviennent des backends sous `BaseModelBackend`**
 > (`wama/synthesizer/backends/` : coqui, bark, higgs, kokoro — Django-FREE, car chargés par le
 > service TTS uvicorn:8001 qui n'initialise pas Django). **TRADUIT ET REMPLACÉ, pas juxtaposé** :
-> `tts_service.py` perd ses `_load_*`/`_generate_*`/`_unload_current` internes ET sa ligne
+> ex-`tts_service.py` (`wama/common/tts/service.py`) perd ses `_load_*`/`_generate_*`/`_unload_current` internes ET sa ligne
 > gouverneur agrégée `tts-service` — la comptabilité VRAM est désormais celle du CONTRAT (une
 > ligne MESURÉE par modèle, clé = suffixe CATALOGUE via `CATALOG_KEYS`, ex.
 > `…CoquiBackend:<pid>#synthesizer:coqui-xtts`). Le service ne garde que la POLITIQUE : bascule
@@ -5906,7 +5906,7 @@ publié — c'est le premier rendu qui a livré le faux 100, pas une dérive ult
 >
 > **③ Préchargement TTS.** `TTS_SKIP_PRELOAD=1`, documenté « useful in development », était
 > posé dans le script de **prod** et faisait un `return` AVANT tout préchargement : Kokoro
-> n'était **jamais** chaud et le warm écrit dans `tts_service.py` était du code mort.
+> n'était **jamais** chaud et le warm écrit dans ex-`tts_service.py` (`wama/common/tts/service.py`) était du code mort.
 > → `TTS_PRELOAD` (liste, défaut `kokoro`) ; `--fast` = `none` (le mode fast ne sautait PAS
 > le chargement, seulement l'ATTENTE). `/health` expose `kokoro_resident` (Kokoro vit hors de
 > `_current_engine`, donc `loaded_model` restait `null` même à chaud). Coût mesuré : démarrage
@@ -13825,7 +13825,7 @@ autorise-t-il ? » mais) : le gabarit vit-il sur **`PortSpec.produced_fields`** 
 **Ce qui est LIVRÉ, mesuré** : `media_library/natures.py` — une nature d'asset = une entrée,
 `attributes` JSON sur `SystemAsset`/`UserAsset` (migration 0014), tout en dérive (3 tables
 Python + 3 tables JS qui étaient recopiées, sans `object3d`) ; `speaker_wav_for` = LA porte des
-workers, décidée par la CAPACITÉ du moteur ; `tts_service.py` ne connaît plus aucun dossier ;
+workers, décidée par la CAPACITÉ du moteur ; ex-`tts_service.py` (`wama/common/tts/service.py`) ne connaît plus aucun dossier ;
 **28 voix versées en médiathèque** (`ingest_voice_refs`), `voice_references/` + `default_voices/`
 + `synthesizer/` retirés → **2 fichiers hors domicile dans tout `media/`** (les deux
 `WAMA_Presentation*.wav`) ; menu des voix dérivé d'une requête, **empreinte identique** (23
@@ -13917,7 +13917,7 @@ la page de l'avatarizer CHARGE bien les deux briques (le trou du 13/09 était in
 qui ne lisait que les déclarations), les deux modèles libellent par `describe_voice`,
 `ingest_voice_refs` rejouée sur un MEDIA_ROOT jetable (plan sans effet, apply, idempotence,
 résolution par l'ancien id), les trois scénarios nocturnes neufs sont bien AU REGISTRE.
-**Non gardé, nommément** : `download_missing_voice_refs` (réseau), `tts_service.py` sans dossier
+**Non gardé, nommément** : `download_missing_voice_refs` (réseau), ex-`tts_service.py` (`wama/common/tts/service.py`) sans dossier
 (contre-épreuve = script de session, 37 presets/0 écart — pas un test), l'inférence TripoSR et
 le chemin « résultat-fichier » de l'exécuteur studio (nécessite un run réel), `update_vendors.sh`
 / `setup_triposr.sh` (scripts).
@@ -13993,7 +13993,7 @@ neufs 3/3 (serveur vivant requis).
   retiré, `unload_model('ollama:…')` rend la ligne ; `model_selector.get_free_vram_gb` en sonde
   process ; `model_registry.refresh_ollama_residency` sur la convention unique ; tâche
   `model_manager.refresh_ollama_residency` + beat 600 s (`settings.py`).
-- `wama/celery.py` (battement à `worker_process_init`), `tts_service.py` (même brique),
+- `wama/celery.py` (battement à `worker_process_init`), ex-`tts_service.py` (`wama/common/tts/service.py`, même brique),
   `common/memory/embed.py` (réservation du rappel bornée à 5 min), `olmocr_backend.py` (ligne
   retirée au déchargement d'Ollama).
 - ⚠ **Pris en compte au REDÉMARRAGE** des workers, du beat et du service TTS. Ancien et nouveau code
@@ -14258,7 +14258,7 @@ l'achèvement du curseur et de la sélection bidirectionnelle (entrées, modèle
 Cartographie reçue le même soir, trois citations déjà confirmées au code : curseur transmis au
 tirage par le synthesizer (`workers.py:179-193`), rendu en modale item seulement par l'avatarizer
 (`params.py:51-54`) ; `/health` du service TTS ne dit rien d'une requête en cours
-(`tts_service.py:218-244`). La séquence complète n'est consignée nulle part avant ce palier —
+(ex-`tts_service.py:218-244`, aujourd'hui `wama/common/tts/service.py`). La séquence complète n'est consignée nulle part avant ce palier —
 seuls ses fragments (question du 03/09, contrainte WDDM, « baisser le curseur »).
 
 
@@ -15903,7 +15903,7 @@ sans effet hors thread principal. `tests_vram_wait` 14 (dont la garde RÉELLE pa
 
 **③ Tenants branchés** — worker Celery (`celery.py`, `worker_process_init` : `contract_tenant`,
 décharge par `unload_live_backends` existant — pas `base.py`, fichier de la sœur) ; service TTS
-(`tts_service.py` : occupé tant qu'il synthétise `_synth_begin/_end` + `mark_busy` ; se décharge
+(ex-`tts_service.py`, `wama/common/tts/service.py` : occupé tant qu'il synthétise `_synth_begin/_end` + `mark_busy` ; se décharge
 RÉSIDENTS COMPRIS pour une demande accordée — seul chemin qui passe outre `keep_resident` ;
 restaure ses temps réel après, `_preload_engines` factorisé du démarrage ; **toujours aucun
 endpoint de déchargement** : le gouverneur parle par Redis) ; assistant (`wama/views.py` :
