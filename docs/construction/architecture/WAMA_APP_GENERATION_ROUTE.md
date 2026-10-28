@@ -335,12 +335,14 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   (`media-library.js:582`) (soldé le 2026-10-28, R183 : la vignette est la brique
   `WamaMediaPreview.tileHtml`, décidée par le type que le serveur résout, `preview_mime` ; la
   grille d'une sortie multiple la lit aussi), sorties vidéo du cam_analyzer en liens bruts, sortie
-  vidéo du face_analyzer à la main (⏳ ces deux-là attendent une décision : la route commune
-  `common:unified_preview` ne prend qu'une clé entière, les sessions du Lab sont en UUID ; celle
-  du face_analyzer relève plutôt du transport commun, son lecteur porte une surcouche
-  synchronisée), `brick-html-preview.js` (seconde iframe isolée ; ⏳ avec la session « Briques
-  UI », dont c'est la brique : le cadre sans permission s'écrit trois fois, `media-preview.js`
-  aperçu en ligne et visionneuse, et cette brique). Ordre proposé à
+  vidéo du face_analyzer à la main (⏳ décision de Fabien, choix A/B/C posés le 2026-10-28 :
+  `PROJECT_STATUS §PALIER 2026-10-28 « APERÇU ④ : la vignette commune »` — les adresses communes ne
+  prennent qu'une clé entière et les SESSIONS du Lab sont en UUID, mais la CAMÉRA du cam_analyzer
+  a une clé entière : elle peut rejoindre l'aperçu sans toucher aux adresses, une fois qu'elle dit
+  son propriétaire ; celle du face_analyzer relève du transport commun, son lecteur porte une
+  surcouche synchronisée), `brick-html-preview.js` (seconde iframe isolée ; ➡ CONFIÉ à la session
+  « Briques UI » le 2026-10-28, passation au même palier : le cadre sans permission s'écrit trois
+  fois, `media-preview.js` aperçu en ligne et visionneuse, et cette brique). Ordre proposé à
   Fabien : ① → ② → ③ → ④. Et MiniMax-Music3 / YuE2 ne montrent rien avant la fin (limite des
   moteurs, dite plus haut).
   ✅ **③ puis ① SOLDÉS le soir même** (Fabien : *« retire le code mort, puis la card qui suit

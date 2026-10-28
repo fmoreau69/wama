@@ -26847,3 +26847,80 @@ clôture (revérification : contre-épreuve du grisage, note de doctrine en `ROU
   fichiers (liste filtrée). `tests_test_layout` : `wama/common/privacy/` (autrui).
 - ⚠ Non vu à l'écran : le select de la modale d'une card dont la valeur est l'option grisée.
 - Pendings : relancer gunicorn (le grisage ne s'affiche qu'après) · pousser `dev`.
+
+## §PALIER 2026-10-28, « APERÇU ④ : la vignette commune » — non poussé — rien à relancer (JS servi du disque, geste nocturne neuf)
+
+**Demande de Fabien** : *« Oui, lance le 1 »* (les vignettes de la médiathèque), puis *« Confie le
+cadre isolé à la session Briques UI et explicite le 2ème point sur les vidéos des applis Lab »*.
+Domicile : `ROUTE §F3b` (restes ④ du chantier « une preview universelle »).
+
+**Livré** : `fac8c37f` (la vignette d'un fichier = `WamaMediaPreview.tileHtml`, décidée par le
+type ; grille d'une sortie multiple, fenêtre de sélection, médiathèque — qui lit `preview_mime` et
+ne devine plus par l'onglet), `d41652d1` (R183, ROUTE, mécanisme « Preview unifiée »), `5664ace6`
+(geste `media_library.thumbnails`, vert sur la prod, rouge à la contre-épreuve ; `natures_3d`
+réparé : il cliquait `.btn-close`, que la visionneuse n'a plus depuis sa refonte du 14/10 — rouge
+à chaque nocturne depuis au moins le 21/10). Mesuré avant le retrait de la règle devinée : aucune
+famille d'aperçu ne change sur les 139 assets de la base.
+
+### ➡ PASSATION — le CADRE ISOLÉ du document rendu, confié à la session « Briques UI » (décision de Fabien, 2026-10-28)
+
+La règle « un document HTML se montre dans un `<iframe sandbox>` sans aucune permission » s'écrit
+TROIS fois, relu au code le 2026-10-28 :
+- `wama/common/static/common/js/media-preview.js:441` — l'aperçu en ligne (`renderInline`, cas
+  `text/html`) : cadre de 220 px, inerte (`pointer-events:none`) dans une CARD pour que le
+  double-clic remonte à la page ;
+- `media-preview.js:1875` — la visionneuse (cas `text/html`, classe `wama-viewer-frame--page`) ;
+- `wama/common/static/common/js/surfaces/brick-html-preview.js:31` — la brique `html_preview`
+  des surfaces (cadre + `referrerpolicy="no-referrer"` + jeton `?v=` pour recharger un rendu
+  refait sous la même adresse), la vôtre.
+Ce qui est attendu : UNE fonction qui fabrique le cadre (permissions vides, et ce qui varie passé
+en option : inertie dans une card, hauteur, `referrerpolicy`), exportée par `WamaMediaPreview`, que
+les trois appellent — même patron que `tileHtml` (`fac8c37f`). À regarder au passage : `LABELS` de
+`brick-html-preview.js:18` (états du process du rendu) recopie-t-il `WamaApp.statusLabel`, ou dit-il
+autre chose (« Périmé — Appliquer le refait ») qu'il faut garder ? Preuves : un test V8 de la
+fonction, une garde « la règle vit à un endroit », un geste sur la page servie d'une surface qui
+monte `html_preview` (le Writer) et `common.preview_layout`, avec leur contre-épreuve.
+
+### ⏳ DÉCISION DE FABIEN — les vidéos des apps du Lab
+
+Ce que l'utilisateur voit aujourd'hui (relu au code le 2026-10-28) :
+- **cam_analyzer** : à la fin d'une analyse, les vidéos ANNOTÉES d'une caméra sont des boutons
+  « lien » qui ouvrent le fichier brut dans un nouvel onglet
+  (`wama_lab/cam_analyzer/static/cam_analyzer/js/index.js:2291-2296`, chemin lu dans
+  `results_summary['annotated_videos'][position]`, écrit par `tasks.py:1518`) ; ni la visionneuse
+  commune, ni Comparer avec la vidéo d'origine ou sa version anonymisée (`views.py:276`).
+- **face_analyzer** : la page vidéo remplace elle-même la source de son lecteur par la vidéo de
+  sortie à la fin (`templates/face_analyzer/video.html:749-761`) ; ce lecteur porte la surcouche
+  d'analyse synchronisée (courbes, image par image) — c'est une page d'ÉDITION, pas un aperçu.
+
+Pourquoi ce n'est pas un portage simple :
+1. Les adresses communes ne prennent qu'une clé ENTIÈRE (`common/urls.py:22`
+   `preview/<str:app_name>/<int:pk>/`, et de même le détail `:24`, les surfaces `:27-35`, le
+   partage `:105`, « Envoyer vers » `:162`…), et `DetailRegistry.preview_url` rend vide une clé
+   non entière (`common/utils/detail_registry.py:83`). Les SESSIONS du Lab sont en UUID
+   (`cam_analyzer/models.py:244`, `face_analyzer/models.py:90`).
+2. ⚠ Correction du 28/10 : la CAMÉRA du cam_analyzer (`CameraView`, `models.py:321`) a, elle, une
+   clé ENTIÈRE — c'est elle qui porte la vidéo d'entrée, et chaque vidéo annotée est celle d'une
+   caméra. Le cam_analyzer peut donc rejoindre l'aperçu commun SANS toucher aux adresses, une
+   face par caméra (Entrée = `video_file`, Sortie = la vidéo annotée, et l'anonymisée).
+3. ⚠ Mais la règle de droits de l'aperçu lit le propriétaire par `getattr(instance, 'user')`
+   (`common/utils/scoping.py:65`) et tient un objet SANS propriétaire pour ouvert (`:66-67`) :
+   `CameraView` n'a pas de `user` (il est sur sa session). L'enregistrer tel quel rendrait les
+   vidéos de toute caméra lisibles par tout compte. Il faut d'abord que la caméra DISE son
+   propriétaire (une propriété `user` qui rend `session.user`, sans migration) — et une garde qui
+   le prouve (un autre compte reçoit 403).
+
+Les choix, du plus petit au plus large :
+- **A — cam_analyzer par la caméra** (aucune adresse commune touchée) : propriétaire de la caméra,
+  adaptateur d'aperçu de `CameraView` (entrée, annotée, anonymisée), les boutons « lien » remplacés
+  par la visionneuse commune (Comparer compris). Le face_analyzer reste tel quel.
+- **B — A, plus le face_analyzer au chantier TRANSPORT** : sa page rejoint l'axe commun
+  (`media_axis`) comme l'éditeur du Transcriber, et sa sortie s'ouvre dans la visionneuse ; c'est
+  le chantier de la page d'édition, pas de l'aperçu.
+- **C — les adresses communes acceptent aussi un UUID** : décision de SUBSTRAT, toute la famille
+  des routes `<int:pk>` (aperçu, détail, surfaces, partage, envoi), les lecteurs qui en dérivent
+  l'adresse (`preview_url`, `elementOf` de `media-preview.js`, qui ne lit que des chiffres) ; le
+  Lab entier y gagnerait (sessions, partage, journal), mais c'est un chantier à part entière.
+Recommandation de cette session : **A maintenant** (petit, sans risque pour les autres apps une
+fois le propriétaire posé), B avec le chantier transport, C seulement si un besoin du Lab au-delà
+de l'aperçu le demande.
