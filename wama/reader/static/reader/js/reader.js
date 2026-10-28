@@ -232,7 +232,8 @@
     // 1ʳᵉ fois par une app en place. L'app ne DÉCLARE que :
     //   • `multiple:true`   : une seule requête, le SERVEUR groupe (`{created:[…], multi}`) —
     //                         donc pas de `consolidateUrl` ;
-    //   • `extraFields`     : moteur, mode, format, langue du volet ;
+    //   • `extraFields`     : moteur, mode, langue du volet (le « format de sortie » posé
+    //                         avant la lecture est retiré le 2026-10-28 : il se choisit au ⬇) ;
     //   • `afterImport`     : SA politique — `multi` → reload (la structure de lot est rendue
     //                         serveur), sinon `upsertCard` par élément créé + progression globale.
     // La garde « un clic sur un lien de la zone n'ouvre pas le sélecteur » (gabarit de lot),
@@ -255,7 +256,6 @@
             extraFields:  function (fd) {
                 fd.append('backend',       document.getElementById('backendSelect')?.value || 'auto');
                 fd.append('mode',          document.getElementById('modeSelect')?.value || 'auto');
-                fd.append('output_format', document.getElementById('outputFormatSelect')?.value || 'txt');
                 fd.append('language',      document.getElementById('languageInput')?.value.trim() || '');
                 // Curseur rapide/qualité (chantier C) : réglage d'app, persisté par le serveur.
                 fd.append('quality_intent', document.getElementById('qualityIntent')?.value || '');

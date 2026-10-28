@@ -570,58 +570,14 @@ def download(request, pk):
     if description.status != 'SUCCESS':
         return JsonResponse({'error': 'No result available'}, status=400)
 
-    fmt = request.GET.get('format', 'txt').lower()
-    # SOUCHE par la BRIQUE COMMUNE (`compose_output_name`, 2026-08-25) — le describer
-    # composait `{base}_description` a la main. Le tag `description` est DECLARE, donc la
-    # convention connue de l'utilisateur est preservee ; s'ajoute l'identifiant de card,
-    # qui rend les entrees d'un ZIP uniques quand deux descriptions partagent une source.
-    from wama.common.utils.output_naming import compose_output_name
-    base_name = os.path.splitext(compose_output_name(
-        app='describer', source_name=description.filename, item_id=description.pk))[0]
-
-    if fmt == 'pdf':
-        try:
-            from wama.common.utils.document_export import generate_description_pdf
-            pdf_bytes = generate_description_pdf(description)
-            response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = content_disposition_header(True, f"{base_name}.pdf")
-            return response
-        except ImportError as e:
-            return JsonResponse({'error': str(e)}, status=501)
-        except Exception as e:
-            logger.error(f"[Describer] PDF generation failed: {e}")
-            return JsonResponse({'error': f'Erreur génération PDF : {e}'}, status=500)
-
-    if fmt == 'docx':
-        try:
-            from wama.common.utils.document_export import generate_description_docx
-            docx_bytes = generate_description_docx(description)
-            response = HttpResponse(
-                docx_bytes,
-                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            )
-            response['Content-Disposition'] = content_disposition_header(True, f"{base_name}.docx")
-            return response
-        except ImportError as e:
-            return JsonResponse({'error': str(e)}, status=501)
-        except Exception as e:
-            logger.error(f"[Describer] DOCX generation failed: {e}")
-            return JsonResponse({'error': f'Erreur génération DOCX : {e}'}, status=500)
-
-    # Default: txt
-    if description.result_file and os.path.exists(description.result_file.path):
-        return FileResponse(
-            open(description.result_file.path, 'rb'),
-            as_attachment=True,
-            filename=description.result_file.name.split('/')[-1]
-        )
-    if description.result_text:
-        content = description.result_text.encode('utf-8')
-        response = HttpResponse(content, content_type='text/plain; charset=utf-8')
-        response['Content-Disposition'] = content_disposition_header(True, f"{base_name}.txt")
-        return response
-
-    return JsonResponse({'error': 'No result available'}, status=400)
+    # Le format demandé, rendu par LE rendu du describer (`build_description_bytes`, celui du ZIP
+    # de lot, de la médiathèque et de l'assistant) — brique commune `download_response`. Souche :
+    # règle commune `compose_output_name` + tag `description` (`_output_stem`, celle du ZIP).
+    from wama.common.utils.export_formats import download_response
+    response = download_response('describer', description, request.GET, _output_stem(description))
+    if response is None:
+        return JsonResponse({'error': 'No result available in this format'}, status=400)
+    return response
 
 
 @require_POST

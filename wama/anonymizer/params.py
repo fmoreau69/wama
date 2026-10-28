@@ -27,7 +27,7 @@ voir le commentaire au-dessus de GROUPS.
 """
 from wama.common.utils.app_modes import options_mode_for
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.output_formats import get_output_formats, get_output_qualities
+from wama.common.utils.output_formats import output_format_params
 from wama.common.utils.param_schema import (
     ParamGroup, derive_from_model, groups_to_dicts, schema_to_dicts,
 )
@@ -35,15 +35,8 @@ from wama.anonymizer.models import Media
 from wama.anonymizer.utils.model_config import MODEL_SPEC
 
 
-# Formats de sortie — BRIQUE COMMUNE (output_formats), en OPTGROUPS car l'app est BI-DOMAINE
-# (un Media est image OU vidéo ; la brique `output_format_params_for_app` ne sait déduire qu'UN
-# domaine du catalogue). 'original'/'input' = valeurs du pipeline (`_apply_anonymizer_output_format`).
-_FORMAT_GROUPS = [
-    ("Général", [("original", "Original (inchangé)"),
-                 ("input", "Format du fichier source")]),
-    ("Vidéo", [c for c in get_output_formats("video") if c[0] != "original"]),
-    ("Image", [c for c in get_output_formats("image") if c[0] != "original"]),
-]
+#: Le choix de format PROPRE à l'anonymizer (voir le bloc « Format et qualité de SORTIE »).
+INPUT_FORMAT_CHOICE = ("input", "Format du fichier source")
 
 
 # Groupes de la modale ⚙ — CALQUÉS sur les sections du volet droit (la « bonne représentation ») :
@@ -78,8 +71,7 @@ PARAMS = derive_from_model(
         "use_segmentation",
         # ── Quoi afficher ──
         "show_preview", "show_boxes", "show_labels", "show_conf",
-        # ── Format de sortie ──
-        "output_format", "output_quality",
+        # ── Format de sortie : la brique COMMUNE, ajoutée après (`output_format_params`) ──
     ],
     overrides={
         # Le MODE de l'élément : rendu par `WamaModes` au volet (switch généré d'`app_modes`),
@@ -211,17 +203,23 @@ PARAMS = derive_from_model(
                             advanced=True, group="afficher", stales=()),
         "show_conf": dict(type="toggle", label="Afficher la confiance", icon="fa-percent",
                           advanced=True, group="afficher", stales=()),
-        # ⚠ Sans options déclarées, ces deux selects rendaient VIDES dans la modale
-        # (CharField sans choices → derive_from_model n'a rien à offrir) — constat
-        # Fabien 14/08 (« pas accès aux format/qualité »). Options = brique commune.
-        "output_format": dict(type="select", label="Format de sortie", icon="fa-file-export",
-                              advanced=True, group="sortie", option_groups=_FORMAT_GROUPS,
-                              help="Conversion inline après floutage (brique converter). "
-                                   "« Original » = format produit par le pipeline."),
-        "output_quality": dict(type="select", label="Qualité de sortie", icon="fa-gem",
-                               advanced=True, group="sortie",
-                               choices=get_output_qualities()),
     },
+)
+
+# ── Format et qualité de SORTIE — la brique COMMUNE (2026-10-28) ─────────────────────────────
+# Un média est une image OU une vidéo : formats en groupes par nature (`format_option_groups`),
+# qualité affichée seulement quand le fichier est réencodé — comme dans toutes les apps. Ils étaient
+# déclarés ici à la main (union recopiée, qualité toujours affichée), et le volet les écrivait une
+# TROISIÈME fois en HTML (8 formats sur 13, valeur figée : le choix retenu n'était jamais réaffiché).
+# Spécificité DÉCLARÉE de l'app : « Format du fichier source » — le moteur écrit sa vidéo en MP4
+# même d'un MOV déposé, ce choix la rend dans le format déposé (`tasks._output_format_for`).
+# Volet : `dom_id` `output_format` / `output_quality`, les ids que lit le dépôt (`upload.js`).
+PARAMS += output_format_params(
+    ("video", "image"), contexts=("item", "batch", "panel"), group="sortie",
+    dom_id_format={"panel": "output_format"}, dom_id_quality={"panel": "output_quality"},
+    extra_formats=[INPUT_FORMAT_CHOICE], advanced=True,
+    format_extra=dict(help="« Original » : le format que le floutage a écrit. « Format du fichier "
+                           "source » : celui du fichier déposé."),
 )
 
 

@@ -317,9 +317,9 @@ def _when_ok(instance, tgt):
     if instance is None:
         return False
     if isinstance(cond, dict):
-        from wama.common.utils.param_schema import _show_if_met
-        name = cond.get('field')
-        return _show_if_met(cond, {name: getattr(instance, name, None)})
+        from wama.common.utils.param_schema import _show_if_met, condition_fields
+        return _show_if_met(cond, {name: getattr(instance, name, None)
+                                   for name in condition_fields(cond)})
     return bool(getattr(instance, cond, False))
 
 

@@ -9,9 +9,7 @@ description_long, recommended_vram_gb}} — mécanisme d'aide modèle (WamaModel
 catalogue model_manager. Image/vidéo : dérivées de SUPPORTED_MODELS (source unique). Audio : curées.
 """
 from wama.common.utils.auto_model import intent_param
-from wama.common.utils.output_formats import (
-    get_output_formats, get_output_qualities, keep_size_param, output_format_params,
-)
+from wama.common.utils.output_formats import output_format_params
 from wama.common.utils.param_schema import Param, schema_to_dicts
 from wama.enhancer.utils.auto_model import AUDIO_SPEC, MEDIA_SPEC
 from wama.common.backends.ai_upscaler import SUPPORTED_MODELS
@@ -190,37 +188,28 @@ AUDIO_PARAMS = [
           stales=('generate',)),
 ]
 
-# ── Format/qualité de SORTIE (la docstring le PROMETTAIT « via la brique commune » sans
-# jamais le câbler — la modale n'offrait pas le choix, constat Fabien 18/08).
-# MEDIA : un Enhancement est image OU vidéo PAR ITEM → la brique app-level ne sait déduire
-# qu'UN domaine ; on suit le contrat du VOLET (index.html) : select UNION en optgroups
-# Image/Vidéo + « Original », choix sourcés de la brique COMMUNE (get_output_formats).
-def _media_format_groups():
-    img = [c for c in get_output_formats('image') if c[0] != 'original']
-    vid = [c for c in get_output_formats('video') if c[0] != 'original']
-    return [('Conserver', [('original', 'Original (inchangé)')]),
-            ('Image', img), ('Vidéo', vid)]
+# ── Format/qualité de SORTIE — la brique COMMUNE, pour les deux domaines (2026-10-28) ────────
+# MEDIA : un Enhancement est image OU vidéo PAR ÉLÉMENT → formats en groupes par nature
+# (`format_option_groups`) ; cette union était recopiée ici jusqu'au 2026-10-28, avec une qualité
+# toujours affichée, même sous « Original ». « Garder la résolution d'origine » (2026-10-16,
+# demande de Fabien) : la qualité gagnée, sans le poids d'un fichier agrandi — la sortie revient
+# aux dimensions de l'entrée au process « Sortie » ; la qualité vaut alors aussi au format
+# d'origine (`quality_applies`). Les `dom_id` sont ceux d'avant : le JS d'app les lit inchangés.
+MEDIA_PARAMS += output_format_params(
+    ('image', 'video'), contexts=('panel', 'item'),
+    dom_id_format={'panel': 'output_format', 'item': 'settingsOutputFormat'},
+    dom_id_quality={'panel': 'output_quality', 'item': 'settingsOutputQuality'},
+    keep_size=True, dom_id_keep_size={'panel': 'outputKeepSize', 'item': 'settingsOutputKeepSize'},
+    keep_size_extra=dict(chip=True, chip_label="Résolution d'origine"),
+    format_extra=dict(chip=True, help='Doit correspondre au type du média (image ou vidéo).'),
+)
 
-
-MEDIA_PARAMS += [
-    # « Garder la résolution d'origine » (2026-10-16, demande de Fabien) : la qualité gagnée, sans
-    # le poids d'un fichier agrandi — la sortie revient aux dimensions de l'entrée, par le
-    # converter, au process « Sortie » (brique commune). Le changer ne relance que la sortie.
-    keep_size_param(contexts=('panel', 'item'), chip=True, chip_label="Résolution d'origine",
-                    dom_id={'panel': 'outputKeepSize', 'item': 'settingsOutputKeepSize'}),
-    Param(name='output_format', type='select', label='Format de sortie', icon='fa-file-export',
-          chip=True, option_groups=_media_format_groups(), default='original',
-          dom_id={'panel': 'output_format', 'item': 'settingsOutputFormat'},
-          contexts=('panel', 'item'),
-          help='Doit correspondre au type du média (image ou vidéo).'),
-    Param(name='output_quality', type='select', label='Qualité', icon='fa-sliders',
-          choices=get_output_qualities('image'), default='balanced',
-          dom_id={'panel': 'output_quality', 'item': 'settingsOutputQuality'},
-          contexts=('panel', 'item')),
-]
-
-# AUDIO : domaine déterministe → brique telle quelle (item seulement : le volet audio n'a
-# pas de champs de sortie — la valeur voyage par la modale → gear → payload de start).
+# AUDIO : une seule nature → la brique telle quelle (item seulement). ⚠ Le domaine audio ne suit
+# pas encore le modèle commun du volet (mesuré le 2026-10-28) : son dépôt crée l'élément sans les
+# réglages du volet (`views.audio_upload`), qui ne s'appliquent qu'au LANCEMENT
+# (`audio-enhancer.js::panelAudioBody`), et rien n'y est retenu. Y greffer le format de sortie
+# ajouterait une pièce à ce mécanisme à part : le domaine se porte d'un bloc (naissance commune,
+# mémoire du volet), et la section Sortie du volet vient avec.
 AUDIO_PARAMS += output_format_params(
     'audio', contexts=('item',),
     dom_id_format={'item': 'settingsAudioOutputFormat'},

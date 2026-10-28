@@ -1691,7 +1691,7 @@
             "choices": [
               [
                 "web",
-                "Web (léger)"
+                "Rapide (web)"
               ],
               [
                 "balanced",
@@ -1699,7 +1699,7 @@
               ],
               [
                 "max",
-                "Maximum"
+                "Qualité"
               ]
             ],
             "contexts": [
@@ -2143,7 +2143,7 @@
               "item": "settingsOutputFormat",
               "panel": "output_format"
             },
-            "group": "",
+            "group": null,
             "help": "Doit correspondre au type du média (image ou vidéo).",
             "help_fallback": null,
             "help_html": "",
@@ -2260,7 +2260,7 @@
             "choices": [
               [
                 "web",
-                "Web (léger)"
+                "Rapide (web)"
               ],
               [
                 "balanced",
@@ -2268,7 +2268,7 @@
               ],
               [
                 "max",
-                "Maximum"
+                "Qualité"
               ]
             ],
             "contexts": [
@@ -2282,8 +2282,8 @@
               "item": "settingsOutputQuality",
               "panel": "output_quality"
             },
-            "group": "",
-            "help": "",
+            "group": null,
+            "help": "Appliquée quand la sortie est réencodée : format choisi, ou résolution d'origine gardée.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -2309,7 +2309,32 @@
             "radio_name": "",
             "remember": null,
             "section": "settings",
-            "show_if": null,
+            "show_if": {
+              "any": [
+                {
+                  "field": "output_format",
+                  "in": [
+                    "jpg",
+                    "png",
+                    "webp",
+                    "tiff",
+                    "bmp",
+                    "gif",
+                    "avif",
+                    "pdf",
+                    "mp4",
+                    "webm",
+                    "avi",
+                    "mov",
+                    "mkv",
+                    "gif"
+                  ]
+                },
+                {
+                  "field": "output_keep_size"
+                }
+              ]
+            },
             "stales": null,
             "step": null,
             "type": "select",
@@ -2727,7 +2752,7 @@
             "file_path": "str (requis)",
             "output_format": "select — Doit correspondre au type du média (image ou vidéo). (défaut : 'original')",
             "output_keep_size": "toggle — Améliore la qualité sans agrandir : la sortie est ramenée aux dimensions du fichier d'entrée. (défaut : False)",
-            "output_quality": "select — Qualité (choix : web | balanced | max) (défaut : 'balanced')",
+            "output_quality": "select — Appliquée quand la sortie est réencodée : format choisi, ou résolution d'origine gardée. (choix : web | balanced | max) (défaut : 'balanced')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)",
             "upscale_factor": "select — Facteur d'agrandissement (choix : 2 | 4) (défaut : '4')"
           },

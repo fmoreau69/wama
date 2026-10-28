@@ -65,7 +65,6 @@ def _progress_extra(item: ReadingItem) -> dict:
         'filename': item.filename,
         'backend': item.backend,
         'mode': item.mode,
-        'output_format': item.output_format,
         'language': item.language,
         'progress_msg': cached.get('msg', '') if cached else '',
         'page_count': item.page_count,
@@ -266,7 +265,6 @@ class IndexView(View):
             # « auto » compris) — l'énumération du modèle a disparu avec la route F4b ⑤.
             'backend_choices': catalog_options(next(p for p in PARAMS if p.name == 'backend')),
             'mode_choices': ReadingItem.Mode.choices,
-            'format_choices': ReadingItem.OutputFormat.choices,
             # Schéma params (source unique inspecteur + modale batch). Voir reader/params.py.
             'params_json': json.dumps(PARAMS_JSON),
             # Appariement entrée↔modèles (brique commune input_match) : clés catalogue =
@@ -417,7 +415,7 @@ def _output_stem(r):
 
 
 #: Réglages d'une lecture écrits par la modale ⚙, le volet et la modale de LOT (schéma `params.py`).
-SETTINGS_FIELDS = ('backend', 'mode', 'output_format', 'language', 'llm_model',
+SETTINGS_FIELDS = ('backend', 'mode', 'language', 'llm_model',
                    'llm_temperature', 'llm_seed', 'llm_top_p', 'format_markdown',
                    'generate_analysis')
 #: `language` vide EST une valeur (auto-détection) — lu par la route d'élément et par la fabrique.
@@ -513,73 +511,14 @@ def download(request, pk: int):
     from wama.common.utils.scoping import visible_or_404  # lecture → partage F7
     item = visible_or_404(ReadingItem, _get_user(request), pk=pk)
 
-    fmt = request.GET.get('format', 'txt').lower()
-    # SOUCHE par la BRIQUE COMMUNE (`compose_output_name`) — le reader composait
-    # `{base}_ocr` a la main sur 8 sites. Le tag `ocr` est DECLARE (table des mots de
-    # process), donc la convention que l'utilisateur connait est preservee ; s'ajoute
-    # l'identifiant de card, qui rend le nom unique quand deux lectures du meme fichier
-    # coexistent — et qui permet la comparaison entre modeles (demande Fabien 11/09).
-    from wama.common.utils.output_naming import compose_output_name
-    base = os.path.splitext(compose_output_name(
-        app='reader', source_name=item.filename, item_id=item.pk))[0]
-
-    # JSON format — serve raw backend output
-    if fmt == 'json':
-        if not item.raw_result:
-            return HttpResponseBadRequest('Pas de données JSON disponibles')
-        buffer = io.BytesIO(item.raw_result.encode('utf-8'))
-        buffer.seek(0)
-        return FileResponse(
-            buffer,
-            as_attachment=True,
-            filename=f"{base}_raw.json",
-            content_type='application/json; charset=utf-8',
-        )
-
-    if not item.result_text:
-        return HttpResponseBadRequest('Pas encore de résultat')
-
-    if fmt == 'pdf':
-        try:
-            from wama.common.utils.document_export import generate_reader_pdf
-            pdf_bytes = generate_reader_pdf(item)
-            response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = content_disposition_header(True, f"{base}.pdf")
-            return response
-        except ImportError as e:
-            return HttpResponseBadRequest(str(e))
-        except Exception as e:
-            logger.error(f"[Reader] PDF generation failed: {e}")
-            return HttpResponseBadRequest(f'Erreur PDF : {e}')
-
-    if fmt == 'docx':
-        try:
-            from wama.common.utils.document_export import generate_reader_docx
-            docx_bytes = generate_reader_docx(item)
-            response = HttpResponse(
-                docx_bytes,
-                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-            )
-            response['Content-Disposition'] = content_disposition_header(True, f"{base}.docx")
-            return response
-        except ImportError as e:
-            return HttpResponseBadRequest(str(e))
-        except Exception as e:
-            logger.error(f"[Reader] DOCX generation failed: {e}")
-            return HttpResponseBadRequest(f'Erreur DOCX : {e}')
-
-    # txt / md (default)
-    is_md = (fmt == 'md')
-    ext = '.md' if is_md else '.txt'
-    content_type = 'text/markdown' if is_md else 'text/plain'
-    buffer = io.BytesIO(_extract_natural_text(item.result_text).encode('utf-8'))
-    buffer.seek(0)
-    return FileResponse(
-        buffer,
-        as_attachment=True,
-        filename=f"{base}{ext}",
-        content_type=f'{content_type}; charset=utf-8',
-    )
+    # Le format demandé, rendu par LE rendu du reader (`build_reading_bytes`, celui du ZIP de lot,
+    # de la médiathèque et de l'assistant) — brique commune `export_formats.download_response`.
+    # La souche est celle du ZIP (`_output_stem`, règle commune `compose_output_name` + tag `ocr`).
+    from wama.common.utils.export_formats import download_response
+    response = download_response('reader', item, request.GET, _output_stem(item))
+    if response is None:
+        return HttpResponseBadRequest('Pas de résultat dans ce format')
+    return response
 
 
 @require_POST
@@ -660,7 +599,7 @@ def clear_all(request):
 
 @require_POST
 def update_settings(request, pk: int):
-    """Update per-item OCR settings (backend, mode, output_format, language)."""
+    """Update per-item OCR settings (backend, mode, language, LLM, optional processes)."""
     from wama.common.utils.scoping import editable_or_404
     item = editable_or_404(ReadingItem, _get_user(request), pk=pk)
     # JSON (inspecteur) OU FormData (modale ⚙ par le cycle commun `WamaParams.settingsModal`,
@@ -841,8 +780,14 @@ def build_reading_bytes(item, fmt):
         except Exception as e:
             logger.warning(f"[Reader] DOCX skipped for {item.id}: {e}")
             return None
-    ext = 'md' if fmt == 'md' else 'txt'
-    return (ext, _extract_natural_text(item.result_text).encode('utf-8'))
+    text = _extract_natural_text(item.result_text)
+    if fmt == 'md':
+        return ('md', text.encode('utf-8'))
+    # TXT = du texte BRUT : la mise en forme Markdown en est retirée (décision de Fabien,
+    # 2026-10-28 — « le choix du fichier de sortie définit de lui-même si on retire la mise en
+    # forme ») ; elle y partait telle quelle (`#`, `**`, `|`).
+    from wama.common.utils.document_export import strip_markdown
+    return ('txt', strip_markdown(text).encode('utf-8'))
 
 
 

@@ -210,6 +210,46 @@ class CapFromTest(SimpleTestCase):
                 self.assertEqual(expected, shown)
                 self.assertEqual(expected, _show_if_met(cond, {'media_type': many}))
 
+    def test_one_of_several_conditions_reads_the_same_on_both_sides(self):
+        """`{any: [...]}` (2026-10-28): the output quality shows under a chosen format OR when the
+        input size is kept (Fabien: « on peut vouloir garder la résolution d'origine et changer le
+        format et la qualité »). Judged on screen and on the server, field by field; a branch whose
+        field is not rendered keeps the row visible, the rule of a single condition."""
+        import json
+        from wama.common.utils.param_schema import _show_if_met
+        cond = {'any': [{'field': 'output_format', 'in': ['webp', 'jpg']},
+                        {'field': 'output_keep_size'}]}
+        for fmt, keep in (('original', False), ('original', True), ('webp', False), ('jpg', True)):
+            with self.subTest(fmt=fmt, keep=keep):
+                shown = self.v8.eval(f"""(function () {{
+                    var select = {{type: 'select', value: {json.dumps(fmt)},
+                                   getAttribute: function (n) {{ return n === 'name' ? 'output_format' : null; }}}};
+                    var toggle = {{type: 'checkbox', checked: {json.dumps(keep)},
+                                   getAttribute: function (n) {{ return n === 'name' ? 'output_keep_size' : null; }}}};
+                    var row = {{style: {{}}, getAttribute: function () {{ return {json.dumps(json.dumps(cond))}; }}}};
+                    var box = {{addEventListener: function () {{}}, querySelectorAll: function (sel) {{
+                        return sel === '[data-show-if]' ? [row] : [select, toggle]; }}}};
+                    window.WamaParams.bindConditional(box);
+                    return row.style.display !== 'none';
+                }})()""")
+                self.assertEqual(_show_if_met(cond, {'output_format': fmt, 'output_keep_size': keep}),
+                                 shown)
+                self.assertEqual(fmt != 'original' or keep, shown)
+
+    def test_a_scope_keeps_every_field_one_of_several_conditions_reads(self):
+        import json
+        from wama.common.utils.param_schema import scoped_names
+        schema = [{'name': 'output_keep_size', 'type': 'toggle'},
+                  {'name': 'output_format', 'type': 'select'},
+                  {'name': 'output_quality', 'type': 'select',
+                   'show_if': {'any': [{'field': 'output_format', 'in': ['webp']},
+                                       {'field': 'output_keep_size'}]}}]
+        browser = list(self.v8.eval(
+            f"window.WamaParams.scopedSchema({json.dumps(schema)}, ['output_quality'])"
+            ".map(function (p) {{ return p.name; }})"))
+        self.assertEqual(['output_keep_size', 'output_format', 'output_quality'], browser)
+        self.assertEqual(browser, scoped_names(schema, ['output_quality']))
+
     def test_the_formats_of_an_unknown_nature_are_those_of_each_possible_one(self):
         """The output formats of a converter node whose input may be an image OR a video: both
         families, behind « Automatique » — « — inchangé — » only in a BATCH modal, where empty

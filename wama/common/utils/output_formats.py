@@ -23,12 +23,15 @@ OUTPUT_PARAM_NAMES = ("output_format", "output_quality", "output_upscale")
 #: Domaines où la sortie peut revenir à la RÉSOLUTION de l'entrée (`output_keep_size`).
 KEEP_SIZE_DOMAINS = ("image", "video")
 
-# Presets de qualité génériques (indépendants du domaine).
-OUTPUT_QUALITY_CHOICES: List[Tuple[str, str]] = [
-    ("web", "Web (léger)"),
-    ("balanced", "Équilibré"),
-    ("max", "Maximum"),
-]
+# Presets de qualité génériques (indépendants du domaine) — les clés ET les libellés sont ceux de
+# la table de conversion qui les APPLIQUE (`converter/utils/quality_presets`). Ils étaient recopiés
+# ici sous d'autres mots (« Web (léger) / Équilibré / Maximum ») : deux vocabulaires pour les trois
+# mêmes positions, contre l'arbitrage de Fabien du 02/09 (« Rapide / Équilibré / Qualité »),
+# confirmé le 2026-10-28 (D1).
+from wama.converter.utils.quality_presets import (  # noqa: E402
+    DEFAULT_PRESET, PRESET_CHOICES, PRESET_LABELS)
+
+OUTPUT_QUALITY_CHOICES: List[Tuple[str, str]] = [(k, PRESET_LABELS[k]) for k in PRESET_CHOICES]
 
 #: Agrandissement de la SORTIE (2026-09-30) — un POST-TRAITEMENT de l'app, appliqué après
 #: N'IMPORTE QUEL backend (`apply_output_settings`). Il vivait dans les backends : seul
@@ -66,6 +69,38 @@ def get_output_formats(domain: str) -> List[Tuple[str, str]]:
     return [("original", "Original (inchangé)")] + [(f, "." + f.upper()) for f in fmts]
 
 
+#: Le choix « garder le format que le moteur a écrit » — 1ʳᵉ option de toute liste de sortie.
+ORIGINAL = "original"
+ORIGINAL_CHOICE = (ORIGINAL, "Original (inchangé)")
+
+#: Libellé d'un groupe d'options par nature, quand une app rend PLUSIEURS natures.
+NATURE_LABELS = {"image": "Image", "video": "Vidéo", "audio": "Audio", "document": "Document"}
+
+
+def format_option_groups(natures, extra=()) -> list:
+    """Les options de format d'une app qui rend PLUSIEURS natures selon l'élément (l'enhancer et
+    l'anonymizer : une image OU une vidéo), en groupes : « Original » et les choix `extra` propres
+    à l'app, puis un groupe par nature. Les deux apps recopiaient chacune cette union (2026-10-28,
+    étape 1 du rangement des réglages de sortie) ; un format qui n'est pas celui de la nature de
+    l'élément est REFUSÉ en le disant au rendu (`apply_output_settings`)."""
+    groups = [("Conserver", [ORIGINAL_CHOICE] + list(extra))]
+    for nature in natures:
+        groups.append((NATURE_LABELS.get(nature, nature),
+                       [c for c in get_output_formats(nature) if c[0] != ORIGINAL]))
+    return groups
+
+
+def quality_applies(item, output_format: str | None = None) -> bool:
+    """La qualité a-t-elle un effet sur la sortie de cet élément ? Oui quand le fichier est
+    RÉENCODÉ : un format choisi autre qu'« Original », ou « Garder la résolution d'origine » coché
+    (la sortie est alors réencodée à la taille de l'entrée, `apply_output_settings`). La règle que
+    rendent les surfaces (condition du `Param`, `output_format_params`) et l'inspecteur (Fabien,
+    2026-10-28 : « on peut vouloir garder la résolution d'origine et changer le format et la
+    qualité »)."""
+    return (wanted_format(item, output_format) not in ('', ORIGINAL)
+            or bool(getattr(item, 'output_keep_size', False)))
+
+
 def get_output_qualities(domain: str | None = None) -> List[Tuple[str, str]]:
     """Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures."""
     return list(OUTPUT_QUALITY_CHOICES)
@@ -90,23 +125,37 @@ def keep_size_param(contexts=None, dom_id=None, group: str | None = None, **extr
                       "du fichier d'entrée.", **extra)
 
 
-def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None,
+def output_format_params(domain, contexts=None, dom_id_format=None, dom_id_quality=None,
                          include_quality: bool = True, group: str | None = None,
-                         include_upscale: bool = False, dom_id_upscale=None) -> list:
+                         include_upscale: bool = False, dom_id_upscale=None,
+                         keep_size: bool = False, dom_id_keep_size=None, extra_formats=(),
+                         **extra) -> list:
     """
     Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
     schéma d'une app early-binding. dom_id_* = ponts vers les IDs existants par surface (str ou dict).
+    `domain` : une nature, ou un TUPLE de natures pour une app dont l'élément est l'une ou l'autre
+    (l'enhancer, l'anonymizer : image ou vidéo) — les formats viennent alors en groupes par nature
+    (`format_option_groups`), avec les choix `extra_formats` propres à l'app après « Original ».
     `group` (17/08, 4ᵉ consommateur — imager) : section ParamGroup d'accueil pour les rendus groupés —
     sans lui, les params SANS groupe sortent HORS sections, en TÊTE du volet (constat Fabien : le
     format de sortie doit arriver EN DERNIER, ordre chronologique du process).
     `include_upscale` (2026-09-30) : le réglage `output_upscale`, domaine IMAGE seulement. OPT-IN :
     il ne vaut que chez une app dont la tâche passe par `apply_output_settings` — un réglage
     offert sans application serait une promesse sans effet (le défaut même qu'il corrige).
+    `keep_size` (2026-10-28) : « Garder la résolution d'origine » (`keep_size_param`), avant le
+    format ; la qualité vaut alors AUSSI quand il est coché, au format d'origine (`quality_applies`).
+    `extra` : les autres attributs communs aux trois `Param` (ex. `chip=True` sur le format seul
+    n'en fait pas partie — voir `format_extra`).
     """
     from wama.common.utils.param_schema import Param, ALL_CONTEXTS
     ctx = contexts or ALL_CONTEXTS
+    natures = tuple(domain) if isinstance(domain, (tuple, list)) else (domain,)
+    format_extra = dict(extra.pop("format_extra", None) or {})
     params = []
-    if include_upscale and domain == "image":
+    if keep_size:
+        params.append(keep_size_param(contexts=ctx, dom_id=dom_id_keep_size, group=group,
+                                      **dict(extra.pop("keep_size_extra", None) or {})))
+    if include_upscale and natures == ("image",):
         # Avant le format : l'agrandissement précède la conversion (ordre du process).
         params.append(
             Param(name="output_upscale", type="select", label="Agrandir la sortie", icon="fa-expand",
@@ -114,29 +163,39 @@ def output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_
                   dom_id=dom_id_upscale or "output_upscale", group=group,
                   help="Agrandissement par un modèle d'upscaling IA, appliqué après la génération.")
         )
+    if len(natures) == 1 and not extra_formats:
+        options = dict(choices=get_output_formats(natures[0]))
+        converted = [v for v, _ in options["choices"] if v != ORIGINAL]
+    else:
+        options = dict(option_groups=format_option_groups(natures, extra_formats))
+        converted = [v for _, group_choices in options["option_groups"]
+                     for v, _ in group_choices if v != ORIGINAL]
     params.append(
         # Défaut « original » (2026-10-11) : celui des colonnes `output_format` des apps qui
         # emploient cette brique, et la 1ʳᵉ option de toute liste (`get_output_formats`). Sans
         # lui, « Réinitialiser » (`WamaParams.applyDefaults`) vidait le select d'un volet généré.
         Param(name="output_format", type="select", label="Format de sortie", icon="fa-file-export",
-              choices=get_output_formats(domain), default="original", contexts=ctx,
-              dom_id=dom_id_format or "output_format", group=group),
+              default=ORIGINAL, contexts=ctx, dom_id=dom_id_format or "output_format",
+              group=group, **options, **{**extra, **format_extra}),
     )
     if include_quality:
-        # La qualité ne s'applique QUE lors d'une conversion (`apply_inline_conversion` ne
-        # réencode pas un fichier déjà au format demandé) : affichée sous « Original », elle
-        # promettait un réglage sans effet. Elle n'apparaît donc qu'avec un format choisi.
-        converted = [v for v, _ in get_output_formats(domain) if v != "original"]
+        # La qualité ne s'applique QUE quand le fichier est RÉENCODÉ (`quality_applies`) : un
+        # format choisi, ou la résolution d'origine gardée. Affichée sous « Original », elle
+        # promettait un réglage sans effet.
+        condition = {"field": "output_format", "in": converted}
+        if keep_size:
+            condition = {"any": [condition, {"field": "output_keep_size"}]}
         params.append(
             # Défaut « balanced » (2026-10-11) : celui de TOUTES les colonnes `output_quality` et
             # du repli de la conversion (`apply_output_settings`). Sans défaut déclaré, une surface
             # générée (volet, modale) proposait la PREMIÈRE option, « web » — mesuré sur le volet
             # généré du synthesizer, quand l'ancien volet écrit à la main proposait « Équilibré ».
             Param(name="output_quality", type="select", label="Qualité", icon="fa-sliders",
-                  choices=get_output_qualities(domain), default="balanced", contexts=ctx,
-                  dom_id=dom_id_quality or "output_quality", group=group,
-                  show_if={"field": "output_format", "in": converted},
-                  help="Appliquée à la conversion vers le format choisi.")
+                  choices=get_output_qualities(), default=DEFAULT_PRESET, contexts=ctx,
+                  dom_id=dom_id_quality or "output_quality", group=group, show_if=condition,
+                  help=("Appliquée quand la sortie est réencodée : format choisi, ou résolution "
+                        "d'origine gardée." if keep_size
+                        else "Appliquée à la conversion vers le format choisi."), **extra)
         )
     return params
 
@@ -288,7 +347,14 @@ def apply_output_settings(paths, item, *, domain: str, app_id: str | None = None
             w, h = upscale_output_image(p, factor, item=item, app_id=app_id)
         say(f"Agrandissement terminé : {w}×{h}")
     fmt = wanted_format(item, output_format)
-    preset = getattr(item, 'output_quality', '') or 'balanced'
+    if fmt not in ('', ORIGINAL) and fmt not in {v for v, _ in get_output_formats(domain)}:
+        # Un format d'une AUTRE nature (une vidéo demandée en .png, chez une app qui rend l'une ou
+        # l'autre — `format_option_groups`) : la conversion l'ignorait sans un mot
+        # (`apply_inline_conversion`). Le fichier garde son format, et on le DIT.
+        say(f"Format .{fmt} impossible pour une sortie {NATURE_LABELS.get(domain, domain).lower()}"
+            f" — format d'origine conservé")
+        fmt = ORIGINAL
+    preset = getattr(item, 'output_quality', '') or DEFAULT_PRESET
     target = keep_size_target(item, domain, input_size)
     if target is not None:
         # Le converter redimensionne ET convertit d'un même passage. « Original » garde le
@@ -370,7 +436,7 @@ def transforms_output(item, domain: str, output_format: str | None = None,
 
 def render_outputs(sources, item, *, domain: str, app_id: str | None = None, console=None,
                    previous=(), output_format: str | None = None, transform=None,
-                   apply=None, input_size=None) -> tuple:
+                   apply=None, input_size=None, then_settings: bool = False) -> tuple:
     """Les réglages de sortie appliqués en GARDANT le fichier d'origine ; rend
     `(rendus, originaux gardés)`, en chemins absolus.
 
@@ -383,18 +449,23 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
     `transform` / `apply` : une transformation PROPRE à l'app, à la place des réglages de sortie
     communs (l'amélioration faciale de l'avatarizer) — `transform` dit si elle a lieu,
     `apply(copie) -> chemin(s)` la joue sur la COPIE de l'original et rend ce qu'elle a écrit.
+    `then_settings` (2026-10-28, D5) : les réglages de sortie COMMUNS (format, qualité) s'appliquent
+    APRÈS la transformation de l'app, au lieu d'être remplacés par elle — un même original gardé,
+    un seul process ; ils valent aussi quand la transformation de l'app n'a pas lieu.
     Les règles d'`apply_output_settings` valent : un agrandissement demandé qui échoue LÈVE, une
     conversion qui échoue garde le rendu au format d'origine et le dit."""
     import os
     import shutil
 
     finals, natives = [], []
+    common = transforms_output(item, domain, output_format, input_size)
     if transform is None:
-        transform = transforms_output(item, domain, output_format, input_size)
+        transform = common
+    settings_after = apply is not None and then_settings and common
     for source in list(sources or []):
         source = str(source)
         target = final_name(source)
-        if not transform:
+        if not (transform or settings_after):
             if source != target:
                 os.replace(source, target)
             finals.append(target)
@@ -405,8 +476,13 @@ def render_outputs(sources, item, *, domain: str, app_id: str | None = None, con
         shutil.copy2(kept, target)
         try:
             if apply is not None:
-                produced = apply(target)
-                finals.extend([produced] if isinstance(produced, str) else list(produced))
+                produced = apply(target) if transform else target
+                produced = [produced] if isinstance(produced, str) else list(produced)
+                if settings_after:
+                    produced = apply_output_settings(produced, item, domain=domain, app_id=app_id,
+                                                     console=console, output_format=output_format,
+                                                     input_size=input_size)
+                finals.extend(produced)
             else:
                 finals.extend(apply_output_settings([target], item, domain=domain, app_id=app_id,
                                                     console=console, output_format=output_format,

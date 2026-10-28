@@ -27,10 +27,6 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
         PRINTED     = 'printed',     'Imprimé / Typographié'
         HANDWRITTEN = 'handwritten', 'Manuscrit'
 
-    class OutputFormat(models.TextChoices):
-        TXT      = 'txt',      'Texte brut (.txt)'
-        MARKDOWN = 'markdown', 'Markdown (.md)'
-
     # Ingest déclaratif commun (source_ingest.ensure_local_input) : résout source_url
     # → input_file local en tête de tâche (avant : source_url était persisté mais JAMAIS
     # téléchargé — items d'un batch d'URLs sans entrée, bug identifié 2026-07-25).
@@ -50,7 +46,8 @@ class ReadingItem(ProcessingTimeMixin, ScopedVisibility):
     # migration 0012 ; un identifiant d'avant est normalisé par `save`.
     backend       = models.CharField(max_length=128, default='auto')
     mode          = models.CharField(max_length=16, choices=Mode.choices, default=Mode.AUTO)
-    output_format = models.CharField(max_length=16, choices=OutputFormat.choices, default=OutputFormat.TXT)
+    # `output_format` (txt/markdown) RETIRÉ le 2026-10-28 : posé avant la lecture, il n'était lu
+    # par rien — le format se choisit au téléchargement (`export_formats`, REMOVAL_LEDGER).
     language      = models.CharField(max_length=16, blank=True, default='',
                                      help_text='Code langue (fr, en…) ou vide pour auto-détection')
 

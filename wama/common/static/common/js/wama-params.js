@@ -1627,7 +1627,9 @@
       });
       return val;
     }
-    // show_if : string « <champ> » (truthy) OU JSON {field, in:[…] | equals:… | not_equals:… }.
+    // show_if : string « <champ> » (truthy) OU JSON {field, in:[…] | equals:… | not_equals:… }
+    // OU {any: [conditions]} — l'une d'elles (2026-10-28 : la qualité de sortie, sous un format
+    // choisi OU la résolution d'origine gardée).
     // Jumeau serveur : `param_schema._show_if_met` — même vocabulaire, les deux changent ensemble.
     function parseCond(raw) {
       if (!raw) return null;
@@ -1635,6 +1637,7 @@
       return { field: raw };   // legacy : nom de champ, condition = truthy
     }
     function met(cond, value) {
+      if (cond.any) return cond.any.some(function (one) { return met(one); });
       const cur = arguments.length > 1 ? value : valByName(cond.field);
       // Une LISTE = « l'une de » : la condition vaut si l'une des valeurs la satisfait.
       if (Array.isArray(cur)) return cur.some(function (one) { return met(cond, one); });
@@ -1651,6 +1654,14 @@
       });
       return found;
     }
+    // Une condition se JUGE si son champ est rendu ici ; sinon elle laisse le réglage visible.
+    // Un `any` est satisfait par l'une de ses branches — une branche non jugeable compte comme
+    // satisfaite, par la même règle (on ne cache jamais sur une absence d'information).
+    function judged(cond) {
+      if (typeof cond === 'string') cond = { field: cond };
+      if (cond.any) return cond.any.some(judged);
+      return !rendered(cond.field) || met(cond);
+    }
     function apply() {
       container.querySelectorAll('[data-show-if]').forEach(function (row) {
         const cond = parseCond(row.getAttribute('data-show-if'));
@@ -1659,7 +1670,7 @@
         // sur une absence d'information). Vécu : la voix de l'avatarizer, au volet, dépend du
         // texte de la card de dépôt, qui n'est pas dans le volet. Le jumeau serveur
         // (`_show_if_met`) juge des VALEURS, pas un rendu : il n'a rien à changer.
-        row.style.display = (cond && (!rendered(cond.field) || met(cond))) ? '' : 'none';
+        row.style.display = (cond && judged(cond)) ? '' : 'none';
       });
       // Un groupe dont TOUS les réglages sont cachés par leur condition se cache aussi (2026-10-22) :
       // sinon un « Avancé » replié s'ouvrait sur un corps vide (la qualité JPEG du converter, sous
@@ -1853,16 +1864,22 @@
   function scopedSchema(schema, names) {
     const wanted = {};
     (names || []).forEach(function (n) { wanted[n] = true; });
-    const controller = function (p) {
-      const cond = p.show_if;
-      return cond ? (typeof cond === 'object' ? cond.field : cond) : null;
+    // Les champs qu'une condition LIT — ceux de chaque branche d'un `any` (jumeau serveur :
+    // `param_schema.condition_fields`).
+    const fields = function (cond) {
+      if (!cond) return [];
+      if (typeof cond !== 'object') return [cond];
+      if (cond.any) return [].concat.apply([], cond.any.map(fields));
+      return cond.field ? [cond.field] : [];
     };
     let grew = true;
     while (grew) {                       // une commande peut avoir sa propre commande
       grew = false;
       (schema || []).forEach(function (p) {
-        const field = wanted[p.name] && controller(p);
-        if (field && !wanted[field]) { wanted[field] = true; grew = true; }
+        if (!wanted[p.name]) return;
+        fields(p.show_if).forEach(function (field) {
+          if (!wanted[field]) { wanted[field] = true; grew = true; }
+        });
       });
     }
     return (schema || []).filter(function (p) { return p.type === 'hidden' || wanted[p.name]; });

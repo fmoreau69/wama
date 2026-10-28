@@ -10,10 +10,12 @@ TROIS process :
     (`audio_input`) : il se vérifie, s'écoute et se reprend.
   • `animate` — l'audio + l'avatar → la vidéo : MuseTalk (photo) ou TalkingHead (avatar 3D).
     C'est le process de toute card.
-  • `enhance` — « Visage » : l'amélioration faciale (CodeFormer) de la vidéo animée d'une PHOTO.
-    Il a toujours lieu pour une photo, comme le process « Sortie » des autres apps : demandée,
-    il garde la vidéo animée à côté et rend l'améliorée ; retirée, il rend la vidéo animée telle
-    quelle. Sans objet pour un avatar 3D (CodeFormer restaure un visage photo).
+  • `enhance` — « Visage et sortie » : l'amélioration faciale (CodeFormer) de la vidéo animée d'une
+    PHOTO, PUIS le format et la qualité de sortie communs (2026-10-28, D5). Il a toujours lieu,
+    comme le process « Sortie » des autres apps : demandée, il garde la vidéo animée à côté et rend
+    l'améliorée ; retirée, il rend la vidéo animée telle quelle. L'amélioration faciale est sans
+    objet pour un avatar 3D (CodeFormer restaure un visage photo) ; le format, lui, vaut pour les
+    deux — d'où un process qui a lieu pour toute card depuis cette date.
 
 Ce que la séparation apporte : changer l'avatar, le cadrage (`bbox_shift`) ou la qualité ne
 re-synthétise plus la voix — avant, tout re-lancement rappelait le service TTS ; une animation
@@ -23,6 +25,7 @@ rejoue pas l'animation (2026-10-04 — la vidéo animée est gardée par la briq
 """
 from wama.common.catalog.function_catalog import (Binding, FunctionCategory as FC, FunctionSpec,
                                                   PortSpec, register)
+from wama.common.services.output_process import output_spec
 from wama.common.services.process_pipeline import ProcessSpec, register_app_pipeline
 
 _APP = 'avatarizer'
@@ -40,10 +43,6 @@ def is_3d_avatar(job) -> bool:
     name = (job.avatar_gallery_name if job.avatar_source == 'gallery'
             else (job.avatar_upload.name if job.avatar_upload else '')) or ''
     return work_token_for(name) == 'work_object3d'
-
-
-def _enhance_applies(job, model_key) -> bool:
-    return not is_3d_avatar(job)
 
 
 register(FunctionSpec(
@@ -93,8 +92,10 @@ PIPELINE = register_app_pipeline(_APP, (
                 watched=('audio_input', 'avatar_source', 'avatar_gallery_name', 'avatar_upload'),
                 gpu=True, share=4, outputs=('output_video',),
                 eta='avatarizer.workers:avatarizer_eta_key_size'),
-    ProcessSpec('enhance', label='Visage', depends_on=('animate',),
-                gpu=True, share=3, applies=_enhance_applies,
+    # Le process de SORTIE commun (`output_spec` : il surveille les réglages de sortie), sous la clé
+    # `enhance` de ses lignes d'exécution : il joue aussi le visage (`workers._enhance`).
+    output_spec(('animate',), key='enhance', label='Visage et sortie', share=3, gpu=True,
                 eta='avatarizer.workers:enhance_eta_key_size'),
-), label='Avatarizer — voix, animation, visage', source_ref='avatarizer.function_specs:PIPELINE',
+), label='Avatarizer — voix, animation, visage et sortie',
+   source_ref='avatarizer.function_specs:PIPELINE',
    model_of=lambda job: job.animation_model or 'auto')

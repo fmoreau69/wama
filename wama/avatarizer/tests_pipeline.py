@@ -113,11 +113,19 @@ class AvatarPipelineTest(TestCase):
         mine = sorted(p.name for p in folder.iterdir() if f'_{job.id}' in p.name)
         self.assertEqual(2, len(mine), mine)
 
-    def test_a_3d_avatar_has_no_face_process(self):
+    def test_a_3d_avatar_keeps_the_output_process_but_never_the_face(self):
+        """Since 2026-10-28 (D5) the last process is « Visage et sortie » : the output format
+        holds for a 3D avatar too, the face enhancement only for a photo."""
+        from wama.avatarizer.workers import face_wanted
         job = self._text_job()
         AvatarJob.objects.filter(pk=job.pk).update(avatar_upload='x/head.glb', use_enhancer=True)
         job.refresh_from_db()
-        self.assertEqual(['speak', 'animate'], [p.key for p in PIPELINE.applicable(job, 'auto')])
+        self.assertEqual(['speak', 'animate', 'enhance'],
+                         [p.key for p in PIPELINE.applicable(job, 'auto')])
+        self.assertFalse(face_wanted(job))
+        AvatarJob.objects.filter(pk=job.pk).update(avatar_upload='x/face.png')
+        job.refresh_from_db()
+        self.assertTrue(face_wanted(job))
 
     def test_the_drawn_tts_model_is_not_written_into_the_setting(self):
         job = self._text_job()
@@ -267,14 +275,17 @@ class TheCardShowsItsProcessesTest(TestCase):
             self.assertRegex(html, rf'wcv3-proc-run"[^>]*data-id="{job.pk}"[^>]*data-process="{key}"')
         self.assertIn('data-status="PENDING"', html)
 
-    def test_a_card_with_a_single_process_has_no_strip(self):
-        html = self._card(self._job(mode='standalone', text_content='', audio_input='x/voice.wav',
-                                    avatar_upload='x/head.glb'))
-        self.assertNotIn('data-processes', html)
+    def test_a_card_that_brings_its_audio_shows_the_animation_and_the_output(self):
+        """A 3D avatar had a single process — no strip — until 2026-10-28 : its output format is a
+        setting now (D5), so « Visage et sortie » runs for it too, without the face."""
+        three_d = self._job(mode='standalone', text_content='', audio_input='x/voice.wav',
+                            avatar_upload='x/head.glb')
         photo = self._job(mode='standalone', text_content='', audio_input='x/voice.wav')
-        html = self._card(photo)
-        for key in ('animate', 'enhance'):
-            self.assertRegex(html, rf'wcv3-proc-run"[^>]*data-id="{photo.pk}"[^>]*data-process="{key}"')
+        for job in (three_d, photo):
+            html = self._card(job)
+            for key in ('animate', 'enhance'):
+                self.assertRegex(html, rf'wcv3-proc-run"[^>]*data-id="{job.pk}"[^>]*data-process="{key}"')
+            self.assertNotRegex(html, rf'data-id="{job.pk}"[^>]*data-process="speak"')
 
     def test_the_button_of_a_process_sends_a_bounded_task(self):
         from types import SimpleNamespace

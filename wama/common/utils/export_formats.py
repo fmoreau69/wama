@@ -33,14 +33,25 @@ from django.utils.translation import gettext_lazy as _
 # changer ce que l'utilisateur voit).
 TEXT, DOCUMENT, RAW = 'text', 'document', 'raw'
 
+_DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+#: `mime` (2026-10-28) : le type servi au téléchargement d'UN élément (`download_response`) — les
+#: trois vues d'app l'écrivaient chacune à la main.
 VOCABULARY: dict[str, dict] = {
-    'txt':  {'label': 'TXT',        'icon': 'fas fa-file-alt',           'group': TEXT},
-    'md':   {'label': 'Markdown',   'icon': 'fab fa-markdown',           'group': TEXT},
-    'srt':  {'label': 'SRT',        'icon': 'fas fa-closed-captioning',  'group': TEXT},
-    'vtt':  {'label': 'VTT',        'icon': 'fas fa-closed-captioning',  'group': TEXT},
-    'pdf':  {'label': 'PDF',        'icon': 'fas fa-file-pdf text-danger',   'group': DOCUMENT},
-    'docx': {'label': 'DOCX',       'icon': 'fas fa-file-word text-primary', 'group': DOCUMENT},
-    'json': {'label': _('JSON brut'), 'icon': 'fas fa-code text-warning',    'group': RAW},
+    'txt':  {'label': 'TXT',        'icon': 'fas fa-file-alt',           'group': TEXT,
+             'mime': 'text/plain; charset=utf-8'},
+    'md':   {'label': 'Markdown',   'icon': 'fab fa-markdown',           'group': TEXT,
+             'mime': 'text/markdown; charset=utf-8'},
+    'srt':  {'label': 'SRT',        'icon': 'fas fa-closed-captioning',  'group': TEXT,
+             'mime': 'text/plain; charset=utf-8'},
+    'vtt':  {'label': 'VTT',        'icon': 'fas fa-closed-captioning',  'group': TEXT,
+             'mime': 'text/vtt; charset=utf-8'},
+    'pdf':  {'label': 'PDF',        'icon': 'fas fa-file-pdf text-danger',   'group': DOCUMENT,
+             'mime': 'application/pdf'},
+    'docx': {'label': 'DOCX',       'icon': 'fas fa-file-word text-primary', 'group': DOCUMENT,
+             'mime': _DOCX_MIME},
+    'json': {'label': _('JSON brut'), 'icon': 'fas fa-code text-warning',    'group': RAW,
+             'mime': 'application/json; charset=utf-8'},
 }
 
 # Ordre d'affichage stable, quel que soit l'ordre de déclaration de l'app : le premier format
@@ -136,6 +147,29 @@ def requested_format(app_name: str, query) -> str:
         return ''
     asked = str(query.get('format') or query.get('fmt') or '').lower().lstrip('.')
     return asked if asked in declared else declared[0]
+
+
+def download_response(app_name: str, item, query, stem: str):
+    """Le ⬇ d'UN élément d'une app late-binding : le format DEMANDÉ (`requested_format`, borné aux
+    formats déclarés), rendu par le rendu que l'app a ENREGISTRÉ (`export_builder_for`) — le même
+    que son ZIP de lot, la médiathèque et l'assistant. Rend la réponse, ou None si l'élément ne
+    peut pas rendre ce format (pas encore de résultat, rendu en échec — le rendu le journalise).
+
+    Avant le 2026-10-28, les trois vues `download` (transcriber, describer, reader) recodaient
+    chacune leurs formats à côté de ce rendu : le SRT du transcriber s'écrivait de quatre façons
+    selon le chemin, et le fichier d'un élément n'était pas celui de son entrée dans le ZIP."""
+    from django.http import HttpResponse
+    from django.utils.http import content_disposition_header
+    render = export_builder_for(app_name)
+    fmt = requested_format(app_name, query)
+    built = render(item, fmt) if (render is not None and fmt) else None
+    if not built:
+        return None
+    ext, data = built
+    response = HttpResponse(data, content_type=(VOCABULARY.get(ext) or {}).get(
+        'mime', 'application/octet-stream'))
+    response['Content-Disposition'] = content_disposition_header(True, f'{stem}.{ext}')
+    return response
 
 
 def is_late_binding(app_name: str) -> bool:

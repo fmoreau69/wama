@@ -834,6 +834,39 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
   (`stales=('output',)`) au lieu d'entrer dans `OUTPUT_PARAM_NAMES` : seul le pipeline d'une app
   qui l'offre le surveille. Une taille non atteinte arrête la Sortie en le disant. Adopté par
   l'enhancer (`wama/enhancer/README.md`).
+- **UNE déclaration du format et de la qualité de sortie, pour toute app render-based**
+  (2026-10-28, étape 1 du rangement des réglages, décisions de Fabien D1/D2) — `output_formats.
+  output_format_params(domaine, …)`, rien d'autre :
+  - **une liste de formats** : celle de la nature (table du converter, sans les formats audio
+    pour une sortie image ou vidéo) ; pour une app dont l'élément est l'une OU l'autre nature
+    (enhancer, anonymizer : image ou vidéo), un TUPLE de natures → des groupes par nature
+    (`format_option_groups`), plus les choix propres DÉCLARÉS de l'app (`extra_formats` —
+    l'anonymizer : « Format du fichier source »). Un format d'une autre nature que l'élément est
+    refusé EN LE DISANT au rendu (`apply_output_settings`), le fichier garde son format ;
+  - **un vocabulaire de qualité** : celui de la table qui l'applique (`converter/utils/
+    quality_presets`, « Rapide (web) / Équilibré / Qualité ») — la brique recopiait « Web (léger)
+    / Équilibré / Maximum » ;
+  - **une règle d'affichage** : la qualité ne se montre que si le fichier est RÉENCODÉ — un format
+    choisi, ou « Garder la résolution d'origine » coché (`keep_size=True`, condition `any` de la
+    grammaire `show_if`) ; la même règle sur un élément, `quality_applies(item)`, que lit
+    l'inspecteur (`detail_registry.build_detail`).
+  Écarts soldés ce jour : les unions recopiées de l'enhancer et de l'anonymizer (qualité toujours
+  affichée), la section Sortie du volet de l'anonymizer écrite à la main (8 formats sur 13, valeur
+  retenue jamais réaffichée — générée du schéma depuis). ⏳ Restes : le domaine AUDIO de
+  l'enhancer ne suit pas le modèle commun du volet (son dépôt ignore le volet, qui ne vaut qu'au
+  lancement) — il se porte d'un bloc, sa section Sortie avec.
+  L'avatarizer a reçu format et qualité (D5) : sa transformation propre (le visage) PUIS les
+  réglages communs, au même process de sortie (`output_step(..., apply=, then_settings=True)`, un
+  seul original gardé) — process « Visage et sortie », déclaré par la brique (`output_spec(
+  key='enhance', gpu=True, eta=…)`), qui a lieu pour toute card (le format vaut
+  aussi pour un avatar 3D, le visage seulement pour une photo, `workers.face_wanted`).
+- **App late-binding : le téléchargement d'UN élément est son rendu ENREGISTRÉ**
+  (`export_formats.download_response`, 2026-10-28) — le même que le ZIP de lot, la médiathèque
+  et l'assistant. Les vues `download` du transcriber, du describer et du reader recodaient leurs
+  formats (le SRT du transcriber s'écrivait de quatre façons). Un TXT est du texte BRUT : la mise
+  en forme Markdown en est retirée (`document_export.strip_markdown`, qui ne touche plus aux `_`
+  d'un mot) ; le MD la garde. Le reader n'a plus de « format de sortie » posé avant la lecture
+  (`REMOVAL_LEDGER R185`).
 
 - **Le geste « ranger en médiathèque » suit le même archétype** (2026-09-18, `CARD_DESIGN §2bis`) :
   early-binding → le fichier rendu est copié, le choix est le RÔLE d'asset (déclaré par l'app,

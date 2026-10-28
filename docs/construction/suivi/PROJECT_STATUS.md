@@ -27083,3 +27083,40 @@ D1–D5 du 17/10 retrouvées dans le fil de l'assistant n° 46, jamais consigné
   session des voix) · ce que l'assistant écrit n'est consigné nulle part (sa consigne à Claude Code
   interdisait de toucher la doc ; ses « spécifications » vivent dans `logs/`, non versionné) —
   chantier à part.
+
+## §PALIER 2026-10-28 (soir), « RANGEMENT DES RÉGLAGES, étape 1 : FORMAT et QUALITÉ de sortie — une déclaration, un vocabulaire, une règle » — non poussé — 🔴 appliquer `reader/0016` + `avatarizer/0025` ET relancer gunicorn + workers dans le même geste (le code en service lit encore `ReadingItem.output_format`)
+
+Demande de Fabien : avancer « progressivement », en cartographiant tout ce qui existe sur le format
+et la qualité dans tous les mondes, sans rien perdre ; décisions D1 (libellés « Rapide / Équilibré
+/ Qualité »), D2 (la qualité s'affiche aussi quand la résolution d'origine est gardée), D4 (retirer
+le format du reader, TXT sans mise en forme), D5 (format et qualité à l'avatarizer).
+Règle consignée : `WAMA_APP_CONVENTIONS §6.4` (deux puces du 2026-10-28) ; retrait `REMOVAL_LEDGER R185`.
+- **Brique** `output_formats` : une liste de formats par nature, en groupes pour une app à deux
+  natures (`format_option_groups`, choix propres déclarés) ; libellés de qualité tirés de la table
+  du converter ; qualité affichée seulement si le fichier est réencodé (`quality_applies`,
+  condition `any`) ; format d'une autre nature REFUSÉ en le disant ; `then_settings` — la
+  transformation de l'app PUIS les réglages communs au même process (avatarizer).
+- **Grammaire `show_if`** : `{"any": [...]}` des deux côtés (`param_schema._show_if_met`,
+  `condition_fields`, `scoped_names`, clause `when` des prompts ; JS `met`/`judged`, `scopedSchema`),
+  gardes de parité V8 (`tests_cap_from_js`).
+- **Apps** : enhancer image/vidéo et anonymizer sur la brique (unions recopiées retirées) ; volet
+  de l'anonymizer : section Sortie GÉNÉRÉE (8 formats sur 13, valeur figée, 0 ligne retenue en
+  base ; l'inspecteur cherchait ses champs sous un id absent) ; synthesizer retient format et
+  qualité ; avatarizer : colonnes `output_format`/`output_quality` (`db_default`), process
+  « Visage et sortie » pour toute card ; reader : `output_format` retiré.
+- **Late-binding** : le ⬇ d'un élément = son rendu enregistré (`export_formats.download_response`) —
+  transcriber (SRT de quatre façons, lu dans le dossier de qui télécharge), describer, reader ;
+  `strip_markdown` public et ne touche plus aux `_` d'un mot (PDF/DOCX compris).
+- **Inspecteur** : la qualité ne se dit que si elle a agi.
+- Grille : 10/10 à 100 % (l'avatarizer, rouge un instant sur `output_settings`, déclare son process
+  par la brique `output_spec(key='enhance', …)`, qui accepte désormais les attributs du process).
+- Tests : 1 156 + reprise (avatarizer, sortie : 178 OK) ; restes rouges HORS périmètre : `openpyxl` absent de
+  `venv_linux` (`studio.tests_function_nodes`, lecture d'un tableur), `staticfiles/…/wama-app-base.js`
+  périmé (travail en cours de la session des voix).
+- 🔚 Restes : le domaine AUDIO de l'enhancer ne suit pas le modèle commun du volet (dépôt sans le
+  volet, volet appliqué au lancement) — à porter d'un bloc · le TXT du transcriber a deux rendus
+  (disque `enriched_text` ≠ ⬇ `generate_transcript_txt`) — décision de Fabien · les valeurs du volet
+  de l'enhancer et de l'imager sont posées dans un `<script>` sans échapper `<` (corrigé pour
+  l'anonymizer seul) · manifestes `pipeline` non régénérés (co-édités) · jumelles à la régénération
+  (générateur) · étape suivante : la clé commune `<domaine>.<nom>` (noms de domaine acceptés par
+  Fabien) · domaine `document` de l'Anonymizer (relevé de la session privacy) : après confirmation.

@@ -21,14 +21,15 @@ from wama.reader.utils.model_config import OCR_SPEC
 
 PARAMS = derive_from_model(
     ReadingItem,
-    # output_format ajouté 2026-08-01 : il était sur le modèle mais absent du schéma, donc
-    # NI réglable dans l'inspecteur, NI affiché sur la card. C'est le champ qui décrit ce qui
-    # va SORTIR — il alimente la section Sortie de la card v3 via section="output".
+    # `output_format` RETIRÉ le 2026-10-28 (décision de Fabien, D4) : le reader rend son texte au
+    # TÉLÉCHARGEMENT (`export_binding='late'`, formats déclarés au catalogue) ; ce réglage, posé
+    # avant la lecture, n'était lu par aucune tâche ni aucun téléchargement (`REMOVAL_LEDGER`).
+    # Le choix du fichier dit seul si la mise en forme part avec lui (TXT : retirée).
     # quality_intent (chantier C, 2026-09-20) : le curseur rapide/qualité commun. Hors modèle
     # (pas de colonne) : le reader n'a pas de choix par item, le curseur est un RÉGLAGE D'APP
     # de l'utilisateur (brique durable `user_settings`), lu au lancement par
     # `auto_model.quality_intent_of(item, 'reader')` quand le moteur est sur « auto ».
-    include=["backend", "quality_intent", "mode", "language", "output_format",
+    include=["backend", "quality_intent", "mode", "language",
              "llm_model", "llm_temperature", "llm_seed", "llm_top_p", "format_markdown",
              "generate_analysis"],
     overrides={
@@ -85,15 +86,6 @@ PARAMS = derive_from_model(
                       "reason": "Ce moteur ne tient pas compte de la langue indiquée."},
             # La mise en forme la lit aussi (indice de langue donné au LLM).
             stales=("read", "format"),
-        ),
-        "output_format": dict(
-            type="select", label="Format de sortie", icon="fa-file-lines", chip=True,
-            # section="output" : ce chip décrit ce qui va SORTIR, pas comment on traite. La card
-            # v3 le range donc en section Sortie sans que la vue ait à le savoir (§11).
-            section="output",
-            dom_id={"panel": "outputFormatSelect", "batch": "batchSettingsOutputFormat",
-                    "item": "rSettings_output_format"},
-            help="Format du texte produit. Les autres formats restent téléchargeables ensuite.",
         ),
         # ── Le modèle de LANGAGE et les deux process qui l'emploient (2026-10-13) ────────────
         # « auto » = leur comportement d'avant : le gabarit « par défaut » du describer pour la mise

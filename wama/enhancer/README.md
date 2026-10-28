@@ -52,6 +52,13 @@ l'amélioration, et la card affiche les dimensions du fichier final. Une taille 
 pas atteinte arrête la Sortie en le disant. Gardes : `tests_output_formats.KeepTheInputSizeTest`
 (vrai converter, image et vidéo), `enhancer.tests.OutputKeepSizeTest`.
 
+Format, qualité et résolution d'origine sont déclarés par la brique COMMUNE
+(`output_formats.output_format_params(('image', 'video'), keep_size=True)`, 2026-10-28) : formats
+groupés par nature, qualité affichée seulement quand le fichier est réencodé — un format choisi,
+OU la résolution d'origine gardée (Fabien : « on peut vouloir garder la résolution d'origine et
+changer le format et la qualité »). Le domaine audio garde son format à la modale seule : il ne
+suit pas encore le modèle commun du volet (`WAMA_APP_CONVENTIONS §6.4`).
+
 ### Audio (branche dédiée)
 
 L'app porte aussi une **amélioration audio** complète (modèle `AudioEnhancement`,

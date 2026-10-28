@@ -166,7 +166,10 @@ class Param:
                                                 # dict = condition par VALEUR : {"field": "media_type",
                                                 # "in": ["video","image"]} ou {"field": "use_sam3",
                                                 # "equals": True} ou {"field": "engine", "not_equals":
-                                                # "auto"} (2026-10-13). Réévalué au change de n'importe quel champ.
+                                                # "auto"} (2026-10-13) ou {"any": [cond, cond…]}, vraie
+                                                # si L'UNE des conditions l'est (2026-10-28 : la qualité
+                                                # de sortie, sous un format choisi OU la résolution
+                                                # d'origine gardée). Réévalué au change de n'importe quel champ.
     advanced: bool = False                      # repliable sous « Avancé »
     help_source: Optional[str] = None           # select de MODÈLE : source catalogue (model_manager)
                                                  # → WamaParams affiche desc courte/longue + VRAM sous le select
@@ -506,7 +509,7 @@ def _pget(p, key, default=None):
 def _show_if_met(cond, values) -> bool:
     """Le `show_if` d'un param est-il satisfait par `values` ? MÊME vocabulaire que le moteur
     JS (wama-params.js::met) : {field, equals:…} | {field, not_equals:…} | {field, in:[…]} |
-    champ seul → truthy.
+    champ seul → truthy | {any: [conditions]} → l'une d'elles (2026-10-28).
 
     Une valeur en LISTE veut dire « l'une de » (2026-10-18) : un porteur dont la valeur n'est pas
     encore connue — la nature de ce que recevra un nœud du Studio, image OU vidéo — satisfait la
@@ -515,6 +518,8 @@ def _show_if_met(cond, values) -> bool:
         return True
     if isinstance(cond, str):
         cond = {'field': cond}
+    if cond.get('any'):
+        return any(_show_if_met(one, values) for one in cond['any'])
     cur = values.get(cond.get('field'))
     if isinstance(cur, (list, tuple, set)):
         return any(_show_if_met(cond, {cond.get('field'): one}) for one in cur)
@@ -527,6 +532,19 @@ def _show_if_met(cond, values) -> bool:
     return bool(cur) and cur not in ('false', '0')
 
 
+def condition_fields(cond) -> List[str]:
+    """Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`.
+    Lu par qui doit connaître la commande d'un réglage (`scoped_names`, la clause `when` des
+    prompts) au lieu de supposer un `field` unique."""
+    if not cond:
+        return []
+    if isinstance(cond, str):
+        return [cond]
+    if cond.get('any'):
+        return [name for one in cond['any'] for name in condition_fields(one)]
+    return [cond['field']] if cond.get('field') else []
+
+
 def scoped_names(schema, names) -> List[str]:
     """Les réglages de la ⚙ d'UN process : `names` (ce qu'il surveille), plus le champ qui COMMANDE
     la condition d'un réglage retenu (et la commande de cette commande), plus les porteurs cachés —
@@ -536,19 +554,16 @@ def scoped_names(schema, names) -> List[str]:
     (2026-10-18 : une seconde règle cachait l'interrupteur de l'étape et ne l'écrivait jamais — une
     étape éteinte sur l'élément ne se lançait pas)."""
     wanted = set(names or ())
-
-    def command(p):
-        cond = _pget(p, 'show_if')
-        return cond.get('field') if isinstance(cond, dict) else (cond or None)
-
     grew = True
     while grew:
         grew = False
         for p in schema:
-            field = command(p) if _pget(p, 'name') in wanted else None
-            if field and field not in wanted:
-                wanted.add(field)
-                grew = True
+            if _pget(p, 'name') not in wanted:
+                continue
+            for field in condition_fields(_pget(p, 'show_if')):
+                if field not in wanted:
+                    wanted.add(field)
+                    grew = True
     return [_pget(p, 'name') for p in schema
             if _pget(p, 'type') == 'hidden' or _pget(p, 'name') in wanted]
 

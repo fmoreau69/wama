@@ -428,6 +428,13 @@ def build_detail(instance, *, source_file=None, source_type=None, engine=None,
         v = getattr(instance, k, None)
         if v:
             d[k] = v
+    if 'output_quality' in d:
+        # La qualité ne se DIT que si elle agit (2026-10-28, la règle des surfaces de réglage,
+        # `output_formats.quality_applies`) : sous « Original », l'inspecteur affichait une
+        # qualité qui n'avait rien changé au fichier.
+        from wama.common.utils.output_formats import quality_applies
+        if not quality_applies(instance):
+            del d['output_quality']
 
     d['status'] = normalize_status(getattr(instance, 'status', ''))
     err = getattr(instance, 'error_message', None)

@@ -1618,7 +1618,7 @@
             "choices": [
               [
                 "web",
-                "Web (léger)"
+                "Rapide (web)"
               ],
               [
                 "balanced",
@@ -1626,7 +1626,7 @@
               ],
               [
                 "max",
-                "Maximum"
+                "Qualité"
               ]
             ],
             "contexts": [
@@ -2300,7 +2300,7 @@
             "choices": [
               [
                 "web",
-                "Web (léger)"
+                "Rapide (web)"
               ],
               [
                 "balanced",
@@ -2308,7 +2308,7 @@
               ],
               [
                 "max",
-                "Maximum"
+                "Qualité"
               ]
             ],
             "contexts": [

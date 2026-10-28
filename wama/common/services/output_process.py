@@ -35,13 +35,17 @@ OUTPUT_KEY = 'output'
 OUTPUT_LABEL = 'Sortie'
 
 
-def output_spec(depends_on, *, key: str = OUTPUT_KEY, label: str = OUTPUT_LABEL, share: int = 1):
+def output_spec(depends_on, *, key: str = OUTPUT_KEY, label: str = OUTPUT_LABEL, share: int = 1,
+                **spec):
     """Le `ProcessSpec` du process de sortie : il surveille les réglages de sortie communs
     (`OUTPUT_PARAM_NAMES`) et dépend du process qui écrit le fichier. Il a TOUJOURS lieu : c'est
-    en revenant au format d'origine qu'il rend l'original tel quel."""
+    en revenant au format d'origine qu'il rend l'original tel quel.
+    `spec` : les autres attributs du process (2026-10-28) — celui de l'avatarizer joue aussi sa
+    transformation propre, le visage (`output_step(then_settings=True)`) : il tient la carte
+    (`gpu`) et a son estimation (`eta`)."""
     from wama.common.services.process_pipeline import ProcessSpec
     return ProcessSpec(key, label=label, depends_on=tuple(depends_on),
-                       watched=tuple(OUTPUT_PARAM_NAMES), share=share)
+                       watched=tuple(OUTPUT_PARAM_NAMES), share=share, **spec)
 
 
 def _absolute(path) -> str:
@@ -146,7 +150,7 @@ def forget_lost_generation(item, field, node: str) -> bool:
 
 def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
                 format_of=None, transform=None, apply=None, what: str = 'Réglages de sortie',
-                input_size=None):
+                input_size=None, then_settings: bool = False):
     """La GLU du process de sortie, au contrat du squelette (`glu(item, ctx) -> dict`).
 
     `field`  : le champ qui porte le rendu (nom, ou `callable(item) -> nom`) ;
@@ -167,6 +171,9 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
                dit si elle a lieu, `apply(item, copie, ctx) -> chemin` la joue sur la copie de
                l'original, `what` nomme le process dans ses messages. L'original est gardé et
                rendu exactement comme pour les réglages de sortie.
+    `then_settings` : avec `apply`, les réglages de sortie COMMUNS (format, qualité) passent
+               APRÈS la transformation de l'app, dans le même process (2026-10-28 — l'avatarizer :
+               visage, puis format) ; le process doit alors surveiller `OUTPUT_PARAM_NAMES`.
 
     Un agrandissement DEMANDÉ qui échoue lève (la card s'arrête en le disant, le moteur n'est
     pas rejoué au ▶ suivant) ; une conversion ratée garde le format d'origine et le dit."""
@@ -187,7 +194,7 @@ def output_step(field, *, domain, app_id: str, console=None, extra_fields=None,
                 transform=transform(item) if transform is not None else None,
                 apply=(lambda copy: apply(item, copy, ctx)) if apply is not None else None,
                 previous=[p for p in rendered_files(item, name) if _replaceable(item, p, name)],
-                input_size=input_size)
+                input_size=input_size, then_settings=then_settings)
         except Exception as exc:
             ctx.reset_progress()
             raise RuntimeError(f"{what} : {exc}") from exc

@@ -203,6 +203,30 @@ class KeepTheOriginalTest(SimpleTestCase):
         with open(self.engine_file, 'rb') as restored:
             self.assertEqual(b'native', restored.read())
 
+    def test_the_app_transformation_then_the_common_settings_from_one_kept_original(self):
+        """`then_settings` (2026-10-28, the avatarizer : face, then format) — one process, one
+        original; the common settings also hold when the app's own transformation does not."""
+        def face(copy):
+            with open(copy, 'ab') as out:
+                out.write(b'+face')
+            return copy
+        with mock.patch(INLINE_CONVERSION, side_effect=self._convert):
+            finals, natives = of.render_outputs([self.engine_file], self._item(output_format='webp'),
+                                                domain='image', transform=True, apply=face,
+                                                then_settings=True)
+        with open(finals[0], 'rb') as rendered:
+            self.assertEqual(b'native+face>webp', rendered.read())
+        self.assertEqual(['gen7_model.native.png', 'gen7_model.webp'], self._names())
+        with mock.patch(INLINE_CONVERSION, side_effect=self._convert):
+            again, kept = of.render_outputs(natives, self._item(output_format='jpg'), domain='image',
+                                            transform=False, apply=face, then_settings=True,
+                                            previous=finals)
+        with open(again[0], 'rb') as rendered:
+            self.assertEqual(b'native>jpg', rendered.read(), 'no face asked : the format alone')
+        back, kept = of.render_outputs(kept, self._item(), domain='image', transform=False,
+                                       apply=face, then_settings=True, previous=again)
+        self.assertEqual(([self.engine_file], []), (back, kept), 'nothing asked : one file again')
+
     def test_an_upscaling_counts_as_a_transformation_for_images_only(self):
         self.assertTrue(of.transforms_output(self._item(output_upscale='x2'), 'image'))
         self.assertFalse(of.transforms_output(self._item(output_upscale='x2'), 'video'))
@@ -333,6 +357,102 @@ class KeepTheInputSizeTest(SimpleTestCase):
         self.assertEqual(('output_keep_size', 'toggle', False, (OUTPUT_KEY,)),
                          (param.name, param.type, param.default, tuple(param.stales)))
         self.assertNotIn('output_keep_size', of.OUTPUT_PARAM_NAMES)
+
+
+def _output_schemas():
+    """Every settings schema of an app that renders a file and offers its output settings — read
+    from the apps themselves, never listed by hand beyond the import paths."""
+    from wama.anonymizer.params import PARAMS_JSON as anonymizer
+    from wama.composer.params import PARAMS_JSON as composer
+    from wama.enhancer.params import AUDIO_PARAMS_JSON, MEDIA_PARAMS_JSON
+    from wama.imager.params import IMAGE_PARAMS_JSON, VIDEO_PARAMS_JSON
+    from wama.synthesizer.params import PARAMS_JSON as synthesizer
+    return {'anonymizer': anonymizer, 'composer': composer, 'enhancer.image_video': MEDIA_PARAMS_JSON,
+            'enhancer.audio': AUDIO_PARAMS_JSON, 'imager.image': IMAGE_PARAMS_JSON,
+            'imager.video': VIDEO_PARAMS_JSON, 'synthesizer': synthesizer}
+
+
+class OneOutputRuleTest(SimpleTestCase):
+    """ONE format list, ONE quality vocabulary, ONE display rule, for every app that renders a
+    file (2026-10-28, step 1 of the settings alignment). The enhancer and the anonymizer copied
+    their image + video union, showed the quality under « Original », and the anonymizer's panel
+    wrote a third list by hand; the quality spoke « Web (léger) / Maximum » here and « Rapide (web)
+    / Qualité » in the converter that applies it."""
+
+    @staticmethod
+    def _by_name(schema):
+        return {p['name']: p for p in schema}
+
+    @staticmethod
+    def _values(param):
+        if param.get('option_groups'):
+            return [v for _, choices in param['option_groups'] for v, _ in choices]
+        return [v for v, _ in param.get('choices') or []]
+
+    def test_the_quality_speaks_the_words_of_the_table_that_applies_it(self):
+        from wama.converter.utils.quality_presets import PRESET_CHOICES, PRESET_LABELS
+        self.assertEqual([(k, PRESET_LABELS[k]) for k in PRESET_CHOICES], of.OUTPUT_QUALITY_CHOICES)
+        for app, schema in _output_schemas().items():
+            with self.subTest(app=app):
+                quality = self._by_name(schema)['output_quality']
+                self.assertEqual([list(c) for c in of.OUTPUT_QUALITY_CHOICES],
+                                 [list(c) for c in quality['choices']])
+                self.assertEqual(of.DEFAULT_PRESET, quality['default'])
+
+    def test_the_quality_shows_only_when_the_file_is_re_encoded(self):
+        from wama.common.utils.param_schema import _show_if_met
+        for app, schema in _output_schemas().items():
+            params = self._by_name(schema)
+            quality, formats = params['output_quality'], self._values(params['output_format'])
+            converted = [v for v in formats if v != of.ORIGINAL]
+            with self.subTest(app=app):
+                self.assertFalse(_show_if_met(quality['show_if'],
+                                              {'output_format': of.ORIGINAL,
+                                               'output_keep_size': False}),
+                                 'hidden under « Original »')
+                for value in converted:
+                    self.assertTrue(_show_if_met(quality['show_if'], {'output_format': value}),
+                                    f'shown for {value}')
+                if 'output_keep_size' in params:
+                    self.assertTrue(_show_if_met(quality['show_if'],
+                                                 {'output_format': of.ORIGINAL,
+                                                  'output_keep_size': True}),
+                                    'shown when the input size is kept : the file is re-encoded')
+
+    def test_an_app_of_two_natures_offers_exactly_the_formats_of_each(self):
+        expected = {v for nature in ('image', 'video') for v, _ in of.get_output_formats(nature)}
+        for app in ('anonymizer', 'enhancer.image_video'):
+            with self.subTest(app=app):
+                offered = set(self._values(self._by_name(_output_schemas()[app])['output_format']))
+                self.assertEqual(set(), expected - offered, 'a format of the brick is missing')
+                self.assertEqual({'input'} if app == 'anonymizer' else set(), offered - expected,
+                                 'only the DECLARED specific choices are added')
+
+    def test_the_rule_reads_the_same_on_an_element(self):
+        item = SimpleNamespace(output_format='original', output_keep_size=False)
+        self.assertFalse(of.quality_applies(item))
+        self.assertTrue(of.quality_applies(SimpleNamespace(output_format='webp')))
+        self.assertTrue(of.quality_applies(SimpleNamespace(output_format='original',
+                                                           output_keep_size=True)))
+
+    def test_a_format_of_another_nature_is_said_and_the_file_kept(self):
+        said = []
+        with mock.patch(INLINE_CONVERSION) as convert:
+            out = of.apply_output_settings(['a.png'], SimpleNamespace(
+                output_upscale='', output_format='mp4', output_quality='balanced'),
+                domain='image', console=said.append)
+        convert.assert_not_called()
+        self.assertEqual(['a.png'], out)
+        self.assertTrue(any('.mp4' in s and 'image' in s for s in said), said)
+
+    def test_the_inspector_says_the_quality_only_when_it_acted(self):
+        from wama.common.utils.detail_registry import build_detail
+        kept = build_detail(SimpleNamespace(output_format='original', output_quality='balanced',
+                                            status='SUCCESS', error_message=''))
+        converted = build_detail(SimpleNamespace(output_format='webp', output_quality='max',
+                                                 status='SUCCESS', error_message=''))
+        self.assertNotIn('output_quality', kept)
+        self.assertEqual('max', converted.get('output_quality'))
 
 
 class OutputParamDefaultsTest(SimpleTestCase):

@@ -148,13 +148,16 @@ PARAMS_JSON = schema_to_dicts(PARAMS)
 
 # ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──
 # La brique commune `user_settings` les garde, les relit et fait naître une synthèse avec eux
-# (`new_element_settings`). Le synthesizer ne RETIENT que la voix — modèle, langue, voix —, sous
-# ses clés historiques `preferred_*` (frontière des données) ; les autres réglages du volet partent
-# de leur défaut du schéma. Cette déclaration vivait dans les vues (`_PANEL_PREF_KEYS`).
+# (`new_element_settings`). La voix — modèle, langue, voix — se retient sous ses clés historiques
+# `preferred_*` (frontière des données) ; le FORMAT et la QUALITÉ de sortie sous leur nom, comme
+# chez les autres apps qui rendent un fichier (2026-10-28, étape 1 du rangement des réglages —
+# Fabien : le synthesizer retient tout son volet ; le reste du volet suit à l'étape de la clé
+# commune `<domaine>.<nom>`). Cette déclaration vivait dans les vues (`_PANEL_PREF_KEYS`).
 from wama.common.utils.param_schema import _pget, panel_defaults  # noqa: E402
 
 STORED_UNDER = {'tts_model': 'preferred_tts_model', 'language': 'preferred_language',
-                'voice_preset': 'preferred_voice_preset'}
+                'voice_preset': 'preferred_voice_preset',
+                'output_format': 'output_format', 'output_quality': 'output_quality'}
 
 
 def user_setting_key(p):

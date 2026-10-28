@@ -130,7 +130,9 @@ class SentDescriptionTest(SendToTestBase):
 
 class SentReadingTest(SendToTestBase):
 
-    POSTED = {'mode': 'handwritten', 'output_format': 'markdown', 'language': 'de'}  # wama:redondance-ok — valeurs CHOISIES par le test (≠ défauts), pas une recopie du schéma
+    # `output_format` n'en est plus (réglage retiré du reader le 2026-10-28 : le format se choisit
+    # au téléchargement).
+    POSTED = {'mode': 'handwritten', 'language': 'de'}  # wama:redondance-ok — valeurs CHOISIES par le test (≠ défauts), pas une recopie du schéma
 
     def _values(self, pk):
         from wama.reader.models import ReadingItem
@@ -141,13 +143,13 @@ class SentReadingTest(SendToTestBase):
         deposited = self.deposit('reader', 'deposited.png', _png(), self.POSTED, field='files')
         sent = self.send_to('reader', self.author, 'sent.png', _png())
         deposited_id = deposited['created'][0]['id']
-        self.assertEqual(('handwritten', 'markdown', 'de'), self._values(deposited_id))
+        self.assertEqual(('handwritten', 'de'), self._values(deposited_id))
         self.assertEqual(self._values(deposited_id), self._values(sent['id']))
 
     def test_the_settings_of_one_author_never_reach_another(self):
         self.deposit('reader', 'deposited.png', _png(), self.POSTED, field='files')
         sent = self.send_to('reader', self.other, 'sent.png', _png())
-        self.assertEqual(('auto', 'txt', ''), self._values(sent['id']))
+        self.assertEqual(('auto', ''), self._values(sent['id']))
 
     def test_a_reader_twin_receives_the_file_in_its_own_tables_only(self):
         """Avant le 13/10, l'élément d'une jumelle était enveloppé dans un lot du reader SOURCE :

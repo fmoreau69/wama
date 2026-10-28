@@ -1008,77 +1008,16 @@ def download(request, pk: int):
     t = visible_or_404(Transcript, user, pk=pk)
     if not t.text:
         return HttpResponseBadRequest('No transcript yet')
-
-    fmt = request.GET.get('format', 'txt').lower()
-    stem = _output_stem(t)
-
-    if fmt == 'srt':
-        # Delegate to existing SRT logic (preserving download_srt for backward compat)
-        from wama.common.utils.media_paths import get_app_media_path
-        disk_path = get_app_media_path('transcriber', user.id, 'output') / f"{stem}.srt"
-        if disk_path.exists():
-            return FileResponse(open(disk_path, 'rb'), as_attachment=True,
-                                filename=f"{stem}.srt", content_type='text/plain; charset=utf-8')
-        # Generate on the fly from segments
-        from .models import TranscriptSegment
-        segments = TranscriptSegment.objects.filter(transcript=t).order_by('order')
-        srt_lines = []
-        if segments.exists():
-            for i, seg in enumerate(segments, 1):
-                def _srt_ts(s):
-                    h, rem = divmod(int(s), 3600)
-                    m, sec = divmod(rem, 60)
-                    ms = int((s - int(s)) * 1000)
-                    return f"{h:02d}:{m:02d}:{sec:02d},{ms:03d}"
-                speaker = f'[{display_speaker(seg.speaker_id, t.speaker_map)}] ' if seg.speaker_id else ''
-                srt_lines += [str(i), f"{_srt_ts(seg.start_time)} --> {_srt_ts(seg.end_time)}", speaker + seg.text, '']
-        else:
-            srt_lines = ['1', '00:00:00,000 --> 99:59:59,000', t.text, '']
-        buf = io.BytesIO('\n'.join(srt_lines).encode('utf-8'))
-        buf.seek(0)
-        return FileResponse(buf, as_attachment=True, filename=f"{stem}.srt",
-                            content_type='text/plain; charset=utf-8')
-
-    if fmt == 'pdf':
-        try:
-            from wama.common.utils.document_export import generate_transcript_pdf
-            pdf_bytes = generate_transcript_pdf(t)
-            response = HttpResponse(pdf_bytes, content_type='application/pdf')
-            response['Content-Disposition'] = content_disposition_header(True, f"{stem}.pdf")
-            return response
-        except ImportError as e:
-            return HttpResponseBadRequest(str(e))
-        except Exception as e:
-            logger.error(f"[Transcriber] PDF generation failed: {e}")
-            return HttpResponseBadRequest(f'Erreur PDF : {e}')
-
-    if fmt == 'docx':
-        try:
-            from wama.common.utils.document_export import generate_transcript_docx
-            docx_bytes = generate_transcript_docx(t)
-            response = HttpResponse(
-                docx_bytes,
-                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-            )
-            response['Content-Disposition'] = content_disposition_header(True, f"{stem}.docx")
-            return response
-        except ImportError as e:
-            return HttpResponseBadRequest(str(e))
-        except Exception as e:
-            logger.error(f"[Transcriber] DOCX generation failed: {e}")
-            return HttpResponseBadRequest(f'Erreur DOCX : {e}')
-
-    # Default: txt mis en forme (avant-propos titre/date/intervenants + compactage par locuteur)
-    try:
-        from wama.common.utils.document_export import generate_transcript_txt
-        txt_bytes = generate_transcript_txt(t)
-    except Exception as e:
-        logger.warning(f"[Transcriber] TXT formaté indisponible ({e}), repli sur texte brut")
-        txt_bytes = (t.text or '').encode('utf-8')
-    buf = io.BytesIO(txt_bytes)
-    buf.seek(0)
-    return FileResponse(buf, as_attachment=True, filename=f"{stem}.txt",
-                        content_type='text/plain; charset=utf-8')
+    # Le format demandé, rendu par LE rendu du transcriber (`build_transcript_bytes`, celui du ZIP
+    # de lot, de la médiathèque et de l'assistant) — brique commune `download_response`. Le SRT
+    # s'écrivait ici une 2ᵉ fois, et se lisait d'abord dans le dossier de sortie du COMPTE QUI
+    # TÉLÉCHARGE (vide pour une transcription partagée) : il est désormais celui des segments,
+    # corrections et noms de locuteurs compris.
+    from wama.common.utils.export_formats import download_response
+    response = download_response('transcriber', t, request.GET, _output_stem(t))
+    if response is None:
+        return HttpResponseBadRequest('Format indisponible pour cette transcription')
+    return response
 
 
 def _cleanup_output_files(t: Transcript, user_id: int) -> None:
@@ -1439,42 +1378,13 @@ def download_srt(request, pk: int):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     from wama.common.utils.scoping import visible_or_404
     t = visible_or_404(Transcript, user, pk=pk)
-
-    stem = _output_stem(t)
-
-    # Serve saved file from disk if it exists
-    from wama.common.utils.media_paths import get_app_media_path
-    disk_path = get_app_media_path('transcriber', user.id, 'output') / f"{stem}.srt"
-    if disk_path.exists():
-        return FileResponse(
-            open(disk_path, 'rb'),
-            as_attachment=True,
-            filename=f"{stem}.srt",
-            content_type='text/plain; charset=utf-8'
-        )
-
-    # Fallback: generate on the fly
-    from .models import TranscriptSegment
-
-    segments = TranscriptSegment.objects.filter(transcript=t).order_by('order')
-
-    if not segments.exists():
-        if not t.text:
-            return HttpResponseBadRequest('No transcript content')
-        srt_content = f"1\n00:00:00,000 --> 00:00:00,000\n{t.text}\n\n"
-    else:
-        srt_content = ""
-        for i, seg in enumerate(segments, 1):
-            srt_content += seg.to_srt_entry(i)
-
-    buffer = io.BytesIO(srt_content.encode('utf-8'))
-    buffer.seek(0)
-    return FileResponse(
-        buffer,
-        as_attachment=True,
-        filename=f"{stem}.srt",
-        content_type='text/plain; charset=utf-8'
-    )
+    # Adresse d'avant le ⬇ commun, gardée pour les liens existants : le MÊME rendu que
+    # `download?format=srt` (`build_transcript_bytes`) — elle écrivait le sien.
+    from wama.common.utils.export_formats import download_response
+    response = download_response('transcriber', t, {'format': 'srt'}, _output_stem(t))
+    if response is None:
+        return HttpResponseBadRequest('No transcript content')
+    return response
 
 
 @require_POST

@@ -481,19 +481,28 @@ def _codeformer(job, animated_copy, ctx):
     return str(target)
 
 
+def face_wanted(job) -> bool:
+    """L'amélioration faciale a-t-elle lieu ? Demandée, et sur une PHOTO animée : CodeFormer
+    restaure un visage photo, il est sans objet pour un avatar 3D."""
+    from .function_specs import is_3d_avatar
+    return bool(job.use_enhancer) and not is_3d_avatar(job)
+
+
 def _enhance(job, ctx):
-    """Process `enhance` (« Visage ») : par la glu COMMUNE du process de sortie
+    """Process `enhance` (« Visage et sortie ») : par la glu COMMUNE du process de sortie
     (`output_process.output_step`) avec la transformation de l'app — demandée, la vidéo animée
     est gardée à côté (`native_outputs`) et l'améliorée devient le rendu ; retirée, la vidéo
-    animée reprend sa place sans rien recalculer."""
+    animée reprend sa place sans rien recalculer. Le format et la qualité de sortie s'appliquent
+    APRÈS (`then_settings`, 2026-10-28) : une photo animée comme un avatar 3D — l'amélioration
+    faciale, elle, ne vaut que pour une photo (CodeFormer restaure un visage photo)."""
     from wama.common.services.output_process import output_step
     step = output_step('output_video', domain='video', app_id='avatarizer',
                        console=lambda item, message: _console(item.user_id, message),
-                       transform=lambda item: bool(item.use_enhancer), apply=_codeformer,
-                       what='Amélioration faciale')
+                       transform=face_wanted, apply=_codeformer, then_settings=True,
+                       what='Amélioration faciale et sortie')
     result = step(job, ctx)
     duration = float(job.duration_seconds or 0)
-    if job.use_enhancer and duration > 0:
+    if face_wanted(job) and duration > 0:
         result['eta'] = enhance_eta_key_size(job, duration)
         result['models'] = ['avatarizer:codeformer']
     return result

@@ -181,6 +181,12 @@ class AvatarJob(ProcessingTimeMixin, NativeOutputsMixin, ScopedVisibility):
         help_text="Décalage détection visage (-10 à +10, 0 = auto)"
     )
 
+    # Format et qualité de SORTIE (2026-10-28, D5) — les réglages communs de toute app qui rend un
+    # fichier (`output_formats.output_format_params`), appliqués après le visage au process de
+    # sortie. `db_default` : le code en service insère sans ces colonnes jusqu'à sa relance.
+    output_format = models.CharField(max_length=20, default='original', db_default='original')
+    output_quality = models.CharField(max_length=20, default='balanced', db_default='balanced')
+
     # Résultat
     output_video = models.FileField(
         upload_to=UploadToUserPath('avatarizer', 'output'),

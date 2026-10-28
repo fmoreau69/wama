@@ -1904,9 +1904,11 @@
             "default": "original",
             "default_from": null,
             "display_format": "",
-            "dom_id": "",
+            "dom_id": {
+              "panel": "output_format"
+            },
             "group": "sortie",
-            "help": "Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline.",
+            "help": "« Original » : le format que le floutage a écrit. « Format du fichier source » : celui du fichier déposé.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1920,7 +1922,7 @@
             "name": "output_format",
             "option_groups": [
               [
-                "Général",
+                "Conserver",
                 [
                   [
                     "original",
@@ -2026,7 +2028,7 @@
             "choices": [
               [
                 "web",
-                "Web (léger)"
+                "Rapide (web)"
               ],
               [
                 "balanced",
@@ -2034,7 +2036,7 @@
               ],
               [
                 "max",
-                "Maximum"
+                "Qualité"
               ]
             ],
             "contexts": [
@@ -2045,15 +2047,17 @@
             "default": "balanced",
             "default_from": null,
             "display_format": "",
-            "dom_id": "",
+            "dom_id": {
+              "panel": "output_quality"
+            },
             "group": "sortie",
-            "help": "",
+            "help": "Appliquée à la conversion vers le format choisi.",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
-            "icon": "fa-gem",
+            "icon": "fa-sliders",
             "inline": false,
-            "label": "Qualité de sortie",
+            "label": "Qualité",
             "max": null,
             "max_label": "",
             "min": null,
@@ -2073,7 +2077,26 @@
             "radio_name": "",
             "remember": null,
             "section": "settings",
-            "show_if": null,
+            "show_if": {
+              "field": "output_format",
+              "in": [
+                "input",
+                "mp4",
+                "webm",
+                "avi",
+                "mov",
+                "mkv",
+                "gif",
+                "jpg",
+                "png",
+                "webp",
+                "tiff",
+                "bmp",
+                "gif",
+                "avif",
+                "pdf"
+              ]
+            },
             "stales": null,
             "step": null,
             "type": "select",
@@ -2415,8 +2438,8 @@
             "max_extrapolation_frames": "number — Un objet reste flouté ce nombre d'images avant sa première détection et après sa dernière (il entre ou sort du champ), à sa vitesse. 0 : jamais. [0–30] (défaut : 5)",
             "max_interpolation_frames": "number — Un trou de détection d'au plus ce nombre d'images est comblé, entre deux détections du même objet (même piste, ou même place). [1–60] (défaut : 15)",
             "model_to_use": "select — Automatique : choisi au lancement selon le curseur et les classes. (défaut : 'auto')",
-            "output_format": "select — Conversion inline après floutage (brique converter). « Original » = format produit par le pipeline. (défaut : 'original')",
-            "output_quality": "select — Qualité de sortie (choix : web | balanced | max) (défaut : 'balanced')",
+            "output_format": "select — « Original » : le format que le floutage a écrit. « Format du fichier source » : celui du fichier déposé. (défaut : 'original')",
+            "output_quality": "select — Appliquée à la conversion vers le format choisi. (choix : web | balanced | max) (défaut : 'balanced')",
             "precision_level": "intent — 5 paliers effectifs (n/s/m/l/x) ; à partir de 50, segmentation fine. [0–100] (défaut : 50)",
             "progressive_blur": "range — Flou progressif [0–100] (défaut : 25)",
             "roi_enlargement": "range — Aire floutée autour de l'objet : moins de 1 la réduit, plus de 1 l'agrandit. [0.75–1.25] (défaut : 1.05)",

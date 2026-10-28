@@ -140,6 +140,24 @@ PARAMS = derive_from_model(
     },
 )
 
+# ── Format et qualité de SORTIE — la brique COMMUNE (2026-10-28, décision de Fabien D5) ──────────
+# L'avatarizer rendait sa vidéo dans le seul format du moteur. Ils s'appliquent APRÈS le visage,
+# au même process (`enhance`, « Visage et sortie » : un seul original gardé, `then_settings`) —
+# changer de format ne rejoue ni l'animation ni l'amélioration faciale.
+from wama.common.utils.output_formats import output_format_params  # noqa: E402
+
+_OUTPUT_PARAMS = output_format_params(
+    "video", contexts=PANEL_ITEM_BATCH,
+    dom_id_format={"panel": "output_format", "item": "settingsOutputFormat",
+                   "batch": "batchSettingsOutputFormat"},
+    dom_id_quality={"panel": "output_quality", "item": "settingsOutputQuality",
+                    "batch": "batchSettingsOutputQuality"},
+)
+for _param in _OUTPUT_PARAMS:
+    _param.stales = ("enhance",)
+PARAMS += _OUTPUT_PARAMS
+del _param
+
 PARAMS_JSON = schema_to_dicts(PARAMS)
 
 # ── Réglages UTILISATEUR — dérivés du schéma (contrat 3 de `WAMA_VERIFICATION §8`, 2026-10-18) ──

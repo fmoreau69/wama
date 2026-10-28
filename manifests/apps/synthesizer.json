@@ -909,7 +909,9 @@
             "options_query": {
               "task": "text-to-speech"
             },
-            "options_resolution": null,
+            "options_resolution": {
+              "voice": "voice_preset"
+            },
             "options_source": "catalog",
             "pills": [],
             "radio_name": "",
@@ -1097,7 +1099,11 @@
           },
           {
             "advanced": false,
-            "cap_from": null,
+            "cap_from": {
+              "capability": "voices",
+              "field": "tts_model",
+              "mode": "voices"
+            },
             "chip": true,
             "chip_label": "",
             "choices": null,
@@ -1115,7 +1121,7 @@
               "panel": "voice_preset"
             },
             "group": "",
-            "help": "Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark",
+            "help": "Voix de référence (sa_…), voix clonée (ua_…) ou voix propre du moteur",
             "help_fallback": null,
             "help_html": "",
             "help_source": null,
@@ -1641,7 +1647,7 @@
             "choices": [
               [
                 "web",
-                "Web (léger)"
+                "Rapide (web)"
               ],
               [
                 "balanced",
@@ -1649,7 +1655,7 @@
               ],
               [
                 "max",
-                "Maximum"
+                "Qualité"
               ]
             ],
             "contexts": [
@@ -1967,7 +1973,7 @@
             "text": "str",
             "top_p": "top_p — Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix. [0–1]",
             "tts_model": "select — Clé catalogue du moteur TTS (AIModel.model_key) (défaut : 'synthesizer:coqui-xtts')",
-            "voice_preset": "select — Voix de référence (sa_…), voix clonée (ua_…) ou preset Bark (défaut : 'default')",
+            "voice_preset": "select — Voix de référence (sa_…), voix clonée (ua_…) ou voix propre du moteur (défaut : 'default')",
             "work_file": "str"
           },
           "description": "Ajoute un élément à la file d'attente de Synthesizer (Synthèse vocale TTS (XTTS, Higgs Audio, Kokoro…)) et renvoie son item_id."

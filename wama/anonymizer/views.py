@@ -838,9 +838,15 @@ def get_context(request):
     from .utils.yolo_utils import catalogue_key_for, get_all_class_choices
     gs_values['model_to_use'] = catalogue_key_for(gs_values.get('model_to_use')) or 'auto'
 
+    import json as _json
+    from wama.common.utils.output_formats import OUTPUT_PARAM_NAMES
     return {
         'user': user,
         'gs_values': gs_values,
+        # Les valeurs de la section du volet GÉNÉRÉE du schéma (Sortie, 2026-10-28) — elles seules,
+        # et `<` échappé : la chaîne est posée telle quelle dans un `<script>`.
+        'panel_values_json': _json.dumps({k: v for k, v in gs_values.items()
+                                          if k in OUTPUT_PARAM_NAMES}).replace('<', '\\u003c'),
         'classes': get_all_class_choices(),
         # Appariement entrée↔modèles (brique commune input_match) — JSON déjà sérialisé, clé =
         # identifiant du catalogue (valeur d'option du menu).

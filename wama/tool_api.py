@@ -892,7 +892,6 @@ def add_to_reader(
     file_path: str,
     backend: str = 'auto',
     mode: str = 'auto',
-    output_format: str = 'txt',
     language: str = '',
     **params,
 ) -> dict:
@@ -905,8 +904,9 @@ def add_to_reader(
         backend:       'auto' ou la clé de catalogue d'un modèle d'OCR (`list_ai_models`) ;
                        un identifiant d'avant (`olmocr`) est normalisé par `ReadingItem.save`
         mode:          'auto' | 'printed' | 'handwritten'
-        output_format: 'txt' | 'markdown'
         language:      Language code (fr, en…) or empty for auto-detection
+                       (Le format du texte se choisit à la lecture du résultat : `get_item_result`,
+                       `output_format` — plus à la création, 2026-10-28.)
         **params:      Tout autre réglage DÉCLARÉ au schéma (`reader/params.py`) et porté par le
                        modèle — `llm_model`, `format_markdown`, `generate_analysis`… Appliqués via
                        `schema_model_kwargs()`, comme les autres créateurs (2026-10-18).
@@ -936,7 +936,6 @@ def add_to_reader(
             original_filename=received.name,
             backend=backend,
             mode=mode,
-            output_format=output_format,
             language=language or '',
             status='PENDING',
             **schema_model_kwargs('reader', params),
@@ -962,7 +961,6 @@ def add_to_reader(
         'page_count': item.page_count,
         'backend': backend,
         'mode': mode,
-        'output_format': output_format,
         'status': 'PENDING',
     }
 

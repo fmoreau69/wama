@@ -152,25 +152,6 @@
               "args": [],
               "class": "django.db.models.CharField",
               "kwargs": {
-                "choices": {
-                  "expr": "[('txt', 'Texte brut (.txt)'), ('markdown', 'Markdown (.md)')]",
-                  "imports": []
-                },
-                "default": {
-                  "expr": "'txt'",
-                  "imports": []
-                },
-                "max_length": {
-                  "expr": "16",
-                  "imports": []
-                }
-              },
-              "name": "output_format"
-            },
-            {
-              "args": [],
-              "class": "django.db.models.CharField",
-              "kwargs": {
                 "blank": {
                   "expr": "True",
                   "imports": []
@@ -970,67 +951,6 @@
             "cap_from": null,
             "chip": true,
             "chip_label": "",
-            "choices": [
-              [
-                "txt",
-                "Texte brut (.txt)"
-              ],
-              [
-                "markdown",
-                "Markdown (.md)"
-              ]
-            ],
-            "contexts": [
-              "item",
-              "batch",
-              "panel"
-            ],
-            "default": "txt",
-            "default_from": null,
-            "display_format": "",
-            "dom_id": {
-              "batch": "batchSettingsOutputFormat",
-              "item": "rSettings_output_format",
-              "panel": "outputFormatSelect"
-            },
-            "group": "",
-            "help": "Format du texte produit. Les autres formats restent téléchargeables ensuite.",
-            "help_fallback": null,
-            "help_html": "",
-            "help_source": null,
-            "icon": "fa-file-lines",
-            "inline": false,
-            "label": "Format de sortie",
-            "max": null,
-            "max_label": "",
-            "min": null,
-            "min_label": "",
-            "name": "output_format",
-            "option_groups": null,
-            "options_abilities": false,
-            "options_auto": false,
-            "options_cloud": false,
-            "options_group": "",
-            "options_mode": null,
-            "options_ports": false,
-            "options_query": null,
-            "options_resolution": null,
-            "options_source": null,
-            "pills": [],
-            "radio_name": "",
-            "remember": null,
-            "section": "output",
-            "show_if": null,
-            "stales": null,
-            "step": null,
-            "type": "select",
-            "unit": ""
-          },
-          {
-            "advanced": false,
-            "cap_from": null,
-            "chip": true,
-            "chip_label": "",
             "choices": null,
             "contexts": [
               "item",
@@ -1559,7 +1479,6 @@
             "backend",
             "mode",
             "language",
-            "output_format",
             "llm_model",
             "llm_temperature",
             "llm_seed",
@@ -1613,7 +1532,6 @@
             "llm_temperature": "temperature — Le hasard du modèle. À 0, même entrée, même résultat ; plus haut, le résultat varie d'un lancement à l'autre. Un modèle distant ne garantit pas toujours le même résultat, même à 0. [0–2.0]",
             "llm_top_p": "top_p — Le modèle ne tire que parmi ses choix les plus probables, jusqu'à cette part du total : plus bas, un résultat plus sûr et moins varié ; 1, tous les choix. [0–1]",
             "mode": "select — Mode de lecture (choix : auto | printed | handwritten) (défaut : 'auto')",
-            "output_format": "select — Format du texte produit. Les autres formats restent téléchargeables ensuite. (choix : txt | markdown) (défaut : 'txt')",
             "quality_intent": "intent — Guide le choix automatique : à gauche un modèle léger et rapide, à droite le meilleur modèle même s'il faut attendre des ressources. [0–100] (défaut : 50)"
           },
           "description": "Ajoute un élément à la file d'attente de Reader (OCR) (Extraction de texte par OCR (Tesseract, PaddleOCR, EasyOCR)) et renvoie son item_id."
@@ -1675,6 +1593,14 @@
     {
       "key": "reader:olmocr",
       "kind": "model"
+    },
+    {
+      "key": "PyMuPDF",
+      "kind": "library"
+    },
+    {
+      "key": "pymupdf",
+      "kind": "library"
     },
     {
       "key": "python-doctr",

@@ -39,15 +39,21 @@ _PDF_FONT = 'DejaVu' if _DEJAVU else 'Helvetica'
 # Helper — FPDF base class with header/footer
 # ──────────────────────────────────────────────────────────────────────────────
 
-def _strip_markdown(text: str) -> str:
-    """Strip markdown syntax while preserving paragraph structure for PDF/DOCX rendering."""
+def strip_markdown(text: str) -> str:
+    """Le texte SANS sa mise en forme Markdown, paragraphes gardés — pour le PDF, le DOCX et, depuis
+    le 2026-10-28, le fichier TXT d'un texte mis en forme (décision de Fabien : « le choix du fichier
+    de sortie définit de lui-même si on retire la mise en forme »).
+
+    Les marques d'emphase ne partent que lorsqu'elles ENCADRENT un texte (`**gras**`, `_italique_`) :
+    elles partaient partout, et un `nom_de_fichier` lu par l'OCR sortait `nomdefichier`."""
     if not text:
         return text
     t = text
     # Remove heading markers
     t = re.sub(r'^#{1,6}\s+', '', t, flags=re.MULTILINE)
-    # Remove bold/italic markers
-    t = re.sub(r'\*{1,3}|_{1,3}', '', t)
+    # Remove bold/italic markers — paired, around a text, never inside a word
+    t = re.sub(r'(\*{1,3})(?=\S)(.+?)(?<=\S)\1', r'\2', t)
+    t = re.sub(r'(?<!\w)(_{1,3})(?=\S)(.+?)(?<=\S)\1(?!\w)', r'\2', t)
     # Remove table separator lines (|---|---|)
     t = re.sub(r'^\s*\|[-|: ]+\|\s*$', '', t, flags=re.MULTILINE)
     # Replace table pipes with spaces
@@ -470,13 +476,13 @@ def generate_reader_pdf(item) -> bytes:
 
     # ── OCR Text ──
     _section_title(pdf, 'Texte Extrait')
-    _body_text(pdf, _sanitize_for_latin1(_strip_markdown(item.result_text or '')))
+    _body_text(pdf, _sanitize_for_latin1(strip_markdown(item.result_text or '')))
 
     # ── Analysis (if any) — process optionnel du reader : décoché, il ne s'exporte pas ──
     if item.analysis and getattr(item, 'generate_analysis', True):
         pdf.ln(2)
         _section_title(pdf, 'Analyse')
-        _body_text(pdf, _sanitize_for_latin1(_strip_markdown(item.analysis)))
+        _body_text(pdf, _sanitize_for_latin1(strip_markdown(item.analysis)))
 
     return bytes(pdf.output())
 
@@ -515,12 +521,12 @@ def generate_reader_docx(item) -> bytes:
 
     # OCR text
     doc.add_heading('Texte Extrait', 1)
-    doc.add_paragraph(_strip_markdown(item.result_text or ''))
+    doc.add_paragraph(strip_markdown(item.result_text or ''))
 
     # Analysis — process optionnel du reader : décoché, il ne s'exporte pas
     if item.analysis and getattr(item, 'generate_analysis', True):
         doc.add_heading('Analyse', 1)
-        doc.add_paragraph(_strip_markdown(item.analysis))
+        doc.add_paragraph(strip_markdown(item.analysis))
 
     buf = io.BytesIO()
     doc.save(buf)

@@ -70,6 +70,63 @@ class PasDeRecidiveTests(SimpleTestCase):
             + "\n  ".join(coupables))
 
 
+class OneRenderingPerFormatTest(SimpleTestCase):
+    """The ⬇ of ONE element of a late-binding app goes through the rendering the app REGISTERED —
+    the one of its batch ZIP, the media library and the assistant (2026-10-28). The three
+    `download` views recoded their formats next to it : the transcriber wrote its SRT four ways,
+    and read it first from the folder of the account DOWNLOADING (empty for a shared transcript)."""
+
+    MARKDOWN = '# Titre\n\n**Gras** et _italique_ — un nom_de_fichier et 2*3.\n\n| a | b |\n|---|---|\n'
+
+    def _reading(self, text=MARKDOWN, raw=''):
+        from types import SimpleNamespace
+        return SimpleNamespace(result_text=text, raw_result=raw, pk=1, id=1)
+
+    def test_the_download_of_an_element_is_its_registered_rendering(self):
+        from wama.common.utils.export_formats import download_response, export_builder_for
+        item = self._reading()
+        for fmt in ('txt', 'md'):
+            with self.subTest(fmt=fmt):
+                response = download_response('reader', item, {'format': fmt}, 'stem')
+                ext, data = export_builder_for('reader')(item, fmt)
+                self.assertEqual(data, response.content)
+                self.assertIn(f'stem.{ext}', response['Content-Disposition'])
+
+    def test_a_txt_file_carries_no_markdown_and_an_md_file_keeps_it(self):
+        from wama.common.utils.export_formats import export_builder_for
+        render = export_builder_for('reader')
+        txt = render(self._reading(), 'txt')[1].decode()
+        md = render(self._reading(), 'md')[1].decode()
+        self.assertEqual(self.MARKDOWN, md)
+        for mark in ('# ', '**', '_italique_', '|'):
+            self.assertNotIn(mark, txt)
+        self.assertIn('nom_de_fichier', txt, 'an underscore INSIDE a word is text, not emphasis')
+        self.assertIn('2*3', txt)
+
+    def test_an_unknown_format_falls_back_on_the_first_declared_and_nothing_is_none(self):
+        from wama.common.utils.export_formats import download_response
+        response = download_response('reader', self._reading(), {'format': 'exe'}, 'stem')
+        self.assertIn('stem.txt', response['Content-Disposition'])
+        self.assertIsNone(download_response('reader', self._reading(text=''), {'format': 'txt'},
+                                            'stem'), 'no result : no file, the view says it')
+
+    def test_no_late_binding_view_reads_the_format_by_hand_again(self):
+        """Guard at the RE-APPEARANCE : the requested format is read by `requested_format`."""
+        from wama.common.utils.export_formats import is_late_binding
+        idiom = re.compile(r"""GET\.get\(\s*['"](format|fmt)['"]""")
+        racine = Path(settings.BASE_DIR)
+        offenders = []
+        for path in racine.glob('wama/*/views.py'):
+            # Les jumelles de bac à sable (`<app>_NN`) sont la sortie du GÉNÉRATEUR, mesurée à part
+            # (`sandbox_apps` de la grille) : elles suivront à leur régénération.
+            if re.search(r'_\d+$', path.parent.name) or not is_late_binding(path.parent.name):
+                continue
+            for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+                if idiom.search(line):
+                    offenders.append(f'{path.relative_to(racine)}:{number}')
+        self.assertEqual([], offenders)
+
+
 class BoutonTelechargerTests(SimpleTestCase):
     """Les quatre formes du ⬇ commun — dont `split=False`, ajoutée le 2026-08-30 pour la BARRE
     de file. Ce qui est réellement vérifié ici n'est pas l'esthétique : c'est que les formats
