@@ -26773,3 +26773,51 @@ Suite de `§CLÔTURE 2026-10-27 (soir)`. Commits : `25a1b5ae` (lignes de process
 - 🔚 **Décisions ouvertes (Fabien)** : essayer le glisser-déposer, puis un menu « ⋯ » unique à la
   place des boutons d'atelier · détacher un panneau en vraie fenêtre · Albert/DINUM (c).
 - Pendings système : pousser `dev` (rien n'est poussé).
+
+## §CLÔTURE 2026-10-28 (matin), « VOIX : SAISIE, PRONONCIATION, FIN DE TOUR — MODÉRATION REVÉRIFIÉE » — clos — 🔚 juger la fin de tour au casque
+
+Session ouverte le 27/10 au soir après la clôture « voix de l'assistant, clés, ILaaS »
+(`6c35e563`). Tout est commité, rien n'est poussé.
+
+- **Saisie pendant la réflexion** (`5a935205`) — la zone reste ouverte, un message envoyé
+  interrompt le tour en cours (`WAMA_LLM.md`, 27/10).
+- **Prononciation des termes techniques** (`b721405c`), puis **registres à auteur
+  `pronunciations` et `prompt_keywords`** (`3a5bd500`, docs dérivées `9f63ecb3`) — `ROADMAP §29
+  4ter`, `WAMA_LLM.md` vocalisation ; migrations `common 0037`, `media_library 0021/0022`
+  appliquées (vérifié `showmigrations` le 28/10).
+- **Veille « voix rapides »** (rapport de recherche du scratchpad de session, envoyé à Fabien) :
+  trois de ses pistes tombées à la lecture du code (tri par tendance DÉJÀ là, filtre de parole qui
+  ne jette aucun segment court, pas de transcodage navigateur) ; Parakeet/Canary NON branchés —
+  Fabien : *« attention aux benchmarks »*, mesure WAMA SUMM-RE (Whisper 28 %, Canary 38,7 %).
+- **Fin de tour** (`7b3b1f49`, revérif `4bb0f165`, gardes `d6b1a020`, langue `3367fbd9`) — Smart
+  Turn v3.2 installé PAR LA ROUTE (`pull_model`, pilote `files`), tâche neuve `end-of-turn` ;
+  trois zones (≥ 0,95 part, ≤ 0,2 patiente 2 s, sinon 900 ms comme avant) parce que le seuil 0,5
+  de l'éditeur coupait 2 hésitations sur 3 (sonde synthétique). Mesuré sur le service EN MARCHE :
+  30 ms, entière 0,977 → partie, coupée 0,743 → aucun avis. Plus une ligne de journal par
+  réplique (`speech_input._log_timing`) : Fabien soupçonne des PROCESS qui interfèrent.
+- **Modération des nouveaux comptes revérifiée** (`f4835296`, `PROFILES_PERMISSIONS §1.8`) —
+  garde de bout en bout par le vrai chemin de django-auth-ldap ; aucune notification
+  `account_pending` en base (personne inscrit depuis le 20/10).
+
+Contrôles mesurés le 28/10 : 335 tests du périmètre verts puis 83 (écoute + modération) après la
+dernière écriture ; `tests_identifier_language` 11 verts (le dépassement 1292 > 1291 était MON nom
+de test, attribué à tort à d'autres dans `7b3b1f49`) ; contre-épreuves : 4 + 4 + 2 neutralisations,
+toutes rouges ; `check_redundancy` 89, aucune trouvaille de la session ; `check_docs` 0 cassée,
+1 périmée (un renvoi de ligne vers le `views.py` racine, dans un bloc ancien de ce journal ; le
+fichier a été raccourci par une autre session).
+
+- Restes HÉRITÉS, pas de cette session : `tests_test_layout` rouge (un dossier non suivi
+  « privacy (1) » sous le substrat) ; docs générées (`WAMA_MECANISMES`, `docs/dev/briques.md`, skill
+  `conformite`) qui portent le WIP d'autres sessions.
+- Effets de bord : `sync_models` lancé (catalogue 637 lignes, écriture prod par la route) ;
+  modèle `huggingface:pipecat-ai/smart-turn-v3` installé (8,7 Mo, empreinte vérifiée) ;
+  scripts de sonde et de contre-épreuve dans le scratchpad de session, jetables.
+- 🔚 **Point d'entrée** : Fabien juge la fin de tour au casque ; le journal porte
+  `[end_of_turn] p=…` et `[speech_input] réplique de …` — relever les seuils sur la voix RÉELLE.
+- **Décisions ouvertes (Fabien)** : mot de passe d'envoi `WAMA_EMAIL_PASSWORD` (vide : aucun
+  email ne part) · `Démo_IATOU` au niveau administrateur (reçoit et peut activer) — voulu ? ·
+  `fmoreau` sans email · suite de la veille : accusé de réception immédiat (ConvFill étage 1),
+  Pocket TTS (licence des poids à lire), source « veille » de la prospection, Parakeet sur des
+  répliques réelles.
+- Pendings système : relancer le service vocal pour que `4bb0f165` (fournisseurs ONNX communs)
+  y soit chargé — comportement identique ; pousser `dev`.

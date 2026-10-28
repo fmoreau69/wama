@@ -96,6 +96,13 @@ de donnée), jamais par le nom de ce qui a déménagé.
   trop à la racine d'une app), `tests_install_route`, `tests_hf_cache_routing`. Les tests du
   périmètre passaient ; ces cinq-là ont trouvé TROIS écarts de ma main. Un rouge préexistant y
   reste à son propriétaire, mais s'il est AGGRAVÉ par la session, il est à elle.
+  🔴 **« Préexistant » se PROUVE par la liste nominative filtrée sur SES fichiers, avant d'être
+  écrit** (vécu le 2026-10-28, deuxième fois en deux jours) : `tests_identifier_language` rouge
+  (1292 > 1291) a été déclaré « d'autres sessions » dans un message de commit, sur la foi des
+  lignes de `tests_tts_service.py` que `--detail` affichait en tête — le dépassement était MON nom
+  de test (`…_declares_…`, racine « déclar »), trouvé à la clôture. ✅
+  `check_identifier_language --detail --test-names | grep -E "<mes fichiers>"` doit être VIDE
+  pour attribuer le rouge à autrui ; sinon renommer, relancer, et le budget redevient vert.
 - Garder : `/cloture §2a bis` — une ligne par livrable : son symbole → le test qui le nomme.
 - Prouver : `/contre-epreuve` sur chaque garde neuve (brique neutralisée → ROUGE exigé). Vécu le
   2026-10-12 : sept gardes, toutes rouges — mais c'est la seule façon de le SAVOIR.
