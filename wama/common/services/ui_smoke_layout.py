@@ -1328,9 +1328,117 @@ def check_phone_home(url_path: str, page_hook=None):
     return True, ' → '.join(steps)
 
 
+#: Les ÉCRANS du relevé du 2026-10-28 (`ROADMAP §27`) : (nom, largeur, hauteur, densité, tactile).
+SCREENS = (
+    ('21:9 3440', 3440, 1440, 1, False),
+    ('21:9 2560', 2560, 1080, 1, False),
+    ('4K à 150 %', 2560, 1440, 1.5, False),
+    ('Full HD', 1920, 1080, 1, False),
+    ('portable', 1366, 768, 1, False),
+    ('tablette paysage', 1194, 834, 2, True),
+    ('tablette portrait', 834, 1194, 2, True),
+    ('téléphone', 390, 844, 3, True),
+)
+
+#: Les éléments VISIBLES qui sortent de l'écran par la droite : un bouton qu'on ne peut plus
+#: atteindre, une barre qui fait défiler son conteneur de côté. Ce qu'un ancêtre coupe EXPRÈS
+#: (`overflow: hidden | clip` — un texte abrégé) n'en est pas.
+JS_OUT_OF_SCREEN = """() => {
+    const vw = document.documentElement.clientWidth, out = [];
+    const cut = e => { for (let a = e.parentElement; a && a !== document.body; a = a.parentElement) {
+        const x = getComputedStyle(a).overflowX; if (x === 'hidden' || x === 'clip') return true; }
+        return false; };
+    for (const e of document.body.querySelectorAll('*')) {
+        const r = e.getBoundingClientRect();
+        if (r.width < 1 || r.right <= vw + 2) continue;
+        if (e.checkVisibility && !e.checkVisibility({checkOpacity: true, checkVisibilityCSS: true})) continue;
+        if (cut(e)) continue;
+        out.push((e.id ? '#' + e.id : e.tagName.toLowerCase() + [...e.classList].slice(0, 2).map(c => '.' + c).join(''))
+                 + ' +' + Math.round(r.right - vw) + ' px');
+        if (out.length >= 3) break;
+    }
+    return out; }"""
+
+
+def check_screen_layouts(paths: dict, page_hook=None):
+    """La MISE EN PAGE de l'écran 21:9 au téléphone (2026-10-28, question de Fabien : « toute l'UI
+    de WAMA sera bien propre quel que soit l'écran ») — (ok, détail).
+
+    Sur chaque écran de `SCREENS` et chaque page de `paths` ({libellé: chemin}) : ni chevauchement
+    de la barre du haut ou du pied, ni débordement, ni défilement horizontal (les mesures de
+    `common.layout.tablet`), et aucun élément VISIBLE hors de l'écran (`JS_OUT_OF_SCREEN`). Rien
+    n'est écrit : la page est seulement lue. `page_hook(page)` : posé sur chaque page (contre-épreuve)."""
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    sessions_before = _session_keys()
+    token = _test_session_key()
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+    faults, measured = [], 0
+    try:
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                for name, width, height, density, touch in SCREENS:
+                    ctx = browser.new_context(viewport={'width': width, 'height': height},
+                                              device_scale_factor=density, has_touch=touch,
+                                              is_mobile=touch and width < 768)
+                    ctx.add_cookies(_cookie(token))
+                    page = ctx.new_page()
+                    if page_hook:
+                        page_hook(page)
+                    for label, path in paths.items():
+                        url = f"{BASE_URL.rstrip('/')}{path}"
+                        try:
+                            resp = page.goto(url, wait_until='load', timeout=PAGE_TIMEOUT_MS)
+                        except Exception as error:
+                            faults.append(f"{name} · {label} : {type(error).__name__}")
+                            continue
+                        if resp is None or resp.status != 200:
+                            continue                  # une page refusée au compte n'est pas mesurée
+                        page.wait_for_timeout(1200)
+                        faults += _clean_layout(page.evaluate(JS_LAYOUT), f"{name} · {label}")
+                        out = page.evaluate(JS_OUT_OF_SCREEN)
+                        if out:
+                            faults.append(f"{name} · {label} : hors de l'écran {out}")
+                        measured += 1
+                    ctx.close()
+            finally:
+                browser.close()
+    except SkipScenario:
+        raise
+    except Exception as error:
+        faults.append(f"interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
+    finally:
+        _drop_new_sessions(sessions_before)
+    detail = f"{len(SCREENS)} écrans × {len(paths)} pages ({measured} mesurées)"
+    if faults:
+        return False, detail + ' — ' + ' ; '.join(faults[:12]) + (f' (+{len(faults) - 12})' if len(faults) > 12 else '')
+    return True, detail
+
+
+def screen_pages() -> dict:
+    """Les pages du relevé des écrans : l'accueil, le journal, le calendrier, et l'index de chaque
+    app que WAMA découvre (`ui_smoke.discoverable_apps`) — aucune nommée ici."""
+    from django.urls import NoReverseMatch, reverse
+
+    from .ui_smoke import discoverable_apps
+    pages = {}
+    for label, name in (('accueil', 'home'), ('journal', 'common:journal'), ('calendrier', 'common:calendar')):
+        try:
+            pages[label] = reverse(name)
+        except NoReverseMatch:
+            pass
+    pages.update(dict(discoverable_apps()))
+    return pages
+
+
 def register_layout_scenarios():
-    """Enregistre `common.layout.tablet` (la mise en page à largeur de tablette),
-    `common.gestures.touch` (les gestes au doigt) et `common.gestures.mouse` (les mêmes à la souris)."""
+    """Enregistre `common.layout.tablet` (la mise en page à largeur de tablette), `common.layout.
+    screens` (de l'écran 21:9 au téléphone), `common.gestures.touch` (les gestes au doigt) et
+    `common.gestures.mouse` (les mêmes à la souris)."""
     from django.urls import NoReverseMatch, reverse
 
     from wama.common.services.nightly_tests import register
@@ -1354,6 +1462,14 @@ def register_layout_scenarios():
                      "rouverts un par un"),
         run=(lambda h=reverse('home'): (lambda ctx: check_phone_home(h)))(),
         timeout_s=180, vram_gb=0.0,
+    )
+    register(
+        id="common.layout.screens", app="common", stage="ui",
+        description=("Mise en page de l'écran 21:9 au téléphone (8 écrans) sur l'accueil, le journal, "
+                     "le calendrier et chaque app : barre et pied sans chevauchement, aucun défilement "
+                     "horizontal, aucun élément visible hors de l'écran"),
+        run=lambda ctx: check_screen_layouts(screen_pages()),
+        timeout_s=1200, vram_gb=0.0,
     )
     try:
         gesture_paths = {'studio': reverse('studio:index'), 'queue': path}

@@ -64,7 +64,7 @@ depuis le passage des apps à la v4 : RETIRÉS le 2026-10-20 (`REMOVAL_LEDGER` R
 les aurait repris aurait décidé à la main ce que les ports décident.{% endcomment %}
 <div class="card mb-3 shadow-sm wama-new-item-card" id="{{ card_id|default:'newItemCard' }}" data-wama-depot="cree"{% if collapsible %} data-wama-nic{% endif %}>
     <div class="card-body py-2">
-        <div class="d-flex align-items-center gap-2 mb-2 small text-body-secondary"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2 small text-body-secondary"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
             <span class="text-muted">— glissez un fichier{% if show_url %}, ou collez une URL{% endif %}</span>
             {% include 'common/_settings_hint.html' %}

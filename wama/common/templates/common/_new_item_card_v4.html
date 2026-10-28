@@ -50,7 +50,7 @@ accepte (`ports_for_domain`). Nom propre : une variable `domain` du contexte de 
      {% if collapsible %}data-wama-nic{% if ports.entry.prompt %} data-nic-primary="{{ prompt_input_id|default:'promptInput' }}"{% endif %}{% endif %}>
     <div class="card-body py-2">
 
-        <div class="d-flex align-items-center gap-2 mb-2 small text-body-secondary"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
+        <div class="d-flex flex-wrap align-items-center gap-2 mb-2 small text-body-secondary"{% if collapsible %} data-nic-toggle role="button" title="Déplier / replier les options d'import"{% endif %}>
             <i class="fas fa-plus-circle text-info"></i> <strong>Nouvel élément</strong>
             <span class="text-muted">{% if ports.entry.prompt %}— décrivez, glissez ou collez{% else %}— glissez un fichier{% endif %}</span>
             {% include 'common/_settings_hint.html' %}

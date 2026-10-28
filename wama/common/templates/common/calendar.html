@@ -50,6 +50,9 @@ Couleurs : l'IDENTITÉ de l'app (`APP_CATALOG[…]['color']`, dérivée par cat�
         padding: .75rem;
     }
     #wama-calendar a { color: inherit; text-decoration: none; }
+    /* La barre du calendrier PASSE À LA LIGNE quand la place manque (2026-10-28, mesuré à 390 px :
+       les vues semaine et jour sortaient de 150 px de l'écran) — FullCalendar la garde sur une. */
+    #wama-calendar .fc-header-toolbar { flex-wrap: wrap; gap: .5rem; }
     #wama-calendar .fc-col-header-cell-cushion,
     #wama-calendar .fc-daygrid-day-number { color: var(--wama-text-desc); }
     #wama-calendar .fc-event { cursor: pointer; }

@@ -6328,16 +6328,27 @@ l'échelle 1,5, 1 920 × 1 080, portable 1 366 × 768, tablette paysage et portr
 390 × 844), mesures de `common.layout.tablet` plus les éléments qui sortent de la fenêtre :
 - **du portable au 21:9 : rien à reprendre** — ni chevauchement de la barre ou du pied, ni
   défilement horizontal, ni élément hors de la fenêtre ; le centre s'élargit (2 800 px en 21:9).
-- **tablette** : propre (un libellé de 10 px hors du cadre à l'anonymizer en paysage, non élucidé).
+- **tablette** : propre (un libellé de 10 px hors du cadre à l'anonymizer en paysage — élucidé et
+  corrigé plus bas).
 - **téléphone** : aucun défilement horizontal, mais trois débordements : le pied (« Disque »
   coupé de 66 px) — ✅ corrigé le jour même, sous 576 px le titre laisse sa place et les jauges ne
-  gardent que leur pourcentage ; ⏳ les boutons du chat de l'accueil (réglages, avatar : jusqu'à
-  140 px hors de l'écran) ; ⏳ la barre du calendrier (FullCalendar : vues semaine et jour, 150 px).
+  gardent que leur pourcentage ; ✅ les boutons du chat de l'accueil (réglages, avatar : jusqu'à
+  140 px hors de l'écran) passent sous le titre ; ✅ la barre du calendrier (FullCalendar : vues
+  semaine et jour, 150 px) passe à la ligne — tous deux le même jour, à la demande de Fabien.
 - **plusieurs écrans** : une fenêtre par écran, et depuis le même jour un panneau s'ouvre « dans une
   autre fenêtre » (`WAMA_VOLETS §3-ter`). ⚠ Un canevas dessiné pour la densité de pixels de la page
   peut paraître flou sur un écran d'une autre densité.
-- ⏳ **Ce relevé n'est pas un scénario nocturne** : le garder chaque nuit sur ces écrans est à
-  décider ; un vrai téléphone et un vrai écran incurvé restent les seuls juges de leur rendu.
+- ✅ **Le relevé est devenu un scénario nocturne, `common.layout.screens`** (le même jour, accord
+  de Fabien) : les 8 écrans × l'accueil, le journal, le calendrier et l'index de chaque app que
+  WAMA découvre (`discoverable_apps` — jumelles comprises, 28 pages, 224 mesures ; les pages du
+  monde Lab n'en sont pas). En plus des mesures de `common.layout.tablet`, tout élément VISIBLE
+  hors de l'écran ; ce qu'un ancêtre coupe exprès (`overflow: hidden`, un texte abrégé) n'en est
+  pas, ce qui fait défiler son conteneur de côté, si. Sa première passe en a trouvé deux de plus,
+  corrigés : le chevron de la card « Nouvel élément » hors de l'écran au téléphone (sa rangée passe
+  désormais à la ligne, `_new_item_card(_v4).html`) et un libellé de réglage de l'anonymizer
+  interdit de passer à la ligne, qui débordait du volet en tablette paysage. Contre-épreuve : le
+  défaut du pied remis dans le navigateur → rouge. Un vrai téléphone et un vrai écran incurvé
+  restent les seuls juges de leur rendu.
 
 ---
 

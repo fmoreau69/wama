@@ -172,7 +172,9 @@ chaque surface qui rend un schéma la charge. L'assistant en rend un depuis le 2
     <!-- AI Chat -->
     <div class="row mb-4">
       <div class="col-12">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        {% comment %}`flex-wrap` : sur un téléphone, les boutons passent sous le titre (2026-10-28,
+        mesuré à 390 px : ils sortaient de 140 px de l'écran).{% endcomment %}
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
           <h4 class="mb-0"><i class="fas fa-comments"></i> AI Assistant</h4>
           <div class="d-flex gap-2 align-items-center">
             <button id="ai-voice-toggle" class="btn btn-outline-secondary btn-sm" title="Activer la vocalisation">

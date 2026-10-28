@@ -258,6 +258,18 @@ class HeaderAndFooterDoNotOverlapTest(SimpleTestCase):
         from wama.common.services import nightly_tests
         self.assertIn('common.layout.tablet', {s.id for s in nightly_tests.REGISTRY})
 
+    def test_every_screen_from_21_9_to_the_phone_is_measured_every_night(self):
+        # 2026-10-28 (Fabien : « toute l'UI propre quel que soit l'écran ») : le relevé devient un
+        # scénario, sur toutes les pages d'apps découvertes et huit écrans.
+        from wama.common.services import nightly_tests, ui_smoke_layout
+        self.assertIn('common.layout.screens', {s.id for s in nightly_tests.REGISTRY})
+        widths = [s[1] for s in ui_smoke_layout.SCREENS]
+        self.assertEqual((3440, 390), (max(widths), min(widths)))
+        # Un élément coupé EXPRÈS n'est pas un débordement ; un élément caché non plus.
+        self.assertIn("x === 'hidden' || x === 'clip'", ui_smoke_layout.JS_OUT_OF_SCREEN)
+        self.assertIn('checkVisibility', ui_smoke_layout.JS_OUT_OF_SCREEN)
+        self.assertGreaterEqual(len(ui_smoke_layout.screen_pages()), 10)
+
 
 class OneSourceForPanelRoomTest(SimpleTestCase):
 
