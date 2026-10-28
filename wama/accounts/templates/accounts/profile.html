@@ -594,6 +594,34 @@
                             Décoché, un modèle payant au jeton ne part que si vous le choisissez vous-même.
                         </div>
                     </div>
+                    {% comment %}Troisième axe (2026-10-28) : ce qui arrive aux données personnelles avant le départ, par hébergement. Une ligne que le réglage ci-dessus exclut est grisée, son choix gardé (`common/privacy/gate`).{% endcomment %}
+                    <div class="mt-4" id="cloudPrivacy">
+                        <div class="small fw-semibold text-body-emphasis mb-1">
+                            <i class="fas fa-user-shield me-1"></i>Confidentialité
+                        </div>
+                        <p class="text-body-secondary small mb-2">
+                            Avant qu'un échange parte chez un fournisseur distant, WAMA y repère les
+                            données personnelles (noms, adresses, numéros…). Choisissez, pour chaque
+                            type d'hébergement, ce qu'il en fait.
+                        </p>
+                        {% for level, label, rank, gesture in privacy_rows %}
+                        <div class="d-flex flex-wrap gap-2 align-items-center mb-2 cloud-privacy-row"
+                             data-level="{{ level }}" data-rank="{{ rank }}">
+                            <label for="cloudPrivacy-{{ level }}" class="small text-body-emphasis"
+                                   style="min-width: 140px;">{{ label }}</label>
+                            <select id="cloudPrivacy-{{ level }}"
+                                    class="form-select form-select-sm bg-body text-body-emphasis border-secondary"
+                                    style="max-width: 420px;">
+                                {% for value, text in privacy_gestures %}
+                                <option value="{{ value }}" {% if value == gesture %}selected{% endif %}>{{ text }}</option>
+                                {% endfor %}
+                            </select>
+                            <span class="small text-body-secondary cloud-privacy-off" style="display:none;">
+                                sans objet avec vos réglages ci-dessus
+                            </span>
+                        </div>
+                        {% endfor %}
+                    </div>
                     <div class="mt-3">
                         <button id="saveCloudPolicyBtn" class="btn btn-outline-primary btn-sm">
                             <i class="fas fa-save me-1"></i> Enregistrer
@@ -1186,14 +1214,33 @@ document.getElementById('confirmRegenBtn').addEventListener('click', async () =>
 });
 
 // ── Modèles cloud : niveau d'usage ───────────────────────────────────────────
+// Confidentialité : une ligne que le niveau ou le plafond exclut est grisée — son choix reste,
+// il revient si le réglage s'élargit. Les options du plafond suivent l'ordre de l'échelle.
+const privacyRows = document.querySelectorAll('.cloud-privacy-row');
+function refreshPrivacyRows() {
+    const local = document.getElementById('cloudPolicySelect').value === 'local_only';
+    const ceiling = document.getElementById('cloudHostingSelect').selectedIndex;
+    privacyRows.forEach(row => {
+        const off = local || Number(row.dataset.rank) > ceiling;
+        row.querySelector('select').disabled = off;
+        row.querySelector('.cloud-privacy-off').style.display = off ? '' : 'none';
+    });
+}
+['cloudPolicySelect', 'cloudHostingSelect'].forEach(id =>
+    document.getElementById(id).addEventListener('change', refreshPrivacyRows));
+refreshPrivacyRows();
+
 document.getElementById('saveCloudPolicyBtn').addEventListener('click', async () => {
     const cloud_policy = document.getElementById('cloudPolicySelect').value;
     const msg = document.getElementById('cloudPolicyMsg');
+    const cloud_privacy = {};
+    privacyRows.forEach(row => { cloud_privacy[row.dataset.level] = row.querySelector('select').value; });
     try {
         const data = await postJson(CLOUD_POLICY_URL, {
             cloud_policy,
             cloud_hosting_max: document.getElementById('cloudHostingSelect').value,
             cloud_metered_auto: document.getElementById('cloudMeteredAuto').checked,
+            cloud_privacy,
         });
         if (data.success) showMsg(msg, '✓ Préférence enregistrée');
         else showMsg(msg, data.error || 'Erreur', true);

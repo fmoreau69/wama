@@ -801,8 +801,9 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
     de `llm_chat`).
 
     ⚠ LÈVE `CloudAccessRefused` (motif + statut HTTP) quand la garde commune refuse (profil
-    « 100 % local », modèle non ouvert par la clé, clé absente) : l'appelant choisit sa forme de
-    refus — `chat_with_catalog_model` la rend en message, l'assistant en statut.
+    « 100 % local », modèle non ouvert par la clé, clé absente) ou quand la porte de
+    confidentialité n'a pas pu détecter les données personnelles (503) : l'appelant choisit sa
+    forme de refus — `chat_with_catalog_model` la rend en message, l'assistant en statut.
 
     POURQUOI une brique (2026-10-01) : ces lignes vivaient EN PRIVÉ dans l'assistant
     (`assistant_engine._llm_call`) ; la 1ʳᵉ app à appeler un LLM par une clé de catalogue (le
@@ -820,12 +821,24 @@ def chat_with_source(source: str, model_id: Optional[str], messages: list, *, us
         data_reuse_ok = data_reuse_accepted(user)
         # La portée de la clé se calcule quand on en a besoin : au compte, ou à l'échec.
         scope = lambda: saturation_scope(user, source)  # noqa: E731
-    return llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
-                    num_predict=num_predict, think=think, timeout=timeout,
-                    temperature=temperature, seed=seed, top_p=top_p,
-                    on_delta=on_delta, tools=tools,
-                    data_reuse_ok=data_reuse_ok, rate_limit_wait=rate_limit_wait,
-                    saturation_scope=scope)
+    # LA PORTE DE CONFIDENTIALITÉ (2026-10-28, `ROADMAP §16.4bis`) : le geste choisi au profil
+    # pour l'hébergement de cette source — pseudonymiser par défaut chez un cloud commercial. Une
+    # détection impossible LÈVE `CloudAccessRefused` : rien ne part.
+    from wama.common.privacy.gate import privacy_gate
+    gate = privacy_gate(user, source)
+    if gate is not None:
+        messages = gate.outgoing(messages)
+        on_delta = gate.stream(on_delta)
+    text, err = llm_chat(messages, model=model_id or None, provider=source, api_key=api_key,
+                         num_predict=num_predict, think=think, timeout=timeout,
+                         temperature=temperature, seed=seed, top_p=top_p,
+                         on_delta=on_delta, tools=tools,
+                         data_reuse_ok=data_reuse_ok, rate_limit_wait=rate_limit_wait,
+                         saturation_scope=scope)
+    if gate is not None:
+        gate.flush()
+        text = gate.incoming(text)
+    return text, err
 
 
 def extract_json_from_llm(text: str) -> Optional[dict]:

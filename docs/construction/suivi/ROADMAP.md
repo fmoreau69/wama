@@ -3283,7 +3283,7 @@ contrat (`437f6b78`) · ✅ détecteurs bardsai v3 (ONNX) et GLiNER2-PII install
 orchestrée par Presidio, document de détections en forme texte, service :8003 (`87911aa4`) ·
 ✅ couche texte de document, occultation de fichiers et contre-épreuve par relecture (`bbb0a162`) ·
 🔄 domaine `document` de l'Anonymizer : relevé des trous transmis à Portage Apps (à confronter par
-elle) · ⏳ porte de l'assistant — décision ci-dessous · ⏳ Translator : brancher `document_text`
+elle) · ✅ porte avant un modèle distant — décidée et livrée, ci-dessous · ⏳ Translator : brancher `document_text`
 (traduire en gardant la forme) · ⏳ mesure WAMA (petit jeu relu à la main, `WAMA_QUALITE`) : seuils
 par type, détecteurs suivants (urchade en référence, knowledgator EN, piiranha, camembert-ner,
 eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
@@ -3295,15 +3295,29 @@ eds-pseudo, privacy-filter dès transformers ≥ 5.6 ou par l'ONNX).
   SILENCE (l'union retombait sur les motifs) — désormais nommé (`unavailable`) ; `pip check`
   signale `inference` (tldextract~=5.1.2) : conflit déclaratif seul, vérifié à l'exécution.
 
-**⏳ Décision à prendre (Fabien) — la porte de l'assistant.** Point d'insertion unique :
-`llm_utils.chat_with_source` (tous les messages, l'utilisateur, la source), après `cloud_access`.
-Trois questions : (1) QUELS fournisseurs — tous les distants, ou seulement ceux qui ne sont pas
-souverains (`hosting`, Albert/ILaaS ; `WAMA_LLM` laissait « Albert compte-t-il comme local ? » non
-tranché, §8d ③) ; (2) QUEL geste — occulter (libellés), pseudonymiser de façon RÉVERSIBLE
-(`[PERSONNE_1]` envoyé, le vrai nom remis dans la réponse — la pratique des passerelles LLM), ou
-refuser l'envoi ; (3) service indisponible ⇒ refus (jamais l'envoi en clair). Proposé : non
-souverains toujours, souverains par option du profil ; pseudonymisation réversible ; refus si la
-détection n'a pas pu se faire.
+**✅ La porte avant un modèle distant — décidée par Fabien le 2026-10-28 (soir), livrée.** *« Les
+choix doivent rester un geste utilisateur […] Les seuls choix qui me reviennent sont les choix par
+défaut. »* Donc : un TROISIÈME axe dans la carte « Modèles cloud » du profil, à côté du niveau
+(QUAND) et du plafond (JUSQU'OÙ) — ce qui arrive aux données personnelles, PAR NIVEAU
+D'HÉBERGEMENT (cloud privé, souverain, commercial ; le cran « commercial qui garde » suit la ligne
+commerciale) : envoyer tel quel / pseudonymiser (réversible) / occulter (`UserProfile.cloud_privacy`,
+`accounts/0032`, locale). DÉFAUTS : pseudonymiser chez un cloud commercial, rien chez le privé et
+les souverains (`privacy/gate.DEFAULT_GESTURES`). Une ligne que le niveau ou le plafond exclut est
+GRISÉE, son choix gardé (réponse à la question de Fabien : on ajuste dynamiquement, on ne retire
+rien). Pseudonymiser : `[PERSONNE_1]`, `[EMAIL_2]`… partent, les vraies valeurs reviennent dans la
+réponse — au fil du flux (un pseudonyme coupé entre deux fragments est retenu), et dans un appel
+d'outil rendu en JSON. Détection IMPOSSIBLE (délai dépassé, détecteur installé qui ne se charge
+pas) ⇒ RIEN NE PART, refus dit (`CloudAccessRefused` 503) — ce n'est pas un réglage : envoyer
+quand même trahirait celui de l'utilisateur.
+- Où : `chat_with_source` (assistant, apps par clé de catalogue, Translator, rôles), et
+  l'abonnement Claude Code (`claude_code.demander`, `dev_tools.dev_claude_code`). Une valeur vue
+  une fois est remplacée PARTOUT dans l'échange ; détection par paragraphe, en cache (l'invite
+  système revient à chaque tour). Gardes : `tests_privacy_gate` (19).
+- ⚠ Limites consignées : les IMAGES jointes partent telles quelles (aucune détection visuelle à
+  cette porte) ; ce que le CLI Claude Code lit lui-même (dépôt, résultats d'outils par le serveur
+  MCP) ne repasse pas par la porte ; une tâche Claude Code de FOND rend sa réponse au journal sans
+  la repasser (les pseudonymes y restent) ; un moteur d'app qui envoie de l'AUDIO à un fournisseur
+  (`backends/manager.py`, `authorize(cloud_access…)`) n'est pas couvert — ni texte, ni porte.
 
 ### Transcriber — exports + archétype d'export (2026-06-19)
 - **Bugs export corrigés** : DOCX (`HttpResponse` non importé dans `views.py`), PDF (curseur `multi_cell` qui dérive → `new_x="LMARGIN"` ; texte FR), diarisation rendue conditionnellement (labels si `speaker_id`, sinon timecode seul).

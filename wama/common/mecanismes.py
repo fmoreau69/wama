@@ -505,14 +505,19 @@ MECHANISMS = (
               "entre crochets dans la langue du texte. Un détecteur qui ne se charge pas est NOMMÉ "
               "(`unavailable`). Service uvicorn 127.0.0.1:8003 dans le paquet, client qui retombe "
               "sur le moteur en process service éteint et REFUSE sur délai (jamais « rien trouvé »). "
-              "Consommateurs prévus : domaine document de l'Anonymizer, porte de l'assistant avant "
-              "un modèle distant, mémoire",
+              "LA PORTE avant un modèle distant (`gate`, 2026-10-28) : par niveau d'hébergement, le "
+              "geste choisi au profil (`cloud_privacy`) — pseudonymiser de façon réversible par "
+              "défaut chez un cloud commercial, valeurs remises dans la réponse et dans le flux ; "
+              "détection impossible ⇒ rien ne part. Branchée sur `chat_with_source` et l'abonnement "
+              "Claude Code. Consommateurs prévus : domaine document de l'Anonymizer, mémoire",
               'wama/common/privacy/engine.py',
               'docs/construction/suivi/ROADMAP.md §16.4bis',
               annexes=('wama/common/privacy/recognizers.py',
                        'wama/common/privacy/service.py',
                        'wama/common/privacy/service_client.py',
-                       'wama/common/tests/tests_privacy.py'),
+                       'wama/common/privacy/gate.py',
+                       'wama/common/tests/tests_privacy.py',
+                       'wama/common/tests/tests_privacy_gate.py'),
               depends_on=('pii_detection', 'detections_document', 'external_sources',
                           'document_text')),
     Mechanism('document_text', 'Couche TEXTE d\'un document — lire, réécrire sur place',

@@ -277,6 +277,10 @@ def profile_view(request):
         # Ce que le dernier cran fait des données, dit AVANT qu'on le choisisse (2026-10-12).
         'data_reuse_ceiling': external_sources.DATA_REUSE_CEILING,
         'data_reuse_warning': external_sources.DATA_REUSE_WARNING,
+        # Confidentialité (2026-10-28) : une ligne par hébergement qu'une source peut déclarer, son
+        # rang sur l'échelle (la page grise ce que le plafond exclut) et le geste effectif.
+        'privacy_rows': _privacy_rows(profile),
+        'privacy_gestures': _privacy_gestures(),
         'secret_storage_available': storage_available(),
         # Moteurs de recherche : l'inventaire vient du REGISTRE (sources `recherche` ayant un
         # adaptateur), jamais d'une liste écrite au gabarit — ajouter un moteur ne touche
@@ -325,6 +329,20 @@ def api_key_save(request, slug):
     return JsonResponse(result, status=result.pop('status'))
 
 
+def _privacy_rows(profile) -> list:
+    """`[(niveau, libellé, rang, geste)]` de la carte « Modèles cloud » : la page grise une ligne
+    au-delà du plafond (ou toutes en « 100 % local ») en gardant son geste, rendu au retour."""
+    from wama.common.privacy.gate import gestures_of, privacy_levels
+    effective = gestures_of(profile)
+    return [(level, label, external_sources.HOSTING_SCALE.index(level), effective[level])
+            for level, label in privacy_levels()]
+
+
+def _privacy_gestures() -> tuple:
+    from wama.common.privacy.gate import GESTURES
+    return GESTURES
+
+
 @login_required
 @require_POST
 def cloud_policy_update(request):
@@ -348,6 +366,16 @@ def cloud_policy_update(request):
         values['cloud_hosting_max'] = data['cloud_hosting_max']
     if 'cloud_metered_auto' in data:
         values['cloud_metered_auto'] = bool(data['cloud_metered_auto'])
+    if 'cloud_privacy' in data:
+        # Un geste par niveau d'hébergement, chacun tiré du vocabulaire de la porte (2026-10-28).
+        from wama.common.privacy.gate import GESTURES, privacy_levels
+        chosen = data['cloud_privacy']
+        levels, gestures = dict(privacy_levels()), dict(GESTURES)
+        if (not isinstance(chosen, dict) or set(chosen) - set(levels)
+                or set(chosen.values()) - set(gestures)):
+            return JsonResponse({'error': f"Réglage de confidentialité invalide : {chosen!r}"},
+                                status=400)
+        values['cloud_privacy'] = chosen
     if not values:
         return JsonResponse({'error': 'Aucun réglage cloud dans la requête'}, status=400)
     profile, _ = UserProfile.objects.get_or_create(user=request.user)

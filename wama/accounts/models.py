@@ -113,6 +113,14 @@ class UserProfile(models.Model):
         default=False, db_default=False,
         verbose_name="Le choix automatique peut retenir un modèle facturé à l'usage",
     )
+    # TROISIÈME AXE (décision de Fabien, 2026-10-28) : ce qui arrive aux DONNÉES PERSONNELLES d'un
+    # échange avant qu'il parte, par niveau d'hébergement — `{niveau: geste}`, gestes et DÉFAUTS
+    # déclarés par la porte (`common/privacy/gate.GESTURES`, `DEFAULT_GESTURES`). Vide = les
+    # défauts. Même raison qu'au plafond pour l'absence de `choices=` : l'échelle a un domicile.
+    cloud_privacy = models.JSONField(
+        default=dict, blank=True, db_default={},
+        verbose_name="Données personnelles envoyées à un modèle distant",
+    )
     # ── Moteur de recherche web de l'assistant (décision de Fabien, 2026-09-26) ────────
     # DEUX étages, comme partout : un défaut d'INSTANCE (`settings.WAMA_SEARCH_ENGINE`) et
     # cette préférence, qui le surcharge. Vide = « celui de l'instance » — et non « aucun » :

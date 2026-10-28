@@ -488,6 +488,17 @@ def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> di
     task = (task or '').strip()
     if not task:
         raise DevToolError("« task » vide : décrivez la tâche à confier à Claude Code.")
+    # La porte de confidentialité sur la tâche (`common/privacy/gate`). ⚠ En tâche de fond, la
+    # réponse arrive au journal sans repasser par la porte : les pseudonymes y restent.
+    from wama.common.privacy.gate import privacy_gate
+    from wama.model_manager.services.cloud_models import CloudAccessRefused
+    gate = privacy_gate(user, 'claude_code')
+    shown_task = task
+    if gate is not None:
+        try:
+            task = gate.outgoing_texts([task])[0]
+        except CloudAccessRefused as refused:
+            return {'error': str(refused)}
     try:
         prepared = prepare(task, ecriture=bool(write), user=user, model=model)
     except ClaudeCodeIndisponible as e:
@@ -496,7 +507,7 @@ def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> di
         return {'error': prepared['error']}
     argv = ['timeout', str(CLAUDE_CODE_JOB_TIMEOUT_S), *prepared['argv']]
     # La fiche montre la tâche, pas les options du CLI ; le jeton reste dans `env`.
-    shown = [f"write={bool(write)}", f"model={model or 'défaut'}", task[:300]]
+    shown = [f"write={bool(write)}", f"model={model or 'défaut'}", shown_task[:300]]
     return start_job(user, CLAUDE_CODE_TOOL + (':write' if write else ''), argv,
                      env=prepared['env'], shown=shown)
 

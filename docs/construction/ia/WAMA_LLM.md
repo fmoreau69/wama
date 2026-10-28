@@ -1325,7 +1325,11 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
   clouds commerciaux, même s'ils gardent ou réutilisent mes données ») — à ce cran seul, rien
   n'est ajouté (`cloud_models.data_reuse_accepted`, passé par `chat_with_source`) ; en dessous et
   sans utilisateur (clé d'instance), `deny` reste. Pas de migration (l'échelle n'a pas de
-  `choices=`). La carte « Modèles cloud » du profil affiche à TOUS l'avertissement
+  `choices=`). **Troisième axe le 2026-10-28 (décision de Fabien)** : les DONNÉES PERSONNELLES
+  d'un échange, par niveau d'hébergement (`UserProfile.cloud_privacy`) — envoyer tel quel,
+  pseudonymiser (réversible, défaut des clouds commerciaux) ou occulter ; détection impossible ⇒
+  rien ne part. La porte vit dans `common/privacy/gate.py`, appelée par `chat_with_source` et par
+  l'abonnement ; détail et limites : `ROADMAP §16.4bis`. La carte « Modèles cloud » du profil affiche à TOUS l'avertissement
   (`external_sources.DATA_REUSE_WARNING`) avant le choix. Motif mesuré le 12/10 : deux modèles
   `:free` (Gemma 4 31B, Nemotron 3 Super) n'ont qu'UN hébergeur, leur éditeur — si celui-ci garde
   les requêtes, `deny` les rend injoignables — **VÉRIFIÉ le soir même** avec la clé d'instance

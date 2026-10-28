@@ -310,6 +310,16 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
          'modele': str}   # `modele` = le modèle RÉELLEMENT servi, lu dans la réponse du CLI
         {'success': False, 'error': str}
     """
+    # La porte de confidentialité, comme pour tout fournisseur distant (`common/privacy/gate`) :
+    # elle ne voit que la tâche et la réponse — pas ce que le CLI lit lui-même en route.
+    from wama.common.privacy.gate import privacy_gate
+    from wama.model_manager.services.cloud_models import CloudAccessRefused
+    gate = privacy_gate(user, 'claude_code')
+    if gate is not None:
+        try:
+            prompt = gate.outgoing_texts([prompt or ''])[0]
+        except CloudAccessRefused as refused:
+            return {'success': False, 'error': str(refused)}
     prepared = prepare(prompt, outils=outils, ecriture=ecriture, user=user, model=model)
     if 'error' in prepared:
         return {'success': False, 'error': prepared['error']}
@@ -336,7 +346,10 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
         return {'success': False,
                 'error': _failure_message(acheve.returncode, acheve.stdout, acheve.stderr)}
 
-    return _lire_sortie(acheve.stdout)
+    result = _lire_sortie(acheve.stdout)
+    if gate is not None and result.get('success'):
+        result['texte'] = gate.incoming(result.get('texte'))
+    return result
 
 
 #: Ce que le CLI écrit quand l'API refuse son jeton (mesuré le 2026-10-23 : « Failed to
