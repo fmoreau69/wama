@@ -298,8 +298,9 @@ ORPHAN_GRACE_SECONDS = 3600
 
 
 def forget_orphans(*, dry_run: bool = False, chunk: int = 5000) -> dict:
-    """Retire les lignes dont l'ÉLÉMENT n'existe plus (2026-10-27 : 318 005 mesurées ; Fabien : « si
-    c'est sûr, il faut régler ça »). `forget` n'est appelé qu'au retrait d'une card
+    """Retire les lignes dont l'ÉLÉMENT n'existe plus (2026-10-28 : 1 366 mesurées ; Fabien : « si
+    c'est sûr, il faut régler ça »). Le « 318 005 » du 27/10 était faux : un `distinct()` sans
+    `order_by()` y faisait entrer le tri par défaut du modèle. `forget` n'est appelé qu'au retrait d'une card
     (`release_card_files`) : une suppression en cascade, le nettoyage des témoins du nocturne, une
     jumelle retirée laissaient les leurs. Rien ne les relit : une ligne est un ÉTAT adressé par son
     élément (`lines`, `lines_by_item`), pas un journal (`RunOutcome` l'est), et la seule lecture qui

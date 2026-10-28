@@ -26738,3 +26738,38 @@ la généraliser aux sorties intermédiaires ? »
   domicile » connus) — réapparu le 28/10 vers 05:58, remis hors de cette session. `--known-only`
   garde désormais tout fichier posé à la RACINE (2 310 fichiers connus sur la vraie sauvegarde,
   rien à copier) ; budget de langue du code verrouillé à 2645.
+
+## §CLÔTURE — 2026-10-28 (matin), « DISPOSITION : RANGÉES RETAILLABLES, EMPILER PAR LE TITRE + LIGNES ORPHELINES » — clos
+
+Suite de `§CLÔTURE 2026-10-27 (soir)`. Commits : `25a1b5ae` (lignes de process orphelines),
+`848c11a8` (limites 1 et 3), `d796d932` (empiler par le titre + décision du préchauffage),
+`58b488f2` (revérification), plus le commit de cette clôture.
+- ✅ **Lignes de process orphelines** : `process_runs.forget_orphans` + battement nocturne
+  `common.forget_orphan_process_runs` (01:50, file par défaut) ; **1 366** retirées sur 2 454, table
+  sauvegardée avant (`backups/db/`, non versionné). Le « 318 005 » du 27/10 était FAUX (`distinct()`
+  sans `order_by()`) : corrigé partout, docstring comprise à cette clôture (`ROUTE §10.6` 4.1).
+- ✅ **Limite 1** : une rangée épinglée prend la taille de son PREMIER panneau (place dans la
+  grille), et se retaille d'une poignée qui se cale sur la grille. **Limite 3** : la largeur des
+  rangées partagées (`is-shared`). Limite 2 (la place gardée dans la grille) : comportement voulu
+  (Fabien).
+- ✅ **Empiler dans la page en glissant un titre sur un titre** ; la pile s'épingle ensuite d'un seul
+  geste (`WAMA_VOLETS §3-ter`). Scénario `common.surface_stack` **22/22**, deux fois, sur le serveur
+  en service.
+- ✅ **Décision (Fabien)** : le préchauffage des workers reste tel quel sur le PC de dev (deux
+  minutes après relance, sans autre contrainte) ; la production passera tout sous Linux, restes du
+  portage : Ollama, frontal Apache (`INFRA_WSL_VS_WINDOWS` point 2). Question dev/prod en
+  parallèle : réponse donnée, PAS une priorité (quatre préalables le jour venu : migrations
+  versionnées, `DEBUG=False` en prod, une procédure de déploiement, aucun chemin Windows hors
+  configuration).
+- Mesuré à la clôture (WSL) : `tests_surfaces` (classes texte + partition) 18/18,
+  `tests_calendar` + `tests_process_runs` 67/67 ; sous `venv_win`, 138 tests dont 5 rouges — deux
+  de `tests_surfaces` propres à Windows (le test écrit son fichier par `write_text`, donc en
+  `\r\n` ; verts sous WSL, leçon portée à `/cloture §2a`) et trois du budget des noms de méthodes
+  (1292 > 1291, hors session : déjà attribué ci-dessus). `check_redundancy` 89, aucune dans mes
+  fichiers.
+- Restes HÉRITÉS, pas de cette session : `wama/common/privacy/` non suivi (`tests_test_layout`) ;
+  docs générées (`WAMA_MECANISMES`, `docs/dev/briques.md`, skill `conformite`) portant le WIP
+  d'autres sessions — seules mes lignes de `briques.md` sont commitées ici.
+- 🔚 **Décisions ouvertes (Fabien)** : essayer le glisser-déposer, puis un menu « ⋯ » unique à la
+  place des boutons d'atelier · détacher un panneau en vraie fenêtre · Albert/DINUM (c).
+- Pendings système : pousser `dev` (rien n'est poussé).

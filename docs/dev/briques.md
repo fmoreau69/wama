@@ -258,7 +258,7 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
 
 - **Domicile** : `wama/common/services/process_runs.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Lignes d'exécution des process — la pièce du MOTEUR COMMUN de pipeline qui dit « tel process, pour telle card, dans tel état ». Doc : `WAMA_APP_GENERATION_ROUTE.md §10.6` points 4.1 à 4.5 (marche P3).
-- **API publique** (24) :
+- **API publique** (25) :
   - `address(item) -> dict` — Adresse d'un élément : `{app, object_type, object_id}` — dérivée de l'élément SEUL, pour
   - `lines(item)` — Les lignes d'exécution d'un élément (une requête, ordonnée par nœud).
   - `lines_by_item(items) -> dict` — `{pk (texte): [lignes]}` des éléments d'UN même modèle — UNE requête pour toute une page
@@ -274,6 +274,7 @@ UNE ligne par (élément, nœud du pipeline, clé d'instance) : état du process
   - `fail(item, node_id: str=MAIN_NODE, message: str='', *, instance_key: str='', process_key: str='')` — Le process a ÉCHOUÉ — le message est gardé sur la ligne ; la sortie précédente, elle,
   - `close_open(item, to_status: str=JOB_FAILURE, message: str='') -> int` — Referme les lignes OUVERTES d'un élément qu'on arrête ou qu'on réconcilie : une tâche
   - `forget(item) -> int` — Retire les lignes d'un élément qu'on SUPPRIME (une ligne sans élément ne se lit plus
+  - `forget_orphans(*, dry_run: bool=False, chunk: int=5000) -> dict` — Retire les lignes dont l'ÉLÉMENT n'existe plus (2026-10-28 : 1 366 mesurées ; Fabien : « si
   - `safely(writer, *args, **kwargs)` — Appelle un écrivain de ce module SANS jamais lever : le cycle de vie d'un traitement ne
   - `row_eta_seconds(size, last_duration, last_size, learned_seconds)` — Durée estimée d'un process : sa DERNIÈRE durée sur cet élément (le meilleur prédicteur
   - `last_duration(row) -> tuple` — `(durée, taille)` de la dernière exécution connue d'une ligne : sa durée mesurée, sinon
@@ -2535,7 +2536,7 @@ L'APPARENCE d'un état (libellé, classe de badge, classe de texte, icône) déc
 
 ### Repli des volets latéraux par leur frontière
 
-Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouvre, sur toute page : au repos rien de plus que le liseré, au survol une ligne et une pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / `--wama-right-gutter` (0 replié, sans volet ou en mode simplifié) que lisent le corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`. DEUX CONTEXTES DE LARGEUR (2026-10-12) : sous le point de rupture `lg` de Bootstrap (tablette en portrait, fenêtre étroite), volets repliés d'office, un seul ouvert à la fois, mémoire à part — le choix fait en grand n'est jamais écrasé (`WamaPanelsContext`, posé par base.html avant le premier rendu). La barre du haut et le pied sont des grilles `1fr auto 1fr` : rien ne s'y chevauche, les libellés s'effacent derrière leur icône quand la barre manque de place (requête de conteneur) ; mesuré chaque nuit par `common.layout.tablet`
+Un clic sur la FRONTIÈRE d'un volet (explorateur, panneau) le replie ou le rouvre, sur toute page : au repos rien de plus que le liseré, au survol une ligne et une pastille à chevron qui suit le pointeur ; volet replié, une trace fine au bord de la fenêtre. État par NAVIGATEUR (localStorage), appliqué avant le premier rendu. La place des volets a une SOURCE UNIQUE : les marges `--wama-left-gutter` / `--wama-right-gutter` (0 replié ou sans volet) que lisent le corps, l'en-tête et les barres fixes des pages ; une règle qui se calerait sur la largeur brute d'un volet est refusée par `tests_panel_toggle`. Au doigt (tablette), la pastille reste visible. Après chaque bascule : `resize` + `wama:panels`. DEUX CONTEXTES DE LARGEUR (2026-10-12) : sous le point de rupture `lg` de Bootstrap (tablette en portrait, fenêtre étroite), volets repliés d'office, un seul ouvert à la fois, mémoire à part — le choix fait en grand n'est jamais écrasé (`WamaPanelsContext`, posé par base.html avant le premier rendu). La barre du haut et le pied sont des grilles `1fr auto 1fr` : rien ne s'y chevauche, les libellés s'effacent derrière leur icône quand la barre manque de place (requête de conteneur) ; mesuré chaque nuit par `common.layout.tablet`
 
 - **Domicile** : `wama/common/static/common/js/wama-panel-toggle.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md](../construction/ui/WAMA_VOLETS.md)
 
@@ -3584,7 +3585,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_reader(user, file_path: str, backend: str='auto', mode: str='auto', output_format: str='txt', language: str='', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
   - `convert_file(user, file_path: str, output_format: str='', quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
-  - `switch_ui_mode(user, mode: str='simple') -> dict` — Switch the WAMA interface mode for the current user.
+  - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the
   - `open_page(user, page: str) -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
   - `get_media_asset_url(user, asset_id: int) -> dict` — Get the file URL of a specific media library asset.
   - `inspect_user_file(user, file_path: str) -> dict` — Ask WAMA what it can do with one of the user's files: which app PORT can take it

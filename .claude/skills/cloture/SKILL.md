@@ -97,6 +97,11 @@ python manage.py test <tes modules>      # ciblé, quelques secondes
 > refaire. ✅ La sortie ENTIÈRE dans un fichier (`> <scratchpad>/suite.txt 2>&1`), puis les
 > `grep` dessus. Et pour départager « à moi / à autrui » : la suite sur un worktree de HEAD + ses
 > seuls fichiers, puis les rouges rejoués sur HEAD nu — ce qui rougit des deux côtés préexiste.
+> ⚠ **La plateforme de référence est WSL (`venv_linux`)** (vécu le 2026-10-28) : deux tests de
+> `tests_surfaces` rouges sous `venv_win`, verts sous WSL, sans aucun code changé — le test écrit
+> son fichier par `write_text`, que Windows passe en `\r\n`. Une sonde a coûté vingt minutes pour
+> le voir. ✅ Un rouge vu sous Windows se rejoue d'abord sous WSL ; rouge des deux côtés seulement,
+> il se départage par les gestes ci-dessous.
 >
 > ⚠⚠ **Si la commande demande « Type 'yes' to delete » puis meurt en `EOFError` : NE PAS
 > répondre par `--noinput`.** La base de test est PARTAGÉE entre instances, et `--noinput`
