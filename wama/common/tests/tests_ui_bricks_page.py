@@ -127,7 +127,9 @@ class PageBrickTest(TestCase):
     adoption of the mechanism that holds that template."""
 
     PAGE_BRICKS = ('entry_card', 'global_progress', 'inspector_panel', 'media_viewer', 'queue',
-                   'toolbar')
+                   'toolbar',
+                   # 2026-10-29 : les sections du volet, chacune sa brique (`volet.PANEL_SLOTS`).
+                   'item_preview', 'item_details', 'settings_panel', 'assistant_panel')
 
     def setUp(self):
         self.client.force_login(get_user_model().objects.create_user('ui-page', password='x'))

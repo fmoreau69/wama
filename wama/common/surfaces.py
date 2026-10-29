@@ -1044,10 +1044,10 @@ register_brick(UIBrick(
 
 register_brick(UIBrick(
     key='inspector_panel', name='Inspecteur',
-    description="Le volet droit d'une page : au clic sur une card, son aperçu, les champs de "
-                "détail que l'app déclare, ses réglages rendus du schéma de ses paramètres et les "
-                "actions de l'élément ou du lot. Une page d'app le monte par ses actions ; le "
-                "volet lui-même est l'ossature de la page de base.",
+    description="La sélection d'une card (clic, clavier) et, dans le volet, les ACTIONS de "
+                "l'élément ou du lot. Il remplit aussi les panneaux de la card choisie — aperçu, "
+                "infos, paramètres —, chacun sa brique. Une page d'app le monte par ses actions ; "
+                "le volet lui-même est l'ossature de la page de base.",
     script='common/js/wama-inspector.js',
     mount='common/_inspector_actions.html',
     declarations=('app.inspector', 'app.params'),
@@ -1055,6 +1055,43 @@ register_brick(UIBrick(
                         'page'),
                Shortcut(('Enter', 'Space'), 'déplier / replier la card choisie', 'page'),
                Shortcut(('Escape',), 'ne plus choisir de card', 'page'))))
+
+# 2026-10-29 (`WAMA_VOLETS §3-ter`, demande de Fabien : « finir la mise en briques, notamment de
+# l'inspecteur ») — les SECTIONS du volet sont des panneaux de la disposition depuis le 28/10 ; elles
+# deviennent des briques du registre. L'inspecteur les REMPLIT (son script), chacune lit la facette
+# de l'app qui la concerne ; le titre de leur panneau reste celui que la page leur donne (une app
+# peut renommer « Paramètres »). Le bloc de tête n'est pas une brique : son contenu est propre à
+# chaque page.
+register_brick(UIBrick(
+    key='item_preview', name="Aperçu de l'élément",
+    description="Dans le volet, l'aperçu de la card choisie — ses fichiers, et sa sortie en cours "
+                "pendant le traitement —, par la brique commune de l'aperçu ; un double-clic "
+                "l'ouvre dans la visionneuse. Se retire tant que rien n'est choisi.",
+    mount='common/js/wama-inspector.js',
+    declarations=('app.inspector', 'pipeline')))
+
+register_brick(UIBrick(
+    key='item_details', name="Infos de l'élément",
+    description="Dans le volet, les champs de détail de la card choisie, tels que l'app les "
+                "déclare (spec de détail) : formats, durée, modèle tiré, mesures. Se retire tant "
+                "que rien n'est choisi.",
+    mount='common/js/wama-inspector.js',
+    declarations=('app.inspector',)))
+
+register_brick(UIBrick(
+    key='settings_panel', name='Paramètres du volet',
+    description="Dans le volet, les paramètres de l'app rendus du schéma qu'elle déclare : ceux "
+                "des éléments à venir, puis ceux de la card choisie. Même nature que « Réglages de "
+                "l'élément », la brique d'une surface.",
+    mount='common/js/wama-inspector.js',
+    declarations=('app.params',)))
+
+register_brick(UIBrick(
+    key='assistant_panel', name='Assistant',
+    description="En tête du volet de toute page : l'avatar et le mini-chat de l'assistant, qui "
+                "agit dans l'app par les outils qu'elle déclare ; repliable, masquable.",
+    mount='common/_assistant_avatar.html',
+    declarations=('app.tool_api',)))
 
 register_brick(UIBrick(
     key='media_viewer', name='Visionneuse',

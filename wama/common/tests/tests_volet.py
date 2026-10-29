@@ -921,6 +921,21 @@ class PageControlsTest(TestCase):
         self.assertIsNone(get_user_app_setting(self.account, 'transcriber', LAYOUT_SETTING))
         self.assertIn('error', reset_page_layout(self.account, 'pas une page !'))
 
+    def test_every_section_of_the_panel_is_a_page_brick_of_the_registry(self):
+        """2026-10-29 (« finir la mise en briques, notamment de l'inspecteur ») : chaque section du
+        volet porte sa brique du registre — sauf le bloc de tête, propre à chaque page — et
+        l'assistant les nomme toutes."""
+        from wama.common.surfaces import BRICKS
+        from wama.common.utils.volet import PANEL_SLOTS, page_interface
+        bricks = {slot.id: slot.brick for slot in PANEL_SLOTS}
+        self.assertEqual({'assistant': 'assistant_panel', 'top': '', 'preview': 'item_preview',
+                          'info': 'item_details', 'settings': 'settings_panel',
+                          'actions': 'inspector_panel'}, bricks)
+        for key in filter(None, bricks.values()):
+            self.assertTrue(BRICKS[key].is_page, key)
+        named = {b['key'] for b in page_interface('common')['bricks']}
+        self.assertEqual(set(filter(None, bricks.values())) | {'media_viewer'}, named)
+
     def test_the_served_copies_match_the_sources(self):
         from pathlib import Path
 

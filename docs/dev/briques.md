@@ -2450,14 +2450,16 @@ Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajo
 
 - **Domicile** : `wama/common/utils/volet.py` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §8](../construction/ui/WAMA_VOLETS.md)
 - **Module** : Déclaration du VOLET DROIT par la page — `WAMA_VOLETS.md §8 n°2`.
-- **API publique** (7) :
+- **API publique** (9) :
   - `volet(*, tete: bool=False, medias: bool=True, parametres: bool=True, actions: bool=True, arrangeable: bool=True) -> dict` — Déclaration de volet, toujours COMPLÈTE (cf. le pourquoi dans l'en-tête du module).
   - `class PanelSlot` — Une section du volet comme emplacement de la disposition commune : la COLONNE du volet
   - `page_key(request) -> str` — La page dont on garde la disposition du volet : l'espace de noms de sa route — le plus
   - `layout_of(user, key: str) -> dict` — La disposition du volet que `user` a gardée pour la page `key` (`clean_layout`), `stored` à
   - `is_arranged(layout: dict) -> bool` — Le compte a-t-il disposé ce volet ? Sinon il reste celui d'avant, sans grille.
   - `layout_config(request) -> dict | None` — Ce que `wama-panel-layout.js` lit (`base.html`) ; None sans compte ou sans page nommée.
-  - `page_controls_config() -> dict` — Ce que les CONTRÔLES DE PAGE lisent (`wama-page-controls.js`, `base.html`, 2026-10-29) : les
+  - `page_controls_config(request=None) -> dict` — Ce que les CONTRÔLES DE PAGE lisent (`wama-page-controls.js`, `base.html`, 2026-10-29) : les
+  - `page_interface(page: str) -> dict | None` — L'INTERFACE d'une page, telle que l'assistant la dit (`tool_api.get_page_interface`,
+  - `reset_layout(user, page: str) -> bool` — Remet la disposition de la page `page` (ou de la surface `<app>.<clé>`) à celle qu'elle
 
 ### Entrée de file (card seule OU lot)
 
@@ -3623,7 +3625,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
 
 - **Domicile** : `wama/tool_api.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : WAMA Tool API
-- **API publique** (93) :
+- **API publique** (95) :
   - `tool_effect(effect: str, *, sub_agent: bool=True, reason: str='')` — Marque l'EFFET d'un outil sur sa fonction. `sub_agent=False` retire une LECTURE de ce qu'un
   - `effect_of(tool_name: str) -> dict | None` — L'effet déclaré d'un outil du registre, None s'il n'en déclare pas (ou n'existe pas).
   - `sub_agent_tools() -> frozenset` — Les outils qu'un sous-agent peut appeler — DÉRIVÉS des marques, jamais recopiés : les
@@ -3644,6 +3646,8 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the
   - `open_page(user, page: str) -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
+  - `get_page_interface(user, page: str) -> dict` — Describe the INTERFACE of a WAMA page: the bricks it shows (what each does, and its keyboard
+  - `reset_page_layout(user, page: str) -> dict` — Put the layout of a page back to its default, for this user — what "Par défaut" does in the
   - `get_media_asset_url(user, asset_id: int) -> dict` — Get the file URL of a specific media library asset.
   - `inspect_user_file(user, file_path: str) -> dict` — Ask WAMA what it can do with one of the user's files: which app PORT can take it
   - `look_at_image(user, file_path: str, question: str='') -> dict` — Look at ONE of the user's images with a vision model and return what it shows.

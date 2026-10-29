@@ -817,8 +817,29 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       touche réécrite à la main, assistant sans briques, bulle non gardée (fichiers). Rejoués verts :
       parité de l'éditeur, `common.preview_navigation` 35/35, `common.preview_layout`,
       `common.surface_layout`.
-  - ⏳ **Suite** : les sections du volet en briques du registre (l'inspecteur en briques,
-    l'assistant).
+- ✅ **Les SECTIONS du volet en briques du registre — 2026-10-29** (Fabien : « on a pas terminé la
+  mise en briques UI de tous les éléments, notamment de l'inspecteur »). Les sections étaient des
+  panneaux de la disposition depuis le 28/10, mais le registre n'en connaissait qu'UNE brique
+  (`inspector_panel`) pour quatre panneaux, et pas l'assistant : le catalogue, l'aide de la page et
+  l'assistant ne pouvaient pas les nommer.
+  - **Quatre briques de PAGE** (`surfaces.py`) : `item_preview` (Aperçu de l'élément, lit
+    `app.inspector` et le `pipeline`), `item_details` (Infos, `app.inspector`), `settings_panel`
+    (Paramètres du volet, `app.params`) — toutes montées par le script qui les REMPLIT,
+    `wama-inspector.js` —, et `assistant_panel` (son gabarit `_assistant_avatar.html`, lit
+    `app.tool_api`). L'inspecteur (`inspector_panel`) garde la sélection, ses touches et les
+    ACTIONS. Le bloc de tête n'est pas une brique : son contenu est propre à chaque page.
+  - **Chaque section porte sa brique** (`volet.PANEL_SLOTS`, `PanelSlot.brick`) ; le TITRE du
+    panneau reste celui que la page donne (une app renomme « Paramètres » par son bloc).
+  - **Aucun fichier de l'inspecteur touché** (`wama-inspector.js` porte le travail en cours d'une
+    autre session, #1532) : les sections gardent leurs identifiants.
+  - ⏳ **Décision ouverte, pour Fabien** : « Paramètres du volet » et « Réglages de l'élément »
+    (brique de SURFACE) sont de même nature — une seule brique montée de deux façons demanderait de
+    lever l'invariant du 19/10 (une brique de page lit ce que l'app DÉCLARE, une brique de surface
+    ce qui CIRCULE ; `PageBrickTest`) et de rapprocher deux codes de rendu (`wama-inspector.js`,
+    `brick-item-settings.js`). Non fait sans décision.
+  - **Gardes** : `PageControlsTest.test_every_section_of_the_panel_is_a_page_brick_of_the_registry`
+    (contre-épreuve : une section sans brique → rouge) ; `PageBrickTest` (les quatre déclarent ce
+    qu'elles lisent, leur montage est un fichier qu'une page nomme).
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

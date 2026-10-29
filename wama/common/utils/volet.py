@@ -119,11 +119,11 @@ def _stacked(*sections) -> tuple:
 #: Les sections du volet, dans l'ordre de `base.html`. Une section absente de la page (non
 #: déclarée, ou l'assistant désactivé) n'a pas de panneau.
 PANEL_SLOTS = _stacked(
-    ('assistant', 'assistant-avatar-section', 9),
-    ('top', 'right-panel-top', 4),
-    ('preview', 'media-section', 7),
-    ('info', 'info-section', 6),
-    ('settings', 'settings-section', 10),
+    ('assistant', 'assistant-avatar-section', 9, 'assistant_panel'),
+    ('top', 'right-panel-top', 4),              # propre à chaque page : pas une brique
+    ('preview', 'media-section', 7, 'item_preview'),
+    ('info', 'info-section', 6, 'item_details'),
+    ('settings', 'settings-section', 10, 'settings_panel'),
     ('actions', 'actions-section', 4, 'inspector_panel'),
 )
 
