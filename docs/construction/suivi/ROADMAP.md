@@ -2831,10 +2831,27 @@ Deux voies, complémentaires :
    morceau ; le traducteur n'en reçoit la consigne que si le texte en porte (cache d'un texte nu
    inchangé). **Après** (traduction factice 20 % plus longue, toutes pages) : Times gardé, 65
    blocs en gras, 23 blocs sous 80 %, taille médiane 1,00 ; une page réelle traduite par
-   `translategemma:12b` garde ses balises 6 fois sur 6. ⏳ Restent : les figures (OCR →
-   traduction → réédition), un PDF scanné (refusé en le disant), l'ordre des mots qui fait
-   permuter deux passages balisés (le second perd sa mise en forme, jamais son texte),
-   `pymupdf_layout` (découpage de page plus fin — une librairie, par la route, si Fabien la veut).
+   `translategemma:12b` garde ses balises 6 fois sur 6.
+   ✅ **Les figures vectorielles, 29/10 (même jour)** — leurs étiquettes sont du vrai texte et se
+   traduisaient, mais leur mise en forme sautait (Fabien). Mesuré sur la figure 1 : police sans
+   empattement rendue en Times (les drapeaux du PDF déclaraient Roboto/Verdana « à empattement »),
+   étiquettes de deux lignes traduites mot à mot (« Convolutionnelle. / Couches »), point final
+   ajouté par le modèle, lettre d'axe avalée par un titre, et « R » seul rendu en paragraphe.
+   `pymupdf-layout` installée par la route (`no_deps` : elle déclare `onnxruntime`, qui masquerait
+   `onnxruntime-gpu` ; ses sessions tournent sur le processeur, mesuré, ~0,3 s par page) : ses
+   zones `picture` disent qu'un bloc est une FIGURE, où ses lignes se lisent en ÉTIQUETTES (deux
+   lignes empilées en vis-à-vis = une étiquette). Famille lue sur le NOM de la police avant ses
+   drapeaux ; une étiquette de plusieurs rangées garde sa largeur (elle se replie comme
+   l'original), une rangée seule essaie aussi les deux côtés, un texte vertical s'allonge dans son
+   sens d'écriture ; le traducteur retire un point final que la source n'avait pas, n'envoie pas
+   un passage de moins de deux lettres, et garde l'original d'un passage court rendu en pavé.
+   ⏳ Restent : les figures EN IMAGE et le PDF scanné — étape PRÉALABLE d'OCR du Translator
+   (décision de Fabien, 29/10 : le chaînage Reader → Translator reste, l'étape préalable évite à
+   l'utilisateur de chaîner), par le pipeline commun (`ROUTE §10.6`, `ProcessSpec` avec `applies`
+   = « pas de couche texte », sur le patron d'`output_process`), un contrat OCR « avec positions »
+   (docTR d'abord), et la même couche dans `document_text` — qui donnerait aussi au Reader la
+   forme d'un PDF scanné ; l'ordre des mots qui fait permuter deux passages balisés (le second
+   perd sa mise en forme, jamais son texte).
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄
 

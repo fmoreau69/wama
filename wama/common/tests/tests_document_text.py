@@ -263,6 +263,61 @@ class PdfTableTest(_TempDir):
                          read_segments(src, unit='block'))
 
 
+class PdfFigureTest(_TempDir):
+    """2026-10-29 (figure 1 of a real paper) — inside a FIGURE (a `picture` region of the layout
+    analysis) the lines of a block are LABELS : two stacked lines facing each other are one label,
+    translated in one piece ; the family is read on the font NAME before the PDF's flags ; a
+    vertical label grows along its writing direction instead of shrinking."""
+
+    def _figure_pdf(self):
+        import fitz
+        src = self.dir / 'figure.pdf'
+        with fitz.open() as pdf:
+            page = pdf.new_page()
+            writer = fitz.TextWriter(page.rect)
+            for x, y, text in ((100, 100, 'Convolutional'), (220, 100, 'Fully Connected'),
+                               (112, 110, 'Layers'), (240, 110, 'Layer')):
+                writer.append((x, y), text, fontsize=8)
+            writer.write_text(page)
+            pdf.save(str(src))
+        return src
+
+    def test_stacked_lines_of_a_figure_are_one_label(self):
+        import fitz
+        from unittest import mock
+        from wama.common.utils import document_text
+        src = self._figure_pdf()
+        whole_page = lambda page: [fitz.Rect(page.rect)]  # noqa: E731
+        with mock.patch.object(document_text, '_figure_regions', whole_page):
+            labels = document_text.read_segments(src, unit='block')
+        self.assertEqual(['Convolutional Layers', 'Fully Connected Layer'], labels)
+        # Counter-proof : outside a figure, the same block is a table of four cells.
+        with mock.patch.object(document_text, '_figure_regions', lambda page: []):
+            self.assertEqual(4, len(document_text.read_segments(src, unit='block')))
+
+    def test_the_family_is_read_on_the_font_name_before_the_flags(self):
+        from wama.common.utils.document_text import _span_style
+        span = {'flags': 4, 'font': 'ABCDEF+Roboto-Regular', 'size': 8, 'color': 0}
+        self.assertEqual('Helvetica', _span_style(span)[0])           # flagged serif, named sans
+        self.assertEqual('Times', _span_style({**span, 'font': 'Unknown', 'flags': 4})[0])
+
+    def test_a_longer_vertical_label_keeps_its_size(self):
+        import fitz
+        src = self.dir / 'in.pdf'
+        with fitz.open() as pdf:
+            pdf.new_page().insert_text((60, 400), 'Power', fontsize=8, rotate=90)
+            pdf.save(str(src))
+        from wama.common.utils.document_text import read_segments, write_replacements
+        segments = read_segments(src, unit='block')
+        out = write_replacements(src, self.dir / 'out.pdf', {0: [(0, len(segments[0]), 'Puissance')]},
+                                 unit='block')
+        with fitz.open(out) as pdf:
+            [span] = [s for b in pdf[0].get_text('dict')['blocks'] for line in b['lines']
+                      for s in line['spans'] if s['text'].strip()]
+        self.assertEqual('Puissance', span['text'].strip())
+        self.assertAlmostEqual(8, span['size'], delta=0.1)
+
+
 class MarkupTest(_TempDir):
     """2026-10-29 — `markup=True` : a segment carries `<tN>…</tN>` around each passage whose
     formatting is not the dominant one, and a rewritten text gives each passage back ITS formatting

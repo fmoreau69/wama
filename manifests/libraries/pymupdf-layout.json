@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {
+      "no_deps": true
+    },
+    "dependencies": [],
+    "entry_points": {},
+    "identity": {
+      "author": "Artifex",
+      "license": "Polyform Noncommercial OR Artifex Commercial License",
+      "repository": "https://github.com/pymupdf/pymupdf-layout",
+      "summary": "Layout analysis for PyMuPDF: classifies the regions of a page (text, title, table, picture, caption...).",
+      "version": "1.27.2.2"
+    },
+    "install": {
+      "pip": "pymupdf-layout==1.27.2.2",
+      "requires_python": ">=3.10"
+    }
+  },
+  "description": "Analyse de mise en page de PyMuPDF (`import pymupdf.layout`, puis `page.get_layout()` → `page.layout_information`) : classe les zones d'une page (texte, titre, tableau, image, légende…). Pour la couche texte de document (`common/utils/document_text`) : savoir qu'un bloc est dans une FIGURE, pour y traiter les étiquettes autrement que du texte courant (accord de Fabien, 29/10). Version accordée à PyMuPDF 1.27.2.2 (elle exige `PyMuPDF==1.27.2.2`). `no_deps` : elle déclare `onnxruntime`, que pip installerait à côté d'`onnxruntime-gpu` et qui le masquerait (patch n°10) — le module `onnxruntime` est fourni par `onnxruntime-gpu` ; ses autres dépendances (numpy, PyYAML, networkx) sont déjà dans le venv. Mesuré le 29/10 : ses sessions ONNX tournent sur le PROCESSEUR (l'une le demande, l'autre est ouverte sans fournisseur, ce qu'`onnxruntime-gpu` 1.23 sert sur le processeur).",
+  "key": "pymupdf-layout",
+  "manifest_kind": "library",
+  "name": "PyMuPDF Layout",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:pymupdf-layout==1.27.2.2",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}

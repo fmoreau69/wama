@@ -232,6 +232,24 @@ def translate_text(text: str, source_language: str, target_language: str, *,
     return result['text']
 
 
+def _keep_final_stop(source: str, translated: str) -> str:
+    """La traduction sans le point final que la source n'avait pas : le modèle en ajoute à une
+    étiquette de figure ou à un titre (« Moyenne spatiale. », mesuré le 2026-10-29). Une
+    ponctuation finale de la source, des points de suspension, restent."""
+    if _MARKUP.sub('', source).rstrip().endswith(('.', '…', ':', ';', '!', '?')):
+        return translated
+    match = re.search(r'(?<!\.)\.((?:\s*</t\d+>)*\s*)$', translated, re.IGNORECASE)
+    return translated[:match.start()] + match.group(1) if match else translated
+
+
+def _runaway(source: str, translated: str) -> bool:
+    """Une « traduction » sans commune mesure avec un passage COURT : le modèle a commenté ou
+    inventé au lieu de traduire (une étiquette de figure rendue en paragraphe). Le passage garde
+    alors son texte d'origine — un mot non traduit vaut mieux qu'un pavé à sa place."""
+    bare, out = _MARKUP.sub('', source).strip(), _MARKUP.sub('', translated).strip()
+    return len(bare) <= 40 and len(out) > 3 * len(bare) + 20
+
+
 def translate_document(path, out_path, source_language: str, target_language: str, *,
                        model: str = DEFAULT_MODEL, user=None, glossary=None, on_chunk=None,
                        progress_callback=None, timeout: int = 120) -> str:
@@ -248,8 +266,10 @@ def translate_document(path, out_path, source_language: str, target_language: st
     service = TranslatorService(model=model or DEFAULT_MODEL, user=user)
     glossary = glossary_terms(glossary)
     segments = read_segments(path, unit='block', markup=True)
+    # Moins de deux lettres (la lettre d'un axe, une variable, une unité d'un caractère) : rien à
+    # traduire — envoyé seul au modèle, « R » revenait en paragraphe (mesuré le 2026-10-29).
     todo = [i for i, segment in enumerate(segments)
-            if any(c.isalpha() for c in strip_markup(segment))]
+            if sum(c.isalpha() for c in strip_markup(segment)) >= 2]
     if not todo:
         raise ValueError("Rien à traduire : le document n'a pas de texte lisible (PDF scanné ?)")
     replacements, done = {}, []
@@ -263,8 +283,11 @@ def translate_document(path, out_path, source_language: str, target_language: st
                                    timeout=timeout, on_chunk=relay)
         if not result.get('ok'):
             raise RuntimeError(f"Traduction impossible : {result.get('error') or 'réponse vide'}")
-        replacements[index] = [(start, start + len(core), result['text'])]
-        done.append(strip_markup(result['text']))
+        translated = _keep_final_stop(core, result['text'])
+        if _runaway(core, translated):
+            translated = core
+        replacements[index] = [(start, start + len(core), translated)]
+        done.append(strip_markup(translated))
         if on_chunk is not None:
             on_chunk('\n\n'.join(done))
         if progress_callback is not None:

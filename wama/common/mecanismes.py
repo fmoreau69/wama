@@ -531,7 +531,8 @@ MECHANISMS = (
               "en gardant la forme). Unité `block` (2026-10-29) : un PDF par blocs, chacun réécrit "
               "dans le style qui y domine (famille, gras, italique, taille, couleur, interlignage, "
               "alignement, sens d'écriture), agrandi dans la place libre avant d'être réduit ; un "
-              "tableau, cellule par cellule. `markup=True` : des balises `<tN>` rendent à chaque "
+              "tableau, cellule par cellule ; une figure (zone `picture` de `pymupdf-layout`), "
+              "étiquette par étiquette. `markup=True` : des balises `<tN>` rendent à chaque "
               "passage d'un paragraphe ou d'un bloc SA mise en forme. Le Writer reste le geste de "
               "qui veut REVOIR la mise en forme — ROADMAP §16.4bis, vision §5.4",
               'wama/common/utils/document_text.py',

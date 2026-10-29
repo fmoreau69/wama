@@ -299,6 +299,26 @@ def _rewrite_pdf(path, out_path, replacements, segments) -> None:
 _MATH_FONTS = ('CMMI', 'CMSY', 'CMEX', 'MSAM', 'MSBM', 'MATH')
 
 
+#: Fragments de NOMS de polices → famille de base de MuPDF, dans cet ordre (« sans » avant
+#: « serif » : `NimbusSans`, `PTSans` ; une police TeX se nomme `CMR`, `CMSS`, `CMTT`).
+_FAMILY_BY_NAME = (
+    ('Courier', ('courier', 'mono', 'consol', 'menlo', 'cmtt', 'typewriter')),
+    ('Helvetica', ('sans', 'arial', 'helvet', 'verdana', 'roboto', 'calibri', 'tahoma', 'segoe',
+                   'lato', 'inter-', 'futura', 'gill', 'gothic', 'univers', 'frutiger', 'cmss')),
+    ('Times', ('times', 'roman', 'serif', 'georgia', 'cambria', 'garamond', 'palatino',
+               'bookman', 'minion', 'charis', 'nimbusrom', 'cmr', 'lmroman')),
+)
+
+
+def _family_by_name(font: str) -> str:
+    """La famille de base de MuPDF que désigne le nom d'une police, '' s'il ne la dit pas."""
+    name = font.split('+')[-1].lower()             # « ABCDEF+Roboto-Regular » : sous-ensemble
+    for family, fragments in _FAMILY_BY_NAME:
+        if any(fragment in name for fragment in fragments):
+            return family
+    return ''
+
+
 def _span_style(span) -> tuple:
     """Le style d'un morceau de texte du PDF : `(famille, gras, italique, taille, couleur,
     exposant)`. La famille est GÉNÉRIQUE (empattement, chasse fixe, sinon sans) : la police
@@ -306,9 +326,12 @@ def _span_style(span) -> tuple:
     lettres d'une traduction. Elle se nomme par les polices de base de MuPDF (Nimbus : Times,
     Helvetica, Courier — les métriques des polices les plus courantes des documents) ; « serif »
     y donnait Charis SIL, aux minuscules visiblement plus hautes que celles d'un Times (mesuré le
-    2026-10-29). Un glyphe qu'elles n'ont pas est pris par le repli de MuPDF (Noto)."""
+    2026-10-29). Un glyphe qu'elles n'ont pas est pris par le repli de MuPDF (Noto). La famille se
+    lit d'abord sur le NOM de la police, les drapeaux du PDF ensuite : une figure en Roboto ou en
+    Verdana se déclarait « à empattement » et ressortait en Times (mesuré le même jour)."""
     flags, font = span['flags'], span['font'].lower()
-    family = 'Courier' if flags & 8 else 'Times' if flags & 4 else 'Helvetica'
+    family = _family_by_name(font) or ('Courier' if flags & 8 else 'Times' if flags & 4
+                                       else 'Helvetica')
     bold = bool(flags & 16) or 'bold' in font
     italic = bool(flags & 2) or 'italic' in font or 'oblique' in font
     return family, bold, italic, round(span['size'], 1), span['color'], bool(flags & 1)
@@ -450,19 +473,63 @@ def _split_tabular(lines) -> list:
     return parts + ([run] if run else [])
 
 
+def _figure_regions(page) -> list:
+    """Les cadres des FIGURES de la page, lus par l'analyse de mise en page de PyMuPDF
+    (`pymupdf-layout`, installée par la route le 2026-10-29 ; ses modèles tournent sur le
+    processeur, ~0,3 s par page). Sans elle, aucune : la page se lit comme avant."""
+    import fitz
+    try:
+        import pymupdf.layout  # noqa: F401 — inscrit l'analyseur auprès de PyMuPDF
+        page.get_layout()
+    except Exception:
+        return []
+    return [fitz.Rect(region[:4]) for region in page.layout_information or []
+            if len(region) > 4 and region[4] == 'picture']
+
+
+def _split_labels(lines) -> list:
+    """Les ÉTIQUETTES d'un bloc de figure : une ligne rejoint l'étiquette dont la dernière ligne
+    est juste au-dessus d'elle et en vis-à-vis (« Convolutional » / « Layers » : une étiquette sur
+    deux lignes, traduite d'un tenant) ; sinon elle en commence une — la lettre d'un axe posée sous
+    un titre de cadre n'est pas la suite du titre."""
+    labels = []
+    for line in lines:
+        x0, y0, x1, y1 = line['bbox']
+        for label in labels:
+            a0, _, a1, a3 = label[-1]['bbox']
+            overlap = min(a1, x1) - max(a0, x0)
+            gap = y0 - a3
+            if (overlap > 0.5 * min(a1 - a0, x1 - x0) and -1 <= gap <= 0.6 * (y1 - y0)
+                    and line.get('dir') == label[-1].get('dir')):
+                label.append(line)
+                break
+        else:
+            labels.append([line])
+    return labels
+
+
 def _pdf_blocks(page) -> list:
     """Les passages de texte d'une page, dans l'ordre du fichier (voir `_pdf_unit`) — un bloc de
-    tableau donne un passage par cellule (`_split_tabular`)."""
+    tableau donne un passage par cellule (`_split_tabular`), un bloc de figure un passage par
+    étiquette (`_split_labels`)."""
+    import fitz
+    figures = None
     units = []
     for block in page.get_text('dict')['blocks']:
-        if block.get('type') == 0:
-            parts = _split_tabular(block['lines'])
-            for lines in parts:
-                unit = _pdf_unit(lines, page.rect.width)
-                if unit and len(parts) > 1 and len(lines) == 1:
-                    unit['align'] = _column_alignment(lines[0], block['lines']) or unit['align']
-                if unit:
-                    units.append(unit)
+        if block.get('type') != 0:
+            continue
+        if figures is None:
+            figures = _figure_regions(page)
+        x0, y0, x1, y1 = block['bbox']
+        center = fitz.Point((x0 + x1) / 2, (y0 + y1) / 2)
+        in_figure = any(center in region for region in figures)
+        parts = _split_labels(block['lines']) if in_figure else _split_tabular(block['lines'])
+        for lines in parts:
+            unit = _pdf_unit(lines, page.rect.width)
+            if unit and not in_figure and len(parts) > 1 and len(lines) == 1:
+                unit['align'] = _column_alignment(lines[0], block['lines']) or unit['align']
+            if unit:
+                units.append(unit)
     return units
 
 
@@ -485,52 +552,81 @@ def _pdf_html(unit, new: str, markup: bool) -> str:
                    for tag, text in pieces)
 
 
-def _room(page, unit, obstacles):
-    """Le cadre agrandi dans la place LIBRE : vers le bas jusqu'au premier obstacle (texte, image,
-    trait) placé dessous et en vis-à-vis, sinon la marge du bas ; et, pour un passage d'une seule
-    RANGÉE (un titre, une cellule), sur sa hauteur du côté que laisse son alignement — à droite
-    s'il est à gauche, à gauche s'il est à droite, des deux côtés autant s'il est centré —
-    jusqu'au premier obstacle, sinon la marge. Un texte tourné garde son cadre."""
+def _free_span(page, rect, obstacles, vertical=False) -> tuple:
+    """La place libre de part et d'autre du cadre, sur sa propre bande (sa hauteur ; sa largeur
+    pour un texte tourné d'un quart de tour) : `(début, fin)` jusqu'au premier obstacle de chaque
+    côté, sinon la marge de la page."""
+    if vertical:
+        low, high = page.rect.y0 + 36, page.rect.y1 - 36
+        for other in obstacles:
+            if other.x0 < rect.x1 - 1 and other.x1 > rect.x0 + 1:
+                if other.y0 >= rect.y1 - 1:
+                    high = min(high, other.y0 - 2)
+                elif other.y1 <= rect.y0 + 1:
+                    low = max(low, other.y1 + 2)
+        return min(low, rect.y0), max(high, rect.y1)
+    low, high = page.rect.x0 + 36, page.rect.x1 - 36
+    for other in obstacles:
+        if other.y0 < rect.y1 - 1 and other.y1 > rect.y0 + 1:
+            if other.x0 >= rect.x1 - 1:
+                high = min(high, other.x0 - 2)
+            elif other.x1 <= rect.x0 + 1:
+                low = max(low, other.x1 + 2)
+    return min(low, rect.x0), max(high, rect.x1)
+
+
+def _room(page, unit, obstacles) -> list:
+    """Les cadres agrandis dans la place LIBRE, à essayer dans l'ordre. Vers le bas jusqu'au
+    premier obstacle (texte, image, trait) placé dessous et en vis-à-vis, sinon la marge ; et,
+    pour un passage d'une seule RANGÉE (un titre, une cellule, une étiquette), sur sa bande : du
+    côté que laisse son alignement (à droite s'il est à gauche, à gauche s'il est à droite, des
+    deux côtés autant s'il est centré), puis des deux côtés (le titre d'un cadre de figure, bordé
+    à droite). Un passage de plusieurs rangées garde sa largeur : il se replie comme l'original.
+    Un texte tourné d'un quart de tour s'allonge dans son sens d'écriture."""
     import fitz
     rect = unit['rect']
-    if unit['rotate']:
-        return rect
     others = [o for o in obstacles if o != rect]
-    bottom, left, right = page.rect.y1 - 36, rect.x0, rect.x1
+    if unit['rotate'] in (90, 270):
+        low, high = _free_span(page, rect, others, vertical=True)
+        half = min(rect.y0 - low, high - rect.y1)
+        return [fitz.Rect(rect.x0, rect.y0 - half, rect.x1, rect.y1 + half),
+                fitz.Rect(rect.x0, low, rect.x1, high)]
+    if unit['rotate']:
+        return []
+    bottom = page.rect.y1 - 36
     for other in others:
         if other.y0 >= rect.y1 - 1 and other.x0 < rect.x1 - 1 and other.x1 > rect.x0 + 1:
             bottom = min(bottom, other.y0 - 2)
-    if unit['rows'] == 1:
-        free_left, free_right = page.rect.x0 + 36, page.rect.x1 - 36
-        for other in others:
-            if other.y0 < rect.y1 - 1 and other.y1 > rect.y0 + 1:
-                if other.x0 >= rect.x1 - 1:
-                    free_right = min(free_right, other.x0 - 2)
-                elif other.x1 <= rect.x0 + 1:
-                    free_left = max(free_left, other.x1 + 2)
-        free_left, free_right = min(free_left, rect.x0), max(free_right, rect.x1)
-        if unit['align'] == 'right':
-            left = free_left
-        elif unit['align'] == 'center':
-            half = min(rect.x0 - free_left, free_right - rect.x1)
-            left, right = rect.x0 - half, rect.x1 + half
-        else:
-            right = free_right
-    return fitz.Rect(left, rect.y0, right, max(bottom, rect.y1))
+    bottom = max(bottom, rect.y1)
+    if unit['rows'] != 1:
+        return [fitz.Rect(rect.x0, rect.y0, rect.x1, bottom)]
+    low, high = _free_span(page, rect, others)
+    if unit['align'] == 'right':
+        left, right = low, rect.x1
+    elif unit['align'] == 'center':
+        half = min(rect.x0 - low, high - rect.x1)
+        left, right = rect.x0 - half, rect.x1 + half
+    else:
+        left, right = rect.x0, high
+    return [fitz.Rect(left, rect.y0, right, bottom), fitz.Rect(low, rect.y0, high, bottom)]
 
 
-def _place(page, unit, html_text, css, grown) -> None:
-    """Le texte dans son cadre à sa TAILLE d'origine ; s'il ne tient pas, dans le cadre agrandi
-    (`_room`) ; et seulement ensuite, réduit pour tenir."""
+def _place(page, unit, html_text, css, boxes) -> None:
+    """Le texte dans son cadre à sa TAILLE d'origine ; s'il ne tient pas, dans chacun des cadres
+    agrandis (`_room`) ; et seulement ensuite, réduit pour tenir dans le dernier."""
     import fitz
     rect = unit['rect']
-    need = unit['style'][3] * 1.15 - rect.height
-    if unit['rows'] == 1 and not unit['rotate'] and need > 0:
-        # Une rangée seule : le cadre de la ligne n'a pas la place des jambages ; il s'élargit
+    vertical = unit['rotate'] in (90, 270)
+    thickness = rect.width if vertical else rect.height
+    need = unit['style'][3] * 1.15 - thickness
+    if unit['rows'] == 1 and need > 0:
+        # Une rangée seule : le cadre de la ligne n'a pas la place des jambages ; il s'épaissit
         # d'autant, centré sur la ligne d'origine.
-        rect = fitz.Rect(rect.x0, rect.y0 - need / 2, rect.x1, rect.y1 + need / 2)
-        grown = fitz.Rect(grown.x0, rect.y0, grown.x1, max(grown.y1, rect.y1))
-    attempts = [(rect, 1)] + ([(grown, 1)] if grown != rect else []) + [(grown, 0)]
+        dx, dy = (need / 2, 0) if vertical else (0, need / 2)
+        thick = [fitz.Rect(r.x0 - dx, r.y0 - dy, r.x1 + dx, r.y1 + dy) for r in [rect] + boxes]
+        rect, boxes = thick[0], thick[1:]
+    boxes = [box for box in boxes if box != rect]
+    attempts = [(rect, 1)] + [(box, 1) for box in boxes] + [((boxes or [rect])[-1], 0)]
     for box, low in attempts:
         if page.insert_htmlbox(box, html_text, css=css, scale_low=low,
                                rotate=unit['rotate'])[0] >= 0:

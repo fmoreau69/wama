@@ -183,6 +183,29 @@ class TranslateDocumentTest(SimpleTestCase):
         self.assertEqual([('Ł VOIR LA ', False), ('NOTE', True), (' PLUS BAS.', False)], runs)
         self.assertEqual('Ł VOIR LA NOTE PLUS BAS.', seen[-1])
 
+    def test_a_label_gets_no_final_stop_and_an_axis_letter_no_paragraph(self):
+        """2026-10-29, figure of a real paper : the model added « . » to every label, and answered
+        a paragraph to the axis letter « R »."""
+        import docx
+        source = self.tmp / 'in.docx'
+        document = docx.Document()
+        for text in ('Moyenne spatiale', 'R', 'Une phrase.', 'Signal'):
+            document.add_paragraph(text)
+        document.save(str(source))
+        answers = {'Moyenne spatiale': 'Spatial averaging.', 'Une phrase.': 'A sentence.',
+                   'Signal': 'The word signal designates, in this figure, the measured quantity.'}
+        sent = []
+
+        def model(self, text, *a, **k):
+            sent.append(text)
+            return {'ok': True, 'text': answers[text], 'cached': False}
+
+        with mock.patch.object(translator.TranslatorService, 'translate', model):
+            out = translator.translate_document(source, self.tmp / 'out.docx', 'fr', 'en')
+        self.assertNotIn('R', sent)                                    # one letter : not sent
+        self.assertEqual(['Spatial averaging', 'R', 'A sentence.', 'Signal'],
+                         [p.text for p in docx.Document(out).paragraphs])
+
     def test_a_glossary_written_one_term_per_line_gives_terms_not_characters(self):
         with mock.patch.object(translator.TranslatorService, 'translate',
                                return_value={'ok': True, 'text': 'x', 'cached': False}) as call:
