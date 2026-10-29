@@ -1624,11 +1624,11 @@ Que peut faire WAMA de ce fichier ? — ports d'app + lot + manifeste + médiath
 
 ### Moteur de l'assistant IA
 
-Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vue web et /api/v1/assistant/chat/ en sont des clients
+Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vue web et /api/v1/assistant/chat/ en sont des clients. Porte aussi les SOUS-AGENTS et le COUNCIL (2026-10-29, `WAMA_HARNESS §7.4`) : bornes d'un tour, verbe `delegate` (vagues parallèles par serveur, agents du registre de 1 à n, vote / décideur / relecture croisée), réglage « Sous-agents » auto + curseur
 
 - **Domicile** : `wama/common/services/assistant_engine.py`
 - **Module** : Moteur de l'assistant IA — boucle agentique multi-surface (chantier « passerelle de canaux », étape 0).
-- **API publique** (12) :
+- **API publique** (13) :
   - `web_voice_prompt(user, surface: str) -> str` — La consigne de voix et d'avatar de la surface web, avec l'état de CET utilisateur —
   - `surface_attaches_files(surface: str) -> bool` — La réponse de cette surface est-elle publiée par un ADAPTATEUR qui joint les fichiers ?
   - `turn_model_key(provider, llm_model) -> str` — Clé de CATALOGUE du modèle d'un tour (`albert:…`, `ollama:…`) — '' sans modèle nommé.
@@ -1636,6 +1636,7 @@ Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — la vu
   - `assistant_settings(user) -> dict` — Réglages DURABLES de l'assistant pour `user` (brique commune `user_settings`, app
   - `resolve_turn_model(user, provider=None, model=None, domain=None) -> tuple` — (fournisseur, modèle) d'un tour — le fournisseur SE DÉRIVE du modèle, comme partout
   - `thinking_wanted(quality_intent) -> bool` — La réflexion du modèle est-elle demandée pour ce réglage de curseur ?
+  - `delegation_wanted(settings: dict) -> bool` — Les sous-agents sont-ils proposés au modèle ? Le geste commun « auto + curseur + manuel » :
   - `native_tool_list(user, dev_tools: list=(), names=None) -> list` — La liste des outils au format standard (`tools=`) que reçoit un modèle déclaré
   - `warm_up() -> dict` — Remplit les caches de processus du tour d'assistant — `{étape: secondes | 'erreur : …'}`.
   - `message_with_deposits(text: str, paths) -> str` — Le message d'un tour qui DÉPOSE des fichiers dans l'espace de l'utilisateur — UNE graphie
