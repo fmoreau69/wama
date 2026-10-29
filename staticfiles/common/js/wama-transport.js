@@ -47,9 +47,6 @@
         return b;
     }
 
-    /** Le clavier est-il à une saisie ? La règle commune (`WamaApp.isTyping`). */
-    function typing() { return global.WamaApp.isTyping(); }
-
     function mount(host, cfg) {
         cfg = cfg || {};
         var o = cfg.options || {};
@@ -136,11 +133,14 @@
             axis.seek(D ? Math.min(sec, D) : sec, 'goto');
         }
 
-        // Échap à une saisie du transport (« aller à ») rend le clavier ; jamais déjà traité.
-        document.addEventListener('keydown', function (e) {
-            if (e.key !== 'Escape' || e.defaultPrevented || !typing()) return;
-            if (host.contains(document.activeElement)) { e.preventDefault(); document.activeElement.blur(); }
-        });
+        // Échap à une saisie du transport (« aller à ») rend le clavier — par le clavier commun
+        // (`WamaKeys`) : la brique a la main quand le focus est chez elle.
+        global.WamaKeys.register({ owner: 'media_transport', scope: 'brick', root: host, typing: ['Escape'],
+                                   handle: function (e) {
+            if (e.key !== 'Escape' || !global.WamaKeys.typing(e.target)) return false;
+            e.target.blur();
+            return true;
+        } });
 
         // ── L'abonnement à l'axe ────────────────────────────────────────────────────────────
         // L'icône du bouton lecture change de CLASSE, et seulement quand l'état change (2026-10-28,

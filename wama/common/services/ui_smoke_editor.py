@@ -219,8 +219,11 @@ def _transport(ed, checks):
     ed.page.wait_for_timeout(150)
     invalid = ed.page.locator(ed.sel('goto')).evaluate("e => e.classList.contains('is-invalid')")
     ed.page.keyboard.press('Escape')
+    # `goto()` relâche le focus après Échap : ici seul, on mesure qu'Échap rend le clavier (29/10).
+    left = ed.page.locator(ed.sel('goto')).evaluate("e => document.activeElement !== e")
     ed.release_focus()
     checks.append((invalid, f"un temps illisible est signalé, la lecture reste ({invalid})"))
+    checks.append((left, f"Échap dans « aller à » rend le clavier ({left})"))
 
 
 def _shuttle(ed, checks):

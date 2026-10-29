@@ -654,6 +654,13 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       un clic sur une poignée de redimensionnement (hors de l'image) le laisse ailleurs. Une
       retouche de la règle de la main (« le dernier clic prime sur le focus »), écrite sur la foi
       de ce commentaire, a donc été RETIRÉE avant commit : rien ne la justifiait à la mesure.
+    - ✅ **Le champ « aller à » du transport** : Échap y rend le clavier par le module (le
+      transport, brique qui a la main quand le focus est chez lui) — `WamaApp.isTyping` n'y est
+      plus lu. Dans l'éditeur, la liste des segments prend Échap avant lui (en capture, tant
+      qu'elle n'est pas inscrite) : la parité n'en mesurait pas l'effet (le scénario relâchait le
+      focus juste après). Contrôle ajouté : **parité 76/76** (Transport 10/10). Preuve au
+      navigateur : l'Échap des segments neutralisé, celui du transport tient seul (seul l'abandon
+      d'une édition de segment rougit) ; les deux neutralisés → « Échap dans « aller à » » rouge.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
