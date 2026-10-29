@@ -1398,6 +1398,137 @@ def check_score_keys(page_hook=None):
     return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
 
 
+#: L'image et ses zones : l'outil actif, la zone choisie et les zones retirées (liste des objets),
+#: le zoom affiché.
+_IMAGE_STATE_JS = """() => {
+    const tool = document.querySelector('.wama-brick-tools [data-tool].active');
+    const rows = [...document.querySelectorAll('.wama-object-row')];
+    return {tool: tool ? tool.dataset.tool : null,
+            selected: rows.findIndex(r => r.classList.contains('is-selected')),
+            removed: rows.filter(r => r.classList.contains('is-removed')).length,
+            zoom: (document.querySelector('.wama-brick-zoom') || {}).textContent || ''};
+}"""
+
+
+def check_image_boxes_keys(page_hook=None):
+    """L'IMAGE ET SES ZONES au clavier (2026-10-29, étape 3 du clavier commun : aucun scénario ne
+    rejouait ses touches) — (ok, détail).
+
+    Sur la première surface témoin qui porte l'image et la liste de ses objets : une zone choisie
+    dans la liste puis touchée dans l'image ; N passe à l'outil « Ajouter », Échap revient à la
+    sélection et quitte la zone ; Suppr retire la zone choisie, R la rétablit ; F rend l'image
+    entière ; un clic HORS de l'image lui retire la main (N n'y fait plus rien). Rien n'est
+    enregistré (les écritures de la page sont refusées), le témoin est retiré en sortie.
+    `page_hook(page)` : contre-épreuve."""
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from .ui_smoke_layout import BLOCK_WRITES
+
+    surfaces, _refused = _witness_surfaces()
+    found = sorted((s for s in surfaces if {'image_boxes', 'object_list'} <= {slot.brick for slot in s.slots}),
+                   key=lambda s: s.id)
+    if not found:
+        raise SkipScenario("aucune surface témoin ne porte l'image et la liste de ses objets")
+    surface = found[0]
+    image = next(slot for slot in surface.slots if slot.brick == 'image_boxes')
+    token, uid = _test_session_key(surface.app), _test_account_id(surface.app)
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+    verdicts = []
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    sessions_before = _session_keys()
+    try:
+        with _garde_de_montage(surface.app, 'image_keys'):
+            pk = _in_plain_thread(mount_witness, surface, uid)
+            url = BASE_URL.rstrip('/') + reverse('common:surface', args=[surface.app, surface.key, pk])
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                    context.add_cookies(_cookie(token))
+                    context.add_init_script(BLOCK_WRITES)
+                    page = context.new_page()
+                    page.set_default_timeout(10000)
+                    errors = []
+                    page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+                    if page_hook:
+                        page_hook(page)
+                    page.goto(url, wait_until='load', timeout=45000)
+                    page.wait_for_selector('.wama-object-row', timeout=20000)
+                    page.wait_for_timeout(1500)
+                    page.evaluate(_TAG_SLOTS_JS)
+                    state = lambda: page.evaluate(_IMAGE_STATE_JS)
+                    canvas = page.locator(f'[data-capture-slot="{image.id}"] canvas')
+
+                    def press(key):
+                        page.keyboard.press(key)
+                        page.wait_for_timeout(300)
+                        return state()
+
+                    def take_zone():
+                        # La liste choisit la zone et la centre ; le clic au centre de l'image la
+                        # rechoisit et donne la main à l'image.
+                        page.locator('.wama-object-row').first.click()
+                        page.wait_for_timeout(400)
+                        box = canvas.bounding_box()
+                        page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                        page.wait_for_timeout(300)
+                        return state()
+
+                    try:
+                        fitted = state()['zoom']
+                        s0 = take_zone()
+                        verdict(s0['selected'] == 0 and s0['tool'] == 'select', f"une zone choisie, outil Sélection ({s0})")
+                        s = press('n')
+                        verdict(s['tool'] == 'add', f"N : outil Ajouter ({s['tool']})")
+                        s = press('Escape')
+                        verdict(s['tool'] == 'select' and s['selected'] < 0,
+                                f"Échap : outil Sélection, la zone quittée ({s['tool']}, {s['selected']})")
+                        s0 = take_zone()
+                        s = press('Delete')
+                        verdict(s['removed'] == s0['removed'] + 1, f"Suppr retire la zone ({s0['removed']} → {s['removed']})")
+                        s = press('r')
+                        verdict(s['removed'] == s0['removed'], f"R la rétablit ({s['removed']})")
+                        box = canvas.bounding_box()
+                        page.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                        page.mouse.wheel(0, -400)
+                        page.wait_for_timeout(300)
+                        zoomed = state()['zoom']
+                        s = press('f')
+                        verdict(zoomed != fitted and s['zoom'] == fitted,
+                                f"F : l'image entière ({fitted} → molette {zoomed} → {s['zoom']})")
+                        page.locator('.wama-objects-summary').click()
+                        page.wait_for_timeout(300)
+                        s = press('n')
+                        verdict(s['tool'] == 'select', f"un clic hors de l'image lui retire la main : N n'y fait rien ({s['tool']})")
+                        # Un bouton de la brique cliqué prend le focus ; le clic dans l'image le lui
+                        # reprend (le canvas se focalise), et la main avec.
+                        page.locator(f'[data-capture-slot="{image.id}"] [data-act="fit"]').click()
+                        box = canvas.bounding_box()
+                        page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                        page.wait_for_timeout(300)
+                        focus = page.evaluate("() => document.activeElement.tagName")
+                        s = press('n')
+                        verdict(s['tool'] == 'add', f"après un bouton (focus : {focus}), un clic dans l'image lui rend la main : N ({s['tool']})")
+                        press('Escape')
+                    except Exception as error:
+                        verdict(False, f"geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
+                    shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
+                    verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+                finally:
+                    browser.close()
+    finally:
+        _drop_new_sessions(sessions_before)
+    failed = [text for ok, text in verdicts if not ok]
+    detail = f"{surface.id} : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
 def register_surface_scenarios():
     """Les scénarios communs des surfaces (vignettes de briques, disposition, clavier) — aucun GPU."""
     from wama.common.services.nightly_tests import register
@@ -1464,5 +1595,14 @@ def register_surface_scenarios():
                      "décalent sans que le transport prenne → ; Échap la quitte et → revient au "
                      "transport (rien d'enregistré, témoin retiré)"),
         run=lambda ctx: check_score_keys(),
+        timeout_s=180, vram_gb=0.0,
+    )
+    register(
+        id='common.image_keys', app='common', stage='ui',
+        description=("Image et zones au clavier : N (outil Ajouter), Échap (sélection), Suppr "
+                     "retire la zone choisie, R la rétablit, F l'image entière après un zoom ; un "
+                     "clic hors de l'image lui retire la main, un clic dedans la lui rend "
+                     "(écritures refusées, témoin retiré)"),
+        run=lambda ctx: check_image_boxes_keys(),
         timeout_s=180, vram_gb=0.0,
     )

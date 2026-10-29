@@ -609,7 +609,7 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       (`transcriber.queue_dnd`, `anonymizer.queue_dnd`), visionneuse (`common.preview_navigation`,
       35 gestes), inspecteurs coexistants, parité de l'éditeur 75/75.
     - ⚠ **Pas encore inscrits** (ils gardent leur propre écoute, sans conflit mesuré) : les
-      segments, la ligne de temps, l'écriture à la lecture, ~~la partition~~ (étape 3), l'image et ses zones,
+      segments, la ligne de temps, l'écriture à la lecture, ~~la partition~~ (étape 3), ~~l'image et ses zones~~ (étape 3),
       ~~l'historique~~ (étape 3), le menu de card, la visionneuse, le cam_analyzer (`WamaShuttle.bindKeys`). Le
       module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
       ⚠ **Jumeau déclaré** (revérification du 29/10) : ces briques testent la saisie par
@@ -645,6 +645,15 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       sélection, recherche comprise comme avant ; sans sélection, la touche n'est pas prise.
       Scénarios `check_constellation` et `common.scene.{licenses,models}.ui` verts ; contre-épreuve
       au navigateur (Échap retiré de la saisie) → rouge.
+    - ✅ **L'image et ses zones** (`image_boxes`, brique qui a la main, root = le canvas) : N, Échap,
+      Suppr / Retour arrière, R, F. Aucun scénario ne rejouait ces touches : **`common.image_keys`**
+      (9 gestes, joué AVANT le changement pour la référence, puis après) ; contre-épreuve au
+      navigateur (la main donnée à la barre d'outils) → rouge. ⚠ Le commentaire de la brique disait
+      que gridstack retient le mousedown et que le canvas ne prend jamais le focus : **remesuré
+      le 29/10, faux** — le canvas se focalise au clic, disposition figée comme modifiable ; seul
+      un clic sur une poignée de redimensionnement (hors de l'image) le laisse ailleurs. Une
+      retouche de la règle de la main (« le dernier clic prime sur le focus »), écrite sur la foi
+      de ce commentaire, a donc été RETIRÉE avant commit : rien ne la justifiait à la mesure.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
