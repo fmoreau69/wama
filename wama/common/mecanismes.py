@@ -1689,8 +1689,10 @@ MECHANISMS = (
               "l'app sous le verrou, cache de progression purgé, tâche envoyée ; « tout lancer » "
               "selon la sélection DÉCLARÉE (`pending` / `pending_exclude`, noms de `TRIAD_SPECS`) "
               "et, s'il en porte, les réglages postés vérifiés sur toute la file avant le premier "
-              "lancement ; « tout effacer » sans les éléments en cours, par le geste de retrait "
-              "de `batch_delete` (`discard_element`). Trente copies dans dix apps. La fabrique "
+              "lancement ; « tout effacer » sans les éléments en vol, par le geste de retrait "
+              "de `batch_delete` (`discard_element`). Le menu ▾ de la barre de file offre les "
+              "PÉRIMÈTRES (`START_SCOPES` / `CLEAR_SCOPES`, `?scope=`), grisés quand ils sont "
+              "vides d'après les compteurs de la file. Trente copies dans dix apps. La fabrique "
               "INSCRIT sa déclaration par modèle (`declaration_for`) : l'outil `start_<app>` de "
               "l'assistant la lit — un geste, deux portes, comme `start_one_process`",
               'wama/common/utils/item_views.py',

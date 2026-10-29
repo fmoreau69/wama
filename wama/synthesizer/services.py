@@ -59,13 +59,16 @@ def _title_from(text: str, title: str = '') -> str:
 
 
 def create_synthesis(user, *, prompt: str = '', work_file=None, reference_voice=None,
-                     title: str = '', params=None, wrap: bool = True):
+                     title: str = '', params=None, wrap: bool = True, app: str = 'synthesizer'):
     """Crée la synthèse (et son lot d'un élément si `wrap`). Rend l'objet ; lève `SynthesisRefused`.
 
     `work_file` / `reference_voice` : des `ReceivedInput` (ou None). `prompt` sert si aucun
     fichier de travail n'est donné — l'un OU l'autre (décision de Fabien, 2026-09-30).
+    `app` re-cible une JUMELLE de bac à sable (son modèle, son lot) — le contrat d'`importer_for`,
+    que l'outil `add_to_<jumelle>` emprunte (2026-10-29).
     """
-    from .models import VoiceSynthesis
+    from django.apps import apps as django_apps
+    VoiceSynthesis = django_apps.get_model(app, 'VoiceSynthesis')
 
     text = (prompt or '').strip()
     if work_file is None and not text:
@@ -123,8 +126,12 @@ def batch_link_extra(synthesis) -> dict:
 
 
 def wrap_in_batch(synthesis):
-    """Un lot d'UN élément — la file est construite à partir des lots."""
-    from .models import BatchSynthesis, BatchSynthesisItem
+    """Un lot d'UN élément — la file est construite à partir des lots. Les modèles de lot sont
+    ceux de l'app de la synthèse (une jumelle range dans les siens)."""
+    from django.apps import apps as django_apps
+    app = synthesis._meta.app_label
+    BatchSynthesis = django_apps.get_model(app, 'BatchSynthesis')
+    BatchSynthesisItem = django_apps.get_model(app, 'BatchSynthesisItem')
     batch = BatchSynthesis.objects.create(user=synthesis.user, total=1)
     BatchSynthesisItem.objects.create(batch=batch, synthesis=synthesis, row_index=0,
                                       **batch_link_extra(synthesis))

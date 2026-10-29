@@ -239,6 +239,15 @@ def queue_context(app, domain=None):
 
 
 @register.simple_tag
+def queue_scopes(action):
+    """Les entrées du menu ▾ de « tout lancer » (`start`) ou de « tout effacer » (`clear`) de la
+    barre de file — la table de la fabrique (`item_views.START_SCOPES` / `CLEAR_SCOPES`), jamais
+    une liste écrite dans le gabarit (2026-10-29)."""
+    from wama.common.utils.item_views import queue_scopes as scopes
+    return scopes(action)
+
+
+@register.simple_tag
 def live_input_declared(app):
     """L'app déclare-t-elle la capture EN DIRECT (`has_live_input`) ? — pour la card v3, qui
     affichait le bouton Speak sur le seul littéral `show_live` de la page (2026-09-28)."""

@@ -41,9 +41,13 @@ def _batch_item_extra(generation: ComposerGeneration) -> dict:
 
 
 def _wrap_generation_in_batch(generation: ComposerGeneration) -> ComposerBatch:
-    """Wrap a standalone ComposerGeneration in a new ComposerBatch-of-1 (brique commune)."""
+    """Wrap a standalone ComposerGeneration in a new ComposerBatch-of-1 (brique commune). Les
+    modèles de lot sont ceux de l'app de la génération : une jumelle range dans les siens."""
+    from django.apps import apps as django_apps
     from wama.common.utils.batch_common import wrap_in_batch
-    return wrap_in_batch(generation, batch_model=ComposerBatch, item_model=ComposerBatchItem,
+    app = generation._meta.app_label
+    return wrap_in_batch(generation, batch_model=django_apps.get_model(app, 'ComposerBatch'),
+                         item_model=django_apps.get_model(app, 'ComposerBatchItem'),
                          fk_name='generation', item_extra=_batch_item_extra)
 
 

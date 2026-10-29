@@ -262,19 +262,24 @@
             return c ? { surface: c.surface, pk: c.pk, nature: nature } : null;
         }
         // FILE : la surface se lit sur une card de la même file (même domaine que le bouton).
+        // Le PÉRIMÈTRE choisi au menu ▾ (`?scope=` de l'adresse, 2026-10-29) : l'aperçu annonce
+        // les fichiers de ce que l'effacement retire, pas ceux de toute la file.
         const domain = domainOf(btn);
+        const address = btn.getAttribute('data-queue-clear-url') || '';
+        const scope = new URL(address, window.location.href).searchParams.get('scope') || '';
         const hosts = document.querySelectorAll('.wama-card[data-preview-url], .wama-card [data-preview-url]');
         for (let i = 0; i < hosts.length; i++) {
             if (domain && domainOf(hosts[i]) !== domain) continue;
             const c = WamaShare.coordonnees(hosts[i]);
-            if (c) return { surface: c.surface, pk: '', nature: 'queue' };
+            if (c) return { surface: c.surface, pk: '', nature: 'queue', scope: scope };
         }
         return null;
     }
 
     function previewFreedFiles(target) {
         if (!target) return Promise.resolve([]);
-        const q = new URLSearchParams({ surface: target.surface, nature: target.nature, pk: target.pk });
+        const q = new URLSearchParams({ surface: target.surface, nature: target.nature, pk: target.pk,
+                                        scope: target.scope || '' });
         return fetch(RELEASED_API + 'preview/?' + q.toString(), { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : { files: [] }; })
             .then(function (d) { return d.files || []; })

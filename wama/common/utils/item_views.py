@@ -38,6 +38,35 @@ logger = logging.getLogger(__name__)
 #: Ce que lance « tout lancer » quand l'app ne dit rien : les éléments en attente.
 DEFAULT_PENDING = {'status': 'PENDING'}
 
+#: Les éléments EN VOL : en cours, ou déjà partis attendre leurs ressources. « Tout lancer » ne
+#: les relance pas, « tout effacer » ne les retire pas (on ne retire pas sous une tâche qui écrit).
+IN_FLIGHT = ('RUNNING', 'AWAITING_RESOURCES')
+
+#: Les PÉRIMÈTRES que l'utilisateur choisit au menu ▾ de « tout lancer » (Fabien, 2026-10-29 :
+#: « un menu déroulant pour que l'utilisateur précise son choix »). Le clic principal garde la
+#: règle que l'app DÉCLARE (`pending` / `pending_exclude`). Clé → (libellé, filtre, exclusion,
+#: compteur de la barre de file qui dit combien il en lance — `progress_views.queue_progress`).
+START_SCOPES = {
+    'pending': ('En attente', {'status': 'PENDING'}, {}, 'pending'),
+    'failed': ('Échecs', {'status': 'FAILURE'}, {}, 'failure'),
+    'unfinished': ('Non réussis', {}, {'status': 'SUCCESS'}, 'unfinished'),
+    'all': ('Tout relancer', {}, {}, 'relaunchable'),
+}
+#: Les périmètres du menu ▾ de « tout effacer » — le clic principal efface toute la file (hors vol).
+CLEAR_SCOPES = {
+    'success': ('Terminés', {'status': 'SUCCESS'}, 'success'),
+    'failed': ('Échecs', {'status': 'FAILURE'}, 'failure'),
+    'pending': ('En attente', {'status': 'PENDING'}, 'pending'),
+}
+
+
+def queue_scopes(action: str) -> list:
+    """Les entrées du menu ▾ d'une action de file (`start` | `clear`) : `{key, label, counter}` —
+    lues par la barre de file commune (`_queue_actions.html`) ; `counter` est le compteur de la
+    barre de progression qui grise une entrée sans objet (`wama-global-progress.js`)."""
+    table = START_SCOPES if action == 'start' else CLEAR_SCOPES
+    return [{'key': key, 'label': spec[0], 'counter': spec[-1]} for key, spec in table.items()]
+
 
 @dataclass(frozen=True)
 class ItemStart:
@@ -63,11 +92,24 @@ class ItemStart:
             return self.queryset(user)
         return self.work_model.objects.filter(user=user)
 
-    def to_start(self, user):
-        """Ce que lance « tout lancer » : la file, bornée par `pending` / `pending_exclude`."""
-        pending = DEFAULT_PENDING if self.pending is None else self.pending
-        return (self.queue(user).filter(**pending).exclude(**(self.pending_exclude or {}))
-                .order_by('pk'))
+    def to_start(self, user, scope: str = ''):
+        """Ce que lance « tout lancer » : la file, bornée par `pending` / `pending_exclude` — ou par
+        le PÉRIMÈTRE choisi au menu (`START_SCOPES`). Jamais un élément en vol."""
+        if scope:
+            _label, pending, exclude, _counter = START_SCOPES[scope]
+        else:
+            pending = DEFAULT_PENDING if self.pending is None else self.pending
+            exclude = self.pending_exclude or {}
+        return (self.queue(user).filter(**pending).exclude(**exclude)
+                .exclude(status__in=IN_FLIGHT).order_by('pk'))
+
+    def to_clear(self, user, scope: str = ''):
+        """Ce que retire « tout effacer » : la file hors vol, ou le PÉRIMÈTRE choisi (`CLEAR_SCOPES`).
+        La MÊME lecture sert la confirmation, qui annonce les fichiers libérés."""
+        found = self.queue(user).exclude(status__in=IN_FLIGHT)
+        if scope:
+            found = found.filter(**CLEAR_SCOPES[scope][1])
+        return found.order_by('pk')
 
     def progress_cache_key(self, pk) -> str:
         return (self.progress_key or f'{self.app_id}_progress_{{pk}}').format(pk=pk)
@@ -169,15 +211,17 @@ def start_one_item(declaration, pk, *, user, reset=None):
     return item, task, None
 
 
-def start_queue(declaration, user, *, settings=None, apply_settings=None, on_queue_settings=None):
+def start_queue(declaration, user, *, settings=None, apply_settings=None, on_queue_settings=None,
+                scope: str = ''):
     """« Tout lancer » : chaque élément que la déclaration retient, par le geste du ▶.
     `settings` (les réglages postés, posés par `apply_settings`) sont VÉRIFIÉS sur tous les
     éléments avant d'en lancer un seul : un refus (`ValueError`) lève, et rien n'est parti.
     `apply_settings` doit donc rester SANS effet hors de l'élément ; un geste à effets (un fichier
     libéré) passe par `on_queue_settings`, appelé sous le verrou seulement.
+    `scope` : le périmètre choisi au menu (`START_SCOPES`) ; vide = la règle que l'app déclare.
     Rend `(lancés, erreurs, sautés)` — sautés : non lançables en l'état (`startable`)."""
     from wama.common.utils.process_control import begin_processing
-    candidates = list(declaration.to_start(user))
+    candidates = list(declaration.to_start(user, scope))
     skipped = []
     if declaration.startable is not None:
         skipped = [item.pk for item in candidates if not declaration.startable(item)]
@@ -263,8 +307,10 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
                           champ) — le crochet de `make_batch_views`.
         batch_model     : le modèle de lot : « tout effacer » retire aussi les lots devenus vides.
 
-    « Tout effacer » retire la FILE, sauf les éléments EN COURS : on ne retire pas sous une tâche
-    qui écrit encore (elle se stoppe d'abord, ⏹) — la règle du composer, qui la seule tenait.
+    « Tout effacer » retire la FILE, sauf les éléments EN VOL (`IN_FLIGHT`) : on ne retire pas sous
+    une tâche qui écrit encore (elle se stoppe d'abord, ⏹) — la règle du composer, qui la seule
+    tenait. Les deux actions de file acceptent un PÉRIMÈTRE (`?scope=`, menu ▾ de la barre
+    commune, `START_SCOPES` / `CLEAR_SCOPES`) ; sans lui, la règle de l'app.
     """
     declaration = ItemStart(
         work_model=work_model, app_id=app_id, task=task, task_for=task_for,
@@ -290,16 +336,26 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         return JsonResponse({'success': True, 'id': item.pk, 'task_id': task_sent.id,
                              'status': 'RUNNING'})
 
+    def _scope(request, table):
+        """Le périmètre choisi au menu ▾ (`?scope=`), '' pour le clic principal ; un périmètre
+        inconnu est REFUSÉ (400) plutôt que de retomber en silence sur toute la file."""
+        scope = (request.GET.get('scope') or '').strip()
+        if scope and scope not in table:
+            raise ValueError(f"périmètre inconnu : {scope} — attendus : {', '.join(table)}")
+        return scope
+
     @require_POST
     def start_all(request):
         user = get_user(request)
         settings = None
         try:
+            scope = _scope(request, START_SCOPES)
             if queue_settings is not None:
                 settings = queue_settings(request, user)
             started, errors, skipped = start_queue(declaration, user, settings=settings,
                                                    apply_settings=apply_settings,
-                                                   on_queue_settings=on_queue_settings)
+                                                   on_queue_settings=on_queue_settings,
+                                                   scope=scope)
         except ValueError as refusal:
             return JsonResponse({'error': str(refusal)}, status=400)
         return JsonResponse({'success': True, 'started': started, 'count': len(started),
@@ -308,9 +364,13 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
     @require_POST
     def clear_all(request):
         user = get_user(request)
+        try:
+            scope = _scope(request, CLEAR_SCOPES)
+        except ValueError as refusal:
+            return JsonResponse({'error': str(refusal)}, status=400)
         key = progress_key or f'{app_id}_progress_{{pk}}'
         removed = 0
-        for item in list(declaration.queue(user).exclude(status='RUNNING')):
+        for item in list(declaration.to_clear(user, scope)):
             discard_element(item, progress_key=key, on_delete=on_delete)
             removed += 1
         if batch_model is not None:

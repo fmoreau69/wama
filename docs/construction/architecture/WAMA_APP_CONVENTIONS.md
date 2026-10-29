@@ -359,35 +359,34 @@ urlpatterns = [
 > réponse) : les ramener au corps généré (`read_settings_payload` + `apply_item_settings`) est un
 > portage app par app, pas un renommage.
 
-### 3.2 Pattern de vue `start` (anti-race-condition obligatoire)
+### 3.2 ▶ d'un élément, « tout lancer », « tout effacer » — fabrique commune (anti-race comprise)
+
+> ⚠ **Ne plus écrire ces trois vues à la main** (2026-10-29, `ROUTE §11 #39`). Elles l'étaient
+> dans les dix apps — trente copies du verrou `begin_processing` + tâche + `task_id` —, et l'outil
+> `start_<app>` de l'assistant en portait une quatrième qui avait divergé du bouton. Elles viennent
+> de `wama/common/utils/item_views.make_item_views` ; l'app ne DÉCLARE que sa tâche, sa remise à
+> zéro et ce que lance « tout lancer » — déclaration que l'outil de l'assistant lit aussi. Tenu
+> par le critère `item_views_common` et par `tests_item_views` (garde générique du catalogue).
 
 ```python
-@require_POST
-def start(request, pk):
-    user = _get_user(request)
-    with transaction.atomic():
-        item = get_object_or_404(
-            MyItem.objects.select_for_update(), pk=pk, user=user
-        )
-        if item.status == 'RUNNING':
-            return JsonResponse({'error': 'Déjà en cours'}, status=409)
-        if item.task_id:
-            try:
-                from celery import current_app
-                current_app.control.revoke(item.task_id, terminate=False)
-            except Exception:
-                pass
-        item.status = 'RUNNING'
-        item.task_id = ''
-        item.result_text = ''        # ou output_file selon l'app
-        item.error_message = ''
-        item.progress = 0
-        item.save()
-    task = my_task.delay(item.id)
-    item.task_id = task.id
-    item.save(update_fields=['task_id'])
-    return JsonResponse({'ok': True, 'task_id': task.id})
+# wama/<app>/views.py
+from wama.common.utils.item_views import make_item_views
+
+_iv = make_item_views(work_model=MyItem, app_id='<app>', task_for=lambda item: _task_for(item),
+                      reset_on_start=_reset_for_relaunch,        # appliquée SOUS le verrou
+                      pending={}, pending_exclude={'status': 'SUCCESS'},   # clic principal
+                      batch_model=MyBatch)
+start = app_access('<app>')(_iv['start'])
+start_all = app_access('<app>')(_iv['start_all'])
+clear_all = _iv['clear_all']
 ```
+
+La barre de file commune rend chaque action en bouton + menu ▾ (décision de Fabien, 2026-10-29) :
+le clic principal suit la règle déclarée, le ▾ offre les PÉRIMÈTRES de la fabrique —
+« tout lancer » : En attente · Échecs · Non réussis · Tout relancer ; « tout effacer » : Terminés ·
+Échecs · En attente (`?scope=`, `START_SCOPES` / `CLEAR_SCOPES`). Chaque entrée est grisée quand
+son périmètre est vide, avec son nombre, d'après les compteurs de la barre de progression. Ni l'un
+ni l'autre ne touche un élément EN VOL (en cours, ou en attente de ses ressources).
 
 ### 3.3 Vues de PROGRESSION — fabrique commune (`progress` + `global_progress`)
 

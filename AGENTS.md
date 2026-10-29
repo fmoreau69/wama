@@ -959,30 +959,15 @@ manquants » était périmée, les deux existent, vérifié 2026-07-03).**
 
 **✅ Vérifier systématiquement** à chaque création d'une nouvelle application.
 
-### Pattern de démarrage de tâche Celery (anti-race-condition)
+### Démarrage d'une tâche (anti-race-condition) — par la fabrique, jamais à la main
 
-```python
-@require_POST
-def start(request, pk):
-    from django.db import transaction
-    with transaction.atomic():
-        item = MyModel.objects.select_for_update().get(pk=pk, user=user)
-        if item.status == 'RUNNING':
-            return JsonResponse({'error': 'Already running'}, status=400)
-        # Révoquer ancienne tâche
-        if item.task_id:
-            try:
-                from celery import current_app
-                current_app.control.revoke(item.task_id, terminate=False)
-            except Exception:
-                pass
-        item.status = 'RUNNING'
-        item.task_id = ''
-        item.save()
-    task = my_task.delay(item.id)
-    item.task_id = task.id
-    item.save(update_fields=['task_id'])
-```
+Le motif (verrou `select_for_update`, refus d'un élément déjà en cours, révocation de l'ancienne
+tâche, « en cours » posé avant l'envoi, `task_id` retenu) vit UNE fois : `begin_processing`
+(`common/utils/process_control.py`), appelé par les fabriques de vues — ▶ d'un élément,
+« tout lancer », « tout effacer » par `common/utils/item_views.make_item_views` (2026-10-29,
+`ROUTE §11 #39`), ▶ de lot par `make_batch_views`, ▶ d'un process par `make_process_start_view`.
+Usage : `WAMA_APP_CONVENTIONS.md §3.2`. Ce paragraphe recopiait le motif complet, à écrire dans
+chaque app : il y en avait trente copies, et l'outil `start_<app>` de l'assistant avait la sienne.
 
 ---
 

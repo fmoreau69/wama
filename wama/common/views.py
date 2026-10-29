@@ -2534,9 +2534,26 @@ def api_released_files_preview(request):
         lot = get_object_or_404(batch_model, pk=request.GET.get('pk'), user=request.user)
         instances = [lot, *batch_elements(lot, model)]
     else:
-        instances = list(model.objects.filter(user=request.user))
-        if batch_model is not None:
-            instances += list(batch_model.objects.filter(user=request.user))
+        # « Tout effacer » : la MÊME sélection que la vue (`item_views.ItemStart.to_clear` — hors
+        # vol, et le périmètre `scope` choisi au menu ▾, 2026-10-29), et les lots qu'elle VIDE.
+        # Une app hors fabrique garde l'ancienne lecture : toute la file de l'utilisateur.
+        from wama.common.utils.item_views import CLEAR_SCOPES, declaration_for
+        scope = request.GET.get('scope') or ''
+        if scope and scope not in CLEAR_SCOPES:
+            return JsonResponse({'error': f'périmètre inconnu : {scope}'}, status=400)
+        declaration = declaration_for(model)
+        if declaration is not None:
+            instances = list(declaration.to_clear(request.user, scope))
+            cleared = {item.pk for item in instances}
+            if batch_model is not None:
+                for lot in batch_model.objects.filter(user=request.user):
+                    members = batch_elements(lot, model)
+                    if all(m.pk in cleared for m in members):
+                        instances.append(lot)
+        else:
+            instances = list(model.objects.filter(user=request.user))
+            if batch_model is not None:
+                instances += list(batch_model.objects.filter(user=request.user))
     paths = freed_by(instances)
     return JsonResponse({'files': [{'path': p, 'name': p.rsplit('/', 1)[-1]} for p in paths]})
 

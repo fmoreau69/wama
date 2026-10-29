@@ -58,6 +58,38 @@
         }
     }
 
+    // Les barres d'actions de file que CETTE barre de progression renseigne : celle qui contient
+    // son ⬇ réclamé (barre de domaine), sinon toutes celles dont le ⬇ n'est réclamé par personne.
+    function actionBars(own) {
+        if (own) {
+            var el = document.getElementById(own);
+            var box = el && el.closest('.wama-queue-actions');
+            return box ? [box] : [];
+        }
+        return Array.prototype.filter.call(
+            document.querySelectorAll('.wama-queue-actions'),
+            function (box) {
+                return !claimedDownloads.some(function (id) {
+                    var el = document.getElementById(id);
+                    return el && box.contains(el);
+                });
+            });
+    }
+
+    // Les entrées du menu ▾ de « tout lancer » / « tout effacer » (`data-queue-scope`, 2026-10-29) :
+    // grisées quand leur périmètre est vide, avec leur nombre — compté par le SERVEUR, comme le ⬇.
+    function setScopes(own, counts) {
+        actionBars(own).forEach(function (box) {
+            box.querySelectorAll('[data-queue-scope]').forEach(function (item) {
+                var n = counts[item.getAttribute('data-queue-scope')];
+                if (n == null) return;                       // compteur inconnu : ne rien deviner
+                item.disabled = !n;
+                var count = item.querySelector('.wama-scope-count');
+                if (count) count.textContent = n ? '(' + n + ')' : '';
+            });
+        });
+    }
+
     function startBar(opts) {
         opts = opts || {};
         var url = opts.url;
@@ -131,6 +163,12 @@
             // Lu au TOUR, pas à l'init : toutes les barres de la page sont alors déclarées, et
             // un ⬇ ré-rendu (barre de file rechargée) est retrouvé.
             downloadTargets(download).forEach(function (el) { setDownloadReady(el, done > 0); });
+            var pending = d.pending || 0;
+            setScopes(download, {
+                pending: pending, failure: failed, success: done,
+                unfinished: d.unfinished != null ? d.unfinished : pending + failed,
+                relaunchable: d.relaunchable != null ? d.relaunchable : total - running,
+            });
 
             if (onData) { try { onData(d); } catch (e) { /* callback app : ignorer */ } }
         }

@@ -38,7 +38,8 @@ class _Task:
         return SimpleNamespace(id=f'task-{pk}')
 
 
-class ItemViewsTest(TestCase):
+class _ItemViewsFixture(TestCase):
+    """A real avatar job owner, a stand-in task and the factory's three views."""
 
     def setUp(self):
         self.user = User.objects.create_user('item_views_owner', password='x')
@@ -61,6 +62,9 @@ class ItemViewsTest(TestCase):
         request.user = user or self.user
         response = view(request, *args)
         return response.status_code, json.loads(response.content)
+
+
+class ItemViewsTest(_ItemViewsFixture):
 
     def test_start_resets_under_the_lock_purges_the_old_progress_and_sends_the_task(self):
         job = self._job()
@@ -168,6 +172,124 @@ class ItemViewsTest(TestCase):
         self.assertNotIn(lone_batch.pk, remaining, 'an empty batch goes with the queue')
 
 
+class QueueScopesTest(_ItemViewsFixture):
+    """The ▾ menu of « start all » and « clear all » (2026-10-29, Fabien : « un menu déroulant pour
+    que l'utilisateur précise son choix ») : the main click keeps the app's rule, a scope narrows or
+    widens it, an unknown scope is refused, and nothing in flight is ever launched or removed."""
+
+    def _post_scope(self, view, scope, user=None):
+        request = RequestFactory().post(f'/x/?scope={scope}', data='{}',
+                                        content_type='application/json')
+        request.user = user or self.user
+        response = view(request)
+        return response.status_code, json.loads(response.content)
+
+    def test_each_start_scope_launches_its_share_of_the_queue(self):
+        waiting, failed = self._job(), self._job(status='FAILURE')
+        done = self._job(status='SUCCESS')
+        self._job(status='AWAITING_RESOURCES')                      # in flight : never relaunched
+        expected = {'pending': [waiting.pk], 'failed': [failed.pk],
+                    'unfinished': [waiting.pk, failed.pk], 'all': [waiting.pk, failed.pk, done.pk]}
+        for scope, pks in expected.items():
+            with self.subTest(scope=scope):
+                AvatarJob.objects.filter(pk__in=[waiting.pk, failed.pk, done.pk]).update(
+                    status='PENDING')
+                AvatarJob.objects.filter(pk=failed.pk).update(status='FAILURE')
+                AvatarJob.objects.filter(pk=done.pk).update(status='SUCCESS')
+                code, body = self._post_scope(self.views['start_all'], scope)
+                self.assertEqual((200, sorted(pks)), (code, sorted(body['started'])))
+
+    def test_an_unknown_scope_is_refused_and_nothing_starts(self):
+        self._job()
+        code, body = self._post_scope(self.views['start_all'], 'everything')
+        self.assertEqual((400, []), (code, self.task.sent))
+        self.assertIn('périmètre inconnu', body['error'])
+        code, _body = self._post_scope(self.views['clear_all'], 'everything')
+        self.assertEqual(400, code)
+        self.assertEqual(1, AvatarJob.objects.count())
+
+    def test_a_clear_scope_removes_only_its_share_and_never_what_is_in_flight(self):
+        done, failed = self._job(status='SUCCESS'), self._job(status='FAILURE')
+        waiting, awaiting = self._job(), self._job(status='AWAITING_RESOURCES')
+        with mock.patch('wama.common.utils.queue_duplication.release_card_files'):
+            code, body = self._post_scope(self.views['clear_all'], 'success')
+            self.assertEqual((200, 1), (code, body['deleted']))
+            self.assertEqual({failed.pk, waiting.pk, awaiting.pk},
+                             set(AvatarJob.objects.values_list('pk', flat=True)))
+            code, body = self._post(self.views['clear_all'])           # main click : the queue
+        self.assertEqual([awaiting.pk], list(AvatarJob.objects.values_list('pk', flat=True)))
+
+    def test_the_menu_entries_come_from_the_factory_tables(self):
+        from wama.common.utils.item_views import CLEAR_SCOPES, START_SCOPES, queue_scopes
+        self.assertEqual(list(START_SCOPES), [s['key'] for s in queue_scopes('start')])
+        self.assertEqual(list(CLEAR_SCOPES), [s['key'] for s in queue_scopes('clear')])
+
+    def test_the_queue_counters_name_every_menu_counter(self):
+        """Each entry is greyed by a counter the queue bar publishes (`queue_progress`) : a
+        counter the payload does not carry would leave an entry enabled on an empty share."""
+        from wama.common.utils.item_views import queue_scopes
+        from wama.common.utils.progress_views import queue_progress
+        counters = set(queue_progress([('PENDING', 0)]))
+        for action in ('start', 'clear'):
+            for scope in queue_scopes(action):
+                self.assertIn(scope['counter'], counters, scope)
+
+
+class EveryQueuePageShowsTheScopeMenusTest(TestCase):
+    """On the SERVED page of every app, the queue bar carries both menus, each entry addressing
+    its action with `?scope=` and naming the counter that greys it — the visible half of the
+    factory, measured where the user sees it."""
+
+    def test_each_app_page_renders_both_menus(self):
+        from django.urls import NoReverseMatch, reverse
+        from wama.common.app_registry import APP_CATALOG
+        from wama.common.tests.tests_endpoints import EveryEndpointAnswersTest
+        checked = []
+        for app, spec in sorted(APP_CATALOG.items()):
+            if (spec or {}).get('sandbox'):
+                continue
+            try:
+                page = reverse(f'{app}:index')
+                reverse(f'{app}:start_all')
+            except NoReverseMatch:
+                continue
+            with self.subTest(app=app):
+                self.client.force_login(EveryEndpointAnswersTest._account_for(self, app))
+                html = self.client.get(page).content.decode()
+                self.assertIn('scope=all', html, 'menu of « start all » missing')
+                self.assertIn('scope=success', html, 'menu of « clear all » missing')
+                self.assertIn('data-queue-scope="relaunchable"', html)
+                checked.append(app)
+        self.assertGreaterEqual(len(checked), 10, checked)
+
+
+class ClearPreviewFollowsTheScopeTest(TestCase):
+    """The confirmation of « clear all » announces the files that THIS clear frees : the same
+    selection as the view (`ItemStart.to_clear`, scope included), not the whole queue."""
+
+    def test_the_preview_reads_the_scope(self):
+        from django.urls import reverse
+        user = User.objects.create_user('item_views_preview', password='x')
+        self.client.force_login(user)
+        base = dict(user=user, mode='pipeline', text_content='a', avatar_source='upload')
+        AvatarJob.objects.create(avatar_upload='x/done.png', status='SUCCESS', **base)
+        AvatarJob.objects.create(avatar_upload='x/failed.png', status='FAILURE', **base)
+        seen = []
+
+        def freed(instances):
+            seen.append(sorted(getattr(i, 'status', 'lot') for i in instances))
+            return []
+        with mock.patch('wama.common.services.released_files.freed_by', side_effect=freed):
+            url = reverse('common:api_released_files_preview')
+            self.client.get(url, {'surface': 'avatarizer', 'nature': 'queue', 'scope': 'success'})
+            self.client.get(url, {'surface': 'avatarizer', 'nature': 'queue'})
+            refused = self.client.get(url, {'surface': 'avatarizer', 'nature': 'queue',
+                                            'scope': 'everything'})
+        self.assertEqual(['SUCCESS'], seen[0])
+        self.assertEqual(['FAILURE', 'SUCCESS'], seen[1])
+        self.assertEqual(400, refused.status_code)
+
+
 class EveryAppRoutesItsQueueGesturesThroughTheFactoryTest(TestCase):
     """Generic over the catalogue : the ▶ of a card, « start all » and « clear all » of every app
     come from the factory — a new app cannot write them by hand again, nor an old one keep them.
@@ -175,14 +297,10 @@ class EveryAppRoutesItsQueueGesturesThroughTheFactoryTest(TestCase):
     longer needed fails too."""
 
     ROUTES = ('start', 'start_all', 'clear_all')
-    #: (app, route) still written in the app — and why.
-    EXEMPT = {
-        # Its button runs the historical batch chain (`ProcessView`) : moving it to the factory
-        # changes what the button launches — Fabien's decision, pending (ROUTE §11 #39).
-        ('anonymizer', 'start_all'),
-        # The common gesture, then the lock of that same chain once nothing runs any more.
-        ('anonymizer', 'clear_all'),
-    }
+    #: (app, route) still written in the app — and why. EMPTY since 2026-10-29 : the anonymizer's
+    #: batch chain (`ProcessView`) was retired once its « relaunch everything » became the « Tout
+    #: relancer » entry of the menu (Fabien's decision). Keep it empty.
+    EXEMPT = set()
 
     def _view(self, app, route):
         from django.urls import NoReverseMatch, resolve, reverse

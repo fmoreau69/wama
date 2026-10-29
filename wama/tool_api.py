@@ -213,6 +213,7 @@ def add_to_anonymizer(
     sam3_prompt: str = '',
     classes: list = None,
     precision_level: int = 50,
+    app_label: str = 'anonymizer',
     **params,
 ) -> dict:
     """
@@ -226,6 +227,7 @@ def add_to_anonymizer(
                          can also be passed explicitly: 'classes' | 'description')
         classes:         classes to blur in the CLASSES mode  (default: ['face'])
         precision_level: 0–100 (0=Quick, 50=Balanced, 100=Precise)
+        app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"media_id": int, "name": str, "status": "queued"} or {"error": str}
@@ -250,14 +252,14 @@ def add_to_anonymizer(
     from wama.anonymizer.views import _check_media_type, process_media
     from wama.common.utils.media_paths import InputRefused, designate
     try:
-        received = designate(file_path, user, 'anonymizer')
+        received = designate(file_path, user, app_label)
         _check_media_type(received.name)
     except (InputRefused, ValueError) as e:
         return {'error': str(e)}
 
     # Create Media DB entry via anonymizer's process_media()
     try:
-        result = process_media(received.local_path, user)
+        result = process_media(received.local_path, user, app=app_label)
     except Exception as e:
         return {'error': f'Erreur création Media : {e}'}
 
@@ -269,7 +271,8 @@ def add_to_anonymizer(
     media_id = result['id']
 
     # Apply anonymizer settings
-    from wama.anonymizer.models import Media
+    from django.apps import apps as django_apps
+    Media = django_apps.get_model(app_label, 'Media')
     try:
         media = Media.objects.get(pk=media_id)
         received.record(media, 'file')
@@ -341,6 +344,7 @@ def create_image(
     negative_prompt: str = '',
     seed: int = None,
     num_images: int = 1,
+    app_label: str = 'imager',
     **params,
 ) -> dict:
     """
@@ -357,6 +361,7 @@ def create_image(
         negative_prompt: What to avoid in the image
         seed:            Random seed for reproducibility (None = random)
         num_images:      Number of images to generate (1–4)
+        app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"generation_id": int, "status": "pending", "model": str, "prompt": str}
@@ -371,7 +376,8 @@ def create_image(
     height = max(256, min(2048, int(height)))
 
     try:
-        from wama.imager.models import ImageGeneration
+        from django.apps import apps as django_apps
+        ImageGeneration = django_apps.get_model(app_label, 'ImageGeneration')
         generation = ImageGeneration.objects.create(
             user=user,
             generation_mode='txt2img',
@@ -417,6 +423,7 @@ def add_to_enhancer(
     ai_model: str = '',
     denoise: bool = None,
     blend_factor: float = None,
+    app_label: str = 'enhancer',
     **params,
 ) -> dict:
     """
@@ -434,6 +441,7 @@ def add_to_enhancer(
         A setting left out takes the author's retained panel setting, else the schema default —
         the element is born like a card deposit, as the audio tool (2026-10-29 : it took fixed
         defaults here, `ai_model='RealESR_Gx4'`, against the schema's « auto »).
+        app_label:    INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"enhancement_id": int, "name": str, "media_type": str, "status": "pending"}
@@ -462,7 +470,7 @@ def add_to_enhancer(
     from wama.common.app_registry import accepts_file, category_of_path
     from wama.common.utils.media_paths import InputRefused, designate
     try:
-        received = designate(file_path, user, 'enhancer')
+        received = designate(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     media_type = category_of_path(received.name)
@@ -470,18 +478,19 @@ def add_to_enhancer(
         return {'error': f"Format non supporté pour l'enhancer : {Path(received.name).suffix}"}
 
     try:
-        from wama.enhancer.models import Enhancement
+        from django.apps import apps as django_apps
         from wama.enhancer.views import new_enhancement_settings
         from wama.common.utils.video_utils import get_media_info
 
         # Naissance COMMUNE (2026-10-29) : défauts du schéma ← réglages retenus de l'auteur ← ce
         # que l'outil a reçu — comme un dépôt de la card, et comme l'outil du domaine audio.
+        Enhancement = django_apps.get_model(app_label, 'Enhancement')
         enhancement = Enhancement.objects.create(
             user=user,
             media_type=media_type,
             input_file=received.value,
             status='PENDING',
-            **new_enhancement_settings(user, post=posted),
+            **new_enhancement_settings(user, model=Enhancement, app=app_label, post=posted),
         )
         received.record(enhancement, 'input_file')
 
@@ -626,6 +635,7 @@ def synthesize_text(
     speed: float = 1.0,
     pitch: float = 1.0,
     emotion_intensity: float = 1.0,
+    app_label: str = 'synthesizer',
     **params,
 ) -> dict:
     """
@@ -645,6 +655,7 @@ def synthesize_text(
         speed:             Speech speed 0.5–2.0 (default: 1.0)
         pitch:             Voice pitch 0.5–2.0 (default: 1.0)
         emotion_intensity: Emotional intensity 0.0–2.0 (default: 1.0)
+        app_label:         INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"synthesis_id": int, "word_count": int, "duration_display": str, "status": "pending"}
@@ -656,7 +667,7 @@ def synthesize_text(
     from wama.common.utils.media_paths import InputRefused, designate
     from wama.synthesizer.services import SynthesisRefused, create_synthesis
     try:
-        received = {port: designate(path, user, 'synthesizer')
+        received = {port: designate(path, user, app_label)
                     for port, path in (('work_file', work_file), ('reference_voice', reference_voice))
                     if path}
     except InputRefused as e:
@@ -666,7 +677,8 @@ def synthesize_text(
     try:
         synthesis = create_synthesis(user, prompt=text or '', params=settings,
                                      work_file=received.get('work_file'),
-                                     reference_voice=received.get('reference_voice'))
+                                     reference_voice=received.get('reference_voice'),
+                                     app=app_label)
     except (SynthesisRefused, ValueError) as e:
         return {'error': str(e)}
     except Exception as e:
@@ -699,6 +711,7 @@ def compose_music(
     duration: float = 10.0,
     work_score: str = None,
     work_audio: str = None,
+    app_label: str = 'composer',
     **params,
 ) -> dict:
     """
@@ -717,6 +730,7 @@ def compose_music(
                   or MusicXML (port `work_score`); only for a model that declares it (YuE2)
         work_audio: Path (from find_user_files) of the AUDIO of a song to cover — its melody
                   is replayed in the prompt's style (port `work_audio`, MusicGen Melody)
+        app_label: INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"generation_id": int, "model": str, "generation_type": str,
@@ -751,7 +765,7 @@ def compose_music(
             return {'error': f"Le modèle « {model} » ne prend pas {what} — choisir un modèle qui "
                              f"le déclare, ou un « auto » de groupe ('auto:text-to-music')."}
         try:
-            received.append((designate(path, user, 'composer'), field))
+            received.append((designate(path, user, app_label), field))
         except InputRefused as e:
             return {'error': str(e)}
 
@@ -763,7 +777,8 @@ def compose_music(
     duration = float(clamp_duration(duration, model))
     generation_type = _type_of(model)
 
-    from wama.composer.models import ComposerGeneration
+    from django.apps import apps as django_apps
+    ComposerGeneration = django_apps.get_model(app_label, 'ComposerGeneration')
     gen = ComposerGeneration.objects.create(
         user=user,
         generation_type=generation_type,
@@ -779,16 +794,15 @@ def compose_music(
     from wama.composer.views import _wrap_generation_in_batch
     _wrap_generation_in_batch(gen)
 
-    # Launch task — par le lanceur commun (`begin_processing`, comme `start_composer`) : depuis
-    # le passage de la tâche au squelette commun (2026-10-02), « en cours » est posé par le
-    # LANCEUR, plus par la tâche ; envoyée seule, la génération resterait affichée « en attente »
-    # pendant tout son traitement.
-    from wama.common.utils.process_control import begin_processing
-    gen, _err = begin_processing(ComposerGeneration, gen.id, user=user)
-    from wama.composer.tasks import compose_task
-    task = compose_task.apply_async(args=(gen.id,))
-    gen.task_id = task.id
-    gen.save(update_fields=['task_id'])
+    # Lancée par LE ▶ de la card (`item_views.start_one_item`, 2026-10-29) : la tâche et la remise
+    # à zéro que l'app de la génération DÉCLARE à sa fabrique — une jumelle lance la sienne. Depuis
+    # le squelette commun (2026-10-02), « en cours » est posé par le LANCEUR, plus par la tâche.
+    from wama.common.utils.item_views import declaration_for, start_one_item
+    started, _task, refused = start_one_item(declaration_for(ComposerGeneration), gen.pk, user=user)
+    if refused:
+        return {'error': f'Composition #{gen.pk} créée, mais non lancée : {refused[1]}',
+                'generation_id': gen.pk, 'item_id': gen.pk}
+    gen = started
 
     return {
         'generation_id': gen.id,
@@ -814,6 +828,7 @@ def add_to_describer(
     output_style: str = 'detailed',
     output_language: str = 'fr',
     max_length: int = 500,
+    app_label: str = 'describer',
     **params,
 ) -> dict:
     """
@@ -829,6 +844,7 @@ def add_to_describer(
                          (depuis le 2026-10-13) : `generate_summary=True, summary_type='meeting'`.
         output_language: 'fr' | 'en' | 'auto'
         max_length:      Maximum length of result in words (default: 500)
+        app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"description_id": int, "filename": str, "detected_type": str, "status": "pending"}
@@ -845,7 +861,7 @@ def add_to_describer(
     from wama.common.app_registry import accepts_file
     from wama.common.utils.media_paths import InputRefused, designate
     try:
-        received = designate(file_path, user, 'describer')
+        received = designate(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     ext = Path(received.name).suffix.lower()
@@ -856,7 +872,8 @@ def add_to_describer(
     detected_type = detect_type_from_extension(ext.lstrip('.'))
 
     try:
-        from wama.describer.models import Description
+        from django.apps import apps as django_apps
+        Description = django_apps.get_model(app_label, 'Description')
 
         description = Description.objects.create(
             user=user,
@@ -901,6 +918,7 @@ def add_to_transcriber(
     preprocess_audio: bool = False,
     hotwords: str = '',
     enable_diarization: bool = True,
+    app_label: str = 'transcriber',
     **params,
 ) -> dict:
     """
@@ -921,6 +939,7 @@ def add_to_transcriber(
                             porté par le modèle — `generate_summary`, `summary_type`,
                             `verify_coherence`… Appliqués via `schema_model_kwargs()` : la
                             signature n'a pas à recopier la liste, qui dériverait.
+        app_label:          INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"transcript_id": int, "filename": str, "duration_display": str, "status": "pending"}
@@ -929,14 +948,15 @@ def add_to_transcriber(
     from wama.common.app_registry import accepts_file
     from wama.common.utils.media_paths import InputRefused, designate
     try:
-        received = designate(file_path, user, 'transcriber')
+        received = designate(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     if not accepts_file('transcriber', received.name):
         return {'error': f'Format non supporté par le Transcriber : {Path(received.name).suffix}'}
 
     try:
-        from wama.transcriber.models import Transcript
+        from django.apps import apps as django_apps
+        Transcript = django_apps.get_model(app_label, 'Transcript')
 
         transcript = Transcript.objects.create(
             user=user,
@@ -985,6 +1005,7 @@ def add_to_reader(
     backend: str = 'auto',
     mode: str = 'auto',
     language: str = '',
+    app_label: str = 'reader',
     **params,
 ) -> dict:
     """
@@ -1002,6 +1023,7 @@ def add_to_reader(
         **params:      Tout autre réglage DÉCLARÉ au schéma (`reader/params.py`) et porté par le
                        modèle — `llm_model`, `format_markdown`, `generate_analysis`… Appliqués via
                        `schema_model_kwargs()`, comme les autres créateurs (2026-10-18).
+        app_label:     INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"item_id": int, "filename": str, "page_count": int, "status": "PENDING"}
@@ -1011,7 +1033,7 @@ def add_to_reader(
     from wama.common.app_registry import accepts_file
     from wama.common.utils.media_paths import InputRefused, designate
     try:
-        received = designate(file_path, user, 'reader')
+        received = designate(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     ext = Path(received.name).suffix.lower()
@@ -1019,8 +1041,9 @@ def add_to_reader(
         return {'error': f'Format non supporté par le Reader : {ext}'}
 
     try:
-        from wama.reader.models import ReadingItem
+        from django.apps import apps as django_apps
         from wama.reader.tasks import _count_pdf_pages
+        ReadingItem = django_apps.get_model(app_label, 'ReadingItem')
 
         item = ReadingItem.objects.create(
             user=user,
@@ -1049,7 +1072,7 @@ def add_to_reader(
 
     return {
         'item_id': item.id,
-        'filename': item.filename,
+        'filename': received.name,      # le nom REÇU — la propriété `filename` est de la glu
         'page_count': item.page_count,
         'backend': backend,
         'mode': mode,
@@ -1070,6 +1093,7 @@ def convert_file(
     file_path: str,
     output_format: str = '',
     quality_preset: str = 'balanced',
+    app_label: str = 'converter',
     **params,
 ) -> dict:
     """
@@ -1081,14 +1105,14 @@ def convert_file(
         output_format:  Target format key (e.g. 'mp4', 'webp', 'pdf', 'mp3', 'zip'). Empty =
                         automatic: the user's last format for this nature, else its default
         quality_preset: 'web' | 'balanced' | 'max'  (default 'balanced')
+        app_label:      INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"job_id": int, "filename": str, "media_type": str,
          "output_format": str, "status": "RUNNING"}
     """
     from pathlib import Path
-    from wama.converter.models import ConversionJob
-    from wama.converter.tasks import convert_media_task
+    from django.apps import apps as django_apps
     from wama.converter.utils.format_router import (detect_media_type, output_format_for,
                                                     remember_output_format)
     from wama.converter.utils.quality_presets import PRESET_CHOICES, DEFAULT_PRESET
@@ -1099,9 +1123,10 @@ def convert_file(
     # provenance n'était posée. Mesuré par `tests_tool_api_designation` (venv_win).
     from wama.common.utils.media_paths import InputRefused, designate
     try:
-        received = designate(file_path, user, 'converter')
+        received = designate(file_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
+    ConversionJob = django_apps.get_model(app_label, 'ConversionJob')
 
     media_type = detect_media_type(received.name)
     if media_type is None:
@@ -1131,7 +1156,6 @@ def convert_file(
             media_type=media_type,
             output_format=out_fmt,
             quality_preset=preset,
-            status='RUNNING',
         )
         received.record(job, 'input_file')
         # Réglages (resize/rotation/fps/bitrate…) : la naissance de TOUTES les voies du converter
@@ -1142,11 +1166,16 @@ def convert_file(
         _champs = apply_birth_settings(job, media_type, params)
         if _champs:
             job.save(update_fields=_champs)
-        task = convert_media_task.delay(job.id)
-        job.task_id = task.id
-        job.save(update_fields=['task_id'])
     except Exception as e:
         return {'error': f'Erreur création ConversionJob : {e}'}
+    # Lancée par LE ▶ de la card (`item_views.start_one_item`, 2026-10-29) : verrou, « en cours »
+    # posé par le lanceur, la tâche que l'app du job DÉCLARE — une jumelle lance la sienne. Le
+    # créateur posait « en cours » lui-même, sans verrou.
+    from wama.common.utils.item_views import declaration_for, start_one_item
+    _started, _task, refused = start_one_item(declaration_for(ConversionJob), job.pk, user=user)
+    if refused:
+        return {'error': f'Conversion #{job.pk} créée, mais non lancée : {refused[1]}',
+                'job_id': job.pk, 'item_id': job.pk}
 
     return {
         'job_id':        job.id,
@@ -1542,6 +1571,7 @@ def add_to_avatarizer(
     quality_mode: str = 'fast',
     use_enhancer: bool = False,
     bbox_shift: int = 0,
+    app_label: str = 'avatarizer',
     **params,
 ) -> dict:
     """
@@ -1567,12 +1597,14 @@ def add_to_avatarizer(
                              par le modèle — `quality_intent`, `animation_model`… Appliqués via
                              `schema_model_kwargs()`, comme les autres créateurs (2026-10-18).
                              `mode` et la source de l'avatar restent DÉRIVÉS des entrées.
+        app_label:           INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"job_id": int, "mode": str, "status": "pending"}
     """
-    from wama.avatarizer.models import AvatarJob
+    from django.apps import apps as django_apps
     from wama.common.app_registry import category_of_path
+    AvatarJob = django_apps.get_model(app_label, 'AvatarJob')
     from wama.common.utils.media_paths import InputRefused, designate
 
     # Les deux ports (audio, image d'avatar) sont DÉSIGNÉS (2026-09-28) : pointés s'ils sont
@@ -1595,7 +1627,7 @@ def add_to_avatarizer(
         job.voice_preset = voice_preset or 'default'
     else:  # standalone (audio_path fourni — c'est lui qui a dérivé le mode)
         try:
-            received = designate(audio_path, user, 'avatarizer')
+            received = designate(audio_path, user, app_label)
         except InputRefused as e:
             return {'error': str(e)}
         if category_of_path(received.name) != 'audio':
@@ -1615,7 +1647,7 @@ def add_to_avatarizer(
         else:
             if not avatar_image_path:
                 return {'error': "Fournissez une image avatar (avatar_image_path)."}
-            image = designate(avatar_image_path, user, 'avatarizer')
+            image = designate(avatar_image_path, user, app_label)
     except InputRefused as e:
         return {'error': str(e)}
     if category_of_path(image.name) != 'image':
@@ -4388,7 +4420,44 @@ def _register_triads():
             TOOL_REGISTRY[fn.__name__] = fn
 
 
+def _twin_creator(source, label):
+    """L'outil de création d'une jumelle : celui de sa source, `app_label` FIXÉ — un appelant ne
+    peut pas viser une autre app (le paramètre est interne, `INTERNAL_TOOL_PARAMS`)."""
+    import functools
+
+    @functools.wraps(source)
+    def creator(user, *args, **kwargs):
+        kwargs['app_label'] = label
+        return source(user, *args, **kwargs)
+    creator.__name__ = creator.__qualname__ = f'add_to_{label}'
+    return creator
+
+
+def _register_twin_creators():
+    """`add_to_<jumelle>` DÉRIVÉ de l'outil de sa source (2026-10-29, décision de Fabien : « le même
+    mécanisme qu'`importer_for` ») — jamais une ligne écrite au registre pour une jumelle. Une
+    source dont l'outil ne sait pas être re-ciblé (pas de paramètre `app_label`) n'en donne pas :
+    plutôt pas d'outil qu'un outil qui écrirait dans l'app ORIGINALE. Avec lui, la jumelle a sa
+    triade entière, et son nœud du Studio (`generic_runner._twin_can_create`)."""
+    import inspect
+    from wama.common.sandbox import load_registry, sandbox_labels
+    installed = set(sandbox_labels())
+    for entry in load_registry():
+        label, src = entry.get('label'), entry.get('generated_from')
+        source = TOOL_REGISTRY.get(f'add_to_{src}') if src else None
+        name = f'add_to_{label}'
+        if label not in installed or source is None or name in TOOL_REGISTRY:
+            continue
+        try:
+            if 'app_label' not in inspect.signature(source).parameters:
+                continue
+        except (TypeError, ValueError):
+            continue
+        globals()[name] = TOOL_REGISTRY[name] = _twin_creator(source, label)
+
+
 _register_triads()
+_register_twin_creators()
 
 
 def _split_triad(tool_name):
@@ -4673,12 +4742,23 @@ def input_schema_for(fn, index=None) -> dict:
     return schema
 
 
+#: Paramètres INTERNES d'un outil, jamais annoncés ni acceptés d'un appelant : `app_label`
+#: (2026-10-29) re-cible un créateur sur une JUMELLE — c'est la dérivation `add_to_<jumelle>` qui le
+#: fixe, comme `importer_for` le fait pour un importeur ; un modèle de langage ne choisit pas l'app
+#: dans laquelle il écrit.
+INTERNAL_TOOL_PARAMS = ('app_label',)
+
+
 def _tool_signature(fn):
+    """La signature PUBLIQUE d'un outil — l'accesseur unique de toutes ses lectures (description,
+    schéma MCP, filtrage des arguments, ports du Studio) : sans ses paramètres internes."""
     import inspect
     try:
-        return inspect.signature(fn)
+        sig = inspect.signature(fn)
     except (TypeError, ValueError):
         return None
+    return sig.replace(parameters=[p for n, p in sig.parameters.items()
+                                   if n not in INTERNAL_TOOL_PARAMS])
 
 
 def primary_arg_name(tool_name: str):

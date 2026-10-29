@@ -148,7 +148,7 @@ def process_single_media(self, media_id, force_individual=False, process=None):
             return {"stopped": media_id}
 
         # « En cours » est posé par TOUS les lanceurs (`begin_processing`), y compris celui de
-        # la file entière (`process_user_media_batch`) : la tâche ne bascule rien avant la garde
+        # la file entière (`item_views.start_queue`) : la tâche ne bascule rien avant la garde
         # anti-re-livraison du squelette — sans quoi un message re-livré PÉRIMÉ remettait en
         # cours, pour toujours, un média terminé (2026-10-03).
         # La card porte un PIPELINE de trois process (`function_specs.PIPELINE`) : `detect`
@@ -639,59 +639,6 @@ def stop_process(user_id):
     """
     cache.set(f"stop_process_{user_id}", True, timeout=60)
     print(f"Process stop demandé pour user {user_id}")
-
-
-# ----------------------------------------------------------------------
-# Tâche pour traiter tous les médias d'un utilisateur (file batch)
-# ----------------------------------------------------------------------
-@shared_task(bind=True)
-def process_user_media_batch(self, user_id):
-    """
-    Enfile tous les médias non traités d'un utilisateur dans des tâches individuelles.
-    """
-    import logging
-    logger = logging.getLogger('celery')
-
-    logger.info(f"[process_user_media_batch] Starting batch process for user_id={user_id}")
-
-    close_old_connections()
-
-    User = get_user_model()
-    user = User.objects.get(pk=user_id)
-    logger.info(f"[process_user_media_batch] User: {user.username}")
-
-    medias_list = Media.objects.filter(user=user).exclude(status='SUCCESS')
-    logger.info(f"[process_user_media_batch] Found {medias_list.count()} unprocessed media(s)")
-
-    if not medias_list.exists():
-        logger.warning(f"[process_user_media_batch] No media to process for user {user.username}")
-        cache.delete(f"anon_lock:batch:{user_id}")
-        return {"processed": 0}
-
-    # « En cours » est posé par le LANCEUR, sous verrou, avant l'envoi — la règle de tous les
-    # lanceurs (`begin_processing`, `PROJECT_STATUS §PALIER 2026-09-14`) ; la tâche ne bascule
-    # jamais un élément elle-même. Le `task_id` enregistré est ce qui permet à la garde
-    # anti-re-livraison de reconnaître un message PÉRIMÉ (cas de la card #741, 2026-09-29).
-    from wama.common.utils.process_control import begin_processing
-    from .views import _reset_for_relaunch
-    task_ids = []
-    for media in medias_list:
-        locked, err = begin_processing(Media, media.pk, user=user, reset=_reset_for_relaunch)
-        if err:                     # déjà en cours : sa tâche le porte
-            continue
-        cache.set(f"anon_lock:media:{locked.id}", True, timeout=7200)
-        logger.info(f"[process_user_media_batch] Launching task for media {locked.id} ({locked.title})")
-        task = process_single_media.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        task_ids.append(task.id)
-        logger.info(f"[process_user_media_batch] Task {task.id} launched for media {locked.id}")
-
-    # Clear batch lock (individual media locks remain until tasks complete)
-    cache.delete(f"anon_lock:batch:{user_id}")
-
-    logger.info(f"[process_user_media_batch] Total tasks launched: {len(task_ids)}")
-    return {"queued_tasks": task_ids, "total": medias_list.count()}
 
 
 # ----------------------------------------------------------------------

@@ -12,7 +12,6 @@ urlpatterns = [
     # Pages principales
     path('', views.IndexView.as_view(), name='index'),
     path('upload/', views.IndexView.as_view(), name='upload'),  # Alias pour upload (même page que index)
-    path('process/', views.ProcessView.as_view(), name='process'),  # Endpoint pour lancer le traitement batch
     path('about/', AppAboutView.as_view(), name='about'),
     path('help/', AppHelpView.as_view(), name='help'),
 
@@ -87,7 +86,4 @@ urlpatterns = [
     path('batch/<int:pk>/update/', views.batch_update, name='batch_update'),
     path('batch/<int:pk>/promote/', views.batch_promote, name='batch_promote'),
     path('batch/<int:pk>/realign/', views.batch_realign, name='batch_realign'),
-
-    # Unused
-    # path('display_console/', views.ProcessView.display_console, name='display_console'),
 ]

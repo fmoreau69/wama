@@ -7,11 +7,10 @@ import mimetypes
 import requests
 from PIL import Image
 from urllib.parse import urlparse
-import subprocess as sp
 from celery.result import AsyncResult
 
 from django.http import FileResponse, Http404, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse
-from django.shortcuts import render, redirect, get_object_or_404
+from django.shortcuts import render, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.views.decorators.http import require_POST
 from django.db import close_old_connections, transaction
@@ -27,7 +26,7 @@ from wama.accounts.permissions import app_access
 
 from .models import Media, BatchAnonymizer, BatchAnonymizerItem
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
-from .tasks import process_single_media, process_user_media_batch, stop_process
+from .tasks import process_single_media, stop_process
 from .utils.media_utils import get_unique_filename
 from .utils.yolo_utils import get_model_path
 from .utils.sam3_manager import (
@@ -172,8 +171,12 @@ def is_url(path):
         return False
 
 
-def process_media(video_path, user, post=None):
-    """Create a Media object from the given path and assign metadata."""
+def process_media(video_path, user, post=None, app='anonymizer'):
+    """Create a Media object from the given path and assign metadata.
+    `app` re-cible une JUMELLE de bac à sable (son modèle, son dossier, ses réglages retenus) —
+    le contrat d'`importer_for`, que l'outil `add_to_<jumelle>` emprunte (2026-10-29)."""
+    from django.apps import apps as django_apps
+    model = django_apps.get_model(app, 'Media')
     try:
         filename = os.path.basename(video_path)
         ext = os.path.splitext(filename)[1]
@@ -185,10 +188,10 @@ def process_media(video_path, user, post=None):
         try:
             _abs, relative_path = resolve_under_media_root(str(video_path))
         except (OutsideMediaRoot, FileNotFoundError):
-            relative_path = get_relative_media_path('anonymizer', user.id, 'input', filename)
+            relative_path = get_relative_media_path(app, user.id, 'input', filename)
         # Le média NAÎT avec les réglages de son auteur ; ce que le dépôt poste prime.
-        media = Media.objects.create(file=relative_path, file_ext=ext, user=user,
-                                     **new_media_settings(user, post=post))
+        media = model.objects.create(file=relative_path, file_ext=ext, user=user,
+                                     **new_media_settings(user, model=model, app=app, post=post))
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):
@@ -299,90 +302,6 @@ def add_media_to_db(media, vid_or_path):
         media.properties = f"{media.width}x{media.height} ({media.fps:.2f}fps)"
         media.media_type = "video"
         media.save()
-
-
-class ProcessView(View):
-    """
-    Endpoint pour lancer le traitement batch des médias.
-    Le GET redirige vers la page principale.
-    Le POST lance le traitement asynchrone via Celery.
-    """
-    def get(self, request):
-        # Rediriger vers la page principale au lieu de rendre le template
-        return redirect('anonymizer:index')
-
-    def post(self, request):
-        try:
-            import logging
-            logger = logging.getLogger('anonymizer.process')
-
-            user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-            logger.info(f"[ProcessView] Starting process for user {user.id} ({user.username})")
-
-            # Dedup: prise de verrou ATOMIQUE (cache.add = set-si-absent). L'ancien
-            # get() puis set() laissait une fenêtre de course sur double-clic.
-            batch_lock_key = f"anon_lock:batch:{user.id}"
-            if not cache.add(batch_lock_key, True, timeout=7200):
-                logger.info(f"[ProcessView] Batch already running for user {user.id}")
-                return JsonResponse({"task_id": None, "error": "Un traitement est déjà en cours"}, status=409)
-
-            # Get all user media (not just unprocessed)
-            all_medias = Media.objects.filter(user=user).order_by('id')
-
-            if not all_medias.exists():
-                logger.warning(f"[ProcessView] No media found for user {user.username}")
-                return JsonResponse({"task_id": None, "error": "No media to process"})
-
-            # (verrou batch déjà posé atomiquement par cache.add ci-dessus)
-
-            # Reset all media to allow reprocessing
-            for media in all_medias:
-                media.status = 'PENDING'
-                media.blur_progress = 0
-                media.save(update_fields=['status', 'blur_progress'])
-                # Clear cache for this media
-                cache.delete(f"media_progress_{media.id}")
-                # Set individual media lock
-                cache.set(f"anon_lock:media:{media.id}", True, timeout=7200)
-                logger.info(f"[ProcessView] Reset media {media.id} for reprocessing")
-
-            batch_medias = list(all_medias.values_list('id', flat=True))
-            logger.info(f"[ProcessView] Found {len(batch_medias)} media(s) to process: {batch_medias}")
-
-            cache.set(f"batch_media_ids_{user.id}", batch_medias, timeout=3600)
-
-            # Lancer batch task qui va enchaîner toutes les tâches individuelles
-            logger.info(f"[ProcessView] Calling process_user_media_batch.delay({user.id})")
-            task = process_user_media_batch.delay(user.id)
-            logger.info(f"[ProcessView] Task created: {task.id}")
-            logger.info(f"[ProcessView] Task state immediately after creation: {task.state}")
-
-            # Test Redis connection
-            try:
-                from celery import current_app
-                logger.info(f"[ProcessView] Celery broker: {current_app.conf.broker_url}")
-                logger.info(f"[ProcessView] Celery backend: {current_app.conf.result_backend}")
-            except Exception as e:
-                logger.error(f"[ProcessView] Error checking Celery config: {e}")
-
-            cache.set(f"user_task_{user.id}", task.id, timeout=3600)
-            return JsonResponse({"task_id": task.id})
-        except Exception as e:
-            import traceback
-            logger = logging.getLogger('anonymizer.process')
-            logger.error(f"[ProcessView] ERROR: {e}")
-            logger.error(traceback.format_exc())
-            print("🚨 ERREUR upload:", e)
-            traceback.print_exc()
-            return JsonResponse({'is_valid': False, 'error': str(e)}, status=500)
-
-    def display_console(self, request):
-        if request.POST.get('url', 'anonymizer:upload.display_console'):
-            command = "path/to/builder.pl --router " + 'hostname'
-            pipe = sp.Popen(command.split(), stdout=sp.PIPE, stderr=sp.PIPE)
-            console = pipe.stdout.read()
-            return render(self.request, 'anonymizer/index.html', {'console': console})
-        return None
 
 
 def console_content(request):
@@ -627,11 +546,10 @@ def _forget_outputs(media):
     cache.delete(f"anon_task_owner:media:{media.id}")
 
 
-# ▶ de la card et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11 #39,
-# 2026-10-29) — la même déclaration que lit l'outil `start_anonymizer`, dont la sélection (« tout ce
-# qui n'a pas abouti ») est déclarée ici. ⚠ Le « tout lancer » du BOUTON reste la chaîne de lot
-# historique (`ProcessView` : toute la file, réussis compris, une seule tâche qui enchaîne) — le
-# porter sur la fabrique change ce que lance le bouton : décision de Fabien, en attente.
+# ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11
+# #39, 2026-10-29) — la même déclaration que lit l'outil `start_anonymizer`. Le clic principal de
+# « tout lancer » relance ce qui n'a pas abouti ; « Tout relancer », réussis compris (ce que faisait
+# la chaîne de lot `ProcessView`, retirée), est au menu ▾ (décision de Fabien, même jour).
 # (`force_individual` n'était plus lu par la tâche, `anonymizer/tasks.py:137`.)
 from wama.common.utils.item_views import make_item_views  # noqa: E402
 
@@ -641,17 +559,8 @@ _iv = make_item_views(work_model=Media, app_id='anonymizer', task=process_single
                       progress_key='media_progress_{pk}', on_delete=_forget_outputs,
                       batch_model=BatchAnonymizer)
 start = app_access('anonymizer')(_iv['start'])
-
-
-@require_POST
-def clear_all_media(request):
-    """🗑 de la file : le geste commun, puis le verrou de la chaîne de lot de « tout lancer »
-    (`ProcessView`) quand plus rien ne tourne — tant qu'un média tourne, la chaîne vit."""
-    response = _iv['clear_all'](request)
-    user = _get_user(request)
-    if not Media.objects.filter(user=user, status='RUNNING').exists():
-        cache.delete(f"anon_lock:batch:{user.id}")
-    return response
+start_all = app_access('anonymizer')(_iv['start_all'])
+clear_all_media = _iv['clear_all']
 
 
 def _read_batch(user, pk):
@@ -688,13 +597,6 @@ def queue_count(request):
     count = Media.objects.filter(user=user).count()
     return JsonResponse({'count': count})
 
-
-@require_POST
-@app_access('anonymizer')
-def start_all(request):
-    """« Tout lancer » (toolbar commune) — délègue au traitement global historique
-    (ProcessView : verrou batch atomique cache.add + chaîne process_user_media_batch)."""
-    return ProcessView().post(request)
 
 
 def _anonymizer_nature(m):

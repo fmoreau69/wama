@@ -64,6 +64,9 @@ def queue_progress(rows) -> dict:
         # Alias du contrat de `wama-global-progress.js` (`done`/`failed`) : les deux graphies
         # sont ÉMISES, le JS n'a plus à en deviner une.
         'done': success, 'failed': failure,
+        # Ce que lanceraient les périmètres du menu ▾ de « tout lancer » (`item_views.START_SCOPES`,
+        # 2026-10-29) : la barre grise une entrée sans objet et en affiche le nombre.
+        'unfinished': pending + failure, 'relaunchable': total - running,
         'overall_progress': int(acc / total) if total else 0,
     }
 

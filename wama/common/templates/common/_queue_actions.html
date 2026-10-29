@@ -57,11 +57,35 @@ Ce n'est pas cosmétique : la barre de file replie ses libellés en ICÔNES SEUL
 seuil de largeur de conteneur (`wama-filter-bar.css`, container query), pour tenir sur UNE ligne
 volets ouverts. Un libellé masqué sans `title` laisserait un bouton muet — d'où les deux gestes
 ensemble, jamais l'un sans l'autre. Hors barre de file, l'enrobage ne change rien.{% endcomment %}
+{% comment %}MENU ▾ des deux actions de file (2026-10-29, Fabien : « un menu déroulant pour que
+l'utilisateur précise son choix ») — le clic principal garde la règle que l'app DÉCLARE à sa fabrique
+(`item_views`) ; le ▾ propose les PÉRIMÈTRES de la fabrique (`queue_scopes`), chacun l'adresse de
+l'action suivie de `?scope=<clé>`. Aucun JS neuf : la brique `queue-actions.js` câble tout élément
+qui porte `data-queue-start-url` / `data-queue-clear-url` (corps déclaré, suite déclarée,
+confirmation et fichiers libérés compris). `data-queue-scope` nomme le compteur de la barre de
+progression qui grise une entrée sans objet et affiche son nombre (`wama-global-progress.js`).
+Une barre sans `start_url` / `clear_url` (handler d'app) garde le bouton seul.{% endcomment %}
+{% if start_url and '?' in start_url %}{% firstof '&' as start_join %}{% else %}{% firstof '?' as start_join %}{% endif %}
+{% if clear_url and '?' in clear_url %}{% firstof '&' as clear_join %}{% else %}{% firstof '?' as clear_join %}{% endif %}
 <div class="d-flex gap-2 flex-wrap wama-queue-actions">
+    {% if start_url %}{% queue_scopes 'start' as start_scopes %}<div class="btn-group btn-group-sm">{% endif %}
     <button id="{{ start_id }}" class="btn btn-success btn-sm"{% if start_url %} data-queue-start-url="{{ start_url }}"{% endif %}
             title="{{ start_label|default:'Démarrer tout' }}">
         <i class="fas fa-play"></i> <span class="wama-btn-label">{{ start_label|default:'Démarrer tout' }}</span>
     </button>
+    {% if start_url %}
+    <button type="button" class="btn btn-success btn-sm dropdown-toggle dropdown-toggle-split"
+            data-bs-toggle="dropdown" aria-expanded="false" title="Choisir ce qu'on lance">
+        <span class="visually-hidden">Choisir ce qu'on lance</span>
+    </button>
+    <ul class="dropdown-menu">
+        {% for s in start_scopes %}
+        <li><button type="button" class="dropdown-item" data-queue-start-url="{{ start_url }}{{ start_join }}scope={{ s.key }}"
+                    data-queue-scope="{{ s.counter }}">{{ s.label }} <span class="wama-scope-count text-muted"></span></button></li>
+        {% endfor %}
+    </ul>
+    </div>
+    {% endif %}
     {% if show_download %}
     {% if download_url %}
     {% download_button app|default:'' download_url download_ready|default:False title=download_label|default:'Télécharger tout' empty_title=download_empty_title css_class='btn-info' html_id=download_id label=download_label|default:'Télécharger tout' split=False queue=True %}
@@ -72,8 +96,23 @@ ensemble, jamais l'un sans l'autre. Hors barre de file, l'enrobage ne change rie
     </button>
     {% endif %}
     {% endif %}
+    {% if clear_url %}{% queue_scopes 'clear' as clear_scopes %}<div class="btn-group btn-group-sm">{% endif %}
     <button id="{{ clear_id }}" class="btn btn-outline-danger btn-sm"{% if clear_url %} data-queue-clear-url="{{ clear_url }}"{% endif %}{% if clear_confirm %} data-confirm="{{ clear_confirm }}"{% endif %}
             title="{{ clear_label|default:'Tout effacer' }}">
         <i class="fas fa-trash"></i> <span class="wama-btn-label">{{ clear_label|default:'Tout effacer' }}</span>
     </button>
+    {% if clear_url %}
+    <button type="button" class="btn btn-outline-danger btn-sm dropdown-toggle dropdown-toggle-split"
+            data-bs-toggle="dropdown" aria-expanded="false" title="Choisir ce qu'on efface">
+        <span class="visually-hidden">Choisir ce qu'on efface</span>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end">
+        {% for s in clear_scopes %}
+        <li><button type="button" class="dropdown-item" data-queue-clear-url="{{ clear_url }}{{ clear_join }}scope={{ s.key }}"
+                    data-queue-scope="{{ s.counter }}"
+                    data-confirm="Effacer les éléments « {{ s.label }} » de la file ? Cette action est définitive.">{{ s.label }} <span class="wama-scope-count text-muted"></span></button></li>
+        {% endfor %}
+    </ul>
+    </div>
+    {% endif %}
 </div>

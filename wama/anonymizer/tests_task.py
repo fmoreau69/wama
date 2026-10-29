@@ -279,10 +279,13 @@ class AnonymizerTaskOnSkeletonTest(TestCase):
         self.assertIn('aucune détection', self.media.error_message)
 
     def test_the_whole_queue_launcher_sets_running_and_the_task_id_before_sending(self):
+        """The queue launcher is the common one since 2026-10-29 (`item_views.start_queue`, the
+        batch chain `process_user_media_batch` retired) — through the app's own declaration."""
+        from wama.anonymizer.models import Media
+        from wama.common.utils.item_views import declaration_for, start_queue
         sent = mock.Mock(id='queue-task-1')
-        with mock.patch.object(tasks.process_single_media, 'delay', return_value=sent) as delay, \
-                mock.patch.object(tasks, 'close_old_connections'):
-            tasks.process_user_media_batch.run(self.user.id)
+        with mock.patch.object(tasks.process_single_media, 'delay', return_value=sent) as delay:
+            start_queue(declaration_for(Media), self.user)
         self.media.refresh_from_db()
         delay.assert_called_once_with(self.media.pk)
         self.assertEqual(('RUNNING', 'queue-task-1'), (self.media.status, self.media.task_id))
