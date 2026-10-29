@@ -1270,7 +1270,10 @@ MECHANISMS = (
               'wama/common/utils/qr.py', 'docs/construction/suivi/ROADMAP.md §19'),
     Mechanism('assistant_engine', "Moteur de l'assistant IA",
               "Boucle agentique multi-surface (prompts, outils tool_api, local/cloud) — "
-              "la vue web et /api/v1/assistant/chat/ en sont des clients",
+              "la vue web et /api/v1/assistant/chat/ en sont des clients. Porte aussi les "
+              "SOUS-AGENTS et le COUNCIL (2026-10-29, `WAMA_HARNESS §7.4`) : bornes d'un tour, "
+              "verbe `delegate` (vagues parallèles par serveur, agents du registre de 1 à n, "
+              "vote / décideur / relecture croisée), réglage « Sous-agents » auto + curseur",
               'wama/common/services/assistant_engine.py', '',
               # wama-avatar.js = le RENDU de l'assistant vocal (avatar 3D navigateur,
               # three.js/TalkingHead, greffé sur WamaApp.Speech — zéro VRAM serveur) : brique
