@@ -27400,6 +27400,12 @@ session) ; `check_docs` 3 références cassées, toutes dans ce fichier (`edit.j
    d'ILaaS sur requête muette.
 9. Jumeau relevé, à ses auteurs : le transcriber juge « distant » par la source déclarée
    (`_is_remote_key`), pas par `AIModel.execution` (`cloud_models.is_cloud_key`).
+10. **Dette de redondance, chantier à part** (proposé par Fabien à la clôture) : `check_redundancy`
+    rend 99 trouvailles, toutes dans le CODE, aucune de cette session — 69 vocabulaires recopiés
+    (listes de valeurs qu'un registre ou un schéma déclare déjà) et 30 briques doublées (`calendar`,
+    `output_naming`, `process_pipeline` en tête). 36 sont dans les jumelles du bac à sable (`*_01`) :
+    corriger l'app source ou le générateur les solde ensemble ; 24 sont dans des tests. Concentrée
+    sur transcriber, composer, converter et `common` (≈ 9 chacun).
 
 **Pendings système** : relancer gunicorn ET les serveurs MCP (le moteur, les réglages et la route
 de réglage ont changé) ; pousser les 18 commits de la session ; pour essayer : « Sous-agents » sur
