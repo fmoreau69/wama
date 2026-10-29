@@ -610,7 +610,7 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       35 gestes), inspecteurs coexistants, parité de l'éditeur 75/75.
     - ⚠ **Pas encore inscrits** (ils gardent leur propre écoute, sans conflit mesuré) : les
       ~~segments, la ligne de temps, l'écriture à la lecture~~, ~~la partition~~ (étape 3), ~~l'image et ses zones~~ (étape 3),
-      ~~l'historique~~ (étape 3), le menu de card, ~~la visionneuse~~ (étape 3), le cam_analyzer (`WamaShuttle.bindKeys`). Le
+      ~~l'historique~~ (étape 3), ~~le menu de card~~ (étape 3), ~~la visionneuse~~ (étape 3), le cam_analyzer (`WamaShuttle.bindKeys`). Le
       module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
       ⚠ **Jumeau déclaré** (revérification du 29/10) : ces briques testent la saisie par
       `WamaApp.isTyping` (l'élément qui a le focus, une liste comprise), le module par
@@ -697,6 +697,19 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       désormais le focus de ce qui est derrière elle à l'ouverture ; contrôle ajouté au scénario
       (l'arbre ne garde pas le focus derrière elle). 35/35 ; contre-épreuve au navigateur (sans ce
       geste) → rouge. `common.keyboard_owners` 5/5.
+    - ✅ **Le menu de card** — une COUCHE aussi (ouvert ET le focus dedans) : il écoutait en
+      capture sur `window` et arrêtait la propagation pour que l'inspecteur ne rejoue pas ↓
+      derrière lui (audit du 14/09) ; la portée `layer` dit la même chose. Ce qui change : une
+      entrée qui a le focus garde Entrée et Espace (règle des contrôles), son clic NATIF a le même
+      `detail` 0 et fait entrer le focus dans un sous-menu, comme avant ; contrôle ajouté à
+      `check_tree_menu_keyboard` (Entrée sur « Envoyer vers » ouvre le sous-menu et y entre) : 7/7.
+      **L'encart « lecture seule »** : Échap le referme, prioritaire de la page inscrite au
+      chargement (avant l'inspecteur, initialisé au `DOMContentLoaded` des apps) — il ne
+      désélectionne donc plus la card en même temps (une touche, un geste). Assertion ajoutée à
+      `check_received_card_readonly_and_request` (l'encart est refermé) ; sonde côté navigateur
+      (enveloppe de card reçue injectée, rien écrit) : refermé, et resté ouvert sous contre-épreuve.
+      ⚠ `check_tree_item_menu` échoue (« le menu s'ouvre tout de suite, sur « Recherche… » ») avec
+      le menu de HEAD servi au navigateur comme avec le nouveau : antérieur, hors de ce chantier.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

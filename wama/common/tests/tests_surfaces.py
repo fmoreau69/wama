@@ -1284,7 +1284,6 @@ class PageKeyListenersTest(SimpleTestCase):
     #: path → (page-wide key listeners, why it is still there). `MOVE` : a brick still to register.
     MOVE = 'à inscrire au clavier commun'
     REMAINING = {
-        'wama/common/static/common/js/wama-card-menu.js': (2, MOVE),
         'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
         'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js': (1, MOVE),
         # Not shortcuts : they never act on the key, or only on its release.

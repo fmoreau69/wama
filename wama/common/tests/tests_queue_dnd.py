@@ -662,12 +662,12 @@ class NavigationAuClavierTest(TestCase):
     def test_le_menu_contextuel_se_parcourt_aux_fleches(self):
         js = (RACINE / 'wama' / 'common' / 'static' / 'common' / 'js'
               / 'wama-card-menu.js').read_text(encoding='utf-8')
-        # ⚠ En CAPTURE sur `window`, propagation ARRÊTÉE pour les touches traitées (audit 14/09) :
-        # écouté sur le document en bulle, chaque ↓ changeait la card sélectionnée par l'inspecteur
-        # derrière le menu, et Entrée était ANNULÉE par lui au lieu de déclencher l'entrée.
-        self.assertIn("window.addEventListener('keydown', clavier, true)", js)
-        self.assertNotIn("document.addEventListener('keydown', clavier)", js)
-        self.assertIn('ev.stopPropagation();', js)
+        # ⚠ Écouté sur le document en bulle, chaque ↓ changeait la card sélectionnée par l'inspecteur
+        # derrière le menu, et Entrée était ANNULÉE par lui (audit 14/09) — d'où une capture sur
+        # `window`. Depuis le 2026-10-29, le menu est une COUCHE du clavier commun : ouvert et le
+        # focus dedans, il SEUL reçoit les frappes (`KeyDispatcherTest` pour la règle).
+        self.assertIn("scope: 'layer', open: menuAuClavier,", js)
+        self.assertNotIn("addEventListener('keydown', clavier", js)
         for touche in ('ArrowDown', 'ArrowUp', 'ArrowRight', 'ArrowLeft', 'Escape', 'Home', 'End',
                        'Enter', 'PageDown'):
             with self.subTest(touche=touche):

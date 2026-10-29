@@ -1332,9 +1332,12 @@
         if (retour && retour.focus && document.contains(retour)) retour.focus({ preventScroll: true });
     }
 
+    /** Le menu a-t-il le clavier ? Seulement quand le focus est DANS un menu : ailleurs, le
+     *  clavier reste à la page. */
+    function menuAuClavier() { return !!pile.length && dansUnMenu(document.activeElement); }
+
     function clavier(ev) {
-        // Seulement quand le focus est DANS un menu : ailleurs, le clavier reste à la page.
-        if (!pile.length || !dansUnMenu(document.activeElement)) return;
+        if (!menuAuClavier()) return false;
         var niveau = menuCourant();
         var menu = pile[niveau];
         var items = entreesActives(menu);
@@ -1353,9 +1356,10 @@
             break;
         case 'Enter':
         case ' ':
-            // Déclenché ICI, pas laissé au clic natif : l'inspecteur annule Entrée/Espace sur le
-            // document dès qu'une card est sélectionnée. `click()` rend `detail` 0 → une entrée à
-            // sous-menu y fait entrer le focus, comme →.
+            // Une entrée (un bouton) qui a le focus garde Entrée et Espace : le clic natif, `detail`
+            // 0, fait entrer le focus dans un sous-menu comme → (règle des contrôles du clavier
+            // commun ; l'inspecteur, qui les annulait sur le document, n'en reçoit plus sous un
+            // menu ouvert). Reste ici pour un focus hors d'une entrée.
             if (active && active.classList.contains('wama-cm-item') && !active.disabled) active.click();
             break;
         case 'ArrowLeft':
@@ -1370,21 +1374,24 @@
             break;
         case 'Tab':
             fermerEtRendreLeFocus();
-            return;                     // on laisse la tabulation suivre son cours
+            return false;               // on laisse la tabulation suivre son cours
         case 'PageUp':
         case 'PageDown':
             fermer();
-            return;                     // la page défile ; le menu ne reste pas loin de sa card
+            return false;               // la page défile ; le menu ne reste pas loin de sa card
         default:
-            return;
+            return false;
         }
-        ev.preventDefault();
-        ev.stopPropagation();           // l'inspecteur et la file ne rejouent pas la même touche
         if (cible) cible.focus({ preventScroll: true });
+        return true;
     }
 
-    // CAPTURE sur `window` : passe avant les écouteurs du document (inspecteur, file empilée).
-    window.addEventListener('keydown', clavier, true);
+    // Une COUCHE du clavier commun (`WamaKeys`, 2026-10-29) : ouvert et le focus dedans, le menu
+    // SEUL reçoit les frappes — l'inspecteur et la file ne rejouent pas la même touche (audit du
+    // 14/09 : en bulle sur le document, chaque ↓ changeait la card choisie derrière le menu ; d'où
+    // l'ancienne écoute en capture sur `window`).
+    if (global.WamaKeys) global.WamaKeys.register({ owner: 'card_menu', scope: 'layer', open: menuAuClavier,
+                                                    handle: clavier });
     window.addEventListener('resize', fermer);
 
     /**
@@ -1618,9 +1625,13 @@
             armerConsultation(enveloppe.getAttribute('data-received-from') || '');
         }
     }, true);
-    window.addEventListener('keydown', function (ev) {
-        if (ev.key === 'Escape') fermerEncart();
-    });
+    // Échap referme l'encart « lecture seule » — et rien d'autre (clavier commun : prioritaire de
+    // la page, inscrit au chargement donc avant l'inspecteur ; sans encart, la touche n'est pas prise).
+    if (global.WamaKeys) global.WamaKeys.register({ owner: 'card_menu', scope: 'page', handle: function (ev) {
+        if (ev.key !== 'Escape' || !notice) return false;
+        fermerEncart();
+        return true;
+    } });
 
     global.WamaCardMenu = {
         autoInit: autoInit, ouvrir: ouvrir, fermer: fermer,

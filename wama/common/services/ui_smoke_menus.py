@@ -163,6 +163,20 @@ def check_tree_menu_keyboard():
                 verdicts.append((n_sous == 0 and a['texte'].startswith('Envoyer vers'),
                                  f"← remonte (sous-menus {n_sous}, focus « {a['texte']} »)"))
 
+                # Entrée sur une entrée à sous-menu : le clic qu'elle produit (`detail` 0) ouvre le
+                # sous-menu ET y fait entrer le focus, comme → (clavier commun, 2026-10-29 : une
+                # entrée qui a le focus garde Entrée, le clic est natif).
+                page.keyboard.press('Enter')
+                try:
+                    _attendre_sous(page)
+                    page.wait_for_timeout(200)
+                    a = page.evaluate(JS_ACTIF)
+                    verdicts.append((a['dans_sous'], f"Entrée ouvre le sous-menu ET y entre (focus « {a['texte']} »)"))
+                except Exception:
+                    verdicts.append((False, "Entrée n'ouvre AUCUN sous-menu"))
+                page.keyboard.press('ArrowLeft')
+                page.wait_for_timeout(150)
+
                 page.keyboard.press('Escape')
                 page.wait_for_timeout(150)
                 n_menus = page.evaluate("document.querySelectorAll('.wama-card-menu').length")
@@ -1113,6 +1127,8 @@ def check_received_card_readonly_and_request():
                     shown = page.locator(notice).count() == 1 and 'Lecture seule' in page.inner_text(notice)
                     verdicts.append((shown, f'{what} ouvre l’encart « lecture seule »'))
                     page.keyboard.press('Escape')
+                    page.wait_for_timeout(150)
+                    verdicts.append((page.locator(notice).count() == 0, f'Échap referme l’encart ouvert par {what}'))
                 page.locator(f'{card} .settings-btn').first.click()
                 page.wait_for_selector('.modal.show [data-wama-ro-banner]', timeout=15000)
                 verdicts.append((page.locator('.modal.show .save-settings-btn:visible').count() == 0,
