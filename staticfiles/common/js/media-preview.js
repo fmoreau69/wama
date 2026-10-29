@@ -269,6 +269,29 @@
         return 'fa-file';
     }
 
+    // Le CADRE ISOLÉ d'un document rendu (HTML) : `<iframe sandbox>` SANS AUCUNE permission — ni
+    // script, ni navigation, ni formulaire. La règle s'écrivait trois fois (l'aperçu en ligne, la
+    // visionneuse, la brique `html_preview` des surfaces) ; elle vit ici seule (2026-10-29,
+    // passation de la session « Aperçu »). Ce qui varie est une OPTION : `className`, `style`,
+    // `inert` (le cadre ne prend pas les gestes — dans une card, le double-clic doit remonter à la
+    // page), `referrerPolicy`, `title`. Rend un BALISAGE, comme `tileHtml` ; `documentFrame` en fait
+    // l'élément. Pure (gardée en V8).
+    function documentFrameHtml(url, opts) {
+        const o = opts || {};
+        const style = (o.style || '') + (o.inert ? 'pointer-events:none;' : '');
+        return '<iframe' + (url ? ' src="' + escapeHtml(url) + '"' : '') + ' sandbox=""' +
+            (o.referrerPolicy ? ' referrerpolicy="' + escapeHtml(o.referrerPolicy) + '"' : '') +
+            (o.className ? ' class="' + escapeHtml(o.className) + '"' : '') +
+            (style ? ' style="' + escapeHtml(style) + '"' : '') +
+            (o.title ? ' title="' + escapeHtml(o.title) + '"' : '') + '></iframe>';
+    }
+
+    function documentFrame(url, opts) {
+        const holder = document.createElement('div');
+        holder.innerHTML = documentFrameHtml(url, opts);
+        return holder.firstChild;
+    }
+
     function tileHtml(data, opts) {
         const o = opts || {};
         const mime = String((data && data.mime_type) || '').toLowerCase();
@@ -433,13 +456,14 @@
         } else if (mime === 'application/pdf') {
             media = '<embed src="' + u + '" type="application/pdf" style="width:100%;height:220px;border-radius:6px;">';
         } else if (mime === 'text/html') {
-            // HTML : iframe SANDBOXÉE (pas de script, pas de navigation) — aperçu sûr. Dans une
-            // CARD, le cadre ne prend pas les gestes (2026-10-13) : un double-clic tombait dans le
-            // document encadré, qui ne le rend jamais à la page — l'aperçu ne s'agrandissait pas.
-            const inert = host.classList && host.classList.contains('wama-card-preview')
-                ? 'pointer-events:none;' : '';
-            media = '<iframe src="' + u + '" sandbox class="wama-inspector-preview-media" ' +
-                'style="width:100%;height:220px;border:0;background:#fff;border-radius:6px;' + inert + '"></iframe>';
+            // HTML : le cadre isolé (`documentFrameHtml`). Dans une CARD, le cadre ne prend pas les
+            // gestes (2026-10-13) : un double-clic tombait dans le document encadré, qui ne le rend
+            // jamais à la page — l'aperçu ne s'agrandissait pas.
+            media = documentFrameHtml(url, {
+                className: 'wama-inspector-preview-media',
+                style: 'width:100%;height:220px;border:0;background:#fff;border-radius:6px;',
+                inert: !!(host.classList && host.classList.contains('wama-card-preview')),
+            });
         } else if (mime.indexOf('text/') === 0) {
             const density = _previewDensity(host);
             if (density.mode === 'excerpt') {
@@ -1882,11 +1906,7 @@
             // règle de l'aperçu inline, de l'inspecteur et de la brique `html_preview` des
             // surfaces. La visionneuse n'avait pas ce cas : un double-clic sur l'aperçu d'un
             // document du Writer ouvrait « Preview not available ».
-            const frame = document.createElement('iframe');
-            frame.src = data.url;
-            frame.setAttribute('sandbox', '');
-            frame.className = 'wama-viewer-frame wama-viewer-frame--page';
-            return frame;
+            return documentFrame(data.url, { className: 'wama-viewer-frame wama-viewer-frame--page' });
         } else if (mimeType.startsWith('text/') || typeof data.content === 'string') {
             return _textPane(data, mimeType);
         } else {
@@ -2165,6 +2185,7 @@
         // rendu en ligne
         renderInline: renderInline, hydrateCardPreviews: hydrateCardPreviews,
         tileHtml: tileHtml, tileIcon: tileIcon,
+        documentFrameHtml: documentFrameHtml, documentFrame: documentFrame,
         // faces
         sidesBar: sidesBar, viewerKind: viewerKind, compareFaces: compareFaces, compareView: compareView,
         variantToggle: variantToggle, followDuring: followDuring, followCard: followCard,

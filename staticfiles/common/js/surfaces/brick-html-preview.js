@@ -3,9 +3,12 @@
  * 1ʳᵉ surface : l'aperçu du Writer).
  *
  * Universelle : elle affiche l'URL d'un rôle lu par la surface (option `role`, défaut
- * `preview`) dans un cadre ISOLÉ — `<iframe sandbox>` sans permission : ni script ni navigation,
- * la règle de l'aperçu HTML de l'inspecteur (`wama-inspector.js`). On ne l'édite jamais
- * (ROADMAP §21.5, n°2).
+ * `preview`) dans le cadre ISOLÉ commun (`WamaMediaPreview.documentFrame` — `<iframe sandbox>`
+ * sans permission : ni script ni navigation), celui de l'aperçu en ligne et de la visionneuse. On
+ * ne l'édite jamais (ROADMAP §21.5, n°2).
+ *
+ * Ses libellés d'état (`LABELS`) ne recopient pas `WamaApp.statusLabel` : ils disent ce que l'état
+ * veut dire pour LE RENDU (« Périmé — Appliquer le refait »), pas le nom de l'état.
  *
  * Elle dit si le rendu est À JOUR : l'état du process qui le produit (option `process`, défaut
  * le process que la surface rejoue) est lu des lignes d'exécution (`ctx.processes()`, événement
@@ -27,10 +30,8 @@
         var role = options.role || 'preview';
         var process = options.process || ctx.config.surface.reruns || '';
         body.classList.add('wama-brick-preview');
-        var frame = document.createElement('iframe');
-        frame.setAttribute('sandbox', '');
-        frame.setAttribute('referrerpolicy', 'no-referrer');
-        frame.title = 'Aperçu du document';
+        var frame = global.WamaMediaPreview.documentFrame('', {
+            referrerPolicy: 'no-referrer', title: 'Aperçu du document' });
         var empty = document.createElement('div');
         empty.className = 'wama-preview-empty';
         body.appendChild(frame);

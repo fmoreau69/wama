@@ -342,7 +342,11 @@ manifeste** (ce que le kind `app` capte + cible de projection).
   mondes Médias et Data sur tous ses aspects. Constats relus au code pour ces chantiers :
   `PROJECT_STATUS §PALIER 2026-10-28 « APERÇU ④ : la vignette commune »`), `brick-html-preview.js` (seconde iframe isolée ; ➡ CONFIÉ à la session
   « Briques UI » le 2026-10-28, passation au même palier : le cadre sans permission s'écrit trois
-  fois, `media-preview.js` aperçu en ligne et visionneuse, et cette brique). Ordre proposé à
+  fois, `media-preview.js` aperçu en ligne et visionneuse, et cette brique — ✅ SOLDÉ le
+  2026-10-29 : `WamaMediaPreview.documentFrameHtml` / `documentFrame`, les trois lieux l'appellent,
+  `tests_document_frame` (V8 + « la règle vit à un endroit », code seul) et `common.preview_layout`
+  (cadre de la visionneuse et d'une card, servi), contre-épreuves rouges ; les libellés d'état de la
+  brique restent les siens, ils disent ce que l'état veut dire pour le rendu). Ordre proposé à
   Fabien : ① → ② → ③ → ④. Et MiniMax-Music3 / YuE2 ne montrent rien avant la fin (limite des
   moteurs, dite plus haut).
   ✅ **③ puis ① SOLDÉS le soir même** (Fabien : *« retire le code mort, puis la card qui suit

@@ -27260,10 +27260,12 @@ graphiques confrontée, contrat de synchronisation déjà tenu par `wama-axis.js
 en briques UI comme PREMIERS plugins Data (marche F), APRÈS les restes ci-dessous.
 
 **Restes de la session, dans l'ordre où ils se font** :
-1. 🔴 **La PASSATION du 28/10 non faite** (`§PALIER 2026-10-28 « APERÇU ④ »`, « le cadre isolé du
-   document rendu ») : la règle `<iframe sandbox>` est encore écrite trois fois
-   (`media-preview.js:441` et `:1887`, `brick-html-preview.js:31`) — une fonction exportée par
-   `WamaMediaPreview`, ses tests et son geste.
+1. ✅ **La PASSATION du 28/10** (`§PALIER 2026-10-28 « APERÇU ④ »`, « le cadre isolé du document
+   rendu ») — SOLDÉE le 29/10 : `WamaMediaPreview.documentFrameHtml` / `documentFrame`, appelée par
+   l'aperçu en ligne, la visionneuse et la brique `html_preview` ; `tests_document_frame`, cas ajouté
+   à `common.preview_layout` (vert sur le serveur relancé), contre-épreuves rouges (fichier et
+   navigateur). Le geste sur la surface du Writer reste non joué : aucune surface n'a d'élément
+   témoin à ouvrir ; les trois appels sont tenus par la garde.
 2. 🔄 **Finir la mise en briques** : les sections du volet sont des PANNEAUX mais pas des briques
    du registre (`volet.PANEL_SLOTS` : assistant, tête, aperçu, infos, paramètres, actions ; le
    registre n'a qu'UNE brique `inspector_panel` pour quatre panneaux, et pas d'assistant) ; et les

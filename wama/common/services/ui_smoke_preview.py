@@ -577,6 +577,44 @@ def _layout_witnesses(folder: str):
     pdf.set_font('Helvetica', size=14)
     pdf.cell(0, 10, 'Temoin de mise en page')
     pdf.output(os.path.join(folder, 'w.pdf'))
+    with open(os.path.join(folder, 'w.html'), 'w', encoding='utf-8') as out:
+        out.write('<!doctype html><title>t</title><p>Document rendu témoin</p>'
+                  '<script>parent.__wamaFrameScript = true;</script>')
+
+
+#: Le CADRE ISOLÉ d'un document rendu (`WamaMediaPreview.documentFrameHtml`, 2026-10-29), vu là où
+#: il se monte : la visionneuse et l'aperçu en ligne d'une card. Rendu : le `sandbox` de chaque
+#: cadre (vide = aucune permission), l'inertie du cadre de card, et si le script du témoin a tourné.
+JS_DOCUMENT_FRAMES = """async (url) => {
+    window.__wamaFrameScript = false;
+    const host = document.createElement('div');
+    host.className = 'wama-card-preview';
+    document.body.appendChild(host);
+    window.WamaMediaPreview.renderInline(host, {url: url, mime_type: 'text/html', name: 'témoin'});
+    const inline = host.querySelector('iframe');
+    const out = {inline: inline && inline.getAttribute('sandbox'),
+                 inert: inline && inline.style.pointerEvents};
+    window.showPreviewModal({url: url, mime_type: 'text/html', name: 'témoin'});
+    for (let i = 0; i < 40 && !document.querySelector('#wamaMediaPreviewModal.show iframe'); i++)
+        await new Promise(r => setTimeout(r, 100));
+    const viewer = document.querySelector('#wamaMediaPreviewModal.show iframe');
+    out.viewer = viewer && viewer.getAttribute('sandbox');
+    await new Promise(r => setTimeout(r, 800));
+    out.script = window.__wamaFrameScript;
+    host.remove();
+    return out;
+}"""
+
+
+def document_frames_fault(seen: dict) -> str:
+    """Le défaut du cadre isolé, '' s'il n'y en a pas."""
+    if not seen or seen.get('inline') != '' or seen.get('viewer') != '':
+        return f"document rendu : cadre non isolé ({seen})"
+    if seen.get('inert') != 'none':
+        return "document rendu : le cadre d'une card prend les gestes (le double-clic n'atteint plus la page)"
+    if seen.get('script'):
+        return 'document rendu : le script du document a tourné'
+    return ''
 
 
 def check_preview_layout():
@@ -659,6 +697,12 @@ def check_preview_layout():
                             faults.append(fault)
                     page.evaluate(JS_FULL, False)
                     _close(page)
+                    # Le document rendu : le cadre isolé, dans la visionneuse et dans une card.
+                    fault = document_frames_fault(page.evaluate(JS_DOCUMENT_FRAMES, base + 'w.html'))
+                    measured += 1
+                    if fault:
+                        faults.append(f'{fault}, {screen}')
+                    _close(page)
                     if js_errors:
                         faults.append(f"{screen} : JS en erreur : {' | '.join(js_errors)}")
                     context.close()
@@ -671,7 +715,8 @@ def check_preview_layout():
     return True, (f"{measured} mises en page mesurées ({len(LAYOUT_CASES)} natures + Comparer, "
                   f"modale et tout l'écran, {len(LAYOUT_VIEWPORTS)} tailles d'écran) : la bascule "
                   f"est au-dessus de l'aperçu, sans le recouvrir ; les flèches ({arrows} mesures) "
-                  "ne le recouvrent pas")
+                  "ne le recouvrent pas ; le document rendu s'ouvre dans un cadre isolé (visionneuse "
+                  "et card)")
 
 
 #: L'état de la visionneuse que lisent les gestes de navigation : le fichier montré (titre), le
