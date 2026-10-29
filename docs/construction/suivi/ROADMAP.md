@@ -2339,6 +2339,10 @@ streamable** (port déclaré dans `external_sources`) ou **stdio**.
   `FunctionCategory`.
 - **Rapport de sortie à revoir** ; **renommer** le profil `Intersections_yolo26s-segment` →
   `Complet_…` ; **validation navigateur** du rendu correction + z-order `bringToBack`.
+  🔄 *(2026-10-29 : le rapport de sortie a ses tableaux PAR VÉHICULE — insertions aux intersections et
+  dépassements, exports CSV et listes au rapport, passe `vehicle_tables`, `3eb967a` + `326878ff` ;
+  colonnes et règles : `CAM_ANALYZER_CHAINE_TRAITEMENT` « Tableaux PAR VÉHICULE ». Reste à juger sur
+  données par Fabien ; le renommage du profil et la validation navigateur du rendu restent ouverts.)*
 
 ✅ Livré — état vivant : `PROJECT_STATUS.md §5` (Cam Analyzer). Détail archivé :
 `docs/construction/archive/ROADMAP_ARCHIVE_2026-07-20.md`.
