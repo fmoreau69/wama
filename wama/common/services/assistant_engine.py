@@ -1356,7 +1356,7 @@ def _sub_agent_candidates(user) -> tuple:
              if k.partition(':')[0] not in excluded], cloud)
 
 
-def _sub_agent_lanes(user, provider, llm_model, count: int) -> list:
+def _sub_agent_lanes(user, provider, llm_model, count: int, council: bool = False) -> list:
     """Les COULOIRS d'une vague de sous-agents (`WAMA_HARNESS §7.4` étape 2 bis, décision de Fabien
     du 29/10) : un par SERVEUR — une source du catalogue —, au plus `count`. Le premier est le
     modèle du tour ; les suivants sont le TIRAGE COMMUN rejoué en écartant les sources déjà prises,
@@ -1367,48 +1367,75 @@ def _sub_agent_lanes(user, provider, llm_model, count: int) -> list:
     disputent jamais la carte (`§7.4`, « le parallèle, et comment se passe l'inférence »).
 
     QUAND LES SERVEURS SONT ÉPUISÉS (étape 4 : un council de cinq sur trois serveurs), les couloirs
-    suivants prennent un AUTRE MODÈLE d'un serveur DISTANT déjà pris — mesuré le 29/10 : trois
-    modèles d'Albert en même temps, aucun refus. Jamais un second couloir LOCAL : deux modèles
-    locaux en même temps se disputeraient la carte.
+    suivants prennent un AUTRE MODÈLE DISTANT — mesuré le 29/10 : trois modèles d'Albert en même
+    temps, aucun refus. Jamais un second couloir LOCAL : deux modèles locaux en même temps se
+    disputeraient la carte.
+
+    UN COUNCIL (`council=True` : la même question à plusieurs agents) prend d'abord des DISTANTS ;
+    le local ne le complète que s'ils ne suffisent pas (décision de Fabien du 29/10). Mesuré le jour
+    même : le couloir local faisait toute la durée du council — 444 s contre 31-48 s, puis 739 s et
+    une relecture de 304 s, tour de 1 176 s. Des tâches indépendantes, elles, gardent leur couloir
+    local : il n'y retarde aucune décision commune.
+
+    Local ou distant se lit au CATALOGUE (`cloud_models.is_cloud_key`, `AIModel.execution`), jamais
+    au nom d'un serveur ; le tour, lui, l'est selon son fournisseur (`_LOCAL_PROVIDERS`).
 
     Rend [(fournisseur, modèle)] ; un seul couloir quand rien d'autre n'est admis (profil « 100 %
     local ») — la vague redevient alors séquentielle, sans erreur."""
-    lanes = [(provider, llm_model)]
+    parent = (provider, llm_model)
     if count <= 1 or user is None:
-        return lanes
+        return [parent]
+    parent_local = provider in _LOCAL_PROVIDERS
+    lanes = [] if council and parent_local else [parent]
     try:
         from wama.common.utils.auto_model import AUTO, resolve_model_choice
+        from wama.model_manager.services.cloud_models import is_cloud_key
         lot, cloud = _sub_agent_candidates(user)
-        used_sources, used_keys = {_provider_source(provider)}, {turn_model_key(provider, llm_model)}
+        remote = {k for k in lot if is_cloud_key(k)}
+        used_sources = {_provider_source(provider)} if lanes else set()
+        used_keys = {turn_model_key(provider, llm_model)}
         intent = assistant_settings(user).get('quality_intent')
-        while len(lanes) < count:
-            candidates = ([k for k in lot if k.partition(':')[0] not in used_sources]
-                          or [k for k in lot if k not in used_keys
-                              and k.partition(':')[0] != _provider_source('ollama')])
-            if not candidates:
-                break
+
+        def draw(candidates):
             key = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
                                        quality_intent=intent, cloud_keys=cloud, user=user,
                                        candidates=candidates)
             if not key or key not in candidates:
-                break
+                return False
             source, _, model_id = str(key).partition(':')
             used_sources.add(source)
             used_keys.add(key)
             lanes.append((SOURCE_PROVIDERS.get(source, source), model_id or None))
+            return True
+
+        while len(lanes) < count:
+            fresh = [k for k in lot if k.partition(':')[0] not in used_sources
+                     and (k in remote or not council)]
+            candidates = fresh or [k for k in remote if k not in used_keys]
+            if not candidates or not draw(candidates):
+                break
+        if council and len(lanes) < count:
+            # Pas assez de distants : UN couloir local complète — celui du tour s'il est local.
+            if parent_local:
+                lanes.append(parent)
+            else:
+                draw([k for k in lot if k not in remote and k not in used_keys])
     except Exception:
         logger.debug("[ai_chat] couloirs de sous-agents indisponibles — un seul", exc_info=True)
-    return lanes
+    return lanes or [parent]
 
 
 def _decider_lane(user, provider, llm_model, exclude: set) -> tuple:
     """(fournisseur, modèle) du DÉCIDEUR : le tirage commun au curseur « Qualité » sur les mêmes
     candidats que les couloirs, HORS des modèles qui ont donné un avis (`exclude`) — un juge LLM
-    favorise ses propres réponses. Sans autre candidat, le modèle du tour."""
+    favorise ses propres réponses —, et DISTANT quand il y en a (la règle du council,
+    `_sub_agent_lanes`). Sans autre candidat, le modèle du tour."""
     try:
         from wama.common.utils.auto_model import AUTO, resolve_model_choice
+        from wama.model_manager.services.cloud_models import is_cloud_key
         lot, cloud = _sub_agent_candidates(user)
-        candidates = [k for k in lot if k not in exclude]
+        others = [k for k in lot if k not in exclude]
+        candidates = [k for k in others if is_cloud_key(k)] or others
         key = (resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
                                     quality_intent=100, cloud_keys=cloud, user=user,
                                     candidates=candidates) if candidates else None)
@@ -1457,13 +1484,18 @@ def _delegate_wave(user, args: dict, *, provider, llm_model, depth, deadline, bu
     sa durée."""
     args = args or {}
     raw, agents = args.get('tasks'), args.get('agents')
+    council = False
     if isinstance(raw, list) and raw:
         tasks = [t if isinstance(t, dict) else {'task': t} for t in raw]
     elif isinstance(agents, list) and agents:
         tasks = [{'task': args.get('task'), 'domain': agent} for agent in agents]
+        council = True
     else:
         tasks = [args]
     decide = args.get('decide') or None
+    # Un COUNCIL — la même question à plusieurs agents, ou une décision commune — prend d'abord
+    # des modèles DISTANTS (`_sub_agent_lanes`).
+    council = council or decide is not None
     options = [str(o).strip() for o in args.get('options') or () if str(o).strip()]
     if decide is not None and decide not in DECISION_MODES:
         return ({'error': f"{DELEGATE_TOOL} : `decide` vaut {' ou '.join(DECISION_MODES)}."}, [], {})
@@ -1476,7 +1508,7 @@ def _delegate_wave(user, args: dict, *, provider, llm_model, depth, deadline, bu
     # Le décideur est un sous-agent de plus : sa place se réserve avant la vague.
     room = max(budget - (decide in ('synthesis', 'review')), 0)
     kept, dropped = tasks[:room], tasks[room:]
-    lanes = _sub_agent_lanes(user, provider, llm_model, len(kept))
+    lanes = _sub_agent_lanes(user, provider, llm_model, len(kept), council=council)
     assignment = [i % len(lanes) for i in range(len(kept))]
 
     def work(i, lane):

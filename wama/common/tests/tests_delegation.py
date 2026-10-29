@@ -193,16 +193,43 @@ class ParallelWaveTest(TestCase):
     même temps, les tâches d'un couloir l'une après l'autre ; le plafond compte des sous-agents."""
 
     LOT = ['ollama:a', 'ollama:b', 'claude_code:opus', 'albert:x', 'albert:y', 'ilaas:z']
+    #: Ce que le CATALOGUE déclare distant (`AIModel.execution`) — la règle lit lui, pas un nom.
+    REMOTE = {'claude_code:opus', 'albert:x', 'albert:y', 'ilaas:z'}
 
-    def _lanes(self, lot, count, provider='ollama', model='a'):
+    def _lanes(self, lot, count, provider='ollama', model='a', council=False):
         user = User.objects.create(username=f'wave_lanes_{User.objects.count()}')
         with mock.patch('wama.common.services.development_models.agent_candidates',
                         return_value=lot), \
                 mock.patch('wama.model_manager.services.cloud_models.allowed_cloud_keys',
                            return_value=set()), \
+                mock.patch('wama.model_manager.services.cloud_models.is_cloud_key',
+                           side_effect=lambda key: key in self.REMOTE), \
                 mock.patch('wama.common.utils.auto_model.resolve_model_choice',
                            side_effect=lambda *a, candidates, **k: candidates[0]):
-            return assistant_engine._sub_agent_lanes(user, provider, model, count)
+            return assistant_engine._sub_agent_lanes(user, provider, model, count, council=council)
+
+    def test_a_council_leaves_the_local_out_when_remotes_suffice(self):
+        # Décision de Fabien (29/10) : le couloir local faisait toute la durée du council.
+        self.assertEqual([('albert', 'x'), ('ilaas', 'z'), ('albert', 'y')],
+                         self._lanes(self.LOT, 3, council=True))
+
+    def test_a_council_takes_one_local_lane_only_when_remotes_run_out(self):
+        self.assertEqual([('albert', 'x'), ('ollama', 'a')],
+                         self._lanes(['ollama:a', 'ollama:b', 'albert:x'], 3, council=True))
+        # Tour distant : son modèle d'abord, puis le local tiré quand plus aucun distant ne reste.
+        self.assertEqual([('albert', 'x'), ('ollama', 'b')],
+                         self._lanes(['ollama:b', 'albert:x'], 2, provider='albert', model='x',
+                                     council=True))
+
+    def test_local_or_remote_is_read_from_the_catalogue_not_from_a_server_name(self):
+        # Un serveur distant déclaré `local` au catalogue ne compte pas comme distant.
+        self.REMOTE = {'ilaas:z'}
+        self.assertEqual([('ilaas', 'z'), ('ollama', 'a')],
+                         self._lanes(['albert:x', 'ilaas:z'], 3, council=True))
+
+    def test_independent_tasks_keep_their_local_lane(self):
+        self.assertEqual([('ollama', 'a'), ('albert', 'x'), ('ilaas', 'z')],
+                         self._lanes(self.LOT, 3, council=False))
 
     def test_one_lane_per_server_drawn_without_the_subscription(self):
         self.assertEqual([('ollama', 'a'), ('albert', 'x'), ('ilaas', 'z')],
@@ -281,7 +308,7 @@ class ParallelWaveTest(TestCase):
         call = json.dumps({'tool': 'delegate', 'args': {'tasks': [{'task': f't{i}'}
                                                                   for i in range(many)]}})
         with mock.patch.object(assistant_engine, '_sub_agent_lanes',
-                               side_effect=lambda user, provider, model, count: [(provider, model)]), \
+                               side_effect=lambda user, provider, model, count, **k: [(provider, model)]), \
                 mock.patch.object(assistant_engine, '_delegate',
                                   return_value=({'report': 'r'}, [], {})) as delegate:
             result, _, _ = _turn(parent=(call, call), can_delegate=True)
@@ -306,7 +333,7 @@ class CouncilTest(TestCase):
 
         self.asked = []
         with mock.patch.object(assistant_engine, '_sub_agent_lanes',
-                               side_effect=lambda user, provider, model, count: lanes[:count]), \
+                               side_effect=lambda user, provider, model, count, **k: lanes[:count]), \
                 mock.patch.object(assistant_engine, '_delegate', side_effect=delegate), \
                 mock.patch.object(assistant_engine, '_decider_lane',
                                   return_value=('ilaas', 'decider-model')) as decider_lane, \
@@ -437,7 +464,7 @@ class CouncilTest(TestCase):
             'tasks': [{'task': f't{i}'} for i in range(MAX_DELEGATIONS_PER_TURN)]}})
         reviewer = {'role': 'reviewer', 'steps': [], 'model': 'm'}
         with mock.patch.object(assistant_engine, '_sub_agent_lanes',
-                               side_effect=lambda user, provider, model, count: [(provider, model)]), \
+                               side_effect=lambda user, provider, model, count, **k: [(provider, model)]), \
                 mock.patch.object(assistant_engine, '_delegate',
                                   return_value=({'report': 'r'}, [], {})), \
                 mock.patch.object(assistant_engine, '_peer_review',
@@ -448,6 +475,35 @@ class CouncilTest(TestCase):
         second = result['tool_steps'][1]
         # 2 agents + 1 décideur pris ; les 2 relectures ne comptent pas.
         self.assertEqual(MAX_DELEGATIONS_PER_TURN - 3, len(second['sub_agents']))
+
+    def test_the_decider_prefers_a_remote_model(self):
+        user = User.objects.create(username='council_decider_remote')
+        with mock.patch.object(assistant_engine, '_sub_agent_candidates',
+                               return_value=(['ollama:big', 'ilaas:z'], set())), \
+                mock.patch('wama.model_manager.services.cloud_models.is_cloud_key',
+                           side_effect=lambda key: key == 'ilaas:z'), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           side_effect=lambda *a, candidates, quality_intent, **k: candidates[0]):
+            self.assertEqual(('ilaas', 'z'),
+                             assistant_engine._decider_lane(user, 'ollama', 'a', set()))
+
+    def test_only_a_council_asks_for_remote_lanes(self):
+        user = User.objects.create(username='council_flag')
+        for args, expected in (({'task': 'Q', 'agents': ['general', 'critique']}, True),
+                               ({'tasks': [{'task': 'a'}, {'task': 'b'}], 'decide': 'synthesis'},
+                                True),
+                               ({'tasks': [{'task': 'a'}, {'task': 'b'}]}, False)):
+            with mock.patch.object(assistant_engine, '_sub_agent_lanes',
+                                   return_value=[('ollama', 'a')]) as lanes, \
+                    mock.patch.object(assistant_engine, '_delegate',
+                                      return_value=({'report': 'r'}, [], {})), \
+                    mock.patch.object(assistant_engine, '_synthesise',
+                                      return_value=({'text': 'd'}, {'role': 'decider'}, {})), \
+                    mock.patch.object(assistant_engine, '_decider_lane',
+                                      return_value=('ollama', 'a')):
+                assistant_engine._delegate_wave(user, args, provider='ollama', llm_model='a',
+                                                depth=0, deadline=None, budget=6)
+            self.assertIs(expected, lanes.call_args.kwargs['council'], args)
 
     def test_the_specialised_agents_are_declared_roles(self):
         from wama.common.utils.assistant_skills import (
