@@ -102,6 +102,22 @@ Ce qui reste, et pourquoi :
   26/09), donc un SEUL modèle noté passe devant les autres à tout curseur — c'est ce qui fait
   tirer GLM-OCR (seul porteur d'un a priori structurel) au reader, qualité max comprise.
   Compléter les sources réduit ce cas ; il ne l'annule pas.
+  📏 **Mesuré le 2026-10-29** (question de Fabien : « olm-ocr n'est jamais prévu, toujours
+  glm-ocr »), tirage réel du compte de Fabien, budget fixé, curseur 0 / 50 / 100 — le curseur est
+  INERTE dans cinq apps, un seul modèle du lot portant un banc tiers :
+  reader → glm-ocr (75,2 sur olmOCR-Bench, seul noté ; chandra-ocr-2 installé n'a pas hérité du
+  85,8 de son modèle d'origine — sa ligne n'a pas de `quantized_base`, alors que la carte du dépôt
+  GGUF déclare `base_model:quantized:datalab-to/chandra-ocr-2` ; olmOCR n'a aucune note et sa
+  fiche est encore la v1 « preview ») ; transcriber et describer → whisper (seul noté, et c'est
+  aussi le meilleur MESURÉ sur entretiens) ; composer → minimax-music3 (banc AA par `ALIAS` depuis
+  le 10/10 : il écrase les a priori déclarés — **régression** du constat du 03/10 plus bas,
+  « rapide → MusicGen Small, qualité → YuE2 ») ; enhancer → 4xNomosUni. Vivant : synthesizer,
+  avatarizer, imager, anonymizer.
+  ⚠ Écrire « un étage ne classe que s'il compare au moins deux modèles » a été ESSAYÉ ce jour et
+  retiré sans commit : le tirage retombait sur la TAILLE (FrWhisper, 7,4 Go et aucune note, devant
+  Whisper). Le remède est la **mesure interne sur corpus** (§4.1, catégorisée §4.4 — l'OCR
+  imprimé et manuscrit ne se comparent pas ensemble), Fabien le rappelle : *« une mesure réelle
+  sur un corpus est nécessaire pour un tirage automatique de qualité »*.
 
 ⚠ **Et LOCAL ≠ DISTANT sur l'axe de la VRAM** (même demande). Un modèle distant a
 `vram_gb = 0` : le repli en faisait mécaniquement le **pire** du lot, et le terme de coût du

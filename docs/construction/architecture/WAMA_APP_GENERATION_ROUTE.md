@@ -1952,6 +1952,11 @@ et il alimente l'étage qui manque au tirage automatique (voir ci-dessous).
 - **La performance est DÉJÀ dans le classement** (`_rank_key`, 4 étages jamais mélangés :
   sous-indice de domaine → benchmark tiers → a priori → VRAM ; règle de lot — on ne compare
   que si TOUT le lot porte le signal). Ce n'est donc pas un trou de mécanisme.
+  ⚠ *Corrigé le 2026-10-29 à la mesure du code* : la « règle de lot » ci-dessus n'est plus vraie
+  depuis le 2026-09-26 — chaque étage se juge sur le SOUS-ENSEMBLE qu'il couvre
+  (`model_selector._quality_scalars`), mesure interne en tête depuis le 2026-10-14 et rang centile
+  inséré entre banc tiers et a priori. Conséquence mesurée (`WAMA_QUALITE §0`) : un seul modèle noté
+  gagne à tous les crans du curseur — cinq apps le 29/10.
 - **Mais le parc TTS n'a aucun indice** → le classement retombe sur `vram_gb`, c'est-à-dire
   « le plus gros qui tient » : mesuré, une demande TTS nue rend `bark` (4 Go) et non `kokoro`
   (0,5 Go). Pour une PREVIEW RAPIDE c'est l'inverse du besoin. **Remède immédiat et sans
