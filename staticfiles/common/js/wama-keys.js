@@ -9,7 +9,8 @@
  *
  * Une frappe, dans cet ordre — la première étape qui la prend l'arrête :
  *   0. déjà PRISE (`defaultPrevented`) plus près du focus — un champ, un panneau qui écoute sur
- *      son propre élément (les notifications), une brique en capture (les segments, la partition) ;
+ *      son propre élément (les notifications), une note gravée de la partition (le clavier
+ *      d'abcjs) ;
  *   1. une COUCHE ouverte au moment de la frappe — une modale, un panneau en dialogue — garde le
  *      clavier : rien n'est distribué. Relevé en CAPTURE : Bootstrap ferme une modale sur Échap
  *      avant que la frappe ne remonte jusqu'ici ;

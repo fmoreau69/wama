@@ -351,54 +351,62 @@
             showBanner();
         });
 
-        // ── Clavier — en CAPTURE : Échap qui sort d'une saisie est pris AVANT la ligne de temps
-        // (qui, sinon, sortirait aussi de l'outil Bornes : une touche, un geste) ───────────────
-        document.addEventListener('keydown', function (e) {
+        // ── Clavier — par le clavier commun (`WamaKeys`, 2026-10-29) : une brique prioritaire de la
+        // page. Elle écoutait en CAPTURE pour prendre Échap avant la ligne de temps (qui, sinon,
+        // sortirait aussi de l'outil Bornes) : le module donne désormais une touche à UN seul. En
+        // saisie (`typing`), la règle d'avant : dans un texte de segment toute touche lui arrive
+        // (Tab, fusion, coupe…), dans un champ seulement Ctrl / Alt / Échap. Un contrôle atteint
+        // au clavier garde Entrée et Espace, une liste ses flèches (règle du module). ───────────
+        global.WamaKeys.register({ owner: 'segment_list', scope: 'page',
+                                   typing: function (e) {
+                                       return !!(e.target && e.target.isContentEditable) || e.key === 'Escape'
+                                           || e.ctrlKey || e.metaKey || e.altKey;
+                                   },
+                                   handle: function (e) {
             var inField = editing();
             var tgt = e.target;
             // Frappe dans un champ (aller à, locuteur…) : ni transport ni navigation, sauf Ctrl/Alt/Échap.
             if (tgt && (tgt.tagName === 'INPUT' || tgt.tagName === 'TEXTAREA' || tgt.tagName === 'SELECT')
-                && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'Escape') return;
-            if (e.altKey && (e.key === 'l' || e.key === 'L')) { e.preventDefault(); toggleFollowLock(); return; }
+                && !e.ctrlKey && !e.metaKey && !e.altKey && e.key !== 'Escape') return false;
+            if (e.altKey && (e.key === 'l' || e.key === 'L')) { toggleFollowLock(); return true; }
             if (e.key === 'Escape') {
-                if (inField) { e.preventDefault(); document.activeElement.blur(); }
-                return;
+                if (!inField) return false;
+                document.activeElement.blur();
+                return true;
             }
             if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-                e.preventDefault();
                 var d = e.key === 'ArrowDown' ? 1 : -1;
                 if (inField) focusSeg(d); else selectSeg(selIndex < 0 ? 0 : selIndex + d);
-                return;
+                return true;
             }
             if (e.key === 'Tab') {
-                if (!segsOf().length) return;
-                e.preventDefault();
+                if (!segsOf().length) return false;
                 if (inField) focusSeg(e.shiftKey ? -1 : 1); else seekSegment(e.shiftKey ? -1 : 1);
-                return;
+                return true;
             }
             var a = document.activeElement;
             if (inField && a.classList && a.classList.contains('seg-text')) {
                 var i = parseInt(a.dataset.i, 10);
                 if (!isNaN(i)) {
-                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); splitHere(i, caretOffset(a)); return; }
+                    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { splitHere(i, caretOffset(a)); return true; }
                     var off = caretOffset(a), len = (a.textContent || '').length;
-                    if (e.key === 'Delete' && off >= len && i < segsOf().length - 1) { e.preventDefault(); mergeHere(i, i + 1); return; }
-                    if (e.key === 'Backspace' && off === 0 && i > 0) { e.preventDefault(); mergeHere(i - 1, i); return; }
+                    if (e.key === 'Delete' && off >= len && i < segsOf().length - 1) { mergeHere(i, i + 1); return true; }
+                    if (e.key === 'Backspace' && off === 0 && i > 0) { mergeHere(i - 1, i); return true; }
                 }
             }
-            if (inField) return;                                   // en Édition, le reste sert à taper
-            if (e.key === 'ArrowUp') { e.preventDefault(); selectSeg(selIndex < 0 ? 0 : selIndex - 1); return; }
-            if (e.key === 'ArrowDown') { e.preventDefault(); selectSeg(selIndex < 0 ? 0 : selIndex + 1); return; }
+            if (inField) return false;                             // en Édition, le reste sert à taper
+            if (e.key === 'ArrowUp') { selectSeg(selIndex < 0 ? 0 : selIndex - 1); return true; }
+            if (e.key === 'ArrowDown') { selectSeg(selIndex < 0 ? 0 : selIndex + 1); return true; }
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 // Couper à la TÊTE DE LECTURE — les ciseaux de l'outil Bornes (`WamaSegments.cutAt`).
-                e.preventDefault();
                 Seg.cutAt({ url: routes.retime, segments: segsOf(), t: axis.time(), duration: axis.duration(),
                             edit: function (fn) { ctx.edit(fn); }, select: ctx.select,
                             toast: function (m, k) { if (global.WamaApp) WamaApp.toast(m, k); } });
-                return;
+                return true;
             }
-            if (e.key === 'Enter') { e.preventDefault(); enterEdit(selIndex); }
-        }, true);
+            if (e.key === 'Enter') { enterEdit(selIndex); return true; }
+            return false;
+        } });
 
         // La page choisit un segment (bande de qualité, borne, aller à) : le sélectionner, ou
         // l'éditer s'il vient d'être créé (`focus`).

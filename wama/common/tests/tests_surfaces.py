@@ -1266,7 +1266,6 @@ class PageKeyListenersTest(SimpleTestCase):
     MOVE = 'à inscrire au clavier commun'
     REMAINING = {
         'wama/common/static/common/js/media-preview.js': (1, MOVE),
-        'wama/common/static/common/js/surfaces/brick-segment-list.js': (1, MOVE),
         'wama/common/static/common/js/wama-card-menu.js': (2, MOVE),
         'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
         'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js': (1, MOVE),

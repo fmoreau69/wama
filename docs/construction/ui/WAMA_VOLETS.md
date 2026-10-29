@@ -609,7 +609,7 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       (`transcriber.queue_dnd`, `anonymizer.queue_dnd`), visionneuse (`common.preview_navigation`,
       35 gestes), inspecteurs coexistants, parité de l'éditeur 75/75.
     - ⚠ **Pas encore inscrits** (ils gardent leur propre écoute, sans conflit mesuré) : les
-      segments, la ligne de temps, l'écriture à la lecture, ~~la partition~~ (étape 3), ~~l'image et ses zones~~ (étape 3),
+      ~~segments, la ligne de temps, l'écriture à la lecture~~, ~~la partition~~ (étape 3), ~~l'image et ses zones~~ (étape 3),
       ~~l'historique~~ (étape 3), le menu de card, la visionneuse, le cam_analyzer (`WamaShuttle.bindKeys`). Le
       module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
       ⚠ **Jumeau déclaré** (revérification du 29/10) : ces briques testent la saisie par
@@ -673,6 +673,17 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       écart voulu que la ligne de temps : une liste qui a le focus ne garde plus R. Contrôle
       ajouté (Échap sur le choix du mode) : **parité 77/77** ; contre-épreuves au navigateur
       (Échap sans effet ; R sans effet) → rouges.
+    - ✅ **La liste des segments** — la plus délicate : elle écoutait en CAPTURE, avant tout le
+      monde, pour prendre Échap avant la ligne de temps. Prioritaire de la page, corps inchangé
+      (chaque `preventDefault` devenu « je prends la touche ») ; sa règle des champs reproduite
+      EXACTEMENT par un `typing` en fonction : dans un texte de segment toute touche lui arrive
+      (Tab, fusion, coupe, Alt+↑/↓), dans un champ seulement Ctrl / Alt / Échap. Aucun recouvrement
+      avec le transport (il ignore toute frappe à Ctrl/Alt, sauf Ctrl+Espace). Ce qui change, voulu :
+      un bouton ATTEINT AU CLAVIER garde Entrée (avant, la capture l'ouvrait en édition de segment
+      ET empêchait le bouton) ; sous une modale, les segments ne réagissent plus. **Parité 77/77**,
+      `common.gestures.mouse` (éditeur 3/3), `common.keyboard_owners` 5/5 ; contre-épreuves au
+      navigateur : la règle des champs neutralisée → Échap et les fusions rougissent ; ↓ retiré →
+      sept rouges.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
