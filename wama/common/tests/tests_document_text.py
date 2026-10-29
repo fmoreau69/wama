@@ -386,6 +386,142 @@ class MarkupTest(_TempDir):
         self.assertIn('word in the sentence.', ''.join(s['text'] for s in spans))
 
 
+def _scan_of(dir_, lines, extra_pages=()):
+    """A PDF whose first page is a SCAN (an image, no text layer) of `lines` — `(x, y, text)` at
+    11 pt —, and the lines an OCR would give for it (contract of `OCRBackend.read_lines`): the
+    native boxes, made as tall as an OCR box (`OCR_SIZE_RATIO`). `extra_pages`: callables that
+    draw further pages of the same file."""
+    import fitz
+    from wama.common.utils.document_text import OCR_SIZE_RATIO
+    with fitz.open() as native:
+        page = native.new_page()
+        for x, y, text in lines:
+            page.insert_text((x, y), text, fontsize=11)
+        ocr_lines = []
+        for block in page.get_text('dict')['blocks']:
+            for line in block['lines']:
+                x0, y0, x1, y1 = line['bbox']
+                middle, half = (y0 + y1) / 2, 11 / OCR_SIZE_RATIO / 2
+                ocr_lines.append({'bbox': [x0, middle - half, x1, middle + half], 'conf': 0.99,
+                                  'text': ''.join(s['text'] for s in line['spans']), 'words': []})
+        pixmap, size = page.get_pixmap(dpi=150), page.rect
+    path = dir_ / 'scan.pdf'
+    with fitz.open() as pdf:
+        scanned = pdf.new_page(width=size.width, height=size.height)
+        scanned.insert_image(scanned.rect, pixmap=pixmap)
+        for draw in extra_pages:
+            draw(pdf)
+        pdf.save(str(path))
+    return path, {0: {'width': size.width, 'height': size.height, 'unit': 'pt',
+                      'lines': ocr_lines}}
+
+
+LONG = 'The first paragraph runs from one edge of the column to the other'
+
+
+class ScannedPageTest(_TempDir):
+    """2026-10-29 (ROADMAP §10.B) — a page WITHOUT a text layer is read from the lines of an OCR
+    that gives their place (`OCRBackend.read_lines`), passed in: the brick knows no engine. Its
+    lines become paragraphs (`_stack(scanned=True)`), rewritten like any block once the scan's
+    PIXELS under them are erased."""
+
+    PARAGRAPHS = [(72, 100, LONG), (72, 114, 'and ends here.'),
+                  (90, 128, 'A second paragraph starts indented'), (72, 142, LONG)]
+
+    def test_a_page_lacks_text_only_when_it_carries_something_to_read(self):
+        from wama.common.utils.document_text import pages_without_text
+
+        def native(pdf):
+            pdf.new_page().insert_text((72, 100), LONG, fontsize=11)
+
+        def blank(pdf):
+            pdf.new_page()
+
+        def figure_with_labels(pdf):
+            page = pdf.new_page()
+            page.draw_rect((72, 72, 300, 300))
+            page.insert_text((80, 90), 'Fig. 1', fontsize=9)
+
+        def outlined_text(pdf):
+            pdf.new_page().draw_line((72, 72), (300, 72))
+
+        path, _ = _scan_of(self.dir, self.PARAGRAPHS,
+                           [native, blank, figure_with_labels, outlined_text])
+        self.assertEqual([0, 4], pages_without_text(path))
+
+    def test_only_the_pages_without_text_are_given_to_the_ocr(self):
+        import fitz
+        from wama.common.utils.document_text import read_pages_without_text
+        path, ocr = _scan_of(self.dir, self.PARAGRAPHS,
+                             [lambda pdf: pdf.new_page().insert_text((72, 100), LONG)])
+        seen = []
+
+        def read_lines(work_file):
+            with fitz.open(work_file) as pdf:
+                seen.append(len(pdf))
+            return [ocr[0]]
+        self.assertEqual({0: ocr[0]}, read_pages_without_text(path, read_lines))
+        self.assertEqual([1], seen)
+
+    def test_ocr_lines_become_paragraphs_closed_by_a_short_line_or_an_indent(self):
+        from wama.common.utils.document_text import read_segments
+        path, ocr = _scan_of(self.dir, self.PARAGRAPHS)
+        self.assertEqual([], read_segments(path, unit='block'))         # no OCR, nothing to read
+        self.assertEqual([LONG + ' and ends here.', 'A second paragraph starts indented ' + LONG],
+                         read_segments(path, unit='block', ocr=ocr))
+        # A JSON read back gives its page keys as text.
+        self.assertEqual(2, len(read_segments(path, unit='block', ocr={'0': ocr[0]})))
+
+    def test_a_short_line_alone_closes_its_paragraph(self):
+        from wama.common.utils.document_text import read_segments
+        path, ocr = _scan_of(self.dir, [(72, 100, LONG), (72, 114, 'and ends here.'),
+                                        (72, 128, LONG), (72, 142, LONG)])
+        self.assertEqual([LONG + ' and ends here.', LONG + ' ' + LONG],
+                         read_segments(path, unit='block', ocr=ocr))
+
+    def test_an_indent_alone_opens_a_paragraph(self):
+        from wama.common.utils.document_text import read_segments
+        path, ocr = _scan_of(self.dir, [(72, 100, LONG), (72, 114, LONG),
+                                        (90, 128, 'An indented first line'), (72, 142, LONG)])
+        self.assertEqual([LONG + ' ' + LONG, 'An indented first line ' + LONG],
+                         read_segments(path, unit='block', ocr=ocr))
+
+    def test_a_scanned_paragraph_has_one_style_even_when_its_boxes_differ(self):
+        from wama.common.utils.document_text import read_segments
+        path, ocr = _scan_of(self.dir, self.PARAGRAPHS)
+        ocr[0]['lines'][1]['bbox'][3] += 1.5             # a box a few per cent taller
+        for segment in read_segments(path, unit='block', markup=True, ocr=ocr):
+            self.assertNotIn('<t', segment)
+
+    def test_the_rewrite_erases_the_scan_under_the_paragraph_and_writes_the_new_text(self):
+        import fitz
+        from wama.common.utils.document_text import read_segments, write_replacements
+        path, ocr = _scan_of(self.dir, self.PARAGRAPHS)
+        first, _ = read_segments(path, unit='block', ocr=ocr)
+        out = write_replacements(path, self.dir / 'out.pdf', {0: [(0, len(first), 'Bonjour.')]},
+                                 unit='block', ocr=ocr)
+
+        def darkness(pdf, rect):
+            """Dark pixels of the SCAN IMAGE itself under `rect` (page points) — not of the
+            rendered page: a white box drawn over the image would hide the old text and leave
+            it in the file."""
+            page = pdf[0]
+            image = fitz.Pixmap(pdf, page.get_images()[0][0])
+            scale = image.width / page.rect.width
+            samples = image.samples
+            return sum(1 for y in range(int(rect.y0 * scale), int(rect.y1 * scale))
+                       for x in range(int(rect.x0 * scale), int(rect.x1 * scale))
+                       if samples[(y * image.width + x) * image.n] < 128)
+
+        with fitz.open(out) as pdf, fitz.open(path) as before:
+            self.assertIn('Bonjour.', pdf[0].get_text())
+            old_end = fitz.Rect(250, 90, 400, 118)        # where the old first line ran
+            self.assertGreater(darkness(before, old_end), 50)
+            self.assertEqual(0, darkness(pdf, old_end))
+            second = fitz.Rect(72, 120, 400, 146)           # the untouched paragraph is still there
+            self.assertGreater(darkness(pdf, second), 50)
+
+
 class OccultFileTest(_TempDir):
 
     def test_the_occultation_re_reads_its_output_and_names_what_remains(self):

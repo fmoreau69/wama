@@ -87,7 +87,17 @@ def _try_direct_extraction(file_path: str) -> str:
     Returns the extracted text if the PDF contains selectable text
     (i.e., it is a digital/vector PDF, not a scanned image).
     Returns an empty string if the PDF is image-only or has no readable text.
+
+    Une page sans couche texte (`document_text.pages_without_text`, le test COMMUN au Translator
+    et à l'Anonymizer, 2026-10-29) envoie tout le document à l'OCR : jusque-là, la seule moyenne
+    du document décidait, et un PDF natif portant une annexe scannée perdait l'annexe en silence.
     """
+    from wama.common.utils.document_text import pages_without_text
+    try:
+        if pages_without_text(file_path):
+            return ''
+    except Exception:
+        pass
     try:
         try:
             import pymupdf as fitz  # PyMuPDF >= 1.24

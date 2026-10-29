@@ -212,3 +212,27 @@ class CardLanguageModelTest(SimpleTestCase):
         from wama.common.utils.llm_utils import card_llm
         with self.assertRaises(ValueError):
             card_llm('albert:gpt-oss-120b', owner='le Reader')
+
+
+class NativeTextTest(SimpleTestCase):
+    """2026-10-29 — the native text is taken only when EVERY page has a text layer (the common
+    test, `document_text.pages_without_text`): a native PDF carrying a scanned annex went past
+    the document average, and the annex was lost without a word."""
+
+    def test_a_native_pdf_with_a_scanned_page_goes_to_the_ocr(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        import fitz
+        folder = Path(tempfile.mkdtemp(prefix='wama-reader-native-'))
+        self.addCleanup(shutil.rmtree, folder, True)
+        line = 'A native page with plenty of selectable text on it.'
+        with fitz.open() as pdf:
+            for _ in range(3):
+                pdf.new_page().insert_text((72, 100), line)
+            pdf.save(str(folder / 'native.pdf'))
+            scanned = pdf.new_page()
+            scanned.insert_image(scanned.rect, pixmap=pdf[0].get_pixmap(dpi=50))
+            pdf.save(str(folder / 'annex.pdf'))
+        self.assertIn(line, tasks._try_direct_extraction(str(folder / 'native.pdf')))
+        self.assertEqual('', tasks._try_direct_extraction(str(folder / 'annex.pdf')))

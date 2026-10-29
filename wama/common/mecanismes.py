@@ -533,8 +533,12 @@ MECHANISMS = (
               "alignement, sens d'écriture), agrandi dans la place libre avant d'être réduit ; un "
               "tableau, cellule par cellule ; une figure (zone `picture` de `pymupdf-layout`), "
               "étiquette par étiquette. `markup=True` : des balises `<tN>` rendent à chaque "
-              "passage d'un paragraphe ou d'un bloc SA mise en forme. Le Writer reste le geste de "
-              "qui veut REVOIR la mise en forme — ROADMAP §16.4bis, vision §5.4",
+              "passage d'un paragraphe ou d'un bloc SA mise en forme. Page SANS couche texte "
+              "(2026-10-29) : `pages_without_text` la dit (test commun, aussi celui du Reader), "
+              "`read_pages_without_text` la fait lire par un OCR qui rend la place du texte "
+              "(`OCRBackend.read_lines`, passé en argument) ; `ocr=` en fait des paragraphes "
+              "réécrits comme les autres, pixels du scan effacés dessous. Le Writer reste le geste "
+              "de qui veut REVOIR la mise en forme — ROADMAP §10.B, §16.4bis, vision §5.4",
               'wama/common/utils/document_text.py',
               'docs/construction/suivi/ROADMAP.md §16.4bis',
               annexes=('wama/common/tests/tests_document_text.py',)),

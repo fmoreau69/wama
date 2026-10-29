@@ -30,6 +30,13 @@ FORMATS (v1) — un segment est :
     faut l'OCR À POSITIONS, le même maillon que l'étape préalable du Translator et la forme d'un
     scan au Reader (ROADMAP §10.B).
 
+PAGES SANS COUCHE TEXTE (2026-10-29) : `pages_without_text` les dit, `read_pages_without_text`
+les fait lire par un OCR qui rend la place du texte (`OCRBackend.read_lines`, la méthode passée en
+argument : la brique ne connaît aucun moteur). Passées en `ocr=` à `read_segments` et
+`write_replacements` (unité `block`), leurs lignes y deviennent des passages comme les autres —
+même style, même pose, même alignement ; la réécriture efface les PIXELS dessous
+(`PDF_REDACT_IMAGE_PIXELS`) et peint la couleur du fond.
+
 UNITÉ `block` (le Translator, 2026-10-28) : un segment PDF est alors un BLOC de texte (un
 paragraphe de la page, ses lignes réunies), réécrit EN ENTIER dans son cadre — le texte dessous
 supprimé sans toucher au fond ni aux images, le nouveau texte posé dans le même cadre (`insert_htmlbox`,
@@ -490,32 +497,165 @@ def _figure_regions(page) -> list:
             if len(region) > 4 and region[4] == 'picture']
 
 
-def _split_labels(lines) -> list:
-    """Les ÉTIQUETTES d'un bloc de figure : une ligne rejoint l'étiquette dont la dernière ligne
-    est juste au-dessus d'elle et en vis-à-vis (« Convolutional » / « Layers » : une étiquette sur
-    deux lignes, traduite d'un tenant) ; sinon elle en commence une — la lettre d'un axe posée sous
-    un titre de cadre n'est pas la suite du titre."""
-    labels = []
+def _stack(lines, scanned: bool = False) -> list:
+    """Les lignes réunies en passages EMPILÉS : une ligne rejoint le passage dont la dernière ligne
+    est juste au-dessus d'elle et en vis-à-vis ; sinon elle en commence un.
+
+    Les ÉTIQUETTES d'un bloc de figure (« Convolutional » / « Layers » : une étiquette sur deux
+    lignes, traduite d'un tenant ; la lettre d'un axe posée sous un titre de cadre n'est pas la
+    suite du titre). Et les PARAGRAPHES d'une page scannée (`scanned`, 2026-10-29) : les boîtes
+    d'un OCR débordent la ligne et se chevauchent jusqu'à une demi-hauteur, et un paragraphe s'y
+    ferme aussi sur un RETRAIT de première ligne et après une ligne COURTE. Mesuré sur un scan de
+    quatre pages d'article, les blocs natifs pour vérité : 47 passages purs sur 57, 45 paragraphes
+    sur 51 d'un seul tenant (les paragraphes d'une liste, ni espacés ni en retrait, restent
+    réunis)."""
+    blocks = []
     for line in lines:
         x0, y0, x1, y1 = line['bbox']
-        for label in labels:
-            a0, _, a1, a3 = label[-1]['bbox']
+        height = y1 - y0
+        for block in blocks:
+            a0, _, a1, a3 = block[-1]['bbox']
             overlap = min(a1, x1) - max(a0, x0)
             gap = y0 - a3
-            if (overlap > 0.5 * min(a1 - a0, x1 - x0) and -1 <= gap <= 0.6 * (y1 - y0)
-                    and line.get('dir') == label[-1].get('dir')):
-                label.append(line)
-                break
+            if not (overlap > 0.5 * min(a1 - a0, x1 - x0)
+                    and (-0.5 * height if scanned else -1) <= gap <= 0.6 * height
+                    and line.get('dir') == block[-1].get('dir')):
+                continue
+            if scanned:
+                left = min(other['bbox'][0] for other in block)
+                right = max(other['bbox'][2] for other in block)
+                if len(block) > 1 and right - a1 > 2 * height:
+                    continue                    # la ligne d'au-dessus, courte, finissait le sien
+                if x0 - left > height and abs(a0 - left) < 0.5 * height:
+                    continue                    # retrait de première ligne
+            block.append(line)
+            break
         else:
-            labels.append([line])
-    return labels
+            blocks.append([line])
+    return blocks
 
 
-def _pdf_blocks(page) -> list:
+#: Une ligne lue par un OCR a la taille de police de cette part de la hauteur de sa boîte — médiane
+#: mesurée le 2026-10-29 (docTR, 204 lignes d'un scan à 150 dpi contre la taille native : 0,725,
+#: quartiles 0,715 et 0,765).
+OCR_SIZE_RATIO = 0.725
+
+#: En deçà de ce nombre de caractères (hors blancs), une page n'a pas de couche texte — le seuil
+#: que le Reader appliquait en MOYENNE au document entier (`reader/tasks._try_direct_extraction`).
+TEXT_LAYER_MIN_CHARS = 20
+
+
+def pages_without_text(path) -> list:
+    """Les pages (à partir de 0) d'un PDF qui n'ont pas de couche texte mais PORTENT quelque chose
+    à lire — une image (un scan), ou des tracés sans AUCUN caractère (un texte vectorisé : une
+    figure vectorielle et ses quelques étiquettes natives n'en est pas un) ; une page blanche n'en
+    est pas. Ce que l'OCR préalable doit lire, page par page : un PDF peut mêler pages natives et
+    pages scannées (une annexe signée). Un autre format : aucune."""
+    if _ext(path) != '.pdf':
+        return []
+    import fitz
+    pages = []
+    with fitz.open(str(path)) as pdf:
+        for page in pdf:
+            chars = len(''.join(page.get_text('text').split()))
+            if chars < TEXT_LAYER_MIN_CHARS and (page.get_images()
+                                                 or (not chars and page.get_drawings())):
+                pages.append(page.number)
+    return pages
+
+
+def read_pages_without_text(path, read_lines) -> dict:
+    """Les LIGNES des pages sans couche texte (`pages_without_text`), lues par `read_lines` — la
+    méthode d'un moteur d'OCR qui rend la place du texte (`OCRBackend.read_lines`) : la brique ne
+    connaît aucun moteur. Seules ces pages sont lues, extraites dans un PDF de passage. Rend
+    `{page: page du contrat}`, à passer tel quel (ou relu d'un JSON) à `read_segments` et
+    `write_replacements` (`ocr=`)."""
+    pages = pages_without_text(path)
+    if not pages:
+        return {}
+    import tempfile
+    import fitz
+    with tempfile.TemporaryDirectory() as folder:
+        extract = Path(folder) / 'pages.pdf'
+        with fitz.open(str(path)) as pdf:
+            pdf.select(pages)
+            pdf.save(str(extract))
+        read = read_lines(str(extract))
+    return dict(zip(pages, read))
+
+
+def _ink(pixmap, rect, dark: bool = True) -> int:
+    """La couleur (0xRRGGBB) de l'ENCRE d'une zone de la page (la médiane de ses pixels les plus
+    sombres) ou de son FOND (`dark=False`, celle des plus clairs). `pixmap` : la page à 72 dpi,
+    un pixel par point. Noir ou blanc si la zone est vide."""
+    import numpy as np
+    x0, y0 = max(int(rect.x0), 0), max(int(rect.y0), 0)
+    x1, y1 = min(int(rect.x1) + 1, pixmap.width), min(int(rect.y1) + 1, pixmap.height)
+    if x1 <= x0 or y1 <= y0:
+        return 0 if dark else 0xFFFFFF
+    image = np.frombuffer(pixmap.samples, dtype=np.uint8).reshape(
+        pixmap.height, pixmap.width, pixmap.n)[y0:y1, x0:x1, :3].reshape(-1, 3)
+    light = image.sum(axis=1)
+    # 5 % : le cœur des traits — à 15 %, l'anticrénelage du scan rendait l'encre grise.
+    cut = np.percentile(light, 5 if dark else 85)
+    chosen = image[light <= cut] if dark else image[light >= cut]
+    r, g, b = (int(v) for v in np.median(chosen, axis=0))
+    return (r << 16) | (g << 8) | b
+
+
+def _ocr_lines(page, ocr_page, pixmap) -> list:
+    """Les lignes d'un OCR (`OCRBackend.read_lines`) dans la forme des lignes de `get_text('dict')`
+    — ce que lisent `_pdf_unit`, `_stack` et `_alignment` : boîte en points de la page, un seul
+    morceau par ligne, taille tirée de la hauteur de la boîte (`OCR_SIZE_RATIO`), couleur de son
+    encre ; ni police (la famille par défaut), ni gras : un scan ne les dit pas."""
+    sx = page.rect.width / (ocr_page.get('width') or page.rect.width)
+    sy = page.rect.height / (ocr_page.get('height') or page.rect.height)
+    import fitz
+    lines = []
+    for line in ocr_page.get('lines') or []:
+        text = ' '.join(str(line.get('text') or '').split())
+        if not text:
+            continue
+        x0, y0, x1, y1 = line['bbox']
+        box = fitz.Rect(x0 * sx, y0 * sy, x1 * sx, y1 * sy)
+        span = {'text': text, 'font': '', 'flags': 0, 'size': round(box.height * OCR_SIZE_RATIO, 1),
+                'color': _ink(pixmap, box), 'origin': (box.x0, box.y1)}
+        lines.append({'bbox': tuple(box), 'dir': (1, 0), 'spans': [span]})
+    return lines
+
+
+def _scanned_blocks(page, ocr_page) -> list:
+    """Les passages d'une page SCANNÉE, faits des lignes de son OCR réunies en paragraphes
+    (`_stack(scanned=True)`) — une cellule de tableau, seule dans sa colonne, reste un passage.
+    Marqués `scanned` : leur réécriture efface les PIXELS dessous, et ne s'étend pas dans la place
+    d'à côté, que rien ne dit libre (l'analyse de mise en page ne voit aucune figure sur un scan,
+    mesuré le 2026-10-29)."""
+    pixmap = page.get_pixmap(dpi=72)
+    units = []
+    for lines in _stack(_ocr_lines(page, ocr_page, pixmap), scanned=True):
+        # UN style par paragraphe : la taille tirée de chaque boîte varie de quelques pour cent
+        # d'une ligne à l'autre, et chaque variation devenait une balise de mise en forme.
+        spans = [line['spans'][0] for line in lines]
+        size = sorted(span['size'] for span in spans)[len(spans) // 2]
+        color = sorted(span['color'] for span in spans)[len(spans) // 2]
+        for span in spans:
+            span['size'], span['color'] = size, color
+        unit = _pdf_unit(lines, page.rect.width)
+        if unit:
+            unit['scanned'] = True
+            unit['background'] = _ink(pixmap, unit['rect'], dark=False)
+            units.append(unit)
+    return units
+
+
+def _pdf_blocks(page, ocr_page=None) -> list:
     """Les passages de texte d'une page, dans l'ordre du fichier (voir `_pdf_unit`) — un bloc de
     tableau donne un passage par cellule (`_split_tabular`), un bloc de figure un passage par
-    étiquette (`_split_labels`)."""
+    étiquette (`_stack`). Une page sans couche texte dont l'OCR est fourni (`ocr_page`) : ses
+    passages viennent de l'OCR (`_scanned_blocks`)."""
     import fitz
+    if ocr_page is not None:
+        return _scanned_blocks(page, ocr_page)
     figures = None
     units = []
     for block in page.get_text('dict')['blocks']:
@@ -526,7 +666,7 @@ def _pdf_blocks(page) -> list:
         x0, y0, x1, y1 = block['bbox']
         center = fitz.Point((x0 + x1) / 2, (y0 + y1) / 2)
         in_figure = any(center in region for region in figures)
-        parts = _split_labels(block['lines']) if in_figure else _split_tabular(block['lines'])
+        parts = _stack(block['lines']) if in_figure else _split_tabular(block['lines'])
         for lines in parts:
             unit = _pdf_unit(lines, page.rect.width)
             if unit and not in_figure and len(parts) > 1 and len(lines) == 1:
@@ -536,11 +676,18 @@ def _pdf_blocks(page) -> list:
     return units
 
 
-def _read_pdf_blocks(path, markup=False) -> list:
+def _ocr_by_page(ocr) -> dict:
+    """`{page: page du contrat}`, clés entières — un JSON relu les rend en texte."""
+    return {int(k): v for k, v in (ocr or {}).items() if v}
+
+
+def _read_pdf_blocks(path, markup=False, ocr=None) -> list:
     import fitz
     field = 'marked' if markup else 'text'
+    ocr = _ocr_by_page(ocr)
     with fitz.open(str(path)) as pdf:
-        return [unit[field] for page in pdf for unit in _pdf_blocks(page)]
+        return [unit[field] for page in pdf
+                for unit in _pdf_blocks(page, ocr.get(page.number))]
 
 
 def _pdf_html(unit, new: str, markup: bool) -> str:
@@ -636,13 +783,27 @@ def _place(page, unit, html_text, css, boxes) -> None:
             return
 
 
-def _rewrite_pdf_blocks(path, out_path, replacements, markup=False) -> None:
+def _erase_scanned(page, todo) -> None:
+    """Efface les PIXELS du scan sous chaque passage réécrit, peints de la couleur de son fond :
+    sur une page scannée le texte n'est qu'une image."""
+    import fitz
+    for unit, _ in todo:
+        background = unit['background']
+        page.add_redact_annot(unit['rect'], fill=((background >> 16) / 255,
+                                                  ((background >> 8) & 255) / 255,
+                                                  (background & 255) / 255))
+    page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_PIXELS,
+                          graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+
+
+def _rewrite_pdf_blocks(path, out_path, replacements, markup=False, ocr=None) -> None:
     import fitz
     field = 'marked' if markup else 'text'
+    ocr = _ocr_by_page(ocr)
     with fitz.open(str(path)) as pdf:
         index = 0
         for page in pdf:
-            units, todo = _pdf_blocks(page), []
+            units, todo = _pdf_blocks(page, ocr.get(page.number)), []
             for unit in units:
                 if index in replacements:
                     new = _splice(unit[field], replacements[index])
@@ -650,6 +811,12 @@ def _rewrite_pdf_blocks(path, out_path, replacements, markup=False) -> None:
                         todo.append((unit, new))
                 index += 1
             if not todo:
+                continue
+            if page.number in ocr:
+                _erase_scanned(page, todo)
+                for unit, new in todo:
+                    _place(page, unit, _pdf_html(unit, new, markup),
+                           '* {' + _css(unit['style'], unit['leading'], unit['align']) + '}', [])
                 continue
             obstacles = ([unit['rect'] for unit in units]
                          + [fitz.Rect(b['bbox']) for b in page.get_text('dict')['blocks']
@@ -667,10 +834,11 @@ def _rewrite_pdf_blocks(path, out_path, replacements, markup=False) -> None:
 
 
 # ── Les deux gestes ───────────────────────────────────────────────────────────────────────────
-def read_segments(path, unit: str = '', markup: bool = False) -> list:
+def read_segments(path, unit: str = '', markup: bool = False, ocr=None) -> list:
     """Le texte de chaque segment du document (voir l'en-tête pour ce qu'est un segment ;
     `unit='block'` : un PDF par blocs ; `markup` : le texte BALISÉ de sa mise en forme, pour un
-    DOCX et un PDF par blocs — voir « Balises de mise en forme »)."""
+    DOCX et un PDF par blocs — voir « Balises de mise en forme » ; `ocr` : les lignes des pages
+    sans couche texte, `read_pages_without_text`, pour un PDF par blocs)."""
     ext = _ext(path)
     if ext in TEXT_EXTS:
         return [_read_plain(path)[0]]
@@ -679,14 +847,14 @@ def read_segments(path, unit: str = '', markup: bool = False) -> list:
         if markup:
             return [_docx_groups(p)[2] for p in paragraphs]
         return [_paragraph_text(p) for p in paragraphs]
-    return _read_pdf_blocks(path, markup) if unit == 'block' else _read_pdf(path)
+    return _read_pdf_blocks(path, markup, ocr) if unit == 'block' else _read_pdf(path)
 
 
 def write_replacements(path, out_path, replacements: dict, unit: str = '',
-                       markup: bool = False) -> str:
+                       markup: bool = False, ocr=None) -> str:
     """Le document `path` réécrit dans `out_path`, chaque passage remplacé SUR PLACE — les index
-    sont ceux de `read_segments(path, unit, markup)`, et un nouveau texte balisé rend à chaque
-    passage sa mise en forme."""
+    sont ceux de `read_segments(path, unit, markup, ocr)` (le MÊME `ocr`), et un nouveau texte
+    balisé rend à chaque passage sa mise en forme."""
     ext = _ext(path)
     os.makedirs(os.path.dirname(os.path.abspath(str(out_path))), exist_ok=True)
     changes = {int(k): list(v) for k, v in (replacements or {}).items() if v}
@@ -699,7 +867,7 @@ def write_replacements(path, out_path, replacements: dict, unit: str = '',
             data = new.encode('utf-8')
         Path(out_path).write_bytes(data)
     elif ext == '.pdf' and unit == 'block':
-        _rewrite_pdf_blocks(path, out_path, changes, markup)
+        _rewrite_pdf_blocks(path, out_path, changes, markup, ocr)
     elif ext == '.docx':
         document = _open_docx(path)
         paragraphs = _docx_paragraphs(document)

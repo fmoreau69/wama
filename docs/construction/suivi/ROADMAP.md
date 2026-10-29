@@ -2873,8 +2873,22 @@ Deux voies, complémentaires :
    médiane, 54 s pour les deux pages, chargement du modèle compris. Des lignes et non des blocs : le
    regroupement de docTR (`resolve_blocks`) mêlait deux paragraphes dans 3 blocs sur 9 et 4 sur 8
    — réunir les lignes en paragraphes revient à `document_text`, mesuré contre les blocs natifs.
-   ⏳ ensuite : le test « couche texte ? » par page au commun, la page scannée dans
-   `document_text`, l'étape du Translator ; l'ordre des mots qui fait permuter deux passages balisés (le second
+   ✅ **La page scannée, 29/10 (même jour)** — `document_text` : `pages_without_text` (le test
+   COMMUN, par page : moins de 20 caractères et une image, ou des tracés sans aucun caractère — le
+   Reader l'appelle désormais, un PDF natif portant une annexe scannée part à l'OCR au lieu de la
+   perdre), `read_pages_without_text(path, read_lines)` (seules ces pages, par la méthode d'un
+   moteur passée en argument), et `ocr=` à `read_segments` / `write_replacements` : les lignes de
+   l'OCR deviennent des passages comme les autres (même style, même pose, même alignement),
+   réunies en paragraphes par le geste des étiquettes de figure, généralisé (`_stack`, seuils
+   mesurés contre les blocs natifs : 47 passages purs sur 57, 45 paragraphes sur 51 d'un tenant),
+   UN style par paragraphe (taille = 0,725 × la hauteur de boîte, médiane de 204 lignes ; encre
+   prélevée au scan), pixels du scan EFFACÉS sous le texte réécrit (`PDF_REDACT_IMAGE_PIXELS` — un
+   cadre blanc posé dessus laisserait l'ancien texte dans l'image : une fuite pour l'Anonymizer).
+   Jugé à l'écran sur le scan de quatre pages de l'article. Limites : la police est celle par
+   défaut (un scan ne la dit pas) ; le texte ne s'étend pas dans la place voisine (rien ne la dit
+   libre : l'analyse de mise en page ne voit aucune figure sur un scan, mesuré) ; un intertitre
+   collé à son paragraphe lui reste réuni.
+   ⏳ ensuite : l'étape préalable du Translator ; l'ordre des mots qui fait permuter deux passages balisés (le second
    perd sa mise en forme, jamais son texte).
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄
