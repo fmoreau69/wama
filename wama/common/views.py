@@ -658,6 +658,8 @@ def ui_bricks_view(request):
             'criteria': adoption['criteria'], 'measured_at': adoption['measured_at'],
             'mechanisms': sorted(({'key': key, 'name': mechanism_names[key]}
                                   for key in brick.mechanisms()), key=lambda m: m['name'].lower()),
+            # Ses raccourcis clavier, tels qu'elle les déclare (`UIBrick.shortcuts`).
+            'shortcuts': [s.to_dict() for s in brick.shortcuts],
             'thumbnail': thumbnail(brick.key),
         })
 

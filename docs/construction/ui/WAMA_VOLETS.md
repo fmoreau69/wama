@@ -549,12 +549,51 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     son onglet ; le gabarit est en cours chez une autre session, à porter avec elle. La jumelle
     `translator_01` (bac à sable, non versionnée) rend encore sa file à la main : régénérée, elle
     prend `_queue.html`. Une page sans volet n'a pas de cadenas, donc pas de centre à disposer.
+- ✅ **Les RACCOURCIS CLAVIER attachés aux briques — étapes 0 et 1, 2026-10-29** (demande de Fabien
+  du 28/10, « en gardant intacts ceux d'aujourd'hui » ; l'éditeur du transcriber sert de modèle,
+  « le transport doit être toujours actif avec les touches JKL par défaut »).
+  - **Inventaire (28/10)** : aucun registre ; une vingtaine de modules écoutent le clavier chacun
+    de son côté ; l'aide d'une surface se recollait de phrases écrites dans chaque brique (`help`).
+    `WAMA_DATA_WORLD §4.4` laissait ouverte la question « qui possède une touche » et écartait le
+    modèle de BIND (« tout le monde réagit »).
+  - **La règle décidée (29/10)**, de la portée la plus étroite à la plus large : un **champ** où
+    l'on écrit garde ses touches ; la **brique qui a la main** (dernier clic ou frappe chez elle)
+    les siennes ; une brique **prioritaire** — le transport — reçoit les siennes partout ailleurs
+    sur la page ; une touche que nul ne déclare ne fait rien.
+  - **Étape 0** (`TRANSCRIBER_CORRECTION` 2h) : le transport prioritaire au clavier — un bouton
+    cliqué ne lui prend plus Espace, J/K/L, Début/Fin (régression du 20/10 mesurée au navigateur) ;
+    atteint au clavier, il garde Espace ; **Ctrl+Espace** joue même en saisie.
+  - **Étape 1 — déclarés au registre** : `UIBrick.shortcuts` (`Shortcut` : les touches, l'action,
+    la portée `field` / `brick` / `page`, l'option d'emplacement qui le conditionne, le module qui
+    le traite quand ce n'est pas un script de la brique). Huit briques de surface déclarent : le
+    transport, la ligne de temps (outil Bornes), les segments, l'écriture à la lecture, la
+    partition, l'image et ses zones, les actions (annuler / rétablir de l'historique commun). La
+    **brique Actions** liste ces déclarations, une ligne par raccourci et brique par brique
+    (`ctx.shortcuts()`), puis les gestes de souris que chaque brique décrit encore (`help`, d'où les
+    touches sont retirées) ; le **catalogue des briques** les montre sur la card de chacune.
+    Les portées DISENT ce qui est : la Navigation des segments écoute toute la page aujourd'hui,
+    elle est donc déclarée `page`.
+  - **Gardes** : `tests_surfaces.BrickShortcutsTest` — chaque touche déclarée est testée par le code
+    de sa brique (présence ; le comportement, c'est la parité), portées connues, deux briques
+    prioritaires d'une même surface ne réclament jamais la même touche (contre-épreuve interne), la
+    surface sert les déclarations ; contre-épreuve : une touche déclarée que le code ignore → rouge.
+    `tests_ui_bricks_page` : la card du catalogue. Parité de l'éditeur **75/75** au navigateur, la
+    liste vue rendue dans la brique Actions (cinq groupes, aucun débordement).
+  - **Écart doc ↔ code corrigé** : `CARD_DESIGN.md` annonçait ←/→ dans la file ; seul ↑/↓ y est géré.
+  - ⏳ **Étape 2** : UN module reçoit les frappes et applique la règle (la brique qui a la main
+    d'abord) ; les briques y passent une par une, parité rejouée avant/après. Il soldera les trois
+    conflits relevés à la lecture (non encore vus au navigateur) : ↑/↓ qui meut la pile de la file
+    ET la sélection de l'inspecteur ; les touches du panneau des notifications qui agissent aussi
+    sur la card choisie ; Échap qui ferme une modale ET vide la sélection multiple de la file. Les
+    briques de PAGE (file, inspecteur, visionneuse) déclareront alors leurs touches — elles n'ont
+    pas de script à elles où la garde de présence les chercherait.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
 déclare, il n'hérite pas) ; ~~④ le centre des pages d'apps (card d'entrée, file) sur la même
 grille~~ (✅ ci-dessus) ; ~~ouvrir un panneau dans une autre fenêtre~~ (✅ ci-dessus) ; les
-raccourcis clavier attachés aux briques (en cours).
+raccourcis clavier attachés aux briques (étapes 0 et 1 ✅ ci-dessus, étape 2 ⏳ : le module unique
+qui applique la règle).
 
 ---
 

@@ -146,6 +146,58 @@ def source_file(path: str) -> Optional[str]:
     return finders.find(path)
 
 
+#: Les PORTÉES d'un raccourci clavier (2026-10-29, décision de Fabien — `WAMA_VOLETS §3-ter`),
+#: de la plus étroite à la plus large ; l'étroite l'emporte : un champ garde ses touches, la
+#: brique qui a la main les siennes, et une brique PRIORITAIRE (le transport) reçoit les siennes
+#: partout ailleurs sur la page.
+SHORTCUT_SCOPES = {
+    'field': 'en saisie',
+    'brick': 'quand elle a la main',
+    'page': 'partout sur la page',
+}
+
+#: Comment une touche se nomme à l'écran. Une touche se DÉCLARE par le nom que le code teste :
+#: `KeyJ` (la place de la lettre), `Space`, `ArrowLeft`… ou le caractère lui-même (`+`, `7`) ;
+#: un modificateur la précède (`Ctrl+`, `Shift+`, `Alt+`).
+KEY_LABELS = {'Space': 'Espace', 'ArrowLeft': '←', 'ArrowRight': '→', 'ArrowUp': '↑',
+              'ArrowDown': '↓', 'Enter': 'Entrée', 'Escape': 'Échap', 'Delete': 'Suppr',
+              'Backspace': '⌫', 'Home': 'Début', 'End': 'Fin', '-': '−'}
+MODIFIER_LABELS = {'Ctrl': 'Ctrl', 'Shift': 'Maj', 'Alt': 'Alt'}
+
+
+def key_label(key: str) -> str:
+    """`Shift+ArrowLeft` → `Maj+←`, `KeyJ` → `J`, `Ctrl+Space` → `Ctrl+Espace`."""
+    *modifiers, name = key.split('+') if key != '+' else ['+']
+    if not name:                                   # `Ctrl++`
+        modifiers, name = modifiers[:-1], '+'
+    shown = name[3:] if name.startswith('Key') and len(name) == 4 else KEY_LABELS.get(name, name)
+    return '+'.join([*(MODIFIER_LABELS.get(m, m) for m in modifiers), shown])
+
+
+@dataclass(frozen=True)
+class Shortcut:
+    """Un raccourci clavier DÉCLARÉ par une brique — la source unique de la liste que montrent la
+    brique Actions d'une surface et le catalogue des briques (2026-10-29, `WAMA_VOLETS §3-ter`).
+    `keys` : une ou plusieurs touches pour UNE action (`('KeyJ', 'KeyK', 'KeyL')`, « arrière /
+    arrêt / avant ») ; `option` : l'option d'emplacement sans laquelle il n'existe pas (l'outil
+    Bornes de la ligne de temps) ; `handled_by` : le module qui le traite quand ce n'est pas un
+    script de la brique (l'historique commun, chargé par toute page de surface)."""
+    keys: tuple
+    action: str
+    scope: str = 'brick'
+    option: str = ''
+    handled_by: str = ''
+
+    @property
+    def label(self) -> str:
+        return ' / '.join(key_label(k) for k in self.keys)
+
+    def to_dict(self) -> dict:
+        return {'keys': list(self.keys), 'label': self.label, 'action': self.action,
+                'scope': self.scope, 'where': SHORTCUT_SCOPES.get(self.scope, ''),
+                'option': self.option}
+
+
 @dataclass(frozen=True)
 class UIBrick:
     key: str
@@ -169,6 +221,8 @@ class UIBrick:
     #: manifeste d'un autre kind de l'app (`'pipeline'`). Décision du 19/10 : pas de type
     #: « élément » dans `catalog.data_types`, qui nomme ce qui circule par les ports.
     declarations: tuple = ()
+    #: Ses raccourcis clavier (`Shortcut`) : ce qu'elle fait au clavier, et à quelle portée.
+    shortcuts: tuple = ()
 
     @property
     def is_page(self) -> bool:
@@ -229,7 +283,8 @@ class UIBrick:
                 'script': self.script, 'requires': list(self.requires),
                 'consumes': list(self.consumes),
                 'emits': list(self.emits), 'worlds': list(self.worlds),
-                'mount': self.mount, 'declarations': list(self.declarations)}
+                'mount': self.mount, 'declarations': list(self.declarations),
+                'shortcuts': [s.to_dict() for s in self.shortcuts]}
 
 
 @dataclass(frozen=True)
@@ -717,7 +772,13 @@ register_brick(UIBrick(
                 "zone. Écrit des CORRECTIONS (ajouts, retraits), jamais le document d'origine.",
     script='common/js/surfaces/brick-image-boxes.js',
     requires=('common/js/wama-detections.js',),
-    consumes=('image', 'detections'), emits=('detection_corrections',)))
+    consumes=('image', 'detections'), emits=('detection_corrections',),
+    # « A la main » : après un clic dans l'image (`active`), jamais ailleurs.
+    shortcuts=(Shortcut(('Delete', 'Backspace'), 'retirer la zone choisie'),
+               Shortcut(('KeyR',), 'rétablir la zone retirée'),
+               Shortcut(('KeyN',), 'tracer une zone neuve'),
+               Shortcut(('KeyF',), "voir l'image entière"),
+               Shortcut(('Escape',), 'revenir à la sélection, plus rien de choisi'))))
 
 register_brick(UIBrick(
     key='object_list', name='Liste des objets',
@@ -770,7 +831,18 @@ register_brick(UIBrick(
                 "le process qui le produit a été rejoué.",
     script='common/js/surfaces/brick-media-transport.js',
     requires=('common/js/wama-axis.js', 'common/js/wama-shuttle.js', 'common/js/wama-transport.js'),
-    consumes=('audio',)))
+    consumes=('audio',),
+    # Brique PRIORITAIRE (Fabien, 2026-10-29) : ses touches agissent partout sur la page, hors
+    # d'un champ où l'on écrit ; un bouton cliqué ne les garde pas (`wama-axis.js`).
+    shortcuts=(Shortcut(('Space',), 'lecture / pause', 'page'),
+               Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe', 'page'),
+               Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'arrière / arrêt / avant, par crans', 'page'),
+               Shortcut(('ArrowLeft', 'ArrowRight'), "reculer / avancer d'un saut", 'page'),
+               Shortcut(('Shift+ArrowLeft', 'Shift+ArrowRight'), 'reculer / avancer de six sauts',
+                        'page'),
+               Shortcut(('Home', 'End'), 'aller au début / à la fin', 'page'),
+               Shortcut(('Enter',), 'aller au temps tapé', 'field', option='goto'),
+               Shortcut(('Escape',), 'rendre le clavier au transport', 'field', option='goto'))))
 
 register_brick(UIBrick(
     key='media_timeline', name='Ligne de temps',
@@ -783,7 +855,9 @@ register_brick(UIBrick(
                 "lecture) s'y dessinent.",
     script='common/js/surfaces/brick-media-timeline.js',
     requires=('common/js/wama-axis.js', 'common/js/wama-segments.js', 'common/js/wama-timeline.js'),
-    consumes=('audio', 'segments'), emits=('segments',)))
+    consumes=('audio', 'segments'), emits=('segments',),
+    shortcuts=(Shortcut(('KeyC',), "prendre / quitter l'outil Bornes", 'page', option='boundaries'),
+               Shortcut(('Escape',), "quitter l'outil Bornes", 'page', option='boundaries'))))
 
 register_brick(UIBrick(
     key='playback_writing', name='Écriture à la lecture',
@@ -795,7 +869,10 @@ register_brick(UIBrick(
                 "déclare ; marque ses plages sur les vues du temps.",
     script='common/js/surfaces/brick-playback-writing.js',
     requires=('common/js/wama-axis.js', 'common/js/wama-segments.js'),
-    consumes=('segments',), emits=('segments',)))
+    consumes=('segments',), emits=('segments',),
+    shortcuts=(Shortcut(('KeyR',), "enregistrer (Touch : tant que R est maintenu ; Latch : "
+                                   "jusqu'à l'arrêt)", 'page'),
+               Shortcut(('Escape',), 'rendre le clavier', 'field'))))
 
 # ── 2026-10-21 : la page de correction du transcriber devenue surface (ROUTE §F3b, étape 2) ──
 register_brick(UIBrick(
@@ -808,7 +885,22 @@ register_brick(UIBrick(
                 "« suivre la lecture », noms des intervenants, reprise d'une version lue.",
     script='common/js/surfaces/brick-segment-list.js',
     requires=('common/js/wama-axis.js', 'common/js/wama-segments.js'),
-    consumes=('segments',), emits=('segments',)))
+    consumes=('segments',), emits=('segments',),
+    # La Navigation écoute toute la page (hors saisie) : sa portée DIT ce qui est ; l'ordre de
+    # passage d'une brique qui a la main est l'étape suivante (`WAMA_VOLETS §3-ter`).
+    shortcuts=(Shortcut(('ArrowUp', 'ArrowDown'), 'choisir le segment précédent / suivant', 'page'),
+               Shortcut(('Tab', 'Shift+Tab'), 'aller au début du segment suivant / précédent',
+                        'page'),
+               Shortcut(('Enter',), 'éditer le segment choisi', 'page'),
+               Shortcut(('Ctrl+Enter',), 'couper à la tête de lecture', 'page'),
+               Shortcut(('Alt+ArrowUp', 'Alt+ArrowDown'), 'segment précédent / suivant, même en '
+                                                          'édition', 'page'),
+               Shortcut(('Alt+KeyL',), 'suivre la lecture : verrouiller / libérer', 'page'),
+               Shortcut(('Tab', 'Shift+Tab'), 'champ suivant / précédent', 'field'),
+               Shortcut(('Ctrl+Enter',), 'scinder au curseur', 'field'),
+               Shortcut(('Delete',), 'en fin de texte : fusionner avec le suivant', 'field'),
+               Shortcut(('Backspace',), 'en début de texte : fusionner avec le précédent', 'field'),
+               Shortcut(('Escape',), 'revenir en Navigation', 'field'))))
 
 register_brick(UIBrick(
     key='item_settings', name="Réglages de l'élément",
@@ -842,13 +934,24 @@ register_brick(UIBrick(
     script='common/js/surfaces/brick-score-view.js',
     requires=('vendors/abcjs-6.4.4/abcjs-basic-min.js', 'common/js/wama-axis.js',
               'common/js/wama-score.js'),
-    consumes=('score',), emits=('score',)))
+    consumes=('score',), emits=('score',),
+    # « A la main » : le clavier dans la partition (son cadre a le focus), une note choisie.
+    shortcuts=(Shortcut(('ArrowUp', 'ArrowDown'), "monter / descendre la note choisie d'un degré"),
+               Shortcut(('ArrowLeft', 'ArrowRight'), "la décaler d'un pas, la mesure s'ajuste"),
+               Shortcut(('+', '='), "l'allonger d'un pas"),
+               Shortcut(('-',), "la raccourcir d'un pas"),
+               Shortcut(('2', '3', '4', '5', '6', '7'), 'le pas : une figure, comme MuseScore'),
+               Shortcut(('0',), 'le pas : automatique'),
+               Shortcut(('Escape',), 'ne plus choisir de note'))))
 
 register_brick(UIBrick(
     key='surface_actions', name='Actions de la surface',
     description="Annuler / rétablir (historique commun), enregistrer, appliquer — rejouer le "
                 "process que la modification a périmé.",
-    script='common/js/surfaces/brick-surface-actions.js'))
+    script='common/js/surfaces/brick-surface-actions.js',
+    shortcuts=(Shortcut(('Ctrl+KeyZ',), 'annuler', 'page', handled_by='common/js/wama-history.js'),
+               Shortcut(('Ctrl+Shift+KeyZ', 'Ctrl+KeyY'), 'rétablir', 'page',
+                        handled_by='common/js/wama-history.js'))))
 
 
 # ── Briques de PAGE (2026-10-19, `ROUTE §F3b`, étape 3) ──────────────────────────────────────

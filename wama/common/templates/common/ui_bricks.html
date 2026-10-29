@@ -120,6 +120,13 @@
       <div class="ub-row"><b>Composée de</b>
         {% for m in b.mechanisms %}<span class="ub-chip ub-part" title="{{ m.key }}">{{ m.name }}</span>{% empty %}<span class="ub-chip">aucun mécanisme commun — son script seul</span>{% endfor %}
       </div>
+      {% comment %}Ses RACCOURCIS clavier (`UIBrick.shortcuts`, 2026-10-29) : la même déclaration que
+      la liste de la brique Actions d'une surface ; la portée au survol.{% endcomment %}
+      {% if b.shortcuts %}
+      <div class="ub-row"><b>Clavier</b>
+        {% for s in b.shortcuts %}<span class="ub-chip" title="{{ s.where }}{% if s.option %} — avec l'option « {{ s.option }} »{% endif %}"><kbd>{{ s.label }}</kbd> {{ s.action }}</span>{% endfor %}
+      </div>
+      {% endif %}
 
       <div class="wama-cat-meta">
         {% if b.all_worlds %}Tous les mondes{% else %}Mondes : {{ b.worlds|join:", " }}{% endif %}

@@ -1123,6 +1123,107 @@ class TransportKeysOwnershipTest(SimpleTestCase):
         self.assertEqual(1, out['forwards'])
 
 
+class BrickShortcutsTest(SimpleTestCase):
+    """2026-10-29 (Fabien : « les raccourcis clavier attachés aux briques ») — a brick DECLARES its
+    keyboard shortcuts (`UIBrick.shortcuts`) : the single source of the list the Actions brick of a
+    surface and the bricks catalogue show. The declaration must stay TRUE : every key it names is
+    tested by the brick's code (its scripts, or the module it names in `handled_by`) — a presence
+    check, the behaviour itself is replayed by `transcriber.editor_parity` — and two PRIORITY
+    bricks of one surface never claim the same key."""
+
+    MODIFIERS = {'Ctrl': 'ctrlKey', 'Shift': 'shiftKey', 'Alt': 'altKey'}
+
+    @staticmethod
+    def _tokens(name):
+        if name.startswith('Key') and len(name) == 4:
+            return (name, f"'{name[3].lower()}'", f"'{name[3]}'")
+        if name == 'Space':
+            return ("'Space'", "' '")
+        return (f"'{name}'",)
+
+    def _sources(self, brick, shortcut):
+        from django.contrib.staticfiles import finders
+        texts = []
+        for path in (*brick.scripts(), *([shortcut.handled_by] if shortcut.handled_by else [])):
+            found = finders.find(path)
+            self.assertTrue(found, f'{brick.key} : {path} is not served')
+            texts.append(Path(found).read_text(encoding='utf-8', errors='ignore'))
+        return '\n'.join(texts)
+
+    def test_every_declared_key_is_handled_by_the_brick_code(self):
+        from wama.common.surfaces import BRICKS, load_all
+        load_all()
+        declared = [(b, s) for b in BRICKS.values() for s in b.shortcuts]
+        self.assertTrue(any(b.key == 'media_transport' for b, _ in declared), 'the transport declares')
+        for brick, shortcut in declared:
+            code = self._sources(brick, shortcut)
+            for key in shortcut.keys:
+                *modifiers, name = key.split('+') if key != '+' else ['+']
+                with self.subTest(brick=brick.key, key=key):
+                    self.assertTrue(any(t in code for t in self._tokens(name)),
+                                    f'{brick.key} declares {key} that its code never tests')
+                    for modifier in modifiers:
+                        self.assertIn(self.MODIFIERS[modifier], code)
+
+    def test_scopes_are_known_and_a_brick_never_names_a_key_twice_at_one_scope(self):
+        from wama.common.surfaces import BRICKS, SHORTCUT_SCOPES, load_all
+        load_all()
+        for brick in BRICKS.values():
+            seen = set()
+            for shortcut in brick.shortcuts:
+                self.assertIn(shortcut.scope, SHORTCUT_SCOPES, brick.key)
+                self.assertTrue(shortcut.action, brick.key)
+                for key in shortcut.keys:
+                    with self.subTest(brick=brick.key, key=key):
+                        self.assertNotIn((key, shortcut.scope, shortcut.option), seen)
+                        seen.add((key, shortcut.scope, shortcut.option))
+
+    def test_two_priority_bricks_of_a_surface_never_claim_one_key(self):
+        """Counterproof inside : a fake surface putting the transport beside a brick that claims
+        Space at page scope is reported."""
+        from wama.common.surfaces import BRICKS, SURFACES, Shortcut, UIBrick, load_all
+        load_all()
+
+        def clashes(slots):
+            owner = {}
+            found = []
+            for slot in slots:
+                for shortcut in BRICKS[slot.brick].shortcuts if slot.brick in BRICKS else slot.shortcuts:
+                    if shortcut.scope != 'page' or (shortcut.option and not slot.options.get(shortcut.option)):
+                        continue
+                    for key in shortcut.keys:
+                        if owner.setdefault(key, slot.brick) != slot.brick:
+                            found.append((key, owner[key], slot.brick))
+            return found
+
+        for name, surface in SURFACES.items():
+            with self.subTest(surface=name):
+                self.assertEqual([], clashes(surface.slots))
+
+        class FakeSlot:
+            def __init__(self, brick, shortcuts=(), options=None):
+                self.brick, self.shortcuts, self.options = brick, shortcuts, options or {}
+        rival = UIBrick(key='rival', name='Rivale', description='',
+                        shortcuts=(Shortcut(('Space',), 'autre chose', 'page'),))
+        self.assertEqual([('Space', 'media_transport', 'rival')],
+                         clashes([FakeSlot('media_transport'), FakeSlot('rival', rival.shortcuts)]))
+
+    def test_the_surface_serves_the_declarations_and_the_actions_brick_lists_them(self):
+        from wama.common.surfaces import key_label, surface
+        served = surface('transcriber', 'correct').to_dict()['bricks']
+        labels = {s['label']: s for s in served['media_transport']['shortcuts']}
+        self.assertEqual('page', labels['J / K / L']['scope'])
+        self.assertEqual('partout sur la page', labels['J / K / L']['where'])
+        self.assertIn('Ctrl+Espace', labels)
+        self.assertEqual('Maj+← / Maj+→',
+                         ' / '.join(key_label(k) for k in ('Shift+ArrowLeft', 'Shift+ArrowRight')))
+        self.assertIn('shortcuts: function', _js('common/js/surfaces/wama-surface.js'))
+        actions = _js('common/js/surfaces/brick-surface-actions.js')
+        self.assertIn('ctx.shortcuts()', actions)
+        self.assertNotIn("var help = 'Transport", _js('common/js/wama-transport.js'),
+                         'the transport no longer writes its keys beside the registry')
+
+
 ABC = 'X:1\nM:4/4\nL:1/8\nQ:1/4=80\nK:C\nC2 D2 E2 F2|G8|\n'
 
 

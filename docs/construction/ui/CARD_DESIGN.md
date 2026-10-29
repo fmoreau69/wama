@@ -70,9 +70,12 @@ Un **clic** sur une card = 3 effets cohérents : (a) **étend** la card (concis�
 - **Mode avancé** (volet ouvert) : card étendue (lire les infos) + inspecteur (éditer les réglages).
 - **Mode simplifié** (volet masqué) : la card étendue porte tout.
 
-**Navigation clavier** : `↑↓←→` déplacent la sélection (pile ET mosaïque), `Entrée/Espace` étend/replie,
-`Échap` replie. → exploration rapide du contenu sans souris (réutilise la garde clavier
-input/textarea/select déjà posée pour l'éditeur transcriber).
+**Navigation clavier** : `↑↓` déplacent la sélection (pile ET mosaïque), `Entrée/Espace` étend/replie
+la card choisie (`wama:card-activate`), `Échap` la désélectionne. → exploration rapide du contenu sans
+souris (réutilise la garde clavier input/textarea/select déjà posée pour l'éditeur transcriber).
+⚠ Corrigé le 2026-10-29 sur mesure (inventaire des raccourcis, `WAMA_VOLETS §3-ter`) : cette ligne
+annonçait aussi `←→` et « Échap replie » — le clavier de l'inspecteur (`wama-inspector.js`, écouteur
+`keyboardNav`) ne gère que ↑/↓, et Échap y désélectionne.
 Les ↑/↓ du volet traversent **toute la file**, dans l'ordre de la page : card seule, LOT (sa card
 mère, sélection de lot), ses filles, lot suivant… ; une fille d'un lot replié **ouvre son lot**
 pour être vue (`WamaInspector.queueStops` / `nextStop`, 2026-10-14 — relevé par Fabien : « ça

@@ -435,8 +435,11 @@
         return {
             refresh: function () { if (text() !== rendered) schedule(); },
             tools: tools,
+            // Ses touches sont déclarées au registre (`score_view.shortcuts`) ; une partition
+            // seulement LUE les tait (rien à y modifier).
+            keys: anyEdited,
             help: !anyEdited ? null
-                : 'Partition : clic sur une note = la choisir et y aller · ↑ ↓ = la monter / descendre d’un degré (ou la glisser) · ← → = la décaler d’un pas, la mesure s’ajuste · + − = l’allonger / la raccourcir d’un pas · le pas : automatique, ou une figure (choix « Pas », chiffres 2 à 7 comme MuseScore, 0 = auto) · Échap = ne plus la choisir · Ctrl+Z annule · « Exporter » : MIDI, PDF, ABC'
+                : 'Partition : clic sur une note = la choisir et y aller · la glisser = la monter / descendre · le pas : choix « Pas » · « Exporter » : MIDI, PDF, ABC'
                   + (versions.some(function (v) { return v.role; }) ? ' · une partition LUE ne se modifie pas ici' : ''),
         };
     }

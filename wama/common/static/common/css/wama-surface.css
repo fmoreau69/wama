@@ -356,3 +356,10 @@ body.wama-panel-arranged > .container {
 .wama-actions-row .btn-outline-primary { margin-left: auto; }
 .wama-actions-layout { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .25rem; }
 .wama-actions-help { font-size: .7rem; color: var(--wama-edit-muted); line-height: 1.35; }
+/* Les raccourcis déclarés par les briques (`ctx.shortcuts()`), un groupe par brique (2026-10-29). */
+.wama-actions-help .wama-keys-group + .wama-keys-group,
+.wama-actions-help .wama-keys-gestures { margin-top: .3rem; }
+.wama-actions-help .wama-keys-group b { color: var(--wama-edit-brick-text); }
+.wama-actions-help .wama-keys-group ul { list-style: none; margin: .1rem 0 0; padding: 0 0 0 .4rem; }
+.wama-actions-help .wama-keys-group li { margin: .05rem 0; }
+.wama-actions-help kbd { font-size: .65rem; padding: 0 .25rem; white-space: nowrap; }

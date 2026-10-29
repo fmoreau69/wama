@@ -419,10 +419,7 @@
         return {
             tools: tools,
             refresh: refresh,
-            help: 'Segments — Navigation : ↑/↓ choisir · Tab / Maj+Tab = segment suivant / précédent · Entrée = éditer · ' +
-                  'Ctrl+Entrée = couper à la tête de lecture · Alt+L = suivre la lecture. Édition : Tab = champ suivant · ' +
-                  'Ctrl+Entrée = scinder · Suppr / ⌫ = fusionner · Échap = Navigation · ⋮⋮ glissé = fusionner une plage · ' +
-                  '✓ = revu',
+            help: 'Segments : ⋮⋮ glissé = fusionner une plage · ✓ = revu',
         };
     }
 

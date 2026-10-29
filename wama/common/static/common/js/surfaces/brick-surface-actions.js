@@ -9,8 +9,10 @@
  * Disposition : la FIGER (rendu fini, plus rien ne bouge) ou la rendre modifiable — gardée par
  * compte, lecture seule comprise (2026-10-21) — et rendre à chaque brique la place que la surface
  * déclare (inactif tant qu'elle est figée).
- * Aide : les gestes que chaque brique montée DÉCLARE (`help`, lu par `ctx.helps()`) — jamais ceux
- * d'une brique écrits ici (l'aide de l'image y figurait en dur : fausse sur une page de texte).
+ * Aide : les RACCOURCIS que chaque brique montée déclare au registre (`UIBrick.shortcuts`, lus par
+ * `ctx.shortcuts()`, 2026-10-29) et les gestes de souris qu'elle décrit (`help`, `ctx.helps()`) —
+ * jamais ceux d'une brique écrits ici (l'aide de l'image y figurait en dur : fausse sur une page de
+ * texte).
  */
 (function (global) {
     'use strict';
@@ -79,8 +81,25 @@
             ctx.history.syncButtons();
             // Lue à chaque rafraîchissement : les briques placées APRÈS celle-ci sur la grille
             // sont montées plus tard que son `mount`.
-            helpEl.textContent = ctx.helps().join(' — ');
+            renderHelp();
             syncLayout();
+        }
+
+        /** Les RACCOURCIS que les briques montées déclarent au registre (`ctx.shortcuts()`), brique
+         *  par brique — la touche, ce qu'elle fait, sa portée au survol —, puis les gestes de la
+         *  souris que chacune décrit (`help`). */
+        function renderHelp() {
+            var keys = ctx.shortcuts().map(function (group) {
+                return '<div class="wama-keys-group"><b>' + esc(group.title) + '</b><ul>' +
+                    group.items.map(function (s) {
+                        return '<li title="' + esc(s.where) + '"><kbd>' + esc(s.label) + '</kbd> ' +
+                               esc(s.action) + (s.scope === 'field' ? ' <i>(' + esc(s.where) + ')</i>' : '') +
+                               '</li>';
+                    }).join('') + '</ul></div>';
+            }).join('');
+            var gestures = ctx.helps().filter(Boolean);
+            helpEl.innerHTML = keys + (gestures.length
+                ? '<div class="wama-keys-gestures">' + esc(gestures.join(' — ')) + '</div>' : '');
         }
         refresh();
         return { refresh: refresh };

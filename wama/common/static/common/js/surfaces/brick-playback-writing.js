@@ -196,8 +196,7 @@
         });
 
         return {
-            help: "Écriture à la lecture : R = enregistrer (Touch : maintenu ; Latch : jusqu'à l'arrêt) · " +
-                  'une proposition se clique pour l’écouter, ✓ remplace la plage, ✗ la refuse',
+            help: 'Écriture à la lecture : une proposition se clique pour l’écouter, ✓ remplace la plage, ✗ la refuse',
         };
     }
 

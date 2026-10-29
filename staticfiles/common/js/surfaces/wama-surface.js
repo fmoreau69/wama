@@ -216,6 +216,26 @@
                              { credentials: 'same-origin' }).then(App.jsonOrExplain);
             },
             helps: function () { return helps.slice(); },
+            /** Les raccourcis clavier des briques montées, tels que le REGISTRE les déclare
+             *  (`UIBrick.shortcuts`, 2026-10-29) : `[{title, items: [{label, action, scope}]}]`, une
+             *  fois par brique, ceux qu'une option d'emplacement conditionne seulement si elle est
+             *  posée. Une brique tait les siens en rendant `keys: false` (une partition seulement
+             *  lue). */
+            shortcuts: function () {
+                var seen = {}, groups = [];
+                mounted.forEach(function (rec) {
+                    var key = rec && rec.slot && rec.slot.brick;
+                    var declared = (surface.bricks[key] || {}).shortcuts || [];
+                    if (!key || seen[key] || (rec.brick && rec.brick.keys === false)) return;
+                    var options = rec.slot.options || {};
+                    var items = declared.filter(function (s) { return !s.option || options[s.option]; });
+                    if (!items.length) return;
+                    seen[key] = true;
+                    groups.push({ title: options.title || (rec.def || {}).title
+                                         || (surface.bricks[key] || {}).name || key, items: items });
+                });
+                return groups;
+            },
             selected: function () { return state.selected; },
             select: function (id, opts) {
                 state.selected = id;

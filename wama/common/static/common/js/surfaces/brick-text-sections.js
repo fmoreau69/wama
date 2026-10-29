@@ -147,7 +147,7 @@
         render();
         return {
             refresh: refresh,
-            help: 'Cliquer dans une section pour la corriger · un titre « # … » commence une section · Ctrl+Z / Ctrl+Maj+Z : annuler / rétablir',
+            help: 'Cliquer dans une section pour la corriger · un titre « # … » commence une section',
         };
     }
 

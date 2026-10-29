@@ -418,7 +418,7 @@
         });
 
         var help = 'Ligne de temps : clic = y aller, glisser = défiler, molette = zoom' +
-                   (toolBtn ? ' · C = outil Bornes (glisser une borne, cliquer pour couper ou créer dans un blanc ; Échap)' : '');
+                   (toolBtn ? ' · outil Bornes : glisser une borne, cliquer pour couper ou créer dans un blanc' : '');
 
         return {
             load: load,

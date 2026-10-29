@@ -138,7 +138,7 @@
         load(first.url, first.peaks);
         return {
             tools: tools,
-            help: transport.help + (showWave ? ' · clic dans l’onde = y aller' : ''),
+            help: showWave ? 'Transport : clic dans l’onde = y aller' : null,
         };
     }
 

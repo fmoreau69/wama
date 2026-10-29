@@ -166,10 +166,9 @@
             }
         });
 
-        var help = 'Transport : Espace = lecture/pause · ←/→ = ±' + jump + ' s (Maj : ×6) · Début/Fin · ' +
-                   'J/K/L = arrière / arrêt / avant par crans';
-
-        return { help: help };
+        // Ses touches (Espace, J/K/L, ←/→, Début/Fin, Ctrl+Espace) sont DÉCLARÉES au registre des
+        // briques (`surfaces.py`, `media_transport.shortcuts`) : la liste de la brique Actions les lit.
+        return {};
     }
 
     global.WamaTransport = { mount: mount, speedLabel: speedLabel, RATES: RATES };

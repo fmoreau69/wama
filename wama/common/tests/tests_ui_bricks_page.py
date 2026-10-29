@@ -99,6 +99,16 @@ class BrickCompositionTest(TestCase):
             with self.subTest(part=key):
                 self.assertIn(f'title="{key}">{names[key]}</span>', card)
 
+    def test_a_brick_card_lists_the_shortcuts_the_brick_owns(self):
+        """2026-10-29 : the catalogue reads `UIBrick.shortcuts`, the same declaration as the
+        Actions brick of a surface ; a brick that declares none has no « Clavier » row."""
+        page = self._page()
+        card = page.split('data-id="media_transport"', 1)[1].split('wama-cat-card', 1)[0]
+        self.assertIn('<b>Clavier</b>', card)
+        self.assertIn('<kbd>J / K / L</kbd> arrière / arrêt / avant, par crans', card)
+        quiet = page.split('data-id="html_preview"', 1)[1].split('wama-cat-card', 1)[0]
+        self.assertNotIn('<b>Clavier</b>', quiet)
+
     def test_a_composition_is_read_from_the_script_never_declared(self):
         with tempfile.NamedTemporaryFile('w', suffix='.js', delete=False, encoding='utf-8') as js:
             js.write('WamaAudioPlayer.mount(el); axis.attach(el);')
