@@ -16,8 +16,6 @@ from django.views.decorators.http import require_POST
 from django.db import transaction
 from django.utils.http import content_disposition_header
 
-import re
-
 from .models import ReadingItem, BatchReadingItem, BatchReadingItemLink
 from .tasks import read_document_task, _count_pdf_pages, _extract_natural_text
 from wama.accounts.views import get_or_create_anonymous_user
@@ -29,17 +27,14 @@ logger = logging.getLogger(__name__)
 
 
 def _compact_preview(text: str, max_chars: int = 400) -> str:
-    """Strip markdown syntax and collapse whitespace for card compact preview."""
+    """L'extrait d'une lecture pour l'API : son texte sans la syntaxe Markdown, sur une ligne.
+    La syntaxe se retire par LA règle commune (`document_export.strip_markdown`, 2026-10-29) — la
+    copie qui vivait ici retirait chaque `_` et chaque `*`, et un `nom_de_fichier` lu par l'OCR
+    sortait `nomdefichier`, le défaut corrigé le 28/10 dans la règle commune."""
     if not text:
         return ''
-    t = str(text)
-    t = re.sub(r'^#{1,6}\s+', '', t, flags=re.MULTILINE)
-    t = re.sub(r'\*{1,3}|_{1,3}', '', t)
-    t = re.sub(r'^\s*[-*+]\s+', '', t, flags=re.MULTILINE)
-    t = re.sub(r'\|', ' ', t)
-    t = re.sub(r'`+', '', t)
-    t = re.sub(r'\s+', ' ', t).strip()
-    return t[:max_chars]
+    from wama.common.utils.document_export import strip_markdown
+    return ' '.join(strip_markdown(str(text)).split())[:max_chars]
 
 
 # `ACCEPTED_EXTENSIONS` (liste écrite ici, doublon de `OCR_INPUT_EXTENSIONS` du catalogue)

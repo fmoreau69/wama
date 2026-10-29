@@ -414,9 +414,9 @@ def create_image(
 def add_to_enhancer(
     user,
     file_path: str,
-    ai_model: str = 'RealESR_Gx4',
-    denoise: bool = False,
-    blend_factor: float = 0.0,
+    ai_model: str = '',
+    denoise: bool = None,
+    blend_factor: float = None,
     **params,
 ) -> dict:
     """
@@ -425,26 +425,36 @@ def add_to_enhancer(
     Args:
         user:         Django User instance
         file_path:    Path from find_user_files (relative to MEDIA_ROOT, or mounts/… for a connected folder) (from list_user_files)
-        ai_model:     Upscaling model (default: 'RealESR_Gx4')
-        denoise:      Apply denoising before upscaling (default: False)
-        blend_factor: 0.0 = full AI, 1.0 = original (default: 0.0)
-        **params:     Tout autre réglage DÉCLARÉ au schéma (`enhancer/params.py`) et porté par le
-                      modèle — `upscale_factor`, `quality_intent`, `output_format`… Appliqués via
-                      `schema_model_kwargs()`, comme les sept autres créateurs : un nœud du Studio
-                      les affichait et ils n'atteignaient pas l'élément (mesuré le 2026-10-18).
-                      `media_type` reste DÉTECTÉ du fichier.
+        ai_model:     'auto' or the catalog key of an upscaler (`list_ai_models`)
+        denoise:      Apply denoising before upscaling
+        blend_factor: 0.0 = full AI, 1.0 = original
+        **params:     Any other setting DECLARED by the image/video schema (`enhancer/params.py`,
+                      `MEDIA_PARAMS`) — `upscale_factor`, `quality_intent`, `output_format`…
+                      `media_type` stays DETECTED from the file.
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the element is born like a card deposit, as the audio tool (2026-10-29 : it took fixed
+        defaults here, `ai_model='RealESR_Gx4'`, against the schema's « auto »).
 
     Returns:
         {"enhancement_id": int, "name": str, "media_type": str, "status": "pending"}
     """
-    # Valeurs valides DÉRIVÉES du schéma (la copie locale supprimée ici divergeait déjà
-    # du catalogue — même maladie que les styles describer, corrigés le 2026-08-02).
-    from wama.common.utils.param_schema import schema_choice_values
-    valid_models = schema_choice_values('enhancer', 'ai_model')
-    if valid_models and ai_model not in valid_models:
-        return {'error': f"Modèle inconnu : '{ai_model}'. Disponibles : {', '.join(sorted(valid_models))}"}
+    from wama.common.utils.model_keys import catalog_key
+    from wama.common.utils.param_schema import catalog_options
+    from wama.enhancer.params import MEDIA_PARAMS
 
-    blend_factor = max(0.0, min(1.0, float(blend_factor)))
+    # Les valeurs valides se LISENT au domaine du select (catalogue) : `schema_choice_values` ne
+    # rendait rien pour un select de catalogue, donc aucun modèle n'était jamais refusé.
+    declared = {p.name: p for p in MEDIA_PARAMS}
+    if ai_model:
+        ai_model = catalog_key(ai_model, 'enhancer')
+        models = {value for value, _ in catalog_options(declared['ai_model'])}
+        if models and ai_model not in models:
+            return {'error': f"Modèle inconnu : '{ai_model}'. Disponibles : "
+                             f"{', '.join(sorted(models))}"}
+    posted = {name: value for name, value in
+              {'ai_model': ai_model, 'denoise': denoise, 'blend_factor': blend_factor,
+               **params}.items()
+              if value not in (None, '') and name in declared}
 
     # Le fichier est DÉSIGNÉ (2026-09-28) : pointé s'il est dans l'espace de l'utilisateur, jamais
     # recopié ; format et nature lus au CATALOGUE (`accepts_file`, `category_of_path`), pas dans
@@ -461,18 +471,17 @@ def add_to_enhancer(
 
     try:
         from wama.enhancer.models import Enhancement
+        from wama.enhancer.views import new_enhancement_settings
         from wama.common.utils.video_utils import get_media_info
 
+        # Naissance COMMUNE (2026-10-29) : défauts du schéma ← réglages retenus de l'auteur ← ce
+        # que l'outil a reçu — comme un dépôt de la card, et comme l'outil du domaine audio.
         enhancement = Enhancement.objects.create(
             user=user,
             media_type=media_type,
             input_file=received.value,
-            ai_model=ai_model,
-            denoise=bool(denoise),
-            blend_factor=blend_factor,
             status='PENDING',
-            **{k: v for k, v in schema_model_kwargs('enhancer', params).items()
-               if k != 'media_type'},
+            **new_enhancement_settings(user, post=posted),
         )
         received.record(enhancement, 'input_file')
 
@@ -495,7 +504,7 @@ def add_to_enhancer(
         'item_id': enhancement.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION 2026-07-12)
         'name': received.name,
         'media_type': media_type,
-        'ai_model': ai_model,
+        'ai_model': enhancement.ai_model,
         'status': 'pending',
     }
 

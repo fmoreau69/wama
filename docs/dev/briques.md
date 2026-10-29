@@ -1527,7 +1527,8 @@ Génère PDF (fpdf2) / DOCX (python-docx) depuis les résultats d'app
 
 - **Domicile** : `wama/common/utils/document_export.py`
 - **Module** : WAMA — Document Export Utilities Génération de fichiers PDF (fpdf2) et DOCX (python-docx) à partir des résultats des applications Describer et Transcriber.
-- **API publique** (7) :
+- **API publique** (8) :
+  - `strip_markdown(text: str) -> str` — Le texte SANS sa mise en forme Markdown, paragraphes gardés — pour le PDF, le DOCX et, depuis
   - `generate_description_pdf(description) -> bytes` — Generate a PDF from a Description instance.
   - `generate_description_docx(description) -> bytes` — Generate a DOCX from a Description instance. Returns raw bytes.
   - `generate_transcript_txt(transcript) -> bytes` — Génère un .txt mis en forme : avant-propos (titre/date/intervenants) + blocs
@@ -1940,7 +1941,7 @@ Le second temps de toute app qui rend un fichier, en process À PART : `output_s
 - **Domicile** : `wama/common/services/output_process.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Le process « SORTIE » d'une card — commun à toutes les apps qui rendent un fichier.
 - **API publique** (8) :
-  - `output_spec(depends_on, *, key: str=OUTPUT_KEY, label: str=OUTPUT_LABEL, share: int=1)` — Le `ProcessSpec` du process de sortie : il surveille les réglages de sortie communs
+  - `output_spec(depends_on, *, key: str=OUTPUT_KEY, label: str=OUTPUT_LABEL, share: int=1, **spec)` — Le `ProcessSpec` du process de sortie : il surveille les réglages de sortie communs
   - `rendered_files(item, field) -> list` — Les rendus que la card porte aujourd'hui dans `field`, en chemins absolus — un champ
   - `output_sources(item, field) -> list` — Ce dont le process de sortie REPART : les originaux gardés quand il y en a (le rendu a
   - `files_fingerprint(paths) -> str` — Empreinte de ce que le moteur a écrit — DÉCLARÉE à la ligne d'exécution (`output_fingerprint`
@@ -1978,11 +1979,13 @@ Source commune des formats+qualités de fichier par domaine (réutilise le vocab
 
 - **Domicile** : `wama/common/utils/output_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.4](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Source COMMUNE des formats + qualités de FICHIER de sortie — pendant de voice_options pour la sortie.
-- **API publique** (15) :
+- **API publique** (17) :
   - `get_output_formats(domain: str) -> List[Tuple[str, str]]` — [(valeur, libellé)] des formats de fichier de sortie pour un domaine. 'original' = inchangé.
+  - `format_option_groups(natures, extra=()) -> list` — Les options de format d'une app qui rend PLUSIEURS natures selon l'élément (l'enhancer et
+  - `quality_applies(item, output_format: str | None=None) -> bool` — La qualité a-t-elle un effet sur la sortie de cet élément ? Oui quand le fichier est
   - `get_output_qualities(domain: str | None=None) -> List[Tuple[str, str]]` — Presets de qualité (web/équilibré/max). `domain` réservé pour d'éventuelles variantes futures.
   - `keep_size_param(contexts=None, dom_id=None, group: str | None=None, **extra)` — Le réglage « Garder la résolution d'origine » (2026-10-16, demande de Fabien) : la sortie
-  - `output_format_params(domain: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, include_upscale:…` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
+  - `output_format_params(domain, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, include_upscale: bool=…` — Fabrique les Param COMMUNS output_format (+ output_quality) pour un domaine, prêts à concaténer au
   - `output_format_params_for_app(app_name: str, contexts=None, dom_id_format=None, dom_id_quality=None, include_quality: bool=True, group: str | None=None, domain:…` — AUTO depuis APP_CATALOG : lit `multi_format_download` (early/late) + déduit le domaine des
   - `upscale_factor(value) -> int` — `'x4'` → 4, `'x2'` → 2 ; 0 pour « aucun » ou une valeur illisible.
   - `upscale_output_image(path: str, factor, *, item=None, app_id=None, denoise: bool=False, progress_callback=None) -> tuple` — Agrandit l'image `path` EN PLACE par un upscaler TIRÉ du catalogue ; rend `(largeur,
@@ -2434,13 +2437,14 @@ Vocabulaire commun des formats choisis AU TÉLÉCHARGEMENT (libellé, icône, gr
 
 - **Domicile** : `wama/common/utils/export_formats.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md §6.3](../construction/architecture/WAMA_APP_CONVENTIONS.md)
 - **Module** : Vocabulaire COMMUN des formats de TÉLÉCHARGEMENT — libellé, icône et regroupement.
-- **API publique** (9) :
+- **API publique** (10) :
   - `entry(value: str) -> dict` — Décrit UN format. Un format inconnu du vocabulaire reste affichable (repli neutre) —
   - `entries(formats, available=None) -> list[dict]` — Liste ordonnée d'entrées prêtes pour `common/_download_button.html`.
   - `entries_for_app(app_name: str, available=None) -> list[dict]` — Idem, en lisant la déclaration de l'app — l'appelant n'a que son nom à donner.
   - `register_export_missing(app_name: str, missing) -> None` — `missing` : `(élément) -> itérable des formats déclarés` que CET élément n'a pas.
   - `available_formats(app_name: str, item)` — Les formats déclarés que `item` peut rendre, ou None (= tous ceux que l'app déclare).
   - `requested_format(app_name: str, query) -> str` — Le format DEMANDÉ à un téléchargement d'une app late-binding, lu dans la query du bouton ⬇
+  - `download_response(app_name: str, item, query, stem: str)` — Le ⬇ d'UN élément d'une app late-binding : le format DEMANDÉ (`requested_format`, borné aux
   - `is_late_binding(app_name: str) -> bool` — L'app choisit-elle son format AU TÉLÉCHARGEMENT (`export_binding='late'`, §6.4) ?
   - `register_export_builder(app_name: str, builder) -> None` — `builder` : callable `(instance, fmt) -> (ext, bytes) | None`, ou son chemin pointé
   - `export_builder_for(app_name: str)` — Le rendu déclaré par l'app, ou `None`. Une app early-binding n'en déclare pas : son
@@ -2561,7 +2565,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (39) :
+- **API publique** (40) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -2574,6 +2578,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `top_p_param(model_field: str, **overrides) -> dict` — Surcouche STANDARD du top_p, liée au choix de modèle `model_field` : colonne
   - `sampling_of(source, prefix: str='') -> dict` — Les réglages de tirage d'un élément (ses colonnes `<prefix>temperature`, `<prefix>seed`,
   - `sampling_options(source, prefix: str='') -> dict` — `sampling_of` réduit à ce qui est RÉGLÉ — le `options` d'un moteur (le contrat uniforme de
+  - `condition_fields(cond) -> List[str]` — Les champs qu'une condition `show_if` LIT — un seul, ou ceux de chaque branche d'un `any`.
   - `scoped_names(schema, names) -> List[str]` — Les réglages de la ⚙ d'UN process : `names` (ce qu'il surveille), plus le champ qui COMMANDE
   - `applicable_defaults(schema, values=None) -> dict` — Défauts APPLICABLES d'un schéma pour un élément NAISSANT : params de contexte 'item'
   - `panel_dom_id(p)` — dom_id du param sur la surface VOLET, ou None s'il n'y figure pas.
@@ -3418,7 +3423,7 @@ Extraction audio des vidéos + téléchargement YouTube/yt-dlp
 
 - **Domicile** : `wama/common/utils/video_utils.py`
 - **Module** : WAMA Common - Video & YouTube Utilities Extraction audio depuis vidéos et téléchargement YouTube
-- **API publique** (10) :
+- **API publique** (9) :
   - `get_ffprobe_path()` — DÉLÈGUE à la brique ffmpeg_utils (cf. _get_ffmpeg_path).
   - `get_media_info(file_path: str) -> dict` — Extract metadata from an image or video file.
   - `upload_media_from_url(url, output_path)` — Download a media file from a URL using yt_dlp (with robust options) or direct HTTP.
@@ -3428,7 +3433,6 @@ Extraction audio des vidéos + téléchargement YouTube/yt-dlp
   - `is_audio_file(filename: str) -> bool` — Vérifie si un fichier est un audio basé sur son extension.
   - `is_image_file(filename: str) -> bool` — Vérifie si un fichier est une image basé sur son extension.
   - `convert_video_to_web_compatible(input_path: str, output_path: Optional[str]=None) -> str` — Convertit une vidéo en format compatible web (H.264/AAC dans conteneur MP4).
-  - `copy_audio_to_video(input_video_path, temp_video_path, output_path) -> bool` — Recolle la piste audio d'une vidéo SOURCE sur une vidéo TRAITÉE (sans audio).
 
 ### View-model d'exploration (WAMA Data)
 
@@ -3589,13 +3593,13 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.
   - `create_image(user, prompt: str, model: str='hunyuan-image-2.1', width: int=512, height: int=512, steps: int=30, guidance_scale: float=7.5, negative_prompt: str…` — Create a txt2img generation job (status: PENDING).
-  - `add_to_enhancer(user, file_path: str, ai_model: str='RealESR_Gx4', denoise: bool=False, blend_factor: float=0.0, **params) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
-  - `add_to_audio_enhancer(user, file_path: str, engine: str='resemble', mode: str='both', denoising_strength: float=0.5, quality: int=64) -> dict` — Register an audio file for speech enhancement.
+  - `add_to_enhancer(user, file_path: str, ai_model: str='', denoise: bool=None, blend_factor: float=None, **params) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
+  - `add_to_audio_enhancer(user, file_path: str, engine: str='', mode: str='', denoising_strength: float=None, quality: int=None, **params) -> dict` — Register an audio file for speech enhancement.
   - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str='fr', tts_model: str=DEFAULT_TTS_MODEL, voice_preset: str='defaul…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
   - `compose_music(user, prompt: str, model: str='musicgen-small', duration: float=10.0, work_score: str=None, work_audio: str=None, **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
   - `add_to_describer(user, file_path: str, output_style: str='detailed', output_language: str='fr', max_length: int=500, **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.
   - `add_to_transcriber(user, file_path: str, backend: str='auto', preprocess_audio: bool=False, hotwords: str='', enable_diarization: bool=True, **params) -> dict` — Copy a file into the transcriber queue and create a Transcript DB entry.
-  - `add_to_reader(user, file_path: str, backend: str='auto', mode: str='auto', output_format: str='txt', language: str='', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
+  - `add_to_reader(user, file_path: str, backend: str='auto', mode: str='auto', language: str='', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
   - `convert_file(user, file_path: str, output_format: str='', quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the

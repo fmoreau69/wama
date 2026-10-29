@@ -20,6 +20,23 @@ from wama.enhancer.params import MEDIA_PARAMS
 User = get_user_model()
 
 
+def _call_tool(test, tool, user, kind, **kwargs):
+    """The assistant's creating tool called on a file of the author's own tree (a disposable
+    MEDIA_ROOT, erased by the path created here)."""
+    import shutil
+    import tempfile
+    from pathlib import Path
+    from wama import tool_api
+    root = tempfile.mkdtemp()
+    test.addCleanup(shutil.rmtree, root, True)
+    ext, content = _WITNESSES[kind]
+    rel = f'users/{user.pk}/temp/sent{ext}'
+    (Path(root) / rel).parent.mkdir(parents=True)
+    (Path(root) / rel).write_bytes(content())
+    with test.settings(MEDIA_ROOT=root):
+        return getattr(tool_api, tool)(user, rel, **kwargs)
+
+
 class PanelMemoryTest(TestCase):
 
     def _user(self, name):
@@ -77,6 +94,20 @@ class PanelMemoryTest(TestCase):
         self._deposit(output_format='png', output_quality='max')
         shown = self._shown()
         self.assertEqual(('png', 'max'), (shown['output_format'], shown['output_quality']))
+
+    def test_the_assistant_tool_is_born_with_the_author_settings(self):
+        """`add_to_enhancer` was born on fixed defaults (`RealESR_Gx4`, no denoising) whatever
+        the panel said (2026-10-29) ; what the tool receives still wins."""
+        self._deposit(ai_model='enhancer:BSRGANx2', denoise='true', blend_factor='0.3')
+        result = _call_tool(self, 'add_to_enhancer', self.me, 'image')
+        self.assertNotIn('error', result)
+        item = Enhancement.objects.get(pk=result['item_id'])
+        self.assertEqual(('enhancer:BSRGANx2', True, 0.3),
+                         (item.ai_model, item.denoise, item.blend_factor))
+        result = _call_tool(self, 'add_to_enhancer', self.me, 'image', blend_factor=0.6)
+        self.assertEqual(0.6, Enhancement.objects.get(pk=result['item_id']).blend_factor)
+        self.assertIn('error', _call_tool(self, 'add_to_enhancer', self.me, 'image',
+                                          ai_model='enhancer:nowhere'))
 
     def test_another_user_does_not_inherit_it(self):
         """Contre-épreuve : la mémoire est celle de l'auteur, un autre repart des défauts."""
@@ -192,6 +223,18 @@ class AudioPanelMemoryTest(TestCase):
         sent = AudioEnhancement.objects.get(pk=result['id'])
         self.assertEqual(('denoise', 0.8, 'flac'),
                          (sent.mode, sent.denoising_strength, sent.output_format))
+
+    def test_the_assistant_audio_tool_is_born_with_the_author_settings(self):
+        """The fourth way in of the audio port (2026-10-28), until then without a guard."""
+        self._deposit(**self.PANEL)
+        result = _call_tool(self, 'add_to_audio_enhancer', self.me, 'audio')
+        self.assertNotIn('error', result)
+        from wama.enhancer.models import AudioEnhancement
+        item = AudioEnhancement.objects.get(pk=result['item_id'])
+        self.assertEqual((self.ENGINE, 'denoise', 0.8, 'flac'),
+                         (item.engine, item.mode, item.denoising_strength, item.output_format))
+        result = _call_tool(self, 'add_to_audio_enhancer', self.me, 'audio', mode='enhance')
+        self.assertEqual('enhance', AudioEnhancement.objects.get(pk=result['item_id']).mode)
 
     def test_the_batch_modal_of_each_domain_has_its_settings(self):
         """No setting declared the BATCH context : the batch ⚙ opened EMPTY in both domains

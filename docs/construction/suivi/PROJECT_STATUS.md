@@ -25733,7 +25733,7 @@ aller-retour fidèle ; `check_docs` 0/3068.
 par `user_settings`, la commande de migration réversible et sa PREUVE par utilisateur (volet
 identique avant/après) soumise à Fabien ; puis les consommateurs (volet audio de l'enhancer avec
 mémoire, `auto_model.quality_intent_of` par domaine, files par domaine — le filtre `VIDEO_MODES`
-de l'imager, `views.py:1044` —, le dépôt de l'imager `:264`/`:305`), le générateur (vues, routes,
+de l'imager, `wama/imager/views.py:1044` —, le dépôt de l'imager `:264`/`:305`), le générateur (vues, routes,
 gabarits par domaine : l'audio d'`enhancer_01`), un critère de grille. Reste nommé : le réglage
 audio `strength` / colonne `denoising_strength` (`WAMA_APP_GENERATION_ROUTE`, ligne « naissance d'un
 élément par la cascade COMMUNE », décision de déclaration à prendre).
@@ -27169,3 +27169,28 @@ et Lab : au portage de leurs apps, alignés le moment venu).
   du périmètre verts (le seul rouge : 3 noms de tests d'une autre session, renommés depuis par
   elle). 🔴 Relance : la ligne de catalogue de Resemble se resynchronise (`params`).
 - 🔚 Restes : interrupteur « Mettre en forme par IA » activé par défaut (comme avant) — recommandé.
+- ✅ **REVÉRIFICATION du 2026-10-29 (`/reverif`, huit commits du 21→28/10 : `c98756d0`
+  `2e67015b` `532fa11a` `85175b15` `d4693c3f` `b5c00413` `af5fe883` `c23363e4`)**. Ramené dans la
+  session : l'extrait du reader servi à l'API retirait le Markdown par SA copie de la règle, qui
+  ôtait chaque `_` (`nom_de_fichier` → `nomdefichier`, le défaut corrigé la veille dans
+  `document_export.strip_markdown`) — il passe par la règle commune ; `add_to_enhancer` naissait sur
+  des défauts écrits (`RealESR_Gx4`, sans débruitage) et ne refusait aucun modèle — il naît par
+  `new_enhancement_settings`, comme le dépôt et l'outil audio, dont la naissance n'avait aucune
+  garde ; un de mes noms de test (`…_refuses_…`, homographe) renommé, budget de langue 1290 → 1289 ;
+  ma part des API de `docs/dev/briques.md` (absente de HEAD) ; la ligne « naissance par la cascade
+  COMMUNE » de `WAMA_APP_GENERATION_ROUTE` (reste : sept créateurs de `tool_api`). Contre-épreuves
+  des trois gardes neuves : rouges. Tests : 1120 du périmètre et des gardes transverses, 5 rouges
+  dont aucun de cette session (ci-dessous ; le budget des noms de tests, 1292 au passage, était
+  revenu à 1290 sur HEAD et dans l'arbre — mesuré en worktree) ; puis 231 après correction, verts.
+  Consignés, non faits : ① l'upscale VIDÉO de l'Enhancer sort MUETTE (`media_backend.py:144`,
+  `wama/enhancer/README.md` §Vidéos) — à porter sur le rendu commun à horodatages, décision à
+  prendre ; ② quatre paires de fonctions par domaine dans `enhancer/views.py` (naissance, dépôt,
+  lecture, application), qui ne diffèrent que par le schéma — à replier sur
+  `app_modes.domain_schema` avec la brique de page multi-domaine ; ③ l'imager choisit encore le
+  schéma d'un élément lui-même (`models.py:333` `gear_data`, `views.py:266`/`:303` au dépôt) à côté
+  de la spec de détail qui le déclare (`apps.py:54`) — fil ⑥, à reprendre avec Fabien (« la liste
+  des modes n'a rien à voir avec le domaine ») ; ④ une troisième règle Markdown → texte,
+  `document_sections.plain_text` (autre session, 13/10), ôte encore chaque `_`.
+  Rouges d'autrui relevés : `converter.tests.SauverCommeProfilTest` (`data-key` de `e235ee0b` dans
+  `wama-params.js`), `tests_editor_axis` (copie servie de `wama-surface.js` en retard sur un WIP),
+  `check_docs` : `WAMA_APP_CONVENTIONS.md:164` (`privacy/tests.py`, `3dc708a0`).

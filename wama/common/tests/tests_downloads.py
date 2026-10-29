@@ -103,6 +103,17 @@ class OneRenderingPerFormatTest(SimpleTestCase):
         self.assertIn('nom_de_fichier', txt, 'an underscore INSIDE a word is text, not emphasis')
         self.assertIn('2*3', txt)
 
+    def test_the_reader_preview_strips_markdown_by_the_same_rule(self):
+        """The excerpt the reader API serves went through its own copy of the rule, which dropped
+        every `_` and `*` (2026-10-29)."""
+        from wama.common.utils.document_export import strip_markdown
+        from wama.reader.views import _compact_preview
+        preview = _compact_preview(self.MARKDOWN)
+        self.assertEqual(' '.join(strip_markdown(self.MARKDOWN).split()), preview)
+        self.assertIn('nom_de_fichier', preview)
+        self.assertNotIn('\n', preview)
+        self.assertEqual(12, len(_compact_preview(self.MARKDOWN, max_chars=12)))
+
     def test_an_unknown_format_falls_back_on_the_first_declared_and_nothing_is_none(self):
         from wama.common.utils.export_formats import download_response
         response = download_response('reader', self._reading(), {'format': 'exe'}, 'stem')

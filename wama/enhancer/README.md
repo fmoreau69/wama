@@ -39,6 +39,13 @@ Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/Quality
 - ✅ **Extraction/encodage** avec FFmpeg
 - ✅ **Préservation FPS** original
 - ✅ **Encodage H.264** haute qualité
+- ⚠ **Constat du 2026-10-29 (revérification) : la PISTE AUDIO de la source n'est pas reportée.**
+  `backends/media_backend.enhance_video` réencode les seules images agrandies (`ffmpeg -framerate
+  <r_frame_rate> -i frame_%05d.png`, `:144`) : la vidéo sort muette, à cadence constante. Le rendu
+  commun écrit pourtant, depuis le 2026-10-28, chaque image à son horodatage d'origine avec l'audio
+  recopié à ses temps (`common/utils/detections.rewrite_media`, l'Anonymizer). ⏳ Porter l'upscale
+  vidéo sur ce rendu — chantier à décider (la taille de sortie y suit l'image d'ENTRÉE, il lui faut
+  suivre l'image agrandie).
 
 ### Garder la résolution d'origine (images et vidéos, 2026-10-16)
 
@@ -79,6 +86,10 @@ porte le nom de sa colonne (`denoising_strength`, ex-`strength` ; le catalogue d
 le lot audio a ses routes `audio/batch/<pk>/update|promote|realign` (fabrique commune
 `make_batch_views`). L'outil de l'assistant lit moteurs et modes au catalogue et au schéma au lieu
 de deux listes figées. Garde : `tests_panel_memory.AudioPanelMemoryTest`.
+L'outil du domaine image/vidéo, `add_to_enhancer`, naît de même depuis le 2026-10-29
+(`views.new_enhancement_settings`) : il créait l'élément sur des défauts écrits (`RealESR_Gx4`,
+sans débruitage) quel que soit le volet, et ne refusait aucun modèle (un select de catalogue n'a
+pas de `choices`). Garde : `PanelMemoryTest.test_the_assistant_tool_is_born_with_the_author_settings`.
 
 ### Formats Supportés
 

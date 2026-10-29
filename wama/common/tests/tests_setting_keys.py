@@ -111,7 +111,7 @@ class AlignmentCommandTest(TestCase):
         self.assertEqual({'target_mode'}, self._names('anonymizer'))
         self.assertEqual({self.audio_intent}, self._names('enhancer'))
 
-    def test_apply_refuses_a_plan_whose_rows_changed_since(self):
+    def test_a_plan_whose_rows_changed_since_is_not_applied(self):
         path, _plan = self._plan()
         self.U.objects.filter(user=self.user, app='anonymizer').update(value='classes')
         with self.assertRaises(CommandError):
