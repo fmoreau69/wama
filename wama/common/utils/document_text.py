@@ -28,9 +28,14 @@ FORMATS (v1) — un segment est :
 
 UNITÉ `block` (le Translator, 2026-10-28) : un segment PDF est alors un BLOC de texte (un
 paragraphe de la page, ses lignes réunies), réécrit EN ENTIER dans son cadre — le texte dessous
-supprimé sans toucher au fond ni aux images, le nouveau texte posé dans le même cadre à la taille
-d'origine, réduite s'il le faut pour tenir (`insert_htmlbox`, toutes écritures). Remplacer un
-passage dans une page entière ne vaut que pour un passage court ; une traduction remplace tout.
+supprimé sans toucher au fond ni aux images, le nouveau texte posé dans le même cadre (`insert_htmlbox`,
+toutes écritures) avec le STYLE DOMINANT du bloc — famille générique de sa police (avec ou sans
+empattement, chasse fixe), gras, italique, taille, couleur, interlignage (2026-10-29 : tout était
+réécrit en sans-serif, sans gras, réduit sans limite). Le texte garde sa taille ; s'il ne tient
+pas, le cadre descend dans la place libre dessous, et il ne se réduit qu'ensuite. Un bloc fait
+de polices mathématiques (une formule) n'est pas un segment ; un bloc inchangé n'est pas réécrit.
+Remplacer un passage dans une page entière ne vaut que pour un passage court ; une traduction
+remplace tout.
 Les autres formats ont déjà le grain d'un paragraphe : l'unité ne les change pas.
 Un texte brut garde son encodage d'origine, sauf s'il ne peut pas porter le nouveau texte (une
 traduction en polonais dans un fichier cp1252) : il passe alors en UTF-8.
@@ -178,27 +183,134 @@ def _rewrite_pdf(path, out_path, replacements, segments) -> None:
         pdf.save(str(out_path), garbage=4, deflate=True)
 
 
-def _pdf_blocks(page) -> list:
-    """`[(cadre, texte, taille)]` des blocs de texte d'une page, dans l'ordre du fichier — les
-    lignes d'un bloc réunies par une espace (elles ne sont que le retour à la ligne du cadre)."""
+#: Polices de MATHÉMATIQUES (TeX : italique math, symboles, extensions ; AMS ; « …Math ») — un bloc
+#: qui en est fait pour l'essentiel est une formule, pas un texte : il n'est pas un segment.
+_MATH_FONTS = ('CMMI', 'CMSY', 'CMEX', 'MSAM', 'MSBM', 'MATH')
+
+
+def _span_style(span) -> tuple:
+    """Le style d'un morceau de texte du PDF : `(famille, gras, italique, taille, couleur)`. La
+    famille est GÉNÉRIQUE (empattement, chasse fixe, sinon sans) : la police embarquée n'est qu'un
+    sous-ensemble des glyphes du texte d'origine — elle n'écrirait pas les lettres d'une traduction."""
+    flags, font = span['flags'], span['font'].lower()
+    family = 'monospace' if flags & 8 else 'serif' if flags & 4 else 'sans-serif'
+    bold = bool(flags & 16) or 'bold' in font
+    italic = bool(flags & 2) or 'italic' in font or 'oblique' in font
+    return family, bold, italic, round(span['size'], 1), span['color']
+
+
+def _css(style, leading=None, align='') -> str:
+    family, bold, italic, size, color = style
+    return (f'font-family: {family}; font-size: {size:.1f}pt; color: #{color:06x}; '
+            f'font-weight: {"bold" if bold else "normal"}; '
+            f'font-style: {"italic" if italic else "normal"};'
+            + (f' line-height: {leading:.2f};' if leading else '')
+            + (f' text-align: {align};' if align and align != 'left' else ''))
+
+
+def _pdf_unit(lines, page_width=0) -> dict | None:
+    """Un passage du PDF fait de `lines` (lignes de `get_text('dict')`) : son cadre, son texte (les
+    lignes réunies par une espace — elles ne sont que le retour à la ligne du cadre), son style
+    DOMINANT (celui du plus grand nombre de caractères) et son interlignage. None : pas de texte,
+    ou une formule."""
     import fitz
-    blocks = []
+    spans = [span for line in lines for span in line['spans'] if span['text'].strip()]
+    text = ' '.join(''.join(span['text'] for span in line['spans']).strip()
+                    for line in lines).strip()
+    if not text or not spans:
+        return None
+    weights, math = {}, 0
+    for span in spans:
+        style, count = _span_style(span), len(span['text'].strip())
+        weights[style] = weights.get(style, 0) + count
+        math += count if any(m in span['font'].upper() for m in _MATH_FONTS) else 0
+    if math * 2 > sum(weights.values()):
+        return None
+    style = max(weights, key=weights.get)
+    pitches = sorted(b['spans'][0]['origin'][1] - a['spans'][0]['origin'][1]
+                     for a, b in zip(lines, lines[1:]) if a['spans'] and b['spans'])
+    pitches = [p for p in pitches if p > 0]
+    leading = pitches[len(pitches) // 2] / style[3] if pitches and style[3] else None
+    rect = fitz.Rect(lines[0]['bbox'])
+    for line in lines[1:]:
+        rect |= fitz.Rect(line['bbox'])
+    # Le sens d'écriture (le tampon vertical d'une marge, l'axe d'une figure) : un quart de tour
+    # se réécrit tourné, un autre angle n'est pas un segment.
+    dx, dy = lines[0].get('dir', (1, 0))
+    rotate = {(1, 0): 0, (0, -1): 90, (-1, 0): 180, (0, 1): 270}.get((round(dx), round(dy)))
+    if rotate is None or abs(abs(dx) + abs(dy) - 1) > 0.01:
+        return None
+    return {'rect': rect, 'text': text, 'style': style, 'rotate': rotate, 'lines': len(lines),
+            'align': _alignment(lines, rect, page_width),
+            'leading': min(max(leading, 1.0), 1.6) if leading else None}
+
+
+def _alignment(lines, rect, page_width) -> str:
+    """L'alignement LU sur la position des lignes : centré (toutes les lignes centrées sur le
+    cadre — sur la page pour une ligne seule), justifié (toutes sauf la dernière vont d'un bord à
+    l'autre), sinon à gauche."""
+    edges = [(line['bbox'][0], line['bbox'][2]) for line in lines]
+    middle = (rect.x0 + rect.x1) / 2
+    if len(edges) == 1:
+        x0, x1 = edges[0]
+        return 'center' if page_width and abs((x0 + x1) / 2 - page_width / 2) < 2 else 'left'
+    if all(abs((x0 + x1) / 2 - middle) < 2 for x0, x1 in edges) \
+            and max(x1 - x0 for x0, x1 in edges) - min(x1 - x0 for x0, x1 in edges) > 4:
+        return 'center'
+    if len(edges) > 2 and all(abs(x0 - rect.x0) < 1.5 and abs(x1 - rect.x1) < 1.5
+                              for x0, x1 in edges[:-1]):
+        return 'justify'
+    return 'left'
+
+
+def _pdf_blocks(page) -> list:
+    """Les passages de texte d'une page, dans l'ordre du fichier (voir `_pdf_unit`)."""
+    units = []
     for block in page.get_text('dict')['blocks']:
-        if block.get('type') != 0:
-            continue
-        spans = [span for line in block['lines'] for span in line['spans']]
-        text = ' '.join(''.join(span['text'] for span in line['spans']).strip()
-                        for line in block['lines']).strip()
-        if text:
-            sizes = sorted(span['size'] for span in spans if span['text'].strip())
-            blocks.append((fitz.Rect(block['bbox']), text, sizes[len(sizes) // 2] if sizes else 11))
-    return blocks
+        if block.get('type') == 0:
+            unit = _pdf_unit(block['lines'], page.rect.width)
+            if unit:
+                units.append(unit)
+    return units
 
 
 def _read_pdf_blocks(path) -> list:
     import fitz
     with fitz.open(str(path)) as pdf:
-        return [text for page in pdf for _, text, _ in _pdf_blocks(page)]
+        return [unit['text'] for page in pdf for unit in _pdf_blocks(page)]
+
+
+def _room(page, unit, obstacles):
+    """Le cadre agrandi dans la place LIBRE : vers le bas jusqu'au premier obstacle (texte, image,
+    trait) placé dessous et en vis-à-vis, sinon la marge du bas ; et, pour un passage d'UNE ligne
+    (un titre, une cellule), vers la droite jusqu'au premier obstacle sur sa hauteur. Un texte
+    tourné garde son cadre."""
+    import fitz
+    rect = unit['rect']
+    if unit['rotate']:
+        return rect
+    others = [o for o in obstacles if o != rect]
+    bottom, right = page.rect.y1 - 36, rect.x1
+    for other in others:
+        if other.y0 >= rect.y1 - 1 and other.x0 < rect.x1 - 1 and other.x1 > rect.x0 + 1:
+            bottom = min(bottom, other.y0 - 2)
+    if unit['lines'] == 1 and unit['align'] == 'left':
+        right = page.rect.x1 - 36
+        for other in others:
+            if other.x0 >= rect.x1 - 1 and other.y0 < rect.y1 - 1 and other.y1 > rect.y0 + 1:
+                right = min(right, other.x0 - 2)
+    return fitz.Rect(rect.x0, rect.y0, max(right, rect.x1), max(bottom, rect.y1))
+
+
+def _place(page, unit, html_text, css, grown) -> None:
+    """Le texte dans son cadre à sa TAILLE d'origine ; s'il ne tient pas, dans le cadre agrandi
+    (`_room`) ; et seulement ensuite, réduit pour tenir."""
+    rect = unit['rect']
+    attempts = [(rect, 1)] + ([(grown, 1)] if grown != rect else []) + [(grown, 0)]
+    for box, low in attempts:
+        if page.insert_htmlbox(box, html_text, css=css, scale_low=low,
+                               rotate=unit['rotate'])[0] >= 0:
+            return
 
 
 def _rewrite_pdf_blocks(path, out_path, replacements) -> None:
@@ -208,21 +320,27 @@ def _rewrite_pdf_blocks(path, out_path, replacements) -> None:
     with fitz.open(str(path)) as pdf:
         index = 0
         for page in pdf:
-            todo = []
-            for rect, text, size in _pdf_blocks(page):
+            units, todo = _pdf_blocks(page), []
+            for unit in units:
                 if index in replacements:
-                    todo.append((rect, _splice(text, replacements[index]), size))
+                    new = _splice(unit['text'], replacements[index])
+                    if new != unit['text']:
+                        todo.append((unit, new))
                 index += 1
             if not todo:
                 continue
-            for rect, _, _ in todo:
-                page.add_redact_annot(rect, fill=False)
+            obstacles = ([unit['rect'] for unit in units]
+                         + [fitz.Rect(b['bbox']) for b in page.get_text('dict')['blocks']
+                            if b.get('type') == 1]
+                         + [d['rect'] for d in page.get_drawings()])
+            for unit, _ in todo:
+                page.add_redact_annot(unit['rect'], fill=False)
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
                                   graphics=fitz.PDF_REDACT_LINE_ART_NONE)
-            for rect, new, size in todo:
-                page.insert_htmlbox(rect, html.escape(new),
-                                    css=f'* {{font-family: sans-serif; font-size: {size:.1f}pt;}}',
-                                    scale_low=0)
+            for unit, new in todo:
+                _place(page, unit, html.escape(new),
+                       '* {' + _css(unit['style'], unit['leading'], unit['align']) + '}',
+                       _room(page, unit, obstacles))
         pdf.save(str(out_path), garbage=4, deflate=True)
 
 

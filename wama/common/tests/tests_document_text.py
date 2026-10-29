@@ -127,6 +127,77 @@ class PdfTest(_TempDir):
         self.assertNotIn(b'Anne Martin', Path(out).read_bytes())
 
 
+class PdfBlockFormTest(_TempDir):
+    """2026-10-29 (a real translated paper : every block rewritten in sans-serif, no bold, 162
+    blocks of 392 shrunk under 80 %) — unit `block` rewrites a block with its OWN dominant style,
+    keeps its size by growing into the free room below, keeps its writing direction, and leaves an
+    unchanged block untouched."""
+
+    def _spans(self, path):
+        import fitz
+        with fitz.open(path) as pdf:
+            return [s for b in pdf[0].get_text('dict')['blocks'] if b.get('type') == 0
+                    for line in b['lines'] for s in line['spans'] if s['text'].strip()]
+
+    def _rewrite(self, src, transform):
+        from wama.common.utils.document_text import read_segments, write_replacements
+        segments = read_segments(src, unit='block')
+        replacements = {i: [(0, len(s), transform(s))] for i, s in enumerate(segments)}
+        return write_replacements(src, self.dir / 'out.pdf', replacements, unit='block')
+
+    def test_a_block_keeps_its_family_weight_size_and_color(self):
+        import fitz
+        src = self.dir / 'in.pdf'
+        with fitz.open() as pdf:
+            pdf.new_page().insert_text((72, 100), 'Titre en gras', fontname='tibo', fontsize=14,
+                                       color=(0, 0, 1))
+            pdf.save(str(src))
+        [span] = self._spans(self._rewrite(src, str.upper))
+        self.assertEqual('TITRE EN GRAS', span['text'].strip())
+        self.assertTrue(span['flags'] & 4, 'serif family kept')
+        self.assertTrue(span['flags'] & 16, 'bold kept')
+        self.assertAlmostEqual(14, span['size'], delta=0.1)
+        self.assertEqual(0x0000ff, span['color'])
+
+    def test_a_longer_text_keeps_its_size_by_growing_into_the_free_room_below(self):
+        import fitz
+        src = self.dir / 'in.pdf'
+        with fitz.open() as pdf:
+            page = pdf.new_page()
+            page.insert_text((72, 100), 'Un court paragraphe', fontname='tiro', fontsize=11)
+            page.insert_text((72, 400), 'Pied', fontname='tiro', fontsize=11)
+            pdf.save(str(src))
+        longer = lambda s: s if s == 'Pied' else ' '.join([s] * 12)  # noqa: E731
+        spans = self._spans(self._rewrite(src, longer))
+        body = [s for s in spans if s['text'].strip() != 'Pied']
+        self.assertGreater(len({round(s['bbox'][1]) for s in body}), 1, 'wrapped on several lines')
+        self.assertTrue(all(abs(s['size'] - 11) < 0.1 for s in body), 'size kept, not shrunk')
+        foot = [s for s in spans if s['text'].strip() == 'Pied'][0]
+        self.assertLess(max(s['bbox'][3] for s in body), foot['bbox'][1], 'the block below is not covered')
+
+    def test_a_vertical_stamp_is_rewritten_vertical(self):
+        import fitz
+        src = self.dir / 'in.pdf'
+        with fitz.open() as pdf:
+            pdf.new_page().insert_text((30, 500), 'Tampon vertical', fontsize=12, rotate=90)
+            pdf.save(str(src))
+        with fitz.open(self._rewrite(src, str.upper)) as pdf:
+            [line] = [line for b in pdf[0].get_text('dict')['blocks'] for line in b['lines']]
+        self.assertEqual('TAMPON VERTICAL', ''.join(s['text'] for s in line['spans']).strip())
+        self.assertEqual((0, -1), tuple(round(v) for v in line['dir']))
+
+    def test_an_unchanged_block_is_not_rewritten(self):
+        """Counter-proof of the font : an untouched block keeps its EMBEDDED font, not the
+        generic family a rewrite would give it."""
+        import fitz
+        src = self.dir / 'in.pdf'
+        with fitz.open() as pdf:
+            pdf.new_page().insert_text((72, 100), '4.69 1.78', fontname='cour', fontsize=10)
+            pdf.save(str(src))
+        [span] = self._spans(self._rewrite(src, lambda s: s))
+        self.assertEqual('Courier', span['font'])
+
+
 class OccultFileTest(_TempDir):
 
     def test_the_occultation_re_reads_its_output_and_names_what_remains(self):
