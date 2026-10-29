@@ -16,7 +16,8 @@ from wama.model_manager.services.benchmark_sync import SourceUnavailable, synchr
 
 
 class Command(BaseCommand):
-    help = "Apparie le catalogue LLM aux benchmarks tiers (Artificial Analysis + Elo Arena)."
+    help = ("Apparie le catalogue aux bancs tiers déclarés (`benchmark_sync.SOURCES` : AA, Arena, "
+            "Open ASR, MTEB, classements du Hub, Linagora, tableaux des auteurs).")
 
     def add_arguments(self, parser):
         parser.add_argument('--dry-run', action='store_true',

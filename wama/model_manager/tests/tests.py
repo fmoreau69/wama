@@ -2183,8 +2183,10 @@ class ComptageDesBancsTest(_SourcesFactices, TestCase):
                                capabilities={'task': 'text-to-image'}, **commun)   # sans banc
         AIModel.objects.create(model_key='imager:kokoro', name='Kokoro',
                                capabilities={'task': 'text-to-image'}, **commun)   # sans identité
-        AIModel.objects.create(model_key='imager:yolo', name='Yolo 11',
-                               capabilities={'task': 'detect'}, **commun)          # hors catégorie
+        # Hors catégorie : une tâche qu'aucun banc ne couvre (la détection en a une depuis le
+        # 2026-10-29, les tableaux d'Ultralytics ; la profondeur, aucune).
+        AIModel.objects.create(model_key='imager:depth', name='Depth 2',
+                               capabilities={'task': 'depth-estimation'}, **commun)  # hors catégorie
         with self._sources({'text-to-image': [self._entree('Widget 2', ('widget', (2,), None))]}):
             r = bs.synchronize(dry_run=True)
         self.assertEqual(len(r['matched']), 1)
@@ -2544,9 +2546,11 @@ class BancsMultiMetiersTest(_SourcesFactices, TestCase):
         # Jusqu'au 02/09 l'ASR n'avait aucun banc tiers et ce test attendait `[]` — la
         # TRADUCTION est ce qu'il protège : le vocabulaire HF doit aboutir au même banc
         # que le nôtre (`transcription`), jamais à un repli hasardeux.
-        self.assertEqual(bs._local_categories(m), ['speech-to-text-fr', 'speech-to-text'])
+        # Le français de Linagora (2026-10-29) s'insère après celui d'Open ASR, avant l'anglais.
+        fr_then_en = ['speech-to-text-fr', 'speech-to-text-fr-linagora', 'speech-to-text']
+        self.assertEqual(bs._local_categories(m), fr_then_en)
         m.capabilities = {'task': 'transcription'}
-        self.assertEqual(bs._local_categories(m), ['speech-to-text-fr', 'speech-to-text'])
+        self.assertEqual(bs._local_categories(m), fr_then_en)
 
     def test_un_embedding_propose_sans_capacites_ne_tombe_pas_dans_le_banc_llm(self):
         """Promesse du 01/09 : le `model_type` (posé par la prospection) fait foi quand la
@@ -2717,8 +2721,10 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         self.assertEqual(bs._local_categories(llm_vision), ['llm', 'vision'])
         # VLM : l'arène `vision` est son métier principal, le texte secondaire.
         self.assertEqual(bs._local_categories(vlm), ['vision', 'llm'])
-        # Transcription : le FRANÇAIS d'abord (ce que le transcriber fait ici), l'anglais après.
-        self.assertEqual(bs._local_categories(asr), ['speech-to-text-fr', 'speech-to-text'])
+        # Transcription : le FRANÇAIS d'abord (ce que le transcriber fait ici), l'anglais après —
+        # le français de Linagora (2026-10-29) entre les deux.
+        self.assertEqual(bs._local_categories(asr),
+                         ['speech-to-text-fr', 'speech-to-text-fr-linagora', 'speech-to-text'])
 
     def test_l_arene_vision_exige_la_taille_comme_le_banc_llm(self):
         """`gemma4:12b` a DEUX identités locales : (gemma,(4,),12) par le tag, (gemma,(4,),None)

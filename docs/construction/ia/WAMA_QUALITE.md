@@ -139,6 +139,16 @@ Ce qui reste, et pourquoi :
   déjà pour l'a priori) est dite dans la prévision : « Prévu : … · Q6_K (4.8 Go) ». Remesuré :
   reader → glm-ocr (F16) au curseur 0, chandra-ocr-2 (Q6_K) à 50 et 100. Composer, transcriber
   inchangés.
+  ✅ **Le même jour, les TABLEAUX OFFICIELS comme sources de bancs** (décision de Fabien : *« pour 2,
+  les tableaux officiels »*) — `benchmark_sync` lit le classement français de Linagora et des
+  tableaux d'auteurs déclarés et figés à un commit (`PROSPECTION_PIPELINE §Session du 2026-10-29`
+  point 5). 30 notes neuves : olmOCR-2 a son 82,3 sur l'échelle d'olmOCR-Bench (le « mécanisme
+  neuf » attendu plus haut est celui-là), Kyutai et LinTO un WER français, 27 YOLO leurs scores
+  COCO/ImageNet/DOTA. olmOCR v1 est RETIRÉ, olmOCR-2 lui succède (`succession.py`, R190).
+  Remesuré : reader → glm-ocr à 0 et 25, chandra-ocr-2 de 50 à 100 (olmOCR-2 classé derrière,
+  82,3 contre 85,8, et plus lourd). Transcriber → whisper à tous les crans : ce n'est plus « le
+  seul noté », c'est sa PRIORITÉ déclarée (`options_resolution`, whisper → vibevoice → qwen), tirée
+  de la mesure sur entretiens — les notes ne la remplacent pas, et c'est voulu.
 
 ⚠ **Et LOCAL ≠ DISTANT sur l'axe de la VRAM** (même demande). Un modèle distant a
 `vram_gb = 0` : le repli en faisait mécaniquement le **pire** du lot, et le terme de coût du

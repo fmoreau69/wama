@@ -746,6 +746,23 @@ SOURCES: tuple[ExternalSource, ...] = (
         "valeur et provenance par modèle", kind='banc',
         attribution='Hugging Face — classements des jeux de référence officiels',
         doc='docs/construction/ia/WAMA_QUALITE.md'),
+    # 2026-10-29 (Fabien : « pour 2, les tableaux officiels ») — 6ᵉ banc : la transcription
+    # FRANÇAISE de Linagora, un harnais unique pour 34 modèles sur sept jeux français, publié en
+    # JSON dans `linagora-labs/asr_benchmark` (AGPL-3.0 : on cite, on ne redistribue rien).
+    ExternalSource(
+        'linagora_asr', 'Classement français de transcription (Linagora)',
+        'https://raw.githubusercontent.com',
+        "WER français sans casse ni ponctuation, sept jeux, un harnais — JSON lus sur GitHub",
+        kind='banc', attribution='Linagora — French ASR Leaderboard (linagora-labs/asr_benchmark)',
+        doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
+    # 7ᵉ banc : les TABLEAUX publiés par l'auteur d'un modèle ou le mainteneur d'un banc
+    # (`benchmark_sync.PUBLISHED_TABLES` : docs d'Ultralytics, fiche d'olmOCR-2…), chacun figé à
+    # un commit. Valeurs d'auteur : jamais de rang centile.
+    ExternalSource(
+        'published_tables', 'Tableaux publiés par les auteurs', 'https://raw.githubusercontent.com',
+        "Tableaux de résultats des docs et fiches officielles, figés à un commit — Markdown/HTML",
+        kind='banc', attribution="Tableaux officiels des auteurs (Ultralytics, Allen AI…)",
+        doc='wama/model_manager/PROSPECTION_PIPELINE.md'),
 
     # ── Outillage et poids ──────────────────────────────────────────────────────────────
     ExternalSource(
@@ -1006,6 +1023,18 @@ def github_platform_ref(ref) -> str:
     """`owner/repo:tag` → `github:owner/repo/releases/tag/<tag>` ('' si la forme n'y est pas)."""
     repo, tag = github_release_of(ref)
     return f"{GITHUB}:{_GITHUB_RELEASE_PAGE.format(repo=repo, tag=tag)}" if repo and tag else ''
+
+
+def github_repo(platform_ref) -> str:
+    """Le dépôt GitHub (`owner/repo`) qu'un `platform_ref` désigne — le dépôt seul
+    (`github:ultralytics/assets`) ou une version (`…/releases/tag/<tag>`) —, '' pour une autre
+    plateforme. Sœur de `hf_repo` (2026-10-29 : le banc identifie un poids publié sur GitHub par son
+    dépôt et son fichier, `benchmark_sync._local_repos`)."""
+    platform, _, ident = str(platform_ref or '').strip().partition(':')
+    if platform != GITHUB:
+        return ''
+    parts = ident.strip().split('/')
+    return '/'.join(parts[:2]) if len(parts) >= 2 and all(parts[:2]) else ''
 
 
 def github_ref_of_platform(platform_ref) -> str:

@@ -164,6 +164,20 @@ CATEGORIES = {
                            ('MIRACLRetrievalHardNegatives', 'dev', 'fr'),
                            ('StatcanDialogueDatasetRetrieval', 'test', 'french'),
                            ('AlloprofReranking', 'test', 'default'))},
+    # ── 2026-10-29 : la transcription FRANÇAISE d'un banc tiers à harnais unique — Linagora ─────
+    # (`load_linagora_asr`) : 34 modèles passés par le MÊME harnais sur sept jeux français (dont
+    # SUMM-RE, des réunions). Second banc du français, après Open ASR : il ne déplace aucun index
+    # existant et note ceux qu'Open ASR ne connaît pas (Kyutai, LinTO).
+    'speech-to-text-fr-linagora': {'linagora_asr': True},
+    # ── 2026-10-29 : les TABLEAUX PUBLIÉS par l'auteur des modèles (`PUBLISHED_TABLES`) ────────────
+    # Une catégorie par jeu et métrique : COCO boîtes, COCO masques, ImageNet top-1, COCO pose,
+    # DOTA v1. Les modèles affinés (visages, plaques) n'y entrent pas : leur identité n'est pas
+    # celle d'une ligne de ces tableaux.
+    'detect-coco': {'published': True},
+    'segment-coco-mask': {'published': True},
+    'classify-imagenet': {'published': True},
+    'pose-coco': {'published': True},
+    'obb-dota': {'published': True},
 }
 
 #: Tâche canonique du catalogue (`capabilities.task` / `ModelTask`) → catégorie(s) de
@@ -185,8 +199,14 @@ TASK_TO_BENCH_CATEGORY = {
     'ocr': ('document', 'ocr-olmocr-bench', 'ocr-mdpbench', 'ocr-real5-omnidocbench',
             'ocr-parsebench'),
     'text-to-music': ('music-with-vocals', 'music-instrumental'),
-    'transcription': ('speech-to-text-fr', 'speech-to-text'),
+    'transcription': ('speech-to-text-fr', 'speech-to-text-fr-linagora', 'speech-to-text'),
     'feature-extraction': 'embedding',
+    # 2026-10-29 : les métiers de la détection, notés par les tableaux de leur auteur.
+    'detect': 'detect-coco',
+    'segment': 'segment-coco-mask',
+    'classify': 'classify-imagenet',
+    'pose': 'pose-coco',
+    'obb': 'obb-dota',
 }
 
 #: Équivalences CONFIRMÉES À LA MAIN : model_key local → slug/nom EXACT chez le tiers.
@@ -516,12 +536,22 @@ def _repo_id(text: str) -> str:
 def _local_repos(m) -> set:
     """Dépôts que la ligne du catalogue DÉCLARE : son `platform_ref` Hugging Face, le modèle
     canonique d'une quantification (`quantized_base` — un GGUF EST ce modèle, borne haute), clé
-    d'une ligne découverte ou proposée sur le Hub. Jamais déduits d'un nom."""
+    d'une ligne découverte ou proposée sur le Hub. Jamais déduits d'un nom.
+
+    Et le POIDS publié sur GitHub (2026-10-29) : `owner/repo/<fichier>`, son dépôt
+    (`external_sources.github_repo`) et le fichier que la ligne SERT (le dernier segment de sa clé,
+    `model_keys.backend_model_id` — `anonymizer:yolo:yolo11n.pt` → `ultralytics/assets/yolo11n.pt`).
+    Deux faits déclarés, pas une ressemblance : c'est l'identité qu'un tableau d'auteur nomme."""
+    from wama.common.external_sources import github_repo
+    from wama.common.utils.model_keys import backend_model_id
     out = {_repo_id(r) for r in m.hub_repos()}
     key = m.model_key or ''
     for prefix in ('huggingface:', 'proposed:hf:'):
         if key.startswith(prefix):
             out.add(_repo_id(key[len(prefix):]))
+    repo = github_repo(m.platform_ref)
+    if repo and ':' in key:
+        out.add(f'{repo}/{backend_model_id(key)}'.lower())
     out.discard('')
     return out
 
@@ -772,6 +802,216 @@ def load_hf_benchmarks():
             reasons[cat] = f'{dataset} : classement vide ou sans dépôt lisible'
     if not by_category:
         raise SourceUnavailable('classements HF : ' + ' ; '.join(f'{c}: {m}' for c, m in reasons.items()))
+    return by_category, reasons
+
+
+# ── 2026-10-29 : les TABLEAUX OFFICIELS (Fabien : « pour 2, les tableaux officiels ») ───────────
+# Mesuré ce jour : 111 modèles installés sans note ; ce que leurs AUTEURS publient en tableau en
+# note une bonne part — la détection et ses métiers (docs d'Ultralytics), olmOCR-2 (sa fiche :
+# le classement d'olmOCR-Bench sur le Hub ne le liste pas), la transcription française (Linagora).
+
+#: Le classement français de Linagora : le dépôt, son commit FIGÉ (une note ne change pas en
+#: silence ; avancer le commit est un geste), les sept jeux exigés (un modèle sans les sept n'est
+#: pas noté — règle de MTEB) et la métrique lue (WER sans casse ni ponctuation).
+LINAGORA_REPO = 'linagora-labs/asr_benchmark'
+LINAGORA_COMMIT = '3c051badbf2a12f15088392e573610f0618107bd'
+LINAGORA_DATASETS = ('CommonVoice_max30', 'FLEURS_max30', 'MLS_Facebook_french_max30',
+                     'SUMM-RE_max30', 'TEDX_fr_max30', 'Voxpopuli_max30', 'YouTubeFr_max30_split6')
+#: L'auteur du banc publie aussi ses propres modèles : leur valeur est la sienne (auto-déclarée).
+LINAGORA_OWN_PREFIX = 'linagora/'
+
+
+def load_linagora_asr():
+    """{'speech-to-text-fr-linagora': [entrées]} — moyenne des WER (sans casse ni ponctuation)
+    des sept jeux français de chaque exécution, le dépôt EXACT lu dans son `metadata.json`
+    (`model_info.hf`). Un même dépôt passé par deux décodeurs garde le MEILLEUR (LinTO : RNN-T et
+    CTC) — c'est le modèle qu'on installe, pas son décodage. Indépendant : un seul harnais pour
+    tous, sauf les modèles de Linagora eux-mêmes (auto-déclarés)."""
+    import requests
+    raw = f"{_base_url_of('linagora_asr')}/{LINAGORA_REPO}/{LINAGORA_COMMIT}"
+    proxies = _proxies_for('linagora_asr')
+    headers = {'Accept': 'application/vnd.github+json'}
+    tok = _api_key('github_api').strip()
+    if tok:
+        headers['Authorization'] = f'Bearer {tok}'
+    try:
+        r = requests.get(f"{_base_url_of('github_api')}/repos/{LINAGORA_REPO}/git/trees/"
+                         f"{LINAGORA_COMMIT}?recursive=1", headers=headers,
+                         proxies=_proxies_for('github_api'), timeout=60)
+        r.raise_for_status()
+        tree = r.json().get('tree') or []
+    except Exception as e:
+        raise SourceUnavailable(f'Linagora : arbre illisible ({e})')
+    runs = sorted({p.split('/')[3] for p in (e.get('path') or '' for e in tree)
+                   if p.startswith('benchmarks/sota/results/') and p.endswith('/metadata.json')
+                   and p.count('/') == 4})
+    session = requests.Session()
+    best = {}
+    for run in runs:
+        base = f'{raw}/benchmarks/sota/results/{run}'
+        try:
+            meta = session.get(f'{base}/metadata.json', proxies=proxies, timeout=45).json()
+            repo = _repo_id((meta.get('model_info') or {}).get('hf') or meta.get('model') or '')
+            if not repo:
+                continue
+            wers = {}
+            for ds in LINAGORA_DATASETS:
+                perf = session.get(f'{base}/performances/{ds}.json', proxies=proxies, timeout=45)
+                if perf.status_code != 200:
+                    break
+                wers[ds] = float(perf.json()['wer_nocasepunc']['wer'])
+        except Exception as e:
+            logger.info("[linagora] %s illisible : %s", run, e)
+            continue
+        if len(wers) != len(LINAGORA_DATASETS):
+            continue                      # sans les sept jeux : pas noté, jamais moyenné sur moins
+        value = round(sum(wers.values()) / len(wers), 3)
+        if repo in best and best[repo]['value'] <= value:
+            continue
+        best[repo] = {'name': repo, 'slug': repo, 'repo': repo, 'identity': None, 'value': value,
+                      'datasets': {k: round(v, 3) for k, v in wers.items()}, 'run': run,
+                      'provenance': (PROVENANCE_SELF_DECLARED if repo.startswith(LINAGORA_OWN_PREFIX)
+                                     else PROVENANCE_INDEPENDENT)}
+    if not best:
+        raise SourceUnavailable('Linagora : aucune exécution complète lisible')
+    return {'speech-to-text-fr-linagora': sorted(best.values(), key=lambda e: e['value'])}, {}
+
+
+#: Les tableaux PUBLIÉS, déclarés un par un — l'adresse (hôte du registre `external_sources` +
+#: chemin figé à un commit), où commence le tableau (`after`), la colonne lue (`column`, un
+#: fragment de son en-tête), la catégorie, l'échelle, le sens et la provenance. Une ligne se
+#: rattache à NOS modèles par une identité EXACTE : le poids d'un dépôt GitHub (`asset_repo` +
+#: nom de la ligne + `.pt`, ce que `_local_repos` rend pour une ligne de ce dépôt), ou un dépôt
+#: du Hub DÉCLARÉ pour un nom de ligne (`rows`, une confirmation comme `ALIAS`) — jamais une
+#: ressemblance. Avancer un commit est un geste : la note ne change pas en silence.
+_ULTRALYTICS = 'ultralytics/ultralytics/80c34c050921abd29970d8e3d2a2a41ec6538c98/docs/en/models'
+_YOLO11 = f'{_ULTRALYTICS}/yolo11.md'
+PUBLISHED_TABLES = (
+    {'table': 'yolo11-detect', 'host': 'published_tables', 'path': _YOLO11, 'format': 'markdown',
+     'after': '=== "Detection (COCO)"', 'column': 'mAP<sup>val', 'category': 'detect-coco',
+     'scale': 'coco_box_map50_95', 'asset_repo': 'ultralytics/assets'},
+    {'table': 'yolo11-segment', 'host': 'published_tables', 'path': _YOLO11, 'format': 'markdown',
+     'after': '=== "Segmentation (COCO)"', 'column': 'mAP<sup>mask',
+     'category': 'segment-coco-mask', 'scale': 'coco_mask_map50_95',
+     'asset_repo': 'ultralytics/assets'},
+    {'table': 'yolo11-classify', 'host': 'published_tables', 'path': _YOLO11, 'format': 'markdown',
+     'after': '=== "Classification (ImageNet)"', 'column': 'top1',
+     'category': 'classify-imagenet', 'scale': 'imagenet_top1', 'asset_repo': 'ultralytics/assets'},
+    {'table': 'yolo11-pose', 'host': 'published_tables', 'path': _YOLO11, 'format': 'markdown',
+     'after': '=== "Pose (COCO)"', 'column': 'mAP<sup>pose<br>50-95', 'category': 'pose-coco',
+     'scale': 'coco_pose_map50_95', 'asset_repo': 'ultralytics/assets'},
+    {'table': 'yolo11-obb', 'host': 'published_tables', 'path': _YOLO11, 'format': 'markdown',
+     'after': '=== "OBB (DOTAv1)"', 'column': 'mAP<sup>test', 'category': 'obb-dota',
+     'scale': 'dotav1_map50', 'asset_repo': 'ultralytics/assets'},
+    {'table': 'yolov8-detect', 'host': 'published_tables', 'path': f'{_ULTRALYTICS}/yolov8.md',
+     'format': 'markdown', 'after': '=== "Detection (COCO)"', 'column': 'mAP<sup>val',
+     'category': 'detect-coco', 'scale': 'coco_box_map50_95', 'asset_repo': 'ultralytics/assets'},
+    # Les auteurs de YOLOv12 (le dépôt de NOS poids, `github:sunsmarterjie/yolov12`) : même jeu et
+    # même métrique que la colonne masque d'Ultralytics, donc même échelle.
+    {'table': 'yolov12-segment', 'host': 'published_tables',
+     'path': 'sunsmarterjie/yolov12/64d5ffc6db35a1bde446689ab8450ecd43475e00/README.md',
+     'format': 'markdown', 'after': '**Instance segmentation**', 'column': 'mAP<sup>mask',
+     'category': 'segment-coco-mask', 'scale': 'coco_mask_map50_95',
+     'asset_repo': 'sunsmarterjie/yolov12'},
+    # olmOCR-2 : la fiche nomme le POIDS exact (BF16, le nôtre : 82,3 ; FP8 : 82,4, la ligne du
+    # README d'olmOCR-Bench). Même jeu et même métrique que le classement du Hub déjà lu : même
+    # échelle, comparable à Chandra et aux autres.
+    {'table': 'olmocr2-card', 'host': 'huggingface',
+     'path': 'allenai/olmOCR-2-7B-1025/raw/e52d6f090b7a9007afffbbd6ce510876222fea93/README.md',
+     'format': 'html', 'after': '## olmOCR-Bench Scores', 'column': 'Overall',
+     'category': 'ocr-olmocr-bench', 'scale': 'hf_bench:allenai/olmOCR-bench:overall',
+     'rows': {'olmOCR pipeline v0.4.0 with olmOCR-2-7B-1025': 'allenai/olmOCR-2-7B-1025'}},
+)
+
+
+def _leading_number(text: str):
+    """Le premier nombre d'une cellule (`**54.7**`, `82.3 ± 1.1`, `83.4(+6.1)`), None sinon."""
+    m = re.search(r'-?\d+(?:\.\d+)?', text or '')
+    return float(m.group(0)) if m else None
+
+
+def _cell_text(cell: str) -> str:
+    """Le texte d'une cellule : lien Markdown réduit à son libellé, balises et emphase retirées."""
+    text = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', cell or '')
+    text = re.sub(r'<[^>]+>', ' ', text)
+    return ' '.join(text.replace('**', '').split())
+
+
+def table_rows(text: str, spec: dict) -> list:
+    """`[(nom de la ligne, valeur)]` du tableau que `spec` désigne dans `text` — le PREMIER tableau
+    après `spec['after']`, la colonne dont l'en-tête contient `spec['column']`. [] si l'ancre, le
+    tableau ou la colonne manque : un tableau qui a bougé ne rend rien, jamais une autre colonne."""
+    start = text.find(spec['after'])
+    if start < 0:
+        return []
+    rest = text[start:]
+    if spec.get('format') == 'html':
+        table = re.search(r'<table.*?</table>', rest, re.S)
+        if not table:
+            return []
+        rows = [re.findall(r'<t[hd][^>]*>(.*?)</t[hd]>', tr, re.S)
+                for tr in re.findall(r'<tr.*?</tr>', table.group(0), re.S)]
+        rows = [r for r in rows if r]
+    else:
+        lines, rows = rest.splitlines(), []
+        for line in lines[1:]:
+            stripped = line.strip()
+            if stripped.startswith('|'):
+                rows.append([c for c in stripped.strip('|').split('|')])
+            elif rows:
+                break
+        rows = [r for r in rows if not all(set(c.strip()) <= set('-: ') for c in r)]
+    if len(rows) < 2:
+        return []
+    header = rows[0]
+    column = next((i for i, h in enumerate(header) if spec['column'] in h), None)
+    if column is None:
+        return []
+    out = []
+    for row in rows[1:]:
+        if len(row) <= column:
+            continue
+        value = _leading_number(_cell_text(row[column]))
+        name = _cell_text(row[0])
+        if name and value is not None:
+            out.append((name, value))
+    return out
+
+
+def load_published_tables():
+    """{catégorie: [entrées]} des tableaux DÉCLARÉS (`PUBLISHED_TABLES`). Une entrée porte son
+    identité exacte (`repo`), sa valeur, son échelle, son sens et sa provenance : celle de
+    l'AUTEUR (auto-déclarée), qui ne donne jamais de rang centile."""
+    import requests
+    by_category, reasons, pages = {}, {}, {}
+    for spec in PUBLISHED_TABLES:
+        url = f"{_base_url_of(spec['host'])}/{spec['path']}"
+        try:
+            if url not in pages:
+                r = requests.get(url, proxies=_proxies_for(spec['host']), timeout=45)
+                r.raise_for_status()
+                pages[url] = r.text
+        except Exception as e:
+            reasons[spec['table']] = f'{url} illisible : {e}'
+            continue
+        rows = table_rows(pages[url], spec)
+        if not rows:
+            reasons[spec['table']] = f"{url} : tableau ou colonne « {spec['column']} » introuvable"
+            continue
+        for name, value in rows:
+            if spec.get('rows') is not None:
+                repo = (spec['rows'].get(name) or '').lower()
+            else:
+                repo = f"{spec['asset_repo']}/{name.lower()}.pt"
+            if not repo:
+                continue
+            by_category.setdefault(spec['category'], []).append({
+                'name': name, 'slug': name, 'repo': repo, 'identity': None, 'value': value,
+                'scale': spec['scale'], 'lower_is_better': bool(spec.get('lower_is_better')),
+                'provenance': spec.get('provenance') or PROVENANCE_SELF_DECLARED,
+                'source_name': spec['table'], 'source_url': url})
+    if not by_category:
+        raise SourceUnavailable('tableaux publiés : ' + ' ; '.join(f'{k}: {m}' for k, m in reasons.items()))
     return by_category, reasons
 
 
@@ -1153,6 +1393,17 @@ def _direction(source: dict, entry: dict) -> str:
     return d(entry) if callable(d) else d
 
 
+def _meta_linagora(chosen, candidates):
+    return {'linagora_name': chosen['name'], 'linagora_wer': chosen['value'],
+            'linagora_datasets': chosen.get('datasets') or {}, 'linagora_run': chosen.get('run', '')}
+
+
+def _meta_published(chosen, candidates):
+    return {'published_name': chosen['name'], 'published_value': chosen['value'],
+            'published_table': chosen.get('source_name') or '',
+            'published_url': chosen.get('source_url') or ''}
+
+
 def _meta_open_asr(chosen, candidates):
     d = {'open_asr_name': chosen['name'], 'open_asr_wer': chosen['wer'],
          'open_asr_datasets': chosen.get('datasets') or {}}
@@ -1227,6 +1478,25 @@ SOURCES = (
      'direction': lambda e: 'lower' if e.get('lower_is_better') else 'higher',
      'scale': lambda e, cat: _hf_bench_scale(cat),
      'meta': _meta_hf_bench},
+    # 2026-10-29 : un harnais unique pour 34 modèles sur sept jeux français — indépendant, sauf
+    # pour les modèles de son propre auteur (provenance lue par entrée).
+    {'key': 'linagora_asr', 'label': 'Classement français de transcription (Linagora)',
+     'priority': 6, 'provenance': PROVENANCE_INDEPENDENT,
+     'source_name': 'linagora-asr', 'loader': lambda: load_linagora_asr(),
+     'value': lambda e: e.get('value'), 'direction': 'lower',
+     'scale': lambda e, cat: 'linagora_wer_fr_7_datasets',
+     'meta': _meta_linagora},
+    # 2026-10-29 : les tableaux d'AUTEURS (`PUBLISHED_TABLES`), en dernier — leur échelle est
+    # portée par l'entrée (le même jeu et la même métrique qu'un autre banc gardent SON nom :
+    # olmOCR-2 rejoint ainsi le classement d'olmOCR-Bench). Pas une source de DÉCOUVERTE : un
+    # tableau d'auteur ne classe que ses propres modèles, et un poids GitHub n'est pas un dépôt.
+    {'key': 'published_tables', 'label': 'Tableaux publiés par les auteurs', 'priority': 7,
+     'provenance': PROVENANCE_SELF_DECLARED, 'discovery': False,
+     'source_name': 'published-tables', 'loader': lambda: load_published_tables(),
+     'value': lambda e: e.get('value'),
+     'direction': lambda e: 'lower' if e.get('lower_is_better') else 'higher',
+     'scale': lambda e, cat: e.get('scale'),
+     'meta': _meta_published},
 )
 
 #: Ordre de consultation — figé une fois, pas retrié à chaque modèle.
@@ -1261,6 +1531,8 @@ def leaderboard_repos(cache: str = 'read'):
     """
     out, reasons = {}, {}
     for source in SOURCES_BY_PRIORITY:
+        if source.get('discovery') is False:
+            continue          # une source qui ne classe pas une population (tableaux d'auteurs)
         try:
             by_category, _ = _load_source(source, cache=cache)
         except Exception as e:

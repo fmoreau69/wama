@@ -3437,3 +3437,34 @@ l'assistant ne recommandait rien.
    ligne confiée). ⚠ Corrigé le même jour : olmOCR-2 ne GRISE pas « mode » et « langue » — sa
    ligne, installée par la route, ne déclare pas `params`, et l'UI ne grise jamais sur une
    absence ; ⏳ faire remonter au catalogue ce que le backend sait de sa lecture.
+5. ✅ **Les TABLEAUX OFFICIELS deviennent des sources de bancs** (Fabien : *« pour 2, les tableaux
+   officiels »* ; *« compléter la mesure à priori depuis les sources externes du mieux que l'on peut
+   pour débloquer la sélection auto »*). Relevé du jour : 111 modèles installés sans note, ~54
+   couvrables par un tableau officiel (inventaire tâche par tâche, URL et correspondances vérifiées).
+   Deux sources ajoutées à `benchmark_sync.SOURCES`, déclarées au registre `external_sources` :
+   - `linagora_asr` (`load_linagora_asr`) : le classement français de Linagora, un harnais pour 34
+     modèles, moyenne des WER (sans casse ni ponctuation) des SEPT jeux français — sans les sept,
+     pas noté ; le meilleur décodeur d'un même dépôt ; INDÉPENDANT sauf les modèles de Linagora
+     (auto-déclarés, donc sans rang centile). Catégorie `speech-to-text-fr-linagora`, rangée APRÈS
+     Open ASR français et avant l'anglais : aucun index existant ne bouge. Elle nourrit aussi la
+     découverte (dépôts exacts) ;
+   - `published_tables` (`load_published_tables`, `PUBLISHED_TABLES`) : des tableaux DÉCLARÉS un
+     par un, chacun FIGÉ à un commit — docs d'Ultralytics (YOLO11 : détection, segmentation,
+     classification, pose, OBB ; YOLOv8n), README des auteurs de YOLOv12 (segmentation), fiche
+     d'olmOCR-2 (sa valeur BF16, 82,3, sur l'échelle d'olmOCR-Bench déjà lue : comparable à
+     Chandra). Valeurs d'auteur (jamais de rang centile), pas une source de découverte.
+   L'appariement reste EXACT : un poids GitHub est `owner/repo/<fichier>` (`external_sources.
+   github_repo` + le fichier que sert la ligne, `_local_repos`) — un affinage (visages, plaques)
+   n'a pas l'identité d'une ligne COCO. Appliqué (`sync_benchmarks`) : **30 notes neuves** (27 YOLO,
+   olmOCR-2, Kyutai 19,0, LinTO 13,0), aucun index d'un modèle installé déplacé (une proposition
+   passe de l'Open ASR anglais au français de Linagora). Tirage mesuré ensuite : le reader suit le
+   curseur (GLM-OCR → Chandra ; olmOCR-2 classé derrière Chandra, 82,3 contre 85,8, et plus lourd) ;
+   le transcriber reste sur Whisper à tous les crans — c'est sa PRIORITÉ déclarée
+   (`options_resolution`, mesure de Fabien sur les entretiens), pas un manque de note.
+   ⏳ Écartés, et pourquoi : une note qui donnerait le SEUL modèle noté d'une tâche (il gagnerait à
+   tous les crans — `WAMA_QUALITE §0`) ou d'une tâche sans tirage (diarisation pyannote, choix fixe ;
+   SAM3, table-transformer, YOLOPv2) ; des protocoles différents (YOLO26 « e2e », Higgs par deux
+   normaliseurs) ; les visages lindevs (vérifier l'empreinte publiée contre la nôtre d'abord) ;
+   VibeVoice (Linagora note le portage `-HF`, un `ALIAS` vaudrait pour toutes les sources). Aucune
+   source pour l'agrandissement, le débruitage, la profondeur, la vidéo, la synchro labiale.
+   Tests : `tests_published_tables`.
