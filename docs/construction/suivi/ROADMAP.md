@@ -2782,12 +2782,36 @@ Deux voies, complémentaires :
    ajoutés au juge (`run_codegen.controles`) : clés de `fields` construites dans une VARIABLE,
    attributs d'élément inventés (`item.options`), appels au contexte de tâche jugés sur
    `TaskContext` (`output_place` déballé en trois), NOMS importés absents d'un module réel
-   (`ensure_text_file`). Les deux suivantes gardaient des défauts de SENS que nul contrôle ne
-   tient : en mode texte, la traduction n'était écrite nulle part ; `source_document` remis à
-   vide ; un domaine de tirage inventé. Le trou reste donc OUVERT dans la jumelle (un document
-   déposé échoue en le disant) — ⏳ **décision de Fabien** : composer ce corps par le générateur
-   (une saveur « brique déclarée » de `tasks_gen`, comme la saveur MODÈLE compose un appel de
-   contrat), ou poursuivre le rôle `codegen` avec une matière plus précise.
+   (`ensure_text_file`). Les deux suivantes rendaient, en mode texte, `'output_file': None` (la
+   traduction écrite nulle part) et `'source_document': None` (l'entrée remise à vide).
+   ⚠ *Corrigé le 29/10 à la revérification* : ces défauts « de sens » se lisent dans le
+   MANIFESTE — la sortie déclarée (`processing.backend_result.field`) et le champ d'entrée
+   (`model_spec.item.input_field`). Le contrôle « sortie déclarée non écrite » existait, mais
+   pour les seules glues de PROCESS (`process_checks`) ; `result_checks` en est le pendant pour une
+   tâche à process unique (chaque retour écrit la sortie, aucun n'écrit l'entrée), rejoué rouge
+   sur les deux sorties refusées, marquées `REJECTED`. Et l'option « saveur brique déclarée de
+   `tasks_gen` » proposée la veille contredisait l'arbitrage du 18/08 (`ROUTE §S`, ③) : la glu
+   d'une app se remplit par le rôle `codegen`, une glu ne se promeut en gabarit qu'en
+   réapparaissant dans 2+ apps — le domaine document de l'Anonymizer (lire, passer par une
+   brique, réécrire au même format) en sera peut-être la 2ᵉ occurrence. Les apps de zéro (Editor,
+   Writer) ont convergé ainsi, par la matière et le juge (v1→v3, `ROUTE §10.5`) ; les jumelles des
+   apps existantes portent un corps COMPOSÉ là où le manifeste route (saveurs fichier, texte,
+   modèle) et un TROU ailleurs (de 1 à 11 par jumelle, mesuré le 29/10 ; seul `writer_01` n'en a
+   plus) ; une glu validée (`APPLIED`) se ré-applique à la jumelle régénérée (`app_sandbox glue`).
+   ✅ **Convergé le 29/10 par la chaîne, à la 6ᵉ proposition** (`…_2026-10-29_00-55.json`,
+   APPLIED, injectée ; `translator_01` n'a plus de trou). Ce qui a fait converger, tout dans la
+   chaîne : (1) le juge — `result_checks` (chaque retour écrit la sortie déclarée, aucun n'écrit
+   l'entrée, le chemin absolu d'`output_place` n'est pas jeté), `draw_domain_checks` (le domaine
+   de tirage est un `options_query` déclaré) ; (2) la matière — le CODE des propriétés de
+   l'élément (`property_bodies` : `filename` rend `''`, pas `None`) ; (3) **la lecture des
+   réglages et le tirage du modèle alignés sur les autres apps** (demande de Fabien, 29/10) : UNE
+   source, `tasks_gen.settings_and_draw_lines`, que la saveur MODÈLE compose (rendu des 10 apps
+   identique à HEAD) et que le rôle reçoit tel quel (`declared_settings_and_draw`), le juge
+   exigeant de le retrouver instruction par instruction (`preamble_checks` — tâche à process
+   unique : un process de pipeline ne lit que ce qu'il surveille). Et un défaut de traçabilité
+   de tous les rôles : un RELAIS (ILaaS en panne → qwen3.8 local) écrivait sa sortie au nom du
+   fournisseur demandé — `role_utils.write_output` porte désormais qui a répondu, la demande sous
+   `requested`. ⏳ Restent : relancer les workers et juger un document réel traduit (DOCX, PDF).
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄
 

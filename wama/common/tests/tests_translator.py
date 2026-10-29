@@ -229,6 +229,97 @@ class TranslationIsDeclaredNotWrittenTest(SimpleTestCase):
             item_fields=['prompt', 'model', 'output_file'],
             settings_fields=['prompt', 'model'], item_properties=['filename'])['warnings'])
 
+    def test_the_judge_sees_a_mode_that_returns_nothing_and_an_emptied_input(self):
+        """2026-10-28 : two task glues passed the judge while returning `'output_file': None` in
+        text mode and `'source_document': None` in document mode — the declared-output check only
+        ran for a pipeline of several processes."""
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        glue = ('def _process_t(item, ctx):\n'
+                '    rel, path = ctx.output_place("txt", source_name="x")\n'
+                '    if item.prompt:\n'
+                '        return {"fields": {"output_file": None}}\n'
+                '    return {"fields": {"source_document": None, "output_file": rel}}\n')
+        warnings = '\n'.join(codegen.result_checks(glue, '_process_t', 'output_file',
+                                                   'source_document'))
+        self.assertIn("1 retour(s) sur 2 n'écrivent pas la sortie déclarée `output_file`", warnings)
+        self.assertIn("réécrit l'ENTRÉE de l'élément : source_document", warnings)
+        # Counter-proof : every path writes the declared output, the input is only read.
+        sound = ('def _process_t(item, ctx):\n'
+                 '    rel, path = ctx.output_place("txt", source_name="x")\n'
+                 '    fields = {"output_file": rel}\n'
+                 '    if item.prompt:\n'
+                 '        return {"fields": fields}\n'
+                 '    return {"fields": {"output_file": rel}}\n')
+        self.assertEqual([], codegen.result_checks(sound, '_process_t', 'output_file',
+                                                   'source_document'))
+        # 2026-10-29 : the absolute path thrown away — the returned file is never written.
+        thrown = ('def _process_t(item, ctx):\n'
+                  '    rel, _ = ctx.output_place("txt", source_name="x")\n'
+                  '    return {"fields": {"output_file": rel}}\n')
+        self.assertIn("chemin absolu d'`ctx.output_place` est jeté",
+                      '\n'.join(codegen.result_checks(thrown, '_process_t', 'output_file')))
+
+    def test_the_matter_shows_what_an_item_property_returns_not_only_its_name(self):
+        """2026-10-29 : a glue tested `item.filename is None` to pick the text mode — the property
+        returns '' without a document. Its name alone did not say so."""
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        _fields, props = codegen.champs_item('ReadingItem', 'reader')
+        self.assertIn('filename', props)
+        bodies = codegen.property_bodies('ReadingItem', 'reader', ['filename'])
+        self.assertIn('def filename(self):', bodies)
+        self.assertIn('original_filename', bodies)
+        # Counter-proof : an unknown model gives no matter, never an error.
+        self.assertEqual('', codegen.property_bodies('NoSuchItem', 'reader', ['filename']))
+
+    def test_the_judge_sees_an_invented_draw_domain(self):
+        """2026-10-29 : two glues drew in `{'source': 'catalog', 'specialization': …}` while the
+        selector declares `{'model_type': 'llm'}`."""
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        man = {'body': {'params': {'schemas': {'P': [
+            {'name': 'model', 'options_source': 'catalog', 'options_query': {'model_type': 'llm'},
+             'options_resolution': {'specialization': 'translation'}}]}}}}
+        invented = ('def _process_t(item, ctx):\n'
+                    '    key = resolve_model_choice(item.model, spec={"source": "catalog", '
+                    '"specialization": "translation"}, item=item)\n')
+        self.assertIn("n'est pas un domaine déclaré",
+                      '\n'.join(codegen.draw_domain_checks(invented, man)))
+        # Counter-proof : the declared domain, or one held in a variable, passes.
+        for spec in ('{"model_type": "llm"}', 'domain'):
+            sound = ('def _process_t(item, ctx):\n'
+                     f'    key = resolve_model_choice(item.model, spec={spec}, item=item)\n')
+            self.assertEqual([], codegen.draw_domain_checks(sound, man))
+
+    def test_a_task_body_reads_its_settings_and_draws_its_model_like_every_app(self):
+        """2026-10-29 (Fabien) : settings and draw domain « parfaitement alignés sur le
+        fonctionnement des autres apps » — one preamble, composed by the MODEL flavour and handed
+        to the `codegen` role, which the judge requires verbatim."""
+        from wama.common.manifests.codegen import tasks_gen
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        man = {'body': {'params': {'primary': 'PARAMS_JSON', 'schemas': {'PARAMS_JSON': [
+            {'name': 'model', 'options_source': 'catalog', 'options_query': {'model_type': 'llm'}}]}},
+            'processing': {'model_spec': {'item': {'params_fields': ['prompt', 'model']}}}}}
+        preamble = tasks_gen.declared_settings_and_draw(man)
+        self.assertIn("opts = effective_settings(_SCH, posees=given)", preamble)
+        self.assertIn("resolve_model_choice(opts.pop('model', ''), app_id=ctx.app_id,", preamble)
+        self.assertIn("spec={'model_type': 'llm'}", preamble)
+        aligned = 'def _process_t(item, ctx):\n' + preamble + '\n    return {"fields": {}}\n'
+        self.assertEqual([], codegen.preamble_checks(aligned, '_process_t', preamble))
+        # Counter-proof : the glue that read the settings its own way is caught.
+        own_way = ('def _process_t(item, ctx):\n'
+                   '    opts = effective_settings(PARAMS_JSON, posees={}, preset=item.quality_intent)\n'
+                   '    key = resolve_model_choice(item.model, app_id=ctx.app_id, item=item)\n')
+        self.assertIn('préambule COMMUN', '\n'.join(
+            codegen.preamble_checks(own_way, '_process_t', preamble)))
+        # The MODEL flavour composes the very same lines (one source, two readers).
+        lines = tasks_gen.settings_and_draw_lines(['a'], param='m', domain={'task': 'ocr'},
+                                                  app_id_expr="'reader_01'")
+        self.assertEqual('    opts = effective_settings(_SCH, posees=given)', lines[5])
+        self.assertIn("app_id='reader_01'", lines[6])
+
     def test_the_instant_hole_has_its_own_signature(self):
         from wama.common.tests.tests_dev_ai_bridge import _charger
         codegen = _charger('run_codegen')

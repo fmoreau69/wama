@@ -1075,6 +1075,7 @@ def _relay(provider, reason, error, system, user_msg, num_ctx, temperature, time
     target = model_id(picked)
     print(f'[role_utils] {provider} {reason} ({(error or "")[:90]}) — relais UNE fois : '
           f'{source}:{target}')
+    RELAYS.append({'from': provider, 'provider': source, 'model': target, 'reason': reason})
     if source == 'ollama':
         keep_alive = local_llm_guard('ollama', target, log=lambda m: print(f'[role_utils] {m}'))
         return call_ollama(target, system, user_msg, num_ctx=num_ctx, keep_alive=keep_alive,
@@ -1162,9 +1163,23 @@ def extract_json(text):
     raise ValueError('JSON non équilibré')
 
 
+#: Les relais joués dans ce processus (`_relay`) : `write_output` en tire QUI a répondu.
+RELAYS = []
+
+
 def write_output(role, slug, payload):
-    """Rapport horodaté dans outputs/ — TOUJOURS PENDING_HUMAN_VALIDATION."""
+    """Rapport horodaté dans outputs/ — TOUJOURS PENDING_HUMAN_VALIDATION.
+
+    Un relais (`_relay`) a répondu à la place du fournisseur demandé : la sortie porte le
+    fournisseur et le modèle qui l'ont ÉCRITE, la demande restant sous `requested` (2026-10-29 :
+    une glu de qwen3.8 local, relayée d'ILaaS en panne, était attribuée à mistral-small — et
+    `app_sandbox glue` l'annonçait ainsi)."""
     from datetime import datetime
+    if RELAYS and ('provider' in payload or 'model' in payload):
+        payload = {**payload, 'requested': {'provider': payload.get('provider'),
+                                            'model': payload.get('model')},
+                   'provider': RELAYS[-1]['provider'], 'model': RELAYS[-1]['model'],
+                   'relayed': list(RELAYS)}
     OUTPUTS.mkdir(exist_ok=True)
     horodatage = datetime.now().strftime('%Y-%m-%d_%H-%M')
     sortie = OUTPUTS / f"{role}_{slug.replace('/', '_')}_{horodatage}.json"

@@ -195,3 +195,33 @@ class ProposedRelayInTheChatTest(SimpleTestCase):
                  "chat.sendBlocking('bonjour', 'ilaas:mistral'); chat.sendBlocking('merci', null);")
         self.assertEqual([{'message': 'bonjour', 'model': 'ilaas:mistral'}, {'message': 'merci'}],
                          [json.loads(b) for b in ctx.eval("bodies")])
+
+
+class RoleRelayIsTracedTest(SimpleTestCase):
+    """A wama-dev-ai role relayed to another provider (`role_utils._relay`) writes its output
+    under the provider and model that ANSWERED — 2026-10-29: a glue written by local qwen3.8, ILaaS
+    being down, was recorded and announced as mistral-small's."""
+
+    def test_the_output_names_who_answered_and_keeps_the_request(self):
+        import tempfile
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        role_utils = _charger('role_utils')
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(role_utils, 'OUTPUTS', Path(folder)), \
+                mock.patch.object(role_utils, 'RELAYS', [
+                    {'from': 'ilaas', 'provider': 'ollama', 'model': 'qwen3.8:latest',
+                     'reason': 'indisponible'}]):
+            out = json.loads(role_utils.write_output(
+                'codegen', 'x', {'provider': 'ilaas', 'model': 'mistral-small'}).read_text(
+                    encoding='utf-8'))
+            self.assertEqual(('ollama', 'qwen3.8:latest'), (out['provider'], out['model']))
+            self.assertEqual({'provider': 'ilaas', 'model': 'mistral-small'}, out['requested'])
+        # Counter-proof : without a relay, the output is written as requested.
+        with tempfile.TemporaryDirectory() as folder, \
+                mock.patch.object(role_utils, 'OUTPUTS', Path(folder)), \
+                mock.patch.object(role_utils, 'RELAYS', []):
+            out = json.loads(role_utils.write_output(
+                'codegen', 'x', {'provider': 'ilaas', 'model': 'mistral-small'}).read_text(
+                    encoding='utf-8'))
+            self.assertEqual(('ilaas', 'mistral-small'), (out['provider'], out['model']))
+            self.assertNotIn('requested', out)

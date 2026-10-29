@@ -128,6 +128,31 @@ def champs_item(item_model: str, app_id: str = '') -> tuple:
     return champs, props
 
 
+def property_bodies(item_model: str, app_id: str, props) -> str:
+    """Le CORPS de chaque propriété du modèle d'item, pour la matière (2026-10-29) : son nom seul
+    ne dit pas ce qu'elle rend. La glu du Translator testait `item.filename is None` pour choisir
+    le mode texte — la propriété rend `''` sans document : le mode texte n'aurait jamais tourné."""
+    import inspect
+    import textwrap
+    from django.apps import apps as dj_apps
+    model = None
+    for ref in (item_model, f'{app_id}.{item_model}'):
+        try:
+            model = dj_apps.get_model(ref)
+            break
+        except Exception:
+            continue
+    if model is None:
+        return ''
+    out = []
+    for name in props:
+        try:
+            out.append(textwrap.dedent(inspect.getsource(vars(model)[name].fget)).strip())
+        except (OSError, TypeError):
+            continue
+    return '\n\n'.join(out)
+
+
 #: Quelles briques COMMUNES la glu doit voir, selon ce que le manifeste COMPOSÉ déclare :
 #: déclencheur → (clé du MÉCANISME, fonctions montrées). L'EMPLACEMENT vient du registre des
 #: mécanismes (`wama/common/mecanismes.py` : domicile + annexes), jamais d'ici — une table de
@@ -715,6 +740,116 @@ def process_checks(code: str, nom_impose: str, spec: dict, all_specs: list,
     return warnings
 
 
+def result_checks(code: str, nom_impose: str, result_field: str = '',
+                  input_field: str = '') -> list:
+    """Contrôles d'une glu de tâche à process UNIQUE, le pendant de `process_checks` : CHAQUE
+    retour écrit la sortie déclarée (`processing.backend_result.field`), et aucun n'écrit le champ
+    d'ENTRÉE de l'élément (`model_spec.item.input_field`). 2026-10-28 : deux glues du Translator
+    rendaient `'output_file': None` en mode texte (la traduction écrite nulle part) et
+    `'source_document': None` en mode document (l'entrée remise à vide) — le contrôle des sorties
+    ne valait que pour un pipeline à plusieurs process."""
+    tree = ast.parse(code)
+    fn = next((n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == nom_impose),
+              None)
+    if fn is None:
+        return []
+    assigned = {}
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Assign) and isinstance(n.value, ast.Dict):
+            for target in n.targets:
+                if isinstance(target, ast.Name):
+                    assigned.setdefault(target.id, []).append(n.value)
+    returned = []                       # un dict `fields` par retour (ses formes possibles)
+    for n in ast.walk(fn):
+        if isinstance(n, ast.Return) and isinstance(n.value, ast.Dict):
+            for k, v in zip(n.value.keys, n.value.values):
+                if isinstance(k, ast.Constant) and k.value == 'fields':
+                    returned.append([v] if isinstance(v, ast.Dict)
+                                    else assigned.get(getattr(v, 'id', None), []))
+    warnings = []
+
+    def written(d, name):
+        return any(isinstance(k, ast.Constant) and k.value == name
+                   and not (isinstance(val, ast.Constant) and val.value in (None, ''))
+                   for k, val in zip(d.keys, d.values))
+    if result_field and returned:
+        silent = sum(1 for forms in returned if not any(written(d, result_field) for d in forms))
+        if silent:
+            warnings.append(f'{silent} retour(s) sur {len(returned)} n\'écrivent pas la sortie '
+                            f'déclarée `{result_field}` (processing.backend_result) : ce chemin '
+                            'ne rend rien à l\'utilisateur — un résultat TEXTE s\'écrit aussi dans '
+                            'un fichier : `rel, path = ctx.output_place(<ext>, source_name=…)`, '
+                            f'écrire `path`, rendre `{result_field}: rel`')
+    # Le chemin ABSOLU d'`output_place` jeté (`rel, _ = ctx.output_place(…)`, 2026-10-29) : la
+    # glu rend un chemin où rien n'a été écrit — le résultat était parti dans un fichier temporaire.
+    for n in ast.walk(fn):
+        if (isinstance(n, ast.Assign) and isinstance(n.value, ast.Call)
+                and getattr(n.value.func, 'attr', None) == 'output_place'
+                and isinstance(n.targets[0], ast.Tuple) and len(n.targets[0].elts) == 2
+                and isinstance(n.targets[0].elts[1], ast.Name) and n.targets[0].elts[1].id == '_'):
+            warnings.append('le chemin absolu d\'`ctx.output_place` est jeté : le fichier rendu '
+                            'n\'est jamais écrit — écrire le résultat À CE CHEMIN')
+    if input_field and any(isinstance(k, ast.Constant) and k.value == input_field
+                           for forms in returned for d in forms for k in d.keys):
+        warnings.append(f'fields réécrit l\'ENTRÉE de l\'élément : {input_field} '
+                        '(model_spec.item.input_field — une entrée se lit, elle ne se rend pas)')
+    return warnings
+
+
+def preamble_checks(code: str, nom_impose: str, preamble: str) -> list:
+    """Le préambule COMMUN (réglages lus des colonnes, modèle tiré dans le domaine déclaré —
+    `tasks_gen.declared_settings_and_draw`, celui que compose la saveur MODÈLE) est repris TEL QUEL
+    en tête du corps : chacune de ses instructions, hors imports, est une instruction de la glu
+    (2026-10-29, demande de Fabien : la gestion du domaine et des paramètres « parfaitement
+    alignée sur le fonctionnement des autres apps »)."""
+    if not preamble:
+        return []
+    fn = next((n for n in ast.parse(code).body
+               if isinstance(n, ast.FunctionDef) and n.name == nom_impose), None)
+    if fn is None:
+        return []
+    expected = [s for s in ast.parse('def _f(item, ctx):\n' + preamble).body[0].body
+                if not isinstance(s, (ast.Import, ast.ImportFrom))]
+    present = {ast.dump(s) for s in fn.body}
+    missing = [ast.unparse(s).splitlines()[0] for s in expected if ast.dump(s) not in present]
+    if not missing:
+        return []
+    return [f'préambule COMMUN (réglages et tirage du modèle) non repris tel quel : {missing} — '
+            'le recopier en tête du corps, puis employer `opts` et `key`']
+
+
+def draw_domain_checks(code: str, man: dict) -> list:
+    """Le DOMAINE passé au tirage (`resolve_model_choice(spec=…)`) est celui qu'un sélecteur de
+    catalogue DÉCLARE (`options_query`), comme le compose la saveur MODÈLE de `tasks_gen`
+    (2026-10-29 : deux glues du Translator inventaient `{'source': 'catalog', 'specialization':
+    …}` — la spécialité se lit déjà au schéma, `options_resolution`, et `source` n'est pas une clé
+    de domaine)."""
+    schemas = (((man or {}).get('body') or {}).get('params') or {}).get('schemas') or {}
+    declared = [p.get('options_query') for s in schemas.values() for p in s or []
+                if isinstance(p, dict) and p.get('options_source') == 'catalog'
+                and p.get('options_query')]
+    if not declared:
+        return []
+    warnings = []
+    for n in ast.walk(ast.parse(code)):
+        if not (isinstance(n, ast.Call) and (getattr(n.func, 'id', None)
+                                             or getattr(n.func, 'attr', None))
+                == 'resolve_model_choice'):
+            continue
+        for kw in n.keywords:
+            if kw.arg != 'spec':
+                continue
+            try:
+                given = ast.literal_eval(kw.value)
+            except ValueError:
+                continue                # une variable : son contenu ne se juge pas ici
+            if given not in declared:
+                warnings.append(f'spec={given} n\'est pas un domaine déclaré au schéma '
+                                f'(options_query : {declared}) — passer le domaine du sélecteur '
+                                'tel quel ; la spécialité se lit au schéma (options_resolution)')
+    return warnings
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--app', required=True, help="App cible (ex. converter, ou le label d'une "
@@ -791,6 +926,11 @@ def main():
     inventaire = inventaire_app(args.app)
     briques = briques_communes(resolus, man, args.process)
     champs, props = champs_item(proc.get('item_model') or '', args.app)
+    prop_code = property_bodies(proc.get('item_model') or '', args.app, props)
+    from wama.common.manifests.codegen.tasks_gen import declared_settings_and_draw
+    # Tâche à process UNIQUE seulement : un process de pipeline ne lit que les réglages qu'il
+    # surveille (`process_checks`), le préambule complet les lirait tous.
+    preamble = '' if (args.function or process_spec) else declared_settings_and_draw(man)
     user_msg = (
         f'CONTRAT de la brique run_item_task (docstring de task_skeleton.py) :\n{contrat}\n\n'
         f'EXEMPLES — glus réelles d\'apps WAMA existantes :\n{fewshot}\n\n'
@@ -805,8 +945,13 @@ def main():
         f'CHAMPS DU MODÈLE D\'ITEM `{proc.get("item_model") or "?"}` (les clés de `fields` '
         f'du retour DOIVENT en faire partie) :\n{", ".join(champs) or "(inconnus)"}\n'
         f'Propriétés lisibles en plus : {", ".join(props) or "(aucune)"} — tout autre '
-        f'attribut d\'item est INTERDIT.\n\n'
+        f'attribut d\'item est INTERDIT.\n'
+        + (f'Ce qu\'elles rendent (leur code) :\n{prop_code}\n' if prop_code else '') + '\n'
         f'FICHIER MINCE généré (le wrapper appelle ta glu) :\n{mince}\n\n'
+        + (f'PRÉAMBULE COMMUN — la lecture des réglages et le tirage du modèle, tels que WAMA les '
+           f'compose pour toutes ses apps : le RECOPIER TEL QUEL en tête du corps, puis employer '
+           f'`opts` (réglages) et `key` (modèle tiré) — ne relire aucun réglage ni tirer aucun '
+           f'modèle autrement :\n{preamble}\n\n' if preamble else '')
         + (f'{process_matter}\n\n' if process_matter else '') +
         f'Écris la fonction `{nom_impose}({signature})` qui remplit ce trou — et lui SEUL '
         f'(bloc ```python seul).')[:MAX_MATTER_CHARS]
@@ -827,6 +972,14 @@ def main():
             verif['warnings'] += process_checks(
                 code, nom_impose, process_spec, all_specs, read_by_bricks(man),
                 ((proc.get('model_spec') or {}).get('item') or {}).get('params_fields'))
+        if verif['compile_ok']:
+            verif['warnings'] += draw_domain_checks(code, man)
+            if not args.function:
+                verif['warnings'] += preamble_checks(code, nom_impose, preamble)
+        if verif['compile_ok'] and not process_spec and not args.function:
+            verif['warnings'] += result_checks(
+                code, nom_impose, (proc.get('backend_result') or {}).get('field') or '',
+                ((proc.get('model_spec') or {}).get('item') or {}).get('input_field') or '')
         # Une brique que le manifeste DÉCLENCHE et que la glu n'appelle pas (2026-10-01 : `auto`
         # passé tel quel à la brique LLM au lieu d'être tiré par `resolve_model_choice`) — la
         # montrer dans la matière ne suffit pas, l'oubli doit se voir.

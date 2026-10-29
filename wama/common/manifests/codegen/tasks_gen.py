@@ -134,6 +134,61 @@ def model_route(manifest: dict):
             'params_fields': list(item.get('params_fields') or [])}
 
 
+def settings_and_draw_lines(params_fields, param: str = '', domain=None,
+                            app_id_expr: str = 'ctx.app_id', missing: str = '') -> list:
+    """Les lignes COMMUNES d'un corps de tâche qui lisent les réglages de l'élément et tirent son
+    modèle : les colonnes posées → `effective_settings` (défauts du schéma ← réglages posés), puis
+    le select de catalogue `param` tiré DANS SON DOMAINE déclaré (`resolve_model_choice`, curseur
+    et spécialité lus au schéma), installé par la route (`ctx.ensure_model`). La saveur MODÈLE les
+    compose ; le rôle `codegen` les reçoit telles quelles (2026-10-29, demande de Fabien : « la
+    gestion du domaine et des paramètres parfaitement alignée sur les autres apps » — deux glues
+    du Translator lisaient les réglages et tiraient le modèle chacune à sa façon)."""
+    lines = [
+        '    given = {}',
+        f'    for _n in {list(params_fields or ())!r}:',
+        '        _v = getattr(item, _n, None)',
+        "        if _v not in (None, '', False):",
+        '            given[_n] = _v',
+        '    opts = effective_settings(_SCH, posees=given)',
+    ]
+    if param:
+        lines += [
+            # Le DOMAINE du select utilisé (`spec=`), comme l'enhancer et le composer : une app
+            # à deux selects n'en tire jamais un dans le domaine de l'autre.
+            f"    key = resolve_model_choice(opts.pop('{param}', ''), app_id={app_id_expr},",
+            f"                               spec={dict(domain or {})!r}, item=item)",
+            '    if not key:',
+            f'        raise ValueError("{missing or "aucun modèle du domaine déclaré au catalogue"}")',
+            '',
+            '    ctx.console(f"Modèle : {key}")',
+            # Absent : la ROUTE l'installe et la tâche attend (`ctx.ensure_model`, 2026-10-18).
+            '    ctx.ensure_model(key)',
+        ]
+    return lines
+
+
+def declared_settings_and_draw(manifest: dict) -> str:
+    """Le préambule COMMUN (imports compris) d'un corps de tâche de cette app, ou '' : le schéma
+    principal, ses colonnes de réglage (`model_spec.item.params_fields`) et son select de
+    catalogue s'il en a un. Ce que le rôle `codegen` doit recopier tel quel."""
+    body = manifest.get('body') or {}
+    params = body.get('params') or {}
+    primary = params.get('primary') or ''
+    if not primary:
+        return ''
+    schema = (params.get('schemas') or {}).get(primary) or []
+    select = next((p for p in schema if isinstance(p, dict)
+                   and p.get('options_source') == 'catalog' and p.get('options_query')), None)
+    item = (((body.get('processing') or {}).get('model_spec') or {}).get('item') or {})
+    imports = ['    from wama.common.utils.param_schema import effective_settings',
+               f'    from .params import {primary} as _SCH']
+    if select:
+        imports.insert(0, '    from wama.common.utils.auto_model import resolve_model_choice')
+    return '\n'.join(imports + [''] + settings_and_draw_lines(
+        item.get('params_fields') or (), param=(select or {}).get('name') or '',
+        domain=(select or {}).get('options_query')))
+
+
 def _instant_hole(manifest: dict, mark: str) -> list:
     """Le TROU DE GLU du résultat instantané, quand la route `instant` est déclarée (2026-10-16,
     capacité `instant_preview`) : la vue générée l'appelle sur un élément NON enregistré."""
@@ -448,22 +503,10 @@ def render_tasks(manifest: dict) -> tuple:
                 '    from wama.common.utils.preview_utils import publish_partial_text',
                 f'    from .params import {r["schema"]} as _SCH',
                 '',
-                '    given = {}',
-                f'    for _n in {r["params_fields"]!r}:',
-                '        _v = getattr(item, _n, None)',
-                "        if _v not in (None, '', False):",
-                '            given[_n] = _v',
-                '    opts = effective_settings(_SCH, posees=given)',
-                # Le DOMAINE du select utilisé (`spec=`), comme l'enhancer et le composer : une app
-                # à deux selects n'en tire jamais un dans le domaine de l'autre.
-                f"    key = resolve_model_choice(opts.pop('{r['param']}', ''), app_id={app_id!r},",
-                f"                               spec={r['domain']!r}, item=item)",
-                '    if not key:',
-                f'        raise ValueError("aucun modèle de la tâche « {r["task"]} » au catalogue")',
-                '',
-                '    ctx.console(f"Modèle : {key}")',
-                # Absent : la ROUTE l'installe et la tâche attend (`ctx.ensure_model`, 2026-10-18).
-                '    ctx.ensure_model(key)',
+                *settings_and_draw_lines(
+                    r['params_fields'], param=r['param'], domain=r['domain'],
+                    app_id_expr=repr(app_id),
+                    missing=f'aucun modèle de la tâche « {r["task"]} » au catalogue'),
                 '    engine = backend_instance_for_key(key, user=item.user)',
                 f'    text = run_contract(engine, {r["port"]}=item.{r["input_field"]}.path,',
                 '                        progress_callback=ctx.progress,',
