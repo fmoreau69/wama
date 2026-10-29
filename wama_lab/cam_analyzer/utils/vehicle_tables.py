@@ -122,14 +122,16 @@ def compute_vehicle_tables(session) -> dict:
             path = PathFrame(part[:, 1:3])
         except ValueError:
             continue
-        track = ShuttleTrack(part, path, length_m=SHUTTLE_DIMS[0])
+        track = ShuttleTrack(part, path, length_m=SHUTTLE_DIMS[0], width_m=SHUTTLE_DIMS[1])
         local = {g: [o for o in obs if ta - PATH_MARGIN_S <= o[0] <= tb + PATH_MARGIN_S]
                  for g, obs in vehicles.items()}
         local = {g: obs for g, obs in local.items() if obs}
         window = {'name': w.get('name', ''), 'idx': idx, 't_enter': ta, 't_exit': tb,
                   'center': to_local(w['lat'], w['lon']), 'radius_m': w.get('radius_m')}
-        insertions.extend(insertion_rows(window, track, local, parked=parked, lane_w=lane_w, lengths=lengths))
-    overtakes = overtaking_rows(ShuttleTrack(sh, length_m=SHUTTLE_DIMS[0]), vehicles, parked=parked,
+        insertions.extend(insertion_rows(window, track, local, parked=parked, lane_w=lane_w, lengths=lengths,
+                                         widths=widths))
+    overtakes = overtaking_rows(ShuttleTrack(sh, length_m=SHUTTLE_DIMS[0], width_m=SHUTTLE_DIMS[1]), vehicles,
+                                parked=parked,
                                 lane_w=lane_w, lengths=lengths, widths=widths)
     for row in insertions + overtakes:
         for key in INSTANT_FIELDS:
@@ -159,8 +161,9 @@ def _nearest_window(windows, t):
     return ''
 
 
-#: Colonnes des exports CSV, dans l'ordre de lecture (clé de ligne, en-tête affiché).
-INSERTION_COLUMNS = (
+#: Colonnes des exports CSV, dans l'ordre de lecture (champ de ligne, en-tête) — déclarées plus bas dans
+#: la forme de l'Exporter du monde Data (`EXPORTS`).
+_INSERTION_FIELDS = (
     ('intersection', 'intersection'), ('window_idx', 'passage'), ('id', 'vehicule_G'),
     ('class_name', 'classe'), ('first_seen_s', 'vu_de_s'), ('last_seen_s', 'vu_jusqua_s'),
     ('inserted', 'insertion'), ('before_shuttle', 'insertion_avant_passage_navette'),
@@ -182,7 +185,7 @@ INSERTION_COLUMNS = (
     ('t1_shuttle_lane_s', 't1_voie_navette_s'), ('t2_shuttle_lane_s', 't2_voie_navette_s'),
     ('t1_opposite_lane_s', 't1_voie_opposee_s'), ('t2_opposite_lane_s', 't2_voie_opposee_s'),
 )
-OVERTAKE_COLUMNS = (
+_OVERTAKE_FIELDS = (
     ('id', 'vehicule_G'), ('class_name', 'classe'), ('direction', 'sens'), ('side', 'cote'),
     ('intersection', 'intersection'), ('t_start_s', 'debut_s'), ('t_alongside_s', 'a_hauteur_s'),
     ('t_end_s', 'fin_s'), ('duration_s', 'duree_s'), ('lateral_gap_min_m', 'ecart_lateral_min_m'),
@@ -193,10 +196,30 @@ OVERTAKE_COLUMNS = (
 )
 
 
-def csv_cell(value):
-    """Une cellule : oui/non pour un booléen, vide pour une absence."""
-    if value is None:
-        return ''
+def _declaration(name, fields):
+    from wama_data.core.export import Column, Declaration, Identity
+    return Declaration(name, tuple(Column(name, key, label) for key, label in fields), identite=Identity(()))
+
+
+#: Les deux exports, déclarés comme tout export du monde Data (`wama_data/core/export.py`) : une
+#: `Declaration` par tableau, rendue par le même `export` / `render` — pas un second écrivain CSV.
+EXPORTS = {'insertions': _declaration('insertions', _INSERTION_FIELDS),
+           'overtakes': _declaration('overtakes', _OVERTAKE_FIELDS)}
+
+
+def _cell(key, value):
+    """Une valeur lisible : le `G…` de la vue de dessus, oui/non pour un booléen ; une absence reste
+    absente (`render` en fait une cellule vide)."""
+    if key == 'id' and value is not None:
+        return f'G{value}'
     if isinstance(value, bool):
         return 'oui' if value else 'non'
     return value
+
+
+def csv_text(tables, kind) -> str:
+    """Le CSV d'un des deux tableaux (`kind` : 'insertions' ou 'overtakes')."""
+    from wama_data.core.export import export, render
+    rows = [{k: _cell(k, v) for k, v in row.items()} for row in tables.get(kind) or []]
+    (exported,) = export([EXPORTS[kind]], {'session': {kind: rows}})
+    return render(exported)

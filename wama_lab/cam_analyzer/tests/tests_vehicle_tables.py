@@ -59,14 +59,15 @@ class VehicleTableExportsTest(django_test.TestCase):
             body = b''.join(self._get('export_insertions_csv').streaming_content).decode('utf-8')
             lines = body.strip().splitlines()
             self.assertEqual(len(lines), 2)
-            header, row = lines[0].split(','), lines[1].split(',')
+            # le séparateur de l'Exporter du monde Data (`core/export.py`, format « csv »)
+            header, row = lines[0].split(';'), lines[1].split(';')
             cell = dict(zip(header, row))
             self.assertEqual(cell['vehicule_G'], 'G452')
             self.assertEqual(cell['insertion_avant_passage_navette'], 'oui')
             self.assertEqual(cell['insertion_voie_opposee'], 'non')
             self.assertEqual(cell['vehicule_arriere_navette'], '', 'une absence reste vide')
             body = b''.join(self._get('export_overtakes_csv').streaming_content).decode('utf-8')
-            cell = dict(zip(*[line.split(',') for line in body.strip().splitlines()]))
+            cell = dict(zip(*[line.split(';') for line in body.strip().splitlines()]))
             self.assertEqual((cell['vehicule_G'], cell['cote'], cell['rabattement']), ('G59', 'left', 'oui'))
 
 

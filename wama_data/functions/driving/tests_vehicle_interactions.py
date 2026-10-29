@@ -7,7 +7,7 @@ import math
 from django.test import SimpleTestCase
 
 from wama_data.functions.driving.vehicle_interactions import (PathFrame, ShuttleTrack, insertion_rows,
-                                                              overtaking_rows, ttc_2d, _first_movement)
+                                                              observed_ttc, overtaking_rows, _first_movement)
 
 STEP = 0.1
 
@@ -50,11 +50,17 @@ class GeometryTest(SimpleTestCase):
         self.assertEqual((ue, un), (0.0, 1.0))
         self.assertAlmostEqual(path.project(-1.0, 30.0)[0], 30.0, places=6, msg='au-delà du bout : prolongé')
 
-    def test_ttc_of_two_discs_at_constant_speed(self):
-        self.assertAlmostEqual(ttc_2d((10.0, 0.0), (-5.0, 0.0)), 1.5)
-        self.assertIsNone(ttc_2d((10.0, 0.0), (5.0, 0.0)), 'ils s\'éloignent')
-        self.assertEqual(ttc_2d((1.0, 1.0), (0.0, 0.0)), 0.0, 'ils se touchent')
-        self.assertIsNone(ttc_2d((100.0, 0.0), (-1.0, 0.0)), 'au-delà de l\'horizon')
+    def test_the_observed_ttc_is_the_footprint_collision_at_constant_speed(self):
+        """Face à face, navette 5,5 m et voiture 4,5 m, centres à 20 m, rapprochement 10 m/s : les
+        pare-chocs se touchent à (20 − 5) / 10 = 1,5 s, au pas de 0,2 s près (`TTC_STEP_S`)."""
+        shuttle = (0.0, 0.0, 0.0, 5.0, 5.5, 2.1)
+        self.assertAlmostEqual(observed_ttc(0.0, shuttle, (0.0, 20.0, 0.0, -5.0, 4.5, 1.8)), 1.5, delta=0.21)
+        self.assertIsNone(observed_ttc(0.0, shuttle, (0.0, 20.0, 0.0, 10.0, 4.5, 1.8)), 'il s\'éloigne')
+        self.assertEqual(observed_ttc(0.0, shuttle, (0.0, 3.0, 0.0, 5.0, 4.5, 1.8)), 0.0, 'ils se touchent')
+        self.assertIsNone(observed_ttc(0.0, shuttle, (0.0, 200.0, 0.0, -5.0, 4.5, 1.8)),
+                          'au-delà de l\'horizon')
+        self.assertIsNone(observed_ttc(0.0, shuttle, (3.5, 20.0, 0.0, -5.0, 4.5, 1.8)),
+                          'il croise dans la voie voisine sans toucher')
 
     def test_the_first_movement_after_a_stop(self):
         times = [k * STEP for k in range(100)]

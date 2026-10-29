@@ -32,7 +32,7 @@
 > Mesuré depuis le code — **ne pas éditer à la main** (`python manage.py doc_facts`).
 > Registre des modules : `wama_data/modules.py`.
 
-**Bilan** : 3 ⏳ (non commencé) · 1 ✅ (livré et consommé) · 6 🔶 (livré mais INERTE)
+**Bilan** : 3 ⏳ (non commencé) · 2 ✅ (livré et consommé) · 5 🔶 (livré mais INERTE)
 
 | Module | Rôle | Flux | État | Briques | Testées | Conso. int/ext | Doc |
 |---|---|---|---|---|---|---|---|
@@ -43,7 +43,7 @@
 | **Segmenter** | Produit des segments : autour d'un événement, par jonction de deux flux, par CHAÎNE de conditions (ET/OU/XOR/NON) avec hystérésis, par plages constantes d'un catégoriel, ou par CODAGE (humain ou IA) — la chaîne sort en segments OU en événements, au choix du PORT | `events` ou signal + conditions → `segments` \| `events` | 🔶 | 6/6 | 5 | 16/0 | §9ter (spécification), §9ter.6 A-B (portage), §6.7 |
 | **Calculator** | Calcule des COLONNES DÉRIVÉES (moyenne glissante, dérivée, cumul) et des INDICATEURS PAR SEGMENT qu'il adjoint aux segments | signal → signal enrichi · `segments` + signal → colonnes d'indicateurs | 🔶 | 3/3 | 2 | 5/0 | §6.7 |
 | **Visualizer** | Vues synchronisées sur l'axe partagé (plugins) | référentiel → plugins co-chargés | ⏳ | — | — | — | §4, §8.2 |
-| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | 🔶 | 2/2 | 2 | 6/0 | §9ter.5, §9ter.6 C |
+| **Exporter** | Exporte TOUT le contenu d'un trip de façon configurable — données, méta-infos, événements, situations et leurs indicateurs : sélection ordonnée de colonnes, identité, contexte, regroupement | données/méta/`events`/`segments` + sélection → fichiers (concaténation, jamais pivot) | ✅ | 2/2 | 2 | 6/2 | §9ter.5, §9ter.6 C |
 | **Recorder** | Enregistre depuis une source temps réel | flux LSL/RTMaps/ROS → `dataset` | ⏳ | — | — | — | §7 |
 | **Analyzer** | L'app-file du monde Data : ses cards (unitaires ou lots) portent chacune un pipeline — entrées, process, sorties | card (source + manifeste `pipeline`, vide ou composé) → process exécutés par le moteur commun | ⏳ | — | — | — | §11.8, §9bis.2 |
 

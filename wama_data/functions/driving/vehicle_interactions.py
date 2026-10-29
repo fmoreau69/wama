@@ -26,11 +26,18 @@ import math
 import numpy as np
 
 from wama.common.catalog.data_types import DataType, TypedFrame
+from ...core.calculation import rolling
+from ..geometry.shapes import point_traj_to_shape
+from ..kinematics.collision import collision_detection
 from wama.common.catalog.function_catalog import (FunctionSpec, PortSpec, ParamSpec,
                                                   FunctionCategory, register)
 
-#: Longueur de la navette (m) — son centre est à mi-longueur DEVANT le point de référence (centre arrière).
+#: Longueur et largeur de la navette (m) — son centre est à mi-longueur DEVANT le point de référence
+#: (centre arrière).
 SHUTTLE_LENGTH_M = 5.5
+SHUTTLE_WIDTH_M = 2.1
+#: Largeur (m) par défaut d'un véhicule dont la classe n'est pas connue.
+VEHICLE_WIDTH_M = 1.8
 #: Largeur de voie (m) par défaut, quand la session n'en a pas mesuré.
 LANE_WIDTH_M = 3.5
 #: Longueur (m) par défaut d'un véhicule dont la classe n'est pas connue.
@@ -89,12 +96,14 @@ class ShuttleTrack:
     son CENTRE sur ce chemin. Sans chemin (session entière, plusieurs tours : la projection sauterait
     d'un tour à l'autre), `relative` situe un point dans son repère INSTANTANÉ."""
 
-    def __init__(self, rows, path: PathFrame | None = None, length_m=SHUTTLE_LENGTH_M):
+    def __init__(self, rows, path: PathFrame | None = None, length_m=SHUTTLE_LENGTH_M,
+                 width_m=SHUTTLE_WIDTH_M):
         arr = np.asarray(sorted(rows, key=lambda r: r[0]), dtype=float)
         self.t = arr[:, 0]
         self.e, self.n = arr[:, 1], arr[:, 2]
         self.h_unwrapped = np.degrees(np.unwrap(np.radians(arr[:, 3])))
         self.half = length_m / 2.0
+        self.length, self.width = length_m, width_m
         self.path = path
         if path is not None:
             self.s_rear = np.array([path.project(e, n)[0] for e, n in zip(self.e, self.n)])
@@ -128,14 +137,22 @@ class ShuttleTrack:
     def speed(self, t, dt=0.5):
         return math.hypot(*self.velocity(t, dt))
 
+    def footprint_state(self, t):
+        """(e, n, ve, vn, longueur, largeur) de son CENTRE, pour `observed_ttc` — à l'arrêt, une vitesse
+        infime le long de son cap : l'empreinte s'oriente par la vitesse, et vers l'est sans elle."""
+        e, n = self.center(t)
+        ve, vn = self.velocity(t)
+        if math.hypot(ve, vn) < 0.05:
+            h = math.radians(self.position_at(t)[2])
+            ve, vn = 1e-3 * math.sin(h), 1e-3 * math.cos(h)
+        return e, n, ve, vn, self.length, self.width
+
     def s_center(self, t):
         return float(np.interp(t, self.t, self.s_rear)) + self.half
 
     def s_rear_at(self, t):
         return float(np.interp(t, self.t, self.s_rear))
 
-    def speed_along(self, t, dt=0.5):
-        return (self.s_rear_at(t + dt) - self.s_rear_at(t - dt)) / (2 * dt)
 
     def time_at_center(self, s):
         """Instant où le centre de la navette passe l'abscisse `s` (None hors de la plage observée)."""
@@ -152,11 +169,13 @@ EDGE_MARGIN_M = 0.5
 CROSS_DEG = 35.0
 #: Écart latéral maximal (m, caisse à caisse) d'un dépassement : la voie voisine, pas une route parallèle.
 OVERTAKE_LATERAL_MAX_M = 3.0
-#: Fenêtre (observations) des médianes glissantes qui ôtent le bruit des bouts de trace (vitesse, TTC) :
-#: à 5, une vmax de 103 km/h restait (rejeu du 2026-10-29).
-ROBUST_WINDOW = 7
-#: Au-delà de cet horizon (s), un TTC ne décrit plus un conflit (rejeu : 114 s pour un véhicule à 27 m).
-TTC_HORIZON_S = 15.0
+#: Fenêtre (s) des médianes glissantes qui ôtent le bruit des bouts de trace (vitesse, TTC) — ≈ 7
+#: observations à 12 i/s : à 5, une vmax de 103 km/h restait (rejeu du 2026-10-29).
+ROBUST_WINDOW_S = 0.6
+#: Horizon (s) et pas (s) du TTC observé : au-delà, un TTC ne décrit plus un conflit (rejeu : 114 s pour
+#: un véhicule à 27 m) ; le pas est celui de la passe Indicateurs.
+TTC_HORIZON_S = 10.0
+TTC_STEP_S = 0.2
 
 
 def _zone(lat, lane_w, previous=None):
@@ -172,14 +191,10 @@ def _zone(lat, lane_w, previous=None):
     return previous or ('shuttle' if lat > 0 else 'opposite')
 
 
-def _running_median(values, window=ROBUST_WINDOW):
-    """Médiane glissante centrée ; None ignorés (None si la fenêtre n'a aucune valeur)."""
-    half = window // 2
-    out = []
-    for i in range(len(values)):
-        part = sorted(v for v in values[max(0, i - half):i + half + 1] if v is not None)
-        out.append(part[len(part) // 2] if part else None)
-    return out
+def _robust(times, values):
+    """Médiane glissante centrée sur `ROBUST_WINDOW_S` — la statistique glissante du monde Data
+    (`core.calculation.rolling`), valeurs absentes écartées."""
+    return rolling(times, values, ROBUST_WINDOW_S, 'median')
 
 
 def _runs(zones, times, min_run=MIN_RUN):
@@ -230,26 +245,27 @@ def _round(v, k=2):
     return None if v is None else round(float(v), k)
 
 
-#: Rayon (m) des deux disques du TTC observé : demi-largeurs de la navette et d'une voiture, plus une marge.
-TTC_RADIUS_M = 2.5
-
-
-def ttc_2d(dp, dv, radius=TTC_RADIUS_M, horizon=TTC_HORIZON_S):
-    """Temps (s) avant que deux disques de rayon cumulé `radius` se touchent, à vitesses constantes :
-    `dp` position relative, `dv` vitesse relative (m, m/s). 0 s'ils se touchent ; None s'ils ne se
-    rapprochent pas assez, ou au-delà de `horizon`."""
-    c = dp[0] ** 2 + dp[1] ** 2 - radius ** 2
-    if c <= 0:
-        return 0.0
-    a = dv[0] ** 2 + dv[1] ** 2
-    b = 2 * (dp[0] * dv[0] + dp[1] * dv[1])
-    if a < 1e-6 or b >= 0:
+def observed_ttc(t, first, second, *, horizon=TTC_HORIZON_S, step=TTC_STEP_S):
+    """TTC OBSERVÉ à l'instant `t` : chacun prolongé à vitesse constante, en EMPREINTES rectangulaires
+    orientées par la vitesse (`geometry.point_traj_to_shape`), et la collision cherchée par la brique de la
+    passe Indicateurs (`kinematics.collision_detection`) — seuls les positions et vitesses diffèrent :
+    observées et lissées ici, extrapolées du pinhole là-bas. `first` / `second` : (e, n, ve, vn, longueur,
+    largeur). None sans contact dans l'horizon."""
+    # Sortie EXACTE avant les empreintes (×6 de temps sinon, rejeu du 2026-10-29) : à vitesses constantes,
+    # la distance des centres ne fait que croître s'ils s'éloignent déjà, et ne peut fondre de plus de
+    # |vitesse relative| × horizon ; hors de la somme des demi-diagonales, aucun contact possible.
+    dp = (second[0] - first[0], second[1] - first[1])
+    dv = (second[2] - first[2], second[3] - first[3])
+    reach = (math.hypot(first[4], first[5]) + math.hypot(second[4], second[5])) / 2
+    gap = math.hypot(*dp)
+    if gap > reach and (dp[0] * dv[0] + dp[1] * dv[1] >= 0 or gap - math.hypot(*dv) * horizon > reach):
         return None
-    disc = b * b - 4 * a * c
-    if disc < 0:
-        return None
-    t = (-b - math.sqrt(disc)) / (2 * a)
-    return t if t <= horizon else None
+    ks = np.arange(int(horizon / step) + 1) * step
+    shapes = []
+    for e, n, ve, vn, length, width in (first, second):
+        traj = np.column_stack([t + ks, e + ve * ks, n + vn * ks])
+        shapes.append(point_traj_to_shape(traj, length, width))
+    return collision_detection(shapes[0], shapes[1], compute_pet=False)['ttc']
 
 
 def _observed_pet(shuttle, pr, lane, length):
@@ -276,13 +292,13 @@ def _observed_pet(shuttle, pr, lane, length):
 
 
 def insertion_rows(window, shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w=LANE_WIDTH_M,
-                   lengths=None, min_obs=5):
+                   lengths=None, widths=None, min_obs=5):
     """Une ligne par véhicule SUSCEPTIBLE DE S'INSÉRER dans la fenêtre `window` ({'name', 'idx',
     't_enter', 't_exit', 'center': (e, n), 'radius_m'}) : un véhicule non garé, vu au moins `min_obs`
     fois dans la fenêtre, hors de la chaussée (ni la voie de la navette ni l'opposée) dans le rayon de
     l'intersection — qu'il s'y insère ensuite (`inserted`) ou qu'il attende.
-    `vehicles` : {id: [(t, e, n, ve, vn, cls, ttc, pet)…] triés}. `lengths` : {classe: longueur (m)}."""
-    lengths = lengths or {}
+    `vehicles` : {id: [(t, e, n, ve, vn, cls, ttc, pet)…] triés}. `lengths` / `widths` : {classe: m}."""
+    lengths, widths = lengths or {}, widths or {}
     parked = set(parked)
     t_a, t_b = window['t_enter'], window['t_exit']
     ce, cn = window['center']
@@ -305,7 +321,7 @@ def insertion_rows(window, shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w
         times = [p[0][0] for p in pr]
         zones = [p[4] for p in pr]
         near = [math.hypot(p[0][1] - ce, p[0][2] - cn) <= radius for p in pr]
-        speeds = _running_median([math.hypot(p[0][3], p[0][4]) for p in pr])
+        speeds = _robust(times, [math.hypot(p[0][3], p[0][4]) for p in pr])
         runs = _runs(zones, times)
         # « susceptible de s'insérer » : DEHORS près de l'intersection en venant de côté — à l'arrêt, ou
         # roulant en travers de la voie (le trafic de passage, légèrement hors voie à l'élargissement du
@@ -335,17 +351,14 @@ def insertion_rows(window, shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w
 
         d_all = [dist(t) for t in times]
         jmin = int(np.argmin(d_all))
-        # TTC OBSERVÉ (trajectoires suivies, vitesses constantes, `ttc_2d`) : le minimum de sa médiane
+        # TTC OBSERVÉ (trajectoires suivies, vitesses constantes, `observed_ttc`) : le minimum de sa médiane
         # glissante — le minimum brut attrape le bruit d'un bout de trace. Le TTC PRÉDIT de la passe
         # Indicateurs (`prediction_ttc`) reste en colonne à part, pour comparaison.
-        obs_ttc = []
-        for p in pr:
-            o = p[0]
-            sc, sv = shuttle.center(o[0]), shuttle.velocity(o[0])
-            obs_ttc.append(ttc_2d((o[1] - sc[0], o[2] - sc[1]), (o[3] - sv[0], o[4] - sv[1])))
-        ttc = [(v, times[k], d_all[k]) for k, v in enumerate(_running_median(obs_ttc)) if v is not None]
-        ttc_pred = [v for v in _running_median([p[0][6] if p[0][6] is not None and p[0][6] > 0 else None
-                                                for p in pr]) if v is not None]
+        size = (lengths.get(cls, VEHICLE_LENGTH_M), widths.get(cls, VEHICLE_WIDTH_M))
+        obs_ttc = [observed_ttc(p[0][0], shuttle.footprint_state(p[0][0]), (*p[0][1:5], *size)) for p in pr]
+        ttc = [(v, times[k], d_all[k]) for k, v in enumerate(_robust(times, obs_ttc)) if v is not None]
+        ttc_pred = [v for v in _robust(times, [p[0][6] if p[0][6] is not None and p[0][6] > 0 else None
+                                               for p in pr]) if v is not None]
         pet, pet_first = (_observed_pet(shuttle, pr, lanes['shuttle'], lengths.get(cls, VEHICLE_LENGTH_M))
                           if 'shuttle' in lanes else (None, None))
         row = {
@@ -391,7 +404,7 @@ def insertion_rows(window, shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w
         else:
             span = (times[0], times[-1])
         row.update(rear_vehicle(shuttle, vehicles, span, exclude={gid} | parked, lane_w=lane_w,
-                                lengths=lengths))
+                                lengths=lengths, widths=widths))
         row['rear_span'] = 'traversée' if 'shuttle' in lanes and lanes['shuttle'][1] is not None else 'présence'
         rows.append(row)
     rows.sort(key=lambda r: (r['first_seen_s'] or 0.0))
@@ -433,11 +446,11 @@ def _lane_exit(runs, k, pr):
 
 
 def rear_vehicle(shuttle: ShuttleTrack, vehicles, span, *, exclude=(), lane_w=LANE_WIDTH_M, lengths=None,
-                 rear_range_m=REAR_RANGE_M):
+                 widths=None, rear_range_m=REAR_RANGE_M):
     """Le véhicule à l'ARRIÈRE de la navette (dans sa voie, derrière son pare-chocs arrière, à moins de
     `rear_range_m`) sur l'intervalle `span` : présence, écart minimal (pare-chocs à pare-chocs), TTC
-    minimal (rapprochement le long du chemin) et son écart, écart moyen."""
-    lengths = lengths or {}
+    minimal (`observed_ttc`) et son écart, écart moyen."""
+    lengths, widths = lengths or {}, widths or {}
     t_a, t_b = span
     best = {}                              # instant arrondi → (écart, ttc) du plus proche derrière
     for gid, obs in vehicles.items():
@@ -446,14 +459,15 @@ def rear_vehicle(shuttle: ShuttleTrack, vehicles, span, *, exclude=(), lane_w=LA
         for o in obs:
             if not (t_a <= o[0] <= t_b):
                 continue
-            s, lat, (ue, un) = shuttle.path.project(o[1], o[2])
+            s, lat, _tan = shuttle.path.project(o[1], o[2])
             if abs(lat) > lane_w / 2:
                 continue
-            gap = shuttle.s_rear_at(o[0]) - s - lengths.get(o[5], VEHICLE_LENGTH_M) / 2
+            length = lengths.get(o[5], VEHICLE_LENGTH_M)
+            gap = shuttle.s_rear_at(o[0]) - s - length / 2
             if gap < -0.5 or gap > rear_range_m:
                 continue
-            closing = (o[3] * ue + o[4] * un) - shuttle.speed_along(o[0])
-            ttc = max(gap, 0.0) / closing if closing > 0.1 else None
+            ttc = observed_ttc(o[0], shuttle.footprint_state(o[0]),
+                               (*o[1:5], length, widths.get(o[5], VEHICLE_WIDTH_M)))
             key = round(o[0], 1)
             if key not in best or gap < best[key][0]:
                 best[key] = (max(gap, 0.0), ttc)
@@ -469,7 +483,7 @@ def rear_vehicle(shuttle: ShuttleTrack, vehicles, span, *, exclude=(), lane_w=LA
 
 
 def overtaking_rows(shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w=LANE_WIDTH_M, lengths=None,
-                    widths=None, min_obs=5, follow_mps=1.0, shuttle_width_m=2.1):
+                    widths=None, min_obs=5, follow_mps=1.0):
     """Une ligne par DÉPASSEMENT : un véhicule non garé qui passe de derrière la navette à devant elle
     (il la double) ou de devant à derrière en roulant dans le même sens (la navette le double), à côté
     d'elle (hors de sa voie) au moment où il est à sa hauteur. Rabattement : il entre ensuite dans la
@@ -482,7 +496,7 @@ def overtaking_rows(shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w=LANE_W
         if gid in parked or len(obs) < min_obs:
             continue
         L = lengths.get(obs[0][5], VEHICLE_LENGTH_M)
-        W = widths.get(obs[0][5], 1.8)
+        W = widths.get(obs[0][5], VEHICLE_WIDTH_M)
         rel = []                              # (t, rel_long, lat, v_along, o)
         for o in obs:
             lon, lat, (ue, un) = shuttle.relative(o[0], o[1], o[2])
@@ -504,7 +518,7 @@ def overtaking_rows(shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w=LANE_W
             t_start, t_end = before[-1][0], after[0][0]
             # écart latéral entre les deux caisses quand ils se recouvrent
             alongside = [r for r in rel if t_start <= r[0] <= t_end and abs(r[1]) < shuttle.half + L / 2]
-            lateral = (min(abs(r[2]) for r in alongside) - shuttle_width_m / 2 - W / 2) if alongside else None
+            lateral = (min(abs(r[2]) for r in alongside) - shuttle.width / 2 - W / 2) if alongside else None
             if lateral is None or lateral > OVERTAKE_LATERAL_MAX_M:
                 continue                      # jamais à côté d'elle : une autre route, pas un dépassement
             sh_v = shuttle.speed(b[0])
@@ -517,7 +531,8 @@ def overtaking_rows(shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w=LANE_W
                 'lateral_gap_min_m': _round(lateral),
                 'relative_speed_kmh': _round((b[3] - sh_v) * 3.6, 1),
                 'vehicle_speed_kmh': _round(b[3] * 3.6, 1), 'shuttle_speed_kmh': _round(sh_v * 3.6, 1),
-                'vmax_kmh': _round(max(_running_median([math.hypot(r[4][3], r[4][4]) for r in rel])) * 3.6, 1),
+                'vmax_kmh': _round(max(_robust([r[0] for r in rel],
+                                               [math.hypot(r[4][3], r[4][4]) for r in rel])) * 3.6, 1),
                 'cut_in': False, 'cut_in_t_s': None, 'cut_in_gap_m': None, 'cut_in_ttc_min_s': None,
             }
             if passes_shuttle:
@@ -529,24 +544,17 @@ def overtaking_rows(shuttle: ShuttleTrack, vehicles, *, parked=(), lane_w=LANE_W
                     if gap < -0.5:
                         continue
                     row.update({'cut_in': True, 'cut_in_t_s': _round(r[0]), 'cut_in_gap_m': _round(max(gap, 0.0))})
-                    ttcs = []
-                    for q in rel:
-                        if q[0] < r[0] or q[0] > r[0] + 5.0 or abs(q[2]) > lane_w / 2:
-                            continue
-                        closing = shuttle.speed(q[0]) - q[3]
-                        g = q[1] - shuttle.half - L / 2
-                        if closing > 0.1 and g >= 0:
-                            ttcs.append(g / closing)
+                    after_cut = [q for q in rel if r[0] <= q[0] <= r[0] + 5.0 and abs(q[2]) <= lane_w / 2]
+                    ttcs = [v for v in _robust([q[0] for q in after_cut],
+                                               [observed_ttc(q[0], shuttle.footprint_state(q[0]), (*q[4][1:5], L, W))
+                                                for q in after_cut]) if v is not None]
                     row['cut_in_ttc_min_s'] = _round(min(ttcs)) if ttcs else None
                     break
             # TTC OBSERVÉ pendant le dépassement et les 5 s qui suivent (rabattement compris)
-            obs_ttc = []
-            for r in rel:
-                if t_start <= r[0] <= t_end + 5:
-                    o = r[4]
-                    sc, sv = shuttle.center(o[0]), shuttle.velocity(o[0])
-                    obs_ttc.append(ttc_2d((o[1] - sc[0], o[2] - sc[1]), (o[3] - sv[0], o[4] - sv[1])))
-            ttc = [v for v in _running_median(obs_ttc) if v is not None]
+            span = [r for r in rel if t_start <= r[0] <= t_end + 5]
+            ttc = [v for v in _robust([r[0] for r in span],
+                                      [observed_ttc(r[0], shuttle.footprint_state(r[0]), (*r[4][1:5], L, W))
+                                       for r in span]) if v is not None]
             row['ttc_min_s'] = _round(min(ttc)) if ttc else None
             rows.append(row)
             break                             # un dépassement par véhicule et par traversée observée

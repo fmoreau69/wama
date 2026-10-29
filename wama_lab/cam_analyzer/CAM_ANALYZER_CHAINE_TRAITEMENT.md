@@ -280,8 +280,8 @@ s'insérer. L'export `conflicts.csv` avait une ligne par track de CAMÉRA × ét
 | `t0` | premier mouvement : départ (≥ 1 m/s tenu 0,5 s) après un arrêt (< 0,5 m/s ≥ 1 s) — `depart_apres_arret`, `attente_s` — sinon sa première observation (il roulait déjà) |
 | `t1` / `t2` | entrée dans la voie (celle de la navette si elle est touchée, sinon l'opposée — `voie_de_t1_t2`) / sortie : `sortie` (il la quitte), `alignement` (il y roule dans l'axe, ≤ 25° : insertion achevée), `fin_observation` ; les deux voies ont aussi leurs propres t1/t2 |
 | `d0`, `d1`, `d2`, `dmin` | distance au CENTRE de la navette à t0, t1, t2, et minimale |
-| `vmax_kmh` | sur une médiane glissante de 7 observations (le bruit d'un bout de trace donnait 85–103 km/h) |
-| `ttc_min_observe_s`, `distance_au_ttc_min_m` | TTC OBSERVÉ : trajectoires suivies, vitesses constantes, deux disques de 2,5 m, horizon 15 s, minimum de sa médiane glissante |
+| `vmax_kmh` | sur une médiane glissante de 0,6 s (`core.calculation.rolling`, la statistique glissante du monde Data — le bruit d'un bout de trace donnait 85–103 km/h) |
+| `ttc_min_observe_s`, `distance_au_ttc_min_m` | TTC OBSERVÉ : positions et vitesses SUIVIES, prolongées à vitesse constante en EMPREINTES rectangulaires (`geometry.point_traj_to_shape`), collision par la brique de la passe Indicateurs (`kinematics.collision_detection`), horizon 10 s au pas de 0,2 s ; minimum de sa médiane glissante |
 | `pet_observe_s`, `pet_premier_passe` | PET OBSERVÉ au point d'entrée dans la voie de la navette : de la libération du point par le premier à l'arrivée du second (véhicule d'abord / navette d'abord / chevauchement) |
 | `ttc_predit_min_s` | le TTC de la passe Indicateurs, pour comparaison |
 | `vehicule_arriere_navette`, `arriere_*` | véhicule dans la voie de la navette, derrière son pare-chocs (≤ 50 m), PENDANT la traversée (t1 → t2 dans sa voie ; à défaut, la présence) : présence, distance minimale, TTC de rapprochement et sa distance, distance moyenne |
@@ -291,11 +291,21 @@ dans son sens), à moins de 3 m de caisse à caisse quand ils se recouvrent — 
 `fin`, écart latéral, vitesses, TTC observé, et **rabattement** dans sa voie devant elle (instant, écart,
 TTC quand la navette le rattrape).
 
-**Mesuré sur 4da52df3** (essai sans écriture, 30 s) : 146 véhicules présents aux deux intersections,
+**Mesuré sur 4da52df3** (essai sans écriture, 59 s) : 147 véhicules présents aux deux intersections,
 39 insérés (32 dans la voie de la navette, 35 dans l'opposée, 16 avant / 23 après son passage), TTC
-observé pour 36 (médiane 4,4 s, q1 3,1 s), PET observé pour 32 (médiane 12 s ; 14 fois le véhicule
-d'abord, 18 fois la navette), véhicule arrière pendant 102 ; 60 dépassements (58 par la gauche, écart
-latéral médian 1,5 m), 51 rabattements.
+observé pour 35 (médiane 3,6 s, q1 2,4 s), PET observé pour 32 (médiane 12 s ; 14 fois le véhicule
+d'abord, 18 fois la navette), véhicule arrière pendant 103 ; 60 dépassements (58 par la gauche, écart
+latéral médian 1,5 m), 51 rabattements. Les CSV sont rendus par l'Exporter du monde Data
+(`wama_data/core/export.py` : une `Declaration` par tableau, séparateur `;`).
+**Revérification du 2026-10-29** : le TTC à DISQUES et la médiane comptée en observations du premier jet
+étaient des variantes de briques existantes (`collision_detection`, `rolling`), et les colonnes un second
+langage à côté de l'Exporter — ramenés. Les empreintes coûtaient ×6 (27 → 160 s) : une sortie EXACTE avant
+elles (objets qui s'éloignent ou hors d'atteinte dans l'horizon) ramène à 59 s, tableaux identiques à
+l'octet. ⏳ **Jumeau consigné, non ramené** : la lecture des trajectoires monde par `global_track_id`
+(`vehicle_tables._vehicle_observations`) a une sœur dans `intersection_branches.learn_branches` (temps de
+l'image, 400 points par track, sans vitesse), et le préambule « trace GPS effective → repère local →
+trajectoire navette » se répète dans `prediction_adapter`, `multicam_tracker`, `intersection_branches` et
+`vehicle_tables` — les unifier toucherait des calculs validés : à décider.
 ⚠ **Le PET PRÉDIT de la passe Indicateurs est dégénéré** : 0,2 s pour 185 506 des 285 764 détections
 annotées (65 %), et le TTC prédit vaut 0,0 pour 31 285 — le minimum de ces séries ne qualifie aucun
 véhicule. D'où les valeurs OBSERVÉES aux tableaux. ⏳ Instruire ce plancher dans

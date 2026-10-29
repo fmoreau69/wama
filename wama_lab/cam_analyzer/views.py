@@ -2013,20 +2013,14 @@ def export_conflicts_csv(request, session_id):
     )
 
 
-def _vehicle_table_csv(session, key, columns, suffix):
+def _vehicle_table_csv(session, kind, suffix):
     """CSV d'un des tableaux par véhicule (`utils/vehicle_tables.py`) — 404 tant que la passe n'a pas joué."""
-    from .utils.vehicle_tables import csv_cell, read_tables
+    from .utils.vehicle_tables import csv_text, read_tables
     tables = read_tables(session)
     if tables is None:
         raise Http404("Tableaux par véhicule absents : lancer la passe « Tableaux par véhicule ».")
-    buffer = io.StringIO()
-    writer = csv.writer(buffer)
-    writer.writerow([label for _key, label in columns])
-    for row in tables.get(key) or []:
-        writer.writerow([('G' + str(row[k]) if k == 'id' and row.get(k) is not None else csv_cell(row.get(k)))
-                         for k, _label in columns])
     return FileResponse(
-        io.BytesIO(buffer.getvalue().encode('utf-8')),
+        io.BytesIO(csv_text(tables, kind).encode('utf-8')),
         as_attachment=True,
         filename=f"{session.name or 'session'}_{suffix}.csv",
         content_type='text/csv; charset=utf-8',
@@ -2037,18 +2031,16 @@ def _vehicle_table_csv(session, key, columns, suffix):
 @require_http_methods(["GET"])
 def export_insertions_csv(request, session_id):
     """Une ligne par véhicule susceptible de s'insérer aux intersections (2026-10-29)."""
-    from .utils.vehicle_tables import INSERTION_COLUMNS
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    return _vehicle_table_csv(session, 'insertions', INSERTION_COLUMNS, 'insertions')
+    return _vehicle_table_csv(session, 'insertions', 'insertions')
 
 
 @login_required
 @require_http_methods(["GET"])
 def export_overtakes_csv(request, session_id):
     """Une ligne par dépassement (2026-10-29)."""
-    from .utils.vehicle_tables import OVERTAKE_COLUMNS
     session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
-    return _vehicle_table_csv(session, 'overtakes', OVERTAKE_COLUMNS, 'depassements')
+    return _vehicle_table_csv(session, 'overtakes', 'depassements')
 
 
 @login_required
