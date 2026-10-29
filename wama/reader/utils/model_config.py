@@ -1,7 +1,8 @@
 """
 Reader — OCR model configuration.
 Deux backends initiaux :
-  - olmOCR-2 7B (Allen AI) : modèle VLM HuggingFace, imprimé + manuscrit
+  - olmOCR 7B v1 « preview » (Allen AI) : modèle VLM HuggingFace, imprimé + manuscrit — olmOCR-2 a
+    sa propre ligne de catalogue (`huggingface:allenai/olmOCR-2-7B-1025`, 2026-10-29)
   - docTR (Mindee)         : pipeline OCR PyTorch, CPU-friendly
 """
 import logging
@@ -30,21 +31,21 @@ Path(DOCTR_DIR).mkdir(parents=True, exist_ok=True)
 # (`WamaModelCaps`, même geste que les moteurs audio de l'enhancer). MESURÉ dans chaque backend :
 # olmOCR met le mode ET la langue dans sa consigne (`_build_prompt`) ; GLM-OCR ne passe que la
 # langue (`_ocr_image(model, img_path, language)`) ; docTR reçoit les deux et n'en lit aucun.
-# NOTE : pour olmOCR-2, vérifier le dépôt exact sur https://huggingface.co/allenai
-# Candidats connus : allenai/olmOCR-7B-0225-preview, allenai/olmOCR-2-0328
+# ⚠ Corrigé le 2026-10-29 : cette ligne se présentait comme « olmOCR-2 » ; elle EST olmOCR v1
+# « preview » (février 2025, Qwen2-VL). olmOCR-2 (`allenai/olmOCR-2-7B-1025`) a SA ligne de
+# catalogue, installée par la route depuis sa proposition de successeur, et le même backend le sert.
 READER_MODELS = {
     'olmocr': {
         'model_id':    'olmocr',
         'engine': 'transformers',
-        'platform_ref': 'huggingface:allenai/olmOCR-7B-0225-preview',  # à ajuster si nécessaire
+        'platform_ref': 'huggingface:allenai/olmOCR-7B-0225-preview',
         'type':        'ocr-vlm',
         'vram_gb':     14.0,
-        'description': 'olmOCR-2 7B — Allen AI — imprimé + manuscrit + tableaux + formules',
+        'description': 'olmOCR 7B v1 « preview » (février 2025) — Allen AI — imprimé + manuscrit',
         'params':      ['mode', 'language'],
-        'description_long': "olmOCR-2 7B (Allen AI) : OCR par modèle vision-langage — comprend la "
-                            "mise en page, restitue tableaux, formules et manuscrit avec une "
-                            "qualité de référence. Gourmand en VRAM ; à réserver aux documents "
-                            "complexes.",
+        'description_long': "olmOCR 7B v1 « preview » (Allen AI, février 2025) : OCR par modèle "
+                            "vision-langage (Qwen2-VL). Son successeur, olmOCR-2, a sa propre ligne "
+                            "au catalogue. Gourmand en VRAM.",
     },
     # GLM-OCR n'est PLUS déclaré ici (2026-10-07, décision de Fabien : « les modèles ne sont plus
     # déclarés par application, pour être réutilisables dans plusieurs »). Servi par Ollama, il a

@@ -98,6 +98,13 @@ Ce qui reste, et pourquoi :
 - ⚠ **identité fausse à la source** : `reader:olmocr` déclare `allenai/olmOCR-7B-0225-preview`
   (olmOCR v1, février 2025) sous le nom « olmOCR-2 7B » — le 82,4 d'olmOCR-Bench est celui de
   `allenai/olmOCR-2-7B-1025`. La mise à niveau passe par l'assistant (prospection, installation).
+  ✅ *(2026-10-29, décision de Fabien)* olmOCR-2 installé par l'outil de l'assistant depuis sa
+  proposition de successeur (`huggingface:allenai/olmOCR-2-7B-1025`, poids pleins BF16), servi par
+  le backend olmOCR comme sa fiche le prescrit (1288 px, consigne v4 de la boîte à outils, en-tête
+  YAML retiré) ; la ligne `reader:olmocr` dit désormais ce qu'elle est (v1 « preview »).
+  ⚠ Il n'a AUCUNE note : le classement officiel d'olmOCR-Bench sur le Hub ne liste aucun olmOCR, son
+  82,3 n'est que sur sa fiche — le tirage ne le retient donc pas (choix manuel possible). Le remède
+  est la mesure interne ; une note déclarée depuis une fiche serait un mécanisme neuf (décision).
 - ⚠ **couverture partielle d'un lot** : un étage se juge sur le sous-ensemble couvert (règle du
   26/09), donc un SEUL modèle noté passe devant les autres à tout curseur — c'est ce qui fait
   tirer GLM-OCR (seul porteur d'un a priori structurel) au reader, qualité max comprise.

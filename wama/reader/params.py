@@ -60,7 +60,7 @@ PARAMS = derive_from_model(
             help_source="reader",
             help_fallback={
                 "auto": "Choisit automatiquement le meilleur moteur disponible selon le document et le GPU.",
-                "reader:olmocr": "olmOCR-2 7B — OCR vision haute qualité (mise en page, tableaux, manuscrit). ~16 Go VRAM.",
+                "reader:olmocr": "olmOCR 7B v1 « preview » (février 2025) — OCR vision (mise en page, tableaux, manuscrit). ~16 Go VRAM.",
                 "reader:doctr": "docTR — pipeline détection + reconnaissance, tourne sur CPU. Idéal documents imprimés simples.",
                 "ollama:glm-ocr:latest": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
             },
