@@ -14,7 +14,10 @@
  *       onChange(speed) { ... },             // optionnel : label/HUD
  *       enabled() { return true; },          // optionnel : gate (ex. lecteur visible)
  *   });
- *   sh.bindKeys();                           // écoute j/k/l au niveau document
+ *   sh.bindKeys();                           // J/K/L par le clavier commun (`WamaKeys`)
+ *
+ * Le transport commun ne passe pas par `bindKeys` : l'axe inscrit J/K/L avec ses autres touches
+ * (`WamaAxis.bindKeys({shuttle})`). `bindKeys` sert une page sans l'axe (le cam_analyzer).
  */
 (function (global) {
     'use strict';
@@ -45,17 +48,19 @@
             stop: function () { idx = stopIdx; applyCurrent(); },  // K
             speed: function () { return levels[idx]; },
             reset: function () { idx = stopIdx; },
+            // Une brique PRIORITAIRE du clavier commun : jamais en saisie ni sous une modale (règle
+            // du module) ; sans Ctrl/Alt/Méta, comme le transport (Ctrl+L, Ctrl+K restent au
+            // navigateur). Rend la fonction qui délie.
             bindKeys: function () {
-                document.addEventListener('keydown', function (e) {
-                    var t = e.target;
-                    if (t && (t.matches && t.matches('input, textarea, select')
-                              || t.isContentEditable
-                              || (t.closest && t.closest('.modal.show')))) return;
-                    if (config.enabled && !config.enabled()) return;
-                    if (e.code === 'KeyL') { e.preventDefault(); api.forward(); }
-                    else if (e.code === 'KeyJ') { e.preventDefault(); api.reverse(); }
-                    else if (e.code === 'KeyK') { e.preventDefault(); api.stop(); }
-                });
+                return global.WamaKeys.register({ owner: 'shuttle', scope: 'page', handle: function (e) {
+                    if (config.enabled && !config.enabled()) return false;
+                    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+                    if (e.code === 'KeyL') api.forward();
+                    else if (e.code === 'KeyJ') api.reverse();
+                    else if (e.code === 'KeyK') api.stop();
+                    else return false;
+                    return true;
+                } });
             },
         };
         return api;

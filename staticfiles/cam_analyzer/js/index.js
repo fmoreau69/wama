@@ -2129,29 +2129,25 @@ document.addEventListener('DOMContentLoaded', function () {
         camShuttle.bindKeys();
     }
 
-    document.addEventListener('keydown', (e) => {
-        const target = e.target;
-        if (target && (target.matches('input, textarea, select')
-                       || target.isContentEditable
-                       || target.closest('.modal.show'))) return;
-        if (playbackControls.style.display === 'none') return;
-
+    // Le clavier commun (`WamaKeys`, 2026-10-29) : une brique prioritaire de la page — jamais en
+    // saisie ni sous une modale (règle du module), sans Ctrl/Alt/Méta (Ctrl+R recharge la page).
+    window.WamaKeys.register({ owner: 'cam_analyzer_player', scope: 'page', handle: (e) => {
+        if (playbackControls.style.display === 'none') return false;
+        if (e.ctrlKey || e.metaKey || e.altKey) return false;
         if (e.code === 'Space') {
-            e.preventDefault();
             stopReverse();
             if (isPlaying) syncPause(); else syncPlay();
         } else if (e.code === 'ArrowLeft') {
-            e.preventDefault();
             frameStep(e.shiftKey ? -10 : -1);
         } else if (e.code === 'ArrowRight') {
-            e.preventDefault();
             frameStep(e.shiftKey ? 10 : 1);
         } else if (e.code === 'KeyR') {
-            e.preventDefault();
             toggleReverse();
+        } else {
+            return false;                    // j/k/l : WamaShuttle (brique commune) ci-dessus
         }
-        // j/k/l gérés par WamaShuttle (brique commune) ci-dessus.
-    });
+        return true;
+    } });
 
     // While dragging: seek all videos + update overlay without restarting play
     syncSeekBar.addEventListener('mousedown', () => { isSeeking = true; });

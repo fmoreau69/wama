@@ -610,7 +610,7 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       35 gestes), inspecteurs coexistants, parité de l'éditeur 75/75.
     - ⚠ **Pas encore inscrits** (ils gardent leur propre écoute, sans conflit mesuré) : les
       ~~segments, la ligne de temps, l'écriture à la lecture~~, ~~la partition~~ (étape 3), ~~l'image et ses zones~~ (étape 3),
-      ~~l'historique~~ (étape 3), ~~le menu de card~~ (étape 3), ~~la visionneuse~~ (étape 3), le cam_analyzer (`WamaShuttle.bindKeys`). Le
+      ~~l'historique~~ (étape 3), ~~le menu de card~~ (étape 3), ~~la visionneuse~~ (étape 3), ~~le cam_analyzer~~ (étape 3) (`WamaShuttle.bindKeys`). Le
       module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
       ⚠ **Jumeau déclaré** (revérification du 29/10) : ces briques testent la saisie par
       `WamaApp.isTyping` (l'élément qui a le focus, une liste comprise), le module par
@@ -710,6 +710,20 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       (enveloppe de card reçue injectée, rien écrit) : refermé, et resté ouvert sous contre-épreuve.
       ⚠ `check_tree_item_menu` échoue (« le menu s'ouvre tout de suite, sur « Recherche… » ») avec
       le menu de HEAD servi au navigateur comme avec le nouveau : antérieur, hors de ce chantier.
+    - ✅ **Le lecteur du cam_analyzer** : Espace, ←/→ (Maj ×10), R, prioritaires de la page ; J/K/L
+      par `WamaShuttle.bindKeys`, lui-même inscrit (le transport commun, lui, passe par l'axe).
+      Plus aucun raccourci à Ctrl/Alt/Méta, comme le transport : **Ctrl+R recharge la page** (il
+      basculait la lecture arrière). Aucun scénario ne jouait ce lecteur : sonde au navigateur
+      (contrôles forcés visibles, écritures refusées), avant / après — Espace, L, K identiques,
+      Ctrl+L n'est plus pris ; R, J et ←/→ sans effet visible sans vidéo : ⚠ à juger sur une
+      session réelle. Consigné au `CAM_ANALYZER_CHANGELOG`.
+    - **Bilan** : plus AUCUNE brique n'écoute le clavier de la page elle-même ; `PageKeyListenersTest`
+      ne compte plus que ce qui n'agit jamais sur l'appui d'une touche (le 1ᵉʳ geste qui déverrouille
+      le son, celui qui reprend le micro, le relâché d'Espace du transport et de R de l'écriture, la
+      présentation autonome). ⚠ Hors de sa portée (il ne lit que les `.js`) : le sous-menu « Bac à
+      sable » de l'en-tête, écouté en ligne dans `header.html` (capture sur `window`, passé avant
+      Bootstrap — `tests_queue_dnd` le tient). Le **jumeau `WamaApp.isTyping`** n'a plus de lecteur
+      parmi les briques du clavier (voir ci-dessous).
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

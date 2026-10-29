@@ -119,6 +119,12 @@ pas de tests destructifs (user id=1 = Fabien réel, `transaction.atomic()`) · p
 
 ---
 
+## 2026-10-29
+
+| Commit | Quoi | Pourquoi | Validation/annulation |
+|---|---|---|---|
+| (ce commit) | **Clavier du lecteur au module commun** (`WamaKeys`) — `index.js` : Espace, ←/→ (Maj = ×10), R inscrits comme brique prioritaire de la page ; J/K/L par `WamaShuttle.bindKeys`, lui-même inscrit. Plus aucun raccourci à Ctrl/Alt/Méta : **Ctrl+R recharge la page** (il basculait la lecture arrière), Ctrl+L / Ctrl+K restent au navigateur. Une liste qui a le focus ne garde plus ces lettres, un bouton cliqué ne garde plus Espace (règle des contrôles commune) ; une modale ouverte garde tout le clavier. | Demande de Fabien (29/10) : inscrire au clavier commun, une par une, les briques qui écoutaient le clavier elles-mêmes (`WAMA_VOLETS §3-ter` étape 3). | Sonde navigateur (contrôles du lecteur forcés visibles, écritures refusées), avant / après : Espace bascule lecture / pause, L lance, K arrête — identiques ; Ctrl+L : rien (avant : lançait la lecture). R, J et ←/→ sans effet visible sans vidéo chargée : ⚠ à juger sur une session réelle. Annulation : revert du commit. |
+
 ## 2026-10-28
 
 | Commit | Quoi | Pourquoi | Validation/annulation |

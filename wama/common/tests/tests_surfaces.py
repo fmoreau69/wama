@@ -1278,15 +1278,13 @@ class PageKeyListenersTest(SimpleTestCase):
     """2026-10-29 — a key, ONE owner (`wama-keys.js`). A script that listens to the whole page's
     keyboard by itself escapes the dispatcher's order (a field, a layer, the brick with the hand,
     then the priority bricks). The listeners left are COUNTED here, each with its reason, and a
-    count can only go DOWN : a brick moved to the dispatcher removes its line in the same commit.
-    A listener on the brick's own element is not counted : it is « nearer the focus »."""
+    count can only go DOWN. Since the same day every brick goes through the dispatcher (step 3) :
+    what is left never acts on a key press. A listener on the brick's own element is not counted :
+    it is « nearer the focus »."""
 
-    #: path → (page-wide key listeners, why it is still there). `MOVE` : a brick still to register.
-    MOVE = 'à inscrire au clavier commun'
+    #: path → (page-wide key listeners, why it is still there).
     REMAINING = {
-        'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
-        'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js': (1, MOVE),
-        # Not shortcuts : they never act on the key, or only on its release.
+        # They never act on the key press : a first gesture, a release, a standalone page.
         'wama/common/static/common/js/surfaces/brick-playback-writing.js': (1, "keyup : le relâché de R ferme la plage"),
         'wama/common/static/common/js/wama-app-base.js': (1, "le 1er geste déverrouille le son (once)"),
         'wama/common/static/common/js/wama-assistant-listen.js': (1, "le 1er geste reprend le micro suspendu"),
