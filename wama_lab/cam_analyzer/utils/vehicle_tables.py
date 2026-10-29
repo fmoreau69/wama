@@ -26,6 +26,10 @@ VEHICLE_CLASSES = ('car', 'truck', 'bus', 'motorcycle', 'bicycle')
 INSTANT_FIELDS = ('first_seen_s', 'last_seen_s', 't0_s', 'dmin_t_s', 'ttc_min_t_s', 't1_s', 't2_s',
                   't1_shuttle_lane_s', 't2_shuttle_lane_s', 't1_opposite_lane_s', 't2_opposite_lane_s',
                   'shuttle_at_entry_point_s', 't_start_s', 't_alongside_s', 't_end_s', 'cut_in_t_s')
+#: Champs des lignes qui sont des DURÉES (secondes physiques, jamais converties). Tout champ en `_s` est
+#: l'un ou l'autre (`tests_vehicle_tables`) : un instant oublié ici sortirait décalé, sans erreur.
+DURATION_FIELDS = ('waited_s', 'duration_s', 'ttc_min_s', 'ttc_pred_min_s', 'pet_s', 'shuttle_time_margin_s',
+                   'rear_ttc_min_s', 'cut_in_ttc_min_s')
 #: Marge (s) autour d'une fenêtre pour le chemin de la navette.
 PATH_MARGIN_S = 30.0
 
@@ -196,15 +200,15 @@ _OVERTAKE_FIELDS = (
 )
 
 
-def _declaration(name, fields):
+def _table_export(name, fields):
     from wama_data.core.export import Column, Declaration, Identity
     return Declaration(name, tuple(Column(name, key, label) for key, label in fields), identite=Identity(()))
 
 
 #: Les deux exports, déclarés comme tout export du monde Data (`wama_data/core/export.py`) : une
 #: `Declaration` par tableau, rendue par le même `export` / `render` — pas un second écrivain CSV.
-EXPORTS = {'insertions': _declaration('insertions', _INSERTION_FIELDS),
-           'overtakes': _declaration('overtakes', _OVERTAKE_FIELDS)}
+EXPORTS = {'insertions': _table_export('insertions', _INSERTION_FIELDS),
+           'overtakes': _table_export('overtakes', _OVERTAKE_FIELDS)}
 
 
 def _cell(key, value):

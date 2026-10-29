@@ -33,6 +33,23 @@ class VehicleTablesPassTest(SimpleTestCase):
         self.assertEqual(route['queue'], 'default')
 
 
+class TimeBaseTest(SimpleTestCase):
+    """Les instants sortent en temps VIDÉO, les durées en secondes physiques : chaque champ en `_s` que le
+    calcul pur produit est déclaré l'un ou l'autre — un instant non déclaré sortirait décalé sans erreur."""
+
+    def test_every_seconds_field_is_an_instant_or_a_duration(self):
+        from wama_data.functions.driving import tests_vehicle_interactions as scene
+        from wama_data.functions.driving.vehicle_interactions import insertion_rows, overtaking_rows
+        from wama_lab.cam_analyzer.utils.vehicle_tables import DURATION_FIELDS, INSTANT_FIELDS
+        rows = insertion_rows(scene.WINDOW, scene.track(), {'7': scene.side_vehicle()}, lane_w=3.5)
+        car = [(k * 0.1, -3.5 if k < 90 else 0.0, -80.0 + k, 0.0, 10.0, 'car', None, None) for k in range(141)]
+        rows += overtaking_rows(scene.track(with_path=False), {'4': car}, lane_w=3.5)
+        self.assertEqual(len(rows), 2)
+        seconds = {k for row in rows for k in row if k.endswith('_s')}
+        self.assertEqual(set(INSTANT_FIELDS) & set(DURATION_FIELDS), set())
+        self.assertEqual(seconds - set(INSTANT_FIELDS) - set(DURATION_FIELDS), set())
+
+
 class VehicleTableExportsTest(django_test.TestCase):
 
     def setUp(self):

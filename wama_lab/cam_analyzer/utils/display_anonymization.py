@@ -249,7 +249,7 @@ def confident(doc: dict, min_confidence: float, floors: dict | None = None) -> d
 #: la boîte restant floutée en entier), coins de 5 px pris sur la zone, fondu sur toute la marge.
 #: Banc du 2026-10-29 sur 32 objets des quatre caméras (384×244 à 408×248) : même coût (2,7 ms
 #: par image) ; la zone ×1,05 ne laissait aucune place au fondu (bords francs, coins dans la boîte).
-BLUR_LOOK = {'intensity': 50, 'rounded_edges': 5, 'progressive_blur': 100, 'roi_enlargement': 1.44}
+BLUR_LOOK = {'intensity': 50, 'rounded_edges': 5, 'progressive_blur': 100, 'roi_enlargement': 1.44}  # wama:redondance-ok — valeurs d'ESSAI des paramètres de l'Anonymizer, sous leurs propres noms : elles remonteront à ses défauts si l'essai convainc
 
 
 def blur_look() -> dict:
