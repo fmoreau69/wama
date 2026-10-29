@@ -3,16 +3,17 @@ olmOCR backend — Allen AI VLM-based OCR.
 
 Supporte : PDF, images (JPG, PNG, TIFF, WebP), imprimé + manuscrit.
 
-Deux générations servies, chacune DÉCLARÉE dans `SUPPORTED_MODELS` (2026-10-29, décision de
-Fabien : « olmOCR v1 → v2 ») :
-  • `olmocr` — la ligne du reader, olmOCR v1 « preview » (`allenai/olmOCR-7B-0225-preview`, sur
-    Qwen2-VL), avec la consigne d'origine du reader ;
-  • `allenai/olmOCR-2-7B-1025` — olmOCR-2 (sur Qwen2.5-VL, 82,3 sur olmOCR-Bench), installé par
-    la route depuis sa proposition de successeur (`prospector.seed_hf_successors`). Lu comme son
-    auteur l'a entraîné (fiche du modèle, boîte à outils olmocr ≥ 0.4) : la page à 1288 px sur son
-    plus grand côté, la consigne `build_no_anchoring_v4_yaml_prompt`, une réponse en Markdown
-    précédée d'un en-tête YAML (langue, rotation, tableau, schéma) que ce backend retire.
-Le dépôt et le dossier des poids se lisent sur la LIGNE de catalogue confiée (`catalogue_key`).
+Le modèle servi est DÉCLARÉ dans `SUPPORTED_MODELS` : olmOCR-2 (`allenai/olmOCR-2-7B-1025`, sur
+Qwen2.5-VL, 82,3 sur olmOCR-Bench), installé par la route depuis sa proposition de successeur
+(`prospector.seed_hf_successors`). Lu comme son auteur l'a entraîné (fiche du modèle, boîte à
+outils olmocr ≥ 0.4) : la page à 1288 px sur son plus grand côté, la consigne
+`build_no_anchoring_v4_yaml_prompt`, une réponse en Markdown précédée d'un en-tête YAML (langue,
+rotation, tableau, schéma) que ce backend retire. Un modèle de la famille qui ne déclare pas sa
+consigne serait lu avec celle du reader (`_build_prompt`, mode et langue).
+olmOCR v1 « preview » (`allenai/olmOCR-7B-0225-preview`, la ligne `reader:olmocr`), servi ici
+jusqu'au 2026-10-29, est RETIRÉ au profit d'olmOCR-2 (`REMOVAL_LEDGER` R190).
+Le dépôt et le dossier des poids se lisent sur la LIGNE de catalogue confiée (`catalogue_key`) :
+sans elle, rien à charger.
 """
 import os
 import logging
@@ -70,13 +71,12 @@ class OlmOCRBackend(OCRBackend):
     #: auteur : `prompt` (`v4_yaml` = la consigne de la boîte à outils olmocr ≥ 0.4, recopiée de sa
     #: source sous licence Apache-2.0), `longest_side` (px), `temperature`, `max_new_tokens`.
     SUPPORTED_MODELS = {
-        'olmocr': {},
         'allenai/olmOCR-2-7B-1025': {'prompt': 'v4_yaml', 'longest_side': 1288,
                                      'temperature': 0.1, 'max_new_tokens': 8000},
     }
     REQUIRED_PACKAGES = ['transformers', 'torch']
     recommended_vram_gb = 8.0
-    description = "olmOCR (Qwen2-VL, olmOCR-2 sur Qwen2.5-VL) — OCR de documents."
+    description = "olmOCR-2 (Qwen2.5-VL) — OCR de documents."
 
     def __init__(self):
         self._model = None
@@ -87,28 +87,27 @@ class OlmOCRBackend(OCRBackend):
     def _served(self) -> dict:
         """Ce que `SUPPORTED_MODELS` déclare du modèle confié (`catalogue_key`), {} sinon."""
         from wama.common.utils.model_keys import model_id
-        return dict(self.SUPPORTED_MODELS.get(model_id(self.catalogue_key) if self.catalogue_key
-                                              else 'olmocr') or {})
+        return dict(self.SUPPORTED_MODELS.get(model_id(self.catalogue_key)) or {})
 
     def _weights(self) -> tuple:
         """`(dépôt, cache_dir)` du modèle confié : le dépôt sur SA ligne de catalogue
         (`AIModel.hf_repo`), le dossier où la ROUTE a installé ses poids — le lien de la
-        désinstallation (`model_installer.weights_dir_of`). La ligne du reader, sans clé ou sans
-        poids repérés, garde sa déclaration et son dossier de famille, comme avant."""
+        désinstallation (`model_installer.weights_dir_of`) ; à défaut de poids repérés, le
+        dossier de la catégorie. Sans ligne confiée, rien à charger : `ValueError` le dit (la ligne
+        du reader et sa déclaration, son ancien repli, sont retirées avec olmOCR v1, R190)."""
         from django.conf import settings
 
-        from wama.common.external_sources import hf_repo
-        from wama.common.utils.model_declarations import declaration
-        default_dir = str(settings.MODEL_PATHS.get('ocr', {}).get('olmocr', ''))
-        if self.catalogue_key:
-            from wama.model_manager.models import AIModel
-            from wama.model_manager.services.model_installer import weights_dir_of
-            row = AIModel.objects.filter(model_key=self.catalogue_key).first()
-            if row is not None and row.hf_repo:
-                where = weights_dir_of(row)
-                return row.hf_repo, (str(where.parent) if where is not None
-                                     and where.name.startswith('models--') else default_dir)
-        return hf_repo((declaration('reader', 'olmocr') or {}).get('platform_ref')), default_dir
+        from wama.model_manager.models import AIModel
+        from wama.model_manager.services.model_installer import weights_dir_of
+        row = (AIModel.objects.filter(model_key=self.catalogue_key).first()
+               if self.catalogue_key else None)
+        if row is None or not row.hf_repo:
+            raise ValueError(f"olmOCR : aucune ligne de catalogue confiée à charger "
+                             f"({self.catalogue_key or 'aucune clé'}).")
+        where = weights_dir_of(row)
+        default_dir = str(settings.MODEL_PATHS.get('ocr', {}).get('root', ''))
+        return row.hf_repo, (str(where.parent) if where is not None
+                             and where.name.startswith('models--') else default_dir)
 
     @classmethod
     def is_available(cls) -> bool:
@@ -204,8 +203,8 @@ class OlmOCRBackend(OCRBackend):
             cache_dir=cache_dir,
             trust_remote_code=True,
         )
-        # La classe VL que dit la config du dépôt (Qwen2-VL pour la v1, Qwen2.5-VL pour
-        # olmOCR-2) — jamais `AutoModelForCausalLM`, qui n'a pas la tour de vision.
+        # La classe VL que dit la config du dépôt (Qwen2.5-VL pour olmOCR-2) — jamais
+        # `AutoModelForCausalLM`, qui n'a pas la tour de vision.
         self._model = AutoModelForImageTextToText.from_pretrained(
             repo_id,
             cache_dir=cache_dir,

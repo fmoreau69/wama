@@ -1507,9 +1507,14 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
         res = install_from_spec(spec, token=token, owner=owner)
         if not res.get('ok'):
             return {'ok': False, 'error': res.get('error', 'installation échouée')}
+        # Une MISE À JOUR installée remplace l'ancienne version partout où elle était choisie
+        # (2026-10-29, `succession.py`) — l'ancienne garde ses poids, elle sort des choix.
+        from .succession import installed_keys, supersede_after_install
+        superseded = supersede_after_install(cand, installed_keys(res))
         installed_name = cand.name
         cand.delete()
-        return {'ok': True, 'installed': installed_name, 'path': res.get('path')}
+        return {'ok': True, 'installed': installed_name, 'path': res.get('path'),
+                **({'superseded': superseded} if superseded else {})}
 
     rollback = None
     remplace, _ = replaced_model(cand)
@@ -1558,11 +1563,11 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
     # `base_model` (le modèle canonique d'un GGUF du Hub, vocabulaire de la carte) n'entre que
     # s'il est connu : un candidat de la bibliothèque Ollama garde exactement son descripteur d'avant.
     base_model = (spec or {}).get('base_model') or ''
-    record_provenance({'kind': 'ollama', 'ref': pull_name,
-                       **({'base_model': base_model} if base_model else {}),
-                       'task': ((spec or {}).get('task')
-                                or (cand.capabilities or {}).get('task') or '')}, {},
-                      owner=owner)
+    recorded = record_provenance({'kind': 'ollama', 'ref': pull_name,
+                                  **({'base_model': base_model} if base_model else {}),
+                                  'task': ((spec or {}).get('task')
+                                           or (cand.capabilities or {}).get('task') or '')}, {},
+                                 owner=owner)
 
     # RÉCONCILIER LE REMPLACÉ. `register_after_install()` → `full_sync()` n'enlève rien :
     # c'est voulu (une indisponibilité passagère ne doit pas purger le catalogue), mais ici
@@ -1578,10 +1583,14 @@ def install_candidate(cand, progress=None, token=None, owner=None) -> dict:
             is_downloaded=False, is_available=False, is_loaded=False)
         logger.info("[prospect_install] %s remplacé par %s — %d ligne(s) recalée(s)",
                     origine_key, cand.name, maj)
+    # Et ses CHOIX suivent (2026-10-29, `succession.py`) : cards, réglages mémorisés, lots.
+    from .succession import installed_keys, supersede_after_install
+    superseded = supersede_after_install(cand, installed_keys(recorded))
 
     installed_name = pull_name
     cand.delete()
-    return {'ok': True, 'installed': installed_name}
+    return {'ok': True, 'installed': installed_name,
+            **({'superseded': superseded} if superseded else {})}
 
 
 def weights_dir_of(model, index: dict | None = None) -> Path | None:
@@ -1666,25 +1675,31 @@ def rows_depending_on(model, target: Path, index: dict | None = None) -> tuple[l
     return sharing, dependents
 
 
-def withdraw_from_choices(rows, stamp: str) -> list:
+def withdraw_from_choices(rows, stamp: str, *, by: str = '', superseded_by: str = '') -> list:
     """Retire ces lignes des CHOIX des applications : `is_available=False` + `exclusion` datée,
-    d'origine `WITHDRAWN_BY_UNINSTALL` (`models.withdrawn_q`). La ligne sort des listes et du
+    d'origine `by` (`WITHDRAWN_BY_UNINSTALL` par défaut, `WITHDRAWN_SUPERSEDED` pour une
+    succession, qui nomme alors `superseded_by` — `models.withdrawn_q`). La ligne sort des listes et du
     tirage comme une ligne écartée par un humain (clé collante au sync), et la prochaine
     installation la LÈVE (`restore_withdrawn`) — une exclusion humaine, elle, ne se lève jamais en
     silence. Sans cela, un modèle désinstallé restait proposé dans les listes (« à télécharger »)
     et TIRÉ par l'auto — le tirage n'exige pas un modèle installé, la route le réinstalle à la
     demande : olmOCR v1, désinstallé au profit de la v2, pouvait revenir tout seul. Une ligne déjà
-    écartée par un humain garde SA raison. Rend les clés retirées."""
-    from ..models import WITHDRAWN_BY_UNINSTALL, AIModel
+    écartée par un humain garde SA raison ; une exclusion posée par WAMA cède à la plus récente
+    (une ligne désinstallée puis remplacée dit qu'elle est remplacée). Rend les clés retirées."""
+    from ..models import WITHDRAWN_BY_UNINSTALL, WITHDRAWN_ORIGINS, AIModel
+    by = by or WITHDRAWN_BY_UNINSTALL
+    reason = (f"remplacé par {superseded_by} — retiré des choix des applications" if superseded_by
+              else "désinstallé — retiré des choix des applications")
     withdrawn = []
     for row in rows:
         fresh = AIModel.objects.filter(pk=row.pk).first()
         if fresh is None:
             continue
         info = dict(fresh.extra_info or {})
-        if 'exclusion' not in info:
-            info['exclusion'] = {'date': stamp[:10], 'by': WITHDRAWN_BY_UNINSTALL,
-                                 'raison': "désinstallé — retiré des choix des applications"}
+        if (info.get('exclusion') or {}).get('by', 'human') in WITHDRAWN_ORIGINS \
+                or 'exclusion' not in info:
+            info['exclusion'] = {'date': stamp[:10], 'by': by, 'raison': reason,
+                                 **({'superseded_by': superseded_by} if superseded_by else {})}
         AIModel.objects.filter(pk=fresh.pk).update(is_available=False, extra_info=info)
         withdrawn.append(fresh.model_key)
     return withdrawn

@@ -3410,3 +3410,30 @@ l'assistant ne recommandait rien.
    HUMAINE garde sa raison et ne se lève jamais en silence. La ligne retirée reste visible au model
    manager (badge « retiré des choix ») : c'est là qu'on la réinstalle.
    Tests : `tests_install_recommendation`, `tests_uninstall_withdraws`.
+3. ✅ **La SUCCESSION : une nouvelle version remplace l'ancienne partout où elle était choisie**
+   (Fabien : *« quand on a une montée de version, il faudrait que le remplacement se fasse le plus
+   naturellement possible à tous les endroits où le modèle plus ancien était »*). Le lien existait
+   (`prospect.origin_key` d'une proposition `update`, Ollama comme Hub) ; seule la branche Ollama
+   d'`install_candidate` en tirait le retrait de l'ancien, au catalogue seulement. Brique
+   `services/succession.py`, appelée par les DEUX branches quand une mise à jour s'installe
+   (`supersede_after_install`, une seule ligne atteinte — plusieurs, on ne devine pas) :
+   - les endroits qui nomment un modèle se DÉRIVENT des déclarations (`model_reference_fields`) :
+     les réglages « catalogue » de tous les schémas de l'app (`declared_param_schemas`) qui sont
+     des colonnes du modèle d'élément (`DetailRegistry`), les réglages mémorisés
+     (`UserAppSetting`), les réglages de lot (`BatchSettings`) ; une valeur garde sa forme
+     (identifiant nu ou clé). Une colonne d'HISTOIRE (`used_backend`) ne change pas ;
+   - l'ancien sort des choix par la même ligne écartée, origine `superseded` + `superseded_by`
+     (badge « remplacé par … ») ; ses poids RESTENT (retour possible, désinstallation en un clic) ;
+   - `manage.py supersede_model <ancien> <nouveau> [--apply]` pour une succession constatée après
+     coup (à blanc par défaut). Joué sur olmOCR v1 → olmOCR-2 : 0 card, 0 réglage, 0 lot à
+     basculer (mesuré), la v1 retirée des choix — le select et l'« auto » du reader ne la
+     proposent plus.
+   ⏳ Non couverts : les graphes du Studio (un nœud qui nomme un modèle), et une valeur écrite
+   APRÈS la succession par une surface qui ne normalise pas (l'assistant qui nommerait l'ancienne
+   clé) — le reader la normalise (`RETIRED_IDS`), pas toutes les apps. Tests : `tests_succession`.
+4. ✅ **olmOCR v1 retiré du code** (`REMOVAL_LEDGER` R190) : déclaration `READER_MODELS['olmocr']`,
+   dossier `MODEL_PATHS['ocr']['olmocr']`, `DEFAULT_MODEL`/`get_model_info` morts du reader, entrée
+   `olmocr` et repli sur la déclaration du backend (`olmocr_backend._weights` exige désormais la
+   ligne confiée). ⚠ Corrigé le même jour : olmOCR-2 ne GRISE pas « mode » et « langue » — sa
+   ligne, installée par la route, ne déclare pas `params`, et l'UI ne grise jamais sur une
+   absence ; ⏳ faire remonter au catalogue ce que le backend sait de sa lecture.

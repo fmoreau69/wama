@@ -60,14 +60,16 @@ PARAMS = derive_from_model(
             help_source="reader",
             help_fallback={
                 "auto": "Choisit automatiquement le meilleur moteur disponible selon le document et le GPU.",
-                "reader:olmocr": "olmOCR 7B v1 « preview » (février 2025) — OCR vision (mise en page, tableaux, manuscrit). ~16 Go VRAM.",
+                "huggingface:allenai/olmOCR-2-7B-1025": "olmOCR-2 7B (Allen AI, octobre 2025) — OCR vision (mise en page, tableaux, équations, manuscrit). ~20 Go VRAM.",
                 "reader:doctr": "docTR — pipeline détection + reconnaissance, tourne sur CPU. Idéal documents imprimés simples.",
                 "ollama:glm-ocr:latest": "GLM-OCR 0.9B (via Ollama) — léger et rapide, bon compromis pour texte imprimé courant.",
             },
             stales=("read",),
         ),
-        # Mode et langue : les réglages que le MOTEUR lit — sa capacité `params` (olmOCR les deux,
-        # GLM-OCR la langue seule, docTR aucun ; `READER_MODELS[…]['params']` et `FAMILLES_OLLAMA`).
+        # Mode et langue : les réglages que le MOTEUR lit — sa capacité `params` (GLM-OCR la langue
+        # seule, docTR aucun ; `READER_MODELS[…]['params']` et `FAMILLES_OLLAMA`). ⚠ olmOCR-2 lit
+        # avec la consigne de son auteur et ignore les deux, mais sa ligne (installée par la route)
+        # ne déclare pas `params` : rien ne les grise — on ne grise pas sur une absence (⏳ R190).
         # Un moteur qui ne les lit pas les GRISE, raison dite (`cap_from` « reads », 2026-10-13).
         # Ce grisage était câblé à la main dans `reader.js` (`wireEngineParams`, 29/09) et ne
         # grisait plus rien depuis les clés entières du 07/10 (`'reader:' + 'reader:olmocr'`).

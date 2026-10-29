@@ -25,8 +25,8 @@ class EngineParamsTest(SimpleTestCase):
     def test_the_measured_reading_of_each_backend(self):
         """Ce que les backends lisent, mesuré le 2026-09-29 : le changer exige de relire le
         backend concerné, pas de retoucher cette liste pour faire passer le test."""
-        self.assertEqual({'olmocr': ['mode', 'language'], 'doctr': []},
-                         {k: c['params'] for k, c in READER_MODELS.items()})
+        # olmOCR v1 (mode et langue) a quitté la déclaration le 2026-10-29 (R190).
+        self.assertEqual({'doctr': []}, {k: c['params'] for k, c in READER_MODELS.items()})
 
     def test_glm_ocr_states_its_reading_under_the_source_that_serves_it(self):
         """GLM-OCR left `READER_MODELS` on 2026-10-07 (its row lives under `ollama:`, the
@@ -39,7 +39,12 @@ class EngineParamsTest(SimpleTestCase):
     def test_every_setting_an_engine_may_read_is_bound_to_that_reading(self):
         """The schema declares the binding (`cap_from` « reads » on the engine select), for every
         setting that SOME engine lists — the panel, the item and the batch modals follow alone."""
+        # The engines that list a setting now live under their own source (GLM-OCR and the OCR
+        # families served by Ollama): their declaration counts as much as the reader's own.
+        from wama.model_manager.services.model_registry import FAMILLES_OLLAMA
         listed = {name for config in READER_MODELS.values() for name in config['params']}
+        listed |= {name for family in FAMILLES_OLLAMA.values() if family.get('task') == 'ocr'
+                   for name in family.get('params') or ()}
         self.assertTrue(listed, 'vacuous: no engine lists a setting')
         by_name = {p['name']: p for p in PARAMS_JSON}
         for name in listed:

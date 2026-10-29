@@ -643,11 +643,16 @@ MECHANISMS = (
               "résolution déplacerait le venv, 2026-10-01 ; pendant backend : `PIP_NO_DEPS`) ; "
               "voie VENDOR pour un dépôt épinglé au commit. AUCUNE DÉRIVE (`AGENTS.md`, "
               "2026-10-16) : rien ne télécharge un poids ni ne lance pip à côté — contrôle "
-              "`tests_install_route`, budget des dérives existantes qui ne peut que descendre",
+              "`tests_install_route`, budget des dérives existantes qui ne peut que descendre. "
+              "Les options d'installation disent ce qui TOURNE ici et la recommandation (la plus "
+              "précise qui tient sur la carte), pour la page et l'assistant ; une désinstallation "
+              "retire des choix des apps (option cochée), une MISE À JOUR installée succède à "
+              "l'ancienne version partout où elle était choisie (`succession.py`, 2026-10-29)",
               'wama/model_manager/services/model_installer.py', '',
               # Route `library` (install_library) : voie pip ici, voie VENDOR (dépôt épinglé au
               # commit + correctif, ROADMAP D-a, 2026-09-30) dans son exécuteur délégué.
               annexes=('wama/model_manager/services/vendor_installer.py',
+                       'wama/model_manager/services/succession.py',
                        'wama/common/tests/tests_install_route.py')),
     Mechanism('install_history', 'Journal des installations',
               "Date chaque installation et désinstallation (modèle, librairie) avec son issue et "

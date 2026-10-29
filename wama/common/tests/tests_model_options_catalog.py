@@ -94,7 +94,9 @@ class DomainesDeclaresParLesAppsTest(TestCase):
     """Pour chaque app portée : le domaine du schéma rend les valeurs que l'app STOCKE."""
 
     def setUp(self):
-        _modele('reader:olmocr', 'olmOCR-2 7B', model_type='ocr', task='ocr', vram=14)
+        # olmOCR v1 (`reader:olmocr`) retiré le 2026-10-29 (R190) : olmOCR-2 vit sous le Hub.
+        _modele('huggingface:allenai/olmOCR-2-7B-1025', 'olmOCR-2 7B', model_type='ocr',
+                task='ocr', vram=20)
         _modele('reader:doctr', 'docTR', model_type='ocr', task='ocr', vram=1)
         # GLM-OCR vit sous la source qui le SERT (2026-10-07) : `reader:glm-ocr` était un doublon.
         _modele('ollama:glm-ocr:latest', 'GLM-OCR', model_type='ocr', task='ocr', vram=2.2)
@@ -115,11 +117,13 @@ class DomainesDeclaresParLesAppsTest(TestCase):
         champ = _champ('reader', 'backend')
         self.assertEqual(champ.get('options_source'), 'catalog')
         self.assertEqual(self._options(champ),
-                         ['ollama:glm-ocr:latest', 'reader:doctr', 'reader:olmocr'])
+                         ['huggingface:allenai/olmOCR-2-7B-1025', 'ollama:glm-ocr:latest',
+                          'reader:doctr'])
 
     def test_what_the_reader_column_stores_is_one_of_its_options(self):
-        """`ReadingItem.save` normalises every writer — a bare id of before, and the RETIRED id
-        whose model now lives under Ollama — into the key space the select offers."""
+        """`ReadingItem.save` normalises every writer — a bare id of before, and the RETIRED ids
+        whose model now lives under Ollama or was succeeded (olmOCR v1 → olmOCR-2, R190) — into
+        the key space the select offers."""
         from django.contrib.auth import get_user_model
         from wama.reader.models import ReadingItem
         user = get_user_model().objects.create_user('reader_keys', password='x')

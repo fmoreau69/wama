@@ -326,17 +326,22 @@ def uninstalled_q():
     return models.Q(is_downloaded=False, extra_info__has_key='uninstalled_at')
 
 
-#: Origine d'une `exclusion` posée par la DÉSINSTALLATION (2026-10-29, décision de Fabien) — voir
-#: `model_installer.withdraw_from_choices`, qui la pose, et `restore_withdrawn`, qui la lève.
+#: Origines d'une `exclusion` que WAMA pose lui-même (2026-10-29, décisions de Fabien) — voir
+#: `model_installer.withdraw_from_choices`, qui la pose, et `restore_withdrawn`, qui la lève :
+#: la DÉSINSTALLATION (option cochée par défaut) et la SUCCESSION (une nouvelle version installée
+#: remplace l'ancienne partout, `services/succession.py` ; l'exclusion nomme `superseded_by`).
 WITHDRAWN_BY_UNINSTALL = 'uninstall'
+WITHDRAWN_SUPERSEDED = 'superseded'
+WITHDRAWN_ORIGINS = (WITHDRAWN_BY_UNINSTALL, WITHDRAWN_SUPERSEDED)
 
 
 def withdrawn_q():
-    """Le filtre (`Q`) des lignes RETIRÉES DES CHOIX des applications par leur désinstallation :
-    hors des listes et du tirage (`is_available=False`, comme une ligne écartée), mais gardées
-    dans le catalogue du model manager — c'est de là qu'on les réinstalle, ce qui les rend aux
-    choix. Une ligne écartée par un HUMAIN n'en est pas une : son exclusion n'a pas cette origine."""
-    return models.Q(is_available=False, extra_info__exclusion__by=WITHDRAWN_BY_UNINSTALL)
+    """Le filtre (`Q`) des lignes RETIRÉES DES CHOIX des applications par WAMA (désinstallation,
+    succession) : hors des listes et du tirage (`is_available=False`, comme une ligne écartée),
+    mais gardées dans le catalogue du model manager — c'est de là qu'on les réinstalle, ce qui les
+    rend aux choix. Une ligne écartée par un HUMAIN n'en est pas une : son exclusion n'a pas
+    d'origine de WAMA."""
+    return models.Q(is_available=False, extra_info__exclusion__by__in=WITHDRAWN_ORIGINS)
 
 
 # NOTRE tâche → MODALITÉS et ENTRÉES par défaut (vocabulaire de `INPUT_TYPES`, `app_modes.py`).

@@ -2668,11 +2668,11 @@ class ModelRegistry:
         )
 
     def _discover_reader_models(self):
-        """Discover Reader app OCR models (olmOCR-2 + docTR)."""
+        """Discover Reader app OCR models (docTR — olmOCR v1 retired on 2026-10-29, R190)."""
         try:
-            from wama.reader.utils.model_config import READER_MODELS, OLMOCR_DIR, DOCTR_DIR
+            from wama.reader.utils.model_config import READER_MODELS, DOCTR_DIR
 
-            cache_dirs = {'olmocr': OLMOCR_DIR, 'doctr': DOCTR_DIR}
+            cache_dirs = {'doctr': DOCTR_DIR}
 
             for model_id, config in READER_MODELS.items():
                 platform_ref = config.get('platform_ref') or ''

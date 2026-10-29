@@ -1552,10 +1552,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     : (m.is_downloaded ? '<span class="badge bg-success">téléchargé</span>'
                         : '<span class="badge bg-secondary">non téléchargé</span>')),
                 m.is_available ? '<span class="badge bg-success-subtle text-success border border-success">disponible</span>'
+                    : (((m.extra_info || {}).exclusion || {}).by === 'superseded'
+                        ? '<span class="badge bg-warning-subtle text-warning border border-warning" '
+                          + 'title="Une nouvelle version l\'a remplacé partout où il était choisi ; ses poids restent jusqu\'à sa désinstallation">'
+                          + 'remplacé par ' + WamaApp.escapeHtml(m.extra_info.exclusion.superseded_by || '') + '</span>'
                     : (((m.extra_info || {}).exclusion || {}).by === 'uninstall'
                         ? '<span class="badge bg-warning-subtle text-warning border border-warning" '
                           + 'title="Désinstallé et retiré des choix des applications ; la réinstallation l\'y rend">retiré des choix</span>'
-                        : '<span class="badge bg-warning-subtle text-warning border border-warning">indisponible</span>'),
+                        : '<span class="badge bg-warning-subtle text-warning border border-warning">indisponible</span>')),
             ];
         } },
         { description: function (m) { return m.description || m.description_short || ''; } },

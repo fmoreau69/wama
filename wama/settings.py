@@ -169,10 +169,11 @@ MODEL_PATHS = {
         'blip': AI_MODELS_DIR / "models" / "vlm" / "blip",
         'bart': AI_MODELS_DIR / "models" / "vlm" / "bart",
     },
-    # OCR — modèles OCR/document (olmOCR, docTR). Dossier = catégorie (ex-'reader' = nom d'app).
+    # OCR — modèles OCR/document (docTR). Dossier = catégorie (ex-'reader' = nom d'app). Les
+    # modèles installés par la route (olmOCR-2…) se rangent sous `root` par famille ; le dossier
+    # d'olmOCR v1, retiré le 2026-10-29 (R190), n'a plus d'entrée.
     'ocr': {
         'root':    AI_MODELS_DIR / "models" / "ocr",
-        'olmocr':  AI_MODELS_DIR / "models" / "ocr" / "olmocr",
         'doctr':   AI_MODELS_DIR / "models" / "ocr" / "doctr",
     },
     # Music generation models (AudioCraft: MusicGen + AudioGen)

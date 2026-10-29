@@ -6,7 +6,7 @@ the route from its successor proposal ; the backend reads it the way its author 
   * the row it is handed decides the repository and the weights folder (`catalogue_key`) ;
   * the page at 1288 px on its longest side, the toolkit's v4 instruction, the instruction first ;
   * the YAML header of the answer is removed — the OCR contract returns the text READ ;
-  * the v1 line keeps its former behaviour until it is retired.
+  * the v1 line is retired (R190): with no handed row, there is nothing to load.
 """
 from unittest import mock
 
@@ -97,11 +97,13 @@ class EachModelIsReadItsWayTest(TestCase):
                                              seen['generate']['temperature'],
                                              seen['generate']['max_new_tokens']))
 
-    def test_the_v1_line_keeps_its_former_reading(self):
-        """Counter-test: `reader:olmocr` (v1, until retired) keeps the reader's instruction,
-        its image untouched and greedy decoding."""
-        engine = self._engine('reader:olmocr')
-        self.assertEqual({}, engine._served())
+    def test_without_a_handed_row_there_is_nothing_to_load(self):
+        """v1 retired (R190): its declaration was the fallback of a backend handed no row."""
+        self.assertNotIn('olmocr', ob.OlmOCRBackend.SUPPORTED_MODELS)
+        for key in ('', 'reader:olmocr'):
+            with self.subTest(key=key), self.assertRaises(ValueError):
+                self._engine(key)._weights()
+        self.assertEqual({}, self._engine('reader:olmocr')._served())
 
 
 class _Inputs(dict):
