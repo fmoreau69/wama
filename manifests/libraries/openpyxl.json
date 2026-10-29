@@ -1,0 +1,32 @@
+{
+  "body": {
+    "constraints": {},
+    "dependencies": [
+      "et-xmlfile"
+    ],
+    "entry_points": {},
+    "identity": {
+      "author": "Eric Gazoni, Charlie Clark",
+      "license": "MIT",
+      "repository": "https://foss.heptapod.net/openpyxl/openpyxl",
+      "summary": "A Python library to read/write Excel 2010 xlsx/xlsm files",
+      "version": "3.1.5"
+    },
+    "install": {
+      "pip": "openpyxl==3.1.5",
+      "requires_python": ">=3.8"
+    }
+  },
+  "description": "Lecture des tableurs `.xlsx` par WAMA Data (`wama_data/sources/tabular.py`, lecteur de tables : un format qu'il ne peut honorer est DÉCLINÉ, `tests_sources`) et par les nœuds de fonctions du Studio. Présent dans venv_win HORS route, ABSENT de venv_linux (le venv de référence) jusqu'au 2026-10-29 : les `.xlsx` y étaient refusés et deux tests tombaient en erreur (`wama_data.tests_frames`, `studio.tests_function_nodes`). Une seule dépendance, `et-xmlfile` (pur Python).",
+  "key": "openpyxl",
+  "manifest_kind": "library",
+  "name": "openpyxl",
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "pypi:openpyxl==3.1.5",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "transverse"
+}
