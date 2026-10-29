@@ -48,7 +48,7 @@
  *         emit(name, payload),     // `resize`, `layout` (`{frozen}`)
  *     });
  *     layout.build();              // pose les cadres, monte les briques, épingle
- *     layout.frozen(); layout.setFrozen(on); layout.reset(); layout.help;
+ *     layout.frozen(); layout.setFrozen(on); layout.reset();
  *     layout.setShown(id, on);     // le contenu d'une brique s'est retiré / est revenu
  */
 (function (global) {
@@ -696,12 +696,8 @@
             });
             slots.forEach(function (slot) { mountBrick(frames[slot.id]); });
         }
-        // Les gestes de la disposition, tels que l'utilisateur les fait : le bandeau de la
-        // disposition modifiable et l'aide de la page les montrent (`wama-page-controls.js`).
-        var LAYOUT_HELP = 'Glissez un panneau par son titre pour le déplacer — vers un bord de la '
-            + 'fenêtre pour l’y épingler, sur un autre panneau pour les réunir en un seul (calques) — '
-            + 'et retaillez-le par son coin. L’épingle de son titre garde aussi un panneau au bord '
-            + '(haut, bas, gauche, droite) ou l’ouvre dans une autre fenêtre, même figée.';
+        // Les GESTES de la disposition, montrés par la barre de page, vivent au serveur depuis le
+        // 2026-10-29 (`surfaces.LAYOUT_HELP`) : l'assistant les dit aussi.
 
         function clearDock(el) {
             el.classList.remove('is-docked', 'is-fit');
@@ -1357,8 +1353,6 @@
             setFrozen: setFrozen,
             /** « Disposition par défaut » : celle que la page déclare (l'épinglage reste). */
             reset: resetLayout,
-            /** Les gestes de disposition, pour l'aide de la page. */
-            help: LAYOUT_HELP,
             /** Le contenu de la brique `id` s'est retiré ou est revenu : son panneau suit. */
             setShown: setShown,
             /** Le panneau `key` dans une autre fenêtre (geste de l'utilisateur), puis de retour. */

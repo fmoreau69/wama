@@ -28,8 +28,8 @@
         body.classList.add('wama-brick-actions');
         body.innerHTML =
             '<div class="wama-actions-row">' +
-            '  <button type="button" class="btn btn-sm btn-outline-secondary wama-undo" title="Annuler (Ctrl+Z)"><i class="fas fa-rotate-left"></i></button>' +
-            '  <button type="button" class="btn btn-sm btn-outline-secondary wama-redo" title="Rétablir (Ctrl+Maj+Z)"><i class="fas fa-rotate-right"></i></button>' +
+            '  <button type="button" class="btn btn-sm btn-outline-secondary wama-undo" title="Annuler"><i class="fas fa-rotate-left"></i></button>' +
+            '  <button type="button" class="btn btn-sm btn-outline-secondary wama-redo" title="Rétablir"><i class="fas fa-rotate-right"></i></button>' +
             '  <button type="button" class="btn btn-sm btn-outline-primary" data-act="save" title="Enregistrer les corrections"><i class="fas fa-floppy-disk"></i> Enregistrer</button>' +
             '</div>' +
             (reruns ? '<button type="button" class="btn btn-sm btn-success w-100" data-act="apply" title="Enregistrer puis relancer « ' + reruns + ' »"><i class="fas fa-play"></i> Appliquer</button>' : '') +

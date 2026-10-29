@@ -38,12 +38,14 @@
 
         // ── Outils (dans le titre de la brique) ───────────────────────────────────────────
         var tools = document.createElement('div');
-        tools.className = 'wama-brick-tools';
+        // Une classe à eux : posés dans le TITRE du panneau, hors du corps de la brique, ils sont
+        // la cible de leurs touches au registre (`Shortcut.targets`).
+        tools.className = 'wama-brick-tools wama-image-tools';
         tools.innerHTML =
-            '<button type="button" class="btn btn-xs" data-tool="select" title="Sélection (Échap)"><i class="fas fa-arrow-pointer"></i></button>' +
-            '<button type="button" class="btn btn-xs" data-tool="add" title="Ajouter une zone (N)"><i class="fas fa-vector-square"></i></button>' +
+            '<button type="button" class="btn btn-xs" data-tool="select" title="Sélection"><i class="fas fa-arrow-pointer"></i></button>' +
+            '<button type="button" class="btn btn-xs" data-tool="add" title="Ajouter une zone"><i class="fas fa-vector-square"></i></button>' +
             '<select class="form-select form-select-sm wama-brick-class" title="Classe des zones ajoutées"></select>' +
-            '<button type="button" class="btn btn-xs" data-act="fit" title="Image entière (F)"><i class="fas fa-expand"></i></button>' +
+            '<button type="button" class="btn btn-xs" data-act="fit" title="Image entière"><i class="fas fa-expand"></i></button>' +
             '<span class="wama-brick-zoom"></span>';
         var classSelect = tools.querySelector('select');
         var zoomLabel = tools.querySelector('.wama-brick-zoom');

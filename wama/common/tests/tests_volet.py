@@ -840,9 +840,86 @@ class PageControlsTest(TestCase):
         self.assertIn("WamaPageControls.openHelp('keys')", actions)
         self.assertIn("global.WamaKeys.register({ owner: 'page_controls', scope: 'page'", controls)
         self.assertIn("if (e.key !== '?'", controls)
-        # Les gestes de disposition sont lus de la disposition commune, jamais réécrits ici.
-        self.assertIn('call(layoutProvider.help)', controls)
+        # Les gestes de disposition sont lus du SERVEUR (`surfaces.LAYOUT_HELP`), jamais réécrits.
+        self.assertIn('config.layout_help', controls)
         self.assertNotIn('Glissez un panneau', controls)
+
+    def test_the_layout_texts_live_on_the_server_once(self):
+        """Les gestes et la phrase du cadenas : une source (`surfaces`), servie à la page et lue par
+        l'assistant — le JS de la disposition ne les porte plus."""
+        from wama.common.surfaces import LAYOUT_CONTROLS, LAYOUT_HELP
+        from wama.common.utils.volet import page_controls_config
+        config = page_controls_config()
+        self.assertEqual((LAYOUT_HELP, LAYOUT_CONTROLS), (config['layout_help'], config['layout_controls']))
+        for rel in ('common/js/wama-brick-layout.js', 'common/js/wama-page-controls.js',
+                    'common/js/wama-panel-layout.js', 'common/js/surfaces/wama-surface.js'):
+            code = self._js(rel)
+            self.assertNotIn('Glissez un panneau', code, rel)
+            self.assertNotIn('layout.help', code, rel)
+
+    def test_the_first_visit_hint_is_shown_once_per_account(self):
+        from django.test import RequestFactory
+        from django.urls import reverse
+
+        from wama.common.utils.user_settings import clear_user_app_settings
+        from wama.common.utils.volet import HINT_APP, HINT_SETTING, page_controls_config
+        clear_user_app_settings(self.account, HINT_APP, [HINT_SETTING])
+        request = RequestFactory().get('/')
+        request.user = self.account
+        self.assertEqual({'seen': False, 'url': reverse('common:page_hint')},
+                         page_controls_config(request)['hint'])
+        self.client.force_login(self.account)
+        self.assertEqual(200, self.client.post(reverse('common:page_hint')).status_code)
+        self.assertTrue(page_controls_config(request)['hint']['seen'])
+        self.assertNotIn('hint', page_controls_config(), 'sans compte, pas de bulle')
+        controls = self._js('common/js/wama-page-controls.js')
+        self.assertIn('if (hinted || !hintCfg || hintCfg.seen || !layoutProvider || isOpen()) return;', controls)
+
+    def test_a_button_says_its_key_from_the_registry_not_from_its_brick(self):
+        """L'infobulle d'un bouton qu'une touche actionne dit la touche du REGISTRE
+        (`Shortcut.targets`) ; les briques ne l'écrivent plus à la main."""
+        import re
+
+        from wama.common.surfaces import BRICKS
+        targets = {(b.key, t['selector'], t['label']) for b in BRICKS.values() for s in b.shortcuts
+                   for t in s.to_dict()['targets']}
+        self.assertIn(('media_transport', '[data-transport="play"]', 'Espace'), targets)
+        self.assertIn(('image_boxes', '.wama-image-tools [data-tool="add"]', 'N'), targets)
+        for _brick, selector, _label in targets:
+            # Le sélecteur nomme un attribut ou une classe que le code de la page pose vraiment.
+            marks = re.findall(r'data-[\w-]+="([\w-]+)"|\.([\w-]+)', selector)
+            self.assertTrue(marks, selector)
+        # Toute CHAÎNE du code (une infobulle passe aussi en argument : `button('play', …, titre)`),
+        # commentaires exclus (`mecanismes_scan.code_only`).
+        from wama.common.services.mecanismes_scan import code_only
+        hand_written = re.compile(r"['\"`][^'\"`\n]*(\(Échap\)|\(Espace\)|\(Ctrl\+|Alt\+L|\(←\)|\(→\)"
+                                  r"|\(N\)|\(F\)|\(C\)|\(Début\))")
+        for rel in ('common/js/surfaces/brick-image-boxes.js', 'common/js/surfaces/brick-surface-actions.js',
+                    'common/js/surfaces/brick-segment-list.js', 'common/js/wama-transport.js',
+                    'common/js/wama-timeline.js', 'common/js/media-preview.js'):
+            found = hand_written.search(code_only(rel, self._js(rel)))
+            self.assertIsNone(found, f'{rel} : une touche écrite à la main ({found and found.group(0)})')
+        controls = self._js('common/js/wama-page-controls.js')
+        self.assertIn("document.addEventListener('pointerover', annotate, true);", controls)
+
+    def test_the_assistant_describes_a_page_and_resets_its_layout(self):
+        from wama.common.utils.user_settings import get_user_app_setting, save_user_app_settings
+        from wama.common.utils.volet import LAYOUT_SETTING
+        from wama.tool_api import TOOL_REGISTRY, get_page_interface, reset_page_layout
+        self.assertIs(TOOL_REGISTRY['get_page_interface'], get_page_interface)
+        found = get_page_interface(self.account, 'transcriber')
+        keys = {b['key']: b for b in found['bricks']}
+        self.assertTrue({'queue', 'toolbar', 'inspector_panel', 'media_viewer'} <= set(keys))
+        self.assertIn('Ctrl+A', [s['keys'] for s in keys['queue']['shortcuts']])
+        self.assertIn('Glissez un panneau', found['gestures'])
+        surface = get_page_interface(self.account, 'transcriber.correct')
+        self.assertEqual('surface', surface['kind'])
+        self.assertIn('media_transport', [b['key'] for b in surface['bricks']])
+        self.assertIn('error', get_page_interface(self.account, 'pas une page !'))
+        save_user_app_settings(self.account, 'transcriber', {LAYOUT_SETTING: {'frozen': False}})
+        self.assertIn('message', reset_page_layout(self.account, 'transcriber'))
+        self.assertIsNone(get_user_app_setting(self.account, 'transcriber', LAYOUT_SETTING))
+        self.assertIn('error', reset_page_layout(self.account, 'pas une page !'))
 
     def test_the_served_copies_match_the_sources(self):
         from pathlib import Path

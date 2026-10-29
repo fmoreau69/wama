@@ -57,11 +57,11 @@
 
         // ── La rangée de commandes ──────────────────────────────────────────────────────────
         var bar = el('div', 'wama-transport-bar');
-        var toStart = button('start', 'fa-backward-step', 'Début (Début)');
+        var toStart = button('start', 'fa-backward-step', 'Début');
         var back = button('skip-back', o.speed === 'steps' ? 'fa-backward' : 'fa-rotate-left',
-                          'Reculer ' + jump + ' s (←)', o.speed === 'steps' ? jump + 's' : '');
-        var play = button('play', 'fa-play', 'Lecture / pause (Espace)');
-        var fwd = button('skip-fwd', '', 'Avancer ' + jump + ' s (→)',
+                          'Reculer ' + jump + ' s', o.speed === 'steps' ? jump + 's' : '');
+        var play = button('play', 'fa-play', 'Lecture / pause');
+        var fwd = button('skip-fwd', '', 'Avancer ' + jump + ' s',
                          o.speed === 'steps' ? jump + 's <i class="fas fa-forward"></i>' : '<i class="fas fa-rotate-right"></i>');
         var clock = el('span', 'wama-transport-clock', { 'data-transport': 'clock' });
         [toStart, back, play, fwd].forEach(function (b) { bar.appendChild(b); });

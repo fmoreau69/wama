@@ -90,7 +90,7 @@
         var toolBtn = null;
         if (o.boundaries) {
             toolBtn = button('boundaries', 'fa-scissors',
-                'Outil Bornes (C) — glisser une borne pour la déplacer · cliquer dans une section pour la couper · Échap pour sortir',
+                'Outil Bornes — glisser une borne pour la déplacer · cliquer dans une section pour la couper',
                 'Bornes');
             toolBtn.setAttribute('aria-pressed', 'false');
             toolBtn.classList.add('ms-2');

@@ -224,14 +224,20 @@ def layout_config(request) -> dict | None:
             'max_rows': MAX_LAYOUT_ROWS, 'dock_edges': list(DOCK_EDGES)}
 
 
-def page_controls_config() -> dict:
+#: La bulle du premier passage des contrôles de page : montrée UNE fois par compte, gardée au
+#: serveur (réglage utilisateur, sous la clé `common`).
+HINT_APP = 'common'
+HINT_SETTING = 'page_controls_hint_seen'
+
+
+def page_controls_config(request=None) -> dict:
     """Ce que les CONTRÔLES DE PAGE lisent (`wama-page-controls.js`, `base.html`, 2026-10-29) : les
     raccourcis des briques de PAGE, lus au registre (`UIBrick.shortcuts`), chacune avec ce qui dit
     qu'elle est sur la page (`present`) — `always` pour une brique que la page de base charge
     (son montage est un script), sinon un sélecteur dérivé de ce qui la déclare : la marque d'une
     brique du centre (`data-wama-brick`), l'élément d'une section du volet qui la porte. Une brique
     de page à raccourcis sans l'un ni l'autre n'est pas listée (garde : `PageControlsTest`)."""
-    from wama.common.surfaces import BRICKS
+    from wama.common.surfaces import BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP
     selectors = {}
     for slot in PANEL_SLOTS:
         if slot.brick:
@@ -246,7 +252,71 @@ def page_controls_config() -> dict:
         if present:
             groups.append({'brick': brick.key, 'title': brick.name, 'present': present,
                            'items': [s.to_dict() for s in brick.shortcuts]})
-    return {'shortcuts': groups}
+    config = {'shortcuts': groups, 'layout_help': LAYOUT_HELP, 'layout_controls': LAYOUT_CONTROLS}
+    # La bulle du premier passage : pour un compte qui ne l'a jamais vue.
+    user = getattr(request, 'user', None)
+    if user is not None and user.is_authenticated:
+        from django.urls import reverse
+
+        from wama.common.utils.user_settings import get_user_app_setting
+        config['hint'] = {'seen': bool(get_user_app_setting(user, HINT_APP, HINT_SETTING)),
+                          'url': reverse('common:page_hint')}
+    return config
+
+
+def _brick_entry(brick) -> dict:
+    """Une brique telle que l'assistant la présente : son nom, ce qu'elle fait, ses raccourcis."""
+    return {'key': brick.key, 'name': brick.name, 'description': brick.description,
+            'shortcuts': [{'keys': s.label, 'action': s.action, 'where': s.to_dict()['where']}
+                          for s in brick.shortcuts]}
+
+
+def page_interface(page: str) -> dict | None:
+    """L'INTERFACE d'une page, telle que l'assistant la dit (`tool_api.get_page_interface`,
+    2026-10-29) : ses briques — nom, rôle, raccourcis, lus au registre — et comment on la
+    réorganise (`surfaces.LAYOUT_CONTROLS`, `LAYOUT_HELP` : les textes que la page montre). `page` :
+    la clé d'une page (`page_key` — l'app, ou `common`) ou celle d'une surface (`<app>.<clé>`).
+    None si rien ne la nomme. Les briques d'une page d'APP : celles du centre, les sections du
+    volet qui en portent une et la visionneuse ; d'une autre page : le volet et la visionneuse."""
+    from wama.common.app_registry import APP_CATALOG, app_identity
+    from wama.common.surfaces import BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP, SURFACES, load_all
+    page = (page or '').strip()
+    if '.' in page:
+        load_all()
+        surface = SURFACES.get(page)
+        if surface is None:
+            return None
+        keys, kind, label = [slot.brick for slot in surface.slots], 'surface', surface.label
+    elif PAGE_KEY.match(page):
+        keys = ([kind for kind, _h, _fit in CENTRE_BRICKS] if page in APP_CATALOG else [])
+        keys += [slot.brick for slot in PANEL_SLOTS if slot.brick] + ['media_viewer']
+        kind, label = 'page', app_identity(page).get('label') or page
+    else:
+        return None
+    return {'page': page, 'kind': kind, 'label': label,
+            'bricks': [_brick_entry(BRICKS[k]) for k in dict.fromkeys(keys) if k in BRICKS],
+            'layout': LAYOUT_CONTROLS, 'gestures': LAYOUT_HELP}
+
+
+def reset_layout(user, page: str) -> bool:
+    """Remet la disposition de la page `page` (ou de la surface `<app>.<clé>`) à celle qu'elle
+    déclare, pour `user` : sa préférence est RETIRÉE (`clear_user_app_settings`), comme
+    « Disposition par défaut ». False si rien ne nomme cette page."""
+    from wama.common.surface_views import _layout_setting
+    from wama.common.surfaces import SURFACES, load_all
+    from wama.common.utils.user_settings import clear_user_app_settings
+    page = (page or '').strip()
+    if '.' in page:
+        load_all()
+        surface = SURFACES.get(page)
+        if surface is None:
+            return False
+        clear_user_app_settings(user, surface.app, [_layout_setting(surface)])
+        return True
+    if not PAGE_KEY.match(page):
+        return False
+    clear_user_app_settings(user, page, [LAYOUT_SETTING])
+    return True
 
 
 #: Défaut HISTORIQUE — les trois sections, aucun bloc de tête. C'est ce que rend une page qui

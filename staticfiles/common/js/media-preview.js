@@ -2002,7 +2002,7 @@
                         <div class="wama-viewer-actions">
                             <a class="wama-viewer-icon wama-preview-open" href="#" target="_blank" rel="noopener" title="Ouvrir dans un nouvel onglet" hidden><i class="fas fa-arrow-up-right-from-square"></i></a>
                             <button type="button" class="wama-viewer-icon wama-preview-full-toggle" title="Plein écran"><i class="fas fa-expand"></i></button>
-                            <button type="button" class="wama-viewer-icon" data-bs-dismiss="modal" aria-label="Fermer" title="Fermer (Échap)"><i class="fas fa-xmark"></i></button>
+                            <button type="button" class="wama-viewer-icon" data-bs-dismiss="modal" aria-label="Fermer" title="Fermer"><i class="fas fa-xmark"></i></button>
                         </div>
                     </div>
                     <!-- Emplacement DÉDIÉ des bascules (faces en onglets, vues) — AU-DESSUS de
@@ -2011,8 +2011,8 @@
                     <div class="${SLOT_CLASS}" style="${SLOT_STYLE}"></div>
                     <div class="modal-body">
                         <!-- Boutons nav FRÈRES du container (pas dedans) — évite tout conflit z-index/flex -->
-                        <button class="wama-preview-nav-btn wama-preview-nav-prev" style="display:none;" title="Précédent (←) — card précédente (↑)">${_SVG_PREV}</button>
-                        <button class="wama-preview-nav-btn wama-preview-nav-next" style="display:none;" title="Suivant (→) — card suivante (↓)">${_SVG_NEXT}</button>
+                        <button class="wama-preview-nav-btn wama-preview-nav-prev" style="display:none;" title="Précédent">${_SVG_PREV}</button>
+                        <button class="wama-preview-nav-btn wama-preview-nav-next" style="display:none;" title="Suivant">${_SVG_NEXT}</button>
                         <div class="preview-container"></div>
                     </div>
                     <div class="modal-footer">
@@ -2088,9 +2088,9 @@
         };
 
         overlay.innerHTML = `
-            <button class="fullscreen-close-btn" title="Fermer (Échap)">${_SVG_CLOSE}</button>
-            <button class="wama-preview-nav-btn wama-preview-nav-prev" title="Précédent (←)">${_SVG_PREV}</button>
-            <button class="wama-preview-nav-btn wama-preview-nav-next" title="Suivant (→)">${_SVG_NEXT}</button>
+            <button class="fullscreen-close-btn" title="Fermer">${_SVG_CLOSE}</button>
+            <button class="wama-preview-nav-btn wama-preview-nav-prev" title="Précédent">${_SVG_PREV}</button>
+            <button class="wama-preview-nav-btn wama-preview-nav-next" title="Suivant">${_SVG_NEXT}</button>
             <img src="${escapeHtml(imageUrl)}" alt="${escapeHtml(imageName || 'Image')}" title="Cliquer pour basculer taille réelle / adapté">
             <div class="fullscreen-info">
                 <span class="filename">${escapeHtml(imageName || 'Image')}</span>

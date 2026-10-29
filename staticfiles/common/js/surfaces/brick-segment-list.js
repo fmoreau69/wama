@@ -314,8 +314,8 @@
             lockBtn.classList.toggle('btn-outline-emphasis', !followLock);
             lockBtn.setAttribute('aria-pressed', followLock ? 'true' : 'false');
             lockBtn.innerHTML = followLock ? '<i class="fas fa-lock"></i>' : '<i class="fas fa-lock-open"></i>';
-            lockBtn.title = followLock ? 'Suivi de lecture ACTIVÉ — clic ou Alt+L pour débrayer'
-                                       : 'Suivre la lecture (la liste suit l\'audio même en édition) — Alt+L';
+            lockBtn.title = followLock ? 'Suivi de lecture ACTIVÉ — clic pour débrayer'
+                                       : 'Suivre la lecture (la liste suit l\'audio même en édition)';
         }
         function toggleFollowLock() {
             followLock = !followLock;

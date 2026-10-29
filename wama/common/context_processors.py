@@ -31,7 +31,7 @@ def volet_defaut(request):
     # (2026-10-29) : une fonction aussi, lue par la page de base.
     return {'volet': VOLET_AUCUN if account_page_of(url_name) else VOLET_DEFAUT,
             'panel_layout': partial(layout_config, request),
-            'page_controls': page_controls_config}
+            'page_controls': partial(page_controls_config, request)}
 
 
 def unread_notifications(request):

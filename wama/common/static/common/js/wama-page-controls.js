@@ -9,9 +9,13 @@
  *     figer ; ouverte, un BANDEAU dit les gestes et porte « Disposition par défaut » et « Figer » ;
  *   • l'AIDE de la page (`#wamaPageHelpToggle`, et la touche `?`) : les raccourcis clavier des
  *     briques de CETTE page, lus au registre (`UIBrick.shortcuts`), la disposition et les gestes.
+ * Et pour qu'on le DÉCOUVRE sans le deviner : une BULLE au premier passage (une fois par compte,
+ * gardé au serveur) ; l'infobulle d'un bouton qu'une touche actionne dit cette touche, lue au
+ * registre (`Shortcut.targets`) — jamais écrite à la main dans la brique ; le texte des gestes est
+ * celui du serveur (`surfaces.LAYOUT_HELP`), que l'assistant dit aussi.
  *
  * Ce qu'une page apporte, elle le DÉCLARE ici (aucune liste écrite dans ce module) :
- *   WamaPageControls.offerLayout({subject, frozen(), setFrozen(on), reset(), help()});
+ *   WamaPageControls.offerLayout({subject, frozen(), setFrozen(on), reset()});
  *   WamaPageControls.layoutChanged();                 // la disposition a changé d'état
  *   WamaPageControls.addShortcuts(function () { return [{title, items}]; });
  *   WamaPageControls.addHelp(function () { return ['un geste', …]; });
@@ -110,7 +114,7 @@
             hint.setAttribute('aria-hidden', 'true');      // le même texte est dans l'aide de la page
             document.body.appendChild(hint);
         }
-        var text = call(layoutProvider.help) || '';
+        var text = config.layout_help || '';
         banner.title = text;
         banner.hidden = false;
         hint.textContent = text;
@@ -187,8 +191,7 @@
         layoutSection.hidden = !layoutProvider;
         if (layoutProvider) {
             modal.querySelector('.wama-help-layout').textContent =
-                'Le cadenas de l’en-tête rend la disposition modifiable, puis la fige de nouveau ; ' +
-                'elle est gardée pour votre compte. ' + (call(layoutProvider.help) || '');
+                (config.layout_controls || '') + ' ' + (config.layout_help || '');
             modal.querySelector('[data-page-layout="open"]').hidden = isOpen();
         }
         var gestures = [];
@@ -213,6 +216,94 @@
         if (target) target.scrollIntoView({ block: 'start' });
     }
 
+    // ── La BULLE du premier passage ──────────────────────────────────────────────────────────
+    /** Une fois par COMPTE (gardé au serveur, `common:page_hint`), sous le cadenas, sur une page
+     *  qui offre une disposition (décision de Fabien, 29/10 : « l'utilisateur ne va pas forcément
+     *  comprendre qu'il peut modifier l'interface »). Montrée vaut vue : elle ne revient pas, qu'on
+     *  clique ou non — une bulle qui revient à chaque page devient du bruit. */
+    var hinted = false;
+    function maybeHint() {
+        var hintCfg = config.hint;
+        if (hinted || !hintCfg || hintCfg.seen || !layoutProvider || isOpen()) return;
+        var lock = document.getElementById('wamaLayoutToggle');
+        if (!lock || !lock.offsetParent) return;          // barre de téléphone : pas de cadenas
+        hinted = true;
+        hintCfg.seen = true;
+        var bubble = document.createElement('div');
+        bubble.className = 'wama-page-hint';
+        bubble.setAttribute('role', 'dialog');
+        bubble.setAttribute('aria-label', 'Réorganiser cette page');
+        bubble.innerHTML =
+            '<p><b>Cette page se réorganise.</b> Le cadenas rend ses panneaux mobiles : ' +
+            'déplacez-les, empilez-les, épinglez-les au bord de la fenêtre. La touche <kbd>?</kbd> ' +
+            'liste ses raccourcis clavier.</p>' +
+            '<div class="wama-page-hint-actions">' +
+            '<button type="button" class="btn btn-sm btn-primary" data-hint="show">Me montrer</button>' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary" data-hint="ok">Compris</button></div>';
+        var r = lock.getBoundingClientRect();
+        bubble.style.left = Math.max(8, r.left + r.width / 2 - 22) + 'px';
+        bubble.style.top = (r.bottom + 10) + 'px';
+        // Elle ne gêne pas la page : son texte laisse passer le pointeur (seuls ses deux boutons le
+        // prennent), et elle s'en va au premier geste ailleurs — un clic, une frappe — ou d'elle-même.
+        // Posée au-dessus du haut de la page, elle masquait les outils qu'on venait utiliser (vu au
+        // scénario `common.image_keys`).
+        // La frappe passe par le clavier commun, en OBSERVATEUR (elle suit sans prendre la touche) :
+        // aucune écoute du clavier de toute la page hors du module (`PageKeyListenersTest`).
+        var offKeys = null;
+        function dismiss() {
+            bubble.remove();
+            document.removeEventListener('pointerdown', outside, true);
+            if (offKeys) { offKeys(); offKeys = null; }
+        }
+        function outside(ev) { if (!bubble.contains(ev.target)) dismiss(); }
+        bubble.addEventListener('click', function (ev) {
+            var b = ev.target.closest('[data-hint]');
+            if (!b) return;
+            dismiss();
+            if (b.dataset.hint === 'show') setFrozen(false);
+        });
+        document.addEventListener('pointerdown', outside, true);
+        if (global.WamaKeys) {
+            offKeys = global.WamaKeys.register({ owner: 'page_hint', observe: true, handle: dismiss });
+        }
+        setTimeout(dismiss, 15000);
+        document.body.appendChild(bubble);
+        var App = global.WamaApp;
+        if (App && App.csrfFetch) {
+            App.csrfFetch(hintCfg.url, App.csrfToken(), { method: 'POST' }).catch(function () {});
+        }
+    }
+
+    // ── Les touches dans les INFOBULLES ──────────────────────────────────────────────────────
+    /** Le bouton qu'une touche actionne le dit dans son infobulle, lue au registre
+     *  (`Shortcut.targets`, des briques de CETTE page) au moment où le pointeur ou le focus
+     *  l'atteint — les briques montées tard (une surface) comprises. Une infobulle que la brique
+     *  change elle-même reprend sa nouvelle base. */
+    function keyTargets() {
+        var out = [];
+        shortcutGroups().forEach(function (g) {
+            (g.items || []).forEach(function (s) { (s.targets || []).forEach(function (t) { out.push(t); }); });
+        });
+        return out;
+    }
+    function annotate(ev) {
+        var el = ev.target && ev.target.closest ? ev.target.closest('button, a, [role="button"]') : null;
+        if (!el) return;
+        var labels = [];
+        keyTargets().forEach(function (t) {
+            try { if (el.matches(t.selector) && labels.indexOf(t.label) < 0) labels.push(t.label); }
+            catch (e) { /* un sélecteur invalide ne casse pas la page */ }
+        });
+        if (!labels.length) return;
+        var current = el.getAttribute('title') || '';
+        var base = current === el.dataset.wamaKeysTitle ? (el.dataset.wamaTitle || '') : current;
+        el.dataset.wamaTitle = base;
+        el.title = (base ? base + ' ' : '') + '(' + labels.join(' · ') + ')';
+        el.dataset.wamaKeysTitle = el.title;
+    }
+    document.addEventListener('pointerover', annotate, true);
+    document.addEventListener('focusin', annotate, true);
+
     // ── Branchement ──────────────────────────────────────────────────────────────────────────
     function wire() {
         var lock = document.getElementById('wamaLayoutToggle');
@@ -220,6 +311,7 @@
         var help = document.getElementById('wamaPageHelpToggle');
         if (help) help.addEventListener('click', function () { openHelp('keys'); });
         sync();
+        setTimeout(maybeHint, 600);
     }
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
     else wire();
@@ -234,7 +326,7 @@
     }
 
     global.WamaPageControls = {
-        offerLayout: function (provider) { layoutProvider = provider; sync(); },
+        offerLayout: function (provider) { layoutProvider = provider; sync(); setTimeout(maybeHint, 600); },
         layoutChanged: sync,
         addShortcuts: function (fn) { shortcutProviders.push(fn); },
         addHelp: function (fn) { helpProviders.push(fn); },

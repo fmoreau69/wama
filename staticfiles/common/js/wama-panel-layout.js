@@ -212,7 +212,6 @@
                 return arrange().then(function () { if (layout) layout.setFrozen(false); });
             },
             reset: function () { if (layout) layout.reset(); },
-            help: function () { return layout ? layout.help : ''; },
         });
     }
 

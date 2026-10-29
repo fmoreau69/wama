@@ -789,8 +789,36 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     notifications était coupée par le haut de la fenêtre (`translate-middle` la remontait de sa
     demi-hauteur) — décalée en largeur seulement. Rejoués verts : `common.page_controls`, les quatre
     scénarios de disposition, `common.layout.screens` (224) et la tablette.
-  - ⏳ **Suite décidée** : bulle au premier passage, touches dans les infobulles, assistant informé ;
-    puis les sections du volet en briques du registre (l'inspecteur en briques, l'assistant).
+  - ✅ **La découverte, le même jour** (les quatre aides choisies par Fabien) :
+    - **La bulle du premier passage** : sous le cadenas, UNE fois par compte (réglage
+      `page_controls_hint_seen`, route `common:page_hint` ; montrée vaut vue). « Me montrer » ouvre
+      la disposition, « Compris » la ferme ; son texte laisse passer le pointeur (seuls ses boutons
+      le prennent) et elle part au premier clic ou frappe ailleurs, ou après 15 s — posée sur le haut
+      de la page, elle masquait les outils de l'image (vu au scénario `common.image_keys`). La frappe
+      est suivie par le clavier commun, en observateur : une première écoute de toute la page, posée
+      à côté, a été refusée par `PageKeyListenersTest`.
+    - **Les touches dans les infobulles** : `Shortcut.targets` dit, touche par touche, le contrôle
+      qu'elle actionne ; l'infobulle de ce bouton l'affiche, lue au registre au survol ou au focus.
+      Les touches écrites À LA MAIN dans les titres sont retirées : transport (Début, ←, Espace, →),
+      image et zones (Échap, N, F — ses outils ont gagné une classe, `wama-image-tools`, posés dans le
+      titre du panneau hors du corps de la brique), Actions (Ctrl+Z, Ctrl+Maj+Z), segments (Alt+L),
+      Bornes (C, Échap), visionneuse (←, →, ↑, ↓, Échap). Le transport n'est monté que sur une
+      surface (`brick-media-transport.js`), là où ses touches agissent.
+    - **Les textes de la disposition au serveur** : `surfaces.LAYOUT_HELP` (les gestes) et
+      `LAYOUT_CONTROLS` (le cadenas), servis à la barre (`page_controls_config`) — ils vivaient dans le
+      JS de la disposition, hors de portée de l'assistant.
+    - **L'assistant informé** : `get_page_interface` et `reset_page_layout` (`WAMA_LLM`, surfaces
+      de l'assistant, point 5).
+    - **Gardes** : `PageControlsTest` (+4 : textes au serveur, bulle une fois par compte, cible au
+      registre et aucune touche écrite à la main dans les briques — toute chaîne du code,
+      commentaires exclus —, l'assistant) ; scénarios `common.page_controls` (10 gestes : la bulle,
+      vue une fois) et `common.image_keys` (10 : l'infobulle de l'outil dit « (N) »).
+      Contre-épreuves rouges : annotation retirée et bulle jamais proposée (servies au navigateur),
+      touche réécrite à la main, assistant sans briques, bulle non gardée (fichiers). Rejoués verts :
+      parité de l'éditeur, `common.preview_navigation` 35/35, `common.preview_layout`,
+      `common.surface_layout`.
+  - ⏳ **Suite** : les sections du volet en briques du registre (l'inspecteur en briques,
+    l'assistant).
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

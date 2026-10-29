@@ -1299,6 +1299,56 @@ def open_page(user, page: str) -> dict:
 
 
 @tool_effect(READ)
+def get_page_interface(user, page: str) -> dict:
+    """
+    Describe the INTERFACE of a WAMA page: the bricks it shows (what each does, and its keyboard
+    shortcuts) and how the user rearranges it — the answer to "comment réorganiser cette page ?",
+    "quels sont les raccourcis ici ?", "à quoi sert ce panneau ?".
+
+    The page's own help says the same (the "?" button of the header, or the "?" key). The layout
+    is kept per account and per page: the padlock of the header makes it editable, then freezes it.
+
+    Args:
+        page: the page key — an application ('transcriber', 'anonymizer'…), 'common' for the
+              journal and calendar — or a correction page as '<app>.<key>' ('transcriber.correct',
+              'anonymizer.review', 'composer.score').
+
+    Returns:
+        {"page", "kind": "page"|"surface", "label", "bricks": [{"key", "name", "description",
+        "shortcuts": [{"keys", "action", "where"}]}], "layout", "gestures"} or {"error"}.
+    """
+    # La brique COMMUNE (`common/utils/volet.page_interface`) : le registre des briques et les
+    # textes que la page montre elle-même (`surfaces.LAYOUT_CONTROLS`, `LAYOUT_HELP`) — aucune
+    # description d'interface écrite ici.
+    if refusal := _signed_in_refusal(user):
+        return refusal
+    from wama.common.utils.volet import page_interface
+    found = page_interface(page)
+    return found or {'error': f"Page inconnue : « {page} » (une app, 'common', ou '<app>.<clé>')."}
+
+
+@tool_effect(WRITE)
+def reset_page_layout(user, page: str) -> dict:
+    """
+    Put the layout of a page back to its default, for this user — what "Par défaut" does in the
+    header banner. Only the user's own layout preference for that page is removed; nothing else
+    changes. The page shows it when reloaded.
+
+    Args:
+        page: the page key (as for get_page_interface): an application, 'common', or '<app>.<key>'.
+
+    Returns:
+        {"page", "message"} or {"error"}.
+    """
+    if refusal := _signed_in_refusal(user, "Modification"):
+        return refusal
+    from wama.common.utils.volet import reset_layout
+    if not reset_layout(user, page):
+        return {'error': f"Page inconnue : « {page} »."}
+    return {'page': page, 'message': "Disposition remise par défaut — rechargez la page pour la voir."}
+
+
+@tool_effect(READ)
 def get_media_asset_url(user, asset_id: int) -> dict:
     """
     Get the file URL of a specific media library asset.
@@ -3890,6 +3940,10 @@ TOOL_REGISTRY = {
     'get_media_asset_url':    get_media_asset_url,
     'fold_side_panels':       fold_side_panels,
     'open_page':              open_page,
+    # L'INTERFACE d'une page (2026-10-29, `WAMA_VOLETS §3-ter`) : ses briques, leurs raccourcis et
+    # la disposition, lus au registre des briques — et remettre SA disposition par défaut.
+    'get_page_interface':     get_page_interface,
+    'reset_page_layout':      reset_page_layout,
     'list_studio_pipelines':  list_studio_pipelines,
     'run_studio_pipeline':    run_studio_pipeline,
     'get_studio_run_status':  get_studio_run_status,
@@ -3915,6 +3969,10 @@ TOOL_APP_OVERRIDE = {
     'find_user_files':     None,
     'translate_text':      None,
     'fold_side_panels':    None,
+    # L'interface d'une page et sa disposition : transverses, sur le compte de l'appelant (la
+    # disposition est une préférence de LECTURE) ; refus des non-identifiés dans les corps.
+    'get_page_interface':  None,
+    'reset_page_layout':   None,
     # Ouvrir une page : transverse — le droit est celui de la PAGE, décidé dans le corps par la
     # brique de navigation (même décision que le menu).
     'open_page':           None,

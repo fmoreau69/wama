@@ -468,7 +468,6 @@
                 frozen: function () { return layout.frozen(); },
                 setFrozen: function (on) { layout.setFrozen(on); },
                 reset: resetLayout,
-                help: function () { return layout.help; },
             });
             controls.addShortcuts(ctx.shortcuts);
             controls.addHelp(ctx.helps);

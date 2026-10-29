@@ -1198,7 +1198,7 @@ def check_page_controls(page_hook=None):
     from wama.common.surfaces import BRICKS
     from wama.common.utils.user_settings import (clear_user_app_settings, get_user_app_setting,
                                                  save_user_app_settings)
-    from wama.common.utils.volet import LAYOUT_SETTING
+    from wama.common.utils.volet import HINT_APP, HINT_SETTING, LAYOUT_SETTING
 
     from .ui_smoke import discoverable_apps
 
@@ -1225,7 +1225,16 @@ def check_page_controls(page_hook=None):
         else:
             save_user_app_settings(account(), label, {LAYOUT_SETTING: value})
 
-    before = _in_plain_thread(stored)
+    def hint_seen():
+        return get_user_app_setting(account(), HINT_APP, HINT_SETTING)
+
+    def restore_hint(value):
+        if value is None:
+            clear_user_app_settings(account(), HINT_APP, [HINT_SETTING])
+        else:
+            save_user_app_settings(account(), HINT_APP, {HINT_SETTING: value})
+
+    before, hint_before = _in_plain_thread(stored), _in_plain_thread(hint_seen)
     verdicts = []
 
     def verdict(ok, text):
@@ -1234,6 +1243,7 @@ def check_page_controls(page_hook=None):
     sessions_before = _session_keys()
     try:
         _in_plain_thread(restore, None)                # la page part jamais disposée
+        _in_plain_thread(restore_hint, None)           # …et la bulle jamais vue
         with sync_playwright() as p:
             browser = p.chromium.launch()
             try:
@@ -1251,6 +1261,22 @@ def check_page_controls(page_hook=None):
                 s = state()
                 verdict(s['lock'] and s['help'] and s['logo'] and not s['banner'] and not s['open'],
                         f"{label} : le cadenas et l'aide dans l'en-tête, figée ({s})")
+                # La BULLE du premier passage : sous le cadenas, une fois par compte.
+                bubble = page.evaluate("""() => { const b = document.querySelector('.wama-page-hint');
+                    const l = document.getElementById('wamaLayoutToggle').getBoundingClientRect();
+                    if (!b) return null; const r = b.getBoundingClientRect();
+                    return {text: b.textContent, below: r.top >= l.bottom,
+                            near: Math.abs(r.left - l.left) < 80}; }""")
+                verdict(bubble and 'se réorganise' in bubble['text'] and bubble['below'] and bubble['near'],
+                        f"la bulle du premier passage, sous le cadenas ({bubble})")
+                if bubble:
+                    page.click('.wama-page-hint [data-hint="ok"]')
+                    page.wait_for_timeout(300)
+                page.reload(wait_until='load', timeout=45000)
+                page.wait_for_timeout(1200)
+                again = page.evaluate("() => !!document.querySelector('.wama-page-hint')")
+                verdict(not again and _in_plain_thread(hint_seen) is True,
+                        f"vue une fois : elle ne revient pas, gardée au serveur ({again})")
                 page.evaluate('() => document.activeElement && document.activeElement.blur()')
                 page.keyboard.press('?')
                 page.wait_for_timeout(700)
@@ -1304,6 +1330,7 @@ def check_page_controls(page_hook=None):
                 browser.close()
     finally:
         _in_plain_thread(restore, before)
+        _in_plain_thread(restore_hint, hint_before)
         _drop_new_sessions(sessions_before)
     failed = [text for ok, text in verdicts if not ok]
     detail = f"contrôles de page ({label}, face_analyzer) : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
@@ -1669,6 +1696,14 @@ def check_image_boxes_keys(page_hook=None):
                         s = press('n')
                         verdict(s['tool'] == 'add', f"après un bouton (focus : {focus}), un clic dans l'image lui rend la main : N ({s['tool']})")
                         press('Escape')
+                        # L'infobulle d'un outil dit SA touche, lue au registre (`Shortcut.targets`,
+                        # 2026-10-29) — la brique ne l'écrit plus.
+                        add = page.locator(f'[data-capture-slot="{image.id}"] [data-tool="add"]')
+                        add.hover()
+                        page.wait_for_timeout(200)
+                        title = add.get_attribute('title') or ''
+                        verdict(title == 'Ajouter une zone (N)',
+                                f"l'infobulle de l'outil dit sa touche, lue au registre ({title!r})")
                     except Exception as error:
                         verdict(False, f"geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
                     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
@@ -1743,7 +1778,8 @@ def register_surface_scenarios():
     )
     register(
         id='common.page_controls', app='common', stage='ui',
-        description=("Contrôles de page de l'en-tête : le cadenas et l'aide ; « ? » ouvre l'aide, "
+        description=("Contrôles de page de l'en-tête : le cadenas et l'aide ; la bulle du premier "
+                     "passage sous le cadenas, une fois par compte ; « ? » ouvre l'aide, "
                      "qui liste les raccourcis des briques de la page (file, inspecteur, "
                      "visionneuse) et la disposition, mais pas tapé dans un champ ; le cadenas "
                      "met son bandeau dans l'en-tête à la place du logo, les gestes dessous sans "
@@ -1765,7 +1801,8 @@ def register_surface_scenarios():
         id='common.image_keys', app='common', stage='ui',
         description=("Image et zones au clavier : N (outil Ajouter), Échap (sélection), Suppr "
                      "retire la zone choisie, R la rétablit, F l'image entière après un zoom ; un "
-                     "clic hors de l'image lui retire la main, un clic dedans la lui rend "
+                     "clic hors de l'image lui retire la main, un clic dedans la lui rend ; "
+                     "l'infobulle d'un outil dit sa touche, lue au registre "
                      "(écritures refusées, témoin retiré)"),
         run=lambda ctx: check_image_boxes_keys(),
         timeout_s=180, vram_gb=0.0,

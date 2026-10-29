@@ -39,6 +39,7 @@ urlpatterns = [
          name='surface_layout'),
     # La disposition du VOLET d'une page (2026-10-28) : ses sections en briques, par compte.
     path('panel/layout/<str:page>/', panel_views.panel_layout, name='panel_layout'),
+    path('panel/hint/', panel_views.page_hint_seen, name='page_hint'),
 
     # Enrichissement de prompt à la demande (✨) — générique {prompt, app, domain}, cf. WAMA_LLM.md §Skills
     path('api/enrich-prompt/', views.api_enrich_prompt, name='enrich_prompt'),

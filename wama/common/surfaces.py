@@ -146,6 +146,20 @@ def source_file(path: str) -> Optional[str]:
     return finders.find(path)
 
 
+#: Les GESTES de la disposition, tels que l'utilisateur les fait — une source : le bandeau de la
+#: disposition modifiable et l'aide de la page les montrent (`wama-page-controls.js`, servis par
+#: `volet.page_controls_config`), l'assistant les dit (`tool_api.get_page_interface`). Ils vivaient
+#: dans le JS de la disposition (`wama-brick-layout.js`) jusqu'au 2026-10-29, hors de portée du
+#: serveur.
+LAYOUT_HELP = ("Glissez un panneau par son titre pour le déplacer — vers un bord de la fenêtre pour "
+               "l’y épingler, sur un autre panneau pour les réunir en un seul (calques) — et "
+               "retaillez-le par son coin. L’épingle de son titre garde aussi un panneau au bord "
+               "(haut, bas, gauche, droite) ou l’ouvre dans une autre fenêtre, même figée.")
+#: …et comment on y entre : le cadenas de l'en-tête (contrôles de page), la même source.
+LAYOUT_CONTROLS = ("Le cadenas de l’en-tête rend la disposition modifiable, puis la fige de nouveau ; "
+                   "elle est gardée pour votre compte, page par page, et « Par défaut » la remet "
+                   "telle que la page la déclare. La touche ? ouvre l’aide de la page.")
+
 #: Les PORTÉES d'un raccourci clavier (2026-10-29, décision de Fabien — `WAMA_VOLETS §3-ter`),
 #: de la plus étroite à la plus large ; l'étroite l'emporte : un champ garde ses touches, la
 #: brique qui a la main les siennes, et une brique PRIORITAIRE (le transport) reçoit les siennes
@@ -183,13 +197,17 @@ class Shortcut:
     Bornes de la ligne de temps) ; `handled_by` : le module qui le traite quand ce n'est pas un
     script de la brique (l'historique commun, chargé par toute page de surface) ; `follows` : la
     brique ne PREND pas la touche, elle SUIT ce qu'en fait son propriétaire (un observateur du
-    clavier commun, `wama-keys.js` — la pile de la file suit la card choisie)."""
+    clavier commun, `wama-keys.js` — la pile de la file suit la card choisie).
+    `targets` (2026-10-29) : le CONTRÔLE que chaque touche actionne, un sélecteur par touche, dans
+    l'ordre de `keys` ('' : aucun) — l'infobulle de ce bouton dit alors sa touche, lue d'ici
+    (`wama-page-controls.js`), au lieu de l'écrire à la main dans le code de la brique."""
     keys: tuple
     action: str
     scope: str = 'brick'
     option: str = ''
     handled_by: str = ''
     follows: bool = False
+    targets: tuple = ()
 
     @property
     def label(self) -> str:
@@ -198,7 +216,9 @@ class Shortcut:
     def to_dict(self) -> dict:
         return {'keys': list(self.keys), 'label': self.label, 'action': self.action,
                 'scope': self.scope, 'where': SHORTCUT_SCOPES.get(self.scope, ''),
-                'option': self.option, 'follows': self.follows}
+                'option': self.option, 'follows': self.follows,
+                'targets': [{'selector': t, 'label': key_label(k)}
+                            for k, t in zip(self.keys, self.targets) if t]}
 
 
 @dataclass(frozen=True)
@@ -779,9 +799,12 @@ register_brick(UIBrick(
     # « A la main » : après un clic dans l'image (`active`), jamais ailleurs.
     shortcuts=(Shortcut(('Delete', 'Backspace'), 'retirer la zone choisie'),
                Shortcut(('KeyR',), 'rétablir la zone retirée'),
-               Shortcut(('KeyN',), 'tracer une zone neuve'),
-               Shortcut(('KeyF',), "voir l'image entière"),
-               Shortcut(('Escape',), 'revenir à la sélection, plus rien de choisi'))))
+               Shortcut(('KeyN',), 'tracer une zone neuve',
+                        targets=('.wama-image-tools [data-tool="add"]',)),
+               Shortcut(('KeyF',), "voir l'image entière",
+                        targets=('.wama-image-tools [data-act="fit"]',)),
+               Shortcut(('Escape',), 'revenir à la sélection, plus rien de choisi',
+                        targets=('.wama-image-tools [data-tool="select"]',)))))
 
 register_brick(UIBrick(
     key='object_list', name='Liste des objets',
@@ -837,13 +860,15 @@ register_brick(UIBrick(
     consumes=('audio',),
     # Brique PRIORITAIRE (Fabien, 2026-10-29) : ses touches agissent partout sur la page, hors
     # d'un champ où l'on écrit ; un bouton cliqué ne les garde pas (`wama-axis.js`).
-    shortcuts=(Shortcut(('Space',), 'lecture / pause', 'page'),
+    shortcuts=(Shortcut(('Space',), 'lecture / pause', 'page', targets=('[data-transport="play"]',)),
                Shortcut(('Ctrl+Space',), 'lecture / pause, même pendant la frappe', 'page'),
                Shortcut(('KeyJ', 'KeyK', 'KeyL'), 'arrière / arrêt / avant, par crans', 'page'),
-               Shortcut(('ArrowLeft', 'ArrowRight'), "reculer / avancer d'un saut", 'page'),
+               Shortcut(('ArrowLeft', 'ArrowRight'), "reculer / avancer d'un saut", 'page',
+                        targets=('[data-transport="skip-back"]', '[data-transport="skip-fwd"]')),
                Shortcut(('Shift+ArrowLeft', 'Shift+ArrowRight'), 'reculer / avancer de six sauts',
                         'page'),
-               Shortcut(('Home', 'End'), 'aller au début / à la fin', 'page'),
+               Shortcut(('Home', 'End'), 'aller au début / à la fin', 'page',
+                        targets=('[data-transport="start"]', '')),
                Shortcut(('Enter',), 'aller au temps tapé', 'field', option='goto'),
                Shortcut(('Escape',), 'rendre le clavier au transport', 'field', option='goto'))))
 
@@ -859,8 +884,10 @@ register_brick(UIBrick(
     script='common/js/surfaces/brick-media-timeline.js',
     requires=('common/js/wama-axis.js', 'common/js/wama-segments.js', 'common/js/wama-timeline.js'),
     consumes=('audio', 'segments'), emits=('segments',),
-    shortcuts=(Shortcut(('KeyC',), "prendre / quitter l'outil Bornes", 'page', option='boundaries'),
-               Shortcut(('Escape',), "quitter l'outil Bornes", 'page', option='boundaries'))))
+    shortcuts=(Shortcut(('KeyC',), "prendre / quitter l'outil Bornes", 'page', option='boundaries',
+                        targets=('[data-timeline="boundaries"]',)),
+               Shortcut(('Escape',), "quitter l'outil Bornes", 'page', option='boundaries',
+                        targets=('[data-timeline="boundaries"]',)))))
 
 register_brick(UIBrick(
     key='playback_writing', name='Écriture à la lecture',
@@ -898,7 +925,8 @@ register_brick(UIBrick(
                Shortcut(('Ctrl+Enter',), 'couper à la tête de lecture', 'page'),
                Shortcut(('Alt+ArrowUp', 'Alt+ArrowDown'), 'segment précédent / suivant, même en '
                                                           'édition', 'page'),
-               Shortcut(('Alt+KeyL',), 'suivre la lecture : verrouiller / libérer', 'page'),
+               Shortcut(('Alt+KeyL',), 'suivre la lecture : verrouiller / libérer', 'page',
+                        targets=('[data-segments="follow"]',)),
                Shortcut(('Tab', 'Shift+Tab'), 'champ suivant / précédent', 'field'),
                Shortcut(('Ctrl+Enter',), 'scinder au curseur', 'field'),
                Shortcut(('Delete',), 'en fin de texte : fusionner avec le suivant', 'field'),
@@ -952,9 +980,11 @@ register_brick(UIBrick(
     description="Annuler / rétablir (historique commun), enregistrer, appliquer — rejouer le "
                 "process que la modification a périmé.",
     script='common/js/surfaces/brick-surface-actions.js',
-    shortcuts=(Shortcut(('Ctrl+KeyZ',), 'annuler', 'page', handled_by='common/js/wama-history.js'),
+    shortcuts=(Shortcut(('Ctrl+KeyZ',), 'annuler', 'page', handled_by='common/js/wama-history.js',
+                        targets=('.wama-brick-actions .wama-undo',)),
                Shortcut(('Ctrl+Shift+KeyZ', 'Ctrl+KeyY'), 'rétablir', 'page',
-                        handled_by='common/js/wama-history.js'))))
+                        handled_by='common/js/wama-history.js',
+                        targets=('.wama-brick-actions .wama-redo', '')))))
 
 
 # ── Briques de PAGE (2026-10-19, `ROUTE §F3b`, étape 3) ──────────────────────────────────────
@@ -1037,8 +1067,12 @@ register_brick(UIBrick(
     # Une COUCHE (une modale) : le clavier commun ne distribue rien tant qu'elle est ouverte, elle
     # garde le sien.
     shortcuts=(Shortcut(('ArrowLeft', 'ArrowRight'), "fichier précédent / suivant de l'élément",
-                        handled_by='common/js/media-preview.js'),
+                        handled_by='common/js/media-preview.js',
+                        targets=('.wama-preview-nav-prev', '.wama-preview-nav-next')),
                Shortcut(('ArrowUp', 'ArrowDown'), 'card précédente / suivante',
-                        handled_by='common/js/media-preview.js'),
+                        handled_by='common/js/media-preview.js',
+                        targets=('#wamaMediaPreviewModal .wama-preview-nav-prev',
+                                 '#wamaMediaPreviewModal .wama-preview-nav-next')),
                Shortcut(('Escape',), 'quitter le plein écran',
-                        handled_by='common/js/media-preview.js'))))
+                        handled_by='common/js/media-preview.js',
+                        targets=('#wamaMediaPreviewModal [data-bs-dismiss="modal"], .fullscreen-close-btn',)))))

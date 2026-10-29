@@ -58,6 +58,35 @@
 @keyframes wama-layout-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
 @media (prefers-reduced-motion: reduce) { .wama-layout-hint.is-fading { animation-duration: 0s; animation-delay: 9s; } }
 
+/* La BULLE du premier passage, sous le cadenas (une fois par compte). Sa flèche vise le cadenas. */
+.wama-page-hint {
+    position: fixed;
+    z-index: 1060;
+    width: min(320px, 90vw);
+    padding: .65rem .8rem;
+    border-radius: .5rem;
+    border: 1px solid var(--wama-app-color, var(--wama-link));
+    background: var(--wama-edge-pill-bg);
+    box-shadow: 0 6px 20px rgba(var(--wama-shadow-rgb), .5);
+    color: var(--wama-text-ui);
+    font-size: .82rem;
+    line-height: 1.4;
+}
+.wama-page-hint::before {
+    content: '';
+    position: absolute; top: -7px; left: 16px;
+    width: 12px; height: 12px;
+    background: var(--wama-edge-pill-bg);
+    border-left: 1px solid var(--wama-app-color, var(--wama-link));
+    border-top: 1px solid var(--wama-app-color, var(--wama-link));
+    transform: rotate(45deg);
+}
+.wama-page-hint p { margin: 0 0 .5rem; }
+.wama-page-hint-actions { display: flex; gap: .4rem; justify-content: flex-end; }
+/* Le pointeur traverse la bulle, sauf ses deux boutons : elle ne prend pas les gestes de la page. */
+.wama-page-hint { pointer-events: none; }
+.wama-page-hint .btn { pointer-events: auto; }
+
 /* L'AIDE de la page : des groupes de raccourcis côte à côte quand la largeur le permet. */
 .wama-page-help section + section { margin-top: 1rem; }
 .wama-page-help h6 { color: var(--wama-text-ui); }

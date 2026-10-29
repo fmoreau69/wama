@@ -2420,6 +2420,18 @@ parfaitement aligné avec le fonctionnement de WAMA ; on ne réinvente rien ».
      nulle part comme pages.~~ Soldé le 2026-10-14 pour les pages du menu du compte (bloc
      ci-dessous). Le gestionnaire de fichiers reste hors de portée : c'est un volet, sans page.
      La `permission` d'un registre garde toujours l'actualisation, pas la lecture.
+5. **`get_page_interface`** et **`reset_page_layout`** (2026-10-29, décision de Fabien :
+   « l'assistant informé » des briques UI) — brique `common/utils/volet.py` (`page_interface`,
+   `reset_layout`).
+   - L'INTERFACE d'une page (une app, `common`, ou une surface `<app>.<clé>`) : ses briques — nom,
+     rôle, raccourcis, lus au registre `surfaces.BRICKS` — et comment la réorganiser, par les
+     textes que la page montre elle-même (`surfaces.LAYOUT_CONTROLS`, `LAYOUT_HELP`, servis aussi à
+     la barre de page) : aucune description d'interface écrite pour l'assistant.
+   - Remettre la disposition d'une page par défaut : la préférence du compte est RETIRÉE, comme
+     « Par défaut » du bandeau ; la page la montre au rechargement. Effets `READ` / `WRITE`,
+     transverses, refus des non-identifiés dans les corps.
+   - Gardes : `tests_volet.PageControlsTest.test_the_assistant_describes_a_page_and_resets_its_layout`
+     (contre-épreuve : une interface sans briques → rouge). Détail : `WAMA_VOLETS §3-ter`.
 
 **Les pages du COMPTE (2026-10-14, demande de Fabien : « ajouter l'accès aux pages … du menu
 profil depuis l'assistant … en fonction des droits de l'utilisateur comme pour toutes les autres
