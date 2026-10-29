@@ -34,6 +34,8 @@ empattement, chasse fixe), gras, italique, taille, couleur, interlignage (2026-1
 réécrit en sans-serif, sans gras, réduit sans limite). Le texte garde sa taille ; s'il ne tient
 pas, le cadre descend dans la place libre dessous, et il ne se réduit qu'ensuite. Un bloc fait
 de polices mathématiques (une formule) n'est pas un segment ; un bloc inchangé n'est pas réécrit.
+Un bloc de TABLEAU (PyMuPDF y range tout le tableau, chaque cellule étant une ligne) donne un
+segment par cellule, réécrit dans sa colonne — les chiffres, sans lettre, ne sont jamais touchés.
 Remplacer un passage dans une page entière ne vaut que pour un passage court ; une traduction
 remplace tout.
 Les autres formats ont déjà le grain d'un paragraphe : l'unité ne les change pas.
@@ -263,14 +265,51 @@ def _alignment(lines, rect, page_width) -> str:
     return 'left'
 
 
+def _same_band(a, b) -> bool:
+    """Deux lignes côte à côte : leurs hauteurs se recouvrent de plus de la moitié."""
+    top, bottom = max(a['bbox'][1], b['bbox'][1]), min(a['bbox'][3], b['bbox'][3])
+    smaller = min(a['bbox'][3] - a['bbox'][1], b['bbox'][3] - b['bbox'][1])
+    return smaller > 0 and bottom - top > smaller / 2
+
+
+def _split_tabular(lines) -> list:
+    """Les passages d'un bloc. Un bloc de TABLEAU (au moins deux rangées portant plusieurs lignes
+    côte à côte — PyMuPDF garde chaque cellule comme une ligne à part, mais range tout le tableau
+    dans un bloc) donne une cellule par passage, et ses lignes empilées seules dans leur rangée (la
+    légende dessous, un intertitre de groupe) un passage par suite. Sinon, le bloc entier : un
+    paragraphe que coupe une formule n'a qu'une rangée double."""
+    rows = []
+    for line in lines:
+        row = next((row for row in rows if _same_band(row[0], line)), None)
+        if row is None:
+            rows.append([line])
+        else:
+            row.append(line)
+    if sum(1 for row in rows if len(row) > 1) < 2:
+        return [lines]
+    cells = {id(line) for row in rows if len(row) > 1 for line in row}
+    parts, run = [], []
+    for line in lines:
+        if id(line) in cells:
+            if run:
+                parts.append(run)
+                run = []
+            parts.append([line])
+        else:
+            run.append(line)
+    return parts + ([run] if run else [])
+
+
 def _pdf_blocks(page) -> list:
-    """Les passages de texte d'une page, dans l'ordre du fichier (voir `_pdf_unit`)."""
+    """Les passages de texte d'une page, dans l'ordre du fichier (voir `_pdf_unit`) — un bloc de
+    tableau donne un passage par cellule (`_split_tabular`)."""
     units = []
     for block in page.get_text('dict')['blocks']:
         if block.get('type') == 0:
-            unit = _pdf_unit(block['lines'], page.rect.width)
-            if unit:
-                units.append(unit)
+            for lines in _split_tabular(block['lines']):
+                unit = _pdf_unit(lines, page.rect.width)
+                if unit:
+                    units.append(unit)
     return units
 
 

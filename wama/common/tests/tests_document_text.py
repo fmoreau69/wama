@@ -198,6 +198,49 @@ class PdfBlockFormTest(_TempDir):
         self.assertEqual('Courier', span['font'])
 
 
+class PdfTableTest(_TempDir):
+    """2026-10-29 — PyMuPDF keeps each table cell as its own LINE but puts the whole table in one
+    block : translated as one sentence, it was poured across the cells. Unit `block` now gives one
+    segment per cell, written back in its column ; numbers are never rewritten."""
+
+    def _pdf(self, rows):
+        import fitz
+        src = self.dir / 'table.pdf'
+        with fitz.open() as pdf:
+            page = pdf.new_page()
+            writer = fitz.TextWriter(page.rect)
+            for y, cells in rows:
+                for x, cell in cells:
+                    writer.append((x, y), cell, fontsize=9)
+            writer.write_text(page)
+            pdf.save(str(src))
+        return src
+
+    def test_each_cell_is_a_segment_written_back_in_its_column(self):
+        import fitz
+        from wama.common.utils.document_text import read_segments, write_replacements
+        src = self._pdf([(100, ((72, 'Ensemble'), (160, 'Erreur'), (250, '4.69'))),
+                         (112, ((72, 'Test'), (160, 'Écart'), (250, '1.78')))])
+        segments = read_segments(src, unit='block')
+        self.assertEqual(['Ensemble', 'Erreur', '4.69', 'Test', 'Écart', '1.78'], segments)
+        out = write_replacements(src, self.dir / 'out.pdf',
+                                 {i: [(0, len(s), s.upper())] for i, s in enumerate(segments)},
+                                 unit='block')
+        with fitz.open(out) as pdf:
+            words = {w[4]: w[0] for w in pdf[0].get_text('words')}
+        for word, x in (('ENSEMBLE', 72), ('ERREUR', 160), ('TEST', 72), ('ÉCART', 160),
+                        ('4.69', 250), ('1.78', 250)):
+            self.assertAlmostEqual(x, words[word], delta=3, msg=word)
+
+    def test_a_paragraph_cut_once_by_a_formula_stays_one_segment(self):
+        """Counter-proof : a single row of side-by-side lines is not a table."""
+        from wama.common.utils.document_text import read_segments
+        src = self._pdf([(100, ((72, 'Une phrase coupée'), (200, 'par une formule'))),
+                         (112, ((72, 'qui continue ici.'),))])
+        self.assertEqual(['Une phrase coupée par une formule qui continue ici.'],
+                         read_segments(src, unit='block'))
+
+
 class OccultFileTest(_TempDir):
 
     def test_the_occultation_re_reads_its_output_and_names_what_remains(self):
