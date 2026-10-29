@@ -23,6 +23,11 @@
   // Le clavier est-il à une SAISIE (champ, zone de texte, liste, texte éditable) ? Une touche de
   // raccourci s'efface alors d'elle-même. Une règle pour les briques du temps (transport, ligne
   // de temps, écriture à la lecture), qui l'écrivaient chacune (2026-10-21, revérification).
+  // ⚠ JUMEAU DÉCLARÉ (2026-10-29) : le clavier commun `wama-keys.js` a sa propre règle
+  // (`WamaKeys.typing`, plus une règle des contrôles : une liste CLIQUÉE n'y garde pas J/K/L).
+  // Celle-ci reste aux briques qui écoutent encore le clavier elles-mêmes (ligne de temps,
+  // écriture à la lecture, partition, transport hors module) ; elle se retire quand elles s'y
+  // inscrivent (`WAMA_VOLETS §3-ter`). La changer ici changerait leur comportement sans parité.
   function isTyping() {
     var a = document.activeElement;
     if (!a) return false;

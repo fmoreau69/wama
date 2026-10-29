@@ -612,6 +612,11 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       segments, la ligne de temps, l'écriture à la lecture, la partition, l'image et ses zones,
       l'historique, le menu de card, la visionneuse, le cam_analyzer (`WamaShuttle.bindKeys`). Le
       module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
+      ⚠ **Jumeau déclaré** (revérification du 29/10) : ces briques testent la saisie par
+      `WamaApp.isTyping` (l'élément qui a le focus, une liste comprise), le module par
+      `WamaKeys.typing` et sa règle des contrôles (une liste cliquée ne garde pas J/K/L). Les
+      fusionner changerait leur comportement sans parité qui le voie : `isTyping` se retire quand
+      la dernière s'inscrit au module.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
