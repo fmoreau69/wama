@@ -1270,7 +1270,6 @@ class PageKeyListenersTest(SimpleTestCase):
         'wama/common/static/common/js/surfaces/brick-segment-list.js': (1, MOVE),
         'wama/common/static/common/js/wama-card-menu.js': (2, MOVE),
         'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
-        'wama/common/static/common/js/wama-timeline.js': (1, MOVE),
         'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js': (1, MOVE),
         # Not shortcuts : they never act on the key.
         'wama/common/static/common/js/wama-app-base.js': (1, "le 1er geste déverrouille le son (once)"),

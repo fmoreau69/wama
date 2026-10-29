@@ -661,6 +661,11 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       focus juste après). Contrôle ajouté : **parité 76/76** (Transport 10/10). Preuve au
       navigateur : l'Échap des segments neutralisé, celui du transport tient seul (seul l'abandon
       d'une édition de segment rougit) ; les deux neutralisés → « Échap dans « aller à » » rouge.
+    - ✅ **La ligne de temps** (outil Bornes : C, Échap pour en sortir), prioritaire de la page ;
+      `WamaApp.isTyping` n'y est plus lu. ⚠ Un écart VOULU : une liste qui a le focus ne garde
+      plus C (comme elle ne garde déjà plus J/K/L, règle des contrôles de l'étape 0) — elle garde
+      ses flèches, Début/Fin, et Espace/Entrée atteinte au clavier. Parité 76/76 (Bornes, Bascules) ;
+      contre-épreuve au navigateur (Échap qui ne sort plus de l'outil) → deux rouges.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

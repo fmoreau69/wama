@@ -48,9 +48,6 @@
         return b;
     }
 
-    /** Le clavier est-il à une saisie ? La règle commune (`WamaApp.isTyping`). */
-    function typing() { return global.WamaApp.isTyping(); }
-
     function mount(host, cfg) {
         cfg = cfg || {};
         var o = cfg.options || {};
@@ -394,18 +391,19 @@
             });
         }
 
-        // ── Clavier PROPRE à la vue : C (Bornes), Échap ───────────────────────────────────────
-        // Jamais pendant une saisie ; Échap déjà traité par la page (sortir d'une saisie) ne sort
-        // pas en plus de l'outil — une touche, un geste.
-        if (toolBtn) document.addEventListener('keydown', function (e) {
+        // ── Clavier PROPRE à la vue : C (Bornes), Échap — par le clavier commun (`WamaKeys`) ─────
+        // Une brique prioritaire de la page. Jamais pendant une saisie ; Échap déjà traité (sortir
+        // d'une saisie) ne sort pas en plus de l'outil — une touche, un geste : la règle du module.
+        if (toolBtn) global.WamaKeys.register({ owner: 'media_timeline', scope: 'page', handle: function (e) {
             if (e.key === 'Escape') {
-                if (e.defaultPrevented || typing()) return;
-                if (boundaryTool) { e.preventDefault(); setBoundaryTool(false); }
-                return;
+                if (!boundaryTool) return false;
+                setBoundaryTool(false);
+                return true;
             }
-            if (typing() || e.ctrlKey || e.metaKey || e.altKey) return;
-            if ((e.key || '').toLowerCase() === 'c') { e.preventDefault(); setBoundaryTool(!boundaryTool); }
-        });
+            if (e.ctrlKey || e.metaKey || e.altKey || (e.key || '').toLowerCase() !== 'c') return false;
+            setBoundaryTool(!boundaryTool);
+            return true;
+        } });
         global.addEventListener('resize', redrawWindow);
 
         // ── L'abonnement à l'axe ────────────────────────────────────────────────────────────
