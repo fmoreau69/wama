@@ -1271,24 +1271,136 @@ def _delegate_tool() -> tuple:
     from wama.common.utils.assistant_skills import DOMAINES
     domains = [d.key for d in DOMAINES if not d.development]
     description = (
-        "Hand ONE self-contained task to a sub-agent: fresh context, read-only tools (web search "
-        "and pages, WAMA docs, the user's memory, statuses). It returns its report. Use it for a "
-        "task that needs several searches or readings; do it yourself when one tool call is enough. "
-        f"`domain` (optional) sets its competence: {', '.join(domains)}.")
-    line = f"\n- {DELEGATE_TOOL}(task, domain): {description}"
+        "Hand self-contained tasks to sub-agents: fresh context, read-only tools (web search and "
+        "pages, WAMA docs, the user's memory, statuses). Each returns its report. Use it for a task "
+        "that needs several searches or readings; do it yourself when one tool call is enough. "
+        f"`domain` (optional) sets the competence: {', '.join(domains)}. For INDEPENDENT tasks, pass "
+        f"them together in `tasks` (a list of {{\"task\", \"domain\"}}, at most "
+        f"{MAX_DELEGATIONS_PER_TURN} per turn): they run at the same time, on different servers.")
+    line = f"\n- {DELEGATE_TOOL}(task, domain, tasks): {description}"
+    task_property = {'type': 'string',
+                     'description': 'The complete task, understandable without this conversation.'}
     spec = {'type': 'function', 'function': {
         'name': DELEGATE_TOOL, 'description': description,
-        'parameters': {'type': 'object', 'required': ['task'], 'properties': {
-            'task': {'type': 'string',
-                     'description': 'The complete task, understandable without this conversation.'},
-            'domain': {'type': 'string', 'enum': domains}}}}}
+        'parameters': {'type': 'object', 'properties': {
+            'task': task_property,
+            'domain': {'type': 'string', 'enum': domains},
+            'tasks': {'type': 'array', 'items': {'type': 'object', 'required': ['task'],
+                                                 'properties': {'task': task_property,
+                                                                'domain': {'type': 'string',
+                                                                           'enum': domains}}}}}}}}
     return line, spec
+
+
+def _sub_agent_lanes(user, provider, llm_model, count: int) -> list:
+    """Les COULOIRS d'une vague de sous-agents (`WAMA_HARNESS §7.4` étape 2 bis, décision de Fabien
+    du 29/10) : un par SERVEUR — une source du catalogue —, au plus `count`. Le premier est le
+    modèle du tour ; les suivants sont le TIRAGE COMMUN rejoué en écartant les sources déjà prises,
+    comme la bascule sur panne (`_failover_target`) : même lot (`agent_candidates`, au plancher de
+    l'assistant outillé), même admission (`allowed_cloud_keys` — le profil dit jusqu'où une
+    requête sort), jamais une liste écrite à la main. L'abonnement en est exclu : sa boucle ignore
+    les bornes d'un sous-agent. Un serveur par couloir : deux modèles locaux DIFFÉRENTS ne se
+    disputent jamais la carte (`§7.4`, « le parallèle, et comment se passe l'inférence »).
+
+    Rend [(fournisseur, modèle)] ; un seul couloir quand rien d'autre n'est admis (profil « 100 %
+    local ») — la vague redevient alors séquentielle, sans erreur."""
+    lanes = [(provider, llm_model)]
+    if count <= 1 or user is None:
+        return lanes
+    try:
+        from wama.common.services.development_models import agent_candidates
+        from wama.common.utils.auto_model import AUTO, resolve_model_choice
+        from wama.model_manager.services.cloud_models import allowed_cloud_keys
+        cloud = allowed_cloud_keys(user)
+        lot = agent_candidates(user, cloud_keys=cloud)
+        used = {_provider_source(provider)} | {_provider_source(p) for p in _SUBSCRIPTION_PROVIDERS}
+        intent = assistant_settings(user).get('quality_intent')
+        while len(lanes) < count:
+            candidates = [k for k in lot if k.partition(':')[0] not in used]
+            if not candidates:
+                break
+            key = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
+                                       quality_intent=intent, cloud_keys=cloud, user=user,
+                                       candidates=candidates)
+            source, _, model_id = str(key or '').partition(':')
+            if not source or source in used:
+                break
+            used.add(source)
+            lanes.append((SOURCE_PROVIDERS.get(source, source), model_id or None))
+    except Exception:
+        logger.debug("[ai_chat] couloirs de sous-agents indisponibles — un seul", exc_info=True)
+    return lanes
+
+
+def _delegate_wave(user, args: dict, *, provider, llm_model, depth, deadline, budget: int) -> tuple:
+    """Une VAGUE de sous-agents : `task` seul, ou `tasks` (plusieurs tâches indépendantes). Chaque
+    tâche prend un couloir (`_sub_agent_lanes`) ; les couloirs tournent EN MÊME TEMPS, les tâches
+    d'un même couloir l'une après l'autre. Au-delà de `budget` (le reste du plafond du tour), les
+    tâches ne partent pas, et le résultat le dit.
+
+    Rend (résultat pour le MODÈLE, trace des sous-agents, usage). Le modèle ne lit que les
+    RAPPORTS ; la trace garde, par sous-agent, sa tâche, son modèle, ses étapes et sa durée."""
+    raw = (args or {}).get('tasks')
+    tasks = raw if isinstance(raw, list) and raw else [args or {}]
+    tasks = [t if isinstance(t, dict) else {'task': t} for t in tasks]
+    kept, dropped = tasks[:max(budget, 0)], tasks[max(budget, 0):]
+    lanes = _sub_agent_lanes(user, provider, llm_model, len(kept))
+    queues = [[(i, t) for i, t in enumerate(kept) if i % len(lanes) == lane]
+              for lane in range(len(lanes))]
+    outcomes = [None] * len(kept)
+
+    def run_lane(lane_index):
+        lane_provider, lane_model = lanes[lane_index]
+        try:
+            for i, task_args in queues[lane_index]:
+                started = time.monotonic()
+                try:
+                    result, steps, usage = _delegate(user, task_args, provider=lane_provider,
+                                                     llm_model=lane_model, depth=depth,
+                                                     deadline=deadline)
+                except Exception as e:
+                    # L'échec d'UN sous-agent est son rapport ; il ne fait pas tomber le tour.
+                    logger.exception("[ai_chat] sous-agent en panne")
+                    result, steps, usage = {'error': f"Sous-agent en panne : {e}"}, [], {}
+                outcomes[i] = (result, steps, usage, round(time.monotonic() - started, 1))
+        finally:
+            if len(lanes) > 1:
+                # Un fil à lui : ses connexions ne reviennent à personne d'autre.
+                from django.db import connections
+                connections.close_all()
+
+    if len(lanes) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=len(lanes), thread_name_prefix='wama-sub-agent') as pool:
+            list(pool.map(run_lane, range(len(lanes))))
+    else:
+        run_lane(0)
+
+    reports, trace, usage = [], [], {}
+    for task_args, (result, steps, sub_usage, seconds) in zip(kept, outcomes):
+        task = str(task_args.get('task') or '')
+        reports.append({'task': task, **result})
+        trace.append({'task': task, 'model': result.get('model', ''), 'steps': steps,
+                      'seconds': seconds})
+        for key, value in sub_usage.items():
+            usage[key] = (usage.get(key) or 0) + (value or 0)
+        logger.info("[ai_chat] sous-agent : %s s, %s, outils %s, %s", seconds,
+                    result.get('model', ''), [step['tool'] for step in steps],
+                    'échec' if 'error' in result else 'rapport rendu')
+    tool_result = {'reports': reports}
+    if dropped:
+        tool_result['not_run'] = _DELEGATIONS_EXHAUSTED.format(limit=MAX_DELEGATIONS_PER_TURN)
+    if not reports or all('error' in r for r in reports):
+        # Aucun rapport : un REFUS, que la trace du tour dit (`_refusals_notice`).
+        tool_result['error'] = (reports[0]['error'] if reports
+                                else _DELEGATIONS_EXHAUSTED.format(limit=MAX_DELEGATIONS_PER_TURN))
+    return tool_result, trace, usage
 
 
 def _delegate(user, args: dict, *, provider, llm_model, depth, deadline) -> tuple:
     """Un sous-agent : un tour de CETTE boucle, contexte neuf, profondeur + 1 (donc lecture seule,
-    `sub_agent_tools`), synchrone — le parent attend son rapport. Même fournisseur et même modèle
-    que le tour qui délègue (le parallèle par serveur est l'étape 2 bis).
+    `sub_agent_tools`), synchrone — le parent attend son rapport. Le fournisseur et le modèle sont
+    ceux de son COULOIR (`_delegate_wave`) : celui du tour, ou un autre serveur.
 
     Rend (résultat pour le MODÈLE, étapes du sous-agent pour la TRACE, usage) : le parent ne lit que
     le rapport, jamais les résultats d'outils du sous-agent — c'est l'isolation du contexte."""
@@ -1939,29 +2051,24 @@ def run_assistant_turn(user, message: str, provider: str = None,
         tool_args  = tool_call.get('args', {})
         logger.info(f"[ai_chat] tool_call: {tool_name}({tool_args})")
 
-        sub_steps = None
+        sub_agents = None
         if allowed_tools is not None and tool_name not in allowed_tools:
             # Un tour BORNÉ ne passe pas la porte avec un outil qu'on ne lui a pas annoncé : le refus
             # entre à la trace comme tout refus (`_refusals_notice`), et le modèle continue.
             tool_result = {'error': _TOOL_NOT_ALLOWED.format(tool=tool_name)}
-        elif delegation and tool_name == DELEGATE_TOOL and sum(
-                step['tool'] == DELEGATE_TOOL for step in tool_steps) >= MAX_DELEGATIONS_PER_TURN:
-            tool_result = {'error': _DELEGATIONS_EXHAUSTED.format(limit=MAX_DELEGATIONS_PER_TURN)}
         elif delegation and tool_name == DELEGATE_TOOL:
-            # Le sous-agent tourne ICI, le parent attend : son usage s'ajoute à celui du tour, et
-            # ses étapes vont à la trace (`sub_steps`), jamais au modèle du parent.
-            started = time.monotonic()
-            tool_result, sub_steps, sub_usage = _delegate(
+            # Les sous-agents tournent ICI, le parent attend la vague : leur usage s'ajoute à celui
+            # du tour, et leurs étapes vont à la trace (`sub_agents`), jamais au modèle du parent.
+            # Le JOURNAL (étape 3) : par sous-agent, sa tâche, son modèle, ses étapes, sa durée.
+            # Le PLAFOND compte des SOUS-AGENTS, pas des appels : une vague en lance plusieurs.
+            budget = MAX_DELEGATIONS_PER_TURN - sum(
+                len(step.get('sub_agents') or ()) for step in tool_steps
+                if step['tool'] == DELEGATE_TOOL)
+            tool_result, sub_agents, sub_usage = _delegate_wave(
                 user, tool_args, provider=provider, llm_model=llm_model, depth=depth,
-                deadline=deadline)
+                deadline=deadline, budget=budget)
             for key in total_usage:
                 total_usage[key] += sub_usage.get(key) or 0
-            # Le JOURNAL du sous-agent (étape 3) : sa durée entre à la trace avec ses étapes, et
-            # une ligne au journal du serveur.
-            sub_seconds = round(time.monotonic() - started, 1)
-            logger.info("[ai_chat] sous-agent : %s s, outils %s, %s", sub_seconds,
-                        [step['tool'] for step in sub_steps],
-                        'échec' if 'error' in tool_result else 'rapport rendu')
         elif tool_name in dev_names and _already_polled(tool_steps, tool_name, tool_args):
             # Le SUIVI d'une tâche de fond dans le tour, CONTRÔLÉ (2026-10-12, fil Discord #43 :
             # cinq `dev_job_status` d'affilée, six minutes sans répondre à personne). Un second
@@ -1992,8 +2099,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
         # bridage le 2026-10-12 — cf. `resolve_turn_model`. Le fil se souvient toujours de la
         # compétence dev chargée : c'est une CONSIGNE, plus un changement de modèle.)
         tool_steps.append({'tool': tool_name, 'args': tool_args, 'result': tool_result})
-        if sub_steps is not None:
-            tool_steps[-1].update(sub_steps=sub_steps, sub_seconds=sub_seconds)
+        if sub_agents is not None:
+            tool_steps[-1]['sub_agents'] = sub_agents
         if on_event is not None:
             # L'étape part DÈS qu'elle est jouée : « ce qui est pénible n'est pas d'attendre,
             # c'est d'attendre sans savoir » (`WAMA_HARNESS §9 chantier 4`).

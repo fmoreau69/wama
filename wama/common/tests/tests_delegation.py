@@ -122,8 +122,10 @@ class SubAgentRunTest(TestCase):
     def test_the_trace_keeps_the_sub_agent_steps(self):
         step = self.result['tool_steps'][0]
         self.assertEqual(DELEGATE_TOOL, step['tool'])
-        self.assertEqual(['search_web'], [s['tool'] for s in step['sub_steps']])
-        self.assertEqual(SUB_RESULT, step['sub_steps'][0]['result'])
+        agent = step['sub_agents'][0]
+        self.assertEqual(['search_web'], [s['tool'] for s in agent['steps']])
+        self.assertEqual(SUB_RESULT, agent['steps'][0]['result'])
+        self.assertEqual('Trouve la date de la conférence X', agent['task'])
         self.assertEqual(['search_web'], self.executed)
 
     def test_the_usage_adds_up(self):
@@ -132,7 +134,7 @@ class SubAgentRunTest(TestCase):
 
     def test_a_link_found_by_the_sub_agent_can_be_cited(self):
         result, _, _ = _turn(can_delegate=True)
-        self.assertNotIn('retiré', result['tool_steps'][0]['result']['report'])
+        self.assertNotIn('retiré', result['tool_steps'][0]['result']['reports'][0]['report'])
 
 
 class GuardrailsTest(TestCase):
@@ -182,7 +184,102 @@ class GuardrailsTest(TestCase):
 
     def test_the_trace_says_how_long_each_sub_agent_took(self):
         result, _, _ = _turn(can_delegate=True)
-        self.assertIsInstance(result['tool_steps'][0]['sub_seconds'], float)
+        self.assertIsInstance(result['tool_steps'][0]['sub_agents'][0]['seconds'], float)
+
+
+class ParallelWaveTest(TestCase):
+    """Étape 2 bis : un couloir par SERVEUR, tiré par le tirage commun ; les couloirs tournent en
+    même temps, les tâches d'un couloir l'une après l'autre ; le plafond compte des sous-agents."""
+
+    LOT = ['ollama:a', 'ollama:b', 'claude_code:opus', 'albert:x', 'albert:y', 'ilaas:z']
+
+    def _lanes(self, lot, count, provider='ollama', model='a'):
+        user = User.objects.create(username=f'wave_lanes_{User.objects.count()}')
+        with mock.patch('wama.common.services.development_models.agent_candidates',
+                        return_value=lot), \
+                mock.patch('wama.model_manager.services.cloud_models.allowed_cloud_keys',
+                           return_value=set()), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           side_effect=lambda *a, candidates, **k: candidates[0]):
+            return assistant_engine._sub_agent_lanes(user, provider, model, count)
+
+    def test_one_lane_per_server_drawn_without_the_subscription(self):
+        self.assertEqual([('ollama', 'a'), ('albert', 'x'), ('ilaas', 'z')],
+                         self._lanes(self.LOT, 5))
+        self.assertEqual([('ollama', 'a'), ('albert', 'x')], self._lanes(self.LOT, 2))
+
+    def test_a_local_only_profile_has_a_single_lane(self):
+        self.assertEqual([('ollama', 'a')], self._lanes(['ollama:a', 'ollama:b'], 3))
+
+    def _wave(self, tasks, lanes, delegate, budget=3):
+        user = User.objects.create(username=f'wave_{User.objects.count()}')
+        with mock.patch.object(assistant_engine, '_sub_agent_lanes', return_value=lanes), \
+                mock.patch.object(assistant_engine, '_delegate', side_effect=delegate):
+            return assistant_engine._delegate_wave(
+                user, {'tasks': tasks}, provider='ollama', llm_model='a', depth=0, deadline=None,
+                budget=budget)
+
+    def test_the_lanes_run_at_the_same_time_each_on_its_server(self):
+        import threading
+        barrier = threading.Barrier(3, timeout=10)      # séquentiel : la barrière casse
+        served = {}
+
+        def delegate(user, task_args, *, provider, llm_model, depth, deadline):
+            barrier.wait()
+            served[task_args['task']] = provider
+            return {'report': f"rapport {task_args['task']}", 'model': provider}, [], {}
+
+        result, trace, _ = self._wave(['t1', 't2', 't3'],
+                                      [('ollama', 'a'), ('albert', 'x'), ('ilaas', 'z')], delegate)
+        self.assertNotIn('error', result)
+        self.assertEqual(['rapport t1', 'rapport t2', 'rapport t3'],
+                         [r['report'] for r in result['reports']])
+        self.assertEqual({'t1': 'ollama', 't2': 'albert', 't3': 'ilaas'}, served)
+        self.assertEqual(['t1', 't2', 't3'], [agent['task'] for agent in trace])
+
+    def test_tasks_share_a_lane_one_after_the_other(self):
+        order = []
+
+        def delegate(user, task_args, *, provider, **k):
+            order.append((task_args['task'], provider))
+            return {'report': 'r'}, [], {}
+
+        self._wave(['t1', 't2', 't3'], [('ollama', 'a')], delegate)
+        self.assertEqual([('t1', 'ollama'), ('t2', 'ollama'), ('t3', 'ollama')], order)
+
+    def test_tasks_beyond_the_budget_do_not_run(self):
+        delegate = mock.Mock(return_value=({'report': 'r'}, [], {}))
+        result, trace, _ = self._wave(['t1', 't2', 't3'], [('ollama', 'a')], delegate, budget=2)
+        self.assertEqual(2, delegate.call_count)
+        self.assertEqual(2, len(trace))
+        self.assertIn('Plafond', result['not_run'])
+
+    def test_a_failing_sub_agent_does_not_bring_the_turn_down(self):
+        def delegate(user, task_args, **k):
+            if task_args['task'] == 't2':
+                raise RuntimeError('panne')
+            return {'report': 'r'}, [], {}
+
+        result, _, _ = self._wave(['t1', 't2'], [('ollama', 'a'), ('albert', 'x')], delegate)
+        self.assertNotIn('error', result)
+        self.assertIn('panne', result['reports'][1]['error'])
+
+    def test_the_tool_announces_the_parallel_form(self):
+        line, spec = assistant_engine._delegate_tool()
+        self.assertIn('tasks', line)
+        self.assertEqual('array', spec['function']['parameters']['properties']['tasks']['type'])
+
+    def test_the_cap_counts_sub_agents_not_calls(self):
+        two = '{"tool": "delegate", "args": {"tasks": [{"task": "a"}, {"task": "b"}]}}'
+        with mock.patch.object(assistant_engine, '_sub_agent_lanes',
+                               side_effect=lambda user, provider, model, count: [(provider, model)]), \
+                mock.patch.object(assistant_engine, '_delegate',
+                                  return_value=({'report': 'r'}, [], {})) as delegate:
+            result, _, _ = _turn(parent=(two, two), can_delegate=True)
+        self.assertEqual(3, delegate.call_count)                    # 2 + 1 : le plafond est 3
+        steps = result['tool_steps']
+        self.assertEqual([2, 1], [len(step['sub_agents']) for step in steps])
+        self.assertIn('Plafond', steps[1]['result']['not_run'])
 
 
 class DelegateCallTest(TestCase):

@@ -515,8 +515,8 @@ un diagnostic, un plan d'implémentation), réfléchir en profondeur à une ques
 **council** de plusieurs modèles —, jusqu'à la bibliographie. ✅ le socle : un sous-agent est un tour
 de la même boucle, borné et en lecture seule (`WAMA_HARNESS §7.4`, étape 1). ✅ la délégation par
 l'assistant (étapes 2-3, 2026-10-29) : un réglage « Sous-agents », éteint par défaut, au plus trois
-sous-agents par tour, l'un après l'autre. ⏳ le parallèle par serveur (local, Albert, ILaaS), le
-council — cible : cinq agents en simultané, et l'option d'un décideur —, et une source SAVANTE parmi
+sous-agents par tour, **en même temps, un par serveur** (local, Albert, ILaaS — mesuré : 4,9 s au
+lieu de 11,1 s pour trois appels). ⏳ le council — cible : cinq agents en simultané, et l'option d'un décideur —, et une source SAVANTE parmi
 les outils — aujourd'hui seuls le web et les documents de WAMA (bibliographie en pipeline :
 `ROADMAP §21.5`).
 
