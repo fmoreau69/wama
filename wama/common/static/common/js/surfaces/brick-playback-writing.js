@@ -181,7 +181,8 @@
         global.WamaKeys.register({ owner: 'playback_writing', scope: 'brick', root: body, typing: ['Escape'],
                                    handle: function (e) {
             var a = e.target;
-            if (e.key !== 'Escape' || !a || !(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return false;
+            // Une saisie (la règle du module) ou une liste (son choix de mode).
+            if (e.key !== 'Escape' || !a || !(global.WamaKeys.typing(a) || (a.matches && a.matches('select')))) return false;
             a.blur();
             return true;
         } });

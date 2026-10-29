@@ -100,11 +100,13 @@ class CorrectionIsADeclaredSurfaceTest(SimpleTestCase):
     def test_the_time_bricks_share_one_keyboard_rule_and_one_play_from(self):
         # Revérification du 2026-10-21 : la règle « le clavier est à une saisie » était écrite trois
         # fois (transport, ligne de temps, écriture), « écouter depuis » quatre (dont le ▶ d'un
-        # segment), l'échappement HTML recopié à côté de `WamaApp.escapeHtml`.
+        # segment), l'échappement HTML recopié à côté de `WamaApp.escapeHtml`. Depuis le 2026-10-29
+        # la règle est celle du clavier commun (`wama-keys.js`), où les trois s'inscrivent.
         segment_list = _read(COMMON_JS / 'surfaces' / 'brick-segment-list.js')
         for path in (TRANSPORT, TIMELINE, WRITING_BRICK):
             code = _read(path)
-            self.assertIn('WamaApp.isTyping()', code, path.name)
+            self.assertIn('WamaKeys.register(', code, path.name)
+            self.assertNotIn('isTyping', code, f'{path.name} reads the retired twin')
             self.assertNotIn('a.isContentEditable', code, f'{path.name} writes the rule again')
         for path, code in ((TIMELINE, _read(TIMELINE)), (WRITING_BRICK, _read(WRITING_BRICK)),
                            (COMMON_JS / 'surfaces' / 'brick-segment-list.js', segment_list)):
