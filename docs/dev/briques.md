@@ -2067,6 +2067,20 @@ La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_vie
   - `start_one_process(work_model, pk, process, *, user, task_for, reset_on_start=None, reset_for_process=None)` — Le ▶ d'UNE étape d'un élément : `(élément, tâche, None)`, ou `(None, None, (statut HTTP,
   - `make_process_start_view(*, work_model, task_for, get_user=request_user, reset_on_start=None, reset_for_process=None)` — La vue `start_process(request, pk, process)` d'une app à pipeline.
 
+### ▶ d'une card, ▶ et 🗑 de la file (fabrique commune)
+
+Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` (2026-10-29, ROUTE §11 #39) : anti-course (`begin_processing`), remise à zéro de l'app sous le verrou, cache de progression purgé, tâche envoyée ; « tout lancer » selon la sélection DÉCLARÉE (`pending` / `pending_exclude`, noms de `TRIAD_SPECS`) et, s'il en porte, les réglages postés vérifiés sur toute la file avant le premier lancement ; « tout effacer » sans les éléments en cours, par le geste de retrait de `batch_delete` (`discard_element`). Trente copies dans dix apps. La fabrique INSCRIT sa déclaration par modèle (`declaration_for`) : l'outil `start_<app>` de l'assistant la lit — un geste, deux portes, comme `start_one_process`
+
+- **Domicile** : `wama/common/utils/item_views.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
+- **Module** : WAMA Common — Les vues d'ÉLÉMENT et de FILE : ▶ d'une card, ▶ de la file, 🗑 de la file (`make_item_views`, `WAMA_APP_GENERATION_ROUTE.md §11 #39`).
+- **API publique** (6) :
+  - `class ItemStart` — Ce qu'une app déclare de son ▶ — lu par les vues ET par l'outil de l'assistant.
+  - `declaration_for(work_model)` — La déclaration du ▶ de `work_model`, ou None. Inscrite au chargement des vues de son app :
+  - `start_one_item(declaration, pk, *, user, reset=None)` — Le ▶ d'UN élément : `(élément, tâche, None)`, ou `(None, None, (statut HTTP, message))`.
+  - `start_queue(declaration, user, *, settings=None, apply_settings=None, on_queue_settings=None)` — « Tout lancer » : chaque élément que la déclaration retient, par le geste du ▶.
+  - `discard_element(item, *, progress_key='', on_delete=None)` — Retirer UN élément de la file : révoquer sa tâche en file, ce que l'app sait de lui
+  - `make_item_views(*, work_model, app_id: str, task=None, task_for=None, get_user=request_user, reset_on_start=None, startable=None, unstartable_message: str='',…` — Les vues `start(request, pk)`, `start_all(request)` et `clear_all(request)` d'une app.
+
 ## File d'attente & lots
 
 ### Dossier de travail jetable
