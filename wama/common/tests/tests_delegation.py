@@ -15,6 +15,7 @@ CE QUE CETTE GARDE TIENT :
      `conversation_turn` lit pour toutes les surfaces ; le nombre de sous-agents d'un tour est
      plafonné ; la trace dit la durée de chacun.
 """
+import json
 from unittest import mock
 
 from django.contrib.auth.models import User
@@ -205,8 +206,13 @@ class ParallelWaveTest(TestCase):
 
     def test_one_lane_per_server_drawn_without_the_subscription(self):
         self.assertEqual([('ollama', 'a'), ('albert', 'x'), ('ilaas', 'z')],
-                         self._lanes(self.LOT, 5))
+                         self._lanes(self.LOT, 3))
         self.assertEqual([('ollama', 'a'), ('albert', 'x')], self._lanes(self.LOT, 2))
+
+    def test_beyond_the_servers_another_remote_model_never_a_second_local(self):
+        # Étape 4 : cinq agents sur trois serveurs — un autre modèle d'Albert, jamais `ollama:b`.
+        self.assertEqual([('ollama', 'a'), ('albert', 'x'), ('ilaas', 'z'), ('albert', 'y')],
+                         self._lanes(self.LOT, 5))
 
     def test_a_local_only_profile_has_a_single_lane(self):
         self.assertEqual([('ollama', 'a')], self._lanes(['ollama:a', 'ollama:b'], 3))
@@ -270,16 +276,190 @@ class ParallelWaveTest(TestCase):
         self.assertEqual('array', spec['function']['parameters']['properties']['tasks']['type'])
 
     def test_the_cap_counts_sub_agents_not_calls(self):
-        two = '{"tool": "delegate", "args": {"tasks": [{"task": "a"}, {"task": "b"}]}}'
+        from wama.common.services.assistant_engine import MAX_DELEGATIONS_PER_TURN
+        many = MAX_DELEGATIONS_PER_TURN - 1
+        call = json.dumps({'tool': 'delegate', 'args': {'tasks': [{'task': f't{i}'}
+                                                                  for i in range(many)]}})
         with mock.patch.object(assistant_engine, '_sub_agent_lanes',
                                side_effect=lambda user, provider, model, count: [(provider, model)]), \
                 mock.patch.object(assistant_engine, '_delegate',
                                   return_value=({'report': 'r'}, [], {})) as delegate:
-            result, _, _ = _turn(parent=(two, two), can_delegate=True)
-        self.assertEqual(3, delegate.call_count)                    # 2 + 1 : le plafond est 3
+            result, _, _ = _turn(parent=(call, call), can_delegate=True)
+        self.assertEqual(MAX_DELEGATIONS_PER_TURN, delegate.call_count)
         steps = result['tool_steps']
-        self.assertEqual([2, 1], [len(step['sub_agents']) for step in steps])
+        self.assertEqual([many, 1], [len(step['sub_agents']) for step in steps])
         self.assertIn('Plafond', steps[1]['result']['not_run'])
+
+
+class CouncilTest(TestCase):
+    """Étape 4 : un council n'est pas un mode, c'est une COMPOSITION — des agents du registre (de 1
+    à n, sur la même question), puis une façon de conclure : un vote déterministe ou un décideur."""
+
+    def _wave(self, args, reports, budget=6, decider_answer='Synthèse.'):
+        user = User.objects.create(username=f'council_{User.objects.count()}')
+        lanes = [('ollama', 'a'), ('albert', 'x'), ('ilaas', 'z'), ('albert', 'y'), ('ilaas', 'w')]
+        answers = iter(reports)
+
+        def delegate(user, task_args, *, provider, llm_model, **k):
+            self.asked.append(task_args)
+            return {'report': next(answers), 'model': f'{provider}:{llm_model}'}, [], {}
+
+        self.asked = []
+        with mock.patch.object(assistant_engine, '_sub_agent_lanes',
+                               side_effect=lambda user, provider, model, count: lanes[:count]), \
+                mock.patch.object(assistant_engine, '_delegate', side_effect=delegate), \
+                mock.patch.object(assistant_engine, '_decider_lane',
+                                  return_value=('ilaas', 'decider-model')) as decider_lane, \
+                mock.patch.object(assistant_engine, 'run_assistant_turn',
+                                  return_value={'success': True, 'response': decider_answer,
+                                                'model': 'ilaas (decider-model)'}) as decider:
+            result = assistant_engine._delegate_wave(user, args, provider='ollama', llm_model='a',
+                                                     depth=0, deadline=None, budget=budget)
+        return result, decider, decider_lane
+
+    def test_the_same_question_goes_to_each_named_agent(self):
+        self._wave({'task': 'Q ?', 'agents': ['science', 'critique', 'methodology']}, ['r'] * 3)
+        self.assertEqual([('Q ?', 'science'), ('Q ?', 'critique'), ('Q ?', 'methodology')],
+                         [(a['task'], a['domain']) for a in self.asked])
+
+    def test_a_vote_is_counted_from_the_verdict_lines(self):
+        (result, _, _), _, _ = self._wave(
+            {'task': 'Q ?', 'agents': ['general'] * 3, 'decide': 'vote', 'options': ['oui', 'non']},
+            ['bla\nVERDICT: oui', 'VERDICT : `Oui`', 'pour moi\nVERDICT: non'])
+        decision = result['decision']
+        self.assertEqual(({'oui': 2, 'non': 1}, 'oui', 0.67, 0),
+                         (decision['counts'], decision['winner'], decision['agreement'],
+                          decision['abstentions']))
+        self.assertIn('VERDICT', self.asked[0]['task'])          # chaque votant sait quoi écrire
+
+    def test_a_tie_or_an_off_list_answer_is_said_not_settled(self):
+        (result, _, _), _, _ = self._wave(
+            {'task': 'Q ?', 'agents': ['general'] * 3, 'decide': 'vote', 'options': ['oui', 'non']},
+            ['VERDICT: oui', 'VERDICT: non', 'VERDICT: peut-être'])
+        self.assertIsNone(result['decision']['winner'])
+        self.assertEqual(1, result['decision']['abstentions'])
+
+    def test_a_vote_needs_options_and_decide_has_two_modes(self):
+        for args in ({'task': 'Q', 'agents': ['general'], 'decide': 'vote'},
+                     {'task': 'Q', 'agents': ['general'], 'decide': 'juge'}):
+            (result, trace, _), _, _ = self._wave(args, ['r'])
+            self.assertIn('error', result)
+            self.assertEqual([], self.asked)
+
+    def test_the_decider_reads_anonymous_reports_without_tools(self):
+        (result, trace, _), decider, decider_lane = self._wave(
+            {'task': 'Q ?', 'agents': ['science', 'critique'], 'decide': 'synthesis'},
+            ['avis UN', 'avis DEUX'])
+        message, kwargs = decider.call_args.args[1], decider.call_args.kwargs
+        self.assertIn('[A]', message)
+        self.assertIn('avis UN', message)
+        self.assertNotIn('albert', message)                         # aucun modèle nommé
+        self.assertEqual((frozenset(), 1, 'ilaas', 'decider-model'),
+                         (kwargs['allowed_tools'], kwargs['depth'], kwargs['provider'],
+                          kwargs['model']))
+        self.assertEqual({'ollama:a', 'albert:x'}, decider_lane.call_args.args[3])
+        self.assertTrue(callable(kwargs['on_event']))                # en flux, lui aussi
+        self.assertEqual('Synthèse.', result['decision']['text'])
+        self.assertEqual('decider', trace[-1]['role'])
+        self.assertEqual({0, 1}, set(trace[-1]['letters'].values()))
+
+    def test_the_decider_takes_its_place_under_the_cap(self):
+        (result, trace, _), _, _ = self._wave(
+            {'task': 'Q ?', 'agents': ['general'] * 3, 'decide': 'synthesis'}, ['r'] * 3, budget=3)
+        self.assertEqual(2, len(self.asked))
+        self.assertEqual(3, len(trace))                             # deux avis + le décideur
+        self.assertIn('Plafond', result['not_run'])
+
+    def test_the_decider_is_drawn_outside_the_agents(self):
+        user = User.objects.create(username='council_decider')
+        with mock.patch.object(assistant_engine, '_sub_agent_candidates',
+                               return_value=(['albert:x', 'ilaas:z', 'albert:y'], set())), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           side_effect=lambda *a, candidates, quality_intent, **k: candidates[0]):
+            lane = assistant_engine._decider_lane(user, 'ollama', 'a', {'albert:x'})
+        self.assertEqual(('ilaas', 'z'), lane)
+
+    def test_review_mode_cross_ranks_then_the_decider_reads_the_ranking(self):
+        """Le LLM Council de Karpathy : chaque agent classe les avis anonymes, le classement
+        s'agrège, le décideur le lit."""
+        from wama.common.services.assistant_engine import _REVIEW_BRIEF
+        user = User.objects.create(username='council_review')
+        lanes = [('ollama', 'a'), ('albert', 'x'), ('ilaas', 'z')]
+        calls = []
+
+        def turn(user, message, *, provider, model, **k):
+            calls.append((message, provider, k))
+            if message.startswith(_REVIEW_BRIEF[:40]):
+                return {'response': 'A bien, B moins.\nCLASSEMENT FINAL:\n1. Avis A\n2. Avis B\n'
+                                    '3. Avis C', 'model': provider}
+            return {'response': 'Décision.', 'model': 'decider'}
+
+        with mock.patch.object(assistant_engine, '_sub_agent_lanes', return_value=lanes), \
+                mock.patch.object(assistant_engine, '_delegate',
+                                  side_effect=lambda user, t, provider, **k: (
+                                      {'report': f"avis {t['domain']}", 'model': provider}, [], {})), \
+                mock.patch.object(assistant_engine, '_decider_lane', return_value=('ilaas', 'd')), \
+                mock.patch.object(assistant_engine, 'run_assistant_turn', side_effect=turn):
+            result, trace, _ = assistant_engine._delegate_wave(
+                user, {'task': 'Q ?', 'agents': ['science', 'critique', 'methodology'],
+                       'decide': 'review'},
+                provider='ollama', llm_model='a', depth=0, deadline=None, budget=6)
+        reviews = [c for c in calls if c[0].startswith(_REVIEW_BRIEF[:40])]
+        self.assertEqual(['albert', 'ilaas', 'ollama'], sorted(c[1] for c in reviews))
+        self.assertTrue(all(c[2]['allowed_tools'] == frozenset() for c in reviews))
+        decider_message = calls[-1][0]
+        self.assertIn('Relectures croisées', decider_message)
+        self.assertIn('Classement agrégé', decider_message)
+        self.assertNotIn('albert', decider_message)                 # toujours anonyme
+        self.assertEqual('review', result['decision']['mode'])
+        self.assertEqual(3, len(result['decision']['ranking']))
+        self.assertEqual(['agent'] * 3 + ['reviewer'] * 3 + ['decider'],
+                         [entry.get('role', 'agent') for entry in trace])
+
+    def test_a_ranking_is_read_after_its_mark_without_duplicates_or_strangers(self):
+        text = ("L'avis B est solide.\nCLASSEMENT FINAL:\n1. Avis [C]\n2. **Avis A**\n3. Avis C\n"
+                "4. Avis Z")
+        self.assertEqual(['C', 'A'], assistant_engine._parse_ranking(text, {'A', 'B', 'C'}))
+        self.assertEqual(['B', 'A'], assistant_engine._parse_ranking('Avis B puis Avis A',
+                                                                     {'A', 'B'}))
+
+    def test_the_aggregate_is_the_mean_rank_without_one_s_own_answer(self):
+        rankings = [['A', 'B', 'C'], ['A', 'C', 'B'], ['B', 'A', 'C']]
+        rows = assistant_engine._aggregate_rankings(rankings, ['A', 'B', 'C'], ['A', 'B', 'C'])
+        self.assertEqual([('B', 1.0), ('A', 1.5), ('C', 2.0)],
+                         [(row['letter'], row['average_rank']) for row in rows])
+
+    def test_reviewers_do_not_count_as_sub_agents_under_the_cap(self):
+        from wama.common.services.assistant_engine import MAX_DELEGATIONS_PER_TURN
+        council = json.dumps({'tool': 'delegate', 'args': {
+            'task': 'Q', 'agents': ['general', 'critique'], 'decide': 'review'}})
+        more = json.dumps({'tool': 'delegate', 'args': {
+            'tasks': [{'task': f't{i}'} for i in range(MAX_DELEGATIONS_PER_TURN)]}})
+        reviewer = {'role': 'reviewer', 'steps': [], 'model': 'm'}
+        with mock.patch.object(assistant_engine, '_sub_agent_lanes',
+                               side_effect=lambda user, provider, model, count: [(provider, model)]), \
+                mock.patch.object(assistant_engine, '_delegate',
+                                  return_value=({'report': 'r'}, [], {})), \
+                mock.patch.object(assistant_engine, '_peer_review',
+                                  return_value=([], [reviewer, reviewer], {})), \
+                mock.patch.object(assistant_engine, '_synthesise',
+                                  return_value=({'text': 'd'}, {'role': 'decider', 'steps': []}, {})):
+            result, _, _ = _turn(parent=(council, more), can_delegate=True)
+        second = result['tool_steps'][1]
+        # 2 agents + 1 décideur pris ; les 2 relectures ne comptent pas.
+        self.assertEqual(MAX_DELEGATIONS_PER_TURN - 3, len(second['sub_agents']))
+
+    def test_the_specialised_agents_are_declared_roles(self):
+        from wama.common.utils.assistant_skills import (
+            competences_announcement, resolve_domain, role_instructions,
+        )
+        line, spec = assistant_engine._delegate_tool()
+        for key in ('critique', 'methodology'):
+            self.assertEqual(key, resolve_domain(key).key)
+            self.assertTrue(role_instructions(key))
+            self.assertIn(key, spec['function']['parameters']['properties']['agents']['items']['enum'])
+            # Postures d'AGENT : nommées par `delegate`, pas annoncées à chaque tour principal.
+            self.assertNotIn(f'`{key}`', competences_announcement())
 
 
 class DelegateCallTest(TestCase):
@@ -299,6 +479,8 @@ class DelegateCallTest(TestCase):
         self.assertEqual((1, SUB_AGENT_MAX_ITERATIONS, []),
                          (kwargs['depth'], kwargs['max_iterations'], kwargs['history']))
         self.assertEqual('investigation', kwargs['domain'])
+        # EN FLUX : une requête muette est coupée vers 165-175 s chez ILaaS (mesuré le 29/10).
+        self.assertTrue(callable(kwargs['on_event']))
 
     def test_the_parent_deadline_bounds_the_sub_agent(self):
         _, sub = self._delegate({'task': 't'}, deadline=0.0)

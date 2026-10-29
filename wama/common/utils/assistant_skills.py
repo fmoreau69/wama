@@ -52,6 +52,11 @@ class AssistantDomain:
     #: (`common/services/development_models.py` — curseur 100, réflexion, lot restreint, refus
     #: plutôt qu'un petit modèle), et le domaine reste chargé pour la suite du fil.
     development: bool = False
+    #: ANNONCÉ au tour principal (`competences_announcement`) ? Faux pour une posture d'AGENT
+    #: (2026-10-29, étape 4 du multi-agents) : l'outil `delegate` la nomme déjà quand la délégation
+    #: est allumée, et l'annonce se paie à chaque appel de chaque tour (`WAMA_HARNESS §9`, prompt
+    #: système = poste de coût dominant). Elle reste chargeable par `charger_competence`.
+    announced: bool = True
 
 
 #: Registre DÉCLARATIF des domaines. Ajouter un domaine = ajouter une entrée ici et un
@@ -71,6 +76,14 @@ DOMAINES = (
     # labo — la fraîcheur vient de la récupération (WAMA_LLM.md §Investigation web).
     AssistantDomain('investigation', 'Investigation web', 'assistant-investigation',
                      help_text="Identifier, chercher sur le web, recouper, répondre avec sources."),
+    # Postures de RÉFLEXION (2026-10-29, `WAMA_HARNESS §7.4` étape 4) : des agents spécialisés que
+    # l'assistant charge lui-même OU confie à un sous-agent — un council se compose de ces rôles,
+    # il n'est pas un mode figé (décision de Fabien). Ajouter un agent = une entrée ici + son fichier.
+    AssistantDomain('critique', 'Contradicteur', 'assistant-critique', announced=False,
+                     help_text="Chercher les failles, les contre-arguments, ce qui n'est pas vérifié."),
+    AssistantDomain('methodology', 'Méthodologie', 'assistant-methodology', rag=True,
+                     announced=False,
+                     help_text="Protocole, biais, validité, travaux existants d'une question de recherche."),
 )
 
 DEFAULT_DOMAIN = 'general'
@@ -123,7 +136,8 @@ def competences_announcement(sauf: str = None) -> str:
     le protocole. Déduire le domaine du nom d'un salon serait de surcroît faux la plupart
     du temps — un canal porte le nom d'un projet de recherche, pas d'une discipline.
     """
-    lignes = [f"- `{d.key}` : {d.help_text}" for d in DOMAINES if d.key != (sauf or '')]
+    lignes = [f"- `{d.key}` : {d.help_text}" for d in DOMAINES
+              if d.key != (sauf or '') and d.announced]
     if not lignes:
         return ''
     return ("\n\nSpecialised competences you can load with the `charger_competence` tool "

@@ -1251,9 +1251,11 @@ SUB_AGENT_SECONDS = 300
 #: dollars n'est pas mesurable (le chemin cloud ne rapporte pas de coût), un nombre d'appels l'est.
 #: Avec les bornes ci-dessus, un sous-agent fait au plus 7 appels : 5 itérations (une reprise de
 #: réponse vide ou un relais en consomme une) et le dernier sans outil ; un tour INVENTÉ n'a fait
-#: qu'un appel avant sa reprise unique, qui en fait 6. Donc au plus 3 × 7 appels de sous-agents
-#: par tour, en plus des siens. Choix de départ, non mesuré.
-MAX_DELEGATIONS_PER_TURN = 3
+#: qu'un appel avant sa reprise unique, qui en fait 6. Donc au plus 6 × 7 appels de sous-agents
+#: par tour, en plus des siens. 3 à l'étape 3 ; 6 depuis l'étape 4 — la cible de Fabien (29/10) :
+#: un council de CINQ agents et son décideur. Une RELECTURE (`decide="review"`) n'est pas un
+#: sous-agent — un appel sans outil par agent — : au plus 6 × 7 + 5 appels. Choix, non mesuré.
+MAX_DELEGATIONS_PER_TURN = 6
 _DELEGATIONS_EXHAUSTED = ("Plafond de {limit} sous-agents atteint pour ce tour : mène la suite toi-même "
                           "avec tes outils, ou réponds à partir des rapports déjà reçus.")
 #: Ce que reçoit le sous-agent en tête de sa tâche : il rend un RAPPORT au parent, pas une réponse
@@ -1263,6 +1265,47 @@ _SUB_AGENT_BRIEF = (
     "ci-dessous avec tes outils de lecture, puis rends un rapport court et factuel : ce que tu as "
     "trouvé, avec ses sources (liens copiés des résultats d'outils), et ce qui reste incertain.\n\n"
     "Tâche : ")
+#: Les deux façons de CONCLURE une vague où plusieurs agents traitent la même question (étape 4) :
+#: un VOTE, déterministe, pour une question fermée — le principe de `prospect_agents`, « pas besoin
+#: d'un juge LLM pour une moyenne » — ; un DÉCIDEUR pour une question ouverte, qu'aucun vote ne
+#: tranche. Sans `decide`, la vague rend ses rapports, et c'est l'assistant qui conclut.
+#: Le troisième, `review`, est le LLM Council de Karpathy (`karpathy/llm-council`, lu dans son code
+#: le 29/10, demande de Fabien) : avant le décideur, chaque agent CLASSE les avis anonymes des
+#: autres, et le classement s'agrège en rang moyen. Deux écarts voulus : le rang qu'un agent donne
+#: à SA réponse ne compte pas (un modèle préfère la sienne) ; le décideur reçoit le classement agrégé,
+#: et tout reste anonyme pour lui (là-bas, il lit les noms des modèles).
+DECISION_MODES = ('vote', 'synthesis', 'review')
+#: Joint à la tâche de chaque votant : la ligne que le décompte lit, jamais le sens du texte.
+_VOTE_SUFFIX = ("\n\nTermine ton rapport par une ligne seule : `VERDICT: <option>`, l'option étant "
+                "exactement l'une de : {options}.")
+#: L'écouteur d'un sous-agent et du décideur : il ne montre rien à personne, mais il fait passer
+#: leurs appels au modèle EN FLUX. Mesuré le 2026-10-29 sur ILaaS (`qwen-3.8-27b`, deux passes) :
+#: une requête MUETTE — sans flux, rien n'arrive avant la fin — est coupée vers 165-175 s
+#: (« Connection error », par ILaaS ou par le proxy sur le chemin, non départagé) ; un flux a tenu
+#: 197 s et rendu sa réponse entière. Le relevé du 15/10 (« ILaaS coupe vers 3 min 30 ») en était
+#: la même trace, vue sur un rôle de développement.
+_STREAM_ONLY = lambda event: None  # noqa: E731
+_VERDICT_LINE = re.compile(r'^\W*VERDICT\W*:\s*(.+?)\W*$', re.IGNORECASE | re.MULTILINE)
+#: Ce que reçoit le DÉCIDEUR : les avis ANONYMES et MÉLANGÉS (un juge LLM préfère son propre style
+#: et le premier avis lu), l'obligation de citer l'avis qui fonde chaque point, et les désaccords
+#: gardés visibles. Il n'a aucun outil : il juge ce qu'on lui donne, il ne refait pas l'enquête.
+_DECIDER_BRIEF = (
+    "Tu es le décideur d'un groupe d'agents : tu ne parles pas à l'utilisateur. Plusieurs agents "
+    "ont traité la même question ; leurs avis, anonymes et dans un ordre quelconque, suivent. "
+    "Tranche : rédige la réponse que le groupe soutient, en citant pour chaque point l'avis qui le "
+    "fonde ([A], [B]…). Dis explicitement où les avis divergent et lequel tu retiens, et pourquoi. "
+    "N'ajoute aucun fait qu'aucun avis n'apporte.\n\nQuestion : {question}\n\n{opinions}{reviews}")
+#: Ce que reçoit chaque RELECTEUR (`review`) : le format du classement est celui que la lecture
+#: déterministe sait lire (`_RANKED_LABEL`), comme le `FINAL RANKING:` du LLM Council.
+_REVIEW_BRIEF = (
+    "Tu relis les avis de plusieurs agents sur une même question : tu ne parles pas à "
+    "l'utilisateur. Pour chaque avis, dis en une ou deux phrases ce qu'il fait bien et ce qu'il fait "
+    "mal (exactitude, sources, raisonnement). Termine par ton classement, du meilleur au moins bon, "
+    "EXACTEMENT sous cette forme, sans rien après :\nCLASSEMENT FINAL:\n1. Avis X\n2. Avis Y\n\n"
+    "Question : {question}\n\n{opinions}")
+_RANKING_MARK = re.compile(r'CLASSEMENT\s+FINAL\s*:', re.IGNORECASE)
+_RANKED_LABEL = re.compile(r'\d+\s*[.)]\s*\W*Avis\s*\[?([A-Z])\]?', re.IGNORECASE)
+_ANY_LABEL = re.compile(r'Avis\s*\[?([A-Z])\]?', re.IGNORECASE)
 
 
 def _delegate_tool() -> tuple:
@@ -1274,22 +1317,43 @@ def _delegate_tool() -> tuple:
         "Hand self-contained tasks to sub-agents: fresh context, read-only tools (web search and "
         "pages, WAMA docs, the user's memory, statuses). Each returns its report. Use it for a task "
         "that needs several searches or readings; do it yourself when one tool call is enough. "
-        f"`domain` (optional) sets the competence: {', '.join(domains)}. For INDEPENDENT tasks, pass "
-        f"them together in `tasks` (a list of {{\"task\", \"domain\"}}, at most "
-        f"{MAX_DELEGATIONS_PER_TURN} per turn): they run at the same time, on different servers.")
-    line = f"\n- {DELEGATE_TOOL}(task, domain, tasks): {description}"
+        f"`domain` sets an agent's competence: {', '.join(domains)}. Compose what the question "
+        f"needs, at most {MAX_DELEGATIONS_PER_TURN} agents per turn, run at the same time on "
+        "different models: INDEPENDENT tasks in `tasks` (a list of {\"task\", \"domain\"}); the "
+        "SAME question to several agents with `task` + `agents` (a list of domains, repeat one to "
+        "get several models). Then `decide` concludes for you: \"vote\" for a closed question "
+        "(give `options`), \"synthesis\" for an open one (a decider reads the anonymised reports), "
+        "\"review\" for a question worth a deep answer (each agent first ranks the others' "
+        "anonymised reports, then the decider concludes with that ranking).")
+    line = f"\n- {DELEGATE_TOOL}(task, domain, tasks, agents, decide, options): {description}"
     task_property = {'type': 'string',
                      'description': 'The complete task, understandable without this conversation.'}
+    domain_property = {'type': 'string', 'enum': domains}
     spec = {'type': 'function', 'function': {
         'name': DELEGATE_TOOL, 'description': description,
         'parameters': {'type': 'object', 'properties': {
             'task': task_property,
-            'domain': {'type': 'string', 'enum': domains},
+            'domain': domain_property,
             'tasks': {'type': 'array', 'items': {'type': 'object', 'required': ['task'],
                                                  'properties': {'task': task_property,
-                                                                'domain': {'type': 'string',
-                                                                           'enum': domains}}}}}}}}
+                                                                'domain': domain_property}}},
+            'agents': {'type': 'array', 'items': domain_property},
+            'decide': {'type': 'string', 'enum': list(DECISION_MODES)},
+            'options': {'type': 'array', 'items': {'type': 'string'}}}}}}
     return line, spec
+
+
+def _sub_agent_candidates(user) -> tuple:
+    """(lot, clés distantes admises) d'un sous-agent : le lot de l'assistant outillé
+    (`agent_candidates`) tel que l'admet le tirage automatique (`allowed_cloud_keys` — le profil dit
+    jusqu'où une requête sort), l'abonnement retiré (sa boucle ignore les bornes d'un sous-agent).
+    UNE lecture pour les couloirs et pour le décideur."""
+    from wama.common.services.development_models import agent_candidates
+    from wama.model_manager.services.cloud_models import allowed_cloud_keys
+    cloud = allowed_cloud_keys(user)
+    excluded = {_provider_source(p) for p in _SUBSCRIPTION_PROVIDERS}
+    return ([k for k in agent_candidates(user, cloud_keys=cloud)
+             if k.partition(':')[0] not in excluded], cloud)
 
 
 def _sub_agent_lanes(user, provider, llm_model, count: int) -> list:
@@ -1302,34 +1366,79 @@ def _sub_agent_lanes(user, provider, llm_model, count: int) -> list:
     les bornes d'un sous-agent. Un serveur par couloir : deux modèles locaux DIFFÉRENTS ne se
     disputent jamais la carte (`§7.4`, « le parallèle, et comment se passe l'inférence »).
 
+    QUAND LES SERVEURS SONT ÉPUISÉS (étape 4 : un council de cinq sur trois serveurs), les couloirs
+    suivants prennent un AUTRE MODÈLE d'un serveur DISTANT déjà pris — mesuré le 29/10 : trois
+    modèles d'Albert en même temps, aucun refus. Jamais un second couloir LOCAL : deux modèles
+    locaux en même temps se disputeraient la carte.
+
     Rend [(fournisseur, modèle)] ; un seul couloir quand rien d'autre n'est admis (profil « 100 %
     local ») — la vague redevient alors séquentielle, sans erreur."""
     lanes = [(provider, llm_model)]
     if count <= 1 or user is None:
         return lanes
     try:
-        from wama.common.services.development_models import agent_candidates
         from wama.common.utils.auto_model import AUTO, resolve_model_choice
-        from wama.model_manager.services.cloud_models import allowed_cloud_keys
-        cloud = allowed_cloud_keys(user)
-        lot = agent_candidates(user, cloud_keys=cloud)
-        used = {_provider_source(provider)} | {_provider_source(p) for p in _SUBSCRIPTION_PROVIDERS}
+        lot, cloud = _sub_agent_candidates(user)
+        used_sources, used_keys = {_provider_source(provider)}, {turn_model_key(provider, llm_model)}
         intent = assistant_settings(user).get('quality_intent')
         while len(lanes) < count:
-            candidates = [k for k in lot if k.partition(':')[0] not in used]
+            candidates = ([k for k in lot if k.partition(':')[0] not in used_sources]
+                          or [k for k in lot if k not in used_keys
+                              and k.partition(':')[0] != _provider_source('ollama')])
             if not candidates:
                 break
             key = resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
                                        quality_intent=intent, cloud_keys=cloud, user=user,
                                        candidates=candidates)
-            source, _, model_id = str(key or '').partition(':')
-            if not source or source in used:
+            if not key or key not in candidates:
                 break
-            used.add(source)
+            source, _, model_id = str(key).partition(':')
+            used_sources.add(source)
+            used_keys.add(key)
             lanes.append((SOURCE_PROVIDERS.get(source, source), model_id or None))
     except Exception:
         logger.debug("[ai_chat] couloirs de sous-agents indisponibles — un seul", exc_info=True)
     return lanes
+
+
+def _decider_lane(user, provider, llm_model, exclude: set) -> tuple:
+    """(fournisseur, modèle) du DÉCIDEUR : le tirage commun au curseur « Qualité » sur les mêmes
+    candidats que les couloirs, HORS des modèles qui ont donné un avis (`exclude`) — un juge LLM
+    favorise ses propres réponses. Sans autre candidat, le modèle du tour."""
+    try:
+        from wama.common.utils.auto_model import AUTO, resolve_model_choice
+        lot, cloud = _sub_agent_candidates(user)
+        candidates = [k for k in lot if k not in exclude]
+        key = (resolve_model_choice(AUTO, app_id='assistant', requires=['completion'],
+                                    quality_intent=100, cloud_keys=cloud, user=user,
+                                    candidates=candidates) if candidates else None)
+        if key in candidates:
+            source, _, model_id = str(key).partition(':')
+            return SOURCE_PROVIDERS.get(source, source), model_id or None
+    except Exception:
+        logger.debug("[ai_chat] tirage du décideur indisponible — modèle du tour", exc_info=True)
+    return provider, llm_model
+
+
+def _tally(reports: list, options: list) -> dict:
+    """Le VOTE : le décompte des lignes `VERDICT:` des rapports, sur les options données —
+    déterministe, comme le jury de `prospect_agents` (`_consolider`). Une réponse hors options ou
+    sans verdict est une ABSTENTION, comptée à part. Majorité stricte des voix exprimées, sinon
+    pas de gagnant : une égalité se dit, elle ne se tranche pas au hasard."""
+    by_key = {o.casefold(): o for o in options}
+    counts, votes = {o: 0 for o in options}, []
+    for report in reports:
+        found = _VERDICT_LINE.findall(str(report.get('report') or ''))
+        choice = by_key.get(found[-1].strip().strip('`*"\'').casefold()) if found else None
+        votes.append(choice)
+        if choice:
+            counts[choice] += 1
+    cast = sum(counts.values())
+    best = max(counts, key=counts.get) if cast else None
+    winner = best if best and counts[best] * 2 > cast else None
+    return {'mode': 'vote', 'counts': counts, 'winner': winner,
+            'agreement': round(counts[best] / cast, 2) if cast else 0.0,
+            'abstentions': votes.count(None), 'votes': votes}
 
 
 def _delegate_wave(user, args: dict, *, provider, llm_model, depth, deadline, budget: int) -> tuple:
@@ -1338,44 +1447,50 @@ def _delegate_wave(user, args: dict, *, provider, llm_model, depth, deadline, bu
     d'un même couloir l'une après l'autre. Au-delà de `budget` (le reste du plafond du tour), les
     tâches ne partent pas, et le résultat le dit.
 
+    COMPOSITION, PAS UN MODE (étape 4, décision de Fabien du 29/10 : « pas un council figé ») : la
+    même question à plusieurs agents (`task` + `agents`, des domaines du registre — un domaine
+    répété donne plusieurs modèles), puis `decide` conclut : un VOTE sur `options`, ou un DÉCIDEUR
+    (`synthesis`), qui compte dans le plafond.
+
     Rend (résultat pour le MODÈLE, trace des sous-agents, usage). Le modèle ne lit que les
-    RAPPORTS ; la trace garde, par sous-agent, sa tâche, son modèle, ses étapes et sa durée."""
-    raw = (args or {}).get('tasks')
-    tasks = raw if isinstance(raw, list) and raw else [args or {}]
-    tasks = [t if isinstance(t, dict) else {'task': t} for t in tasks]
-    kept, dropped = tasks[:max(budget, 0)], tasks[max(budget, 0):]
-    lanes = _sub_agent_lanes(user, provider, llm_model, len(kept))
-    queues = [[(i, t) for i, t in enumerate(kept) if i % len(lanes) == lane]
-              for lane in range(len(lanes))]
-    outcomes = [None] * len(kept)
-
-    def run_lane(lane_index):
-        lane_provider, lane_model = lanes[lane_index]
-        try:
-            for i, task_args in queues[lane_index]:
-                started = time.monotonic()
-                try:
-                    result, steps, usage = _delegate(user, task_args, provider=lane_provider,
-                                                     llm_model=lane_model, depth=depth,
-                                                     deadline=deadline)
-                except Exception as e:
-                    # L'échec d'UN sous-agent est son rapport ; il ne fait pas tomber le tour.
-                    logger.exception("[ai_chat] sous-agent en panne")
-                    result, steps, usage = {'error': f"Sous-agent en panne : {e}"}, [], {}
-                outcomes[i] = (result, steps, usage, round(time.monotonic() - started, 1))
-        finally:
-            if len(lanes) > 1:
-                # Un fil à lui : ses connexions ne reviennent à personne d'autre.
-                from django.db import connections
-                connections.close_all()
-
-    if len(lanes) > 1:
-        from concurrent.futures import ThreadPoolExecutor
-        with ThreadPoolExecutor(max_workers=len(lanes), thread_name_prefix='wama-sub-agent') as pool:
-            list(pool.map(run_lane, range(len(lanes))))
+    RAPPORTS (et la décision) ; la trace garde, par sous-agent, sa tâche, son modèle, ses étapes et
+    sa durée."""
+    args = args or {}
+    raw, agents = args.get('tasks'), args.get('agents')
+    if isinstance(raw, list) and raw:
+        tasks = [t if isinstance(t, dict) else {'task': t} for t in raw]
+    elif isinstance(agents, list) and agents:
+        tasks = [{'task': args.get('task'), 'domain': agent} for agent in agents]
     else:
-        run_lane(0)
+        tasks = [args]
+    decide = args.get('decide') or None
+    options = [str(o).strip() for o in args.get('options') or () if str(o).strip()]
+    if decide is not None and decide not in DECISION_MODES:
+        return ({'error': f"{DELEGATE_TOOL} : `decide` vaut {' ou '.join(DECISION_MODES)}."}, [], {})
+    if decide == 'vote' and len(options) < 2:
+        return ({'error': f"{DELEGATE_TOOL} : un vote demande au moins deux `options`."}, [], {})
+    if decide == 'vote':
+        suffix = _VOTE_SUFFIX.format(options=' | '.join(options))
+        tasks = [{**t, 'task': f"{str(t.get('task') or '').strip()}{suffix}"}
+                 if str(t.get('task') or '').strip() else t for t in tasks]
+    # Le décideur est un sous-agent de plus : sa place se réserve avant la vague.
+    room = max(budget - (decide in ('synthesis', 'review')), 0)
+    kept, dropped = tasks[:room], tasks[room:]
+    lanes = _sub_agent_lanes(user, provider, llm_model, len(kept))
+    assignment = [i % len(lanes) for i in range(len(kept))]
 
+    def work(i, lane):
+        started = time.monotonic()
+        try:
+            result, steps, usage = _delegate(user, kept[i], provider=lane[0], llm_model=lane[1],
+                                             depth=depth, deadline=deadline)
+        except Exception as e:
+            # L'échec d'UN sous-agent est son rapport ; il ne fait pas tomber le tour.
+            logger.exception("[ai_chat] sous-agent en panne")
+            result, steps, usage = {'error': f"Sous-agent en panne : {e}"}, [], {}
+        return result, steps, usage, round(time.monotonic() - started, 1)
+
+    outcomes = _run_lanes(lanes, assignment, work)
     reports, trace, usage = [], [], {}
     for task_args, (result, steps, sub_usage, seconds) in zip(kept, outcomes):
         task = str(task_args.get('task') or '')
@@ -1394,7 +1509,189 @@ def _delegate_wave(user, args: dict, *, provider, llm_model, depth, deadline, bu
         # Aucun rapport : un REFUS, que la trace du tour dit (`_refusals_notice`).
         tool_result['error'] = (reports[0]['error'] if reports
                                 else _DELEGATIONS_EXHAUSTED.format(limit=MAX_DELEGATIONS_PER_TURN))
+        return tool_result, trace, usage
+    if decide == 'vote':
+        tool_result['decision'] = _tally(reports, options)
+        return tool_result, trace, usage
+    if decide in ('synthesis', 'review'):
+        question = str(args.get('task') or '').strip() or '; '.join(r['task'] for r in reports)
+        anonymised = _anonymise(reports)
+        reviews, ranking = '', None
+        if decide == 'review':
+            ranking, review_trace, review_usage = _peer_review(
+                user, question, anonymised, lanes, assignment, depth=depth, deadline=deadline)
+            trace.extend(review_trace)
+            _add_usage(usage, review_usage)
+            reviews = _reviews_block(review_trace, ranking)
+        exclude = {turn_model_key(*lane) for lane in lanes}
+        decision, entry, decider_usage = _synthesise(
+            user, question, anonymised, lane=_decider_lane(user, provider, llm_model, exclude),
+            depth=depth, deadline=deadline, reviews=reviews)
+        decision['mode'] = decide
+        if ranking is not None:
+            decision['ranking'] = ranking
+        tool_result['decision'] = decision
+        trace.append(entry)
+        _add_usage(usage, decider_usage)
     return tool_result, trace, usage
+
+
+def _add_usage(total: dict, more: dict) -> None:
+    for key, value in (more or {}).items():
+        total[key] = (total.get(key) or 0) + (value or 0)
+
+
+def _run_lanes(lanes: list, assignment: list, work) -> list:
+    """Exécute `work(i, couloir)` pour chaque travail `i`, sur le couloir `assignment[i]` : les
+    couloirs EN MÊME TEMPS (un fil chacun, ses connexions refermées), les travaux d'un même couloir
+    l'un après l'autre — un serveur local ne reçoit jamais deux appels à la fois. UNE exécution pour
+    la vague des sous-agents et pour leurs relectures. Rend les résultats dans l'ordre des travaux."""
+    outcomes = [None] * len(assignment)
+    queues = [[i for i, lane in enumerate(assignment) if lane == k] for k in range(len(lanes))]
+    busy = [k for k, queue in enumerate(queues) if queue]
+
+    def run_lane(k):
+        try:
+            for i in queues[k]:
+                outcomes[i] = work(i, lanes[k])
+        finally:
+            if len(busy) > 1:
+                from django.db import connections
+                connections.close_all()
+
+    if len(busy) > 1:
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=len(busy), thread_name_prefix='wama-sub-agent') as pool:
+            list(pool.map(run_lane, busy))
+    else:
+        for k in busy:
+            run_lane(k)
+    return outcomes
+
+
+def _anonymise(reports: list) -> dict:
+    """Les rapports réussis, ANONYMES et MÉLANGÉS (un juge LLM préfère le premier avis lu) : une
+    lettre par avis, la même pour les relecteurs et pour le décideur."""
+    import random
+
+    valid = [i for i, r in enumerate(reports) if 'error' not in r]
+    random.shuffle(valid)
+    letters = [chr(ord('A') + n) for n in range(len(valid))]
+    return {'letters': dict(zip(letters, valid)),
+            'text': '\n\n'.join(f"Avis [{letter}] :\n{reports[i].get('report', '')}"
+                                for letter, i in zip(letters, valid))}
+
+
+def _parse_ranking(text: str, letters) -> list:
+    """Le classement d'un relecteur : les lettres après `CLASSEMENT FINAL:` (sinon dans tout le
+    texte), dans l'ordre, sans doublon, hors des lettres inconnues — la lecture du LLM Council
+    (`parse_ranking_from_text`), qui, elle, gardait doublons et inconnues."""
+    text = str(text or '')
+    mark = _RANKING_MARK.search(text)
+    section = text[mark.end():] if mark else text
+    found = _RANKED_LABEL.findall(section) or _ANY_LABEL.findall(section)
+    ranking = []
+    for letter in (f.upper() for f in found):
+        if letter in letters and letter not in ranking:
+            ranking.append(letter)
+    return ranking
+
+
+def _aggregate_rankings(rankings: list, own: list, letters) -> list:
+    """Le classement agrégé : le RANG MOYEN de chaque avis (plus bas = meilleur), comme le LLM
+    Council (`calculate_aggregate_rankings`) — sauf le rang qu'un relecteur donne à SON avis (`own`),
+    qui ne compte pas : les rangs se renumérotent sans lui. Un avis qu'un relecteur oublie ne reçoit
+    rien de lui (pas de pénalité, comme là-bas). Déterministe."""
+    positions = {letter: [] for letter in letters}
+    for ranking, mine in zip(rankings, own):
+        rank = 0
+        for letter in ranking:
+            if letter == mine:
+                continue
+            rank += 1
+            positions[letter].append(rank)
+    rows = [{'letter': letter, 'average_rank': round(sum(p) / len(p), 2) if p else None,
+             'rankings': len(p)} for letter, p in positions.items()]
+    return sorted(rows, key=lambda row: (row['average_rank'] is None, row['average_rank'] or 0,
+                                         row['letter']))
+
+
+def _peer_review(user, question: str, anonymised: dict, lanes: list, assignment: list, *,
+                 depth, deadline) -> tuple:
+    """La RELECTURE CROISÉE (`review`, le LLM Council) : chaque agent qui a rendu un avis le relit
+    avec les autres, anonymes, et les classe — sur SON couloir (même modèle que son avis), sans
+    outil, en même temps que les autres couloirs. Rend (classement agrégé, trace, usage)."""
+    letters = anonymised['letters']
+    own_letter = {index: letter for letter, index in letters.items()}
+    reviewers = sorted(letters.values())
+    message = _REVIEW_BRIEF.format(question=question, opinions=anonymised['text'])
+
+    def work(n, lane):
+        started = time.monotonic()
+        try:
+            sub = run_assistant_turn(user, message, provider=lane[0], model=lane[1], history=[],
+                                     surface='agent', depth=depth + 1, allowed_tools=frozenset(),
+                                     max_iterations=1, deadline=_sub_deadline(deadline),
+                                     on_event=_STREAM_ONLY)
+        except Exception as e:
+            logger.exception("[ai_chat] relecteur en panne")
+            sub = {'error': f"Relecteur en panne : {e}"}
+        return sub, round(time.monotonic() - started, 1)
+
+    outcomes = _run_lanes(lanes, [assignment[i] for i in reviewers], work)
+    rankings, own, trace, usage = [], [], [], {}
+    for index, (sub, seconds) in zip(reviewers, outcomes):
+        ranking = [] if 'error' in sub else _parse_ranking(sub.get('response'), letters)
+        rankings.append(ranking)
+        own.append(own_letter[index])
+        trace.append({'task': question, 'role': 'reviewer', 'model': sub.get('model', ''),
+                      'own': own_letter[index], 'ranking': ranking,
+                      'text': sub.get('response', '') if 'error' not in sub else sub['error'],
+                      'steps': [], 'seconds': seconds})
+        _add_usage(usage, sub.get('usage'))
+    return _aggregate_rankings(rankings, own, letters), trace, usage
+
+
+def _reviews_block(review_trace: list, ranking: list) -> str:
+    """Ce que le décideur lit des relectures : chacune, anonyme, puis le classement agrégé."""
+    texts = '\n\n'.join(f"Relecture {n} :\n{entry.get('text', '')}"
+                        for n, entry in enumerate(review_trace, start=1))
+    ranked = ' · '.join(f"[{row['letter']}] {row['average_rank']}" for row in ranking
+                        if row['average_rank'] is not None)
+    return (f"\n\nRelectures croisées des agents :\n\n{texts}\n\nClassement agrégé (rang moyen, "
+            f"plus bas = meilleur) : {ranked or 'aucun classement lisible'}")
+
+
+def _sub_deadline(deadline):
+    """L'échéance d'un sous-agent : `SUB_AGENT_SECONDS`, bornée par celle du tour qui délègue."""
+    sub_deadline = time.monotonic() + SUB_AGENT_SECONDS
+    return sub_deadline if deadline is None else min(sub_deadline, deadline)
+
+
+def _synthesise(user, question: str, anonymised: dict, *, lane, depth, deadline,
+                reviews: str = '') -> tuple:
+    """Le DÉCIDEUR d'une vague : un tour de la même boucle, sans aucun outil, qui lit les rapports
+    réussis ANONYMES et MÉLANGÉS (`_anonymise`) — et les relectures croisées s'il y en a — et
+    tranche. La correspondance lettre → agent reste dans la trace : le modèle du parent lit la
+    décision, l'utilisateur peut voir qui a dit quoi.
+
+    Rend (décision pour le MODÈLE, entrée de trace, usage)."""
+    letters = anonymised['letters']
+    started = time.monotonic()
+    sub = run_assistant_turn(user, _DECIDER_BRIEF.format(question=question,
+                                                         opinions=anonymised['text'],
+                                                         reviews=reviews),
+                             provider=lane[0], model=lane[1], history=[], surface='agent',
+                             depth=depth + 1, allowed_tools=frozenset(), max_iterations=1,
+                             deadline=_sub_deadline(deadline), on_event=_STREAM_ONLY)
+    seconds = round(time.monotonic() - started, 1)
+    entry = {'task': question, 'role': 'decider', 'model': sub.get('model', ''),
+             'steps': sub.get('tool_steps') or [], 'seconds': seconds, 'letters': letters}
+    logger.info("[ai_chat] décideur : %s s, %s, %s avis", seconds, sub.get('model', ''), len(letters))
+    if 'error' in sub:
+        return {'error': f"Décideur en échec : {sub['error']}"}, entry, sub.get('usage') or {}
+    return ({'text': sub.get('response', ''), 'model': sub.get('model', '')},
+            entry, sub.get('usage') or {})
 
 
 def _delegate(user, args: dict, *, provider, llm_model, depth, deadline) -> tuple:
@@ -1411,13 +1708,11 @@ def _delegate(user, args: dict, *, provider, llm_model, depth, deadline) -> tupl
         return ({'error': f"{DELEGATE_TOOL} : `task` est requis — la tâche entière, compréhensible "
                           f"sans cette conversation."}, [], {})
     domain = resolve_domain((args or {}).get('domain'))
-    sub_deadline = time.monotonic() + SUB_AGENT_SECONDS
-    if deadline is not None:
-        sub_deadline = min(sub_deadline, deadline)
     sub = run_assistant_turn(user, _SUB_AGENT_BRIEF + task, provider=provider, model=llm_model,
                              history=[], domain=None if domain.development else domain.key,
                              surface='agent', depth=depth + 1,
-                             max_iterations=SUB_AGENT_MAX_ITERATIONS, deadline=sub_deadline)
+                             max_iterations=SUB_AGENT_MAX_ITERATIONS,
+                             deadline=_sub_deadline(deadline), on_event=_STREAM_ONLY)
     steps, usage = sub.get('tool_steps') or [], sub.get('usage') or {}
     if 'error' in sub:
         return {'error': f"Sous-agent en échec : {sub['error']}"}, steps, usage
@@ -2061,9 +2356,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
             # du tour, et leurs étapes vont à la trace (`sub_agents`), jamais au modèle du parent.
             # Le JOURNAL (étape 3) : par sous-agent, sa tâche, son modèle, ses étapes, sa durée.
             # Le PLAFOND compte des SOUS-AGENTS, pas des appels : une vague en lance plusieurs.
+            # Une RELECTURE (`review`) est un appel sans outil, pas un sous-agent : elle ne compte pas.
             budget = MAX_DELEGATIONS_PER_TURN - sum(
-                len(step.get('sub_agents') or ()) for step in tool_steps
-                if step['tool'] == DELEGATE_TOOL)
+                1 for step in tool_steps if step['tool'] == DELEGATE_TOOL
+                for agent in step.get('sub_agents') or () if agent.get('role') != 'reviewer')
             tool_result, sub_agents, sub_usage = _delegate_wave(
                 user, tool_args, provider=provider, llm_model=llm_model, depth=depth,
                 deadline=deadline, budget=budget)

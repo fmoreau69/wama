@@ -1318,6 +1318,15 @@ La vision §15 place la **sélection du modèle** au cœur de la chaîne (`…RA
     tirage, réponse correcte ;
   - attente sur 429 : non mesurée (aucun 429 sur 30 appels, aucun en-tête de limite) — la
     source garde `rate_limit_wait_s` à 0.
+  - ⚠ **une requête MUETTE est coupée vers 165-175 s** — mesuré le 2026-10-29 (`qwen-3.8-27b`,
+    compte `fabien.moreau`, génération longue, délai WAMA à 420 s, deux passes) : sans flux,
+    « Connection error » à 164,2 s puis 172,7 s ; **en flux, la réponse entière** en 134,7 s puis
+    **196,7 s** (43 035 caractères). Qui coupe — ILaaS ou le proxy sur le chemin — n'est pas
+    départagé. Le relevé du 15/10 (« ILaaS coupe vers 3 min 30 », rôle `task`) en était la même
+    trace. Conséquences : l'assistant borne déjà chaque appel à 180 s et 4 096 jetons ; les
+    sous-agents et le décideur appellent EN FLUX (`assistant_engine._STREAM_ONLY`,
+    `WAMA_HARNESS §7.4` étape 4) ; ⏳ les rôles de développement à longue génération restent
+    exposés.
 - **OpenRouter (agrégateur) — déclaré le 2026-10-10** (décision de Fabien), source `openrouter`
   (`https://openrouter.ai/api/v1`, protocole OpenAI, `hosting='third_party'`, `metered`, clé
   PERSONNELLE non partageable — crédits par compte). Ajout par le registre SEUL, sur la route
