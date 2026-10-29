@@ -891,27 +891,32 @@
       if (e.id) selectItem(e.id, e.el); else selectBatch(e.batch);
       _reveal(e.id ? e.el : (e.el.querySelector('.is-batch') || e.el));
     }
+    // Le clavier de la sélection : une inscription PRIORITAIRE au clavier commun (`wama-keys.js`,
+    // 2026-10-29). Il décide à sa place ce que cet écouteur refaisait à la main — une saisie, une
+    // MODALE ouverte (↑/↓ déplaçaient la sélection derrière la visionneuse, mesuré le 2026-10-13),
+    // et désormais un PANNEAU en dialogue (↓ dans les notifications déplaçait aussi la card, Échap
+    // qui le fermait la désélectionnait — mesuré le 2026-10-29) ou un bouton atteint au clavier
+    // (Entrée l'active au lieu de déplier la card). Toute page le charge (`base.html`) ; un banc
+    // V8 qui monte le panneau seul s'en passe.
     if (cfg.keyboardNav !== false) {
-      document.addEventListener('keydown', function (e) {
-        if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
-        // Une MODALE ouverte (la visionneuse, des réglages) garde le clavier : ↑/↓ déplaçaient la
-        // sélection DERRIÈRE la visionneuse sans qu'elle change, et Échap désélectionnait la card
-        // en refermant la modale (mesuré le 2026-10-13). La visionneuse navigue elle-même.
-        if (document.querySelector('.modal.show')) return;
+      if (global.WamaKeys) global.WamaKeys.register({ owner: 'inspector_panel', scope: 'page', handle: function (e) {
         if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && (itemId !== null || batchId !== null)) {
-          e.preventDefault();
           moveSelection(e.key === 'ArrowDown' ? 1 : -1);
-        } else if (e.key === 'Escape' && (itemId !== null || batchId !== null)) {
-          e.preventDefault();
+          return true;
+        }
+        if (e.key === 'Escape' && (itemId !== null || batchId !== null)) {
           deselect();
-        } else if ((e.key === 'Enter' || e.key === ' ') && itemId !== null) {
+          return true;
+        }
+        if ((e.key === 'Enter' || e.key === ' ') && itemId !== null) {
           const card = qc.querySelector(CARD_SEL + '[data-id="' + itemId + '"]');
           if (card) {
-            e.preventDefault();
             card.dispatchEvent(new CustomEvent('wama:card-activate', { bubbles: true, detail: { id: itemId } }));
+            return true;
           }
         }
-      });
+        return false;
+      } });
     }
 
     // État INITIAL du volet : rien n'est sélectionné au chargement. Sans cet appel, les

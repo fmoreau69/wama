@@ -301,23 +301,26 @@
             spread();
         }, true);
 
-        // Flèches ↑/↓ : navigation dans la pile, sans voler le clavier à un champ de saisie.
-        document.addEventListener('keydown', function (ev) {
+        // Flèches ↑/↓ : la pile SUIT la sélection (2026-10-29, clavier commun `wama-keys.js`).
+        // L'inspecteur possède ↑/↓ (il déplace la card choisie) ; la pile, qui réagissait de son
+        // côté à la même frappe, l'OBSERVE : sa card de premier plan devient la card choisie — les
+        // deux ne peuvent plus diverger. Sans card choisie, elle avance seule, comme avant. Saisie,
+        // modale et panneau ouverts : le clavier commun ne lui transmet rien.
+        window.WamaKeys.register({ owner: 'queue', observe: true, handle: function (ev, owner) {
             if (!on() || (ev.key !== 'ArrowUp' && ev.key !== 'ArrowDown')) return;
             // Deux files empilées à la fois (page à onglets) : seule la file VISIBLE répond
             // aux flèches, sinon chaque frappe déplacerait aussi le focus de l'onglet caché.
             if (queue.offsetParent === null) return;
-            // Une MODALE ouverte (la visionneuse navigue elle-même entre les cards) garde le clavier.
-            if (document.querySelector('.modal.show')) return;
-            const t = ev.target;
-            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
             const list = cards();
             if (!list.length) return;
             let i = list.findIndex(function (c) { return c.classList.contains('is-stack-focus'); });
             if (i < 0) i = 0;
-            const next = Math.max(0, Math.min(list.length - 1, i + (ev.key === 'ArrowDown' ? 1 : -1)));
+            const chosen = owner ? queue.querySelector('.inspector-selected') : null;
+            const at = chosen ? list.indexOf(chosen) : -1;
+            const next = at >= 0 ? at
+                : Math.max(0, Math.min(list.length - 1, i + (ev.key === 'ArrowDown' ? 1 : -1)));
             if (next === i) return;
-            ev.preventDefault();
+            if (!owner) ev.preventDefault();
             list.forEach(function (c) { c.classList.remove('is-stack-focus'); });
             list[next].classList.add('is-stack-focus');
             focusKey = list[next].dataset.id || focusKey;
@@ -326,7 +329,7 @@
             syncBatch(list[next]);
             spread();
             focusCard(list[next], { scroll: 'center' });
-        });
+        } });
 
         // Les cards sont remplacées entières par le rendu serveur : réattribuer les distances.
         new MutationObserver(function () { if (on()) spread(); })

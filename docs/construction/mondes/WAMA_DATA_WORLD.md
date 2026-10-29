@@ -241,6 +241,12 @@ combinations, ALL the plugins will react, no matter which one has the focus »*.
 > une **verrue connue** : aucun plugin ne peut « capturer » un raccourci. Dans un navigateur le
 > problème est plus simple (un seul document), mais la question de **qui possède un raccourci**
 > devra être tranchée — ne pas reproduire le « tout le monde réagit ».
+>
+> ✅ **Tranchée le 2026-10-29 (Fabien)** : une touche, UN propriétaire — la brique qui a la main,
+> sinon une brique PRIORITAIRE (le transport garde J/K/L partout sur la page, comme le magnéto de
+> BIND, mais sans que d'autres réagissent aussi) ; un champ et une couche ouverte gardent leurs
+> touches. Module commun `wama-keys.js`, touches déclarées par brique (`UIBrick.shortcuts`) :
+> `WAMA_VOLETS §3-ter`.
 
 ### 4.5 Amorce de vue déclarative — déjà présente
 

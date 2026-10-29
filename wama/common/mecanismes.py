@@ -2158,6 +2158,21 @@ MECHANISMS = (
                        'wama/common/utils/waveform.py',
                        'wama/common/services/ui_smoke_editor.py'),
               depends_on=('shuttle',)),
+    Mechanism('brick_keys', 'Clavier des briques (une touche, un propriétaire)',
+              "Le module unique qui reçoit les frappes et les distribue selon la règle décidée par "
+              "Fabien le 2026-10-29 : une touche déjà prise plus près du focus ou sous une couche "
+              "ouverte (modale, panneau) n'est pas redistribuée ; une saisie ne passe que les touches "
+              "déclarées (Ctrl+Espace) ; la brique qui a la main d'abord, puis les PRIORITAIRES (le "
+              "transport) ; un observateur suit sans prendre. Y sont inscrits le transport, "
+              "l'inspecteur, la pile et la sélection de la file. Les touches de chaque brique se "
+              "DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de la "
+              "brique Actions et du catalogue",
+              'wama/common/static/common/js/wama-keys.js',
+              'docs/construction/ui/WAMA_VOLETS.md §3-ter',
+              symbol='WamaKeys',            # global de base.html : compté par son symbole
+              annexes=('wama/common/surfaces.py',
+                       'wama/common/tests/tests_surfaces.py',
+                       'wama/common/services/ui_smoke_layout.py')),
     Mechanism('playhead_follow', 'Suivre la tête de lecture (traitement au fil de la lecture)',
               "Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle "
               "gardé chargé, et s'arrête d'elle-même (arrêt demandé, 90 s d'inactivité, traitement "

@@ -181,12 +181,15 @@ class Shortcut:
     `keys` : une ou plusieurs touches pour UNE action (`('KeyJ', 'KeyK', 'KeyL')`, « arrière /
     arrêt / avant ») ; `option` : l'option d'emplacement sans laquelle il n'existe pas (l'outil
     Bornes de la ligne de temps) ; `handled_by` : le module qui le traite quand ce n'est pas un
-    script de la brique (l'historique commun, chargé par toute page de surface)."""
+    script de la brique (l'historique commun, chargé par toute page de surface) ; `follows` : la
+    brique ne PREND pas la touche, elle SUIT ce qu'en fait son propriétaire (un observateur du
+    clavier commun, `wama-keys.js` — la pile de la file suit la card choisie)."""
     keys: tuple
     action: str
     scope: str = 'brick'
     option: str = ''
     handled_by: str = ''
+    follows: bool = False
 
     @property
     def label(self) -> str:
@@ -195,7 +198,7 @@ class Shortcut:
     def to_dict(self) -> dict:
         return {'keys': list(self.keys), 'label': self.label, 'action': self.action,
                 'scope': self.scope, 'where': SHORTCUT_SCOPES.get(self.scope, ''),
-                'option': self.option}
+                'option': self.option, 'follows': self.follows}
 
 
 @dataclass(frozen=True)
@@ -968,7 +971,16 @@ register_brick(UIBrick(
                 "vide se lisent de ce que l'app déclare ; une file par domaine quand l'app en a "
                 "plusieurs.",
     mount='common/_queue.html',
-    declarations=('app.modes', 'pipeline')))
+    declarations=('app.modes', 'pipeline'),
+    # Au clavier commun (`wama-keys.js`, 2026-10-29) : Ctrl+A est à elle ; ↑/↓ et Échap sont à
+    # l'inspecteur, qu'elle SUIT (la pile, la sélection multiple).
+    shortcuts=(Shortcut(('Ctrl+KeyA',), 'sélectionner toutes les cards de la file', 'page',
+                        handled_by='common/js/wama-queue-dnd.js'),
+               Shortcut(('Escape',), 'relâcher la sélection multiple, avec la card choisie', 'page',
+                        handled_by='common/js/wama-queue-dnd.js', follows=True),
+               Shortcut(('ArrowUp', 'ArrowDown'), 'en pile : la card de premier plan suit la card '
+                                                  'choisie', 'page',
+                        handled_by='common/js/wama-queue.js', follows=True))))
 
 # 2026-10-28 (étape ④, `WAMA_VOLETS §3-ter`) : la barre et la progression deviennent des briques à
 # part dans le centre d'une page d'app — Fabien : « c'est déjà une brique commune qui sert aussi
@@ -1008,7 +1020,11 @@ register_brick(UIBrick(
                 "volet lui-même est l'ossature de la page de base.",
     script='common/js/wama-inspector.js',
     mount='common/_inspector_actions.html',
-    declarations=('app.inspector', 'app.params')))
+    declarations=('app.inspector', 'app.params'),
+    shortcuts=(Shortcut(('ArrowUp', 'ArrowDown'), 'choisir la card précédente / suivante de la file',
+                        'page'),
+               Shortcut(('Enter', 'Space'), 'déplier / replier la card choisie', 'page'),
+               Shortcut(('Escape',), 'ne plus choisir de card', 'page'))))
 
 register_brick(UIBrick(
     key='media_viewer', name='Visionneuse',
@@ -1017,4 +1033,12 @@ register_brick(UIBrick(
                 "sans élément (les vignettes de ce catalogue). La page de base la charge pour "
                 "toutes les pages.",
     mount='common/js/media-preview.js',
-    declarations=('app.inspector', 'pipeline')))
+    declarations=('app.inspector', 'pipeline'),
+    # Une COUCHE (une modale) : le clavier commun ne distribue rien tant qu'elle est ouverte, elle
+    # garde le sien.
+    shortcuts=(Shortcut(('ArrowLeft', 'ArrowRight'), "fichier précédent / suivant de l'élément",
+                        handled_by='common/js/media-preview.js'),
+               Shortcut(('ArrowUp', 'ArrowDown'), 'card précédente / suivante',
+                        handled_by='common/js/media-preview.js'),
+               Shortcut(('Escape',), 'quitter le plein écran',
+                        handled_by='common/js/media-preview.js'))))

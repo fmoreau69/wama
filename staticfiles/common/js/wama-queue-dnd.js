@@ -437,10 +437,12 @@
         }, true);
 
         // Échap : on relâche. Même touche que la désélection de l'inspecteur — un seul geste
-        // d'abandon, puisqu'il n'y a qu'une sélection.
-        document.addEventListener('keydown', function (ev) {
+        // d'abandon, puisqu'il n'y a qu'une sélection : la file l'OBSERVE au clavier commun
+        // (`wama-keys.js`, 2026-10-29) au lieu d'écouter le document. Une modale ou un panneau
+        // qu'Échap referme ne vide donc plus la sélection (mesuré le 29/10 : 2 cards → 0).
+        window.WamaKeys.register({ owner: 'queue', observe: true, handle: function (ev) {
             if (ev.key === 'Escape' && selectedCards(queue).length) clearSelection(queue);
-        });
+        } });
 
         // ── Drag ─────────────────────────────────────────────────────────────────────────
         // `draggable` est posé par le JS et non par les gabarits : c'est une CAPACITÉ de la
@@ -736,25 +738,24 @@
     }
 
     function initSelectAll() {
-        document.addEventListener('keydown', function (ev) {
-            if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return;
-            if ((ev.key || '').toLowerCase() !== 'a') return;
-            // Ne JAMAIS voler le Ctrl+A d'une saisie : dans un champ, il veut dire « tout le
-            // texte », et c'est ce que l'utilisateur attend jusque dans une file.
-            const t = ev.target;
-            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        // Une touche PRIORITAIRE de la file au clavier commun (`wama-keys.js`, 2026-10-29) : il ne
+        // la lui transmet JAMAIS depuis une saisie — dans un champ, Ctrl+A veut dire « tout le
+        // texte », et c'est ce que l'utilisateur attend jusque dans une file.
+        window.WamaKeys.register({ owner: 'queue', scope: 'page', handle: function (ev) {
+            if (!(ev.ctrlKey || ev.metaKey) || ev.altKey || ev.shiftKey) return false;
+            if ((ev.key || '').toLowerCase() !== 'a') return false;
             const q = activeQueue();
-            if (!q) return;
+            if (!q) return false;
             const everyCard = cards(q);
             // File vide : on ne préempte RIEN. Avaler le raccourci pour ne rien sélectionner
             // priverait de la sélection de page sans aucune contrepartie.
-            if (!everyCard.length) return;
-            ev.preventDefault();
+            if (!everyCard.length) return false;
             setSelection(q, everyCard, 'remplacer');
             // Ancre en TÊTE : un Maj+clic qui suit réduit alors la sélection du haut jusqu'à
             // la card cliquée — le geste attendu après un « tout sélectionner ».
             stateOf(q).anchor = everyCard[0];
-        });
+            return true;
+        } });
     }
 
     // ── Init ─────────────────────────────────────────────────────────────────────────────

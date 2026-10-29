@@ -127,7 +127,9 @@ class QueuePieceRenderTest(SimpleTestCase):
         for suffix in ('-clear-all', '-download-all'):
             self.assertIn(f'id="transcriptQueue{suffix}"', html)
         self.assertIn(f'data-queue-start-url="{reverse("transcriber:start_all")}"', html)
-        self.assertRegex(html, r'id="transcriptQueue" class="wama-queue-list" data-wama-queue\s+data-wama-dnd=')
+        # The queue is also a brick of the centre (`data-wama-brick`, 2026-10-28, step ④).
+        self.assertRegex(html, r'id="transcriptQueue" class="wama-queue-list" data-wama-queue\s+'
+                               r'data-wama-brick="queue"\s+data-wama-dnd=')
 
     def test_the_empty_state_is_always_rendered_and_hidden_when_entries_exist(self):
         empty = re.compile(r'<div class="empty-queue[^"]*"( hidden)?>')

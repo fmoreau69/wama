@@ -884,13 +884,16 @@ def check_touch_gestures(paths: dict):
 # 2026-10-16 (ils écrivaient leurs mousedown/mousemove/mouseup) ; la case et le survol des cards
 # sont neufs. Ce qui marchait au PC doit marcher encore — c'est CE scénario qui le dit chaque nuit.
 
-def _desktop_page(browser, token, url):
+def _desktop_page(browser, token, url, page_hook=None):
+    """`page_hook(page)` : posé avant l'ouverture (une contre-épreuve y réécrit un fichier servi)."""
     ctx = browser.new_context(viewport={'width': 1440, 'height': 900})
     ctx.add_cookies(_cookie(token))
     ctx.add_init_script(BLOCK_WRITES)
     page = ctx.new_page()
     errors = []
     page.on('pageerror', lambda e: errors.append(str(e)[:160]))
+    if page_hook:
+        page_hook(page)
     resp = page.goto(url, wait_until='domcontentloaded', timeout=PAGE_TIMEOUT_MS)
     return ctx, page, resp, errors
 
@@ -1166,7 +1169,13 @@ def check_process_check_relaunch(path: str, page_hook=None):
                     else:
                         steps.append("bande : la mesure et « Relancer avec » sur la ligne du process")
                         page.locator(f'{selector} .wcv3-proc-suggest').first.click()
-                        page.wait_for_timeout(2500)
+                        # Attendre le LANCEMENT, pas une durée : sur un serveur lent l'écriture
+                        # du réglage dépassait 2,5 s et le scénario concluait trop tôt
+                        # (mesuré le 2026-10-29 sur le serveur jetable, une fois sur deux).
+                        for _ in range(60):
+                            if launches:
+                                break
+                            page.wait_for_timeout(250)
                     if errors:
                         faults.append(f"erreurs JS {errors[:3]}")
                 finally:
@@ -1438,6 +1447,143 @@ def screen_pages() -> dict:
     return pages
 
 
+#: Ce que voit l'utilisateur d'une file : la card choisie, celle de premier plan en pile, la
+#: sélection multiple, une modale, le panneau des notifications.
+_KEYS_STATE_JS = """() => ({
+    selected: [...document.querySelectorAll('.inspector-selected')].map(e => e.dataset.id || 'lot'),
+    stack: [...document.querySelectorAll('.is-stack-focus')].map(e => e.dataset.id),
+    multi: document.querySelectorAll('.wama-dnd-selected').length,
+    modal: !!document.querySelector('.modal.show'),
+    panel: !!(document.getElementById('wama-notifications-panel')
+              && !document.getElementById('wama-notifications-panel').hidden),
+})"""
+
+
+def check_keyboard_owners(path: str, page_hook=None):
+    """Une touche, UN propriétaire (clavier commun `wama-keys.js`, 2026-10-29) — (ok, détail).
+
+    Les trois défauts mesurés le 29/10 avant lui, sur la file du transcriber : ↓ dans le panneau
+    des notifications déplaçait aussi la card choisie ; Échap qui le fermait la désélectionnait et
+    vidait la sélection multiple ; Échap qui fermait une modale vidait cette sélection. Et le geste
+    qui doit RESTER : en pile, ↓ déplace la card choisie et la pile la suit. Témoins : quatre
+    transcriptions du compte de test ; les écritures de la page sont refusées (`BLOCK_WRITES`) ; la
+    liste des notifications est SIMULÉE dans le seul navigateur du scénario.
+    `page_hook(page)` : posé avant l'ouverture (la contre-épreuve y réécrit un fichier servi)."""
+    import json
+    import re
+
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from .ui_smoke import _garde_de_montage, _test_account_id, _total_nettoye
+
+    token, uid = _test_session_key('transcriber'), _test_account_id('transcriber')
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+    fake = {'items': [{'id': 900001 + i, 'title': f'Témoin {i}', 'body': '', 'read': False,
+                       'tone': 'neutral', 'icon': 'fa-bell', 'actions': [],
+                       'created_at': '2026-10-29T10:0%d:00Z' % i} for i in range(3)],
+            'unread': 3, 'total': 3}
+    sessions_before = _session_keys()
+    checks, steps = [], []
+    with _garde_de_montage('transcriber', 'keyboard_owners') as cleaned:
+        made = _mount_transcripts(uid, count=4)
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    ctx, page, resp, errors = _desktop_page(browser, token, BASE_URL.rstrip('/') + path,
+                                                            page_hook)
+                    ctx.route(re.compile(r'/common/api/notifications/'),
+                              lambda r: r.fulfill(status=200, content_type='application/json',
+                                                  body=json.dumps(fake))
+                              if r.request.method == 'GET' else r.continue_())
+                    card = '.wama-card[data-id]:not(.is-batch)'
+                    page.wait_for_selector(card, timeout=30000)
+                    page.wait_for_timeout(1200)
+                    state = lambda: page.evaluate(_KEYS_STATE_JS)
+
+                    # 1. En pile, ↓ : la card choisie avance, la pile la suit.
+                    stack_btn = page.locator('.wama-stack-btn >> visible=true').first
+                    stack_btn.click()
+                    page.wait_for_timeout(400)
+                    page.locator(card).first.click(position={'x': 30, 'y': 12})
+                    page.wait_for_timeout(400)
+                    page.evaluate("() => document.activeElement && document.activeElement.blur()")
+                    s0 = state()
+                    page.keyboard.press('ArrowDown')
+                    page.wait_for_timeout(500)
+                    s = state()
+                    checks.append((s['selected'] and s['selected'] != s0['selected'] and s['stack'] == s['selected'],
+                                   f"en pile, ↓ : la card choisie avance et la pile la suit "
+                                   f"({s0['selected']} → {s['selected']}, pile {s['stack']})"))
+                    stack_btn.click()
+                    page.wait_for_timeout(400)
+
+                    # 2. Le panneau des notifications garde ses touches.
+                    page.locator(card).first.click(position={'x': 30, 'y': 12})
+                    page.wait_for_timeout(300)
+                    page.click('#wamaNotificationsLink')
+                    page.wait_for_selector('.wn-row', timeout=10000)
+                    page.wait_for_timeout(300)
+                    s0 = state()
+                    page.keyboard.press('ArrowDown')
+                    page.wait_for_timeout(300)
+                    s = state()
+                    checks.append((s0['panel'] and s['selected'] == s0['selected'],
+                                   f"↓ dans le panneau des notifications ne déplace pas la card "
+                                   f"({s0['selected']} → {s['selected']})"))
+                    page.keyboard.press('Escape')
+                    page.wait_for_timeout(300)
+                    s2 = state()
+                    checks.append((not s2['panel'] and s2['selected'] == s0['selected'] and s2['multi'] == s0['multi'],
+                                   f"Échap ferme le panneau, rien d'autre (card {s2['selected']}, "
+                                   f"sélection {s0['multi']} → {s2['multi']})"))
+
+                    # 3. Échap qui ferme une modale garde la sélection multiple.
+                    page.locator(card).nth(0).click(position={'x': 30, 'y': 12})
+                    page.locator(card).nth(1).click(position={'x': 30, 'y': 12}, modifiers=['Control'])
+                    page.wait_for_timeout(300)
+                    s0 = state()
+                    page.locator(f'{card} .settings-btn >> visible=true').first.click()
+                    page.wait_for_selector('.modal.show', timeout=10000)
+                    page.wait_for_timeout(500)
+                    page.keyboard.press('Escape')
+                    page.wait_for_timeout(600)
+                    s = state()
+                    checks.append((s0['multi'] == 2 and not s['modal'] and s['multi'] == 2,
+                                   f"Échap ferme la modale et garde la sélection ({s0['multi']} → {s['multi']})"))
+
+                    # 4. Hors couche, Échap reste l'abandon de la sélection.
+                    page.evaluate("() => document.activeElement && document.activeElement.blur()")
+                    page.keyboard.press('Escape')
+                    page.wait_for_timeout(300)
+                    s = state()
+                    checks.append((s['multi'] == 0, f"hors couche, Échap relâche la sélection ({s['multi']})"))
+                    if errors:
+                        checks.append((False, f"erreurs JS {errors[:3]}"))
+                    ctx.close()
+                finally:
+                    browser.close()
+        except SkipScenario:
+            raise
+        except Exception as exc:
+            raise SkipScenario(_motif_skip(exc))
+        finally:
+            _drop_new_sessions(sessions_before)
+            for t in made:
+                try:
+                    t.audio.delete(save=False)
+                except Exception:
+                    pass
+    if cleaned:
+        steps.append(f"{_total_nettoye(cleaned)} objet(s) de montage retiré(s)")
+    faults = [label for ok, label in checks if not ok]
+    if faults:
+        return False, ' ; '.join(faults)
+    return True, f"{len(checks)}/{len(checks)} : " + ' → '.join([label for _, label in checks] + steps)
+
+
 def register_layout_scenarios():
     """Enregistre `common.layout.tablet` (la mise en page à largeur de tablette), `common.layout.
     screens` (de l'écran 21:9 au téléphone), `common.gestures.touch` (les gestes au doigt) et
@@ -1493,6 +1639,15 @@ def register_layout_scenarios():
                      "Espace, plage Maj), onde du transcriber, panneau de la cloche"),
         run=(lambda g=gesture_paths: (lambda ctx: check_mouse_gestures(g)))(),
         timeout_s=240, vram_gb=0.0,
+    )
+    register(
+        id="common.keyboard_owners", app="common", stage="ui",
+        description=("Une touche, UN propriétaire (clavier commun `wama-keys.js`) dans la file : en pile "
+                     "↓ déplace la card choisie et la pile la suit ; le panneau des notifications garde "
+                     "↓ et Échap ; Échap qui ferme une modale garde la sélection multiple, hors couche "
+                     "il la relâche — liste des notifications simulée, écritures refusées"),
+        run=(lambda p=path: (lambda ctx: check_keyboard_owners(p)))(),
+        timeout_s=180, vram_gb=0.0,
     )
     register(
         id="transcriber.process_check_relaunch", app="transcriber", stage="ui",

@@ -361,9 +361,13 @@ class OnePreviewBrickTest(SimpleTestCase):
         self.assertNotRegex(fm, r"'Arrow(Left|Right|Up|Down)'")
         self.assertIn('WamaMediaPreview', fm)
         self.assertIn('P.openSequence(', fm)
+        # Since 2026-10-29 the panel and the stack register to the common keyboard, which keeps the
+        # keys of an open layer (a modal, a panel in dialog) for it — one guard for all.
+        self.assertIn("doc.querySelector('.modal.show')", (JS / 'wama-keys.js').read_text(encoding='utf-8'))
         for name in ('wama-inspector.js', 'wama-queue.js'):
             source = (JS / name).read_text(encoding='utf-8')
-            self.assertIn("document.querySelector('.modal.show')", source, name)
+            self.assertIn('WamaKeys.register(', source, name)
+            self.assertNotIn("document.addEventListener('keydown'", source, name)
 
     def test_no_reader_of_the_retired_navigation_hook(self):
         uses = {path: path.read_text(encoding='utf-8', errors='replace')

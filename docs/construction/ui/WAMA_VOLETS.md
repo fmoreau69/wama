@@ -580,20 +580,45 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     `tests_ui_bricks_page` : la card du catalogue. Parité de l'éditeur **75/75** au navigateur, la
     liste vue rendue dans la brique Actions (cinq groupes, aucun débordement).
   - **Écart doc ↔ code corrigé** : `CARD_DESIGN.md` annonçait ←/→ dans la file ; seul ↑/↓ y est géré.
-  - ⏳ **Étape 2** : UN module reçoit les frappes et applique la règle (la brique qui a la main
-    d'abord) ; les briques y passent une par une, parité rejouée avant/après. Il soldera les trois
-    conflits relevés à la lecture (non encore vus au navigateur) : ↑/↓ qui meut la pile de la file
-    ET la sélection de l'inspecteur ; les touches du panneau des notifications qui agissent aussi
-    sur la card choisie ; Échap qui ferme une modale ET vide la sélection multiple de la file. Les
-    briques de PAGE (file, inspecteur, visionneuse) déclareront alors leurs touches — elles n'ont
-    pas de script à elles où la garde de présence les chercherait.
+  - ✅ **Étape 2 — le module unique, 2026-10-29** : `wama-keys.js` (monté par `base.html`, juste
+    après `wama-app-base.js`) reçoit les frappes et applique la règle : une touche déjà prise plus
+    près du focus (`defaultPrevented` : un champ, le panneau des notifications, une brique en
+    capture) ou frappée sous une COUCHE ouverte (modale, panneau en dialogue — relevé en capture,
+    Bootstrap fermant la modale avant que la frappe ne remonte) n'est pas redistribuée ; une saisie
+    ne passe que les touches déclarées `typing` (Ctrl+Espace) ; un contrôle garde les siennes (la
+    règle de l'étape 0 y a déménagé) ; puis la brique qui a la main (`scope: 'brick'`), puis les
+    prioritaires (`'page'`). Le premier qui prend arrête la frappe ; un **observateur** suit sans
+    prendre. Inscrits : le **transport** (prioritaire), l'**inspecteur** (↑/↓, Entrée/Espace,
+    Échap), la **file** — Ctrl+A à elle ; la **pile** SUIT la card choisie (elle réagissait de son
+    côté à ↑/↓ : désormais elle prend la card de l'inspecteur, les deux ne peuvent plus diverger) ;
+    la sélection multiple se relâche avec l'abandon de l'inspecteur (Échap).
+    - **Mesuré au navigateur AVANT** (file du transcriber, compte de test) : ↓ dans le panneau des
+      notifications déplaçait aussi la card (2795 → 2794) ; Échap qui le fermait désélectionnait
+      la card ET vidait la sélection multiple ; Échap qui fermait une modale vidait la sélection
+      (2 → 0). Pile + inspecteur : deux réactions à ↓, mais d'accord (pas d'écart visible).
+      **APRÈS** : les trois défauts partis, la pile suit toujours.
+    - **Déclarées au registre** aussi les briques de PAGE : la file (Ctrl+A ; Échap et ↑/↓ en
+      `follows`), l'inspecteur, la visionneuse (une couche : elle garde son clavier). La garde
+      « deux prioritaires ne réclament pas la même touche » vaut désormais aussi pour les briques
+      de page, qui partagent toute page d'app (un `follows` ne réclame rien).
+    - **Gardes** : `KeyDispatcherTest` (V8 : premier preneur seul, observateur informé ; touche
+      prise plus près ou sous une couche jamais distribuée ; saisie ; la main avant les
+      prioritaires) ; scénario nocturne **`common.keyboard_owners`** (5 gestes) — contre-épreuve
+      rouge en servant au seul navigateur un module qui ignore couche et touche prise (mutation
+      posée une fois, les trois défauts reviennent). Non-recul : sélection de la file
+      (`transcriber.queue_dnd`, `anonymizer.queue_dnd`), visionneuse (`common.preview_navigation`,
+      35 gestes), inspecteurs coexistants, parité de l'éditeur 75/75.
+    - ⚠ **Pas encore inscrits** (ils gardent leur propre écoute, sans conflit mesuré) : les
+      segments, la ligne de temps, l'écriture à la lecture, la partition, l'image et ses zones,
+      l'historique, le menu de card, la visionneuse, le cam_analyzer (`WamaShuttle.bindKeys`). Le
+      module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
 déclare, il n'hérite pas) ; ~~④ le centre des pages d'apps (card d'entrée, file) sur la même
 grille~~ (✅ ci-dessus) ; ~~ouvrir un panneau dans une autre fenêtre~~ (✅ ci-dessus) ; les
-raccourcis clavier attachés aux briques (étapes 0 et 1 ✅ ci-dessus, étape 2 ⏳ : le module unique
-qui applique la règle).
+raccourcis clavier attachés aux briques (étapes 0, 1 et 2 ✅ ci-dessus ; ⏳ inscrire au module les
+briques qui gardent leur propre écoute, une par une, parité rejouée).
 
 ---
 

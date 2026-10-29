@@ -1014,10 +1014,14 @@ class AxisTest(SimpleTestCase):
         self.assertTrue(out['playing'])
 
     def test_bound_keys_realign_the_shuttle_when_the_axis_releases_it(self):
-        out = self._eval('''
+        # The keyboard goes through the common dispatcher (`wama-keys.js`, 2026-10-29).
+        self.engine.eval('''
             var listeners = [];
             globalThis.document = {addEventListener: function (k, fn) { listeners.push(fn); },
                                    removeEventListener: function () {}};
+            window.document = globalThis.document;
+        ''' + _js('common/js/wama-keys.js'))
+        out = self._eval('''
             var level = 0, resets = 0;
             var shuttle = {forward: function () {}, reverse: function () {}, stop: function () {},
                            speed: function () { return level; }, reset: function () { resets++; level = 0; }};
@@ -1065,7 +1069,7 @@ class TransportKeysOwnershipTest(SimpleTestCase):
     def setUp(self):
         from py_mini_racer import MiniRacer
         self.engine = MiniRacer()
-        self.engine.eval(self.SETUP + _js('common/js/wama-axis.js') + '''
+        self.engine.eval(self.SETUP + _js('common/js/wama-keys.js') + _js('common/js/wama-axis.js') + '''
             var forwards = 0, toggles = 0, jumps = 0;
             var axis = window.WamaAxis.create({duration: 60, now: function () { return 0; },
                                                frame: function () { return 1; }, cancelFrame: function () {}});
@@ -1123,6 +1127,108 @@ class TransportKeysOwnershipTest(SimpleTestCase):
         self.assertEqual(1, out['forwards'])
 
 
+class KeyDispatcherTest(SimpleTestCase):
+    """2026-10-29 — `wama-keys.js`, the common keyboard of the bricks : a key, ONE owner. Measured
+    in the browser the same day before it existed : ↓ in the notifications panel also moved the
+    chosen card, Escape closing it deselected the card and emptied the multi-selection, Escape
+    closing a modal emptied that selection. Order : taken nearer (`defaultPrevented`) > an open
+    layer keeps everything > typing passes only declared `typing` keys > the brick WITH THE HAND >
+    priority bricks ; observers follow, never claim."""
+
+    SETUP = '''
+        var handlers = {};
+        var modalOpen = false;
+        var document = {addEventListener: function (k, fn) { (handlers[k] = handlers[k] || []).push(fn); },
+                        removeEventListener: function () {},
+                        querySelector: function (s) { return s === '.modal.show' && modalOpen ? {} : null; },
+                        body: {}, documentElement: {}, activeElement: null};
+        var window = {document: document};
+        function el(kind, inside, dialog) {
+            return {kind: kind, inside: inside || null, isContentEditable: false,
+                    matches: function (s) {
+                        if (kind === 'text') return s.indexOf('textarea') === 0;
+                        if (kind === 'button') return s.indexOf('button') === 0;
+                        return false; },
+                    closest: function (s) {
+                        if (s === '[role="dialog"]') return dialog ? {} : null;
+                        return this.matches(s) ? this : null; }};
+        }
+        function root() { var r = {contains: function (x) { return !!x && x.inside === r; }}; return r; }
+        function press(target, code, mods) {
+            var e = Object.assign({target: target, code: code, key: code, defaultPrevented: false,
+                                   preventDefault: function () { this.defaultPrevented = true; }}, mods || {});
+            (handlers['keydown'] || []).forEach(function (fn) { fn(e); });
+            return e;
+        }
+        var calls = [];
+        function claimer(name, answer, extra) {
+            return window.WamaKeys.register(Object.assign({owner: name, handle: function (e) {
+                calls.push(name); return answer; }}, extra || {}));
+        }
+    '''
+
+    def setUp(self):
+        from py_mini_racer import MiniRacer
+        self.engine = MiniRacer()
+        self.engine.eval(self.SETUP + _js('common/js/wama-keys.js'))
+
+    def _eval(self, script):
+        return json.loads(self.engine.eval('JSON.stringify((function(){' + script + '})())'))
+
+    def test_the_first_priority_brick_that_handles_takes_the_key_and_observers_follow(self):
+        out = self._eval('''
+            var seen = null;
+            claimer('first', false); claimer('second', true); claimer('third', true);
+            window.WamaKeys.register({owner: 'follower', observe: true,
+                                      handle: function (e, owner) { seen = owner; }});
+            var e = press(el('body'), 'ArrowDown');
+            return {calls: calls, seen: seen, taken: e.defaultPrevented};
+        ''')
+        self.assertEqual(['first', 'second'], out['calls'], 'the third never hears a taken key')
+        self.assertEqual('second', out['seen'])
+        self.assertTrue(out['taken'])
+
+    def test_a_key_taken_nearer_or_under_a_layer_is_never_distributed(self):
+        out = self._eval('''
+            var followed = 0;
+            claimer('page', true);
+            window.WamaKeys.register({owner: 'f', observe: true, handle: function () { followed++; }});
+            var nearer = press(el('body'), 'Escape', {defaultPrevented: true});
+            modalOpen = true; press(el('body'), 'Escape'); modalOpen = false;
+            press(el('row', null, true), 'ArrowDown');          // inside a panel in dialog
+            var free = press(el('body'), 'Escape');
+            return {calls: calls, followed: followed, free: free.defaultPrevented};
+        ''')
+        self.assertEqual(['page'], out['calls'], 'only the free key reached the brick')
+        self.assertEqual(1, out['followed'], 'an observer obeys the same rule')
+        self.assertTrue(out['free'])
+
+    def test_typing_passes_only_the_declared_keys(self):
+        out = self._eval('''
+            claimer('transport', true, {typing: ['Ctrl+Space']});
+            var f = el('text');
+            press(f, 'KeyL'); press(f, 'Space');
+            var c = press(f, 'Space', {ctrlKey: true});
+            return {calls: calls, ctrl: c.defaultPrevented};
+        ''')
+        self.assertEqual(['transport'], out['calls'])
+        self.assertTrue(out['ctrl'])
+
+    def test_the_brick_with_the_hand_goes_before_the_priority_ones(self):
+        out = self._eval('''
+            var zone = root();
+            claimer('transport', true);
+            claimer('score', true, {scope: 'brick', root: zone});
+            document.activeElement = el('body', zone);
+            press(el('body', zone), 'ArrowLeft');
+            document.activeElement = el('body');
+            press(el('body'), 'ArrowLeft');
+            return calls;
+        ''')
+        self.assertEqual(['score', 'transport'], out,
+                         'with the hand the brick wins ; without it, it is not even asked')
+
+
 class BrickShortcutsTest(SimpleTestCase):
     """2026-10-29 (Fabien : « les raccourcis clavier attachés aux briques ») — a brick DECLARES its
     keyboard shortcuts (`UIBrick.shortcuts`) : the single source of the list the Actions brick of a
@@ -1134,12 +1240,19 @@ class BrickShortcutsTest(SimpleTestCase):
     MODIFIERS = {'Ctrl': 'ctrlKey', 'Shift': 'shiftKey', 'Alt': 'altKey'}
 
     @staticmethod
-    def _tokens(name):
+    def _handled(name, code):
+        """Is the key `name` tested in `code` : `'KeyJ'` / `'j'`, `'Space'` / `' '`, a named key
+        as a string or an object key (`ArrowLeft: …`), a character as a string."""
+        import re
         if name.startswith('Key') and len(name) == 4:
-            return (name, f"'{name[3].lower()}'", f"'{name[3]}'")
-        if name == 'Space':
-            return ("'Space'", "' '")
-        return (f"'{name}'",)
+            tokens = (name, f"'{name[3].lower()}'", f"'{name[3]}'")
+        elif name == 'Space':
+            tokens = ("'Space'", "' '")
+        elif len(name) > 1:
+            return re.search(rf'\b{name}\b', code) is not None
+        else:
+            tokens = (f"'{name}'",)
+        return any(t in code for t in tokens)
 
     def _sources(self, brick, shortcut):
         from django.contrib.staticfiles import finders
@@ -1160,7 +1273,7 @@ class BrickShortcutsTest(SimpleTestCase):
             for key in shortcut.keys:
                 *modifiers, name = key.split('+') if key != '+' else ['+']
                 with self.subTest(brick=brick.key, key=key):
-                    self.assertTrue(any(t in code for t in self._tokens(name)),
+                    self.assertTrue(self._handled(name, code),
                                     f'{brick.key} declares {key} that its code never tests')
                     for modifier in modifiers:
                         self.assertIn(self.MODIFIERS[modifier], code)
@@ -1189,20 +1302,23 @@ class BrickShortcutsTest(SimpleTestCase):
             found = []
             for slot in slots:
                 for shortcut in BRICKS[slot.brick].shortcuts if slot.brick in BRICKS else slot.shortcuts:
-                    if shortcut.scope != 'page' or (shortcut.option and not slot.options.get(shortcut.option)):
+                    if shortcut.scope != 'page' or shortcut.follows                             or (shortcut.option and not slot.options.get(shortcut.option)):
                         continue
                     for key in shortcut.keys:
                         if owner.setdefault(key, slot.brick) != slot.brick:
                             found.append((key, owner[key], slot.brick))
             return found
 
-        for name, surface in SURFACES.items():
-            with self.subTest(surface=name):
-                self.assertEqual([], clashes(surface.slots))
-
         class FakeSlot:
             def __init__(self, brick, shortcuts=(), options=None):
                 self.brick, self.shortcuts, self.options = brick, shortcuts, options or {}
+
+        for name, surface in SURFACES.items():
+            with self.subTest(surface=name):
+                self.assertEqual([], clashes(surface.slots))
+        # The PAGE bricks share every app page (queue, inspector, viewer…) : one owner per key there
+        # too — the queue FOLLOWS the inspector's ↑/↓ and Escape, it does not claim them.
+        self.assertEqual([], clashes([FakeSlot(b.key) for b in BRICKS.values() if b.is_page]))
         rival = UIBrick(key='rival', name='Rivale', description='',
                         shortcuts=(Shortcut(('Space',), 'autre chose', 'page'),))
         self.assertEqual([('Space', 'media_transport', 'rival')],
