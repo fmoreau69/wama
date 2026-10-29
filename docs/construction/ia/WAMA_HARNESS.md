@@ -709,17 +709,48 @@ code** passe par les rôles de développement en tâche de fond (`dev_run_role`,
 | 0 bis | la **marque d'écriture seule**, sur la fonction (`tool_api.py`) : `@tool_effect(READ / WRITE / DESTROY)`, tout outil marqué (test), filet AST, publiée en annotation MCP ; `sub_agent_tools()` en DÉRIVE (lectures, moins `ask_claude_code`, `open_page`, `fold_side_panels`, chacun avec sa raison ; l'outil de délégation s'y ajoutera). ⚠ `look_at_image` n'est **pas** exclu : la raison avancée (« hors gouverneur ») vaut pour tout appel local de l'assistant (`measured_load`, `vision_probe.py:28`) | ✅ voir §9 chantier 2 |
 | 1 | socle : `run_assistant_turn` gagne outils autorisés, nombre d'itérations, échéance, profondeur — **défauts qui laissent le comportement actuel inchangé** ; propagés au jumeau `_invented_turn` ; aucun outil `dev_*` ; exécution **synchrone et séquentielle** d'abord (le parent attend de toute façon ; un seul GPU ; broker `memory://` hors côté autorisé) | ✅ 2026-10-29 : `allowed_tools` (liste du prompt **et** déclaration native réduites — `build_tools_list(names)` coupe la liste déjà construite, sans recalcul ; un outil hors bornes est refusé **avant** `execute_tool`, le refus entre à la trace ; pas d'annonce des compétences sans `charger_competence`), `max_iterations`, `deadline` (horloge monotone, lue seulement si une échéance est posée ; passée, dernier appel sans outil avec `_DEADLINE_PROMPT`), `depth` (`MAX_AGENT_DEPTH = 1` ; au-delà de 0, les outils sont **ramenés** à `sub_agent_tools()` quoi que l'appelant demande — la lecture seule tient dans le moteur, pas chez l'appelant). Garde `tests_turn_bounds` (13 tests, 10 contre-épreuves rouges) |
 | 2 | l'outil de délégation. ⚠ Tout ce qui entre dans `TOOL_REGISTRY` est aussi servi par MCP et `/api/v1/tools/` : l'appel doit être **impossible** hors d'un tour d'assistant — de préférence par construction (un verbe de la boucle, aiguillé par son nom comme les `dev_*`), sinon par une garde de contexte du tour | ⏳ |
+| 2 bis | le **parallèle**, par serveur (décision de Fabien du 29/10, ci-dessous) : les sous-agents d'un même appel partent ensemble, chacun vers son serveur — le local et les clouds souverains disponibles (Albert, ILaaS) —, et le tour attend le plus lent, non la somme. Le profil d'exposition se juge par sous-agent, les limites de débit déclarées (`rate_limit_wait_s`) s'appliquent | ⏳ |
 | 3 | garde-fous : interrupteur déclaré (l'outil n'est alors pas annoncé), qui peut déléguer, plafond d'**appels au modèle** (un coût en dollars n'est pas mesurable : le chemin cloud ne rapporte pas de coût), journal par sous-agent | ⏳ |
 | 4 | le council : N couples (modèle, compétence), relecture anonymisée, synthèse — sur le motif de `prospect_agents` ; séquentiel en local | ⏳ |
 
-**Ce qu'on ne prend pas, et pourquoi** : un runtime d'agent (§6) ; des sous-agents locaux en
-parallèle (un GPU, `resource_governor`) ; le résumé du rapport d'un sous-agent par un LLM (on
+**Le parallèle, et comment se passe l'inférence (2026-10-29, question de Fabien).** Un modèle n'a
+pas de mémoire d'un appel à l'autre : un sous-agent est une CONVERSATION de plus, envoyée à un
+serveur qui garde les poids chargés — Claude Code ou Codex font ainsi N requêtes, le plus souvent au
+même modèle. Un même serveur en sert plusieurs à la fois (traitement par lots) : les poids sont
+chargés une fois, chaque conversation a son cache KV. D'où deux cas, à ne pas confondre :
+- **plusieurs modèles locaux DIFFÉRENTS en même temps** : chacun ses poids sur les 24 Go — c'est ce
+  qui coûte ;
+- **plusieurs conversations sur le MÊME modèle local** : possible, au prix de la VRAM du cache KV
+  (fenêtre × conversations). Côté WAMA rien ne les sérialise (`measured_load` ne prend aucun verrou,
+  `model_registry.py:2776`) ; c'est le serveur Ollama qui décide, et l'hôte ne pose aucun
+  `OLLAMA_NUM_PARALLEL` (relevé le 29/10 : seule `OLLAMA_MODELS` est posée) — son défaut, non
+  mesuré.
+⭐ Le parallèle le plus naturel est donc **un sous-agent par serveur** (local + souverains) : aucune
+concurrence pour la carte, et pour le council des avis plus INDÉPENDANTS que N copies du même modèle.
+
+**Ce qu'on ne prend pas, et pourquoi** : un runtime d'agent (§6) ; ~~des sous-agents locaux en
+parallèle (un GPU, `resource_governor`)~~ — *trop large, corrigé le 29/10 : seuls des modèles
+locaux différents en même temps coûtent, cf. ci-dessus* ; le résumé du rapport d'un sous-agent par un LLM (on
 borne et on structure, on ne résume pas — vérification déterministe) ; Celery pour lancer un
 sous-agent tant que le parent attend dans le même tour ; MCP `sampling` (déprécié).
 
-**À mesurer avant l'étape 2** : `gunicorn_conf.py` met `timeout = 120` en `gthread` ; un tour avec
-sous-agents le dépassera. Vérifier par un tour réel de plus de 120 s que ce délai porte sur le
-battement du worker et non sur la requête.
+**Mesuré avant l'étape 2 (2026-10-29) — le `timeout = 120` de gunicorn ne coupe pas un tour long.**
+Un gunicorn jetable avec la configuration de production (`gunicorn_conf.py` exécuté tel quel ;
+seuls le port, le démon, les journaux et le préchauffage neutralisés ; gunicorn 23.0.0) a servi
+deux requêtes de 150 s — l'une **muette** jusqu'à la fin, l'autre écrivant toutes les 15 s comme le
+flux SSE — : **200 toutes deux, aucun `WORKER TIMEOUT`**. En `gthread`, le délai porte sur le
+battement du worker, que son fil principal tient pendant que la requête attend. *Contre-épreuve* :
+la même requête muette avec un worker `sync` finit en `WORKER TIMEOUT` à 120 s (HTTP 500) — l'essai
+voit donc une coupure quand il y en a une. ⚠ Avec `threads > 1`, gunicorn remplace `sync` par
+`gthread` de lui-même : la contre-épreuve exige `threads = 1`.
+Ce qui reste, et n'est **pas** mesuré :
+- **Apache** (`C:/Apache24/conf/extra/wama-common.conf:23`, `ProxyPass … timeout=130`, et
+  `ProxyTimeout 120` ligne 7) coupe une connexion restée **sans octet** ce temps-là. Le chat web
+  en flux n'y est pas exposé (un commentaire SSE toutes les 15 s, `views.py:569-571`) ; le chat
+  sans flux (repli, `views.py:326`) et l'API v1 (`api/v1/views.py:132`) le sont. La passerelle
+  Discord appelle le moteur dans son processus (`gateway/core.py:226`), sans Apache ni gunicorn.
+- **Les places** : 4 workers × 2 fils = 8 requêtes à la fois ; un tour avec sous-agents en tient
+  une tout du long.
 
 ---
 
