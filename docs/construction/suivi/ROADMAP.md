@@ -2748,7 +2748,7 @@ Ce qui EXISTE, vérifié dans le code le 16/10 :
 | DOCX / ODT / HTML / MD ↔ autres formats | `converter/backends/document_backend.py` (pandoc) | ✅ |
 | HTML → PDF fidèle | `common/utils/html_render.py` (Chromium) | ✅ |
 | séparer le FOND de la FORME, et appliquer une forme à un fond | Writer : process `write` / `layout`, port « Modèle de mise en page » (`reference_layout`, lu pour sa FORME) | ✅ |
-| structure des tableaux d'un document | Reader : `table_transformer` | ✅ |
+| structure des tableaux d'un document | `common/backends/table_transformer_backend.py` (`extract_tables` : image + mots positionnés) | 🔄 brique et tests ; **aucun appelant** hors `reader/tests_table_transformer.py` (relu le 29/10 — la ligne disait ✅ « Reader ») : elle attend les mots POSITIONNÉS d'un OCR |
 | texte d'une image (OCR), puis image rééditée | Reader (OCR) ; Imager (édition d'image, qwen-image-edit) | ✅ les deux apps, ⏳ leur enchaînement pour traduire le texte d'une figure |
 | parse structuré des PDF (blocs, figures, ordre de lecture) | Docling, prévu le 21/06 | ⏳ **absent du code** (aucun import) |
 
@@ -2850,7 +2850,16 @@ Deux voies, complémentaires :
    l'utilisateur de chaîner), par le pipeline commun (`ROUTE §10.6`, `ProcessSpec` avec `applies`
    = « pas de couche texte », sur le patron d'`output_process`), un contrat OCR « avec positions »
    (docTR d'abord), et la même couche dans `document_text` — qui donnerait aussi au Reader la
-   forme d'un PDF scanné ; l'ordre des mots qui fait permuter deux passages balisés (le second
+   forme d'un PDF scanné. *Relu dans le code le 29/10* : le contrat OCR ne rend que du texte
+   (`ocr_base.OCRBackend.run -> str`) et docTR jette sa géométrie à l'assemblage
+   (`doctr_backend._extract_text`) ; le patron à suivre existe — un drapeau du moteur dans le
+   vocabulaire commun plus une méthode réservée à qui le déclare, comme `supports_score_planning`
+   / `plan_score` (le process `plan` du composer, `composer/function_specs.py`) ou
+   `supports_timestamps` côté transcription ; la forme rendue est celle que `document_text` lit
+   déjà (lignes et boîtes en points de page), dont se tirent les mots qu'attend `extract_tables` ;
+   le test « couche texte ? » existe au Reader seul (`reader/tasks._try_direct_extraction`, par
+   document) et passe au commun, par page, à son 2ᵉ usage ; l'effacement sous une ligne scannée
+   est `apply_redactions(images=PDF_REDACT_IMAGE_PIXELS)` ; l'ordre des mots qui fait permuter deux passages balisés (le second
    perd sa mise en forme, jamais son texte).
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄

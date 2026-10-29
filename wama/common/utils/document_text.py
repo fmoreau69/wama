@@ -24,8 +24,10 @@ FORMATS (v1) — un segment est :
     dessous est SUPPRIMÉ (`apply_redactions` — un rectangle posé par-dessus le laisserait
     extractible : une fuite) et le nouveau texte écrit dans la zone ; métadonnées effacées
     (`scrub`), fichier réécrit en entier (`garbage=4`, jamais en incrémental : les anciens objets
-    resteraient dans le fichier). Un PDF scanné n'a pas de texte : c'est l'Anonymizer image (OCR,
-    boîtes) qui le traite.
+    resteraient dans le fichier). Un PDF scanné n'a pas de texte, donc aucun segment : aucune app
+    ne le traite encore (l'OCR à positions qui lui en donnerait est à construire, ROADMAP §10.B ;
+    corrigé le 2026-10-29 — ce paragraphe le disait traité par l'Anonymizer image, qui n'a pas
+    d'OCR).
 
 UNITÉ `block` (le Translator, 2026-10-28) : un segment PDF est alors un BLOC de texte (un
 paragraphe de la page, ses lignes réunies), réécrit EN ENTIER dans son cadre — le texte dessous
