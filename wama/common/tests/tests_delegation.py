@@ -149,30 +149,57 @@ class GuardrailsTest(TestCase):
             assistant_engine.conversation_turn(user, 'q', surface='api')
         return turn.call_args.kwargs['can_delegate']
 
-    def test_the_switch_is_a_declared_setting_off_by_default(self):
+    def test_the_setting_is_the_common_auto_cursor_manual_gesture(self):
+        """Étape 5 : « auto » en tête, puis les choix manuels — la forme de la voix du composer."""
         from wama.assistant.params import PARAMS, USER_SETTINGS_DEFAULTS
-        self.assertIn('sub_agents', {p.name for p in PARAMS})
-        self.assertIs(False, USER_SETTINGS_DEFAULTS['sub_agents'])
+        from wama.common.utils.auto_model import AUTO
+        setting = next(p for p in PARAMS if p.name == 'sub_agents')
+        self.assertEqual('select', setting.type)
+        self.assertEqual(AUTO, USER_SETTINGS_DEFAULTS['sub_agents'])
+        self.assertEqual(AUTO, setting.choices[0][0])
 
-    def test_the_switch_drives_the_delegation_on_every_surface(self):
+    def test_auto_follows_the_cursor_like_the_model_reflection(self):
+        # Le curseur par défaut (50, « Équilibré ») ne propose rien ; « Qualité » propose.
         self.assertIs(False, self._conversation_turn({}))
-        self.assertIs(True, self._conversation_turn({'sub_agents': True}))
+        self.assertIs(False, self._conversation_turn({'sub_agents': 'auto', 'quality_intent': 50}))
+        self.assertIs(True, self._conversation_turn({'sub_agents': 'auto', 'quality_intent': 90}))
+        for intent in (0, 50, 100):
+            self.assertEqual(assistant_engine.thinking_wanted(intent),
+                             assistant_engine.delegation_wanted({'quality_intent': intent}))
 
-    def test_the_switch_is_served_and_saved_both_ways(self):
+    def test_the_manual_choices_override_the_cursor(self):
+        self.assertIs(True, self._conversation_turn({'sub_agents': 'always', 'quality_intent': 0}))
+        self.assertIs(False, self._conversation_turn({'sub_agents': 'never', 'quality_intent': 100}))
+
+    def test_the_former_switch_is_read_without_a_migration(self):
+        # Allumé = « toujours » ; éteint était le défaut, il vaut « auto » (suit le curseur).
+        self.assertIs(True, self._conversation_turn({'sub_agents': True, 'quality_intent': 0}))
+        self.assertIs(True, self._conversation_turn({'sub_agents': False, 'quality_intent': 90}))
+        self.assertIs(False, self._conversation_turn({'sub_agents': False, 'quality_intent': 50}))
+
+    def test_the_setting_is_served_and_saved_and_bounded_to_its_choices(self):
         """Sur la PAGE servie (le schéma du volet de l'accueil) et par la route de réglage, que la
-        modale ⚙ poste en formulaire — `false` compris, sinon on ne pourrait plus l'éteindre."""
+        modale ⚙ poste en formulaire ; une valeur hors des choix déclarés n'est jamais écrite."""
         from django.urls import reverse
 
         from wama.assistant.params import PARAMS_JSON, SURFACES
-        switch = next(p for p in PARAMS_JSON if p['name'] == 'sub_agents')
-        self.assertEqual(list(SURFACES), list(switch['contexts']))       # volet ET modale ⚙
+        setting = next(p for p in PARAMS_JSON if p['name'] == 'sub_agents')
+        self.assertEqual(list(SURFACES), list(setting['contexts']))      # volet ET modale ⚙
         user = User.objects.create(username='delegation_page')
         self.client.force_login(user)
         self.assertIn('ai-sub-agents', self.client.get(reverse('home')).content.decode())
-        for posted, expected in (('true', True), ('false', False)):
+        for posted in ('always', 'never', 'auto'):
             self.assertEqual(200, self.client.post(reverse('ai_chat_settings'),
                                                    {'sub_agents': posted}).status_code)
-            self.assertIs(expected, assistant_engine.assistant_settings(user)['sub_agents'])
+            self.assertEqual(posted, assistant_engine.assistant_settings(user)['sub_agents'])
+        refused = self.client.post(reverse('ai_chat_settings'), {'sub_agents': 'true'})
+        self.assertEqual(400, refused.status_code)
+        self.assertEqual('auto', assistant_engine.assistant_settings(user)['sub_agents'])
+
+    def test_the_tool_tells_the_model_how_much_effort_a_request_deserves(self):
+        line, _ = assistant_engine._delegate_tool()
+        self.assertIn('SCALE THE EFFORT', line)
+        self.assertIn('no sub-agent', line)
 
     def test_the_number_of_sub_agents_per_turn_is_capped(self):
         from wama.common.services.assistant_engine import MAX_DELEGATIONS_PER_TURN

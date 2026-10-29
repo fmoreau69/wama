@@ -4559,6 +4559,19 @@ proposition de MISE À JOUR installée remplace l'ancienne version partout où e
 (`model_manager/services/succession.py` : cards, réglages mémorisés, lots, dérivés des schémas).
 Détail : `PROSPECTION_PIPELINE.md §Session du 2026-10-29`.
 
+**Une INTERFACE EXISTANTE comme entrée de la chaîne (intention de Fabien, 2026-10-29) ⏳.** À côté
+d'un dépôt, une application (web ou logiciel) déjà en service peut inspirer une app WAMA. Elle
+s'OBSERVE par **Playwright**, que WAMA emploie déjà (smoke, gestes filmés) — pas par un outil de
+rétro-ingénierie (REA, Ghidra : écartés, `WAMA_HARNESS §7.4`). Ce qu'on en tire, c'est sa
+**fonction** — entrées, paramètres (type, bornes, choix, défauts), sorties, gestes — traduite dans
+le vocabulaire du manifeste `app` (schéma de paramètres, ports, capacités), qui reste le point
+d'entrée unique des générateurs ci-dessus. **Jamais son apparence** : l'UI d'une app WAMA est
+GÉNÉRÉE des métadonnées par les briques communes (philosophie, points 2 et 3) ; un agencement ou un
+geste remarquable vu ailleurs se propose aux briques COMMUNES, pour toutes les apps, pas à une
+seule. Rien à construire pour un usage en session de développement : un skill (procédure
+Playwright + manifeste), distillé après un premier cas réel (`/skill-forge`). Pour que l'assistant
+le fasse seul, il lui manquerait un outil de capture de page (`read_web_page` ne lit que le texte).
+
 ### §10.6 — LE PIPELINE, PORTEUR UNIVERSEL DES PROCESS : une card = une instance de pipeline, dans TOUS les mondes (ACTÉ 2026-09-15)
 
 > **Statut : ACTÉ avec Fabien le 2026-09-15 — modèle de CONCEPTION, aucun code écrit.** Cette

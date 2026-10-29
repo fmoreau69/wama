@@ -29,6 +29,11 @@ from wama.common.utils.param_schema import (Param, ParamGroup, groups_to_dicts, 
 #: les deux peuvent être rendus sur la même page.
 SURFACES = ('panel', 'item')
 
+#: Les sous-agents : « auto » (le curseur décide) en tête, puis les deux choix manuels.
+SUB_AGENTS_AUTO, SUB_AGENTS_ALWAYS, SUB_AGENTS_NEVER = AUTO, 'always', 'never'
+SUB_AGENTS_CHOICES = [(SUB_AGENTS_AUTO, 'Auto (selon le curseur)'),
+                      (SUB_AGENTS_ALWAYS, 'Toujours proposés'), (SUB_AGENTS_NEVER, 'Jamais')]
+
 PARAMS = [
     Param(
         name='model', type='select', label='Modèle', icon='fa-microchip',
@@ -63,14 +68,19 @@ PARAMS = [
         'model', dom_id={'panel': 'ai-seed', 'item': 'ai-seed-modal'}, contexts=SURFACES)),
     Param(name='top_p', **top_p_param(
         'model', dom_id={'panel': 'ai-top-p', 'item': 'ai-top-p-modal'}, contexts=SURFACES)),
-    # Les SOUS-AGENTS (2026-10-29, `WAMA_HARNESS §7.4` étape 3) : l'interrupteur déclaré de la
-    # délégation — éteint, l'outil `delegate` n'est même pas annoncé au modèle. Éteint par défaut :
-    # un sous-agent multiplie les appels au modèle, c'est à l'utilisateur de le vouloir.
-    Param(name='sub_agents', type='toggle', label='Sous-agents', icon='fa-sitemap', default=False,
+    # Les SOUS-AGENTS (2026-10-29, `WAMA_HARNESS §7.4` étapes 3 et 5) : le geste commun « auto +
+    # curseur + manuel », sur la forme de la voix du composer (`composer/utils/vocals.py`). « Auto »
+    # suit le curseur Rapide ↔ Qualité, au même cran que la réflexion du modèle
+    # (`assistant_engine.delegation_wanted`) ; « Jamais », l'outil `delegate` n'est pas annoncé.
+    # Jusqu'au 29/10 au soir, un interrupteur éteint par défaut : allumé, il vaut « Toujours ».
+    Param(name='sub_agents', type='select', label='Sous-agents', icon='fa-sitemap',
+          choices=SUB_AGENTS_CHOICES, default=SUB_AGENTS_AUTO,
           dom_id={'panel': 'ai-sub-agents', 'item': 'ai-sub-agents-modal'}, contexts=SURFACES,
-          help="L'assistant peut confier une recherche ou une lecture à un sous-agent, qui travaille "
-               "dans un contexte neuf, en lecture seule, puis lui rend son rapport. Plus d'appels au "
-               "modèle, donc plus lent et plus coûteux sur un modèle distant."),
+          help="L'assistant peut confier des recherches ou des lectures à des sous-agents, qui "
+               "travaillent en lecture seule et lui rendent leur rapport — et réunir plusieurs "
+               "agents sur une question de recherche. « Auto » : proposés quand le curseur est sur "
+               "Qualité. Plus d'appels au modèle, donc plus lent et plus coûteux sur un modèle "
+               "distant."),
     # L'AVATAR PARLANT est une préférence DURABLE de l'assistant (2026-09-22, demande de Fabien) :
     # jusque-là « affiché / masqué » n'était qu'un état de la page d'accueil, perdu au premier
     # changement de page. `contexts=()` : ces deux réglages ne sont rendus dans AUCUN panneau de

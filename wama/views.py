@@ -493,6 +493,18 @@ def ai_chat_settings(request):
         if voice not in {v for v, _ in voice_display_options(request.user)}:
             return JsonResponse({'error': f"Voix inconnue : {voice}"}, status=400)
         valeurs['voice_preset'] = voice
+    # Un menu à choix DÉCLARÉS (`choices`, les sous-agents le 2026-10-29) : `coerce_params` ne borne
+    # que les nombres ; une valeur hors de la liste n'est jamais écrite — la règle de `user_settings`
+    # et de la porte des outils, par la même brique —, une valeur de la liste l'est.
+    from wama.common.utils.param_schema import invalid_choice_values
+    declared = [p for p in PARAMS_JSON if p.get('choices') and p['name'] in USER_SETTINGS_DEFAULTS]
+    refused = invalid_choice_values(declared, data)
+    if refused:
+        name, (values, valid) = next(iter(refused.items()))
+        return JsonResponse({'error': f"« {values[0]} » n'est pas un choix de {name} "
+                                      f"(choix : {', '.join(valid)})"}, status=400)
+    valeurs.update({p['name']: str(data[p['name']]) for p in declared
+                    if data.get(p['name']) not in (None, '')})
     if not valeurs:
         return JsonResponse({'error': 'Aucun réglage connu dans la requête'}, status=400)
     save_user_app_settings(request.user, 'assistant', valeurs)

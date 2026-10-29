@@ -514,7 +514,8 @@ de l'assistant de laboratoire : mener ensemble plusieurs travaux (un audit, une 
 un diagnostic, un plan d'implémentation), réfléchir en profondeur à une question de recherche — un
 **council** de plusieurs modèles —, jusqu'à la bibliographie. ✅ le socle : un sous-agent est un tour
 de la même boucle, borné et en lecture seule (`WAMA_HARNESS §7.4`, étape 1). ✅ la délégation par
-l'assistant (étapes 2-3, 2026-10-29) : un réglage « Sous-agents », éteint par défaut, au plus trois
+l'assistant (étapes 2-3, 2026-10-29) : un réglage « Sous-agents » (« Auto » : proposés quand le curseur
+est sur Qualité, et c'est le modèle qui juge, selon la tâche, s'il en a besoin), au plus six
 sous-agents par tour, **en même temps, un par serveur** (local, Albert, ILaaS — mesuré : 4,9 s au
 lieu de 11,1 s pour trois appels). ✅ le council, comme une COMPOSITION et non un mode figé : des
 agents spécialisés déclarés en rôles (contradicteur, méthodologie…), de un à cinq sur la même

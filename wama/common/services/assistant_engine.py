@@ -469,6 +469,32 @@ def thinking_wanted(quality_intent) -> bool:
         return False
 
 
+#: Le cran du curseur où « auto » propose les SOUS-AGENTS — celui de la réflexion : deux leviers
+#: d'EFFORT, une seule intention (`WAMA_HARNESS §7.4` étape 5, décision de Fabien du 29/10).
+DELEGATION_PRESET = THINKING_PRESET
+
+
+def delegation_wanted(settings: dict) -> bool:
+    """Les sous-agents sont-ils proposés au modèle ? Le geste commun « auto + curseur + manuel » :
+    « toujours » et « jamais » tranchent, « auto » suit le curseur Rapide ↔ Qualité. C'est ensuite
+    le MODÈLE qui décide d'y recourir, selon la tâche (règles d'effort de `delegate`).
+
+    L'ancien interrupteur (booléen, jusqu'au 29/10 au soir) : allumé vaut « toujours » ; éteint
+    était son défaut, il vaut « auto » — « jamais » n'existait pas, personne ne l'a choisi. Une
+    valeur inconnue vaut « auto », comme la voix du composer (`vocals.normalize`)."""
+    from wama.assistant.params import SUB_AGENTS_ALWAYS, SUB_AGENTS_NEVER
+    from wama.common.utils.auto_model import preset_key_for_intent
+    choice = (settings or {}).get('sub_agents')
+    if choice is True or choice == SUB_AGENTS_ALWAYS:
+        return True
+    if choice == SUB_AGENTS_NEVER:
+        return False
+    try:
+        return preset_key_for_intent((settings or {}).get('quality_intent')) == DELEGATION_PRESET
+    except Exception:
+        return False
+
+
 def _ollama_call(messages: list, ollama_model: str, think: bool = None, on_delta=None,
                  temperature: float | None = None, seed: int | None = None,
                  top_p: float | None = None) -> tuple:
@@ -1315,8 +1341,12 @@ def _delegate_tool() -> tuple:
     domains = [d.key for d in DOMAINES if not d.development]
     description = (
         "Hand self-contained tasks to sub-agents: fresh context, read-only tools (web search and "
-        "pages, WAMA docs, the user's memory, statuses). Each returns its report. Use it for a task "
-        "that needs several searches or readings; do it yourself when one tool call is enough. "
+        "pages, WAMA docs, the user's memory, statuses). Each returns its report. SCALE THE EFFORT "
+        "TO THE REQUEST: a simple question, or one tool call, needs no sub-agent — answer "
+        "yourself; several INDEPENDENT sub-questions get one agent each; an open research or "
+        "judgement question gets the same question from 3 to 5 agents of different competences "
+        "with decide=\"review\"; a closed choice gets decide=\"vote\". Never launch a task (add_*, "
+        "start_*) through a sub-agent: they only read. "
         f"`domain` sets an agent's competence: {', '.join(domains)}. Compose what the question "
         f"needs, at most {MAX_DELEGATIONS_PER_TURN} agents per turn, run at the same time on "
         "different models: INDEPENDENT tasks in `tasks` (a list of {\"task\", \"domain\"}); the "
@@ -1973,12 +2003,12 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
                 watch['first_text'] = time.monotonic() - started
             on_event(event)
 
-    # L'interrupteur des SOUS-AGENTS (`WAMA_HARNESS §7.4` étape 3) : un réglage de l'utilisateur,
-    # éteint par défaut — éteint, l'outil `delegate` n'est pas annoncé.
+    # Les SOUS-AGENTS (`WAMA_HARNESS §7.4` étapes 3 et 5) : le réglage de l'utilisateur, « auto »
+    # suivant son curseur (`delegation_wanted`) — non proposés, l'outil `delegate` n'est pas annoncé.
     resultat = run_assistant_turn(user, message, provider=provider, model=model,
                                   history=historique, domain=domain, surface=surface,
                                   on_event=listener,
-                                  can_delegate=bool(assistant_settings(user).get('sub_agents')))
+                                  can_delegate=delegation_wanted(assistant_settings(user)))
 
     total = time.monotonic() - started
     if 'error' not in resultat:
