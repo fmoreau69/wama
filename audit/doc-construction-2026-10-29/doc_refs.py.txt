@@ -1,0 +1,260 @@
+"""Passe mécanique doc -> code, autonome (sans Django).
+
+Reprend les règles de `check_docs` (résolution des chemins, filtre « intentionnel », journaux)
+et ajoute :
+  - LIGNE DÉCALÉE : `chemin:N` cité avec un symbole en backticks dans le même énoncé ; le
+    symbole existe dans le fichier mais à plus de WINDOW lignes de N ;
+  - SYMBOLE ABSENT DU FICHIER : idem, le symbole n'apparaît nulle part dans le fichier cité ;
+  - `chemin::symbole` : le symbole n'est pas défini dans le fichier ;
+  - SYMBOLE INCONNU : `nom()` ou `Module.nom` en backticks, défini nulle part dans le dépôt.
+
+Usage : python doc_refs.py <racine_du_depot> <sortie.json>
+"""
+import ast
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+BASE = Path(sys.argv[1]).resolve()
+OUT = Path(sys.argv[2])
+WINDOW = 12
+
+DOC_GLOBS = ['docs/construction/**/*.md']
+EXTRA = ['AGENTS.md', 'CLAUDE.md', 'README.md', 'wama/common/README.md',
+         'wama/model_manager/PROSPECTION_PIPELINE.md',
+         'wama_lab/cam_analyzer/CAM_ANALYZER_CHAINE_TRAITEMENT.md',
+         'wama_lab/cam_analyzer/README.md', 'wama/transcriber/TRANSCRIBER_CORRECTION.md',
+         'wama/enhancer/README.md', 'patches/README.md', 'AI-models/README.md',
+         'AI-models/models/README.md', 'wama/common/backends/vendor/README.md',
+         'wama-dev-ai/README.md', 'wama/imager/README.md', 'wama_lab/face_analyzer/README.md',
+         'wama_lab/cam_analyzer/projects/ENA_CASA.md']
+JOURNAUX = {'docs/construction/suivi/PROJECT_STATUS.md',
+            'wama_lab/cam_analyzer/CAM_ANALYZER_CHANGELOG.md'}
+
+REF_LIGNE = re.compile(r'`?([\w/\\.\-]+\.(?:py|js|html|css|sh|json)):(\d+)(?:-(\d+))?')
+REF_SYM_FILE = re.compile(r'`([\w/\\.\-]+\.py)::(\w+)`')
+LIEN_MD = re.compile(r'\[[^\]]+\]\(([^)\s#]+\.md)[^)]*\)')
+REF_FICHIER = re.compile(r'`([\w/\\.\-]+\.(?:py|js|html|css|sh))`')
+REF_MD = re.compile(r'`([\w/\\.\-]+\.md)`')
+BACKTICK = re.compile(r'`([^`\n]{1,120})`')
+IDENT = re.compile(r'^[A-Za-z_][\w]*(?:\.[A-Za-z_]\w*)*(?:\(\))?$')
+MEMOIRE = re.compile(r'^(project|reference|feedback|user)_[\w\-]+\.md$')
+INTENTIONNEL = ('supprimé', 'supprime', 'remplacé', 'remplace par', 'à créer', 'a creer',
+                'cible :', 'cible:', 'à faire', 'archivé', 'archive', "n'existe",
+                'site-packages', 'venv_', 'ancien plan', '~~', 'renommé', 'renomme', 'ex-`',
+                'retiré', 'retire', 'déplacé')
+EXCLUS_RACINE = {'venv_linux', 'venv_win', 'node_modules', 'staticfiles', 'AI-models', 'media',
+                 'logs', 'manifests', 'htmlcov'}
+
+index = {}
+for racine, dossiers, fichiers in os.walk(BASE):
+    if Path(racine) == BASE:
+        dossiers[:] = [d for d in dossiers if d not in EXCLUS_RACINE and not d.startswith('.')]
+    else:
+        dossiers[:] = [d for d in dossiers if d not in ('__pycache__', 'node_modules')
+                       and not d.startswith('.')]
+    for nom in fichiers:
+        if nom.endswith(('.py', '.js', '.html', '.css', '.sh', '.json', '.md')):
+            index.setdefault(nom, []).append(Path(racine) / nom)
+
+
+def resoudre(chemin):
+    chemin = chemin.replace('\\', '/').lstrip('./')
+    for essai in (BASE / chemin, BASE / 'wama' / chemin):
+        if essai.is_file():
+            return essai
+    cands = [t for t in index.get(Path(chemin).name, [])
+             if str(t).replace('\\', '/').endswith('/' + chemin) or str(t).endswith(chemin)]
+    if len(cands) == 1:
+        return cands[0]
+    return 'AMBIGU' if cands else None
+
+
+# Symboles DÉFINIS dans le dépôt (py : def/class/assign de module et de classe ; js : function,
+# const/let/var, méthodes `nom(` en tête de ligne, clés `nom:` d'objets globaux).
+defined = set()
+JS_DEF = re.compile(r'(?:function\s+(\w+)|(?:const|let|var)\s+(\w+)\s*=|^\s*(\w+)\s*\([^)]*\)\s*\{'
+                    r'|^\s*(\w+)\s*:\s*(?:function|\(|async)|window\.(\w+)\s*=)', re.M)
+STR_IDENT = re.compile(r'^[A-Za-z_][\w.]*$')
+JS_WORD = re.compile(r'\b[A-Za-z_]\w{3,}\b')
+for nom, chemins in index.items():
+    for p in chemins:
+        if nom.endswith('.py'):
+            try:
+                tree = ast.parse(p.read_text(encoding='utf-8', errors='replace'))
+            except SyntaxError:
+                continue
+            for n in ast.walk(tree):
+                if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                    defined.add(n.name)
+                elif isinstance(n, ast.Assign):
+                    for t in n.targets:
+                        if isinstance(t, ast.Name):
+                            defined.add(t.id)
+                        elif isinstance(t, ast.Attribute):
+                            defined.add(t.attr)
+                elif isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name):
+                    defined.add(n.target.id)
+                elif isinstance(n, ast.arg):
+                    defined.add(n.arg)
+                elif isinstance(n, ast.keyword) and n.arg:
+                    defined.add(n.arg)
+                elif isinstance(n, ast.Constant) and isinstance(n.value, str) \
+                        and len(n.value) < 80 and STR_IDENT.match(n.value):
+                    # clés de dict, noms de critères, de gestes, de registres : des chaînes
+                    defined.add(n.value)
+                    defined.update(n.value.split('.'))
+                elif isinstance(n, (ast.Import, ast.ImportFrom)):
+                    for a in n.names:
+                        defined.update(a.name.split('.'))
+            defined.add(p.stem)
+        elif nom.endswith(('.js', '.html', '.json')):
+            # tout identifiant écrit dans un .js/.html/.json (globales, clés, data-*)
+            defined.update(JS_WORD.findall(p.read_text(encoding='utf-8', errors='replace')))
+            defined.add(p.stem.replace('-', '_'))
+            defined.add(p.stem)
+for racine, dossiers, _ in os.walk(BASE):
+    if '.git' in racine or 'node_modules' in racine:
+        continue
+    defined.update(dossiers)
+for p in (BASE / 'manifests').rglob('*.json') if (BASE / 'manifests').is_dir() else ():
+    defined.update(JS_WORD.findall(p.read_text(encoding='utf-8', errors='replace')))
+import builtins
+defined.update(dir(builtins))
+
+# Mots en backticks qui ne sont pas des symboles de code (états, valeurs, mots français…)
+def est_symbole(tok):
+    if not IDENT.match(tok):
+        return False
+    core = tok.rstrip('()')
+    last = core.split('.')[-1]
+    if tok.endswith('()'):
+        return True
+    # identifiant de code « probable » : snake_case avec _, ou CamelCase, ou pointé
+    return ('_' in last and last.lower() == last and len(last) > 3) or \
+           (re.match(r'^[A-Z][a-z]+[A-Z]\w*$', last) is not None) or ('.' in core and '_' in core)
+
+
+def fichiers_docs():
+    vus = []
+    for g in DOC_GLOBS:
+        for p in sorted(BASE.glob(g)):
+            if '/archive/' not in str(p):
+                vus.append(p)
+    for e in EXTRA:
+        p = BASE / e
+        if p.is_file():
+            vus.append(p)
+    return vus
+
+
+res = []
+cache_lignes = {}
+
+
+def lignes_de(p):
+    if p not in cache_lignes:
+        cache_lignes[p] = p.read_text(encoding='utf-8', errors='replace').splitlines()
+    return cache_lignes[p]
+
+
+for doc in fichiers_docs():
+    rel = str(doc.relative_to(BASE))
+    lignes = lignes_de(doc)
+    fence = False
+    for i, ligne in enumerate(lignes, 1):
+        if ligne.lstrip().startswith('```'):
+            fence = not fence
+        debut = i - 1
+        while debut > 0:
+            prec = lignes[debut - 1]
+            if not prec.strip() or prec.lstrip()[:1] in ('-', '*', '|', '#', '>'):
+                break
+            debut -= 1
+        enonce = ' '.join(lignes[max(0, debut - 1):i + 1])
+        intentionnel = any(m in enonce.lower() for m in INTENTIONNEL)
+
+        def add(kind, msg, **kw):
+            res.append(dict(doc=rel, line=i, kind=kind, msg=msg, intentional=intentionnel,
+                            journal=rel in JOURNAUX, text=ligne.strip()[:240], **kw))
+
+        for cible in LIEN_MD.findall(ligne):
+            c = cible.replace('\\', '/')
+            if MEMOIRE.match(c.rsplit('/', 1)[-1]) or c.startswith('memory/'):
+                continue
+            if not ((BASE / c).exists() or (doc.parent / c).exists()):
+                add('CASSE_LIEN_MD', f'lien .md mort -> {cible}')
+        if rel not in JOURNAUX:
+            for cible in REF_MD.findall(ligne):
+                if MEMOIRE.match(cible.rsplit('/', 1)[-1]) or cible.startswith('memory/') \
+                        or cible == 'MEMORY.md':
+                    continue
+                r = resoudre(cible)
+                if r is None:
+                    add('CASSE_DOC', f'doc inexistant -> {cible}')
+        syms = [t for t in BACKTICK.findall(enonce) if est_symbole(t)]
+        for chemin, num, fin in REF_LIGNE.findall(ligne):
+            r = resoudre(chemin)
+            if r == 'AMBIGU':
+                continue
+            if r is None:
+                add('CASSE_FICHIER', f'fichier inexistant -> {chemin}:{num}')
+                continue
+            ls = lignes_de(r)
+            n = int(num)
+            if n > len(ls):
+                add('PERIME_LIGNE', f'{chemin}:{num} — le fichier n a que {len(ls)} lignes')
+                continue
+            # symbole cité dans l'énoncé : est-il près de la ligne ?
+            for s in syms:
+                last = s.rstrip('()').split('.')[-1]
+                if len(last) < 4:
+                    continue
+                pat = re.compile(r'\b' + re.escape(last) + r'\b')
+                occ = [k for k, l in enumerate(ls, 1) if pat.search(l)]
+                if not occ:
+                    continue  # le symbole peut décrire autre chose que ce fichier
+                lo, hi = n - WINDOW, (int(fin) if fin else n) + WINDOW
+                if not any(lo <= k <= hi for k in occ):
+                    defs = [k for k, l in enumerate(ls, 1)
+                            if re.search(r'(def|class|function)\s+' + re.escape(last) + r'\b|^\s*'
+                                         + re.escape(last) + r'\s*=', l)]
+                    if defs:
+                        add('LIGNE_DECALEE', f'{chemin}:{num} cité avec `{s}`, défini l.{defs[0]}',
+                            path=str(r.relative_to(BASE)), cited=n, actual=defs[0], symbol=last)
+        for chemin, sym in REF_SYM_FILE.findall(ligne):
+            r = resoudre(chemin)
+            if r in (None, 'AMBIGU'):
+                if r is None:
+                    add('CASSE_FICHIER', f'fichier inexistant -> {chemin}::{sym}')
+                continue
+            txt = '\n'.join(lignes_de(r))
+            if not re.search(r'\b' + re.escape(sym) + r'\b', txt):
+                add('SYMBOLE_ABSENT_FICHIER', f'{chemin}::{sym} — absent du fichier',
+                    symbol=sym)
+        for chemin in REF_FICHIER.findall(ligne):
+            if '/' not in chemin:
+                continue
+            if resoudre(chemin) is None:
+                add('CASSE_FICHIER', f'fichier inexistant -> {chemin}')
+        if not fence:
+            for tok in BACKTICK.findall(ligne):
+                if not est_symbole(tok):
+                    continue
+                parts = tok.rstrip('()').split('.')
+                last = parts[-1]
+                if last in defined:
+                    continue
+                if any(p in defined for p in parts[:-1]) and not tok.endswith('()'):
+                    # `module.attr` où module existe : attr peut être une clé/donnée
+                    pass
+                add('SYMBOLE_INCONNU', f'`{tok}` défini nulle part dans le dépôt', symbol=last)
+
+OUT.write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding='utf-8')
+from collections import Counter
+c = Counter((r['kind'], r['intentional'] or r['journal']) for r in res)
+for (k, excuse), n in sorted(c.items()):
+    print(f'{k:24} {"excusé(intent/journal)" if excuse else "À TRAITER":24} {n}')
+print('defined symbols:', len(defined))
