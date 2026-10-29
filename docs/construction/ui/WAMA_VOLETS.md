@@ -778,6 +778,17 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     `common.surface_layout` 9/9, `common.surface_stack` 22/22, `common.panel_layout` 16/16,
     `common.centre_layout` 26/26, parité de l'éditeur, `common.layout.screens` (224 mesures) et
     la tablette.
+  - **Revue esthétique, le même jour** (Fabien : « vérifier que l'apparence en figé reste
+    conforme »), par captures AVANT (serveur jetable sur `0a904455`) / APRÈS de la surface, d'une
+    page d'app et du journal : le centre et le volet figés sont identiques ; l'en-tête ne l'était
+    pas — deux boutons ENCADRÉS à droite alourdissaient la barre et décalaient le logo de ~30 px.
+    Les contrôles sont devenus des icônes seules (comme la cloche) et sont passés À GAUCHE, après
+    « Applications » : le logo est revenu au centre. Ouvert, le bandeau ne montre plus que « Par
+    défaut » et « Figer » (son libellé « Disposition modifiable », réservé au lecteur d'écran, faisait
+    chevaucher le nom du compte sur le volet). Au passage, relevé par Fabien : la pastille des
+    notifications était coupée par le haut de la fenêtre (`translate-middle` la remontait de sa
+    demi-hauteur) — décalée en largeur seulement. Rejoués verts : `common.page_controls`, les quatre
+    scénarios de disposition, `common.layout.screens` (224) et la tablette.
   - ⏳ **Suite décidée** : bulle au premier passage, touches dans les infobulles, assistant informé ;
     puis les sections du volet en briques du registre (l'inspecteur en briques, l'assistant).
 

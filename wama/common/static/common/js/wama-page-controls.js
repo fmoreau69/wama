@@ -89,12 +89,15 @@
             banner = document.createElement('div');
             banner.className = 'wama-layout-banner';
             banner.setAttribute('role', 'status');
+            // Compact : le cadenas ouvert (coloré) et les gestes dessous disent déjà le mode — le
+            // libellé « Disposition modifiable » ne sert qu'au lecteur d'écran (une barre où il se
+            // voyait débordait sur le volet, captures du 29/10).
             banner.innerHTML =
-                '<i class="fas fa-lock-open"></i><span class="wama-header-label">Disposition modifiable</span>' +
+                '<span class="visually-hidden">Disposition modifiable</span>' +
                 '<button type="button" class="btn btn-sm btn-outline-secondary" data-page-layout="reset" title="Disposition par défaut">' +
-                '<i class="fas fa-table-cells-large"></i><span class="wama-header-label"> Par défaut</span></button>' +
+                '<i class="fas fa-table-cells-large me-1"></i><span class="wama-header-label">Par défaut</span></button>' +
                 '<button type="button" class="btn btn-sm btn-primary" data-page-layout="freeze" title="Figer la disposition">' +
-                '<i class="fas fa-lock"></i><span class="wama-header-label"> Figer</span></button>';
+                '<i class="fas fa-lock me-1"></i><span class="wama-header-label">Figer</span></button>';
             banner.addEventListener('click', function (ev) {
                 var b = ev.target.closest('[data-page-layout]');
                 if (!b || !layoutProvider) return;

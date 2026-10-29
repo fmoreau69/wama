@@ -9,12 +9,12 @@
     .wama-header .navbar-nav .nav-item[data-page-control] { display: none !important; }
 }
 
-/* Le cadenas ouvert se voit d'un coup d'œil : c'est un MODE de la page. */
-#wamaLayoutToggle.active {
-    color: var(--wama-text-ui);
-    border-color: var(--wama-app-color, var(--wama-link));
-    background: rgba(var(--wama-overlay-rgb), .12);
-}
+/* Des icônes SEULES, comme la cloche : la barre garde son poids (le bouton des volets reste le
+   seul encadré) et le logo son centre — encadrés, les deux contrôles le décalaient (captures
+   avant / après du 2026-10-29). Le cadenas ouvert se voit d'un coup d'œil : c'est un MODE. */
+#wamaLayoutToggle.active { color: var(--wama-app-color, var(--wama-link)); }
+/* À gauche, après « Applications » : la barre reste équilibrée et le logo au centre. */
+.wama-header-left .wama-page-controls { margin-left: .6rem; }
 
 /* Le BANDEAU de la disposition modifiable : DANS l'en-tête, à la place du logo (la colonne du
    milieu de sa grille, `filemanager.css`) — il ne recouvre jamais un panneau, et on ne cherche pas

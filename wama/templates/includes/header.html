@@ -165,6 +165,27 @@
                 });
             })();
             </script>
+            {% comment %}Les CONTRÔLES DE PAGE (2026-10-29, décision de Fabien : « une barre de page ») —
+            ce qui vaut pour toute la page vit ici, jamais dans une brique, qui peut se déplacer ou
+            partir dans une autre fenêtre (`common/js/wama-page-controls.js`). Le cadenas n'apparaît
+            que si la page offre une disposition ; l'aide (ou la touche « ? ») liste les raccourcis
+            des briques de CETTE page, lus au registre. À GAUCHE, après « Applications » : à droite,
+            ils décalaient le logo du centre (captures avant / après du 29/10).{% endcomment %}
+            <ul class="navbar-nav flex-row gap-2 wama-page-controls">
+                <li class="nav-item" data-page-control="layout" hidden>
+                    <button type="button" class="nav-link btn btn-link" id="wamaLayoutToggle"
+                            title="Modifier la disposition de la page" aria-label="Modifier la disposition de la page"
+                            aria-pressed="false">
+                        <i class="fas fa-lock"></i>
+                    </button>
+                </li>
+                <li class="nav-item" data-page-control="help">
+                    <button type="button" class="nav-link btn btn-link" id="wamaPageHelpToggle"
+                            title="Aide de cette page et raccourcis clavier (?)" aria-label="Aide de cette page et raccourcis clavier">
+                        <i class="fas fa-circle-question"></i>
+                    </button>
+                </li>
+            </ul>
         </div>
 
         <!-- Logo WAMA (centré absolument) -->
@@ -175,24 +196,6 @@
         <!-- Menu navigation (droite) -->
         <div class="wama-header-right">
             <ul class="navbar-nav flex-row gap-2">
-                {% comment %}Les CONTRÔLES DE PAGE (2026-10-29, décision de Fabien : « une barre de page ») —
-                ce qui vaut pour toute la page vit ici, jamais dans une brique, qui peut se déplacer ou
-                partir dans une autre fenêtre (`common/js/wama-page-controls.js`). Le cadenas n'apparaît
-                que si la page offre une disposition ; l'aide (ou la touche « ? ») liste les raccourcis
-                des briques de CETTE page, lus au registre.{% endcomment %}
-                <li class="nav-item" data-page-control="layout" hidden>
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="wamaLayoutToggle"
-                            title="Modifier la disposition de la page" aria-label="Modifier la disposition de la page"
-                            aria-pressed="false">
-                        <i class="fas fa-lock"></i>
-                    </button>
-                </li>
-                <li class="nav-item" data-page-control="help">
-                    <button type="button" class="btn btn-sm btn-outline-secondary" id="wamaPageHelpToggle"
-                            title="Aide de cette page et raccourcis clavier (?)" aria-label="Aide de cette page et raccourcis clavier">
-                        <i class="fas fa-circle-question"></i>
-                    </button>
-                </li>
                 {% comment %}Replier / déployer les DEUX volets d'un geste (2026-10-27, décision de
                 Fabien : il remplace le bouton « Simplifié »). Une icône seule, câblée et repeinte par
                 la brique des volets (`wama-panel-toggle.js`, `data-wama-panels-switch`) : chaque volet
@@ -228,7 +231,10 @@
                        title="Notifications{% if unread_notifications %} — {{ unread_notifications }} non lue{{ unread_notifications|pluralize }}{% endif %}">
                         <i class="fas fa-bell"></i>
                         {% if unread_notifications %}
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                        {% comment %}Décalée en LARGEUR seulement (2026-10-29, relevé par Fabien) :
+                        `translate-middle` la remontait aussi de sa demi-hauteur, au-dessus du haut de
+                        la fenêtre, où elle était coupée.{% endcomment %}
+                        <span class="position-absolute top-0 start-100 translate-middle-x badge rounded-pill bg-danger"
                               style="font-size:.6rem;">{{ unread_notifications }}</span>
                         {% endif %}
                     </a>
