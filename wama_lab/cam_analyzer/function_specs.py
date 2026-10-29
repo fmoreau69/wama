@@ -544,6 +544,27 @@ _spec('indicators', 'Indicateurs prédiction (TTC/PET)', "TTC/PET par prédictio
                         uncertainty={'model': 'declared', 'note': 'aucune mesure A/B (§C)'},
                         derived_from=['bbox', 'gps'])])
 
+# Tableaux PAR VÉHICULE (2026-10-29, Fabien) : la sortie métier lisible — une ligne par véhicule
+# susceptible de s'insérer à une intersection, une ligne par dépassement. Le calcul est PUR
+# (`wama_data.functions.driving.vehicle_interactions`) ; la passe le nourrit de ce que la session a stocké.
+_spec('vehicle_tables', 'Tableaux par véhicule (insertions, dépassements)',
+      "Une ligne par véhicule susceptible de s'insérer dans une intersection (t0/t1/t2, distances à la "
+      "navette, TTC/PET, véhicule à l'arrière de la navette) et une ligne par dépassement (côté, écart "
+      "latéral, vitesses, rabattement), dans le repère de la trajectoire de la navette.",
+      FC.DETECTOR, 'cam_analyzer.tasks:compute_vehicle_tables_task', ['geo', 'per-vehicle', 'report'],
+      inputs=[PortSpec('detections', DT.DETECTIONS,
+                       required_fields=['world_en', 'world_vel', 'global_track_id'],
+                       description="Trajectoires MONDE suivies et lissées (tracking 360°), annotées "
+                                   "TTC/PET par la passe Indicateurs."),
+              PortSpec('windows', DT.EVENTS, required_fields=['start', 'end'],
+                       description="Fenêtres d'intersection : seules les insertions y sont cherchées.")],
+      outputs=[PortSpec('insertions', DT.TABLE,
+                        produced_fields=['id', 'intersection', 't0_s', 't1_s', 't2_s', 'dmin_m', 'ttc_min_s'],
+                        description="Une ligne par véhicule susceptible de s'insérer."),
+               PortSpec('overtakes', DT.TABLE,
+                        produced_fields=['id', 'direction', 'side', 't_alongside_s', 'lateral_gap_min_m'],
+                        description="Une ligne par dépassement.")])
+
 
 # ── Le PIPELINE lui-même (D13 ③, 2026-09-09) ──────────────────────────────────
 # Le registre des passes (`pass_tracking.PASSES`) s'inscrit comme source de manifeste

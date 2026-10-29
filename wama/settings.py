@@ -829,7 +829,8 @@ if ENABLE_CELERY:
             'compute_depth_calc_task', 'compute_lane_map_recalage_task', 'compute_camera_intrinsics_task',
             'compute_visual_yaw_task',
             'compute_ortho_correction_task', 'compute_global_tracking_task',
-            'compute_indicators_task', 'compute_conflict_events_task', 'release_calc_chain_task')},
+            'compute_indicators_task', 'compute_conflict_events_task', 'compute_vehicle_tables_task',
+            'release_calc_chain_task')},
         'wama.converter.tasks.*': {'queue': 'default'},
         # Reprise d'un résultat EXISTANT (lecture d'un document, aucun modèle) — déclarée plutôt
         # que laissée au défaut, pour la même raison que `common.refresh_registry` plus bas.

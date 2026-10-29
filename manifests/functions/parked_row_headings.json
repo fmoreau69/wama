@@ -1,0 +1,98 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par garé : identifiant, position fixe (m, repère local est/nord).",
+        "group": "travail",
+        "key": "anchors",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "id",
+          "e",
+          "n"
+        ]
+      }
+    ],
+    "key": "parked_row_headings",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Nature (angled, parallel, unknown), cap compas modulo 180° et espacement médian de la rangée ; le bilan par nature est dans meta.",
+        "key": "headings",
+        "optional": false,
+        "produced_fields": [
+          "id",
+          "kind",
+          "heading",
+          "spacing"
+        ],
+        "required_fields": []
+      }
+    ],
+    "params": [
+      {
+        "choices": null,
+        "default": 10.0,
+        "description": "Rayon où chercher la rangée d'un garé.",
+        "key": "radius_m",
+        "max": 30.0,
+        "min": 4.0,
+        "type": "float",
+        "unit": "m"
+      },
+      {
+        "choices": null,
+        "default": 3.5,
+        "description": "Espacement médian sous lequel la rangée est en bataille.",
+        "key": "angled_gap_m",
+        "max": 5.0,
+        "min": 2.0,
+        "type": "float",
+        "unit": "m"
+      },
+      {
+        "choices": null,
+        "default": 4.5,
+        "description": "Espacement médian au-dessus duquel la rangée est en créneau.",
+        "key": "parallel_gap_m",
+        "max": 8.0,
+        "min": 3.0,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "tracking",
+      "parked",
+      "heading",
+      "geometry"
+    ]
+  },
+  "description": "Décide si un garé est en bataille ou en créneau d'après l'espacement de sa rangée : les garés voisins alignés (moins de 10 m), l'écart médian le long de leur axe — sous 3,5 m en bataille (cap perpendiculaire à la rangée), au-dessus de 4,5 m en créneau (cap de la rangée), entre les deux on ne sait pas. Le rapport largeur/hauteur des boîtes ne le dit pas quand la voiture voisine masque le flanc.",
+  "key": "parked_row_headings",
+  "manifest_kind": "function",
+  "name": "Cap des garés par leur rangée",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:parked_row_headings",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

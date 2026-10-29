@@ -136,6 +136,16 @@
         "from": "distance",
         "to": "conflicts",
         "to_port": null
+      },
+      {
+        "from": "indicators",
+        "to": "vehicle_tables",
+        "to_port": null
+      },
+      {
+        "from": "intersection_windows",
+        "to": "vehicle_tables",
+        "to_port": null
       }
     ],
     "nodes": [
@@ -279,7 +289,8 @@
           "task": "compute_anonymize_blur_task",
           "watched": [
             "anonymize_min_confidence",
-            "anonymize_floors"
+            "anonymize_floors",
+            "anonymize_blur_look"
           ]
         }
       },
@@ -441,13 +452,27 @@
           "task": "compute_conflict_events_task",
           "watched": []
         }
+      },
+      {
+        "app": null,
+        "function": "cam_analyzer.vehicle_tables",
+        "id": "vehicle_tables",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "gpu": false,
+          "per_camera": false,
+          "stage": "calcul",
+          "task": "compute_vehicle_tables_task",
+          "watched": []
+        }
       }
     ]
   },
   "description": "Pipeline déclaré en code (`pass_tracking.PASSES`) : étage ANALYSE (perception, GPU) puis CALCUL (dérivation CPU rejouable) ; chaque passe est un nœud `function` du catalogue, chaque dépendance un lien.",
   "key": "cam_analyzer",
   "manifest_kind": "pipeline",
-  "name": "Cam Analyzer — chaîne complète (20 passes)",
+  "name": "Cam Analyzer — chaîne complète (21 passes)",
   "owner": null,
   "projects": [
     "ENA"

@@ -9,3 +9,4 @@ from . import operator_annotations  # noqa: F401
 from . import trajectory_offset    # noqa: F401
 from . import ego_trajectory_filter  # noqa: F401
 from . import lane_map_matching    # noqa: F401
+from . import vehicle_interactions  # noqa: F401

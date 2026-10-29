@@ -53,6 +53,9 @@ urlpatterns = [
     path('api/sessions/<uuid:session_id>/export/json/', views.export_session_json, name='export_json'),
     path('api/sessions/<uuid:session_id>/export/segments/', views.export_segments_csv, name='export_segments'),
     path('api/sessions/<uuid:session_id>/export/conflicts/', views.export_conflicts_csv, name='export_conflicts'),
+    path('api/sessions/<uuid:session_id>/export/insertions/', views.export_insertions_csv, name='export_insertions'),
+    path('api/sessions/<uuid:session_id>/export/overtakes/', views.export_overtakes_csv, name='export_overtakes'),
+    path('api/sessions/<uuid:session_id>/vehicle-tables/', views.get_vehicle_tables, name='get_vehicle_tables'),
     path('api/sessions/<uuid:session_id>/segments/', views.get_segments, name='get_segments'),
     path('api/sessions/<uuid:session_id>/analytics/', views.get_analytics_data, name='get_analytics'),
 

@@ -1787,6 +1787,8 @@ document.addEventListener('DOMContentLoaded', function () {
             ['rpExportJsonBtn', () => exportSessionJson()],
             ['rpExportSegmentsBtn', () => exportSegmentsCsv()],
             ['rpExportConflictsBtn', () => exportConflictsCsv()],
+            ['rpExportInsertionsBtn', () => exportVehicleTableCsv('insertions')],
+            ['rpExportOvertakesBtn', () => exportVehicleTableCsv('overtakes')],
         ];
         map.forEach(([id, handler]) => {
             const btn = document.getElementById(id);
@@ -1795,7 +1797,8 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function setRightPanelExportsEnabled(enabled) {
-        ['rpExportCsvBtn', 'rpExportJsonBtn', 'rpExportSegmentsBtn', 'rpExportConflictsBtn'].forEach(id => {
+        ['rpExportCsvBtn', 'rpExportJsonBtn', 'rpExportSegmentsBtn', 'rpExportConflictsBtn',
+         'rpExportInsertionsBtn', 'rpExportOvertakesBtn'].forEach(id => {
             const btn = document.getElementById(id);
             if (btn) btn.disabled = !enabled;
         });
@@ -1804,6 +1807,19 @@ document.addEventListener('DOMContentLoaded', function () {
     function exportConflictsCsv() {
         if (!currentSessionId) return;
         window.location.href = `${config.urls.exportConflicts}${currentSessionId}/export/conflicts/`;
+    }
+
+    // Tableaux par véhicule (2026-10-29) : la passe « Tableaux par véhicule » les écrit ; avant elle, la
+    // route répond 404 — on le dit au lieu d'ouvrir une page d'erreur.
+    async function exportVehicleTableCsv(kind) {
+        if (!currentSessionId) return;
+        const base = `${config.urls.exportConflicts}${currentSessionId}`;
+        const probe = await fetch(`${base}/vehicle-tables/`).then(r => r.json()).catch(() => null);
+        if (!probe || !probe.available) {
+            window.WamaApp?.toast("Tableaux par véhicule absents : lancer la passe « Tableaux par véhicule » (Calculs).", 'warning');
+            return;
+        }
+        window.location.href = `${base}/export/${kind}/`;
     }
 
     function resetDropZone(position) {
@@ -4696,12 +4712,17 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!segmentsList) return;
 
         try {
-            const resp = await fetch(`${config.urls.getSegments}${sessionId}/segments/`);
+            const [resp, tables] = await Promise.all([
+                fetch(`${config.urls.getSegments}${sessionId}/segments/`),
+                fetch(`${config.urls.getSegments}${sessionId}/vehicle-tables/`).then(r => r.json()).catch(() => null),
+            ]);
             const data = await resp.json();
             const segments = data.segments || [];
+            const tablesHtml = renderVehicleTables(tables);
 
             if (segments.length === 0) {
-                segmentsList.innerHTML = '<div class="text-secondary small">Aucun segment détecté</div>';
+                segmentsList.innerHTML = tablesHtml + '<div class="text-secondary small">Aucun segment détecté</div>';
+                bindSeekChips(segmentsList);
                 return;
             }
 
@@ -4773,7 +4794,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     </div>`;
             }).join('');
 
-            segmentsList.innerHTML = header + rows;
+            segmentsList.innerHTML = tablesHtml + header + rows;
 
             // Bascule "tout afficher"
             const toggle = document.getElementById('toggleAllSegments');
@@ -4781,25 +4802,93 @@ document.addEventListener('DOMContentLoaded', function () {
                 showAllSegments = toggle.checked;
                 loadSegments(sessionId);
             });
-
-            // Clic ligne → seek au début ; clic chip t0/t1/t2 → seek au repère
-            segmentsList.querySelectorAll('.segment-tmark').forEach(chip => {
-                chip.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const t = parseFloat(chip.dataset.seek);
-                    if (!isNaN(t)) syncSeek(t);
-                });
-            });
-            segmentsList.querySelectorAll('.segment-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const startTime = parseFloat(item.dataset.start);
-                    if (!isNaN(startTime)) syncSeek(startTime);
-                });
-            });
+            bindSeekChips(segmentsList);
         } catch (e) {
             console.error('Error loading segments:', e);
             segmentsList.innerHTML = '<div class="text-danger small">Erreur chargement segments</div>';
         }
+    }
+
+    // Clic ligne → seek au début ; clic chip t0/t1/t2 → seek au repère
+    function bindSeekChips(root) {
+        root.querySelectorAll('.segment-tmark').forEach(chip => {
+            chip.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const t = parseFloat(chip.dataset.seek);
+                if (!isNaN(t)) syncSeek(t);
+            });
+        });
+        root.querySelectorAll('.segment-item').forEach(item => {
+            item.addEventListener('click', () => {
+                const startTime = parseFloat(item.dataset.start);
+                if (!isNaN(startTime)) syncSeek(startTime);
+            });
+        });
+    }
+
+    // Tableaux PAR VÉHICULE (2026-10-29, passe « Tableaux par véhicule ») : insertions aux intersections
+    // et dépassements, une ligne par véhicule — les mêmes lignes que les exports CSV.
+    function renderVehicleTables(tables) {
+        if (!tables || !tables.available) return '';
+        const chip = (label, t, title) => (t == null) ? '' :
+            `<span class="segment-tmark badge bg-body border border-secondary me-1"
+                   data-seek="${t}" title="${title}" style="cursor:pointer;">${label} ${formatTime(t)}</span>`;
+        const num = (v, unit, k = 1) => (v == null) ? '–' : `${Number(v).toFixed(k)} ${unit}`;
+        const yes = v => v ? 'oui' : 'non';
+        const ins = (tables.insertions || []).filter(r => r.inserted);
+        const waiting = (tables.insertions || []).length - ins.length;
+        const insRows = ins.map(r => `
+            <div class="segment-item" data-start="${r.t1_s ?? r.first_seen_s}">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="segment-badge insertion_front">G${r.id}</span>
+                    <span class="small text-secondary">${escapeHtml(r.intersection || '')}</span>
+                    <span class="small text-body-emphasis ms-auto">${r.before_shuttle ? 'avant' : 'après'} la navette</span>
+                </div>
+                <div class="small text-secondary mt-1">
+                    ${r.shuttle_lane ? 'voie navette' : ''}${r.shuttle_lane && r.opposite_lane ? ' + ' : ''}${r.opposite_lane ? 'voie opposée' : ''}
+                    · dmin ${num(r.dmin_m, 'm')} · vmax ${num(r.vmax_kmh, 'km/h', 0)}
+                    · TTC ${num(r.ttc_min_s, 's')} · PET ${num(r.pet_s, 's')}
+                    · arrière ${yes(r.rear_present)}${r.rear_present ? ` (${num(r.rear_min_gap_m, 'm')})` : ''}
+                </div>
+                <div class="mt-1">
+                    ${chip('t0', r.t0_s, 'Premier mouvement')}
+                    ${chip('t1', r.t1_s, 'Entrée dans la voie')}
+                    ${chip('t2', r.t2_s, 'Sortie de la voie (' + (r.t2_kind || '') + ')')}
+                </div>
+            </div>`).join('');
+        const ovRows = (tables.overtakes || []).map(r => `
+            <div class="segment-item" data-start="${r.t_start_s}">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="segment-badge overtaking">G${r.id}</span>
+                    <span class="small text-secondary">${r.direction === 'vehicle_overtakes_shuttle' ? 'double la navette' : 'doublé par la navette'}
+                        par la ${r.side === 'left' ? 'gauche' : 'droite'}</span>
+                    <span class="small text-body-emphasis ms-auto">${formatTime(r.t_alongside_s)}</span>
+                </div>
+                <div class="small text-secondary mt-1">
+                    écart latéral ${num(r.lateral_gap_min_m, 'm')} · ${num(r.vehicle_speed_kmh, 'km/h', 0)} contre
+                    ${num(r.shuttle_speed_kmh, 'km/h', 0)} · TTC ${num(r.ttc_min_s, 's')}
+                    ${r.cut_in ? `· rabattement à ${num(r.cut_in_gap_m, 'm')}` : ''}
+                </div>
+                <div class="mt-1">
+                    ${chip('début', r.t_start_s, 'Derrière la navette')}
+                    ${chip('à hauteur', r.t_alongside_s, 'À hauteur de la navette')}
+                    ${r.cut_in ? chip('rabattement', r.cut_in_t_s, 'Entre dans la voie de la navette, devant elle') : ''}
+                </div>
+            </div>`).join('');
+        return `
+            <div class="mb-3">
+                <div class="small text-body-emphasis mb-1 pb-1 border-bottom border-secondary">
+                    Insertions aux intersections : ${ins.length} véhicule(s)
+                    <span class="text-secondary">(+${waiting} présents sans insertion, dans l'export)</span>
+                </div>
+                ${insRows || '<div class="text-secondary small">Aucune insertion</div>'}
+            </div>
+            <div class="mb-3">
+                <div class="small text-body-emphasis mb-1 pb-1 border-bottom border-secondary">
+                    Dépassements : ${(tables.overtakes || []).length}
+                </div>
+                ${ovRows || '<div class="text-secondary small">Aucun dépassement</div>'}
+            </div>`;
     }
 
     // =========================================================================

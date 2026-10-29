@@ -153,6 +153,11 @@ PASSES: tuple = (
          task='compute_indicators_task'),
     Pass('conflicts', label='Conflits', stage='calcul', depends_on=('lane_events', 'distance'),
          task='compute_conflict_events_task'),
+    # Tableaux par véhicule (2026-10-29) : insertions aux intersections et dépassements, une ligne
+    # par véhicule — ce que les exports et le rapport relisent (`utils/vehicle_tables.py`).
+    Pass('vehicle_tables', label='Tableaux par véhicule (insertions, dépassements)', stage='calcul',
+         depends_on=('indicators', 'intersection_windows'), task='compute_vehicle_tables_task',
+         eta_size='video'),
 )
 
 #: Ordre de DÉCLARATION = ordre d'affichage du panneau (ex-liste `order` de get_passes_status).

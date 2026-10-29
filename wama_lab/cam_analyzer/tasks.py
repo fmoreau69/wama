@@ -2814,6 +2814,8 @@ def _run_global_tracking(session):
         # Les mêmes paires par NATURE (2026-10-28) : seules les « suspects » sont un garé compté deux fois.
         rs['parked_twin_kinds'] = _gt.get('parked_twin_kinds')
         rs['parked_twin_merge'] = _gt.get('parked_twin_merge')
+        # Cap des garés par l'espacement de leur rangée (2026-10-29) — mesuré toujours, appliqué sous ⚑.
+        rs['parked_row_kinds'] = _gt.get('parked_row_kinds')
         rs['parked_long_exposure'] = _gt.get('parked_long_exposure')
         rs['trajectory_twins'] = _gt.get('trajectory_twins')
         _ptk = _gt.get('parked_twin_kinds') or {}
@@ -2823,6 +2825,8 @@ def _run_global_tracking(session):
                  f"{_gt.get('parked_twins')}, dont {_ptk.get('same_image', 0)} vues dans une même image = deux "
                  f"voitures, {_ptk.get('distinct_passes', 0)} passages distincts)"
                  + (f" · réunis : {_ptm['merged']} en {_ptm['objects']} garés" if _ptm else '')
+                 + (" · rangées : {angled} en bataille, {parallel} en créneau, {unknown} indécis".format(
+                     **_gt['parked_row_kinds']) if _gt.get('parked_row_kinds') else '')
                  + (f" · pose longue : {_gt['parked_long_exposure']}" if _gt.get('parked_long_exposure') else '')
                  + (f" · trajectoires jumelles : {_gt['trajectory_twins']}" if _gt.get('trajectory_twins') else ''))
         _po = (_ca.get('parked_offsets') or {}).get('gaps') or {}
@@ -3189,6 +3193,35 @@ def compute_indicators_task(self, session_id: str):
         logger.error(f"compute_indicators_task failed: {e}", exc_info=True)
         try:
             mark_failed(AnalysisSession.objects.get(pk=session_id), 'indicators', str(e))
+        except Exception:
+            pass
+        return {'error': str(e), 'session_id': session_id}
+
+
+@shared_task(bind=True)
+def compute_vehicle_tables_task(self, session_id: str):
+    """Passe TABLEAUX PAR VÉHICULE (CALCUL, CPU, rejouable, 2026-10-29) : une ligne par véhicule
+    susceptible de s'insérer aux intersections, une ligne par dépassement — relues par les exports CSV et
+    le rapport (`utils/vehicle_tables.py`). Session-wide."""
+    close_old_connections()
+    from .models import AnalysisSession
+    from .utils.pass_tracking import mark_started, mark_completed, mark_failed
+    from .utils.vehicle_tables import PASS_KEY, compute_vehicle_tables
+    try:
+        session = AnalysisSession.objects.select_related('profile').get(pk=session_id)
+        mark_started(session, PASS_KEY, session.profile)
+        _console(session.user_id, "Tableaux par véhicule (CALCUL, CPU) : insertions et dépassements…")
+        summary = compute_vehicle_tables(session)
+        mark_completed(session, PASS_KEY, output_summary=summary)
+        _console(session.user_id,
+                 f"Tableaux par véhicule : {summary['insertions']} véhicules aux intersections "
+                 f"({summary['inserted']} insérés) · {summary['overtakes']} dépassements "
+                 f"({summary['cut_ins']} rabattements) · voie {summary['lane_width_m']} m")
+        return {'session': session_id, **summary}
+    except Exception as e:
+        logger.error(f"compute_vehicle_tables_task failed: {e}", exc_info=True)
+        try:
+            mark_failed(AnalysisSession.objects.get(pk=session_id), 'vehicle_tables', str(e))
         except Exception:
             pass
         return {'error': str(e), 'session_id': session_id}

@@ -1,0 +1,102 @@
+{
+  "body": {
+    "app": "",
+    "binding": "pure",
+    "category": "transform",
+    "cost": {
+      "cpu_bound": true
+    },
+    "impl": "",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Trajectoire de la navette (centre arrière), repère local en mètres.",
+        "group": "travail",
+        "key": "shuttle",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "t",
+          "e",
+          "n",
+          "heading"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Observations des véhicules : identifiant, instant, position et vitesse monde.",
+        "group": "travail",
+        "key": "observations",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "id",
+          "t",
+          "e",
+          "n",
+          "ve",
+          "vn"
+        ]
+      }
+    ],
+    "key": "shuttle_overtakes",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Un dépassement par ligne.",
+        "key": "overtakes",
+        "optional": false,
+        "produced_fields": [
+          "id",
+          "direction",
+          "side",
+          "t_start_s",
+          "t_alongside_s",
+          "t_end_s",
+          "lateral_gap_min_m",
+          "relative_speed_kmh",
+          "cut_in",
+          "cut_in_gap_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "params": [
+      {
+        "choices": null,
+        "default": 3.5,
+        "description": "Largeur d'une voie.",
+        "key": "lane_width_m",
+        "max": 5.0,
+        "min": 2.5,
+        "type": "float",
+        "unit": "m"
+      }
+    ],
+    "projects": [],
+    "tags": [
+      "driving",
+      "interactions",
+      "overtaking",
+      "ttc"
+    ]
+  },
+  "description": "Une ligne par dépassement, dans le repère de la trajectoire de la navette : un véhicule qui passe de derrière elle à devant elle (ou l'inverse en roulant dans son sens), à côté de sa voie — côté, instants (début, à hauteur, fin), écart latéral minimal, vitesses, et rabattement dans sa voie devant elle (écart, TTC). Les insertions aux intersections (`insertion_rows`) suivent le même repère.",
+  "key": "shuttle_overtakes",
+  "manifest_kind": "function",
+  "name": "Dépassements de la navette",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:shuttle_overtakes",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "data"
+}

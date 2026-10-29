@@ -15,7 +15,7 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.db import connection
 from django.db.models import TextField
 from django.db.models.functions import Cast
-from django.http import FileResponse, HttpResponse, JsonResponse, StreamingHttpResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse, StreamingHttpResponse
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods
@@ -2011,6 +2011,56 @@ def export_conflicts_csv(request, session_id):
         filename=f"{session.name or 'session'}_conflicts.csv",
         content_type='text/csv; charset=utf-8',
     )
+
+
+def _vehicle_table_csv(session, key, columns, suffix):
+    """CSV d'un des tableaux par véhicule (`utils/vehicle_tables.py`) — 404 tant que la passe n'a pas joué."""
+    from .utils.vehicle_tables import csv_cell, read_tables
+    tables = read_tables(session)
+    if tables is None:
+        raise Http404("Tableaux par véhicule absents : lancer la passe « Tableaux par véhicule ».")
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow([label for _key, label in columns])
+    for row in tables.get(key) or []:
+        writer.writerow([('G' + str(row[k]) if k == 'id' and row.get(k) is not None else csv_cell(row.get(k)))
+                         for k, _label in columns])
+    return FileResponse(
+        io.BytesIO(buffer.getvalue().encode('utf-8')),
+        as_attachment=True,
+        filename=f"{session.name or 'session'}_{suffix}.csv",
+        content_type='text/csv; charset=utf-8',
+    )
+
+
+@login_required
+@require_http_methods(["GET"])
+def export_insertions_csv(request, session_id):
+    """Une ligne par véhicule susceptible de s'insérer aux intersections (2026-10-29)."""
+    from .utils.vehicle_tables import INSERTION_COLUMNS
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    return _vehicle_table_csv(session, 'insertions', INSERTION_COLUMNS, 'insertions')
+
+
+@login_required
+@require_http_methods(["GET"])
+def export_overtakes_csv(request, session_id):
+    """Une ligne par dépassement (2026-10-29)."""
+    from .utils.vehicle_tables import OVERTAKE_COLUMNS
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    return _vehicle_table_csv(session, 'overtakes', OVERTAKE_COLUMNS, 'depassements')
+
+
+@login_required
+@require_http_methods(["GET"])
+def get_vehicle_tables(request, session_id):
+    """Les deux tableaux par véhicule, pour le rapport (`{available: false}` tant que la passe n'a pas joué)."""
+    from .utils.vehicle_tables import read_tables
+    session = get_object_or_404(AnalysisSession, id=session_id, user=request.user)
+    tables = read_tables(session)
+    if tables is None:
+        return JsonResponse({'available': False})
+    return JsonResponse({'available': True, **tables})
 
 
 @login_required

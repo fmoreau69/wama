@@ -94,7 +94,9 @@ class SwitchChangeStalesThePanelTest(SimpleTestCase):
         return {node for node, _ in (staled.call_args.args[1] if staled.called else [])}
 
     def test_a_changed_switch_stales_the_tracking_and_the_indicators(self):
-        self.assertEqual(self._stale({}, {'class_family_gate': False}), {'global_tracking', 'indicators'})
+        # … et les tableaux par véhicule (2026-10-29), en aval des Indicateurs : la cascade
+        self.assertEqual(self._stale({}, {'class_family_gate': False}),
+                         {'global_tracking', 'indicators', 'vehicle_tables'})
 
     def test_the_same_switches_stale_nothing(self):
         self.assertEqual(self._stale({}, {}), set())
@@ -111,7 +113,7 @@ class SwitchChangeStalesThePanelTest(SimpleTestCase):
         """Le tracking ne lit pas les bascules du TTC/PET (`Feature.processes`) : changer l'une
         d'elles le refaisait (~4 min) pour rien. Les Indicateurs terminés APRÈS le tracking ont vu
         sa photo (ils l'avaient vérifiée pour le réutiliser) : elle leur sert de repli."""
-        self.assertEqual(self._stale({}, {'prediction_ground': True}), {'indicators'})
+        self.assertEqual(self._stale({}, {'prediction_ground': True}), {'indicators', 'vehicle_tables'})
 
     def test_indicators_older_than_the_tracking_keep_the_old_rule(self):
         self.assertEqual(self._stale({}, {'prediction_ground': True}, indicators_before=True), set())
@@ -138,7 +140,8 @@ class SwitchPhotoPerPassTest(SimpleTestCase):
         return {node for node, _ in (staled.call_args.args[1] if staled.called else [])}
 
     def test_a_ttc_switch_stales_the_indicators_only(self):
-        self.assertEqual(self._stale({'prediction_kalman': True}), {'indicators'})
+        # (et leur aval par la cascade : les tableaux par véhicule, 2026-10-29 — pas le tracking)
+        self.assertEqual(self._stale({'prediction_kalman': True}), {'indicators', 'vehicle_tables'})
 
     def test_the_sam3_arbitration_stales_the_sam3_pass_and_its_downstream(self):
         stale = self._stale({'sam3_label_arbitration': False})

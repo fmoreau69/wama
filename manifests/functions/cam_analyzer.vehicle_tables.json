@@ -1,0 +1,99 @@
+{
+  "body": {
+    "app": "cam_analyzer",
+    "binding": "app",
+    "category": "detector",
+    "cost": {},
+    "impl": "cam_analyzer.tasks:compute_vehicle_tables_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "detections",
+        "description": "Trajectoires MONDE suivies et lissées (tracking 360°), annotées TTC/PET par la passe Indicateurs.",
+        "group": "travail",
+        "key": "detections",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "world_en",
+          "world_vel",
+          "global_track_id"
+        ]
+      },
+      {
+        "cardinality": "one",
+        "data_type": "events",
+        "description": "Fenêtres d'intersection : seules les insertions y sont cherchées.",
+        "group": "travail",
+        "key": "windows",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": [
+          "start",
+          "end"
+        ]
+      }
+    ],
+    "key": "cam_analyzer.vehicle_tables",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par véhicule susceptible de s'insérer.",
+        "key": "insertions",
+        "optional": false,
+        "produced_fields": [
+          "id",
+          "intersection",
+          "t0_s",
+          "t1_s",
+          "t2_s",
+          "dmin_m",
+          "ttc_min_s"
+        ],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "table",
+        "description": "Une ligne par dépassement.",
+        "key": "overtakes",
+        "optional": false,
+        "produced_fields": [
+          "id",
+          "direction",
+          "side",
+          "t_alongside_s",
+          "lateral_gap_min_m"
+        ],
+        "required_fields": []
+      }
+    ],
+    "params": [],
+    "projects": [
+      "ENA"
+    ],
+    "tags": [
+      "geo",
+      "per-vehicle",
+      "report"
+    ]
+  },
+  "description": "Une ligne par véhicule susceptible de s'insérer dans une intersection (t0/t1/t2, distances à la navette, TTC/PET, véhicule à l'arrière de la navette) et une ligne par dépassement (côté, écart latéral, vitesses, rabattement), dans le repère de la trajectoire de la navette.",
+  "key": "cam_analyzer.vehicle_tables",
+  "manifest_kind": "function",
+  "name": "Tableaux par véhicule (insertions, dépassements)",
+  "owner": null,
+  "projects": [
+    "ENA"
+  ],
+  "schema_version": "1.0",
+  "scope_org_unit": null,
+  "scope_project": null,
+  "source": {
+    "ref": "FUNCTION_CATALOG:cam_analyzer.vehicle_tables",
+    "type": "extract"
+  },
+  "visibility": "public",
+  "world": "lab"
+}

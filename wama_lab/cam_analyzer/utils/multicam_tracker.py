@@ -1762,6 +1762,19 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             me, mn, _ = _anchor_tmp[gid]
             _anchor_tmp[gid] = (me, mn, hd)
 
+    # CAP PAR LA RANGÉE (2026-10-29, Fabien : « tous en créneau alors qu'ils sont en bataille ») : le ratio des
+    # boîtes ne voit pas l'axe quand la voisine masque le flanc ; l'espacement de la rangée le dit
+    # (`parked_rows`). Toujours MESURÉ (« cap des garés par rangée ») ; appliqué sous ⚑ heading_row_spacing.
+    from wama_data.functions.kinematics.parked_rows import row_headings, row_heading_counts
+    _rows = row_headings([(g, me, mn) for g, (me, mn, _hd) in _anchor_tmp.items()])
+    parked_row_kinds = row_heading_counts(_rows)
+    if _feat.get('heading_row_spacing', False):
+        for gid, (kind, row_hd, _spacing) in _rows.items():
+            if kind != 'unknown':
+                me, mn, _ = _anchor_tmp[gid]
+                _anchor_tmp[gid] = (me, mn, row_hd)
+    logger.info('[garés] cap par rangée : %s', parked_row_kinds)
+
     # GARÉS EN DOUBLE (2026-10-06) : deux ancres de garés à moins de 2 m sont un même objet compté deux fois
     # (deux voitures garées sont à ≈ 2,3 m centre à centre de profil) — la mesure de ⚑ parked_long_exposure.
     # Ces paires par NATURE (2026-10-28) : seules les « suspects » sont un objet compté deux fois — les deux
@@ -2074,6 +2087,7 @@ def annotate_global_tracks(session, fov_v_deg=60.0, gate_m=3.5, max_gap_s=2.5,
             'parked_twins': parked_twins,
             'parked_twin_kinds': parked_twin_kinds,   # les mêmes paires par nature ; 'suspects' = la mesure
             'parked_twin_merge': _ptm,                # bilan de ⚑ parked_twin_merge
+            'parked_row_kinds': parked_row_kinds,     # cap par rangée : bataille / créneau / indécis (⚑ heading_row_spacing)
             'parked_long_exposure': _lexp,
             'trajectory_twins': _twins,      # bilan de ⚑ trajectory_twin_merge (portes, fusions)
             'calibration_reference_gids': calibration_reference,

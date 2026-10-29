@@ -22,6 +22,9 @@ from wama.common.utils.feature_flags import (Feature, RECOMPUTE_SCOPES, resolve,
 #: placent quelque chose avec la pose navette et la géométrie des caméras
 PLACEMENT_READERS = ('camera_intrinsics', 'depth_calc', 'lane_map_recalage', 'ortho_recalage',
                 'ortho_correction', 'global_tracking', 'indicators')
+#: relisent la trajectoire de la NAVETTE (trace GPS effective) sans placer d'objet par caméra — les
+#: bascules qui façonnent cette trajectoire les périment aussi (2026-10-29)
+SHUTTLE_TRACK_READERS = ('vehicle_tables',)
 TRACKING = ('global_tracking',)
 
 FEATURES = [
@@ -57,7 +60,7 @@ FEATURES = [
             "(config gps_antenna). Corrige un biais systématique ~1 m vers la droite. La navette "
             "bouge tout de suite ; les objets suivis au prochain « Tracking 360° ».",
             default=True, scope='hybrid',
-            processes=PLACEMENT_READERS),
+            processes=PLACEMENT_READERS + SHUTTLE_TRACK_READERS),
     Feature('gps_latency', 'Latence du GPS compensée',
             "Une position GPS arrive en retard sur l'image qu'elle accompagne (latence du récepteur) : "
             "la navette était dessinée en ARRIÈRE de ce que montrent les caméras, de vitesse × retard. "
@@ -67,7 +70,7 @@ FEATURES = [
             "~1,8 m à 12 km/h. La navette bouge tout de suite ; les objets suivent au prochain "
             "« Tracking 360° ». OFF = synchro du .rec seule.",
             default=False, scope='hybrid',
-            processes=PLACEMENT_READERS + ('intersection_windows',)),
+            processes=PLACEMENT_READERS + ('intersection_windows',) + SHUTTLE_TRACK_READERS),
     Feature('artifact_filter', 'Filtre reflets/artefacts',
             "Masque les détections collées à l'image (reflets de vitrage : bbox immobile "
             "pendant que la navette avance). Le marquage/exclusion du tracking s'applique "
@@ -96,7 +99,7 @@ FEATURES = [
             "choisit de l'appliquer, au tracking comme à l'affichage. OFF = trajectoire "
             "brute, l'offset restant mesuré et rapporté.",
             default=False, scope='hybrid',
-            processes=tuple(p for p in PLACEMENT_READERS if not p.startswith('ortho_'))),
+            processes=tuple(p for p in PLACEMENT_READERS if not p.startswith('ortho_')) + SHUTTLE_TRACK_READERS),
     Feature('marking_axis_snap', 'Passages piétons calés sur le corridor',
             "Un passage piéton agrégé en monde (SAM3, toutes caméras, tous passages) prend "
             "l'orientation la plus proche de la rue de la navette ou de sa perpendiculaire, et une "
@@ -390,7 +393,7 @@ FEATURES = [
             "filtre calculé, la navette bascule tout de suite ; les objets suivis au prochain "
             "« Tracking 360° ».",
             default=False, scope='hybrid',
-            processes=PLACEMENT_READERS + ('visual_yaw',)),
+            processes=PLACEMENT_READERS + ('visual_yaw',) + SHUTTLE_TRACK_READERS),
     Feature('prediction_ground', "Projection sol dans le TTC/PET",
             "Place les objets du calcul TTC/PET par PROJECTION SOL (calib `ground_calib`) au "
             "lieu du pinhole. 🔴 **OFF par DÉCISION, pas par prudence** : la projection sol "
@@ -437,7 +440,7 @@ FEATURES = [
             "OFF = pose GPS (filtrée ou brute), comportement historique. Une fois la passe faite, la "
             "navette bascule tout de suite ; les objets suivis au prochain « Tracking 360° ».",
             default=False, scope='hybrid',
-            processes=tuple(p for p in PLACEMENT_READERS if p != 'lane_map_recalage')),
+            processes=tuple(p for p in PLACEMENT_READERS if p != 'lane_map_recalage') + SHUTTLE_TRACK_READERS),
     Feature('imu_command', "Accéléromètre en commande du filtre navette",
             "Le filtre de trajectoire navette (⚑ `shuttle_filter`) cesse de supposer "
             "« accélération inconnue ±0,8 m/s² » et prend l'accélération MESURÉE par "
@@ -490,6 +493,15 @@ FEATURES = [
             "Les garés voisins (< 15 m) partagent souvent leur axe (rangée, épi) : mélange "
             "axial pondéré du cap individuel avec celui des voisins.",
             default=True, scope='compute',
+            processes=TRACKING),
+    Feature('heading_row_spacing', 'Cap des garés par leur rangée (bataille / créneau)',
+            "Le rapport largeur/hauteur des boîtes ne voit pas l'axe d'un garé quand la voiture voisine "
+            "masque son flanc : tous finissaient dans l'axe de la route, en créneau. L'ESPACEMENT de la "
+            "rangée tranche — garés voisins alignés à moins de 10 m, écart médian le long de leur axe : sous "
+            "3,5 m en bataille (cap perpendiculaire à la rangée), au-dessus de 4,5 m en créneau, entre les "
+            "deux le cap actuel reste. Mesure : « rangées » (bataille / créneau / indécis), en console à "
+            "chaque tracking, bascule cochée ou non. Tracking à rejouer.",
+            default=False, scope='compute',
             processes=TRACKING),
     Feature('track_speed_unified', 'Vitesse/distance unifiées par track',
             "Une seule vitesse/distance monde par véhicule (tracker 360°) servie à toutes "

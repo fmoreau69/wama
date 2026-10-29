@@ -248,6 +248,65 @@ branche sur `report_type` — c'est la couche de SORTIE. Interdit d'ajouter un
 tracking 360° — les refonder sur les trajectoires monde par `global_track_id`
 (un dépassement = un track qui passe de derrière à devant le long du flanc,
 exactement la signature validée sur G242) au lieu des heuristiques par caméra.
+✅ **Fait le 2026-10-29** pour les SORTIES (tableau des dépassements ci-dessous) ; les segments
+`overtaking` par caméra (`_detect_overtaking`, pixels) restent, aiguillés par `report_type`.
+
+### Tableaux PAR VÉHICULE — insertions aux intersections et dépassements (2026-10-29)
+
+Demande initiale de Fabien, jamais consignée jusque-là (seuls t0/t1/t2 l'étaient, au gabarit) : un
+tableau qui ne contient QUE les conflits aux intersections, une ligne par véhicule susceptible de
+s'insérer. L'export `conflicts.csv` avait une ligne par track de CAMÉRA × étendue de voie, sans les
+`G…` de la vue de dessus, sans t0/t1/t2 ni distances aux instants, ni véhicule arrière.
+
+- **Calcul pur** : `wama_data/functions/driving/vehicle_interactions.py` ; **passe** `vehicle_tables`
+  (CALCUL, CPU, après `indicators` et `intersection_windows`) ; **sorties** : `tables/<session>/
+  vehicle_tables.json`, exports « Insertions par véhicule (CSV) » et « Dépassements (CSV) », et les
+  deux listes en tête du rapport (pastilles t0/t1/t2 cliquables). Calculés pour tout `report_type`
+  (doctrine ci-dessus).
+- **Repère** : la trajectoire de la navette autour de la fenêtre (`PathFrame` : abscisse `s`, écart
+  `lat` positif à droite) ; voie navette |lat| ≤ largeur/2, voie opposée de −1,5 à −0,5 largeur
+  (largeur = `session.lane_width_m`, 2,8 m sur ENA). Dépassements : repère INSTANTANÉ de la navette
+  (une session fait plusieurs tours : la projection sur le chemin entier sauterait d'un tour à l'autre).
+- **« Susceptible de s'insérer »** : non garé, hors chaussée (marge 0,5 m) dans le rayon de
+  l'intersection en venant DE CÔTÉ — arrêté ≥ 1 s, ou roulant à ≥ 35° de la voie (le trafic de passage,
+  légèrement hors voie à l'élargissement du carrefour, roule dans l'axe : il n'en est pas) — et qui
+  démarre ou s'insère pendant la fenêtre.
+
+| colonne | définition |
+|---|---|
+| `vehicule_G`, `intersection`, `passage` | le `G…` de la vue de dessus, la fenêtre |
+| `insertion_voie_navette` / `_opposee` | entre ensuite dans cette voie |
+| `insertion_avant/apres_passage_navette` | à son entrée, devant / derrière le CENTRE de la navette ; + `ecart_au_centre_navette_a_t1_m`, `navette_au_point_dentree_s`, `marge_temporelle_navette_s` |
+| `t0` | premier mouvement : départ (≥ 1 m/s tenu 0,5 s) après un arrêt (< 0,5 m/s ≥ 1 s) — `depart_apres_arret`, `attente_s` — sinon sa première observation (il roulait déjà) |
+| `t1` / `t2` | entrée dans la voie (celle de la navette si elle est touchée, sinon l'opposée — `voie_de_t1_t2`) / sortie : `sortie` (il la quitte), `alignement` (il y roule dans l'axe, ≤ 25° : insertion achevée), `fin_observation` ; les deux voies ont aussi leurs propres t1/t2 |
+| `d0`, `d1`, `d2`, `dmin` | distance au CENTRE de la navette à t0, t1, t2, et minimale |
+| `vmax_kmh` | sur une médiane glissante de 7 observations (le bruit d'un bout de trace donnait 85–103 km/h) |
+| `ttc_min_observe_s`, `distance_au_ttc_min_m` | TTC OBSERVÉ : trajectoires suivies, vitesses constantes, deux disques de 2,5 m, horizon 15 s, minimum de sa médiane glissante |
+| `pet_observe_s`, `pet_premier_passe` | PET OBSERVÉ au point d'entrée dans la voie de la navette : de la libération du point par le premier à l'arrivée du second (véhicule d'abord / navette d'abord / chevauchement) |
+| `ttc_predit_min_s` | le TTC de la passe Indicateurs, pour comparaison |
+| `vehicule_arriere_navette`, `arriere_*` | véhicule dans la voie de la navette, derrière son pare-chocs (≤ 50 m), PENDANT la traversée (t1 → t2 dans sa voie ; à défaut, la présence) : présence, distance minimale, TTC de rapprochement et sa distance, distance moyenne |
+
+Dépassements : un véhicule non garé qui passe de derrière la navette à devant (ou l'inverse en roulant
+dans son sens), à moins de 3 m de caisse à caisse quand ils se recouvrent — `cote`, `debut`/`a_hauteur`/
+`fin`, écart latéral, vitesses, TTC observé, et **rabattement** dans sa voie devant elle (instant, écart,
+TTC quand la navette le rattrape).
+
+**Mesuré sur 4da52df3** (essai sans écriture, 30 s) : 146 véhicules présents aux deux intersections,
+39 insérés (32 dans la voie de la navette, 35 dans l'opposée, 16 avant / 23 après son passage), TTC
+observé pour 36 (médiane 4,4 s, q1 3,1 s), PET observé pour 32 (médiane 12 s ; 14 fois le véhicule
+d'abord, 18 fois la navette), véhicule arrière pendant 102 ; 60 dépassements (58 par la gauche, écart
+latéral médian 1,5 m), 51 rabattements.
+⚠ **Le PET PRÉDIT de la passe Indicateurs est dégénéré** : 0,2 s pour 185 506 des 285 764 détections
+annotées (65 %), et le TTC prédit vaut 0,0 pour 31 285 — le minimum de ces séries ne qualifie aucun
+véhicule. D'où les valeurs OBSERVÉES aux tableaux. ⏳ Instruire ce plancher dans
+`prediction_adapter.ttc_pet_shuttle_object` (pas fait).
+**Trous des dépassements** (même jour) : sur les 60, 56 continus et 4 trous réels de 1,1–1,3 s déjà
+comblés par les fantômes ; parmi les dépassements COUPÉS en deux identifiants (fin derrière/à hauteur,
+suite devant), 7 sur 10 ont un trou ≤ 2 s — sous les 6 s du recollement : c'est sa PORTE DE POSITION
+qui les refuse (suite à 5–10 m de la position prolongée), pas la durée. 3 seulement ont 6–8 s, à 5–12 m
+— allonger la durée n'en rattraperait que 3, au risque des lignes droites inventées (G459). ⏳ Levier
+désigné : une porte élargie pour la voie voisine, même sens, de derrière à devant (sous ⚑, à mesurer).
+⚠ À l'écran, les fantômes ne s'affichent qu'avec « Prédiction » cochée (`index.js`).
 
 ### Analyse incrémentale par complétion (design 2026-07-18, ✅ IMPLÉMENTÉ 2026-07-19)
 
@@ -1190,6 +1249,23 @@ et le cap (brique `kinematics/parked_twins`) : 31 réunis, 3 suspects restants, 
 calibration inchangée. ⚠ Le passage se juge sur les observations les PLUS PROCHES : la pose longue
 réunit les passages d'un garé, dont la période couvre alors des heures — juger sur le chevauchement
 des périodes (ventilation du 14/10) prenait 86 paires de passages distincts pour des suspects.
+
+**Cap des garés par leur RANGÉE (2026-10-29).** Fabien : « tous en créneau alors qu'ils sont en
+réalité tous en bataille ». Le cap venait du rapport largeur/hauteur des boîtes ; rejoué sur les 21
+garés vus à l'image 6130, ce rapport vaut la LARGEUR d'une voiture (E/W médian 0,81–1,33 : la voisine
+masque le flanc), les deux candidats retombent sur la ligne de visée, et le lissage par voisinage ramène
+tout dans l'axe de la route. L'ESPACEMENT tranche : en créneau deux centres sont à ≥ 4,5 m, en bataille
+à ≈ 2,3–2,5 m. Brique `kinematics/parked_rows` : la rangée d'un garé = ses voisins alignés à moins de
+10 m (écart ≤ 1,5 m à l'axe principal), l'espacement = la médiane des écarts successifs (sous 1,6 m
+écartés : deux ancres d'un même objet) ; sous 3,5 m en bataille (cap perpendiculaire à la rangée),
+au-dessus de 4,5 m en créneau, entre les deux le cap actuel reste. Mesurée à chaque tracking
+(`parked_row_kinds`, console « rangées ») ; appliquée sous ⚑ `heading_row_spacing` (OFF). Sur les 667
+ancres persistées : espacement médian **2,37 m** (q1 2,01, q3 3,31) → 368 en bataille, 47 en créneau,
+252 indécis ; rejeu OFF/ON : autour de l'image 6130, 31 des 43 garés passent de 8–15° (axe de la
+route, cap navette ≈ 11°) à 89–106°. Les garés ne changent pas (le cap n'entre dans aucune porte).
+G432, qui « sortait de sa place » : sans ancre dans le calcul persisté (écarté à la porte hors voies,
+« sur la voie » ou « bord de voie »), il est dessiné à sa position lissée PAR IMAGE, qui glisse de
+7,4 m au balayage de la visée ; le rejeu au code du jour le retient et l'ancre (cap 13,4°).
 
 ⚠ Ce qui n'a PAS été joué : les bascules ⚑ elles-mêmes (`display_ema` OFF, `shuttle_filter` ON)
 et la comparaison `placement_spread` OFF/ON — elles demandent un RECALCUL de la session (les
