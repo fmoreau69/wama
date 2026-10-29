@@ -3379,9 +3379,10 @@ Décidé le 28/10, en plus :
   les passages avec leur emplacement, les réécrire SUR PLACE. v1 : PDF natif, DOCX, TXT ; le scan
   passera par l'Anonymizer image (OCR, boîtes). ⏳ *29/10* : dans le domaine document de
   l'Anonymizer, forme gardée (en pause le temps du chantier de Portage Apps) ; l'OCR qu'il lui
-  faut rend des POSITIONS — aujourd'hui aucun moteur n'en rend (`OCRBackend.run -> str`) : c'est
-  le maillon commun décrit au §10.B (« Relu dans le code le 29/10 »), qui sert aussi l'étape
-  préalable du Translator et la forme d'un scan au Reader.
+  faut rend des POSITIONS — c'est le maillon commun du §10.B, qui sert aussi l'étape préalable
+  du Translator et la forme d'un scan au Reader. ✅ Même jour : le contrat (`read_lines`, docTR)
+  et la page scannée de `document_text` (`ocr=`, pixels effacés sous le texte réécrit) — le
+  domaine document y trouvera de quoi occulter un scan.
 - **Catégorie de modèle** : `ModelType` gagne `nlp` (la catégorie « Natural Language Processing » de
   Hugging Face — aucun type existant ne convenait : `embedding` aurait fait entrer les détecteurs
   dans le relevé des vectoriseurs) ; tâche `pii-detection` ↔ tag HF `token-classification`.

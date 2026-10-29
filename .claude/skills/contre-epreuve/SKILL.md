@@ -145,6 +145,13 @@ print('COUNTERPROOF <nom>: failures =', failures,
   d'abord), puis comparer les octets à ceux d'avant. *Une restauration qui cherche ce qu'elle a
   écrit trouve aussi ce que d'autres ont écrit.* (Et jamais par copie d'un fichier co-édité.)
 
+- 🔴 **2026-10-29 — une mutation par ÉDITION est vue par les AUTRES instances.** Huit sondes
+  `sed` dans l'arbre partagé (`document_text.py`, `reader/tasks.py`), chacune restaurée quelques
+  secondes plus tard, octets vérifiés : la suite de Portage Apps, lancée dans la même fenêtre, a
+  vu `reader.tests_pipeline` ROUGE et l'a signalé comme un défaut du commit. ✅ Préférer le patch
+  d'attribut (`mock.patch`, local au processus) ; quand seule une édition atteint la brique, la
+  faire dans une COPIE isolée (`git worktree add` de HEAD, harnais de `AGENTS.md` : `.env` et
+  migrations recopiés), jamais dans l'arbre où d'autres lancent leurs tests.
 - **2026-10-21 — une fonction LIÉE À L'IMPORT échappe au patch d'attribut.** La garde de
   l'écrivain du niveau d'un compte importait `set_account_tier` en tête de module
   (`from wama.accounts.permissions import set_account_tier`) : neutraliser l'attribut du module

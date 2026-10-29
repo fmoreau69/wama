@@ -1859,7 +1859,11 @@ que le code l'accepte déjà, toujours avec un peu de glue par LLM pour le backe
   de tâche (`TASK_CONTRACTS`, sa méthode abstraite propre ; sinon `process`) avec les seuls
   réglages qu'elle nomme.
 - Contrat `ocr` (`ocr_base.OCRBackend.run`) adopté par olmOCR, docTR et GLM-OCR — ce dernier
-  devenu un backend de moteur `ollama`, appelé par le client commun `llm_chat`.
+  devenu un backend de moteur `ollama`, appelé par le client commun `llm_chat`. Depuis le
+  2026-10-29, une seconde méthode, RÉSERVÉE à qui déclare `supports_text_positions` :
+  `read_lines` (les lignes et les mots avec leur boîte) — concrète et levant sinon, comme
+  `MusicGenerationBackend.plan_score`, pour que `_work_method` ne voie toujours qu'UNE méthode
+  de travail. docTR la porte ; consommée par `document_text` (pages scannées, ROADMAP §10.B).
 - Un moteur HORS PROCESSUS qui sert plusieurs tâches (`external_sources.serves_many_tasks` :
   `multi_task` déclaré, ou fournisseur LLM) ne donne son backend lié qu'aux modèles de SA tâche,
   y compris quand aucune tâche n'est demandée — sinon `GlmOcrBackend` devenait le backend de

@@ -512,6 +512,34 @@ UNE lecture de `<source>:<identifiant>` pour tout WAMA : seul le PREMIER segment
   - `backend_model_id(value: str) -> str` — L'identifiant qu'un backend DÉCLARE dans son `SUPPORTED_MODELS` : le DERNIER segment de la
   - `catalog_key(value: str, default_source: str) -> str` — La clé de catalogue d'une valeur de modèle : une clé est rendue telle quelle, un
 
+### Confidentialité — détecter puis OCCULTER les données personnelles
+
+La brique commune (2026-10-28, ROADMAP §16.4bis) : Presidio ORCHESTRE une union de détecteurs — ses motifs à chiffre de contrôle, les identifiants français (NIR clé 97, SIREN/SIRET Luhn) et chaque modèle `pii-detection` INSTALLÉ qui couvre la langue du texte, par son backend (adaptateur `BackendRecognizer`, porte commune) ; moteur de langue SANS modèle (`spacy.blank`), adresses validées hors ligne. Rend un document `detections` en forme TEXTE (`span`), corrigeable par l'humain ; occulte par libellé entre crochets dans la langue du texte. Un détecteur qui ne se charge pas est NOMMÉ (`unavailable`). Service uvicorn 127.0.0.1:8003 dans le paquet, client qui retombe sur le moteur en process service éteint et REFUSE sur délai (jamais « rien trouvé »). LA PORTE avant un modèle distant (`gate`, 2026-10-28) : par niveau d'hébergement, le geste choisi au profil (`cloud_privacy`) — pseudonymiser de façon réversible par défaut chez un cloud commercial, valeurs remises dans la réponse et dans le flux ; détection impossible ⇒ rien ne part. Branchée sur `chat_with_source` et l'abonnement Claude Code. Consommateurs prévus : domaine document de l'Anonymizer, mémoire
+
+- **Domicile** : `wama/common/privacy/engine.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.4bis](../construction/suivi/ROADMAP.md)
+- **Module** : L'ORCHESTRATION — détecter les données personnelles d'un texte, puis les occulter (2026-10-28).
+- **API publique** (7) :
+  - `installed_detectors() -> list` — `[(clé, langues)]` des modèles `pii-detection` INSTALLÉS — lu au catalogue, jamais écrit ici.
+  - `detect_segments(segments: List[str], language: str='', *, entities=None, detectors=None, threshold: Optional[float]=None) -> dict` — Le document de détections de segments de texte (un segment = une « frame »).
+  - `detect(text: str, language: str='', **kwargs) -> dict` — Le document de détections d'un texte (un seul segment).
+  - `occult_segment(text: str, spans: list, language: str=DEFAULT_LANGUAGE) -> str` — Le texte d'UN segment, chaque passage remplacé par son libellé entre crochets — par
+  - `detect_file(path, language: str='', **kwargs) -> dict` — Le document de détections d'un FICHIER (PDF natif, DOCX, TXT) : ses segments lus par la
+  - `occult_file(path, out_path, doc: dict, language: str='') -> dict` — Le fichier réécrit SUR PLACE, chaque passage du document (corrigé ou non) remplacé par son
+  - `occult(text: str, doc: dict, language: str='', segment: int=0) -> str` — Le texte occulté d'après le document (corrigé ou non) : les passages de son segment.
+
+### Couche TEXTE d'un document — lire, réécrire sur place
+
+Lire les passages d'un document (segments : page d'un PDF natif, paragraphe `w:p` d'un DOCX — corps, tableaux, zones de texte, en-têtes, pieds, commentaires, notes —, TXT entier) puis les RÉÉCRIRE SUR PLACE en conservant tout le reste (2026-10-28) : PDF par caviardage réel (`apply_redactions`, texte supprimé, métadonnées effacées, fichier réécrit en entier), DOCX au niveau du XML (premier morceau touché, suppressions du suivi des modifications retirées), TXT dans son encodage. Commune à l'occultation de `privacy` (Anonymizer, domaine document) et au Translator (traduire en gardant la forme). Unité `block` (2026-10-29) : un PDF par blocs, chacun réécrit dans le style qui y domine (famille, gras, italique, taille, couleur, interlignage, alignement, sens d'écriture), agrandi dans la place libre avant d'être réduit ; un tableau, cellule par cellule ; une figure (zone `picture` de `pymupdf-layout`), étiquette par étiquette. `markup=True` : des balises `<tN>` rendent à chaque passage d'un paragraphe ou d'un bloc SA mise en forme. Page SANS couche texte (2026-10-29) : `pages_without_text` la dit (test commun, aussi celui du Reader), `read_pages_without_text` la fait lire par un OCR qui rend la place du texte (`OCRBackend.read_lines`, passé en argument) ; `ocr=` en fait des paragraphes réécrits comme les autres, pixels du scan effacés dessous. Le Writer reste le geste de qui veut REVOIR la mise en forme — ROADMAP §10.B, §16.4bis, vision §5.4
+
+- **Domicile** : `wama/common/utils/document_text.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.4bis](../construction/suivi/ROADMAP.md)
+- **Module** : La COUCHE TEXTE d'un document — lire ses passages, puis les réécrire SUR PLACE en conservant tout le reste (2026-10-28, ROADMAP §16.4bis, vision §5.4).
+- **API publique** (5) :
+  - `strip_markup(text: str) -> str` — Le texte sans ses balises de mise en forme.
+  - `pages_without_text(path) -> list` — Les pages (à partir de 0) d'un PDF qui n'ont pas de couche texte mais PORTENT quelque chose
+  - `read_pages_without_text(path, read_lines) -> dict` — Les LIGNES des pages sans couche texte (`pages_without_text`), lues par `read_lines` — la
+  - `read_segments(path, unit: str='', markup: bool=False, ocr=None) -> list` — Le texte de chaque segment du document (voir l'en-tête pour ce qu'est un segment ;
+  - `write_replacements(path, out_path, replacements: dict, unit: str='', markup: bool=False, ocr=None) -> str` — Le document `path` réécrit dans `out_path`, chaque passage remplacé SUR PLACE — les index
+
 ### Couverture multi-modèles
 
 Choisit un ENSEMBLE de modèles couvrant des classes (couverture ou spécialisation) ; depuis le 10/10, `models_per_class` en ajoute plusieurs par classe (rappel d'abord) et les départage par leur taux manqué MESURÉ quand le lot entier l'est
@@ -540,6 +568,15 @@ Découverte unifiée des modèles (apps + sources externes), synchronisée vers 
   - `yolopv2_folder() -> Path` — Le dossier de YOLOPv2 — celui que le profil du cam_analyzer lit depuis toujours
   - `class ModelInfo` — Unified model information structure.
   - `class ModelRegistry` — Central registry for all WAMA models.
+
+### Détection des DONNÉES PERSONNELLES d'un texte (contrat)
+
+Le contrat de la tâche `pii-detection` (2026-10-28) — `detect_entities(text, language)` rend des passages {start, end, entity, score} au VOCABULAIRE COMMUN (`privacy.entities` : clés de Presidio + identifiants français, libellé d'occultation entre crochets dans la langue du texte). Écrit AVANT les détecteurs ; LIANT dans `TASK_CONTRACTS` ; essayé par le smoke `PIIDetectionBackend`. Chaque détecteur entre dans l'union que Presidio orchestre (`common/privacy`) par un adaptateur — ROADMAP §16.4bis
+
+- **Domicile** : `wama/common/backends/pii_detection_base.py` · **doc** : [docs/construction/suivi/ROADMAP.md §16.4bis](../construction/suivi/ROADMAP.md)
+- **Module** : Contrat de la tâche `pii-detection` — les DONNÉES PERSONNELLES d'un texte, par passage.
+- **API publique** (1) :
+  - `class PIIDetectionBackend(BaseModelBackend)` — Repère les données personnelles d'un texte — un modèle `pii-detection` du catalogue.
 
 ### Détection par un ensemble de modèles
 
