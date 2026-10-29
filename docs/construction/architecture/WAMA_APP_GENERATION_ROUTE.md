@@ -4682,14 +4682,17 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
 - **Forme** : celle qui existe, le graphe `{nodes, links}` du Studio (`AppPipeline.graph()`), qu'on
   ouvre depuis le pipeline de l'app (manifeste `pipeline`, `extract_pipeline`), qu'on ajuste et
   qu'on enregistre comme pipeline d'utilisateur (`StudioPipeline`).
-- **Construction** : `AppPipeline.variant(graph)`. Les process DÉCLARÉS gardent leur `ProcessSpec`,
+- **Construction** : `AppPipeline.extended(graph)` — le pipeline ÉTENDU de la card, le mot du 3.2
+  (« seule la SOURCE de ses process s'étend ») ; ~~`variant`~~, renommé à la revérification du
+  29/10 : une **variante** est une card dupliquée liée à sa source (`WAMA_COLLABORATION §7`), un
+  autre objet. Les process DÉCLARÉS gardent leur `ProcessSpec`,
   retrouvé par sa clé — leurs conditions (`applies`, `available`, `eta`…) sont du code, qu'un graphe
   ne porte pas : on ne les reconstruit jamais de lui. Seuls les nœuds AJOUTÉS deviennent des process
   neufs, lus par la lecture qui existe (`pipeline_decl.process_specs`). Un graphe qui n'ajoute rien
   rend **le pipeline déclaré lui-même** (identité) : ouvrir le pipeline d'une app au Studio puis
   l'enregistrer tel quel ne change rien à la card — tenu pour chaque app
   (`tests_process_pipeline.EveryAppPipelineTest`).
-- **Règle 1 (validée le 29/10)** : aucun process déclaré ne se retire d'une variante ; un `optional`
+- **Règle 1 (validée le 29/10)** : aucun process déclaré ne se retire du pipeline d'une card ; un `optional`
   se décoche déjà (son interrupteur, `toggle`).
 - **Règle 2 (validée le 29/10)** : un process s'ajoute EN AVAL ou EN DÉRIVATION des process
   déclarés, jamais avant ni entre eux — les amonts d'un process déclaré restent ceux qu'il déclare.
@@ -4707,13 +4710,35 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
 - **Un process ajouté** est une fonction du catalogue qui n'est l'étape d'aucune app
   (`process_of_function`) ; il ne porte aucun champ de l'élément (interrupteur, sorties, lecture de
   l'amont, modèle de la card, surveillés, chemins de code) — la card n'a pas de champ pour lui.
-  Tout refus se dit en nommant le nœud (`ValueError`).
+  Tout refus se dit en nommant le nœud (`ValueError`). Le graphe passe par le validateur du kind
+  (`validate_pipeline_body` : identifiants, liens vers un nœud inconnu) ; un cycle est refusé par
+  le constructeur d'`AppPipeline`, comme pour un pipeline déclaré.
 - **Marches** (une validation de Fabien entre chacune) :
-  1. ✅ le moteur — `variant`, ses deux règles, la garde d'identité par app (2026-10-29) ;
-  2. ⏳ la card RÉFÉRENCE sa variante — une table commune adressée comme les lignes d'exécution
-     (`app`, `object_type`, `object_id`, cf. `ProcessRun`), qui désigne un pipeline par sa clé de
-     manifeste (numérique → `StudioPipeline`, la lecture d'`extract_pipeline`) ; `pipeline_of(item)`
-     la lit, `run_item_task` joue le pipeline de l'élément au lieu de la constante `PIPELINE` ;
+  1. ✅ le moteur — `extended`, ses deux règles, la garde d'identité par app (2026-10-29) ;
+  2. ⏳ la card PORTE son pipeline étendu — **forme revue à la revérification du 29/10**, avant
+     tout code. La proposition d'origine (« une table qui DÉSIGNE un pipeline par sa clé de
+     manifeste, numérique → `StudioPipeline` ») ne tenait pas, pour trois raisons mesurées :
+     ① un `StudioPipeline` est un objet de TRAVAIL de son auteur, modifiable, supprimable et
+     partagé à part (`studio/models.py`) — le désigner ferait changer ou casser la card sans
+     elle ; l'exécution du Studio fait déjà l'inverse : graphe FIGÉ au lancement, lien de
+     provenance à côté (`StudioRun.graph` + `pipeline`) ; la card « porte un manifeste
+     `pipeline` » (6.3), ② chargé, pas désigné (2.3 ②) ; ② garder le graphe ENTIER figerait aussi
+     les process déclarés : la première évolution du pipeline de l'app (un process ajouté en
+     code) rendrait toutes ces cards illisibles (règle 1) — la card ne garde que ce qu'ELLE
+     ajoute (nœuds ajoutés, leurs réglages, leurs liens), recomposé au pipeline déclaré DU
+     MOMENT ; ③ dans un lot, le pipeline se règle sur la mère et se promeut (5.3) : la charge
+     utile promue (`BatchSettings`, `promote_payload`) doit le porter, une fille ne s'écarte que
+     par le geste de surcharge existant.
+     Forme proposée, à valider : une table commune adressée comme `ProcessRun` et
+     `BatchSettings` (`app`, `object_type`, `object_id` — pas une instance de pipeline neuve,
+     décision n°1 : l'instance reste l'élément) qui garde **ce que la card ajoute** (au format du
+     body du kind `pipeline`) et sa provenance (`source` `{type, ref}` de l'enveloppe, p. ex.
+     `StudioPipeline:12`) ; `pipeline_of(item)` rend `pipeline.extended(...)` ; `run_item_task`
+     garde son argument `pipeline=PIPELINE` (le déclaré, aux dix apps et au générateur) et joue
+     `pipeline_of(item)` quand il l'étend. La ligne suit la duplication et part avec la card
+     (`release_card_files` → `process_runs.forget`, balayage `forget_orphans`), comme les lignes
+     d'exécution. ⚠ Couplée à la marche 3 : un process ajouté sans glu est refusé au lancement
+     (`_selected_steps`, « process sans glu ») — les deux se livrent ensemble ;
   3. ⏳ la glu COMMUNE d'un process ajouté — l'exécuteur de fonction du Studio
      (`studio/tasks._run_pure_function`) remonté au moteur ; sa sortie sur sa LIGNE (`output_ref`,
      la card n'a pas de champ pour elle) ; en Data, écrite dans le `.wdat` de travail
@@ -4721,6 +4746,19 @@ s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
   4. ⏳ la photo d'un process ajouté lit les réglages de son NŒUD (aujourd'hui il ne surveille que
      ses amonts) ;
   5. ⏳ le geste à l'écran (ouvrir le pipeline d'une card au Studio, l'enregistrer pour elle).
+- **Question de Fabien (29/10) — une card Data à TRÈS nombreux process** (plusieurs découpages,
+  plusieurs calculs sur chacun) : *« des méta-process qui portent tous les sous-process — le
+  méta-process du Segmenter, et le bouton Paramètres qui ouvre une modale présentant tous les
+  process de segmentation demandés ; de même pour les calculs »*. Ce que la route a déjà : les
+  **étages = sous-pipelines** (3.4, le cam_analyzer, `analyse` / `calcul`, déclarés comme
+  pipelines), le **type de nœud `pipeline`** qui en référence un (3.1, ⏳, « laissé à la première
+  session qui en a un besoin réel » — c'est celui-ci), la ligne d'exécution qui le connaît
+  (`ProcessRun.KIND_PIPELINE`), la ⚙ d'une ligne de la bande réduite aux réglages de son process
+  et les sections par process en accordéon dans la modale (5.1, 2026-10-26), la clé d'instance
+  pour un même calcul joué une fois par découpage (décision n°3). ⏳ Proposition, à trancher :
+  un méta-process = un nœud `pipeline` par MODULE (Segmenter, Calculator), une ligne sur la card,
+  sa ⚙ = la modale commune à une section par sous-process. Conséquence pour la marche 2 : la
+  règle « seuls des nœuds fonction composent une card » devra admettre ce nœud.
 
 **3.3 Réglages et péremption.** Chaque process porte le schéma de SES réglages (le `params.py` de
 l'app pour un process d'app, `FunctionSpec` pour une fonction) et la liste des réglages qu'il

@@ -123,14 +123,14 @@ class WritingAPipelineDownTest(SimpleTestCase):
         self.assertIn('1 process', manifest['name'])
 
 
-class ACardVariantTest(SimpleTestCase):
-    """`AppPipeline.variant` (ROUTE §10.6 3.2bis, 2026-10-29) : the pipeline of a card ADJUSTED by
+class ACardExtendedPipelineTest(SimpleTestCase):
+    """`AppPipeline.extended` (ROUTE §10.6 3.2bis, 2026-10-29) : the pipeline of a card ADJUSTED by
     the user — the declared one, plus the processes the Studio graph adds. Nothing declared is
     rebuilt from the graph (its conditions are code), nothing is removed (rule 1), and a process
     is added downstream or as a branch, never before or between declared ones (rule 2)."""
 
-    ADDED = 'demo_variant.measure'
-    STEP = 'demo_variant_other.step'
+    ADDED = 'demo_card_pipeline.measure'
+    STEP = 'demo_card_other.step'
 
     def setUp(self):
         from wama.common.catalog.function_catalog import (FUNCTION_CATALOG, Binding, FunctionSpec,
@@ -140,12 +140,12 @@ class ACardVariantTest(SimpleTestCase):
             inputs=[PortSpec('audio', 'audio')], outputs=[PortSpec('value', 'scalar')])
         FUNCTION_CATALOG[self.STEP] = FunctionSpec(
             key=self.STEP, name='step', description='', category='transform',
-            binding=Binding.APP, app='demo_variant_other')
-        APP_PIPELINES['demo_variant_other'] = AppPipeline(
-            'demo_variant_other', (ProcessSpec('step'),), label='Other')
+            binding=Binding.APP, app='demo_card_other')
+        APP_PIPELINES['demo_card_other'] = AppPipeline(
+            'demo_card_other', (ProcessSpec('step'),), label='Other')
         self.addCleanup(FUNCTION_CATALOG.pop, self.ADDED, None)
         self.addCleanup(FUNCTION_CATALOG.pop, self.STEP, None)
-        self.addCleanup(APP_PIPELINES.pop, 'demo_variant_other', None)
+        self.addCleanup(APP_PIPELINES.pop, 'demo_card_other', None)
         self.pipeline = _two_steps(degree='optional', toggle='with_plan',
                                    applies=lambda item, model: model != 'no-plan')
 
@@ -158,34 +158,34 @@ class ACardVariantTest(SimpleTestCase):
         return graph
 
     def test_a_graph_that_adds_nothing_gives_the_declared_pipeline_itself(self):
-        self.assertIs(self.pipeline, self.pipeline.variant(self.pipeline.graph()))
+        self.assertIs(self.pipeline, self.pipeline.extended(self.pipeline.graph()))
 
     def test_a_process_added_downstream_leaves_the_declared_ones_as_they_are(self):
-        variant = self.pipeline.variant(self._graph(('measure', self.ADDED, {}),
+        card_pipeline = self.pipeline.extended(self._graph(('measure', self.ADDED, {}),
                                                     links=[('render', 'measure')]))
-        self.assertIsNot(self.pipeline, variant)
-        self.assertIs(self.pipeline, variant.base)
-        self.assertEqual(frozenset({'measure'}), variant.added)
-        self.assertEqual(['plan', 'render', 'measure'], _keys(variant.ordered()))
+        self.assertIsNot(self.pipeline, card_pipeline)
+        self.assertIs(self.pipeline, card_pipeline.base)
+        self.assertEqual(frozenset({'measure'}), card_pipeline.added)
+        self.assertEqual(['plan', 'render', 'measure'], _keys(card_pipeline.ordered()))
         # The declared specs are the SAME objects: their conditions are code, never rebuilt.
         for key in ('plan', 'render'):
-            self.assertIs(self.pipeline.spec(key), variant.spec(key))
-        added = variant.spec('measure')
+            self.assertIs(self.pipeline.spec(key), card_pipeline.spec(key))
+        added = card_pipeline.spec('measure')
         self.assertEqual((self.ADDED, ('render',), 'required'),
                          (added.function, added.depends_on, added.degree))
         # What takes place for an element follows the declared conditions, plus the addition.
         element = _Element(with_plan=True)
         self.assertEqual(['render'], _keys(self.pipeline.applicable(element, 'no-plan')))
-        self.assertEqual(['render', 'measure'], _keys(variant.applicable(element, 'no-plan')))
+        self.assertEqual(['render', 'measure'], _keys(card_pipeline.applicable(element, 'no-plan')))
 
     def test_a_branch_from_a_declared_process_is_allowed(self):
-        variant = self.pipeline.variant(self._graph(
+        card_pipeline = self.pipeline.extended(self._graph(
             ('measure', self.ADDED, {'degree': 'optional', 'label': 'Mesure'}),
             links=[('plan', 'measure')]))
         self.assertEqual((('plan',), 'optional', 'Mesure'),
-                         (variant.spec('measure').depends_on, variant.spec('measure').degree,
-                          variant.spec('measure').label))
-        self.assertEqual(('plan',), variant.spec('render').depends_on)
+                         (card_pipeline.spec('measure').depends_on, card_pipeline.spec('measure').degree,
+                          card_pipeline.spec('measure').label))
+        self.assertEqual(('plan',), card_pipeline.spec('render').depends_on)
 
     def test_a_declared_process_is_never_removed_not_even_an_optional_one(self):
         for removed in ('plan', 'render'):
@@ -195,7 +195,7 @@ class ACardVariantTest(SimpleTestCase):
                 graph['links'] = [l for l in graph['links'] if removed not in (l['from'], l['to'])]
                 with self.assertRaisesMessage(ValueError, f'ne se retire pas (un optionnel se '
                                                           f'décoche) — {removed}'):
-                    self.pipeline.variant(graph)
+                    self.pipeline.extended(graph)
 
     def test_nothing_is_added_before_or_between_declared_processes(self):
         before = self._graph(('measure', self.ADDED, {}), links=[('measure', 'plan')])
@@ -203,41 +203,59 @@ class ACardVariantTest(SimpleTestCase):
                               links=[('plan', 'measure'), ('measure', 'render')])
         for name, graph in (('before', before), ('between', between)):
             with self.subTest(name), self.assertRaisesMessage(ValueError, 'jamais avant ni entre'):
-                self.pipeline.variant(graph)
+                self.pipeline.extended(graph)
 
     def test_a_declared_process_keeps_its_function(self):
         graph = self.pipeline.graph()
         graph['nodes'][1]['app'] = f'function:{self.ADDED}'
         with self.assertRaisesMessage(ValueError, 'sa fonction ne se remplace pas'):
-            self.pipeline.variant(graph)
+            self.pipeline.extended(graph)
 
     def test_an_added_process_is_a_function_of_the_catalogue(self):
-        with self.assertRaisesMessage(ValueError, "« demo_variant.nowhere » n'est pas au catalogue"):
-            self.pipeline.variant(self._graph(('measure', 'demo_variant.nowhere', {}),
+        with self.assertRaisesMessage(ValueError, "« demo_card_pipeline.nowhere » n'est pas au catalogue"):
+            self.pipeline.extended(self._graph(('measure', 'demo_card_pipeline.nowhere', {}),
                                               links=[('render', 'measure')]))
 
     def test_an_added_process_is_not_the_step_of_another_app(self):
-        with self.assertRaisesMessage(ValueError, 'étape de card de demo_variant_other'):
-            self.pipeline.variant(self._graph(('step', self.STEP, {}),
+        with self.assertRaisesMessage(ValueError, 'étape de card de demo_card_other'):
+            self.pipeline.extended(self._graph(('step', self.STEP, {}),
                                               links=[('render', 'step')]))
 
     def test_an_added_process_carries_no_field_of_the_card(self):
         for name, value in (('toggle', 'with_measure'), ('outputs', ['measured']),
                             ('upstream_switch', 'reads'), ('card_model', True)):
             with self.subTest(name), self.assertRaisesMessage(ValueError, name):
-                self.pipeline.variant(self._graph(('measure', self.ADDED, {name: value}),
+                self.pipeline.extended(self._graph(('measure', self.ADDED, {name: value}),
                                                   links=[('render', 'measure')]))
 
     def test_only_processes_compose_a_card(self):
         graph = self.pipeline.graph()
         graph['nodes'].append({'id': 'sink', 'app': 'transcriber', 'params': {}})
         with self.assertRaisesMessage(ValueError, 'seuls des process'):
-            self.pipeline.variant(graph)
+            self.pipeline.extended(graph)
 
     def test_two_nodes_with_one_identifier_are_refused(self):
         graph = self._graph(('render', self.ADDED, {}))
-        with self.assertRaisesMessage(ValueError, 'un seul nœud par identifiant'):
-            self.pipeline.variant(graph)
+        with self.assertRaisesMessage(ValueError, "id 'render' dupliqué"):
+            self.pipeline.extended(graph)
+
+    def test_extending_an_extended_pipeline_starts_again_from_the_declared_one(self):
+        graph = self._graph(('measure', self.ADDED, {}), links=[('render', 'measure')])
+        card_pipeline = self.pipeline.extended(graph)
+        self.assertIs(self.pipeline, card_pipeline.extended(self.pipeline.graph()))
+        self.assertIs(self.pipeline, card_pipeline.extended(graph).base)
+
+    def test_a_link_to_an_unknown_node_is_refused(self):
+        graph = self._graph(('measure', self.ADDED, {}), links=[('render', 'nowhere')])
+        with self.assertRaisesMessage(ValueError, "nœud inconnu 'nowhere'"):
+            self.pipeline.extended(graph)
+
+    def test_a_cycle_between_added_processes_is_refused_when_built(self):
+        graph = self._graph(('measure', self.ADDED, {}), ('again', self.ADDED, {}),
+                            links=[('render', 'measure'), ('measure', 'again'),
+                                   ('again', 'measure')])
+        with self.assertRaisesMessage(ValueError, 'cycle'):
+            self.pipeline.extended(graph)
 
 
 class WhatALaunchReplaysTest(TestCase):
@@ -1606,15 +1624,15 @@ class EveryAppPipelineTest(SimpleTestCase):
     def test_opened_in_the_studio_and_saved_unchanged_it_gives_the_card_the_same_pipeline(self):
         """ROUTE §10.6 3.2bis : a card whose pipeline is opened in the studio (the canvas form of
         the manifest) and saved as it is receives the DECLARED pipeline itself — the same object,
-        not an equal copy. That is what makes the variant unable to change a card nobody
+        not an equal copy. That is what makes the extended pipeline unable to change a card nobody
         adjusted."""
         from wama.common.manifests.builtin.pipeline import body_to_graph
         from wama.common.manifests.ingest import extract
         for app, pipeline in self.pipelines.items():
             with self.subTest(app=app):
-                self.assertIs(pipeline, pipeline.variant(pipeline.graph()))
+                self.assertIs(pipeline, pipeline.extended(pipeline.graph()))
                 opened = body_to_graph(extract('pipeline', app)['body'])
-                self.assertIs(pipeline, pipeline.variant(opened))
+                self.assertIs(pipeline, pipeline.extended(opened))
 
     def test_it_opens_in_the_studio_and_each_link_lands_on_a_port(self):
         """« One representation, two editors »: the canvas form, with each dependency resolved

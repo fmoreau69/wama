@@ -261,7 +261,7 @@ def declared_stales(app: str) -> dict:
     return out
 
 
-#: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.variant`) :
+#: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.extended`) :
 #: des champs de l'élément — la card n'en a pas pour lui — et des chemins de code.
 _NOT_ADDABLE = ('watched', 'outputs', 'toggle', 'upstream_switch', 'card_model', 'eta', 'result',
                 'result_format')
@@ -270,9 +270,9 @@ _NOT_ADDABLE = ('watched', 'outputs', 'toggle', 'upstream_switch', 'card_model',
 class AppPipeline:
     """Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive."""
 
-    #: Le pipeline DÉCLARÉ dont celui-ci est la variante (`variant`) — None pour le déclaré.
+    #: Le pipeline DÉCLARÉ que celui-ci étend (`extended`) — None pour le déclaré.
     base = None
-    #: Les clés des process que la variante AJOUTE au pipeline déclaré.
+    #: Les clés des process que la card AJOUTE au pipeline déclaré.
     added = frozenset()
 
     def __init__(self, app: str, specs, *, label: str, description: str = '',
@@ -510,8 +510,8 @@ class AppPipeline:
             'body': body,
         }
 
-    # ── Variante d'une card (ROUTE §10.6 3.2bis, 2026-10-29) ────────────────────────────────
-    def variant(self, graph: dict) -> 'AppPipeline':
+    # ── Le pipeline ÉTENDU d'une card (ROUTE §10.6 3.2bis, 2026-10-29) ───────────────────────
+    def extended(self, graph: dict) -> 'AppPipeline':
         """Le pipeline d'une card AJUSTÉ par l'utilisateur : ce pipeline déclaré, plus les process
         que le graphe `graph` (forme canvas du Studio, celle de `graph()`) lui AJOUTE. Rend `self`
         quand le graphe n'ajoute rien : une card dont le pipeline est ouvert au Studio puis
@@ -527,19 +527,24 @@ class AppPipeline:
              joué puis ignoré sans un mot.
         Un process ajouté est une fonction du catalogue qui n'est l'étape d'aucune app ; il ne
         porte aucun champ de l'élément (`_NOT_ADDABLE`). Un refus lève `ValueError` en nommant
-        le nœud."""
+        le nœud.
+
+        « Étendu » est le mot de la route (3.2 : seule la SOURCE des process d'une card s'étend) ;
+        une « variante » est autre chose — une card dupliquée liée à sa source
+        (`WAMA_COLLABORATION §7`)."""
+        if self.base is not None:
+            return self.base.extended(graph)
         from wama.common.catalog import function_catalog as fc
-        from wama.common.manifests.builtin.pipeline import node_kind
+        from wama.common.manifests.builtin.pipeline import node_kind, validate_pipeline_body
         from wama.common.manifests.codegen.pipeline_decl import process_specs
         nodes = (graph or {}).get('nodes') or []
         others = [str(node.get('id')) for node in nodes if node_kind(node) != 'function']
         if others:
             raise ValueError(f"pipeline de {self.app} : seuls des process (nœuds fonction) "
                              f"composent une card — {', '.join(others)}")
-        ids = [node.get('id') for node in nodes]
-        if not all(ids) or len(set(ids)) != len(ids):
-            raise ValueError(f"pipeline de {self.app} : chaque nœud porte un identifiant, et un "
-                             f"seul nœud par identifiant")
+        errors = validate_pipeline_body(graph or {})
+        if errors:
+            raise ValueError(f"pipeline de {self.app} : {' ; '.join(errors)}")
         read = {spec['key']: spec for spec in process_specs({'body': graph or {}})}
         missing = [key for key in self._by_key if key not in read]
         if missing:
