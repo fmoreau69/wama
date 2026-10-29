@@ -27284,3 +27284,66 @@ tests 1290 > 1289 (`check_identifier_language`, aucun nom de cette session) ; co
 `describer_01_description.vision_temperature` absente de la base de test (10 erreurs) ; `openpyxl`
 absent ; `tests_send_to.ElementPourCheminTest` ×3 ; `tests_touch` (`wama-constellation.css`) ;
 `check_tree_item_menu` (rouge aussi avec le menu de HEAD) ; `check_docs` : 3 renvois vers `edit.js`.
+
+## §CLÔTURE 2026-10-28→29, « CAM_ANALYZER : GARÉS (double, médiane, rangées), FLOUTAGE D'AFFICHAGE, TABLEAUX PAR VÉHICULE (insertions, dépassements), openpyxl par la route » — non poussé — 🔴 relancer gunicorn ET les workers (route, tâche Celery et ROUTAGE neufs : `compute_vehicle_tables_task` sur `default` ; gabarit `base.html`), Ctrl+F5
+
+Domiciles : `wama_lab/cam_analyzer/CAM_ANALYZER_CHANGELOG.md` (§2026-10-28, §2026-10-29, une ligne par
+commit, preuves comprises) et `CAM_ANALYZER_CHAINE_TRAITEMENT.md` (« Garés en double, par nature »,
+« Cap des garés par leur RANGÉE », « Tableaux PAR VÉHICULE » — la liste initiale de Fabien y est enfin
+consignée, colonne par colonne). En amont de la session, même fil : `f1603790` (ouverture lente),
+`91971cac` (seuil SAM3 gardé), `a96bf8d6` (seuil du floutage, section Vue) — CHANGELOG.
+
+**Livré** :
+- 28/10 — garés en double par NATURE + ⚑ `parked_twin_merge` (`eeb04dc5`) ; seuil du floutage PAR
+  CLASSE (`1dc3b96b`, migration `cam_analyzer/0035` appliquée) ; ⚑ `parked_intersection_median` ON
+  (`54e9483e`) ; revérif (`1ce17fd7`) ; ⚑ `parked_motion_vs_shuttle` remesurée, laissée OFF (`0e615c29`).
+- 29/10 — floutage d'AFFICHAGE aux finitions tenues dans la zone, toutes classes
+  (`blur_utils.blur_detections_inside`, `BLUR_LOOK`) — **l'Anonymizer n'est pas touché** (`7cfc153`) ;
+  tableaux par véhicule (passe `vehicle_tables`, exports « Insertions par véhicule » et « Dépassements »,
+  listes au rapport) + cap des garés par rangée sous ⚑ `heading_row_spacing` OFF (`3eb967ab`) ; openpyxl
+  3.1.5 par la route `library` (`712e7643`) ; revérification : TTC observé par `collision_detection`,
+  `core.calculation.rolling`, CSV par l'Exporter du monde Data (`326878ff`) ; ROADMAP §9.0 datée
+  (`81b35973`) ; base de temps gardée + gardien débruité (`51472b10`) ; deux leçons aux skills
+  `cam-analyzer` et `contre-epreuve` (`ab0b4e4d`).
+
+**Mesures sur `4da52df3`** (toutes en rejeu SANS écriture, compte des écritures bloquées dit à chaque
+fois) : rangées 368 bataille / 47 créneau / 252 indécis (espacement médian 2,37 m) ; tableaux : 147
+présents, 39 insérés, 60 dépassements (58 à gauche), 51 rabattements, TTC observé médian 3,6 s, PET 12 s,
+59 s de calcul ; ⚠ **PET PRÉDIT dégénéré** (0,2 s pour 65 % des détections annotées) ; trous des
+dépassements : 7 coupures sur 10 ≤ 2 s → la PORTE DE POSITION du recollement, pas sa durée.
+
+**Pour Fabien (test du soir)** : relancer gunicorn + workers, Ctrl+F5 · « Refaire le floutage » ·
+cocher ⚑ « Cap des garés par leur rangée » + Tracking 360° · Indicateurs puis « Tableaux par véhicule »,
+ouvrir les deux CSV (séparateur `;`) · décider si `BLUR_LOOK` devient le défaut de l'Anonymizer · push.
+
+**Limites de CETTE session (à elle, avec leur domicile)** :
+1. Jumeau consigné, non ramené : la lecture des trajectoires monde par `global_track_id`
+   (`vehicle_tables._vehicle_observations` / `intersection_branches.learn_branches`) et le préambule
+   GPS → repère local → trajectoire navette répété ×4 — unifier touche des calculs validés : décision
+   (CHAINE « Tableaux PAR VÉHICULE »).
+2. Le plancher du PET prédit (`prediction_adapter.ttc_pet_shuttle_object`) — à instruire.
+3. Dépassements coupés : porte élargie pour la voie voisine, même sens, de derrière à devant, sous ⚑ et
+   mesure A/B — proposée, non faite.
+4. Garés : instrumenter la porte de chaque véhicule (`_gate_by_gid` au résumé) et une ancre d'AFFICHAGE
+   pour les immobiles écartés « bord de voie » (cas G432) — proposés par l'enquête, non faits.
+5. ⚠ Le rejeu au code du jour rend 625 garés contre 667 persistés, sans commit de calcul entre les deux :
+   une ENTRÉE a changé (profil ? bascule ?), non identifiée — le prochain Tracking 360° le dira.
+6. Portage : réglages de flou et seuils par classe au profil / adoptés par l'Anonymizer (après jugement).
+
+**Hérités** (fiche `project_cam_analyzer`) : A/B SAM3 par étiquette ; doublons au bord, étalement,
+`range_correction`, G441, relais, INTERSECTIONS bloqué.
+
+**Effets de bord** : `openpyxl` + `et_xmlfile` installés dans venv_linux par la route, ligne `Library`
+« openpyxl » autorisée en base (décision de Fabien) ; rien relancé ; la session `4da52df3` n'a reçu
+AUCUNE écriture (rejeux neutralisés, contrôle de page en transaction annulée) ; scripts de banc et de
+rejeu jetables dans le scratchpad de session.
+
+**Contrôles attendus au prochain /reprise** (mesurés le 29/10) : 1 612 tests (cam_analyzer, wama_data,
+nœuds de fonctions du Studio, neuf gardes transverses) — seuls rouges : budget des noms de test
+1290 > 1289, aucun de cette session (liste filtrée vide) ; `openpyxl` SOLDÉ (rouge relevé plus haut par
+la session « Briques UI ») ; `check_redundancy` 99, 0 dans mes fichiers ; corpus `function` à jour ;
+`check_docs` 3 références cassées, 1 cible distincte (`edit.js`, d'autrui) ; périmés d'autrui :
+pipelines avatarizer/enhancer, `doc_facts` conformite/mecanismes/briques.
+
+🔚 **POINT D'ENTRÉE** : le retour de Fabien sur son test du soir (floutage, rangées, CSV) — puis, selon
+lui, adopter `BLUR_LOOK` à l'Anonymizer ou la porte élargie des dépassements (limite 3).
