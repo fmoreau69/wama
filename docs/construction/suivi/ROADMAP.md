@@ -3500,6 +3500,11 @@ plein texte*).
 - **« Capacité-first »** : si la capacité existe (modèle + pipeline + contrat I/O), l'assistant l'orchestre SANS app dédiée ; scaffolder une app seulement quand le besoin est **récurrent**.
 - **« Généraliste > spécifique »** fait converger vers PEU d'apps généralistes + composition (évite la prolifération d'apps). WAMA Lab = spécifique métier uniquement.
 - **Outils d'éval** (Promptfoo/DeepEval/Langfuse/lm-eval = réels ; Modelator/Evvl/Benchscope/etc. = invérifiables) : **sur-dimensionnés**. WAMA a déjà l'équivalent (registry=`AIModel.capabilities`, judge=QC, adaptateurs=LiteLLM/backends). NE PAS bâtir de plateforme d'éval ; Promptfoo/DeepEval éventuellement pour la régression plus tard.
+  - *2026-10-29, regardé à la demande de Fabien, jugé **non utile*** : **Prime Intellect** (`verifiers`,
+    MIT, et son Environments Hub) — des environnements d'entraînement par renforcement et d'évaluation
+    pour LLM, tournés vers leur propre service (les tests d'intégration exigent une clé Prime). WAMA
+    évalue surtout des modèles de MÉDIA (OCR, ASR, voix, détection) sur SES données (`WAMA_QUALITE`),
+    et ses rôles LLM ont déjà leurs juges ; un score de banc tiers ne remplace pas la mesure WAMA.
 
 **Séquencement** : fondation (métadonnée + `PromptPipeline` commune) AVANT les interfaces méta.
 
