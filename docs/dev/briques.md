@@ -2359,6 +2359,12 @@ Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v
   - `varying_chips_for_items(items, params_json, values_of=None)` — Le PENDANT de `common_chips_for_items` : les réglages `chip=True` qui DIFFÈRENT d'une fille
   - `chips_by_section(instance, params_json, extra=None, values=None)` — Mêmes chips que `chips_for`, mais GROUPÉS par section de card v3 (CARD_DESIGN §11).
 
+### Clavier des briques (une touche, un propriétaire)
+
+Le module unique qui reçoit les frappes et les distribue selon la règle décidée par Fabien le 2026-10-29 : une touche déjà prise plus près du focus ou sous une couche ouverte (modale, panneau) n'est pas redistribuée ; une saisie ne passe que les touches déclarées (Ctrl+Espace) ; la brique qui a la main d'abord, puis les PRIORITAIRES (le transport) ; un observateur suit sans prendre. Y sont inscrits le transport, l'inspecteur, la pile et la sélection de la file. Les touches de chaque brique se DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de la brique Actions et du catalogue
+
+- **Domicile** : `wama/common/static/common/js/wama-keys.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §3-ter](../construction/ui/WAMA_VOLETS.md)
+
 ### Console utilisateur
 
 Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via Redis », mais le chemin Redis exige `django_redis` — ABSENT des deux venvs et des `requirements` (vérifié 2026-08-22) : la console tourne DEPUIS TOUJOURS sur son repli cache, qui fonctionne mais n'est pas atomique (lire/insérer/réécrire, donc des lignes perdues quand gunicorn et les workers Celery poussent en même temps). Le correctif n'est PAS d'ajouter la dépendance : le client `redis` brut est déjà installé et la brique d'accès existe (`resource_governor._redis`, via `CELERY_BROKER_URL`)
