@@ -158,6 +158,28 @@ class SubAgentDepthTest(TestCase):
                                                 depth=MAX_AGENT_DEPTH + 1)
 
 
+class SubscriptionPathTest(TestCase):
+    """L'abonnement Claude Code tourne SA boucle, avec tous les outils du compte par MCP : un tour
+    borné n'y tiendrait pas ses bornes — il est arrêté avant tout appel au modèle."""
+
+    def _turn(self, **bounds):
+        user = User.objects.create(username=f'bounds_abo_{User.objects.count()}')
+        with mock.patch('wama.common.services.claude_code.subscription_allowed', return_value=True), \
+                mock.patch.object(assistant_engine, '_llm_call', return_value=('ok', {})) as llm:
+            result = assistant_engine.run_assistant_turn(user, 'q', provider='claude-abo', **bounds)
+        return result, llm
+
+    def test_a_sub_agent_never_runs_on_the_subscription(self):
+        result, llm = self._turn(depth=1)
+        self.assertIn('abonnement', result.get('error', ''))
+        llm.assert_not_called()
+
+    def test_the_user_turn_still_does(self):
+        result, llm = self._turn()
+        self.assertNotIn('error', result)
+        llm.assert_called()
+
+
 class InventedTurnRetryTest(TestCase):
 
     def test_the_retry_of_an_invented_turn_keeps_the_bounds(self):

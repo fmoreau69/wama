@@ -1238,6 +1238,79 @@ _DEADLINE_PROMPT = (
 MAX_AGENT_DEPTH = 1
 #: Le résultat d'un outil qu'un tour borné n'a pas reçu : refusé avant la porte, sans rien exécuter.
 _TOOL_NOT_ALLOWED = "Outil non permis à ce tour : {tool}. Outils permis : ceux de la liste ci-dessus."
+
+#: L'outil de DÉLÉGATION (`WAMA_HARNESS §7.4` étape 2, 2026-10-29) — un VERBE DE LA BOUCLE, aiguillé
+#: par son nom comme les `dev_*`, et non un outil du registre : tout ce qui entre dans `TOOL_REGISTRY`
+#: est servi aussi par MCP et `/api/v1/tools/`, où un appel hors d'un tour n'aurait pas de sens.
+DELEGATE_TOOL = 'delegate'
+#: Les bornes d'un sous-agent — des choix de départ, pas des mesures : moins d'itérations que le
+#: parent (une tâche étroite), et une échéance qui borne le tour entier de l'utilisateur.
+SUB_AGENT_MAX_ITERATIONS = 5
+SUB_AGENT_SECONDS = 300
+#: Le PLAFOND D'APPELS AU MODÈLE d'un tour (étape 3) passe par le nombre de délégations : un coût en
+#: dollars n'est pas mesurable (le chemin cloud ne rapporte pas de coût), un nombre d'appels l'est.
+#: Avec les bornes ci-dessus, un sous-agent fait au plus 7 appels : 5 itérations (une reprise de
+#: réponse vide ou un relais en consomme une) et le dernier sans outil ; un tour INVENTÉ n'a fait
+#: qu'un appel avant sa reprise unique, qui en fait 6. Donc au plus 3 × 7 appels de sous-agents
+#: par tour, en plus des siens. Choix de départ, non mesuré.
+MAX_DELEGATIONS_PER_TURN = 3
+_DELEGATIONS_EXHAUSTED = ("Plafond de {limit} sous-agents atteint pour ce tour : mène la suite toi-même "
+                          "avec tes outils, ou réponds à partir des rapports déjà reçus.")
+#: Ce que reçoit le sous-agent en tête de sa tâche : il rend un RAPPORT au parent, pas une réponse
+#: à l'utilisateur, et ses liens restent soumis au même contrôle de source.
+_SUB_AGENT_BRIEF = (
+    "Tu es un sous-agent de l'assistant WAMA : tu ne parles pas à l'utilisateur. Mène la tâche "
+    "ci-dessous avec tes outils de lecture, puis rends un rapport court et factuel : ce que tu as "
+    "trouvé, avec ses sources (liens copiés des résultats d'outils), et ce qui reste incertain.\n\n"
+    "Tâche : ")
+
+
+def _delegate_tool() -> tuple:
+    """(ligne du prompt, déclaration native) de l'outil de délégation. Les domaines proposés sont
+    tirés du registre, hors développement (un sous-agent ne reçoit aucun outil de dev)."""
+    from wama.common.utils.assistant_skills import DOMAINES
+    domains = [d.key for d in DOMAINES if not d.development]
+    description = (
+        "Hand ONE self-contained task to a sub-agent: fresh context, read-only tools (web search "
+        "and pages, WAMA docs, the user's memory, statuses). It returns its report. Use it for a "
+        "task that needs several searches or readings; do it yourself when one tool call is enough. "
+        f"`domain` (optional) sets its competence: {', '.join(domains)}.")
+    line = f"\n- {DELEGATE_TOOL}(task, domain): {description}"
+    spec = {'type': 'function', 'function': {
+        'name': DELEGATE_TOOL, 'description': description,
+        'parameters': {'type': 'object', 'required': ['task'], 'properties': {
+            'task': {'type': 'string',
+                     'description': 'The complete task, understandable without this conversation.'},
+            'domain': {'type': 'string', 'enum': domains}}}}}
+    return line, spec
+
+
+def _delegate(user, args: dict, *, provider, llm_model, depth, deadline) -> tuple:
+    """Un sous-agent : un tour de CETTE boucle, contexte neuf, profondeur + 1 (donc lecture seule,
+    `sub_agent_tools`), synchrone — le parent attend son rapport. Même fournisseur et même modèle
+    que le tour qui délègue (le parallèle par serveur est l'étape 2 bis).
+
+    Rend (résultat pour le MODÈLE, étapes du sous-agent pour la TRACE, usage) : le parent ne lit que
+    le rapport, jamais les résultats d'outils du sous-agent — c'est l'isolation du contexte."""
+    from wama.common.utils.assistant_skills import resolve_domain
+
+    task = str((args or {}).get('task') or '').strip()
+    if not task:
+        return ({'error': f"{DELEGATE_TOOL} : `task` est requis — la tâche entière, compréhensible "
+                          f"sans cette conversation."}, [], {})
+    domain = resolve_domain((args or {}).get('domain'))
+    sub_deadline = time.monotonic() + SUB_AGENT_SECONDS
+    if deadline is not None:
+        sub_deadline = min(sub_deadline, deadline)
+    sub = run_assistant_turn(user, _SUB_AGENT_BRIEF + task, provider=provider, model=llm_model,
+                             history=[], domain=None if domain.development else domain.key,
+                             surface='agent', depth=depth + 1,
+                             max_iterations=SUB_AGENT_MAX_ITERATIONS, deadline=sub_deadline)
+    steps, usage = sub.get('tool_steps') or [], sub.get('usage') or {}
+    if 'error' in sub:
+        return {'error': f"Sous-agent en échec : {sub['error']}"}, steps, usage
+    return ({'report': sub.get('response', ''), 'model': sub.get('model', ''),
+             'tools_used': [step['tool'] for step in steps]}, steps, usage)
 #: Si le modèle veut ENCORE un outil : la trace de ce qui a été exécuté, jamais l'appel brut.
 _TOOL_LIMIT_NOTICE = (
     "⚠ J'ai atteint la limite d'actions pour ce tour sans pouvoir conclure. Actions exécutées : "
@@ -1461,9 +1534,12 @@ def conversation_turn(user, message: str, *, surface: str = 'web', thread_key: s
                 watch['first_text'] = time.monotonic() - started
             on_event(event)
 
+    # L'interrupteur des SOUS-AGENTS (`WAMA_HARNESS §7.4` étape 3) : un réglage de l'utilisateur,
+    # éteint par défaut — éteint, l'outil `delegate` n'est pas annoncé.
     resultat = run_assistant_turn(user, message, provider=provider, model=model,
                                   history=historique, domain=domain, surface=surface,
-                                  on_event=listener)
+                                  on_event=listener,
+                                  can_delegate=bool(assistant_settings(user).get('sub_agents')))
 
     total = time.monotonic() - started
     if 'error' not in resultat:
@@ -1508,7 +1584,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
                        domain: str = None, surface: str = 'web', on_event=None,
                        escalated_from: str = None, *, allowed_tools=None,
                        max_iterations: int = MAX_TOOL_ITERATIONS, deadline: float = None,
-                       depth: int = 0) -> dict:
+                       depth: int = 0, can_delegate: bool = False) -> dict:
     """
     UN tour de conversation avec l'assistant WAMA — cœur SANS ÉTAT, commun à toutes les
     surfaces (vue web `ai_chat`, API v1 `assistant/chat/`, adaptateurs de canaux).
@@ -1551,7 +1627,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
                   borne la boucle, pas l'appel au modèle en cours (qui a son propre délai).
         depth:    0 pour le tour de l'utilisateur. Au-delà, un SOUS-AGENT : ses outils sont
                   ramenés à `sub_agent_tools()` (lecture seule, quels que soient ceux demandés),
-                  et `MAX_AGENT_DEPTH` le borne.
+                  et `MAX_AGENT_DEPTH` le borne. Un tour borné ne passe pas par l'abonnement.
+        can_delegate: annonce et accepte `delegate` (étape 2) — hors abonnement, et, pour un tour
+                  borné, si `allowed_tools` le nomme (jamais à un sous-agent : ses outils sont des
+                  lectures du registre). `conversation_turn` le tire du réglage `sub_agents`.
 
     Returns:
         dict succès : {success, response, model, usage, tool_steps}
@@ -1570,7 +1649,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
     elif allowed_tools is not None:
         allowed_tools = frozenset(allowed_tools)
     bounds = {'allowed_tools': allowed_tools, 'max_iterations': max_iterations,
-              'deadline': deadline, 'depth': depth}
+              'deadline': deadline, 'depth': depth, 'can_delegate': can_delegate}
 
     # Le fournisseur se DÉRIVE du modèle (réglage durable de l'utilisateur, sinon tirage « auto »)
     # quand la surface n'impose rien : c'est ce qui donne le MÊME choix au web, à l'API et aux
@@ -1589,6 +1668,13 @@ def run_assistant_turn(user, message: str, provider: str = None,
         if not subscription_allowed(user):
             return {'error': "Le fournisseur « abonnement » est réservé aux administrateurs "
                              "et développeurs.", 'status': 403}
+        # Un tour BORNÉ n'y passe pas : Claude Code tourne SA boucle, avec tous les outils du compte
+        # par MCP (`_claude_code_call`) — les bornes de cette boucle-ci n'y tiendraient pas, et un
+        # sous-agent y écrirait (relevé le 2026-10-29, en écrivant la délégation).
+        if allowed_tools is not None:
+            return {'error': "Un tour borné (sous-agent) ne passe pas par l'abonnement Claude Code : "
+                             "sa boucle reçoit tous les outils du compte, sans les bornes.",
+                    'status': 400}
 
     local = provider in _LOCAL_PROVIDERS
 
@@ -1608,11 +1694,25 @@ def run_assistant_turn(user, message: str, provider: str = None,
         if allowed_tools is None:
             dev_tools = mcp_client.dev_tools_for(user)
     dev_names = {t['name'] for t in dev_tools}
+    # La DÉLÉGATION (étape 2) : annoncée seulement là où elle peut s'exécuter. Un sous-agent ne
+    # délègue pas, par construction : ses outils sont des LECTURES du registre, où `delegate`
+    # n'est pas — aucune condition de profondeur à écrire ici.
+    delegation = (can_delegate and user is not None
+                  and provider not in _SUBSCRIPTION_PROVIDERS
+                  and (allowed_tools is None or DELEGATE_TOOL in allowed_tools))
+    delegate_line, delegate_spec = _delegate_tool() if delegation else ('', None)
     tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list(allowed_tools)
+                                              + delegate_line
                                               + mcp_client.tools_block(dev_tools))
                     if user else "")
-    # Déclaration NATIVE en plus, pour les seuls modèles mesurés qui l'acceptent (`native_tools`).
-    native_tools = _native_tool_specs(user, provider, dev_tools, llm_model, names=allowed_tools)
+
+    def _native_tools(model):
+        # Déclaration NATIVE en plus, pour les seuls modèles mesurés qui l'acceptent
+        # (`native_tools`) — la délégation comprise, quand le tour l'annonce.
+        specs = _native_tool_specs(user, provider, dev_tools, model, names=allowed_tools)
+        return specs + [delegate_spec] if specs is not None and delegate_spec else specs
+
+    native_tools = _native_tools(llm_model)
     native_kwargs = {'tools': native_tools} if native_tools else {}
     # Langue de réponse = profil utilisateur (plus de « in French » en dur).
     # ⚠ La consigne est posée sur les DEUX prompts : ils sont concaténés, et le prompt d'outils
@@ -1729,7 +1829,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
             llm_model = _prepare_local_model(llm_model, messages, user, asked_index)
         think = thinking_wanted(assistant_settings(user).get('quality_intent')) if local else None
         tried.add(_provider_source(provider))
-        native_tools = _native_tool_specs(user, provider, dev_tools, llm_model, names=allowed_tools)
+        native_tools = _native_tools(llm_model)
         native_kwargs = {'tools': native_tools} if native_tools else {}
         etiquette = f"{_label(provider, llm_model, local)} · relais ({', '.join(relays)})"
         logger.warning("[ai_chat] %s — relais : %s", relays[-1], etiquette)
@@ -1839,10 +1939,29 @@ def run_assistant_turn(user, message: str, provider: str = None,
         tool_args  = tool_call.get('args', {})
         logger.info(f"[ai_chat] tool_call: {tool_name}({tool_args})")
 
+        sub_steps = None
         if allowed_tools is not None and tool_name not in allowed_tools:
             # Un tour BORNÉ ne passe pas la porte avec un outil qu'on ne lui a pas annoncé : le refus
             # entre à la trace comme tout refus (`_refusals_notice`), et le modèle continue.
             tool_result = {'error': _TOOL_NOT_ALLOWED.format(tool=tool_name)}
+        elif delegation and tool_name == DELEGATE_TOOL and sum(
+                step['tool'] == DELEGATE_TOOL for step in tool_steps) >= MAX_DELEGATIONS_PER_TURN:
+            tool_result = {'error': _DELEGATIONS_EXHAUSTED.format(limit=MAX_DELEGATIONS_PER_TURN)}
+        elif delegation and tool_name == DELEGATE_TOOL:
+            # Le sous-agent tourne ICI, le parent attend : son usage s'ajoute à celui du tour, et
+            # ses étapes vont à la trace (`sub_steps`), jamais au modèle du parent.
+            started = time.monotonic()
+            tool_result, sub_steps, sub_usage = _delegate(
+                user, tool_args, provider=provider, llm_model=llm_model, depth=depth,
+                deadline=deadline)
+            for key in total_usage:
+                total_usage[key] += sub_usage.get(key) or 0
+            # Le JOURNAL du sous-agent (étape 3) : sa durée entre à la trace avec ses étapes, et
+            # une ligne au journal du serveur.
+            sub_seconds = round(time.monotonic() - started, 1)
+            logger.info("[ai_chat] sous-agent : %s s, outils %s, %s", sub_seconds,
+                        [step['tool'] for step in sub_steps],
+                        'échec' if 'error' in tool_result else 'rapport rendu')
         elif tool_name in dev_names and _already_polled(tool_steps, tool_name, tool_args):
             # Le SUIVI d'une tâche de fond dans le tour, CONTRÔLÉ (2026-10-12, fil Discord #43 :
             # cinq `dev_job_status` d'affilée, six minutes sans répondre à personne). Un second
@@ -1873,6 +1992,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
         # bridage le 2026-10-12 — cf. `resolve_turn_model`. Le fil se souvient toujours de la
         # compétence dev chargée : c'est une CONSIGNE, plus un changement de modèle.)
         tool_steps.append({'tool': tool_name, 'args': tool_args, 'result': tool_result})
+        if sub_steps is not None:
+            tool_steps[-1].update(sub_steps=sub_steps, sub_seconds=sub_seconds)
         if on_event is not None:
             # L'étape part DÈS qu'elle est jouée : « ce qui est pénible n'est pas d'attendre,
             # c'est d'attendre sans savoir » (`WAMA_HARNESS §9 chantier 4`).
@@ -1898,8 +2019,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
                 routed = _route_model_by_context(llm_model, messages)
                 if routed != llm_model and _safe_char_limit(routed) > window:
                     llm_model = routed
-                    native_tools = _native_tool_specs(user, provider, dev_tools, llm_model,
-                                                      names=allowed_tools)
+                    native_tools = _native_tools(llm_model)
                     native_kwargs = {'tools': native_tools} if native_tools else {}
                     etiquette = _label(provider, llm_model, local) + (
                         f" · relais ({', '.join(relays)})" if relays else '')

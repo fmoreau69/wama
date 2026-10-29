@@ -63,6 +63,14 @@ PARAMS = [
         'model', dom_id={'panel': 'ai-seed', 'item': 'ai-seed-modal'}, contexts=SURFACES)),
     Param(name='top_p', **top_p_param(
         'model', dom_id={'panel': 'ai-top-p', 'item': 'ai-top-p-modal'}, contexts=SURFACES)),
+    # Les SOUS-AGENTS (2026-10-29, `WAMA_HARNESS §7.4` étape 3) : l'interrupteur déclaré de la
+    # délégation — éteint, l'outil `delegate` n'est même pas annoncé au modèle. Éteint par défaut :
+    # un sous-agent multiplie les appels au modèle, c'est à l'utilisateur de le vouloir.
+    Param(name='sub_agents', type='toggle', label='Sous-agents', icon='fa-sitemap', default=False,
+          dom_id={'panel': 'ai-sub-agents', 'item': 'ai-sub-agents-modal'}, contexts=SURFACES,
+          help="L'assistant peut confier une recherche ou une lecture à un sous-agent, qui travaille "
+               "dans un contexte neuf, en lecture seule, puis lui rend son rapport. Plus d'appels au "
+               "modèle, donc plus lent et plus coûteux sur un modèle distant."),
     # L'AVATAR PARLANT est une préférence DURABLE de l'assistant (2026-09-22, demande de Fabien) :
     # jusque-là « affiché / masqué » n'était qu'un état de la page d'accueil, perdu au premier
     # changement de page. `contexts=()` : ces deux réglages ne sont rendus dans AUCUN panneau de
