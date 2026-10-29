@@ -1266,12 +1266,12 @@ class PageKeyListenersTest(SimpleTestCase):
     MOVE = 'à inscrire au clavier commun'
     REMAINING = {
         'wama/common/static/common/js/media-preview.js': (1, MOVE),
-        'wama/common/static/common/js/surfaces/brick-playback-writing.js': (2, MOVE),
         'wama/common/static/common/js/surfaces/brick-segment-list.js': (1, MOVE),
         'wama/common/static/common/js/wama-card-menu.js': (2, MOVE),
         'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
         'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js': (1, MOVE),
-        # Not shortcuts : they never act on the key.
+        # Not shortcuts : they never act on the key, or only on its release.
+        'wama/common/static/common/js/surfaces/brick-playback-writing.js': (1, "keyup : le relâché de R ferme la plage"),
         'wama/common/static/common/js/wama-app-base.js': (1, "le 1er geste déverrouille le son (once)"),
         'wama/common/static/common/js/wama-assistant-listen.js': (1, "le 1er geste reprend le micro suspendu"),
         'wama/common/static/common/js/wama-axis.js': (1, "keyup : le module ne distribue que keydown"),

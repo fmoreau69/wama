@@ -24,9 +24,6 @@
     var WAIT_RESULTS_MS = 60000;
     var PROPOSAL_BAND = 'rgba(239,68,68,0.16)', RECORDING_BAND = 'rgba(239,68,68,0.32)';
 
-    /** Le clavier est-il à une saisie ? La règle commune (`WamaApp.isTyping`). */
-    function typing() { return global.WamaApp.isTyping(); }
-
     function mount(body, ctx) {
         var Seg = global.WamaSegments, Axis = global.WamaAxis;
         var axis = ctx.axis();
@@ -179,18 +176,22 @@
         axis.subscribe(function (st) { if (!(st.playing && st.rate > 0)) disarm(); });
 
         // ── Clavier : R (Touch / Latch) ; Échap rend le clavier quand il est à la brique ──────
-        document.addEventListener('keydown', function (e) {
-            if (e.key === 'Escape') {
-                if (!e.defaultPrevented && typing() && body.contains(document.activeElement)) {
-                    e.preventDefault(); document.activeElement.blur();
-                }
-                return;
-            }
-            if (typing() || e.ctrlKey || e.metaKey || e.altKey) return;
-            if ((e.key || '').toLowerCase() === 'r' && (writeMode === 'touch' || writeMode === 'latch')) {
-                e.preventDefault(); if (!e.repeat) arm();
-            }
-        });
+        // Par le clavier commun (`WamaKeys`) : Échap à une saisie de la brique (son choix de mode
+        // compris), quand elle a la main ; R, prioritaire de la page, jamais pendant une saisie.
+        global.WamaKeys.register({ owner: 'playback_writing', scope: 'brick', root: body, typing: ['Escape'],
+                                   handle: function (e) {
+            var a = e.target;
+            if (e.key !== 'Escape' || !a || !(/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) || a.isContentEditable)) return false;
+            a.blur();
+            return true;
+        } });
+        global.WamaKeys.register({ owner: 'playback_writing', scope: 'page', handle: function (e) {
+            if (e.ctrlKey || e.metaKey || e.altKey || (e.key || '').toLowerCase() !== 'r') return false;
+            if (writeMode !== 'touch' && writeMode !== 'latch') return false;
+            if (!e.repeat) arm();
+            return true;
+        } });
+        // Le RELÂCHÉ reste écouté ici : le module ne distribue que l'appui.
         document.addEventListener('keyup', function (e) {           // Touch : relâcher R ferme la plage
             if (writeMode === 'touch' && (e.key || '').toLowerCase() === 'r') disarm();
         });

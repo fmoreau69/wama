@@ -666,6 +666,13 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       plus C (comme elle ne garde déjà plus J/K/L, règle des contrôles de l'étape 0) — elle garde
       ses flèches, Début/Fin, et Espace/Entrée atteinte au clavier. Parité 76/76 (Bornes, Bascules) ;
       contre-épreuve au navigateur (Échap qui ne sort plus de l'outil) → deux rouges.
+    - ✅ **L'écriture à la lecture** : Échap rend le clavier quand il est à une saisie de la brique
+      (son choix de mode compris, comme avant), R (Touch / Latch) prioritaire de la page ;
+      `WamaApp.isTyping` n'y est plus lu. Le RELÂCHÉ de R (Touch : il ferme la plage) reste écouté
+      par la brique — le module ne distribue que l'appui (compté comme tel dans la garde). Même
+      écart voulu que la ligne de temps : une liste qui a le focus ne garde plus R. Contrôle
+      ajouté (Échap sur le choix du mode) : **parité 77/77** ; contre-épreuves au navigateur
+      (Échap sans effet ; R sans effet) → rouges.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

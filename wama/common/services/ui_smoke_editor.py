@@ -442,6 +442,12 @@ def _toggles(ed, checks):
     ed.ensure_paused()
     ed.write_mode('')
     checks.append((held is True and released is False, f"Touch : R maintenu enregistre, relâché s'arrête ({held}, {released})"))
+    # Échap rend le clavier quand il est à une saisie de la brique — son choix de mode (29/10).
+    ed.page.focus(ed.sel('write_mode'))
+    ed.page.keyboard.press('Escape')
+    left = ed.page.locator(ed.sel('write_mode')).evaluate("e => document.activeElement !== e")
+    ed.release_focus()
+    checks.append((left, f"Échap sur le choix du mode d'écriture rend le clavier ({left})"))
 
 
 def _writing(ed, checks, seed):
