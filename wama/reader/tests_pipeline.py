@@ -103,6 +103,35 @@ class ReadingRunTest(_Cards):
         self.assertEqual('# Extracted', self.analyses[0][0], 'the analysis reads the final text')
         self.assertIn('A scan.', card.analysis)
 
+    def test_a_reading_cut_at_its_first_pass_shows_a_badge_until_a_clean_reading(self):
+        """2026-10-29, decision of Fabien: the engine cut a looping reading at its first pass —
+        the card SAYS it next to the word count (the cut can be wrong both ways). Checked on the
+        SERVED page, and a later clean reading takes the badge away."""
+        cut = _FakeOCR()
+        cut.cut_pages = [2]
+        self._engine = lambda key, user=None: cut
+        card = self._run(self._card())
+        notices = process_runs.line(card, 'read').output_summary.get('notices')
+        self.assertEqual(['ocr_loop_cut'], [n['key'] for n in notices])
+        self.assertIn('(page 2)', notices[0]['title'])
+        # The access gate is CROSSED, not bypassed (`AppAccessMiddleware`, lesson of the
+        # synthesizer): the reader is open to the `recherche` role.
+        from django.contrib.auth.models import Group
+        from wama.accounts.permissions import GROUP_PREFIX
+        self.user.groups.add(Group.objects.get_or_create(name=f'{GROUP_PREFIX}recherche')[0])
+        client = Client()
+        client.force_login(self.user)
+        served = client.get(reverse('reader:index'))
+        self.assertEqual(200, served.status_code)
+        page = served.content.decode()
+        self.assertIn('wama-chip--warning', page)
+        self.assertIn('Lecture coupée', page)
+
+        self._engine = lambda key, user=None: _FakeOCR()
+        card = self._run(card)
+        self.assertEqual([], process_runs.line(card, 'read').output_summary.get('notices'))
+        self.assertNotIn('Lecture coupée', client.get(reverse('reader:index')).content.decode())
+
     def test_a_failed_formatting_shows_on_its_line_and_keeps_the_read_text(self):
         self.format_error = 'Ollama is down'
         card = self._run(self._card())

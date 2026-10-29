@@ -158,6 +158,30 @@ class OllamaErrorIsNotAnEmptySuccessTests(SimpleTestCase):
         closed, _ = self._ocr([("```md\nI24 Rotation\n```\nsuite", None)])
         self.assertEqual("I24 Rotation\nsuite", closed, "the closing fence goes with its opening")
 
+    def test_the_engine_names_the_pages_it_cut_and_forgets_them_at_the_next_run(self):
+        """2026-10-29 (badge « Lecture coupée ») : the cut is no longer only a log line — the
+        engine keeps the page numbers of its LAST run (`OCRBackend.cut_pages`)."""
+        from unittest import mock
+
+        from wama.common.backends import glm_ocr_backend
+        from wama.common.backends.ocr_base import loop_cut_notice
+        reading = ("- Personnalisation du pipeline par utilisation. Chaque\n"
+                   "utilisateur peut personnaliser / créer son propre\n"
+                   "pipeline et l'utiliser dans les apps.\n")
+        answers = []
+        engine = glm_ocr_backend.GlmOcrBackend()
+        engine.catalogue_key = 'ollama:glm-ocr:latest'
+        with mock.patch.object(glm_ocr_backend, '_image_to_b64', return_value='AAAA'), \
+                mock.patch('wama.common.utils.llm_utils.llm_chat',
+                           side_effect=lambda messages, **kw: answers.pop(0)):
+            answers.append((reading * 40, None))
+            engine.run('/x.jpg')
+            self.assertEqual([1], engine.cut_pages)
+            answers.append((reading, None))
+            engine.run('/x.jpg')
+            self.assertEqual([], engine.cut_pages, 'a clean reading forgets the last cut')
+        self.assertIn('(pages 1, 3)', loop_cut_notice([3, 1, 1])['title'])
+
     def test_a_code_block_of_the_page_is_kept(self):
         """Contre-épreuve : un bloc de CODE annoncé peut rendre la structure d'une page imprimée."""
         page = "Exemple :\n```python\nprint('x')\n```\nFin."

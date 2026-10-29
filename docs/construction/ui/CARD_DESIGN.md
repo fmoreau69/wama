@@ -794,6 +794,14 @@ tranchent une fois sur les briques communes et se propagent. Consignés au fil d
   l'erreur remplace la sortie au même endroit en échec. Chips = brique card_chips, attribut
   `section=` (input/settings/output) sur les Param `chip=True` — ✅ **livré** (converter/reader,
   `_card_chips.html`) ; reste le hook `predicted_output()` par app (prototype reader).
+  ✅ *(2026-10-29, décision de Fabien)* **Pastille de REMARQUE** (variante `warning`, à côté des
+  chips solides) : ce qu'un process a SIGNALÉ de son résultat — premier cas, « Lecture coupée »
+  du reader, quand le moteur d'OCR tournait en boucle et que seule la première lecture est
+  gardée (la coupe peut se tromper : la pastille dit de vérifier). Chaîne : la glu rend
+  `notices` (contrat du squelette) → `output_summary['notices']` de sa ligne d'exécution →
+  `process_pipeline.decorate` pose `notice_chips` (lignes réussies seules, lues avec la page) →
+  le gabarit les inclut après la sortie. Une app qui veut dire autre chose de son résultat rend
+  une remarque ; elle n'écrit ni champ ni pastille.
 - **Zone de PREVIEW PERMANENTE** (jamais retirée) : récapitulatif de sortie dès l'ajout (fond
   légèrement distinct, ex. « Transcription (texte) + diarisation · formats après traitement :
   TXT · SRT · PDF · DOCX ») → PENDANT : préviz de process si disponible → APRÈS : préviz réelle.

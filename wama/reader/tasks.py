@@ -231,6 +231,7 @@ def _read(item, ctx):
                                'used_backend': 'fitz_direct'},
                     'eta': reader_eta_key_size(item, backend='fitz_direct'),
                     'output_fingerprint': _fingerprint(direct_text),
+                    'notices': [],            # rien de coupé : efface la remarque d'un rendu passé
                     'label': item.filename,
                     'console_success': f"[Reader] ✓ {item.filename} — "
                                        f"{len(direct_text)} caractères (PDF natif)",
@@ -277,6 +278,11 @@ def _read(item, ctx):
                                     on_partial=_partial)
 
         result_text = _extract_natural_text(raw_text)
+        # Une lecture coupée au premier passage (boucle du moteur) se DIT sur la card : la coupe
+        # peut se tromper, l'utilisateur doit savoir qu'il faut vérifier (2026-10-29).
+        from wama.common.backends.ocr_base import loop_cut_notice
+        cut_pages = list(getattr(engine, 'cut_pages', None) or ())
+        notices = [loop_cut_notice(cut_pages)] if cut_pages else []
 
         # La mise en forme Markdown est le process `format` (2026-10-13) : ici, le texte LU.
         clear_partial('reader', item.pk)   # la face SORTIE prend le relais
@@ -287,6 +293,7 @@ def _read(item, ctx):
             'models': [backend],
             'eta': reader_eta_key_size(item, backend=backend),
             'output_fingerprint': _fingerprint(raw_text),
+            'notices': notices,
             'label': item.filename,
             'console_success': f"[Reader] ✓ {item.filename} — "
                                f"{len(result_text)} caractères extraits",

@@ -124,6 +124,15 @@
   border-color: var(--wama-border-dashed);
 }
 
+/* ── Chips « warning » — une REMARQUE du process sur son résultat (lecture coupée…) :
+   un fait à vérifier, pas une erreur. Teinte d'alerte en fond et en bord, texte au contraste
+   fort des deux thèmes. */
+.wama-chip--warning {
+  background: rgba(var(--wama-warning-soft-rgb), .14);
+  border-color: rgba(var(--wama-warning-soft-rgb), .6);
+  color: var(--wama-text-strong);
+}
+
 /* ── Section SORTIE — temporelle : blueprint AVANT → étape live PENDANT → solide APRÈS ── */
 .wcv3-out { display: flex; flex-wrap: wrap; gap: .25rem; align-items: center; }
 

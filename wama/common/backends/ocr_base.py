@@ -144,6 +144,20 @@ def trim_repetition(text: str) -> tuple[str, bool]:
     return text, False
 
 
+def loop_cut_notice(pages) -> dict:
+    """La REMARQUE d'une lecture coupée au premier passage (`trim_repetition`), telle qu'une glu la
+    rend au squelette (`notices`) et que la card la montre en pastille près du nombre de mots
+    (2026-10-29, décision de Fabien). La coupe peut se tromper dans les deux sens — un premier
+    passage incomplet, une vraie répétition prise pour une boucle — : sans elle, rien ne dit de
+    vérifier. `pages` : numéros de page (à partir de 1)."""
+    pages = sorted({int(p) for p in pages or ()})
+    where = (f" (page {pages[0]})" if len(pages) == 1
+             else f" (pages {', '.join(map(str, pages))})" if pages else '')
+    return {'key': 'ocr_loop_cut', 'label': 'Lecture coupée', 'icon': 'fa-scissors',
+            'title': f"Le moteur répétait le même passage{where} : seule la première lecture est "
+                     f"gardée. Si le texte semble incomplet, relancez avec un autre moteur."}
+
+
 #: Une balise de bloc qui annonce du TEXTE (« ```markdown », « ```text ») : un modèle de vision
 #: l'ajoute par habitude de format, aucune page ne la porte à l'encre. Un bloc de CODE annoncé
 #: (« ```python ») est gardé — il peut rendre la structure d'une page imprimée.
@@ -174,6 +188,11 @@ def unwrap_format_fences(text: str) -> str:
 
 class OCRBackend(BaseModelBackend):
     """Un moteur d'OCR : un document (PDF ou image) → son texte."""
+
+    #: Pages (à partir de 1) dont la lecture tournait en boucle et a été COUPÉE au premier passage
+    #: lors du DERNIER `run` — remis à vide au début de chaque `run` d'un moteur qui coupe, lu par l'appelant après lui
+    #: (`loop_cut_notice`). Un moteur qui ne coupe jamais n'a rien à faire.
+    cut_pages: tuple = ()
 
     @abstractmethod
     def run(

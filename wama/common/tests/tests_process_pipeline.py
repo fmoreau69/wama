@@ -778,6 +778,30 @@ class WhatTheCardShowsTest(TestCase):
                          (rows, state, label))
         self.assertTrue(label)
 
+    def test_the_card_shows_the_notices_of_its_successful_lines_without_another_query(self):
+        """2026-10-29: what a process SAID about its result (`output_summary['notices']`) becomes a
+        warning badge — once even if two processes say it, never from a failed line, and read on
+        the lines a page already loaded (no query per card)."""
+        from wama.common.services.process_pipeline import decorate, preload
+        APP_PIPELINES['demo_pipeline'] = self.pipeline
+        self.addCleanup(APP_PIPELINES.pop, 'demo_pipeline', None)
+        notice = {'key': 'ocr_loop_cut', 'label': 'Lecture coupée', 'icon': 'fa-scissors',
+                  'title': 'cut'}
+        item = _Element(status=JOB_SUCCESS)
+        self._played(item, 'plan')
+        self._played(item, 'render')
+        for key in ('plan', 'render'):
+            process_runs.succeed(item, key, output_summary={'notices': [notice]})
+        preload([item])
+        with self.assertNumQueries(0):
+            decorate(item, preloaded=True)
+        self.assertEqual([{'label': 'Lecture coupée', 'icon': 'fa-scissors', 'title': 'cut',
+                           'variant': 'warning'}], item.notice_chips)
+        process_runs.fail(item, 'render', 'boom')
+        process_runs.succeed(item, 'plan', output_summary={'notices': []})
+        decorate(item)
+        self.assertEqual([], item.notice_chips, 'a failed line says nothing of its old result')
+
     def test_the_requested_model_is_declared_once_and_read_by_the_card(self):
         """Each app told the strip, the progress view and the ▶ of a process which model the
         card asks for (2026-10-04). It is declared ONCE (`model_of`) ; `card_view` reads it when
@@ -918,6 +942,23 @@ class SkeletonRunsThePipelineTest(TestCase):
         self.assertEqual('family:render', render.model_key)
         self.assertEqual('plan.out', plan.output_summary.get('label'))
         self.assertIsNone(process_runs.line(item), 'a pipeline card has no « main » line')
+
+    def test_a_notice_is_kept_on_its_line_and_an_empty_list_clears_it(self):
+        """The line keeps its summary from one render to the next (`succeed` completes it) : a
+        glue's `notices` is written as soon as it is returned, an empty list included."""
+        notice = {'key': 'ocr_loop_cut', 'label': 'Lecture coupée'}
+        item = self._element('pipeline_notices')
+
+        def saying(*notices):
+            return lambda element, ctx: {'label': 'plan.out', 'notices': list(notices)}
+
+        self._run(item, plan=saying(notice))
+        self.assertEqual([notice], process_runs.line(item, 'plan').output_summary['notices'])
+        self.assertNotIn('notices', process_runs.line(item, 'render').output_summary,
+                         'a glue that says nothing writes nothing')
+        process_runs.mark_stale(item, ['plan'])
+        self._run(item, plan=saying())
+        self.assertEqual([], process_runs.line(item, 'plan').output_summary['notices'])
 
     def test_the_card_reports_every_model_its_processes_employed(self):
         with mock.patch('wama.common.utils.task_skeleton._signal') as signal:

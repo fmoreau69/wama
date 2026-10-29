@@ -234,6 +234,27 @@ def input_props_for(instance, file_field='input_file', name=''):
     return props
 
 
+def notice_chips(rows) -> list:
+    """Les pastilles des REMARQUES qu'ont rendues les process d'une card sur leur résultat — une
+    lecture d'OCR coupée au premier passage, par exemple (`output_summary['notices']`, contrat du
+    squelette, 2026-10-29). Variante `warning` : un fait à vérifier, pas une erreur. Une même
+    remarque rendue par deux process ne s'affiche qu'une fois. Seules les lignes RÉUSSIES
+    comptent : une ligne en échec ou relancée ne dit plus rien de son ancien résultat."""
+    from wama.common.models import JOB_SUCCESS
+    chips, seen = [], set()
+    for row in rows or ():
+        if getattr(row, 'status', None) != JOB_SUCCESS:
+            continue
+        for notice in (getattr(row, 'output_summary', None) or {}).get('notices') or ():
+            key = notice.get('key') or notice.get('label')
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            chips.append({'label': notice.get('label') or key, 'icon': notice.get('icon') or '',
+                          'title': notice.get('title') or '', 'variant': 'warning'})
+    return chips
+
+
 def common_chips_for_items(items, params_json, values_of=None):
     """Chips des réglages COMMUNS aux filles d'un lot — pour la card MÈRE (slot
     `meta_template` de `_batch_card.html`).

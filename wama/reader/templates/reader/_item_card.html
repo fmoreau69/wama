@@ -82,6 +82,7 @@ boucle.{% endcomment %}
       {% else %}
         <div class="wcv3-out">
           {% include 'common/_card_chips.html' with chips=elem.output_chips %}
+          {% if elem.status == 'SUCCESS' %}{% include 'common/_card_chips.html' with chips=elem.notice_chips %}{% endif %}
           {% if elem.status == 'RUNNING' %}
             <span class="wcv3-out-step"><span class="pct">{{ elem.progress }}%</span> — {% trans "extraction…" %}</span>
           {% endif %}

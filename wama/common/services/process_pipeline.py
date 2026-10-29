@@ -1151,11 +1151,23 @@ def decorate(item, model_key=DECLARED, preloaded: bool = False):
     """Pose `processes`, `shown_state`, `shown_state_label` sur l'élément — ce que lisent les
     gabarits (`_card_processes.html`, `_cycle_button.html` via `elem.shown_state|default:
     elem.status`). Point d'attache des apps GÉNÉRÉES (`views_gen._decorer`) ; une app réelle
-    l'appelle de sa propre décoration. Sans pipeline : ne pose rien, rend None."""
-    view = card_view(item, model_key, preloaded=preloaded)
-    if view is None:
+    l'appelle de sa propre décoration. Sans pipeline : ne pose rien, rend None.
+
+    Pose aussi `notice_chips` (2026-10-29) : les REMARQUES que les process ont rendues sur leur
+    résultat (`output_summary['notices']`, contrat du squelette), en pastilles — lues sur les MÊMES
+    lignes, sans requête de plus pour une page."""
+    if pipeline_of(item) is None:
         return None
-    item.processes, item.shown_state, item.shown_state_label = view
+    if not preloaded:
+        preload([item])
+    try:
+        view = card_view(item, model_key, preloaded=True)
+        item.processes, item.shown_state, item.shown_state_label = view
+        from wama.common.utils.card_chips import notice_chips
+        item.notice_chips = notice_chips(getattr(item, PRELOADED, None) or ())
+    finally:
+        if not preloaded:
+            release(item)
     return view
 
 

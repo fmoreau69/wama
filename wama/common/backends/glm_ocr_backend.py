@@ -95,10 +95,11 @@ def _pdf_to_images(pdf_path: str, dpi: int = 200, dest_dir: str = None) -> list[
         return []
 
 
-def _ocr_image(model: str, image_path: str, language_hint: str = '') -> str:
+def _ocr_image(model: str, image_path: str, language_hint: str = '', on_cut=None) -> str:
     """Le texte d'UNE image, par le modèle Ollama `model` — appel par le client COMMUN
     (`llm_utils.llm_chat`, fournisseur `ollama`), qui porte l'adresse de l'hôte et le proxy.
-    Jusqu'au 2026-10-07 ce module tenait son propre client HTTP vers `/api/chat`."""
+    Jusqu'au 2026-10-07 ce module tenait son propre client HTTP vers `/api/chat`.
+    `on_cut()` est appelé quand la lecture a été coupée au premier passage (pastille de la card)."""
     from wama.common.utils.llm_utils import llm_chat
 
     lang_note = f" The document language is {language_hint}." if language_hint else ""
@@ -131,6 +132,8 @@ def _ocr_image(model: str, image_path: str, language_hint: str = '') -> str:
         if trimmed:
             logger.warning(f"[GlmOcr] sortie en boucle coupée au premier passage "
                            f"({len(text)} caractères gardés) : {image_path}")
+            if on_cut and not is_degenerate_output(text):
+                on_cut()
         if is_degenerate_output(text):
             raise RuntimeError(f"OCR {model} : la sortie tourne en boucle (le même passage "
                                f"répété) — le modèle ne lit pas ce document ; essayer un autre "
@@ -222,6 +225,7 @@ class GlmOcrBackend(OCRBackend):
             Extracted text as a string.
         """
         model = self._model_tag()
+        self.cut_pages = []
 
         if progress_callback:
             progress_callback(5, "GLM-OCR : initialisation…")
@@ -257,7 +261,8 @@ class GlmOcrBackend(OCRBackend):
                 if progress_callback:
                     progress_callback(pct_start, msg)
 
-                text = _ocr_image(model, img_path, language)
+                text = _ocr_image(model, img_path, language,
+                                  on_cut=lambda page=i + 1: self.cut_pages.append(page))
                 texts.append(text)
                 if on_partial:
                     try:

@@ -51,7 +51,12 @@ Contrat de la glu `process(item, ctx) -> dict | None` :
                             périmé quand cette sortie est remplacée (2026-10-02) ; optionnel,
               'output_fingerprint': empreinte d'une sortie qui n'est PAS un fichier (texte, lignes
                             en base) — même rôle qu'`output_ref` pour la péremption de l'aval
-                            (2026-10-03, transcriber) ; optionnel}
+                            (2026-10-03, transcriber) ; optionnel,
+              'notices': ce que la glu SIGNALE de son résultat, `[{key, label, icon, title}]` (une
+                         lecture d'OCR coupée au premier passage — `ocr_base.loop_cut_notice`) —
+                         gardé sur sa ligne (`output_summary['notices']`), montré en pastille près
+                         de la sortie (`process_pipeline.decorate`) ; une liste VIDE efface celles
+                         d'un rendu précédent (2026-10-29) ; optionnel}
   - Un process `optional` qui LÈVE ne fait pas échouer la card : sa ligne passe en échec, la
     console le dit, les process suivants sont joués (règle d'agrégation 4.4). Une ATTENTE
     (`ServiceNotReady`) n'est pas un échec, optionnel ou non : la tâche revient.
@@ -778,6 +783,10 @@ def _line_summary(res: dict, spec=None, item=None):
         summary['label'] = res['label']
     if res.get('output_fingerprint'):
         summary['fingerprint'] = str(res['output_fingerprint'])
+    # Les REMARQUES sur le résultat (2026-10-29) : la ligne garde son résumé d'un rendu à l'autre
+    # (`process_runs.succeed` le complète), donc la clé s'écrit dès que la glu la rend, vide comprise.
+    if 'notices' in res:
+        summary['notices'] = [dict(n) for n in (res.get('notices') or ()) if isinstance(n, dict)]
     # La TAILLE sur laquelle la durée de la ligne est mesurée (2026-10-05) — celle de l'ETA que la
     # glu apprend, sinon celle que DÉCLARE le process (`ProcessSpec.eta`, lue sur l'élément tel que
     # la glu le laisse : une glu qui apprend elle-même, chargement à part, ne rend pas d'`eta`).
