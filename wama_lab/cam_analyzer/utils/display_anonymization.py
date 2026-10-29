@@ -242,14 +242,30 @@ def confident(doc: dict, min_confidence: float, floors: dict | None = None) -> d
     return dict(doc, frames=frames)
 
 
+#: Finitions du floutage d'AFFICHAGE — essai esthétique (Fabien, 2026-10-29), pris ICI seulement :
+#: les défauts de l'Anonymizer ne bougent qu'une fois l'essai jugé (`blur_utils.blur_box_inside`).
+#: Flou à 50 % du petit côté de l'objet (indépendant de la résolution : le noyau fixe de 75 px
+#: rasait les petites plaques en aplat), zone ×1,44 en aire (+10 % par côté : la place du fondu,
+#: la boîte restant floutée en entier), coins de 5 px pris sur la zone, fondu sur toute la marge.
+#: Banc du 2026-10-29 sur 32 objets des quatre caméras (384×244 à 408×248) : même coût (2,7 ms
+#: par image) ; la zone ×1,05 ne laissait aucune place au fondu (bords francs, coins dans la boîte).
+BLUR_LOOK = {'intensity': 50, 'rounded_edges': 5, 'progressive_blur': 100, 'roi_enlargement': 1.44}
+
+
+def blur_look() -> dict:
+    """Les finitions du floutage, telles que la photo d'une passe les retient (`pass_tracking`)."""
+    return {'style': 'inside', **BLUR_LOOK}
+
+
 def blur_camera(camera, doc, settings_: dict, target: str, progress=None,
                 min_confidence: float = 0.0, floors: dict | None = None) -> str:
     """Réécrit la vidéo de `camera` floutée selon `doc` — le process « Floutage » de
     l'Anonymizer (interpolation des trous, extrapolation aux bords, flou à la forme ou au
-    rectangle) — et l'image entière hors des plages anonymisées. Rend le chemin écrit.
-    Les détections sous le seuil de leur classe ne sont pas floutées (`confident`)."""
+    rectangle) aux finitions `BLUR_LOOK` — et l'image entière hors des plages anonymisées. Rend
+    le chemin écrit. Les détections sous le seuil de leur classe ne sont pas floutées
+    (`confident`) ; `settings_` (l'Anonymizer) donne l'interpolation et le flou hors fenêtres."""
     from wama.common.utils import detections as dets
-    from wama.common.utils.blur_utils import blur_detections
+    from wama.common.utils.blur_utils import blur_detections, blur_detections_inside
     doc = confident(doc, min_confidence, floors)
     frames = dets.by_frame(
         doc, interpolate=bool(settings_.get('interpolate_detections', True)),
@@ -257,11 +273,17 @@ def blur_camera(camera, doc, settings_: dict, target: str, progress=None,
         max_extrapolation=int(settings_.get('max_extrapolation_frames') or 0))
     whole = dets.detection(box=[0, 0, doc['width'], doc['height']], label=OUTSIDE_LABEL)
     frames = _FramesWithOutside(frames, sorted(doc.get('scope') or []), whole)
-    blur = {'blur_ratio': settings_.get('blur_ratio', 75),
-            'rounded_edges': settings_.get('rounded_edges', 5),
-            'progressive_blur': settings_.get('progressive_blur', 0),
-            'roi_enlargement': settings_.get('roi_enlargement', 1.0)}
+    # L'image ENTIÈRE hors fenêtres garde le flou de l'Anonymizer : à 50 % de son petit côté,
+    # elle deviendrait un aplat uniforme (et coûterait plus, sur la plupart des images).
+    outside = {'blur_ratio': settings_.get('blur_ratio', 75),
+               'rounded_edges': settings_.get('rounded_edges', 5),
+               'progressive_blur': settings_.get('progressive_blur', 0),
+               'roi_enlargement': settings_.get('roi_enlargement', 1.0)}
+
+    def blur_frame(image, found):
+        if found and found[0].get('label') == OUTSIDE_LABEL:
+            return blur_detections(image, found, **outside)
+        return blur_detections_inside(image, found, **BLUR_LOOK)
+
     os.makedirs(os.path.dirname(target), exist_ok=True)
-    return dets.rewrite_media(camera.video_file.path, frames,
-                              lambda image, found: blur_detections(image, found, **blur),
-                              target, progress=progress)
+    return dets.rewrite_media(camera.video_file.path, frames, blur_frame, target, progress=progress)

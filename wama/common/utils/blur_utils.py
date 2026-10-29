@@ -266,6 +266,100 @@ def blur_detection(im0, detection_box, label, blur_ratio, rounded_edges, progres
     return im0
 
 
+def _rounded_mask(height, width, radius):
+    """Masque 0/255 d'un rectangle de `height` × `width` aux coins arrondis de `radius` pixels,
+    borné au demi-petit côté."""
+    mask = np.zeros((height, width), np.uint8)
+    r = int(max(0, min(radius, (min(height, width) - 1) // 2)))
+    if r == 0:
+        mask[:] = 255
+        return mask
+    cv2.rectangle(mask, (r, 0), (width - 1 - r, height - 1), 255, -1)
+    cv2.rectangle(mask, (0, r), (width - 1, height - 1 - r), 255, -1)
+    for cx, cy in ((r, r), (width - 1 - r, r), (r, height - 1 - r), (width - 1 - r, height - 1 - r)):
+        cv2.circle(mask, (cx, cy), r, 255, -1)
+    return mask
+
+
+def blur_box_inside(im0, box, *, intensity, rounded_edges, progressive_blur, roi_enlargement,
+                    min_sigma=2.0):
+    """Floute UN rectangle avec des finitions TENUES DANS LA ZONE (boîte × `roi_enlargement`,
+    en aire comme `Bounds.scale`) — rien n'est ajouté au-delà :
+      • `intensity` (1–99) : écart-type du flou en POURCENTAGE du petit côté de la boîte (plancher
+        `min_sigma` px). Le flou suit la taille de l'objet, pas la résolution de la vidéo : un
+        noyau fixe en pixels rase une petite plaque en aplat et laisse une grande trop nette ;
+      • le flou se calcule sur la zone ÉLARGIE de trois écarts-types, puis se compose : il se
+        mélange au voisinage au lieu d'être un rectangle découpé ;
+      • `rounded_edges` : rayon des coins de la zone, en pixels pris SUR la zone ;
+      • `progressive_blur` (0–100) : part de la marge zone − boîte où le flou se fond vers le
+        bord de la zone. La boîte détectée reste floutée en ENTIER : c'est l'agrandissement de
+        la zone qui fait la place de l'arrondi et du fondu.
+    Rend l'image modifiée en place."""
+    height, width = im0.shape[:2]
+    x0, y0, x1, y1 = [float(v) for v in box[:4]]
+    w, h = x1 - x0, y1 - y0
+    if w <= 1 or h <= 1:
+        return im0
+    sigma = max(float(min_sigma), float(intensity) / 100.0 * min(w, h))
+    grow = (max(float(roi_enlargement or 1.0), 1.0) ** 0.5 - 1) / 2
+    mx, my = grow * w, grow * h
+    zx0, zy0, zx1, zy1 = x0 - mx, y0 - my, x1 + mx, y1 + my
+    pad = int(3 * sigma) + 2
+    rx0, ry0 = max(0, int(zx0) - pad), max(0, int(zy0) - pad)
+    rx1, ry1 = min(width, int(np.ceil(zx1)) + pad), min(height, int(np.ceil(zy1)) + pad)
+    if rx1 <= rx0 or ry1 <= ry0:
+        return im0
+    region = im0[ry0:ry1, rx0:rx1]
+    zw, zh = max(1, int(round(zx1 - zx0))), max(1, int(round(zy1 - zy0)))
+    local = _rounded_mask(zh, zw, rounded_edges or 0)
+    mask = np.zeros(region.shape[:2], np.uint8)
+    ox, oy = int(round(zx0)) - rx0, int(round(zy0)) - ry0
+    sx0, sy0 = max(0, ox), max(0, oy)
+    sx1, sy1 = min(mask.shape[1], ox + zw), min(mask.shape[0], oy + zh)
+    if sx1 <= sx0 or sy1 <= sy0:
+        return im0
+    mask[sy0:sy1, sx0:sx1] = local[sy0 - oy:sy1 - oy, sx0 - ox:sx1 - ox]
+    band = max(0.0, min(float(progressive_blur or 0), 100.0)) / 100.0 * min(mx, my)
+    if band >= 0.5:
+        t = np.clip(cv2.distanceTransform(mask, cv2.DIST_L2, 5) / band, 0.0, 1.0)
+        alpha = t * t * (3.0 - 2.0 * t)
+    else:
+        alpha = (mask > 0).astype(np.float32)
+    # La boîte détectée reste floutée en ENTIER : arrondi et fondu ne vivent que dans la marge
+    # (sans marge, un coin arrondi entamait la boîte d'un petit objet).
+    bx0, by0 = max(0, int(np.floor(x0)) - rx0), max(0, int(np.floor(y0)) - ry0)
+    bx1, by1 = min(alpha.shape[1], int(np.ceil(x1)) - rx0), min(alpha.shape[0], int(np.ceil(y1)) - ry0)
+    if bx1 > bx0 and by1 > by0:
+        alpha[by0:by1, bx0:bx1] = 1.0
+    blurred = cv2.GaussianBlur(region, (0, 0), sigma)
+    alpha = alpha[:, :, None]
+    im0[ry0:ry1, rx0:rx1] = (blurred * alpha + region * (1.0 - alpha)).astype(np.uint8)
+    return im0
+
+
+def blur_detections_inside(im0, detections, *, intensity, rounded_edges, progressive_blur,
+                           roi_enlargement):
+    """Le floutage d'une image aux finitions tenues dans la zone (`blur_box_inside`), TOUTES
+    classes — candidat esthétique (Fabien, 2026-10-29) : le cam_analyzer l'emploie pour
+    l'affichage ; l'Anonymizer garde `blur_detections` tant que l'essai n'a pas convaincu. Une
+    détection à forme (segmentation) passe par `blur_shapes`, comme dans `blur_detections`."""
+    from .detections import valid_box
+    shapes = [det['polygons'] for det in detections or [] if det.get('polygons')]
+    if shapes:
+        im0 = blur_shapes(im0, shapes, blur_ratio=normalize_blur_ratio(
+            max(3, int(intensity))), rounded_edges=rounded_edges,
+            progressive_blur=progressive_blur, roi_enlargement=roi_enlargement)
+    for det in detections or []:
+        if det.get('polygons'):
+            continue
+        box = valid_box(det.get('box'), im0.shape) if det.get('interpolated') else det.get('box')
+        if box is None:
+            continue
+        im0 = blur_box_inside(im0, box, intensity=intensity, rounded_edges=rounded_edges,
+                              progressive_blur=progressive_blur, roi_enlargement=roi_enlargement)
+    return im0
+
+
 def blur_detections(im0, detections, *, blur_ratio, rounded_edges=5, progressive_blur=0,
                     roi_enlargement=1.0):
     """Floute, sur UNE image, les détections d'un document `detections` (`common/utils/

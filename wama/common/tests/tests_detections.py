@@ -299,6 +299,67 @@ class BlurShapeTest(SimpleTestCase):
         self.assertTrue(outside.any(), 'the fade spreads outside the shape')
 
 
+class BlurInsideTest(SimpleTestCase):
+    """The blur whose finishes stay INSIDE the zone (`blur_box_inside`, 2026-10-29) : strength
+    relative to the object, the detected box always fully blurred, the rounding and the fade living
+    in the margin that the enlargement makes — nothing outside the zone."""
+
+    BOX = [24, 24, 40, 40]
+
+    def _blur(self, image=None, box=None, **finish):
+        from wama.common.utils.blur_utils import blur_box_inside
+        options = dict(intensity=50, rounded_edges=0, progressive_blur=100, roi_enlargement=1.44)
+        options.update(finish)
+        return blur_box_inside(_stripes() if image is None else image, box or self.BOX, **options)
+
+    def test_nothing_changes_outside_the_zone(self):
+        untouched = _stripes()
+        changed = (self._blur() != untouched).any(axis=2)
+        rows, columns = np.where(changed.any(axis=1))[0], np.where(changed.any(axis=0))[0]
+        # ×1,44 en aire = +10 % du côté par bord : 1,6 px autour d'une boîte de 16
+        self.assertGreaterEqual(rows.min(), 22)
+        self.assertLessEqual(rows.max(), 41)
+        self.assertGreaterEqual(columns.min(), 22)
+        self.assertLessEqual(columns.max(), 41)
+
+    def test_the_detected_box_is_fully_blurred_even_with_round_corners_and_no_margin(self):
+        image = _stripes()
+        for finish in ({}, {'rounded_edges': 6, 'roi_enlargement': 1.0}):
+            out = self._blur(**finish)
+            box = out[24:40, 24:40, 0].astype(float)
+            self.assertLess(float(np.std(box)), 0.25 * float(np.std(image[24:40, 24:40, 0])), finish)
+
+    def test_the_strength_follows_the_object_not_the_image(self):
+        """Même objet à deux résolutions : le même flou relatif — le noyau fixe en pixels rasait
+        la petite version en aplat et laissait la grande trop nette."""
+        def residual(scale):
+            image = np.zeros((128 * scale, 128 * scale, 3), np.uint8)
+            for start in range(0, 128 * scale, 16 * scale):
+                image[:, start:start + 8 * scale] = 255
+            box = [32 * scale, 32 * scale, 96 * scale, 96 * scale]
+            before = float(np.std(image[box[1]:box[3], box[0]:box[2], 0]))
+            out = self._blur(image.copy(), box, intensity=5)     # floute EN PLACE
+            return float(np.std(out[box[1]:box[3], box[0]:box[2], 0])) / before
+        # mesuré : 0,409 aux deux échelles ; un flou fixe de 2 px rendrait 0,67 et 0,90
+        self.assertAlmostEqual(residual(1), residual(3), delta=0.05)
+
+    def test_the_fade_softens_the_margin_and_a_zero_fade_leaves_a_hard_edge(self):
+        image = _stripes()
+        soft = self._blur(progressive_blur=100, roi_enlargement=2.0)
+        hard = self._blur(progressive_blur=0, roi_enlargement=2.0)
+        margin = (slice(19, 23), slice(26, 38))     # la marge au-dessus de la boîte
+        self.assertLess(float(np.abs(soft[margin].astype(float) - image[margin]).mean()),
+                        float(np.abs(hard[margin].astype(float) - image[margin]).mean()))
+
+    def test_every_class_gets_the_same_finishes(self):
+        from wama.common.utils.blur_utils import blur_detections_inside
+        options = dict(intensity=50, rounded_edges=3, progressive_blur=100, roi_enlargement=1.44)
+        face = blur_detections_inside(_stripes(), [dets.detection(box=self.BOX, label='face')], **options)
+        plate = blur_detections_inside(_stripes(), [dets.detection(box=self.BOX, label='license_plate')],
+                                       **options)
+        self.assertTrue((face == plate).all())
+
+
 class DrawAndBlurTest(SimpleTestCase):
 
     def test_the_drawing_touches_the_detection_and_leaves_the_original_intact(self):

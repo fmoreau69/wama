@@ -106,9 +106,21 @@ class OnDemandPassesTest(unittest.TestCase):
         self.assertEqual(pt._WATCHED['anonymize_detect'], ['anonymize_classes', 'anonymize_quality'])
 
     def test_the_blur_threshold_stales_the_blur_and_never_the_detection(self):
-        self.assertEqual(pt._WATCHED['anonymize_blur'], ['anonymize_min_confidence', 'anonymize_floors'])
+        self.assertEqual(pt._WATCHED['anonymize_blur'],
+                         ['anonymize_min_confidence', 'anonymize_floors', 'anonymize_blur_look'])
         self.assertNotIn('anonymize_min_confidence', pt._WATCHED['anonymize_detect'])
         self.assertNotIn('anonymize_floors', pt._WATCHED['anonymize_detect'])
+        self.assertNotIn('anonymize_blur_look', pt._WATCHED['anonymize_detect'])
+
+    def test_the_new_blur_finishes_stale_a_blur_made_before_them(self):
+        """Les finitions du 2026-10-29 (`BLUR_LOOK`) : un floutage plus ancien les ignorait — son
+        état est le flou de l'Anonymizer (`_LEGACY_SETTINGS`), différent de la photo courante."""
+        profile = SimpleNamespace(anonymize_min_confidence=0.25, anonymize_classes=['face'],
+                                  anonymize_class_min_confidence={})
+        legacy = pt._LEGACY_SETTINGS['anonymize_blur_look'](profile)
+        current = pt._profile_snapshot(profile, ['anonymize_blur_look'])['anonymize_blur_look']
+        self.assertNotEqual(legacy, current)
+        self.assertEqual(current, {'style': 'inside', **anon.BLUR_LOOK})
 
     def test_a_class_floor_stales_a_blur_made_with_the_single_threshold(self):
         """Un floutage du 26/10 n'a photographié que le seuil commun : son état par classe est ce

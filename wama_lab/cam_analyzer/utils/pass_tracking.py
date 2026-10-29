@@ -110,9 +110,11 @@ PASSES: tuple = (
          watched=('anonymize_classes', 'anonymize_quality'), per_camera=True,
          task='compute_anonymize_detect_task', gpu=True, eta_size='windows', on_demand=True),
     # Le seuil du floutage (2026-10-26), par classe depuis le 2026-10-28 (`anonymize_floors`,
-    # dérivé), ne périme que le floutage : la détection garde tout.
+    # dérivé), ne périme que le floutage : la détection garde tout. Ses finitions aussi
+    # (`anonymize_blur_look`, 2026-10-29).
     Pass('anonymize_blur', label='Anonymisation — floutage (affichage)', stage='analyse',
-         depends_on=('anonymize_detect',), watched=('anonymize_min_confidence', 'anonymize_floors'),
+         depends_on=('anonymize_detect',),
+         watched=('anonymize_min_confidence', 'anonymize_floors', 'anonymize_blur_look'),
          per_camera=True,
          task='compute_anonymize_blur_task', eta_size='video', on_demand=True),
     # ── CALCUL (dérivation, CPU, rejouable) ─────────────────────────────────────
@@ -301,14 +303,24 @@ def _anonymize_floors(profile, legacy=False):
     return class_floors(profile)
 
 
+def _anonymize_blur_look(profile, legacy=False):
+    """Finitions du floutage d'affichage (`display_anonymization.blur_look`) — elles ne viennent
+    pas du profil mais du code, et un floutage fait avec d'autres est périmé.
+    `legacy` : celles d'avant le 2026-10-29, le flou de l'Anonymizer à ses défauts."""
+    from .display_anonymization import blur_look
+    return {'style': 'anonymizer'} if legacy else blur_look()
+
+
 #: Réglages surveillés DÉRIVÉS du profil : une passe ne surveille que la part d'un champ qu'elle lit.
 _DERIVED_SETTINGS = {'intersections': _intersections_for_windows, 'parked_zones': _parked_zones,
-                     'anonymize_floors': _anonymize_floors}
+                     'anonymize_floors': _anonymize_floors,
+                     'anonymize_blur_look': _anonymize_blur_look}
 #: Valeur qu'avait un réglage surveillé pour un calcul lancé AVANT qu'on le surveille. Sans elle, il
 #: est absent de la photo, donc « inchangé » : le rayon garés posé à 15 m le 2026-10-13 ne périmait
 #: pas un tracking du matin, et « Compléter les passes » ne l'aurait pas refait.
 _LEGACY_SETTINGS = {'parked_zones': lambda profile: _parked_zones(profile, legacy=True),
-                    'anonymize_floors': lambda profile: _anonymize_floors(profile, legacy=True)}
+                    'anonymize_floors': lambda profile: _anonymize_floors(profile, legacy=True),
+                    'anonymize_blur_look': lambda profile: _anonymize_blur_look(profile, legacy=True)}
 
 
 def _profile_snapshot(profile, watched_keys: list[str]) -> dict:
