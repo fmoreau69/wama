@@ -112,7 +112,7 @@ class ItemViewsTest(_ItemViewsFixture):
         job.refresh_from_db()
         self.assertEqual('PENDING', job.status)
 
-    def test_start_all_launches_what_the_app_declares_and_answers_the_common_vocabulary(self):
+    def test_start_all_follows_the_app_rule_and_answers_the_common_vocabulary(self):
         waiting, failed = self._job(), self._job(status='FAILURE')
         done, running = self._job(status='SUCCESS'), self._job(status='RUNNING')
         code, body = self._post(self.views['start_all'])
@@ -188,7 +188,7 @@ class QueueScopesTest(_ItemViewsFixture):
         waiting, failed = self._job(), self._job(status='FAILURE')
         done = self._job(status='SUCCESS')
         self._job(status='AWAITING_RESOURCES')                      # in flight : never relaunched
-        expected = {'pending': [waiting.pk], 'failed': [failed.pk],
+        expected = {'pending': [waiting.pk], 'failure': [failed.pk],
                     'unfinished': [waiting.pk, failed.pk], 'all': [waiting.pk, failed.pk, done.pk]}
         for scope, pks in expected.items():
             with self.subTest(scope=scope):

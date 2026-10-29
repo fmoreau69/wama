@@ -1887,14 +1887,12 @@ def importer_for(target_app):
     fn = IMPORTERS.get(target_app)
     if fn is not None:
         return fn
-    import functools
-    import inspect
     from wama.common.app_registry import APP_CATALOG
+    from wama.common.sandbox import retarget_callable
     source = (APP_CATALOG.get(target_app) or {}).get('generated_from')
     src_fn = IMPORTERS.get(source or '')
-    if src_fn is not None and 'app_label' in inspect.signature(src_fn).parameters:
-        return functools.partial(src_fn, app_label=target_app)
-    return None
+    # La règle de dérivation, commune avec l'outil de création d'une jumelle (2026-10-29).
+    return retarget_callable(src_fn, target_app) if src_fn is not None else None
 
 
 def receivable_apps(user=None):

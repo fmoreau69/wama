@@ -31,32 +31,35 @@ from django.core.cache import cache
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
+from wama.common.models import (JOB_AWAITING_RESOURCES, JOB_FAILURE, JOB_PENDING, JOB_RUNNING,
+                                JOB_SUCCESS)
 from wama.common.utils.progress_views import request_user
 
 logger = logging.getLogger(__name__)
 
 #: Ce que lance « tout lancer » quand l'app ne dit rien : les éléments en attente.
-DEFAULT_PENDING = {'status': 'PENDING'}
+DEFAULT_PENDING = {'status': JOB_PENDING}
 
 #: Les éléments EN VOL : en cours, ou déjà partis attendre leurs ressources. « Tout lancer » ne
 #: les relance pas, « tout effacer » ne les retire pas (on ne retire pas sous une tâche qui écrit).
-IN_FLIGHT = ('RUNNING', 'AWAITING_RESOURCES')
+IN_FLIGHT = (JOB_RUNNING, JOB_AWAITING_RESOURCES)
 
 #: Les PÉRIMÈTRES que l'utilisateur choisit au menu ▾ de « tout lancer » (Fabien, 2026-10-29 :
 #: « un menu déroulant pour que l'utilisateur précise son choix »). Le clic principal garde la
 #: règle que l'app DÉCLARE (`pending` / `pending_exclude`). Clé → (libellé, filtre, exclusion,
 #: compteur de la barre de file qui dit combien il en lance — `progress_views.queue_progress`).
+#: Les clés parlent le vocabulaire du FILTRE de la barre (`queue_view`, `failure`, `success`).
 START_SCOPES = {
-    'pending': ('En attente', {'status': 'PENDING'}, {}, 'pending'),
-    'failed': ('Échecs', {'status': 'FAILURE'}, {}, 'failure'),
-    'unfinished': ('Non réussis', {}, {'status': 'SUCCESS'}, 'unfinished'),
+    'pending': ('En attente', {'status': JOB_PENDING}, {}, 'pending'),
+    'failure': ('Échecs', {'status': JOB_FAILURE}, {}, 'failure'),
+    'unfinished': ('Non réussis', {}, {'status': JOB_SUCCESS}, 'unfinished'),
     'all': ('Tout relancer', {}, {}, 'relaunchable'),
 }
 #: Les périmètres du menu ▾ de « tout effacer » — le clic principal efface toute la file (hors vol).
 CLEAR_SCOPES = {
-    'success': ('Terminés', {'status': 'SUCCESS'}, 'success'),
-    'failed': ('Échecs', {'status': 'FAILURE'}, 'failure'),
-    'pending': ('En attente', {'status': 'PENDING'}, 'pending'),
+    'success': ('Terminés', {'status': JOB_SUCCESS}, 'success'),
+    'failure': ('Échecs', {'status': JOB_FAILURE}, 'failure'),
+    'pending': ('En attente', {'status': JOB_PENDING}, 'pending'),
 }
 
 
@@ -171,7 +174,7 @@ def _launch(declaration, item):
     try:
         task = declaration.task_of(item).delay(item.pk)
     except Exception:
-        item.status = 'PENDING'
+        item.status = JOB_PENDING
         item.save(update_fields=['status'])
         raise
     item.task_id = task.id
@@ -334,7 +337,7 @@ def make_item_views(*, work_model, app_id: str, task=None, task_for=None,
         if refused:
             return _refusal(refused)
         return JsonResponse({'success': True, 'id': item.pk, 'task_id': task_sent.id,
-                             'status': 'RUNNING'})
+                             'status': JOB_RUNNING})
 
     def _scope(request, table):
         """Le périmètre choisi au menu ▾ (`?scope=`), '' pour le clic principal ; un périmètre

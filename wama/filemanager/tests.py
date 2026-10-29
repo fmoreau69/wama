@@ -97,13 +97,18 @@ class MenuContextuelDeLArbreTests(SimpleTestCase):
 class ImporteurDeriveTests(TestCase):
 
     def test_une_jumelle_herite_de_l_importeur_de_sa_source_recible(self):
+        def source(source_path, user, app_label='converter'):
+            return app_label
         with patch('wama.common.app_registry.APP_CATALOG',
-                   _catalogue_avec_jumelle('converter')):
+                   _catalogue_avec_jumelle('converter')), \
+                patch.dict(IMPORTERS, {'converter': source}):
             fn = importer_for('jumelle_99')
         self.assertIsNotNone(fn, "la jumelle d'une source paramétrable doit résoudre")
-        # Re-ciblage effectif : le partial porte l'app_label de la JUMELLE, pas de la source.
-        self.assertEqual(fn.keywords.get('app_label'), 'jumelle_99')
-        self.assertIs(fn.func, IMPORTERS['converter'])
+        # Re-ciblage effectif (règle commune `sandbox.retarget_callable`, 2026-10-29) : l'importeur
+        # de la source, appelé avec l'app_label de la JUMELLE — FIXÉ, même si l'appelant en passe un.
+        self.assertIs(fn.__wrapped__, source)
+        self.assertEqual('jumelle_99', fn('x', None))
+        self.assertEqual('jumelle_99', fn('x', None, app_label='converter'))
 
     def test_une_source_non_parametrable_ne_derive_rien(self):
         # Dériver d'une source sans `app_label` ferait écrire l'import DANS LA SOURCE — le
@@ -235,7 +240,7 @@ class ToutImporteurEstDerivableTests(SimpleTestCase):
                                                       'input_extensions': ('.txt',)}}):
                 fn = importer_for('jumelle_99')
             self.assertIsNotNone(fn, f"la jumelle d'une app {app} doit dériver son importeur")
-            self.assertEqual(fn.keywords.get('app_label'), 'jumelle_99')
+            self.assertIs(fn.__wrapped__, IMPORTERS[app])   # l'importeur de SA source, re-ciblé
 
 
 class DepotAvecArborescenceTests(TestCase):

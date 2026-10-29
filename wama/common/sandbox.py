@@ -84,6 +84,29 @@ def declaring_app(app: str) -> str:
     return twin_source(app) or app
 
 
+def retarget_callable(fn, label: str):
+    """Un geste de l'app SOURCE re-ciblé sur une jumelle : `fn` appelé avec `app_label=label` FIXÉ
+    (un `app_label` passé par l'appelant est écrasé). Le contrat des importeurs (« Envoyer vers… »,
+    `filemanager.views.importer_for`, 2026-08-30) et des outils de création de l'assistant
+    (`tool_api._register_twin_creators`, 2026-10-29) — une règle, deux consommateurs.
+    None si `fn` ne sait pas être re-ciblé (pas de paramètre `app_label`) : plutôt pas de geste
+    qu'un geste qui écrirait dans l'app ORIGINALE (une jumelle qui agit sur son original ne mesure
+    plus rien)."""
+    import functools
+    import inspect
+    try:
+        if 'app_label' not in inspect.signature(fn).parameters:
+            return None
+    except (TypeError, ValueError):
+        return None
+
+    @functools.wraps(fn)
+    def retargeted(*args, **kwargs):
+        kwargs['app_label'] = label
+        return fn(*args, **kwargs)
+    return retargeted
+
+
 def _retarget(value, src: str, label: str):
     """Une déclaration de la source, ses chemins `wama.<src>.…` re-ciblés sur le paquet de la
     jumelle. Un module `workers` devient `tasks` quand la jumelle a le sien généré : la

@@ -4420,27 +4420,14 @@ def _register_triads():
             TOOL_REGISTRY[fn.__name__] = fn
 
 
-def _twin_creator(source, label):
-    """L'outil de création d'une jumelle : celui de sa source, `app_label` FIXÉ — un appelant ne
-    peut pas viser une autre app (le paramètre est interne, `INTERNAL_TOOL_PARAMS`)."""
-    import functools
-
-    @functools.wraps(source)
-    def creator(user, *args, **kwargs):
-        kwargs['app_label'] = label
-        return source(user, *args, **kwargs)
-    creator.__name__ = creator.__qualname__ = f'add_to_{label}'
-    return creator
-
-
 def _register_twin_creators():
     """`add_to_<jumelle>` DÉRIVÉ de l'outil de sa source (2026-10-29, décision de Fabien : « le même
-    mécanisme qu'`importer_for` ») — jamais une ligne écrite au registre pour une jumelle. Une
-    source dont l'outil ne sait pas être re-ciblé (pas de paramètre `app_label`) n'en donne pas :
-    plutôt pas d'outil qu'un outil qui écrirait dans l'app ORIGINALE. Avec lui, la jumelle a sa
-    triade entière, et son nœud du Studio (`generic_runner._twin_can_create`)."""
-    import inspect
-    from wama.common.sandbox import load_registry, sandbox_labels
+    mécanisme qu'`importer_for` ») — jamais une ligne écrite au registre pour une jumelle. La règle
+    est celle des importeurs (`sandbox.retarget_callable`) : `app_label` FIXÉ, et une source qui ne
+    sait pas être re-ciblée ne donne pas d'outil. Le paramètre est interne
+    (`INTERNAL_TOOL_PARAMS`) : un appelant ne peut pas viser une autre app. Avec lui, la jumelle a
+    sa triade entière, et son nœud du Studio (`generic_runner._twin_can_create`)."""
+    from wama.common.sandbox import load_registry, retarget_callable, sandbox_labels
     installed = set(sandbox_labels())
     for entry in load_registry():
         label, src = entry.get('label'), entry.get('generated_from')
@@ -4448,12 +4435,10 @@ def _register_twin_creators():
         name = f'add_to_{label}'
         if label not in installed or source is None or name in TOOL_REGISTRY:
             continue
-        try:
-            if 'app_label' not in inspect.signature(source).parameters:
-                continue
-        except (TypeError, ValueError):
-            continue
-        globals()[name] = TOOL_REGISTRY[name] = _twin_creator(source, label)
+        creator = retarget_callable(source, label)
+        if creator is not None:
+            creator.__name__ = creator.__qualname__ = name
+            globals()[name] = TOOL_REGISTRY[name] = creator
 
 
 _register_triads()
