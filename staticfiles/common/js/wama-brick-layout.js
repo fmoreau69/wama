@@ -696,9 +696,12 @@
             });
             slots.forEach(function (slot) { mountBrick(frames[slot.id]); });
         }
-        var LAYOUT_HELP = 'Épingle : garder un panneau au bord de la fenêtre (haut, bas, gauche, '
-            + 'droite) — disposition modifiable : empiler des panneaux en un seul (calques), les '
-            + 'monter, les descendre, les détacher';
+        // Les gestes de la disposition, tels que l'utilisateur les fait : le bandeau de la
+        // disposition modifiable et l'aide de la page les montrent (`wama-page-controls.js`).
+        var LAYOUT_HELP = 'Glissez un panneau par son titre pour le déplacer — vers un bord de la '
+            + 'fenêtre pour l’y épingler, sur un autre panneau pour les réunir en un seul (calques) — '
+            + 'et retaillez-le par son coin. L’épingle de son titre garde aussi un panneau au bord '
+            + '(haut, bas, gauche, droite) ou l’ouvre dans une autre fenêtre, même figée.';
 
         function clearDock(el) {
             el.classList.remove('is-docked', 'is-fit');

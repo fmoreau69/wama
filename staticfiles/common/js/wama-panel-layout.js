@@ -12,7 +12,7 @@
  *
  * Le rendu par défaut ne change pas : tant que le compte n'a rien disposé, le volet reste celui
  * d'avant et la grille n'est pas même chargée ; elle se monte au geste « Modifier la disposition »
- * (le cadenas du titre du volet). Le contenu d'une brique DÉFILE en elle (la règle de toutes les
+ * (le cadenas de l'en-tête, `wama-page-controls.js`). Le contenu d'une brique DÉFILE en elle (la règle de toutes les
  * briques) ; une section que la page masque — l'aperçu tant que rien n'est sélectionné — retire
  * son panneau sans laisser de trou (`setShown`).
  *
@@ -32,7 +32,6 @@
     var config;
     try { config = JSON.parse(source.textContent); } catch (e) { return; }
     var content = document.querySelector('#wama-right-panel .right-panel-content');
-    var header = document.querySelector('#wama-right-panel .right-panel-header');
     if (!config || !content) return;
     var MARK = '[data-wama-brick]';
     var withCentre = Array.prototype.some.call(document.querySelectorAll(MARK),
@@ -40,7 +39,6 @@
     var subject = withCentre ? 'de la page' : 'du volet';
 
     var layout = null;              // la disposition commune, une fois montée
-    var lockBtn = null, resetBtn = null;
 
     // ── Les fichiers de la grille, chargés au premier geste (une page disposée les a déjà),
     // par la plomberie commune (`WamaApp.loadScript`, `loadStyle`).
@@ -199,45 +197,23 @@
         });
     }
 
-    // ── Le cadenas du titre du volet : modifier / figer la disposition, et la remettre ─────
-    function button(icon, title, onClick) {
-        var b = document.createElement('button');
-        b.type = 'button';
-        b.className = 'btn btn-sm btn-link text-secondary p-0 ms-2';
-        b.innerHTML = '<i class="fas ' + icon + '"></i>';
-        b.title = title;
-        b.setAttribute('aria-label', title);
-        b.addEventListener('click', onClick);
-        return b;
-    }
+    // ── Le cadenas : celui des CONTRÔLES DE PAGE de l'en-tête (2026-10-29), auquel le volet se
+    // déclare — il vivait dans le titre du volet, qu'une disposition peut déplacer.
     function syncTools() {
-        if (!lockBtn) return;
-        var open = !!layout && !layout.frozen();
-        lockBtn.innerHTML = '<i class="fas ' + (open ? 'fa-lock-open' : 'fa-lock') + '"></i>';
-        lockBtn.title = (open ? 'Figer la disposition ' : 'Modifier la disposition ') + subject;
-        lockBtn.setAttribute('aria-label', lockBtn.title);
-        lockBtn.setAttribute('aria-pressed', open ? 'true' : 'false');
-        resetBtn.hidden = !open;
+        if (global.WamaPageControls) global.WamaPageControls.layoutChanged();
     }
-    if (header) {
-        var tools = document.createElement('span');
-        tools.className = 'wama-panel-tools';
-        resetBtn = button('fa-table-cells-large', 'Disposition par défaut ' + subject, function () {
-            if (layout) layout.reset();
+    if (global.WamaPageControls) {
+        global.WamaPageControls.offerLayout({
+            subject: subject,
+            frozen: function () { return !layout || layout.frozen(); },
+            setFrozen: function (on) {
+                if (layout) { layout.setFrozen(on); return; }
+                if (on) return;
+                return arrange().then(function () { if (layout) layout.setFrozen(false); });
+            },
+            reset: function () { if (layout) layout.reset(); },
+            help: function () { return layout ? layout.help : ''; },
         });
-        lockBtn = button('fa-lock', '', function () {
-            if (layout) { layout.setFrozen(!layout.frozen()); return; }
-            arrange().then(function () { if (layout) layout.setFrozen(false); })
-                .catch(function (e) {
-                    if (global.WamaApp && global.WamaApp.toast) {
-                        global.WamaApp.toast('Disposition indisponible : ' + e.message, 'danger');
-                    }
-                });
-        });
-        tools.appendChild(resetBtn);
-        tools.appendChild(lockBtn);
-        header.appendChild(tools);
-        syncTools();
     }
 
     // Une page déjà disposée par ce compte s'ouvre telle qu'il l'a laissée.

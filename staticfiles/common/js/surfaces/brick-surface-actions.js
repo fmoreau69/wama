@@ -6,13 +6,11 @@
  * transcriber et le studio ; Ctrl+Z / Ctrl+Maj+Z valent partout sur la page.
  * Enregistrer : le champ déclaré par la surface, validé par le serveur.
  * Appliquer : enregistre puis rejoue le process que la modification a périmé (`reruns`).
- * Disposition : la FIGER (rendu fini, plus rien ne bouge) ou la rendre modifiable — gardée par
- * compte, lecture seule comprise (2026-10-21) — et rendre à chaque brique la place que la surface
- * déclare (inactif tant qu'elle est figée).
- * Aide : les RACCOURCIS que chaque brique montée déclare au registre (`UIBrick.shortcuts`, lus par
- * `ctx.shortcuts()`, 2026-10-29) et les gestes de souris qu'elle décrit (`help`, `ctx.helps()`) —
- * jamais ceux d'une brique écrits ici (l'aide de l'image y figurait en dur : fausse sur une page de
- * texte).
+ *
+ * La DISPOSITION (figer, modifier, « Disposition par défaut ») et l'AIDE (raccourcis des briques
+ * montées, gestes) ne sont plus ici depuis le 2026-10-29 (décision de Fabien) : elles valent pour
+ * toute la page et vivent dans l'en-tête (`wama-page-controls.js`), où une disposition ne peut
+ * pas les égarer. Un lien y renvoie.
  */
 (function (global) {
     'use strict';
@@ -37,13 +35,8 @@
             (reruns ? '<button type="button" class="btn btn-sm btn-success w-100" data-act="apply" title="Enregistrer puis relancer « ' + reruns + ' »"><i class="fas fa-play"></i> Appliquer</button>' : '') +
             (finish ? '<button type="button" class="btn btn-sm btn-success w-100" data-act="finish" title="Marquer la correction comme terminée"><i class="fas fa-check-double"></i> ' + esc(finish) + '</button>' : '') +
             '<div class="wama-actions-layout">' +
-            '  <button type="button" class="btn btn-sm btn-link text-secondary" data-act="freeze"></button>' +
-            '  <button type="button" class="btn btn-sm btn-link text-secondary" data-act="layout" title="Rendre à chaque panneau sa place d\'origine"><i class="fas fa-table-cells-large"></i> Disposition par défaut</button>' +
-            '</div>' +
-            '<div class="wama-actions-help"></div>';
-        var helpEl = body.querySelector('.wama-actions-help');
-        var freezeBtn = body.querySelector('[data-act="freeze"]');
-        var layoutBtn = body.querySelector('[data-act="layout"]');
+            '  <button type="button" class="btn btn-sm btn-link text-secondary" data-act="help" title="Raccourcis clavier, disposition et gestes de cette page (?)"><i class="fas fa-circle-question"></i> Raccourcis et aide</button>' +
+            '</div>';
 
         body.addEventListener('click', function (ev) {
             var b = ev.target.closest('[data-act]');
@@ -51,21 +44,8 @@
             if (b.dataset.act === 'save') ctx.save();
             else if (b.dataset.act === 'apply') ctx.apply();
             else if (b.dataset.act === 'finish') ctx.finish();
-            else if (b.dataset.act === 'layout') ctx.resetLayout();
-            else if (b.dataset.act === 'freeze') ctx.setFrozen(!ctx.frozen());
+            else if (b.dataset.act === 'help' && global.WamaPageControls) global.WamaPageControls.openHelp('keys');
         });
-
-        function syncLayout() {
-            var frozen = !!(ctx.frozen && ctx.frozen());
-            freezeBtn.hidden = !ctx.setFrozen;
-            freezeBtn.innerHTML = frozen
-                ? '<i class="fas fa-lock-open"></i> Modifier la disposition'
-                : '<i class="fas fa-lock"></i> Figer la disposition';
-            freezeBtn.title = frozen ? 'Déplacer et redimensionner de nouveau les panneaux'
-                                     : 'Garder cette disposition telle quelle, au rendu fini';
-            layoutBtn.disabled = frozen;
-        }
-        ctx.on('layout', syncLayout);
 
         function refresh() {
             var dirty = ctx.dirty();
@@ -79,27 +59,6 @@
                 b.disabled = !ctx.canEdit || (other && b.dataset.act === 'apply');
             });
             ctx.history.syncButtons();
-            // Lue à chaque rafraîchissement : les briques placées APRÈS celle-ci sur la grille
-            // sont montées plus tard que son `mount`.
-            renderHelp();
-            syncLayout();
-        }
-
-        /** Les RACCOURCIS que les briques montées déclarent au registre (`ctx.shortcuts()`), brique
-         *  par brique — la touche, ce qu'elle fait, sa portée au survol —, puis les gestes de la
-         *  souris que chacune décrit (`help`). */
-        function renderHelp() {
-            var keys = ctx.shortcuts().map(function (group) {
-                return '<div class="wama-keys-group"><b>' + esc(group.title) + '</b><ul>' +
-                    group.items.map(function (s) {
-                        return '<li title="' + esc(s.where) + '"><kbd>' + esc(s.label) + '</kbd> ' +
-                               esc(s.action) + (s.scope === 'field' ? ' <i>(' + esc(s.where) + ')</i>' : '') +
-                               '</li>';
-                    }).join('') + '</ul></div>';
-            }).join('');
-            var gestures = ctx.helps().filter(Boolean);
-            helpEl.innerHTML = keys + (gestures.length
-                ? '<div class="wama-keys-gestures">' + esc(gestures.join(' — ')) + '</div>' : '');
         }
         refresh();
         return { refresh: refresh };

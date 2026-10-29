@@ -2384,7 +2384,7 @@ Chips des cards GÉNÉRÉS du schéma params (chip=True), groupés par section v
 
 ### Clavier des briques (une touche, un propriétaire)
 
-Le module unique qui reçoit les frappes et les distribue selon la règle décidée par Fabien le 2026-10-29 : une touche déjà prise plus près du focus n'est pas redistribuée ; sous une couche ouverte (modale, panneau), seule une couche INSCRITE la reçoit (la visionneuse, le menu de card) ; une saisie ne passe que les touches déclarées (Ctrl+Espace) ; la brique qui a la main d'abord, puis les PRIORITAIRES (le transport) ; un observateur suit sans prendre. TOUTES les briques y sont inscrites depuis le même jour (aucune n'écoute plus le clavier de la page elle-même, `tests_surfaces.PageKeyListenersTest`). Les touches de chaque brique se DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de la brique Actions et du catalogue
+Le module unique qui reçoit les frappes et les distribue selon la règle décidée par Fabien le 2026-10-29 : une touche déjà prise plus près du focus n'est pas redistribuée ; sous une couche ouverte (modale, panneau), seule une couche INSCRITE la reçoit (la visionneuse, le menu de card) ; une saisie ne passe que les touches déclarées (Ctrl+Espace) ; la brique qui a la main d'abord, puis les PRIORITAIRES (le transport) ; un observateur suit sans prendre. TOUTES les briques y sont inscrites depuis le même jour (aucune n'écoute plus le clavier de la page elle-même, `tests_surfaces.PageKeyListenersTest`). Les touches de chaque brique se DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de l'aide de la page (contrôles de page) et du catalogue
 
 - **Domicile** : `wama/common/static/common/js/wama-keys.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §3-ter](../construction/ui/WAMA_VOLETS.md)
 
@@ -2397,6 +2397,12 @@ Lignes de journal structurées par utilisateur et par app. ⚠ Annoncé « via R
 - **API publique** (2) :
   - `push_console_line(user_id: int, line: str, level: str='info', app: str='system', maxlen: int=500) -> None` — Append a structured log line to the user's console buffer.
   - `get_console_lines(user_id: int, levels: Optional[List[str]]=None, app: Optional[str]=None, limit: int=200) -> List[dict]` — Retrieve structured console lines for a user.
+
+### Contrôles de page (disposition, aide)
+
+Ce qui vaut pour TOUTE la page vit dans l'en-tête, jamais dans une brique qu'une disposition peut déplacer (décision de Fabien, 2026-10-29) : le CADENAS, montré quand la page offre une disposition (le volet des pages d'apps, une surface), dont le bandeau prend la place du logo — « Disposition par défaut », « Figer » — et affiche les gestes sans prendre le pointeur ; l'AIDE de la page (touche « ? »), qui liste les raccourcis des briques de CETTE page, lus au registre des briques (`volet.page_controls_config` : chacune avec ce qui dit qu'elle est sur la page), la disposition et les gestes. Une page y DÉCLARE ce qu'elle apporte (`offerLayout`, `addShortcuts`, `addHelp`) ; le module ne nomme aucune page
+
+- **Domicile** : `wama/common/static/common/js/wama-page-controls.js` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §3-ter](../construction/ui/WAMA_VOLETS.md)
 
 ### data-* du gear ⚙ des cards
 
@@ -2440,13 +2446,14 @@ Une page DÉCLARE les sections du volet droit qu'elle garde (retrait, jamais ajo
 
 - **Domicile** : `wama/common/utils/volet.py` · **doc** : [docs/construction/ui/WAMA_VOLETS.md §8](../construction/ui/WAMA_VOLETS.md)
 - **Module** : Déclaration du VOLET DROIT par la page — `WAMA_VOLETS.md §8 n°2`.
-- **API publique** (6) :
+- **API publique** (7) :
   - `volet(*, tete: bool=False, medias: bool=True, parametres: bool=True, actions: bool=True, arrangeable: bool=True) -> dict` — Déclaration de volet, toujours COMPLÈTE (cf. le pourquoi dans l'en-tête du module).
   - `class PanelSlot` — Une section du volet comme emplacement de la disposition commune : la COLONNE du volet
   - `page_key(request) -> str` — La page dont on garde la disposition du volet : l'espace de noms de sa route — le plus
   - `layout_of(user, key: str) -> dict` — La disposition du volet que `user` a gardée pour la page `key` (`clean_layout`), `stored` à
   - `is_arranged(layout: dict) -> bool` — Le compte a-t-il disposé ce volet ? Sinon il reste celui d'avant, sans grille.
   - `layout_config(request) -> dict | None` — Ce que `wama-panel-layout.js` lit (`base.html`) ; None sans compte ou sans page nommée.
+  - `page_controls_config() -> dict` — Ce que les CONTRÔLES DE PAGE lisent (`wama-page-controls.js`, `base.html`, 2026-10-29) : les
 
 ### Entrée de file (card seule OU lot)
 

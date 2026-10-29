@@ -96,18 +96,22 @@ class PanelSlot:
     #: À la hauteur de son contenu (`wama-brick-layout.js`, `sized`) : on la déplace et on règle sa
     #: largeur, sa hauteur suit ce qu'elle montre.
     fit: bool = False
+    #: La brique du REGISTRE (`surfaces.BRICKS`) que porte une section du volet (2026-10-29) : ce
+    #: qui dit qu'elle est sur la page, pour l'aide de la page (`page_controls_config`).
+    brick: str = ''
 
     def to_dict(self) -> dict:
         return {'id': self.id, 'element': self.element, 'x': self.x, 'y': self.y, 'w': self.w,
                 'h': self.h, 'zone': self.zone, 'kind': self.kind, 'domain': self.domain,
-                'title': self.title, 'fit': self.fit}
+                'title': self.title, 'fit': self.fit, 'brick': self.brick}
 
 
 def _stacked(*sections) -> tuple:
-    """Les emplacements dans l'ordre donné, chacun sous le précédent."""
+    """Les emplacements dans l'ordre donné, chacun sous le précédent : `(id, élément, hauteur)`,
+    et la brique du registre qu'il porte en quatrième quand il en porte une."""
     out, y = [], 0
-    for slot_id, element, h in sections:
-        out.append(PanelSlot(slot_id, element, y, h))
+    for slot_id, element, h, *brick in sections:
+        out.append(PanelSlot(slot_id, element, y, h, brick=(brick or [''])[0]))
         y += h
     return tuple(out)
 
@@ -120,7 +124,7 @@ PANEL_SLOTS = _stacked(
     ('preview', 'media-section', 7),
     ('info', 'info-section', 6),
     ('settings', 'settings-section', 10),
-    ('actions', 'actions-section', 4),
+    ('actions', 'actions-section', 4, 'inspector_panel'),
 )
 
 
@@ -218,6 +222,31 @@ def layout_config(request) -> dict | None:
             'key': f'wama.panel.{key}', 'layout': layout, 'arranged': is_arranged(layout),
             'slots': [s.to_dict() for s in declaration(key).slots], 'columns': GRID_COLUMNS,
             'max_rows': MAX_LAYOUT_ROWS, 'dock_edges': list(DOCK_EDGES)}
+
+
+def page_controls_config() -> dict:
+    """Ce que les CONTRÔLES DE PAGE lisent (`wama-page-controls.js`, `base.html`, 2026-10-29) : les
+    raccourcis des briques de PAGE, lus au registre (`UIBrick.shortcuts`), chacune avec ce qui dit
+    qu'elle est sur la page (`present`) — `always` pour une brique que la page de base charge
+    (son montage est un script), sinon un sélecteur dérivé de ce qui la déclare : la marque d'une
+    brique du centre (`data-wama-brick`), l'élément d'une section du volet qui la porte. Une brique
+    de page à raccourcis sans l'un ni l'autre n'est pas listée (garde : `PageControlsTest`)."""
+    from wama.common.surfaces import BRICKS
+    selectors = {}
+    for slot in PANEL_SLOTS:
+        if slot.brick:
+            selectors.setdefault(slot.brick, []).append(f'#{slot.element}')
+    for kind, _h, _fit in CENTRE_BRICKS:
+        selectors.setdefault(kind, []).append(f'[data-wama-brick="{kind}"]')
+    groups = []
+    for brick in BRICKS.values():
+        if not (brick.is_page and brick.shortcuts):
+            continue
+        present = 'always' if brick.mount.endswith('.js') else ', '.join(selectors.get(brick.key, []))
+        if present:
+            groups.append({'brick': brick.key, 'title': brick.name, 'present': present,
+                           'items': [s.to_dict() for s in brick.shortcuts]})
+    return {'shortcuts': groups}
 
 
 #: Défaut HISTORIQUE — les trois sections, aucun bloc de tête. C'est ce que rend une page qui

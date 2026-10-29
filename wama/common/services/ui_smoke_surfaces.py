@@ -186,8 +186,9 @@ _GRID_STATE_JS = """() => {
             if (n && n.id) places[n.id] = {x: n.x, y: n.y, w: n.w, h: n.h, zone: zone};
         });
     });
-    const freeze = document.querySelector('[data-act="freeze"]');
-    const reset = document.querySelector('[data-act="layout"]');
+    // Le cadenas et le bandeau des CONTRÔLES DE PAGE de l'en-tête (2026-10-29, `wama-page-controls.js`).
+    const freeze = document.querySelector('#wamaLayoutToggle');
+    const reset = document.querySelector('.wama-layout-banner:not([hidden]) [data-page-layout="reset"]');
     // Les DEUX zones comptent : figer, c'est figer la grille ET la colonne du volet.
     const zones = [root, panel].filter(Boolean);
     const all = s => zones.reduce((n, z) => n + [...z.querySelectorAll(s)].filter(seen).length, 0);
@@ -202,8 +203,11 @@ _GRID_STATE_JS = """() => {
         bareHeads: all('.wama-brick-head:not(.has-tools)'),
         // PRÉSENTES, pas visibles : gridstack ne les montre qu'au survol ; une grille figée les retire.
         handles: zones.reduce((n, z) => n + z.querySelectorAll('.ui-resizable-handle').length, 0),
-        freezeText: freeze ? freeze.textContent.trim() : null,
-        resetDisabled: reset ? reset.disabled : null,
+        // Ce que le cadenas propose : « Modifier » tant que la disposition est figée.
+        freezeText: freeze ? (freeze.getAttribute('aria-pressed') === 'true'
+                              ? 'Figer la disposition' : 'Modifier la disposition') : null,
+        // « Disposition par défaut » n'existe que dans le bandeau de la disposition modifiable.
+        resetDisabled: !reset,
     }; }"""
 
 #: Un geste de gridstack lui-même (son `update`, qui émet `change` comme un glisser) : l'emplacement
@@ -343,7 +347,7 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
 
     def open_page():
         page.goto(url, wait_until='load', timeout=45000)
-        page.wait_for_selector('[data-act="freeze"]', timeout=20000)
+        page.wait_for_selector('#wamaLayoutToggle', timeout=20000)
         page.wait_for_timeout(800)
         return page.evaluate(_GRID_STATE_JS)
 
@@ -357,7 +361,7 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
                 and state['freezeText'] == 'Modifier la disposition' and state['places'] == declared,
                 f"ouverture : verrouillée, disposition déclarée ({state})")
 
-        page.click('[data-act="freeze"]')
+        page.click('#wamaLayoutToggle')
         state = page.evaluate(_GRID_STATE_JS)
         kept = settle() or {}
         verdict(state['loose'] and not state['frozen'] and state['handles'] > 0
@@ -379,7 +383,7 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
                 and page.evaluate(_MOVED_JS, to_panel) == 'panel',
                 f"panneau passé dans la colonne du volet → gardé avec sa zone, même élément ({in_panel})")
 
-        page.click('[data-act="freeze"]')
+        page.click('#wamaLayoutToggle')
         state = page.evaluate(_GRID_STATE_JS)
         kept = settle() or {}
         verdict(state['static'] and state['frozen'] and state['handles'] == 0
@@ -392,12 +396,12 @@ def _layout_gestures(page, url, surface, declared, stored, verdict, errors):
                 and (state['places'].get(to_panel) or {}).get('zone') == 'panel',
                 f"rechargement : toujours figée, places et zone gardées ({state['places']})")
 
-        page.click('[data-act="freeze"]')
+        page.click('#wamaLayoutToggle')
         settle()
         page.evaluate("(id) => { const n = [...document.querySelectorAll('.grid-stack-item')]"
                       ".find(e => e.gridstackNode && e.gridstackNode.id === id); "
                       "if (n) n.dataset.smokeMoved = id; }", to_panel)
-        page.click('[data-act="layout"]')
+        page.click('.wama-layout-banner [data-page-layout="reset"]')
         state = page.evaluate(_GRID_STATE_JS)
         kept = settle() or {}
         verdict(state['places'] == declared and kept.get('slots') is None
@@ -580,13 +584,13 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
 
     def open_page():
         page.goto(url, wait_until='load', timeout=45000)
-        page.wait_for_selector('[data-act="freeze"]', timeout=20000)
+        page.wait_for_selector('#wamaLayoutToggle', timeout=20000)
         page.wait_for_timeout(800)
         guard('ouverture')
 
     try:
         open_page()
-        page.click('[data-act="freeze"]')            # disposition modifiable
+        page.click('#wamaLayoutToggle')            # disposition modifiable
         before = settle()
         page.evaluate(_MARK_SECTION_JS, first)
         title = page.evaluate(_MARK_SECTION_JS, second)
@@ -684,7 +688,7 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
         press(first, 'fa-thumbtack')
         pick('En bas de la fenêtre')
         settle()
-        page.click('[data-act="freeze"]')
+        page.click('#wamaLayoutToggle')
         kept, now = settle(), state()
         head, other = page.evaluate(_TOOLS_SHOWN_JS, first), page.evaluate(_TOOLS_SHOWN_JS, third)
         verdict(now['panels'][first]['fixed'] and now['panels'][first]['sections'] == [first, second]
@@ -695,9 +699,9 @@ def _stack_gestures(page, url, surface, declared, stored, verdict, errors):
 
         # « Disposition par défaut » défait les PILES (un geste de disposition) ; l'épinglage, une
         # préférence de LECTURE, reste au panneau qui le portait.
-        page.click('[data-act="freeze"]')
+        page.click('#wamaLayoutToggle')
         settle()
-        page.click('[data-act="layout"]')
+        page.click('.wama-layout-banner [data-page-layout="reset"]')
         kept, now = settle(), state()
         verdict((now['panels'].get(first) or {}).get('sections') == [first]
                 and (now['panels'].get(second) or {}).get('sections') == [second]
@@ -926,7 +930,7 @@ _PANEL_STATE_JS = """() => {
                      return {panel: el.dataset.panel, edge: el.dataset.docked, left: r.left, right: r.right,
                              top: r.top, bottom: r.bottom}; });
     const foot = document.querySelector('body > footer'), volet = document.getElementById('wama-right-panel');
-    return {column: !!col, grid: !!window.GridStack, lock: !!document.querySelector('.wama-panel-tools'),
+    return {column: !!col, grid: !!window.GridStack, lock: !!(document.querySelector('#wamaLayoutToggle') && !document.querySelector('[data-page-control="layout"]').hidden),
             panels: panels, docked: docked,
             inDocument: Object.values(ids).every(id => !!document.getElementById(id)),
             unwrapped: Array.from(document.querySelectorAll('#wama-right-panel .right-panel-section'))
@@ -947,7 +951,7 @@ def _panel_gestures(page, url, stored, verdict, errors):
         page.wait_for_timeout(1200)
 
     def lock():
-        page.click('.wama-panel-tools button[aria-pressed]')
+        page.click('#wamaLayoutToggle')
         page.wait_for_timeout(900)
 
     def show(ids, display):
@@ -962,7 +966,8 @@ def _panel_gestures(page, url, stored, verdict, errors):
         button = page.locator(f'.grid-stack-item[data-panel="{panel}"] .wama-brick-dock').first
         button.click()
         page.wait_for_timeout(300)
-        page.get_by_text(choice).first.click()
+        # Dans le MENU de l'épingle : l'aide de la disposition (2026-10-29) cite aussi ces mots.
+        page.locator('[role="menu"]').get_by_text(choice).first.click()
         page.wait_for_timeout(900)
 
     open_page()
@@ -1010,7 +1015,7 @@ def _panel_gestures(page, url, stored, verdict, errors):
     s = state()
     verdict(s['column'] and any(d['panel'] == target for d in s['docked']),
             f"rechargé : disposé, toujours épinglé ({s['docked']})")
-    page.click('.wama-panel-tools button[title^="Disposition par"]')
+    page.click('.wama-layout-banner [data-page-layout="reset"]')
     page.wait_for_timeout(900)
     s = state()
     verdict(any(d['panel'] == target for d in s['docked']),
@@ -1040,7 +1045,7 @@ def _window_gestures(page, target, state, verdict, errors):
     page.locator(f'.grid-stack-item[data-panel="{target}"] .wama-brick-dock').first.click()
     page.wait_for_timeout(300)
     with page.context.expect_page() as opened:
-        page.get_by_text('Dans une autre fenêtre').first.click()
+        page.locator('[role="menu"]').get_by_text('Dans une autre fenêtre').first.click()
     popup = opened.value
     popup.on('pageerror', lambda e: errors.append(f'fenêtre : {e}'))
     page.wait_for_timeout(900)
@@ -1157,6 +1162,154 @@ def check_centre_layout(page_hook=None):
     return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
 
 
+#: L'état des CONTRÔLES DE PAGE (`wama-page-controls.js`, 2026-10-29) : le cadenas, le bandeau dans
+#: l'en-tête, le logo, le texte des gestes, l'aide ouverte et ce qu'elle liste.
+_PAGE_CONTROLS_JS = """() => {
+    const shown = el => !!el && !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
+    const lock = document.getElementById('wamaLayoutToggle');
+    const banner = document.querySelector('.wama-layout-banner');
+    const hint = document.querySelector('.wama-layout-hint');
+    const modal = document.querySelector('#wamaPageHelpModal.show');
+    return {lock: shown(lock), open: !!lock && lock.getAttribute('aria-pressed') === 'true',
+            help: shown(document.getElementById('wamaPageHelpToggle')),
+            banner: shown(banner), inHeader: !!banner && !!banner.closest('.wama-header'),
+            logo: shown(document.querySelector('.wama-header .wama-logo')),
+            hint: hint && !hint.hidden ? hint.textContent : '',
+            hintPassesClicks: !!hint && getComputedStyle(hint).pointerEvents === 'none',
+            modal: !!modal,
+            groups: modal ? [...modal.querySelectorAll('.wama-keys-group > b')].map(b => b.textContent) : [],
+            keys: modal ? [...modal.querySelectorAll('.wama-keys-group kbd')].map(k => k.textContent) : [],
+            layoutSection: !!modal && !modal.querySelector('[data-help="layout"]').hidden};
+}"""
+
+
+def check_page_controls(page_hook=None):
+    """Les CONTRÔLES DE PAGE de l'en-tête (2026-10-29, décision de Fabien : « une barre de page »)
+    — (ok, détail). Sur une page d'app, avec le compte de test : le cadenas et l'aide sont dans
+    l'en-tête ; « ? » ouvre l'aide, qui liste les raccourcis des briques de la page (la file,
+    l'inspecteur, la visionneuse — lus au registre) et la disposition ; « ? » tapé dans un champ ne
+    l'ouvre pas ; le cadenas rend la disposition modifiable : son bandeau prend la place du logo
+    DANS l'en-tête et les gestes s'affichent dessous sans prendre le pointeur ; « Figer » le
+    referme et le garde. Sur une page sans disposition (le face_analyzer), pas de cadenas, l'aide
+    reste. Les réglages du compte sont rendus en sortie. `page_hook(page)` : contre-épreuve."""
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+    from wama.common.surfaces import BRICKS
+    from wama.common.utils.user_settings import (clear_user_app_settings, get_user_app_setting,
+                                                 save_user_app_settings)
+    from wama.common.utils.volet import LAYOUT_SETTING
+
+    from .ui_smoke import discoverable_apps
+
+    token, uid = _test_session_key(), _test_account_id()
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+    apps = [(label, path) for label, path in _in_plain_thread(discoverable_apps)
+            if not label.rsplit('_', 1)[-1].isdigit()]
+    if not apps:
+        raise SkipScenario("aucune page d'app atteignable")
+    label, path = apps[0]
+    names = {key: BRICKS[key].name for key in ('queue', 'inspector_panel', 'media_viewer')}
+
+    def account():
+        from django.contrib.auth import get_user_model
+        return get_user_model().objects.get(pk=uid)
+
+    def stored():
+        return get_user_app_setting(account(), label, LAYOUT_SETTING)
+
+    def restore(value):
+        if value is None:
+            clear_user_app_settings(account(), label, [LAYOUT_SETTING])
+        else:
+            save_user_app_settings(account(), label, {LAYOUT_SETTING: value})
+
+    before = _in_plain_thread(stored)
+    verdicts = []
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    sessions_before = _session_keys()
+    try:
+        _in_plain_thread(restore, None)                # la page part jamais disposée
+        with sync_playwright() as p:
+            browser = p.chromium.launch()
+            try:
+                context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                context.add_cookies(_cookie(token))
+                page = context.new_page()
+                page.set_default_timeout(10000)
+                errors = []
+                page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+                if page_hook:
+                    page_hook(page)
+                state = lambda: page.evaluate(_PAGE_CONTROLS_JS)        # noqa: E731
+                page.goto(BASE_URL.rstrip('/') + path, wait_until='load', timeout=45000)
+                page.wait_for_timeout(1200)
+                s = state()
+                verdict(s['lock'] and s['help'] and s['logo'] and not s['banner'] and not s['open'],
+                        f"{label} : le cadenas et l'aide dans l'en-tête, figée ({s})")
+                page.evaluate('() => document.activeElement && document.activeElement.blur()')
+                page.keyboard.press('?')
+                page.wait_for_timeout(700)
+                s = state()
+                verdict(s['modal'] and {names['queue'], names['inspector_panel'], names['media_viewer']}
+                        <= set(s['groups']) and 'Ctrl+A' in s['keys'] and '?' in s['keys']
+                        and s['layoutSection'],
+                        f"« ? » ouvre l'aide : les raccourcis des briques de la page et la disposition "
+                        f"({s['groups']})")
+                page.keyboard.press('Escape')
+                page.wait_for_timeout(500)
+                page.evaluate("() => { const i = document.createElement('input'); i.id = 'smokeTyping'; "
+                              "document.body.appendChild(i); i.focus(); }")
+                page.keyboard.press('?')
+                page.wait_for_timeout(500)
+                typed = page.evaluate("() => { const i = document.getElementById('smokeTyping'); "
+                                      "const v = i.value; i.remove(); return v; }")
+                verdict(not state()['modal'] and typed == '?',
+                        f"« ? » tapé dans un champ reste au champ ({typed!r})")
+                page.click('#wamaLayoutToggle')
+                page.wait_for_timeout(1500)
+                s = state()
+                verdict(s['open'] and s['banner'] and s['inHeader'] and not s['logo']
+                        and 'Glissez' in s['hint'] and s['hintPassesClicks'],
+                        f"le cadenas : bandeau dans l'en-tête à la place du logo, gestes dessous "
+                        f"sans prendre le pointeur ({s})")
+                page.wait_for_timeout(500)
+                kept = _in_plain_thread(stored) or {}
+                verdict(kept.get('frozen') is False, f"rendue modifiable, gardé au serveur ({kept})")
+                page.click('.wama-layout-banner [data-page-layout="freeze"]')
+                page.wait_for_timeout(900)
+                s = state()
+                kept = _in_plain_thread(stored) or {}
+                verdict(not s['open'] and not s['banner'] and s['logo'] and not s['hint']
+                        and kept.get('frozen') is True,
+                        f"« Figer » referme le bandeau et le garde ({s}, {kept})")
+                page.goto(BASE_URL.rstrip('/') + '/lab/face-analyzer/video/', wait_until='load',
+                          timeout=45000)
+                page.wait_for_timeout(1000)
+                page.click('#wamaPageHelpToggle')
+                page.wait_for_timeout(700)
+                s = state()
+                # Ni file ni inspecteur sur cette page : l'aide ne liste que ce qui y est.
+                verdict(not s['lock'] and s['modal'] and names['media_viewer'] in s['groups']
+                        and names['queue'] not in s['groups']
+                        and names['inspector_panel'] not in s['groups'] and not s['layoutSection'],
+                        f"page sans disposition : pas de cadenas, l'aide ne liste que ses briques ({s})")
+                shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
+                verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+            finally:
+                browser.close()
+    finally:
+        _in_plain_thread(restore, before)
+        _drop_new_sessions(sessions_before)
+    failed = [text for ok, text in verdicts if not ok]
+    detail = f"contrôles de page ({label}, face_analyzer) : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
 #: Le centre tel que la page le montre : ses panneaux montrés dans l'ordre de la grille, les marques
 #: des briques (hors du volet) dans l'ordre de la page, celles restées hors d'un panneau et visibles,
 #: la portée de la barre de file, les entrées de file visibles.
@@ -1220,7 +1373,7 @@ def _centre_gestures(page, url, app, with_tabs, stored, verdict):
         page.wait_for_timeout(1200)
 
     def lock():
-        page.click('.wama-panel-tools button[aria-pressed]')
+        page.click('#wamaLayoutToggle')
         page.wait_for_timeout(900)
 
     try:
@@ -1271,7 +1424,7 @@ def _centre_gestures(page, url, app, with_tabs, stored, verdict):
             page.wait_for_timeout(1200)
             back = [p for p in state()['panels'] if p != section]
             verdict(back == centre, f"{app} : de retour, chaque brique à son rang ({back})")
-        page.click('.wama-panel-tools button[title^="Disposition par"]')
+        page.click('.wama-layout-banner [data-page-layout="reset"]')
         page.wait_for_timeout(900)
         s = state()
         kept = stored() or {}
@@ -1587,6 +1740,17 @@ def register_surface_scenarios():
                      "à leur rang ; « Disposition par défaut », puis figée : la page d'avant"),
         run=lambda ctx: check_centre_layout(),
         timeout_s=300, vram_gb=0.0,
+    )
+    register(
+        id='common.page_controls', app='common', stage='ui',
+        description=("Contrôles de page de l'en-tête : le cadenas et l'aide ; « ? » ouvre l'aide, "
+                     "qui liste les raccourcis des briques de la page (file, inspecteur, "
+                     "visionneuse) et la disposition, mais pas tapé dans un champ ; le cadenas "
+                     "met son bandeau dans l'en-tête à la place du logo, les gestes dessous sans "
+                     "prendre le pointeur ; « Figer » le referme et le garde ; une page sans "
+                     "disposition n'a pas de cadenas"),
+        run=lambda ctx: check_page_controls(),
+        timeout_s=180, vram_gb=0.0,
     )
     register(
         id='common.score_keys', app='common', stage='ui',

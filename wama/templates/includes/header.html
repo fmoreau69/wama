@@ -175,6 +175,24 @@
         <!-- Menu navigation (droite) -->
         <div class="wama-header-right">
             <ul class="navbar-nav flex-row gap-2">
+                {% comment %}Les CONTRÔLES DE PAGE (2026-10-29, décision de Fabien : « une barre de page ») —
+                ce qui vaut pour toute la page vit ici, jamais dans une brique, qui peut se déplacer ou
+                partir dans une autre fenêtre (`common/js/wama-page-controls.js`). Le cadenas n'apparaît
+                que si la page offre une disposition ; l'aide (ou la touche « ? ») liste les raccourcis
+                des briques de CETTE page, lus au registre.{% endcomment %}
+                <li class="nav-item" data-page-control="layout" hidden>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="wamaLayoutToggle"
+                            title="Modifier la disposition de la page" aria-label="Modifier la disposition de la page"
+                            aria-pressed="false">
+                        <i class="fas fa-lock"></i>
+                    </button>
+                </li>
+                <li class="nav-item" data-page-control="help">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="wamaPageHelpToggle"
+                            title="Aide de cette page et raccourcis clavier (?)" aria-label="Aide de cette page et raccourcis clavier">
+                        <i class="fas fa-circle-question"></i>
+                    </button>
+                </li>
                 {% comment %}Replier / déployer les DEUX volets d'un geste (2026-10-27, décision de
                 Fabien : il remplace le bouton « Simplifié »). Une icône seule, câblée et repeinte par
                 la brique des volets (`wama-panel-toggle.js`, `data-wama-panels-switch`) : chaque volet

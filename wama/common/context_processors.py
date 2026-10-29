@@ -23,13 +23,15 @@ def volet_defaut(request):
     from functools import partial
 
     from wama.common.app_registry import account_page_of
-    from wama.common.utils.volet import VOLET_AUCUN, layout_config
+    from wama.common.utils.volet import VOLET_AUCUN, layout_config, page_controls_config
     match = getattr(request, 'resolver_match', None)
     url_name = getattr(match, 'view_name', '') if match is not None else ''
     # La disposition du volet en briques (2026-10-28) : une fonction, que le gabarit n'appelle
-    # (et ne fait lire en base) que pour un volet rendu et disposable.
+    # (et ne fait lire en base) que pour un volet rendu et disposable. Les contrôles de page
+    # (2026-10-29) : une fonction aussi, lue par la page de base.
     return {'volet': VOLET_AUCUN if account_page_of(url_name) else VOLET_DEFAUT,
-            'panel_layout': partial(layout_config, request)}
+            'panel_layout': partial(layout_config, request),
+            'page_controls': page_controls_config}
 
 
 def unread_notifications(request):

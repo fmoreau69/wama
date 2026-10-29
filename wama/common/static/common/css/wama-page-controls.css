@@ -1,0 +1,71 @@
+/* WamaPageControls — les contrôles de PAGE de l'en-tête (2026-10-29, `WAMA_VOLETS §3-ter`) :
+ * le cadenas de la disposition, son bandeau quand elle est modifiable, et l'aide de la page.
+ * Couleurs : les tokens du thème seulement (`wama-theme.css`). */
+
+/* Barre de TÉLÉPHONE : tous les libellés y sont déjà effacés et le cadenas et l'aide n'y tiennent
+   pas (40 px de débord mesurés par `common.layout.screens`, 2026-10-29). À cette largeur la
+   disposition n'a qu'une colonne et l'aide sert surtout au clavier : les contrôles s'effacent. */
+@container wama-header (max-width: 480px) {
+    .wama-header .navbar-nav .nav-item[data-page-control] { display: none !important; }
+}
+
+/* Le cadenas ouvert se voit d'un coup d'œil : c'est un MODE de la page. */
+#wamaLayoutToggle.active {
+    color: var(--wama-text-ui);
+    border-color: var(--wama-app-color, var(--wama-link));
+    background: rgba(var(--wama-overlay-rgb), .12);
+}
+
+/* Le BANDEAU de la disposition modifiable : DANS l'en-tête, à la place du logo (la colonne du
+   milieu de sa grille, `filemanager.css`) — il ne recouvre jamais un panneau, et on ne cherche pas
+   comment sortir du mode. Ses libellés s'effacent derrière leur icône quand la barre manque de
+   place, comme les autres (`wama-header-label`). */
+.wama-header.wama-arranging .wama-logo { display: none; }
+.wama-layout-banner {
+    grid-column: 2;
+    grid-row: 1;
+    display: flex; align-items: center; gap: .4rem;
+    white-space: nowrap;
+    color: var(--wama-text-ui);
+    font-size: .8rem;
+}
+.wama-layout-banner[hidden] { display: none; }
+.wama-layout-banner > i { color: var(--wama-app-color, var(--wama-link)); }
+.wama-layout-banner .btn { padding: .1rem .45rem; font-size: .75rem; }
+
+/* Les GESTES, sous l'en-tête : du texte qui laisse passer le pointeur (on glisse les titres qu'il
+   survole) et s'efface après quelques secondes ; l'aide de la page les garde. */
+.wama-layout-hint {
+    position: fixed;
+    top: calc(var(--fm-header-height, 50px) + 6px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1031;
+    max-width: min(92vw, 760px);
+    padding: .35rem .75rem;
+    border-radius: .5rem;
+    border: 1px solid var(--wama-app-color, var(--wama-link));
+    background: var(--wama-edge-pill-bg);
+    box-shadow: 0 4px 16px rgba(var(--wama-shadow-rgb), .45);
+    color: var(--wama-text-ui);
+    font-size: .8rem;
+    line-height: 1.35;
+    text-align: center;
+    pointer-events: none;
+}
+.wama-layout-hint[hidden] { display: none; }
+.wama-layout-hint.is-fading { animation: wama-layout-hint-fade 9s ease forwards; }
+@keyframes wama-layout-hint-fade { 0%, 75% { opacity: 1; } 100% { opacity: 0; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .wama-layout-hint.is-fading { animation-duration: 0s; animation-delay: 9s; } }
+
+/* L'AIDE de la page : des groupes de raccourcis côte à côte quand la largeur le permet. */
+.wama-page-help section + section { margin-top: 1rem; }
+.wama-page-help h6 { color: var(--wama-text-ui); }
+.wama-page-help .wama-help-keys { columns: 2 18rem; column-gap: 1.5rem; font-size: .85rem; }
+.wama-page-help .wama-keys-group { break-inside: avoid; margin-bottom: .6rem; }
+.wama-page-help .wama-keys-group ul { list-style: none; margin: .15rem 0 0; padding: 0 0 0 .5rem; }
+.wama-page-help .wama-keys-group li { margin: .1rem 0; }
+.wama-page-help kbd { font-size: .75rem; white-space: nowrap; }
+.wama-page-help .wama-help-gestures { font-size: .85rem; padding-left: 1.1rem; }
+
+@media print { .wama-layout-banner, .wama-layout-hint { display: none; } }

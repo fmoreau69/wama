@@ -79,6 +79,7 @@
     <link href="{% static_v 'filemanager/css/filemanager.css' %}" rel="stylesheet">
     {# Repli des volets par leur FRONTIÈRE + marges dérivées --wama-*-gutter (wama-panel-toggle.js) #}
     <link href="{% static_v 'common/css/wama-panel-toggle.css' %}" rel="stylesheet">
+    <link href="{% static_v 'common/css/wama-page-controls.css' %}" rel="stylesheet">
     {# Au DOIGT : cibles agrandies + convention « révélé au survol » (.wama-reveal) — EN DERNIER : ses planchers priment #}
     <link href="{% static_v 'common/css/wama-touch.css' %}" rel="stylesheet">
 
@@ -382,6 +383,8 @@
     <script src="{% static_v 'common/js/wama-model-help.js' %}"></script>  {# WamaModelHelp global : desc modèle (court/long+VRAM) sous les selects help_source (WamaParams) #}
     <script src="{% static_v 'common/js/wama-app-base.js' %}"></script>  {# WamaApp global : csrfFetch/getUrl/Poller/toast/maps statut (plomberie JS commune des apps) #}
     <script src="{% static_v 'common/js/wama-keys.js' %}"></script>  {# WamaKeys global : le clavier des briques, une touche = UN propriétaire — AVANT tout module qui s'y inscrit (transport, inspecteur, file) #}
+    {{ page_controls|json_script:"wama-page-controls" }}
+    <script src="{% static_v 'common/js/wama-page-controls.js' %}"></script>  {# WamaPageControls global : cadenas de la disposition et aide de la page (en-tête) — APRÈS le clavier commun (touche « ? »), AVANT le volet et les surfaces, qui s'y déclarent #}
     <script src="{% static_v 'common/js/wama-gestures.js' %}"></script>  {# WamaGestures global : gestes au pointeur (track : glisser/pincer), glisser HTML5 et appui long AU DOIGT — AVANT les pages qui l'adoptent (studio, éditeur du transcriber) #}
     <script src="{% static_v 'common/js/wama-notifications.js' %}"></script>  {# WamaNotifications global : panneau de la cloche — APRÈS wama-app-base (csrfFetch, toast, pastille) #}
     {# WamaAssistantVoice global : la voix de l'assistant (phrases, bouton 🔊/🔇/⏹) — AVANT le volet, qui la configure #}

@@ -741,6 +741,45 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       pages de transcriber/composer/anonymizer/synthesizer et de leurs jumelles inscrivent les
       MÊMES propriétaires, writer_01 et translator_01 (nées d'un manifeste seul) aussi ;
       contre-épreuve (une brique refusée à la jumelle) → l'écart se voit.
+- ✅ **Les CONTRÔLES DE PAGE — 2026-10-29** (Fabien : « faut-il laisser les actions locker la
+  disposition, la liste des raccourcis… dans la brique Actions ? […] que l'utilisateur comprenne
+  le fonctionnement sans avoir à le deviner » ; choix : une barre de page, et les quatre aides).
+  - **Le constat** : le verrou de disposition vivait à DEUX endroits (cadenas du titre du volet sur
+    une page d'app, boutons de la brique Actions sur une surface), une page sans volet n'en avait
+    pas ; la liste des raccourcis n'existait que sur une surface ; une brique se déplace, s'empile,
+    part dans une autre fenêtre — le bouton qui défait une mauvaise disposition pouvait s'y perdre.
+  - **La forme** : `common/js/wama-page-controls.js` (mécanisme `page_controls`), monté par la page
+    de base ; deux contrôles dans l'EN-TÊTE. Le **cadenas**, montré quand la page offre une
+    disposition (`offerLayout` : le volet des pages d'apps, une surface) ; ouvert, son bandeau
+    prend la PLACE DU LOGO — « Par défaut », « Figer » — et les gestes (`LAYOUT_HELP` de la
+    disposition commune, rendu plus parlant) s'affichent dessous, sans prendre le pointeur, et
+    s'effacent. L'**aide** (et la touche `?`, inscrite au clavier commun) : les raccourcis des
+    briques de CETTE page — celles de page viennent du serveur, chacune avec ce qui dit qu'elle est
+    là (`volet.page_controls_config` : marque du centre, élément de la section du volet qui la
+    porte — `PanelSlot.brick` —, ou chargée partout), celles d'une surface de `ctx.shortcuts()` —,
+    la disposition et les gestes. La brique Actions ne garde que ses gestes sur la donnée et un lien.
+  - **Choix assumé** : « raccourcis » et « aide » font UN bouton (raccourcis en tête) — chaque icône
+    de la barre se paie en largeur (seuils de `filemanager.css`) ; sur une barre de téléphone
+    (≤ 480 px), les contrôles s'effacent (une colonne, pas de clavier).
+  - **Trouvé en route** : un élément de la barre posé `hidden` restait visible (`display:flex
+    !important` de `filemanager.css`) — l'icône des MAINS se montrait sur toute page au lieu des
+    seules scènes qui la demandent ; corrigé, le seuil des libellés de droite recalé (650 → 720 px,
+    mesuré : 674 px de barre en tablette paysage pour 688 demandés). Et le premier bandeau, posé
+    SOUS l'en-tête, masquait les titres qu'on glisse (scénario `common.surface_stack`) : il est
+    passé dans l'en-tête.
+  - **Gardes** : `tests_volet.PageControlsTest` (toute brique de page à raccourcis dit comment on la
+    trouve ; l'en-tête et la page de base servent les contrôles, dans l'ordre ; le volet et la surface
+    s'y déclarent, plus de cadenas dans le titre du volet ; copies servies), deux assertions de
+    `tests_surfaces` repointées ; scénario nocturne **`common.page_controls`** (8 gestes : « ? »
+    ouvre l'aide de la file, de l'inspecteur et de la visionneuse, pas tapé dans un champ ; bandeau
+    dans l'en-tête, gestes sans pointeur ; « Figer » gardé ; page sans disposition sans cadenas, et
+    l'aide ne liste que ses briques). Contre-épreuves rouges : « ? » inerte et présence ignorée
+    (servis au navigateur), l'inspecteur sans section (fichier). Repointés et verts :
+    `common.surface_layout` 9/9, `common.surface_stack` 22/22, `common.panel_layout` 16/16,
+    `common.centre_layout` 26/26, parité de l'éditeur, `common.layout.screens` (224 mesures) et
+    la tablette.
+  - ⏳ **Suite décidée** : bulle au premier passage, touches dans les infobulles, assistant informé ;
+    puis les sections du volet en briques du registre (l'inspecteur en briques, l'assistant).
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

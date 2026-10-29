@@ -136,8 +136,11 @@
    écart) faisait déborder la barre de 7 px à 634 px (tablette portrait, explorateur ouvert) et de
    47 px à 594 (panneau ouvert) — rouge chaque nuit depuis le 23/10 (`common.layout.tablet`).
    Mesuré ce jour : il faut 641 px avec les libellés de droite, 468 sans eux. ⚠ Une icône de plus
-   dans la barre = ces seuils à remesurer : le scénario tablette le dira. */
-@container wama-header (max-width: 650px) {
+   dans la barre = ces seuils à remesurer : le scénario tablette le dira.
+   RECALÉ le 2026-10-29 : les CONTRÔLES DE PAGE (cadenas, aide) entrent dans la barre et l'icône
+   des mains n'y est plus que sur une page qui la demande — la barre de la tablette paysage
+   (674 px) en demandait 688 avec les libellés (`common.layout.screens` : 19 px de débord). */
+@container wama-header (max-width: 720px) {
     .wama-header-right .wama-header-label { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0, 0, 0, 0) !important; white-space: nowrap !important; border: 0 !important; }
     .wama-header-right i { margin-right: 0 !important; }
 }
@@ -156,6 +159,11 @@
     padding: 0 !important;
 }
 
+/* Un élément de la barre posé `hidden` reste CACHÉ (2026-10-29) : la règle ci-dessous, par son
+   `!important`, l'emportait sur l'attribut — l'icône des mains, cachée tant qu'aucune page ne la
+   demande (`wama-hands-ui.js`), se montrait partout, et le cadenas d'une page sans disposition
+   (`wama-page-controls.js`) aussi. Vu au scénario `common.page_controls`. */
+.wama-header .navbar-nav .nav-item[hidden] { display: none !important; }
 .wama-header .navbar-nav .nav-item {
     display: flex !important;
     align-items: center !important;

@@ -781,3 +781,79 @@ class CentreBricksTest(TestCase):
         self.assertIn('node.grid.resizeToContent(rec.el);', engine)
         self.assertIn("card.closest('[data-wama-queue]') || card.closest('.tab-pane')", viewer)
         self.assertIn('.wama-centre-grid.is-frozen > .grid-stack-item > .grid-stack-item-content', sheet)
+
+
+class PageControlsTest(TestCase):
+    """2026-10-29 (décision de Fabien : « une barre de page ») — ce qui vaut pour TOUTE la page vit
+    dans l'en-tête, jamais dans une brique : le cadenas de la disposition (montré quand la page en
+    offre une, `offerLayout`) et l'aide de la page (touche « ? »), qui liste les raccourcis des
+    briques de CETTE page, lus au registre. Le cadenas du titre du volet et les boutons de la
+    brique Actions d'une surface y ont déménagé. Les gestes se jouent au navigateur
+    (`common.panel_layout`, `common.surface_layout`)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from django.contrib.auth import get_user_model
+        cls.account = get_user_model().objects.create_superuser(
+            username='page_controls', email='page-controls@test.local', password='x')
+
+    @staticmethod
+    def _js(rel):
+        from pathlib import Path
+
+        from django.conf import settings
+        return (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / rel).read_text(encoding='utf-8')
+
+    def test_every_page_brick_with_shortcuts_says_how_it_is_found_on_the_page(self):
+        from wama.common.surfaces import BRICKS
+        from wama.common.utils.volet import page_controls_config
+        groups = {g['brick']: g for g in page_controls_config()['shortcuts']}
+        with_keys = {b.key for b in BRICKS.values() if b.is_page and b.shortcuts}
+        self.assertEqual(with_keys, set(groups), 'une brique de page à raccourcis, introuvable sur la page')
+        self.assertEqual('#actions-section', groups['inspector_panel']['present'])
+        self.assertEqual('[data-wama-brick="queue"]', groups['queue']['present'])
+        self.assertEqual('always', groups['media_viewer']['present'])
+        self.assertEqual(BRICKS['queue'].name, groups['queue']['title'])
+        self.assertIn('Ctrl+A', [s['label'] for s in groups['queue']['items']])
+
+    def test_the_header_carries_the_controls_and_the_page_serves_its_bricks(self):
+        from django.urls import reverse
+        self.client.force_login(self.account)
+        page = self.client.get(reverse('common:journal'))
+        html = page.content.decode()
+        for marker in ('id="wamaLayoutToggle"', 'id="wamaPageHelpToggle"', 'id="wama-page-controls"',
+                       'common/css/wama-page-controls.css'):
+            self.assertIn(marker, html)
+        # Le module est chargé APRÈS le clavier commun (« ? ») et AVANT le volet qui s'y déclare.
+        at = html.index('common/js/wama-page-controls.js')
+        self.assertLess(html.index('common/js/wama-keys.js'), at)
+        self.assertLess(at, html.index('common/js/wama-panel-layout.js'))
+
+    def test_the_panel_and_the_surface_offer_their_layout_to_the_page(self):
+        panel = self._js('common/js/wama-panel-layout.js')
+        kernel = self._js('common/js/surfaces/wama-surface.js')
+        actions = self._js('common/js/surfaces/brick-surface-actions.js')
+        controls = self._js('common/js/wama-page-controls.js')
+        self.assertIn('global.WamaPageControls.offerLayout({', panel)
+        self.assertNotIn('wama-panel-tools', panel, 'plus de cadenas dans le titre du volet')
+        self.assertIn('controls.offerLayout({', kernel)
+        self.assertIn("WamaPageControls.openHelp('keys')", actions)
+        self.assertIn("global.WamaKeys.register({ owner: 'page_controls', scope: 'page'", controls)
+        self.assertIn("if (e.key !== '?'", controls)
+        # Les gestes de disposition sont lus de la disposition commune, jamais réécrits ici.
+        self.assertIn('call(layoutProvider.help)', controls)
+        self.assertNotIn('Glissez un panneau', controls)
+
+    def test_the_served_copies_match_the_sources(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        root = Path(settings.BASE_DIR)
+        for rel in ('js/wama-page-controls.js', 'css/wama-page-controls.css', 'js/wama-panel-layout.js',
+                    'js/surfaces/brick-surface-actions.js', 'js/surfaces/wama-surface.js',
+                    'js/wama-brick-layout.js'):
+            served = root / 'staticfiles' / 'common' / rel
+            if not served.exists():
+                self.skipTest('pas de copie servie dans cet arbre')
+            self.assertEqual((root / 'wama' / 'common' / 'static' / 'common' / rel).read_bytes(),
+                             served.read_bytes(), rel)

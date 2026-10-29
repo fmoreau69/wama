@@ -457,6 +457,24 @@
         });
         function resetLayout() { layout.reset(); }
 
+        /** Les CONTRÔLES DE PAGE de l'en-tête (`wama-page-controls.js`, 2026-10-29) : la surface y
+         *  déclare sa disposition (le cadenas et son bandeau), les raccourcis des briques montées
+         *  et leurs gestes (l'aide de la page) — la brique Actions ne les porte plus. */
+        function offerToPage() {
+            var controls = global.WamaPageControls;
+            if (!controls) return;
+            controls.offerLayout({
+                subject: 'de la page',
+                frozen: function () { return layout.frozen(); },
+                setFrozen: function (on) { layout.setFrozen(on); },
+                reset: resetLayout,
+                help: function () { return layout.help; },
+            });
+            controls.addShortcuts(ctx.shortcuts);
+            controls.addHelp(ctx.helps);
+            on('layout', controls.layoutChanged);
+        }
+
         /** Monte une brique dans le cadre que la disposition lui a posé (ses outils dans le titre). */
         function mountBrick(rec) {
             var def = rec.def;
@@ -516,7 +534,7 @@
                 ctx.canEdit = !!data.can_edit;
                 history.reset();
                 layout.build();
-                helps.push(layout.help);
+                offerToPage();
                 status(ctx.canEdit ? '' : 'Lecture seule', ctx.canEdit ? '' : 'readonly');
                 emit('change', state.value);
                 holdLock();

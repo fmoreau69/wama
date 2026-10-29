@@ -579,9 +579,12 @@ class SurfaceLayoutTest(TestCase):
         for path in ('common/js/surfaces/wama-surface.js', LAYOUT_JS):
             names = Counter(re.findall(r'\bfunction\s+([A-Za-z_$][\w$]*)\s*\(', _js(path)))
             self.assertEqual([], [n for n, c in names.items() if c > 1], path)
+        # 2026-10-29 : la disposition se fige et se rétablit par l'EN-TÊTE (`wama-page-controls.js`),
+        # où la surface la déclare ; la brique Actions n'en porte plus les boutons.
         actions = _js('common/js/surfaces/brick-surface-actions.js')
-        self.assertIn('data-act="freeze"', actions)
-        self.assertIn('ctx.setFrozen(!ctx.frozen())', actions)
+        self.assertNotIn('data-act="freeze"', actions)
+        self.assertNotIn('ctx.setFrozen', actions)
+        self.assertIn('controls.offerLayout({', _js('common/js/surfaces/wama-surface.js'))
 
 
 class TextSectionsSplitTest(SimpleTestCase):
@@ -1421,7 +1424,7 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertEqual([('Space', 'media_transport', 'rival')],
                          clashes([FakeSlot('media_transport'), FakeSlot('rival', rival.shortcuts)]))
 
-    def test_the_surface_serves_the_declarations_and_the_actions_brick_lists_them(self):
+    def test_the_surface_serves_the_declarations_and_the_page_help_lists_them(self):
         from wama.common.surfaces import key_label, surface
         served = surface('transcriber', 'correct').to_dict()['bricks']
         labels = {s['label']: s for s in served['media_transport']['shortcuts']}
@@ -1430,9 +1433,11 @@ class BrickShortcutsTest(SimpleTestCase):
         self.assertIn('Ctrl+Espace', labels)
         self.assertEqual('Maj+← / Maj+→',
                          ' / '.join(key_label(k) for k in ('Shift+ArrowLeft', 'Shift+ArrowRight')))
-        self.assertIn('shortcuts: function', _js('common/js/surfaces/wama-surface.js'))
-        actions = _js('common/js/surfaces/brick-surface-actions.js')
-        self.assertIn('ctx.shortcuts()', actions)
+        kernel = _js('common/js/surfaces/wama-surface.js')
+        self.assertIn('shortcuts: function', kernel)
+        # 2026-10-29 : l'aide de la PAGE les liste (en-tête, touche « ? »), plus la brique Actions.
+        self.assertIn('controls.addShortcuts(ctx.shortcuts);', kernel)
+        self.assertNotIn('ctx.shortcuts()', _js('common/js/surfaces/brick-surface-actions.js'))
         self.assertNotIn("var help = 'Transport", _js('common/js/wama-transport.js'),
                          'the transport no longer writes its keys beside the registry')
 

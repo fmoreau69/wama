@@ -2207,14 +2207,31 @@ MECHANISMS = (
               "transport) ; un observateur suit sans prendre. TOUTES les briques y sont inscrites "
               "depuis le même jour (aucune n'écoute plus le clavier de la page elle-même, "
               "`tests_surfaces.PageKeyListenersTest`). Les touches de chaque brique se "
-              "DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de la "
-              "brique Actions et du catalogue",
+              "DÉCLARENT au registre des briques (`surfaces.UIBrick.shortcuts`), d'où la liste de "
+              "l'aide de la page (contrôles de page) et du catalogue",
               'wama/common/static/common/js/wama-keys.js',
               'docs/construction/ui/WAMA_VOLETS.md §3-ter',
               symbol='WamaKeys',            # global de base.html : compté par son symbole
               annexes=('wama/common/surfaces.py',
                        'wama/common/tests/tests_surfaces.py',
                        'wama/common/services/ui_smoke_layout.py')),
+    Mechanism('page_controls', 'Contrôles de page (disposition, aide)',
+              "Ce qui vaut pour TOUTE la page vit dans l'en-tête, jamais dans une brique qu'une "
+              "disposition peut déplacer (décision de Fabien, 2026-10-29) : le CADENAS, montré "
+              "quand la page offre une disposition (le volet des pages d'apps, une surface), dont "
+              "le bandeau prend la place du logo — « Disposition par défaut », « Figer » — et "
+              "affiche les gestes sans prendre le pointeur ; l'AIDE de la page (touche « ? »), qui "
+              "liste les raccourcis des briques de CETTE page, lus au registre des briques "
+              "(`volet.page_controls_config` : chacune avec ce qui dit qu'elle est sur la page), la "
+              "disposition et les gestes. Une page y DÉCLARE ce qu'elle apporte (`offerLayout`, "
+              "`addShortcuts`, `addHelp`) ; le module ne nomme aucune page",
+              'wama/common/static/common/js/wama-page-controls.js',
+              'docs/construction/ui/WAMA_VOLETS.md §3-ter',
+              symbol='WamaPageControls',    # global de base.html : compté par son symbole
+              annexes=('wama/common/utils/volet.py',
+                       'wama/common/static/common/css/wama-page-controls.css',
+                       'wama/common/tests/tests_volet.py'),
+              depends_on=('brick_keys',)),
     Mechanism('playhead_follow', 'Suivre la tête de lecture (traitement au fil de la lecture)',
               "Le navigateur pose un curseur, une tâche longue le suit tranche par tranche, modèle "
               "gardé chargé, et s'arrête d'elle-même (arrêt demandé, 90 s d'inactivité, traitement "
