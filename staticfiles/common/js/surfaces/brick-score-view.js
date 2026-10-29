@@ -318,6 +318,15 @@
             if (axis) paint(axis.time(), false);
         }
 
+        /** Le clavier s'adresse à la BRIQUE, jamais à une note gravée : chaque geste regrave la
+         *  partition et REMPLACE ses notes — celle qui avait le focus disparaissait, le focus tombait
+         *  sur la page et les touches suivantes n'arrivaient plus (relevé par Fabien le 29/10 : « je
+         *  devais resélectionner la note à chaque appui ») ; et une note qui a le focus reçoit aussi
+         *  le clavier d'abcjs (↑ ↓ au relâché). */
+        function focusBrick() {
+            try { body.focus({ preventScroll: true }); } catch (e) { body.focus(); }
+        }
+
         function schedule() {
             if (pending) clearTimeout(pending);
             pending = setTimeout(render, RENDER_DELAY_MS);
@@ -345,14 +354,14 @@
 
         function onNote(abcelem, tuneNumber, classes, analysis, drag) {
             if (!abcelem || abcelem.startChar == null) return;
+            // abcjs donne le focus à la note APRÈS nous avoir prévenus : on le reprend ensuite.
+            setTimeout(focusBrick, 0);
             if (drag && drag.step && editable()) {
                 transpose(abcelem.startChar, abcelem.endChar, drag.step);
                 return;
             }
             selection = { start: abcelem.startChar, end: abcelem.endChar };
             highlight();
-            // Le clavier s'adresse à la brique : sans voler le défilement de la page.
-            try { body.focus({ preventScroll: true }); } catch (e) { body.focus(); }
             var ms = Score.eventTime(timings, abcelem.startChar);
             if (ms != null && axis) axis.seek(axisSeconds(ms));
         }
@@ -381,33 +390,28 @@
             ctx.edit(function () { return r.abc; });
         }
 
-        // CAPTURE : la brique lit la touche AVANT la note gravée — abcjs, dont les notes glissables
-        // écoutent elles-mêmes ↑ ↓, la transposerait une seconde fois.
+        // Le clavier commun (`WamaKeys`, 2026-10-29) : la partition est une brique QUI A LA MAIN —
+        // ses touches ne valent que quand le focus (ou le dernier clic) est dans la brique, et
+        // passent alors avant le transport (← → n'y déplacent pas la lecture). Une saisie (la
+        // source ABC, un choix de la poignée) garde ses touches : c'est la règle du module. Le
+        // focus est sur la brique, pas sur une note gravée (`focusBrick`) : le clavier d'abcjs,
+        // propre à la note, n'est donc pas sur le chemin de la frappe.
         body.tabIndex = 0;
-        body.addEventListener('keydown', function (e) {
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-            // Une touche dans une saisie (la source ABC, un choix de la poignée) n'est pas un geste
-            // sur la note : la règle commune des briques du temps (`WamaApp.isTyping`).
-            if (App.isTyping && App.isTyping()) return;
-            if (e.key === 'Escape' && selection) { selection = null; highlight(); return; }
-            if (STEP_KEYS.hasOwnProperty(e.key)) {
-                setStep(STEP_KEYS[e.key]);
-                e.preventDefault();
-                e.stopPropagation();
-                return;
-            }
-            if (!selection || !editable()) return;
+        global.WamaKeys.register({ owner: 'score_view', scope: 'brick', root: body, handle: function (e) {
+            if (e.ctrlKey || e.metaKey || e.altKey) return false;
+            if (e.key === 'Escape' && selection) { selection = null; highlight(); return true; }
+            if (STEP_KEYS.hasOwnProperty(e.key)) { setStep(STEP_KEYS[e.key]); return true; }
+            if (!selection || !editable()) return false;
             var op = RETIME_KEYS[e.key];
             if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
                 transpose(selection.start, selection.end, e.key === 'ArrowUp' ? -1 : 1);
             } else if (op) {
                 retime(op);
             } else {
-                return;
+                return false;
             }
-            e.preventDefault();
-            e.stopPropagation();
-        }, true);
+            return true;
+        } });
 
         /** La grille des temps de l'audio, demandée à part : quelques secondes la 1re fois. */
         function loadGrid() {

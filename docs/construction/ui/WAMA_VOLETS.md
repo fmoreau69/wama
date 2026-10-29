@@ -609,7 +609,7 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       (`transcriber.queue_dnd`, `anonymizer.queue_dnd`), visionneuse (`common.preview_navigation`,
       35 gestes), inspecteurs coexistants, parité de l'éditeur 75/75.
     - ⚠ **Pas encore inscrits** (ils gardent leur propre écoute, sans conflit mesuré) : les
-      segments, la ligne de temps, l'écriture à la lecture, la partition, l'image et ses zones,
+      segments, la ligne de temps, l'écriture à la lecture, ~~la partition~~ (étape 3), l'image et ses zones,
       l'historique, le menu de card, la visionneuse, le cam_analyzer (`WamaShuttle.bindKeys`). Le
       module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
       ⚠ **Jumeau déclaré** (revérification du 29/10) : ces briques testent la saisie par
@@ -617,6 +617,22 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       `WamaKeys.typing` et sa règle des contrôles (une liste cliquée ne garde pas J/K/L). Les
       fusionner changerait leur comportement sans parité qui le voie : `isTyping` se retire quand
       la dernière s'inscrit au module.
+  - 🔄 **Étape 3 — les briques restantes inscrites une par une, 2026-10-29** (demande de Fabien).
+    Garde **`PageKeyListenersTest`** : chaque écoute du clavier de TOUTE la page qui reste est
+    comptée, avec sa raison, et le compte ne peut que descendre (contre-épreuve : un fichier jetable
+    qui écoute la page → rouge). Restent hors du module, parce qu'ils n'agissent sur aucune touche :
+    le 1er geste qui déverrouille le son, celui qui reprend le micro suspendu, le relâché d'Espace du
+    transport (le module ne distribue que l'appui) et la présentation (page autonome).
+    - ✅ **La partition** (`score_view`, brique qui a la main) — et le défaut relevé par Fabien le
+      même jour : « à chaque fois que je modifiais la hauteur d'une note ou sa position rythmique,
+      la sélection s'interrompait ». **Mesuré** : après le clic, le focus était sur la NOTE gravée
+      (abcjs la focalise après nous avoir prévenus) ; le 1ᵉʳ geste regravait la partition, la note
+      disparaissait et le focus tombait sur la page — les touches suivantes n'arrivaient plus.
+      Présent depuis le clavier de la partition (22/10). La brique reprend le focus après abcjs ;
+      le clavier propre à la note (↑ ↓ au relâché) n'est donc plus sur le chemin. Scénario nocturne
+      **`common.score_keys`** (6 gestes : ↑ ×3 sans perdre la note, − puis → sans que le transport
+      prenne →, Échap, puis → rendu au transport) ; contre-épreuve : la reprise du focus retirée au
+      seul navigateur → rouge dès le 1ᵉʳ ↑.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

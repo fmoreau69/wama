@@ -1229,6 +1229,63 @@ class KeyDispatcherTest(SimpleTestCase):
                          'with the hand the brick wins ; without it, it is not even asked')
 
 
+class PageKeyListenersTest(SimpleTestCase):
+    """2026-10-29 — a key, ONE owner (`wama-keys.js`). A script that listens to the whole page's
+    keyboard by itself escapes the dispatcher's order (a field, a layer, the brick with the hand,
+    then the priority bricks). The listeners left are COUNTED here, each with its reason, and a
+    count can only go DOWN : a brick moved to the dispatcher removes its line in the same commit.
+    A listener on the brick's own element is not counted : it is « nearer the focus »."""
+
+    #: path → (page-wide key listeners, why it is still there). `MOVE` : a brick still to register.
+    MOVE = 'à inscrire au clavier commun'
+    REMAINING = {
+        'wama/common/static/common/js/media-preview.js': (1, MOVE),
+        'wama/common/static/common/js/surfaces/brick-image-boxes.js': (1, MOVE),
+        'wama/common/static/common/js/surfaces/brick-playback-writing.js': (2, MOVE),
+        'wama/common/static/common/js/surfaces/brick-segment-list.js': (1, MOVE),
+        'wama/common/static/common/js/wama-card-menu.js': (2, MOVE),
+        'wama/common/static/common/js/wama-constellation.js': (1, MOVE),
+        'wama/common/static/common/js/wama-history.js': (1, MOVE),
+        'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
+        'wama/common/static/common/js/wama-timeline.js': (1, MOVE),
+        'wama/common/static/common/js/wama-transport.js': (1, MOVE),
+        'wama/studio/static/studio/js/wama-studio.js': (1, MOVE),
+        'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js': (1, MOVE),
+        # Not shortcuts : they never act on the key.
+        'wama/common/static/common/js/wama-app-base.js': (1, "le 1er geste déverrouille le son (once)"),
+        'wama/common/static/common/js/wama-assistant-listen.js': (1, "le 1er geste reprend le micro suspendu"),
+        'wama/common/static/common/js/wama-axis.js': (1, "keyup : le module ne distribue que keydown"),
+        'wama/static/presentation/wama-presentation.js': (1, "page autonome, sans le gabarit de base"),
+    }
+
+    def test_page_wide_key_listeners_only_go_down(self):
+        import re
+        pattern = re.compile(r"""(?:document|window)\.addEventListener\(\s*['"]key(?:down|up|press)['"]""")
+        root = Path(settings.BASE_DIR)
+        found = {}
+        for top in ('wama', 'wama_lab', 'wama_data'):
+            for path in (root / top).rglob('*.js'):
+                rel = path.relative_to(root).as_posix()
+                if '/vendors/' in rel or re.search(r'/[a-z]+_\d\d/', rel):     # vendored, sandbox twins
+                    continue
+                count = len(pattern.findall(path.read_text(encoding='utf-8', errors='replace')))
+                if count:
+                    found[rel] = count
+        self.assertEqual({k: n for k, (n, _why) in self.REMAINING.items()}, found,
+                         'a NEW page-wide key listener : register it with `WamaKeys` instead ; '
+                         'one FEWER : lower its count here (the budget only goes down)')
+
+    def test_the_score_keys_go_through_the_dispatcher(self):
+        """2026-10-29 (Fabien : « je devais resélectionner la note à chaque appui ») — each gesture
+        re-engraves the score and REPLACED the focused note : the focus fell on the page and the next
+        keys never reached the brick. The brick takes the focus back from abcjs, and its keys go
+        through the dispatcher as a brick with the hand. Replayed by `common.score_keys`."""
+        score = _js('common/js/surfaces/brick-score-view.js')
+        self.assertIn("global.WamaKeys.register({ owner: 'score_view', scope: 'brick', root: body", score)
+        self.assertIn('setTimeout(focusBrick, 0);', score)
+        self.assertNotIn("addEventListener('keydown'", score)
+
+
 class BrickShortcutsTest(SimpleTestCase):
     """2026-10-29 (Fabien : « les raccourcis clavier attachés aux briques ») — a brick DECLARES its
     keyboard shortcuts (`UIBrick.shortcuts`) : the single source of the list the Actions brick of a

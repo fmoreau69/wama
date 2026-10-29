@@ -1288,8 +1288,118 @@ def _centre_gestures(page, url, app, with_tabs, stored, verdict):
         verdict(False, f"{app} : geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
 
 
+#: La partition de l'emplacement `slot` : la note choisie (ses classes de hauteur et de rang, posées
+#: par abcjs), ce qui a le focus, l'horloge du transport.
+_SCORE_STATE_JS = """(slot) => {
+    const zone = document.querySelector('[data-capture-slot="' + slot + '"]');
+    const s = zone && zone.querySelector('.abcjs-note_selected');
+    const a = document.activeElement;
+    return {chosen: s ? (s.getAttribute('class').match(/abcjs-(p-?\\d+|n\\d+)/g) || []).join(',') : null,
+            inBrick: !!(zone && a && a !== document.body && zone.contains(a)),
+            clock: (document.querySelector('.wama-transport-clock') || {}).textContent || ''};
+}"""
+
+
+def check_score_keys(page_hook=None):
+    """La PARTITION au clavier (2026-10-29, relevé par Fabien : « à chaque fois que je modifiais la
+    hauteur d'une note ou sa position rythmique, la sélection s'interrompait ») — (ok, détail).
+
+    Sur la première surface témoin qui porte une partition MODIFIABLE (`score_view` dont une version
+    n'est pas lue) : un clic choisit une note ; ↑ trois fois la monte de trois degrés — chaque geste
+    regrave la partition, la note choisie et le clavier restent à la brique ; le pas forcé à la
+    croche, − puis → la décalent, sans que le transport prenne → ; Échap la quitte, et → revient
+    alors au transport. Rien n'est enregistré (les gestes restent des modifications locales), le
+    témoin est retiré en sortie. `page_hook(page)` : posé avant l'ouverture (contre-épreuve)."""
+    from django.urls import reverse
+    from playwright.sync_api import sync_playwright
+
+    from wama.common.services.nightly_tests import SkipScenario
+
+    def editable_score(slot):
+        versions = slot.options.get('versions') or [{'role': slot.options.get('role')}]
+        return slot.brick == 'score_view' and any(not v.get('role') for v in versions)
+
+    surfaces, _refused = _witness_surfaces()
+    found = sorted(((s, slot) for s in surfaces for slot in s.slots if editable_score(slot)),
+                   key=lambda pair: pair[0].id)
+    if not found:
+        raise SkipScenario("aucune surface témoin ne porte une partition modifiable")
+    surface, slot = found[0]
+    token, uid = _test_session_key(surface.app), _test_account_id(surface.app)
+    if not (token and uid):
+        raise SkipScenario("aucun compte de test disponible")
+    verdicts = []
+
+    def verdict(ok, text):
+        verdicts.append((bool(ok), text))
+
+    sessions_before = _session_keys()
+    try:
+        with _garde_de_montage(surface.app, 'score_keys'):
+            pk = _in_plain_thread(mount_witness, surface, uid)
+            url = BASE_URL.rstrip('/') + reverse('common:surface', args=[surface.app, surface.key, pk])
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                try:
+                    context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+                    context.add_cookies(_cookie(token))
+                    page = context.new_page()
+                    page.set_default_timeout(10000)
+                    errors = []
+                    page.on('pageerror', lambda e: errors.append(f'pageerror: {e}'))
+                    if page_hook:
+                        page_hook(page)
+                    page.goto(url, wait_until='load', timeout=45000)
+                    page.wait_for_selector('.grid-stack-item .abcjs-note', timeout=20000)
+                    page.wait_for_timeout(1500)
+                    page.evaluate(_TAG_SLOTS_JS)
+                    state = lambda: page.evaluate(_SCORE_STATE_JS, slot.id)
+
+                    def press(key, settle=700):
+                        page.keyboard.press(key)
+                        page.wait_for_timeout(settle)
+                        return state()
+
+                    def pitch(s):
+                        return int(s['chosen'].split(',')[0][len('abcjs-p'):]) if s['chosen'] else None
+
+                    try:
+                        # Les notes sont des chemins SVG sous la gravure : le clic se fait au point.
+                        box = page.locator(f'[data-capture-slot="{slot.id}"] .abcjs-note').nth(2).bounding_box()
+                        page.mouse.click(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
+                        page.wait_for_timeout(600)
+                        s0 = state()
+                        verdict(s0['chosen'] and s0['inBrick'], f"un clic choisit une note, le clavier va à la brique ({s0})")
+                        s = s0
+                        for _ in range(3):
+                            s = press('ArrowUp')
+                        verdict(pitch(s0) is not None and pitch(s) == pitch(s0) + 3 and s['inBrick'],
+                                f"↑ trois fois : trois degrés, la note reste choisie ({s0['chosen']} → {s['chosen']})")
+                        press('4')
+                        press('Minus')
+                        s1 = press('ArrowRight')
+                        verdict(s1['chosen'] and s1['inBrick'] and s1['clock'] == s['clock'],
+                                f"pas croche, − puis → : la note reste choisie, le transport n'a pas pris → "
+                                f"({s['clock']} → {s1['clock']})")
+                        s2 = press('Escape')
+                        verdict(not s2['chosen'], f"Échap quitte la note ({s2['chosen']})")
+                        s3 = press('ArrowRight')
+                        verdict(s3['clock'] != s2['clock'], f"sans note choisie, → revient au transport ({s2['clock']} → {s3['clock']})")
+                    except Exception as error:
+                        verdict(False, f"geste interrompu : {type(error).__name__} — {str(error).splitlines()[0][:200]}")
+                    shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
+                    verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+                finally:
+                    browser.close()
+    finally:
+        _drop_new_sessions(sessions_before)
+    failed = [text for ok, text in verdicts if not ok]
+    detail = f"{surface.id} : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
+    return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
+
+
 def register_surface_scenarios():
-    """Les scénarios communs des surfaces (vignettes de briques, disposition) — aucun GPU."""
+    """Les scénarios communs des surfaces (vignettes de briques, disposition, clavier) — aucun GPU."""
     from wama.common.services.nightly_tests import register
 
     register(
@@ -1346,4 +1456,13 @@ def register_surface_scenarios():
                      "à leur rang ; « Disposition par défaut », puis figée : la page d'avant"),
         run=lambda ctx: check_centre_layout(),
         timeout_s=300, vram_gb=0.0,
+    )
+    register(
+        id='common.score_keys', app='common', stage='ui',
+        description=("Partition au clavier : un clic choisit une note, ↑ trois fois la monte de "
+                     "trois degrés sans la perdre (chaque geste regrave la partition), − puis → la "
+                     "décalent sans que le transport prenne → ; Échap la quitte et → revient au "
+                     "transport (rien d'enregistré, témoin retiré)"),
+        run=lambda ctx: check_score_keys(),
+        timeout_s=180, vram_gb=0.0,
     )
