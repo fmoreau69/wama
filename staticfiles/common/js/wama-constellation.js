@@ -610,7 +610,12 @@ export function mountConstellation(stage, { adapt = null, hooks = {} } = {}) {
       if (downAt && Math.hypot(ev.clientX - downAt[0], ev.clientY - downAt[1]) > 5) return;   // c'était une rotation
       select(pick(ev));
     });
-    document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && state.selected) select(null); });
+    // Échap rend la sélection — par le clavier commun (`WamaKeys`), recherche comprise comme avant.
+    window.WamaKeys.register({ owner: 'constellation', scope: 'page', typing: ['Escape'], handle: ev => {
+      if (ev.key !== 'Escape' || !state.selected) return false;
+      select(null);
+      return true;
+    } });
 
     // ── HUD : couches, couleur, forces, recherche ────────────────────────
     stage.querySelectorAll('.wc-layers .wc-chip[data-layer]').forEach(chip => chip.addEventListener('click', () => {

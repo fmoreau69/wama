@@ -1270,7 +1270,6 @@ class PageKeyListenersTest(SimpleTestCase):
         'wama/common/static/common/js/surfaces/brick-playback-writing.js': (2, MOVE),
         'wama/common/static/common/js/surfaces/brick-segment-list.js': (1, MOVE),
         'wama/common/static/common/js/wama-card-menu.js': (2, MOVE),
-        'wama/common/static/common/js/wama-constellation.js': (1, MOVE),
         'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
         'wama/common/static/common/js/wama-timeline.js': (1, MOVE),
         'wama/common/static/common/js/wama-transport.js': (1, MOVE),

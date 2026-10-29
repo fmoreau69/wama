@@ -641,6 +641,10 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       Parité de l'éditeur 75/75, `check_history_studio` vert. Et **l'Échap du studio** (abandonner
       le lien en cours, même en saisie comme avant ; sans lien, la touche n'est pas prise) : geste
       ajouté à `common.gestures.mouse` (studio 8/8), contre-épreuve au navigateur → rouge.
+    - ✅ **La constellation** (scènes 3D : utilisateurs, licences, modèles) : Échap rend la
+      sélection, recherche comprise comme avant ; sans sélection, la touche n'est pas prise.
+      Scénarios `check_constellation` et `common.scene.{licenses,models}.ui` verts ; contre-épreuve
+      au navigateur (Échap retiré de la saisie) → rouge.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
