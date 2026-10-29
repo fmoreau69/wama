@@ -1554,9 +1554,9 @@ Délègue une tâche de développement au CLI Claude Code en headless — lectur
   - `chemin_cli() -> str` — Chemin du CLI Claude Code, ou lève une erreur explicite.
   - `declared_model_ids() -> tuple` — Identifiants de modèle que l'abonnement DÉCLARE (`ExternalSource.declared_models` de la
   - `wama_mcp_config(user) -> tuple` — `(config JSON, {variable: jeton})` de la surface `wama` du serveur MCP pour `user` — ou
-  - `prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool=False, user=None, model: str='') -> dict` — La commande du CLI et son environnement, GARDES COMPRISES — `{'argv', 'env'}` ou
+  - `prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool=False, user=None, model: str='', mcp: bool=True) -> dict` — La commande du CLI et son environnement, GARDES COMPRISES — `{'argv', 'env'}` ou
   - `read_output(raw: str) -> dict` — Le résultat d'une sortie `--output-format json` déjà écrite — celle d'une tâche détachée,
-  - `demander(prompt: str, *, cwd: str | None=None, delai: int=DELAI_DEFAUT, outils=OUTILS_LECTURE, ecriture: bool=False, user=None, model: str='') -> dict` — Soumet UNE tâche à Claude Code et rend son résultat.
+  - `demander(prompt: str, *, cwd: str | None=None, delai: int=DELAI_DEFAUT, outils=OUTILS_LECTURE, ecriture: bool=False, user=None, model: str='', mcp: bool=True)…` — Soumet UNE tâche à Claude Code et rend son résultat.
 
 ### Export document
 
