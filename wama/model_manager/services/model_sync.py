@@ -458,6 +458,23 @@ class ModelSyncService:
             f"vram_gb={defaults.get('vram_gb', 0)}"
         )
 
+        # DESCRIPTION : la découverte qui n'en sait rien (texte de REMPLISSAGE, 2026-10-29) n'efface
+        # pas une vraie description — la règle des capacités ci-dessus. Le remplissage ne s'écrit
+        # que sur une ligne qui n'a rien de mieux (vide, ou ce même texte), et il s'y écrit MARQUÉ :
+        # `model_descriptions` sait alors quelles lignes combler.
+        from ..models import DESCRIPTION_PLACEHOLDER_KEY
+        if getattr(model_info, 'description_placeholder', False):
+            current = (AIModel.objects.filter(model_key=model_key)
+                       .values('description', 'description_short', 'extra_info').first())
+            known = bool(current and (current['description'] or current['description_short'])
+                         and not (current['extra_info'] or {}).get(DESCRIPTION_PLACEHOLDER_KEY)
+                         and current['description'] != long_desc)
+            if known:
+                defaults.pop('description', None)
+                defaults.pop('description_short', None)
+            else:
+                defaults['extra_info'] = {**defaults['extra_info'], DESCRIPTION_PLACEHOLDER_KEY: True}
+
         # Préserver les clés "collantes" de extra_info écrites hors découverte (détecteur de MAJ
         # check_model_updates, décisions admin) : le sync réécrit extra_info → sans ça il les efface.
         # `exclusion` rejoint les clés collantes (2026-08-12) : elle porte la RAISON d'un
@@ -473,8 +490,10 @@ class ModelSyncService:
         # projetés par le manifeste — la découverte ne les connaît pas.
         # `quality_defect` (2026-10-28) : un défaut MESURÉ validé par un administrateur, projeté par
         # le manifeste — sœur d'`exclusion` (grisé et hors du tirage, au lieu de masqué).
+        # `description_source` (2026-10-29) : d'où vient une description que WAMA a écrite (fiche du
+        # Hub résumée…) — la découverte ne la connaît pas, comme les publications.
         _sticky = ('update_check', 'recommended', 'exclusion', 'vram_measured', 'weights',
-                   'publications', 'quality_defect')
+                   'publications', 'quality_defect', 'description_source')
         _existing = AIModel.objects.filter(model_key=model_key).values_list('extra_info', flat=True).first()
         if seen_at and _uninstalled_after((_existing or {}).get('uninstalled_at'), seen_at):
             logger.info(f"[ModelSync] {model_key}: désinstallé après le relevé — ligne laissée")

@@ -244,6 +244,14 @@ class ModelInfo:
     source: ModelSource
     description: str = ""
     description_short: str = ""   # une ligne pour l'aide sous le sélecteur (sinon dérivé du long)
+    #: La découverte ne SAIT rien de ce que fait le modèle et l'a dit par un texte générique
+    #: (« Snapshot HuggingFace installé… », « Ollama LLM (4.8 GB) », « … — modèle distant (…) ») —
+    #: 2026-10-29, Fabien : « à l'installation des modèles on a pas forcément les descriptions ».
+    #: La synchronisation ne remplace alors PAS une vraie description (`model_sync._sync_model`,
+    #: la règle des capacités : on n'efface pas un fait sur une absence de savoir), et la ligne
+    #: qui garde ce texte le porte marqué (`DESCRIPTION_PLACEHOLDER_KEY`) — c'est ce que
+    #: `model_descriptions` vient combler.
+    description_placeholder: bool = False
     #: D'où vient le modèle, sur SA plateforme (`huggingface:org/nom`, `github:…`) — le fait que la
     #: déclaration porte et que la synchro écrit sur `AIModel.platform_ref`. Remplace `hf_id`
     #: (2026-10-27) : le dépôt du Hub se DÉRIVE (`hf_repo`).
@@ -2604,6 +2612,7 @@ class ModelRegistry:
             description=(f"Snapshot HuggingFace installé ({mtype.value}/{fam_dir.name}), "
                          "catalogué par le balayage générique des modèles installés."),
             description_short=f"Snapshot HF {nom_court}",
+            description_placeholder=True,
             platform_ref=hf_platform_ref(repo_id),
             is_downloaded=not incomplets,
             format=fmt,
@@ -2650,6 +2659,7 @@ class ModelRegistry:
             description=(f"Version GitHub installée ({mtype.value}/{fam_dir.name}), "
                          "cataloguée par le balayage générique des modèles installés."),
             description_short=f"Version GitHub {tag}",
+            description_placeholder=True,
             is_downloaded=not incomplete,
             format=_dominant_format(weights),
             vram_gb=vram,
@@ -3166,6 +3176,7 @@ class ModelRegistry:
                                 model_type=_type,
                                 source=ModelSource.OLLAMA,
                                 description=f"Ollama LLM ({size_display})",
+                                description_placeholder=True,
                                 ram_gb=ram_gb,
                                 # APPROXIMATION ASSUMÉE : pour un GGUF servi par Ollama, l'empreinte
                                 # VRAM est de l'ordre de la taille du fichier (le KV cache s'y
@@ -3330,6 +3341,7 @@ class ModelRegistry:
                                         capabilities=_caps_repli,
                                         source=ModelSource.OLLAMA,
                                         description=f"Ollama LLM ({size_gb:.1f}GB)" if size_gb > 0 else "Ollama LLM",
+                                        description_placeholder=True,
                                         ram_gb=round(size_gb, 1),
                                         is_downloaded=True,
                                         backend_ref='ollama',

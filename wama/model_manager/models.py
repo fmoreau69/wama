@@ -326,6 +326,14 @@ def uninstalled_q():
     return models.Q(is_downloaded=False, extra_info__has_key='uninstalled_at')
 
 
+#: La description d'une ligne n'est qu'un REMPLISSAGE de la découverte (« Snapshot HF … ») — posé
+#: par la synchronisation, retiré quand une vraie description arrive (`model_descriptions`).
+DESCRIPTION_PLACEHOLDER_KEY = 'description_placeholder'
+#: D'où vient une description écrite par WAMA lui-même (fiche du Hub résumée, fournisseur…) :
+#: `{origin, ref, model, date}`, clé collante de la synchronisation.
+DESCRIPTION_SOURCE_KEY = 'description_source'
+
+
 #: Origines d'une `exclusion` que WAMA pose lui-même (2026-10-29, décisions de Fabien) — voir
 #: `model_installer.withdraw_from_choices`, qui la pose, et `restore_withdrawn`, qui la lève :
 #: la DÉSINSTALLATION (option cochée par défaut) et la SUCCESSION (une nouvelle version installée

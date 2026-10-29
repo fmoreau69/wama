@@ -204,6 +204,11 @@ def list_remote_models(source: str, api_key: str, timeout: float = 20.0) -> list
             aliases.append(m['hugging_face_id'])
         item = {'id': m['id'], 'name': m.get('display_name') or m.get('name') or m['id'],
                 'type': remote_type or '', 'aliases': aliases}
+        # La DESCRIPTION que le fournisseur publie (OpenRouter en donne une par modèle) : c'est
+        # lui qui sait ce qu'il sert — elle était jetée, et 470 lignes n'avaient que le texte
+        # générique « OpenRouter — modèle distant (…) » (mesuré le 2026-10-29).
+        if isinstance(m.get('description'), str) and m['description'].strip():
+            item['description'] = m['description'].strip()
         if _is_free(m.get('pricing')):
             item['cost_tier'] = 'free'      # un modèle gratuit chez un fournisseur facturé
         out.append(item)
@@ -288,6 +293,9 @@ def model_info_for(source: str, item: dict):
         description=(item.get('description')
                      or (f"{src.label} — le modèle est choisi par le fournisseur" if declared
                          else f"{src.label} — modèle distant ({remote_type})")),
+        # Sans description du fournisseur, le texte ci-dessus est un REMPLISSAGE : il ne remplace
+        # pas une vraie description à la synchronisation (`ModelInfo.description_placeholder`).
+        description_placeholder=not item.get('description'),
         platform_ref=platform_ref, vram_gb=0, ram_gb=0, is_downloaded=False,
         backend_ref=source, execution=EXECUTION_CLOUD,
         cost_tier=item.get('cost_tier') or src.cost_tier,

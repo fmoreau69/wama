@@ -615,10 +615,14 @@ MECHANISMS = (
               "catalogue AIModel. Ollama (2026-10-12) : un manifeste INTERNE du démon (étiquette = "
               "empreinte sha256, `is_ollama_runner_alias`) n'est pas un modèle ; seul un relevé "
               "du DÉMON (`ollama_listed`) prouve un retrait fait hors de WAMA — la ligne reçoit "
-              "alors la marque d'une désinstallation (`uninstalled_q`)",
+              "alors la marque d'une désinstallation (`uninstalled_q`). Une DESCRIPTION que la "
+              "découverte ne connaît pas (texte de remplissage marqué) n'efface jamais une vraie ; "
+              "les lignes marquées se comblent depuis la fiche du modèle ou le web, résumées en "
+              "français, la source tracée (`describe_models`, 2026-10-29)",
               'wama/model_manager/services/model_registry.py', '',
               annexes=('wama/model_manager/services/model_sync.py',
-                       'wama/model_manager/services/file_watcher.py')),
+                       'wama/model_manager/services/file_watcher.py',
+                       'wama/model_manager/services/model_descriptions.py')),
     Mechanism('model_installer', 'Installation de modèles',
               "Pipeline accept→download→register : télécharge au bon endroit puis enregistre au "
               "catalogue. UNE route depuis l'extérieur, `request_install` (bouton, assistant, "

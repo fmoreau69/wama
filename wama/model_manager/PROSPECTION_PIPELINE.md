@@ -3468,3 +3468,24 @@ l'assistant ne recommandait rien.
    VibeVoice (Linagora note le portage `-HF`, un `ALIAS` vaudrait pour toutes les sources). Aucune
    source pour l'agrandissement, le débruitage, la profondeur, la vidéo, la synchro labiale.
    Tests : `tests_published_tables`.
+6. ✅ **Les DESCRIPTIONS se gardent et se comblent** (Fabien : *« à l'installation des modèles on a
+   pas forcément les descriptions courtes et longues »* ; *« l'exploration de sources externes (même
+   web) peut permettre de combler les trous de description à minima »*). Mesuré sur 666 lignes :
+   27 textes génériques du balayage (« Snapshot HF … », « Version GitHub … »), 68 très courts (54
+   YOLO déclarés « YOLO detect », 14 « Ollama LLM (x Go) »), ~488 distants réduits à « <fournisseur>
+   — modèle distant (<type>) » ; aucune vide. Une description FAUSSE n'a pas de mesure mécanique (la
+   ligne v1 d'olmOCR se disait « olmOCR-2 ») : elle se refait en nommant la ligne (`--keys`).
+   - la découverte MARQUE son texte de remplissage (`ModelInfo.description_placeholder` : balayages
+     générique et GitHub, Ollama, distant sans description), et la synchronisation ne remplace plus
+     une vraie description par lui — la règle des capacités (`model_sync._sync_model`) ; le
+     remplissage s'écrit marqué (`DESCRIPTION_PLACEHOLDER_KEY`) ;
+   - le FOURNISSEUR qui décrit ses modèles est lu (OpenRouter, `cloud_models.list_remote_models`) ;
+   - `manage.py describe_models [--keys …] [--limit N] [--no-web] [--apply]` comble les lignes
+     marquées (`services/model_descriptions.py`) : la FICHE du Hub (son dépôt, ou le modèle d'origine
+     d'une quantification), sinon une recherche web (`search_engines`), résumée en français par le
+     LLM local par défaut, « n'invente rien », la source tracée (`DESCRIPTION_SOURCE_KEY`, collante).
+     Essai à blanc juste sur olmOCR-2, Kyutai, FrWhisper (fiche) et gemma4:12b (web).
+   ⚠ Pas de résumé automatique à chaque installation : il charge un modèle sur l'Ollama de l'hôte,
+   et la montée de VRAM a déjà fait tomber la machine (`tasks.sync_benchmarks_task`) — l'installation
+   MARQUE, la commande comble, à la demande. Les candidats ne portent pas de vraie description à faire
+   suivre (« [ocr] 386 téléchargements… ») : c'est la fiche qui décrit. Tests : `tests_model_descriptions`.
