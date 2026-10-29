@@ -1677,6 +1677,19 @@ MECHANISMS = (
               'wama/common/utils/process_views.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               depends_on=('process_pipeline',)),
+    Mechanism('item_views', "▶ d'une card, ▶ et 🗑 de la file (fabrique commune)",
+              "Les vues `start`, `start_all` et `clear_all` d'une app — `make_item_views` "
+              "(2026-10-29, ROUTE §11 #39) : anti-course (`begin_processing`), remise à zéro de "
+              "l'app sous le verrou, cache de progression purgé, tâche envoyée ; « tout lancer » "
+              "selon la sélection DÉCLARÉE (`pending` / `pending_exclude`, noms de `TRIAD_SPECS`) "
+              "et, s'il en porte, les réglages postés vérifiés sur toute la file avant le premier "
+              "lancement ; « tout effacer » sans les éléments en cours, par le geste de retrait "
+              "de `batch_delete` (`discard_element`). Trente copies dans dix apps. La fabrique "
+              "INSCRIT sa déclaration par modèle (`declaration_for`) : l'outil `start_<app>` de "
+              "l'assistant la lit — un geste, deux portes, comme `start_one_process`",
+              'wama/common/utils/item_views.py',
+              'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §11',
+              depends_on=('progress_views',)),
     Mechanism('license_audit', 'Audit des licences',
               "Vue dérivée : licences+auteurs des 4 registres, traversée par app. "
               "Ne voit PAS le code vendorisé (`static/vendors/`, codeformer) — inventorié à "

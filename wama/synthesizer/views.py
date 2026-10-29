@@ -305,33 +305,48 @@ def _reset_synthesis_for_relaunch(s):
     # synthèse a laissé. C'est la glu de la synthèse qui le remplace quand elle rejoue.
 
 
-@app_access('synthesizer')
-@require_POST   # un GET lançait la synthèse (parcours des adresses, 2026-09-22) ; le JS POSTe désormais
-def start(request, pk: int):
-    """
-    Démarre la synthèse vocale pour un fichier.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+def _queue_panel(request, user):
+    """Ce que « tout lancer » POSTE — « démarrer tout vaut appliquer à tout » : le volet, lu par le
+    lecteur dérivé du schéma, les deux réglages hors schéma du même payload, et la voix de
+    référence téléversée ou DÉSIGNÉE (médiathèque, arbre), POINTÉE par toutes les synthèses au lieu
+    d'une copie par ligne. Une voix refusée lève : rien n'est lancé."""
+    from wama.common.utils.batch_views import read_settings_payload
+    names = [p['name'] for p in _SYNTH_PARAMS_JSON]
+    data = read_settings_payload(request, _SYNTH_PARAMS_JSON, names)
+    for extra in ('multi_speaker', 'scene_description'):
+        if extra in request.POST:
+            data[extra] = request.POST[extra]
+    voice = received_inputs(request, user, 'synthesizer', field='voice_reference')
+    if not voice and voice.refusal:
+        raise ValueError(voice.refusal)
+    if voice:
+        data['voice_reference'] = voice[0].value
+    return data
 
-    # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
-    from wama.common.utils.process_control import begin_processing
-    synthesis, err = begin_processing(VoiceSynthesis, pk, user=user,
-                                      reset=_reset_synthesis_for_relaunch)
-    if err:
-        msg = 'La synthèse est déjà en cours' if err == 'already_running' else err
-        return JsonResponse({'error': msg}, status=404 if err == 'not_found' else 400)
 
-    cache.set(f"synthesizer_progress_{synthesis.id}", 0, timeout=3600)
-    _ensure_workers_imported()
+def _replace_voice(synthesis, data):
+    """La voix postée remplace celle de la synthèse ; l'ancienne est LIBÉRÉE (brique commune)."""
+    if data.get('voice_reference'):
+        release_card_file(synthesis, 'voice_reference')
+        synthesis.voice_reference = data['voice_reference']
 
-    task = synthesize_voice.delay(synthesis.id)
-    synthesis.task_id = task.id
-    synthesis.save(update_fields=['task_id'])
 
-    return JsonResponse({
-        'task_id': task.id,
-        'status': 'started'
-    })
+# ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11
+# #39, 2026-10-29) — la même déclaration que lit l'outil `start_synthesizer`. « Tout lancer »
+# relance tout ce qui ne tourne pas, avec le volet posté (la fonction de réglage d'une synthèse,
+# celle de sa route d'élément et des lots), la voix remplacée sous le verrou seulement.
+from wama.common.utils.item_views import make_item_views  # noqa: E402
+
+_iv = make_item_views(
+    work_model=VoiceSynthesis, app_id='synthesizer', task_for=lambda s: _task_for(s),
+    reset_on_start=_reset_synthesis_for_relaunch, pending={},
+    queue_settings=_queue_panel,
+    apply_settings=lambda s, data: _apply_synthesis_settings(
+        s, {k: v for k, v in data.items() if k != 'voice_reference'}),
+    on_queue_settings=_replace_voice, batch_model=BatchSynthesis)
+start = app_access('synthesizer')(_iv['start'])
+start_all = app_access('synthesizer')(_iv['start_all'])
+clear_all = _iv['clear_all']
 
 
 def _decorate_synthesis(s, preloaded=False):
@@ -482,115 +497,6 @@ def console_content(request):
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
     all_lines = get_console_lines(user.id, limit=200)
     return JsonResponse({'output': all_lines})
-
-
-@require_POST
-@app_access('synthesizer')
-def start_all(request):
-    """
-    Démarre toutes les synthèses en attente.
-    Met à jour les options de synthèse pour toutes les files avant de les lancer.
-    """
-    try:
-        _ensure_workers_imported()
-    except Exception as e:
-        return JsonResponse({'error': f'TTS worker functions not available: {str(e)}'}, status=500)
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # « Démarrer tout » vaut « appliquer à tout » : les réglages postés (le volet, lu par le
-    # lecteur dérivé du schéma) passent par LA fonction de réglage d'une synthèse — celle de la
-    # route d'élément et des lots (2026-10-18). Jusque-là cette vue relisait cinq champs à la
-    # main : un réglage ajouté au schéma (et le format de sortie, la qualité, le curseur
-    # rapide/qualité, déjà postés) n'atteignait pas les synthèses relancées.
-    from wama.common.utils.batch_views import read_settings_payload
-    names = [p['name'] for p in _SYNTH_PARAMS_JSON]
-    data = read_settings_payload(request, _SYNTH_PARAMS_JSON, names)
-    for extra in ('multi_speaker', 'scene_description'):   # hors schéma, même payload
-        if extra in request.POST:
-            data[extra] = request.POST[extra]
-    # Voix de référence téléversée ou DÉSIGNÉE (médiathèque, arbre) : une désignation est
-    # POINTÉE par toutes les synthèses, au lieu d'une copie par ligne.
-    voice_received = received_inputs(request, user, 'synthesizer', field='voice_reference')
-    voice_reference = voice_received[0].value if voice_received else None
-    if not voice_received and voice_received.refusal:
-        return JsonResponse({'error': voice_received.refusal}, status=400)
-
-    # Récupérer toutes les synthèses (sauf celles en cours)
-    qs = VoiceSynthesis.objects.filter(user=user).exclude(status='RUNNING')
-    started = []
-    updated_options = []
-
-    watched = names + ['multi_speaker', 'scene_description']
-    for synthesis in qs:
-        before = [getattr(synthesis, n, None) for n in watched]
-        try:
-            _apply_synthesis_settings(synthesis, data)
-        except ValueError as refusal:
-            return JsonResponse({'error': str(refusal)}, status=400)
-        options_changed = before != [getattr(synthesis, n, None) for n in watched]
-        if voice_reference:
-            # Supprimer l'ancienne référence si elle existe
-            release_card_file(synthesis, 'voice_reference')
-            synthesis.voice_reference = voice_reference
-            options_changed = True
-
-        if options_changed:
-            updated_options.append(synthesis.id)
-            synthesis.save()  # persister les options AVANT le verrou (begin_processing re-lit l'instance)
-
-        # Anti-race COMMUN (atomic + select_for_update + revoke) — même brique que start()
-        from wama.common.utils.process_control import begin_processing
-        locked, err = begin_processing(VoiceSynthesis, synthesis.pk, user=user,
-                                       reset=_reset_synthesis_for_relaunch)
-        if err:
-            continue  # already_running / not_found
-        cache.set(f"synthesizer_progress_{locked.id}", 0, timeout=3600)
-        task = synthesize_voice.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        started.append(locked.id)
-
-    return JsonResponse({
-        'started_ids': started,
-        'updated_options': updated_options,
-        'count': len(started)
-    })
-
-
-@require_POST
-def clear_all(request):
-    """
-    Supprime toutes les synthèses de l'utilisateur.
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    syntheses = VoiceSynthesis.objects.filter(user=user)
-    cleared = []
-
-    for synthesis in syntheses:
-        cleared.append(synthesis.id)
-
-        # Révoquer la tâche Celery si présente
-        if synthesis.task_id:
-            try:
-                from celery.result import AsyncResult
-                AsyncResult(synthesis.task_id).revoke(terminate=False)
-            except Exception:
-                pass
-
-        # Libérer les fichiers (brique, à l'échelle de la card)
-        release_card_files(synthesis)
-
-        cache.delete(f"synthesizer_progress_{synthesis.id}")
-
-    syntheses.delete()
-
-    # Also remove all batch containers (BatchSynthesisItems cascade-deleted with syntheses above)
-    BatchSynthesis.objects.filter(user=user).delete()
-
-    return JsonResponse({
-        'cleared_ids': cleared,
-        'count': len(cleared)
-    })
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,

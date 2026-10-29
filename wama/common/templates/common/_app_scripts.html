@@ -9,7 +9,9 @@ ici, une app générée hérite du même socle que les autres.
 CE QUI N'EST PAS ICI, ET POURQUOI. `base.html` charge DÉJÀ globalement, pour toutes les
 surfaces et tous les mondes : wama-app-base, wama-inspector (+autofill), wama-queue,
 wama-card-v3, wama-cycle-button, wama-model-help, media-preview, media-picker,
-wama-audio-player, wama-prompt-enrich, wama-filter-bar, queue-actions, system-stats ;
+wama-audio-player, wama-prompt-enrich, wama-filter-bar, queue-actions, system-stats, et
+wama-eta depuis le 2026-10-20 (l'ETA de la barre des jobs dans l'échange de l'assistant :
+il était chargé ici AUSSI, donc deux fois, jusqu'au 2026-10-29) ;
 `app_modern_base.html` y ajoute console.js. Les re-déclarer ici les chargerait DEUX fois
 — c'est le défaut qui avait rendu le player audio muet le 18/08 (deux BroadcastChannel,
 l'exclusivité inter-onglets faisant taire son propre onglet). Relevé au passage le
@@ -35,7 +37,6 @@ Usage, dans le gabarit d'une app :
 
 {# ── Noyau : chargé par les 10 apps, mesuré le 2026-08-22 ─────────────────────────── #}
 <script src="{% static_v 'common/js/wama-params.js' %}"></script>
-<script src="{% static_v 'common/js/wama-eta.js' %}"></script>
 <script src="{% static_v 'common/js/batch-import.js' %}"></script>
 
 {% comment %}

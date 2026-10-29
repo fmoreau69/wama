@@ -459,30 +459,18 @@ batch_promote = _bv['batch_promote']
 batch_realign = _bv['batch_realign']
 
 
-@app_access('describer')
-@require_POST   # un GET lançait le traitement (parcours des adresses, 2026-09-22)
-def start(request, pk):
-    """Start processing a description — anti-race via la brique commune (2026-07-06 :
-    l'implémentation inline d'origine a été PROMUE en process_control.begin_processing)."""
-    from .workers import describe_content
-    from wama.common.utils.process_control import begin_processing
+# ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11
+# #39, 2026-10-29) — la même déclaration que lit l'outil `start_describer` de l'assistant. Le
+# « tout lancer » écrit ici était décoré `@require_GET` PUIS `@require_POST` : le POST de la barre
+# de file recevait 405, le bouton ne lançait rien.
+from wama.common.utils.item_views import make_item_views  # noqa: E402
 
-    user = get_user(request)
-    description, err = begin_processing(Description, pk, user=user, reset=_reset_for_relaunch)
-    if err == 'not_found':
-        return JsonResponse({'error': 'Not found'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Already running'}, status=400)
-
-    task = describe_content.delay(description.id)
-    description.task_id = task.id
-    description.save(update_fields=['task_id'])
-
-    return JsonResponse({
-        'id': description.id,
-        'task_id': task.id,
-        'status': 'RUNNING',
-    })
+_iv = make_item_views(work_model=Description, app_id='describer', task=_describe_content,
+                      get_user=get_user, reset_on_start=_reset_for_relaunch,
+                      batch_model=BatchDescription)
+start = app_access('describer')(_iv['start'])
+start_all = app_access('describer')(_iv['start_all'])
+clear_all = _iv['clear_all']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -629,47 +617,6 @@ def delete(request, pk):
     description.delete()  # signal batch_sync : recale total / supprime le batch vidé
 
     return JsonResponse({'deleted': True, 'id': pk, 'batch': batch_state(snapshot, Description)})
-
-
-@require_GET
-@require_POST
-@app_access('describer')
-def start_all(request):
-    """Start all pending descriptions."""
-    user = get_user(request)
-    pending = Description.objects.filter(user=user, status='PENDING')
-
-    from .workers import describe_content
-    from wama.common.utils.process_control import begin_processing
-
-    started = []
-    for description in pending:
-        locked, err = begin_processing(Description, description.pk, user=user,
-                                       reset=_reset_for_relaunch)
-        if err:
-            continue
-        task = describe_content.delay(locked.id)
-        locked.task_id = task.id
-        locked.save(update_fields=['task_id'])
-        started.append(locked.id)
-
-    return JsonResponse({'started': started, 'count': len(started)})
-
-
-@require_POST
-def clear_all(request):
-    """Delete all descriptions."""
-    user = get_user(request)
-    descriptions = Description.objects.filter(user=user)
-
-    count = descriptions.count()
-
-    for desc in descriptions:
-        release_card_files(desc)
-
-    descriptions.delete()
-
-    return JsonResponse({'deleted': count})
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,

@@ -324,28 +324,21 @@ def stop(request, pk):
     return JsonResponse({'id': job.id, 'status': new_status})
 
 
-@require_POST   # un GET lançait la génération (parcours des adresses, 2026-09-22) ; le JS POSTe désormais
-def start(request, pk):
-    """GET : Lance la génération d'un AvatarJob via Celery (queue gpu)."""
-    user = _get_user(request)
+# ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11
+# #39, 2026-10-29) — la même déclaration que lit l'outil `start_avatarizer`. « Tout lancer »
+# relance tout ce qui n'est ni en cours ni réussi : la règle du bouton, que l'outil de
+# l'assistant ne suivait pas (il ne lançait que l'attente). « Tout effacer » ne refuse plus la
+# file entière quand un job tourne : il garde celui-là, la règle commune.
+from wama.common.utils.item_views import make_item_views  # noqa: E402
 
-    # Anti-race COMMUN (atomic + select_for_update + revoke de l'ancienne tâche) —
-    # audit 2026-07-11. Le worker précise ensuite RUNNING/étapes ; statut posé RUNNING
-    # dès l'acceptation comme dans les autres apps.
-    from wama.common.utils.process_control import begin_processing
-    job, err = begin_processing(AvatarJob, pk, user=user,
-                                reset={'progress': 0, 'error_message': ''})
-    if err == 'not_found':
-        return JsonResponse({'error': 'Job introuvable.'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Job déjà en cours.'}, status=400)
-
-    _ensure_workers_imported()
-    task = _generate_avatar.delay(job.id)
-    job.task_id = task.id
-    job.save(update_fields=['task_id'])
-
-    return JsonResponse({'task_id': task.id, 'status': 'started'})
+_iv = make_item_views(work_model=AvatarJob, app_id='avatarizer',
+                      task_for=lambda job: _task_for(job), get_user=_get_user,
+                      reset_on_start={'progress': 0, 'error_message': ''},
+                      pending={}, pending_exclude={'status__in': ['RUNNING', 'SUCCESS']},
+                      batch_model=BatchAvatarJob)
+start = app_access('avatarizer')(_iv['start'])
+start_all = app_access('avatarizer')(_iv['start_all'])
+clear_all = _iv['clear_all']
 
 
 def _decorate_card(job, preloaded=False):
@@ -526,45 +519,6 @@ def download(request, pk):
         return response
     except FileNotFoundError:
         raise Http404("Fichier vidéo introuvable.")
-
-
-@require_POST
-def start_all(request):
-    """POST : Démarre tous les jobs non terminés (bouton global) — audit 2026-07-11."""
-    user = _get_user(request)
-    from wama.common.utils.process_control import begin_processing
-    _ensure_workers_imported()
-    started = []
-    for job in AvatarJob.objects.filter(user=user).exclude(status__in=['RUNNING', 'SUCCESS']):
-        j, err = begin_processing(AvatarJob, job.pk, user=user,
-                                  reset={'progress': 0, 'error_message': ''})
-        if err:
-            continue
-        task = _generate_avatar.delay(j.id)
-        j.task_id = task.id
-        j.save(update_fields=['task_id'])
-        started.append(j.id)
-    return JsonResponse({'started': started, 'count': len(started)})
-
-
-@require_POST
-def clear_all(request):
-    """POST : Supprime tous les jobs de l'utilisateur (vue serveur — remplace la boucle
-    DELETE côté client, audit 2026-07-11). Refuse si un job est RUNNING."""
-    user = _get_user(request)
-    jobs = AvatarJob.objects.filter(user=user)
-    if jobs.filter(status='RUNNING').exists():
-        return JsonResponse({'error': 'Un job est en cours — stoppez-le avant de tout effacer.'},
-                            status=400)
-    count = 0
-    for job in jobs:
-        # Même nettoyage que la vue delete() — par la brique : `audio_input` peut POINTER vers
-        # un fichier de l'utilisateur (lot `-i`), et un `os.remove` direct l'effaçait (relevé le
-        # 2026-09-22). La brique ne détruit que ce qui vit chez l'app, et que plus rien ne partage.
-        release_card_files(job)
-        job.delete()  # signal batch_sync : recale total / supprime le batch vidé
-        count += 1
-    return JsonResponse({'deleted': count})
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,

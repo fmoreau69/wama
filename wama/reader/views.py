@@ -452,22 +452,16 @@ batch_promote = _bv['batch_promote']
 batch_realign = _bv['batch_realign']
 
 
-@app_access('reader')
-@require_POST   # un GET lançait la lecture (parcours des adresses, 2026-09-22)
-def start(request, pk: int):
-    """Start OCR processing for a single item — anti-race via la brique commune."""
-    user = _get_user(request)
-    from wama.common.utils.process_control import begin_processing
-    item, err = begin_processing(ReadingItem, pk, user=user, reset=_reset_for_relaunch)
-    if err == 'not_found':
-        return JsonResponse({'error': 'Not found'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Déjà en cours'}, status=409)
+# ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11
+# #39, 2026-10-29) — la même déclaration que lit l'outil `start_reader` de l'assistant.
+from wama.common.utils.item_views import make_item_views  # noqa: E402
 
-    task = read_document_task.delay(item.id)
-    item.task_id = task.id
-    item.save(update_fields=['task_id'])
-    return JsonResponse({'ok': True, 'task_id': task.id})
+_iv = make_item_views(work_model=ReadingItem, app_id='reader', task=read_document_task,
+                      get_user=_get_user, reset_on_start=_reset_for_relaunch,
+                      batch_model=BatchReadingItem)
+start = app_access('reader')(_iv['start'])
+start_all = app_access('reader')(_iv['start_all'])
+clear_all = _iv['clear_all']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -550,46 +544,9 @@ def duplicate(request, pk: int):
     return JsonResponse({**_item_to_dict(new_item), 'duplicated': new_item.id})
 
 
-@require_POST
-@app_access('reader')
-def start_all(request):
-    """Start all PENDING items for the current user."""
-    user = _get_user(request)
-    from wama.common.utils.process_control import begin_processing
-    items = ReadingItem.objects.filter(user=user, status='PENDING').order_by('-created_at')
-    count = 0
-    for item in items:
-        item, err = begin_processing(ReadingItem, item.pk, user=user, reset=_reset_for_relaunch)
-        if err:
-            continue
-        task = read_document_task.delay(item.id)
-        item.task_id = task.id
-        item.save(update_fields=['task_id'])
-        count += 1
-    return JsonResponse({'started': count})
-
-
-
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
 # par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
 download_all = _pv['download_all']
-
-
-@require_POST
-def clear_all(request):
-    """Delete all items and batches for the current user."""
-    user = _get_user(request)
-    items = ReadingItem.objects.filter(user=user)
-    for item in items:
-        release_card_files(item)
-        cache.delete(f'reader_progress_{item.id}')
-    items.delete()
-    # Clean up orphan batch containers and their files
-    batches = BatchReadingItem.objects.filter(user=user)
-    for batch in batches:
-        release_card_files(batch)
-    batches.delete()
-    return JsonResponse({'ok': True})
 
 
 @require_POST
@@ -783,8 +740,6 @@ def build_reading_bytes(item, fmt):
     # forme ») ; elle y partait telle quelle (`#`, `**`, `|`).
     from wama.common.utils.document_export import strip_markdown
     return ('txt', strip_markdown(text).encode('utf-8'))
-
-
 
 
 def console_content(request):

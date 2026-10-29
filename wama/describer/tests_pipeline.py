@@ -507,9 +507,12 @@ class CardAndViewsTest(_Cards):
                                             copy.frame_captions, copy.summary))
 
     def test_the_assistant_launches_with_the_reset_of_the_card_button(self):
-        from wama.tool_api import TRIAD_SPECS
-        self.assertEqual('wama.describer.views._reset_and_clear_progress',
-                         TRIAD_SPECS['describer']['reset'])
+        """Since 2026-10-29 the button and the tool `start_describer` read ONE declaration, the
+        one the views make to their factory (`item_views.declaration_for`)."""
+        from wama.common.utils.item_views import declaration_for
+        from wama.describer import views
+        from wama.describer.models import Description
+        self.assertIs(views._reset_for_relaunch, declaration_for(Description).reset_on_start)
 
 
 class FacesOfTheDescriberTest(_Cards):

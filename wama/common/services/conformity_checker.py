@@ -439,10 +439,17 @@ def _anti_race(f: _AppFiles):
                 results.append(ok)
                 if not ok:
                     evid.append(f"{rel}:{line} {m.group(1)}() SANS verrou")
+    # La fabrique des vues de lancement (`item_views.make_item_views`, 2026-10-29) verrouille par
+    # construction (`begin_processing`) : une app portée n'a plus de corps `def start…` à lire, et
+    # sans cette ligne le critère la déclarait « non applicable » — aveugle, pas vert.
+    factory = f.find_code(VIEWS, r'\bmake_item_views\(')
+    if factory:
+        results.append(True)
     if not results:
         return None, None  # aucune vue de démarrage détectée (spécificité)
     if all(results):
-        return True, f"{len(results)} vue(s) de démarrage verrouillée(s)"
+        return True, (f"{factory} (fabrique) + " if factory else '') + \
+            f"{len(results)} vue(s) de démarrage verrouillée(s)"
     if any(results):
         return 'partial', ' ; '.join(evid[:3])
     return False, ' ; '.join(evid[:3])
@@ -1219,6 +1226,28 @@ def _process_start_common(f: _AppFiles):
     if declared:
         return False, f"pipeline déclaré ({declared}) sans ▶ par process"
     return None, 'aucun pipeline déclaré (app à un seul process)'
+
+
+def _item_views_common(f: _AppFiles):
+    """Le ▶ d'une card, le ▶ et le 🗑 de la file viennent de la fabrique commune
+    `item_views.make_item_views` (2026-10-29, ROUTE §11 #39 : trente copies dans dix apps).
+
+    VRAI : fabrique appelée, aucune de ces vues écrite à la main ; PARTIEL : fabrique appelée, une
+    vue encore locale (anonymizer : « tout lancer » par sa chaîne de lot, en attente de décision) ;
+    FAUX : tout à la main ; N/A : aucune de ces vues. Les graphies déviantes comptent
+    (`start_generation`, `start_all_generations`, `clear_all_media`, domaine `audio_`)."""
+    local_re = (r'(?m)^def ((audio_)?(start|start_all|clear_all)|start_generation'
+                r'|restart_generation|start_all_generations|clear_all_media)\(')
+    brique = f.find_code(VIEWS, r'\bmake_item_views\(')
+    local = f.find_code(VIEWS, local_re)
+    if brique and local:
+        return 'partial', f"{brique} + vue encore locale ({local})"
+    if brique:
+        return True, brique
+    if local:
+        return False, (f"▶ / tout lancer / tout effacer écrits à la main ({local}) — fabrique "
+                       "`item_views.make_item_views`")
+    return None, 'aucune vue de lancement ni d’effacement de file'
 
 
 def _settings_route(f: _AppFiles):
@@ -2667,6 +2696,11 @@ CRITERIA: list[Criterion] = [
     Criterion('process_start_common', 'F5',
               "▶ d'un process par la fabrique commune (make_process_start_view)",
               _process_start_common, mechanism='process_start_view'),
+    # 2026-10-29 : le ▶ d'une card et les ▶ / 🗑 de la file, extraits en fabrique (ROUTE §11 #39)
+    # — la grille suit le mécanisme le jour où il naît.
+    Criterion('item_views_common', 'F5',
+              "▶ d'une card, ▶ et 🗑 de la file par la fabrique commune (make_item_views)",
+              _item_views_common, mechanism='item_views'),
     # Les deux contrats COMMUNS du modèle de lot. `batch_semantics` porte `is_unitary`, que lisent
     # `_queue_entry.html` ET `is_batch_child` — son absence (jumelle `converter_01`, 15/09) rendait
     # tout lot en lot de plusieurs cards, sans erreur. `queue_order` : le mécanisme de même nom
@@ -2755,8 +2789,10 @@ CRITERIA: list[Criterion] = [
               mechanism='tool_api'),
     # ── F7 permissions & scope données ──
     Criterion('access_policy', 'F7', "Gating d'app déclaré (DEFAULT_APP_ACCESS)", _access_policy),
+    # Décorateur, OU appliqué à une vue de fabrique (`app_access('x')(_iv['start'])`) — la forme
+    # des apps portées : ne lire que `@` punirait l'adoption des fabriques (2026-10-29).
     Criterion('app_access_view', 'F7', 'Décorateur @app_access sur les vues (défense en profondeur)',
-              lambda f: _present(f, VIEWS, r'@app_access')),
+              lambda f: _present(f, VIEWS, r'@app_access|\bapp_access\(\s*[\'"]', code=True)),
     Criterion('user_scope', 'F7', 'Requêtes filtrées par utilisateur (scope données)',
               lambda f: _present(f, VIEWS, r'user\s*=\s*(request\.user|self\.request\.user|user)\b'),
               mechanism='scoping'),

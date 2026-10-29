@@ -323,40 +323,6 @@ def upload(request):
     })
 
 
-@login_required
-@require_POST
-def start(request, pk):
-    """Start (or restart) a ConversionJob."""
-    from django.http import Http404
-    from wama.common.utils.process_control import begin_processing
-    from wama.common.utils.scoping import editable_or_404
-    from .tasks import convert_media_task
-
-    # Un job importé par lot ou par fichier NAÎT sans format (`output_format=''`) ; le lot le
-    # saute déjà (`batch_start`). Lancé seul, il partait en tâche et tombait sur « Format vidéo non
-    # supporté : » (format VIDE) — lu comme un rejet de codec (job #27, 2026-09-14).
-    if not editable_or_404(ConversionJob, request.user, pk=pk).output_format:
-        return JsonResponse({'error': "Format de sortie non défini — le choisir dans "
-                                      "⚙ Paramètres avant de lancer."}, status=400)
-    # Le démarrage COMMUN (`begin_processing`, 2026-10-22) : verrou, révocation de l'ancienne
-    # tâche, lignes d'un résultat antérieur au pipeline, remplacement d'un traitement en cours
-    # quand l'utilisateur l'a confirmé. La vue le refaisait à la main, sans ces deux derniers.
-    # L'ancienne sortie n'est pas effacée au clic (pipeline, 2026-10-13) : la glu qui réécrit
-    # une sortie remplace l'ancienne — effacer ici emporterait la conversion brute que le
-    # post-traitement reprend.
-    job, err = begin_processing(ConversionJob, pk, user=request.user, reset=_reset_for_relaunch)
-    if err == 'not_found':
-        raise Http404
-    if err:
-        return JsonResponse({'error': 'Conversion déjà en cours'}, status=400)
-
-    task    = convert_media_task.delay(job.id)
-    job.task_id = task.id
-    job.save(update_fields=['task_id'])
-
-    return JsonResponse({'success': True, 'task_id': task.id})
-
-
 def _reset_for_relaunch(job):
     """Remise à zéro avant (re)lancement, SOUS le verrou — ni la sortie ni la conversion brute :
     le résultat d'un process s'efface quand CE process est rejoué (sa glu le remplace)."""
@@ -376,6 +342,25 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 start_process = login_required(make_process_start_view(
     work_model=ConversionJob, task_for=lambda job: _task_for(job),
     get_user=lambda request: request.user, reset_on_start=_reset_for_relaunch))
+
+# ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11
+# #39, 2026-10-29) — la même déclaration que lit l'outil `start_converter`. L'ancienne sortie
+# n'est pas effacée au clic (pipeline, 2026-10-13) : la glu qui la réécrit la remplace. Un job
+# importé par lot ou par fichier NAÎT sans format : le ▶ le refuse en le disant (job #27,
+# 2026-09-14, « format vidéo non supporté : » lu comme un rejet de codec), « tout lancer » le
+# saute — la règle de `batch_start`. La file est celle de la barre (sans les jobs éphémères).
+from wama.common.utils.item_views import make_item_views  # noqa: E402
+
+_iv = make_item_views(
+    work_model=ConversionJob, app_id='converter', task_for=lambda job: _task_for(job),
+    get_user=lambda request: request.user, reset_on_start=_reset_for_relaunch,
+    startable=lambda job: bool(job.output_format),
+    unstartable_message="Format de sortie non défini — le choisir dans ⚙ Paramètres avant de lancer.",
+    queryset=lambda user: ConversionJob.objects.filter(user=user, ephemeral=False),
+    batch_model=ConversionBatch)
+start = login_required(_iv['start'])
+start_all = login_required(_iv['start_all'])
+clear_all = login_required(_iv['clear_all'])
 
 
 def _progress_extra(job):
@@ -406,7 +391,6 @@ _pv = make_progress_views(
     queryset=lambda user: ConversionJob.objects.filter(user=user, ephemeral=False))
 status = login_required(_pv['progress'])
 global_progress = login_required(_pv['global_progress'])
-
 
 
 @login_required
@@ -612,48 +596,6 @@ def duplicate(request, pk):
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
 # par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
 download_all = login_required(_pv['download_all'])
-
-
-@login_required
-@require_POST
-def start_all(request):
-    """Start all PENDING jobs for the current user."""
-    from .tasks import convert_media_task
-
-    jobs = ConversionJob.objects.filter(user=request.user, status='PENDING')
-    started, skipped = [], []
-    for job in jobs:
-        # Même règle que `batch_start` : un job sans format de sortie n'est pas lancé (il
-        # échouerait sur un faux « format non supporté »). Il reste en attente, relançable.
-        if not job.output_format:
-            skipped.append(job.id)
-            continue
-        try:
-            with transaction.atomic():
-                job_locked = ConversionJob.objects.select_for_update().get(pk=job.pk, status='PENDING')
-                job_locked.status = 'RUNNING'
-                job_locked.save()
-            task = convert_media_task.delay(job.id)
-            job.task_id = task.id
-            job.save(update_fields=['task_id'])
-            started.append(job.id)
-        except ConversionJob.DoesNotExist:
-            pass
-        except Exception as e:
-            logger.exception(f"start_all error for job #{job.id}: {e}")
-
-    return JsonResponse({'success': True, 'started': started, 'skipped': skipped})
-
-
-@login_required
-@require_POST
-def clear_all(request):
-    """Delete all jobs for the current user."""
-    jobs = ConversionJob.objects.filter(user=request.user)
-    for job in jobs:
-        release_card_files(job)
-    jobs.delete()  # signal batch_sync (apps.py) : recale total / supprime le lot vidé
-    return JsonResponse({'success': True})
 
 
 # ────────────────────────────────────────────────────────────────────────────
@@ -1113,8 +1055,6 @@ def batch_template(request):
     response = HttpResponse(template_content, content_type='text/plain; charset=utf-8')
     response['Content-Disposition'] = 'attachment; filename="batch_converter_template.txt"'
     return response
-
-
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante FK-directe) ──

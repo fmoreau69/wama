@@ -426,52 +426,42 @@ def stop(request, pk: int):
     return JsonResponse({'id': enhancement.id, 'status': new_status})
 
 
-@require_POST
-def start(request, pk: int):
-    """Start enhancement processing."""
-    logger.info(f"=== START ENHANCEMENT {pk} ===")
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    # Réglages de la requête (JSON ou form-data) — appliqués SOUS le verrou via reset()
+def _queue_panel(request, _user):
+    """Le volet que « tout lancer » POSTE (JSON, ou formulaire) — « démarrer tout vaut appliquer
+    à tout » ; rien de posté = chaque élément garde ses réglages."""
+    import json
     try:
-        import json
         data = json.loads(request.body) if request.body else {}
-    except (json.JSONDecodeError, ValueError):
-        data = request.POST
+    except ValueError:
+        data = request.POST.dict()
+    return data or None
 
-    def _apply_settings(enh):
-        enh.ai_model = data.get('ai_model', enh.ai_model)
-        denoise_value = data.get('denoise', enh.denoise)
-        enh.denoise = (denoise_value.lower() in ('1', 'true', 'on')
-                       if isinstance(denoise_value, str) else bool(denoise_value))
-        enh.blend_factor = float(data.get('blend_factor', enh.blend_factor))
-        enh.upscale_factor = _factor_posted(data, enh.upscale_factor)
-        if 'quality_intent' in data:
-            enh.quality_intent = _intent_posted(data)
-        enh.progress = 0
-        enh.error_message = ''
 
-    # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
-    from wama.common.utils.process_control import begin_processing
-    enhancement, err = begin_processing(Enhancement, pk, user=user, reset=_apply_settings)
-    if err:
-        return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
+# ▶ de la card, ▶ et 🗑 de la file — DEUX files, deux déclarations : fabrique COMMUNE
+# (`item_views.make_item_views`, ROUTE §11 #39, 2026-10-29), la même que lisent les outils
+# `start_enhancer` et `start_audio_enhancer`. Le ▶ de la card lance avec les réglages STOCKÉS
+# (corps vide, modèle événementiel) ; « tout lancer » relance TOUTE la file avec le volet posté,
+# par la fonction de réglage d'un élément — celle de sa route `update_settings` et de ses lots.
+from wama.common.utils.item_views import make_item_views  # noqa: E402
 
-    from .tasks import enhance_media
-    try:
-        task = enhance_media.delay(pk)
-        enhancement.task_id = task.id
-        enhancement.save(update_fields=['task_id'])
-        return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})
-    except Exception as e:
-        logger.error(f"Failed to start task for Enhancement {pk}: {e}", exc_info=True)
-        enhancement.status = 'PENDING'
-        enhancement.save(update_fields=['status'])
-        return JsonResponse({
-            'error': str(e),
-            'message': 'Failed to start task. Is Celery running?',
-        }, status=500)
+_iv = make_item_views(work_model=Enhancement, app_id='enhancer',
+                      task_for=lambda e: _media_task(e),
+                      reset_on_start={'progress': 0, 'error_message': ''}, pending={},
+                      queue_settings=_queue_panel,
+                      apply_settings=lambda e, data: _apply_enhancement_settings(e, data),
+                      batch_model=BatchEnhancement)
+start = app_access('enhancer')(_iv['start'])
+start_all = app_access('enhancer')(_iv['start_all'])
+clear_all = _iv['clear_all']
+_aiv = make_item_views(work_model=AudioEnhancement, app_id='audio_enhancer',
+                       task_for=lambda a: _audio_task(a),
+                       reset_on_start={'progress': 0, 'error_message': ''}, pending={},
+                       queue_settings=_queue_panel,
+                       apply_settings=lambda a, data: _apply_audio_settings(a, data),
+                       batch_model=BatchAudioEnhancement)
+audio_start = app_access('enhancer')(_aiv['start'])
+audio_start_all = app_access('enhancer')(_aiv['start_all'])
+audio_clear_all = _aiv['clear_all']
 
 
 # Les vues de PROGRESSION : fabrique COMMUNE (`progress_views.make_progress_views`, ROUTE §11 #37,
@@ -573,70 +563,6 @@ def duplicate(request, pk: int):
         except Exception:
             pass
     return JsonResponse({'duplicated': new_e.id})
-
-
-@require_POST
-def start_all(request):
-    """Start all enhancements (including reprocessing completed ones)."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancements = Enhancement.objects.filter(user=user)
-
-    # Get global settings from request (support both JSON and form-data)
-    try:
-        import json
-        data = json.loads(request.body) if request.body else {}
-    except (json.JSONDecodeError, ValueError):
-        data = request.POST
-
-    from .tasks import enhance_media
-    from wama.common.utils.process_control import begin_processing
-
-    started = []
-    errors = []
-
-    def _apply_globals(enh):
-        # Le volet posté s'applique à toute la file par LA fonction des réglages d'un élément
-        # (2026-10-28) — sa liste de cinq réglages écrite ici en était une recopie, sans la sortie.
-        _apply_enhancement_settings(enh, data)
-        enh.progress = 0
-        enh.error_message = ''
-
-    for enhancement in enhancements:
-        try:
-            # Anti-race COMMUN (atomic + select_for_update + revoke) — même brique que start()
-            locked, err = begin_processing(Enhancement, enhancement.pk, user=user,
-                                           reset=_apply_globals)
-            if err:
-                continue  # already_running / not_found
-            task = enhance_media.delay(locked.id)
-            locked.task_id = task.id
-            locked.save(update_fields=['task_id'])
-            started.append(locked.id)
-        except Exception as e:
-            errors.append({'id': enhancement.id, 'error': str(e)})
-
-    return JsonResponse({
-        'started_ids': started,
-        'count': len(started),
-        'errors': errors,
-    })
-
-
-@require_POST
-def clear_all(request):
-    """Clear all enhancements."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    enhancements = Enhancement.objects.filter(user=user)
-
-    cleared = []
-    for enhancement in enhancements:
-        cleared.append(enhancement.id)
-        release_card_files(enhancement)
-        cache.delete(f"enhancer_progress_{enhancement.id}")
-
-    enhancements.delete()
-
-    return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
@@ -1047,44 +973,6 @@ def audio_update(request, pk: int):
                          'output_format': ae.output_format, 'output_quality': ae.output_quality})
 
 
-@require_POST
-def audio_start(request, pk: int):
-    """Start audio enhancement processing."""
-    import json as _json
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        data = _json.loads(request.body) if request.body else {}
-    except Exception:
-        data = {}
-
-    def _apply_settings(a):
-        # Le ▶ de la card lance avec les réglages STOCKÉS (corps vide, comme le domaine
-        # image/vidéo) ; un appelant qui en poste passe par la fonction unique du domaine.
-        _apply_audio_settings(a, data)
-        a.progress = 0
-        a.error_message = ''
-
-    # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
-    from wama.common.utils.process_control import begin_processing
-    ae, err = begin_processing(AudioEnhancement, pk, user=user, reset=_apply_settings)
-    if err:
-        return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
-
-    from .tasks import enhance_audio
-    try:
-        task = enhance_audio.delay(pk)
-        ae.task_id = task.id
-        ae.save(update_fields=['task_id'])
-        return JsonResponse({'task_id': task.id, 'status': 'RUNNING'})
-    except Exception as e:
-        ae.status = 'PENDING'
-        ae.save(update_fields=['status'])
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-
 def audio_download(request, pk: int):
     """Download enhanced audio file."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -1150,69 +1038,9 @@ def audio_duplicate(request, pk: int):
     return JsonResponse({'duplicated': new_ae.id})
 
 
-@require_POST
-def audio_start_all(request):
-    """Start all pending audio enhancements."""
-    import json as _json
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        data = _json.loads(request.body) if request.body else {}
-    except Exception:
-        data = {}
-
-    from .tasks import enhance_audio
-    from wama.common.utils.process_control import begin_processing
-
-    pending = AudioEnhancement.objects.filter(user=user)
-    started, errors = [], []
-
-    def _apply_globals(ae):
-        # « Tout démarrer » applique le volet à toute la file (comme le domaine image/vidéo), par
-        # la fonction unique du domaine — sa liste de quatre réglages en était une recopie.
-        _apply_audio_settings(ae, data)
-
-    for ae in pending:
-        try:
-            # Anti-race COMMUN — même brique que audio_start()
-            locked, err = begin_processing(AudioEnhancement, ae.pk, user=user,
-                                           reset=_apply_globals)
-            if err:
-                continue  # already_running / not_found
-            task = enhance_audio.delay(locked.id)
-            locked.task_id = task.id
-            locked.save(update_fields=['task_id'])
-            started.append(locked.id)
-        except Exception as e:
-            errors.append({'id': ae.id, 'error': str(e)})
-
-    return JsonResponse({'started_ids': started, 'count': len(started), 'errors': errors})
-
-
-@require_POST
-def audio_clear_all(request):
-    """Clear all audio enhancements and batch containers."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    aes = AudioEnhancement.objects.filter(user=user)
-    cleared = []
-    for ae in aes:
-        cleared.append(ae.id)
-        release_card_files(ae)
-        cache.delete(f"audio_enhancer_progress_{ae.id}")
-    aes.delete()
-    # Clean up orphan batch containers and their files
-    batches = BatchAudioEnhancement.objects.filter(user=user)
-    for batch in batches:
-        release_card_files(batch)
-    batches.delete()
-    return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
-
-
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
 # par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
 audio_download_all = _apv['download_all']
-
 
 
 # ===========================================================================
@@ -1346,7 +1174,6 @@ def console_content(request):
     return JsonResponse({'output': all_lines})
 
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Vues standard communes (port schéma-driven 2026-07-26) — LES DEUX DOMAINES
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1375,8 +1202,6 @@ def audio_card_html(request, pk):
     from wama.common.utils.batch_common import is_batch_child
     return render(request, 'enhancer/_audio_card.html',
                   {'elem': ae, 'in_batch': is_batch_child(ae)})
-
-
 
 
 # ── Manipulation directe de la file (fabrique COMMUNE, variante liaison) ──────

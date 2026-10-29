@@ -313,8 +313,12 @@ class CheminDeLotTest(SimpleTestCase):
         D35) : aucune liste de champs n'est émise, la brique lit ce que la card porte."""
         self.assertNotIn('_fichier_de_l_app', self.src, 'la garde redondante est réémise')
         self.assertNotIn('app_media_dir', self.src)
-        # (`batch_delete` vit dans la fabrique `batch_views` depuis le 22/09 — tenue là-bas.)
-        for view in ('delete', 'clear_all'):
+        # (`batch_delete` vit dans la fabrique `batch_views` depuis le 22/09, `clear_all` dans la
+        # fabrique `item_views` depuis le 2026-10-29 — `discard_element`, tenu par
+        # `tests_item_views` : le module généré n'en porte plus le corps.)
+        self.assertIn("clear_all = _iv['clear_all']", self.src)
+        self.assertIn('_iv = make_item_views(', self.src)
+        for view in ('delete',):
             corps = _fonction(self.src, view)
             self.assertIsNotNone(corps, f'{view} absente')
             self.assertIn('release_card_files(item)', corps,

@@ -105,9 +105,10 @@ ROUTE_ALIASES = {
     # l'écart (création par prompt) est la glu du composer, VISIBLE au diff — la page, elle,
     # boote au lieu de tomber sur `{% url 'composer_01:upload' %}` (NoReverseMatch, 22/09).
     # imager : `create` (route `create/`, vue `create_generation`, prompt aussi) — même raison.
-    # ⚠ Les autres routes de l'imager (`start/<int:generation_id>/` → `start_generation`…)
+    # ⚠ Les autres routes de l'imager (`download/<int:generation_id>/`, `delete/…`, `card/…`)
     # restent des BOUCHONS dans le généré : nom de vue ET kwarg dévient de la convention
-    # (`<int:pk>`) — les harmoniser est un chantier de PORTAGE de l'imager, pas un alias.
+    # (`<int:pk>`) — les harmoniser est un chantier de PORTAGE de l'imager, pas un alias. Ses
+    # ▶ / ↻ / « tout lancer » y sont revenus le 2026-10-29 (fabrique `item_views`).
     'upload': ('generate', 'create'),
     # anonymizer nomme ses gestes d'après son modèle (`Media`) : `duplicate_media` et
     # `clear_all_media`. Ajoutés le 2026-09-12 après une erreur de mesure QUI A COÛTÉ UN FAUX

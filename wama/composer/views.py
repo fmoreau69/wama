@@ -499,23 +499,18 @@ def import_batch(request):
 # Update individual settings
 # ---------------------------------------------------------------------------
 
-@require_POST
-@app_access('composer')
-def start(request, pk):
-    """Relance la génération d'une composition (bouton de cycle ▶/↻) sans changer les réglages."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    # Anti-race (pattern AGENTS.md) : select_for_update + revoke — brique commune.
-    from wama.common.utils.process_control import begin_processing
-    gen, err = begin_processing(ComposerGeneration, pk, user=user, reset=_reset_for_relaunch)
-    if err == 'not_found':
-        return JsonResponse({'error': 'Not found'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Déjà en cours'}, status=400)
-    from .tasks import compose_task
-    task = compose_task.apply_async(args=(gen.id,))
-    gen.task_id = task.id
-    gen.save(update_fields=['task_id'])
-    return JsonResponse({'id': gen.id, 'status': 'RUNNING'})
+# ▶ de la card (relance sans changer les réglages), ▶ et 🗑 de la file : fabrique COMMUNE
+# (`item_views.make_item_views`, ROUTE §11 #39, 2026-10-29) — la même déclaration que lit l'outil
+# `start_composer`. « Tout lancer » relance aussi les ÉCHECS : la règle du bouton, que l'outil
+# de l'assistant ne suivait pas (il ne lançait que l'attente).
+from wama.common.utils.item_views import make_item_views  # noqa: E402
+
+_iv = make_item_views(work_model=ComposerGeneration, app_id='composer', task_for=_task_for,
+                      reset_on_start=_reset_for_relaunch,
+                      pending={'status__in': ('PENDING', 'FAILURE')}, batch_model=ComposerBatch)
+start = app_access('composer')(_iv['start'])
+start_all = app_access('composer')(_iv['start_all'])
+clear_all = _iv['clear_all']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -819,46 +814,6 @@ def duplicate(request, pk):
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
 # par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
 download_all = _pv['download_all']
-
-
-# ---------------------------------------------------------------------------
-# Start all / Clear all
-# ---------------------------------------------------------------------------
-
-@require_POST
-@app_access('composer')
-def start_all(request):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from .tasks import compose_task
-
-    from wama.common.utils.process_control import begin_processing
-    gens = ComposerGeneration.objects.filter(user=user, status__in=('PENDING', 'FAILURE'))
-    count = 0
-    for gen in gens:
-        # Anti-race par item (brique commune) : skip si déjà lancé entre-temps.
-        gen, err = begin_processing(ComposerGeneration, gen.pk, user=user,
-                                    reset=_reset_for_relaunch)
-        if err:
-            continue
-        task = compose_task.apply_async(args=(gen.id,))
-        gen.task_id = task.id
-        gen.save(update_fields=['task_id'])
-        count += 1
-
-    return JsonResponse({'launched': count})
-
-
-@require_POST
-def clear_all(request):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    gens = ComposerGeneration.objects.filter(user=user).exclude(status='RUNNING')
-    for gen in gens:
-        release_card_files(gen)
-
-    gens.delete()
-    ComposerBatch.objects.filter(user=user).delete()
-    return JsonResponse({'success': True})
 
 
 # ---------------------------------------------------------------------------

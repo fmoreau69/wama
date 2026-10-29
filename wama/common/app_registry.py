@@ -1664,7 +1664,7 @@ APP_CATALOG = {
                                        # (`latent_preview`, 2026-10-06) — images ET vidéos (la
                                        # dernière image des latents)
             # Passe conservatrice 2026-07-11 (suite audit §31) :
-            anti_race=True,            # begin_processing sur start_generation (verrou + revoke)
+            anti_race=True,            # begin_processing par la fabrique item_views (verrou + revoke)
             toast=True,                # showNotification délègue à WamaApp.toast (doublon Bootstrap
                                        # retiré) + 3 alert() purgés
             # KO restants : inspector=False — detail FAIT (register_app_detail, labels params.py)

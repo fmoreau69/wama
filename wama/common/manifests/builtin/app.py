@@ -132,10 +132,11 @@ def validate_app_body(body: dict) -> list[str]:
         if not isinstance(spec, dict):
             errs.append('tool_api.triad_spec doit être un dict')
         else:
-            # La tâche se déclare seule (`task`) ou par élément (`task_for`, la fonction que le
-            # ▶ de la card consomme — 2026-10-12) : l'une des deux, chemin pointé.
-            task_key = 'task_for' if 'task_for' in spec else 'task'
-            for req in ('model', task_key):
+            # Le modèle est requis. La tâche ne l'est plus (2026-10-29) : l'app la déclare à sa
+            # fabrique de vues (`item_views`), que l'outil lit ; présente (app qui n'appelle pas
+            # la fabrique), elle se déclare seule (`task`) ou par élément (`task_for`).
+            required = ['model'] + [k for k in ('task_for', 'task') if k in spec][:1]
+            for req in required:
                 v = spec.get(req)
                 if not isinstance(v, str) or '.' not in v:
                     errs.append(f"tool_api.triad_spec.{req} : chemin pointé requis "
@@ -728,9 +729,32 @@ def _tool_api(app_id):
         spec = TRIAD_SPECS.get(app_id)
         if spec:
             present['triad_spec'] = spec
+            selection = _declared_start_selection(spec)
+            if selection:
+                present['start_selection'] = selection
     except Exception:
         pass
     return present
+
+
+def _declared_start_selection(spec):
+    """Ce que lance « tout lancer », tel que l'app le DÉCLARE à sa fabrique de vues
+    (`item_views.make_item_views`, 2026-10-29) — la déclaration du bouton, que l'outil de
+    l'assistant lit aussi ; une jumelle générée hérite donc de la règle de sa source.
+    ⚠ Rangée À CÔTÉ de `triad_spec`, jamais dedans : `triad_spec` se réécrit dans `TRIAD_SPECS`
+    (`write_back`), et ces clés n'y vivent plus. Comme les descriptions, elle est DÉRIVÉE du
+    runtime, pas projetée. Vide quand l'app n'appelle pas la fabrique."""
+    try:
+        from django.utils.module_loading import import_string
+        from wama.common.utils.item_views import declaration_for
+        found = declaration_for(import_string(spec['model']))
+    except Exception:
+        return {}
+    if found is None:
+        return {}
+    selection = {'pending': dict(found.pending) if found.pending is not None else None,
+                 'pending_exclude': dict(found.pending_exclude or {}) or None}
+    return {k: v for k, v in selection.items() if v is not None}
 
 
 def _access(app_id):

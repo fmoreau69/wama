@@ -3952,18 +3952,16 @@ TOOL_APP_ALIAS = {'audio_enhancer': 'enhancer'}
 # est conventionnel : cache `<app>_progress_<pk>` (int, ou dict portant 'pct'), repli DB —
 # `progress_key` le redéclare quand l'app écrit ailleurs (anonymizer).
 #
-# LANCER = le ▶ de la card (soldé le 2026-10-12 pour les dix apps) : `begin_processing` (verrou,
-# révocation, collaborateur), puis la REMISE À ZÉRO et la TÂCHE que l'app déclare déjà pour son
-# ▶ de lot (`make_batch_views(reset_on_start=…, task_for=…)`) — nommées ici par leur chemin,
-# jamais recopiées. Les sept triades écrites main qu'elles remplacent avaient dérivé : l'imager
-# envoyait la tâche IMAGE à une génération vidéo, le synthesizer effaçait encore l'audio au
-# lancement (ce que son ▶ ne fait plus depuis le 03/10), l'anonymizer lisait sa progression sous
-# une clé que plus rien n'écrit (`anon_progress:`), quatre lançaient sans verrou.
+# LANCER = le ▶ de la card ET le ▶ de la file, par LA DÉCLARATION que l'app fait à sa fabrique
+# de vues (`item_views.make_item_views` : tâche, remise à zéro, sélection de « tout lancer » ;
+# `process_views.make_process_start_view` : remise à zéro par process) — un geste, deux portes
+# (2026-10-29). Ces clés vivaient ici, nommant les fonctions des vues par leur chemin : cinq
+# « tout lancer » de l'assistant ne lançaient pas ce que lançait le bouton, et une jumelle
+# générée, qui n'a pas ces fonctions, n'avait pas d'outil « lancer ». Elles ne restent admises
+# que pour une app qui n'appelle pas encore la fabrique (repli de `_triad_fns._declaration`) :
 #   task | task_for  : tâche Celery, ou fonction(élément) → tâche (chemin pointé)
 #   reset            : dict (+ progression à 0) OU chemin d'une fonction(élément) de l'app
-#   reset_for_process: chemin d'une fonction(élément, process) — la remise à zéro du ▶ d'UNE
-#                      étape quand elle dépend de l'étape (`make_process_start_view`, même nom) ;
-#                      absente, l'étape reprend `reset`
+#   reset_for_process: chemin d'une fonction(élément, process)
 #   pending / pending_exclude : ce que lance « tout » (défaut : statut PENDING)
 # STATUT — une valeur de `status_fields` est un champ, ou un dict :
 #   attr · call (méthode à appeler) · url (fichier → son URL) · basename (fichier → son nom)
@@ -3972,9 +3970,7 @@ TOOL_APP_ALIAS = {'audio_enhancer': 'enhancer'}
 TRIAD_SPECS = {
     'converter': {
         'model': 'wama.converter.models.ConversionJob',
-        'task': 'wama.converter.tasks.convert_media_task',
         'id_kwarg': 'job_id',
-        'reset': {'error_message': ''},
         'queue_filter': {'ephemeral': False},
         'empty_msg': 'Aucune conversion en attente.',
         'status_order': '-created_at',
@@ -3991,11 +3987,7 @@ TRIAD_SPECS = {
     },
     'describer': {
         'model': 'wama.describer.models.Description',
-        'task': 'wama.describer.workers.describe_content',
         'id_kwarg': 'description_id',
-        # Celle du ▶ de la card : depuis le pipeline (2026-10-13) chaque process réécrit sa sortie
-        # quand il est rejoué — effacer la description ici la perdrait sous un résumé relancé seul.
-        'reset': 'wama.describer.views._reset_and_clear_progress',
         'empty_msg': 'Aucune description en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4012,11 +4004,7 @@ TRIAD_SPECS = {
     },
     'reader': {
         'model': 'wama.reader.models.ReadingItem',
-        'task': 'wama.reader.tasks.read_document_task',
         'id_kwarg': 'item_id',
-        # Celle du ▶ de la card (2026-10-13) : le reader porte un pipeline, le résultat d'un process
-        # ne s'efface que quand CE process est rejoué — vider `result_text` ici perdait le texte lu.
-        'reset': 'wama.reader.views._reset_for_relaunch',
         'empty_msg': 'Aucun document en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4033,12 +4021,7 @@ TRIAD_SPECS = {
     },
     'anonymizer': {
         'model': 'wama.anonymizer.models.Media',
-        'task': 'wama.anonymizer.tasks.process_single_media',
         'id_kwarg': 'media_id',
-        'reset': 'wama.anonymizer.views._reset_and_forget_progress',
-        # « Lance tout » = ce que lance le bouton de l'app : tout ce qui n'a pas ABOUTI.
-        'pending': {},
-        'pending_exclude': {'status': 'SUCCESS'},
         'progress_key': 'media_progress_{pk}',
         'empty_msg': 'Aucun média en attente de traitement.',
         'status_order': '-id',
@@ -4054,9 +4037,7 @@ TRIAD_SPECS = {
     },
     'avatarizer': {
         'model': 'wama.avatarizer.models.AvatarJob',
-        'task_for': 'wama.avatarizer.views._task_for',
         'id_kwarg': 'job_id',
-        'reset': {'error_message': ''},
         'empty_msg': 'Aucun job avatar en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4071,10 +4052,7 @@ TRIAD_SPECS = {
     },
     'composer': {
         'model': 'wama.composer.models.ComposerGeneration',
-        'task_for': 'wama.composer.views._task_for',
         'id_kwarg': 'generation_id',
-        'reset': 'wama.composer.views._reset_for_relaunch',
-        'reset_for_process': 'wama.composer.views._reset_for_relaunch',
         'empty_msg': 'Aucune composition en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4090,9 +4068,7 @@ TRIAD_SPECS = {
     },
     'enhancer': {
         'model': 'wama.enhancer.models.Enhancement',
-        'task_for': 'wama.enhancer.views._media_task',
         'id_kwarg': 'enhancement_id',
-        'reset': 'wama.enhancer.views._reset_media_and_clear_progress',
         'empty_msg': 'Aucun enhancement en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4108,9 +4084,7 @@ TRIAD_SPECS = {
     # Sous-domaine audio de l'enhancer (`TOOL_APP_ALIAS`) : sa propre file, ses propres outils.
     'audio_enhancer': {
         'model': 'wama.enhancer.models.AudioEnhancement',
-        'task_for': 'wama.enhancer.views._audio_task',
         'id_kwarg': 'audio_enhancement_id',
-        'reset': {'error_message': ''},
         'empty_msg': 'Aucun audio enhancement en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4125,9 +4099,7 @@ TRIAD_SPECS = {
     },
     'imager': {
         'model': 'wama.imager.models.ImageGeneration',
-        'task_for': 'wama.imager.views._task_for',
         'id_kwarg': 'generation_id',
-        'reset': 'wama.imager.views._reset_and_forget_progress',
         'empty_msg': 'Aucune génération en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4143,9 +4115,7 @@ TRIAD_SPECS = {
     },
     'synthesizer': {
         'model': 'wama.synthesizer.models.VoiceSynthesis',
-        'task_for': 'wama.synthesizer.views._task_for',
         'id_kwarg': 'synthesis_id',
-        'reset': 'wama.synthesizer.views._reset_and_seed_progress',
         'empty_msg': 'Aucune synthèse en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4163,9 +4133,7 @@ TRIAD_SPECS = {
     },
     'transcriber': {
         'model': 'wama.transcriber.models.Transcript',
-        'task_for': 'wama.transcriber.views._task_for',
         'id_kwarg': 'transcript_id',
-        'reset': 'wama.transcriber.views._reset_and_clear_progress',
         'empty_msg': 'Aucune transcription en attente.',
         'status_order': '-id',
         'status_fields': {
@@ -4293,7 +4261,6 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
     from django.utils.module_loading import import_string
 
     id_kwarg = spec.get('id_kwarg', 'item_id')
-    progress_key = spec.get('progress_key') or f'{app_id}_progress_{{pk}}'
 
     def _reset():
         """La remise à zéro du ▶ : la fonction de l'app, ou un dict (+ progression à 0)."""
@@ -4303,39 +4270,36 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
         field = (spec.get('status_fields') or {}).get('progress', 'progress')
         return {field if isinstance(field, str) else 'progress': 0, **(reset or {})}
 
-    def _start(user, *args, **kwargs):
-        from wama.common.utils.process_control import begin_processing
-        item_id = args[0] if args else kwargs.get(id_kwarg)
-        model = import_string(spec['model'])
+    def _declaration(model):
+        """Le ▶ que l'app DÉCLARE à sa fabrique de vues (`item_views.make_item_views`) : la même
+        tâche, la même remise à zéro, la même sélection que le bouton (2026-10-29 — dans cinq
+        apps, « tout lancer » de l'assistant ne lançait pas ce que lançait le bouton). Les clés
+        de cette entrée ne servent plus qu'à une app qui n'appelle pas encore la fabrique."""
+        from wama.common.utils.item_views import ItemStart, declaration_for
+        found = declaration_for(model)
+        if found is not None:
+            return found
+        if not (spec.get('task_for') or spec.get('task')):
+            return None                       # ni fabrique, ni tâche déclarée ici
         task_for = (import_string(spec['task_for']) if spec.get('task_for')
                     else (lambda _item, _task=import_string(spec['task']): _task))
-        reset = _reset()
+        queue_filter = spec.get('queue_filter') or {}
+        return ItemStart(
+            work_model=model, app_id=app_id, task_for=task_for, reset_on_start=_reset(),
+            pending=spec.get('pending'), pending_exclude=spec.get('pending_exclude'),
+            queryset=((lambda u: model.objects.filter(user=u, **queue_filter))
+                      if queue_filter else None),
+            progress_key=spec.get('progress_key') or '')
+
+    def _start(user, *args, **kwargs):
+        from wama.common.utils.item_views import start_one_item, start_queue
+        item_id = args[0] if args else kwargs.get(id_kwarg)
+        model = import_string(spec['model'])
+        declaration = _declaration(model)
         label = model.__name__
-
-        def _purge_traces(pk):
-            # Purge conventionnelle au (re)démarrage — cache de progression + texte partiel
-            # (best-effort) : sans elle, une relance affichait la progression et l'aperçu du
-            # run PRÉCÉDENT jusqu'à la première écriture de la tâche. Extraite de la triade
-            # main du describer à sa migration en spec (2026-09-03).
-            from django.core.cache import cache
-            cache.delete(progress_key.format(pk=pk))
-            try:
-                from wama.common.utils.preview_utils import clear_partial
-                clear_partial(app_id, pk)
-            except Exception:
-                pass
-
-        def _launch(pk):
-            # Le ▶ de la card : verrou, révocation de l'ancienne tâche, remise à zéro de l'app,
-            # « en cours » posé par le LANCEUR — puis la tâche que l'app déclare pour l'élément.
-            item, err = begin_processing(model, pk, user=user, reset=reset)
-            if err:
-                return None, err
-            _purge_traces(item.pk)
-            t = task_for(item).delay(item.id)
-            item.task_id = t.id
-            item.save(update_fields=['task_id'])
-            return t, None
+        if declaration is None:
+            return {'error': f"{app_id} : aucun lancement déclaré (ni fabrique de vues, ni tâche)."}
+        task_for, reset = declaration.task_of, declaration.reset_on_start
 
         process = kwargs.get('process') or (args[1] if len(args) > 1 else None)
         if process:
@@ -4344,13 +4308,14 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
             if item_id is None:
                 return {'error': "process : indiquer l'élément dont lancer l'étape."}
             from django.http import Http404
-            from wama.common.utils.process_views import start_one_process
+            from wama.common.utils.process_views import process_reset_for, start_one_process
+            reset_for_process = (process_reset_for(model)
+                                 or (import_string(spec['reset_for_process'])
+                                     if spec.get('reset_for_process') else None))
             try:
                 item, t, refused = start_one_process(
                     model, item_id, process, user=user, task_for=task_for,
-                    reset_on_start=reset,
-                    reset_for_process=(import_string(spec['reset_for_process'])
-                                       if spec.get('reset_for_process') else None))
+                    reset_on_start=reset, reset_for_process=reset_for_process)
             except Http404:
                 return {'error': f'{label} #{item_id} introuvable ou non autorisé.'}
             if refused:
@@ -4358,25 +4323,26 @@ def _triad_fns(app_id: str, spec: dict) -> tuple:
             return {'task_id': t.id, 'status': 'started', 'item_id': item_id, 'process': process}
 
         if item_id is not None:
-            t, err = _launch(item_id)
-            if err == 'not_found':
+            _item, t, refused = start_one_item(declaration, item_id, user=user)
+            if refused and refused[0] == 404:
                 return {'error': f'{label} #{item_id} introuvable ou non autorisé.'}
-            if err:
+            if refused and refused[0] == 409:
                 return {'error': f'{label} #{item_id} est déjà en cours.'}
+            if refused:
+                return {'error': f'{label} #{item_id} : {refused[1]}'}
             return {'task_id': t.id, 'status': 'started', 'item_id': item_id}
 
-        lookups = spec.get('pending', {'status': 'PENDING'})
-        pending = (model.objects.filter(user=user, **lookups, **(spec.get('queue_filter') or {}))
-                   .exclude(**(spec.get('pending_exclude') or {}))
-                   .order_by('pk').values_list('pk', flat=True))
-        if not pending:
+        started, errors, _skipped = start_queue(declaration, user)
+        if not started and not errors:
             return {'error': spec.get('empty_msg', 'Aucun élément en attente.')}
-        started = [pk for pk in pending if _launch(pk)[1] is None]
-        return {'status': 'started', 'item_id': None, 'count': len(started), 'ids': started}
+        result = {'status': 'started', 'item_id': None, 'count': len(started), 'ids': started}
+        if errors:
+            result['errors'] = errors
+        return result
 
     _start.__name__ = _start.__qualname__ = f'start_{app_id}'
-    _start.__doc__ = (f"Lance le traitement {app_id} : l'item indiqué, ou tous ceux en attente "
-                      f"si aucun id. (Construit depuis TRIAD_SPECS['{app_id}'].)")
+    _start.__doc__ = (f"Lance le traitement {app_id} : l'item indiqué, ou si aucun id ce que lance "
+                      f"« tout lancer » de sa file. (Construit depuis TRIAD_SPECS['{app_id}'].)")
     _start.__signature__ = inspect.Signature(
         [inspect.Parameter('user', inspect.Parameter.POSITIONAL_OR_KEYWORD),
          inspect.Parameter(id_kwarg, inspect.Parameter.POSITIONAL_OR_KEYWORD,

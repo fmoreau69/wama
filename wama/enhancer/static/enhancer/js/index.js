@@ -370,7 +370,7 @@ document.addEventListener('DOMContentLoaded', function () {
     WamaQueueActions.onQueueStartBody(function () { return mediaPanelValues(); },
                                       { domain: 'image_video' });
     WamaQueueActions.onQueueStarted(function (data) {
-      const started = data.started_ids || [];
+      const started = data.started || [];
       const errors = data.errors || [];
       if (errors.length) {
         console.error('Erreurs lors du démarrage:', errors);

@@ -437,33 +437,22 @@ def upload_youtube(request):
         }, status=500)
 
 
-@require_POST
-def start(request, pk: int):
-    """
-    Démarre ou relance la transcription d'un fichier audio.
-    Utilise les paramètres individuels du transcript (backend, preprocess_audio, etc.).
-    """
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+# ▶ de la card (paramètres individuels du transcript : la tâche se choisit par `_task_for`), ▶ et
+# 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11 #39, 2026-10-29) — la
+# même déclaration que lit l'outil `start_transcriber`. « Tout lancer » relance tout ce qui n'a
+# pas réussi : la règle du bouton, que l'outil de l'assistant ne suivait pas. Les fichiers TXT/SRT
+# écrits à côté de la card partent avec elle (`_cleanup_output_files`, comme `delete`).
+from wama.common.utils.item_views import make_item_views  # noqa: E402
 
-    # Anti-race (pattern AGENTS.md) : select_for_update + revoke — brique commune.
-    from wama.common.utils.process_control import begin_processing
-    t, err = begin_processing(Transcript, pk, user=user, reset=_reset_for_relaunch)
-    if err == 'not_found':
-        return JsonResponse({'error': 'Not found'}, status=404)
-    if err == 'already_running':
-        return JsonResponse({'error': 'Transcription déjà en cours'}, status=409)
-
-    cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
-
-    task = _task_for(t).delay(t.id)
-
-    t.task_id = task.id
-    t.save(update_fields=['task_id'])
-
-    return JsonResponse({
-        'task_id': task.id,
-        'status': 'RUNNING',
-    })
+_iv = make_item_views(work_model=Transcript, app_id='transcriber',
+                      task_for=lambda t: _task_for(t), get_user=_get_user,
+                      reset_on_start=_reset_for_relaunch,
+                      pending={}, pending_exclude={'status': 'SUCCESS'},
+                      on_delete=lambda t: _cleanup_output_files(t, t.user_id),
+                      batch_model=BatchTranscript)
+start = app_access('transcriber')(_iv['start'])
+start_all = app_access('transcriber')(_iv['start_all'])
+clear_all = _iv['clear_all']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -1121,52 +1110,6 @@ def console_content(request):
     return JsonResponse({'output': all_lines})
 
 
-@require_POST
-def start_all(request):
-    """
-    Démarre toutes les transcriptions non terminées.
-    Respecte les paramètres individuels de chaque transcript (la tâche : `_task_for`).
-    """
-    from wama.common.utils.process_control import begin_processing
-
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    qs = Transcript.objects.filter(user=user).exclude(status='SUCCESS')
-    started = []
-    for t in qs:
-        # Anti-race par item (brique commune) : skip si déjà RUNNING/supprimé entre-temps.
-        t, err = begin_processing(Transcript, t.pk, user=user, reset=_reset_for_relaunch)
-        if err:
-            continue
-        cache.set(f"transcriber_progress_{t.id}", 0, timeout=3600)
-
-        task = _task_for(t).delay(t.id)
-
-        t.task_id = task.id
-        t.save(update_fields=['task_id'])
-        started.append(t.id)
-
-    return JsonResponse({
-        'started_ids': started,
-        'count': len(started),
-    })
-
-
-@require_POST
-def clear_all(request):
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    transcripts = Transcript.objects.filter(user=user)
-    cleared = []
-    for transcript in transcripts:
-        cleared.append(transcript.id)
-        _cleanup_output_files(transcript, user.id)
-        # Les fichiers peuvent être PARTAGÉS (dupliqué / import filemanager / référence d'un lot) :
-        # même règle que delete() (avant 2026-07-06 : unlink inconditionnel → cassait les doublons).
-        release_card_files(transcript)
-        cache.delete(f"transcriber_progress_{transcript.id}")
-        transcript.delete()  # signal post_delete (batch_sync) : recale total / purge le batch vidé
-    return JsonResponse({'cleared_ids': cleared, 'count': len(cleared)})
-
-
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
 # par la fabrique commune (`make_progress_views`, 2026-10-17 — REMOVAL_LEDGER R142).
 download_all = _pv['download_all']
@@ -1309,7 +1252,6 @@ def set_preprocessing_preference(request):
 # toggle_preprocessing / preprocessing_status SUPPRIMÉES 2026-07-06 (A5-22) : routes mortes
 # (seul set_preprocessing est câblé, index.html:81) aux défauts DIVERGENTS (timeout=None,
 # défaut True vs décision projet OFF). Réglage servi par get_user_transcriber_settings.
-
 
 
 # =============================================================================

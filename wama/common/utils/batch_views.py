@@ -370,18 +370,6 @@ def export_stem(work_model, item, declaration=None):
         app=work_model._meta.app_label, item_id=item.pk, source_name=label or f'item_{item.pk}'))[0]
 
 
-def _revoke_quietly(item):
-    """Révoque la tâche Celery d'un élément qu'on va supprimer (sans la tuer : `terminate=False`,
-    l'idiome mesuré des `batch_delete` d'app). Broker absent → on supprime quand même."""
-    task_id = getattr(item, 'task_id', '') or ''
-    if not task_id:
-        return
-    try:
-        from celery import current_app
-        current_app.control.revoke(task_id, terminate=False)
-    except Exception:
-        pass
-
 
 def lot_overview(statuses, total=None) -> tuple:
     """`(comptes, état global)` d'un LOT d'après l'état de ses éléments — la règle de
@@ -745,12 +733,11 @@ def make_batch_views(*, work_model, batch_model, get_user, task=None,
         b = _batch(request, pk)
         batch_settings.forget(b)                  # la référence part avec le lot
         batch_identity.forget(b)                  # son nom aussi
+        # Chaque élément par LE geste de retrait (`item_views.discard_element`, 2026-10-29) —
+        # celui de « tout effacer » : révoquer sa tâche en file, `on_delete`, libérer, la ligne.
+        from wama.common.utils.item_views import discard_element
         for item in batch_elements(b, work_model):
-            _revoke_quietly(item)
-            if on_delete is not None:
-                on_delete(item)
-            release_card_files(item)
-            item.delete()
+            discard_element(item, on_delete=on_delete)
         # Le lot VIDÉ est purgé par le signal ; ne reste qu'un lot qui n'avait AUCUN élément —
         # par requête, jamais par l'instance (son id est parti avec le dernier élément).
         batch_model.objects.filter(pk=b.pk, **{f'{items_related}__isnull': True}).delete()

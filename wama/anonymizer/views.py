@@ -561,22 +561,6 @@ def _reset_for_relaunch(media):
 
 @require_POST
 @app_access('anonymizer')
-def start(request, pk):
-    """Lance/relance UN média (bouton de cycle ▶/↻) — anti-race par brique commune."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-    from wama.common.utils.process_control import begin_processing
-    media, err = begin_processing(Media, pk, user=user, reset=_reset_for_relaunch)
-    if err:
-        return JsonResponse({'error': err}, status=404 if err == 'not_found' else 400)
-    cache.delete(f"media_progress_{media.id}")
-    task = process_single_media.delay(media.id, force_individual=True)
-    media.task_id = task.id
-    media.save(update_fields=['task_id'])
-    return JsonResponse({'success': True, 'task_id': task.id, 'status': 'RUNNING'})
-
-
-@require_POST
-@app_access('anonymizer')
 def stop(request, pk):
     """Arrête UN média (bouton de cycle ⏹) : revoke + libération des verrous."""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
@@ -641,6 +625,33 @@ def _forget_outputs(media):
     2026-09-27, est supprimée par la brique avec `file`."""
     cache.delete(f"anon_lock:media:{media.id}")
     cache.delete(f"anon_task_owner:media:{media.id}")
+
+
+# ▶ de la card et 🗑 de la file : fabrique COMMUNE (`item_views.make_item_views`, ROUTE §11 #39,
+# 2026-10-29) — la même déclaration que lit l'outil `start_anonymizer`, dont la sélection (« tout ce
+# qui n'a pas abouti ») est déclarée ici. ⚠ Le « tout lancer » du BOUTON reste la chaîne de lot
+# historique (`ProcessView` : toute la file, réussis compris, une seule tâche qui enchaîne) — le
+# porter sur la fabrique change ce que lance le bouton : décision de Fabien, en attente.
+# (`force_individual` n'était plus lu par la tâche, `anonymizer/tasks.py:137`.)
+from wama.common.utils.item_views import make_item_views  # noqa: E402
+
+_iv = make_item_views(work_model=Media, app_id='anonymizer', task=process_single_media,
+                      get_user=_get_user, reset_on_start=_reset_for_relaunch,
+                      pending={}, pending_exclude={'status': 'SUCCESS'},
+                      progress_key='media_progress_{pk}', on_delete=_forget_outputs,
+                      batch_model=BatchAnonymizer)
+start = app_access('anonymizer')(_iv['start'])
+
+
+@require_POST
+def clear_all_media(request):
+    """🗑 de la file : le geste commun, puis le verrou de la chaîne de lot de « tout lancer »
+    (`ProcessView`) quand plus rien ne tourne — tant qu'un média tourne, la chaîne vit."""
+    response = _iv['clear_all'](request)
+    user = _get_user(request)
+    if not Media.objects.filter(user=user, status='RUNNING').exists():
+        cache.delete(f"anon_lock:batch:{user.id}")
+    return response
 
 
 def _read_batch(user, pk):
@@ -921,27 +932,6 @@ def _input_labels():
 # de l'utilisateur), la brique `user_settings` garde les préférences.
 
 
-def clear_all_media(request):
-    """Delete all media files (input and output) for the current user."""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    user_medias = list(Media.objects.filter(user=user))
-    if user_medias:
-        # Clear dedup locks
-        cache.delete(f"anon_lock:batch:{user.id}")
-        for media in user_medias:
-            cache.delete(f"anon_lock:media:{media.id}")
-            cache.delete(f"anon_task_owner:media:{media.id}")
-
-            # Entrée ET sortie LIBÉRÉES par la brique, à l'échelle de la card (la sortie
-            # était effacée par un chemin recalculé, qui ne l'atteignait jamais).
-            release_card_files(media)
-
-            media.delete()
-
-    return JsonResponse({'success': True})
-
-
 @require_POST
 def delete(request, pk: int):
     """Supprime UN média — route au format commun `delete/<pk>/` (2026-08-23).
@@ -1174,7 +1164,6 @@ def save_media_settings(request):
             'success': False,
             'error': str(e)
         }, status=500)
-
 
 
 # ----------------------------------------------------------------------

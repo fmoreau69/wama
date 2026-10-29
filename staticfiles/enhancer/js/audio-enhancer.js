@@ -336,10 +336,10 @@ document.addEventListener('DOMContentLoaded', function () {
         });
       }, { domain: 'audio' });
 
-      // ▶ de FILE audio : même corps, même suite (la vue rend `started_ids`, pas `started`).
+      // ▶ de FILE audio : même corps, même suite (la fabrique commune rend `started`).
       WamaQueueActions.onQueueStartBody(function () { return panelAudioBody(); }, { domain: 'audio' });
       WamaQueueActions.onQueueStarted(function (data) {
-        (data.started_ids || []).forEach(id => {
+        (data.started || []).forEach(id => {
           updateRow(id, { status: 'RUNNING', progress: 0 });
           pollAudioProgress(id);
         });

@@ -471,7 +471,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // the partial). The ▶ declares its follow-up: say so when nothing was left to start,
     // otherwise reload to get fresh card states.
     WamaQueueActions.onQueueStarted(data => {
-      if (!(data.started_ids || []).length) { showToast('Aucune transcription à démarrer.', 'info'); return; }
+      if (!(data.started || []).length) { showToast('Aucune transcription à démarrer.', 'info'); return; }
       window.location.reload();
     });
     // ⚠ Bulk download: NO wiring here (2026-08-30). The dropdown used to be rebuilt in JS —

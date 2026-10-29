@@ -20,10 +20,25 @@ Usage (views.py de l'app) :
     start_process = make_process_start_view(
         work_model=Transcript, task_for=_task_for, reset_on_start=_reset_and_clear_progress)
 """
+import sys
+
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
 from wama.common.utils.progress_views import request_user
+
+#: Remise à zéro PAR PROCESS inscrite par la fabrique de l'APP, par modèle d'élément (2026-10-29) :
+#: l'outil `start_<app>` de l'assistant la lit au lieu de la renommer par son chemin.
+_PROCESS_RESETS: dict = {}
+
+
+def process_reset_for(work_model):
+    """La remise à zéro par process que l'app de `work_model` déclare à sa fabrique, ou None.
+    Ses vues se chargent ici quand le processus ne l'a pas encore fait (`item_views.declaration_for`)."""
+    if work_model not in _PROCESS_RESETS:
+        from wama.common.utils.item_views import declaration_for
+        declaration_for(work_model)
+    return _PROCESS_RESETS.get(work_model)
 
 
 def start_one_process(work_model, pk, process, *, user, task_for,
@@ -83,6 +98,11 @@ def make_process_start_view(*, work_model, task_for, get_user=request_user,
     ce modèle n'est connu qu'AU LANCEMENT (`requested_model` rend `None` : « auto » tiré par la
     tâche), la vue ne tranche pas — la tâche le fera (`steps_to_run` refuse en le disant).
     """
+    caller = sys._getframe(1).f_globals.get('__name__', '')
+    owner = work_model._meta.app_config.name
+    if (reset_for_process is not None and '.tests' not in caller
+            and (caller == owner or caller.startswith(owner + '.'))):
+        _PROCESS_RESETS[work_model] = reset_for_process
 
     @require_POST
     def start_process(request, pk, process):

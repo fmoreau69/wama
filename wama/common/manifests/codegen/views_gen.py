@@ -177,6 +177,14 @@ def _donnees(manifest: dict) -> dict:
     d['progress_field'] = ('progress' if 'progress' in champs
                            else _declared if isinstance(_declared, str) and _declared in champs
                            else 'progress')
+    # Ce que lance « tout lancer » — la règle du BOUTON de la source, déclarée à sa fabrique
+    # (`item_views`) et portée par le manifeste (`tool_api.start_selection`, 2026-10-29). Absente :
+    # la règle par défaut de la fabrique (les éléments en attente). La clé de progression, elle,
+    # ne se reprend PAS : la tâche générée publie sous `<app>_progress_<pk>` (squelette commun),
+    # quelle que soit la clé que la tâche de la source écrivait (anonymizer : `media_progress_`).
+    _selection = ((body.get('tool_api') or {}).get('start_selection') or {})
+    d['start_selection'] = {k: _selection[k] for k in ('pending', 'pending_exclude')
+                            if _selection.get(k) is not None}
     d['file_fields'] = [n for n, f in champs.items()
                         if str(f.get('class', '')).rsplit('.', 1)[-1] in ('FileField', 'ImageField')]
     d['name_field'] = ('input_filename' if 'input_filename' in champs
@@ -865,17 +873,10 @@ start_process = make_process_start_view(
     work_model={item}, task_for=lambda _item: {task}, get_user=_user,
     reset_for_process=_reset_for_process)'''
 
-    vues['start'] = f'''@require_POST
-def start(request, pk):
-    user = _user(request)
-    item, err = begin_processing({item}, pk, user=user,
-                                 reset={{'{progress}': 0, 'error_message': ''}})
-    if err:
-        return JsonResponse({{'error': err}}, status=400)
-    t = {task}.delay(item.id)
-    item.task_id = t.id
-    item.save(update_fields=['task_id'])
-    return JsonResponse({{'id': item.id, 'status': item.status}})'''
+    # ▶ de la card, ▶ et 🗑 de la file : les vues de la fabrique COMMUNE déclarée en tête
+    # (`_iv`, `item_views.make_item_views`, ROUTE §11 #39, 2026-10-29) — celle des dix apps.
+    # Le gabarit écrivait ses trois corps, et « tout lancer » sans verrou (critère `anti_race`).
+    vues['start'] = "start = _iv['start']"
 
     # ARRÊT — le CORPS est conventionnel, le NOM ne l'est pas : 8 apps déclarent `stop`,
     # le converter déclare `cancel` (mesuré sur les 9 manifestes le 2026-08-29). Le gabarit
@@ -1109,29 +1110,8 @@ def duplicate(request, pk):
     )
     return JsonResponse({{'success': True, 'id': new.id}})'''
 
-    vues['start_all'] = f'''@require_POST
-def start_all(request):
-    user = _user(request)
-    started = []
-    for item in {item}.objects.filter(user=user, status='PENDING'):
-        item.status = 'RUNNING'
-        item.save(update_fields=['status'])
-        t = {task}.delay(item.id)
-        item.task_id = t.id
-        item.save(update_fields=['task_id'])
-        started.append(item.id)
-    return JsonResponse({{'started': started}})'''
-
-    vues['clear_all'] = f'''@require_POST
-def clear_all(request):
-    user = _user(request)
-    n = 0
-    for item in {item}.objects.filter(user=user).exclude(status='RUNNING'):
-        release_card_files(item)
-        item.delete()
-        n += 1
-    {batch}.objects.filter(user=user, {items_related}__isnull=True).delete()
-    return JsonResponse({{'cleared': n}})'''
+    vues['start_all'] = "start_all = _iv['start_all']"
+    vues['clear_all'] = "clear_all = _iv['clear_all']"
 
     if out_file or out_text:
         # Le ZIP de FILE par la fabrique (2026-10-17) : la file que compte `_pv`, les entrées
@@ -1398,6 +1378,9 @@ from wama.common.utils.queue_manipulation import make_queue_manipulation_views_d
                 " if item.output_file else {})" if d['a_output'] else '')
     if progress != 'progress':
         pv_extra = f",\n                          progress_field='{progress}'" + pv_extra
+    # « Tout lancer » : la sélection que le bouton de la SOURCE déclare (`d['start_selection']`).
+    iv_selection = ''.join(f",\n                      {k}={v!r}"
+                           for k, v in sorted(d['start_selection'].items()))
     tete = f'''"""
 {mark} — views.py GÉNÉRÉ par le gabarit A (views_gen, marche S2).
 
@@ -1419,6 +1402,7 @@ from wama.common.utils.detail_registry import normalize_status
 from wama.common.utils.process_control import begin_processing, stop_instance
 from wama.common.utils.batch_views import (apply_item_settings, element_label, make_batch_views,
                                            read_settings_payload)
+from wama.common.utils.item_views import make_item_views
 from wama.common.utils.progress_views import make_progress_views
 from wama.common.utils.queue_duplication import duplicate_instance, release_card_files
 {imports_forme}
@@ -1450,6 +1434,12 @@ def _user(request):
 
 # Les vues de PROGRESSION (une card, la file) : fabrique COMMUNE (`progress_views`, ROUTE §11 #37).
 _pv = make_progress_views(work_model={item}, app_id='{app}'{pv_extra})
+
+# ▶ de la card, ▶ et 🗑 de la file : fabrique COMMUNE (`item_views`, ROUTE §11 #39) — sa
+# déclaration est celle que lit l'outil `start_{app}` de l'assistant.
+_iv = make_item_views(work_model={item}, app_id='{app}', task={task}, get_user=_user,
+                      reset_on_start={{'{progress}': 0, 'error_message': ''}},
+                      batch_model={batch}, items_related='{items_related}'{iv_selection})
 {helpers_forme}{bloc_nature}{bloc_reglages}
 '''
     return tete + '\n\n\n'.join(blocs) + '\n', None

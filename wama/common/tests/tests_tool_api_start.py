@@ -180,15 +180,19 @@ class StartOneProcessFromTheAssistantTest(TestCase):
         self.assertEqual('SUCCESS', self.t.status)
 
     def test_the_step_reset_of_the_composer_receives_the_step(self):
-        """The composer replaces only the outputs of the step it relaunches : its declared
-        `reset_for_process` gets the step, as the card ▶ gives it."""
+        """The composer replaces only the outputs of the step it relaunches : the
+        `reset_for_process` it declares to its factory (`process_views.process_reset_for`, read
+        by the tool since 2026-10-29) gets the step, as the card ▶ gives it."""
         from wama.composer import views
         from wama.composer.models import ComposerGeneration
+        from wama.common.utils import process_views
         gen = ComposerGeneration.objects.create(user=self.user, prompt='a calm piano',
                                                 status='SUCCESS')
         task = mock.Mock(**{'apply_async.return_value': _FakeTask()})
+        reset = mock.Mock()
+        process_views.process_reset_for(ComposerGeneration)       # the views register it
         with mock.patch.object(views, '_task_for', return_value=task), \
-                mock.patch.object(views, '_reset_for_relaunch') as reset:
+                mock.patch.dict(process_views._PROCESS_RESETS, {ComposerGeneration: reset}):
             result = T.start_composer(self.user, generation_id=gen.pk, process='render')
         self.assertEqual('started', result.get('status'), result)
         self.assertEqual('render', reset.call_args.args[1])

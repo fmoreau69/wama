@@ -21,10 +21,11 @@ urlpatterns = [
 
     # Generation management
     path('create/', views.create_generation, name='create'),
-    path('start/<int:generation_id>/', views.start_generation, name='start'),
+    # ▶ et ↻ : le MÊME geste, par la fabrique commune (`item_views`, 2026-10-29) — `<int:pk>`.
+    path('start/<int:pk>/', views.start, name='start'),
     path('start/<int:pk>/<str:process>/', views.start_process, name='start_process'),
-    path('restart/<int:generation_id>/', views.restart_generation, name='restart'),
-    path('start-all/', views.start_all_generations, name='start_all'),
+    path('restart/<int:pk>/', views.start, name='restart'),
+    path('start-all/', views.start_all, name='start_all'),
     path('progress/<int:pk>/', views.progress, name='progress'),
     # Partial de card (contrat card_html/refreshCard — F5)
     path('card/<int:generation_id>/html/', views.card_html, name='card_html'),

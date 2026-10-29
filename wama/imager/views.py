@@ -861,47 +861,20 @@ batch_realign = _bv['batch_realign']
 batch_download = _bv['batch_download']
 
 
-@require_http_methods(["POST"])
-def start_generation(request, generation_id):
-    """Start a specific generation task"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
+# ▶ de la card (et ↻ « relancer », le même geste), ▶ et 🗑 de la file : fabrique COMMUNE
+# (`item_views.make_item_views`, ROUTE §11 #39, 2026-10-29) — la même déclaration que lit l'outil
+# `start_imager` : la tâche image OU vidéo de la génération (`_task_for`). « Relancer » était une
+# seconde vue au corps identique ; la file se retire par le geste commun, qui purge le cache de
+# progression (`_forget_progress`) et libère images et vidéo.
+from wama.common.utils.item_views import make_item_views  # noqa: E402
 
-    try:
-        # Anti-race COMMUN (atomic + select_for_update + revoke) — audit 2026-07-11
-        from wama.common.utils.process_control import begin_processing
-        generation, err = begin_processing(
-            ImageGeneration, generation_id, user=user,
-            reset={'progress': 0, 'error_message': ''},
-        )
-        if err == 'not_found':
-            return JsonResponse({'error': 'Generation not found'}, status=404)
-        if err == 'already_running':
-            return JsonResponse({'error': 'Generation already running'}, status=400)
-        cache.delete(f"imager_progress_{generation_id}")
-
-        # Import tasks - use video task for video modes
-        from .tasks import generate_image_task, generate_video_task
-
-        # Start appropriate Celery task based on mode
-        if generation.is_video_generation:
-            task = generate_video_task.delay(generation.id)
-        else:
-            task = generate_image_task.delay(generation.id)
-
-        generation.task_id = task.id
-        generation.save(update_fields=['task_id'])
-
-        logger.info(f"Started generation #{generation.id}, task_id: {task.id}")
-
-        return JsonResponse({
-            'success': True,
-            'task_id': task.id,
-            'message': 'Generation started'
-        })
-
-    except Exception as e:
-        logger.error(f"Error starting generation: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
+_iv = make_item_views(work_model=ImageGeneration, app_id='imager',
+                      task_for=lambda gen: _task_for(gen), get_user=_get_user,
+                      reset_on_start=_reset_and_forget_progress,
+                      on_delete=lambda gen: _forget_progress(gen), batch_model=GenerationBatch)
+start = app_access('imager')(_iv['start'])
+start_all = app_access('imager')(_iv['start_all'])
+clear_all = _iv['clear_all']
 
 
 from wama.common.utils.process_views import make_process_start_view  # noqa: E402
@@ -910,110 +883,6 @@ from wama.common.utils.process_views import make_process_start_view  # noqa: E40
 # (format, agrandissement) sans regénérer, ou regénérer sans attendre qu'un réglage ait changé.
 start_process = make_process_start_view(
     work_model=ImageGeneration, task_for=_task_for, reset_on_start=_reset_and_forget_progress)
-
-
-@require_http_methods(["POST"])
-def restart_generation(request, generation_id):
-    """Restart a completed or failed generation"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        # Anti-race COMMUN, comme start_generation. Le heuristique maison qui précédait
-        # (« relance autorisée si RUNNING depuis > 30 min, ou > 2 h en vidéo ») a été RETIRÉ :
-        #  • il DOUBLAIT `reconcile_orphaned_running`, déjà appelé à l'index (views.py:44), qui
-        #    traite les RUNNING zombies par PREUVE POSITIVE DE MORT au lieu d'un délai ;
-        #  • il était plus FAIBLE : une génération légitimement longue (vidéo > 2 h) devenait
-        #    relançable et partait une 2e fois sur le GPU — le scénario exact des kernel panics
-        #    WSL2 du 2026-07-29, causés par l'imager non câblé ;
-        #  • l'échappatoire reste entière et explicite : `force_reset_generation` (⏹ du bouton
-        #    de cycle, queue.js:12), que le message d'erreur d'origine désignait déjà.
-        from wama.common.utils.process_control import begin_processing
-        generation, err = begin_processing(
-            ImageGeneration, generation_id, user=user,
-            reset={'progress': 0, 'error_message': ''},
-        )
-        if err == 'not_found':
-            return JsonResponse({'error': 'Generation not found'}, status=404)
-        if err == 'already_running':
-            return JsonResponse({
-                'error': "Cette génération tourne déjà. Si elle semble bloquée, utilisez ⏹ "
-                         "(réinitialisation forcée).",
-            }, status=400)
-
-        # Clear progress cache to avoid showing old values
-        cache.delete(f"imager_progress_{generation_id}")
-
-        # Import tasks - use video task for video modes
-        from .tasks import generate_image_task, generate_video_task
-
-        # Start appropriate Celery task based on mode
-        if generation.is_video_generation:
-            task = generate_video_task.delay(generation.id)
-        else:
-            task = generate_image_task.delay(generation.id)
-
-        generation.task_id = task.id
-        generation.save(update_fields=['task_id'])
-
-        logger.info(f"Restarted generation #{generation.id}, task_id: {task.id}")
-
-        return JsonResponse({
-            'success': True,
-            'task_id': task.id,
-            'message': 'Generation restarted'
-        })
-
-    except Exception as e:
-        logger.error(f"Error restarting generation: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
-
-
-@require_http_methods(["POST"])
-def start_all_generations(request):
-    """Start all pending generations"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        pending = ImageGeneration.objects.filter(user=user, status='PENDING')
-
-        if not pending.exists():
-            return JsonResponse({'error': 'No pending generations'}, status=400)
-
-        from .tasks import generate_image_task, generate_video_task
-        from wama.common.utils.process_control import begin_processing
-
-        started_count = 0
-        for generation in pending:
-            # Anti-race PAR ITEM (brique commune, patron transcriber start_all) : le QuerySet est
-            # une photo, et deux « Démarrer tout » concurrents dispatchaient deux tâches GPU pour
-            # le même item. `begin_processing` re-lit sous verrou et saute ce qui tourne déjà.
-            generation, err = begin_processing(
-                ImageGeneration, generation.pk, user=user,
-                reset={'progress': 0, 'error_message': ''},
-            )
-            if err:
-                continue
-            cache.delete(f"imager_progress_{generation.id}")
-
-            if generation.is_video_generation:
-                task = generate_video_task.delay(generation.id)
-            else:
-                task = generate_image_task.delay(generation.id)
-
-            generation.task_id = task.id
-            generation.save(update_fields=['task_id'])
-            started_count += 1
-            logger.info(f"Started generation #{generation.id}, task_id: {task.id}")
-
-        return JsonResponse({
-            'success': True,
-            'started': started_count,
-            'message': f'Started {started_count} generation(s)'
-        })
-
-    except Exception as e:
-        logger.error(f"Error starting all generations: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 #: Les modes de génération VIDÉO — la barre de file a un domaine image et un domaine vidéo.
@@ -1262,27 +1131,6 @@ reorder_queue = _qm['reorder_queue']
 merge = _qm['merge']
 move_to_batch = _qm['move_to_batch']
 consolidate = _qm['consolidate']
-
-
-@require_http_methods(["POST"])
-def clear_all(request):
-    """Clear all generations for the user"""
-    user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
-
-    try:
-        # La MÊME suppression que `delete_generation`, N fois (fichiers libérés, tâche révoquée,
-        # ligne) — elle était recopiée ici, et la copie effaçait les images à la main.
-        generations = list(ImageGeneration.objects.filter(user=user))
-        for generation in generations:
-            _purger_generation(generation)
-        count = len(generations)
-        logger.info(f"Cleared {count} generations for user {user.username}")
-
-        return JsonResponse({'success': True, 'deleted': count})
-
-    except Exception as e:
-        logger.error(f"Error clearing all generations: {str(e)}")
-        return JsonResponse({'error': str(e)}, status=500)
 
 
 # ⬇ « Télécharger tout » de la barre de file : le ZIP de la file que compte la barre globale,
