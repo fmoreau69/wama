@@ -1228,6 +1228,25 @@ class KeyDispatcherTest(SimpleTestCase):
         self.assertEqual(['score', 'transport'], out,
                          'with the hand the brick wins ; without it, it is not even asked')
 
+    def test_an_open_registered_layer_alone_hears_the_keys(self):
+        """The viewer is a LAYER of the common keyboard : open (its modal, or its fullscreen image
+        outside any modal), it alone hears the keys ; closed, it is not asked and the page has
+        them back."""
+        out = self._eval('''
+            var open = false;
+            claimer('panel', true);
+            claimer('viewer', true, {scope: 'layer', open: function () { return open; }});
+            press(el('body'), 'ArrowDown');                          // closed : the panel
+            open = true; modalOpen = true;
+            press(el('body'), 'ArrowDown');                          // its modal : the viewer only
+            modalOpen = false;
+            press(el('body'), 'ArrowRight');                         // fullscreen image, no modal
+            open = false;
+            press(el('body'), 'ArrowDown');
+            return calls;
+        ''')
+        self.assertEqual(['panel', 'viewer', 'viewer', 'panel'], out)
+
     def test_the_history_reads_the_produced_character_even_while_typing(self):
         """Ctrl+Z is `KeyW` on an AZERTY keyboard : the history reads `e.key`, so its `typing` is a
         function of the key. It undoes in an edited `contenteditable` (where the edited model
@@ -1265,7 +1284,6 @@ class PageKeyListenersTest(SimpleTestCase):
     #: path → (page-wide key listeners, why it is still there). `MOVE` : a brick still to register.
     MOVE = 'à inscrire au clavier commun'
     REMAINING = {
-        'wama/common/static/common/js/media-preview.js': (1, MOVE),
         'wama/common/static/common/js/wama-card-menu.js': (2, MOVE),
         'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
         'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js': (1, MOVE),

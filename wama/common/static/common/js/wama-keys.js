@@ -12,8 +12,10 @@
  *      son propre élément (les notifications), une note gravée de la partition (le clavier
  *      d'abcjs) ;
  *   1. une COUCHE ouverte au moment de la frappe — une modale, un panneau en dialogue — garde le
- *      clavier : rien n'est distribué. Relevé en CAPTURE : Bootstrap ferme une modale sur Échap
- *      avant que la frappe ne remonte jusqu'ici ;
+ *      clavier : rien n'est distribué, SAUF au clavier propre d'une couche inscrite (`scope:
+ *      'layer'`, avec `open()` qui dit si elle est ouverte — la visionneuse). Une couche inscrite
+ *      ouverte compte comme couche même hors d'une modale. Relevé en CAPTURE : Bootstrap ferme une
+ *      modale sur Échap avant que la frappe ne remonte jusqu'ici ;
  *   2. pendant une SAISIE, seules les touches qu'un inscrit déclare `typing` (Ctrl+Espace) — une
  *      liste de noms, ou une fonction de la frappe pour une touche qui se lit au CARACTÈRE produit
  *      (Ctrl+Z : `KeyW` en AZERTY, l'historique lit `e.key`) ;
@@ -41,7 +43,7 @@
                   'input[type="radio"], input[type="range"]';
     /** Ces contrôles se servent eux-mêmes des flèches et de Début/Fin. */
     var OWN_ARROWS = 'select, input[type="range"], input[type="radio"]';
-    var SCOPE_RANK = { brick: 0, page: 1 };
+    var SCOPE_RANK = { layer: -1, brick: 0, page: 1 };
 
     var entries = [];
     var pointerFocus = null, lastPointer = null, captured = null;
@@ -73,14 +75,24 @@
         return typeof entry.root === 'function' ? entry.root() : entry.root;
     }
 
+    /** Une couche INSCRITE (`scope: 'layer'`) est-elle ouverte ? */
+    function layerOpen(entry) {
+        if (entry.scope !== 'layer') return false;
+        try { return !!(entry.open && entry.open()); }
+        catch (err) { console.error('[keys]', entry.owner, err); return false; }
+    }
+
     function dispatch(e) {
         var layer = captured && captured.event === e ? captured.layer : inLayer(e.target);
         captured = null;
-        if (e.defaultPrevented || layer) return;
+        if (e.defaultPrevented) return;
+        var layers = entries.filter(layerOpen);      // ouvertes : elles seules reçoivent la frappe
+        if (layer && !layers.length) return;
         var t = e.target, isTyping = typing(t), name = combo(e);
         if (!isTyping && controlKeeps(t, e)) return;
         var hand = handElement();
         function eligible(entry) {
+            if (layers.length ? layers.indexOf(entry) < 0 : entry.scope === 'layer') return false;
             var allowed = typeof entry.typing === 'function' ? entry.typing(e)
                 : (entry.typing || []).indexOf(name) >= 0;
             if (isTyping && !allowed) return false;

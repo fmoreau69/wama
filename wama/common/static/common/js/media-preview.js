@@ -1347,9 +1347,10 @@
 
     /**
      * Le clavier de la visionneuse et de la surcouche plein écran : ←/→ fichier par fichier puis
-     * élément voisin, ↑/↓ d'élément en élément, Échap ferme la surcouche. SEUL écouteur de ces
-     * touches quand la visionneuse est ouverte : le volet et la file s'abstiennent tant qu'une
-     * modale est ouverte, et le gestionnaire de fichiers n'a plus le sien (il détournait la
+     * élément voisin, ↑/↓ d'élément en élément, Échap ferme la surcouche. SEUL propriétaire de ces
+     * touches quand la visionneuse est ouverte : c'est une COUCHE du clavier commun (`WamaKeys`,
+     * `scope: 'layer'`, 2026-10-29) — ouverte, elle seule reçoit les frappes ; le volet et la file
+     * n'en reçoivent aucune, et le gestionnaire de fichiers n'a plus les siennes (il détournait la
      * navigation d'une card vers ses fichiers — mesuré le 2026-10-13).
      */
     const NAV_KEYS = {
@@ -1357,24 +1358,27 @@
         ArrowUp: { dir: -1, byCard: true }, ArrowDown: { dir: 1, byCard: true },
     };
 
+    function viewerOpen() {
+        const modal = document.getElementById('wamaMediaPreviewModal');
+        return !!(document.getElementById('wamaFullscreenOverlay') || (modal && modal.classList.contains('show')));
+    }
+
     function setupKeyboardHandlers() {
-        document.addEventListener('keydown', function(e) {
+        // Le banc V8 charge ce fichier sans le module.
+        if (!window.WamaKeys) return;
+        window.WamaKeys.register({ owner: 'media_viewer', scope: 'layer', open: viewerOpen, handle: function (e) {
             const t = e.target;
             // Une saisie (champ, curseur de Comparer, zone éditable) garde ses touches.
-            if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return;
-            const overlay = document.getElementById('wamaFullscreenOverlay');
-            const modal = document.getElementById('wamaMediaPreviewModal');
-            if (!overlay && !(modal && modal.classList.contains('show'))) return;
-            if (overlay && e.key === 'Escape') {
-                e.preventDefault();
+            if (t && t.closest && t.closest('input, textarea, select, [contenteditable="true"]')) return false;
+            if (document.getElementById('wamaFullscreenOverlay') && e.key === 'Escape') {
                 closeFullscreen();
-                return;
+                return true;
             }
             const key = NAV_KEYS[e.key];
-            if (!key) return;
-            e.preventDefault();
+            if (!key) return false;
             _navigate(key.dir, key.byCard);
-        });
+            return true;
+        } });
     }
 
     // ════════════════════════════════════════════════════════════════════════════════════════
@@ -1474,6 +1478,12 @@
         // Mettre en pause les players inline
         if (window.WamaAudioPlayer) window.WamaAudioPlayer.pauseAll();
 
+        // Ce qui a le focus DERRIÈRE la visionneuse le rend tout de suite : Bootstrap ne le met dans
+        // la modale qu'après son animation, et entre-temps une flèche allait à l'élément d'où on l'a
+        // ouverte — l'arbre du gestionnaire de fichiers (jsTree) déplaçait sa sélection derrière la
+        // modale, et prenait la touche à la visionneuse (mesuré le 29/10, clavier commun).
+        const behind = document.activeElement;
+        if (behind && behind !== document.body && !modal.contains(behind) && behind.blur) behind.blur();
         // getOrCreateInstance : réutilise l'instance existante (évite l'empilement de backdrops)
         bootstrap.Modal.getOrCreateInstance(modal).show();
     }

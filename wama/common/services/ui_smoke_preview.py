@@ -921,6 +921,12 @@ def check_preview_navigation():
                     gesture('gestionnaire : ↓', press('ArrowDown'), 'f2.png', '3 / 4')
                     gesture('gestionnaire : bouton ›', click(modal + ' .wama-preview-nav-next'), 'f3.png', '4 / 4')
                     gesture('gestionnaire : ←', press('ArrowLeft'), 'f2.png', '3 / 4')
+                    # L'arbre ne bouge pas DERRIÈRE la visionneuse (2026-10-29) : son focus restait
+                    # sur le fichier double-cliqué, et ses flèches y déplaçaient l'élément actif.
+                    behind = page.evaluate("""() => { const a = document.querySelector('#filemanager-tree a.jstree-anchor:focus');
+                        return a ? a.textContent.trim() : null; }""")
+                    if behind:
+                        faults.append(f"gestionnaire : l'arbre a gardé le focus derrière la visionneuse ({behind})")
                     close()
                     # Une flèche dans la visionneuse d'une CARD ne montre plus un fichier du dossier.
                     gesture('card rouverte après le gestionnaire', dblclick(card1 + ' .wama-card-preview small'),

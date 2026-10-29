@@ -362,9 +362,11 @@ class OnePreviewBrickTest(SimpleTestCase):
         self.assertIn('WamaMediaPreview', fm)
         self.assertIn('P.openSequence(', fm)
         # Since 2026-10-29 the panel and the stack register to the common keyboard, which keeps the
-        # keys of an open layer (a modal, a panel in dialog) for it — one guard for all.
+        # keys of an open layer (a modal, a panel in dialog) for it — one guard for all ; and the
+        # viewer is such a LAYER of the common keyboard (`scope: 'layer'`) : open, it alone hears.
         self.assertIn("doc.querySelector('.modal.show')", (JS / 'wama-keys.js').read_text(encoding='utf-8'))
-        for name in ('wama-inspector.js', 'wama-queue.js'):
+        self.assertIn("scope: 'layer', open: viewerOpen", (JS / 'media-preview.js').read_text(encoding='utf-8'))
+        for name in ('wama-inspector.js', 'wama-queue.js', 'media-preview.js'):
             source = (JS / name).read_text(encoding='utf-8')
             self.assertIn('WamaKeys.register(', source, name)
             self.assertNotIn("document.addEventListener('keydown'", source, name)

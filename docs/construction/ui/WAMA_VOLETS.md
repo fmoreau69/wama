@@ -610,7 +610,7 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       35 gestes), inspecteurs coexistants, parité de l'éditeur 75/75.
     - ⚠ **Pas encore inscrits** (ils gardent leur propre écoute, sans conflit mesuré) : les
       ~~segments, la ligne de temps, l'écriture à la lecture~~, ~~la partition~~ (étape 3), ~~l'image et ses zones~~ (étape 3),
-      ~~l'historique~~ (étape 3), le menu de card, la visionneuse, le cam_analyzer (`WamaShuttle.bindKeys`). Le
+      ~~l'historique~~ (étape 3), le menu de card, ~~la visionneuse~~ (étape 3), le cam_analyzer (`WamaShuttle.bindKeys`). Le
       module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
       ⚠ **Jumeau déclaré** (revérification du 29/10) : ces briques testent la saisie par
       `WamaApp.isTyping` (l'élément qui a le focus, une liste comprise), le module par
@@ -684,6 +684,19 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       `common.gestures.mouse` (éditeur 3/3), `common.keyboard_owners` 5/5 ; contre-épreuves au
       navigateur : la règle des champs neutralisée → Échap et les fusions rougissent ; ↓ retiré →
       sept rouges.
+    - ✅ **La visionneuse** — une COUCHE : le module ne distribuait rien sous elle, elle gardait
+      donc sa propre écoute. Il gagne la portée **`layer`** : une couche inscrite déclare `open()` ;
+      ouverte (sa modale, ou sa surcouche d'image même hors d'une modale), elle SEULE reçoit les
+      frappes, avec les mêmes règles de saisie et de contrôles ; fermée, elle n'est pas consultée.
+      Test V8 ; contre-épreuve (une couche inscrite traitée comme une modale ordinaire) → rouge.
+      ⚠ **Trouvé en route** : ouverte d'un double-clic dans l'arbre du gestionnaire de fichiers, la
+      visionneuse laissait le focus à l'arbre (Bootstrap ne le met dans la modale qu'après son
+      animation) ; jsTree prenait la flèche, et l'ancienne écoute naviguait QUAND MÊME — deux
+      réactions, l'arbre bougeant derrière la modale. Le module, qui respecte une touche prise plus
+      près, l'a rendu visible (`common.preview_navigation` : 4 rouges). La visionneuse rend
+      désormais le focus de ce qui est derrière elle à l'ouverture ; contrôle ajouté au scénario
+      (l'arbre ne garde pas le focus derrière elle). 35/35 ; contre-épreuve au navigateur (sans ce
+      geste) → rouge. `common.keyboard_owners` 5/5.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
