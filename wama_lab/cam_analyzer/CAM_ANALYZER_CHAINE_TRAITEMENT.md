@@ -1170,6 +1170,13 @@ antérieur compte pour l'ancienne règle) juge sur la position MÉDIANE, celle o
 la zone exclue est le cercle. Rejeu sans écriture : près d'une intersection 140 → **50**, garés
 661 → **703**, en mouvement 439 → 487 (la garde suivante reprend 48 des 90 libérés), référence de
 calibration inchangée (116), suspects de doublon 35 → 41.
+→ **⚑ `parked_motion_vs_shuttle` remesurée le 2026-10-28** (question de Fabien : la laisser décochée ?),
+sur les réglages du jour (plancher 2 m/s, médiane, garés en double réunis) — rejeu sans écriture OFF →
+ON : garés **667 → 667** ; la garde de mouvement elle-même ne libère presque plus rien (au seuil 0,5 du
+chemin de la navette, 575 des 579 « en mouvement » absolus le restent : le plancher de vitesse a fait
+son travail). Son effet passe par la pose longue (fragments candidats 2446 → 2375, en mouvement 487 →
+382 par d'autres découpages) : référence de calibration 108 → 126, étalement moyen 1,168 → 1,141 m ;
+suspects de doublon restants 5 → 9. Laissée OFF : rien de gagné sur les garés.
 
 **Garés en double, par nature (2026-10-28, GO de Fabien).** Une paire de garés à moins de 2 m n'est
 pas forcément un objet compté deux fois. Rejeu sans écriture sur `4da52df3`, 336 paires :
