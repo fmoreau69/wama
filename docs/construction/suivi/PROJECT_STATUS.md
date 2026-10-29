@@ -27351,7 +27351,7 @@ pipelines avatarizer/enhancer, `doc_facts` conformite/mecanismes/briques.
 🔚 **POINT D'ENTRÉE** : le retour de Fabien sur son test du soir (floutage, rangées, CSV) — puis, selon
 lui, adopter `BLUR_LOOK` à l'Anonymizer ou la porte élargie des dépassements (limite 3).
 
-## §CLÔTURE 2026-10-29 (soir), « MULTI-AGENTS — sous-agents et council » — ✅ étapes 0 → 5 livrées + Claude abonnement en arbitre (29→30/10), 24 commits non poussés — 🔚 relancer gunicorn + serveurs MCP, puis le point 2 de la file (étapes des sous-agents à l'écran)
+## §CLÔTURE 2026-10-29 (soir), « MULTI-AGENTS — sous-agents et council » — ✅ étapes 0 → 5 livrées + Claude abonnement en arbitre (29→30/10), commits non poussés (les `docs(handoff)` compris) — 🔚 relancer gunicorn + serveurs MCP, puis le point 2 de la file (étapes des sous-agents à l'écran)
 
 > Domicile : `docs/construction/ia/WAMA_HARNESS.md §7.4` (plan, mesures, décisions) ; vision §5.7 ;
 > `ROUTE §10.5` (interface existante). Ouvert par Fabien le 28/10 depuis l'assistant, mené en
