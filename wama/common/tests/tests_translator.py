@@ -69,6 +69,15 @@ class TranslatorServiceTest(SimpleTestCase):
         self.assertIn('ISO 639-1 « en »', unknown)
         self.assertIn('« fr »', known)                    # contre-épreuve : la source connue se dit
 
+    def test_only_a_marked_text_is_told_to_keep_its_tags(self):
+        with mock.patch.object(llm_utils, 'llm_chat', return_value=('Hello', None)) as local:
+            self._service().translate('Voir la <t1>note</t1>.', 'fr', 'en')
+            marked = local.call_args.kwargs['messages'][0]['content']
+            self._service().translate('Voir la note.', 'fr', 'en')
+            bare = local.call_args.kwargs['messages'][0]['content']
+        self.assertIn('balises <t1>', marked)
+        self.assertNotIn('balises', bare)              # a bare text keeps its prompt, and its cache
+
     def test_a_rewritten_prompt_does_not_serve_the_old_cached_translations(self):
         key = translator.TranslatorService._cache_key
         before = key('Bonjour', 'auto', 'en', [], 'ollama:translategemma:12b')
@@ -155,6 +164,24 @@ class TranslateDocumentTest(SimpleTestCase):
             pdf.save(str(source))
         with self.assertRaisesRegex(ValueError, 'PDF scanné'):
             translator.translate_document(source, self.tmp / 'out.pdf', 'fr', 'en')
+
+    def test_a_bold_word_inside_a_paragraph_stays_bold_and_the_preview_has_no_tags(self):
+        """2026-10-29 — the block leaves MARKED (`<t1>…</t1>`), the rewrite gives the bold back to
+        the translated word ; before, the whole paragraph took the format of its first run."""
+        import docx
+        source = self.tmp / 'in.docx'
+        document = docx.Document()
+        paragraph = document.add_paragraph()
+        paragraph.add_run('Voir la ')
+        paragraph.add_run('note').bold = True
+        paragraph.add_run(' plus bas.')
+        document.save(str(source))
+        seen = []
+        out = translator.translate_document(source, self.tmp / 'out.docx', 'fr', 'en',
+                                            on_chunk=seen.append)
+        runs = [(r.text, bool(r.bold)) for r in docx.Document(out).paragraphs[0].runs if r.text]
+        self.assertEqual([('Ł VOIR LA ', False), ('NOTE', True), (' PLUS BAS.', False)], runs)
+        self.assertEqual('Ł VOIR LA NOTE PLUS BAS.', seen[-1])
 
     def test_a_glossary_written_one_term_per_line_gives_terms_not_characters(self):
         with mock.patch.object(translator.TranslatorService, 'translate',

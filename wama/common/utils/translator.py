@@ -26,8 +26,13 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import re
 
 logger = logging.getLogger(__name__)
+
+#: Une balise de mise en forme de `document_text` (`<t1>`, `</t1>`) — la même forme, sans
+#: importer la brique (ce module s'importe sans les librairies de documents).
+_MARKUP = re.compile(r'</?t\d+>', re.IGNORECASE)
 
 _CHUNK_CHARS = 4000  # ~ sous la fenêtre de traduction effective de translategemma (~2K tokens)
 
@@ -122,9 +127,18 @@ class TranslatorService:
         else:
             direction = (f"de la langue de code ISO 639-1 « {source_lang} » vers la langue de "
                          f"code « {target_lang} »")
+        # Un texte BALISÉ de sa mise en forme (`document_text`, `<t1>…</t1>` autour d'un passage
+        # en gras, en italique…) : la consigne ne s'ajoute qu'à lui — celle d'un texte nu, et donc
+        # son cache, ne changent pas (2026-10-29).
+        markup_line = ""
+        if _MARKUP.search(text):
+            markup_line = ("\nLe texte porte des balises <t1>…</t1>, <t2>…</t2>… autour de "
+                           "passages mis en forme : garde chacune, à l'identique, autour des mots "
+                           "qui traduisent ce passage ; n'en ajoute ni n'en retire aucune.")
         prompt = (
             f"Traduis le texte suivant {direction}.\n"
-            f"Rends UNIQUEMENT la traduction, sans commentaire ni guillemets.{gloss_line}\n\n"
+            f"Rends UNIQUEMENT la traduction, sans commentaire ni guillemets.{gloss_line}"
+            f"{markup_line}\n\n"
             f"{text}"
         )
         from wama.common.utils.model_keys import split_key
@@ -226,12 +240,16 @@ def translate_document(path, out_path, source_language: str, target_language: st
     texte commune (`document_text`, unité `block`). Rend `out_path`.
 
     `on_chunk(texte traduit jusqu'ici)` : l'aperçu « pendant » ; `progress_callback(pourcent)`
-    après chaque bloc. Un document sans texte (PDF scanné) LÈVE : c'est l'OCR qu'il lui faut."""
-    from wama.common.utils.document_text import read_segments, write_replacements
+    après chaque bloc. Un document sans texte (PDF scanné) LÈVE : c'est l'OCR qu'il lui faut.
+
+    Chaque bloc part BALISÉ de sa mise en forme (`markup=True` : un mot en gras, en italique, en
+    exposant garde la sienne dans la traduction) ; l'aperçu, lui, est le texte nu."""
+    from wama.common.utils.document_text import read_segments, strip_markup, write_replacements
     service = TranslatorService(model=model or DEFAULT_MODEL, user=user)
     glossary = glossary_terms(glossary)
-    segments = read_segments(path, unit='block')
-    todo = [i for i, segment in enumerate(segments) if any(c.isalpha() for c in segment)]
+    segments = read_segments(path, unit='block', markup=True)
+    todo = [i for i, segment in enumerate(segments)
+            if any(c.isalpha() for c in strip_markup(segment))]
     if not todo:
         raise ValueError("Rien à traduire : le document n'a pas de texte lisible (PDF scanné ?)")
     replacements, done = {}, []
@@ -240,15 +258,15 @@ def translate_document(path, out_path, source_language: str, target_language: st
         core = segment.strip()
         start = len(segment) - len(segment.lstrip())
         relay = (None if on_chunk is None
-                 else lambda partial: on_chunk('\n\n'.join(done + [partial])))
+                 else lambda partial: on_chunk('\n\n'.join(done + [strip_markup(partial)])))
         result = service.translate(core, source_language, target_language, glossary=glossary,
                                    timeout=timeout, on_chunk=relay)
         if not result.get('ok'):
             raise RuntimeError(f"Traduction impossible : {result.get('error') or 'réponse vide'}")
         replacements[index] = [(start, start + len(core), result['text'])]
-        done.append(result['text'])
+        done.append(strip_markup(result['text']))
         if on_chunk is not None:
             on_chunk('\n\n'.join(done))
         if progress_callback is not None:
             progress_callback(count * 100 // len(todo))
-    return write_replacements(path, out_path, replacements, unit='block')
+    return write_replacements(path, out_path, replacements, unit='block', markup=True)

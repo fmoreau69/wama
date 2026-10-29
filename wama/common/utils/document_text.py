@@ -17,7 +17,8 @@ FORMATS (v1) — un segment est :
     des en-têtes et pieds, des commentaires et des notes de bas de page et de fin. Le texte d'un
     paragraphe est éclaté en morceaux de même mise en forme : le nouveau texte prend la place du
     passage dans le PREMIER morceau touché, les suivants sont rognés — la mise en forme du début du
-    passage est gardée. Les SUPPRESSIONS du suivi des modifications (`w:del`, texte encore présent
+    passage est gardée (avec `markup=True`, chaque passage balisé retrouve la sienne — « Balises
+    de mise en forme »). Les SUPPRESSIONS du suivi des modifications (`w:del`, texte encore présent
     dans le fichier) sont retirées, les métadonnées d'auteur vidées ;
   • `.pdf` (texte natif) : une page. Le passage est retrouvé à sa place (`search_for`), le texte
     dessous est SUPPRIMÉ (`apply_redactions` — un rectangle posé par-dessus le laisserait
@@ -45,6 +46,7 @@ traduction en polonais dans un fichier cp1252) : il passe alors en UTF-8.
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 TEXT_EXTS = ('.txt', '.md')
@@ -57,6 +59,70 @@ def _ext(path) -> str:
         raise ValueError(f"format non pris en charge par la couche texte : {ext or '(aucun)'} "
                          f"— {', '.join(SUPPORTED_EXTS)}")
     return ext
+
+
+# ── Balises de mise en forme ──────────────────────────────────────────────────────────────────
+# `markup=True` : le texte d'un segment porte `<tN>…</tN>` autour de chaque passage dont la mise
+# en forme n'est pas celle qui DOMINE le segment (le texte nu). Un traducteur garde les balises
+# autour des mots qui leur correspondent, et la réécriture rend à chacun sa mise en forme.
+_TAG = re.compile(r'</?t(\d+)>', re.IGNORECASE)
+
+
+def strip_markup(text: str) -> str:
+    """Le texte sans ses balises de mise en forme."""
+    return _TAG.sub('', text or '')
+
+
+def _mark(pieces) -> tuple:
+    """`(texte balisé, {numéro: clé}, clé dominante)` de morceaux `(clé de mise en forme, texte)`,
+    dans l'ordre. La clé dominante est celle du plus grand nombre de caractères ; un morceau
+    blanc suit le passage où il se trouve (une espace ne coupe pas un passage en gras)."""
+    weights = {}
+    for key, text in pieces:
+        if text.strip():
+            weights[key] = weights.get(key, 0) + len(text.strip())
+    if not weights:
+        return ''.join(text for _, text in pieces), {}, None
+    dominant = max(weights, key=weights.get)
+    numbers, out, current = {}, [], dominant
+    for key, text in pieces:
+        if text.strip() and key != current:
+            if current != dominant:
+                out.append(f'</t{numbers[current]}>')
+            if key != dominant:
+                numbers.setdefault(key, len(numbers) + 1)
+                out.append(f'<t{numbers[key]}>')
+            current = key
+        out.append(text)
+    if current != dominant:
+        out.append(f'</t{numbers[current]}>')
+    return ''.join(out), {n: key for key, n in numbers.items()}, dominant
+
+
+def _parse_markup(text: str, tags) -> list | None:
+    """`[(numéro ou None, texte), …]` d'un texte balisé ; None si ses balises sont illisibles
+    (inconnues, imbriquées, mal fermées)."""
+    pieces, current, position = [], None, 0
+    for match in _TAG.finditer(text):
+        if match.start() > position:
+            pieces.append((current, text[position:match.start()]))
+        position = match.end()
+        number = int(match.group(1))
+        if number not in tags:
+            return None
+        if match.group(0)[1] == '/':
+            if current != number:
+                return None
+            current = None
+        elif current is not None:
+            return None
+        else:
+            current = number
+    if current is not None:
+        return None
+    if position < len(text):
+        pieces.append((None, text[position:]))
+    return pieces
 
 
 # ── Texte brut ────────────────────────────────────────────────────────────────────────────────
@@ -148,6 +214,49 @@ def _rewrite_paragraph(paragraph, changes) -> None:
             first = False
 
 
+def _docx_groups(paragraph):
+    """`(nœuds, clé de chaque nœud, texte balisé, {numéro de balise: clé}, clé dominante)` : la clé
+    d'un nœud est la mise en forme de son morceau (`w:rPr` sérialisé)."""
+    from lxml import etree
+
+    from docx.oxml.ns import qn
+    nodes = _own_texts(paragraph)
+    keys = []
+    for node in nodes:
+        run = node.getparent()
+        rpr = run.find(qn('w:rPr')) if run is not None else None
+        keys.append(etree.tostring(rpr) if rpr is not None else b'')
+    pieces = [(key, node.text or '') for key, node in zip(keys, nodes)]
+    marked, tags, dominant = _mark(pieces)
+    return nodes, keys, marked, tags, dominant
+
+
+def _rewrite_paragraph_marked(paragraph, changes) -> None:
+    """Le paragraphe réécrit d'après son texte BALISÉ : chaque morceau du nouveau texte va dans le
+    prochain nœud de SA mise en forme (le texte nu, dans celle qui domine), les nœuds restants
+    sont vidés. Un morceau dont la mise en forme ne revient plus (la traduction a inversé l'ordre)
+    rejoint le nœud précédent : sa mise en forme se perd, jamais son texte. Des balises illisibles :
+    tout le texte, nu, dans la mise en forme dominante."""
+    space = '{http://www.w3.org/XML/1998/namespace}space'
+    nodes, keys, marked, tags, dominant = _docx_groups(paragraph)
+    if not nodes:
+        return
+    new = _splice(marked, changes)
+    pieces = _parse_markup(new, tags) or [(None, strip_markup(new))]
+    texts, cursor = {}, None
+    for tag, text in pieces:
+        key = tags[tag] if tag is not None else dominant
+        start = 0 if cursor is None else cursor
+        target = next((j for j in range(start, len(nodes)) if keys[j] == key), None)
+        if target is None:
+            target = cursor if cursor is not None else 0
+        texts[target] = texts.get(target, '') + text
+        cursor = target
+    for j, node in enumerate(nodes):
+        node.text = texts.get(j, '')
+        node.set(space, 'preserve')
+
+
 def _scrub_docx(document) -> None:
     """Retire ce qui garde le texte d'origine HORS de la page : les suppressions du suivi des
     modifications (`w:del`, leur texte reste dans le fichier) et l'auteur des propriétés."""
@@ -191,44 +300,62 @@ _MATH_FONTS = ('CMMI', 'CMSY', 'CMEX', 'MSAM', 'MSBM', 'MATH')
 
 
 def _span_style(span) -> tuple:
-    """Le style d'un morceau de texte du PDF : `(famille, gras, italique, taille, couleur)`. La
-    famille est GÉNÉRIQUE (empattement, chasse fixe, sinon sans) : la police embarquée n'est qu'un
-    sous-ensemble des glyphes du texte d'origine — elle n'écrirait pas les lettres d'une traduction."""
+    """Le style d'un morceau de texte du PDF : `(famille, gras, italique, taille, couleur,
+    exposant)`. La famille est GÉNÉRIQUE (empattement, chasse fixe, sinon sans) : la police
+    embarquée n'est qu'un sous-ensemble des glyphes du texte d'origine — elle n'écrirait pas les
+    lettres d'une traduction. Elle se nomme par les polices de base de MuPDF (Nimbus : Times,
+    Helvetica, Courier — les métriques des polices les plus courantes des documents) ; « serif »
+    y donnait Charis SIL, aux minuscules visiblement plus hautes que celles d'un Times (mesuré le
+    2026-10-29). Un glyphe qu'elles n'ont pas est pris par le repli de MuPDF (Noto)."""
     flags, font = span['flags'], span['font'].lower()
-    family = 'monospace' if flags & 8 else 'serif' if flags & 4 else 'sans-serif'
+    family = 'Courier' if flags & 8 else 'Times' if flags & 4 else 'Helvetica'
     bold = bool(flags & 16) or 'bold' in font
     italic = bool(flags & 2) or 'italic' in font or 'oblique' in font
-    return family, bold, italic, round(span['size'], 1), span['color']
+    return family, bold, italic, round(span['size'], 1), span['color'], bool(flags & 1)
 
 
 def _css(style, leading=None, align='') -> str:
-    family, bold, italic, size, color = style
+    family, bold, italic, size, color, superscript = style
     return (f'font-family: {family}; font-size: {size:.1f}pt; color: #{color:06x}; '
             f'font-weight: {"bold" if bold else "normal"}; '
             f'font-style: {"italic" if italic else "normal"};'
+            + (' vertical-align: super;' if superscript else '')
             + (f' line-height: {leading:.2f};' if leading else '')
             + (f' text-align: {align};' if align and align != 'left' else ''))
 
 
+def _line_pieces(line) -> list:
+    """`[(style, texte)]` d'une ligne, ses blancs de bord retirés."""
+    pieces = [(_span_style(span), span['text']) for span in line['spans'] if span['text']]
+    while pieces and not pieces[0][1].strip():
+        pieces.pop(0)
+    while pieces and not pieces[-1][1].strip():
+        pieces.pop()
+    if pieces:
+        pieces[0] = (pieces[0][0], pieces[0][1].lstrip())
+        pieces[-1] = (pieces[-1][0], pieces[-1][1].rstrip())
+    return pieces
+
+
 def _pdf_unit(lines, page_width=0) -> dict | None:
     """Un passage du PDF fait de `lines` (lignes de `get_text('dict')`) : son cadre, son texte (les
-    lignes réunies par une espace — elles ne sont que le retour à la ligne du cadre), son style
-    DOMINANT (celui du plus grand nombre de caractères) et son interlignage. None : pas de texte,
-    ou une formule."""
+    lignes réunies par une espace — elles ne sont que le retour à la ligne du cadre) et son texte
+    BALISÉ (`_mark`), son style DOMINANT (celui du plus grand nombre de caractères) et son
+    interlignage. None : pas de texte, ou une formule."""
     import fitz
-    spans = [span for line in lines for span in line['spans'] if span['text'].strip()]
-    text = ' '.join(''.join(span['text'] for span in line['spans']).strip()
-                    for line in lines).strip()
-    if not text or not spans:
+    pieces = []
+    for line in lines:
+        own = _line_pieces(line)
+        if own:
+            pieces += ([(None, ' ')] if pieces else []) + own
+    text = ''.join(text for _, text in pieces)
+    if not text.strip():
         return None
-    weights, math = {}, 0
-    for span in spans:
-        style, count = _span_style(span), len(span['text'].strip())
-        weights[style] = weights.get(style, 0) + count
-        math += count if any(m in span['font'].upper() for m in _MATH_FONTS) else 0
-    if math * 2 > sum(weights.values()):
+    math = sum(len(span['text'].strip()) for line in lines for span in line['spans']
+               if any(m in span['font'].upper() for m in _MATH_FONTS))
+    if math * 2 > len(text.replace(' ', '')):
         return None
-    style = max(weights, key=weights.get)
+    marked, tags, style = _mark(pieces)
     pitches = sorted(b['spans'][0]['origin'][1] - a['spans'][0]['origin'][1]
                      for a, b in zip(lines, lines[1:]) if a['spans'] and b['spans'])
     pitches = [p for p in pitches if p > 0]
@@ -242,20 +369,24 @@ def _pdf_unit(lines, page_width=0) -> dict | None:
     rotate = {(1, 0): 0, (0, -1): 90, (-1, 0): 180, (0, 1): 270}.get((round(dx), round(dy)))
     if rotate is None or abs(abs(dx) + abs(dy) - 1) > 0.01:
         return None
-    return {'rect': rect, 'text': text, 'style': style, 'rotate': rotate, 'lines': len(lines),
-            'align': _alignment(lines, rect, page_width),
-            'leading': min(max(leading, 1.0), 1.6) if leading else None}
+    rows = len(_rows(lines))
+    # Une seule rangée (une cellule, un titre) : son cadre n'a que la hauteur du texte, et
+    # l'interligne par défaut du moteur HTML (~1,2) ne tiendrait jamais dedans — le texte se
+    # réduisait quelle que soit la place à côté (mesuré le 2026-10-29 sur un tableau).
+    leading = 1.0 if rows == 1 else min(max(leading, 1.0), 1.6) if leading else None
+    return {'rect': rect, 'text': text, 'marked': marked, 'tags': tags, 'style': style,
+            'rotate': rotate, 'rows': rows,
+            'align': _alignment(lines, rect, page_width, rows), 'leading': leading}
 
 
-def _alignment(lines, rect, page_width) -> str:
+def _alignment(lines, rect, page_width, rows=0) -> str:
     """L'alignement LU sur la position des lignes : centré (toutes les lignes centrées sur le
-    cadre — sur la page pour une ligne seule), justifié (toutes sauf la dernière vont d'un bord à
+    cadre — sur la page pour une seule rangée), justifié (toutes sauf la dernière vont d'un bord à
     l'autre), sinon à gauche."""
     edges = [(line['bbox'][0], line['bbox'][2]) for line in lines]
     middle = (rect.x0 + rect.x1) / 2
-    if len(edges) == 1:
-        x0, x1 = edges[0]
-        return 'center' if page_width and abs((x0 + x1) / 2 - page_width / 2) < 2 else 'left'
+    if rows == 1 or len(edges) == 1:
+        return 'center' if page_width and abs(middle - page_width / 2) < 2 else 'left'
     if all(abs((x0 + x1) / 2 - middle) < 2 for x0, x1 in edges) \
             and max(x1 - x0 for x0, x1 in edges) - min(x1 - x0 for x0, x1 in edges) > 4:
         return 'center'
@@ -272,12 +403,8 @@ def _same_band(a, b) -> bool:
     return smaller > 0 and bottom - top > smaller / 2
 
 
-def _split_tabular(lines) -> list:
-    """Les passages d'un bloc. Un bloc de TABLEAU (au moins deux rangées portant plusieurs lignes
-    côte à côte — PyMuPDF garde chaque cellule comme une ligne à part, mais range tout le tableau
-    dans un bloc) donne une cellule par passage, et ses lignes empilées seules dans leur rangée (la
-    légende dessous, un intertitre de groupe) un passage par suite. Sinon, le bloc entier : un
-    paragraphe que coupe une formule n'a qu'une rangée double."""
+def _rows(lines) -> list:
+    """Les lignes regroupées par rangée (côte à côte)."""
     rows = []
     for line in lines:
         row = next((row for row in rows if _same_band(row[0], line)), None)
@@ -285,6 +412,29 @@ def _split_tabular(lines) -> list:
             rows.append([line])
         else:
             row.append(line)
+    return rows
+
+
+def _column_alignment(line, siblings) -> str:
+    """L'alignement d'une cellule LU sur sa colonne : une autre ligne du tableau, sur une autre
+    rangée, finit au même bord droit sans commencer au même bord gauche (« right »), ou partage
+    son milieu (« center ») ; '' sinon."""
+    x0, x1 = line['bbox'][0], line['bbox'][2]
+    others = [o['bbox'] for o in siblings if o is not line and not _same_band(o, line)]
+    if any(abs(o[2] - x1) < 1 and abs(o[0] - x0) > 2 for o in others):
+        return 'right'
+    if any(abs((o[0] + o[2]) / 2 - (x0 + x1) / 2) < 1 and abs(o[0] - x0) > 2 for o in others):
+        return 'center'
+    return ''
+
+
+def _split_tabular(lines) -> list:
+    """Les passages d'un bloc. Un bloc de TABLEAU (au moins deux rangées portant plusieurs lignes
+    côte à côte — PyMuPDF garde chaque cellule comme une ligne à part, mais range tout le tableau
+    dans un bloc) donne une cellule par passage, et ses lignes empilées seules dans leur rangée (la
+    légende dessous, un intertitre de groupe) un passage par suite. Sinon, le bloc entier : un
+    paragraphe que coupe une formule n'a qu'une rangée double."""
+    rows = _rows(lines)
     if sum(1 for row in rows if len(row) > 1) < 2:
         return [lines]
     cells = {id(line) for row in rows if len(row) > 1 for line in row}
@@ -306,45 +456,80 @@ def _pdf_blocks(page) -> list:
     units = []
     for block in page.get_text('dict')['blocks']:
         if block.get('type') == 0:
-            for lines in _split_tabular(block['lines']):
+            parts = _split_tabular(block['lines'])
+            for lines in parts:
                 unit = _pdf_unit(lines, page.rect.width)
+                if unit and len(parts) > 1 and len(lines) == 1:
+                    unit['align'] = _column_alignment(lines[0], block['lines']) or unit['align']
                 if unit:
                     units.append(unit)
     return units
 
 
-def _read_pdf_blocks(path) -> list:
+def _read_pdf_blocks(path, markup=False) -> list:
     import fitz
+    field = 'marked' if markup else 'text'
     with fitz.open(str(path)) as pdf:
-        return [unit['text'] for page in pdf for unit in _pdf_blocks(page)]
+        return [unit[field] for page in pdf for unit in _pdf_blocks(page)]
+
+
+def _pdf_html(unit, new: str, markup: bool) -> str:
+    """Le HTML du nouveau texte : chaque passage balisé dans SON style, le reste dans le style du
+    bloc ; des balises illisibles, le texte nu."""
+    import html
+    pieces = _parse_markup(new, unit['tags']) if markup else None
+    if pieces is None:
+        return html.escape(strip_markup(new) if markup else new)
+    return ''.join(html.escape(text) if tag is None
+                   else f'<span style="{_css(unit["tags"][tag])}">{html.escape(text)}</span>'
+                   for tag, text in pieces)
 
 
 def _room(page, unit, obstacles):
     """Le cadre agrandi dans la place LIBRE : vers le bas jusqu'au premier obstacle (texte, image,
-    trait) placé dessous et en vis-à-vis, sinon la marge du bas ; et, pour un passage d'UNE ligne
-    (un titre, une cellule), vers la droite jusqu'au premier obstacle sur sa hauteur. Un texte
-    tourné garde son cadre."""
+    trait) placé dessous et en vis-à-vis, sinon la marge du bas ; et, pour un passage d'une seule
+    RANGÉE (un titre, une cellule), sur sa hauteur du côté que laisse son alignement — à droite
+    s'il est à gauche, à gauche s'il est à droite, des deux côtés autant s'il est centré —
+    jusqu'au premier obstacle, sinon la marge. Un texte tourné garde son cadre."""
     import fitz
     rect = unit['rect']
     if unit['rotate']:
         return rect
     others = [o for o in obstacles if o != rect]
-    bottom, right = page.rect.y1 - 36, rect.x1
+    bottom, left, right = page.rect.y1 - 36, rect.x0, rect.x1
     for other in others:
         if other.y0 >= rect.y1 - 1 and other.x0 < rect.x1 - 1 and other.x1 > rect.x0 + 1:
             bottom = min(bottom, other.y0 - 2)
-    if unit['lines'] == 1 and unit['align'] == 'left':
-        right = page.rect.x1 - 36
+    if unit['rows'] == 1:
+        free_left, free_right = page.rect.x0 + 36, page.rect.x1 - 36
         for other in others:
-            if other.x0 >= rect.x1 - 1 and other.y0 < rect.y1 - 1 and other.y1 > rect.y0 + 1:
-                right = min(right, other.x0 - 2)
-    return fitz.Rect(rect.x0, rect.y0, max(right, rect.x1), max(bottom, rect.y1))
+            if other.y0 < rect.y1 - 1 and other.y1 > rect.y0 + 1:
+                if other.x0 >= rect.x1 - 1:
+                    free_right = min(free_right, other.x0 - 2)
+                elif other.x1 <= rect.x0 + 1:
+                    free_left = max(free_left, other.x1 + 2)
+        free_left, free_right = min(free_left, rect.x0), max(free_right, rect.x1)
+        if unit['align'] == 'right':
+            left = free_left
+        elif unit['align'] == 'center':
+            half = min(rect.x0 - free_left, free_right - rect.x1)
+            left, right = rect.x0 - half, rect.x1 + half
+        else:
+            right = free_right
+    return fitz.Rect(left, rect.y0, right, max(bottom, rect.y1))
 
 
 def _place(page, unit, html_text, css, grown) -> None:
     """Le texte dans son cadre à sa TAILLE d'origine ; s'il ne tient pas, dans le cadre agrandi
     (`_room`) ; et seulement ensuite, réduit pour tenir."""
+    import fitz
     rect = unit['rect']
+    need = unit['style'][3] * 1.15 - rect.height
+    if unit['rows'] == 1 and not unit['rotate'] and need > 0:
+        # Une rangée seule : le cadre de la ligne n'a pas la place des jambages ; il s'élargit
+        # d'autant, centré sur la ligne d'origine.
+        rect = fitz.Rect(rect.x0, rect.y0 - need / 2, rect.x1, rect.y1 + need / 2)
+        grown = fitz.Rect(grown.x0, rect.y0, grown.x1, max(grown.y1, rect.y1))
     attempts = [(rect, 1)] + ([(grown, 1)] if grown != rect else []) + [(grown, 0)]
     for box, low in attempts:
         if page.insert_htmlbox(box, html_text, css=css, scale_low=low,
@@ -352,18 +537,17 @@ def _place(page, unit, html_text, css, grown) -> None:
             return
 
 
-def _rewrite_pdf_blocks(path, out_path, replacements) -> None:
-    import html
-
+def _rewrite_pdf_blocks(path, out_path, replacements, markup=False) -> None:
     import fitz
+    field = 'marked' if markup else 'text'
     with fitz.open(str(path)) as pdf:
         index = 0
         for page in pdf:
             units, todo = _pdf_blocks(page), []
             for unit in units:
                 if index in replacements:
-                    new = _splice(unit['text'], replacements[index])
-                    if new != unit['text']:
+                    new = _splice(unit[field], replacements[index])
+                    if new != unit[field]:
                         todo.append((unit, new))
                 index += 1
             if not todo:
@@ -377,27 +561,33 @@ def _rewrite_pdf_blocks(path, out_path, replacements) -> None:
             page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
                                   graphics=fitz.PDF_REDACT_LINE_ART_NONE)
             for unit, new in todo:
-                _place(page, unit, html.escape(new),
+                _place(page, unit, _pdf_html(unit, new, markup),
                        '* {' + _css(unit['style'], unit['leading'], unit['align']) + '}',
                        _room(page, unit, obstacles))
         pdf.save(str(out_path), garbage=4, deflate=True)
 
 
 # ── Les deux gestes ───────────────────────────────────────────────────────────────────────────
-def read_segments(path, unit: str = '') -> list:
+def read_segments(path, unit: str = '', markup: bool = False) -> list:
     """Le texte de chaque segment du document (voir l'en-tête pour ce qu'est un segment ;
-    `unit='block'` : un PDF par blocs)."""
+    `unit='block'` : un PDF par blocs ; `markup` : le texte BALISÉ de sa mise en forme, pour un
+    DOCX et un PDF par blocs — voir « Balises de mise en forme »)."""
     ext = _ext(path)
     if ext in TEXT_EXTS:
         return [_read_plain(path)[0]]
     if ext == '.docx':
-        return [_paragraph_text(p) for p in _docx_paragraphs(_open_docx(path))]
-    return _read_pdf_blocks(path) if unit == 'block' else _read_pdf(path)
+        paragraphs = _docx_paragraphs(_open_docx(path))
+        if markup:
+            return [_docx_groups(p)[2] for p in paragraphs]
+        return [_paragraph_text(p) for p in paragraphs]
+    return _read_pdf_blocks(path, markup) if unit == 'block' else _read_pdf(path)
 
 
-def write_replacements(path, out_path, replacements: dict, unit: str = '') -> str:
+def write_replacements(path, out_path, replacements: dict, unit: str = '',
+                       markup: bool = False) -> str:
     """Le document `path` réécrit dans `out_path`, chaque passage remplacé SUR PLACE — les index
-    sont ceux de `read_segments(path, unit)`."""
+    sont ceux de `read_segments(path, unit, markup)`, et un nouveau texte balisé rend à chaque
+    passage sa mise en forme."""
     ext = _ext(path)
     os.makedirs(os.path.dirname(os.path.abspath(str(out_path))), exist_ok=True)
     changes = {int(k): list(v) for k, v in (replacements or {}).items() if v}
@@ -410,12 +600,13 @@ def write_replacements(path, out_path, replacements: dict, unit: str = '') -> st
             data = new.encode('utf-8')
         Path(out_path).write_bytes(data)
     elif ext == '.pdf' and unit == 'block':
-        _rewrite_pdf_blocks(path, out_path, changes)
+        _rewrite_pdf_blocks(path, out_path, changes, markup)
     elif ext == '.docx':
         document = _open_docx(path)
         paragraphs = _docx_paragraphs(document)
+        rewrite = _rewrite_paragraph_marked if markup else _rewrite_paragraph
         for index, items in changes.items():
-            _rewrite_paragraph(paragraphs[index], items)
+            rewrite(paragraphs[index], items)
         _scrub_docx(document)
         document.save(str(out_path))
     else:

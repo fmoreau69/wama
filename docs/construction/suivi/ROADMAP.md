@@ -2765,9 +2765,8 @@ Deux voies, complémentaires :
    mise en forme du premier morceau gardée, tableaux, en-têtes, notes), PDF à texte natif par bloc
    (`unit='block'` : texte retiré du cadre sans toucher au fond, aux images ni aux tracés, traduction
    posée dans le même cadre, taille d'origine réduite pour tenir), TXT/MD (UTF-8 si l'encodage
-   d'origine ne porte pas la langue cible). ⏳ Restent : le juger sur de VRAIS documents (débord
-   d'un texte plus long, mise en forme à l'intérieur d'un paragraphe — gras d'un mot — perdue), les
-   figures (OCR → traduction → réédition), un PDF scanné (refusé en le disant).
+   d'origine ne porte pas la langue cible). ~~⏳ le juger sur de VRAIS documents (débord d'un texte
+   plus long, gras d'un mot perdu)~~ → ✅ 29/10, plus bas (« La forme du PDF et du DOCX »).
    **Par la chaîne de génération, jamais dans la jumelle** (consigne de Fabien, 28/10 : *« on
    améliore la chaîne de génération d'applications, on ne corrige jamais une jumelle dans le
    code »*) : le manifeste du Translator déclare la spécialité au tirage
@@ -2811,7 +2810,27 @@ Deux voies, complémentaires :
    unique : un process de pipeline ne lit que ce qu'il surveille). Et un défaut de traçabilité
    de tous les rôles : un RELAIS (ILaaS en panne → qwen3.8 local) écrivait sa sortie au nom du
    fournisseur demandé — `role_utils.write_output` porte désormais qui a répondu, la demande sous
-   `requested`. ⏳ Restent : relancer les workers et juger un document réel traduit (DOCX, PDF).
+   `requested`. ✅ Workers relancés, un document réel jugé par Fabien (29/10, PDF de 25 pages) :
+   *« plutôt bien »*, mais polices, gras, tailles et tableaux différents.
+   ✅ **La forme du PDF et du DOCX, 29/10 (même jour)**, trois paliers dans `document_text`, mesurés
+   sur ce même article. **Avant** : 348 blocs réécrits en sans-serif (source en Times), **0** gras
+   sur 124, 162 blocs sur 392 réduits sous 80 %, chaque tableau versé comme un paragraphe.
+   (1) Chaque bloc garde le style qui y DOMINE (famille générique nommée par les polices de base
+   de MuPDF, gras, italique, taille, couleur, interlignage, alignement lu sur ses lignes, sens
+   d'écriture) ; le texte trop long s'agrandit dans la place LIBRE (dessous ; sur le côté que
+   laisse l'alignement pour une seule rangée) avant de se réduire ; formules et blocs inchangés
+   intouchés. (2) Un tableau (au moins deux rangées de lignes côte à côte — `find_tables`
+   découpe mal un tableau d'article, trop peu de filets) se traduit cellule par cellule, dans sa
+   colonne, alignement lu sur la colonne ; les chiffres ne sont jamais réécrits. (3) Balises
+   `<tN>` (`markup=True`) : un passage en gras, en italique, en exposant garde SA mise en forme
+   dans la traduction — DOCX compris, qui donnait au paragraphe entier celle de son premier
+   morceau ; le traducteur n'en reçoit la consigne que si le texte en porte (cache d'un texte nu
+   inchangé). **Après** (traduction factice 20 % plus longue, toutes pages) : Times gardé, 65
+   blocs en gras, 23 blocs sous 80 %, taille médiane 1,00 ; une page réelle traduite par
+   `translategemma:12b` garde ses balises 6 fois sur 6. ⏳ Restent : les figures (OCR →
+   traduction → réédition), un PDF scanné (refusé en le disant), l'ordre des mots qui fait
+   permuter deux passages balisés (le second perd sa mise en forme, jamais son texte),
+   `pymupdf_layout` (découpage de page plus fin — une librairie, par la route, si Fabien la veut).
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄
 

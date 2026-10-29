@@ -232,6 +232,28 @@ class PdfTableTest(_TempDir):
                         ('4.69', 250), ('1.78', 250)):
             self.assertAlmostEqual(x, words[word], delta=3, msg=word)
 
+    def test_a_longer_label_of_a_right_aligned_column_keeps_its_size_and_its_right_edge(self):
+        """Measured on a real paper : a row label ends at the table rule, so it can only grow to
+        the LEFT — it used to shrink to fit its own width."""
+        import fitz
+        from wama.common.utils.document_text import read_segments, write_replacements
+        regular = fitz.Font('helv')                      # the TextWriter's default font
+        right = 200
+        rows = []
+        for y, label, value in ((100, 'TS-CAN', '4.69'), (112, 'PhysNet [5]', '1.78')):
+            rows.append((y, ((right - regular.text_length(label, fontsize=9), label),
+                             (220, value))))
+        src = self._pdf(rows)
+        segments = read_segments(src, unit='block')
+        longer = {i: [(0, len(s), s + ' (normalisé)')] for i, s in enumerate(segments)
+                  if s.startswith('PhysNet')}
+        out = write_replacements(src, self.dir / 'out.pdf', longer, unit='block')
+        with fitz.open(out) as pdf:
+            [span] = [s for b in pdf[0].get_text('dict')['blocks'] for line in b['lines']
+                      for s in line['spans'] if 'normalisé' in s['text']]
+        self.assertAlmostEqual(9, span['size'], delta=0.1)
+        self.assertAlmostEqual(right, span['bbox'][2], delta=2)
+
     def test_a_paragraph_cut_once_by_a_formula_stays_one_segment(self):
         """Counter-proof : a single row of side-by-side lines is not a table."""
         from wama.common.utils.document_text import read_segments
@@ -239,6 +261,74 @@ class PdfTableTest(_TempDir):
                          (112, ((72, 'qui continue ici.'),))])
         self.assertEqual(['Une phrase coupée par une formule qui continue ici.'],
                          read_segments(src, unit='block'))
+
+
+class MarkupTest(_TempDir):
+    """2026-10-29 — `markup=True` : a segment carries `<tN>…</tN>` around each passage whose
+    formatting is not the dominant one, and a rewritten text gives each passage back ITS formatting
+    (a translated paragraph used to take the formatting of its first run, everywhere)."""
+
+    def _docx(self):
+        import docx
+        document = docx.Document()
+        paragraph = document.add_paragraph()
+        paragraph.add_run('Note :').bold = True
+        paragraph.add_run(' le texte suit, ')
+        paragraph.add_run('vraiment').italic = True
+        paragraph.add_run('.')
+        path = self.dir / 'note.docx'
+        document.save(str(path))
+        return path
+
+    def _rewrite_docx(self, new):
+        import docx
+        from wama.common.utils.document_text import read_segments, write_replacements
+        src = self._docx()
+        [segment] = read_segments(src, markup=True)
+        out = write_replacements(src, self.dir / 'out.docx', {0: [(0, len(segment), new)]},
+                                 markup=True)
+        return segment, [(r.text, bool(r.bold), bool(r.italic))
+                         for r in docx.Document(out).paragraphs[0].runs if r.text]
+
+    def test_a_docx_paragraph_gives_each_passage_back_its_formatting(self):
+        segment, runs = self._rewrite_docx('<t1>Remark:</t1> the text follows, <t2>really</t2>.')
+        self.assertEqual('<t1>Note :</t1> le texte suit, <t2>vraiment</t2>.', segment)
+        self.assertEqual([('Remark:', True, False), (' the text follows, ', False, False),
+                          ('really', False, True), ('.', False, False)], runs)
+
+    def test_illegible_tags_keep_the_text_in_the_dominant_formatting(self):
+        _, runs = self._rewrite_docx('<t1>Remark: the text follows, <t9>really</t9>.')
+        self.assertEqual([('Remark: the text follows, really.', False, False)], runs)
+
+    def test_without_markup_the_segment_is_the_bare_text(self):
+        """Counter-proof : the Anonymizer's indexes are those of the bare text."""
+        from wama.common.utils.document_text import read_segments
+        self.assertEqual(['Note : le texte suit, vraiment.'], read_segments(self._docx()))
+
+    def test_a_pdf_block_gives_a_bold_word_back_its_weight(self):
+        import fitz
+        from wama.common.utils.document_text import read_segments, write_replacements
+        src = self.dir / 'in.pdf'
+        with fitz.open() as pdf:
+            page = pdf.new_page()
+            writer = fitz.TextWriter(page.rect)
+            regular, bold = fitz.Font('tiro'), fitz.Font('tibo')
+            _, end = writer.append((72, 100), 'Un mot ', font=regular, fontsize=11)
+            _, end = writer.append(end, 'important', font=bold, fontsize=11)
+            writer.append(end, ' dans la phrase.', font=regular, fontsize=11)
+            writer.write_text(page)
+            pdf.save(str(src))
+        [segment] = read_segments(src, unit='block', markup=True)
+        self.assertEqual('Un mot <t1>important</t1> dans la phrase.', segment)
+        out = write_replacements(src, self.dir / 'out.pdf',
+                                 {0: [(0, len(segment), 'An <t1>important</t1> word in the sentence.')]},
+                                 unit='block', markup=True)
+        with fitz.open(out) as pdf:
+            spans = [s for b in pdf[0].get_text('dict')['blocks'] for line in b['lines']
+                     for s in line['spans'] if s['text'].strip()]
+        bold_text = ''.join(s['text'] for s in spans if s['flags'] & 16).strip()
+        self.assertEqual('important', bold_text)
+        self.assertIn('word in the sentence.', ''.join(s['text'] for s in spans))
 
 
 class OccultFileTest(_TempDir):

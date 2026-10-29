@@ -528,8 +528,12 @@ MECHANISMS = (
               "fichier réécrit en entier), DOCX au niveau du XML (premier morceau touché, "
               "suppressions du suivi des modifications retirées), TXT dans son encodage. Commune à "
               "l'occultation de `privacy` (Anonymizer, domaine document) et au Translator (traduire "
-              "en gardant la forme — à brancher). Le Writer reste le geste de qui veut REVOIR la "
-              "mise en forme — ROADMAP §16.4bis, vision §5.4",
+              "en gardant la forme). Unité `block` (2026-10-29) : un PDF par blocs, chacun réécrit "
+              "dans le style qui y domine (famille, gras, italique, taille, couleur, interlignage, "
+              "alignement, sens d'écriture), agrandi dans la place libre avant d'être réduit ; un "
+              "tableau, cellule par cellule. `markup=True` : des balises `<tN>` rendent à chaque "
+              "passage d'un paragraphe ou d'un bloc SA mise en forme. Le Writer reste le geste de "
+              "qui veut REVOIR la mise en forme — ROADMAP §16.4bis, vision §5.4",
               'wama/common/utils/document_text.py',
               'docs/construction/suivi/ROADMAP.md §16.4bis',
               annexes=('wama/common/tests/tests_document_text.py',)),
