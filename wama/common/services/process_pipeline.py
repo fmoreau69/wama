@@ -261,8 +261,19 @@ def declared_stales(app: str) -> dict:
     return out
 
 
+#: Ce que la déclaration d'un process AJOUTÉ par une card ne peut pas porter (`AppPipeline.variant`) :
+#: des champs de l'élément — la card n'en a pas pour lui — et des chemins de code.
+_NOT_ADDABLE = ('watched', 'outputs', 'toggle', 'upstream_switch', 'card_model', 'eta', 'result',
+                'result_format')
+
+
 class AppPipeline:
     """Le pipeline déclaré d'une app : ses `ProcessSpec`, et ce qui s'en dérive."""
+
+    #: Le pipeline DÉCLARÉ dont celui-ci est la variante (`variant`) — None pour le déclaré.
+    base = None
+    #: Les clés des process que la variante AJOUTE au pipeline déclaré.
+    added = frozenset()
 
     def __init__(self, app: str, specs, *, label: str, description: str = '',
                  source_ref: str = '', model_of=None):
@@ -498,6 +509,78 @@ class AppPipeline:
             'source': {'type': 'extract', 'ref': self.source_ref},
             'body': body,
         }
+
+    # ── Variante d'une card (ROUTE §10.6 3.2bis, 2026-10-29) ────────────────────────────────
+    def variant(self, graph: dict) -> 'AppPipeline':
+        """Le pipeline d'une card AJUSTÉ par l'utilisateur : ce pipeline déclaré, plus les process
+        que le graphe `graph` (forme canvas du Studio, celle de `graph()`) lui AJOUTE. Rend `self`
+        quand le graphe n'ajoute rien : une card dont le pipeline est ouvert au Studio puis
+        enregistré tel quel reçoit le MÊME objet que les autres.
+
+        Les process déclarés gardent LEUR `ProcessSpec`, retrouvé par sa clé : leurs conditions
+        (`applies`, `available`, `eta`…) sont du code, qu'un graphe ne porte pas — on ne les
+        reconstruit jamais de lui. Deux règles (décisions de Fabien, 2026-10-29) :
+          1. aucun process déclaré ne se retire — un `optional` se décoche (son interrupteur) ;
+          2. un process s'ajoute EN AVAL ou EN DÉRIVATION des déclarés, jamais avant ni entre
+             eux : les amonts d'un process déclaré restent ceux qu'il déclare. Sa glu lit son
+             entrée par le pipeline DÉCLARÉ ou par le champ de la card : un amont ajouté serait
+             joué puis ignoré sans un mot.
+        Un process ajouté est une fonction du catalogue qui n'est l'étape d'aucune app ; il ne
+        porte aucun champ de l'élément (`_NOT_ADDABLE`). Un refus lève `ValueError` en nommant
+        le nœud."""
+        from wama.common.catalog import function_catalog as fc
+        from wama.common.manifests.builtin.pipeline import node_kind
+        from wama.common.manifests.codegen.pipeline_decl import process_specs
+        nodes = (graph or {}).get('nodes') or []
+        others = [str(node.get('id')) for node in nodes if node_kind(node) != 'function']
+        if others:
+            raise ValueError(f"pipeline de {self.app} : seuls des process (nœuds fonction) "
+                             f"composent une card — {', '.join(others)}")
+        ids = [node.get('id') for node in nodes]
+        if not all(ids) or len(set(ids)) != len(ids):
+            raise ValueError(f"pipeline de {self.app} : chaque nœud porte un identifiant, et un "
+                             f"seul nœud par identifiant")
+        read = {spec['key']: spec for spec in process_specs({'body': graph or {}})}
+        missing = [key for key in self._by_key if key not in read]
+        if missing:
+            raise ValueError(f"pipeline de {self.app} : un process déclaré ne se retire pas (un "
+                             f"optionnel se décoche) — {', '.join(missing)}")
+        for key, spec in self._by_key.items():
+            if read[key]['function'] != self.function_key(spec):
+                raise ValueError(f"pipeline de {self.app} : « {key} » est un process déclaré, sa "
+                                 f"fonction ne se remplace pas")
+            if set(read[key]['depends_on']) != set(spec.depends_on):
+                raise ValueError(f"pipeline de {self.app} : « {key} » est un process déclaré, ses "
+                                 f"amonts restent ceux qu'il déclare — un process s'ajoute en aval "
+                                 f"ou en dérivation, jamais avant ni entre deux process déclarés")
+        added = []
+        for key, node in read.items():
+            if key in self._by_key:
+                continue
+            if fc.get(node['function']) is None:
+                raise ValueError(f"pipeline de {self.app} : « {key} » — la fonction "
+                                 f"« {node['function']} » n'est pas au catalogue")
+            owner, step = process_of_function(node['function'])
+            if step is not None:
+                raise ValueError(f"pipeline de {self.app} : « {key} » est une étape de card de "
+                                 f"{owner.app} — elle se lance sur une card de {owner.app}")
+            carried = [name for name in _NOT_ADDABLE if node.get(name)]
+            if carried:
+                raise ValueError(f"pipeline de {self.app} : « {key} » est un process ajouté, il ne "
+                                 f"porte aucun champ de la card ni chemin de code — "
+                                 f"{', '.join(carried)}")
+            added.append(ProcessSpec(key, label=node['label'], depends_on=tuple(node['depends_on']),
+                                     degree=node['degree'], function=node['function'],
+                                     gpu=node['gpu'], share=node['share'],
+                                     checks=tuple(node['checks'])))
+        if not added:
+            return self
+        pipeline = AppPipeline(self.app, self.specs + tuple(added), label=self.label,
+                               description=self.description, source_ref=self.source_ref,
+                               model_of=self.model_of)
+        pipeline.base = self
+        pipeline.added = frozenset(spec.key for spec in added)
+        return pipeline
 
     def ordered(self, keys=None) -> list:
         """Les process (tous, ou ceux de `keys`) dans l'ordre topologique du graphe."""

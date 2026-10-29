@@ -4668,6 +4668,56 @@ une place `open`. **Un seul formalisme, trois degrés de liberté.**~~
 > Studio et le typage des liens — aucune liste « autorisée » à déclarer.
 > **Un seul formalisme, deux degrés ; le pipeline d'une card fluctue dans tous les mondes.**
 
+**3.2bis Le pipeline d'une card, AJUSTABLE par l'utilisateur — cadrage du 2026-10-29 (Fabien).**
+*« Le fonctionnement actuel est très bien, il ne faut surtout rien casser, ni rien réinventer. On
+veut aligner les mondes et permettre aux utilisateurs d'ajuster ou placer leurs propres pipelines
+dans une application commune. »* Une card porte déjà son pipeline et il fluctue déjà (3.2) ; ce qui
+manque est le GESTE : aujourd'hui le pipeline se déclare en code (`register_app_pipeline`) et ne
+s'ajuste, ne se remplace ni ne s'importe sans repasser par lui.
+
+- **Forme** : celle qui existe, le graphe `{nodes, links}` du Studio (`AppPipeline.graph()`), qu'on
+  ouvre depuis le pipeline de l'app (manifeste `pipeline`, `extract_pipeline`), qu'on ajuste et
+  qu'on enregistre comme pipeline d'utilisateur (`StudioPipeline`).
+- **Construction** : `AppPipeline.variant(graph)`. Les process DÉCLARÉS gardent leur `ProcessSpec`,
+  retrouvé par sa clé — leurs conditions (`applies`, `available`, `eta`…) sont du code, qu'un graphe
+  ne porte pas : on ne les reconstruit jamais de lui. Seuls les nœuds AJOUTÉS deviennent des process
+  neufs, lus par la lecture qui existe (`pipeline_decl.process_specs`). Un graphe qui n'ajoute rien
+  rend **le pipeline déclaré lui-même** (identité) : ouvrir le pipeline d'une app au Studio puis
+  l'enregistrer tel quel ne change rien à la card — tenu pour chaque app
+  (`tests_process_pipeline.EveryAppPipelineTest`).
+- **Règle 1 (validée le 29/10)** : aucun process déclaré ne se retire d'une variante ; un `optional`
+  se décoche déjà (son interrupteur, `toggle`).
+- **Règle 2 (validée le 29/10)** : un process s'ajoute EN AVAL ou EN DÉRIVATION des process
+  déclarés, jamais avant ni entre eux — les amonts d'un process déclaré restent ceux qu'il déclare.
+  C'est ce qui rend l'ajout SÛR : l'amont de chaque process déclaré, donc ce que lit sa glu
+  (`upstream_output`, `read_upstreams`), est inchangé.
+- **Le PRÉ-PROCESS (question de Fabien, 29/10) — envisageable, pas encore sûr.** Le moteur sait déjà
+  en jouer : ce sont des pré-process DÉCLARÉS que le nivellement et le débruitage devant la
+  transcription, l'extraction de partition devant le rendu, lus par `upstream_output` / `input_of`.
+  Le risque est dans les GLUS : elles lisent leur entrée par le pipeline DÉCLARÉ (la constante
+  `PIPELINE` du module : `transcriber/workers.py:495`, `:550`, `composer/tasks.py:563`) ou par le
+  champ de la card (les autres apps) — un pré-process ajouté serait joué, puis ignoré sans un mot.
+  Il s'ouvrira process par process, quand sa glu lira son entrée par le pipeline DU LANCEMENT ; une
+  propriété à MESURER sur la glu, pas à déclarer. ⚠ Un pré-process qui change de type (vidéo → audio)
+  étend aussi ce que la card accepte (`covering_inputs`, `_bridges`) : à traiter avec lui.
+- **Un process ajouté** est une fonction du catalogue qui n'est l'étape d'aucune app
+  (`process_of_function`) ; il ne porte aucun champ de l'élément (interrupteur, sorties, lecture de
+  l'amont, modèle de la card, surveillés, chemins de code) — la card n'a pas de champ pour lui.
+  Tout refus se dit en nommant le nœud (`ValueError`).
+- **Marches** (une validation de Fabien entre chacune) :
+  1. ✅ le moteur — `variant`, ses deux règles, la garde d'identité par app (2026-10-29) ;
+  2. ⏳ la card RÉFÉRENCE sa variante — une table commune adressée comme les lignes d'exécution
+     (`app`, `object_type`, `object_id`, cf. `ProcessRun`), qui désigne un pipeline par sa clé de
+     manifeste (numérique → `StudioPipeline`, la lecture d'`extract_pipeline`) ; `pipeline_of(item)`
+     la lit, `run_item_task` joue le pipeline de l'élément au lieu de la constante `PIPELINE` ;
+  3. ⏳ la glu COMMUNE d'un process ajouté — l'exécuteur de fonction du Studio
+     (`studio/tasks._run_pure_function`) remonté au moteur ; sa sortie sur sa LIGNE (`output_ref`,
+     la card n'a pas de champ pour elle) ; en Data, écrite dans le `.wdat` de travail
+     (`WAMA_DATA_WORLD §11.8 ⑩`) ;
+  4. ⏳ la photo d'un process ajouté lit les réglages de son NŒUD (aujourd'hui il ne surveille que
+     ses amonts) ;
+  5. ⏳ le geste à l'écran (ouvrir le pipeline d'une card au Studio, l'enregistrer pour elle).
+
 **3.3 Réglages et péremption.** Chaque process porte le schéma de SES réglages (le `params.py` de
 l'app pour un process d'app, `FunctionSpec` pour une fonction) et la liste des réglages qu'il
 **surveille** (`watched`, repris de `cam_analyzer/utils/pass_tracking.py:35-37`). Un réglage non
