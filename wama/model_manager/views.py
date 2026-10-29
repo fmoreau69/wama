@@ -1191,10 +1191,13 @@ def api_models_db(request):
 
     # Inclure les candidats de prospection (is_proposed) bien qu'ils ne soient
     # pas "available" — ils s'affichent comme cards sous le filtre « Proposés par IA ».
+    # Et les lignes RETIRÉES DES CHOIX par leur désinstallation (2026-10-29) : hors des listes des
+    # applications, mais c'est ici qu'on les voit et qu'on les réinstalle.
     from django.db.models import Q
+    from .models import withdrawn_q
     # Ceux que ce compte VOIT (`ROADMAP §29` étape 3) : système, publics, les siens, sa portée.
     queryset = AIModel.objects.catalogue_visible_to(request.user).filter(
-        Q(is_available=True) | Q(is_proposed=True))
+        Q(is_available=True) | Q(is_proposed=True) | withdrawn_q())
 
     if task:
         # On réutilise la MÊME résolution de domaine que l'endpoint d'options, plutôt que de
@@ -2181,8 +2184,10 @@ def api_model_uninstall(request):
         model_id = data.get('model_id')
         if not model_id:
             return JsonResponse({'success': False, 'error': 'model_id required'}, status=400)
+        # `withdraw` : retirer aussi des choix des applications — l'option COCHÉE par défaut
+        # (2026-10-29) ; une requête qui ne la dit pas la prend donc.
         res = uninstall_model(model_id, include_shared=bool(data.get('include_shared')),
-                              via='model_manager')
+                              via='model_manager', withdraw=bool(data.get('withdraw', True)))
         if not res.get('ok'):
             if res.get('needs_confirmation'):
                 return JsonResponse({'success': False, 'needs_confirmation': True,
@@ -2192,7 +2197,8 @@ def api_model_uninstall(request):
         return JsonResponse({'success': True, 'freed_gb': res.get('freed_gb'),
                              'name': res.get('name'), 'kind': res.get('kind'),
                              'also_marked': res.get('also_marked') or [],
-                             'affected': res.get('affected') or []})
+                             'affected': res.get('affected') or [],
+                             'withdrawn': res.get('withdrawn') or []})
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': 'Invalid JSON'}, status=400)
     except Exception as e:

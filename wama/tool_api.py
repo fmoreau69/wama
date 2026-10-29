@@ -2102,12 +2102,19 @@ def get_install_options(user, model_key: str) -> dict:
     task of the model is executed by an Ollama backend, e.g. OCR); `driver: 'hf'` downloads the
     file into WAMA's model folders.
 
+    Each option says whether it RUNS on this machine (`runnable`, else `reason`: weights for
+    another engine such as Apple MLX, or a quantisation whose library is missing) and its estimated
+    VRAM. `recommended` is the index of the option WAMA recommends — the most precise one that runs
+    and fits the GPU, the same one the page preselects: take it unless the user asked otherwise.
+
     Then call install_model(model_key, variant_ref=<ref>, variant_file=<file>) with the chosen
     option (or no variant for full weights). The first call reads the Hub (a few requests), the
     result is kept on the proposal.
 
     Returns:
-        {"choice": bool, "options": [{"kind","ref","file","disk_gb","driver","label"}]}
+        {"choice": bool, "recommended": int | null,
+         "options": [{"kind","ref","file","disk_gb","driver","label","runnable","reason",
+                      "vram_estimated_gb","fits"}]}
     """
     from wama.model_manager.models import AIModel
     from wama.model_manager.services.prospector import install_options
@@ -2123,8 +2130,9 @@ def get_install_options(user, model_key: str) -> dict:
                          "list_ai_models(include_proposed=True)).",
                 **({'similar_keys': near} if near else {})}
     res = install_options(cand)
-    return {'choice': res.get('choice', False),
-            'options': [{k: o.get(k) for k in ('kind', 'ref', 'file', 'disk_gb', 'driver', 'label')}
+    return {'choice': res.get('choice', False), 'recommended': res.get('recommended'),
+            'options': [{k: o.get(k) for k in ('kind', 'ref', 'file', 'disk_gb', 'driver', 'label',
+                                               'runnable', 'reason', 'vram_estimated_gb', 'fits')}
                         for o in (res.get('options') or [])]}
 
 

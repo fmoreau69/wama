@@ -1228,6 +1228,21 @@ def disk_space_guard(ref: str, *, reclaim_gb: float = 0.0, force: bool = False,
     return None
 
 
+def _choice_gap(cand, variant_ref: str, variant_file: str) -> str:
+    """La raison pour laquelle le CHOIX d'installation d'un candidat ne tournerait pas ici, ''
+    sinon (`prospector._runtime_gap`, lu sur l'option que la page et l'assistant ont vue). Sans
+    variante, le choix est celui des poids pleins. Un choix absent des options ne se juge pas ici :
+    `spec_for_choice` le refuse (`unknown_variant`)."""
+    from .prospector import install_options
+    if ((cand.extra_info or {}).get('prospect') or {}).get('spec', {}).get('kind') != 'hf':
+        return ''
+    ref, file = variant_ref or cand.hf_repo, variant_file or None
+    for option in install_options(cand).get('options') or []:
+        if option.get('ref') == ref and (option.get('file') or None) == file:
+            return option.get('reason') or ''
+    return ''
+
+
 def _persist_variant_choice(cand, variant_ref: str, variant_file: str):
     """
     Persiste le choix de variante VALIDÉ dans le spec du candidat et rend le poids de CE
@@ -1356,19 +1371,33 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
             # tirait le dépôt entier par le Hub, vers un dossier que rien ne lit.
             from .prospector import install_options, needs_variant_choice
             if needs_variant_choice(cand):
-                options = install_options(cand)['options']
+                offered = install_options(cand)
+                options = offered['options']
                 if not options:
                     return {'ok': False, 'reason': 'not_installable',
                             'error': f"« {cand.name} » n'a aucun fichier exécutable par Ollama : "
                                      "son dépôt ne porte pas le projecteur de vision (mmproj) "
                                      "qu'exige sa tâche — installer une autre proposition."}
                 if len(options) > 1:
+                    best = (options[offered['recommended']]
+                            if offered.get('recommended') is not None else None)
+                    advice = (f" Recommandé : variant_ref={best['ref']}"
+                              + (f", variant_file={best['file']}" if best['file'] else '')
+                              + '.' if best else '')
                     return {'ok': False, 'reason': 'variant_required',
                             'error': f"« {cand.name} » se choisit ({len(options)} options : "
                                      "poids pleins par le Hub, ou fichiers exécutés par Ollama) : "
                                      "lire les options (get_install_options) et passer "
-                                     "variant_ref (+ variant_file pour un fichier)."}
+                                     "variant_ref (+ variant_file pour un fichier)." + advice}
                 variant_ref, variant_file = options[0]['ref'], options[0]['file']
+        gap = _choice_gap(cand, variant_ref, variant_file) if cand.source != 'ollama' else ''
+        if gap:
+            # Des poids que rien ne lirait ici ne s'installent pas (2026-10-29) : la page grise
+            # l'option, ce refus tient la même règle pour l'assistant et toute autre entrée.
+            return {'ok': False, 'reason': 'not_runnable',
+                    'error': f"« {cand.name} » : ce choix ne tournerait pas sur cette machine — "
+                             f"{gap}. Lire les options (get_install_options) : `recommended` "
+                             "désigne celle que WAMA recommande."}
         if variant_ref and cand.source != 'ollama':
             choisi = _persist_variant_choice(cand, variant_ref, variant_file)
             if choisi is False:
@@ -1428,6 +1457,10 @@ def request_install(model_key: str, *, force: bool = False, variant_ref: str = '
     if en_cours:
         return {'ok': True, 'already_running': True, 'model_key': target.model_key,
                 'progress': en_cours}
+    if cand is None:
+        # Réinstaller une ligne RETIRÉE DES CHOIX par sa désinstallation la leur rend : c'est le
+        # geste explicite que l'exclusion attend (2026-10-29).
+        restore_withdrawn([row.model_key])
     # `user_id` : le téléchargement se fera avec le jeton de CETTE personne (2026-09-27,
     # `accounts.api_keys.download_token`) — la tâche relit la clé, qui ne transite jamais.
     started = dispatch_install(task, target, user_id=getattr(user, 'pk', None), via=via)
@@ -1633,7 +1666,47 @@ def rows_depending_on(model, target: Path, index: dict | None = None) -> tuple[l
     return sharing, dependents
 
 
-def uninstall_model(model_key: str, include_shared: bool = False, via: str = '') -> dict:
+def withdraw_from_choices(rows, stamp: str) -> list:
+    """Retire ces lignes des CHOIX des applications : `is_available=False` + `exclusion` datée,
+    d'origine `WITHDRAWN_BY_UNINSTALL` (`models.withdrawn_q`). La ligne sort des listes et du
+    tirage comme une ligne écartée par un humain (clé collante au sync), et la prochaine
+    installation la LÈVE (`restore_withdrawn`) — une exclusion humaine, elle, ne se lève jamais en
+    silence. Sans cela, un modèle désinstallé restait proposé dans les listes (« à télécharger »)
+    et TIRÉ par l'auto — le tirage n'exige pas un modèle installé, la route le réinstalle à la
+    demande : olmOCR v1, désinstallé au profit de la v2, pouvait revenir tout seul. Une ligne déjà
+    écartée par un humain garde SA raison. Rend les clés retirées."""
+    from ..models import WITHDRAWN_BY_UNINSTALL, AIModel
+    withdrawn = []
+    for row in rows:
+        fresh = AIModel.objects.filter(pk=row.pk).first()
+        if fresh is None:
+            continue
+        info = dict(fresh.extra_info or {})
+        if 'exclusion' not in info:
+            info['exclusion'] = {'date': stamp[:10], 'by': WITHDRAWN_BY_UNINSTALL,
+                                 'raison': "désinstallé — retiré des choix des applications"}
+        AIModel.objects.filter(pk=fresh.pk).update(is_available=False, extra_info=info)
+        withdrawn.append(fresh.model_key)
+    return withdrawn
+
+
+def restore_withdrawn(keys) -> list:
+    """Rend aux choix des applications les lignes qu'une DÉSINSTALLATION en avait retirées — appelé
+    quand une installation les vise (`provenance.record_after_install`, demande d'installation
+    d'une ligne du catalogue). Une exclusion d'une autre origine (décision humaine) reste : la
+    lever est un geste explicite. Rend les clés rendues."""
+    from ..models import AIModel, withdrawn_q
+    restored = []
+    for row in AIModel.objects.filter(withdrawn_q(), model_key__in=list(keys or ())):
+        info = dict(row.extra_info or {})
+        info.pop('exclusion', None)
+        AIModel.objects.filter(pk=row.pk).update(is_available=True, extra_info=info)
+        restored.append(row.model_key)
+    return restored
+
+
+def uninstall_model(model_key: str, include_shared: bool = False, via: str = '',
+                    withdraw: bool = True) -> dict:
     """
     DÉSINSTALLE un modèle du catalogue : retrait des POIDS uniquement, jamais du backend
     (léger et réutilisable — décision Fabien 2026-08-27), et recalage du catalogue dans le
@@ -1660,8 +1733,13 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
     Son MANIFESTE, lui, quitte le corpus (`forget_in_corpus`, 2026-10-11) : l'archive est
     l'historique git, pas un dossier qui se figerait dans une forme périmée.
 
-    Retourne {'ok': True, 'freed_gb': X, 'kind': …, 'also_marked': […], 'affected': […]}
-    ou {'ok': False, 'error': …} (+ `needs_confirmation`, `sharing`, `dependents`).
+    `withdraw` (2026-10-29, décision de Fabien — option COCHÉE par défaut) : la ligne sort aussi
+    des listes et du tirage des applications (`withdraw_from_choices`) ; sinon elle y reste,
+    proposée « à télécharger » et réinstallable à la demande. La réinstallation la rend aux choix.
+
+    Retourne {'ok': True, 'freed_gb': X, 'kind': …, 'also_marked': […], 'affected': […],
+    'withdrawn': […]} ou {'ok': False, 'error': …} (+ `needs_confirmation`, `sharing`,
+    `dependents`).
     """
     import shutil
 
@@ -1785,11 +1863,13 @@ def uninstall_model(model_key: str, include_shared: bool = False, via: str = '')
         info['uninstalled_at'] = stamp
         AIModel.objects.filter(pk=row.pk).update(
             is_downloaded=False, is_loaded=False, extra_info=info)
-    logger.info("[uninstall] %s (%s) — %.1f Go rendus%s", model_key, kind, freed_gb,
-                f" ; aussi marqués : {[m.model_key for m in marked[1:]]}" if len(marked) > 1 else '')
+    withdrawn = withdraw_from_choices(marked, stamp) if withdraw else []
+    logger.info("[uninstall] %s (%s) — %.1f Go rendus%s%s", model_key, kind, freed_gb,
+                f" ; aussi marqués : {[m.model_key for m in marked[1:]]}" if len(marked) > 1 else '',
+                f" ; retirés des choix : {withdrawn}" if withdrawn else '')
     result = {'ok': True, 'freed_gb': round(freed_gb, 1), 'kind': kind, 'name': model.name,
               'also_marked': [m.name for m in marked[1:]],
-              'affected': [m.name for m in dependents]}
+              'affected': [m.name for m in dependents], 'withdrawn': withdrawn}
     # Journal DATÉ (calendrier, couche « Installations ») — seul un retrait EFFECTUÉ s'y inscrit.
     from .install_history import record
     record('model', model_key, name=model.name, action='uninstall', via=via, result=result)

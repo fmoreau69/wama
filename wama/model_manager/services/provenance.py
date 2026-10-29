@@ -395,10 +395,13 @@ def record_after_install(spec: dict, appeared_keys, owner=None) -> dict:
     """
     from wama.model_manager.models import AIModel
 
+    from .model_installer import restore_withdrawn
+
     appeared = sorted(appeared_keys or ())
     identity = identity_for_spec(spec)
     if not identity:
         given = _give_to_author(appeared, owner) if owner is not None else []
+        restore_withdrawn(appeared)
         return {'identity': None, 'models': [], **({'owner': given} if given else {}),
                 'note': f"aucune identité déductible pour kind={spec.get('kind')!r}"}
 
@@ -434,6 +437,10 @@ def record_after_install(spec: dict, appeared_keys, owner=None) -> dict:
     # revient pas) et avant l'identité, donc avant l'export au corpus.
     given = (_give_to_author([c for c in targets if c in appeared], owner)
              if owner is not None else [])
+    # Une ligne que sa désinstallation avait RETIRÉE DES CHOIX y revient : on vient de la
+    # réinstaller (2026-10-29). Après la garde de concordance : une installation concurrente ne
+    # rend pas aux choix la ligne d'une autre.
+    restore_withdrawn(targets)
 
     # La TÂCHE du candidat (2026-09-02). Le balayage générique d'un snapshot HF catalogue un
     # modèle sans savoir ce qu'il FAIT : `table-transformer-detection` est arrivé installé

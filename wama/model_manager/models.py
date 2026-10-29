@@ -326,6 +326,19 @@ def uninstalled_q():
     return models.Q(is_downloaded=False, extra_info__has_key='uninstalled_at')
 
 
+#: Origine d'une `exclusion` posée par la DÉSINSTALLATION (2026-10-29, décision de Fabien) — voir
+#: `model_installer.withdraw_from_choices`, qui la pose, et `restore_withdrawn`, qui la lève.
+WITHDRAWN_BY_UNINSTALL = 'uninstall'
+
+
+def withdrawn_q():
+    """Le filtre (`Q`) des lignes RETIRÉES DES CHOIX des applications par leur désinstallation :
+    hors des listes et du tirage (`is_available=False`, comme une ligne écartée), mais gardées
+    dans le catalogue du model manager — c'est de là qu'on les réinstalle, ce qui les rend aux
+    choix. Une ligne écartée par un HUMAIN n'en est pas une : son exclusion n'a pas cette origine."""
+    return models.Q(is_available=False, extra_info__exclusion__by=WITHDRAWN_BY_UNINSTALL)
+
+
 # NOTRE tâche → MODALITÉS et ENTRÉES par défaut (vocabulaire de `INPUT_TYPES`, `app_modes.py`).
 #
 # Pourquoi (2026-09-19, chantier « source unique des capacités ») : `modalities`,

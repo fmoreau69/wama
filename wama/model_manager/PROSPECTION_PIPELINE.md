@@ -3369,3 +3369,44 @@ la main, modèles de briques communes, passent sous la source de leurs fichiers 
 (`pytorch_download:lpips-alexnet`, `mediapipe_models:gesture-recognizer`), le patron de YOLOPv2 ;
 `custom` sort du vocabulaire, et les sources du balayage générique se dérivent du registre
 (`generic_scan_sources`). Migration `model_manager/0030`, R180.
+
+## Session du 2026-10-29 : l'installeur RECOMMANDE une fois pour tous, la désinstallation RETIRE des choix
+
+Demande de Fabien après l'installation d'olmOCR-2 : *« L'installeur de wama propose normalement le
+meilleur modèle installable relativement à la vram »* puis *« il faut régler le problème à
+l'installation une seule fois pour tout le monde »*.
+
+**Constat mesuré.** La recommandation n'existait que dans le JavaScript de la page
+(`index.html`, « la première variante quantisée de 20 Go au plus »). Pour olmOCR-2 elle aurait
+présélectionné `mlx-community/olmOCR-2-7B-1025-mlx-8bit`, un format Apple que rien ne lit ici ;
+la variante FP8 exige `compressed-tensors`, absent du venv. L'outil `get_install_options` de
+l'assistant ne recommandait rien.
+
+1. ✅ **La recommandation est calculée par `install_options`** (`prospector`), donc lue par la page
+   (présélection, badge « recommandé ») et par l'assistant (`recommended`, rappelé par le refus
+   `variant_required`). Chaque option dit si elle TOURNE ici — `_runtime_gap`, verdict permissif
+   comme `backend_missing` : seuls condamnent des poids d'un autre moteur
+   (`model_installer._FOREIGN_ENGINE_MARKERS` : MLX, Core ML, OpenVINO…) et une quantification
+   dont la librairie manque (`quantization_config.quant_method` du `config.json`, lu une fois et
+   gardé, confronté à la table de transformers `AUTO_QUANTIZER_MAPPING[…].required_packages` —
+   aucune seconde table). `recommended_option` prend la plus PRÉCISE (le plus gros poids) qui tient
+   sur la carte (`model_registry._estimated_vram` contre `_gpu_total_gb`), à défaut la plus légère
+   qui tourne. Une option qui ne tourne pas est grisée sur la page et refusée par `request_install`
+   (`not_runnable`), avec sa raison. Mesuré sur les 87 propositions dont les variantes étaient
+   relevées : **24 variantes MLX** grisées, aucune recommandée.
+   ⚠ Deux limites connues : le poids des « poids pleins » est celui du DÉPÔT entier (un dépôt de
+   diffusion qui porte deux jeux de poids paraît trop lourd — la variante mesurée l'emporte alors) ;
+   un GGUF tiré par le Hub pour une tâche qu'aucun moteur GGUF ne sert reste jugé « tourne » (rien ne
+   déclare quels moteurs lisent le GGUF : on ne devine pas).
+2. ✅ **La désinstallation retire des choix des applications** — option COCHÉE par défaut sur la
+   page (Fabien : *« si on a l'option à la désinstallation, cochée par défaut, on réduit le risque
+   de traîner des modèles désinstallés dans les applications »*). Le tirage n'exige pas un modèle
+   installé (`select_model` ne filtre que `is_available`), et la route réinstalle à la demande :
+   olmOCR v1, désinstallé au profit de la v2, pouvait revenir seul. Le retrait RÉUTILISE la ligne
+   écartée (`is_available=False` + `exclusion`, collante au sync, déjà lue par les listes et le
+   tirage) avec l'origine `uninstall` (`models.withdrawn_q`, `model_installer.withdraw_from_choices`) ;
+   la réinstallation la lève (`restore_withdrawn`, depuis `request_install` d'une ligne du catalogue
+   et `provenance.record_after_install` pour la ligne qu'une installation atteint). Une exclusion
+   HUMAINE garde sa raison et ne se lève jamais en silence. La ligne retirée reste visible au model
+   manager (badge « retiré des choix ») : c'est là qu'on la réinstalle.
+   Tests : `tests_install_recommendation`, `tests_uninstall_withdraws`.

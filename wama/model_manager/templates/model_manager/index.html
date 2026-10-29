@@ -1413,33 +1413,45 @@ document.addEventListener('DOMContentLoaded', function() {
             opts = await r.json();
         } catch (err) { /* réseau HF indisponible : installation simple ci-dessous */ }
         hideLoading();
+        const single = opts && opts.success && (opts.options || []).length === 1 ? opts.options[0] : null;
+        if (single && single.runnable === false) {
+            alert('Ce modèle ne tournerait pas sur cette machine : ' + single.reason);
+            return;
+        }
         if (!opts || !opts.success || !opts.choice || !(opts.options || []).length) {
             if (!confirm('Installer ce modèle proposé ? Le téléchargement se fait en tâche de fond.')) return;
             mmProspectInstallPost(id, {});
             return;
         }
-        mmVariantDialog(id, opts.options);
+        mmVariantDialog(id, opts.options, opts.recommended);
     }
 
-    function mmVariantDialog(id, options) {
+    function mmVariantDialog(id, options, recommended) {
         const old = document.getElementById('mmVariantModal');
         if (old) old.remove();
-        // Présélection : la première variante quantisée qui tient confortablement en VRAM
-        // (≤ 20 Go) — le choix que le juge de confiance a réellement évalué ; sinon la 1ʳᵉ option.
-        let preselect = options.findIndex(o => o.kind !== 'full' && o.disk_gb && o.disk_gb <= 20);
+        // Présélection : l'option que le SERVEUR recommande (`prospector.recommended_option`, la
+        // plus précise qui tourne ici et tient sur la carte) — la même que l'assistant reçoit.
+        // Elle se calculait ici (« la 1ʳᵉ variante quantisée ≤ 20 Go ») et aurait pris une
+        // variante MLX d'olmOCR-2, que rien ne lit sur cette machine (2026-10-29).
+        let preselect = Number.isInteger(recommended) ? recommended
+                                                      : options.findIndex(o => o.runnable !== false);
         if (preselect < 0) preselect = 0;
         const rows = options.map((o, i) => `
-            <label class="list-group-item d-flex align-items-start gap-2 bg-transparent text-body-emphasis">
+            <label class="list-group-item d-flex align-items-start gap-2 bg-transparent text-body-emphasis
+                          ${o.runnable === false ? 'opacity-50' : ''}">
                 <input class="form-check-input mt-1" type="radio" name="mmVariantChoice" value="${i}"
-                       ${i === preselect ? 'checked' : ''}>
+                       ${i === preselect ? 'checked' : ''} ${o.runnable === false ? 'disabled' : ''}>
                 <span class="flex-grow-1">
                     <span class="d-block">${o.label}</span>
                     <span class="small text-muted">
                         ${o.disk_gb != null ? `${Number(o.disk_gb).toFixed(1)} Go disque` : 'taille inconnue'}
+                        ${o.vram_estimated_gb ? ` · VRAM estimée ${Number(o.vram_estimated_gb).toFixed(1)} Go` : ''}
                         ${o.vram_note ? ' · ' + o.vram_note : ''}
                         ${o.downloads != null ? ` · ${o.downloads.toLocaleString()} téléchargements` : ''}
                     </span>
+                    ${o.runnable === false ? `<span class="d-block small text-warning-emphasis">${o.reason}</span>` : ''}
                 </span>
+                ${i === recommended ? '<span class="badge bg-primary">recommandé</span>' : ''}
                 ${o.kind === 'full' ? '<span class="badge bg-secondary">canonique</span>'
                                     : '<span class="badge bg-success">quantisé</span>'}
             </label>`).join('');
@@ -1454,9 +1466,10 @@ document.addEventListener('DOMContentLoaded', function() {
                   <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                  <p class="small text-muted mb-2">La faisabilité VRAM (24 Go) se juge sur les variantes
-                  quantisées ; les poids pleins servent de référence ou d'archive. Le téléchargement se
-                  fait en tâche de fond, dans le dossier canonique du modèle.</p>
+                  <p class="small text-muted mb-2">WAMA recommande l'option la plus précise qui tourne
+                  sur cette machine et tient sur la carte graphique ; une option grisée ne tournerait
+                  pas ici (raison indiquée). Le téléchargement se fait en tâche de fond, dans le
+                  dossier canonique du modèle.</p>
                   <div class="list-group">${rows}</div>
                 </div>
                 <div class="modal-footer">
@@ -1539,7 +1552,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     : (m.is_downloaded ? '<span class="badge bg-success">téléchargé</span>'
                         : '<span class="badge bg-secondary">non téléchargé</span>')),
                 m.is_available ? '<span class="badge bg-success-subtle text-success border border-success">disponible</span>'
-                    : '<span class="badge bg-warning-subtle text-warning border border-warning">indisponible</span>',
+                    : (((m.extra_info || {}).exclusion || {}).by === 'uninstall'
+                        ? '<span class="badge bg-warning-subtle text-warning border border-warning" '
+                          + 'title="Désinstallé et retiré des choix des applications ; la réinstallation l\'y rend">retiré des choix</span>'
+                        : '<span class="badge bg-warning-subtle text-warning border border-warning">indisponible</span>'),
             ];
         } },
         { description: function (m) { return m.description || m.description_short || ''; } },
@@ -1812,17 +1828,66 @@ document.addEventListener('DOMContentLoaded', function() {
         } catch (err) { hideLoading(); alert('Erreur : ' + err.message); }
     }
 
+    // Confirmation de la désinstallation, avec l'option « retirer des choix des applications »
+    // COCHÉE par défaut (2026-10-29, décision de Fabien) : sans elle, un modèle désinstallé restait
+    // proposé et tiré par l'auto, qui le réinstallait à la demande. Rend { withdraw } ou null.
+    function mmUninstallDialog(m) {
+        return new Promise(function (resolve) {
+            const old = document.getElementById('mmUninstallModal');
+            if (old) old.remove();
+            const poids = m.disk_gb ? ` (${Number(m.disk_gb).toFixed(1)} Go rendus au disque)` : '';
+            const el = document.createElement('div');
+            el.id = 'mmUninstallModal';
+            el.className = 'modal fade';
+            el.innerHTML = `
+                <div class="modal-dialog">
+                  <div class="modal-content bg-body text-body-emphasis">
+                    <div class="modal-header">
+                      <h5 class="modal-title"><i class="fas fa-trash-can me-2"></i>Désinstaller « ${m.name} »${poids} ?</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                      <p class="small text-muted">Seuls les POIDS sont retirés — le backend et la fiche
+                      de catalogue restent (historique, statistiques). Une réinstallation reste possible
+                      à tout moment, depuis cette page.</p>
+                      <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="mmUninstallWithdraw" checked>
+                        <label class="form-check-label" for="mmUninstallWithdraw">
+                          Retirer aussi ce modèle des choix des applications (listes et tirage automatique)
+                        </label>
+                        <div class="form-text">Décoché, il reste proposé « à télécharger » et le tirage
+                        automatique peut le réinstaller. La réinstallation le rend aux choix.</div>
+                      </div>
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                      <button type="button" class="btn btn-danger" id="mmUninstallGo">
+                        <i class="fas fa-trash-can me-1"></i>Désinstaller</button>
+                    </div>
+                  </div>
+                </div>`;
+            document.body.appendChild(el);
+            const modal = new bootstrap.Modal(el);
+            let answer = null;
+            el.querySelector('#mmUninstallGo').addEventListener('click', function () {
+                answer = { withdraw: el.querySelector('#mmUninstallWithdraw').checked };
+                modal.hide();
+            });
+            el.addEventListener('hidden.bs.modal', function () { el.remove(); resolve(answer); });
+            modal.show();
+        });
+    }
+
     async function mmUninstallModel(m) {
-        const poids = m.disk_gb ? ` (${Number(m.disk_gb).toFixed(1)} Go rendus au disque)` : '';
-        if (!confirm(`Désinstaller « ${m.name} »${poids} ?\n\n`
-            + 'Seuls les POIDS sont retirés — le backend et la fiche de catalogue restent '
-            + '(historique, statistiques). Une réinstallation reste possible à tout moment.')) return;
+        const choice = await mmUninstallDialog(m);
+        if (!choice) return;
         showLoading('Désinstallation…');
         try {
             const send = (includeShared) => fetch('{% url "model_manager:api_model_uninstall" %}', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-                body: JSON.stringify({ model_id: m.model_key || m.id, include_shared: includeShared })
+                body: JSON.stringify({ model_id: m.model_key || m.id, include_shared: includeShared,
+                                       withdraw: choice.withdraw })
             });
             let r = await send(false);
             let data = await r.json();
@@ -1840,6 +1905,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 let msg = `« ${data.name} » désinstallé — ${data.freed_gb} Go rendus.`;
                 if ((data.also_marked || []).length) msg += ` Aussi désinstallé(s) : ${data.also_marked.join(', ')}.`;
                 if ((data.affected || []).length) msg += ` Sans modèle de base désormais : ${data.affected.join(', ')}.`;
+                if ((data.withdrawn || []).length) msg += ' Retiré des choix des applications.';
                 showToastOrAlert(msg);
             } else { alert('Échec : ' + (data.error || 'inconnu')); }
         } catch (err) { alert('Erreur : ' + err.message); }

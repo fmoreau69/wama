@@ -819,12 +819,21 @@ def install_options(cand) -> dict:
     se fera par `allow_patterns` — jamais le dépôt entier. Les relevés (1 requête réseau par
     variante) sont PERSISTÉS dans `extra_info['prospect']['quant_variants']` : payés une fois.
 
-    Retourne {'choice': bool, 'options': [{ref, file, label, disk_gb, vram_note, downloads,
-    kind}]} — liste plate, prête pour l'UI.
+    LA RECOMMANDATION se calcule ICI, une fois pour la page et pour l'assistant (2026-10-29,
+    demande de Fabien : « régler le problème à l'installation une seule fois pour tout le
+    monde »). Elle vivait dans le JavaScript de la page (« la première variante quantisée de
+    20 Go au plus ») et aurait présélectionné, pour olmOCR-2, une variante MLX que rien ne lit
+    sur cette machine ; l'assistant, lui, n'en avait aucune. Chaque option dit si elle TOURNE
+    ici (`runnable`, sinon `reason` — `_runtime_gap`) et sa VRAM estimée ; `recommended` désigne
+    la plus précise qui tient sur la carte (`recommended_option`).
+
+    Retourne {'choice': bool, 'recommended': int | None, 'options': [{ref, file, label,
+    disk_gb, vram_note, downloads, kind, runnable, reason, vram_estimated_gb, fits}]} — liste
+    plate, prête pour l'UI.
     """
     prospect = dict((cand.extra_info or {}).get('prospect') or {})
     if (prospect.get('spec') or {}).get('kind') != 'hf':
-        return {'choice': False, 'options': []}
+        return {'choice': False, 'options': [], 'recommended': None}
 
     by_ollama = _ollama_runs_task(_candidate_task(cand))
     # Le dépôt du candidat EST un dépôt GGUF (une recherche ciblée en propose : « PaddleOCR-VL-1.6 »
@@ -866,7 +875,20 @@ def install_options(cand) -> dict:
             v['files'] = [{'file': nom, 'gb': round(taille / 1024 ** 3, 1)}
                           for nom, taille in _fichiers_de_poids(fichiers)]
             a_persister = True
+        if 'quant_method' not in v and _reads_quant_method(v['repo_id'], v.get('files')):
+            # La quantification qu'un dépôt du Hub DÉCLARE (`config.json`) dit la librairie qu'il
+            # exige — lue une fois, gardée ; un Hub muet ne fige rien.
+            method = _quant_method(v['repo_id'])
+            if method is not None:
+                v['quant_method'] = method
+                a_persister = True
         enrichies.append(v)
+    if not own_gguf and 'own_quant_method' not in prospect \
+            and _reads_quant_method(cand.hf_repo, None):
+        method = _quant_method(cand.hf_repo)
+        if method is not None:
+            prospect['own_quant_method'] = method
+            a_persister = True
     if a_persister:
         prospect['quant_variants'] = enrichies
         info = dict(cand.extra_info or {})
@@ -884,9 +906,9 @@ def install_options(cand) -> dict:
             'ref': cand.hf_repo, 'file': None,
             'label': f"Poids pleins — {cand.hf_repo}",
             'disk_gb': cand.disk_gb or None,
-            'vram_note': "ne tient pas en VRAM sans quantisation/offload"
-                         if (cand.disk_gb or 0) > 24 else "",
+            'vram_note': "",
             'downloads': None, 'kind': 'full',
+            'quant_method': prospect.get('own_quant_method') or '',
         }]
     for v in enrichies:
         ggufs = [f for f in (v.get('files') or []) if _is_model_gguf(f['file'])]
@@ -904,8 +926,145 @@ def install_options(cand) -> dict:
                 'disk_gb': v.get('disk_gb'),
                 'vram_note': "",
                 'downloads': v.get('downloads'), 'kind': 'variant',
+                'quant_method': v.get('quant_method') or '',
             })
-    return {'choice': len(options) > 1, 'options': options}
+    card_gb = _gpu_total_gb()
+    for o in options:
+        o['reason'] = _runtime_gap(o, cand)
+        o['runnable'] = not o['reason']
+        o['vram_estimated_gb'] = _option_vram_gb(o)
+        o['fits'] = (o['vram_estimated_gb'] <= card_gb) if o['vram_estimated_gb'] else None
+        if o['fits'] is False and not o['vram_note']:
+            o['vram_note'] = (f"VRAM estimée {o['vram_estimated_gb']:.1f} Go : ne tient pas sur la "
+                              f"carte ({card_gb:.0f} Go) sans quantisation ni déchargement")
+    return {'choice': len(options) > 1, 'options': options,
+            'recommended': recommended_option(options)}
+
+
+def _option_vram_gb(option) -> float:
+    """VRAM estimée d'une option d'installation, 0.0 si son poids est inconnu — l'estimation
+    COMMUNE des modèles installés (`model_registry._estimated_vram` : poids × 1,2), pas une seconde
+    règle."""
+    from .model_registry import _estimated_vram
+    gb = option.get('disk_gb')
+    return _estimated_vram(int(float(gb) * 1024 ** 3), False) if gb else 0.0
+
+
+def _has_marker(text: str, marker: str) -> bool:
+    """`marker` figure-t-il dans `text` comme un MOT (bornes non alphanumériques) — « mlx » dans
+    `olmOCR-2-7B-1025-mlx-8bit`, pas dans un nom qui le contiendrait par hasard."""
+    import re
+    return re.search(rf'(?<![a-z0-9]){re.escape(marker)}(?![a-z0-9])', text) is not None
+
+
+def _reads_quant_method(repo_id: str, files) -> bool:
+    """Vaut-il une requête de lire la quantification déclarée d'un dépôt ? Seulement s'il se DIT
+    quantifié (`_QUANT_MARKERS`, la règle même de `quantized_variants`), sans fichier GGUF (Ollama
+    ou llama.cpp les lisent, pas transformers) ni poids d'un autre moteur (déjà condamnés)."""
+    from .model_installer import _FOREIGN_ENGINE_MARKERS
+    low = (repo_id or '').lower()
+    if not any(m in low for m in _QUANT_MARKERS) or 'gguf' in low:
+        return False
+    if any(_has_marker(low, m) for m in _FOREIGN_ENGINE_MARKERS):
+        return False
+    return not any(_is_model_gguf(f['file']) for f in (files or []))
+
+
+def _quant_method(repo_id: str):
+    """`quantization_config.quant_method` du `config.json` d'un dépôt du Hub : '' quand il n'en
+    déclare pas (ou n'a pas de `config.json`), None quand le Hub ne répond pas — l'appelant ne fige
+    alors rien. Lu par l'adresse `raw`, comme le texte d'une licence : aucun dépôt dans le cache."""
+    import requests
+    try:
+        from huggingface_hub import hf_hub_url
+        response = requests.get(hf_hub_url(repo_id, 'config.json'), timeout=(5, 20))
+    except Exception:
+        return None
+    if response.status_code == 404:
+        return ''
+    if not response.ok:
+        return None
+    try:
+        config = response.json()
+    except ValueError:
+        return ''
+    if not isinstance(config, dict):
+        return ''
+    quant = (config.get('quantization_config')
+             or (config.get('text_config') or {}).get('quantization_config') or {})
+    return str(quant.get('quant_method') or '') if isinstance(quant, dict) else ''
+
+
+def _quant_packages(method: str):
+    """Les librairies qu'exige une quantification déclarée par un dépôt — lues dans la table de
+    transformers (`AUTO_QUANTIZER_MAPPING[…].required_packages`), aucune seconde table. None quand
+    la méthode est inconnue ou que transformers ne se lit pas : rien n'est alors condamné."""
+    try:
+        from transformers.quantizers.auto import AUTO_QUANTIZER_MAPPING
+    except Exception:
+        return None
+    quantizer = AUTO_QUANTIZER_MAPPING.get(method)
+    if quantizer is None:
+        return None
+    return list(getattr(quantizer, 'required_packages', None) or [])
+
+
+def _runtime_gap(option, cand) -> str:
+    """Pourquoi une option d'installation ne TOURNERAIT PAS sur cette machine, '' sinon.
+
+    Verdict PERMISSIF, comme `backend_missing` : ce qu'on ne sait pas ne condamne pas. Deux faits
+    seulement condamnent :
+      • des poids pour un AUTRE moteur (`model_installer._FOREIGN_ENGINE_MARKERS` — MLX et Core ML
+        d'Apple, OpenVINO…) que le dépôt canonique ne porte pas : une variante MLX d'olmOCR-2 ne
+        se charge par rien ici ;
+      • une quantification dont la librairie n'est pas installée (FP8 `compressed-tensors`…) :
+        elle s'installe d'abord par la route des librairies, puis l'option tourne.
+    Un GGUF exécuté par Ollama tourne : Ollama le lit."""
+    if option.get('driver') == 'ollama':
+        return ''
+    import importlib.util
+
+    from .model_installer import _FOREIGN_ENGINE_MARKERS
+    own = (cand.hf_repo or '').lower()
+    target = f"{option.get('ref') or ''} {option.get('file') or ''}".lower()
+    for marker in _FOREIGN_ENGINE_MARKERS:
+        if _has_marker(target, marker) and not _has_marker(own, marker):
+            return f"poids pour un autre moteur (« {marker} ») : rien ne les lit sur cette machine"
+    method = option.get('quant_method')
+    if method:
+        missing = []
+        for package in _quant_packages(method) or []:
+            try:
+                found = importlib.util.find_spec(package) is not None
+            except (ImportError, ValueError):
+                found = False
+            if not found:
+                missing.append(package)
+        if missing:
+            return (f"quantification « {method} » : librairie {', '.join(missing)} absente — "
+                    "l'installer d'abord par la route des librairies")
+    return ''
+
+
+def recommended_option(options) -> int | None:
+    """L'option que WAMA RECOMMANDE, par son indice : parmi celles qui tournent ici et dont le
+    poids est connu, la plus PRÉCISE (le plus gros poids) qui tient sur la carte ; à poids égal
+    (au Go près), les poids pleins du dépôt canonique, puis la plus téléchargée. Si aucune ne
+    tient, la plus légère qui tourne — la seule chance de tenir. None si aucune ne tourne.
+
+    Le poids sert de mesure de la précision parce que, pour un même modèle, il n'y en a pas
+    d'autre de commune aux formats (BF16, FP8, GGUF Q8…) ; c'est un fait mesuré du dépôt."""
+    sized = [(i, o) for i, o in enumerate(options) if o.get('runnable') and o.get('disk_gb')]
+    fitting = [(i, o) for i, o in sized if o.get('fits')]
+    if fitting:
+        best = max(fitting, key=lambda io: (round(float(io[1]['disk_gb'])),
+                                            io[1].get('kind') == 'full',
+                                            io[1].get('downloads') or 0))
+        return best[0]
+    if sized:
+        return min(sized, key=lambda io: float(io[1]['disk_gb']))[0]
+    runnable = [i for i, o in enumerate(options) if o.get('runnable')]
+    return runnable[0] if runnable else None
 
 
 def needs_variant_choice(cand) -> bool:
