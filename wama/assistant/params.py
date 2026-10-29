@@ -81,6 +81,18 @@ PARAMS = [
                "agents sur une question de recherche. « Auto » : proposés quand le curseur est sur "
                "Qualité. Plus d'appels au modèle, donc plus lent et plus coûteux sur un modèle "
                "distant."),
+    # L'ARBITRE d'un council (2026-10-29, décision de Fabien : « Claude par l'abonnement en
+    # arbitre ») — le geste commun du sélecteur de modèle : « auto » tire au curseur Qualité hors
+    # des modèles qui ont donné un avis (`assistant_engine._decider_lane`) ; un modèle CHOISI arbitre
+    # toujours. Sur l'abonnement, il est appelé sans aucun outil de WAMA. Le tirage ne retient
+    # jamais l'abonnement de lui-même : il faut le choisir.
+    Param(name='council_decider', type='select', label='Arbitre du council', icon='fa-gavel',
+          default=AUTO, dom_id={'panel': 'ai-council-decider', 'item': 'ai-council-decider-modal'},
+          contexts=SURFACES, options_source='catalog', options_query={'model_type': 'llm'},
+          options_auto=True, options_cloud=True,
+          help="Le modèle qui tranche quand l'assistant réunit plusieurs agents sur une question. "
+               "« Automatique » : le meilleur modèle disponible, hors de ceux qui ont donné un "
+               "avis. Choisir l'abonnement Claude le fait arbitrer, sans aucun outil."),
     # L'AVATAR PARLANT est une préférence DURABLE de l'assistant (2026-09-22, demande de Fabien) :
     # jusque-là « affiché / masqué » n'était qu'un état de la page d'accueil, perdu au premier
     # changement de page. `contexts=()` : ces deux réglages ne sont rendus dans AUCUN panneau de

@@ -228,7 +228,7 @@ def wama_mcp_config(user) -> tuple:
 
 
 def prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool = False, user=None,
-            model: str = '') -> dict:
+            model: str = '', mcp: bool = True) -> dict:
     """La commande du CLI et son environnement, GARDES COMPRISES — `{'argv', 'env'}` ou
     `{'error'}`. Partagée par l'appel SYNCHRONE (`demander`) et la tâche DÉTACHÉE de la surface
     de développement (`dev_tools.dev_claude_code`, 2026-10-12) : un modèle non déclaré, un profil
@@ -266,13 +266,16 @@ def prepare(prompt: str, *, outils=OUTILS_LECTURE, ecriture: bool = False, user=
         # Un ALIAS du CLI (« the latest model ») : il suit les sorties de modèles tout seul.
         commande += ['--model', model]
     # Les outils de WAMA, pour le compte (cf. l'en-tête) : la surface `wama`, seule config MCP lue.
-    mcp_config, mcp_secrets = wama_mcp_config(user)
+    # `mcp=False` : AUCUN outil de WAMA — l'arbitre d'un council (`WAMA_HARNESS §7.4`, décision de
+    # Fabien du 29/10) juge ce qu'on lui donne, il n'agit sur rien.
+    mcp_config, mcp_secrets = wama_mcp_config(user) if mcp else ('', {})
     if mcp_config:
         commande += ['--mcp-config', mcp_config, '--strict-mcp-config']
     mcp_tools = [f'mcp__{MCP_SERVER_NAME}'] if mcp_config else []
-    if not ecriture:
+    if not ecriture and (outils or mcp_tools):
         # Restriction de surface : les outils non listés déclenchent une demande de
-        # permission, qui en non-interactif équivaut à un refus.
+        # permission, qui en non-interactif équivaut à un refus. Une liste VIDE ne s'écrit pas :
+        # `--allowedTools` sans valeur n'est pas une restriction.
         commande += ['--allowedTools', *outils, *mcp_tools]
     elif mcp_tools:
         # En écriture, `--allowedTools` AJOUTE des règles : les outils de WAMA s'y autorisent.
@@ -288,7 +291,8 @@ def read_output(raw: str) -> dict:
 
 
 def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
-             outils=OUTILS_LECTURE, ecriture: bool = False, user=None, model: str = '') -> dict:
+             outils=OUTILS_LECTURE, ecriture: bool = False, user=None, model: str = '',
+             mcp: bool = True) -> dict:
     """
     Soumet UNE tâche à Claude Code et rend son résultat.
 
@@ -304,6 +308,7 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
         model:    modèle DÉCLARÉ de l'abonnement (`declared_model_ids` : `fable`, `opus`,
                   `sonnet`…) → `--model`. Vide ou `default` : le CLI choisit, comme avant.
                   Un identifiant NON déclaré est refusé : rien d'arbitraire ne part au CLI.
+        mcp:      False = sans la surface MCP de WAMA (l'arbitre d'un council : aucun outil).
 
     Returns:
         {'success': True, 'texte': str, 'cout_usd': float|None, 'duree_ms': int|None,
@@ -320,7 +325,7 @@ def demander(prompt: str, *, cwd: str | None = None, delai: int = DELAI_DEFAUT,
             prompt = gate.outgoing_texts([prompt or ''])[0]
         except CloudAccessRefused as refused:
             return {'success': False, 'error': str(refused)}
-    prepared = prepare(prompt, outils=outils, ecriture=ecriture, user=user, model=model)
+    prepared = prepare(prompt, outils=outils, ecriture=ecriture, user=user, model=model, mcp=mcp)
     if 'error' in prepared:
         return {'success': False, 'error': prepared['error']}
     racine = str(cwd or settings.BASE_DIR)

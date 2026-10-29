@@ -755,8 +755,23 @@ non : `delegate` est un verbe de la boucle, que MCP ne sert pas, par constructio
 l'API* (source `anthropic`) passe déjà par NOTRE boucle et ses bornes : il peut être agent d'un
 council dès que le profil l'admet au tirage (facturé : consentement `cloud_metered_auto`).
 ✅ **Décision de Fabien (29/10) : Claude par l'ABONNEMENT, en arbitre (décideur) ou relecteur** — pas
-d'API (aucun crédit). ⏳ À construire : l'appel du CLI sans la surface MCP, choisi comme couloir du
-décideur ou d'un relecteur. ⚠ Et ce qui ne doit pas bouger : Fabien emploie déjà l'abonnement
+d'API (aucun crédit). ✅ **Livré le soir même, en ARBITRE** : le tirage au cran Qualité ne retient
+jamais l'abonnement (mesuré : Albert `gemma-4-31b-it`, abonnement admis ou non) — l'arbitre est donc
+un CHOIX, le geste commun du sélecteur de modèle : réglage « Arbitre du council »
+(`council_decider`, « Automatique » ou un modèle du catalogue que les clés du compte ouvrent ; la
+route de réglage valide désormais TOUT menu de modèles à distants, `options_cloud`, par une seule
+règle). Un arbitre choisi arbitre toujours (`_decider_lane`). Sur l'abonnement, le tour de l'arbitre
+est SANS AUCUN OUTIL : le verrou de l'abonnement ne refuse plus qu'un tour borné qui a des outils,
+et un tour sans outil appelle le CLI sans la surface MCP de WAMA ni `--allowedTools`
+(`claude_code.prepare(mcp=False)`, `_llm_call(wama_tools=False)`) — seules les lectures que le CLI
+s'accorde sans permission restent possibles. *Relecteur* : dans le mode `review`, les relecteurs
+sont les agents qui ont répondu (règle du LLM Council) ; un relecteur Claude « en plus » serait une
+extension, non faite. **Éprouvé par l'assistant le soir même** (`fabien.moreau`, choix d'arbitre
+simulé pour l'essai, rien de persisté) : Albert indisponible (503) pour le parent, rejoué avec ILaaS
+`qwen-3.8-27b` ; trois agents sur trois modèles d'ILaaS (Albert noté saturé, écarté par le tirage) ;
+**arbitre `claude-abo` (sonnet → `claude-sonnet-5-5`) en 29,9 s, sans outil**, qui cite les avis,
+écarte un avis vide et dit la divergence ; tour de 215 s. ⚠ Relevé : un agent (`gemma-4-31b`) a
+épuisé ses actions sans rendre de rapport — à suivre avec le dosage. ⚠ Et ce qui ne doit pas bouger : Fabien emploie déjà l'abonnement
 depuis l'assistant pour SUPERVISER (génération d'apps : `ask_claude_code`, `dev_claude_code`) —
 vérifié intact le 29/10 (`ask_claude_code` reste offert au tour principal, le relais dev à tout
 tour non borné ; `tests_claude_subscription` 28/28, `tests_mcp_dev_tools`, `tests_mcp_client`).

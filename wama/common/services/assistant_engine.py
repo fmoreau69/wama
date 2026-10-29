@@ -696,7 +696,7 @@ class _TokenGate:
         self._buffer = ''
 
 
-def _claude_code_call(messages: list, user=None, model: str = '') -> tuple:
+def _claude_code_call(messages: list, user=None, model: str = '', wama_tools: bool = True) -> tuple:
     """
     Un tour SUR L'ABONNEMENT, via le CLI Claude Code headless.
 
@@ -740,7 +740,11 @@ def _claude_code_call(messages: list, user=None, model: str = '') -> tuple:
     # Le MODÈLE choisi au sélecteur (`claude_code:opus` → `opus`) part au CLI ; jusqu'au
     # 2026-10-04 il était abandonné ici — « le modèle porte son moteur » s'arrêtait à la porte.
     try:
-        resultat = demander('\n\n'.join(morceaux), user=user, model=model or '')
+        # Sans outil (`wama_tools=False`, l'arbitre d'un council) : ni la surface MCP de WAMA, ni
+        # outil autorisé — il juge ce qu'on lui donne. Seules les lectures que le CLI s'accorde
+        # sans permission restent possibles ; aucune écriture, aucune action dans WAMA.
+        resultat = demander('\n\n'.join(morceaux), user=user, model=model or '',
+                            **({} if wama_tools else {'outils': (), 'mcp': False}))
     except ClaudeCodeIndisponible as e:
         return None, {'error': str(e), 'status': 503}
 
@@ -760,7 +764,8 @@ def _claude_code_call(messages: list, user=None, model: str = '') -> tuple:
 def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
               think: bool = None, on_delta=None, tools: list | None = None,
               rate_limit_wait: bool = True, temperature: float | None = None,
-              seed: int | None = None, top_p: float | None = None) -> tuple:
+              seed: int | None = None, top_p: float | None = None,
+              wama_tools: bool = True) -> tuple:
     """
     Un tour de LLM, quel que soit le fournisseur.
 
@@ -786,6 +791,9 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
     fournisseur sauf l'abonnement (le CLI ne la prend pas ; sa fiche le dit, `params` vide).
     `seed`, `top_p` (2026-10-22) : la même règle — `llm_chat` ne les envoie qu'où la fiche les dit.
 
+    `wama_tools` : faux pour un tour SANS AUCUN outil (l'arbitre d'un council) — sur l'abonnement,
+    le CLI ne reçoit alors pas la surface MCP de WAMA ; ailleurs, la boucle n'annonce déjà rien.
+
     Returns:
         (text, usage_dict) on success · (None, error_dict) on failure
     """
@@ -798,7 +806,7 @@ def _llm_call(messages: list, llm_model: str | None, provider: str, user=None,
                             temperature=temperature, seed=seed, top_p=top_p)
 
     if provider in _SUBSCRIPTION_PROVIDERS:
-        return _claude_code_call(messages, user=user, model=llm_model or '')
+        return _claude_code_call(messages, user=user, model=llm_model or '', wama_tools=wama_tools)
 
     from wama.common import external_sources
     from wama.common.utils.llm_utils import chat_with_source, llm_chat
@@ -1470,7 +1478,17 @@ def _decider_lane(user, provider, llm_model, exclude: set) -> tuple:
     """(fournisseur, modèle) du DÉCIDEUR : le tirage commun au curseur « Qualité » sur les mêmes
     candidats que les couloirs, HORS des modèles qui ont donné un avis (`exclude`) — un juge LLM
     favorise ses propres réponses —, et DISTANT quand il y en a (la règle du council,
-    `_sub_agent_lanes`). Sans autre candidat, le modèle du tour."""
+    `_sub_agent_lanes`). Sans autre candidat, le modèle du tour.
+
+    Un arbitre CHOISI (`council_decider`, réglage de l'assistant, 2026-10-29) arbitre toujours, même
+    s'il a donné un avis : c'est le choix de l'utilisateur. C'est ainsi que l'ABONNEMENT Claude
+    arbitre — le tirage ne le retient jamais, les sous-agents l'excluent, et il y est appelé sans
+    outil (`_synthesise` : tour sans outil → `wama_tools=False`)."""
+    from wama.common.utils.auto_model import is_auto
+    chosen = assistant_settings(user).get('council_decider') if user is not None else None
+    if not is_auto(chosen):
+        source, _, model_id = str(chosen).partition(':')
+        return SOURCE_PROVIDERS.get(source, source), model_id or None
     try:
         from wama.common.utils.auto_model import AUTO, resolve_model_choice
         from wama.model_manager.services.cloud_models import is_cloud_key
@@ -2150,8 +2168,10 @@ def run_assistant_turn(user, message: str, provider: str = None,
                              "et développeurs.", 'status': 403}
         # Un tour BORNÉ n'y passe pas : Claude Code tourne SA boucle, avec tous les outils du compte
         # par MCP (`_claude_code_call`) — les bornes de cette boucle-ci n'y tiendraient pas, et un
-        # sous-agent y écrirait (relevé le 2026-10-29, en écrivant la délégation).
-        if allowed_tools is not None:
+        # sous-agent y écrirait (relevé le 2026-10-29, en écrivant la délégation). Un tour SANS
+        # AUCUN outil — l'arbitre d'un council — n'a rien à borner : le CLI est alors appelé sans
+        # la surface MCP de WAMA (`wama_tools=False`, décision de Fabien du 29/10).
+        if allowed_tools:
             return {'error': "Un tour borné (sous-agent) ne passe pas par l'abonnement Claude Code : "
                              "sa boucle reçoit tous les outils du compte, sans les bornes.",
                     'status': 400}
@@ -2294,6 +2314,9 @@ def run_assistant_turn(user, message: str, provider: str = None,
     # là, l'appel d'un modèle choisi garde sa forme d'avant.
     tried, relays = {_provider_source(provider)}, []
     no_wait = {'rate_limit_wait': False} if drawn else {}
+    # Un tour SANS AUCUN outil (l'arbitre d'un council) le dit au fournisseur : sur l'abonnement, le
+    # CLI ne reçoit pas la surface MCP de WAMA. L'appel de tout autre tour garde sa forme.
+    tool_free = {'wama_tools': False} if allowed_tools is not None and not allowed_tools else {}
     # La fenêtre de chaque modèle local du tour, lue une fois (bascule réévaluée dans la boucle).
     context_windows = {}
 
@@ -2334,7 +2357,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
             gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
         text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
                                  on_delta=(gate.feed if gate else None),
-                                 **sampling, **no_wait, **native_kwargs)
+                                 **sampling, **no_wait, **native_kwargs, **tool_free)
         if gate is not None:
             gate.close()
         # BASCULE SUR PANNE (`ROADMAP §8d` étape 2, 2026-10-13) : le fournisseur vient d'être noté
@@ -2518,7 +2541,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
             gate = _TokenGate(lambda fragment: on_event({'type': 'delta', 'text': fragment}))
         text, result = _llm_call(messages, llm_model, provider, user=user, think=think,
                                  on_delta=(gate.feed if gate else None),
-                                 **sampling, **no_wait)
+                                 **sampling, **no_wait, **tool_free)
         if gate is not None:
             gate.close()
         # Ce dernier appel bascule aussi (modèle TIRÉ) : sans relais, le tour finissait sur la seule

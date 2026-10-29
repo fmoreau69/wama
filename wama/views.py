@@ -458,8 +458,12 @@ def ai_chat_settings(request):
                                   if isinstance(raw, str) else bool(raw))
     if 'quality_intent' in data:
         valeurs['quality_intent'] = read_quality_intent(data.get('quality_intent'))
-    if 'model' in data:
-        modele = (data.get('model') or '').strip()
+    # Les menus de MODÈLES qui ouvrent les distants (`options_cloud` : le modèle de conversation,
+    # l'arbitre du council depuis le 2026-10-29) — une validation pour tous, pas une par champ.
+    for name in (p['name'] for p in PARAMS_JSON if p.get('options_cloud')):
+        if name not in data:
+            continue
+        modele = (data.get(name) or '').strip()
         if not is_auto(modele):
             from wama.model_manager.models import AIModel
             from wama.model_manager.services.cloud_models import allowed_cloud_keys
@@ -473,7 +477,7 @@ def ai_chat_settings(request):
                 return JsonResponse({'error': "Ce modèle distant n'est pas ouvert par vos clés "
                                               "d'API, ou votre profil est en « 100 % local »."},
                                     status=403)
-        valeurs['model'] = modele or USER_SETTINGS_DEFAULTS['model']
+        valeurs[name] = modele or USER_SETTINGS_DEFAULTS[name]
     # Le modèle de VOIX et la voix (2026-10-28) : un modèle de synthèse que le compte voit, une
     # voix que la source commune lui propose — jamais un choix que la vocalisation refuserait.
     if 'voice_model' in data:

@@ -525,7 +525,8 @@ sous-agents par tour, **en même temps, un par serveur** (local, Albert, ILaaS �
 lieu de 11,1 s pour trois appels). ✅ le council, comme une COMPOSITION et non un mode figé : des
 agents spécialisés déclarés en rôles (contradicteur, méthodologie…), de un à cinq sur la même
 question, conclus par un vote, par un décideur, ou par une relecture croisée où chacun classe les
-avis anonymes des autres avant le décideur (le « LLM Council » de Karpathy). ⏳ une source SAVANTE parmi
+avis anonymes des autres avant le décideur (le « LLM Council » de Karpathy) ; l'arbitre se choisit,
+Claude par l'abonnement compris, qui juge alors sans aucun outil. ⏳ une source SAVANTE parmi
 les outils — aujourd'hui seuls le web et les documents de WAMA (bibliographie en pipeline :
 `ROADMAP §21.5`).
 

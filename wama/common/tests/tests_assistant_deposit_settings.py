@@ -86,7 +86,7 @@ class AssistantSettingsSurfacesTest(TestCase):
         # Les champs de la modale (contexte `item`) : ceux du volet, sous d'autres identifiants.
         shown = [p['name'] for p in d['schema'] if 'item' in (p.get('contexts') or [])]
         self.assertEqual(['model', 'quality_intent', 'temperature', 'seed', 'top_p', 'sub_agents',
-                          'voice_model', 'voice_preset', 'voice_sentence_pause',
+                          'council_decider', 'voice_model', 'voice_preset', 'voice_sentence_pause',
                           'voice_clause_pause'], shown)
 
     def test_the_modal_form_is_saved_and_bounded(self):

@@ -554,6 +554,82 @@ class CouncilTest(TestCase):
             self.assertNotIn(f'`{key}`', competences_announcement())
 
 
+class SubscriptionArbiterTest(TestCase):
+    """Claude par l'ABONNEMENT en arbitre du council (décision de Fabien du 29/10) : choisi par un
+    réglage, appelé SANS aucun outil de WAMA — et la supervision existante ne bouge pas."""
+
+    def test_the_cli_runs_without_the_wama_surface_when_asked(self):
+        from wama.common.services import claude_code
+        with mock.patch.object(claude_code, 'chemin_cli', return_value='claude'), \
+                mock.patch.object(claude_code, 'wama_mcp_config', return_value=('{"mcp": 1}', {})):
+            usual = claude_code.prepare('q')['argv']
+            bare = claude_code.prepare('q', outils=(), mcp=False)['argv']
+        self.assertIn('--mcp-config', usual)                       # la supervision : inchangée
+        self.assertIn('--allowedTools', usual)
+        self.assertNotIn('--mcp-config', bare)
+        self.assertNotIn('--allowedTools', bare)                   # jamais une liste vide
+
+    def test_the_engine_calls_the_cli_bare_for_a_tool_free_turn(self):
+        with mock.patch('wama.common.services.claude_code.demander',
+                        return_value={'success': True, 'texte': 'ok'}) as ask:
+            assistant_engine._claude_code_call([{'role': 'user', 'content': 'q'}], wama_tools=False)
+            self.assertEqual(((), False), (ask.call_args.kwargs['outils'], ask.call_args.kwargs['mcp']))
+            assistant_engine._claude_code_call([{'role': 'user', 'content': 'q'}])
+            self.assertNotIn('mcp', ask.call_args.kwargs)
+
+    def test_the_llm_call_hands_the_choice_to_the_subscription_path(self):
+        with mock.patch.object(assistant_engine, '_claude_code_call',
+                               return_value=('ok', {})) as call:
+            assistant_engine._llm_call([{'role': 'user', 'content': 'q'}], 'opus', 'claude-abo',
+                                       wama_tools=False)
+        self.assertIs(False, call.call_args.kwargs['wama_tools'])
+
+    def _abo_turn(self, **bounds):
+        user = User.objects.create(username=f'arbiter_{User.objects.count()}')
+        with mock.patch('wama.common.services.claude_code.subscription_allowed', return_value=True), \
+                mock.patch.object(assistant_engine, '_llm_call', return_value=('ok', {})) as llm:
+            result = assistant_engine.run_assistant_turn(user, 'q', provider='claude-abo', **bounds)
+        return result, llm
+
+    def test_a_tool_free_turn_runs_on_the_subscription_without_tools(self):
+        result, llm = self._abo_turn(depth=1, allowed_tools=frozenset())
+        self.assertNotIn('error', result)
+        self.assertIs(False, llm.call_args.kwargs['wama_tools'])
+
+    def test_a_bounded_turn_with_tools_is_still_refused_there(self):
+        result, llm = self._abo_turn(depth=1)
+        self.assertIn('abonnement', result.get('error', ''))
+        llm.assert_not_called()
+
+    def test_the_user_turn_keeps_its_call_unchanged(self):
+        _, llm = self._abo_turn()
+        self.assertNotIn('wama_tools', llm.call_args.kwargs)
+
+    def test_a_chosen_arbiter_always_arbitrates(self):
+        user = User.objects.create(username='arbiter_chosen')
+        with mock.patch.object(assistant_engine, 'assistant_settings',
+                               return_value={'council_decider': 'claude_code:opus'}):
+            lane = assistant_engine._decider_lane(user, 'ollama', 'a', {'claude_code:opus'})
+        self.assertEqual(('claude-abo', 'opus'), lane)
+
+    def test_the_arbiter_setting_is_served_and_bounded(self):
+        from django.urls import reverse
+
+        from wama.assistant.params import PARAMS_JSON, SURFACES, USER_SETTINGS_DEFAULTS
+        from wama.common.utils.auto_model import AUTO
+        setting = next(p for p in PARAMS_JSON if p['name'] == 'council_decider')
+        self.assertEqual(list(SURFACES), list(setting['contexts']))
+        self.assertEqual(AUTO, USER_SETTINGS_DEFAULTS['council_decider'])
+        user = User.objects.create(username='arbiter_page')
+        self.client.force_login(user)
+        self.assertIn('ai-council-decider', self.client.get(reverse('home')).content.decode())
+        self.assertEqual(200, self.client.post(reverse('ai_chat_settings'),
+                                               {'council_decider': 'auto'}).status_code)
+        self.assertEqual(400, self.client.post(reverse('ai_chat_settings'),
+                                               {'council_decider': 'nowhere:none'}).status_code)
+        self.assertEqual('auto', assistant_engine.assistant_settings(user)['council_decider'])
+
+
 class DelegateCallTest(TestCase):
 
     def _delegate(self, args, deadline=None):
