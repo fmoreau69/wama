@@ -2,7 +2,7 @@
  * wama-app-base.js — Plomberie JS commune aux apps WAMA (file d'attente / cards).
  *
  * Extrait du Transcriber (app de référence) pour éliminer la duplication inter-apps :
- *   - helpers sans état : escapeHtml, isTyping, getUrl, csrfHeaders, csrfFetch, wordCount
+ *   - helpers sans état : escapeHtml, getUrl, csrfHeaders, csrfFetch, wordCount
  *   - WamaApp.Poller    : boucle de polling de progression résiliente (par id)
  *   (l'état vide d'une file n'est plus ici : la file commune le rend et sa brique le bascule —
  *   `REMOVAL_LEDGER`, 2026-10-20)
@@ -20,19 +20,9 @@
     });
   }
 
-  // Le clavier est-il à une SAISIE (champ, zone de texte, liste, texte éditable) ? Une touche de
-  // raccourci s'efface alors d'elle-même. Une règle pour les briques du temps (transport, ligne
-  // de temps, écriture à la lecture), qui l'écrivaient chacune (2026-10-21, revérification).
-  // ⚠ JUMEAU DÉCLARÉ (2026-10-29) : le clavier commun `wama-keys.js` a sa propre règle
-  // (`WamaKeys.typing`, plus une règle des contrôles : une liste CLIQUÉE n'y garde pas J/K/L).
-  // Celle-ci reste aux briques qui écoutent encore le clavier elles-mêmes (ligne de temps,
-  // écriture à la lecture, partition, transport hors module) ; elle se retire quand elles s'y
-  // inscrivent (`WAMA_VOLETS §3-ter`). La changer ici changerait leur comportement sans parité.
-  function isTyping() {
-    var a = document.activeElement;
-    if (!a) return false;
-    return a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || !!a.isContentEditable;
-  }
+  // « Le clavier est-il à une saisie ? » vivait ici (`isTyping`, 2026-10-21) pour les briques du
+  // temps ; RETIRÉ le 2026-10-29 : toutes passent par le clavier commun (`wama-keys.js`,
+  // `WamaKeys.typing` et sa règle des contrôles — `WAMA_VOLETS §3-ter` étape 3).
 
   // Remplace le segment id factice « /0/ » d'un template d'URL Django par l'id réel.
   function getUrl(template, id) {
@@ -1460,7 +1450,6 @@
     mediaDuration: mediaDuration,
     updateProcessRows: updateProcessRows,
     escapeHtml: escapeHtml,
-    isTyping: isTyping,
     getUrl: getUrl,
     csrfHeaders: csrfHeaders,
     csrfFetch: csrfFetch,

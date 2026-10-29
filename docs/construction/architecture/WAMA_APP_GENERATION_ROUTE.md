@@ -1203,6 +1203,9 @@ manifeste** (ce que le kind `app` capte + cible de projection).
       écrite trois fois (→ `WamaApp.isTyping`, `wama-app-base.js`). Gardée par
       `tests_editor_axis`. ⏳ Elle reste écrite à la main, plus ancienne, dans
       `brick-image-boxes.js`, `wama-queue.js` et `wama-queue-dnd.js` (variantes sans `SELECT`).
+      ✅ **Soldé le 2026-10-29** : toutes ces briques s'inscrivent au clavier commun
+      (`wama-keys.js`, une touche = UN propriétaire, `WAMA_VOLETS §3-ter` étapes 2-3), dont la règle
+      de saisie est la seule ; `WamaApp.isTyping` est retiré.
     - ⏳ **restes** (inchangés par ce palier, désormais mieux posés) : l'aperçu — sa vidéo est une
       SOURCE attachée à l'axe, le transport se monte dessous, les surcouches sont des VUES, Comparer
       demande N médias sur un axe ; cam_analyzer et face_analyzer ; le pas image et la vitesse

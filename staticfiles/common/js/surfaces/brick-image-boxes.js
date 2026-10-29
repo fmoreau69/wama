@@ -288,9 +288,9 @@
         // reproduit plus ; un clic sur une poignée de redimensionnement, lui, n'est pas dans
         // l'image.)
         global.WamaKeys.register({ owner: 'image_boxes', scope: 'brick', root: canvas, handle: function (ev) {
+            // Une saisie garde ses touches : la règle du module (une liste a le focus hors de
+            // l'image, qui n'a alors pas la main).
             if (ev.ctrlKey || ev.metaKey || ev.altKey) return false;
-            var t = ev.target;
-            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return false;
             var sel = byId(ctx.selected());
             var k = ev.key;
             if ((k === 'Delete' || k === 'Backspace') && sel && !sel.removed && ctx.canEdit) {

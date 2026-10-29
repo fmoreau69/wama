@@ -616,7 +616,9 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       `WamaApp.isTyping` (l'élément qui a le focus, une liste comprise), le module par
       `WamaKeys.typing` et sa règle des contrôles (une liste cliquée ne garde pas J/K/L). Les
       fusionner changerait leur comportement sans parité qui le voie : `isTyping` se retire quand
-      la dernière s'inscrit au module.
+      la dernière s'inscrit au module. ✅ **Retiré le 2026-10-29** (étape 3), avec la règle
+      recopiée qui restait dans l'image et ses zones ; `tests_editor_axis` exige l'inscription au
+      module et l'absence du jumeau.
   - 🔄 **Étape 3 — les briques restantes inscrites une par une, 2026-10-29** (demande de Fabien).
     Garde **`PageKeyListenersTest`** : chaque écoute du clavier de TOUTE la page qui reste est
     comptée, avec sa raison, et le compte ne peut que descendre (contre-épreuve : un fichier jetable
@@ -722,8 +724,8 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       le son, celui qui reprend le micro, le relâché d'Espace du transport et de R de l'écriture, la
       présentation autonome). ⚠ Hors de sa portée (il ne lit que les `.js`) : le sous-menu « Bac à
       sable » de l'en-tête, écouté en ligne dans `header.html` (capture sur `window`, passé avant
-      Bootstrap — `tests_queue_dnd` le tient). Le **jumeau `WamaApp.isTyping`** n'a plus de lecteur
-      parmi les briques du clavier (voir ci-dessous).
+      Bootstrap — `tests_queue_dnd` le tient). Le **jumeau `WamaApp.isTyping`** n'avait plus de
+      lecteur : retiré (voir plus haut).
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
