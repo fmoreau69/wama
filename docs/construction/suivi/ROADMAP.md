@@ -388,6 +388,10 @@ Bloc d'état 2026-07-11 archivé (`docs/construction/archive/ROADMAP_ARCHIVE_202
 > *État au 2026-10-26* : la prospection À LA DEMANDE est livrée (« Prospecter », chaîne des rôles,
 > candidats `is_proposed`, `2eacd031`) ; la tâche NOCTURNE de comparaison reste ⏳ (aucune entrée
 > au `CELERY_BEAT_SCHEDULE`).
+> *2026-10-29* : ✅ une mise à jour proposée puis INSTALLÉE succède à l'ancienne version partout où
+> elle était choisie (`model_manager/services/succession.py`, `d84c401e`) ; l'installeur recommande
+> la variante qui tourne et tient sur la carte, la désinstallation retire des choix des apps
+> (`6d9b5cc1`). Détail : `PROSPECTION_PIPELINE.md §Session du 2026-10-29`.
 
 ### Concept
 Tâche Celery nocturne qui compare les modèles installés dans WAMA avec les dernières

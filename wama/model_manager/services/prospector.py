@@ -928,12 +928,14 @@ def install_options(cand) -> dict:
                 'downloads': v.get('downloads'), 'kind': 'variant',
                 'quant_method': v.get('quant_method') or '',
             })
+    from wama.common.services.resource_governor import fits_alone
     card_gb = _gpu_total_gb()
     for o in options:
         o['reason'] = _runtime_gap(o, cand)
         o['runnable'] = not o['reason']
         o['vram_estimated_gb'] = _option_vram_gb(o)
-        o['fits'] = (o['vram_estimated_gb'] <= card_gb) if o['vram_estimated_gb'] else None
+        # Tiendrait-il sur la carte VIDE ? La règle du gouverneur, None sans GPU ni poids connu.
+        o['fits'] = fits_alone(o['vram_estimated_gb']) if o['vram_estimated_gb'] else None
         if o['fits'] is False and not o['vram_note']:
             o['vram_note'] = (f"VRAM estimée {o['vram_estimated_gb']:.1f} Go : ne tient pas sur la "
                               f"carte ({card_gb:.0f} Go) sans quantisation ni déchargement")

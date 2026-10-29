@@ -4551,6 +4551,14 @@ qu'Ollama n'exécute pas, par exemple le GGUF de MiniMax-Music3 lu par audio.cpp
 téléchargement du Hub. Tenu par `tests_ollama_hub_gguf`. Détail :
 `PROSPECTION_PIPELINE.md §Session du 2026-10-10`.
 
+**Le choix se RECOMMANDE et une mise à jour SUCCÈDE (2026-10-29).** `install_options` dit de chaque
+option si elle tourne ici (format d'un autre moteur, librairie de quantification absente) et désigne
+la plus précise qui tient sur la carte (`fits_alone` du gouverneur) — la même pour la page et pour
+l'assistant. Une désinstallation retire la ligne des choix des apps (option cochée), et une
+proposition de MISE À JOUR installée remplace l'ancienne version partout où elle était choisie
+(`model_manager/services/succession.py` : cards, réglages mémorisés, lots, dérivés des schémas).
+Détail : `PROSPECTION_PIPELINE.md §Session du 2026-10-29`.
+
 ### §10.6 — LE PIPELINE, PORTEUR UNIVERSEL DES PROCESS : une card = une instance de pipeline, dans TOUS les mondes (ACTÉ 2026-09-15)
 
 > **Statut : ACTÉ avec Fabien le 2026-09-15 — modèle de CONCEPTION, aucun code écrit.** Cette

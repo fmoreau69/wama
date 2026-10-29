@@ -78,6 +78,13 @@ class SupersedeTest(TestCase):
         self.assertTrue(AIModel.objects.filter(withdrawn_q(), model_key=OLD).exists())
         self.assertTrue(old.is_downloaded, 'its weights stay: going back stays possible')
 
+    def test_a_setting_kept_under_its_panel_field_id_follows_too(self):
+        # `read_panel_settings` keeps a setting under its `panel_dom_id` by default.
+        UserAppSetting.objects.create(user=self.user, app='reader', name='backendSelect',
+                                      value='olmocr')
+        s.supersede(OLD, NEW)
+        self.assertEqual(NEW, UserAppSetting.objects.get(name='backendSelect').value)
+
     def test_a_value_of_another_setting_is_not_a_reference(self):
         # Counter-check: the bare id only counts under the name of a catalogue setting.
         UserAppSetting.objects.create(user=self.user, app='reader', name='mode', value='olmocr')

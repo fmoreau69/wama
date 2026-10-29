@@ -3390,7 +3390,7 @@ l'assistant ne recommandait rien.
    dont la librairie manque (`quantization_config.quant_method` du `config.json`, lu une fois et
    gardé, confronté à la table de transformers `AUTO_QUANTIZER_MAPPING[…].required_packages` —
    aucune seconde table). `recommended_option` prend la plus PRÉCISE (le plus gros poids) qui tient
-   sur la carte (`model_registry._estimated_vram` contre `_gpu_total_gb`), à défaut la plus légère
+   sur la carte (`model_registry._estimated_vram`, jugée par `resource_governor.fits_alone`), à défaut la plus légère
    qui tourne. Une option qui ne tourne pas est grisée sur la page et refusée par `request_install`
    (`not_runnable`), avec sa raison. Mesuré sur les 87 propositions dont les variantes étaient
    relevées : **24 variantes MLX** grisées, aucune recommandée.
@@ -3418,7 +3418,7 @@ l'assistant ne recommandait rien.
    `services/succession.py`, appelée par les DEUX branches quand une mise à jour s'installe
    (`supersede_after_install`, une seule ligne atteinte — plusieurs, on ne devine pas) :
    - les endroits qui nomment un modèle se DÉRIVENT des déclarations (`model_reference_fields`) :
-     les réglages « catalogue » de tous les schémas de l'app (`declared_param_schemas`) qui sont
+     les réglages « catalogue » de tous les schémas de l'app (`auto_model.catalog_fields`) qui sont
      des colonnes du modèle d'élément (`DetailRegistry`), les réglages mémorisés
      (`UserAppSetting`), les réglages de lot (`BatchSettings`) ; une valeur garde sa forme
      (identifiant nu ou clé). Une colonne d'HISTOIRE (`used_backend`) ne change pas ;

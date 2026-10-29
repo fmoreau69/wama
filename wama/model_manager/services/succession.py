@@ -12,7 +12,7 @@ mémorisés, le tirage continuaient de nommer l'ancien. Vécu avec olmOCR v1 →
 
 Les ENDROITS qui nomment un modèle ne se listent pas ici : ils se DÉRIVENT des déclarations.
   • les colonnes de card — les réglages « catalogue » (`options_source='catalog'`) de TOUS les
-    schémas de l'app (`param_schema.declared_param_schemas`) qui sont des colonnes du modèle
+    schémas de l'app (`auto_model.catalog_fields`) qui sont des colonnes du modèle
     d'élément déclaré (`DetailRegistry`) ;
   • les réglages MÉMORISÉS des utilisateurs (`common.UserAppSetting`) — une valeur qui EST la clé
     de l'ancien, ou son identifiant nu sous le nom d'un de ces réglages ;
@@ -49,14 +49,17 @@ def model_reference_fields() -> list:
 
 def catalog_settings(app: str) -> dict:
     """`{nom du réglage: source de ses identifiants nus}` des réglages d'une app qui CHOISISSENT un
-    modèle du catalogue, tous schémas confondus (un domaine vidéo, un domaine audio…)."""
-    from wama.common.utils.param_schema import _pget, declared_param_schemas
-    declared = declared_param_schemas(app) or {}
+    modèle du catalogue, tous schémas confondus — la lecture commune `auto_model.catalog_fields`.
+    Un réglage mémorisé se range sous son NOM ou sous l'identifiant de son champ au volet
+    (`panel_dom_id`, la clé par défaut de `user_settings.read_panel_settings`) : les deux y sont."""
+    from wama.common.utils.auto_model import catalog_fields
+    from wama.common.utils.param_schema import panel_dom_id
     out = {}
-    for schema in (declared.get('schemas') or {}).values():
-        for p in schema:
-            if _pget(p, 'options_source') == 'catalog' and _pget(p, 'name'):
-                out[_pget(p, 'name')] = (_pget(p, 'options_query') or {}).get('source') or app
+    for field in catalog_fields(app):
+        source = (field.get('options_query') or {}).get('source') or app
+        for name in (field.get('name'), panel_dom_id(field)):
+            if name:
+                out[name] = source
     return out
 
 

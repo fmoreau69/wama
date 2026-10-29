@@ -45,7 +45,7 @@ def _olmocr2(disk_gb=16.6, fp8_method='compressed-tensors'):
 
 
 def _options(cand, packages=ABSENT, card_gb=24.0):
-    with patch.object(p, '_gpu_total_gb', return_value=card_gb), \
+    with patch('wama.common.services.resource_governor.total_vram_gb', return_value=card_gb), \
             patch.object(p, '_quant_packages', return_value=packages):
         return p.install_options(cand)
 
@@ -105,6 +105,11 @@ class TheRecommendationIsTheMostPreciseThatFitsTest(TestCase):
         best = res['options'][res['recommended']]
         self.assertEqual('olmOCR-2-7B-1025-Q8_0.gguf', best['file'])
 
+    def test_without_a_gpu_nothing_is_said_to_fit(self):
+        # The governor's rule (`fits_alone`): no card, no conclusion — never « 24 GB assumed ».
+        res = _options(_olmocr2(), card_gb=0.0)
+        self.assertEqual({None}, {o['fits'] for o in res['options']})
+
     def test_an_option_that_does_not_run_is_never_recommended(self):
         res = _options(_olmocr2(disk_gb=54.0), card_gb=12.0)
         self.assertTrue(res['options'][res['recommended']]['runnable'])
@@ -149,7 +154,7 @@ class TheInstallRouteHoldsTheSameRuleTest(TestCase):
     def test_a_choice_that_would_not_run_is_refused_with_its_reason(self):
         from wama.model_manager.services import model_installer as mi
         cand = _olmocr2()
-        with patch.object(p, '_gpu_total_gb', return_value=24.0), \
+        with patch('wama.common.services.resource_governor.total_vram_gb', return_value=24.0), \
                 patch.object(p, '_quant_packages', return_value=ABSENT), \
                 patch.object(mi, 'dispatch_install') as dispatch:
             out = mi.request_install(cand.model_key, variant_ref=MLX)
@@ -161,7 +166,7 @@ class TheInstallRouteHoldsTheSameRuleTest(TestCase):
         # Counter-check: the full weights the recommendation names do start.
         from wama.model_manager.services import model_installer as mi
         cand = _olmocr2()
-        with patch.object(p, '_gpu_total_gb', return_value=24.0), \
+        with patch('wama.common.services.resource_governor.total_vram_gb', return_value=24.0), \
                 patch.object(p, '_quant_packages', return_value=ABSENT), \
                 patch.object(mi, 'dispatch_install', return_value=SimpleNamespace(id='t')), \
                 patch.object(mi, 'disk_space_guard', return_value=None):
@@ -171,7 +176,7 @@ class TheInstallRouteHoldsTheSameRuleTest(TestCase):
     def test_the_refusal_to_choose_names_the_recommendation(self):
         from wama.model_manager.services import model_installer as mi
         cand = _olmocr2()
-        with patch.object(p, '_gpu_total_gb', return_value=24.0), \
+        with patch('wama.common.services.resource_governor.total_vram_gb', return_value=24.0), \
                 patch.object(p, '_quant_packages', return_value=ABSENT), \
                 patch.object(mi, 'dispatch_install') as dispatch:
             out = mi.request_install(cand.model_key)
@@ -184,7 +189,7 @@ class TheInstallRouteHoldsTheSameRuleTest(TestCase):
         from wama import tool_api
         cand = _olmocr2()
         user = get_user_model().objects.create_superuser('install_recommendation', password='x')
-        with patch.object(p, '_gpu_total_gb', return_value=24.0), \
+        with patch('wama.common.services.resource_governor.total_vram_gb', return_value=24.0), \
                 patch.object(p, '_quant_packages', return_value=ABSENT):
             out = tool_api.get_install_options(user, cand.model_key)
         best = out['options'][out['recommended']]

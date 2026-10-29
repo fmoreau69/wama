@@ -778,6 +778,9 @@ Sans cette couche, l'interchangeabilité est un slogan.
 🔄 *Constaté le 2026-10-26* : la mesure contre une référence existe (brique `result_evaluation`,
 déclarée par app — le transcriber d'abord, banc ASR sur corpus réels, 2026-09-29) ; ⏳ restent le
 jeu de test par capacité déclarée et le delta mesuré exigé par la veille.
+🔄 *Constaté le 2026-10-29* : un remplacement ACCEPTÉ se propage seul — la nouvelle version installée
+succède à l'ancienne dans les cards, les réglages et le tirage (`succession.py`) ; la décision de
+remplacer reste humaine et le delta mesuré reste ⏳.
 
 ---
 
