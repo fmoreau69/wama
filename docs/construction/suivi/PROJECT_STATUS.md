@@ -27351,7 +27351,7 @@ pipelines avatarizer/enhancer, `doc_facts` conformite/mecanismes/briques.
 🔚 **POINT D'ENTRÉE** : le retour de Fabien sur son test du soir (floutage, rangées, CSV) — puis, selon
 lui, adopter `BLUR_LOOK` à l'Anonymizer ou la porte élargie des dépassements (limite 3).
 
-## §CLÔTURE 2026-10-29 (soir), « MULTI-AGENTS — sous-agents et council » — ✅ étapes 0 → 5 livrées, 18 commits non poussés — 🔚 relancer gunicorn + serveurs MCP, puis Claude ABONNEMENT en arbitre / relecteur du council
+## §CLÔTURE 2026-10-29 (soir), « MULTI-AGENTS — sous-agents et council » — ✅ étapes 0 → 5 livrées + Claude abonnement en arbitre (29→30/10), 24 commits non poussés — 🔚 relancer gunicorn + serveurs MCP, puis le point 2 de la file (étapes des sous-agents à l'écran)
 
 > Domicile : `docs/construction/ia/WAMA_HARNESS.md §7.4` (plan, mesures, décisions) ; vision §5.7 ;
 > `ROUTE §10.5` (interface existante). Ouvert par Fabien le 28/10 depuis l'assistant, mené en
@@ -27387,8 +27387,14 @@ session) ; `check_docs` 3 références cassées, toutes dans ce fichier (`edit.j
 `mecanismes` et `dev-briques` périmés par d'autres sessions (mes lignes y sont commitées).
 
 **File des chantiers ouverts (limites de CETTE session)**, dans l'ordre :
-1. **Claude par l'ABONNEMENT en arbitre (décideur) ou relecteur** — décidé par Fabien : l'appel du
-   CLI SANS la surface MCP, comme couloir du décideur / d'un relecteur. Pas d'API (aucun crédit).
+1. ~~**Claude par l'ABONNEMENT en arbitre (décideur) ou relecteur**~~ — ✅ **livré dans la nuit du
+   29 au 30/10** (`24bfec99`, `9b03e9ce`) en ARBITRE : réglage « Arbitre du council »
+   (`council_decider`, Automatique ou un modèle choisi — le tirage ne retient jamais l'abonnement) ;
+   un tour sans outil passe sur l'abonnement, le CLI appelé sans la surface MCP de WAMA. Éprouvé :
+   arbitre `claude-sonnet-5-5` en 29,9 s sur un council de trois agents d'ILaaS. La supervision
+   existante (`ask_claude_code`, `dev_claude_code`) garde son appel. Relecteur Claude « en plus »
+   des agents : extension non faite. ⚠ Relevé à l'essai : un agent (`gemma-4-31b`) a épuisé ses
+   actions sans rendre de rapport — à suivre avec le point 4.
 2. Les étapes des sous-agents visibles à l'écran (`WAMA_HARNESS §9` chantier 4) : on attend
    aujourd'hui sans rien voir.
 3. Le couloir local ralentit aussi les tâches INDÉPENDANTES (264 s contre 12-60 s) — la règle
