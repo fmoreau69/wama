@@ -1,11 +1,18 @@
 """
-olmOCR-2 backend — Allen AI VLM-based OCR.
+olmOCR backend — Allen AI VLM-based OCR.
 
-Basé sur Qwen2-VL fine-tuné pour la reconnaissance de documents.
 Supporte : PDF, images (JPG, PNG, TIFF, WebP), imprimé + manuscrit.
 
-HuggingFace ID par défaut : allenai/olmOCR-7B-0225-preview
-(configurable dans reader/utils/model_config.py)
+Deux générations servies, chacune DÉCLARÉE dans `SUPPORTED_MODELS` (2026-10-29, décision de
+Fabien : « olmOCR v1 → v2 ») :
+  • `olmocr` — la ligne du reader, olmOCR v1 « preview » (`allenai/olmOCR-7B-0225-preview`, sur
+    Qwen2-VL), avec la consigne d'origine du reader ;
+  • `allenai/olmOCR-2-7B-1025` — olmOCR-2 (sur Qwen2.5-VL, 82,3 sur olmOCR-Bench), installé par
+    la route depuis sa proposition de successeur (`prospector.seed_hf_successors`). Lu comme son
+    auteur l'a entraîné (fiche du modèle, boîte à outils olmocr ≥ 0.4) : la page à 1288 px sur son
+    plus grand côté, la consigne `build_no_anchoring_v4_yaml_prompt`, une réponse en Markdown
+    précédée d'un en-tête YAML (langue, rotation, tableau, schéma) que ce backend retire.
+Le dépôt et le dossier des poids se lisent sur la LIGNE de catalogue confiée (`catalogue_key`).
 """
 import os
 import logging
@@ -15,6 +22,37 @@ from typing import Callable, Optional
 from wama.common.backends.ocr_base import OCRBackend
 
 logger = logging.getLogger(__name__)
+
+#: La consigne d'olmOCR-2, mot pour mot : `build_no_anchoring_v4_yaml_prompt()` de la boîte à
+#: outils olmocr (`olmocr/prompts/prompts.py`, Apache-2.0, lue le 2026-10-29) — celle sur laquelle le
+#: modèle a été entraîné ; une consigne maison le ferait lire hors de son apprentissage. (« LateX »
+#: est dans l'original.)
+OLMOCR_V4_YAML_PROMPT = (
+    "Attached is one page of a document that you must process. "
+    "Just return the plain text representation of this document as if you were reading it naturally. Convert equations to LateX and tables to HTML.\n"
+    "If there are any figures or charts, label them with the following markdown syntax ![Alt text describing the contents of the figure](page_startx_starty_width_height.png)\n"
+    "Return your output as markdown, with a front matter section on top specifying values for the primary_language, is_rotation_valid, rotation_correction, is_table, and is_diagram parameters."
+)
+
+
+def _fit_longest_side(image, longest: int):
+    """L'image redimensionnée pour que son plus grand côté fasse `longest` px (la taille sur
+    laquelle olmOCR-2 a été entraîné), proportions gardées."""
+    width, height = image.size
+    scale = longest / float(max(width, height))
+    if abs(scale - 1.0) < 1e-3:
+        return image
+    from PIL import Image
+    return image.resize((max(1, round(width * scale)), max(1, round(height * scale))),
+                        Image.LANCZOS)
+
+
+def without_front_matter(text: str) -> str:
+    """Le texte d'une réponse d'olmOCR-2 sans son en-tête YAML (`---` … `---` : langue, rotation,
+    tableau, schéma) — ce que le contrat OCR rend est le texte LU. Sans en-tête, le texte tel quel."""
+    from wama.common.utils.front_matter import split_front_matter
+    header, body = split_front_matter((text or '').lstrip())
+    return body.strip() if header else text
 
 
 class OlmOCRBackend(OCRBackend):
@@ -28,14 +66,49 @@ class OlmOCRBackend(OCRBackend):
     #: Les clés sont les `model_id` du catalogue (segment après `<source>:`), vocabulaire
     #: PARTAGÉ avec `SUPPORTED_MODELS` des backends imager — une graphie différente rouvrirait
     #: le trou qu'on ferme.
-    SUPPORTED_MODELS = {'olmocr': {}}
+    #: ⚠ En LITTÉRAL (l'inventaire lit par AST). Pour olmOCR-2, la façon de LIRE déclarée par son
+    #: auteur : `prompt` (`v4_yaml` = la consigne de la boîte à outils olmocr ≥ 0.4, recopiée de sa
+    #: source sous licence Apache-2.0), `longest_side` (px), `temperature`, `max_new_tokens`.
+    SUPPORTED_MODELS = {
+        'olmocr': {},
+        'allenai/olmOCR-2-7B-1025': {'prompt': 'v4_yaml', 'longest_side': 1288,
+                                     'temperature': 0.1, 'max_new_tokens': 8000},
+    }
     REQUIRED_PACKAGES = ['transformers', 'torch']
     recommended_vram_gb = 8.0
-    description = "olmOCR (Qwen2-VL) — OCR de documents."
+    description = "olmOCR (Qwen2-VL, olmOCR-2 sur Qwen2.5-VL) — OCR de documents."
 
     def __init__(self):
         self._model = None
         self._processor = None
+        self._loaded_repo = ''
+        self.catalogue_key = ''
+
+    def _served(self) -> dict:
+        """Ce que `SUPPORTED_MODELS` déclare du modèle confié (`catalogue_key`), {} sinon."""
+        from wama.common.utils.model_keys import model_id
+        return dict(self.SUPPORTED_MODELS.get(model_id(self.catalogue_key) if self.catalogue_key
+                                              else 'olmocr') or {})
+
+    def _weights(self) -> tuple:
+        """`(dépôt, cache_dir)` du modèle confié : le dépôt sur SA ligne de catalogue
+        (`AIModel.hf_repo`), le dossier où la ROUTE a installé ses poids — le lien de la
+        désinstallation (`model_installer.weights_dir_of`). La ligne du reader, sans clé ou sans
+        poids repérés, garde sa déclaration et son dossier de famille, comme avant."""
+        from django.conf import settings
+
+        from wama.common.external_sources import hf_repo
+        from wama.common.utils.model_declarations import declaration
+        default_dir = str(settings.MODEL_PATHS.get('ocr', {}).get('olmocr', ''))
+        if self.catalogue_key:
+            from wama.model_manager.models import AIModel
+            from wama.model_manager.services.model_installer import weights_dir_of
+            row = AIModel.objects.filter(model_key=self.catalogue_key).first()
+            if row is not None and row.hf_repo:
+                where = weights_dir_of(row)
+                return row.hf_repo, (str(where.parent) if where is not None
+                                     and where.name.startswith('models--') else default_dir)
+        return hf_repo((declaration('reader', 'olmocr') or {}).get('platform_ref')), default_dir
 
     @classmethod
     def is_available(cls) -> bool:
@@ -106,17 +179,13 @@ class OlmOCRBackend(OCRBackend):
             pass
 
     def load(self, model: Optional[str] = None) -> bool:
-        import os
-        # Étape 2 (2026-09-06) : plus d'import du model_config de l'app. Les deux besoins
-        # sont de NATURE différente et se lisent à des sources différentes — un chemin de
-        # poids vient de `settings`, une déclaration vient du passe-plat commun.
-        from django.conf import settings
-
-        from wama.common.external_sources import hf_repo
-        from wama.common.utils.model_declarations import declaration
-
-        cache_dir = str(settings.MODEL_PATHS.get('ocr', {}).get('olmocr', ''))
-        repo_id = hf_repo((declaration('reader', 'olmocr') or {}).get('platform_ref'))
+        # Le dépôt et le dossier : ceux de la ligne confiée (`_weights`) — un chemin de poids
+        # vient de la route qui l'a installé, une déclaration du passe-plat commun.
+        repo_id, cache_dir = self._weights()
+        if self._model is not None and self._loaded_repo == repo_id:
+            return True
+        if self._model is not None:
+            self.unload()
 
         # Env NON muté (ROADMAP §5b, 2026-09-04) : les deux `from_pretrained` ci-dessous
         # portent `cache_dir=`, qui route le modèle PRINCIPAL. La mutation n'ajoutait rien
@@ -125,16 +194,7 @@ class OlmOCRBackend(OCRBackend):
         self._free_vram_before_load()
 
         import torch
-        try:
-            from transformers import AutoProcessor
-        except ImportError:
-            from transformers.models.auto.processing_auto import AutoProcessor
-
-        # olmOCR is Qwen2-VL — must use the VL model class, not AutoModelForCausalLM
-        try:
-            from transformers import Qwen2VLForConditionalGeneration
-        except ImportError:
-            from transformers.models.qwen2_vl.modeling_qwen2_vl import Qwen2VLForConditionalGeneration
+        from transformers import AutoModelForImageTextToText, AutoProcessor
 
         logger.info(f"[olmOCR] Chargement {repo_id} depuis {cache_dir}")
         device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -144,7 +204,9 @@ class OlmOCRBackend(OCRBackend):
             cache_dir=cache_dir,
             trust_remote_code=True,
         )
-        self._model = Qwen2VLForConditionalGeneration.from_pretrained(
+        # La classe VL que dit la config du dépôt (Qwen2-VL pour la v1, Qwen2.5-VL pour
+        # olmOCR-2) — jamais `AutoModelForCausalLM`, qui n'a pas la tour de vision.
+        self._model = AutoModelForImageTextToText.from_pretrained(
             repo_id,
             cache_dir=cache_dir,
             torch_dtype=torch.bfloat16 if device == 'cuda' else torch.float32,
@@ -152,6 +214,7 @@ class OlmOCRBackend(OCRBackend):
             trust_remote_code=True,
         )
         self._model.eval()
+        self._loaded_repo = repo_id
         logger.info(f"[olmOCR] Modèle chargé sur {device}")
         return self.is_loaded
 
@@ -165,6 +228,7 @@ class OlmOCRBackend(OCRBackend):
             if self._processor is not None:
                 del self._processor
                 self._processor = None
+            self._loaded_repo = ''
             gc.collect()
             if hasattr(torch, 'cuda'):
                 torch.cuda.empty_cache()
@@ -265,18 +329,19 @@ class OlmOCRBackend(OCRBackend):
     def _process_image(self, image, mode: str, language: str) -> str:
         import torch
 
-        prompt = self._build_prompt(mode, language)
+        served = self._served()
+        if served.get('longest_side'):
+            image = _fit_longest_side(image, served['longest_side'])
+        if served.get('prompt') == 'v4_yaml':
+            # L'ordre de la fiche du modèle : la consigne, puis l'image.
+            content = [{"type": "text", "text": OLMOCR_V4_YAML_PROMPT},
+                       {"type": "image", "image": image}]
+        else:
+            content = [{"type": "image", "image": image},
+                       {"type": "text", "text": self._build_prompt(mode, language)}]
 
         # Qwen2-VL requires chat-template format with image + text in a message
-        messages = [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "image": image},
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ]
+        messages = [{"role": "user", "content": content}]
 
         text = self._processor.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True
@@ -289,18 +354,20 @@ class OlmOCRBackend(OCRBackend):
             return_tensors="pt",
         ).to(self._model.device)
 
+        sampling = ({'do_sample': True, 'temperature': served['temperature']}
+                    if served.get('temperature') else {'do_sample': False})
         with torch.no_grad():
             output_ids = self._model.generate(
                 **inputs,
-                max_new_tokens=4096,
-                do_sample=False,
+                max_new_tokens=served.get('max_new_tokens') or 4096,
+                **sampling,
             )
 
         # Decode only the generated part (skip input tokens)
         input_len = inputs['input_ids'].shape[1]
         generated = output_ids[0][input_len:]
         result = self._processor.decode(generated, skip_special_tokens=True).strip()
-        return result
+        return without_front_matter(result) if served.get('prompt') == 'v4_yaml' else result
 
     def _build_prompt(self, mode: str, language: str) -> str:
         lang_hint = f" The document is in {language}." if language else ""

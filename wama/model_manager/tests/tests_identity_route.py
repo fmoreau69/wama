@@ -94,6 +94,60 @@ class BackfillGoesThroughTheManifestTest(TestCase):
         self.assertIn('huggingface:org/gate', [c.args[0] for c in spy.call_args_list])
 
 
+class AQuantizationInheritsItsOriginTest(TestCase):
+    """2026-10-29 (Fabien: « il faut bien faire hériter la note aux versions quantisées »): a GGUF
+    IS its origin model, and the bench pairs it through it (`AIModel.quantized_base`). The link was
+    set only when the installation received it from the prospection ; chandra-ocr-2 in Q6_K stayed
+    without a score although its card names `datalab-to/chandra-ocr-2`."""
+
+    def test_the_card_says_which_model_a_quantization_is(self):
+        tags = ['gguf', 'base_model:datalab-to/chandra-ocr-2',
+                'base_model:quantized:datalab-to/chandra-ocr-2']
+        self.assertEqual({'base_model': 'datalab-to/chandra-ocr-2',
+                          'base_model_relation': 'quantized'},
+                         provenance.quantized_base_identity(tags, 'org/chandra-ocr-2-GGUF'))
+        # Counter-tests: a fine-tune is not what it IS ; two bases, none is chosen ; itself, nothing.
+        self.assertEqual({}, provenance.quantized_base_identity(
+            ['base_model:finetune:org/base'], 'org/tuned'))
+        self.assertEqual({}, provenance.quantized_base_identity(
+            ['base_model:quantized:org/a', 'base_model:quantized:org/b'], 'org/m'))
+        self.assertEqual({}, provenance.quantized_base_identity(
+            ['base_model:quantized:Org/M'], 'org/m'))
+        # The Hub infers `quantized` from the files and may name the BASE of a fine-tune (dry run
+        # of 2026-10-29): kept only when the repository carries the origin's full name.
+        self.assertEqual({}, provenance.quantized_base_identity(
+            ['base_model:quantized:Qwen/Qwen3-4B-Base'], 'Qwen/Qwen3-Embedding-4B-GGUF'))
+        self.assertEqual({}, provenance.quantized_base_identity(
+            ['base_model:quantized:mistralai/Ministral-3-8B-Base-2512'],
+            'mistralai/Ministral-3-8B-Instruct-2512'))
+
+    def test_the_card_is_read_with_the_hub_retry_of_the_prospection(self):
+        """A pass over ~300 cards met 298 refusals in a row (rate limit, 2026-10-29): the card is
+        read through `prospector._hub_model_info` (one retry after `Retry-After`)."""
+        from types import SimpleNamespace
+        info = SimpleNamespace(card_data=None, author='org', gated=False, pipeline_tag='image-to-text',
+                               library_name='', tags=['base_model:quantized:org/chandra-ocr-2'])
+        with mock.patch('wama.model_manager.services.prospector._hub_model_info',
+                        return_value=info) as read:
+            ident = provenance.huggingface_identity('org/chandra-ocr-2-GGUF')
+        read.assert_called_once()
+        self.assertEqual('org/chandra-ocr-2', ident['base_model'])
+
+    def test_the_licence_pass_sets_the_origin_and_the_bench_then_pairs_through_it(self):
+        _row('ollama:hf.co/org/chandra-ocr-2-GGUF:Q6_K', source='ollama',
+             platform_ref='huggingface:org/chandra-ocr-2-GGUF')
+        card = {'license': 'openrail', 'author': 'org',
+                'platform_ref': 'huggingface:org/chandra-ocr-2-GGUF', 'gated': 'no',
+                'publications': [], 'base_model': 'datalab-to/chandra-ocr-2',
+                'base_model_relation': 'quantized', 'declared': {'capabilities': {}, 'engine': ''}}
+        with mock.patch.object(provenance, 'huggingface_identity', return_value=card):
+            call_command('backfill_platform_refs', '--licenses', '--ecrire',
+                         stdout=mock.MagicMock())
+        row = AIModel.objects.get(model_key='ollama:hf.co/org/chandra-ocr-2-GGUF:Q6_K')
+        self.assertEqual('datalab-to/chandra-ocr-2', row.quantized_base)
+        self.assertIn('datalab-to/chandra-ocr-2', row.hub_repos(), 'the bench pairs through it')
+
+
 class OllamaCandidatesCarryTheirPlatformTest(TestCase):
 
     def _write(self, key, nom, **fields):

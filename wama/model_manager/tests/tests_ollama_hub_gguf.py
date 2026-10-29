@@ -17,6 +17,38 @@ from wama.model_manager.models import AIModel
 from wama.model_manager.services import prospector as p
 
 
+class TheSyncKeepsThePrecisionTest(TestCase):
+    """2026-10-29 (Fabien): the precision of the weights is SAID at the draw. The Ollama sync
+    already read it (`/api/show`, for the a-priori index) and threw it away ; it is now kept on the
+    row (`AIModel.quantization`)."""
+
+    LISTING = ("NAME                                        ID              SIZE      MODIFIED\n"
+               "hf.co/org/chandra-ocr-2-GGUF:Q6_K           123456789abc    4.8 GB    1 day ago\n")
+
+    def test_the_precision_read_by_the_sync_is_kept_on_the_row(self):
+        from unittest import mock
+        from wama.model_manager.services import model_registry as mr
+        registry = mr.ModelRegistry()
+        saved = dict(registry._models)
+        registry._models.clear()
+        done = mock.Mock(returncode=0, stdout=self.LISTING)
+        try:
+            with mock.patch.object(mr.subprocess, 'run', return_value=done), \
+                    mock.patch.object(mr.ModelRegistry, '_ollama_charges', return_value={}), \
+                    mock.patch.object(mr.ModelRegistry, '_ollama_capacites', return_value={}), \
+                    mock.patch.object(mr.ModelRegistry, '_ollama_fiche',
+                                      return_value={'quantization': 'Q6_K', 'params_b': '5B'}):
+                registry._discover_ollama_models()
+            info = registry._models['ollama:hf.co/org/chandra-ocr-2-GGUF:Q6_K']
+        finally:
+            registry._models.clear()
+            registry._models.update(saved)
+        self.assertEqual('Q6_K', info.extra_info.get('quantization'))
+        row = AIModel(model_key='x', extra_info=dict(info.extra_info))
+        self.assertEqual('Q6_K', row.quantization)
+        self.assertEqual('', AIModel(model_key='y').quantization, 'nothing said, nothing shown')
+
+
 class GgufQuantTest(SimpleTestCase):
 
     def test_the_quantisation_is_read_from_the_file_name(self):

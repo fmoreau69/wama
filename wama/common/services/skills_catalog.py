@@ -242,21 +242,14 @@ def _frontmatter(texte: str):
     Volontairement minimal — on ne lit que `name` et `description`, seules clés dont la page a
     besoin. Un parseur complet ferait dépendre une page d'affichage d'un format tiers.
     """
-    if not texte.startswith('---'):
-        return {}, texte
-    fin = texte.find('\n---', 3)
-    if fin == -1:
-        return {}, texte
-    meta = {}
-    for ligne in texte[3:fin].splitlines():
-        cle, sep, valeur = ligne.partition(':')
-        # `prompt` / `agent` : le LIEN DÉCLARÉ vers une consigne de rôle wama-dev-ai. Convention
-        # posée par `/cartographie` et documentée dans son corps (« la méthode vit dans le
-        # prompt, le séquençage ici, ne JAMAIS recopier la méthode »). Elle existait sans être
-        # ni outillée ni mesurée : 1 skill sur 14 la portait, et rien ne l'aurait dit.
-        if sep and cle.strip() in ('name', 'description', 'prompt', 'agent'):
-            meta[cle.strip()] = valeur.strip()
-    return meta, texte[fin + 4:].lstrip('\n')
+    from wama.common.utils.front_matter import flat_keys, split_front_matter
+    header, body = split_front_matter(texte)
+    # `prompt` / `agent` : le LIEN DÉCLARÉ vers une consigne de rôle wama-dev-ai. Convention
+    # posée par `/cartographie` et documentée dans son corps (« la méthode vit dans le
+    # prompt, le séquençage ici, ne JAMAIS recopier la méthode »). Elle existait sans être
+    # ni outillée ni mesurée : 1 skill sur 14 la portait, et rien ne l'aurait dit.
+    return (flat_keys(header, keep=('name', 'description', 'prompt', 'agent')),
+            body.lstrip('\n') if body is not texte else body)
 
 
 def synthese() -> dict:

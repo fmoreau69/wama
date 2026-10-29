@@ -52,7 +52,10 @@ def huggingface_identity(repo_id: str) -> Optional[dict]:
         logger.debug("[provenance] huggingface_hub absent")
         return None
     try:
-        info = HfApi().model_info(repo_id)
+        # La lecture du Hub de la prospection, et sa reprise sur 429 (2026-10-29 : un rattrapage de
+        # ~300 cartes a reçu 298 refus d'affilée — la limite de débit, pas des dépôts absents).
+        from .prospector import _hub_model_info
+        info = _hub_model_info(HfApi(), repo_id)
     except Exception as e:
         logger.info(f"[provenance] {repo_id} injoignable : {type(e).__name__}")
         return None
@@ -89,8 +92,46 @@ def huggingface_identity(repo_id: str) -> Optional[dict]:
         'gated': gated,
         # Les PUBLICATIONS que l'auteur rattache à son modèle (2026-10-10) — même requête.
         'publications': arxiv_ids(getattr(info, 'tags', None) or ()),
+        # Le modèle dont ce dépôt est une QUANTIFICATION (2026-10-29) — même requête.
+        **quantized_base_identity(getattr(info, 'tags', None) or (), repo_id),
         'declared': {'capabilities': facts['capabilities'], 'engine': facts['engine']},
     }
+
+
+#: Étiquette que le Hub pose sur un dépôt dont la carte déclare `base_model` avec la relation
+#: `quantized` : `base_model:quantized:<org/nom>`.
+_QUANTIZED_TAG = 'base_model:quantized:'
+
+
+def quantized_base_identity(tags, repo_id: str = '') -> dict:
+    """`{base_model, base_model_relation: 'quantized'}` quand le dépôt se DÉCLARE la quantification
+    d'UN modèle (étiquette `base_model:quantized:<dépôt>` du Hub), `{}` sinon.
+
+    POURQUOI (2026-10-29, question de Fabien : « olm-ocr n'est jamais prévu ») : un GGUF EST son
+    modèle d'origine, et c'est par lui que le banc l'apparie (`AIModel.quantized_base`,
+    `benchmark_sync._local_repos`). Ce lien n'était posé que si l'installation le recevait de la
+    prospection (`identity_for_spec`, descripteur `base_model`) : chandra-ocr-2 en Q6_K, entré
+    autrement, restait SANS note alors que sa carte nomme `datalab-to/chandra-ocr-2` (85,8 sur
+    olmOCR-Bench) — et le tirage ne le comparait à rien. La relation `quantized` SEULE : une LoRA ou
+    un affinage déclarent aussi un `base_model`, qui n'est pas ce qu'ils SONT. Plusieurs bases
+    déclarées : aucune n'est choisie.
+
+    ⚠ L'étiquette du Hub se TROMPE parfois (relevé au passage à blanc du 2026-10-29) : il déduit
+    `quantized` des fichiers du dépôt, et nomme alors le socle d'un AFFINAGE — `Qwen3-Embedding-4B-GGUF`
+    « quantification » de `Qwen3-4B-Base`, `Ministral-3-8B-Instruct` de la version `Base`. Un tel lien
+    donnerait la note du socle. La base n'est donc retenue que si le dépôt porte son NOM COMPLET :
+    le filtre strict des variantes de la prospection (`prospector.names_the_same_model`)."""
+    from .prospector import names_the_same_model
+    bases = {str(t)[len(_QUANTIZED_TAG):].strip() for t in tags or ()
+             if str(t).startswith(_QUANTIZED_TAG)}
+    bases.discard('')
+    if len(bases) != 1:
+        return {}
+    base = bases.pop()
+    if base.lower() == (repo_id or '').lower() or not names_the_same_model(base, repo_id):
+        return {}
+    from wama.model_manager.models import BASE_RELATION_QUANTIZED
+    return {'base_model': base, 'base_model_relation': BASE_RELATION_QUANTIZED}
 
 
 #: Identifiant arXiv (forme moderne `AAMM.NNNNN`, version facultative) — ce que le Hub écrit dans

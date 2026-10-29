@@ -1696,6 +1696,7 @@ document.addEventListener('DOMContentLoaded', function() {
             { k: 'Clé', get: function (m) { return m.model_key || m.id; }, code: true },
             { k: 'Backend', field: 'backend_ref' },
             { k: 'Modèle de base', field: 'quantized_base', code: true },
+            { k: 'Précision', field: 'quantization', code: true },
         ] },
         { section: 'Format', rows: [
             { k: 'Actuel → préféré', get: function (m) { return m.format || '—'; },

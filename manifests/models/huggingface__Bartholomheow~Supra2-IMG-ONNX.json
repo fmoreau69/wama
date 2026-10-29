@@ -11,6 +11,9 @@
         "image"
       ],
       "native_resolution": "256x256",
+      "params": [
+        "seed"
+      ],
       "task": "text-to-image"
     },
     "composition": {
@@ -47,6 +50,8 @@
     },
     "identity": {
       "author": "Bartholomheow",
+      "base_model": "SupraLabs/Supra2-IMG",
+      "base_model_relation": "quantized",
       "description_short": "Snapshot HF Supra2-IMG-ONNX",
       "license": "apache-2.0",
       "model_type": "diffusion",

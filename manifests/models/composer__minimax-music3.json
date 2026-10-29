@@ -13,6 +13,7 @@
       ],
       "params": [],
       "recommended_temperature": null,
+      "recommended_top_p": null,
       "supports_vocals": true,
       "task": "text-to-music"
     },
@@ -62,6 +63,8 @@
     },
     "identity": {
       "author": "MiniMaxAI (poids) / audio-cpp (package GGUF)",
+      "base_model": "MiniMaxAI/MiniMax-Music3",
+      "base_model_relation": "quantized",
       "description_short": "MiniMax-Music3 — chansons complètes avec paroles chantées (Q8)",
       "gated": "no",
       "license": "minimax-music3-community",

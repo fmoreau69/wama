@@ -3186,7 +3186,13 @@ class ModelRegistry:
                                 format='gguf',
                                 preferred_format=preferred,
                                 can_convert_to=[],  # Managed by Ollama
-                                extra_info={'disk_gb': ram_gb, 'ollama_id': model_id_hash},
+                                extra_info={'disk_gb': ram_gb, 'ollama_id': model_id_hash,
+                                            # La PRÉCISION des poids (`Q4_K_M`, `Q8_0`, `BF16`…),
+                                            # lue dans la même fiche que l'indice a priori qui en
+                                            # tient compte — gardée pour être DITE au tirage
+                                            # (`AIModel.quantization`, 2026-10-29).
+                                            **({'quantization': fiche['quantization']}
+                                               if fiche.get('quantization') else {})},
                                 # Capacités CANONIQUES, dérivées de ce qu'OLLAMA DÉCLARE
                                 # (`/api/tags` → `capabilities`), plus de ce qu'on suppose.
                                 # Corrige deux angles morts : les modèles d'embedding ne sont

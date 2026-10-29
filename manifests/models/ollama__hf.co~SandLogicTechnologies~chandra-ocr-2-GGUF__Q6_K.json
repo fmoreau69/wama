@@ -11,6 +11,7 @@
       "completion": true,
       "context_length": 262144,
       "embedding": false,
+      "inputs_optional": [],
       "inputs_required": [
         "work_file"
       ],
@@ -23,6 +24,8 @@
       ],
       "params_active_b": 4.96,
       "params_total_b": 4.96,
+      "recommended_temperature": null,
+      "recommended_top_p": null,
       "task": "ocr",
       "thinking": true,
       "tools": true,
@@ -34,6 +37,7 @@
       }
     },
     "extra_info": {
+      "quantization": "Q6_K",
       "vram_provenance": "heuristic"
     },
     "formats": {
@@ -43,6 +47,8 @@
     },
     "identity": {
       "author": null,
+      "base_model": "datalab-to/chandra-ocr-2",
+      "base_model_relation": "quantized",
       "description_short": "Ollama LLM (4.8 GB)",
       "license": null,
       "model_type": "ocr",

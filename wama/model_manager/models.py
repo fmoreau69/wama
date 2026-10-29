@@ -979,6 +979,16 @@ class AIModel(ScopedVisibility):
             return ''
         return str(info.get('base_model') or '').strip()
 
+    @property
+    def quantization(self) -> str:
+        """La PRÉCISION des poids tels qu'ils tournent ici (`Q4_K_M`, `Q6_K`, `Q8_0`, `BF16`…), ''
+        quand rien ne la dit — celle que relève la synchronisation d'Ollama (`/api/show`).
+
+        Dite AU TIRAGE (2026-10-29, Fabien : « garder la précision qu'ils sont quantisés au tirage
+        pour en être informé à minima ») : une quantification HÉRITE la note de son modèle d'origine
+        (`quantized_base`), en borne haute — la précision dit ce que cette note ne dit pas."""
+        return str((self.extra_info or {}).get('quantization') or '').strip()
+
     def hub_repos(self) -> set:
         """Les dépôts du Hub que cette ligne EST, en minuscules : celui de ses poids (`hf_repo`) et,
         pour une quantification, son modèle canonique (`quantized_base`). LA règle par ligne de
@@ -1150,6 +1160,7 @@ class AIModel(ScopedVisibility):
             # Le modèle canonique d'une quantification (l'inspecteur le nomme) — le dépôt d'où
             # viennent les poids se lit dans `platform_ref`, juste en dessous.
             'quantized_base': self.quantized_base,
+            'quantization': self.quantization,
             'license': self.license,
             'author': self.author,
             'platform_ref': self.platform_ref,

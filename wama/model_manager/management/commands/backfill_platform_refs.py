@@ -292,7 +292,7 @@ class Command(BaseCommand):
         from wama.model_manager.services.provenance import huggingface_identity
 
         vus, corriges, echecs, acces_poses = 0, 0, 0, 0
-        publications_set = 0
+        publications_set, origins_set = 0, 0
         # Plus de `filter(license='')` : la carte de l'editeur fait AUTORITE, y compris pour
         # corriger une licence deja posee par le repli « poids » (qui rend l'AGPL du cadre
         # ultralytics). Rester sur les seuls champs vides rendait l'outil dependant de l'ORDRE
@@ -316,8 +316,11 @@ class Command(BaseCommand):
             # vrai : aucune règle n'est redite ici.
             from wama.model_manager.services.provenance import set_identity
             lic = str(ident.get('license') or '')[:64]
+            # Le modèle d'origine d'une QUANTIFICATION (2026-10-29) : c'est par lui que le banc
+            # apparie un GGUF — sans lui, la ligne restait sans note.
             res = set_identity(m.model_key, {k: ident.get(k) for k in
-                                             ('license', 'author', 'gated', 'publications')},
+                                             ('license', 'author', 'gated', 'publications',
+                                              'base_model', 'base_model_relation')},
                                apply=ecrire, export=False)
             if res.get('error'):
                 self.stderr.write(self.style.ERROR(f"    {m.model_key} : pose en echec — "
@@ -326,6 +329,9 @@ class Command(BaseCommand):
             posed = res.get('posed') or []
             acces_poses += 'gated' in posed
             publications_set += 'publications' in posed
+            if 'base_model' in posed:
+                origins_set += 1
+                self.stdout.write(f"  {m.model_key:46s} quantification de {ident.get('base_model')}")
             if 'license' in posed:
                 if m.license:
                     corriges += 1
@@ -338,4 +344,6 @@ class Command(BaseCommand):
         self.stdout.write(f"acces (gated) : {acces_poses} regime(s) mis a jour"
                           + ("" if ecrire else " (simulation)"))
         self.stdout.write(f"publications  : {publications_set} modele(s) completes"
+                          + ("" if ecrire else " (simulation)"))
+        self.stdout.write(f"quantifications : {origins_set} reliee(s) a leur modele d'origine"
                           + ("" if ecrire else " (simulation)"))

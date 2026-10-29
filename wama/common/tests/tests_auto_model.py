@@ -177,6 +177,27 @@ class PreviewOriginTest(TestCase):
         # Counter-test: a preview without an origin (older answer) keeps the former text.
         self.assertEqual('Prévu : x (1 Go) — réévalué au lancement',
                          v8.eval("window.WamaParams.autoPreviewText({name: 'x', vram_gb: 1})"))
+        # 2026-10-29 (Fabien): a quantised version inherits its origin's score — its PRECISION
+        # follows the name, so that the user knows at least that.
+        self.assertEqual('Prévu : chandra · Q6_K (4.8 Go) · WAMA local · Ollama — réévalué au '
+                         'lancement',
+                         v8.eval("window.WamaParams.autoPreviewText({name: 'chandra', "
+                                 "quantization: 'Q6_K', vram_gb: 4.8, origin: 'WAMA local · Ollama'})"))
+
+    def test_the_preview_carries_the_precision_of_the_weights(self):
+        """`AIModel.quantization` — what the Ollama sync reads (`/api/show`) — reaches the preview ;
+        a model whose precision nothing says has none."""
+        from unittest import mock
+        quantised = _tts('ollama:hf.co/org/m-GGUF:Q6_K', 'm', 1.0)
+        quantised.extra_info = {'quantization': 'Q6_K'}
+        quantised.save(update_fields=['extra_info'])
+        with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                        return_value=quantised.model_key):
+            self.assertEqual('Q6_K', predict_model_choice({'task': 'text-to-speech'})['quantization'])
+        plain = _tts('synthesizer:plain', 'plain', 0.5)
+        with mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                        return_value=plain.model_key):
+            self.assertEqual('', predict_model_choice({'task': 'text-to-speech'})['quantization'])
 
 
 class EndpointOptionsAutoTest(TestCase):

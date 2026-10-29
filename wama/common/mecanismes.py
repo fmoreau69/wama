@@ -3200,6 +3200,9 @@ ASSUMED_LOCAL = {
     # dérive `prompt_skills/*.md` × PROMPT_TARGETS × DOMAINES pour un seul gabarit. Les mécanismes
     # qu'il donne à VOIR sont déjà déclarés (`prompt_pipeline`, `assistant_skills`, `registres`).
     'wama/common/services/skills_catalog.py': "dérivation d'affichage du catalogue de skills — consommée par la vue `skills_catalog` seule",
+    # 2026-10-29 : la lecture de l'en-tête `---` … `---` que recopiaient le catalogue des skills et
+    # `check_skills`, et dont la réponse d'olmOCR-2 avait besoin — plomberie de texte, pas un mécanisme.
+    'wama/common/utils/front_matter.py': "en-tête `---` d'un texte (SKILL.md, réponse d'olmOCR-2) — trois lecteurs, une lecture",
 }
 
 

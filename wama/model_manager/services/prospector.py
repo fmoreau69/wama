@@ -651,6 +651,20 @@ _QUANT_MARKERS = ('gguf', 'fp8', 'bnb', 'int4', 'int8', 'fp4', 'nvfp4',
                  '4bit', '8bit', 'awq', 'gptq', 'quant', 'comfy')
 
 
+def names_the_same_model(base_repo: str, variant_repo: str) -> bool:
+    """Le dépôt `variant_repo` porte-t-il le NOM COMPLET du modèle `base_repo` (alphanumérique, sans
+    casse) ? — le filtre STRICT d'une variante quantisée : « chandra-ocr-2 » dans
+    « chandra-ocr-2-GGUF », oui ; « Qwen3-4B-Base » dans « Qwen3-Embedding-4B-GGUF », non (un
+    affinage du même socle, pas sa quantification). Lu par `quantized_variants` et par la provenance
+    (`provenance.quantized_base_identity`), qui confronte à lui l'étiquette du Hub."""
+    import re
+
+    def normal(s):
+        return re.sub(r'[^a-z0-9]', '', str(s or '').lower())
+    target = normal(str(base_repo or '').split('/')[-1])
+    return bool(target) and target in normal(variant_repo)
+
+
 def quantized_variants(repo_id: str, limit: int = 5) -> list[dict]:
     """
     Dépôts HF dérivés QUANTISÉS d'un modèle (GGUF/FP8/4-8bit/AWQ…), triés par téléchargements.
@@ -672,8 +686,6 @@ def quantized_variants(repo_id: str, limit: int = 5) -> list[dict]:
         return []
 
     nom_court = repo_id.split('/')[-1]
-    normaliser = lambda s: re.sub(r'[^a-z0-9]', '', s.lower())  # noqa: E731
-    cible = normaliser(nom_court)
     radical = re.sub(r'[-_ ]?\d+(\.\d+)?$', '', nom_court) or nom_court
 
     vus, variantes = {repo_id.lower()}, []
@@ -687,7 +699,7 @@ def quantized_variants(repo_id: str, limit: int = 5) -> list[dict]:
             continue
         for d in depots:
             did = d.id.lower()
-            if did in vus or cible not in normaliser(d.id):
+            if did in vus or not names_the_same_model(repo_id, d.id):
                 continue
             if not any(m in did for m in _QUANT_MARKERS):
                 continue

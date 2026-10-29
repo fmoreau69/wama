@@ -118,6 +118,20 @@ Ce qui reste, et pourquoi :
   Whisper). Le remède est la **mesure interne sur corpus** (§4.1, catégorisée §4.4 — l'OCR
   imprimé et manuscrit ne se comparent pas ensemble), Fabien le rappelle : *« une mesure réelle
   sur un corpus est nécessaire pour un tirage automatique de qualité »*.
+  ✅ **Le même jour, l'héritage des versions QUANTISÉES** (décision de Fabien : *« il faut bien
+  faire hériter la note aux versions quantisées, mais garder la précision qu'ils sont quantisés
+  au tirage »*). L'héritage existait (`quantized_base`, appariement par dépôt depuis le 27/10) ;
+  le LIEN n'était posé que si l'installation le recevait de la prospection. Désormais
+  `provenance.huggingface_identity` le lit sur la carte (étiquette `base_model:quantized:`), avec
+  la reprise sur 429 de la prospection, et ne le retient que si le dépôt porte le NOM COMPLET du
+  modèle d'origine (`prospector.names_the_same_model`, le filtre strict des variantes) — le Hub
+  déduit `quantized` des fichiers et nommait le socle d'un affinage (`Qwen3-Embedding-4B-GGUF` →
+  `Qwen3-4B-Base`, `olmOCR-2-7B-1025-FP8` → `Qwen2.5-VL-7B-Instruct`). 17 lignes reliées par
+  `set_identity` (passage à blanc relu avant), `sync_benchmarks` : chandra-ocr-2 Q6_K hérite du
+  85,8. La PRÉCISION (`AIModel.quantization`, relevée par la synchronisation d'Ollama qui la lisait
+  déjà pour l'a priori) est dite dans la prévision : « Prévu : … · Q6_K (4.8 Go) ». Remesuré :
+  reader → glm-ocr (F16) au curseur 0, chandra-ocr-2 (Q6_K) à 50 et 100. Composer, transcriber
+  inchangés.
 
 ⚠ **Et LOCAL ≠ DISTANT sur l'axe de la VRAM** (même demande). Un modèle distant a
 `vram_gb = 0` : le repli en faisait mécaniquement le **pire** du lot, et le terme de coût du

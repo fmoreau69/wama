@@ -78,18 +78,11 @@ JOURS_DORMANT = 60
 
 
 def _frontmatter(texte):
-    """`(métadonnées, corps)`. Sans PyYAML : seules des clés plates nous intéressent."""
-    if not texte.startswith('---'):
-        return {}, texte
-    fin = texte.find('\n---', 3)
-    if fin == -1:
-        return {}, texte
-    meta = {}
-    for ligne in texte[3:fin].splitlines():
-        cle, sep, valeur = ligne.partition(':')
-        if sep:
-            meta[cle.strip()] = valeur.strip()
-    return meta, texte[fin + 4:]
+    """`(métadonnées, corps)`. Sans PyYAML : seules des clés plates nous intéressent — la lecture
+    commune (`common/utils/front_matter`, 2026-10-29)."""
+    from wama.common.utils.front_matter import flat_keys, split_front_matter
+    header, body = split_front_matter(texte)
+    return flat_keys(header), body
 
 
 class Command(BaseCommand):

@@ -35,6 +35,8 @@
     },
     "identity": {
       "author": "onnx-community",
+      "base_model": "caidas/swin2SR-realworld-sr-x4-64-bsrgan-psnr",
+      "base_model_relation": "quantized",
       "description_short": "Snapshot HF swin2SR-realworld-sr-x4-64-bsrgan-psnr-ONNX",
       "license": "apache-2.0",
       "model_type": "upscaling",

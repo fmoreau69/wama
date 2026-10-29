@@ -1233,10 +1233,13 @@
   // ne disait pas que c'était ILaaS) — la phrase des intitulés de groupe du menu, calculée par le
   // serveur (`AIModel.origin_label`) : « WAMA local · Ollama », « Cloud souverain · ILaaS (ESR) ·
   // gratuit (quota) ». Un modèle distant n'a pas de VRAM locale : rien ne s'affiche à sa place.
+  // La PRÉCISION des poids suit le nom (2026-10-29, Fabien) : une version quantisée hérite la note
+  // de son modèle d'origine — « Q6_K » dit ce que cette note ne dit pas.
   function _autoPreviewText(preview) {
+    var quant = preview.quantization ? ' · ' + preview.quantization : '';
     var vram = preview.vram_gb ? ' (' + preview.vram_gb + ' Go)' : '';
     var origin = preview.origin ? ' · ' + preview.origin : '';
-    return 'Prévu : ' + preview.name + vram + origin + ' — réévalué au lancement';
+    return 'Prévu : ' + preview.name + quant + vram + origin + ' — réévalué au lancement';
   }
 
   // ── Sources d'options adossées à une DONNÉE DE PAGE (résolution SYNCHRONE) ──────────────
