@@ -27194,3 +27194,18 @@ et Lab : au portage de leurs apps, alignés le moment venu).
   Rouges d'autrui relevés : `converter.tests.SauverCommeProfilTest` (`data-key` de `e235ee0b` dans
   `wama-params.js`), `tests_editor_axis` (copie servie de `wama-surface.js` en retard sur un WIP),
   `check_docs` : `WAMA_APP_CONVENTIONS.md:164` (`privacy/tests.py`, `3dc708a0`).
+- ✅ **Puis ① SOLDÉ (Fabien : « Ok pour 1, on porte l'upscale vidéo sur le rendu commun en
+  conservant le son comme Anonymizer »)** : le corps vidéo du floutage sort de `detections.py` en
+  brique, `common/utils/video_render.render_video` (une transformation `(indice, image) -> image`,
+  taille de sortie = image PEINTE, nettoyage du fichier en cours sur toute interruption) — appelé par
+  `detections.rewrite_media` (anonymizer, cam_analyzer) et par `enhancer/backends/media_backend.
+  enhance_video`, qui agrandit et encode au fil de la lecture : son RECOPIÉ, chaque image à son
+  horodatage, format d'origine (un conteneur hors table sort en `.mp4`, la glu range le fichier
+  écrit). Retrait `R187` (PNG + ffmpeg à cadence nominale, `_parse_fps`). Mécanisme `video_render`
+  au registre. Tests : 467 (anonymizer, enhancer, converter, cam_analyzer, rendu, gardes
+  transverses) — 2 rouges d'autrui : `SauverCommeProfilTest` (ci-dessus) et
+  `tests_docs_catalog…a_sa_section` (la copie de travail de `docs/dev/briques.md` a PERDU la section
+  « Clavier des briques » commitée dans `24519f42`). Contre-épreuves (corps de HEAD, route de HEAD,
+  glu aveugle au chemin écrit) : rouges. Enhancer 107/107. Reste : la jumelle `enhancer_01`
+  (bac à sable) garde l'ancienne route jusqu'à sa régénération ; brancher l'upscale vidéo au
+  converter reste à décider (`ROADMAP` §Converter, phase 2).

@@ -35,17 +35,24 @@ Elle exploite la librairie **[QualityScaler](https://github.com/Djdefrag/Quality
 - ✅ **Multi-GPU** support
 
 ### Vidéos
-- ✅ **Traitement frame par frame**
-- ✅ **Extraction/encodage** avec FFmpeg
-- ✅ **Préservation FPS** original
-- ✅ **Encodage H.264** haute qualité
-- ⚠ **Constat du 2026-10-29 (revérification) : la PISTE AUDIO de la source n'est pas reportée.**
-  `backends/media_backend.enhance_video` réencode les seules images agrandies (`ffmpeg -framerate
-  <r_frame_rate> -i frame_%05d.png`, `:144`) : la vidéo sort muette, à cadence constante. Le rendu
-  commun écrit pourtant, depuis le 2026-10-28, chaque image à son horodatage d'origine avec l'audio
-  recopié à ses temps (`common/utils/detections.rewrite_media`, l'Anonymizer). ⏳ Porter l'upscale
-  vidéo sur ce rendu — chantier à décider (la taille de sortie y suit l'image d'ENTRÉE, il lui faut
-  suivre l'image agrandie).
+- ✅ **Traitement image par image, par le rendu COMMUN** (`common/utils/video_render.render_video`,
+  2026-10-29, décision de Fabien : « on porte l'upscale vidéo sur le rendu commun en conservant le
+  son comme Anonymizer ») — le même que le floutage de l'Anonymizer :
+  - **le son est gardé** : l'audio de la source est RECOPIÉ paquet par paquet, à ses propres temps
+    (encodé au codec du conteneur seulement quand celui-ci ne l'accepte pas), jamais étiré ;
+  - **chaque image agrandie à SON horodatage d'origine** (PyAV) : une cadence variable garde ses
+    temps, rien ne s'étire ;
+  - **le format d'origine, en un seul encodage**, aux codecs d'une conversion vers ce format
+    (`converter.video_backend.rendering_encoding` : H.264 « visuellement sans perte » pour MP4/MOV/
+    MKV) ; un conteneur hors de cette table sort en `.mp4`, et la card range ce fichier-là
+    (`path` rendu par la route) ;
+  - la taille de sortie est celle de l'image AGRANDIE ; « Garder la résolution d'origine » reste au
+    process « Sortie » (ci-dessous).
+  Jusque-là : extraction des images en PNG par ffmpeg, puis réencodage H.264 à la cadence NOMINALE
+  — la vidéo sortait **muette** (constat de la revérification du 2026-10-29) et une cadence variable
+  s'étirait. Gardes : `enhancer.tests.VideoRouteKeepsItsSoundTest` (vraie vidéo sonore, agrandisseur
+  doublure), `enhancer.tests_task.VideoQueueTest` (le fichier rangé est celui écrit),
+  `common.tests.tests_video_render` (taille changée, son, temps des images, interruption).
 
 ### Garder la résolution d'origine (images et vidéos, 2026-10-16)
 
@@ -379,7 +386,7 @@ wama/enhancer/
 ├── urls.py             # Routing
 ├── tasks.py            # GLU des tâches — squelette commun `task_skeleton.run_item_task`
 ├── backends/           # ROUTES nature → callable au contrat commun « fichier » (2026-09-21)
-│   ├── media_backend.py    # enhance_image / enhance_video (moteur : common/backends/ai_upscaler)
+│   ├── media_backend.py    # enhance_image / enhance_video (moteur : common/backends/ai_upscaler ; vidéo : common/utils/video_render)
 │   └── audio_backend.py    # enhance_audio (moteur : common/backends/audio_enhancer)
 ├── utils/
 │   ├── auto_model.py       # Déclarations du tirage « auto » (domaines, facteur, NFE)

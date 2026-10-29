@@ -844,8 +844,10 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
     (`format_option_groups`), plus d'éventuels choix propres DÉCLARÉS de l'app (`extra_formats`
     — aucun aujourd'hui : le « Format du fichier source » de l'anonymizer est retiré, R186).
     « Original » est le format que la tâche a écrit ; une app qui RÉÉCRIT un fichier déposé
-    l'écrit dans le format déposé (`detections.rewrite_media` : un encodage, audio recopié, son
-    en phase) — « Original » y est donc le format d'origine. Un format d'une autre nature que
+    l'écrit dans le format déposé (le rendu commun `video_render.render_video` : un encodage,
+    chaque image à son horodatage d'origine, audio recopié, son en phase — le floutage par
+    `detections.rewrite_media`, l'agrandissement vidéo de l'enhancer depuis le 2026-10-29) —
+    « Original » y est donc le format d'origine. Un format d'une autre nature que
     l'élément est refusé EN LE DISANT au rendu (`apply_output_settings`), le fichier garde son
     format ;
   - **un vocabulaire de qualité** : celui de la table qui l'applique (`converter/utils/

@@ -11,7 +11,6 @@ s'en dérive (`backend_for_key`) — aucune classe nommée ici, aucun repli muet
 """
 import logging
 import os
-import subprocess
 import time
 
 logger = logging.getLogger(__name__)
@@ -67,105 +66,54 @@ def enhance_image(input_path: str, output_path: str, output_format=None, options
 
 def enhance_video(input_path: str, output_path: str, output_format=None, options=None,
                   progress_callback=None, frame_callback=None) -> dict:
-    """Upscale d'une vidéo image par image : extraction ffmpeg → upscale de chaque frame →
-    ré-encodage H.264 au FPS d'origine dans `output_path`. Options : `ai_model` (résolu),
-    `blend_factor`, `tile_size` (0 = 512 par défaut vidéo). `frame_callback(frame_bgr, i)`
-    reçoit la frame améliorée courante (aperçu « pendant » — best-effort, jamais bloquant).
-    Rend {'width', 'height', 'frames'}."""
-    import cv2
-    from wama.common.utils.ffmpeg_utils import (adapt_path_for_ffmpeg, get_ffmpeg_exe,
-                                                get_ffprobe_exe)
-    from wama.common.utils.work_dir import work_dir
+    """Upscale d'une vidéo image par image, par le rendu COMMUN `video_render.render_video` :
+    chaque image agrandie écrite à SON horodatage d'origine, l'audio de la source recopié à ses
+    propres temps, dans le conteneur de `output_path` (celui de l'entrée : la glu y met son
+    extension), en un seul encodage — le geste du floutage de l'anonymizer (2026-10-29, décision de
+    Fabien : « on porte l'upscale vidéo sur le rendu commun en conservant le son comme
+    Anonymizer »). Jusque-là : extraction de PNG par ffmpeg, puis réencodage H.264 à la cadence
+    NOMINALE (`r_frame_rate`) — la vidéo sortait MUETTE, et une cadence variable s'étirait.
+
+    Options : `ai_model` (résolu), `blend_factor`, `tile_size` (0 = 512 par défaut vidéo).
+    `frame_callback(frame_bgr, i)` reçoit l'image améliorée courante (aperçu « pendant » —
+    best-effort, jamais bloquant, ~2 s). Rend {'width', 'height', 'frames', 'path'} — `path` est le
+    fichier RÉELLEMENT écrit : un conteneur hors de la table des rendus sort en `.mp4`."""
+    from wama.common.utils.video_render import render_video
 
     opts = dict(options or {})
     model_name = _model_of(opts)
     tile = int(opts.get('tile_size') or 0)
+    blend = float(opts.get('blend_factor') or 0.0)
     progress = progress_callback or (lambda p: None)
+    size = {}
+    last_emit = [0.0]
 
-    # Dossier de travail JETABLE — brique commune `work_dir` : le `with` couvre le retour
-    # anticipé et les BaseException (dont la garde-temps du squelette).
-    with work_dir('enhancer') as _work:
-        frames_dir = os.path.join(str(_work), 'frames')
-        enhanced_dir = os.path.join(str(_work), 'enhanced')
-        os.makedirs(frames_dir, exist_ok=True)
-        os.makedirs(enhanced_dir, exist_ok=True)
+    upscaler = _upscaler_for(model_name, tile_size=tile if tile > 0 else 512)
 
-        # 1) Extraction des frames
-        progress(2)
-        frame_pattern = os.path.join(frames_dir, 'frame_%05d.png')
-        _ff = get_ffmpeg_exe()
-        extract = subprocess.run([
-            _ff, '-y', '-i', adapt_path_for_ffmpeg(input_path, _ff),
-            '-qscale:v', '1', adapt_path_for_ffmpeg(frame_pattern, _ff),
-        ], capture_output=True, text=True)
-        if extract.returncode != 0:
-            logger.error(f"ffmpeg frame extraction failed: {extract.stderr}")
-            raise RuntimeError(f"ffmpeg frame extraction failed: {extract.stderr}")
-        frame_files = sorted(f for f in os.listdir(frames_dir) if f.endswith('.png'))
-        total = len(frame_files)
-        if not total:
-            raise RuntimeError("Aucune frame extraite de la vidéo")
-        progress(5)
+    def paint(index, image):
+        enhanced = upscaler.upscale_image(image, blend_factor=blend)
+        if not size:
+            size['height'], size['width'] = enhanced.shape[:2]
+        size['frames'] = index + 1
+        return enhanced
 
-        # 2) Upscale frame par frame
-        upscaler = _upscaler_for(model_name, tile_size=tile if tile > 0 else 512)
-        width = height = 0
-        last_emit = 0.0
+    def preview(index, _original, enhanced):
+        now = time.time()
+        if now - last_emit[0] < 2.0:
+            return
+        last_emit[0] = now
         try:
-            for i, frame_file in enumerate(frame_files):
-                progress(5 + int((i / total) * 80))
-                frame = cv2.imread(os.path.join(frames_dir, frame_file))
-                enhanced = upscaler.upscale_image(
-                    frame, blend_factor=float(opts.get('blend_factor') or 0.0))
-                cv2.imwrite(os.path.join(enhanced_dir, frame_file), enhanced)
-                if i == 0:
-                    height, width = enhanced.shape[:2]
-                now = time.time()
-                if frame_callback and now - last_emit >= 2.0:
-                    last_emit = now
-                    try:
-                        frame_callback(enhanced, i)
-                    except Exception:
-                        pass    # l'aperçu est un confort, jamais une condition
-        finally:
-            upscaler.close()
+            frame_callback(enhanced, index)
+        except Exception:
+            pass    # l'aperçu est un confort, jamais une condition
 
-        # 3) Ré-encodage au FPS d'origine
-        progress(88)
-        _fp = get_ffprobe_exe()
-        probe = subprocess.run([
-            _fp, '-v', 'error', '-select_streams', 'v:0',
-            '-show_entries', 'stream=r_frame_rate',
-            '-of', 'default=noprint_wrappers=1:nokey=1',
-            adapt_path_for_ffmpeg(input_path, _fp),
-        ], capture_output=True, text=True)
-        fps = _parse_fps(probe.stdout)
-        enhanced_pattern = os.path.join(enhanced_dir, 'frame_%05d.png')
-        encode = subprocess.run([
-            _ff, '-y', '-framerate', str(fps),
-            '-i', adapt_path_for_ffmpeg(enhanced_pattern, _ff),
-            '-c:v', 'libx264', '-preset', 'medium', '-crf', '18', '-pix_fmt', 'yuv420p',
-            adapt_path_for_ffmpeg(output_path, _ff),
-        ], capture_output=True, text=True)
-        if encode.returncode != 0:
-            logger.error(f"ffmpeg encoding failed: {encode.stderr}")
-            raise RuntimeError(f"ffmpeg encoding failed: {encode.stderr}")
-        if not os.path.exists(output_path):
-            raise FileNotFoundError(f"ffmpeg did not create output file at {output_path}")
-        progress(100)
-        return {'width': width, 'height': height, 'frames': total}
-
-
-def _parse_fps(raw: str):
-    """`r_frame_rate` de ffprobe ('30000/1001', '25') → nombre ; 30 si illisible.
-    (Remplace l'`eval()` historique de tasks.py sur la sortie d'un sous-processus.)"""
-    s = (raw or '').strip()
-    if not s:
-        return 30
+    progress(2)
     try:
-        if '/' in s:
-            num, den = s.split('/', 1)
-            return float(num) / float(den) if float(den) else 30
-        return float(s)
-    except (TypeError, ValueError, ZeroDivisionError):
-        return 30
+        written = render_video(
+            input_path, paint, output_path, on_frame=preview if frame_callback else None,
+            progress=lambda done, total: progress(2 + int(done * 96 / max(total, 1))))
+    finally:
+        upscaler.close()
+    progress(100)
+    return {'width': size.get('width', 0), 'height': size.get('height', 0),
+            'frames': size.get('frames', 0), 'path': written}

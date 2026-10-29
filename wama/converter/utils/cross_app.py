@@ -11,9 +11,10 @@ Appelé par tasks._convert APRÈS la conversion réussie, sur le fichier de sort
 modèles GPU depuis la queue CPU 'default' — anticipé par la garde anti-boucle-de-crash
 du squelette commun (cf. docstring tasks.py).
 
-DIFFÉRÉ : upscale vidéo frame par frame — mécanisme enfoui dans
-enhancer/tasks.py::_enhance_video (couplé au modèle Enhancement) ; à extraire en brique
-au titre du 2ᵉ consommateur, APRÈS la validation GPU du during enhancer (18/08).
+DIFFÉRÉ : upscale vidéo frame par frame. Le mécanisme n'est plus enfoui : la route
+`enhancer/backends/media_backend.enhance_video` est sans Django depuis le 2026-09-21 et passe
+par le rendu commun `common/utils/video_render.render_video` (son gardé) depuis le 2026-10-29 —
+la brancher ici reste à décider (ROADMAP §Converter, phase 2).
 """
 import logging
 import os

@@ -24,6 +24,10 @@ CE QUE ÇA REMPLACE
     correct sur les deux chemins : le gain n'est pas un bug corrigé mais la couverture du `return`
     anticipé et des BaseException — dont la `SoftTimeLimitExceeded` de Celery, qui est le mode
     d'échec NORMAL d'une tâche GPU trop longue et laissait jusque-là le dossier derrière elle.
+    ⚠ Depuis le 2026-10-29 cette boucle n'écrit plus aucun intermédiaire : l'upscale vidéo passe
+    par le rendu commun `video_render.render_video`, qui agrandit et encode au fil de la lecture
+    (et retire lui-même, sur toute interruption, le fichier qu'il écrivait). Le site n'existe plus ;
+    la glu `enhancer/tasks.py` garde son propre `work_dir` pour ranger la sortie.
 
 USAGE
     from wama.common.utils.work_dir import work_dir

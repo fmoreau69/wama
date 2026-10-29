@@ -80,10 +80,10 @@ CROSS_APP_OPTIONS = {
         },
     ],
     'video': [
-        # DIFFÉRÉ (18/08, wiring v1) : upscale vidéo frame par frame — le mécanisme vit dans
-        # enhancer/tasks.py::_enhance_video, couplé au modèle Enhancement ; l'extraire en
-        # brique (converter = 2ᵉ consommateur) toucherait le during fraîchement câblé qui
-        # attend la validation GPU. À réintroduire après extraction (ROADMAP §Converter P2).
+        # DIFFÉRÉ (18/08, wiring v1) : upscale vidéo frame par frame. Le mécanisme est extrait
+        # depuis : `enhancer/backends/media_backend.enhance_video` (sans Django, 2026-09-21), sur
+        # le rendu commun `video_render.render_video` (son gardé, 2026-10-29). Le réintroduire
+        # ici reste à décider (ROADMAP §Converter P2).
         {
             'id':    'audio_enhance',
             'label': 'Enhancement audio (DeepFilterNet)',

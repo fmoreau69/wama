@@ -106,6 +106,32 @@ class MediaQueueTest(_TwoProcesses):
         self.assertEqual(2, len(os.listdir(folder)), os.listdir(folder))
 
 
+class VideoQueueTest(_TwoProcesses):
+    """The video route renders through the common timed render, which writes a container outside
+    its table as `.mp4` (2026-10-29) : the card stores the file REALLY written, under its name."""
+
+    def _route(self, input_path, output_path, output_format=None, options=None,
+               progress_callback=None, **_kw):
+        self.calls += 1
+        written = os.path.splitext(output_path)[0] + '.mp4'
+        with open(written, 'wb') as out:
+            out.write(b'enhanced')
+        return {'width': 8, 'height': 6, 'path': written}
+
+    def test_the_stored_output_is_the_file_the_render_wrote(self):
+        item = Enhancement.objects.create(user=self.user, media_type='video', ai_model='auto',
+                                          upscale_factor=2, status='RUNNING')
+        item.input_file.save('clip.flv', ContentFile(b'FLV' + b'\0' * 16), save=True)
+        item = self._play(tasks.enhance_media, item,
+                          'wama.enhancer.backends.media_backend.enhance_video',
+                          'wama.enhancer.utils.auto_model.resolve_media_model',
+                          'enhancer:RealESRGANx2')
+        self.assertEqual('SUCCESS', item.status, item.error_message)
+        self.assertTrue(item.output_file.name.endswith('.mp4'), item.output_file.name)
+        self.assertTrue(os.path.isfile(item.output_file.path))
+        self.assertEqual(item.output_file.name, process_runs.line(item, 'output').output_ref)
+
+
 class AudioQueueTest(_TwoProcesses):
 
     def _run(self, item, **settings):

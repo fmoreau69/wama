@@ -1223,7 +1223,7 @@ STANDARD comme toutes les apps, `filemanager` → `import_to_converter` ; `queue
 |---|---|---|---|---|
 | **0** | Modal Paramètres item (édition output_format + options par job) | ✅ 2026-05-16 | ~110 l | Faible |
 | **1** | Profils sauvegardables (ConversionProfile + UI) | ✅ 2026-05-16 | ~170 l | Faible |
-| **2** | Options cross-app (upscale + audio enhance) | ✅ 2026-08-18 (sauf upscale vidéo, différé) | ~230 l | Moyen (perf vidéo) |
+| **2** | Options cross-app (upscale + audio enhance) | ✅ 2026-08-18 (sauf upscale vidéo, différé — son préalable, « extraire le mécanisme en brique », est rempli : la route `enhancer/backends/media_backend.enhance_video` est sans Django depuis le 21/09 et passe par le rendu commun `video_render`, son gardé, depuis le 2026-10-29 ; ⏳ la brancher au converter reste à décider) | ~230 l | Moyen (perf vidéo) |
 | **3** | `output_format` inline dans Imager / Enhancer / Synthesizer | ✅ 2026-06-02 | ~150 l + 3 mig | Moyen |
 | **4** | Document backend (Pandoc) | ✅ 2026-06-01 | ~150 l + pypandoc + pandoc binaire | Moyen (binaire système) |
 | **5** | Batch avec aperçu avant/après sur échantillon | ⏳ | ~200 l | Moyen |

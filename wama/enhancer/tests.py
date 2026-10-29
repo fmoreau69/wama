@@ -3,6 +3,7 @@ du curseur (chantier C), NFE décliné. Premier fichier de tests de l'app (jusqu
 n'était couvert que par les suites communes)."""
 import inspect
 import os
+import shutil
 import tempfile
 from unittest import mock
 
@@ -437,15 +438,64 @@ class VramNeedIsTheCommonFootprintTest(TestCase):
         self.assertIsNone(_vram_need(None, None, 'enhancer:absent'))
 
 
-class MediaRouteHelpersTest(SimpleTestCase):
+class VideoRouteKeepsItsSoundTest(SimpleTestCase):
+    """The video upscale goes through the COMMON timed render, as the anonymizer's blur does
+    (2026-10-29, Fabien : « on porte l'upscale vidéo sur le rendu commun en conservant le son comme
+    Anonymizer ») — it used to re-encode extracted PNGs at the nominal rate and came out SILENT.
+    The upscaler is a stand-in (×2 resize) : the route is tested, not the model."""
 
-    def test_ffprobe_frame_rates_are_parsed_and_the_unreadable_falls_back_to_30(self):
-        from wama.enhancer.backends.media_backend import _parse_fps
-        self.assertEqual(_parse_fps('25'), 25.0)
-        self.assertAlmostEqual(_parse_fps('30000/1001'), 29.97, places=2)
-        self.assertEqual(_parse_fps(''), 30)
-        self.assertEqual(_parse_fps('x/y'), 30)
-        self.assertEqual(_parse_fps('1/0'), 30)
+    def setUp(self):
+        from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+        if not get_ffmpeg_exe():
+            self.skipTest('ffmpeg absent')
+        self.folder = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.folder, True)
+
+    def _enhance(self, source, name):
+        import cv2
+        from wama.enhancer.backends import media_backend
+
+        class _Doubling:
+            closed = False
+
+            def upscale_image(self, image, blend_factor=0.0):
+                return cv2.resize(image, None, fx=2, fy=2)
+
+            def close(self):
+                _Doubling.closed = True
+
+        previews = []
+        with mock.patch.object(media_backend, '_upscaler_for', return_value=_Doubling()):
+            produced = media_backend.enhance_video(
+                source, os.path.join(self.folder, 'out', name),
+                options={'ai_model': 'enhancer:RealESRGANx2'},
+                frame_callback=lambda frame, index: previews.append(frame.shape[:2]))
+        self.assertTrue(_Doubling.closed, 'the upscaler is released')
+        return produced, previews
+
+    def test_the_upscaled_video_keeps_its_container_and_its_sound_in_phase(self):
+        from wama.common.tests.helpers import media_streams, video_with_sound
+        source = video_with_sound(self.folder, 'talk.mkv', 'libopus')
+        produced, previews = self._enhance(source, 'talk_x2.mkv')
+        container, streams = media_streams(produced['path'])
+        self.assertIn('matroska', container)
+        self.assertIn('audio', streams, 'the upscaled video is not silent')
+        self.assertEqual('opus', streams['audio']['codec_name'], 'the sound is copied')
+        self.assertAlmostEqual(float(streams['video']['duration']),
+                               float(streams['audio']['duration']), delta=0.12)
+        self.assertEqual((128, 96), (streams['video']['width'], streams['video']['height']))
+        self.assertEqual((128, 96, 60), (produced['width'], produced['height'], produced['frames']))
+        self.assertEqual((96, 128), previews[0], 'the preview shows the ENHANCED frame')
+
+    def test_a_container_outside_the_render_table_comes_out_as_mp4_and_says_so(self):
+        from wama.common.tests.helpers import video_with_sound
+        source = video_with_sound(self.folder, 'clip.mp4', 'aac')
+        produced, _ = self._enhance(source, 'clip_x2.flv')
+        self.assertTrue(produced['path'].endswith('clip_x2.mp4'), produced['path'])
+        self.assertTrue(os.path.isfile(produced['path']))
+
+
+class MediaRouteHelpersTest(SimpleTestCase):
 
     def test_the_ingest_hook_classifies_only_images_and_videos(self):
         from wama.enhancer.tasks import _derive_media_type

@@ -1635,7 +1635,21 @@ MECHANISMS = (
               "et le Lab peuvent le lire",
               'wama/common/utils/detections.py',
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
-              annexes=('wama/common/utils/blur_utils.py',)),
+              annexes=('wama/common/utils/blur_utils.py',),
+              depends_on=('video_render',)),
+    Mechanism('video_render', "Rendu vidéo image par image, à horodatages d'origine",
+              "Réécrit une vidéo en passant chaque image par une transformation de l'app, en UN "
+              "encodage dans le conteneur demandé (celui de l'entrée : le moins de conversions "
+              "possible), les codecs étant ceux d'une conversion vers ce format "
+              "(`converter.video_backend.rendering_encoding`) : chaque image à SON horodatage "
+              "d'origine (PyAV — une cadence variable garde ses temps), l'audio de la source "
+              "RECOPIÉ à ses propres temps, jamais étiré (décisions de Fabien, 2026-10-28). La "
+              "taille de sortie est celle de l'image transformée. Né pour le floutage "
+              "(`detections.rewrite_media` : anonymizer, cam_analyzer), sorti en brique le "
+              "2026-10-29 pour l'agrandissement vidéo de l'enhancer, qui sortait MUET",
+              'wama/common/utils/video_render.py',
+              'docs/construction/architecture/WAMA_APP_CONVENTIONS.md',
+              annexes=('wama/common/tests/tests_video_render.py',)),
     Mechanism('during_preview_variants', "Aperçu « pendant » à plusieurs vues",
               "Un worker publie plusieurs vues du même instant (`publish_partial(variant=, label=)`, "
               "publieur de partiels limité dans le temps `PartialFrames` — frames JPEG, et le SON "
@@ -1873,9 +1887,10 @@ MECHANISMS = (
               "servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être "
               "une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, "
               "describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; "
-              "le dernier site, la boucle vidéo de l'enhancer (ex-`tasks.py:534`), est porté depuis le "
-              "26/08 et vit depuis le 21/09 dans sa route `enhancer/backends/media_backend.py:82` "
-              "(la glu `enhancer/tasks.py:156` en ouvre un second pour ranger la sortie). ⚠⚠ L'audit AUTOMATIQUE "
+              "le dernier site, la boucle vidéo de l'enhancer (ex-`tasks.py:534`), porté le 26/08, "
+              "n'écrit plus d'intermédiaire depuis le 2026-10-29 (rendu commun `video_render`, qui "
+              "agrandit et encode au fil de la lecture) ; la glu `enhancer/tasks.py` garde le sien "
+              "pour ranger la sortie. ⚠⚠ L'audit AUTOMATIQUE "
               "des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat "
               "DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a "
               "trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à "

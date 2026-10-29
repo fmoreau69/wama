@@ -7,7 +7,6 @@ segmentation mask survives as polygons ; the gaps of a TRACK are interpolated be
 detections only, within the ceiling, never beyond the last one ; the drawing and the blur touch
 the detected zone and nothing else ; a media is re-rendered frame by frame.
 """
-import json
 import os
 import shutil
 import subprocess
@@ -17,6 +16,7 @@ import cv2
 import numpy as np
 from django.test import SimpleTestCase
 
+from wama.common.tests.helpers import frame_times, media_streams, video_with_sound
 from wama.common.utils import detections as dets
 from wama.common.utils.blur_utils import blur_detections
 
@@ -429,33 +429,9 @@ class RewriteVideoKeepsItsSoundTest(SimpleTestCase):
         self.addCleanup(shutil.rmtree, self.folder, True)
 
     def _source(self, name, audio_codec, video_filter=None):
-        path = os.path.join(self.folder, name)
-        command = [self.ffmpeg, '-y', '-loglevel', 'error',
-                   '-f', 'lavfi', '-i', 'testsrc=size=64x48:rate=20:duration=3',
-                   '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=3']
-        if video_filter:
-            command += ['-vf', video_filter, '-fps_mode', 'vfr']
-        command += ['-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', audio_codec, path]
-        subprocess.run(command, check=True)
-        return path
+        return video_with_sound(self.folder, name, audio_codec, video_filter)
 
-    @staticmethod
-    def _streams(path):
-        """`(conteneur, {type: flux})`, chaque flux avec sa `duration` — Matroska ne la porte que
-        dans ses étiquettes (`DURATION` = « 00:00:03.000000000 »)."""
-        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
-        out = subprocess.run([get_ffprobe_exe(), '-v', 'error', '-show_entries',
-                              'stream=codec_type,codec_name,duration:stream_tags=DURATION'
-                              ':format=format_name', '-of', 'json', path],
-                             capture_output=True, text=True, check=True)
-        data = json.loads(out.stdout)
-        streams = {}
-        for stream in data['streams']:
-            if 'duration' not in stream and (stream.get('tags') or {}).get('DURATION'):
-                h, m, s = stream['tags']['DURATION'].split(':')
-                stream['duration'] = str(int(h) * 3600 + int(m) * 60 + float(s))
-            streams[stream['codec_type']] = stream
-        return data['format']['format_name'], streams
+    _streams = staticmethod(media_streams)
 
     def _rewrite(self, source, name):
         return dets.rewrite_media(source, {5: [dets.detection(box=[4, 4, 30, 30], label='face')]},
@@ -487,14 +463,7 @@ class RewriteVideoKeepsItsSoundTest(SimpleTestCase):
         self.assertEqual('opus', streams['audio']['codec_name'])
         self._assert_in_phase(source, written)
 
-    @staticmethod
-    def _frame_times(path):
-        """Le temps de présentation de CHAQUE image du flux vidéo, en secondes."""
-        from wama.common.utils.ffmpeg_utils import get_ffprobe_exe
-        out = subprocess.run([get_ffprobe_exe(), '-v', 'error', '-select_streams', 'v:0',
-                              '-show_entries', 'frame=best_effort_timestamp_time',
-                              '-of', 'csv=p=0', path], capture_output=True, text=True, check=True)
-        return [float(line.strip(',')) for line in out.stdout.split() if line.strip(',')]
+    _frame_times = staticmethod(frame_times)
 
     def test_a_variable_frame_rate_keeps_EVERY_frame_at_its_time(self):
         """Measured 2026-10-28 : on a variable-rate MATROSKA, OpenCV and `avg_frame_rate` both say

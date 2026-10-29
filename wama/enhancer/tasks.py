@@ -195,6 +195,13 @@ def _enhance_media(enhancement, ctx):
                              options=options,
                              progress_callback=lambda p: ctx.progress(5 + int(p * 0.9)),
                              **extra) or {}
+            # Le fichier RÉELLEMENT écrit (route vidéo, rendu commun) : un conteneur hors de la
+            # table des rendus sort en `.mp4`, et le nom rangé suit son extension.
+            written = produced.get('path') or local
+            if written != local:
+                storage_name = os.path.splitext(storage_name)[0] + os.path.splitext(written)[1]
+                output_filename = os.path.basename(storage_name)
+                local = written
             file_size = os.path.getsize(local)
             # Le nom de STOCKAGE vient de la brique : il décide où le fichier atterrit ET ce que
             # la base retient. Composé à la main (`f'enhancer/{uid}/output/…'`) jusqu'au

@@ -3,7 +3,7 @@
 
 > Doc développeur **générée** : chaque section vient de la doc de construction (source citée en pied) ou des registres eux-mêmes. Pour la corriger, corriger la SOURCE — ce fichier est réécrit par `python manage.py doc_facts`.
 
-**214 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
+**215 mécanismes** en 9 domaines. Ce qu'une brique FAIT est sa ligne de registre (`wama/common/mecanismes.py`) ; comment l'APPELER est ce que son module expose, lu dans le code par AST. Qui l'utilise, et ce qui manque : la [carte des mécanismes](../construction/architecture/WAMA_MECANISMES.md).
 
 ## Ressources & exécution
 
@@ -1964,6 +1964,15 @@ Le cycle sandbox → vérifié → promu (WAMA_MANIFEST_ARCHITECTURE §4) reçoi
   - `apply(obj, user=None) -> dict` — Applique une proposition : superposition, write-back RÉEL, promotion, export au corpus.
   - `reject(obj) -> bool` — Close une demande de promotion. N'appelle PAS `un_ingest` (cf. docstring du module).
 
+### Rendu vidéo image par image, à horodatages d'origine
+
+Réécrit une vidéo en passant chaque image par une transformation de l'app, en UN encodage dans le conteneur demandé (celui de l'entrée : le moins de conversions possible), les codecs étant ceux d'une conversion vers ce format (`converter.video_backend.rendering_encoding`) : chaque image à SON horodatage d'origine (PyAV — une cadence variable garde ses temps), l'audio de la source RECOPIÉ à ses propres temps, jamais étiré (décisions de Fabien, 2026-10-28). La taille de sortie est celle de l'image transformée. Né pour le floutage (`detections.rewrite_media` : anonymizer, cam_analyzer), sorti en brique le 2026-10-29 pour l'agrandissement vidéo de l'enhancer, qui sortait MUET
+
+- **Domicile** : `wama/common/utils/video_render.py` · **doc** : [docs/construction/architecture/WAMA_APP_CONVENTIONS.md](../construction/architecture/WAMA_APP_CONVENTIONS.md)
+- **Module** : Rendu d'une vidéo image par image — chaque image à SON horodatage d'origine, le son recopié.
+- **API publique** (1) :
+  - `render_video(source: str, paint, output_path: str, *, on_frame=None, progress=None) -> str` — Réécrit la vidéo `source` en passant chaque image par `paint(indice, image) -> image`, et
+
 ### Routage des poids hors HuggingFace
 
 QUATRE leviers pour tenir la règle « modèle principal catégorisé, sous-dépendances au cache partagé » (ROADMAP §5b), et le choix est imposé par la LIB, pas par le goût : A `cache_dir=` — B un CHEMIN local (`poids_locaux`) — C la variable propre à la lib, posée dans settings (`DEEPFACE_HOME`, `AUDIOCRAFT_CACHE_DIR`) — D `hf_cache_scope`, DERNIER RECOURS déclaré. ⚠ D restaure l'environnement mais JAMAIS LES FICHIERS : ce que la lib télécharge pendant la fenêtre reste dans le dossier du modèle — c'est ainsi que `timm/resnet18` a atterri chez table-transformer. Zéro mutation d'environnement dans le code aujourd'hui
@@ -2062,7 +2071,7 @@ La vue `start/<pk>/<process>/` d'une app à pipeline — `make_process_start_vie
 
 ### Dossier de travail jetable
 
-Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; le dernier site, la boucle vidéo de l'enhancer (ex-`tasks.py:534`), est porté depuis le 26/08 et vit depuis le 21/09 dans sa route `enhancer/backends/media_backend.py:82` (la glu `enhancer/tasks.py:156` en ouvre un second pour ranger la sortie). ⚠⚠ L'audit AUTOMATIQUE des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à « si le dossier est vide » qui ne se déclenchait donc jamais, un nettoyage placé APRÈS l'appel qui sautait sur exception, et un `except ImportError` qui empêchait un repli d'exister. Un relevé par motif oriente ; il ne conclut pas. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés
+Les fichiers INTERMÉDIAIRES d'un traitement ne vivent pas dans `media/`. Mesuré le 2026-08-25 : `media/avatarizer/` pesait 1,69 Go pour 2101 fichiers dont 99,6 % de PNG — les frames de CodeFormer, écrites dans le dossier de sortie du job et jamais nettoyées ; `job_11` portait 1715,7 Mo pour une vidéo de 0,70 Mo. `media/` ne contient que `<app>/<user>/input|output/` et `users/` (MEDIA_STORAGE_TIERING.md) : un fichier de travail y est sauvegardé par le miroir, compté par le tiering et servi par Apache pour rien. Le `with` rend le nettoyage STRUCTUREL au lieu d'être une convention qu'on oublie. ADOPTÉ par 5 sites (avatarizer/codeformer, describer/views, enhancer/views, reader/glm_ocr, describer/video_describer) ; le dernier site, la boucle vidéo de l'enhancer (ex-`tasks.py:534`), porté le 26/08, n'écrit plus d'intermédiaire depuis le 2026-10-29 (rendu commun `video_render`, qui agrandit et encode au fil de la lecture) ; la glu `enhancer/tasks.py` garde le sien pour ranger la sortie. ⚠⚠ L'audit AUTOMATIQUE des `mkdtemp` a mal classé 2 sites sur 6 — `glm_ocr` déléguait par contrat DOCUMENTÉ, `enhancer/tasks` nettoyait déjà — mais la lecture site par site a trouvé l'inverse, des fuites qu'aucun motif ne voyait : un `rmdir` conditionné à « si le dossier est vide » qui ne se déclenchait donc jamais, un nettoyage placé APRÈS l'appel qui sautait sur exception, et un `except ImportError` qui empêchait un repli d'exister. Un relevé par motif oriente ; il ne conclut pas. Porte aussi `purge_job_dir` : la suppression d'une card doit emporter le dossier du job — 13 dossiers `job_*` orphelins relevés contre 4 rattachés
 
 - **Domicile** : `wama/common/utils/work_dir.py` · **doc** : [docs/construction/exploitation/MEDIA_STORAGE_TIERING.md](../construction/exploitation/MEDIA_STORAGE_TIERING.md)
 - **Module** : Dossier de TRAVAIL jetable — les fichiers intermédiaires ne vivent pas dans `media/`.
