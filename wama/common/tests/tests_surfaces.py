@@ -1228,6 +1228,32 @@ class KeyDispatcherTest(SimpleTestCase):
         self.assertEqual(['score', 'transport'], out,
                          'with the hand the brick wins ; without it, it is not even asked')
 
+    def test_the_history_reads_the_produced_character_even_while_typing(self):
+        """Ctrl+Z is `KeyW` on an AZERTY keyboard : the history reads `e.key`, so its `typing` is a
+        function of the key. It undoes in an edited `contenteditable` (where the edited model
+        lives) and leaves Ctrl+Z to a form field (its native stack)."""
+        self.engine.eval('document.querySelectorAll = function () { return []; };'
+                         + _js('common/js/wama-history.js'))
+        out = self._eval('''
+            var state = 0, log = [];
+            var h = window.WamaHistory.create({snapshot: function () { return state; },
+                                               restore: function (s) { state = s; log.push(s); },
+                                               shortcuts: true});
+            state = 1; h.commit(); state = 2; h.commit();
+            var edited = el('body'); edited.isContentEditable = true;
+            var azerty = press(edited, 'KeyW', {ctrlKey: true, key: 'z'});
+            var field = el('text'); field.tagName = 'TEXTAREA';
+            press(field, 'KeyW', {ctrlKey: true, key: 'z'});
+            var redo = press(el('body'), 'KeyY', {ctrlKey: true, key: 'y'});
+            var plain = press(el('body'), 'KeyW', {key: 'z'});
+            return {log: log, azerty: azerty.defaultPrevented, redo: redo.defaultPrevented,
+                    plain: plain.defaultPrevented};
+        ''')
+        self.assertEqual([1, 2], out['log'], 'undone once in the edited text, not in the form field, redone')
+        self.assertTrue(out['azerty'])
+        self.assertTrue(out['redo'])
+        self.assertFalse(out['plain'], 'a bare Z is a letter')
+
 
 class PageKeyListenersTest(SimpleTestCase):
     """2026-10-29 — a key, ONE owner (`wama-keys.js`). A script that listens to the whole page's
@@ -1245,11 +1271,9 @@ class PageKeyListenersTest(SimpleTestCase):
         'wama/common/static/common/js/surfaces/brick-segment-list.js': (1, MOVE),
         'wama/common/static/common/js/wama-card-menu.js': (2, MOVE),
         'wama/common/static/common/js/wama-constellation.js': (1, MOVE),
-        'wama/common/static/common/js/wama-history.js': (1, MOVE),
         'wama/common/static/common/js/wama-shuttle.js': (1, MOVE),
         'wama/common/static/common/js/wama-timeline.js': (1, MOVE),
         'wama/common/static/common/js/wama-transport.js': (1, MOVE),
-        'wama/studio/static/studio/js/wama-studio.js': (1, MOVE),
         'wama_lab/cam_analyzer/static/cam_analyzer/js/index.js': (1, MOVE),
         # Not shortcuts : they never act on the key.
         'wama/common/static/common/js/wama-app-base.js': (1, "le 1er geste déverrouille le son (once)"),

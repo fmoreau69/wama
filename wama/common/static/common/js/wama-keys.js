@@ -13,7 +13,9 @@
  *   1. une COUCHE ouverte au moment de la frappe — une modale, un panneau en dialogue — garde le
  *      clavier : rien n'est distribué. Relevé en CAPTURE : Bootstrap ferme une modale sur Échap
  *      avant que la frappe ne remonte jusqu'ici ;
- *   2. pendant une SAISIE, seules les touches qu'un inscrit déclare `typing` (Ctrl+Espace) ;
+ *   2. pendant une SAISIE, seules les touches qu'un inscrit déclare `typing` (Ctrl+Espace) — une
+ *      liste de noms, ou une fonction de la frappe pour une touche qui se lit au CARACTÈRE produit
+ *      (Ctrl+Z : `KeyW` en AZERTY, l'historique lit `e.key`) ;
  *      un CONTRÔLE garde les siennes : atteint au clavier, Espace et Entrée ; une liste, un curseur
  *      leurs flèches et Début/Fin ; cliqué à la souris, rien d'autre (règle de l'étape 0) ;
  *   3. la brique qui A LA MAIN (`scope: 'brick'` — son `root` contient le focus, ou le dernier
@@ -78,7 +80,9 @@
         if (!isTyping && controlKeeps(t, e)) return;
         var hand = handElement();
         function eligible(entry) {
-            if (isTyping && (entry.typing || []).indexOf(name) < 0) return false;
+            var allowed = typeof entry.typing === 'function' ? entry.typing(e)
+                : (entry.typing || []).indexOf(name) >= 0;
+            if (isTyping && !allowed) return false;
             if (entry.scope !== 'brick') return true;
             var root = rootOf(entry);
             return !!(root && hand && root.contains(hand));

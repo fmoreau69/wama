@@ -610,7 +610,7 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       35 gestes), inspecteurs coexistants, parité de l'éditeur 75/75.
     - ⚠ **Pas encore inscrits** (ils gardent leur propre écoute, sans conflit mesuré) : les
       segments, la ligne de temps, l'écriture à la lecture, ~~la partition~~ (étape 3), l'image et ses zones,
-      l'historique, le menu de card, la visionneuse, le cam_analyzer (`WamaShuttle.bindKeys`). Le
+      ~~l'historique~~ (étape 3), le menu de card, la visionneuse, le cam_analyzer (`WamaShuttle.bindKeys`). Le
       module les respecte : ceux qui écoutent en capture ou sur leur élément passent avant lui.
       ⚠ **Jumeau déclaré** (revérification du 29/10) : ces briques testent la saisie par
       `WamaApp.isTyping` (l'élément qui a le focus, une liste comprise), le module par
@@ -633,6 +633,14 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       **`common.score_keys`** (6 gestes : ↑ ×3 sans perdre la note, − puis → sans que le transport
       prenne →, Échap, puis → rendu au transport) ; contre-épreuve : la reprise du focus retirée au
       seul navigateur → rouge dès le 1ᵉʳ ↑.
+    - ✅ **L'historique** (Ctrl+Z, Ctrl+Maj+Z, Ctrl+Y — surfaces et studio), prioritaire de la
+      page. Il lit le CARACTÈRE produit (`e.key` : Ctrl+Z est `KeyW` en AZERTY) : le module accepte
+      désormais un `typing` qui est une FONCTION de la frappe, en plus d'une liste de noms. Il
+      annule dans un `contenteditable` édité, laisse Ctrl+Z à un champ de formulaire (sa pile
+      native). Test V8 (AZERTY, saisie, champ, rétablir) ; contre-épreuve : `typing` vidé → rouge.
+      Parité de l'éditeur 75/75, `check_history_studio` vert. Et **l'Échap du studio** (abandonner
+      le lien en cours, même en saisie comme avant ; sans lien, la touche n'est pas prise) : geste
+      ajouté à `common.gestures.mouse` (studio 8/8), contre-épreuve au navigateur → rouge.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

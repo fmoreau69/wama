@@ -250,30 +250,34 @@
             if (ev.target.closest(redoSelector)) { ev.preventDefault(); redo(); }
         });
 
-        if (config.shortcuts) {
-            document.addEventListener('keydown', function (ev) {
-                if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return;
-                // ⚠ `ev.key`, jamais `ev.code` : en AZERTY, Z et W sont permutés par rapport au
-                // QWERTY — `ev.code` y rendrait `KeyW` pour un Ctrl+Z. `ev.key` donne le
-                // caractère réellement produit par la disposition.
-                var k = (ev.key || '').toLowerCase();
-                if (k !== 'z' && k !== 'y') return;
-                // ⚠ On laisse Ctrl+Z à un CHAMP DE FORMULAIRE (input/textarea) : sa pile
-                // native est la bonne à cet endroit, et la voler ferait perdre une saisie
-                // sans rien annuler d'utile (le studio a un champ « nom du pipeline » juste
-                // à côté de son canvas).
-                // Mais PAS à un `contenteditable` : c'est là que vit le modèle édité, et le
-                // remplacement de l'annulation native y est justement l'intention — sinon
-                // deux historiques concurrents se contredisent sur le même contenu.
-                var t = ev.target;
-                if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
-                // `restore()` reconstruit le DOM (le champ en cours d'édition disparaît) : on
-                // ferme la rafale pour que la frappe d'après ouvre une entrée propre.
-                endBurst();
-                ev.preventDefault();
-                if (k === 'y' || (k === 'z' && ev.shiftKey)) redo(); else undo();
-            });
+        // ⚠ `ev.key`, jamais `ev.code` : en AZERTY, Z et W sont permutés par rapport au QWERTY —
+        // `ev.code` y rendrait `KeyW` pour un Ctrl+Z. `ev.key` donne le caractère réellement
+        // produit par la disposition.
+        function historyKey(ev) {
+            if (!(ev.ctrlKey || ev.metaKey) || ev.altKey) return '';
+            var k = (ev.key || '').toLowerCase();
+            return k === 'z' || k === 'y' ? k : '';
         }
+
+        // Le clavier commun (`WamaKeys`, 2026-10-29) : une brique PRIORITAIRE de la page. Elle passe
+        // aussi en saisie (`typing`, lue au caractère) : un `contenteditable` est là où vit le
+        // modèle édité, et y remplacer l'annulation native est justement l'intention — sinon deux
+        // historiques concurrents se contredisent sur le même contenu.
+        if (config.shortcuts) global.WamaKeys.register({ owner: 'history', scope: 'page', typing: historyKey,
+                                                        handle: function (ev) {
+            var k = historyKey(ev);
+            if (!k) return false;
+            // ⚠ On laisse Ctrl+Z à un CHAMP DE FORMULAIRE (input/textarea) : sa pile native est la
+            // bonne à cet endroit, et la voler ferait perdre une saisie sans rien annuler d'utile
+            // (le studio a un champ « nom du pipeline » juste à côté de son canvas).
+            var t = ev.target;
+            if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return false;
+            // `restore()` reconstruit le DOM (le champ en cours d'édition disparaît) : on ferme la
+            // rafale pour que la frappe d'après ouvre une entrée propre.
+            endBurst();
+            if (k === 'y' || (k === 'z' && ev.shiftKey)) redo(); else undo();
+            return true;
+        } });
 
         syncButtons();
 

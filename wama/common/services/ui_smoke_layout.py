@@ -940,6 +940,16 @@ def _mouse_studio(browser, token, url, faults, steps):
         page.mouse.wheel(0, -300)
         page.wait_for_timeout(200)
         checks.append((zoom() != z0, f"molette {z0} → {zoom()}"))
+        # Un port de sortie arme un lien ; Échap l'abandonne (clavier commun, 2026-10-29).
+        out_dot = page.locator('.studio-node .dot[data-side="out"]').first
+        if out_dot.count():
+            out_dot.click()
+            page.wait_for_timeout(200)
+            armed = page.locator('.dot.is-armed').count()
+            page.keyboard.press('Escape')
+            page.wait_for_timeout(200)
+            left = page.locator('.dot.is-armed').count()
+            checks.append((armed == 1 and left == 0, f"un port armé, Échap abandonne le lien ({armed} → {left})"))
         spot = page.evaluate(JS_STUDIO_BACKGROUND, 120)
         page.mouse.click(spot['x'], spot['y'])
         page.wait_for_timeout(200)

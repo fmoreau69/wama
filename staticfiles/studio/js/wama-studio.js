@@ -1349,7 +1349,13 @@
             if (box) selectNode(box.dataset.node);
             else if (e.target === canvas || e.target === svg || e.target.closest('#studioLinks')) deselect();
         });
-        document.addEventListener('keydown', function (e) { if (e.key === 'Escape') cancelPending(); });
+        // Échap abandonne le lien en cours — par le clavier commun (`WamaKeys`), même en saisie
+        // comme avant ; sans lien en cours, la touche n'est pas prise.
+        global.WamaKeys.register({ owner: 'studio_canvas', scope: 'page', typing: ['Escape'], handle: function (e) {
+            if (e.key !== 'Escape' || !pending) return false;
+            cancelPending();
+            return true;
+        } });
         window.addEventListener('resize', updateLinks);
 
         // Dépôt d'un élément du catalogue À L'ENDROIT voulu (5.4) : seul notre type MIME est
