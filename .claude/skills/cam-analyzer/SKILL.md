@@ -50,6 +50,15 @@ règle des bascules.
 - **Toute logique PURE et réutilisable va dans `wama_data/functions/<domaine>/`**, avec sa
   `FunctionSpec` **auto-déclarée en fin de module** (patron : `driving/gps_map_match.py`). PAS dans
   `cam_analyzer/utils/`. Domaines existants : `io`, `geometry`, `kinematics`, `driving`, `geo`.
+  🔴 **Et AVANT de l'écrire, ouvrir ce qui existe déjà à côté — y compris le MOTEUR du monde Data**
+  (vécu le 2026-10-29, tableaux par véhicule : trois recopies de ma main trouvées à la revérification) :
+  `wama_data/core/` porte les briques pures transverses (`calculation.rolling` = statistique glissante,
+  `export` = la déclaration et l'écrivain des exports CSV, `geo`, `segmentation`) et
+  `functions/kinematics` + `functions/geometry` la chaîne TTC/PET (`collision_detection`,
+  `point_traj_to_shape`, `extrapolation`). J'avais écrit un TTC à disques, une médiane comptée en
+  observations et un écrivain CSV à côté d'elles. Le geste : `grep "^def " wama_data/core/*.py
+  wama_data/functions/<domaine>/*.py` sur la NATURE du calcul (glissant, collision, export,
+  projection), avant la première ligne.
 - Ce qui reste couplé à `AnalysisSession` (lit/écrit la BDD, passe Celery) se déclare en
   `Binding.APP` dans `function_specs.py`, **à porter vers `PURE`** dès qu'on veut le chaîner —
   c'est la voie d'intégration à WAMA Data.

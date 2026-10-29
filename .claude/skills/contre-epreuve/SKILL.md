@@ -107,7 +107,11 @@ print('COUNTERPROOF <nom>: failures =', failures,
      est celui de la source », qui venait justement de devenir le cas NORMAL. *Un test qui exclut le
      nouveau comportement le déclare conforme en silence* ;
   2. le test mesure **le décor et non le geste** — vécu le même jour : un budget de temps qui
-     chronométrait le `django.setup()` du sous-processus (46 s) au lieu de la sonde (0,04 s).
+     chronométrait le `django.setup()` du sous-processus (46 s) au lieu de la sonde (0,04 s) ;
+  3. la brique **modifie son entrée EN PLACE** et le test prend sa référence APRÈS l'appel — vécu le
+     2026-10-29 (`blur_box_inside`) : le rapport « détail restant / détail d'origine » divisait par
+     l'image déjà floutée, donc valait 1 quel que soit le flou ; la mutation est restée verte deux
+     fois. ✅ Mesurer la référence AVANT l'appel, et passer une COPIE à la brique.
 
 ## 4. Pièges VÉCUS du harnais de contre-épreuve
 
