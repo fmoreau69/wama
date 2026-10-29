@@ -143,7 +143,9 @@
     }
 
     function keysHtml(groups) {
-        var own = '<div class="wama-keys-group"><b>Cette page</b><ul><li><kbd>?</kbd> afficher cette aide</li></ul></div>';
+        var mine = config.help_shortcut || {};
+        var own = mine.label ? '<div class="wama-keys-group"><b>Cette page</b><ul><li><kbd>' + esc(mine.label) +
+            '</kbd> ' + esc(mine.action) + '</li></ul></div>' : '';
         return own + groups.map(function (group) {
             return '<div class="wama-keys-group"><b>' + esc(group.title) + '</b><ul>' +
                 (group.items || []).map(function (s) {
@@ -229,14 +231,15 @@
         if (!lock || !lock.offsetParent) return;          // barre de téléphone : pas de cadenas
         hinted = true;
         hintCfg.seen = true;
+        var helpKey = (config.help_shortcut || {}).label;
         var bubble = document.createElement('div');
         bubble.className = 'wama-page-hint';
         bubble.setAttribute('role', 'dialog');
         bubble.setAttribute('aria-label', 'Réorganiser cette page');
         bubble.innerHTML =
             '<p><b>Cette page se réorganise.</b> Le cadenas rend ses panneaux mobiles : ' +
-            'déplacez-les, empilez-les, épinglez-les au bord de la fenêtre. La touche <kbd>?</kbd> ' +
-            'liste ses raccourcis clavier.</p>' +
+            'déplacez-les, empilez-les, épinglez-les au bord de la fenêtre.' +
+            (helpKey ? ' La touche <kbd>' + esc(helpKey) + '</kbd> liste ses raccourcis clavier.' : '') + '</p>' +
             '<div class="wama-page-hint-actions">' +
             '<button type="button" class="btn btn-sm btn-primary" data-hint="show">Me montrer</button>' +
             '<button type="button" class="btn btn-sm btn-outline-secondary" data-hint="ok">Compris</button></div>';
@@ -316,10 +319,12 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', wire);
     else wire();
 
-    // `?` ouvre l'aide, partout sur la page (le clavier commun : jamais en saisie ni sous une couche).
-    if (global.WamaKeys) {
+    // La touche de l'aide (`surfaces.PAGE_HELP_SHORTCUT`, « ? ») l'ouvre partout sur la page — le
+    // clavier commun : jamais en saisie ni sous une couche.
+    var helpKeyName = ((config.help_shortcut || {}).keys || [])[0];
+    if (global.WamaKeys && helpKeyName) {
         global.WamaKeys.register({ owner: 'page_controls', scope: 'page', handle: function (e) {
-            if (e.key !== '?' || e.ctrlKey || e.metaKey || e.altKey) return false;
+            if (e.key !== helpKeyName || e.ctrlKey || e.metaKey || e.altKey) return false;
             openHelp('keys');
             return true;
         } });

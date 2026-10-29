@@ -1190,8 +1190,11 @@ def check_page_controls(page_hook=None):
     l'inspecteur, la visionneuse — lus au registre) et la disposition ; « ? » tapé dans un champ ne
     l'ouvre pas ; le cadenas rend la disposition modifiable : son bandeau prend la place du logo
     DANS l'en-tête et les gestes s'affichent dessous sans prendre le pointeur ; « Figer » le
-    referme et le garde. Sur une page sans disposition (le face_analyzer), pas de cadenas, l'aide
-    reste. Les réglages du compte sont rendus en sortie. `page_hook(page)` : contre-épreuve."""
+    referme et le garde. Sur une page sans disposition (les notifications), pas de cadenas, l'aide
+    reste. Les réglages du compte sont rendus en sortie. `page_hook(page)` : contre-épreuve.
+    La page sans disposition est une page du COMPTE (les notifications, sans volet) : le substrat
+    ne cite aucun monde (elle était celle du face_analyzer jusqu'à la revérification du 29/10)."""
+    from django.urls import reverse
     from playwright.sync_api import sync_playwright
 
     from wama.common.services.nightly_tests import SkipScenario
@@ -1313,8 +1316,8 @@ def check_page_controls(page_hook=None):
                 verdict(not s['open'] and not s['banner'] and s['logo'] and not s['hint']
                         and kept.get('frozen') is True,
                         f"« Figer » referme le bandeau et le garde ({s}, {kept})")
-                page.goto(BASE_URL.rstrip('/') + '/lab/face-analyzer/video/', wait_until='load',
-                          timeout=45000)
+                page.goto(BASE_URL.rstrip('/') + _in_plain_thread(reverse, 'common:notifications'),
+                          wait_until='load', timeout=45000)
                 page.wait_for_timeout(1000)
                 page.click('#wamaPageHelpToggle')
                 page.wait_for_timeout(700)
@@ -1333,7 +1336,7 @@ def check_page_controls(page_hook=None):
         _in_plain_thread(restore_hint, hint_before)
         _drop_new_sessions(sessions_before)
     failed = [text for ok, text in verdicts if not ok]
-    detail = f"contrôles de page ({label}, face_analyzer) : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
+    detail = f"contrôles de page ({label}, notifications) : {len(verdicts) - len(failed)}/{len(verdicts)} gestes"
     return (not failed), detail + (f" — ÉCHECS : {failed}" if failed else '')
 
 

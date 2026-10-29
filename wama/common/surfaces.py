@@ -158,7 +158,7 @@ LAYOUT_HELP = ("Glissez un panneau par son titre pour le déplacer — vers un b
 #: …et comment on y entre : le cadenas de l'en-tête (contrôles de page), la même source.
 LAYOUT_CONTROLS = ("Le cadenas de l’en-tête rend la disposition modifiable, puis la fige de nouveau ; "
                    "elle est gardée pour votre compte, page par page, et « Par défaut » la remet "
-                   "telle que la page la déclare. La touche ? ouvre l’aide de la page.")
+                   "telle que la page la déclare.")
 
 #: Les PORTÉES d'un raccourci clavier (2026-10-29, décision de Fabien — `WAMA_VOLETS §3-ter`),
 #: de la plus étroite à la plus large ; l'étroite l'emporte : un champ garde ses touches, la
@@ -219,6 +219,12 @@ class Shortcut:
                 'option': self.option, 'follows': self.follows,
                 'targets': [{'selector': t, 'label': key_label(k)}
                             for k, t in zip(self.keys, self.targets) if t]}
+
+
+#: Le raccourci de la PAGE elle-même (2026-10-29, contrôles de page) : l'aide de la page. Déclaré
+#: comme ceux des briques — la liste de l'aide, la bulle du premier passage, le module qui l'écoute
+#: (`wama-page-controls.js`) et l'assistant le lisent d'ici, aucun ne l'écrit.
+PAGE_HELP_SHORTCUT = Shortcut(('?',), "afficher l'aide de cette page et ses raccourcis", 'page')
 
 
 @dataclass(frozen=True)

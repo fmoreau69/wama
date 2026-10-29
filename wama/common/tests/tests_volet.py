@@ -839,7 +839,13 @@ class PageControlsTest(TestCase):
         self.assertIn('controls.offerLayout({', kernel)
         self.assertIn("WamaPageControls.openHelp('keys')", actions)
         self.assertIn("global.WamaKeys.register({ owner: 'page_controls', scope: 'page'", controls)
-        self.assertIn("if (e.key !== '?'", controls)
+        self.assertIn('if (e.key !== helpKeyName', controls)
+        # La touche de l'aide est DÉCLARÉE au registre, jamais écrite dans le module.
+        from wama.common.surfaces import PAGE_HELP_SHORTCUT
+        from wama.common.utils.volet import page_controls_config
+        self.assertEqual(PAGE_HELP_SHORTCUT.to_dict(), page_controls_config()['help_shortcut'])
+        self.assertNotIn("'?'", controls)
+        self.assertNotIn('<kbd>?</kbd>', controls)
         # Les gestes de disposition sont lus du SERVEUR (`surfaces.LAYOUT_HELP`), jamais réécrits.
         self.assertIn('config.layout_help', controls)
         self.assertNotIn('Glissez un panneau', controls)

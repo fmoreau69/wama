@@ -131,6 +131,11 @@ coder en dur.
 sombre, clair, chartes UGE et La Suite, thème personnel ou tiré d'une charte graphique en PDF),
 plus aucune couleur écrite en dur (2026-10-18/20) ; et les mêmes gestes valent au doigt (brique
 commune de gestes, tablette — ROADMAP §27).
+*Constaté le 2026-10-29* : une page se COMPOSE de briques UI déclarées au registre — sections du
+volet, centre des pages d'apps, pages d'édition — que chacun dispose à sa main (gardé par compte et
+par page, épinglé, empilé, ouvert dans une autre fenêtre) ; chaque brique déclare ses raccourcis
+clavier (une touche, un propriétaire), que l'aide de la page, les infobulles et l'assistant lisent
+de la même source ; le cadenas et l'aide vivent dans l'en-tête de toute page (`WAMA_VOLETS §3-ter`).
 
 ## 1.3 L'IA est dans la chaîne, pas à côté 📜
 

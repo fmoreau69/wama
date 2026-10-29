@@ -237,7 +237,7 @@ def page_controls_config(request=None) -> dict:
     (son montage est un script), sinon un sélecteur dérivé de ce qui la déclare : la marque d'une
     brique du centre (`data-wama-brick`), l'élément d'une section du volet qui la porte. Une brique
     de page à raccourcis sans l'un ni l'autre n'est pas listée (garde : `PageControlsTest`)."""
-    from wama.common.surfaces import BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP
+    from wama.common.surfaces import BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP, PAGE_HELP_SHORTCUT
     selectors = {}
     for slot in PANEL_SLOTS:
         if slot.brick:
@@ -252,7 +252,8 @@ def page_controls_config(request=None) -> dict:
         if present:
             groups.append({'brick': brick.key, 'title': brick.name, 'present': present,
                            'items': [s.to_dict() for s in brick.shortcuts]})
-    config = {'shortcuts': groups, 'layout_help': LAYOUT_HELP, 'layout_controls': LAYOUT_CONTROLS}
+    config = {'shortcuts': groups, 'layout_help': LAYOUT_HELP, 'layout_controls': LAYOUT_CONTROLS,
+              'help_shortcut': PAGE_HELP_SHORTCUT.to_dict()}
     # La bulle du premier passage : pour un compte qui ne l'a jamais vue.
     user = getattr(request, 'user', None)
     if user is not None and user.is_authenticated:
@@ -279,7 +280,8 @@ def page_interface(page: str) -> dict | None:
     None si rien ne la nomme. Les briques d'une page d'APP : celles du centre, les sections du
     volet qui en portent une et la visionneuse ; d'une autre page : le volet et la visionneuse."""
     from wama.common.app_registry import APP_CATALOG, app_identity
-    from wama.common.surfaces import BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP, SURFACES, load_all
+    from wama.common.surfaces import (BRICKS, LAYOUT_CONTROLS, LAYOUT_HELP, PAGE_HELP_SHORTCUT,
+                                      SURFACES, load_all)
     page = (page or '').strip()
     if '.' in page:
         load_all()
@@ -295,7 +297,8 @@ def page_interface(page: str) -> dict | None:
         return None
     return {'page': page, 'kind': kind, 'label': label,
             'bricks': [_brick_entry(BRICKS[k]) for k in dict.fromkeys(keys) if k in BRICKS],
-            'layout': LAYOUT_CONTROLS, 'gestures': LAYOUT_HELP}
+            'layout': LAYOUT_CONTROLS, 'gestures': LAYOUT_HELP,
+            'help': {'keys': PAGE_HELP_SHORTCUT.label, 'action': PAGE_HELP_SHORTCUT.action}}
 
 
 def reset_layout(user, page: str) -> bool:

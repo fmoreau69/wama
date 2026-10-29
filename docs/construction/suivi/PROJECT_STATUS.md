@@ -27266,14 +27266,17 @@ en briques UI comme PREMIERS plugins Data (marche F), APRÈS les restes ci-desso
    à `common.preview_layout` (vert sur le serveur relancé), contre-épreuves rouges (fichier et
    navigateur). Le geste sur la surface du Writer reste non joué : aucune surface n'a d'élément
    témoin à ouvrir ; les trois appels sont tenus par la garde.
-2. 🔄 **Finir la mise en briques** : les sections du volet sont des PANNEAUX mais pas des briques
-   du registre (`volet.PANEL_SLOTS` : assistant, tête, aperçu, infos, paramètres, actions ; le
-   registre n'a qu'UNE brique `inspector_panel` pour quatre panneaux, et pas d'assistant) ; et les
-   contrôles de la disposition vivent à DEUX endroits (cadenas du titre du volet sur les pages
-   d'apps, boutons de la brique Actions sur une surface), la liste des raccourcis n'existe que sur
-   une surface. Proposition d'UX en cours de validation par Fabien (contrôles de PAGE communs,
-   aide découvrable).
-3. Le face_analyzer en briques UI (premiers plugins Data), avec ses tests.
+2. ✅ **Finir la mise en briques** — fait le 29/10 (choix de Fabien : une barre de page et les
+   quatre aides) : contrôles de PAGE dans l'en-tête (`c1a490d6`, revue esthétique avant / après
+   `64e6a23c` — pastille des notifications non coupée), bulle du premier passage, touches dans les
+   infobulles lues au registre, assistant informé (`get_page_interface`, `reset_page_layout`,
+   `be4ba7c8`), sections du volet en briques du registre (`1584e0ed`), revérification (touche de
+   l'aide déclarée au registre, scénario commun sans monde cité). Détail : `WAMA_VOLETS §3-ter`.
+   ⏳ **Décision ouverte** : « Paramètres du volet » et « Réglages de l'élément » (surface) en une
+   seule brique, ce qui lèverait l'invariant page / surface du 19/10.
+3. Le face_analyzer en briques UI (premiers plugins Data), avec ses tests. Puis, à décider par
+   Fabien : la page « Live » (onglet avant la file pour les apps à port en direct ou résultat
+   instantané), avis rendu le 29/10.
 4. À juger par Fabien : R, J et ←/→ du cam_analyzer sur une vraie session.
 5. Ouverts plus anciens : restes de l'inspecteur (`60d24fef`, WIP d'une autre session sur
    `wama-inspector.js`), la clé française `volet(medias=…)`, replier une section, limites de la

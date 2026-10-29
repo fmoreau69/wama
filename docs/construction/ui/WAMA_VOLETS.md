@@ -840,6 +840,14 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
   - **Gardes** : `PageControlsTest.test_every_section_of_the_panel_is_a_page_brick_of_the_registry`
     (contre-épreuve : une section sans brique → rouge) ; `PageBrickTest` (les quatre déclarent ce
     qu'elles lisent, leur montage est un fichier qu'une page nomme).
+- **Revérification du 29/10 (soir)** — deux écarts de ma main, ramenés :
+  - la touche de l'AIDE (« ? ») s'écrivait en quatre lieux — la phrase du cadenas, la liste de
+    l'aide, la bulle, le test de la touche — quand les touches des briques sont déclarées au
+    registre : elle l'est aussi (`surfaces.PAGE_HELP_SHORTCUT`, servi par `page_controls_config`,
+    lu par l'assistant) ; garde : le module ne l'écrit plus (contre-épreuve : « ? » réécrit en dur →
+    rouge) ;
+  - le scénario COMMUN `common.page_controls` citait une page du monde Lab (le face_analyzer) comme
+    « page sans disposition » : c'est désormais une page du compte (les notifications).
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
