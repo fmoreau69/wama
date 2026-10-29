@@ -3630,17 +3630,17 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `tool_annotations(tool_name: str) -> dict` — Les annotations MCP d'un outil, tirées de sa marque — UNE déclaration, deux lecteurs : notre
   - `list_user_files(user, folder: str='temp') -> dict` — List ALL files in one of the user's folders (any extension).
   - `find_user_files(user, query: str, limit: int=20) -> dict` — Find the user's files BY NAME everywhere the File Manager shows them: the temporary folder,
-  - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=50, **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
+  - `add_to_anonymizer(user, file_path: str, sam3_prompt: str='', classes: list=None, precision_level: int=None, app_label: str='anonymizer', **params) -> dict` — Copy a file into the anonymizer input queue and create a Media DB entry.
   - `sam3_examples() -> dict` — Return recommended SAM3 text prompt examples.
-  - `create_image(user, prompt: str, model: str='hunyuan-image-2.1', width: int=512, height: int=512, steps: int=30, guidance_scale: float=7.5, negative_prompt: str…` — Create a txt2img generation job (status: PENDING).
-  - `add_to_enhancer(user, file_path: str, ai_model: str='', denoise: bool=None, blend_factor: float=None, **params) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
+  - `create_image(user, prompt: str, model: str=None, width: int=None, height: int=None, steps: int=None, guidance_scale: float=None, negative_prompt: str=None, see…` — Create a txt2img generation job (status: PENDING).
+  - `add_to_enhancer(user, file_path: str, ai_model: str='', denoise: bool=None, blend_factor: float=None, app_label: str='enhancer', **params) -> dict` — Register a file for enhancement and create the Enhancement DB entry.
   - `add_to_audio_enhancer(user, file_path: str, engine: str='', mode: str='', denoising_strength: float=None, quality: int=None, **params) -> dict` — Register an audio file for speech enhancement.
-  - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str='fr', tts_model: str=DEFAULT_TTS_MODEL, voice_preset: str='defaul…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
-  - `compose_music(user, prompt: str, model: str='musicgen-small', duration: float=10.0, work_score: str=None, work_audio: str=None, **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
-  - `add_to_describer(user, file_path: str, output_style: str='detailed', output_language: str='fr', max_length: int=500, **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.
-  - `add_to_transcriber(user, file_path: str, backend: str='auto', preprocess_audio: bool=False, hotwords: str='', enable_diarization: bool=True, **params) -> dict` — Copy a file into the transcriber queue and create a Transcript DB entry.
-  - `add_to_reader(user, file_path: str, backend: str='auto', mode: str='auto', language: str='', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
-  - `convert_file(user, file_path: str, output_format: str='', quality_preset: str='balanced', **params) -> dict` — Queue a file conversion and start it immediately.
+  - `synthesize_text(user, text: str='', work_file: str='', reference_voice: str='', language: str=None, tts_model: str=None, voice_preset: str=None, speed: float=N…` — Create a VoiceSynthesis job — from raw text OR from a work file, with an optional
+  - `compose_music(user, prompt: str, model: str=None, duration: float=None, work_score: str=None, work_audio: str=None, app_label: str='composer', **params) -> dict` — Create a Composer generation job (music or SFX) and start it immediately.
+  - `add_to_describer(user, file_path: str, output_style: str=None, output_language: str=None, max_length: int=None, app_label: str='describer', **params) -> dict` — Copy a file into the describer queue and create a Description DB entry.
+  - `add_to_transcriber(user, file_path: str, backend: str=None, preprocess_audio: bool=None, hotwords: str=None, enable_diarization: bool=None, app_label: str='tra…` — Copy a file into the transcriber queue and create a Transcript DB entry.
+  - `add_to_reader(user, file_path: str, backend: str=None, mode: str=None, language: str=None, app_label: str='reader', **params) -> dict` — Copy a file into the reader queue and create a ReadingItem DB entry.
+  - `convert_file(user, file_path: str, output_format: str='', quality_preset: str='balanced', app_label: str='converter', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the
   - `open_page(user, page: str) -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
@@ -3650,7 +3650,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `add_to_media_library(user, file_path: str, asset_type: str, name: str='', description: str='') -> dict` — Register one of the user's files as a media-library asset with an EXPLICIT role.
   - `search_web(user, query: str, max_results: int=5) -> dict` — Search the public web (no API key) and return result links with snippets.
   - `read_web_page(user, url: str, max_chars: int=8000) -> dict` — Fetch ONE public web page and return its readable text (SSRF-guarded, size-capped).
-  - `add_to_avatarizer(user, mode: str='pipeline', text_content: str='', tts_model: str=DEFAULT_TTS_MODEL, language: str='fr', voice_preset: str='default', audio_pa…` — Crée un job de génération d'avatar parlant (vidéo) en attente.
+  - `add_to_avatarizer(user, mode: str='pipeline', text_content: str='', tts_model: str=None, language: str=None, voice_preset: str=None, audio_path: str='', avatar…` — Crée un job de génération d'avatar parlant (vidéo) en attente.
   - `translate_text(user, text, source_lang='fr', target_lang='en', glossary=None)` — Traduit un texte via translategemma (TranslatorService). Passthrough si source==target.
   - `add_to_synthesizer(user, *args, **kwargs)`
   - `add_to_composer(user, *args, **kwargs)`

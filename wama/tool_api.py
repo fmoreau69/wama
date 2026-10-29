@@ -29,12 +29,15 @@ from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.views.decorators.http import require_GET, require_POST
 
-# Réglages déclarés au schéma d'une app (`wama/<app>/params.py`) → kwargs de son modèle.
-# Permet aux outils `add_to_<app>` d'accepter TOUT ce que l'UI règle sans recopier la liste.
-from wama.common.tts.constants import DEFAULT_TTS_MODEL, tts_catalog_key
-from wama.common.utils.param_schema import schema_model_kwargs, schema_extra_params
-
 logger = logging.getLogger(__name__)
+
+
+def _given(values: dict) -> dict:
+    """Ce qu'un appel a DONNÉ, parmi `values` : une valeur absente ou vide n'est pas un choix.
+    C'est le « posté » qu'un créateur passe à la naissance de son app (`new_*_settings`) : ce
+    qu'il omet y prend le réglage retenu de l'auteur, sinon le défaut du schéma (2026-10-29)."""
+    return {name: value for name, value in values.items() if value not in (None, '')}
+
 
 # Les listes d'extensions qui vivaient ici (`_MEDIA_EXTS`, `_DESCRIBER_EXTS`, `_TRANSCRIBER_EXTS`,
 # `_READER_EXTS`, `_AUDIO_ENHANCER_EXTS`…) sont RETIRÉES le 2026-09-28 (`ROADMAP §24.4 ① bis`) :
@@ -212,7 +215,7 @@ def add_to_anonymizer(
     file_path: str,
     sam3_prompt: str = '',
     classes: list = None,
-    precision_level: int = 50,
+    precision_level: int = None,
     app_label: str = 'anonymizer',
     **params,
 ) -> dict:
@@ -225,15 +228,16 @@ def add_to_anonymizer(
         sam3_prompt:     describe what to blur in text (e.g. "all human faces") — given alone,
                          it selects the DESCRIPTION mode (`target_mode`, a schema setting that
                          can also be passed explicitly: 'classes' | 'description')
-        classes:         classes to blur in the CLASSES mode  (default: ['face'])
+        classes:         classes to blur in the CLASSES mode  (default: the model's, ['face'])
         precision_level: 0–100 (0=Quick, 50=Balanced, 100=Precise)
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the element is born like a card deposit (`process_media` → `new_media_settings`,
+        2026-10-29).
         app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
         {"media_id": int, "name": str, "status": "queued"} or {"error": str}
     """
-    if classes is None:
-        classes = ['face']
     # Le MODE de l'élément (2026-09-27, ex-`use_sam3`) : déclaré, sinon déduit — une description
     # donnée seule désigne le mode Description.
     by_description = (params.get('target_mode') == 'description'
@@ -257,9 +261,14 @@ def add_to_anonymizer(
     except (InputRefused, ValueError) as e:
         return {'error': str(e)}
 
-    # Create Media DB entry via anonymizer's process_media()
+    # Le média naît par la vue de l'app (`process_media`), donc par sa naissance COMMUNE
+    # (`new_media_settings`, 2026-10-29) : défauts du schéma ← réglages retenus ← ce que l'outil a
+    # reçu, comme un dépôt de la card. Le mode est celui déduit ci-dessus.
+    posted = _given({**params, 'precision_level': precision_level,
+                     'target_mode': 'description' if by_description else 'classes',
+                     'sam3_prompt': sam3_prompt if by_description else None})
     try:
-        result = process_media(received.local_path, user, app=app_label)
+        result = process_media(received.local_path, user, post=posted, app=app_label)
     except Exception as e:
         return {'error': f'Erreur création Media : {e}'}
 
@@ -270,27 +279,15 @@ def add_to_anonymizer(
 
     media_id = result['id']
 
-    # Apply anonymizer settings
+    # Le fichier reçu (provenance) et les classes, qui ne sont pas un réglage du schéma.
     from django.apps import apps as django_apps
     Media = django_apps.get_model(app_label, 'Media')
     try:
         media = Media.objects.get(pk=media_id)
         received.record(media, 'file')
-        media.precision_level = max(0, min(100, int(precision_level)))
         if classes:
             media.classes2blur = classes
-        media.target_mode = 'description' if by_description else 'classes'
-        if by_description:
-            media.sam3_prompt = sam3_prompt or ''
-        touched = ['precision_level', 'classes2blur', 'target_mode', 'sam3_prompt']  # wama:redondance-ok — kwargs EXPLICITES de la signature (et le mode qu'ils déduisent), gérés à part du balayage schéma
-        # Tout autre réglage DÉCLARÉ au schéma (détection, modèle, flou, tracking…) : appliqué
-        # sans être recopié dans la signature. Les kwargs explicites ci-dessus priment.
-        for field, value in schema_model_kwargs('anonymizer', params).items():
-            if field in touched:
-                continue
-            setattr(media, field, value)
-            touched.append(field)
-        media.save(update_fields=touched)
+            media.save(update_fields=['classes2blur'])
     except Exception as e:
         logger.warning(f'[tool_api] Could not update Media #{media_id} settings: {e}')
 
@@ -336,14 +333,14 @@ def sam3_examples() -> dict:
 def create_image(
     user,
     prompt: str,
-    model: str = 'hunyuan-image-2.1',
-    width: int = 512,
-    height: int = 512,
-    steps: int = 30,
-    guidance_scale: float = 7.5,
-    negative_prompt: str = '',
+    model: str = None,
+    width: int = None,
+    height: int = None,
+    steps: int = None,
+    guidance_scale: float = None,
+    negative_prompt: str = None,
     seed: int = None,
-    num_images: int = 1,
+    num_images: int = None,
     app_label: str = 'imager',
     **params,
 ) -> dict:
@@ -353,14 +350,17 @@ def create_image(
     Args:
         user:            Django User instance
         prompt:          Text prompt for generation (required)
-        model:           Model name (e.g. 'hunyuan-image-2.1', 'stable-diffusion-xl')
-        width:           Output width in pixels (256–2048)
-        height:          Output height in pixels (256–2048)
-        steps:           Diffusion steps (1–100, default 30)
-        guidance_scale:  Guidance scale (1.0–20.0, default 7.5)
+        model:           'auto' or a model name (e.g. 'hunyuan-image-2.1', 'stable-diffusion-xl')
+        width:           Output width in pixels (256–2048; default: the model's)
+        height:          Output height in pixels (256–2048; default: the model's)
+        steps:           Diffusion steps (1–100)
+        guidance_scale:  Guidance scale (1.0–20.0)
         negative_prompt: What to avoid in the image
         seed:            Random seed for reproducibility (None = random)
         num_images:      Number of images to generate (1–4)
+        A setting left out takes the author's retained panel setting, then the chosen model's
+        declared defaults, else the schema default — the generation is born like a card deposit
+        (`new_generation_settings`, 2026-10-29).
         app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
@@ -369,29 +369,34 @@ def create_image(
     if not prompt.strip():
         return {'error': 'Le prompt est requis.'}
 
-    num_images = max(1, min(4, int(num_images)))
-    steps = max(1, min(100, int(steps)))
-    guidance_scale = max(1.0, min(20.0, float(guidance_scale)))
-    width = max(256, min(2048, int(width)))
-    height = max(256, min(2048, int(height)))
+    # Bornes des valeurs DONNÉES ; ce qui n'est pas donné vient de la naissance de l'app.
+    if num_images is not None:
+        num_images = max(1, min(4, int(num_images)))
+    if steps is not None:
+        steps = max(1, min(100, int(steps)))
+    if guidance_scale is not None:
+        guidance_scale = max(1.0, min(20.0, float(guidance_scale)))
 
     try:
         from django.apps import apps as django_apps
+        from wama.imager.views import _dimensions, new_generation_settings
         ImageGeneration = django_apps.get_model(app_label, 'ImageGeneration')
+        # Naissance COMMUNE (2026-10-29) : celle de la card txt2img — défauts du schéma ← défauts
+        # déclarés du modèle choisi ← réglages retenus ← ce que l'outil a reçu.
+        posted = _given({'model': model, 'steps': steps, 'guidance_scale': guidance_scale,
+                         'negative_prompt': negative_prompt, 'seed': seed,
+                         'num_images': num_images, **params})
+        values = new_generation_settings(user, 'txt2img', post=posted, model=ImageGeneration,
+                                         app=app_label)
+        size = _dimensions(_given({'width': width, 'height': height}), values.get('model'))
+        size = {k: max(256, min(2048, int(v))) for k, v in size.items()}
         generation = ImageGeneration.objects.create(
+            **values,
+            **size,
             user=user,
             generation_mode='txt2img',
             prompt=prompt.strip(),
-            negative_prompt=negative_prompt.strip(),
-            model=model,
-            width=width,
-            height=height,
-            steps=steps,
-            guidance_scale=guidance_scale,
-            seed=seed if seed else None,
-            num_images=num_images,
             status='PENDING',
-            **schema_model_kwargs('imager', params),
         )
     except Exception as e:
         return {'error': f'Erreur création ImageGeneration : {e}'}
@@ -400,12 +405,12 @@ def create_image(
         'generation_id': generation.id,
         'item_id': generation.id,   # clé UNIFORME du contrat méta-app, À LA SOURCE (2026-10-06)
         'status': 'pending',
-        'model': model,
+        'model': generation.model,
         'prompt': prompt,
-        'width': width,
-        'height': height,
-        'steps': steps,
-        'num_images': num_images,
+        'width': generation.width,
+        'height': generation.height,
+        'steps': generation.steps,
+        'num_images': generation.num_images,
     }
 
 
@@ -460,9 +465,8 @@ def add_to_enhancer(
             return {'error': f"Modèle inconnu : '{ai_model}'. Disponibles : "
                              f"{', '.join(sorted(models))}"}
     posted = {name: value for name, value in
-              {'ai_model': ai_model, 'denoise': denoise, 'blend_factor': blend_factor,
-               **params}.items()
-              if value not in (None, '') and name in declared}
+              _given({'ai_model': ai_model, 'denoise': denoise, 'blend_factor': blend_factor,
+                      **params}).items() if name in declared}
 
     # Le fichier est DÉSIGNÉ (2026-09-28) : pointé s'il est dans l'espace de l'utilisateur, jamais
     # recopié ; format et nature lus au CATALOGUE (`accepts_file`, `category_of_path`), pas dans
@@ -573,9 +577,8 @@ def add_to_audio_enhancer(
     if mode and mode not in modes:
         return {'error': f"Mode inconnu : '{mode}'. Disponibles : {', '.join(sorted(modes))}"}
     posted = {name: value for name, value in
-              {'engine': engine, 'mode': mode, 'denoising_strength': denoising_strength,
-               'quality': quality, **params}.items()
-              if value not in (None, '') and name in declared}
+              _given({'engine': engine, 'mode': mode, 'denoising_strength': denoising_strength,
+                      'quality': quality, **params}).items() if name in declared}
 
     # Désigné, pointé, nature lue au catalogue (2026-09-28) — cf. `add_to_enhancer`.
     from wama.common.app_registry import accepts_file, category_of_path
@@ -629,12 +632,12 @@ def synthesize_text(
     text: str = '',
     work_file: str = '',
     reference_voice: str = '',
-    language: str = 'fr',
-    tts_model: str = DEFAULT_TTS_MODEL,
-    voice_preset: str = 'default',
-    speed: float = 1.0,
-    pitch: float = 1.0,
-    emotion_intensity: float = 1.0,
+    language: str = None,
+    tts_model: str = None,
+    voice_preset: str = None,
+    speed: float = None,
+    pitch: float = None,
+    emotion_intensity: float = None,
     app_label: str = 'synthesizer',
     **params,
 ) -> dict:
@@ -652,9 +655,11 @@ def synthesize_text(
         language:          Language code (e.g. 'fr', 'en', 'es')
         tts_model:         TTS model catalog key ('synthesizer:coqui-xtts', 'auto'…)
         voice_preset:      Voice ('default', 'sa_<id>' reference voice, 'ua_<id>' library voice…)
-        speed:             Speech speed 0.5–2.0 (default: 1.0)
-        pitch:             Voice pitch 0.5–2.0 (default: 1.0)
-        emotion_intensity: Emotional intensity 0.0–2.0 (default: 1.0)
+        speed:             Speech speed 0.5–2.0
+        pitch:             Voice pitch 0.5–2.0
+        emotion_intensity: Emotional intensity 0.0–2.0
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the synthesis is born like a card deposit (`new_synthesis_settings`, 2026-10-29).
         app_label:         INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
@@ -672,8 +677,15 @@ def synthesize_text(
                     if path}
     except InputRefused as e:
         return {'error': str(e)}
-    settings = {**params, 'language': language, 'tts_model': tts_model, 'voice_preset': voice_preset,
-                'speed': speed, 'pitch': pitch, 'emotion_intensity': emotion_intensity}
+    # Naissance COMMUNE (2026-10-29), les `params` d'un dépôt de la card (`_deposit_params`) :
+    # la cascade de l'app, plus ce que l'appel porte hors schéma (réglages Higgs, titre).
+    from django.apps import apps as django_apps
+    from wama.synthesizer.views import new_synthesis_settings
+    posted = _given({**params, 'language': language, 'tts_model': tts_model,
+                     'voice_preset': voice_preset, 'speed': speed, 'pitch': pitch,
+                     'emotion_intensity': emotion_intensity})
+    settings = {**posted, **new_synthesis_settings(
+        user, model=django_apps.get_model(app_label, 'VoiceSynthesis'), app=app_label, post=posted)}
     try:
         synthesis = create_synthesis(user, prompt=text or '', params=settings,
                                      work_file=received.get('work_file'),
@@ -707,8 +719,8 @@ def synthesize_text(
 def compose_music(
     user,
     prompt: str,
-    model: str = 'musicgen-small',
-    duration: float = 10.0,
+    model: str = None,
+    duration: float = None,
     work_score: str = None,
     work_audio: str = None,
     app_label: str = 'composer',
@@ -724,8 +736,10 @@ def compose_music(
                   ('composer:musicgen-small', 'huggingface:m-a-p/YuE2-3B'…), a bare
                   composer id ('musicgen-small'), or a group auto
                   ('auto:text-to-music', 'auto:text-to-audio')
-        duration: Duration in seconds (default 10) — bounded by the app schema and capped by
-                  what the chosen model declares it can produce (MusicGen: 30 s)
+        duration: Duration in seconds — bounded by the app schema and capped by what the
+                  chosen model declares it can produce (MusicGen: 30 s)
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the generation is born like a card deposit (`new_generation_settings`, 2026-10-29).
         work_score: Path (from find_user_files) of the SCORE of a song to cover — ABC, MIDI
                   or MusicXML (port `work_score`); only for a model that declares it (YuE2)
         work_audio: Path (from find_user_files) of the AUDIO of a song to cover — its melody
@@ -738,16 +752,33 @@ def compose_music(
     """
     # Route F4b (2026-10-01) : le domaine du composer est celui du CATALOGUE (ses deux tâches),
     # plus la liste de l'app — un modèle installé ailleurs (YuE2) est accepté ici aussi.
+    from django.apps import apps as django_apps
+    from wama.composer.utils import vocals
     from wama.composer.utils.model_choice import (TASKS, accepts_input, generation_type as _type_of,
                                                    is_valid, normalize)
+    from wama.composer.views import new_generation_settings
 
     prompt = prompt.strip()
     if not prompt:
         return {'error': 'Prompt requis'}
 
-    if not is_valid(model):
-        return {'error': f"Modèle invalide '{model}' : il faut un modèle des tâches "
+    def _refused(chosen):
+        return {'error': f"Modèle invalide '{chosen}' : il faut un modèle des tâches "
                          f"{' / '.join(TASKS)} (voir le catalogue), ou un « auto » de groupe."}
+
+    # Un modèle DONNÉ se juge tel quel : refusé, jamais remplacé en silence par le défaut.
+    if model and not is_valid(model):
+        return _refused(model)
+    # Naissance COMMUNE (2026-10-29), celle de la card (`generate`) : défauts du schéma ← réglages
+    # retenus ← ce que l'outil a reçu ; puis les règles du composer — modèle normalisé et validé,
+    # durée bornée, voix normalisée.
+    ComposerGeneration = django_apps.get_model(app_label, 'ComposerGeneration')
+    values = new_generation_settings(user, model=ComposerGeneration, app=app_label,
+                                     post=_given({'model': model, 'duration': duration, **params}))
+    values.pop('prompt', None)   # la consigne est l'argument `prompt`
+    model = model or values.get('model')
+    if not is_valid(model):
+        return _refused(model)
 
     # Ports du MORCEAU À REPRENDRE (cover) — `work_score` (partition) et `work_audio` (audio),
     # ports de TRAVAIL depuis le 2026-10-03 : désignés par leur chemin, comme les ports du
@@ -774,18 +805,16 @@ def compose_music(
     # règle du curseur et de la tâche). Un `min(30.0, …)` écrit ici réduisait à 30 s toute durée
     # demandée par l'assistant ou un nœud du Studio, quel que soit le modèle (mesuré le 2026-10-18).
     from wama.composer.utils.model_config import clamp_duration
-    duration = float(clamp_duration(duration, model))
+    values['model'] = model
+    values['duration'] = float(clamp_duration(values.get('duration'), model))
+    values['vocals'] = vocals.normalize(values.get('vocals'))
     generation_type = _type_of(model)
 
-    from django.apps import apps as django_apps
-    ComposerGeneration = django_apps.get_model(app_label, 'ComposerGeneration')
     gen = ComposerGeneration.objects.create(
         user=user,
         generation_type=generation_type,
         prompt=prompt,
-        model=model,
-        duration=duration,
-        **schema_model_kwargs('composer', params),
+        **values,
     )
     for item, field in received:
         item.assign(gen, field)
@@ -825,9 +854,9 @@ def compose_music(
 def add_to_describer(
     user,
     file_path: str,
-    output_style: str = 'detailed',
-    output_language: str = 'fr',
-    max_length: int = 500,
+    output_style: str = None,
+    output_language: str = None,
+    max_length: int = None,
     app_label: str = 'describer',
     **params,
 ) -> dict:
@@ -843,7 +872,9 @@ def add_to_describer(
                          `describer/params.py`. Un compte-rendu de réunion n'est pas un style
                          (depuis le 2026-10-13) : `generate_summary=True, summary_type='meeting'`.
         output_language: 'fr' | 'en' | 'auto'
-        max_length:      Maximum length of result in words (default: 500)
+        max_length:      Maximum length of result in words
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the element is born like a card deposit (`new_description_settings`, 2026-10-29).
         app_label:       INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
@@ -853,7 +884,7 @@ def add_to_describer(
     # 'meeting' (compte-rendu de réunion) était proposé par l'UI et refusé par l'outil.
     from wama.common.utils.param_schema import schema_choice_values
     valid_styles = schema_choice_values('describer', 'output_style')
-    if valid_styles and output_style not in valid_styles:
+    if output_style and valid_styles and output_style not in valid_styles:
         return {'error': f"Style invalide : '{output_style}'. "
                          f"Disponibles : {', '.join(sorted(valid_styles))}"}
 
@@ -873,18 +904,22 @@ def add_to_describer(
 
     try:
         from django.apps import apps as django_apps
+        from wama.common.utils.user_settings import element_columns
+        from wama.describer.views import new_description_settings
         Description = django_apps.get_model(app_label, 'Description')
 
+        # Naissance COMMUNE (2026-10-29) : celle du dépôt de la card et de l'import du
+        # gestionnaire de fichiers — défauts du schéma ← réglages retenus ← ce que l'outil a reçu.
+        posted = _given({'output_style': output_style, 'output_language': output_language,
+                         'max_length': max_length, **params})
         description = Description.objects.create(
             user=user,
             input_file=received.value,
             filename=received.name,
             file_size=received.size,
             detected_type=detected_type,
-            output_style=output_style,
-            output_language=output_language,
-            max_length=int(max_length),
-            **schema_model_kwargs('describer', params),
+            **element_columns(new_description_settings(user, model=Description, app=app_label,
+                                                       post=posted), Description),
         )
         received.record(description, 'input_file')
     except Exception as e:
@@ -895,8 +930,8 @@ def add_to_describer(
         'item_id': description.id,   # clé UNIFORME du contrat méta-app (STUDIO_VISION)
         'filename': received.name,
         'detected_type': detected_type,
-        'output_style': output_style,
-        'output_language': output_language,
+        'output_style': description.output_style,
+        'output_language': description.output_language,
         'status': 'pending',
     }
 
@@ -914,10 +949,10 @@ def add_to_describer(
 def add_to_transcriber(
     user,
     file_path: str,
-    backend: str = 'auto',
-    preprocess_audio: bool = False,
-    hotwords: str = '',
-    enable_diarization: bool = True,
+    backend: str = None,
+    preprocess_audio: bool = None,
+    hotwords: str = None,
+    enable_diarization: bool = None,
     app_label: str = 'transcriber',
     **params,
 ) -> dict:
@@ -937,8 +972,10 @@ def add_to_transcriber(
         enable_diarization: Enable speaker diarization (VibeVoice only)
         **params:           Tout autre réglage DÉCLARÉ au schéma (`transcriber/params.py`) et
                             porté par le modèle — `generate_summary`, `summary_type`,
-                            `verify_coherence`… Appliqués via `schema_model_kwargs()` : la
+                            `verify_coherence`… Appliqués par la naissance de l'app : la
                             signature n'a pas à recopier la liste, qui dériverait.
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the element is born like a card deposit (`new_transcript_settings`, 2026-10-29).
         app_label:          INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
@@ -956,16 +993,17 @@ def add_to_transcriber(
 
     try:
         from django.apps import apps as django_apps
+        from wama.transcriber.views import new_transcript_settings
         Transcript = django_apps.get_model(app_label, 'Transcript')
 
+        # Naissance COMMUNE (2026-10-29) : celle du dépôt de la card et de l'import du
+        # gestionnaire de fichiers — défauts du schéma ← réglages retenus ← ce que l'outil a reçu.
+        posted = _given({'backend': backend, 'preprocess_audio': preprocess_audio,
+                         'hotwords': hotwords, 'enable_diarization': enable_diarization, **params})
         transcript = Transcript.objects.create(
             user=user,
             audio=received.value,
-            backend=backend,
-            preprocess_audio=bool(preprocess_audio),
-            hotwords=hotwords or '',
-            enable_diarization=bool(enable_diarization),
-            **schema_model_kwargs('transcriber', params),
+            **new_transcript_settings(user, model=Transcript, app=app_label, post=posted),
         )
         received.record(transcript, 'audio')
 
@@ -985,8 +1023,8 @@ def add_to_transcriber(
         'filename': transcript.filename,
         'duration_display': transcript.duration_display or '—',
         'properties': transcript.properties or '—',
-        'backend': backend,
-        'preprocess_audio': preprocess_audio,
+        'backend': transcript.backend,
+        'preprocess_audio': transcript.preprocess_audio,
         'status': 'pending',
     }
 
@@ -1002,9 +1040,9 @@ def add_to_transcriber(
 def add_to_reader(
     user,
     file_path: str,
-    backend: str = 'auto',
-    mode: str = 'auto',
-    language: str = '',
+    backend: str = None,
+    mode: str = None,
+    language: str = None,
     app_label: str = 'reader',
     **params,
 ) -> dict:
@@ -1022,7 +1060,9 @@ def add_to_reader(
                        `output_format` — plus à la création, 2026-10-28.)
         **params:      Tout autre réglage DÉCLARÉ au schéma (`reader/params.py`) et porté par le
                        modèle — `llm_model`, `format_markdown`, `generate_analysis`… Appliqués via
-                       `schema_model_kwargs()`, comme les autres créateurs (2026-10-18).
+                       la naissance de l'app, comme les autres créateurs.
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the element is born like a card deposit (`new_reading_settings`, 2026-10-29).
         app_label:     INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
@@ -1042,18 +1082,21 @@ def add_to_reader(
 
     try:
         from django.apps import apps as django_apps
+        from wama.common.utils.user_settings import element_columns
         from wama.reader.tasks import _count_pdf_pages
+        from wama.reader.views import new_reading_settings
         ReadingItem = django_apps.get_model(app_label, 'ReadingItem')
 
+        # Naissance COMMUNE (2026-10-29) : celle du dépôt de la card et de l'import du
+        # gestionnaire de fichiers — défauts du schéma ← réglages retenus ← ce que l'outil a reçu.
+        posted = _given({'backend': backend, 'mode': mode, 'language': language, **params})
         item = ReadingItem.objects.create(
             user=user,
             input_file=received.value,
             original_filename=received.name,
-            backend=backend,
-            mode=mode,
-            language=language or '',
             status='PENDING',
-            **schema_model_kwargs('reader', params),
+            **element_columns(new_reading_settings(user, model=ReadingItem, app=app_label,
+                                                   post=posted), ReadingItem),
         )
         received.record(item, 'input_file')
 
@@ -1074,8 +1117,8 @@ def add_to_reader(
         'item_id': item.id,
         'filename': received.name,      # le nom REÇU — la propriété `filename` est de la glu
         'page_count': item.page_count,
-        'backend': backend,
-        'mode': mode,
+        'backend': item.backend,
+        'mode': item.mode,
         'status': 'PENDING',
     }
 
@@ -1611,16 +1654,16 @@ def add_to_avatarizer(
     user,
     mode: str = 'pipeline',
     text_content: str = '',
-    tts_model: str = DEFAULT_TTS_MODEL,
-    language: str = 'fr',
-    voice_preset: str = 'default',
+    tts_model: str = None,
+    language: str = None,
+    voice_preset: str = None,
     audio_path: str = '',
     avatar_source: str = 'gallery',
     avatar_gallery_name: str = '',
     avatar_image_path: str = '',
-    quality_mode: str = 'fast',
-    use_enhancer: bool = False,
-    bbox_shift: int = 0,
+    quality_mode: str = None,
+    use_enhancer: bool = None,
+    bbox_shift: int = None,
     app_label: str = 'avatarizer',
     **params,
 ) -> dict:
@@ -1640,13 +1683,16 @@ def add_to_avatarizer(
         avatar_gallery_name: Nom d'un avatar de la médiathèque que l'utilisateur voit (les siens,
                              les partagés, le système) — requis si avatar_source='gallery'
         avatar_image_path:   Chemin (relatif à MEDIA_ROOT) d'une image avatar — requis si 'upload'
-        quality_mode:        'fast' (MuseTalk seul) | 'quality' (MuseTalk + CodeFormer)
-        use_enhancer:        Appliquer l'enhancer facial (défaut: False)
-        bbox_shift:          Décalage de la bbox -10..10 (défaut: 0)
+        quality_mode:        'fast' (MuseTalk seul) | 'quality' (MuseTalk + CodeFormer) — se lit
+                             comme `use_enhancer` quand celui-ci n'est pas donné, puis se DÉRIVE
+                             de lui, comme à la card
+        use_enhancer:        Appliquer l'enhancer facial
+        bbox_shift:          Décalage de la bbox -10..10
         **params:            Tout autre réglage DÉCLARÉ au schéma (`avatarizer/params.py`) et porté
-                             par le modèle — `quality_intent`, `animation_model`… Appliqués via
-                             `schema_model_kwargs()`, comme les autres créateurs (2026-10-18).
+                             par le modèle — `quality_intent`, `animation_model`…
                              `mode` et la source de l'avatar restent DÉRIVÉS des entrées.
+        A setting left out takes the author's retained panel setting, else the schema default —
+        the job is born like a card deposit (`new_avatar_settings`, 2026-10-29).
         app_label:           INTERNE (jamais annoncé) — la jumelle visée par `add_to_<jumelle>`
 
     Returns:
@@ -1666,16 +1712,23 @@ def add_to_avatarizer(
     # `create` et la ligne de batch : l'AUDIO (matériau explicite) prime, sinon le texte
     # déclenche le pipeline TTS. `mode` reste accepté pour compatibilité, sans autorité.
     mode = 'standalone' if audio_path else 'pipeline'
-    job = AvatarJob(user=user, mode=mode)
+    if mode == 'pipeline' and not (text_content or '').strip():
+        return {'error': "Fournissez un texte (text_content) ou un audio (audio_path)."}
 
-    if mode == 'pipeline':
-        if not (text_content or '').strip():
-            return {'error': "Fournissez un texte (text_content) ou un audio (audio_path)."}
-        job.text_content = text_content.strip()
-        job.tts_model = tts_catalog_key(tts_model or DEFAULT_TTS_MODEL)
-        job.language = language or 'fr'
-        job.voice_preset = voice_preset or 'default'
-    else:  # standalone (audio_path fourni — c'est lui qui a dérivé le mode)
+    # Naissance COMMUNE (2026-10-29), celle de la vue `create` de la card : défauts du schéma ←
+    # réglages retenus ← ce que l'outil a reçu. Le texte n'est posé qu'en pipeline : c'est lui qui
+    # rend la voix applicable. `quality_mode` n'est qu'une autre façon de dire `use_enhancer`.
+    from wama.avatarizer.views import _animation_model_or_auto, new_avatar_settings
+    if use_enhancer is None and quality_mode in ('fast', 'quality'):
+        use_enhancer = quality_mode == 'quality'
+    posted = _given({**{k: v for k, v in params.items() if k not in _AVATAR_DERIVED},
+                     'tts_model': tts_model, 'language': language, 'voice_preset': voice_preset,
+                     'use_enhancer': use_enhancer, 'bbox_shift': bbox_shift,
+                     'text_content': text_content.strip() if mode == 'pipeline' else None})
+    job = AvatarJob(user=user, mode=mode,
+                    **new_avatar_settings(user, model=AvatarJob, app=app_label, post=posted))
+
+    if mode == 'standalone':  # audio_path fourni — c'est lui qui a dérivé le mode
         try:
             received = designate(audio_path, user, app_label)
         except InputRefused as e:
@@ -1706,15 +1759,9 @@ def add_to_avatarizer(
     job.avatar_upload = image.value
     designated.append((image, 'avatar_upload'))
 
-    job.quality_mode = quality_mode if quality_mode in ('fast', 'quality') else 'fast'
-    job.use_enhancer = bool(use_enhancer)
-    try:
-        job.bbox_shift = max(-10, min(10, int(bbox_shift)))
-    except (ValueError, TypeError):
-        job.bbox_shift = 0
-    for name, value in schema_model_kwargs('avatarizer', params).items():
-        if name not in _AVATAR_DERIVED:
-            setattr(job, name, value)
+    # Les règles PROPRES de la card : modèle d'animation validé au catalogue, qualité dérivée.
+    job.animation_model = _animation_model_or_auto(job.animation_model)
+    job.quality_mode = 'quality' if job.use_enhancer else 'fast'
 
     try:
         job.save()

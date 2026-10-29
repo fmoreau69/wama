@@ -156,3 +156,103 @@ class BirthSettingsCriterionTest(SimpleTestCase):
                           'converter': True, 'describer': True, 'enhancer': True,
                           'imager': True, 'reader': True, 'synthesizer': True,
                           'transcriber': True}, states)
+
+
+#: The assistant's creation tools, each born by its APP's birth function — the one its card deposit
+#: and the file manager's import call (2026-10-29). One row per app : the tool, its call, the birth
+#: function, and one setting the spy adds to what that function returns. The converter is not here:
+#: all its ways in go through `apply_birth_settings`, another shape (it sets an existing job).
+TOOL_BIRTHS = (
+    ('anonymizer', 'add_to_anonymizer', {'file_path': 'png', 'precision_level': 60},
+     'wama.anonymizer.views.new_media_settings', 'Media', 'blur_ratio', 41),
+    ('avatarizer', 'add_to_avatarizer', {'text_content': 'Bonjour.', 'avatar_source': 'upload',
+                                         'avatar_image_path': 'png', 'language': 'en'},
+     'wama.avatarizer.views.new_avatar_settings', 'AvatarJob', 'bbox_shift', 3),
+    ('composer', 'compose_music', {'prompt': 'a calm piano', 'model': 'musicgen-small'},
+     'wama.composer.views.new_generation_settings', 'ComposerGeneration', 'duration', 13.0),
+    ('describer', 'add_to_describer', {'file_path': 'png', 'output_language': 'en'},
+     'wama.describer.views.new_description_settings', 'Description', 'max_length', 321),
+    ('enhancer', 'add_to_enhancer', {'file_path': 'png', 'denoise': True},
+     'wama.enhancer.views.new_enhancement_settings', 'Enhancement', 'blend_factor', 0.3),
+    ('imager', 'create_image', {'prompt': 'a cat', 'num_images': 2},
+     'wama.imager.views.new_generation_settings', 'ImageGeneration', 'steps', 13),
+    ('reader', 'add_to_reader', {'file_path': 'png', 'mode': 'printed'},
+     'wama.reader.views.new_reading_settings', 'ReadingItem', 'language', 'xx'),
+    ('synthesizer', 'synthesize_text', {'text': 'Bonjour à tous.', 'pitch': 1.2},
+     'wama.synthesizer.views.new_synthesis_settings', 'VoiceSynthesis', 'speed', 1.3),
+    ('transcriber', 'add_to_transcriber', {'file_path': 'wav', 'preprocess_audio': True},
+     'wama.transcriber.views.new_transcript_settings', 'Transcript', 'hotwords', 'zz-sentinel'),
+)
+
+_PNG = bytes.fromhex('89504e470d0a1a0a0000000d4948445200000001000000010806000000'
+                     '1f15c4890000000d49444154789c6360000000000200015e2b4d6b0000000049454e44ae426082')
+
+
+def _wav():
+    import io
+    import wave
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(8000)
+        w.writeframes(b'\x00\x00' * 8000)
+    return buf.getvalue()
+
+
+class ToolsAreBornLikeACardDepositTest(TestCase):
+    """An element created by the assistant (or a Studio node, which calls the same tool) is born
+    like a card deposit: by its app's birth function, given what the call gave. Before, eight tools
+    wrote their own defaults in their signature (`musicgen-small` and 10 s against the schema's
+    « auto » and 210 s, `hunyuan-image-2.1` against « auto »…) and ignored the author's retained
+    settings. The spy adds one value to what the birth function returns : the element must carry
+    it — whichever path the tool takes, it is the app's birth that decides."""
+
+    def setUp(self):
+        from django.conf import settings
+        self.user = get_user_model().objects.create_user('tool_birth_case', password='x')
+        self.temp = Path(settings.MEDIA_ROOT) / f'users/{self.user.id}/temp'
+        self.temp.mkdir(parents=True, exist_ok=True)
+        self.files = {'png': self.temp / 'tool_birth.png', 'wav': self.temp / 'tool_birth.wav'}
+        self.files['png'].write_bytes(_PNG)
+        self.files['wav'].write_bytes(_wav())
+
+    def tearDown(self):
+        # By the paths created here, never by `MEDIA_ROOT` (AGENTS.md).
+        for path in self.files.values():
+            path.unlink(missing_ok=True)
+
+    def _call(self, kwargs):
+        rel = {k: f'users/{self.user.id}/temp/{self.files[v].name}' for k, v in kwargs.items()
+               if isinstance(v, str) and v in self.files}
+        return {**kwargs, **rel}
+
+    def test_each_creation_tool_births_by_its_apps_function(self):
+        from importlib import import_module
+
+        from django.apps import apps as django_apps
+        from wama import tool_api as T
+        for app, tool, kwargs, birth, model_name, name, value in TOOL_BIRTHS:
+            with self.subTest(app=app):
+                module, attr = birth.rsplit('.', 1)
+                original = getattr(import_module(module), attr)
+                seen = []
+
+                def spy(*args, _original=original, _name=name, _value=value, **kw):
+                    seen.append(kw.get('post') or {})
+                    return {**_original(*args, **kw), _name: _value}
+
+                with mock.patch(birth, side_effect=spy), \
+                        mock.patch('celery.app.task.Task.apply_async',
+                                   return_value=mock.Mock(id='no-task')):
+                    out = getattr(T, tool)(self.user, **self._call(kwargs))
+                self.assertNotIn('error', out, out)
+                self.assertTrue(seen, f'{tool} does not call {birth}')
+                given = {k: v for k, v in kwargs.items()
+                         if k not in ('file_path', 'text', 'prompt', 'avatar_source',
+                                      'avatar_image_path', 'text_content', 'model')}
+                for key, val in given.items():
+                    self.assertEqual(val, seen[-1].get(key), f'{key} given, not posted to the birth')
+                element = django_apps.get_model(app, model_name).objects.get(pk=out['item_id'])
+                self.assertEqual(value, getattr(element, name),
+                                 f'{tool} : the element does not carry what its birth returned')
