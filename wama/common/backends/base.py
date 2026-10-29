@@ -601,6 +601,11 @@ class BaseModelBackend(ABC):
     #: peut appeler seule (`MusicGenerationBackend.plan_score`). C'est ce qui donne à la card du
     #: composer un process `plan` distinct du rendu (ROUTE §10.6, pilote P3 — 2026-10-02).
     supports_score_planning: bool = False
+    #: Le moteur d'OCR rend la PLACE de ce qu'il lit — chaque ligne et chaque mot avec sa boîte
+    #: (`OCRBackend.read_lines`, 2026-10-29), pas seulement le texte. C'est ce qui permet de
+    #: réécrire un document SCANNÉ en gardant sa forme : l'étape préalable du Translator, le domaine
+    #: document de l'Anonymizer, la forme d'un scan au Reader (ROADMAP §10.B, §16.4bis).
+    supports_text_positions: bool = False
     #: Borne LANGUE de `supports_timestamps` (cf. vocabulaire commun) : liste vide/None = la
     #: capacité vaut pour toutes les langues du moteur. Lire via `supports_timestamps_for()`,
     #: jamais le booléen seul — sinon la borne se perd au premier appelant qui l'ignore.

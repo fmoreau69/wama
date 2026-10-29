@@ -6,7 +6,6 @@ Installation : pip install "python-doctr[torch]"
 Avantages : pas de GPU requis, bonne précision sur texte imprimé propre,
 formulaires, reçus, documents structurés.
 """
-import os
 import logging
 from pathlib import Path
 from typing import Callable, Optional
@@ -22,6 +21,8 @@ class DocTRBackend(OCRBackend):
     #: Moteur piloté (contrat commun) — voir BaseModelBackend.ENGINE.
     ENGINE = 'doctr'
     REQUIRED_PACKAGES = ['doctr']
+    #: docTR DÉTECTE puis reconnaît : chaque mot a sa boîte (`read_lines`).
+    supports_text_positions = True
     recommended_vram_gb = 2.0
     description = "docTR — OCR de documents (détection + reconnaissance)."
     _warm = False
@@ -64,15 +65,40 @@ class DocTRBackend(OCRBackend):
         callback n'est émis qu'UNE fois, après assemblage : l'aperçu « pendant » montre le
         texte brut pendant la mise en forme LLM (l'étape longue vit dans la TÂCHE, à 98 %).
         """
-        # Étape 2 : ce dossier vient de `settings.MODEL_PATHS` — le model_config de
-        # l'app ne faisait que le dériver. Le lire à la source supprime un import
-        # d'app sans changer la valeur.
-        from django.conf import settings
-        DOCTR_DIR = settings.MODEL_PATHS.get('ocr', {}).get('doctr')
+        result, _ = self._predict(work_file, progress_callback)
 
-        # Redirect docTR model cache to our managed directory
-        os.environ['DOCTR_CACHE_DIR'] = str(DOCTR_DIR)
+        if progress_callback:
+            progress_callback(85, "Assemblage du texte…")
 
+        text = self._extract_text(result)
+        if on_partial:
+            try:
+                on_partial(text)
+            except Exception:
+                pass
+
+        return text
+
+    def read_lines(
+        self,
+        work_file: str,
+        language: str = '',
+        progress_callback: Optional[Callable[[int, str], None]] = None,
+    ) -> list:
+        """Les pages avec la boîte de chaque ligne et de chaque mot (contrat :
+        `OCRBackend.read_lines`). docTR les calcule de toute façon ; `run` les jette à l'assemblage
+        du texte."""
+        result, sizes = self._predict(work_file, progress_callback)
+        if progress_callback:
+            progress_callback(85, "Assemblage des lignes…")
+        return self._positioned(result, sizes)
+
+    def _predict(self, work_file: str, progress_callback=None):
+        """La prédiction de docTR sur le document, et la taille de chaque page dans SON unité —
+        points pour un PDF (lue par PyMuPDF, celle de `document_text`), pixels de l'image d'origine
+        sinon (avant l'agrandissement d'une image trop fine : la géométrie de docTR est RELATIVE).
+        Le cache des poids est `DOCTR_CACHE_DIR`, posé une fois dans `settings.py` (le backend le
+        reposait à chaque appel jusqu'au 2026-10-29, à la même valeur)."""
         if progress_callback:
             progress_callback(10, "Chargement docTR…")
 
@@ -93,7 +119,13 @@ class DocTRBackend(OCRBackend):
 
         if ext == '.pdf':
             doc = DocumentFile.from_pdf(str(path))
+            import pymupdf
+            with pymupdf.open(str(path)) as pdf:
+                sizes = [(page.rect.width, page.rect.height, 'pt') for page in pdf]
         else:
+            from PIL import Image
+            with Image.open(str(path)) as image:
+                sizes = [(image.width, image.height, 'px')]
             doc = DocumentFile.from_images([self._ensure_min_size(str(path))])
 
         if progress_callback:
@@ -109,19 +141,34 @@ class DocTRBackend(OCRBackend):
         if progress_callback:
             progress_callback(55, "Reconnaissance du texte…")
 
-        result = model(doc)
+        return model(doc), sizes
 
-        if progress_callback:
-            progress_callback(85, "Assemblage du texte…")
+    @staticmethod
+    def _box(geometry, width: float, height: float) -> list:
+        """La boîte `[x0, y0, x1, y1]` d'une géométrie RELATIVE de docTR, dans l'unité de la page :
+        deux coins en page droite (le défaut, `assume_straight_pages`), un polygone sinon."""
+        xs = [float(point[0]) for point in geometry]
+        ys = [float(point[1]) for point in geometry]
+        return [round(min(xs) * width, 2), round(min(ys) * height, 2),
+                round(max(xs) * width, 2), round(max(ys) * height, 2)]
 
-        text = self._extract_text(result)
-        if on_partial:
-            try:
-                on_partial(text)
-            except Exception:
-                pass
-
-        return text
+    @classmethod
+    def _positioned(cls, result, sizes) -> list:
+        """La prédiction de docTR dans la forme du contrat (`OCRBackend.read_lines`)."""
+        pages = []
+        for page, (width, height, unit) in zip(result.pages, sizes):
+            lines = []
+            for line in (line for block in page.blocks for line in block.lines):
+                words = [{'bbox': cls._box(w.geometry, width, height), 'text': w.value,
+                          'conf': round(float(w.confidence), 3)} for w in line.words]
+                if not words:
+                    continue
+                lines.append({'bbox': cls._box(line.geometry, width, height),
+                              'text': ' '.join(w['text'] for w in words),
+                              'conf': round(sum(w['conf'] for w in words) / len(words), 3),
+                              'words': words})
+            pages.append({'width': width, 'height': height, 'unit': unit, 'lines': lines})
+        return pages
 
     @staticmethod
     def _ensure_min_size(image_path: str, min_dim: int = 300) -> str:

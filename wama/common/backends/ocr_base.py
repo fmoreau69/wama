@@ -213,6 +213,35 @@ class OCRBackend(BaseModelBackend):
         on_partial        : `(texte cumulé)` après chaque page — aperçu « pendant » (preview_utils).
         """
 
+    def read_lines(
+        self,
+        work_file: str,
+        language: str = '',
+        progress_callback: Optional[Callable[[int, str], None]] = None,
+    ) -> list:
+        """Le texte du document AVEC SA PLACE — une entrée par page, dans l'ordre :
+
+            {'width': W, 'height': H, 'unit': 'pt' | 'px',
+             'lines': [{'bbox': [x0, y0, x1, y1], 'text': '…', 'conf': 0.97,
+                        'words': [{'bbox': [...], 'text': '…', 'conf': 0.99}]}]}
+
+        Coordonnées dans l'unité de la PAGE, origine en haut à gauche : en points pour un PDF (celles
+        que `document_text` lit sur un PDF natif, `get_text('dict')`), en pixels de l'image d'origine
+        pour une image ; `conf` entre 0 et 1. Les mots `{'text', 'bbox'}` sont ceux qu'attend la
+        structure des tableaux (`table_transformer_backend.extract_tables`).
+
+        Des LIGNES, pas des paragraphes : réunir les lignes en blocs est le travail de qui réécrit
+        la page. Mesuré le 2026-10-29 (scan à 150 dpi de deux pages d'article, lignes natives pour
+        vérité) : docTR retrouve 44/46 et 54/57 lignes, texte identique en médiane ; son propre
+        regroupement en blocs (`resolve_blocks`) mêle deux paragraphes dans 3 blocs sur 9 et 4 sur 8.
+
+        Réservé aux moteurs qui DÉCLARENT `supports_text_positions` (2026-10-29) ; les autres ne
+        rendent que le texte (`run`) et le disent ici plutôt que de rendre une page vide. Méthode
+        concrète, pas abstraite : le contrat n'a qu'UNE méthode de travail (`manager._work_method`),
+        comme `MusicGenerationBackend.plan_score`."""
+        raise NotImplementedError(
+            f"{type(self).__name__} ne rend pas la place du texte (`supports_text_positions` non déclaré).")
+
     def process(self, **kwargs) -> str:
         """Point d'entrée métier générique (contrat commun) → délègue à `run()`."""
         return self.run(**kwargs)

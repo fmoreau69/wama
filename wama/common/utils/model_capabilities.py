@@ -110,6 +110,7 @@ CANONICAL_CAPABILITIES: Dict[str, str] = {
     "first_audio_s":       "float — délai mesuré avant le premier son (TTS, service vocal)",
     "supports_vad_filter":  "bool — filtre de parole (VAD) avant de transcrire, réglage `vad_mode` (ASR)",
     "supports_score_planning": "bool — le moteur écrit une partition AVANT de la jouer (`plan_score`), en un process séparé du rendu (musique)",
+    "supports_text_positions": "bool — l'OCR rend la boîte de chaque ligne et de chaque mot (`read_lines`), pas seulement le texte (OCR)",
     #: Fait du MODÈLE (pas du moteur : un même moteur peut servir un modèle qui chante et un qui
     #: ne chante pas), déclaré par son manifeste — 2026-10-04, réglage « Voix » du composer.
     "supports_vocals":     "bool — le modèle CHANTE des paroles balisées (musique) ; absent = instrumental seul",

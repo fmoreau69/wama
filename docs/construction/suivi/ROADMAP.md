@@ -2863,7 +2863,18 @@ Deux voies, complémentaires :
    déjà (lignes et boîtes en points de page), dont se tirent les mots qu'attend `extract_tables` ;
    le test « couche texte ? » existe au Reader seul (`reader/tasks._try_direct_extraction`, par
    document) et passe au commun, par page, à son 2ᵉ usage ; l'effacement sous une ligne scannée
-   est `apply_redactions(images=PDF_REDACT_IMAGE_PIXELS)` ; l'ordre des mots qui fait permuter deux passages balisés (le second
+   est `apply_redactions(images=PDF_REDACT_IMAGE_PIXELS)`.
+   ✅ **Contrat livré le 29/10** : `supports_text_positions` (contrat commun + vocabulaire) et
+   `OCRBackend.read_lines` — pages → LIGNES et mots avec leur boîte, en points pour un PDF, en
+   pixels pour une image ; méthode concrète (le contrat garde une seule méthode de travail). docTR
+   le porte (sa géométrie n'est plus jetée ; `DOCTR_CACHE_DIR` n'est plus reposé par le backend).
+   Mesuré sur un scan à 150 dpi de deux pages de l'article de Fabien, lignes natives pour vérité :
+   44/46 et 54/57 lignes retrouvées (boîtes à IoU ≥ 0,5, médiane 0,72-0,75), texte identique en
+   médiane, 54 s pour les deux pages, chargement du modèle compris. Des lignes et non des blocs : le
+   regroupement de docTR (`resolve_blocks`) mêlait deux paragraphes dans 3 blocs sur 9 et 4 sur 8
+   — réunir les lignes en paragraphes revient à `document_text`, mesuré contre les blocs natifs.
+   ⏳ ensuite : le test « couche texte ? » par page au commun, la page scannée dans
+   `document_text`, l'étape du Translator ; l'ordre des mots qui fait permuter deux passages balisés (le second
    perd sa mise en forme, jamais son texte).
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄
