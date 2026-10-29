@@ -1290,15 +1290,21 @@ class PageKeyListenersTest(SimpleTestCase):
         'wama/common/static/common/js/wama-assistant-listen.js': (1, "le 1er geste reprend le micro suspendu"),
         'wama/common/static/common/js/wama-axis.js': (1, "keyup : le module ne distribue que keydown"),
         'wama/static/presentation/wama-presentation.js': (1, "page autonome, sans le gabarit de base"),
+        'wama/templates/includes/_presentation_nav.html': (1, "inclus par deux pages d'archive autonomes"),
+        # Only while the focus is INSIDE its submenu (a control keeping its keys), in capture on
+        # `window` to pass before Bootstrap's own menu keys.
+        'wama/templates/includes/header.html': (1, "le sous-menu « Bac à sable » : n'agit que focus dedans"),
     }
 
     def test_page_wide_key_listeners_only_go_down(self):
+        """The inline scripts of the templates count too (2026-10-29 reverification : the guard
+        read only `.js`, the header's submenu and an archived page escaped it)."""
         import re
         pattern = re.compile(r"""(?:document|window)\.addEventListener\(\s*['"]key(?:down|up|press)['"]""")
         root = Path(settings.BASE_DIR)
         found = {}
         for top in ('wama', 'wama_lab', 'wama_data'):
-            for path in (root / top).rglob('*.js'):
+            for path in (p for ext in ('*.js', '*.html') for p in (root / top).rglob(ext)):
                 rel = path.relative_to(root).as_posix()
                 if '/vendors/' in rel or re.search(r'/[a-z]+_\d\d/', rel):     # vendored, sandbox twins
                     continue

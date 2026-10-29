@@ -719,20 +719,35 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
       (contrôles forcés visibles, écritures refusées), avant / après — Espace, L, K identiques,
       Ctrl+L n'est plus pris ; R, J et ←/→ sans effet visible sans vidéo : ⚠ à juger sur une
       session réelle. Consigné au `CAM_ANALYZER_CHANGELOG`.
+    - ✅ **Le lecteur vidéo du face_analyzer** (revérification du 29/10 — F plein écran, Espace
+      lecture, écrits EN LIGNE dans `face_analyzer/video.html`, donc invisibles d'une garde qui ne
+      lisait que les `.js`) : prioritaire de la page, sans Ctrl/Alt/Méta. Sonde au navigateur (les
+      deux actions espionnées), avant → après : F, Maj+F, Espace identiques, en saisie rien des
+      deux côtés ; **Ctrl+F** ne bascule plus le plein écran en plus de la recherche du navigateur,
+      et **F sous une modale** ne le bascule plus. Contre-épreuve servie au navigateur → F muet.
     - **Bilan** : plus AUCUNE brique n'écoute le clavier de la page elle-même ; `PageKeyListenersTest`
       ne compte plus que ce qui n'agit jamais sur l'appui d'une touche (le 1ᵉʳ geste qui déverrouille
       le son, celui qui reprend le micro, le relâché d'Espace du transport et de R de l'écriture, la
-      présentation autonome). ⚠ Hors de sa portée (il ne lit que les `.js`) : le sous-menu « Bac à
-      sable » de l'en-tête, écouté en ligne dans `header.html` (capture sur `window`, passé avant
-      Bootstrap — `tests_queue_dnd` le tient). Le **jumeau `WamaApp.isTyping`** n'avait plus de
-      lecteur : retiré (voir plus haut).
+      présentation autonome et sa navigation d'archive) et le sous-menu « Bac à sable » de l'en-tête
+      (il n'agit que le focus DEDANS, en capture sur `window` pour passer avant Bootstrap —
+      `tests_queue_dnd` le tient). ⚠ La garde ne lisait que les `.js` : depuis la revérification du
+      29/10 elle lit aussi les scripts EN LIGNE des gabarits (c'est elle qui a trouvé le
+      face_analyzer). Le **jumeau `WamaApp.isTyping`** n'avait plus de lecteur : retiré (voir plus haut).
+    - **Les apps du BAC À SABLE en héritent sans régénération ni portage** : tout le clavier vit
+      dans `common/` (module, briques, scénarios), qu'une jumelle RÉFÉRENCE au lieu de le copier
+      (`app_sandbox`, en-tête) ; leurs `surfaces.py` sont identiques à ceux des sources (à la
+      suffixation près), et le générateur (`manifests/codegen/`) n'écrit aucune écoute clavier.
+      Sonde au navigateur du 29/10 (`WamaKeys.register` enveloppé à l'ouverture de la page) : les
+      pages de transcriber/composer/anonymizer/synthesizer et de leurs jumelles inscrivent les
+      MÊMES propriétaires, writer_01 et translator_01 (nées d'un manifeste seul) aussi ;
+      contre-épreuve (une brique refusée à la jumelle) → l'écart se voit.
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il
 déclare, il n'hérite pas) ; ~~④ le centre des pages d'apps (card d'entrée, file) sur la même
 grille~~ (✅ ci-dessus) ; ~~ouvrir un panneau dans une autre fenêtre~~ (✅ ci-dessus) ; les
-raccourcis clavier attachés aux briques (étapes 0, 1 et 2 ✅ ci-dessus ; ⏳ inscrire au module les
-briques qui gardent leur propre écoute, une par une, parité rejouée).
+raccourcis clavier attachés aux briques (étapes 0, 1, 2 et 3 ✅ ci-dessus — toutes les briques
+inscrites au module, une par une, parité rejouée, le 2026-10-29).
 
 ---
 

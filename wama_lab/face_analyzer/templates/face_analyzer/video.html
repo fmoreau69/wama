@@ -481,18 +481,19 @@ function setupEventListeners() {
     // Double-click video for fullscreen
     videoPlayer.addEventListener('dblclick', toggleFullscreen);
 
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-        // Only handle if not in an input field
-        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-
+    // Le clavier commun (`WamaKeys`, 2026-10-29) : une brique prioritaire de la page — jamais en
+    // saisie ni sous une modale (règle du module), sans Ctrl/Alt/Méta (Ctrl+F cherche dans la page).
+    window.WamaKeys.register({ owner: 'face_analyzer_player', scope: 'page', handle: (e) => {
+        if (e.ctrlKey || e.metaKey || e.altKey) return false;
         if (e.key === 'f' || e.key === 'F') {
             toggleFullscreen();
         } else if (e.key === ' ') {
-            e.preventDefault();
             togglePlayPause();
+        } else {
+            return false;
         }
-    });
+        return true;
+    } });
 
     // Analysis controls
     analyzeBtn.addEventListener('click', startAnalysis);
