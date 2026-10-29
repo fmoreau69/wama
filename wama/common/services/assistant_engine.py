@@ -1291,6 +1291,17 @@ _SUB_AGENT_BRIEF = (
     "ci-dessous avec tes outils de lecture, puis rends un rapport court et factuel : ce que tu as "
     "trouvé, avec ses sources (liens copiés des résultats d'outils), et ce qui reste incertain.\n\n"
     "Tâche : ")
+#: La RÈGLE de délégation, jointe aux règles du prompt d'outils quand les sous-agents sont proposés
+#: (étape 5). Mesuré le 2026-10-29 (Albert `gpt-oss-120b`, trois questions) : avec les seules règles
+#: d'effort dans la description de `delegate` — une ligne parmi 90 outils —, la question simple
+#: n'a pas délégué (attendu), mais trois sous-questions indépendantes ont été traitées seules en cinq
+#: appels, et une question de recherche ouverte sans council. Une consigne se lit dans les RÈGLES.
+_DELEGATION_RULE = (
+    "- SUB-AGENTS (`delegate`): when the request splits into INDEPENDENT sub-questions, give each "
+    "one to a sub-agent in ONE `delegate` call with `tasks`, instead of searching for each in "
+    "turn yourself. When it is an OPEN research or judgement question, gather a council: the same "
+    "`task` to 3 to 5 `agents` of different competences, with decide=\"review\". A simple question "
+    "needs no sub-agent.\n")
 #: Les deux façons de CONCLURE une vague où plusieurs agents traitent la même question (étape 4) :
 #: un VOTE, déterministe, pour une question fermée — le principe de `prospect_agents`, « pas besoin
 #: d'un juge LLM pour une moyenne » — ; un DÉCIDEUR pour une question ouverte, qu'aucun vote ne
@@ -2173,6 +2184,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
     tools_prompt = (WAMA_TOOLS_PROMPT.replace('{TOOLS}', build_tools_list(allowed_tools)
                                               + delegate_line
                                               + mcp_client.tools_block(dev_tools))
+                    + (_DELEGATION_RULE if delegation else '')
                     if user else "")
 
     def _native_tools(model):

@@ -80,6 +80,15 @@ class DelegateIsALoopVerbTest(TestCase):
         delegate.assert_not_called()
         self.assertNotIn('- delegate(', _system(seen))
 
+    def test_the_delegation_rule_joins_the_rules_only_when_offered(self):
+        """Mesuré le 29/10 : les règles d'effort dans la seule description de l'outil ne faisaient
+        pas déléguer ; la consigne se lit dans les RÈGLES du prompt — et seulement si proposée."""
+        from wama.common.services.assistant_engine import _DELEGATION_RULE
+        _, seen, _ = _turn(parent=(), can_delegate=True)
+        self.assertIn(_DELEGATION_RULE, _system(seen))
+        _, seen, _ = _turn(parent=())
+        self.assertNotIn('SUB-AGENTS', _system(seen))
+
     def test_a_sub_agent_cannot_delegate_again(self):
         _, seen, _ = _turn(parent=(), depth=1, can_delegate=True)
         self.assertNotIn('- delegate(', _system(seen))
