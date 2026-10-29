@@ -27347,3 +27347,65 @@ pipelines avatarizer/enhancer, `doc_facts` conformite/mecanismes/briques.
 
 🔚 **POINT D'ENTRÉE** : le retour de Fabien sur son test du soir (floutage, rangées, CSV) — puis, selon
 lui, adopter `BLUR_LOOK` à l'Anonymizer ou la porte élargie des dépassements (limite 3).
+
+## §CLÔTURE 2026-10-29 (soir), « MULTI-AGENTS — sous-agents et council » — ✅ étapes 0 → 5 livrées, 18 commits non poussés — 🔚 relancer gunicorn + serveurs MCP, puis Claude ABONNEMENT en arbitre / relecteur du council
+
+> Domicile : `docs/construction/ia/WAMA_HARNESS.md §7.4` (plan, mesures, décisions) ; vision §5.7 ;
+> `ROUTE §10.5` (interface existante). Ouvert par Fabien le 28/10 depuis l'assistant, mené en
+> session Claude Code.
+
+**Livré** (28/10) `61e3e947` résultat d'outil borné à 24 000 + bascule de modèle jugée dans la
+boucle · `9f3fbb0e` chaque outil DÉCLARE son effet (lecture / écriture / destruction), d'où
+`sub_agent_tools()` et les annotations MCP · docs `b9009fc9` `cd366c45` `8e9badc2` `8cbadf6a`.
+(29/10) `404e24b9` bornes d'un tour (outils, itérations, échéance, profondeur) · `2cc9d8fd`
+parallèle par serveur décidé + timeout gunicorn MESURÉ · `5f288725` verbe `delegate` hors registre,
+interrupteur, plafond, journal — et trou fermé : un tour borné passait par l'abonnement, dont la
+boucle MCP ignore les bornes · `cd7a409c` vagues parallèles, un couloir par serveur · `347bf7e6` le
+COUNCIL comme composition (agents du registre `critique` / `methodology`, `agents` 1..n, `decide` =
+vote / synthesis / review — le LLM Council de Karpathy lu dans son code), sous-agents EN FLUX ·
+`f30b7f2d` le local hors du council quand les distants suffisent, local/distant lu au catalogue ·
+`3b497863` réglage « Sous-agents » Auto (cran Qualité du curseur) / Toujours / Jamais + règles
+d'effort ; route de réglage bornée aux choix déclarés · `dbab049b` point 3 mesuré, consigne de
+délégation dans les règles du prompt · docs `72d26caf` `ae12c329` `cfefd8e5` `b6d3c210`.
+
+**Mesuré** : gunicorn `gthread` ne coupe pas un tour de 150 s (contre-épreuve `sync` : coupe à
+120 s) ; Apache coupe une connexion MUETTE à 130 s (lu, non mesuré — l'API v1 y est exposée, pas le
+chat en flux) ; Albert, 3 modèles en même temps : aucun refus ; vague local + Albert + ILaaS 4,9 s
+contre 11,1 s en série ; ILaaS coupe une requête MUETTE vers 165-175 s, un flux tient 197 s ;
+council réel 550 s puis 1 176 s, dus au couloir local (d'où sa sortie) ; dosage par les règles :
+dépend du modèle — `qwen-3.8-27b` délègue trois sous-questions, `gpt-oss-120b` non, aucun ne
+réunit seul un council.
+
+**Contrôles attendus au prochain /reprise** (mesurés ce soir) : 497 tests de l'assistant, des
+outils, de MCP et de la doc, 3 rouges — les tests JavaScript du chat
+(`tests_assistant_deposit_settings.ChatDepositAndGearTest`, cassés depuis `b05b97c4`, autre
+session) ; `check_docs` 3 références cassées, toutes dans ce fichier (`edit.js`, autre session) ;
+`check_redundancy` 99 trouvailles, aucune dans les fichiers de la session ; `doc_facts --check` :
+`mecanismes` et `dev-briques` périmés par d'autres sessions (mes lignes y sont commitées).
+
+**File des chantiers ouverts (limites de CETTE session)**, dans l'ordre :
+1. **Claude par l'ABONNEMENT en arbitre (décideur) ou relecteur** — décidé par Fabien : l'appel du
+   CLI SANS la surface MCP, comme couloir du décideur / d'un relecteur. Pas d'API (aucun crédit).
+2. Les étapes des sous-agents visibles à l'écran (`WAMA_HARNESS §9` chantier 4) : on attend
+   aujourd'hui sans rien voir.
+3. Le couloir local ralentit aussi les tâches INDÉPENDANTES (264 s contre 12-60 s) — la règle
+   « distants d'abord » ne vaut que pour un council : à trancher.
+4. Suivre le dosage sur les fils réels (`sub_agents` de la trace).
+5. Une source SAVANTE pour la bibliographie (OpenAlex / HAL / arXiv) — à rattacher à `ROADMAP §21.5`.
+6. Premier cas « interface existante » (Playwright → fonction au manifeste `app`, jamais
+   l'apparence), puis distiller le skill (`ROUTE §10.5`) — Fabien fournit le cas.
+7. L'approbation (chantier 2, cache + jeton) reste due avant d'ouvrir l'ÉCRITURE à un sous-agent.
+8. En note seulement : JEV (clé payante) et la piste locale `pplx-decider` (27 B, attention non
+   causale, ~49 Gio) ; les rôles de développement à longue génération restent exposés à la coupure
+   d'ILaaS sur requête muette.
+9. Jumeau relevé, à ses auteurs : le transcriber juge « distant » par la source déclarée
+   (`_is_remote_key`), pas par `AIModel.execution` (`cloud_models.is_cloud_key`).
+
+**Pendings système** : relancer gunicorn ET les serveurs MCP (le moteur, les réglages et la route
+de réglage ont changé) ; pousser les 18 commits de la session ; pour essayer : « Sous-agents » sur
+Auto et curseur sur Qualité, ou « réunis un council », sur `fabien.moreau` (`fmoreau` est en
+« 100 % local » : un seul couloir).
+
+**Artefacts** : les scripts de contre-épreuve et de mesure vivent dans le scratchpad de la session,
+jetables ; les essais réels par l'assistant n'ont rien persisté (aucun fil créé), ils ont consommé
+du quota Albert et ILaaS ; le worktree « prunable » sous `/tmp` n'est pas de cette session.
