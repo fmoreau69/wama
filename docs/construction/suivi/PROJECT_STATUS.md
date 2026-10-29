@@ -27209,3 +27209,76 @@ et Lab : au portage de leurs apps, alignés le moment venu).
   glu aveugle au chemin écrit) : rouges. Enhancer 107/107. Reste : la jumelle `enhancer_01`
   (bac à sable) garde l'ancienne route jusqu'à sa régénération ; brancher l'upscale vidéo au
   converter reste à décider (`ROADMAP` §Converter, phase 2).
+
+## §PALIER 2026-10-28→29, « BRIQUES UI : la disposition commune aux pages d'apps, le centre en briques, un panneau dans une autre fenêtre, le CLAVIER COMMUN (étapes 0→3) » — session « Briques UI », non poussé — 🔴 relancer gunicorn (fait par Fabien le 29/10 après-midi), Ctrl+F5
+
+Domicile : **`docs/construction/ui/WAMA_VOLETS.md §3-ter`** (tout le détail, preuves comprises) ;
+route : `ROUTE §F3b`. Suite de `§CLÔTURE 2026-10-28 (matin) « DISPOSITION »`.
+
+**Livré, dans l'ordre** :
+- La disposition sort du noyau des surfaces en brique commune `wama-brick-layout.js` (`4a96042b`) ;
+  « Médias » devient « Aperçu », masqué à vide (`258e7c65`) ; revérif `60d24fef`.
+- Les SECTIONS du volet de toute page deviennent des panneaux de la disposition commune, gardée par
+  compte et par page (`9886770e`, `common/utils/volet.py`, route `common:panel_layout`) ; saisie du
+  chat sur sa ligne et pied fixe (`64ed6113`) ; UN chargeur de script et de feuille,
+  `WamaApp.loadScript` / `loadStyle` (`da3abde6`).
+- Un panneau s'ouvre DANS UNE AUTRE FENÊTRE, déplacé et non recréé (`d7b22b7f`) ; pied du téléphone
+  (`ff20caf7`) ; scénario nocturne des écrans `common.layout.screens`, 8 écrans (`349f4bb0`, `c07e3fe3`).
+- Étape ④ : le CENTRE des pages d'apps en briques — card d'entrée, progression, barre, file
+  (`2ecdf708`, `a5e2d53a`) ; un seul bouton de cycle par process, card #2522 (`f9eb5286`).
+- Le CLAVIER COMMUN, règle décidée par Fabien le 29/10 (« une touche, UN propriétaire » : champ →
+  couche ouverte → brique qui a la main → briques prioritaires) : étape 0, le transport prioritaire
+  (`25a77984`) ; étape 1, raccourcis déclarés au registre, `UIBrick.shortcuts` (`dc0bf2e1`) ;
+  étape 2, le module `wama-keys.js` (`5d6d5acf`, `24519f42`, revérif `a5f15556`) ; étape 3, toutes
+  les briques inscrites une par une : partition — et la sélection de note qui se perdait à chaque
+  touche, défaut signalé par Fabien, jamais corrigé avant (`780a7064`) —, historique et studio
+  (`1c40f6ea`), constellation (`d8e6fc3b`), image et zones (`7adce7e1`), transport « aller à »
+  (`30d75b4b`), ligne de temps (`7c22f81d`), écriture à la lecture (`c1f3b8a0`), segments
+  (`d69ec76b`), visionneuse en COUCHE (`325772ba`), menu de card en couche (`d4d31602`),
+  cam_analyzer (`4be7b180`) ; `WamaApp.isTyping` retiré (`ae377693`) ; registre (`521aa623`) ;
+  revérification : la garde lit aussi les scripts EN LIGNE des gabarits, le lecteur du
+  face_analyzer porté (`961d72f4`).
+- ⚠ Faute de ma part, rattrapée : `tests_editor_axis` est resté ROUGE de `30d75b4b` à `b8d8da3a`
+  (non lancé). Leçon appliquée depuis : greper chaque test qui lit le JS touché avant le commit.
+
+**Preuves** : un scénario ou une sonde au navigateur par brique, avant / après, et sa
+contre-épreuve. **Rejoués sur le serveur RELANCÉ le 29/10 après-midi** : `common.score_keys` 6/6,
+`common.image_keys` 9/9, `transcriber.editor_parity` tout vert, `common.preview_navigation` 35/35,
+`check_tree_menu_keyboard` 7/7, `check_received_card_readonly_and_request` 14/14, lecteur du
+face_analyzer conforme. Bac à sable : les jumelles héritent du clavier SANS régénération ni
+portage (sonde : mêmes propriétaires inscrits, nées d'un manifeste comprises — `WAMA_VOLETS §3-ter`).
+
+**Changements de comportement VOULUS** : une liste ou un bouton cliqué ne garde plus les lettres du
+transport ; un bouton atteint au clavier garde Entrée ; Ctrl+R / Ctrl+F / Ctrl+L restent au
+navigateur (cam_analyzer, face_analyzer) ; Échap sur l'encart « lecture seule » ne désélectionne
+plus la card ; rien ne réagit sous une modale.
+
+**➡ RELAIS AU MONDE DATA (décision de Fabien, 29/10)** : compatibilité briques UI ↔ plugins
+graphiques confrontée, contrat de synchronisation déjà tenu par `wama-axis.js`, chantier
+« PLUSIEURS SOURCES SUR UN MÊME AXE » CONFIÉ à l'instance « Monde Data » — tout est écrit dans
+**`WAMA_DATA_WORLD.md` §8.4** (ajouté ce jour). La session « Briques UI » lance le face_analyzer
+en briques UI comme PREMIERS plugins Data (marche F), APRÈS les restes ci-dessous.
+
+**Restes de la session, dans l'ordre où ils se font** :
+1. 🔴 **La PASSATION du 28/10 non faite** (`§PALIER 2026-10-28 « APERÇU ④ »`, « le cadre isolé du
+   document rendu ») : la règle `<iframe sandbox>` est encore écrite trois fois
+   (`media-preview.js:441` et `:1887`, `brick-html-preview.js:31`) — une fonction exportée par
+   `WamaMediaPreview`, ses tests et son geste.
+2. 🔄 **Finir la mise en briques** : les sections du volet sont des PANNEAUX mais pas des briques
+   du registre (`volet.PANEL_SLOTS` : assistant, tête, aperçu, infos, paramètres, actions ; le
+   registre n'a qu'UNE brique `inspector_panel` pour quatre panneaux, et pas d'assistant) ; et les
+   contrôles de la disposition vivent à DEUX endroits (cadenas du titre du volet sur les pages
+   d'apps, boutons de la brique Actions sur une surface), la liste des raccourcis n'existe que sur
+   une surface. Proposition d'UX en cours de validation par Fabien (contrôles de PAGE communs,
+   aide découvrable).
+3. Le face_analyzer en briques UI (premiers plugins Data), avec ses tests.
+4. À juger par Fabien : R, J et ←/→ du cam_analyzer sur une vraie session.
+5. Ouverts plus anciens : restes de l'inspecteur (`60d24fef`, WIP d'une autre session sur
+   `wama-inspector.js`), la clé française `volet(medias=…)`, replier une section, limites de la
+   fenêtre détachée (menus d'une brique, focus de la page), étape ③ du cam_analyzer.
+
+**Rouges d'autrui relevés** (preuve par la liste filtrée sur mes fichiers) : budget des noms de
+tests 1290 > 1289 (`check_identifier_language`, aucun nom de cette session) ; colonne
+`describer_01_description.vision_temperature` absente de la base de test (10 erreurs) ; `openpyxl`
+absent ; `tests_send_to.ElementPourCheminTest` ×3 ; `tests_touch` (`wama-constellation.css`) ;
+`check_tree_item_menu` (rouge aussi avec le menu de HEAD) ; `check_docs` : 3 renvois vers `edit.js`.

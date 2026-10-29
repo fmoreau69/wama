@@ -837,6 +837,75 @@ temporelle et la couche plugins ne le sont pas. Elles se rebâtissent, elles ne 
 conteneur de vues détachables — après F (~~détacher en vraie fenêtre~~ : fait au noyau commun le
 2026-10-28, `§8.2 ⑤`).
 
+### 8.4 ➡ RELAIS de la session « Briques UI » (2026-10-29) — briques UI ↔ plugins graphiques, le contrat de synchronisation, ce qui est CONFIÉ au monde Data
+
+> Décision de Fabien, 2026-10-29 : la session « Briques UI » porte le **face_analyzer** en briques
+> UI, alignées sur le schéma du monde Data ; ce qui relève du monde Data lui est **confié** ici,
+> notamment *« plusieurs sources sur un même axe — nécessaire pour visualiser plusieurs données
+> d'un dataset sur un même graphe synchronisé, mais c'est du ressort de l'instance du monde Data »*.
+> Rappel de l'ordre tranché le 28/10 (`PROJECT_STATUS §PALIER 2026-10-28 « APERÇU ④ »`) : les
+> plugins graphiques du monde Data d'abord, puis le portage du Lab. Le face_analyzer écrit les
+> PREMIERS plugins (marche F ci-dessus : « 2-3 plugins écrits à la main, extraire ensuite ») ; ce
+> n'est pas un écart à cet ordre.
+
+**Le contrat de synchronisation — ⑥ disait « à fixer EN PREMIER », §8.2 ③ et la marche D le
+plaçaient devant : il est TENU en grande partie depuis le 2026-10-15 par l'AXE PARTAGÉ**
+(`wama/common/static/common/js/wama-axis.js`, en-tête), monté par toute surface qui pose une brique
+temporelle :
+- *quel événement* : `axis.subscribe(fn)` reçoit `{time, duration, playing, rate, reason}`, `reason`
+  ∈ `tick` / `state` / `seek` / `rate` (et `goto` pour un temps nommé) — l'équivalent des
+  `TimerMessage` de BIND (§4.3) ; `subscribe` rend sa désinscription ;
+- *quelle granularité* : des secondes réelles (flottant), jamais un indice d'échantillon — la règle
+  de `TimerTrip.m` (§2) ;
+- *qui est maître* : le média attaché tant qu'il joue en avant à une vitesse qu'il tient ; sinon
+  l'axe avance seul et recale le média (lecture arrière silencieuse) ; un `offset` par média ;
+- *les commandes* : le transport (`wama-transport.js`, brique `media_transport`) les envoie à l'axe,
+  jamais à une vue ; les vues ne se parlent jamais (§5bis) ;
+- **D7 tranché de fait** : un axe par PAGE (la surface), donc le curseur appartient à la SESSION,
+  pas au jeu de données.
+- Non mesuré, donc non affirmé : la dégradation sous charge de BIND (période 80 % / 20 %, §2).
+
+**Briques UI ↔ plugins graphiques — confrontation du 29/10** (les trois propriétés du kind `plugin`,
+`WAMA_DATA_FUNCTION_CARDS §7ter`) :
+
+| ce que le monde Data demande | la brique UI (`wama/common/surfaces.py`, `UIBrick`) | état |
+|---|---|---|
+| un point d'extension | un emplacement de surface (grille, volet, bord épinglé, autre fenêtre) ; `worlds` = les quatre mondes | ✅ |
+| la session partagée avec les pairs | l'axe partagé (ci-dessus) | ✅ |
+| consommer des types | `consumes` lit les natures de média OU les `DataType` (`catalog.data_types`) — jamais un 3ᵉ vocabulaire ; `segments` et `detections` sont déjà partagés avec les Médias | ✅ |
+| le clavier | une touche, UN propriétaire (§4.4, tranché le 29/10) | ✅ |
+| la vue détachée | panneau dans une autre fenêtre, déplacé, l'axe gardé (§8.2 ⑤) | ✅ |
+| les réglages d'une vue (les 18 configurateurs de BIND) | `BrickSlot.options` est un DICT LIBRE, non typé : rien n'est généré | ⚠ |
+| le montage à chaud par l'utilisateur (le Visualizer) | une surface est DÉCLARÉE par l'app : on déplace, empile, détache une brique, on n'en AJOUTE pas | ⚠ |
+| ne lire qu'une fenêtre de temps (`TripStreamingPlugin`) | seule la ligne de temps lit une onde fenêtrée (pics fins) ; aucune route ne sert une fenêtre d'un flux du monde Data | ⚠ |
+| plusieurs sources sur un même axe | l'axe a UNE horloge (un média + `offset`) ; « N médias synchronisés avec correction de dérive » est dans ce qu'il ne fait PAS encore (en-tête de `wama-axis.js`) | ⏳ |
+
+**« Synchronisable » ne se déclare pas, il se LIT** : les cinq briques qui chargent `wama-axis.js`
+(`requires`) sont exactement celles qui suivent l'axe — transport (PILOTE), ligne de temps,
+écriture à la lecture, segments, partition (ABONNÉES). Une propriété dérivée suffit, montrée au
+catalogue des briques ; un champ déclaré à la main pourrait diverger du code. ⚠ Le mécanisme
+`media_axis` (`mecanismes.py`) compte à tort la brique « Intervenants » : il range
+`wama-segments.js` dans ses annexes. Fait par la session « Briques UI » avec le face_analyzer.
+
+**➡ CONFIÉ à l'instance « Monde Data »** (rien n'en est commencé ici) :
+1. **Plusieurs sources sur un même axe** — plusieurs flux d'un dataset, à cadences différentes,
+   sur UN graphe synchronisé (le référentiel temporel `at` / `range`, §3) ; et N médias sur un axe
+   avec correction de dérive. C'est une extension de `wama-axis.js` (substrat commun) : la faire
+   AVEC le contrat ci-dessus, pas à côté.
+2. **La route qui sert une FENÊTRE d'un flux** à une brique (vue décimée, `wama_data/view.py`,
+   §9quater.7) — `wama_data` n'a encore aucune vue Django.
+3. **Les réglages typés d'une vue** (`ParamSpec` rendus par `WamaParams` au lieu des configurateurs
+   de BIND) : à EXTRAIRE après 2-3 plugins réels (marche G), pas à spécifier dans l'abstrait.
+4. **Le montage à chaud d'une vue** par l'utilisateur (le Visualizer, ⑥).
+
+**Ce que la session « Briques UI » fait du face_analyzer** (à relire par le monde Data à son
+retour) : des briques UNIVERSELLES — des courbes dans le temps (`consumes=('timeseries',)`,
+abonnées à l'axe) et une surcouche vidéo —, jamais une brique du face_analyzer ; ses traitements
+déclarés au catalogue de fonctions (vidéo → `timeseries`), comme le cam_analyzer ; ses mesures
+par image (`AnalysisFrame` : temps + colonnes numériques) lues autant que possible par les cadres
+typés (`wama_data/frames.py`) ; aucune extraction des réglages typés (point 3). Domicile du
+suivi : `WAMA_VOLETS §3-ter` et `PROJECT_STATUS §PALIER 2026-10-28→29 « BRIQUES UI »`.
+
 ---
 
 ## 9. Cartographie de BIND — périmètre et méthode
