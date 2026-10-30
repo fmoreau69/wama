@@ -58,10 +58,11 @@ def rows_to_describe(keys=None):
     return list(qs.order_by('model_key'))
 
 
-def card_repo(row) -> str:
-    """Le dépôt du Hub dont la fiche décrit la ligne : le sien, sinon le modèle d'origine d'une
-    quantification (un GGUF est ce modèle), '' sinon."""
-    return row.hf_repo or row.quantized_base or ''
+def card_repos(row) -> list:
+    """Les dépôts du Hub dont la fiche peut décrire la ligne, dans l'ordre : le sien, puis le
+    modèle d'origine d'une quantification (un GGUF est ce modèle — son dépôt n'a souvent pas de
+    fiche lisible : chandra-ocr-2, relu le 2026-10-30)."""
+    return [r for r in dict.fromkeys((row.hf_repo, row.quantized_base)) if r]
 
 
 def card_text(repo: str) -> str:
@@ -124,13 +125,13 @@ def describe(row, *, apply: bool = False, user=None, web: bool = True) -> dict:
     from django.utils import timezone
 
     from ..models import DESCRIPTION_PLACEHOLDER_KEY, DESCRIPTION_SOURCE_KEY, AIModel
-    repo = card_repo(row)
+    from wama.common.external_sources import hf_platform_ref, model_page_url
     text, origin, refs = '', '', []
-    if repo:
-        from wama.common.external_sources import hf_platform_ref, model_page_url
+    for repo in card_repos(row):
         text = card_text(repo)
-        origin, refs = (('fiche', [model_page_url(hf_platform_ref(repo)) or repo]) if text
-                        else ('', []))
+        if text:
+            origin, refs = 'fiche', [model_page_url(hf_platform_ref(repo)) or repo]
+            break
     if not text and web:
         text, refs = web_text(row, user=user)
         origin = 'web' if text else ''

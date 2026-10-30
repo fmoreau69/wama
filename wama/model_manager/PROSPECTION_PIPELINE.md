@@ -3488,6 +3488,11 @@ l'assistant ne recommandait rien.
      dans le cache), que la licence et la configuration emploient aussi (revérification du 30/10 :
      trois lecteurs pour un geste) ;
      Essai à blanc juste sur olmOCR-2, Kyutai, FrWhisper (fiche) et gemma4:12b (web).
+     ✅ **Appliqué le 2026-10-30** après la relance : `sync_models` → 476 lignes distantes portent
+     la description de leur fournisseur (OpenRouter), 63 lignes restent marquées ; `describe_models
+     --apply` les comble toutes (29 par la fiche, 34 par le web — Anthropic, ILaaS, Ollama).
+     Relu : un GGUF sans fiche lisible était décrit par le web ; il l'est désormais par la fiche de
+     son modèle d'origine (`card_repos`, chandra-ocr-2 refait). Toute ligne se refait par `--keys`.
    ⚠ Pas de résumé automatique à chaque installation : il charge un modèle sur l'Ollama de l'hôte,
    et la montée de VRAM a déjà fait tomber la machine (`tasks.sync_benchmarks_task`) — l'installation
    MARQUE, la commande comble, à la demande. Les candidats ne portent pas de vraie description à faire

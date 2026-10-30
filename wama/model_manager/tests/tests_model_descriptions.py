@@ -105,6 +105,19 @@ class FillingTest(TestCase):
         self.assertEqual('fiche', row.extra_info[DESCRIPTION_SOURCE_KEY]['origin'])
         self.assertEqual([], md.rows_to_describe(), 'nothing left to fill')
 
+    def test_a_quantisation_without_a_card_is_described_by_its_origin_s_card(self):
+        # Re-read on 2026-10-30: chandra-ocr-2's GGUF repository has no readable card.
+        row = self._filler_row()
+        row.extra_info = {**row.extra_info, 'base_model': 'org/origin',
+                          'base_model_relation': 'quantized'}
+        summary = {'short': 'Lit.', 'long': 'Lit des pages.'}
+        cards = {'org/some-ocr': '', 'org/origin': '# Origin\nReads pages.'}
+        with mock.patch.object(md, 'card_text', side_effect=lambda repo: cards[repo]), \
+                mock.patch.object(md, 'summarize', return_value=(summary, 'm')) as summarize:
+            out = md.describe(row, web=False)
+        self.assertEqual('fiche', out['origin'])
+        self.assertEqual('# Origin\nReads pages.', summarize.call_args.args[1])
+
     def test_without_card_nor_web_nothing_is_guessed(self):
         row = self._filler_row()
         with mock.patch.object(md, 'card_text', return_value=''), \
