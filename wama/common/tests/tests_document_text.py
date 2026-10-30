@@ -608,6 +608,22 @@ class RasterFigureTest(_TempDir):
         with fitz.open(path) as pdf:
             self.assertEqual([tuple(frame)], [tuple(r) for _x, r in raster_figures(pdf[0])])
 
+    def test_a_scanned_page_does_not_count_its_image_as_a_figure(self):
+        """The one reading shared by the probe, the OCR step and `read_figure_text`: a page
+        without a text layer is read whole, so its image is no figure ; another format has none."""
+        import fitz
+        from wama.common.utils.document_text import native_figures
+        path, frame, _ = _page_with_raster_figure(self.dir)
+        with fitz.open(path) as pdf:
+            image = pdf[0].get_pixmap(dpi=72)
+            scan = pdf.new_page()
+            scan.insert_image(scan.rect, pixmap=image)
+            pdf.save(str(self.dir / 'with_scan.pdf'))
+        figures = native_figures(self.dir / 'with_scan.pdf')
+        self.assertEqual([0], list(figures))
+        self.assertEqual([tuple(frame)], [tuple(r) for _x, r in figures[0]])
+        self.assertEqual({}, native_figures(self.dir / 'notes.txt'))
+
     def test_labels_come_in_page_points_without_noise_nor_native_text(self):
         from wama.common.utils.document_text import read_figure_text
         path, frame, read_lines = _page_with_raster_figure(self.dir)

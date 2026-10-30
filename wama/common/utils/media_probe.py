@@ -315,17 +315,15 @@ def probe_media(path: str) -> dict:
         properties = f"PDF • {pages} page{'s' if pages > 1 else ''}"
         attributes = {'pages': pages}
         try:
-            import fitz
-            from wama.common.utils.document_text import pages_without_text, raster_figures
+            from wama.common.utils.document_text import native_figures, pages_without_text
             scanned_pages = pages_without_text(path)
             scanned = len(scanned_pages)
             attributes['pages_without_text'] = scanned
             if scanned:
                 properties += f" • {scanned} sans texte"
             # Les images bitmap des pages NATIVES (2026-10-30) : leur texte ne se lit que par l'OCR.
-            with fitz.open(path) as doc:
-                attributes['raster_figures'] = sum(
-                    len(raster_figures(page)) for page in doc if page.number not in scanned_pages)
+            attributes['raster_figures'] = sum(
+                map(len, native_figures(path, scanned_pages).values()))
         except Exception:
             pass
         return {'media_type': 'pdf', 'properties': properties, 'attributes': attributes}

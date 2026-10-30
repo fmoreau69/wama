@@ -634,6 +634,26 @@ def raster_figures(page) -> list:
     return out
 
 
+def native_figures(path, scanned=None) -> dict:
+    """Les images bitmap à lire d'un PDF, page par page : `{page: raster_figures(page)}` pour les
+    seules pages natives qui en portent — une page sans couche texte se lit entière, ses images
+    avec elle. `scanned` : `pages_without_text(path)` quand l'appelant l'a déjà. La lecture
+    commune de la sonde (`raster_figures`), de l'étape OCR et de `read_figure_text`. Un autre
+    format : aucune."""
+    if _ext(path) != '.pdf':
+        return {}
+    import fitz
+    skip = set(pages_without_text(path) if scanned is None else scanned)
+    out = {}
+    with fitz.open(str(path)) as pdf:
+        for page in pdf:
+            if page.number not in skip:
+                figures = raster_figures(page)
+                if figures:
+                    out[page.number] = figures
+    return out
+
+
 #: Dans une figure, deux mots d'une même ligne d'OCR plus éloignés que cela (en hauteurs de ligne)
 #: appartiennent à deux étiquettes — trois cadres voisins d'un schéma lus d'un trait.
 FIGURE_WORD_GAP = 1.0
@@ -683,16 +703,17 @@ def read_figure_text(path, read_lines) -> dict:
     passer en `ocr=` avec les pages scannées (`read_pages_without_text`)."""
     import tempfile
     import fitz
-    skip = set(pages_without_text(path))
+    targets = native_figures(path)
+    if not targets:
+        return {}
     jobs = []
     with fitz.open(str(path)) as pdf, tempfile.TemporaryDirectory() as folder:
         sheet = fitz.open()
-        for page in pdf:
-            if page.number in skip:
-                continue
+        for number, figures in targets.items():
+            page = pdf[number]
             native = [fitz.Rect(line['bbox']) for block in page.get_text('dict')['blocks']
                       if block.get('type') == 0 for line in block['lines']]
-            for xref, rect in raster_figures(page):
+            for xref, rect in figures:
                 pixmap = fitz.Pixmap(pdf, xref)
                 if pixmap.n - pixmap.alpha > 3:          # CMYK → RGB
                     pixmap = fitz.Pixmap(fitz.csRGB, pixmap)

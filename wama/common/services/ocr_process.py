@@ -53,9 +53,8 @@ def ocr_step(source_field: str, output_field: str):
     ranger les lignes lues (un JSON `{'model', 'pages': {page: page du contrat}}`)."""
 
     def step(item, ctx):
-        import fitz
         from wama.common.utils.auto_model import resolve_model_choice
-        from wama.common.utils.document_text import (pages_without_text, raster_figures,
+        from wama.common.utils.document_text import (native_figures, pages_without_text,
                                                      read_figure_text, read_pages_without_text)
         source = getattr(item, source_field, None)
         if not source:
@@ -63,10 +62,7 @@ def ocr_step(source_field: str, output_field: str):
         path = source.path
         pages = pages_without_text(path)
         # Les images bitmap des pages NATIVES (2026-10-30) : leur texte aussi se lit par l'OCR.
-        figures = 0
-        if path.lower().endswith('.pdf'):
-            with fitz.open(path) as pdf:
-                figures = sum(len(raster_figures(page)) for page in pdf if page.number not in pages)
+        figures = sum(map(len, native_figures(path, pages).values()))
         if not pages and not figures:
             ctx.console("OCR : chaque page porte son texte, aucune image — rien à lire")
             return {'fields': {output_field: None}, 'label': 'Rien à lire',
