@@ -125,6 +125,18 @@ class FillingTest(TestCase):
         self.assertEqual(FILLER, row.description)
 
 
+class TheMarkStaysOutOfTheCorpusTest(SimpleTestCase):
+    """The mark is machine state (the sync sets and lifts it) — measured on 2026-10-30, a recycled
+    worker exported it into ten `albert__*` manifests. Where the description comes from is a
+    fact, and stays."""
+
+    def test_the_mark_is_dropped_and_the_source_is_kept(self):
+        from wama.common.management.commands.manifest_export import _sans_etat_machine
+        kept = _sans_etat_machine({DESCRIPTION_PLACEHOLDER_KEY: True,
+                                   DESCRIPTION_SOURCE_KEY: {'origin': 'fiche'}})
+        self.assertEqual({DESCRIPTION_SOURCE_KEY: {'origin': 'fiche'}}, kept)
+
+
 class CardReaderTest(SimpleTestCase):
     """The card is read by THE reader of a repository file (`prospector.hub_raw_file`), shared
     with the licence and the configuration readers."""

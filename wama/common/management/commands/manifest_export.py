@@ -198,8 +198,11 @@ _EXTRA_INFO_ETAT_MACHINE = frozenset({
     # Aides d'écran du statut SAM3 (2026-09-27) : `gated` DOUBLE le champ du catalogue, les deux
     # adresses se dérivent (`platform_ref`, route du profil) — rien qui ne soit porté ailleurs
     'gated', 'access_url', 'profile_url',
-    # Empreintes et marqueurs posés par la DÉCOUVERTE
+    # Empreintes et marqueurs posés par la DÉCOUVERTE — dont `description_placeholder` (2026-10-30) :
+    # la synchronisation le pose et le retire, il dit « rien de mieux pour l'instant », pas un fait
+    # du modèle (`description_source`, lui, en est un et reste au corpus)
     'ollama_id', 'hf_snapshot', 'vram_estimated', 'update_check', 'declared',
+    'description_placeholder',
     # Relevé de poids PAR COMPOSANT du snapshot LOCAL (`model_sync.persist_weights`, 19/09) :
     # il porte `root` — le chemin ABSOLU de cette machine — plus `signature` et `at`, qui ne
     # décrivent que cet exemplaire installé. Mesuré le 2026-09-20 : sans cette ligne, un export
