@@ -289,10 +289,9 @@ def create(request):
     # modèle nommé ne convient qu'à UNE nature d'avatar, et le suivant peut en changer.
     job.animation_model = _animation_model_or_auto(job.animation_model)
 
-    # quality_mode DÉRIVÉ (2026-08-03) : le backend ne lit que use_enhancer, le champ ne
-    # sert plus qu'aux clés ETA et aux données existantes. (`use_enhancer` et `bbox_shift`
-    # viennent de la cascade, coercés et bornés par le schéma.)
-    job.quality_mode = 'quality' if job.use_enhancer else 'fast'
+    # quality_mode DÉRIVÉ (`_derive_quality_mode`). (`use_enhancer` et `bbox_shift` viennent de la
+    # cascade, coercés et bornés par le schéma.)
+    _derive_quality_mode(job)
 
     job.save()
     # Provenance des ports réellement employés (rien pour un téléversement).
@@ -401,10 +400,9 @@ def update_settings(request, pk):
         data.pop('text_content', None)
     fields = [n for n in names if job.mode == 'pipeline' or n not in tts]
     touched = apply_item_settings(job, data, params_fields=fields)
-    # MuseTalk — quality_mode DÉRIVÉ de use_enhancer (2026-08-03).
+    # MuseTalk — quality_mode DÉRIVÉ de use_enhancer (`_derive_quality_mode`).
     if 'use_enhancer' in touched:
-        job.quality_mode = 'quality' if job.use_enhancer else 'fast'
-        touched.append('quality_mode')
+        touched += _derive_quality_mode(job)
     if touched:
         job.save(update_fields=touched)
     return JsonResponse({'status': 'updated'})
@@ -848,8 +846,8 @@ def batch_create(request):
             mode=row['mode'],
             avatar_source='upload' if avatar else 'gallery',
             avatar_gallery_name='' if avatar else row['avatar_gallery_name'],
-            quality_mode='quality' if values.get('use_enhancer') else 'fast',
         )
+        _derive_quality_mode(job)
         # Standalone : rattacher l'audio s'il résout sous MEDIA_ROOT (partage, pas de copie) ;
         # une URL devient la SOURCE, téléchargée dès la création (`source_ingest`, WAMA_INGEST) —
         # elle était ignorée sans un mot jusqu'au 2026-10-13, et la card partait sans audio.
@@ -936,6 +934,9 @@ start_process = make_process_start_view(
 
 
 def _derive_quality_mode(job):
+    """`quality_mode` DÉRIVÉ de `use_enhancer` (2026-08-03 : le backend ne lit que lui, le champ ne
+    sert plus qu'aux clés ETA et aux données existantes) — LA règle de tous les gestes : création,
+    ⚙ d'élément et de lot, ligne de lot, outil de l'assistant (elle était écrite cinq fois)."""
     job.quality_mode = 'quality' if job.use_enhancer else 'fast'
     return ['quality_mode']
 

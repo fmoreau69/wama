@@ -87,14 +87,22 @@ def new_synthesis_settings(user, model=None, app='synthesizer', post=None) -> di
                                 post=post, key=user_setting_key)
 
 
+def synthesis_params(user, post, model=None, app='synthesizer') -> dict:
+    """Les `params` d'une synthèse NAISSANTE pour `create_synthesis` : la cascade commune, plus ce
+    que `post` porte hors schéma (réglages Higgs, titre). Le dépôt de la card et l'outil de
+    l'assistant (`tool_api.synthesize_text`, 2026-10-29) ; `model`/`app` : une jumelle passe les
+    siens."""
+    posted = post.dict() if hasattr(post, 'dict') else dict(post)
+    return {**posted, **new_synthesis_settings(user, model=model, app=app, post=posted)}
+
+
 def _deposit_params(user, post):
-    """Les `params` d'un DÉPÔT (fichier, texte, lot) pour `create_synthesis` : la cascade commune,
-    plus ce que le POST porte hors schéma (réglages Higgs, titre). Ce qui a été posté devient la
-    mémoire du volet (`save_panel_settings`) — le dépôt d'un FICHIER ne la tenait pas, seul celui
-    d'un texte le faisait."""
+    """Les `params` d'un DÉPÔT (fichier, texte, lot) pour `create_synthesis` (`synthesis_params`).
+    Ce qui a été posté devient la mémoire du volet (`save_panel_settings`) — le dépôt d'un FICHIER
+    ne la tenait pas, seul celui d'un texte le faisait."""
     from wama.common.utils.user_settings import save_panel_settings
     posted = post.dict() if hasattr(post, 'dict') else dict(post)
-    params = {**posted, **new_synthesis_settings(user, post=posted)}
+    params = synthesis_params(user, posted)
     save_panel_settings(user, 'synthesizer', _SYNTH_PARAMS_JSON, posted, key=user_setting_key)
     return params
 

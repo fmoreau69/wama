@@ -2644,7 +2644,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
 
 - **Domicile** : `wama/common/utils/param_schema.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Schéma de paramètres WAMA — source unique pour rendre les réglages d'une app dans TOUTES les surfaces (modale item/batch, volet inspecteur card/batch/file) depuis une seule description, au lieu de markup dupliqué par template (cause des divergences).
-- **API publique** (40) :
+- **API publique** (41) :
   - `class Param` — Description d'UN paramètre, indépendante de la surface de rendu.
   - `format_display(value, display_format: str) -> Optional[str]` — La valeur dans le FORMAT déclaré (`Param.display_format`), None si le format est inconnu
   - `derive_from_model(model_class, include: List[str], overrides: dict=None) -> List[Param]` — Construit la liste de `Param` d'une app à partir des champs d'un modèle Django.
@@ -2667,6 +2667,7 @@ Source unique des réglages d'app : volet droit, modales (item ET lot, `context`
   - `panel_defaults(params, key=None) -> dict` — {clé de stockage: défaut} des params du volet.
   - `panel_values_by_name(stored, params, key=None) -> dict` — Ré-indexe les réglages STOCKÉS vers ce que `WamaParams.render` attend (le `name` du
   - `panel_prefs_from_post(post, params, key=None) -> dict` — Chemin INVERSE de `panel_values_by_name` : les valeurs postées par NOM, re-clées pour le
+  - `given_values(values) -> dict` — `values` réduit à ce qui est POSÉ (`_posee`) : le « posté » qu'un appel hors formulaire passe
   - `effective_settings(schema, posees=None, preset=None, contexte=None) -> dict` — Valeurs EFFECTIVES d'un élément — **défauts (schéma) ← preset ← réglages POSÉS**.
   - `coerce_params(schema, data, caps=None)` — Borne UNIQUE des paramètres numériques = le SCHÉMA (`params.py`). Source de vérité serveur.
   - `schema_for_app(app_id: str) -> List[dict]` — Schéma de params d'une app, résolu depuis le REGISTRE (`wama/<app>/params.py`).

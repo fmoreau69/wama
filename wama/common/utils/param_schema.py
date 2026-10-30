@@ -498,7 +498,7 @@ def sampling_of(source, prefix: str = '') -> dict:
 def sampling_options(source, prefix: str = '') -> dict:
     """`sampling_of` réduit à ce qui est RÉGLÉ — le `options` d'un moteur (le contrat uniforme de
     `BaseModelBackend.sampling_*`), où une clé absente laisse jouer celle du moteur."""
-    return {k: v for k, v in sampling_of(source, prefix).items() if v not in (None, '')}
+    return given_values(sampling_of(source, prefix))
 
 
 def _pget(p, key, default=None):
@@ -673,6 +673,13 @@ def panel_prefs_from_post(post, params, key=None) -> dict:
 #: convention que la vue d'upload du converter depuis toujours).
 def _posee(v) -> bool:
     return v not in (None, '')
+
+
+def given_values(values) -> dict:
+    """`values` réduit à ce qui est POSÉ (`_posee`) : le « posté » qu'un appel hors formulaire passe
+    à une naissance (`user_settings.new_element_settings`) — un créateur de `tool_api`, où ce qui
+    est omis prend le réglage retenu de l'auteur, sinon le défaut du schéma (2026-10-29)."""
+    return {name: value for name, value in (values or {}).items() if _posee(value)}
 
 
 def effective_settings(schema, posees=None, preset=None, contexte=None) -> dict:

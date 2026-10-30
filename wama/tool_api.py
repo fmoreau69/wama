@@ -31,12 +31,9 @@ from django.views.decorators.http import require_GET, require_POST
 
 logger = logging.getLogger(__name__)
 
-
-def _given(values: dict) -> dict:
-    """Ce qu'un appel a DONNÉ, parmi `values` : une valeur absente ou vide n'est pas un choix.
-    C'est le « posté » qu'un créateur passe à la naissance de son app (`new_*_settings`) : ce
-    qu'il omet y prend le réglage retenu de l'auteur, sinon le défaut du schéma (2026-10-29)."""
-    return {name: value for name, value in values.items() if value not in (None, '')}
+# Ce qu'un appel a DONNÉ — le « posté » qu'un créateur passe à la naissance de son app : la règle
+# « une valeur vide n'est pas un choix » de la cascade, lue à son domicile (2026-10-29).
+from wama.common.utils.param_schema import given_values as _given  # noqa: E402
 
 
 # Les listes d'extensions qui vivaient ici (`_MEDIA_EXTS`, `_DESCRIBER_EXTS`, `_TRANSCRIBER_EXTS`,
@@ -677,15 +674,15 @@ def synthesize_text(
                     if path}
     except InputRefused as e:
         return {'error': str(e)}
-    # Naissance COMMUNE (2026-10-29), les `params` d'un dépôt de la card (`_deposit_params`) :
+    # Naissance COMMUNE (2026-10-29), les `params` d'un dépôt de la card (`synthesis_params`) :
     # la cascade de l'app, plus ce que l'appel porte hors schéma (réglages Higgs, titre).
     from django.apps import apps as django_apps
-    from wama.synthesizer.views import new_synthesis_settings
+    from wama.synthesizer.views import synthesis_params
     posted = _given({**params, 'language': language, 'tts_model': tts_model,
                      'voice_preset': voice_preset, 'speed': speed, 'pitch': pitch,
                      'emotion_intensity': emotion_intensity})
-    settings = {**posted, **new_synthesis_settings(
-        user, model=django_apps.get_model(app_label, 'VoiceSynthesis'), app=app_label, post=posted)}
+    settings = synthesis_params(user, posted, model=django_apps.get_model(app_label, 'VoiceSynthesis'),
+                                app=app_label)
     try:
         synthesis = create_synthesis(user, prompt=text or '', params=settings,
                                      work_file=received.get('work_file'),
@@ -1718,7 +1715,8 @@ def add_to_avatarizer(
     # Naissance COMMUNE (2026-10-29), celle de la vue `create` de la card : défauts du schéma ←
     # réglages retenus ← ce que l'outil a reçu. Le texte n'est posé qu'en pipeline : c'est lui qui
     # rend la voix applicable. `quality_mode` n'est qu'une autre façon de dire `use_enhancer`.
-    from wama.avatarizer.views import _animation_model_or_auto, new_avatar_settings
+    from wama.avatarizer.views import (_animation_model_or_auto, _derive_quality_mode,
+                                       new_avatar_settings)
     if use_enhancer is None and quality_mode in ('fast', 'quality'):
         use_enhancer = quality_mode == 'quality'
     posted = _given({**{k: v for k, v in params.items() if k not in _AVATAR_DERIVED},
@@ -1761,7 +1759,7 @@ def add_to_avatarizer(
 
     # Les règles PROPRES de la card : modèle d'animation validé au catalogue, qualité dérivée.
     job.animation_model = _animation_model_or_auto(job.animation_model)
-    job.quality_mode = 'quality' if job.use_enhancer else 'fast'
+    _derive_quality_mode(job)
 
     try:
         job.save()
