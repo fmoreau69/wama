@@ -46,23 +46,13 @@ def register_intake_probe(key: str, fn) -> None:
 
 def _ports_for_category(category: str) -> list:
     """Tous les ports FICHIER (travail/référence) des apps réelles qui acceptent cette nature."""
-    from wama.common.app_registry import APP_CATALOG, studio_node_ports
+    from wama.common.app_registry import APP_CATALOG, file_ports_for
     from wama.common.sandbox import non_sandbox_apps
 
-    cibles = []
-    for app_id in sorted(non_sandbox_apps(APP_CATALOG)):
-        ports = studio_node_ports(app_id) or {}
-        for port in ports.get('inputs', []):
-            if port.get('group') == 'prompt':
-                continue  # le port prompt n'est pas un port de FICHIER
-            if category in (port.get('types') or []):
-                cibles.append({
-                    'app': app_id,
-                    'port': port.get('id'),
-                    'group': port.get('group'),
-                    'label': port.get('label', ''),
-                })
-    return cibles
+    return [{'app': app_id, 'port': port.get('id'), 'group': port.get('group'),
+             'label': port.get('label', '')}
+            for app_id in sorted(non_sandbox_apps(APP_CATALOG))
+            for port in file_ports_for(app_id, category)]
 
 
 def _sniff_batch(path: Path) -> dict | None:

@@ -339,6 +339,15 @@ def studio_node_ports(app_id):
     return {'inputs': inputs + _app_result_port_shapes(app_id, inputs), 'output': output}
 
 
+def file_ports_for(app_id, category) -> list:
+    """Les ports FICHIER (travail, référence — jamais la consigne) de l'app qui acceptent la nature
+    `category`, dans l'ordre de `studio_node_ports` : « quel port de cette app reçoit ce
+    fichier ? ». Lue par l'intake (« que peut faire WAMA de ce fichier ? ») et par la naissance
+    d'un élément (`user_settings.inputs_by_port`, 2026-10-29)."""
+    return [p for p in ((studio_node_ports(app_id) or {}).get('inputs') or [])
+            if p.get('group') != 'prompt' and category in (p.get('types') or [])]
+
+
 def _app_result_port_shapes(app_id, present):
     """Ports d'`app_result_ports` à la forme de `studio_node_ports` (obligation comprise — jamais
     requis), moins ceux déjà présents — les deux chemins (modèles déclarants, repli) les reçoivent

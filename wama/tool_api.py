@@ -755,10 +755,9 @@ def compose_music(
     # Route F4b (2026-10-01) : le domaine du composer est celui du CATALOGUE (ses deux tâches),
     # plus la liste de l'app — un modèle installé ailleurs (YuE2) est accepté ici aussi.
     from django.apps import apps as django_apps
-    from wama.composer.utils import vocals
     from wama.composer.utils.model_choice import (TASKS, accepts_input, generation_type as _type_of,
                                                    is_valid, normalize)
-    from wama.composer.views import new_generation_settings
+    from wama.composer.views import composer_rules, new_generation_settings
 
     prompt = prompt.strip()
     if not prompt:
@@ -782,11 +781,11 @@ def compose_music(
     except InputRefused as e:
         return {'error': str(e)}
     ComposerGeneration = django_apps.get_model(app_label, 'ComposerGeneration')
-    values = new_generation_settings(user, model=ComposerGeneration, app=app_label,
-                                     post=_given({'model': model, 'duration': duration, **params}),
-                                     inputs=inputs_by_port(app_label, *held))
-    values.pop('prompt', None)   # la consigne est l'argument `prompt`
-    model = model or values.get('model')
+    values = composer_rules(new_generation_settings(
+        user, model=ComposerGeneration, app=app_label,
+        post=_given({'model': model, 'duration': duration, **params}),
+        inputs=inputs_by_port(app_label, *held)))
+    model = model or values['model']
     if not is_valid(model):
         return _refused(model)
 
@@ -816,7 +815,6 @@ def compose_music(
     from wama.composer.utils.model_config import clamp_duration
     values['model'] = model
     values['duration'] = float(clamp_duration(values.get('duration'), model))
-    values['vocals'] = vocals.normalize(values.get('vocals'))
     generation_type = _type_of(model)
 
     gen = ComposerGeneration.objects.create(

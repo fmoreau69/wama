@@ -77,6 +77,19 @@ def new_generation_settings(user, model=None, app='composer', post=None, inputs=
                                 key=user_setting_key)
 
 
+def composer_rules(values) -> dict:
+    """Les règles PROPRES au composer sur des réglages naissants (`new_generation_settings`) : la
+    consigne n'en est pas un réglage, le modèle normalisé, la durée bornée par le schéma (le plafond
+    du modèle se pose au lancement, `clamp_duration`), la voix normalisée. La validité du modèle
+    reste à l'appelant. Lues par la card (`generate`) et par l'outil de l'assistant
+    (`tool_api.compose_music`) — elles y étaient écrites deux fois (2026-10-29)."""
+    values.pop('prompt', None)
+    values['model'] = normalize(values.get('model'))
+    values['duration'] = clamp_duration(values.get('duration'))
+    values['vocals'] = vocals.normalize(values.get('vocals'))
+    return values
+
+
 def _remember_settings(user, post):
     """Ce que le volet a posté devient la mémoire du volet (`save_panel_settings`) — APRÈS la
     validation : un modèle refusé ne doit pas devenir la préférence qui ferait échouer les
@@ -296,16 +309,11 @@ def generate(request):
     prompt = request.POST.get('prompt', '').strip()
 
     # Réglages : la cascade COMMUNE (défauts du schéma ← réglages de l'auteur ← le POST), puis les
-    # règles du composer — modèle normalisé et validé, durée bornée, voix normalisée.
-    settings_values = new_generation_settings(user, post=request.POST)
-    settings_values.pop('prompt', None)   # la consigne vient de la card seule (ci-dessus)
-    model_id = normalize(settings_values.get('model'))
+    # règles du composer (`composer_rules`) ; le modèle est validé.
+    settings_values = composer_rules(new_generation_settings(user, post=request.POST))
+    model_id = settings_values['model']
     if not is_valid(model_id):
         return JsonResponse({'error': 'Modèle invalide'}, status=400)
-    settings_values['model'] = model_id
-    # Bornée par le schéma seul : le plafond du modèle se pose au lancement (`clamp_duration`).
-    settings_values['duration'] = clamp_duration(settings_values.get('duration'))
-    settings_values['vocals'] = vocals.normalize(settings_values.get('vocals'))
 
     # Le MORCEAU À REPRENDRE (cover) — ports de TRAVAIL depuis le 2026-10-03 (décision de Fabien) :
     # l'audio de MusicGen Melody (`work_audio`) et la partition de YuE2 (`work_score`). Chacun est
@@ -338,10 +346,8 @@ def generate(request):
     from wama.common.utils.user_settings import inputs_by_port
     inputs = inputs_by_port('composer', *(received for received, _ in joined))
     if inputs:
-        proposed = new_generation_settings(user, post=request.POST, inputs=inputs)
-        settings_values.update({k: v for k, v in proposed.items() if k not in ('prompt', 'model')})
-        settings_values['duration'] = clamp_duration(settings_values.get('duration'))
-        settings_values['vocals'] = vocals.normalize(settings_values.get('vocals'))
+        proposed = composer_rules(new_generation_settings(user, post=request.POST, inputs=inputs))
+        settings_values.update({k: v for k, v in proposed.items() if k != 'model'})
 
     gen = ComposerGeneration.objects.create(
         **settings_values,
