@@ -3497,3 +3497,25 @@ l'assistant ne recommandait rien.
    et la montée de VRAM a déjà fait tomber la machine (`tasks.sync_benchmarks_task`) — l'installation
    MARQUE, la commande comble, à la demande. Les candidats ne portent pas de vraie description à faire
    suivre (« [ocr] 386 téléchargements… ») : c'est la fiche qui décrit. Tests : `tests_model_descriptions`.
+7. ✅ **L'indice d'AA est VERSIONNÉ** (2026-10-30, question de Fabien : *« malgré le curseur qualité
+   au max, c'est Albert qui était proposé »* au lieu d'ILaaS qwen3.8). Mesuré : AA est passé à
+   l'Intelligence Index **v5** (`intelligence_index_version: 5` dans la réponse) — 73 modèles notés,
+   les ~500 autres à `null` ; la synchro du 30/10 a écrit 13 lignes sur cette population (surtout des
+   modèles frontière) sous LE MÊME nom d'échelle que les 36 lignes v4 du 28/10 (population 570).
+   qwen3.8 27B (variante « Low », 15,7) tombait au **11ᵉ centile** et se comparait à des valeurs v4.
+   Remède : la version entre dans le nom (`benchmark_sync.aa_scale` → `aa_intelligence_index_v5`), et
+   l'étage des sous-indices (`family_scores`) s'abstient quand ses couverts portent plusieurs échelles
+   (`model_selector._quality_scalars`). Resynchronisé par la route (`sync_benchmarks`).
+   ⚠ **Ce que le remède ne change PAS, mesuré après** : le tirage reste gemma-4-31b à tous les crans.
+   Sur la seule échelle où les deux sont mesurés (Arena texte), gemma-4-31b = 1443, Qwen3.8-27B =
+   1438 ; et le rang centile de qwen3.8 reste celui d'une population v5 de 73 modèles (ordinal,
+   dépendant de sa population — la réserve écrite au rang centile). ⏳ Trois questions ouvertes,
+   pour Fabien : (a) un étage « échelle commune » — classer sur l'Elo Arena que tout le lot PORTE en
+   méta avant de descendre au rang centile ; (b) la variante AA retenue (« Low » faute de qualificatif
+   — quel effort de raisonnement ILaaS sert-il ?) ; (c) l'égalité exacte `albert:gemma-4-31b-it` /
+   `ilaas:gemma-4-31b` (même modèle), tranchée aujourd'hui par l'ordre du catalogue. Piste de source :
+   **compar:IA** (comparia.beta.gouv.fr, Ministère de la Culture / DINUM) — arène FRANÇAISE, votes à
+   l'aveugle, classement Bradley-Terry, jeux de données ouverts sur le Hub (`comparIA`) : une échelle
+   en français pour le tirage de l'assistant, à confronter avant tout branchement (`SOURCES`).
+   Tests : `TroisiemeBancEtSensTest.test_the_index_version_sent_by_the_source_names_the_scale`,
+   `SubsetScaleTest.test_sub_scores_of_two_index_versions_are_not_compared` (contre-épreuves rouges).

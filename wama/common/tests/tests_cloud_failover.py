@@ -181,7 +181,8 @@ class ProposedRelayInTheChatTest(SimpleTestCase):
                  "'ilaas:mistral', label: 'ILaaS · mistral'}}, 'bonjour');"
                  "line.children[0].onclick();")
         self.assertEqual('Répondre avec ILaaS · mistral', ctx.eval("line.children[0].textContent"))
-        self.assertEqual({'message': 'bonjour', 'model': 'ilaas:mistral'},
+        # Les fichiers déposés repartent avec le relais (bouton « Joindre », 27/10) — aucun ici.
+        self.assertEqual({'message': 'bonjour', 'model': 'ilaas:mistral', 'files': []},
                          json.loads(ctx.eval("JSON.stringify(sent[0])")))
 
     def test_an_error_without_relay_has_no_button(self):

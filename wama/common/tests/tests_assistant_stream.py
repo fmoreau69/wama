@@ -550,3 +550,101 @@ class NativeToolCallTest(SimpleTestCase):
             for model in ('deepseek-v4-flash-0731', 'gemma-4-31b-it'):
                 self.assertIsNone(assistant_engine._native_tool_specs(user, 'albert', [], model),
                                   model)
+
+
+#: Le strict nécessaire du DOM et du flux pour rendre une bulle et lire un tour SSE (V8).
+FAKE_BROWSER = r"""
+var window = this;
+function element() {
+  return { children: [], className: '', textContent: '', innerHTML: '', style: {},
+           appendChild: function (c) { this.children.push(c); c.parentNode = this; return c; },
+           insertBefore: function (c) { this.children.push(c); return c; },
+           addEventListener: function () {}, setAttribute: function () {},
+           querySelector: function (selector) {
+             var name = selector.replace('.', '');
+             for (var i = 0; i < this.children.length; i++) {
+               var child = this.children[i];
+               if ((' ' + child.className + ' ').indexOf(' ' + name + ' ') !== -1) return child;
+               var found = child.querySelector && child.querySelector(selector);
+               if (found) return found;
+             }
+             return null;
+           } };
+}
+var document = { readyState: 'complete', querySelectorAll: function () { return []; },
+                 cookie: '', createElement: element };
+function ReadableStream() {}
+function TextDecoder() {}
+TextDecoder.prototype.decode = function (value) { return value || ''; };
+function sse(events) {
+  var chunks = events.map(function (e) { return 'data: ' + JSON.stringify(e) + '\n\n'; });
+  return { ok: true, headers: { get: function () { return 'text/event-stream'; } },
+           body: { getReader: function () { return { read: function () {
+             return Promise.resolve(chunks.length ? { done: false, value: chunks.shift() }
+                                                  : { done: true });
+           } }; } } };
+}
+"""
+
+
+class ModelLabelTest(SimpleTestCase):
+    """Le MODÈLE qui a répondu s'écrit au pied de CHAQUE réponse (2026-10-30, Fabien : « il faut
+    toujours indiquer le modèle utilisé ») — dans les deux densités, que la réponse arrive d'un bloc
+    ou au fil du flux. Il n'était posé qu'à l'accueil (`full`) : au volet droit, seule la ligne
+    d'état le disait, et le tour suivant l'écrasait. V8, fichier SERVI."""
+
+    def _chat(self, density):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        from pathlib import Path
+
+        from django.conf import settings
+        source = (Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+                  / 'wama-assistant-chat.js').read_text(encoding='utf-8')
+        ctx = MiniRacer()
+        ctx.eval(FAKE_BROWSER + source)
+        ctx.eval("var chat = Object.create(WamaAssistantChat._Chat.prototype);"
+                 "chat.full = %s; chat.feed = element(); chat.lastFiles = [];"
+                 "chat.cfg = {chatUrl: '/chat/', streamUrl: '/stream/'};"
+                 "chat.signal = function () {}; chat.stopWaiting = function () {};"
+                 "chat.scrollToEnd = function () {}; chat.appendJobs = function () {};"
+                 "chat.toolSteps = function () { return element(); };"
+                 "chat.followPendingPage = function () {};"
+                 "function label() { var m = chat.feed.querySelector('.wama-assistant-model');"
+                 "  return m ? m.textContent : null; }" % ('true' if density == 'full' else 'false'))
+        return ctx
+
+    def test_a_reply_in_one_block_names_its_model_in_both_densities(self):
+        for density in ('full', 'compact'):
+            ctx = self._chat(density)
+            ctx.eval("fetch = function () { return Promise.resolve({ json: function () {"
+                     "  return Promise.resolve({success: true, response: 'Bonjour',"
+                     "                          model: 'ilaas (qwen-3.8-27b)'}); } }); };"
+                     "chat.sendBlocking('x', null);")
+            self.assertEqual('ilaas (qwen-3.8-27b)', ctx.eval('label()'), density)
+
+    def test_a_streamed_reply_names_its_model_in_both_densities(self):
+        for density in ('full', 'compact'):
+            ctx = self._chat(density)
+            ctx.eval("fetch = function () { return Promise.resolve(sse(["
+                     "  {type: 'delta', text: 'Bon'}, {type: 'step', step: {tool: 't'}},"
+                     "  {type: 'delta', text: 'jour'},"
+                     "  {type: 'done', result: {success: true, response: 'Bonjour',"
+                     "                          model: 'albert (gemma-4-31b-it)'}}])); };"
+                     "chat.sendStreaming('x', null);")
+            self.assertEqual('albert (gemma-4-31b-it)', ctx.eval('label()'), density)
+
+    def test_a_remote_reply_without_fragments_names_its_model_too(self):
+        ctx = self._chat('compact')
+        ctx.eval("fetch = function () { return Promise.resolve(sse(["
+                 "  {type: 'done', result: {success: true, response: 'Bonjour',"
+                 "                          model: 'ilaas (qwen-3.8-27b)'}}])); };"
+                 "chat.sendStreaming('x', null);")
+        self.assertEqual('ilaas (qwen-3.8-27b)', ctx.eval('label()'))
+
+    def test_a_reply_without_a_model_gets_no_empty_label(self):
+        ctx = self._chat('full')
+        ctx.eval("chat.feed.appendChild(chat.bubble('Bonjour', 'assistant', ''));")
+        self.assertIsNone(ctx.eval('label()'))

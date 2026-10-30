@@ -108,6 +108,16 @@ class SubsetScaleTest(TestCase):
         values, _ = _quality_scalars(batch, 'coding')
         self.assertEqual([70.0], list(values.values()))
 
+    def test_sub_scores_of_two_index_versions_are_not_compared(self):
+        """2026-10-30 : AA est passé à l'Intelligence Index v5 — un sous-indice v4 et un sous-indice
+        v5 sont deux échelles. L'étage s'abstient, le tri descend (ici au rang centile)."""
+        batch = [_row('v4', coding=58.2, benchmark_index=26.2, scale='aa_intelligence_index',
+                      rank=80.0, vram=5.0),
+                 _row('v5', coding=31.0, benchmark_index=15.7, scale='aa_intelligence_index_v5',
+                      rank=40.0, vram=5.0)]
+        values, _ = _quality_scalars(batch, 'coding')
+        self.assertEqual([80.0, 40.0], [values[id(m)] for m in batch])
+
 
 class LocalAndCloudAreDistinctTest(TestCase):
 

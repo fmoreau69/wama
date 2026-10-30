@@ -496,6 +496,11 @@ maintenant la brique commune en densité `full`, le volet en `compact`. Le messa
 le mot d'attente restent SERVIS (ils varient selon l'état de connexion), portés par un
 `<template>` plutôt que figés dans le JavaScript. Une garde vérifie que les identifiants de
 l'ancien rendu ont disparu — sans elle, laisser les deux en place passerait inaperçu.
+⚠ **Le modèle qui a répondu s'écrit au pied de CHAQUE réponse, dans les deux densités**
+(2026-10-30, Fabien : *« il faut toujours indiquer le modèle utilisé »*). Il n'était posé qu'en
+`full` : au volet droit, seule la ligne d'état le disait, et le tour suivant l'écrasait — d'où
+« l'étiquette revient parfois ». Un seul geste pour la bulle rendue d'un bloc et pour celle que le
+flux remplit (`WamaAssistantChat.markModel`) ; garde V8 `tests_assistant_stream.ModelLabelTest`.
 
 **Le texte À DIRE est une brique (26/09)** — `common/utils/tts_text.py`. Il était écrit DEUX
 FOIS, **sous le même nom de fonction** : la vue de vocalisation avait les emojis, le Markdown et

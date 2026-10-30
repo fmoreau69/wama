@@ -8,9 +8,10 @@
  * conserve bien les améliorations pour la vocalisation, et la porter sur la page d'accueil ».
  *
  * DEUX DENSITÉS, UN SEUL COMPORTEMENT (`data-density`) :
- *   • `full`    — l'accueil : bulles larges, badge du modèle, bouton « Écouter » par réponse,
+ *   • `full`    — l'accueil : bulles larges, bouton « Écouter » par réponse,
  *                 étapes d'outils dépliables avec leur résultat, mot d'attente déclaré ;
  *   • `compact` — le volet droit : le même fil, en 330 px de large.
+ * Le modèle qui a répondu s'affiche au pied de chaque réponse dans les deux (`markModel`).
  * Ce qui change est de l'APPARENCE. Le fil, les gardes, la voix et le flux sont identiques —
  * c'est précisément ce que deux implémentations ne pouvaient pas garantir.
  *
@@ -289,12 +290,7 @@
     bubble.className = 'wama-assistant-msg wama-assistant-msg-' + role;
     if (role === 'assistant') bubble.innerHTML = toHtml(content);
     else bubble.textContent = content;
-    if (this.full && role === 'assistant' && model) {
-      var badge = document.createElement('div');
-      badge.className = 'wama-assistant-model';
-      badge.textContent = model;
-      bubble.appendChild(badge);
-    }
+    if (role === 'assistant') this.markModel(bubble, model);
     wrap.appendChild(bubble);
     // « Écouter » : un geste EXPLICITE, donc il lit même quand la voix est coupée.
     if (this.full && role === 'assistant') {
@@ -312,6 +308,18 @@
       wrap.appendChild(btn);
     }
     return wrap;
+  };
+
+  /** Le MODÈLE qui a répondu, au pied de la réponse — dans les DEUX densités (2026-10-30,
+   *  Fabien : « il faut toujours indiquer le modèle utilisé »). Il n'était posé qu'en `full` : au
+   *  volet droit, il ne restait que la ligne d'état, que le tour suivant écrase. Un seul geste
+   *  pour la bulle rendue d'un bloc et pour celle que le flux a remplie. */
+  Chat.prototype.markModel = function (bubble, model) {
+    if (!model) return;
+    var badge = document.createElement('div');
+    badge.className = 'wama-assistant-model';
+    badge.textContent = model;
+    bubble.appendChild(badge);
   };
 
   /** Bulle d'ERREUR d'un tour. Le modèle CHOISI est saturé (2026-10-13) : le serveur PROPOSE le
@@ -877,12 +885,7 @@
           } else if (bulle) {
             texte = r.response || texte;
             bulle.innerHTML = toHtml(texte);
-            if (self.full && r.model) {
-              var badge = document.createElement('div');
-              badge.className = 'wama-assistant-model';
-              badge.textContent = r.model;
-              bulle.appendChild(badge);
-            }
+            self.markModel(bulle, r.model);
           }
           self.appendJobs(r.jobs);
           if (r.model) self.setStatus(r.model);

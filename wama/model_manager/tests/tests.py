@@ -2801,6 +2801,25 @@ class TroisiemeBancEtSensTest(_SourcesFactices, TestCase):
         self.assertEqual(['Qwen3 8B', 'Gemma 4 31B'], [e['name'] for e in by_category['llm']])
         self.assertEqual(2, sum('language/models' in u for u in urls))
 
+    def test_the_index_version_sent_by_the_source_names_the_scale(self):
+        """2026-10-30 : AA déclare `intelligence_index_version` (v5, 73 modèles notés contre 570
+        en v4). Deux versions sont deux échelles : la version entre dans le nom, sinon le tirage
+        compare une valeur v4 à une valeur v5 (qwen3.8 27B au 11ᵉ centile)."""
+        from ..services import benchmark_sync as bs
+        entry = {'slug': 'qwen3-8-27b', 'name': 'Qwen3.8 27B',
+                 'evaluations': {'artificial_analysis_intelligence_index': 15.7}}
+
+        def scales_with(page):
+            def fake_http(url, headers=None, timeout=45):
+                return page if 'language/models' in url else {'data': []}
+            with patch.object(bs, '_http_json', side_effect=fake_http), \
+                    patch.dict('os.environ', {bs.AA_KEY_ENV: 'fake-key'}):
+                by_category, _ = bs.load_aa()
+            return [e['scale'] for e in by_category['llm']]
+        self.assertEqual(['aa_intelligence_index_v5'],
+                         scales_with({'intelligence_index_version': 5, 'data': [entry]}))
+        self.assertEqual(['aa_intelligence_index'], scales_with({'data': [entry]}))
+
     # ── (2) le sens de l'échelle ────────────────────────────────────────────────────────
 
     def test_un_taux_d_erreur_se_lit_a_l_envers(self):

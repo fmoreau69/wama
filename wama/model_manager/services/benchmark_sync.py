@@ -577,16 +577,30 @@ def _http_json(url: str, headers: dict | None = None, timeout: int = 45):
 AA_MAX_PAGES = 20
 
 
-def _aa_entries(path: str, key: str) -> list:
-    """Toutes les entrées d'un endpoint AA, pages comprises (`pagination.has_more`)."""
-    entries = []
+def _aa_entries(path: str, key: str) -> tuple:
+    """`(entrées, version)` d'un endpoint AA, pages comprises (`pagination.has_more`) — `version`
+    est celle de l'indice que la réponse DÉCLARE (`intelligence_index_version`), None sinon."""
+    entries, version = [], None
     for page in range(1, AA_MAX_PAGES + 1):
         url = f"{AA_BASE}/{path}" + (f"?page={page}" if page > 1 else '')
         data = _http_json(url, headers={'x-api-key': key})
         entries.extend(data.get('data') or [])
+        version = version or data.get('intelligence_index_version')
         if not (data.get('pagination') or {}).get('has_more'):
             break
-    return entries
+    return entries, version
+
+
+def aa_scale(spec: dict, version=None) -> str:
+    """L'échelle d'une catégorie AA, VERSIONNÉE quand la réponse déclare la version de son indice.
+
+    Mesuré le 2026-10-30 : AA est passé à l'Intelligence Index v5 — 73 modèles notés sur la
+    nouvelle version, les ~500 autres à `null`. Sous un seul nom d'échelle, les valeurs v4 (synchro
+    du 28/10, population 570) et v5 (synchro du 30/10, population 73, surtout des modèles
+    frontière) se comparaient comme une même mesure : qwen3.8 27B tombait au 11ᵉ centile et le
+    tirage de l'assistant lui préférait gemma-4-31b à curseur qualité 100 (question de Fabien).
+    Deux versions d'un indice sont deux échelles — la règle des échelles s'applique sans exception."""
+    return f"{spec['aa_scale']}_v{version}" if version else spec['aa_scale']
 
 
 def load_aa():
@@ -600,7 +614,7 @@ def load_aa():
         if not spec.get('aa'):
             continue        # AA ne couvre pas cette catégorie : ni requête, ni motif
         try:
-            entries = _aa_entries(spec['aa'], key)
+            entries, version = _aa_entries(spec['aa'], key)
         except Exception as e:
             reasons[cat] = f'endpoint AA indisponible : {e}'
             continue
@@ -621,7 +635,7 @@ def load_aa():
                     and val is not None}
             sub_scores.pop('intelligence', None)      # déjà porté par `benchmark_index`
             out.append({'name': m.get('name', ''), 'slug': m.get('slug', ''),
-                        'value': float(v), 'scale': spec['aa_scale'], 'identity': ident,
+                        'value': float(v), 'scale': aa_scale(spec, version), 'identity': ident,
                         'family_scores': sub_scores})
         if out:
             by_category[cat] = out

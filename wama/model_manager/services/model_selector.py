@@ -286,7 +286,11 @@ def _quality_scalars(pool, family=None):
 
     if family:
         covered = [m for m in batch if _family_score(m) is not None]
-        if covered:
+        # Un sous-indice est mesuré sur l'échelle de SON banc : deux versions d'un indice ne se
+        # comparent pas plus que leurs indices généraux (`benchmark_sync.aa_scale`, 2026-10-30).
+        # Plusieurs échelles parmi les couverts → l'étage s'abstient, comme la mesure interne.
+        scales = {(getattr(m, 'benchmark_meta', None) or {}).get('scale') for m in covered}
+        if covered and len(scales) == 1:
             return {id(m): _family_score(m) for m in covered}, False
 
     # Étage benchmark TIERS : le sous-ensemble mesuré doit AUSSI partager une seule échelle
