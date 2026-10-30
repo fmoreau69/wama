@@ -1796,3 +1796,83 @@ class SegmentRulesTest(SimpleTestCase):
                          "S.severity({coh_severity: 'error', confidence: 0})];")
         self.assertEqual(['SPEAKER_00', 'SPEAKER_12', 'Alice', ['SPEAKER_01', 'SPEAKER_00'], 'Alice',
                           'warn', 'error'], out)
+
+
+class DataPluginBricksTest(SimpleTestCase):
+    """The first GRAPHIC PLUGINS of the Data world (2026-10-29, `WAMA_DATA_WORLD §8.4`) : universal
+    bricks that read a TYPED datum (`TypedFrame.to_payload`) and follow the shared axis — curves
+    (`timeseries_chart`, drawn by the vendored uPlot) and a video that is the axis' clock
+    (`video_view`), its commands being the common transport mounted WITHOUT its own media."""
+
+    SERVED = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js' / 'surfaces'
+
+    def test_a_typed_frame_is_served_in_columns_time_first_holes_as_null(self):
+        import pandas as pd
+        from wama.common.catalog.data_types import DataType, TypedFrame
+        frame = TypedFrame(pd.DataFrame({'hr': [70.0, float('nan')], 'time': [0.0, 0.5]}),
+                           DataType.TIMESERIES, meta={'columns': {'hr': {'label': 'Cœur', 'unit': 'BPM'}}})
+        payload = json.loads(json.dumps(frame.to_payload()))
+        self.assertEqual(['time', 'hr'], payload['fields'], 'time leads : it is the x of every curve')
+        self.assertEqual({'time': [0.0, 0.5], 'hr': [70.0, None]}, payload['columns'],
+                         'a missing value is a hole in the curve, never NaN (invalid JSON)')
+        self.assertEqual({'label': 'Cœur', 'unit': 'BPM'}, payload['meta']['columns']['hr'])
+        self.assertEqual(str(DataType.TIMESERIES), payload['data_type'])
+
+    def test_the_chart_shows_the_columns_the_slot_asks_among_those_present(self):
+        """`chartColumns` / `seriesLabel`, run in V8 on the SERVED file."""
+        from py_mini_racer import MiniRacer
+        engine = MiniRacer()
+        engine.eval('var window = {WamaSurface: {registerBrick: function () {}}};'
+                    + (self.SERVED / 'brick-timeseries-chart.js').read_text(encoding='utf-8'))
+        payload = {'fields': ['time', 'hr', 'spo2'],
+                   'meta': {'columns': {'hr': {'label': 'Fréquence', 'unit': 'BPM'}, 'spo2': {'label': 'SpO2'}}}}
+        run = lambda expr: json.loads(engine.eval('var C = window.WamaTimeseriesChart, p = %s;'
+                                                  'JSON.stringify(%s)' % (json.dumps(payload), expr)))
+        self.assertEqual(['hr', 'spo2'], run('C.chartColumns(p)'), 'every column but time')
+        self.assertEqual(['spo2'], run("C.chartColumns(p, ['spo2', 'gone'])"),
+                         'the slot\'s choice, a column absent from the datum dropped')
+        self.assertEqual(['Fréquence (BPM)', 'SpO2', 'raw'],
+                         run("[C.seriesLabel(p, 'hr'), C.seriesLabel(p, 'spo2'), C.seriesLabel(p, 'raw')]"))
+
+    def test_a_transport_without_media_mounts_only_the_commands(self):
+        """`options.media: false` : another brick holds the axis' clock — no player is injected."""
+        from py_mini_racer import MiniRacer
+        engine = MiniRacer()
+        engine.eval(
+            'var mounted = [], injected = 0, body = {classList: {add: function () {}}};'
+            'var window = {WamaSurface: {registerBrick: function (k, d) { window.def = d; }},'
+            '  WamaTransport: {mount: function (b, o) { mounted.push(o.options.jump); return {}; }},'
+            '  WamaAudioPlayer: {inject: function () { injected++; }}};'
+            + (self.SERVED / 'brick-media-transport.js').read_text(encoding='utf-8'))
+        out = json.loads(engine.eval(
+            'var ctx = {config: {pk: 1, surface: {}}, axis: function () { return {}; }};'
+            'var r = window.def.mount(body, ctx, {media: false, jump: 5});'
+            'JSON.stringify([mounted, injected, r])'))
+        self.assertEqual([[5], 0, {}], out)
+
+    def test_the_plugins_ask_their_library_and_its_sheet_apart(self):
+        from wama.common.surfaces import BRICKS
+        chart, video = BRICKS['timeseries_chart'], BRICKS['video_view']
+        self.assertEqual(('timeseries',), chart.consumes)
+        self.assertEqual(('video',), video.consumes)
+        self.assertIn('vendors/uplot-1.6.32/uPlot.min.css', chart.styles())
+        self.assertFalse([p for p in chart.scripts() if p.endswith('.css')], 'a sheet is never a <script>')
+        self.assertIn('common/js/wama-axis.js', chart.scripts())
+
+    def test_a_model_without_sharing_lists_only_what_its_user_owns(self):
+        """`listable_by` (2026-10-30) : the rule `can_view` already held for a loaded object — a
+        model that does not inherit `ScopedVisibility` has no `visible_to`."""
+        from unittest import mock
+        from wama.common.utils.scoping import listable_by
+
+        class Plain:
+            def filter(self, **kw):
+                return kw
+
+        class Shared(Plain):
+            def visible_to(self, user):
+                return 'shared'
+
+        with mock.patch('wama.accounts.permissions.is_guest_account', return_value=False):
+            self.assertEqual({'user': 'u'}, listable_by(Plain(), 'u'))
+            self.assertEqual('shared', listable_by(Shared(), 'u'), 'sharing untouched')

@@ -357,3 +357,12 @@ body.wama-panel-arranged > .container {
 .wama-actions-layout { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 .25rem; }
 /* Les raccourcis et la disposition vivent dans l'en-tête depuis le 2026-10-29
    (`wama-page-controls.css`) : la brique n'y garde qu'un lien. */
+
+/* Courbes dans le temps (`timeseries_chart`) et vidéo sur l'axe (`video_view`), 2026-10-29 — les
+   premiers plugins graphiques du monde Data. Couleurs : les jetons du thème. */
+.wama-brick-chart, .wama-brick-video { display: flex; flex-direction: column; min-height: 0; padding: .25rem; }
+.wama-chart-host { flex: 1 1 auto; min-height: 0; color: var(--wama-chart-text); }
+.wama-chart-host .u-legend { font-size: .72rem; color: var(--wama-chart-text); }
+.wama-chart-empty { margin: auto; font-size: .8rem; color: var(--wama-edit-muted); }
+.wama-video-view { width: 100%; height: 100%; min-height: 0; object-fit: contain; cursor: pointer;
+  background: rgba(var(--wama-shadow-rgb), .6); }

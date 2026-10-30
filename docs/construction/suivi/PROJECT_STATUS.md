@@ -27274,9 +27274,19 @@ en briques UI comme PREMIERS plugins Data (marche F), APRÈS les restes ci-desso
    l'aide déclarée au registre, scénario commun sans monde cité). Détail : `WAMA_VOLETS §3-ter`.
    ⏳ **Décision ouverte** : « Paramètres du volet » et « Réglages de l'élément » (surface) en une
    seule brique, ce qui lèverait l'invariant page / surface du 19/10.
-3. Le face_analyzer en briques UI (premiers plugins Data), avec ses tests. Puis, à décider par
-   Fabien : la page « Live » (onglet avant la file pour les apps à port en direct ou résultat
-   instantané), avis rendu le 29/10.
+3. 🔄 Le face_analyzer en briques UI — **les deux premiers plugins Data écrits le 29→30/10** :
+   `timeseries_chart` (uPlot 1.6.32 vendorisé, MIT) et `video_view`, le transport sans média
+   (`options.media: false`), la forme servie `TypedFrame.to_payload()`, une surface EN LECTURE
+   SEULE (`Surface.edits=None`) servie sur une clé UUID par les vues communes, la surface
+   `face_analyzer.analysis` (`series.py` + `surfaces.py`) ; `listable_by` lit aussi un modèle sans
+   partage (la règle de `can_view`). Sonde au navigateur sur une session témoin + mesures
+   synthétiques (6 graphes, vidéo, trait de l'axe, clic → 0:00.9, retaille) ; tests
+   `tests_surfaces.DataPluginBricksTest` + `face_analyzer/tests_surfaces.py`, 10 contre-épreuves
+   rouges. Relais : `WAMA_DATA_WORLD §8.4` « ÉCRIT ». ⏳ **Suite décidée par Fabien le 29/10** : le
+   face_analyzer passe à la FILE COMMUNE (comme le monde Médias), sa surface d'analyse devient sa
+   page d'édition, et le temps réel va à une page « Live » (mécanisme commun, en instance fraîche).
+   L'ancienne page (`video.html`, Chart.js par CDN, `ChartData` en couleurs écrites) se retire
+   quand la file la remplace.
 4. À juger par Fabien : R, J et ←/→ du cam_analyzer sur une vraie session.
 5. Ouverts plus anciens : restes de l'inspecteur (`60d24fef`, WIP d'une autre session sur
    `wama-inspector.js`), la clé française `volet(medias=…)`, replier une section, limites de la

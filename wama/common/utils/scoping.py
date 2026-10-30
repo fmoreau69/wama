@@ -46,7 +46,10 @@ def listable_by(queryset, user):
     (liste de la médiathèque, voix de clonage), écrits le même jour par la même session.
     """
     from wama.accounts.permissions import is_guest_account
-    if is_guest_account(user):
+    # Un modèle qui n'hérite pas du partage (`ScopedVisibility`) ne liste que ce que son
+    # utilisateur possède — la même règle que `can_view` pour l'objet déjà chargé (2026-10-30 :
+    # la surface d'analyse du face_analyzer, première surface d'un modèle sans partage).
+    if is_guest_account(user) or not hasattr(queryset, 'visible_to'):
         return queryset.filter(user=user)
     return queryset.visible_to(user)
 

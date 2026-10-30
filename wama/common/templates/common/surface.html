@@ -13,6 +13,7 @@ redimensionnable par ses coins ; la disposition se garde par utilisateur et se r
 {% block extra_css %}
 <link rel="stylesheet" href="{% static 'vendors/gridstack-13.3.0/gridstack.min.css' %}">
 <link rel="stylesheet" href="{% static_v 'common/css/wama-surface.css' %}">
+{% for sheet in styles %}<link rel="stylesheet" href="{% static sheet %}">{% endfor %}
 {% endblock %}
 
 {% block right_panel_top %}

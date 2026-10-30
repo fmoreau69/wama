@@ -19,6 +19,9 @@
  * RECHARGEMENT du média quand ce process et son aval ont fini : on écoute le rendu refait, à la
  * même place.
  *
+ * SANS SOURCE (`options.media: false`, 2026-10-29) : les commandes seules — une autre brique tient
+ * l'horloge de l'axe (la vue vidéo `video_view`, les analyses du face_analyzer).
+ *
  * La VERSION écoutée (2026-10-21, demande de Fabien : « se rendre compte à l'oreille de
  * l'amélioration ou de la détérioration de l'audio ») : quand le média lu a plusieurs versions
  * (`ctx.sources()` — l'original et les sorties des process du même type, que le serveur DÉRIVE
@@ -47,6 +50,11 @@
         var playerId = 'surface-' + ctx.config.pk + '-' + role;
         var showWave = options.wave !== false;
         body.classList.add('wama-brick-transport');
+        if (options.media === false) {
+            // Les commandes seules : une autre brique tient l'horloge (`video_view`).
+            global.WamaTransport.mount(body, { axis: axis, options: options });
+            return {};
+        }
 
         // ── La source : le lecteur commun, attaché à l'axe ──────────────────────────────────
         var playerHost = document.createElement('div');

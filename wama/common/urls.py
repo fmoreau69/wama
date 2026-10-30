@@ -34,6 +34,13 @@ urlpatterns = [
          name='surface_revisions'),
     path('surface/<str:app>/<str:key>/<int:pk>/revisions/<int:number>/',
          surface_views.surface_revision_value, name='surface_revision_value'),
+    # Un élément à clé UUID (2026-10-29 : les SESSIONS du monde Lab, `face_analyzer`) — les mêmes
+    # vues sous les MÊMES noms : `reverse` choisit le motif que la clé satisfait.
+    path('surface/<str:app>/<str:key>/<uuid:pk>/', surface_views.surface_page, name='surface'),
+    path('surface/<str:app>/<str:key>/<uuid:pk>/data/', surface_views.surface_data,
+         name='surface_data'),
+    path('surface/<str:app>/<str:key>/<uuid:pk>/save/', surface_views.surface_save,
+         name='surface_save'),
     # La DISPOSITION de chacun (2026-10-21) : places des panneaux et état figé, par compte.
     path('surface/<str:app>/<str:key>/layout/', surface_views.surface_layout,
          name='surface_layout'),

@@ -64,6 +64,12 @@ def _url(name: str, *args) -> str:
         return ''
 
 
+def _home_of(app: str) -> str:
+    """Le nom de la page d'accueil de l'app : celui que son identité déclare, sinon `<app>:index`."""
+    from wama.common.app_registry import app_identity
+    return app_identity(app).get('url_name') or f'{app}:index'
+
+
 def _settings_url(app: str, pk: int) -> str:
     """La route des réglages d'UN élément que l'app sert (`update_settings` et ses orthographes
     admises — `urls_gen.served_route`, le résolveur unique), '' si elle n'en sert pas."""
@@ -153,8 +159,10 @@ def surface_page(request, app: str, key: str, pk: int):
             'save_url': base + 'save/',
             'run_url': _url(f'{app}:start_process', pk, found.reruns) if found.reruns else '',
             'revisions_url': base + 'revisions/',
-            'back_url': _url(f'{app}:index'),
-            'can_edit': _can_edit(request.user, item),
+            # La page de l'app telle que son IDENTITÉ la déclare (2026-10-29) : `<app>:index` ne
+            # se résout pas pour une app du Lab, montée sous `wama_lab:`.
+            'back_url': _url(_home_of(app)),
+            'can_edit': not found.read_only and _can_edit(request.user, item),
             # La disposition se garde PAR COMPTE (`surface_layout`) ; la clé du navigateur ne sert
             # plus qu'à reprendre une disposition gardée avant le 2026-10-21, et en secours.
             'layout_key': f'wama.surface.{found.id}',
@@ -165,6 +173,7 @@ def surface_page(request, app: str, key: str, pk: int):
             'settings_url': _settings_url(app, pk) if found.page_settings() else '',
         },
         'scripts': found.scripts(),
+        'styles': found.styles(),
     })
 
 
@@ -227,7 +236,7 @@ def surface_data(request, app: str, key: str, pk: int):
         'value': value,
         'context': found.context_of(item),
         'settings': _settings_of(found, item) if found.page_settings() else None,
-        'can_edit': _can_edit(request.user, item),
+        'can_edit': not found.read_only and _can_edit(request.user, item),
         'token': state_token(value),
         'field': field,
     })
@@ -360,6 +369,8 @@ def _value_of(found, item, field: str = ''):
         return _text(getattr(item, field, None))
     if found.value is not None:
         return found.value(item)
+    if found.read_only:
+        return None
     edited = found.edited(item)
     if found.text_value:
         return _text(getattr(item, edited, None))
@@ -438,6 +449,8 @@ def surface_save(request, app: str, key: str, pk: int):
     from wama.common.services import edit_lock
     from wama.common.utils.scoping import editable_or_404
     found = _surface_or_404(app, key)
+    if found.read_only:
+        return JsonResponse({'error': f"surface {found.id} : en lecture seule"}, status=405)
     item = editable_or_404(found.model_class(), request.user, trace='corrige', pk=pk)
     try:
         payload = json.loads(request.body or b'{}')

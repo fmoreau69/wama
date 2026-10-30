@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # Met à jour les assets front vendorés en LOCAL (Bootstrap / Font Awesome / jsTree / three /
-# TalkingHead / FullCalendar / gridstack / abcjs / Roboto Flex / MediaPipe Tasks Vision).
+# TalkingHead / FullCalendar / gridstack / abcjs / Roboto Flex / MediaPipe Tasks Vision / uPlot).
 # ⚠ Leaflet (cam_analyzer) n'y est pas encore.
 #
 # WAMA est LOCAL-FIRST (cf. memory/reference_offline_assets_local) : aucune dépendance
@@ -61,6 +61,11 @@ ROBOTO_FLEX_VER=5.3.0
 # (`odml.pa.googleapis.com`), coupée par `wama-hands.js` — rejouer le scénario `common.scene.*.ui`,
 # qui refuse tout POST, avant de committer.
 MEDIAPIPE_TASKS_VER=1.1.1
+# uPlot (MIT) — les COURBES dans le temps (brique `timeseries_chart`, 2026-10-29 : les premiers
+# plugins graphiques du monde Data, sur le face_analyzer). Le candidat retenu par `WAMA_DATA_WORLD`
+# (« Position sur les BIBLIOTHÈQUES ») : une bibliothèque qui DESSINE, faite pour les longues séries,
+# jamais une qui décide de la mise en page. Build IIFE (global `uPlot`) + sa feuille.
+UPLOT_VER=1.6.32
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 V="$ROOT/wama/static/vendors"
@@ -209,6 +214,14 @@ for f in vision_wasm_internal vision_wasm_nosimd_internal; do
   dl "$MP/wasm/$f.wasm" "$D/wasm/$f.wasm"
 done
 dl "https://raw.githubusercontent.com/google-ai-edge/mediapipe/master/LICENSE" "$D/LICENSE"
+fi
+
+if want uplot; then
+echo "== uPlot $UPLOT_VER (build IIFE + css) =="
+mkdir -p "$V/uplot-$UPLOT_VER"
+dl "https://cdn.jsdelivr.net/npm/uplot@$UPLOT_VER/dist/uPlot.iife.min.js" "$V/uplot-$UPLOT_VER/uPlot.iife.min.js"
+dl "https://cdn.jsdelivr.net/npm/uplot@$UPLOT_VER/dist/uPlot.min.css"     "$V/uplot-$UPLOT_VER/uPlot.min.css"
+dl "https://cdn.jsdelivr.net/npm/uplot@$UPLOT_VER/LICENSE"                "$V/uplot-$UPLOT_VER/LICENSE"
 fi
 
 if want avatar; then

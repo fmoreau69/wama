@@ -651,6 +651,24 @@ def _witness_detections() -> bytes:
         Path(path).unlink(missing_ok=True)
 
 
+def _witness_video(seconds: int = 2) -> bytes:
+    """La VIDÉO témoin (2026-10-29, la surface d'analyse du face_analyzer) : une mire de quelques
+    secondes en H.264, lisible par tout navigateur, faite par l'ffmpeg que WAMA résout
+    (`ffmpeg_utils.get_ffmpeg_exe`)."""
+    import subprocess
+    import tempfile
+
+    from wama.common.utils.ffmpeg_utils import get_ffmpeg_exe
+    with tempfile.TemporaryDirectory() as folder:
+        out = os.path.join(folder, 'witness.mp4')
+        subprocess.run([get_ffmpeg_exe(), '-y', '-loglevel', 'error', '-f', 'lavfi',
+                        '-i', f'testsrc=size=320x240:rate=15:duration={seconds}',
+                        '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-movflags', '+faststart', out],
+                       check=True, timeout=60)
+        with open(out, 'rb') as source:
+            return source.read()
+
+
 def _witness_html() -> bytes:
     """Le document témoin RENDU, sections repérées comme les pose une mise en forme
     (`document_sections.SECTION_ATTR`)."""
@@ -670,7 +688,7 @@ def witness_sample(kind: str) -> tuple:
     """Le CONTENU témoin d'un champ fichier de surface (`Surface.witness`) — `(octets, extension)`.
 
     `kind` est ce que la surface déclare : une extension (`.png`/`.jpg`/`.webp`, `.wav`, `.md`,
-    `.html`, `.abc`) ou un type de données (`detections`). Lisible par la brique qui le montre :
+    `.html`, `.abc`, `.mp4`) ou un type de données (`detections`). Lisible par la brique qui le montre :
     une vignette de carré blanc ne dirait rien de la brique. Un contenu inconnu est REFUSÉ, en le
     disant : `Surface.witness_problems` l'aura déjà signalé."""
     if kind in ('.png', '.jpg', '.jpeg', '.webp'):
@@ -684,6 +702,8 @@ def witness_sample(kind: str) -> tuple:
         return f'# Témoin\n\n{body}\n'.encode('utf-8'), kind
     if kind == '.html':
         return _witness_html(), kind
+    if kind == '.mp4':
+        return _witness_video(), kind
     if kind == 'detections':
         return _witness_detections(), '.json'
     raise ValueError(f"contenu témoin inconnu : {kind!r}")

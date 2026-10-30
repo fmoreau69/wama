@@ -165,6 +165,25 @@ class TypedFrame:
         cols = set(self.fields)
         return all(n in cols for n in names)
 
+    def to_payload(self) -> dict:
+        """La donnée telle qu'une BRIQUE UI la lit (2026-10-29, les premiers plugins graphiques du
+        monde Data — `WAMA_DATA_WORLD §8.4`) : en COLONNES (`{nom: [valeurs]}` — la forme que
+        dessine une bibliothèque de courbes), l'ordre des champs gardé, `time` en tête quand il
+        existe ; une valeur manquante devient `None` (JSON `null`, un trou dans la courbe).
+        `meta` suit tel quel : libellé et unité d'une colonne s'y DÉCLARENT
+        (`meta['columns'][nom] = {'label', 'unit'}`). La route qui servira une FENÊTRE d'un flux
+        (confiée au monde Data) rendra la même forme."""
+        import math
+        names = self.fields
+        if 'time' in names:
+            names = ['time'] + [n for n in names if n != 'time']
+        columns = {}
+        for name in names:
+            values = self.df[name].tolist() if self.df is not None else []
+            columns[name] = [None if isinstance(v, float) and math.isnan(v) else v for v in values]
+        return {'data_type': self.data_type, 'fields': names, 'columns': columns,
+                'meta': dict(self.meta)}
+
     def __repr__(self):
         n = len(self.df) if self.df is not None else 0
         return f'<TypedFrame {self.data_type} rows={n} fields={self.fields}>'

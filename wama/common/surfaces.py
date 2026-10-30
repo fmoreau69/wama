@@ -238,7 +238,8 @@ class UIBrick:
     consumes: tuple = ()
     emits: tuple = ()
     worlds: tuple = WORLDS
-    #: Modules JS communs dont la brique a besoin, chargés AVANT son script (ordre gardé).
+    #: Modules JS communs dont la brique a besoin, chargés AVANT son script (ordre gardé) — et
+    #: les FEUILLES de style qu'elle demande (`.css`, 2026-10-29 : celle de uPlot), posées en tête.
     requires: tuple = ()
     #: Brique de PAGE (2026-10-19, décision de Fabien, `ROUTE §F3b`) : le fichier par lequel une
     #: page la monte — le gabarit qu'elle inclut, ou le script que la page de base charge pour
@@ -258,7 +259,12 @@ class UIBrick:
         return bool(self.mount)
 
     def scripts(self) -> list:
-        return [*self.requires, *([self.script] if self.script else [])]
+        return [*(r for r in self.requires if not r.endswith('.css')),
+                *([self.script] if self.script else [])]
+
+    def styles(self) -> list:
+        """Les feuilles de style que la brique demande (`requires` en `.css`)."""
+        return [r for r in self.requires if r.endswith('.css')]
 
     def mechanisms(self) -> list:
         """Les mécanismes dont la brique est COMPOSÉE (2026-10-19, « trois niveaux » — une brique
@@ -351,6 +357,8 @@ class Surface:
     #: Un champ FICHIER est édité comme TEXTE et validé par la règle commune (`validate_text`) :
     #: `validate` ne se déclare que pour un champ de donnée. Un TUPLE nomme des champs
     #: ALTERNATIFS de même nature : la page édite le premier rempli (`edited`).
+    #: `None` : une surface en LECTURE SEULE (2026-10-29, les vues d'analyse du face_analyzer —
+    #: les premiers plugins graphiques du monde Data) : elle montre, rien ne s'y enregistre.
     edits: object
     #: Champs FICHIER qu'une brique peut éditer À LA PLACE du champ principal, un à la fois
     #: (2026-10-22, demande de Fabien : la partition complète du composer se corrige comme la
@@ -463,12 +471,23 @@ class Surface:
 
     @property
     def fields(self) -> tuple:
-        """Les champs que la page peut écrire — un seul, ou des ALTERNATIFS de même nature."""
+        """Les champs que la page peut écrire — un seul, ou des ALTERNATIFS de même nature ;
+        aucun pour une surface en lecture seule."""
+        if not self.edits:
+            return ()
         return tuple(self.edits) if isinstance(self.edits, (tuple, list)) else (self.edits,)
+
+    @property
+    def read_only(self) -> bool:
+        """La surface MONTRE sans rien écrire (`edits=None`)."""
+        return not self.fields
 
     def edited(self, item) -> str:
         """Le champ que la page écrit POUR CET élément : le premier alternatif rempli, sinon le
-        premier déclaré (un champ de donnée vide s'édite ; un fichier vide se refuse à l'ouverture)."""
+        premier déclaré (un champ de donnée vide s'édite ; un fichier vide se refuse à l'ouverture).
+        '' pour une surface en lecture seule."""
+        if self.read_only:
+            return ''
         for name in self.fields:
             value = getattr(item, name, None)
             if (getattr(value, 'name', '') if self.text_value else value):
@@ -490,6 +509,8 @@ class Surface:
         """Les champs écrits sont-ils des FICHIERS, édités comme texte ? Lu du modèle, jamais
         déclaré ; des alternatifs de natures différentes ne sont pas une surface."""
         from django.db.models import FileField
+        if self.read_only:
+            return False
         try:
             meta = self.model_class()._meta
             return all(isinstance(meta.get_field(name), FileField)
@@ -499,6 +520,8 @@ class Surface:
 
     def clean(self, value):
         """La valeur reçue de la page, assainie — lève `ValueError` si elle est refusée."""
+        if self.read_only:
+            raise ValueError(f"surface {self.id} : en lecture seule, rien ne s'y enregistre")
         if self.text_value:
             return validate_text(value)
         if self.validate is None:
@@ -580,9 +603,14 @@ class Surface:
         """Les scripts à charger, dépendances d'abord, sans doublon, dans l'ordre des briques."""
         return list(dict.fromkeys(path for b in self.bricks() for path in b.scripts()))
 
+    def styles(self) -> list:
+        """Les feuilles de style que demandent ses briques, sans doublon."""
+        return list(dict.fromkeys(path for b in self.bricks() for path in b.styles()))
+
     def to_dict(self) -> dict:
         return {'id': self.id, 'app': self.app, 'key': self.key, 'label': self.label,
                 'slots': [s.to_dict() for s in self.slots], 'edits': self.edits,
+                'read_only': self.read_only,
                 'also_edits': list(self.also_edits),
                 'reruns': self.reruns, 'columns': GRID_COLUMNS,
                 # Les bornes que `clean_layout` applique, lues par le noyau plutôt que recopiées.
@@ -980,6 +1008,28 @@ register_brick(UIBrick(
                Shortcut(('2', '3', '4', '5', '6', '7'), 'le pas : une figure, comme MuseScore'),
                Shortcut(('0',), 'le pas : automatique'),
                Shortcut(('Escape',), 'ne plus choisir de note'))))
+
+# ── 2026-10-29 : les premiers PLUGINS GRAPHIQUES du monde Data (`WAMA_DATA_WORLD §8.4`, marche F),
+# écrits sur le face_analyzer — des briques universelles, abonnées à l'axe partagé.
+register_brick(UIBrick(
+    key='timeseries_chart', name='Courbes dans le temps',
+    description="Des courbes d'une série temporelle (`timeseries`), abonnées à l'axe partagé : un "
+                "trait marque l'instant joué, un clic dans le graphe y amène la lecture, la légende "
+                "dit les valeurs sous le curseur. L'emplacement choisit ses colonnes ; libellés et "
+                "unités sont ceux que la donnée déclare. Dessinées par uPlot (vendorisé).",
+    script='common/js/surfaces/brick-timeseries-chart.js',
+    requires=('vendors/uplot-1.6.32/uPlot.iife.min.js', 'vendors/uplot-1.6.32/uPlot.min.css',
+              'common/js/wama-axis.js'),
+    consumes=('timeseries',)))
+
+register_brick(UIBrick(
+    key='video_view', name='Vidéo',
+    description="Une vidéo lue, HORLOGE de l'axe partagé : les autres vues (courbes, segments) la "
+                "suivent sans la connaître. Ses commandes sont celles du transport commun, posé "
+                "sans son propre média ; un clic sur l'image lance ou arrête la lecture.",
+    script='common/js/surfaces/brick-video-view.js',
+    requires=('common/js/wama-axis.js',),
+    consumes=('video',)))
 
 register_brick(UIBrick(
     key='surface_actions', name='Actions de la surface',

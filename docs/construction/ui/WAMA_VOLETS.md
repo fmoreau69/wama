@@ -848,6 +848,18 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     rouge) ;
   - le scénario COMMUN `common.page_controls` citait une page du monde Lab (le face_analyzer) comme
     « page sans disposition » : c'est désormais une page du compte (les notifications).
+- **Le face_analyzer, 29→30/10 — les premiers PLUGINS GRAPHIQUES du monde Data** (domicile :
+  `WAMA_DATA_WORLD §8.4` « ÉCRIT ») : deux briques universelles, `timeseries_chart` (courbes
+  d'une donnée `timeseries`, uPlot vendorisé) et `video_view` (la vidéo, horloge de l'axe) ; le
+  transport posé SANS son média (`options.media: false`). Le noyau des surfaces gagne trois
+  formes génériques : la surface EN LECTURE SEULE (`Surface.edits=None` — elle montre, l'écriture
+  répond 405), la clé UUID (mêmes noms de routes, `<uuid:pk>`), les FEUILLES de style qu'une
+  brique demande (`UIBrick.requires` en `.css` → `<link>` en tête, jamais un `<script>`) ; le
+  retour à l'app lit son identité (`app_identity`, une app du Lab est sous `wama_lab:`). Le
+  témoin des vignettes sait poser une vidéo (`ui_smoke._witness_video`, 2 s par ffmpeg). Gardes :
+  `tests_surfaces.DataPluginBricksTest` + `wama_lab/face_analyzer/tests_surfaces.py`, dix
+  contre-épreuves rouges ; sonde au navigateur (6 graphes, trait de l'axe, clic → lecture,
+  retaille). ⏳ Le face_analyzer passe ensuite à la FILE COMMUNE (décision de Fabien, 29/10).
 
 **À venir, dans cet ordre (le plus sûr d'abord)** : ~~② les sections du volet des PAGES D'APPS~~
 (✅ ci-dessus) ; ③ le cam_analyzer, élément par élément, chacun en brique UNIVERSELLE (§5 : il

@@ -906,6 +906,33 @@ par image (`AnalysisFrame` : temps + colonnes numériques) lues autant que possi
 typés (`wama_data/frames.py`) ; aucune extraction des réglages typés (point 3). Domicile du
 suivi : `WAMA_VOLETS §3-ter` et `PROJECT_STATUS §PALIER 2026-10-28→29 « BRIQUES UI »`.
 
+**✅ ÉCRIT le 2026-10-29→30 — les deux premiers plugins** (déclencheur de la marche G : encore un
+ou deux avant d'extraire quoi que ce soit) :
+- **`timeseries_chart`** (`common/js/surfaces/brick-timeseries-chart.js`) — des courbes d'une
+  donnée `timeseries`, dessinées par **uPlot 1.6.32** (vendorisé, MIT, `tools/update_vendors.sh`
+  section `uplot` — le candidat de « Position sur les BIBLIOTHÈQUES ») ; abonnées à l'axe : un trait
+  à l'instant joué, un clic y amène la lecture, la légende dit les valeurs sous le curseur. Couleurs
+  = jetons du thème. L'emplacement choisit ses colonnes (`options.columns`) et sa source
+  (`options.source`, défaut `series`) : une surface pose N graphes sur la même donnée.
+- **`video_view`** (`brick-video-view.js`) — une vidéo, HORLOGE de l'axe (`axis.attach`) ; ses
+  commandes sont le transport commun posé SANS son propre média (`media_transport`,
+  `options.media: false`).
+- **La forme servie à une brique : `TypedFrame.to_payload()`** (`common/catalog/data_types.py`) —
+  `{data_type, fields, columns: {nom: [valeurs]}, meta}`, `time` en tête, un manque = `null` (un
+  trou dans la courbe), libellé et unité DÉCLARÉS dans `meta.columns[nom] = {label, unit}`. La
+  surface la sert par son `context` ; ⚠ pour le point 2 : `view.apply()` rend déjà des
+  `TypedFrame` (donc `to_payload()` tel quel), mais `view.series()` (décimée, min/max par tranche)
+  a une AUTRE forme — à réconcilier par le monde Data en écrivant la route (colonnes
+  `time`/`min`/`max`, ou une bande que la brique apprend), pas par une seconde brique.
+- **Le premier consommateur** : la surface `face_analyzer.analysis` (lecture seule,
+  `Surface.edits=None` — nouveau : une surface qui MONTRE) ; ses mesures par image deviennent une
+  `TypedFrame(timeseries)` par `wama_lab/face_analyzer/series.py` (colonnes DÉCLARÉES : chemin
+  dans le `to_dict()` de chaque module, libellé, unité). ⚠ Écart à l'annonce ci-dessus : la série
+  se lit des LIGNES en base (`AnalysisFrame`), pas par `wama_data/frames.py` (qui part d'un
+  `Signal` ou d'un référentiel de dataset) ; et les traitements du face_analyzer ne sont PAS encore
+  déclarés au catalogue de fonctions — ils le seront avec son passage à la file commune.
+- Points 1-4 ci-dessus : inchangés, toujours confiés.
+
 ---
 
 ## 9. Cartographie de BIND — périmètre et méthode

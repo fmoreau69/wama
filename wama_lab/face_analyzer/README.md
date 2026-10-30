@@ -34,6 +34,27 @@ Le défaut FER n'était visible qu'en la lançant — d'où les gardes ajoutées
 Détection de visage : **MediaPipe**. Le backend émotions se choisit dans l'interface
 (« Backend émotions : FER (rapide) / DeepFace (complet) », « Âge & Genre » activable en DeepFace).
 
+## La surface d'analyse (2026-10-29) — les mesures en courbes synchronisées
+
+`/common/surface/face_analyzer/analysis/<uuid>/` : la vidéo d'une session, horloge de l'axe
+partagé, et ses mesures image par image en courbes qui suivent la lecture (un trait à l'instant
+joué, un clic dans un graphe y amène la vidéo). Page en **lecture seule**, servie par les vues
+communes des surfaces ; toutes ses briques sont universelles (`timeseries_chart`, `video_view`,
+`media_transport` sans média) — les premiers plugins graphiques du monde Data
+(`docs/construction/mondes/WAMA_DATA_WORLD.md §8.4`).
+
+- `series.py` — les lignes `AnalysisFrame` deviennent UNE donnée typée
+  `TypedFrame(timeseries)` ; chaque colonne se DÉCLARE (`COLUMNS` : nom, libellé, unité, chemin
+  dans le `to_dict()` du module qui l'a écrite). Une colonne vide sur toute la session (module non
+  activé) n'est pas rendue. Les émotions et leurs noms viennent du module commun
+  (`EmotionRecognizer.EMOTION_LABELS` / `EMOTION_NAMES`).
+- `surfaces.py` — la surface `face_analyzer.analysis` (graphes : cœur, variabilité, respiration,
+  yeux, émotions, pose de la tête).
+- Tests : `tests_surfaces.py`.
+
+⏳ Suite (décision de Fabien, 29/10) : l'app passe à la **file commune** ; cette surface devient la
+page d'édition ouverte depuis la card, le temps réel une page « Live ».
+
 ## Installation
 
 ⚠ **Cette section annonçait des « venvs isolés » (`venv_win/`, `venv_linux/`) — c'est PÉRIMÉ**

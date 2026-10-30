@@ -139,6 +139,9 @@ class EmotionRecognizer:
     """
 
     EMOTION_LABELS = ['happy', 'sad', 'angry', 'fear', 'surprise', 'disgust', 'neutral']
+    # Their displayed names — read by whoever shows them (the face_analyzer's series, 2026-10-30).
+    EMOTION_NAMES = {'happy': 'Joie', 'sad': 'Tristesse', 'angry': 'Colère', 'fear': 'Peur',
+                     'surprise': 'Surprise', 'disgust': 'Dégoût', 'neutral': 'Neutre'}
 
     # Valence-Arousal mapping for each emotion
     EMOTION_VA = {
