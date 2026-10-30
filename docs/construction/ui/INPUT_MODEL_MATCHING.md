@@ -846,6 +846,24 @@ un mécanisme qui gère les ko, Mo, Go, on pourrait y ajouter la gestion min/sec
   ⏳ Le défaut du CHAMP `ComposerGeneration.duration` (10) et le repli de `views.py` (10) restent à
   aligner — fichiers tenus ce jour par le chantier `output` du pipeline.
   Tenu par `common/tests/tests_display_format.py` (V8 + serveur).
+- ✅ **Étendu le 2026-10-29/30 (demande de Fabien : *« le switch s'adapte à l'entrée, comme les
+  filtrages bidirectionnels, avec un message sous le switch »*)** — l'OCR des pages scannées du
+  Translator :
+  - un VOCABULAIRE de propriétés, `media_probe.INPUT_PROPERTIES` (`duration`, `needs_ocr`), chacune
+    lue sur la sonde commune et rendue `{value, note}` — la NOTE dit pourquoi, sous le réglage
+    (`.wama-input-note`) ; la sonde d'un PDF mesure ses pages sans couche texte (attributs de la
+    nature `document`) ;
+  - une CASE se coche ou se décoche (une valeur booléenne), un nombre suit la règle d'avant ;
+  - le navigateur lit seul la durée ; une propriété qu'il ne sait pas lire passe par la sonde du
+    serveur (`WamaApp.inputProposals`) — fichier désigné par son chemin, fichier TÉLÉVERSÉ envoyé
+    à `api_media_probe` (POST, lu dans un fichier jetable, rien gardé) ;
+  - et à la NAISSANCE de l'élément, côté serveur (`user_settings.new_element_settings(inputs=…)`,
+    `input_proposals`) : défauts ← préférences du volet ← PROPOSITION DE L'ENTRÉE ← posté — un
+    dépôt sans interface (assistant, lot) reçoit la même proposition. Le générateur passe le
+    fichier reçu sous son PORT (`card_entry.work_port`). ⏳ Les dix apps d'origine et leurs outils
+    `add_to_*` ne passent pas encore `inputs=` (portage confié à Portage Apps, 30/10).
+  Tenu par `common/tests/tests_input_proposals.py` et, sur la jumelle du Translator,
+  `tests_translator.TwinTranslatesAScanTest`.
 
 ---
 

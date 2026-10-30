@@ -215,6 +215,37 @@ class TheSwitchFollowsTheInputTest(SimpleTestCase):
                          self._js("{checked: box.checked, note: notes[0] && notes[0].textContent,"
                                   " asked: asked, fired: fired}"))
 
+    def test_the_duration_note_reads_the_same_in_the_browser_and_on_the_server(self):
+        """The browser reads an uploaded file's duration itself and writes the note; the server
+        writes it for a designated file or at birth — one sentence, two writers: parity guard."""
+        from wama.common.utils.media_probe import format_duration, input_property
+        self.v8.eval("""
+            var listeners = {}, notes = [];
+            var input = {addEventListener: function (t, f) { listeners[t] = f; }};
+            var row = {querySelector: function () { return null; },
+                       appendChild: function (n) { notes.push(n); }};
+            var slider = {value: '10', step: '1', min: '1', max: '600', closest: function () { return row; },
+                          dispatchEvent: function () {}};
+            var pane = {getAttribute: function (a) {
+              return {'data-port-pane': 'work_audio', 'data-port-input': 'songInput'}[a]; }};
+            document.querySelectorAll = function (sel) {
+              return sel.indexOf('data-port-pane') !== -1 ? [pane] : []; };
+            document.getElementById = function (id) {
+              return id === 'songInput' ? input : (id === 'durationSlider' ? slider : null); };
+            document.createElement = function () { return {className: '', textContent: ''}; };
+            var CSS = {escape: function (s) { return s; }};
+            var container = {querySelector: function (sel) {
+              return sel === '#durationSlider' ? slider : null; }};
+            window.WamaApp.mediaDuration = function () { return Promise.resolve(210); };
+            window.WamaParams.bindDefaultFrom(container, [{name: 'duration', dom_id:
+              {panel: 'durationSlider'}, contexts: ['panel'],
+              default_from: {port: 'work_audio', property: 'duration'}}], 'panel');
+            listeners.change();
+        """)
+        server = input_property({'duration': 210, 'duration_display': format_duration(210)},
+                                'duration')['note']
+        self.assertEqual(server, self._js('notes[0].textContent'))
+
     def test_a_native_pdf_unticks_it_and_an_empty_answer_changes_nothing(self):
         self.assertEqual([False, True], self._js("""(function () {
             var a = {type: 'checkbox', checked: true, dispatchEvent: function () {}};

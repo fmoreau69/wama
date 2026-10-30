@@ -1732,12 +1732,15 @@ Posture et domaine de l'assistant (science, design, dev) + rappel du contexte de
 
 ### Traduction de texte
 
-Traduit un texte d'une langue à l'autre : passthrough si source = cible, cache (clé : modèle, langues, glossaire, texte), glossaire de termes à ne pas traduire, découpage par paragraphes, `on_chunk` pour l'aperçu « pendant ». Le modèle est une CLÉ DE CATALOGUE (défaut `ollama:translategemma:12b`) : locale par la voie Ollama gouvernée, distante par `chat_with_catalog_model` avec la clé de l'utilisateur. `lang_routing` DÉCIDE quand traduire une consigne avant un modèle qui ne parle pas sa langue ; le service EXÉCUTE
+Traduit un texte d'une langue à l'autre : passthrough si source = cible, cache (clé : modèle, langues, glossaire, texte), glossaire de termes à ne pas traduire, découpage par paragraphes, `on_chunk` pour l'aperçu « pendant ». Le modèle est une CLÉ DE CATALOGUE (défaut `ollama:translategemma:12b`) : locale par la voie Ollama gouvernée, distante par `chat_with_catalog_model` avec la clé de l'utilisateur. `lang_routing` DÉCIDE quand traduire une consigne avant un modèle qui ne parle pas sa langue ; le service EXÉCUTE. API ÉTROITE d'une app (2026-10-28) : `translate_text` et `translate_document` — un document TRADUIT EN GARDANT SA FORME, bloc par bloc, réécrit à sa place par la couche texte commune (`document_text`, unité `block`) ; c'est elle que le rôle `codegen` reçoit quand le schéma d'une app déclare la spécialité `translation` (`options_resolution`)
 
 - **Domicile** : `wama/common/utils/translator.py` · **doc** : [docs/construction/suivi/ROADMAP.md §10](../construction/suivi/ROADMAP.md)
 - **Module** : TranslatorService (ROADMAP §10.B) — exécute une décision de routing langue ([[lang_routing]]).
-- **API publique** (1) :
+- **API publique** (4) :
   - `class TranslatorService`
+  - `glossary_terms(glossary) -> list` — Les termes d'un glossaire : une liste telle quelle, un TEXTE un terme par ligne (la forme
+  - `translate_text(text: str, source_language: str, target_language: str, *, model: str=DEFAULT_MODEL, user=None, glossary=None, on_chunk=None, timeout: int=120) -…` — La traduction de `text`. `model` : une clé de catalogue (vide = `DEFAULT_MODEL`) ;
+  - `translate_document(path, out_path, source_language: str, target_language: str, *, model: str=DEFAULT_MODEL, user=None, glossary=None, on_chunk=None, progress_c…` — Le document `path` TRADUIT dans `out_path`, sa forme d'origine conservée (même format :
 
 ## Manifestes & registres
 
@@ -1862,9 +1865,10 @@ Les objets détectés d'un média, frame par frame (boîte, contour en polygones
 
 - **Domicile** : `wama/common/utils/detections.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Les DÉTECTIONS d'un média, sur disque — le type de donnée commun `detections` (`common/catalog/data_types.DataType.DETECTIONS` : objets détectés par frame — frame, bbox, classe, piste).
-- **API publique** (20) :
+- **API publique** (21) :
   - `new_document(*, media: str, width: int, height: int, fps: float=0.0, frame_count: int=1, engine: str='', models=(), classes=(), prompt: str='') -> dict` — Un document vide, prêt à recevoir ses frames (`add`).
   - `detection(*, box, label: str='', conf: float=1.0, track=None, polygons=None) -> dict` — Une détection au format du document : entiers pour les pixels, confiance arrondie.
+  - `text_span(*, start: int, end: int, label: str, conf: float=1.0, sources=()) -> dict` — Une détection dans un TEXTE (2026-10-28, ROADMAP §16.4bis) : le passage `[start, end[` en
   - `add(doc: dict, frame_index: int, detections) -> None` — Range les détections d'UNE frame (rien n'est écrit pour une frame vide). Deux appels
   - `merge(docs) -> dict` — L'UNION de documents du même média (2026-10-10) — un par détecteur d'un ensemble : leurs
   - `apply_corrections(doc: dict, corrections) -> dict` — Le document CORRIGÉ par l'humain (2026-10-10, chantier SURFACES) — une copie, l'original
@@ -1927,7 +1931,7 @@ Une CLÉ de catalogue → `{rôle: Path}` des composants de `composition.compone
 
 ### Gabarits de génération d'app (marches S2 + B1)
 
-Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par fichier (apps/urls/models/params/tasks/views/templates), consommées par `app_sandbox substitute` et le write-back ; le hors-convention reste un TROU NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux. Depuis le 02/09 (marche B1 CLOSE), le corps des TÂCHES se COMPOSE aussi : `backends/__init__.ROUTES` de l'app (nature → callable au contrat commun) monte au manifeste (processing.backend_routes) et tasks_gen émet l'appel — import relatif au paquet, la jumelle a CONVERTI (SUCCESS mesuré). DEUX SAVEURS depuis le 03/09 (2ᵉ app routée, describer) : `RESULT` déclare ce que les backends produisent — 'file' (le backend écrit output_path) ou 'text' (il REND le texte, la tâche le persiste dans la colonne déclarée et publie l'aperçu partiel) ; `NATURE_FIELD` nomme la colonne de nature. ⚠ Un fichier substitué doit exposer TOUT ce que les fichiers COPIÉS lui importent : params_gen émet l'alias `<X> = <X>_JSON` (le models copié importe la graphie courte — ImportError au rendu de CHAQUE card sinon). PLUSIEURS PROCESS depuis le 05/10 (le Writer, patron composer, décision n°11) : le pipeline se lit par la CLÉ (`pipeline_decl` : corpus, sinon brouillons), `function_specs_gen` écrit FunctionSpec + register_app_pipeline (le process « Sortie » commun = output_spec), tasks_gen une glu par process (`process=`), models_gen une colonne par sortie et par port, views_gen `start_process`
+Rend le code CONVENTIONNEL d'une app depuis son manifeste — une cible par fichier (apps/urls/models/params/tasks/views/templates), consommées par `app_sandbox substitute` et le write-back ; le hors-convention reste un TROU NOMMÉ (stubs 501, commentaires [manifest-gen]), jamais un manque silencieux. Depuis le 02/09 (marche B1 CLOSE), le corps des TÂCHES se COMPOSE aussi : `backends/__init__.ROUTES` de l'app (nature → callable au contrat commun) monte au manifeste (processing.backend_routes) et tasks_gen émet l'appel — import relatif au paquet, la jumelle a CONVERTI (SUCCESS mesuré). DEUX SAVEURS depuis le 03/09 (2ᵉ app routée, describer) : `RESULT` déclare ce que les backends produisent — 'file' (le backend écrit output_path) ou 'text' (il REND le texte, la tâche le persiste dans la colonne déclarée et publie l'aperçu partiel) ; `NATURE_FIELD` nomme la colonne de nature. ⚠ Un fichier substitué doit exposer TOUT ce que les fichiers COPIÉS lui importent : params_gen émet l'alias `<X> = <X>_JSON` (le models copié importe la graphie courte — ImportError au rendu de CHAQUE card sinon). PLUSIEURS PROCESS depuis le 05/10 (le Writer, patron composer, décision n°11) : le pipeline se lit par la CLÉ (`pipeline_decl` : corpus, sinon brouillons), `function_specs_gen` écrit FunctionSpec + register_app_pipeline (le process « Sortie » commun = output_spec), tasks_gen une glu par process (`process=`), models_gen une colonne par sortie et par port, views_gen `start_process`. PROCESS COMMUNS depuis le 30/10 (`pipeline_decl.COMMON_PROCESSES` : la Sortie, l'OCR des pages scannées) — une déclaration lue par les deux générateurs ; une glu dont la brique ne demande que des noms du manifeste est RENDUE (`renders`), plus laissée au rôle `codegen`
 
 - **Domicile** : `wama/common/manifests/codegen/templates_gen.py` · **doc** : [docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md](../construction/architecture/WAMA_APP_GENERATION_ROUTE.md)
 - **Module** : Gabarit `templates/<app>/index.html` (marche A — v1, marche S2).
@@ -1972,6 +1976,17 @@ Lire la déclaration d'un modèle SANS importer l'app qui la porte : applique la
   - `declarations(source: str) -> dict` — TOUTES les déclarations de modèle de l'app `source` (`{model_id: dict}`), `{}` si l'app
   - `declaration(source: str, model_id: str) -> Optional[dict]` — Déclaration de `model_id` telle que l'app `source` la porte, ou None.
   - `declaration_for(value: str, default_source: str='') -> Optional[dict]` — Déclaration du modèle désigné par une CLÉ de catalogue — ou par un identifiant nu, lu dans
+
+### Process « OCR des pages scannées » d'une card
+
+Le process OPTIONNEL d'une app qui réécrit un document en gardant sa forme (2026-10-29, le Translator ; le domaine document de l'Anonymizer ensuite), sur le patron d'`output_process` : `ocr_step` (la glu) tire un moteur qui rend la place du texte (`positioned_ocr_keys`, `supports_text_positions`), lit les seules pages sans couche texte et range leurs lignes sur la card ; `read_ocr_file` les rend au process suivant (`ocr=` de la couche texte). Son interrupteur se PROPOSE d'après l'entrée (`Param.default_from`, `needs_ocr`) — ROADMAP §10.B
+
+- **Domicile** : `wama/common/services/ocr_process.py` · **doc** : [docs/construction/suivi/ROADMAP.md §10.B](../construction/suivi/ROADMAP.md)
+- **Module** : Le process « OCR des pages scannées » d'une card — commun aux apps qui réécrivent un document en gardant sa forme (2026-10-29, décision de Fabien : « une étape optionnelle, son interrupteur s'adapte à l'entrée »). Le Translator d'abord ; le domaine document de l'Anonymizer ensuite.
+- **API publique** (3) :
+  - `positioned_ocr_keys() -> list` — Les clés de catalogue des modèles d'OCR dont le MOTEUR rend la place du texte
+  - `ocr_step(source_field: str, output_field: str)` — La GLU du process OCR, au contrat du squelette (`glu(item, ctx) -> dict`).
+  - `read_ocr_file(item, field: str)` — Les lignes rangées par le process OCR (`{page: page du contrat}`), à passer à la couche
 
 ### Process « Sortie » d'une card
 
@@ -3283,13 +3298,14 @@ Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET d
 
 - **Domicile** : `wama/common/utils/user_settings.py`
 - **Module** : WAMA Common — Réglages UTILISATEUR par app, DURABLES en base (cache en lecture devant).
-- **API publique** (10) :
+- **API publique** (11) :
   - `get_user_app_settings(user, app, defaults)` — Retourne le dict complet des réglages de ``user`` pour ``app``.
   - `get_user_app_setting(user, app, name, default=None)` — Lecture d'UN réglage.
   - `clear_user_app_settings(user, app, names)` — Retire les réglages `names` de ``user`` pour ``app`` : ils reprennent le défaut que
   - `read_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Les réglages du volet de ``user``, par NOM de param (ce que `WamaParams.render` attend),
   - `save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict` — Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
   - `reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
+  - `input_proposals(params, inputs) -> dict` — `{réglage: {'value', 'note'}}` que les ENTRÉES proposent (`Param.default_from`, 2026-10-29) :
   - `new_element_settings(user, app, params, model, *, post=None, context=None, key=None, extra=None, clean=None, options_field=None, preset=None, empty_is_value=()…` — Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
   - `element_columns(values, model) -> dict` — `values` restreint aux colonnes concrètes de `model` — ce qu'un `objects.create(**…)`
   - `make_panel_settings_views(app, params, *, key=None, extra=None, clean=None)` — Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés
@@ -3362,17 +3378,18 @@ Réponse 206 à une requête `Range` — ce qui rend un média seekable au-delà
 
 ### Sonde média
 
-Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) ; depuis le 2026-09-13, un OBJET 3D livre sa table des matières glTF sans décodage (`probe_object3d` : format, faces, rig, animations) sous la clé `attributes` — ce que la médiathèque pose à l'ingest sur la nature `object3d` (A′)
+Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) ; depuis le 2026-09-13, un OBJET 3D livre sa table des matières glTF sans décodage (`probe_object3d` : format, faces, rig, animations) sous la clé `attributes` — ce que la médiathèque pose à l'ingest sur la nature `object3d` (A′) ; un PDF, ses pages SANS couche texte (2026-10-29, `document_text.pages_without_text`, nature `document`). `INPUT_PROPERTIES` : ce qu'un réglage REPREND d'une entrée (`Param.default_from` — la durée, `needs_ocr`) avec la NOTE qui dit pourquoi ; lu à la naissance d'un élément (`user_settings.input_proposals`) et par la card (`common:api_media_probe`, fichier désigné OU téléversé ; `WamaApp.inputProposals`)
 
 - **Domicile** : `wama/common/utils/media_probe.py` · **doc** : [docs/construction/suivi/ROADMAP.md §17ter](../construction/suivi/ROADMAP.md)
 - **Module** : WAMA Common — Sonde média (durée / codec / dimensions / pages / entrées).
-- **API publique** (7) :
+- **API publique** (8) :
   - `format_duration(seconds: float) -> str` — ``95.4 -> '1:35'``, ``3750 -> '1:02:30'`` — affichage court ('' si inconnu/zéro).
   - `probe_audio(path: str) -> dict` — Sonde le premier flux audio d'un fichier.
   - `probe_video(path: str) -> dict` — Sonde le premier flux vidéo : codec • L×H • fps, + durée (stream puis format).
   - `probe_video_format(path: str, *, timeout: int=20) -> dict` — Ce que le NAVIGATEUR regarde du premier flux vidéo : `{container, codec, profile,
   - `probe_object3d(path: str) -> dict` — Sonde d'un OBJET 3D (ROADMAP §17ter, trou 2) — ce que le fichier DÉCLARE, sans le décoder.
   - `probe_media(path: str) -> dict` — Sonde générique TOUS types (dispatch par extension).
+  - `input_property(info: dict, name: str)` — `{'value', 'note'}` de la propriété `name` sur la sonde `info` (`probe_media`), ou None.
   - `probe_media_cached(path: str, ttl: int=86400) -> dict` — `probe_media` avec cache Django par (chemin, mtime) — pour les endpoints à la requête
 
 ### Sources externes
