@@ -317,6 +317,23 @@ def declared_glue_holes(manifest: dict, steps: list, mark: str, emitted: set,
     return lines
 
 
+def _common_glue_call(common: dict, proc: dict, spec: dict):
+    """`(module, fabrique, appel)` de la glu d'un process COMMUN que le générateur sait RENDRE
+    (`COMMON_PROCESSES[…]['renders']`) : chaque argument nommé est lu au manifeste —
+    `input_field` (le champ d'entrée de l'élément), `output` (la sortie déclarée du process).
+    None si l'entrée n'en déclare pas, ou si un argument manque : le trou reste au rôle."""
+    declared = common.get('renders')
+    if not declared:
+        return None
+    module, factory, names = declared
+    known = {'input_field': ((proc.get('model_spec') or {}).get('item') or {}).get('input_field'),
+             'output': (spec.get('outputs') or [None])[0]}
+    values = [known.get(name) for name in names]
+    if not all(values):
+        return None
+    return module, factory, f"{factory}({', '.join(repr(v) for v in values)})"
+
+
 def render_tasks(manifest: dict) -> tuple:
     """(source, raison) — fichier mince complet, ou (None, raison) si la facette ne porte pas
     de quoi le rendre (tasks lifecycle + item_model). Jamais de fichier partiel."""
@@ -403,22 +420,39 @@ def render_tasks(manifest: dict) -> tuple:
             f'                  pipeline=PIPELINE, processes={{{glus}}},',
             f"                  only=process, notify_label='{label}')",
         ]
-        from wama.common.manifests.codegen.pipeline_decl import OUTPUT_PROCESS_KEY
+        from wama.common.manifests.codegen.pipeline_decl import COMMON_PROCESSES
         for s in _steps:
             outputs = ', '.join(s['outputs']) or '(aucune déclarée)'
             ups = ', '.join(s['depends_on']) or 'aucun'
-            if s['key'] == OUTPUT_PROCESS_KEY:
-                # Process « Sortie » COMMUN : sa glu est la brique `output_step` — le trou ne
-                # demande que le champ du rendu et son domaine, jamais un traitement réécrit.
+            common = COMMON_PROCESSES.get(s['key'])
+            rendered = _common_glue_call(common, proc, s) if common else None
+            if rendered:
+                # Process COMMUN dont la brique ne demande que des noms du manifeste : sa glu est
+                # RENDUE ici, pas laissée au rôle `codegen` (`COMMON_PROCESSES[…]['renders']`).
+                module, factory, call = rendered
+                lignes.extend([
+                    '',
+                    '',
+                    f'def _process_{fn}_{s["key"]}(item, ctx):',
+                    f'    """Process COMMUN « {common["label"]} » (amont : {ups}) — glu RENDUE par le '
+                    'générateur',
+                    f'    (`pipeline_decl.COMMON_PROCESSES`) : {common["does"]}."""',
+                    f'    from {module} import {factory}',
+                    f'    return {call}(item, ctx)',
+                ])
+                continue
+            if common:
+                # Process COMMUN (`pipeline_decl.COMMON_PROCESSES`) : sa glu est la brique — le
+                # trou ne demande que ses arguments, jamais un traitement réécrit.
                 lignes += [
                     '',
                     '',
                     f'def _process_{fn}_{s["key"]}(item, ctx):',
-                    f'    """TROU DE GLU {mark} — process COMMUN « Sortie » (amont : {ups}), marche B.',
+                    f'    """TROU DE GLU {mark} — process COMMUN « {common["label"]} » (amont : {ups}), '
+                    'marche B.',
                     '',
-                    '    Sa glu est la brique `output_process.output_step(<champ du rendu>, domain=…,',
-                    '    app_id=ctx.app_id)(item, ctx)` : réglages de sortie (format, qualité,',
-                    '    agrandissement) appliqués à l\'original que l\'amont a écrit. Rien d\'autre."""',
+                    f'    Sa glu est la brique `{common["glue"]}`',
+                    f'    — {common["does"]}. Sortie(s) DÉCLARÉE(S) : {outputs}. Rien d\'autre."""',
                     f"    raise NotImplementedError('{mark} process {s['key']} non généré (marche B)')",
                 ]
                 continue

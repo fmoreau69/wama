@@ -29,6 +29,36 @@ from wama.common.manifests.builtin.pipeline import function_key, node_kind
 #: Clé du process « Sortie » COMMUN : il n'est pas une glu d'app — `function_specs` le déclare
 #: par `output_spec`, sa glu est `output_step`.
 from wama.common.services.output_process import OUTPUT_KEY as OUTPUT_PROCESS_KEY  # noqa: F401
+from wama.common.services.ocr_process import OCR_KEY
+
+#: Les process COMMUNS — un process dont la GLU est une BRIQUE (2026-10-29, à leur 2ᵉ occurrence,
+#: `ROUTE §S` ③ : la « Sortie » des apps de rendu, puis l'« OCR des pages scannées » du
+#: Translator). Les générateurs les lisent ICI, plus par une exception écrite pour chaque clé :
+#: `tasks_gen` dit au rôle `codegen` d'APPELER la brique — le trou ne demande que ses arguments
+#: (montrée en entier, la brique de l'OCR a été RECOPIÉE deux fois de suite par le rôle) ;
+#: `function_specs_gen` rend la déclaration par la brique quand elle en a une (`spec`), sinon le
+#: process se déclare au manifeste comme les autres (degré, interrupteur). Un process commun de
+#: plus = une entrée.
+COMMON_PROCESSES = {
+    OUTPUT_PROCESS_KEY: {
+        'label': 'Sortie',
+        'spec': 'output_spec',
+        'glue': 'output_process.output_step(<champ du rendu>, domain=…, app_id=ctx.app_id)(item, ctx)',
+        'does': "réglages de sortie (format, qualité, agrandissement) appliqués à l'original que "
+                "l'amont a écrit",
+    },
+    OCR_KEY: {
+        'label': 'OCR des pages scannées',
+        'spec': '',
+        'glue': "ocr_process.ocr_step(<champ du document d'entrée>, <sortie déclarée>)(item, ctx)",
+        'does': "les seules pages sans couche texte lues par un moteur qui rend la place du texte, "
+                "leurs lignes rangées sur la card ; un document natif ne coûte rien",
+        # Glu RENDUE par le générateur : tous les arguments de la brique sont au manifeste — le
+        # champ d'entrée de l'élément et la sortie déclarée du process. Trois propositions du
+        # rôle sur ce trou (2026-10-30) recopiaient ou inventaient la brique au lieu de l'appeler.
+        'renders': ('wama.common.services.ocr_process', 'ocr_step', ('input_field', 'output')),
+    },
+}
 
 _BASE = Path(__file__).resolve().parents[4]
 #: Le dossier des brouillons d'apps nées d'un manifeste (`app_sandbox create --from-manifest`) :

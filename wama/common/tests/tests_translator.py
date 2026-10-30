@@ -5,9 +5,11 @@ l'appellent. Ce qui est tenu : le passthrough, le modèle désigné par une CLÉ
 locale gouvernée pour `ollama:*`, `chat_with_catalog_model` sinon, avec la clé de l'utilisateur),
 l'ancien nom nu accepté, l'aperçu au fil des morceaux, et un cache qui distingue les modèles.
 """
+import shutil
+from pathlib import Path
 from unittest import mock
 
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from wama.common.utils import llm_utils, translator
 
@@ -249,6 +251,63 @@ class TranslationIsDeclaredNotWrittenTest(SimpleTestCase):
                           'glossary', 'on_chunk', 'timeout'},
                          codegen.signatures_briques()['translate_text'])
 
+    def test_codegen_shows_the_ocr_brick_when_a_setting_follows_the_input_s_text_layer(self):
+        """2026-10-29 : a switch proposed by `needs_ocr` (`Param.default_from`) means an « OCR of
+        scanned pages » process — its glue is the common brick, which the role must SEE."""
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        switch = {'name': 'ocr_scanned_pages', 'type': 'toggle',
+                  'default_from': {'port': 'work_file', 'property': 'needs_ocr'}}
+        man = {'body': {'params': {'schemas': {'P': [switch]}}}}
+        self.assertIn(('read_ocr_file',), [names for _key, names in codegen._triggered([], man)])
+        plain = {'body': {'params': {'schemas': {'P': [dict(switch, default_from=None)]}}}}
+        self.assertEqual([], codegen._triggered([], plain))
+        self.assertEqual({'item', 'field'}, codegen.signatures_briques()['read_ocr_file'])
+
+    def test_an_app_with_the_live_preview_is_shown_how_to_publish_it(self):
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        live = {'body': {'capabilities': {'during_preview': True}}}
+        self.assertIn(('publish_partial_text', 'clear_partial'),
+                      [names for _key, names in codegen._triggered([], live)])
+        self.assertEqual([], codegen._triggered([], {'body': {'capabilities': {'during_preview': False}}}))
+        self.assertEqual({'app_name', 'pk', 'text'}, codegen.signatures_briques()['publish_partial_text'])
+
+    def test_an_upstream_output_read_by_a_brick_by_its_name_is_read(self):
+        """2026-10-30 : the translate glue relied on `read_ocr_file(item, 'ocr_file')`; the judge
+        called the OCR output « never read » — the instrument was wrong, as for `getattr` before."""
+        from wama.common.tests.tests_dev_ai_bridge import _charger
+        codegen = _charger('run_codegen')
+        ocr = {'key': 'ocr', 'outputs': ['ocr_file'], 'depends_on': [], 'watched': []}
+        translate = {'key': 'translate', 'outputs': ['output_file'], 'depends_on': ['ocr'],
+                     'watched': []}
+        glue = ("def _g(item, ctx):\n"
+                "    lines = read_ocr_file(item, 'ocr_file')\n"
+                "    return {'fields': {'output_file': 'x'}, 'output_ref': 'x'}\n")
+        self.assertEqual([], codegen.process_checks(glue, '_g', translate, [ocr, translate]))
+        ignored = glue.replace("read_ocr_file(item, 'ocr_file')", 'None')
+        self.assertEqual(['sortie d\'amont jamais lue : item.ocr_file'],
+                         codegen.process_checks(ignored, '_g', translate, [ocr, translate]))
+
+    def test_a_common_process_whose_arguments_are_declared_is_rendered_not_left_as_a_hole(self):
+        """The OCR process is COMMON (`pipeline_decl.COMMON_PROCESSES`, with the « Sortie »): its
+        glue is RENDERED by the generator — the brick only needs the item's input field and the
+        process's declared output. Three proposals of the role copied or invented the brick."""
+        import json
+        from pathlib import Path
+        from django.conf import settings
+        from wama.common.manifests.codegen.tasks_gen import render_tasks
+        base = Path(settings.BASE_DIR) / 'manifests' / 'app_drafts'
+        manifest = json.loads((base / 'translator.json').read_text(encoding='utf-8'))
+        source, _why = render_tasks(manifest)
+        ocr_glue = source.split('def _process_translate_text_task_ocr')[1].split('\ndef ')[0]
+        self.assertIn("return ocr_step('source_document', 'ocr_file')(item, ctx)", ocr_glue)
+        self.assertNotIn('NotImplementedError', ocr_glue)
+        translate_hole = source.split('def _process_translate_text_task_translate')[1]
+        self.assertIn('NotImplementedError', translate_hole.split('\ndef ')[0],
+                      'translation is not common: its glue stays with the role')
+        compile(source, 'tasks.py', 'exec')
+
     def test_the_judge_sees_what_the_first_generated_glue_invented(self):
         """2026-10-28 : the first glue generated for the Translator passed the checks with ONE
         warning out of five defects — `fields` built in a variable, an invented item attribute,
@@ -379,3 +438,97 @@ class TranslationIsDeclaredNotWrittenTest(SimpleTestCase):
         # Counter-proof : a task body keeps its (item, ctx).
         self.assertFalse(codegen.controles('def _process_t(item):\n    pass\n',
                                            '_process_t')['signature_ok'])
+
+
+class _TwinCtx:
+    """The task context of `task_skeleton`, reduced to what the twin's two glues use."""
+
+    def __init__(self, item):
+        self.item, self.app_id, self.said = item, 'translator_01', []
+
+    def console(self, message):
+        self.said.append(message)
+
+    def progress(self, *args):
+        pass
+
+    def ensure_model(self, key):
+        return key
+
+    def output_place(self, ext, **_kw):
+        import os
+        from django.conf import settings
+        rel = f'users/{self.item.user_id}/translator_01/output/{len(self.said)}_{os.getpid()}{ext}'
+        absolute = os.path.join(settings.MEDIA_ROOT, rel)
+        os.makedirs(os.path.dirname(absolute), exist_ok=True)
+        self.said.append(rel)
+        return rel, absolute
+
+
+class TwinTranslatesAScanTest(TestCase):
+    """The REGENERATED twin (`translator_01`, 2026-10-30) end to end, with no engine: a scan
+    dropped on the card ticks the OCR switch (`default_from`), a native PDF does not, a posted
+    choice wins; then its two glues — the OCR one RENDERED by the generator, the translation
+    one written by the `codegen` role — rewrite the scan with the translation as real text."""
+
+    def setUp(self):
+        import tempfile
+        from django.apps import apps
+        from django.test import override_settings
+        if not apps.is_installed('wama.translator_01'):
+            self.skipTest('jumelle translator_01 absente de ce dépôt')
+        self.media = tempfile.mkdtemp()
+        override = override_settings(MEDIA_ROOT=self.media)
+        override.enable()
+        self.addCleanup(override.disable)
+        self.addCleanup(shutil.rmtree, self.media, True)
+        self.dir = Path(tempfile.mkdtemp(prefix='wama-twin-'))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        from wama.common.tests.tests_document_text import LONG, _scan_of
+        self.scan, self.ocr = _scan_of(self.dir, [(72, 100, LONG), (72, 114, 'and ends here.')])
+        import fitz
+        with fitz.open() as pdf:
+            pdf.new_page().insert_text((72, 100), LONG)
+            pdf.save(str(self.dir / 'native.pdf'))
+        from django.contrib.auth import get_user_model
+        # Une jumelle ne s'ouvre qu'à son créateur, aux développeurs et aux administrateurs.
+        self.user = get_user_model().objects.create_superuser('twin_scan', 'twin@x.fr', 'x')
+        self.client.force_login(self.user)
+
+    def _drop(self, path, **post):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from wama.translator_01.models import TranslatorText
+        upload = SimpleUploadedFile(path.name, path.read_bytes(), 'application/pdf')
+        response = self.client.post('/translator_01/upload/', {'source_document': upload, **post})
+        self.assertEqual(200, response.status_code, response.content[:300])
+        return TranslatorText.objects.get(pk=response.json()['id'])
+
+    def test_the_switch_follows_the_dropped_file_and_a_posted_choice_wins(self):
+        self.assertIs(True, self._drop(self.scan).ocr_scanned_pages)
+        self.assertIs(False, self._drop(self.dir / 'native.pdf').ocr_scanned_pages)
+        self.assertIs(False, self._drop(self.scan, ocr_scanned_pages='false').ocr_scanned_pages)
+
+    def test_the_two_glues_rewrite_the_scan_with_the_translation(self):
+        from types import SimpleNamespace
+        import fitz
+        from wama.translator_01 import tasks
+        item = self._drop(self.scan, target_language='fr')
+        engine = SimpleNamespace(read_lines=lambda path: [self.ocr[0]])
+        with mock.patch('wama.common.services.ocr_process.positioned_ocr_keys',
+                        return_value=['reader:doctr']), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           return_value='reader:doctr'), \
+                mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                           return_value=engine):
+            ocr = tasks._process_translate_text_task_ocr(item, _TwinCtx(item))
+        item.ocr_file = ocr['fields']['ocr_file']
+        item.save(update_fields=['ocr_file'])
+
+        def fake(self, text, *args, **kwargs):
+            return {'ok': True, 'text': 'TRADUIT ' + text.split()[0]}
+        with mock.patch('wama.common.utils.translator.TranslatorService.translate', fake), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           return_value='ollama:translategemma:12b'):
+            result = tasks._process_translate_text_task_translate(item, _TwinCtx(item))
+        with fitz.open(str(Path(self.media) / result['fields']['output_file'])) as pdf:
+            self.assertIn('TRADUIT The', pdf[0].get_text())

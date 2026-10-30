@@ -8,16 +8,6 @@
     "inputs": [
       {
         "cardinality": "one",
-        "data_type": "prompt",
-        "description": "Le texte saisi dans la card — ou le document ci-dessous : l'un ou l'autre.",
-        "group": "prompt",
-        "key": "prompt",
-        "optional": true,
-        "produced_fields": [],
-        "required_fields": []
-      },
-      {
-        "cardinality": "one",
         "data_type": "document",
         "description": "Le document à traduire (TXT, MD, DOCX, PDF) ; ses pages scannées viennent avec les lignes du process OCR, quand il a eu lieu.",
         "group": "travail",

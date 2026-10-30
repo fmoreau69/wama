@@ -7163,6 +7163,19 @@ possible **sans aucun process**.
       le compte de test : SUCCESS en 22 s (deux lignes, qwen3.5:4b tiré en auto), forme du modèle
       de mise en page reprise sans son texte, puis consigne de forme changée → seul `layout` à
       jouer, ▶ borné en 5 s, fond intact (même fichier), mention demandée présente.
+    - ✅ **Les PROCESS COMMUNS se déclarent une fois (2026-10-30, Translator).** Le process
+      « Sortie » était une exception écrite par clé dans `function_specs_gen` et `tasks_gen` ; à la
+      2ᵉ occurrence (l'« OCR des pages scannées », brique `ocr_process`), elle devient une
+      déclaration lue par les deux : `pipeline_decl.COMMON_PROCESSES` — clé → libellé, fabrique de
+      déclaration (`spec`, la Sortie : `output_spec`), appel de la glu, et `renders` quand TOUS les
+      arguments de la brique sont au manifeste (l'OCR : champ d'entrée de l'élément, sortie
+      déclarée du process) : la glu est alors RENDUE par `tasks_gen`, plus laissée au rôle. Mesuré
+      avant : trois propositions du rôle sur ce trou recopiaient ou inventaient la brique (moteur
+      écrit en dur, attribut inexistant, signatures fausses). La Sortie garde son trou (le domaine
+      n'est pas au manifeste), qui nomme désormais la brique depuis la même déclaration. Un process
+      commun de plus = une entrée. Tenu par `tests_translator.TranslationIsDeclaredNotWrittenTest`
+      et, sur la jumelle régénérée, `TwinTranslatesAScanTest` (dépôt → interrupteur proposé →
+      OCR rendu → traduction écrite à la place du scan).
     - 🔎 **Revérification « rien réinventé » (05/10, demande de Fabien), après le commit
       `f98aa625`** — sept écarts, tous corrigés :
       1. `pipeline_decl` lisait `node['kind']`/`node['function']` → `node_kind()`/`function_key()`,

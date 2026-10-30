@@ -2891,7 +2891,30 @@ Deux voies, complémentaires :
    défaut (un scan ne la dit pas) ; le texte ne s'étend pas dans la place voisine (rien ne la dit
    libre : l'analyse de mise en page ne voit aucune figure sur un scan, mesuré) ; un intertitre
    collé à son paragraphe lui reste réuni.
-   ⏳ ensuite : l'étape préalable du Translator ; l'ordre des mots qui fait permuter deux passages balisés (le second
+   ✅ **L'étape préalable du Translator, 30/10** (décisions de Fabien du 29/10 : *« un pré-process
+   optionnel passe par un geste utilisateur, un switch »* ; *« le switch s'adapte à l'entrée,
+   comme les filtrages bidirectionnels, avec un message sous le switch »*). Deux mécanismes
+   ÉTENDUS, aucun nouveau : la sonde commune (`media_probe`) mesure les pages sans couche texte
+   d'un PDF (attributs de la nature `document`) ; `Param.default_from` (né le 04/10 pour la durée
+   du composer) gagne un vocabulaire de propriétés (`media_probe.INPUT_PROPERTIES` : `duration`,
+   `needs_ocr`), une case cochée ou décochée et une NOTE sous le réglage — lu par la card (sonde
+   `api_media_probe`, fichier désigné OU téléversé) et à la NAISSANCE d'un élément
+   (`new_element_settings(inputs=…)` : défauts ← préférences ← proposition de l'entrée ←
+   posté). Translator, par la chaîne : manifestes (interrupteur `ocr_scanned_pages`, pipeline
+   `ocr` optionnel → `translate`, patron du prétraitement du transcriber), brique
+   `common/services/ocr_process` (patron d'`output_process`), jumelle régénérée (`models`,
+   `params`, `function_specs`, `tasks`, `views`, gabarits ; 1 élément et 1 lot gardés, écart
+   additif). La glu de l'OCR est RENDUE par le générateur : trois propositions du rôle `codegen`
+   recopiaient ou inventaient la brique — d'où la déclaration des PROCESS COMMUNS
+   (`pipeline_decl.COMMON_PROCESSES`, la « Sortie » et l'OCR, à leur 2ᵉ occurrence, `ROUTE §S`
+   ③), lue par les deux générateurs à la place d'une exception par clé. La glu de traduction
+   vient du rôle (Albert `gpt-oss-120b`, 0 avertissement, relue) ; la chaîne y a gagné deux
+   déclencheurs (`needs_ocr` → `read_ocr_file`, `during_preview` → `publish_partial_text`) et
+   un juge moins aveugle (un champ lu par `brique(item, 'champ')` est lu).
+   ⏳ Reste, chez Portage Apps (accord du 30/10) : porter `inputs=` aux naissances des dix apps
+   d'origine et à leurs appelants (outils `add_to_*`) — aujourd'hui seuls le composer (durée, lue
+   côté client) et le Translator déclarent `default_from`. Et à juger sur un VRAI scan, workers
+   relancés ; l'ordre des mots qui fait permuter deux passages balisés (le second
    perd sa mise en forme, jamais son texte).
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄

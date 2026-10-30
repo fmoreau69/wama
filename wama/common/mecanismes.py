@@ -1475,7 +1475,11 @@ MECHANISMS = (
               "le pipeline se lit par la CLÉ (`pipeline_decl` : corpus, sinon brouillons), "
               "`function_specs_gen` écrit FunctionSpec + register_app_pipeline (le process "
               "« Sortie » commun = output_spec), tasks_gen une glu par process (`process=`), "
-              "models_gen une colonne par sortie et par port, views_gen `start_process`",
+              "models_gen une colonne par sortie et par port, views_gen `start_process`. "
+              "PROCESS COMMUNS depuis le 30/10 (`pipeline_decl.COMMON_PROCESSES` : la Sortie, "
+              "l'OCR des pages scannées) — une déclaration lue par les deux générateurs ; une "
+              "glu dont la brique ne demande que des noms du manifeste est RENDUE (`renders`), "
+              "plus laissée au rôle `codegen`",
               'wama/common/manifests/codegen/templates_gen.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
               annexes=('wama/common/manifests/codegen/apps_gen.py',
                        'wama/common/manifests/codegen/urls_gen.py',

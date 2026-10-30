@@ -22,9 +22,15 @@ jumelle (`writer_01`) déclare donc ses fonctions `writer_01.<process>` et son p
 """
 from __future__ import annotations
 
-from wama.common.manifests.codegen.pipeline_decl import (OUTPUT_PROCESS_KEY, declared_pipeline,
+from wama.common.manifests.codegen.pipeline_decl import (COMMON_PROCESSES, declared_pipeline,
                                                          process_specs, schema_stales)
 from wama.common.manifests.codegen.tasks_gen import generated_task_path
+
+def _declared_by_brick(spec: dict) -> bool:
+    """Ce process est-il un process COMMUN que sa brique DÉCLARE (`COMMON_PROCESSES[…]['spec']`,
+    la « Sortie ») ? Un process commun sans fabrique (l'OCR) se déclare au manifeste."""
+    return bool((COMMON_PROCESSES.get(spec['key']) or {}).get('spec'))
+
 
 def _category_names() -> set:
     """Les catégories du catalogue, DÉRIVÉES de `FunctionCategory` (une liste recopiée ici les
@@ -120,7 +126,7 @@ def render_function_specs(manifest: dict) -> tuple:
         '                                                  PortSpec, register)',
         'from wama.common.services.process_pipeline import ProcessSpec, register_app_pipeline',
         *(['from wama.common.services.output_process import output_spec']
-          if any(s['key'] == OUTPUT_PROCESS_KEY for s in specs) else []),
+          if any(_declared_by_brick(s) for s in specs) else []),
         '',
         "#: Le LABEL réel de l'app (jumelle comprise), lu de son paquet — jamais écrit en dur.",
         "_APP = __name__.rsplit('.', 2)[-2]",
@@ -169,9 +175,9 @@ def render_function_specs(manifest: dict) -> tuple:
         s['watched'] = [w for w in s['watched'] if w not in declared.get(s['key'], ())]
     lines += ['', '', 'PIPELINE = register_app_pipeline(_APP, (']
     for s in specs:
-        if s['key'] == OUTPUT_PROCESS_KEY:
-            # Le process « Sortie » COMMUN : sa déclaration est la brique (réglages de sortie
-            # surveillés, toujours joué) — jamais recopiée champ par champ.
+        if _declared_by_brick(s):
+            # Un process COMMUN déclaré par sa brique (la « Sortie » : réglages de sortie
+            # surveillés, toujours joué) — jamais recopié champ par champ.
             share = f", share={s['share']}" if s['share'] != 1 else ''
             lines.append(f"    output_spec(depends_on={tuple(s['depends_on'])!r}{share}),")
             continue

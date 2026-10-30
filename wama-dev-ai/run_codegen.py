@@ -184,6 +184,16 @@ BRICKS_BY_TRIGGER = {
     # document compris, forme conservée —, pas l'appel LLM nu (la 1ʳᵉ glu du Translator, écrite à
     # la main, relisait le document en texte brut et rendait un `.md`).
     ('specialization', 'translation'): ('translator', ('translate_text', 'translate_document')),
+    # Un réglage qui reprend de l'entrée la propriété `needs_ocr` (`Param.default_from`,
+    # 2026-10-29) : l'app a un process « OCR des pages scannées », dont le process suivant relit
+    # les lignes pour la couche texte (`ocr=`). La glu de l'OCR elle-même est APPELÉE, pas montrée :
+    # son trou nomme la brique (`pipeline_decl.COMMON_PROCESSES`) — montrée en entier, `ocr_step`
+    # a été recopiée deux fois de suite par le rôle (moteur écrit en dur, attribut inventé).
+    ('input_property', 'needs_ocr'): ('ocr_process', ('read_ocr_file',)),
+    # Une app qui déclare l'aperçu « pendant » (`capabilities.during_preview`) le PUBLIE au fil du
+    # traitement (2026-10-30 : une glu du Translator envoyait la traduction partielle à la
+    # console — la carte ne montrait plus rien pendant ; la glu convergée du 29/10 le faisait).
+    ('capability', 'during_preview'): ('preview', ('publish_partial_text', 'clear_partial')),
 }
 
 
@@ -212,6 +222,9 @@ def _triggered(resolus: list, man: dict, process: str = None) -> list:
     specializations = {(field.get('options_resolution') or {}).get('specialization')
                        for field in fields}
     reruns = {s.get('reruns') for s in body.get('surfaces') or [] if isinstance(s, dict)}
+    input_properties = {(field.get('default_from') or {}).get('property') for field in fields
+                        if isinstance(field.get('default_from'), dict)}
+    capabilities = {name for name, on in (body.get('capabilities') or {}).items() if on is True}
     # Une brique de MÉTIER appelle elle-même le LLM : la montrer avec l'appel nu inviterait la glu
     # à contourner la brique (et le juge réclamerait l'appel nu « non appelé »).
     if specializations & {value for kind, value in BRICKS_BY_TRIGGER if kind == 'specialization'}:
@@ -221,6 +234,8 @@ def _triggered(resolus: list, man: dict, process: str = None) -> list:
             or (kind == 'facet' and value in facets)
             or (kind == 'param_flag' and value in param_flags)
             or (kind == 'specialization' and value in specializations)
+            or (kind == 'input_property' and value in input_properties)
+            or (kind == 'capability' and value in capabilities)
             or (kind == 'surface_rerun' and process and process in reruns)]
 
 
@@ -721,8 +736,10 @@ def process_checks(code: str, nom_impose: str, spec: dict, all_specs: list,
     # `getattr(item, 'champ', défaut)` LIT aussi le champ (2026-10-13 : la glu de mise en forme
     # du Writer lisait `document_kind` ainsi ; le contrôle le disait « jamais lu », et deux tours de
     # réparation n'ont rien pu y faire — le modèle avait raison, l'instrument tort).
+    # Et toute brique qui lit un champ de l'élément par son NOM, `brique(item, 'champ')` — la sortie
+    # de l'OCR relue par `read_ocr_file(item, 'ocr_file')` (2026-10-30 : même instrument en tort).
     read |= {n.args[1].value for n in ast.walk(fn) if isinstance(n, ast.Call)
-             and isinstance(n.func, ast.Name) and n.func.id == 'getattr' and len(n.args) >= 2
+             and isinstance(n.func, (ast.Name, ast.Attribute)) and len(n.args) >= 2
              and isinstance(n.args[0], ast.Name) and n.args[0].id == 'item'
              and isinstance(n.args[1], ast.Constant) and isinstance(n.args[1].value, str)}
     by_key = {s['key']: s for s in all_specs}
