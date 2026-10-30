@@ -256,3 +256,81 @@ class ToolsAreBornLikeACardDepositTest(TestCase):
                 element = django_apps.get_model(app, model_name).objects.get(pk=out['item_id'])
                 self.assertEqual(value, getattr(element, name),
                                  f'{tool} : the element does not carry what its birth returned')
+
+
+#: A schema that DECLARES a proposal — for the guards below, whatever the app really declares.
+_PROPOSING = {'schemas': {'X_PARAMS_JSON': [
+    {'name': 'proposed', 'default_from': {'port': 'any', 'property': 'duration'}}]}}
+
+
+class FilesProposeAtBirthTest(TestCase):
+    """A gesture that HOLDS a file hands it to the birth (`inputs_by_port`, `Param.default_from`,
+    2026-10-29) — the generated twins did, the original apps did not (`d6f88032` then this port).
+    Covered : the assistant's creation tools that receive a file, and « Envoyer vers… »."""
+
+    setUp = ToolsAreBornLikeACardDepositTest.setUp
+    tearDown = ToolsAreBornLikeACardDepositTest.tearDown
+    _call = ToolsAreBornLikeACardDepositTest._call
+
+    def test_the_file_goes_to_the_work_port_of_its_nature(self):
+        # The ports derive from the installed models (empty catalogue here) : they are given, as
+        # the enhancer has them with its models — audio first, then image/video/audio.
+        ports = {'inputs': [{'id': 'work_audio', 'group': 'travail', 'types': ['audio']},
+                            {'id': 'work_file', 'group': 'travail', 'types': ['image', 'video', 'audio']},
+                            {'id': 'reference_voice', 'group': 'reference', 'types': ['audio']}]}
+        with mock.patch('wama.common.utils.param_schema.declared_param_schemas',
+                        return_value=_PROPOSING), \
+                mock.patch('wama.common.app_registry.studio_node_ports', return_value=ports):
+            self.assertEqual({'work_file': 'a.png', 'work_audio': 'b.wav'},
+                             user_settings.inputs_by_port('enhancer', 'a.png', 'b.wav', None))
+
+    def test_no_port_is_read_when_the_app_proposes_nothing(self):
+        with mock.patch('wama.common.utils.param_schema.declared_param_schemas',
+                        return_value={'schemas': {'X_PARAMS_JSON': [{'name': 'plain'}]}}), \
+                mock.patch('wama.common.app_registry.studio_node_ports',
+                           side_effect=AssertionError('ports read for nothing')):
+            self.assertEqual({}, user_settings.inputs_by_port('enhancer', 'a.png'))
+
+    def _seen_inputs(self, birth, gesture):
+        from importlib import import_module
+        module, attr = birth.rsplit('.', 1)
+        original = getattr(import_module(module), attr)
+        seen = []
+
+        def spy(*args, **kw):
+            seen.append(kw.get('inputs') or {})
+            return original(*args, **kw)
+
+        with mock.patch(birth, side_effect=spy), \
+                mock.patch('wama.common.utils.param_schema.declared_param_schemas',
+                           return_value=_PROPOSING), \
+                mock.patch('celery.app.task.Task.apply_async', return_value=mock.Mock(id='no-task')):
+            gesture()
+        return seen
+
+    def test_each_tool_holding_a_file_hands_it_to_the_birth(self):
+        from wama import tool_api as T
+        for app, tool, kwargs, birth, *_ in TOOL_BIRTHS:
+            if not any(v in self.files for v in kwargs.values() if isinstance(v, str)):
+                continue
+            with self.subTest(app=app):
+                seen = self._seen_inputs(birth, lambda: getattr(T, tool)(self.user, **self._call(kwargs)))
+                self.assertTrue(seen and seen[-1], f'{tool} : the birth got no file')
+                names = {str(getattr(v, 'name', v)) for v in seen[-1].values()}
+                self.assertTrue(any(n.endswith(('tool_birth.png', 'tool_birth.wav')) for n in names),
+                                f'{tool} : not the file it received ({names})')
+
+    def test_each_import_hands_its_file_to_the_birth(self):
+        from wama.filemanager.views import IMPORTERS
+        rows = (('anonymizer', 'png', 'wama.anonymizer.views.new_media_settings'),
+                ('describer', 'png', 'wama.describer.views.new_description_settings'),
+                ('enhancer', 'png', 'wama.enhancer.views.new_enhancement_settings'),
+                ('enhancer', 'wav', 'wama.enhancer.views.new_audio_settings'),
+                ('imager', 'png', 'wama.imager.views.new_generation_settings'),
+                ('reader', 'png', 'wama.reader.views.new_reading_settings'),
+                ('transcriber', 'wav', 'wama.transcriber.views.new_transcript_settings'),
+                ('converter', 'png', 'wama.converter.views.apply_birth_settings'))
+        for app, kind, birth in rows:
+            with self.subTest(app=app, kind=kind):
+                seen = self._seen_inputs(birth, lambda: IMPORTERS[app](self.files[kind], self.user))
+                self.assertTrue(seen and seen[-1], f'import to {app} : the birth got no file')

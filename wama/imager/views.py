@@ -287,7 +287,10 @@ def create_generation(request):
         return JsonResponse({'error': str(e)}, status=500)
 
 
-def new_generation_settings(user, mode, post=None, model=None, app='imager') -> dict:
+from wama.common.utils.user_settings import inputs_by_port  # noqa: E402
+
+
+def new_generation_settings(user, mode, post=None, model=None, app='imager', inputs=None) -> dict:
     """Les colonnes de réglage d'une génération NAISSANTE, quel que soit son mode, par la cascade
     COMMUNE (`user_settings.new_element_settings`, 2026-10-18) sur le schéma de son DOMAINE (vidéo
     pour `VIDEO_MODES`, image sinon) : défauts du schéma ← défauts DÉCLARÉS du modèle choisi
@@ -304,7 +307,7 @@ def new_generation_settings(user, mode, post=None, model=None, app='imager') -> 
     item_model = model or ImageGeneration
     # Une graine postée VIDE est un choix (un tirage neuf) : la règle COMMUNE des réglages de tirage
     # (`param_schema.EMPTY_IS_NONE_TYPES`, 2026-10-22) — elle était déclarée ici.
-    kwargs = dict(post=post)
+    kwargs = dict(post=post, inputs=inputs)
     # Le MODÈLE est lui-même un réglage : on le lit par la cascade, puis ses défauts déclarés
     # deviennent le préréglage de la cascade complète.
     chosen = new_element_settings(user, app, schema, item_model, **kwargs).get('model') or 'auto'
@@ -509,7 +512,8 @@ def handle_describe2img(request, user):
         return JsonResponse({'error': refusal or 'No reference image provided'}, status=400)
 
     # Réglages : la cascade COMMUNE (`new_generation_settings`).
-    settings_values = new_generation_settings(user, 'describe2img', request.POST)
+    settings_values = new_generation_settings(user, 'describe2img', request.POST,
+                                              inputs=inputs_by_port('imager', reference_image))
     prompt_style = request.POST.get('prompt_style', 'detailed')
 
     # Create generation with placeholder prompt
@@ -572,7 +576,8 @@ def handle_img2img(request, user, mode):
 
     prompt = request.POST.get('prompt', '').strip()
     # Réglages : la cascade COMMUNE (`new_generation_settings`) — la force de l'image comprise.
-    settings_values = new_generation_settings(user, mode, request.POST)
+    settings_values = new_generation_settings(user, mode, request.POST,
+                                              inputs=inputs_by_port('imager', reference_image))
 
     # For style2img mode, if no prompt is provided, generate one
     if mode == 'style2img' and not prompt:
@@ -641,7 +646,8 @@ def handle_img2vid(request, user):
 
     prompt = request.POST.get('prompt', '').strip()
     # Réglages : la cascade COMMUNE (`new_generation_settings`, schéma VIDÉO).
-    settings_values = new_generation_settings(user, 'img2vid', request.POST)
+    settings_values = new_generation_settings(user, 'img2vid', request.POST,
+                                              inputs=inputs_by_port('imager', reference_image))
 
     # Create generation object
     generation = ImageGeneration.objects.create(

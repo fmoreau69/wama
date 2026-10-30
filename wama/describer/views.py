@@ -27,7 +27,7 @@ from ..accounts.views import get_or_create_anonymous_user
 # NameError — dont l'import par URL dès sa 1ʳᵉ ligne. Tenu par `tests_unbound_names`.
 logger = logging.getLogger(__name__)
 
-def new_description_settings(user, model=None, app='describer', post=None) -> dict:
+def new_description_settings(user, model=None, app='describer', post=None, inputs=None) -> dict:
     """Les colonnes de réglage d'une description NAISSANTE, par la cascade COMMUNE (défauts du
     schéma ← réglages de l'auteur ← ce que le dépôt poste, `user_settings.new_element_settings`,
     2026-10-18). Le dépôt de la card et l'import du gestionnaire de fichiers (« Envoyer vers »,
@@ -39,16 +39,18 @@ def new_description_settings(user, model=None, app='describer', post=None) -> di
     from wama.common.utils.user_settings import new_element_settings
     from wama.describer.params import PARAMS_JSON, user_setting_key
     return new_element_settings(user, app, PARAMS_JSON, model or Description, post=post,
+                                inputs=inputs,
                                 key=user_setting_key)
 
 
-def _deposit_settings(user, post):
+def _deposit_settings(user, post, inputs=None):
     """Les réglages d'un DÉPÔT (fichier, lien, lot) : ce que le volet poste est gardé comme
-    préférences (`save_panel_settings`), puis la description naît par la cascade COMMUNE."""
+    préférences (`save_panel_settings`), puis la description naît par la cascade COMMUNE —
+    `inputs` : le fichier reçu, sous son port, qui propose ses réglages (`inputs_by_port`)."""
     from wama.common.utils.user_settings import save_panel_settings
     from wama.describer.params import PARAMS_JSON, user_setting_key
     save_panel_settings(user, 'describer', PARAMS_JSON, post, key=user_setting_key)
-    return new_description_settings(user, post=post)
+    return new_description_settings(user, post=post, inputs=inputs)
 
 
 def get_user(request):
@@ -262,8 +264,9 @@ def upload(request):
     ext = filename.rsplit('.', 1)[-1].lower() if '.' in filename else ''
     detected_type = detect_type_from_extension(ext)
 
-    # Réglages : la cascade COMMUNE d'un dépôt.
-    settings_values = _deposit_settings(user, request.POST)
+    # Réglages : la cascade COMMUNE d'un dépôt, et ce que le fichier propose.
+    from wama.common.utils.user_settings import inputs_by_port
+    settings_values = _deposit_settings(user, request.POST, inputs_by_port('describer', uploaded_file))
 
     # Create description record
     description = Description.objects.create(

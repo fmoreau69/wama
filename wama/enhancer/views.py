@@ -224,7 +224,7 @@ class IndexView(View):
         })
 
 
-def new_enhancement_settings(user, model=None, app='enhancer', post=None):
+def new_enhancement_settings(user, model=None, app='enhancer', post=None, inputs=None):
     """Les colonnes de réglage d'une amélioration (image/vidéo) NAISSANTE, par la cascade COMMUNE
     (défauts du schéma ← réglages mémorisés au volet ← ce que le dépôt poste,
     `user_settings.new_element_settings`, 2026-10-18 — six défauts y étaient recopiés à la main).
@@ -234,19 +234,23 @@ def new_enhancement_settings(user, model=None, app='enhancer', post=None):
     from wama.common.utils.user_settings import new_element_settings
     from wama.enhancer.params import MEDIA_PARAMS_JSON
     values = new_element_settings(user, app, MEDIA_PARAMS_JSON, model or Enhancement, post=post,
+                                  inputs=inputs,
                                   empty_is_value=SETTINGS_EMPTY_IS_VALUE)
     if 'upscale_factor' in values:
         values['upscale_factor'] = _factor_posted(values, 4)
     return values
 
 
-def _deposit_settings(user, post):
+from wama.common.utils.user_settings import inputs_by_port  # noqa: E402
+
+
+def _deposit_settings(user, post, inputs=None):
     """Réglages d'un DÉPÔT (`new_enhancement_settings`). Ce qui a été posté devient la mémoire
     du volet (`save_panel_settings`) : l'élément suivant et la page rechargée partent des
-    derniers réglages employés."""
+    derniers réglages employés. `inputs` : le fichier reçu, sous son port (`inputs_by_port`)."""
     from wama.common.utils.user_settings import save_panel_settings
     from wama.enhancer.params import MEDIA_PARAMS_JSON
-    values = new_enhancement_settings(user, post=post)
+    values = new_enhancement_settings(user, post=post, inputs=inputs)
     save_panel_settings(user, 'enhancer', MEDIA_PARAMS_JSON, post)
     return values
 
@@ -256,7 +260,7 @@ def _deposit_settings(user, post):
 # qu'au LANCEMENT (chaque ▶ reprenait le volet), rien n'était retenu, et quatre vues recopiaient
 # chacune leur liste de réglages (fiche d'élément, ▶, « Tout démarrer », ▶ de lot).
 
-def new_audio_settings(user, model=None, app='enhancer', post=None):
+def new_audio_settings(user, model=None, app='enhancer', post=None, inputs=None):
     """Les colonnes de réglage d'une amélioration AUDIO naissante, par la cascade COMMUNE
     (défauts du schéma ← réglages retenus au volet ← ce que le dépôt poste). Le dépôt de la card,
     le lot, « Envoyer vers » et l'outil de l'assistant passent ici ; `model`/`app` : une jumelle
@@ -264,15 +268,17 @@ def new_audio_settings(user, model=None, app='enhancer', post=None):
     from wama.common.utils.user_settings import new_element_settings
     from wama.enhancer.params import AUDIO_PARAMS_JSON
     return new_element_settings(user, app, AUDIO_PARAMS_JSON, model or AudioEnhancement, post=post,
+                                inputs=inputs,
                                 empty_is_value=SETTINGS_EMPTY_IS_VALUE)
 
 
-def _audio_deposit_settings(user, post):
+def _audio_deposit_settings(user, post, inputs=None):
     """Réglages d'un DÉPÔT audio (`new_audio_settings`) ; ce qui a été posté devient la mémoire du
-    volet audio (`save_panel_settings`), comme au domaine image/vidéo."""
+    volet audio (`save_panel_settings`), comme au domaine image/vidéo. `inputs` : le fichier
+    reçu, sous son port (`inputs_by_port`)."""
     from wama.common.utils.user_settings import save_panel_settings
     from wama.enhancer.params import AUDIO_PARAMS_JSON
-    values = new_audio_settings(user, post=post)
+    values = new_audio_settings(user, post=post, inputs=inputs)
     save_panel_settings(user, 'enhancer', AUDIO_PARAMS_JSON, post or {})
     return values
 
@@ -365,7 +371,7 @@ def upload(request):
         user=user,
         media_type=media_type,
         input_file=file.value,
-        **_deposit_settings(user, request.POST),
+        **_deposit_settings(user, request.POST, inputs_by_port('enhancer', file)),
     )
     file.record(enhancement, 'input_file')
     logger.info(f"Created Enhancement ID: {enhancement.id}")
@@ -910,7 +916,7 @@ def audio_upload(request):
             file_size=getattr(file.value, 'size', 0) or 0,
             # Naissance COMMUNE (2026-10-28) : défauts ← volet retenu ← ce que le dépôt poste ;
             # ce qui est posté devient la mémoire du volet audio.
-            **_audio_deposit_settings(user, request.POST),
+            **_audio_deposit_settings(user, request.POST, inputs_by_port('enhancer', file)),
         )
         file.record(ae, 'input_file')
         if not ae.file_size:

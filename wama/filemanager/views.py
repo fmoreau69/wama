@@ -1371,7 +1371,7 @@ def import_to_describer(source_path, user, app_label='describer'):
     """
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import reference_or_copy
-    from wama.common.utils.user_settings import element_columns
+    from wama.common.utils.user_settings import element_columns, inputs_by_port
     from wama.describer.views import (detect_type_from_extension, get_file_properties,
                                       new_description_settings)
 
@@ -1382,7 +1382,8 @@ def import_to_describer(source_path, user, app_label='describer'):
     ext = dest_path.suffix.lstrip('.').lower()
     description = Description.objects.create(
         user=user, detected_type=detect_type_from_extension(ext),
-        **element_columns(new_description_settings(user, app=app_label), Description))
+        **element_columns(new_description_settings(
+            user, app=app_label, inputs=inputs_by_port(app_label, str(dest_path))), Description))
     description.input_file.name = relative_path
     description.filename = dest_path.name
     description.file_size = dest_path.stat().st_size
@@ -1408,6 +1409,7 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
     plus jamais un cas à la fois (converter 30/08, describer 03/09 = 2 occurrences)."""
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import reference_or_copy
+    from wama.common.utils.user_settings import inputs_by_port
 
     image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tif', '.tiff', '.webp', '.heic'}
     video_extensions = {'.mp4', '.webm', '.mkv', '.flv', '.gif', '.avi', '.mov', '.mpg', '.qt', '.3gp'}
@@ -1436,7 +1438,8 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
         from wama.enhancer.views import new_audio_settings
         ae = AudioEnhancement.objects.create(
             user=user, duration=duration, file_size=file_size,
-            **new_audio_settings(user, model=AudioEnhancement, app=app_label))
+            **new_audio_settings(user, model=AudioEnhancement, app=app_label,
+                                 inputs=inputs_by_port(app_label, str(dest_path))))
         ae.input_file.name = relative_path
         ae.save()
         return {
@@ -1462,7 +1465,8 @@ def import_to_enhancer(source_path, user, app_label='enhancer'):
             user=user, media_type=media_type,
             width=media_info['width'], height=media_info['height'],
             duration=media_info['duration'], file_size=media_info['file_size'],
-            **new_enhancement_settings(user, model=Enhancement, app=app_label),
+            **new_enhancement_settings(user, model=Enhancement, app=app_label,
+                                       inputs=inputs_by_port(app_label, str(dest_path))),
         )
         enhancement.input_file.name = relative_path
         enhancement.save()
@@ -1528,8 +1532,17 @@ def import_to_imager(source_path, user, app_label='imager'):
             'filename': dest_path.name, 'path': relative_path,
         }
     else:
-        # For reference images, create a describe2img generation
+        # For reference images, create a describe2img generation — née comme la card
+        # `describe2img` (`handle_describe2img`, 2026-10-29) : la cascade de l'app, les dimensions
+        # du modèle, et ce que l'image PROPOSE. Elle naissait sur les défauts du modèle.
+        from wama.common.utils.user_settings import inputs_by_port
+        from wama.imager.views import _dimensions, new_generation_settings
+        settings_values = new_generation_settings(
+            user, generation_mode, model=ImageGeneration, app=app_label,
+            inputs=inputs_by_port(app_label, str(dest_path)))
         generation = ImageGeneration.objects.create(
+            **settings_values,
+            **_dimensions({}, settings_values.get('model')),
             user=user,
             generation_mode=generation_mode,
             prompt='[Awaiting prompt generation]',
@@ -1553,6 +1566,7 @@ def import_to_anonymizer(source_path, user, app_label='anonymizer'):
     """Import a file to Anonymizer app. `app_label` re-cible une jumelle (importer_for)."""
     from django.apps import apps as django_apps
     from wama.anonymizer.views import add_media_to_db, new_media_settings
+    from wama.common.utils.user_settings import inputs_by_port
     from wama.common.utils.media_paths import reference_or_copy
     import mimetypes
 
@@ -1571,13 +1585,15 @@ def import_to_anonymizer(source_path, user, app_label='anonymizer'):
     else:
         media_type = 'video'  # Default
 
-    # Le média NAÎT avec les réglages de son auteur (brique `user_settings`, 2026-09-27).
+    # Le média NAÎT avec les réglages de son auteur (brique `user_settings`, 2026-09-27), et ceux
+    # que le fichier PROPOSE (`inputs_by_port`, 2026-10-29).
     media = Media.objects.create(
         user=user,
         file=relative_path,
         file_ext=file_ext,
         media_type=media_type,
-        **new_media_settings(user, model=Media, app=app_label),
+        **new_media_settings(user, model=Media, app=app_label,
+                             inputs=inputs_by_port(app_label, str(dest_path))),
     )
 
     # Add metadata (dimensions, fps, duration, etc.)
@@ -1599,15 +1615,16 @@ def import_to_synthesizer(source_path, user, app_label='synthesizer'):
     """Import a text file to Synthesizer app. `app_label` re-cible une jumelle (importer_for).
 
     La synthèse naît par le CHEMIN UNIQUE de l'app (`services.create_synthesis` — card, lot,
-    Studio, assistant), avec ce que le volet de l'auteur aurait posté
-    (`synthesis_panel_values`). Jusqu'au 2026-10-13 cet importeur créait à la main, langue et
+    Studio, assistant), avec les réglages de sa naissance (`synthesis_params`, la cascade commune
+    — elle lisait les valeurs du VOLET jusqu'au 2026-10-29). Jusqu'au 2026-10-13 cet importeur créait à la main, langue et
     voix en dur : le seul des cinq chemins que le ralliement du 30/09 n'avait pas atteint.
     Le module `services` est celui de l'app CIBLE : une jumelle crée dans SES tables.
     """
     import importlib
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import ReceivedInput, reference_or_copy
-    from wama.synthesizer.views import synthesis_panel_values
+    from wama.common.utils.user_settings import inputs_by_port
+    from wama.synthesizer.views import synthesis_params
 
     allowed_exts = {'.txt', '.pdf', '.docx', '.csv', '.md'}
     dest_path, relative_path = reference_or_copy(
@@ -1637,7 +1654,9 @@ def import_to_synthesizer(source_path, user, app_label='synthesizer'):
                               designation=relative_path)
     services = importlib.import_module(f'{django_apps.get_app_config(app_label).name}.services')
     synthesis = services.create_synthesis(
-        user, work_file=work_file, params=synthesis_panel_values(user, app=app_label))
+        user, work_file=work_file,
+        params=synthesis_params(user, {}, model=django_apps.get_model(app_label, 'VoiceSynthesis'),
+                                app=app_label, inputs=inputs_by_port(app_label, work_file)))
 
     return {
         'imported': True,
@@ -1658,7 +1677,7 @@ def import_to_reader(source_path, user, app_label='reader'):
     (`new_reading_settings`) et nombre de pages d'un PDF — avant, défauts du modèle."""
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import reference_or_copy
-    from wama.common.utils.user_settings import element_columns
+    from wama.common.utils.user_settings import element_columns, inputs_by_port
     from wama.reader.views import _wrap_reading_in_batch, new_reading_settings
 
     ReadingItem = django_apps.get_model(app_label, 'ReadingItem')
@@ -1667,7 +1686,8 @@ def import_to_reader(source_path, user, app_label='reader'):
         source_path, app_label, user.id, 'input', allowed_exts=reader_extensions)
 
     # Les COLONNES de la cascade commune (le curseur, réglage d'APP sans colonne, n'y est pas).
-    settings_values = new_reading_settings(user, app=app_label)
+    settings_values = new_reading_settings(user, app=app_label,
+                                           inputs=inputs_by_port(app_label, str(dest_path)))
     item = ReadingItem(user=user, original_filename=dest_path.name, status='PENDING',
                        **element_columns(settings_values, ReadingItem))
     item.input_file.name = relative_path
@@ -1743,7 +1763,9 @@ def import_to_converter(source_path, user, app_label='converter'):
     # Une jumelle générée ne porte pas l'écriture des réglages (`poser_reglages`) : elle garde
     # les défauts de son modèle, comme avant.
     if hasattr(job, 'poser_reglages'):
-        touched += [f for f in apply_birth_settings(job, media_type) if f not in touched]
+        from wama.common.utils.user_settings import inputs_by_port
+        touched += [f for f in apply_birth_settings(
+            job, media_type, inputs=inputs_by_port(app_label, str(dest_path))) if f not in touched]
     job.save(update_fields=touched)
 
     return {
@@ -1763,6 +1785,7 @@ def import_to_transcriber(source_path, user, app_label='transcriber'):
     et une durée rattrapée seulement au rendu suivant de la file."""
     from django.apps import apps as django_apps
     from wama.common.utils.media_paths import reference_or_copy
+    from wama.common.utils.user_settings import inputs_by_port
     from wama.transcriber.views import _describe_audio, new_transcript_settings
 
     Transcript = django_apps.get_model(app_label, 'Transcript')
@@ -1772,7 +1795,8 @@ def import_to_transcriber(source_path, user, app_label='transcriber'):
     # valider est retiré depuis le 2026-06-29) ; rien n'est lancé.
     transcript = Transcript.objects.create(
         user=user, status='DRAFT',
-        **new_transcript_settings(user, model=Transcript, app=app_label))
+        **new_transcript_settings(user, model=Transcript, app=app_label,
+                                  inputs=inputs_by_port(app_label, str(dest_path))))
     transcript.audio.name = relative_path
     transcript.save()
     try:

@@ -163,7 +163,7 @@ class IndexView(View):
         return render(request, 'avatarizer/index.html', context)
 
 
-def new_avatar_settings(user, model=None, app='avatarizer', post=None) -> dict:
+def new_avatar_settings(user, model=None, app='avatarizer', post=None, inputs=None) -> dict:
     """Les colonnes de réglage d'un job NAISSANT, par la cascade COMMUNE (défauts du schéma ←
     réglages retenus de l'auteur ← ce qui est posté, `user_settings.new_element_settings`,
     2026-10-18). La voix ne s'applique qu'à un job porteur de texte (`show_if="text_content"`).
@@ -173,6 +173,7 @@ def new_avatar_settings(user, model=None, app='avatarizer', post=None) -> dict:
     Avant, cinq réglages relus avec leurs défauts recopiés dans la vue, et une ligne de lot
     écrivait les siens en dur."""
     values = new_element_settings(user, app, _AVATAR_PARAMS_JSON, model or AvatarJob, post=post,
+                                  inputs=inputs,
                                   key=user_setting_key)
     if values.get('tts_model'):
         values['tts_model'] = tts_catalog_key(values['tts_model'])
@@ -221,7 +222,9 @@ def create(request):
         posted['text_content'] = text_content
     else:
         posted.pop('text_content', None)
-    job = AvatarJob(user=user, mode=mode, **new_avatar_settings(user, post=posted))
+    from wama.common.utils.user_settings import inputs_by_port
+    job = AvatarJob(user=user, mode=mode, **new_avatar_settings(
+        user, post=posted, inputs=inputs_by_port('avatarizer', audio_file)))
 
     # --- Standalone : fichier audio OU URL (WAMA_INGEST → téléchargé par le worker) ---
     if mode == 'standalone':

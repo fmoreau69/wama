@@ -76,33 +76,34 @@ def synthesis_panel_values(user, app='synthesizer') -> dict:
     return read_panel_settings(user, app, _SYNTH_PARAMS_JSON, key=user_setting_key)
 
 
-def new_synthesis_settings(user, model=None, app='synthesizer', post=None) -> dict:
+def new_synthesis_settings(user, model=None, app='synthesizer', post=None, inputs=None) -> dict:
     """Les colonnes de réglage d'une synthèse NAISSANTE, par la cascade COMMUNE (défauts du
     schéma ← réglages retenus de l'auteur ← ce qui est posté, `user_settings.new_element_settings`,
     2026-10-18). Le résultat se passe en `params` au chemin unique de l'app
     (`services.create_synthesis`), dont le contrat ne change pas : `params` = les réglages donnés.
     `model`/`app` : une jumelle de bac à sable passe les siens."""
     from wama.common.utils.user_settings import new_element_settings
-    return new_element_settings(user, app, _SYNTH_PARAMS_JSON, model or VoiceSynthesis,
+    return new_element_settings(user, app, _SYNTH_PARAMS_JSON, model or VoiceSynthesis, inputs=inputs,
                                 post=post, key=user_setting_key)
 
 
-def synthesis_params(user, post, model=None, app='synthesizer') -> dict:
+def synthesis_params(user, post, model=None, app='synthesizer', inputs=None) -> dict:
     """Les `params` d'une synthèse NAISSANTE pour `create_synthesis` : la cascade commune, plus ce
     que `post` porte hors schéma (réglages Higgs, titre). Le dépôt de la card et l'outil de
     l'assistant (`tool_api.synthesize_text`, 2026-10-29) ; `model`/`app` : une jumelle passe les
     siens."""
     posted = post.dict() if hasattr(post, 'dict') else dict(post)
-    return {**posted, **new_synthesis_settings(user, model=model, app=app, post=posted)}
+    return {**posted, **new_synthesis_settings(user, model=model, app=app, post=posted, inputs=inputs)}
 
 
-def _deposit_params(user, post):
+def _deposit_params(user, post, work_file=None):
     """Les `params` d'un DÉPÔT (fichier, texte, lot) pour `create_synthesis` (`synthesis_params`).
     Ce qui a été posté devient la mémoire du volet (`save_panel_settings`) — le dépôt d'un FICHIER
-    ne la tenait pas, seul celui d'un texte le faisait."""
-    from wama.common.utils.user_settings import save_panel_settings
+    ne la tenait pas, seul celui d'un texte le faisait. `work_file` : le fichier reçu, qui propose
+    ses réglages sous son port (`inputs_by_port`)."""
+    from wama.common.utils.user_settings import inputs_by_port, save_panel_settings
     posted = post.dict() if hasattr(post, 'dict') else dict(post)
-    params = synthesis_params(user, posted)
+    params = synthesis_params(user, posted, inputs=inputs_by_port('synthesizer', work_file))
     save_panel_settings(user, 'synthesizer', _SYNTH_PARAMS_JSON, posted, key=user_setting_key)
     return params
 
@@ -264,7 +265,7 @@ def upload(request):
     try:
         synthesis = create_synthesis(user, work_file=received[0],
                                      reference_voice=voice[0] if voice else None,
-                                     params=_deposit_params(user, request.POST))
+                                     params=_deposit_params(user, request.POST, received[0]))
     except (SynthesisRefused, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
     return _card_created_response(synthesis)
@@ -609,7 +610,8 @@ def import_individual_from_path(request):
     except InputRefused as exc:
         return JsonResponse({'error': str(exc)}, status=403)
     try:
-        synthesis = create_synthesis(user, work_file=received, params=_deposit_params(user, request.POST))
+        synthesis = create_synthesis(user, work_file=received,
+                                     params=_deposit_params(user, request.POST, received))
     except (SynthesisRefused, ValueError) as exc:
         return JsonResponse({'error': str(exc)}, status=400)
     return JsonResponse({'success': True, 'id': synthesis.id})

@@ -3298,7 +3298,7 @@ Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET d
 
 - **Domicile** : `wama/common/utils/user_settings.py`
 - **Module** : WAMA Common — Réglages UTILISATEUR par app, DURABLES en base (cache en lecture devant).
-- **API publique** (11) :
+- **API publique** (12) :
   - `get_user_app_settings(user, app, defaults)` — Retourne le dict complet des réglages de ``user`` pour ``app``.
   - `get_user_app_setting(user, app, name, default=None)` — Lecture d'UN réglage.
   - `clear_user_app_settings(user, app, names)` — Retire les réglages `names` de ``user`` pour ``app`` : ils reprennent le défaut que
@@ -3306,6 +3306,7 @@ Réglages durables en base (UserAppSetting, cache devant) ; réglages du VOLET d
   - `save_panel_settings(user, app, params, data, *, key=None, extra=None, clean=None) -> dict` — Garde comme préférences les réglages du volet présents dans `data` (par NOM), coercés par
   - `reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None) -> dict` — Remet le volet de ``user`` sur les défauts : ses préférences sont RETIRÉES (jamais
   - `input_proposals(params, inputs) -> dict` — `{réglage: {'value', 'note'}}` que les ENTRÉES proposent (`Param.default_from`, 2026-10-29) :
+  - `inputs_by_port(app_id, *received) -> dict` — `{port: fichier}` des fichiers qu'un geste TIENT (dépôt, « Envoyer vers… », outil), chacun
   - `new_element_settings(user, app, params, model, *, post=None, context=None, key=None, extra=None, clean=None, options_field=None, preset=None, empty_is_value=()…` — Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
   - `element_columns(values, model) -> dict` — `values` restreint aux colonnes concrètes de `model` — ce qu'un `objects.create(**…)`
   - `make_panel_settings_views(app, params, *, key=None, extra=None, clean=None)` — Les deux vues JSON du volet — lecture (GET) et enregistrement (POST, JSON par NOM, clés

@@ -310,7 +310,8 @@ def upload(request):
     # L'état COMPLET du volet voyage avec le dépôt — lu PAR LE SCHÉMA (`schema_model_kwargs`,
     # comme le converter) et gardé comme préférence (comme l'imager) : un réglage ajouté à
     # `params.py` est pris ici sans toucher la vue.
-    settings_values = _deposit_settings(user, request.POST)
+    from wama.common.utils.user_settings import inputs_by_port
+    settings_values = _deposit_settings(user, request.POST, inputs_by_port('transcriber', file))
 
     from ..common.utils.video_utils import is_video_file, extract_audio_from_video
 
@@ -1402,22 +1403,23 @@ def _save_user_panel_values(user, data):
     return save_panel_settings(user, 'transcriber', _SCHEMA, data, key=user_setting_key)
 
 
-def new_transcript_settings(user, model=None, app='transcriber', post=None):
+def new_transcript_settings(user, model=None, app='transcriber', post=None, inputs=None):
     """Les colonnes de réglage d'un transcript NAISSANT, par la cascade COMMUNE (défauts ←
     réglages de l'auteur ← ce que le dépôt poste, `user_settings.new_element_settings`).
     Le dépôt de la card et l'import du gestionnaire de fichiers (« Envoyer vers », sans volet
     donc sans POST) passent ici ; `model`/`app` : une jumelle de bac à sable passe les siens."""
     from wama.common.utils.user_settings import new_element_settings
     return new_element_settings(user, app, _SCHEMA, model or Transcript, post=post,
+                                inputs=inputs,
                                 key=user_setting_key)
 
 
-def _deposit_settings(user, post):
+def _deposit_settings(user, post, inputs=None):
     """Les réglages d'un DÉPÔT (fichier, lien) : ce que le volet poste est gardé comme
     préférences, puis l'élément naît par la cascade COMMUNE (`new_transcript_settings`,
     2026-09-27) — avant, un champ absent du POST prenait le défaut du modèle et non la
-    préférence de l'auteur."""
+    préférence de l'auteur. `inputs` : le fichier reçu, sous son port (`inputs_by_port`)."""
     _save_user_panel_values(user, post)
-    return new_transcript_settings(user, post=post)
+    return new_transcript_settings(user, post=post, inputs=inputs)
 
 

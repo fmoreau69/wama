@@ -34,6 +34,9 @@ logger = logging.getLogger(__name__)
 # Ce qu'un appel a DONNÉ — le « posté » qu'un créateur passe à la naissance de son app : la règle
 # « une valeur vide n'est pas un choix » de la cascade, lue à son domicile (2026-10-29).
 from wama.common.utils.param_schema import given_values as _given  # noqa: E402
+# Les fichiers qu'un créateur TIENT, sous leur port — ce qu'ils proposent à la naissance
+# (`Param.default_from`, 2026-10-29), comme au dépôt de la card.
+from wama.common.utils.user_settings import inputs_by_port  # noqa: E402
 
 
 # Les listes d'extensions qui vivaient ici (`_MEDIA_EXTS`, `_DESCRIBER_EXTS`, `_TRANSCRIBER_EXTS`,
@@ -491,7 +494,8 @@ def add_to_enhancer(
             media_type=media_type,
             input_file=received.value,
             status='PENDING',
-            **new_enhancement_settings(user, model=Enhancement, app=app_label, post=posted),
+            **new_enhancement_settings(user, model=Enhancement, app=app_label, post=posted,
+                                       inputs=inputs_by_port(app_label, received)),
         )
         received.record(enhancement, 'input_file')
 
@@ -598,7 +602,7 @@ def add_to_audio_enhancer(
             input_file=received.value,
             file_size=received.size,
             status='PENDING',
-            **new_audio_settings(user, post=posted),
+            **new_audio_settings(user, post=posted, inputs=inputs_by_port('enhancer', received)),
         )
         received.record(ae, 'input_file')
     except Exception as e:
@@ -682,7 +686,8 @@ def synthesize_text(
                      'voice_preset': voice_preset, 'speed': speed, 'pitch': pitch,
                      'emotion_intensity': emotion_intensity})
     settings = synthesis_params(user, posted, model=django_apps.get_model(app_label, 'VoiceSynthesis'),
-                                app=app_label)
+                                app=app_label,
+                                inputs=inputs_by_port(app_label, received.get('work_file')))
     try:
         synthesis = create_synthesis(user, prompt=text or '', params=settings,
                                      work_file=received.get('work_file'),
@@ -769,9 +774,17 @@ def compose_music(
     # Naissance COMMUNE (2026-10-29), celle de la card (`generate`) : défauts du schéma ← réglages
     # retenus ← ce que l'outil a reçu ; puis les règles du composer — modèle normalisé et validé,
     # durée bornée, voix normalisée.
+    # Les fichiers du morceau à reprendre PROPOSENT leurs réglages (`default_from` : la durée de
+    # l'audio) — lus sans être reçus (`designated_file` : mêmes gardes, rien de pointé ni copié).
+    from wama.common.utils.media_paths import InputRefused, designate, designated_file
+    try:
+        held = [designated_file(path, user) for path in (work_score, work_audio) if path]
+    except InputRefused as e:
+        return {'error': str(e)}
     ComposerGeneration = django_apps.get_model(app_label, 'ComposerGeneration')
     values = new_generation_settings(user, model=ComposerGeneration, app=app_label,
-                                     post=_given({'model': model, 'duration': duration, **params}))
+                                     post=_given({'model': model, 'duration': duration, **params}),
+                                     inputs=inputs_by_port(app_label, *held))
     values.pop('prompt', None)   # la consigne est l'argument `prompt`
     model = model or values.get('model')
     if not is_valid(model):
@@ -781,7 +794,6 @@ def compose_music(
     # ports de TRAVAIL depuis le 2026-10-03 : désignés par leur chemin, comme les ports du
     # synthesizer, et refusés AVANT de créer quoi que ce soit si le modèle ne les prend pas
     # (jamais ignorés en silence). Rangés dans leurs champs, qui gardent leur nom (données).
-    from wama.common.utils.media_paths import InputRefused, designate
     received = []
     for port, path, field, what in (('work_score', work_score, 'reference_score', 'de partition'),
                                     ('work_audio', work_audio, 'melody_reference', "d'audio à reprendre")):
@@ -916,6 +928,7 @@ def add_to_describer(
             file_size=received.size,
             detected_type=detected_type,
             **element_columns(new_description_settings(user, model=Description, app=app_label,
+                                                       inputs=inputs_by_port(app_label, received),
                                                        post=posted), Description),
         )
         received.record(description, 'input_file')
@@ -1000,7 +1013,8 @@ def add_to_transcriber(
         transcript = Transcript.objects.create(
             user=user,
             audio=received.value,
-            **new_transcript_settings(user, model=Transcript, app=app_label, post=posted),
+            **new_transcript_settings(user, model=Transcript, app=app_label, post=posted,
+                                      inputs=inputs_by_port(app_label, received)),
         )
         received.record(transcript, 'audio')
 
@@ -1093,6 +1107,7 @@ def add_to_reader(
             original_filename=received.name,
             status='PENDING',
             **element_columns(new_reading_settings(user, model=ReadingItem, app=app_label,
+                                                   inputs=inputs_by_port(app_label, received),
                                                    post=posted), ReadingItem),
         )
         received.record(item, 'input_file')
@@ -1203,7 +1218,8 @@ def convert_file(
         # réglages retenus de l'auteur ← les paramètres de l'appel ; 2026-10-18). `media_type` est
         # DÉTECTÉ depuis le fichier : la cascade ne l'écrase jamais, ni le format choisi ci-dessus.
         from wama.converter.views import apply_birth_settings
-        _champs = apply_birth_settings(job, media_type, params)
+        _champs = apply_birth_settings(job, media_type, params,
+                                       inputs=inputs_by_port(app_label, received))
         if _champs:
             job.save(update_fields=_champs)
     except Exception as e:
@@ -1723,8 +1739,17 @@ def add_to_avatarizer(
                      'tts_model': tts_model, 'language': language, 'voice_preset': voice_preset,
                      'use_enhancer': use_enhancer, 'bbox_shift': bbox_shift,
                      'text_content': text_content.strip() if mode == 'pipeline' else None})
+    # Les fichiers donnés par leur chemin PROPOSENT leurs réglages (`default_from`) — lus sans être
+    # reçus (`designated_file` : mêmes gardes, rien de pointé ni copié).
+    from wama.common.utils.media_paths import designated_file
+    try:
+        held = [designated_file(path, user) for path in
+                (audio_path, avatar_image_path if avatar_source == 'upload' else '') if path]
+    except InputRefused as e:
+        return {'error': str(e)}
     job = AvatarJob(user=user, mode=mode,
-                    **new_avatar_settings(user, model=AvatarJob, app=app_label, post=posted))
+                    **new_avatar_settings(user, model=AvatarJob, app=app_label, post=posted,
+                                          inputs=inputs_by_port(app_label, *held)))
 
     if mode == 'standalone':  # audio_path fourni — c'est lui qui a dérivé le mode
         try:

@@ -223,7 +223,7 @@ def _visitor_trial(request):
 # (`format_router`), dans la cascade `output_format_for` que lisent toutes les voies de création.
 
 
-def apply_birth_settings(job, media_type, options=None) -> list:
+def apply_birth_settings(job, media_type, options=None, inputs=None) -> list:
     """MODÈLE ÉVÉNEMENTIEL (Fabien, 02/09, ROADMAP §23.2quater) : l'élément naît COMPLET —
     les défauts applicables du schéma sont ÉCRITS en base à la création, le POST de la
     zone de composition par-dessus (le geste de l'utilisateur prime). Les chips d'une card
@@ -243,6 +243,7 @@ def apply_birth_settings(job, media_type, options=None) -> list:
     from wama.common.utils.user_settings import new_element_settings
     from wama.converter.params import PARAMS_JSON as _SCH
     birth = new_element_settings(job.user, job._meta.app_label, _SCH, type(job), post=options,
+                                 inputs=inputs,
                                  context={'media_type': media_type})
     for name in ('media_type', 'output_format'):
         birth.pop(name, None)
@@ -300,7 +301,9 @@ def upload(request):
         status='PENDING',
     )
     file_obj.record(job, 'input_file')
-    touched = apply_birth_settings(job, media_type, request.POST)
+    from wama.common.utils.user_settings import inputs_by_port
+    touched = apply_birth_settings(job, media_type, request.POST,
+                                   inputs=inputs_by_port('converter', file_obj))
     if touched:
         job.save(update_fields=touched)
 
@@ -964,7 +967,8 @@ def quick_convert(request):
     # cascade commune (2026-10-18), puis le preset du menu contextuel Filemanager s'ÉTALE
     # par-dessus (sinon il serait une trace inerte) ; et il pose la position du curseur commun
     # (trace, chantier C).
-    champs = apply_birth_settings(job, media_type)
+    from wama.common.utils.user_settings import inputs_by_port
+    champs = apply_birth_settings(job, media_type, inputs=inputs_by_port('converter', str(abs_path)))
     if preset:
         from .utils.quality_presets import preset_values
         champs += [f for f in job.poser_reglages(preset_values(media_type, preset)) if f not in champs]

@@ -189,9 +189,12 @@ def process_media(video_path, user, post=None, app='anonymizer'):
             _abs, relative_path = resolve_under_media_root(str(video_path))
         except (OutsideMediaRoot, FileNotFoundError):
             relative_path = get_relative_media_path(app, user.id, 'input', filename)
-        # Le média NAÎT avec les réglages de son auteur ; ce que le dépôt poste prime.
+        # Le média NAÎT avec les réglages de son auteur ; ce que le dépôt poste prime ; le fichier
+        # PROPOSE les siens (`inputs_by_port`, `Param.default_from`, 2026-10-29).
+        from wama.common.utils.user_settings import inputs_by_port
         media = model.objects.create(file=relative_path, file_ext=ext, user=user,
-                                     **new_media_settings(user, model=model, app=app, post=post))
+                                     **new_media_settings(user, model=model, app=app, post=post,
+                                                          inputs=inputs_by_port(app, str(video_path))))
 
         mime_type, _ = mimetypes.guess_type(video_path)
         if mime_type and mime_type.startswith("video/"):
@@ -731,11 +734,12 @@ def _request_user(request):
     return request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
 
-def new_media_settings(user, model=None, app='anonymizer', post=None):
+def new_media_settings(user, model=None, app='anonymizer', post=None, inputs=None):
     """Les colonnes de réglage d'un média NAISSANT (brique commune : défauts ← réglages de
     l'auteur ← ce que le dépôt poste). `model`/`app` : une jumelle de bac à sable passe les
     siens (import du gestionnaire de fichiers)."""
-    return new_element_settings(user, app, _PARAMS, model or Media, post=post, **PANEL_SETTINGS)
+    return new_element_settings(user, app, _PARAMS, model or Media, post=post, inputs=inputs,
+                                **PANEL_SETTINGS)
 
 
 def get_context(request):

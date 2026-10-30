@@ -63,7 +63,7 @@ def _auto_wrap_orphans(user):
 _DEFAULT_DURATION = float(ComposerGeneration._meta.get_field('duration').default)
 
 
-def new_generation_settings(user, model=None, app='composer', post=None) -> dict:
+def new_generation_settings(user, model=None, app='composer', post=None, inputs=None) -> dict:
     """Les colonnes de réglage d'une génération NAISSANTE, par la cascade COMMUNE (défauts du
     schéma ← réglages de l'auteur ← ce qui est posté, `user_settings.new_element_settings`,
     2026-10-18) — avant, cinq réglages relus avec leurs défauts recopiés ici, les autres au défaut
@@ -73,6 +73,7 @@ def new_generation_settings(user, model=None, app='composer', post=None) -> dict
     from wama.common.utils.user_settings import new_element_settings
     from wama.composer.params import PARAMS_JSON, user_setting_key
     return new_element_settings(user, app, PARAMS_JSON, model or ComposerGeneration, post=post,
+                                inputs=inputs,
                                 key=user_setting_key)
 
 
@@ -330,6 +331,17 @@ def generate(request):
             joined.append((received[0], field))
         elif received.refusal:
             return JsonResponse({'error': received.refusal}, status=400)
+
+    # Le morceau à reprendre PROPOSE ses réglages (`default_from` : sa durée, 2026-10-29) — la
+    # naissance refaite avec lui ; le modèle, déjà choisi pour juger les ports, reste celui-là. Un
+    # réglage POSTÉ l'emporte toujours (la card le lit déjà côté navigateur).
+    from wama.common.utils.user_settings import inputs_by_port
+    inputs = inputs_by_port('composer', *(received for received, _ in joined))
+    if inputs:
+        proposed = new_generation_settings(user, post=request.POST, inputs=inputs)
+        settings_values.update({k: v for k, v in proposed.items() if k not in ('prompt', 'model')})
+        settings_values['duration'] = clamp_duration(settings_values.get('duration'))
+        settings_values['vocals'] = vocals.normalize(settings_values.get('vocals'))
 
     gen = ComposerGeneration.objects.create(
         **settings_values,

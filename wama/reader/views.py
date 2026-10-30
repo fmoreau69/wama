@@ -272,7 +272,7 @@ class IndexView(View):
         })
 
 
-def new_reading_settings(user, model=None, app='reader', post=None) -> dict:
+def new_reading_settings(user, model=None, app='reader', post=None, inputs=None) -> dict:
     """Les colonnes de réglage d'une lecture NAISSANTE, par la cascade COMMUNE (défauts du
     schéma ← réglages de l'auteur ← ce que le dépôt poste, `user_settings.new_element_settings`,
     2026-10-18). Le dépôt de la card, le lot et l'import du gestionnaire de fichiers (« Envoyer
@@ -283,16 +283,18 @@ def new_reading_settings(user, model=None, app='reader', post=None) -> dict:
     from wama.common.utils.user_settings import new_element_settings
     from wama.reader.params import PARAMS_JSON, user_setting_key
     return new_element_settings(user, app, PARAMS_JSON, model or ReadingItem, post=post,
+                                inputs=inputs,
                                 key=user_setting_key, empty_is_value=SETTINGS_EMPTY_IS_VALUE)
 
 
-def _deposit_settings(user, post):
+def _deposit_settings(user, post, inputs=None):
     """Les réglages d'un DÉPÔT (fichiers, lot) : ce que le volet poste est gardé comme
-    préférences (`save_panel_settings`, curseur compris), puis la lecture naît par la cascade."""
+    préférences (`save_panel_settings`, curseur compris), puis la lecture naît par la cascade —
+    `inputs` : le fichier reçu, sous son port, qui propose ses réglages (`inputs_by_port`)."""
     from wama.common.utils.user_settings import save_panel_settings
     from wama.reader.params import PARAMS_JSON, user_setting_key
     save_panel_settings(user, 'reader', PARAMS_JSON, post, key=user_setting_key)
-    return new_reading_settings(user, post=post)
+    return new_reading_settings(user, post=post, inputs=inputs)
 
 
 @require_POST
@@ -310,6 +312,7 @@ def upload(request):
     reading = _deposit_settings(user, request.POST)
 
     from wama.common.app_registry import accepts_file
+    from wama.common.utils.user_settings import inputs_by_port
     items_created = []
     created = []
     for f in files:
@@ -317,12 +320,14 @@ def upload(request):
         if not accepts_file('reader', f.name):
             continue  # un fichier refusé ne crée rien ; si AUCUN ne passe, la vue le DIT
 
+        # Chaque fichier PROPOSE ses réglages (`default_from`) ; sans proposition, ceux du dépôt.
+        inputs = inputs_by_port('reader', f)
         item = ReadingItem.objects.create(
             user=user,
             input_file=f.value,
             original_filename=f.name,
             status='PENDING',
-            **reading,
+            **(new_reading_settings(user, post=request.POST, inputs=inputs) if inputs else reading),
         )
         f.record(item, 'input_file')
 

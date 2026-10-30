@@ -200,6 +200,34 @@ def input_proposals(params, inputs) -> dict:
     return out
 
 
+def inputs_by_port(app_id, *received) -> dict:
+    """`{port: fichier}` des fichiers qu'un geste TIENT (dépôt, « Envoyer vers… », outil), chacun
+    sous le port de travail de l'app dont les natures contiennent la sienne (`category_of_path`) —
+    la lecture des ports du Studio (`studio_node_ports`) : l'image déposée dans l'enhancer va à
+    `work_file`, l'audio à `work_audio`. C'est l'argument `inputs` d'une naissance
+    (`new_element_settings`), que les naissances GÉNÉRÉES reçoivent aussi (2026-10-29).
+    Un fichier : un `ReceivedInput`, un fichier téléversé ou un chemin ; `None` est ignoré.
+    {} quand l'app ne déclare aucun `default_from` : les ports ne sont alors pas lus du tout (leur
+    première lecture, à froid, coûte plusieurs secondes)."""
+    from wama.common.utils.param_schema import _pget, declared_param_schemas
+    declared = (declared_param_schemas(app_id) or {}).get('schemas') or {}
+    if not any(_pget(p, 'default_from') for schema in declared.values() for p in schema):
+        return {}
+    from wama.common.app_registry import category_of_path, studio_node_ports
+    ports = [p for p in ((studio_node_ports(app_id) or {}).get('inputs') or [])
+             if p.get('group') == 'travail']
+    out = {}
+    for item in received:
+        if item is None:
+            continue
+        nature = category_of_path(item if isinstance(item, str) else getattr(item, 'name', '') or '')
+        port = next((p['id'] for p in ports
+                     if nature in (p.get('types') or []) and p['id'] not in out), None)
+        if port:
+            out[port] = item
+    return out
+
+
 def new_element_settings(user, app, params, model, *, post=None, context=None, key=None,
                          extra=None, clean=None, options_field=None, preset=None,
                          empty_is_value=(), inputs=None) -> dict:
