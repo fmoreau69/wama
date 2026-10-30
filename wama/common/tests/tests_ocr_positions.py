@@ -70,6 +70,95 @@ class TheFlagBelongsToTheEngineTest(SimpleTestCase):
         self.assertEqual('run', manager._work_method(DocTRBackend))
 
 
+class _Ctx:
+    """The task context a glue receives (`task_skeleton`), reduced to what `ocr_step` uses."""
+
+    def __init__(self, folder):
+        self.folder, self.models, self.said = folder, [], []
+
+    def console(self, message):
+        self.said.append(message)
+
+    def progress(self, *args):
+        pass
+
+    def ensure_model(self, key):
+        self.models.append(key)
+
+    def output_place(self, ext, source_name=''):
+        path = self.folder / f'{source_name}{ext}'
+        return str(path), str(path)
+
+
+class OcrStepTest(SimpleTestCase):
+    """The common glue of the « OCR of scanned pages » process (`ocr_process.ocr_step`, 2026-10-29),
+    on the pattern of `output_process.output_step`."""
+
+    def setUp(self):
+        import shutil
+        import tempfile
+        from pathlib import Path
+        import fitz
+        self.dir = Path(tempfile.mkdtemp(prefix='wama-ocr-step-'))
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        with fitz.open() as pdf:
+            pdf.new_page().insert_text((72, 100), 'A native page with plenty of selectable text.')
+            pixmap = pdf[0].get_pixmap(dpi=40)
+            pdf.save(str(self.dir / 'native.pdf'))
+            scan = pdf.new_page()
+            scan.insert_image(scan.rect, pixmap=pixmap)
+            pdf.save(str(self.dir / 'mixed.pdf'))
+
+    def _item(self, name):
+        from types import SimpleNamespace
+        return SimpleNamespace(source_document=SimpleNamespace(path=str(self.dir / name)),
+                               user=None, pk=1, ocr_file=None)
+
+    def test_a_native_document_costs_nothing_and_stores_nothing(self):
+        from wama.common.services.ocr_process import ocr_step
+        ctx = _Ctx(self.dir)
+        with mock.patch('wama.common.services.ocr_process.positioned_ocr_keys') as keys:
+            result = ocr_step('source_document', 'ocr_file')(self._item('native.pdf'), ctx)
+        self.assertEqual({'ocr_file': None}, result['fields'])
+        keys.assert_not_called()
+        self.assertEqual([], ctx.models, 'no engine is loaded for nothing')
+
+    def test_only_the_pages_without_text_are_read_and_the_next_process_gets_them(self):
+        from types import SimpleNamespace
+        from wama.common.services.ocr_process import ocr_step, read_ocr_file
+        page = {'width': 595, 'height': 842, 'unit': 'pt',
+                'lines': [{'bbox': [72, 90, 300, 105], 'text': 'scanned', 'conf': 0.9, 'words': []}]}
+        engine = SimpleNamespace(read_lines=lambda path: [page])
+        ctx = _Ctx(self.dir)
+        with mock.patch('wama.common.services.ocr_process.positioned_ocr_keys',
+                        return_value=['reader:doctr']), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           return_value='reader:doctr'), \
+                mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                           return_value=engine):
+            result = ocr_step('source_document', 'ocr_file')(self._item('mixed.pdf'), ctx)
+        self.assertEqual(['reader:doctr'], ctx.models)
+        item = self._item('mixed.pdf')
+        item.ocr_file = SimpleNamespace(path=result['fields']['ocr_file'])
+        self.assertEqual({'1': page}, read_ocr_file(item, 'ocr_file'), 'page 1 only, as JSON keys')
+
+    def test_without_an_engine_that_gives_places_it_says_so(self):
+        from wama.common.services.ocr_process import ocr_step
+        with mock.patch('wama.common.services.ocr_process.positioned_ocr_keys', return_value=[]):
+            with self.assertRaisesMessage(RuntimeError, 'place du texte'):
+                ocr_step('source_document', 'ocr_file')(self._item('mixed.pdf'), _Ctx(self.dir))
+
+    def test_the_engines_kept_are_those_whose_engine_gives_places(self):
+        from wama.common.services import ocr_process
+        from wama.common.backends.glm_ocr_backend import GlmOcrBackend
+        rows = mock.Mock()
+        rows.values_list.return_value = ['ollama:glm-ocr:latest', 'reader:doctr']
+        backends = {'ollama:glm-ocr:latest': GlmOcrBackend, 'reader:doctr': DocTRBackend}
+        with mock.patch('wama.model_manager.models.AIModel.objects.filter', return_value=rows), \
+                mock.patch('wama.common.backends.manager.backend_for_key', side_effect=backends.get):
+            self.assertEqual(['reader:doctr'], ocr_process.positioned_ocr_keys())
+
+
 class DoctrPlacesTest(SimpleTestCase):
 
     def test_relative_boxes_become_page_points_line_by_line(self):

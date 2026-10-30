@@ -1,0 +1,45 @@
+{
+  "body": {
+    "app": "translator",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "translator.tasks:translate_text_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document déposé : seules ses pages SANS couche texte (un scan) sont lues.",
+        "group": "travail",
+        "key": "work_file",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "translator.ocr",
+    "outputs": [],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "document",
+      "ocr",
+      "gpu"
+    ],
+    "visibility": "public"
+  },
+  "description": "Lit par OCR les pages d'un PDF qui n'ont pas de couche texte, en gardant la PLACE de chaque ligne (un moteur qui la rend, `supports_text_positions` — docTR) ; les lignes sont gardées sur la card pour que la traduction les réécrive à leur place. Brique commune : `common/services/ocr_process.ocr_step`. Un document qui porte son texte partout : rien à lire.",
+  "key": "translator.ocr",
+  "manifest_kind": "function",
+  "name": "Translator — OCR des pages scannées",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "manifests/app_drafts/functions/translator.ocr.json",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "media"
+}

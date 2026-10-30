@@ -38,6 +38,10 @@ class FormatInTheBrowserTest(SimpleTestCase):
         self.v8.eval(FAKE_DOM + "\ndocument.cookie = ''; var navigator = {}; var localStorage = "
                      "{getItem: function () { return null; }, setItem: function () {}};")
         self.v8.eval((JS / 'wama-app-base.js').read_text(encoding='utf-8'))
+        # Les ports de la card d'entrée se lisent par `WamaInputSlots.filePorts` depuis le
+        # 2026-10-20 (307c6177) : sans sa brique, `default_from` ne se liait plus et cette garde
+        # était rouge quel que soit le code (relevé le 2026-10-29).
+        self.v8.eval((JS / 'wama-input-slots.js').read_text(encoding='utf-8'))
         self.v8.eval((JS / 'wama-params.js').read_text(encoding='utf-8'))
 
     def _js(self, expr):
@@ -72,9 +76,10 @@ class FormatInTheBrowserTest(SimpleTestCase):
             var input = {addEventListener: function (t, f) { listeners[t] = f; }};
             var slider = {value: '210', step: '5', min: '10', max: '600',
                           dispatchEvent: function (e) { fired.push(e.type); }};
-            var pane = {dataset: {portInput: 'melodyInput'}};
-            document.querySelector = function (sel) {
-              return sel.indexOf('data-port-pane="work_audio"') !== -1 ? pane : null; };
+            var pane = {getAttribute: function (a) {
+              return {'data-port-pane': 'work_audio', 'data-port-input': 'melodyInput'}[a]; }};
+            document.querySelectorAll = function (sel) {
+              return sel.indexOf('data-port-pane') !== -1 ? [pane] : []; };
             document.getElementById = function (id) {
               return id === 'melodyInput' ? input : (id === 'durationSlider' ? slider : null); };
             var CSS = {escape: function (s) { return s; }};

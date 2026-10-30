@@ -57,7 +57,10 @@ def card_entry(body: dict, fields=None) -> dict:
                       (forme ATTACHE : imager, composer, avatarizer ; forme MIXTE : synthesizer,
                       Translator, où la consigne seule et le fichier seul suffisent chacun) ;
      'prompt_field' : le champ où la consigne se pose — sa cible de prompt, sinon son port
-                      (`prompt_port_field`) ; '' si la card ne la porte pas}.
+                      (`prompt_port_field`) ; '' si la card ne la porte pas ;
+     'work_port'    : l'id du port de travail PRINCIPAL ('' sans port) — le nom sous lequel la
+                      card le connaît, donc celui que nomme un `Param.default_from` (2026-10-29 :
+                      le Translator reçoit `work_file` dans son champ `source_document`)}.
     `fields` : les colonnes de l'élément, pour ne rendre qu'un champ qui existe (None = ne pas
     vérifier).
 
@@ -69,7 +72,8 @@ def card_entry(body: dict, fields=None) -> dict:
     form = entry_form((body.get('ports') or {}).get('inputs') or [])
     return {'drop_creates': form['drop_creates'],
             'adds': bool(form['prompt']) or (bool(form['work']) and not form['drop_creates']),
-            'prompt_field': prompt_port_field(body, fields) if form['prompt'] else ''}
+            'prompt_field': prompt_port_field(body, fields) if form['prompt'] else '',
+            'work_port': form['work'] or ''}
 
 
 def prompt_port_field(body: dict, fields=None) -> str:
@@ -449,26 +453,31 @@ def _nature_url(url):
     retrait_nature = f"\n    values.pop({nature_champ!r}, None)" if nature_champ else ''
     bloc_reglages = '' if not _noms_schema else f'''
 
-def _element_settings(user, nature='', post=None):
+def _element_settings(user, nature='', post=None, inputs=None):
     """Les réglages d'un élément NAISSANT (dépôt, lot, résultat instantané) — la cascade COMMUNE
-    `user_settings.new_element_settings` ; la nature détectée n'est jamais écrasée."""
+    `user_settings.new_element_settings` ; la nature détectée n'est jamais écrasée. `inputs` :
+    les fichiers reçus par port, qui PROPOSENT leurs réglages (`Param.default_from`)."""
     from wama.common.utils.user_settings import new_element_settings
     values = new_element_settings(user, '{app}', _SCHEMA, {item}, post=post,
-                                  context={contexte_nature}, options_field=_OPTIONS_FIELD){retrait_nature}
+                                  context={contexte_nature}, options_field=_OPTIONS_FIELD,
+                                  inputs=inputs){retrait_nature}
     return values
 
 
-def _deposit_settings(user, nature, post):
+def _deposit_settings(user, nature, post, inputs=None):
     """Un DÉPÔT : ce qu'il poste devient la mémoire du volet (`save_panel_settings`), puis
     l'élément naît par la cascade commune."""
     from wama.common.utils.user_settings import save_panel_settings
     save_panel_settings(user, '{app}', _SCHEMA, post)
-    return _element_settings(user, nature, post)
+    return _element_settings(user, nature, post, inputs)
 '''
     # Une app sans champ de nature n'a rien à lire (`kwargs.get('', '')` s'émettait).
     arg_nature = f"kwargs.get({nature_champ!r}, '')" if nature_champ else "''"
+    # Le fichier reçu (`f`, dans les deux formes de dépôt) est passé sous son PORT — le nom que la
+    # card lui donne et que nomme `Param.default_from` (2026-10-29) ; le champ d'entrée à défaut.
+    work_port_key = repr(d['entry'].get('work_port') or d['input_field'])
     up_reglages = '' if not _noms_schema else f'''
-    kwargs.update(_deposit_settings(user, {arg_nature}, request.POST))'''
+    kwargs.update(_deposit_settings(user, {arg_nature}, request.POST, {{{work_port_key}: f}}))'''
     # Méta COMMUNES aux filles pour la card MÈRE (slot `meta_template` de _batch_card.html —
     # mécanisme du PARC : transcriber calcule ses common_* dans l'extra de
     # build_batches_list, « valeur si partagée par toutes les filles, sinon Mixte »).

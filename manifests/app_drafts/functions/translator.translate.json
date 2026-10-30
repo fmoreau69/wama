@@ -1,0 +1,66 @@
+{
+  "body": {
+    "app": "translator",
+    "binding": "app",
+    "category": "transform",
+    "cost": {},
+    "impl": "translator.tasks:translate_text_task",
+    "inputs": [
+      {
+        "cardinality": "one",
+        "data_type": "prompt",
+        "description": "Le texte saisi dans la card — ou le document ci-dessous : l'un ou l'autre.",
+        "group": "prompt",
+        "key": "prompt",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      },
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document à traduire (TXT, MD, DOCX, PDF) ; ses pages scannées viennent avec les lignes du process OCR, quand il a eu lieu.",
+        "group": "travail",
+        "key": "work_file",
+        "optional": true,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "key": "translator.translate",
+    "outputs": [
+      {
+        "cardinality": "one",
+        "data_type": "document",
+        "description": "Le document traduit, dans son format et sa forme d'origine ; le texte saisi traduit sinon.",
+        "key": "document",
+        "optional": false,
+        "produced_fields": [],
+        "required_fields": []
+      }
+    ],
+    "owner": "",
+    "params": [],
+    "projects": [],
+    "tags": [
+      "text",
+      "llm",
+      "document",
+      "translation"
+    ],
+    "visibility": "public"
+  },
+  "description": "Traduit le texte saisi ou le document déposé en gardant sa forme d'origine (`translator.translate_document`, couche texte commune) — les pages scannées par les lignes que le process OCR a gardées (`ocr_process.read_ocr_file`, passées en `ocr=`).",
+  "key": "translator.translate",
+  "manifest_kind": "function",
+  "name": "Translator — traduire",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "manifests/app_drafts/functions/translator.translate.json",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "media"
+}

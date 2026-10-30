@@ -60,7 +60,7 @@
           ]
         },
         {
-          "description": "Un document (TXT, MD, DOCX, PDF à texte natif) traduit en gardant sa forme — ou le texte saisi ci-dessus : l'un ou l'autre.",
+          "description": "Un document (TXT, MD, DOCX, PDF — ses pages scannées par l'OCR) traduit en gardant sa forme — ou le texte saisi ci-dessus : l'un ou l'autre.",
           "group": "travail",
           "id": "work_file",
           "label": "Fichier de travail",
@@ -319,6 +319,26 @@
           },
           {
             "chip": true,
+            "chip_label": "OCR",
+            "contexts": [
+              "item",
+              "batch",
+              "panel"
+            ],
+            "default": false,
+            "default_from": {
+              "port": "work_file",
+              "property": "needs_ocr"
+            },
+            "help": "Lit par OCR les pages d'un PDF qui n'ont pas de texte (un scan), pour les traduire à leur place. Coché d'office quand le document déposé en a — décochable.",
+            "icon": "fa-file-image",
+            "label": "OCR des pages scannées",
+            "name": "ocr_scanned_pages",
+            "section": "settings",
+            "type": "toggle"
+          },
+          {
+            "chip": true,
             "contexts": [
               "item",
               "batch",
@@ -487,6 +507,7 @@
             "source_language",
             "target_language",
             "glossary",
+            "ocr_scanned_pages",
             "model",
             "quality_intent"
           ],

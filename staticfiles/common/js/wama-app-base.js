@@ -1306,6 +1306,32 @@
     });
   }
 
+  /** Les PROPOSITIONS que le fichier d'un input fait aux réglages (`Param.default_from`) quand le
+   *  navigateur ne sait pas lire la propriété lui-même (la couche texte d'un PDF, 2026-10-29) —
+   *  Promise<{propriété: {value, note}}>. DÉSIGNÉ : sonde serveur par son chemin ; TÉLÉVERSÉ : le
+   *  fichier est envoyé à la même sonde, qui le lit dans un fichier jetable et ne garde rien.
+   *  `{}` si rien à proposer ou illisible. */
+  function inputProposals(input, properties) {
+    const wanted = (properties || []).join(',');
+    const designated = designationOf(input);
+    let request;
+    if (designated) {
+      request = fetch('/common/api/media-probe/?path=' + encodeURIComponent(designated.path)
+                      + '&properties=' + encodeURIComponent(wanted), { credentials: 'same-origin' });
+    } else {
+      const file = input && input.files && input.files[0];
+      if (!file || !wanted) return Promise.resolve({});
+      const body = new FormData();
+      body.append('file', file);
+      body.append('properties', wanted);
+      request = csrfFetch('/common/api/media-probe/', csrfToken(), { method: 'POST', body: body });
+    }
+    return request
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (d) { return (d && d.proposals) || {}; })
+      .catch(function () { return {}; });
+  }
+
   /** Les PROCESS d'une card (bande `common/_card_processes.html`, ROUTE §10.6 5.1) mis à jour
    *  EN PLACE pendant le traitement, depuis les `processes` que la vue de progression renvoie
    *  (`[{key, status, duration_s, …}]`). Le re-rendu serveur complet n'arrive qu'en fin de tâche :
@@ -1448,6 +1474,7 @@
     formatSize: formatSize,
     formatDuration: formatDuration,
     mediaDuration: mediaDuration,
+    inputProposals: inputProposals,
     updateProcessRows: updateProcessRows,
     escapeHtml: escapeHtml,
     getUrl: getUrl,

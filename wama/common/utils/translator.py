@@ -252,26 +252,30 @@ def _runaway(source: str, translated: str) -> bool:
 
 def translate_document(path, out_path, source_language: str, target_language: str, *,
                        model: str = DEFAULT_MODEL, user=None, glossary=None, on_chunk=None,
-                       progress_callback=None, timeout: int = 120) -> str:
+                       progress_callback=None, timeout: int = 120, ocr=None) -> str:
     """Le document `path` TRADUIT dans `out_path`, sa forme d'origine conservée (même format :
     TXT, MD, DOCX, PDF à texte natif) — chaque bloc traduit et réécrit à sa place par la couche
     texte commune (`document_text`, unité `block`). Rend `out_path`.
 
     `on_chunk(texte traduit jusqu'ici)` : l'aperçu « pendant » ; `progress_callback(pourcent)`
-    après chaque bloc. Un document sans texte (PDF scanné) LÈVE : c'est l'OCR qu'il lui faut.
+    après chaque bloc. `ocr` (2026-10-29) : les lignes des pages sans couche texte
+    (`document_text.read_pages_without_text`, le process « OCR » de l'app) — elles se traduisent
+    et se réécrivent comme les autres, les pixels du scan effacés dessous. Un document sans texte
+    ni OCR LÈVE : c'est l'OCR qu'il lui faut.
 
     Chaque bloc part BALISÉ de sa mise en forme (`markup=True` : un mot en gras, en italique, en
     exposant garde la sienne dans la traduction) ; l'aperçu, lui, est le texte nu."""
     from wama.common.utils.document_text import read_segments, strip_markup, write_replacements
     service = TranslatorService(model=model or DEFAULT_MODEL, user=user)
     glossary = glossary_terms(glossary)
-    segments = read_segments(path, unit='block', markup=True)
+    segments = read_segments(path, unit='block', markup=True, ocr=ocr)
     # Moins de deux lettres (la lettre d'un axe, une variable, une unité d'un caractère) : rien à
     # traduire — envoyé seul au modèle, « R » revenait en paragraphe (mesuré le 2026-10-29).
     todo = [i for i, segment in enumerate(segments)
             if sum(c.isalpha() for c in strip_markup(segment)) >= 2]
     if not todo:
-        raise ValueError("Rien à traduire : le document n'a pas de texte lisible (PDF scanné ?)")
+        raise ValueError("Rien à traduire : le document n'a pas de texte lisible — un PDF scanné "
+                         "se lit par l'OCR des pages scannées")
     replacements, done = {}, []
     for count, index in enumerate(todo, 1):
         segment = segments[index]
@@ -292,4 +296,4 @@ def translate_document(path, out_path, source_language: str, target_language: st
             on_chunk('\n\n'.join(done))
         if progress_callback is not None:
             progress_callback(count * 100 // len(todo))
-    return write_replacements(path, out_path, replacements, unit='block', markup=True)
+    return write_replacements(path, out_path, replacements, unit='block', markup=True, ocr=ocr)

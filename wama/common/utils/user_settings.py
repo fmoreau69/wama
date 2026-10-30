@@ -164,9 +164,45 @@ def reset_panel_settings(user, app, params, *, key=None, extra=None, clean=None)
     return read_panel_settings(user, app, params, key=key, extra=extra)
 
 
+def input_proposals(params, inputs) -> dict:
+    """`{réglage: {'value', 'note'}}` que les ENTRÉES proposent (`Param.default_from`, 2026-10-29) :
+    pour chaque réglage qui déclare `{"port", "property"}`, la propriété lue sur le fichier reçu
+    sous ce port (`media_probe.INPUT_PROPERTIES`). `inputs` : `{port: fichier}` — un
+    `ReceivedInput` (sondé par `readable_path`, téléversement compris), un fichier téléversé, ou
+    un chemin. Une entrée absente, illisible, ou une propriété sans réponse ne propose rien."""
+    from wama.common.utils.media_paths import ReceivedInput
+    from wama.common.utils.media_probe import input_property, probe_media
+    from wama.common.utils.param_schema import _pget
+    wanted = {}
+    for p in params or ():
+        source = _pget(p, 'default_from') or {}
+        if isinstance(source, dict) and source.get('port') in (inputs or {}) and source.get('property'):
+            wanted.setdefault(source['port'], []).append((_pget(p, 'name'), source['property']))
+    out = {}
+    for port, names in wanted.items():
+        received = inputs[port]
+        if received is None:
+            continue
+        if not isinstance(received, (ReceivedInput, str)):
+            received = ReceivedInput(getattr(received, 'name', ''), received)
+        try:
+            if isinstance(received, str):
+                info = probe_media(received)
+            else:
+                with received.readable_path() as path:
+                    info = probe_media(path)
+        except Exception:
+            continue
+        for name, prop in names:
+            proposal = input_property(info, prop)
+            if proposal is not None:
+                out[name] = proposal
+    return out
+
+
 def new_element_settings(user, app, params, model, *, post=None, context=None, key=None,
                          extra=None, clean=None, options_field=None, preset=None,
-                         empty_is_value=()) -> dict:
+                         empty_is_value=(), inputs=None) -> dict:
     """Les colonnes de réglage d'un élément NAISSANT — il naît complet (`ROADMAP §23.2quater`),
     et sa tâche ne lit plus que ses colonnes.
 
@@ -183,7 +219,11 @@ def new_element_settings(user, app, params, model, *, post=None, context=None, k
     sans écraser un choix de l'auteur.
     `empty_is_value` : noms pour qui une valeur postée VIDE est un choix — même mot-clé, même sens
     que `batch_views.read_settings_payload` (la graine vide de l'imager = aléatoire) : elle écarte
-    la préférence retenue, et le défaut du schéma joue."""
+    la préférence retenue, et le défaut du schéma joue.
+    `inputs` : `{port: fichier reçu}` (2026-10-29) — la couche PROPOSÉE D'APRÈS L'ENTRÉE
+    (`input_proposals`, `Param.default_from`), entre les préférences du volet et ce qui est posté :
+    un PDF sans texte coche l'OCR même si le volet le gardait décoché ; un choix POSTÉ l'emporte,
+    comme côté client (une valeur changée par l'utilisateur reste la sienne)."""
     from wama.common.utils.param_schema import (_pget, coerce_schema_values, effective_settings,
                                                 invalid_choice_values, panel_values_by_name)
     # Ce que l'auteur a POSÉ, rien d'autre (2026-10-18) : `read_panel_settings` complète par les
@@ -192,7 +232,8 @@ def new_element_settings(user, app, params, model, *, post=None, context=None, k
     posed = _read(user, app, list(_panel_defaults(params, key, extra)))
     prefs = panel_values_by_name(posed, params, key=key)
     posted = coerce_schema_values(params, post) if post is not None else {}
-    given = {**prefs, **posted}
+    proposed = {name: p['value'] for name, p in input_proposals(params, inputs).items()} if inputs else {}
+    given = {**prefs, **proposed, **posted}
     # Une valeur HORS des choix déclarés n'est jamais écrite — une préférence gardée avant qu'un
     # choix ne soit retiré (le style « meeting » du describer, devenu un type de résumé), un POST
     # périmé : le défaut joue. La règle de `batch_views.apply_item_settings` pour un élément

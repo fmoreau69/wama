@@ -187,6 +187,14 @@ ASSET_NATURES: Dict[str, Nature] = {
         # web doit le servir en bac à sable (en-tête `Content-Security-Policy: sandbox`,
         # `MEDIA_STORAGE_TIERING §9.8`).
         extensions=('pdf', 'txt', 'docx', 'md', 'csv', 'srt', 'vtt', 'html', 'htm'),
+        # MESURÉS par la sonde commune (`media_probe.probe_media`, 2026-10-29) sur un PDF : ce qui
+        # dit si son texte se LIT ou s'il faut l'OCR (`Param.default_from`, propriété `needs_ocr`).
+        attributes={
+            'pages': Attr('int', 'nombre de pages (PDF)', label='Pages'),
+            'pages_without_text': Attr('int', "pages sans couche texte (un scan) : l'OCR les lit "
+                                              '(`document_text.pages_without_text`)',
+                                       label='Pages sans texte'),
+        },
     ),
     'avatar': Nature(
         label='Avatar', category='image', icon='fa-user-circle',

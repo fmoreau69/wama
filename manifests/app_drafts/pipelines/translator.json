@@ -1,0 +1,67 @@
+{
+  "body": {
+    "layout": {},
+    "links": [
+      {
+        "from": "ocr",
+        "to": "translate",
+        "to_port": null
+      }
+    ],
+    "nodes": [
+      {
+        "app": null,
+        "function": "translator.ocr",
+        "id": "ocr",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "degree": "optional",
+          "gpu": true,
+          "label": "OCR des pages scannées",
+          "outputs": [
+            "ocr_file"
+          ],
+          "share": 2,
+          "toggle": "ocr_scanned_pages",
+          "watched": [
+            "source_document"
+          ]
+        }
+      },
+      {
+        "app": null,
+        "function": "translator.translate",
+        "id": "translate",
+        "kind": "function",
+        "params": {},
+        "process": {
+          "card_model": true,
+          "degree": "required",
+          "gpu": true,
+          "label": "Traduction",
+          "outputs": [
+            "output_file"
+          ],
+          "share": 6,
+          "watched": [
+            "source_document"
+          ]
+        }
+      }
+    ]
+  },
+  "description": "Pipeline AUTORÉ (brouillon) de l'app Translator — l'OCR des pages scannées, OPTIONNEL, puis la traduction (ROADMAP §10.B, décision de Fabien du 29/10). Patron du prétraitement du transcriber (`level` → `denoise` → `transcribe`) : un process optionnel à interrupteur (`ocr_scanned_pages`, proposé d'après le fichier déposé par `default_from` : un PDF sans couche texte le coche), relié sans port — la traduction lit les lignes rangées sur la card (`ocr_process.read_ocr_file`).",
+  "key": "translator",
+  "manifest_kind": "pipeline",
+  "name": "Translator — OCR des pages scannées puis traduction",
+  "owner": null,
+  "projects": [],
+  "schema_version": "1.0",
+  "source": {
+    "ref": "manifests/app_drafts/pipelines/translator.json",
+    "type": "authored"
+  },
+  "visibility": "public",
+  "world": "media"
+}

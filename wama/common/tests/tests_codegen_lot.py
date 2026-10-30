@@ -220,10 +220,12 @@ class CheminDeLotTest(SimpleTestCase):
         dep = _fonction(self.src, '_deposit_settings')
         self.assertIsNotNone(dep, '_deposit_settings manque')
         self.assertIn("save_panel_settings(user, 'converter', _SCHEMA, post)", dep)
-        self.assertIn('return _element_settings(user, nature, post)', dep)
+        self.assertIn('return _element_settings(user, nature, post, inputs)', dep)
         corps = _fonction(self.src, 'upload')
-        self.assertIn("kwargs.update(_deposit_settings(user, kwargs.get('media_type', ''), request.POST))",
-                      corps, "upload ne déroule pas la cascade")
+        # Le fichier reçu passe à la cascade sous son PORT : il PROPOSE ses réglages
+        # (`Param.default_from`, 2026-10-29).
+        self.assertRegex(corps, r"kwargs\.update\(_deposit_settings\(user, kwargs\.get\('media_type', ''\), "
+                                r"request\.POST, \{'\w+': f\}\)\)", "upload ne déroule pas la cascade")
         bc = _fonction(self.src, 'batch_create')
         self.assertEqual(bc.count("kwargs.update(_element_settings(user, kwargs.get('media_type', '')))"), 2,
                          'les DEUX branches de batch_create (URL, fichier) doivent dérouler '

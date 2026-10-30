@@ -2795,22 +2795,39 @@ def api_media_probe(request):
     (médiathèque, arbre) n'a que son chemin — d'où cette sonde.
 
     GET `?path=<relatif à MEDIA_ROOT>` → `{ok, media_type, duration, duration_display,
-    properties}`. Garde = celle de la DÉSIGNATION (`media_paths.designate` : confinement puis
-    `readable_by`) : on ne sonde que ce que l'utilisateur pourrait désigner. Sonde mise en cache
-    par fichier (`probe_media_cached`)."""
-    from wama.common.utils.media_paths import (OutsideMediaRoot, readable_by,
-                                               resolve_under_media_root)
-    from wama.common.utils.media_probe import probe_media_cached
+    properties, attributes, proposals}`. Garde = celle de la DÉSIGNATION (`media_paths.designate` :
+    confinement puis `readable_by`) : on ne sonde que ce que l'utilisateur pourrait désigner. Sonde
+    mise en cache par fichier (`probe_media_cached`).
 
-    try:
-        abs_path, rel = resolve_under_media_root(request.GET.get('path') or '')
-    except (OutsideMediaRoot, FileNotFoundError, ValueError):
-        return JsonResponse({'error': 'Fichier introuvable'}, status=404)
-    if not readable_by(rel, request.user):
-        return JsonResponse({'error': 'Access denied'}, status=403)
-    info = probe_media_cached(abs_path)
-    return JsonResponse({'ok': True, **{k: info.get(k) for k in (
-        'media_type', 'duration', 'duration_display', 'properties')}})
+    POST `file` (2026-10-29) : un fichier TÉLÉVERSÉ, que le navigateur ne sait pas lire (la couche
+    texte d'un PDF) — sondé dans un fichier jetable (`ReceivedInput.readable_path`), rien n'est
+    gardé. `properties=a,b` : les propriétés d'entrée demandées (`media_probe.INPUT_PROPERTIES`,
+    celles de `Param.default_from`) → `proposals: {propriété: {value, note}}`."""
+    from wama.common.utils.media_paths import (OutsideMediaRoot, ReceivedInput, readable_by,
+                                               resolve_under_media_root)
+    from wama.common.utils.media_probe import input_property, probe_media, probe_media_cached
+
+    asked = [p for p in (request.POST.get('properties') or request.GET.get('properties') or ''
+                         ).split(',') if p]
+    uploaded = request.FILES.get('file') if request.method == 'POST' else None
+    if uploaded is not None:
+        try:
+            with ReceivedInput(uploaded.name, uploaded).readable_path() as path:
+                info = probe_media(path)
+        except Exception:
+            info = {}
+    else:
+        try:
+            abs_path, rel = resolve_under_media_root(request.GET.get('path') or '')
+        except (OutsideMediaRoot, FileNotFoundError, ValueError):
+            return JsonResponse({'error': 'Fichier introuvable'}, status=404)
+        if not readable_by(rel, request.user):
+            return JsonResponse({'error': 'Access denied'}, status=403)
+        info = probe_media_cached(abs_path)
+    proposals = {name: proposal for name in asked
+                 for proposal in [input_property(info, name)] if proposal is not None}
+    return JsonResponse({'ok': True, 'proposals': proposals, **{k: info.get(k) for k in (
+        'media_type', 'duration', 'duration_display', 'properties', 'attributes')}})
 
 
 @login_required

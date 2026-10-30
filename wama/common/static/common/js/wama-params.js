@@ -1371,11 +1371,52 @@
    *  composer reprend celle de la chanson à reprendre). Le port déclaré est retrouvé par la card
    *  d'entrée elle-même (`WamaInputSlots.filePorts`, la brique de la card) : aucune app ne nomme
    *  son input. Au dépôt OU à la désignation (`designateInto` émet le même `change`), la propriété est
-   *  lue (`WamaApp.mediaDuration`) puis posée — arrondie au pas, BORNÉE par le max du moment
-   *  (celui que `cap_from` a posé pour le modèle choisi). Contexte : la surface de CRÉATION
+   *  lue puis posée — un nombre arrondi au pas, BORNÉ par le max du moment (celui que `cap_from` a
+   *  posé pour le modèle choisi) ; une CASE cochée ou décochée (2026-10-29 : l'OCR d'un PDF sans
+   *  texte) — et sa NOTE est dite sous le réglage (pourquoi cette valeur). La durée se lit dans le
+   *  navigateur ; toute autre propriété, à la sonde du serveur (`WamaApp.inputProposals`), dont
+   *  le vocabulaire est `media_probe.INPUT_PROPERTIES`. Contexte : la surface de CRÉATION
    *  (`panel`, là où vit la card d'entrée) — une modale d'élément existant ne suit pas le fichier
    *  de la prochaine card. Un écouteur par input, qui relit ses cibles au moment du geste. */
-  var DEFAULT_FROM_PROPERTIES = { duration: function (input) { return global.WamaApp.mediaDuration(input); } };
+  var DEFAULT_FROM_PROPERTIES = {
+    duration: function (input) {
+      if (!global.WamaApp || !global.WamaApp.mediaDuration) return Promise.resolve(null);
+      return global.WamaApp.mediaDuration(input).then(function (v) {
+        return Number(v) > 0 ? { value: Number(v), note: "Reprise du fichier d'entrée ("
+                                 + global.WamaApp.formatDuration(v) + ').' } : null;
+      });
+    },
+  };
+
+  function _readInputProperty(input, property) {
+    var own = DEFAULT_FROM_PROPERTIES[property];
+    if (own) return own(input);
+    if (!global.WamaApp || !global.WamaApp.inputProposals) return Promise.resolve(null);
+    return global.WamaApp.inputProposals(input, [property])
+      .then(function (all) { return (all && all[property]) || null; });
+  }
+
+  /** Pose une proposition `{value, note}` dans son réglage : une case suit la valeur, un nombre
+   *  passe par `_proposedValue` ; la note (vide = retirée) s'écrit sous le réglage. */
+  function _applyProposal(target, proposal) {
+    if (!target || !proposal) return;
+    if (target.type === 'checkbox') {
+      target.checked = !!proposal.value;
+    } else {
+      if (!(Number(proposal.value) > 0)) return;
+      target.value = _proposedValue(target, Number(proposal.value));
+    }
+    var host = (target.closest && target.closest('.wama-param')) || target.parentNode;
+    var note = host && host.querySelector('.wama-input-note');
+    if (host && !note && proposal.note) {
+      note = document.createElement('div');
+      note.className = 'wama-input-note form-text small mt-1';
+      host.appendChild(note);
+    }
+    if (note) note.textContent = proposal.note || '';
+    target.dispatchEvent(new Event('input', { bubbles: true }));
+    target.dispatchEvent(new Event('change', { bubbles: true }));
+  }
 
   function _proposedValue(target, raw) {
     var step = Number(target.step) || 1, min = Number(target.min), max = Number(target.max);
@@ -1388,7 +1429,7 @@
   function _bindDefaultFrom(container, schema, ctx) {
     (schema || []).forEach(function (p) {
       var df = p.default_from;
-      if (!df || !df.port || !DEFAULT_FROM_PROPERTIES[df.property]) return;
+      if (!df || !df.port || !df.property) return;
       if ((df.contexts || ['panel']).indexOf(ctx) === -1) return;
       if (p.contexts && p.contexts.indexOf(ctx) === -1) return;
       var targetId = perCtx(p.dom_id, ctx) || ('wp-' + ctx + '-' + p.name);
@@ -1403,14 +1444,9 @@
       input._wpDefaultFrom[targetId] = df.property;
       if (already) return;
       input.addEventListener('change', function () {
-        if (!global.WamaApp || !global.WamaApp.mediaDuration) return;
         Object.keys(input._wpDefaultFrom).forEach(function (id) {
-          DEFAULT_FROM_PROPERTIES[input._wpDefaultFrom[id]](input).then(function (raw) {
-            var target = document.getElementById(id);
-            if (!target || !(Number(raw) > 0)) return;
-            target.value = _proposedValue(target, Number(raw));
-            target.dispatchEvent(new Event('input', { bubbles: true }));
-            target.dispatchEvent(new Event('change', { bubbles: true }));
+          _readInputProperty(input, input._wpDefaultFrom[id]).then(function (proposal) {
+            _applyProposal(document.getElementById(id), proposal);
           });
         });
       });
@@ -2045,6 +2081,7 @@
                         valueLabel: valueLabel,
                         proposedValue: _proposedValue,
                         bindDefaultFrom: _bindDefaultFrom,
+                        applyProposal: _applyProposal,
                         renderSettingsModal: renderSettingsModal,
                         settingsModal: settingsModal,
                         // Portée d'une modale au ⚙ d'un process (P5) : posée par la brique des

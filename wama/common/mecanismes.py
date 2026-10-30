@@ -1639,6 +1639,18 @@ MECHANISMS = (
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=(),
               depends_on=('output_formats',)),
+    Mechanism('ocr_process', 'Process « OCR des pages scannées » d\'une card',
+              "Le process OPTIONNEL d'une app qui réécrit un document en gardant sa forme "
+              "(2026-10-29, le Translator ; le domaine document de l'Anonymizer ensuite), sur le "
+              "patron d'`output_process` : `ocr_step` (la glu) tire un moteur qui rend la place du "
+              "texte (`positioned_ocr_keys`, `supports_text_positions`), lit les seules pages sans "
+              "couche texte et range leurs lignes sur la card ; `read_ocr_file` les rend au process "
+              "suivant (`ocr=` de la couche texte). Son interrupteur se PROPOSE d'après l'entrée "
+              "(`Param.default_from`, `needs_ocr`) — ROADMAP §10.B",
+              'wama/common/services/ocr_process.py',
+              'docs/construction/suivi/ROADMAP.md §10.B',
+              annexes=('wama/common/tests/tests_input_proposals.py',),
+              depends_on=('document_text',)),
     Mechanism('detections_document', "Document de détections (type `detections` sur disque)",
               "Les objets détectés d'un média, frame par frame (boîte, contour en polygones, piste) "
               "— le type de donnée commun `detections` écrit sur disque (2026-10-04, décision de "
@@ -2857,7 +2869,12 @@ MECHANISMS = (
               "Durée/codec/dimensions/pages d'un média pour les propriétés de card (via ffmpeg_utils) ; "
               "depuis le 2026-09-13, un OBJET 3D livre sa table des matières glTF sans décodage "
               "(`probe_object3d` : format, faces, rig, animations) sous la clé `attributes` — ce "
-              "que la médiathèque pose à l'ingest sur la nature `object3d` (A′)",
+              "que la médiathèque pose à l'ingest sur la nature `object3d` (A′) ; un PDF, ses "
+              "pages SANS couche texte (2026-10-29, `document_text.pages_without_text`, nature "
+              "`document`). `INPUT_PROPERTIES` : ce qu'un réglage REPREND d'une entrée "
+              "(`Param.default_from` — la durée, `needs_ocr`) avec la NOTE qui dit pourquoi ; lu "
+              "à la naissance d'un élément (`user_settings.input_proposals`) et par la card "
+              "(`common:api_media_probe`, fichier désigné OU téléversé ; `WamaApp.inputProposals`)",
               'wama/common/utils/media_probe.py', 'docs/construction/suivi/ROADMAP.md §17ter'),
     Mechanism('content_language', "Langue d'un contenu (écrit, parlé)",
               "La langue d'un TEXTE (`langid`, balises de section retirées, verdict peu sûr = "

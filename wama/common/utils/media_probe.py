@@ -296,6 +296,8 @@ def probe_media(path: str) -> dict:
 
     # PDF = cas particulier (comptage de pages) même si sa CATÉGORIE canonique est 'document' —
     # vérifié en premier, littéral sur l'extension (pas une catégorie à part dans app_registry).
+    # Et sa COUCHE TEXTE (2026-10-29) : les pages qui n'en ont pas — un scan, que l'OCR lit — par
+    # le test commun `document_text.pages_without_text` ; attributs de la nature `document`.
     if ext == '.pdf':
         pages = None
         try:
@@ -308,8 +310,19 @@ def probe_media(path: str) -> dict:
                 pages = len(PdfReader(path).pages)
             except Exception:
                 pass
-        return {'media_type': 'pdf',
-                'properties': f"PDF • {pages} page{'s' if pages and pages > 1 else ''}" if pages else 'PDF'}
+        if not pages:
+            return {'media_type': 'pdf', 'properties': 'PDF'}
+        properties = f"PDF • {pages} page{'s' if pages > 1 else ''}"
+        attributes = {'pages': pages}
+        try:
+            from wama.common.utils.document_text import pages_without_text
+            scanned = len(pages_without_text(path))
+            attributes['pages_without_text'] = scanned
+            if scanned:
+                properties += f" • {scanned} sans texte"
+        except Exception:
+            pass
+        return {'media_type': 'pdf', 'properties': properties, 'attributes': attributes}
 
     cat = (normalize_types([ext]) or [None])[0]
 
@@ -352,6 +365,50 @@ def probe_media(path: str) -> dict:
     return {}
 
 
+def _duration_property(info: dict):
+    duration = info.get('duration')
+    if not duration:
+        return None
+    return {'value': duration,
+            'note': f"Reprise du fichier d'entrée ({info.get('duration_display') or format_duration(duration)})."}
+
+
+def _needs_ocr_property(info: dict):
+    attributes = info.get('attributes') or {}
+    if info.get('media_type') != 'pdf' or 'pages_without_text' not in attributes:
+        return None
+    pages, scanned = attributes.get('pages') or 0, attributes['pages_without_text']
+    if not scanned:
+        return {'value': False, 'note': "Ce PDF porte son texte : rien à lire par l'OCR."}
+    if scanned >= pages:
+        return {'value': True, 'note': f"Ce PDF n'a pas de texte ({pages} page{'s' if pages > 1 else ''}, "
+                                       "un scan) : l'OCR le lira."}
+    return {'value': True, 'note': f"Ce PDF n'a pas de texte sur {scanned} page{'s' if scanned > 1 else ''} "
+                                   f"sur {pages} : l'OCR les lira."}
+
+
+#: Les PROPRIÉTÉS d'une entrée qu'un réglage peut REPRENDRE (`Param.default_from`, 2026-10-04 pour
+#: la durée, 2026-10-29 pour `needs_ocr`) : `nom → (sonde) -> {'value', 'note'} | None`. La valeur
+#: est posée dans le réglage, la note dite sous lui (pourquoi cette valeur). Lues sur la sonde
+#: commune : par la naissance d'un élément (`user_settings.new_element_settings(inputs=…)`), et
+#: pour la card d'entrée par `common:api_media_probe` (fichier désigné ou téléversé). Le client
+#: lit seul la durée d'un fichier téléversé (`WamaApp.mediaDuration`) ; une propriété qu'il ne
+#: sait pas lire passe par la sonde du serveur. None : rien à proposer (autre nature, illisible).
+INPUT_PROPERTIES = {
+    'duration': _duration_property,
+    'needs_ocr': _needs_ocr_property,
+}
+
+
+def input_property(info: dict, name: str):
+    """`{'value', 'note'}` de la propriété `name` sur la sonde `info` (`probe_media`), ou None."""
+    reader = INPUT_PROPERTIES.get(name)
+    try:
+        return reader(info or {}) if reader else None
+    except Exception:
+        return None
+
+
 def probe_media_cached(path: str, ttl: int = 86400) -> dict:
     """`probe_media` avec cache Django par (chemin, mtime) — pour les endpoints à la requête
     (ex. detail_registry) : une sonde ffprobe/PDF par fichier, pas par clic."""
@@ -360,7 +417,9 @@ def probe_media_cached(path: str, ttl: int = 86400) -> dict:
         mtime = int(os.path.getmtime(path))
     except OSError:
         return {}
-    key = f"wama:probe:{path}:{mtime}"
+    # `v2` (2026-10-29) : la sonde d'un PDF porte ses attributs de couche texte — une réponse
+    # gardée d'avant (sans eux) aurait tu la proposition `needs_ocr` pendant 24 h.
+    key = f"wama:probe:v2:{path}:{mtime}"
     try:
         from django.core.cache import cache
         cached = cache.get(key)
