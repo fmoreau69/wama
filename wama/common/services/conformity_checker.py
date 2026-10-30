@@ -2162,9 +2162,28 @@ def _prompt_skill(f: _AppFiles):
 
 
 def _tool_api_item_id(f: _AppFiles):
-    """Contrat exigé par build_generic_runner : add_to_<app> doit retourner `item_id`."""
+    """Contrat exigé par build_generic_runner : add_to_<app> doit retourner `item_id`.
+
+    Une JUMELLE n'a pas d'outil écrit : `add_to_<jumelle>` est DÉRIVÉ de celui de sa source au
+    chargement (`tool_api._register_twin_creators`, `sandbox.retarget_callable`, 2026-10-29).
+    Le critère lit alors ce qui est SERVI — l'outil au registre et la fonction qu'il enveloppe
+    (`__wrapped__`) —, jamais la déclaration de la source par repli (garde `SANS_REPLI` de
+    `tests_sandbox_coherence`) : la grille cherchait `add_to_<jumelle>` dans le texte et tenait
+    les dix jumelles pour sans outil."""
     text = _wama_text('tool_api.py')
     m = re.search(rf"^def add_to_{f.app}\b.*?(?=^def |\Z)", text, re.S | re.M)
+    if not m:
+        try:
+            from wama.tool_api import TOOL_REGISTRY
+            served = getattr(TOOL_REGISTRY.get(f'add_to_{f.app}'), '__wrapped__', None)
+        except Exception:
+            served = None
+        if served is not None:
+            body = re.search(rf"^def {served.__name__}\b.*?(?=^def |\Z)", text, re.S | re.M)
+            if body and re.search(r"""['"]item_id['"]""", body.group(0)):
+                line = text.count('\n', 0, body.start()) + 1
+                return True, (f"add_to_{f.app} SERVI, dérivé de {served.__name__} "
+                              f"(tool_api.py:{line}, retourne 'item_id')")
     if not m:
         alias = re.search(rf"^add_to_{f.app}\s*=\s*(\w+)", text, re.M)
         if not alias:
@@ -2260,7 +2279,9 @@ def _quality_intent(f: _AppFiles):
     Non applicable quand il n'y a rien à arbitrer : pas d'option « auto » ni de curseur
     (enhancer désigne son moteur, describer ne choisit aucun modèle).
     """
-    declared = f.find(PARAMS, r"intent_param\(|type=['\"]intent['\"]")
+    # La forme DÉCLARÉE en dictionnaire (`'type': 'intent'`) est celle du schéma GÉNÉRÉ — la grille
+    # ne voyait que `intent_param(` / `type='intent'` et tenait les jumelles pour sans curseur.
+    declared = f.find(PARAMS, r"intent_param\(|type=['\"]intent['\"]|['\"]type['\"]\s*:\s*['\"]intent['\"]")
     # PASSÉ = dans l'APPEL de la brique (tirage ou couverture), pas n'importe où : une migration
     # ou un champ de modèle nommé `quality_intent` ne prouve rien (1re version, mesurée :
     # synthesizer/avatarizer « prouvés » par leur migration). Commentaires neutralisés (code=True)
@@ -2583,8 +2604,10 @@ CRITERIA: list[Criterion] = [
               _task_skeleton,
               mechanism='task_skeleton'),
     Criterion('anti_race', 'F5', 'Verrou anti-race sur TOUTES les vues de démarrage', _anti_race),
+    # `reconcile_queue_of` : LA brique de la page d'index depuis le 2026-10-30 (les dix sources et
+    # l'`IndexView` générée) — sans elle au motif, les dix apps passaient au rouge en l'adoptant.
     Criterion('reconcile_orphans', 'F5', 'Réconciliation RUNNING orphelins (IndexView)',
-              lambda f: _present(f, VIEWS, r'reconcile_orphaned_running')),
+              lambda f: _present(f, VIEWS, r'reconcile_queue_of|reconcile_orphaned_running')),
     Criterion('auto_wrap_orphans', 'F5', 'Auto-wrap des items hors batch',
               lambda f: _present(f, VIEWS, r'auto_wrap_orphans'),
               mechanism='batch'),

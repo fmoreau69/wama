@@ -125,17 +125,10 @@ class IndexView(View):
         _auto_wrap_orphans(user)
         _auto_wrap_audio_orphans(user)
 
-        # Réconcilie les items RUNNING orphelins (worker mort/crash machine) — brique
-        # COMMUNE, preuve positive de mort uniquement. Les DEUX domaines.
-        try:
-            from wama.common.utils.process_control import reconcile_orphaned_running
-            running = list(Enhancement.objects.filter(user=user, status='RUNNING')) + \
-                      list(AudioEnhancement.objects.filter(user=user, status='RUNNING'))
-            n = reconcile_orphaned_running(running, error_field='error_message')
-            if n:
-                logger.info(f"[enhancer] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
-        except Exception as exc:
-            logger.debug(f"[enhancer] reconcile_orphaned_running ignoré: {exc}")
+        # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of(Enhancement, user)
+        reconcile_queue_of(AudioEnhancement, user)
 
         # Files par domaine — brique COMMUNE build_batches_list (contrat _batch_card)
         # + tri/filtre persistés session (contrat _queue_toolbar).

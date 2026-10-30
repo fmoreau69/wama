@@ -117,16 +117,9 @@ class IndexView(View):
         # Lazily migrate any orphan VoiceSynthesis into a batch-of-1
         _auto_wrap_orphans(user)
 
-        # Réconcilie les synthèses RUNNING orphelines (worker mort/crash machine) —
-        # brique COMMUNE, preuve positive de mort uniquement.
-        try:
-            from wama.common.utils.process_control import reconcile_orphaned_running
-            running = list(VoiceSynthesis.objects.filter(user=user, status='RUNNING'))
-            n = reconcile_orphaned_running(running, error_field='error_message')
-            if n:
-                logger.info(f"[synthesizer] {n} synthèse(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
-        except Exception as exc:
-            logger.debug(f"[synthesizer] reconcile_orphaned_running ignoré: {exc}")
+        # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of(VoiceSynthesis, user)
 
         # File — briques COMMUNES build_batches_list (contrat _batch_card) +
         # tri/filtre persistés session (contrat _queue_toolbar).

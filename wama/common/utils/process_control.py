@@ -507,6 +507,28 @@ def reconcile_orphaned_running(instances, *, snapshot=None,
     return n
 
 
+def reconcile_queue_of(work_model, user) -> None:
+    """La réconciliation des éléments RUNNING orphelins de la file de `user` — ce que la page
+    d'index de chaque app fait à son chargement (`reconcile_orphaned_running`, en tâche de fond).
+    Le motif d'échec s'écrit dans `error_message` quand le modèle l'a. Ne lève jamais : une page ne
+    tombe pas parce que la flotte ne répond pas. Écrite une fois le 2026-10-30 : les dix pages
+    d'index recopiaient ce bloc (avec un compteur toujours nul, l'appel de fond rendant 0), et le
+    générateur ne l'émettait pas — les jumelles ne réconciliaient rien."""
+    try:
+        fields = {f.name for f in work_model._meta.concrete_fields}
+        # Seuls le statut et la tâche sont lus : un élément lourd (les segments d'une
+        # transcription) ne se charge pas pour être réconcilié — la règle que le transcriber
+        # appliquait seul (`without_heavy_fields`).
+        running = list(work_model.objects.filter(user=user, status='RUNNING')
+                       .only(*[f for f in ('pk', 'status', 'task_id') if f == 'pk' or f in fields]))
+        reconcile_orphaned_running(
+            running, error_field='error_message' if 'error_message' in fields else None)
+    except Exception:
+        import logging
+        logging.getLogger(__name__).debug('[reconcile] %s : réconciliation ignorée',
+                                          work_model.__name__, exc_info=True)
+
+
 #: Une réconciliation de fond des MÊMES items, lancée par n'importe quel processus, couvre les
 #: pages chargées pendant ce délai : sans ce verrou, chaque rechargement (et « Démarrer tout »
 #: recharge) relançait la photo de la flotte.

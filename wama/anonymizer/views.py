@@ -50,14 +50,9 @@ class IndexView(View):
     def get(self, request):
         user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-        # Réconcilie les tâches RUNNING orphelines (worker mort/crash) — brique COMMUNE,
-        # preuve positive de mort uniquement (reference_orphan_task_reconcile).
-        try:
-            from wama.common.utils.process_control import reconcile_orphaned_running
-            running = list(Media.objects.filter(user=user, status='RUNNING'))
-            reconcile_orphaned_running(running, error_field='error_message')
-        except Exception:
-            pass
+        # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of(Media, user)
 
         context = get_context(request)
         context.update(_queue_context(request, user))

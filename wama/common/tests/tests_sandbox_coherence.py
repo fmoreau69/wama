@@ -837,8 +837,9 @@ class TwinGridReadsWhatIsInjectedTest(SimpleTestCase):
     sable ne sert pas. Décision de Fabien du 2026-10-06 (« oui, injecter ») : la découverte des
     modèles est désormais servie (la jumelle lit le catalogue de sa source — repli légitime) ;
     `TRIAD_SPECS` et `GENERIC_APPS` sont INJECTÉS pour de vrai, leurs critères lisent
-    l'EXÉCUTION, sans repli ; l'outil de création `add_to_<app>` (glu écrite à la main) ne
-    l'est pas — rouge MÉRITÉ.
+    l'EXÉCUTION, sans repli. L'outil de création `add_to_<app>` ne l'était pas (rouge mérité)
+    jusqu'au 2026-10-29 : il est désormais DÉRIVÉ et servi (`_register_twin_creators`), et son
+    critère le lit au registre des outils — toujours sans repli sur la source.
     """
 
     #: Les fonctions de contrôle qui ne doivent PAS emprunter la déclaration de la source : elles

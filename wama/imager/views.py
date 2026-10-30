@@ -77,18 +77,9 @@ def index(request):
     """Main page showing generation queue"""
     user = request.user if request.user.is_authenticated else get_or_create_anonymous_user()
 
-    # Réconcilie les items RUNNING orphelins (worker mort / crash machine) — brique
-    # COMMUNE, preuve positive de mort uniquement. Sans elle, une génération dont le
-    # worker est mort sans acquitter reste une card RUNNING zombie indéfiniment
-    # (vécu 29/07/2026 : génération #42, kernel panic WSL2).
-    try:
-        from wama.common.utils.process_control import reconcile_orphaned_running
-        running = list(ImageGeneration.objects.filter(user=user, status='RUNNING'))
-        n = reconcile_orphaned_running(running, error_field='error_message')
-        if n:
-            logger.info(f"[imager] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
-    except Exception as exc:
-        logger.debug(f"[imager] reconcile_orphaned_running ignoré: {exc}")
+    # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+    from wama.common.utils.process_control import reconcile_queue_of
+    reconcile_queue_of(ImageGeneration, user)
 
     # NOTE PARTAGE — ⚠ PÉRIMÉE jusqu'au 2026-10-02, corrigée ce jour-là À LA MESURE : elle disait
     # l'imager « propriétaire-seul » parce que « 10 autres sites filtrent encore `user=user` ». Ces

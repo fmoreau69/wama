@@ -257,7 +257,11 @@ def render_index(manifest: dict) -> tuple:
                 values: v,
                 saveUrl: urlFor(U.update, id),
                 csrf: CSRF,
-                onSaved: function () {{ location.reload(); }},
+                // Le pied COMMUN (« Enregistrer » / « Enregistrer et démarrer »), comme les dix apps.
+                footerTplId: '{app}SettingsFooterTpl',
+                onSaved: function (sid, restart) {{
+                    if (restart && U.start) {{ post(urlFor(U.start, id)); }} else {{ location.reload(); }}
+                }},
             }});
         }});
     }}
@@ -277,6 +281,7 @@ def render_index(manifest: dict) -> tuple:
     # `formats` s'y résout par l'UNION des familles (le registre commun, sans media_type)
     # — un lot n'expose pas sa nature ici.
     route_batch_update = resolve_route('batch_update', noms_routes)
+    route_batch_start = resolve_route('batch_start', noms_routes)
     a_params_batch = any('batch' in (p.get('contexts') or [])
                          for p in schema_primaire if isinstance(p, dict))
     batch_js = ''
@@ -297,7 +302,10 @@ def render_index(manifest: dict) -> tuple:
                 values: partagees,
                 saveUrl: urlFor(U.batch_update, bid),
                 csrf: CSRF,
-                onSaved: function () {{ location.reload(); }},
+                footerTplId: '{app}BatchSettingsFooterTpl',
+                onSaved: function (sid, restart) {{
+                    if (restart && U.batch_start) {{ post(urlFor(U.batch_start, bid)); }} else {{ location.reload(); }}
+                }},
             }});
         }});
     }}
@@ -359,7 +367,7 @@ def render_index(manifest: dict) -> tuple:
     # *Un chemin écrit à la main échappe à toute machinerie de renommage ; `{% url %}` non.*
     routes_dispo = [(nom, cle) for nom, cle in
                     (('start', 'start'), ('stop', route_stop), ('update', route_update),
-                     ('batch_update', route_batch_update))
+                     ('batch_update', route_batch_update), ('batch_start', route_batch_start))
                     if cle and cle in noms_routes]
     routes_js = ''
     if routes_dispo:
@@ -540,6 +548,7 @@ def render_index(manifest: dict) -> tuple:
     src = f'''{{% extends '{app}/base.html' %}}
 {{% load static %}}
 {{% load wama_static wama_actions %}}
+{{% block console_app_name %}}{app}{{% endblock %}}
 {{% comment %}}{mark} — index.html GÉNÉRÉ (gabarit templates_gen v1, marche S2).
 Squelette CONVENTIONNEL (briques communes) ; les TROUS DE GLU sont marqués — l'écart
 visuel avec l'app en place est LA mesure (Playwright côte à côte).{{% endcomment %}}
@@ -612,6 +621,10 @@ Une app générée n'a PAS besoin d'un JS sur mesure pour importer : les cinq mo
 des briques communes. On ne déclare donc ici que ce qui est propre à l'app — ses URL.{{% endcomment %}}
 {{% block app_scripts %}}
 {{% include 'common/_app_scripts.html' %}}
+{{% comment %}}Pieds COMMUNS des modales ⚙ (élément, lot), greffés par `WamaParams.settingsModal`
+(`footerTplId`) — comme dans les dix apps (critère `settings_modal_footer`, 2026-10-30).{{% endcomment %}}
+<template id="{app}SettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_start_label='Enregistrer et démarrer' %}}</template>
+<template id="{app}BatchSettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_label='Appliquer' save_start_label='Appliquer et lancer' %}}</template>
 <script>
 window.WAMA_GLOBAL_PROGRESS_URL = "{{% url '{app}:{route_global_progress}' %}}";
 

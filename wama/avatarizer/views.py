@@ -101,16 +101,9 @@ class IndexView(View):
         user = _get_user(request)
         jobs = AvatarJob.objects.filter(user=user).order_by('-id')
 
-        # Réconciliation des RUNNING orphelins (brique COMMUNE) : un worker tué laisse des
-        # jobs bloqués en RUNNING pour toujours. La bascule n'a lieu que sur PREUVE POSITIVE
-        # de mort — si aucun worker ne répond, on ne touche à rien (un job réellement en
-        # cours ne doit jamais être déclaré en échec parce que l'inspection a échoué).
-        try:
-            from wama.common.utils.process_control import reconcile_orphaned_running
-            reconcile_orphaned_running(
-                [j for j in jobs if j.status == 'RUNNING'], error_field='error_message')
-        except Exception:
-            logger.debug("[avatarizer] réconciliation des orphelins ignorée", exc_info=True)
+        # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of(AvatarJob, user)
 
         from wama.common.utils.voice_options import voice_groups_json
 

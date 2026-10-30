@@ -133,17 +133,9 @@ class IndexView(TemplateView):
         # Lazily wrap any orphan descriptions into a batch-of-1
         _auto_wrap_orphans(user)
 
-        # Réconcilie les tâches RUNNING orphelines (worker mort/crash) — brique COMMUNE,
-        # même câblage que transcriber : preuve positive de mort uniquement.
-        try:
-            from wama.common.utils.process_control import reconcile_orphaned_running
-            running = list(Description.objects.filter(user=user, status='RUNNING'))
-            n = reconcile_orphaned_running(running)
-            if n:
-                logging.getLogger(__name__).info(
-                    f"[describer] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
-        except Exception:
-            pass
+        # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of(Description, user)
 
         # Agrégats de file — brique COMMUNE (contrat toolbar) + enrichissements describer.
         from wama.common.utils.batch_common import build_batches_list

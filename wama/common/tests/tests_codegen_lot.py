@@ -104,7 +104,9 @@ class CheminDeLotTest(SimpleTestCase):
         for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate',
                      'batch_download', 'batch_status'):
             self.assertIsNone(_fonction(self.src, view), f'{view} encore écrite dans le généré')
-            self.assertIn(f"{view:15s} = _bv['{view}']", self.src)
+            # Le geste qui LANCE est gardé par `app_access`, comme dans les dix apps (2026-10-30).
+            self.assertRegex(self.src, rf"(?m)^{view}\s+= (app_access\('\w+'\)\()?_bv\['{view}'\]")
+        self.assertIn("batch_start     = app_access(", self.src)
 
     def test_batch_create_est_une_vue_pas_un_bouchon(self):
         corps = _fonction(self.src, 'batch_create')
@@ -850,7 +852,8 @@ class LinkFormViewsTest(SimpleTestCase):
         for view in ('batch_start', 'batch_update', 'batch_delete', 'batch_duplicate',
                      'batch_download', 'batch_status'):
             self.assertIsNone(self._fonction(view) or None, f'{view} encore écrite dans le généré')
-            self.assertIn(f"{view:15s} = _bv['{view}']", self.src)
+            self.assertRegex(self.src, rf"(?m)^{view}\s+= (app_access\('\w+'\)\()?_bv\['{view}'\]")
+        self.assertIn("batch_start     = app_access(", self.src)
 
     def test_linking_goes_through_the_common_brick_in_both_creation_paths(self):
         # Le lot importé est rangé par la FABRIQUE, qui rattache avec la liaison déclarée

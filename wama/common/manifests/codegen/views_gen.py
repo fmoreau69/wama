@@ -518,10 +518,14 @@ def _deposit_settings(user, nature, post, inputs=None):
     # voyage sous `elem` (alias posé par la brique) et se décore là. Le `extra` rend les
     # réglages communs que la card MÈRE lit ; son ETA agrégée (`eta_ids`) vient de la brique
     # (2026-10-16). La forme DIRECTE, qui construit ses lignes elle-même, la pose encore.
+    # Les éléments RUNNING orphelins se RÉCONCILIENT au chargement, comme sur les pages des dix
+    # apps (`process_control.reconcile_queue_of`, 2026-10-30 : la vue générée ne le faisait pas).
     index_link = f'''class IndexView(View):
     def get(self, request):
         user = _user(request)
         _auto_wrap_orphans(user)
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of({item}, user)
 
         def _extra(b, liens, items):
             for e in items:
@@ -541,6 +545,8 @@ def _deposit_settings(user, nature, post, inputs=None):
     def get(self, request):
         user = _user(request)
         _auto_wrap_orphans(user)
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of({item}, user)
         # Cards REÇUES aussi (2026-10-02) : `listable_by` = `visible_to`, sauf le compte anonyme.
         from wama.common.utils.scoping import listable_by
         jobs = listable_by({item}.objects.all(), user).order_by('{fk}_id', '{row}')
@@ -878,14 +884,16 @@ def {_nom_bc}(request):
     item.error_message = ''
 
 
-start_process = make_process_start_view(
+start_process = app_access('{app}')(make_process_start_view(
     work_model={item}, task_for=lambda _item: {task}, get_user=_user,
-    reset_for_process=_reset_for_process)'''
+    reset_for_process=_reset_for_process))'''
 
     # ▶ de la card, ▶ et 🗑 de la file : les vues de la fabrique COMMUNE déclarée en tête
     # (`_iv`, `item_views.make_item_views`, ROUTE §11 #39, 2026-10-29) — celle des dix apps.
     # Le gabarit écrivait ses trois corps, et « tout lancer » sans verrou (critère `anti_race`).
-    vues['start'] = "start = _iv['start']"
+    # Les gestes qui LANCENT un traitement sont gardés par `app_access`, comme dans les dix apps
+    # (défense en profondeur, critère `app_access_view`, 2026-10-30).
+    vues['start'] = f"start = app_access({app!r})(_iv['start'])"
 
     # ARRÊT — le CORPS est conventionnel, le NOM ne l'est pas : 8 apps déclarent `stop`,
     # le converter déclare `cancel` (mesuré sur les 9 manifestes le 2026-08-29). Le gabarit
@@ -1119,7 +1127,7 @@ def duplicate(request, pk):
     )
     return JsonResponse({{'success': True, 'id': new.id}})'''
 
-    vues['start_all'] = "start_all = _iv['start_all']"
+    vues['start_all'] = f"start_all = app_access({app!r})(_iv['start_all'])"
     vues['clear_all'] = "clear_all = _iv['clear_all']"
 
     if out_file or out_text:
@@ -1208,7 +1216,7 @@ _bv = make_batch_views(
     options_field=_OPTIONS_FIELD, extra_names=_SETTINGS_OUTSIDE,
     {form_kwargs}, items_related='{items_related}',{bv_extra}{bv_output}
 )
-batch_start     = _bv['batch_start']
+batch_start     = app_access('{app}')(_bv['batch_start'])
 batch_update    = _bv['batch_update']
 batch_delete    = _bv['batch_delete']
 batch_duplicate = _bv['batch_duplicate']
@@ -1405,6 +1413,7 @@ from django.shortcuts import get_object_or_404, render
 from django.views import View
 from django.views.decorators.http import require_POST
 
+from wama.accounts.permissions import app_access
 from wama.accounts.views import get_or_create_anonymous_user
 from wama.common.utils.console_utils import get_console_lines
 from wama.common.utils.detail_registry import normalize_status

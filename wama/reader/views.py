@@ -222,14 +222,9 @@ class IndexView(View):
                 'common_chips': _ccfi(readings, _RD_PARAMS_JSON),
             }
 
-        # Réconcilie les tâches RUNNING orphelines (worker mort/crash) — brique COMMUNE,
-        # même câblage que transcriber : preuve positive de mort uniquement.
-        try:
-            from wama.common.utils.process_control import reconcile_orphaned_running
-            running = list(ReadingItem.objects.filter(user=user, status='RUNNING'))
-            reconcile_orphaned_running(running)
-        except Exception:
-            pass
+        # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of(ReadingItem, user)
 
         batches_list = build_batches_list(user, batch_model=BatchReadingItem,
                                           work_attr='reading', order_by='-id', extra=_extra)

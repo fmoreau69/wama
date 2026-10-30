@@ -197,22 +197,9 @@ class IndexView(View):
         # Lazily wrap any orphan transcripts into a batch-of-1
         _auto_wrap_orphans(user)
 
-        # Réconcilie les tâches RUNNING orphelines (worker mort/crash machine) — brique
-        # COMMUNE. Un item RUNNING dont le worker propriétaire a redémarré sans elle est
-        # un zombie (figé à son dernier %, anime un ETA fantôme → fausse impression de
-        # traitement en cours). Il repasse en échec RELANÇABLE.
-        # Un seul inspect() par chargement, uniquement s'il y a des RUNNING. Ne bascule
-        # que sur PREUVE POSITIVE de mort — un worker muet (pool solo occupé par CETTE
-        # tâche) ne conclut rien : ne touche JAMAIS une tâche vivante (cf. process_control).
-        try:
-            from wama.common.utils.process_control import reconcile_orphaned_running
-            # Sans les segments (`without_heavy_fields`) : la réconciliation ne lit que statut et tâche.
-            running = list(without_heavy_fields(Transcript.objects.filter(user=user, status='RUNNING')))
-            n = reconcile_orphaned_running(running, error_field='error_message')
-            if n:
-                logger.info(f"[transcriber] {n} tâche(s) RUNNING orpheline(s) réconciliée(s) → échec relançable")
-        except Exception as exc:
-            logger.debug(f"[transcriber] reconcile_orphaned_running ignoré: {exc}")
+        # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of(Transcript, user)
 
         # Agrégats de file — brique COMMUNE (contrat toolbar) + enrichissements transcriber.
         from wama.common.utils.batch_common import build_batches_list

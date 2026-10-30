@@ -120,7 +120,7 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ;
 
 - **Domicile** : `wama/common/utils/process_control.py` · **doc** : [docs/construction/exploitation/INFRA_WSL_VS_WINDOWS.md](../construction/exploitation/INFRA_WSL_VS_WINDOWS.md)
 - **Module** : Contrôle de process COMMUN — brique transversale (cf. memory project_process_button_lifecycle).
-- **API publique** (14) :
+- **API publique** (15) :
   - `grant_replace(model, pk, user) -> None` — L'utilisateur a CONFIRMÉ qu'il arrête le traitement en cours de cet élément pour le
   - `begin_processing(model, pk, *, user=None, reset=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING')` — Démarrage ANTI-RACE d'un item (pattern obligatoire AGENTS.md — généralise describer
   - `stop_instance(instance, *, status_field: str='status', task_field: str='task_id', to_status: str='FAILURE', error_field: str | None=None, error_message: str="I…` — Stoppe le traitement d'un item : révoque la tâche Celery (SIGTERM) et le remet dans un état
@@ -131,6 +131,7 @@ Anti-boucle-de-crash (redélivrance) et réconciliation des tâches orphelines ;
   - `is_task_orphaned(task_id: str, snapshot) -> bool` — True SEULEMENT si l'on a une PREUVE POSITIVE que la tâche est morte : elle a démarré
   - `is_task_lost(task_id: str, snapshot) -> bool` — True SEULEMENT si la tâche n'est PLUS NULLE PART : état Celery `PENDING`, aucun message
   - `reconcile_orphaned_running(instances, *, snapshot=None, status_field: str='status', task_field: str='task_id', running_value: str='RUNNING', to_status: str='FA…` — Réconcilie une liste d'items RUNNING dont la tâche Celery est TERMINÉE (is_task_dead)
+  - `reconcile_queue_of(work_model, user) -> None` — La réconciliation des éléments RUNNING orphelins de la file de `user` — ce que la page
   - `is_task_on_dead_process(task_id: str, hostname: str) -> bool` — PREUVE POSITIVE de mort (2026-09-24) : la tâche a démarré (`STARTED`) sur le worker
   - `work_models()` — Les modèles qu'un worker Celery peut traiter : ceux des apps WAMA qui portent la paire
   - `reconcile_dead_worker_tasks(hostname: str, *, error_message: str="Traitement interrompu : le worker s'est arrêté. Relancer l'élément.") -> list` — Bascule en échec RELANÇABLE chaque élément RUNNING dont la tâche a démarré sur le worker

@@ -90,17 +90,9 @@ class IndexView(View):
         # wrap paresseux des éventuels orphelins (ex. upload direct).
         _auto_wrap_orphans(user)
 
-        # Réconcilie les jobs RUNNING orphelins (worker mort/crash machine) — brique
-        # COMMUNE. Ne bascule que sur PREUVE POSITIVE de mort (cf. process_control) :
-        # un worker muet (pool solo occupé) ne conclut rien.
-        try:
-            from wama.common.utils.process_control import reconcile_orphaned_running
-            running = list(ConversionJob.objects.filter(user=user, status='RUNNING'))
-            n = reconcile_orphaned_running(running, error_field='error_message')
-            if n:
-                logger.info(f"[converter] {n} job(s) RUNNING orphelin(s) réconcilié(s) → échec relançable")
-        except Exception as exc:
-            logger.debug(f"[converter] reconcile_orphaned_running ignoré: {exc}")
+        # Réconcilie les éléments RUNNING orphelins (worker mort/crash) — LA brique commune.
+        from wama.common.utils.process_control import reconcile_queue_of
+        reconcile_queue_of(ConversionJob, user)
 
         # Ephemeral jobs (quick-convert) are never shown in the queue.
         # Les cards REÇUES aussi (2026-10-02, `WAMA_COLLABORATION §3bis` — mode lecture) : la file
