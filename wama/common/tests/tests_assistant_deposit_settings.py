@@ -154,6 +154,9 @@ class ChatDepositAndGearTest(SimpleTestCase):
             chat.startWaiting = function () {}; chat.stopWaiting = function () {};
             chat.autoGrow = function () {}; chat.renderDeposits = function () {};
             chat.bubble = function () { return {}; }; chat.scrollToEnd = function () {};
+            // `send` marque le tour en cours (`busy`, la saisie reste ouverte pendant la réflexion,
+            // `5a935205`) : sans elle, la chaîne levait sur `root.querySelector` et rien ne partait.
+            chat.busy = function () {};
         """)
         return ctx
 
@@ -182,8 +185,11 @@ class ChatDepositAndGearTest(SimpleTestCase):
         ctx.eval("""
             var attrs = {}, listeners = {}, uploads = 0;
             window.WamaFM.upload = function () { uploads++; return Promise.resolve({}); };
+            // `querySelector` : `bindDeposit` cherche le bouton « Joindre » (27/10) — aucun ici,
+            // le geste éprouvé est le glisser depuis l'arbre.
             chat.root = { setAttribute: function (k, v) { attrs[k] = v; },
                           addEventListener: function (t, f) { listeners[t] = f; },
+                          querySelector: function () { return null; },
                           classList: { add: function () {}, remove: function () {} } };
             chat.bindDeposit();
             listeners['filemanager:designate']({ detail: { files: [
