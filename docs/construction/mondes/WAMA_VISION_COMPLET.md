@@ -467,6 +467,15 @@ avec leur emplacement, les réécrire sur place), commune à l'Anonymizer (domai
 en conservant exactement la forme) et au Translator (`ROADMAP §16.4bis`). Le Writer reste le geste
 de qui veut REVOIR la mise en forme, par chaînage, jamais celui qui la conserve.
 
+🔄 *2026-10-29/30* : le Translator traduit un DOCX ou un PDF en gardant sa forme — style de chaque
+bloc, mots en gras ou en exposant, tableaux cellule par cellule, étiquettes des figures
+VECTORIELLES (`document_text`, `ROADMAP §10.B`). Le texte d'une image entre par l'OCR qui rend la
+PLACE de ce qu'il lit (contrat `read_lines`, docTR) : une page SCANNÉE se lit, se traduit et se
+réécrit à sa place, pixels effacés dessous — étape optionnelle du Translator, dont l'interrupteur
+se propose d'après le fichier déposé ; la même couche servira au domaine document de l'Anonymizer
+et au Reader. ⏳ Restent les figures EN IMAGE dans un PDF natif (OCR → traduction → réédition de
+l'image) et le jugement sur un vrai scan.
+
 ## 5.5 Mémoire et RAG : livrés sur Postgres + pgvector, extension par l'usage ✅🔄
 
 > ⚠ Cette section remplace le plan antérieur (« ChromaDB, zéro code ») : la brique a été
