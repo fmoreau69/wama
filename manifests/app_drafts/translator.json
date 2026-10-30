@@ -330,9 +330,9 @@
               "port": "work_file",
               "property": "needs_ocr"
             },
-            "help": "Lit par OCR les pages d'un PDF qui n'ont pas de texte (un scan), pour les traduire à leur place. Coché d'office quand le document déposé en a — décochable.",
+            "help": "Lit par OCR les pages d'un PDF qui n'ont pas de texte (un scan) et le texte dessiné dans ses images, pour les traduire à leur place. Coché d'office quand le document a des pages scannées — décochable ; à cocher pour traduire le texte de ses images.",
             "icon": "fa-file-image",
-            "label": "OCR des pages scannées",
+            "label": "OCR des scans et des images",
             "name": "ocr_scanned_pages",
             "section": "settings",
             "type": "toggle"

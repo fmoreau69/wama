@@ -29,10 +29,10 @@
     ],
     "visibility": "public"
   },
-  "description": "Lit par OCR les pages d'un PDF qui n'ont pas de couche texte, en gardant la PLACE de chaque ligne (un moteur qui la rend, `supports_text_positions` — docTR) ; les lignes sont gardées sur la card pour que la traduction les réécrive à leur place. Brique commune : `common/services/ocr_process.ocr_step`. Un document qui porte son texte partout : rien à lire.",
+  "description": "Lit par OCR les pages d'un PDF qui n'ont pas de couche texte et le texte dessiné dans les images de ses pages natives, en gardant la PLACE de chaque ligne (un moteur qui la rend, `supports_text_positions` — docTR) ; les lignes sont gardées sur la card pour que la traduction les réécrive à leur place. Brique commune : `common/services/ocr_process.ocr_step`. Un document qui porte son texte partout, sans image : rien à lire.",
   "key": "translator.ocr",
   "manifest_kind": "function",
-  "name": "Translator — OCR des pages scannées",
+  "name": "Translator — OCR des scans et des images",
   "owner": null,
   "projects": [],
   "schema_version": "1.0",

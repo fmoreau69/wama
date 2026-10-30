@@ -2914,8 +2914,26 @@ Deux voies, complémentaires :
    ⏳ Reste, chez Portage Apps (accord du 30/10) : porter `inputs=` aux naissances des dix apps
    d'origine et à leurs appelants (outils `add_to_*`) — aujourd'hui seuls le composer (durée, lue
    côté client) et le Translator déclarent `default_from`. Et à juger sur un VRAI scan, workers
-   relancés ; l'ordre des mots qui fait permuter deux passages balisés (le second
-   perd sa mise en forme, jamais son texte).
+   relancés.
+   ✅ **Les deux restes du 29/10, soldés le 30/10.** (1) **Deux passages balisés PERMUTÉS** par la
+   traduction (DOCX ; le PDF donnait déjà à chaque passage le style de SA balise, quelle que soit
+   sa place) : le second rejoignait le morceau d'avant et perdait sa mise en forme — il reçoit
+   désormais un CLONE du morceau d'origine de sa mise en forme (`_cloned_after` : propriétés et un
+   nœud de texte, ni tabulation ni saut de ligne recopiés). (2) **Le texte des images BITMAP d'une
+   page native** (une figure exportée en PNG) : la même voie que la page scannée, bornée à
+   l'image — `read_figure_text` lit les pixels de l'IMAGE (jamais la page rendue, qui porterait le
+   texte natif posé dessus ; une ligne qui recouvre du texte natif est écartée), en un seul appel
+   au moteur ; ses lignes passent en `ocr=` (`figure_lines`), effacées dans l'image et réécrites à
+   leur place. Mesuré sur la figure 1 de l'article de Fabien rendue en bitmap : l'OCR lit aussi le
+   DESSIN (pointillés en « I », courbes en « O 00 C », « LL », « % ») avec une confiance aussi haute
+   que le texte — les étiquettes se reconstruisent donc par les MOTS (`_figure_labels` : un
+   caractère isolé écarté, coupure aux grands écarts, un mot de trois lettres exigé — ou de deux
+   lu à 0,9) et ne s'empilent que CENTRÉES (« Convolutional / Layers ») ; 16 étiquettes réelles
+   gardées, plus aucun bruit réécrit. La sonde compte les images (attribut `raster_figures`) :
+   l'interrupteur reste décoché pour un PDF natif (une photo n'a pas de texte) et sa note le dit ;
+   libellé « OCR des scans et des images ». La réédition par un modèle d'image
+   (`qwen-image-edit`, tableau ci-dessus) reste une voie possible, non retenue ici : l'effacement
+   + texte posé ne redessine pas la figure.
 
 ##### Naissance du Translator au bac à sable — 2026-10-16 (soir) 🔄
 

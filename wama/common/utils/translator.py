@@ -275,7 +275,7 @@ def translate_document(path, out_path, source_language: str, target_language: st
             if sum(c.isalpha() for c in strip_markup(segment)) >= 2]
     if not todo:
         raise ValueError("Rien à traduire : le document n'a pas de texte lisible — un PDF scanné "
-                         "se lit par l'OCR des pages scannées")
+                         "se lit par l'OCR des scans et des images")
     replacements, done = {}, []
     for count, index in enumerate(todo, 1):
         segment = segments[index]

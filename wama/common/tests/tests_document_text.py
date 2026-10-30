@@ -351,6 +351,33 @@ class MarkupTest(_TempDir):
         self.assertEqual([('Remark:', True, False), (' the text follows, ', False, False),
                           ('really', False, True), ('.', False, False)], runs)
 
+    def test_two_passages_swapped_by_the_translation_each_keep_their_formatting(self):
+        """2026-10-30 (rest of ROADMAP §10.B) : the word order of the target language swaps the
+        italic and the bold passages. The second used to join the previous run and lose its
+        formatting ; it now gets a CLONE of its original run, right after."""
+        _, runs = self._rewrite_docx('<t2>Vraiment</t2>, le texte suit la <t1>note</t1>.')
+        self.assertEqual([('Vraiment', False, True), (', le texte suit la ', False, False),
+                          ('note', True, False), ('.', False, False)], runs)
+
+    def test_a_cloned_run_brings_no_tab_or_break_of_its_original(self):
+        import docx
+        from wama.common.utils.document_text import read_segments, write_replacements
+        document = docx.Document()
+        paragraph = document.add_paragraph()
+        bold = paragraph.add_run('A')
+        bold.bold = True
+        bold.add_tab()
+        paragraph.add_run(' plain text, ')
+        paragraph.add_run('B').italic = True
+        src = self.dir / 'tab.docx'
+        document.save(str(src))
+        [segment] = read_segments(src, markup=True)
+        out = write_replacements(src, self.dir / 'out.docx',
+                                 {0: [(0, len(segment), '<t2>B</t2> plain text, <t1>A</t1>')]},
+                                 markup=True)
+        xml = docx.Document(out).paragraphs[0]._p.xml
+        self.assertEqual(1, xml.count('<w:tab/>'), 'the tab stays where it was, not duplicated')
+
     def test_illegible_tags_keep_the_text_in_the_dominant_formatting(self):
         _, runs = self._rewrite_docx('<t1>Remark: the text follows, <t9>really</t9>.')
         self.assertEqual([('Remark: the text follows, really.', False, False)], runs)
@@ -520,6 +547,126 @@ class ScannedPageTest(_TempDir):
             self.assertEqual(0, darkness(pdf, old_end))
             second = fitz.Rect(72, 120, 400, 146)           # the untouched paragraph is still there
             self.assertGreater(darkness(pdf, second), 50)
+
+
+def _page_with_raster_figure(dir_):
+    """A NATIVE page (selectable text) carrying a BITMAP figure: « Input Frames » and « Neural »
+    drawn into the image, a black bar far from them, plus a native word laid over the image, and a
+    small icon. Returns (path, the image's frame, a fake `read_lines` giving the words docTR
+    would read in the image — with drawing noise —, in the image's pixels)."""
+    import fitz
+    with fitz.open() as art:
+        canvas = art.new_page(width=300, height=150)
+        canvas.insert_text((20, 40), 'Input Frames', fontsize=16)
+        canvas.insert_text((200, 40), 'Neural', fontsize=16)
+        canvas.draw_rect(fitz.Rect(20, 110, 280, 130), color=(0, 0, 0), fill=(0, 0, 0))
+        words = [(w[4], fitz.Rect(w[:4]) * 2) for w in canvas.get_text('words')]   # 144 dpi
+        figure_pixmap = canvas.get_pixmap(dpi=144)
+        icon = art.new_page(width=40, height=40)
+        icon.insert_text((5, 25), 'ic', fontsize=12)
+        icon_pixmap = icon.get_pixmap(dpi=72)
+    frame = fitz.Rect(100, 200, 400, 350)
+    path = dir_ / 'native_figure.pdf'
+    with fitz.open() as pdf:
+        page = pdf.new_page()
+        page.insert_text((72, 100), 'A native paragraph above the figure.', fontsize=11)
+        page.insert_image(frame, pixmap=figure_pixmap)
+        page.insert_image(fitz.Rect(450, 200, 490, 240), pixmap=icon_pixmap)
+        page.insert_text((300, 340), 'Overlay', fontsize=9)      # native text ON the image
+        pdf.save(str(path))
+    by_text = {text: list(rect) for text, rect in words}
+    a, b = by_text['Input'], by_text['Frames']
+
+    def read_lines(work_file):
+        with fitz.open(work_file) as sheet:
+            width, height = sheet[0].rect.width, sheet[0].rect.height
+        noise ={'bbox': [40, 220, 44, 260], 'text': 'I', 'conf': 1.0}
+        layers = {'bbox': [300, 220, 330, 260], 'text': 'LL', 'conf': 0.51}
+        overlay = {'bbox': [400, 260, 470, 280], 'text': 'Overlay', 'conf': 0.99}
+        line = {'bbox': [a[0], a[1], by_text['Neural'][2], a[3]], 'text': 'Input Frames Neural',
+                'conf': 0.95,
+                'words': [{'bbox': a, 'text': 'Input', 'conf': 0.99},
+                          {'bbox': b, 'text': 'Frames', 'conf': 0.98},
+                          {'bbox': by_text['Neural'], 'text': 'Neural', 'conf': 0.97}]}
+        return [{'width': width, 'height': height, 'unit': 'pt',
+                 'lines': [line,
+                           {'bbox': noise['bbox'], 'text': 'I', 'conf': 1.0, 'words': [noise]},
+                           {'bbox': layers['bbox'], 'text': 'LL', 'conf': 0.51, 'words': [layers]},
+                           {'bbox': overlay['bbox'], 'text': 'Overlay', 'conf': 0.99,
+                            'words': [overlay]}]}]
+    return path, frame, read_lines
+
+
+class RasterFigureTest(_TempDir):
+    """2026-10-30 (rest of ROADMAP §10.B) — the text drawn INSIDE a bitmap image of a native page
+    is read by the OCR that gives places, then rewritten like a scan's, pixels erased under it."""
+
+    def test_only_images_big_enough_to_carry_text_are_figures(self):
+        import fitz
+        from wama.common.utils.document_text import raster_figures
+        path, frame, _ = _page_with_raster_figure(self.dir)
+        with fitz.open(path) as pdf:
+            self.assertEqual([tuple(frame)], [tuple(r) for _x, r in raster_figures(pdf[0])])
+
+    def test_labels_come_in_page_points_without_noise_nor_native_text(self):
+        from wama.common.utils.document_text import read_figure_text
+        path, frame, read_lines = _page_with_raster_figure(self.dir)
+        ocr = read_figure_text(path, read_lines)
+        labels = [(line['text'], line['bbox']) for line in ocr[0]['figure_lines']]
+        # « Input Frames » and « Neural » : two labels (far apart), « I », « LL », « Overlay » gone.
+        self.assertEqual(['Input Frames', 'Neural'], [text for text, _box in labels])
+        x0, y0, x1, y1 = labels[0][1]
+        self.assertTrue(frame.x0 <= x0 < x1 <= frame.x1 and frame.y0 <= y0 < y1 <= frame.y1)
+        self.assertLess(abs(x0 - (frame.x0 + 20)), 3, 'pixels brought back to page points')
+
+    def test_two_centred_lines_stack_and_a_frame_title_does_not(self):
+        from wama.common.utils.document_text import _stack
+
+        def line(x0, y0, x1, y1):
+            return {'bbox': (x0, y0, x1, y1), 'dir': (1, 0)}
+        conv, layers = line(100, 100, 200, 112), line(125, 112, 175, 124)
+        title, row = line(20, 100, 120, 112), line(20, 112, 300, 124)
+        self.assertEqual(1, len(_stack([conv, layers], scanned=True, centred=True)))
+        self.assertEqual(2, len(_stack([title, row], scanned=True, centred=True)))
+
+    def test_the_rewrite_erases_the_label_in_the_image_and_nothing_else(self):
+        import fitz
+        from wama.common.utils.document_text import (read_figure_text, read_segments,
+                                                     write_replacements)
+        path, frame, read_lines = _page_with_raster_figure(self.dir)
+        ocr = read_figure_text(path, read_lines)
+        segments = read_segments(path, unit='block', ocr=ocr)
+        index = segments.index('Input Frames')
+        out = write_replacements(path, self.dir / 'out.pdf',
+                                 {index: [(0, len('Input Frames'), 'Images')]}, unit='block', ocr=ocr)
+
+        def dark(pdf, rect):
+            page = pdf[0]
+            xref = next(x for x, r in [(i[0], page.get_image_rects(i[0])[0]) for i in page.get_images()]
+                        if r == frame)
+            image = fitz.Pixmap(pdf, xref)
+            scale = image.width / frame.width
+            samples = image.samples
+            return sum(1 for y in range(int((rect.y0 - frame.y0) * scale), int((rect.y1 - frame.y0) * scale))
+                       for x in range(int((rect.x0 - frame.x0) * scale), int((rect.x1 - frame.x0) * scale))
+                       if samples[(y * image.width + x) * image.n] < 128)
+
+        label = fitz.Rect(frame.x0 + 22, frame.y0 + 28, frame.x0 + 110, frame.y0 + 42)
+        bar = fitz.Rect(frame.x0 + 30, frame.y0 + 112, frame.x0 + 270, frame.y0 + 128)
+        with fitz.open(out) as after, fitz.open(path) as before:
+            self.assertGreater(dark(before, label), 20)
+            self.assertEqual(0, dark(after, label), 'the drawn label is gone from the IMAGE')
+            self.assertEqual(dark(before, bar), dark(after, bar), 'the drawing stays')
+            self.assertIn('Images', after[0].get_text())
+
+    def test_the_probe_counts_the_figures_and_the_switch_says_so_unticked(self):
+        from wama.common.utils.media_probe import input_property, probe_media
+        path, _frame, _ = _page_with_raster_figure(self.dir)
+        info = probe_media(str(path))
+        self.assertEqual(1, info['attributes']['raster_figures'])
+        proposal = input_property(info, 'needs_ocr')
+        self.assertIs(False, proposal['value'])
+        self.assertIn('1 image', proposal['note'])
 
 
 class OccultFileTest(_TempDir):

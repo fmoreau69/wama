@@ -1,4 +1,4 @@
-"""Le process « OCR des pages scannées » d'une card — commun aux apps qui réécrivent un document
+"""Le process « OCR des scans et des images » d'une card — commun aux apps qui réécrivent un document
 en gardant sa forme (2026-10-29, décision de Fabien : « une étape optionnelle, son interrupteur
 s'adapte à l'entrée »). Le Translator d'abord ; le domaine document de l'Anonymizer ensuite.
 
@@ -13,9 +13,11 @@ squelette, que l'app déclare comme un process OPTIONNEL à interrupteur (`Proce
 
 Ce que la brique tient pour l'app : le moteur est TIRÉ parmi les modèles d'OCR dont le moteur
 rend la place du texte (`supports_text_positions`, `OCRBackend.read_lines`) ; seules les pages
-sans couche texte sont lues (`document_text.read_pages_without_text`) ; leurs lignes sont rangées
-dans un JSON sur la card, que le process suivant passe à la couche texte (`ocr=`). Un document
-qui porte son texte partout ne coûte rien : le process le dit et ne range rien.
+sans couche texte sont lues (`document_text.read_pages_without_text`), et, depuis le 2026-10-30,
+les images bitmap des pages natives (`read_figure_text` : une figure exportée en PNG) ; leurs
+lignes sont rangées dans un JSON sur la card, que le process suivant passe à la couche texte
+(`ocr=`). Un document qui porte son texte partout, sans image, ne coûte rien : le process le dit
+et ne range rien.
 """
 import json
 import logging
@@ -25,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 #: Clé du process dans le pipeline d'une app, et libellé de sa ligne sur la card.
 OCR_KEY = 'ocr'
-OCR_LABEL = 'OCR des pages scannées'
+OCR_LABEL = 'OCR des scans et des images'
 
 
 def positioned_ocr_keys() -> list:
@@ -51,16 +53,23 @@ def ocr_step(source_field: str, output_field: str):
     ranger les lignes lues (un JSON `{'model', 'pages': {page: page du contrat}}`)."""
 
     def step(item, ctx):
+        import fitz
         from wama.common.utils.auto_model import resolve_model_choice
-        from wama.common.utils.document_text import pages_without_text, read_pages_without_text
+        from wama.common.utils.document_text import (pages_without_text, raster_figures,
+                                                     read_figure_text, read_pages_without_text)
         source = getattr(item, source_field, None)
         if not source:
             raise ValueError("OCR : aucun document d'entrée")
         path = source.path
         pages = pages_without_text(path)
-        if not pages:
-            ctx.console("OCR : chaque page porte son texte — rien à lire")
-            return {'fields': {output_field: None}, 'label': 'Aucune page sans texte',
+        # Les images bitmap des pages NATIVES (2026-10-30) : leur texte aussi se lit par l'OCR.
+        figures = 0
+        if path.lower().endswith('.pdf'):
+            with fitz.open(path) as pdf:
+                figures = sum(len(raster_figures(page)) for page in pdf if page.number not in pages)
+        if not pages and not figures:
+            ctx.console("OCR : chaque page porte son texte, aucune image — rien à lire")
+            return {'fields': {output_field: None}, 'label': 'Rien à lire',
                     'output_fingerprint': 'no-page'}
         candidates = positioned_ocr_keys()
         if not candidates:
@@ -68,17 +77,19 @@ def ocr_step(source_field: str, output_field: str):
                                "(docTR, par exemple)")
         key = resolve_model_choice('auto', spec={'task': 'ocr'}, candidates=candidates,
                                    item=item, fallback=candidates[0]) or candidates[0]
-        ctx.console(f"OCR : {len(pages)} page(s) sans texte, moteur {key}")
+        ctx.console(f"OCR : {len(pages)} page(s) sans texte, {figures} image(s), moteur {key}")
         ctx.ensure_model(key)
         from wama.common.backends.manager import backend_instance_for_key
         backend = backend_instance_for_key(key, user=getattr(item, 'user', None))
-        ctx.progress(10, f"Lecture de {len(pages)} page(s) scannée(s)…")
-        read = read_pages_without_text(path, backend.read_lines)
+        ctx.progress(10, f"Lecture de {len(pages)} page(s) scannée(s) et {figures} image(s)…")
+        read = read_figure_text(path, backend.read_lines) if figures else {}
+        if pages:
+            read.update(read_pages_without_text(path, backend.read_lines))
         rel_path, abs_path = ctx.output_place('.json', source_name=os.path.basename(path) + '.ocr')
         with open(abs_path, 'w', encoding='utf-8') as out:
             json.dump({'model': key, 'pages': {str(k): v for k, v in read.items()}}, out,
                       ensure_ascii=False)
-        lines = sum(len(p.get('lines') or []) for p in read.values())
+        lines = sum(len(p.get('lines') or p.get('figure_lines') or []) for p in read.values())
         ctx.progress(100, 'Terminé')
         return {'fields': {output_field: rel_path}, 'models': [key], 'output_ref': rel_path,
                 'label': f"{len(read)} page(s) lue(s), {lines} ligne(s)"}

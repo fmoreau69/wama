@@ -473,8 +473,9 @@ VECTORIELLES (`document_text`, `ROADMAP §10.B`). Le texte d'une image entre par
 PLACE de ce qu'il lit (contrat `read_lines`, docTR) : une page SCANNÉE se lit, se traduit et se
 réécrit à sa place, pixels effacés dessous — étape optionnelle du Translator, dont l'interrupteur
 se propose d'après le fichier déposé ; la même couche servira au domaine document de l'Anonymizer
-et au Reader. ⏳ Restent les figures EN IMAGE dans un PDF natif (OCR → traduction → réédition de
-l'image) et le jugement sur un vrai scan.
+et au Reader. 🔄 *30/10* : le texte dessiné DANS les images d'un PDF natif suit la même voie (lu
+dans les pixels de l'image, effacé, réécrit à sa place) ; deux passages mis en forme que la
+traduction inverse gardent chacun leur style. ⏳ Reste le jugement sur un vrai scan.
 
 ## 5.5 Mémoire et RAG : livrés sur Postgres + pgvector, extension par l'usage ✅🔄
 

@@ -241,12 +241,32 @@ def _docx_groups(paragraph):
     return nodes, keys, marked, tags, dominant
 
 
+def _cloned_after(nodes, keys, source: int, after: int) -> int:
+    """Un nœud NEUF de la mise en forme du nœud `source`, placé juste après le morceau du nœud
+    `after` : son morceau (`w:r`) recopié — ses propriétés (`w:rPr`) et UN nœud de texte, rien
+    d'autre (ni tabulation ni saut de ligne : ils restent à leur place d'origine). Rend son index
+    dans `nodes` / `keys`, mis à jour."""
+    import copy
+    run = nodes[source].getparent()
+    clone = copy.deepcopy(run)
+    texts = [child for child in clone if child.tag == nodes[source].tag]
+    for child in list(clone):
+        if child is not texts[0] and not child.tag.endswith('}rPr'):
+            clone.remove(child)
+    nodes[after].getparent().addnext(clone)
+    nodes.insert(after + 1, texts[0])
+    keys.insert(after + 1, keys[source])
+    return after + 1
+
+
 def _rewrite_paragraph_marked(paragraph, changes) -> None:
     """Le paragraphe réécrit d'après son texte BALISÉ : chaque morceau du nouveau texte va dans le
     prochain nœud de SA mise en forme (le texte nu, dans celle qui domine), les nœuds restants
-    sont vidés. Un morceau dont la mise en forme ne revient plus (la traduction a inversé l'ordre)
-    rejoint le nœud précédent : sa mise en forme se perd, jamais son texte. Des balises illisibles :
-    tout le texte, nu, dans la mise en forme dominante."""
+    sont vidés. Un morceau dont la mise en forme ne revient plus plus loin (la traduction a
+    inversé l'ordre de deux passages : « bold red » → « rouge gras ») reçoit un CLONE du morceau
+    d'origine de cette mise en forme, placé juste après le précédent (2026-10-30 ; il rejoignait
+    jusque-là le nœud d'avant et perdait sa mise en forme). Des balises illisibles : tout le
+    texte, nu, dans la mise en forme dominante."""
     space = '{http://www.w3.org/XML/1998/namespace}space'
     nodes, keys, marked, tags, dominant = _docx_groups(paragraph)
     if not nodes:
@@ -259,7 +279,12 @@ def _rewrite_paragraph_marked(paragraph, changes) -> None:
         start = 0 if cursor is None else cursor
         target = next((j for j in range(start, len(nodes)) if keys[j] == key), None)
         if target is None:
-            target = cursor if cursor is not None else 0
+            source = next((j for j in range(len(nodes)) if keys[j] == key), None)
+            if source is not None and cursor is not None:
+                target = _cloned_after(nodes, keys, source, cursor)
+                texts = {(j + 1 if j > cursor else j): t for j, t in texts.items()}
+            else:
+                target = cursor if cursor is not None else 0
         texts[target] = texts.get(target, '') + text
         cursor = target
     for j, node in enumerate(nodes):
@@ -497,7 +522,7 @@ def _figure_regions(page) -> list:
             if len(region) > 4 and region[4] == 'picture']
 
 
-def _stack(lines, scanned: bool = False) -> list:
+def _stack(lines, scanned: bool = False, centred: bool = False) -> list:
     """Les lignes réunies en passages EMPILÉS : une ligne rejoint le passage dont la dernière ligne
     est juste au-dessus d'elle et en vis-à-vis ; sinon elle en commence un.
 
@@ -508,7 +533,9 @@ def _stack(lines, scanned: bool = False) -> list:
     ferme aussi sur un RETRAIT de première ligne et après une ligne COURTE. Mesuré sur un scan de
     quatre pages d'article, les blocs natifs pour vérité : 47 passages purs sur 57, 45 paragraphes
     sur 51 d'un seul tenant (les paragraphes d'une liste, ni espacés ni en retrait, restent
-    réunis)."""
+    réunis). Et les étiquettes d'une figure BITMAP (`centred`, 2026-10-30) : deux lignes ne
+    s'empilent que CENTRÉES l'une sur l'autre (« Convolutional » / « Layers ») — le titre d'un
+    cadre, posé au-dessus d'une rangée d'étiquettes, ne s'y joint pas."""
     blocks = []
     for line in lines:
         x0, y0, x1, y1 = line['bbox']
@@ -521,7 +548,9 @@ def _stack(lines, scanned: bool = False) -> list:
                     and (-0.5 * height if scanned else -1) <= gap <= 0.6 * height
                     and line.get('dir') == block[-1].get('dir')):
                 continue
-            if scanned:
+            if centred and abs((x0 + x1) - (a0 + a1)) / 2 > height:
+                continue                        # pas centrées l'une sur l'autre
+            if scanned and not centred:
                 left = min(other['bbox'][0] for other in block)
                 right = max(other['bbox'][2] for other in block)
                 if len(block) > 1 and right - a1 > 2 * height:
@@ -584,6 +613,117 @@ def read_pages_without_text(path, read_lines) -> dict:
     return dict(zip(pages, read))
 
 
+#: Une image plus petite que cela (en points, sur son plus petit côté) n'est pas une figure à lire :
+#: une icône, une vignette, un logo. Mesuré sur un article réel : ses figures bitmap font 120 pt
+#: et plus, ses vignettes d'illustration 15 à 40 pt.
+FIGURE_MIN_SIDE = 72
+
+
+def raster_figures(page) -> list:
+    """Les images BITMAP d'une page native assez grandes pour porter du texte (`FIGURE_MIN_SIDE`) :
+    `[(xref, cadre en points)]`, chaque affichage une fois. Une page sans couche texte ne compte
+    pas : elle se lit entière (`pages_without_text`)."""
+    import fitz
+    out, seen = [], set()
+    for info in page.get_image_info(xrefs=True):
+        rect, xref = fitz.Rect(info['bbox']), info.get('xref')
+        if not xref or (xref, tuple(rect)) in seen or min(rect.width, rect.height) < FIGURE_MIN_SIDE:
+            continue
+        seen.add((xref, tuple(rect)))
+        out.append((xref, rect))
+    return out
+
+
+#: Dans une figure, deux mots d'une même ligne d'OCR plus éloignés que cela (en hauteurs de ligne)
+#: appartiennent à deux étiquettes — trois cadres voisins d'un schéma lus d'un trait.
+FIGURE_WORD_GAP = 1.0
+#: Un mot de DEUX lettres n'est une étiquette que lu au moins aussi sûrement : en deçà, c'est le
+#: plus souvent un dessin pris pour des lettres (« LL » 0,51, « Xt » 0,83 sur la figure mesurée).
+FIGURE_SHORT_WORD_CONF = 0.9
+
+
+def _figure_labels(line) -> list:
+    """Les ÉTIQUETTES d'une ligne d'OCR lue dans une figure, à partir de ses MOTS : `[(boîte,
+    texte, confiance)]`. Mesuré sur une figure d'article rendue en bitmap (2026-10-30) : l'OCR y
+    lit aussi le DESSIN — pointillés d'un cadre en « I », courbes en « O 00 C », « % », « Z » —,
+    avec une confiance aussi haute que le texte (1,00) : la confiance ne les sépare pas, la forme
+    si. Un caractère isolé est écarté ; les mots se groupent tant que leur écart ne dépasse pas
+    `FIGURE_WORD_GAP` hauteurs de ligne ; un groupe n'est une étiquette que s'il porte un mot de
+    trois lettres, ou de deux lettres lu sûrement (`FIGURE_SHORT_WORD_CONF`) — « LL » (0,51), le
+    dessin de couches empilées, avait été effacé puis réécrit en gros PAR-DESSUS le dessin. Ce
+    qui n'est pas une étiquette reste dans l'image, tel quel."""
+    words = [w for w in line.get('words') or [] if len(str(w.get('text') or '').strip()) > 1]
+    groups = []
+    for word in words:
+        x0, y0, x1, y1 = word['bbox']
+        last = groups[-1][-1]['bbox'] if groups else None
+        if last and x0 - last[2] <= FIGURE_WORD_GAP * max(y1 - y0, last[3] - last[1]):
+            groups[-1].append(word)
+        else:
+            groups.append([word])
+    labels = []
+    for group in groups:
+        if not any(sum(c.isalpha() for c in w['text']) >= 3
+                   or (sum(c.isalpha() for c in w['text']) == 2
+                       and w.get('conf', 1.0) >= FIGURE_SHORT_WORD_CONF) for w in group):
+            continue
+        box = [min(w['bbox'][0] for w in group), min(w['bbox'][1] for w in group),
+               max(w['bbox'][2] for w in group), max(w['bbox'][3] for w in group)]
+        labels.append((box, ' '.join(w['text'] for w in group),
+                       round(sum(w.get('conf', 1.0) for w in group) / len(group), 3)))
+    return labels
+
+
+def read_figure_text(path, read_lines) -> dict:
+    """Les LIGNES écrites DANS les images bitmap des pages natives (une figure exportée en PNG :
+    ses étiquettes, ses axes) — l'OCR lit les pixels de l'IMAGE, jamais la page rendue, qui
+    porterait le texte natif posé par-dessus ; une ligne qui recouvre du texte natif est écartée
+    (déjà lue). Un seul appel à `read_lines` : un PDF de passage, une page par image. Rend
+    `{page: {'width', 'height', 'unit': 'pt', 'figure_lines': [...]}}` en points de la page, à
+    passer en `ocr=` avec les pages scannées (`read_pages_without_text`)."""
+    import tempfile
+    import fitz
+    skip = set(pages_without_text(path))
+    jobs = []
+    with fitz.open(str(path)) as pdf, tempfile.TemporaryDirectory() as folder:
+        sheet = fitz.open()
+        for page in pdf:
+            if page.number in skip:
+                continue
+            native = [fitz.Rect(line['bbox']) for block in page.get_text('dict')['blocks']
+                      if block.get('type') == 0 for line in block['lines']]
+            for xref, rect in raster_figures(page):
+                pixmap = fitz.Pixmap(pdf, xref)
+                if pixmap.n - pixmap.alpha > 3:          # CMYK → RGB
+                    pixmap = fitz.Pixmap(fitz.csRGB, pixmap)
+                if pixmap.alpha:                         # la transparence n'aide pas l'OCR
+                    pixmap = fitz.Pixmap(pixmap, 0)
+                sheet.new_page(width=pixmap.width, height=pixmap.height).insert_image(
+                    fitz.Rect(0, 0, pixmap.width, pixmap.height), pixmap=pixmap)
+                jobs.append((page.number, page.rect, rect, native))
+        if not jobs:
+            return {}
+        extract = Path(folder) / 'figures.pdf'
+        sheet.save(str(extract))
+        read = read_lines(str(extract))
+    out = {}
+    for (number, page_rect, rect, native), image in zip(jobs, read):
+        sx = rect.width / (image.get('width') or rect.width)
+        sy = rect.height / (image.get('height') or rect.height)
+        for line in image.get('lines') or []:
+            for (x0, y0, x1, y1), text, conf in _figure_labels(line):
+                box = fitz.Rect(rect.x0 + x0 * sx, rect.y0 + y0 * sy,
+                                rect.x0 + x1 * sx, rect.y0 + y1 * sy)
+                if any((box & other).get_area() > 0.3 * box.get_area() for other in native):
+                    continue
+                entry = out.setdefault(number, {'width': page_rect.width,
+                                                'height': page_rect.height, 'unit': 'pt',
+                                                'figure_lines': []})
+                entry['figure_lines'].append({'bbox': list(box), 'text': text, 'conf': conf,
+                                              'words': []})
+    return out
+
+
 def _ink(pixmap, rect, dark: bool = True) -> int:
     """La couleur (0xRRGGBB) de l'ENCRE d'une zone de la page (la médiane de ses pixels les plus
     sombres) ou de son FOND (`dark=False`, celle des plus clairs). `pixmap` : la page à 72 dpi,
@@ -624,7 +764,7 @@ def _ocr_lines(page, ocr_page, pixmap) -> list:
     return lines
 
 
-def _scanned_blocks(page, ocr_page) -> list:
+def _scanned_blocks(page, ocr_page, figure: bool = False) -> list:
     """Les passages d'une page SCANNÉE, faits des lignes de son OCR réunies en paragraphes
     (`_stack(scanned=True)`) — une cellule de tableau, seule dans sa colonne, reste un passage.
     Marqués `scanned` : leur réécriture efface les PIXELS dessous, et ne s'étend pas dans la place
@@ -632,7 +772,7 @@ def _scanned_blocks(page, ocr_page) -> list:
     mesuré le 2026-10-29)."""
     pixmap = page.get_pixmap(dpi=72)
     units = []
-    for lines in _stack(_ocr_lines(page, ocr_page, pixmap), scanned=True):
+    for lines in _stack(_ocr_lines(page, ocr_page, pixmap), scanned=True, centred=figure):
         # UN style par paragraphe : la taille tirée de chaque boîte varie de quelques pour cent
         # d'une ligne à l'autre, et chaque variation devenait une balise de mise en forme.
         spans = [line['spans'][0] for line in lines]
@@ -651,10 +791,12 @@ def _scanned_blocks(page, ocr_page) -> list:
 def _pdf_blocks(page, ocr_page=None) -> list:
     """Les passages de texte d'une page, dans l'ordre du fichier (voir `_pdf_unit`) — un bloc de
     tableau donne un passage par cellule (`_split_tabular`), un bloc de figure un passage par
-    étiquette (`_stack`). Une page sans couche texte dont l'OCR est fourni (`ocr_page`) : ses
-    passages viennent de l'OCR (`_scanned_blocks`)."""
+    étiquette (`_stack`). Une page sans couche texte dont l'OCR est fourni (`ocr_page` à
+    `lines`) : ses passages viennent de l'OCR (`_scanned_blocks`). Une page native dont les
+    images bitmap ont été lues (`figure_lines`, `read_figure_text`, 2026-10-30) : leurs passages
+    suivent ceux du texte natif, traités comme ceux d'un scan."""
     import fitz
-    if ocr_page is not None:
+    if ocr_page is not None and 'lines' in ocr_page:
         return _scanned_blocks(page, ocr_page)
     figures = None
     units = []
@@ -673,6 +815,10 @@ def _pdf_blocks(page, ocr_page=None) -> list:
                 unit['align'] = _column_alignment(lines[0], block['lines']) or unit['align']
             if unit:
                 units.append(unit)
+    if ocr_page is not None and ocr_page.get('figure_lines'):
+        units += _scanned_blocks(page, {'width': ocr_page.get('width'),
+                                        'height': ocr_page.get('height'),
+                                        'lines': ocr_page['figure_lines']}, figure=True)
     return units
 
 
@@ -812,24 +958,27 @@ def _rewrite_pdf_blocks(path, out_path, replacements, markup=False, ocr=None) ->
                 index += 1
             if not todo:
                 continue
-            if page.number in ocr:
-                _erase_scanned(page, todo)
-                for unit, new in todo:
-                    _place(page, unit, _pdf_html(unit, new, markup),
-                           '* {' + _css(unit['style'], unit['leading'], unit['align']) + '}', [])
-                continue
+            # Les passages lus par l'OCR (page scannée, image d'une figure) effacent les PIXELS
+            # dessous et restent dans leur cadre ; ceux du texte natif, son texte seulement, et
+            # s'étendent dans la place libre. Deux passes de caviardage : leurs règles d'image
+            # diffèrent.
+            read = [(unit, new) for unit, new in todo if unit.get('scanned')]
+            native = [(unit, new) for unit, new in todo if not unit.get('scanned')]
             obstacles = ([unit['rect'] for unit in units]
                          + [fitz.Rect(b['bbox']) for b in page.get_text('dict')['blocks']
                             if b.get('type') == 1]
                          + [d['rect'] for d in page.get_drawings()])
-            for unit, _ in todo:
-                page.add_redact_annot(unit['rect'], fill=False)
-            page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
-                                  graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+            if native:
+                for unit, _ in native:
+                    page.add_redact_annot(unit['rect'], fill=False)
+                page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE,
+                                      graphics=fitz.PDF_REDACT_LINE_ART_NONE)
+            if read:
+                _erase_scanned(page, read)
             for unit, new in todo:
                 _place(page, unit, _pdf_html(unit, new, markup),
                        '* {' + _css(unit['style'], unit['leading'], unit['align']) + '}',
-                       _room(page, unit, obstacles))
+                       [] if unit.get('scanned') else _room(page, unit, obstacles))
         pdf.save(str(out_path), garbage=4, deflate=True)
 
 

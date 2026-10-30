@@ -59,10 +59,10 @@ class TheProbeMeasuresTheTextLayerTest(_Folder):
     def test_a_pdf_probe_tells_its_pages_without_text(self):
         from wama.common.utils.media_probe import probe_media
         half = probe_media(str(self.half))
-        self.assertEqual({'pages': 2, 'pages_without_text': 1}, half['attributes'])
+        self.assertEqual({'pages': 2, 'pages_without_text': 1, 'raster_figures': 0}, half['attributes'])
         self.assertEqual('PDF • 2 pages • 1 sans texte', half['properties'])
         native = probe_media(str(self.native))
-        self.assertEqual({'pages': 1, 'pages_without_text': 0}, native['attributes'])
+        self.assertEqual({'pages': 1, 'pages_without_text': 0, 'raster_figures': 0}, native['attributes'])
         self.assertEqual('PDF • 1 page', native['properties'])
 
     def test_the_document_nature_names_what_the_probe_measures(self):
@@ -154,7 +154,7 @@ class TheCardAsksTheProbeTest(TestCase):
         self.assertEqual(200, response.status_code)
         data = response.json()
         self.assertIs(True, data['proposals']['needs_ocr']['value'])
-        self.assertEqual({'pages': 1, 'pages_without_text': 1}, data['attributes'])
+        self.assertEqual({'pages': 1, 'pages_without_text': 1, 'raster_figures': 0}, data['attributes'])
         self.assertEqual([], list(Path(self.media).rglob('*')), 'the probe keeps nothing')
 
     def test_a_designated_pdf_gives_the_same_proposal(self):

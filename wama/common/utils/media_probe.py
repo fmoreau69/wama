@@ -315,11 +315,17 @@ def probe_media(path: str) -> dict:
         properties = f"PDF • {pages} page{'s' if pages > 1 else ''}"
         attributes = {'pages': pages}
         try:
-            from wama.common.utils.document_text import pages_without_text
-            scanned = len(pages_without_text(path))
+            import fitz
+            from wama.common.utils.document_text import pages_without_text, raster_figures
+            scanned_pages = pages_without_text(path)
+            scanned = len(scanned_pages)
             attributes['pages_without_text'] = scanned
             if scanned:
                 properties += f" • {scanned} sans texte"
+            # Les images bitmap des pages NATIVES (2026-10-30) : leur texte ne se lit que par l'OCR.
+            with fitz.open(path) as doc:
+                attributes['raster_figures'] = sum(
+                    len(raster_figures(page)) for page in doc if page.number not in scanned_pages)
         except Exception:
             pass
         return {'media_type': 'pdf', 'properties': properties, 'attributes': attributes}
@@ -378,6 +384,12 @@ def _needs_ocr_property(info: dict):
     if info.get('media_type') != 'pdf' or 'pages_without_text' not in attributes:
         return None
     pages, scanned = attributes.get('pages') or 0, attributes['pages_without_text']
+    figures = attributes.get('raster_figures') or 0
+    if not scanned and figures:
+        # Une image n'a pas toujours du texte (une photo) : rien ne se coche d'office, on le dit.
+        return {'value': False, 'note': f"Ce PDF porte son texte, et {figures} image"
+                                        f"{'s' if figures > 1 else ''} : l'OCR peut traduire le "
+                                        "texte qu'elles contiennent, si vous le cochez."}
     if not scanned:
         return {'value': False, 'note': "Ce PDF porte son texte : rien à lire par l'OCR."}
     if scanned >= pages:

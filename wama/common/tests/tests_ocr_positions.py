@@ -142,6 +142,27 @@ class OcrStepTest(SimpleTestCase):
         item.ocr_file = SimpleNamespace(path=result['fields']['ocr_file'])
         self.assertEqual({'1': page}, read_ocr_file(item, 'ocr_file'), 'page 1 only, as JSON keys')
 
+    def test_a_native_pdf_with_a_bitmap_figure_has_its_figure_read(self):
+        """2026-10-30 : the text drawn inside an image of a native page is read too."""
+        import json
+        from types import SimpleNamespace
+        from wama.common.services.ocr_process import ocr_step
+        from wama.common.tests.tests_document_text import _page_with_raster_figure
+        path, _frame, read_lines = _page_with_raster_figure(self.dir)
+        item = SimpleNamespace(source_document=SimpleNamespace(path=str(path)), user=None, pk=1)
+        ctx = _Ctx(self.dir)
+        with mock.patch('wama.common.services.ocr_process.positioned_ocr_keys',
+                        return_value=['reader:doctr']), \
+                mock.patch('wama.common.utils.auto_model.resolve_model_choice',
+                           return_value='reader:doctr'), \
+                mock.patch('wama.common.backends.manager.backend_instance_for_key',
+                           return_value=SimpleNamespace(read_lines=read_lines)):
+            result = ocr_step('source_document', 'ocr_file')(item, ctx)
+        with open(result['fields']['ocr_file'], encoding='utf-8') as stored:
+            pages = json.load(stored)['pages']
+        self.assertEqual(['Input Frames', 'Neural'],
+                         [line['text'] for line in pages['0']['figure_lines']])
+
     def test_without_an_engine_that_gives_places_it_says_so(self):
         from wama.common.services.ocr_process import ocr_step
         with mock.patch('wama.common.services.ocr_process.positioned_ocr_keys', return_value=[]):

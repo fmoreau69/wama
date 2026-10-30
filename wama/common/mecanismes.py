@@ -537,7 +537,11 @@ MECHANISMS = (
               "(2026-10-29) : `pages_without_text` la dit (test commun, aussi celui du Reader), "
               "`read_pages_without_text` la fait lire par un OCR qui rend la place du texte "
               "(`OCRBackend.read_lines`, passé en argument) ; `ocr=` en fait des paragraphes "
-              "réécrits comme les autres, pixels du scan effacés dessous. Le Writer reste le geste "
+              "réécrits comme les autres, pixels du scan effacés dessous. Images BITMAP d'une page "
+              "native (2026-10-30) : `raster_figures`, `read_figure_text` (les pixels de l'image, "
+              "étiquettes par leurs mots, le dessin écarté) → `figure_lines`, réécrites de même. "
+              "Deux passages balisés que la traduction inverse : un CLONE du morceau d'origine "
+              "(DOCX). Le Writer reste le geste "
               "de qui veut REVOIR la mise en forme — ROADMAP §10.B, §16.4bis, vision §5.4",
               'wama/common/utils/document_text.py',
               'docs/construction/suivi/ROADMAP.md §16.4bis',
@@ -1477,7 +1481,7 @@ MECHANISMS = (
               "« Sortie » commun = output_spec), tasks_gen une glu par process (`process=`), "
               "models_gen une colonne par sortie et par port, views_gen `start_process`. "
               "PROCESS COMMUNS depuis le 30/10 (`pipeline_decl.COMMON_PROCESSES` : la Sortie, "
-              "l'OCR des pages scannées) — une déclaration lue par les deux générateurs ; une "
+              "l'OCR des scans et des images) — une déclaration lue par les deux générateurs ; une "
               "glu dont la brique ne demande que des noms du manifeste est RENDUE (`renders`), "
               "plus laissée au rôle `codegen`",
               'wama/common/manifests/codegen/templates_gen.py', 'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md',
@@ -1643,12 +1647,14 @@ MECHANISMS = (
               'docs/construction/architecture/WAMA_APP_GENERATION_ROUTE.md §10.6',
               annexes=(),
               depends_on=('output_formats',)),
-    Mechanism('ocr_process', 'Process « OCR des pages scannées » d\'une card',
+    Mechanism('ocr_process', 'Process « OCR des scans et des images » d\'une card',
               "Le process OPTIONNEL d'une app qui réécrit un document en gardant sa forme "
               "(2026-10-29, le Translator ; le domaine document de l'Anonymizer ensuite), sur le "
               "patron d'`output_process` : `ocr_step` (la glu) tire un moteur qui rend la place du "
-              "texte (`positioned_ocr_keys`, `supports_text_positions`), lit les seules pages sans "
-              "couche texte et range leurs lignes sur la card ; `read_ocr_file` les rend au process "
+              "texte (`positioned_ocr_keys`, `supports_text_positions`), lit les pages sans "
+              "couche texte et, depuis le 30/10, les images bitmap des pages natives "
+              "(`document_text.read_figure_text` : étiquettes lues par leurs MOTS, le dessin pris "
+              "pour du texte écarté) et range leurs lignes sur la card ; `read_ocr_file` les rend au process "
               "suivant (`ocr=` de la couche texte). Son interrupteur se PROPOSE d'après l'entrée "
               "(`Param.default_from`, `needs_ocr`) — ROADMAP §10.B",
               'wama/common/services/ocr_process.py',

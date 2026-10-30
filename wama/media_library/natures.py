@@ -194,6 +194,9 @@ ASSET_NATURES: Dict[str, Nature] = {
             'pages_without_text': Attr('int', "pages sans couche texte (un scan) : l'OCR les lit "
                                               '(`document_text.pages_without_text`)',
                                        label='Pages sans texte'),
+            'raster_figures': Attr('int', 'images bitmap des pages natives assez grandes pour '
+                                          'porter du texte (`document_text.raster_figures`)',
+                                   label='Images'),
         },
     ),
     'avatar': Nature(
