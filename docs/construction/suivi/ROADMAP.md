@@ -391,7 +391,10 @@ Bloc d'état 2026-07-11 archivé (`docs/construction/archive/ROADMAP_ARCHIVE_202
 > *2026-10-29* : ✅ une mise à jour proposée puis INSTALLÉE succède à l'ancienne version partout où
 > elle était choisie (`model_manager/services/succession.py`, `d84c401e`) ; l'installeur recommande
 > la variante qui tourne et tient sur la carte, la désinstallation retire des choix des apps
-> (`6d9b5cc1`). Détail : `PROSPECTION_PIPELINE.md §Session du 2026-10-29`.
+> (`6d9b5cc1`). Le même jour, les TABLEAUX OFFICIELS (classement français de Linagora, tableaux
+> d'auteurs figés à un commit) notent 30 modèles de plus (`233fd35a`) ; une description de
+> remplissage n'écrase plus une vraie, et `describe_models` comble les autres depuis la fiche ou le
+> web (`7f1165bf`). Détail : `PROSPECTION_PIPELINE.md §Session du 2026-10-29`.
 
 ### Concept
 Tâche Celery nocturne qui compare les modèles installés dans WAMA avec les dernières

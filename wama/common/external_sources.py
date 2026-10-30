@@ -959,6 +959,10 @@ OPEN_ASR_DATASETS = {
 #: Le dépôt GitHub des résultats MTEB, nommé une fois (identifiant `owner/repo`, pas une URL).
 MTEB_RESULTS_REPO = 'embeddings-benchmark/results'
 
+#: Le dépôt GitHub du classement français de Linagora (2026-10-29), même nature que
+#: `MTEB_RESULTS_REPO` — le commit lu, lui, est figé par `benchmark_sync.LINAGORA_COMMIT`.
+LINAGORA_RESULTS_REPO = 'linagora-labs/asr_benchmark'
+
 
 def by_key() -> dict[str, ExternalSource]:
     return {s.key: s for s in SOURCES}

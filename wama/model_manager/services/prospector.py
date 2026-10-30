@@ -766,9 +766,8 @@ def analyze_license(repo_id: str, license_id: str = '', base_model=None, _profon
 def _analyze_license_text(repo_id: str, lid: str):
     import re
 
-    import requests
     try:
-        from huggingface_hub import HfApi, hf_hub_url
+        from huggingface_hub import HfApi
         siblings = HfApi().model_info(repo_id).siblings or []
         fichiers = [s.rfilename for s in siblings
                     if 'licen' in s.rfilename.lower() and '/' not in s.rfilename]
@@ -776,8 +775,7 @@ def _analyze_license_text(repo_id: str, lid: str):
             return {'verdict': 'a_verifier', 'label': 'licence à vérifier',
                     'detail': f"licence « {lid or '?'} » sans fichier LICENSE lisible "
                               "dans le dépôt — lire la card avant d'installer"}
-        texte = requests.get(hf_hub_url(repo_id, fichiers[0]),
-                             timeout=(5, 20)).text.lower()
+        texte = hub_raw_file(repo_id, fichiers[0]).text.lower()   # None → « illisible » plus bas
         m = re.search(r'excluded\s+territor|restricted\s+territor', texte)
         if not m:
             # Filet plus large : « european union » cité dans un contexte d'exclusion.
@@ -972,15 +970,25 @@ def _reads_quant_method(repo_id: str, files) -> bool:
     return not any(_is_model_gguf(f['file']) for f in (files or []))
 
 
-def _quant_method(repo_id: str):
-    """`quantization_config.quant_method` du `config.json` d'un dépôt du Hub : '' quand il n'en
-    déclare pas (ou n'a pas de `config.json`), None quand le Hub ne répond pas — l'appelant ne fige
-    alors rien. Lu par l'adresse `raw`, comme le texte d'une licence : aucun dépôt dans le cache."""
+def hub_raw_file(repo_id: str, filename: str, timeout=(5, 20)):
+    """La réponse HTTP d'UN fichier d'un dépôt du Hub, lu par son adresse `raw` (`hf_hub_url`) —
+    rien n'entre dans le cache —, ou None quand le Hub ne répond pas. LE lecteur d'un fichier de
+    dépôt (2026-10-29) : la licence (`_analyze_license_text`), la configuration (`_quant_method`)
+    et la fiche d'un modèle (`model_descriptions.card_text`) refaisaient chacune ce geste."""
     import requests
     try:
         from huggingface_hub import hf_hub_url
-        response = requests.get(hf_hub_url(repo_id, 'config.json'), timeout=(5, 20))
+        return requests.get(hf_hub_url(repo_id, filename), timeout=timeout)
     except Exception:
+        return None
+
+
+def _quant_method(repo_id: str):
+    """`quantization_config.quant_method` du `config.json` d'un dépôt du Hub : '' quand il n'en
+    déclare pas (ou n'a pas de `config.json`), None quand le Hub ne répond pas — l'appelant ne fige
+    alors rien (`hub_raw_file` : aucun dépôt dans le cache)."""
+    response = hub_raw_file(repo_id, 'config.json')
+    if response is None:
         return None
     if response.status_code == 404:
         return ''

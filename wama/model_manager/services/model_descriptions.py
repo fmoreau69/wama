@@ -66,15 +66,11 @@ def card_repo(row) -> str:
 
 def card_text(repo: str) -> str:
     """La fiche (README) d'un dépôt du Hub, sans son en-tête YAML, tronquée — '' si illisible
-    (dépôt à accès contrôlé, absent). Lue par l'adresse `raw`, comme le texte d'une licence :
-    rien dans le cache."""
-    import requests
-    try:
-        from huggingface_hub import hf_hub_url
-        response = requests.get(hf_hub_url(repo, 'README.md'), timeout=(5, 30))
-    except Exception:
-        return ''
-    if response.status_code != 200:
+    (dépôt à accès contrôlé, absent). Par le lecteur commun d'un fichier de dépôt
+    (`prospector.hub_raw_file`) : rien dans le cache."""
+    from .prospector import hub_raw_file
+    response = hub_raw_file(repo, 'README.md', timeout=(5, 30))
+    if response is None or response.status_code != 200:
         return ''
     from wama.common.utils.front_matter import split_front_matter
     _header, body = split_front_matter(response.text)

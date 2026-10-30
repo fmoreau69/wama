@@ -61,7 +61,8 @@ logger = logging.getLogger(__name__)
 #: Adresses et clé déclarées au registre COMMUN des sources externes (2026-09-01). `SOURCES`
 #: plus bas reste le registre des BANCS — il dit comment LIRE une valeur (priorité, échelle,
 #: méta) ; il ne dit plus où joindre la plateforme. Deux registres, deux questions.
-from wama.common.external_sources import (ARENA_DATASET, MTEB_RESULTS_REPO,  # noqa: F401
+from wama.common.external_sources import (ARENA_DATASET, LINAGORA_RESULTS_REPO,  # noqa: F401
+                                          MTEB_RESULTS_REPO,
                                           OPEN_ASR_DATASETS, api_key as _api_key,
                                           base_url as _base_url_of,
                                           get as _source, proxies_for as _proxies_for)
@@ -810,10 +811,10 @@ def load_hf_benchmarks():
 # note une bonne part — la détection et ses métiers (docs d'Ultralytics), olmOCR-2 (sa fiche :
 # le classement d'olmOCR-Bench sur le Hub ne le liste pas), la transcription française (Linagora).
 
-#: Le classement français de Linagora : le dépôt, son commit FIGÉ (une note ne change pas en
-#: silence ; avancer le commit est un geste), les sept jeux exigés (un modèle sans les sept n'est
-#: pas noté — règle de MTEB) et la métrique lue (WER sans casse ni ponctuation).
-LINAGORA_REPO = 'linagora-labs/asr_benchmark'
+#: Le classement français de Linagora (son dépôt : `external_sources.LINAGORA_RESULTS_REPO`) : le
+#: commit FIGÉ (une note ne change pas en silence ; avancer le commit est un geste), les sept
+#: jeux exigés (un modèle sans les sept n'est pas noté — règle de MTEB) et la métrique lue (WER
+#: sans casse ni ponctuation).
 LINAGORA_COMMIT = '3c051badbf2a12f15088392e573610f0618107bd'
 LINAGORA_DATASETS = ('CommonVoice_max30', 'FLEURS_max30', 'MLS_Facebook_french_max30',
                      'SUMM-RE_max30', 'TEDX_fr_max30', 'Voxpopuli_max30', 'YouTubeFr_max30_split6')
@@ -828,14 +829,14 @@ def load_linagora_asr():
     CTC) — c'est le modèle qu'on installe, pas son décodage. Indépendant : un seul harnais pour
     tous, sauf les modèles de Linagora eux-mêmes (auto-déclarés)."""
     import requests
-    raw = f"{_base_url_of('linagora_asr')}/{LINAGORA_REPO}/{LINAGORA_COMMIT}"
+    raw = f"{_base_url_of('linagora_asr')}/{LINAGORA_RESULTS_REPO}/{LINAGORA_COMMIT}"
     proxies = _proxies_for('linagora_asr')
     headers = {'Accept': 'application/vnd.github+json'}
     tok = _api_key('github_api').strip()
     if tok:
         headers['Authorization'] = f'Bearer {tok}'
     try:
-        r = requests.get(f"{_base_url_of('github_api')}/repos/{LINAGORA_REPO}/git/trees/"
+        r = requests.get(f"{_base_url_of('github_api')}/repos/{LINAGORA_RESULTS_REPO}/git/trees/"
                          f"{LINAGORA_COMMIT}?recursive=1", headers=headers,
                          proxies=_proxies_for('github_api'), timeout=60)
         r.raise_for_status()

@@ -3484,6 +3484,9 @@ l'assistant ne recommandait rien.
      marquées (`services/model_descriptions.py`) : la FICHE du Hub (son dépôt, ou le modèle d'origine
      d'une quantification), sinon une recherche web (`search_engines`), résumée en français par le
      LLM local par défaut, « n'invente rien », la source tracée (`DESCRIPTION_SOURCE_KEY`, collante).
+     La fiche se lit par LE lecteur d'un fichier de dépôt du Hub (`prospector.hub_raw_file`, rien
+     dans le cache), que la licence et la configuration emploient aussi (revérification du 30/10 :
+     trois lecteurs pour un geste) ;
      Essai à blanc juste sur olmOCR-2, Kyutai, FrWhisper (fiche) et gemma4:12b (web).
    ⚠ Pas de résumé automatique à chaque installation : il charge un modèle sur l'Ollama de l'hôte,
    et la montée de VRAM a déjà fait tomber la machine (`tasks.sync_benchmarks_task`) — l'installation

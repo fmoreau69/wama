@@ -125,6 +125,25 @@ class FillingTest(TestCase):
         self.assertEqual(FILLER, row.description)
 
 
+class CardReaderTest(SimpleTestCase):
+    """The card is read by THE reader of a repository file (`prospector.hub_raw_file`), shared
+    with the licence and the configuration readers."""
+
+    def test_the_card_comes_without_its_yaml_header(self):
+        page = mock.Mock(status_code=200, text='---\nlicense: mit\n---\n# Model\nReads pages.')
+        with mock.patch('wama.model_manager.services.prospector.hub_raw_file',
+                        return_value=page) as read:
+            self.assertEqual('# Model\nReads pages.', md.card_text('org/model'))
+        self.assertEqual(('org/model', 'README.md'), read.call_args.args)
+
+    def test_a_silent_or_refused_hub_gives_no_card(self):
+        with mock.patch('wama.model_manager.services.prospector.hub_raw_file', return_value=None):
+            self.assertEqual('', md.card_text('org/model'))
+        with mock.patch('wama.model_manager.services.prospector.hub_raw_file',
+                        return_value=mock.Mock(status_code=401, text='gated')):
+            self.assertEqual('', md.card_text('org/model'))
+
+
 class SummarizeTest(SimpleTestCase):
 
     def _answer(self, text):
