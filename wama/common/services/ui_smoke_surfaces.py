@@ -983,6 +983,7 @@ def _panel_gestures(page, url, stored, verdict, errors):
     verdict(kept.get('frozen') is False, f"rendu modifiable, gardé au serveur ({kept})")
     verdict('preview' not in s['panels'] and 'info' not in s['panels'] and s['inDocument'],
             f"aperçu et infos masqués : pas de panneau, mais toujours dans la page ({s['panels']})")
+    _fit_gesture(page, s['panels'][0], verdict)
     # L'ordre de l'inspecteur d'abord (l'aperçu, puis les infos) : retirés ensemble au montage,
     # les deux avaient la même rangée — c'est leur RANG qui les remet dans l'ordre.
     show(['media-section', 'info-section'], '')
@@ -1033,6 +1034,32 @@ def _panel_gestures(page, url, stored, verdict, errors):
             f"figé puis rechargé : le volet d'avant ({kept}, {s})")
     shown = [e for e in errors if not any(t in e for t in IGNORED_CONSOLE)]
     verdict(not shown, f"aucune erreur JS ({shown[:3]})")
+
+
+#: Un panneau du volet mesuré : sa hauteur, et ce que son corps cache (défilement).
+_PANEL_FIT_JS = """(panel) => {
+    const it = document.querySelector(`.wama-panel-column > .grid-stack-item[data-panel="${panel}"]`);
+    const body = it && it.querySelector('.wama-brick-body');
+    return it ? {h: it.offsetHeight, hidden: body.scrollHeight - body.clientHeight} : null;
+}"""
+
+
+def _fit_gesture(page, panel, verdict):
+    """Un panneau du volet SUIT la hauteur de son contenu (2026-10-30, Fabien : « sinon on se
+    retrouve avec du scroll dans toutes les briques ») : son contenu grandit de 300 px, le panneau
+    grandit sans que son corps défile ; le contenu revient, le panneau aussi."""
+    before = page.evaluate(_PANEL_FIT_JS, panel)
+    page.evaluate("(panel) => { const s = document.querySelector(`.grid-stack-item[data-panel=\"${panel}\"] "
+                  ".wama-panel-body > [id]`); const d = document.createElement('div'); "
+                  "d.id = 'wama-fit-probe'; d.style.height = '300px'; s.appendChild(d); }", panel)
+    page.wait_for_timeout(600)
+    grown = page.evaluate(_PANEL_FIT_JS, panel)
+    page.evaluate("() => document.getElementById('wama-fit-probe').remove()")
+    page.wait_for_timeout(600)
+    back = page.evaluate(_PANEL_FIT_JS, panel)
+    ok = (before and grown and back and grown['h'] - before['h'] >= 280 and grown['hidden'] <= 1
+          and before['hidden'] <= 1 and abs(back['h'] - before['h']) <= 46)
+    verdict(ok, f"« {panel} » à la hauteur de son contenu, sans défiler ({before} → {grown} → {back})")
 
 
 def _window_gestures(page, target, state, verdict, errors):

@@ -170,7 +170,9 @@ body.wama-panel-window .wama-brick-dock, body.wama-panel-window .wama-brick-stac
 
 /* Le VOLET d'une page en briques (2026-10-28, `wama-panel-layout.js`) : chaque section, déplacée
    telle quelle, dans un panneau de la colonne. Figée, la colonne garde l'allure du volet d'avant
-   (ni fond ni cadre, le titre de la section) ; le contenu défile dans son panneau. */
+   (ni fond ni cadre, le titre de la section) ; chaque panneau est à la hauteur de son contenu
+   (2026-10-30) et la colonne défile d'un seul tenant. `.wama-panel-body` est l'ENVELOPPE que mesure
+   la brique, marges comprises. */
 .wama-panel-body { padding: .5rem .6rem; color: inherit; }
 .wama-panel-body > .right-panel-section { margin-bottom: 0; }
 .wama-panel-column.is-frozen .grid-stack-item-content { background: transparent; }

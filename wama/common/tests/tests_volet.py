@@ -507,6 +507,21 @@ class PanelBricksTest(TestCase):
         self.assertEqual([0] + [s.y + s.h for s in PANEL_SLOTS[:-1]], [s.y for s in PANEL_SLOTS],
                          'chacune sous la précédente')
 
+    def test_every_section_of_the_panel_follows_its_content_height(self):
+        """2026-10-30 (Fabien : « sinon on se retrouve avec du scroll dans toutes les briques ») :
+        une section du volet est à la hauteur de son contenu, et le module la monte dans une
+        ENVELOPPE — celle que mesure la brique, marges comprises (le corps nu oubliait les siennes)."""
+        from pathlib import Path
+
+        from django.conf import settings
+
+        from wama.common.utils.volet import PANEL_SLOTS
+        self.assertEqual([], [s.id for s in PANEL_SLOTS if not s.fit], 'à la hauteur de son contenu')
+        script = (Path(settings.BASE_DIR) / 'wama' / 'common' / 'static' / self.PANEL_JS).read_text(
+            encoding='utf-8')
+        self.assertIn("wrap.className = 'wama-panel-body'", script)
+        self.assertNotIn("rec.body.classList.add('wama-panel-body')", script)
+
     def test_the_sections_are_declared_once_on_the_server(self):
         from pathlib import Path
 

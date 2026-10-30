@@ -78,9 +78,10 @@ def volet(*, tete: bool = False, medias: bool = True,
 @dataclass(frozen=True)
 class PanelSlot:
     """Une section du volet comme emplacement de la disposition commune : la COLONNE du volet
-    (`zone='panel'`, une colonne), son ordre (`y`) et sa hauteur PAR DÉFAUT (`h`, en rangées de la
-    grille, 46 px) — le contenu défile dans la brique, l'utilisateur la retaille. `element` :
-    l'identifiant que `base.html` donne à la section, jamais renommé (l'inspecteur le lit)."""
+    (`zone='panel'`, une colonne), son ordre (`y`) et sa hauteur de départ (`h`, en rangées de la
+    grille, 46 px) — une section du volet est à la hauteur de son contenu (`fit`, 2026-10-30) : la
+    colonne défile d'un seul tenant, jamais chaque brique. `element` : l'identifiant que
+    `base.html` donne à la section, jamais renommé (l'inspecteur le lit)."""
     id: str
     element: str
     y: int
@@ -108,10 +109,13 @@ class PanelSlot:
 
 def _stacked(*sections) -> tuple:
     """Les emplacements dans l'ordre donné, chacun sous le précédent : `(id, élément, hauteur)`,
-    et la brique du registre qu'il porte en quatrième quand il en porte une."""
+    et la brique du registre qu'il porte en quatrième quand il en porte une. Tous à la hauteur de
+    leur contenu (2026-10-30, Fabien : « sinon on se retrouve avec du scroll dans toutes les
+    briques ») — mesuré avant : les réglages montraient 446 px sur 1 158 à 1 871, l'assistant 400
+    sur 531 en plus du défilement de sa conversation."""
     out, y = [], 0
     for slot_id, element, h, *brick in sections:
-        out.append(PanelSlot(slot_id, element, y, h, brick=(brick or [''])[0]))
+        out.append(PanelSlot(slot_id, element, y, h, brick=(brick or [''])[0], fit=True))
         y += h
     return tuple(out)
 

@@ -166,13 +166,15 @@
                     return slot.kind ? slot.title : titleOf(elements[slot.id], slot);
                 },
                 mount: function (rec) {
+                    // Une enveloppe : c'est elle, marges comprises, que mesure une brique `fit` —
+                    // une section du volet comme une brique du centre.
+                    var wrap = document.createElement('div');
                     if (!rec.slot.kind) {
-                        rec.body.classList.add('wama-panel-body');
-                        rec.body.appendChild(elements[rec.slot.id]);
+                        wrap.className = 'wama-panel-body';
+                        wrap.appendChild(elements[rec.slot.id]);
+                        rec.body.appendChild(wrap);
                         return;
                     }
-                    // Une enveloppe : c'est elle, marges comprises, que mesure une brique `fit`.
-                    var wrap = document.createElement('div');
                     wrap.className = 'wama-centre-body';
                     if (headings[rec.slot.id]) wrap.appendChild(headings[rec.slot.id]);
                     wrap.appendChild(elements[rec.slot.id]);

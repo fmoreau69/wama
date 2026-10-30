@@ -419,9 +419,21 @@ latérales, on a qu'à le faire »*). Le noyau seul (`wama-surface.js`), aucune 
     identifiants. L'inspecteur et les apps qui la remplissent n'en savent rien
     (`wama-inspector.js` n'est pas touché). Figée, la colonne garde l'allure du volet d'avant : ni
     fond ni cadre, le titre de la section.
-  - **Hauteurs** : chaque section a une hauteur par défaut déclarée (`PANEL_SLOTS`, en rangées de
-    46 px) ; son contenu défile dans le panneau, et l'utilisateur le retaille (la règle de toutes
-    les briques, §3-ter : pas d'ajustement au contenu).
+  - **Hauteurs** : ~~chaque section a une hauteur par défaut déclarée ; son contenu défile dans le
+    panneau, et l'utilisateur le retaille~~ — **depuis le 2026-10-30, chaque section est à la
+    HAUTEUR DE SON CONTENU** (`PanelSlot.fit`, le mécanisme des briques du centre, `refit` de
+    `wama-brick-layout.js`) et la colonne défile d'un seul tenant (`#right-panel-content`). Demande
+    de Fabien : *« sinon on se retrouve avec du scroll dans toutes les briques. C'est ingérable pour
+    l'utilisateur »*. Mesuré avant, sans card : réglages 446 px montrés sur 1 158 (anonymizer),
+    1 871 (transcriber), 1 231 (imager) ; assistant 400 sur 531, en plus du défilement de sa
+    conversation. Après : chaque corps = son contenu (transcriber 1 872/1 872), la dernière brique
+    atteinte en faisant défiler le volet. Le module monte la section dans une ENVELOPPE
+    (`.wama-panel-body`) : c'est elle que gridstack mesure, marges comprises — le corps nu
+    oubliait les siennes. Seule la conversation de l'assistant garde son défilement (un fil).
+    Gardes : `tests_volet.…test_every_section_of_the_panel_follows_its_content_height`, et un
+    geste de `common.panel_layout` (contenu +300 px → le panneau suit sans défiler, puis revient) ;
+    contre-épreuves rouges (déclaration sans `fit`, section sans enveloppe, observateur retiré au
+    navigateur → 279 px cachés).
   - **Une section que la page masque retire son panneau** sans laisser de trou (l'aperçu et les
     infos, tant que rien n'est sélectionné), et il revient à son RANG, quel que soit l'ordre où la
     page montre ses sections (`setShown`). Retiré, il reste dans le document : l'inspecteur le
