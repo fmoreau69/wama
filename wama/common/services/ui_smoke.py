@@ -4543,6 +4543,128 @@ def register_clear_all_scenarios():
         )
 
 
+#: Les menus ▾ de la barre de file visible : leurs entrées (libellé, périmètre, grisé, nombre).
+_QUEUE_SCOPES_JS = """() => [...document.querySelectorAll('.wama-queue-actions')]
+    .filter(bar => bar.offsetParent)
+    .map(bar => ({
+        labels: [...bar.querySelectorAll('.wama-btn-label')].map(l => l.textContent.trim()),
+        toggles: bar.querySelectorAll('.dropdown-toggle-split').length,
+        items: [...bar.querySelectorAll('.dropdown-item[data-queue-scope]')].map(i => ({
+            label: i.textContent.replace(/\\s+/g, ' ').trim(),
+            scope: i.getAttribute('data-queue-scope'),
+            disabled: i.disabled,
+            count: ((i.querySelector('.wama-scope-count') || {}).textContent || '').trim(),
+        })),
+    }))"""
+
+
+def check_app_queue_scopes(app: str, url_path: str):
+    """Les menus ▾ « Lancer la file » / « Effacer la file » disent-ils VRAI ? (ok, detail).
+
+    Le clic principal suit la règle de l'app ; le menu offre les PÉRIMÈTRES de la fabrique
+    (`item_views.START_SCOPES` / `CLEAR_SCOPES`), grisés quand ils sont vides d'après les compteurs
+    de la file (`wama-global-progress.js`, `setScopes`) — du JS, qu'aucun test Python ne voit
+    (2026-10-30). NON destructif : les menus s'ouvrent, aucune entrée n'est cliquée.
+    Mesuré, dans cet ordre :
+      1. la barre visible porte les deux boutons à menu (`.dropdown-toggle-split`) ;
+      2. chaque menu s'OUVRE ;
+      3. chaque entrée est grisée exactement quand son nombre est vide — et, quand la page ne suit
+         qu'UNE file, ce nombre est celui du serveur (`queue_progress`).
+    """
+    from wama.common.services.nightly_tests import SkipScenario
+    from playwright.sync_api import sync_playwright
+
+    url = f"{BASE_URL.rstrip('/')}{url_path}"
+    token = _test_session_key(app)
+    if not token:
+        raise SkipScenario("aucun compte de test disponible (wama_nightly_test / wama_ui_smoke_v3)")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        try:
+            context = browser.new_context(viewport={'width': 1500, 'height': 1000})
+            context.add_cookies([{'name': settings.SESSION_COOKIE_NAME, 'value': token,
+                                  'domain': '127.0.0.1', 'path': '/'}])
+            page = context.new_page()
+            progress = {}
+
+            def on_response(r):
+                if r.request.method == 'GET' and 'progress' in r.url:
+                    try:
+                        data = r.json()
+                    except Exception:
+                        return
+                    if isinstance(data, dict) and 'pending' in data:
+                        progress[r.url.split('?')[0]] = data
+            page.on('response', on_response)
+
+            resp = page.goto(url, wait_until='networkidle', timeout=45000)
+            wrong_page = _exiger_la_page(page, resp, url)
+            if wrong_page:
+                return wrong_page
+            # Les compteurs arrivent au premier tour de la barre de progression.
+            for _ in range(20):
+                if progress:
+                    break
+                page.wait_for_timeout(300)
+            page.wait_for_timeout(600)
+
+            bars = page.evaluate(_QUEUE_SCOPES_JS)
+            if not bars:
+                if not page.locator('.wama-queue-actions').count():
+                    # Une page sans file (Studio, médiathèque…) n'a rien à mesurer ; une app à file
+                    # qui perdrait sa barre est vue par `<app>.clear_all`, qui l'EXIGE.
+                    raise SkipScenario("la page n'a pas de file d'attente (`.wama-queue-actions`)")
+                return False, "la barre de file existe mais n'est pas visible"
+            bar = bars[0]
+            if bar['toggles'] < 2:
+                return False, (f"{bar['toggles']} menu(s) ▾ sur la barre — la barre n'a pas reçu "
+                               f"`start_url`/`clear_url` (`_queue_actions.html`)")
+            toggles = page.locator('.wama-queue-actions .dropdown-toggle-split:visible')
+            for i in range(toggles.count()):
+                toggles.nth(i).click()
+                page.wait_for_timeout(250)
+                if not page.locator('.wama-queue-actions .dropdown-menu.show').count():
+                    return False, f"le menu ▾ n°{i + 1} ne s'ouvre pas"
+                page.keyboard.press('Escape')
+                page.wait_for_timeout(150)
+
+            wrong = [f"{it['label']} : grisé={it['disabled']} pour « {it['count'] or 'vide'} »"
+                     for it in bar['items'] if it['disabled'] != (it['count'] == '')]
+            if wrong:
+                return False, "grisé et nombre se contredisent — " + " ; ".join(wrong)
+            server = ''
+            if len(progress) == 1:
+                counts = next(iter(progress.values()))
+                counts = {**counts, 'failure': counts.get('failure', counts.get('failed')),
+                          'unfinished': counts.get('unfinished'),
+                          'relaunchable': counts.get('relaunchable')}
+                off = [f"{it['scope']} affiché {it['count'] or '0'}, serveur {counts.get(it['scope'])}"
+                       for it in bar['items'] if counts.get(it['scope']) is not None
+                       and (it['count'] or '(0)') != f"({counts[it['scope']]})"]
+                if off:
+                    return False, "le menu ne dit pas les compteurs du serveur — " + " ; ".join(off)
+                server = ', confrontés aux compteurs du serveur'
+            return True, (f"{len(bar['items'])} entrées sur deux menus ▾ ({' / '.join(bar['labels'][:3])}), "
+                          f"chacune grisée exactement quand elle est vide{server}")
+        finally:
+            browser.close()
+
+
+def register_queue_scopes_scenarios():
+    """Enregistre un scénario `<app>.queue_scopes` par app disposant d'une page d'index."""
+    from wama.common.services.nightly_tests import register
+
+    for label, path in discoverable_apps():
+        register(
+            id=f"{label}.queue_scopes", app=label, stage="ui",
+            description=(f"File {label} : les menus ▾ « Lancer la file » / « Effacer la file » "
+                         f"s'ouvrent et grisent exactement les périmètres vides"),
+            run=(lambda p=path, a=label: (lambda ctx: check_app_queue_scopes(a, p)))(),
+            timeout_s=120, vram_gb=0.0,
+        )
+
+
 _CLIC_DOM = """(a) => {
     const sel = a.portee === 'item' ? '[data-id="' + a.id + '"]'
                                     : '.batch-group[data-batch-id="' + a.id + '"]';

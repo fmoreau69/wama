@@ -574,6 +574,7 @@ def _register_builtin() -> None:
         from wama.common.services.ui_smoke import (register_batch_actions_scenarios,
                                                    register_batch_import_scenarios,
                                                    register_clear_all_scenarios,
+                                                   register_queue_scopes_scenarios,
                                                    register_delete_from_batch_scenarios,
                                                    register_duplicate_delete_scenarios,
                                                    register_folder_import_scenarios,
@@ -765,6 +766,9 @@ def _register_builtin() -> None:
         # pas reste à l'écran), celle que le serveur a réellement vidée, et **la BASE, que nul écran
         # ne montre** : un lot vidé ne rend aucune card, donc rien ne le trahirait.
         register_clear_all_scenarios()
+        # 2026-10-30 — les menus ▾ de « Lancer la file » / « Effacer la file » : leur grisé est du
+        # JS (`setScopes`), qu'aucun test Python ne voit. NON destructif : aucune entrée cliquée.
+        register_queue_scopes_scenarios()
         # 2026-08-28 — geste 14, moitié « ENVOYER VERS » : le seul import qui ne PART PAS de l'app.
         # Il traverse deux moitiés bâties sur des sources DIFFÉRENTES — le menu se construit chez le
         # client depuis `WAMA_APP_CATALOG.input_extensions` (la déclaration de l'app), la réception

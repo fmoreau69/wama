@@ -387,6 +387,11 @@ le clic principal suit la règle déclarée, le ▾ offre les PÉRIMÈTRES de la
 Échecs · En attente (`?scope=`, `START_SCOPES` / `CLEAR_SCOPES`). Chaque entrée est grisée quand
 son périmètre est vide, avec son nombre, d'après les compteurs de la barre de progression. Ni l'un
 ni l'autre ne touche un élément EN VOL (en cours, ou en attente de ses ressources).
+Libellés « **Lancer la file** » / « **Effacer la file** » depuis le 2026-10-30 (Fabien : ce sont des
+CHOIX, jamais systématiquement « tout ») ; l'infobulle dit ce que fait le clic principal, la
+confirmation d'effacement dit « sauf les éléments en cours ». Le geste nocturne
+`<app>.queue_scopes` ouvre les deux menus et exige chaque entrée grisée exactement quand elle est
+vide, confrontée aux compteurs du serveur (le grisé est du JS : aucun test Python ne le voit).
 
 ### 3.3 Vues de PROGRESSION — fabrique commune (`progress` + `global_progress`)
 

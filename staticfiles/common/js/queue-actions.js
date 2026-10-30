@@ -18,8 +18,8 @@
  *                  RELANCER une card en cours se confirme ici (bloc « RELANCER UNE CARD EN COURS »).
  *
  * Actions de FILE (barre d'outils, `_queue_actions.html`) — l'app passe une URL, rien d'autre :
- *   ▶ Démarrer tout → data-queue-start-url  (start_url au partial)
- *   🗑 Tout effacer  → data-queue-clear-url  (clear_url au partial ; confirmation par défaut)
+ *   ▶ Lancer la file  → data-queue-start-url  (start_url au partial)
+ *   🗑 Effacer la file → data-queue-clear-url  (clear_url au partial ; confirmation par défaut)
  *   ⬇ Télécharger   → AUCUN JS : `download_url` au partial rend un <a href> (GET FileResponse)
  *
  * Hooks optionnels (une spécificité se DÉCLARE) — tous acceptent `{domain: '…'}` (ou `within`)
@@ -790,7 +790,7 @@
         },
     });
     queueAction('data-queue-clear-url',
-                 { confirmText: 'Effacer TOUS les éléments de la file ? Cette action est définitive.',
+                 { confirmText: 'Effacer la file, sauf les éléments en cours ? Cette action est définitive.',
                    notifyFiles: true, removal: 'queue' });
 
     // Compteurs de la card mère TENUS À JOUR quand une fille change d'état (2026-09-24).
