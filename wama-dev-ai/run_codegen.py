@@ -185,7 +185,7 @@ BRICKS_BY_TRIGGER = {
     # la main, relisait le document en texte brut et rendait un `.md`).
     ('specialization', 'translation'): ('translator', ('translate_text', 'translate_document')),
     # Un réglage qui reprend de l'entrée la propriété `needs_ocr` (`Param.default_from`,
-    # 2026-10-29) : l'app a un process « OCR des pages scannées », dont le process suivant relit
+    # 2026-10-29) : l'app a un process « OCR des scans et des images », dont le process suivant relit
     # les lignes pour la couche texte (`ocr=`). La glu de l'OCR elle-même est APPELÉE, pas montrée :
     # son trou nomme la brique (`pipeline_decl.COMMON_PROCESSES`) — montrée en entier, `ocr_step`
     # a été recopiée deux fois de suite par le rôle (moteur écrit en dur, attribut inventé).

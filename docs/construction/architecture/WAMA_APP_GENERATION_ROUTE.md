@@ -7165,7 +7165,7 @@ possible **sans aucun process**.
       jouer, ▶ borné en 5 s, fond intact (même fichier), mention demandée présente.
     - ✅ **Les PROCESS COMMUNS se déclarent une fois (2026-10-30, Translator).** Le process
       « Sortie » était une exception écrite par clé dans `function_specs_gen` et `tasks_gen` ; à la
-      2ᵉ occurrence (l'« OCR des pages scannées », brique `ocr_process`), elle devient une
+      2ᵉ occurrence (l'« OCR des scans et des images », brique `ocr_process`), elle devient une
       déclaration lue par les deux : `pipeline_decl.COMMON_PROCESSES` — clé → libellé, fabrique de
       déclaration (`spec`, la Sortie : `output_spec`), appel de la glu, et `renders` quand TOUS les
       arguments de la brique sont au manifeste (l'OCR : champ d'entrée de l'élément, sortie
