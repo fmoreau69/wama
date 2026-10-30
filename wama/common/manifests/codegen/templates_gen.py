@@ -623,7 +623,7 @@ des briques communes. On ne déclare donc ici que ce qui est propre à l'app —
 {{% include 'common/_app_scripts.html' %}}
 {{% comment %}}Pieds COMMUNS des modales ⚙ (élément, lot), greffés par `WamaParams.settingsModal`
 (`footerTplId`) — comme dans les dix apps (critère `settings_modal_footer`, 2026-10-30).{{% endcomment %}}
-<template id="{app}SettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_start_label='Enregistrer et démarrer' %}}</template>
+<template id="{app}SettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' %}}</template>
 <template id="{app}BatchSettingsFooterTpl">{{% include 'common/_settings_modal_footer.html' with save_class='save-settings-btn' save_start_class='save-and-restart-btn' save_label='Appliquer' save_start_label='Appliquer et lancer' %}}</template>
 <script>
 window.WAMA_GLOBAL_PROGRESS_URL = "{{% url '{app}:{route_global_progress}' %}}";

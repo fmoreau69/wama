@@ -4467,7 +4467,7 @@ def check_app_clear_all(app: str, url_path: str):
             #    referait par recopie ce que le partial commun a justement centralisé.
             bouton = page.locator('.wama-queue-actions button.btn-outline-danger:visible').first
             if not bouton.count():
-                return False, ("aucun « Tout effacer » au contrat commun "
+                return False, ("aucun « Effacer la file » au contrat commun "
                                "(`.wama-queue-actions .btn-outline-danger`) — l'index de l'app "
                                "n'inclut pas `_queue_actions.html`")
 
@@ -4487,7 +4487,7 @@ def check_app_clear_all(app: str, url_path: str):
                     raise SkipScenario(f"l'app REFUSE l'effacement (HTTP 400) — {posts}")
                 return False, f"le POST d'effacement répond HTTP {statut} ({posts})"
             if statut is None and not posts:
-                return False, ("« Tout effacer » cliqué mais AUCUN POST d'effacement émis — "
+                return False, ("« Effacer la file » cliqué mais AUCUN POST d'effacement émis — "
                                "le bouton commun est rendu, son handler ne l'est pas")
 
             # 3. Ce que l'utilisateur VOIT, sans rechargement.
@@ -4510,7 +4510,7 @@ def check_app_clear_all(app: str, url_path: str):
                                f"{len(etat1['lots'])} lot(s) — le retrait client ne vise pas "
                                f"tout ce que le serveur a supprimé")
 
-            detail = (f"« Tout effacer » exercé : {len(etat0['cartes'])} card(s) + "
+            detail = (f"« Effacer la file » exercé : {len(etat0['cartes'])} card(s) + "
                       f"{len(etat0['lots'])} lot(s) → 0/0 à l'écran ET après rechargement "
                       f"(POST {statut or 'ok'})")
         finally:
@@ -4525,7 +4525,7 @@ def check_app_clear_all(app: str, url_path: str):
     if _nettoyes:
         _restes = ", ".join(f"{n} {nom}" for n, nom in _nettoyes if n)
         return False, (f"{detail} — mais {_total_nettoye(_nettoyes)} objet(s) du montage "
-                       f"SURVIVENT en base ({_restes}) : « Tout effacer » laisse derrière lui "
+                       f"SURVIVENT en base ({_restes}) : « Effacer la file » laisse derrière lui "
                        f"ce qui ne rend aucune card")
     return True, detail
 
@@ -4537,7 +4537,7 @@ def register_clear_all_scenarios():
     for label, path in discoverable_apps():
         register(
             id=f"{label}.clear_all", app=label, stage="ui",
-            description=f"File {label} : « Tout effacer » vide la file à l'écran ET au serveur",
+            description=f"File {label} : « Effacer la file » vide la file à l'écran ET au serveur",
             run=(lambda p=path, a=label: (lambda ctx: check_app_clear_all(a, p)))(),
             timeout_s=240, vram_gb=0.0,
         )

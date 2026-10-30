@@ -3381,7 +3381,7 @@ def clear_my_queue(user, app: str, confirm: bool = False) -> dict:
                 'app': app}
     route = _route_dispo(app, 'clear_all', [])
     if not route:
-        return {'error': f"L'app '{app}' ne déclare aucune route « tout effacer »."}
+        return {'error': f"L'app '{app}' ne déclare aucune route « Effacer la file »."}
     # Compté AVANT : après, il n'y a plus rien à compter — et un geste de masse doit pouvoir
     # dire ce qu'il a emporté.
     avant = list_my_items(user, app=app, limite=1).get('total')
