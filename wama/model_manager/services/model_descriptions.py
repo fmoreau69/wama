@@ -61,8 +61,11 @@ def rows_to_describe(keys=None):
 def card_repos(row) -> list:
     """Les dépôts du Hub dont la fiche peut décrire la ligne, dans l'ordre : le sien, puis le
     modèle d'origine d'une quantification (un GGUF est ce modèle — son dépôt n'a souvent pas de
-    fiche lisible : chandra-ocr-2, relu le 2026-10-30)."""
-    return [r for r in dict.fromkeys((row.hf_repo, row.quantized_base)) if r]
+    fiche lisible : chandra-ocr-2, relu le 2026-10-30). La paire est LA règle par ligne
+    (`AIModel.hub_repos`, en minuscules — le Hub sert une fiche quelle que soit la casse) ; seul
+    l'ordre s'ajoute ici."""
+    own = (row.hf_repo or '').lower()
+    return sorted(row.hub_repos(), key=lambda repo: repo != own)
 
 
 def card_text(repo: str) -> str:
