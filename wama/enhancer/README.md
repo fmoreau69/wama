@@ -84,6 +84,23 @@ dans `urls.py` : 31 au 2026-10-31) : débruitage DeepFilterNet et
 resemble-enhance, avec sa propre file. Les batchs (import multi-fichiers, actions de lot) sont
 câblés sur les deux branches.
 
+⚠ **DeepFilterNet 3 n'est pas installé par la route** (constat du 2026-10-31, décision attendue de
+Fabien). Sa ligne `enhancer:deepfilternet` ne déclare aucun fichier ; à son premier usage,
+`common/backends/audio_enhancer.py::DeepFilterNetBackend._ensure_loaded` (l.325-342) laisse la librairie télécharger le modèle
+(`init_df("DeepFilterNet3")`, son cache redirigé vers `MODEL_PATHS['speech']['deepfilternet']`) —
+la dérive que la règle « librairies et modèles par la ROUTE » d'`AGENTS.md` interdit, et que la garde
+`tests_install_route` ne voit pas (le téléchargement est DANS la librairie). Les poids en place
+(`DeepFilterNet3/config.ini`, 2 067 o, et `checkpoints/model_120.ckpt.best`, 8 714 073 o, sha256
+`23b92884…6003`) ne sont ni déclarés ni désinstallables. Pourquoi ce n'est pas corrigé : le pilote
+`files` n'accepte que des origines figées FICHIER par fichier (`model_installer.py:832-838`) ; la
+version officielle n'est publiée que sous forme d'ARCHIVE dans l'arbre du dépôt
+(`models/DeepFilterNet3.zip` — les versions GitHub v0.5.2 à v0.5.6 ne portent que des binaires,
+mesuré le 2026-10-31) ; et aucun miroir du Hub n'a ces octets (`fal/DeepFilterNet3` sert un
+`model.safetensors` CONVERTI, les autres de l'ONNX, du CoreML, du GGUF). Deux voies, à trancher :
+un pilote d'ARCHIVE dans la route (zip figé au commit et à l'empreinte, extraction contrôlée), ou un
+miroir converti, ce qui change le chargeur. Retirer le téléchargement sans l'une d'elles casserait
+une installation neuve.
+
 **Même modèle de réglages que l'image/vidéo (2026-10-28, porté d'un bloc)** : l'élément audio
 NAÎT avec le volet — dépôt de card ou de lot, « Envoyer vers » du gestionnaire de fichiers, outil
 `add_to_audio_enhancer` de l'assistant, tous par `views.new_audio_settings` (défauts du schéma ←

@@ -847,7 +847,14 @@ Ajouter le nouveau modèle dans la fonction `_discover_*_models()` correspondant
   UNE lib n'a pas les effets de bord de `HF_HUB_CACHE` (qui, lui, emporte tout ce que le
   processus télécharge ensuite) : c'est le 4ᵉ idiome d'aiguillage légitime, à côté de
   `cache_dir=`, de `poids_locaux()` et de l'environnement d'un sous-processus.
-  Tenu par `wama_lab/face_analyzer/tests.py::PoidsDeepFaceRangesTest`.
+  Tenu par `wama_lab/face_analyzer/tests.py::PoidsDeepFaceRangesTest`, et pour Coqui (`TTS_HOME`,
+  sorti de `coqui_backend.load` le 2026-10-31, R193) par
+  `wama/common/tests/tests_hf_cache_routing.py::CoquiWeightsHomeTest` — un processus sans Django
+  (le service de voix) la pose dans son AMORCE, pas dans un backend.
+  ⚠ *Constat du 2026-10-31, mesuré : `AUDIOCRAFT_CACHE_DIR`, cité ci-dessus en exemple, est encore
+  posé DANS le backend, à chaque chargement et par modèle* (`common/backends/audiocraft_backend.py:196`,
+  un dossier par famille — musicgen, audiogen — choix du `ROADMAP §5b` du 2026-09-04) : l'écart à
+  cette règle est à trancher (décision de Fabien), pas recopié.
 
 > ⚠ « Laisser un modèle se télécharger dans `AI-models/cache/huggingface/` » figurait ici comme
 > INTERDIT. **Retiré le 2026-09-03 : c'était faux pour les SOUS-DÉPENDANCES**, et cette
