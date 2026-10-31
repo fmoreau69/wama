@@ -150,7 +150,9 @@ def tools_for(user) -> list:
 def call(user, name: str, arguments) -> dict:
     """Un appel d'outil = `execute_tool`. Rien de plus."""
     from wama.tool_api import execute_tool
-    return execute_tool(name, dict(arguments or {}), user)
+    # Les arguments d'un client MCP sont écrits par un modèle : un argument inconnu est refusé
+    # pour une écriture, dit pour une lecture (`tool_api._ignored_arguments_answer`).
+    return execute_tool(name, dict(arguments or {}), user, model_call=True)
 
 
 def _toolset(surface: str) -> tuple:

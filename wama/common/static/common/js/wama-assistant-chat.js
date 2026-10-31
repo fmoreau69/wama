@@ -762,8 +762,24 @@
       if (!r) return;
       if (r.action === 'panels' && global.WamaPanels) global.WamaPanels.setAll(!!r.folded);
       if (r.action === 'navigate' && isLocalPath(r.url)) self.pendingPage = r.url;
+      if (r.action === 'hands') wishHands(!!r.on);
     });
   };
+
+  /** Les MAINS (`use_hand_mode`, 2026-10-30) : l'icône ✋ de la barre, cliquée comme par
+   *  l'utilisateur. Sans scène 3D sur la page l'icône est cachée : le souhait est RETENU dans
+   *  l'onglet, et la scène ouverte ensuite (`open_page`) l'exauce une fois
+   *  (`wama-hands-ui.js::registerHandTarget`, même clé). */
+  var HANDS_WISH_KEY = 'wama.hands.wish';
+  function wishHands(on) {
+    var btn = document.getElementById('wamaHandsToggle');
+    var item = btn && btn.closest('li');
+    if (btn && item && !item.hidden) {
+      if (btn.classList.contains('active') !== on) btn.click();
+      return;
+    }
+    try { global.sessionStorage.setItem(HANDS_WISH_KEY, on ? 'on' : 'off'); } catch (e) { /* stockage refusé */ }
+  }
 
   /** Suit la page retenue par `applyActions` une fois `spoken` résolue (la lecture vocale
    *  finie) ; sans voix, après un court délai pour laisser lire la réponse. Le fil serveur

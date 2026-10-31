@@ -89,6 +89,26 @@ class ListMyItemsTest(TestCase):
         self.assertIn('error', T.list_my_items(AnonymousUser()))
 
 
+class ListUserFilesTest(TestCase):
+    """`list_user_files` est transverse, donc autorisé à tous par `tool_accessible` : seul son
+    corps peut refuser un appel sans compte (audit des droits, 2026-10-30)."""
+
+    def test_an_anonymous_call_is_refused_and_creates_no_folder(self):
+        from pathlib import Path
+
+        from django.conf import settings
+        from django.contrib.auth.models import AnonymousUser
+        folder = Path(settings.MEDIA_ROOT) / T._FOLDER_MAP['temp'].format(user_id=None)
+        self.assertIn('error', T.list_user_files(AnonymousUser()))
+        self.assertFalse(folder.exists())
+
+    def test_a_signed_in_user_lists_their_folder(self):
+        """Contre-épreuve : la garde ne ferme pas l'outil à ceux qui y ont droit."""
+        out = T.list_user_files(_utilisateur('lister'))
+        self.assertNotIn('error', out)
+        self.assertEqual('temp', out['folder'])
+
+
 class GetItemDetailTest(TestCase):
     def setUp(self):
         self.moi = _utilisateur('moi2')

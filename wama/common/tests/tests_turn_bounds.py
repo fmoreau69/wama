@@ -39,7 +39,7 @@ def _turn(calls=(), answer='Réponse.', **bounds):
             return '{"tool": "%s", "args": {"q": "x"}}' % calls[index], {}
         return answer, {}
 
-    def run(name, args, user):
+    def run(name, args, user, **_options):
         executed.append(name)
         return {'ok': True}
 

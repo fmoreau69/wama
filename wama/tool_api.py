@@ -22,6 +22,7 @@ HTTP endpoints (login_required, GET/POST JSON):
 import json
 import logging
 import os
+import re
 from pathlib import Path
 
 from django.conf import settings
@@ -152,6 +153,10 @@ def list_user_files(user, folder: str = 'temp') -> dict:
     # rendait pdf/txt/csv/wdat INVISIBLES à l'assistant alors que le sas les reçoit.
     # Et ne PAS le remplacer par une liste dérivée d'`input_extensions` — pour 3 apps ces
     # extensions déclarent un format de LOT, pas un fichier de travail (WAMA_LLM §Intake).
+    # Transverse, donc autorisé à tous par `tool_accessible` : sans compte, `user.id` vaut None et
+    # le dossier `users/None/…` était CRÉÉ sous les médias (relevé le 2026-10-30, audit des droits).
+    if refusal := _signed_in_refusal(user):
+        return refusal
     template = _FOLDER_MAP.get(folder)
     if template is None:
         available = ', '.join(_FOLDER_MAP.keys())
@@ -1319,6 +1324,40 @@ def fold_side_panels(user, folded: bool = True) -> dict:
 
 @tool_effect(READ, sub_agent=False,
              reason="une action que le chat du PARENT exécute ; l'étape d'un sous-agent n'y arrive pas")
+def use_hand_mode(user, on: bool = True) -> dict:
+    """
+    Turn the HAND mode on or off — driving a 3D scene with the hands, through the webcam ("active
+    le mode main", "pilote la 3D à la main", "coupe les mains"): the index finger points, a pinch
+    clicks, a fist turns the scene, two fists zoom. Images never leave the user's browser.
+
+    It works on a 3D scene page only (the constellations returned in `scenes`). If the user is not
+    on one, ALSO call `open_page` with one of them: the hands switch on when the scene opens.
+    In the web chat it is the hand icon of the top bar, switched for the user; on another surface
+    (a channel) there is no page to drive: say so.
+
+    Args:
+        on: True to switch the hands on, False to switch them off.
+
+    Returns:
+        {"action": "hands", "on", "scenes": [{"key", "label"}], "message"}
+    """
+    # Le geste est l'icône ✋ de la barre (`wama-hands-ui.js`), cliquée par le chat
+    # (`wama-assistant-chat.js::applyActions`) — le pont de `fold_side_panels`. Aucune page 3D n'est
+    # nommée ici : `scenes` est la déclaration des scènes, filtrée par le droit de les ouvrir.
+    if refusal := _signed_in_refusal(user, "Le mode main"):
+        return refusal
+    from wama.common.services.navigation import scene_pages
+    on = on not in (False, 'false', 'False', 0, '0')
+    scenes = [{'key': p['key'], 'label': p['label']} for p in scene_pages(user)]
+    if on and not scenes:
+        return {'error': "Aucune scène 3D ne vous est ouverte : le mode main n'a rien à piloter."}
+    return {'action': 'hands', 'on': on, 'scenes': scenes,
+            'message': ("Mode main allumé sur la scène 3D (la caméra demande l'autorisation au "
+                        "premier usage)." if on else 'Mode main éteint.')}
+
+
+@tool_effect(READ, sub_agent=False,
+             reason="une action que le chat du PARENT exécute ; l'étape d'un sous-agent n'y arrive pas")
 def open_page(user, page: str) -> dict:
     """
     Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
@@ -1979,7 +2018,9 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
          runs, who serves it and what it costs (« WAMA local », « Cloud commercial · Claude Code ·
          abonnement », « Cloud commercial · API Anthropic (Claude) · facturé à l'usage ») ;
          `benchmark` = third-party score {value, scale, direction, source, provenance} or null;
-         compare two models only on the SAME scale.
+         compare two models only on the SAME scale. `not_runnable` (only when present) = the
+         model is installed but NO backend can run it: an app task with it fails — never offer
+         or launch it. `truncated_note` = the list is cut: what it does not show still exists.
     """
     from wama.model_manager.models import AIModel
 
@@ -2051,8 +2092,34 @@ def list_ai_models(user, app: str = None, task: str = None, modality: str = None
         'quality_index': m.quality_index,
         'benchmark': _benchmark_summary(m),
         'description': m.description_short or '',
+        **_runnable_verdict(m),
     } for m in qs[:max(1, min(int(limit or 50), 200))]]
-    return {'models': models, 'count': total, 'truncated': total > len(models)}
+    answer = {'models': models, 'count': total, 'truncated': total > len(models)}
+    if answer['truncated']:
+        # Une liste coupée ne dit RIEN de ce qu'elle ne montre pas (2026-10-30, fil Discord n° 43 :
+        # 50 lignes sur 142, triées par source, l'Anonymizer d'abord — l'assistant en a conclu
+        # « aucun modèle de génération d'images installé »). Dit dans la donnée, pas dans le prompt.
+        answer['truncated_note'] = (
+            f"Only {len(models)} of {total} models are listed here (sorted by source). Never "
+            f"conclude that a model is absent: narrow with `app`, `task`, `modality` or `query`.")
+    return answer
+
+
+def _runnable_verdict(m) -> dict:
+    """`{'not_runnable': raison}` quand une ligne installée n'a POSITIVEMENT aucun backend, sinon
+    `{}` — le verdict des selects d'app (`backends.manager.backend_missing`), pas un second. Le
+    2026-10-30 (fil Discord n° 43), l'assistant a dit FLUX.1-dev « installé et utilisable dans
+    l'Imager » et a lancé une clé du Hub sans moteur : la tâche a échoué au démarrage."""
+    if m.is_proposed:
+        return {}
+    from wama.common.backends.manager import backend_missing
+    try:
+        reason = backend_missing(m)
+    except Exception:
+        logger.debug('[tool_api] verdict d\'exécutabilité illisible pour %s', m.model_key,
+                     exc_info=True)
+        return {}
+    return {'not_runnable': reason} if reason else {}
 
 
 def _benchmark_summary(m):
@@ -2099,7 +2166,64 @@ def get_ai_model(user, model_key: str) -> dict:
         'available': m.is_available, 'proposed': m.is_proposed,
         'last_used_at': m.last_used_at.isoformat() if m.last_used_at else None,
         'benchmark': _benchmark_summary(m),
+        **_runnable_verdict(m),
     }
+
+
+@tool_effect(READ)
+def list_installations(user, kind: str = 'model', limit: int = 20) -> dict:
+    """
+    The DATED history of model (or library) installations and uninstallations, most recent first:
+    "which model did I install recently?", "when was X installed?", "did the install of Y fail?".
+
+    An installed model is installed for everyone; `via` says where it was asked from (the model
+    manager page, the assistant, an app's requirements, the command line). To know whether a
+    model is usable now, read its catalogue line (`get_ai_model` / `list_ai_models(query=…)`).
+
+    Args:
+        kind:  'model' (default) or 'library'.
+        limit: maximum number of events (1-100, default 20).
+
+    Returns:
+        {"installations": [{"name", "key", "action", "status", "via", "started_at",
+                            "finished_at", "error"?, "size_gb"?}], "count"}
+    """
+    # Le JOURNAL de la route d'installation (`model_manager.InstallEvent`, écrit par
+    # `install_history` seul), celui de la couche « Installations » du calendrier. Le 2026-10-30
+    # (fil Discord n° 43), « rappelle-moi le modèle que j'ai installé » : l'assistant a cherché
+    # dans les notifications, deviné des tables (`wama.Model`), puis cité un modèle UTILISÉ
+    # (Supra2) — aucun outil ne lisait ce journal.
+    if refusal := _signed_in_refusal(user):
+        return refusal
+    from django.utils import timezone
+
+    from wama.model_manager.models import InstallEvent
+    from wama.model_manager.services.install_history import VIA_LABELS, effective_state
+    if kind not in (InstallEvent.KIND_MODEL, InstallEvent.KIND_LIBRARY):
+        return {'error': f"kind inconnu : {kind!r} (valeurs : 'model', 'library')"}
+    try:
+        limit = max(1, min(int(limit or 20), 100))
+    except (TypeError, ValueError):
+        limit = 20
+    status_labels = dict(InstallEvent.STATUS_CHOICES)
+    now = timezone.now()
+    rows = []
+    for event in InstallEvent.objects.filter(kind=kind).order_by('-started_at')[:limit]:
+        detail = event.detail or {}
+        # Le statut tel que le calendrier le DIT (une demande jamais reprise n'est plus « en cours »).
+        status, error, _abandoned = effective_state(event, now)
+        row = {'name': event.name or event.key, 'key': event.key,
+               'action': event.get_action_display(),
+               'status': status_labels.get(status, status),
+               'via': VIA_LABELS.get(event.via, event.via),
+               'started_at': event.started_at.isoformat(),
+               'finished_at': event.finished_at.isoformat() if event.finished_at else None}
+        if error:
+            row['error'] = error
+        row.update({k: detail[k] for k in ('size_gb', 'disk_gb', 'freed_gb')
+                    if detail.get(k) not in (None, '')})
+        rows.append(row)
+    return {'installations': rows, 'count': len(rows)}
 
 
 # ── model_manager : les gestes de la page, pour l'assistant ──────────────────────────
@@ -2276,7 +2400,9 @@ def get_install_options(user, model_key: str) -> dict:
     Returns:
         {"choice": bool, "recommended": int | null,
          "options": [{"kind","ref","file","disk_gb","driver","label","runnable","reason",
-                      "vram_estimated_gb","fits"}]}
+                      "vram_estimated_gb","fits"}],
+         "disk": {"free_gb", "drive", "margin_gb"}} — `disk` = free space NOW on the models
+        volume: compare it to `disk_gb` and to any budget the user gave before installing.
     """
     from wama.model_manager.models import AIModel
     from wama.model_manager.services.prospector import install_options
@@ -2295,7 +2421,26 @@ def get_install_options(user, model_key: str) -> dict:
     return {'choice': res.get('choice', False), 'recommended': res.get('recommended'),
             'options': [{k: o.get(k) for k in ('kind', 'ref', 'file', 'disk_gb', 'driver', 'label',
                                                'runnable', 'reason', 'vram_estimated_gb', 'fits')}
-                        for o in (res.get('options') or [])]}
+                        for o in (res.get('options') or [])],
+            **_models_disk()}
+
+
+def _models_disk() -> dict:
+    """`{'disk': {'free_gb', 'drive', 'margin_gb'}}` du volume des modèles — la mesure même de la
+    garde d'installation (`model_installer.disk_space_guard` → `SystemMonitor.get_disk_info`).
+    Le 2026-10-30 (fil Discord n° 43), « j'aimerais garder 50 Go » : l'assistant a raisonné sur
+    des tailles INVENTÉES (« Flux : 20-40 Go ») sans connaître l'espace libre. `{}` si non mesurable."""
+    try:
+        from wama.common.services.system_monitor import SystemMonitor
+        from wama.model_manager.services.model_installer import DISK_MARGIN_GB
+        info = SystemMonitor.get_disk_info()
+    except Exception:
+        logger.debug('[tool_api] espace disque non mesurable', exc_info=True)
+        return {}
+    if not info:
+        return {}
+    return {'disk': {'free_gb': round(float(info.get('free_gb') or 0), 1),
+                     'drive': info.get('drive', ''), 'margin_gb': DISK_MARGIN_GB}}
 
 
 @tool_effect(WRITE)
@@ -3957,6 +4102,7 @@ TOOL_REGISTRY = {
     # model_manager — LECTURE SEULE (trou #18 : « lister modèles/capacités, utile à l'assistant »)
     'list_ai_models': list_ai_models,
     'get_ai_model':   get_ai_model,
+    'list_installations': list_installations,
     # model_manager — les DEUX gestes du bouton (2026-09-19, alignement des routes) : chercher
     # écrit des PROPOSITIONS, installer ne prend qu'une clé déjà proposée ou cataloguée. Voir
     # le bloc de commentaire au-dessus de `search_models` pour la frontière exacte.
@@ -4019,6 +4165,7 @@ TOOL_REGISTRY = {
     'list_media_assets':      list_media_assets,
     'get_media_asset_url':    get_media_asset_url,
     'fold_side_panels':       fold_side_panels,
+    'use_hand_mode':          use_hand_mode,
     'open_page':              open_page,
     # L'INTERFACE d'une page (2026-10-29, `WAMA_VOLETS §3-ter`) : ses briques, leurs raccourcis et
     # la disposition, lus au registre des briques — et remettre SA disposition par défaut.
@@ -4049,6 +4196,9 @@ TOOL_APP_OVERRIDE = {
     'find_user_files':     None,
     'translate_text':      None,
     'fold_side_panels':    None,
+    # Les mains (2026-10-30) : une préférence de LECTURE de la page, comme les volets ; le droit
+    # est celui d'ouvrir une scène 3D, décidé dans le corps (`navigation.scene_pages`).
+    'use_hand_mode':       None,
     # L'interface d'une page et sa disposition : transverses, sur le compte de l'appelant (la
     # disposition est une préférence de LECTURE) ; refus des non-identifiés dans les corps.
     'get_page_interface':  None,
@@ -4079,6 +4229,9 @@ TOOL_APP_OVERRIDE = {
     # d'écriture (install/unload) serait gardée 'model_manager', pas ces lectures.
     'list_ai_models':      None,
     'get_ai_model':        None,
+    # Le journal des installations : la couche « Installations » du calendrier, lisible par tout
+    # compte identifié (une installation vaut pour l'instance) — refus des non-identifiés au corps.
+    'list_installations':  None,
     # …et voici l'action d'ÉCRITURE que cette ligne annonçait (2026-09-19). Gardée `model_manager`
     # jusqu'au 2026-10-13 ; le model manager est depuis une page des Registres : l'outil relève
     # de `registries`, et le GESTE est réservé aux développeurs dans son corps
@@ -5066,14 +5219,83 @@ def relay_next_step(tool_name: str, result: dict) -> dict:
     return result
 
 
-def execute_tool(tool_name: str, args: dict, user) -> dict:
+def _changes_something(tool_name: str) -> bool:
+    """L'outil ÉCRIT ou DÉTRUIT (son effet déclaré, `tool_effect`)."""
+    return (effect_of(tool_name) or {}).get('effect') in (WRITE, DESTROY)
+
+
+def _accepted_arguments(tool_name: str) -> list:
+    """Les arguments qu'un appelant peut donner : la signature, et le schéma de l'app quand
+    l'outil ouvre `**params` — la surface même de `sanitize_tool_args`."""
+    from wama.common.utils.param_schema import schema_arg_names
+    sig = _tool_signature(TOOL_REGISTRY.get(tool_name))
+    if sig is None:
+        return []
+    names = {n for n, p in sig.parameters.items()
+             if p.kind not in (p.VAR_POSITIONAL, p.VAR_KEYWORD) and n != 'user'}
+    if any(p.kind == p.VAR_KEYWORD for p in sig.parameters.values()):
+        app_id = app_id_for_tool(tool_name)
+        names |= schema_arg_names(app_id) if app_id else set()
+    return sorted(names)
+
+
+def _ignored_arguments_answer(tool_name: str, ignored: list, refused: bool = False) -> dict:
+    """Ce qu'un appel dit d'un argument qu'il n'a PAS utilisé (2026-10-30, fil Discord n° 43).
+
+    ⚠ LE DÉFAUT MESURÉ : `start_imager(media_id=1163)` — le paramètre s'appelle `generation_id`.
+    L'argument était jeté en silence (un `logger.info`), l'outil recevait « aucun élément » et
+    lançait TOUTE la file : un élément d'août est reparti. Le même jour `list_ai_models
+    (proposed_only=True)`, servi par un processus qui ne connaissait pas encore ce paramètre,
+    rendait le catalogue installé, et le modèle a annoncé « l'API fonctionne enfin ».
+    Un argument ignoré change le SENS d'un appel : une écriture qui en reçoit un est refusée en
+    nommant les arguments admis ; une lecture répond, et le dit."""
+    accepted = ', '.join(_accepted_arguments(tool_name))
+    names = ', '.join(ignored)
+    if refused:
+        return {'error': f"Argument(s) inconnu(s) pour '{tool_name}' : {names}. Rien n'a été fait. "
+                         f"Arguments admis : {accepted}."}
+    return {'ignored_arguments': list(ignored),
+            'ignored_note': f"Argument(s) ignoré(s), ce résultat ne les applique PAS : {names}. "
+                            f"Arguments admis : {accepted}."}
+
+
+_UTC_TIME = re.compile(r'^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?\+00:00$')
+
+
+def _local_times(value, depth: int = 0):
+    """Les heures UTC d'un résultat (`…+00:00`, la sérialisation des dates de Django) rendues
+    dans le fuseau de WAMA (`TIME_ZONE`) — même instant, offset dit (2026-10-30, fil Discord
+    n° 43 : l'ETA `16:27:57+00:00` a été annoncée « 16h27 » à 17 h, heure de Paris). Pour un
+    MODÈLE seulement : il lit l'heure écrite, il ne convertit pas. Le moteur lui donne l'heure
+    courante dans le même fuseau (`assistant_engine._clock_line`)."""
+    if depth > 8:
+        return value
+    if isinstance(value, dict):
+        return {k: _local_times(v, depth + 1) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_local_times(v, depth + 1) for v in value]
+    if isinstance(value, str) and _UTC_TIME.match(value):
+        from datetime import datetime
+
+        from django.utils import timezone
+        try:
+            return timezone.localtime(datetime.fromisoformat(value)).isoformat()
+        except ValueError:
+            return value
+    return value
+
+
+def execute_tool(tool_name: str, args: dict, user, *, model_call: bool = False) -> dict:
     """
     Dispatch a tool call from the agentic loop.
 
     Args:
-        tool_name: Name of the tool to call
-        args:      Arguments dict from the LLM
-        user:      Django User instance
+        tool_name:  Name of the tool to call
+        args:       Arguments dict from the LLM
+        user:       Django User instance
+        model_call: the arguments were WRITTEN BY A LANGUAGE MODEL (assistant, MCP) — an
+                    argument outside the tool's signature is then refused for a tool that
+                    changes something, and reported for a read (`_ignored_arguments_answer`).
 
     Returns:
         Tool result dict (always a dict, never raises)
@@ -5098,6 +5320,8 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
         clean, ignored = sanitize_tool_args(tool_name, args)
         if ignored:
             logger.info(f"[tool_api] {tool_name} : arguments hors signature ignorés : {ignored}")
+            if model_call and _changes_something(tool_name):
+                return _ignored_arguments_answer(tool_name, ignored, refused=True)
         # La PORTE du schéma, au point d'exécution UNIQUE (`param_schema.schema_refusals`, la
         # même que le Studio et l'exécution d'une fonction, 2026-10-12) : un choix hors liste
         # (les selects des 43 outils, sans validation recopiée par app — les listes en dur
@@ -5120,7 +5344,10 @@ def execute_tool(tool_name: str, args: dict, user) -> dict:
         sig = _tool_signature(fn)
         if sig is not None and 'user' in sig.parameters:
             clean['user'] = user
-        return fn(**clean)
+        result = fn(**clean)
+        if ignored and isinstance(result, dict):
+            result = {**result, **_ignored_arguments_answer(tool_name, ignored)}
+        return _local_times(result) if model_call else result
     except TypeError as e:
         return {'error': f"Mauvais arguments pour '{tool_name}' : {e}"}
     except Exception as e:

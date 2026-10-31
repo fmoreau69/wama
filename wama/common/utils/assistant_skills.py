@@ -69,6 +69,11 @@ DOMAINES = (
                      help_text="Questions de méthode et de résultats, avec le contexte du labo."),
     AssistantDomain('design', 'Graphisme', 'assistant-design', rag=True,
                      help_text="Logos, illustrations, visuels — cadrés par l'identité du labo."),
+    # Les MODÈLES côté usage (2026-10-30, fil Discord n° 43) : catalogue d'une app, prospection,
+    # installé ou non, exécutable ou non, budget disque, installation. L'INTÉGRATION d'un modèle
+    # (manifeste, backend) reste au domaine `dev`, vers lequel la consigne renvoie.
+    AssistantDomain('models', 'Modèles', 'assistant-models',
+                     help_text="Quels modèles pour une app, prospection, installation, disque."),
     AssistantDomain('dev', 'Développement', 'assistant-dev', benchmark_family='coding',
                      development=True,
                      help_text="Code, architecture et conventions de WAMA."),

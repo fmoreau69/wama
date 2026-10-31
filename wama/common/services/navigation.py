@@ -2,7 +2,7 @@
 Les PAGES qu'un utilisateur peut ouvrir — ce que l'assistant propose quand on lui demande
 « emmène-moi sur… » (outil `open_page`, 2026-10-11), et le menu du compte (2026-10-14).
 
-RIEN N'EST DÉCLARÉ ICI. Les pages viennent de trois déclarations :
+RIEN N'EST DÉCLARÉ ICI. Les pages viennent de quatre déclarations :
   • les apps du catalogue (`APP_CATALOG`, `url_name`) et les surfaces hors catalogue
     (`register_surface` : médiathèque, studio, Lab…), lues ensemble par `get_app_groups()` — ce
     qui fait déjà le menu « Applications » (`accounts/context_processors.py`). Le droit est la
@@ -11,7 +11,8 @@ RIEN N'EST DÉCLARÉ ICI. Les pages viennent de trois déclarations :
   • les pages du COMPTE (`register_account_page` : profil, journal, calendrier, catalogues…),
     qui font le menu du compte. Leur droit est celui de la requête RÉELLE
     (`permissions.can_open_page` : fermeture au visiteur, politique du chemin, décorateur de la
-    vue).
+    vue) ;
+  • les SCÈNES 3D (`register_scene`, 2026-10-30), avec la même décision (`scene_pages`).
 
 ⚠ CE QUI DIFFÈRE DU MENU APPLICATIONS, et pourquoi : il applique en plus la PRÉFÉRENCE
 d'affichage (une app masquée par l'utilisateur, `subscriptions.masques`) et `nav_hide`. Ce sont
@@ -129,6 +130,41 @@ def navigable_pages(user) -> list:
                  'description': page['description'], 'aliases': []}
         pages.append(entry)
         by_url[entry['url']] = entry
+    for entry in scene_pages(user, allowed):
+        known = by_url.get(entry['url'])
+        if known is not None:
+            known['scene'] = True
+            known['aliases'].append(entry['label'])
+            continue
+        pages.append(entry)
+        by_url[entry['url']] = entry
+    return pages
+
+
+def scene_pages(user, allowed_apps=None) -> list:
+    """Les SCÈNES 3D que `user` peut ouvrir (`common/scenes.py`, 2026-10-30 — demande de Fabien :
+    « activer le mode main en 3D » depuis l'assistant, qui n'atteignait aucune scène). Chacune par
+    sa déclaration — titre, description, garde — et le droit de la requête RÉELLE
+    (`can_open_page` : le chemin `common/scenes` relève de la politique `registries`, puis la
+    garde que la scène déclare). `scene: True` : c'est sur elles que les mains s'allument."""
+    from django.urls import NoReverseMatch
+
+    from wama.accounts.permissions import can_open_page
+    from wama.common.scenes import SCENES, page_url
+
+    pages = []
+    for scene in SCENES.values():
+        try:
+            url = page_url(scene)
+        except NoReverseMatch:
+            logger.warning("[navigation] scène '%s' omise — URL irrésolvable", scene.key)
+            continue
+        access = 'admin' if scene.permission == 'admin' else 'account'
+        if not can_open_page(user, access, url, allowed_apps):
+            continue
+        pages.append({'key': f'scene:{scene.key}', 'label': scene.page_title, 'url': url,
+                      'world': '', 'description': scene.description, 'scene': True,
+                      'aliases': [f'{scene.key} 3D', scene.kicker]})
     return pages
 
 

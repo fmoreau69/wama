@@ -157,6 +157,18 @@ def _close(event_id, result):
         logger.warning('[install_history] clôture impossible (#%s)', event_id, exc_info=True)
 
 
+def effective_state(row, now):
+    """`(statut, erreur, abandonnée)` d'un événement tel qu'il se DIT — au calendrier et à
+    l'assistant (`tool_api.list_installations`). Ouvert depuis plus que `QUEUED_MAX_AGE` sans
+    jamais être repris, il n'est plus « en cours » : c'est une demande restée sans tâche."""
+    from ..models import InstallEvent
+    status, error = row.status, (row.detail or {}).get('error', '')
+    abandoned = row.finished_at is None and now - row.started_at > QUEUED_MAX_AGE
+    if abandoned:
+        status, error = InstallEvent.STATUS_FAILURE, NOT_RESUMED
+    return status, error, abandoned
+
+
 # ── La couche du calendrier ──────────────────────────────────────────────────────────────────
 
 def calendar_events(start, end):
@@ -190,12 +202,7 @@ def calendar_events(start, end):
         verb = 'Installation' if row.action == InstallEvent.ACTION_INSTALL else 'Désinstallation'
         what = 'librairie ' if row.kind == InstallEvent.KIND_LIBRARY else ''
         title = f'{verb} : {what}{row.name or row.key}'
-        status, error = row.status, (row.detail or {}).get('error', '')
-        # Ouverte depuis plus que `QUEUED_MAX_AGE` sans jamais être reprise : ce n'est plus « en
-        # cours » (la barre s'allongerait sans fin), c'est une demande restée sans tâche.
-        abandoned = row.finished_at is None and now - row.started_at > QUEUED_MAX_AGE
-        if abandoned:
-            status, error = InstallEvent.STATUS_FAILURE, NOT_RESUMED
+        status, error, abandoned = effective_state(row, now)
         if status == InstallEvent.STATUS_FAILURE:
             title += ' — échec'
         finish = row.finished_at or (row.started_at if abandoned else now)

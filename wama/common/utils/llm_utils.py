@@ -415,6 +415,40 @@ def provider_saturation(exc, wait_s: float = RATE_LIMIT_WAIT_S):
     return None
 
 
+#: Le préfixe que LiteLLM pose devant le message du fournisseur — il ne dit rien à l'utilisateur.
+_LITELLM_PREFIX = re.compile(r'^(litellm\.\w+:\s*)?(\w+:\s*)?(OpenAIException|AnthropicException)?\s*-?\s*')
+
+
+def provider_error_text(label: str, model: str, exc) -> str:
+    """L'échec d'un fournisseur distant DIT à l'utilisateur : qui, quoi, que faire (2026-10-30,
+    fil Discord n° 43). Jusque-là la boucle rendait `str(exc)` — « litellm.APIError: APIError:
+    OpenAIException - » : ILaaS avait refusé l'appel SANS message, et l'utilisateur ne savait ni
+    quel service, ni si son message avait été traité, ni quoi faire.
+
+    Lu par le STATUT et le TYPE LiteLLM (comme `provider_saturation`), jamais par le texte ; le
+    message du fournisseur n'est cité que s'il en reste un une fois le préfixe LiteLLM retiré."""
+    status = getattr(exc, 'status_code', None)
+    detail = _LITELLM_PREFIX.sub('', str(exc or '')).strip()[:200]
+    who = f"{label} ({model})" if model else label
+    if _rate_limited(exc):
+        what = "a atteint sa limite de débit pour votre clé"
+    elif status in (401, 403) or type(exc).__name__ in ('AuthenticationError', 'PermissionDeniedError'):
+        what = "refuse la clé : vérifiez-la dans votre profil (carte « Modèles cloud »)"
+    elif status == 404 or type(exc).__name__ == 'NotFoundError':
+        what = "ne connaît pas ce modèle"
+    elif type(exc).__name__ == 'ContextWindowExceededError':
+        what = "refuse une conversation trop longue pour ce modèle"
+    elif provider_saturation(exc) is not None:
+        what = "est indisponible pour le moment"
+    elif status:
+        what = f"a refusé la requête (HTTP {status})"
+    else:
+        what = "a refusé la requête"
+    reason = f" — « {detail} »" if detail else " sans dire pourquoi"
+    return (f"{who} {what}{reason}. Votre message n'a pas été traité : renvoyez-le, ou choisissez "
+            f"un autre modèle dans le sélecteur.")
+
+
 def _scope_of(scope) -> str:
     """La portée de la clé : telle quelle, ou calculée par la fonction qui la porte."""
     return scope() if callable(scope) else (scope or 'instance')
@@ -689,9 +723,11 @@ def llm_chat(
             return None, EMPTY_RESPONSE_ERROR
         return text.strip(), None
     except Exception as e:
-        logger.error(f"[llm_utils] LiteLLM error ({provider}/{model}): {e}")
+        # Le statut et le type au JOURNAL : « APIError » vide ne disait pas ce qu'ILaaS avait rendu.
+        logger.error(f"[llm_utils] LiteLLM error ({provider}/{model}) "
+                     f"{type(e).__name__} status={getattr(e, 'status_code', None)}: {e}")
         _note_provider_failure(provider, e, wait_s, saturation_scope, model)
-        return None, str(e)
+        return None, provider_error_text(declared.label or provider, model, e)
 
 
 def _listed(value) -> list:

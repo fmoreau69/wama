@@ -16,6 +16,8 @@
    ========================================================================== */
 
 const targets = new Set();
+// Le souhait de l'assistant, même clé que `wama-assistant-chat.js` (`HANDS_WISH_KEY`).
+const HANDS_WISH_KEY = 'wama.hands.wish';
 let engine = null, session = null, box = null, overlay = null, og = null;
 
 const toggle = () => document.getElementById('wamaHandsToggle');
@@ -29,6 +31,11 @@ export function registerHandTarget(target) {
   targets.add(target);
   const btn = toggle();
   if (btn) { btn.closest('li')?.removeAttribute('hidden'); btn.hidden = false; }
+  // Le souhait de l'assistant (`use_hand_mode`), retenu dans l'onglet faute de scène sur la page
+  // où il a été dit : la scène qui se déclare l'exauce, une fois (`wama-assistant-chat.js::wishHands`).
+  let wish = null;
+  try { wish = sessionStorage.getItem(HANDS_WISH_KEY); sessionStorage.removeItem(HANDS_WISH_KEY); } catch (e) { /* stockage refusé */ }
+  if (wish === 'on') start();
   return () => {
     targets.delete(target);
     if (!targets.size) { stop(); if (btn) btn.closest('li')?.setAttribute('hidden', ''); }

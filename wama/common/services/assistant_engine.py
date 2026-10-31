@@ -1057,6 +1057,69 @@ def _strip_think_tags(text: str) -> str:
     return re.sub(r'<think>.*?</think>', '', text, flags=re.DOTALL).strip()
 
 
+def _clock_line() -> str:
+    """L'HEURE de WAMA, dans son fuseau (2026-10-30, fil Discord n° 43). Le modèle n'avait aucune
+    horloge : interrogé sur l'ETA d'une tâche, il a lu `16:27:57+00:00` comme « 16h27 » à 17 h
+    (heure d'hiver de Paris) — l'utilisateur a dû demander si WAMA était à l'heure. Placée en
+    QUEUE de prompt, avec le dynamique : elle change à chaque tour. Les heures des résultats
+    d'outils sont rendues dans ce même fuseau (`tool_api._local_times`)."""
+    from django.utils import timezone
+    now = timezone.localtime()
+    return (f"\n\nCURRENT TIME: {now:%Y-%m-%d %H:%M} ({timezone.get_current_timezone_name()}, "
+            f"UTC{now:%z}). Times in tool results are in this time zone: say them as they are.")
+
+
+#: Les symboles que les modèles écrivent en notation MATHÉMATIQUE LaTeX au milieu d'une phrase
+#: (`$\rightarrow$`, `$\times$`, `$\geq$`), et leur caractère. Mesuré le 2026-10-29 sur Discord
+#: (gemma-4-31b par Albert et ILaaS, tours 612 → 632) : « Prompt $\rightarrow$ Scénario ». Aucune
+#: surface ne rend le LaTeX — ni le chat web (`toHtml`), ni Discord, ni Matrix, ni la voix —, le
+#: lecteur voyait donc le code. Un symbole hors de cette table laisse le passage intact.
+_MATH_SYMBOLS = {
+    'rightarrow': '→', 'to': '→', 'leftarrow': '←', 'gets': '←', 'leftrightarrow': '↔',
+    'Rightarrow': '⇒', 'implies': '⇒', 'Leftarrow': '⇐', 'Leftrightarrow': '⇔', 'iff': '⇔',
+    'longrightarrow': '⟶', 'longleftarrow': '⟵', 'Longrightarrow': '⟹', 'mapsto': '↦',
+    'uparrow': '↑', 'downarrow': '↓', 'nearrow': '↗', 'searrow': '↘',
+    'times': '×', 'cdot': '·', 'div': '÷', 'pm': '±', 'mp': '∓',
+    'leq': '≤', 'le': '≤', 'geq': '≥', 'ge': '≥', 'neq': '≠', 'ne': '≠', 'approx': '≈',
+    'sim': '∼', 'simeq': '≃', 'equiv': '≡', 'propto': '∝', 'll': '≪', 'gg': '≫',
+    'infty': '∞', 'degree': '°', 'circ': '∘', 'ldots': '…', 'cdots': '⋯', 'dots': '…',
+    'in': '∈', 'notin': '∉', 'subset': '⊂', 'subseteq': '⊆', 'cup': '∪', 'cap': '∩',
+    'forall': '∀', 'exists': '∃', 'emptyset': '∅', 'checkmark': '✓', 'star': '⋆',
+    'alpha': 'α', 'beta': 'β', 'gamma': 'γ', 'delta': 'δ', 'Delta': 'Δ', 'epsilon': 'ε',
+    'lambda': 'λ', 'mu': 'μ', 'pi': 'π', 'sigma': 'σ', 'Sigma': 'Σ', 'theta': 'θ', 'omega': 'ω',
+}
+#: Un passage mathématique EN LIGNE : `$…$` sur une ligne (jamais `$$`), ou `\(…\)`.
+_INLINE_MATH = re.compile(r'(?<![\\$])\$(?!\$)([^$\n]+?)(?<!\\)\$(?!\$)|\\\((.+?)\\\)')
+_MATH_COMMAND = re.compile(r'\\([A-Za-z]+)\s*')
+#: Le code n'est jamais touché : un bloc ``` ou un passage `…` peut montrer du LaTeX VOULU.
+_CODE_SPAN = re.compile(r'```.*?```|`[^`\n]*`', re.DOTALL)
+
+
+def _math_symbols_to_text(text: str) -> str:
+    """Remplace un passage mathématique en ligne fait de SYMBOLES (`$\\rightarrow$`,
+    `$x \\to y$`) par ses caractères (`→`, `x → y`).
+
+    Ne touche que ce qui se lit sans ambiguïté : au moins une commande, TOUTES connues de
+    `_MATH_SYMBOLS`, et ni accolade, ni indice, ni exposant — une vraie formule reste écrite
+    telle quelle, et un montant (`5 $ et 10 $`) n'a pas de commande, il ne bouge pas. Le code
+    (blocs et passages entre accents graves) n'est jamais modifié."""
+    def replace(match):
+        body = match.group(1) if match.group(1) is not None else match.group(2)
+        commands = _MATH_COMMAND.findall(body)
+        if (not commands or any(c not in _MATH_SYMBOLS for c in commands)
+                or re.search(r'[{}^_\\]', _MATH_COMMAND.sub('', body))):
+            return match.group(0)
+        return _MATH_COMMAND.sub(lambda m: _MATH_SYMBOLS[m.group(1)] + ' ', body).strip()
+
+    parts, last = [], 0
+    for code in _CODE_SPAN.finditer(text):
+        parts.append(_INLINE_MATH.sub(replace, text[last:code.start()]))
+        parts.append(code.group(0))
+        last = code.end()
+    parts.append(_INLINE_MATH.sub(replace, text[last:]))
+    return ''.join(parts)
+
+
 #: URL ou chemin média dans une réponse. S'arrête aux délimiteurs Markdown pour ne pas
 #: avaler la parenthèse fermante d'un `[libellé](url)`.
 _URL_IN_TEXT = re.compile(r'(?:https?://|/media/)[^\s)\]>"\'`]+')
@@ -1881,6 +1944,40 @@ def _bounded_payload(payload: str, limit: int) -> str:
             f"{head}\n[… {len(payload) - limit} caractères omis …]\n{tail}")
 
 
+def _load_dev_competence(user, message: str, domain, tool_steps: list, messages: list,
+                         on_event=None) -> None:
+    """Charge la compétence de DÉVELOPPEMENT dès qu'un outil `dev_*` est appelé sans elle
+    (2026-10-30, décision de Fabien après le fil Discord n° 43 : « générer les backends via les
+    mécanismes de WAMA » — le skill `dev` portait la chaîne d'intégration, mais le fil tournait en
+    domaine général et l'assistant a improvisé avec Claude Code).
+
+    Le même geste que le modèle aurait fait : `charger_competence(domaine='dev')`, joué par la
+    boucle, à la trace comme toute étape — le fil s'en SOUVIENT donc (`last_loaded_domain`) et en
+    sort comme d'habitude, au premier outil de la triade. Une fois par tour. Le prédicat est celui
+    qui dit « cette étape fait entrer dans le code » (`development_models.is_development_step`),
+    resté sans appelant quand la bascule de MODÈLE a été levée le 2026-10-12."""
+    from wama.common.services.development_models import is_development_step
+    from wama.common.utils.assistant_skills import DOMAINES, resolve_domain
+    if resolve_domain(domain).development or any(
+            step.get('tool') == 'charger_competence' and is_development_step(step)
+            for step in tool_steps):
+        return
+    dev = next((d.key for d in DOMAINES if d.development), None)
+    if dev is None:
+        return
+    from wama.tool_api import execute_tool
+    args = {'domaine': dev, 'question': message or ''}
+    result = execute_tool('charger_competence', args, user, model_call=True)
+    if 'error' in result:
+        return
+    tool_steps.append({'tool': 'charger_competence', 'args': args, 'result': result,
+                       'automatic': True})
+    if on_event is not None:
+        on_event({'type': 'step', 'step': tool_steps[-1]})
+    messages.append(_tool_result_message('charger_competence', result, limit=TOOL_RESULT_CHARS,
+                                         announce=True))
+
+
 def _tool_result_message(tool_name: str, tool_result, limit: int = None, *,
                          announce: bool = False) -> dict:
     """Le résultat d'un outil tel que le modèle le lit — UNE forme, dans la boucle du tour comme
@@ -2264,7 +2361,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
                      + (f"\n\n{role}" if role else '')
                      + annonce + tools_prompt.replace('{LANGUE}', langue)
                      + surface_prompt
-                     + contexte_labo + wama_context)
+                     + contexte_labo + wama_context + _clock_line())
 
     # Réflexion du modèle (chemin local) DÉRIVÉE du curseur Rapide ↔ Qualité de l'utilisateur —
     # le même réglage que le tirage automatique lit (`resolve_turn_model`). Le domaine de
@@ -2400,8 +2497,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
             # Contrôle de SOURCE des liens : ce que le prompt demande, la sortie le VÉRIFIE
             # (les fabrications du fil sont resservies au modèle à chaque tour).
             removed = []
-            clean_text = _strip_unsourced_urls(_strip_think_tags(text), tool_steps, message,
-                                               removed=removed)
+            clean_text = _strip_unsourced_urls(_math_symbols_to_text(_strip_think_tags(text)),
+                                               tool_steps, message, removed=removed)
             if removed and not tool_steps and user is not None:
                 return _invented_turn(user, message, provider=provider, llm_model=llm_model,
                                       local=local, etiquette=etiquette, total_usage=total_usage,
@@ -2472,7 +2569,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         elif tool_name in dev_names:
             tool_result = mcp_client.call_dev_tool(user, tool_name, tool_args)
         else:
-            tool_result = execute_tool(tool_name, tool_args, user)
+            tool_result = execute_tool(tool_name, tool_args, user, model_call=True)
             # Le curseur de l'assistant vaut pour les tâches qu'il lance (Fabien, 22/09) — et
             # le résultat le DIT (`quality_level`), pour que le modèle le dise à l'utilisateur.
             try:
@@ -2504,6 +2601,8 @@ def run_assistant_turn(user, message: str, provider: str = None,
         messages.append({"role": "assistant", "content": text})
         messages.append(_tool_result_message(tool_name, tool_result, limit=TOOL_RESULT_CHARS,
                                              announce=True))
+        if tool_name in dev_names:
+            _load_dev_competence(user, message, domain, tool_steps, messages, on_event)
 
         # BASCULE RÉÉVALUÉE DANS LA BOUCLE (`WAMA_HARNESS §9` chantier 1 b) : jusqu'au 2026-10-28
         # la fenêtre n'était jugée qu'au départ et au relais, et ce que la boucle ajoutait pouvait
@@ -2554,7 +2653,7 @@ def run_assistant_turn(user, message: str, provider: str = None,
         total_usage['input_tokens'] += result.get('input_tokens', 0)
         total_usage['output_tokens'] += result.get('output_tokens', 0)
         total_usage['cost_usd'] += result.get('cost_usd') or 0.0
-    final = _strip_think_tags(text or '')
+    final = _math_symbols_to_text(_strip_think_tags(text or ''))
     if not final or _parse_tool_call(final):
         # Le modèle veut encore un outil, ou n'a rien rendu : on dit ce qui a été EXÉCUTÉ —
         # la trace, pas un récit, et jamais l'appel brut.

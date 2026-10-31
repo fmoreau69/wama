@@ -2478,6 +2478,119 @@ parfaitement aligné avec le fonctionnement de WAMA ; on ne réinvente rien ».
      transverses, refus des non-identifiés dans les corps.
    - Gardes : `tests_volet.PageControlsTest.test_the_assistant_describes_a_page_and_resets_its_layout`
      (contre-épreuve : une interface sans briques → rouge). Détail : `WAMA_VOLETS §3-ter`.
+6. **Les SCÈNES 3D et le MODE MAIN** (2026-10-30, demande de Fabien : « activer le mode main en
+   3D » depuis l'assistant).
+   - Mesuré avant d'écrire : `open_page` n'atteignait AUCUNE des trois scènes déclarées
+     (`users`, `licenses`, `models`), et aucun outil ne touchait aux mains (`wama-hands-ui.js`,
+     l'icône ✋ de la barre, 2026-10-22).
+   - Les scènes entrent dans `navigation.navigable_pages` par leur déclaration
+     (`navigation.scene_pages`, lue de `scenes.SCENES`), avec le droit de la requête RÉELLE
+     (`can_open_page` : politique `registries` du chemin, puis la garde que la scène déclare —
+     celle des utilisateurs reste à l'administration). Clé `scene:<clé>`.
+   - **`use_hand_mode(on)`** — le pont de `fold_side_panels` : une action `hands` que le chat
+     exécute en cliquant l'icône ✋, le geste même de l'utilisateur
+     (`wama-assistant-chat.js::wishHands`). Sans scène sur la page, l'icône est cachée : le
+     souhait est retenu dans l'onglet (`sessionStorage`, `wama.hands.wish`) et la scène qui se
+     déclare ensuite l'exauce une fois (`wama-hands-ui.js::registerHandTarget`). L'outil rend les
+     scènes que le compte peut ouvrir : le modèle appelle `open_page` avec l'une d'elles. Sur un
+     canal, rien à piloter : il le dit.
+   - Gardes : `tests_assistant_reach.HandModeFromTheAssistantTest` (droit des scènes, outil) et
+     `HandModeInTheBrowserTest` (V8 sur les fichiers servis : icône cliquée, souhait retenu puis
+     exaucé une fois ; contre-épreuve : une scène sans souhait n'allume pas la caméra).
+   - ⏳ Non vu au navigateur réel (caméra, autorisation au premier usage).
+
+**Symboles mathématiques dans les réponses (2026-10-30, Discord).** gemma-4-31b (Albert, ILaaS)
+écrit « Prompt $\rightarrow$ Scénario » ; aucune surface ne rend le LaTeX (le chat web,
+`toHtml`, non plus). La réponse FINALE du moteur passe par `_math_symbols_to_text` (à côté de
+`_strip_think_tags`) : un passage en ligne fait de symboles connus devient ses caractères ; une
+vraie formule, un montant et le code restent intacts. Le flux web montre encore le brut pendant la
+frappe, puis la bulle est remplacée par la réponse finale. Garde : `tests_assistant_math_symbols`.
+
+**Audit des droits (2026-10-30)** : `list_user_files`, transverse, n'avait pas de refus des
+non-identifiés et créait `users/None/…` sous les médias — refus ajouté
+(`tests_tool_api_lectures.ListUserFilesTest`).
+
+**Diagnostic du fil Discord n° 43 (2026-10-30, 14:04 → 17:48, demande de Fabien).** Lu dans
+`tool_steps`, pas dans le texte. Dix défauts sous un après-midi de prospection Imager ; chacun se
+solde par ce que la PORTE ou la DONNÉE dit, pas par une consigne.
+1. **Un argument inconnu jeté en silence lançait toute la file.** `start_imager(media_id=1163)`
+   (le paramètre est `generation_id`) → l'élément #58 d'août est reparti. `execute_tool` reçoit
+   `model_call=True` de l'assistant et de MCP : une ÉCRITURE avec un argument hors signature est
+   REFUSÉE en nommant les arguments admis ; une LECTURE répond avec `ignored_arguments` /
+   `ignored_note`. Le Studio (réglages de nœud) garde le filtrage, sans refus.
+2. **Heures UTC lues comme locales** : ETA `16:27:57+00:00` dite « 16h27 » à 17 h. Les heures d'un
+   résultat destiné à un modèle sont rendues dans `TIME_ZONE` (`tool_api._local_times`), et le
+   prompt porte l'heure courante en queue (`assistant_engine._clock_line`). Le modèle n'avait
+   AUCUNE horloge.
+3. **Liste coupée lue comme exhaustive** : 50 lignes sur 142 → « aucun modèle d'image installé ».
+   `list_ai_models` ajoute `truncated_note`.
+4. **Modèle dit utilisable, lancé, échec** — ⚠ corrigé par la revérification du 2026-10-31 :
+   la clé lancée, `huggingface:black-forest-labs/FLUX.1-dev`, **n'est PAS au catalogue** (mesuré :
+   `imager:flux-1-dev`, installée et servie par `DiffusersBackend`, et une proposition Comfy-Org,
+   rien d'autre). Le modèle a recopié la forme d'un `platform_ref`. La porte ne l'a pas refusée,
+   par décision (`47c760a6`, 2026-10-07 : « la porte ne refuse rien […] le LANCEMENT refuse un
+   modèle que rien ne sert ») — le lancement l'a refusée, APRÈS l'annonce « lancée avec succès ».
+   `not_runnable` (le verdict des selects, `backends.manager.backend_missing`) reste utile pour
+   une ligne installée sans backend, mais n'aurait rien empêché ici. ⏳ Décision : refuser à la
+   porte une clé ABSENTE du catalogue (pas une clé hors domaine, que la décision du 07/10 laisse
+   passer) en nommant les voisines (`model_installer.similar_model_keys`) ?
+5. **« Le modèle installé récemment »** : notifications, tables devinées (`wama.Model`), puis un
+   modèle UTILISÉ cité. Outil `list_installations` sur le journal `InstallEvent`, avec le statut
+   tel que le calendrier le dit (`install_history.effective_state`, extrait à la revérification :
+   une demande jamais reprise n'est plus « en cours »).
+6. **Tailles inventées, budget disque ignoré** (« garder 50 Go ») : `get_install_options` rend
+   `disk.free_gb`, la mesure même de la garde d'installation.
+7. **Rapport de Claude Code coupé en silence** (1 500 caractères dans la notification, 6 000 dans
+   `dev_job_status`), puis une « suite » INVENTÉE au tour suivant, sans outil. La coupure est dite
+   avec le geste qui donne la suite (`dev_tools.cut_with_notice`) ; outil de dev
+   `dev_read_report` (le rapport entier par tranches).
+8. **Compétence `models`** (`assistant-models.md`) : la méthode côté usage — portée par l'app,
+   recherche UNE famille par appel, budget disque mesuré ; l'intégration renvoie au skill `dev`,
+   qui portait déjà la chaîne `model` → validation → `backend` mais n'était pas chargé.
+9. **La compétence `dev` se charge seule** (décision de Fabien, 2026-10-31) : un outil `dev_*`
+   appelé sans elle → la boucle joue `charger_competence(domaine='dev')`, à la trace
+   (`automatic: true`), une fois par tour ; le fil s'en souvient et en sort comme d'habitude
+   (`last_loaded_domain`). `assistant_engine._load_dev_competence`, par le prédicat
+   `development_models.is_development_step`, resté SANS APPELANT depuis la levée du bridage
+   (2026-10-12) — `WAMA_MECANISMES` annonçait encore une « bascule en cours de tour » qui
+   n'existait plus : le registre `mecanismes.py` est corrigé.
+10. **L'erreur d'un fournisseur se DIT** (décision de Fabien, 2026-10-31) : « ⚠ litellm.APIError:
+    APIError: OpenAIException - » était `str(exc)`. Mesuré au journal : relais Albert (limite de
+    débit) → ILaaS `gemma-4-31b`, refus SANS message en moins d'une seconde, deux fois le 30/10 et
+    deux fois le 29/10 ; pas un statut de panne, donc ILaaS n'était pas écarté du tirage.
+    `llm_utils.provider_error_text` dit qui, quoi (débit, clé, modèle inconnu, contexte trop long,
+    indisponible, statut HTTP) et que faire ; le message du fournisseur n'est cité que s'il existe.
+    Le journal porte désormais le type et le statut. ⏳ La CAUSE côté ILaaS reste à mesurer (sonde
+    `llm_gateway_check` sur `gemma-4-31b`, longue conversation + outils natifs).
+- Gardes : `tests_tool_gate_answers` (16), `tests_mcp_client` (compétence dev : une fois, et
+  pas dans le domaine dev) ; contre-épreuves jouées le 2026-10-31 (porte des écritures et
+  chargement neutralisés → trois rouges).
+- ✗ **Corrigé** : « les outils du tour échoué sont perdus pour le tour suivant » était FAUX — le
+  tour #684 a cité Supra2 depuis le `list_my_items` du tour #680 en échec, l'historique les
+  déplie. Le défaut du #684 est d'avoir pris un modèle UTILISÉ pour un modèle installé.
+- ⏳ **Restes, non traités (décisions ou domaines d'autres sessions)** :
+  - la PORTE DE CONFIDENTIALITÉ a pseudonymisé la clé `huggingface:black-forest-labs/FLUX.1-dev`
+    en `[IDENTIFIANT_1]` dans la tâche confiée à Claude Code, qui n'a pas pu la vérifier
+    (`dev_tools.dev_claude_code` → `privacy_gate`, `ROADMAP §16.4bis`) — que la porte épargne-t-elle
+    (clés de catalogue, chemins, passages entre accents graves) ? Décision ;
+  - « en activant bien l'enrichissement » : `add_to_imager` n'expose aucun choix d'enrichissement
+    (il suit `PROMPT_TARGETS`), et l'assistant n'en a rien dit ;
+  - une action ANNONCÉE sans outil (« je vais vérifier le fuseau ») n'est détectée par rien ;
+  - `get_item_result` et `read_doc` coupent un long texte SANS moyen de lire la suite (même
+    défaut que le rapport de Claude Code) ; `dev_read_report` pagine par tranches, `dev_read_log`
+    par lignes — une brique commune de tranches les réunirait ;
+  - le skill `assistant-models.md` cite `proposed_only`, qui n'existe encore que dans un travail
+    NON COMMITÉ (tâche Claude Code `20261030-124456-8d115c`, `tool_api.list_ai_models` et
+    `tests_ollama_hub_gguf`).
+
+**Ce que Claude Code a FAIT pendant ce fil** (revérification du 2026-10-31, par les dates des
+fichiers et les fiches de `logs/dev_jobs/`) : cinq tâches. `124456-8d115c` (13:44 → 13:47, avant le
+fil) a ÉCRIT `proposed_only` (`list_ai_models`) et ses tests (`tests_ollama_hub_gguf.py`, daté
+13:46), non commités — ses tests passent. Les quatre du fil n'ont RIEN écrit : aucun fichier suivi
+ni nouveau daté de leur fenêtre, comme elles le disaient. Leurs constats tiennent à la mesure : 666
+/ 656 / 134 de `check_backend_links` retrouvés à l'identique (alors que la commande WSL de
+`161333-d15fce` figure à ses refus de permission — le chiffre a été obtenu autrement) ; les trois
+GGUF et `Minimax-h3` sans moteur, `Qwen3-Embedding-4B-GGUF` sous `transformers` sans backend.
 
 **Les pages du COMPTE (2026-10-14, demande de Fabien : « ajouter l'accès aux pages … du menu
 profil depuis l'assistant … en fonction des droits de l'utilisateur comme pour toutes les autres

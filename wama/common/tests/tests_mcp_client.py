@@ -59,10 +59,10 @@ class DevToolsThroughTheAssistantTest(TestCase):
             patcher.start()
             self.addCleanup(patcher.stop)
 
-    def _turn(self, user, llm):
+    def _turn(self, user, llm, **kwargs):
         with mock.patch.object(assistant_engine, '_llm_call', side_effect=llm):
             return assistant_engine.run_assistant_turn(user, 'liste les jumelles',
-                                                       provider='wama-dev-ai', model='x')
+                                                       provider='wama-dev-ai', model='x', **kwargs)
 
     def test_a_non_developer_is_offered_no_dev_tool_and_no_connection_is_opened(self):
         with mock.patch.object(mcp_client, '_run') as connection:
@@ -99,18 +99,41 @@ class DevToolsThroughTheAssistantTest(TestCase):
         from wama.common.services import dev_tools
         with mock.patch.object(mcp_client, '_run', side_effect=_in_memory_run), \
              mock.patch.object(dev_tools, 'start_job', return_value={'job_id': 'j-1'}) as launch, \
-             mock.patch('wama.tool_api.execute_tool') as gate:
+             mock.patch('wama.tool_api.execute_tool', return_value={'consigne': 'dev'}) as gate:
             result = self._turn(self.dev, llm)
         launch.assert_called_once()
         self.assertEqual('sandbox:list', launch.call_args.args[1])
-        gate.assert_not_called()
-        step, = result['tool_steps']
+        # La porte commune ne voit PAS l'outil de dev — seulement la compétence que la boucle
+        # charge après lui (2026-10-30, `_load_dev_competence`).
+        self.assertEqual(['charger_competence'], [c.args[0] for c in gate.call_args_list])
+        step, loaded = result['tool_steps']
         self.assertEqual(('dev_sandbox', 'j-1'), (step['tool'], step['result']['job_id']))
+        self.assertEqual(('charger_competence', 'dev', True),
+                         (loaded['tool'], loaded['args']['domaine'], loaded['automatic']))
         # Un outil de dev ne fait plus BASCULER le tour vers un modèle de niveau dev (bridage
         # levé le 2026-10-12) : aucun avertissement n'est greffé au résultat, le tour continue
         # sur son modèle.
         self.assertNotIn('warning', step['result'])
         self.assertEqual('fait', result['response'])
+
+    def test_the_dev_competence_is_loaded_once_and_not_when_already_in_effect(self):
+        """Deux outils de dev dans un tour : la compétence n'est chargée qu'une fois. Contre-épreuve :
+        un tour déjà dans le domaine de développement ne la recharge pas."""
+        calls = iter(['{"tool": "dev_sandbox", "args": {"action": "list"}}',
+                      '{"tool": "dev_sandbox", "args": {"action": "list"}}', 'fait'])
+
+        def llm(messages, *a, **k):
+            return next(calls), {'input_tokens': 0, 'output_tokens': 0}
+        from wama.common.services import dev_tools
+        with mock.patch.object(mcp_client, '_run', side_effect=_in_memory_run), \
+             mock.patch.object(dev_tools, 'start_job', return_value={'job_id': 'j-1'}), \
+             mock.patch('wama.tool_api.execute_tool', return_value={'consigne': 'dev'}):
+            result = self._turn(self.dev, llm)
+            tools = [s['tool'] for s in result['tool_steps']]
+            self.assertEqual(['dev_sandbox', 'charger_competence', 'dev_sandbox'], tools)
+            calls = iter(['{"tool": "dev_sandbox", "args": {"action": "list"}}', 'fait'])
+            already = self._turn(self.dev, llm, domain='dev')
+        self.assertEqual(['dev_sandbox'], [s['tool'] for s in already['tool_steps']])
 
     def test_a_dev_tool_name_nobody_announced_goes_to_the_gate_which_rejects_it(self):
         """Contre-épreuve : un non-développeur dont le modèle émettrait `dev_sandbox` quand même

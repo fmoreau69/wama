@@ -308,3 +308,109 @@ class SidePanelsFromTheAssistantTest(SimpleTestCase):
         for template in ('templates/home.html', 'common/templates/common/_assistant_avatar.html'):
             self.assertIn('data-assistant-attach', (Path(settings.BASE_DIR) / 'wama' / template)
                           .read_text(encoding='utf-8'), template)
+
+
+class HandModeFromTheAssistantTest(TestCase):
+    """« Active le mode main en 3D » (2026-10-30, demande de Fabien) : l'assistant n'atteignait
+    aucune scène 3D (`open_page` ne les connaissait pas) et n'avait aucun geste pour les mains."""
+
+    def setUp(self):
+        self.admin = get_user_model().objects.create_superuser('reach_hands_admin', password='x')
+        self.member = get_user_model().objects.create_user('reach_hands_member', password='x')
+
+    def test_a_scene_is_a_page_with_the_right_of_its_request(self):
+        from wama.common.scenes import SCENES, page_url
+        users = SCENES['users']
+        opened = tool_api.open_page(self.admin, users.page_title)
+        self.assertEqual(('navigate', page_url(users)), (opened['action'], opened['url']))
+        # La scène des utilisateurs est réservée à l'administration (`permission='admin'`) ; les
+        # scènes ouvertes à tout compte le restent pour un membre.
+        refused = tool_api.open_page(self.member, users.page_title)
+        self.assertIn('error', refused)
+        offered = {p['key'] for p in refused['pages']}
+        self.assertNotIn('scene:users', offered)
+        self.assertTrue({f'scene:{k}' for k, s in SCENES.items() if s.permission == 'auth'} <= offered)
+
+    def test_the_tool_switches_the_hands_and_names_the_scenes_it_can_drive(self):
+        from django.contrib.auth.models import AnonymousUser
+        self.assertIn('error', tool_api.use_hand_mode(AnonymousUser()))
+        on = tool_api.use_hand_mode(self.member)
+        self.assertEqual(('hands', True), (on['action'], on['on']))
+        self.assertNotIn('scene:users', {s['key'] for s in on['scenes']})
+        self.assertIn('scene:users', {s['key'] for s in tool_api.use_hand_mode(self.admin)['scenes']})
+        self.assertFalse(tool_api.use_hand_mode(self.member, on='false')['on'])
+        self.assertIsNone(tool_api.app_id_for_tool('use_hand_mode'), 'transverse')
+
+
+HANDS_BROWSER = r"""
+function fakeNode() { return { hidden: false, style: {}, attrs: {}, dataset: {}, children: [],
+    classes: {}, classList: { toggle: function (c, on) { this.o[c] = !!on; }, contains: function (c) { return !!this.o[c]; }, o: {} },
+    setAttribute: function (k, v) { this.attrs[k] = v; if (k === 'hidden') this.hidden = true; },
+    removeAttribute: function (k) { delete this.attrs[k]; if (k === 'hidden') this.hidden = false; },
+    addEventListener: function () {}, append: function () {}, appendChild: function () {},
+    getContext: function () { return {}; } }; }
+var item = fakeNode(), clicks = 0;
+item.hidden = true;
+var toggleBtn = fakeNode();
+toggleBtn.closest = function () { return item; };
+toggleBtn.click = function () { clicks += 1; };
+var store = {};
+var sessionStorage = { getItem: function (k) { return k in store ? store[k] : null; },
+                       setItem: function (k, v) { store[k] = String(v); },
+                       removeItem: function (k) { delete store[k]; } };
+window.sessionStorage = sessionStorage;
+document.getElementById = function (id) { return id === 'wamaHandsToggle' ? toggleBtn : null; };
+document.createElement = fakeNode;
+document.body = fakeNode();
+"""
+
+
+class HandModeInTheBrowserTest(SimpleTestCase):
+    """Le chat exécute `use_hand_mode` par l'icône ✋ quand la page a une scène, et RETIENT le
+    souhait sinon ; la scène qui se déclare ensuite l'exauce une fois (V8, fichiers SERVIS)."""
+
+    def _ctx(self):
+        try:
+            from py_mini_racer import MiniRacer
+        except ImportError:
+            self.skipTest('py_mini_racer absent de ce venv : pas de V8')
+        js = Path(settings.BASE_DIR) / 'staticfiles' / 'common' / 'js'
+        ctx = MiniRacer()
+        ctx.eval(FAKE_BROWSER + HANDS_BROWSER + (js / 'wama-assistant-chat.js').read_text(encoding='utf-8'))
+        ctx.eval("var chat = Object.create(WamaAssistantChat._Chat.prototype);")
+        # Le module des mains, chargé comme un script : ses `export` retirés, `import.meta` et `URL`
+        # remplacés — `start()` montre l'icône allumée AVANT d'attendre le moteur de gestes.
+        hands = ((js / 'wama-hands-ui.js').read_text(encoding='utf-8')
+                 .replace('export async function', 'async function').replace('export function', 'function')
+                 .replace('import.meta.url', "'/static/common/js/wama-hands-ui.js'")
+                 .replace('import.meta.resolve(', 'String('))
+        ctx.eval("var URL = function (u) { this.href = u; }; var innerWidth = 1, innerHeight = 1;"
+                 "window.WamaApp = {loadStyle: function () {}}; var addEventListener = function () {};"
+                 "var getComputedStyle = function () { return {getPropertyValue: function () { return ''; }}; };"
+                 "(function () {" + hands + "; window.registerHandTarget = registerHandTarget; })();")
+        return ctx
+
+    def test_on_a_page_with_a_scene_the_icon_is_clicked(self):
+        ctx = self._ctx()
+        ctx.eval("item.hidden = false;"
+                 "chat.applyActions([{tool: 'use_hand_mode', result: {action: 'hands', on: true}}]);")
+        self.assertEqual(1, ctx.eval('clicks'))
+        self.assertEqual(0, ctx.eval('Object.keys(store).length'), 'applied now, nothing kept')
+        ctx.eval("toggleBtn.classList.o.active = true;"
+                 "chat.applyActions([{result: {action: 'hands', on: true}}]);")
+        self.assertEqual(1, ctx.eval('clicks'), 'already on: not switched off by a second « on »')
+
+    def test_without_a_scene_the_wish_waits_for_the_scene_that_opens(self):
+        ctx = self._ctx()
+        ctx.eval("chat.applyActions([{tool: 'use_hand_mode', result: {action: 'hands', on: true}}]);")
+        self.assertEqual(0, ctx.eval('clicks'), 'no scene: the hidden icon is not clicked')
+        self.assertEqual('on', ctx.eval("store['wama.hands.wish']"))
+        ctx.eval("window.registerHandTarget({});")
+        self.assertTrue(ctx.eval("toggleBtn.classList.o.active"), 'the scene switches the hands on')
+        self.assertEqual(0, ctx.eval('Object.keys(store).length'), 'granted once')
+
+    def test_a_scene_without_a_wish_leaves_the_hands_off(self):
+        """Contre-épreuve : déclarer une scène n'allume pas la caméra de soi-même."""
+        ctx = self._ctx()
+        ctx.eval("window.registerHandTarget({});")
+        self.assertFalse(ctx.eval("!!toggleBtn.classList.o.active"))

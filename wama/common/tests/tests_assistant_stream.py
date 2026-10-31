@@ -458,7 +458,10 @@ class CloudRateLimitTest(SimpleTestCase):
     def test_another_error_is_not_retried(self):
         """Contre-épreuve : seule la limite de débit attend."""
         (text, error), sleep = self._llm([ValueError('clé refusée')])
-        self.assertEqual((None, 'clé refusée'), (text, error))
+        # Le message du fournisseur reste CITÉ, dans une phrase qui dit qui et que faire
+        # (`llm_utils.provider_error_text`, 2026-10-30).
+        self.assertIsNone(text)
+        self.assertIn('« clé refusée »', error)
         sleep.assert_not_called()
 
 

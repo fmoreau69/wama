@@ -52,7 +52,7 @@ def _turn(*, parent=(DELEGATE,), sub=(SEARCH,), **kwargs):
                   if agent == 'sub' else 'Réponse finale.')
         return answer, {'input_tokens': 10, 'output_tokens': 1}
 
-    def run(name, args, user):
+    def run(name, args, user, **_options):
         executed.append(name)
         return SUB_RESULT
 

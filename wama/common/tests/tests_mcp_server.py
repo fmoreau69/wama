@@ -154,8 +154,11 @@ class ProtocoleTest(TestCase):
         with mock.patch('wama.tool_api.execute_tool', return_value={'ok': 1}) as porte:
             result = self._with_session(
                 lambda session: session.call_tool('memory_recall', {'query': 'x', 'k': '3'}))
-        # `'3'` arrive TEL QUEL à la porte : la validation du SDK ne l'a pas refusé.
-        porte.assert_called_once_with('memory_recall', {'query': 'x', 'k': '3'}, self.user)
+        # `'3'` arrive TEL QUEL à la porte : la validation du SDK ne l'a pas refusé. Et comme
+        # appel de MODÈLE (`model_call`, 2026-10-30) : un argument inconnu y est refusé pour une
+        # écriture, dit pour une lecture.
+        porte.assert_called_once_with('memory_recall', {'query': 'x', 'k': '3'}, self.user,
+                                      model_call=True)
         self.assertFalse(result.isError)
         self.assertEqual({'ok': 1}, result.structuredContent)
 

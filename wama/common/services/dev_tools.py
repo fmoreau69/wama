@@ -307,7 +307,9 @@ def job_state(job_id: str, with_log: bool = True) -> dict:
             # synchrone (`claude_code.read_output`), pas comme une fin de journal brute.
             from wama.common.services.claude_code import read_output
             answer = read_output(text)
-            state['response'] = (answer.get('texte') or answer.get('error') or '')[:LOG_TAIL_CHARS]
+            # ENTIÈRE : chaque lecteur la borne en le DISANT (`cut_with_notice`) — elle était
+            # coupée ici à 6 000 caractères, sans marque.
+            state['response'] = answer.get('texte') or answer.get('error') or ''
             state['model'] = answer.get('modele', '')
             state['cost_usd'] = answer.get('cout_usd')
     return state
@@ -322,11 +324,26 @@ NOTIFY_MAX_AGE_S = 6 * 3600
 WATCH_INTERVAL_S = 15
 
 
+#: Le corps d'une notification de fin de tâche (cloche, fil du canal).
+SUMMARY_CHARS = 1500
+
+
+def cut_with_notice(text: str, limit: int, job_id: str) -> str:
+    """`text` borné à `limit`, la coupure DITE avec le geste qui donne la suite (2026-10-30, fil
+    Discord n° 43) : un rapport de Claude Code coupé en silence au milieu d'une phrase, puis une
+    « suite » INVENTÉE par l'assistant — rien ne lui disait qu'elle existait, ni où la lire."""
+    if len(text) <= limit:
+        return text
+    cut = text[:limit].rsplit('\n', 1)[0] if '\n' in text[:limit] else text[:limit]
+    return (f"{cut}\n\n… (rapport tronqué : {len(text) - len(cut)} caractères de plus — "
+            f"`dev_read_report` avec job_id={job_id} le donne en entier)")
+
+
 def _job_summary(state: dict) -> str:
     """Le corps de la notification : la réponse (Claude Code), les propositions écrites (rôles),
     sinon la fin du journal — de quoi décider sans rouvrir la tâche."""
     if state.get('response'):
-        return state['response'][:1500]
+        return cut_with_notice(state['response'], SUMMARY_CHARS, state.get('id', ''))
     lines = []
     if state.get('outputs'):
         lines.append("Propositions écrites (en attente de validation) : "
@@ -514,7 +531,29 @@ def dev_claude_code(user, task: str, write: bool = False, model: str = '') -> di
 
 def dev_job_status(user, job_id: str) -> dict:
     """État d'une tâche de développement : en cours, terminée, échouée ou interrompue ; fin du journal et propositions écrites."""
-    return job_state(job_id)
+    state = job_state(job_id)
+    if state.get('response'):
+        # La réponse d'une tâche Claude Code tient lieu de journal (qui n'est que son JSON brut).
+        state.pop('log_tail', None)
+        state['response'] = cut_with_notice(state['response'], LOG_TAIL_CHARS, job_id)
+    return state
+
+
+#: Une tranche de rapport : ce qu'un modèle lit d'un tenant sans noyer son contexte.
+REPORT_PAGE_CHARS = 6000
+
+
+def dev_read_report(user, job_id: str, offset: int = 0) -> dict:
+    """Le RAPPORT ENTIER d'une tâche de développement terminée (la réponse de Claude Code), par tranches : `offset` = où reprendre, `next_offset` = la tranche suivante (null à la fin). À appeler quand un rapport est dit « tronqué » — ne jamais en écrire la suite soi-même."""
+    state = job_state(job_id)
+    report = state.get('response') or ''
+    if not report:
+        raise DevToolError(f"la tâche {job_id} n'a pas de rapport ({state.get('status')})")
+    start = max(0, int(offset or 0))
+    end = start + REPORT_PAGE_CHARS
+    return {'job_id': job_id, 'status': state.get('status'), 'length': len(report),
+            'offset': start, 'text': report[start:end],
+            'next_offset': end if end < len(report) else None}
 
 
 def dev_list_jobs(user, limit: int = 20) -> dict:
@@ -537,8 +576,8 @@ from wama.common.services.dev_inspect import (  # noqa: E402 — après DevToolE
     dev_db_query, dev_db_schema, dev_list_code, dev_read_code, dev_read_log)
 
 DEV_TOOLS = {fn.__name__: fn for fn in (dev_run_role, dev_sandbox, dev_regen_check, dev_reload_web,
-                                         dev_claude_code, dev_job_status, dev_list_jobs,
-                                         dev_read_output, dev_db_query, dev_db_schema,
+                                         dev_claude_code, dev_job_status, dev_read_report,
+                                         dev_list_jobs, dev_read_output, dev_db_query, dev_db_schema,
                                          dev_read_log, dev_read_code, dev_list_code)}
 
 #: Outils d'inspection (`dev_inspect`) réservés aux ADMINISTRATEURS : ni annoncés ni appelables

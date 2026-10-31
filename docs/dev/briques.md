@@ -676,6 +676,7 @@ Date chaque installation et désinstallation (modèle, librairie) avec son issue
   - `record(kind, key, *, name='', action='install', via='', result=None, started_at=None)` — Un événement déjà TERMINÉ (désinstallation : un geste court et synchrone).
   - `queued(kind, key, *, name='', via='')` — Ouvre l'événement AU DISPATCH, avec sa voie — la tâche le reprendra (`resumed`).
   - `resumed(kind, key, *, name='')` — Reprend, dans la tâche, l'événement ouvert au dispatch (ou en ouvre un sans voie).
+  - `effective_state(row, now)` — `(statut, erreur, abandonnée)` d'un événement tel qu'il se DIT — au calendrier et à
   - `calendar_events(start, end)` — Les installations de `[start, end)` — couche de l'INSTANCE (inscrite par `apps.ready`).
 
 ### Mesure interne des modèles
@@ -1237,6 +1238,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
   - `regen_check_command(app: str) -> list` — `--force` n'est JAMAIS ajouté : la garde du harnais (refus sur dev/main) reste entière.
   - `start_job(user, tool: str, argv: list, env: dict=None, shown: list=None) -> dict` — Lance `argv` détaché ; le journal et le code de retour sont écrits à côté de la fiche.
   - `job_state(job_id: str, with_log: bool=True) -> dict`
+  - `cut_with_notice(text: str, limit: int, job_id: str) -> str` — `text` borné à `limit`, la coupure DITE avec le geste qui donne la suite (2026-10-30, fil
   - `notify_finished_jobs() -> int` — Annonce, une fois, chaque tâche de développement TERMINÉE : une notification DANS WAMA
   - `start_job_watcher() -> None` — Le veilleur des fins de tâche, dans le process du serveur de développement — celui qui
   - `dev_run_role(user, role: str, args: dict=None, provider: str='', model: str='') -> dict` — Lance un rôle wama-dev-ai en tâche de fond ; il écrit une PROPOSITION en attente de validation, n'applique rien.
@@ -1245,6 +1247,7 @@ Rôles wama-dev-ai (librarian, model, scout, integrator, codegen) et bac à sabl
   - `dev_reload_web(user) -> dict` — Recharge gunicorn (signal HUP, rechargement gracieux) — nécessaire après la création, la restauration ou le retrait d'une jumelle.
   - `dev_claude_code(user, task: str, write: bool=False, model: str='') -> dict` — Confie une tâche de développement à Claude Code (abonnement du demandeur) en TÂCHE DE FOND : audit, explication, ou modification du dépôt avec write=true. Réponds aussitôt à l'utilisateur ; la réponse de Claude Code arrive dans le fil à la…
   - `dev_job_status(user, job_id: str) -> dict` — État d'une tâche de développement : en cours, terminée, échouée ou interrompue ; fin du journal et propositions écrites.
+  - `dev_read_report(user, job_id: str, offset: int=0) -> dict` — Le RAPPORT ENTIER d'une tâche de développement terminée (la réponse de Claude Code), par tranches : `offset` = où reprendre, `next_offset` = la tranche suivante (null à la fin). À appeler quand un rapport est dit « tronqué » — ne jamais en…
   - `dev_list_jobs(user, limit: int=20) -> dict` — Dernières tâches de développement lancées (tous développeurs), la plus récente d'abord.
   - `dev_read_output(user, path: str) -> dict` — Lit une proposition écrite par un rôle (fichier JSON de wama-dev-ai/outputs/) — lecture seule.
   - `tools_for(user) -> list` — Outils de développement visibles par `user` — aucun pour un non-développeur.
@@ -1518,6 +1521,7 @@ Route unique vers les LLM (tiers déclaratifs, sélection catalogue, Ollama loca
   - `openai_compatible_source(provider: str) -> str` — La source `external_sources` d'un fournisseur qui parle le protocole OpenAI depuis une
   - `default_cloud_model(provider: str) -> str` — Modèle par défaut d'un fournisseur cloud : réglage déclaré, sinon celui de sa source
   - `provider_saturation(exc, wait_s: float=RATE_LIMIT_WAIT_S)` — (portée, durée, motif) quand l'échec dit que le FOURNISSEUR est saturé ou en panne — None
+  - `provider_error_text(label: str, model: str, exc) -> str` — L'échec d'un fournisseur distant DIT à l'utilisateur : qui, quoi, que faire (2026-10-30,
   - `llm_chat(messages: list, model: str=None, provider: str=None, num_predict: int=2048, num_ctx: Optional[int]=None, think: bool=True, timeout: float=180.0, api_k…` — Unified LLM chat function — provider-agnostic entry point.
   - `tool_call_text(name: str, arguments) -> str` — Un appel d'outil NATIF (nom + arguments JSON du fournisseur) rendu dans la forme texte de
   - `chat_with_catalog_model(catalog_key: str, messages: list, *, user=None, num_predict: Optional[int]=None, think: bool=False, timeout: Optional[float]=None, temp…` — Un appel LLM désigné par une CLÉ DE CATALOGUE (`ollama:qwen3.8:latest`,
@@ -1694,6 +1698,7 @@ Les pages du menu Applications — apps du catalogue et surfaces déclarées, lu
   - `account_pages_for(user, allowed_apps=None) -> list` — Les pages du COMPTE que `user` peut ouvrir, dans l'ordre du menu : `[{'key', 'label',
   - `account_menu(user, allowed_apps=None) -> list` — Le menu du COMPTE de `user` : `[{'key', 'label', 'pages': […]}]`, une entrée par section
   - `navigable_pages(user) -> list` — Les pages que `user` a le DROIT d'ouvrir : `[{'key', 'label', 'url', 'world',
+  - `scene_pages(user, allowed_apps=None) -> list` — Les SCÈNES 3D que `user` peut ouvrir (`common/scenes.py`, 2026-10-30 — demande de Fabien :
   - `find_page(user, page: str)` — La page que `page` désigne (clé, libellé ou alias, casse et accents ignorés) parmi celles
   - `absolute_url(path: str) -> str` — L'adresse COMPLÈTE d'une page, pour une surface hors navigateur (un canal) — '' si
 
@@ -3707,6 +3712,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `convert_file(user, file_path: str, output_format: str='', quality_preset: str='balanced', app_label: str='converter', **params) -> dict` — Queue a file conversion and start it immediately.
   - `list_media_assets(user, asset_type: str='', q: str='') -> dict` — List the user's personal media library assets.
   - `fold_side_panels(user, folded: bool=True) -> dict` — Fold or unfold the two side panels of the page (file explorer on the left, panel on the
+  - `use_hand_mode(user, on: bool=True) -> dict` — Turn the HAND mode on or off — driving a 3D scene with the hands, through the webcam ("active
   - `open_page(user, page: str) -> dict` — Take the user to a WAMA page — an application ("emmène-moi sur l'Anonymizer", "ouvre la
   - `get_page_interface(user, page: str) -> dict` — Describe the INTERFACE of a WAMA page: the bricks it shows (what each does, and its keyboard
   - `reset_page_layout(user, page: str) -> dict` — Put the layout of a page back to its default, for this user — what "Par défaut" does in the
@@ -3727,6 +3733,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `get_studio_run_status(user, run_id: int=None) -> dict` — Return the status of a studio run (or the last 5 runs if run_id is omitted).
   - `list_ai_models(user, app: str=None, task: str=None, modality: str=None, downloaded_only: bool=False, include_proposed: bool=False, limit: int=50) -> dict` — List the AI model CATALOGUE (read-only — trou #18 ROUTE §11, lecture utile à l'assistant).
   - `get_ai_model(user, model_key: str) -> dict` — Full catalogue record of ONE model (read-only). `model_key` = '<app>:<id>'
+  - `list_installations(user, kind: str='model', limit: int=20) -> dict` — The DATED history of model (or library) installations and uninstallations, most recent first:
   - `search_models(user, query: str, limit: int=10, max_results: int=5) -> dict` — SEARCH HuggingFace for models matching `query` and record them as prospection
   - `prospect_models(user) -> dict` — PROSPECT for new models and record them as PROPOSALS — same verb as the page's
   - `get_install_options(user, model_key: str) -> dict` — INSTALL CHOICES of a proposal — same verb as the options the page shows before « Installer »
@@ -3771,7 +3778,7 @@ Registre central TOOL_REGISTRY : triades add/start/status par app, gating F7 via
   - `sanitize_tool_args(tool_name: str, args: dict)` — Prépare les arguments d'un appel d'outil : coercition par le SCHÉMA de l'app puis
   - `relay_quality_intent(user, tool_name: str, result: dict) -> dict` — Relaie le curseur Rapide ↔ Qualité de l'ASSISTANT vers l'élément qu'un outil `add_to_<app>`
   - `relay_next_step(tool_name: str, result: dict) -> dict` — Dit au modèle, DANS LE RÉSULTAT, qu'un ajout n'a lancé AUCUN traitement.
-  - `execute_tool(tool_name: str, args: dict, user) -> dict` — Dispatch a tool call from the agentic loop.
+  - `execute_tool(tool_name: str, args: dict, user, *, model_call: bool=False) -> dict` — Dispatch a tool call from the agentic loop.
   - `list_user_files_view(request)`
   - `add_to_anonymizer_view(request)`
   - `start_anonymizer_view(request)`
