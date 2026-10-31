@@ -78,7 +78,7 @@ card commune + select modèle (surfaces). Zéro hardcode par app ; composer = pi
 | `wama-input-match.js` | ✅ commune ; **crochets déclaratifs de slot non-fichier** (`isProvided`/`describe`/`clear`, 17/08 — 1er cas : voix clonée du synthesizer choisie dans un `<select>`) |
 | **Côté serveur** | ✅ brique `common/utils/input_match.py` (17/08) : `input_match_meta(source, key=)` (meta du CATALOGUE par `AIModel.source`, re-clé par app), `auto_entry()` (pseudo-choix « auto »), `input_labels()` — extraite de composer/imager au moment de l'adoption ×7 |
 | Brique **câblée** (grille `input_match_ui`) | ✅ **8/8 applicables** : composer, imager, synthesizer (grisage RÉEL : voix clonée → bark/kokoro grisés + chip ✕), enhancer (2 selects, un par domaine), transcriber, reader, anonymizer (+ converter N/A sans moteur IA) |
-| **describer, avatarizer** | **N/A mesuré** (verdict Fabien 17/08, gate commun `_has_engine_select`) : aucun sélecteur de modèle — describer route AUTO par type de média, avatarizer = MuseTalk fixe. Pas d'hôte → pas de grisage exigible. ⚠ Mise à jour 2026-08-28 : le pipeline texte→TTS→avatar est REVENU dans l'avatarizer (mode DÉRIVÉ des entrées, MODES_QUEUE_UX §2bis) — le N/A tient tant que MuseTalk reste le seul moteur d'ANIMATION ; le « Modèle TTS » de la modale n'est pas un sélecteur de moteur d'app (la voix vient de la brique synthesizer). Si un 2ᵉ moteur d'animation arrive (EchoMimicV3, StableAvatar…), le verdict ROUVRE automatiquement (gate mesuré). |
+| **describer, avatarizer** | **N/A mesuré** (verdict Fabien 17/08, gate commun `_has_engine_select`) : aucun sélecteur de modèle — describer route AUTO par type de média, avatarizer = MuseTalk fixe. Pas d'hôte → pas de grisage exigible. ⚠ Mise à jour 2026-08-28 : le pipeline texte→TTS→avatar est REVENU dans l'avatarizer (mode DÉRIVÉ des entrées, MODES_QUEUE_UX §2bis) — le N/A tient tant que MuseTalk reste le seul moteur d'ANIMATION ; le « Modèle TTS » de la modale n'est pas un sélecteur de moteur d'app (la voix vient de la brique synthesizer). Si un 2ᵉ moteur d'animation arrive (EchoMimicV3, StableAvatar…), le verdict ROUVRE automatiquement (gate mesuré). ⚠ **Dépassé (relevé le 2026-10-31)** : les deux adoptent la brique — describer (`describer/index.html:151-167`, `WamaInputMatch.modalitySlot`, §6.12, 2026-10-13), avatarizer (`avatarizer/js/index.js:470-509`, `wireTtsMatching`, §6.7, 2026-09-13/24). Compte 10/10 ou N/A à remesurer par `input_match_ui`. |
 
 > ⚠ **2026-08-31 — ces re-clés sont une CICATRICE, pas une pièce d'architecture.** Elles n'existent
 > que parce que les valeurs d'option des selects ne sont PAS les clés du catalogue : les apps
@@ -92,6 +92,12 @@ Re-clés par app (l'accesseur PRIME, jamais de déduction) : synthesizer `ENGINE
 (xtts_v2↔coqui-xtts), enhancer suffixe `_fp16` (stems ONNX), transcriber
 `_backend_for_model_key` (qwen3-asr-* → qwen_asr), anonymizer valeurs d'option `type/fichier`
 (double clé, même contrat que `_model_help_meta`).
+*(Corrigé le 2026-10-31, mesuré : l'enhancer n'a plus de re-clé — clés du catalogue = valeurs
+d'option, artefact `_fp16` retiré à la découverte, `enhancer/views.py:212-215` ; l'anonymizer re-clé
+seulement en ôtant la source de l'identifiant du catalogue, `anonymizer/views.py:812`
+(`mk.split(':', 1)[-1]`), et `_model_help_meta` est RETIRÉ le 2026-09-27 (`views.py:826`). Restent
+synthesizer `ENGINE_CATALOG_KEYS` (`synthesizer/views.py:220-221`) et transcriber
+`_backend_for_model_key` (`transcriber/backends/manager.py:203`).)*
 **2026-09-29 — l'imager n'a plus rien à re-clé** : ses deux selects sont servis par le catalogue en
 clés entières, et sa méta d'appariement est lue sur le même domaine (`input_match_meta(task=…)`,
 image et vidéo réunies) — la meta et le select parlent enfin la même clé (`ROUTE §F4b` étape ⑥).
@@ -152,7 +158,11 @@ l'ordre des onglets.
 deux jetons nommés, deux onglets, deux libellés. Le système est universel *parce qu'*il nomme
 au lieu de catégoriser. Aucune règle nouvelle n'est requise.
 
-### 6.3 La règle d'auto-adaptation — déjà écrite, pas encore implémentée
+### 6.3 La règle d'auto-adaptation — déjà écrite, ~~pas encore implémentée~~ ✅ implémentée le 2026-09-10 (§6.5 P1-P3)
+
+> *(Titre corrigé le 2026-10-31, mesuré : `studio_node_ports` consomme `app_input_ports` —
+> `app_registry.py:271`, accesseur l.415 —, lu par `input_slots`, `wama_actions.py:283`. Le
+> paragraphe « Ce qui manque… » ci-dessous est le constat du 2026-09-10 au matin.)*
 
 `app_modes.py` la porte depuis l'origine : **slots d'une app = ses `inputs` de niveau APP ∪
 l'union des `inputs_required`/`inputs_optional` de ses MODÈLES**. Mesuré le 2026-09-10 : le
@@ -197,18 +207,19 @@ transmettait qu'un. Convention « port = argument du même nom de l'outil » et 
   ports qu'au moins un de ses modèles nomme** — un port qu'il ne nomme pas alimente un autre
   moteur ou une autre étape, et le juger grisait tous les modèles du select.
 
-⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
-C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.
+~~⚠ **Un seul point du dépôt dit encore le contraire** : `INPUT_TYPES['prompt'].port == 'travail'`.
+C'est le vocabulaire qui est en retard sur ses deux consommateurs, pas l'inverse.~~
+✅ *Corrigé le 2026-09-10 (P0′) — revérifié le 2026-10-31 : `app_modes.py:117`, port `prompt`.*
 
 ### 6.5 Reste à faire — dans cet ordre
 
 | # | geste | preuve attendue |
 |---|---|---|
 | ~~P0~~ | ~~`prompt_file` → brique de lot commune~~ | ✅ **fait le 2026-09-10** |
-| ~~P0′~~ | ~~séparer les axes restants : `prompt.port` → `prompt`, sortir `url`, classer `negative_prompt`~~ | ✅ **fait le 2026-09-10** — `app_modes.py:89-97` (`prompt` → port `prompt`), `:138-140` (`url` et `negative_prompt` retirés du vocabulaire) |
-| ~~P1~~ | ~~accesseur d'union `app_input_ports(app, domain)`~~ | ✅ **fait** — `app_registry.py:325` ; gardes `tests_catalogues` (`app_input_ports`, domaines image/vidéo) |
-| ~~P2~~ | ~~`studio_node_ports` le consomme (repli si union vide)~~ | ✅ **fait le 2026-09-10** — `app_registry.py:256-259`, repli explicite `:261-301` (converter) |
-| ~~P3~~ | ~~la card v4 suit seule~~ | ✅ **de fait** — le tag `input_slots` lit `studio_node_ports` (donc l'union) et en tire l'OBLIGATION de chaque port (`wama_actions.py:189-206`, 11/09) |
+| ~~P0′~~ | ~~séparer les axes restants : `prompt.port` → `prompt`, sortir `url`, classer `negative_prompt`~~ | ✅ **fait le 2026-09-10** — `app_modes.py:117` (`prompt` → port `prompt`), `:184-192` (`url` et `negative_prompt` retirés du vocabulaire) |
+| ~~P1~~ | ~~accesseur d'union `app_input_ports(app, domain)`~~ | ✅ **fait** — `app_registry.py:415` ; gardes `tests_catalogues` (`app_input_ports`, domaines image/vidéo) |
+| ~~P2~~ | ~~`studio_node_ports` le consomme (repli si union vide)~~ | ✅ **fait le 2026-09-10** — `app_registry.py:271-283` (dans `studio_node_ports`, l.233), repli explicite à la suite (converter ; commentaire l.267-269) |
+| ~~P3~~ | ~~la card v4 suit seule~~ | ✅ **de fait** — le tag `input_slots` lit `studio_node_ports` (donc l'union) et en tire l'OBLIGATION de chaque port (`wama_actions.py:283`, 11/09) |
 | P4 | câblage de l'imager : l'attache d'image devient un dépôt de TRAVAIL | ⏳ **non revérifié** — `imager_01.import` : `skip` → OK |
 
 > ⚠ **Rectifié le 2026-09-28** : ce tableau donnait encore P0′→P3 « à faire » ; relevé en
@@ -289,7 +300,8 @@ RÉSULTAT —, ouverte par une CAPACITÉ d'app :
 - **Le MOTEUR fait autorité sur ce qu'il DÉCLARE** — `model_capabilities.apply_engine_flags`,
   appliquée par la découverte (`_tts_caps`) ET par la synchro à toute ligne dont le moteur se
   résout (`ModelSyncService._reconcile_engine_flags`). La règle existait
-  (`_capabilities_projectable`, 31/08 : *« la DÉCOUVERTE lit les flags sur les classes »*) mais ne
+  (`_capabilities_projectable`, aujourd'hui `merged_capabilities` — `manifests/builtin/model.py:447`,
+  renvoi `model_capabilities.py:476` —, 31/08 : *« la DÉCOUVERTE lit les flags sur les classes »*) mais ne
   s'exerçait que sur les modèles qu'une app déclare : une ligne PROSPECTÉE gardait ce que son
   manifeste avait établi, même quand une classe existait. Mesuré : **Audio8** `True` au catalogue,
   `False` au moteur (délibéré — l'API exige le transcript de la référence) ; **Qwen3-TTS** muet au
@@ -843,8 +855,10 @@ un mécanisme qui gère les ko, Mo, Go, on pourrait y ajouter la gestion min/sec
   « 3:30 », pas « 3'30 » — une seule écriture de la durée.
 - Pilote : la durée du composer — défaut **3:30** (c'était 10 s), proposée par l'audio du port
   `work_audio`. Les deux formateurs locaux du composer (« ~3min30s », « 3m30s ») sont retirés.
-  ⏳ Le défaut du CHAMP `ComposerGeneration.duration` (10) et le repli de `views.py` (10) restent à
-  aligner — fichiers tenus ce jour par le chantier `output` du pipeline.
+  ~~⏳ Le défaut du CHAMP `ComposerGeneration.duration` (10) et le repli de `views.py` (10) restent à
+  aligner — fichiers tenus ce jour par le chantier `output` du pipeline.~~ ✅ *aligné (relevé le
+  2026-10-31)* : défaut du champ 210 s = 3:30 (`composer/models.py:36`), repli de la vue LU sur le
+  champ (`composer/views.py:63`).
   Tenu par `common/tests/tests_display_format.py` (V8 + serveur).
 - ✅ **Étendu le 2026-10-29/30 (demande de Fabien : *« le switch s'adapte à l'entrée, comme les
   filtrages bidirectionnels, avec un message sous le switch »*)** — l'OCR des pages scannées du
@@ -874,8 +888,9 @@ diffèrent de la sortie choisie est **déformée**, sans que l'écran le dise.
 
 **Mesuré le 2026-09-30** : les six backends qui consomment une image de référence la ramènent à
 la taille de sortie par un simple `resize((largeur, hauteur))` — donc un étirement :
-`diffusers_backend.py:1107` (img2img), `cogvideox_backend.py:311`, `ltx_video_backend.py:491/504`,
-`wan_video_backend.py:845`, `flux2_klein_backend.py:200`. L'imager (`tasks.py`) ne touche pas
+`diffusers_backend.py:1107` (img2img), `cogvideox_backend.py:315`, `ltx_video_backend.py:496/509`,
+`wan_video_backend.py:847`, `flux2_klein_backend.py:202` (tous sous `wama/common/backends/` ; lignes
+recalées le 2026-10-31). L'imager (`tasks.py`) ne touche pas
 l'image et ne compare pas les proportions. Rien n'est « faux » dans un backend : c'est l'APP qui
 n'a pas de politique d'adaptation.
 

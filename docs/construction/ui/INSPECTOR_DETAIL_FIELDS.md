@@ -82,7 +82,9 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
   > ⚠ La voie **spec** ne figurait pas dans ce document, alors que c'est la plus alignée sur la
   > philosophie (§3 : métadonnée-driven — l'app déclare `aliases` + champs au lieu d'écrire une
   > fonction). Elle est aussi celle que le **codegen** peut produire. À considérer comme la
-  > cible ; l'adapter reste nécessaire quand la résolution demande du calcul.
+  > cible ; ~~l'adapter reste nécessaire quand la résolution demande du calcul~~ *(périmé depuis le
+  > 2026-10-05 : plus aucun adapter code, `tests_detail_spec.py:33` `CODE_ADAPTERS = {}` — vérifié
+  > le 2026-10-31)*.
 
   ### Le langage de la spec (complété le 2026-10-03, décision de Fabien)
 
@@ -155,7 +157,9 @@ par chemin+mtime : une sonde par fichier, pas par clic). Zéro travail par app.
 
 - `unified_detail(app, pk)` (vue commune) → JSON plat `{clé: valeur}` (+ `extra:{label: valeur}`),
   et **non** `{fields:[{key,label,icon,…}]}` : les labels/icônes vivent côté CLIENT (voir ci-dessous).
-- Adapter par app = mapping `champ_modèle → clé_canonique` (+ `extra` tiré de `params.py`).
+- ~~Adapter par app~~ Spec par app (`register_app_detail_spec`) = mapping `champ_modèle → clé_canonique`
+  DÉCLARÉ (+ `extra` tiré de `params.py`) ; la voie adapter (`register_app_detail`,
+  `detail_registry.py:89`) n'a plus d'appelant depuis le 2026-10-05 *(corrigé le 2026-10-31)*.
 - Rendu : `renderDetailChips` (`wama-inspector.js`) dans la section « Infos ».
 
 ### ⚠ Où vivent RÉELLEMENT les labels (l'en-tête de ce document était faux)

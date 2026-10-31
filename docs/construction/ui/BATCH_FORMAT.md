@@ -22,8 +22,10 @@ les autres. Ajouter un champ ne casse pas les fichiers existants.
 
 ### ⚠ `-o / --output` : le NOM est honoré, la DESTINATION ne l'est pas encore (mesuré 2026-08-25)
 
-La ligne ci-dessus annonce « nom/**chemin** de sortie ». Le parseur range bien la valeur dans
-`output_filename` (`batch_parsers.py:563`), mais **aucune app n'en dérive un dossier** : la sortie
+La ligne ci-dessus annonce « nom/**chemin** de sortie ». Le parseur à balises range bien la valeur
+sous la clé `output` (`batch_parsers.py:582`, élément initialisé l.597), que les apps recopient en
+`output_filename` (ex. `composer/utils/batch_parser.py:71`, `synthesizer/utils/batch_parser.py:79`)
+*(clé et lignes corrigées le 2026-10-31)*, mais **aucune app n'en dérive un dossier** : la sortie
 retombe dans le `upload_to` de l'app (`media/<app>/<user>/output/`). Le champ est donc, à ce jour,
 un nom — pas une destination. **La doc promettait plus que le code ne fait** ; le noter ici plutôt
 que de laisser le prochain le découvrir en le testant.
@@ -189,7 +191,7 @@ si **toutes** ses lignes utiles le sont : une seule ligne non adressable suffit 
 > **Défaut corrigé le 2026-08-22.** `_parse_media_lines` acceptait TOUTE ligne non vide
 > comme un chemin : trois lignes de prose devenaient trois « médias ». Or le front ne
 > retombe sur l'upload direct que si le serveur renvoie `count == 0`
-> (`batch-import.js:140`) — ce repli ne se déclenchait donc **jamais** pour un fichier
+> (`batch-import.js:224`, ligne recalée le 2026-10-31) — ce repli ne se déclenchait donc **jamais** pour un fichier
 > texte non vide. Conséquence mesurée : déposer un `.txt` sur **converter** ou
 > **describer** ouvrait la barre de lot au lieu de créer la card du document à convertir.
 > Accessoirement, le `pipe positionnel` rendait 2 items de déchets aux apps média.
@@ -272,8 +274,9 @@ par une balise). Sinon, on retombe sur les parseurs **legacy** existants :
 - pipe positionnel `nom|prompt|modèle|durée` — composer/synthesizer.
 
 Les deux continuent de fonctionner pendant la transition. À terme, le format à
-balises devient le format canonique (un CSV à en-têtes pourra être ajouté comme
-variante « tableur », produisant le même item normalisé).
+balises devient le format canonique (~~un CSV à en-têtes pourra être ajouté comme
+variante « tableur », produisant le même item normalisé~~ la variante CSV à en-têtes est livrée,
+§Variante CSV — `batch_parsers.py:802-859` ; corrigé le 2026-10-31).
 
 ## Adoption dans une app (recette)
 

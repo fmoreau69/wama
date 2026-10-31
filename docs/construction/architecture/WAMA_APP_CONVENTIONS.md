@@ -42,7 +42,9 @@ Créer dans l'ordre. Ne pas sauter d'étape.
         `AppConfig.ready()` : `app_registry.register_surface(...)`.
 [ ] 12. Enregistrer les modèles AI dans model_registry.py (si AI)
 [ ] 13. Ajouter les outils API dans wama/tool_api.py + wama/urls.py (§17)
-[ ] 14. Ajouter les icônes TOOL_ICONS dans home.html
+[ ] 14. Ajouter les icônes à `TOOL_ICONS` de `common/js/wama-assistant-chat.js` (icône par
+        défaut 🔧 si absente) — corrigé le 2026-10-31, mesuré : `wama-assistant-chat.js:47`,
+        plus aucun `TOOL_ICONS` dans `home.html`
 [ ] 15. Vérifier l'app dans `/apps/` (conformité live via `app_registry.py::get_conformity_summary()`)
         — les tables figées du §15 ont été supprimées (2026-07-11), plus rien à éditer ici
 [ ] 16. Filemanager — plus AUCUN ajout manuel (2026-10-02) : l'arbre, son détecteur de
@@ -61,13 +63,17 @@ Créer dans l'ordre. Ne pas sauter d'étape.
 > l'app au catalogue (étape 17) suffit. Idem : tâches Celery auto-découvertes (voir
 > plus bas), copie dans l'input via `copy_into_app_input` (§8.3).
 
-> **Pourquoi manuel et pas auto-généré depuis app_registry ?** Les layouts de
+> ~~**Pourquoi manuel et pas auto-généré depuis app_registry ?** Les layouts de
 > dossiers sont **spécifiques par app** (Avatarizer a une *Galerie*, Imager
 > *Prompts/References/Images/Vidéos*, Enhancer *média/audio* séparés, Synthesizer
 > *Custom_voices*…) et ne sont pas encodés dans `app_registry`. De plus l'ordre et
 > la catégorie *WAMA Lab* doivent être préservés. Une auto-génération écraserait
 > ces structures soignées → on garde l'ajout manuel (une entrée déclarative,
-> ~6 lignes). C'est un compromis assumé (cf. discussion 2026-06).
+> ~6 lignes). C'est un compromis assumé (cf. discussion 2026-06).~~
+> **Périmé le 2026-10-02** (relevé le 2026-10-31) : l'arbre est DÉRIVÉ des déclarations
+> (étape 16, §8.5) — les dossiers propres à une app se déclarent par la clé `media_folders`
+> de son entrée `APP_CATALOG` (`app_registry.app_media_folders`, `app_registry.py:1228`),
+> lue par `filemanager/views.py:36` (`_app_folders_config`).
 
 ### Tâches Celery — découverte AUTOMATIQUE (rien à faire)
 
@@ -267,9 +273,13 @@ io = {
 `set(B.input.types) ∩ set(A.output.types) ≠ ∅` (vérif systématique côté méta-app).
 
 ### 2bis.3 Capacités d'APP — drapeaux (pilotent l'UI générique + l'agent)
-`has_realtime` (preview/micro), `has_edit_page` (éditeur/correction), `instant_preview`,
+`has_live_input` (capture en direct, Speak — `app_registry.py:597`), page d'édition = **surface
+déclarée** (`<app>/surfaces.py`, `common/surfaces.py:764 register_surface` ; bouton ✏ déduit par
+`wama_actions.surface_button`, `wama_actions.py:484`), `instant_preview`,
 `batch`, `export_binding` (`'late'` = format choisi à l'export / `'early'` = format figé à la
 génération, cf. §6.4) … → composent le template (cf. §4) et informent l'agent de ce que l'app sait faire.
+*(Corrigé le 2026-10-31 : cette ligne citait `has_realtime` et `has_edit_page`, qui n'existent
+nulle part dans le code — grep sur `wama*/` `.py/.js/.html`, 0 occurrence.)*
 
 **`instant_preview` (DÉFINI le 2026-10-16, réservé depuis le 17/06)** : l'app montre, sous la
 consigne de sa card d'entrée, ce qu'elle rendrait — PENDANT la frappe, sans rien mettre en file
@@ -349,11 +359,15 @@ urlpatterns = [
 > noms divergents à gérer ? »). La ligne `settings/<int:pk>/` → `update_settings` ci-dessus
 > était suivie par le seul composer ; le même geste s'appelait `update`, `update_options`,
 > `update_settings` ou `save_settings`, sur cinq chemins. Alignés ce jour : describer,
-> avatarizer, synthesizer, converter, enhancer, reader ; l'imager garde `settings/<int:pk>/save/`
-> (sa LECTURE occupe `settings/<id>/` — fusionner les deux vues lèverait l'écart). ~~Restent
-> transcriber (autre session) et~~ Reste l'anonymizer (route sans identifiant ; son `update_settings`
-> est une route GLOBALE, à renommer d'abord) — le transcriber s'est aligné le 2026-09-25
-> (`7a9a4dbb`, remesuré le 26/09). Tenu par le critère `settings_route` et par
+> avatarizer, synthesizer, converter, enhancer, reader ; l'imager gardait `settings/<int:pk>/save/`
+> (sa LECTURE occupait `settings/<id>/`) — **aligné le 2026-09-29** : lecture et écriture sur la
+> même route (`imager/urls.py:51`, `generation_settings` nommée `update_settings` ;
+> `tests_endpoints.py:350-351`, `PATH_EXCEPTIONS = {}`). ~~Restent
+> transcriber (autre session) et~~ Reste l'anonymizer : `save_media_settings/` sans identifiant
+> (`anonymizer/urls.py:64`) — l'ex-`update_settings` GLOBAL est devenu `user_settings/` le
+> 2026-09-27 (`anonymizer/urls.py:25-28`) — le transcriber s'est aligné le 2026-09-25
+> (`7a9a4dbb`, remesuré le 26/09). *(Corrigé le 2026-10-31 ; la raison de `NAME_PENDING`,
+> `tests_endpoints.py:345-347`, cite encore la route globale : périmée.)* Tenu par le critère `settings_route` et par
 > `tests_endpoints.ItemEditRouteConventionTest`, qui échoue aussi quand une exemption devient
 > inutile. Les CORPS diffèrent encore (lecture JSON/FormData, refus RUNNING, relance, forme de
 > réponse) : les ramener au corps généré (`read_settings_payload` + `apply_item_settings`) est un
@@ -584,16 +598,26 @@ document.addEventListener('click', e => {
 par app** (`common/utils/preview_utils.py::register_app_preview` / `PreviewRegistry`) — **9 apps /
 10 la déclarent** dans leur `apps.py` (transcriber, describer, enhancer, anonymizer, converter,
 reader, composer, avatarizer, synthesizer — ces deux derniers via la clé `source_text` pour les
-entrées texte, donc PAS « N/A »). Seule exception documentée : **imager** (`imager/apps.py` :
-« PAS de register_app_preview », génération pure). Ne plus maintenir de table figée ici.
+entrées texte, donc PAS « N/A »). ~~Seule exception documentée : **imager** (`imager/apps.py` :
+« PAS de register_app_preview », génération pure).~~ **Corrigé le 2026-10-31, mesuré : les 10 apps
+enregistrent leur aperçu** — `register_app_preview` (`common/utils/preview_utils.py:936`), imager
+compris (`imager/apps.py:58`), ou `PreviewRegistry.register` + adapter
+(`common/utils/preview_registry.py:17` ; `transcriber/apps.py:51`, `anonymizer/apps.py:24`).
+Ne plus maintenir de table figée ici.
 
-### 5.2 Implémentation double (server-side + client-side)
+### 5.2 ~~Implémentation double (server-side + client-side)~~ Une seule implémentation, serveur
 
-Chaque card est rendue **deux fois** avec la même structure :
-- **Server-side** : `templates/<app>/_item_card.html` (rendu au chargement initial)
-- **Client-side** : fonction `buildCard(item)` dans `<app>.js` (rendu après upload/polling)
+> **Corrigé le 2026-10-31, mesuré** : plus aucune app n'écrit de `buildCard` (seule définition
+> du dépôt : `media_library/js/media-library.js:438`). La card a **une seule implémentation**,
+> serveur : le gabarit de card de l'app + la route `card_html` (déclarée dans les 10 `urls.py`),
+> redemandée après dépôt / polling par `WamaApp.fetchCard` (`common/js/wama-app-base.js:1169`).
+> Critère `card_refresh_common`. **Ne jamais écrire de `buildCard`.**
 
-Les deux doivent rester **synchronisées**.
+~~Chaque card est rendue **deux fois** avec la même structure :~~
+- ~~**Server-side** : `templates/<app>/_item_card.html` (rendu au chargement initial)~~
+- ~~**Client-side** : fonction `buildCard(item)` dans `<app>.js` (rendu après upload/polling)~~
+
+~~Les deux doivent rester **synchronisées**.~~
 
 ### 5.3 Classe CSS obligatoire
 
@@ -686,8 +710,13 @@ utiliser un **split button dropdown Bootstrap** — un bouton principal (format 
 > ```django
 > {% templatetag openblock %} load wama_actions {% templatetag closeblock %}
 > {% templatetag openblock %} url 'app:download' o.id as url_dl {% templatetag closeblock %}
-> {% templatetag openblock %} bouton_telecharger 'app' url_dl o.a_un_resultat {% templatetag closeblock %}
+> {% templatetag openblock %} download_button 'app' url_dl o.output_file {% templatetag closeblock %}
 > ```
+>
+> *(Corrigé le 2026-10-31 : le tag s'appelle `download_button` depuis le 2026-08-30, ex-
+> `bouton_telecharger` — `common/templatetags/wama_actions.py:18`, l.51 ; le 3ᵉ argument est une
+> expression booléenne de l'élément, ex. réel `{% templatetag openblock %} download_button
+> 'composer' url_dl elem.audio_output {% templatetag closeblock %}`.)*
 >
 > **La FORME n'est pas un choix de gabarit** : lien simple, split ▾ ou bouton désactivé se
 > déduisent de `export_formats` (déclaré au catalogue) et de l'état de l'item. C'est ce qui a
@@ -697,7 +726,7 @@ utiliser un **split button dropdown Bootstrap** — un bouton principal (format 
 > RÉFÉRENCE de ce que la brique produit, pas comme modèle à copier.
 >
 > Restriction au niveau de l'ITEM (un format que CET élément n'a pas) : 4ᵉ argument, par ex.
-> `{% templatetag openblock %} bouton_telecharger 'reader' url_dl True 'txt,md,pdf,docx' {% templatetag closeblock %}` — la déclaration dit
+> `{% templatetag openblock %} download_button 'reader' url_dl True 'txt,md,pdf,docx' {% templatetag closeblock %}` — la déclaration dit
 > ce que l'app sait exporter, l'item dit ce qu'il a.
 
 ```html
@@ -810,8 +839,12 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
 **Règle UI qui en découle :**
 - **App master-based** (`export_binding='late'`) → sélecteur de format à **CHAQUE** téléchargement,
   y compris **« Télécharger tout »** (dropdown multi-format, cf. §6.3). Le format n'est jamais figé en amont.
-  *Réf. transcriber : `download_all?format=`, dropdown construit dans `index.js`, génération via le
-  helper partagé `build_transcript_bytes(t, fmt)` (zéro duplication avec `batch_download`).*
+  *Réf. transcriber : `download_all?format=` ; ~~dropdown construit dans `index.js`~~ le ⬇ de file
+  est rendu par la barre commune depuis `export_formats` (`transcriber/js/index.js:477-478`, « NO
+  wiring here », 2026-08-30) et la vue vient de la fabrique `make_progress_views`
+  (`common/utils/progress_views.py:245`, `transcriber/views.py:1103`) — corrigé le 2026-10-31 ;
+  génération via le helper partagé `build_transcript_bytes(t, fmt)` (zéro duplication avec
+  `batch_download`).*
 - **App render-based** (`export_binding='early'`) → format choisi à la génération ; le téléchargement
   sert le fichier produit tel quel. Reformatage ultérieur = Converter.
 - **Les réglages de SORTIE d'une app render-based s'appliquent en UN geste commun** (2026-09-30) :
@@ -827,8 +860,8 @@ média déjà rendu** (→ early binding : reformater = job du Converter) ?
   ~~⏳ Les autres apps render-based gardent leur boucle de conversion (composer, synthesizer,
   anonymizer, enhancer)~~ — **constat faux, corrigé le 2026-10-16 au code** : les SIX apps
   render-based passent par le process commun « Sortie » (`output_process.output_step`, qui
-  appelle ce geste) — imager, composer (`tasks.py:521`), synthesizer (`workers.py:170`),
-  anonymizer (`tasks.py:116`), enhancer (`tasks.py`, `_output`) et avatarizer (`workers.py:487`).
+  appelle ce geste) — imager, composer (`tasks.py:526`), synthesizer (`workers.py:168`),
+  anonymizer (`tasks.py:102`), enhancer (`tasks.py`, `_output`) et avatarizer (`workers.py:499`).
   Reste vrai : la vidéo (upscale image par image) attend l'extraction de la route vidéo de
   l'enhancer.
 - **« Garder la résolution d'origine »** (2026-10-16, `output_keep_size`) : la sortie revient
@@ -984,8 +1017,10 @@ if (window.WamaEta) {
 > - Carte + globale : converter, avatarizer, composer, describer, enhancer, transcriber,
 >   imager, reader, synthesizer, anonymizer.
 > - **Batch** : en-tête de groupe via `<span class="wama-eta" data-eta-ids="id1,id2,…">` ;
->   un ticker générique dans `wama-eta.js` agrège automatiquement (apps avec groupes batch :
->   converter, reader, describer, enhancer, transcriber, synthesizer, composer).
+>   un ticker générique dans `wama-eta.js` agrège automatiquement ~~(apps avec groupes batch :
+>   converter, reader, describer, enhancer, transcriber, synthesizer, composer)~~ — **corrigé le
+>   2026-10-31** : le span est posé par la card mère COMMUNE depuis `batch_info.eta_ids` (CSV,
+>   `common/_batch_card.html:134-135`), mesuré par le critère `eta_batch` ; rien à écrire par app.
 
 ---
 
@@ -997,9 +1032,9 @@ if (window.WamaEta) {
 |------|-------------|--------|
 | **Drag & drop** | Zone cliquable + glisser-déposer | ✅ Toutes les apps (audit 2026-07-11, cf. §15.2 — imager a bien sa drop-zone) |
 | **Parcourir** | `<input type="file" multiple>` | ✅ Toutes les apps |
-| **Dossier récursif** | `<input webkitdirectory>` | 📋 Non implémenté |
-| **FileManager** | Import depuis `/filemanager/` — sélection multiple ou dossier entier | 🚧 Partiel |
-| **URL** | Mécanisme COMMUN déclaratif (2026-07-22) : `WAMA_INGEST` sur le modèle + `ensure_local_input()` en tête de tâche (`common/utils/source_ingest.py`) ; card générée par la capacité `accepts_url` | ✅ 5 apps `has_url_import=True` ; les autres = déclarer `WAMA_INGEST` |
+| **Dossier récursif** | `<input webkitdirectory>` | ✅ brique `WamaFolderImport` (`common/js/wama-folder-import.js`, posée par la card d'entrée commune avec `folder_input_id=`), critère `recursive_import`, geste `<app>.folder_import` ; non applicable aux cards en mode attache (imager, avatarizer, composer) — *corrigé le 2026-10-31, ex-« 📋 Non implémenté »* |
+| **FileManager** | Import depuis `/filemanager/` — sélection multiple ou dossier entier | ✅ cf. §8.3 (importeurs déclarés `filemanager/views.py:1888 IMPORTERS` + `importer_for` l.1902) — *corrigé le 2026-10-31, ex-« 🚧 Partiel »* |
+| **URL** | Mécanisme COMMUN déclaratif (2026-07-22) : `WAMA_INGEST` sur le modèle + `ensure_local_input()` en tête de tâche (`common/utils/source_ingest.py`) ; card générée par la capacité `accepts_url` | ✅ 10/10 apps déclarent `WAMA_INGEST` (`wama/<app>/models.py`, mesuré le 2026-10-31), critère `url_ingest` |
 | **Batch file** | Fichier CSV/TXT/PDF/DOCX glissé dans la zone drag & drop — **détection automatique, pas de bouton séparé** | ✅ Toutes les apps avec batch |
 
 ### 8.2 Zone de drop standard
@@ -1124,7 +1159,7 @@ WamaFM.deleted();    // fichier supprimé
 | Process terminé (sortie créée) — dans le polling, statut terminal | `WamaFM.processed()` |
 | Suppression d'un item | `WamaFM.deleted()` |
 | Suppression d'un batch | `WamaFM.deleted()` |
-| « Tout effacer » (clear all) | `WamaFM.deleted()` |
+| « Effacer la file » (clear all ; ex-« Tout effacer », libellé changé le 2026-10-30) | `WamaFM.deleted()` |
 | Consolidation / création batch (reload de toute façon) | — (le reload couvre) |
 | Duplication | — (partage le fichier d'entrée, sortie vide tant que pas relancé) |
 
@@ -1135,9 +1170,11 @@ Triggers `WamaFM` posés sur upload/complétion/delete item+batch ; les chemins 
 déjà `location.reload()` (clear-all transcriber/reader, batch-delete synthesizer/composer,
 complétion imager) sont couverts par le reload. Complétion converter/avatarizer couverte
 aussi par le common `wama-global-progress.js`.
-⚠️ **Anonymizer** utilise `refreshMediaTable()` (AJAX, PAS de reload) → triggers explicites
+~~⚠️ **Anonymizer** utilise `refreshMediaTable()` (AJAX, PAS de reload) → triggers explicites
 posés sur delete/clear/batch-delete (`WamaFM.deleted()`) + complétion par-média
-(`WamaFM.processed()`). Filet commun : poll mtime ≤5 s.
+(`WamaFM.processed()`). Filet commun : poll mtime ≤5 s.~~ *(Retiré, relevé le 2026-10-31 :
+`refreshMediaTable` est supprimé — `anonymizer/js/update.js:15` — l'anonymizer est sur la file
+commune.)*
 
 #### Anti-pattern à éviter
 
@@ -1147,7 +1184,8 @@ et masque le vrai bug (un dispatch manquant côté FileManager).
 Si l'app cible "ne voit pas" les nouveaux jobs, le réflexe est de vérifier le dispatch côté
 FileManager — pas d'ajouter un polling.
 
-> **État actuel :** ✅ Fichier unique, sélection multiple (`sendToMultiple`), dossier entier
+> **État actuel :** ✅ Fichier unique, sélection multiple (`importMultipleToApp`,
+> `filemanager.js:2230` — ex-`sendToMultiple`, absent du dépôt, corrigé le 2026-10-31), dossier entier
 > (`api_import_to_app` récursif, fd4552e 2026-07-20) et quick-actions Converter.
 
 ### 8.4 Import dossier récursif
@@ -1161,7 +1199,11 @@ FileManager — pas d'ajouter un polling.
 </button>
 ```
 
-> **État actuel :** 📋 Non implémenté — à ajouter dans toutes les apps.
+> **État actuel :** ~~📋 Non implémenté — à ajouter dans toutes les apps.~~ ✅ **brique commune
+> `WamaFolderImport`** (`common/js/wama-folder-import.js`), posée par la card d'entrée commune
+> (`folder_input_id=`) — ne plus recopier le markup ci-dessus ; critère `recursive_import`, geste
+> `<app>.folder_import` ; non applicable aux cards en mode attache (imager, avatarizer, composer).
+> *Corrigé le 2026-10-31.*
 
 ### 8.5 Auto-dépliement FileManager selon l'app active
 
@@ -1222,14 +1264,21 @@ est un batch de 1 (pattern du Synthesizer). Cela garantit :
 
 ### 9.2 Modèle batch standard (dans `wama/common/`)
 
-> **État actuel :** 🚧 Chaque app a son propre modèle batch. À terme, extraire un
-> `BaseBatch` abstrait dans `wama/common/models.py`.
+> **État actuel (corrigé le 2026-10-31, mesuré) :** 🔄 le modèle de lot reste DÉCLARÉ par app,
+> mais sa sémantique est commune : `BatchMixin` et `QueueOrderMixin` (`common/models.py:256`,
+> `:227`), adoptés par les 10 apps, converter (`converter/models.py:24`) et imager
+> (`imager/models.py:398`) compris ; critères `batch_semantics` / `queue_order`. L'intention
+> d'un `BaseBatch` abstrait (le modèle lui-même, pas seulement sa sémantique) reste ⏳.
+> ~~🚧 Chaque app a son propre modèle batch. À terme, extraire un
+> `BaseBatch` abstrait dans `wama/common/models.py`.~~
 
 Pattern recommandé (voir Synthesizer comme référence) :
-- `MyBatch` (total, batch_file, created_at)
+- `MyBatch(BatchMixin, QueueOrderMixin, …)` (total, batch_file, created_at)
 - `MyItem.batch = FK(MyBatch, null=True)`
-- `_wrap_in_batch(item)` → crée un batch-de-1 si item isolé
-- `_auto_wrap_orphans(user)` → migration lazy des anciens items
+- ~~`_wrap_in_batch(item)`~~ → `batch_common.wrap_in_batch` (`common/utils/batch_common.py:139`)
+  crée un batch-de-1 si item isolé — **ne pas réécrire de `_wrap_*`**
+- ~~`_auto_wrap_orphans(user)`~~ → `batch_common.auto_wrap_orphans` (l.207), migration lazy des
+  anciens items
 
 ### 9.2bis Regroupement batch PAR NATURE — règle GÉNÉRALE (commune)
 
@@ -1365,6 +1414,12 @@ drag & drop normale (ou importé depuis le FileManager). La détection est autom
 
 **Barre de détection standard (`#batchDetectBar`)** :
 
+> **Ne plus recopier ce markup** (relevé le 2026-10-31) : il vit dans le partial commun
+> `common/batch_detect_bar.html`, inclus par la card d'entrée commune
+> (`common/_new_item_card_v4.html:349`, `show_batch_bar` / `lot`) et câblé par
+> `common/js/batch-import.js`. Le bloc ci-dessous reste comme RÉFÉRENCE de ce que le partial
+> produit (il peut avoir divergé du partial, qui fait foi).
+
 ```html
 <div id="batchDetectBar" style="display:none; background:#1a1520; border:1px solid #0dcaf0;
      border-radius:0.375rem; padding:0.5rem 0.75rem; margin-bottom:0.5rem;">
@@ -1491,6 +1546,10 @@ sur le modèle, **jamais recalculée à la main** :
 `is_unitary` est adopté par les **10 gabarits** depuis le 2026-08-24 (REMOVAL_LEDGER R25) ;
 `obj.total == 1` en gabarit est désormais une **régression** à corriger.
 
+> ✅ **Soldé le 2026-08-25 — le bloc ci-dessous est l'HISTORIQUE** (relevé le 2026-10-31,
+> mesuré : `is_unitary` n'apparaît plus dans aucun gabarit d'app, seul
+> `common/_queue_entry.html` le porte — l'entrée de file est commune, contrat `elem`, cf. plus haut).
+
 ⚠ **POURQUOI CE TEST EST ENCORE DANS 10 GABARITS ET NON DANS `common/`** — question de Fabien,
 2026-08-24. Ce n'est PAS une fatalité de structure : j'avais d'abord répondu « le test décide
 s'il faut inclure `_batch_card.html`, donc il est en amont et non absorbable ». **C'est faux.**
@@ -1589,8 +1648,20 @@ En particulier le bouton **▶ Lancer/Relancer (pos. 2)** lance/relance **tous l
 </button>
 <!-- puis ⬇ (ZIP/dropdown) · ⧉ batch-duplicate-btn · 🗑 batch-delete-btn -->
 ```
-JS : handler **délégué** `.batch-start-btn` → POST `config.batchStartUrlTemplate` → reload (cf.
-`transcriber/js/index.js`). **Ne pas** mettre `event.stopPropagation()` sur les actions (casserait la
+> 🔴 **Corrigé le 2026-10-31 — N'ÉCRIRE AUCUN ÉCOUTEUR DE LOT DANS L'APP.** Cette ligne
+> prescrivait « handler délégué `.batch-start-btn` → POST `config.batchStartUrlTemplate` →
+> reload » : un tel handler ajouté par l'app fait partir chaque clic **deux fois** (double POST,
+> vécu sur le reader, `WAMA_VERIFICATION` geste `reader.batch_actions`, R121 ; garde
+> `tests_queue_delete_contract.BatchActionsOwnedByTheBrickTest`). Mesuré : la brique commune
+> `common/js/queue-actions.js` tient les actions de la card mère — ▶ (`batchAction('batch-start-btn',
+> 'data-batch-start-url')`, l.693), ⧉ (l.653), 🗑 (l.650), ↓ réaligner (l.658), ⚙ (l.715, ouvreur
+> déclaré par `WamaQueueActions.onBatchSettings(fn)`, l.709) — et la card mère commune
+> (`common/_batch_card.html:144-201`) rend les attributs `data-batch-*-url`. L'app ne déclare que
+> ce qui lui est PROPRE : la suite après ▶ (`onBatchStarted`), un corps posté (`onBatchStartBody`),
+> l'ouvreur de sa modale de lot. Le markup ci-dessus est la RÉFÉRENCE de ce que la card mère rend.
+
+~~JS : handler **délégué** `.batch-start-btn` → POST `config.batchStartUrlTemplate` → reload (cf.
+`transcriber/js/index.js`).~~ **Ne pas** mettre `event.stopPropagation()` sur les actions (casserait la
 délégation) ; scoper le toggle collapse sur la zone info, actions HORS toggle.
 
 **Modale** : `#batchSettingsModal`, dans le bloc `{% block extra_modals %}` du template.
@@ -1623,8 +1694,10 @@ non-RUNNING du batch. URL : `batch/<int:pk>/update/`, nom `batch_update` (10/10 
 **Contexte IndexView** : ajouter `first_<param>` dans chaque entrée de `batches_list` pour
 pré-remplir la modale avec les valeurs du premier item du batch.
 
-**Apps conformes :** Synthesizer ✅ | Reader ✅ | Transcriber ✅ (modale individuelle réutilisée en mode batch — `_settingsBatchId` + endpoint `batch_update`)
-**Apps à porter :** Describer | Enhancer | Composer | Anonymizer
+**Apps conformes :** ✅ **10/10** (fabrique `make_batch_views`, `apply_settings=` — mesuré le
+2026-10-31 : les 10 `views.py` l'importent). ~~Synthesizer ✅ | Reader ✅ | Transcriber ✅ (modale
+individuelle réutilisée en mode batch — `_settingsBatchId` + endpoint `batch_update`)~~
+~~**Apps à porter :** Describer | Enhancer | Composer | Anonymizer~~
 
 ### 9.9 Cartes d'élément DANS un groupe batch — boutons + comportement
 
@@ -1643,8 +1716,12 @@ C'est le trou le plus fréquent : les items batch sont souvent rendus inline san
 > | ⧉ Dupliquer | `class="… duplicate-btn" data-duplicate-url="…"` | rien |
 > | 🗑 Supprimer | `class="… delete-btn" data-delete-url="…"` (+ `data-confirm` pour le libellé) | rien, ou `WamaQueueActions.onDeleted(fn)` pour le RÉSIDU (compteur, polling) |
 > | ⚙ Paramètres | `class="… settings-btn" data-id="…"` | **une ligne** : `WamaQueueActions.onSettings((id, btn) => …)` |
+> | ▶ ⧉ 🗑 ↓ **de LOT** (card mère) | `data-batch-start-url` / `-duplicate-url` / `-delete-url` / `-realign-url`, rendus par `common/_batch_card.html` | rien, ou `onBatchStarted` / `onBatchStartBody` pour la suite propre |
+> | ⚙ **de LOT** | `class="… batch-settings-btn" data-batch-id="…"` (card mère commune) | **une ligne** : `WamaQueueActions.onBatchSettings((id, btn) => …)` |
 >
-> **N'écrire AUCUN écouteur de clic pour ces trois boutons dans une app.** La délégation est
+> *(Deux lignes de LOT ajoutées le 2026-10-31, mesuré : `queue-actions.js:650-724`.)*
+>
+> **N'écrire AUCUN écouteur de clic pour ces boutons dans une app.** La délégation est
 > unique et posée sur le document ; en ajouter une localement fait partir chaque clic DEUX fois.
 > Corollaire de portage : changer la graphie et retirer le handler local sont **un seul geste** —
 > l'un sans l'autre donne un bouton mort ou un double-fire.
@@ -1657,6 +1734,11 @@ C'est le trou le plus fréquent : les items batch sont souvent rendus inline san
 - Un **élément** hérite de ces défauts et peut **surcharger** certains champs
   (ex. voix/vitesse/modèle). **La surcharge de l'élément l'emporte** ; sinon, défaut du batch.
 - La modale batch « appliquer à tous » doit indiquer si elle **écrase les réglages perso**.
+- **État réel (relevé le 2026-10-31, mesuré)** : la ⚙ de lot écrit ses valeurs sur **toutes** les
+  filles non RUNNING (`common/utils/batch_views.py:677-687`, `batch_update`) et les retient comme
+  référence du lot (`common/services/batch_settings.py`) ; ↑ promouvoir une fille (`batch_promote`,
+  l.691) et ↓ réaligner le lot (`batch_realign`, l.716) — `MODES_QUEUE_UX §5ter`. La surcharge
+  conservée (« inchangé » pour les réglages divergents) reste ⏳.
 
 **Duplication d'un élément = DANS le batch (élément frère), jamais hors groupe.**
 Ajouter l'item au **même** batch (`batch.items` + `total++`), pas un nouveau batch-of-1.
@@ -1675,17 +1757,23 @@ else:
     _wrap_<obj>_in_batch(copy)   # élément autonome → batch-of-1
 ```
 
-**Appartenance fluide (drag & drop in/out de batch)** : prévu — voir ROADMAP §1.2 (phase 2).
+**Appartenance fluide (drag & drop in/out de batch)** : ~~prévu — voir ROADMAP §1.2 (phase 2).~~
+✅ **livré** (relevé le 2026-10-31) — fabrique `queue_manipulation.make_queue_manipulation_views`
+(`common/utils/queue_manipulation.py:218` ; vues `remove_from_batch` / `reorder` / `move_to_batch`
+l.241-265, variante `_direct` l.365), routes dans les 10 `urls.py`, `common/js/wama-queue-dnd.js`,
+critère `queue_manipulation`, geste `<app>.queue_dnd`.
 Glisser une carte autonome **dans** un batch (rejoint), ou une carte **hors** d'un batch
 (redevient batch-of-1).
 
 **Apps conformes :** Synthesizer ✅ | Reader ✅ | Transcriber ✅ | **Describer ✅**
 (⚙ batch réutilisant la modale individuelle + ⚙/⧉ par item + duplication in-batch + group-by-nature)
 | Anonymizer ✅ (groupes batch + consolidation + ⚙/▶/⬇/⧉/🗑 par item + suppr. batch ;
-pas de ⚙/▶ batch — traitement **global** par conception)
+~~pas de ⚙/▶ batch — traitement **global** par conception~~ — périmé, relevé le 2026-10-31 :
+⚙/▶ de lot présents, `anonymizer/urls.py:85-86`, `batch_start` / `batch_update`)
 **Composer ✅** (⚙ batch via modale partagée + ⚙/⧉ par item + duplication in-batch).
 **Enhancer ✅** (média : ⚙ batch via réutilisation de la modale par-item du 1er élément
-[`window._enhancerBatchId` → `batch_update`] + ⚙/⧉ par item + duplication in-batch).
+~~[`window._enhancerBatchId` → `batch_update`]~~ [ouvreur `onBatchSettings` de la brique ;
+`_enhancerBatchId` absent du dépôt, relevé le 2026-10-31] + ⚙/⧉ par item + duplication in-batch).
 **Avatarizer ✅** (lots créés par **import de fichier batch** au format à balises ;
 groupes par nature = mode pipeline/standalone ; ⧉ par item + duplication in-batch ;
 ▶/⬇ ZIP/⧉/🗑 au niveau du lot ; partage `BatchAvatarJob`/`BatchAvatarJobItem`).
@@ -1699,12 +1787,15 @@ groupes par nature = mode pipeline/standalone ; ⧉ par item + duplication in-ba
 
 - **Position : à GAUCHE du bouton Dupliquer** → ordre d'en-tête
   `[⬇ ZIP] [⧉ Dupliquer] [🗑 Supprimer]` (+ `[⚙ batch]` / `[▶ batch]` à gauche du ZIP
-  pour les apps qui les exposent — l'anonymizer n'en a pas, traitement global).
+  pour les apps qui les exposent — ~~l'anonymizer n'en a pas, traitement global~~ les dix les
+  exposent, anonymizer compris, `anonymizer/urls.py:85-86`, relevé le 2026-10-31).
 - **Guard `{% if b.done_count %}`** : ne s'affiche que si ≥ 1 sortie est prête.
-- **Vue `batch_download(request, pk)`** : construit le ZIP en mémoire
+- **Vue `batch_download(request, pk)`** : vue de la fabrique `make_batch_views` — **rien à
+  écrire** (corrigé le 2026-10-31 ; cf. plus bas). ~~construit le ZIP en mémoire
   (`io.BytesIO` + `zipfile`) des fichiers de sortie des items `DONE`, renvoyé en
   `FileResponse`/`HttpResponse` `application/zip`. Réutilise le chemin de sortie
-  canonique de l'app (ex. anonymizer `get_blurred_media_path`, converter `job.output_file.path`).
+  canonique de l'app (ex. anonymizer `get_blurred_media_path`, converter `job.output_file.path`).~~
+  (`get_blurred_media_path` est retiré le 2026-09-27, `anonymizer/utils/media_utils.py:11`, R77.)
 - **URL** : `batch/<int:pk>/download/` → `name='batch_download'`.
 
 **Variante déroulante (apps multi-formats)** : si le format se choisit AU TÉLÉCHARGEMENT
@@ -1740,13 +1831,20 @@ Les paramètres de traitement doivent être configurables à **trois niveaux** :
 
 | Niveau | Où | Persistance |
 |--------|----|-------------|
-| **Volet droit** (défauts) | `app_right_panel_settings` | `localStorage` |
+| **Volet droit** (défauts) | `app_right_panel_settings` | ~~`localStorage`~~ base — brique `common/utils/user_settings.py` (`save_panel_settings` / `read_panel_settings`, l.115-125), durable depuis le 2026-09-15 |
 | **Item individuel** (override) | Modale `data-action="settings"` | BDD (champs du modèle) |
 | **Batch** (override global) | Modale avant création du batch | BDD (`MyBatch`) |
 
 **Priorité :** Paramètres item > Paramètres batch > Valeurs du volet droit
 
-### 10.2 Persistance localStorage (volet droit)
+### 10.2 ~~Persistance localStorage (volet droit)~~ Persistance des défauts du volet — en base
+
+> **Corrigé le 2026-10-31, mesuré** : les défauts du volet sont des réglages UTILISATEUR en base
+> (`common/utils/user_settings.py`, durable depuis le 2026-09-15, docstring l.8-11 :
+> `save_panel_settings` / `read_panel_settings`), et un élément NAÎT de ces réglages par
+> `new_element_settings` (l.229). Critères `user_settings` et `birth_settings_common`. **Ne plus
+> écrire de persistance `localStorage` par app** — la recette ci-dessous ne subsiste que dans
+> `reader/js/reader.js` et `describer/js/index.js` (reste de portage).
 
 ```javascript
 // Dans init() du JS de l'app
@@ -1868,7 +1966,7 @@ def duplicate(request, pk):
 | `media_paths.py` | `upload_to_user_input()`, `upload_to_user_output()`, `UploadToUserPath` | Chemins fichiers |
 | `console_utils.py` | `push_console_line()`, `get_console_lines()` | Logs console UI |
 | `llm_utils.py` | `get_describer_model()` | Sélection modèle LLM |
-| `format_policy.py` | `validate_format()` | Validation formats médias |
+| `format_policy.py` | `get_policy()`, `should_auto_convert()`, `get_preferred_format()` (corrigé le 2026-10-31 : `validate_format()` n'existe pas, `format_policy.py:169-320`) | Politique de format par catégorie |
 | `video_utils.py` | Utilitaires vidéo | Traitement vidéo |
 | `preview_utils.py` | Socle preview commune : faces Entrée/Comparer/Sortie dérivées des ports, phase « pendant », `register_app_preview()`, pics d'onde partiels | Prévisualisation |
 | `source_ingest.py` | `ensure_local_input()` piloté par `WAMA_INGEST` (URL→fichier local) | Ingest média déclaratif |
@@ -1900,6 +1998,12 @@ par l'endpoint `<app>:console` de l'app.
 les messages n'apparaissent pas dans la console de l'app (filtre par app côté serveur).
 
 #### Pattern standard dans `tasks.py` / `workers.py`
+
+> **Dans une tâche d'ÉLÉMENT, ne rien recopier** (ajouté le 2026-10-31, mesuré) : les 10 apps
+> passent par le squelette `run_item_task`, dont le contexte fournit **`ctx.console(message,
+> level=None)`** — niveau déduit et `app=` posé par la brique (`common/utils/task_skeleton.py:309-320`,
+> `app=self.app_id`). Le wrapper `_console` ci-dessous ne vaut plus que HORS squelette (tâche qui
+> ne traite pas un élément de file).
 
 ```python
 # ── Import : EN HAUT DU FICHIER (jamais lazy dans la fonction) ──────────────
@@ -1968,6 +2072,7 @@ comme `?app=<nom_app>` à l'endpoint `{% url 'common:console' %}`.
 | Anonymizer | ✅ | ✅ | ✅ | ✅ |
 | Avatarizer | ✅ | ✅ | ✅ | ✅ |
 | Composer | ✅ | ✅ | ✅ | ✅ |
+| Converter | — (`ctx.console`) | ✅ (par le squelette) | ✅ | ✅ — ligne ajoutée le 2026-10-31 (`converter/tasks.py:115`) |
 | Describer | ✅ | ✅ | ✅ | ✅ |
 | Enhancer | ✅ | ✅ | ✅ | ✅ |
 | Imager | ✅ | ✅ | ✅ | ✅ |
@@ -2010,9 +2115,18 @@ chacun, rendu à l'arrêt ; `wama/common/services/ui_smoke_capture.py`), `<app>.
 
 ---
 
-## 13. Intégration RAG (Planifié)
+## 13. Intégration RAG ~~(Planifié)~~
 
-> **État :** 📋 Non implémenté — architecture à définir.
+> **État (corrigé le 2026-10-31, mesuré) :** 🔄 la brique existe — **`wama/common/memory/`**
+> (`remember` / `recall` / `forget`…, `memory/__init__.py:16-22`, Postgres + pgvector), servie à
+> l'assistant (domaines `rag=True`, `common/utils/assistant_skills.py:68-89`). Son branchement dans
+> les prompts des APPS est écrit dans la pipeline commune — Hook B, `_rappel_rag` → `memory.recall`
+> (`common/utils/prompt_pipeline.py:31-58`, appelé l.239-240) — mais **OPT-IN** (`rag=False` par
+> défaut, l.97) et **aucune app ne l'active** (commentaire l.234-235 ; aucun appelant ne passe
+> `rag=True` — grep `rag=True` / `rag_k` sur `wama/**/*.py`). Le geste d'une app sera donc de
+> passer `rag=True` à la pipeline, **jamais** d'écrire un `rag_utils.py` (il n'existe pas).
+> Domicile : `docs/construction/ia/WAMA_MEMORY.md`. L'interface ci-dessous est l'intention de
+> 2026-03, remplacée par cette brique. ~~📋 Non implémenté — architecture à définir.~~
 
 **Vision :** Chaque application pourra injecter le contexte du RAG utilisateur dans
 ses prompts modèle, pour personnaliser les résultats (vocabulaire métier, préférences,
@@ -2110,8 +2224,14 @@ Le singleton est déchargé naturellement par le model_manager ou à la fin du w
 Les règles d'intégration des modèles HuggingFace sont documentées dans `AGENTS.md`
 sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 
-**Rappel mnémotechnique :**
-> `settings.py → model_config.py → os.environ['HF_HUB_CACHE'] → from transformers import …`
+**Rappel mnémotechnique** (celui d'`AGENTS.md`, qui fait foi) :
+> **« Le modèle par `cache_dir=`, ses dépendances par le cache partagé — et rien dans l'env. »**
+> `settings.py` (une fois, au démarrage) → `model_config.py` → `from_pretrained(cache_dir=…)`
+
+> 🔴 **Corrigé le 2026-10-31** : ce rappel disait encore `settings.py → model_config.py →
+> os.environ['HF_HUB_CACHE'] → from transformers import …` — la formule qu'`AGENTS.md` a
+> ABANDONNÉE (muter `HF_HUB_CACHE` dans un backend est INTERDIT). Le code la refuse :
+> `wama/common/tests/tests_hf_cache_routing.py:66`, `BUDGET_MUTATIONS = 0`.
 
 ---
 
@@ -2131,9 +2251,12 @@ sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 
 #### Converter — note d'intention (conservée)
 
-> Le Converter est intentionnellement plus léger côté queue (pas de batch model, pas de
+> ~~Le Converter est intentionnellement plus léger côté queue (pas de batch model, pas de
 > ZIP) car son cas d'usage primaire est la conversion à la demande, souvent inline via
-> Filemanager. Si l'usage évolue vers du traitement massif → réévaluer.
+> Filemanager. Si l'usage évolue vers du traitement massif → réévaluer.~~
+> **Périmée** (relevé le 2026-10-31) : le converter a un modèle de lot et un ZIP par la fabrique
+> commune — `converter/models.py:24` (`ConversionBatch(BatchMixin, QueueOrderMixin, …)`),
+> `converter/urls.py:43` (`batch_create`), `:49` (`batch_download`).
 
 
 ### 15.2 Priorités de mise en conformité
@@ -2150,23 +2273,37 @@ sous la section **"RÈGLE OBLIGATOIRE : AJOUT D'UN NOUVEAU MODÈLE AI"**.
 
 **Priorité 4 — ~~Uniformisation batch~~ ✅ OBSOLÈTE (audit 2026-07-11)**
 - `BatchMixin` (`wama/common/models.py`) adopté par 8 apps ; batch UI conforme (§9.9).
-  Restent hors mixin : converter (`ConversionBatch` sans mixin, choix à confirmer) et
-  imager (batch propriétaire `parent_generation`, « to be redesigned »).
+  ~~Restent hors mixin : converter (`ConversionBatch` sans mixin, choix à confirmer) et
+  imager (batch propriétaire `parent_generation`, « to be redesigned »).~~ **Soldé** (relevé le
+  2026-10-31) : converter et imager sont sur `BatchMixin` (`converter/models.py:24`,
+  `imager/models.py:398` ; `parent_generation` retiré le 2026-08-07, `imager/models.py:211`).
 
-**Priorité 5 — Import avancé**
-- Toutes les apps : import dossier récursif
-- Toutes les apps : intégration FileManager complète
+**Priorité 5 — Import avancé** ✅ (relevé le 2026-10-31, §8.1)
+- ~~Toutes les apps : import dossier récursif~~ — brique `WamaFolderImport`, critère `recursive_import`
+- ~~Toutes les apps : intégration FileManager complète~~ — §8.3, importeurs déclarés (`IMPORTERS`)
 
-**Priorité 6 — RAG**
-- Après implémentation du RAG utilisateur : injection dans toutes les apps
+**Priorité 6 — RAG** ⏳ (relevé le 2026-10-31, §13)
+- Après implémentation du RAG utilisateur : injection dans toutes les apps — la brique
+  `common/memory` existe et le Hook B de la pipeline de prompts est écrit, mais aucune app ne
+  l'active encore (`prompt_pipeline.py:234-235`, opt-in `rag=True`).
 
 ---
 
 ## 16. Menu d'applications — Header et Page d'Accueil
 
+> **Corrigé le 2026-10-31, mesuré — RIEN À ÉCRIRE dans les gabarits.** Le menu et l'accueil sont
+> GÉNÉRÉS : `wama/templates/includes/header.html:20-23` et `home.html:277-281` bouclent sur
+> `nav_apps_grouped`, tiré de `app_registry.get_app_groups` (`app_registry.py:1255-1284`) — par
+> MONDE (`WORLD_SECTIONS`), puis par CATÉGORIE (`APP_CATEGORIES`), et dans une catégorie dans
+> l'ordre des entrées d'`APP_CATALOG` (d'où l'ordre alphabétique de l'étape 17, qui reste la seule
+> liste à tenir). L'app paraît dès son entrée `APP_CATALOG` (`world`, `category`) ; une surface
+> HORS catalogue (Lab, transversale) se déclare par `app_registry.register_surface(...)` (§0
+> étapes 10-11). Les §16.1-16.4 ci-dessous décrivent l'état d'avant la génération (historique) ;
+> les gabarits §16.2-16.3 ne sont plus à recopier.
+
 ### 16.1 Règle d'ordre
 
-Toutes les applications génériques WAMA doivent apparaître :
+~~Toutes les applications génériques WAMA doivent apparaître :~~
 1. Dans le menu déroulant **Applications** du header (`wama/templates/includes/header.html`)
 2. Dans la section **WAMA App** de la page d'accueil (`wama/templates/home.html`)
 
@@ -2174,8 +2311,9 @@ Toutes les applications génériques WAMA doivent apparaître :
 
 Ordre actuel : Anonymizer → Avatarizer → Composer → **Converter** → Describer → Enhancer → Imager → Reader → Synthesizer → Transcriber
 
-> Règle de vérification : après ajout d'une app, vérifier que les trois listes sont
-> cohérentes — `header.html`, `home.html`, et `app_registry.py` — dans le même ordre.
+> ~~Règle de vérification : après ajout d'une app, vérifier que les trois listes sont
+> cohérentes — `header.html`, `home.html`, et `app_registry.py` — dans le même ordre.~~ — une
+> seule liste désormais : `APP_CATALOG` (relevé le 2026-10-31).
 
 ### 16.2 Structure d'un item header
 
@@ -2232,12 +2370,20 @@ via des fonctions Python dans `wama/tool_api.py`, exposées en HTTP via `wama/ur
 | `start_<app>` | `(user, item_id=None) → dict` | Lance la tâche Celery (1 item ou tous les PENDING) |
 | `get_<app>_status` | `(user) → dict` | Retourne l'état des 10 derniers jobs |
 
+> **Corrigé le 2026-10-31, mesuré** : `start_<app>` et `get_<app>_status` ne s'écrivent PLUS —
+> ils sont construits pour chaque entrée DÉCLARÉE de `TRIAD_SPECS` (`wama/tool_api.py:4294`, 10
+> apps + `audio_enhancer` ; enregistrés par `_register_triads`, l.4696-4704) ; le lancer est
+> celui de la fabrique de l'app (`make_item_views`, §3.2). Seul `add_to_<app>` reste une glu
+> d'app (contrat de retour `item_id`). Critères `triad_specs` et `tool_api_item_id`.
+
 **Exceptions acceptées :**
 - Apps de **génération de contenu** (Imager, Composer, Synthesizer) : remplacent `add_to_<app>` par
   une fonction qui crée ET enregistre le contenu à générer (prompt/texte). Le nom peut différer
   (ex: `create_image`, `compose_music`, `synthesize_text`).
-- Composer : `compose_music` crée + démarre en une seule fois — acceptable pour la génération rapide,
-  mais idéalement à séparer en `add_to_composer` + `start_composer` (marqué ⚠️).
+- ~~Composer : `compose_music` crée + démarre en une seule fois — acceptable pour la génération rapide,
+  mais idéalement à séparer en `add_to_composer` + `start_composer` (marqué ⚠️).~~ Séparé :
+  `add_to_composer` est au registre (`tool_api.py:4150`), `start_composer` vient de `TRIAD_SPECS`
+  (relevé le 2026-10-31).
 
 ### 17.3 Contrat des retours
 
@@ -2261,9 +2407,16 @@ path('api/tools/<app>/status/', tool_views.get_<app>_status_view,    name='tool_
 ### 17.5 Enregistrement dans TOOL_REGISTRY et TOOL_DESCRIPTIONS
 
 Toute nouvelle fonction doit être ajoutée dans `TOOL_REGISTRY` et `TOOL_DESCRIPTIONS`
-dans `tool_api.py`, ainsi que dans `TOOL_ICONS` dans `wama/templates/home.html`.
+dans `tool_api.py`, ainsi que dans `TOOL_ICONS` de `common/js/wama-assistant-chat.js` (icône par
+défaut 🔧 si absente — corrigé le 2026-10-31 : `TOOL_ICONS` n'est plus dans `home.html`,
+`wama-assistant-chat.js:47`). La triade `start_` / `get_…_status` y entre seule (`TRIAD_SPECS`).
 
 ### 17.6 État de conformité API
+
+> ⚠ **Table historique (2026-07-25), périmée** (relevé le 2026-10-31) : les colonnes `start_*` et
+> `get_*_status` sont désormais construites de `TRIAD_SPECS` pour les 10 apps (« ⚠️ (intégré) »
+> du composer et du converter, et le renvoi `tool_api.py:2053-2055` de l'avatarizer, ne valent
+> plus) ; la source vivante est le critère `triad_specs` sur `/apps/`.
 
 | App | `add_to_*` | `start_*` | `get_*_status` | HTTP views | TOOL_REGISTRY |
 |-----|-----------|----------|----------------|------------|---------------|
@@ -2343,6 +2496,12 @@ dans `wama/common/static/common/css/app_modern.css` si elle existe).
 ---
 
 ## §19 — Volet droit : zone d'import + paramètres (Option 2)
+
+> ⛔ **RÈGLES OBSOLÈTES — décision du 2026-07-25** (bandeau posé le 2026-10-31) : la drop zone du
+> volet droit NE DOIT PLUS EXISTER (cf. « Conformité par app » plus bas) ; l'import passe par la
+> card d'entrée commune de la file. Les règles « masquer `#preview-section` » et « zone de dépôt
+> en tête » ci-dessous ne sont plus à appliquer (le dernier exemplaire, celui du Reader, est
+> retiré le 2026-09-30). La section reste comme trace historique.
 
 ### Principe
 
@@ -2447,7 +2606,7 @@ document.addEventListener('wama:fileimported', e => {
 
 | App | ~~Drop zone volet droit~~ (supprimée du cahier des charges) | Menu "Envoyer vers…" | Event `wama:fileimported` |
 |---|---|---|---|
-| Reader | ⚠ à retirer (seule app qui l'a) | ✅ | ✅ |
+| Reader | ✅ retirée le 2026-09-30 (`reader/index.html:11`, relevé le 2026-10-31) | ✅ | ✅ |
 | Anonymizer | sans objet | ✅ (existant) | ✅ (`right_panel.js`) |
 | Transcriber | sans objet | ✅ (existant) | ✅ (`index.js`) |
 | Describer | sans objet | ✅ (existant) | ✅ (`index.js`) |
@@ -2570,9 +2729,20 @@ Avant de fusionner une PR contenant une modal :
 
 ## §21 — Boutons d'action globaux : Standards de couleur et libellés
 
-### 21.1 Boutons d'action globaux (panneau droit — `app_right_panel_actions`)
+### 21.1 Boutons d'action globaux ~~(panneau droit — `app_right_panel_actions`)~~
 
-Ordre et style obligatoires :
+> 🔴 **Corrigé le 2026-10-31, mesuré — RIEN À ÉCRIRE.** Aucun gabarit d'app n'a plus
+> `id="startAllBtn"` / `downloadAllBtn` / `clearAllBtn` (grep `wama/`, 0 fichier). Les actions de
+> FILE vivent dans la **barre de file commune** (§9.7) : `common/_queue.html:45` inclut
+> `common/_queue_toolbar.html` avec les ids `<queue_id>-start-all` / `-clear-all` /
+> `-download-all`, boutons rendus par `common/_queue_actions.html` — libellés **« Lancer la
+> file »**, **« Effacer la file »** (depuis le 2026-10-30, ex-« Démarrer tout » / « Tout effacer »,
+> l.21-22, 75-104) et « Télécharger tout » (l.93) ; critère `queue_actions_common`. Le bloc
+> `app_right_panel_actions` porte désormais les actions de l'ÉLÉMENT sélectionné
+> (`common/_inspector_actions.html`, ex. `transcriber/index.html:59-62`). Le tableau et le markup
+> ci-dessous sont l'état d'avant la barre commune ; les **couleurs** (rationale) restent valables.
+
+~~Ordre et style obligatoires :~~
 
 | Position | Bouton | Style Bootstrap | id | Notes |
 |----------|--------|-----------------|----|-------|
@@ -2615,7 +2785,8 @@ Doit être le **dernier élément** dans `{% block app_right_panel_settings %}`,
 
 **Style :** `btn-outline-secondary` (gris contour) — action non-destructive mais à utiliser avec intention. Le fond transparent ne charge pas visuellement le panneau.
 
-**Comportement JS :**
+**Comportement JS :** *(⚠ relevé le 2026-10-31 : l'étape 2 « effacer le localStorage » suit
+l'ancienne persistance — les réglages du volet sont en base, brique `user_settings`, §10.2.)*
 ```javascript
 document.getElementById('resetOptions')?.addEventListener('click', () => {
     // 1. Remettre chaque champ à sa valeur par défaut
@@ -2634,6 +2805,10 @@ document.getElementById('resetOptions')?.addEventListener('click', () => {
 Pas de changement par rapport à §6.1. Les boutons globaux ne remplacent pas les boutons de card.
 
 ### 21.4 Table de conformité — Boutons globaux
+
+> ⚠ **Table historique** (relevé le 2026-10-31) : les trois boutons globaux sont rendus par la
+> barre de file commune dans les 10 apps (§21.1) ; la source vivante est le critère
+> `queue_actions_common` sur `/apps/`.
 
 | App | Démarrer | Télécharger tout | Tout effacer | Bouton Réinitialiser | Barre détection batch |
 |-----|----------|-----------------|-------------|----------------------|-----------------------|
@@ -2830,7 +3005,8 @@ qui doit garder l'appui long natif (rare : les champs de saisie le gardent déj�
 
 ## Annexe A — Passage rapide en revue (wama-dev-ai)
 
-Lors d'un audit d'une app, vérifier dans l'ordre :
+Lors d'un audit d'une app, vérifier dans l'ordre (items 8, 9, 11, 12, 13, 15, 16, 20 mis à jour le
+2026-10-31 sur le code — cf. les sections renvoyées) :
 
 ```
 1. urls.py       → présence des 15+ URL patterns standard ?
@@ -2840,19 +3016,19 @@ Lors d'un audit d'une app, vérifier dans l'ordre :
 5. views.py      → duplicate_instance() dans duplicate() ?
 6. templates/    → _item_card.html existe ?
 7. templates/    → index.html inclut _item_card.html ?
-8. JS            → buildCard() synchronisé avec _item_card.html ?
-9. JS            → settings persistés en localStorage ?
+8. JS            → aucun buildCard() : la card est redemandée au serveur (WamaApp.fetchCard, route card_html, §5.2) ?
+9. JS            → aucune persistance localStorage des réglages : brique user_settings (§10.2) ?
 10. JS           → polling stopPolling() après DONE/ERROR ?
-11. header.html  → app présente en ordre alphabétique ?
-12. home.html    → card présente en ordre alphabétique ?
-13. tool_api.py  → add_to_*  start_*  get_*_status présents ?
+11. ~~header.html  → app présente en ordre alphabétique ?~~ — menu GÉNÉRÉ (§16) : entrée APP_CATALOG en ordre alphabétique
+12. ~~home.html    → card présente en ordre alphabétique ?~~ — accueil GÉNÉRÉ (§16)
+13. tool_api.py  → add_to_* présent ; start_* / get_*_status = entrée TRIAD_SPECS (§17.2) ?
 14. urls.py      → routes api/tools/<app>/ enregistrées ?
-15. home.html    → TOOL_ICONS mis à jour ?
-16. right panel  → #preview-section masqué + drop zone en tête des paramètres ?
+15. wama-assistant-chat.js → TOOL_ICONS mis à jour (icône par défaut 🔧 sinon) ?
+16. ~~right panel  → #preview-section masqué + drop zone en tête des paramètres ?~~ — obsolète (décision 2026-07-25, §19)
 17. JS           → event wama:fileimported écouté sur document ?
 18. modals       → dans {% block extra_modals %}, aucun ancêtre avec transform/filter/opacity<1 ?
 19. download     → multi-format via split button dropdown si ≥ 2 formats (§6.3) ?
-20. global btns  → Démarrer (btn-success) | Télécharger tout (btn-info) | Tout effacer (btn-outline-danger) ?
+20. global btns  → barre de file commune (`_queue.html`) : Lancer la file (btn-success) | Télécharger tout (btn-info) | Effacer la file (btn-outline-danger) — rien d'écrit dans l'app (§21.1) ?
 21. reset btn    → btn-outline-secondary, id="resetOptions", dernier élément de app_right_panel_settings ?
 22. batch bar    → "Ajouter" (btn-outline-primary) | "Démarrer (N)" (btn-success) — pas de btn-primary ?
 ```

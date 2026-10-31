@@ -302,6 +302,13 @@ Ordre canonique (conventions UI) · style **sobre** : `btn btn-outline-X btn-sm 
 - **Héritage des réglages batch→item** : règle « override + héritage » (conventions **§9.9**) — un item
   hérite des réglages du batch SAUF ceux modifiés au niveau item (y compris fichier de référence).
   Implémenté dans le Transcriber (`transcriber/views.py`) — **À CENTRALISER dans `common/`** (aujourd'hui per-app).
+  🔄 *État au 2026-10-31 (mesuré)* : le réglage de lot est CENTRALISÉ — fabrique commune
+  `make_batch_views` (`common/utils/batch_views.py:677-729` : `batch_update`, ↑ `batch_promote`,
+  ↓ `batch_realign`, référence retenue par `common/services/batch_settings.py`), le transcriber la
+  consomme (`transcriber/views.py:129-145`, plus de logique propre). ⚠ Mais la règle « override +
+  héritage » n'est PAS celle du code : la ⚙ de lot écrit ses valeurs sur CHAQUE fille qui ne tourne
+  pas (`_apply_to_elements`, l.635-656), réglages individuels compris — modèle décrit par
+  `MODES_QUEUE_UX §5ter` (référence + ↑/↓).
 
 ## 3quater. Identité d'un lot : un TITRE, ce qui VARIE, un nom donné (✅ 2026-10-19)
 
@@ -436,8 +443,10 @@ La ligne d'origine prescrivait SortableJS. Elle date d'**avant** deux exigences 
 la **multi-sélection** (le plugin MultiDrag ne compose pas avec des listes imbriquées — et nos
 lots en sont) et le **dépôt sur une card pour fusionner** (SortableJS modélise le déplacement
 entre listes, pas la fusion sur un élément : il aurait fallu l'écrire par-dessus de toute façon).
-S'ajoute la règle « pas de CDN » — aucun asset tiers n'est vendorisé dans le dépôt, donc adopter
-la lib ouvrait ce chantier-là aussi. Le drag natif HTML5 fait les quatre gestes, sans dépendance.
+S'ajoute la règle « pas de CDN » — ~~aucun asset tiers n'est vendorisé dans le dépôt, donc adopter
+la lib ouvrait ce chantier-là aussi~~ *(corrigé le 2026-10-31, mesuré : `git ls-files` liste
+`staticfiles/vendors/` — bootstrap, three, leaflet, gridstack, jstree… — et `wama/static/vendors/` ;
+les assets tiers SONT vendorisés, adopter SortableJS aurait ajouté une vendorisation de plus)*. Le drag natif HTML5 fait les quatre gestes, sans dépendance.
 
 - **Réordonner** (drag) : persiste `row_index` dans un lot, `queue_index` au niveau de la file.
 - **Glisser DANS un batch** = `move_to_batch` ; **glisser HORS** = `remove_from_batch`.
@@ -492,8 +501,10 @@ la lib ouvrait ce chantier-là aussi. Le drag natif HTML5 fait les quatre gestes
 
 ## 4. Disposition : mode d'affichage pile ↔ mosaïque (toggle, comme les apps média)
 
-- **`UserProfile.card_layout`** = `stack` (1 card fine **par ligne**, **défaut**) | `mosaic` (grille de
-  cards plus hautes, plusieurs par ligne).
+- **`UserProfile.card_layout`** = `list` (« Ligne » : 1 card fine **par ligne**, **défaut**) | `grid`
+  (« Mosaïque » : grille de cards plus hautes, plusieurs par ligne). *(Valeurs corrigées le
+  2026-10-31, mesuré : `wama/accounts/models.py:35-38` ; le texte ci-dessous dit encore
+  « stack »/« mosaic » pour les deux géométries.)*
 - **Géométrie, pas densité** : c'est l'**agencement** des cards sur la page qui change ; l'agencement
   INTERNE de la card se **reformate** (en `mosaic`, les éléments de l'en-tête + l'aperçu s'empilent dans
   la tuile ; en `stack`, ils s'étalent sur la ligne). **Même card, deux géométries** (responsive/reflow).
@@ -518,6 +529,8 @@ la lib ouvrait ce chantier-là aussi. Le drag natif HTML5 fait les quatre gestes
    bug-class). 
 4. Brancher le ⚙ sur l'**inspecteur volet droit** (cf. §22).
 5. **Stack/mosaïque** : champ `UserProfile.card_layout` + CSS, quand le formalisme est stabilisé.
+   *(✅ champ livré, valeurs `list`/`grid` — `accounts/models.py:35-38` ; bascule
+   `wama-queue-list`/`wama-queue-grid` par `wama-queue.js` — vérifié le 2026-10-31.)*
 
 ## 7. Langue de design : thème « jeu de cartes » 🃏 (ludique, cohérent)
 
@@ -585,7 +598,9 @@ Lié : `WAMA_APP_CONVENTIONS.md` (§boutons, §22 inspecteur), `WAMA_APP_GENERAT
   rouge=échec. **Pas d'état « config/staging » distinct.**
 - **À l'ajout** : `focusCard` (scroll-center + pulse + sélection inspecteur), **PAS de modale bloquante**.
 - **Supersede** : la note antérieure « card nouveau → devient orange pour config » (plus besoin).
-- **Concrètement (Transcriber, ⏳)** : retirer le sous-système **staging** — vues `stage_commit`/
+- **Concrètement (Transcriber, ✅ fait le 2026-06-29 — `transcriber/views.py:487`,
+  `transcriber/index.html:217` ; résidu : la clé `'staged': True` des réponses JSON d'upload,
+  `views.py:369,418` — vérifié le 2026-10-31)** : retirer le sous-système **staging** — vues `stage_commit`/
   `stage_commit_all`/`stage_clear`/`stage_update_all` + URLs, `#stagingZone` + JS `stagePost`/`stageCommit`…,
   le flag `staged` (l'upload crée directement un **brouillon en file**). Vérifier que start-all / batch-settings
   / inspecteur couvrent l'usage « configurer N puis lancer ».
@@ -876,7 +891,9 @@ cyan (mère `wcv3--batch-parent`, filles fond `#0d1a1a`).
 `base.html`) ; markup = `reader/_item_card.html` (pilote). Remontée du markup en gabarit commun
 (cible : _card_v3 dans `common/templates/common/`, à créer) **après** validation d'usage, comme le prévoyait déjà §10.4 pour la v2 : on ne
 fige pas une anatomie avant de l'avoir vue tourner. La brique `_card_chips.html` n'a PAS été touchée
-(elle sert aussi l'avatarizer) — l'attribut `section=` du §11 reste à faire.
+(elle sert aussi l'avatarizer) — l'attribut `section=` du §11 reste à faire. *(⚠ dépassé : `section=`
+livré, cf. plus bas « L'attribut `section=` … est LIVRÉ » ; `card_chips.chips_by_section` appelé par
+les vues des apps, ex. `converter/views.py:995` — vérifié le 2026-10-31.)*
 
 **Ce que la maquette ne pouvait pas révéler** (et qui a coûté 4 itérations mesurées) :
 
@@ -1122,7 +1139,8 @@ Trois pièges, tous rencontrés :
    0 `WamaModes` dans les deux apps, mesuré) sont RETIRÉS d'`app_modes.py` le 30/08, leurs
    `inputs` remontés au domaine. Le drapeau déclaratif de la modalité 🎙 (remplaçant du
    littéral `show_live`) s'ajoutera AVEC son lecteur, à l'émission v3.5 — jamais une
-   déclaration sans consommateur.
+   déclaration sans consommateur. *(✅ 2026-09-28 : `has_live_input`, lu par les cards v3 et v4 —
+   §11.11 Étape 2 ; vérifié le 2026-10-31.)*
 7. **Les fichiers injectés d'une card doivent pouvoir se REMPLACER** (4ᵉ message, 30/08) :
    aujourd'hui on ne peut remplacer ni le fichier de travail ni la référence d'une card
    existante — dupliquer permet « mêmes entrées, autres réglages » mais JAMAIS « autres
@@ -1166,6 +1184,8 @@ Trois pièges, tous rencontrés :
 > ⚠ **2026-09-29** : ligne 4 résorbée — la galerie de l'avatarizer est devenue l'onglet Avatar de
 > la médiathèque, ouvert par la tuile de son port `work_image` en card v4 (Étape 3 (d),
 > REMOVAL_LEDGER R82). Restent 2 zones : synthesizer (le titre) et enhancer.
+> ⚠ **2026-09-30** : enhancer résorbé (R84, `enhancer/index.html:119-120`) — reste la seule zone
+> du synthesizer (le titre). *(Ajouté le 2026-10-31.)*
 | 5 | **Enrichissement ✨** : brique 2-états complète (champ `user`/`processed`, barre « voir mon prompt / revenir / ré-enrichir », endpoint générique, pipeline langue→traduction→enrichissement→réf→RAG, kill-switch + préférence user) | ⚠ **la brique n'émet AUCUN déclencheur** : le seul vrai bouton ✨ est FABRIQUÉ par l'imager ; composer et anonymizer attachent la brique **sans pouvoir la déclencher** | `wama/common/static/common/js/wama-prompt-enrich.js` ; `wama/common/utils/prompt_pipeline.py` ; `wama/imager/static/imager/js/input_card.js` |
 | 6 | **Chips de mots-clés suggérés** : brique commune + modèle `PromptKeyword` (tronc commun `user=None` + perso, 7 catégories, accordéon, insertion/retrait dans le prompt, glossaire préservé verbatim à l'enrichissement) | **adoption 1/10** (imager) ; le point de montage est bricolé en JS par l'app — la brique card n'offre AUCUN slot chips | `wama/common/static/common/js/wama-prompt-chips.js` ; `wama/media_library/models.py` |
 | 7 | **Appariement entrée⇄modèle** : modèles incompatibles désactivés avec raison, slots requis/suggérés surlignés, gate de lancement, chips retirables, slots non-fichier déclaratifs | 7/10 adoptent, mais **3 seulement rendent l'état DANS la card** (imager ×2, composer) — 4 l'affichent au volet, 2 fabriquent l'élément en JS ; **1 seul** (imager) pilote le bouton primaire via `onState` | `wama/common/static/common/js/wama-input-match.js` |
@@ -1243,6 +1263,8 @@ acquis) + autosize, max-height — la règle « hauteur constante » vaut pour l
 modalité, pas pour l'édition (exigence 3). Slots NATIFS sous le prompt : chips de mots-clés
 (`wama-prompt-chips`, plus jamais montées par l'app) et **déclencheur ✨ porté par la brique**
 (`wama-prompt-enrich` gagne son bouton — ferme le défaut « attaché sans déclencheur »).
+*(🔄 2026-10-04 : option `trigger: true` de la brique, adoptée par composer et imager ;
+l'anonymizer ne la passe pas encore — vérifié le 2026-10-31, cf. « Défauts SILENCIEUX » §11.10.)*
 
 > ⚠ **D est DÉPASSÉ pour les réglages — décision de Fabien du 2026-09-28** (précédée du retrait
 > des miroirs voix/vitesse du synthesizer le 27/09, `ffb7db6a`) : **la card porte les ENTRÉES, les
@@ -1327,6 +1349,15 @@ prometteuse » ; les cards de FILE restent v1/v2/v3 — v4 ne nomme que la card 
 
 #### Défauts SILENCIEUX relevés par le balayage (à corriger indépendamment de la v3.5)
 
+> **État au 2026-10-31 (revérifié au code)** : ✅ **1** soldé le 2026-09-05 — le canal de dépôt se
+> DÉCLARE par `data-wama-depot` sur la card commune, `filemanager:filedrop` n'a plus de
+> consommateur (`filemanager.js:1945-1958`). 🔄 **2** — la brique a gagné son déclencheur
+> (option `trigger: true`, 2026-10-04, `wama-prompt-enrich.js:22,106-108`), adoptée par le composer
+> (`composer/js/index.js:102`) et l'imager (`input_card.js:103`, `settings_modal.js:63`) ; ⚠
+> **l'anonymizer attache encore sans `trigger`** (`anonymizer/js/queue.js:278`,
+> `settings_modal.js:108`) et aucun gabarit de l'anonymizer ne porte de ✨ — reste vrai pour lui.
+> ✅ **3** soldé le 2026-09-08 — `idBase` (`batch-import.js:52-57`), cf. ligne 8 du tableau §11.8.
+
 1. `wama/filemanager/static/filemanager/js/filemanager.js:1780` route l'imager vers l'événement
    `filemanager:filedrop`… **qu'aucun JS de l'imager n'écoute** (seuls avatarizer et
    cam_analyzer ont un listener) : glisser un fichier du filemanager vers la card imager ne fait
@@ -1346,7 +1377,8 @@ prometteuse » ; les cards de FILE restent v1/v2/v3 — v4 ne nomme que la card 
 > CDN — c'est elle qui vaut validation, pas ce texte).
 
 **A. La zone de preview de la card d'entrée est une 4ᵉ FACE, pas un composant neuf.**
-`wama/common/utils/preview_utils.py:298-312` sert déjà trois faces — `input` / `during` /
+`wama/common/utils/preview_utils.py:879-898` (aiguillage par `?side=` ; `RESERVED_SIDES` l.632 —
+lignes recalées le 2026-10-31) sert déjà trois faces — `input` / `during` /
 `output`. La card d'entrée est simplement l'état où aucune des trois n'a de contenu. La nommer
 **`compose`** et lui donner ses pixels ferme le cycle : **compose → input → during → output, une
 seule zone, quatre temps**, la même grammaire que les cards de file. Corollaire : la question
@@ -1428,7 +1460,8 @@ une façon de fournir le fichier de travail — c'est une **source alternative**
 prend donc sa place parmi les onglets, et sa modalité unique **ARME** (le clic arme, ▶ démarre :
 la règle des deux temps du §11.9 A, sans exception). ⚠ Il lui faut sa **déclaration** : il est
 encore le littéral `show_live` (transcriber seul). Le lecteur existe désormais — la condition
-« jamais une déclaration sans consommateur » est levée.
+« jamais une déclaration sans consommateur » est levée. *(✅ soldé le 2026-09-28 — Étape 2 plus
+bas, capacité `has_live_input`, `app_registry.py:586-597,1812` ; vérifié le 2026-10-31.)*
 
 **D bis. Le RÉSULTAT INSTANTANÉ est une capacité, pas une modalité** (décision Fabien du
 2026-10-16 : le Translator « à la DeepL », *« sinon, on perd le côté instantané »*). Sous la
@@ -1512,7 +1545,8 @@ trois n'en étaient pas. La règle qui les dissout, et qu'il faut garder :
    (pas de lot en vidéo, ni URL ni lot en audio) sont des restes de gabarits manuels, pas des
    intentions. **Normal tant que le portage n'est pas fini.**
 4. **Le `live` est un littéral** (`show_live`), or la v4 en fait un **port** : il lui faut sa
-   déclaration (cf. D). → **le seul vrai écart** de la matrice.
+   déclaration (cf. D). → **le seul vrai écart** de la matrice. *(✅ soldé le 2026-09-28 — Étape 2,
+   `has_live_input` ; vérifié le 2026-10-31.)*
 
 #### ✅ LIVRÉ le 2026-09-04 — la brique, et sur le bac à sable SEUL
 
@@ -1565,7 +1599,8 @@ attachés. C'est aussi ce qui garde le contrat des scénarios (`Page.fill('#…U
 ⚠ `imager_01` n'a pas de gabarit généré (le codegen refuse ses vues : file à modèle de liaison,
 trou déclaré) — la v4 y est branchée **à la main dans la copie jetable** de la jumelle, ce qui
 est exactement son usage. Le `live` reste le littéral `show_live` (déclaration à venir avec son
-lecteur — il existe désormais).
+lecteur — il existe désormais). *(✅ soldé le 2026-09-28 — Étape 2, `has_live_input` ; vérifié le
+2026-10-31.)*
 
 **Deux défauts que le bac à sable a révélés en chemin** (c'est son rôle) :
 1. **`APP_MODES` est indexé par nom d'app** → une jumelle perdait SILENCIEUSEMENT les
@@ -1581,7 +1616,9 @@ lecteur — il existe désormais).
    ⚠ `manage.py check` tombe en erreur tant que la jumelle existe : `app_sandbox create
    imager` casse le boot. Coût de la correction mesuré : **0 consommateur** de
    `imagegeneration_set` dans tout le dépôt, donc 1 ligne + 1 migration sans SQL réel.
-   **Décision de Fabien** — non appliqué de ma propre initiative (modèle d'app en place).
+   **Décision de Fabien** — ~~non appliqué de ma propre initiative (modèle d'app en place)~~.
+   ✅ **Appliqué le 2026-09-05** : `wama/imager/models.py:143-152`, `related_name='image_generations'`
+   — la jumelle `imager_01` ne casse plus le boot (vérifié le 2026-10-31).
 
 **G. Reste à trancher avant tout code** :
 1. la hauteur de 96 px est un choix de maquette — à confronter à l'écran sur une vraie file ;
@@ -1655,7 +1692,7 @@ non. Garde `tests_catalogues.LivePortComesFromAnAppCapabilityTest`.
    à faire AVEC le relais, et éprouvé par l'assistant réel.
 4. **Une modalité n'est jamais un port** (précision de Fabien) : la galerie d'avatars est la
    modalité Médiathèque (filtrée sur les avatars) du port de TRAVAIL `work_image` de
-   l'avatarizer — ce que sa déclaration dit depuis le 28/08 (`app_modes.py:266-267`).
+   l'avatarizer — ce que sa déclaration dit depuis le 28/08 (`app_modes.py:308-324`, `work_image` l.314-316 — ligne recalée le 2026-10-31).
 
 **Sous-étapes, dans l'ordre (GO de Fabien)** : (a) l'indication commune — ✅ **2026-09-28** :
 `common/_settings_hint.html`, inclus par l'en-tête des DEUX cards communes (v3 et v4, donc les

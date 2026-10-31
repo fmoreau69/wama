@@ -1,8 +1,10 @@
 # WAMA — Vérification : grilles d'ADOPTION, FONCTIONNELLE et des DROITS
 
 > **Référence unique du domaine « comment on sait que ça marche ».** Décidé avec Fabien le
-> 2026-08-22. Ne PAS créer de document concurrent : la grille de conformité est décrite dans
-> `WAMA_APP_CONVENTIONS.md` (ses critères), la charpente nocturne dans `PROJECT_STATUS.md §Tests
+> 2026-08-22. Ne PAS créer de document concurrent : les critères de la grille de conformité
+> vivent dans `conformity_checker.CRITERIA` (`wama/common/services/conformity_checker.py:2430`,
+> rendus sur `/apps/`) et les conventions qu'ils mesurent dans `WAMA_APP_CONVENTIONS.md`
+> (corrigé le 2026-10-31 : ce doc-là ne liste pas les critères), la charpente nocturne dans `PROJECT_STATUS.md §Tests
 > fonctionnels nocturnes` (son runner) — **ce fichier-ci tient la DOCTRINE** : qui prouve quoi,
 > ce qui reste non prouvé, et dans quel ordre on comble.
 
@@ -214,7 +216,7 @@ Le catalogue n'est **pas à inventer** : c'est la table des composants obligatoi
 | 13 | Démarrer tout / télécharger tout (lot) | ✅ **JOUÉ** sur le converter · **ÉCRIT et ÉCARTÉ** sur les 16 autres — `<app>.batch_processing` (07/09) : « Démarrer tout » → paliers → « Télécharger tout » avec ZIP **vérifié** (signature `PK` + octets non nuls, un 200 rendant une page d'erreur n'étant pas une archive). ⚠⚠ **Ce scénario a trouvé un défaut RÉEL et visible** — voir l'encadré plus bas. ⚠⚠ **Et un second, COMMUN, le 2026-09-24** (joué au GPU sur describer et describer_01) : la card MÈRE gardait les compteurs de son dernier rendu serveur pendant tout le traitement (« 0 réussi » jusqu'au rechargement), et son ZIP n'apparaissait qu'au rechargement — le converter ne passait que parce que ses jobs finissent AVANT le rechargement de « Démarrer tout ». Corrigé dans `queue-actions.js` (compteurs relus sur le `data-status` des filles) et `_batch_card.html` (ZIP rendu, masqué sans sortie) ; la sonde visait le 1ᵉʳ lien du groupe, celui d'une fille | non |
 | 15 | **Sélection multiple** d'une file (clic / Ctrl / Maj / Ctrl+A / Échap) | ✅ `<app>.queue_dnd` (06/09) — **12 OK / 4 skips / 1 échec**, l'échec étant RÉEL (jumelle périmée) | non |
 | 16 | **Glisser-déposer** : entrer dans un lot · en former un · en sortir · ordonner | ⚠️ **MOITIÉ** — `<app>.queue_dnd` mesure la **décision** de dépôt (le seuil : tiers médian = appartenance, tiers haut/bas = ordre) et le nettoyage du retour visuel. Le **dépôt lui-même** n'est pas joué au navigateur (il recomposerait des lots sur le compte de test) ; sa moitié SERVEUR est tenue par `wama.common.tests.tests_queue_dnd` (14 tests, dont le refus de fusion entre natures exercé en base) | non |
-| 17 | **Annuler / rétablir** (page de correction transcriber, canvas studio) | ✅ `common.history.studio` (06/09) — les DEUX moitiés : le CÂBLAGE du consommateur (ajouter, annuler, rétablir, Ctrl+Z, « vider » en UN cran donc annulable) **et** la SÉMANTIQUE de la brique sur un modèle jetable (plafond, abandon de la branche redo, `silence`, référence recalée). ⚠ Un seul consommateur est jouable : la page de correction AUTO-ENREGISTRE (`markDirty` → save 800 ms), y annuler écrirait sur une transcription réelle ; le studio ne persiste qu'en `localStorage`. Le câblage transcriber reste donc dû | non |
+| 17 | **Annuler / rétablir** (page de correction transcriber, canvas studio) | ✅ `common.history.studio` (06/09) — les DEUX moitiés : le CÂBLAGE du consommateur (ajouter, annuler, rétablir, Ctrl+Z, « vider » en UN cran donc annulable) **et** la SÉMANTIQUE de la brique sur un modèle jetable (plafond, abandon de la branche redo, `silence`, référence recalée). ⚠ Un seul consommateur est jouable : la page de correction AUTO-ENREGISTRE (`markDirty` → save 800 ms), y annuler écrirait sur une transcription réelle ; le studio ne persiste qu'en `localStorage`. Le câblage transcriber reste donc dû — ✅ **depuis le 2026-10-20/21** (relevé le 2026-10-31) : `transcriber.editor_parity` (`wama/common/services/ui_smoke_editor.py`) rejoue Ctrl+Z / rétablir sur la surface de correction (l.301-421), toute écriture étant INTERCEPTÉE dans la page (`BLOCK_WRITES`, docstring l.22-25) — la crainte de l'auto-enregistrement est levée ainsi ; 66/66 le 2026-10-21 selon la docstring, dernier verdict nocturne non relu | non |
 | 14 | Import dossier récursif · URL · **fichier de lot** · **« Envoyer vers »** | ✅ **ENTIER** (28/08) — `<app>.batch_import` (27/08) le **fichier de lot** ; `<app>.send_to` **« Envoyer vers »** (**8 OK / 6 skips**, dont 3 qui NOMMENT une dette : pas d'importeur) ; `<app>.url_import` l'**URL** (**2 OK / 12 skips** — la garde SSRF rend « témoin local » et « l'app télécharge » exclusifs par construction) ; `<app>.folder_import` le **DOSSIER récursif** (**7 OK / 7 skips** — traversée sur le code de production + vrai dossier imbriqué, la BASE comptant les éléments) | non |
 
 **Couverture mesurée le 2026-08-22 : 1 geste sur 16.** Les deux seuls scénarios par app sont
@@ -545,6 +547,11 @@ actions du volet désignent un élément que l'utilisateur ne voit plus sélecti
 
 ### Geste 14 (fichier de lot) — il a pris la place du geste 7, qui s'est révélé être un geste GPU
 
+> *(Historique du 27/08 — **soldé le 2026-09-29** par la règle des deux temps : la création ne
+> lance plus — `avatarizer/js/index.js:210-211`, « L'élément naît en attente » — et le geste 7 est
+> ✅ `<app>.add` au §3. Les numéros de ligne ci-dessous désignent un code qui n'existe plus.
+> Relevé le 2026-10-31.)*
+>
 > **Le plan annonçait le geste n°7.** Il devait débloquer d'un coup `batch_actions` et
 > `inspector_actions` sur les trois apps à file vide (avatarizer, composer, imager). En le
 > préparant, on a mesuré qu'il **déclenche un traitement** : le composer expédie la tâche DANS sa
@@ -624,7 +631,8 @@ model_manager, studio) ; les 2 échecs étaient deux VRAIS défauts d'app, tous 
 > ⚠⚠ **Il n'existe pas de version « qui ne touche que ce que le passage a créé ».** Ce n'est pas
 > une raison de ne pas mesurer le geste, c'en est une de le BORNER. Deux bornes, et la seconde
 > compte plus que la première : il ne s'exerce que sous le **compte de test**
-> (`_session_compte_de_test` ne forge jamais de compte — sans lui, **skip**, jamais de repli sur
+> (`_test_session_key`, ex-`_session_compte_de_test` renommé par `48af0b91`, `ui_smoke.py:888`, ne
+> forge jamais de compte — sans lui, **skip**, jamais de repli sur
 > un compte réel) ; et **les dix vues `clear_all` filtrent sur `user=`, relevé AVANT le premier
 > clic** (10/10). La portée du geste est close par le CODE, pas par la prudence de l'instrument —
 > une prudence d'instrument se contourne au premier scénario pressé.
@@ -681,8 +689,8 @@ model_manager, studio) ; les 2 échecs étaient deux VRAIS défauts d'app, tous 
 | **🗑 Supprimer** | POST via JS | ✅ *depuis le 2026-08-22* | `delete-btn` (6) · `job-delete-btn` (converter ×2) · `btn-delete-job` (avatarizer) · `js-audio-delete` + `js-delete-enhancement` (enhancer) · `video-delete-btn` (imager vidéo) · `data-action="delete"` (reader) | **6/11 porté** (23/08 : converter, synthesizer, transcriber, enhancer ×2, reader) |
 | **▶ Cycle** | POST via JS | ✅ `wama-cycle-button.js` | `.wama-cycle-btn` | **12/12** — re-mesuré le 2026-08-23 |
 | **⚙ Paramètres** | ouvre une modale | ✅ *depuis le 2026-08-23* — `queue-actions.js` tient le bouton et la délégation, l'app déclare son ouvreur (`onSettings`) | `.settings-btn[data-id]` | **11/11 porté** (+ le jumeau bac à sable) |
-| **⬇ Télécharger** | lien, **ou split ▾ si N formats** | ✅ *depuis le 2026-08-23* — `common/_download_button.html` + tag `bouton_telecharger` ; la FORME se déduit de `export_formats` déclaré au catalogue | `.download-btn` dans le partial commun | **12/12** |
-| **✏ Éditer** | ouvre une page/vue | ❌ *aucune* — **1 seule implémentation** | `.edit-btn` (transcriber) | 1/12 — à généraliser |
+| **⬇ Télécharger** | lien, **ou split ▾ si N formats** | ✅ *depuis le 2026-08-23* — `common/_download_button.html` + tag `download_button` (ex-`bouton_telecharger`, renommé le 2026-08-30 — `wama_actions.py:18`, relevé le 2026-10-31) ; la FORME se déduit de `export_formats` déclaré au catalogue | `.download-btn` dans le partial commun | **12/12** |
+| **✏ Éditer** | ouvre une page/vue | ~~❌ *aucune* — **1 seule implémentation**~~ ✅ *depuis le 2026-10-10* — tag `surface_button` (`wama_actions.py:484`), déduit de la surface déclarée (`<app>/surfaces.py`) — relevé le 2026-10-31 | `.edit-btn` (anonymizer, composer, transcriber) | ~~1/12 — à généraliser~~ 3 apps (celles qui déclarent une surface d'édition) |
 
 > ⚠⚠ **CE TABLEAU S'EST TROMPÉ QUATRE FOIS, TOUJOURS DANS LE MÊME SENS — il SOUS-ESTIME.**
 > ⚙ : avatarizer donné pour « rien » alors qu'il avait `btn-settings-job`, et enhancer absent de
@@ -852,6 +860,11 @@ refuse.** Les trois listes n'en font plus qu'une.
 > sauter les apps sans importeur : il ouvre quand même le menu et vérifie qu'elles en sont
 > **ABSENTES** — un échec si l'une réapparaît. Sans ce contrôle inverse, le correctif tenait
 > jusqu'au prochain ajout d'app, et rien ne l'aurait dit.
+
+> **État au 2026-10-31 (mesuré)** : ⏳ avatarizer et composer restent sans importeur (contrat
+> d'import PAR RÔLE, `CARD_DESIGN §11.8` ; absents d'`IMPORTERS`, `filemanager/views.py:1888-1899`) ;
+> ✅ `converter_01` fermé le **2026-08-30** — l'importeur d'une jumelle est DÉRIVÉ de sa source
+> (`importer_for`, l.1902-1919). Le paragraphe ci-dessous est l'état du 28/08.
 
 ⏳ **Dette ouverte, nommée par les 3 skips** : `avatarizer`, `composer` et `converter_01` ne
 mentent plus, mais n'ont toujours pas d'importeur. Les deux premières sont **prompt-primaires**
@@ -1446,7 +1459,8 @@ Deux conséquences qu'aucune des deux moitiés ne montrait seule :
 > 2. ce que le scénario doit mesurer, ce sont les **ACTIONS** (POST mutants : upload, start,
 >    delete…) — attendu : refusées PARTOUT sauf converter. Le scénario `rights_anonymous` est à
 >    RE-CIBLER sur ce contrat (aujourd'hui il compare des PAGES à l'ancienne doctrine « ne doit
->    rien pouvoir faire », qui confondait voir et faire) ;
+>    rien pouvoir faire », qui confondait voir et faire) → **fait le 02/09** (V3, §7bis ;
+>    `rights_matrix.py:485-508`, relevé le 2026-10-31) ;
 > 3. ⚠ le garde-fou reste SERVEUR : l'avatar est la couche de COURTOISIE, jamais la garde — un
 >    POST anonyme forgé doit être refusé par la vue/le middleware, pas par un message ;
 > 4. l'anomalie `converter_01` (ouvert en anonyme, FERMÉ connecté) reste un vrai défaut à part.
@@ -1676,7 +1690,7 @@ orphelin (aucune liaison morte — le point positif).
 | Mécanisme | Apps consommatrices | Mécanisme | Apps |
 |---|---|---|---|
 | `media_paths` | 10 | `output_formats` | 5 |
-| `rag_geste` | 10 | `video_utils` | 5 |
+| `rag_gesture` (ex-`rag_geste`) | 10 | `video_utils` | 5 |
 | `gateway_identity` | 10 | `audio_decode` | 4 |
 | `manifests` | 8 | `document_export` | 3 |
 | `notifications` | 8 | `llm` | 3 |
@@ -1684,7 +1698,8 @@ orphelin (aucune liaison morte — le point positif).
 | | | `model_coverage` · `provenance` · `resource_governor` · `run_outcome` | 1 chacun |
 
 **Priorité par cardinalité** : un mécanisme adopté par 10 apps et vérifié par rien est le plus
-coûteux à laisser dériver. `media_paths`, `rag_geste`, `gateway_identity`, `manifests`,
+coûteux à laisser dériver. `media_paths`, `rag_gesture` (ex-`rag_geste`, clé renommée —
+`common/mecanismes.py:940`, relevé le 2026-10-31), `gateway_identity`, `manifests`,
 `notifications` d'abord.
 
 ### ⚠ Le scan a une MAILLE TROP GROSSIÈRE (constat de Fabien, 2026-08-23)
@@ -1727,20 +1742,25 @@ pas de sens. Le scan signale un manque de couverture, il ne dicte pas la répons
 
 ## 6. Ordre d'exécution retenu
 
+> **État remis à jour le 2026-10-31** sur le §3 du même document (la colonne « État » d'origine
+> est gardée, barrée, quand elle disait l'état du 28/08) : phase 1 ✅, phase 3 ✅ sur le
+> converter (reste l'extension), phase 4 🔄, phase 5 ✅.
+
 | Phase | Contenu | GPU | État |
 |---|---|---|---|
-| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | 🔄 **geste 2 à moitié (23/08)**, gestes 3-4 faits (22/08), **geste 6 ENTIER (28/08, `inspector_actions` — sélection *et* désélection, 20/20)**, **geste 5 fait (28/08)**, geste 14 aux TROIS QUARTS (fichier de lot 27/08, « Envoyer vers » et URL 28/08) ; **reste la 2ᵉ moitié du geste 2 et la voie d'import récursive** (+ 7 côté Fabien, GPU) |
+| **1** | Gestes **2 à 6** + geste 14 — paramètres, dupliquer, supprimer, tout effacer, inspecteur, fichier de lot. Purement UI + base. ⚠ Le geste 7 (création par le bouton primaire) a été **requalifié geste GPU** le 27/08 (§3) : hors session, remplacé en phase 1 par le geste 14 | non | ✅ (relevé le 2026-10-31, §3) — geste 2 **ENTIER** (06/09), gestes 3-4 (22/08), geste 6 ENTIER (28/08), geste 5 (28/08), geste 14 **ENTIER** (28/08, `<app>.folder_import` compris), geste 7 ✅ `<app>.add` (2026-10-01, plus GPU depuis la règle des deux temps). ~~🔄 **geste 2 à moitié (23/08)**, … geste 14 aux TROIS QUARTS … ; **reste la 2ᵉ moitié du geste 2 et la voie d'import récursive** (+ 7 côté Fabien, GPU)~~ |
 | **2** | Câbler les résultats nocturnes en **grille fonctionnelle** : `nightly_*.json` → agrégat geste × app, rendu comme `/apps/` le fait pour l'adoption | non | ✅ **LIVRÉE le 2026-09-01** — `nightly_tests.functional_grid()` : dernier verdict de CHAQUE scénario (jamais « le dernier run », souvent partiel), scénarios jamais exécutés VISIBLES (`∅ jamais` — ne montrer que ce qui a tourné surestimerait la couverture), rendue sous la grille d'adoption sur `/common/apps/` avec le détail des non-verts (motif + date). Vérifiée au navigateur (2 grilles distinctes, 0 erreur console) |
-| **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ⏳ |
-| **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | ⏳ |
-| **5** | Voie d'import restante (geste 14) : le **récursif** — URL livrée le 28/08 (`<app>.url_import`), « Envoyer vers » le 28/08 (`<app>.send_to`), fichier de lot le 27/08 | non | 🔄 **3 sur 4** |
+| **3** | Gestes **8 à 13** sur le **converter** (CPU) comme patron, puis extension | CPU d'abord | ✅ converter (relevé le 2026-10-31, §3 : `<app>.processing` 06/09, `<app>.batch_processing` 07/09, `<app>.worker_death` 10/10) — ⏳ extension GPU aux autres apps (« écrit et écarté ») ; ~~⏳~~ |
+| **4** | Critères pour les **20 mécanismes non couverts**, par cardinalité décroissante | non | 🔄 (relevé le 2026-10-31) — `media_paths` et `task_skeleton` ont désormais un critère (`conformity_checker.py:2756`, `:2605`) ; le reste non remesuré (`mechanisms_without_criterion()`) ; ~~⏳~~ |
+| **5** | Voie d'import restante (geste 14) : le **récursif** — URL livrée le 28/08 (`<app>.url_import`), « Envoyer vers » le 28/08 (`<app>.send_to`), fichier de lot le 27/08 | non | ✅ **4 sur 4** — récursif `<app>.folder_import` (28/08, §3 geste 14 ; relevé le 2026-10-31) ; ~~🔄 3 sur 4~~ |
 
 ---
 
 ## Voir aussi
 
-- `WAMA_APP_CONVENTIONS.md` — les critères de la grille d'adoption + la table des composants
-  obligatoires (= le catalogue des gestes, sous sa forme non exécutable).
+- `WAMA_APP_CONVENTIONS.md` — les conventions que mesure la grille d'adoption + la table des
+  composants obligatoires (= le catalogue des gestes, sous sa forme non exécutable) ; les
+  critères eux-mêmes : `conformity_checker.CRITERIA` et `/apps/` (corrigé le 2026-10-31).
 - `WAMA_MECANISMES.md` — index généré des mécanismes transversaux ; c'est lui qui alimente le
   scan de couverture du §5.
 - `WAMA_APP_GENERATION_ROUTE.md §11` — les trous de la route ; #26 y est reclassé : il demandait
@@ -1767,6 +1787,14 @@ scénarios `common.rights_*` en sont extraits pour ne pas compter deux fois).
 |---|---|---|
 | `common.rights_matrix` | ✅ (02/09) **accord complet décision↔serveur** — 68 couples, 14/16 apps discriminantes | le « 3 ACCÈS NON DÛS » initial accusait la VUE d'un défaut de l'ATTENDU : `api_models_db` porte `@login_required` DÉLIBÉRÉMENT (sept pages d'apps consomment ce catalogue pour leurs selects — le droit du model_manager viderait leurs selects). La surface déclare désormais son contrat propre (`Surface.attendu_commun` : « authentifié suffit »), jamais retiré de la mesure en silence — sa colonne rejoint les « non discriminantes » NOMMÉES. ⚠ Limite assumée : la branche JSON de `_deny` n'est plus exercée par aucune surface de la matrice (le verdict le dit à chaque run) — à réarmer le jour où une API à refus attendu existe |
 | `common.rights_anonymous` | ❌ (V3, re-ciblé le 02/09) **7 apps où un visiteur POURRAIT AGIR** + **le converter — l'app d'essai de la décision — est la SEULE à refuser** (`@login_required` sur son upload, `views.py:216`) : la politique « refus partout sauf converter » est inversée DANS LES DEUX SENS | rouge ASSUMÉ tant que la garde serveur n'est pas construite (chantier avatar/accueil, après portage) — mais l'anomalie converter est un fait à part, même famille que « converter_01 ouvert en anonyme, fermé connecté » (30/08) |
+
+> ✅ **Depuis (relevé le 2026-10-31)** : la garde serveur est posée le **2026-10-03**
+> (`wama/accounts/middleware.py:9-28`, `AppAccessMiddleware` : le visiteur sans session voit les
+> pages et ne peut rien faire, sauf sur une app `public`) et le **converter est ouvert** au
+> visiteur le **2026-10-04** (identité éphémère de session, `accounts/visitors.py`). Le scénario
+> `common.rights_anonymous` rend le contrat TENU dans les deux sens — « 9 refus, converter seul
+> ouvert » (`wama/common/services/rights_matrix.py:504-508`, verdict l.588 ; mesure citée par la
+> docstring, non rejouée ici). Le rouge « assumé » de la table ci-dessus est une trace du 02/09.
 
 ⚠ Ne pas « corriger » le rouge `anonymous` en ouvrant `accessible()` à l'anonyme ni en
 vérouillant les index : la décision est le visiteur GUIDÉ, c'est le SCÉNARIO qui se recale.

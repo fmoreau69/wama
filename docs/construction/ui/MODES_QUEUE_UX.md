@@ -106,8 +106,10 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
 ## 3. Le MODE = norme applicative (LA couche d'abstraction ajoutée)
 - Chaque app **déclare ses modes** en métadonnée :
   `modes = [{id, label, icône, temps_réel?, entrées:[prompt|fichiers|références|url], sections_réglages:[…], capacités}]`.
-- Exemples : Anonymizer `[yolo, sam3]` · Imager `[prompt, edit, style, (2D→3D)]` ·
-  Transcriber/Synthesizer `[normal, temps_réel]`.
+- Exemples (d'origine, périmés) : Anonymizer `[yolo, sam3]` · Imager `[prompt, edit, style, (2D→3D)]` ·
+  Transcriber/Synthesizer `[normal, temps_réel]`. *(Au 2026-10-31, mesuré dans `app_modes.py` :
+  l'anonymizer est la seule app à switch de mode, `[classes, description]` (l.374-380, renommés le
+  2026-09-27) ; imager, synthesizer, transcriber, avatarizer déclarent `'modes': []`.)*
 - **L'UI se génère depuis ces descriptions** (sélecteur de mode + champs d'entrée + sections de réglages),
   comme `WamaDetails` génère l'inspecteur. **Zéro spécificité hardcodée** au-delà de la description.
 - ✅ **Les « sections de réglages » sont tenues — mais pas par une liste sur le mode** (confronté au code le
@@ -143,7 +145,9 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
 
 > ⚠ **SUPERSEDED — tranché AUTREMENT dans le code commun (confirmé Fabien 2026-07-25)** : le temps
 > réel n'est PAS un mode ; c'est une **affordance de la card d'entrée** (`show_live` de
-> `_new_item_card`, Speak transcriber). Cf. `REMOVAL_LEDGER F6` + `TRANSCRIBER_REFERENCE_AUDIT §1`.
+> `_new_item_card`, Speak transcriber). *(Corrigé le 2026-10-31 : c'est le port « En direct » de la
+> card d'entrée v4, déclaré par la capacité d'app `has_live_input` depuis le 2026-09-28 —
+> `app_registry.py:586-597`, ex-`show_live`, retiré.)* Cf. `REMOVAL_LEDGER F6` + `TRANSCRIBER_REFERENCE_AUDIT §1`.
 > Le P4 du plan ci-dessous est donc caduc. Section conservée comme historique du raisonnement.
 - Devient le **mode « temps réel »** d'une app qui le déclare → intégré au switch, **généré par
   description**, homogène. Card **unitaire**.
@@ -153,7 +157,8 @@ distinct.** Il y a **deux axes** à ne pas mélanger :
 
 ## Ce qu'on RÉUTILISE (on ne réinvente rien)
 Card formalism (`CARD_DESIGN.md`) · inspecteur **global** (§22) · `WamaDetails` (description→UI) ·
-capacités d'app · **switches de mode existants** (anonymizer yolo/sam3, imager) · **temps réel existant**
+capacités d'app · **switches de mode existants** (anonymizer yolo/sam3, imager — *au 2026-10-31 :
+anonymizer `[classes, description]` seul*) · **temps réel existant**
 (Speak) · batch + manipulation directe · contrat backend. **Ajout unique = la couche MODE** (schéma
 déclaratif + générateur d'UI `WamaModes`).
 
@@ -163,8 +168,8 @@ déclaratif + générateur d'UI `WamaModes`).
 |-------|------|------------------|------------|
 | **0** ✅ | Fondations (CARD_DESIGN, inspecteur global, WamaDetails, capacités, contrat backend) | posées | — |
 | **P1** ✅ | Schéma `app_metadata.modes` (`common/utils/app_modes.py`) + générateur commun `WamaModes` (`wama-modes.js`, étend WamaDetails) — **fait et câblé** (imager, composer, studio, endpoint `/common/api/app-modes/<app>/`) ; vérifié 2026-07-09, corrige le retard de ce doc sur le code | **débloque P2-P6** ; déclaratif | moyenne, risque faible |
-| **P2** ✅ | File unique + card « nouveau » persistante + code couleur — **fait et généralisé** : briques `common/_new_item_card.html` + `common/_queue_entry.html`, **10 files sur 10** (relevé 2026-09-09 — le converter, dernier hors brique, l'a adoptée ce jour. ⚠ Le « 9 sur 9 » du 27/08 n'était pas faux, il était MAL DÉNOMBRÉ : le converter était exclu du parc par une exemption du critère `queue_entry`, retirée le 09/09 — un dénominateur qui écarte le seul cas non conforme affiche toujours 100 %). Reste le **compteur sur l'onglet** | gain UX immédiat | — |
-| **P3 — cœur** | Config générée par mode (modale ↔ inspecteur en sync, sections distinctes, simple/avancé) | file pilotée par description | moyenne-haute |
+| **P2** ✅ | File unique + card « nouveau » persistante + code couleur — **fait et généralisé** : briques `common/_new_item_card.html` + `common/_queue_entry.html`, **10 files sur 10** (relevé 2026-09-09 — le converter, dernier hors brique, l'a adoptée ce jour. ⚠ Le « 9 sur 9 » du 27/08 n'était pas faux, il était MAL DÉNOMBRÉ : le converter était exclu du parc par une exemption du critère `queue_entry`, retirée le 09/09 — un dénominateur qui écarte le seul cas non conforme affiche toujours 100 %). Reste le **compteur sur l'onglet** — 🔄 *au 2026-10-31 : posé par `app_modern_base.html:124` (`#queueCount`) quand la vue passe `queue_count`, 7/10 (manquent converter, imager, avatarizer)*. ⚠ *Depuis le 2026-09-30, la card d'entrée des 10 apps est `common/_new_item_card_v4.html` ; la v3 (`_new_item_card.html`) ne sert plus que la médiathèque (`_new_item_card_library.html`)* | gain UX immédiat | — |
+| **P3 — cœur** | Config générée par mode (modale ↔ inspecteur en sync, sections distinctes, simple/avancé) — 🔄 *au 2026-10-31 (mesuré) : la modale ⚙ est générée du schéma dans les 10 apps (`WamaParams.settingsModal`, un appel dans le JS de chacune), le mode est un réglage de ce schéma (`app_modes.mode_param`) ; la synchronisation modale ↔ volet n'a pas été vérifiée au navigateur, la section Entrée de la modale reste ⏳ (`CARD_DESIGN §11.10`, exigence 4)* | file pilotée par description | moyenne-haute |
 | **P4** | Temps réel = mode (migrer Speak transcriber/synthesizer) | homogénéise, -1 surface | moyenne |
 | **P5** | Détails card (concis↔étendu, drag/batch, filtre/tri, mosaïque) — cf. CARD_DESIGN | confort, incrémental | variable |
 | **P6 — payoff** | Évolutivité par description (prouver : ajouter un mode, ex. Imager 2D→3D) | la promesse réalisée | faible une fois P1-3 |
@@ -229,7 +234,8 @@ sur briques communes)* ; tout le reste se génère.
 > domaine. Cette tension n'existe plus : la déclaration et §5 disent désormais la même chose.
 
 **Lecture** : axe **domaine (onglet)** = Imager/Enhancer/Anonymizer (multi-domaine) uniquement ; axe
-**temps réel** (mode) = Synthesizer/Transcriber/Avatarizer ; axe **pipeline/standalone** = transversal
+**temps réel** ~~(mode) = Synthesizer/Transcriber/Avatarizer~~ = un PORT de la card (transcriber,
+`has_live_input`), pas un mode *(corrigé le 2026-10-31 — cf. le ✅ du 2026-08-30 ci-dessus)* ; axe **pipeline/standalone** = transversal
 (via tool_api) = le **workflow méta-app**, à NE PAS modéliser en domaine. → valide les **3 axes distincts**
 (domaine / mode / workflow).
 *Précisé le 2026-09-15 → `WAMA_APP_GENERATION_ROUTE.md §10.6`* : le « workflow » = les process

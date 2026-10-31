@@ -27,24 +27,24 @@
 
 | Élément | Lignes | Fait |
 |---|---|---|
-| Volet **gauche** | `:128` | `include` de `filemanager/sidebar.html` — arborescence de fichiers |
-| Volet **droit** `<aside id="wama-right-panel">` | `:131-200` | ~~Rendu pour **TOUTE** page étendant `base.html`~~ → rendu **si `volet.actif`** (§3-bis, 22/08) ; chaque section est conditionnée par sa clé |
-| `right_panel_top` | `:147` | Bloc libre, **vide et sans cadre** — « ni un média, ni un paramètre, ni une action » |
-| `#media-section` | `:150-166` | Défaut : placeholder « Sélectionnez un fichier pour l'aperçu » |
-| `#info-section` | `:169-174` | **Seule section née masquée**, hôte `#inspectorInfo`, aucun bloc surchargeable |
-| `#settings-section` | `:177-186` | Défaut : « Aucun paramètre disponible » |
-| `#actions-section` | `:189-198` | Corps **vide** — mais titre et cadre rendus quand même |
-| Pont apps | `common/app_modern_base.html:264-286` | Redéclare les blocs et ouvre `app_right_panel_*` |
+| Volet **gauche** | `:221` | `include` de `filemanager/sidebar.html` — arborescence de fichiers |
+| Volet **droit** `<aside id="wama-right-panel">` | `:238-328` | ~~Rendu pour **TOUTE** page étendant `base.html`~~ → rendu **si `volet.actif`** (§3-bis, 22/08) ; chaque section est conditionnée par sa clé |
+| `right_panel_top` | `:265` | Bloc libre, **vide et sans cadre** — « ni un média, ni un paramètre, ni une action » |
+| `#media-section` | `:274` | Défaut : placeholder « Sélectionnez un fichier pour l'aperçu » |
+| `#info-section` | `:292` | **Seule section née masquée**, hôte `#inspectorInfo`, aucun bloc surchargeable |
+| `#settings-section` | `:302` | Défaut : « Aucun paramètre disponible » |
+| `#actions-section` | `:316-325` | Corps **vide** — mais titre et cadre rendus quand même |
+| Pont apps | `common/app_modern_base.html:273-295` | Redéclare les blocs et ouvre `app_right_panel_*` |
 | ~~Masquage global~~ | — | ~~`body.wama-simple #wama-right-panel { display:none }`~~ — **retiré le 2026-10-27 avec le mode simplifié** (§7) ; le bouton de l'en-tête replie les deux volets par `WamaPanels.setAll` |
 | **Repli par la frontière** (2026-10-10) | `common/js/wama-panel-toggle.js` + `common/css/wama-panel-toggle.css` | `WamaPanels` : un clic sur la frontière d'un volet le replie / le rouvre, sur toute page — voir §9 ② |
 | **Place des volets** (2026-10-10) | `wama-panel-toggle.css` | marges dérivées `--wama-left-gutter` / `--wama-right-gutter` (largeur du volet, ou 0 replié / sans volet) : SEULE source que lisent le corps, l'en-tête et les barres fixes — jamais plus `--fm-*-width` (`tests_panel_toggle`) |
 | **Contextes de largeur** (2026-10-12) | `base.html` (amorce `WamaPanelsContext`) + `wama-panel-toggle.js` | sous le `lg` de Bootstrap : classe `wama-narrow`, volets repliés d'office, un seul ouvert, mémoire `wama_panel_<côté>_narrow` — voir §9 ⑤ |
 | **Barre du haut et pied** (2026-10-12) | `includes/header.html`, `base.html`, `filemanager.css` | grilles `1fr auto 1fr` ; la barre est un CONTENEUR (`wama-header`) dont les libellés `.wama-header-label` s'effacent derrière leur icône — §9 ⑤ |
-| Scripts inspecteur | `base.html:309-310` | `wama-inspector.js` + `-autofill.js` chargés **globalement** depuis le 2026-08-20 |
+| Scripts inspecteur | `base.html:423-424` | `wama-inspector.js` + `-autofill.js` chargés **globalement** depuis le 2026-08-20 |
 
-⚠ **Le CSS de structure du volet droit vit chez le filemanager** (`filemanager.css:199-254` :
-`#wama-right-panel`, `.right-panel-section`, `.right-panel-preview*`), chargé globalement par
-`base.html:37`. Erreur de conception connue et **non souhaitée** (Fabien) ; aucun bug
+⚠ **Le CSS de structure du volet droit vit chez le filemanager** (`filemanager.css` :
+`#wama-right-panel` l.291, `.right-panel-section` l.313, `.right-panel-preview*` l.329), chargé globalement par
+`base.html:79` *(lignes de ce § recalées le 2026-10-31)*. Erreur de conception connue et **non souhaitée** (Fabien) ; aucun bug
 aujourd'hui puisque le CSS est chargé partout, mais un refactoring est prévu.
 
 ---
@@ -90,7 +90,7 @@ utilisateurs · matrice d'accès · connexion (×2) · validation d'inscription 
 |---|---|
 | `hideOnInspect` | 4 / 16 |
 | `onDeselect` | 2 / 16 |
-| `keepMediaSection` | **2 / 16** (model_manager ; + avatarizer le 22/08, cf. §4③) — + journal et calendrier le 2026-10-18 |
+| `keepMediaSection` | **2 / 16** (model_manager ; + avatarizer le 22/08, cf. §4③) — + journal et calendrier le 2026-10-18. ⚠ *Au 2026-10-31 (mesuré)* : il ne reste que model_manager (`'no-selection'`, `model_manager/index.html:2211`) — avatarizer retiré le 2026-09-29 (`avatarizer/index.html:297`), journal et calendrier le 2026-10-28 (§3, `journal.html:149`) |
 | `showOnInspect` · `settingsTitleInspect` | **1 / 16** chacune — `showOnInspect` + calendrier le 2026-10-18 |
 
 > Chiffres du 22/08, non remesurés depuis : seuls les ajouts du 2026-10-18 sont comptés à la main.
@@ -105,10 +105,10 @@ contextualiser. Constat qui corrige une intuition naturelle (« aligner sur les 
 
 | État | Déclencheur | Effet | Lignes |
 |---|---|---|---|
-| **① File entière** (aucune sélection) | `init()`, `deselect()`, `media:processed` | Médias **masquée** ; Infos = agrégat de file lu de `WamaQueueStats` | 718-726, 843-847 |
-| **② Item (card)** | clic délégué, ↑/↓ | params reflétés · actions · aperçu · `fillDetail` → `/common/detail/<app>/<pk>/` · Infos visible | 740-753 |
-| **③ Batch** | clic sur `.batch-group`, ↑/↓ (le lot est un arrêt de la file depuis le 2026-10-14, `queueStops`) | réglages du **1ᵉʳ item** · agrégat `data-batch-*` · **aucun aperçu** | 755-767 |
-| **④ Désélection** | croix, **Échap**, clic hors card | restaure les défauts, vide les actions, `onDeselect()` | 769-785 |
+| **① File entière** (aucune sélection) | `init()`, `deselect()`, `media:processed` | Médias **masquée** ; Infos = agrégat de file lu de `WamaQueueStats` | 585 (`showQueueInfo`), 927 (`media:processed`) |
+| **② Item (card)** | clic délégué, ↑/↓ | params reflétés · actions · aperçu · `fillDetail` → `/common/detail/<app>/<pk>/` · Infos visible | 765-780 (`selectItem` ; `fillDetail` l.439) |
+| **③ Batch** | clic sur `.batch-group`, ↑/↓ (le lot est un arrêt de la file depuis le 2026-10-14, `queueStops`) | réglages du **1ᵉʳ item** · agrégat `data-batch-*` · **aucun aperçu** | 782-796 (`selectBatch` ; `showBatchInfo` l.594) |
+| **④ Désélection** | croix, **Échap**, clic hors card | restaure les défauts, vide les actions, `onDeselect()` | 797-812 (`deselect`) — *lignes recalées le 2026-10-31* |
 
 ⚠ **Ne rien casser ici** : ce comportement file/batch/card est éprouvé et s'accroche aux
 **identifiants** (`#media-section`, `#inspectorActions`, `#inspectorInfo`) et aux options de
@@ -135,7 +135,7 @@ passages ») et le model manager (ressources système hors sélection, `'no-sele
 contre-épreuve rouge par un fichier fautif jetable). ⏳ Deux restes dans `wama-inspector.js`, à
 solder quand ce fichier, en cours ailleurs, sera libre (relevés à la revérification du même
 jour) : la branche `keepMediaSection === true` n'a plus d'appelant ; et le libellé « Aperçu » y est
-écrit une seconde fois (`fillPreview(card, 'Aperçu')`, l. 873) — le titre par défaut de la
+écrit une seconde fois (`fillPreview(card, 'Aperçu')`, l. 775 — recalée le 2026-10-31, le reste toujours vrai : branche `cfg.keepMediaSection` l.582) — le titre par défaut de la
 section le porte déjà (`base.html`), que `_setPreviewTitle(null)` sait reprendre. ⚠ La clé de
 déclaration reste `volet(medias=…)` : un identifiant français de l'API du volet (`SECTIONS`), qui
 se renommera avec ses ~20 appelants, pas au détour d'un libellé.
@@ -197,7 +197,11 @@ context['volet'] = volet(tete=True, medias=False, parametres=False, actions=Fals
 aujourd'hui ; la déclaration est ce qui garantit qu'un futur changement de défaut ne détruira
 pas sa mini-carte Leaflet.
 
-### Preuves — `wama/common/tests/tests_volet.py` (13 tests)
+### Preuves — `wama/common/tests/tests_volet.py`
+
+> *(Compte « 13 tests » retiré du titre le 2026-10-31 : le fichier en porte 44, en 9 classes —
+> mesuré ; un compte recopié ici dérive. Les trois dernières lignes du tableau ont été ajoutées
+> le même jour.)*
 
 | Classe | Ce qu'elle garde |
 |---|---|
@@ -207,6 +211,9 @@ pas sa mini-carte Leaflet.
 | `PagesDAppTest` | **les 11 apps du catalogue** rendues à l'identique (pages réelles) |
 | `PagesDeclarantesTest` | 10 pages transversales + connexion en visiteur + accueil + cam_analyzer |
 | `AccountPagesHaveNoDefaultTest` | (2026-10-20) TOUTES les pages du registre des pages du compte : aucune section rendue avec le contenu par défaut ; une page du compte sans déclaration n'a aucune section |
+| `PanelBricksTest` | (2026-10-28) les sections du volet en panneaux de la disposition commune, gardée par compte et par page (§3-ter ②) |
+| `CentreBricksTest` | (2026-10-28) le centre d'une page d'app en briques — card d'entrée, progression, barre de file, file (§3-ter ④) |
+| `PageControlsTest` | (2026-10-29) les contrôles de PAGE dans l'en-tête — cadenas de la disposition, aide « ? » — jamais dans une brique |
 
 ⚠ Le périmètre de `PagesDAppTest` est `APP_CATALOG`, **pas** `discoverable_apps()` : la
 médiathèque expose un index mais est une surface transversale qui DÉCLARE. Les confondre
@@ -1029,8 +1036,10 @@ volet » ci-dessus disait vrai jusqu'à ce jour. Un identifiant par contexte : v
 peuvent être rendus ensemble. Gardes : `tests_assistant_deposit_settings`, `tests_volet`.
 
 **`filemanager`** — n'a **aucune** page étendant `base.html` ; il fournit la sidebar gauche
-et, par accident d'histoire, le CSS du volet droit. Son « aperçu global » annoncé en
-commentaire (`base.html:156`) **n'est câblé nulle part** : il utilise sa propre modale.
+et, par accident d'histoire, le CSS du volet droit. ~~Son « aperçu global » annoncé en
+commentaire (`base.html:156`) **n'est câblé nulle part** : il utilise sa propre modale.~~ *(Retiré
+le 2026-10-20 avec `#preview-media`, R31 — §6 ; `base.html` ne le contient plus, vérifié le
+2026-10-31.)*
 
 ---
 
@@ -1044,7 +1053,7 @@ commentaire (`base.html:156`) **n'est câblé nulle part** : il utilise sa propr
 
 ---
 
-## 7. Le mode simplifié — la tension non résolue
+## 7. Le mode simplifié — la tension non résolue (✅ résolue : mode retiré le 2026-10-27, R182)
 
 > ✅ **2026-10-10 (décision de Fabien) — le mode s'applique SUR PLACE.** Il renvoyait à l'accueil
 > depuis toute autre page (`wamaToggleMode`, sans raison consignée — introduit dans un commit de
@@ -1054,9 +1063,11 @@ commentaire (`base.html:156`) **n'est câblé nulle part** : il utilise sa propr
 > se recouvrir : le **repli par la frontière** (§9 ②) est local à un volet et à un navigateur ;
 > le **mode simplifié** est une préférence du profil qui change aussi l'accueil (chatbot).
 
-`body.wama-simple` **masque les deux volets**. Or l'intention d'origine était d'obtenir un
+~~`body.wama-simple` **masque les deux volets**. Or l'intention d'origine était d'obtenir un
 **chatbot** — donc précisément le mode où l'assistant devrait être au centre. Contradiction à
-résoudre avant de câbler un assistant persistant.
+résoudre avant de câbler un assistant persistant.~~ *(État d'avant le 2026-10-27 — mode retiré,
+voir plus bas « ✅ 2026-10-27 — RETIRÉ » ; aucune trace de `wama-simple` dans les `.css/.js/.html`
+de `wama/`, vérifié le 2026-10-31.)*
 
 Différence observée avec un chatbot web du marché (Claude) : celui-ci met **conversations,
 projets et skills dans son volet gauche**, là où WAMA les place dans le **menu déroulant
@@ -1125,7 +1136,7 @@ encore), puis supprimée par `accounts/0031` après la relance.
 | 2 | ~~**Déclaration des sections**~~ → **✅ LIVRÉ (22/08)** | Défaut inchangé ⇒ zéro régression pour les apps ; **17 pages et 54 cadres** retirés (§3-bis) |
 | 3 | ~~Double instance `enhancer`/`imager`~~ → **✅ FAIT (22/08)** | Traité avec ① : même brique, même passe de validation (§4②) |
 | 4 | **Portage depuis `model_manager`** vers la brique | Bandeau paramétrable · restauration du hint · `detailSchema`/`actionsSchema` · `ids.actionButtons` |
-| 5 | ~~**Assistant dans le volet** (conteneur en `base.html`, préférence au profil)~~ → **✅ LIVRÉ pour l'AVATAR (22/09)** : conteneur en `base.html`, préférence durable dans les réglages de l'assistant (pas au profil : même chemin que le modèle et le curseur), actif par défaut, repliable — voir §5 `home.html` | Rend l'avatar réellement persistant. ⚠ Ce qui reste : la **conversation** transversale (le chat vit encore dans `home.html` seul), et la tension du mode simplifié (§7) |
+| 5 | ~~**Assistant dans le volet** (conteneur en `base.html`, préférence au profil)~~ → **✅ LIVRÉ pour l'AVATAR (22/09)** : conteneur en `base.html`, préférence durable dans les réglages de l'assistant (pas au profil : même chemin que le modèle et le curseur), actif par défaut, repliable — voir §5 `home.html` | Rend l'avatar réellement persistant. ⚠ ~~Ce qui reste : la **conversation** transversale (le chat vit encore dans `home.html` seul), et la tension du mode simplifié (§7)~~ *(corrigé le 2026-10-31 : le mini-chat est sur toute page depuis le 2026-09-22, §5 ; le mode simplifié est retiré le 2026-10-27, §7)* — ce qui reste : un seul chat (l'accueil en mode « complet » de la même brique, §9 ①) |
 | 6 | Hygiène : CSS du volet vers `common/`, retrait du code mort (§6) | Mécanique, sans risque, mais sans valeur d'usage |
 | 7 | **Explorateur : regrouper les apps par MONDE** (`media` / `lab` / `data`) + **changer d'app en cliquant son dossier** | Décidé 2026-08-25 avec l'UI du monde Data (`WAMA_DATA_WORLD.md §11.8 ⑦`) ; la catégorie `media` attend que les UI lab/data existent |
 | 8 | **Tri / filtrage / recherche dans l'explorateur** | Inexistant aujourd'hui ; ⭐ pour le monde Data c'est un filtrage par **AXES du plan d'expérience** (`WAMA_DATA_WORLD.md §13`) — une seule brique pour les deux mondes, pas deux tris |

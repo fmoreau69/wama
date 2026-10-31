@@ -7,6 +7,15 @@
 > 3 templates À CETTE DATE) ; re-mesuré le 2026-08-27 : **45 endpoints** (`urls.py`), **~2 400 l.
 > JS** (`index.js` + `edit.js`), **6 templates**. Lire les §1-5 comme un relevé daté, pas comme
 > l'état courant.
+> ⚠ **Depuis (relevé le 2026-10-31, mesuré)** : la page de correction n'est plus `edit.html` —
+> c'est une **SURFACE déclarée** (`transcriber/surfaces.py:1-17`, 2026-10-21 ; la vue `edit`
+> redirige vers `common:surface`, `views.py:575`) ; `edit.html` / `edit.js` n'existent plus
+> (gabarits : `_batch_meta.html`, `_transcript_card.html`, `base.html`, `index.html` ; JS :
+> `index.js`). Endpoints retirés : `get_backends` (2026-09-30, ex-`views.py:1249`, supprimé),
+> `toggle_preprocessing` / `preprocessing_status` (2026-07-06, ex-`views.py:1240`, supprimés) ; `save_meta`,
+> `waveform_peaks`, `save_correction` ne sont plus des vues (l'édition passe par `retime`,
+> `write-cursor`, `write-results`, `urls.py:37-39`) ; aide et à-propos = `AppHelpView` /
+> `AppAboutView` communes (`urls.py:10-11`). `urls.py` compte **49** `path(`.
 > Compagnon de `wama/common/README.md` (le workflow) — ici : l'INSTANCE de référence.
 
 ---
@@ -75,11 +84,19 @@
 Éditeur de correction (page dédiée) · préprocessing audio · Speak temps réel · diarisation/locuteurs.
 → le reste (~90 %) est du PATTERN à répliquer.
 
-## 5. Trous de généralisation détectés par cet audit — 3 des 4 REFERMÉS (relevé 2026-08-27)
+## 5. Trous de généralisation détectés par cet audit — ~~3 des 4~~ 4 sur 4 REFERMÉS (relevé 2026-08-27 ; 4ᵉ relevé le 2026-10-31)
 - ✅ **Manipulation directe** (`reorder`/`move_to_batch`…) : `reorder` est nommé dans **10**
   `urls.py` d'apps — généralisé.
-- ⏳ **Héritage batch→item** : logique transcriber-only (`transcriber/views.py::batch_update_settings`)
-  → toujours à centraliser (mémoire §9.9). **Seul trou restant.**
+- ~~⏳ **Héritage batch→item** : logique transcriber-only (`transcriber/views.py::batch_update_settings`)
+  → toujours à centraliser (mémoire §9.9). **Seul trou restant.**~~
+  ✅ **centralisé** (relevé le 2026-10-31, mesuré) : `batch_update_settings` est la vue de la
+  fabrique commune (`transcriber/views.py:129-151`, l.145 `= _bv['batch_update']`) ; réglage de
+  lot, ↑ promouvoir et ↓ réaligner (`batch_update` / `batch_promote` / `batch_realign`,
+  `common/utils/batch_views.py:677-716`, référence `common/services/batch_settings.py`) —
+  `MODES_QUEUE_UX §5ter` ; garde `tests_item_settings_contract.BatchSettingsFollowTheItemRouteTest`
+  (l.223). ⚠ Ce qui est centralisé, c'est la vue ; la règle « l'élément garde ses réglages
+  modifiés » n'est pas celle du code, qui écrit la ⚙ de lot sur toutes les filles non RUNNING
+  (`WAMA_APP_CONVENTIONS §9.9`, état réel).
 - ✅ **Batch unifié** : brique livrée — `wama/common/utils/batch_common.py::auto_wrap_orphans`,
   consommée (anonymizer) et enseignée à la codegen.
 - ✅ **Câblage drop/clic de `_new_item_card`** : `wama/common/static/common/js/wama-new-item-card.js`
@@ -90,9 +107,9 @@
 | # | Mécanisme | Brique/pattern |
 |---|---|---|
 | 1 | Card d'entrée commune (+batch, +médiathèque, +URL si pertinent) | `_new_item_card` |
-| 2 | Batch unifié + héritage batch→item | pattern `_wrap_*` §9.9 |
+| 2 | Batch unifié + héritage batch→item | `batch_common.wrap_in_batch` / `auto_wrap_orphans` + `make_batch_views` (ex-« pattern `_wrap_*` », corrigé le 2026-10-31) |
 | 3 | Cards : data-action, 2 états, aperçu sortie, boutons conformes | CARD_DESIGN |
-| 4 | Bouton cycle ▶/⏹/↻ + start anti-race | `_cycle_button` + pattern Celery |
+| 4 | Bouton cycle ▶/⏹/↻ + start anti-race | `_cycle_button` + `item_views.make_item_views` (`common/utils/item_views.py:271`, ex-« pattern Celery », corrigé le 2026-10-31) |
 | 5 | Progression card+batch+globale + ETA | `wama-eta`, `_global_progress`, seeding |
 | 6 | Modale = champs générés + pied commun + flag `restart` | WamaParams + `_settings_modal_footer` |
 | 7 | Volet = champs générés + câblage initFromSchema | WamaParams(panel) + WamaInspector |
@@ -103,8 +120,8 @@
 | 12 | Duplicate/delete sûrs, clear_all, download_all | `queue_duplication` |
 | 13 | Export multi-format (late si master, early sinon) | `output_format_params_for_app` |
 | 14 | Réglages user persistés (get/save) + profils si déclaré | pattern settings |
-| 15 | Console + aide/à-propos | `console.js`, HelpView |
+| 15 | Console + aide/à-propos | `console.js`, `AppHelpView` / `AppAboutView` (`common/views.py:1876-1880`, ex-`HelpView`, corrigé le 2026-10-31) |
 | 16 | Connexion assistant/méta-app dans le registre CENTRAL `wama/tool_api.py` (TOOL_REGISTRY — pas de fichier par app) + `PROMPT_TARGETS` si prompts | A4/A5 |
 | 17 | Conformité `/apps/` mise à jour (flags = réalité) | app_registry |
-| 18 | Manipulation directe file (quand briquée) | §5 ci-dessus |
+| 18 | Manipulation directe file | `queue_manipulation.make_queue_manipulation_views` (`common/utils/queue_manipulation.py:218`, briquée — relevé le 2026-10-31) ; §5 ci-dessus |
 | 19 | Appariement entrées⇄modèles (si entrées différenciantes : référence, etc.) | `WamaInputMatch` + `capabilities.inputs_*` + slot `show_reference` |
