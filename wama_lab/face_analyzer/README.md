@@ -36,7 +36,7 @@ Détection de visage : **MediaPipe**. Le backend émotions se choisit dans l'int
 (« Backend émotions : FER (rapide) / DeepFace (complet) », « Âge & Genre » activable en DeepFace).
 **Défaut : DeepFace** (`PipelineConfig.emotion_backend`, `pipeline.py:48`). Le choix est appliqué
 en temps réel (`views.py:766-777`) **et en mode vidéo** depuis le 2026-10-31 : `video.html:613-614`
-l'envoie, la config de session le garde (`views.py:121-124`, moteur inconnu → DeepFace) et la tâche
+l'envoie, la config de session le garde (`views.py:121-123` ; un moteur inconnu, le backend le ramène à FER — `emotions.py:203-206`) et la tâche
 le passe au pipeline (`tasks.py:113-114`). Jusque-là le mode vidéo jetait le choix et tournait
 toujours sur DeepFace avec âge et genre. Garde : `tests.EmotionBackendReachesTheVideoTaskTest`
 (contre-épreuve faite : la tâche ou la vue privée du choix → rouge).

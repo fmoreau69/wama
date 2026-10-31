@@ -196,9 +196,11 @@ class EmotionBackendReachesTheVideoTaskTest(TestCase):
         self.assertEqual(session.config['emotion_backend'], 'fer')
         self.assertIs(session.config['enable_age_gender'], False)
 
-    def test_an_unknown_engine_falls_back_to_the_default(self):
-        """Counter-check: what is stored is a known engine, never the raw posted text."""
-        session = self._create(emotion_backend='not-an-engine')
+    def test_a_form_without_the_choice_keeps_the_pipeline_defaults(self):
+        """Counter-check: nothing posted, the defaults of `PipelineConfig` (DeepFace, age and
+        gender on). What an UNKNOWN engine becomes is the backend's rule (`emotions.py`), not
+        the view's."""
+        session = self._create()
         self.assertEqual(session.config['emotion_backend'], 'deepface')
         self.assertIs(session.config['enable_age_gender'], True)
 
